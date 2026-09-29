@@ -143,6 +143,8 @@ export interface TraitDecl {
   readonly name: string;
   readonly genericParameters: readonly string[];
   readonly supertraits: readonly TypeRef[];
+  /** Associated type bindings in the supertrait list, as in `trait C < Add[Self, Out = Self]`. */
+  readonly supertraitBindings?: readonly AssociatedTypeBinding[];
   readonly associatedTypes: readonly AssociatedTypeDecl[];
   readonly methods: readonly MethodDecl[];
   readonly doc?: string;
@@ -151,6 +153,8 @@ export interface TraitDecl {
    * of the standard `Walker`, `Describer`, and `Source` (14 Typed Derivation).
    */
   readonly strengthenableMembers?: readonly string[];
+  /** The qualified name of a std trait, such as `std.ops.Add`, whatever its local name. */
+  readonly standardName?: string;
   /** Declared by the standard library (`lib/std/`), which declares prelude names such as `DataShape`. */
   readonly standard?: boolean;
   /** Decorator lines before the trait (14 Prefix Decorators). */
@@ -445,6 +449,8 @@ export type Statement =
       readonly value: Expression;
       /** Written with the copy assignment `...=` (VE-S). */
       readonly copy?: boolean;
+      /** The operator of a compound assignment `name op= value`, such as `+`. */
+      readonly compound?: string;
       readonly span: SourceSpan;
     }
   | {
@@ -452,6 +458,7 @@ export type Statement =
       readonly target: Extract<Expression, { kind: "member" }>;
       readonly value: Expression;
       readonly copy?: boolean;
+      readonly compound?: string;
       readonly span: SourceSpan;
     }
   | {
@@ -459,6 +466,7 @@ export type Statement =
       readonly target: Extract<Expression, { kind: "index" }>;
       readonly value: Expression;
       readonly copy?: boolean;
+      readonly compound?: string;
       readonly span: SourceSpan;
     }
   | { readonly kind: "discard"; readonly value: Expression; readonly span: SourceSpan }

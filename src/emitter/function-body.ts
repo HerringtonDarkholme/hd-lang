@@ -49,7 +49,7 @@ import {
 } from "./shared.ts";
 import { DataEmitter } from "./data.ts";
 import { scalarWasm } from "./scalars.ts";
-import { integerConstant } from "./sized-numeric.ts";
+import { integerConstant, shiftCount } from "./sized-numeric.ts";
 
 export abstract class FunctionBodyEmitter extends DataEmitter {
   protected abstract emitLinearContinuation(
@@ -401,7 +401,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       }
       case "binary": {
         const left = this.emitExpression(expression.left);
-        const right = this.emitExpression(expression.right);
+        const right = shiftCount(expression, this.emitExpression(expression.right));
         if (expression.operator === "is") {
           if (expression.left.type.startsWith("trait:")) {
             const trait = this.traitsByName.get(traitTypeBase(expression.left.type))!;

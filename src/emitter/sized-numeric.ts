@@ -1,4 +1,4 @@
-import type { ValueType } from "../hir.ts";
+import type { HirExpression, ValueType } from "../hir.ts";
 import { numericType, type NumericType } from "../numeric.ts";
 import type { RuntimePanicName } from "../runtime-panic.ts";
 
@@ -19,6 +19,8 @@ export interface SizedNumericContext {
   ): string;
   /** Records that the module imports `pow_f64`. */
   useFloatPower(): void;
+  /** Records that the module imports `rem_f64`, the truncated floating remainder. */
+  useFloatRemainder(): void;
 }
 
 /** The types these helpers handle; `i32`, `i64`, and `f64` keep their own paths. */
@@ -128,6 +130,11 @@ export function emitSizedBinary(
       context.useFloatPower();
       return `(f32.demote_f64 (call $hd.pow_f64 (f64.promote_f32 ${left}) (f64.promote_f32 ${right})))`;
     }
+    // The f64 remainder of two f32 values is exact, so demoting it is too.
+    if (operator === "%") {
+      context.useFloatRemainder();
+      return `(f32.demote_f64 (call $hd.rem_f64 (f64.promote_f32 ${left}) (f64.promote_f32 ${right})))`;
+    }
     const float: Readonly<Record<string, string>> = {
       "+": "add",
       "-": "sub",
@@ -171,7 +178,7 @@ export function emitSizedBinary(
     if (numeric.bits === 8 || numeric.bits === 16)
       return unsigned
         ? `(i32.and ${shifted} ${i32Constant(numeric.maximum!)})`
-        : `(i32.extend${numeric.bits}_s ${shifted})`;
+        : `(i32.shr_s (i32.shl ${shifted} (i32.const ${32 - numeric.bits})) (i32.const ${32 - numeric.bits}))`;
     return shifted;
   }
   if (operator === "/" || operator === "%") {
@@ -195,4 +202,23 @@ export function emitSizedBinary(
   if (type === "u32")
     return `(call $hd.check_u32 (i64.${name} (i64.extend_i32_u ${left}) (i64.extend_i32_u ${right})))`;
   return checkNarrow(`(i32.${name} ${left} ${right})`, type);
+}
+
+/**
+ * A shift count of another integer type than the shifted value, in the
+ * value's Wasm type (spec/05-expressions.md#shifts). An `i64` count is
+ * range-checked before it narrows, and a signed count extends with its sign,
+ * so a negative or oversized count still panics.
+ */
+export function shiftCount(
+  expression: Extract<HirExpression, { kind: "binary" }>,
+  count: string,
+): string {
+  if (expression.operator !== "<<" && expression.operator !== ">>") return count;
+  const value = numericType(expression.left.type)?.wasm;
+  const counted = numericType(expression.right.type);
+  if (!value || !counted || counted.wasm === value) return count;
+  if (value === "i64")
+    return `(i64.extend_i32_${counted.family === "unsigned" ? "u" : "s"} ${count})`;
+  return `(i32.wrap_i64 (call $hd.check_shift_i64 ${count}))`;
 }

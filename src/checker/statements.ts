@@ -7,6 +7,7 @@ import {
   mutableInner,
   nominalGenericParts,
   optionalInner,
+  readonlyType,
   resultParts,
   storedSuspensionParts,
   suspensionParts,
@@ -18,6 +19,12 @@ import { CheckerContext, PRELUDE_NAMES } from "./context.ts";
 import { statementsReferenceName } from "./shared.ts";
 
 export abstract class StatementChecker extends CheckerContext {
+  /** `r[k] = v` on a receiver other than `List` and `Map`, through `IndexSet`. */
+  protected abstract indexSetCall(
+    statement: Extract<Statement, { kind: "index-assignment" }>,
+    receiver: HirExpression,
+  ): HirExpression;
+
   /** `place.field = value` and `place.Part ...= value`; see `expression-data.ts`. */
   protected abstract checkFieldAssignment(
     statement: Extract<Statement, { kind: "field-assignment" }>,
@@ -129,6 +136,13 @@ export abstract class StatementChecker extends CheckerContext {
         if (statement.copy) this.failCopyIntoOrdinaryPlace(statement.span);
         const receiver = this.checkExpression(statement.target.receiver);
         const mutableReceiver = mutableInner(receiver.type);
+        const builtInReceiver = nominalGenericParts(readonlyType(receiver.type))?.name;
+        if (builtInReceiver !== "List" && builtInReceiver !== "Map")
+          return {
+            kind: "expression",
+            expression: this.indexSetCall(statement, receiver),
+            span: statement.span,
+          };
         if (mutableReceiver === undefined) {
           this.fail(
             "readonly-root",
@@ -188,11 +202,14 @@ export abstract class StatementChecker extends CheckerContext {
             span: statement.span,
           };
         }
-        this.fail(
-          "not-indexable",
-          `type '${receiver.type}' does not support indexed assignment`,
-          statement.target.receiver.span,
-        );
+        // Any other receiver stores through `IndexSet[K, V]::index_set`,
+        // and is a place only when it implements `IndexSet`
+        // (05-expressions.md#r-expr.index.trait.write, #r-expr.index.trait.place).
+        return {
+          kind: "expression",
+          expression: this.indexSetCall(statement, receiver),
+          span: statement.span,
+        };
       }
       case "discard":
         return {

@@ -812,10 +812,16 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             expression.span,
           );
         }
-        this.fail(
-          "not-indexable",
-          `type '${receiver.type}' does not support indexing`,
-          expression.receiver.span,
+        // Any other receiver reads through `Index[K]::index`
+        // (05-expressions.md#r-expr.index.trait.read).
+        return this.operatorTraitCall(
+          ["Index", "index"],
+          "[]",
+          expression.receiver,
+          receiver,
+          expression.index,
+          expression.span,
+          expected,
         );
       }
       default:

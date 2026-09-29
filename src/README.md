@@ -524,7 +524,8 @@ else`, `break`, `break value`, and `continue`;
   `checker/decorators.ts` from a value of `std.ops.NumSuffix`), and checks
   the ordinary call, so a generic or provider-needing suffix function
   follows the ordinary rules (L20). The marked function's shape, exactly
-  one numeric parameter and no suspension, is checked at its definition as
+  one parameter of a primitive number type or of a type parameter bounded
+  by `std.num.Num`, `Integer`, or `Float`, and no suspension, is checked at its definition as
   `type-mismatch` on the `fn` line (L21, L22, `checker/literal-suffixes.ts`); an
   unmarked function at the literal is `invalid-literal-suffix`. `std.ops` and
   `std.time` (`Duration`, an `i64` count of milliseconds in the
@@ -724,6 +725,16 @@ else`, `break`, `break value`, and `continue`;
   ([Compiler/Library Boundary](#compilerlibrary-boundary)). Every
   host-boundary decoder keeps a leading U+FEFF;
 - non-suspending `defer` on normal completion, return, break, and continue;
+- the `std.ops` operator traits
+  ([Operator Traits](../spec/05-expressions.md#operator-traits)): an operator
+  on primitive operands keeps its built-in code, and any other operand calls
+  the left operand's implementation, found by the trait's qualified name
+  (`HirTrait.standardName`), or its bound's through a supertrait. Compound
+  assignment, `Index` and `IndexSet`, supertrait bindings such as
+  `Add[Self, Out = Self]`, and the sealed `std.num` traits `Num`, `Integer`,
+  and `Float` follow the same path. The primitive implementations are hd
+  code whose bodies are the built-in operators. Floating `%` calls the
+  host's `rem_f64`, JavaScript's truncated remainder;
 - homogeneous `List[T]` literals, indexing, `len()`, and mutable `append()` over
   a growable Wasm GC vector with erased backing storage, plus indexed
   replacement through `mut List[T]`;
@@ -789,6 +800,11 @@ the prototype compiles:
   among them;
 - such a method's body adds only the module declarations it reaches, such
   as `std.text`'s byte primitives, not the whole module;
+- a std trait's implementation for a built-in type, such as the primitive
+  `impl Add[i32] for i32` of `std.ops` or `impl Num for i32` of `std.num`,
+  is added only when the program, or a std declaration it gets, names the
+  trait, so that `use std.ops.num_suffix` does not add every operator
+  implementation;
 - every added declaration's span is the `use` that brought it in, or the
   program's span.
 
@@ -804,11 +820,11 @@ What it provides:
 | `std.text` | on `string`: `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
 | `std.iter` | `range`, and the adapters `map_each`, `filter`, `take`, `enumerate`, `collect`, `fold` as free functions |
 | `std.cmp` | `min`, `max`, `clamp`, `Reverse[T]` |
-| `std.num` | on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
+| `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
-| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template` |
+| `std.ops` | the twelve operator traits, the ten assign traits, `Index`, and `IndexSet`, with the primitive implementations of the operator traits; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template` |
 | `std.format` | `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and pairs |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives and `string`), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
 
@@ -903,7 +919,7 @@ marks what this refactor removed.
 | Checker | `block_on`, `all!`, `race!`, `shape`, `shape_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `shape` and `shape_of` lower to calls of generated hd builders over `lib/std/annotation.hd`, with no HIR node |
 | Checker | `Duration` for test `timeout`, `ExitCode` and `Termination` for entry results (`standard-traits.ts`, `termination.ts`) | `std.time`, `std.process` | Remains: language hooks that name a std type; the declarations are already hd |
 | Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterator`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Remains: operators, `for`, and interpolation are wired to them |
-| Emitter | `float.wat` and the `format_f64`, `format_f32`, and `pow_f64` imports | float display and `**` | Remains: operator and interpolation support |
+| Emitter | `float.wat` and the `format_f64`, `format_f32`, `pow_f64`, and `rem_f64` imports | float display, `**`, and floating `%` | Remains: operator and interpolation support |
 
 Counts: the HIR expression union had 92 kinds, of which 15 were library-
 or capability-specific. The string step removed 5, the `println` step 1,

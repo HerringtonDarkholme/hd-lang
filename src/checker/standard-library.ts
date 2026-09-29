@@ -98,11 +98,25 @@ export function hiddenStandardName(module: string, name: string): string {
   return `__std_${module}_${name}`;
 }
 
-function builtInTarget(implementation: ImplDecl): boolean {
-  if (implementation.traitName !== undefined) return false;
+function builtInBase(implementation: ImplDecl): boolean {
   const target = implementation.targetName;
   const base = target.endsWith("?") ? "?" : (target.split("[")[0] ?? target);
   return base === "?" || base === "Result" || BUILT_IN_TARGETS.has(base);
+}
+
+function builtInTarget(implementation: ImplDecl): boolean {
+  return implementation.traitName === undefined && builtInBase(implementation);
+}
+
+/**
+ * A std trait implementation for a built-in type, such as the primitive
+ * `impl Add[i32] for i32` of `std.ops`. It is declared only when the program,
+ * or a std declaration it gets, names the trait, so that a program which
+ * imports some other `std.ops` name does not compile every operator
+ * implementation.
+ */
+function builtInTraitImplementation(implementation: ImplDecl): boolean {
+  return implementation.traitName !== undefined && builtInBase(implementation);
 }
 
 /**
@@ -259,6 +273,10 @@ function withStandardNames(renamed: Program, original: ParsedModule): Program {
     data: renamed.data.map((declaration, index) => ({
       ...declaration,
       standardName: `std.${original.name}.${original.program.data[index]!.name}`,
+    })),
+    traits: renamed.traits.map((declaration, index) => ({
+      ...declaration,
+      standardName: `std.${original.name}.${original.program.traits[index]!.name}`,
     })),
   };
 }
@@ -457,6 +475,33 @@ export function withStandardLibrary(source: Program): Program {
   }
   if (spans.size === 0 && chosen.size === 0) return program;
 
+  // The trait names that decide which built-in trait implementations are
+  // declared: those the program mentions, and those the kept std
+  // declarations mention, apart from each trait's own name.
+  const traitMentions = new Set(mentionedByProgram);
+  for (const module of STANDARD_MODULES) {
+    if (!spans.has(module)) continue;
+    const renamed = moduleProgram(module);
+    const whole = included.has(module);
+    for (const item of declarationsOf(renamed)) {
+      if (!whole && !reached.has(item.name)) continue;
+      const { name: _name, ...rest } = item;
+      mentionedNames(rest, traitMentions);
+    }
+    for (const implementation of renamed.implementations)
+      if (
+        !builtInTarget(implementation) &&
+        !builtInTraitImplementation(implementation) &&
+        (whole || implementationDeclared(implementation))
+      )
+        mentionedNames(implementation, traitMentions);
+  }
+  const keepImplementation = (implementation: ImplDecl, whole: boolean): boolean =>
+    !builtInTarget(implementation) &&
+    (whole || implementationDeclared(implementation)) &&
+    (!builtInTraitImplementation(implementation) ||
+      traitMentions.has(baseName(implementation.traitName!)));
+
   // Module declarations, each respanned to the use that included the module.
   const types = [...(program.types ?? [])];
   const data = [...program.data];
@@ -482,10 +527,7 @@ export function withStandardLibrary(source: Program): Program {
     implementations.push(
       ...respan(
         renamed.implementations
-          .filter(
-            (implementation) =>
-              !builtInTarget(implementation) && (whole || implementationDeclared(implementation)),
-          )
+          .filter((implementation) => keepImplementation(implementation, whole))
           // `std` owns its prelude traits, so its impls are never orphans.
           .map((implementation) => ({ ...implementation, standard: true })),
         span,

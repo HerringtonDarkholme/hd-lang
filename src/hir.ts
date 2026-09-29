@@ -88,10 +88,14 @@ export interface HirSupertrait {
   readonly traitIndex: number;
   readonly traitName: string;
   readonly traitArguments: readonly ValueType[];
+  /** `Name = type` bindings in the supertrait list, where `type` may name `generic:Self`. */
+  readonly associatedBindings?: readonly HirAssociatedBinding[];
 }
 
 export interface HirTrait {
   readonly name: string;
+  /** The qualified name of a std trait, such as `std.ops.Add`. */
+  readonly standardName?: string;
   readonly index: number;
   readonly genericParameters: readonly string[];
   readonly supertraits: readonly HirSupertrait[];
@@ -378,6 +382,12 @@ export type HirEqualityDispatch =
       readonly traitIndex: number;
       readonly methodIndex: number;
       readonly boundIndex: number;
+      /**
+       * Set when the bound's trait reaches `traitIndex` only as a supertrait,
+       * as `T < Integer` reaches `PartialOrd`: the bound's own trait and the
+       * supertrait fields from its dictionary to the compared one.
+       */
+      readonly via?: { readonly traitIndex: number; readonly path: readonly number[] };
     };
 
 export interface HirBuiltinEqualityStrategy {

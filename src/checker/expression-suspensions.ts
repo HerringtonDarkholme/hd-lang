@@ -9,8 +9,8 @@ import {
 } from "../types.ts";
 import { substituteGenericType } from "./shared.ts";
 
-import { ExpressionCallChecker } from "./expression-calls.ts";
-export abstract class ExpressionSuspensionChecker extends ExpressionCallChecker {
+import { OperatorCallChecker } from "./operator-calls.ts";
+export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
   protected checkSuspendingCallExpression(
     expression: Expression,
     expected?: ValueType,

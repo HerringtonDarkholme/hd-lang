@@ -1443,6 +1443,9 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     emitter.requiresFloatPower
       ? `  (import "hd" "pow_f64" (func $hd.pow_f64 (param f64 f64) (result f64)))`
       : "",
+    emitter.requiresFloatRemainder
+      ? `  (import "hd" "rem_f64" (func $hd.rem_f64 (param f64 f64) (result f64)))`
+      : "",
     emitter.requiresFloatDisplay
       ? `  (import "hd" "format_f64" (func $hd.format_f64 (param f64 i32) (result i32)))\n  (import "hd" "format_f32" (func $hd.format_f32 (param f64 i32) (result i32)))`
       : "",

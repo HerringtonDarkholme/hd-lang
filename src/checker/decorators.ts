@@ -32,6 +32,12 @@ export const STANDARD_ANNOTATE = "std.annotation.Annotate";
 export const STANDARD_NUM_SUFFIX = "std.ops.NumSuffix";
 export const STANDARD_STR_PREFIX = "std.ops.StrPrefix";
 export const STANDARD_TEMPLATE = "std.ops.Template";
+/** The numeric traits that may bound a generic suffix parameter (r-expr.suffix.fn-shape-param). */
+const STANDARD_NUMERIC_TRAITS: ReadonlySet<string> = new Set([
+  "std.num.Num",
+  "std.num.Integer",
+  "std.num.Float",
+]);
 
 /** A target kind: a variant of `std.annotation.Target`. */
 type TargetKind =
@@ -230,7 +236,14 @@ export function suffixMarkerDiagnostics(program: Program): Diagnostic[] {
   const templates = new Set(
     program.data.filter((item) => item.standardName === STANDARD_TEMPLATE).map((item) => item.name),
   );
-  return markerShapeDiagnostics(program.functions, templates);
+  const numericTraits = new Set(
+    program.traits
+      .filter(
+        (item) => item.standardName !== undefined && STANDARD_NUMERIC_TRAITS.has(item.standardName),
+      )
+      .map((item) => item.name),
+  );
+  return markerShapeDiagnostics(program.functions, templates, numericTraits);
 }
 
 // ---------------------------------------------------------------------------

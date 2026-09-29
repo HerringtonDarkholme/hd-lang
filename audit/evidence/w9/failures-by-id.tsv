@@ -1,22 +1,13 @@
 id	count	title
 F-250	15	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
-OP9	9	The prototype has no std.num traits, still rejects floating %, and its @num_suffix shape check requires a primitive parameter type
-OP5	8	The prototype parser has no compound assignment, and its lexer lacks the new compound assignment tokens
 STD14	5	The prototype's prelude Iterator declares only next: filter, take, enumerate, and collect are free functions in its std.iter, not default methods
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
-OP7	4	The prototype's std.ops declares no Index or IndexSet, and indexing is built in for List and Map only
-OP8	4	The prototype parser rejects an associated type binding in a supertrait list
-OP2	3	The prototype's std declares no operator traits, so primitives implement none and generic operator bounds fail
 TQ-2	2	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks
 F-150	2	Entry-point cases use a private declaration in `pub fn main`, so they also report `private-type-leak`
-OP1	2	The prototype's std.ops declares no operator traits, so operators on user types are rejected
-OP3	2	The bitwise and shift operator traits are missing, and `**` on a data operand reports mixed-numeric-types
 M29	1	Typed derivation M29's per-trait Self-line warning needs a second package, and the prototype CLI has no package roles
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer
 RU12	1	A spread of function lists does not take the union row: the prototype checks a spread literal as a list of lists
 RU15	1	A function whose result is a function type with a row fails Wasm validation: the signature type string reads the inner row as the outer function's, so a closure result with the union row cannot run
-OP4	1	The left-literal fixture cannot reach its type-mismatch: the prototype has no Mul trait to implement
-OP6	1	Hand-written newtype operators need the std.ops operator traits, which the prototype lacks

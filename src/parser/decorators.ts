@@ -1,8 +1,15 @@
-import type { Decorators, Expression, MemberLine, TypeDecl, TypeRef } from "../ast.ts";
+import type {
+  AssociatedTypeBinding,
+  Decorators,
+  Expression,
+  MemberLine,
+  TypeDecl,
+  TypeRef,
+} from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { ExpressionParser } from "./expression.ts";
 
-// Decorators and member lines (spec/02-grammar.md#annotations and
+// Decorators, member lines, and trait bounds (spec/02-grammar.md#annotations and
 // #r-grammar.impl.derivation-line), shared by the declaration parser.
 export abstract class DecoratorParser extends ExpressionParser {
   // Whether the decorator lines here precede a data, enum, function, trait,
@@ -163,5 +170,79 @@ export abstract class DecoratorParser extends ExpressionParser {
       value,
       span: { start: name.span.start, end: value.span.end },
     };
+  }
+
+  protected parseTraitBoundNames(bindings: AssociatedTypeBinding[] = []): string[] {
+    const mutable = this.matchText("mut");
+    const traits: string[] = [];
+    do {
+      const trait = this.boundHasBindings()
+        ? this.parseBoundTraitWithBindings(bindings)
+        : this.parseType();
+      traits.push(mutable ? `mut:${trait.name}` : trait.name);
+    } while (this.matchBoundJoiner());
+    return traits;
+  }
+
+  // Several bounds are joined with `&`; `+` is the former spelling
+  // (02-grammar.md#r-grammar.generic.bound.old-plus).
+  protected matchBoundJoiner(): boolean {
+    if (this.atText("+"))
+      this.fail(
+        "old-bound-operator",
+        "several bounds are joined with '&': write 'A & B'",
+        this.current().span,
+      );
+    return this.matchText("&");
+  }
+
+  /** True at `Trait[..., Name = type]`: a bound trait with associated type bindings. */
+  protected boundHasBindings(): boolean {
+    if (this.current().kind !== "identifier" || this.peek(1).text !== "[") return false;
+    let depth = 0;
+    for (let distance = 1; ; distance += 1) {
+      const token = this.peek(distance);
+      if (token.kind === "eof" || token.kind === "newline") return false;
+      if (token.text === "[" || token.text === "(") depth += 1;
+      else if (token.text === "]" || token.text === ")") {
+        depth -= 1;
+        if (depth === 0) return false;
+      } else if (depth === 1 && token.kind === "identifier" && this.peek(distance + 1).text === "=")
+        return true;
+    }
+  }
+
+  protected parseBoundTraitWithBindings(bindings: AssociatedTypeBinding[]): TypeRef {
+    const name = this.expectKind("identifier", "expected a trait name");
+    this.expectText("[");
+    const positional: TypeRef[] = [];
+    const own: Omit<AssociatedTypeBinding, "trait">[] = [];
+    while (!this.atText("]")) {
+      if (this.current().kind === "identifier" && this.peek(1).text === "=") {
+        const binding = this.advance();
+        this.advance();
+        const type = this.parseType();
+        own.push({
+          name: binding.text,
+          type,
+          span: { start: binding.span.start, end: type.span.end },
+        });
+      } else {
+        if (own.length > 0)
+          this.fail(
+            "syntax-error",
+            "positional trait arguments must precede associated type bindings",
+            this.current().span,
+          );
+        positional.push(this.parseType());
+      }
+      if (!this.matchText(",")) break;
+    }
+    const close = this.expectText("]");
+    const rendered = positional.length
+      ? `${name.text}[${positional.map((argument) => argument.name).join(",")}]`
+      : name.text;
+    for (const binding of own) bindings.push({ ...binding, trait: rendered });
+    return { name: rendered, span: { start: name.span.start, end: close.span.end } };
   }
 }

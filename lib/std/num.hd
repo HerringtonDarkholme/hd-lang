@@ -1,7 +1,90 @@
-# std.num: integer arithmetic variants and parsing (future-work/STDLIB.md#stdnum).
-# Overflow is checked by default; these methods make the other behaviors
-# explicit. The prototype has the integer types `i32`, `i64`, and `u8`, and
-# declares the methods for `i32` and `i64`.
+# std.num: the numeric traits, integer arithmetic variants, and parsing
+# (future-work/STDLIB.md#stdnum).
+# Overflow is checked by default; the arithmetic methods make the other
+# behaviors explicit. They are declared for `i32` and `i64` only.
+use std.ops.{Add, BitAnd, BitNot, BitOr, BitXor, Div, Mul, Neg, Rem, Shl, Shr, Sub}
+
+# The numeric traits (spec/09-traits.md#numeric-traits). They are sealed:
+# only these implementations exist, one per primitive number type
+# (r-trait.num.sealed). `from_i64` converts as the cast `T(n)` does.
+pub trait Num < AnyVal & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Self, Out = Self] & Div[Self, Out = Self] & Rem[Self, Out = Self]:
+    fn zero() -> Self
+    fn one() -> Self
+    fn from_i64(n: i64) -> Self
+
+pub trait Integer < Num & Ord & BitAnd[Self, Out = Self] & BitOr[Self, Out = Self] & BitXor[Self, Out = Self] & BitNot[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]
+
+pub trait Float < Num & PartialOrd & Neg[Out = Self]
+
+impl Num for i8:
+    fn zero() -> i8: 0
+    fn one() -> i8: 1
+    fn from_i64(n: i64) -> i8: i8(n)
+
+impl Num for i16:
+    fn zero() -> i16: 0
+    fn one() -> i16: 1
+    fn from_i64(n: i64) -> i16: i16(n)
+
+impl Num for i32:
+    fn zero() -> i32: 0
+    fn one() -> i32: 1
+    fn from_i64(n: i64) -> i32: i32(n)
+
+impl Num for i64:
+    fn zero() -> i64: 0
+    fn one() -> i64: 1
+    fn from_i64(n: i64) -> i64: i64(n)
+
+impl Num for u8:
+    fn zero() -> u8: 0
+    fn one() -> u8: 1
+    fn from_i64(n: i64) -> u8: u8(n)
+
+impl Num for u16:
+    fn zero() -> u16: 0
+    fn one() -> u16: 1
+    fn from_i64(n: i64) -> u16: u16(n)
+
+impl Num for u32:
+    fn zero() -> u32: 0
+    fn one() -> u32: 1
+    fn from_i64(n: i64) -> u32: u32(n)
+
+impl Num for u64:
+    fn zero() -> u64: 0
+    fn one() -> u64: 1
+    fn from_i64(n: i64) -> u64: u64(n)
+
+impl Num for f32:
+    fn zero() -> f32: 0.0
+    fn one() -> f32: 1.0
+    fn from_i64(n: i64) -> f32: f32(n)
+
+impl Num for f64:
+    fn zero() -> f64: 0.0
+    fn one() -> f64: 1.0
+    fn from_i64(n: i64) -> f64: f64(n)
+
+impl Integer for i8
+
+impl Integer for i16
+
+impl Integer for i32
+
+impl Integer for i64
+
+impl Integer for u8
+
+impl Integer for u16
+
+impl Integer for u32
+
+impl Integer for u64
+
+impl Float for f32
+
+impl Float for f64
 
 pub enum ParseNumberError:
     Empty

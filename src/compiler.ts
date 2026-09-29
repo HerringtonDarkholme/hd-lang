@@ -621,6 +621,8 @@ export async function instantiate(
       trace: options.trace ?? (() => undefined),
       pending,
       pow_f64: Math.pow,
+      // JavaScript `%` on numbers is the truncated remainder of C `fmod`.
+      rem_f64: (left: number, right: number) => left % right,
       format_f64: (value: number, index: number) => {
         const bytes = textEncoder.encode(displayF64(value));
         return index < 0 ? bytes.length : bytes[index]!;

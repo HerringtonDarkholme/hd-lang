@@ -1,4 +1,5 @@
-# std.ops: the literal-suffix and string-prefix markers
+# std.ops: the operator, assign, and index traits, and the literal-suffix
+# and string-prefix markers
 # (spec/05-expressions.md#literal-suffixes, #prefixed-strings) and
 # `Template`. The raw-text prefix `r` and the prefix helpers `interpolate`,
 # `process_escapes`, and `EscapeError` are in `std.text` (Literal Suffixes
@@ -28,3 +29,967 @@ pub fn str_prefix() -> StrPrefix:
 pub data Template[T]:
     pub raw_parts: List[string]
     pub values: List[T]
+
+# The operator traits (spec/05-expressions.md#operator-traits). An operator
+# on a primitive operand never searches them; any other operand calls the
+# left operand's implementation (r-expr.op.desugar).
+pub trait Add[Rhs]:
+    type Out
+    fn add(self, rhs: Rhs) -> Self::Out
+
+pub trait Sub[Rhs]:
+    type Out
+    fn sub(self, rhs: Rhs) -> Self::Out
+
+pub trait Mul[Rhs]:
+    type Out
+    fn mul(self, rhs: Rhs) -> Self::Out
+
+pub trait Div[Rhs]:
+    type Out
+    fn div(self, rhs: Rhs) -> Self::Out
+
+pub trait Rem[Rhs]:
+    type Out
+    fn rem(self, rhs: Rhs) -> Self::Out
+
+pub trait Neg:
+    type Out
+    fn neg(self) -> Self::Out
+
+pub trait BitAnd[Rhs]:
+    type Out
+    fn bit_and(self, rhs: Rhs) -> Self::Out
+
+pub trait BitOr[Rhs]:
+    type Out
+    fn bit_or(self, rhs: Rhs) -> Self::Out
+
+pub trait BitXor[Rhs]:
+    type Out
+    fn bit_xor(self, rhs: Rhs) -> Self::Out
+
+pub trait BitNot:
+    type Out
+    fn bit_not(self) -> Self::Out
+
+pub trait Shl[Rhs]:
+    type Out
+    fn shl(self, rhs: Rhs) -> Self::Out
+
+pub trait Shr[Rhs]:
+    type Out
+    fn shr(self, rhs: Rhs) -> Self::Out
+
+# The assign traits of compound assignment
+# (spec/05-expressions.md#compound-assignment). No primitive implements one
+# (r-expr.assign.compound.primitive-no-trait).
+
+pub trait AddAssign[Rhs]:
+    fn add_assign(mut self, rhs: Rhs) -> void
+
+pub trait SubAssign[Rhs]:
+    fn sub_assign(mut self, rhs: Rhs) -> void
+
+pub trait MulAssign[Rhs]:
+    fn mul_assign(mut self, rhs: Rhs) -> void
+
+pub trait DivAssign[Rhs]:
+    fn div_assign(mut self, rhs: Rhs) -> void
+
+pub trait RemAssign[Rhs]:
+    fn rem_assign(mut self, rhs: Rhs) -> void
+
+pub trait BitAndAssign[Rhs]:
+    fn bit_and_assign(mut self, rhs: Rhs) -> void
+
+pub trait BitOrAssign[Rhs]:
+    fn bit_or_assign(mut self, rhs: Rhs) -> void
+
+pub trait BitXorAssign[Rhs]:
+    fn bit_xor_assign(mut self, rhs: Rhs) -> void
+
+pub trait ShlAssign[Rhs]:
+    fn shl_assign(mut self, rhs: Rhs) -> void
+
+pub trait ShrAssign[Rhs]:
+    fn shr_assign(mut self, rhs: Rhs) -> void
+
+# `r[k]` and `r[k] = v` on a type other than `List` and `Map`
+# (spec/05-expressions.md#index-traits).
+pub trait Index[K]:
+    type Out
+    fn index(self, key: K) -> Self::Out
+
+pub trait IndexSet[K, V]:
+    fn index_set(mut self, key: K, value: V) -> void
+
+# The primitive implementations (spec/05-expressions.md#primitive-implementations).
+# Each body is the built-in operator on primitive operands, so it behaves as
+# that operator does, including checked overflow and its panics
+# (r-expr.op.std.intrinsic). The loader declares a trait's primitive
+# implementations only for a program that names the trait.
+
+impl Add[i8] for i8:
+    type Out = i8
+    fn add(self, rhs: i8) -> i8: self + rhs
+
+impl Sub[i8] for i8:
+    type Out = i8
+    fn sub(self, rhs: i8) -> i8: self - rhs
+
+impl Mul[i8] for i8:
+    type Out = i8
+    fn mul(self, rhs: i8) -> i8: self * rhs
+
+impl Div[i8] for i8:
+    type Out = i8
+    fn div(self, rhs: i8) -> i8: self / rhs
+
+impl Rem[i8] for i8:
+    type Out = i8
+    fn rem(self, rhs: i8) -> i8: self % rhs
+
+impl Add[i16] for i16:
+    type Out = i16
+    fn add(self, rhs: i16) -> i16: self + rhs
+
+impl Sub[i16] for i16:
+    type Out = i16
+    fn sub(self, rhs: i16) -> i16: self - rhs
+
+impl Mul[i16] for i16:
+    type Out = i16
+    fn mul(self, rhs: i16) -> i16: self * rhs
+
+impl Div[i16] for i16:
+    type Out = i16
+    fn div(self, rhs: i16) -> i16: self / rhs
+
+impl Rem[i16] for i16:
+    type Out = i16
+    fn rem(self, rhs: i16) -> i16: self % rhs
+
+impl Add[i32] for i32:
+    type Out = i32
+    fn add(self, rhs: i32) -> i32: self + rhs
+
+impl Sub[i32] for i32:
+    type Out = i32
+    fn sub(self, rhs: i32) -> i32: self - rhs
+
+impl Mul[i32] for i32:
+    type Out = i32
+    fn mul(self, rhs: i32) -> i32: self * rhs
+
+impl Div[i32] for i32:
+    type Out = i32
+    fn div(self, rhs: i32) -> i32: self / rhs
+
+impl Rem[i32] for i32:
+    type Out = i32
+    fn rem(self, rhs: i32) -> i32: self % rhs
+
+impl Add[i64] for i64:
+    type Out = i64
+    fn add(self, rhs: i64) -> i64: self + rhs
+
+impl Sub[i64] for i64:
+    type Out = i64
+    fn sub(self, rhs: i64) -> i64: self - rhs
+
+impl Mul[i64] for i64:
+    type Out = i64
+    fn mul(self, rhs: i64) -> i64: self * rhs
+
+impl Div[i64] for i64:
+    type Out = i64
+    fn div(self, rhs: i64) -> i64: self / rhs
+
+impl Rem[i64] for i64:
+    type Out = i64
+    fn rem(self, rhs: i64) -> i64: self % rhs
+
+impl Add[u8] for u8:
+    type Out = u8
+    fn add(self, rhs: u8) -> u8: self + rhs
+
+impl Sub[u8] for u8:
+    type Out = u8
+    fn sub(self, rhs: u8) -> u8: self - rhs
+
+impl Mul[u8] for u8:
+    type Out = u8
+    fn mul(self, rhs: u8) -> u8: self * rhs
+
+impl Div[u8] for u8:
+    type Out = u8
+    fn div(self, rhs: u8) -> u8: self / rhs
+
+impl Rem[u8] for u8:
+    type Out = u8
+    fn rem(self, rhs: u8) -> u8: self % rhs
+
+impl Add[u16] for u16:
+    type Out = u16
+    fn add(self, rhs: u16) -> u16: self + rhs
+
+impl Sub[u16] for u16:
+    type Out = u16
+    fn sub(self, rhs: u16) -> u16: self - rhs
+
+impl Mul[u16] for u16:
+    type Out = u16
+    fn mul(self, rhs: u16) -> u16: self * rhs
+
+impl Div[u16] for u16:
+    type Out = u16
+    fn div(self, rhs: u16) -> u16: self / rhs
+
+impl Rem[u16] for u16:
+    type Out = u16
+    fn rem(self, rhs: u16) -> u16: self % rhs
+
+impl Add[u32] for u32:
+    type Out = u32
+    fn add(self, rhs: u32) -> u32: self + rhs
+
+impl Sub[u32] for u32:
+    type Out = u32
+    fn sub(self, rhs: u32) -> u32: self - rhs
+
+impl Mul[u32] for u32:
+    type Out = u32
+    fn mul(self, rhs: u32) -> u32: self * rhs
+
+impl Div[u32] for u32:
+    type Out = u32
+    fn div(self, rhs: u32) -> u32: self / rhs
+
+impl Rem[u32] for u32:
+    type Out = u32
+    fn rem(self, rhs: u32) -> u32: self % rhs
+
+impl Add[u64] for u64:
+    type Out = u64
+    fn add(self, rhs: u64) -> u64: self + rhs
+
+impl Sub[u64] for u64:
+    type Out = u64
+    fn sub(self, rhs: u64) -> u64: self - rhs
+
+impl Mul[u64] for u64:
+    type Out = u64
+    fn mul(self, rhs: u64) -> u64: self * rhs
+
+impl Div[u64] for u64:
+    type Out = u64
+    fn div(self, rhs: u64) -> u64: self / rhs
+
+impl Rem[u64] for u64:
+    type Out = u64
+    fn rem(self, rhs: u64) -> u64: self % rhs
+
+impl Add[f32] for f32:
+    type Out = f32
+    fn add(self, rhs: f32) -> f32: self + rhs
+
+impl Sub[f32] for f32:
+    type Out = f32
+    fn sub(self, rhs: f32) -> f32: self - rhs
+
+impl Mul[f32] for f32:
+    type Out = f32
+    fn mul(self, rhs: f32) -> f32: self * rhs
+
+impl Div[f32] for f32:
+    type Out = f32
+    fn div(self, rhs: f32) -> f32: self / rhs
+
+impl Rem[f32] for f32:
+    type Out = f32
+    fn rem(self, rhs: f32) -> f32: self % rhs
+
+impl Add[f64] for f64:
+    type Out = f64
+    fn add(self, rhs: f64) -> f64: self + rhs
+
+impl Sub[f64] for f64:
+    type Out = f64
+    fn sub(self, rhs: f64) -> f64: self - rhs
+
+impl Mul[f64] for f64:
+    type Out = f64
+    fn mul(self, rhs: f64) -> f64: self * rhs
+
+impl Div[f64] for f64:
+    type Out = f64
+    fn div(self, rhs: f64) -> f64: self / rhs
+
+impl Rem[f64] for f64:
+    type Out = f64
+    fn rem(self, rhs: f64) -> f64: self % rhs
+
+impl Neg for i8:
+    type Out = i8
+    fn neg(self) -> i8: -self
+
+impl Neg for i16:
+    type Out = i16
+    fn neg(self) -> i16: -self
+
+impl Neg for i32:
+    type Out = i32
+    fn neg(self) -> i32: -self
+
+impl Neg for i64:
+    type Out = i64
+    fn neg(self) -> i64: -self
+
+impl Neg for f32:
+    type Out = f32
+    fn neg(self) -> f32: -self
+
+impl Neg for f64:
+    type Out = f64
+    fn neg(self) -> f64: -self
+
+impl BitAnd[i8] for i8:
+    type Out = i8
+    fn bit_and(self, rhs: i8) -> i8: self & rhs
+
+impl BitOr[i8] for i8:
+    type Out = i8
+    fn bit_or(self, rhs: i8) -> i8: self | rhs
+
+impl BitXor[i8] for i8:
+    type Out = i8
+    fn bit_xor(self, rhs: i8) -> i8: self ^ rhs
+
+impl BitNot for i8:
+    type Out = i8
+    fn bit_not(self) -> i8: ~self
+
+impl BitAnd[i16] for i16:
+    type Out = i16
+    fn bit_and(self, rhs: i16) -> i16: self & rhs
+
+impl BitOr[i16] for i16:
+    type Out = i16
+    fn bit_or(self, rhs: i16) -> i16: self | rhs
+
+impl BitXor[i16] for i16:
+    type Out = i16
+    fn bit_xor(self, rhs: i16) -> i16: self ^ rhs
+
+impl BitNot for i16:
+    type Out = i16
+    fn bit_not(self) -> i16: ~self
+
+impl BitAnd[i32] for i32:
+    type Out = i32
+    fn bit_and(self, rhs: i32) -> i32: self & rhs
+
+impl BitOr[i32] for i32:
+    type Out = i32
+    fn bit_or(self, rhs: i32) -> i32: self | rhs
+
+impl BitXor[i32] for i32:
+    type Out = i32
+    fn bit_xor(self, rhs: i32) -> i32: self ^ rhs
+
+impl BitNot for i32:
+    type Out = i32
+    fn bit_not(self) -> i32: ~self
+
+impl BitAnd[i64] for i64:
+    type Out = i64
+    fn bit_and(self, rhs: i64) -> i64: self & rhs
+
+impl BitOr[i64] for i64:
+    type Out = i64
+    fn bit_or(self, rhs: i64) -> i64: self | rhs
+
+impl BitXor[i64] for i64:
+    type Out = i64
+    fn bit_xor(self, rhs: i64) -> i64: self ^ rhs
+
+impl BitNot for i64:
+    type Out = i64
+    fn bit_not(self) -> i64: ~self
+
+impl BitAnd[u8] for u8:
+    type Out = u8
+    fn bit_and(self, rhs: u8) -> u8: self & rhs
+
+impl BitOr[u8] for u8:
+    type Out = u8
+    fn bit_or(self, rhs: u8) -> u8: self | rhs
+
+impl BitXor[u8] for u8:
+    type Out = u8
+    fn bit_xor(self, rhs: u8) -> u8: self ^ rhs
+
+impl BitNot for u8:
+    type Out = u8
+    fn bit_not(self) -> u8: ~self
+
+impl BitAnd[u16] for u16:
+    type Out = u16
+    fn bit_and(self, rhs: u16) -> u16: self & rhs
+
+impl BitOr[u16] for u16:
+    type Out = u16
+    fn bit_or(self, rhs: u16) -> u16: self | rhs
+
+impl BitXor[u16] for u16:
+    type Out = u16
+    fn bit_xor(self, rhs: u16) -> u16: self ^ rhs
+
+impl BitNot for u16:
+    type Out = u16
+    fn bit_not(self) -> u16: ~self
+
+impl BitAnd[u32] for u32:
+    type Out = u32
+    fn bit_and(self, rhs: u32) -> u32: self & rhs
+
+impl BitOr[u32] for u32:
+    type Out = u32
+    fn bit_or(self, rhs: u32) -> u32: self | rhs
+
+impl BitXor[u32] for u32:
+    type Out = u32
+    fn bit_xor(self, rhs: u32) -> u32: self ^ rhs
+
+impl BitNot for u32:
+    type Out = u32
+    fn bit_not(self) -> u32: ~self
+
+impl BitAnd[u64] for u64:
+    type Out = u64
+    fn bit_and(self, rhs: u64) -> u64: self & rhs
+
+impl BitOr[u64] for u64:
+    type Out = u64
+    fn bit_or(self, rhs: u64) -> u64: self | rhs
+
+impl BitXor[u64] for u64:
+    type Out = u64
+    fn bit_xor(self, rhs: u64) -> u64: self ^ rhs
+
+impl BitNot for u64:
+    type Out = u64
+    fn bit_not(self) -> u64: ~self
+
+impl Shl[i8] for i8:
+    type Out = i8
+    fn shl(self, rhs: i8) -> i8: self << rhs
+
+impl Shr[i8] for i8:
+    type Out = i8
+    fn shr(self, rhs: i8) -> i8: self >> rhs
+
+impl Shl[i16] for i8:
+    type Out = i8
+    fn shl(self, rhs: i16) -> i8: self << rhs
+
+impl Shr[i16] for i8:
+    type Out = i8
+    fn shr(self, rhs: i16) -> i8: self >> rhs
+
+impl Shl[i32] for i8:
+    type Out = i8
+    fn shl(self, rhs: i32) -> i8: self << rhs
+
+impl Shr[i32] for i8:
+    type Out = i8
+    fn shr(self, rhs: i32) -> i8: self >> rhs
+
+impl Shl[i64] for i8:
+    type Out = i8
+    fn shl(self, rhs: i64) -> i8: self << rhs
+
+impl Shr[i64] for i8:
+    type Out = i8
+    fn shr(self, rhs: i64) -> i8: self >> rhs
+
+impl Shl[u8] for i8:
+    type Out = i8
+    fn shl(self, rhs: u8) -> i8: self << rhs
+
+impl Shr[u8] for i8:
+    type Out = i8
+    fn shr(self, rhs: u8) -> i8: self >> rhs
+
+impl Shl[u16] for i8:
+    type Out = i8
+    fn shl(self, rhs: u16) -> i8: self << rhs
+
+impl Shr[u16] for i8:
+    type Out = i8
+    fn shr(self, rhs: u16) -> i8: self >> rhs
+
+impl Shl[u32] for i8:
+    type Out = i8
+    fn shl(self, rhs: u32) -> i8: self << rhs
+
+impl Shr[u32] for i8:
+    type Out = i8
+    fn shr(self, rhs: u32) -> i8: self >> rhs
+
+impl Shl[u64] for i8:
+    type Out = i8
+    fn shl(self, rhs: u64) -> i8: self << rhs
+
+impl Shr[u64] for i8:
+    type Out = i8
+    fn shr(self, rhs: u64) -> i8: self >> rhs
+
+impl Shl[i8] for i16:
+    type Out = i16
+    fn shl(self, rhs: i8) -> i16: self << rhs
+
+impl Shr[i8] for i16:
+    type Out = i16
+    fn shr(self, rhs: i8) -> i16: self >> rhs
+
+impl Shl[i16] for i16:
+    type Out = i16
+    fn shl(self, rhs: i16) -> i16: self << rhs
+
+impl Shr[i16] for i16:
+    type Out = i16
+    fn shr(self, rhs: i16) -> i16: self >> rhs
+
+impl Shl[i32] for i16:
+    type Out = i16
+    fn shl(self, rhs: i32) -> i16: self << rhs
+
+impl Shr[i32] for i16:
+    type Out = i16
+    fn shr(self, rhs: i32) -> i16: self >> rhs
+
+impl Shl[i64] for i16:
+    type Out = i16
+    fn shl(self, rhs: i64) -> i16: self << rhs
+
+impl Shr[i64] for i16:
+    type Out = i16
+    fn shr(self, rhs: i64) -> i16: self >> rhs
+
+impl Shl[u8] for i16:
+    type Out = i16
+    fn shl(self, rhs: u8) -> i16: self << rhs
+
+impl Shr[u8] for i16:
+    type Out = i16
+    fn shr(self, rhs: u8) -> i16: self >> rhs
+
+impl Shl[u16] for i16:
+    type Out = i16
+    fn shl(self, rhs: u16) -> i16: self << rhs
+
+impl Shr[u16] for i16:
+    type Out = i16
+    fn shr(self, rhs: u16) -> i16: self >> rhs
+
+impl Shl[u32] for i16:
+    type Out = i16
+    fn shl(self, rhs: u32) -> i16: self << rhs
+
+impl Shr[u32] for i16:
+    type Out = i16
+    fn shr(self, rhs: u32) -> i16: self >> rhs
+
+impl Shl[u64] for i16:
+    type Out = i16
+    fn shl(self, rhs: u64) -> i16: self << rhs
+
+impl Shr[u64] for i16:
+    type Out = i16
+    fn shr(self, rhs: u64) -> i16: self >> rhs
+
+impl Shl[i8] for i32:
+    type Out = i32
+    fn shl(self, rhs: i8) -> i32: self << rhs
+
+impl Shr[i8] for i32:
+    type Out = i32
+    fn shr(self, rhs: i8) -> i32: self >> rhs
+
+impl Shl[i16] for i32:
+    type Out = i32
+    fn shl(self, rhs: i16) -> i32: self << rhs
+
+impl Shr[i16] for i32:
+    type Out = i32
+    fn shr(self, rhs: i16) -> i32: self >> rhs
+
+impl Shl[i32] for i32:
+    type Out = i32
+    fn shl(self, rhs: i32) -> i32: self << rhs
+
+impl Shr[i32] for i32:
+    type Out = i32
+    fn shr(self, rhs: i32) -> i32: self >> rhs
+
+impl Shl[i64] for i32:
+    type Out = i32
+    fn shl(self, rhs: i64) -> i32: self << rhs
+
+impl Shr[i64] for i32:
+    type Out = i32
+    fn shr(self, rhs: i64) -> i32: self >> rhs
+
+impl Shl[u8] for i32:
+    type Out = i32
+    fn shl(self, rhs: u8) -> i32: self << rhs
+
+impl Shr[u8] for i32:
+    type Out = i32
+    fn shr(self, rhs: u8) -> i32: self >> rhs
+
+impl Shl[u16] for i32:
+    type Out = i32
+    fn shl(self, rhs: u16) -> i32: self << rhs
+
+impl Shr[u16] for i32:
+    type Out = i32
+    fn shr(self, rhs: u16) -> i32: self >> rhs
+
+impl Shl[u32] for i32:
+    type Out = i32
+    fn shl(self, rhs: u32) -> i32: self << rhs
+
+impl Shr[u32] for i32:
+    type Out = i32
+    fn shr(self, rhs: u32) -> i32: self >> rhs
+
+impl Shl[u64] for i32:
+    type Out = i32
+    fn shl(self, rhs: u64) -> i32: self << rhs
+
+impl Shr[u64] for i32:
+    type Out = i32
+    fn shr(self, rhs: u64) -> i32: self >> rhs
+
+impl Shl[i8] for i64:
+    type Out = i64
+    fn shl(self, rhs: i8) -> i64: self << rhs
+
+impl Shr[i8] for i64:
+    type Out = i64
+    fn shr(self, rhs: i8) -> i64: self >> rhs
+
+impl Shl[i16] for i64:
+    type Out = i64
+    fn shl(self, rhs: i16) -> i64: self << rhs
+
+impl Shr[i16] for i64:
+    type Out = i64
+    fn shr(self, rhs: i16) -> i64: self >> rhs
+
+impl Shl[i32] for i64:
+    type Out = i64
+    fn shl(self, rhs: i32) -> i64: self << rhs
+
+impl Shr[i32] for i64:
+    type Out = i64
+    fn shr(self, rhs: i32) -> i64: self >> rhs
+
+impl Shl[i64] for i64:
+    type Out = i64
+    fn shl(self, rhs: i64) -> i64: self << rhs
+
+impl Shr[i64] for i64:
+    type Out = i64
+    fn shr(self, rhs: i64) -> i64: self >> rhs
+
+impl Shl[u8] for i64:
+    type Out = i64
+    fn shl(self, rhs: u8) -> i64: self << rhs
+
+impl Shr[u8] for i64:
+    type Out = i64
+    fn shr(self, rhs: u8) -> i64: self >> rhs
+
+impl Shl[u16] for i64:
+    type Out = i64
+    fn shl(self, rhs: u16) -> i64: self << rhs
+
+impl Shr[u16] for i64:
+    type Out = i64
+    fn shr(self, rhs: u16) -> i64: self >> rhs
+
+impl Shl[u32] for i64:
+    type Out = i64
+    fn shl(self, rhs: u32) -> i64: self << rhs
+
+impl Shr[u32] for i64:
+    type Out = i64
+    fn shr(self, rhs: u32) -> i64: self >> rhs
+
+impl Shl[u64] for i64:
+    type Out = i64
+    fn shl(self, rhs: u64) -> i64: self << rhs
+
+impl Shr[u64] for i64:
+    type Out = i64
+    fn shr(self, rhs: u64) -> i64: self >> rhs
+
+impl Shl[i8] for u8:
+    type Out = u8
+    fn shl(self, rhs: i8) -> u8: self << rhs
+
+impl Shr[i8] for u8:
+    type Out = u8
+    fn shr(self, rhs: i8) -> u8: self >> rhs
+
+impl Shl[i16] for u8:
+    type Out = u8
+    fn shl(self, rhs: i16) -> u8: self << rhs
+
+impl Shr[i16] for u8:
+    type Out = u8
+    fn shr(self, rhs: i16) -> u8: self >> rhs
+
+impl Shl[i32] for u8:
+    type Out = u8
+    fn shl(self, rhs: i32) -> u8: self << rhs
+
+impl Shr[i32] for u8:
+    type Out = u8
+    fn shr(self, rhs: i32) -> u8: self >> rhs
+
+impl Shl[i64] for u8:
+    type Out = u8
+    fn shl(self, rhs: i64) -> u8: self << rhs
+
+impl Shr[i64] for u8:
+    type Out = u8
+    fn shr(self, rhs: i64) -> u8: self >> rhs
+
+impl Shl[u8] for u8:
+    type Out = u8
+    fn shl(self, rhs: u8) -> u8: self << rhs
+
+impl Shr[u8] for u8:
+    type Out = u8
+    fn shr(self, rhs: u8) -> u8: self >> rhs
+
+impl Shl[u16] for u8:
+    type Out = u8
+    fn shl(self, rhs: u16) -> u8: self << rhs
+
+impl Shr[u16] for u8:
+    type Out = u8
+    fn shr(self, rhs: u16) -> u8: self >> rhs
+
+impl Shl[u32] for u8:
+    type Out = u8
+    fn shl(self, rhs: u32) -> u8: self << rhs
+
+impl Shr[u32] for u8:
+    type Out = u8
+    fn shr(self, rhs: u32) -> u8: self >> rhs
+
+impl Shl[u64] for u8:
+    type Out = u8
+    fn shl(self, rhs: u64) -> u8: self << rhs
+
+impl Shr[u64] for u8:
+    type Out = u8
+    fn shr(self, rhs: u64) -> u8: self >> rhs
+
+impl Shl[i8] for u16:
+    type Out = u16
+    fn shl(self, rhs: i8) -> u16: self << rhs
+
+impl Shr[i8] for u16:
+    type Out = u16
+    fn shr(self, rhs: i8) -> u16: self >> rhs
+
+impl Shl[i16] for u16:
+    type Out = u16
+    fn shl(self, rhs: i16) -> u16: self << rhs
+
+impl Shr[i16] for u16:
+    type Out = u16
+    fn shr(self, rhs: i16) -> u16: self >> rhs
+
+impl Shl[i32] for u16:
+    type Out = u16
+    fn shl(self, rhs: i32) -> u16: self << rhs
+
+impl Shr[i32] for u16:
+    type Out = u16
+    fn shr(self, rhs: i32) -> u16: self >> rhs
+
+impl Shl[i64] for u16:
+    type Out = u16
+    fn shl(self, rhs: i64) -> u16: self << rhs
+
+impl Shr[i64] for u16:
+    type Out = u16
+    fn shr(self, rhs: i64) -> u16: self >> rhs
+
+impl Shl[u8] for u16:
+    type Out = u16
+    fn shl(self, rhs: u8) -> u16: self << rhs
+
+impl Shr[u8] for u16:
+    type Out = u16
+    fn shr(self, rhs: u8) -> u16: self >> rhs
+
+impl Shl[u16] for u16:
+    type Out = u16
+    fn shl(self, rhs: u16) -> u16: self << rhs
+
+impl Shr[u16] for u16:
+    type Out = u16
+    fn shr(self, rhs: u16) -> u16: self >> rhs
+
+impl Shl[u32] for u16:
+    type Out = u16
+    fn shl(self, rhs: u32) -> u16: self << rhs
+
+impl Shr[u32] for u16:
+    type Out = u16
+    fn shr(self, rhs: u32) -> u16: self >> rhs
+
+impl Shl[u64] for u16:
+    type Out = u16
+    fn shl(self, rhs: u64) -> u16: self << rhs
+
+impl Shr[u64] for u16:
+    type Out = u16
+    fn shr(self, rhs: u64) -> u16: self >> rhs
+
+impl Shl[i8] for u32:
+    type Out = u32
+    fn shl(self, rhs: i8) -> u32: self << rhs
+
+impl Shr[i8] for u32:
+    type Out = u32
+    fn shr(self, rhs: i8) -> u32: self >> rhs
+
+impl Shl[i16] for u32:
+    type Out = u32
+    fn shl(self, rhs: i16) -> u32: self << rhs
+
+impl Shr[i16] for u32:
+    type Out = u32
+    fn shr(self, rhs: i16) -> u32: self >> rhs
+
+impl Shl[i32] for u32:
+    type Out = u32
+    fn shl(self, rhs: i32) -> u32: self << rhs
+
+impl Shr[i32] for u32:
+    type Out = u32
+    fn shr(self, rhs: i32) -> u32: self >> rhs
+
+impl Shl[i64] for u32:
+    type Out = u32
+    fn shl(self, rhs: i64) -> u32: self << rhs
+
+impl Shr[i64] for u32:
+    type Out = u32
+    fn shr(self, rhs: i64) -> u32: self >> rhs
+
+impl Shl[u8] for u32:
+    type Out = u32
+    fn shl(self, rhs: u8) -> u32: self << rhs
+
+impl Shr[u8] for u32:
+    type Out = u32
+    fn shr(self, rhs: u8) -> u32: self >> rhs
+
+impl Shl[u16] for u32:
+    type Out = u32
+    fn shl(self, rhs: u16) -> u32: self << rhs
+
+impl Shr[u16] for u32:
+    type Out = u32
+    fn shr(self, rhs: u16) -> u32: self >> rhs
+
+impl Shl[u32] for u32:
+    type Out = u32
+    fn shl(self, rhs: u32) -> u32: self << rhs
+
+impl Shr[u32] for u32:
+    type Out = u32
+    fn shr(self, rhs: u32) -> u32: self >> rhs
+
+impl Shl[u64] for u32:
+    type Out = u32
+    fn shl(self, rhs: u64) -> u32: self << rhs
+
+impl Shr[u64] for u32:
+    type Out = u32
+    fn shr(self, rhs: u64) -> u32: self >> rhs
+
+impl Shl[i8] for u64:
+    type Out = u64
+    fn shl(self, rhs: i8) -> u64: self << rhs
+
+impl Shr[i8] for u64:
+    type Out = u64
+    fn shr(self, rhs: i8) -> u64: self >> rhs
+
+impl Shl[i16] for u64:
+    type Out = u64
+    fn shl(self, rhs: i16) -> u64: self << rhs
+
+impl Shr[i16] for u64:
+    type Out = u64
+    fn shr(self, rhs: i16) -> u64: self >> rhs
+
+impl Shl[i32] for u64:
+    type Out = u64
+    fn shl(self, rhs: i32) -> u64: self << rhs
+
+impl Shr[i32] for u64:
+    type Out = u64
+    fn shr(self, rhs: i32) -> u64: self >> rhs
+
+impl Shl[i64] for u64:
+    type Out = u64
+    fn shl(self, rhs: i64) -> u64: self << rhs
+
+impl Shr[i64] for u64:
+    type Out = u64
+    fn shr(self, rhs: i64) -> u64: self >> rhs
+
+impl Shl[u8] for u64:
+    type Out = u64
+    fn shl(self, rhs: u8) -> u64: self << rhs
+
+impl Shr[u8] for u64:
+    type Out = u64
+    fn shr(self, rhs: u8) -> u64: self >> rhs
+
+impl Shl[u16] for u64:
+    type Out = u64
+    fn shl(self, rhs: u16) -> u64: self << rhs
+
+impl Shr[u16] for u64:
+    type Out = u64
+    fn shr(self, rhs: u16) -> u64: self >> rhs
+
+impl Shl[u32] for u64:
+    type Out = u64
+    fn shl(self, rhs: u32) -> u64: self << rhs
+
+impl Shr[u32] for u64:
+    type Out = u64
+    fn shr(self, rhs: u32) -> u64: self >> rhs
+
+impl Shl[u64] for u64:
+    type Out = u64
+    fn shl(self, rhs: u64) -> u64: self << rhs
+
+impl Shr[u64] for u64:
+    type Out = u64
+    fn shr(self, rhs: u64) -> u64: self >> rhs

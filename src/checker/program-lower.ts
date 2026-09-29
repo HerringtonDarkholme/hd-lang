@@ -18,6 +18,7 @@ function supertraitImplementationIndices(
       (parameter, index) => [parameter, implementation.traitArguments[index]!] as const,
     ),
   );
+  traitSubstitutions.set("Self", implementation.targetType);
   return implementation.trait.supertraits.map((supertrait) => {
     const expectedArguments = supertrait.traitArguments.map((argument) =>
       substituteGenericType(argument, traitSubstitutions),

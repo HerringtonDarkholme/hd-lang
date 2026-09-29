@@ -54,13 +54,24 @@ function markerShapeProblem(
 export function markerShapeDiagnostics(
   functions: readonly FunctionDecl[],
   templates: ReadonlySet<string>,
+  numericTraits: ReadonlySet<string> = new Set(),
 ): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   for (const declaration of functions) {
+    // A type parameter of the function bounded by `std.num.Num`, `Integer`,
+    // or `Float` also fits (r-expr.suffix.fn-shape-param).
+    const numericParameter = (type: string): boolean =>
+      declaration.genericParameters.includes(type) &&
+      declaration.genericBounds.some(
+        (bound) =>
+          bound.parameter === type && bound.traits.some((trait) => numericTraits.has(trait)),
+      );
     const problems = [
       declaration.numSuffix
-        ? markerShapeProblem(declaration, "a primitive integer or floating-point type", (type) =>
-            SUFFIX_PARAMETER_TYPES.has(type),
+        ? markerShapeProblem(
+            declaration,
+            "a primitive integer or floating-point type, or a type parameter bounded by Num, Integer, or Float",
+            (type) => SUFFIX_PARAMETER_TYPES.has(type) || numericParameter(type),
           )
         : undefined,
       declaration.strPrefix

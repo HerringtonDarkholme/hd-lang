@@ -11,7 +11,8 @@ import type {
   TypeRef,
 } from "../ast.ts";
 import { traitDefaultDeclarations } from "./member-lookup.ts";
-import type { HirTrait, ValueType } from "../hir.ts";
+import type { HirSupertrait, HirTrait, ValueType } from "../hir.ts";
+import { numericType } from "../numeric.ts";
 import {
   mutableInner,
   mutableType,
@@ -31,7 +32,18 @@ import {
   typeName,
 } from "./shared.ts";
 
-import type { ImplementationMethodPreparation, ProgramCheckContext } from "./program-context.ts";
+import type {
+  ImplementationMethodPreparation,
+  ImplementationPreparation,
+  ProgramCheckContext,
+} from "./program-context.ts";
+
+/** The sealed `std.num` traits (09-traits.md#numeric-traits). */
+const SEALED_NUMERIC_TRAITS: ReadonlySet<string> = new Set([
+  "std.num.Num",
+  "std.num.Integer",
+  "std.num.Float",
+]);
 
 interface TraitSpecialization {
   readonly arguments: readonly string[];
@@ -456,6 +468,20 @@ export function prepareImplementations(context: ProgramCheckContext): void {
       });
       continue;
     }
+    // The numeric traits stand for the primitive number types, and only
+    // the standard library implements them (09-traits.md#r-trait.num.sealed).
+    if (
+      trait.standardName &&
+      SEALED_NUMERIC_TRAITS.has(trait.standardName) &&
+      !implementation.standard
+    ) {
+      diagnostics.push({
+        code: "sealed-trait-implementation",
+        message: `${trait.name} is sealed: only the standard library implements it, for the primitive number types`,
+        span: implementation.span,
+      });
+      continue;
+    }
     // 09 Implementation Targets: a trait value type is never a target.
     const targetBase = nominalGenericParts(implementation.targetName)?.name;
     if (traitTypes.has(targetBase ?? implementation.targetName)) {
@@ -815,6 +841,39 @@ function validateDelegations(
   }
 }
 
+/**
+ * The standard library's implementations that have no source `impl`, as far
+ * as a supertrait check of a primitive number type needs them: `Eq`,
+ * `PartialOrd`, and `Display` for every number type, and `Ord` for integers
+ * (05-expressions.md#equality, #ordering).
+ */
+function builtInSupertraitHolds(traitName: string, targetType: ValueType): boolean {
+  const numeric = numericType(targetType);
+  if (!numeric) return false;
+  if (traitName === "Ord") return numeric.family !== "float";
+  return traitName === "Eq" || traitName === "PartialOrd" || traitName === "Display";
+}
+
+/** Whether `candidate` binds each associated type the supertrait binds, after `Self` is the target. */
+function supertraitBindingsHold(
+  supertrait: HirSupertrait,
+  candidate: ImplementationPreparation,
+  traitTypes: ProgramCheckContext["traitTypes"],
+  substitutions: ReadonlyMap<string, ValueType>,
+): boolean {
+  const trait = [...traitTypes.values()].find((item) => item.index === supertrait.traitIndex);
+  return (supertrait.associatedBindings ?? []).every((binding) => {
+    const index = trait?.associatedTypes.findIndex(
+      (associated) => associated.name === binding.name,
+    );
+    return (
+      index === undefined ||
+      index < 0 ||
+      candidate.associatedTypes[index] === substituteGenericType(binding.type, substitutions)
+    );
+  });
+}
+
 function validateSupertraitImplementations(context: ProgramCheckContext): void {
   for (const implementation of context.implementationPreparations) {
     const traitSubstitutions = new Map(
@@ -822,6 +881,7 @@ function validateSupertraitImplementations(context: ProgramCheckContext): void {
         (parameter, index) => [parameter, implementation.traitArguments[index]!] as const,
       ),
     );
+    traitSubstitutions.set("Self", implementation.targetType);
     for (const supertrait of implementation.trait.supertraits) {
       const expectedArguments = supertrait.traitArguments.map((argument) =>
         substituteGenericType(argument, traitSubstitutions),
@@ -838,14 +898,21 @@ function validateSupertraitImplementations(context: ProgramCheckContext): void {
         })
       )
         continue;
+      if (
+        expectedArguments.length === 0 &&
+        builtInSupertraitHolds(supertrait.traitName, implementation.targetType)
+      )
+        continue;
       const found = context.implementationPreparations.some((candidate) => {
-        return Boolean(
-          matchTraitImplementation(
-            candidate,
-            supertrait.traitIndex,
-            implementation.targetType,
-            expectedArguments,
-          ),
+        return (
+          Boolean(
+            matchTraitImplementation(
+              candidate,
+              supertrait.traitIndex,
+              implementation.targetType,
+              expectedArguments,
+            ),
+          ) && supertraitBindingsHold(supertrait, candidate, context.traitTypes, traitSubstitutions)
         );
       });
       if (!found)

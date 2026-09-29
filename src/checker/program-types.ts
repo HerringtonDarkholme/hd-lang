@@ -1,6 +1,6 @@
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import { debugWriterName, INSPECTABLE_MEMBERS } from "./standard-traits.ts";
-import type { HirData, HirTrait } from "../hir.ts";
+import type { HirAssociatedBinding, HirData, HirTrait } from "../hir.ts";
 import { mutableInner, nominalGenericParts, nominalGenericType } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
@@ -101,6 +101,7 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     }
     traitTypes.set(declaration.name, {
       name: declaration.name,
+      ...(declaration.standardName ? { standardName: declaration.standardName } : {}),
       index,
       genericParameters: declaration.genericParameters,
       supertraits: [],
@@ -564,12 +565,16 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
           span: declaration.span,
         });
     }
-    const genericParameters = new Set(declaration.genericParameters);
     const supertraitNames = new Set<string>();
+    // A supertrait's arguments and bindings may name `Self`
+    // (09-traits.md#supertrait-bindings).
+    const supertraitGenerics = new Set([...declaration.genericParameters, "Self"]);
     const supertraits = declaration.supertraits.flatMap((reference) => {
-      const resolved = resolveGenericType(reference.name, genericParameters);
+      const resolved = resolveGenericType(reference.name, supertraitGenerics);
       const application = nominalGenericParts(resolved);
       const name = application?.name ?? resolved;
+      // `AnyVal` and `AnyRef` are value categories, not dispatched traits.
+      if (name === "AnyVal" || name === "AnyRef") return [];
       const supertrait = traitTypes.get(name);
       if (!supertrait) {
         diagnostics.push({
@@ -597,11 +602,40 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         });
         return [];
       }
+      const associatedBindings: HirAssociatedBinding[] = [];
+      const declared = program.traits[supertrait.index];
+      for (const binding of declaration.supertraitBindings ?? []) {
+        if (binding.trait !== reference.name) continue;
+        if (
+          declared?.name !== supertrait.name ||
+          !declared.associatedTypes.some((associated) => associated.name === binding.name)
+        ) {
+          diagnostics.push({
+            code: "unknown-associated-type",
+            message: `trait '${supertrait.name}' declares no associated type '${binding.name}'`,
+            span: binding.span,
+          });
+          continue;
+        }
+        if (associatedBindings.some((existing) => existing.name === binding.name)) {
+          diagnostics.push({
+            code: "duplicate-associated-binding",
+            message: `associated type '${binding.name}' of '${supertrait.name}' is bound more than once`,
+            span: binding.span,
+          });
+          continue;
+        }
+        associatedBindings.push({
+          name: binding.name,
+          type: resolveGenericType(binding.type.name, supertraitGenerics),
+        });
+      }
       return [
         {
           traitIndex: supertrait.index,
           traitName: supertrait.name,
           traitArguments,
+          ...(associatedBindings.length > 0 ? { associatedBindings } : {}),
         },
       ];
     });

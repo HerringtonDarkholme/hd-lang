@@ -1,5 +1,6 @@
 import type {
   HirBuiltinTraitImplementation,
+  HirEqualityDispatch,
   HirEqualityStrategy,
   HirExpression,
   HirOrderingStrategy,
@@ -47,6 +48,9 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       useFloatPower: () => {
         this.floatPower = true;
       },
+      useFloatRemainder: () => {
+        this.floatRemainder = true;
+      },
     };
   }
 
@@ -81,11 +85,30 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         expression.right.type,
         this.sizedNumeric(),
       );
+    // Floating `%` truncates, as C `fmod` does (05-expressions.md#r-expr.float.remainder-truncated).
+    if (operator === "%" && expression.type === "f64") {
+      this.floatRemainder = true;
+      return `(call $hd.rem_f64 ${left} ${right})`;
+    }
     if (expression.left.type === "i64" && (operator === "<<" || operator === ">>"))
       return `(i64.${operator === "<<" ? "shl" : "shr_s"} ${left} (call $hd.check_shift_i64 ${right}))`;
     if (operator === "**" && scalarWasm(expression.right.type) === "i64")
       return `(call $hd.pow_${expression.type} ${left} (i32.wrap_i64 ${right}))`;
     return undefined;
+  }
+
+  /** The dictionary a bound dispatch calls through, reached along its supertrait path. */
+  private boundDispatchDictionary(
+    dispatch: Extract<HirEqualityDispatch, { kind: "bound" }>,
+  ): string {
+    let dictionary = `(local.get $bound${dispatch.boundIndex})`;
+    if (!dispatch.via) return dictionary;
+    let trait = this.traitsByIndex.get(dispatch.via.traitIndex)!;
+    for (const fieldIndex of dispatch.via.path) {
+      dictionary = `(struct.get $trait${trait.index} $trait${trait.index}s${fieldIndex} ${dictionary})`;
+      trait = this.traitsByIndex.get(trait.supertraits[fieldIndex]!.traitIndex)!;
+    }
+    return dictionary;
   }
 
   /** The `Eq` function of each declared map key type, by function index. */
@@ -440,7 +463,8 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       const dispatch = strategy.dispatch;
       if (dispatch.kind === "function")
         return `(call ${functionName(dispatch.functionIndex)} ${left} ${right})`;
-      return `(call_ref $tsig${dispatch.traitIndex}_${dispatch.methodIndex} ${left} (local.get $bound${dispatch.boundIndex}) ${right} (struct.get $trait${dispatch.traitIndex} $trait${dispatch.traitIndex}m${dispatch.methodIndex} (local.get $bound${dispatch.boundIndex})))`;
+      const dictionary = this.boundDispatchDictionary(dispatch);
+      return `(call_ref $tsig${dispatch.traitIndex}_${dispatch.methodIndex} ${left} ${dictionary} ${right} (struct.get $trait${dispatch.traitIndex} $trait${dispatch.traitIndex}m${dispatch.methodIndex} ${dictionary}))`;
     }
     const readonly = readonlyType(type);
     if (readonly === "string") return `(i32.eqz (call $hd.string_compare ${left} ${right}))`;
@@ -566,7 +590,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     const called =
       dispatch.kind === "function"
         ? `(call ${functionName(dispatch.functionIndex)} ${left} ${right})`
-        : `(call_ref $tsig${dispatch.traitIndex}_${dispatch.methodIndex} ${left} (local.get $bound${dispatch.boundIndex}) ${right} (struct.get $trait${dispatch.traitIndex} $trait${dispatch.traitIndex}m${dispatch.methodIndex} (local.get $bound${dispatch.boundIndex})))`;
+        : `(call_ref $tsig${dispatch.traitIndex}_${dispatch.methodIndex} ${left} ${this.boundDispatchDictionary(dispatch)} ${right} (struct.get $trait${dispatch.traitIndex} $trait${dispatch.traitIndex}m${dispatch.methodIndex} ${this.boundDispatchDictionary(dispatch)}))`;
     const temporary = this.allocateTemporary("Ordering?");
     const value = `(local.get ${temporary})`;
     const present = `(struct.get $hd.variant $hd.variant-tag ${value})`;

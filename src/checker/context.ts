@@ -54,6 +54,7 @@ import {
   numericWidening,
 } from "./shared.ts";
 import { generalizedShape } from "./shapes.ts";
+import { findSupertraitPath, resolveTraitPath } from "./trait-paths.ts";
 import {
   contextKeys,
   functionParts,
@@ -285,6 +286,9 @@ export abstract class CheckerContext {
   protected abstract checkTupleBinding(
     statement: Extract<Statement, { kind: "tuple-binding" }>,
   ): HirStatement[];
+  protected abstract checkCompoundAssignment(
+    statement: Extract<Statement, { kind: "assignment" | "field-assignment" | "index-assignment" }>,
+  ): HirStatement[];
   protected abstract checkExpression(expression: Expression, expected?: ValueType): HirExpression;
   protected abstract isIdentityType(type: ValueType): boolean;
 
@@ -509,6 +513,15 @@ export abstract class CheckerContext {
           checked.push(...this.checkTupleBinding(statement));
           continue;
         }
+        if (
+          (statement.kind === "assignment" ||
+            statement.kind === "field-assignment" ||
+            statement.kind === "index-assignment") &&
+          statement.compound
+        ) {
+          checked.push(...this.checkCompoundAssignment(statement));
+          continue;
+        }
         const final = index === statements.length - 1;
         const result = this.checkStatement(
           statement,
@@ -694,38 +707,13 @@ export abstract class CheckerContext {
     return value;
   }
 
-  private findSupertraitPath(
+  protected findSupertraitPath(
     trait: HirTrait,
     traitArguments: readonly ValueType[],
     targetIndex: number,
     targetArguments: readonly ValueType[],
-    seen: ReadonlySet<number> = new Set(),
   ): readonly number[] | undefined {
-    if (seen.has(trait.index)) return undefined;
-    const next = new Set([...seen, trait.index]);
-    for (const [fieldIndex, supertrait] of trait.supertraits.entries()) {
-      const substitutions = new Map(
-        trait.genericParameters.map(
-          (parameter, index) => [parameter, traitArguments[index]!] as const,
-        ),
-      );
-      const arguments_ = supertrait.traitArguments.map((argument) =>
-        substituteGenericType(argument, substitutions),
-      );
-      if (
-        supertrait.traitIndex === targetIndex &&
-        arguments_.length === targetArguments.length &&
-        arguments_.every((argument, index) => argument === targetArguments[index])
-      )
-        return [fieldIndex];
-      const parent = [...this.traitTypes.values()].find(
-        (candidate) => candidate.index === supertrait.traitIndex,
-      );
-      const rest =
-        parent && this.findSupertraitPath(parent, arguments_, targetIndex, targetArguments, next);
-      if (rest) return [fieldIndex, ...rest];
-    }
-    return undefined;
+    return findSupertraitPath(this.traitTypes, trait, traitArguments, targetIndex, targetArguments);
   }
 
   protected resolveTraitPath(
@@ -733,23 +721,7 @@ export abstract class CheckerContext {
     traitArguments: readonly ValueType[],
     path: readonly number[],
   ): ResolvedTraitPath {
-    let currentTrait = trait;
-    let currentArguments = traitArguments;
-    for (const fieldIndex of path) {
-      const supertrait = currentTrait.supertraits[fieldIndex]!;
-      const substitutions = new Map(
-        currentTrait.genericParameters.map(
-          (parameter, index) => [parameter, currentArguments[index]!] as const,
-        ),
-      );
-      currentArguments = supertrait.traitArguments.map((argument) =>
-        substituteGenericType(argument, substitutions),
-      );
-      currentTrait = [...this.traitTypes.values()].find(
-        (candidate) => candidate.index === supertrait.traitIndex,
-      )!;
-    }
-    return { arguments: currentArguments, trait: currentTrait };
+    return resolveTraitPath(this.traitTypes, trait, traitArguments, path);
   }
 
   protected traitDictionaryPlan(
@@ -795,6 +767,7 @@ export abstract class CheckerContext {
         (parameter, index) => [parameter, specializedTraitArguments[index]!] as const,
       ),
     );
+    traitSubstitutions.set("Self", readonlyType(targetType));
     const supertraits = implementation.supertraitImplementations.map((parentIndex, index) => {
       const parentArguments = trait.supertraits[index]!.traitArguments.map((argument) =>
         substituteGenericType(argument, traitSubstitutions),
@@ -1070,7 +1043,7 @@ export abstract class CheckerContext {
           const bound = this.signature.genericBounds[dispatch.boundIndex]!;
           bounds.push({
             kind: "trait-bound-dictionary",
-            traitIndex: dispatch.traitIndex,
+            traitIndex: dispatch.via?.traitIndex ?? dispatch.traitIndex,
             boundIndex: dispatch.boundIndex,
             type: `trait:${bound.traitName}`,
             span,
@@ -1212,6 +1185,23 @@ export abstract class CheckerContext {
     if (boundIndex >= 0) {
       return { kind: "bound", traitIndex: trait.index, methodIndex: 0, boundIndex };
     }
+    // A bound whose trait extends the compared one, as `T < Integer` extends
+    // `Ord` and so `PartialOrd` and `Eq` (09-traits.md#supertraits).
+    if (generic)
+      for (const [index, bound] of this.signature.genericBounds.entries()) {
+        if (bound.parameter !== generic) continue;
+        const boundTrait = this.traitTypes.get(bound.traitName);
+        const path =
+          boundTrait && this.findSupertraitPath(boundTrait, bound.traitArguments, trait.index, []);
+        if (path)
+          return {
+            kind: "bound",
+            traitIndex: trait.index,
+            methodIndex: 0,
+            boundIndex: index,
+            via: { traitIndex: boundTrait.index, path },
+          };
+      }
     const implementation = this.implementations.find(
       (candidate) => candidate.traitIndex === trait.index && candidate.targetType === comparedType,
     );

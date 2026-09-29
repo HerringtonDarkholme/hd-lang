@@ -27,7 +27,51 @@ import {
 } from "./expression-literals.ts";
 type NameExpression = Extract<Expression, { kind: "name" }>;
 
+/** The `std.ops` trait and method of each overloadable binary operator (05-expressions.md#operator-traits). */
+export const BINARY_OPERATOR_TRAITS: Readonly<Record<string, readonly [string, string]>> = {
+  "+": ["Add", "add"],
+  "-": ["Sub", "sub"],
+  "*": ["Mul", "mul"],
+  "/": ["Div", "div"],
+  "%": ["Rem", "rem"],
+  "&": ["BitAnd", "bit_and"],
+  "|": ["BitOr", "bit_or"],
+  "^": ["BitXor", "bit_xor"],
+  "<<": ["Shl", "shl"],
+  ">>": ["Shr", "shr"],
+};
+
+/** The `std.ops` trait and method of each overloadable unary operator. */
+const UNARY_OPERATOR_TRAITS: Readonly<Record<string, readonly [string, string]>> = {
+  "-": ["Neg", "neg"],
+  "~": ["BitNot", "bit_not"],
+};
+
+/** A primitive operand type, on which an operator never searches a trait (r-expr.op.primitive). */
+export function isPrimitiveOperand(type: ValueType): boolean {
+  const readonly = readonlyType(type);
+  return (
+    numericType(readonly) !== undefined ||
+    ["bool", "char", "string", "never", "void"].includes(readonly)
+  );
+}
+
 export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker {
+  /**
+   * The operator-trait call `Op[R]::m(receiver, argument)` of a non-primitive
+   * operand, or `Op::m(receiver)` for a unary operator
+   * (05-expressions.md#r-expr.op.desugar).
+   */
+  protected abstract operatorTraitCall(
+    trait: readonly [string, string],
+    operator: string,
+    receiverSource: Expression,
+    receiver: HirExpression,
+    argument: Expression | undefined,
+    span: SourceSpan,
+    expected: ValueType | undefined,
+  ): HirExpression;
+
   /** `left.eq(right)` through a generic `Eq` implementation, or undefined. */
   protected abstract genericEqualityCall(
     expression: Extract<Expression, { kind: "binary" }>,
@@ -196,55 +240,30 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       case "unary":
         return this.checkUnaryExpression(expression, _expected);
       case "binary": {
-        const { left, right } = this.checkNumericOperands(expression, _expected);
-        if (expression.operator === "is") {
-          // Function identity is unspecified, so a direct `is` on a function
-          // value is rejected (05-expressions.md#r-expr.is.function).
-          const functionOperand = [left, right].find(
-            (operand) => functionParts(readonlyType(operand.type)) !== undefined,
-          );
-          if (functionOperand)
-            this.fail(
-              "unsupported-function-identity",
-              `identity of function value of type '${functionOperand.type}' is unspecified`,
+        // A non-primitive left operand calls its operator trait; an untyped
+        // literal on the left keeps its default type (r-expr.op.left-literal).
+        const operatorTrait = BINARY_OPERATOR_TRAITS[expression.operator];
+        let checkedLeft: HirExpression | undefined;
+        if (
+          operatorTrait &&
+          !isIntegerLiteral(expression.left) &&
+          !isFloatLiteral(expression.left)
+        ) {
+          checkedLeft = this.checkExpression(expression.left);
+          if (!isPrimitiveOperand(checkedLeft.type))
+            return this.operatorTraitCall(
+              operatorTrait,
+              expression.operator,
+              expression.left,
+              checkedLeft,
+              expression.right,
               expression.span,
+              _expected,
             );
-          const operands = this.identityOperands(left, right);
-          if (!operands) {
-            this.fail(
-              this.isIdentityType(withoutPermissions(left.type)) &&
-                this.isIdentityType(withoutPermissions(right.type))
-                ? "incompatible-identity-operands"
-                : "type-mismatch",
-              `identity operands have types ${left.type} and ${right.type}`,
-              expression.span,
-            );
-          }
-          const identityType = withoutPermissions(operands[0].type);
-          const generic = genericTypeName(identityType);
-          if (generic && !(this.signature.referenceParameters ?? []).includes(generic)) {
-            this.fail(
-              "identity-needs-reference-bound",
-              `generic parameter '${generic}' requires an AnyRef bound for identity comparison`,
-              expression.span,
-            );
-          }
-          if (!this.isIdentityType(identityType)) {
-            this.fail(
-              "identity-requires-references",
-              `identity comparison does not accept '${left.type}'`,
-              expression.span,
-            );
-          }
-          return {
-            kind: "binary",
-            operator: expression.operator,
-            left: operands[0],
-            right: operands[1],
-            type: "bool",
-            span: expression.span,
-          };
         }
+        const { left, right } = this.checkNumericOperands(expression, _expected, checkedLeft);
+        if (expression.operator === "is")
+          return this.checkIdentityExpression(expression, left, right);
         const logical = expression.operator === "and" || expression.operator === "or";
         const comparison = ["==", "!=", "<", "<=", ">", ">="].includes(expression.operator);
         const equality = expression.operator === "==" || expression.operator === "!=";
@@ -282,10 +301,16 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           );
         const integerPower =
           expression.operator === "**" && isIntegerType(left.type) && unsignedExponent;
+        // A shift's count may have any integer type (05-expressions.md#shifts).
+        const integerShift =
+          (expression.operator === "<<" || expression.operator === ">>") &&
+          isIntegerType(left.type) &&
+          isIntegerType(right.type);
         // 04 Binary Numeric Operators: signed and unsigned integers do not mix.
         if (
           left.type !== right.type &&
           !integerPower &&
+          !integerShift &&
           isIntegerType(left.type) &&
           isIntegerType(right.type) &&
           numericType(left.type)!.family !== numericType(right.type)!.family
@@ -295,16 +320,19 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             `signed and unsigned operands do not mix: ${left.type} and ${right.type}; cast one explicitly`,
             expression.span,
           );
-        if (left.type !== right.type && !integerPower) {
-          if (expression.operator === "**")
+        if (left.type !== right.type && !integerPower && !integerShift) {
+          if (expression.operator === "**" && numericType(left.type) && numericType(right.type))
             this.fail(
               "mixed-numeric-types",
               "integer and floating-point power operands cannot be mixed",
               expression.span,
             );
+          const trait = BINARY_OPERATOR_TRAITS[expression.operator];
           this.fail(
             "type-mismatch",
-            `operator operands have types ${left.type} and ${right.type}`,
+            trait && !isPrimitiveOperand(right.type)
+              ? `operator '${expression.operator}' needs an implementation of std.ops.${trait[0]}[${readonlyType(right.type)}] for '${left.type}'`
+              : `operator operands have types ${left.type} and ${right.type}`,
             expression.span,
           );
         }
@@ -382,8 +410,9 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             `operator '${expression.operator}' requires integer operands`,
             expression.span,
           );
-        if (remainder && !isIntegerType(left.type))
-          this.fail("type-mismatch", "operator '%' requires integer operands", expression.span);
+        // Floating `%` truncates, as C `fmod` does (05-expressions.md#r-expr.float.remainder-truncated).
+        if (remainder && !numericType(left.type))
+          this.fail("type-mismatch", "operator '%' requires numeric operands", expression.span);
         if (
           comparison &&
           left.type === "bool" &&
@@ -423,6 +452,60 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     }
   }
 
+  /** `left is right` (05-expressions.md#identity). */
+  private checkIdentityExpression(
+    expression: Extract<Expression, { kind: "binary" }>,
+    left: HirExpression,
+    right: HirExpression,
+  ): HirExpression {
+    // Function identity is unspecified, so a direct `is` on a function
+    // value is rejected (05-expressions.md#r-expr.is.function).
+    const functionOperand = [left, right].find(
+      (operand) => functionParts(readonlyType(operand.type)) !== undefined,
+    );
+    if (functionOperand)
+      this.fail(
+        "unsupported-function-identity",
+        `identity of function value of type '${functionOperand.type}' is unspecified`,
+        expression.span,
+      );
+    const operands = this.identityOperands(left, right);
+    if (!operands) {
+      this.fail(
+        this.isIdentityType(withoutPermissions(left.type)) &&
+          this.isIdentityType(withoutPermissions(right.type))
+          ? "incompatible-identity-operands"
+          : "type-mismatch",
+        `identity operands have types ${left.type} and ${right.type}`,
+        expression.span,
+      );
+    }
+    const identityType = withoutPermissions(operands[0].type);
+    const generic = genericTypeName(identityType);
+    if (generic && !(this.signature.referenceParameters ?? []).includes(generic)) {
+      this.fail(
+        "identity-needs-reference-bound",
+        `generic parameter '${generic}' requires an AnyRef bound for identity comparison`,
+        expression.span,
+      );
+    }
+    if (!this.isIdentityType(identityType)) {
+      this.fail(
+        "identity-requires-references",
+        `identity comparison does not accept '${left.type}'`,
+        expression.span,
+      );
+    }
+    return {
+      kind: "binary",
+      operator: expression.operator,
+      left: operands[0],
+      right: operands[1],
+      type: "bool",
+      span: expression.span,
+    };
+  }
+
   /** A unary expression; `_expected` passes through `-`, `+`, and `~` to a literal. */
   private checkUnaryExpression(
     expression: Extract<Expression, { kind: "unary" }>,
@@ -443,6 +526,19 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         ? (literalTarget ?? floatLiteralTarget(_expected))
         : undefined,
     );
+    // `-a` is `Neg::neg(a)` and `~a` is `BitNot::bit_not(a)` on a
+    // non-primitive operand (r-expr.op.desugar).
+    const operatorTrait = UNARY_OPERATOR_TRAITS[expression.operator];
+    if (operatorTrait && !isPrimitiveOperand(operand.type))
+      return this.operatorTraitCall(
+        operatorTrait,
+        expression.operator,
+        expression.operand,
+        operand,
+        undefined,
+        expression.span,
+        _expected,
+      );
     let type: ValueType;
     if (expression.operator === "not") {
       this.requireType(operand.type, "bool", expression.operand.span);
@@ -488,6 +584,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
   private checkNumericOperands(
     expression: Extract<Expression, { kind: "binary" }>,
     expected: ValueType | undefined,
+    checkedLeft?: HirExpression,
   ): { left: HirExpression; right: HirExpression } {
     const arithmetic = ["+", "-", "*", "/", "%", "&", "|", "^"].includes(expression.operator);
     const numeric =
@@ -498,10 +595,12 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     const rightLiteral = isIntegerLiteral(expression.right);
     const leftFloat = isFloatLiteral(expression.left);
     const rightFloat = isFloatLiteral(expression.right);
-    let left = this.checkExpression(
-      expression.left,
-      leftLiteral ? outer : leftFloat ? outerFloat : undefined,
-    );
+    let left =
+      checkedLeft ??
+      this.checkExpression(
+        expression.left,
+        leftLiteral ? outer : leftFloat ? outerFloat : undefined,
+      );
     const rightTarget =
       expression.operator === "**"
         ? undefined

@@ -234,6 +234,10 @@ export abstract class ExpressionParser extends ParserBase {
         this.fail("comparison-chaining", "comparisons do not chain", this.current().span);
       }
       const operator = this.advance();
+      // `**=` lexes as `**` and `=`, which no grammar rule accepts
+      // (spec/01-lexical-structure.md#r-lex.op.no-power-assign).
+      if (operator.text === "**" && this.atText("="))
+        this.fail("syntax-error", "there is no '**=' compound assignment", this.current().span);
       const right = this.parseExpression(precedence + (operator.text === "**" ? 0 : 1));
       left = {
         kind: "binary",

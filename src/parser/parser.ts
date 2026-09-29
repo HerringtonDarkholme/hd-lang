@@ -31,6 +31,20 @@ import {
   type ModuleItems,
 } from "./test-cases.ts";
 
+/** The compound assignment tokens (spec/05-expressions.md#compound-assignment). */
+const COMPOUND_ASSIGNMENTS: ReadonlySet<string> = new Set([
+  "+=",
+  "-=",
+  "*=",
+  "/=",
+  "%=",
+  "&=",
+  "|=",
+  "^=",
+  "<<=",
+  ">>=",
+]);
+
 export interface ParseResult {
   readonly program?: Program;
   readonly diagnostics: readonly Diagnostic[];
@@ -379,80 +393,6 @@ class Parser extends DecoratorParser {
     return { parameters, bounds, ...(reified.length > 0 ? { reified } : {}) };
   }
 
-  protected parseTraitBoundNames(bindings: AssociatedTypeBinding[] = []): string[] {
-    const mutable = this.matchText("mut");
-    const traits: string[] = [];
-    do {
-      const trait = this.boundHasBindings()
-        ? this.parseBoundTraitWithBindings(bindings)
-        : this.parseType();
-      traits.push(mutable ? `mut:${trait.name}` : trait.name);
-    } while (this.matchBoundJoiner());
-    return traits;
-  }
-
-  // Several bounds are joined with `&`; `+` is the former spelling
-  // (02-grammar.md#r-grammar.generic.bound.old-plus).
-  protected matchBoundJoiner(): boolean {
-    if (this.atText("+"))
-      this.fail(
-        "old-bound-operator",
-        "several bounds are joined with '&': write 'A & B'",
-        this.current().span,
-      );
-    return this.matchText("&");
-  }
-
-  /** True at `Trait[..., Name = type]`: a bound trait with associated type bindings. */
-  private boundHasBindings(): boolean {
-    if (this.current().kind !== "identifier" || this.peek(1).text !== "[") return false;
-    let depth = 0;
-    for (let distance = 1; ; distance += 1) {
-      const token = this.peek(distance);
-      if (token.kind === "eof" || token.kind === "newline") return false;
-      if (token.text === "[" || token.text === "(") depth += 1;
-      else if (token.text === "]" || token.text === ")") {
-        depth -= 1;
-        if (depth === 0) return false;
-      } else if (depth === 1 && token.kind === "identifier" && this.peek(distance + 1).text === "=")
-        return true;
-    }
-  }
-
-  private parseBoundTraitWithBindings(bindings: AssociatedTypeBinding[]): TypeRef {
-    const name = this.expectKind("identifier", "expected a trait name");
-    this.expectText("[");
-    const positional: TypeRef[] = [];
-    const own: Omit<AssociatedTypeBinding, "trait">[] = [];
-    while (!this.atText("]")) {
-      if (this.current().kind === "identifier" && this.peek(1).text === "=") {
-        const binding = this.advance();
-        this.advance();
-        const type = this.parseType();
-        own.push({
-          name: binding.text,
-          type,
-          span: { start: binding.span.start, end: type.span.end },
-        });
-      } else {
-        if (own.length > 0)
-          this.fail(
-            "syntax-error",
-            "positional trait arguments must precede associated type bindings",
-            this.current().span,
-          );
-        positional.push(this.parseType());
-      }
-      if (!this.matchText(",")) break;
-    }
-    const close = this.expectText("]");
-    const rendered = positional.length
-      ? `${name.text}[${positional.map((argument) => argument.name).join(",")}]`
-      : name.text;
-    for (const binding of own) bindings.push({ ...binding, trait: rendered });
-    return { name: rendered, span: { start: name.span.start, end: close.span.end } };
-  }
-
   protected parseTrait(doc?: string, public_ = false): TraitDecl {
     const start = this.expectText("trait").span.start;
     const name = this.expectKind("identifier", "expected a trait name");
@@ -481,13 +421,20 @@ class Parser extends DecoratorParser {
       this.expectText("]");
     }
     const supertraits: TypeRef[] = [];
+    // A supertrait may bind associated types (02-grammar.md#r-grammar.generic.binding.bounds-and-supertraits).
+    const supertraitBindings: AssociatedTypeBinding[] = [];
+    const parseSupertrait = (): TypeRef =>
+      this.boundHasBindings()
+        ? this.parseBoundTraitWithBindings(supertraitBindings)
+        : this.parseType();
     if (this.matchText("<")) {
-      do supertraits.push(this.parseType());
+      do supertraits.push(parseSupertrait());
       while (this.matchBoundJoiner());
     }
+    const bindingField = supertraitBindings.length > 0 ? { supertraitBindings } : {};
     if (this.matchText(":")) {
       if (supertraits.length === 0 && !this.atKind("newline")) {
-        do supertraits.push(this.parseType());
+        do supertraits.push(parseSupertrait());
         while (this.matchBoundJoiner());
         this.expectText(":");
       }
@@ -531,6 +478,7 @@ class Parser extends DecoratorParser {
         name: name.text,
         genericParameters,
         supertraits,
+        ...(supertraitBindings.length > 0 ? { supertraitBindings } : {}),
         associatedTypes,
         methods,
         doc,
@@ -544,6 +492,7 @@ class Parser extends DecoratorParser {
       name: name.text,
       genericParameters,
       supertraits,
+      ...bindingField,
       associatedTypes: [],
       methods: [],
       doc,
@@ -1349,9 +1298,16 @@ class Parser extends DecoratorParser {
         span: { start, end },
       };
     }
-    if (this.atKind("identifier") && (this.peek(1).text === "=" || this.peek(1).text === "...=")) {
+    if (
+      this.atKind("identifier") &&
+      (this.peek(1).text === "=" ||
+        this.peek(1).text === "...=" ||
+        COMPOUND_ASSIGNMENTS.has(this.peek(1).text))
+    ) {
       const name = this.advance();
-      const copy = this.advance().text === "...=";
+      const token = this.advance().text;
+      const copy = token === "...=";
+      const compound = COMPOUND_ASSIGNMENTS.has(token) ? token.slice(0, -1) : undefined;
       const value = this.parseRightSide();
       const end = this.finishExpressionStatement(value, topOrInline);
       return {
@@ -1359,17 +1315,20 @@ class Parser extends DecoratorParser {
         name: name.text,
         value,
         ...(copy ? { copy } : {}),
+        ...(compound ? { compound } : {}),
         span: { start, end },
       };
     }
     const expression = this.parseTrailingBlockCall(this.parseExpression());
-    if (this.atText("=") || this.atText("...=")) {
+    if (this.atText("=") || this.atText("...=") || COMPOUND_ASSIGNMENTS.has(this.current().text)) {
       // `place ...= value` is the copy assignment into an embedded field; the
       // checker rejects it on any other place (02-grammar.md#statements).
-      const copy = this.advance().text === "...=";
+      const token = this.advance().text;
+      const copy = token === "...=";
+      const compound = COMPOUND_ASSIGNMENTS.has(token) ? token.slice(0, -1) : undefined;
       const value = this.parseRightSide();
       const end = this.finishExpressionStatement(value, topOrInline);
-      const marker = copy ? { copy } : {};
+      const marker = { ...(copy ? { copy } : {}), ...(compound ? { compound } : {}) };
       if (expression.kind === "member")
         return {
           kind: "field-assignment",

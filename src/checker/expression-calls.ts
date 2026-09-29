@@ -28,12 +28,14 @@ import {
 } from "./shared.ts";
 
 import { type QualifiedCallExpression, TraitCallChecker } from "./trait-calls.ts";
+import { supertraitPathBindings } from "./trait-paths.ts";
+import { literalArgumentsUseDefaults, speculationSafeArguments } from "./call-speculation.ts";
 import { isDowncastValImport } from "./inspectable.ts";
 import { checkLiteralSuffixCall, checkStringPrefixCall } from "./literal-suffixes.ts";
 import { TYPE_ID } from "./standard-traits.ts";
 import { STRUCTURE_AS_DECLARED, STRUCTURE_MISMATCH } from "./typed-derivation.ts";
 type CallExpression = Extract<Expression, { kind: "call" }>;
-interface MemberCallExpression extends CallExpression {
+export interface MemberCallExpression extends CallExpression {
   readonly callee: Extract<Expression, { kind: "member" }>;
 }
 
@@ -373,7 +375,7 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
     return undefined;
   }
 
-  private checkDynamicMemberCall(
+  protected checkDynamicMemberCall(
     expression: MemberCallExpression,
     receiver: HirExpression,
   ): HirExpression | undefined {
@@ -444,11 +446,25 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       }
       const traitKey = readonlyType(dispatchReceiver.type).slice("trait:".length);
       const traitArguments = nominalGenericParts(traitKey)?.arguments ?? [];
+      const selfSubstitution = new Map(
+        receiverBound && receiverGeneric ? [["Self", `generic:${receiverGeneric}`] as const] : [],
+      );
       const selectedTraitArguments = this.resolveTraitPath(
         dynamicTrait,
         traitArguments,
         selectedMethod.path,
-      ).arguments;
+      ).arguments.map((argument) => substituteGenericType(argument, selfSubstitution));
+      // A supertrait list may bind the selected trait's associated types
+      // (09-traits.md#r-trait.binding.super.projection).
+      const pathBindings = supertraitPathBindings(
+        this.traitTypes,
+        dynamicTrait,
+        traitArguments,
+        selectedMethod.path,
+      ).map((binding) => ({
+        ...binding,
+        type: substituteGenericType(binding.type, selfSubstitution),
+      }));
       const traitSubstitutions = new Map(
         selectedMethod.trait.genericParameters.map(
           (parameter, index) => [parameter, selectedTraitArguments[index]!] as const,
@@ -459,9 +475,11 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
         selectedMethod.trait.associatedTypes.forEach((associated) =>
           traitSubstitutions.set(
             `Self::${associated.name}`,
-            receiverBound.bound.associatedBindings?.find(
-              (binding) => binding.name === associated.name,
-            )?.type ?? `generic:${receiverGeneric}::${associated.name}`,
+            (selectedMethod.path.length > 0
+              ? pathBindings
+              : (receiverBound.bound.associatedBindings ?? [])
+            ).find((binding) => binding.name === associated.name)?.type ??
+              `generic:${receiverGeneric}::${associated.name}`,
           ),
         );
       }
@@ -582,12 +600,12 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
     return undefined;
   }
 
-  private checkImplementedMemberCall(
+  protected checkImplementedMemberCall(
     expression: MemberCallExpression,
     receiver: HirExpression,
     expected?: ValueType,
     qualifiedTraitIndex?: number,
-    qualifiedTraitArguments: readonly ValueType[] = [],
+    qualifiedTraitArguments?: readonly ValueType[],
   ): HirExpression {
     const methodName = expression.callee.name;
     const receiverImplementationType = readonlyType(receiver.type);
@@ -599,18 +617,23 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       }
     }
     const candidates = this.implementations.flatMap((implementation) => {
+      // An operator call names the trait but not its arguments, so every
+      // instantiation is a candidate (r-expr.op.left-dispatch).
+      const anyInstantiation =
+        qualifiedTraitIndex !== undefined && qualifiedTraitArguments === undefined;
+      if (anyInstantiation && implementation.traitIndex !== qualifiedTraitIndex) return [];
       const substitutions =
-        qualifiedTraitIndex === undefined
+        qualifiedTraitIndex === undefined || anyInstantiation
           ? new Map<string, ValueType>()
           : matchTraitImplementation(
               implementation,
               qualifiedTraitIndex,
               receiverImplementationType,
-              qualifiedTraitArguments,
+              qualifiedTraitArguments ?? [],
             );
       if (!substitutions) return [];
       if (
-        qualifiedTraitIndex === undefined &&
+        (qualifiedTraitIndex === undefined || anyInstantiation) &&
         !matchGenericTypePattern(
           implementation.targetType,
           receiverImplementationType,
@@ -1458,43 +1481,4 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       expected,
     );
   }
-}
-
-const SPECULATION_UNSAFE_KINDS = new Set([
-  "binding-expression",
-  "closure",
-  "list-comprehension",
-  "map-comprehension",
-  "if",
-  "for",
-  "while",
-  "match",
-  "provider-context",
-  "provider-with",
-  "suspend-call",
-]);
-
-/**
- * Whether call arguments can be checked once per candidate without lasting
- * effects: no nested scopes, bindings, or closures.
- */
-/** True when every numeric-literal argument was checked at its default type. */
-function literalArgumentsUseDefaults(sources: readonly Expression[], call: HirExpression): boolean {
-  const checked = "arguments" in call ? (call.arguments as readonly HirExpression[]) : [];
-  return sources.every((source, index) => {
-    const literal = source.kind === "unary" && source.operator === "-" ? source.operand : source;
-    if (literal.kind !== "integer" && literal.kind !== "float") return true;
-    const type = checked[index + 1]?.type;
-    return type === (literal.kind === "integer" ? "i32" : "f64");
-  });
-}
-
-function speculationSafeArguments(value: unknown): boolean {
-  if (Array.isArray(value)) return value.every(speculationSafeArguments);
-  if (value === null || typeof value !== "object") return true;
-  const kind = (value as { kind?: unknown }).kind;
-  if (typeof kind === "string" && SPECULATION_UNSAFE_KINDS.has(kind)) return false;
-  return Object.entries(value).every(
-    ([key, child]) => key === "span" || speculationSafeArguments(child),
-  );
 }
