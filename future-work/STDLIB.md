@@ -1885,6 +1885,22 @@ file holds one decimal draw per line. This replaces the earlier `Strategy` sketc
 
 ## Owner Decisions
 
+**STDLIB Still Open after the question 14-22 pass (decided 2026-09-29).**
+- `map[U]` and `fold[A]` on `Iterator` wait for the pipe/UFCS design
+  (#47). The dynamic-safety conflict and its Rust-style exclusion rule are
+  weighed there.
+- A callback passed to a lazy adapter (`filter`) runs inside `next`, whose
+  row is empty. It needs no providers and captures what it uses. When the
+  eager `fold` lands, it carries a row parameter:
+  `fold[A, R](init: A, step: fn(A, T) -> A $ R) -> A $ R`.
+- Kept as applied:
+  - `take(-1)` panics;
+  - `Map.keys()` and `values()` return list snapshots;
+  - `abs_diff` is an inherent method on each integer type;
+  - "value types" that implement `Eq` are data and enums holding only
+    values, not providers, builders or handles.
+- `Timestamp` and `Instant` implement `Ord`.
+
 **Questions 14-22 (decided 2026-09-29, all as recommended).**
 - Iterator adapters are default methods on the prelude `Iterator`, as in
   Rust (`map`, `filter`, `take`, `enumerate`, `fold`, `collect`). There is
