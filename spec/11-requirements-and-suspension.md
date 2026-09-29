@@ -128,6 +128,10 @@ impl Job for Nightly:
         log("nightly")  # error
 ```
 
+> **Why.** A public row is the reader's summary of what a function reaches,
+> so every package writes it. A [row alias](#row-aliases) shortens a long
+> public row instead of inference.
+
 ### Row Sets
 
 1. r[req.row.set.order] Rows are sets: order does not affect type identity.
@@ -165,16 +169,193 @@ pub fn invalid() -> void:
 2. r[req.row.least.examples] Matching `$ R + K` against the row `$ K` infers the empty row for `R`, and matching it against `$ K + Clock` infers `$ Clock`.
 3. r[req.row.least.absent-key] When the matched row lacks `K`, the pattern still matches, and `R` is the whole matched row.
 4. r[req.row.least.removal] This least-solution rule is also how a callee removes a key from a callback row.
+5. r[req.row.least.one-unknown] A row pattern may list at most one row parameter that is still unknown when the pattern is solved.
+6. r[req.row.least.fixed] A parameter's row pattern fixes a row parameter when that parameter is the only one in the pattern not already fixed; patterns are solved one at a time in that order.
+7. r[req.row.least.ambiguous] A declaration is an error when a row pattern in a parameter type lists two or more row parameters that no other parameter's pattern fixes. Error: `ambiguous-row-pattern`.
+8. r[req.row.least.ambiguous.reported] The error is reported on the parameter whose type holds that pattern.
+
+```text
+trait Db
+
+trait Clock
+
+fn both[R1, R2](first: fn() -> void $ R1, second: fn() -> void $ R1 + R2) -> void $ R1 + R2:
+    first()
+    second()
+
+fn split[R1, R2](f: fn() -> void $ R1 + R2) -> void $ R1:  # error: ambiguous-row-pattern
+    pass
+```
+
+In `both`, `first` fixes `R1`, so `R2` is the one unknown in the pattern of
+`second`. For a callback row `$ Db + Clock`, `split` could take `R1` as
+`$ Db` or as `$()`, and the two choices give `split` different rows.
 
 > **Why.** A callback that needs fewer keys than its pattern allows is
-> always safe to call where the pattern's keys are provided.
+> always safe to call where the pattern's keys are provided. A pattern with
+> one unknown has one least solution; Koka and Links state the same limit in
+> their syntax, where a row ends in at most one variable.
 
 See also: [Requirement Polymorphism](#requirement-polymorphism).
 
+### Row Subsumption
+
+A function value fits a function type whose row is wider than its own:
+
+```text
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db + Clock:
+    "orders"
+
+fn routes() -> List[fn() -> string $ Db + Clock]:
+    [health, orders]
+```
+
+1. r[req.row.subsume] A function value fits an expected function type when the expected row entails every key of the value's row and the two types otherwise match.
+2. r[req.row.subsume.sites] Row subsumption applies wherever a function value is checked against an expected function type, including an argument, an assignment, a declared binding, a return value, a field, and a list element.
+3. r[req.row.subsume.missing] A function value whose row lists a key the expected row does not entail does not fit. Error: `type-mismatch`.
+4. r[req.row.subsume.adapt] The compiler may adapt such a value, so that a call through the wider type passes the value only the providers of its own row.
+5. r[req.row.subsume.closure] A closure whose inferred row is narrower than an expected row therefore fits that row without taking it.
+
+```text
+trait Db
+
+trait Metrics
+
+fn record() -> void $ Db + Metrics:
+    pass
+
+fn store(callback: fn() -> void $ Db) -> void $ Db:
+    callback()
+
+fn run() -> void $ Db + Metrics:
+    store(record)  # error: type-mismatch
+```
+
+> **Why.** Calling a function where more providers are available than it
+> needs is always safe. A table of handlers can then share one wide row,
+> while each handler keeps its own least row.
+
+> **Note.** Row subsumption converts a function value, not a container of
+> function values. Variance still keeps a function type's row invariant
+> ([Readonly Outer Views](04-type-system.md#readonly-outer-views)), so a
+> `List[fn() -> void $ Db]` value does not convert to
+> `List[fn() -> void $ Db + Clock]`.
+
+See also: [Assignability And Coercion](04-type-system.md#assignability-and-coercion),
+[Least Row Solutions](#least-row-solutions).
+
 ### Row Parameters
 
-1. r[req.row.param.inferred] A generic parameter used in requirement position is inferred to be a row parameter.
+1. r[req.row.param.callables] A generic parameter of a function, a method, an implementation, or a row alias that is used in requirement position is inferred to be a row parameter.
 2. r[req.row.param.one-kind] One parameter cannot be used as both an ordinary type and a requirement row.
+3. r[req.row.param.no-data] A data type, an enum, or a trait declares no row parameter: each of its own generic parameters is type-kinded.
+4. r[req.row.param.no-data.error] Using such a parameter in requirement position, as in a field of type `fn() -> void $ R`, is an error. Error: `generic-kind-mismatch`.
+5. r[req.row.param.context] `$.Context[...]` takes only a concrete row, so a row parameter in its row is an error. Error: `row-parameter-in-context`.
+
+```text
+data Job[R]:
+    run: fn() -> void $ R  # error: generic-kind-mismatch
+
+fn run_job[R](providers: $.Context[R], job: fn() -> void $ R) -> void:  # error: row-parameter-in-context
+    $.with(providers...):
+        job()
+```
+
+> **Note.** Handlers stored in one table share a concrete row, often a
+> [row alias](#row-aliases), as in `List[fn(Request) -> Response $ AppRow]`.
+> [Row Subsumption](#row-subsumption) lets each handler keep a narrower row.
+
+### Row Aliases
+
+A **row alias** names a set of requirement keys with an ordinary transparent
+alias:
+
+```text
+trait Db
+
+trait Cache
+
+trait Log
+
+trait Clock
+
+type AppRow = Db + Cache + Log
+
+fn get_order() -> string $ AppRow + Clock:
+    "order"
+```
+
+1. r[req.row.alias.decl] A row alias is a transparent alias whose right side joins requirement keys with `+`, as in `type AppRow = Db + Cache + Log`.
+2. r[req.row.alias.empty] `type NoRow = $()` declares a row alias for the empty row.
+3. r[req.row.alias.expand] A row alias written in a row stands for its keys, so `$ AppRow + Clock` is the row `$ Db + Cache + Log + Clock`.
+4. r[req.row.alias.expand.first] Expansion comes before normalization, entailment, least-row solving, row subsumption, and the check for [generic key collisions](#generic-key-collisions).
+5. r[req.row.alias.nested] A row alias may name another row alias, and expansion flattens every level into one set.
+6. r[req.row.alias.named-alias] An alias whose right side names one row alias, as in `type Web = AppRow`, is also a row alias.
+7. r[req.row.alias.duplicate] A key reached twice, directly or through aliases, occurs once in the row, as [`req.row.set.duplicate`](#r-req.row.set.duplicate) states, and is not diagnosed.
+8. r[req.row.alias.where] A row alias is written only in a row that follows `$`: a header, a function type, a row type argument such as `Fn[(), void, $ AppRow]`, and `$.Context[$ AppRow]`.
+9. r[req.row.alias.kind] A row alias is row-kinded. Using one as a value type, a bound, or a single key, as in `$.use(AppRow)`, `AppRow=value`, or `$.Context[AppRow]`, is an error. Error: `generic-kind-mismatch`.
+10. r[req.row.alias.one-key] An ordinary alias of one trait, such as `type Store = Db`, names that trait wherever it is used: `x: Store` is a `Db` trait value, and `$ Store` is the key `Db`.
+11. r[req.row.alias.access] A key reached through an alias is its trait, so its provider's access follows [`req.mut.trait-access`](#r-req.mut.trait-access).
+12. r[req.row.alias.no-mut] An alias whose target is written with `mut`, as in `type Store = mut Db`, is an error where it is used as a key. Error: `syntax-error`.
+13. r[req.row.alias.generic] A row alias may declare generic parameters. One written as a key on its right side is a row parameter, as in `type WithLog[R] = R + Log`.
+14. r[req.row.alias.generic.use] `$ WithLog[Clock]` is the row `$ Clock + Log`, and in a function with row parameter `R`, `$ WithLog[R]` extends `R` with `Log`.
+15. r[req.row.alias.generic.kind] A row argument for a type-kinded alias parameter, as in `$ Only[AppRow]` after `type Only[T] = T`, is an error. Error: `generic-kind-mismatch`.
+16. r[req.row.alias.cycle] A row alias that expands to itself is an [alias cycle](04-type-system.md#r-types.alias.cycle). Error: `alias-cycle`.
+
+```text
+trait Db
+
+trait Cache
+
+type AppRow = Db + Cache
+
+fn load(rows: AppRow) -> void: pass  # error: generic-kind-mismatch
+
+fn read() -> void $ AppRow:
+    _ := $.use(AppRow)  # error: generic-kind-mismatch
+```
+
+```text
+trait Db
+
+trait Cache
+
+type Front = Back + Db  # error: alias-cycle
+
+type Back = Front + Cache
+```
+
+> **Why.** Koka, Scala, Effect-TS, and Haskell name a set of requirements
+> with the language's ordinary alias. A row alias works the same way, so it
+> adds no new kind of declaration.
+
+> **Note.** A `pub` row alias names only public traits, as
+> [`module.vis.signature.coverage`](10-modules.md#r-module.vis.signature.coverage)
+> requires of every alias target.
+
+#### Aliases In Diagnostics
+
+1. r[req.row.alias.diagnostics] A diagnostic prints a row as it is written, with alias names kept.
+2. r[req.row.alias.diagnostics.expanded] A `missing-requirement` or `type-mismatch` diagnostic on a row that uses an alias also lists the row's expanded keys and names the missing key.
+
+For example, a missing `Metrics` under `$ WebRow + Auth` might read:
+
+```console
+error[missing-requirement]: `respond` requires `Metrics`
+  --> handlers/orders.hd:12:5
+   | pub fn get_order!(req: Request) -> Response $ WebRow + Auth
+   |                                               ------ WebRow = Db + Cache + Clock + Log
+```
+
+See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-aliases-and-newtypes),
+[Type Declarations](02-grammar.md#type-declarations).
 
 ### Requirement Keys
 

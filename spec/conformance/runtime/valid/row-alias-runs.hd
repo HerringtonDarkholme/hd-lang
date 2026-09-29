@@ -1,0 +1,46 @@
+# test: a row alias in headers, function types, and context types runs with its providers
+# expect: test
+use std.function.Fn
+use std.testing.assert_equal
+
+trait Db:
+    fn name(self) -> string
+
+trait Log:
+    fn tag(self) -> string
+
+trait Clock:
+    fn now(self) -> i32
+
+data MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+data PlainLog: pass
+
+impl Log for PlainLog:
+    fn tag(self) -> string: "log"
+
+data FixedClock: pass
+
+impl Clock for FixedClock:
+    fn now(self) -> i32: 3
+
+type AppRow = Db + Log
+
+fn describe() -> string $ AppRow + Clock:
+    "${$.use(Db).name()} ${$.use(Log).tag()} ${$.use(Clock).now()}"
+
+fn app_context() -> $.Context[$ AppRow]:
+    $.context(Db=MemoryDb {}, Log=PlainLog {})
+
+fn handler() -> Fn[(), string, $ AppRow + Clock]:
+    describe
+
+tests:
+    it("the alias names the keys a context provides"):
+        $.with(app_context()..., Clock=FixedClock {}):
+            assert_equal(describe(), "db log 3", reason="AppRow is Db and Log")
+            call := handler()
+            assert_equal(call(), "db log 3", reason="the function type names the same row")

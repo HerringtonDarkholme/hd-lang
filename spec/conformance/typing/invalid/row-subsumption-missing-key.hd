@@ -1,0 +1,14 @@
+# test: a function value whose row has a key outside the expected row does not fit
+
+trait Db
+
+trait Metrics
+
+fn record() -> void $ Db + Metrics:
+    pass
+
+fn store(callback: fn() -> void $ Db) -> void $ Db:
+    callback()
+
+fn run() -> void $ Db + Metrics:
+    store(record)  # diagnostic: type-mismatch

@@ -1,0 +1,24 @@
+# test: row subsumption applies to arguments, bindings, assignments, fields, and results
+
+trait Db
+
+trait Clock
+
+data Route:
+    handler: fn() -> i32 $ Db + Clock
+
+fn now() -> i32 $ Clock: 1
+
+fn call(handler: fn() -> i32 $ Db + Clock) -> i32 $ Db + Clock:
+    handler()
+
+fn pick() -> fn() -> i32 $ Db + Clock:
+    now
+
+fn run() -> i32 $ Db + Clock:
+    let wide: fn() -> i32 $ Db + Clock = now
+    wide = now
+    route := Route { handler: now }
+    stored := route.handler
+    picked := pick()
+    call(now) + wide() + stored() + picked()

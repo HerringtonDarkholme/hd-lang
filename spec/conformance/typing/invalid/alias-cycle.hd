@@ -1,0 +1,5 @@
+# test: a transparent alias that expands to itself is an alias cycle
+
+type Left = List[Right]  # diagnostic: alias-cycle
+
+type Right = Left?

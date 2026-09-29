@@ -1,0 +1,32 @@
+# test: a key reached through an alias keeps its trait's mutable access
+# expect: test
+use std.testing.assert_equal
+
+trait Counter:
+    fn count(self) -> i32
+    fn bump(mut self) -> void
+
+data MemoryCounter:
+    value: i32
+
+impl Counter for MemoryCounter:
+    fn count(self) -> i32:
+        self.value
+
+    fn bump(mut self) -> void:
+        self.value = self.value + 1
+
+type Store = Counter
+
+type Tally = Store + Counter
+
+fn tick() -> i32 $ Tally:
+    $.use(Store).bump()
+    $.use(Counter).count()
+
+tests:
+    it("the alias key is the mutable Counter"):
+        let counter: mut MemoryCounter = MemoryCounter { value: 0 }
+        $.with(Store=counter):
+            _ := tick()
+            assert_equal(tick(), 2, reason="both bumps reach one provider")

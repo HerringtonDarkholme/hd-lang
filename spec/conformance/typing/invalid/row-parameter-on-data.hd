@@ -1,0 +1,4 @@
+# test: a data type declares no row parameter
+
+data Job[R]:
+    run: fn() -> void $ R  # diagnostic: generic-kind-mismatch

@@ -1,0 +1,12 @@
+# test: an alias of one trait is a trait value type or a key, chosen by its use
+
+trait Db:
+    fn name(self) -> string
+
+type Store = Db
+
+fn describe(store: Store) -> string:
+    store.name()
+
+fn current() -> string $ Store:
+    describe($.use(Db))

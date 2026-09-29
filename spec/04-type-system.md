@@ -230,6 +230,18 @@ type UserName = string
 
 1. r[types.alias.same] A transparent alias introduces another name for the same type.
 2. r[types.alias.identical] `UserName` and `string` are identical for assignability, method lookup, trait conformance, and runtime representation.
+3. r[types.alias.row] A transparent alias may also name a requirement row, as [Row Aliases](11-requirements-and-suspension.md#row-aliases) defines.
+4. r[types.alias.cycle] An alias that expands to itself, directly or through other aliases, is an error. Error: `alias-cycle`.
+5. r[types.alias.cycle.reported] The error is reported once per cycle, on the declaration of the cycle that comes first in the source.
+
+```text
+type Left = List[Right]  # error: alias-cycle
+
+type Right = Left?
+```
+
+> **Why.** A transparent alias is replaced by its right side, so a cycle
+> never ends. A recursive type needs a `data` or `enum` declaration.
 
 ### Newtypes
 
@@ -446,6 +458,7 @@ r[types.assign] An expression of type `S` is assignable to a location of type `T
 7. r[types.assign.supertrait] `S` is a dynamic child-trait value whose trait has `T` as a direct or transitive supertrait.
 8. r[types.assign.optional] A value of `T` is injected into `T?`. The injection adds one layer only, so a `T` is not injected into `T??`.
 9. r[types.assign.shape] `S` is a specialized shape type returned by `shape[D]()` and `T` is its generic shape type, `DataShape` or `EnumShape`.
+10. r[types.assign.row-subsumption] `S` and `T` are function types, `T`'s row entails every key of `S`'s row, and `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
 
 See also: [Inspectable Types](09-traits.md#inspectable-types),
 [Shape Intrinsics](14-annotations.md#shape-intrinsics).
@@ -819,7 +832,9 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 > **Why.** The mutable view may replace stored values. Map keys are both
 > accepted for lookup and exposed during traversal. Converting a function's
 > row would change which providers the call passes, so the row stays
-> invariant.
+> invariant under variance. A function value itself may still widen its row
+> by [row subsumption](11-requirements-and-suspension.md#row-subsumption),
+> which may adapt the value.
 
 ### Representation-Preserving Variance
 

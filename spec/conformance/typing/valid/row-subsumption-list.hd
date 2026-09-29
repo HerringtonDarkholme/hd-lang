@@ -1,0 +1,14 @@
+# test: function values with narrower rows fit a list of a wider function type
+
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db + Clock:
+    "orders"
+
+fn routes() -> List[fn() -> string $ Db + Clock]:
+    [health, orders]

@@ -1,0 +1,14 @@
+# test: a row alias may name the empty row
+
+use std.function.Fn
+
+type NoRow = $()
+
+fn quiet() -> i32 $ NoRow: 1
+
+fn plain() -> Fn[(), i32, $ NoRow]:
+    quiet
+
+fn run() -> i32:
+    call := plain()
+    quiet() + call()

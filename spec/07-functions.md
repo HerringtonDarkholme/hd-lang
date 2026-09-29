@@ -367,6 +367,10 @@ fn erase() -> fn() -> Display:
 > already treat parameters as negative and results as positive. Declaring
 > that variance on the constructors removes a special case.
 
+> **Note.** A function value also fits a function type whose row is wider
+> than its own. That is [row subsumption](11-requirements-and-suspension.md#row-subsumption),
+> not a variance conversion, and it may adapt the value.
+
 See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
 [Representation-Preserving Variance](04-type-system.md#representation-preserving-variance).
 

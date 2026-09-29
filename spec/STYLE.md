@@ -1001,3 +1001,6 @@ style lint rejects a chapter that reuses one.
   `lex.prefix.plain-dollar`.
 - `expr.interp.raw`: retired 2026-09-28. Literal Suffixes L19: a prefixed
   string's values go to a template. Replaced by `expr.interp.prefixed`.
+- `req.row.param.inferred`: retired 2026-09-28. Requirement Reuse RU3: a
+  data type, enum, or trait takes no row parameter. Replaced by
+  `req.row.param.callables` and `req.row.param.no-data`.

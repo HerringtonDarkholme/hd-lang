@@ -1,0 +1,39 @@
+# test: handlers with narrower rows run through a wider function type with their own providers
+# expect: test
+use std.testing.assert_equal
+
+trait Db:
+    fn name(self) -> string
+
+trait Clock:
+    fn now(self) -> i32
+
+data MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+data FixedClock: pass
+
+impl Clock for FixedClock:
+    fn now(self) -> i32: 7
+
+fn health() -> string $ Clock:
+    "ok ${$.use(Clock).now()}"
+
+fn orders() -> string $ Db + Clock:
+    "${$.use(Db).name()} ${$.use(Clock).now()}"
+
+fn plain() -> string:
+    "plain"
+
+fn routes() -> List[fn() -> string $ Db + Clock]:
+    [health, orders, plain]
+
+tests:
+    it("each handler sees the providers of its own row"):
+        $.with(Db=MemoryDb {}, Clock=FixedClock {}):
+            handlers := routes()
+            assert_equal(handlers[0](), "ok 7", reason="Clock only")
+            assert_equal(handlers[1](), "db 7", reason="Db and Clock")
+            assert_equal(handlers[2](), "plain", reason="the empty row")

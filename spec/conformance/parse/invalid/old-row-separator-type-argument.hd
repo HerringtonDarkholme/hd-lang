@@ -1,10 +1,9 @@
 # test: a row type argument joins keys with '+', as in $ A + B, not the former $(A, B)
 
+use std.function.Fn
+
 trait Logger
 
 trait Clock
 
-data Job[R]:
-    run: fn() -> void $ R
-
-fn observed(job: Job[$(Logger, Clock)]) -> void: pass  # diagnostic: old-row-separator
+fn observed(job: Fn[(), void, $(Logger, Clock)]) -> void: pass  # diagnostic: old-row-separator

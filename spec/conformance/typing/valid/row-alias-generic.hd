@@ -1,0 +1,23 @@
+# test: a generic row alias extends a row parameter or a concrete row
+
+trait Log:
+    fn write(self, message: string) -> void
+
+trait Clock
+
+data SilentLog: pass
+
+impl Log for SilentLog:
+    fn write(self, message: string) -> void: pass
+
+type WithLog[R] = R + Log
+
+fn provide_log[R](callback: fn() -> void $ WithLog[R]) -> void $ R:
+    $.with(Log=SilentLog {}):
+        callback()
+
+fn tick() -> void $ WithLog[Clock]:
+    $.use(Log).write("tick")
+
+fn run() -> void $ Clock:
+    provide_log(tick)

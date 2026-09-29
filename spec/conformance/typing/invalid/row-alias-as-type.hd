@@ -1,0 +1,9 @@
+# test: a row alias is not a value type
+
+trait Db
+
+trait Cache
+
+type AppRow = Db + Cache
+
+fn load(rows: AppRow) -> void: pass  # diagnostic: generic-kind-mismatch

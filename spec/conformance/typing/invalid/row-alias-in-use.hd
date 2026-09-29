@@ -1,0 +1,10 @@
+# test: $.use takes one key, not a row alias
+
+trait Db
+
+trait Cache
+
+type AppRow = Db + Cache
+
+fn read() -> void $ AppRow:
+    _ := $.use(AppRow)  # diagnostic: generic-kind-mismatch

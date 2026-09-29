@@ -1,0 +1,12 @@
+# test: a row argument for a type-kinded alias parameter is a kind mismatch
+
+trait Db
+
+trait Cache
+
+type AppRow = Db + Cache
+
+type Only[T] = T
+
+fn run() -> void $ Only[AppRow]:  # diagnostic: generic-kind-mismatch
+    pass

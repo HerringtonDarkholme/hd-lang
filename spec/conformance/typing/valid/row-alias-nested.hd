@@ -1,0 +1,21 @@
+# test: row aliases nest and flatten into one set, and a repeated key is not diagnosed
+
+trait Db
+
+trait Cache
+
+trait Metrics
+
+trait Clock
+
+type AppRow = Db + Cache + Metrics
+
+type WebRow = AppRow + Metrics + Clock
+
+type Web = WebRow
+
+fn serve() -> void $ Web + Db:
+    pass
+
+fn run() -> void $ Clock + Metrics + Cache + Db:
+    serve()

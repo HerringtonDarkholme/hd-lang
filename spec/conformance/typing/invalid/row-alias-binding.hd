@@ -1,0 +1,17 @@
+# test: a provider binding names one key, not a row alias
+
+trait Db
+
+trait Cache
+
+data Both: pass
+
+impl Db for Both
+
+impl Cache for Both
+
+type AppRow = Db + Cache
+
+fn run() -> void:
+    $.with(AppRow=Both {}):  # diagnostic: generic-kind-mismatch
+        pass

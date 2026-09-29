@@ -1,0 +1,9 @@
+# test: a key reached through an alias has no mut
+
+trait Counter:
+    fn bump(mut self) -> void
+
+type Store = mut Counter
+
+fn tick() -> void $ Store:  # diagnostic: syntax-error
+    pass

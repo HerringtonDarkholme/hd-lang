@@ -1,0 +1,8 @@
+# test: a row pattern with two row parameters that no other parameter fixes
+
+trait Db
+
+trait Clock
+
+fn split[R1, R2](f: fn() -> void $ R1 + R2) -> void $ R1:  # diagnostic: ambiguous-row-pattern
+    pass

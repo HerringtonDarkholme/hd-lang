@@ -1,0 +1,20 @@
+# test: a row alias stands for its keys in a header
+
+trait Db
+
+trait Cache
+
+trait Log
+
+trait Clock
+
+type AppRow = Db + Cache + Log
+
+fn get_order() -> string $ AppRow + Clock:
+    "order"
+
+fn spelled() -> string $ Clock + Log + Db + Cache:
+    get_order()
+
+fn run() -> string $ AppRow + Clock:
+    spelled()

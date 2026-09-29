@@ -456,11 +456,29 @@ See also: [Trait Delegation](09-traits.md#trait-delegation).
 
 ```ebnf
 type_decl = "type", identifier, [ type_params ],
-            ( "=", type | "(", type, ")" ), NEWLINE ;
+            ( "=", ( type | row_alias_target ) | "(", type, ")" ), NEWLINE ;
+row_alias_target = requirement_key, "+", requirement_list
+                 | "$", "(", ")"
+                 ;
 ```
 
 1. r[grammar.type-decl.alias] The `=` form declares a transparent alias.
 2. r[grammar.type-decl.newtype] The parenthesized form declares a nominal single-field newtype.
+3. r[grammar.type-decl.row-alias] An `=` form whose right side joins requirement keys with `+`, as in `type AppRow = Db + Cache`, or is `$()`, declares a row alias.
+4. r[grammar.type-decl.row-alias.one-key] A right side of one key, as in `type Store = Db`, is an ordinary `type`, and its use site gives its meaning.
+5. r[grammar.type-decl.row-alias.no-and] `&` joins bounds only, so `type Both = Db & Cache` is an error. Error: `syntax-error`.
+
+```text
+trait Db
+
+trait Cache
+
+type AppRow = Db + Cache
+
+type Both = Db & Cache  # error: syntax-error
+```
+
+See also: [Row Aliases](11-requirements-and-suspension.md#row-aliases).
 
 ## Generic Parameters And Bounds
 
@@ -637,7 +655,7 @@ fn drop_logger[R](callback: fn() -> void $ R) -> void $ R - Logger: callback()  
 
 ### Row Type Arguments
 
-1. r[grammar.type.row-argument] For a row-kinded generic parameter, a type argument may be a row after `$`, as in `Job[$ Logger + Clock]`, or `$()` for the empty row.
+1. r[grammar.type.row-argument] For a row-kinded generic parameter, a type argument may be a row after `$`, as in `Fn[(), void, $ Logger + Clock]`, or `$()` for the empty row.
 2. r[grammar.type.row-argument.key] A single requirement key is syntactically also a type; the parameter kind selects its interpretation.
 3. r[grammar.type.row-argument.kind] Using a row argument for a type-kinded parameter (or conversely) is an error.
 

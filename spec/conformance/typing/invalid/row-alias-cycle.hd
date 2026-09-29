@@ -1,0 +1,9 @@
+# test: a row alias that expands to itself is an alias cycle
+
+trait Db
+
+trait Cache
+
+type Front = Back + Db  # diagnostic: alias-cycle
+
+type Back = Front + Cache

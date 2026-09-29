@@ -533,7 +533,7 @@ rows, as in case 2. Two points are unspecified:
 
 | Point | Status |
 | --- | --- |
-| A data type or trait taking a row parameter, as `Route[R]` does. | [`req.row.param.inferred`](../spec/11-requirements-and-suspension.md#r-req.row.param.inferred) reads as general, but [Runtime Type Identity](INSPECTABLE.md) says "if data types ever take row parameters". |
+| A data type or trait taking a row parameter, as `Route[R]` does. | `req.row.param.inferred` (now [retired](../spec/STYLE.md#retired-rule-ids)) reads as general, but [Runtime Type Identity](INSPECTABLE.md) says "if data types ever take row parameters". |
 | `$.Context[R]` indexed by a row parameter, and whether spreading it provides `R`. | The grammar accepts it; no rule says what it means. |
 
 **Verdict: breaks.** Both are gaps in the spec, not design failures, but a
@@ -1169,7 +1169,7 @@ only lets that value's type name the row, as `$.Context[AppRow]`.
 | 1 | `type Store = Db`: a row or the trait-value type `Db`? | Both, chosen by the use site. The alias names the trait, which is already a value type, a bound, and a key. `x: Store` is the trait value; `$ Store` is the key. | No |
 | 2 | `type Store = mut Db` used as a key. | Error at the use: a key has no `mut` ([`req.mut.no-spelling`](../spec/11-requirements-and-suspension.md#r-req.mut.no-spelling)). Access comes from the trait. | No |
 | 3 | The empty row. | `()` is the unit tuple type, so the empty row keeps its own literal, `$()`. `type NoRow = $()` is a row alias. | Keeps one form |
-| 4 | `type WithLog[R] = R + Log`. | `R` is row-kinded by its use beside `+`, as [`req.row.param.inferred`](../spec/11-requirements-and-suspension.md#r-req.row.param.inferred) infers it after `$`. Extension through the alias works, because expansion comes before least-row solving. | Extends inference |
+| 4 | `type WithLog[R] = R + Log`. | `R` is row-kinded by its use beside `+`, as `req.row.param.inferred` (now [retired](../spec/STYLE.md#retired-rule-ids)) infers it after `$`. Extension through the alias works, because expansion comes before least-row solving. | Extends inference |
 | 5 | `type Only[T] = T`, then `$ Only[AppRow]`. | `T` is type-kinded, so a row argument is `generic-kind-mismatch`. `$ Only[Db]` is the key `Db`. | No |
 | 6 | Nesting: `type All = AppRow + Metrics`. | Flattens; `Metrics` is already in `AppRow`, so `All` equals `AppRow` ([`req.row.set.duplicate`](../spec/11-requirements-and-suspension.md#r-req.row.set.duplicate)). No diagnostic, as today. | No |
 | 7 | Overlap: `AppRow + WebRow` sharing keys. | Set union; no diagnostic. | No |
