@@ -8,6 +8,31 @@ and tooling work is listed separately at the end.
 
 ## Language Design Decisions
 
+### Bound And Row Operators
+
+**Decided (owner, 2026-09-28); not yet applied.** This supersedes the
+2026-09-27 comma-list row decision (e176f5d).
+
+1. Multiple trait bounds use `&`, which means both at once (an
+   intersection), in every bound position: generic parameters
+   (`T < Eq & Hash`), supertrait lists (`trait Ord < Eq & PartialOrd`) and
+   impl bounds. Precedent: Java `<T extends A & B>`, TypeScript and Scala 3
+   `A & B`, Swift `P & Q`. Bounds appear only in type positions, so bitwise
+   `&` in expressions doesn't conflict.
+2. Requirement rows use `+` again: `fn f() -> O $ Db + Clock`, and row
+   type arguments are written `$(A + B)`. The 2026-09-27 reason for commas
+   was to keep `+` for bounds only. Moving bounds to `&` frees `+`, so each
+   operator has one meaning.
+3. One spelling only. The old forms are errors with a fix-it hint:
+   `$ A, B` is `old-row-separator` (write `A + B`), and `T < A + B` is
+   `old-bound-operator` (write `A & B`). These replace the existing
+   `old-row-operator` code.
+
+```text
+trait Ord < Eq & PartialOrd: ...
+fn f[T < Eq & Hash](x: T) -> void $ Db + Clock: ...
+```
+
 ### Replay Determinism And Durable Workflows
 
 **Decided.** Every question in
