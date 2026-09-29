@@ -31,6 +31,8 @@ Open for the design (#40):
 - the diagnostic code;
 - fixture migration.
 
+Stress test with ten owner questions: [Dependency Cycles](DEPENDENCY_CYCLES.md).
+
 ### Casts, Property Discards, Type Names As Values, Std Scope
 
 **Decided (owner, 2026-09-28); applied 2026-09-28.** The rules are

@@ -91,6 +91,9 @@ language specification:
   compares six options, including rows as type expressions. The owner
   decided RU1-RU9 (row aliases, row subsumption), now applied, with
   thirteen follow-up points still open.
+- [Dependency Cycles: Stress Test Of The Folder Rule](DEPENDENCY_CYCLES.md)
+  tries the folder-acyclic direction on 16 layouts, weighs it for parallel
+  compilation, and ranks 11 problems, with questions for the owner.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 
