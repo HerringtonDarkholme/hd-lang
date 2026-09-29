@@ -1,5 +1,5 @@
 # test: a float literal does not fit an integer suffix
-# Spec 04 Suffixed Literals: `1.5s` is invalid when In is i64.
+# Spec 04 Suffixed Literals: `1.5s` is invalid when `s` takes an i64.
 use std.time.s
 
 fn wait() -> void:

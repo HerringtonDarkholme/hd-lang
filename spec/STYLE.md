@@ -900,3 +900,35 @@ style lint rejects a chapter that reuses one.
 - `annot.decorator.function`: retired 2026-09-28. Decorators D1 lets any
   decorator precede a function. Replaced by `annot.decorator.targets` and
   `annot.decorator.attach`.
+- `names.suffix.module`: retired 2026-09-28. Literal Suffixes L11 makes a
+  suffix a function, not a type. Replaced by `names.suffix.module-name`.
+- `names.suffix.unknown`: retired 2026-09-28. Literal Suffixes L11 resolves
+  a suffix as a value name. Replaced by `names.suffix.unknown-name`.
+- `expr.suffix.call`: retired 2026-09-28. Literal Suffixes L11 calls the
+  suffix function, not `from_literal`. Replaced by `expr.suffix.fn-call`.
+- `expr.suffix.call.example`: retired 2026-09-28. Literal Suffixes L11.
+  Replaced by `expr.suffix.fn-call.example`.
+- `expr.suffix.trait-only`: retired 2026-09-28. Literal Suffixes L11
+  removed `LiteralSuffix`. No replacement.
+- `expr.suffix.no-import`: retired 2026-09-28. Literal Suffixes L11
+  removed `LiteralSuffix`. Replaced by `expr.suffix.no-marker-import`.
+- `expr.suffix.not-implemented`: retired 2026-09-28. Literal Suffixes L11
+  requires the `@num_suffix` marker instead of an implementation. Replaced
+  by `expr.suffix.marker` and `expr.suffix.not-marked`.
+- `expr.suffix.instantiations`: retired 2026-09-28. Literal Suffixes L11
+  has no overloading. No replacement.
+- `expr.suffix.std.impl`: retired 2026-09-28. Literal Suffixes L11 makes
+  the standard suffixes functions. Replaced by `expr.suffix.std.fn`.
+- `trait.suffix.module`: retired 2026-09-28. Literal Suffixes L11 removed
+  `std.ops.LiteralSuffix`. Replaced by `expr.suffix.marker.module`.
+- `trait.suffix.declare`: retired 2026-09-28. Literal Suffixes L11.
+  Replaced by `expr.suffix.marker`.
+- `trait.suffix.carrier`: retired 2026-09-28. Literal Suffixes L11 removed
+  the newtype carriers. Replaced by `types.literal.suffixed`.
+- `trait.suffix.row`: retired 2026-09-28. Literal Suffixes L11. Replaced by
+  `expr.suffix.fn-shape` and `expr.suffix.fn-shape.reader`.
+- `trait.suffix.coherence`: retired 2026-09-28. Literal Suffixes L11 has no
+  implementations to be coherent. No replacement.
+- `module.prelude.ops`: retired 2026-09-28. Literal Suffixes L11 and
+  Decorators D9 replaced `LiteralSuffix` with `NumSuffix` and
+  `num_suffix`. Replaced by `module.prelude.ops-num-suffix`.

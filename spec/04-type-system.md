@@ -130,20 +130,20 @@ let bad: u8 = 300    # error
 
 ### Suffixed Literals
 
-A suffixed literal has the type that its suffix's `from_literal` returns:
+A suffixed literal has the type that its suffix function returns:
 
 ```text
 use std.time.{Duration, ms}
 
 fn delay() -> Duration:
-    250ms  # ms::from_literal(250): Duration
+    250ms  # ms(250): Duration
 ```
 
-1. r[types.literal.suffixed] A suffixed literal has the result type `Out` of the `std.ops.LiteralSuffix[In, Out]` implementation that its call selects, not the suffix type.
-2. r[types.literal.suffixed.in] The numeric literal is checked with that implementation's `In` as its expected type, by the rules above. So a suffix with `In` of `i8` range-checks `300b`.
-3. r[types.literal.suffixed.kind] A literal of the wrong kind for `In` is an error, so `1.5s` is invalid when `In` is `i64`; write `1500ms`. Error: `type-mismatch`.
-4. r[types.literal.suffixed.negation] Unary `-` applied directly to a suffixed literal negates the numeric literal before the call, so `-5s` means `s::from_literal(-5)`.
-5. r[types.literal.suffixed.negation.check] The negated literal is checked against `In` as a unit, as [Negated Integer Literals](#negated-integer-literals) are, so `In` of `i8` accepts `-128b`.
+1. r[types.literal.suffixed] A suffixed literal has the result type of its suffix function.
+2. r[types.literal.suffixed.in] The numeric literal is checked with the suffix function's parameter type as its expected type, by the rules above. So a suffix whose parameter is `i8` range-checks `300b`.
+3. r[types.literal.suffixed.kind] A literal of the wrong kind for that parameter is an error, so `1.5s` is invalid when `s` takes an `i64`; write `1500ms`. Error: `type-mismatch`.
+4. r[types.literal.suffixed.negation] Unary `-` applied directly to a suffixed literal negates the numeric literal before the call, so `-5s` means `s(-5)`.
+5. r[types.literal.suffixed.negation.check] The negated literal is checked against the parameter type as a unit, as [Negated Integer Literals](#negated-integer-literals) are, so an `i8` parameter accepts `-128b`.
 
 ```text
 use std.time.s

@@ -1,12 +1,13 @@
-# test: from_literal needs no providers
-# Spec 09 Literal Suffix Trait: an implementation with a requirement clause is trait-method-signature.
-use std.ops.LiteralSuffix
+# test: a suffix function needs no providers, checked at the literal
+# Spec 05 Literal Suffixes: expr.suffix.fn-shape.reader reports a provider-needing suffix at `12px`.
+use std.ops.num_suffix
 
 data Pixels:
     count: i32
 
-type px(i32)
+@num_suffix
+fn px(count: i32) -> Pixels $ Console:
+    Pixels { count: count }
 
-impl LiteralSuffix[i32, Pixels] for px:
-    fn from_literal(n: i32) -> Pixels $ Console:  # diagnostic: trait-method-signature
-        Pixels { count: n }
+fn layout() -> Pixels $ Console:
+    12px  # diagnostic: invalid-literal-suffix

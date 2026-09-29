@@ -1,0 +1,10 @@
+# test: a suffix function takes no type parameters
+# Spec 05 Literal Suffixes: expr.suffix.fn-shape is checked at the literal.
+use std.ops.num_suffix
+
+@num_suffix
+fn twice[T](value: T) -> List[T]:
+    [value, value]
+
+fn pair() -> List[i32]:
+    2twice  # diagnostic: invalid-literal-suffix

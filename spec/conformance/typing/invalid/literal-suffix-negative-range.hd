@@ -1,15 +1,13 @@
-# test: a negated suffixed literal below the minimum of In
-# Spec 04 Suffixed Literals: the negated literal is checked against In as a unit.
-use std.ops.LiteralSuffix
+# test: a negated suffixed literal below the minimum of the parameter type
+# Spec 04 Suffixed Literals: the negated literal is checked against the parameter type as a unit.
+use std.ops.num_suffix
 
 data Offset:
     value: i32
 
-type off(i32)
-
-impl LiteralSuffix[i32, Offset] for off:
-    fn from_literal(n: i32) -> Offset:
-        Offset { value: n }
+@num_suffix
+fn off(value: i32) -> Offset:
+    Offset { value: value }
 
 fn too_low() -> Offset:
     -2147483649off  # diagnostic: integer-literal-range

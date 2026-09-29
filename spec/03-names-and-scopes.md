@@ -197,7 +197,7 @@ use dep.billing.types.{UserId as BillingUserId}
 ### Literal Suffix Names
 
 The suffix of a [suffixed literal](01-lexical-structure.md#literal-suffixes)
-names a type in module scope, usually one brought in by `use`:
+names a function in module scope, usually one brought in by `use`:
 
 ```text
 use std.time.s
@@ -207,14 +207,15 @@ fn retry_after(s: i32) -> i32:
     s
 ```
 
-1. r[names.suffix.module] A literal suffix is resolved as a module name: a type declared at module scope, or a name that a use declaration or the prelude introduces.
+1. r[names.suffix.module-name] A literal suffix is resolved as a module name: a declaration at module scope, or a name that a use declaration or the prelude introduces.
 2. r[names.suffix.ordinary] It follows the ordinary rules for module names, so a suffix is brought in, renamed with `as`, or found in conflict exactly as other used names are.
 3. r[names.suffix.no-local] Parameters, local bindings, and local type declarations never take part, so a local named `s` does not change what `5s` calls.
-4. r[names.suffix.unknown] A suffix that names no type in module scope is an error. Error: `unknown-type`.
+4. r[names.suffix.unknown-name] A suffix that names nothing in module scope is an error. Error: `unknown-name`.
+5. r[names.suffix.function] The name must resolve to a suffix function, as [Literal Suffixes](05-expressions.md#literal-suffixes) defines.
 
 ```text
 fn margin() -> i32:
-    width := 12px  # error: unknown-type
+    width := 12px  # error: unknown-name
     0
 ```
 

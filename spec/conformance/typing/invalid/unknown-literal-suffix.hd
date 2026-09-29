@@ -1,5 +1,5 @@
-# test: a suffix that names no type in module scope
-# Spec 03 Literal Suffix Names: an unknown suffix is unknown-type.
+# test: a suffix that names nothing in module scope
+# Spec 03 Literal Suffix Names: an unknown suffix is unknown-name.
 fn margin() -> i32:
-    width := 12px  # diagnostic: unknown-type
+    width := 12px  # diagnostic: unknown-name
     0

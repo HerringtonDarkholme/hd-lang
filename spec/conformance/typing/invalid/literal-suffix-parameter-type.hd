@@ -1,0 +1,14 @@
+# test: a suffix whose parameter cannot take the literal is an ordinary call error
+# Spec 05 Literal Suffixes: expr.suffix.call-errors; `@num_suffix` on `fn em(label: string)` fails at `2em`.
+use std.ops.num_suffix
+
+data Pixels:
+    count: i32
+
+@num_suffix
+fn em(label: string) -> Pixels:
+    Pixels { count: 0 }
+
+fn layout() -> Pixels:
+    gap := 2em  # diagnostic: type-mismatch
+    gap

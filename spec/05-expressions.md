@@ -121,40 +121,68 @@ fn render(value: Secret) -> string:
 #### Literal Suffixes
 
 A [suffixed literal](01-lexical-structure.md#literal-suffixes) is a call of
-its suffix type's `std.ops.LiteralSuffix` implementation:
+its suffix function, a function marked `@num_suffix`:
 
 ```text
-use std.ops.LiteralSuffix
+use std.ops.num_suffix
 
 data Pixels:
     count: i32
 
-type px(i32)
-
-impl LiteralSuffix[i32, Pixels] for px:
-    fn from_literal(n: i32) -> Pixels:
-        Pixels { count: n }
+@num_suffix
+fn px(count: i32) -> Pixels:
+    Pixels { count: count }
 
 fn indent() -> Pixels:
-    -12px  # px::from_literal(-12)
+    -12px  # px(-12)
 ```
 
-1. r[expr.suffix.call] A suffixed literal `Nx` calls `from_literal` of the suffix type `x`'s implementation of `std.ops.LiteralSuffix`, with the literal `N` as its one argument.
-2. r[expr.suffix.call.example] So `250ms` means `ms::from_literal(250)`, and `-5s` means `s::from_literal(-5)`.
-3. r[expr.suffix.trait-only] Only `LiteralSuffix` implementations are candidates; an inherent member of `x` named `from_literal` is not.
-4. r[expr.suffix.no-import] The call needs no import of `LiteralSuffix`: a `use` of the suffix type alone makes the literal valid.
-5. r[expr.suffix.not-implemented] A suffix type that does not implement `LiteralSuffix` is an error. Error: `unsatisfied-trait-bound`.
-6. r[expr.suffix.instantiations] When `x` implements `LiteralSuffix` at several instantiations, the call chooses one by the rule for [instantiations of one generic trait](09-traits.md#instantiations-of-one-generic-trait).
-7. r[expr.suffix.exact-call] A suffixed literal is exactly that call wherever it appears, and it has no evaluation rule of its own.
-8. r[expr.suffix.position-rules] In a [fact](14-annotations.md#r-annot.fact.eval), in [shared enum data](08-data-and-enums.md#r-data.shared.compile-time), or in any other position, the call follows the rules for any call there, including what a panic in `from_literal` does.
-9. r[expr.suffix.requirement-free] `from_literal` needs no providers and never suspends, as [Literal Suffix Trait](09-traits.md#literal-suffix-trait) requires, so every compile-time position accepts a suffixed literal.
+`std.ops` declares the marker:
 
 ```text
-type px(i32)
+use std.annotation.annotate
 
-fn layout() -> void:
-    size := 12px  # error: unsatisfied-trait-bound
-    pass
+@annotate(.Fn)
+pub data NumSuffix: pass
+
+pub fn num_suffix() -> NumSuffix:
+    NumSuffix {}
+```
+
+1. r[expr.suffix.fn-call] A suffixed literal `Nx` is the call `x(N)` of the suffix function `x`, with the literal `N` as its one argument.
+2. r[expr.suffix.fn-call.example] So `250ms` means `ms(250)`, and `-5s` means `s(-5)`.
+3. r[expr.suffix.marker] A **suffix function** is a function that carries a `std.ops.NumSuffix` value, written `@num_suffix`. The compiler recognizes `std.ops.NumSuffix` by its qualified name.
+4. r[expr.suffix.marker.module] `std.ops` declares `NumSuffix` and `num_suffix`. `NumSuffix` carries `@annotate(.Fn)`, so `@num_suffix` before anything but a function is an error. Error: `decorator-not-annotator`.
+5. r[expr.suffix.not-marked] A suffix that resolves to anything other than a suffix function is an error, reported at the literal. Error: `invalid-literal-suffix`.
+6. r[expr.suffix.no-marker-import] The call needs no import of `num_suffix` or `NumSuffix`: a `use` of the suffix function alone makes the literal valid.
+7. r[expr.suffix.call-errors] The call is checked as an ordinary call. An argument that the function cannot accept is the ordinary call error at the literal, such as `type-mismatch` or `argument-count`.
+8. r[expr.suffix.fn-shape] A suffix function has exactly one parameter, of a primitive integer or floating-point type, and no type parameters. It needs no providers and never suspends.
+9. r[expr.suffix.fn-shape.reader] These constraints are checked where a literal uses the function, not at its declaration. A literal whose suffix function breaks one is an error, unless its call already reports an ordinary call error. Error: `invalid-literal-suffix`.
+10. r[expr.suffix.exact-call] A suffixed literal is exactly that call wherever it appears, and it has no evaluation rule of its own.
+11. r[expr.suffix.position-rules] In a [fact](14-annotations.md#r-annot.fact.eval), in [shared enum data](08-data-and-enums.md#r-data.shared.compile-time), or in any other position, the call follows the rules for any call there, including what a panic in the suffix function does.
+12. r[expr.suffix.requirement-free] A suffix function needs no providers and never suspends, as [`expr.suffix.fn-shape`](#r-expr.suffix.fn-shape) requires, so every compile-time position accepts a suffixed literal.
+
+```text
+use std.ops.num_suffix
+
+data Pixels:
+    count: i32
+
+fn pt(count: i32) -> Pixels:
+    Pixels { count: count }
+
+@num_suffix
+fn em(label: string) -> Pixels:
+    Pixels { count: 0 }
+
+@num_suffix
+fn px(count: i32) -> Pixels $ Console:
+    Pixels { count: count }
+
+fn layout() -> Pixels $ Console:
+    size := 12pt  # error: invalid-literal-suffix
+    gap := 2em  # error: type-mismatch
+    12px  # error: invalid-literal-suffix
 ```
 
 The standard library declares these suffixes in `std.time`:
@@ -166,7 +194,7 @@ The standard library declares these suffixes in `std.time`:
 | r[expr.suffix.std.min] Minutes | `min` | `Duration` of that many minutes |
 | r[expr.suffix.std.h] Hours | `h` | `Duration` of that many hours |
 
-1. r[expr.suffix.std.impl] Each is a newtype that implements `LiteralSuffix[i64, Duration]`, for the standard `std.time.Duration`.
+1. r[expr.suffix.std.fn] Each is a suffix function that takes one `i64` and returns the standard `std.time.Duration`, as in `@num_suffix pub fn ms(count: i64) -> Duration`.
 2. r[expr.suffix.std.duration] A `std.time.Duration` is a whole number of milliseconds, held in an `i64`.
 3. r[expr.suffix.std.only-four] These four are the only standard suffixes. `std` declares no `ns`, `us`, `m`, `d`, byte-size, or string suffix.
 4. r[expr.suffix.std.import] None is a prelude name; code imports them, as in `use std.time.{ms, s}`.
@@ -181,15 +209,18 @@ enum Tier(limit: Duration):
     Slow -> Tier(limit=5s)
 ```
 
-> **Why.** A suffix is an ordinary type found through `use`, so libraries
-> can add `12px` without new syntax. The literal's type is the trait's
-> `Out`, so `5s` and `250ms` are both `Duration` and mix freely.
+> **Why.** A suffix is an ordinary function found through `use`, so
+> libraries can add `12px` without new syntax. The literal's type is the
+> function's result, so `5s` and `250ms` are both `Duration` and mix
+> freely. The compiler reads the one marker and checks the signature where
+> it needs it, at the literal, as any reader of a decorator does.
 
 > **Note.** A compiler may warn when a suffixed literal always overflows,
 > as Rust's `unconditional_panic` lint does, but none is required.
 
 See also: [Suffixed Literals](04-type-system.md#suffixed-literals),
-[Literal Suffix Names](03-names-and-scopes.md#literal-suffix-names).
+[Literal Suffix Names](03-names-and-scopes.md#literal-suffix-names),
+[Target Kinds](14-annotations.md#target-kinds).
 
 ### Parenthesized And Tuple Expressions
 

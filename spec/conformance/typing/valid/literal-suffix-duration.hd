@@ -1,9 +1,9 @@
 # test: std.time suffixes build Duration values
-# Spec 05 Literal Suffixes: `250ms` is `ms::from_literal(250)`, a Duration.
+# Spec 05 Literal Suffixes: `250ms` is `ms(250)`, a Duration.
 use std.time.{Duration, ms, s}
 
 fn delay() -> Duration:
-    250ms  # ms::from_literal(250): Duration
+    250ms  # ms(250): Duration
 
 fn rewind() -> Duration:
     -5s

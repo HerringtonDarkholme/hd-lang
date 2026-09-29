@@ -1,0 +1,10 @@
+# test: a suffix function has exactly one parameter, even when a second has a default
+# Spec 05 Literal Suffixes: expr.suffix.fn-shape is checked at the literal.
+use std.ops.num_suffix
+
+@num_suffix
+fn kb(count: i64, unit: i64 = 1024) -> i64:
+    count * unit
+
+fn buffer() -> i64:
+    4kb  # diagnostic: invalid-literal-suffix

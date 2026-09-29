@@ -1,21 +1,19 @@
-# test: a suffixed literal runs from_literal with the literal
-# Spec 05 Literal Suffixes: `12px` and `-12px` call px::from_literal.
-use std.ops.LiteralSuffix
+# test: a suffixed literal calls its suffix function with the literal
+# Spec 05 Literal Suffixes: `12px` and `-12px` call px(12) and px(-12).
+use std.ops.num_suffix
 use std.testing.assert_equal
 
 data Pixels:
     count: i32
 
-type px(i32)
-
-impl LiteralSuffix[i32, Pixels] for px:
-    fn from_literal(n: i32) -> Pixels:
-        Pixels { count: n * 2 }
+@num_suffix
+fn px(count: i32) -> Pixels:
+    Pixels { count: count * 2 }
 
 fn indent() -> Pixels:
     -12px
 
 tests:
-    it("calls from_literal"):
-        assert_equal(12px.count, 24, reason="from_literal doubles the literal")
+    it("calls the suffix function"):
+        assert_equal(12px.count, 24, reason="px doubles the literal")
         assert_equal(indent().count, -24, reason="the minus folds into the literal")

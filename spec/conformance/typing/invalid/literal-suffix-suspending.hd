@@ -1,0 +1,10 @@
+# test: a suffix function never suspends, checked at the literal
+# Spec 05 Literal Suffixes: expr.suffix.fn-shape.
+use std.ops.num_suffix
+
+@num_suffix
+fn later!(count: i64) -> i64:
+    count
+
+fn wait!() -> i64:
+    5later  # diagnostic: invalid-literal-suffix
