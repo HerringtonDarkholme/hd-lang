@@ -1,0 +1,22 @@
+# test: string implements Add, so generic code concatenates and s += "x" rebinds
+# Spec 05 Primitive Implementations: expr.op.std.string-add, expr.op.std.string-concat (Operator Traits OP11).
+use std.ops.Add
+use std.testing.assert_equal
+
+fn join[T < Add[T, Out = T]](items: List[T], empty: T) -> T:
+    let total = empty
+    for item in items:
+        total = total + item
+    total
+
+fn shout(word: string) -> string:
+    let loud = word
+    copy := loud
+    loud += "!"
+    copy + "/" + loud
+
+tests:
+    it("concatenates through the std implementation"):
+        assert_equal(join(["a", "b", "c"], ""), "abc", reason="string implements Add[string]")
+    it("rebinds a string place"):
+        assert_equal(shout("hi"), "hi/hi!", reason="a string has no identity, so the copy keeps its value")

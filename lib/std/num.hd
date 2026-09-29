@@ -2,7 +2,7 @@
 # (future-work/STDLIB.md#stdnum).
 # Overflow is checked by default; the arithmetic methods make the other
 # behaviors explicit. They are declared for `i32` and `i64` only.
-use std.ops.{Add, BitAnd, BitNot, BitOr, BitXor, Div, Mul, Neg, Rem, Shl, Shr, Sub}
+use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
 
 # The numeric traits (spec/09-traits.md#numeric-traits). They are sealed:
 # only these implementations exist, one per primitive number type
@@ -13,7 +13,7 @@ pub trait Num < AnyVal & PartialOrd & Display & Add[Self, Out = Self] & Sub[Self
     fn one() -> Self
     fn from_i64(n: i64) -> Self
 
-pub trait Integer < Num & Ord & BitAnd[Self, Out = Self] & BitOr[Self, Out = Self] & BitXor[Self, Out = Self] & BitNot[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]
+pub trait Integer < Num & Ord & BitAnd[Self, Out = Self] & BitOr[Self, Out = Self] & BitXor[Self, Out = Self] & Not[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]
 
 pub trait Float < Num & PartialOrd & Neg[Out = Self]
 

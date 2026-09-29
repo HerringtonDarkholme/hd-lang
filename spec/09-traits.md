@@ -1342,7 +1342,7 @@ pub trait Num < AnyVal & PartialOrd & Display & Add[Self, Out = Self] & Sub[Self
 | Rule | Trait | Supertraits |
 | --- | --- | --- |
 | r[trait.num.num-ordered] Num | `Num` | `AnyVal`, `PartialOrd` (and so `Eq`), `Display`, and `Add`, `Sub`, `Mul`, `Div`, and `Rem`, each as `[Self, Out = Self]` |
-| r[trait.num.integer] Integer | `Integer` | `Num`, `Ord`, `BitAnd`, `BitOr`, and `BitXor`, each as `[Self, Out = Self]`, `BitNot[Out = Self]`, `Shl[u32, Out = Self]`, and `Shr[u32, Out = Self]` |
+| r[trait.num.integer] Integer | `Integer` | `Num`, `Ord`, `BitAnd`, `BitOr`, and `BitXor`, each as `[Self, Out = Self]`, `Not[Out = Self]`, `Shl[u32, Out = Self]`, and `Shr[u32, Out = Self]` |
 | r[trait.num.float] Float | `Float` | `Num`, `PartialOrd`, and `Neg[Out = Self]` |
 
 1. r[trait.num.module] `std.num` declares `Num`, `Integer`, and `Float`, with the supertraits in the table above.

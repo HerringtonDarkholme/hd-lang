@@ -44,7 +44,7 @@ export const BINARY_OPERATOR_TRAITS: Readonly<Record<string, readonly [string, s
 /** The `std.ops` trait and method of each overloadable unary operator. */
 const UNARY_OPERATOR_TRAITS: Readonly<Record<string, readonly [string, string]>> = {
   "-": ["Neg", "neg"],
-  "~": ["BitNot", "bit_not"],
+  "~": ["Not", "not"],
 };
 
 /** A primitive operand type, on which an operator never searches a trait (r-expr.op.primitive). */
@@ -526,7 +526,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         ? (literalTarget ?? floatLiteralTarget(_expected))
         : undefined,
     );
-    // `-a` is `Neg::neg(a)` and `~a` is `BitNot::bit_not(a)` on a
+    // `-a` is `Neg::neg(a)` and `~a` is `Not::not(a)` on a
     // non-primitive operand (r-expr.op.desugar).
     const operatorTrait = UNARY_OPERATOR_TRAITS[expression.operator];
     if (operatorTrait && !isPrimitiveOperand(operand.type))

@@ -1191,7 +1191,7 @@ pub trait Neg:
 | r[expr.op.trait.bit-and] Bitwise AND | `a & b` | `BitAnd[Rhs]` | `bit_and` |
 | r[expr.op.trait.bit-or] Bitwise OR | `a \| b` | `BitOr[Rhs]` | `bit_or` |
 | r[expr.op.trait.bit-xor] Bitwise XOR | `a ^ b` | `BitXor[Rhs]` | `bit_xor` |
-| r[expr.op.trait.bit-not] Complement | `~a` | `BitNot` | `bit_not` |
+| r[expr.op.trait.not] Complement | `~a` | `Not` | `not` |
 | r[expr.op.trait.shl] Shift left | `a << b` | `Shl[Rhs]` | `shl` |
 | r[expr.op.trait.shr] Shift right | `a >> b` | `Shr[Rhs]` | `shr` |
 
@@ -1199,9 +1199,9 @@ pub trait Neg:
 2. r[expr.op.concat] `string + string` concatenates strings.
 3. r[expr.op.trait.std] `std.ops` declares the twelve operator traits in the table above.
 4. r[expr.op.trait.shape] A binary operator trait takes the right operand's type as its one argument `Rhs`. It declares an associated type `Out` and one method `fn m(self, rhs: Rhs) -> Self::Out`.
-5. r[expr.op.trait.unary-shape] `Neg` and `BitNot` take no argument. Each declares `Out` and one method `fn m(self) -> Self::Out`.
+5. r[expr.op.trait.unary-shape] `Neg` and `Not` take no argument. Each declares `Out` and one method `fn m(self) -> Self::Out`.
 6. r[expr.op.primitive] When every operand is primitive after literal typing, the built-in rules of this chapter and [Type System](04-type-system.md) decide the operator, and no trait is searched.
-7. r[expr.op.desugar] Otherwise `a op b` is the trait-qualified call `Op[R]::m(a, b)` of the operator's trait, as in `Add[R]::add(a, b)`. Likewise `-a` is `Neg::neg(a)` and `~a` is `BitNot::bit_not(a)`.
+7. r[expr.op.desugar] Otherwise `a op b` is the trait-qualified call `Op[R]::m(a, b)` of the operator's trait, as in `Add[R]::add(a, b)`. Likewise `-a` is `Neg::neg(a)` and `~a` is `Not::not(a)`.
 8. r[expr.op.no-use] The call needs no `use` of the trait.
 9. r[expr.op.left-dispatch] The left operand's type selects the implementation. Its instantiations of the trait are the candidates, and [Instantiations Of One Generic Trait](09-traits.md#instantiations-of-one-generic-trait) chooses among them by the right operand.
 10. r[expr.op.left-dispatch.example] So `price * 3` checks `3` against `i64` in `Mul[i64]`.
@@ -1240,7 +1240,8 @@ fn total(a: Meters, b: Meters) -> Meters:
 #### Primitive Implementations
 
 The standard library implements the operator traits for the primitive number
-types, so generic code bounded by an operator trait accepts them:
+types, and `Add` for `string`, so generic code bounded by an operator trait
+accepts them:
 
 ```text
 use std.ops.Add
@@ -1260,12 +1261,14 @@ fn count(items: List[i32]) -> i32:
 | r[expr.op.std.arith] Arithmetic | `Add`, `Sub`, `Mul`, `Div`, `Rem` | `impl Add[T] for T` and the like, for every integer and floating-point type `T` |
 | r[expr.op.std.neg] Negation | `Neg` | every signed integer and floating-point type |
 | r[expr.op.std.bitwise] Bitwise | `BitAnd`, `BitOr`, `BitXor` | `impl BitAnd[T] for T` and the like, for every integer type `T` |
-| r[expr.op.std.bit-not] Complement | `BitNot` | every integer type |
+| r[expr.op.std.not] Complement | `Not` | every integer type |
+| r[expr.op.std.string-add] Concatenation | `Add` | `impl Add[string] for string` |
 | r[expr.op.std.shift] Shifts | `Shl`, `Shr` | `impl Shl[C] for T` and the like, for every pair of integer types `T` and `C` |
 
 1. r[expr.op.std.intrinsic] The body of each implementation in the table is a compiler intrinsic. It behaves exactly as the built-in operator on the same operands, including checked overflow and its panics.
 2. r[expr.op.std.same-type] The arithmetic and bitwise implementations are same-type only. Generic code therefore gets no widening, while `i16 + i64` stays built in.
-3. r[expr.op.std.other-primitives] The standard library declares no operator trait implementation for `bool`, `char`, or `string`. `string + string` stays a built-in form.
+3. r[expr.op.std.string-concat] `impl Add[string] for string` concatenates, as `string + string` does. Two `string` operands are primitive, so `a + b` stays built in, and generic code such as `T < Add[T, Out = T]` accepts `string`.
+4. r[expr.op.std.bool-char] The standard library declares no operator trait implementation for `bool` or `char`.
 
 > **Why.** This is Rust's shape. The right operand is a trait argument, so a
 > type may scale by `i64` and add its own kind. The output is an associated

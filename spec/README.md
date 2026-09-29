@@ -1484,6 +1484,12 @@ existing source. Each entry names the decision that made the change.
   `u8::from_i64(300)`, which wrapped to 44, panics with
   `integer-overflow`. `Num` gains the supertraits `PartialOrd` and
   `Display`, so `T < Num` code may compare and interpolate.
+- Operator traits OP11 (same record, 2026-09-29): the trait of `~` is
+  renamed from `BitNot` to `Not`, with the method `not`, so
+  `use std.ops.BitNot` no longer resolves. `string` implements `Add`,
+  so `T < Add[T, Out = T]`, which rejected `string` with
+  `unsatisfied-trait-bound`, now accepts it; `a + b` on two strings stays
+  built in.
 - Iterator adapters (STDLIB questions 14 and 18, owner decision,
   2026-09-29): the prelude `Iterator[T]` gains the default methods
   `filter`, `take`, `enumerate`, and `collect`, as Rust's `Iterator` has

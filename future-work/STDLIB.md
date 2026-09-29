@@ -351,14 +351,14 @@ comes through `Num`
 ([Operator Traits Still Open 10](OPERATOR_TRAITS.md#still-open)):
 
 ```text
-use std.ops.{BitAnd, BitNot, BitOr, BitXor, Neg, Shl, Shr}
+use std.ops.{BitAnd, BitOr, BitXor, Neg, Not, Shl, Shr}
 
 pub enum ParseNumberError:
     Empty
     InvalidDigit(position: i32)
     OutOfRange
 
-pub trait Integer < Num & Ord & BitAnd[Self, Out = Self] & BitOr[Self, Out = Self] & BitXor[Self, Out = Self] & BitNot[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]:
+pub trait Integer < Num & Ord & BitAnd[Self, Out = Self] & BitOr[Self, Out = Self] & BitXor[Self, Out = Self] & Not[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]:
     fn checked_add(self, other: Self) -> Self?
     fn checked_sub(self, other: Self) -> Self?
     fn checked_mul(self, other: Self) -> Self?
@@ -870,12 +870,12 @@ code writes `use std.text.r`. The helpers `interpolate`, `process_escapes`,
 and `EscapeError` moved there too (L22; see [`std.text`](#stdtext)).
 
 `std.ops` also declares the operator traits
-([Operator Traits](OPERATOR_TRAITS.md#owner-decisions) OP1-OP9): `Add`,
-`Sub`, `Mul`, `Div`, `Rem`, `Neg`, `BitAnd`, `BitOr`, `BitXor`, `BitNot`,
+([Operator Traits](OPERATOR_TRAITS.md#owner-decisions) OP1-OP9, OP11): `Add`,
+`Sub`, `Mul`, `Div`, `Rem`, `Neg`, `BitAnd`, `BitOr`, `BitXor`, `Not`,
 `Shl`, and `Shr`, each with an associated `Out`; the ten assign traits
 from `AddAssign` to `ShrAssign`, each with a `mut self` method; and `Index`
 and `IndexSet`. Std implements the operator traits for the primitive
-numbers with intrinsic bodies, and `std.time` can implement them for
+numbers with intrinsic bodies, and `Add` for `string`, and `std.time` can implement them for
 `Duration`, so `5s + 250ms` works. `std.time` is not yet written against
 them; that is library work, not a language question.
 

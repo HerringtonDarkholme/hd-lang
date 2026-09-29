@@ -1424,3 +1424,4 @@ typing/invalid/init-group-cycle.hd	type	reject:top-level-read-before-initializat
 runtime/valid/string-prefix-plain-dollar-digit.hd	runtime	accept	01-lexical-structure.md#r-lex.prefix.plain-dollar-start
 runtime/valid/literal-suffix-default-parameter.hd	runtime	accept	05-expressions.md#r-expr.suffix.fn-shape.default
 typing/valid/row-union-private-result.hd	type	accept	11-requirements-and-suspension.md#r-req.row.union.sites
+runtime/valid/operator-string-add.hd	runtime	accept	05-expressions.md#r-expr.op.std.string-concat

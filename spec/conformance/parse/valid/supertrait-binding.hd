@@ -2,4 +2,4 @@
 # Spec 02 Associated Type Bindings In Bounds: grammar.generic.binding.bounds-and-supertraits (Operator Traits OP8).
 trait Additive < Add[Self, Out = Self] & Sub[Self, Out = Self]
 
-trait Complement < BitNot[Out = Self] & Shl[u32, Out = Self]
+trait Complement < Not[Out = Self] & Shl[u32, Out = Self]

@@ -1167,3 +1167,11 @@ style lint rejects a chapter that reuses one.
 - `lex.prefix.plain-dollar`: retired 2026-09-29. Small follow-ups: a `$`
   is text unless the next character can start an identifier, so `$5` is
   text. Replaced by `lex.prefix.plain-dollar-start`.
+- `expr.op.trait.bit-not`: retired 2026-09-29. Operator traits OP11
+  renames the trait of `~` to `Not`, as in Rust. Replaced by
+  `expr.op.trait.not`.
+- `expr.op.std.bit-not`: retired 2026-09-29. Operator traits OP11 renames
+  the trait. Replaced by `expr.op.std.not`.
+- `expr.op.std.other-primitives`: retired 2026-09-29. Operator traits OP11
+  makes `string` implement `Add`. Replaced by `expr.op.std.string-add`,
+  `expr.op.std.string-concat`, and `expr.op.std.bool-char`.
