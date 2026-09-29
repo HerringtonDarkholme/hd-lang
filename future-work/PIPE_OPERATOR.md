@@ -79,6 +79,14 @@ Decided 2026-09-29.
      visible `!`. Write the `_` form instead: `x |> handler!(_)`. `?`
      likewise needs the `_` form: `x |> f(_)?`.
 
+9. **PL9 (2026-09-29): pipe steps are single-line.** A step may not
+   contain an indented block: no multi-line `match`, `if` or closure body.
+   The error hints to bind a name first or extract a function. Leading
+   `|>` continuation lines stay allowed. One-line closures
+   (`fn(o): o.paid`) and inline `if ... else ...` are fine. Precedent:
+   Elixir allows `|> case do ... end`, but its style tool, Credo,
+   discourages it.
+
 ## Contents
 
 1. [Problem](#problem)
