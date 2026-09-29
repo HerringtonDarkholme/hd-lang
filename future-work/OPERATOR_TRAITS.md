@@ -59,8 +59,19 @@ Decided 2026-09-29.
    `trait Integer < Add[Self, Out = Self] & Sub[Self, Out = Self]`. This
    retires `trait.binding.rejected` for supertraits.
 
-The numeric trait family idea (`IntLike`, `FloatLike`, `Num`) and its
-pitfalls are logged below and still undecided.
+9. **OP9 (2026-09-29): numeric trait families.**
+   - `Num < AnyVal`: only primitives and their newtypes are numbers. The
+     owner accepted that a library `BigInt` or `Decimal` written as `data`
+     can't be a `Num`.
+   - `Num` has `+ - * / %`, `zero()` and `one()`. Generic code writes
+     `T::zero()` and `T::one()`; there are no polymorphic literals. `/` and
+     `%` keep each type's own meaning: integer division truncates and
+     panics on zero, and float division gives infinity or NaN.
+   - The two families are `Integer < Num` (i8 through u64: `Ord`, bitwise
+     and shifts) and `Float < Num` (f32, f64: `PartialOrd`, `is_nan` and
+     the like).
+   - The exact member lists are left to the apply pass. They build on OP8's
+     supertrait `Out` binding.
 
 ## Contents
 
