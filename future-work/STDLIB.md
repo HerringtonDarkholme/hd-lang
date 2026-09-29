@@ -822,7 +822,7 @@ pub trait Iterator[T]:
     fn map[U](mut self, transform: fn(T) -> U) -> mut Iterator[U]:
         pass
 
-    fn fold[A](mut self, initial: A, step: fn(A, T) -> A) -> A:
+    fn fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
         pass
 ```
 
@@ -1072,7 +1072,8 @@ fn simulate!() -> Timestamp:
 ```
 
 `Timestamp` is UTC wall time; `Instant` is monotonic and meaningful only
-against the clock that produced it. Calendar dates, time zones, and
+against the clock that produced it. Both implement `Eq` and `Ord`, as
+Rust's `SystemTime` and `Instant` do, so timestamps sort. Calendar dates, time zones, and
 formatting stay outside `std` at first, as Kotlin kept them in
 `kotlinx-datetime`. `ManualClock.sleep!` advances immediately (decision 10);
 a virtual-time provider that fires timers only when the driver is idle comes
@@ -1904,6 +1905,12 @@ file holds one decimal draw per line. This replaces the earlier `Strategy` sketc
     values, not providers, builders or handles.
 - `Timestamp` and `Instant` implement `Ord`.
 
+Applied 2026-09-29, in this record only. The specification's `Iterator`
+text names no `fold`, so the row parameter is in the draft signature under
+[`std.iter`](#stditer). `Ord` for `Timestamp` and `Instant` is `std` scope
+(AGENTS.md, Spec Scope For The Standard Library), so it is in
+[`std.time`](#stdtime) only; `lib/std` has no `Timestamp` or `Instant` yet.
+
 **Questions 14-22 (decided 2026-09-29, all as recommended).**
 - Iterator adapters are default methods on the prelude `Iterator`, as in
   Rust (`map`, `filter`, `take`, `enumerate`, `fold`, `collect`). There is
@@ -2006,13 +2013,13 @@ specification or the draft, so each can change without breaking a decision.
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
-| 1 | Question 14 makes `map[U]` and `fold[A]` `Iterator` default methods. A method type parameter without an `AnyRef` bound makes a trait not dynamically safe ([`trait.dyn.safe.anyref-type-param`](../spec/09-traits.md#r-trait.dyn.safe.anyref-type-param)). `iter()` returns `mut Iterator[T]`, which would then be `trait-not-dynamically-safe`. | Not applied. The specification lists only `filter`, `take`, `enumerate`, and `collect` ([Iterator Adapters](../spec/06-control-flow.md#iterator-adapters)) | Leave a default method whose own signature is not dynamically safe out of the dispatch table. A call through a trait value runs the default body with `Self` as the trait value type, which already satisfies the bound ([`trait.dyn.bound`](../spec/09-traits.md#r-trait.dyn.bound)). This is Rust's `where Self: Sized` on `Iterator::map`, and a semantic rule exception. The alternative keeps `map` and `fold` as `std.iter` free functions. |
-| 2 | How does a callback's requirement row flow through an adapter? | It does not. `keep` has the empty row ([`flow.adapter.callback-row`](../spec/06-control-flow.md#r-flow.adapter.callback-row)), since the returned iterator calls it from `next`, whose row is empty. A callback that needs a provider captures the value from `$.use` ([`req.use.value.flow`](../spec/11-requirements-and-suspension.md#r-req.use.value.flow)) | Keep for the lazy adapters, `map` included. Give `fold` a row parameter when it lands: `fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R`. It calls `step` before it returns, and a row parameter keeps one body ([`trait.dyn.safe.row-parameter`](../spec/09-traits.md#r-trait.dyn.safe.row-parameter)). |
-| 3 | Question 18 names `repeat`, `chunks`, and `clamp`. What does `take(-1)` do? | It panics when called, with `explicit-panic` ([`flow.adapter.take.negative`](../spec/06-control-flow.md#r-flow.adapter.take.negative)); `take(0)` yields nothing | Keep: Kotlin's `take` rejects a negative count, and Rust's `usize` cannot express one. |
-| 4 | Question 16 does not give the result type of `keys` and `values`. | `List[K]` and `List[V]`, snapshots in insertion order, like `chars` and `lines` ([`std.collections`](#stdcollections)) | Keep. A `mut Iterator[K]`, as Rust returns, panics after a later shape change ([`flow.for.invalidate`](../spec/06-control-flow.md#r-flow.for.invalidate)); a list does not. |
-| 5 | The draft's `Integer` listed `abs_diff(self, other: Self) -> Self`. Question 19 makes the result unsigned, which a `Self` result cannot say. | An inherent method of each integer type, removed from the draft's `Integer` list ([`std.num`](#stdnum)) | Keep. Generic code that needs it waits for an associated `Unsigned` type on the sealed `Integer`, which is a specification change. |
-| 6 | Question 21 gives `Eq` to every value type, without defining one. | Data and enums that hold only values: `Duration`, `Timestamp`, `Instant`, `Path`, `Command`, `Output`, `Number`, `Json`, and every error type. Providers (`ManualClock`, `MemoryFs`), builders (`StringBuilder`), and handles (`Task`, `Scope`) are not value types | Keep: a provider or handle compares by identity with `is`. |
-| 7 | Question 21 gives `Ord` only to `Duration`. `Timestamp` and `Instant` are ordered too. | Neither implements `Ord` | Add `Ord` to both, as Rust's `SystemTime` and `Instant` implement it, so timestamps sort. |
+| 1 | Question 14 makes `map[U]` and `fold[A]` `Iterator` default methods. A method type parameter without an `AnyRef` bound makes a trait not dynamically safe ([`trait.dyn.safe.anyref-type-param`](../spec/09-traits.md#r-trait.dyn.safe.anyref-type-param)). `iter()` returns `mut Iterator[T]`, which would then be `trait-not-dynamically-safe`. | Not applied. The specification lists only `filter`, `take`, `enumerate`, and `collect` ([Iterator Adapters](../spec/06-control-flow.md#iterator-adapters)) | **Decided (2026-09-29):** `map` and `fold` wait for the pipe/UFCS design (#47), which weighs this dynamic-safety conflict and the Rust-style exclusion rule. |
+| 2 | How does a callback's requirement row flow through an adapter? | It does not. `keep` has the empty row ([`flow.adapter.callback-row`](../spec/06-control-flow.md#r-flow.adapter.callback-row)), since the returned iterator calls it from `next`, whose row is empty. A callback that needs a provider captures the value from `$.use` ([`req.use.value.flow`](../spec/11-requirements-and-suspension.md#r-req.use.value.flow)) | **Decided (2026-09-29):** kept for the lazy adapters; the eager `fold` carries a row parameter when it lands, as the [`std.iter`](#stditer) draft shows. |
+| 3 | Question 18 names `repeat`, `chunks`, and `clamp`. What does `take(-1)` do? | It panics when called, with `explicit-panic` ([`flow.adapter.take.negative`](../spec/06-control-flow.md#r-flow.adapter.take.negative)); `take(0)` yields nothing | **Decided (2026-09-29):** kept as applied. |
+| 4 | Question 16 does not give the result type of `keys` and `values`. | `List[K]` and `List[V]`, snapshots in insertion order, like `chars` and `lines` ([`std.collections`](#stdcollections)) | **Decided (2026-09-29):** kept as applied. |
+| 5 | The draft's `Integer` listed `abs_diff(self, other: Self) -> Self`. Question 19 makes the result unsigned, which a `Self` result cannot say. | An inherent method of each integer type, removed from the draft's `Integer` list ([`std.num`](#stdnum)) | **Decided (2026-09-29):** kept as applied. |
+| 6 | Question 21 gives `Eq` to every value type, without defining one. | Data and enums that hold only values: `Duration`, `Timestamp`, `Instant`, `Path`, `Command`, `Output`, `Number`, `Json`, and every error type. Providers (`ManualClock`, `MemoryFs`), builders (`StringBuilder`), and handles (`Task`, `Scope`) are not value types | **Decided (2026-09-29):** kept as applied. |
+| 7 | Question 21 gives `Ord` only to `Duration`. `Timestamp` and `Instant` are ordered too. | Neither implements `Ord` | **Decided (2026-09-29):** both implement `Ord` ([`std.time`](#stdtime)). |
 
 ## Questions For The Owner
 
