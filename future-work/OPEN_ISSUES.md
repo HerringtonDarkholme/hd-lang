@@ -31,7 +31,12 @@ the Kotlin-style inference recorded earlier the same day (89c6a11).
    stays as M22 decided (owner, 2026-09-29): `clone(self) -> Self` and
    `clone_mut(mut self) -> mut Self`. The owner declined making
    `clone` return `mut Self`, so a spread literal is the way to get a
-   mutable copy of a read-only value.
+   mutable copy of a read-only value. A spread from a read-only value only
+   covers fields without `mut`. Each `mut` field (`friend: mut User`) needs
+   a `mut` value (the existing field-initialization rule), which a
+   read-only source can't give. So a type with `mut` fields must override
+   them with fresh values, as in `User { ...r, friend: fresh_friend() }`,
+   or offer a constructor (owner observation, 2026-09-29).
 3. A plain `let` without `mut` infers read-only, unless its annotation
    says `mut` (`let a: mut List[i32] = []` stays valid). Fresh literals are
    not silently `mut`.
