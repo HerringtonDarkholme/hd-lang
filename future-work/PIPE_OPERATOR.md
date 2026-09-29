@@ -18,6 +18,35 @@ settles how `map[U]` and `fold[A]` reach iterators, which
 [Bang Calls And Driver Contexts](../spec/11-requirements-and-suspension.md#bang-calls-and-driver-contexts),
 and [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters).
 
+## Owner Decisions
+
+Decided 2026-09-29.
+
+1. **PL1: `map` and `fold` are static-only default methods on `Iterator`.**
+   A default method whose own signature isn't dynamically dispatchable
+   stays out of the dispatch table. A call through a trait value runs the
+   default body. It is Rust's `where Self: Sized` without a marker, and
+   `xs.map(f)` works.
+2. **PL2: static-only methods can't be overridden.** Doing so is the new
+   error `static-only-override`, so a call means the same thing directly
+   and through a trait value.
+3. **PL3: hd gets a Gleam-style pipe `|>`.** The value goes into the first
+   argument by default, and a single top-level `_` argument of the step
+   picks another slot (`title |> format("Title: {}", _)`). Only the step's
+   own direct arguments count, so a `_` inside a nested call or closure
+   isn't the pipe slot. Two `_` in one step is an error.
+4. **PL4: bare names are allowed** (the owner reversed the parentheses
+   recommendation): `x |> f` means `f(x)`, and `x |> fetch!` means
+   `fetch!(x)`. A step written as a call (`x |> f(a)`) always means
+   "insert the value" (`f(x, a)`), never `f(a)(x)`.
+5. **PL5: no trailing blocks on pipe steps for now.** Use closures or
+   methods; this can be added later.
+6. **PL6: accepted as recommended:**
+   - the piped value is evaluated before the step's callee;
+   - `|>` sits between comparison and `|` in precedence;
+   - a line may start with `|>` to continue the previous expression, like
+     leading-dot lines.
+
 ## Contents
 
 1. [Problem](#problem)
