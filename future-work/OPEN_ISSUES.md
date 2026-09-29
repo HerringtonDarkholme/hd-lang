@@ -330,6 +330,15 @@ compares five options and asks six questions. Until the owner answers,
 `Type::name` and `x::name` stay `deferred-method-value`
 ([Method Values](../spec/07-functions.md#method-values)).
 
+### Collecting Iterators
+
+**Open.** `collect` returns only a `List`
+([Iterator Adapters](../spec/06-control-flow.md#iterator-adapters)).
+[Collecting Iterators Into Collections](COLLECT.md) compares five ways to
+reach a `Map`, a `Set`, or an all-or-nothing `Result`, and asks five
+questions, including the duplicate-key policy and whether `?` may appear
+inside a comprehension.
+
 ### Cross-Feature Stress Test (2026-09-29)
 
 **Open.** Two readings of stress decisions 5 and 6, about decorators, wait

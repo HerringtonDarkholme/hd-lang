@@ -51,6 +51,9 @@ Open questions for the owner:
 - [Method And Field References](METHOD_REFERENCES.md) designs CS5: it
   surveys references in eight languages and compares five options, from
   closures only to Kotlin-style `::` and Swift-style key paths.
+- [Collecting Iterators Into Collections](COLLECT.md) compares five ways
+  for a data `Iterator[T]` to end in a `Map`, a `Set`, or an all-or-nothing
+  `Result`, with the duplicate-key policy and the spec-or-STDLIB split.
 
 Research and direction outside the specification:
 
