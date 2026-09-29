@@ -35,3 +35,30 @@ The spec names a std item only when the language needs it:
 Any other std type or function, such as `Set` or a default hasher, lives only
 in [future-work/STDLIB.md](future-work/STDLIB.md) and the std sources. Spec
 examples must not depend on those. Owner direction, 2026-09-28.
+
+## Writing hd Code: Cheapest Model And A Feedback Log
+
+When a task is **writing hd programs**, use the least capable and cheapest
+model available (for example Haiku). Examples of such tasks:
+- the standard library in `lib/std`;
+- examples, playground examples, and hd test files;
+- sample apps.
+
+The point is to learn how hard hd is to use, and how well the compiler's
+feedback helps.
+
+Every such agent logs each mistake it made in
+[audit/hd-writing-log.md](audit/hd-writing-log.md): one row per syntax
+error, type error, API misuse, or semantic misunderstanding. Record:
+- what it wrote;
+- what the compiler said, word for word;
+- whether that message led it to the fix;
+- the fix.
+
+The log is used to audit the compiler's diagnostics and the docs.
+
+This rule does **not** apply to:
+- specification text and conformance fixtures;
+- the compiler prototype itself (`src/`).
+
+Those tasks use the normal model. Owner direction, 2026-09-29.
