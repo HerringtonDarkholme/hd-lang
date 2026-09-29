@@ -7,7 +7,7 @@ L15-L17 and L18 the same day. L11 (`@suffix fn`) was applied later that
 day with the names of [Decorators D9](DECORATORS.md#owner-decisions)
 (`@num_suffix`, `std.ops.NumSuffix`), replacing the `LiteralSuffix`
 mechanism. L19 (string prefixes) was applied the same day, and L20 and
-L21 later that day. The survey and
+L21 later that day. L22 was applied on 2026-09-29. The survey and
 options before the decisions are the
 exploration they came from. Questions raised while applying them are under
 [Still Open](#still-open).
@@ -289,9 +289,9 @@ the decorator redesign; see its entry below.
       would have nowhere to go. Test cases stay `it("name", ...)`.
 
     Applied 2026-09-28 in
-    [`expr.suffix.fn-shape-required`](../spec/05-expressions.md#r-expr.suffix.fn-shape-required),
+    `expr.suffix.fn-shape-required` (retired by L22),
     [`expr.suffix.fn-shape.definition`](../spec/05-expressions.md#r-expr.suffix.fn-shape.definition),
-    [`expr.prefix.fn-shape-required`](../spec/05-expressions.md#r-expr.prefix.fn-shape-required)
+    `expr.prefix.fn-shape-required` (retired by L22)
     and [`expr.prefix.fn-shape.definition`](../spec/05-expressions.md#r-expr.prefix.fn-shape.definition),
     with the stated `@num_suffix` reading. `return"x"` needed no change
     ([`lex.prefix.reserved`](../spec/01-lexical-structure.md#r-lex.prefix.reserved)).
@@ -309,6 +309,15 @@ the decorator redesign; see its entry below.
     - `interpolate`, `process_escapes` and `EscapeError` move to
       `std.text` next to `r`. `std.ops` keeps the markers and `Template`.
     - `EscapeError.offset` counts Unicode scalars.
+
+    Applied 2026-09-29 in
+    [`expr.suffix.fn-shape-one`](../spec/05-expressions.md#r-expr.suffix.fn-shape-one)
+    and [`expr.prefix.fn-shape-one`](../spec/05-expressions.md#r-expr.prefix.fn-shape-one),
+    which replace the `-required` rules. The spec names no line for the
+    shape error. The helpers moved to `lib/std/text.hd` and the
+    [STDLIB draft](STDLIB.md#stdtext); the spec names neither module for
+    them. Readings the apply pass had to choose are points 28 and 29 under
+    [Still Open](#still-open).
 
 ## Contents
 
@@ -873,14 +882,21 @@ interpolated, so points 15-17 fill in how `$` and `\` behave:
 | 22 | A prefix function whose parameter is not a `Template`, as in `count(n: i32)` | L21: `type-mismatch` at the definition ([`expr.prefix.fn-shape.definition`](../spec/05-expressions.md#r-expr.prefix.fn-shape.definition)) | Done. |
 | 23 | A prefixed string as a test name, as in `it(r"a\b"):` | A call, so `non-literal-test-argument` by the existing rule | Keep. |
 
-The L20 and L21 apply pass met these points:
+The L20 and L21 apply pass met these points, and L22 answered them:
+
+| # | Point | Resolution |
+| --- | --- | --- |
+| 24 | L21 says "exactly one required parameter", where L11 said "exactly one parameter" | L22: exactly one parameter; `fn kb(count: i64, unit: i64 = 1024)` is `type-mismatch` ([`expr.suffix.fn-shape-one`](../spec/05-expressions.md#r-expr.suffix.fn-shape-one)) |
+| 25 | Which line a definition-site shape error names | L22: not specified; the prototype names the `fn` line |
+| 26 | Whether `interpolate`, `process_escapes` and `EscapeError` move to `std.text` with `r` | L22: they move to `std.text`; `std.ops` keeps the markers and `Template` |
+| 27 | What `EscapeError.offset` counts | L22: Unicode scalars |
+
+The L22 apply pass met these points:
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
-| 24 | L21 says "exactly one required parameter", where L11 said "exactly one parameter" | Other parameters are allowed when each has a default, so `fn kb(count: i64, unit: i64 = 1024)` is a valid suffix and `4kb` calls `kb(4)`; a variadic parameter counts as not required | Confirm, or say "exactly one parameter" to keep point 12's old reading. |
-| 25 | Which line a definition-site shape error names | The marked function's `fn` line, not its `@num_suffix` or `@str_prefix` line | Keep: the signature is what is wrong. |
-| 26 | Whether `interpolate`, `process_escapes` and `EscapeError` move to `std.text` with `r` | They stay in `std.ops`, beside `Template`, since L20 moved only `r` | Keep: they are prefix helpers over `Template` and escapes. |
-| 27 | What `EscapeError.offset` counts | The Unicode scalars before the bad escape's backslash, as `std.text` positions count scalars | Keep. |
+| 28 | Whether the one parameter may have a default, as in `@num_suffix fn unit(count: i64 = 1)` | Valid: the rule counts parameters, and a literal always passes its value | Keep: the owner's words count parameters, and a default harms nothing. |
+| 29 | L22 leaves the error's line open, but a fixture's marker names one line | The shape fixtures mark the `fn` line, as the general location rule in [Diagnostics](../spec/README.md#diagnostics) reads for a signature | Keep the `fn` line, so fixtures stay exact; or let the conformance format accept any line of a marked definition. |
 
 ```text
 use std.text.r
