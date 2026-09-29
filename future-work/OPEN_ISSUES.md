@@ -10,6 +10,41 @@ their text.
 
 ## Language Design Decisions
 
+### Follow-Ups Decided 2026-09-29 (Evening)
+
+**Decided by the owner; not yet applied.**
+
+`let mut` (follow-ups to Local Mutability):
+1. A multi-name binding with `mut` **requires parentheses**:
+   `let (mut log, db) = $.use(Log, Db)`. The unparenthesized
+   `let mut log, db = ...` is an error.
+2. `let mut n = 0` on a primitive, and `let n: mut i32`, get a dedicated
+   error code (for example `mut-on-primitive`). The hint: "`let` is already
+   reassignable; `mut` is only for data, list and map values".
+3. `let mut u = find()`, where `find` returns `mut User?`, is valid.
+4. A redundant `let mut a: mut T` gets a compiler **warning**.
+
+Operators:
+5. **`m[k] op= v` on a `Map` uses a panicking read:** it reads `m[k]` as if
+   the key must exist (panicking if it doesn't), then writes back. So
+   `counts[w] += 1` works when `w` is present. This settles OPERATOR_TRAITS
+   Still Open 19.
+6. Unwrapping a newtype carries its permission: unwrapping a `mut Draft`
+   gives a mutable view of the base, symmetric with OP12's wrapping rule
+   (OPERATOR_TRAITS Still Open 21).
+7. The compound-assignment syntax is confirmed: ten tokens
+   `+= -= *= /= %= &= |= ^= <<= >>=` (no `**=`), with the right side
+   taking the same forms as `=`.
+
+Decorators and stale wording:
+8. Every decorator before an `impl ... by Structure:` block warns,
+   literal and std facts included (STRESS Still Open 1).
+9. The readable-decorator-targets Note covers enums as well as data
+   (STRESS Still Open 2).
+10. `types.trait.safe.convert`: drop "optional" from the list of values
+    that need explicit conversion, since every enum, optionals included,
+    is now `AnyRef`. Only primitives and tuples need conversion.
+
 ### Local Mutability: `let mut` As An Inference Helper
 
 The owner's decision (2026-09-29) is applied as
