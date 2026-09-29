@@ -402,14 +402,16 @@ else`, `break`, `break value`, and `continue`;
   wider function type through the callable adapter. A value is not widened
   into a row that holds a row parameter it lacks, which least-row inference
   solves instead. A list or map literal with no expected type gives its
-  function values the union of their rows; a literal with a spread does
-  not yet (`KNOWN_FAILURES.tsv`, RU12), and diagnostics print the union's
-  expanded keys rather than the rows as written. `if` branches, `match`
-  arms, and inferred closure and function results take the union too
-  (RU15), and a branch or arm type mismatch is `no-common-type`. A
-  function whose result is a function type with a row fails Wasm
-  validation, since its type string reads the inner row as the outer
-  function's (`KNOWN_FAILURES.tsv`, RU15);
+  function values the union of their rows, and a spread contributes its
+  list's element row: a part whose row is smaller is checked again against
+  the union, a spread `xs` as `[for x in xs => x]` (RU12). Diagnostics
+  print the union's expanded keys rather than the rows as written. `if`
+  branches, `match` arms, and inferred closure and function results take
+  the union too (RU15), and a branch or arm type mismatch is
+  `no-common-type`. A function type whose result is a function type
+  parenthesizes that result in its type string, as in
+  `fn(bool)->(fn()->string$Db)`, so the inner row stays the inner
+  function's;
 - erased generic marker traits as provider keys, with call-site substitution
   and pre-erasure collision checking;
 - erased generic functions with call-site type inference, Wasm GC boxing for

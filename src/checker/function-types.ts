@@ -1,6 +1,6 @@
 import type { Program } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
-import { rowArgumentKeys, tupleParts } from "../types.ts";
+import { functionResultText, rowArgumentKeys, tupleParts } from "../types.ts";
 
 // The spelled function type constructors of `std.function`
 // (07-functions.md#function-type-constructors). `Fn[(A, B), O, R]` is exactly
@@ -124,7 +124,7 @@ function lowerConstructor(
   const keys = rowArgumentKeys(row) ?? [row];
   const clause = keys.length > 0 ? `$${keys.join("+")}` : "";
   return {
-    type: `fn${constructor === "SuspendFn" ? "!" : ""}(${parameters.join(",")})->${output}${clause}`,
+    type: `fn${constructor === "SuspendFn" ? "!" : ""}(${parameters.join(",")})->${functionResultText(output)}${clause}`,
   };
 }
 

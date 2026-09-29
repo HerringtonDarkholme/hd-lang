@@ -1369,3 +1369,5 @@ runtime/valid/num-traits-run.hd	runtime
 typing/valid/num-families.hd	type
 typing/invalid/num-bound-newtype.hd	type
 typing/invalid/num-sealed-impl.hd	type
+typing/valid/row-union-spread.hd	type
+runtime/valid/row-union-closure-result-runs.hd	runtime

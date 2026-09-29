@@ -20,7 +20,7 @@ import type {
 } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { lex, type Token } from "../lexer.ts";
-import { optionalType } from "../types.ts";
+import { functionResultText, optionalType } from "../types.ts";
 import { DecoratorParser } from "./decorators.ts";
 import { ParseFailure, type ExpressionParseResult, type ParseOptions } from "./base.ts";
 import {
@@ -1086,7 +1086,7 @@ class Parser extends DecoratorParser {
       const end = hasRequirements ? this.peek(-1).span.end : result.span.end;
       const row = requirements.length ? `$${requirements.join("+")}` : "";
       return {
-        name: `fn${suspending ? "!" : ""}(${parameters.map((parameter) => `${parameter.type.name}${parameter.variadic ? "..." : ""}`).join(",")})->${result.name}${row}`,
+        name: `fn${suspending ? "!" : ""}(${parameters.map((parameter) => `${parameter.type.name}${parameter.variadic ? "..." : ""}`).join(",")})->${functionResultText(result.name)}${row}`,
         span: { start, end },
       };
     }

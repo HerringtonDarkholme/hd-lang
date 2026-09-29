@@ -230,3 +230,15 @@ test("typed derivation reports its diagnostics at the opt-in", () => {
     "decorator-not-annotator",
   ]);
 });
+
+test("@derive(Debug) on a newtype needs its base type's Debug and applies it", async () => {
+  const codes = (program: string): string[] =>
+    analyze(program).diagnostics.map((diagnostic) => diagnostic.code);
+  assert.deepEqual(codes("data Opaque: pass\n\n@derive(Debug)\ntype Wrapped(Opaque)\n"), [
+    "derive-field-missing-trait",
+  ]);
+  const { instance } = await instantiate(
+    '@derive(Debug)\ntype Meters(i64)\n\nfn main() -> i32:\n    if debug(Meters(3)) == "3": 1 else: 0\n',
+  );
+  assert.equal((instance.exports.main as CallableFunction)(), 1);
+});

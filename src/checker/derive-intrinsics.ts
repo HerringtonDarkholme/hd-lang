@@ -187,6 +187,7 @@ export interface IntrinsicDerivation {
 const PARTIAL_CMP = "hd__partial_cmp";
 const CMP = "hd__cmp";
 const HASH = "hd__hash";
+const DEBUG = "hd__debug";
 
 function rankName(target: Target): string {
   return `hd__rank_${target.declaration.name}`;
@@ -296,7 +297,7 @@ export interface NewtypeDerivation {
  * An intrinsic derivation on a newtype applies the base type's method to the
  * unwrapped values (spec/09-traits.md#derived-newtypes).
  */
-export function deriveNewtypeIntrinsic(item: NewtypeDerivation): ImplDecl {
+export function deriveNewtypeIntrinsic(item: NewtypeDerivation, writer: string): ImplDecl {
   const { name, genericParameters: parameters, base } = item.declaration;
   const out = new Source_();
   const T = out.type(parameters.length > 0 ? `${name}[${parameters.join(",")}]` : name);
@@ -318,6 +319,8 @@ export function deriveNewtypeIntrinsic(item: NewtypeDerivation): ImplDecl {
     out.add(`    fn cmp(self, other: ${T}) -> Ordering: ${CMP}(${self}, ${other})`, at);
   if (item.trait === "Hash")
     out.add(`    fn hash(self, state: mut Hasher) -> void: ${HASH}(${self}, state)`, at);
+  if (item.trait === "Debug")
+    out.add(`    fn debug(self, out: mut ${writer}) -> void: ${DEBUG}(${self}, out)`, at);
   return out.program(item.span).implementations[0]!;
 }
 
@@ -325,12 +328,18 @@ export function deriveNewtypeIntrinsic(item: NewtypeDerivation): ImplDecl {
 export function intrinsicHelpers(
   intrinsic: readonly IntrinsicDerivation[],
   newtypes: readonly NewtypeDerivation[],
+  writer: string,
 ): FunctionDecl[] {
   const helped = (item: { readonly trait: string }): boolean =>
     ["PartialOrd", "Ord", "Hash"].includes(item.trait);
   const used = intrinsic.filter(helped);
-  if (used.length === 0 && !newtypes.some(helped)) return [];
+  const debugged = newtypes.some((item) => item.trait === "Debug");
+  if (used.length === 0 && !newtypes.some(helped) && !debugged) return [];
   const out = new Source_();
+  if (debugged) {
+    out.add(`fn ${DEBUG}[T < Debug](value: T, out: mut ${writer}) -> void:`);
+    out.add(`    value.debug(out)`);
+  }
   out.add(`fn ${PARTIAL_CMP}[T < PartialOrd](left: T, right: T) -> Ordering?:`);
   out.add(`    left.partial_cmp(right)`);
   out.add(`fn ${CMP}[T < Ord](left: T, right: T) -> Ordering:`);
@@ -426,6 +435,6 @@ export function deriveIntrinsics(
   checkLawPartners(program, error);
   return [
     ...intrinsic.map((item) => deriveIntrinsic(item, writer)),
-    ...newtypes.map(deriveNewtypeIntrinsic),
+    ...newtypes.map((item) => deriveNewtypeIntrinsic(item, writer)),
   ];
 }

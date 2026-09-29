@@ -951,3 +951,30 @@ test("generic function values passed as arguments infer their type arguments", a
       ["unresolved-generic-placeholder"],
     );
 });
+
+test("a function result that is a function type with a row keeps that row", async () => {
+  const program = `trait Db:
+    fn name(self) -> string
+
+data MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+fn orders() -> string $ Db:
+    $.use(Db).name()
+
+fn pick(flag: bool) -> (fn() -> string $ Db):
+    orders
+
+fn run() -> string $ Db:
+    handler := pick(true)
+    handler()
+
+fn main() -> i32:
+    $.with(Db=MemoryDb {}):
+        if run() == "db": 1 else: 0
+`;
+  const { instance } = await instantiate(program);
+  assert.equal((instance.exports.main as CallableFunction)(), 1);
+});

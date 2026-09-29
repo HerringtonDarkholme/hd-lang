@@ -509,7 +509,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
       if (INTRINSIC_DERIVES.has(name)) {
         const span = trait.span;
         if (target) intrinsic.push({ trait: name, target, span });
-        else if (name !== "Debug" && declaration.kind === "type")
+        else if (declaration.kind === "type")
           newtypeIntrinsic.push({ trait: name, declaration, span });
         continue;
       }
@@ -670,7 +670,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
       ],
       functions: [
         ...program.functions,
-        ...intrinsicHelpers(intrinsic, newtypeIntrinsic),
+        ...intrinsicHelpers(intrinsic, newtypeIntrinsic, writer),
         ...factFunctions,
         ...generated.flatMap((item) => item.functions),
       ],

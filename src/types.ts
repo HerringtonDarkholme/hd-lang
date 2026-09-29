@@ -116,6 +116,15 @@ export function optionalInner(type: ValueType): ValueType | undefined {
   return inner;
 }
 
+/**
+ * A function type's result as its type string writes it: a result that is
+ * itself a function type is parenthesized, so that a requirement row after
+ * it stays the outer function's, as in `fn(bool)->(fn()->string$Db)`.
+ */
+export function functionResultText(result: ValueType): ValueType {
+  return isFunctionTypeText(result) ? `(${result})` : result;
+}
+
 /** `T?`, parenthesizing a function type so its `?` is not read as the result's. */
 export function optionalType(inner: ValueType): ValueType {
   return isFunctionTypeText(inner) ? `(${inner})?` : `${inner}?`;
@@ -186,7 +195,11 @@ export function functionParts(type: ValueType): FunctionParts | undefined {
       break;
     }
   }
-  const result = requirementStart < 0 ? tail : tail.slice(0, requirementStart);
+  const written = requirementStart < 0 ? tail : tail.slice(0, requirementStart);
+  const result =
+    written.startsWith("(") && written.endsWith(")") && isFunctionTypeText(written.slice(1, -1))
+      ? written.slice(1, -1)
+      : written;
   const requirements = requirementStart < 0 ? [] : splitRowKeys(tail.slice(requirementStart + 1));
   const variadic = renderedParameters.at(-1)?.endsWith("...") === true;
   const parameters = renderedParameters.map((parameter, index) => {
@@ -209,7 +222,7 @@ export function functionType(
     const nominal = nominalGenericParts(parameter);
     return `${nominal?.name === "List" && nominal.arguments.length === 1 ? nominal.arguments[0] : parameter}...`;
   });
-  return `fn${suspending ? "!" : ""}(${rendered.join(",")})->${result}${row.length ? `$${row.join("+")}` : ""}`;
+  return `fn${suspending ? "!" : ""}(${rendered.join(",")})->${functionResultText(result)}${row.length ? `$${row.join("+")}` : ""}`;
 }
 
 export function substituteTypeParameters(

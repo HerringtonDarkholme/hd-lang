@@ -1,6 +1,7 @@
 import type { Expression } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirExpression, ValueType } from "../hir.ts";
+import { speculationSafeArguments } from "./call-speculation.ts";
 import { isIntegerType, numericType, type NumericType, widerIntegerName } from "../numeric.ts";
 import {
   mutableInner,
@@ -63,14 +64,26 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
     types: readonly ValueType[],
     what: string,
     span: SourceSpan,
+    spreadParts = false,
   ): ValueType {
     const least = leastCommonType(types);
     if ("type" in least) return least.type;
     // Function values in a list or map literal take the union of their rows
-    // (11-requirements-and-suspension.md#r-req.row.union.literal). A spread
-    // part is a list, so a spread of function values is not unified here.
+    // (11-requirements-and-suspension.md#r-req.row.union.literal).
     const union = rowUnionType(types);
     if (union !== undefined) return union;
+    // A spread part is a list, and contributes its elements' rows
+    // (r-req.row.union.literal.spread).
+    const elements = spreadParts
+      ? types.map((type) => {
+          const nominal = nominalGenericParts(type);
+          return nominal?.name === "List" ? nominal.arguments[0] : undefined;
+        })
+      : [];
+    const elementUnion = elements.every((element) => element !== undefined)
+      ? rowUnionType(elements as ValueType[])
+      : undefined;
+    if (elementUnion !== undefined) return nominalGenericType("List", [elementUnion]);
     const listed = [...new Set(types)].join(", ");
     this.fail(
       least.code,
@@ -79,6 +92,33 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         : `${what} have no unique least common type: ${listed}; add an expected type`,
       span,
     );
+  }
+
+  /**
+   * A part of a desugared spread literal whose element type took the union
+   * of the parts' rows (r-req.row.union.literal.spread). A function value
+   * with a smaller row needs its own conversion, so the part is checked again
+   * against the union: a spread operand `xs` as `[for x in xs => x]`, and a
+   * plain `[e]` as itself. The first check had no lasting effect, because
+   * the part is speculation-safe.
+   */
+  private recheckSpreadPart(part: Expression, spread: boolean, type: ValueType): HirExpression {
+    if (!speculationSafeArguments(part))
+      this.fail(
+        "no-common-type",
+        `list elements have no common type with '${type}'; add an expected type`,
+        part.span,
+      );
+    const span = part.span;
+    const source: Expression = spread
+      ? {
+          kind: "list-comprehension",
+          clauses: [{ kind: "for", bindings: [{ name: SPREAD_ITEM, span }], iterable: part, span }],
+          value: { kind: "name", name: SPREAD_ITEM, span },
+          span,
+        }
+      : part;
+    return this.requireCoercion(this.checkExpression(source, type), type, span);
   }
 
   /**
@@ -193,16 +233,32 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           partTypes.push(spreadOperands ? readonlyType(checked.type) : checked.type);
           if (contextualElement)
             return this.requireCoercion(checked, contextualElement, element.span);
-          this.inferLeastCommonType(partTypes, "list elements", element.span);
+          this.inferLeastCommonType(
+            partTypes,
+            "list elements",
+            element.span,
+            spreadOperands !== undefined,
+          );
           return checked;
         });
         const elementType =
           contextualElement ??
-          this.inferLeastCommonType(partTypes, "list elements", expression.span);
+          this.inferLeastCommonType(
+            partTypes,
+            "list elements",
+            expression.span,
+            spreadOperands !== undefined,
+          );
         const elements = contextualElement
           ? checkedElements
           : checkedElements.map((checked, index) =>
-              this.requireCoercion(checked, elementType, expression.elements[index]!.span),
+              spreadOperands !== undefined && readonlyType(checked.type) !== elementType
+                ? this.recheckSpreadPart(
+                    expression.elements[index]!,
+                    spreadOperands[index] === true,
+                    elementType,
+                  )
+                : this.requireCoercion(checked, elementType, expression.elements[index]!.span),
             );
         const readonlyList = nominalGenericType("List", [elementType]);
         const type =

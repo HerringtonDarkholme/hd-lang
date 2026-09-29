@@ -115,7 +115,7 @@ The other three follow-ups keep the applied behavior. Points this pass met:
 | Question | Applied now | **Recommendation** |
 | --- | --- | --- |
 | Which line a newtype's missing-trait error names: the `@derive` line or the `type` line | The base type on the `type` line, as a derived field's error is at the field | Keep: the base type is the newtype's one field. |
-| `@derive(Debug)` on a newtype whose base lacks `Debug` | The rule covers it; the prototype accepts it silently | A prototype gap, not a spec question. |
+| `@derive(Debug)` on a newtype whose base lacks `Debug` | The rule covers it; the prototype reports it since 2026-09-29 | A prototype gap, not a spec question. |
 
 **Decided (owner, 2026-09-28); applied 2026-09-28.** The rules are
 [`types.cast.wrap`](../spec/04-type-system.md#r-types.cast.wrap) and
