@@ -1263,3 +1263,18 @@ style lint rejects a chapter that reuses one.
 - `lex.continue.no-operator`: retired 2026-09-29. Pipe PL6 lets a line
   that starts with `|>` continue the previous line. Replaced by
   `lex.continue.no-other-operator` and `lex.pipe.continue`.
+- `flow.for.protocols`: retired 2026-09-29. Chaining Study CS7 makes
+  `Iterable[T]` the one loop protocol. Replaced by `flow.for.iterable-only`.
+- `flow.for.iterator`: retired 2026-09-29. CS7 makes `Iterator[T]` a type
+  that implements `Iterable[T]`. Replaced by `flow.for.iterator-self`.
+- `flow.for.both`: retired 2026-09-29. With no `Iterator` trait, no type
+  implements both protocols. No replacement.
+- `flow.for.neither`: retired 2026-09-29. CS7 leaves one protocol.
+  Replaced by `flow.for.not-iterable`.
+- `flow.for.no-blanket`: retired 2026-09-29. CS7 makes `Iterator[T]`
+  implement `Iterable[T]`. Replaced by `flow.for.iterable-impls`.
+- `flow.for.no-blanket.bound`: retired 2026-09-29. An `Iterable[T]` bound
+  now accepts an iterator. Replaced by `flow.for.iterator-bound`.
+- `flow.adapter.prelude`: retired 2026-09-29. CS7 makes the adapters
+  ordinary methods of a data type, not default trait methods. Replaced by
+  `flow.adapter.methods`.

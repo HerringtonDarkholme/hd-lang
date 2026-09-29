@@ -1,0 +1,8 @@
+# test: Iterator is a data type, so it cannot be implemented as a trait
+# Spec 06 Iteration Protocols: flow.for.iterator-type (Chaining Study CS7).
+
+data Counter:
+    current: i32
+
+impl Iterator[i32] for Counter:  # diagnostic: unknown-trait
+    fn next(mut self) -> i32?: .None

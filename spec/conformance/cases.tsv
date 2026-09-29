@@ -216,7 +216,6 @@ typing/invalid/bare-parameter-impl-target.hd	type	reject:bare-parameter-impl-tar
 typing/invalid/overlapping-impl-unifying-targets.hd	type	reject:overlapping-impl	09-traits.md#overlap
 typing/invalid/overlapping-impl-despite-bounds.hd	type	reject:overlapping-impl	09-traits.md#overlap
 typing/valid/impl-distinct-trait-arguments.hd	type	accept	09-traits.md#overlap
-typing/invalid/iterator-for-iterable-bound.hd	type	reject:unsatisfied-trait-bound	06-control-flow.md#for-loops
 runtime/valid/user-iterable-for-loop.hd	runtime	accept	06-control-flow.md#for-loops
 typing/valid/trait-argument-owner-impl.hd	type	accept	09-traits.md#implementation-ownership
 typing/invalid/orphan-impl-nested-trait-argument.hd	type	reject:orphan-impl	09-traits.md#implementation-ownership
@@ -542,7 +541,6 @@ runtime/valid/closure-parameter-inference.hd	runtime	accept	07-functions.md#clos
 runtime/valid/closure-result-inference.hd	runtime	accept	07-functions.md#closures
 runtime/valid/string-trim-and-lower.hd	runtime	accept	04-type-system.md#strings
 runtime/valid/recursive-local-closure.hd	runtime	accept	07-functions.md#recursion
-runtime/valid/iterator-trait-loops.hd	runtime	accept	06-control-flow.md#for-loops
 typing/invalid/readonly-iterator-in-comprehension.hd	type	reject:mutable-receiver-required	06-control-flow.md#for-loops
 runtime/valid/generic-methods.hd	runtime	accept	07-functions.md#generic-functions
 runtime/valid/named-local-functions.hd	runtime	accept	07-functions.md#recursion
@@ -874,7 +872,6 @@ typing/invalid/generic-trait-instantiation-no-fit.hd	type	reject:type-mismatch	0
 runtime/valid/impl-distinct-target-arguments.hd	runtime	accept	09-traits.md#overlap
 runtime/valid/tuple-impl-target.hd	runtime	accept	09-traits.md#implementation-targets
 typing/invalid/overlapping-tuple-impl.hd	type	reject:overlapping-impl	09-traits.md#overlap
-runtime/valid/iterable-and-iterator-for-loop.hd	runtime	accept	06-control-flow.md#for-loops
 parse/valid/nested-suite-body-deeper-than-statement.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
 parse/invalid/nested-suite-body-level-with-statement.hd	parse	reject:unexpected-indentation	01-lexical-structure.md#physical-and-logical-lines
 typing/valid/pack-map-with-local-named-pack.hd	type	accept	12-variadic-generics.md#pack-mapping
@@ -1464,3 +1461,7 @@ typing/invalid/pipe-suspending-bare-step.hd	type	reject:suspending-pipe-step	05-
 runtime/valid/pipe-suspending-substitution-step.hd	runtime	accept	05-expressions.md#r-expr.pipe.slot.suffix
 typing/invalid/pipe-multi-line-step.hd	type	reject:multi-line-pipe-step	05-expressions.md#r-expr.pipe.single-line
 typing/invalid/placeholder-outside-pipe.hd	type	reject:placeholder-outside-pipe	05-expressions.md#r-expr.pipe.placeholder-outside
+typing/invalid/iterator-map-callback-row.hd	type	reject:type-mismatch	06-control-flow.md#r-flow.adapter.callback-row.map
+runtime/valid/iterator-drives-loops.hd	runtime	accept	06-control-flow.md#r-flow.for.iterator-self
+typing/valid/iterator-satisfies-iterable-bound.hd	type	accept	06-control-flow.md#r-flow.for.iterator-bound
+typing/invalid/impl-iterator-trait.hd	type	reject:unknown-trait	06-control-flow.md#r-flow.for.iterator-type

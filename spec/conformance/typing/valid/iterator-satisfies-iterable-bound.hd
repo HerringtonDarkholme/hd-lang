@@ -1,0 +1,14 @@
+# test: an iterator satisfies an Iterable bound
+# Spec 06 Iteration Protocols: flow.for.iterator-bound, flow.for.iterable-impls (Chaining Study CS7).
+
+fn count[I < Iterable[i32]](source: I) -> i32:
+    let total: i32 = 0
+    for item in source:
+        total = total + item
+    total
+
+fn from_iterator(source: mut Iterator[i32]) -> i32:
+    count(source)
+
+fn from_list(values: List[i32]) -> i32:
+    count(values)

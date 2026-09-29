@@ -5,7 +5,9 @@ amended by [Chaining Study CS2](CHAINING_STUDY.md#owner-decisions), are
 applied (2026-09-29), and the specification is authoritative for them:
 [Pipe Expressions](../spec/05-expressions.md#pipe-expressions) and
 [Leading-Pipe Continuation](../spec/01-lexical-structure.md#leading-pipe-continuation).
-PL1 and PL2 are superseded by CS7 and CS8 and were not applied. The rest of
+PL1 and PL2 are superseded by CS7 and CS8 and were not applied: `map`
+and `fold` are ordinary methods of the data type `Iterator[T]`
+([Iterator Adapters](../spec/06-control-flow.md#iterator-adapters)). The rest of
 the record is the survey behind the decisions.
 
 The owner wants a pipe operator and expects it to be hard. The same record

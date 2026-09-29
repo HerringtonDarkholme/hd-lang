@@ -1,14 +1,14 @@
-data Counter:
-    current: i32
-    end: i32
+# test: for and comprehensions accept Iterable values, including a mutable iterator
+# Spec 06 Iteration Protocols: flow.for.iterable-only, flow.for.iterable-impls, flow.for.iterator-self (Chaining Study CS7).
 
-impl Iterator[i32] for Counter:
-    fn next(mut self) -> i32?:
-        if self.current >= self.end:
-            return .None
-        value := self.current
-        self.current = self.current + 1
-        value
+fn consume(source: mut Iterator[i32]) -> List[i32]:
+    [for value in source => value]
 
-fn consume(counter: mut Counter) -> List[i32]:
-    [for value in counter => value]
+fn labels(entries: Map[string, i32]) -> List[string]:
+    [for key, count in entries => "$key=$count"]
+
+fn total(values: List[i32]) -> i32:
+    let sum: i32 = 0
+    for value in values:
+        sum = sum + value
+    sum

@@ -21,12 +21,6 @@ Decided, not yet applied:
 - [Error Conversion: The `@error` Intrinsic](ERROR_CONVERSION.md) holds
   decision 10, error derivation as one compiler intrinsic. The rest of the
   error design is in the specification.
-- [Pipe Operator And Iterator `map`/`fold`](PIPE_OPERATOR.md) surveys pipes,
-  UFCS, and extension methods in 17 languages and records owner decisions
-  PL1-PL10.
-- [Chaining Study: Pipe, Function Shorthand, And Iterator Adapters](CHAINING_STUDY.md)
-  measures six combinations on one real-code corpus and records owner
-  decisions CS1-CS3, which amend PL8; CS5 and CS6 are still open.
 - [Dependencies Through Version Control](DEPENDENCIES.md) surveys
   registry-free dependency management and records owner decisions
   DEP1-DEP7 (Go modules in hd spelling).
@@ -35,6 +29,13 @@ Decided, not yet applied:
   lockfile under owner decisions 1-14, some now overturned by DEP1.
 
 Open questions for the owner:
+
+- [Pipe Operator And Iterator `map`/`fold`](PIPE_OPERATOR.md) surveys pipes,
+  UFCS, and extension methods in 17 languages. Its decisions PL3-PL13 are
+  applied; three pipe readings wait for the owner.
+- [Chaining Study: Pipe, Function Shorthand, And Iterator Adapters](CHAINING_STUDY.md)
+  measures six combinations on one real-code corpus. CS2, CS7, and CS8 are
+  applied; three iterator readings wait for the owner.
 
 - [Typed Derivation: Open Points](TYPED_DERIVATION.md) lists what M1-M29
   leave undecided and the M26 readings awaiting confirmation.

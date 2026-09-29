@@ -118,7 +118,7 @@ Conformance fixtures place their marker on that line.
 Note (normative): `unsatisfied-trait-bound` covers several trait
 requirements: a generic bound (including `T < AnyVal`, `T < AnyRef`, and
 `T < mut Trait` given readonly access), `Display` for string interpolation,
-`Iterable` or `Iterator` for a `for` loop, and `std.process.Termination`
+`Iterable` for a `for` loop, and `std.process.Termination`
 for an entry point's or a test body's result. Because one code covers these
 origins, its message must name the type, the missing trait, and where the
 requirement comes from (the bound, the interpolation, the loop, the entry
@@ -1550,3 +1550,13 @@ existing source. Each entry names the decision that made the change.
   `pipe-placeholder-in-closure`, `pipe-step-needs-placeholder`,
   `suspending-pipe-step`, `multi-line-pipe-step`, and
   `placeholder-outside-pipe`.
+- Iterators (owner decisions CS7 and CS8 in
+  [Chaining Study](../future-work/CHAINING_STUDY.md#owner-decisions),
+  2026-09-29): `Iterator[T]` is a concrete prelude `data` type holding a
+  `step: fn() -> T?` closure, not a trait. `impl Iterator[T] for X`, which
+  made `X` an iterator, is now an error, since `Iterator` is not a trait.
+  The adapters are ordinary methods, and `map[U]` and `fold[A, R]` join
+  them. `for` and comprehensions accept only `Iterable[T]`, which
+  `Iterator[T]` now implements, so an iterator satisfies an `Iterable[T]`
+  bound where it was `unsatisfied-trait-bound`. A type that implemented
+  both traits, iterated through `Iterable`, no longer arises.

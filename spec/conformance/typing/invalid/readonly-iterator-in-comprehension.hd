@@ -1,10 +1,5 @@
-# test: generic Iterator traits require mutable receivers
+# test: a readonly iterator cannot drive a comprehension
+# Spec 06 Iteration Protocols: flow.for.iterator-mut (Chaining Study CS7).
 
-data Counter:
-    current: i32
-
-impl Iterator[i32] for Counter:
-    fn next(mut self) -> i32?: .None
-
-fn main(counter: Counter) -> List[i32]:
-    [for value in counter => value]  # diagnostic: mutable-receiver-required
+fn main(source: Iterator[i32]) -> List[i32]:
+    [for value in source => value]  # diagnostic: mutable-receiver-required

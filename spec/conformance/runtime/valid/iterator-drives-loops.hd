@@ -1,0 +1,21 @@
+# test: an iterator drives for loops and comprehensions from its current position
+# Spec 06 Iteration Protocols: flow.for.iterator-self, flow.for.iterator.position, flow.for.comprehension (Chaining Study CS7).
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    let mut source = [2, 3, 4, 5].iter()
+    _ := source.next()
+    values := [for value in source => value * 10]
+    let mut second = [0, 1, 2].iter()
+    let total: i32 = 0
+    for value in second:
+        total = total + value
+    if values.len() == 3 && values[0] == 30 && values[2] == 50 && source.collect().len() == 0 && total == 3:
+        42
+    else:
+        0
+
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="an iterator continues from its position and ends exhausted")

@@ -47,7 +47,7 @@ every user module that already declares it.
 | `std.format` | `Display`, `Debug`, `DebugWriter`, `debug` | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md), [Debug Trait](../spec/09-traits.md#debug-trait) |
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.hash` | `Hash`, `Hasher` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
-| `std.iter` | `Iterator`, `Iterable`; the adapters `filter`, `take`, `enumerate`, and `collect` as `Iterator` default methods | [For Loops](../spec/06-control-flow.md), [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) |
+| `std.iter` | `Iterator` (a data type), `Iterable`; the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as `Iterator` methods | [For Loops](../spec/06-control-flow.md), [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) |
 | `std.console` | `Console`, `ConsoleError`, `println` | [Prelude](../spec/10-modules.md#prelude) |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, a retry combinator | [Requirements and Suspension](../spec/11-requirements-and-suspension.md) |
 | `std.annotation` | shape names and `shape`, `shape_of`; `Target`, `Annotate`, `annotate` | [Annotations](../spec/14-annotations.md) |
@@ -783,52 +783,56 @@ iteration for deterministic output. Field layouts above are placeholders.
 
 ### `std.iter`
 
-Adapters are default methods of the prelude `Iterator`, as in Rust, with no
-separate extension trait (question 14). The specification fixes four of
-them in [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters):
+`Iterator[T]` is a concrete `data` type that holds a `step` closure, and
+the adapters are its ordinary methods
+([Chaining Study CS7, CS8](CHAINING_STUDY.md#owner-decisions)). This
+replaces the `Iterator` trait of question 14. The specification fixes
+`next`, `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` in
+[Iteration Protocols](../spec/06-control-flow.md#iteration-protocols) and
+[Iterator Adapters](../spec/06-control-flow.md#iterator-adapters):
 
 ```text
-pub trait Iterator[T]:
-    fn next(mut self) -> T?
+pub data Iterator[T]:
+    step: fn() -> T?
 
-    fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]:
+impl[T] Iterator[T]:
+    pub fn next(mut self) -> T?:
         pass
 
-    fn take(mut self, count: i32) -> mut Iterator[T]:
+    pub fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]:
         pass
 
-    fn enumerate(mut self) -> mut Iterator[(i32, T)]:
+    pub fn take(mut self, count: i32) -> mut Iterator[T]:
         pass
 
-    fn collect(mut self) -> List[T]:
+    pub fn enumerate(mut self) -> mut Iterator[(i32, T)]:
+        pass
+
+    pub fn map[U](mut self, transform: fn(T) -> U) -> mut Iterator[U]:
+        pass
+
+    pub fn fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
+        pass
+
+    pub fn collect(mut self) -> List[T]:
         pass
 
 pub fn range(start: i32, end: i32) -> mut Iterator[i32]:
     pass
 ```
 
-`filter`, `take`, and `enumerate` are lazy: the returned iterator advances
-`self` only from its own `next`. `collect` drains `self`, and a negative
-`take` count panics. A caller writes `items.iter().filter(keep).collect()`.
-
-`map` and `fold` are decided too, but wait on
-[Still Open](#still-open) 1: a method-level type parameter without an
-`AnyRef` bound makes `Iterator` not
-[dynamically safe](../spec/09-traits.md#dynamic-safety), and
-`mut Iterator[T]` is used as a value type. Their intended signatures:
-
-```text
-pub trait Iterator[T]:
-    fn map[U](mut self, transform: fn(T) -> U) -> mut Iterator[U]:
-        pass
-
-    fn fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
-        pass
-```
+`filter`, `take`, `enumerate`, and `map` are lazy: the returned iterator
+advances `self` only from its own `next`. `collect` and `fold` drain
+`self`, and a negative `take` count panics. A caller writes
+`items.iter().filter(keep).collect()`. `for` uses the prelude trait
+`Iterable[T]`, which `List`, `Map`, and `Iterator` implement. How user code
+builds an `Iterator` from its own closure is
+[Chaining Study Still Open](CHAINING_STUDY.md#still-open) 1.
 
 A lazy adapter calls its callback from `next`, whose row is empty, so the
 callback takes no requirement; one that needs a provider captures the value
-from `$.use` ([Still Open](#still-open) 2). Iterator adapters that call
+from `$.use` ([Still Open](#still-open) 2). `fold` calls its callback
+before it returns, so it carries the row `R`. Iterator adapters that call
 suspending code are not provided: comprehensions already forbid suspension
 points, and the same rule keeps adapters simple.
 
@@ -1926,9 +1930,10 @@ text names no `fold`, so the row parameter is in the draft signature under
 
 Applied 2026-09-29. The prelude `Iterator` part is in the specification:
 [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) gives
-`filter`, `take`, `enumerate`, and `collect`. `map` and `fold` wait on
-[Still Open](#still-open) 1, because they would make `Iterator` not
-dynamically safe. The rest is `std`-only and is in the draft sections above:
+`filter`, `take`, `enumerate`, and `collect`. Superseded 2026-09-29 by
+[Chaining Study CS7 and CS8](CHAINING_STUDY.md#owner-decisions):
+`Iterator` is a data type, so `map` and `fold` are ordinary methods and
+are in the specification too. The rest is `std`-only and is in the draft sections above:
 [`std.iter`](#stditer), [`std.option` and `std.result`](#stdoption-and-stdresult),
 [`std.collections`](#stdcollections), [`std.text`](#stdtext),
 [`std.num`](#stdnum), [`std.process`](#stdprocess), and design principles 7
@@ -2009,8 +2014,8 @@ specification or the draft, so each can change without breaking a decision.
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
-| 1 | Question 14 makes `map[U]` and `fold[A]` `Iterator` default methods. A method type parameter without an `AnyRef` bound makes a trait not dynamically safe ([`trait.dyn.safe.anyref-type-param`](../spec/09-traits.md#r-trait.dyn.safe.anyref-type-param)). `iter()` returns `mut Iterator[T]`, which would then be `trait-not-dynamically-safe`. | Not applied. The specification lists only `filter`, `take`, `enumerate`, and `collect` ([Iterator Adapters](../spec/06-control-flow.md#iterator-adapters)) | **Decided (2026-09-29):** `map` and `fold` wait for the pipe/UFCS design (#47), which weighs this dynamic-safety conflict and the Rust-style exclusion rule. |
-| 2 | How does a callback's requirement row flow through an adapter? | It does not. `keep` has the empty row ([`flow.adapter.callback-row`](../spec/06-control-flow.md#r-flow.adapter.callback-row)), since the returned iterator calls it from `next`, whose row is empty. A callback that needs a provider captures the value from `$.use` ([`req.use.value.flow`](../spec/11-requirements-and-suspension.md#r-req.use.value.flow)) | **Decided (2026-09-29):** kept for the lazy adapters; the eager `fold` carries a row parameter when it lands, as the [`std.iter`](#stditer) draft shows. |
+| 1 | Question 14 makes `map[U]` and `fold[A]` `Iterator` default methods. A method type parameter without an `AnyRef` bound makes a trait not dynamically safe ([`trait.dyn.safe.anyref-type-param`](../spec/09-traits.md#r-trait.dyn.safe.anyref-type-param)). `iter()` returns `mut Iterator[T]`, which would then be `trait-not-dynamically-safe`. | Moot: CS7 makes `Iterator` a data type, so no dynamic-safety question arises; `map` and `fold` are in [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) | **Decided (2026-09-29):** closed by [Chaining Study CS7 and CS8](CHAINING_STUDY.md#owner-decisions), applied 2026-09-29. |
+| 2 | How does a callback's requirement row flow through an adapter? | It does not. `keep` has the empty row ([`flow.adapter.callback-row`](../spec/06-control-flow.md#r-flow.adapter.callback-row)), since the returned iterator calls it from `next`, whose row is empty. A callback that needs a provider captures the value from `$.use` ([`req.use.value.flow`](../spec/11-requirements-and-suspension.md#r-req.use.value.flow)) | **Decided (2026-09-29):** kept for the lazy adapters, `map` included ([`flow.adapter.callback-row.map`](../spec/06-control-flow.md#r-flow.adapter.callback-row.map)); `fold` carries a row parameter ([`flow.adapter.fold.row`](../spec/06-control-flow.md#r-flow.adapter.fold.row)). |
 | 3 | Question 18 names `repeat`, `chunks`, and `clamp`. What does `take(-1)` do? | It panics when called, with `explicit-panic` ([`flow.adapter.take.negative`](../spec/06-control-flow.md#r-flow.adapter.take.negative)); `take(0)` yields nothing | **Decided (2026-09-29):** kept as applied. |
 | 4 | Question 16 does not give the result type of `keys` and `values`. | `List[K]` and `List[V]`, snapshots in insertion order, like `chars` and `lines` ([`std.collections`](#stdcollections)) | **Decided (2026-09-29):** kept as applied. |
 | 5 | The draft's `Integer` listed `abs_diff(self, other: Self) -> Self`. Question 19 makes the result unsigned, which a `Self` result cannot say. | An inherent method of each integer type, removed from the draft's `Integer` list ([`std.num`](#stdnum)) | **Decided (2026-09-29):** kept as applied. |

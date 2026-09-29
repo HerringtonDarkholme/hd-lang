@@ -425,8 +425,6 @@ runtime/valid/closure-parameter-inference.hd	runtime
 runtime/valid/closure-result-inference.hd	runtime
 runtime/valid/string-trim-and-lower.hd	runtime
 runtime/valid/recursive-local-closure.hd	runtime
-runtime/valid/iterator-trait-loops.hd	runtime
-typing/invalid/readonly-iterator-in-comprehension.hd	type
 runtime/valid/generic-methods.hd	runtime
 runtime/valid/named-local-functions.hd	runtime
 runtime/valid/string-split.hd	runtime
@@ -971,10 +969,8 @@ typing/valid/mutable-closure-capture.hd	type
 typing/invalid/embedded-non-data.hd	type
 typing/invalid/embedded-collection-type.hd	type
 typing/invalid/embedded-type-parameter.hd	type
-typing/invalid/iterator-for-iterable-bound.hd	type
 runtime/valid/user-iterable-for-loop.hd	runtime
 typing/invalid/orphan-impl-nested-trait-argument.hd	type
-runtime/valid/iterable-and-iterator-for-loop.hd	runtime
 runtime/valid/covariant-readonly-weakening.hd	runtime
 typing/invalid/variance-position.hd	type
 typing/invalid/variance-representation-change.hd	type
@@ -1371,8 +1367,6 @@ typing/invalid/num-bound-newtype.hd	type
 typing/invalid/num-sealed-impl.hd	type
 typing/valid/row-union-spread.hd	type
 runtime/valid/row-union-closure-result-runs.hd	runtime
-typing/valid/iterator-adapters.hd	type
-runtime/valid/iterator-adapters-run.hd	runtime
 runtime/panic/iterator-take-negative.hd	runtime
 typing/invalid/iterator-filter-callback-row.hd	type
 typing/invalid/iterator-adapter-readonly.hd	type
@@ -1418,3 +1412,4 @@ typing/invalid/let-mut-pattern-readonly-name.hd	type
 typing/invalid/let-mut-pattern-readonly-element.hd	type
 typing/invalid/let-mut-pattern-readonly-annotation.hd	type
 parse/invalid/pipe-leading-line-open-suite.hd	parse
+runtime/valid/iterator-drives-loops.hd	runtime

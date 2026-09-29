@@ -123,69 +123,75 @@ fn bad(values: List[i32]) -> void:
 
 ### Iteration Protocols
 
-The prelude protocols distinguish `Iterable[T]` from `Iterator[T]`:
+A `for` loop gets its iterator from the prelude trait `Iterable[T]`. The
+prelude `data` type `Iterator[T]` is the one iterator type:
 
 ```text
 trait Iterable[T]:
     fn iter(self) -> mut Iterator[T]
 
-trait Iterator[T]:
-    fn next(mut self) -> T?
+data Iterator[T]:
+    step: fn() -> T?
 ```
 
-1. r[flow.for.iter-independent] An ordinary iterable creates an independent mutable iterator on every `iter()` call.
-2. r[flow.for.iterator-progress] The iterator stores traversal progress, and `next` returns `.None` after exhaustion.
-3. r[flow.for.protocols] `for` accepts a value of either protocol.
-4. r[flow.for.iterable] When the iterable expression's type implements `Iterable[T]`, the loop calls `iter` once and advances the resulting cursor.
-5. r[flow.for.iterator] When it implements `Iterator[T]`, the loop advances that same cursor directly, without cloning or resetting it.
-6. r[flow.for.iterator.position] Iteration therefore continues from the cursor's current position and leaves it exhausted.
-7. r[flow.for.both] When the type implements both `Iterable[T]` and `Iterator[T]`, the loop uses `Iterable[T]`: it calls `iter` once and never advances the value itself.
-8. r[flow.for.iterator-mut] An iterator must be accessed mutably to advance. An expression whose type implements `Iterator[T]` but has only readonly access is an error. Error: `mutable-receiver-required`.
-9. r[flow.for.neither] An iterable expression whose type implements neither `Iterable[T]` nor `Iterator[T]` is an error. Error: `unsatisfied-trait-bound`.
-10. r[flow.for.comprehension] Comprehension `for` clauses accept the same two protocols by the same rules.
-11. r[flow.for.no-blanket] No implementation makes every iterator an `Iterable`.
-12. r[flow.for.no-blanket.bound] A generic parameter bounded by `Iterable[T]` therefore does not accept an iterator argument.
+1. r[flow.for.iterator-type] `Iterator[T]` is a concrete prelude `data` type, not a trait. Its one field, `step`, is a closure that yields the next item or `.None`.
+2. r[flow.for.iterator-next] Its method `fn next(mut self) -> T?` advances the iterator by calling `step` once.
+3. r[flow.for.iter-independent] An ordinary iterable creates an independent mutable iterator on every `iter()` call.
+4. r[flow.for.iterator-progress] The iterator stores traversal progress, and `next` returns `.None` after exhaustion.
+5. r[flow.for.iterable-impls] `List[T]`, `Map[K, V]`, and `Iterator[T]` implement `Iterable`: a list yields `T`, a map `(K, V)`, and an iterator its remaining items.
+6. r[flow.for.iterable-only] `for` accepts a value whose type implements `Iterable[T]`.
+7. r[flow.for.iterable] When the iterable expression's type implements `Iterable[T]`, the loop calls `iter` once and advances the resulting cursor.
+8. r[flow.for.iterator-self] The `iter` of `Iterator[T]` returns an iterator over the same traversal, so a loop over an iterator advances that iterator, without cloning or resetting it.
+9. r[flow.for.iterator.position] Iteration therefore continues from the cursor's current position and leaves it exhausted.
+10. r[flow.for.iterator-mut] An iterator must be accessed mutably to advance. A loop over an `Iterator[T]` expression that has only readonly access is an error. Error: `mutable-receiver-required`.
+11. r[flow.for.not-iterable] An iterable expression whose type does not implement `Iterable[T]` is an error. Error: `unsatisfied-trait-bound`.
+12. r[flow.for.comprehension] Comprehension `for` clauses accept the same values by the same rules.
+13. r[flow.for.iterator-bound] A generic parameter bounded by `Iterable[T]` therefore accepts an iterator argument.
 
 ```text
-data Counter:
-    current: i32
-
-impl Iterator[i32] for Counter:
-    fn next(mut self) -> i32?: .None
-
-fn main(counter: Counter) -> List[i32]:
-    [for value in counter => value]  # error: mutable-receiver-required
+fn main(source: Iterator[i32]) -> List[i32]:
+    [for value in source => value]  # error: mutable-receiver-required
 
 fn bad() -> void:
     for value in 1:  # error: unsatisfied-trait-bound
         pass
 ```
 
+> **Why.** One concrete iterator type lets adapters be ordinary methods,
+> generic ones such as `map[U]` included, with no dynamic-safety question.
+> The cost is one closure call per item.
+
 ### Iterator Adapters
 
-The prelude `Iterator[T]` also declares **iterator adapters**: default
-methods that wrap an iterator in a new one, or drain it.
+The prelude `Iterator[T]` also has **iterator adapters**: methods that wrap
+an iterator in a new one, or drain it.
 
 ```text
 fn first_evens(values: List[i32]) -> List[(i32, i32)]:
     values.iter().filter(fn(value): value % 2 == 0).enumerate().take(2).collect()
 ```
 
-| Rule | Default method | Result |
+| Rule | Method | Result |
 | --- | --- | --- |
 | r[flow.adapter.filter] `filter` | `fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]` | a new iterator over the items of `self` for which `keep` returns `true` |
 | r[flow.adapter.take] `take` | `fn take(mut self, count: i32) -> mut Iterator[T]` | a new iterator over the first `count` items of `self`, or fewer when `self` ends first |
 | r[flow.adapter.enumerate] `enumerate` | `fn enumerate(mut self) -> mut Iterator[(i32, T)]` | a new iterator over `(index, item)` pairs, with indices counting from `0` |
+| r[flow.adapter.map] `map` | `fn map[U](mut self, transform: fn(T) -> U) -> mut Iterator[U]` | a new iterator over `transform(item)` for each item of `self`, in order |
+| r[flow.adapter.fold] `fold` | `fn fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
 | r[flow.adapter.collect] `collect` | `fn collect(mut self) -> List[T]` | a list of the remaining items of `self`, in order |
 
-1. r[flow.adapter.prelude] The adapters are default methods of the prelude `Iterator[T]`, so every iterator has them without a `use`.
+1. r[flow.adapter.methods] The adapters are ordinary methods of the prelude `Iterator[T]`, so every iterator has them without a `use`.
 2. r[flow.adapter.lazy] Calling `filter`, `take`, or `enumerate` does not advance `self`.
-3. r[flow.adapter.lazy.next] The returned iterator advances `self` only when its own `next` is called.
-4. r[flow.adapter.take.limit] The iterator that `take` returns calls `next` on `self` at most `count` times.
-5. r[flow.adapter.take.negative] A negative `count` panics when `take` is called. Panic: `explicit-panic`.
-6. r[flow.adapter.collect.drain] `collect` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
-7. r[flow.adapter.mut-receiver] Each adapter takes `mut self`. Calling one on a readonly iterator is an error. Error: `mutable-receiver-required`.
-8. r[flow.adapter.callback-row] The `keep` callback has the empty row. A function value whose row lists a requirement key does not fit it. Error: `type-mismatch`.
+3. r[flow.adapter.lazy.map] Calling `map` does not advance `self` either.
+4. r[flow.adapter.lazy.next] The returned iterator advances `self` only when its own `next` is called.
+5. r[flow.adapter.take.limit] The iterator that `take` returns calls `next` on `self` at most `count` times.
+6. r[flow.adapter.take.negative] A negative `count` panics when `take` is called. Panic: `explicit-panic`.
+7. r[flow.adapter.fold.drain] `fold` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
+8. r[flow.adapter.collect.drain] `collect` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
+9. r[flow.adapter.mut-receiver] Each adapter takes `mut self`. Calling one on a readonly iterator is an error. Error: `mutable-receiver-required`.
+10. r[flow.adapter.callback-row] The `keep` callback has the empty row. A function value whose row lists a requirement key does not fit it. Error: `type-mismatch`.
+11. r[flow.adapter.callback-row.map] The `transform` callback of `map` has the empty row too.
+12. r[flow.adapter.fold.row] The `step` callback of `fold` may have a requirement row `R`, and `fold` then requires `R`.
 
 ```text
 trait Logger
@@ -200,13 +206,11 @@ fn drain(source: Iterator[i32]) -> List[i32]:
     source.collect()  # error: mutable-receiver-required
 ```
 
-> **Why.** The returned iterator calls `keep` from its `next`, whose row is
-> empty, so a stored callback cannot wait for providers. A callback that
-> needs one captures the provider value from `$.use` instead.
-
-> **Note.** No adapter has a method-level type parameter, so `Iterator[T]`
-> stays [dynamically safe](09-traits.md#dynamic-safety) and usable as a
-> value type.
+> **Why.** A lazy adapter's iterator calls `keep` or `transform` from its
+> `next`, whose row is empty, so a stored callback cannot wait for
+> providers. A callback that needs one captures the provider value from
+> `$.use` instead. `fold` calls `step` before it returns, so the row passes
+> through.
 
 ### Built-In Collection Iteration
 

@@ -1,0 +1,10 @@
+# test: a map callback with a requirement row does not fit the empty-row transform parameter
+# Spec 06 Iterator Adapters: flow.adapter.callback-row.map (Chaining Study CS7).
+
+trait Logger
+
+fn noisy(value: i32) -> i32 $ Logger:
+    value + 1
+
+fn bumped(values: List[i32]) -> List[i32] $ Logger:
+    values.iter().map(noisy).collect()  # diagnostic: type-mismatch

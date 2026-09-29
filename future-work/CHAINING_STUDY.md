@@ -1,11 +1,15 @@
 # Chaining Study: Pipe, Function Shorthand, And Iterator Adapters
 
-Status: design exploration and stress test, 2026-09-29. Owner decision CS2
-is applied (2026-09-29), and the specification is authoritative for it:
-[Pipe Expressions](../spec/05-expressions.md#pipe-expressions) and
-[Leading-Pipe Continuation](../spec/01-lexical-structure.md#leading-pipe-continuation).
-CS1 and CS3 changed nothing in the specification. The rest of the record
-is the study behind the decisions.
+Status: design exploration and stress test, 2026-09-29. Owner decisions
+CS2, CS7, and CS8 are applied (2026-09-29), and the specification is
+authoritative for them:
+[Pipe Expressions](../spec/05-expressions.md#pipe-expressions),
+[Leading-Pipe Continuation](../spec/01-lexical-structure.md#leading-pipe-continuation),
+[Iteration Protocols](../spec/06-control-flow.md#iteration-protocols), and
+[Iterator Adapters](../spec/06-control-flow.md#iterator-adapters). CS1 and
+CS3 changed nothing in the specification, and CS5 became
+[Method References](METHOD_REFERENCES.md). The rest of the record is the
+study behind the decisions.
 
 The owner asked for one joint study of three linked questions, because each
 answer changes the others:
@@ -87,6 +91,17 @@ Decided 2026-09-29.
    boundaries. Those are tracked as prototype gaps. The per-element costs
    that hurt every design (boxed `T?`, per-call dictionaries: F-502, F-504)
    should be fixed first.
+
+## Still Open
+
+Points the apply pass for CS7 and CS8 met (2026-09-29). Each waits for the
+owner.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 1 | How does user code build an `Iterator` from its own closure: a public `step` and the literal `Iterator { step: f }`, or a private `step` and an associated function? | The specification gives the field's type only ([`flow.for.iterator-type`](../spec/06-control-flow.md#r-flow.for.iterator-type)); no fixture builds a user iterator | A private `step` and `Iterator::from_fn(step)`, as Rust's `iter::from_fn`, so only `next(mut self)` advances an iterator. |
+| 2 | `Iterator`'s `iter(self)` has a readonly receiver but returns the same traversal, so code with readonly access can advance an iterator through `iter()` or an `Iterable[T]` bound | Stated as [`flow.for.iterator-self`](../spec/06-control-flow.md#r-flow.for.iterator-self) and [`flow.for.iterator-bound`](../spec/06-control-flow.md#r-flow.for.iterator-bound); a loop directly over a readonly iterator stays `mutable-receiver-required` ([`flow.for.iterator-mut`](../spec/06-control-flow.md#r-flow.for.iterator-mut)) | Keep, and say in the guide that `iter()` on an iterator shares its progress. Rejecting it needs a rule exception for one implementation. |
+| 3 | [`flow.for.iterator-progress`](../spec/06-control-flow.md#r-flow.for.iterator-progress) says `next` returns `.None` after exhaustion, but a user `step` closure may yield again | Kept as written | Keep; the constructor of point 1 wraps the closure so that `.None` is final. |
 
 ## Contents
 

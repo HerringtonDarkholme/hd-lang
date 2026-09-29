@@ -1,18 +1,13 @@
-# test: iterator adapters are lazy, take stops pulling at its count, and collect drains
-# Spec 06 Iterator Adapters: flow.adapter.lazy, flow.adapter.lazy.next, flow.adapter.take.limit, flow.adapter.collect.drain, flow.adapter.enumerate (STDLIB question 14).
+# test: iterator adapters are lazy, take stops pulling at its count, and collect, map, and fold work
+# Spec 06 Iterator Adapters: flow.adapter.lazy, flow.adapter.lazy.map, flow.adapter.lazy.next, flow.adapter.take.limit, flow.adapter.collect.drain, flow.adapter.enumerate, flow.adapter.map, flow.adapter.fold (STDLIB question 14, Chaining Study CS7).
 use std.testing.assert_equal
 
-data Counter:
-    current: i32
+data Tally:
     pulled: i32
 
-impl Iterator[i32] for Counter:
-    fn next(mut self) -> i32?:
-        self.pulled = self.pulled + 1
-        if self.current >= 10:
-            return .None
-        self.current = self.current + 1
-        .Some(self.current)
+fn seen(tally: mut Tally, value: i32) -> i32:
+    tally.pulled = tally.pulled + 1
+    value
 
 fn first_evens(values: List[i32]) -> List[(i32, i32)]:
     values.iter().filter(fn(value): value % 2 == 0).enumerate().take(2).collect()
@@ -22,18 +17,24 @@ tests:
         assert_equal(first_evens([1, 2, 3, 4, 5, 6]), [(0, 2), (1, 4)], reason="two evens with indices")
 
     it("does not advance until next"):
-        let mut counter = Counter { current: 0, pulled: 0 }
-        let evens: mut Iterator[i32] = counter.filter(fn(value): value % 2 == 0)
-        assert_equal(counter.pulled, 0, reason="filter is lazy")
+        let mut tally = Tally { pulled: 0 }
+        let mut source = [1, 2, 3, 4].iter().map(fn(value): seen(tally, value))
+        let mut evens = source.filter(fn(value): value % 2 == 0)
+        assert_equal(tally.pulled, 0, reason="map and filter are lazy")
         assert_equal(evens.take(1).collect(), [2], reason="first even")
-        assert_equal(counter.pulled, 2, reason="two items pulled")
+        assert_equal(tally.pulled, 2, reason="two items pulled")
 
     it("take pulls at most count items"):
-        let mut counter = Counter { current: 0, pulled: 0 }
-        assert_equal(counter.take(3).collect(), [1, 2, 3], reason="first three")
-        assert_equal(counter.pulled, 3, reason="no fourth pull")
+        let mut tally = Tally { pulled: 0 }
+        let mut source = [1, 2, 3, 4, 5].iter().map(fn(value): seen(tally, value))
+        assert_equal(source.take(3).collect(), [1, 2, 3], reason="first three")
+        assert_equal(tally.pulled, 3, reason="no fourth pull")
 
     it("collect leaves the source exhausted"):
-        let mut counter = Counter { current: 7, pulled: 0 }
-        assert_equal(counter.collect(), [8, 9, 10], reason="the rest")
-        assert_equal(counter.collect().len(), 0, reason="exhausted")
+        let mut source = [8, 9, 10].iter()
+        assert_equal(source.collect(), [8, 9, 10], reason="the rest")
+        assert_equal(source.collect().len(), 0, reason="exhausted")
+
+    it("map transforms and fold combines in order"):
+        assert_equal([1, 2, 3].iter().map(fn(value): value * 10).collect(), [10, 20, 30], reason="mapped")
+        assert_equal([1, 2, 3].iter().fold("", fn(text, value): "$text$value"), "123", reason="folded in order")

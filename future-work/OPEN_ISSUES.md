@@ -331,30 +331,29 @@ assignment's tokens and suite right sides, `counts[w] += 1` on a built-in
 
 ### Iterator Adapters
 
-**Decided (owner, 2026-09-29) and partly applied.** STDLIB question 14
-makes iterator adapters default methods of the prelude `Iterator`, as in
-Rust. `filter`, `take`, `enumerate`, and `collect` are in
-[Iterator Adapters](../spec/06-control-flow.md#iterator-adapters).
+**Decided and applied (owner, 2026-09-29).** [Chaining Study](CHAINING_STUDY.md#owner-decisions)
+CS7 and CS8 make `Iterator[T]` a concrete data type holding a `step`
+closure, so `map` and `fold` are ordinary methods beside `filter`, `take`,
+`enumerate`, and `collect`, and `for` uses the prelude `Iterable[T]`
+([Iteration Protocols](../spec/06-control-flow.md#iteration-protocols),
+[Iterator Adapters](../spec/06-control-flow.md#iterator-adapters)).
 
-**Open.** `map[U]` and `fold[A]` would make `Iterator` not dynamically
-safe, so `mut Iterator[T]` could not be a value type. Pipe Operator PL1,
-not yet applied, answers that point with static-only default methods. Six
-`std`-only points, each with a recommendation, are in
-[STDLIB Still Open](STDLIB.md#still-open).
+**Open.** Three readings, each with a recommendation, are in
+[Chaining Study Still Open](CHAINING_STUDY.md#still-open): how user code
+builds an iterator, readonly `iter()` on an iterator, and exhaustion of a
+user source.
 
 ### Pipe Operator
 
-**Decided, not yet applied.** [Pipe Operator](PIPE_OPERATOR.md#owner-decisions)
-records owner decisions PL1-PL10: static-only `map` and `fold`, a `|>`
-with substitution steps (`_`) and application steps, single-line steps,
-and no `_` lambda shorthand for now.
+**Decided and applied (owner, 2026-09-29).** [Pipe Operator](PIPE_OPERATOR.md#owner-decisions)
+PL3-PL13, as amended by [Chaining Study](CHAINING_STUDY.md#owner-decisions)
+CS2, are in [Pipe Expressions](../spec/05-expressions.md#pipe-expressions):
+a step is a `_` step or a bare name or path, and `_` means nothing outside
+a step. PL1 and PL2 are superseded by CS7.
 
-[Chaining Study](CHAINING_STUDY.md#owner-decisions) CS1-CS3, also not
-yet applied, keep adapters as methods, amend PL8 so a pipe step is a `_`
-step or a bare name, and add no member-path shorthand.
-
-**Open.** The study's remaining questions, CS5 (method values) and CS6
-(key-function variants in `std`), wait for the owner. CS4 asked how long a member path is, and CS3 declined member paths.
+**Open.** Three readings, each with a recommendation, are in
+[Pipe Operator Still Open](PIPE_OPERATOR.md#still-open). CS6 (key-function
+helpers in `std`) is decided and belongs to STDLIB.
 
 ### Method And Field References
 
