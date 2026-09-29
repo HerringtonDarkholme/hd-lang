@@ -1276,7 +1276,7 @@ typing/invalid/annotate-before-function.hd	type	reject:decorator-not-annotator	1
 typing/invalid/decorator-target-member-line.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.target.limit.error
 typing/invalid/literal-suffix-parameter-type.hd	type	reject:type-mismatch	05-expressions.md#r-expr.suffix.fn-shape.definition
 typing/valid/literal-suffix-generic.hd	type	accept	05-expressions.md#r-expr.suffix.ordinary-rules
-typing/valid/literal-suffix-extra-parameter.hd	type	accept	05-expressions.md#r-expr.suffix.fn-shape-required
+typing/invalid/literal-suffix-extra-parameter.hd	type	reject:type-mismatch	05-expressions.md#r-expr.suffix.fn-shape-one
 typing/invalid/literal-suffix-suspending.hd	type	reject:type-mismatch	05-expressions.md#r-expr.suffix.fn-shape.definition
 typing/invalid/num-suffix-before-data.hd	type	reject:decorator-not-annotator	05-expressions.md#r-expr.suffix.marker.module
 parse/invalid/old-row-separator-callback.hd	parse	reject:old-row-separator	02-grammar.md#r-grammar.type.row.old-separator
@@ -1298,7 +1298,7 @@ typing/invalid/string-prefix-unmarked.hd	type	reject:invalid-string-prefix	05-ex
 typing/invalid/string-prefix-parameter-type.hd	type	reject:type-mismatch	05-expressions.md#r-expr.prefix.fn-shape.definition
 typing/invalid/string-prefix-requirement.hd	type	reject:missing-requirement	05-expressions.md#r-expr.prefix.ordinary-rules
 typing/valid/string-prefix-generic.hd	type	accept	05-expressions.md#r-expr.prefix.ordinary-rules
-typing/valid/string-prefix-extra-parameter.hd	type	accept	05-expressions.md#r-expr.prefix.fn-shape-required
+typing/invalid/string-prefix-extra-parameter.hd	type	reject:type-mismatch	05-expressions.md#r-expr.prefix.fn-shape-one
 typing/invalid/string-prefix-suspending.hd	type	reject:type-mismatch	05-expressions.md#r-expr.prefix.fn-shape.definition
 typing/invalid/str-prefix-before-data.hd	type	reject:decorator-not-annotator	05-expressions.md#r-expr.prefix.marker.module
 typing/invalid/string-prefix-value-mismatch.hd	type	reject:type-mismatch	04-type-system.md#r-types.literal.prefixed.value-errors

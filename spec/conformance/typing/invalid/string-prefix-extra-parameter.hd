@@ -1,0 +1,7 @@
+# test: a prefix function declares exactly one parameter, even when the others have defaults
+# Spec 05 Prefixed Strings: expr.prefix.fn-shape-one, checked at the definition (Literal Suffixes L22).
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn tagged(t: Template[string], tag: string = "x") -> string:  # diagnostic: type-mismatch
+    tag

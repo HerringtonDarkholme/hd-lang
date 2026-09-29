@@ -1082,3 +1082,8 @@ style lint rejects a chapter that reuses one.
 - `module.interface.early`: retired 2026-09-29. Dependency cycles DC10
   makes an interface wait for the bodies its facts call. Replaced by
   `module.interface.early-facts`.
+- `expr.suffix.fn-shape-required`: retired 2026-09-29. Literal Suffixes L22
+  allows exactly one parameter, so a further defaulted parameter is an
+  error. Replaced by `expr.suffix.fn-shape-one`.
+- `expr.prefix.fn-shape-required`: retired 2026-09-29. Literal Suffixes L22.
+  Replaced by `expr.prefix.fn-shape-one`.

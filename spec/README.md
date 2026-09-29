@@ -1380,3 +1380,11 @@ existing source. Each entry names the decision that made the change.
 - Dependency cycles DC10 (same record, 2026-09-29): a package interface
   records each fact by its value, so it may depend on a body that a fact
   calls. No source changes validity.
+- Literal suffixes L22 (owner decision in
+  [Literal Suffixes](../future-work/LITERAL_SUFFIXES.md#owner-decisions),
+  2026-09-29): a function marked `@num_suffix` or `@str_prefix` declares
+  exactly one parameter. `@num_suffix fn kb(count: i64, unit: i64 = 1024)`,
+  valid since L21, is now `type-mismatch` at the definition. Which line of
+  the definition the error names is left to the implementation. The helpers
+  `interpolate`, `process_escapes`, and `EscapeError` move from `std.ops`
+  to `std.text`; no rule names them, so no rule changes.

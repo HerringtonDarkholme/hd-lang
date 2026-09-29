@@ -1,7 +1,7 @@
-# test: a suffix function needs one required parameter, checked at its definition
-# Spec 05 Literal Suffixes: expr.suffix.fn-shape.definition.
+# test: a suffix function needs exactly one parameter, checked at its definition
+# Spec 05 Literal Suffixes: expr.suffix.fn-shape-one and expr.suffix.fn-shape.definition.
 use std.ops.num_suffix
 
 @num_suffix
-fn unit(count: i64 = 1) -> i64:  # diagnostic: type-mismatch
-    count
+fn unit() -> i64:  # diagnostic: type-mismatch
+    1

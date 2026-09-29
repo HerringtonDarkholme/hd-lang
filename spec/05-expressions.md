@@ -157,7 +157,7 @@ pub fn num_suffix() -> NumSuffix:
 5. r[expr.suffix.not-marked] A suffix that resolves to anything other than a suffix function is an error, reported at the literal. Error: `invalid-literal-suffix`.
 6. r[expr.suffix.no-marker-import] The call needs no import of `num_suffix` or `NumSuffix`: a `use` of the suffix function alone makes the literal valid.
 7. r[expr.suffix.call-errors] The call is checked as an ordinary call. An argument that the function cannot accept is the ordinary call error at the literal, such as `type-mismatch` or `argument-count`.
-8. r[expr.suffix.fn-shape-required] A suffix function takes exactly one required parameter, of a primitive integer or floating-point type, and never suspends. Any other parameter it declares has a default.
+8. r[expr.suffix.fn-shape-one] A suffix function declares exactly one parameter, of a primitive integer or floating-point type, and never suspends. A second parameter breaks this shape even when it has a default.
 9. r[expr.suffix.fn-shape.definition] The compiler checks this shape at the definition that carries `@num_suffix`, not at each literal. A marked function that breaks it is an error at that definition. Error: `type-mismatch`.
 10. r[expr.suffix.ordinary-rules] Otherwise the call follows the ordinary rules. A generic suffix function's type arguments are inferred at the literal, and its requirement row joins the row of the code that contains the literal, as any call's does.
 11. r[expr.suffix.exact-call] A suffixed literal is exactly that call wherever it appears, and it has no evaluation rule of its own.
@@ -179,6 +179,10 @@ fn em(label: string) -> Pixels:  # error: type-mismatch
 @num_suffix
 fn later!(count: i64) -> i64:  # error: type-mismatch
     count
+
+@num_suffix
+fn kb(count: i64, unit: i64 = 1024) -> i64:  # error: type-mismatch
+    count * unit
 
 @num_suffix
 fn px(count: i32) -> Pixels $ Console:
@@ -276,7 +280,7 @@ pub data Template[T]:
 9. r[expr.prefix.marker.module] `std.ops` declares `StrPrefix`, `str_prefix`, and `Template`. `StrPrefix` carries `@annotate(.Fn)`, so `@str_prefix` before anything but a function is an error. Error: `decorator-not-annotator`.
 10. r[expr.prefix.not-marked] A prefix that resolves to anything other than a prefix function is an error, reported at the string. Error: `invalid-string-prefix`.
 11. r[expr.prefix.no-marker-import] The call needs no import of `str_prefix`, `StrPrefix`, or `Template`: a `use` of the prefix function alone makes the string valid.
-12. r[expr.prefix.fn-shape-required] A prefix function takes exactly one required parameter, of type `std.ops.Template[T]` for some type `T`, and never suspends. Any other parameter it declares has a default.
+12. r[expr.prefix.fn-shape-one] A prefix function declares exactly one parameter, of type `std.ops.Template[T]` for some type `T`, and never suspends. A second parameter breaks this shape even when it has a default.
 13. r[expr.prefix.fn-shape.definition] The compiler checks this shape at the definition that carries `@str_prefix`, not at each string. A marked function that breaks it is an error at that definition. Error: `type-mismatch`.
 14. r[expr.prefix.ordinary-rules] Otherwise the call is checked as an ordinary call. A generic prefix function's type arguments are inferred at the string, and its requirement row joins the row of the code that contains the string, as any call's does.
 15. r[expr.prefix.exact-call] A prefixed string is exactly that call wherever it appears, and it has no evaluation rule of its own. In a fact or any other compile-time position, it follows the rules for any call there.
@@ -294,6 +298,10 @@ fn count(n: i32) -> i32:  # error: type-mismatch
 @str_prefix
 fn later!(t: Template[string]) -> string:  # error: type-mismatch
     "later"
+
+@str_prefix
+fn tagged(t: Template[string], tag: string = "x") -> string:  # error: type-mismatch
+    tag
 
 @str_prefix
 fn logged(t: Template[string]) -> string $ Console:
