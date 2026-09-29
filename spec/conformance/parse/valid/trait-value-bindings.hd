@@ -1,0 +1,14 @@
+# test: a named type may end its arguments with associated type bindings, as a trait value type does
+# Spec 02 Associated Type Bindings In Bounds: grammar.generic.binding.positions (owner decision AT2).
+
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+data Holder:
+    source: Supplier[Item = i32]
+    backups: List[Supplier[Item = i32]]
+
+fn read(source: Supplier[Item = i32]) -> i32:
+    let copy: Supplier[Item = i32] = source
+    copy.get()

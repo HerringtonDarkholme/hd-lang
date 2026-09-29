@@ -1,0 +1,25 @@
+# test: a binding may name an associated type that a supertrait of the bound trait declares
+# Spec 09 Binding Names: trait.binding.name-reach, trait.binding.name-reach.meaning (owner decision AT1).
+
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+trait NamedSupplier < Supplier:
+    fn name(self) -> string
+
+fn first[T, I < NamedSupplier[Item = T]](source: I) -> T:
+    source.get()
+
+data Constant:
+    value: string
+
+impl Supplier for Constant:
+    type Item = string
+    fn get(self) -> string: self.value
+
+impl NamedSupplier for Constant:
+    fn name(self) -> string: "constant"
+
+fn read(source: Constant) -> string:
+    first(source)

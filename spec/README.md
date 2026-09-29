@@ -1651,3 +1651,18 @@ existing source. Each entry names the decision that made the change.
   code is added. `collect`'s `List[T]` fallback is now its declared
   default, so existing calls keep their meaning; `flow.collect.default`
   and eleven other rule IDs are retired.
+- Associated type bindings (owner decisions AT1 and AT2 in
+  [Open Issues](../future-work/OPEN_ISSUES.md#associated-type-bindings-beyond-direct-bounds),
+  2026-09-29): a binding may name an associated type that a supertrait
+  declares, so `I < NamedSupplier[Item = T]`, previously
+  `unknown-associated-type`, is valid; a name that two supertraits declare
+  separately is `ambiguous-method`. A trait value type may bind
+  associated types, as `Supplier[Item = i32]`, and is dynamically safe
+  when it binds every one; `Supplier` alone stays
+  `trait-not-dynamically-safe`, and an associated function still makes a
+  trait unsafe. Such a value satisfies `T < Supplier`, with `T::Item` the
+  bound type. A binding on a type that is not a trait, such as
+  `List[i32, Item = i32]`, was a `syntax-error` and is now
+  `unknown-associated-type`. The trait of an `impl` header, a
+  trait-qualified call, and a method reference still reject bindings with
+  `syntax-error`. Eight rule IDs are retired.

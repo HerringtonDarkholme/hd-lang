@@ -1,0 +1,9 @@
+# test: a trait value type that leaves an associated type unbound is not dynamically safe
+# Spec 09 Bound Associated Types: trait.dyn.binding.complete; Dynamic Safety: trait.dyn.safe.assoc-type (owner decision AT2).
+
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn unbound(source: Supplier) -> void:  # diagnostic: trait-not-dynamically-safe
+    pass

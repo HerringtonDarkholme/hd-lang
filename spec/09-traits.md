@@ -1084,11 +1084,26 @@ impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:
 
 #### Binding Names
 
+A binding may name an associated type that a supertrait declares:
+
+```text
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+trait NamedSupplier < Supplier:
+    fn name(self) -> string
+
+fn first[T, I < NamedSupplier[Item = T]](source: I) -> T:
+    source.get()
+```
+
 1. r[trait.binding.scope] The bound type may name any parameter of the same generic parameter list.
-2. r[trait.binding.own-trait] A binding name must be an associated type declared by the named trait itself. Naming anything else, including an associated type that only a supertrait declares, is an error. Error: `unknown-associated-type`.
-3. r[trait.binding.supertrait] Bind a supertrait's associated type with a separate bound on that supertrait.
-4. r[trait.binding.once] Each projection may be bound at most once in one generic parameter list.
-5. r[trait.binding.once.error] A second binding of the same parameter's associated type, in the same bound or another bound, is an error even when both bindings name the same type. Error: `duplicate-associated-binding`.
+2. r[trait.binding.name-reach] A binding name must be an associated type that the named trait declares or reaches through its supertraits, as `NamedSupplier` reaches `Supplier`'s `Item`. Naming anything else is an error. Error: `unknown-associated-type`.
+3. r[trait.binding.name-reach.meaning] A binding of a supertrait's associated type constrains that supertrait's projection, so `I::Item` above equals `T`.
+4. r[trait.binding.name-reach.ambiguous] When two different associated type declarations reachable that way have the name, the binding is ambiguous. An ambiguous binding is an error. Error: `ambiguous-method`.
+5. r[trait.binding.once] Each projection may be bound at most once in one generic parameter list.
+6. r[trait.binding.once.error] A second binding of the same parameter's associated type, in the same bound or another bound, is an error even when both bindings name the same type. Error: `duplicate-associated-binding`.
 
 ```text
 trait Supplier:
@@ -1100,13 +1115,29 @@ fn first[T, I < Supplier[Element = T]](source: I) -> T:  # error: unknown-associ
 
 fn second[T, I < Supplier[Item = T, Item = T]](source: I) -> T:  # error: duplicate-associated-binding
     source.get()
+
+trait Named:
+    type Item
+
+trait Keyed:
+    type Item
+
+trait Record < Named & Keyed
+
+fn third[T, R < Record[Item = T]](record: R) -> T:  # error: ambiguous-method
+    panic("unreachable")
 ```
+
+> **Why.** As in Rust, a subtrait's bound can fix a supertrait's
+> associated type without a second bound. Only a name that two supertraits
+> declare separately needs the longer spelling.
 
 #### Binding Positions
 
-1. r[trait.binding.positions-supertrait] Bindings appear only in generic parameter bounds and in supertrait lists.
-2. r[trait.binding.rejected-other] The trait of an `impl` header, a trait-qualified call, a type argument, and a dynamic trait value type do not accept them. The grammar reports an error there. Error: `syntax-error`.
-3. r[trait.binding.ambiguous] A binding does not make an ambiguous projection unambiguous: when two bounds on `I` both declare `Item`, `I::Item` is still ambiguous even if one of them binds it.
+1. r[trait.binding.positions-value] Bindings appear in generic parameter bounds, in supertrait lists, and in [trait value types](#bound-associated-types).
+2. r[trait.binding.rejected-trait-type] The trait of an `impl` header, a trait-qualified call, and a method reference do not accept them. The grammar reports an error there. Error: `syntax-error`.
+3. r[trait.binding.non-trait] A binding in the arguments of a named type that is not a trait, as in `List[i32, Item = i32]`, is an error. Error: `unknown-associated-type`.
+4. r[trait.binding.ambiguous] A binding does not make an ambiguous projection unambiguous: when two bounds on `I` both declare `Item`, `I::Item` is still ambiguous even if one of them binds it.
 
 #### Supertrait Bindings
 
@@ -1169,7 +1200,8 @@ The one-copy rule has these consequences:
 
 | Rule | Form | Dynamically safe |
 | --- | --- | --- |
-| r[trait.dyn.safe.no-assoc] Associated items | an associated type or associated function in the trait or a supertrait | no |
+| r[trait.dyn.safe.assoc-type] Associated types | an associated type of the trait or a supertrait | yes when the value type binds it, as `Supplier[Item = i32]` does; no when it is unbound |
+| r[trait.dyn.safe.assoc-function] Associated functions | an associated function in the trait or a supertrait | no |
 | r[trait.dyn.safe.anyref-type-param] Method type parameters | a method-level type parameter bounded by `AnyRef`, with any further bounds | yes; any other method-level type parameter is not |
 | r[trait.dyn.safe.self] `Self` | `Self` as a method receiver | yes; `Self` anywhere else is not |
 | r[trait.dyn.safe.reified-or-pack] Specialized parameters | a `reified` parameter, or a type or value pack | no |
@@ -1195,13 +1227,71 @@ fn invalid(logger: Logger) -> void:  # error: trait-not-dynamically-safe
 ```
 
 > **Why.** A method called through a trait value has exactly one body at run
-> time. An `AnyRef`-bounded parameter shares the reference shape, a
+> time. A bound associated type makes every signature that uses it
+> concrete. An `AnyRef`-bounded parameter shares the reference shape, a
 > suspending method's frame is a reference-shaped heap value, and a row
 > parameter's providers arrive as one bundle, so each keeps one body. A
 > `reified` parameter and a pack are specialized per call, and an associated
 > function has no receiver to dispatch on.
 
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
+
+### Bound Associated Types
+
+A trait value type binds the trait's associated types as a bound does:
+
+```text
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+data Constant:
+    value: i32
+
+impl Supplier for Constant:
+    type Item = i32
+    fn get(self) -> i32: self.value
+
+fn read(source: Supplier[Item = i32]) -> i32:
+    source.get() + 1
+
+fn first[T < Supplier](source: T) -> T::Item:
+    source.get()
+
+fn run() -> i32:
+    let source: Supplier[Item = i32] = Constant { value: 41 }
+    first(source) + read(source)
+```
+
+1. r[trait.dyn.binding.form] A trait value type may bind associated types after its positional arguments, as in `Supplier[Item = i32]`.
+2. r[trait.dyn.binding.complete] It must bind every associated type of the trait and of its supertraits. A trait value type that leaves one unbound is not dynamically safe. Error: `trait-not-dynamically-safe`.
+3. r[trait.dyn.binding.names] The rules of [Binding Names](#binding-names) apply, so a binding may name a supertrait's associated type, and an ambiguous or unknown name is an error.
+4. r[trait.dyn.binding.signatures] Through the value, each projection in a method signature denotes its bound type, so `get` above returns `i32`.
+5. r[trait.dyn.binding.convert] A concrete value converts to the trait value type only when its implementation binds each associated type to the bound type.
+6. r[trait.dyn.binding.identity] Two trait value types are the same type when they name the same trait instantiation and bind each associated type to the same type, in any order.
+7. r[trait.dyn.binding.widen] Widening to a supertrait value keeps the bindings of the associated types that the supertrait reaches, so `NamedSupplier[Item = i32]` widens to `Supplier[Item = i32]`.
+8. r[trait.dyn.binding.no-function] An associated function in the trait or a supertrait still makes the trait not dynamically safe, whatever the value type binds.
+
+```text
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+trait Factory:
+    type Item
+    fn count() -> i32
+
+fn unbound(source: Supplier) -> void:  # error: trait-not-dynamically-safe
+    pass
+
+fn with_function(factory: Factory[Item = i32]) -> void:  # error: trait-not-dynamically-safe
+    pass
+```
+
+> **Why.** Rust accepts `dyn Iterator<Item = T>`, and hd had simply not
+> added the form. Once every associated type is bound, every method
+> signature is concrete, so each method still compiles to one copy. An
+> associated function still has no receiver to dispatch on.
 
 ### Supertrait Widening
 
@@ -1227,13 +1317,16 @@ fn describe(named: Named, shown: Display) -> string:
 ```
 
 1. r[trait.dyn.bound] A dynamic trait value type satisfies a generic bound on its own trait and on each direct or transitive supertrait of that trait.
-2. r[trait.dyn.bound.instantiation] For a generic trait, the bound must name the same instantiation, so `Repository[User]` satisfies `T < Repository[User]`.
-3. r[trait.dyn.bound.dispatch] A statically dispatched call through such a bound dispatches each method through the value's table.
-4. r[trait.dyn.bound.mut] A readonly trait value never satisfies a `mut` bound; `mut Tr` satisfies `T < mut Tr`.
-5. r[trait.dyn.bound.no-impl] The rule adds no implementation: the trait value type satisfies no other bound through it, and it still cannot be an implementation target.
+2. r[trait.dyn.bound.projection] When it satisfies a bound `T < Tr`, each projection such as `T::Item` is the type the value type binds, so `first(source)` in [Bound Associated Types](#bound-associated-types) has type `i32`.
+3. r[trait.dyn.bound.binding] It satisfies a bound's binding only when it binds the same type, so `Supplier[Item = i32]` does not satisfy `T < Supplier[Item = string]`. Error: `unsatisfied-trait-bound`.
+4. r[trait.dyn.bound.instantiation] For a generic trait, the bound must name the same instantiation, so `Repository[User]` satisfies `T < Repository[User]`.
+5. r[trait.dyn.bound.dispatch] A statically dispatched call through such a bound dispatches each method through the value's table.
+6. r[trait.dyn.bound.mut] A readonly trait value never satisfies a `mut` bound; `mut Tr` satisfies `T < mut Tr`.
+7. r[trait.dyn.bound.no-impl] The rule adds no implementation: the trait value type satisfies no other bound through it, and it still cannot be an implementation target.
 
-> **Why.** Dynamic safety guarantees the trait has no associated function or
-> associated type that a bound could need.
+> **Why.** Dynamic safety guarantees that the trait has no associated
+> function, and that the value type binds every associated type a bound
+> could need.
 
 ### Conversion To Trait Values
 

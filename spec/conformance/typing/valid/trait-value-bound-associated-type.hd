@@ -1,0 +1,36 @@
+# test: a trait value type that binds every associated type is dynamically safe, and satisfies its trait's bound with the bound projection
+# Spec 09 Bound Associated Types: trait.dyn.binding.form, trait.dyn.binding.signatures, trait.dyn.binding.names, trait.dyn.binding.widen; Trait Values As Bounds: trait.dyn.bound.projection (owner decision AT2).
+
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+trait NamedSupplier < Supplier:
+    fn name(self) -> string
+
+data Constant:
+    value: i32
+
+impl Supplier for Constant:
+    type Item = i32
+    fn get(self) -> i32: self.value
+
+impl NamedSupplier for Constant:
+    fn name(self) -> string: "constant"
+
+fn read(source: Supplier[Item = i32]) -> i32:
+    source.get() + 1
+
+fn first[T < Supplier](source: T) -> T::Item:
+    source.get()
+
+fn pinned[T < Supplier[Item = i32]](source: T) -> i32:
+    source.get()
+
+fn widened(named: NamedSupplier[Item = i32]) -> i32:
+    read(named)
+
+fn run() -> i32:
+    let source: Supplier[Item = i32] = Constant { value: 41 }
+    let item: i32 = first(source)
+    item + read(source) + pinned(source) + widened(Constant { value: 1 })

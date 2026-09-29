@@ -552,8 +552,8 @@ its members are `derivation_line`s, as
 defines:
 
 ```ebnf
-impl_decl = "impl", [ generic_params ], type,
-            [ "for", type ], [ "by", identifier ],
+impl_decl = "impl", [ generic_params ], impl_header_types,
+            [ "by", identifier ],
             ( NEWLINE
             | ":", NEWLINE, INDENT,
               impl_member, { impl_member }, DEDENT )

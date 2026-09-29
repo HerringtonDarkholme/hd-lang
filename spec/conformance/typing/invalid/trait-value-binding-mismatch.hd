@@ -1,0 +1,12 @@
+# test: a trait value type does not satisfy a bound that binds its associated type to another type
+# Spec 09 Trait Values As Bounds: trait.dyn.bound.binding (owner decision AT2).
+
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn text[T < Supplier[Item = string]](source: T) -> string:
+    source.get()
+
+fn run(source: Supplier[Item = i32]) -> string:
+    text(source)  # diagnostic: unsatisfied-trait-bound

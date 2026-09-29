@@ -1357,3 +1357,28 @@ style lint rejects a chapter that reuses one.
   `fn.generic.placeholder.default` and `fn.generic.placeholder.unsolved`.
 - `fn.unsupported.list`: retired 2026-09-29. TD4 makes partial generic
   argument lists valid. Replaced by `fn.unsupported.features`.
+- `grammar.generic.binding.bounds-and-supertraits`: retired 2026-09-29.
+  Owner decision AT2 lets a trait value type bind associated types.
+  Replaced by `grammar.generic.binding.positions`.
+- `grammar.generic.binding.other-positions`: retired 2026-09-29. Under AT2
+  a trait value type and a type argument accept bindings. Replaced by
+  `grammar.generic.binding.trait-type` and
+  `grammar.generic.binding.named-type`.
+- `trait.binding.own-trait`: retired 2026-09-29. Owner decision AT1 lets a
+  binding name a supertrait's associated type. Replaced by
+  `trait.binding.name-reach`, `trait.binding.name-reach.meaning`, and
+  `trait.binding.name-reach.ambiguous`.
+- `trait.binding.supertrait`: retired 2026-09-29. Under AT1 a separate
+  supertrait bound is no longer needed. Replaced by
+  `trait.binding.name-reach`.
+- `trait.binding.positions-supertrait`: retired 2026-09-29. AT2 adds trait
+  value types. Replaced by `trait.binding.positions-value`.
+- `trait.binding.rejected-other`: retired 2026-09-29. AT2 lets a trait
+  value type bind. Replaced by `trait.binding.rejected-trait-type` and
+  `trait.binding.non-trait`.
+- `trait.dyn.safe.no-assoc`: retired 2026-09-29. Under AT2 a bound
+  associated type keeps a trait dynamically safe. Replaced by
+  `trait.dyn.safe.assoc-type` and `trait.dyn.safe.assoc-function`.
+- `types.trait.safe.members`: retired 2026-09-29. AT2 allows bound
+  associated types. Replaced by `types.trait.safe.members-bound` and
+  `types.trait.safe.assoc-bound`.

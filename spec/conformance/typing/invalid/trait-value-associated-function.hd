@@ -1,0 +1,9 @@
+# test: an associated function keeps a trait not dynamically safe even when the value type binds every associated type
+# Spec 09 Bound Associated Types: trait.dyn.binding.no-function; Dynamic Safety: trait.dyn.safe.assoc-function (owner decision AT2).
+
+trait Factory:
+    type Item
+    fn count() -> i32
+
+fn with_function(factory: Factory[Item = i32]) -> void:  # diagnostic: trait-not-dynamically-safe
+    pass

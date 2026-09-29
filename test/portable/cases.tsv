@@ -209,7 +209,6 @@ typing/valid/trait-features.hd	type
 typing/valid/associated-type-bindings.hd	type
 typing/invalid/associated-binding-mismatch.hd	type
 typing/invalid/unknown-associated-type.hd	type
-typing/invalid/supertrait-associated-binding.hd	type
 typing/invalid/duplicate-associated-binding.hd	type
 runtime/valid/associated-type-bindings.hd	runtime
 typing/invalid/supertrait-cycle.hd	type
@@ -1410,3 +1409,4 @@ parse/invalid/pipe-leading-line-open-suite.hd	parse
 runtime/valid/iterator-drives-loops.hd	runtime
 runtime/valid/comprehension-propagation.hd	runtime
 typing/invalid/from-iterator-not-prelude.hd	type
+typing/invalid/trait-value-unbound-associated-type.hd	type

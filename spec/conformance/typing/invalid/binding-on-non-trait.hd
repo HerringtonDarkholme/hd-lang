@@ -1,0 +1,5 @@
+# test: a binding in the arguments of a named type that is not a trait is an error
+# Spec 09 Binding Positions: trait.binding.non-trait (owner decision AT2).
+
+fn count(items: List[i32, Item = i32]) -> i32:  # diagnostic: unknown-associated-type
+    0

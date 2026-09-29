@@ -1,0 +1,13 @@
+# test: a binding whose name two supertraits declare separately is ambiguous
+# Spec 09 Binding Names: trait.binding.name-reach.ambiguous (owner decision AT1).
+
+trait Named:
+    type Item
+
+trait Keyed:
+    type Item
+
+trait Record < Named & Keyed
+
+fn third[T, R < Record[Item = T]](record: R) -> T:  # diagnostic: ambiguous-method
+    panic("unreachable")

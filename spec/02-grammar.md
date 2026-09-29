@@ -422,12 +422,16 @@ trait_member = associated_type_decl
                ( NEWLINE | ":", suite_body )
              ;
 
-impl_decl = "impl", [ generic_params ], type,
-            [ "for", type ], [ "by", identifier ],
+impl_decl = "impl", [ generic_params ], impl_header_types,
+            [ "by", identifier ],
             ( NEWLINE
             | ":", NEWLINE, INDENT,
               impl_member, { impl_member }, DEDENT )
             ;
+
+impl_header_types = trait_type, "for", type
+                  | type
+                  ;
 
 impl_member = associated_type_decl
             | { decorator_line }, method_decl
@@ -560,8 +564,9 @@ fn label[T < Named + Tagged](value: T) -> string: value.name()  # error: old-bou
 
 1. r[grammar.generic.binding] A trait in a generic parameter bound may end its bracketed arguments with associated type bindings: `I < Supplier[Item = T]` requires `I` to implement `Supplier` with `I::Item` equal to `T`.
 2. r[grammar.generic.binding.order] Bindings follow every positional type argument.
-3. r[grammar.generic.binding.bounds-and-supertraits] Bindings are valid only in `trait_bounds` and `supertrait_bounds`, so a supertrait may bind an associated type, as in `trait Summable < Add[Self, Out = Self]`.
-4. r[grammar.generic.binding.other-positions] An implemented trait, a trait-qualified call, a type argument, or a dynamic trait value type uses `trait_type` or `type`, so a binding there is an error. Error: `syntax-error`.
+3. r[grammar.generic.binding.positions] Bindings are valid in `trait_bounds`, in `supertrait_bounds`, as in `trait Summable < Add[Self, Out = Self]`, and in a `named_type`, as in the trait value type `Supplier[Item = i32]`.
+4. r[grammar.generic.binding.trait-type] The trait of an implementation header, a trait-qualified call, a method reference, and a requirement key is a `trait_type`, whose arguments take no binding. A binding there is an error. Error: `syntax-error`.
+5. r[grammar.generic.binding.named-type] Only a trait value type gives a binding in a `named_type` a meaning; [Binding Positions](09-traits.md#binding-positions) rejects one elsewhere.
 
 ```text
 trait Supplier:
@@ -636,7 +641,7 @@ reference_type = named_type
                | context_type
                ;
 
-named_type = qualified_name, [ type_arguments ] ;
+named_type = qualified_name, [ bound_type_arguments ] ;
 type_arguments = "[", type_argument,
                  { ",", type_argument }, [ "," ], "]" ;
 type_argument = type, [ "..." ]

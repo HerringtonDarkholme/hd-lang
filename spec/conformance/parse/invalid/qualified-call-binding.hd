@@ -1,0 +1,9 @@
+# test: the trait of a trait-qualified call takes no binding
+# Spec 02 Associated Type Bindings In Bounds: grammar.generic.binding.trait-type (owner decision AT2).
+
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn read(source: Supplier[Item = i32]) -> i32:
+    Supplier[Item = i32]::get(source)  # diagnostic: syntax-error
