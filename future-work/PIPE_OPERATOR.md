@@ -47,6 +47,21 @@ Decided 2026-09-29.
    - a line may start with `|>` to continue the previous expression, like
      leading-dot lines.
 
+7. **PL7 (2026-09-29): Hack-style, `_` required.** This supersedes the
+   Gleam-style default of PL3 and the bare names of PL4, because the owner
+   wants the value's slot always shown.
+   - Every pipe step must contain exactly one `_`, which marks where the
+     piped value goes. A step without `_`, or with two, is an error.
+   - A step may be any expression, not just a call: `user |> render(_,
+     theme)`, `order |> _.total`, `price |> _ * 1.2`,
+     `x |> Point { x: _, y: 0 }`.
+   - `_` may appear anywhere in the step except inside a nested closure
+     (`fn(...): ...`) within it. There it is an error, because it would be
+     unclear which value is meant, and the closure may run later.
+   - Bare names (`x |> f`) are gone; write `x |> f(_)`.
+   - PL5 (no trailing blocks) and PL6 (evaluation order, precedence,
+     leading `|>` lines) still stand.
+
 ## Contents
 
 1. [Problem](#problem)
