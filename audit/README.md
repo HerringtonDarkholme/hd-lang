@@ -77,8 +77,8 @@ each `it_each` row otherwise runs in a fresh instance), a test body's
 (Testing T8), a `timeout` (Literal Suffixes L16) is checked only after the
 body returns, so a body that never returns is not stopped, and a
 property test does not print its shrunk value, save a regression file
-(T37), or limit discarded cases, which are open
-([Testing Still Open After T53](../future-work/TESTING.md#still-open-after-t53)). `hd check` without `--tests` (T42) skips test cases and
+(T37), or limit discarded cases, which are now specified
+([Property Tests](../spec/10-modules.md#property-tests)). `hd check` without `--tests` (T42) skips test cases and
 test-only functions, but still reports the test-case errors its parser
 finds. A trailing block binds the final parameter (T40) only for calls
 that the checker plans, not for the built-in functions it special-cases.
@@ -98,7 +98,7 @@ unit test covers this.
 prelude trait, and `DebugWriter`, its builders, `debug`, and the standard
 implementations are hd code in `lib/std/format.hd`. `@derive(Debug)`
 generates builder calls. `Map` and tuples longer than two render no text
-([Testing Still Open After T53](../future-work/TESTING.md#still-open-after-t53)).
+(a prototype gap).
 
 `snapshot` and `snapshot_file` (Testing T49) are checked. `snapshot` runs
 as a string `assert_equal`, and no update run rewrites `expect`.

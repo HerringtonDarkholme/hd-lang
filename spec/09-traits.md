@@ -542,7 +542,7 @@ See also: [Standard Testing](10-modules.md#standard-testing),
 
 > **Note.** This heading keeps its name so that links to it stay valid.
 > `std.ops.LiteralSuffix` and its newtype carriers were removed by
-> [Literal Suffixes L11](../future-work/LITERAL_SUFFIXES.md#owner-decisions):
+> Literal Suffixes L11 (2026-09-28):
 > a suffix is a function marked `@num_suffix`, as
 > [Literal Suffixes](05-expressions.md#literal-suffixes) defines.
 

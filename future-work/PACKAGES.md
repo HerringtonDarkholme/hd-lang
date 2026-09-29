@@ -6,7 +6,7 @@ Nothing here is accepted language behavior. The draft sections below follow
 the decisions; details the decisions leave open are marked as open.
 Decisions that change the language go to the
 [specification](../spec/README.md): decision 5's test-dependency boundary
-now follows [Testing](TESTING.md#owner-decisions) T11, T13, T23, and T24,
+now follows [Testing](../spec/10-modules.md#test-modules) T11, T13, T23, and T24,
 applied in [Test Modules](../spec/10-modules.md#test-modules). The
 root-application orphan exception that decision 4 restated was dropped on
 2026-09-27, so no package may hold an orphan.
@@ -20,7 +20,7 @@ Inputs:
   [Executable Entry Point](../spec/10-modules.md#executable-entry-point).
 - The orphan and overlap rules in [Traits](../spec/09-traits.md). The
   annotation coherence rules were removed with the facet protocol
-  ([Typed Derivation decision 10](TYPED_DERIVATION.md#owner-decisions)), and
+  ([Typed Derivation decision 10](../spec/14-annotations.md#typed-derivation)), and
   the root-application orphan exception is dropped (decision 4).
 - The package bullet in
   [Runtime, Library, ABI, And Tooling Work](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work).
@@ -266,7 +266,7 @@ the test dependencies.
 
 A test dependency that itself depends on this package may be used only from
 `tests/`. From a `tests:` block or a test module it is an error, since it
-would bring in a second copy of the package ([Testing T24](TESTING.md#owner-decisions)).
+would bring in a second copy of the package ([Testing T24](../spec/10-modules.md#test-modules)).
 
 A package must have a library, at least one executable, or both. Only a
 package with a library can be a dependency; a dependent sees its library and
@@ -731,7 +731,7 @@ in [Test Modules](../spec/10-modules.md#test-modules) and
    separate `tests/` root may use them anywhere. Detail decided 2026-09-27:
    the `use` lines come first in the block, and like any inner scope they
    may shadow a module-level name. Superseded 2026-09-27 by
-   [Testing T2 and T11](TESTING.md#owner-decisions): no `use` inside a test
+   [Testing T2 and T11](../spec/10-modules.md#test-modules): no `use` inside a test
    case; test-only dependencies are named from a file's `tests:` block.
    Testing T13, T23, and T24 complete the rule: test dependencies are named
    from `tests:` blocks, `_test.hd` modules, and `tests/`, and one that

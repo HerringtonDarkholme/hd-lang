@@ -63,7 +63,7 @@ recommendation is advice, labeled as such.
 ## Output
 
 File: `future-work/<TOPIC>.md` (a survey and design options record, like
-`future-work/ENUM_SEMANTICS.md` or `future-work/FN_TYPE.md`), linked from
+`future-work/PIPE_OPERATOR.md` or `future-work/DEPENDENCIES.md`), linked from
 `future-work/README.md`. Sections, in order:
 
 1. Title and a status line ("design exploration, YYYY-MM-DD; nothing here

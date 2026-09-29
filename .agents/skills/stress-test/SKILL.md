@@ -88,9 +88,9 @@ for round N. Sections, in order:
 9. Parse Log: every `text` block and its result, plus any reference-parser
    findings.
 
-`future-work/ERROR_STRESS_TEST.md` and
-`future-work/DERIVATION_STRESS_TEST_2.md` are worked examples of this
-format.
+`future-work/CHAINING_STUDY.md` is a worked example of this format.
+Earlier stress tests, such as the error and derivation rounds, are in git
+history: a report is removed once its decisions are in the specification.
 
 ## Hard Rules
 

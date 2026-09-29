@@ -77,7 +77,7 @@ Other facts the library must respect:
 - `decimal` is named as a possible library type.
 - `Hash` values from the standard `Hasher` are stable only within one code
   identity and runtime profile
-  ([Durable Replay decision 8](DURABLE_REPLAY.md#owner-decisions)); persisted
+  ([Durable Replay decision 8](RUNTIME_AND_LIBRARY.md#replay-rules)); persisted
   identity uses `std.fingerprint`.
 - `$.use(K)` returns `mut K` when the trait `K` declares or inherits a
   `mut self` method, and a readonly `K` otherwise; rows and provider
@@ -501,7 +501,7 @@ impl StringBuilder:
 ```
 
 `std.text` also holds the raw-text prefix `r` and the prefix helpers
-([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L20 to L22), which
+([Literal Suffixes](../spec/05-expressions.md#literal-suffixes) L20 to L22), which
 a prefix function imports with `use std.text.{interpolate, process_escapes}`:
 
 ```text
@@ -690,7 +690,7 @@ cyclic chain cannot loop (`find` and `root_cause` walk `chain`), and
 ([Runtime Type Identity](../spec/09-traits.md#runtime-type-identity)), so it
 inherits `downcast` and `downcast_mut`, and a chain can be searched for a
 concrete type. `error.find[T]()` is Go's `errors.As`: a default method,
-bounded like `downcast` ([Inspectable decisions 11 and 15](INSPECTABLE.md#owner-decisions)),
+bounded like `downcast` ([Inspectable decisions 11 and 15](../spec/09-traits.md#runtime-type-identity)),
 that walks `chain` and returns the first part whose recorded type is exactly
 `T`. A value-type error payload is found with `chain` and
 `std.inspect.downcast_val`. `root_cause` returns the last part. Domain errors
@@ -839,15 +839,15 @@ and `Reverse[T]` in `std.cmp`, where `clamp(value, low, high)` with `low`
 greater than `high` panics (question 18); a default `SipHasher`-style hasher in
 `std.hash`, seeded per code identity and runtime profile, plus an
 explicitly chosen keyed hasher for hash-flooding defense
-([Durable Replay decision 8](DURABLE_REPLAY.md#owner-decisions)); padding, radix, and precision formatting in `std.format`. None is
+([Durable Replay decision 8](RUNTIME_AND_LIBRARY.md#replay-rules)); padding, radix, and precision formatting in `std.format`. None is
 blocked; none needs a question.
 
 ### `std.ops`
 
 `std.ops` holds what gives library types literal and, later, operator
 syntax. Its first member is the literal-suffix marker
-([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L11,
-[Decorators](DECORATORS.md#owner-decisions) D9):
+([Literal Suffixes](../spec/05-expressions.md#literal-suffixes) L11,
+[Decorators](../spec/14-annotations.md#prefix-decorators) D9):
 
 ```text
 use std.annotation.annotate
@@ -861,7 +861,7 @@ pub fn num_suffix() -> NumSuffix:
 
 A library declares a suffix by marking a function `@num_suffix`; `250ms`
 then means `ms(250)`. String prefixes work the same way with `@str_prefix`
-([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L19): `sql"a $x"`
+([Literal Suffixes](../spec/05-expressions.md#literal-suffixes) L19): `sql"a $x"`
 calls `sql` with a `Template[T]` of the raw text pieces and the values.
 `std.ops` declares `StrPrefix`, `str_prefix`, and `Template`. The
 raw-text prefix `r` lives in `std.text`
@@ -870,7 +870,7 @@ code writes `use std.text.r`. The helpers `interpolate`, `process_escapes`,
 and `EscapeError` moved there too (L22; see [`std.text`](#stdtext)).
 
 `std.ops` also declares the operator traits
-([Operator Traits](OPERATOR_TRAITS.md#owner-decisions) OP1-OP9, OP11): `Add`,
+([Operator Traits](../spec/05-expressions.md#operator-traits) OP1-OP9, OP11): `Add`,
 `Sub`, `Mul`, `Div`, `Rem`, `Neg`, `BitAnd`, `BitOr`, `BitXor`, `Not`,
 `Shl`, and `Shr`, each with an associated `Out`, and `Index` and
 `IndexSet`; OP13 removed the assign traits. Std implements the operator
@@ -894,7 +894,7 @@ pub trait IndexSet[K, V]:
 ### `Clone`
 
 `Clone` is a standard-library trait
-([Typed Derivation M22 and M23](TYPED_DERIVATION.md#owner-decisions)). It
+([Typed Derivation M22 and M23](../spec/14-annotations.md#typed-derivation)). It
 has two methods: `clone(self)` copies from a readonly value through the
 readonly views, and `clone_mut(mut self) -> mut Self` reads the declared
 member types, so a derived `clone_mut` clones `mut` members as `mut`. It is
@@ -908,7 +908,7 @@ the standard library.
 
 A facet is an ordinary trait with an associated function, such as
 `trait Validate: fn validator() -> Validator`, derived through a template
-([Typed Derivation decision 10](TYPED_DERIVATION.md#owner-decisions)). One
+([Typed Derivation decision 10](../spec/14-annotations.md#typed-derivation)). One
 standard-library cache memoizes derived associated functions: each value is
 built lazily, once per (trait, type) per program instance. A `Ref[T]`
 deferred reference, with cycle detection, lets a recursive type's value refer
@@ -1363,7 +1363,7 @@ fn fake_run() -> ScriptedProcess:
 `std.process` also declares `ExitCode` and `Termination`, which turn the
 result of `main` or a test into an exit code
 ([Exit Status](../spec/10-modules.md#exit-status),
-[Testing T8](TESTING.md#owner-decisions)). Unlike `Process`, neither needs
+[Testing T8](../spec/10-modules.md#exit-status)). Unlike `Process`, neither needs
 a host binding:
 
 ```text
@@ -1381,7 +1381,7 @@ impl[T < Termination, E < Display] Termination for Result[T, E]
 its cause chain and reports `ExitCode(1)`. A tool that wants another code
 returns `ExitCode` or `Result[ExitCode, E]`. This replaces the earlier
 `ExitStatus` trait and its never-zero `StatusCode`
-([Error Entry-Point Follow-Ups](OPEN_ISSUES.md#error-entry-point-follow-ups)).
+([Exit Status](../spec/10-modules.md#exit-status)).
 
 ### `std.observe` and `std.log`
 
@@ -1625,7 +1625,7 @@ declares the test-case functions, and adds four groups.
 
 The test-case functions are specified in
 [Test Cases](../spec/10-modules.md#test-cases), from
-[Testing](TESTING.md#owner-decisions) T16, T31, T40, T41, and T47. All four
+[Testing](../spec/10-modules.md#test-modules) T16, T31, T40, T41, and T47. All four
 are ordinary functions; only their registration is special. Each is called
 only directly in test position, with a literal name and `it`'s literal
 options.
@@ -1860,7 +1860,7 @@ stateful testing waits for area 3's event log.
 
 Still to design: the member-line facts (`arbitrary.range`, `arbitrary.len`)
 and size scheduling. The owner decided the rest on 2026-09-28
-([Open Issues](OPEN_ISSUES.md#casts-property-discards-type-names-as-values-std-scope)
+(Open Issues
 items 2, 6 and 7): discarded cases do not count toward `cases` and fail
 the property beyond 10 × `cases`, `T < Debug`, and the `__regressions__`
 file holds one decimal draw per line. This replaces the earlier `Strategy` sketch with its own
@@ -1871,13 +1871,13 @@ file holds one decimal draw per line. This replaces the earlier `Strategy` sketc
 | Module | Depends on | Open item |
 | --- | --- | --- |
 | host providers for `Clock.sleep!`, `Random`, `FsWrite`; a recording `Console` | `write_line!` taking `mut self`: applied, [Console](../spec/10-modules.md#console) | none |
-| `std.time`, `std.random`, `std.host` | replay recording of non-suspending host calls (decision 2): answered, every host method is marked input or output by its runtime profile, suspending or not ([Durable Replay decision 7](DURABLE_REPLAY.md#owner-decisions)) | none |
+| `std.time`, `std.random`, `std.host` | replay recording of non-suspending host calls (decision 2): answered, every host method is marked input or output by its runtime profile, suspending or not ([Durable Replay decision 7](RUNTIME_AND_LIBRARY.md#replay-rules)) | none |
 | inherent methods on `string`, `T?`, `List`, `Map`, integers (decision 8) | a `std` exception to the inherent-target rule: applied, [`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std) | none |
 | `std.json` typed codecs, `std.fingerprint` derive, property generators | typed derivation protocol | [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets) |
 | `std.fs` handles, `std.net`, `std.process` streaming | non-escaping handles and fallible cleanup | [Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy) |
 | `std.observe`, `std.log` | task-local trace context | [Observability Hooks](OPEN_ISSUES.md#observability-hooks) |
 | `std.incremental` | closure identity, weak references | [Serializable Closures](OPEN_ISSUES.md#serializable-closures-and-incremental-computation) |
-| `std.task.all!` | variadic packs (could be cut) | [Scope Reduction](OPEN_ISSUES.md#scope-reduction-and-distinctive-requirements) |
+| `std.task.all!` | variadic packs (kept: scope reduction closed 2026-09-27) | none |
 | idle-driven virtual time (after decision 10) | a driver idle signal | no open issue yet |
 | attenuated providers (`for_tenant`) | principal and tenancy patterns | [Access Control](OPEN_ISSUES.md#access-control-and-tenancy-expressibility) |
 | capability catalog, provider configuration, combinator set | library and runtime work | [Runtime, Library, ABI, And Tooling Work](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work) |

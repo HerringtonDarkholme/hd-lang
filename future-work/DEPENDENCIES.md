@@ -10,9 +10,9 @@ below, and reviews these records and sections:
   [Use Roots](../spec/10-modules.md#use-roots),
   [Test Modules](../spec/10-modules.md#test-modules), and
   [`module.cycle.package`](../spec/10-modules.md#r-module.cycle.package);
-- [Dependency Cycles](DEPENDENCY_CYCLES.md#owner-decisions) DC2 (package
+- [Dependency Cycles](../spec/10-modules.md#dependency-cycles) DC2 (package
   cycles are forbidden);
-- [Durable Replay decision 9](DURABLE_REPLAY.md#owner-decisions) (code
+- [Durable Replay decision 9](RUNTIME_AND_LIBRARY.md#replay-rules) (code
   identity covers all transitive dependencies).
 
 > **Owner direction (2026-09-28).** hd has no package registry. Follow Go
@@ -313,7 +313,7 @@ repository path ends and the module path begins.
 
 Durable replay's code identity covers "the entry module, all transitive
 dependencies, and the compiler's semantic version"
-([decision 9](DURABLE_REPLAY.md#owner-decisions)). A dependency's part of
+([decision 9](RUNTIME_AND_LIBRARY.md#replay-rules)). A dependency's part of
 that identity is its path, its version, and its tree hash. A `[patch]` to a
 local path has no recorded hash, so the build must hash the patched tree.
 
@@ -680,7 +680,7 @@ use dep.json.{Value}   # read from vendor/github.com/acme/json when present
 ```
 
 **DP12. May one repository hold several packages?** Effect: whether a
-folder extracted into a package ([DC C16](DEPENDENCY_CYCLES.md#c16-a-folder-becomes-a-package)) can stay
+folder extracted into a package (case C16 of the dependency cycles stress test) can stay
 in its repository. (a) yes, a subdirectory path with prefixed tags such
 as `lint/v1.2.0`, as Go allows. (b) one package per repository.
 **Recommendation: (a).**

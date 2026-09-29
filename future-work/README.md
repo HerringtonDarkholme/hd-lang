@@ -1,119 +1,62 @@
 # Future Work
 
-These documents cover deferred or exploratory work outside the accepted
-language specification:
+These documents cover deferred, undecided, or not yet applied work outside
+the accepted language specification. Accepted language behavior belongs in
+the [formal specification](../spec/README.md), which is authoritative. A
+design record is removed once everything it decided is in the
+specification; git history keeps it.
+
+Planning and backlog:
 
 - [Roadmap](ROADMAP.md) orders the remaining work into grammar, type
   checking, runtime, standard library, packages, prototype, audit cleanup, and
   agent tooling areas.
-- [Durable Replay: Core Or Library](DURABLE_REPLAY.md) records which parts of
-  durable replay the compiler and runtime provide and which a library builds;
-  all fifteen owner decisions are applied.
-- [Spec Follow-Ups](SPEC_FOLLOWUPS.md) logs decided editorial fixes, the
-  glossary pass, unnamed diagnostic codes, and open restyle questions.
 - [Open Issues](OPEN_ISSUES.md) is the single backlog for unresolved language,
   runtime, library, ABI, product, and tooling work.
-- [Packages: Survey And Manifest Draft](PACKAGES.md) surveys package managers
-  and drafts the `hd.toml` schema, versioning, resolution, and lockfile for
-  roadmap area 5, revised to the owner's decisions 1-14.
+- [Spec Follow-Ups](SPEC_FOLLOWUPS.md) logs decided editorial fixes, the
+  glossary pass, and unnamed diagnostic codes, to apply in one pass.
+
+Decided, not yet applied:
+
+- [Error Conversion: The `@error` Intrinsic](ERROR_CONVERSION.md) holds
+  decision 10, error derivation as one compiler intrinsic. The rest of the
+  error design is in the specification.
+- [Pipe Operator And Iterator `map`/`fold`](PIPE_OPERATOR.md) surveys pipes,
+  UFCS, and extension methods in 17 languages and records owner decisions
+  PL1-PL10.
 - [Dependencies Through Version Control](DEPENDENCIES.md) surveys
-  registry-free dependency management (Go, Deno, SwiftPM, Nix, Zig, Gleam,
-  Cargo git) for the owner's no-registry direction, compares four options,
-  and recommends Go's model in hd spelling, with questions DP1-DP14.
+  registry-free dependency management and records owner decisions
+  DEP1-DEP7 (Go modules in hd spelling).
+- [Packages: Survey And Manifest Draft](PACKAGES.md) surveys package
+  managers and drafts the `hd.toml` schema, versioning, resolution, and
+  lockfile under owner decisions 1-14, some now overturned by DEP1.
+
+Open questions for the owner:
+
+- [Chaining Study: Pipe, Function Shorthand, And Iterator Adapters](CHAINING_STUDY.md)
+  measures six combinations on one real-code corpus and asks CS1-CS6.
+- [Typed Derivation: Open Points](TYPED_DERIVATION.md) lists what M1-M29
+  leave undecided and the M26 readings awaiting confirmation.
+- [Nominal Function Types: Per-Declaration Data For Tools](FN_TYPE.md)
+  keeps questions 9 and 10, how tool adapters get per-declaration data.
+- [Literal Suffixes: Open Points](LITERAL_SUFFIXES.md) keeps three
+  prefixed-string readings.
+- [Operator Traits: Open Points](OPERATOR_TRAITS.md) keeps three readings
+  from the apply passes.
+- [Testing Redesign: Open Points](TESTING.md) keeps the property-test API
+  beyond T53 and two deferred fixtures.
+- [Stress Test 2026-09-29: Open Points](STRESS_2026_09_29.md) keeps two
+  decorator readings.
+
+Research and direction outside the specification:
+
+- [Runtime and Library Design](RUNTIME_AND_LIBRARY.md) describes the
+  standard-library, tooling, and runtime direction, including the decided
+  [Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules) and the test runner.
+- [Standard Library Design](STDLIB.md) drafts hd's module tree, effect
+  traits with deterministic providers, and questions for the owner. The
+  standard library stays outside the specification by design.
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.
-- [Testing Redesign](TESTING.md) records the owner's test redesign
-  decisions T1-T54 (a `tests:` block, `it("name"):` cases, `_test.hd`
-  modules, `tests/` integration tests, a `Termination` trait and `ExitCode`
-  shared with `main`, `it_each`, a derivable `Debug`, property tests, and
-  snapshot tests). The language parts are in the specification, with a few
-  follow-up questions for the owner.
-  The runner and library parts are in
-  [Runtime And Library](RUNTIME_AND_LIBRARY.md#testing) and
-  [Standard Library](STDLIB.md#testing-layer).
-- [Testing Redesign: Stress Test (T1-T13)](TESTING_STRESS_TEST.md) tries the
-  test redesign on 21 cases from real suites and ranks 17 problems, with
-  questions for the owner.
-- [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
-  surveys derivation in other languages and records how libraries derive
-  typed trait implementations, schemas, and tool adapters (roadmap area 2).
-  Owner decisions M1-M29 fully decide the design, and they are applied in
-  [Typed Derivation](../spec/14-annotations.md#typed-derivation); the
-  prototype implements them by lowering, with gaps listed as known
-  failures. The few remaining open points are listed.
-- [Typed Derivation: Stress Test Of The M1-M11 Design](DERIVATION_STRESS_TEST.md)
-  tests the current derivation design against 21 use cases and ranks the problems found, with questions for the owner.
-- [Typed Derivation: Stress Test Round 2 (M1-M15)](DERIVATION_STRESS_TEST_2.md)
-  retests the design after typed member handles (M14) and the error
-  intrinsic (M15, now spelled `@error`), maps round 1's problems to their
-  status, and ranks the remaining and new ones, with questions for the
-  owner.
-- [Typed Derivation: Stress Test Round 3 (M1-M19)](DERIVATION_STRESS_TEST_3.md)
-  retests the value-driven walk (M19) on 14 library cases, proposes a
-  `Source` protocol for input-driven `build`, and ranks what still breaks.
-  The owner answered round 3 with decisions M20 and M21.
-- [Nominal Function Types](FN_TYPE.md) makes function types standard
-  generic constructors such as `Fn[(Is...), O, R]`, so they can be
-  implementation targets; decisions 1 to 9 are applied to the
-  specification. Per-declaration data for tool adapters (decision 10) is
-  partly answered: [Decorators](DECORATORS.md) D7 lets code read a
-  function's decorators, and deriving for functions stays parked with typed
-  derivation.
-- [Runtime and Library Design](RUNTIME_AND_LIBRARY.md) describes the broader
-  standard-library, tooling, and runtime direction.
-- [Standard Library Design](STDLIB.md) surveys other standard libraries and
-  drafts hd's module tree, effect traits with deterministic providers, and
-  questions for the owner.
-- [Error Conversion](ERROR_CONVERSION.md) surveys error composition in other
-  languages and compares designs for using `?` across domain error types.
-- [Error Design Stress Test (V1, V2a, V2b)](ERROR_STRESS_TEST.md) translates
-  real crates' error types (ripgrep, cargo, serde_json, reqwest,
-  `std::io::Error`, ast-grep, naga, globset) into the recorded
-  error-derivation design (now the `@error` intrinsic) and two message-free
-  variants, compares them, and ranks the problems found, with questions for
-  the owner.
-- [Runtime Type Identity](INSPECTABLE.md) records the design of the
-  `Inspectable` trait, `TypeId`, and `downcast`, and the owner decisions now
-  in the specification.
-- [Enum Semantics: Value Category And Identity](ENUM_SEMANTICS.md) asks
-  whether enums, `Option`, and `Result` belong with values (`AnyVal`) or
-  references (`AnyRef`) and surveys other languages. The owner kept every
-  enum `AnyRef` with identity, made enum values immutable, and turned shared
-  constructor data into per-variant constants; the decisions are applied.
-- [Literal Suffixes](LITERAL_SUFFIXES.md) surveys unit literals such as
-  `5s` and `12px` and compares four designs. The owner chose imported
-  suffix types that implement `std.ops.LiteralSuffix` (L1-L9), then
-  revised them (L10-L18), ending with functions marked `@num_suffix`
-  (L11). L19 adds string prefixes marked `@str_prefix`, and `r"..."`
-  becomes the std prefix `std.text.r` (L20). L21 and L22 check a marked
-  function's one parameter at its definition. All are applied, with six
-  follow-up points still open.
-- [Operator Traits](OPERATOR_TRAITS.md) surveys operator overloading and
-  compares four `std.ops` trait shapes. The owner chose Rust's shape with
-  compound assignment, index traits, and sealed numeric traits (OP1-OP9),
-  now applied, with fifteen follow-up points still open.
-- [Decorators](DECORATORS.md) surveys annotation systems and compares five
-  designs for general, read-only, target-checked decorators. The owner
-  chose plain values with a kind-only `@annotate` (D1-D10), now applied,
-  with one follow-up point still open.
-- [Requirement Reuse](REQUIREMENT_REUSE.md) stress-tests long requirement
-  rows and provider bundles on a web service, surveys eleven languages, and
-  compares six options, including rows as type expressions. The owner
-  decided RU1-RU15 (row aliases, row subsumption, union rows), now applied,
-  with one follow-up point still open.
-- [Dependency Cycles: Stress Test Of The Folder Rule](DEPENDENCY_CYCLES.md)
-  tries the folder-acyclic direction on 16 layouts, weighs it for parallel
-  compilation, and ranks 11 problems. The owner decided DC1-DC10 (an
-  acyclic folder graph, `folder-cycle`), now applied, with fifteen
-  follow-up points still open.
-- [Stress Test: The 2026-09-28/29 Decisions Together](STRESS_2026_09_29.md)
-  tries decorators, suffixes and prefixes, rows, folder cycles, and
-  operator traits on 13 library cases, and ranks 14 problems (ST-1 to
-  ST-14), led by `+=` aliasing and `from_i64`'s silent wrap, with 11
-  owner questions.
-- [Pipe Operator And Iterator `map`/`fold`](PIPE_OPERATOR.md) surveys pipes, UFCS, and extension methods in 17 languages, compares five options, and asks PL1-PL9.
-- [Chaining Study: Pipe, Function Shorthand, And Iterator Adapters](CHAINING_STUDY.md) measures six combinations on one real-code corpus, recommends methods, substitution-only pipe steps, and `.name` member paths, and asks CS1-CS6.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
-
-Accepted language behavior belongs in the [formal specification](../spec/README.md).

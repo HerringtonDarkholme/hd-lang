@@ -33,9 +33,8 @@ expected.
   - line continuation inside indentation.
 - Comparison: how Python, Kotlin, Swift, and MoonBit resolve the same
   collisions.
-- Moved here: the grammar half of
-  [Scope Reduction](OPEN_ISSUES.md#scope-reduction-and-distinctive-requirements)
-  (loop-`else` values, binding expressions, trailing-block forms).
+- Scope reduction was closed on 2026-09-27: every feature stays, including
+  loop-`else` values, binding expressions, and trailing-block forms.
 - Output: an ambiguity list with a proposed fix for the owner to decide, and
   conformance fixtures for each case.
 
@@ -64,24 +63,24 @@ Goal: state trait behavior as normative rules rather than prose.
   - MoonBit: `derive(Show, Eq, Hash, ToJson, ...)` and `impl Trait for Type`;
   - Swift: protocol conformance and synthesized conformances;
   - Kotlin: interface delegation.
+- Done: runtime type identity is specified in
+  [Runtime Type Identity](../spec/09-traits.md#runtime-type-identity), and
+  complete runtime shape coverage in
+  [Common Shape Representation](../spec/14-annotations.md#common-shape-representation).
+  Typed derivation (owner decisions M1-M29) is applied in
+  [Typed Derivation](../spec/14-annotations.md#typed-derivation). Annotation
+  locality was superseded: derivation blocks live in the type's module.
+  GADTs, declared variance, and variadic packs stay (scope reduction was
+  closed on 2026-09-27).
 - Moved here:
-  - [Runtime Type Identity And `reified`](OPEN_ISSUES.md#runtime-type-identity-and-reified);
-  - complete runtime shape coverage, now specified in
-    [Common Shape Representation](../spec/14-annotations.md#common-shape-representation);
-  - the language half of
+  - the open parts of
     [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets),
-    with a survey, candidate designs, and owner questions in
-    [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
-    (owner decisions M1-M29 applied in
-    [Typed Derivation](../spec/14-annotations.md#typed-derivation); error
-    derivation is the separate `@error` intrinsic);
+    listed in [Typed Derivation: Open Points](TYPED_DERIVATION.md), and
+    the `@error` intrinsic, decided but not yet applied
+    ([Error Conversion](ERROR_CONVERSION.md));
   - the propagation rules and dependent-return provenance from
     [Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy);
-  - [Confirmed Deferred Type Features](OPEN_ISSUES.md#confirmed-deferred-type-features);
-  - the type half of Scope Reduction (GADTs, declared variance, variadic
-    packs);
-  - [Annotation Locality](OPEN_ISSUES.md#annotation-locality-and-inspection),
-    which is a coherence question like the orphan rule.
+  - [Confirmed Deferred Type Features](OPEN_ISSUES.md#confirmed-deferred-type-features).
 - Output: a normative rules section per topic, a findings list, and questions
   for the owner.
 
@@ -92,9 +91,10 @@ and [Runtime and Library Design](RUNTIME_AND_LIBRARY.md).
 
 Goal: decide, with evidence, whether durable replay is a core language feature
 or a library feature. Decided: a runtime feature with a small specification
-and compiler contract, with the rest in libraries. All fifteen
-[Durable Replay](DURABLE_REPLAY.md#owner-decisions) decisions are applied to
-[Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules) and the specification.
+and compiler contract, with the rest in libraries. All seventeen durable
+replay decisions are applied to
+[Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules) and the specification
+([Determinism](../spec/11-requirements-and-suspension.md#determinism)).
 
 - Question: what must the compiler provide, and what can a library build?
   - Compiler candidates: stable suspension-site IDs, code identity, provider
@@ -106,7 +106,6 @@ and compiler contract, with the rest in libraries. All fifteen
 - Test: can a library get replay right without compiler support? What it
   cannot do is core; the rest is library.
 - Moved here:
-  - [Replay Determinism](OPEN_ISSUES.md#replay-determinism-and-durable-workflows);
   - [Observability Hooks](OPEN_ISSUES.md#observability-hooks), which use a
     hook separate from replay (Durable Replay decision 14);
   - [Serializable Closures And Incremental Computation](OPEN_ISSUES.md#serializable-closures-and-incremental-computation);
@@ -140,9 +139,9 @@ into the specification once accepted.
   - `std.testing`: property testing, shrinking, and providers;
   - time and fingerprint. `Secret[T]` was removed from the design for now
     ([STDLIB decision 12](STDLIB.md#owner-decisions)).
-- Error conversion: how `?` combines errors from several domains, drafted in
-  [Error Conversion](ERROR_CONVERSION.md). Its `?` typing change belongs to
-  area 2.
+- Error conversion: how `?` combines errors from several domains is
+  specified in [Propagation](../spec/05-expressions.md#propagation); the
+  error-chain helpers are library API in [STDLIB](STDLIB.md#stderror).
 - Moved here: the host capability catalog, provider configuration format,
   task combinators, property testing, the library half of derivation,
   generated artifacts, and exporter configuration.
@@ -168,8 +167,11 @@ repeat exactly.
   packages.
 - Lockfile: its format, content hashes, and reproducible builds.
 - Standard library: how `std` is versioned and tied to the compiler version.
-- Distribution: registry, git, and path dependencies; what a published
-  package contains (sources, interface files, Wasm components).
+- Distribution: there is no registry (owner, 2026-09-28). Dependencies
+  come from version control hosts, as decided in
+  [Dependencies](DEPENDENCIES.md#owner-decisions) (DEP1-DEP7, not yet
+  applied), which overturns [Packages](PACKAGES.md#owner-decisions)
+  decisions 2, 3, and 11.
 - Agent use: every package operation is a non-interactive command with
   machine-readable output, and package metadata is queryable through the
   program database in area 8.
@@ -217,9 +219,7 @@ A language server is therefore low priority.
   "every public function that eventually requires `Fs`" or "every path where
   this value can be `.None`", and the same queries can serve as lint rules.
 - Name-addressed CLI queries: documentation and definition lookup by symbol,
-  extending the existing `explain-requirements` and `trace` commands and the
-  annotation inspection command from
-  [Annotation Locality](OPEN_ISSUES.md#annotation-locality-and-inspection).
+  extending the existing `explain-requirements` and `trace` commands.
 - Runtime observability over debuggers: queryable traces of suspension,
   provider calls, and replay events, sharing the interception point decided
   in area 3.
@@ -227,7 +227,8 @@ A language server is therefore low priority.
 - Explicitness over inference where it adds guarantees: agents do not mind
   writing annotations, so area 2 should prefer rules that check stated types
   over rules that only infer them. Locality rules that forbid action at a
-  distance, such as annotation locality, serve the same goal.
+  distance, such as derivation blocks living in the type's module, serve
+  the same goal.
 - The REPL stays: it is how humans try the language, so it keeps up with the
   specification.
 - Lower priority: a formatter and a language server for human reading.

@@ -50,7 +50,7 @@ Specialized functions such as `assert_equal` receive the actual and expected val
 `hd test` makes a test build, which compiles the package's test code, and
 runs every test case. `hd check` checks test code only with `--tests`, as
 `cargo check` does (T42). The runner behaves as the
-[testing redesign](TESTING.md#owner-decisions) decided:
+[testing redesign](../spec/10-modules.md#test-modules) decided:
 
 | Behavior | Rule | Decision |
 | --- | --- | --- |
@@ -122,7 +122,7 @@ So the test above writes `__snapshots__/<module>/greets-by-name-1.snap`.
 Renaming a test, or reordering its `snapshot_file` calls, changes the file
 names; the owner accepted that cost. A mismatch, or a missing file outside
 an update run, fails with `assertion-failed`, as `assert_equal` does
-([T54](TESTING.md#still-open-after-t53),
+([T54](TESTING.md),
 [`module.testing.snapshot.mismatch`](../spec/10-modules.md#r-module.testing.snapshot.mismatch)).
 
 | Command | Effect |
@@ -319,13 +319,13 @@ The language guarantees that code between host calls is deterministic ([Runtime 
 
 ### Replay Rules
 
-These rules are decided. They bind every runtime that records or replays histories. The analysis behind them is in [Durable Replay](DURABLE_REPLAY.md).
+These rules are decided (Durable Replay decisions 1-17, 2026-09-26 and 2026-09-27). They bind every runtime that records or replays histories. The analysis behind them is in the Durable Replay record in git history.
 
 - **Core and library split.** Durable replay is a runtime feature with a small specification and compiler contract. The specification owns the determinism clause; the compiler emits a semantic code identity; the runtime intercepts host calls, records executor scheduling events, detects divergence, and supplies idempotency keys. History storage, runners, retry, workflow APIs, and deployment routing are library work. There is no workflow keyword, no source label syntax, and no `Durable` trait.
 - **Interception at the host boundary only.** The runtime intercepts calls where they cross into the host. It does not intercept calls to providers written in hd; those re-execute on replay.
-- **Recording is opt-in.** A run records nothing unless its host or command line asks for recording. A REPL session and an ordinary `hd run` record no history. The recording level is chosen per run, never in source: none (the default), provider calls only, or everything. The levels differ only in output detail: at the provider-calls level an output records a fingerprint, and at the everything level it also records its full arguments; replay behaves the same at both ([Durable Replay decision 16](DURABLE_REPLAY.md#owner-decisions)). A run that records keeps every event, including in a run that panics and a run that never finishes: the history holds every event up to the panic, or up to the point where the host stops the run.
+- **Recording is opt-in.** A run records nothing unless its host or command line asks for recording. A REPL session and an ordinary `hd run` record no history. The recording level is chosen per run, never in source: none (the default), provider calls only, or everything. The levels differ only in output detail: at the provider-calls level an output records a fingerprint, and at the everything level it also records its full arguments; replay behaves the same at both (Durable Replay decision 16). A run that records keeps every event, including in a run that panics and a run that never finishes: the history holds every event up to the panic, or up to the point where the host stops the run.
 - **Code identity.** A history records one code identity: a hash of the semantic content of the entry module and all its transitive dependencies, together with the compiler's semantic version. It is not the hash of the Wasm binary. Any semantic change anywhere in that set, or a new compiler semantic version, invalidates every history recorded against it, and replay rejects such a history. Formatting and comment changes never change the code identity.
-- **Runtime profile.** The runtime profile is part of the provider configuration identity. Replay under a different runtime profile is rejected. The host's stack and memory limits are part of the runtime profile, so a history never replays on a host with different limits ([`req.determinism.limits-profile`](../spec/11-requirements-and-suspension.md#r-req.determinism.limits-profile)). A limit failure itself is outside the replay guarantee: if replay hits a limit the recording did not, or misses one it did, replay reports a limit-divergence error ([Durable Replay decision 17](DURABLE_REPLAY.md#owner-decisions)).
+- **Runtime profile.** The runtime profile is part of the provider configuration identity. Replay under a different runtime profile is rejected. The host's stack and memory limits are part of the runtime profile, so a history never replays on a host with different limits ([`req.determinism.limits-profile`](../spec/11-requirements-and-suspension.md#r-req.determinism.limits-profile)). A limit failure itself is outside the replay guarantee: if replay hits a limit the recording did not, or misses one it did, replay reports a limit-divergence error (Durable Replay decision 17).
 - **Inputs and outputs.** The runtime profile marks each host method, suspending or not, as an input or an output. An input's result is recorded, and replay supplies it without the live call. An output records only a fingerprint, and replay suppresses the live call.
 - **Event matching.** Replay matches each event to a call by its order, its provider and method key, and an argument fingerprint. Source site IDs from the compiler's site table appear only in diagnostic messages.
 - **History values.** There is no `Durable` bound. Entry arguments and results, host payloads, and continue-as-new state are boundary-safe values ([Boundary-Safe Values](../spec/10-modules.md#boundary-safe-values)).

@@ -42,8 +42,7 @@ name, type, behavior, or visibility.
 > `trait Validate: fn validator() -> Validator` read with
 > `User::validator()`. The earlier facet protocol (`Annotation`, `Annotate`,
 > the annotator traits, `AnnotationRef`, and `annotate Facet for Target`)
-> was removed by
-> [Typed Derivation decision 10](../future-work/TYPED_DERIVATION.md#owner-decisions).
+> was removed by Typed Derivation decision 10 (2026-09-27).
 > Building such a value once per type, with deferred `Ref[T]` references for
 > recursive types, is the standard library's
 > [derived-function cache](../future-work/STDLIB.md#derived-function-cache).
@@ -270,8 +269,7 @@ metadata written away from the declaration.
 
 > **Note.** This heading keeps its earlier name so that links to it stay
 > valid. The `annotate Target:` block and the reserved word `annotate` were
-> removed by
-> [Typed Derivation M26](../future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass).
+> removed by Typed Derivation M26 (2026-09-28).
 
 ### Prefix Decorators
 
@@ -588,7 +586,7 @@ data User:
 > language needs no macro system and no per-library compiler support.
 
 See also: [Derived Implementations](09-traits.md#derived-implementations),
-[Typed Derivation design record](../future-work/TYPED_DERIVATION.md).
+[Typed Derivation open points](../future-work/TYPED_DERIVATION.md).
 
 ### Opting In
 
@@ -703,9 +701,7 @@ pub trait Source[S]:
 6. r[annot.structure.no-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
 
 > **Note.** Standard walkers, describers, and sources, such as the ones a
-> `std.json` would use, are library design. The
-> [design record](../future-work/TYPED_DERIVATION.md#current-design-full-example-m1-m21)
-> shows a complete json library, and
+> `std.json` would use, are library design.
 > [STDLIB](../future-work/STDLIB.md) tracks the standard modules.
 
 ### The Structure Trait

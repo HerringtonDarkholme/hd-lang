@@ -852,7 +852,7 @@ existing source. Each entry names the decision that made the change.
 - No non-exhaustive enums (error conversion decision 20, 2026-09-27): no
   rule changed. Chapter 08 lists a non-exhaustive enum form as unsupported.
 - Typed derivation (owner decisions M1-M22 in
-  [Typed Derivation](../future-work/TYPED_DERIVATION.md#owner-decisions),
+  Typed Derivation,
   2026-09-27): `@derive` now also accepts any trait with a derivation
   template, `impl[T] Trait for T by Structure:` in the trait's module, and a
   derivation block `impl Trait for X by Structure:` applies one template with
@@ -891,7 +891,7 @@ existing source. Each entry names the decision that made the change.
   `mutable-receiver-required` without `mut`, is valid for a mutable
   requirement trait.
 - Typed derivation M23 (owner decision in
-  [Typed Derivation](../future-work/TYPED_DERIVATION.md#owner-decisions),
+  Typed Derivation,
   2026-09-27): `by Structure` now needs `use std.structure.Structure`, like
   any other name. A derivation template or block without it, previously
   valid, is `unknown-trait`, and the `use` itself is not
@@ -903,7 +903,7 @@ existing source. Each entry names the decision that made the change.
   `@derive`. `Clone` is a standard-library trait, listed in
   [STDLIB](../future-work/STDLIB.md#clone).
 - Typed derivation M24 (owner decision in
-  [Typed Derivation](../future-work/TYPED_DERIVATION.md#owner-decisions),
+  Typed Derivation,
   2026-09-27): a `Source` implementation may strengthen only the bound on
   `member[F]`. A strengthened bound on `missing[F]`, previously valid, is
   now `trait-method-signature`, so the undecided generic-`missing` question
@@ -1089,7 +1089,7 @@ existing source. Each entry names the decision that made the change.
   case runs. `Duration` is a whole number of milliseconds in an `i64`, and
   `std.time` no longer declares `ns` or `us`.
 - Typed derivation M25 (owner decision in
-  [Typed Derivation](../future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass),
+  Typed Derivation,
   2026-09-28): a data type's one variant has an empty `VariantInfo.facts`.
   `@derive(...)` before a function, which the grammar admits, is
   `decorator-not-annotator`. Two declaration facts of one concrete type on a
@@ -1097,7 +1097,7 @@ existing source. Each entry names the decision that made the change.
   `duplicate-fact`. A type-level fact of a primitive or `std` type, such as
   `@"internal"`, previously `unused-derivation-fact`, no longer warns.
 - Typed derivation M26 (owner decision in
-  [Typed Derivation](../future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass),
+  Typed Derivation,
   2026-09-28): the `annotate Target:` block is removed, and `annotate` is no
   longer a reserved word. `annotate User: name = [max_len(80)]`, previously
   valid, is now a `syntax-error`; write `impl User by Structure:` with the
@@ -1111,14 +1111,14 @@ existing source. Each entry names the decision that made the change.
   are errors. `impl C by E` without a trait, where `E` is not `Structure`,
   is `invalid-delegation`.
 - Typed derivation M27 (owner decision in
-  [Typed Derivation](../future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass),
+  Typed Derivation,
   2026-09-28): `Part = pass` on an embedded part stays
   `omitted-member-without-default`, now shown as an example. Two decorators
   before one declaration whose type-level facts have one concrete type, as
   two `@style(...)` lines, previously not covered, are `duplicate-fact` on
   the later decorator.
 - Typed derivation M28 (owner decision in
-  [Typed Derivation](../future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass),
+  Typed Derivation,
   2026-09-28): a trait-less derivation block's header declares only its
   target's own type parameters, without bounds, as
   `impl[T] Box[T] by Structure:`; `impl Box[i32] by Structure:` or a bound,
@@ -1129,7 +1129,7 @@ existing source. Each entry names the decision that made the change.
   line's right side may be any expression of a list type, so
   `name = shared_list`, previously `invalid-member-line`, is valid.
 - Typed derivation M29 (owner decision in
-  [Typed Derivation](../future-work/TYPED_DERIVATION.md#still-open-after-m27-and-m28),
+  Typed Derivation,
   2026-09-28): a trait-less block's header may rename the type's
   parameters, so `impl[U] Box[U] by Structure:` for `data Box[T]`,
   previously unclear, is valid. A member line whose right side is not a
@@ -1148,14 +1148,14 @@ existing source. Each entry names the decision that made the change.
   unspecified, now makes `println` panic; the panic category is not yet
   specified.
 - Literal suffixes L18 (owner decision in
-  [Literal Suffixes](../future-work/LITERAL_SUFFIXES.md#owner-decisions),
+  Literal Suffixes,
   2026-09-28): `Duration`'s public API is `Duration::milliseconds`,
   `Duration::seconds`, and `as_milliseconds`. A standard suffix whose
   `Duration` overflows `i64` milliseconds, previously unspecified, panics
   at run time with `integer-overflow`; a warning for it is optional. No
   existing source changes meaning.
 - Testing T53 (owner decision in
-  [Testing](../future-work/TESTING.md#owner-decisions), 2026-09-28):
+  Testing, 2026-09-28):
   `DebugWriter` has builders like Rust's `Formatter`: `debug_struct`,
   `debug_tuple`, `debug_list`, `debug_map`, and `write`, with the builder
   types `DebugStruct`, `DebugTuple`, `DebugList`, and `DebugMap`.
@@ -1182,8 +1182,7 @@ existing source. Each entry names the decision that made the change.
   `.Err(ConsoleError)` is `explicit-panic`, as any `panic` call in `std`
   is. A `println` call at the top level of a script stays valid.
 - Testing T54 (owner decision in
-  [Still Open After T53](../future-work/TESTING.md#still-open-after-t53),
-  2026-09-28): a `snapshot` or `snapshot_file` mismatch, and a missing
+  Testing, 2026-09-28): a `snapshot` or `snapshot_file` mismatch, and a missing
   snapshot file outside an update run, previously a test failure with no
   panic category, now panic with `assertion-failed`. `@derive(Debug)`
   follows Rust's mapping: a data type or a variant with named payload
@@ -1192,7 +1191,7 @@ existing source. Each entry names the decision that made the change.
   The builder type names `DebugStruct`, `DebugTuple`, `DebugList`, and
   `DebugMap` are confirmed. No existing source changes meaning otherwise.
 - Decorators D1-D9 (owner decisions in
-  [Decorators](../future-work/DECORATORS.md#owner-decisions), 2026-09-28):
+  Decorators, 2026-09-28):
   a decorator is a plain value on any item (a function, data type, enum,
   trait, implementation, or newtype) or member (a field, variant, value
   parameter, or method). `@tool("search")` before a function, previously
@@ -1209,7 +1208,7 @@ existing source. Each entry names the decision that made the change.
   concrete type before one function, trait, implementation, newtype, or
   method are `duplicate-fact`. Modules take no decorators.
 - Literal suffixes L11 (owner decision in
-  [Literal Suffixes](../future-work/LITERAL_SUFFIXES.md#owner-decisions),
+  Literal Suffixes,
   2026-09-28, with the names of Decorators D9): a suffix is a function
   marked `@num_suffix`, and `250ms` is the call `ms(250)`.
   `std.ops.LiteralSuffix` and the newtype carriers are removed:
@@ -1245,7 +1244,7 @@ existing source. Each entry names the decision that made the change.
   a `type-mismatch`, is valid, and `R` is `Clock`. Rows still have no
   subtraction.
 - Literal suffixes L19 (owner decision in
-  [Literal Suffixes](../future-work/LITERAL_SUFFIXES.md#owner-decisions),
+  Literal Suffixes,
   2026-09-28): a name written directly before a string's quote is a string
   prefix, and `sql"a $x"` is the call `sql(t)` of a function marked
   `@str_prefix`, where `t` is a `std.ops.Template` holding the raw text
@@ -1261,7 +1260,7 @@ existing source. Each entry names the decision that made the change.
   `invalid-string-prefix`. `std.ops` declares `StrPrefix`, `str_prefix`,
   `Template`, and `r`.
 - Requirement reuse RU2 (owner decision in
-  [Requirement Reuse](../future-work/REQUIREMENT_REUSE.md#owner-decisions),
+  Requirement Reuse,
   2026-09-28): `type AppRow = Db + Cache` declares a row alias, and
   `$ AppRow + Clock` stands for its keys wherever a row follows `$`. Such a
   declaration was previously a `syntax-error`. A row alias used as a value
@@ -1303,7 +1302,7 @@ existing source. Each entry names the decision that made the change.
   nested `$.with` scopes do. No source changes validity; the rule states
   behavior that was previously unspecified.
 - Narrowing integer casts wrap (owner decision in
-  [Open Issues](../future-work/OPEN_ISSUES.md#casts-property-discards-type-names-as-values-std-scope),
+  Open Issues,
   item 1, 2026-09-28): an integer-to-integer cast keeps the low bits of the
   value, as Go conversions and Rust `as` do, so `u8(x)` with `x = 300` gives
   44 where it previously panicked. A cast whose argument is an integer
@@ -1340,7 +1339,7 @@ existing source. Each entry names the decision that made the change.
   builder, naming positional fields `_0`, `_1`, and so on:
   `Mixed { _0: 1, label: "x" }`.
 - Literal suffixes L20 (owner decision in
-  [Literal Suffixes](../future-work/LITERAL_SUFFIXES.md#owner-decisions),
+  Literal Suffixes,
   2026-09-28): a suffixed literal and a prefixed string are plain call
   sugar. A suffix or prefix function may now be generic or need providers:
   its call follows the ordinary generic and row rules, so `12px` where
@@ -1358,7 +1357,7 @@ existing source. Each entry names the decision that made the change.
   accepted and each use failed. Further parameters with defaults are now
   allowed. `return"x"` stays two tokens.
 - Dependency cycles DC1 (owner decision in
-  [Dependency Cycles](../future-work/DEPENDENCY_CYCLES.md#owner-decisions),
+  Dependency Cycles,
   2026-09-29): a public inherent method must declare its result type, as a
   public function does. `pub fn total(self): self.count` inside `impl Cart:`
   is now `missing-result-type`. Without a `$` clause its row is empty, where
@@ -1388,14 +1387,14 @@ existing source. Each entry names the decision that made the change.
   The conformance format gains the `# fixture-package-tree:` header, which
   places a fixture in a package of several files.
 - Small follow-ups (owner decision in
-  [Open Issues](../future-work/OPEN_ISSUES.md#small-follow-ups-2026-09-29),
+  Open Issues,
   2026-09-29): in a prefixed string, a `$` is text unless `{` or a
   character that can start an identifier follows, so `r"costs $5"` keeps
   `$5` as text where the rule left it undefined. A suffix function's one
   parameter may have a default, and a non-public function's inferred
   result takes the union row; both were already valid.
 - Literal suffixes L22 (owner decision in
-  [Literal Suffixes](../future-work/LITERAL_SUFFIXES.md#owner-decisions),
+  Literal Suffixes,
   2026-09-29): a function marked `@num_suffix` or `@str_prefix` declares
   exactly one parameter. `@num_suffix fn kb(count: i64, unit: i64 = 1024)`,
   valid since L21, is now `type-mismatch` at the definition. Which line of
@@ -1403,7 +1402,7 @@ existing source. Each entry names the decision that made the change.
   `interpolate`, `process_escapes`, and `EscapeError` move from `std.ops`
   to `std.text`; no rule names them, so no rule changes.
 - Float-to-integer casts saturate (owner decision in
-  [Open Issues](../future-work/OPEN_ISSUES.md#casts-property-discards-type-names-as-values-std-scope),
+  Open Issues,
   follow-ups, 2026-09-29): a cast out of range clamps to the target's
   minimum or maximum, and NaN gives 0, as Rust `as` does. `i8(x)` with
   `x = 300.0` gives 127 where it previously panicked. No numeric cast
@@ -1414,7 +1413,7 @@ existing source. Each entry names the decision that made the change.
   with no `Eq` for `Opaque` was previously `missing-partial-eq` in the
   prototype, which the specification did not name.
 - Requirement reuse RU15 (owner decision in
-  [Requirement Reuse](../future-work/REQUIREMENT_REUSE.md#owner-decisions),
+  Requirement Reuse,
   2026-09-29): the union row applies at every least-common-type site, not
   only in list and map literals. `if admin: orders else: health`, where the
   two functions need `Db` and `Clock`, was `no-common-type` and is now a
@@ -1423,7 +1422,7 @@ existing source. Each entry names the decision that made the change.
   inferred. A value that holds function values, such as a list, still does
   not widen.
 - Decorators D10 (owner decision in
-  [Decorators](../future-work/DECORATORS.md#owner-decisions), 2026-09-29):
+  Decorators, 2026-09-29):
   `std.annotation.Target` gains `Newtype`, so a fact type can opt newtypes
   in with `@annotate(.Newtype)`. A value before a newtype was always an
   error when its type was limited; it is now valid when the limit lists
@@ -1434,7 +1433,7 @@ existing source. Each entry names the decision that made the change.
   `decorator-not-annotator`, and a suffix naming an unmarked function stays
   `invalid-literal-suffix`.
 - Operator traits OP1 (owner decision in
-  [Operator Traits](../future-work/OPERATOR_TRAITS.md#owner-decisions),
+  Operator Traits,
   2026-09-29): `std.ops` declares Rust-shaped operator traits, such as
   `Add[Rhs]` with an associated `Out`. A binary operator with a
   non-primitive operand calls the left operand's implementation, so
@@ -1508,11 +1507,11 @@ existing source. Each entry names the decision that made the change.
   decision 11); on a `Map` the read is `V?`, so `counts[w] += 1` on a
   `Map[string, i32]` stays `type-mismatch`.
 - Dependency cycles DC12 (owner decision in
-  [Dependency Cycles](../future-work/DEPENDENCY_CYCLES.md#owner-decisions),
+  Dependency Cycles,
   2026-09-29): a plain `use` whose name leads into a `pub use` loop is
   `re-export-loop`, where no code was specified.
 - Stress test decisions 5-11 (owner decisions in
-  [Stress Test 2026-09-29](../future-work/STRESS_2026_09_29.md#owner-decisions),
+  Stress Test 2026-09-29,
   2026-09-29): a decorator before an `impl ... by Structure:` block, which
   was silently ignored, now warns `unused-derivation-fact`. A newtype
   with a row parameter, as in `type Job[R](fn() -> void $ R)`, which had
