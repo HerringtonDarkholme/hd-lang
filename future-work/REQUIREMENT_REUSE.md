@@ -47,8 +47,31 @@ today's behavior use it too. The one semantic change in that decision is
 item 4: a callback that lacks a key its callee installs still matches. The
 [Parse Log](#parse-log) says how the examples were checked.
 
+## Owner Decisions
+
+Decided 2026-09-28.
+
+1. **RU1 (question 1): installation reuse needs no new feature.** An
+   installer function is the reusable bundle, for example
+   `with_stack!(config): ...`, which extends its callback's row and
+   installs providers with `$.with`. Build-once reuse keeps a context value.
+2. **RU2 (question 4): Option F, row aliases.** `type AppRow = Db + Cache +
+   Clock + Log` is an ordinary transparent alias over requirement keys. It
+   is used only where a row is written, after `$` in function headers and
+   function types, because of RU3.
+3. **RU3 (questions 8 and 9): row parameters on functions only.** Data
+   types, enums and traits take no row parameters, and `$.Context[R]` takes
+   none. A shared handler table uses a concrete row
+   (`List[fn(Request) -> Response $ AppRow]`) or the open-row idiom
+   (question 2).
+4. **RU4 (question 10): at most one unknown row variable per row
+   pattern.** So `f: fn() $ R1 + R2` is rejected.
+
+Questions 2, 3, 5, 6 and 7 are still open.
+
 ## Contents
 
+- [Owner Decisions](#owner-decisions)
 1. [Problem](#problem)
 2. [What hd Has Today](#what-hd-has-today)
 3. [Method](#method)
