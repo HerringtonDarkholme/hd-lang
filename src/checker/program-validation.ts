@@ -147,9 +147,10 @@ export function validateProgram(context: ProgramCheckContext): void {
   }
 }
 
-// A public function, a trait method, and a method of a trait implementation
-// must declare a result type (07-functions.md#declarations). Other functions
-// and inherent methods may omit it; the checker infers it.
+// A public function, a public inherent method, a trait method, and a method
+// of a trait implementation must declare a result type
+// (07-functions.md#r-fn.decl.result-required-pub). Other functions and
+// non-public inherent methods may omit it; the checker infers it.
 function validateResultTypes(context: ProgramCheckContext): void {
   const { program, diagnostics } = context;
   const report = (kind: string, name: string, span: SourceSpan): void => {
@@ -169,9 +170,14 @@ function validateResultTypes(context: ProgramCheckContext): void {
     }
   }
   for (const implementation of program.implementations) {
-    if (implementation.traitName === undefined) continue;
+    const inherent = implementation.traitName === undefined;
     for (const method of implementation.methods) {
-      if (method.resultOmitted) report("trait implementation method", method.name, method.span);
+      if (!method.resultOmitted || (inherent && !method.public)) continue;
+      report(
+        inherent ? "public inherent method" : "trait implementation method",
+        method.name,
+        method.span,
+      );
     }
   }
 }

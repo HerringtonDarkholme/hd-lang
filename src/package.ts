@@ -261,6 +261,8 @@ export function linkPackage(
 
   // Imported names must be public declarations of the target (or re-exported).
   const edges = new Map<PackageModule, Set<PackageModule>>();
+  // Uses outside test code, for the folder graph (spec/10-modules.md#r-module.cycle.test-code).
+  const folderUses: { module: PackageModule; use: ResolvedUse }[] = [];
   for (const [module, uses] of resolvedUses) {
     const local = module.program ? topLevelNames(module.program) : new Map();
     const imported = new Set<string>();
@@ -273,6 +275,7 @@ export function linkPackage(
       const testCode =
         isTestModulePath(module.path) ||
         use.declaration.names.every(({ name, alias }) => testNames.has(alias ?? name));
+      if (!testCode) folderUses.push({ module, use });
       if (isTestModulePath(use.target.path) && !testCode)
         report(
           module.path,
@@ -309,50 +312,44 @@ export function linkPackage(
     }
   }
 
-  // Reject use cycles and collect the modules reachable from the entry.
+  // The folder graph must be acyclic (spec/10-modules.md#r-module.cycle.acyclic).
+  // Files of one folder may use each other in a loop.
+  for (const loop of folderLoops(folderUses)) {
+    const fix = loop.find(({ use }) => !use.target.path.endsWith("/mod.hd"));
+    const at = fix ?? loop[0]!;
+    const steps = loop.map(({ from, to, module, use }) => {
+      const { line } = use.declaration.span.start;
+      const text = files[module.path]!.split("\n")[line - 1]!.trim();
+      return `  ${from}/ -> ${to}/: ${module.path}:${line}: ${text}`;
+    });
+    const help = fix
+      ? `move ${fix.use.target.path} to ${fix.use.target.path.replace(/\.hd$/, "/mod.hd")}; ` +
+        `its module name '${fix.use.target.identity}' and every use line stay the same`
+      : "move the shared declarations into a leaf folder that uses none of these folders";
+    report(
+      at.module.path,
+      "folder-cycle",
+      [
+        `folders depend on each other in a loop (the tangle has ${loop.tangle} folders):`,
+        ...steps,
+        `  help: ${help}`,
+      ].join("\n"),
+      at.use.declaration.span,
+    );
+  }
+
+  // Collect the modules reachable from the entry.
   const reachable = new Set<PackageModule>();
-  const active: PackageModule[] = [];
   const visit = (module: PackageModule): void => {
     if (reachable.has(module)) return;
-    active.push(module);
-    for (const target of edges.get(module) ?? []) {
-      if (active.includes(target)) {
-        const cycle = [...active.slice(active.indexOf(target)), target];
-        const use = resolvedUses.get(module)!.find((candidate) => candidate.target === target);
-        report(
-          module.path,
-          "use-cycle",
-          `modules use each other: ${cycle.map(({ identity }) => identity || "pkg").join(" -> ")}`,
-          use?.declaration.span,
-        );
-        continue;
-      }
-      visit(target);
-    }
-    active.pop();
     reachable.add(module);
+    for (const target of edges.get(module) ?? []) visit(target);
   };
   if (entryModule) visit(entryModule);
   if (options.tests)
     for (const module of modules.values()) if (isTestModulePath(module.path)) visit(module);
 
-  // Initialization order: dependencies first, ready modules by identity, and
-  // test modules after the others, so a standard use that a test module
-  // shares with library code stays outside the test module's `tests:` block.
-  const order: PackageModule[] = [];
-  const pending = new Set(reachable);
-  while (pending.size > 0) {
-    const ready = [...pending]
-      .filter((module) => [...(edges.get(module) ?? [])].every((target) => !pending.has(target)))
-      .sort((left, right) => (left.identity < right.identity ? -1 : 1));
-    const library = [...pending].some(({ path }) => !isTestModulePath(path));
-    const next =
-      (library ? ready.find(({ path }) => !isTestModulePath(path)) : undefined) ??
-      ready[0] ??
-      [...pending][0]!;
-    order.push(next);
-    pending.delete(next);
-  }
+  const order = initializationOrder(reachable, edges);
 
   // The joined program has one namespace for every linked module: a name is
   // either one module's declaration or one standard-library declaration.
@@ -491,4 +488,146 @@ function joinedText(module: PackageModule, source: string, importedStd: Set<stri
   for (const edit of edits.toReversed())
     text = text.slice(0, edit.start) + edit.text + text.slice(edit.end);
   return text;
+}
+
+// Initialization order (spec/10-modules.md#initialization-order): modules
+// that use each other form one group; a group is ready once every group it
+// uses is done, and ready groups go by their least identity. Test modules
+// go after the others, so a standard use that a test module shares with
+// library code stays outside the test module's `tests:` block. Inside a
+// group the prototype joins modules by identity; it does not interleave
+// their statements by dependency (src/README.md, Implemented Surface).
+function initializationOrder(
+  reachable: ReadonlySet<PackageModule>,
+  edges: ReadonlyMap<PackageModule, ReadonlySet<PackageModule>>,
+): PackageModule[] {
+  const groups = stronglyConnected([...reachable], (module) =>
+    [...(edges.get(module) ?? [])].filter((target) => reachable.has(target)),
+  ).map((group) => group.sort(byIdentity));
+  const groupOf = new Map<PackageModule, PackageModule[]>();
+  for (const group of groups) for (const module of group) groupOf.set(module, group);
+  const libraryGroup = (group: PackageModule[]): boolean =>
+    group.some(({ path }) => !isTestModulePath(path));
+  const order: PackageModule[] = [];
+  const pending = new Set(groups);
+  while (pending.size > 0) {
+    const ready = [...pending]
+      .filter((group) =>
+        group.every((module) =>
+          [...(edges.get(module) ?? [])].every((target) => {
+            const other = groupOf.get(target);
+            return other === undefined || other === group || !pending.has(other);
+          }),
+        ),
+      )
+      .sort((left, right) => byIdentity(left[0]!, right[0]!));
+    const library = [...pending].some(libraryGroup);
+    const next = (library ? ready.find(libraryGroup) : undefined) ?? ready[0] ?? [...pending][0]!;
+    order.push(...next);
+    pending.delete(next);
+  }
+  return order;
+}
+
+function byIdentity(left: PackageModule, right: PackageModule): number {
+  return left.identity < right.identity ? -1 : left.identity > right.identity ? 1 : 0;
+}
+
+interface FolderEdge {
+  readonly from: string;
+  readonly to: string;
+  readonly module: PackageModule;
+  readonly use: ResolvedUse;
+}
+
+/** The folder that holds a package file (spec/10-modules.md#r-module.folder.directory). */
+export function folderOf(path: string): string {
+  return path.slice(0, path.lastIndexOf("/"));
+}
+
+// One shortest loop per strongly connected component of the folder graph
+// (spec/10-modules.md#cycle-diagnostic). Each edge is carried by the first use
+// that makes it; `tangle` is the component's size.
+function folderLoops(
+  uses: readonly { module: PackageModule; use: ResolvedUse }[],
+): (FolderEdge[] & { tangle: number })[] {
+  const out = new Map<string, Map<string, FolderEdge>>();
+  for (const { module, use } of uses) {
+    const from = folderOf(module.path);
+    const to = folderOf(use.target.path);
+    if (from === to) continue;
+    const targets = out.get(from) ?? new Map<string, FolderEdge>();
+    out.set(from, targets);
+    if (!targets.has(to)) targets.set(to, { from, to, module, use });
+  }
+  const successors = (folder: string): FolderEdge[] =>
+    [...(out.get(folder)?.values() ?? [])].sort((left, right) => (left.to < right.to ? -1 : 1));
+  const folders = [
+    ...new Set([...out.keys(), ...[...out.values()].flatMap((targets) => [...targets.keys()])]),
+  ].sort();
+  const loops: (FolderEdge[] & { tangle: number })[] = [];
+  for (const component of stronglyConnected(folders, (folder) =>
+    successors(folder).map(({ to }) => to),
+  )) {
+    if (component.length < 2) continue;
+    const inside = new Set(component);
+    let best: FolderEdge[] | undefined;
+    for (const start of [...component].sort()) {
+      // Breadth-first search back to `start`, staying inside the component.
+      const previous = new Map<string, FolderEdge>();
+      const queue = [start];
+      let closing: FolderEdge | undefined;
+      for (let index = 0; index < queue.length && !closing; index++) {
+        for (const edge of successors(queue[index]!)) {
+          if (!inside.has(edge.to)) continue;
+          if (edge.to === start) {
+            closing = edge;
+            break;
+          }
+          if (previous.has(edge.to)) continue;
+          previous.set(edge.to, edge);
+          queue.push(edge.to);
+        }
+      }
+      if (!closing) continue;
+      const path = [closing];
+      for (let edge = previous.get(closing.from); edge; edge = previous.get(edge.from))
+        path.unshift(edge);
+      if (!best || path.length < best.length) best = path;
+    }
+    if (best) loops.push(Object.assign(best, { tangle: component.length }));
+  }
+  return loops;
+}
+
+// Tarjan's algorithm: the strongly connected components of a graph.
+function stronglyConnected<T>(nodes: readonly T[], next: (node: T) => readonly T[]): T[][] {
+  const index = new Map<T, number>();
+  const low = new Map<T, number>();
+  const stack: T[] = [];
+  const onStack = new Set<T>();
+  const components: T[][] = [];
+  const connect = (node: T): void => {
+    index.set(node, index.size);
+    low.set(node, index.get(node)!);
+    stack.push(node);
+    onStack.add(node);
+    for (const target of next(node)) {
+      if (!index.has(target)) {
+        connect(target);
+        low.set(node, Math.min(low.get(node)!, low.get(target)!));
+      } else if (onStack.has(target)) low.set(node, Math.min(low.get(node)!, index.get(target)!));
+    }
+    if (low.get(node) !== index.get(node)) return;
+    const component: T[] = [];
+    for (;;) {
+      const member = stack.pop()!;
+      onStack.delete(member);
+      component.push(member);
+      if (member === node) break;
+    }
+    components.push(component);
+  };
+  for (const node of nodes) if (!index.has(node)) connect(node);
+  return components;
 }

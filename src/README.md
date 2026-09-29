@@ -492,8 +492,18 @@ else`, `break`, `break value`, and `continue`;
   modules reachable from the entry are joined into one program in
   initialization order. A `*_test.hd` test module joins as a `tests:`
   block, and a test build links every test module; `hd test FILE` parses a
-  `*_test.hd` file as a test module, whose top level is test position. Linked modules share one top-level namespace, and
-  namespace or renaming uses of package declarations are not supported
+  `*_test.hd` file as a test module, whose top level is test position. Files
+  of one folder may use each other in a loop; a loop of folders is
+  `folder-cycle`, reported once per tangle with one shortest folder loop,
+  each edge's `use` line, the tangle size, and an `x.hd` to `x/mod.hd`
+  fix-it; uses in test code make no folder edge
+  (10-modules.md#dependency-cycles). Modules that use each other form one
+  initialization group, joined by module identity after the groups it
+  uses. The prototype does not order a group's statements by dependency
+  (10-modules.md#order-inside-a-group), so a read that needs a later-joined
+  module's binding is `top-level-read-before-initialization`. Linked
+  modules share one top-level namespace, and namespace or renaming uses of
+  package declarations are not supported
   (`../website/playground/README.md#packages-and-modules`);
 - imported `std.resource.ResourceError[E]` as the canonical generic
   `Operation(E) | Disposed` enum, using the same erased Wasm GC representation

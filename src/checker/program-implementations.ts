@@ -302,7 +302,9 @@ function prepareInherentImplementation(
       result: substituteSelfType(method.result, implementation.targetName),
       requirements: method.requirements,
       ...(method.resultOmitted ? { resultOmitted: true } : {}),
-      ...(method.requirementsOmitted ? { requirementsOmitted: true } : {}),
+      // A public method without a clause has the empty row
+      // (11-requirements-and-suspension.md#r-req.row.omitted.empty-pub).
+      ...(method.requirementsOmitted && !method.public ? { requirementsOmitted: true } : {}),
       body: method.body ?? [],
       span: method.span,
     });

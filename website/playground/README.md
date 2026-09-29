@@ -178,9 +178,13 @@ What works, relative to [10-modules.md](../../spec/10-modules.md):
   `use self.types.{User}` and `use super.shared.{Email}`;
 - `pub use` re-exports, typically in `mod.hd`;
 - uses of missing modules, missing declarations, and private declarations
-  are rejected, as are use cycles;
+  are rejected. Files of one folder may use each other in a loop, but
+  folders that depend on each other in a loop are `folder-cycle`; uses in
+  test code make no folder edge;
 - modules are initialized after the modules they use, with ready modules in
-  lexicographic order. Only modules reachable from the entry are linked;
+  lexicographic order. Modules that use each other in a loop join in
+  lexicographic order, not by the dependencies of their statements. Only
+  modules reachable from the entry are linked;
 - standard-library uses (`use std.testing.assert_equal`) may repeat across
   modules;
 - test modules: a `*_test.hd` file holds its test cases at top level and
@@ -192,7 +196,7 @@ What works, relative to [10-modules.md](../../spec/10-modules.md):
 
 The linker's own diagnostic codes are `invalid-module-path`,
 `duplicate-module-path`, `unknown-module`, `unknown-import`,
-`private-import`, `use-cycle`, `unsupported-package-use`, and
+`private-import`, `unsupported-package-use`, and
 `package-name-collision`.
 
 Not supported yet:
