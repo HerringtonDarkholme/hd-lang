@@ -28,16 +28,23 @@ specification:
 | 9 | The readable-targets Note covers enums | the Note under [Target Kinds](../spec/14-annotations.md#target-kinds) |
 | 10 | Optionals need no conversion for an `AnyRef` parameter | [`types.trait.safe.convert-value`](../spec/04-type-system.md#r-types.trait.safe.convert-value) |
 
-**Apply-pass answers (owner decisions, 2026-09-29), not yet applied.**
-The owner answered the six points the apply pass raised. These are final.
+**Apply-pass answers (owner decisions, 2026-09-29).** Applied. The owner
+answered the six points the apply pass raised:
 
-| # | Decision |
-| --- | --- |
-| Let 1 | A multi-name `let` always uses parentheses, with or without `mut`. `let (a, b) = pair` is valid, with reassignable, readonly names. `let a, b = pair` is a `syntax-error` whose fix-it adds the parentheses. A parenthesized list needs no `mut` but still needs at least two names. `a, b := pair` is unchanged. The owner picked this over the recommendation: `let (a, b) = pair` reads well, and one shape beats two spellings. |
-| Let 2 | `let mut log, db = pair` stays a `syntax-error`, with a fix-it that adds the parentheses. |
-| Let 3+4 | `mut` on a primitive is `mut-on-primitive` wherever the type is written: `let mut n: i32 = 0`, `let n: mut i32`, a parameter such as `x: mut f64`, and so on. |
-| Let 5 | The warning keeps the name `redundant-let-mut`. |
-| Map 6 | A missing key in `m[k] op= v` panics with `index-out-of-bounds`; no new category. |
+| # | Decision | Where |
+| --- | --- | --- |
+| Let 1 | A multi-name `let` always uses parentheses, with or without `mut`: `let (a, b) = pair` is valid, and `let a, b = pair` is a `syntax-error` with a fix-it. A list still needs two names; `a, b := pair` is unchanged. The owner picked this over the recommendation, since one shape beats two spellings. | [`grammar.stmt.let-list`](../spec/02-grammar.md#r-grammar.stmt.let-list), [`grammar.stmt.let-list.bare`](../spec/02-grammar.md#r-grammar.stmt.let-list.bare), [`grammar.stmt.let-list.two-names`](../spec/02-grammar.md#r-grammar.stmt.let-list.two-names) |
+| Let 2 | `let mut log, db = pair` stays a `syntax-error`, with a fix-it that adds the parentheses | [`grammar.stmt.let-list.bare`](../spec/02-grammar.md#r-grammar.stmt.let-list.bare) |
+| Let 3+4 | `mut` on a primitive is `mut-on-primitive` wherever the type is written, `let mut n: i32 = 0` and `x: mut f64` included | [`types.prim.no-mut.error`](../spec/04-type-system.md#r-types.prim.no-mut.error), [`types.bind.let-mut-primitive`](../spec/04-type-system.md#r-types.bind.let-mut-primitive) |
+| Let 5 | The warning keeps the name `redundant-let-mut` | [`types.bind.let-mut-annotated.warning`](../spec/04-type-system.md#r-types.bind.let-mut-annotated.warning) |
+| Map 6 | A missing key in `m[k] op= v` panics with `index-out-of-bounds`; no new category | [`expr.assign.compound.map-missing`](../spec/05-expressions.md#r-expr.assign.compound.map-missing) |
+
+**Still open (raised by applying Let 1).** The spec keeps the current
+reading; nothing here is decided.
+
+| Point | Applied | **Recommendation** |
+| --- | --- | --- |
+| `let (a, b) = pair` in a same-line suite, as `if ok: let (a, b) = pair` | `syntax-error`: [`grammar.inline.multi-name-let-for`](../spec/02-grammar.md#r-grammar.inline.multi-name-let-for) still asks for an indented body | Allow it. The rule exists because a bare comma closes a same-line suite, and the parentheses remove that comma, as `(a, b := pair)` already shows. |
 
 ### Local Mutability: `let mut` As An Inference Helper
 

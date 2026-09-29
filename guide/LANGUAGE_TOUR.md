@@ -134,7 +134,7 @@ println(readonly.display_name)  # "Ada Lovelace"
 
 This is shared reference permission, not ownership or deep immutability. Multiple mutable aliases may exist, but mutation authority cannot be created from a readonly reference.
 
-A plain `let` infers the readonly view, even of a fresh value, so `let draft = User { ... }` can be reassigned but not mutated. In a multi-name `let`, each name takes its own `mut`, and the names go in parentheses: `let (mut log, db) = pair`.
+A plain `let` infers the readonly view, even of a fresh value, so `let draft = User { ... }` can be reassigned but not mutated. A multi-name `let` always puts its names in parentheses, as in `let (name, score) = pair`, and each name takes its own `mut`: `let (mut log, db) = pair`.
 
 Types appear where they make interfaces between code clear: function parameters, return types, data fields, and public APIs.
 
@@ -392,7 +392,7 @@ Tuple destructuring works with both binding forms:
 
 ```text
 x, y := point
-let name, score = ("Ada", 10)
+let (name, score) = ("Ada", 10)
 ```
 
 Use data types instead of named tuples when field names are part of the meaning.
