@@ -1,16 +1,8 @@
-# test: the standard prefix r and the std.ops helpers interpolate and process_escapes
-# Spec 05 Prefixed Strings: r joins the raw pieces with the values' Display text.
+# test: the standard prefix r joins raw text with the values' Display text
+# Spec 05 Prefixed Strings: r keeps every backslash and processes no escape.
 # expect: test
-use std.ops.{Template, interpolate, process_escapes, r, str_prefix}
+use std.ops.r
 use std.testing.assert_equal
-
-# A prefix that processes escapes in its pieces, then joins them.
-@str_prefix
-fn cooked(t: Template[i32]) -> string:
-    let pieces: mut List[string] = []
-    for piece in t.raw_parts:
-        pieces.append(process_escapes(piece).unwrap_or("?"))
-    interpolate(Template { raw_parts: pieces, values: t.values })
 
 tests:
     it("r keeps backslashes and interpolates Display text"):
@@ -19,16 +11,4 @@ tests:
         assert_equal(r"\d+ $name ${count + 1}", "\\d+ Ada 4", reason="raw text and values")
         assert_equal(r"say \"hi\"", "say \\\"hi\\\"", reason="the backslash stays")
         assert_equal(r"^\d+$", "^\\d+\$", reason="a final dollar is text")
-
-    it("interpolate joins pieces and values in order"):
-        joined := interpolate(Template { raw_parts: ["a", "b", "c"], values: [1, 2] })
-        assert_equal(joined, "a1b2c", reason="pieces around values")
-
-    it("process_escapes replaces each escape"):
-        assert_equal(process_escapes(r"a\tb\u{41}\\n\$"), .Some("a\tbA\\n\$"), reason="escapes")
-        assert_equal(process_escapes(r"bad\q"), .None, reason="an invalid escape")
-        assert_equal(process_escapes("end\\"), .None, reason="a lone final backslash")
-
-    it("a prefix can process escapes in its pieces"):
-        n := 7
-        assert_equal(cooked"n=$n\n", "n=7\n", reason="the escape after the value is processed")
+        assert_equal(r"\$name", "\\\$name", reason="an escaped dollar is text")

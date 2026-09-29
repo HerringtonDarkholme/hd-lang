@@ -27,7 +27,7 @@ pub data Template[T]:
     pub values: List[T]
 
 # The raw pieces joined with the values' `Display` text, in order
-# (r-expr.prefix.std.interpolate).
+# (future-work/STDLIB.md#stdops; the specification names only `r`).
 pub fn interpolate[T < Display](t: Template[T]) -> string:
     let joined = t.raw_parts[0]
     let index = 0
@@ -42,7 +42,7 @@ pub fn r(t: Template[Display]) -> string:
     interpolate(t)
 
 # The text with each escape sequence replaced by its meaning, or `.None`
-# when it holds an invalid one (r-expr.prefix.std.process-escapes,
+# when it holds an invalid one (future-work/STDLIB.md#stdops,
 # spec/01-lexical-structure.md#escape-sequences).
 pub fn process_escapes(text: string) -> string?:
     scalars := text.split("")

@@ -231,7 +231,7 @@ fn main() -> i32:
 10. r[module.prelude.ops-num-suffix] `std.ops` declares `NumSuffix` and `num_suffix`, which code imports to declare a literal suffix, as in `use std.ops.num_suffix`.
 11. r[module.prelude.time-suffixes] `std.time` declares `Duration` and the duration suffixes `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
 12. r[module.prelude.no-suffix] The prelude supplies no literal suffix.
-13. r[module.prelude.ops-str-prefix] `std.ops` also declares `StrPrefix`, `str_prefix`, `Template`, `interpolate`, `process_escapes`, and the string prefix `r`, which code imports, as in `use std.ops.{Template, str_prefix}` or `use std.ops.r`.
+13. r[module.prelude.ops-str-prefix] `std.ops` also declares `StrPrefix`, `str_prefix`, `Template`, and the string prefix `r`, which code imports, as in `use std.ops.{Template, str_prefix}` or `use std.ops.r`.
 14. r[module.prelude.no-prefix] The prelude supplies no string prefix.
 
 See also: [Conversion Trait](09-traits.md#conversion-trait),

@@ -1,0 +1,27 @@
+# std.ops: the string-prefix helpers `interpolate` and `process_escapes`
+# (future-work/STDLIB.md#stdops), which the specification does not name.
+use std.ops.{Template, interpolate, process_escapes, str_prefix}
+use std.testing.assert_equal
+
+# A prefix that processes escapes in its pieces, then joins them.
+@str_prefix
+fn cooked(t: Template[i32]) -> string:
+    let pieces: mut List[string] = []
+    for piece in t.raw_parts:
+        pieces.append(process_escapes(piece).unwrap_or("?"))
+    interpolate(Template { raw_parts: pieces, values: t.values })
+
+tests:
+    it("interpolate joins pieces and values in order"):
+        joined := interpolate(Template { raw_parts: ["a", "b", "c"], values: [1, 2] })
+        assert_equal(joined, "a1b2c", reason="pieces around values")
+
+    it("process_escapes replaces each escape"):
+        assert_equal(process_escapes("a\\tb\\u{41}\\\\n\\\$"), .Some("a\tbA\\n\$"), reason="escapes")
+        assert_equal(process_escapes("bad\\q"), .None, reason="an invalid escape")
+        assert_equal(process_escapes("end\\"), .None, reason="a lone final backslash")
+        assert_equal(process_escapes("\\u{110000}"), .None, reason="beyond the scalar range")
+
+    it("a prefix can process escapes in its pieces"):
+        n := 7
+        assert_equal(cooked"n=$n\n", "n=7\n", reason="the escape after the value is processed")

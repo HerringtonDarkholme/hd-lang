@@ -1254,4 +1254,4 @@ existing source. Each entry names the decision that made the change.
   `@str_prefix`, or whose function has type parameters, providers,
   suspension, or anything but one `Template[T]` parameter, is the new error
   `invalid-string-prefix`. `std.ops` declares `StrPrefix`, `str_prefix`,
-  `Template`, `interpolate`, `process_escapes`, and `r`.
+  `Template`, and `r`.

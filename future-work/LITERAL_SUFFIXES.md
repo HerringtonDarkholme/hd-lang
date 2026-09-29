@@ -236,7 +236,9 @@ the decorator redesign; see its entry below.
     [`grammar.pattern.no-prefixed-string`](../spec/02-grammar.md#r-grammar.pattern.no-prefixed-string).
     The helpers are `interpolate[T < Display](t: Template[T]) -> string`
     and `process_escapes(text: string) -> string?`, both in `std.ops`
-    beside `r`. The new error `invalid-string-prefix` mirrors
+    beside `r`; per the AGENTS.md spec scope for std, only the
+    [STDLIB draft](STDLIB.md#stdops) and the std sources name them. The
+    new error `invalid-string-prefix` mirrors
     `invalid-literal-suffix`. Readings the apply pass had to choose are
     points 15-23 under [Still Open](#still-open).
 

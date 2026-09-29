@@ -296,13 +296,11 @@ fn render() -> string $ Console:
     logged"x"  # error: invalid-string-prefix
 ```
 
-The standard library declares one prefix and two helpers in `std.ops`:
+The standard library declares one prefix, in `std.ops`:
 
 | Rule | Declaration | Meaning |
 | --- | --- | --- |
 | r[expr.prefix.std.r] Raw text | `@str_prefix pub fn r(t: Template[Display]) -> string` | the pieces joined with the values' `Display` text, with no escape processed |
-| r[expr.prefix.std.interpolate] Join | `pub fn interpolate[T < Display](t: Template[T]) -> string` | the pieces joined with the values' `Display` text, in order |
-| r[expr.prefix.std.process-escapes] Escapes | `pub fn process_escapes(text: string) -> string?` | the text with each [escape sequence](01-lexical-structure.md#escape-sequences) replaced by its meaning, or `.None` when the text holds an invalid one |
 
 1. r[expr.prefix.std.r-meaning] So `r"\d+ $n"` is the text `\d+ ` followed by the `Display` text of `n`, and `r"a\"b"` keeps its backslash.
 2. r[expr.prefix.std.only-r] `r` is the only standard prefix. `std` declares no `b`, so `b"..."` names nothing until a bytes type exists.
