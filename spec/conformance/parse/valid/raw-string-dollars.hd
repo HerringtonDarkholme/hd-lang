@@ -1,3 +1,3 @@
-# test: raw string dollars
+# test: a prefixed string interpolates $name and ${expression}
 
 value := r"$name ${count}"

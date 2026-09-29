@@ -598,9 +598,6 @@ literal:
 name := "Ada"
 initial := 'A'
 greeting := "你好"
-pattern := r"\d+\s+\w+"
-template := r"""first line
-second line"""
 message := """hello
 world"""
 welcome := "Hello, $name"
@@ -611,18 +608,18 @@ Posts: ${posts.len()}"""
 ```ebnf
 string_literal = interpreted_string_literal
                | interpreted_multiline_string_literal
-               | raw_string_literal
-               | raw_multiline_string_literal
                ;
 interpreted_string_literal = '"',
                              { string_character | escape_sequence }, '"' ;
 interpreted_multiline_string_literal = '"""',
                                        { multiline_string_character
                                        | escape_sequence }, '"""' ;
-raw_string_literal = 'r"', { raw_string_character }, '"' ;
-raw_multiline_string_literal = 'r"""',
-                               { raw_multiline_character }, '"""' ;
 char_literal   = "'", (char_character | escape_sequence), "'" ;
+prefixed_string_literal = string_prefix, '"',
+                          { prefixed_string_character }, '"'
+                        | string_prefix, '"""',
+                          { prefixed_multiline_character }, '"""' ;
+string_prefix = identifier ;
 
 string_text = string_character, { string_character } ;
 multiline_string_text = multiline_string_character,
@@ -635,8 +632,8 @@ HEX_DIGIT = DECIMAL_DIGIT | "A" ... "F" | "a" ... "f" ;
 
 string_character = ? any Unicode scalar value other than a double quote, a backslash, a dollar sign, or a line ending ? ;
 multiline_string_character = ? any Unicode scalar value other than a double quote, a backslash, or a dollar sign ? ;
-raw_string_character = ? any Unicode scalar value other than an unescaped double quote or a line ending ? ;
-raw_multiline_character = ? any Unicode scalar value other than the start of an unescaped """ delimiter ? ;
+prefixed_string_character = ? any Unicode scalar value other than an unescaped double quote or a line ending ? ;
+prefixed_multiline_character = ? any Unicode scalar value other than the start of an unescaped """ delimiter ? ;
 char_character = ? any Unicode scalar value other than a single quote, a backslash, or a line ending ? ;
 ```
 
@@ -648,8 +645,8 @@ char_character = ? any Unicode scalar value other than a single quote, a backsla
 | --- | --- |
 | `string_character` | any Unicode scalar value other than `"`, `\\`, `$`, or a line ending |
 | `multiline_string_character` | the same exclusions as `string_character`, except that line endings are allowed |
-| `raw_string_character` | any Unicode scalar value other than an unescaped `"` or a line ending |
-| `raw_multiline_character` | any Unicode scalar value other than the start of an unescaped `"""` delimiter |
+| `prefixed_string_character` | any Unicode scalar value other than an unescaped `"` or a line ending |
+| `prefixed_multiline_character` | any Unicode scalar value other than the start of an unescaped `"""` delimiter |
 | `char_character` | any Unicode scalar value other than `'`, `\\`, or a line ending |
 
 1. r[lex.string.text-runs] `string_text` and `multiline_string_text` are maximal nonempty runs of their corresponding character class between interpolation or escape segments.
@@ -691,14 +688,49 @@ price := "$"  # error: syntax-error
 
 #### Raw Strings
 
-1. r[lex.raw-string.form] Raw strings use Python-style `r"..."` and raw multiline strings use `r"""..."""`.
-2. r[lex.raw-string.literal] Backslashes and escape-looking text are preserved literally.
-3. r[lex.raw-string.backslash] A backslash may prevent the following quote from terminating the raw literal, but that backslash remains part of the resulting string.
-4. r[lex.raw-string.odd-backslashes] Consequently, a raw string cannot end with an odd number of backslashes immediately before its closing delimiter.
-5. r[lex.raw-string.single-line] A single-line raw string cannot contain a physical line ending.
-6. r[lex.raw-string.multiline] A raw multiline string may contain line endings and continues until an unescaped `"""` delimiter.
-7. r[lex.raw-string.no-hash] Hash-delimited raw strings are not part of the language.
-8. r[lex.raw-string.no-interpolation] Raw strings do not interpolate, so `$` and `${...}` remain literal content in both raw forms.
+1. r[lex.raw-string.none] hd has no built-in raw string literal. `r"..."` is a [prefixed string](#prefixed-strings) whose prefix is the standard function `std.ops.r`.
+
+#### Prefixed Strings
+
+A prefixed string is a name written directly before a string's opening
+quote. Its text is raw, and it may interpolate:
+
+```text
+pattern := r"\d+\s+\w+"
+prompt := r"""first line
+second line"""
+query := sql"select * from users where id = $id"
+anchored := r"^\d+$"
+quoted := r"say \"hi\""
+```
+
+1. r[lex.prefix.form] A **prefixed string** is an identifier followed directly by `"` or `"""`, with nothing between them, as in `sql"..."` and `r"""..."""`.
+2. r[lex.prefix.name] The prefix is an identifier that is not a reserved word. A contextual word may be a prefix.
+3. r[lex.prefix.reserved] A reserved word directly before a quote is its own token, so `return"done"` is `return` followed by an interpreted string.
+4. r[lex.prefix.separate] With a space between them, as in `sql "..."`, the name and the string are separate tokens.
+5. r[lex.prefix.double-quote] Only double-quoted forms take a prefix, so `x'a'` is the name `x` followed by a character literal.
+6. r[lex.prefix.raw-text] The text is raw: backslashes and escape-looking text stay as written, and no escape sequence is processed.
+7. r[lex.prefix.backslash] A backslash keeps the following quote from ending the literal, and keeps a following `$` from beginning an interpolation. The backslash stays in the text.
+8. r[lex.prefix.odd-backslashes] Consequently, a prefixed string cannot end with an odd number of backslashes immediately before its closing delimiter.
+9. r[lex.prefix.single-line] A single-line prefixed string cannot contain a physical line ending.
+10. r[lex.prefix.multiline] A multiline prefixed string may contain line endings, keeps them and its indentation as written, and continues until an unescaped `"""` delimiter.
+11. r[lex.prefix.no-hash] Hash-delimited prefixed strings are not part of the language.
+12. r[lex.prefix.interpolation] A prefixed string interpolates with the forms of [Interpolation](#interpolation): `$name`, `$self`, and `${expression}`.
+13. r[lex.prefix.reserved-dollar] A `$` followed by a reserved word other than `self`, as in `r"$true"`, is an error. Error: `syntax-error`.
+14. r[lex.prefix.plain-dollar] A `$` followed by neither an identifier character nor `{` is text, so `r"^\d+$"` ends in a dollar sign.
+15. r[lex.prefix.meaning] The prefix is resolved as a name and the string is applied as a call, as [Prefixed Strings](05-expressions.md#prefixed-strings) specifies.
+
+```text
+flag := r"$true"  # error: syntax-error
+```
+
+> **Why.** A prefix is an ordinary library function, so `sql"..."` needs
+> no new syntax and `r` needs no built-in form. The text stays raw, as
+> Scala's interpolators keep it, so each prefix decides what a backslash
+> means.
+
+See also: [Prefixed Strings](05-expressions.md#prefixed-strings),
+[String Prefix Names](03-names-and-scopes.md#string-prefix-names).
 
 #### Escape Sequences
 
@@ -781,6 +813,7 @@ literal_token = boolean_literal
         | float_literal
         | integer_literal
         | string_literal
+        | prefixed_string_literal
         | char_literal
         ;
 

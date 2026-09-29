@@ -979,3 +979,25 @@ style lint rejects a chapter that reuses one.
   `req.row.least.absent-key`.
 - `req.poly.absent`: retired 2026-09-28. Bound And Row Operators item 4.
   Replaced by `req.poly.absent-matches`.
+- `lex.raw-string.form`: retired 2026-09-28. Literal Suffixes L19 removed
+  the built-in raw string; `r"..."` is a prefixed string. Replaced by
+  `lex.raw-string.none` and `lex.prefix.form`.
+- `lex.raw-string.literal`: retired 2026-09-28. Literal Suffixes L19.
+  Replaced by `lex.prefix.raw-text`.
+- `lex.raw-string.backslash`: retired 2026-09-28. Literal Suffixes L19; a
+  backslash also keeps `$` from interpolating. Replaced by
+  `lex.prefix.backslash`.
+- `lex.raw-string.odd-backslashes`: retired 2026-09-28. Literal Suffixes
+  L19. Replaced by `lex.prefix.odd-backslashes`.
+- `lex.raw-string.single-line`: retired 2026-09-28. Literal Suffixes L19.
+  Replaced by `lex.prefix.single-line`.
+- `lex.raw-string.multiline`: retired 2026-09-28. Literal Suffixes L19.
+  Replaced by `lex.prefix.multiline`.
+- `lex.raw-string.no-hash`: retired 2026-09-28. Literal Suffixes L19.
+  Replaced by `lex.prefix.no-hash`.
+- `lex.raw-string.no-interpolation`: retired 2026-09-28. Literal Suffixes
+  L19 makes every prefixed string interpolate. Replaced by
+  `lex.prefix.interpolation`, `lex.prefix.reserved-dollar`, and
+  `lex.prefix.plain-dollar`.
+- `expr.interp.raw`: retired 2026-09-28. Literal Suffixes L19: a prefixed
+  string's values go to a template. Replaced by `expr.interp.prefixed`.

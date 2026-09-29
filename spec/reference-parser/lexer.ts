@@ -133,11 +133,22 @@ function escapeEnd(source: string, index: number): number | undefined {
 
 function startsString(source: string, index: number): boolean {
   const character = source[index]!;
-  if (character === '"' || character === "'") return true;
-  // Raw literals are `r"..."` and `r"""..."""` only; there is no raw character literal.
-  if (character !== "r" || source[index + 1] !== '"') return false;
-  const previous = source[index - 1] ?? "";
-  return previous !== "_" && !isLetterOrNumber(previous);
+  return character === '"' || character === "'";
+}
+
+/**
+ * Chapter 01 prefixed strings: true when the `"` at `index` directly follows
+ * an identifier that is not a reserved word, as in `sql"..."`.
+ */
+function prefixedQuote(source: string, index: number): boolean {
+  if (source[index] !== '"') return false;
+  let start = index;
+  while (start > 0 && (source[start - 1] === "_" || isLetterOrNumber(source[start - 1]!)))
+    start -= 1;
+  const word = source.slice(start, index);
+  return (
+    word !== "" && word !== "_" && !isDigit(word[0]!) && !reserved.has(word) && source[start - 1] !== "`"
+  );
 }
 
 interface InterpolationScan {
@@ -166,7 +177,7 @@ function scanInterpolation(
       continue;
     }
     if (startsString(source, index)) {
-      const nested = scanString(source, index, line);
+      const nested = scanString(source, index, line, prefixedQuote(source, index));
       diagnostics.push(...nested.diagnostics);
       index = nested.end;
       line = nested.line;
@@ -184,15 +195,15 @@ function scanInterpolation(
   return { diagnostics, end: index, line, terminated: false };
 }
 
-function scanString(source: string, start: number, initialLine: number): StringScan {
+// `start` is the opening quote. A prefixed string (`raw`) keeps backslashes as
+// text and still interpolates; a `$` that begins no interpolation is text.
+function scanString(source: string, start: number, initialLine: number, raw = false): StringScan {
   const diagnostics: Diagnostic[] = [];
-  const raw = source[start] === "r";
-  const quoteAt = raw ? start + 1 : start;
-  const quote = source[quoteAt]!;
-  const triple = source.startsWith(quote.repeat(3), quoteAt);
+  const quote = source[start]!;
+  const triple = source.startsWith(quote.repeat(3), start);
   const terminator = quote.repeat(triple ? 3 : 1);
-  const interpolates = !raw && quote === '"';
-  let index = quoteAt + terminator.length;
+  const interpolates = quote === '"';
+  let index = start + terminator.length;
   let line = initialLine;
   while (index < source.length) {
     if (source.startsWith(terminator, index))
@@ -239,8 +250,10 @@ function scanString(source: string, start: number, initialLine: number): StringS
         continue;
       }
       // `$name` takes an identifier or `self`; any other reserved word, like
-      // a character that cannot start an identifier, leaves a bare `$`.
-      if (!startsInterpolatedName(source, index + 1) || !interpolatedName(source, index + 1))
+      // a character that cannot start an identifier, leaves a bare `$`. In a
+      // prefixed string a `$` before no identifier is text.
+      const named = startsInterpolatedName(source, index + 1);
+      if ((named || !raw) && (!named || !interpolatedName(source, index + 1)))
         diagnostics.push(diagnostic("syntax-error", line));
       index += 1;
       continue;
@@ -262,7 +275,7 @@ export function maskLiterals(source: string): string {
       continue;
     }
     if (startsString(source, index)) {
-      const found = scanString(source, index, 1);
+      const found = scanString(source, index, 1, prefixedQuote(source, index));
       const quote = found.quote;
       result += quote + quote + "\n".repeat(found.line - 1);
       index = Math.max(found.end, index + 1);
@@ -609,12 +622,11 @@ export function lexSource(source: string): LexResult {
       continue;
     }
 
-    const rawString = character === "r" && source[index + 1] === '"';
-    if (character === '"' || character === "'" || rawString) {
+    if (character === '"' || character === "'") {
       const found = scanString(source, index, line);
       diagnostics.push(...found.diagnostics);
       const text = source.slice(index, found.end);
-      const kind = found.quote === "'" && !rawString ? "char_literal" : "string_literal";
+      const kind = found.quote === "'" ? "char_literal" : "string_literal";
       tokens.push(token(kind, line, text));
       line = found.line;
       index = found.end;
@@ -641,6 +653,20 @@ export function lexSource(source: string): LexResult {
       while (end < source.length && (source[end] === "_" || isLetterOrNumber(source[end]!)))
         end += 1;
       const word = source.slice(index, end);
+      // Chapter 01 prefixed strings: an identifier directly before `"` and
+      // the string form one token, as in `sql"..."`.
+      if (prefixedQuote(source, end)) {
+        const found = scanString(source, end, line, true);
+        diagnostics.push(...found.diagnostics);
+        const text = source.slice(index, found.end);
+        tokens.push(token("prefixed_string_literal", line, text));
+        line = found.line;
+        index = found.end;
+        lineHasToken = true;
+        lastTokenLine = line;
+        previousText = text;
+        continue;
+      }
       const depth = delimiters.length;
       if (word === "else" && inlineSuites.at(-1) === depth) {
         inlineSuites.pop();

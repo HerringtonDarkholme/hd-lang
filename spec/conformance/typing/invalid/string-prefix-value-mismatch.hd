@@ -1,0 +1,10 @@
+# test: an interpolated value converts to the template's T like an argument
+# Spec 04 Prefixed Strings: a string value where T is i32 is reported at the value.
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn ids(t: Template[i32]) -> string:
+    "ids"
+
+fn find(name: string) -> string:
+    ids"id = $name"  # diagnostic: type-mismatch

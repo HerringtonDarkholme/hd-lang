@@ -143,7 +143,7 @@ class GrammarCompiler {
 
   compile(productions: ReadonlyMap<string, EbnfNode>): Grammar {
     for (const [name, node] of productions) this.rules.set(name, this.compileNode(node));
-    this.rules.set("string_expression", [["string_literal"]]);
+    this.rules.set("string_expression", [["string_literal"], ["prefixed_string_literal"]]);
     return new Map(
       [...this.rules].map(([name, alternatives]) => [
         name,

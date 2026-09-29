@@ -1,0 +1,42 @@
+# test: a prefixed string passes its raw text pieces and its values to the prefix function
+# Spec 05 Prefixed Strings: n values, n + 1 pieces, and every backslash kept.
+# expect: test
+use std.ops.{Template, str_prefix}
+use std.testing.assert_equal
+
+data Parts:
+    pieces: List[string]
+    values: List[i32]
+
+@str_prefix
+fn parts(t: Template[i32]) -> Parts:
+    Parts { pieces: t.raw_parts, values: t.values }
+
+tests:
+    it("splits the text around one value"):
+        b := 2
+        found := parts"a $b c"
+        assert_equal(found.pieces, ["a ", " c"], reason="the text around the value")
+        assert_equal(found.values, [2], reason="one value")
+
+    it("a string without values has one piece"):
+        found := parts"text"
+        assert_equal(found.pieces, ["text"], reason="one piece")
+        assert_equal(found.values.len(), 0, reason="no values")
+
+    it("touching values and values at the ends give empty pieces"):
+        x := 1
+        y := 2
+        found := parts"$x${y + 1}"
+        assert_equal(found.pieces, ["", "", ""], reason="three empty pieces")
+        assert_equal(found.values, [1, 3], reason="the values in source order")
+
+    it("the text stays raw"):
+        found := parts"a\n\"b\" \$x $5"
+        assert_equal(found.pieces, ["a\\n\\\"b\\\" \\\$x \$5"], reason="every backslash is kept")
+        assert_equal(found.values.len(), 0, reason="an escaped or plain dollar is text")
+
+    it("a multiline prefixed string keeps its line endings"):
+        found := parts"""one
+two"""
+        assert_equal(found.pieces, ["one\ntwo"], reason="one line feed")

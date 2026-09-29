@@ -1,0 +1,7 @@
+# test: StrPrefix carries @annotate(.Fn), so @str_prefix before a data type is rejected
+# Spec 05 Prefixed Strings: expr.prefix.marker.module.
+use std.ops.str_prefix
+
+@str_prefix  # diagnostic: decorator-not-annotator
+data Query:
+    text: string

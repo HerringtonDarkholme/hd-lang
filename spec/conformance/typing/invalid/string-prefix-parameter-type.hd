@@ -1,0 +1,10 @@
+# test: a prefix function whose parameter cannot take the template is an ordinary call error
+# Spec 05 Prefixed Strings: expr.prefix.call-errors reports the call's type-mismatch at the string.
+use std.ops.str_prefix
+
+@str_prefix
+fn count(n: i32) -> i32:
+    n
+
+fn render() -> i32:
+    count"x"  # diagnostic: type-mismatch

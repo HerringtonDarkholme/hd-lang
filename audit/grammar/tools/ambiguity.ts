@@ -69,7 +69,7 @@ function toBnf(ebnf: ReadonlyMap<string, Node>): Bnf {
   };
   for (const [name, node] of ebnf) rules.set(name, compile(name, node));
   // Same simplification as the reference parser: string interpolation is lexical.
-  rules.set("string_expression", [["string_literal"]]);
+  rules.set("string_expression", [["string_literal"], ["prefixed_string_literal"]]);
   for (const [name, alts] of rules) {
     const seen = new Map(alts.map((rhs) => [rhs.join(" "), rhs]));
     rules.set(name, [...seen.values()]);
@@ -417,7 +417,8 @@ function kindsOf(text: string): Set<string> {
   if (/^[0-9][0-9_]*$/.test(text)) kinds.add("integer_literal");
   if (pools[text]) kinds.add(pools[text]!);
   if (text.startsWith("'")) kinds.add("char_literal");
-  if (/^r?"/.test(text)) kinds.add("string_literal");
+  if (text.startsWith(`"`)) kinds.add("string_literal");
+  if (/^[\p{L}_][\p{L}\p{N}_]*"/u.test(text)) kinds.add("prefixed_string_literal");
   if (/^[\p{L}_][\p{L}\p{N}_]*$/u.test(text) && text !== "_" && !reservedWords.has(text))
     kinds.add("identifier");
   return kinds;

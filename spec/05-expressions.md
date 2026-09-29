@@ -86,7 +86,8 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
 
 1. r[expr.literal.defined] Boolean, integer, floating-point, string, and character literals are defined lexically in [Lexical Structure](01-lexical-structure.md) and typed in [Type System](04-type-system.md).
 2. r[expr.literal.suffixed] A suffixed literal is a call, as [Literal Suffixes](#literal-suffixes) specifies.
-3. r[expr.literal.pass] `pass` is the no-op expression. It has type `void` and performs no operation.
+3. r[expr.literal.prefixed] A prefixed string is a call, as [Prefixed Strings](#prefixed-strings) specifies.
+4. r[expr.literal.pass] `pass` is the no-op expression. It has type `void` and performs no operation.
 
 #### String Interpolation
 
@@ -107,7 +108,7 @@ trait Display:
 7. r[expr.interp.no-fallback] There is no fallback conversion through `Any`, runtime reflection, or debug output.
 8. r[expr.interp.std] The standard library provides `Display` implementations for ordinary printable primitive types and `string`.
 9. r[expr.interp.user] Optional and user-defined values are displayable only when the corresponding type implements `Display`.
-10. r[expr.interp.raw] Raw strings never interpolate.
+10. r[expr.interp.prefixed] A prefixed string does not append its values: they become the values of a template, as [Prefixed Strings](#prefixed-strings) specifies.
 11. r[expr.interp.constant] A string with no interpolation segments is an ordinary constant value and performs no `Display` calls.
 
 ```text
@@ -221,6 +222,107 @@ enum Tier(limit: Duration):
 See also: [Suffixed Literals](04-type-system.md#suffixed-literals),
 [Literal Suffix Names](03-names-and-scopes.md#literal-suffix-names),
 [Target Kinds](14-annotations.md#target-kinds).
+
+#### Prefixed Strings
+
+A [prefixed string](01-lexical-structure.md#prefixed-strings) is a call of
+its prefix function, a function marked `@str_prefix`, with a template of its
+text and values:
+
+```text
+use std.ops.{Template, str_prefix}
+
+data Query:
+    text: List[string]
+    params: List[i64]
+
+@str_prefix
+fn sql(t: Template[i64]) -> Query:
+    Query { text: t.raw_parts, params: t.values }
+
+fn by_id(id: i64) -> Query:
+    sql"select * from users where id = $id"
+```
+
+`std.ops` declares the marker and the template:
+
+```text
+use std.annotation.annotate
+
+@annotate(.Fn)
+pub data StrPrefix: pass
+
+pub fn str_prefix() -> StrPrefix:
+    StrPrefix {}
+
+pub data Template[T]:
+    pub raw_parts: List[string]
+    pub values: List[T]
+```
+
+1. r[expr.prefix.fn-call] A prefixed string `x"..."` is the call `x(t)` of the prefix function `x`, with a `std.ops.Template` value `t` as its one argument.
+2. r[expr.prefix.template] `t.values` holds the `n` interpolated values in source order, and `t.raw_parts` holds the `n + 1` pieces of text around them.
+3. r[expr.prefix.parts] The first piece is the text before the first interpolation, and the last piece is the text after the last one. A piece is `""` where two interpolations touch, or where one begins or ends the string.
+4. r[expr.prefix.parts.example] So `x"a $b c"` passes the pieces `["a ", " c"]` and the values `[b]`, and `x"text"` passes `["text"]` and `[]`.
+5. r[expr.prefix.raw-parts] Each piece is the text exactly as written, with every backslash kept, as [`lex.prefix.raw-text`](01-lexical-structure.md#r-lex.prefix.raw-text) says.
+6. r[expr.prefix.no-join] The compiler never joins the pieces and never calls `Display`. The prefix function decides what the string means.
+7. r[expr.prefix.order] The interpolated expressions are evaluated from left to right before the call, as arguments are.
+8. r[expr.prefix.marker] A **prefix function** is a function that carries a `std.ops.StrPrefix` value, written `@str_prefix`. The compiler recognizes `std.ops.StrPrefix` and `std.ops.Template` by their qualified names.
+9. r[expr.prefix.marker.module] `std.ops` declares `StrPrefix`, `str_prefix`, and `Template`. `StrPrefix` carries `@annotate(.Fn)`, so `@str_prefix` before anything but a function is an error. Error: `decorator-not-annotator`.
+10. r[expr.prefix.not-marked] A prefix that resolves to anything other than a prefix function is an error, reported at the string. Error: `invalid-string-prefix`.
+11. r[expr.prefix.no-marker-import] The call needs no import of `str_prefix`, `StrPrefix`, or `Template`: a `use` of the prefix function alone makes the string valid.
+12. r[expr.prefix.call-errors] The call is checked as an ordinary call. A parameter that cannot take the template is the ordinary call error at the string, such as `type-mismatch`.
+13. r[expr.prefix.fn-shape] A prefix function has exactly one parameter, of type `std.ops.Template[T]` for some type `T`, and no type parameters. It needs no providers and never suspends.
+14. r[expr.prefix.fn-shape.reader] These constraints are checked where a string uses the function, not at its declaration. A string whose prefix function breaks one is an error, unless its call already reports an ordinary call error. Error: `invalid-string-prefix`.
+15. r[expr.prefix.exact-call] A prefixed string is exactly that call wherever it appears, and it has no evaluation rule of its own. In a fact or any other compile-time position, it follows the rules for any call there.
+
+```text
+use std.ops.{Template, str_prefix}
+
+fn plain(t: Template[string]) -> string:
+    "plain"
+
+@str_prefix
+fn count(n: i32) -> i32:
+    n
+
+@str_prefix
+fn logged(t: Template[string]) -> string $ Console:
+    "logged"
+
+fn render() -> string $ Console:
+    first := plain"x"  # error: invalid-string-prefix
+    second := count"x"  # error: type-mismatch
+    logged"x"  # error: invalid-string-prefix
+```
+
+The standard library declares one prefix and two helpers in `std.ops`:
+
+| Rule | Declaration | Meaning |
+| --- | --- | --- |
+| r[expr.prefix.std.r] Raw text | `@str_prefix pub fn r(t: Template[Display]) -> string` | the pieces joined with the values' `Display` text, with no escape processed |
+| r[expr.prefix.std.interpolate] Join | `pub fn interpolate[T < Display](t: Template[T]) -> string` | the pieces joined with the values' `Display` text, in order |
+| r[expr.prefix.std.process-escapes] Escapes | `pub fn process_escapes(text: string) -> string?` | the text with each [escape sequence](01-lexical-structure.md#escape-sequences) replaced by its meaning, or `.None` when the text holds an invalid one |
+
+1. r[expr.prefix.std.r-meaning] So `r"\d+ $n"` is the text `\d+ ` followed by the `Display` text of `n`, and `r"a\"b"` keeps its backslash.
+2. r[expr.prefix.std.only-r] `r` is the only standard prefix. `std` declares no `b`, so `b"..."` names nothing until a bytes type exists.
+3. r[expr.prefix.std.import] `r` is not a prelude name; code imports it, as in `use std.ops.r`.
+
+```text
+use std.ops.r
+
+fn digits(count: i32) -> string:
+    r"\d{$count}"  # the text \d{ then count, then }
+```
+
+> **Why.** A prefix is an ordinary function found through `use`, so a
+> library adds `sql"..."` without new syntax. The template keeps text and
+> values apart, so `sql` can send values as parameters instead of splicing
+> them into the query text.
+
+See also: [Prefixed Strings](04-type-system.md#prefixed-strings),
+[String Prefix Names](03-names-and-scopes.md#string-prefix-names),
+[Prefixed Strings](01-lexical-structure.md#prefixed-strings).
 
 ### Parenthesized And Tuple Expressions
 

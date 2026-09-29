@@ -1,0 +1,10 @@
+# test: a prefix function has exactly one parameter, even when a second has a default
+# Spec 05 Prefixed Strings: expr.prefix.fn-shape is checked at the string.
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn tagged(t: Template[string], tag: string = "x") -> string:
+    tag
+
+fn render() -> string:
+    tagged"a"  # diagnostic: invalid-string-prefix

@@ -33,9 +33,7 @@ tests:
     it("a string without segments performs no Display calls"):
         reset()
         text := "plain text"
-        raw := r"$first ${second}"
         assert_equal(text, "plain text", reason="constant")
-        assert_equal(raw, "\$first \${second}", reason="raw strings never interpolate")
         assert_equal(seen(), "", reason="no Display calls")
 
     it("generic and dynamic Display use the same implementation"):

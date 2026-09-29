@@ -1,0 +1,17 @@
+# test: a library declares a string prefix by marking a function @str_prefix
+# Spec 05 Prefixed Strings: `sql"...$id"` calls sql with a Template[i64].
+use std.ops.{Template, str_prefix}
+
+data Query:
+    text: List[string]
+    params: List[i64]
+
+@str_prefix
+fn sql(t: Template[i64]) -> Query:
+    Query { text: t.raw_parts, params: t.values }
+
+fn by_id(id: i64) -> Query:
+    sql"select * from users where id = $id"
+
+fn by_small_id(id: i32) -> Query:
+    sql"select * from users where id = ${id}"

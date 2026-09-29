@@ -1,0 +1,10 @@
+# test: an interpolated i64 value does not narrow to the template's i32
+# Spec 04 Prefixed Strings: the value converts like an argument, so i64 to i32 is implicit-narrowing.
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn ids(t: Template[i32]) -> string:
+    "ids"
+
+fn find(big: i64) -> string:
+    ids"id = $big"  # diagnostic: implicit-narrowing

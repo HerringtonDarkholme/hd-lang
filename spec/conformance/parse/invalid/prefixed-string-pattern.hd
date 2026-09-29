@@ -1,0 +1,6 @@
+# test: a prefixed string is not a pattern
+# Spec 02 Prefixed Strings: literal_pattern does not admit a prefixed string.
+fn describe(text: string) -> string:
+    match text:
+        r"a" => "letter"  # diagnostic: syntax-error
+        _ => "other"

@@ -1,0 +1,8 @@
+# test: prefixed strings lex as one token with raw text and interpolation
+# Spec 01 Prefixed Strings: a name directly before a quote is a prefix.
+pattern := r"\d+\s+\w+"
+prompt := r"""first line
+second line"""
+query := sql"select * from users where id = $id"
+anchored := r"^\d+$"
+quoted := r"say \"hi\""

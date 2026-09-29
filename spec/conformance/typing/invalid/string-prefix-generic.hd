@@ -1,0 +1,10 @@
+# test: a prefix function takes no type parameters
+# Spec 05 Prefixed Strings: expr.prefix.fn-shape is checked at the string.
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn parts[T](t: Template[T]) -> List[string]:
+    t.raw_parts
+
+fn render(count: i32) -> List[string]:
+    parts"a $count b"  # diagnostic: invalid-string-prefix

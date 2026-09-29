@@ -1,0 +1,4 @@
+# test: a string prefix that names nothing in module scope is unknown
+# Spec 03 String Prefix Names: names.prefix.unknown-name.
+fn query(id: i32) -> string:
+    sql"select $id"  # diagnostic: unknown-name

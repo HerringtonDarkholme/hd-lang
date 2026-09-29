@@ -1,0 +1,10 @@
+# test: a prefix function needs no providers, checked at the string
+# Spec 05 Prefixed Strings: expr.prefix.fn-shape.reader reports a provider-needing prefix at the string.
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn logged(t: Template[string]) -> string $ Console:
+    "logged"
+
+fn render() -> string $ Console:
+    logged"x"  # diagnostic: invalid-string-prefix

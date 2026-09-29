@@ -1,0 +1,6 @@
+# test: a string prefix resolves in module scope only
+# Spec 03 String Prefix Names: a parameter named `r` does not change what `r"..."` calls.
+use std.ops.r
+
+fn escape(r: i32) -> string:
+    r"\d+"  # std.ops.r, not the parameter

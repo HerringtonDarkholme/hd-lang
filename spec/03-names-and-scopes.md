@@ -225,6 +225,31 @@ fn margin() -> i32:
 
 See also: [Literal Suffixes](05-expressions.md#literal-suffixes).
 
+### String Prefix Names
+
+The prefix of a [prefixed string](01-lexical-structure.md#prefixed-strings)
+names a function in module scope, as a literal suffix does:
+
+```text
+use std.ops.r
+
+fn escape(r: i32) -> string:
+    r"\d+"  # std.ops.r, not the parameter
+```
+
+1. r[names.prefix.module-name] A string prefix is resolved as a module name: a declaration at module scope, or a name that a use declaration or the prelude introduces.
+2. r[names.prefix.ordinary] It follows the ordinary rules for module names, so a prefix is brought in, renamed with `as`, or found in conflict exactly as other used names are.
+3. r[names.prefix.no-local] Parameters, local bindings, and local type declarations never take part, so a local named `r` does not change what `r"..."` calls.
+4. r[names.prefix.unknown-name] A prefix that names nothing in module scope is an error. Error: `unknown-name`.
+5. r[names.prefix.function] The name must resolve to a prefix function, as [Prefixed Strings](05-expressions.md#prefixed-strings) defines.
+
+```text
+fn query(id: i32) -> string:
+    sql"select $id"  # error: unknown-name
+```
+
+See also: [Prefixed Strings](05-expressions.md#prefixed-strings).
+
 ## Local Bindings
 
 `:=` and `let` introduce local names:

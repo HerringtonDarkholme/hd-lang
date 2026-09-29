@@ -926,8 +926,7 @@ literal = boolean_literal
 
 string_expression = interpreted_string_expression
                   | interpreted_multiline_string_expression
-                  | raw_string_literal
-                  | raw_multiline_string_literal
+                  | prefixed_string_expression
                   ;
 
 interpreted_string_expression = '"', { string_segment }, '"' ;
@@ -946,6 +945,20 @@ multiline_string_segment = multiline_string_text
                          | "$", "self"
                          | "${", expression, "}"
                          ;
+prefixed_string_expression = string_prefix, '"',
+                             { prefixed_string_segment }, '"'
+                           | string_prefix, '"""',
+                             { prefixed_multiline_segment }, '"""' ;
+prefixed_string_segment = prefixed_string_character
+                        | "$", identifier
+                        | "$", "self"
+                        | "${", expression, "}"
+                        ;
+prefixed_multiline_segment = prefixed_multiline_character
+                           | "$", identifier
+                           | "$", "self"
+                           | "${", expression, "}"
+                           ;
 
 tuple_or_group_expression = "(", ")"
                           | "(", expression, ")"
@@ -1005,6 +1018,20 @@ fn describe(count: i32) -> string:
 ```
 
 See also: [Literal Suffixes](01-lexical-structure.md#literal-suffixes).
+
+#### Prefixed Strings
+
+1. r[grammar.primary.prefixed-string] A `prefixed_string_expression` is a primary expression, which stands for a call as [Prefixed Strings](05-expressions.md#prefixed-strings) specifies.
+2. r[grammar.pattern.no-prefixed-string] `literal_pattern` does not admit a prefixed string, so `r"a"` in a pattern is an error. Error: `syntax-error`.
+
+```text
+fn describe(text: string) -> string:
+    match text:
+        r"a" => "letter"  # error: syntax-error
+        _ => "other"
+```
+
+See also: [Prefixed Strings](01-lexical-structure.md#prefixed-strings).
 
 #### Forms Resolved By Name
 

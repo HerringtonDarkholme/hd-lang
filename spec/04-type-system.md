@@ -155,6 +155,30 @@ fn wait() -> void:
 
 See also: [Literal Suffixes](05-expressions.md#literal-suffixes).
 
+### Prefixed Strings
+
+A prefixed string has the type that its prefix function returns, and each
+interpolated value is checked like an argument:
+
+```text
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn ids(t: Template[i32]) -> string:
+    "ids"
+
+fn find(name: string, big: i64) -> string:
+    first := ids"id = $name"  # error: type-mismatch
+    ids"id = $big"  # error: implicit-narrowing
+```
+
+1. r[types.literal.prefixed] A prefixed string has the result type of its prefix function.
+2. r[types.literal.prefixed.values] Each interpolated expression is checked with the `T` of the prefix function's `Template[T]` parameter as its expected type, as an argument is, and converts to `T` by the same rules.
+3. r[types.literal.prefixed.value-errors] An interpolated expression that cannot convert to `T` is an error at that expression: `type-mismatch` for a `string` where `T` is `i32`, and `implicit-narrowing` for an `i64` there.
+4. r[types.literal.prefixed.display] When `T` is the trait value type `Display`, every value whose type implements `Display` converts, as [Dynamic Trait Values](09-traits.md#dynamic-trait-values) specifies.
+
+See also: [Prefixed Strings](05-expressions.md#prefixed-strings).
+
 ### Other Literals
 
 1. r[types.literal.bool] `true` and `false` have type `bool`.
