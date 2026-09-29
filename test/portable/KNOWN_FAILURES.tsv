@@ -32,3 +32,37 @@ typing/warnings/per-trait-self-line-unused-fact.hd	check exits 2 with usage text
 typing/valid/println-top-level-script.hd	MVP reports missing-requirement at line 6: the prototype infers no script entry requirement row (module.init.script-row), so a script top level has no Console	MHP-1
 typing/valid/row-union-spread.hd	MVP reports no-common-type at line 16: the prototype checks a spread literal as a list of lists, so a spread of function lists does not take the union row (req.row.union.literal.spread)	RU12
 runtime/valid/row-union-closure-result-runs.hd	Binaryen rejects the WAT: a function whose result is a function type with a row gets a signature type string such as fn(bool)->fn()->string$Clock+Db, which reads the row as the outer function's, so its function-value signature gains provider parameters (pre-existing; an explicit -> (fn() -> string $ Db) result fails the same way)	RU15
+typing/valid/operator-traits.hd	check fails: unknown-trait for Add[Money], Mul[i64], and Neg: the prototype's std.ops declares no operator traits, and binary operators are built in for numbers only	OP1
+runtime/valid/operator-traits-run.hd	check fails: unknown-trait for Sub[Stamp], Add[Span], Mul[i64], and Neg: the prototype's std.ops declares no operator traits	OP1
+typing/valid/operator-generic-primitive.hd	check fails: unknown-trait for Add at line 5: std declares no operator traits, so primitives implement none	OP2
+runtime/valid/operator-generic-primitive-run.hd	check fails: unknown-trait for Add and Rem: std declares no operator traits, so primitives implement none	OP2
+runtime/panic/operator-generic-overflow.hd	check fails: unknown-trait for Add at line 5, so the intrinsic implementation's overflow panic cannot run	OP2
+typing/valid/operator-bitwise-user.hd	check fails: unknown-trait for BitOr[Perms], BitAnd[Perms], BitNot, and Shl[u32]: the prototype's std.ops declares no operator traits	OP3
+typing/invalid/operator-power-user.hd	MVP reports mixed-numeric-types at line 7 instead of type-mismatch: it checks ** with a data operand as a mix of integer and floating operands	OP3
+typing/invalid/operator-left-literal.hd	MVP reports unknown-trait for Mul[i64] at line 8 instead of type-mismatch at line 14: the prototype's std.ops declares no operator traits	OP4
+typing/valid/compound-assignment.hd	check fails: syntax-error at line 15: the prototype parser has no compound assignment (it lexes += for member lines only)	OP5
+runtime/valid/compound-assignment-run.hd	check fails: syntax-error at line 10: the prototype parser has no compound assignment, and its lexer has no -=, *=, and the other new tokens	OP5
+runtime/valid/compound-assignment-alias.hd	check fails: syntax-error at line 16: the prototype parser has no compound assignment	OP5
+typing/invalid/compound-assign-readonly.hd	MVP reports syntax-error at line 13 instead of mutable-receiver-required: the prototype parser has no compound assignment	OP5
+typing/invalid/compound-assign-no-assign-impl.hd	MVP reports syntax-error at line 14 instead of type-mismatch: the prototype parser has no compound assignment	OP5
+typing/invalid/compound-assign-not-place.hd	MVP reports syntax-error at line 6 instead of invalid-assignment-target: the prototype parser has no compound assignment	OP5
+parse/valid/compound-assignment-tokens.hd	parse fails: syntax-error at line 5: the prototype parser has no compound assignment	OP5
+parse/invalid/power-compound-assignment.hd	MVP reports expected-expression at line 5 instead of syntax-error: `**` followed by `=` reaches the expression parser	OP5
+typing/valid/operator-newtype-hand-written.hd	check fails: unknown-trait for Add[Meters] and Sub[Meters]: the prototype's std.ops declares no operator traits	OP6
+typing/valid/index-traits.hd	check fails: unknown-trait for Index[i32] and IndexSet[i32,i32]: the prototype's std.ops declares neither trait, and indexing is built in for List and Map only	OP7
+runtime/valid/index-traits-run.hd	check fails: syntax-error at line 21 for `ring[4] += 5`, and std.ops declares no Index or IndexSet	OP7
+typing/invalid/index-set-missing.hd	MVP reports unknown-trait for Index[i32] at line 8 instead of invalid-assignment-target at line 14: std.ops declares no Index	OP7
+typing/invalid/index-missing.hd	MVP reports not-indexable at line 7 instead of type-mismatch: not-indexable is not a specified code	OP7
+typing/valid/supertrait-binding.hd	check fails: syntax-error at line 5: the prototype parser rejects an associated type binding in a supertrait list	OP8
+parse/valid/supertrait-binding.hd	parse fails: syntax-error at line 3: the prototype parser rejects an associated type binding in a supertrait list	OP8
+typing/invalid/supertrait-binding-mismatch.hd	MVP reports syntax-error at line 5 instead of missing-supertrait-implementation at line 15: the parser rejects the supertrait binding	OP8
+typing/invalid/supertrait-binding-unknown.hd	MVP reports syntax-error instead of unknown-associated-type at line 5: the parser rejects the supertrait binding	OP8
+typing/valid/float-remainder.hd	check fails: type-mismatch at line 3: the prototype still rejects % on floating-point operands	OP9
+runtime/valid/float-remainder-run.hd	check fails: type-mismatch at lines 6 and 11: the prototype still rejects % on floating-point operands	OP9
+typing/valid/literal-suffix-generic-num.hd	check fails: unknown-trait for Num, and the @num_suffix shape check still requires a primitive parameter type	OP9
+runtime/valid/literal-suffix-generic-num-run.hd	check fails: unknown-trait for Num, and the @num_suffix shape check still requires a primitive parameter type	OP9
+typing/valid/num-traits.hd	check fails: unknown-trait for Num: the prototype has no std.num traits	OP9
+runtime/valid/num-traits-run.hd	check fails: unknown-trait for Num: the prototype has no std.num traits	OP9
+typing/valid/num-families.hd	check fails: unknown-trait for Integer and Float: the prototype has no std.num traits	OP9
+typing/invalid/num-bound-newtype.hd	MVP reports unknown-trait for Num at line 7 instead of unsatisfied-trait-bound at line 14: the prototype has no std.num traits	OP9
+typing/invalid/num-sealed-impl.hd	MVP reports unknown-trait for Integer instead of sealed-trait-implementation at line 7: the prototype has no std.num traits	OP9
