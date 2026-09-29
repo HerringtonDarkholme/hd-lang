@@ -167,6 +167,26 @@ Points the OP10 apply pass met, each waiting for the owner:
 | 17 | Is the fix-it `a = a + b` offered when that rewrite itself fails, for a parameter place or a type without `Add`? | The rule offers it always ([`expr.assign.compound.fix`](../spec/05-expressions.md#r-expr.assign.compound.fix)) | Offer it only when `a = a op b` type-checks; otherwise name the missing assign trait. |
 | 18 | Is a newtype construction over an `AnyVal` base, such as `Meters(0)`, a fresh mutable value? | No: [`types.fresh.mutable`](../spec/04-type-system.md#r-types.fresh.mutable) lists no newtype construction, and the prototype now makes it readonly for `AnyVal` bases | Keep. A newtype over a `data` type still infers `mut` in the prototype; say whether that is also readonly. |
 
+**OP11 (2026-09-29): answers to the apply pass's Still Open.**
+- Floating `%` stays valid and truncates like Rust `%` and C `fmod`.
+- **`string` implements `Add`:** `"a" + "b"` concatenates. `string` is an
+  `AnyVal`, so `s += "x"` rebinds under OP10.
+- The trait for bitwise-not `~` is named `Not`, as in Rust.
+- `Index` and `IndexSet` stay as applied:
+  - `trait Index[K]: type Out; fn index(self, key: K) -> Out`;
+  - `trait IndexSet[K, V]: fn index_set(mut self, key: K, value: V) -> void`;
+  - the two traits are independent;
+  - built-in `List` and `Map` keep their own indexing.
+- The rest stays as applied:
+  - `5 + money` works through `impl Add[Money] for i32`;
+  - std gives primitives same-type arithmetic and bitwise impls, and
+    shifts for every pair of integer types; `Integer` uses `Shl[u32]`;
+  - storing through a read-only receiver is `mutable-receiver-required`;
+  - an impl whose supertrait binds a different `Out` is
+    `missing-supertrait-implementation`;
+  - a generic `@num_suffix` parameter must be bounded by `Num`, `Integer`
+    or `Float`.
+
 ## Contents
 
 - [Owner Decisions](#owner-decisions)
