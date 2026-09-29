@@ -600,7 +600,7 @@ The trailing block is the callback
 ([`fn.trailing.form`](../spec/07-functions.md#r-fn.trailing.form)), so an
 installer reads like a scope. Without the relaxed rule of item 4, a
 callback that used only `Db` would be a `type-mismatch`
-([`req.poly.absent`](../spec/11-requirements-and-suspension.md#r-req.poly.absent)).
+(`req.poly.absent`, now [retired](../spec/STYLE.md#retired-rule-ids)).
 The owner's three hard spots:
 
 **Construction that needs configuration.** The installer takes `config`
@@ -1587,7 +1587,7 @@ result.
    multi-key row, such as `fn!(req: Request) -> Response $ Db, Cache:`. It
    parses as a statement but is a `syntax-error` as a call argument or a
    data-literal field; the parenthesized `$(Db, Cache)` parses there.
-   [`grammar.type.row.header-bare`](../spec/02-grammar.md#r-grammar.type.row.header-bare)
+   `grammar.type.row.header-bare`, now [retired](../spec/STYLE.md#retired-rule-ids),
    states no exception for list positions. The decided `+` spelling removes
    the comma clash.
 3. Option F forms against today's parser, unrewritten:
