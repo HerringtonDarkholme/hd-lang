@@ -23,6 +23,31 @@ an all-or-nothing `Result`. It follows the
 - the [Spec Scope For The Standard Library](../AGENTS.md#spec-scope-for-the-standard-library)
   rule.
 
+## Owner Decisions
+
+Decided 2026-09-29.
+
+1. **CO1: a generic `collect` with a `FromIterator` trait,** as in Rust.
+   The expected type picks the target:
+   `let by_id: Map[UserId, User] = pairs.collect()` and
+   `let rows: Result[List[Row], ParseError] = results.collect()`.
+   `FromIterator` enters the spec, because `collect` on the prelude
+   iterator names it.
+
+   Open for the apply pass: what `xs := it.collect()` means with no
+   expected type. hd has no `_` in type arguments, so either a default
+   (recommended: `List[T]`) or a required annotation. Recommend the
+   default.
+2. **CO2: duplicate keys when collecting into `Map`:** the last value
+   wins, and the key keeps its first position, matching map literals and
+   comprehensions.
+3. **CO3: the other helpers are STDLIB only.** Convenience names such as
+   `to_map` or `try_collect`, if any, are std-only. The all-or-nothing
+   `Result` and `T?` collection comes from `FromIterator` impls in std.
+4. **CO4: `?` is allowed inside a comprehension.** It propagates out of
+   the enclosing function, and the comprehension stops at that point. This
+   closes the spec gap; `return` stays banned there.
+
 ## Contents
 
 1. [Problem](#problem)
