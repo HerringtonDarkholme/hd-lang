@@ -100,6 +100,26 @@ the `Annotate` type.
 
    D2, D5 and D6 read with these names: `std.ops.NumSuffix`, `@num_suffix`
    and `@annotate(.Fn)`.
+10. **D10 (2026-09-29): answers to the apply-pass follow-ups.**
+    - `Target` gains a `Newtype` kind: `Fn, Data, Enum, Newtype, Field,
+      Variant, Param, Trait, Impl, Method`.
+    - A fact placed on a kind its `@annotate` doesn't allow is the new code
+      `decorator-target-kind`, instead of reusing
+      `decorator-not-annotator`.
+    - A literal suffix naming a function without `@num_suffix` is the new
+      code `invalid-literal-suffix`, as applied. This overrides L14's "no
+      new suffix code".
+    - Kept as applied:
+      - a variant payload member is a `.Field`;
+      - receiverless associated functions are `.Method`;
+      - method parameters take decorators, receivers don't;
+      - member-line values are kind-checked too;
+      - the bare-marker call works in parameter decorators;
+      - `Target` and `Annotate` aren't prelude names;
+      - an ordinary call error wins over the reader's error;
+      - an unknown suffix is `unknown-name`.
+    - Superseded by Literal Suffixes L21 and L22: the shape is checked at
+      the definition, and a marker function takes exactly one parameter.
 
 The remaining questions are settled or moot:
 - 7: `Suffix` is recognized by its qualified name.
