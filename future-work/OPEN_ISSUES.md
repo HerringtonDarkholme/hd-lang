@@ -339,6 +339,14 @@ reach a `Map`, a `Set`, or an all-or-nothing `Result`, and asks five
 questions, including the duplicate-key policy and whether `?` may appear
 inside a comprehension.
 
+### Iterator Performance
+
+**Open.** [Iterator Performance Study](ITERATOR_PERF.md) compares the
+CS7 closure iterator, Rust-style nested adapters, and a flat iterator with
+one composed stage. It asks five questions and specifies stage 2
+benchmarks, which a cheap-model agent runs next. CS7 stands until the
+owner decides otherwise.
+
 ### Cross-Feature Stress Test (2026-09-29)
 
 **Open.** Two readings of stress decisions 5 and 6, about decorators, wait

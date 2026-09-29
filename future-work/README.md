@@ -54,6 +54,10 @@ Open questions for the owner:
 - [Collecting Iterators Into Collections](COLLECT.md) compares five ways
   for a data `Iterator[T]` to end in a `Map`, a `Set`, or an all-or-nothing
   `Result`, with the duplicate-key policy and the spec-or-STDLIB split.
+- [Iterator Performance Study](ITERATOR_PERF.md) is stage 1 of a
+  performance study: it compares closure, nested, and flat-stage iterator
+  designs by calls, allocation, and fusion potential, and specifies the
+  stage 2 benchmarks.
 
 Research and direction outside the specification:
 
