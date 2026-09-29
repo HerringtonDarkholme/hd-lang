@@ -1,7 +1,7 @@
 trait Logger:
     fn write(self, message: string) -> void
 
-fn drop_logger[R](callback: fn() -> void $(R, Logger)) -> void $ R:
+fn drop_logger[R](callback: fn() -> void $ R + Logger) -> void $ R:
     callback()  # diagnostic: missing-requirement
 fn log() -> void $ Logger:
     $.use(Logger).write("hello")

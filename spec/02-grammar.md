@@ -277,7 +277,7 @@ declaration = [ "pub" ], ( function_decl
 
 ```ebnf
 function_decl = "fn", callable_name, [ generic_params ], parameter_clause,
-                [ "->", result_type ], [ header_requirement_clause ], ":",
+                [ "->", result_type ], [ requirement_clause ], ":",
                 suite_body ;
 
 callable_name = identifier, [ "!" ] ;
@@ -391,11 +391,11 @@ trait_decl = "trait", identifier, [ type_params ],
                trait_member, { trait_member }, DEDENT )
              ;
 
-supertrait_bounds = trait_type, { "+", trait_type } ;
+supertrait_bounds = trait_type, { "&", trait_type } ;
 
 trait_member = associated_type_decl
              | { decorator_line }, "fn", callable_name, [ generic_params ], parameter_clause,
-               "->", result_type, [ header_requirement_clause ],
+               "->", result_type, [ requirement_clause ],
                ( NEWLINE | ":", suite_body )
              ;
 
@@ -416,7 +416,7 @@ derivation_line = ( identifier | "Self" ), ( "=" | "+=" ), closed_expression,
 
 method_decl = [ "pub" ], "fn", callable_name, [ generic_params ],
               parameter_clause, [ "->", result_type ],
-              [ header_requirement_clause ], ":", suite_body ;
+              [ requirement_clause ], ":", suite_body ;
 
 associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 ```
@@ -474,7 +474,7 @@ generic_parameter = [ "reified" ], identifier, [ "..." ],
                     [ "<", trait_bounds ] ;
 variance = "+" | "-" ;
 
-trait_bounds = [ "mut" ], bound_trait_type, { "+", bound_trait_type } ;
+trait_bounds = [ "mut" ], bound_trait_type, { "&", bound_trait_type } ;
 bound_trait_type = qualified_name, [ bound_type_arguments ] ;
 bound_type_arguments = "[", bound_type_argument_list, [ "," ], "]" ;
 bound_type_argument_list = type_argument, { ",", type_argument },
@@ -485,6 +485,28 @@ bound_type_argument_list = type_argument, { ",", type_argument },
 associated_type_binding = identifier, "=", type ;
 trait_type = qualified_name, [ type_arguments ] ;
 ```
+
+### Multiple Bounds
+
+1. r[grammar.generic.bound.and] Several trait bounds on one type are joined with `&`, as in `T < Eq & Hash`, and the type implements every one.
+2. r[grammar.generic.bound.and.positions] `&` joins bounds in every bound position: a generic parameter, a supertrait list, and an implementation's generic parameters.
+3. r[grammar.generic.bound.and.examples] For example, `trait Ord < Eq & PartialOrd` and `impl[T < Eq & Hash] Hash for Bag[T]` join bounds with `&`.
+4. r[grammar.generic.bound.and.types-only] Bounds appear only in type positions, so a bound's `&` never conflicts with the bitwise `&` of an expression.
+5. r[grammar.generic.bound.old-plus] A `+` between bounds, as in the former `T < A + B`, is an error whose fix-it writes `A & B`. Error: `old-bound-operator`.
+
+```text
+trait Named:
+    fn name(self) -> string
+
+trait Tagged:
+    fn tag(self) -> string
+
+fn label[T < Named + Tagged](value: T) -> string: value.name()  # error: old-bound-operator
+```
+
+> **Why.** `&` means both at once, as in Java `<T extends A & B>`, TypeScript
+> and Scala 3 `A & B`, and Swift `P & Q`. It leaves `+` to requirement rows,
+> so each operator has one meaning.
 
 ### Associated Type Bindings In Bounds
 
@@ -539,7 +561,7 @@ type_arguments = "[", type_argument,
 type_argument = type, [ "..." ]
               | row_type_argument
               ;
-row_type_argument = "$", "(", [ requirement_list ], ")" ;
+row_type_argument = "$", requirement_row ;
 
 tuple_type = "(", ")"
            | "(", type_element, ",",
@@ -565,57 +587,57 @@ associated_type_projection = ( qualified_name | "Self" ), "::", identifier ;
 qualified_name = identifier, { ".", identifier } ;
 
 requirement_clause = "$", requirement_row ;
-header_requirement_clause = requirement_clause
-                          | "$", requirement_key, ",", requirement_key,
-                            { ",", requirement_key }
-                          ;
-requirement_row = requirement_key
-                | "(", [ requirement_list ], ")"
+requirement_row = requirement_list
+                | "(", ")"
                 ;
-requirement_list = requirement_key, { ",", requirement_key }, [ "," ] ;
+requirement_list = requirement_key, { "+", requirement_key } ;
 requirement_key = trait_type ;
 ```
 
 ### Requirement Clauses
 
-1. r[grammar.type.row.keys] A requirement row lists separate requirement keys, so several keys form a comma list.
-2. r[grammar.type.row.single] A single key may be bare, as in `$ Console`.
-3. r[grammar.type.row.parenthesized] Several keys are parenthesized, as in `fn(UserId) -> User $(Db, Cache)`, and `$()` is the empty row.
-4. r[grammar.type.row.header-bare] Only a `header_requirement_clause` may list several keys bare.
-5. r[grammar.type.row.header-position] A `header_requirement_clause` ends a declaration or closure header, or a bodyless trait method, as in `fn load(id: UserId) -> User $ Db, Cache:`.
-6. r[grammar.type.row.no-mut-key] A requirement key has no `mut` prefix, so `$(R, mut Logger)` is an error. Error: `syntax-error`.
-7. r[grammar.type.row.in-type] Every row inside a type uses the parenthesized form for several keys.
-8. r[grammar.type.row.in-type.positions] The parenthesized form covers parameter and field types, type arguments, tuple types, a result with its own row, and `$.Context[...]`.
-9. r[grammar.type.row.in-type.comma] A bare comma after a key inside a type separates the enclosing list instead, so `fn f(cb: fn() -> i32 $ A, B) -> i32:` is an error. Error: `syntax-error`.
+1. r[grammar.type.row.plus-keys] A requirement row lists separate requirement keys joined by `+`, as in `$ Db + Cache`.
+2. r[grammar.type.row.single] A single key is written alone, as in `$ Console`.
+3. r[grammar.type.row.empty] `$()` is the empty row.
+4. r[grammar.type.row.one-form] Every position writes a row the same way: a header, a bodyless trait method, a function type, a row type argument, and `$.Context[...]`.
+5. r[grammar.type.row.one-form.examples] The header `fn load(id: UserId) -> User $ Db + Cache:` and the type `fn(UserId) -> User $ Db + Cache` write one row.
+6. r[grammar.type.row.no-mut-key] A requirement key has no `mut` prefix, so `$ R + mut Logger` is an error. Error: `syntax-error`.
+7. r[grammar.type.row.no-parentheses] Parentheses never surround a nonempty row, so the former `$(A + B)` is an error. Error: `syntax-error`.
+8. r[grammar.type.row.in-type.comma] Inside a type, a comma after a key ends the row, so `fn f(cb: fn() -> i32 $ A, B) -> i32:` is an error. Error: `syntax-error`.
 
 ```text
 trait Clock
 
 trait Logger
+
+fn grouped() -> void $(Clock + Logger): pass  # error: syntax-error
 
 fn run(callback: fn() -> void $ Clock, Logger) -> void: pass  # error: syntax-error
 ```
 
 ### Row Operators
 
-1. r[grammar.type.row.no-operators] A row contains no operators.
-2. r[grammar.type.row.plus-bound] `+` keeps only its bound meaning, several bounds on one type as in `T < A + B`.
-3. r[grammar.type.row.old-operator] A `+` or `-` between requirement keys, as in the former `$ A + B` or `$ (R - K)`, is an error. Error: `old-row-operator`.
-4. r[grammar.type.row.extension] Removing a key from a callback row is written by extension instead, as [Requirement Polymorphism](11-requirements-and-suspension.md#requirement-polymorphism) specifies.
+1. r[grammar.type.row.plus-only] `+` is the only row operator: it joins keys into one row.
+2. r[grammar.type.row.plus-rows-only] `+` has no bound meaning; several bounds on one type are joined with `&`, as in `T < A & B`.
+3. r[grammar.type.row.old-separator] A comma between requirement keys, as in the former `$ A, B` or `$(A, B)`, is an error whose fix-it writes `A + B`. Error: `old-row-separator`.
+4. r[grammar.type.row.no-subtraction] A `-` between requirement keys, as in the former `$ R - K`, is an error. Error: `syntax-error`.
+5. r[grammar.type.row.extension] Removing a key from a callback row is written by extension instead, as [Requirement Polymorphism](11-requirements-and-suspension.md#requirement-polymorphism) specifies.
 
 ```text
 trait Clock
 
 trait Logger
 
-fn run(callback: fn() -> void $ Clock + Logger) -> void $(Clock, Logger): callback()  # error: old-row-operator
+fn run(callback: fn() -> void $ Clock + Logger) -> void $ Clock, Logger: callback()  # error: old-row-separator
 
-fn drop_logger[R](callback: fn() -> void $ R) -> void $ (R - Logger): callback()  # error: old-row-operator
+fn observed(callback: fn() -> void $(Clock, Logger)) -> void: pass  # error: old-row-separator
+
+fn drop_logger[R](callback: fn() -> void $ R) -> void $ R - Logger: callback()  # error: syntax-error
 ```
 
 ### Row Type Arguments
 
-1. r[grammar.type.row-argument] When the corresponding generic parameter is row-kinded, a type argument may be a parenthesized row such as `$(Logger, Clock)`, or `$()` for the empty row.
+1. r[grammar.type.row-argument] For a row-kinded generic parameter, a type argument may be a row after `$`, as in `Job[$ Logger + Clock]`, or `$()` for the empty row.
 2. r[grammar.type.row-argument.key] A single requirement key is syntactically also a type; the parameter kind selects its interpretation.
 3. r[grammar.type.row-argument.kind] Using a row argument for a type-kinded parameter (or conversely) is an error.
 
@@ -643,13 +665,13 @@ A header owns the requirement clause at its end, so a function-typed result
 with its own row is parenthesized:
 
 ```text
-fn make() -> fn() -> i32 $ Console, Log:          # make requires both keys
+fn make() -> fn() -> i32 $ Console + Log:            # make requires both keys
     _ := $.use(Console, Log)
     fn() -> i32: 1
 
-fn wrap() -> (fn() -> i32 $(Log, Trace)) $ Console:  # the result requires both
+fn wrap() -> (fn() -> i32 $ Log + Trace) $ Console:  # the result requires both
     _ := $.use(Console)
-    fn() -> i32 $ Log, Trace:
+    fn() -> i32 $ Log + Trace:
         _ := $.use(Log, Trace)
         2
 ```
@@ -1087,7 +1109,7 @@ values := [run:  # error
 closure_expression = closure_header, suite_body ;
 inline_closure_expression = closure_header, inline_suite_body ;
 closure_header = "fn", [ "!" ], closure_parameter_clause,
-                 [ "->", result_type ], [ header_requirement_clause ], ":" ;
+                 [ "->", result_type ], [ requirement_clause ], ":" ;
 
 closure_parameter_clause = "(", [ closure_parameter_list ], ")" ;
 closure_parameter_list = closure_parameter,

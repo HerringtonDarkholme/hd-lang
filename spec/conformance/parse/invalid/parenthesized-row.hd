@@ -1,0 +1,7 @@
+# test: parentheses never surround a nonempty requirement row
+
+trait Clock
+
+trait Logger
+
+fn grouped() -> void $(Clock + Logger): pass  # diagnostic: syntax-error

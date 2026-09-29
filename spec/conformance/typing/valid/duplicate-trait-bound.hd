@@ -20,10 +20,10 @@ impl Named for Number:
 fn describe_one[T < Describe](value: T) -> i32:
     value.describe()
 
-fn inspect[T < Describe + Describe](value: T) -> i32:
+fn inspect[T < Describe & Describe](value: T) -> i32:
     describe_one(value) + value.describe()
 
-fn identity[T < Describe + Named](value: T) -> T:
+fn identity[T < Describe & Named](value: T) -> T:
     value
 
 fn check() -> i32:

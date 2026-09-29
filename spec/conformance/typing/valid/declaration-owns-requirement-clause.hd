@@ -5,20 +5,20 @@ trait Log
 
 trait Trace
 
-fn make() -> fn() -> i32 $ Console, Log:
+fn make() -> fn() -> i32 $ Console + Log:
     _ := $.use(Console, Log)
     fn() -> i32: 1
 
-fn wrap() -> (fn() -> i32 $(Log, Trace)) $ Console:
+fn wrap() -> (fn() -> i32 $ Log + Trace) $ Console:
     _ := $.use(Console)
-    fn() -> i32 $ Log, Trace:
+    fn() -> i32 $ Log + Trace:
         _ := $.use(Log, Trace)
         2
 
 fn plain(f: fn() -> i32) -> i32: f()
 
-fn run() -> i32 $ Console, Log, Trace:
-    counter := fn() -> fn() -> i32 $ Console, Log:
+fn run() -> i32 $ Console + Log + Trace:
+    counter := fn() -> fn() -> i32 $ Console + Log:
         _ := $.use(Console)
         make()
     logged := wrap()

@@ -9,11 +9,11 @@ data SilentLogger: pass
 impl Logger for SilentLogger:
     fn write(self, message: string) -> void: pass
 
-fn quiet[R](callback: fn() -> void $(R, Logger)) -> void $ R:
+fn quiet[R](callback: fn() -> void $ R + Logger) -> void $ R:
     $.with(Logger=SilentLogger {}):
         callback()
 
-fn both() -> void $ Logger, Clock:
+fn both() -> void $ Logger + Clock:
     $.use(Logger).write("hi")
 
 pub fn caller() -> void:

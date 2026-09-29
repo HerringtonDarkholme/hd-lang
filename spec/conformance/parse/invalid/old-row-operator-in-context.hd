@@ -1,7 +1,0 @@
-# test: '+' between requirement keys is rejected in a context type
-
-trait Clock
-
-trait Logger
-
-fn run(context: $.Context[Clock + Logger]) -> void: pass  # diagnostic: old-row-operator

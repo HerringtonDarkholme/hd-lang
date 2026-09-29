@@ -278,7 +278,7 @@ Every function type is exact sugar for one of two standard constructors that
 | `fn(A, B) -> O $ R` | `Fn[(A, B), O, R]` |
 | `fn!(A, B) -> O $ R` | `SuspendFn[(A, B), O, R]` |
 | `fn(A) -> O` | `Fn[(A,), O, $()]` |
-| `fn() -> O $(Db, Cache)` | `Fn[(), O, $(Db, Cache)]` |
+| `fn() -> O $ Db + Cache` | `Fn[(), O, $ Db + Cache]` |
 | `fn(string, i32...) -> i32` | `Fn[(string, Rest[i32]), i32, $()]` |
 
 ```text
@@ -302,7 +302,7 @@ fn suspending() -> SuspendFn[(i32,), string, Database]:
 1. r[fn.type.ctor.decl] `std.function` declares the function type constructors `Fn` and `SuspendFn`. Each takes three arguments: the inputs, the output, and the requirement row.
 2. r[fn.type.ctor.inputs] The inputs argument is one tuple type whose elements are the parameter types, such as `()`, `(A,)`, `(A, B)`, or `(Is...)`.
 3. r[fn.type.ctor.no-flatten] A tuple is never flattened into parameters: `Fn[((A, B),), O, R]` takes one pair, and `Fn[(A, B), O, R]` takes two values.
-4. r[fn.type.ctor.row] The row argument is row-kinded. A function type without a requirement clause has the empty row `$()`, and several keys form a comma list, as in `$(Db, Cache)`.
+4. r[fn.type.ctor.row] The row argument is row-kinded. A function type without a requirement clause has the empty row `$()`, and several keys are joined with `+`, as in `$ Db + Cache`.
 5. r[fn.type.ctor.input-kind] A type parameter used as the inputs argument is tuple-kinded: it may be instantiated only with a tuple type.
 6. r[fn.type.ctor.kind-mismatch] An inputs argument that is neither a tuple type nor a tuple-kinded parameter, as in `Fn[i32, i32, $()]`, is an error. Error: `generic-kind-mismatch`.
 7. r[fn.type.ctor.sugar] `fn(A) -> O $ R` and `Fn[(A,), O, R]` denote the same type, and so do `fn!(A) -> O $ R` and `SuspendFn[(A,), O, R]`.
@@ -637,10 +637,10 @@ fn first[T](items: List[T]) -> T?:
     ...
 ```
 
-Trait bounds use `+` composition:
+Trait bounds compose with `&`:
 
 ```text
-fn audit[T < Display + Named](value: T) -> string:
+fn audit[T < Display & Named](value: T) -> string:
     ...
 ```
 
@@ -652,7 +652,7 @@ first[string](names)
 ```
 
 1. r[fn.generic.parameters] Generic parameters follow the function name.
-2. r[fn.generic.bounds] Trait bounds use `+` composition.
+2. r[fn.generic.bounds-and] Trait bounds compose with `&`.
 3. r[fn.generic.call] Callers may rely on inference or provide the complete type argument list.
 4. r[fn.generic.erased] Generic parameters are erased by default.
 5. r[fn.generic.reified] `reified T` requests runtime type metadata, as defined in [Type System](04-type-system.md).

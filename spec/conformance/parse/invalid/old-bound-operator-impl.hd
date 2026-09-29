@@ -1,0 +1,13 @@
+# test: '+' between the bounds of an implementation's generic parameter is the former bound spelling
+
+trait Named:
+    fn name(self) -> string
+
+trait Tagged:
+    fn tag(self) -> string
+
+data Box[T]:
+    value: T
+
+impl[T < Named + Tagged] Named for Box[T]:  # diagnostic: old-bound-operator
+    fn name(self) -> string: self.value.name()

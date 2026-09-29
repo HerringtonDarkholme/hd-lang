@@ -289,7 +289,7 @@ typing/valid/generic-provider-keys-distinct.hd	type
 typing/valid/generic-provider-keys-occurs-check.hd	type
 typing/invalid/generic-provider-key-collision-spread.hd	type
 typing/invalid/call-missing-requirement.hd	type
-typing/valid/requirement-row-parenthesized-list.hd	type
+typing/valid/requirement-row-plus-list.hd	type
 typing/valid/requirement-row-duplicate-keys.hd	type
 typing/invalid/use-without-provider.hd	type
 typing/invalid/provider-value-type-mismatch.hd	type
@@ -986,13 +986,13 @@ typing/valid/row-kinded-arguments.hd	type
 typing/invalid/row-kind-mismatch.hd	type
 runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	runtime
 parse/valid/requirement-row-lists.hd	parse
-parse/invalid/old-row-operator-union.hd	parse
-parse/invalid/old-row-operator-subtraction.hd	parse
-parse/invalid/old-row-operator-in-type.hd	parse
-parse/invalid/old-row-operator-in-context.hd	parse
+parse/invalid/old-row-separator-header.hd	parse
+parse/invalid/row-subtraction.hd	parse
+parse/invalid/old-row-separator-in-type.hd	parse
+parse/invalid/old-row-separator-in-context.hd	parse
 parse/invalid/bare-row-list-in-type.hd	parse
 typing/invalid/row-extension-absent-key.hd	type
-parse/invalid/old-row-operator-type-argument.hd	parse
+parse/invalid/old-row-separator-type-argument.hd	parse
 parse/invalid/numeric-member-access.hd	parse
 parse/invalid/numeric-member-access-float.hd	parse
 runtime/valid/underscore-tuple-members.hd	runtime
@@ -1244,3 +1244,9 @@ typing/invalid/literal-suffix-generic.hd	type
 typing/invalid/literal-suffix-extra-parameter.hd	type
 typing/invalid/literal-suffix-suspending.hd	type
 typing/invalid/num-suffix-before-data.hd	type
+parse/invalid/old-row-separator-callback.hd	parse
+parse/invalid/parenthesized-row.hd	parse
+parse/invalid/old-bound-operator-generic.hd	parse
+parse/invalid/old-bound-operator-supertrait.hd	parse
+parse/invalid/old-bound-operator-impl.hd	parse
+parse/valid/bound-and-lists.hd	parse

@@ -10,7 +10,7 @@ data User:
 data Post:
     title: string
 
-fn first_of[T < AnyRef + Inspectable](items: List[Inspectable]) -> T?:
+fn first_of[T < AnyRef & Inspectable](items: List[Inspectable]) -> T?:
     for item in items:
         match item.downcast[T]():
             .Some(found) => return .Some(found)

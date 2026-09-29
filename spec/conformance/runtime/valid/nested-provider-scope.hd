@@ -2,7 +2,7 @@
 
 use std.testing.assert_equal
 
-fn run() -> i32 $ Clock, Backup:
+fn run() -> i32 $ Clock + Backup:
     _ := $.use(Clock)
     $.with(Clock=$.use(Backup)):
         _ := $.use(Clock)

@@ -374,7 +374,7 @@ The standard library declares the standard error trait `Error` in
 `std.error`.
 
 1. r[trait.error.module] The standard library declares the standard error trait `Error` in `std.error`.
-2. r[trait.error.supertraits] `Error` is dynamically safe and has `Display` and the sealed `Inspectable` as supertraits, as in `trait Error < Display + Inspectable`.
+2. r[trait.error.supertraits] `Error` is dynamically safe and has `Display` and the sealed `Inspectable` as supertraits, as in `trait Error < Display & Inspectable`.
 3. r[trait.error.defaults] Every member `Error` declares has a default, so an implementation needs no body.
 4. r[trait.error.complete] `impl Error for FsError` is complete when `FsError` implements `Display`, because the compiler supplies `Inspectable` for every inspectable type.
 5. r[trait.error.not-inspectable] An `impl Error` whose target is not inspectable, such as a type declared in a block suite, is an error. Error: `missing-supertrait-implementation`.
@@ -603,7 +603,7 @@ constructor.
 7. r[trait.target.no-blanket] hd-lang has no blanket implementations over every type.
 8. r[trait.target.function-type.valid] A function type is an ordinary target under the ownership and overlap rules below, so `impl Marker for fn(i32) -> i32` is valid in the package that declares `Marker`.
 9. r[trait.target.row-argument] A row argument in an implementation head, such as a function type's row, is a row parameter or a concrete row.
-10. r[trait.target.row-argument.extension] A row argument that lists a row parameter beside other keys, as in `Fn[(), i32, $(R, Log)]`, is invalid in an implementation head.
+10. r[trait.target.row-argument.extension] A row argument that lists a row parameter beside other keys, as in `Fn[(), i32, $ R + Log]`, is invalid in an implementation head.
 11. r[trait.target.trait-value] A trait value type is never an implementation target either: `Display` used as a type names a dynamic trait value, not a type constructor.
 12. r[trait.target.trait-value.error] `impl Marker for Display` and `impl Marker for Any` are errors. Error: `trait-value-impl-target`.
 13. r[trait.target.trait-value.argument] A trait value type may still be a constructor's argument, as in `impl Marker for List[Display]`.
@@ -979,16 +979,16 @@ fn show[T < Display](value: T) -> string:
     value.to_string()
 ```
 
-Bounds compose with `+`:
+Bounds compose with `&`:
 
 ```text
-fn audit[T < Display + Named](value: T) -> string:
+fn audit[T < Display & Named](value: T) -> string:
     value.to_string() + " / " + value.name()
 ```
 
 1. r[trait.bound.static] A generic bound requires explicit conformance and uses static dispatch.
-2. r[trait.bound.compose] Bounds compose with `+`.
-3. r[trait.bound.repeat] A bound may list the same trait more than once, as in `T < Display + Display`. The repetition adds no requirement and is not diagnosed.
+2. r[trait.bound.compose-and] Bounds compose with `&`: the type must implement every trait joined by it.
+3. r[trait.bound.repeat] A bound may list the same trait more than once, as in `T < Display & Display`. The repetition adds no requirement and is not diagnosed.
 4. r[trait.bound.mut] `T < mut Trait` additionally requires `T` to be a mutable-root type.
 5. r[trait.bound.mut-any] `T < mut Any` requires mutable-root access without a type-specific behavior requirement.
 6. r[trait.bound.unsatisfied] A type argument, explicit or inferred, that does not implement a trait its parameter's bound requires is an error. Error: `unsatisfied-trait-bound`.
@@ -1257,8 +1257,8 @@ concrete type can be recovered later:
 ```text
 trait Inspectable:
     fn runtime_type(self) -> TypeId
-    fn downcast[T < AnyRef + Inspectable](self) -> T?
-    fn downcast_mut[T < AnyRef + Inspectable](mut self) -> mut T?
+    fn downcast[T < AnyRef & Inspectable](self) -> T?
+    fn downcast_mut[T < AnyRef & Inspectable](mut self) -> mut T?
 
 impl TypeId:
     pub fn of[T < Inspectable]() -> TypeId
@@ -1444,7 +1444,7 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 2. r[trait.downcast.val-ordinary] `downcast_val` is an ordinary generic function.
 3. r[trait.downcast.no-special] No rule is specific to these three; the ordinary rules give the results below.
 4. r[trait.downcast.evidence] The `Inspectable` evidence for `T`, passed with each call like the evidence for any bound, carries the runtime identity of `T`. No `reified` marker is needed.
-5. r[trait.downcast.pass-on] A generic function passes a target on through its own bound, as in `fn get[T < AnyRef + Inspectable](value: Inspectable) -> T?`.
+5. r[trait.downcast.pass-on] A generic function passes a target on through its own bound, as in `fn get[T < AnyRef & Inspectable](value: Inspectable) -> T?`.
 6. r[trait.downcast.readonly] `downcast` yields a readonly `T`.
 7. r[trait.downcast.mut-receiver] `downcast_mut` has a `mut self` receiver, so calling it through a readonly view is an error. Error: `mutable-receiver-required`.
 8. r[trait.downcast.target] The target `T` is written, or inferred from the expected type, at the call.

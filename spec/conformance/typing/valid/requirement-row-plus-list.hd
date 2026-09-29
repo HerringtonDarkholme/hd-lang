@@ -1,0 +1,7 @@
+# test: requirements / normalization / a '+' list in a header
+
+fn main() -> void $ Logger + Clock: pass
+
+trait Logger
+
+trait Clock

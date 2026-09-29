@@ -40,14 +40,14 @@ fn demo!() -> Result[User?, DbError] $ Cache:
     $.with(Database=MockDatabase {}):
         load_user!(UserId { value: "user_123" }.value)
 
-fn prod_context(metrics: Metrics, cache: Cache) -> $.Context[$(Metrics, Cache)]:
+fn prod_context(metrics: Metrics, cache: Cache) -> $.Context[$ Metrics + Cache]:
     $.context(Metrics=metrics, Cache=cache)
 
 fn consume!(loader: fn!(string) -> Result[User?, DbError] $ Database) -> void $ Database:
     _ := loader!("user-1")
     pass
 
-fn provide_logger[R](callback: fn(string) -> void $(R, Logger)) -> void $ R:
+fn provide_logger[R](callback: fn(string) -> void $ R + Logger) -> void $ R:
     $.with(Logger=ConsoleLogger {}):
         callback("message")
 

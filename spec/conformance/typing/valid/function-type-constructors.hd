@@ -15,5 +15,5 @@ fn sugared(callback: Fn[(i32, string), bool, $()]) -> fn(i32, string) -> bool:
 fn suspending() -> SuspendFn[(i32,), string, Database]:
     load
 
-fn back(callback: fn!(i32) -> string $ Database) -> SuspendFn[(i32,), string, $(Database)]:
+fn back(callback: fn!(i32) -> string $ Database) -> SuspendFn[(i32,), string, $ Database]:
     callback

@@ -1,0 +1,7 @@
+# test: the former parenthesized comma-list row is rejected inside a type as well
+
+trait Clock
+
+trait Logger
+
+fn observed(callback: fn() -> void $(Clock, Logger)) -> void: pass  # diagnostic: old-row-separator

@@ -5,4 +5,4 @@ data Job[R]:
     run: fn() -> void $ R
 
 fn pure(job: Job[$()]) -> void: pass
-fn observed(job: Job[$(Logger, Clock)]) -> void: pass
+fn observed(job: Job[$ Logger + Clock]) -> void: pass

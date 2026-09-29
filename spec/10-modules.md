@@ -398,7 +398,7 @@ See also: [Indexing](05-expressions.md#indexing).
 
 ```text
 fn assert(condition: bool, reason: string) -> void
-fn assert_equal[T < Eq + Debug](actual: T, expected: T, reason: string) -> void
+fn assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void
 ```
 
 1. r[module.testing.exports] `std.testing` exports the normative assertion functions `assert` and `assert_equal` with the signatures above.

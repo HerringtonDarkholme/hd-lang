@@ -42,38 +42,33 @@ These are the only terms used below for the concrete and generic forms.
 A function signature may end with `$` and a list of requirement keys:
 
 ```text
-fn load_user!(id: UserId) -> Result[User?, DbError] $ Database, Cache:
+fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
     ...
 ```
 
 ```ebnf
 requirement_clause = "$", requirement_row ;
-header_requirement_clause = requirement_clause
-                          | "$", requirement_key, ",", requirement_key,
-                            { ",", requirement_key }
-                          ;
-requirement_row = requirement_key
-                | "(", [ requirement_list ], ")"
+requirement_row = requirement_list
+                | "(", ")"
                 ;
-requirement_list = requirement_key, { ",", requirement_key }, [ "," ] ;
+requirement_list = requirement_key, { "+", requirement_key } ;
 requirement_key = trait_type ;
 ```
 
 1. r[req.row.syntax.signature] A function signature may end with `$` and an unordered list of requirement traits.
-2. r[req.row.syntax.comma-list] Each key names a separate injected value, so several keys form a comma list.
+2. r[req.row.syntax.plus-list] Each key names a separate injected value, and several keys are joined with `+`, as in `$ Database + Cache`.
 3. r[req.row.syntax.single-bare] A single key may be bare, as in `$ Console`.
-4. r[req.row.syntax.header-bare] A declaration or closure header may list several keys bare, because its clause ends at the header's `:`.
-5. r[req.row.syntax.type-parenthesized] Inside a type, several keys are parenthesized, as in `fn(UserId) -> User $(Database, Cache)` or `Map[string, fn() -> i32 $(Clock, Log)]`.
-6. r[req.row.syntax.empty] The clause `$()` writes the empty row explicitly.
-7. r[req.row.syntax.no-mut] A key has no `mut` prefix; a trait's methods decide the provider's access, as [Mutable Providers](#mutable-providers) describes.
-8. r[req.row.syntax.no-operators] A row has no operators: a `+` or `-` between keys is an error. Error: `old-row-operator`.
+4. r[req.row.syntax.same-form] A header and a type write a row the same way, as in `fn(UserId) -> User $ Database + Cache`.
+5. r[req.row.syntax.empty] The clause `$()` writes the empty row explicitly.
+6. r[req.row.syntax.no-mut] A key has no `mut` prefix; a trait's methods decide the provider's access, as [Mutable Providers](#mutable-providers) describes.
+7. r[req.row.syntax.old-separator] A comma between keys, as in the former `$ Clock, Logger` or `$(Clock, Logger)`, is an error whose fix-it writes `Clock + Logger`. Error: `old-row-separator`.
 
 ```text
 trait Clock
 
 trait Logger
 
-fn both() -> void $ Clock + Logger: pass  # error: old-row-operator
+fn both() -> void $ Clock, Logger: pass  # error: old-row-separator
 ```
 
 See also: [Mutable Providers](#mutable-providers),
@@ -86,14 +81,14 @@ requirement clause:
 
 ```ebnf
 function_decl = "fn", callable_name, [ generic_params ], parameter_clause,
-                [ "->", type ], [ header_requirement_clause ], ":",
+                [ "->", type ], [ requirement_clause ], ":",
                 suite_body ;
 
 function_type = "fn", [ "!" ], "(", [ type_list ], ")",
                 "->", type, [ requirement_clause ] ;
 
 closure_expression = "fn", [ "!" ], closure_parameter_clause,
-                     [ "->", type ], [ header_requirement_clause ],
+                     [ "->", type ], [ requirement_clause ],
                      ":", suite_body ;
 
 callable_name = identifier, [ "!" ] ;
@@ -139,7 +134,7 @@ impl Job for Nightly:
 2. r[req.row.set.once] A key occurs at most once after normalization.
 3. r[req.row.set.union] The row denoted by a list is the union of its keys.
 4. r[req.row.set.parameter] A row parameter listed beside other keys contributes every key of its row.
-5. r[req.row.set.duplicate] `$(Logger, Clock, Logger)` is the row `$(Clock, Logger)`.
+5. r[req.row.set.duplicate] `$ Logger + Clock + Logger` is the row `$ Clock + Logger`.
 6. r[req.row.set.call] A function may call another required function only when its own row includes those requirements or a lexical provider scope satisfies them.
 
 ```text
@@ -167,7 +162,7 @@ pub fn invalid() -> void:
 ### Least Row Solutions
 
 1. r[req.row.least.solution] Inference for a parameter pattern that lists a row parameter beside concrete keys chooses the least row solution.
-2. r[req.row.least.examples] Matching `$(R, K)` against the row `$(K)` infers the empty row for `R`, and matching it against `$(K, Clock)` infers `$(Clock)`.
+2. r[req.row.least.examples] Matching `$ R + K` against the row `$ K` infers the empty row for `R`, and matching it against `$ K + Clock` infers `$ Clock`.
 3. r[req.row.least.no-solution] When the matched row lacks `K`, the pattern has no solution, and the argument is an error. Error: `type-mismatch`.
 4. r[req.row.least.removal] This least-solution rule is also how a callee removes a key from a callback row.
 
@@ -286,14 +281,14 @@ fn mixed[T](local: Repo[User]) -> void $ Repo[T]:
 Reusable provider maps use `$.Context[Row]`:
 
 ```text
-fn prod_context() -> $.Context[$(Metrics, Cache)]:
+fn prod_context() -> $.Context[$ Metrics + Cache]:
     $.context(Metrics=metrics, Cache=cache)
 
 $.with(Database=db, Logger=logger, prod_context()...):
     ...
 ```
 
-1. r[req.context.row] `$.Context[$(A, B)]` is indexed by one unordered, duplicate-free requirement row; it is not a variadic generic.
+1. r[req.context.row] `$.Context[$ A + B]` is indexed by one unordered, duplicate-free requirement row; it is not a variadic generic.
 2. r[req.context.single-bare] A context with a single key may write it bare, as in `$.Context[Clock]`.
 3. r[req.context.empty] `$.Context[$()]` is the empty context.
 4. r[req.context.create] `$.context` creates a context value.
@@ -761,7 +756,7 @@ fn transform[T, U, R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
 A local provider removes one key from a callback row by extension:
 
 ```text
-fn provide_logger[R](callback: fn(string) -> void $(R, Logger)) -> void $ R:
+fn provide_logger[R](callback: fn(string) -> void $ R + Logger) -> void $ R:
     $.with(Logger=logger):
         callback("message")
 ```
@@ -772,7 +767,7 @@ fn provide_logger[R](callback: fn(string) -> void $(R, Logger)) -> void $ R:
 4. r[req.poly.kind] The compiler infers `R` as a row parameter from its use after `$`, not from the case of its name.
 5. r[req.poly.naming] Row parameters follow the ordinary uppercase convention for generic parameters.
 6. r[req.poly.least] At a call, the compiler infers `R` as the least row solution of the callback pattern.
-7. r[req.poly.least.example] Passing a callback with row `$(Logger, Clock)` infers `R` as `$(Clock)`, so the call requires only `Clock`.
+7. r[req.poly.least.example] Passing a callback with row `$ Logger + Clock` infers `R` as `$ Clock`, so the call requires only `Clock`.
 8. r[req.poly.absent] Passing a callback whose row lacks `Logger` is an error. Error: `type-mismatch`.
 9. r[req.poly.body] Inside the body, calling `callback` requires `R` and `Logger`; the declared row supplies `R`, and the `$.with` scope supplies `Logger`.
 10. r[req.poly.one-body] A row parameter's providers are passed as one bundle, so a row-polymorphic body is compiled once and never specialized per row.
@@ -790,7 +785,7 @@ data SilentLogger: pass
 impl Logger for SilentLogger:
     fn write(self, message: string) -> void: pass
 
-fn provide_logger[R](callback: fn() -> void $(R, Logger)) -> void $ R:
+fn provide_logger[R](callback: fn() -> void $ R + Logger) -> void $ R:
     $.with(Logger=SilentLogger {}):
         callback()
 

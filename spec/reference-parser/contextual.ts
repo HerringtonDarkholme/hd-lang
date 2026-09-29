@@ -127,18 +127,37 @@ function loneReifiedParameter(clean: string, parent: string): boolean {
   return parameters.some((parameter) => /^reified\s*(?:\.\.\.|<|:|$)/u.test(parameter));
 }
 
-// Chapter 02: a requirement row is a comma list of keys. A `+` or `-`
-// between keys, as in `$ A + B`, `$ (R - K)`, or `$.Context[A + B]`, is
-// the removed row union or subtraction. A row type argument such as
-// `Job[A + B]` is matched only between capitalized names, so a list or
-// index expression like `[a + b]` stays an expression.
+// Chapter 02: requirement keys are joined with `+`. A comma between keys is
+// the former comma-list row: `$(A, B)` anywhere, or `$ A, B` ending a
+// header. A bare `$ A, B` inside brackets is a comma of the enclosing list
+// instead (grammar.type.row.in-type.comma), so only a `$` outside every
+// bracket of the line counts, and the list must end the header. Keys are
+// capitalized by convention, which keeps a parameter such as `n: i32` out.
 const rowKey = String.raw`(?:mut\s+)?[\p{L}_][\p{L}\p{N}_.]*(?:\[(?:[^[\]]|\[[^[\]]*\])*\])?`;
-const oldRowOperator = new RegExp(
-  String.raw`\$\s*(?:\.\s*Context\s*\[)?\s*\(?\s*${rowKey}\s*[+-]\s*\(?\s*(?:mut\s+)?[\p{L}_]`,
-  "u",
+const capitalKey = String.raw`(?:[\p{L}_][\p{L}\p{N}_]*\.)*\p{Lu}[\p{L}\p{N}_]*(?:\[(?:[^[\]]|\[[^[\]]*\])*\])?`;
+const oldParenthesizedRow = new RegExp(String.raw`\$\s*\(\s*${rowKey}\s*,`, "u");
+const oldHeaderRow = new RegExp(
+  String.raw`\$\s*${capitalKey}(?:\s*,\s*${capitalKey})+\s*(?::|$)`,
+  "gu",
 );
-const oldRowTypeArgument = new RegExp(
-  String.raw`\b\p{Lu}[\p{L}\p{N}_]*\[(?:[^[\]]*,\s*)?\p{Lu}[\p{L}\p{N}_]*\s*\+\s*\p{Lu}`,
+
+function oldRowSeparator(clean: string): boolean {
+  if (oldParenthesizedRow.test(clean)) return true;
+  for (const match of clean.matchAll(oldHeaderRow)) {
+    let depth = 0;
+    for (const character of clean.slice(0, match.index)) {
+      if (openToClose.has(character)) depth += 1;
+      else if (closeToOpen.has(character)) depth -= 1;
+    }
+    if (depth <= 0) return true;
+  }
+  return false;
+}
+
+// Chapter 02: several bounds are joined with `&`; a `+` between bounds, in a
+// generic parameter or a supertrait list, is the former spelling.
+const oldBoundOperator = new RegExp(
+  String.raw`(?:[[,]\s*(?:reified\s+)?[\p{L}_][\p{L}\p{N}_]*(?:\.\.\.)?|^(?:pub\s+)?trait\s+[\p{L}_][\p{L}\p{N}_]*(?:\[[^\]]*\])?)\s*<\s*(?:mut\s+)?${capitalKey}(?:\s*&\s*${capitalKey})*\s*\+\s*${capitalKey}`,
   "u",
 );
 
@@ -149,8 +168,8 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
   if (/^struct\b/.test(clean)) diagnostics.push(diagnostic("old-struct-declaration", line));
   if (/^import\b/.test(clean)) diagnostics.push(diagnostic("old-import-declaration", line));
   if (/^export\b/.test(clean)) diagnostics.push(diagnostic("old-export-declaration", line));
-  if (oldRowOperator.test(clean) || oldRowTypeArgument.test(clean))
-    diagnostics.push(diagnostic("old-row-operator", line));
+  if (oldRowSeparator(clean)) diagnostics.push(diagnostic("old-row-separator", line));
+  if (oldBoundOperator.test(clean)) diagnostics.push(diagnostic("old-bound-operator", line));
   if (/^(?:pub\s+)?use\s+(?:pkg|std|dep|self|super)\b.*\{[^}]*\.[A-Za-z_]/.test(clean))
     diagnostics.push(diagnostic("direct-variant-use", line));
   if (/\b[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+/u.test(clean))

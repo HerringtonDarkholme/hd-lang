@@ -1,0 +1,19 @@
+# test: '&' joins several bounds in a generic parameter, a supertrait list, and an implementation's parameters
+
+trait Named:
+    fn name(self) -> string
+
+trait Tagged:
+    fn tag(self) -> string
+
+trait Labeled < Named & Tagged
+
+data Box[T]:
+    value: T
+
+impl[T < Named & Tagged] Named for Box[T]:
+    fn name(self) -> string: self.value.name()
+
+fn label[T < Named & Tagged](value: T) -> string: value.name() + value.tag()
+
+fn twice[T < mut Named & Tagged, U < Tagged](value: T, other: U) -> string: other.tag()

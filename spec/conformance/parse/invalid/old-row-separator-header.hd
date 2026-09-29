@@ -1,0 +1,7 @@
+# test: a comma between requirement keys at the end of a header is the former comma-list row
+
+trait Clock
+
+trait Logger
+
+fn both() -> void $ Clock, Logger: pass  # diagnostic: old-row-separator

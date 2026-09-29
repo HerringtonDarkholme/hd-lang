@@ -932,3 +932,45 @@ style lint rejects a chapter that reuses one.
 - `module.prelude.ops`: retired 2026-09-28. Literal Suffixes L11 and
   Decorators D9 replaced `LiteralSuffix` with `NumSuffix` and
   `num_suffix`. Replaced by `module.prelude.ops-num-suffix`.
+- `grammar.type.row.keys`: retired 2026-09-28. Bound And Row Operators
+  joins row keys with `+`, not commas. Replaced by
+  `grammar.type.row.plus-keys`.
+- `grammar.type.row.parenthesized`: retired 2026-09-28. Bound And Row
+  Operators dropped the parenthesized row. Replaced by
+  `grammar.type.row.empty` and `grammar.type.row.no-parentheses`.
+- `grammar.type.row.header-bare`: retired 2026-09-28. Bound And Row
+  Operators writes a row the same way everywhere. Replaced by
+  `grammar.type.row.one-form`.
+- `grammar.type.row.header-position`: retired 2026-09-28. Bound And Row
+  Operators removed `header_requirement_clause`. Replaced by
+  `grammar.type.row.one-form` and `grammar.type.row.one-form.examples`.
+- `grammar.type.row.in-type`: retired 2026-09-28. Bound And Row Operators
+  writes a row inside a type without parentheses. Replaced by
+  `grammar.type.row.one-form`.
+- `grammar.type.row.in-type.positions`: retired 2026-09-28. Bound And Row
+  Operators. Replaced by `grammar.type.row.one-form`.
+- `grammar.type.row.no-operators`: retired 2026-09-28. Bound And Row
+  Operators makes `+` the row operator. Replaced by
+  `grammar.type.row.plus-only`.
+- `grammar.type.row.plus-bound`: retired 2026-09-28. Bound And Row
+  Operators moved bounds to `&`. Replaced by
+  `grammar.type.row.plus-rows-only` and `grammar.generic.bound.and`.
+- `grammar.type.row.old-operator`: retired 2026-09-28. Bound And Row
+  Operators replaced `old-row-operator`. Replaced by
+  `grammar.type.row.old-separator`, `grammar.type.row.no-subtraction`, and
+  `grammar.generic.bound.old-plus`.
+- `req.row.syntax.comma-list`: retired 2026-09-28. Bound And Row Operators
+  joins row keys with `+`. Replaced by `req.row.syntax.plus-list`.
+- `req.row.syntax.header-bare`: retired 2026-09-28. Bound And Row Operators
+  writes a row the same way everywhere. Replaced by
+  `req.row.syntax.same-form`.
+- `req.row.syntax.type-parenthesized`: retired 2026-09-28. Bound And Row
+  Operators dropped the parenthesized row. Replaced by
+  `req.row.syntax.same-form`.
+- `req.row.syntax.no-operators`: retired 2026-09-28. Bound And Row
+  Operators replaced `old-row-operator`. Replaced by
+  `req.row.syntax.old-separator`.
+- `trait.bound.compose`: retired 2026-09-28. Bound And Row Operators
+  composes bounds with `&`. Replaced by `trait.bound.compose-and`.
+- `fn.generic.bounds`: retired 2026-09-28. Bound And Row Operators composes
+  bounds with `&`. Replaced by `fn.generic.bounds-and`.

@@ -21,7 +21,7 @@ fn label() -> string $ Name:
 fn counters() -> $.Context[Counter]:
     $.context(Counter=MemoryCounter { value: 0 })
 
-fn provide[R](callback: fn() -> void $(R, Counter)) -> void $ R:
+fn provide[R](callback: fn() -> void $ R + Counter) -> void $ R:
     let counter: mut MemoryCounter = MemoryCounter { value: 0 }
     $.with(Counter=counter):
         callback()

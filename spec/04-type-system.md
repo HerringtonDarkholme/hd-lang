@@ -836,7 +836,7 @@ gives the rule.
 1. r[types.trait.safe] Only a dynamically safe trait may be used as a value type.
 2. r[types.trait.safe.one-copy] Dynamic safety is defined by the one-copy rule, [`trait.dyn.safe.one-copy`](09-traits.md#r-trait.dyn.safe.one-copy); the rules below restate its consequences.
 3. r[types.trait.safe.members] A dynamically safe trait and every supertrait must have no associated types or associated functions, and `Self` may appear only as the receiver type.
-4. r[types.trait.safe.method-type-param] A method-level type parameter is permitted only when it is bounded by `AnyRef`; further bounds such as `T < AnyRef + Display` are allowed.
+4. r[types.trait.safe.method-type-param] A method-level type parameter is permitted only when it is bounded by `AnyRef`; further bounds such as `T < AnyRef & Display` are allowed.
 5. r[types.trait.safe.no-reified-or-pack] A method must not declare a `reified` parameter or a type or value pack. Row parameters and suspending methods are allowed.
 6. r[types.trait.safe.one-body] Every argument for such a parameter is a reference, so one method body serves every instantiation, and the further bounds are supplied with each call.
 7. r[types.trait.safe.convert] A caller converts a primitive, tuple, or optional value explicitly before passing it.
@@ -895,7 +895,7 @@ impl AnyVal for Handle  # error: sealed-trait-implementation
 
 This section defines which types may be map keys, and how keys behave.
 
-1. r[types.map-key.bound] `Map[K, V]` requires `K < Eq + Hash` and rejects a `mut T` key type.
+1. r[types.map-key.bound] `Map[K, V]` requires `K < Eq & Hash` and rejects a `mut T` key type.
 2. r[types.map-key.hash] `Hash` is a standard-library trait in `std.hash`.
 3. r[types.map-key.user] User-defined data and enum types can become keys by explicitly implementing or deriving both traits.
 4. r[types.map-key.builtin-types] Standard-library implementations cover eligible built-in scalar types and their supported compositions: `bool`, integers, `char`, `string`, tuples of hashable elements, and optionals of hashable elements.

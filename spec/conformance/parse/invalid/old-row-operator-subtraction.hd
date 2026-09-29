@@ -1,5 +1,0 @@
-# test: '-' inside a requirement row is the removed row subtraction
-
-trait Logger
-
-fn drop_logger[R](callback: fn() -> void $ R) -> void $ (R - Logger): callback()  # diagnostic: old-row-operator

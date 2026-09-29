@@ -1,6 +1,6 @@
 # test: requirements / normalization / duplicate keys
 
-fn main() -> void $ Logger, Clock, Logger: pass
+fn main() -> void $ Logger + Clock + Logger: pass
 
 trait Logger
 

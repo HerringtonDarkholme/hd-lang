@@ -1,0 +1,9 @@
+# test: '+' between supertraits is the former bound spelling
+
+trait Named:
+    fn name(self) -> string
+
+trait Tagged:
+    fn tag(self) -> string
+
+trait Labeled < Named + Tagged  # diagnostic: old-bound-operator

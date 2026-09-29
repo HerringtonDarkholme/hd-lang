@@ -1,0 +1,9 @@
+# test: '+' between the bounds of a generic parameter is the former bound spelling
+
+trait Named:
+    fn name(self) -> string
+
+trait Tagged:
+    fn tag(self) -> string
+
+fn label[T < Named + Tagged](value: T) -> string: value.name()  # diagnostic: old-bound-operator

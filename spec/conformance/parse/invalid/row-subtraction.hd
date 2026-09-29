@@ -1,0 +1,5 @@
+# test: rows have no subtraction, so '-' between requirement keys does not parse
+
+trait Logger
+
+fn drop_logger[R](callback: fn() -> void $ R) -> void $ R - Logger: callback()  # diagnostic: syntax-error
