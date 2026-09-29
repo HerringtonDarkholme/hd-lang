@@ -187,6 +187,20 @@ Points the OP10 apply pass met, each waiting for the owner:
   - a generic `@num_suffix` parameter must be bounded by `Num`, `Integer`
     or `Float`.
 
+**OP12 (2026-09-29): answers to Still Open 16-18.**
+- **Type parameters:** only a type known to be `AnyVal` rebinds on
+  `a op= b`. For any other type, including a type parameter not bounded by
+  `AnyVal`, `+=` needs an assign-trait bound (`T < AddAssign[...]`) and a
+  mutable view. Anything else is an error. This confirms the applied
+  reading.
+- **The `a = a + b` fix-it** is a non-normative suggestion, shown for now
+  whenever `+=` is rejected. The owner may later limit it to cases where
+  the rewrite type-checks.
+- **A newtype over a `data` type carries its base value's permission.**
+  `Order(d)` wraps the reference `d`, so it is `mut` when `d` is a mutable
+  view and read-only when `d` is read-only. Constructing the newtype
+  creates no new object. A newtype over an `AnyVal` base stays a value.
+
 ## Contents
 
 - [Owner Decisions](#owner-decisions)

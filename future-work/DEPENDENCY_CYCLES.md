@@ -63,6 +63,13 @@ Decided 2026-09-29. This is option O6, with these answers:
     bodies are checked,** and their values are hashed into the package
     interface.
 
+12. **DC12 (2026-09-29): answers to Still Open 16-19.**
+    - The fixture header `# fixture-package-tree: TREE/PATH` is confirmed.
+    - Tree cases are judged by code only.
+    - A `package-cycle` fixture waits until the manifest schema exists.
+    - A plain `use` that runs through a `pub use` loop also reports
+      `re-export-loop`.
+
 11. **DC11 (2026-09-29): answers to Still Open 1-15.**
     - A `pub use` loop and a package-level cycle each get their own code,
       for example `re-export-loop` and `package-cycle`. The apply pass
