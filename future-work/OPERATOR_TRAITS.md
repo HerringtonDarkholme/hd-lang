@@ -60,9 +60,11 @@ Decided 2026-09-29.
    retires `trait.binding.rejected` for supertraits.
 
 9. **OP9 (2026-09-29): numeric trait families.**
-   - `Num < AnyVal`: only primitives and their newtypes are numbers. The
-     owner accepted that a library `BigInt` or `Decimal` written as `data`
-     can't be a `Num`.
+   - `Num < AnyVal`, and `Num`, `Integer` and `Float` are **sealed**. They
+     stand for the built-in primitive number types only, and only std
+     implements them. Newtypes (such as `type Meters(i64)`) and library
+     number types (such as a `BigInt`) are not `Num`. They implement the
+     individual operator traits by hand (OP6).
    - `Num` has `+ - * / %`, `zero()` and `one()`. Generic code writes
      `T::zero()` and `T::one()`; there are no polymorphic literals. `/` and
      `%` keep each type's own meaning: integer division truncates and
