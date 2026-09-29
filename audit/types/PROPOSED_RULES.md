@@ -116,12 +116,14 @@ been removed; the spec's Revision Notes in
 - R10.3 The generated impl is `impl[P..] Tr for D[P..]` with bound `Pi < Tr`
   for each parameter `Pi` that occurs in a field the trait uses.
 - R10.4 Each used field type must satisfy `Tr` under those bounds, with the
-  impl being derived also available. This covers recursion. Failures report:
-  `missing-partial-eq` for `Eq`, `field-not-eq` for `Ord`,
-  `missing-partial-ord` for `PartialOrd`, and `field-not-hash` for `Hash`. The
-  diagnostic sits on the field.
+  impl being derived also available. This covers recursion. Applied
+  2026-09-28 with one generic code instead of one per trait (owner
+  decision): a failure is `derive-field-missing-trait`, which names the
+  trait and the field, and sits on the field
+  ([`trait.derive.field-missing-trait`](../../spec/09-traits.md#r-trait.derive.field-missing-trait)).
 - R10.5 Using the impl at a type where the added bound fails is
-  `missing-derived-bound`.
+  `missing-derived-bound`. Applied 2026-09-28 as
+  [`trait.derive.bound-unmet`](../../spec/09-traits.md#r-trait.derive.bound-unmet).
 - R10.6 An enum with a variant that has an existential parameter cannot derive
   `Eq`, `PartialOrd`, or `Ord`. It can derive `Hash` only when
   every existential field is `Hash`-bounded. Otherwise report
@@ -167,7 +169,7 @@ Existing codes, now tied to the rules above:
 | `overlapping-impl` | R3.4, R10.7 |
 | `trait-not-dynamically-safe` | R8.1, R8.5 |
 | `missing-derived-bound` | R10.5 |
-| `field-not-eq`, `field-not-hash`, `missing-partial-eq`, `missing-partial-ord` | R10.4 |
+| `derive-field-missing-trait`, `missing-partial-eq`, `missing-partial-ord` | R10.4 |
 | `mutable-receiver-required` | R12.2 |
 | `missing-supertrait-implementation` | R5.1 |
 

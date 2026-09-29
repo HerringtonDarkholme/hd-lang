@@ -162,14 +162,14 @@ The signatures are (T40, T41, T50, T51); `prop` comes last, after the
 defaulted options, so a call passes it as `prop=`:
 
 ```text
-pub fn it_prop[T < Arbitrary, R < Termination](name: string, ignore: string? = .None,
-                                               expect_panic: string? = .None, timeout: Duration? = .None,
-                                               cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
+pub fn it_prop[T < Arbitrary & Debug, R < Termination](name: string, ignore: string? = .None,
+                                                       expect_panic: string? = .None, timeout: Duration? = .None,
+                                                       cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
     pass
 
-pub fn it_prop_with[T, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
-                                        expect_panic: string? = .None, timeout: Duration? = .None,
-                                        cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
+pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
+                                                expect_panic: string? = .None, timeout: Duration? = .None,
+                                                cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
     pass
 ```
 

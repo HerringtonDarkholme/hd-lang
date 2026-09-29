@@ -2,7 +2,7 @@
 Severity: major
 Area: coverage
 Duplicates: F-312 (merged: every decorator is rejected by a hard-coded `decorator-not-top-level` in src/parser/parser.ts `parseStatement`)
-Evidence: audit/evidence/03-fuzz/findings/F-312-impl-decorator-misreported.hd; the 44 cases tagged F-250 in test/portable/KNOWN_FAILURES.tsv; run them with `node --experimental-strip-types spec/tools/run-conformance.ts --manifest LIST` (re-counted 2026-09-27)
+Evidence: audit/evidence/03-fuzz/findings/F-312-impl-decorator-misreported.hd; the 15 cases tagged F-250 in test/portable/KNOWN_FAILURES.tsv; run them with `node --experimental-strip-types spec/tools/run-conformance.ts --manifest LIST` (re-counted 2026-09-28)
 Effect: Of the 44 conformance cases that exercise deferred features
 (annotations, decorators, packs, GADTs, metadata types, packages), only 6 get
 a structured code (`unsupported-generic-parameter`, all for packs). 11 get

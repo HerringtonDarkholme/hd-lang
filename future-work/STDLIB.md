@@ -1555,14 +1555,14 @@ shrunk like an assertion failure (T50). The signatures, with `it`'s options
 (T41) in the order the specification uses for `it_each`:
 
 ```text
-pub fn it_prop[T < Arbitrary, R < Termination](name: string, ignore: string? = .None,
-                                               expect_panic: string? = .None, timeout: Duration? = .None,
-                                               cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
+pub fn it_prop[T < Arbitrary & Debug, R < Termination](name: string, ignore: string? = .None,
+                                                       expect_panic: string? = .None, timeout: Duration? = .None,
+                                                       cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
     pass
 
-pub fn it_prop_with[T, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
-                                        expect_panic: string? = .None, timeout: Duration? = .None,
-                                        cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
+pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
+                                                expect_panic: string? = .None, timeout: Duration? = .None,
+                                                cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
     pass
 ```
 
@@ -1658,9 +1658,12 @@ trees, a combinator API), this keeps the user API to `Choices`,
 runner. Coverage-guided fuzzing can later mutate the same streams, and
 stateful testing waits for area 3's event log.
 
-Still to design: the member-line facts (`arbitrary.range`, `arbitrary.len`),
-the `__regressions__` file format, size scheduling, and the discard limit
-for `assume`. This replaces the earlier `Strategy` sketch with its own
+Still to design: the member-line facts (`arbitrary.range`, `arbitrary.len`)
+and size scheduling. The owner decided the rest on 2026-09-28
+([Open Issues](OPEN_ISSUES.md#casts-property-discards-type-names-as-values-std-scope)
+items 2, 6 and 7): discarded cases do not count toward `cases` and fail
+the property beyond 10 × `cases`, `T < Debug`, and the `__regressions__`
+file holds one decimal draw per line. This replaces the earlier `Strategy` sketch with its own
 `shrink` function.
 
 ## Open Language Dependencies

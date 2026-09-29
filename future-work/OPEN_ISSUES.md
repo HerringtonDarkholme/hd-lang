@@ -33,7 +33,19 @@ Open for the design (#40):
 
 ### Casts, Property Discards, Type Names As Values, Std Scope
 
-**Decided (owner, 2026-09-28); not yet applied.**
+**Decided (owner, 2026-09-28); applied 2026-09-28.** The rules are
+[`types.cast.wrap`](../spec/04-type-system.md#r-types.cast.wrap) and
+[`types.cast.literal-range`](../spec/04-type-system.md#r-types.cast.literal-range)
+(item 1), [`module.testing.prop.discard`](../spec/10-modules.md#r-module.testing.prop.discard)
+and [`discard-limit`](../spec/10-modules.md#r-module.testing.prop.discard-limit)
+(item 2), [`names.type-as-value`](../spec/03-names-and-scopes.md#r-names.type-as-value)
+(item 3), [`trait.derive.field-missing-trait`](../spec/09-traits.md#r-trait.derive.field-missing-trait)
+and [`trait.derive.bound-unmet`](../spec/09-traits.md#r-trait.derive.bound-unmet)
+(item 5), [`module.testing.prop.debug`](../spec/10-modules.md#r-module.testing.prop.debug)
+(item 6), [`module.testing.prop.regression-file`](../spec/10-modules.md#r-module.testing.prop.regression-file)
+(item 7), and [`trait.debug.derive-builders.mixed`](../spec/09-traits.md#r-trait.debug.derive-builders.mixed)
+(item 8). Item 4 reworded four rules without changing behavior.
+
 1. **Narrowing integer casts wrap** at run time, as Go conversions and
    Rust `as` do: `u8(x)` with `x = 300` gives 44. This replaces
    `types.cast.range-check` and `types.cast.out-of-range`. A literal
@@ -63,6 +75,18 @@ Open for the design (#40):
 8. **`@derive(Debug)` on a mixed variant** such as `Mixed(i32, label:
    string)` uses the struct builder, with positional fields named `_0`,
    `_1` and so on: `Mixed { _0: 1, label: "x" }`.
+
+**Questions from applying items 1 to 8.** Each needs an owner answer; the
+spec states the current behavior.
+
+| Question | Applied now | **Recommendation** |
+| --- | --- | --- |
+| Item 1 says "narrowing"; does a same-width sign change wrap too, as `u64(x)` with `x: i64 = -1`? | Every integer-to-integer cast wraps, so that gives the `u64` maximum, as in Go and Rust | Keep: both cited languages treat every integer conversion alike. |
+| A float-to-integer cast out of range, such as `i8(300.0)` | Still panics ([`types.cast.float-int-panic`](../spec/04-type-system.md#r-types.cast.float-int-panic)); the category is unnamed (audit F-253) | Keep the panic, and name `integer-overflow` as F-253 recommends. Rust saturates instead ([reference](https://doc.rust-lang.org/reference/expressions/operator-expr.html#numeric-cast)); Go leaves the value implementation-dependent ([spec](https://go.dev/ref/spec#Conversions)). |
+| The code for an out-of-range literal cast argument | `integer-literal-range`, and `u8(-1)` gets the negated-literal error `unsigned-negation` | Keep: the literal is checked as under an expected type. |
+| Whether a replayed regression stream counts toward `cases`, and what happens to a saved stream that passes | It runs before new cases and does not count; the file stays | Keep, as proptest keeps its regression files ([docs](https://proptest-rs.github.io/proptest/proptest/failure-persistence.html)). |
+| A newtype whose base type lacks a derived trait, as `@derive(Eq) type Wrapped(Opaque)` | Not changed: the prototype reports `missing-partial-eq` on the `@derive` line | Use `derive-field-missing-trait` there too, naming the base type, since `trait.derive.newtype.requires` says "as a derived field must". |
+| A type alias name used as a value, as `x := Id` for `type Id = i32` | The rule covers it; the prototype expands aliases before checking and reports `unknown-name` | Keep the rule; the prototype gap is recorded in `src/README.md`. |
 
 ### Bound And Row Operators
 

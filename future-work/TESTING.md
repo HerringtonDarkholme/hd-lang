@@ -571,14 +571,14 @@ with its table. The builder names were already
 derived `Debug` for a fieldless data type uses `debug_struct`. Applying
 T54 raised one question; nothing here is decided:
 
-| Question | Effect | **Recommendation** |
+| Question | Effect | Resolution |
 | --- | --- | --- |
-| A variant with both positional and named payload fields | Rust has no such variant, so its mapping names no builder for `Mixed(i32, label: string)`. The prototype uses `debug_tuple` and drops the names, printing `Mixed(6, "m")`. | Use `debug_struct` and name a positional field by its position, `_0`, as `._0` selects it, printing `Mixed { _0: 6, label: "m" }`. |
+| A variant with both positional and named payload fields | Rust has no such variant, so its mapping names no builder for `Mixed(i32, label: string)`. | Decided 2026-09-28 ([Open Issues](OPEN_ISSUES.md#casts-property-discards-type-names-as-values-std-scope) item 8) and applied as [`trait.debug.derive-builders.mixed`](../spec/09-traits.md#r-trait.debug.derive-builders.mixed): `debug_struct`, naming a positional field `_0`, printing `Mixed { _0: 6, label: "m" }`. |
 
 ```text
 @derive(Debug)
 enum Shape:
-    Mixed(i32, label: string)   # which builder?
+    Mixed(i32, label: string)   # Mixed { _0: 6, label: "m" }
 ```
 
 Applying T53 on 2026-09-28 needed these readings. The spec states each as
@@ -588,19 +588,24 @@ test-layout fixture packages get added; nothing else here is decided:
 
 | Question | Applied | **Recommendation** |
 | --- | --- | --- |
-| `Choices` beyond T53 | The draft's `@derive(Arbitrary)`, its member-line facts, the `__regressions__` format, size scheduling, and the `assume` discard limit are not specified | Decide them with the property-test runner. |
+| `Choices` beyond T53 | The draft's `@derive(Arbitrary)`, its member-line facts, and size scheduling are not specified. The `__regressions__` format and the `assume` discard limit were decided on 2026-09-28 (below) | Decide the rest with the property-test runner. |
 
 The prototype runs `it_prop` and `it_prop_with` (T35-T38, T50, T51): every
 `Choices` draw is recorded, a failing case is shrunk by replaying shorter
 or smaller choice streams, `cases` and `shrink` cap the run, and
 `hd test --seed N`, `--cases N`, and `--shrink N` override them
 (`src/property-tests.ts`). `std` implements `Arbitrary` only for the
-primitives and `string`. Three stand-ins wait on the questions below:
+primitives and `string`. The owner decided the three questions its
+stand-ins waited on
+([Open Issues](OPEN_ISSUES.md#casts-property-discards-type-names-as-values-std-scope)
+items 2, 6 and 7), and the prototype follows each:
 
-| Question | Prototype stand-in | **Recommendation** |
-| --- | --- | --- |
-| How many discarded cases a property may have | A case that `assume` discards counts toward `cases`, so a property that discards every case passes with no checked case | Count discards apart from `cases`, and fail the property after 10 × `cases` discards, as Hypothesis's `filter_too_much` health check does ([docs](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.HealthCheck.filter_too_much)). |
-| How a failure shows the shrunk value | T36 prints it with `Debug`, but `it_prop` bounds `T` only by `Arbitrary`, so the report shows the seed and the shrunk choice stream | Add `T < Debug` to `it_prop` and `it_prop_with`, as proptest requires `Debug` of a strategy's value ([docs](https://docs.rs/proptest/latest/proptest/strategy/trait.Strategy.html)). |
-| Where a failing case is saved (T37) | Nothing is saved; `--seed` reproduces a run | Save the shrunk choice stream, one decimal draw per line, as T37's `__regressions__/<module>/<test-slug>`. | Its
+| Question | Resolution (2026-09-28) |
+| --- | --- |
+| How many discarded cases a property may have | Discards do not count toward `cases`, and more than 10 × `cases` discards fail the property: [`module.testing.prop.discard`](../spec/10-modules.md#r-module.testing.prop.discard) and [`discard-limit`](../spec/10-modules.md#r-module.testing.prop.discard-limit). |
+| How a failure shows the shrunk value | `it_prop` and `it_prop_with` require `T < Debug`, and the report prints the shrunk input: [`module.testing.prop.debug`](../spec/10-modules.md#r-module.testing.prop.debug) and [`report`](../spec/10-modules.md#r-module.testing.prop.report). |
+| Where a failing case is saved (T37) | The shrunk choice stream, one decimal number per line, in `__regressions__/<module>/<test-slug>`, replayed first: [`module.testing.prop.regression-file`](../spec/10-modules.md#r-module.testing.prop.regression-file). |
+
+The prototype's
 `DebugWriter` is always compact, and `Map` and tuples of more than two
 elements render no `debug` text.

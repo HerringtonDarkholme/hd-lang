@@ -1652,7 +1652,8 @@ let large: i64 = small          # ok: widening
 
 let huge: i64 = 9000
 let smaller: i16 = huge         # invalid: narrowing
-smaller_ok := i16(huge)
+smaller_ok := i16(huge)         # ok: an integer cast wraps, like Go and Rust `as`
+too_big := i16(40000)           # invalid: a literal argument is range-checked
 ```
 
 Integer literals use a default concrete type when there is no expected type. The default integer type is always `i32`. When there is an expected numeric type, the literal is checked against that type's range:
@@ -1675,7 +1676,7 @@ Narrowing diagnostics point to an explicit cast:
 
 ```text
 cannot assign i64 to i16 without an explicit cast
-suggestion: use i16(huge) if range checking is intended
+suggestion: use i16(huge) to keep the low bits
 ```
 
 Generic types and functions use square brackets:

@@ -180,12 +180,13 @@ Fix: R12.2 (align prose with the normative table and fixtures).
 
 ## TY-29: Codes Without A Chapter Anchor
 Low. Re-checked 2026-09-27: `trait-method-visibility`,
-`local-impl-nonlocal-pair`, `field-not-eq`, `field-not-hash`,
-`missing-derived-bound`, `missing-partial-eq`, `missing-partial-ord`,
+`local-impl-nonlocal-pair`, `missing-partial-eq`, `missing-partial-ord`,
 `duplicate-annotation-impl`, and `overlapping-annotation-impl` appear in no
 chapter. (`ambiguous-method`, `orphan-impl`, `overlapping-impl`,
-`mutable-receiver-required`, `sealed-trait-implementation`, and
-`trait-not-dynamically-safe` now do;
+`mutable-receiver-required`, `sealed-trait-implementation`,
+`trait-not-dynamically-safe`, and `missing-derived-bound` now do;
+`field-not-eq` and `field-not-hash` were replaced by
+`derive-field-missing-trait` on 2026-09-28;
 `promoted-mutable-requirement` was removed.)
 Fix: R14.
 
