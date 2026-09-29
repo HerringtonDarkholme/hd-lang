@@ -145,7 +145,15 @@ const terminalPools: Readonly<Record<string, readonly string[]>> = {
   ],
   integer_literal: ["0", "1", "2", "42", "2147483647", "2147483648", "1_000"],
   prefixed_string_literal: ['r"raw\\n"', 'sql"a $x b"', 'r"^\\d+$"'],
-  string_expression: ['"text"', '""', '"a $x b"', '"${1 + 2}"', 'r"raw"', 'sql"a $x"', '"\\u{1F600}"'],
+  string_expression: [
+    '"text"',
+    '""',
+    '"a $x b"',
+    '"${1 + 2}"',
+    'r"raw"',
+    'sql"a $x"',
+    '"\\u{1F600}"',
+  ],
   string_literal: ['"text"', '""', '"a $x b"'],
   suffixed_literal: ["5s", "250ms", "1.5kb", "1e3ms", "5em"],
 };

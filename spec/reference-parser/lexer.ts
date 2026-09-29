@@ -147,8 +147,27 @@ function prefixedQuote(source: string, index: number): boolean {
     start -= 1;
   const word = source.slice(start, index);
   return (
-    word !== "" && word !== "_" && !isDigit(word[0]!) && !reserved.has(word) && source[start - 1] !== "`"
+    word !== "" &&
+    word !== "_" &&
+    !isDigit(word[0]!) &&
+    !reserved.has(word) &&
+    source[start - 1] !== "`"
   );
+}
+
+function quotedKind(prefixed: boolean, quote: string): string {
+  if (prefixed) return "prefixed_string_literal";
+  return quote === "'" ? "char_literal" : "string_literal";
+}
+
+/** The quote of a prefixed string whose prefix word starts at `index`, if any. */
+function prefixedStringQuote(source: string, index: number): number | undefined {
+  const previous = source[index - 1] ?? "";
+  if (previous === "_" || isLetterOrNumber(previous) || !/^[\p{L}_]$/u.test(source[index] ?? ""))
+    return undefined;
+  let end = index;
+  while (end < source.length && (source[end] === "_" || isLetterOrNumber(source[end]!))) end += 1;
+  return prefixedQuote(source, end) ? end : undefined;
 }
 
 interface InterpolationScan {
@@ -622,12 +641,13 @@ export function lexSource(source: string): LexResult {
       continue;
     }
 
-    if (character === '"' || character === "'") {
-      const found = scanString(source, index, line);
+    // Chapter 01 prefixed strings: `sql"..."` is one token, prefix included.
+    const quoteAt = startsString(source, index) ? index : prefixedStringQuote(source, index);
+    if (quoteAt !== undefined) {
+      const found = scanString(source, quoteAt, line, quoteAt > index);
       diagnostics.push(...found.diagnostics);
       const text = source.slice(index, found.end);
-      const kind = found.quote === "'" ? "char_literal" : "string_literal";
-      tokens.push(token(kind, line, text));
+      tokens.push(token(quotedKind(quoteAt > index, found.quote), line, text));
       line = found.line;
       index = found.end;
       lineHasToken = true;
@@ -655,18 +675,6 @@ export function lexSource(source: string): LexResult {
       const word = source.slice(index, end);
       // Chapter 01 prefixed strings: an identifier directly before `"` and
       // the string form one token, as in `sql"..."`.
-      if (prefixedQuote(source, end)) {
-        const found = scanString(source, end, line, true);
-        diagnostics.push(...found.diagnostics);
-        const text = source.slice(index, found.end);
-        tokens.push(token("prefixed_string_literal", line, text));
-        line = found.line;
-        index = found.end;
-        lineHasToken = true;
-        lastTokenLine = line;
-        previousText = text;
-        continue;
-      }
       const depth = delimiters.length;
       if (word === "else" && inlineSuites.at(-1) === depth) {
         inlineSuites.pop();
