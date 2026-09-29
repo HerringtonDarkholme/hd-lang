@@ -17,6 +17,29 @@ Its gaps are rows of [KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv),
 mostly `K1` (the shape intrinsics) and `F-250`, plus one `M29` fixture that
 needs package roles.
 
+## Owner Decisions M30 (2026-09-29)
+
+The owner answered the leftover points. They are not yet applied to
+spec/14's Undecided Parts.
+- **Fact check hook:** none. Readers validate (Decorators D2 and D3), so
+  remove it from Undecided Parts.
+- **`T -> U` mapping:** out of scope; remove it.
+- **Name clashes:** generated `walk`, `describe` and `build` keep their
+  names. On a clash, the qualified call `Structure::walk(self, w)` (method
+  reference form) picks the generated one. State this as a Note.
+- **Derived bound:** no rule change. The diagnostic names the walker's
+  strengthened bound, the real obligation.
+- **Plan constants and typed shared constants:** deferred until a real
+  template (for example std.json) needs them.
+- **`default()` allocation:** accepted and not specified. Allocation is an
+  implementation detail.
+- **Composing templates:** deferred until needed; M9's restriction stays.
+- **The M26 readings are all confirmed** as applied (the two tables
+  below).
+- Still waiting on other areas: non-escaping handles (NonEscapable,
+  parked), function targets (FN_TYPE Q9/Q10, parked), and `Clone`'s module
+  and the derived-function cache (std).
+
 ## Remaining Open
 
 Nothing below is decided. Each item waits for the owner. The specification
