@@ -62,6 +62,23 @@ Decided 2026-09-29.
    - PL5 (no trailing blocks) and PL6 (evaluation order, precedence,
      leading `|>` lines) still stand.
 
+8. **PL8 (2026-09-29): two kinds of step.** This refines PL7, whose
+   "`_` required" no longer holds.
+   - **A step with `_`** substitutes the value there, under PL7's rules:
+     exactly one `_`, any expression, not inside a nested closure.
+     `user |> render(_, theme)` means `render(user, theme)`.
+   - **A step without `_`** is an expression that evaluates to a function,
+     which is then called with the value (F# style). `x |> trim(xxx)`
+     means `trim(xxx)(x)`, and `x |> f` means `f(x)`. A step never inserts
+     the value silently. The guide must say plainly that `x |> f(y)` means
+     `f(y)(x)`, not `f(x, y)`. TC39's 2018 "smart pipeline" proposal made
+     that form an error for exactly this confusion; hd gives it a
+     definite meaning instead.
+   - **An application step must not suspend.** If the function value is
+     suspending, that is an error, because the call would suspend with no
+     visible `!`. Write the `_` form instead: `x |> handler!(_)`. `?`
+     likewise needs the `_` form: `x |> f(_)?`.
+
 ## Contents
 
 1. [Problem](#problem)
