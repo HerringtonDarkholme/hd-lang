@@ -1,7 +1,7 @@
 # Chaining Study: Pipe, Function Shorthand, And Iterator Adapters
 
 Status: design exploration and stress test, 2026-09-29. Owner decisions
-CS2, CS7, and CS8 are applied (2026-09-29), and the specification is
+CS2 and CS7-CS11 are applied (2026-09-29), and the specification is
 authoritative for them:
 [Pipe Expressions](../spec/05-expressions.md#pipe-expressions),
 [Leading-Pipe Continuation](../spec/01-lexical-structure.md#leading-pipe-continuation),
@@ -106,14 +106,22 @@ Decided 2026-09-29.
 11. **CS11 (2026-09-29): after `.None`, what `next` returns is
     unspecified,** as in Rust. This answers Still Open 3; the owner did
     not take the recommendation of a fusing constructor.
-    [`flow.for.iterator-progress`](../spec/06-control-flow.md#r-flow.for.iterator-progress)
-    is weakened to match, and `from_fn` does not fuse: every `next` calls
-    `step`.
+    `flow.for.iterator-progress` is weakened to match, and `from_fn` does
+    not fuse: every `next` calls `step`.
 
 ## Still Open
 
-None. The owner answered the three points of the CS7 and CS8 apply pass
-with CS9-CS11.
+The owner answered the three points of the CS7 and CS8 apply pass with
+CS9-CS11, applied in
+[Iteration Protocols](../spec/06-control-flow.md#iteration-protocols) as
+`flow.for.iterator-private`, `flow.for.iterator-from-fn`,
+`flow.for.iterator-exhausted`, `flow.for.iterator-after-none`, and
+`flow.for.iterator-from-fn.no-fuse`; CS10 is a Note there and in the
+guide. The CS9-CS11 apply pass met one point, which waits for the owner.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 4 | Do the built-in `List` and `Map` iterators, and the adapters, promise `.None` again after exhaustion? | No: CS11's general rule ([`flow.for.iterator-after-none`](../spec/06-control-flow.md#r-flow.for.iterator-after-none)) covers them. Four fixtures lost a check that read a second `.None` or collected an exhausted iterator | Keep one rule for every iterator, as Rust's general `Iterator` contract has; code stops at the first `.None`. Rust's slice iterators promise more through `FusedIterator`, a marker trait hd lacks. |
 
 ## Contents
 

@@ -1,7 +1,7 @@
 # Dependencies Through Version Control: Survey And Options
 
-Status: design exploration, 2026-09-29. Owner decisions DEP1-DEP7 are
-applied (2026-09-29), and the specification is authoritative for them:
+Status: design exploration, 2026-09-29. Owner decisions DEP1-DEP13 and
+DEP15 are applied (2026-09-29), and DEP14 has nothing to apply yet, and the specification is authoritative for them:
 [Package Manifest](../spec/10-modules.md#package-manifest) and its
 subsections, from [Dependency Requirements](../spec/10-modules.md#dependency-requirements)
 to [Toolchain Version](../spec/10-modules.md#toolchain-version). DEP7's
@@ -84,8 +84,27 @@ apply pass. DEP10, DEP11 and DEP13 are not the record's recommendation.
 
 ## Still Open
 
-None. The owner answered the nine points of the DEP1-DEP7 apply pass with
-DEP8-DEP15.
+The owner answered the nine points of the DEP1-DEP7 apply pass with
+DEP8-DEP15. They are applied in
+[Package Manifest](../spec/10-modules.md#package-manifest):
+
+| Decision | Rule |
+| --- | --- |
+| DEP9 | [`module.dep.one-key-per-line`](../spec/10-modules.md#r-module.dep.one-key-per-line) |
+| DEP10 | [`module.workspace.path-requirement`](../spec/10-modules.md#r-module.workspace.path-requirement), [`module.workspace.no-host-path`](../spec/10-modules.md#r-module.workspace.no-host-path), [`module.dep.requirement-value`](../spec/10-modules.md#r-module.dep.requirement-value) |
+| DEP11 | [`module.dep.no-self-path`](../spec/10-modules.md#r-module.dep.no-self-path) |
+| DEP12 | [`module.version.pseudo.release`](../spec/10-modules.md#r-module.version.pseudo.release) |
+| DEP13 | [`module.repo.github`](../spec/10-modules.md#r-module.repo.github) |
+| DEP15 | [`module.version.no-path-release`](../spec/10-modules.md#r-module.version.no-path-release) |
+
+The DEP8-DEP15 apply pass met these points. Each waits for the owner;
+where a point is applied, it can change without breaking a decision.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 10 | May a package that is not a workspace member use a path requirement? | No: the specification defines a path requirement only between members ([`module.dep.requirement-value`](../spec/10-modules.md#r-module.dep.requirement-value)) | Keep. A local override of any other package stays the later root-only `[patch]` of DEP7, whose tree is hashed into the code identity. |
+| 11 | A member has no host path (DEP11). What is it when a fetched package requires the member's host path? | No rule | Two packages, the local member and the fetched version, as Cargo treats a path source and a git source of one crate. |
+| 12 | Does DEP9 span `[dependencies]` and `[test-dependencies]`? | Yes: "two keys of one manifest" ([`module.dep.one-key-per-line`](../spec/10-modules.md#r-module.dep.one-key-per-line)) | Keep. Test code sees both tables, so the package would have two names there. |
 
 ## Contents
 

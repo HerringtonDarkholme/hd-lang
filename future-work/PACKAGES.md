@@ -719,8 +719,9 @@ will exist; DEP4 governs a checksum log. Decisions 1, 4, 8, 10, 12, and 13
 are applied in [Package Manifest](../spec/10-modules.md#package-manifest)
 and [Runtime Profiles](../spec/10-modules.md#runtime-profiles). Decisions 6
 and 7 classify changes for `hd api diff`, which DEP7 schedules later.
-Decision 9 has nothing to apply without a publish step
-([Dependencies Still Open 9](DEPENDENCIES.md#still-open)).
+Decision 9 is kept by [Dependencies DEP15](DEPENDENCIES.md#owner-decisions):
+a tagged version whose manifest holds a path requirement is rejected
+([`module.version.no-path-release`](../spec/10-modules.md#r-module.version.no-path-release)).
 Decision 4's orphan part is superseded: the root-application orphan
 exception is dropped (2026-09-27). Decision 5 is language syntax. It is
 superseded by the testing redesign, whose test-dependency rules are applied

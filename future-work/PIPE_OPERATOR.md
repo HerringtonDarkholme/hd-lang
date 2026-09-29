@@ -1,6 +1,6 @@
 # Pipe Operator And Iterator `map`/`fold`: Survey And Design Options
 
-Status: design exploration, 2026-09-29. Owner decisions PL3-PL13, as
+Status: design exploration, 2026-09-29. Owner decisions PL3-PL16, as
 amended by [Chaining Study CS2](CHAINING_STUDY.md#owner-decisions), are
 applied (2026-09-29), and the specification is authoritative for them:
 [Pipe Expressions](../spec/05-expressions.md#pipe-expressions) and
@@ -153,7 +153,10 @@ Decided 2026-09-29.
 ## Still Open
 
 None. The owner answered the three points of the first apply pass with
-PL14-PL16.
+PL14-PL16, which are applied as
+[`expr.pipe.slot.nested`](../spec/05-expressions.md#r-expr.pipe.slot.nested),
+[`lex.pipe.dot-before`](../spec/01-lexical-structure.md#r-lex.pipe.dot-before),
+and [`expr.pipe.bare.method`](../spec/05-expressions.md#r-expr.pipe.bare.method).
 
 ## Contents
 

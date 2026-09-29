@@ -1,9 +1,12 @@
 # Collecting Iterators Into Collections: Survey And Design Options
 
-Status: design exploration, 2026-09-29. Owner decisions CO1-CO4 are
-applied (2026-09-29), and the specification is authoritative for them:
-[Collect Targets](../spec/06-control-flow.md#collect-targets) and
-[Comprehension Restrictions](../spec/05-expressions.md#comprehension-restrictions).
+Status: design exploration, 2026-09-29. Owner decisions CO1-CO4 and CO6
+are applied (2026-09-29), and the specification is authoritative for them:
+[Collect Targets](../spec/06-control-flow.md#collect-targets),
+[Comprehension Restrictions](../spec/05-expressions.md#comprehension-restrictions),
+and [Standard Names Outside The Prelude](../spec/10-modules.md#standard-names-outside-the-prelude).
+CO5 waits for the
+[Type-Argument Defaults](TYPE_ARG_DEFAULTS.md#owner-decisions) apply pass.
 CO3's helpers are std-only, in [STDLIB](STDLIB.md#stditer). The rest of
 the record is the survey behind the decisions.
 
@@ -67,6 +70,7 @@ Decided 2026-09-29.
 ## Still Open
 
 None. The owner answered both points of the apply pass with CO5 and CO6.
+CO6 is [`module.prelude.from-iterator`](../spec/10-modules.md#r-module.prelude.from-iterator).
 
 ## Contents
 

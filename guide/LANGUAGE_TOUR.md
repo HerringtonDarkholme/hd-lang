@@ -514,9 +514,20 @@ for left in values:
         println("$left, $right")
 ```
 
-The iterable may still contain data and may itself refer to mutable data; "stateless" here means only that traversal progress is not stored in an ordinary iterable source. `for` also accepts a mutable `Iterator` directly. The loop does not clone or reset it: iteration continues from the cursor's current position and leaves it exhausted when completed. A readonly iterator cannot advance. Built-in list and map iterators are invalidated by insertion, removal, clearing, or another shape change, and their next advance panics. Replacing an existing element or value without changing collection shape does not invalidate the iterator.
+The iterable may still contain data and may itself refer to mutable data; "stateless" here means only that traversal progress is not stored in an ordinary iterable source. `for` also accepts a mutable `Iterator` directly. The loop does not clone or reset it: iteration continues from the cursor's current position and leaves it exhausted when completed. Once `next` has returned `.None`, what a later `next` returns depends on the iterator, as in Rust, so stop at the first `.None`. A loop cannot advance a readonly iterator directly, but readonly access to an iterator is shallow: `iter()` on an iterator returns that same iterator, so it shares its progress, and advancing the result advances the original. Built-in list and map iterators are invalidated by insertion, removal, clearing, or another shape change, and their next advance panics. Replacing an existing element or value without changing collection shape does not invalidate the iterator.
 
-`Iterator[T]` is one concrete type, a small data value that holds a `step` closure, not a trait. `List`, `Map`, and `Iterator` itself implement the `Iterable` trait that `for` uses. Every iterator has adapter methods, as Rust's iterators do. `filter`, `take`, `enumerate`, and `map` wrap it in a new iterator that advances only when read; `fold` and `collect` drain it:
+`Iterator[T]` is one concrete type, a small data value that holds a private `step` closure, not a trait. `List`, `Map`, and `Iterator` itself implement the `Iterable` trait that `for` uses. To make your own iterator, pass a closure that returns the next item, or `.None`, to `Iterator::from_fn`. It calls the closure on every `next`, even after a `.None`:
+
+```text
+fn countdown(start: i32) -> mut Iterator[i32]:
+    let left: i32 = start
+    Iterator::from_fn(fn() -> i32?:
+        left = left - 1
+        if left < 0: .None else: left + 1
+    )
+```
+
+ Every iterator has adapter methods, as Rust's iterators do. `filter`, `take`, `enumerate`, and `map` wrap it in a new iterator that advances only when read; `fold` and `collect` drain it:
 
 ```text
 fn first_evens(values: List[i32]) -> List[(i32, i32)]:
@@ -602,7 +613,7 @@ fn label(raw: string) -> string:
         |> _.len() |> tag("size", _)
 ```
 
-`raw |> clean` means `clean(raw)`, and `x |> tag(_, 2)` means `tag(x, 2)`. The value is always evaluated first. A step has exactly one `_`, and any expression may hold it: `_.len()`, `_ * 2`, or `Point { x: _, y: 0 }`.
+`raw |> clean` means `clean(raw)`, and `x |> tag(_, 2)` means `tag(x, 2)`. A bare step may be a method of a value: `x |> user.greet` means `user.greet(x)`. The value is always evaluated first. A step has exactly one `_`, and any expression may hold it: `_.len()`, `_ * 2`, or `Point { x: _, y: 0 }`.
 
 Three things are errors, so a step never hides where the value goes:
 
@@ -610,7 +621,7 @@ Three things are errors, so a step never hides where the value goes:
 - a bare step that suspends, such as `id |> fetch`; write `id |> fetch!(_)`;
 - `_` anywhere outside a pipe step. `tag(_, 2)` is not a shorthand for a function; write a closure, `fn(x): tag(x, 2)`.
 
-A step fits on one line. A chain may continue on lines that start with `|>`, but not on lines that start with `.`: write `|> _.len()` instead.
+A pipe inside a step has its own `_`: in `x |> tag(_, y |> clean(_))`, the second `_` is `y`. A step fits on one line. A chain may continue on lines that start with `|>`, but not on lines that start with `.` once the first `|>` has appeared: write `|> _.len()` instead. A `.` line before the first `|>` is still part of the piped value.
 
 ### Deferred cleanup
 
@@ -2107,7 +2118,14 @@ There is no package registry. A dependency is a repository path and a
 minimum version, and versions are the repository's tags, such as
 `v2.1.0`. The build takes the largest minimum any manifest asks for, and
 `hd.sum` records each dependency's hash. Source still names the dependency
-as `dep.billing`.
+as `dep.billing`. On `github.com` the path is `github.com/OWNER/REPO`; on
+any other host, mark where the repository ends with `.git`, as in
+`git.example.com/shop/billing.git@0.4.2`. A manifest never states its own
+path: a package is known by the path it is fetched from.
+
+In a workspace, one member depends on another through its directory,
+`billing = { path = "../billing" }`. A tagged release cannot hold such a
+path requirement, so a member's release names the other member by version.
 
 Directories define submodule namespaces only when they contain a `mod.hd` file. `mod.hd` is required for every directory module and acts as the public index:
 

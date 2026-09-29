@@ -1,7 +1,7 @@
 # Method And Field References: Survey And Design Options
 
-Status: design exploration, 2026-09-29. Owner decisions MR1-MR4 are
-applied (2026-09-29), and the specification is authoritative for them:
+Status: design exploration, 2026-09-29. Owner decisions MR1-MR4, MR6,
+and MR7 are applied (2026-09-29), and the specification is authoritative for them:
 [Method References](../spec/07-functions.md#method-references),
 [Member References](../spec/02-grammar.md#member-references), and
 [Bare Steps](../spec/05-expressions.md#bare-steps). The rest of the record
@@ -71,7 +71,10 @@ Decided 2026-09-29.
 
 Points the apply pass met (2026-09-29). They are the open points of
 decision 5, applied as the record recommends; each can change without
-breaking a decision. MR6 and MR7 answered points 4 and 5.
+breaking a decision. MR6 and MR7 answered points 4 and 5: MR6 is
+[`fn.ref.bound.associated`](../spec/07-functions.md#r-fn.ref.bound.associated),
+and MR7 keeps
+[`grammar.primary.method-reference.no-bang`](../spec/02-grammar.md#r-grammar.primary.method-reference.no-bang).
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |

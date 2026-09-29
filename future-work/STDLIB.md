@@ -789,13 +789,18 @@ the adapters are its ordinary methods
 replaces the `Iterator` trait of question 14. The specification fixes
 `next`, `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` in
 [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols) and
-[Iterator Adapters](../spec/06-control-flow.md#iterator-adapters):
+[Iterator Adapters](../spec/06-control-flow.md#iterator-adapters). `step`
+is private, and user code builds an iterator with `Iterator::from_fn`
+([Chaining Study CS9](CHAINING_STUDY.md#owner-decisions)):
 
 ```text
 pub data Iterator[T]:
     step: fn() -> T?
 
 impl[T] Iterator[T]:
+    pub fn from_fn(step: fn() -> T?) -> mut Iterator[T]:
+        pass
+
     pub fn next(mut self) -> T?:
         pass
 
