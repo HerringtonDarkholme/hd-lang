@@ -54,6 +54,24 @@ Decided 2026-09-29.
    `sort_by_key` and Kotlin `sumOf`. This is std-only, recorded in
    STDLIB.md.
 
+6. **CS7 (2026-09-29): `Iterator[T]` becomes a concrete, closure-backed
+   `data` type, not a trait.** This reverses the `Iterator` trait of
+   STDLIB 14 and makes PL1 and PL2 (static-only methods, no override) moot.
+   - `data Iterator[T]` holds a `step: fn() -> T?` closure. All adapters
+     (`filter`, `take`, `enumerate`, `map[U]`, `fold[A, R]`, `collect`,
+     and so on) are ordinary methods, generic ones included, with no
+     dynamic-safety question.
+   - `next(mut self) -> T?` keeps advancing visible. Lazy adapters return
+     `mut Iterator[...]`. Their callbacks have the empty row, while `fold`
+     carries `R`.
+   - A user source is built from a closure (Gleam's
+     `Iterator`/`Yielder` and Go 1.23's `iter.Seq` are the precedents).
+     The cost is one indirect call per step.
+   - **`for x in coll` uses a new prelude trait `Iterable[T]`:
+     `fn iter(self) -> mut Iterator[T]`.** It has no method-level generics,
+     so it is dynamically safe. `List`, `Map` and `Iterator` itself
+     implement it.
+
 ## Contents
 
 1. [Decisions Under Review](#decisions-under-review)
