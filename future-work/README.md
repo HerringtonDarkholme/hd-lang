@@ -106,6 +106,11 @@ language specification:
   compilation, and ranks 11 problems. The owner decided DC1-DC10 (an
   acyclic folder graph, `folder-cycle`), now applied, with fifteen
   follow-up points still open.
+- [Stress Test: The 2026-09-28/29 Decisions Together](STRESS_2026_09_29.md)
+  tries decorators, suffixes and prefixes, rows, folder cycles, and
+  operator traits on 13 library cases, and ranks 14 problems (ST-1 to
+  ST-14), led by `+=` aliasing and `from_i64`'s silent wrap, with 11
+  owner questions.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 
