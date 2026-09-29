@@ -1,0 +1,7 @@
+# test: a bare pipe step must not suspend
+# Spec 05 Bare Steps: expr.pipe.bare.no-suspend (Pipe PL8, Chaining Study CS2).
+
+fn fetch!(id: i32) -> i32: id
+
+fn loaded!(n: i32) -> i32:
+    n |> fetch  # diagnostic: suspending-pipe-step

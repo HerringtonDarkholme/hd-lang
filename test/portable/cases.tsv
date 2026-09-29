@@ -1417,3 +1417,4 @@ typing/valid/let-mut-pattern.hd	type
 typing/invalid/let-mut-pattern-readonly-name.hd	type
 typing/invalid/let-mut-pattern-readonly-element.hd	type
 typing/invalid/let-mut-pattern-readonly-annotation.hd	type
+parse/invalid/pipe-leading-line-open-suite.hd	parse

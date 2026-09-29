@@ -1,0 +1,8 @@
+# test: a leading-dot line inside a pipe chain is a syntax error
+# Spec 01 Leading-Pipe Continuation: lex.pipe.no-dot-line (Chaining Study CS2).
+
+fn size(raw: string) -> i32:
+    count := raw
+        |> _.trim()
+        .len()  # diagnostic: syntax-error
+    count

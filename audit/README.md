@@ -9,22 +9,23 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-29 the prototype passes 1,418 of the 1,450 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 32 are listed in
+On 2026-09-29 the prototype passes 1,419 of the 1,465 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 46 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 32 still fail.
+decision below, and all 46 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
 | Tag | Cases | Why they fail |
 | --- | ----- | ------------- |
 | F-250 | 15 | packs, GADT variant results, and package roles give generic diagnostics |
+| PIPE | 14 | no `\|>` token or `_` placeholder |
 | EMB-S | 4 | trait availability needs package roles |
 | P2 | 4 | member visibility needs package roles |
 | TQ-2 | 2 | package roles, and a comprehension element typed `mut Word` |
 | F-150 | 2 | the fixtures expose a private type from `pub fn main` |
-| F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | M29 | 1 | the unused-fact warning needs a second package |
+| F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | DC7 | 1 | group statements are not interleaved across modules |
 | GQ4 | 1 | the prototype has no pack operations |
 | MHP-1 | 1 | no inferred script entry requirement row |

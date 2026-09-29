@@ -1,8 +1,11 @@
 # Chaining Study: Pipe, Function Shorthand, And Iterator Adapters
 
-Status: design exploration and stress test, 2026-09-29; nothing here is
-decided or in the specification. It changes no decision, design record,
-spec text, or prototype code.
+Status: design exploration and stress test, 2026-09-29. Owner decision CS2
+is applied (2026-09-29), and the specification is authoritative for it:
+[Pipe Expressions](../spec/05-expressions.md#pipe-expressions) and
+[Leading-Pipe Continuation](../spec/01-lexical-structure.md#leading-pipe-continuation).
+CS1 and CS3 changed nothing in the specification. The rest of the record
+is the study behind the decisions.
 
 The owner asked for one joint study of three linked questions, because each
 answer changes the others:

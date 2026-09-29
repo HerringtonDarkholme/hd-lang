@@ -1,0 +1,7 @@
+# test: a call step without a placeholder is an error
+# Spec 05 Bare Steps: expr.pipe.bare.needs-placeholder (Chaining Study CS2).
+
+fn scale(value: i32, by: i32) -> i32: value * by
+
+fn tripled(n: i32) -> i32:
+    n |> scale(3)  # diagnostic: pipe-step-needs-placeholder

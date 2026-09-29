@@ -1,0 +1,10 @@
+# test: a pipe step takes no trailing block
+# Spec 05 Pipe Layout: expr.pipe.no-trailing-block (Pipe PL5).
+
+fn run(value: i32, body: fn() -> i32) -> i32:
+    value + body()
+
+fn total(n: i32) -> i32:
+    result := n |> run(_):  # diagnostic: syntax-error
+        1
+    result

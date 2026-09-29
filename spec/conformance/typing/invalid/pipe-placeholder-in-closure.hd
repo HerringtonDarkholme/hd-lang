@@ -1,0 +1,7 @@
+# test: a placeholder inside a closure nested in a pipe step is an error
+# Spec 05 Substitution Steps: expr.pipe.slot.closure (Pipe PL7).
+
+fn apply(value: i32, f: fn(i32) -> i32) -> i32: f(value)
+
+fn later(n: i32) -> i32:
+    n |> apply(1, fn(v): v + _)  # diagnostic: pipe-placeholder-in-closure

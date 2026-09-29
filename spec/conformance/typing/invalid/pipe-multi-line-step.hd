@@ -1,0 +1,9 @@
+# test: a pipe step must not contain an indented suite
+# Spec 05 Pipe Layout: expr.pipe.single-line (Pipe PL9).
+
+fn apply(value: i32, f: fn(i32) -> i32) -> i32: f(value)
+
+fn bumped(n: i32) -> i32:
+    n |> apply(_, fn(v):  # diagnostic: multi-line-pipe-step
+        v + 1
+    )

@@ -925,6 +925,7 @@ This section defines operator precedence and the meaning of each operator.
 | Bitwise AND | `&` | left |
 | Bitwise XOR | `^` | left |
 | Bitwise OR | `\|` | left |
+| Pipe | `\|>` | left |
 | Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=`, `is` | non-associative |
 | Logical AND | `&&` | left, short-circuiting |
 | Logical OR | `\|\|` | left, short-circuiting |
@@ -1246,6 +1247,145 @@ fn count(items: List[i32]) -> i32:
 See also: [Compound Assignment](#compound-assignment),
 [Index Traits](#index-traits),
 [Numeric Traits](09-traits.md#numeric-traits).
+
+## Pipe Expressions
+
+A **pipe expression** `value |> step` passes a value to a step, so a chain
+of calls reads left to right:
+
+```text
+fn tag(label: string, level: i32) -> string:
+    "$label:$level"
+
+fn clean(raw: string) -> string:
+    raw.trim().lower()
+
+fn label(raw: string) -> string:
+    raw |> clean |> tag(_, 2)
+```
+
+1. r[expr.pipe.form] A pipe expression is a value, the `|>` token, and a step.
+2. r[expr.pipe.left-assoc] `|>` is left-associative: `a |> f |> g` is `(a |> f) |> g`.
+3. r[expr.pipe.precedence] `|>` binds more loosely than `|` and more tightly than comparison, so `n + 1 |> twice == 4` is `((n + 1) |> twice) == 4`.
+4. r[expr.pipe.step-kinds] A step is either a **substitution step**, which contains `_`, or a **bare step**, which is a name or path without `_`.
+5. r[expr.pipe.order] The piped value is evaluated first and exactly once, before any part of the step, including the step's callee.
+6. r[expr.pipe.value] The pipe expression's type and value are those of its step.
+
+### Substitution Steps
+
+A substitution step marks the piped value's slot with `_`:
+
+```text
+data Point:
+    x: i32
+    y: i32
+
+fn shift(point: Point, by: i32) -> i32:
+    point.x + by
+
+fn measure(raw: string, start: i32) -> i32:
+    width := raw |> _.len()
+    moved := start |> Point { x: _, y: 0 } |> shift(_, 3)
+    width + moved |> _ * 2
+```
+
+1. r[expr.pipe.slot.one] A substitution step contains exactly one `_`, which stands for the piped value.
+2. r[expr.pipe.slot.any] The step may be any expression at its precedence, not only a call, such as `_.len()`, `_ * 2`, or `Point { x: _, y: 0 }`.
+3. r[expr.pipe.slot.meaning] The step is evaluated as if `_` were a name bound to the piped value, with that value's type and access.
+4. r[expr.pipe.slot.suffix] Suffixes in the step apply inside it: in `x |> parse(_)?`, `?` propagates from `parse(x)`, and `x |> load!(_)` is a suspension call.
+5. r[expr.pipe.slot.duplicate] A step with two or more `_` is an error. Error: `duplicate-pipe-placeholder`.
+6. r[expr.pipe.slot.closure] A `_` inside a closure nested in the step is an error. Error: `pipe-placeholder-in-closure`.
+
+```text
+fn add(left: i32, right: i32) -> i32: left + right
+
+fn apply(value: i32, f: fn(i32) -> i32) -> i32: f(value)
+
+fn doubled(n: i32) -> i32:
+    n |> add(_, _)  # error: duplicate-pipe-placeholder
+
+fn later(n: i32) -> i32:
+    n |> apply(1, fn(v): v + _)  # error: pipe-placeholder-in-closure
+```
+
+> **Why.** `_` always shows where the value goes. A closure may run later,
+> or many times, so a `_` inside one would not say which value it means.
+
+### Bare Steps
+
+A bare step names the function to call, so `x |> f` means `f(x)`:
+
+```text
+fn clean(raw: string) -> string:
+    raw.trim()
+
+fn tidy(raw: string) -> string:
+    raw |> clean
+```
+
+1. r[expr.pipe.bare.form] A bare step is an identifier, or identifiers joined by `.`, with no suffix after it.
+2. r[expr.pipe.bare.call] `value |> path` evaluates as the call `path(value)`, except that `value` is evaluated first.
+3. r[expr.pipe.bare.no-suspend] A bare step whose callee is a suspending function is an error. Write a substitution step, as in `x |> load!(_)`. Error: `suspending-pipe-step`.
+4. r[expr.pipe.bare.needs-placeholder] A step without `_` that is not a bare step is an error. Error: `pipe-step-needs-placeholder`.
+5. r[expr.pipe.bare.needs-placeholder.forms] That covers a call such as `x |> f(y)`, brackets such as `x |> f[0]` or `x |> parse[i32]`, and a suffix such as `x |> f?`.
+
+```text
+fn scale(value: i32, by: i32) -> i32: value * by
+
+fn fetch!(id: i32) -> i32: id
+
+fn tripled(n: i32) -> i32:
+    n |> scale(3)  # error: pipe-step-needs-placeholder
+
+fn loaded!(n: i32) -> i32:
+    n |> fetch  # error: suspending-pipe-step
+```
+
+> **Why.** Elixir reads `x |> f(y)` as `f(x, y)`, and F# reads it as
+> `f(y)(x)`. Rejecting the form removes both readings. Brackets after a bare
+> name could index the function or give it type arguments, so they need `_`
+> too. A suspending bare step would suspend with no visible `!`.
+
+### Pipe Layout
+
+1. r[expr.pipe.single-line] A step must not contain an indented suite, such as a multi-line `match`, `if`, or closure body. Error: `multi-line-pipe-step`.
+2. r[expr.pipe.single-line.inline] A same-line closure or conditional inside a step is valid.
+3. r[expr.pipe.no-trailing-block] A step takes no trailing block, because a trailing block call must be a complete statement or right-hand side, as [`fn.trailing.position`](07-functions.md#r-fn.trailing.position) says.
+4. r[expr.pipe.lines] A chain may continue on lines that start with `|>`. A leading-dot line inside a chain is an error, as [Leading-Pipe Continuation](01-lexical-structure.md#leading-pipe-continuation) specifies.
+
+```text
+fn apply(value: i32, f: fn(i32) -> i32) -> i32: f(value)
+
+fn bumped(n: i32) -> i32:
+    n |> apply(_, fn(v):  # error: multi-line-pipe-step
+        v + 1
+    )
+```
+
+> **Why.** One line per step keeps a chain readable as a list of steps. For
+> a longer step, bind a name first or extract a function.
+
+### The Placeholder Outside Pipes
+
+1. r[expr.pipe.placeholder-only] `_` has an expression meaning only in a pipe step.
+2. r[expr.pipe.placeholder-outside] `_` as an expression anywhere else is an error. Error: `placeholder-outside-pipe`.
+3. r[expr.pipe.no-partial] hd has no function placeholder: the partial application `f(_, a)` does not create a function.
+
+```text
+fn format(value: i32, width: i32) -> string:
+    "$value/$width"
+
+fn apply(value: i32, f: fn(i32) -> string) -> string: f(value)
+
+fn run() -> string:
+    apply(3, format(_, 8))  # error: placeholder-outside-pipe
+```
+
+> **Note.** Write the callback as a closure, such as
+> `fn(value): format(value, 8)`.
+
+See also: [Precedence](#precedence),
+[Leading-Pipe Continuation](01-lexical-structure.md#leading-pipe-continuation).
 
 ## Binding Expressions
 

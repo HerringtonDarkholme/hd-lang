@@ -1,0 +1,39 @@
+# test: substitution and bare pipe steps type-check
+# Spec 05 Pipe Expressions: expr.pipe.form, expr.pipe.slot.any, expr.pipe.slot.meaning, expr.pipe.bare.call (Pipe PL7, Chaining Study CS2).
+
+data Point:
+    x: i32
+    y: i32
+
+fn tag(label: string, level: i32) -> string:
+    "$label:$level"
+
+fn clean(raw: string) -> string:
+    raw.trim().lower()
+
+fn shift(point: Point, by: i32) -> i32:
+    point.x + by
+
+fn twice(n: i32) -> i32:
+    n * 2
+
+fn parse_port(text: string) -> Result[i32, string]:
+    .Ok(text.len())
+
+fn label(raw: string) -> string:
+    raw |> clean |> tag(_, 2)
+
+fn measure(raw: string, start: i32) -> i32:
+    width := raw |> _.len()
+    moved := start |> Point { x: _, y: 0 } |> shift(_, 3)
+    width + moved |> _ * 2
+
+fn check(n: i32) -> bool:
+    n + 1 |> twice == 4
+
+fn port(raw: string) -> Result[i32, string]:
+    value := raw |> _.trim() |> parse_port(_)?
+    .Ok(value |> twice)
+
+fn tidy(raw: string) -> string:
+    raw |> clean

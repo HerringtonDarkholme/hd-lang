@@ -1,0 +1,26 @@
+# test: pipe steps, precedence, and leading |> lines parse
+# Spec 05 Pipe Expressions and 01 Leading-Pipe Continuation (Pipe PL3-PL13, Chaining Study CS2).
+
+fn label(raw: string) -> string:
+    raw |> clean |> tag(_, 2)
+
+fn measure(raw: string, start: i32) -> i32:
+    width := raw |> _.len()
+    moved := start |> Point { x: _, y: 0 } |> shift(_, 3)
+    width + moved |> _ * 2
+
+fn compare(n: i32) -> bool:
+    n + 1 |> twice == 4
+
+fn lines(raw: string) -> string:
+    raw
+        |> _.trim()
+
+        # a comment line between steps
+        |> _.lower()
+        |> clean
+
+fn chained(values: List[i32]) -> i32:
+    values
+        .len()
+        |> twice

@@ -52,6 +52,7 @@ const multiOperators = [
   "**",
   "&&",
   "||",
+  "|>",
   "+=",
   "-=",
   "*=",
@@ -378,16 +379,17 @@ function unsuffixedNumberEnd(source: string, start: number): NumberScan {
   return { end, floating };
 }
 
-// Chapter 01 leading-dot continuation: unless the line ends in `:` or `=>`,
-// which open an indented block, when the next non-blank, non-comment line
-// starts with `.` and an identifier and is indented farther than
-// `lineIndent`, returns the index of that `.` and the lines skipped.
+// Chapter 01 leading-dot and leading-pipe continuation: unless the line ends
+// in `:` or `=>`, which open an indented block, when the next non-blank,
+// non-comment line starts with `.` and an identifier, or with `|>`, and is
+// indented farther than `lineIndent`, returns the index of that token, the
+// lines skipped, and whether it is a dot line.
 function leadingDotContinuation(
   source: string,
   newline: number,
   lineIndent: number,
   previousText: string,
-): { readonly index: number; readonly lines: number } | undefined {
+): { readonly dot: boolean; readonly index: number; readonly lines: number } | undefined {
   if (previousText === ":" || previousText === "=>") return undefined;
   let index = newline + 1;
   let lines = 1;
@@ -407,11 +409,27 @@ function leadingDotContinuation(
     const next = source[index + 1] ?? "";
     const identifierStart =
       isLetter(next) || (next === "_" && startsInterpolatedName(source, index + 1));
-    return source[index] === "." && identifierStart && indent > lineIndent
-      ? { index, lines }
-      : undefined;
+    const dot = source[index] === "." && identifierStart;
+    const pipe = source.startsWith("|>", index);
+    return (dot || pipe) && indent > lineIndent ? { dot, index, lines } : undefined;
   }
   return undefined;
+}
+
+const layoutTexts = new Set(["<indent>", "<dedent>", "<newline>", "<suite-end>"]);
+
+// Whether the logical line that ends at the last token holds `|>` outside the
+// delimiters it opens (chapter 01 `lex.pipe.no-dot-line`).
+function pipeOnLogicalLine(tokens: readonly GrammarToken[]): boolean {
+  let balance = 0;
+  for (let index = tokens.length - 1; index >= 0; index -= 1) {
+    const text = tokens[index]!.text;
+    if (closeToOpen.has(text)) balance += 1;
+    else if (openToClose.has(text)) balance -= 1;
+    if (balance < 0 || (balance === 0 && layoutTexts.has(text))) return false;
+    if (balance === 0 && text === "|>") return true;
+  }
+  return false;
 }
 
 // A nested suite level. Only a closure written directly inside the brackets
@@ -623,11 +641,11 @@ export function lexSource(source: string): LexResult {
         lineHasToken && !pendingForcedSuite
           ? leadingDotContinuation(source, index, lineIndent, previousText)
           : undefined;
-      // A leading-dot line cannot continue a line whose same-line suite is
-      // still open: the chain would silently join that suite's body.
-      if (continuation && closing > 0)
+      // A continuation line cannot join an open same-line suite's body, and a
+      // leading-dot line inside a pipe chain would attach to the last step.
+      if (continuation && (closing > 0 || (continuation.dot && pipeOnLogicalLine(tokens))))
         diagnostics.push(diagnostic("syntax-error", line + continuation.lines));
-      else if (continuation) {
+      if (continuation && closing === 0) {
         line += continuation.lines;
         index = continuation.index;
         continue;

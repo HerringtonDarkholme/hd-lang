@@ -569,6 +569,34 @@ message := match status:
 
 `pass` is the no-op expression and evaluates to `void`. It is useful when syntax requires a body but no operation is needed, as in `data Empty: pass`.
 
+### Pipes
+
+The pipe `value |> step` feeds a value into the next step, so nested calls read left to right. A step either marks the value's slot with `_`, or is a bare function name, which is called with the value:
+
+```text
+fn tag(label: string, level: i32) -> string:
+    "$label:$level"
+
+fn clean(raw: string) -> string:
+    raw.trim().lower()
+
+fn label(raw: string) -> string:
+    raw
+        |> clean
+        |> tag(_, 2)
+        |> _.len() |> tag("size", _)
+```
+
+`raw |> clean` means `clean(raw)`, and `x |> tag(_, 2)` means `tag(x, 2)`. The value is always evaluated first. A step has exactly one `_`, and any expression may hold it: `_.len()`, `_ * 2`, or `Point { x: _, y: 0 }`.
+
+Three things are errors, so a step never hides where the value goes:
+
+- a call without `_`, such as `x |> tag(2)`. It does not mean `tag(x, 2)` or `tag(2)(x)`; write `x |> tag(_, 2)`;
+- a bare step that suspends, such as `id |> fetch`; write `id |> fetch!(_)`;
+- `_` anywhere outside a pipe step. `tag(_, 2)` is not a shorthand for a function; write a closure, `fn(x): tag(x, 2)`.
+
+A step fits on one line. A chain may continue on lines that start with `|>`, but not on lines that start with `.`: write `|> _.len()` instead.
+
 ### Deferred cleanup
 
 Use `defer:` for synchronous cleanup at the end of the innermost executing

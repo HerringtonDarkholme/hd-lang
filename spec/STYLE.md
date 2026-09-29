@@ -1260,3 +1260,6 @@ style lint rejects a chapter that reuses one.
 - `data.part.alias.mut`: retired 2026-09-29. The local mutability decision
   makes `let stamps = post.Timestamps` a readonly alias. Replaced by
   `data.part.alias.let-mut` and `data.part.alias.plain-let`.
+- `lex.continue.no-operator`: retired 2026-09-29. Pipe PL6 lets a line
+  that starts with `|>` continue the previous line. Replaced by
+  `lex.continue.no-other-operator` and `lex.pipe.continue`.

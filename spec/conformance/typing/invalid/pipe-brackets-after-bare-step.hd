@@ -1,0 +1,7 @@
+# test: brackets after a bare pipe step are an error
+# Spec 05 Bare Steps: expr.pipe.bare.needs-placeholder.forms (Chaining Study CS2).
+
+fn identity[T](value: T) -> T: value
+
+fn same(n: i32) -> i32:
+    n |> identity[i32]  # diagnostic: pipe-step-needs-placeholder

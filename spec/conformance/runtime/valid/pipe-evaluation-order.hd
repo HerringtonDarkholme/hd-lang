@@ -1,0 +1,34 @@
+# test: the piped value is evaluated once, before the step and its callee
+# Spec 05 Pipe Expressions: expr.pipe.order, expr.pipe.slot.meaning, expr.pipe.bare.call, expr.pipe.left-assoc (Pipe PL6, PL7).
+use std.testing.assert_equal
+
+data Log:
+    text: string
+
+fn note(log: mut Log, label: string, value: i32) -> i32:
+    log.text = log.text + label
+    value
+
+fn pick(log: mut Log) -> fn(i32) -> i32:
+    log.text = log.text + "f"
+    fn(value: i32) -> i32: value + 1
+
+fn twice(n: i32) -> i32:
+    n * 2
+
+tests:
+    it("the piped value comes before the callee"):
+        let mut log = Log { text: "" }
+        value := note(log, "v", 7) |> pick(log)(_)
+        assert_equal(log.text, "vf", reason="value first")
+        assert_equal(value, 8, reason="step result")
+
+    it("the value is evaluated once"):
+        let mut log = Log { text: "" }
+        value := note(log, "v", 3) |> _ * 10
+        assert_equal(log.text, "v", reason="evaluated once")
+        assert_equal(value, 30, reason="substituted value")
+
+    it("steps run left to right"):
+        assert_equal(3 |> twice |> _ + 1, 7, reason="(3 |> twice) |> _ + 1")
+        assert_equal(1 + 2 |> twice, 6, reason="the pipe binds looser than +")

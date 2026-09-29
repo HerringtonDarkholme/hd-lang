@@ -834,9 +834,12 @@ logical_or_expression = logical_and_expression,
 logical_and_expression = comparison_expression,
                          { "&&", comparison_expression } ;
 
-comparison_expression = bitwise_or_expression,
-                        [ comparison_operator, bitwise_or_expression ] ;
+comparison_expression = pipe_expression,
+                        [ comparison_operator, pipe_expression ] ;
 comparison_operator = "==" | "!=" | "<" | "<=" | ">" | ">=" | "is" ;
+
+pipe_expression = bitwise_or_expression,
+                  { "|>", bitwise_or_expression } ;
 
 bitwise_or_expression = bitwise_xor_expression,
                         { "|", bitwise_xor_expression } ;
@@ -872,6 +875,8 @@ suspension_call_suffix = "!", [ function_type_arguments ], argument_clause ;
 2. r[grammar.expr.no-comparison-chain] Comparisons do not chain.
 3. r[grammar.expr.power] Exponentiation is right-associative.
 4. r[grammar.expr.power.unary] The right operand of `**` may therefore begin with a unary operator.
+5. r[grammar.expr.pipe] `|>` is left-associative and binds more tightly than comparison and more loosely than `|`.
+6. r[grammar.expr.pipe.step] Each pipe step is a `bitwise_or_expression`, so a step with a comparison, `&&`, `||`, or a control-flow expression needs parentheses.
 
 ```text
 inside := 0 < value < 10  # error
@@ -938,8 +943,11 @@ primary_expression = literal
                    | list_expression
                    | map_expression
                    | data_expression
+                   | pipe_placeholder
                    | "pass"
                    ;
+
+pipe_placeholder = "_" ;
 
 generic_function_reference = qualified_name, function_type_arguments ;
 function_type_arguments = "[", function_type_argument,
@@ -1032,6 +1040,11 @@ data_items = [ "...", expression, "," ],
              ;
 data_field_item = identifier, ":", [ "..." ], expression ;
 ```
+
+#### Pipe Placeholder
+
+1. r[grammar.primary.pipe-placeholder] `_` in expression position is the pipe placeholder.
+2. r[grammar.primary.pipe-placeholder.semantic] The grammar accepts it as any primary expression; [Pipe Expressions](05-expressions.md#pipe-expressions) limits it to pipe steps.
 
 #### Copies In Data Expressions
 

@@ -1,7 +1,12 @@
 # Pipe Operator And Iterator `map`/`fold`: Survey And Design Options
 
-Status: design exploration, 2026-09-29; nothing here is decided or in the
-specification.
+Status: design exploration, 2026-09-29. Owner decisions PL3-PL13, as
+amended by [Chaining Study CS2](CHAINING_STUDY.md#owner-decisions), are
+applied (2026-09-29), and the specification is authoritative for them:
+[Pipe Expressions](../spec/05-expressions.md#pipe-expressions) and
+[Leading-Pipe Continuation](../spec/01-lexical-structure.md#leading-pipe-continuation).
+PL1 and PL2 are superseded by CS7 and CS8 and were not applied. The rest of
+the record is the survey behind the decisions.
 
 The owner wants a pipe operator and expects it to be hard. The same record
 settles how `map[U]` and `fold[A]` reach iterators, which
@@ -131,6 +136,16 @@ Decided 2026-09-29.
     meaning. Callbacks are closures (`fn(u): format_user(u, style)`) or
     method references (MR1). Inside a pipe step, `_` is only the pipe slot.
 
+## Still Open
+
+Points the apply pass met (2026-09-29). Each waits for the owner.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 1 | Which pipe owns a `_` in a nested pipe, as in `x \|> f(_, y \|> g(_))`? | No rule: [`expr.pipe.slot.one`](../spec/05-expressions.md#r-expr.pipe.slot.one) counts the `_` of "the step", and no fixture nests pipes | The innermost step that contains the `_` owns it, so the outer step above has one `_`. |
+| 2 | Is a leading-dot line before the first `\|>` of a chain part of the chain, as in `xs` then `.iter()` then `\|> f`? | Valid: [`lex.pipe.no-dot-line`](../spec/01-lexical-structure.md#r-lex.pipe.no-dot-line) rejects only a dot line after a `\|>` on its logical line | Keep. The CS2 hazard, `.name` attaching to a step, needs a step before the dot line. |
+| 3 | A dotted bare step whose prefix is a value, `x \|> user.greet`, reads as `user.greet(x)`, a method call with receiver `user` | Read as that call by [`expr.pipe.bare.call`](../spec/05-expressions.md#r-expr.pipe.bare.call) | Keep; the alternative is to allow only module paths and variant constructors as dotted steps. |
+
 ## Contents
 
 1. [Problem](#problem)
@@ -193,7 +208,7 @@ Recorded decisions that bind this record:
 | --- | --- | --- |
 | `\|>` token | Not a token. `\|` then `>` never appear together in a valid program, since `>` cannot start an operand. A new `\|>` token changes no existing program | [Lexical grammar](../spec/01-lexical-structure.md#lexical-token-grammar), [Precedence](../spec/05-expressions.md#precedence) |
 | `\|` and `\|\|` | Bitwise OR (overloadable through `BitOr`) and logical OR | [Operator Traits](../spec/05-expressions.md#operator-traits) |
-| Multi-line chains | A line starting with `.name` continues the previous line; a line starting with a binary operator never does | [`lex.dot.continue`](../spec/01-lexical-structure.md#r-lex.dot.continue), [`lex.continue.no-operator`](../spec/01-lexical-structure.md#r-lex.continue.no-operator) |
+| Multi-line chains | A line starting with `.name` continues the previous line; a line starting with a binary operator never does | [`lex.dot.continue`](../spec/01-lexical-structure.md#r-lex.dot.continue), [`lex.continue.no-other-operator`](../spec/01-lexical-structure.md#r-lex.continue.no-other-operator) |
 | `_` | A distinct placeholder token: discards, wildcard patterns, and inferred slots such as `convert[_, User]` | [`lex.ident.placeholder`](../spec/01-lexical-structure.md#r-lex.ident.placeholder), [Explicit Type Arguments](../spec/07-functions.md#explicit-type-arguments) |
 | `!` | A postfix call suffix: `fetch!(url)`. The plain call `fetch(url)` builds a cold suspension | [`req.suspend.cold`](../spec/11-requirements-and-suspension.md#r-req.suspend.cold) |
 | `?` | Postfix, returns early from the nearest function | [Propagation](../spec/05-expressions.md#propagation) |
@@ -779,7 +794,7 @@ fn label(value: Money) -> string:
   as leading-dot chains do today.
 - **Continuation.** Without the leading-`|>` rule, a multi-line pipe needs
   parentheses, since a line starting with a binary operator never
-  continues ([`lex.continue.no-operator`](../spec/01-lexical-structure.md#r-lex.continue.no-operator)).
+  continues ([`lex.continue.no-other-operator`](../spec/01-lexical-structure.md#r-lex.continue.no-other-operator)).
   The parenthesized form parses today up to the first `|>`:
 
 ```text

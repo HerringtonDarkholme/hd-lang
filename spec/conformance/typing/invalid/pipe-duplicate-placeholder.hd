@@ -1,0 +1,7 @@
+# test: a pipe step with two placeholders is an error
+# Spec 05 Substitution Steps: expr.pipe.slot.duplicate (Pipe PL7).
+
+fn add(left: i32, right: i32) -> i32: left + right
+
+fn doubled(n: i32) -> i32:
+    n |> add(_, _)  # diagnostic: duplicate-pipe-placeholder

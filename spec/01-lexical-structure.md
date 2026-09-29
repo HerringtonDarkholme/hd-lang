@@ -105,7 +105,7 @@ names := users
 10. r[lex.dot.same-indent] A line starting with `.Variant` at the same indentation as the previous line, such as a match arm or an expression statement, starts a new logical line.
 11. r[lex.dot.suite-line] So does the first line of an indented suite, whose header ends in `:`.
 12. r[lex.dot.where] The rule applies at delimiter depth zero and on the body lines of a suite nested inside delimiters. Elsewhere inside delimiters every line already continues.
-13. r[lex.continue.no-operator] A line starting with a binary operator never continues the previous line.
+13. r[lex.continue.no-other-operator] A line starting with a binary operator other than `|>` never continues the previous line.
 
 ```text
 fn trimmer() -> fn(string) -> string:
@@ -126,6 +126,36 @@ fn first(pair: (i32, i32)) -> i32:
 
 > **Why.** Continuing a line whose same-line suite is still open would
 > silently join the chain to that suite's body.
+
+### Leading-Pipe Continuation
+
+A [pipe](05-expressions.md#pipe-expressions) chain may continue on lines
+that start with `|>`:
+
+```text
+fn label(raw: string) -> string:
+    raw
+        |> _.trim()
+        |> _.lower()
+```
+
+1. r[lex.pipe.continue] A physical line whose first token is `|>` continues the previous logical line under the conditions of a leading-dot line.
+2. r[lex.pipe.conditions] It must be indented farther than the first physical line of the logical line it continues, and that logical line must not end in `:` or `=>`.
+3. r[lex.pipe.layout] Like a leading-dot line, it emits no layout tokens, ignores blank and comment-only lines before it, and is read as if joined to the previous line.
+4. r[lex.pipe.open-suite] A leading-`|>` line is an error when a same-line suite is still open at the end of the logical line it would continue. Error: `syntax-error`.
+5. r[lex.pipe.no-dot-line] A leading-dot line is an error when the logical line it would continue contains `|>` at that line's own delimiter depth. Error: `syntax-error`.
+
+```text
+fn size(raw: string) -> i32:
+    count := raw
+        |> _.trim()
+        .len()  # error: syntax-error
+    count
+```
+
+> **Why.** After `|> f`, a leading `.len()` would attach to the step `f`
+> rather than to the pipe's result. Write the call as a step,
+> `|> _.len()`, or bind a name first.
 
 ### Suites Inside Delimiters
 
@@ -778,7 +808,7 @@ punctuation tokens:
 
 ```text
 +  -  *  /  %  **
-&  |  ^  ~  <<  >>  &&  ||
+&  |  ^  ~  <<  >>  &&  ||  |>
 =  ==  !=  <  <=  >  >=
 :=  ->  =>  ?  !  $  @  ...  ...=  ::  +=
 -=  *=  /=  %=  &=  |=  ^=  <<=  >>=
@@ -786,11 +816,12 @@ punctuation tokens:
 
 1. r[lex.op.longest] When two tokens share a prefix, the lexer uses the longest valid token.
 2. r[lex.op.longest.examples] For example, `**` is one token rather than two `*` tokens, and `...` is one token rather than three `.` tokens. Likewise `...=` is one token rather than `...` and `=`, and `&&` and `||` are single tokens.
-3. r[lex.op.inequality] The sequence `!=` is always the inequality token, so `f!=g` lexes as `f`, `!=`, `g`.
-4. r[lex.op.bang-call] A suspension call needs `!` immediately followed by `(`.
-5. r[lex.op.compound-assign] `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=` are single tokens. A statement uses them for [compound assignment](05-expressions.md#compound-assignment), and a member line also uses `+=`, as [Member Lines](14-annotations.md#member-lines) defines.
-6. r[lex.op.compound-assign.examples] By longest match, `a-=b` lexes as `a`, `-=`, `b`, and `x<<=1` as `x`, `<<=`, `1`.
-7. r[lex.op.no-power-assign] `**=` is not a token: it lexes as `**` and `=`, which no grammar rule accepts.
+3. r[lex.op.pipe] `|>` is one token, the [pipe operator](05-expressions.md#pipe-expressions).
+4. r[lex.op.inequality] The sequence `!=` is always the inequality token, so `f!=g` lexes as `f`, `!=`, `g`.
+5. r[lex.op.bang-call] A suspension call needs `!` immediately followed by `(`.
+6. r[lex.op.compound-assign] `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=` are single tokens. A statement uses them for [compound assignment](05-expressions.md#compound-assignment), and a member line also uses `+=`, as [Member Lines](14-annotations.md#member-lines) defines.
+7. r[lex.op.compound-assign.examples] By longest match, `a-=b` lexes as `a`, `-=`, `b`, and `x<<=1` as `x`, `<<=`, `1`.
+8. r[lex.op.no-power-assign] `**=` is not a token: it lexes as `**` and `=`, which no grammar rule accepts.
 
 See also: [Expressions](05-expressions.md), which defines operator
 precedence and semantics, including prefix `!` as logical not;
@@ -825,7 +856,7 @@ delimiter = "(" | ")" | "[" | "]" | "{" | "}"
           ;
 
 operator = "+" | "-" | "*" | "/" | "%" | "**"
-         | "&" | "|" | "^" | "~" | "<<" | ">>" | "&&" | "||"
+         | "&" | "|" | "^" | "~" | "<<" | ">>" | "&&" | "||" | "|>"
          | "=" | "==" | "!=" | "<" | "<=" | ">" | ">="
          | ":=" | "->" | "=>" | "?" | "!" | "$" | "@"
          | "..." | "...=" | "::"
