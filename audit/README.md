@@ -9,22 +9,22 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-29 the prototype passes 1,412 of the 1,476 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 64 are listed in
+On 2026-09-29 the prototype passes 1,413 of the 1,483 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 70 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 64 still fail.
+decision below, and all 70 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
 | Tag | Cases | Why they fail |
 | --- | ----- | ------------- |
+| PIPE | 16 | no `\|>` token or `_` placeholder |
 | F-250 | 15 | packs, GADT variant results, and package roles give generic diagnostics |
-| PIPE | 14 | no `\|>` token or `_` placeholder |
-| MREF | 9 | `Type::name` without a call is still `deferred-method-value` |
-| ITER | 6 | `Iterator` is still a trait; no `map`, `fold`, or `Iterable` for iterators |
+| MREF | 10 | `Type::name` without a call is still `deferred-method-value` |
+| ITER | 8 | `Iterator` is still a trait; no `from_fn`, `map`, `fold`, or `Iterable` for iterators |
 | EMB-S | 4 | trait availability needs package roles |
 | P2 | 4 | member visibility needs package roles |
-| COLLECT | 3 | `collect` returns only `List[T]` |
+| COLLECT | 4 | `collect` returns only `List[T]`, and there is no `FromIterator` |
 | TQ-2 | 2 | package roles, and a comprehension element typed `mut Word` |
 | F-150 | 2 | the fixtures expose a private type from `pub fn main` |
 | M29 | 1 | the unused-fact warning needs a second package |

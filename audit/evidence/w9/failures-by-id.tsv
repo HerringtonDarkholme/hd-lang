@@ -1,11 +1,11 @@
 id	count	title
+PIPE	16	The pipe operator `|>` and its `_` placeholder (Pipe PL3-PL16, Chaining Study CS2) are not implemented
 F-250	15	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
-PIPE	14	The pipe operator `|>` and its `_` placeholder (Pipe PL3-PL13, Chaining Study CS2) are not implemented
-MREF	9	Method references `Type::name` and `value::name` (Method References MR1-MR4) are not implemented
-ITER	6	The closure-backed data `Iterator[T]` with `map` and `fold`, and `for` over `Iterable` only (Chaining Study CS7, CS8), are not implemented: the prototype keeps the `Iterator` trait
+MREF	10	Method references `Type::name` and `value::name` (Method References MR1-MR4, MR6) are not implemented
+ITER	8	The closure-backed data `Iterator[T]` with a private `step`, `Iterator::from_fn`, `map` and `fold`, and `for` over `Iterable` only (Chaining Study CS7-CS11), are not implemented: the prototype keeps the `Iterator` trait
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
-COLLECT	3	Generic `collect[C]` with `FromIterator` (Collect CO1-CO3) is not implemented
+COLLECT	4	Generic `collect[C]` with `FromIterator` (Collect CO1-CO3, CO6) is not implemented
 TQ-2	2	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks
 F-150	2	Entry-point cases use a private declaration in `pub fn main`, so they also report `private-type-leak`
 M29	1	Typed derivation M29's per-trait Self-line warning needs a second package, and the prototype CLI has no package roles
