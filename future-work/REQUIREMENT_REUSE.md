@@ -85,6 +85,22 @@ Decided 2026-09-28.
 
 All ten questions are decided.
 
+**Follow-up decisions (owner, 2026-09-28), from the apply pass's Still
+Open:**
+10. **RU10: a bare row alias is allowed in a one-key slot,** like `Fn`:
+    `$.Context[AppRow]` works, and the checker reads `AppRow` as a row
+    because it is a row alias. This reverses Still Open 2's applied
+    reading.
+11. **RU11: impl methods keep their trait's row** for now
+    (`req.row.callable.impl-agrees` is unchanged).
+12. **RU12: a list or collection literal with no expected type infers the
+    union row** of its function elements: `[health, orders]` gets
+    `fn(...) $ Clock + Db + ...`. This is a new inference rule.
+13. **RU13: when a forced `R` overlaps a key the callee installs, the
+    nearest provider wins** (dynamic scoping), as a nested `$.with` does.
+    The owner chose this over rejecting the overlap and over lexical
+    (tunneling) semantics.
+
 **Applied 2026-09-28.** The specification now states each decision:
 
 | Decision | Specification |
