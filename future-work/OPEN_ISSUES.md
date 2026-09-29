@@ -10,6 +10,16 @@ and tooling work is listed separately at the end.
 
 ### Local Mutability: `let mut` As An Inference Helper
 
+**The owner's summary (2026-09-29).** The spec and guide should state the
+rule this way:
+- `a := ...` makes a name that can't be reassigned, with a read-only type.
+- `let a = ...` makes a reassignable name, with a read-only type by
+  default.
+- For a mutable type, either add `mut` after `let` (`let mut a = ...`) to
+  require mutability, or state the type (`let a: mut T = ...`).
+- **Rule of thumb:** prefer `:=`. Use `let` when you need to reassign.
+  Write `mut` at most once for a mutable type.
+
 **Decided (owner, 2026-09-29, final); not yet applied.** This replaces
 the Kotlin-style inference recorded earlier the same day (89c6a11).
 
