@@ -1295,3 +1295,4 @@ typing/invalid/row-alias-binding.hd	type
 typing/invalid/row-alias-bare-context.hd	type
 typing/invalid/row-alias-mut-key.hd	type
 typing/invalid/row-alias-generic-kind.hd	type
+runtime/valid/installer-function-runs.hd	runtime

@@ -1,0 +1,51 @@
+# test: an installer function installs a bundle of providers around a trailing block
+# expect: test
+use std.testing.assert_equal
+
+trait Db:
+    fn name(self) -> string
+
+trait Log:
+    fn tag(self) -> string
+
+trait Clock:
+    fn now(self) -> i32
+
+data MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+data PlainLog: pass
+
+impl Log for PlainLog:
+    fn tag(self) -> string: "log"
+
+data FixedClock: pass
+
+impl Clock for FixedClock:
+    fn now(self) -> i32: 5
+
+type Stack = Db + Log
+
+fn with_stack[T, R](body: fn() -> T $ R + Stack) -> T $ R:
+    $.with(Db=MemoryDb {}, Log=PlainLog {}):
+        body()
+
+fn describe() -> string $ Stack + Clock:
+    "${$.use(Db).name()} ${$.use(Log).tag()} ${$.use(Clock).now()}"
+
+fn only_log() -> string $ Log:
+    $.use(Log).tag()
+
+tests:
+    it("the installer provides the stack and the caller provides the rest"):
+        $.with(Clock=FixedClock {}):
+            text := with_stack():
+                describe()
+            assert_equal(text, "db log 5", reason="R is Clock")
+
+    it("a block that uses only some installed keys still fits"):
+        text := with_stack():
+            only_log()
+        assert_equal(text, "log", reason="R is the empty row")
