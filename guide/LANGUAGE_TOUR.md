@@ -2018,9 +2018,15 @@ use pkg.user.{User, UserId, load_user}
 Submodules are not brought into scope automatically. Parent modules and child
 modules both use explicit use declarations.
 
-Cycles involving `use` or `pub use` are rejected.
+Files in one folder may use each other in a loop, such as a `mod.hd` facade
+and the child files it re-exports. Folders must not: when a file in
+`src/shop/` uses `src/error.hd` while `src/mod.hd` uses `pkg.shop`, the loop
+`src -> src/shop -> src` is `folder-cycle`. The fix moves the shared file into
+a leaf folder, `src/error/mod.hd`, which keeps the module name `error`. Uses
+in test code do not count, and a `pub use` chain must end at a declaration
+([Dependency Cycles](../spec/10-modules.md#dependency-cycles)).
 
-Declarations are module-private by default, and `pub` makes them public. Enum variants inherit the enum's visibility. Data fields and inherent methods remain private unless individually marked `pub`, even on a public data. Embedded fields take no marker and are always public, so a public data type may embed only public types. A public signature, including its `$` requirement row, cannot leak a module-private type or trait. There is no package-private visibility modifier.
+Declarations are module-private by default, and `pub` makes them public. Enum variants inherit the enum's visibility. Data fields and inherent methods remain private unless individually marked `pub`, even on a public data. Embedded fields take no marker and are always public, so a public data type may embed only public types. A public signature, including its `$` requirement row, cannot leak a module-private type or trait. A `pub` function or `pub` method writes its whole signature: it must declare its result type, and without a `$` clause its row is empty. Only a private function or method may leave its result type and row to inference, so a caller in another file never waits for a body. There is no package-private visibility modifier.
 
 ## Program Entry Points
 

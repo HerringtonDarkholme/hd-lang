@@ -10,7 +10,13 @@ and tooling work is listed separately at the end.
 
 ### Dependency Cycles
 
-**Direction (owner, 2026-09-28); design task queued, not yet specified.**
+**Decided (owner, 2026-09-29); applied 2026-09-29** as
+[Dependency Cycles](../spec/10-modules.md#dependency-cycles) and
+[Initialization Order](../spec/10-modules.md#initialization-order). Points 1,
+3, and 4 are the rule; point 2's file-level check is implied by point 3; and
+point 5 became a leaf *folder* with a fix-it
+([record](DEPENDENCY_CYCLES.md#owner-decisions)). The direction as first
+given (2026-09-28):
 1. Package dependency cycles are forbidden.
 2. A module stays one file with explicit `use` lines. A file import cycle
    is allowed only when every file in it is in the same folder. The
@@ -24,14 +30,10 @@ and tooling work is listed separately at the end.
 5. Shared items that children need go in a leaf such as `common.hd` or
    `types.hd`, which children import instead of their facade.
 
-Open for the design (#40):
-- how this fits with `module.init.graph` and `module.pub-use.cycles`;
-- entry modules inside a loop;
-- test modules;
-- the diagnostic code;
-- fixture migration.
-
-Stress test with ten owner questions: [Dependency Cycles](DEPENDENCY_CYCLES.md).
+The apply pass answered the design points (#40): initialization inside a
+loop follows Go's rule, test code makes no folder edge, and the code is
+`folder-cycle`. Entry modules inside a loop and multi-file fixtures are
+listed in the record's [Still Open](DEPENDENCY_CYCLES.md#still-open).
 
 ### Casts, Property Discards, Type Names As Values, Std Scope
 

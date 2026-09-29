@@ -498,7 +498,9 @@ Submodule access goes through use declarations; a parent module does not
 automatically bring child modules into scope, and a child module does not
 automatically bring parent declarations into scope.
 
-Cycles involving `use` or `pub use` are rejected.
+Files in one folder may use each other in a loop, but the folders of a
+package must not depend on each other in a loop (`folder-cycle`). A `pub use`
+chain must end at a declaration.
 
 Declarations are module-private by default, and `pub` makes them public. Enum variants inherit enum visibility; data fields and inherent methods are private unless individually marked `pub`. There is no package-private visibility modifier.
 

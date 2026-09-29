@@ -1,8 +1,10 @@
 # Dependency Cycles: Stress Test Of The Folder Rule
 
 Status: design review, 2026-09-28; changes no decision, design record, spec
-text, or prototype code. Nothing here is accepted language behavior. Every
-design choice below is a question for the owner.
+text, or prototype code. The owner decided its questions on 2026-09-29, and
+[Owner Decisions](#owner-decisions) lists where the specification applies
+them. The rest of the report is the review as written; nothing in it is
+accepted language behavior beyond those decisions.
 
 The direction under test is
 [Open Issues, Dependency Cycles](OPEN_ISSUES.md#dependency-cycles), points
@@ -61,8 +63,51 @@ Decided 2026-09-29. This is option O6, with these answers:
     bodies are checked,** and their values are hashed into the package
     interface.
 
+**Applied 2026-09-29.** The specification now states each decision:
+
+| Decision | Specification |
+| --- | --- |
+| DC1 | [`fn.decl.result-required-pub`](../spec/07-functions.md#r-fn.decl.result-required-pub), [`fn.decl.result-omitted-private`](../spec/07-functions.md#r-fn.decl.result-omitted-private), [`req.row.omitted.empty-pub`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.empty-pub), and [`req.row.omitted.inferred-private`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.inferred-private). |
+| DC2, DC4, DC6 | [Folder Graph](../spec/10-modules.md#folder-graph): [`module.cycle.acyclic`](../spec/10-modules.md#r-module.cycle.acyclic) (new code `folder-cycle`), [`module.cycle.nested`](../spec/10-modules.md#r-module.cycle.nested), [`module.cycle.test-code`](../spec/10-modules.md#r-module.cycle.test-code), [`module.cycle.within-folder`](../spec/10-modules.md#r-module.cycle.within-folder), and [`module.cycle.package`](../spec/10-modules.md#r-module.cycle.package). In chapter 3, [`names.use.cycles-in-folder`](../spec/03-names-and-scopes.md#r-names.use.cycles-in-folder) and [`names.use.folder-cycle`](../spec/03-names-and-scopes.md#r-names.use.folder-cycle) replace `names.use.cycles`. |
+| DC3 | [Folders](../spec/10-modules.md#folders). |
+| DC5, DC9 | [Cycle Diagnostic](../spec/10-modules.md#cycle-diagnostic), and the leaf-folder Note under [Folder Graph](../spec/10-modules.md#folder-graph). |
+| DC7 | [Initialization Order](../spec/10-modules.md#initialization-order) and [Order Inside A Group](../spec/10-modules.md#order-inside-a-group). |
+| DC8 | [`module.pub-use.chain`](../spec/10-modules.md#r-module.pub-use.chain) and [`module.pub-use.chain.loop`](../spec/10-modules.md#r-module.pub-use.chain.loop) replace `module.pub-use.cycles`. |
+| DC10 | [`module.interface.fact-values`](../spec/10-modules.md#r-module.interface.fact-values), [`module.interface.determined-facts`](../spec/10-modules.md#r-module.interface.determined-facts), [`module.interface.early-facts`](../spec/10-modules.md#r-module.interface.early-facts), and a Note under [Facts](../spec/14-annotations.md#facts). |
+
+The prototype implements DC1 to DC6, DC8, and DC9 in its checker and
+package linker. It joins an initialization group's modules by identity and
+does not interleave their statements (DC7); the
+[audit](../audit/README.md) lists the gap.
+
+## Still Open
+
+Points the apply pass met (2026-09-29). Each waits for the owner; the
+specification states the reading in the Applied column, so each can change
+without breaking a decision.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 1 | DC7 says "then file order". Which order is that? | Module identity, then source position ([`module.init.group.earliest`](../spec/10-modules.md#r-module.init.group.earliest)), the order ready modules and supertrait cycles already use | Keep: it does not depend on filesystem enumeration. |
+| 2 | Which group goes first when several are ready? | The one whose least module identity is first ([`module.init.group.ready-order`](../spec/10-modules.md#r-module.init.group.ready-order)) | Keep: a group of one keeps today's order. |
+| 3 | Go's rule may run a module's statement before an earlier one of the same module, when the earlier one waits on another file. Is that intended? | Yes: each step runs the earliest ready statement ([`module.init.group.step`](../spec/10-modules.md#r-module.init.group.step)) | Keep. Top-level code outside the entry module is requirement-free, so only a panic's order can show it. |
+| 4 | Does the local forward-read check still apply inside a group? | Yes: [Definite Initialization](../spec/10-modules.md#definite-initialization) is unchanged, so `x := f()` before `let y` in one file stays an error even where Go would reorder | Keep: a reader expects one file to run top to bottom. |
+| 5 | Which code does a true initialization cycle get? | `top-level-read-before-initialization` ([`module.init.group.cycle`](../spec/10-modules.md#r-module.init.group.cycle)) | Keep: it is the same failure as a forward read. |
+| 6 | Uses in test code make no folder edge, but they still order initialization in a test build. May a test build's group then span folders? | The group rules name no folder, so such a group follows the same order | Say so in a Note: only test code can close such a loop. |
+| 7 | An entry module may sit in a group. Do its statements, which may use requirements, interleave with the others? | Yes: no rule singles it out | Keep for now; revisit with script entry rows (`module.init.script-row`). |
+| 8 | DC6 names "test helpers". Which files are they? | Test code as [`module.test.code`](../spec/10-modules.md#r-module.test.code) defines it. A helper folder of ordinary code, such as `src/testkit/`, makes edges | Keep: a use from `cart_test.hd` into `testkit/` is already exempt (C12). |
+| 9 | DC9's "size of the tangle": files or folders? | Folders in the loop's strongly connected component ([`module.cycle.diagnostic.size`](../spec/10-modules.md#r-module.cycle.diagnostic.size)) | Keep: the rule is about folders. |
+| 10 | Which file does the fix-it move, and what if no single move breaks the loop? | Unspecified: "a file `x.hd` on the loop" ([`module.cycle.diagnostic.fix`](../spec/10-modules.md#r-module.cycle.diagnostic.fix)). The prototype picks the target of the first edge that is not a `mod.hd` | Keep it a presentation detail. |
+| 11 | Which code rejects a `pub use` loop? | None, as for `module.pub-use.cycles` before; the prototype reports `unknown-import` | Leave it until missing and private uses get a code ([`module.use.private-or-missing`](../spec/10-modules.md#r-module.use.private-or-missing) names none). |
+| 12 | Which code rejects a package cycle? | None: [`module.cycle.package`](../spec/10-modules.md#r-module.cycle.package) says "invalid" | Name one when the resolver leaves tooling ([`module.manifest.tooling`](../spec/10-modules.md#r-module.manifest.tooling)). |
+| 13 | Which facts does a package interface record? | Each fact of its own declarations, by value ([`module.interface.fact-values`](../spec/10-modules.md#r-module.interface.fact-values)) | Keep: private declarations never reach a dependent. |
+| 14 | DC10 makes an interface wait for the bodies its facts call. `module.interface.early` said a dependent never waits for bodies. | Replaced by [`module.interface.early-facts`](../spec/10-modules.md#r-module.interface.early-facts), which excepts those bodies | Keep. |
+| 15 | The folder rule, group order, test edges, and `pub use` chains need several files, and the fixture format has none. | No conformance fixture; `test/package.test.ts` covers the prototype | Add a multi-file fixture environment, for example a header naming a package tree under `spec/conformance/`, as package roles do. |
+
 ## Contents
 
+- [Owner Decisions](#owner-decisions)
+- [Still Open](#still-open)
 1. [Surface Being Tested](#surface-being-tested)
 2. [Method](#method)
 3. [Summary](#summary)
