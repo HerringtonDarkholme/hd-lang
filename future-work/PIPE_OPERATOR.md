@@ -105,6 +105,26 @@ Decided 2026-09-29.
     `_` stays the pipe slot (PL7). This settles the capture form that PL10
     left for the writing log.
 
+12. **PL12 (2026-09-29): capture only in callback arguments.** This
+    replaces PL11.
+    - `f(_, a)` (one `_`, a direct argument of a call) creates a
+      one-parameter function, and it is allowed **only as a direct argument
+      of a function or method call whose parameter type is a function
+      type**, as in `xs.iter().map(format_user(_, style))` or
+      `filter(greater_than(_, 0))`.
+    - It is not allowed anywhere else a function is merely expected: not in
+      annotated `let` bindings, return values or fields. The parser always
+      reads `f(_, a)` as a capture, and the checker requires a callback
+      argument position, so the rule restricts where a capture may appear
+      and never changes its meaning.
+    - **No captures inside pipe steps:** there every `_` is the pipe slot
+      (PL7). Without this rule a step such as `x |> apply(f(_, 1))` would be
+      ambiguous (the slot, or a capture with no slot).
+      `x |> map(_, format_user(_, style))` is an error: two slots.
+    - Exactly one `_`. The callee must not suspend, and no `?` is allowed.
+      A method capture (`user.greet(_, "hi")`) fixes the receiver at
+      creation, as MR1 bound references do.
+
 ## Contents
 
 1. [Problem](#problem)
