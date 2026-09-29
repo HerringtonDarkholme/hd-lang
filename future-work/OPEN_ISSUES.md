@@ -8,6 +8,32 @@ and tooling work is listed separately at the end.
 
 ## Language Design Decisions
 
+### Local Mutability From The Right Side
+
+**Decided (owner, 2026-09-29); not yet applied.** This is Kotlin's model,
+where mutability is part of the value's type and a local infers it.
+1. A `let` binding's object mutability comes from its right side:
+   - a fresh literal (data, list or map literal) is `mut`;
+   - a call keeps its declared result (`mut T` or `T`), and so does
+     `$.use(...)`, which is `mut` for a mutable trait;
+   - a value read from a read-only source stays read-only.
+
+   Examples: `let a = User { ... }` is `mut User`, and
+   `let (log, db) = $.use(Log, Db)` needs no annotations.
+2. An explicit annotation may downgrade (`let cfg: Config = Config { ... }`
+   is read-only) but never upgrade.
+3. **`:=` stays read-only,** as today (`types.bind.short`). So `let` means
+   a reassignable name with inferred mutability, and `:=` means a fixed
+   name with a read-only view.
+4. `mut` still appears at boundaries (parameters, results, fields) and at
+   each change site (`a.name = ...`, `mut self` calls). Only the
+   redundant `mut` on fresh local declarations goes away.
+
+A reassignable name holding a read-only object stays useful: a cursor over
+data you don't own, a "best so far" accumulator, switching between shared
+snapshots. Those values come from read-only sources, so inference gives
+read-only.
+
 ### Dependency Cycles
 
 **Decided (owner, 2026-09-29); applied 2026-09-29** as
