@@ -38,18 +38,18 @@ Open questions for the owner:
   measures six combinations on one real-code corpus. CS2, CS7, and CS8 are
   applied; three iterator readings wait for the owner.
 
-- [Typed Derivation: Open Points](TYPED_DERIVATION.md) lists what M1-M29
-  leave undecided and the M26 readings awaiting confirmation.
+- [Typed Derivation: Open Points](TYPED_DERIVATION.md) lists the four
+  points that M1-M30 leave to other areas.
 - [Nominal Function Types: Per-Declaration Data For Tools](FN_TYPE.md)
   keeps questions 9 and 10, how tool adapters get per-declaration data.
 - [Literal Suffixes: Open Points](LITERAL_SUFFIXES.md) keeps three
   prefixed-string readings.
-- [Operator Traits: Open Points](OPERATOR_TRAITS.md) keeps three readings
-  from the apply passes.
+- [Operator Traits: Open Points](OPERATOR_TRAITS.md) records its apply
+  passes; no reading waits for the owner.
 - [Testing Redesign: Open Points](TESTING.md) keeps the property-test API
   beyond T53 and two deferred fixtures.
-- [Stress Test 2026-09-29: Open Points](STRESS_2026_09_29.md) keeps two
-  decorator readings.
+- [Stress Test 2026-09-29: Open Points](STRESS_2026_09_29.md) records its
+  answers; no reading waits for the owner.
 - [Method And Field References](METHOD_REFERENCES.md) designs CS5: it
   surveys references in eight languages and compares five options. Its
   decisions MR1-MR4 are applied; one reading waits for the owner.

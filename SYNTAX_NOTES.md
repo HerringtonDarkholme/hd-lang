@@ -72,8 +72,9 @@ For composite values, mutation permission is part of the type. `T` provides cons
 
 - `a := ...` makes a name that can't be reassigned, with a const type.
 - `let a = ...` makes a reassignable name, with a const type by default, even for a fresh value.
-- `let mut a = ...` infers the root as `mut`, and `let a: mut T = ...` states it. `let mut a: mut T` is allowed but redundant; `let mut a: T` is an error, `let-mut-readonly-type`.
-- In a multi-name `let`, each name takes its own `mut`: `let mut log, db = pair`.
+- `let mut a = ...` infers the root as `mut`, and `let a: mut T = ...` states it. `let mut a: mut T` is allowed but warns (`redundant-let-mut`); `let mut a: T` is an error, `let-mut-readonly-type`.
+- In a multi-name `let`, each name takes its own `mut`, inside parentheses: `let (mut log, db) = pair`. `let mut log, db = pair` is a syntax error.
+- Primitives have no `mut` form, so `let mut n = 0` and `let n: mut i32` are `mut-on-primitive` errors.
 
 `mut` after `let` only helps inference; `mut` itself stays a permission in the type. A const composite reference cannot be upgraded, so `let mut` of a const value is an error:
 

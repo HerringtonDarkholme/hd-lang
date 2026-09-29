@@ -96,13 +96,13 @@ counter = counter + 1
 attempts = attempts + 1
 ```
 
-For composite values (data, lists, maps), mutation permission is part of the type: `T` gives readonly access and `mut T` gives mutable access. Primitives such as `i32` and `bool` have no `mut` form; for them only reassignment matters. The binding forms fit together like this:
+For composite values (data, lists, maps), mutation permission is part of the type: `T` gives readonly access and `mut T` gives mutable access. Primitives such as `i32` and `bool` have no `mut` form; for them only reassignment matters, so `let mut n = 0` is an error (`mut-on-primitive`): write `let n = 0`. The binding forms fit together like this:
 
 - `a := ...` makes a binding that cannot be reassigned, with a readonly type.
 - `let a = ...` makes a reassignable binding, with a readonly type by default.
 - To get a mutable type, request it after `let` (`let mut a = ...`) or write the type (`let a: mut T = ...`).
 
-Rule of thumb: prefer `:=`, use `let` when you need to reassign, and write `mut` at most once.
+Rule of thumb: prefer `:=`, use `let` when you need to reassign, and write `mut` at most once; `let mut a: mut T` warns that one `mut` is redundant.
 
 ```text
 user := User { id: "user_123", email: "ada@example.com", display_name: "Ada" }   # readonly
@@ -134,7 +134,7 @@ println(readonly.display_name)  # "Ada Lovelace"
 
 This is shared reference permission, not ownership or deep immutability. Multiple mutable aliases may exist, but mutation authority cannot be created from a readonly reference.
 
-A plain `let` infers the readonly view, even of a fresh value, so `let draft = User { ... }` can be reassigned but not mutated. In a multi-name `let`, each name takes its own `mut`, as in `let mut log, db = pair`.
+A plain `let` infers the readonly view, even of a fresh value, so `let draft = User { ... }` can be reassigned but not mutated. In a multi-name `let`, each name takes its own `mut`, and the names go in parentheses: `let (mut log, db) = pair`.
 
 Types appear where they make interfaces between code clear: function parameters, return types, data fields, and public APIs.
 
@@ -1702,8 +1702,9 @@ an element. On a `data` value it stores a new value, so another reference
 to the old one is unaffected. Accumulators and builders change themselves
 through ordinary methods, such as `sb.push(x)`. `Index` and `IndexSet`
 give a type `grid[i]` and `grid[i] = v`, and `grid[i] += 1` reads, then
-stores. On a `Map`, `counts[w]` reads as an optional, so write
-`counts[w] = counts[w].unwrap_or(0) + 1`.
+stores. On a `Map`, `counts[w] += 1` reads the entry as if the key must
+exist, so it panics when `w` is absent; a plain read `counts[w]` still
+gives an optional.
 
 Generic numeric code uses the sealed `std.num` traits `Num`, `Integer`,
 and `Float`, which only the primitive number types implement. Constants

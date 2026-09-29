@@ -13,12 +13,12 @@ options, and the decision log are in git history.
 
 ## Still Open
 
-Points the apply passes met (2026-09-29). The specification states the
-reading in the Applied column, so each can change without breaking a
-decision. Each waits for the owner.
+None. The owner answered points 3, 19, and 21 on 2026-09-29 as the
+[evening follow-ups](OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening)
+7, 5, and 6, and they are applied:
 
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 3 | OP5 syntax: which tokens, and where may the right side be a suite? | Ten tokens (`**=` is not one), and the right side takes the forms of `=`, suites included ([`grammar.stmt.compound-assign`](../spec/02-grammar.md#r-grammar.stmt.compound-assign)) | Keep. |
-| 19 | On a built-in `Map`, `counts[w] += 1` reads `counts[w]` as `i32?`, so it is `type-mismatch`, while stress decision 11 says `m[k] += v` works | The read behaves as any read of `m[k]` ([`expr.assign.compound.map-read`](../spec/05-expressions.md#r-expr.assign.compound.map-read)); a `List` element and a user index place work | Confirm, since both decisions say the read is `m[k]`. The word count then writes `counts[w] = counts[w].unwrap_or(0) + 1`, or a STDLIB update method. |
-| 21 | OP12 names construction. Does unwrapping, `Draft(order)` with `order: mut Order`, give `mut Draft`? | No rule; the prototype gives a readonly `Draft`, as for a field declared `Draft` | Unwrap with the newtype's permission, so the two directions match. |
+| # | Answer | Rules |
+| --- | --- | --- |
+| 3 | The ten tokens and the right side's forms are confirmed | [`grammar.stmt.compound-assign`](../spec/02-grammar.md#r-grammar.stmt.compound-assign) |
+| 19 | `m[k] op= v` on a `Map` reads the entry as `V` and panics when the key is missing | [`expr.assign.compound.map-present`](../spec/05-expressions.md#r-expr.assign.compound.map-present), [`expr.assign.compound.map-missing`](../spec/05-expressions.md#r-expr.assign.compound.map-missing) |
+| 21 | Unwrapping a newtype carries its permission | [`types.newtype.unwrap-permission`](../spec/04-type-system.md#r-types.newtype.unwrap-permission) |

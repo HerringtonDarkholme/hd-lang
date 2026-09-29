@@ -67,7 +67,7 @@ Goal: state trait behavior as normative rules rather than prose.
   [Runtime Type Identity](../spec/09-traits.md#runtime-type-identity), and
   complete runtime shape coverage in
   [Common Shape Representation](../spec/14-annotations.md#common-shape-representation).
-  Typed derivation (owner decisions M1-M29) is applied in
+  Typed derivation (owner decisions M1-M30) is applied in
   [Typed Derivation](../spec/14-annotations.md#typed-derivation). Annotation
   locality was superseded: derivation blocks live in the type's module.
   GADTs, declared variance, and variadic packs stay (scope reduction was

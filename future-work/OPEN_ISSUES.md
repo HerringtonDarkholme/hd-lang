@@ -12,55 +12,42 @@ their text.
 
 ### Follow-Ups Decided 2026-09-29 (Evening)
 
-**Decided by the owner; not yet applied.**
+**Applied.** The owner's ten evening follow-ups (2026-09-29) are in the
+specification:
 
-`let mut` (follow-ups to Local Mutability):
-1. A multi-name binding with `mut` **requires parentheses**:
-   `let (mut log, db) = $.use(Log, Db)`. The unparenthesized
-   `let mut log, db = ...` is an error.
-2. `let mut n = 0` on a primitive, and `let n: mut i32`, get a dedicated
-   error code (for example `mut-on-primitive`). The hint: "`let` is already
-   reassignable; `mut` is only for data, list and map values".
-3. `let mut u = find()`, where `find` returns `mut User?`, is valid.
-4. A redundant `let mut a: mut T` gets a compiler **warning**.
+| # | Decision | Where |
+| --- | --- | --- |
+| 1 | A multi-name `let` with `mut` needs parentheses: `let (mut log, db) = pair` | [Let Statements](../spec/02-grammar.md#let-statements) |
+| 2 | `mut` on a primitive, and `let mut n = 0`, are `mut-on-primitive` | [`types.prim.no-mut.error`](../spec/04-type-system.md#r-types.prim.no-mut.error), [`types.bind.let-mut-primitive`](../spec/04-type-system.md#r-types.bind.let-mut-primitive) |
+| 3 | `let mut u = find()` is valid when `find` returns `mut User?` | [`types.bind.let-mut-optional`](../spec/04-type-system.md#r-types.bind.let-mut-optional) |
+| 4 | The redundant `mut` in `let mut a: mut T` warns | [`types.bind.let-mut-annotated.warning`](../spec/04-type-system.md#r-types.bind.let-mut-annotated.warning) |
+| 5 | `m[k] op= v` on a `Map` reads the entry as `V` and panics when it is missing | [`expr.assign.compound.map-present`](../spec/05-expressions.md#r-expr.assign.compound.map-present) |
+| 6 | Unwrapping a newtype carries its permission | [`types.newtype.unwrap-permission`](../spec/04-type-system.md#r-types.newtype.unwrap-permission) |
+| 7 | The ten compound-assignment tokens are confirmed | [`grammar.stmt.compound-assign`](../spec/02-grammar.md#r-grammar.stmt.compound-assign) |
+| 8 | Every decorator before a derivation block warns | [`annot.fact.unused-block-decorator.any-type`](../spec/14-annotations.md#r-annot.fact.unused-block-decorator.any-type) |
+| 9 | The readable-targets Note covers enums | the Note under [Target Kinds](../spec/14-annotations.md#target-kinds) |
+| 10 | Optionals need no conversion for an `AnyRef` parameter | [`types.trait.safe.convert-value`](../spec/04-type-system.md#r-types.trait.safe.convert-value) |
 
-Operators:
-5. **`m[k] op= v` on a `Map` uses a panicking read:** it reads `m[k]` as if
-   the key must exist (panicking if it doesn't), then writes back. So
-   `counts[w] += 1` works when `w` is present. This settles OPERATOR_TRAITS
-   Still Open 19.
-6. Unwrapping a newtype carries its permission: unwrapping a `mut Draft`
-   gives a mutable view of the base, symmetric with OP12's wrapping rule
-   (OPERATOR_TRAITS Still Open 21).
-7. The compound-assignment syntax is confirmed: ten tokens
-   `+= -= *= /= %= &= |= ^= <<= >>=` (no `**=`), with the right side
-   taking the same forms as `=`.
+**Still open (raised by the apply pass).** The spec states the Applied
+reading of each; nothing here is decided.
 
-Decorators and stale wording:
-8. Every decorator before an `impl ... by Structure:` block warns,
-   literal and std facts included (STRESS Still Open 1).
-9. The readable-decorator-targets Note covers enums as well as data
-   (STRESS Still Open 2).
-10. `types.trait.safe.convert`: drop "optional" from the list of values
-    that need explicit conversion, since every enum, optionals included,
-    is now `AnyRef`. Only primitives and tuples need conversion.
+| Point | Applied | **Recommendation** |
+| --- | --- | --- |
+| `let (a, b) = pair` without any `mut` | `syntax-error`, since decision 1 adds parentheses only for lists with `mut` ([`grammar.stmt.let-mut-list.needs-mut`](../spec/02-grammar.md#r-grammar.stmt.let-mut-list.needs-mut)) | Keep: one spelling per list. Allow it only if agents often write it. |
+| The code for `let mut log, db = pair` | `syntax-error`, as for any form the grammar lacks | Keep, with a fix-it that adds the parentheses. |
+| `let mut n: i32 = 0`, a primitive annotation under `let mut` | `mut-on-primitive`, not `let-mut-readonly-type`, whose fix-it would suggest `mut i32` | Keep. |
+| `mut` on a primitive outside `let`, as `fn f(x: mut f64)` | `mut-on-primitive` wherever the type is written, since the code is `types.prim.no-mut`'s | Keep. |
+| The warning's code | `redundant-let-mut` | Keep, or name it with the owner's preferred word. |
+| The panic category of a missing key in `m[k] op= v` | `index-out-of-bounds`, the category of a failed list index | Keep. A separate `missing-map-key` category would add a code for one case. |
 
 ### Local Mutability: `let mut` As An Inference Helper
 
 The owner's decision (2026-09-29) is applied as
 [Let Statements](../spec/02-grammar.md#let-statements) and
 [Binding Forms](../spec/04-type-system.md#binding-forms), with the code
-`let-mut-readonly-type`.
-
-**Questions from applying it.** Each waits for the owner; the spec states
-the applied behavior.
-
-| Question | Applied now | **Recommendation** |
-| --- | --- | --- |
-| The owner's pattern example is `let (mut log, db) = ...`, but a multi-name `let` has no parentheses (`let log, db = ...`) | `mut` goes before each name in the existing form: `let mut log, db = $.use(Log, Db)` ([`types.bind.let-mut-pattern`](../spec/04-type-system.md#r-types.bind.let-mut-pattern)); `let (mut log, db)` is a `syntax-error` | Keep the existing form, as Rust writes `mut` per name. A reader may take `let mut log, db` as two `mut` names; if that worries you, require parentheses when a later name lacks `mut`. |
-| `let mut n = 0` on a primitive, which has no `mut` form ([`types.prim.no-mut`](../spec/04-type-system.md#r-types.prim.no-mut)) | No new rule; the prototype reports `mutable-upgrade`, as it does for `let n: mut i32` | Keep it an error, since a plain `let` already reassigns. Give `types.prim.no-mut` a code, and use it for both spellings. |
-| `let mut u = find()` where `find` returns `mut User?` | Valid: the `mut` of the optional's contained type counts as the root, as `mut User?` is written | Keep. |
-| A style warning for the redundant `let mut a: mut T` | None | Leave it to a formatter or linter, as the decision says "at most". |
+`let-mut-readonly-type`. The four questions its apply pass raised were
+answered by the [evening follow-ups](#follow-ups-decided-2026-09-29-evening)
+1-4, which are applied.
 
 ### Bound And Row Operators
 
@@ -108,31 +95,25 @@ fn report!() -> void $ Console:
 
 ### Typed Derivation, Tool Adapters, And Secrets
 
-**Decided.** Owner decisions M1-M29 are applied in
-[Typed Derivation](../spec/14-annotations.md#typed-derivation). The
-readings the M26 apply pass left for the owner to confirm are in
-[Typed Derivation](TYPED_DERIVATION.md#readings-awaiting-confirmation).
-Error derivation is the separate `@error` intrinsic, listed below.
+**Decided.** Owner decisions M1-M30 are applied in
+[Typed Derivation](../spec/14-annotations.md#typed-derivation), and M30
+confirms the readings of the M26 apply pass. Error derivation is the
+separate `@error` intrinsic, listed below.
 
-**Open questions.** The spec lists these as
+**Waiting on other areas.** The spec lists these as
 [undecided parts](../spec/14-annotations.md#undecided-parts); each waits
 for the owner, and [Typed Derivation](TYPED_DERIVATION.md#remaining-open)
 gives their background:
 
 | Question | What is undecided |
 | --- | --- |
-| Fact check hook (M15) | The form of a fact type's compile-time `check`, and whether it covers cross-member and type-level checks (round 2 R8). |
 | Non-escaping handles (M18 R5) | Whether the parked NonEscapable design (TQ-24 to TQ-26) makes handles non-escaping. |
-| Plan constants (M21 R3-4) | The declaration and reference syntax of a template's compile-time constant, and the evaluator's limits. |
-| Typed shared constants (M21 R3-7) | Typed handles for shared constructor data, beyond `(name, Any)` pairs. |
-| `T -> U` mapping (M14) | Whether derivation between two types is in scope. |
-| Name clashes (round 2 R13) | How `walk`, `describe`, and `build` interact with trait methods of the same name. |
-| Derived bound (round 2 R14) | Whether a derived bound names the trait or the walker's strengthened bound, where they differ. |
-| `default()` allocation (round 2 R15) | Whether `h.default()` may allocate for every member type. |
-| Composing templates (round 1 P16) | How a wrapper walker forwards to an inner walker's `member`. |
 | `Clone`'s module (M24) | Which standard module declares `Clone`; chosen with the standard library ([STDLIB](STDLIB.md#clone)). |
 | Derived-function cache (M24) | The cache's API and module; chosen with the standard library ([STDLIB](STDLIB.md#derived-function-cache)). |
 | Function targets | Deriving for functions, as tool adapters need ([FN_TYPE](FN_TYPE.md) questions 9 and 10). A decorator before a function attaches a plain value that `shape_of(f).metadata[M]()` reads ([Prefix Decorators](../spec/14-annotations.md#prefix-decorators)). |
+
+M30 deferred template constants, typed shared constants, and composing
+templates until a real template needs them; they are not in the spec.
 
 **Secret values (removed for now).** `Secret[T]` and `Redact` were removed
 from the standard-library design as too early
@@ -422,17 +403,16 @@ owner decides otherwise.
 
 ### Cross-Feature Stress Test (2026-09-29)
 
-**Open.** Two readings of stress decisions 5 and 6, about decorators, wait
-for the owner in [Stress Test 2026-09-29](STRESS_2026_09_29.md#still-open).
+**Closed.** The two readings of stress decisions 5 and 6 were confirmed
+by the [evening follow-ups](#follow-ups-decided-2026-09-29-evening) 8
+and 9, and are applied.
 
 ### Stale Wording
 
-Found while removing applied design records (2026-09-29). Nothing here is
-decided:
-
-| Rule | Effect | **Recommendation** |
-| --- | --- | --- |
-| [`types.trait.safe.convert`](../spec/04-type-system.md#r-types.trait.safe.convert) | It says a caller converts "a primitive, tuple, or optional value" before passing it to an `AnyRef`-bounded method parameter. Every enum, `Option` included, is `AnyRef` ([`data.enum.immutable`](../spec/08-data-and-enums.md#r-data.enum.immutable) and the [value-category table](../spec/04-type-system.md#value-categories)), so an optional needs no conversion. | Drop "or optional" in an editorial pass. |
+**Applied.** The one entry, `types.trait.safe.convert`, was fixed by
+evening follow-up 10: it is retired, and
+[`types.trait.safe.convert-value`](../spec/04-type-system.md#r-types.trait.safe.convert-value)
+lists only primitive and tuple values.
 
 ## Runtime, Library, ABI, And Tooling Work
 
