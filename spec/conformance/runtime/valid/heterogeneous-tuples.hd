@@ -10,7 +10,7 @@ fn main!() -> i32:
     nested := ((1, 2),)
     single := (1,)
     generic := pair("value", 1)
-    let first, second: (i32, i32) = (1, 2)
+    let (first, second): (i32, i32) = (1, 2)
     first = 2
     loaded + text.len() + nested._0._0 + single._0 + generic._1 + first + second - second
 

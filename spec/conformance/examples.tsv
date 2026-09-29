@@ -31,7 +31,7 @@ specification	block	classification	fixture
 01-lexical-structure.md	30	lexical-inventory	-
 02-grammar.md	1	accept	runtime/valid/tests-block-items.hd
 02-grammar.md	2	mixed	parse/invalid/tests-block-in-function.hd|typing/invalid/duplicate-tests-block.hd
-02-grammar.md	3	mixed	parse/invalid/let-mut-short-binding.hd|parse/invalid/let-mut-bare-list.hd|parse/invalid/let-list-without-mut.hd
+02-grammar.md	3	mixed	parse/valid/let-list-without-mut.hd|parse/invalid/let-mut-short-binding.hd|parse/invalid/let-mut-bare-list.hd|parse/invalid/let-bare-list.hd|parse/invalid/let-list-one-name.hd
 02-grammar.md	4	mixed	parse/invalid/chained-multi-name-binding.hd
 02-grammar.md	5	mixed	parse/invalid/discard-binding-ends-in-suite.hd|parse/invalid/return-binding-ends-in-suite.hd
 02-grammar.md	6	mixed	parse/invalid/nested-same-line-if.hd|parse/invalid/same-line-if-in-function-body.hd|parse/invalid/same-line-if-in-defer-suite.hd|parse/invalid/same-line-suite-comma.hd
@@ -119,7 +119,7 @@ specification	block	classification	fixture
 04-type-system.md	23	accept	typing/valid/let-readonly-rebind.hd
 04-type-system.md	24	mixed	typing/invalid/let-readonly-fresh-literal.hd
 04-type-system.md	25	accept	typing/valid/let-mut-infer.hd|typing/valid/let-mut-optional.hd
-04-type-system.md	26	mixed	typing/invalid/let-mut-readonly-value.hd|typing/invalid/let-mut-primitive.hd
+04-type-system.md	26	mixed	typing/invalid/let-mut-readonly-value.hd|typing/invalid/let-mut-primitive.hd|typing/invalid/let-mut-primitive-annotation.hd
 04-type-system.md	27	mixed	typing/invalid/let-mut-readonly-annotation.hd|typing/warnings/redundant-let-mut.hd
 04-type-system.md	28	accept	typing/valid/let-mut-pattern.hd
 04-type-system.md	29	accept	typing/valid/mutable-paths.hd

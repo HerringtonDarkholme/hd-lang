@@ -652,6 +652,7 @@ fn edit(user: User) -> void:
 fn invalid(user: User) -> void:
     let mut alias = user  # error: mutable-upgrade
     let mut count = 0     # error: mut-on-primitive
+    let mut n: i32 = 0    # error: mut-on-primitive
 ```
 
 12. r[types.bind.let-mut-annotated] `let mut` with an annotation whose type is `mut T`, as in `let mut user: mut User = ...`, is valid; the `mut` after `let` is redundant.

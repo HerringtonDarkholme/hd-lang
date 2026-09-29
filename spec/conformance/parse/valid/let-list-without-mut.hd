@@ -1,0 +1,7 @@
+# test: a parenthesized let list needs no mut
+# Spec 02 Let Statements: grammar.stmt.let-list (apply-pass answer Let 1, 2026-09-29).
+fn pair() -> (List[i32], List[i32]): ([1], [2])
+
+fn valid() -> void:
+    let (first, second) = pair()
+    first = second

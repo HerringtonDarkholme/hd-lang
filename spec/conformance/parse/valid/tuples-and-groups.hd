@@ -3,4 +3,4 @@
 fn pair(value: (i32, string)) -> (i32,): (value._0,)
 empty := ()
 left, right := (1, 2)
-let name, score: (string, i32) = ("Ada", 10)
+let (name, score): (string, i32) = ("Ada", 10)

@@ -1,0 +1,5 @@
+# test: let mut with a primitive annotation reports mut-on-primitive, not let-mut-readonly-type
+# Spec 04 Binding Forms: types.bind.let-mut-primitive (apply-pass answer Let 3+4, 2026-09-29).
+fn invalid() -> i32:
+    let mut n: i32 = 0  # diagnostic: mut-on-primitive
+    n

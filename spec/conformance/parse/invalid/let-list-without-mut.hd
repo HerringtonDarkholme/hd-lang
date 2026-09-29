@@ -1,6 +1,0 @@
-# test: a parenthesized let list must write mut on at least one name
-# Spec 02 Let Statements: grammar.stmt.let-mut-list.needs-mut (evening follow-up 1, 2026-09-29).
-fn pair() -> (List[i32], List[i32]): ([1], [2])
-
-fn invalid() -> void:
-    let (first, second) = pair()  # diagnostic: syntax-error

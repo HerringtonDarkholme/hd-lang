@@ -1415,3 +1415,11 @@ style lint rejects a chapter that reuses one.
 - `grammar.generic.binding.trait-type`: retired 2026-09-29. Under AT5 a
   requirement key is no longer a `trait_type`. Replaced by
   `grammar.generic.binding.trait-type-only`.
+- `grammar.stmt.let-mut-list.bare`: retired 2026-09-29. The owner's
+  apply-pass answer Let 1 makes every multi-name `let` without
+  parentheses an error, with or without `mut`, and Let 2 gives it a
+  fix-it. Replaced by `grammar.stmt.let-list` and
+  `grammar.stmt.let-list.bare`.
+- `grammar.stmt.let-mut-list.needs-mut`: retired 2026-09-29. Under Let 1
+  a parenthesized list needs no `mut`, so `let (a, b) = pair` is valid.
+  Replaced by `grammar.stmt.let-list.two-names`.

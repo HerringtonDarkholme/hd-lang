@@ -295,7 +295,7 @@ A tuple binding introduces several names at once:
 
 ```text
 x, y := point
-let name, score = entry
+let (name, score) = entry
 ```
 
 1. r[names.tuple.simultaneous] Tuple binding introduces every listed name simultaneously after evaluating the initializer.

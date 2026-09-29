@@ -1,0 +1,6 @@
+# test: a multi-name let without mut still needs parentheses
+# Spec 02 Let Statements: grammar.stmt.let-list.bare (apply-pass answer Let 1, 2026-09-29).
+fn pair() -> (i32, i32): (1, 2)
+
+fn invalid() -> void:
+    let a, b = pair()  # diagnostic: syntax-error

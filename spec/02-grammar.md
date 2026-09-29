@@ -157,13 +157,8 @@ expression_statement = closed_expression ;
 binding_pattern = identifier, { ",", identifier } ;
 
 let_pattern = let_name
-            | identifier, ",", identifier, { ",", identifier }
-            | "(", let_mut_list, ")"
+            | "(", let_name, ",", let_name, { ",", let_name }, ")"
             ;
-let_mut_list = "mut", identifier, ",", let_name, { ",", let_name }
-             | identifier, ",", { identifier, "," }, "mut", identifier,
-               { ",", let_name }
-             ;
 let_name = [ "mut" ], identifier ;
 
 inline_statement = "let", let_name, [ ":", type ], "=", inline_expression
@@ -180,23 +175,28 @@ inline_statement = "let", let_name, [ ":", type ], "=", inline_expression
 ### Let Statements
 
 1. r[grammar.stmt.let-mut-single] In a `let` statement with one name, `mut` may precede the name, as in `let mut user = ...`.
-2. r[grammar.stmt.let-mut-list] A multi-name `let` with `mut` puts its names in parentheses, and `mut` may precede each of them, as in `let (mut log, db) = ...`.
-3. r[grammar.stmt.let-mut-list.bare] A multi-name `let` without parentheses takes no `mut`, so `let mut log, db = ...` is an error. Error: `syntax-error`.
-4. r[grammar.stmt.let-mut-list.needs-mut] A parenthesized list must hold at least two names, at least one of them written with `mut`. So `let (log, db) = ...` is an error. Error: `syntax-error`.
-5. r[grammar.stmt.let-mut.per-name] A `mut` belongs to the one name it precedes. The access it requests is a semantic rule of [Binding Forms](04-type-system.md#binding-forms).
-6. r[grammar.stmt.let-mut.only-let] Only `let` accepts it: `mut user := ...` and `for mut item in items:` are errors. Error: `syntax-error`.
+2. r[grammar.stmt.let-list] A multi-name `let` always puts its names in parentheses, with or without `mut`, as in `let (a, b) = ...`.
+3. r[grammar.stmt.let-list.bare] A multi-name `let` without parentheses, as in `let a, b = ...` or `let mut log, db = ...`, is an error whose fix-it adds the parentheses. Error: `syntax-error`.
+4. r[grammar.stmt.let-list.two-names] A parenthesized list must hold at least two names, so `let (a) = ...` is an error. Error: `syntax-error`.
+5. r[grammar.stmt.let-mut-list] In a parenthesized list, `mut` may precede each name, as in `let (mut log, db) = ...`.
+6. r[grammar.stmt.let-mut.per-name] A `mut` belongs to the one name it precedes. The access it requests is a semantic rule of [Binding Forms](04-type-system.md#binding-forms).
+7. r[grammar.stmt.let-mut.only-let] Only `let` accepts it: `mut user := ...` and `for mut item in items:` are errors. Error: `syntax-error`.
 
 ```text
 fn pair() -> (List[i32], List[i32]): ([1], [2])
 
 fn invalid() -> void:
+    let (first, second) = pair()  # valid: no mut needed
     mut total := 0  # error
     let mut log, db = pair()  # error
-    let (first, second) = pair()  # error
+    let a, b = pair()  # error
+    let (only) = pair()  # error
 ```
 
 > **Why.** In `let mut log, db`, a reader may take `mut` as covering both
-> names. The parentheses show that it belongs to `log` alone.
+> names. The parentheses show that it belongs to `log` alone. A multi-name
+> `let` uses them even without `mut`, since one shape reads better than two
+> spellings.
 
 ### Discard And Defer Statements
 

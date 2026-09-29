@@ -1731,3 +1731,16 @@ existing source. Each entry names the decision that made the change.
   the entry is `type-mismatch`, and `$.use` of a bound key returns that
   bound trait value type. Row aliases may list bound keys. Four rule IDs
   are retired.
+- `let` apply-pass answers (owner decisions Let 1-5 and Map 6 in
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  2026-09-29): a multi-name `let` always puts its names in parentheses.
+  `let (a, b) = pair`, previously a `syntax-error`, is valid, and its
+  names are reassignable with readonly types. `let a, b = pair`,
+  previously valid, is now a `syntax-error` whose fix-it adds the
+  parentheses, as is `let mut log, db = pair`. A parenthesized list still
+  needs two names. `a, b := pair` is unchanged. The other answers confirm
+  applied readings: `mut-on-primitive` wherever a primitive type is
+  written with `mut`, the `redundant-let-mut` warning, and
+  `index-out-of-bounds` for a missing key in `m[k] op= v`.
+  `grammar.stmt.let-mut-list.bare` and
+  `grammar.stmt.let-mut-list.needs-mut` are retired.

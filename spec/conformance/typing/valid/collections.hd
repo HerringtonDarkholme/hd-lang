@@ -17,7 +17,7 @@ fn collections(users: List[User]) -> Map[string, User] $ Console:
     point := (10, 20)
     x, y := point
     entry := Entry { name: "Ada", score: 10 }
-    let entry_name, score = (entry.name, entry.score)
+    let (entry_name, score) = (entry.name, entry.score)
     scores := {"Ada": 10, "Grace": 12}
     names := [for user in users if user.active => user.name]
     labels := [
