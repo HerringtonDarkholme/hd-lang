@@ -2095,14 +2095,19 @@ Packages use `hd.toml`. The default source root is `src`:
 ```toml
 [package]
 name = "my_app"
-version = "0.1.0"
 
 [source]
 root = "src"
 
 [dependencies]
-billing = "1.2.0"
+billing = "github.com/acme/billing@1.2.0"
 ```
+
+There is no package registry. A dependency is a repository path and a
+minimum version, and versions are the repository's tags, such as
+`v2.1.0`. The build takes the largest minimum any manifest asks for, and
+`hd.sum` records each dependency's hash. Source still names the dependency
+as `dep.billing`.
 
 Directories define submodule namespaces only when they contain a `mod.hd` file. `mod.hd` is required for every directory module and acts as the public index:
 

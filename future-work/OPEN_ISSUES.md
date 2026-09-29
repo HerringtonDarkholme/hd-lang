@@ -409,15 +409,15 @@ These items remain required but do not currently require new core syntax:
   rules for `std.fingerprint`, whose digests always carry an algorithm/version
   identifier;
 - the final `hd.toml` schema and the concrete host binding for capabilities
-  such as `Console`. The manifest shape, executable-main selection, caret
-  version ranges, the PubGrub-style resolver, and the lockfile are decided in
-  [Packages decisions 1-14](PACKAGES.md#owner-decisions) and drafted there,
-  none of them in the specification;
-- dependencies through version control hosts, with no registry (owner,
-  2026-09-28): [Dependencies decisions DEP1-DEP7](DEPENDENCIES.md#owner-decisions)
-  choose Go modules in hd spelling (version tags, minimal version
-  selection, `hd.sum`), overturning Packages decisions 2, 3, and 11; they
-  are not yet applied;
+  such as `Console`. Executable-main selection is drafted in
+  [Packages](PACKAGES.md#26-entry-points);
+- dependencies through version control hosts, with no registry:
+  [Dependencies decisions DEP1-DEP7](DEPENDENCIES.md#owner-decisions)
+  are applied in [Package Manifest](../spec/10-modules.md#package-manifest)
+  (version tags, minimal version selection, `hd.sum`, workspaces,
+  pseudo-versions). Nine points the apply pass met wait for the owner in
+  [Dependencies Still Open](DEPENDENCIES.md#still-open), and the tooling
+  work is in [Package Tooling](RUNTIME_AND_LIBRARY.md#package-tooling);
 - a `package-cycle` conformance fixture, which waits until the manifest
   schema exists (Dependency Cycles DC12,
   [`module.cycle.package`](../spec/10-modules.md#r-module.cycle.package));

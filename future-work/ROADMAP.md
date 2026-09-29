@@ -169,8 +169,9 @@ repeat exactly.
 - Standard library: how `std` is versioned and tied to the compiler version.
 - Distribution: there is no registry (owner, 2026-09-28). Dependencies
   come from version control hosts, as decided in
-  [Dependencies](DEPENDENCIES.md#owner-decisions) (DEP1-DEP7, not yet
-  applied), which overturns [Packages](PACKAGES.md#owner-decisions)
+  [Dependencies](DEPENDENCIES.md#owner-decisions) (DEP1-DEP7, applied in
+  [Package Manifest](../spec/10-modules.md#package-manifest) on
+  2026-09-29), which overturns [Packages](PACKAGES.md#owner-decisions)
   decisions 2, 3, and 11.
 - Agent use: every package operation is a non-interactive command with
   machine-readable output, and package metadata is queryable through the

@@ -2,7 +2,14 @@
 
 Status: research and design draft for [Roadmap area 5](ROADMAP.md#5-packages),
 revised to the [owner decisions](#owner-decisions) 1 to 14 of 2026-09-26.
-Nothing here is accepted language behavior. The draft sections below follow
+[Dependencies](DEPENDENCIES.md#owner-decisions) DEP1 (2026-09-29) removes
+the registry and supersedes decisions 2, 3, and 11, so the registry
+names, caret ranges, solver, lockfile, and distribution drafted below are
+superseded too. Decisions 1, 4, 8, 10, 12, and 13 are applied with DEP1-DEP7
+in [Package Manifest](../spec/10-modules.md#package-manifest) and
+[Runtime Profiles](../spec/10-modules.md#runtime-profiles), and the
+specification is authoritative for them. Nothing else here is accepted
+language behavior. The draft sections below follow
 the decisions; details the decisions leave open are marked as open.
 Decisions that change the language go to the
 [specification](../spec/README.md): decision 5's test-dependency boundary
@@ -706,6 +713,14 @@ Output rules:
 ## Owner Decisions
 
 Decided 2026-09-26. Applied to the draft sections above on 2026-09-27.
+On 2026-09-29, [Dependencies DEP1](DEPENDENCIES.md#owner-decisions)
+superseded decisions 2, 3, and 11. Decision 14 is moot, since no registry
+will exist; DEP4 governs a checksum log. Decisions 1, 4, 8, 10, 12, and 13
+are applied in [Package Manifest](../spec/10-modules.md#package-manifest)
+and [Runtime Profiles](../spec/10-modules.md#runtime-profiles). Decisions 6
+and 7 classify changes for `hd api diff`, which DEP7 schedules later.
+Decision 9 has nothing to apply without a publish step
+([Dependencies Still Open 9](DEPENDENCIES.md#still-open)).
 Decision 4's orphan part is superseded: the root-application orphan
 exception is dropped (2026-09-27). Decision 5 is language syntax. It is
 superseded by the testing redesign, whose test-dependency rules are applied
@@ -717,7 +732,9 @@ in [Test Modules](../spec/10-modules.md#test-modules) and
    `json_old = "acme/json@1.9.0"`), as distinct packages.
 2. **Question 2: version ranges with a solver** (Cargo and uv style caret
    ranges, PubGrub-style resolution), not minimal version selection.
-3. **Question 3: registry names are `owner/name`.**
+   Superseded by DEP1: resolution is minimal version selection.
+3. **Question 3: registry names are `owner/name`.** Superseded by DEP1:
+   there is no registry, and a dependency is named by its host path.
 4. **Question 4: Cargo style.** One package may have a library root and
    executables. The root-application orphan exception must be restated for
    this shape (which targets count as the root application). Decided
@@ -746,12 +763,14 @@ in [Test Modules](../spec/10-modules.md#test-modules) and
 10. **Question 10: a toolchain minimum plus an optional root pin** that `hd`
     downloads; no editions yet.
 11. **Question 11: published packages contain sources and the interface
-    file;** Wasm components are decided with the component ABI.
+    file;** Wasm components are decided with the component ABI. Superseded
+    by DEP1: there is no publish step, and a version is the tagged tree.
 12. **Question 12: no optional features or conditional compilation.**
 13. **Question 13: only toolchain-defined runtime profile names,** until the
     host capability catalog is settled.
 14. **Question 14: a public checksum transparency log** once a public
-    registry exists.
+    registry exists. Moot under DEP1 and DEP4: `hd.sum` is the only
+    integrity source.
 
 ## 10. Questions For The Owner
 

@@ -1,8 +1,17 @@
 # Dependencies Through Version Control: Survey And Options
 
-Status: design exploration, 2026-09-29; nothing here is decided or in the
-specification. It explores the owner's direction of 2026-09-28, quoted
-below, and reviews these records and sections:
+Status: design exploration, 2026-09-29. Owner decisions DEP1-DEP7 are
+applied (2026-09-29), and the specification is authoritative for them:
+[Package Manifest](../spec/10-modules.md#package-manifest) and its
+subsections, from [Dependency Requirements](../spec/10-modules.md#dependency-requirements)
+to [Toolchain Version](../spec/10-modules.md#toolchain-version). DEP7's
+later items are not yet specified
+([`module.tooling.package-later`](../spec/10-modules.md#r-module.tooling.package-later)),
+and the tooling commands are in
+[Package Tooling](RUNTIME_AND_LIBRARY.md#package-tooling). Points the
+apply pass met are under [Still Open](#still-open). The rest of the record
+is the survey behind the decisions. It explores the owner's direction of
+2026-09-28, quoted below, and reviews these records and sections:
 
 - [Packages](PACKAGES.md), its draft sections and
   [owner decisions](PACKAGES.md#owner-decisions) 1 to 14;
@@ -49,6 +58,24 @@ Decided 2026-09-29.
    - Hosts: known hosts, plus a `.git` suffix for others, with no meta-tag
      discovery.
 
+## Still Open
+
+Points the apply pass met (2026-09-29). Each waits for the owner. Where a
+point is applied, the spec states the applied reading, and it can change
+without breaking a decision.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 1 | Pseudo-version spelling | Go's three forms, without the leading `v` ([`module.version.pseudo`](../spec/10-modules.md#r-module.version.pseudo)) | Keep. |
+| 2 | A dependency's test dependencies during selection | Never read ([`module.select.test-dependencies`](../spec/10-modules.md#r-module.select.test-dependencies)), since only a package's own test build compiles its test code | Keep. Go also prunes them from the module graph. |
+| 3 | Two keys that name the same host path and line | No rule | Reject it, since one package would then have two names. |
+| 4 | How a workspace member depends on another member | No rule | Require it by host path and let the workspace supply the local tree, as `go.work` does. A release then needs no manifest edit. |
+| 5 | Whether a manifest states its own host path, and a fetched manifest must match it (option A's `[package] id`) | No rule | Yes, as option A drafts, so a fork fetched under the wrong path is rejected. |
+| 6 | Whether a tagged release may require a pseudo-version (DP6) | No restriction | Allow it, as DP6 (a) recommends: it is still one pinned commit with a hash. |
+| 7 | Which hosts are known | Toolchain-defined ([`module.repo.known-host`](../spec/10-modules.md#r-module.repo.known-host)) | Start with `github.com`, `codeberg.org`, and `bitbucket.org`, each with an owner and a repository segment, and list them in the tooling docs. |
+| 8 | Diagnostics and fixtures | No code for a hash mismatch, a malformed requirement, or a `dep.NAME` with no manifest key. The fixture format has no manifest input, so no fixture was added | Add a manifest input to the fixture format once the schema is written, with codes such as DP8's `checksum-mismatch`. |
+| 9 | [Packages decision 9](PACKAGES.md#owner-decisions) (no git or path dependencies in published packages) | Nothing to apply: there is no publish step and no path dependency form | Revisit with local-path patches, so that a release rejects a path dependency. |
+
 ## Contents
 
 1. [Problem](#problem)
@@ -78,7 +105,7 @@ The spec keeps the package model small and leaves the rest to tooling:
 | Rule | Text today |
 | --- | --- |
 | [`module.manifest.file`](../spec/10-modules.md#r-module.manifest.file) | A package has an `hd.toml` manifest. |
-| [`module.manifest.tooling`](../spec/10-modules.md#r-module.manifest.tooling) | Schema, resolution, lockfile, and versions are tooling work. |
+| `module.manifest.tooling` (retired 2026-09-29) | Schema, resolution, lockfile, and versions are tooling work. |
 | [`module.manifest.dependency`](../spec/10-modules.md#r-module.manifest.dependency) | The manifest maps each dependency name to one resolved package. |
 | [`module.root.dep-prefix`](../spec/10-modules.md#r-module.root.dep-prefix) | Source names a dependency only as `dep.<name>`. |
 | [`module.package.identity-part`](../spec/10-modules.md#r-module.package.identity-part) | Resolved package identity is part of declaration identity. |

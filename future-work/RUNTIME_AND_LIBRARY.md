@@ -294,6 +294,28 @@ compiler or the host implements?
 in the Design Cost Order, and std sources stay portable because every
 primitive is an ordinary declaration with a placeholder body.
 
+## Package Tooling
+
+[Dependencies](DEPENDENCIES.md#owner-decisions) DEP1-DEP7 fix the package
+model in [Package Manifest](../spec/10-modules.md#package-manifest). The
+commands and file formats below are tooling work, not specification.
+Nothing here is decided beyond those decisions; the names follow the
+Dependencies record's option A.
+
+| Item | Phase | Draft |
+| --- | --- | --- |
+| `hd.sum` line format | first | One line per tree and per manifest, as `go.sum` has: path, version, and an `algorithm:hex` tree hash. |
+| Adding and upgrading | first | `hd get PATH@VERSION` adds or raises a requirement and writes `hd.sum`; `hd get -u` moves to the newest tag in the line. |
+| Workspaces | first | A committed workspace manifest with one selection and one `hd.sum` ([Workspaces](../spec/10-modules.md#workspaces)). |
+| Pseudo-versions | first | `hd get PATH@COMMIT` writes the pseudo-version of that commit. |
+| Private paths | first | Where the private-path pattern is set, such as an environment variable like Go's `GOPRIVATE`. Fetches go through `git` and its credential helpers. |
+| Compatibility check | later | `hd api diff` compares interface files; `hd release` runs it before tagging, and `hd get -u` before upgrading ([Packages §3.3](PACKAGES.md#33-the-checked-compatibility-rule)). |
+| Vendoring | later | `hd vendor` writes `vendor/`, which builds use when present. |
+| Local-path patches | later | A root-only `[patch]` that replaces a host path with a local tree, hashed into the durable replay code identity. |
+
+Every command stays non-interactive and accepts `--format json`, as
+[Packages §8](PACKAGES.md#8-agent-first-cli) drafts.
+
 ## Persistence and Resumption
 
 A suspending function can be run as a durable workflow without adding checkpoint syntax:

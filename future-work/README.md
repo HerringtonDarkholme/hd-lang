@@ -23,7 +23,8 @@ Decided, not yet applied:
   error design is in the specification.
 - [Dependencies Through Version Control](DEPENDENCIES.md) surveys
   registry-free dependency management and records owner decisions
-  DEP1-DEP7 (Go modules in hd spelling).
+  DEP1-DEP7 (Go modules in hd spelling), applied in
+  [Package Manifest](../spec/10-modules.md#package-manifest).
 - [Packages: Survey And Manifest Draft](PACKAGES.md) surveys package
   managers and drafts the `hd.toml` schema, versioning, resolution, and
   lockfile under owner decisions 1-14, some now overturned by DEP1.
