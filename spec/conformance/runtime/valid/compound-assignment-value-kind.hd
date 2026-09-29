@@ -1,5 +1,5 @@
-# test: += on a newtype and on a Num type parameter rebinds the place through the operator trait
-# Spec 05 Compound Assignment: expr.assign.compound.value, expr.assign.compound.by-kind (Operator Traits OP10).
+# test: += on a newtype and on a Num type parameter stores p + e through the operator trait
+# Spec 05 Compound Assignment: expr.assign.compound.meaning, expr.assign.compound.operator (Operator Traits OP10, OP13).
 use std.num.Num
 use std.ops.Add
 use std.testing.assert_equal

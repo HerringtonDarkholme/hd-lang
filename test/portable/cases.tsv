@@ -1347,7 +1347,7 @@ typing/valid/compound-assignment.hd	type
 runtime/valid/compound-assignment-run.hd	runtime
 runtime/valid/compound-assignment-alias.hd	runtime
 typing/invalid/compound-assign-readonly.hd	type
-typing/invalid/compound-assign-no-assign-impl.hd	type
+typing/invalid/compound-assign-data-no-operator.hd	type
 typing/invalid/compound-assign-not-place.hd	type
 parse/valid/compound-assignment-tokens.hd	parse
 parse/invalid/power-compound-assignment.hd	parse
@@ -1393,3 +1393,7 @@ runtime/valid/string-prefix-plain-dollar-digit.hd	runtime
 runtime/valid/literal-suffix-default-parameter.hd	runtime
 typing/valid/row-union-private-result.hd	type
 runtime/valid/operator-string-add.hd	runtime
+runtime/valid/compound-assign-index.hd	runtime
+typing/invalid/compound-assign-index-no-read.hd	type
+typing/invalid/compound-assign-map-optional.hd	type
+typing/invalid/newtype-over-data-permission.hd	type

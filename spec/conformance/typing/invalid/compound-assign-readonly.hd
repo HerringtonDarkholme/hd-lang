@@ -1,13 +1,7 @@
-# test: an assign method takes mut self, so a readonly place is rejected
-# Spec 05 Compound Assignment: expr.assign.compound.mut (Operator Traits OP5).
-use std.ops.AddAssign
-
+# test: += stores into the place, so a field needs a mutable root
+# Spec 05 Compound Assignment: expr.assign.compound.store (Operator Traits OP13).
 data Tally:
     count: i64
 
-impl AddAssign[i64] for Tally:
-    fn add_assign(mut self, rhs: i64) -> void:
-        self.count = self.count + rhs
-
 fn invalid(tally: Tally) -> void:
-    tally += 1  # diagnostic: mutable-receiver-required
+    tally.count += 1  # diagnostic: readonly-root

@@ -1175,3 +1175,75 @@ style lint rejects a chapter that reuses one.
 - `expr.op.std.other-primitives`: retired 2026-09-29. Operator traits OP11
   makes `string` implement `Add`. Replaced by `expr.op.std.string-add`,
   `expr.op.std.string-concat`, and `expr.op.std.bool-char`.
+- `expr.assign.compound.add`: retired 2026-09-29. Operator traits OP13
+  removes the assign traits this table row named. Replaced by
+  `expr.assign.compound.meaning`.
+- `expr.assign.compound.sub`: retired 2026-09-29. Operator traits OP13
+  removes the assign traits this table row named. Replaced by
+  `expr.assign.compound.meaning`.
+- `expr.assign.compound.mul`: retired 2026-09-29. Operator traits OP13
+  removes the assign traits this table row named. Replaced by
+  `expr.assign.compound.meaning`.
+- `expr.assign.compound.div`: retired 2026-09-29. Operator traits OP13
+  removes the assign traits this table row named. Replaced by
+  `expr.assign.compound.meaning`.
+- `expr.assign.compound.rem`: retired 2026-09-29. Operator traits OP13
+  removes the assign traits this table row named. Replaced by
+  `expr.assign.compound.meaning`.
+- `expr.assign.compound.bit-and`: retired 2026-09-29. Operator traits OP13
+  removes the assign traits this table row named. Replaced by
+  `expr.assign.compound.meaning`.
+- `expr.assign.compound.bit-or`: retired 2026-09-29. Operator traits OP13
+  removes the assign traits this table row named. Replaced by
+  `expr.assign.compound.meaning`.
+- `expr.assign.compound.bit-xor`: retired 2026-09-29. Operator traits OP13
+  removes the assign traits this table row named. Replaced by
+  `expr.assign.compound.meaning`.
+- `expr.assign.compound.shl`: retired 2026-09-29. Operator traits OP13
+  removes the assign traits this table row named. Replaced by
+  `expr.assign.compound.meaning`.
+- `expr.assign.compound.shr`: retired 2026-09-29. Operator traits OP13
+  removes the assign traits this table row named. Replaced by
+  `expr.assign.compound.meaning`.
+- `expr.assign.compound.traits`: retired 2026-09-29. Operator traits OP13
+  removes the assign traits. Replaced by
+  `expr.assign.compound.no-assign-traits`.
+- `expr.assign.compound.by-kind`: retired 2026-09-29. Operator traits OP13
+  gives `p op= e` one meaning for every type. Replaced by
+  `expr.assign.compound.meaning`.
+- `expr.assign.compound.value`: retired 2026-09-29. Operator traits OP13
+  gives every type the meaning `p = p op e`. Replaced by
+  `expr.assign.compound.meaning`, `expr.assign.compound.operator`, and
+  `expr.assign.compound.store`.
+- `expr.assign.compound.primitive-no-trait`: retired 2026-09-29. Operator traits OP13
+  removes the assign traits. Replaced by
+  `expr.assign.compound.no-assign-traits`.
+- `expr.assign.compound.ref-call`: retired 2026-09-29. Operator traits OP13
+  removes the assign call. Replaced by
+  `expr.assign.compound.meaning`.
+- `expr.assign.compound.no-use`: retired 2026-09-29. Operator traits OP13
+  removes the assign call.
+- `expr.assign.compound.mut`: retired 2026-09-29. Operator traits OP13
+  removes the `mut self` assign call; the store follows assignment. Replaced by
+  `expr.assign.compound.store`.
+- `expr.assign.compound.no-store`: retired 2026-09-29. Operator traits OP13
+  makes every compound assignment store. Replaced by
+  `expr.assign.compound.store`.
+- `expr.assign.compound.ref-no-impl`: retired 2026-09-29. Operator traits OP13
+  needs only the operator's trait. Replaced by
+  `expr.assign.compound.operator`.
+- `expr.assign.compound.no-fallback`: retired 2026-09-29. Operator traits OP13
+  makes `p = p op e` the only meaning. Replaced by
+  `expr.assign.compound.meaning`.
+- `expr.assign.compound.shared`: retired 2026-09-29. Operator traits OP13
+  replaces the value in the place instead of changing it. Replaced by
+  `expr.assign.compound.fresh-value`.
+- `expr.assign.compound.index-by-kind`: retired 2026-09-29. Operator traits OP13
+  reads and stores an index place for every element type. Replaced by
+  `expr.assign.compound.index-read-write`.
+- `expr.assign.compound.fix`: retired 2026-09-29. Operator traits OP12
+  makes the `p = p op e` fix-it non-normative. Replaced by a Note under
+  Compound Assignment.
+- `module.prelude.ops-operators`: retired 2026-09-29. Operator traits OP13
+  removes the assign traits from `std.ops`. Replaced by
+  `module.prelude.ops-operator-traits`.

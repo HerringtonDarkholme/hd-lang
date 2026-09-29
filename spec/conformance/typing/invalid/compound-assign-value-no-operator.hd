@@ -1,5 +1,5 @@
 # test: += on a newtype needs the plain operator's trait, since it means p = p + e
-# Spec 05 Compound Assignment: expr.assign.compound.value (Operator Traits OP10).
+# Spec 05 Compound Assignment: expr.assign.compound.operator (Operator Traits OP10, OP13).
 type Meters(i64)
 
 fn walk(step: Meters) -> Meters:

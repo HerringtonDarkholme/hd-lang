@@ -1,0 +1,8 @@
+# test: += on a data type needs the plain operator's trait, since it means p = p + e
+# Spec 05 Compound Assignment: expr.assign.compound.operator (Operator Traits OP13).
+data Score:
+    points: i64
+
+fn invalid(bonus: Score) -> void:
+    let score = Score { points: 0 }
+    score += bonus  # diagnostic: type-mismatch

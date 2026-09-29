@@ -1595,16 +1595,15 @@ operators; implement the ones it needs by hand. Two primitive operands keep
 the built-in rules. The trait of `~` is `Not`, and `string` implements
 `Add`, so generic code bounded by `Add` can concatenate strings.
 
-Compound assignment, such as `total += x`, depends on the type's kind. On
-a value without identity (a primitive, a newtype over one, or `T < Num`),
-`total += x` means `total = total + x`. On a `data` value it calls an
-`AddAssign`-family method that takes `mut self`, so every alias sees the
-change. Without that method it is an error that suggests
-`total = total + x`; it never picks either meaning silently. By
-convention, value-like `data` types such as vectors and money implement
-only `Add`, and callers write `a = a + b`. Accumulators and builders
-implement `AddAssign`. `Index` and `IndexSet` give a type `grid[i]` and
-`grid[i] = v`.
+Compound assignment, such as `total += x`, always means
+`total = total + x`, for every type. It needs the operator and a place
+that `=` could store into: a `let` local, a field of a mutable value, or
+an element. On a `data` value it stores a new value, so another reference
+to the old one is unaffected. Accumulators and builders change themselves
+through ordinary methods, such as `sb.push(x)`. `Index` and `IndexSet`
+give a type `grid[i]` and `grid[i] = v`, and `grid[i] += 1` reads, then
+stores. On a `Map`, `counts[w]` reads as an optional, so write
+`counts[w] = counts[w].unwrap_or(0) + 1`.
 
 Generic numeric code uses the sealed `std.num` traits `Num`, `Integer`,
 and `Float`, which only the primitive number types implement. Constants

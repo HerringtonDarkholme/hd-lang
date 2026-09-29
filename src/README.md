@@ -743,10 +743,10 @@ else`, `break`, `break value`, and `continue`;
   and `Float` follow the same path. The primitive implementations are hd
   code whose bodies are the built-in operators. Floating `%` calls the
   host's `rem_f64`, JavaScript's truncated remainder. Compound assignment
-  on an `AnyVal` place (a newtype over a primitive, or a type parameter
-  whose bound extends `AnyVal`, recorded as `HirTrait.valueCategory`)
-  stores `place op value`; other places call the assign method. A newtype
-  construction over an `AnyVal` base is readonly. `Num::from_i64` checks
+  `place op= value` stores `place op value` for every type, and an index
+  place reads and stores its element. A newtype construction over an
+  `AnyVal` base is readonly, and one over an `AnyRef` base carries its
+  argument's permission. `Num::from_i64` checks
   its range in `lib/std/num.hd`, and `"$x"` on `T < Num` reaches `Display`
   through the supertrait;
 - homogeneous `List[T]` literals, indexing, `len()`, and mutable `append()` over
@@ -850,7 +850,7 @@ What it provides:
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
-| `std.ops` | the twelve operator traits, the ten assign traits, `Index`, and `IndexSet`, with the primitive implementations of the operator traits; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template` |
+| `std.ops` | the twelve operator traits, `Index`, and `IndexSet`, with the primitive implementations of the operator traits; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template` |
 | `std.format` | `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and pairs |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives and `string`), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
 

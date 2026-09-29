@@ -55,7 +55,7 @@ every user module that already declares it.
 | `std.resource` | `ResourceError[E]` | [Wasm Boundary](../spec/10-modules.md#wasm-boundary) |
 | `std.convert` | `From[T]` | [Conversion Trait](../spec/09-traits.md#conversion-trait) |
 | `std.error` | `Error` (a `Display` subtrait whose members all have defaults) | [Error Trait](../spec/09-traits.md#error-trait) |
-| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; the twelve operator traits `Add` to `Shr`, the ten assign traits `AddAssign` to `ShrAssign`, and `Index` and `IndexSet` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings), [Operator Traits](../spec/05-expressions.md#operator-traits), [Compound Assignment](../spec/05-expressions.md#compound-assignment), [Index Traits](../spec/05-expressions.md#index-traits) |
+| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; the twelve operator traits `Add` to `Shr`, and `Index` and `IndexSet` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings), [Operator Traits](../spec/05-expressions.md#operator-traits), [Compound Assignment](../spec/05-expressions.md#compound-assignment), [Index Traits](../spec/05-expressions.md#index-traits) |
 | `std.num` | the sealed traits `Num`, `Integer`, and `Float`, with `zero`, `one`, and `from_i64` on `Num` | [Numeric Traits](../spec/09-traits.md#numeric-traits) |
 | `std.text` | the string prefix `r` | [Prefixed Strings](../spec/05-expressions.md#prefixed-strings) |
 | `std.time` | `Duration`; the literal suffixes `ms`, `s`, `min`, `h` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
@@ -872,20 +872,16 @@ and `EscapeError` moved there too (L22; see [`std.text`](#stdtext)).
 `std.ops` also declares the operator traits
 ([Operator Traits](OPERATOR_TRAITS.md#owner-decisions) OP1-OP9, OP11): `Add`,
 `Sub`, `Mul`, `Div`, `Rem`, `Neg`, `BitAnd`, `BitOr`, `BitXor`, `Not`,
-`Shl`, and `Shr`, each with an associated `Out`; the ten assign traits
-from `AddAssign` to `ShrAssign`, each with a `mut self` method; and `Index`
-and `IndexSet`. Std implements the operator traits for the primitive
-numbers with intrinsic bodies, and `Add` for `string`, and `std.time` can implement them for
-`Duration`, so `5s + 250ms` works. `std.time` is not yet written against
+`Shl`, and `Shr`, each with an associated `Out`, and `Index` and
+`IndexSet`; OP13 removed the assign traits. Std implements the operator
+traits for the primitive numbers with intrinsic bodies and `Add` for
+`string`, and `std.time` can implement them for `Duration`, so `5s + 250ms` works. `std.time` is not yet written against
 them; that is library work, not a language question.
 
 ```text
 pub trait Add[Rhs]:
     type Out
     fn add(self, rhs: Rhs) -> Self::Out
-
-pub trait AddAssign[Rhs]:
-    fn add_assign(mut self, rhs: Rhs) -> void
 
 pub trait Index[K]:
     type Out

@@ -1490,6 +1490,23 @@ existing source. Each entry names the decision that made the change.
   so `T < Add[T, Out = T]`, which rejected `string` with
   `unsatisfied-trait-bound`, now accepts it; `a + b` on two strings stays
   built in.
+- Operator traits OP12 (same record, 2026-09-29): a newtype construction
+  over a data type carries its argument's permission, so `Order(d)` is
+  `mut Order` exactly when `d` has mutable access; storing `Order(seen)`
+  with a readonly `seen` into a `mut Order` binding is now
+  `mutable-upgrade`. The `a = a + b` fix-it of a rejected compound
+  assignment is no longer required.
+- Operator traits OP13 (same record, 2026-09-29): the ten assign traits,
+  such as `AddAssign`, are removed, so `use std.ops.AddAssign` no longer
+  resolves. `a op= b` means `a = a op b` for every type. On a data type
+  that implements only `AddAssign`, `a += b`, previously valid, is now
+  `type-mismatch`; with `Add` it is valid on a reassignable place, where
+  it was `type-mismatch`. A parameter place, which the assign call
+  allowed, is now `non-reassignable-parameter-binding`, and a field of a
+  readonly root is `readonly-root`. Another reference to the old value no
+  longer sees the change. An index place reads, then stores (stress test
+  decision 11); on a `Map` the read is `V?`, so `counts[w] += 1` on a
+  `Map[string, i32]` stays `type-mismatch`.
 - Iterator adapters (STDLIB questions 14 and 18, owner decision,
   2026-09-29): the prelude `Iterator[T]` gains the default methods
   `filter`, `take`, `enumerate`, and `collect`, as Rust's `Iterator` has

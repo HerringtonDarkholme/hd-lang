@@ -130,9 +130,19 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         },
         expected,
       );
-      // A newtype over an `AnyVal` base has no identity, so its construction
-      // is not a fresh mutable object (04-type-system.md#r-types.fresh.mutable).
-      return this.isIdentityType(constructed.type)
+      // A newtype over an `AnyVal` base is a value, not a fresh mutable
+      // object (04-type-system.md#r-types.newtype.construct-value). Over an
+      // `AnyRef` base it wraps the base value, so it carries that value's
+      // permission (04-type-system.md#r-types.newtype.construct-permission).
+      // The field stores the base as its declared readonly type, so the
+      // supplied value's permission is under that weakening.
+      const field = constructed.kind === "data" ? constructed.fields[0] : undefined;
+      const base = field?.kind === "permission-weaken" ? field.operand : field;
+      const mutable =
+        this.isIdentityType(constructed.type) &&
+        base !== undefined &&
+        mutableInner(base.type) !== undefined;
+      return mutable
         ? constructed
         : this.coerce(constructed, readonlyType(constructed.type), expression.span);
     }

@@ -1,21 +1,22 @@
-# test: an assign method changes a shared data value, so an alias observes it
-# Spec 05 Compound Assignment: expr.assign.compound.shared (Operator Traits OP5).
-use std.ops.AddAssign
+# test: += on a data place stores a new value, so another reference keeps the old one
+# Spec 05 Compound Assignment: expr.assign.compound.fresh-value (Operator Traits OP13).
+use std.ops.Add
 use std.testing.assert_equal
 
-data Tally:
-    count: i64
+data Score:
+    points: i64
 
-impl AddAssign[i64] for Tally:
-    fn add_assign(mut self, rhs: i64) -> void:
-        self.count = self.count + rhs
+impl Add[Score] for Score:
+    type Out = Score
+    fn add(self, rhs: Score) -> Score:
+        Score { points: self.points + rhs.points }
 
-fn alias() -> i64:
-    let a: mut Tally = Tally { count: 1 }
+fn alias() -> (i64, i64):
+    let a: Score = Score { points: 1 }
     b := a
-    a += 2
-    b.count
+    a += Score { points: 2 }
+    (a.points, b.points)
 
 tests:
-    it("changes the value in place"):
-        assert_equal(alias(), 3, reason="b is the same Tally as a")
+    it("replaces the value in the place"):
+        assert_equal(alias(), (3, 1), reason="a holds the sum, b keeps the old Score")

@@ -1,4 +1,4 @@
-# std.ops: the operator, assign, and index traits, and the literal-suffix
+# std.ops: the operator and index traits, and the literal-suffix
 # and string-prefix markers
 # (spec/05-expressions.md#literal-suffixes, #prefixed-strings) and
 # `Template`. The raw-text prefix `r` and the prefix helpers `interpolate`,
@@ -80,40 +80,6 @@ pub trait Shl[Rhs]:
 pub trait Shr[Rhs]:
     type Out
     fn shr(self, rhs: Rhs) -> Self::Out
-
-# The assign traits of compound assignment
-# (spec/05-expressions.md#compound-assignment). No primitive implements one
-# (r-expr.assign.compound.primitive-no-trait).
-
-pub trait AddAssign[Rhs]:
-    fn add_assign(mut self, rhs: Rhs) -> void
-
-pub trait SubAssign[Rhs]:
-    fn sub_assign(mut self, rhs: Rhs) -> void
-
-pub trait MulAssign[Rhs]:
-    fn mul_assign(mut self, rhs: Rhs) -> void
-
-pub trait DivAssign[Rhs]:
-    fn div_assign(mut self, rhs: Rhs) -> void
-
-pub trait RemAssign[Rhs]:
-    fn rem_assign(mut self, rhs: Rhs) -> void
-
-pub trait BitAndAssign[Rhs]:
-    fn bit_and_assign(mut self, rhs: Rhs) -> void
-
-pub trait BitOrAssign[Rhs]:
-    fn bit_or_assign(mut self, rhs: Rhs) -> void
-
-pub trait BitXorAssign[Rhs]:
-    fn bit_xor_assign(mut self, rhs: Rhs) -> void
-
-pub trait ShlAssign[Rhs]:
-    fn shl_assign(mut self, rhs: Rhs) -> void
-
-pub trait ShrAssign[Rhs]:
-    fn shr_assign(mut self, rhs: Rhs) -> void
 
 # `r[k]` and `r[k] = v` on a type other than `List` and `Map`
 # (spec/05-expressions.md#index-traits).

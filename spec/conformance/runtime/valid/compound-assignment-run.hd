@@ -1,5 +1,5 @@
 # test: compound assignment on primitive locals, list elements, and fields
-# Spec 05 Compound Assignment: expr.assign.compound.primitive, expr.assign.compound.once (Operator Traits OP5).
+# Spec 05 Compound Assignment: expr.assign.compound.primitive, expr.assign.compound.once (Operator Traits OP5, OP13).
 use std.testing.assert_equal
 
 data Box:

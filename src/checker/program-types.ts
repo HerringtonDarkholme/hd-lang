@@ -570,7 +570,6 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         });
     }
     const supertraitNames = new Set<string>();
-    let valueCategory: "AnyVal" | "AnyRef" | undefined;
     // A supertrait's arguments and bindings may name `Self`
     // (09-traits.md#supertrait-bindings).
     const supertraitGenerics = new Set([...declaration.genericParameters, "Self"]);
@@ -579,10 +578,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
       const application = nominalGenericParts(resolved);
       const name = application?.name ?? resolved;
       // `AnyVal` and `AnyRef` are value categories, not dispatched traits.
-      if (name === "AnyVal" || name === "AnyRef") {
-        valueCategory = name;
-        return [];
-      }
+      if (name === "AnyVal" || name === "AnyRef") return [];
       const supertrait = traitTypes.get(name);
       if (!supertrait) {
         diagnostics.push({
@@ -751,7 +747,6 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
     traitTypes.set(declaration.name, {
       ...trait,
       supertraits,
-      ...(valueCategory ? { valueCategory } : {}),
       associatedTypes,
       methods,
     });

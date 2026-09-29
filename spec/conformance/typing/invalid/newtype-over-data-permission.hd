@@ -1,0 +1,14 @@
+# test: a newtype over a data type carries its base value's permission
+# Spec 04 Newtypes: types.newtype.construct-ref, types.newtype.construct-permission (Operator Traits OP12).
+data Draft:
+    lines: List[string]
+
+type Order(Draft)
+
+fn keep(open: Order, closed: Order) -> void:
+    pass
+
+fn wrap(draft: mut Draft, seen: Draft) -> void:
+    let open: mut Order = Order(draft)
+    let closed: mut Order = Order(seen)  # diagnostic: mutable-upgrade
+    keep(open, closed)

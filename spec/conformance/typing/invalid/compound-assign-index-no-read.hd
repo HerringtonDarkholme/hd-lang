@@ -1,0 +1,13 @@
+# test: += on a user index place reads through Index, so IndexSet alone is not enough
+# Spec 05 Compound Assignment: expr.assign.compound.index-read-write (Operator Traits OP13, stress test decision 11).
+use std.ops.IndexSet
+
+data Sink:
+    items: mut List[i32]
+
+impl IndexSet[i32, i32] for Sink:
+    fn index_set(mut self, key: i32, value: i32) -> void:
+        self.items[key] = value
+
+fn invalid(sink: mut Sink) -> void:
+    sink[0] += 1  # diagnostic: type-mismatch

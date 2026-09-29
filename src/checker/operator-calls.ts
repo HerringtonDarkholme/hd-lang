@@ -3,11 +3,10 @@ import type { SourceSpan } from "../diagnostics.ts";
 import type { HirExpression, HirLocal, HirStatement, ValueType } from "../hir.ts";
 import { readonlyType } from "../types.ts";
 import { ExpressionCallChecker, type MemberCallExpression } from "./expression-calls.ts";
-import { BINARY_OPERATOR_TRAITS, isPrimitiveOperand } from "./expression-operators.ts";
 import { genericTypeName, matchGenericTypePattern } from "./shared.ts";
 
-// Operators, indexing, and compound assignment on operands that are not
-// primitive call the `std.ops` traits (spec/05-expressions.md#operator-traits,
+// Operators and indexing on operands that are not primitive call the
+// `std.ops` traits (spec/05-expressions.md#operator-traits,
 // #index-traits, #compound-assignment). The traits are found by their
 // qualified names, so the calls need no `use`.
 export abstract class OperatorCallChecker extends ExpressionCallChecker {
@@ -111,35 +110,9 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
   }
 
   /**
-   * Whether a type implements `AnyVal`: a concrete type without identity, or
-   * a type parameter bounded by `AnyVal` directly or through a supertrait
-   * (04-type-system.md#r-types.sealed.type-parameter).
-   */
-  private implementsAnyVal(type: ValueType): boolean {
-    const plain = readonlyType(type);
-    const generic = genericTypeName(plain);
-    if (!generic) return !this.isIdentityType(plain);
-    if ((this.signature.valueParameters ?? []).includes(generic)) return true;
-    const byIndex = new Map([...this.traitTypes.values()].map((trait) => [trait.index, trait]));
-    const valueTrait = (index: number, seen: Set<number>): boolean => {
-      const trait = byIndex.get(index);
-      if (!trait || seen.has(index)) return false;
-      seen.add(index);
-      return (
-        trait.valueCategory === "AnyVal" ||
-        trait.supertraits.some((supertrait) => valueTrait(supertrait.traitIndex, seen))
-      );
-    };
-    return this.signature.genericBounds.some(
-      (bound) => bound.parameter === generic && valueTrait(bound.traitIndex, new Set()),
-    );
-  }
-
-  /**
    * `place op= value` (05-expressions.md#compound-assignment). The place's
    * receiver and index are evaluated once, into hidden locals when they are
-   * not plain names. An `AnyVal` place stores `place op value`; any other
-   * place receives the assign trait's call.
+   * not plain names, and the place stores `place op value`.
    */
   protected checkCompoundAssignment(
     statement: Extract<Statement, { kind: "assignment" | "field-assignment" | "index-assignment" }>,
@@ -173,44 +146,24 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
               receiver: once(statement.target.receiver),
               index: once(statement.target.index),
             };
-    const current = this.checkExpression(place);
-    // An `AnyVal` place rebinds: `p op= e` is `p = p op e`
-    // (05-expressions.md#r-expr.assign.compound.value).
-    if (isPrimitiveOperand(current.type) || this.implementsAnyVal(current.type)) {
-      const value: Expression = {
-        kind: "binary",
-        operator,
-        left: place,
-        right: statement.value,
-        span: statement.span,
-      };
-      const { compound: _compound, ...plain } = statement;
-      const store: Statement =
-        plain.kind === "assignment"
-          ? { ...plain, value }
-          : plain.kind === "field-assignment"
-            ? { ...plain, target: place as typeof plain.target, value }
-            : { ...plain, target: place as typeof plain.target, value };
-      output.push(this.checkStatement(store));
-      return output;
-    }
-    const [traitName, methodName] = BINARY_OPERATOR_TRAITS[operator]!;
-    const expression = this.standardTraitCall(
-      `${traitName}Assign`,
-      `${methodName}_assign`,
-      place,
-      current,
-      [statement.value],
-      statement.span,
-      undefined,
-      () =>
-        this.fail(
-          "type-mismatch",
-          `'${operator}=' needs an implementation of std.ops.${traitName}Assign for '${readonlyType(current.type)}'`,
-          statement.span,
-        ),
-    );
-    output.push({ kind: "expression", expression, span: statement.span });
+    // `p op= e` is `p = p op e` for every type: the operator follows
+    // Operator Traits and the store follows assignment
+    // (05-expressions.md#r-expr.assign.compound.meaning).
+    const value: Expression = {
+      kind: "binary",
+      operator,
+      left: place,
+      right: statement.value,
+      span: statement.span,
+    };
+    const { compound: _compound, ...plain } = statement;
+    const store: Statement =
+      plain.kind === "assignment"
+        ? { ...plain, value }
+        : plain.kind === "field-assignment"
+          ? { ...plain, target: place as typeof plain.target, value }
+          : { ...plain, target: place as typeof plain.target, value };
+    output.push(this.checkStatement(store));
     return output;
   }
 }

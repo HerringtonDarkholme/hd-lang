@@ -807,8 +807,8 @@ literal-suffix marker `NumSuffix`
 **Decided and applied (2026-09-29).** Owner decisions OP1-OP9 in
 [Operator Traits](OPERATOR_TRAITS.md#owner-decisions): Rust-shaped
 `std.ops` traits (`Add[Rhs]` with an associated `Out`) for twelve
-operators, std implementations for the primitive numbers, `AddAssign`-style
-compound assignment, `Index` and `IndexSet`, supertrait `Out` bindings, and
+operators, std implementations for the primitive numbers, compound
+assignment (since OP13, `a op= b` always means `a = a op b`), `Index` and `IndexSet`, supertrait `Out` bindings, and
 the sealed `std.num` traits `Num`, `Integer`, and `Float`
 ([Operator Traits](../spec/05-expressions.md#operator-traits),
 [Compound Assignment](../spec/05-expressions.md#compound-assignment),

@@ -1,0 +1,7 @@
+# test: += on a map element reads m[k] as V?, so an optional left operand has no +
+# Spec 05 Compound Assignment: expr.assign.compound.map-read (Operator Traits OP13, stress test decision 11).
+fn count(words: List[string]) -> Map[string, i32]:
+    let counts: mut Map[string, i32] = {}
+    for word in words:
+        counts[word] += 1  # diagnostic: type-mismatch
+    counts

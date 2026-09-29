@@ -307,7 +307,7 @@ fn main() -> i32:
 13. r[module.prelude.ops-str-prefix-markers] `std.ops` also declares `StrPrefix`, `str_prefix`, and `Template`, which code imports to declare a string prefix, as in `use std.ops.{Template, str_prefix}`.
 14. r[module.prelude.text-r] `std.text` declares the string prefix `r`, which code imports, as in `use std.text.r`.
 15. r[module.prelude.no-prefix] The prelude supplies no string prefix.
-16. r[module.prelude.ops-operators] `std.ops` also declares the [operator traits](05-expressions.md#operator-traits), the assign traits of [Compound Assignment](05-expressions.md#compound-assignment), and `Index` and `IndexSet`. Code imports one to name it, as in `use std.ops.Add`; operator syntax needs no import.
+16. r[module.prelude.ops-operator-traits] `std.ops` also declares the [operator traits](05-expressions.md#operator-traits), and `Index` and `IndexSet`. Code imports one to name it, as in `use std.ops.Add`; operator syntax needs no import.
 17. r[module.prelude.num] `std.num` declares the [numeric traits](09-traits.md#numeric-traits) `Num`, `Integer`, and `Float`, which code imports, as in `use std.num.Num`.
 
 See also: [Conversion Trait](09-traits.md#conversion-trait),

@@ -263,6 +263,24 @@ n := i32(m)
 4. r[types.newtype.no-implicit] No implicit conversion exists in either direction.
 5. r[types.newtype.no-inherit] A newtype does not inherit trait implementations from its underlying type.
 6. r[types.newtype.map-key] In particular, a newtype is not a valid map key until it explicitly implements or derives both `Eq` and `Hash`.
+7. r[types.newtype.construct-ref] Constructing a newtype over an `AnyRef` base creates no new object: the newtype value wraps the base value.
+8. r[types.newtype.construct-permission] So such a construction carries its base value's permission. `Order(d)` has type `mut Order` exactly when `d` has mutable access, and readonly `Order` otherwise.
+9. r[types.newtype.construct-value] A newtype construction over an `AnyVal` base, such as `Mile(10)`, is a value, as its base is. It is not a fresh mutable object.
+
+```text
+data Draft:
+    lines: List[string]
+
+type Order(Draft)
+
+fn keep(open: Order, closed: Order) -> void:
+    pass
+
+fn wrap(draft: mut Draft, seen: Draft) -> void:
+    let open: mut Order = Order(draft)
+    let closed: mut Order = Order(seen)  # error: mutable-upgrade
+    keep(open, closed)
+```
 
 See also: [Map Key Types](#map-key-types).
 

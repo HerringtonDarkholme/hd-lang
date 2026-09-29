@@ -58,10 +58,10 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 #### Compound Assignment
 
 A **compound assignment** `place op= value` combines an operator with a
-store:
+store. For every type, `p op= e` means `p = p op e`:
 
 ```text
-use std.ops.{Add, AddAssign}
+use std.ops.Add
 
 type Meters(i64)
 
@@ -73,93 +73,52 @@ impl Add[Meters] for Meters:
 data Tally:
     count: i64
 
-impl AddAssign[i64] for Tally:
-    fn add_assign(mut self, rhs: i64) -> void:
-        self.count = self.count + rhs
-
 fn record(tally: mut Tally, hits: List[i64]) -> Meters:
-    let seen: i64 = 0
+    let log = ""
     let walked = Meters(0)
     for hit in hits:
-        seen += 1
+        tally.count += hit
         walked += Meters(hit)
-        tally += hit
+        log += "."
     walked
 ```
 
-`std.ops` declares one assign trait per compound operator, in this shape:
-
-```text
-pub trait AddAssign[Rhs]:
-    fn add_assign(mut self, rhs: Rhs) -> void
-```
-
-| Rule | Statement | Trait | Method |
-| --- | --- | --- | --- |
-| r[expr.assign.compound.add] Add | `p += e` | `AddAssign[Rhs]` | `add_assign` |
-| r[expr.assign.compound.sub] Subtract | `p -= e` | `SubAssign[Rhs]` | `sub_assign` |
-| r[expr.assign.compound.mul] Multiply | `p *= e` | `MulAssign[Rhs]` | `mul_assign` |
-| r[expr.assign.compound.div] Divide | `p /= e` | `DivAssign[Rhs]` | `div_assign` |
-| r[expr.assign.compound.rem] Remainder | `p %= e` | `RemAssign[Rhs]` | `rem_assign` |
-| r[expr.assign.compound.bit-and] Bitwise AND | `p &= e` | `BitAndAssign[Rhs]` | `bit_and_assign` |
-| r[expr.assign.compound.bit-or] Bitwise OR | `p \|= e` | `BitOrAssign[Rhs]` | `bit_or_assign` |
-| r[expr.assign.compound.bit-xor] Bitwise XOR | `p ^= e` | `BitXorAssign[Rhs]` | `bit_xor_assign` |
-| r[expr.assign.compound.shl] Shift left | `p <<= e` | `ShlAssign[Rhs]` | `shl_assign` |
-| r[expr.assign.compound.shr] Shift right | `p >>= e` | `ShrAssign[Rhs]` | `shr_assign` |
-
-1. r[expr.assign.compound.form] Compound assignment is a statement, written with one of the ten operators in the table above.
+1. r[expr.assign.compound.form] Compound assignment is a statement, written with one of ten operators: `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=`.
 2. r[expr.assign.compound.no-others] There is no `**=`, `&&=`, or `||=`.
-3. r[expr.assign.compound.traits] `std.ops` declares the ten assign traits in the table. Each takes the right operand type as its one argument and declares one `mut self` method that returns `void`.
-4. r[expr.assign.compound.place] The left side must have the form of a place: a name, a field selection, or an index expression. Any other left side, such as a call, is an error. Error: `invalid-assignment-target`.
-5. r[expr.assign.compound.once] The receiver and index of the place are evaluated once, then the right-hand expression.
-6. r[expr.assign.compound.by-kind] The place's type decides the meaning. A type that implements `AnyVal` rebinds the place, and any other type changes its value in place. A type parameter implements `AnyVal` only through its bounds ([`types.sealed.type-parameter`](04-type-system.md#r-types.sealed.type-parameter)).
-7. r[expr.assign.compound.primitive] When the place and the right operand have primitive types, `p op= e` computes `p op e` by the built-in rules and stores the result in the place. The store follows the rules of `p = p op e`, so a name must be a reassignable local.
-8. r[expr.assign.compound.value] Otherwise, when the place's type implements `AnyVal`, `p op= e` means `p = p op e`. The operator follows [Operator Traits](#operator-traits), so the place's type needs the operator's trait, and the store follows the rules of assignment.
-9. r[expr.assign.compound.primitive-no-trait] The standard library implements no assign trait for a primitive type, because a primitive has no `mut` view.
-10. r[expr.assign.compound.ref-call] When the place's type does not implement `AnyVal`, `p op= e` is the call `OpAssign[R]::m(p, e)` of the operator's assign trait, as in `AddAssign[R]::add_assign(p, e)`. The candidates are chosen as for a binary operator, by the place's type and then by `e`.
-11. r[expr.assign.compound.no-use] The call needs no `use` of the trait.
-12. r[expr.assign.compound.mut] The method takes `mut self`, so the place's value must have mutable access, as for any `mut self` call. Error: `mutable-receiver-required`.
-13. r[expr.assign.compound.no-store] Nothing is stored in the place, so a parameter or a `:=` binding with mutable access may be the left side.
-14. r[expr.assign.compound.ref-no-impl] A place whose type does not implement `AnyVal` and has no fitting assign implementation is an error, even when the type implements the plain operator's trait. Error: `type-mismatch`.
-15. r[expr.assign.compound.no-fallback] Such a place never falls back to `p = p op e`.
-16. r[expr.assign.compound.fix] The diagnostic for a place without mutable access, or without an assign implementation, must offer a fix-it that writes `p = p op e`.
-17. r[expr.assign.compound.shared] On a composite value, the method changes the shared value in place, so every alias of it observes the change.
-18. r[expr.assign.compound.index-by-kind] On an index place of a user type, an element whose type implements `AnyVal` is read through `Index` and stored through `IndexSet`, as [Index Traits](#index-traits) defines. Any other element receives the assign call.
+3. r[expr.assign.compound.place] The left side must have the form of a place: a name, a field selection, or an index expression. Any other left side, such as a call, is an error. Error: `invalid-assignment-target`.
+4. r[expr.assign.compound.once] The receiver and index of the place are evaluated once, then the right-hand expression.
+5. r[expr.assign.compound.meaning] For every type, `p op= e` means `p = p op e`: it reads the place, applies the operator to that value and `e`, and stores the result in the place.
+6. r[expr.assign.compound.primitive] When the place and the right operand have primitive types, `p op= e` computes `p op e` by the built-in rules and stores the result in the place. The store follows the rules of `p = p op e`, so a name must be a reassignable local.
+7. r[expr.assign.compound.operator] Otherwise the operator follows [Operator Traits](#operator-traits), so the place's type needs the operator's trait. Without a fitting implementation, the statement is an error. Error: `type-mismatch`.
+8. r[expr.assign.compound.store] The store follows the rules of assignment. So the place must be a reassignable local, a field selected through a mutable root, or an index place that accepts a store.
+9. r[expr.assign.compound.index-read-write] On an index place, the read is `r[k]` and the store is `r[k] = v`. `List` and `Map` use their built-in indexing, and another type needs both `Index` and `IndexSet`, as [Index Traits](#index-traits) defines.
+10. r[expr.assign.compound.map-read] On a `Map`, the read behaves as any read of `m[k]` does: it has type `V?`, and a missing key reads as `.None`.
+11. r[expr.assign.compound.fresh-value] On a composite value, the store replaces the place's value with the operator's result. Other references to the old value keep the old value.
+12. r[expr.assign.compound.no-assign-traits] `std.ops` declares no assign trait, and no operator changes a value in place.
 
 ```text
-use std.ops.{Add, AddAssign}
-
 data Tally:
     count: i64
-
-impl AddAssign[i64] for Tally:
-    fn add_assign(mut self, rhs: i64) -> void:
-        self.count = self.count + rhs
 
 data Score:
     points: i64
 
-impl Add[Score] for Score:
-    type Out = Score
-    fn add(self, rhs: Score) -> Score:
-        Score { points: self.points + rhs.points }
-
 fn current() -> i64: 1
 
-fn invalid(tally: Tally, score: mut Score, bonus: Score) -> void:
-    tally += 1        # error: mutable-receiver-required
+fn invalid(tally: Tally, bonus: Score) -> void:
+    let score = Score { points: 0 }
+    tally.count += 1  # error: readonly-root
     score += bonus    # error: type-mismatch
     current() += 1    # error: invalid-assignment-target
 ```
 
-> **Note.** A `data` value is shared by reference, so an in-place `+=`
-> reaches every alias: after `b := a` and `a += 2`, `b` sees the new count.
-> Primitives and other values without identity have no aliases to observe.
+> **Note.** A diagnostic that rejects `p op= e` may show `p = p op e` as a
+> hint. That hint is not normative.
 
-> **Why.** A value without identity has nothing to alias, so rebinding is
-> its only meaning. On a shared value, a change in place and a new value
-> differ for every alias. So hd picks neither silently: the type implements
-> an assign trait, or the author writes `a = a + b`.
+> **Why.** One meaning for every type means an alias never observes `+=`:
+> a `data` value in the place is replaced, never changed. Accumulators and
+> builders change themselves through ordinary methods, such as
+> `sb.push(x)`.
 
 See also: [Operator Traits](#operator-traits),
 [Mutation Checks](04-type-system.md#mutation-checks).
