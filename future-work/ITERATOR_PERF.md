@@ -787,3 +787,13 @@ The prototype's type system and closure capture rules made expressing the intend
 3. Stage composition without reassigning immutable let bindings for design C
 
 These are compiler limitations, not language design issues. The specification is correct; measuring the designs requires a compiler that can express them as specified.
+
+## Outcome (2026-09-29)
+
+The owner decided from the stage-1 analysis: CS7's closure-backed
+`Iterator` stays (CHAINING_STUDY CS8). **The stage 2 results above are not
+valid measurements.** None of the five programs contains a closure; each
+design fell back to plain loops because the prototype can't capture a
+`mut` value in a closure or infer tuple element types across closure
+boundaries (audit/hd-writing-log.md). Only the dev tier was run, on a
+loaded machine. Rerun the benchmarks once those gaps are fixed.

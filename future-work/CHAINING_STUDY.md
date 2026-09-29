@@ -72,6 +72,19 @@ Decided 2026-09-29.
      so it is dynamically safe. `List`, `Map` and `Iterator` itself
      implement it.
 
+7. **CS8 (2026-09-29): CS7 is final, decided from the stage-1 analysis
+   (future-work/ITERATOR_PERF.md).** The closure-backed data `Iterator[T]`
+   is the one public iterator type. The owner's flat composed-stage `Iter`
+   (design C) stays a later option, worth revisiting once the compiler
+   specializes and inlines closures: without fusion, it makes no fewer
+   indirect calls than the closure design. Stage 2's benchmarks measured
+   nothing (every program fell back to plain loops). What it did produce is
+   the writing-log evidence that the prototype can't yet capture a `mut`
+   value in a closure or infer tuple element types across closure
+   boundaries. Those are tracked as prototype gaps. The per-element costs
+   that hurt every design (boxed `T?`, per-call dictionaries: F-502, F-504)
+   should be fixed first.
+
 ## Contents
 
 1. [Decisions Under Review](#decisions-under-review)
