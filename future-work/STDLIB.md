@@ -54,7 +54,8 @@ every user module that already declares it.
 | `std.resource` | `ResourceError[E]` | [Wasm Boundary](../spec/10-modules.md#wasm-boundary) |
 | `std.convert` | `From[T]` | [Conversion Trait](../spec/09-traits.md#conversion-trait) |
 | `std.error` | `Error` (a `Display` subtrait whose members all have defaults) | [Error Trait](../spec/09-traits.md#error-trait) |
-| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, `Template`, `interpolate`, `process_escapes`, and the prefix `r` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings) |
+| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, `Template`, `interpolate`, `process_escapes`, and `EscapeError` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings) |
+| `std.text` | the string prefix `r` | [Prefixed Strings](../spec/05-expressions.md#prefixed-strings) |
 | `std.time` | `Duration`; the literal suffixes `ms`, `s`, `min`, `h` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
 | `std.host` | `Args` | [Program Entry Points](../guide/LANGUAGE_TOUR.md#program-entry-points) (example) |
 | `std.fingerprint` | the persisted-identity digest | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
@@ -707,10 +708,13 @@ A library declares a suffix by marking a function `@num_suffix`; `250ms`
 then means `ms(250)`. String prefixes work the same way with `@str_prefix`
 ([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L19): `sql"a $x"`
 calls `sql` with a `Template[T]` of the raw text pieces and the values.
-`std.ops` declares `StrPrefix`, `str_prefix`, `Template`, the helpers
-`interpolate` (join with the values' `Display` text) and `process_escapes`
-(returns `.None` on an invalid escape), and the raw-text prefix `r`
-([Prefixed Strings](../spec/05-expressions.md#prefixed-strings)). Operator traits such as `Add` and `Neg` are planned
+`std.ops` declares `StrPrefix`, `str_prefix`, `Template`, and the helpers
+`interpolate` (join with the values' `Display` text) and `process_escapes`.
+`process_escapes(text: string) -> Result[string, EscapeError]` fails at the
+first invalid escape, and `EscapeError.offset` counts the Unicode scalars
+before its backslash (L21). The raw-text prefix `r` lives in `std.text`
+(L20, [Prefixed Strings](../spec/05-expressions.md#prefixed-strings)), so
+code writes `use std.text.r`. Operator traits such as `Add` and `Neg` are planned
 here too, and are designed separately
 ([Open Issues](OPEN_ISSUES.md#operator-traits)).
 

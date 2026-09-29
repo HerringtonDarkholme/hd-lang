@@ -172,7 +172,10 @@ let backoff: Duration = 1_500ms
 
 A library declares its own suffix by marking a function `@num_suffix`, as
 in `@num_suffix fn px(count: i32) -> Pixels` after `use std.ops.num_suffix`;
-see [Literal Suffixes](../spec/05-expressions.md#literal-suffixes).
+see [Literal Suffixes](../spec/05-expressions.md#literal-suffixes). The
+literal is an ordinary call, so the function may be generic or need
+providers, but it must not suspend: `12px` has no place for `!`. The
+compiler checks the marked function's shape where it is declared.
 
 A name written directly before a string's quote is a string prefix, and
 the string is a call of that function. The standard prefix `r` keeps
@@ -180,7 +183,7 @@ backslashes and escape-looking text as written. The multiline form uses
 three double quotes:
 
 ```text
-use std.ops.r
+use std.text.r
 
 pattern := r"\d+\s+\w+"
 prompt := r"""Summarize the input.

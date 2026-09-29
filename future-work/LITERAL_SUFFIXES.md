@@ -6,7 +6,8 @@ operator traits excepted, which are designed separately), and L12, L13,
 L15-L17 and L18 the same day. L11 (`@suffix fn`) was applied later that
 day with the names of [Decorators D9](DECORATORS.md#owner-decisions)
 (`@num_suffix`, `std.ops.NumSuffix`), replacing the `LiteralSuffix`
-mechanism. L19 (string prefixes) was applied the same day. The survey and
+mechanism. L19 (string prefixes) was applied the same day, and L20 and
+L21 later that day. The survey and
 options before the decisions are the
 exploration they came from. Questions raised while applying them are under
 [Still Open](#still-open).
@@ -125,8 +126,8 @@ the decorator redesign; see its entry below.
     carries `@annotate(.Fn)`, and no decorator exception is needed after
     D1. See [`expr.suffix.fn-call`](../spec/05-expressions.md#r-expr.suffix.fn-call),
     [`expr.suffix.marker`](../spec/05-expressions.md#r-expr.suffix.marker),
-    [`expr.suffix.fn-shape`](../spec/05-expressions.md#r-expr.suffix.fn-shape),
-    [`expr.suffix.fn-shape.reader`](../spec/05-expressions.md#r-expr.suffix.fn-shape.reader),
+    `expr.suffix.fn-shape` and `expr.suffix.fn-shape.reader` (both retired
+    by L20 and L21),
     [`expr.suffix.std.fn`](../spec/05-expressions.md#r-expr.suffix.std.fn),
     [`names.suffix.unknown-name`](../spec/03-names-and-scopes.md#r-names.suffix.unknown-name)
     and [`module.prelude.ops-num-suffix`](../spec/10-modules.md#r-module.prelude.ops-num-suffix).
@@ -259,6 +260,15 @@ the decorator redesign; see its entry below.
       ordinary call error at the literal. This relaxes L11's
       "no providers, no type parameters" and L19's copied shape rules.
 
+    Applied 2026-09-28 in
+    [`expr.suffix.ordinary-rules`](../spec/05-expressions.md#r-expr.suffix.ordinary-rules),
+    [`expr.prefix.ordinary-rules`](../spec/05-expressions.md#r-expr.prefix.ordinary-rules),
+    [`expr.prefix.std.import-text`](../spec/05-expressions.md#r-expr.prefix.std.import-text),
+    [`lex.raw-string.none-text`](../spec/01-lexical-structure.md#r-lex.raw-string.none-text)
+    and [`module.prelude.text-r`](../spec/10-modules.md#r-module.prelude.text-r).
+    L21 moved the shape check to the definition, so the wrong-shape part
+    of this entry is superseded.
+
 21. **L21 (2026-09-28): answers to Still Open 18, 21 and 22.**
     - `return"x"` stays two tokens: no function can be named with a
       reserved word, so it can never be a prefix.
@@ -277,6 +287,19 @@ the decorator redesign; see its entry below.
     - `it"name": ...` is rejected (owner, the same day). A prefix call
       takes only its template, so options such as `timeout=` and `ignore=`
       would have nowhere to go. Test cases stay `it("name", ...)`.
+
+    Applied 2026-09-28 in
+    [`expr.suffix.fn-shape-required`](../spec/05-expressions.md#r-expr.suffix.fn-shape-required),
+    [`expr.suffix.fn-shape.definition`](../spec/05-expressions.md#r-expr.suffix.fn-shape.definition),
+    [`expr.prefix.fn-shape-required`](../spec/05-expressions.md#r-expr.prefix.fn-shape-required)
+    and [`expr.prefix.fn-shape.definition`](../spec/05-expressions.md#r-expr.prefix.fn-shape.definition),
+    with the stated `@num_suffix` reading. `return"x"` needed no change
+    ([`lex.prefix.reserved`](../spec/01-lexical-structure.md#r-lex.prefix.reserved)).
+    `process_escapes` and `EscapeError` are std-only, in the
+    [STDLIB draft](STDLIB.md#stdops) and `lib/std/ops.hd`. `it"name"`
+    needs no spec change: `it` is not a prefix function, so the string is
+    already `invalid-string-prefix`. Readings the apply pass had to choose
+    are points 24-27 under [Still Open](#still-open).
 
 ## Contents
 
@@ -789,7 +812,7 @@ fn pattern() -> string:
 
 ## Still Open
 
-These points came up while applying L1-L9, L12-L17 and L11 on 2026-09-28.
+These points came up while applying L1-L9, L12-L21 and L11 on 2026-09-28.
 Each open one waits for the owner. The specification states the reading in
 the Applied column, so each can change without breaking a decision.
 
@@ -819,11 +842,11 @@ The L11 apply pass met these points:
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
-| 10 | The code for a suffix that is not a usable suffix function: unmarked, generic, with providers, suspending, or not one numeric parameter | The new error `invalid-literal-suffix`, at the literal ([`expr.suffix.not-marked`](../spec/05-expressions.md#r-expr.suffix.not-marked), [`expr.suffix.fn-shape.reader`](../spec/05-expressions.md#r-expr.suffix.fn-shape.reader)). L14 had said no literal-suffix code, but no existing code fits a function that lacks a marker | Keep the new code. |
-| 11 | Which error wins when both apply, as for `@num_suffix fn px(n: i32) $ Console` used where no `Console` is provided | The ordinary call error (`missing-requirement` there); the reader's `invalid-literal-suffix` only for a call that is otherwise valid | Keep: D3 reports signature problems as call errors first. |
-| 12 | A suffix with a second, defaulted parameter, as in `fn s(n: i64, scale: i64 = 1)` | `invalid-literal-suffix`: the call is valid, but L11 requires exactly one parameter | Keep. |
+| 10 | The code for a suffix that is not a usable suffix function: unmarked, generic, with providers, suspending, or not one numeric parameter | Resolved by L20 and L21: an unmarked function is still `invalid-literal-suffix` at the literal ([`expr.suffix.not-marked`](../spec/05-expressions.md#r-expr.suffix.not-marked)); generic and provider-needing ones are valid; a wrong shape is `type-mismatch` at the definition ([`expr.suffix.fn-shape.definition`](../spec/05-expressions.md#r-expr.suffix.fn-shape.definition)) | Done. |
+| 11 | Which error wins when both apply, as for `@num_suffix fn px(n: i32) $ Console` used where no `Console` is provided | Moot after L20: only the ordinary `missing-requirement` applies | Done. |
+| 12 | A suffix with a second, defaulted parameter, as in `fn s(n: i64, scale: i64 = 1)` | Accepted since L21, which counts required parameters; see point 24 | See point 24. |
 | 13 | A suffix that names nothing | `unknown-name`, since a suffix is now a value name, not a type (previously `unknown-type`) | Keep. |
-| 14 | `@num_suffix` on a generic or provider-needing function is accepted at the declaration | Accepted; only literals that use it fail (D3) | Keep; a lint may warn at the declaration. |
+| 14 | `@num_suffix` on a generic or provider-needing function is accepted at the declaration | Resolved by L20: such a function is valid, and its literals follow the ordinary rules | Done. |
 
 The L19 apply pass met these points. L19 said "lexed the way raw strings
 are today, including `$name` interpolation", but today's raw strings never
@@ -834,15 +857,24 @@ interpolated, so points 15-17 fill in how `$` and `\` behave:
 | 15 | A `$` followed by neither an identifier character nor `{`, as in `r"^\d+$"` | Plain text ([`lex.prefix.plain-dollar`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar)), as in today's raw strings; an interpreted string rejects it | Keep: regex anchors and prices stay easy to write. |
 | 16 | A `$` before a reserved word other than `self`, as in `r"$true"` | `syntax-error` ([`lex.prefix.reserved-dollar`](../spec/01-lexical-structure.md#r-lex.prefix.reserved-dollar)), as in interpreted strings | Keep. |
 | 17 | How to write `$name` as text in a prefixed string | A backslash keeps a following `$` from interpolating and stays in the text ([`lex.prefix.backslash`](../spec/01-lexical-structure.md#r-lex.prefix.backslash)), as JavaScript's `String.raw` does; `process_escapes` turns `\$` into `$` | Keep. |
-| 18 | A reserved word directly before a quote, as in `return"done"` | Two tokens, as before ([`lex.prefix.reserved`](../spec/01-lexical-structure.md#r-lex.prefix.reserved)); L13 made `5else` an `invalid-token` instead | Keep: no existing source changes meaning. |
-| 19 | The shape of a prefix function and its code | Mirrors L11: one `Template[T]` parameter, no type parameters, no providers, no suspension, checked at the string as the new error `invalid-string-prefix` ([`expr.prefix.fn-shape`](../spec/05-expressions.md#r-expr.prefix.fn-shape)) | Keep; the no-provider rule could be relaxed, since L15 removed the compile-time reason for it. |
-| 20 | Where `r` lives, and whether it is a prelude name | `std.ops.r`, imported with `use std.ops.r` ([`expr.prefix.std.import`](../spec/05-expressions.md#r-expr.prefix.std.import)). A prelude `r` would make every local named `r` a `prelude-name-shadow` | Keep. |
-| 21 | The helper names and results | `interpolate[T < Display](t: Template[T]) -> string` and `process_escapes(text: string) -> string?`, `.None` on an invalid escape | Keep; a `Result` with the error position is the alternative. |
-| 22 | A prefix function whose parameter is not a `Template`, as in `count(n: i32)` | The ordinary call's `type-mismatch` at the string ([`expr.prefix.call-errors`](../spec/05-expressions.md#r-expr.prefix.call-errors)) | Keep. |
+| 18 | A reserved word directly before a quote, as in `return"done"` | L21: two tokens ([`lex.prefix.reserved`](../spec/01-lexical-structure.md#r-lex.prefix.reserved)); no function can be named with a reserved word | Done. |
+| 19 | The shape of a prefix function and its code | L20 and L21: one required `Template[T]` parameter and no suspension, checked at the definition as `type-mismatch` ([`expr.prefix.fn-shape.definition`](../spec/05-expressions.md#r-expr.prefix.fn-shape.definition)); generic and provider-needing prefixes are valid | Done. |
+| 20 | Where `r` lives, and whether it is a prelude name | L20: `std.text.r`, imported with `use std.text.r` ([`expr.prefix.std.import-text`](../spec/05-expressions.md#r-expr.prefix.std.import-text)); not a prelude name | Done. |
+| 21 | The helper names and results | L21: `process_escapes(text: string) -> Result[string, EscapeError]`, whose error carries the offset; `interpolate` is unchanged | Done; see point 27. |
+| 22 | A prefix function whose parameter is not a `Template`, as in `count(n: i32)` | L21: `type-mismatch` at the definition ([`expr.prefix.fn-shape.definition`](../spec/05-expressions.md#r-expr.prefix.fn-shape.definition)) | Done. |
 | 23 | A prefixed string as a test name, as in `it(r"a\b"):` | A call, so `non-literal-test-argument` by the existing rule | Keep. |
 
+The L20 and L21 apply pass met these points:
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 24 | L21 says "exactly one required parameter", where L11 said "exactly one parameter" | Other parameters are allowed when each has a default, so `fn kb(count: i64, unit: i64 = 1024)` is a valid suffix and `4kb` calls `kb(4)`; a variadic parameter counts as not required | Confirm, or say "exactly one parameter" to keep point 12's old reading. |
+| 25 | Which line a definition-site shape error names | The marked function's `fn` line, not its `@num_suffix` or `@str_prefix` line | Keep: the signature is what is wrong. |
+| 26 | Whether `interpolate`, `process_escapes` and `EscapeError` move to `std.text` with `r` | They stay in `std.ops`, beside `Template`, since L20 moved only `r` | Keep: they are prefix helpers over `Template` and escapes. |
+| 27 | What `EscapeError.offset` counts | The Unicode scalars before the bad escape's backslash, as `std.text` positions count scalars | Keep. |
+
 ```text
-use std.ops.r
+use std.text.r
 
 anchored := r"^\d+$"   # ends in a dollar sign
 kept := r"\$name"      # the text \$name

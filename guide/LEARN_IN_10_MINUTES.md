@@ -60,7 +60,7 @@ narrow := i16(big)
 ```
 
 Strings interpolate `$name` and `${expression}`. A name directly before the
-quote is a prefix function: `r"..."`, from `use std.ops.r`, keeps
+quote is a prefix function: `r"..."`, from `use std.text.r`, keeps
 backslashes as written and still interpolates.
 
 ```hd
