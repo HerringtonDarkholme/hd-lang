@@ -74,6 +74,12 @@ Decided 2026-09-29.
      the like).
    - The exact member lists are left to the apply pass. They build on OP8's
      supertrait `Out` binding.
+   - `Num` also has `fn from_i64(n: i64) -> Self`, which converts the way
+     a cast does: integers wrap, and floats take the nearest value. It lets
+     generic code build constants, as in
+     `@num_suffix fn k[N < Num](n: N) -> N: n * N::from_i64(1000)`. A
+     generic `@num_suffix` function over `N < Num` is valid (L20, L22): `N`
+     comes from the literal or from the expected type.
 
 ## Contents
 
