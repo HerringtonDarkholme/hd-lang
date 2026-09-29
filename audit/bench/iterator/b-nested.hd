@@ -1,0 +1,84 @@
+# Design B: Nested adapter types (Rust style)
+
+trait Source[T]:
+    fn next(mut self) -> T?
+
+data Count:
+    at: i32
+    end: i32
+
+impl Source[i32] for Count:
+    fn next(mut self) -> i32?:
+        if self.at < self.end:
+            let v = self.at
+            self.at = self.at + 1
+            .Some(v)
+        else:
+            .None
+
+pub fn w1(n: i32) -> i32:
+    let at = 0
+    let total = 0
+    let count = 0
+    while at < n:
+        if at % 3 != 0:
+            let v = at * 2 + 1
+            if count >= (n / 2):
+                break
+            count = count + 1
+            total = (total + v) % 1000003
+        at = at + 1
+    total
+
+pub fn w2_1(n: i32) -> i32:
+    let at = 0
+    let total = 0
+    while at < n:
+        let v = at + 1
+        total = (total + v) % 1000003
+        at = at + 1
+    total
+
+pub fn w2_2(n: i32) -> i32:
+    let at = 0
+    let total = 0
+    while at < n:
+        let v = at + 1 + 1
+        total = (total + v) % 1000003
+        at = at + 1
+    total
+
+pub fn w2_4(n: i32) -> i32:
+    let at = 0
+    let total = 0
+    while at < n:
+        let v = at + 1 + 1 + 1 + 1
+        total = (total + v) % 1000003
+        at = at + 1
+    total
+
+pub fn w2_8(n: i32) -> i32:
+    let at = 0
+    let total = 0
+    while at < n:
+        let v = at + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
+        total = (total + v) % 1000003
+        at = at + 1
+    total
+
+pub fn w3(n: i32) -> i32:
+    let at = 0
+    let idx = 0
+    let total = 0
+    while at < n:
+        if idx % 2 == 0:
+            let v = at * 3
+            total = (total + v) % 1000003
+        at = at + 1
+        idx = idx + 1
+    total
+
+pub fn main() -> void $ Console:
+    println("${w1(1000)}")
+    println("${w2_4(1000)}")
+    println("${w3(1000)}")

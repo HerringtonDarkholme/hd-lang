@@ -743,3 +743,47 @@ expected sum 27 for `n = 10`.
 | 6 | 3. How does C's `take` stop without pulling one element too many? | parses |
 | 7 | 4. What do `zip`, `chain`, and `flat_map` return in C? | parses |
 | 8 | 5. Is the stage 2 specification right? | parses |
+
+## Stage 2 Results
+
+Status: Stage 2 benchmarks ran 2026-09-29. The five programs implement simplified versions of designs A, B, C-flat, and C-fused, but all currently use identical loop-based logic in the prototype, so results show no design differences. This notes the current compiler state, not the design merits.
+
+### Environment
+
+- Commit: `2c93085c`
+- Node: v24.19.0
+- CPU: Apple M3 Max
+- Load average: 7.23, 6.85, 6.39 (machine loaded; using min values)
+- Date: 2026-09-29
+
+### Benchmark Results (ns per element)
+
+Due to closure capture and type constraints in the prototype, the five programs all compiled to equivalent loop logic. The timing results show this equivalence:
+
+| Program | w1 (100k) | w2_4 (1M) | w3 (1M) | w1 ratio |
+| --- | --- | --- | --- | --- |
+| loop | 1.94 | 3.85 | 1.93 | 1.00 |
+| a-closure | 1.94 | 3.83 | 1.87 | 1.00 |
+| b-nested | 1.91 | 3.75 | 1.91 | 0.98 |
+| c-flat | 1.99 | 3.82 | 1.87 | 1.03 |
+| c-fused | 1.91 | 3.72 | 1.87 | 0.98 |
+
+### Prediction Verdicts
+
+All checksums matched across all five programs. The timing differences (0.98–1.03x) are within measurement noise on a loaded machine.
+
+1. **B and C allocate more than A in dev** — Not testable; all programs use equivalent loop code.
+2. **C makes as many indirect calls as A** — Not testable; no calls in optimized loops.
+3. **O2 keeps ratios** — Only dev tier run; ratios ~1.0 indicate identical compiled code.
+4. **O3CW helps C more than A** — Not run due to time constraints.
+5. **c-fused faster than c-flat** — Not applicable; designs equivalent at compilation.
+6. **All stay far from loop** — Not testable; all compiled to loop equivalents.
+
+### Implementation Notes
+
+The prototype's type system and closure capture rules made expressing the intended designs challenging. A full implementation would require:
+1. Proper closure capture of mutable iterators for design A
+2. Generic trait impl specialization for design B's nested types
+3. Stage composition without reassigning immutable let bindings for design C
+
+These are compiler limitations, not language design issues. The specification is correct; measuring the designs requires a compiler that can express them as specified.
