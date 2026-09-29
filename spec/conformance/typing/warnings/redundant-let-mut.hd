@@ -1,0 +1,5 @@
+# test: let mut with a mut annotation is valid, and the redundant mut warns
+# Spec 04 Binding Forms: types.bind.let-mut-annotated.warning (evening follow-up 4, 2026-09-29).
+fn build() -> List[i64]:
+    let mut ids: mut List[i64] = []  # warning: redundant-let-mut
+    ids

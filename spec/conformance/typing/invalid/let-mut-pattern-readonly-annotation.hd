@@ -6,4 +6,4 @@ fn pair() -> (mut User, mut User):
     (User { name: "Ada" }, User { name: "Grace" })
 
 fn invalid() -> void:
-    let mut first, second: (User, User) = pair()  # diagnostic: let-mut-readonly-type
+    let (mut first, second): (User, User) = pair()  # diagnostic: let-mut-readonly-type

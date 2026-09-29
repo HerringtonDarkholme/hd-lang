@@ -1,0 +1,5 @@
+# test: let mut on a primitive value reports mut-on-primitive, not mutable-upgrade
+# Spec 04 Binding Forms: types.bind.let-mut-primitive (evening follow-up 2, 2026-09-29).
+fn invalid() -> i32:
+    let mut count = 0  # diagnostic: mut-on-primitive
+    count

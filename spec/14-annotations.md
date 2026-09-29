@@ -440,9 +440,8 @@ fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
 ```
 
 The language does not check that a metadata value suits its member's type.
-The code that reads the value checks it. A fact type's compile-time check
-against its member is the fact check hook in
-[Undecided Parts](#undecided-parts).
+The code that reads the value checks it, and a fact type has no
+compile-time check hook.
 
 Reusable compositions are ordinary values or lists, not new language syntax:
 
@@ -529,10 +528,10 @@ Each target has one kind:
 7. r[annot.target.kind-only] The compiler checks only the kind. Whether a value suits its target's type or signature is checked by the code that reads the value.
 
 > **Note.** Only some targets have a reader in the language. User code
-> reads a function's values through `shape_of`, and the values on a type,
-> its fields, and its variants through typed derivation. The values on the
-> other targets, such as traits, implementations, methods, newtypes, and
-> parameters, are for tools.
+> reads a function's values through `shape_of`, and the values on a data
+> type or enum, its fields, and its variants through typed derivation. The
+> values on the other targets, such as traits, implementations, methods,
+> newtypes, and parameters, are for tools.
 
 > **Why.** Java, C#, Kotlin, and Dart check declared target kinds the
 > same way. A signature check belongs to the reader, which knows what it
@@ -773,6 +772,11 @@ impl[T] Tagged for T by Structure  # error: marker-template
 > **Why.** Only the trait's module may declare the template, so a trait has
 > one derivation and a reader finds it beside the trait. A marker template
 > would derive a trait without reading one member.
+
+> **Note.** The generated `walk`, `describe`, and `build` keep their names
+> even when the derived trait or another trait of `T` has a method of the
+> same name. The qualified call `Structure::walk(self, w)` always calls the
+> generated `walk`.
 
 ### Derivation Blocks
 
@@ -1016,8 +1020,9 @@ fn key_for(style: Style, m: Member) -> string:
 11. r[annot.fact.unused-self-line] A type-level fact that a trait-less block's `Self` line writes gets the same warning under the same conditions, reported on that line. Warning: `unused-derivation-fact`.
 12. r[annot.fact.unused-self-line.per-trait] A type-level fact that a `Self` line of a derivation block for a trait writes gets the same warning, reported on that line, when the fact's package does not supply that trait. Warning: `unused-derivation-fact`.
 13. r[annot.fact.unused-block-decorator] A decorator before a derivation block, `impl ... by Structure:`, attaches a value that no derivation reads. It gets a warning, reported on the decorator. Warning: `unused-derivation-fact`.
-14. r[annot.fact.unused-block-decorator.fix] The warning offers a fix-it that moves the value into the block as a `Self += [...]` member line.
-15. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.
+14. r[annot.fact.unused-block-decorator.any-type] This warning applies whatever the value's type, so a primitive or standard value, such as `@"internal"`, gets it too.
+15. r[annot.fact.unused-block-decorator.fix] The warning offers a fix-it that moves the value into the block as a `Self += [...]` member line.
+16. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.
 
 ```text
 use std.structure.Structure
@@ -1043,15 +1048,22 @@ data Loud:
 impl Loud by Structure:
     id += ["key"]
 
+data Hidden:
+    id: i64
+
+@"internal"  # warning: unused-derivation-fact
+impl Hidden by Structure:
+    id += ["key"]
+
 @style(prefix="a_")
 @style(prefix="b_")  # error: duplicate-fact
 data Twice:
     id: i64
 ```
 
-16. r[annot.fact.no-block-on] A fact or metadata expression must not call `std.task.block_on`, directly or transitively through the statically known call graph, as for a default expression in [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension).
-17. r[annot.fact.no-block-on.unprovable] A call through a function value or a dynamic trait method that prevents the compiler from proving `block_on` unreachable is rejected in a fact or metadata expression.
-18. r[annot.fact.no-block-on.error] Every violation is an error, reported on the fact or metadata expression. Error: `suspension-forbidden-context`.
+17. r[annot.fact.no-block-on] A fact or metadata expression must not call `std.task.block_on`, directly or transitively through the statically known call graph, as for a default expression in [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension).
+18. r[annot.fact.no-block-on.unprovable] A call through a function value or a dynamic trait method that prevents the compiler from proving `block_on` unreachable is rejected in a fact or metadata expression.
+19. r[annot.fact.no-block-on.error] Every violation is an error, reported on the fact or metadata expression. Error: `suspension-forbidden-context`.
 
 ```text
 use std.task.block_on
@@ -1231,6 +1243,10 @@ impl[S] Source[S] for Strict:  # variant, next, and member elided
 3. r[annot.bound.recursive] Recursion is checked coinductively: while checking the members of `Tree[T]`, its own derived implementation is assumed to hold.
 4. r[annot.bound.more] When a member needs more than `T < Trait`, as a `Map[T, V]` member needs `T < Hash`, the error suggests a derivation block whose header states the bounds. Error: `member-not-derivable`.
 
+> **Note.** A derived bound names the trait, as `T < Encode`. When a
+> walker's strengthened bound asks for more, that bound is the obligation
+> checked at the opt-in, and the diagnostic names it.
+
 See also: [`trait.derive.bounds`](09-traits.md#r-trait.derive.bounds),
 [Derived Newtypes](09-traits.md#derived-newtypes).
 
@@ -1239,6 +1255,12 @@ See also: [`trait.derive.bounds`](09-traits.md#r-trait.derive.bounds),
 1. r[annot.limit.in-place] There is no in-place traversal: generated code never assigns a member of an existing value. A derived merge returns a new value.
 2. r[annot.limit.interfaces] A package interface carries each template's body, the walker, describer, and source bodies it names, and the functions its facts call.
 3. r[annot.limit.specialize] Each (target, walker) pair is one specialization of the generated traversal.
+
+> **Note.** A template declares no compile-time constants of its own, and
+> shared constructor data has no typed handles. A wrapper walker cannot
+> forward to a generic inner walker's `member`, as
+> [`annot.walker.generic-member-call`](#r-annot.walker.generic-member-call)
+> states.
 
 > **Note.** Wire stability is documented, not checked. Reordering or
 > renaming members or variants changes derived formats, `VariantInfo.index`,
@@ -1252,15 +1274,7 @@ An implementation must not guess them:
 
 | Part | State |
 | --- | --- |
-| Fact check hook | The form of a fact type's compile-time check against its member, and whether it covers cross-member and type-level checks. |
 | Non-escaping handles | Whether a future non-escaping trait design makes handles non-escaping. |
-| Plan constants | A template may declare a constant computed once per derivation at compile time. Its syntax and the evaluator's limits are open, so no syntax for it exists. |
-| Typed shared constants | Typed handles for shared constructor data. |
-| `T -> U` mapping | Whether derivation between two types is in scope. |
-| Name clashes | How `walk`, `describe`, and `build` interact with trait methods of the same name. `Structure::walk(self, w)` is always unambiguous. |
-| Derived bound | Whether a derived bound names the trait or the walker's strengthened bound, where the two differ. |
-| `default()` allocation | Whether `h.default()` may allocate for every member type. |
-| Composing templates | How a walker forwards to another walker's `member`, which only generated code may call generically. |
 | `Clone`'s module | Which standard module declares `Clone`. It is chosen with the standard library. |
 | Derived-function cache | The API of the standard cache for derived associated functions. It is chosen with the standard library. |
 | Function targets | Deriving for functions, as tool adapters need ([FN_TYPE questions 9 and 10](../future-work/FN_TYPE.md#9-how-do-tool-adapters-get-per-declaration-data)). A decorator before a function attaches a value, as [Prefix Decorators](#prefix-decorators) defines. |

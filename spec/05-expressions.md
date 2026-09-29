@@ -92,9 +92,10 @@ fn record(tally: mut Tally, hits: List[i64]) -> Meters:
 7. r[expr.assign.compound.operator] Otherwise the operator follows [Operator Traits](#operator-traits), so the place's type needs the operator's trait. Without a fitting implementation, the statement is an error. Error: `type-mismatch`.
 8. r[expr.assign.compound.store] The store follows the rules of assignment. So the place must be a reassignable local, a field selected through a mutable root, or an index place that accepts a store.
 9. r[expr.assign.compound.index-read-write] On an index place, the read is `r[k]` and the store is `r[k] = v`. `List` and `Map` use their built-in indexing, and another type needs both `Index` and `IndexSet`, as [Index Traits](#index-traits) defines.
-10. r[expr.assign.compound.map-read] On a `Map`, the read behaves as any read of `m[k]` does: it has type `V?`, and a missing key reads as `.None`.
-11. r[expr.assign.compound.fresh-value] On a composite value, the store replaces the place's value with the operator's result. Other references to the old value keep the old value.
-12. r[expr.assign.compound.no-assign-traits] `std.ops` declares no assign trait, and no operator changes a value in place.
+10. r[expr.assign.compound.map-present] On a `Map[K, V]`, the read differs from a plain `m[k]`: it has type `V`, as if the key must exist.
+11. r[expr.assign.compound.map-missing] When the map holds no equal key, that read is a checked runtime panic with category `index-out-of-bounds`, and nothing is stored.
+12. r[expr.assign.compound.fresh-value] On a composite value, the store replaces the place's value with the operator's result. Other references to the old value keep the old value.
+13. r[expr.assign.compound.no-assign-traits] `std.ops` declares no assign trait, and no operator changes a value in place.
 
 ```text
 data Tally:
@@ -110,6 +111,11 @@ fn invalid(tally: Tally, bonus: Score) -> void:
     tally.count += 1  # error: readonly-root
     score += bonus    # error: type-mismatch
     current() += 1    # error: invalid-assignment-target
+```
+
+```text
+fn tally(counts: mut Map[string, i32], word: string) -> void:
+    counts[word] += 1  # panics with index-out-of-bounds when `word` is absent
 ```
 
 > **Note.** A diagnostic that rejects `p op= e` may show `p = p op e` as a
@@ -606,6 +612,11 @@ See also: [Method References](07-functions.md#method-references).
 3. r[expr.index.map.generic] The generic `V` is preserved through a readonly map, including `mut U` when `V = mut U`; unwrapping the optional returns `V`.
 4. r[expr.index.map.assign] Assigning `entries[key] = value` requires `mut Map[K, V]` and inserts or replaces the entry.
 5. r[expr.index.map.library] Removal and entry APIs are standard-library methods rather than special syntax.
+
+> **Note.** A compound assignment such as `counts[w] += 1` reads the entry
+> as `V` and panics when the key is missing, as
+> [`expr.assign.compound.map-missing`](#r-expr.assign.compound.map-missing)
+> states.
 
 #### Index Traits
 

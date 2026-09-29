@@ -1,0 +1,9 @@
+# test: unwrapping a readonly newtype value gives a readonly base value
+# Spec 04 Newtypes: types.newtype.unwrap-permission (evening follow-up 6, 2026-09-29).
+data Draft:
+    lines: List[string]
+
+type Order(Draft)
+
+fn invalid(sent: Order) -> void:
+    let frozen: mut Draft = Draft(sent)  # diagnostic: mutable-upgrade

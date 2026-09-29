@@ -1382,3 +1382,15 @@ style lint rejects a chapter that reuses one.
 - `types.trait.safe.members`: retired 2026-09-29. AT2 allows bound
   associated types. Replaced by `types.trait.safe.members-bound` and
   `types.trait.safe.assoc-bound`.
+- `grammar.stmt.let-mut`: retired 2026-09-29. The owner's evening
+  follow-up 1 requires parentheses around a multi-name `let` with `mut`.
+  Replaced by `grammar.stmt.let-mut-single`, `grammar.stmt.let-mut-list`,
+  `grammar.stmt.let-mut-list.bare`, and
+  `grammar.stmt.let-mut-list.needs-mut`.
+- `expr.assign.compound.map-read`: retired 2026-09-29. The owner's evening
+  follow-up 5 makes the compound read of a `Map` entry a panicking read.
+  Replaced by `expr.assign.compound.map-present` and
+  `expr.assign.compound.map-missing`.
+- `types.trait.safe.convert`: retired 2026-09-29. The owner's evening
+  follow-up 10 drops optionals from the values that need conversion, since
+  every enum is `AnyRef`. Replaced by `types.trait.safe.convert-value`.

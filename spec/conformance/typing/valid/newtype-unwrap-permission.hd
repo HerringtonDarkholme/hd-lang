@@ -1,0 +1,11 @@
+# test: unwrapping a newtype over a data type carries the newtype value's permission
+# Spec 04 Newtypes: types.newtype.unwrap-permission (evening follow-up 6, 2026-09-29).
+data Draft:
+    lines: List[string]
+
+type Order(Draft)
+
+fn reopen(order: mut Order) -> Draft:
+    let editable: mut Draft = Draft(order)
+    editable.lines = ["reopened"]
+    editable

@@ -63,6 +63,12 @@ r[types.prim.set] The primitive types are:
 3. r[types.prim.no-byte] hd-lang has no primitive `byte` or `bytes` type and no byte literal syntax.
 4. r[types.prim.by-value] Primitive values are passed and returned by value.
 5. r[types.prim.no-mut] Primitive types do not accept the `mut` modifier.
+6. r[types.prim.no-mut.error] A primitive type written with `mut`, as in `let n: mut i32 = 0`, is an error. Error: `mut-on-primitive`.
+
+```text
+fn invalid(scale: mut f64) -> void:  # error: mut-on-primitive
+    let n: mut i32 = 0  # error: mut-on-primitive
+```
 
 > **Why.** Primitive types do not expose mutable reference state.
 
@@ -266,6 +272,7 @@ n := i32(m)
 7. r[types.newtype.construct-ref] Constructing a newtype over an `AnyRef` base creates no new object: the newtype value wraps the base value.
 8. r[types.newtype.construct-permission] So such a construction carries its base value's permission. `Order(d)` has type `mut Order` exactly when `d` has mutable access, and readonly `Order` otherwise.
 9. r[types.newtype.construct-value] A newtype construction over an `AnyVal` base, such as `Mile(10)`, is a value, as its base is. It is not a fresh mutable object.
+10. r[types.newtype.unwrap-permission] Unwrapping a newtype over an `AnyRef` base carries the newtype value's permission. `Draft(o)` has type `mut Draft` exactly when `o` has mutable access, and readonly `Draft` otherwise.
 
 ```text
 data Draft:
@@ -280,6 +287,11 @@ fn wrap(draft: mut Draft, seen: Draft) -> void:
     let open: mut Order = Order(draft)
     let closed: mut Order = Order(seen)  # error: mutable-upgrade
     keep(open, closed)
+
+fn unwrap(order: mut Order, sent: Order) -> void:
+    let editable: mut Draft = Draft(order)
+    let frozen: mut Draft = Draft(sent)  # error: mutable-upgrade
+    editable.lines = frozen.lines
 ```
 
 See also: [Map Key Types](#map-key-types).
@@ -618,40 +630,50 @@ fn invalid() -> void:
 
 5. r[types.bind.let-mut-infer] `let mut name = value` infers mutable access: when `value` has type `mut T`, the binding has type `mut T`.
 6. r[types.bind.let-mut-upgrade] `let mut` never upgrades access: an initializer with a readonly type is an error. Error: `mutable-upgrade`.
-7. r[types.bind.let-mut-expected] The initializer of an unannotated `let mut` is used as `mut T`, so a fresh literal whose direct `mut` field or embedded copy is readonly is an error, as [`types.fresh.expected-mut`](#r-types.fresh.expected-mut) states. Error: `mutable-upgrade`.
-8. r[types.bind.let-mut-copy] A mutable copy of a readonly value is therefore written as a fresh literal, such as `User { ...user }`, whose `mut` fields are supplied mutable values.
+7. r[types.bind.let-mut-primitive] `let mut` on a name whose type is primitive, as in `let mut n = 0`, is an error, in place of `mutable-upgrade` or `let-mut-readonly-type`. Error: `mut-on-primitive`.
+8. r[types.bind.let-mut-primitive.hint] The diagnostic says that a plain `let` is already reassignable.
+9. r[types.bind.let-mut-optional] For `let mut`, an optional written `mut T?` counts as mutable access. So `let mut u = find()` is valid when `find` returns `mut User?`, and `u` has that type.
+10. r[types.bind.let-mut-expected] The initializer of an unannotated `let mut` is used as `mut T`, so a fresh literal whose direct `mut` field or embedded copy is readonly is an error, as [`types.fresh.expected-mut`](#r-types.fresh.expected-mut) states. Error: `mutable-upgrade`.
+11. r[types.bind.let-mut-copy] A mutable copy of a readonly value is therefore written as a fresh literal, such as `User { ...user }`, whose `mut` fields are supplied mutable values.
 
 ```text
+fn find() -> mut User?:
+    .Some(User { name: "Lin" })
+
 fn edit(user: User) -> void:
     let mut draft = User { name: "Ada" }  # mut User
     draft.name = "Grace"
     let mut copy = User { ...user }       # a fresh copy
     copy.name = "Grace"
+    let mut found = find()                # mut User?
 ```
 
 ```text
 fn invalid(user: User) -> void:
     let mut alias = user  # error: mutable-upgrade
+    let mut count = 0     # error: mut-on-primitive
 ```
 
-9. r[types.bind.let-mut-annotated] `let mut` with an annotation whose type is `mut T`, as in `let mut user: mut User = ...`, is valid; the `mut` after `let` is redundant.
-10. r[types.bind.let-mut-annotation] `let mut` with a readonly annotation, as in `let mut user: User = ...`, is an error, because the annotation and `let mut` disagree. Error: `let-mut-readonly-type`.
-11. r[types.bind.let-mut-annotation.fix] The diagnostic suggests adding `mut` to the type or removing the `mut` after `let`.
+12. r[types.bind.let-mut-annotated] `let mut` with an annotation whose type is `mut T`, as in `let mut user: mut User = ...`, is valid; the `mut` after `let` is redundant.
+13. r[types.bind.let-mut-annotated.warning] That redundant `mut` gets a warning. Warning: `redundant-let-mut`.
+14. r[types.bind.let-mut-annotation] `let mut` with a readonly annotation, as in `let mut user: User = ...`, is an error, because the annotation and `let mut` disagree. Error: `let-mut-readonly-type`.
+15. r[types.bind.let-mut-annotation.fix] The diagnostic suggests adding `mut` to the type or removing the `mut` after `let`.
 
 ```text
 fn invalid() -> void:
     let mut names: List[string] = []  # error: let-mut-readonly-type
+    let mut ids: mut List[i64] = []   # warning: redundant-let-mut
 ```
 
-12. r[types.bind.let-mut-pattern] In a multi-name `let`, each name follows these rules for its own tuple element. In `let mut log, db = pair`, `log` has mutable access and `db` the readonly view.
-13. r[types.bind.let-mut-pattern.annotated] With a tuple annotation, the element type of each name written `mut` must be a `mut` type. Error: `let-mut-readonly-type`.
+16. r[types.bind.let-mut-pattern] In a multi-name `let`, each name follows these rules for its own tuple element. In `let (mut log, db) = pair`, `log` has mutable access and `db` the readonly view.
+17. r[types.bind.let-mut-pattern.annotated] With a tuple annotation, the element type of each name written `mut` must be a `mut` type. Error: `let-mut-readonly-type`.
 
 ```text
 fn pair() -> (mut User, mut User):
     (User { name: "Ada" }, User { name: "Grace" })
 
 fn edit() -> void:
-    let mut first, second = pair()  # mut User, User
+    let (mut first, second) = pair()  # mut User, User
     first.name = "Lin"
     println(second.name)
 ```
@@ -663,8 +685,8 @@ fn edit() -> void:
 > `let mut user = User { ... }`, while the declaration still says
 > which locals change. `mut` keeps one meaning, a permission in the type.
 
-14. r[types.bind.call-result] Passing through a function also follows the declared result type rather than recovering freshness.
-15. r[types.bind.call-result.argument] Consequently, a fresh literal may be passed directly to a `mut T` parameter. A call declared to return `T` cannot be passed to one, even when its implementation constructs a fresh value.
+18. r[types.bind.call-result] Passing through a function also follows the declared result type rather than recovering freshness.
+19. r[types.bind.call-result.argument] Consequently, a fresh literal may be passed directly to a `mut T` parameter. A call declared to return `T` cannot be passed to one, even when its implementation constructs a fresh value.
 
 ### Mutable Paths
 
@@ -1040,7 +1062,7 @@ gives the rule.
 5. r[types.trait.safe.method-type-param] A method-level type parameter is permitted only when it is bounded by `AnyRef`; further bounds such as `T < AnyRef & Display` are allowed.
 6. r[types.trait.safe.no-reified-or-pack] A method must not declare a `reified` parameter or a type or value pack. Row parameters and suspending methods are allowed.
 7. r[types.trait.safe.one-body] Every argument for such a parameter is a reference, so one method body serves every instantiation, and the further bounds are supplied with each call.
-8. r[types.trait.safe.convert] A caller converts a primitive, tuple, or optional value explicitly before passing it.
+8. r[types.trait.safe.convert-value] A caller converts a primitive or tuple value explicitly before passing it.
 9. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
 10. r[types.trait.safe.static] Traits that fail these rules remain valid for static generic bounds and explicit implementations.
 

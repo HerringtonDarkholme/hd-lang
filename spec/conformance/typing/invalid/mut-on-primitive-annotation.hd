@@ -1,0 +1,5 @@
+# test: a primitive type written with mut is an error
+# Spec 04 Primitive Types: types.prim.no-mut.error (evening follow-up 2, 2026-09-29).
+fn invalid() -> i32:
+    let n: mut i32 = 0  # diagnostic: mut-on-primitive
+    n

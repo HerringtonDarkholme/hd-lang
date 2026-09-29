@@ -1,9 +1,10 @@
-# test: mut may precede each name of a let, in every let form
+# test: mut may precede one name, or each name of a parenthesized multi-name let
 fn pair() -> (i32, i32): (1, 2)
 
 fn forms(flag: bool) -> void:
     let mut a = pair()
-    let mut b, c = pair()
-    let d, mut e: (i32, i32) = pair()
-    let mut f = if flag: pair() else: pair()
-    if flag: let mut g = pair()
+    let (mut b, c) = pair()
+    let (d, mut e): (i32, i32) = pair()
+    let f, g = pair()
+    let mut h = if flag: pair() else: pair()
+    if flag: let mut i = pair()

@@ -1,0 +1,6 @@
+# test: a multi-name let with mut needs parentheses
+# Spec 02 Let Statements: grammar.stmt.let-mut-list.bare (evening follow-up 1, 2026-09-29).
+fn pair() -> (List[i32], List[i32]): ([1], [2])
+
+fn invalid() -> void:
+    let mut log, db = pair()  # diagnostic: syntax-error

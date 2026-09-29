@@ -1383,7 +1383,6 @@ typing/valid/row-union-private-result.hd	type
 runtime/valid/operator-string-add.hd	runtime
 runtime/valid/compound-assign-index.hd	runtime
 typing/invalid/compound-assign-index-no-read.hd	type
-typing/invalid/compound-assign-map-optional.hd	type
 typing/invalid/newtype-over-data-permission.hd	type
 typing/invalid/use-through-pub-use-loop.hd	type
 typing/warnings/derivation-block-decorator.hd	type
@@ -1391,7 +1390,6 @@ typing/invalid/operator-function-left-exact.hd	type
 typing/invalid/row-parameter-on-newtype.hd	type
 parse/invalid/let-mut-short-binding.hd	parse
 parse/invalid/for-mut-name.hd	parse
-parse/valid/let-mut-names.hd	parse
 typing/valid/let-readonly-rebind.hd	type
 typing/invalid/let-readonly-fresh-literal.hd	type
 typing/valid/let-mut-infer.hd	type
@@ -1401,12 +1399,12 @@ typing/invalid/let-mut-readonly-mut-field.hd	type
 typing/invalid/let-mut-spread-mut-field.hd	type
 typing/valid/let-mut-spread-fresh-field.hd	type
 typing/invalid/let-mut-readonly-annotation.hd	type
-typing/valid/let-mut-pattern.hd	type
-typing/invalid/let-mut-pattern-readonly-name.hd	type
-typing/invalid/let-mut-pattern-readonly-element.hd	type
-typing/invalid/let-mut-pattern-readonly-annotation.hd	type
 parse/invalid/pipe-leading-line-open-suite.hd	parse
 runtime/valid/iterator-drives-loops.hd	runtime
 runtime/valid/comprehension-propagation.hd	runtime
 typing/invalid/from-iterator-not-prelude.hd	type
 typing/invalid/trait-value-unbound-associated-type.hd	type
+parse/invalid/let-list-without-mut.hd	parse
+typing/valid/let-mut-optional.hd	type
+typing/invalid/newtype-unwrap-readonly.hd	type
+typing/warnings/derivation-block-decorator-std.hd	type

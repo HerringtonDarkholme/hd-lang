@@ -1,0 +1,15 @@
+# test: += on a present map entry reads it as V, then stores the sum
+# Spec 05 Compound Assignment: expr.assign.compound.map-present (evening follow-up 5, 2026-09-29).
+use std.testing.assert_equal
+
+fn count(words: List[string]) -> Map[string, i32]:
+    let counts: mut Map[string, i32] = {"a": 0, "b": 0}
+    for word in words:
+        counts[word] += 1
+    counts
+
+tests:
+    it("adds to present entries"):
+        counts := count(["a", "b", "a"])
+        assert_equal(counts["a"], .Some(2), reason="two a")
+        assert_equal(counts["b"], .Some(1), reason="one b")

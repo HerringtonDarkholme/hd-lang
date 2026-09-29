@@ -1420,7 +1420,6 @@ typing/valid/row-union-private-result.hd	type	accept	11-requirements-and-suspens
 runtime/valid/operator-string-add.hd	runtime	accept	05-expressions.md#r-expr.op.std.string-concat
 runtime/valid/compound-assign-index.hd	runtime	accept	05-expressions.md#r-expr.assign.compound.index-read-write
 typing/invalid/compound-assign-index-no-read.hd	type	reject:type-mismatch	05-expressions.md#r-expr.assign.compound.index-read-write
-typing/invalid/compound-assign-map-optional.hd	type	reject:type-mismatch	05-expressions.md#r-expr.assign.compound.map-read
 typing/invalid/newtype-over-data-permission.hd	type	reject:mutable-upgrade	04-type-system.md#r-types.newtype.construct-permission
 typing/invalid/use-through-pub-use-loop.hd	type	reject:re-export-loop	10-modules.md#r-module.pub-use.chain.loop-use
 typing/warnings/derivation-block-decorator.hd	type	warn:unused-derivation-fact	14-annotations.md#r-annot.fact.unused-block-decorator
@@ -1428,7 +1427,7 @@ typing/invalid/operator-function-left-exact.hd	type	reject:type-mismatch	05-expr
 typing/invalid/row-parameter-on-newtype.hd	type	reject:generic-kind-mismatch	11-requirements-and-suspension.md#r-req.row.param.no-newtype
 parse/invalid/let-mut-short-binding.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.stmt.let-mut.only-let
 parse/invalid/for-mut-name.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.stmt.let-mut.only-let
-parse/valid/let-mut-names.hd	parse	accept	02-grammar.md#r-grammar.stmt.let-mut
+parse/valid/let-mut-names.hd	parse	accept	02-grammar.md#r-grammar.stmt.let-mut-list
 typing/valid/let-readonly-rebind.hd	type	accept	04-type-system.md#r-types.bind.let-rebind
 typing/invalid/let-readonly-fresh-literal.hd	type	reject:readonly-root	04-type-system.md#r-types.bind.let-readonly
 typing/valid/let-mut-infer.hd	type	accept	04-type-system.md#r-types.bind.let-mut-infer
@@ -1502,3 +1501,15 @@ typing/invalid/trait-value-binding-mismatch.hd	type	reject:unsatisfied-trait-bou
 typing/invalid/binding-on-non-trait.hd	type	reject:unknown-associated-type	09-traits.md#r-trait.binding.non-trait
 parse/valid/trait-value-bindings.hd	parse	accept	02-grammar.md#r-grammar.generic.binding.positions
 parse/invalid/qualified-call-binding.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.generic.binding.trait-type
+parse/invalid/let-mut-bare-list.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.stmt.let-mut-list.bare
+parse/invalid/let-list-without-mut.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.stmt.let-mut-list.needs-mut
+typing/invalid/mut-on-primitive-annotation.hd	type	reject:mut-on-primitive	04-type-system.md#r-types.prim.no-mut.error
+typing/invalid/mut-on-primitive-parameter.hd	type	reject:mut-on-primitive	04-type-system.md#r-types.prim.no-mut.error
+typing/invalid/let-mut-primitive.hd	type	reject:mut-on-primitive	04-type-system.md#r-types.bind.let-mut-primitive
+typing/valid/let-mut-optional.hd	type	accept	04-type-system.md#r-types.bind.let-mut-optional
+typing/warnings/redundant-let-mut.hd	type	warn:redundant-let-mut	04-type-system.md#r-types.bind.let-mut-annotated.warning
+typing/valid/newtype-unwrap-permission.hd	type	accept	04-type-system.md#r-types.newtype.unwrap-permission
+typing/invalid/newtype-unwrap-readonly.hd	type	reject:mutable-upgrade	04-type-system.md#r-types.newtype.unwrap-permission
+runtime/valid/compound-assign-map-run.hd	runtime	accept	05-expressions.md#r-expr.assign.compound.map-present
+runtime/panic/compound-assign-map-missing-key.hd	runtime	panic:index-out-of-bounds	05-expressions.md#r-expr.assign.compound.map-missing
+typing/warnings/derivation-block-decorator-std.hd	type	warn:unused-derivation-fact	14-annotations.md#r-annot.fact.unused-block-decorator.any-type
