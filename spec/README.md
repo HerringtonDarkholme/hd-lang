@@ -1462,3 +1462,11 @@ existing source. Each entry names the decision that made the change.
   `%`, floating `%` is now valid and truncates as C `fmod` does, where
   `2.0 % 1.0` was `type-mismatch`. A function marked `@num_suffix` may be
   generic over `N < Num`, which was `type-mismatch` at the definition.
+- Iterator adapters (STDLIB questions 14 and 18, owner decision,
+  2026-09-29): the prelude `Iterator[T]` gains the default methods
+  `filter`, `take`, `enumerate`, and `collect`, as Rust's `Iterator` has
+  them; there is no separate extension trait. `filter`, `take`, and
+  `enumerate` are lazy, and a negative `take` count panics. A call such as
+  `counter.take(2)` on an iterator type that also implements another
+  available trait with a `take` method is now `ambiguous-method`; an
+  inherent `take` still wins.

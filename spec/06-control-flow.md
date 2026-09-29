@@ -161,6 +161,53 @@ fn bad() -> void:
         pass
 ```
 
+### Iterator Adapters
+
+The prelude `Iterator[T]` also declares **iterator adapters**: default
+methods that wrap an iterator in a new one, or drain it.
+
+```text
+fn first_evens(values: List[i32]) -> List[(i32, i32)]:
+    values.iter().filter(fn(value): value % 2 == 0).enumerate().take(2).collect()
+```
+
+| Rule | Default method | Result |
+| --- | --- | --- |
+| r[flow.adapter.filter] `filter` | `fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]` | a new iterator over the items of `self` for which `keep` returns `true` |
+| r[flow.adapter.take] `take` | `fn take(mut self, count: i32) -> mut Iterator[T]` | a new iterator over the first `count` items of `self`, or fewer when `self` ends first |
+| r[flow.adapter.enumerate] `enumerate` | `fn enumerate(mut self) -> mut Iterator[(i32, T)]` | a new iterator over `(index, item)` pairs, with indices counting from `0` |
+| r[flow.adapter.collect] `collect` | `fn collect(mut self) -> List[T]` | a list of the remaining items of `self`, in order |
+
+1. r[flow.adapter.prelude] The adapters are default methods of the prelude `Iterator[T]`, so every iterator has them without a `use`.
+2. r[flow.adapter.lazy] Calling `filter`, `take`, or `enumerate` does not advance `self`.
+3. r[flow.adapter.lazy.next] The returned iterator advances `self` only when its own `next` is called.
+4. r[flow.adapter.take.limit] The iterator that `take` returns calls `next` on `self` at most `count` times.
+5. r[flow.adapter.take.negative] A negative `count` panics when `take` is called. Panic: `explicit-panic`.
+6. r[flow.adapter.collect.drain] `collect` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
+7. r[flow.adapter.mut-receiver] Each adapter takes `mut self`. Calling one on a readonly iterator is an error. Error: `mutable-receiver-required`.
+8. r[flow.adapter.callback-row] The `keep` callback has the empty row. A function value whose row lists a requirement key does not fit it. Error: `type-mismatch`.
+
+```text
+trait Logger
+
+fn noisy(value: i32) -> bool $ Logger:
+    value > 0
+
+fn positives(values: List[i32]) -> List[i32] $ Logger:
+    values.iter().filter(noisy).collect()  # error: type-mismatch
+
+fn drain(source: Iterator[i32]) -> List[i32]:
+    source.collect()  # error: mutable-receiver-required
+```
+
+> **Why.** The returned iterator calls `keep` from its `next`, whose row is
+> empty, so a stored callback cannot wait for providers. A callback that
+> needs one captures the provider value from `$.use` instead.
+
+> **Note.** No adapter has a method-level type parameter, so `Iterator[T]`
+> stays [dynamically safe](09-traits.md#dynamic-safety) and usable as a
+> value type.
+
 ### Built-In Collection Iteration
 
 1. r[flow.for.list] The built-in `List[T]` iterable yields each element as `T`, including `mut U` when `T = mut U`, even through a readonly list.

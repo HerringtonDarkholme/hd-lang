@@ -1,0 +1,9 @@
+# test: take with a negative count panics when called
+# Spec 06 Iterator Adapters: flow.adapter.take.negative (STDLIB question 18).
+
+fn head(values: List[i32]) -> List[i32]:
+    values.iter().take(-1).collect()  # panic: explicit-panic
+
+tests:
+    it("rejects a negative count"):
+        _ := head([1, 2, 3])

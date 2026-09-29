@@ -1402,3 +1402,8 @@ runtime/valid/num-traits-run.hd	runtime	accept	09-traits.md#r-trait.num.from-i64
 typing/valid/num-families.hd	type	accept	09-traits.md#r-trait.num.integer
 typing/invalid/num-bound-newtype.hd	type	reject:unsatisfied-trait-bound	09-traits.md#r-trait.num.not-newtypes
 typing/invalid/num-sealed-impl.hd	type	reject:sealed-trait-implementation	09-traits.md#r-trait.num.sealed
+typing/valid/iterator-adapters.hd	type	accept	06-control-flow.md#iterator-adapters
+runtime/valid/iterator-adapters-run.hd	runtime	accept	06-control-flow.md#r-flow.adapter.lazy
+runtime/panic/iterator-take-negative.hd	runtime	panic:explicit-panic	06-control-flow.md#r-flow.adapter.take.negative
+typing/invalid/iterator-filter-callback-row.hd	type	reject:type-mismatch	06-control-flow.md#r-flow.adapter.callback-row
+typing/invalid/iterator-adapter-readonly.hd	type	reject:mutable-receiver-required	06-control-flow.md#r-flow.adapter.mut-receiver

@@ -1,0 +1,10 @@
+# test: a filter callback with a requirement row does not fit the empty-row keep parameter
+# Spec 06 Iterator Adapters: flow.adapter.callback-row (STDLIB question 14).
+
+trait Logger
+
+fn noisy(value: i32) -> bool $ Logger:
+    value > 0
+
+fn positives(values: List[i32]) -> List[i32] $ Logger:
+    values.iter().filter(noisy).collect()  # diagnostic: type-mismatch

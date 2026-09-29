@@ -1,0 +1,5 @@
+# test: an adapter on a readonly iterator needs a mutable receiver
+# Spec 06 Iterator Adapters: flow.adapter.mut-receiver (STDLIB question 14).
+
+fn drain(source: Iterator[i32]) -> List[i32]:
+    source.collect()  # diagnostic: mutable-receiver-required

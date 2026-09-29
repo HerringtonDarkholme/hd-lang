@@ -1,0 +1,21 @@
+# test: the prelude Iterator declares filter, take, enumerate, and collect as default methods
+# Spec 06 Iterator Adapters: flow.adapter.prelude, flow.adapter.filter, flow.adapter.take, flow.adapter.enumerate, flow.adapter.collect (STDLIB question 14).
+
+data Countdown:
+    current: i32
+
+impl Iterator[i32] for Countdown:
+    fn next(mut self) -> i32?:
+        if self.current <= 0:
+            return .None
+        self.current = self.current - 1
+        .Some(self.current + 1)
+
+fn first_evens(values: List[i32]) -> List[(i32, i32)]:
+    values.iter().filter(fn(value): value % 2 == 0).enumerate().take(2).collect()
+
+fn countdown_head(counter: mut Countdown) -> List[i32]:
+    counter.take(2).collect()
+
+fn through_value(source: mut Iterator[string]) -> mut Iterator[(i32, string)]:
+    source.filter(fn(name): name.len() > 0).enumerate()
