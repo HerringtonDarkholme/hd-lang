@@ -93,8 +93,8 @@ least-row inference, grouped and empty concrete rows, and transitive
 requirement-path explanations. S2 now also has generic row inference, least-row
 union, removal of a key by row extension, keyed GC provider packs, lexical
 restoration of a removed key, composition of multiple symbolic rows with
-concrete keys, and repeated-row mismatch checking. Rows are comma lists; the
-former `+` and `-` row operators report `old-row-operator`. Erased generic marker traits now provide
+concrete keys, and repeated-row mismatch checking. Rows join keys with `+`; the
+former comma lists report `old-row-separator`, and `+` between bounds reports `old-bound-operator`. Erased generic marker traits now provide
 canonical instantiated keys, substitute through generic calls, accept distinct
 concrete keys, and reject key expressions that can collide under substitution.
 Trait-backed provider examples with methods remain coupled to S4. The current surface and commands are tracked in

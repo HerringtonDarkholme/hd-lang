@@ -62,7 +62,6 @@ export abstract class ParserBase {
   protected abstract parseSuite(closureBody?: boolean): readonly Statement[];
   protected abstract parseStatement(topOrInline: boolean): Statement;
   protected abstract finishSimpleStatement(topOrInline: boolean): SourceSpan["end"];
-  protected abstract parseRequirements(header?: boolean): readonly string[];
   protected abstract parseRequirementKey(): string;
   protected abstract parseExpressionSource(source: string): ExpressionParseResult;
 
@@ -286,31 +285,59 @@ export abstract class ParserBase {
     return topOrInline && [")", ",", "]", "}", "else"].some((text) => this.atText(text));
   }
 
-  // A type argument may be a row, `$()` or `$(A, B)`, for a row-kinded
+  // A type argument may be a row, `$()` or `$ A + B`, for a row-kinded
   // parameter (02-grammar.md#types); a single key reads as a type.
   protected parseTypeArgument(): TypeRef {
     const start = this.current().span.start;
-    if (this.atText("$") && this.peek(1).text === "(") {
-      this.advance();
+    if (this.matchText("$")) {
       const keys = this.parseRequirements(false);
       return { name: rowArgumentType(keys), span: { start, end: this.peek(-1).span.end } };
     }
-    const argument = this.parseType();
-    this.rejectOldRowOperator();
-    return argument;
+    return this.parseType();
   }
 
-  // `$ A + B` and `$ (R - K)` are the removed row union and subtraction.
-  protected rejectOldRowOperator(): void {
-    const operator = this.current();
-    if (operator.text !== "+" && operator.text !== "-") return;
+  // A requirement row joins keys with `+` in every position, and `$()` is the
+  // empty row (02-grammar.md#types). Inside a type (`header` false), a comma
+  // after a key ends the row and belongs to the enclosing list.
+  protected parseRequirements(header = true): readonly string[] {
+    const open = this.current();
+    if (this.matchText("(")) {
+      if (!this.atText(")")) {
+        this.parseRequirementKey();
+        if (this.atText(",")) this.rejectOldRowSeparator();
+        this.fail(
+          "syntax-error",
+          "parentheses never surround a nonempty requirement row: write '$ A + B'",
+          open.span,
+        );
+      }
+      this.expectText(")");
+      return [];
+    }
+    const keys = [this.parseRowKey()];
+    while (this.matchText("+")) keys.push(this.parseRowKey());
+    if (header && this.atText(",")) this.rejectOldRowSeparator();
+    return [...new Set(keys)].sort();
+  }
+
+  // `$ A, B` and `$(A, B)` are the former comma-list rows (02-grammar.md#types).
+  private rejectOldRowSeparator(): never {
     this.fail(
-      "old-row-operator",
-      operator.text === "+"
-        ? "requirement rows are comma lists: write '$ A, B' before a header's ':' or '$(A, B)' inside a type"
-        : "row subtraction was removed: take the callback as 'fn(...) -> T $(R, K)' and declare '$ R' to remove K",
-      operator.span,
+      "old-row-separator",
+      "requirement keys are joined with '+': write '$ A + B'",
+      this.current().span,
     );
+  }
+
+  protected parseRowKey(): string {
+    const key = this.parseRequirementKey();
+    if (this.atText("-"))
+      this.fail(
+        "syntax-error",
+        "requirement rows have no subtraction: take the callback as 'fn(...) -> T $ R + K' and declare '$ R' to remove K",
+        this.current().span,
+      );
+    return key;
   }
 
   /** True when the current token starts on the line where the previous token ends. */

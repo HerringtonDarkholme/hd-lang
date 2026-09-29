@@ -387,8 +387,20 @@ class Parser extends DecoratorParser {
         ? this.parseBoundTraitWithBindings(bindings)
         : this.parseType();
       traits.push(mutable ? `mut:${trait.name}` : trait.name);
-    } while (this.matchText("+"));
+    } while (this.matchBoundJoiner());
     return traits;
+  }
+
+  // Several bounds are joined with `&`; `+` is the former spelling
+  // (02-grammar.md#r-grammar.generic.bound.old-plus).
+  protected matchBoundJoiner(): boolean {
+    if (this.atText("+"))
+      this.fail(
+        "old-bound-operator",
+        "several bounds are joined with '&': write 'A & B'",
+        this.current().span,
+      );
+    return this.matchText("&");
   }
 
   /** True at `Trait[..., Name = type]`: a bound trait with associated type bindings. */
@@ -471,12 +483,12 @@ class Parser extends DecoratorParser {
     const supertraits: TypeRef[] = [];
     if (this.matchText("<")) {
       do supertraits.push(this.parseType());
-      while (this.matchText("+"));
+      while (this.matchBoundJoiner());
     }
     if (this.matchText(":")) {
       if (supertraits.length === 0 && !this.atKind("newline")) {
         do supertraits.push(this.parseType());
-        while (this.matchText("+"));
+        while (this.matchBoundJoiner());
         this.expectText(":");
       }
       this.expectKind("newline", "expected a line ending after a trait header");
@@ -744,31 +756,6 @@ class Parser extends DecoratorParser {
       doc,
       span: { start, end: body.at(-1)?.span.end ?? result.span.end },
     };
-  }
-
-  // A requirement row is a comma list of keys (02-grammar.md#types). A single
-  // key may be bare; several keys are parenthesized, except that a declaration
-  // or closure header may list them bare because its clause ends at `:`.
-  protected parseRequirements(header = true): readonly string[] {
-    const keys: string[] = [];
-    if (this.matchText("(")) {
-      if (!this.atText(")")) {
-        do keys.push(this.parseRowKey());
-        while (this.matchText(",") && !this.atText(")"));
-      }
-      this.expectText(")");
-    } else {
-      keys.push(this.parseRowKey());
-      while (header && this.matchText(",")) keys.push(this.parseRowKey());
-    }
-    this.rejectOldRowOperator();
-    return [...new Set(keys)].sort();
-  }
-
-  protected parseRowKey(): string {
-    const key = this.parseRequirementKey();
-    this.rejectOldRowOperator();
-    return key;
   }
 
   protected parseRequirementKey(): string {
@@ -1108,12 +1095,10 @@ class Parser extends DecoratorParser {
       if (context.text !== "Context")
         this.fail("syntax-error", "expected Context after '$.'", context.span);
       this.expectText("[");
-      // `$.Context[Key]` or `$.Context[$(A, B)]`; `$()` is the empty context.
-      let requirements: readonly string[];
-      if (this.matchText("$")) {
-        if (!this.atText("(")) this.expectText("(");
-        requirements = this.parseRequirements(false);
-      } else requirements = [this.parseRowKey()];
+      // `$.Context[Key]` or `$.Context[$ A + B]`; `$()` is the empty context.
+      const requirements = this.matchText("$")
+        ? this.parseRequirements(false)
+        : [this.parseRowKey()];
       const close = this.expectText("]");
       return { name: `context:${requirements.join("+")}`, span: { start, end: close.span.end } };
     }

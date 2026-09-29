@@ -186,7 +186,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
       this.inspectTarget(expression.typeArguments, expected, name, expression.span),
     );
     const targetGeneric = genericTypeName(target);
-    // `T < AnyRef + Inspectable`: value types use downcast_val.
+    // `T < AnyRef & Inspectable`: value types use downcast_val.
     if (
       targetGeneric
         ? !(this.signature.referenceParameters ?? []).includes(targetGeneric)

@@ -765,9 +765,14 @@ export function inferRequirementRows(
   ]);
   if (!sameRequirements(instantiated, actual)) {
     const names = rowNames.map((name) => `'${name}'`).join(" and ");
-    return `requirement-row parameter${rowNames.length === 1 ? "" : "s"} ${names} cannot match both $(${instantiated.join(", ")}) and $(${normalizedRequirements(actual).join(", ")})`;
+    return `requirement-row parameter${rowNames.length === 1 ? "" : "s"} ${names} cannot match both ${writtenRow(instantiated)} and ${writtenRow(normalizedRequirements(actual))}`;
   }
   return undefined;
+}
+
+/** A row as source writes it: `$()` or `$ A + B` (02-grammar.md#types). */
+function writtenRow(keys: readonly string[]): string {
+  return keys.length === 0 ? "$()" : `$ ${keys.join(" + ")}`;
 }
 
 export function functionTypeMatchesRowPattern(

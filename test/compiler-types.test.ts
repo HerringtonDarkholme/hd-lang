@@ -326,7 +326,7 @@ fn main() -> i32 $ Clock: middle() + 1
 });
 
 test("provider scopes lower hidden provider locals", () => {
-  const source = `fn main() -> i32 $ Clock, Backup:
+  const source = `fn main() -> i32 $ Clock + Backup:
     _ := $.use(Clock)
     $.with(Clock=$.use(Backup)):
         _ := $.use(Clock)
@@ -336,14 +336,14 @@ test("provider scopes lower hidden provider locals", () => {
   assert.match(compilation.wat, /local\.set \$l0 \(local\.get \$provider0\)/);
 });
 
-test("concrete requirement rows normalize comma lists as sets", () => {
+test("concrete requirement rows normalize + lists as sets", () => {
   const result = analyze(conformance("typing/valid/requirement-row-duplicate-keys"));
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(result.hir?.functions[0]?.requirements, ["Clock", "Logger"]);
 
-  const grouped = analyze(conformance("typing/valid/requirement-row-parenthesized-list"));
-  assert.deepEqual(grouped.diagnostics, []);
-  assert.deepEqual(grouped.hir?.functions[0]?.requirements, ["Clock", "Logger"]);
+  const joined = analyze(conformance("typing/valid/requirement-row-plus-list"));
+  assert.deepEqual(joined.diagnostics, []);
+  assert.deepEqual(joined.hir?.functions[0]?.requirements, ["Clock", "Logger"]);
 
   const empty = analyze(conformance("typing/valid/explicit-empty-row"));
   assert.deepEqual(empty.diagnostics, []);
@@ -546,7 +546,7 @@ test("println drives a write_line! pending on a host operation until it finishes
     "",
     "let written: i32 = 0",
     "",
-    "pub fn main() -> void $ Console, Gate:",
+    "pub fn main() -> void $ Console + Gate:",
     "    let gated: mut GatedConsole = GatedConsole { gate: $.use(Gate) }",
     "    $.with(Console=gated):",
     '        println("held")',

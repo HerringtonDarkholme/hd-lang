@@ -14,7 +14,7 @@ fn recorded[T < Hash](value: T) -> List[u8]:
     value.hash(recorder)
     recorder.bytes
 
-fn lookup[K < Eq + Hash](items: Map[K, i32], key: K) -> i32?:
+fn lookup[K < Eq & Hash](items: Map[K, i32], key: K) -> i32?:
     items[key]
 
 tests:
