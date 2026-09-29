@@ -19,8 +19,10 @@ and tooling work is listed separately at the end.
    impl bounds. Precedent: Java `<T extends A & B>`, TypeScript and Scala 3
    `A & B`, Swift `P & Q`. Bounds appear only in type positions, so bitwise
    `&` in expressions doesn't conflict.
-2. Requirement rows use `+` again: `fn f() -> O $ Db + Clock`, and row
-   type arguments are written `$(A + B)`. The 2026-09-27 reason for commas
+2. Requirement rows use `+` again: `fn f() -> O $ Db + Clock`. The
+   parenthesized row form `$(A, B)` is dropped too, so row type arguments
+   and function types use the same bare form, as in `Task[T, $ A + B]` and
+   `fn() -> void $ A + B`. (The owner confirmed this on 2026-09-28.) The 2026-09-27 reason for commas
    was to keep `+` for bounds only. Moving bounds to `&` frees `+`, so each
    operator has one meaning.
 3. One spelling only. The old forms are errors with a fix-it hint:
