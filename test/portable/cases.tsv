@@ -1327,3 +1327,9 @@ typing/valid/private-method-infers-result-and-row.hd	type
 typing/invalid/public-method-without-requirement-clause.hd	type
 runtime/valid/float-cast-saturates.hd	runtime
 typing/invalid/derive-newtype-base-missing-trait.hd	type
+typing/valid/row-union-if.hd	type
+typing/valid/row-union-match.hd	type
+typing/valid/row-union-closure-result.hd	type
+typing/valid/row-union-omitted-result.hd	type
+typing/invalid/row-union-if-nested-lists.hd	type
+runtime/valid/row-union-branches-run.hd	runtime

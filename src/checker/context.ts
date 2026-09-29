@@ -30,6 +30,7 @@ import {
 import {
   collectionIterablePlan,
   isPermissionWeakening,
+  rowUnionType,
   weakenBoundedGenericActual,
 } from "./assignability.ts";
 import { isRowSubsumption, mismatchMessage, rowDiagnostic } from "./row-rules.ts";
@@ -1271,18 +1272,18 @@ export abstract class CheckerContext {
   }
 
   protected recordInferredReturn(type: ValueType, span: SourceSpan): void {
-    if (type === "never") return;
-    if (this.inferredReturnType === undefined || this.inferredReturnType === "never") {
-      this.inferredReturnType = type;
-      return;
-    }
-    if (this.inferredReturnType !== type) {
+    const previous = this.inferredReturnType;
+    if (type === "never" || previous === type) return;
+    // Function values with different rows take their union (r-req.row.union.sites).
+    const joined =
+      previous === undefined || previous === "never" ? type : rowUnionType([previous, type]);
+    if (joined === undefined)
       this.fail(
         "no-common-type",
-        `closure return paths have types ${this.inferredReturnType} and ${type} with no common type`,
+        `closure return paths have types ${previous} and ${type} with no common type`,
         span,
       );
-    }
+    this.inferredReturnType = joined;
   }
 
   protected checkFallthrough(body: readonly HirStatement[]): void {

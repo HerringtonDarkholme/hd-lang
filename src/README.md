@@ -404,7 +404,12 @@ else`, `break`, `break value`, and `continue`;
   solves instead. A list or map literal with no expected type gives its
   function values the union of their rows; a literal with a spread does
   not yet (`KNOWN_FAILURES.tsv`, RU12), and diagnostics print the union's
-  expanded keys rather than the rows as written;
+  expanded keys rather than the rows as written. `if` branches, `match`
+  arms, and inferred closure and function results take the union too
+  (RU15), and a branch or arm type mismatch is `no-common-type`. A
+  function whose result is a function type with a row fails Wasm
+  validation, since its type string reads the inner row as the outer
+  function's (`KNOWN_FAILURES.tsv`, RU15);
 - erased generic marker traits as provider keys, with call-site substitution
   and pre-erasure collision checking;
 - erased generic functions with call-site type inference, Wasm GC boxing for

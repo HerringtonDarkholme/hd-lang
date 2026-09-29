@@ -1,4 +1,5 @@
 import type { Expression, Statement } from "../ast.ts";
+import type { SourceSpan } from "../diagnostics.ts";
 import type {
   HirData,
   HirEnum,
@@ -19,6 +20,7 @@ import {
   tupleParts,
 } from "../types.ts";
 import { numericType } from "../numeric.ts";
+import { rowUnionType } from "./assignability.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
   type BindingExpressionFlow,
@@ -77,9 +79,21 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         const thenType = this.blockType(thenBody);
         const elseType = this.blockType(elseBody);
         if (thenType !== elseType && thenType !== "never" && elseType !== "never") {
+          // Function values take the union of their rows
+          // (11-requirements-and-suspension.md#r-req.row.union.sites).
+          const union = rowUnionType([thenType, elseType]);
+          if (union !== undefined)
+            return {
+              kind: "if",
+              condition,
+              thenBody: this.coerceBlockResult(thenBody, union),
+              elseBody: this.coerceBlockResult(elseBody, union),
+              type: union,
+              span: expression.span,
+            };
           this.fail(
-            "if-branch-type",
-            `if branches have types ${thenType} and ${elseType}`,
+            "no-common-type",
+            `if branches have types ${thenType} and ${elseType} with no common type`,
             expression.span,
           );
         }
@@ -324,7 +338,12 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
             ? "scalar"
             : "erased-variant",
       enumIndex: context.declaration?.index,
-      arms: context.arms,
+      // Each arm's value fits a union-row result by row subsumption.
+      arms: context.arms.map((arm) =>
+        context.resultType === undefined || context.resultType === "never"
+          ? arm
+          : { ...arm, body: this.coerceBlockResult(arm.body, context.resultType) },
+      ),
       type: context.resultType ?? "void",
       span: expression.span,
     };
@@ -719,16 +738,39 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       const armType = this.blockType(body);
       if (context.resultType === undefined || context.resultType === "never")
         context.resultType = armType;
-      else if (armType !== "never" && context.resultType !== armType) {
-        this.fail(
-          "match-arm-type",
-          `match arms have types ${context.resultType} and ${armType}`,
-          arm.span,
-        );
-      }
+      else if (armType !== "never" && context.resultType !== armType)
+        context.resultType = this.joinArmTypes(context.resultType, armType, arm.span);
       context.arms.push({ tag, literal, guard, tests, bindings, body, span: arm.span });
     } finally {
       this.scopes.pop();
     }
+  }
+
+  /**
+   * Two differing arm types join only as function values that take the union
+   * of their rows (11-requirements-and-suspension.md#r-req.row.union.sites).
+   */
+  private joinArmTypes(left: ValueType, right: ValueType, span: SourceSpan): ValueType {
+    const union = rowUnionType([left, right]);
+    if (union === undefined)
+      this.fail(
+        "no-common-type",
+        `match arms have types ${left} and ${right} with no common type`,
+        span,
+      );
+    return union;
+  }
+
+  /** A suite whose final value is coerced to `type`, as a union-row site needs. */
+  protected coerceBlockResult(
+    body: readonly HirStatement[],
+    type: ValueType,
+  ): readonly HirStatement[] {
+    const last = body.at(-1);
+    if (last?.kind !== "expression" || last.expression.type === type) return body;
+    return [
+      ...body.slice(0, -1),
+      { ...last, expression: this.requireCoercion(last.expression, type, last.span) },
+    ];
   }
 }
