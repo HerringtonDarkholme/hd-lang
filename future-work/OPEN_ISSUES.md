@@ -322,6 +322,14 @@ step or a bare name, and add no member-path shorthand.
 **Open.** The study's remaining questions, CS5 (method values) and CS6
 (key-function variants in `std`), wait for the owner. CS4 asked how long a member path is, and CS3 declined member paths.
 
+### Method And Field References
+
+**Open.** [Chaining Study CS5](CHAINING_STUDY.md#owner-decisions) asks for
+method and field references now. [Method And Field References](METHOD_REFERENCES.md)
+compares five options and asks six questions. Until the owner answers,
+`Type::name` and `x::name` stay `deferred-method-value`
+([Method Values](../spec/07-functions.md#method-values)).
+
 ### Cross-Feature Stress Test (2026-09-29)
 
 **Open.** Two readings of stress decisions 5 and 6, about decorators, wait

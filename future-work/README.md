@@ -48,6 +48,9 @@ Open questions for the owner:
   beyond T53 and two deferred fixtures.
 - [Stress Test 2026-09-29: Open Points](STRESS_2026_09_29.md) keeps two
   decorator readings.
+- [Method And Field References](METHOD_REFERENCES.md) designs CS5: it
+  surveys references in eight languages and compares five options, from
+  closures only to Kotlin-style `::` and Swift-style key paths.
 
 Research and direction outside the specification:
 
