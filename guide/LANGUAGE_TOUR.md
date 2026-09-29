@@ -1412,6 +1412,28 @@ lower_names := map_names(names, fn(name): name.lower())
 
 Shorthand argument closures such as `$0 + $1` are not supported; closures use named parameters.
 
+A method or associated function can be passed by name with `::`. `Type::method` takes the receiver as its first argument, and `value::method` binds the receiver when the reference is made:
+
+```text
+data Counter:
+    value: i32
+
+impl Counter:
+    fn read(self) -> i32:
+        self.value
+
+    fn bump(mut self, by: i32) -> void:
+        self.value = self.value + by
+
+fn readings(counters: List[Counter]) -> List[i32]:
+    counters.map(Counter::read)
+
+fn bumper(counter: mut Counter) -> fn(i32) -> void:
+    counter::bump
+```
+
+A bound reference keeps the object it was made with, even if `counter` is later reassigned; a closure `fn(by): counter.bump(by)` would read the variable when it runs. Fields have no reference form: write `fn(user): user.email`. A suspending method is referenced without `!`, as `Store::load`, and has an `fn!` type.
+
 Generic functions put generic arguments after the function name:
 
 ```text

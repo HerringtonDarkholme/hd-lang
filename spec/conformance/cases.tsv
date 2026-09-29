@@ -891,7 +891,7 @@ runtime/valid/parenthesized-nested-same-line-if.hd	runtime	accept	06-control-flo
 runtime/valid/trailing-block-right-hand-sides.hd	runtime	accept	07-functions.md#trailing-callback-blocks
 parse/invalid/chained-multi-name-binding.hd	parse	reject:syntax-error	02-grammar.md#statements
 runtime/valid/bang-call-explicit-type-arguments.hd	runtime	accept	07-functions.md#generic-functions
-parse/invalid/qualified-bang-call-type-arguments-before-bang.hd	parse	reject:syntax-error	02-grammar.md#primary-expressions
+parse/invalid/qualified-bang-call-type-arguments-before-bang.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.primary.method-reference.no-bang
 runtime/valid/list-suffix-spread.hd	runtime	accept	05-expressions.md#list-and-map-expressions
 typing/invalid/list-spread-non-list.hd	type	reject:type-mismatch	05-expressions.md#list-and-map-expressions
 runtime/valid/self-interpolation.hd	runtime	accept	05-expressions.md#literals
@@ -908,9 +908,6 @@ typing/invalid/bare-none-pattern.hd	type	reject:bare-variant-pattern	06-control-
 runtime/valid/option-impl-target.hd	runtime	accept	09-traits.md#implementation-targets
 typing/invalid/overlapping-option-impl.hd	type	reject:overlapping-impl	09-traits.md#overlap
 parse/invalid/optional-question-pattern.hd	parse	reject:syntax-error	02-grammar.md#patterns
-parse/invalid/unbound-method-value.hd	parse	reject:deferred-method-value	07-functions.md#unsupported-function-extensions
-parse/invalid/bound-method-value.hd	parse	reject:deferred-method-value	07-functions.md#unsupported-function-extensions
-typing/invalid/bound-method-value-call.hd	type	reject:deferred-method-value	07-functions.md#unsupported-function-extensions
 runtime/valid/generic-trait-literal-default-instantiation.hd	runtime	accept	09-traits.md#method-resolution
 typing/invalid/generic-trait-literal-without-default.hd	type	reject:ambiguous-method	09-traits.md#method-resolution
 typing/invalid/trait-value-impl-target.hd	type	reject:trait-value-impl-target	09-traits.md#implementation-targets
@@ -1465,3 +1462,12 @@ typing/invalid/iterator-map-callback-row.hd	type	reject:type-mismatch	06-control
 runtime/valid/iterator-drives-loops.hd	runtime	accept	06-control-flow.md#r-flow.for.iterator-self
 typing/valid/iterator-satisfies-iterable-bound.hd	type	accept	06-control-flow.md#r-flow.for.iterator-bound
 typing/invalid/impl-iterator-trait.hd	type	reject:unknown-trait	06-control-flow.md#r-flow.for.iterator-type
+parse/valid/method-references.hd	parse	accept	02-grammar.md#r-grammar.primary.method-reference
+typing/valid/method-references.hd	type	accept	07-functions.md#method-references
+runtime/valid/method-references-run.hd	runtime	accept	07-functions.md#r-fn.ref.bound.capture
+runtime/valid/pipe-method-reference-step.hd	runtime	accept	05-expressions.md#r-expr.pipe.bare.method-reference
+typing/invalid/field-reference.hd	type	reject:unknown-method	07-functions.md#r-fn.ref.no-fields
+typing/invalid/bound-reference-readonly-receiver.hd	type	reject:mutable-receiver-required	07-functions.md#r-fn.ref.bound.mut
+typing/invalid/trait-reference-unsolved-self.hd	type	reject:unresolved-generic-placeholder	07-functions.md#r-fn.ref.trait-self.unsolved
+typing/invalid/mut-self-reference-readonly-callback.hd	type	reject:type-mismatch	07-functions.md#r-fn.ref.unbound.mut-self
+typing/invalid/pipe-suspending-method-reference.hd	type	reject:suspending-pipe-step	05-expressions.md#r-expr.pipe.bare.no-suspend

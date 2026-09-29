@@ -1,0 +1,55 @@
+# test: method references have the receiver-first or captured-receiver function types
+# Spec 07 Method References: fn.ref.unbound, fn.ref.unbound.receiver, fn.ref.associated, fn.ref.trait-self, fn.ref.generic, fn.ref.bound, fn.ref.bound.type, fn.ref.suspending, fn.ref.lookup (Method References MR1, MR3, decision 5).
+
+data Counter:
+    value: i32
+
+impl Counter:
+    fn bump(mut self, by: i32) -> void:
+        self.value = self.value + by
+
+    fn read(self) -> i32:
+        self.value
+
+    fn zero() -> Counter:
+        Counter { value: 0 }
+
+    fn pick[V](self, value: V) -> V:
+        value
+
+trait Named:
+    fn label(self) -> string
+
+data Store:
+    name: string
+
+impl Store:
+    fn load!(self, key: i32) -> i32:
+        key
+
+fn readings(counters: List[Counter]) -> List[i32]:
+    counters.map(Counter::read)
+
+fn maker() -> fn() -> Counter:
+    Counter::zero
+
+fn bumper(counter: mut Counter) -> fn(i32) -> void:
+    counter::bump
+
+fn stepper() -> fn(mut Counter, i32) -> void:
+    Counter::bump
+
+fn shown(values: List[i32]) -> List[string]:
+    values.map(Display::to_string)
+
+fn labels[T < Named](items: List[T]) -> List[string]:
+    items.map(T::label)
+
+fn picker() -> fn(Counter, i32) -> i32:
+    Counter::pick[i32]
+
+fn loader() -> fn!(Store, i32) -> i32:
+    Store::load
+
+fn read_now(counter: Counter) -> i32:
+    counter::read()

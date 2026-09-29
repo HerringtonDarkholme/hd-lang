@@ -9,10 +9,10 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-29 the prototype passes 1,414 of the 1,466 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 52 are listed in
+On 2026-09-29 the prototype passes 1,411 of the 1,472 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 61 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 52 still fail.
+decision below, and all 61 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
@@ -20,6 +20,7 @@ them by tag:
 | --- | ----- | ------------- |
 | F-250 | 15 | packs, GADT variant results, and package roles give generic diagnostics |
 | PIPE | 14 | no `\|>` token or `_` placeholder |
+| MREF | 9 | `Type::name` without a call is still `deferred-method-value` |
 | ITER | 6 | `Iterator` is still a trait; no `map`, `fold`, or `Iterable` for iterators |
 | EMB-S | 4 | trait availability needs package roles |
 | P2 | 4 | member visibility needs package roles |

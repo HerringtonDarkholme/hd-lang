@@ -1278,3 +1278,29 @@ style lint rejects a chapter that reuses one.
 - `flow.adapter.prelude`: retired 2026-09-29. CS7 makes the adapters
   ordinary methods of a data type, not default trait methods. Replaced by
   `flow.adapter.methods`.
+- `fn.type.ctor.opaque`: retired 2026-09-29. Method references MR1 add a
+  source of function values. Replaced by `fn.type.ctor.opaque-sources`.
+- `fn.generic.bound-method-values`: retired 2026-09-29. MR1 makes
+  `parser::parse[User]` a bound reference. Replaced by
+  `fn.generic.dot-member-value` and `fn.ref.generic`.
+- `fn.unsupported.unbound-method`: retired 2026-09-29. Method references MR1 make `Type::name`
+  and `value::name` references. Replaced by `fn.ref.unbound`.
+- `fn.unsupported.bound-method`: retired 2026-09-29. Method references MR1 make `Type::name`
+  and `value::name` references. Replaced by `fn.ref.bound`.
+- `fn.unsupported.method-value`: retired 2026-09-29. Method references MR1 make `Type::name`
+  and `value::name` references. Replaced by `fn.ref.unbound` and `fn.ref.bound`.
+- `fn.unsupported.method-value.parse`: retired 2026-09-29. Method references MR1 make `Type::name`
+  and `value::name` references. Replaced by `grammar.primary.method-reference`.
+- `fn.unsupported.method-value.type`: retired 2026-09-29. Method references MR1 make `Type::name`
+  and `value::name` references. Replaced by `fn.ref.call`.
+- `fn.unsupported.method-scope`: retired 2026-09-29. Method references MR1 make `Type::name`
+  and `value::name` references. No replacement.
+- `grammar.primary.member-reference`: retired 2026-09-29. MR1 makes
+  `Type::name` without a call an expression. Replaced by
+  `grammar.primary.method-reference`.
+- `grammar.primary.member-reference.deferred`: retired 2026-09-29. The
+  code `deferred-method-value` is withdrawn. Replaced by
+  `grammar.primary.method-reference.meaning`.
+- `expr.member.method-values`: retired 2026-09-29. MR1 makes `Type::name`
+  and `value::name` method references. Replaced by
+  `expr.member.method-references`.

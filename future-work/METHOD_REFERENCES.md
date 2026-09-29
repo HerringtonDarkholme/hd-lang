@@ -1,7 +1,11 @@
 # Method And Field References: Survey And Design Options
 
-Status: design exploration, 2026-09-29; nothing here is decided or in the
-specification. It changes no decision, spec text, or prototype code.
+Status: design exploration, 2026-09-29. Owner decisions MR1-MR4 are
+applied (2026-09-29), and the specification is authoritative for them:
+[Method References](../spec/07-functions.md#method-references),
+[Member References](../spec/02-grammar.md#member-references), and
+[Bare Steps](../spec/05-expressions.md#bare-steps). The rest of the record
+is the survey behind the decisions.
 
 The owner asked for method and field references to be designed now
 ([Chaining Study CS5](CHAINING_STUDY.md#owner-decisions)), with a spelling
@@ -55,6 +59,20 @@ Decided 2026-09-29.
 
    The record's recommendations apply unless the owner says otherwise.
 
+## Still Open
+
+Points the apply pass met (2026-09-29). The first three are the open
+points of decision 5, applied as the record recommends; each can change
+without breaking a decision.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 1 | Generics on references, `Json::decode[User]` | Type arguments follow the name and owner arguments precede `::` ([`fn.ref.generic`](../spec/07-functions.md#r-fn.ref.generic)); every parameter is instantiated as for a generic function value. A bare pipe step still takes no `[...]` | Keep. |
+| 2 | Inherent members before trait members | A reference resolves as the qualified call does: inherent first, then available traits, and two trait candidates are `ambiguous-method` ([`fn.ref.lookup`](../spec/07-functions.md#r-fn.ref.lookup)) | Keep. |
+| 3 | `Self` for a trait reference | Inferred from the expected function type; unsolved is `unresolved-generic-placeholder` ([`fn.ref.trait-self`](../spec/07-functions.md#r-fn.ref.trait-self)) | Keep. |
+| 5 | `Identity::echo[i32]!(42)` could now read as a bang call of the reference `Identity::echo[i32]` | Stays a `syntax-error`, as before ([`grammar.primary.method-reference.no-bang`](../spec/02-grammar.md#r-grammar.primary.method-reference.no-bang)); the call is `Identity::echo![i32](42)` | Keep, so a qualified bang call has one spelling. `(Identity::echo[i32])!(42)` stays valid as a call of a value. |
+| 4 | `value::name` where `name` is an associated function, which has no receiver to bind | No rule; no fixture uses it | An error, `unknown-method`, since no method of that name takes a receiver. |
+
 ## Contents
 
 1. [Problem](#problem)
@@ -101,8 +119,8 @@ Recorded decisions that bind the answer:
 | Variant constructors | `SyncError.Fs`, with a `.` and no arguments, is a `fn(FsError) -> SyncError` | [`data.enum.fn-value`](../spec/08-data-and-enums.md#r-data.enum.fn-value) |
 | `.Variant` shorthand | needs an expected enum type, never a function value | [`data.enum.fn-value.shorthand`](../spec/08-data-and-enums.md#r-data.enum.fn-value.shorthand) |
 | Generic function values | every type parameter is instantiated from the expected type, an explicit list, or the enclosing call | [`fn.type.generic.instantiate-sources`](../spec/07-functions.md#r-fn.type.generic.instantiate-sources) |
-| Method values | `Type::name`, `Trait::name` (unbound) and `x::name` (bound) are reserved and rejected: `deferred-method-value` | [`fn.unsupported.method-value`](../spec/07-functions.md#r-fn.unsupported.method-value) |
-| Generic bound methods | "the explicitly instantiated member must be called" | [`fn.generic.bound-method-values`](../spec/07-functions.md#r-fn.generic.bound-method-values) |
+| Method values | `Type::name`, `Trait::name` (unbound) and `x::name` (bound) are reserved and rejected: `deferred-method-value` | [`fn.unsupported.method-value`](../spec/07-functions.md#method-values) |
+| Generic bound methods | "the explicitly instantiated member must be called" | [`fn.generic.bound-method-values`](../spec/07-functions.md#r-fn.generic.dot-member-value) |
 | `::` today | associated calls `Duration::seconds(2)`, `User::guest()`, `T::create()`; trait-qualified calls `Display::to_string(v)`, `Add[Money]::add(a, b)` | [`fn.method.associated`](../spec/07-functions.md#r-fn.method.associated), [`trait.qualified.form`](../spec/09-traits.md#r-trait.qualified.form) |
 | Type arguments on `::` | owner arguments before `::` (`Add[Money]::add`), member arguments after the name (`Type::name[T](...)`), `!` stays on the name (`Store::load![User](key)`) | [`fn.generic.qualified.member-list`](../spec/07-functions.md#r-fn.generic.qualified.member-list), [`fn.generic.bang.examples`](../spec/07-functions.md#r-fn.generic.bang.examples) |
 | Member namespaces | fields and methods are separate namespaces and may share a name | [`names.member.shared-name`](../spec/03-names-and-scopes.md#r-names.member.shared-name) |

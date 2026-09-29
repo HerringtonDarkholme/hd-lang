@@ -568,7 +568,7 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
 7. r[expr.member.trait-hint] When such a method is the only one with the name, the `unknown-method` message should suggest a use declaration for its trait.
 8. r[expr.member.embedded-trait] A trait method of an embedded type is never found through the outer value; it is called through the embedded field, as in `page.Label.to_string()`.
 9. r[expr.member.method-not-value] A method is not a value: `value.method` without an argument clause is a field read.
-10. r[expr.member.method-values] Method values are deferred, and their future spellings `Type::name` and `value::name` are reserved and diagnosed.
+10. r[expr.member.method-references] A method is used as a value through a `::` [method reference](07-functions.md#method-references), `Type::name` or `value::name`.
 11. r[expr.member.closure-adapt] Explicit closures can adapt method calls where a function value is needed.
 
 ```text
@@ -579,7 +579,7 @@ fn invalid(button: Button) -> i32:
     button.on_click(41)  # error: unknown-method
 ```
 
-See also: [Unsupported Function Extensions](07-functions.md#unsupported-function-extensions).
+See also: [Method References](07-functions.md#method-references).
 
 #### Readonly Roots
 
@@ -1328,6 +1328,7 @@ fn tidy(raw: string) -> string:
 3. r[expr.pipe.bare.no-suspend] A bare step whose callee is a suspending function is an error. Write a substitution step, as in `x |> load!(_)`. Error: `suspending-pipe-step`.
 4. r[expr.pipe.bare.needs-placeholder] A step without `_` that is not a bare step is an error. Error: `pipe-step-needs-placeholder`.
 5. r[expr.pipe.bare.needs-placeholder.forms] That covers a call such as `x |> f(y)`, brackets such as `x |> f[0]` or `x |> parse[i32]`, and a suffix such as `x |> f?`.
+6. r[expr.pipe.bare.method-reference] A [method reference](07-functions.md#method-references) without type arguments, such as `Config::parse`, is also a bare step: `raw |> Config::parse` means `Config::parse(raw)`.
 
 ```text
 fn scale(value: i32, by: i32) -> i32: value * by
@@ -1382,7 +1383,8 @@ fn run() -> string:
 ```
 
 > **Note.** Write the callback as a closure, such as
-> `fn(value): format(value, 8)`.
+> `fn(value): format(value, 8)`, or as a
+> [method reference](07-functions.md#method-references).
 
 See also: [Precedence](#precedence),
 [Leading-Pipe Continuation](01-lexical-structure.md#leading-pipe-continuation).

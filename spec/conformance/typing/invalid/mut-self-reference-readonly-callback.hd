@@ -1,0 +1,12 @@
+# test: a mut self reference does not fit a callback that passes readonly values
+# Spec 07 Method References: fn.ref.unbound.mut-self (Method References MR1).
+
+data Counter:
+    value: i32
+
+impl Counter:
+    fn reset(mut self) -> void:
+        self.value = 0
+
+fn clear(counters: List[Counter]) -> List[void]:
+    counters.map(Counter::reset)  # diagnostic: type-mismatch

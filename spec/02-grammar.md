@@ -935,6 +935,7 @@ primary_expression = literal
                    | qualified_name
                    | contextual_variant_expression
                    | trait_qualified_call
+                   | method_reference
                    | context_use
                    | context_create
                    | pack_map_expression
@@ -957,6 +958,9 @@ contextual_variant_expression = ".", identifier ;
 trait_qualified_call = trait_type, "::", identifier,
                        ( [ function_type_arguments ], argument_clause
                        | suspension_call_suffix ) ;
+
+method_reference = trait_type, "::", identifier,
+                   [ function_type_arguments ] ;
 
 pack_map_expression = "pack", ".", ( "map" | "map_list" ), "(",
                       expression, ",", qualified_name,
@@ -1119,22 +1123,9 @@ See also: [List And Map Expressions](05-expressions.md#list-and-map-expressions)
 
 #### Member References
 
-1. r[grammar.primary.member-reference] A `::` member reference must be called: `Type::name` without an argument clause is not an expression.
-2. r[grammar.primary.member-reference.deferred] `Type::name` without an argument clause is reserved for method values, and an implementation reports it as an error. Error: `deferred-method-value`.
-
-```text
-data User:
-    email: string
-
-impl User:
-    fn domain(self) -> string:
-        self.email
-
-fn pick() -> fn(User) -> string:
-    User::domain  # error: deferred-method-value
-```
-
-See also: [Unsupported Function Extensions](07-functions.md#unsupported-function-extensions).
+1. r[grammar.primary.method-reference] A `::` member without an argument clause, such as `User::domain`, `Json::decode[User]`, or `user::domain`, is a `method_reference`.
+2. r[grammar.primary.method-reference.meaning] [Method References](07-functions.md#method-references) gives its meaning; with an argument clause, the same form is a call.
+3. r[grammar.primary.method-reference.no-bang] A reference with type arguments directly followed by `!(` is not a bang call of that reference: `Identity::echo[i32]!(42)` is an error, and the call is `Identity::echo![i32](42)`. Error: `syntax-error`.
 
 ### Calls And Arguments
 

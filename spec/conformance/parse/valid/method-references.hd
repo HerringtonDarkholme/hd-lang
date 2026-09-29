@@ -1,0 +1,25 @@
+# test: unbound, bound, generic, and pipe-step method references parse
+# Spec 02 Member References: grammar.primary.method-reference (Method References MR1, MR4).
+
+data Counter:
+    value: i32
+
+impl Counter:
+    fn bump(mut self, by: i32) -> void:
+        self.value = self.value + by
+
+    fn read(self) -> i32:
+        self.value
+
+    fn zero() -> Counter:
+        Counter { value: 0 }
+
+fn forms(counter: mut Counter, values: List[i32]) -> void:
+    read := Counter::read
+    zero := Counter::zero
+    bump := counter::bump
+    shown := values.map(Display::to_string)
+    boxed := Box[i32]::get
+    decode := Json::decode[User]
+    parsed := "8080" |> Config::parse
+    same := counter::read()

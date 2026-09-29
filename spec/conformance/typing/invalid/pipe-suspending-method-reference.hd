@@ -1,0 +1,12 @@
+# test: a suspending method reference is not a bare pipe step
+# Spec 05 Bare Steps: expr.pipe.bare.no-suspend (Method References MR4).
+
+data Store:
+    name: string
+
+impl Store:
+    fn open!(name: string) -> Store:
+        Store { name: name }
+
+fn opened!(name: string) -> Store:
+    name |> Store::open  # diagnostic: suspending-pipe-step

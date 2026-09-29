@@ -50,8 +50,8 @@ Open questions for the owner:
 - [Stress Test 2026-09-29: Open Points](STRESS_2026_09_29.md) keeps two
   decorator readings.
 - [Method And Field References](METHOD_REFERENCES.md) designs CS5: it
-  surveys references in eight languages and compares five options, from
-  closures only to Kotlin-style `::` and Swift-style key paths.
+  surveys references in eight languages and compares five options. Its
+  decisions MR1-MR4 are applied; one reading waits for the owner.
 - [Collecting Iterators Into Collections](COLLECT.md) compares five ways
   for a data `Iterator[T]` to end in a `Map`, a `Set`, or an all-or-nothing
   `Result`, with the duplicate-key policy and the spec-or-STDLIB split.

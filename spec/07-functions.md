@@ -321,7 +321,7 @@ fn suspending() -> SuspendFn[(i32,), string, Database]:
 9. r[fn.type.ctor.anywhere] Either spelling is valid anywhere a type may appear, including implementation targets.
 10. r[fn.type.ctor.diagnostics] Diagnostics print a function type in its sugar form, as they print `T?` for `Option[T]`.
 11. r[fn.type.ctor.import] The sugar needs no import. The names `Fn`, `SuspendFn`, and `Rest` are imported where they are written, as in `use std.function.Fn`.
-12. r[fn.type.ctor.opaque] The constructors have no fields and no construction syntax. Function values come only from function names, closures, one-payload variant constructors, and instantiated generic functions.
+12. r[fn.type.ctor.opaque-sources] The constructors have no fields and no construction syntax. Function values come only from function names, closures, one-payload variant constructors, instantiated generic functions, and [method references](#method-references).
 
 ```text
 use std.function.Fn
@@ -439,6 +439,81 @@ See also: [Type Inference Boundaries](04-type-system.md#type-inference-boundarie
 3. r[fn.type.suspend.weaken] It may be weakened to the lowered constructor type `fn(A) -> mut Suspend[T] $ R`.
 4. r[fn.type.suspend.no-reverse] The reverse conversion is not implicit.
 5. r[fn.type.suspend.ctor] In constructor form, the weakening converts `SuspendFn[I, O, R]` to `Fn[I, mut Suspend[O], R]`.
+
+### Method References
+
+A **method reference** names a method or an associated function as a
+function value. It is the qualified call without its arguments:
+
+```text
+data Counter:
+    value: i32
+
+impl Counter:
+    fn bump(mut self, by: i32) -> void:
+        self.value = self.value + by
+
+    fn read(self) -> i32:
+        self.value
+
+    fn zero() -> Counter:
+        Counter { value: 0 }
+
+fn readings(counters: List[Counter]) -> List[i32]:
+    counters.map(Counter::read)
+
+fn maker() -> fn() -> Counter:
+    Counter::zero
+
+fn bumper(counter: mut Counter) -> fn(i32) -> void:
+    counter::bump
+```
+
+1. r[fn.ref.unbound] `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter, is an **unbound method reference**.
+2. r[fn.ref.unbound.receiver] For a method, the reference takes the receiver first, then the method's own parameters: `Counter::bump` has type `fn(mut Counter, i32) -> void`.
+3. r[fn.ref.unbound.mut-self] A `mut self` method gives a `mut` first parameter, and a `self` method a readonly one.
+4. r[fn.ref.associated] For an associated function, the parameters are the function's own: `Counter::zero` has type `fn() -> Counter`.
+5. r[fn.ref.lookup] A reference resolves `name` as the qualified call `Owner::name(...)` does: inherent members of a type first, then its available traits, and a type parameter through its bounds.
+6. r[fn.ref.lookup.ambiguous] Two trait candidates for one name are an error. Error: `ambiguous-method`.
+7. r[fn.ref.trait-self] For `Trait::name`, `Self` is inferred from the expected function type, as a generic function value's parameters are.
+8. r[fn.ref.trait-self.unsolved] A trait reference whose `Self` nothing determines is an error. Error: `unresolved-generic-placeholder`.
+9. r[fn.ref.generic] A generic member's reference writes its type arguments after the name, as in `Json::decode[User]`, and the owner's before `::`, as in `Box[i32]::get`.
+10. r[fn.ref.generic.instantiate] Every type parameter of the member is instantiated as for a [generic function value](#generic-function-values).
+11. r[fn.ref.bound] `value::name`, where `value` names a value rather than a type or trait, is a **bound method reference**.
+12. r[fn.ref.bound.capture] It evaluates `value` once, when the reference is created, and captures that receiver. Calling the reference later calls the method on the captured receiver, whatever `value` names by then.
+13. r[fn.ref.bound.type] Its parameters are the method's own, without the receiver: `counter::bump` has type `fn(i32) -> void`.
+14. r[fn.ref.bound.mut] A bound reference to a `mut self` method needs mutable access to the receiver when it is created. Error: `mutable-receiver-required`.
+15. r[fn.ref.call] A reference followed by an argument clause is an ordinary call, so `user::domain()` calls `domain` on `user`.
+16. r[fn.ref.suspending] A suspending method is referenced without `!`, as `Store::load`, and the reference has a suspending function type such as `fn!(Store, Key) -> Blob`.
+17. r[fn.ref.value] A reference is an ordinary function value: it has no parameter names or defaults, and it carries the member's row and suspension.
+18. r[fn.ref.no-fields] `::` names only methods and associated functions, never fields. `User::email` for a field `email` is an error. Error: `unknown-method`.
+
+```text
+data Counter:
+    value: i32
+
+impl Counter:
+    fn bump(mut self, by: i32) -> void:
+        self.value = self.value + by
+
+data User:
+    email: string
+
+fn emails() -> fn(User) -> string:
+    User::email  # error: unknown-method
+
+fn frozen(counter: Counter) -> fn(i32) -> void:
+    counter::bump  # error: mutable-receiver-required
+```
+
+> **Why.** A reference reads as the call it stands for, as in Rust, Java,
+> and Go. A bound reference fixes its receiver when it is made, as Kotlin
+> and Go method values do, while a closure such as `fn(): counter.read()`
+> reads the variable when it runs. Fields stay closures, so a field and a
+> method may share a name without a clash.
+
+See also: [Associated Function Calls](09-traits.md#associated-function-calls),
+[Trait-Qualified Calls](09-traits.md#trait-qualified-calls).
 
 ## Closures
 
@@ -725,7 +800,7 @@ parser.convert[_, User](payload)
 6. r[fn.generic.bang.examples] `fn all![Ts...](...)` is called as `all![i32, string](a, b)`, and suspending methods as `parser.load![User](text)` and `Store::load![User](key)`.
 7. r[fn.generic.brackets] Name resolution distinguishes the brackets from an indexing operation.
 8. r[fn.generic.method-inference] A generic method may still rely entirely on inference by omitting the list.
-9. r[fn.generic.bound-method-values] Bare generic bound-method values remain unsupported: the explicitly instantiated member must be called.
+9. r[fn.generic.dot-member-value] A dot member with type arguments and no call, as in `parser.parse[User]`, is not a function value; the reference form is `parser::parse[User]`.
 
 ## Methods And Receivers
 
@@ -808,36 +883,12 @@ This section defines program entry functions.
 
 ### Method Values
 
-Method values are confirmed deferred, and two spellings are reserved for
-them:
+Method values are written as `::` [method references](#method-references).
+The rules below still hold:
 
-| Rule | Spelling | Reserved for |
-| --- | --- | --- |
-| r[fn.unsupported.unbound-method] Unbound method | `Type::name` or `Trait::name`, with optional type arguments, not followed by an argument clause | the unbound method function, whose receiver is its first parameter |
-| r[fn.unsupported.bound-method] Bound method | `x::name`, where `x` names a value rather than a type or trait | the bound method value that captures the receiver `x`, whether or not it is called |
-
-1. r[fn.unsupported.method-value] Both spellings are errors. Error: `deferred-method-value`.
-2. r[fn.unsupported.method-value.parse] The first is outside the grammar, so it is reported during parsing.
-3. r[fn.unsupported.method-value.type] The second parses as a qualified call, as in `button::click()`, and is reported during type checking.
-4. r[fn.unsupported.qualified-call] A qualified call such as `User::guest()`, `Display::to_string(value)`, or `Add[Money]::add(left, right)` remains an ordinary call.
-5. r[fn.unsupported.closure-adapter] An explicit closure, such as `fn(user: User) -> string: user.domain()`, adapts a method where a function value is needed.
-6. r[fn.unsupported.method-scope] The deferral covers methods and associated functions only.
-7. r[fn.unsupported.variant-value] A variant constructor with exactly one payload field, written `Enum.Variant` with a `.` and no argument clause, is already a function value.
-8. r[fn.unsupported.variant-multi] A constructor with two or more payload fields stays an error. Error: `unsaturated-enum-constructor`.
-
-```text
-data User:
-    email: string
-
-impl User:
-    fn domain(self) -> string:
-        self.email
-
-fn pick() -> fn(User) -> string:
-    User::domain  # error: deferred-method-value
-
-fn invalid(user: User) -> string:
-    user::domain()  # error: deferred-method-value
-```
+1. r[fn.unsupported.qualified-call] A qualified call such as `User::guest()`, `Display::to_string(value)`, or `Add[Money]::add(left, right)` remains an ordinary call.
+2. r[fn.unsupported.closure-adapter] An explicit closure, such as `fn(user: User) -> string: user.domain()`, adapts a method where a function value is needed.
+3. r[fn.unsupported.variant-value] A variant constructor with exactly one payload field, written `Enum.Variant` with a `.` and no argument clause, is already a function value.
+4. r[fn.unsupported.variant-multi] A constructor with two or more payload fields stays an error. Error: `unsaturated-enum-constructor`.
 
 See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).

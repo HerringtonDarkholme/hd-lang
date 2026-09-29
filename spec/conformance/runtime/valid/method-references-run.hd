@@ -1,0 +1,36 @@
+# test: a bound reference keeps the receiver it was made with; an unbound reference takes the receiver first
+# Spec 07 Method References: fn.ref.bound.capture, fn.ref.unbound.receiver, fn.ref.call (Method References MR1).
+use std.testing.assert_equal
+
+data Counter:
+    value: i32
+
+impl Counter:
+    fn bump(mut self, by: i32) -> void:
+        self.value = self.value + by
+
+    fn read(self) -> i32:
+        self.value
+
+    fn zero() -> Counter:
+        Counter { value: 0 }
+
+tests:
+    it("a bound reference keeps its receiver"):
+        let mut counter = Counter { value: 1 }
+        first := counter
+        bump := counter::bump
+        counter = Counter { value: 100 }
+        bump(5)
+        assert_equal(first.value, 6, reason="the captured receiver changed")
+        assert_equal(counter.value, 100, reason="the new value is untouched")
+
+    it("an unbound reference takes the receiver first"):
+        read := Counter::read
+        assert_equal(read(Counter { value: 7 }), 7, reason="receiver as the argument")
+        assert_equal([Counter { value: 1 }, Counter { value: 2 }].map(Counter::read), [1, 2], reason="as a callback")
+        assert_equal(Counter::zero().value, 0, reason="associated call")
+
+    it("a called bound reference is a method call"):
+        counter := Counter { value: 3 }
+        assert_equal(counter::read(), 3, reason="ordinary call")

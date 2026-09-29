@@ -233,19 +233,15 @@ redacted-output part also waits for `Secret[T]`.
 
 ### Confirmed Deferred Type Features
 
-**Problem.** Two surfaces remain intentionally unsupported and must be
-diagnosed: first-class bound methods, and direct permission weakening combined
-with generic variance. Runtime type tests beyond exact-type recovery from
+**Problem.** One surface remains intentionally unsupported and must be
+diagnosed: direct permission weakening combined with generic variance.
+Bound methods are now `value::name` references
+([Method References](../spec/07-functions.md#method-references), MR1). Runtime type tests beyond exact-type recovery from
 `Inspectable` values stay unsupported
 ([Runtime Type Identity](../spec/09-traits.md#runtime-type-identity)).
 
-**Direction.** Keep bound methods and weakening with variance deferred, and
-design each only with a motivating requirement. Bound methods must settle
-receiver capture; weakening with variance must preserve representation. The
-spellings `Type::name` (the unbound method function, receiver first) and
-`x::name` (the bound method value) are reserved for them and diagnosed today
-as `deferred-method-value`
-([Unsupported Function Extensions](../spec/07-functions.md#unsupported-function-extensions)).
+**Direction.** Keep weakening with variance deferred, and design it only
+with a motivating requirement; it must preserve representation.
 Negative implementations and additional pack operations are likewise confirmed
 future work rather than implicit extensions.
 
@@ -357,11 +353,12 @@ helpers in `std`) is decided and belongs to STDLIB.
 
 ### Method And Field References
 
-**Open.** [Chaining Study CS5](CHAINING_STUDY.md#owner-decisions) asks for
-method and field references now. [Method And Field References](METHOD_REFERENCES.md)
-compares five options and asks six questions. Until the owner answers,
-`Type::name` and `x::name` stay `deferred-method-value`
-([Method Values](../spec/07-functions.md#method-values)).
+**Decided and applied (owner, 2026-09-29).** [Method References](METHOD_REFERENCES.md#owner-decisions)
+MR1-MR4 are in [Method References](../spec/07-functions.md#method-references):
+`Type::name` is unbound and receiver first, `value::name` captures its
+receiver when made, fields have no reference form, and a reference is a
+bare pipe step. The three points left to the apply pass are applied as
+the record recommends; see its [Still Open](METHOD_REFERENCES.md#still-open).
 
 ### Collecting Iterators
 

@@ -1,0 +1,8 @@
+# test: fields have no reference form
+# Spec 07 Method References: fn.ref.no-fields (Method References MR2).
+
+data User:
+    email: string
+
+fn emails() -> fn(User) -> string:
+    User::email  # diagnostic: unknown-method

@@ -1,0 +1,5 @@
+# test: a trait reference whose Self nothing determines is an error
+# Spec 07 Method References: fn.ref.trait-self.unsolved (Method References decision 5).
+
+fn main() -> void:
+    _ := Display::to_string  # diagnostic: unresolved-generic-placeholder
