@@ -25,7 +25,13 @@ the Kotlin-style inference recorded earlier the same day (89c6a11).
    - `let (mut log, db) = $.use(Log, Db)` works per name in patterns.
 
    It can't upgrade a read-only value: `let mut c = readonly_source()` is
-   `mutable-upgrade`.
+   `mutable-upgrade` (`spec/04`), because a function returning `T` may be
+   lending a view of an object it still owns. For a mutable copy, write a
+   fresh literal: `let mut b = User { ...readonly_source() }`. `Clone`
+   stays as M22 decided (owner, 2026-09-29): `clone(self) -> Self` and
+   `clone_mut(mut self) -> mut Self`. The owner declined making
+   `clone` return `mut Self`, so a spread literal is the way to get a
+   mutable copy of a read-only value.
 3. A plain `let` without `mut` infers read-only, unless its annotation
    says `mut` (`let a: mut List[i32] = []` stays valid). Fresh literals are
    not silently `mut`.
