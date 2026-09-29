@@ -108,6 +108,16 @@ Open:**
       variance rules already say, so a wider list is made by an explicit
       copy (`narrow.map(fn(f): f)`).
 
+15. **RU15 (2026-09-29): answers to Still Open 14-19.**
+    - The union row applies at **every common-type site**, not only
+      literals: `if` and `match` branches and closure results too.
+    - Spreads contribute to the union.
+    - Nested literals don't widen, so `[[health], [orders]]` stays
+      `no-common-type`.
+    - The rest is kept as applied: the union prints as the elements' rows
+      are written; `$.use(AppRow)` and `AppRow=value` stay errors; the
+      nearest-provider rule applies however `R` was fixed.
+
 **Applied 2026-09-28.** The specification now states each decision:
 
 | Decision | Specification |
