@@ -1,11 +1,11 @@
 id	count	title
+TDEF	26	Type-argument defaults, short explicit lists, the declared `collect` default, `Rhs = Self` on the `std.ops` operator traits, and `argument-count` for a type-argument list that is too long (Type-Argument Defaults TD1-TD10, Collect CO5) are not implemented
 PIPE	16	The pipe operator `|>` and its `_` placeholder (Pipe PL3-PL16, Chaining Study CS2) are not implemented
+ATB	16	Bindings through supertraits (AT1), trait value types that bind associated types (AT2), the `ambiguous-associated-type` code (AT3), and requirement keys that bind associated types (AT5) are not implemented
 F-250	15	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
-TDEF	14	Type-argument defaults, short explicit lists, and the declared `collect` default (Type-Argument Defaults TD1-TD7, Collect CO5) are not implemented
 MREF	10	Method references `Type::name` and `value::name` (Method References MR1-MR4, MR6) are not implemented
 LMUT	10	The evening `let mut` follow-ups (2026-09-29, items 1, 2, and 4): parenthesized multi-name lists, the `mut-on-primitive` code, and the `redundant-let-mut` warning are not implemented
 ITER	8	The closure-backed data `Iterator[T]` with a private `step`, `Iterator::from_fn`, `map` and `fold`, and `for` over `Iterable` only (Chaining Study CS7-CS11), are not implemented: the prototype keeps the `Iterator` trait
-ATB	8	Bindings through supertraits (AT1) and trait value types that bind associated types (AT2) are not implemented
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
 COLLECT	4	Generic `collect[C]` with `FromIterator` (Collect CO1-CO3, CO6) is not implemented
