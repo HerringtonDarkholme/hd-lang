@@ -2,9 +2,10 @@
 # `@num_suffix`: `12px` means `px(12)`. `std.time` declares `ms`, `s`,
 # `min`, and `h`, so `250ms` and `5s` are both a `Duration`.
 # A name before a quote calls a prefix function, one marked `@str_prefix`,
-# with a `Template` of the raw text pieces and the values. `std.ops.r`
+# with a `Template` of the raw text pieces and the values. `std.text.r`
 # joins them with the values' Display text and keeps every backslash.
-use std.ops.{Template, num_suffix, r, str_prefix}
+use std.ops.{Template, num_suffix, str_prefix}
+use std.text.r
 use std.time.{Duration, ms, s}
 
 data Pixels:

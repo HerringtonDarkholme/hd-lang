@@ -499,9 +499,12 @@ else`, `break`, `break value`, and `continue`;
   suffix such as `5else` is `invalid-token`. The checker resolves the
   suffix among module-scope functions only, requires a function marked
   `@num_suffix` (`FunctionDecl.numSuffix`, set after the std join by
-  `checker/decorators.ts` from a value of `std.ops.NumSuffix`), checks the
-  ordinary call, and then the suffix shape (`checker/literal-suffixes.ts`),
-  reporting `invalid-literal-suffix` at the literal. `std.ops` and
+  `checker/decorators.ts` from a value of `std.ops.NumSuffix`), and checks
+  the ordinary call, so a generic or provider-needing suffix function
+  follows the ordinary rules (L20). The marked function's shape, one
+  required numeric parameter and no suspension, is checked at its
+  definition as `type-mismatch` (L21, `checker/literal-suffixes.ts`); an
+  unmarked function at the literal is `invalid-literal-suffix`. `std.ops` and
   `std.time` (`Duration`, an `i64` count of milliseconds in the
   prototype's own `millis` field, and the suffix functions `ms`, `s`,
   `min`, and `h`) come from the [standard library](#standard-library), so
@@ -516,11 +519,15 @@ else`, `break`, `break value`, and `continue`;
   `Template`. The checker resolves the prefix among module-scope functions
   only, requires `@str_prefix` (`FunctionDecl.strPrefix`, set with the
   suffix marker in `checker/decorators.ts` from a value of
-  `std.ops.StrPrefix`), checks the ordinary call, so each value converts to
-  the template's `T` like an argument, and then the prefix shape
-  (`checker/literal-suffixes.ts`), reporting `invalid-string-prefix`.
-  `std.ops` declares `r`, `interpolate`, and `process_escapes` in hd; a
-  `\u{...}` escape uses the host function `string_from_scalar`;
+  `std.ops.StrPrefix`), and checks the ordinary call, so each value
+  converts to the template's `T` like an argument. The prefix shape, one
+  required `Template[T]` parameter and no suspension, is checked at the
+  definition as `type-mismatch` (`checker/literal-suffixes.ts`); an
+  unmarked function at the string is `invalid-string-prefix`. `std.text`
+  declares `r`, and `std.ops` declares `interpolate` and `process_escapes`
+  (which returns `Result[string, EscapeError]` with the scalar offset of
+  the bad escape) in hd; a `\u{...}` escape uses the host function
+  `string_from_scalar`;
 - imported `std.convert.From[T]` and `std.error.Error` as trait
   declarations in the compiled module; `?` on a `Result` converts the error
   by one assignability rule or one `From` call, `Type::from(x)` selects the
@@ -770,14 +777,14 @@ What it provides:
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
-| `std.text` | on `string`: `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder` |
+| `std.text` | on `string`: `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` |
 | `std.iter` | `range`, and the adapters `map_each`, `filter`, `take`, `enumerate`, `collect`, `fold` as free functions |
 | `std.cmp` | `min`, `max`, `clamp`, `Reverse[T]` |
 | `std.num` | on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
-| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, `Template`, the prefix `r`, `interpolate`, and `process_escapes` |
+| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, `Template`, `interpolate`, `process_escapes`, and `EscapeError` |
 | `std.format` | `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and pairs |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives and `string`), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
 

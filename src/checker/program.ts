@@ -19,6 +19,7 @@ import {
   checkDecoratorTargets,
   markerFunctions,
   withBareMarkerCalls,
+  suffixMarkerDiagnostics,
   withSuffixMarkers,
 } from "./decorators.ts";
 import { withStandardTraits } from "./standard-traits.ts";
@@ -74,11 +75,8 @@ export function check(source: Program, options: CheckOptions = {}): CheckResult 
 
 function checkProgram(source: Program, options: CheckOptions): CheckResult {
   const joined = withStandardLibrary(source);
-  const hoisted = hoistLocalDeclarations(
-    withStandardTraits(
-      withSuffixMarkers(withBareMarkerCalls(joined, markerFunctions(joined.functions))),
-    ),
-  );
+  const marked = withSuffixMarkers(withBareMarkerCalls(joined, markerFunctions(joined.functions)));
+  const hoisted = hoistLocalDeclarations(withStandardTraits(marked));
   // Target kinds are checked before newtypes are lowered to data types
   // (spec/14-annotations.md#target-kinds).
   const targetDiagnostics = checkDecoratorTargets(hoisted.program);
@@ -89,6 +87,7 @@ function checkProgram(source: Program, options: CheckOptions): CheckResult {
     program,
     diagnostics: [
       ...hoisted.diagnostics,
+      ...suffixMarkerDiagnostics(marked),
       ...targetDiagnostics,
       ...declared.diagnostics,
       ...rowRuleDiagnostics(program),

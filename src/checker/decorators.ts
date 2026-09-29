@@ -10,6 +10,7 @@ import type {
 } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
 import { factType } from "./typed-derivation.ts";
+import { markerShapeDiagnostics } from "./literal-suffixes.ts";
 
 // Decorators as plain values (spec/14-annotations.md#prefix-decorators and
 // #target-kinds). Two passes over the attached values:
@@ -218,6 +219,18 @@ export function withSuffixMarkers(program: Program): Program {
       return result;
     }),
   };
+}
+
+/**
+ * The definition-site shape errors of functions marked `@num_suffix` or
+ * `@str_prefix` (spec/05-expressions.md#r-expr.suffix.fn-shape.definition,
+ * #r-expr.prefix.fn-shape.definition), after `withSuffixMarkers`.
+ */
+export function suffixMarkerDiagnostics(program: Program): Diagnostic[] {
+  const templates = new Set(
+    program.data.filter((item) => item.standardName === STANDARD_TEMPLATE).map((item) => item.name),
+  );
+  return markerShapeDiagnostics(program.functions, templates);
 }
 
 // ---------------------------------------------------------------------------

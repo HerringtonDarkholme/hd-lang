@@ -1,11 +1,17 @@
+import type { FunctionDecl } from "../ast.ts";
+import type { Diagnostic } from "../diagnostics.ts";
 import type { HirExpression } from "../hir.ts";
 import type { Signature } from "./context.ts";
 
-// The suffix reader: a suffixed literal `Nx` is the call `x(N)` of a function
-// marked `@num_suffix` (spec/05-expressions.md#literal-suffixes). The call is
-// checked as an ordinary call first, so a parameter the literal cannot fill
-// is an ordinary call error; then the reader checks the function's shape at
-// the literal (#r-expr.suffix.fn-shape.reader).
+// A suffixed literal `Nx` is the call `x(N)` of a function marked
+// `@num_suffix` (spec/05-expressions.md#literal-suffixes), and a prefixed
+// string `x"..."` the call `x(t)` of a function marked `@str_prefix`, with a
+// `std.ops.Template` value `t` (#prefixed-strings). Both are plain call sugar
+// (Literal Suffixes L20): the call is an ordinary call, so generic functions
+// and requirement rows follow the ordinary rules. The compiler, as the
+// markers' reader, checks the marked function's shape once, at its
+// definition (L21, #r-expr.suffix.fn-shape.definition,
+// #r-expr.prefix.fn-shape.definition).
 
 const SUFFIX_PARAMETER_TYPES: ReadonlySet<string> = new Set([
   "i8",
@@ -20,17 +26,58 @@ const SUFFIX_PARAMETER_TYPES: ReadonlySet<string> = new Set([
   "f64",
 ]);
 
-/** What makes a function unusable as a suffix (05-expressions.md#r-expr.suffix.fn-shape). */
-function suffixShapeProblem(signature: Signature): string | undefined {
-  if (signature.genericParameters.length > 0 || signature.rowParameters.length > 0)
-    return "must declare no type parameters";
-  if (signature.parameters.length !== 1 || signature.variadic)
-    return "must take exactly one parameter";
-  if (!SUFFIX_PARAMETER_TYPES.has(signature.parameters[0]!))
-    return "must take a primitive integer or floating-point parameter";
-  if (signature.requirements.length > 0) return "must need no providers";
-  if (signature.suspending) return "must not suspend";
+/**
+ * What makes a marked function unusable as a suffix or prefix: exactly one
+ * required parameter of the right type, and no suspension. `fits` says
+ * whether the required parameter's written type is right.
+ */
+function markerShapeProblem(
+  declaration: FunctionDecl,
+  what: string,
+  fits: (type: string) => boolean,
+): string | undefined {
+  const required = declaration.parameters.filter(
+    (parameter) => parameter.default === undefined && !parameter.variadic,
+  );
+  if (required.length !== 1) return `must take exactly one required parameter, of ${what}`;
+  if (!fits(required[0]!.type.name)) return `must take its required parameter as ${what}`;
+  if (declaration.suspending) return "must not suspend";
   return undefined;
+}
+
+/**
+ * The definition-site shape errors of marked functions, as `type-mismatch`
+ * at each marked definition. `templates` are the local names of
+ * `std.ops.Template`.
+ */
+export function markerShapeDiagnostics(
+  functions: readonly FunctionDecl[],
+  templates: ReadonlySet<string>,
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  for (const declaration of functions) {
+    const problems = [
+      declaration.numSuffix
+        ? markerShapeProblem(declaration, "a primitive integer or floating-point type", (type) =>
+            SUFFIX_PARAMETER_TYPES.has(type),
+          )
+        : undefined,
+      declaration.strPrefix
+        ? markerShapeProblem(declaration, "type std.ops.Template[T]", (type) =>
+            templates.has(type.split("[")[0] ?? type),
+          )
+        : undefined,
+    ];
+    const marker = declaration.numSuffix ? "@num_suffix" : "@str_prefix";
+    for (const problem of problems)
+      if (problem)
+        diagnostics.push({
+          code: "type-mismatch",
+          message: `${marker} function '${declaration.name}' ${problem}`,
+          span: declaration.span,
+        });
+  }
+  return diagnostics;
 }
 
 /**
@@ -58,28 +105,7 @@ export function checkLiteralSuffixCall(
       "invalid-literal-suffix",
       `literal suffix '${name}' names a function that is not marked @num_suffix`,
     );
-  const checked = call();
-  const problem = suffixShapeProblem(signature);
-  if (problem) fail("invalid-literal-suffix", `suffix function '${name}' ${problem}`);
-  return checked;
-}
-
-// The prefix reader: a prefixed string `x"..."` is the call `x(t)` of a
-// function marked `@str_prefix`, with a `std.ops.Template` value `t`
-// (spec/05-expressions.md#prefixed-strings). As for a suffix, the ordinary
-// call is checked first, so each interpolated value converts to the
-// template's `T` like an argument; then the reader checks the function's
-// shape at the string (#r-expr.prefix.fn-shape.reader).
-
-/** What makes a function unusable as a prefix (05-expressions.md#r-expr.prefix.fn-shape). */
-function prefixShapeProblem(signature: Signature): string | undefined {
-  if (signature.genericParameters.length > 0 || signature.rowParameters.length > 0)
-    return "must declare no type parameters";
-  if (signature.parameters.length !== 1 || signature.variadic)
-    return "must take exactly one parameter";
-  if (signature.requirements.length > 0) return "must need no providers";
-  if (signature.suspending) return "must not suspend";
-  return undefined;
+  return call();
 }
 
 /**
@@ -107,14 +133,5 @@ export function checkStringPrefixCall(
       "invalid-string-prefix",
       `string prefix '${name}' names a function that is not marked @str_prefix`,
     );
-  // A first parameter that is no template cannot take the argument: the
-  // ordinary call's type-mismatch (#r-expr.prefix.call-errors), reported
-  // before the template's element types are inferred from it.
-  const first = signature.parameters[0];
-  if (first !== undefined && !signature.strPrefix.templateParameter)
-    fail("type-mismatch", `expected ${first}, found a std.ops.Template for prefix '${name}'`);
-  const checked = call();
-  const problem = prefixShapeProblem(signature);
-  if (problem) fail("invalid-string-prefix", `prefix function '${name}' ${problem}`);
-  return checked;
+  return call();
 }

@@ -4,7 +4,15 @@
 # `trim`, `lower`, `split`, `replace`, `starts_with`) are ordinary hd code
 # here too. Every method is built on the byte primitives at the end of this
 # file; `lower` and `upper` call the host, which holds the Unicode case
-# tables (src/README.md, Compiler/library boundary).
+# tables (src/README.md, Compiler/library boundary). The raw-text prefix
+# `r` is here too (Literal Suffixes L20).
+use std.ops.{Template, interpolate, str_prefix}
+
+# The standard raw-text prefix (spec/05-expressions.md#r-expr.prefix.std.r):
+# no escape is processed.
+@str_prefix
+pub fn r(t: Template[Display]) -> string:
+    interpolate(t)
 
 impl string:
     # The number of Unicode scalars.
