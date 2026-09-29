@@ -85,9 +85,45 @@ Decided 2026-09-28.
 
 All ten questions are decided.
 
+**Applied 2026-09-28.** The specification now states each decision:
+
+| Decision | Specification |
+| --- | --- |
+| RU1, RU6 | No language change; the [tour](../guide/LANGUAGE_TOUR.md#requirements-and-suspension) shows an installer, and `runtime/valid/installer-function-runs.hd` runs one. |
+| RU2 | [Row Aliases](../spec/11-requirements-and-suspension.md#row-aliases), [Type Declarations](../spec/02-grammar.md#type-declarations), and the alias cycle rule [`types.alias.cycle`](../spec/04-type-system.md#r-types.alias.cycle) (new code `alias-cycle`). |
+| RU3 | [Row Parameters](../spec/11-requirements-and-suspension.md#row-parameters) (new code `row-parameter-in-context`). |
+| RU4 | [`req.row.least.ambiguous`](../spec/11-requirements-and-suspension.md#r-req.row.least.ambiguous) (new code `ambiguous-row-pattern`). |
+| RU5 | [Row Subsumption](../spec/11-requirements-and-suspension.md#row-subsumption) and [`types.assign.row-subsumption`](../spec/04-type-system.md#r-types.assign.row-subsumption). |
+| RU7 | No change: [`req.row.syntax.empty`](../spec/11-requirements-and-suspension.md#r-req.row.syntax.empty). |
+| RU8 | [Aliases In Diagnostics](../spec/11-requirements-and-suspension.md#aliases-in-diagnostics). |
+| RU9 | No change: [`req.row.omitted.empty`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.empty), with a Why callout. |
+
+## Still Open
+
+Points the apply pass met (2026-09-28). Each waits for the owner; the
+specification states the reading in the Applied column, so each can change
+without breaking a decision.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 1 | RU2 names "function headers and function types". Does a row alias also work in `$.Context[$ AppRow]` and `Fn[(), O, $ AppRow]`? | Yes: any row that follows `$` ([`req.row.alias.where`](../spec/11-requirements-and-suspension.md#r-req.row.alias.where)) | Keep: case 6 shares the prod and test contexts this way. |
+| 2 | Is `$.Context[AppRow]`, without `$`, a row alias use? | No: the bare form takes one key, so a row alias there is `generic-kind-mismatch` ([`req.row.alias.kind`](../spec/11-requirements-and-suspension.md#r-req.row.alias.kind)) | Keep: RU2 places aliases after `$`, and Option F's `$`-less type argument was not adopted. |
+| 3 | Edge case 8 calls the alias cycle rule "shared". Does it cover ordinary aliases? | Yes: every alias cycle is `alias-cycle`, reported once on the first declaration ([`types.alias.cycle`](../spec/04-type-system.md#r-types.alias.cycle)) | Keep: an ordinary cycle was silently undiagnosed. |
+| 4 | Which code rejects a data, enum or trait parameter used in a row (RU3)? | `generic-kind-mismatch`: those parameters are type-kinded ([`req.row.param.no-data.error`](../spec/11-requirements-and-suspension.md#r-req.row.param.no-data.error)) | Keep: no new code. |
+| 5 | Which code rejects a row parameter in `$.Context[...]` (RU3)? | The new `row-parameter-in-context` ([`req.row.param.context`](../spec/11-requirements-and-suspension.md#r-req.row.param.context)) | Keep: the parameter is row-kinded, so a kind error would mislead. |
+| 6 | Edge case 12 asks for "one error" for `$.use(AppRow)` and `AppRow=value`. Which code? | `generic-kind-mismatch`, as for a row alias used as a type (edge case 10) | Keep: one code for every row used where a type or one key is needed. |
+| 7 | RU3 says "only functions". Do implementation heads keep row parameters? | Yes: [`trait.target.row-argument`](../spec/09-traits.md#r-trait.target.row-argument) is unchanged, and [`req.row.param.callables`](../spec/11-requirements-and-suspension.md#r-req.row.param.callables) lists implementations | Keep: `impl[R] Marker for Fn[(), i32, $ R]` needs one. |
+| 8 | May a function-type alias take a row parameter, as in `type Handler[R] = fn(Request) -> Response $ R`? | Yes: RU3 names data types, enums and traits only, and a transparent alias expands at its use | Keep. |
+| 9 | Under RU4, do explicit type arguments rescue a declaration such as `split[R1, R2]`? | No: the check is at the declaration and counts only other parameters ([`req.row.least.ambiguous`](../spec/11-requirements-and-suspension.md#r-req.row.least.ambiguous)) | Keep: RU4 rejects `f: fn() $ R1 + R2` outright. |
+| 10 | When two fixed row parameters share a key (the record's soundness point), which provider does the callback see? | Not stated | State that the nearer scope provides it, as a nested `$.with` does ([`req.with.nested`](../spec/11-requirements-and-suspension.md#r-req.with.nested)). |
+| 11 | Does RU5 convert a container, such as a `List[fn() $ Db]` value to `List[fn() $ Db + Cache]`? | No: it converts a function value; variance keeps the row invariant ([Row Subsumption](../spec/11-requirements-and-suspension.md#row-subsumption), Note) | Keep: converting a container would copy it. |
+| 12 | Does RU5 let an implementation's method declare a narrower row than its trait's? | No: [`req.row.callable.impl-agrees`](../spec/11-requirements-and-suspension.md#r-req.row.callable.impl-agrees) still requires agreement | Keep for now; a method is part of a trait contract, not a function value. |
+| 13 | Does `[health, orders]` without an expected type get the union row? | No: RU5 applies only against an expected function type, so the list needs one | Keep: inferring a new row is not decided. |
+
 ## Contents
 
 - [Owner Decisions](#owner-decisions)
+- [Still Open](#still-open)
 1. [Problem](#problem)
 2. [What hd Has Today](#what-hd-has-today)
 3. [Method](#method)

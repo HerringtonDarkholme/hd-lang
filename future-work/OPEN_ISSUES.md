@@ -93,10 +93,10 @@ spec states the current behavior.
 
 | Question | Applied now | Recommendation |
 | --- | --- | --- |
-| The empty row, once `$(A, B)` is gone | `$()` stays the empty row, in headers, `Fn[..., $()]`, and `$.Context[$()]` | Keep `$()`. It is the smallest option and needs no new syntax. |
+| The empty row, once `$(A, B)` is gone | `$()` stays the empty row, in headers, `Fn[..., $()]`, and `$.Context[$()]` | Decided: [RU7](REQUIREMENT_REUSE.md#owner-decisions) keeps `$()`. |
 | Does `$ A + B` inside `[...]` or a parameter list need precedence rules? | A row ends at the first `,`, `)`, or `]`; nested function types keep the innermost-owner rule | None needed. No ambiguity was found in type arguments, parameters, `$.Context[...]`, or closure headers. |
 | Codes for other old row spellings | `$(A + B)`, `$(A)`, a `-` between keys, and the pre-2026-09-27 `Job[A + B]` and `$.Context[A + B]` are `syntax-error` | Keep `syntax-error`. Only the two decided codes carry fix-its. |
-| Item 5's rule, at most one unknown row variable per pattern | Not applied here. The owner decided it as [RU4](REQUIREMENT_REUSE.md#owner-decisions); the prototype still accepts such a pattern and leaves the rows uninferred | Apply it with RU1 to RU4, as a rule in [Least Row Solutions](../spec/11-requirements-and-suspension.md#least-row-solutions); its diagnostic code is still to be named. |
+| Item 5's rule, at most one unknown row variable per pattern | Applied 2026-09-28 as [RU4](REQUIREMENT_REUSE.md#owner-decisions): [`req.row.least.ambiguous`](../spec/11-requirements-and-suspension.md#r-req.row.least.ambiguous), code `ambiguous-row-pattern` | Done. |
 | `$.Context[$ A + B]` keeps its inner `$`, while one key is `$.Context[A]` | Kept: the context type takes a key or a row type argument | Keep it. It matches row type arguments such as `Job[$ A + B]`. |
 
 [REQUIREMENT_REUSE.md](REQUIREMENT_REUSE.md) still names the comma
@@ -655,8 +655,11 @@ payload member and a newtype's missing `Target` kind.
 
 ### Requirement Reuse
 
-**Open.** How long requirement rows and provider bundles are reused, with
-ten owner questions, is in [Requirement Reuse](REQUIREMENT_REUSE.md#questions-for-the-owner).
+**Decided (owner, 2026-09-28) and applied 2026-09-28.** RU1-RU9 in
+[Requirement Reuse](REQUIREMENT_REUSE.md#owner-decisions): row aliases, row
+parameters on functions only, one unknown row variable per pattern, and row
+subsumption for function values. Thirteen points from the apply pass, each
+with a recommendation, are in [Still Open](REQUIREMENT_REUSE.md#still-open).
 
 ## Runtime, Library, ABI, And Tooling Work
 

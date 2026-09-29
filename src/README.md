@@ -363,14 +363,18 @@ else`, `break`, `break value`, and `continue`;
   are implementation targets owned by the standard library, reject a direct
   `is`, and may be spelled `Fn[...]`, `SuspendFn[...]`, and `Rest[T]` when
   imported from `std.function`;
-- `type` aliases, expanded before checking, and newtypes lowered to one-field
+- `type` aliases, generic ones included, expanded before checking, with
+  `alias-cycle` for a cycle; row aliases (`type AppRow = Db + Cache`,
+  generic and nested) expanded in every row, and `generic-kind-mismatch`
+  for one used as a type or single key; newtypes lowered to one-field
   data types; `data`, `enum`, `trait`, `type`, and `impl` in a block suite,
   hoisted under a scoped name; the prelude traits `Any` and `Iterable` (user
   implementations and bounds drive `for` loops and comprehensions, and
   collections satisfy `Iterable` bounds); declared `+T`/`-T` variance with
-  readonly variance conversions; row-kinded data parameters such as
-  `Job[$ Logger + Clock]`; a dynamic trait value satisfying bounds on its own
-  trait and supertraits through forwarding dictionaries;
+  readonly variance conversions; row type arguments such as
+  `Fn[(), void, $ Logger + Clock]`, with `generic-kind-mismatch` for a data,
+  enum, or trait parameter used in a row; a dynamic trait value satisfying
+  bounds on its own trait and supertraits through forwarding dictionaries;
 - concrete requirement rows with hidden `externref` provider threading and
   transitive call paths from `hd explain-requirements`;
 - `+`-joined requirement rows (`$ A + B` in every position) normalized as
@@ -384,6 +388,12 @@ else`, `break`, `break value`, and `continue`;
   concrete row union, repeated-row consistency, removal of a key by row
   extension (`$ R + K` in the callback row, `$ R` on the callee), keyed Wasm
   GC provider packs, and lexical restoration of removed providers;
+  `ambiguous-row-pattern` for a pattern with two unfixed row parameters and
+  `row-parameter-in-context` for `$.Context[R]`;
+- row subsumption: a function value with a narrower concrete row fits a
+  wider function type through the callable adapter. A value is not widened
+  into a row that holds a row parameter it lacks, which least-row inference
+  solves instead;
 - erased generic marker traits as provider keys, with call-site substitution
   and pre-erasure collision checking;
 - erased generic functions with call-site type inference, Wasm GC boxing for

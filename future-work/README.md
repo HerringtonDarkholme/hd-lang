@@ -88,8 +88,9 @@ language specification:
   with nine follow-up points still open.
 - [Requirement Reuse](REQUIREMENT_REUSE.md) stress-tests long requirement
   rows and provider bundles on a web service, surveys eleven languages, and
-  compares six options, including rows as type expressions, with ten
-  questions for the owner.
+  compares six options, including rows as type expressions. The owner
+  decided RU1-RU9 (row aliases, row subsumption), now applied, with
+  thirteen follow-up points still open.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 

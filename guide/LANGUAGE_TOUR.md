@@ -2318,6 +2318,51 @@ Here `callback` requires `Logger` plus the other requirements in `R`. The local
 provider satisfies `Logger`, so callers see only `R`, the remaining row. The helper itself is
 not named `provide_logger!` because its body has no suspension point.
 
+A long row gets a name with an ordinary `type` alias, called a row alias. It
+stands for its keys wherever a row follows `$`:
+
+```text
+type Stack = Database + Cache + Logger
+
+fn get_order!(id: UserId) -> Result[User?, DbError] $ Stack + Clock:
+    load_user!(id)
+```
+
+A function value fits a function type whose row is wider than its own, so
+handlers with different rows share one list:
+
+```text
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Stack:
+    "orders"
+
+fn routes() -> List[fn() -> string $ Stack + Clock]:
+    [health, orders]
+```
+
+A bundle of providers is reused by an installer: an ordinary function that
+installs the providers and extends its callback's row with the same keys.
+The trailing block is the callback, so an installer reads like a scope:
+
+```text
+fn with_stack![T, R](config: Config, body: fn!() -> T $ R + Stack) -> T $ R:
+    db := SqlDatabase::connect(config.database_url)
+    $.with(Database=db, Cache=MemoryCache {}, Logger=console_logger):
+        body!()
+
+fn main!() -> void $ Clock:
+    with_stack!(Config::default()):
+        _ := get_order!(UserId("user_123"))
+```
+
+`R` is inferred at each call as the block's own row less the installed keys,
+so the caller needs only `Clock` here, not `Stack`. A block that uses only
+some of the installed keys still fits. Each call builds the providers again;
+to build them once, return a `$.Context[$ Stack]` value and spread it into
+each scope with `ctx...`.
+
 Providers come from an enclosing `$.with` scope or an entry point's permitted
 runtime-profile configuration; there are no implicit provider defaults. Row
 parameters combine with other keys by listing them, as in `$ R + Logger`;
