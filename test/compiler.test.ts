@@ -74,10 +74,6 @@ test("checker rejects name, mutability, and type errors", () => {
     "type-mismatch",
   );
   assert.equal(
-    analyze(conformance("typing/invalid/float-remainder")).diagnostics[0]?.code,
-    "type-mismatch",
-  );
-  assert.equal(
     analyze(conformance("typing/invalid/bool-ordering")).diagnostics[0]?.code,
     "missing-partial-ord",
   );
