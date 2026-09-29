@@ -2,6 +2,7 @@ import type { HirTrait, HirTraitDictionaryPlan, ValueType } from "../hir.ts";
 import { genericTypeName } from "./shared.ts";
 import {
   functionParts,
+  functionType,
   mutableInner,
   nominalGenericParts,
   nominalGenericType,
@@ -38,6 +39,39 @@ export function functionVariancePairs(
     ...from.parameters.map((parameter, index) => [to.parameters[index]!, parameter] as const),
     [from.result, to.result] as const,
   ];
+}
+
+/**
+ * True when the function value type `actual` fits the function type
+ * `expected` only by row subsumption: `expected`'s row lists every key of
+ * `actual`'s, and with that row `actual` is `expected` or weakens to it
+ * (11-requirements-and-suspension.md#r-req.row.subsume). This converts a
+ * function value itself, never a container of them, so it is not a variance
+ * step (04-type-system.md#r-types.variance.function).
+ */
+export function isRowSubsumption(actual: ValueType, expected: ValueType): boolean {
+  const from = functionParts(actual);
+  const to = functionParts(expected);
+  if (!from || !to) return false;
+  const wide = new Set(to.requirements);
+  // A row parameter the value lacks is still to be solved by the least-row
+  // rule (11-requirements-and-suspension.md#least-row-solutions), not widened.
+  if (
+    from.requirements.length >= wide.size ||
+    !from.requirements.every((requirement) => wide.has(requirement)) ||
+    to.requirements.some(
+      (requirement) => requirement.startsWith("row:") && !from.requirements.includes(requirement),
+    )
+  )
+    return false;
+  const widened = functionType(
+    from.parameters,
+    from.result,
+    to.requirements,
+    from.variadic,
+    from.suspending,
+  );
+  return widened === expected || isPermissionWeakening(widened, expected);
 }
 
 export function isPermissionWeakening(actual: ValueType, expected: ValueType): boolean {

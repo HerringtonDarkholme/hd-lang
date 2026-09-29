@@ -102,6 +102,7 @@ class Parser extends DecoratorParser {
         tests,
         statements,
         ...(items.testOnlyNames.size > 0 ? { testOnlyNames: [...items.testOnlyNames] } : {}),
+        ...(this.bareContextKeys.length > 0 ? { bareContextKeys: [...this.bareContextKeys] } : {}),
         span: { start, end: this.current().span.end },
       },
       diagnostics: this.diagnostics,
@@ -771,7 +772,9 @@ class Parser extends DecoratorParser {
     if (!this.matchText("[")) return name.text;
     const arguments_: TypeRef[] = [];
     if (!this.atText("]")) {
-      do arguments_.push(this.parseType());
+      // A generic row alias takes a row argument, as in `WithLog[$ Db + Clock]`
+      // (11-requirements-and-suspension.md#r-req.row.alias.generic).
+      do arguments_.push(this.parseTypeArgument());
       while (this.matchText(",") && !this.atText("]"));
     }
     this.expectText("]");
@@ -792,9 +795,12 @@ class Parser extends DecoratorParser {
     const enclosingGenericParameters = this.activeGenericParameters;
     this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
     let alias: TypeRef | undefined;
+    let row: readonly string[] | undefined;
     let base: TypeRef | undefined;
-    if (this.matchText("=")) alias = this.parseType();
-    else {
+    if (this.matchText("=")) {
+      row = this.parseRowAliasTarget();
+      if (!row) alias = this.parseType();
+    } else {
       this.expectText("(");
       base = this.parseType();
       this.expectText(")");
@@ -807,6 +813,7 @@ class Parser extends DecoratorParser {
       name: name.text,
       genericParameters,
       ...(alias ? { alias } : {}),
+      ...(row ? { row } : {}),
       ...(base ? { base } : {}),
       doc,
       span: { start, end },
@@ -1096,9 +1103,16 @@ class Parser extends DecoratorParser {
         this.fail("syntax-error", "expected Context after '$.'", context.span);
       this.expectText("[");
       // `$.Context[Key]` or `$.Context[$ A + B]`; `$()` is the empty context.
-      const requirements = this.matchText("$")
-        ? this.parseRequirements(false)
-        : [this.parseRowKey()];
+      // A bare key is one key, so a row alias there is a kind mismatch
+      // (11-requirements-and-suspension.md#r-req.row.alias.kind).
+      const keyStart = this.current().span.start;
+      const row = this.matchText("$");
+      const requirements = row ? this.parseRequirements(false) : [this.parseRowKey()];
+      if (!row)
+        this.bareContextKeys.push({
+          key: requirements[0]!,
+          span: { start: keyStart, end: this.peek(-1).span.end },
+        });
       const close = this.expectText("]");
       return { name: `context:${requirements.join("+")}`, span: { start, end: close.span.end } };
     }

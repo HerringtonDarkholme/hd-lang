@@ -25,6 +25,7 @@ import { withStandardTraits } from "./standard-traits.ts";
 import { withFunctionTypeConstructors } from "./function-types.ts";
 import { hoistLocalDeclarations } from "./local-declarations.ts";
 import { varianceDiagnostics } from "./variance.ts";
+import { rowRuleDiagnostics } from "./row-rules.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
 import { withTypedDerivation } from "./typed-derivation.ts";
 import { withShapes } from "./shapes.ts";
@@ -86,7 +87,12 @@ function checkProgram(source: Program, options: CheckOptions): CheckResult {
   setHashableKeyTypes(program);
   const context: ProgramCheckContext = {
     program,
-    diagnostics: [...hoisted.diagnostics, ...targetDiagnostics, ...declared.diagnostics],
+    diagnostics: [
+      ...hoisted.diagnostics,
+      ...targetDiagnostics,
+      ...declared.diagnostics,
+      ...rowRuleDiagnostics(program),
+    ],
     imports: new Map(),
     dataTypes: new Map(),
     enumTypes: new Map(),

@@ -70,6 +70,8 @@ export interface FunctionDecl {
   readonly parameters: readonly Parameter[];
   readonly result: TypeRef;
   readonly requirements: readonly string[];
+  /** The row as written, when it named a row alias (11-requirements-and-suspension.md#r-req.row.alias.diagnostics). */
+  readonly writtenRequirements?: readonly string[];
   // Set when the source omits `-> type` or the `$` clause. `result` is then a
   // `void` placeholder and `requirements` is empty until the checker infers
   // them (07-functions.md#declarations).
@@ -230,6 +232,11 @@ export interface TypeDecl {
   readonly name: string;
   readonly genericParameters: readonly string[];
   readonly alias?: TypeRef;
+  /**
+   * The keys of a row alias, `type AppRow = Db + Cache` or `type NoRow = $()`
+   * (11-requirements-and-suspension.md#row-aliases).
+   */
+  readonly row?: readonly string[];
   readonly base?: TypeRef;
   readonly doc?: string;
   readonly decorators?: Decorators;
@@ -409,6 +416,11 @@ export interface Program {
   readonly statements: readonly Statement[];
   /** Names that the `tests:` block declares or uses (spec/03-names-and-scopes.md#tests-blocks). */
   readonly testOnlyNames?: readonly string[];
+  /**
+   * The single keys written in `$.Context[Key]` without `$`, where a row
+   * alias is a kind mismatch (11-requirements-and-suspension.md#r-req.row.alias.kind).
+   */
+  readonly bareContextKeys?: readonly { readonly key: string; readonly span: SourceSpan }[];
   readonly span: SourceSpan;
 }
 

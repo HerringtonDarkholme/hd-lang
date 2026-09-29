@@ -32,6 +32,7 @@ import {
   isPermissionWeakening,
   weakenBoundedGenericActual,
 } from "./assignability.ts";
+import { aliasedRowNote, isRowSubsumption, mismatchMessage } from "./row-rules.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
 import * as termination from "./termination.ts";
 import { builtinDebug, implementsDebug } from "./debug.ts";
@@ -528,7 +529,8 @@ export abstract class CheckerContext {
     if (!expected || value.type === expected || value.type === "never") return value;
     const widened = numericWidening(value, readonlyType(expected), span);
     if (widened) return widened;
-    if (isPermissionWeakening(value.type, expected)) {
+    // Row subsumption adapts a function value like a weakening (r-req.row.subsume).
+    if (isPermissionWeakening(value.type, expected) || isRowSubsumption(value.type, expected)) {
       return { kind: "permission-weaken", operand: value, type: expected, span };
     }
     const shape = generalizedShape(value, expected, this.dataTypes, span);
@@ -1427,7 +1429,7 @@ export abstract class CheckerContext {
         `'${actual}' does not convert implicitly to '${expected}'; write an explicit cast`,
         span,
       );
-    this.fail("type-mismatch", `expected ${expected}, found ${actual}`, span);
+    this.fail("type-mismatch", mismatchMessage(actual, expected), span);
   }
 
   protected requireCoercion(
@@ -1457,6 +1459,7 @@ export abstract class CheckerContext {
         message = "a default must not suspend";
       }
     }
+    message += aliasedRowNote(code, this.declaration);
     this.diagnostics.push({ code, message, span });
     throw new CheckFailure(message);
   }

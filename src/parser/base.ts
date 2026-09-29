@@ -31,6 +31,8 @@ export abstract class ParserBase {
   protected index = 0;
   protected readonly diagnostics: Diagnostic[] = [];
   protected activeGenericParameters: ReadonlySet<string> = new Set();
+  /** Keys written as `$.Context[Key]` without `$` (11-requirements-and-suspension.md#r-req.row.alias.kind). */
+  protected readonly bareContextKeys: { key: string; span: SourceSpan }[] = [];
 
   protected options: ParseOptions = {};
 
@@ -318,6 +320,27 @@ export abstract class ParserBase {
     while (this.matchText("+")) keys.push(this.parseRowKey());
     if (header && this.atText(",")) this.rejectOldRowSeparator();
     return [...new Set(keys)].sort();
+  }
+
+  /**
+   * The keys after `=` of a row alias, `type AppRow = Db + Cache` or
+   * `type NoRow = $()`, or undefined when the right side is an ordinary
+   * type, including one key (02-grammar.md#type-declarations).
+   */
+  protected parseRowAliasTarget(): readonly string[] | undefined {
+    if (this.atText("$") && this.peek(1).text === "(") {
+      this.advance();
+      return this.parseRequirements(false);
+    }
+    let depth = 0;
+    for (let distance = 0; this.index + distance < this.tokens.length; distance += 1) {
+      const token = this.peek(distance);
+      if (token.kind === "eof" || (depth === 0 && token.kind === "newline")) return undefined;
+      if (token.text === "[" || token.text === "(") depth += 1;
+      else if (token.text === "]" || token.text === ")") depth -= 1;
+      else if (token.text === "+" && depth === 0) return this.parseRequirements(false);
+    }
+    return undefined;
   }
 
   // `$ A, B` and `$(A, B)` are the former comma-list rows (02-grammar.md#types).

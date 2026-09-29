@@ -187,13 +187,7 @@ export function functionParts(type: ValueType): FunctionParts | undefined {
     }
   }
   const result = requirementStart < 0 ? tail : tail.slice(0, requirementStart);
-  const requirements =
-    requirementStart < 0
-      ? []
-      : tail
-          .slice(requirementStart + 1)
-          .split("+")
-          .filter(Boolean);
+  const requirements = requirementStart < 0 ? [] : splitRowKeys(tail.slice(requirementStart + 1));
   const variadic = renderedParameters.at(-1)?.endsWith("...") === true;
   const parameters = renderedParameters.map((parameter, index) => {
     if (!variadic || index !== renderedParameters.length - 1) return parameter;
@@ -252,10 +246,30 @@ export function substituteTypeParameters(
   return generic ? (substitutions.get(generic) ?? type) : type;
 }
 
+/**
+ * The keys of a rendered row `A+B`, split at top-level `+` only: a key such
+ * as `WithLog[$(Clock+Db)]` keeps the row argument of a row alias whole
+ * (11-requirements-and-suspension.md#row-aliases).
+ */
+export function splitRowKeys(text: string): readonly string[] {
+  const keys: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index <= text.length; index += 1) {
+    const character = text[index];
+    if (character === "[" || character === "(") depth += 1;
+    else if (character === "]" || character === ")") depth -= 1;
+    else if ((character === "+" || index === text.length) && depth === 0) {
+      const key = text.slice(start, index);
+      if (key) keys.push(key);
+      start = index + 1;
+    }
+  }
+  return keys;
+}
+
 export function contextKeys(type: ValueType): readonly string[] | undefined {
-  return type.startsWith("context:")
-    ? type.slice("context:".length).split("+").filter(Boolean)
-    : undefined;
+  return type.startsWith("context:") ? splitRowKeys(type.slice("context:".length)) : undefined;
 }
 
 export function contextType(keys: readonly string[]): ValueType {
@@ -300,8 +314,7 @@ export function storedSuspensionParts(type: ValueType): StoredSuspensionParts | 
  */
 export function rowArgumentKeys(type: ValueType | undefined): readonly string[] | undefined {
   if (!type?.startsWith("$(") || !type.endsWith(")")) return undefined;
-  const contents = type.slice(2, -1);
-  return contents === "" ? [] : contents.split("+");
+  return splitRowKeys(type.slice(2, -1));
 }
 
 export function rowArgumentType(keys: readonly string[]): ValueType {
