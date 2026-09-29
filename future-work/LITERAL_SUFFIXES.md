@@ -259,6 +259,24 @@ the decorator redesign; see its entry below.
       ordinary call error at the literal. This relaxes L11's
       "no providers, no type parameters" and L19's copied shape rules.
 
+21. **L21 (2026-09-28): answers to Still Open 18, 21 and 22.**
+    - `return"x"` stays two tokens: no function can be named with a
+      reserved word, so it can never be a prefix.
+    - **The marker's shape is checked at the definition.** The compiler is
+      the reader of `@str_prefix`, so it checks the decorated function when
+      it is declared. The function must take exactly one required parameter
+      of type `Template[T]` and must not suspend. Anything else is a
+      `type-mismatch` at the decorated definition, not at each literal.
+      Reading for the apply pass, for the owner to confirm: `@num_suffix`
+      gets the same definition-site check (one required numeric
+      parameter, no suspension), so both markers behave alike. This
+      supersedes the "fails only at each literal" reading of the
+      Decorators follow-up questions.
+    - `process_escapes` (std-only) returns `Result[string, EscapeError]`,
+      and the error carries the offset of the bad escape.
+    - Still open: whether a test case can be written `it"name": ...`
+      (Still Open 23), which the owner raised for discussion.
+
 ## Contents
 
 - [Problem](#problem)
