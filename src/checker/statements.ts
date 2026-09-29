@@ -1,10 +1,11 @@
 import { cellType } from "./captured-cells.ts";
-import type { Statement } from "../ast.ts";
+import type { Expression, Statement } from "../ast.ts";
 import type { HirExpression, HirGlobal, HirLocal, HirStatement, ValueType } from "../hir.ts";
 import {
   functionType,
   functionParts,
   mutableInner,
+  mutableType,
   nominalGenericParts,
   optionalInner,
   readonlyType,
@@ -362,11 +363,23 @@ export abstract class StatementChecker extends CheckerContext {
     const output: HirStatement[] = [
       { kind: "binding", local: tupleLocal, value, span: statement.span },
     ];
+    // Each name of a multi-name binding infers its own element's access
+    // (04-type-system.md#r-types.bind.let-mut-pattern).
+    const bindingTypes = statement.bindings.map((binding, index) => {
+      const element = elements[index]!;
+      if (binding.mutableAccess) {
+        const annotated = annotatedElements?.[index];
+        if (annotated !== undefined) this.requireMutableAnnotation(annotated, binding);
+        else this.requireMutableValue(element, binding.span);
+        return element;
+      }
+      return annotation ? element : readonlyType(element);
+    });
     for (const [index, binding] of statement.bindings.entries()) {
       if (this.moduleBody) {
         const global: HirGlobal = {
           name: binding.name,
-          type: elements[index]!,
+          type: bindingTypes[index]!,
           index: this.globals.size,
           mutable: statement.mutable,
           span: binding.span,
@@ -394,7 +407,7 @@ export abstract class StatementChecker extends CheckerContext {
       }
       const local: HirLocal = {
         name: binding.name,
-        type: elements[index]!,
+        type: bindingTypes[index]!,
         index: this.locals.length,
         mutable: statement.mutable,
         parameter: false,
@@ -423,6 +436,42 @@ export abstract class StatementChecker extends CheckerContext {
     }
     return output;
   }
+  /** `let mut` needs an annotation whose root is `mut` (04-type-system.md#r-types.bind.let-mut-annotation). */
+  private requireMutableAnnotation(
+    annotation: ValueType,
+    site: { readonly span: SourceSpan },
+  ): void {
+    if (mutableInner(annotation) !== undefined) return;
+    this.fail(
+      "let-mut-readonly-type",
+      `'let mut' asks for mutable access, but the type '${annotation}' is readonly; write 'mut ${annotation}', or drop 'mut' after 'let'`,
+      site.span,
+    );
+  }
+
+  /** `let mut` never upgrades a readonly value (04-type-system.md#r-types.bind.let-mut-upgrade). */
+  private requireMutableValue(type: ValueType, span: SourceSpan): void {
+    if (mutableInner(type) !== undefined || type === "never") return;
+    this.fail(
+      "mutable-upgrade",
+      `'let mut' needs a value with mutable access, but '${type}' is readonly and cannot be upgraded; copy it into a fresh value instead`,
+      span,
+    );
+  }
+
+  /**
+   * A non-generic data literal after `let mut` is used as `mut T`
+   * (04-type-system.md#r-types.bind.let-mut-expected), which also gives its
+   * fields their expected types.
+   */
+  private letMutLiteralType(value: Expression): ValueType | undefined {
+    if (value.kind !== "data" || value.typeArguments) return undefined;
+    const declaration = this.dataTypes.get(value.name);
+    return declaration && declaration.genericParameters.length === 0 && !declaration.newtype
+      ? mutableType(value.name)
+      : undefined;
+  }
+
   private checkBindingStatement(statement: Extract<Statement, { kind: "binding" }>): HirStatement {
     if (PRELUDE_NAMES.has(statement.name)) {
       this.fail(
@@ -442,6 +491,8 @@ export abstract class StatementChecker extends CheckerContext {
       );
     }
     const annotation = statement.annotation ? this.resolveType(statement.annotation) : undefined;
+    const letMut = statement.mutableAccess === true;
+    if (letMut && annotation !== undefined) this.requireMutableAnnotation(annotation, statement);
     const storedSuspension = annotation ? storedSuspensionParts(annotation) : undefined;
     let recursiveLocal: HirLocal | undefined;
     let recursiveGlobal: HirGlobal | undefined;
@@ -507,12 +558,20 @@ export abstract class StatementChecker extends CheckerContext {
     try {
       value = this.checkExpression(
         statement.value,
-        storedSuspension?.result ?? annotation ?? recursiveLocal?.type ?? recursiveGlobal?.type,
+        storedSuspension?.result ??
+          annotation ??
+          recursiveLocal?.type ??
+          recursiveGlobal?.type ??
+          (letMut ? this.letMutLiteralType(statement.value) : undefined),
       );
     } finally {
       this.pendingRecursiveClosure = previousRecursiveClosure;
     }
-    if (!statement.mutable && !annotation) {
+    // `:=` and a plain `let` infer the readonly view, even of a fresh value;
+    // `let mut` infers `mut T` and never upgrades a readonly value
+    // (04-type-system.md#binding-forms).
+    if (letMut && !annotation) this.requireMutableValue(value.type, statement.value.span);
+    if (!letMut && !annotation) {
       const readonly = mutableInner(value.type);
       if (readonly !== undefined) {
         value = ["data", "enum", "list", "map", "tuple", "closure"].includes(value.kind)

@@ -1210,11 +1210,21 @@ class Parser extends DecoratorParser {
       return { kind: "defer", body, span: { start, end: body.at(-1)!.span.end } };
     }
     if (this.atText("fn") && this.peek(1).kind === "identifier") return this.parseLocalFunction();
+    if (this.atText("mut") && this.peek(1).kind === "identifier")
+      this.fail(
+        "syntax-error",
+        "only 'let' takes 'mut' before a name; write 'let mut name = ...'",
+        this.current().span,
+      );
     if (this.matchText("let")) {
-      const names = [this.expectKind("identifier", "expected a binding name")];
+      // Each name may be written `mut name` (02-grammar.md#r-grammar.stmt.let-mut).
+      const letName = (message: string) => {
+        const mutableAccess = this.matchText("mut");
+        return { token: this.expectKind("identifier", message), mutableAccess };
+      };
+      const names = [letName("expected a binding name")];
       this.rejectCommaClosingInlineSuite();
-      while (this.matchText(","))
-        names.push(this.expectKind("identifier", "expected a binding name after ','"));
+      while (this.matchText(",")) names.push(letName("expected a binding name after ','"));
       const annotation = this.matchText(":") ? this.parseType() : undefined;
       this.expectText("=");
       const value = this.parseRightSide();
@@ -1222,15 +1232,20 @@ class Parser extends DecoratorParser {
       return names.length === 1
         ? {
             kind: "binding",
-            name: names[0]!.text,
+            name: names[0]!.token.text,
             annotation,
             mutable: true,
+            ...(names[0]!.mutableAccess ? { mutableAccess: true } : {}),
             value,
             span: { start, end },
           }
         : {
             kind: "tuple-binding",
-            bindings: names.map((name) => ({ name: name.text, span: name.span })),
+            bindings: names.map((name) => ({
+              name: name.token.text,
+              ...(name.mutableAccess ? { mutableAccess: true } : {}),
+              span: name.token.span,
+            })),
             annotation,
             mutable: true,
             value,

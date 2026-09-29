@@ -423,6 +423,7 @@ function propertyTest(
         kind: "binding",
         name: "$prop.choices",
         mutable: true,
+        mutableAccess: true,
         value: invoke(local(PROPERTY_CHOICES)),
         span,
       },

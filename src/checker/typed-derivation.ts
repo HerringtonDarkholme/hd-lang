@@ -326,13 +326,14 @@ function callsTraversal(statements: readonly unknown[], parameter: string): bool
 function localType(statements: readonly Statement[], name: string): string | undefined {
   let type: string | undefined;
   visit(statements, (value) => {
-    if (
-      value.kind === "binding" &&
-      value.name === name &&
-      isTypeRef(value.annotation) &&
-      type === undefined
-    )
-      type = value.annotation.name;
+    if (value.kind !== "binding" || value.name !== name || type !== undefined) return;
+    if (isTypeRef(value.annotation)) type = value.annotation.name;
+    else {
+      // `let mut w = Encoder { ... }` states its type through the literal.
+      const literal = value.value as { kind?: unknown; name?: unknown; typeArguments?: unknown };
+      if (value.mutableAccess === true && literal.kind === "data" && !literal.typeArguments)
+        type = `mut:${String(literal.name)}`;
+    }
   });
   return type;
 }

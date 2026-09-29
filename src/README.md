@@ -328,6 +328,10 @@ else`, `break`, `break value`, and `continue`;
 - right-associative single and tuple binding expressions with enclosing-scope
   visibility, readonly inferred bindings, and flow-sensitive initialization
   across short-circuit conditions;
+- `let` bindings that infer the readonly view, and `let mut` bindings,
+  per name in a multi-name `let`, that infer `mut T`, reject a readonly
+  value (`mutable-upgrade`) or a readonly annotation
+  (`let-mut-readonly-type`), and use a non-generic data literal as `mut T`;
 - lexical branch and loop scopes;
 - data declarations, literals, and field reads backed by Wasm GC structs,
   including requirement-free per-construction field defaults evaluated after explicit
