@@ -1,7 +1,7 @@
 # test: the standard prefix r joins raw text with the values' Display text
 # Spec 05 Prefixed Strings: r keeps every backslash and processes no escape.
 # expect: test
-use std.ops.r
+use std.text.r
 use std.testing.assert_equal
 
 tests:

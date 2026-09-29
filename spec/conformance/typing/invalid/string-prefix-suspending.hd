@@ -1,10 +1,7 @@
-# test: a prefix function never suspends
-# Spec 05 Prefixed Strings: expr.prefix.fn-shape is checked at the string.
+# test: a prefix function never suspends, checked at its definition
+# Spec 05 Prefixed Strings: expr.prefix.fn-shape.definition.
 use std.ops.{Template, str_prefix}
 
 @str_prefix
-fn later!(t: Template[string]) -> string:
+fn later!(t: Template[string]) -> string:  # diagnostic: type-mismatch
     "later"
-
-fn render!() -> string:
-    later"a"  # diagnostic: invalid-string-prefix

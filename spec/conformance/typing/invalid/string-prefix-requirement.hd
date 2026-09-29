@@ -1,10 +1,10 @@
-# test: a prefix function needs no providers, checked at the string
-# Spec 05 Prefixed Strings: expr.prefix.fn-shape.reader reports a provider-needing prefix at the string.
+# test: a prefix function's requirement row joins the caller's row, as any call's does
+# Spec 05 Prefixed Strings: expr.prefix.ordinary-rules; `logged"x"` needs Console where the row is empty.
 use std.ops.{Template, str_prefix}
 
 @str_prefix
 fn logged(t: Template[string]) -> string $ Console:
     "logged"
 
-fn render() -> string $ Console:
-    logged"x"  # diagnostic: invalid-string-prefix
+pub fn render() -> string:
+    logged"x"  # diagnostic: missing-requirement

@@ -1,6 +1,6 @@
 # test: std declares no b prefix, so b"..." names nothing
 # Spec 05 Prefixed Strings: expr.prefix.std.only-r; bytes wait for a bytes type.
-use std.ops.r
+use std.text.r
 
 fn payload() -> string:
     b"abc"  # diagnostic: unknown-name

@@ -157,33 +157,36 @@ pub fn num_suffix() -> NumSuffix:
 5. r[expr.suffix.not-marked] A suffix that resolves to anything other than a suffix function is an error, reported at the literal. Error: `invalid-literal-suffix`.
 6. r[expr.suffix.no-marker-import] The call needs no import of `num_suffix` or `NumSuffix`: a `use` of the suffix function alone makes the literal valid.
 7. r[expr.suffix.call-errors] The call is checked as an ordinary call. An argument that the function cannot accept is the ordinary call error at the literal, such as `type-mismatch` or `argument-count`.
-8. r[expr.suffix.fn-shape] A suffix function has exactly one parameter, of a primitive integer or floating-point type, and no type parameters. It needs no providers and never suspends.
-9. r[expr.suffix.fn-shape.reader] These constraints are checked where a literal uses the function, not at its declaration. A literal whose suffix function breaks one is an error, unless its call already reports an ordinary call error. Error: `invalid-literal-suffix`.
-10. r[expr.suffix.exact-call] A suffixed literal is exactly that call wherever it appears, and it has no evaluation rule of its own.
-11. r[expr.suffix.position-rules] In a [fact](14-annotations.md#r-annot.fact.eval), in [shared enum data](08-data-and-enums.md#r-data.shared.compile-time), or in any other position, the call follows the rules for any call there, including what a panic in the suffix function does.
-12. r[expr.suffix.requirement-free] A suffix function needs no providers and never suspends, as [`expr.suffix.fn-shape`](#r-expr.suffix.fn-shape) requires, so every compile-time position accepts a suffixed literal.
+8. r[expr.suffix.fn-shape-required] A suffix function takes exactly one required parameter, of a primitive integer or floating-point type, and never suspends. Any other parameter it declares has a default.
+9. r[expr.suffix.fn-shape.definition] The compiler checks this shape at the definition that carries `@num_suffix`, not at each literal. A marked function that breaks it is an error at that definition. Error: `type-mismatch`.
+10. r[expr.suffix.ordinary-rules] Otherwise the call follows the ordinary rules. A generic suffix function's type arguments are inferred at the literal, and its requirement row joins the row of the code that contains the literal, as any call's does.
+11. r[expr.suffix.exact-call] A suffixed literal is exactly that call wherever it appears, and it has no evaluation rule of its own.
+12. r[expr.suffix.position-rules] In a [fact](14-annotations.md#r-annot.fact.eval), in [shared enum data](08-data-and-enums.md#r-data.shared.compile-time), or in any other position, the call follows the rules for any call there, including what a panic in the suffix function does. So a compile-time position that must be requirement-free rejects a suffix function that needs providers, as it rejects any such call.
 
 ```text
 use std.ops.num_suffix
 
-data Pixels:
+pub data Pixels:
     count: i32
 
 fn pt(count: i32) -> Pixels:
     Pixels { count: count }
 
 @num_suffix
-fn em(label: string) -> Pixels:
+fn em(label: string) -> Pixels:  # error: type-mismatch
     Pixels { count: 0 }
+
+@num_suffix
+fn later!(count: i64) -> i64:  # error: type-mismatch
+    count
 
 @num_suffix
 fn px(count: i32) -> Pixels $ Console:
     Pixels { count: count }
 
-fn layout() -> Pixels $ Console:
+pub fn layout() -> Pixels:
     size := 12pt  # error: invalid-literal-suffix
-    gap := 2em  # error: type-mismatch
-    12px  # error: invalid-literal-suffix
+    12px  # error: missing-requirement
 ```
 
 The standard library declares these suffixes in `std.time`:
@@ -213,8 +216,10 @@ enum Tier(limit: Duration):
 > **Why.** A suffix is an ordinary function found through `use`, so
 > libraries can add `12px` without new syntax. The literal's type is the
 > function's result, so `5s` and `250ms` are both `Duration` and mix
-> freely. The compiler reads the one marker and checks the signature where
-> it needs it, at the literal, as any reader of a decorator does.
+> freely. The literal is plain call sugar, so the one rule kept is that it
+> never suspends: hd marks every suspending call with `!`, and `5s` has no
+> place to show it. The compiler reads the marker, so it checks the
+> signature once, at the marked definition.
 
 > **Note.** A compiler may warn when a suffixed literal always overflows,
 > as Rust's `unconditional_panic` lint does, but none is required.
@@ -271,9 +276,9 @@ pub data Template[T]:
 9. r[expr.prefix.marker.module] `std.ops` declares `StrPrefix`, `str_prefix`, and `Template`. `StrPrefix` carries `@annotate(.Fn)`, so `@str_prefix` before anything but a function is an error. Error: `decorator-not-annotator`.
 10. r[expr.prefix.not-marked] A prefix that resolves to anything other than a prefix function is an error, reported at the string. Error: `invalid-string-prefix`.
 11. r[expr.prefix.no-marker-import] The call needs no import of `str_prefix`, `StrPrefix`, or `Template`: a `use` of the prefix function alone makes the string valid.
-12. r[expr.prefix.call-errors] The call is checked as an ordinary call. A parameter that cannot take the template is the ordinary call error at the string, such as `type-mismatch`.
-13. r[expr.prefix.fn-shape] A prefix function has exactly one parameter, of type `std.ops.Template[T]` for some type `T`, and no type parameters. It needs no providers and never suspends.
-14. r[expr.prefix.fn-shape.reader] These constraints are checked where a string uses the function, not at its declaration. A string whose prefix function breaks one is an error, unless its call already reports an ordinary call error. Error: `invalid-string-prefix`.
+12. r[expr.prefix.fn-shape-required] A prefix function takes exactly one required parameter, of type `std.ops.Template[T]` for some type `T`, and never suspends. Any other parameter it declares has a default.
+13. r[expr.prefix.fn-shape.definition] The compiler checks this shape at the definition that carries `@str_prefix`, not at each string. A marked function that breaks it is an error at that definition. Error: `type-mismatch`.
+14. r[expr.prefix.ordinary-rules] Otherwise the call is checked as an ordinary call. A generic prefix function's type arguments are inferred at the string, and its requirement row joins the row of the code that contains the string, as any call's does.
 15. r[expr.prefix.exact-call] A prefixed string is exactly that call wherever it appears, and it has no evaluation rule of its own. In a fact or any other compile-time position, it follows the rules for any call there.
 
 ```text
@@ -283,20 +288,23 @@ fn plain(t: Template[string]) -> string:
     "plain"
 
 @str_prefix
-fn count(n: i32) -> i32:
+fn count(n: i32) -> i32:  # error: type-mismatch
     n
+
+@str_prefix
+fn later!(t: Template[string]) -> string:  # error: type-mismatch
+    "later"
 
 @str_prefix
 fn logged(t: Template[string]) -> string $ Console:
     "logged"
 
-fn render() -> string $ Console:
+pub fn render() -> string:
     first := plain"x"  # error: invalid-string-prefix
-    second := count"x"  # error: type-mismatch
-    logged"x"  # error: invalid-string-prefix
+    logged"x"  # error: missing-requirement
 ```
 
-The standard library declares one prefix, in `std.ops`:
+The standard library declares one prefix, in `std.text`:
 
 | Rule | Declaration | Meaning |
 | --- | --- | --- |
@@ -304,10 +312,10 @@ The standard library declares one prefix, in `std.ops`:
 
 1. r[expr.prefix.std.r-meaning] So `r"\d+ $n"` is the text `\d+ ` followed by the `Display` text of `n`, and `r"a\"b"` keeps its backslash.
 2. r[expr.prefix.std.only-r] `r` is the only standard prefix. `std` declares no `b`, so `b"..."` names nothing until a bytes type exists.
-3. r[expr.prefix.std.import] `r` is not a prelude name; code imports it, as in `use std.ops.r`.
+3. r[expr.prefix.std.import-text] `std.text` declares `r`. It is not a prelude name; code imports it, as in `use std.text.r`.
 
 ```text
-use std.ops.r
+use std.text.r
 
 fn digits(count: i32) -> string:
     r"\d{$count}"  # the text \d{ then count, then }
@@ -316,7 +324,8 @@ fn digits(count: i32) -> string:
 > **Why.** A prefix is an ordinary function found through `use`, so a
 > library adds `sql"..."` without new syntax. The template keeps text and
 > values apart, so `sql` can send values as parameters instead of splicing
-> them into the query text.
+> them into the query text. As for a suffix, the string is plain call
+> sugar and never suspends, because `sql"..."` has no place for `!`.
 
 See also: [Prefixed Strings](04-type-system.md#prefixed-strings),
 [String Prefix Names](03-names-and-scopes.md#string-prefix-names),

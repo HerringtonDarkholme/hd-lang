@@ -1,10 +1,7 @@
-# test: a suffix function never suspends, checked at the literal
-# Spec 05 Literal Suffixes: expr.suffix.fn-shape.
+# test: a suffix function never suspends, checked at its definition
+# Spec 05 Literal Suffixes: expr.suffix.fn-shape.definition.
 use std.ops.num_suffix
 
 @num_suffix
-fn later!(count: i64) -> i64:
+fn later!(count: i64) -> i64:  # diagnostic: type-mismatch
     count
-
-fn wait!() -> i64:
-    5later  # diagnostic: invalid-literal-suffix

@@ -1013,3 +1013,29 @@ style lint rejects a chapter that reuses one.
   `types.cast.int-int-wrap`.
 - `types.cast.panic`: retired 2026-09-28. Open Issues item 1: only a
   float-to-integer cast panics. Replaced by `types.cast.float-int-panic`.
+- `expr.suffix.fn-shape`: retired 2026-09-28. Literal Suffixes L20 and L21
+  lift the no-provider and no-type-parameter rules and count required
+  parameters. Replaced by `expr.suffix.fn-shape-required` and
+  `expr.suffix.ordinary-rules`.
+- `expr.suffix.fn-shape.reader`: retired 2026-09-28. Literal Suffixes L21
+  checks the shape at the marked definition. Replaced by
+  `expr.suffix.fn-shape.definition`.
+- `expr.suffix.requirement-free`: retired 2026-09-28. Literal Suffixes L20
+  lets a suffix function need providers. Replaced by
+  `expr.suffix.position-rules`.
+- `expr.prefix.fn-shape`: retired 2026-09-28. Literal Suffixes L20 and L21.
+  Replaced by `expr.prefix.fn-shape-required` and
+  `expr.prefix.ordinary-rules`.
+- `expr.prefix.fn-shape.reader`: retired 2026-09-28. Literal Suffixes L21.
+  Replaced by `expr.prefix.fn-shape.definition`.
+- `expr.prefix.call-errors`: retired 2026-09-28. Literal Suffixes L21
+  reports a parameter that cannot take the template at the definition.
+  Replaced by `expr.prefix.fn-shape.definition` and
+  `expr.prefix.ordinary-rules`.
+- `expr.prefix.std.import`: retired 2026-09-28. Literal Suffixes L20 moves
+  `r` to `std.text`. Replaced by `expr.prefix.std.import-text`.
+- `lex.raw-string.none`: retired 2026-09-28. Literal Suffixes L20 moves
+  `r` to `std.text`. Replaced by `lex.raw-string.none-text`.
+- `module.prelude.ops-str-prefix`: retired 2026-09-28. Literal Suffixes L20
+  moves `r` to `std.text`. Replaced by
+  `module.prelude.ops-str-prefix-markers` and `module.prelude.text-r`.

@@ -1,0 +1,10 @@
+# test: a prefix function may declare more parameters when each has a default
+# Spec 05 Prefixed Strings: expr.prefix.fn-shape-required counts required parameters (Literal Suffixes L21).
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn tagged(t: Template[string], tag: string = "x") -> string:
+    tag
+
+fn render() -> string:
+    tagged"a"

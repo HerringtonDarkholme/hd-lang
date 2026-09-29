@@ -1315,3 +1315,21 @@ existing source. Each entry names the decision that made the change.
   a variant with both positional and named payload fields uses the struct
   builder, naming positional fields `_0`, `_1`, and so on:
   `Mixed { _0: 1, label: "x" }`.
+- Literal suffixes L20 (owner decision in
+  [Literal Suffixes](../future-work/LITERAL_SUFFIXES.md#owner-decisions),
+  2026-09-28): a suffixed literal and a prefixed string are plain call
+  sugar. A suffix or prefix function may now be generic or need providers:
+  its call follows the ordinary generic and row rules, so `12px` where
+  `px` needs `Console` is valid inside a function that has `Console`, and
+  `missing-requirement` where it does not. Both were
+  `invalid-literal-suffix` or `invalid-string-prefix` before. The raw-text
+  prefix `r` moves from `std.ops` to `std.text`: `use std.ops.r` becomes
+  `use std.text.r`, and the old import is now `unknown-name`.
+- Literal suffixes L21 (same record, 2026-09-28): the compiler checks a
+  marked function's shape at its definition. A function marked
+  `@str_prefix` must take exactly one required parameter of type
+  `Template[T]`, and one marked `@num_suffix` exactly one required
+  primitive numeric parameter; neither may suspend. A marked function that
+  breaks this is `type-mismatch` on its `fn` line, where it was previously
+  accepted and each use failed. Further parameters with defaults are now
+  allowed. `return"x"` stays two tokens.

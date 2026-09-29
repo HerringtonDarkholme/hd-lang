@@ -124,11 +124,11 @@ specification	block	classification	fixture
 05-expressions.md	4	mixed	typing/invalid/interpolation-without-display.hd
 05-expressions.md	5	accept	typing/valid/literal-suffix-user.hd|runtime/valid/literal-suffix-call.hd
 05-expressions.md	6	type-fragment	-
-05-expressions.md	7	mixed	typing/invalid/literal-suffix-unmarked.hd|typing/invalid/literal-suffix-parameter-type.hd|typing/invalid/literal-suffix-requirement.hd
+05-expressions.md	7	mixed	typing/invalid/literal-suffix-unmarked.hd|typing/invalid/literal-suffix-parameter-type.hd|typing/invalid/literal-suffix-suspending.hd|typing/invalid/literal-suffix-requirement.hd
 05-expressions.md	8	accept	typing/valid/literal-suffix-compile-time.hd
 05-expressions.md	9	accept	typing/valid/string-prefix-user.hd
 05-expressions.md	10	type-fragment	-
-05-expressions.md	11	mixed	typing/invalid/string-prefix-unmarked.hd|typing/invalid/string-prefix-parameter-type.hd|typing/invalid/string-prefix-requirement.hd
+05-expressions.md	11	mixed	typing/invalid/string-prefix-unmarked.hd|typing/invalid/string-prefix-parameter-type.hd|typing/invalid/string-prefix-suspending.hd|typing/invalid/string-prefix-requirement.hd
 05-expressions.md	12	accept	typing/valid/string-prefix-std-r.hd
 05-expressions.md	13	accept	typing/valid/traits.hd
 05-expressions.md	14	accept	typing/valid/collections.hd

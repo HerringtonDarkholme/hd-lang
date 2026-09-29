@@ -245,10 +245,10 @@ The prefix of a [prefixed string](01-lexical-structure.md#prefixed-strings)
 names a function in module scope, as a literal suffix does:
 
 ```text
-use std.ops.r
+use std.text.r
 
 fn escape(r: i32) -> string:
-    r"\d+"  # std.ops.r, not the parameter
+    r"\d+"  # std.text.r, not the parameter
 ```
 
 1. r[names.prefix.module-name] A string prefix is resolved as a module name: a declaration at module scope, or a name that a use declaration or the prelude introduces.

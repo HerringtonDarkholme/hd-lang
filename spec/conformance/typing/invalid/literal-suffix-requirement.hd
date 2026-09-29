@@ -1,13 +1,13 @@
-# test: a suffix function needs no providers, checked at the literal
-# Spec 05 Literal Suffixes: expr.suffix.fn-shape.reader reports a provider-needing suffix at `12px`.
+# test: a suffix function's requirement row joins the caller's row, as any call's does
+# Spec 05 Literal Suffixes: expr.suffix.ordinary-rules; `12px` needs Console where the row is empty.
 use std.ops.num_suffix
 
-data Pixels:
+pub data Pixels:
     count: i32
 
 @num_suffix
 fn px(count: i32) -> Pixels $ Console:
     Pixels { count: count }
 
-fn layout() -> Pixels $ Console:
-    12px  # diagnostic: invalid-literal-suffix
+pub fn layout() -> Pixels:
+    12px  # diagnostic: missing-requirement

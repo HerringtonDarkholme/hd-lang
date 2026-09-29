@@ -1,6 +1,6 @@
 # test: the standard prefix r takes any displayable value
-# Spec 05 Prefixed Strings: r is an ordinary std.ops prefix over Template[Display].
-use std.ops.r
+# Spec 05 Prefixed Strings: r is an ordinary std.text prefix over Template[Display].
+use std.text.r
 
 fn digits(count: i32) -> string:
     r"\d{$count}"  # the text \d{ then count, then }

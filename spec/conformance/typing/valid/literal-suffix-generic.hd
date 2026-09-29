@@ -1,0 +1,13 @@
+# test: a suffix function may be generic; its type arguments are inferred at the literal
+# Spec 05 Literal Suffixes: expr.suffix.ordinary-rules (Literal Suffixes L20).
+use std.ops.num_suffix
+
+data Count[T]:
+    count: i64
+
+@num_suffix
+fn counted[T](count: i64) -> Count[T]:
+    Count { count: count }
+
+fn apples() -> Count[string]:
+    3counted

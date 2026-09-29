@@ -688,7 +688,7 @@ price := "$"  # error: syntax-error
 
 #### Raw Strings
 
-1. r[lex.raw-string.none] hd has no built-in raw string literal. `r"..."` is a [prefixed string](#prefixed-strings) whose prefix is the standard function `std.ops.r`.
+1. r[lex.raw-string.none-text] hd has no built-in raw string literal. `r"..."` is a [prefixed string](#prefixed-strings) whose prefix is the standard function `std.text.r`.
 
 #### Prefixed Strings
 

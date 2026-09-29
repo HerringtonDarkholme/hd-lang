@@ -1,0 +1,10 @@
+# test: a suffix function may declare more parameters when each has a default
+# Spec 05 Literal Suffixes: expr.suffix.fn-shape-required counts required parameters (Literal Suffixes L21).
+use std.ops.num_suffix
+
+@num_suffix
+fn kb(count: i64, unit: i64 = 1024) -> i64:
+    count * unit
+
+fn buffer() -> i64:
+    4kb
