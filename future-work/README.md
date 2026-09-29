@@ -111,6 +111,7 @@ language specification:
   operator traits on 13 library cases, and ranks 14 problems (ST-1 to
   ST-14), led by `+=` aliasing and `from_i64`'s silent wrap, with 11
   owner questions.
+- [Pipe Operator And Iterator `map`/`fold`](PIPE_OPERATOR.md) surveys pipes, UFCS, and extension methods in 17 languages, compares five options, and asks PL1-PL9.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 

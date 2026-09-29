@@ -856,6 +856,10 @@ safe, so `mut Iterator[T]` could not be a value type. That point and six
 `std`-only ones, each with a recommendation, are in
 [STDLIB Still Open](STDLIB.md#still-open).
 
+### Pipe Operator
+
+**Open.** [Pipe Operator](PIPE_OPERATOR.md#questions-for-the-owner) asks PL1-PL9: how `map` and `fold` reach iterators, and whether and how hd gets `|>`.
+
 ### Cross-Feature Stress Test (2026-09-29)
 
 **Open.** [STRESS_2026_09_29](STRESS_2026_09_29.md#questions-for-the-owner) asks 11 questions across OP, L, D, RU, and DC, led by the `+=` fallback and a checked `from_i64`.
