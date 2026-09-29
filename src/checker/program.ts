@@ -15,7 +15,12 @@ import { validateProgram } from "./program-validation.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 import { validateHostCapabilities } from "./host-capabilities.ts";
 import { importedMarkerFunctions, withStandardLibrary } from "./standard-library.ts";
-import { checkDecoratorTargets, markerFunctions, withBareMarkerCalls } from "./decorators.ts";
+import {
+  checkDecoratorTargets,
+  markerFunctions,
+  withBareMarkerCalls,
+  withSuffixMarkers,
+} from "./decorators.ts";
 import { withStandardTraits } from "./standard-traits.ts";
 import { withFunctionTypeConstructors } from "./function-types.ts";
 import { hoistLocalDeclarations } from "./local-declarations.ts";
@@ -69,7 +74,9 @@ export function check(source: Program, options: CheckOptions = {}): CheckResult 
 function checkProgram(source: Program, options: CheckOptions): CheckResult {
   const joined = withStandardLibrary(source);
   const hoisted = hoistLocalDeclarations(
-    withStandardTraits(withBareMarkerCalls(joined, markerFunctions(joined.functions))),
+    withStandardTraits(
+      withSuffixMarkers(withBareMarkerCalls(joined, markerFunctions(joined.functions))),
+    ),
   );
   // Target kinds are checked before newtypes are lowered to data types
   // (spec/14-annotations.md#target-kinds).

@@ -23,8 +23,9 @@ import { factType } from "./typed-derivation.ts";
 //   it lists (annot.target.limit.error). The check reads the `@annotate`
 //   arguments syntactically, as the prototype's other fact passes do.
 
-/** The qualified names the compiler recognizes (annot.target.recognized). */
+/** The qualified names the compiler recognizes (annot.target.recognized, expr.suffix.marker). */
 export const STANDARD_ANNOTATE = "std.annotation.Annotate";
+export const STANDARD_NUM_SUFFIX = "std.ops.NumSuffix";
 
 /** A target kind: a variant of `std.annotation.Target`, or none for a newtype. */
 type TargetKind =
@@ -176,6 +177,31 @@ export function markerFunctions(functions: readonly FunctionDecl[]): Set<string>
       .filter((declaration) => declaration.parameters.length === 0)
       .map((declaration) => declaration.name),
   );
+}
+
+/**
+ * Marks each function that carries a `std.ops.NumSuffix` value as a suffix
+ * function (spec/05-expressions.md#r-expr.suffix.marker). It runs after the
+ * standard library is joined, so the marker's declaration is known.
+ */
+export function withSuffixMarkers(program: Program): Program {
+  const functions = new Map(program.functions.map((item) => [item.name, item] as const));
+  const markers = new Set(
+    program.data
+      .filter((item) => item.standardName === STANDARD_NUM_SUFFIX)
+      .map((item) => item.name),
+  );
+  if (markers.size === 0) return program;
+  const marked = (declaration: FunctionDecl): boolean =>
+    (declaration.decorators?.facts ?? []).some((fact) =>
+      markers.has(baseTypeName(factType(fact, functions))),
+    );
+  return {
+    ...program,
+    functions: program.functions.map((declaration) =>
+      marked(declaration) ? { ...declaration, numSuffix: true } : declaration,
+    ),
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -316,6 +316,7 @@ export function createProgramSignatures(
       result: normalizedResult,
       requirements,
       ...(declaration.testOnly ? { testOnly: true } : {}),
+      ...(declaration.numSuffix ? { numSuffix: true } : {}),
       span: declaration.span,
     });
   });

@@ -1,4 +1,11 @@
-# std.ops: the traits behind literal syntax (spec/09-traits.md#literal-suffix-trait).
+# std.ops: the literal-suffix marker (spec/05-expressions.md#literal-suffixes).
+# A suffix function is one marked `@num_suffix`; the compiler recognizes
+# `std.ops.NumSuffix` by its qualified name (r-expr.suffix.marker), and
+# `@annotate(.Fn)` limits the marker to functions (r-expr.suffix.marker.module).
+use std.annotation.annotate
 
-pub trait LiteralSuffix[In, Out]:
-    fn from_literal(n: In) -> Out
+@annotate(.Fn)
+pub data NumSuffix: pass
+
+pub fn num_suffix() -> NumSuffix:
+    NumSuffix {}

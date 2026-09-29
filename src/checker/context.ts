@@ -92,6 +92,8 @@ export interface Signature {
   readonly requirements: readonly string[];
   /** Declared in a `tests:` block (spec/03-names-and-scopes.md#tests-blocks). */
   readonly testOnly?: boolean;
+  /** A suffix function, marked `@num_suffix` (spec/05-expressions.md#r-expr.suffix.marker). */
+  readonly numSuffix?: boolean;
   readonly span: SourceSpan;
 }
 

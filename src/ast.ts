@@ -90,6 +90,8 @@ export interface FunctionDecl {
   readonly intrinsic?: string;
   /** Declared by the standard library (`lib/std/`), which declares prelude names such as `println`. */
   readonly standard?: boolean;
+  /** Carries a `std.ops.NumSuffix` value: a suffix function (05-expressions.md#r-expr.suffix.marker). */
+  readonly numSuffix?: boolean;
 }
 
 export interface MethodDecl {
@@ -537,8 +539,8 @@ export type Expression =
       readonly arguments: readonly Expression[];
       readonly argumentNames?: readonly (string | undefined)[];
       readonly argumentSpreads?: readonly boolean[];
-      // Set when a suffixed literal such as `250ms` desugared to this call of
-      // `ms::from_literal(250)` (05-expressions.md#literal-suffixes).
+      // Set when a suffixed literal such as `250ms` desugared to this call
+      // `ms(250)` of its suffix function (05-expressions.md#literal-suffixes).
       readonly literalSuffix?: string;
       readonly span: SourceSpan;
     }

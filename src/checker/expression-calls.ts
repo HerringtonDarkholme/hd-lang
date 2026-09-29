@@ -29,6 +29,7 @@ import {
 
 import { type QualifiedCallExpression, TraitCallChecker } from "./trait-calls.ts";
 import { isDowncastValImport } from "./inspectable.ts";
+import { checkLiteralSuffixCall } from "./literal-suffixes.ts";
 import { TYPE_ID } from "./standard-traits.ts";
 import { STRUCTURE_AS_DECLARED, STRUCTURE_MISMATCH } from "./typed-derivation.ts";
 type CallExpression = Extract<Expression, { kind: "call" }>;
@@ -87,6 +88,18 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
     }
     if (expression.callee.kind === "qualified-name") {
       return this.checkQualifiedCall(expression as QualifiedCallExpression, expected);
+    }
+    // A suffixed literal calls its suffix function, found in module scope
+    // only (03-names-and-scopes.md#r-names.suffix.no-local).
+    if (expression.literalSuffix && expression.callee.kind === "name") {
+      const name = expression.callee.name;
+      return checkLiteralSuffixCall(
+        name,
+        this.visibleSignature(name),
+        this.globals.has(name) || this.dataTypes.has(name) || this.enumTypes.has(name),
+        (code, message) => this.fail(code, message, expression.span),
+        () => this.checkDeclaredCall(expression as NamedCallExpression, expected),
+      );
     }
     if (
       expression.callee.kind !== "name" ||
@@ -1255,11 +1268,7 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       const inspection = this.checkInspectFunctionCall(expression, "of", expected);
       if (inspection) return inspection;
     }
-    // A literal suffix resolves in module scope only, so a local or a
-    // top-level binding of the same name never changes what `5s` calls
-    // (03-names-and-scopes.md#r-names.suffix.no-local).
     if (
-      !expression.literalSuffix &&
       !this.traitTypes.has(owner) &&
       (this.resolveLocal(owner) || this.availableCaptures.has(owner) || this.resolveGlobal(owner))
     )
@@ -1423,14 +1432,6 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
         this.fail(
           "unknown-type",
           `unknown associated-function owner '${ownerType}'`,
-          expression.callee.span,
-        );
-      // A suffix type must implement LiteralSuffix
-      // (05-expressions.md#r-expr.suffix.not-implemented).
-      if (expression.literalSuffix)
-        this.fail(
-          "unsatisfied-trait-bound",
-          `literal suffix '${expression.literalSuffix}' names a type that does not implement std.ops.LiteralSuffix`,
           expression.callee.span,
         );
       this.fail(

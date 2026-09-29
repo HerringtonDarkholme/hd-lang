@@ -48,16 +48,13 @@ test("lexer keeps literal suffixes on decimal and float numbers only", () => {
   );
 });
 
-test("parser desugars a suffixed literal to a from_literal call, folding a minus", () => {
+test("parser desugars a suffixed literal to a call of its suffix function, folding a minus", () => {
   const program = parse("fn f() -> i32:\n    -5px\n").program!;
   const expression = program.functions[0]!.body.at(-1);
   assert.ok(expression?.kind === "expression");
   const call = expression.expression;
   assert.ok(call.kind === "call" && call.literalSuffix === "px");
-  assert.deepEqual(call.callee.kind === "qualified-name" && [call.callee.owner, call.callee.name], [
-    "px",
-    "from_literal",
-  ]);
+  assert.equal(call.callee.kind === "name" && call.callee.name, "px");
   assert.equal(call.arguments[0]?.kind, "unary");
 });
 

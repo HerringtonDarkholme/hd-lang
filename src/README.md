@@ -478,15 +478,20 @@ else`, `break`, `break value`, and `continue`;
 - imported `std.resource.ResourceError[E]` as the canonical generic
   `Operation(E) | Disposed` enum, using the same erased Wasm GC representation
   as source-declared generic enums;
-- literal suffixes (Literal Suffixes L1-L9, L12, L13, and L15-L17): `250ms`
-  and `1.5kb` lex as one number with a suffix, and the parser desugars them
-  to `ms::from_literal(250)`, folding a directly applied `-` into the
-  literal. Radix literals take no suffix, and a reserved-word suffix such as
-  `5else` is `invalid-token`. `std.ops.LiteralSuffix` and `std.time`
-  (`Duration`, an `i64` count of milliseconds in the prototype's own
-  `millis` field, and the suffix newtypes `ms`, `s`, `min`, and `h`) come
-  from the [standard library](#standard-library), so a library suffix type
-  works. A test `timeout` is checked as a `Duration` and enforced after the
+- literal suffixes (Literal Suffixes L1-L18, L11 with Decorators
+  D9's names): `250ms` and `1.5kb` lex as one number with a suffix, and the
+  parser desugars them to the call `ms(250)`, folding a directly applied
+  `-` into the literal. Radix literals take no suffix, and a reserved-word
+  suffix such as `5else` is `invalid-token`. The checker resolves the
+  suffix among module-scope functions only, requires a function marked
+  `@num_suffix` (`FunctionDecl.numSuffix`, set after the std join by
+  `checker/decorators.ts` from a value of `std.ops.NumSuffix`), checks the
+  ordinary call, and then the suffix shape (`checker/literal-suffixes.ts`),
+  reporting `invalid-literal-suffix` at the literal. `std.ops` and
+  `std.time` (`Duration`, an `i64` count of milliseconds in the
+  prototype's own `millis` field, and the suffix functions `ms`, `s`,
+  `min`, and `h`) come from the [standard library](#standard-library), so
+  a library suffix function works. A test `timeout` is checked as a `Duration` and enforced after the
   body returns (see `hd test` above);
 - imported `std.convert.From[T]` and `std.error.Error` as trait
   declarations in the compiled module; `?` on a `Result` converts the error
@@ -735,10 +740,10 @@ What it provides:
 | `std.iter` | `range`, and the adapters `map_each`, `filter`, `take`, `enumerate`, `collect`, `fold` as free functions |
 | `std.cmp` | `min`, `max`, `clamp`, `Reverse[T]` |
 | `std.num` | on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
-| `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffixes `ms`, `s`, `min`, `h` |
+| `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
-| `std.ops` | `LiteralSuffix` |
+| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker |
 | `std.format` | `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and pairs |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives and `string`), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
 

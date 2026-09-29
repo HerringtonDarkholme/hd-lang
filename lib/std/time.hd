@@ -4,7 +4,8 @@
 # `milliseconds`, `seconds`, and `as_milliseconds` (r-expr.suffix.std.duration-api);
 # the `millis` field is the prototype's own. Each suffix scales its literal by
 # checked `i64` multiplication, so an overflow panics (r-expr.suffix.std.overflow).
-use std.ops.LiteralSuffix
+# Each suffix is a function marked `@num_suffix` (r-expr.suffix.std.fn).
+use std.ops.num_suffix
 
 pub data Duration:
     millis: i64
@@ -19,23 +20,18 @@ impl Duration:
     pub fn as_milliseconds(self) -> i64:
         self.millis
 
-pub type ms(i64)
-pub type s(i64)
-pub type min(i64)
-pub type h(i64)
+@num_suffix
+pub fn ms(count: i64) -> Duration:
+    Duration::milliseconds(count)
 
-impl LiteralSuffix[i64, Duration] for ms:
-    fn from_literal(n: i64) -> Duration:
-        Duration::milliseconds(n)
+@num_suffix
+pub fn s(count: i64) -> Duration:
+    Duration::seconds(count)
 
-impl LiteralSuffix[i64, Duration] for s:
-    fn from_literal(n: i64) -> Duration:
-        Duration::seconds(n)
+@num_suffix
+pub fn min(count: i64) -> Duration:
+    Duration::seconds(count * 60)
 
-impl LiteralSuffix[i64, Duration] for min:
-    fn from_literal(n: i64) -> Duration:
-        Duration::seconds(n * 60)
-
-impl LiteralSuffix[i64, Duration] for h:
-    fn from_literal(n: i64) -> Duration:
-        Duration::seconds(n * 3600)
+@num_suffix
+pub fn h(count: i64) -> Duration:
+    Duration::seconds(count * 3600)

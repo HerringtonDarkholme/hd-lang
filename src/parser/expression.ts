@@ -286,9 +286,8 @@ export abstract class ExpressionParser extends ParserBase {
     }
   }
 
-  // A suffixed literal `Nx` is the call `x::from_literal(N)` of the suffix
-  // type's `std.ops.LiteralSuffix` implementation
-  // (05-expressions.md#literal-suffixes).
+  // A suffixed literal `Nx` is the call `x(N)` of the suffix function `x`
+  // (05-expressions.md#r-expr.suffix.fn-call).
   private suffixedLiteral(token: Token, suffix: NonNullable<Token["suffix"]>): Expression {
     const numberSpan = { start: token.span.start, end: suffix.span.start };
     const literal: Expression =
@@ -297,12 +296,7 @@ export abstract class ExpressionParser extends ParserBase {
         : { kind: "float", value: token.value as number, span: numberSpan };
     return {
       kind: "call",
-      callee: {
-        kind: "qualified-name",
-        owner: suffix.name,
-        name: "from_literal",
-        span: token.span,
-      },
+      callee: { kind: "name", name: suffix.name, span: token.span },
       arguments: [literal],
       literalSuffix: suffix.name,
       span: token.span,
@@ -315,7 +309,7 @@ export abstract class ExpressionParser extends ParserBase {
       this.advance();
       const operand = this.parseExpression(11);
       // `-5s` negates the literal before the suffix applies: it is
-      // `s::from_literal(-5)` (04-type-system.md#suffixed-literals).
+      // `s(-5)` (04-type-system.md#suffixed-literals).
       if (token.text === "-" && operand.kind === "call" && operand.literalSuffix) {
         const literal = operand.arguments[0]!;
         const span = { start: token.span.start, end: operand.span.end };
