@@ -1,0 +1,5 @@
+# test: a written type with more type arguments than its declaration has generic parameters is argument-count
+# Spec 04 Generic Arguments: types.generic.too-long (Type-Argument Defaults TD9).
+
+fn count(names: List[string, i32]) -> i32:  # diagnostic: argument-count
+    0

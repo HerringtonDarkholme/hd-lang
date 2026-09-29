@@ -1394,3 +1394,24 @@ style lint rejects a chapter that reuses one.
 - `types.trait.safe.convert`: retired 2026-09-29. The owner's evening
   follow-up 10 drops optionals from the values that need conversion, since
   every enum is `AnyRef`. Replaced by `types.trait.safe.convert-value`.
+- `fn.generic.explicit.too-long`: retired 2026-09-29. Type-Argument
+  Defaults TD9 names the code `argument-count`. Replaced by
+  `fn.generic.explicit.too-long-count` and `types.generic.too-long`.
+- `expr.op.trait.shape`: retired 2026-09-29. TD10 gives a binary operator
+  trait's `Rhs` the default `Self`. Replaced by
+  `expr.op.trait.shape-default`, `expr.op.trait.rhs-self`, and
+  `expr.op.trait.rhs-explicit`.
+- `trait.binding.name-reach.ambiguous`: retired 2026-09-29. Owner
+  decision AT3 reports an ambiguous binding name with the new code
+  `ambiguous-associated-type`. Replaced by
+  `trait.binding.name-reach.ambiguous-type`.
+- `trait.binding.positions-value`: retired 2026-09-29. AT5 lets a
+  requirement key bind associated types. Replaced by
+  `trait.binding.positions-key` and `req.key.binding`.
+- `grammar.generic.binding.positions`: retired 2026-09-29. Under AT5 a
+  `requirement_key` accepts bindings. Replaced by
+  `grammar.generic.binding.positions-key` and
+  `grammar.type.row.key-binding`.
+- `grammar.generic.binding.trait-type`: retired 2026-09-29. Under AT5 a
+  requirement key is no longer a `trait_type`. Replaced by
+  `grammar.generic.binding.trait-type-only`.

@@ -1,0 +1,26 @@
+# test: a requirement key may bind associated types wherever a key is written
+# Spec 02 Requirement Clauses: grammar.type.row.key-binding, grammar.type.row.key-binding.everywhere (owner decision AT5).
+
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+trait Log:
+    fn write(self, line: string) -> void
+
+type UserRow = Store[Item = string] + Log
+
+fn find(id: string) -> string $ Store[Item = string] + Log:
+    $.use(Store[Item = string]).load(id)
+
+fn both(id: string) -> string $ UserRow:
+    store, log := $.use(Store[Item = string], Log)
+    store.load(id)
+
+fn keep(handler: fn(string) -> string $ Store[Item = string]) -> $.Context[Store[Item = string]]:
+    panic("unreachable")
+
+fn install(store: Store[Item = string], id: string) -> string $ Log:
+    ctx := $.context(Store[Item = string]=store)
+    $.with(Store[Item = string]=store):
+        find(id)

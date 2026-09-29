@@ -1,0 +1,8 @@
+# test: an explicit type-argument list longer than the function's generic parameters is argument-count
+# Spec 07 Explicit Type Arguments: fn.generic.explicit.too-long-count (Type-Argument Defaults TD9).
+
+fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
+    (left, right)
+
+fn triple() -> (string, i32):
+    pair[string, i32, bool]("left", 1)  # diagnostic: argument-count

@@ -1,0 +1,18 @@
+# test: a row that binds another associated type does not entail a bound key
+# Spec 11 Bound Requirement Keys: req.key.binding.identity, req.key.binding.rows (owner decision AT5).
+
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+data User:
+    name: string
+
+data Post:
+    title: string
+
+fn find(id: string) -> User $ Store[Item = User]:
+    $.use(Store[Item = User]).load(id)
+
+fn wrong(id: string) -> User $ Store[Item = Post]:
+    find(id)  # diagnostic: missing-requirement

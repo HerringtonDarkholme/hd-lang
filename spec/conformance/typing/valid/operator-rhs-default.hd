@@ -1,0 +1,31 @@
+# test: a binary operator trait's Rhs defaults to Self, and the explicit argument names the same trait
+# Spec 05 Operator Traits: expr.op.trait.shape-default, expr.op.trait.rhs-self, expr.op.trait.rhs-explicit (Type-Argument Defaults TD10).
+use std.ops.{Add, Sub}
+
+data Money:
+    cents: i64
+
+impl Add for Money:
+    type Out = Money
+    fn add(self, rhs: Money) -> Money:
+        Money { cents: self.cents + rhs.cents }
+
+impl Sub[Money] for Money:
+    type Out = Money
+    fn sub(self, rhs: Money) -> Money:
+        Money { cents: self.cents - rhs.cents }
+
+fn total[T < Add[Out = T]](left: T, right: T) -> T:
+    left + right
+
+fn spread[T < Sub[T, Out = T]](left: T, right: T) -> T:
+    left - right
+
+fn net(price: Money, refund: Money) -> Money:
+    spread(total(price, refund), refund)
+
+fn explicit(price: Money, refund: Money) -> Money:
+    Add[Money]::add(price, refund)
+
+fn count(left: i32, right: i32) -> i32:
+    total(left, right)

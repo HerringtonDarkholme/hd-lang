@@ -100,6 +100,8 @@ A package's versions are the git tags of its repository:
 7. r[module.version.line] The **compatibility line** of a version is its major number when the major is at least 1, and `0.MINOR` when the major is 0.
 8. r[module.version.pseudo.release] A tagged version's manifest may require a pseudo-version.
 9. r[module.version.no-path-release] A tagged version's manifest must not hold a path requirement. Such a version is rejected when it is fetched, and the toolchain does not tag one.
+10. r[module.version.tag-missing] A dependency requirement whose version is not a pseudo-version, and whose package has no tag for that version, is invalid. So `lint = "github.com/acme/tools/lint@2.4.1"` is invalid when the repository has no tag `lint/v2.4.1`.
+11. r[module.version.no-fallback] The toolchain never falls back to an untagged commit or to a nearby version in place of a missing tag.
 
 Pseudo-versions take Go's three forms:
 
@@ -111,6 +113,12 @@ Pseudo-versions take Go's three forms:
 
 > **Note.** A pseudo-version is a pre-release, so it orders below the
 > release it precedes, and pseudo-versions of one base order by time.
+
+> **Why.** A requirement names one exact release, so a typo or a deleted
+> tag fails the build rather than silently choosing other code. Go reports
+> the same case as `unknown revision`. The error's code is named with the
+> other manifest diagnostics, once the manifest schema is written
+> ([`module.tooling.package-schema`](#r-module.tooling.package-schema)).
 
 ### Version Selection
 
@@ -157,6 +165,8 @@ A workspace builds several packages of one repository as one graph.
 4. r[module.workspace.sum] A workspace has one `hd.sum`, beside its workspace manifest.
 5. r[module.workspace.path-requirement] A member depends on another member of its workspace through a **path requirement**, `{ path = "DIR" }`, where `DIR` is the other member's directory relative to the requiring manifest.
 6. r[module.workspace.no-host-path] A member does not require another member by host path.
+7. r[module.workspace.fetched-member] A fetched package may require a member's host path. Selection then treats that host path as any other and fetches the selected version, which is a package separate from the local member.
+8. r[module.workspace.fetched-member.two] The build then holds two packages, the local member and the fetched version. Neither stands in for the other.
 
 ```toml
 [dependencies]
@@ -167,6 +177,11 @@ json = "github.com/acme/json@2.1.0"
 > **Note.** A member released while it requires another member through a
 > path requirement would break [`module.version.no-path-release`](#r-module.version.no-path-release),
 > so its release manifest names that member by dependency requirement.
+
+> **Why.** A member states no host path
+> ([`module.dep.no-self-path`](#r-module.dep.no-self-path)), so nothing
+> ties it to a fetched version of the same repository. Cargo likewise
+> treats a path source and a git source of one crate as two packages.
 
 ### Toolchain Version
 

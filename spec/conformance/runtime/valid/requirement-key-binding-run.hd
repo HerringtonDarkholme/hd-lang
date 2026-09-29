@@ -1,0 +1,28 @@
+# test: a provider installed for a bound key is the value $.use returns, with the bound item type
+# Spec 11 Bound Requirement Keys: req.key.binding.value; Provider Scopes: req.with.type.binding (owner decision AT5).
+use std.testing.assert_equal
+
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+data User:
+    name: string
+
+data UserStore:
+    prefix: string
+
+impl Store for UserStore:
+    type Item = User
+    fn load(self, id: string) -> User: User { name: self.prefix + id }
+
+fn find(id: string) -> User $ Store[Item = User]:
+    $.use(Store[Item = User]).load(id)
+
+fn serve(id: string) -> string:
+    $.with(Store[Item = User]=UserStore { prefix: "user-" }):
+        find(id).name
+
+tests:
+    it("loads through the bound key"):
+        assert_equal(serve("7"), "user-7", reason="the provider's load returns a User")

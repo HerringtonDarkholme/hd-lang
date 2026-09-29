@@ -1,0 +1,21 @@
+# test: row subsumption compares bound keys by their bindings
+# Spec 11 Bound Requirement Keys: req.key.binding.rows; Row Subsumption: req.row.subsume.missing (owner decision AT5).
+
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+data User:
+    name: string
+
+data Post:
+    title: string
+
+fn find(id: string) -> User $ Store[Item = User]:
+    $.use(Store[Item = User]).load(id)
+
+fn keep(handler: fn(string) -> User $ Store[Item = Post]) -> void:
+    pass
+
+fn run() -> void:
+    keep(find)  # diagnostic: type-mismatch

@@ -3,13 +3,13 @@
 use std.ops.{Add, Rem}
 use std.testing.assert_equal
 
-fn sum[T < Add[T, Out = T]](items: List[T], zero: T) -> T:
+fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
     let total = zero
     for item in items:
         total = total + item
     total
 
-fn remainder[T < Rem[T, Out = T]](left: T, right: T) -> T:
+fn remainder[T < Rem[Out = T]](left: T, right: T) -> T:
     left % right
 
 tests:

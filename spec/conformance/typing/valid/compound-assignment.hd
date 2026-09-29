@@ -4,7 +4,7 @@ use std.ops.Add
 
 type Meters(i64)
 
-impl Add[Meters] for Meters:
+impl Add for Meters:
     type Out = Meters
     fn add(self, rhs: Meters) -> Meters:
         Meters(i64(self) + i64(rhs))

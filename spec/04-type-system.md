@@ -832,6 +832,12 @@ fn clear_value[T < mut Clear](value: T) -> void:
 3. r[types.generic.short-list] An explicit list in an expression may omit trailing slots. Each omitted slot is inferred as a `_` slot is, then defaulted.
 4. r[types.generic.placeholder-slot] In a generic function's or method's explicit list, `_` may occupy any slot and requests inference for that argument.
 5. r[types.generic.placeholder.not-type] `_` is not itself a type and is invalid in ordinary type applications.
+6. r[types.generic.too-long] A type-argument list with more positional arguments than its declaration has generic parameters is an error, in an expression and in a written type alike. Error: `argument-count`.
+
+```text
+fn count(names: List[string, i32]) -> i32:  # error: argument-count
+    0
+```
 
 ### Type-Argument Defaults
 

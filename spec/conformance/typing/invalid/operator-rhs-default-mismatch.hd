@@ -1,0 +1,14 @@
+# test: impl Add for Money implements Add[Money] only, so Money + i64 has no implementation
+# Spec 05 Operator Traits: expr.op.trait.rhs-self, expr.op.no-impl (Type-Argument Defaults TD10).
+use std.ops.Add
+
+data Money:
+    cents: i64
+
+impl Add for Money:
+    type Out = Money
+    fn add(self, rhs: Money) -> Money:
+        Money { cents: self.cents + rhs.cents }
+
+fn bump(price: Money, cents: i64) -> Money:
+    price + cents  # diagnostic: type-mismatch

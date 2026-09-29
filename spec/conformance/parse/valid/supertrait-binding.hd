@@ -1,5 +1,5 @@
 # test: supertrait_bounds accept associated type bindings
-# Spec 02 Associated Type Bindings In Bounds: grammar.generic.binding.positions (Operator Traits OP8).
-trait Additive < Add[Self, Out = Self] & Sub[Self, Out = Self]
+# Spec 02 Associated Type Bindings In Bounds: grammar.generic.binding.positions-key (Operator Traits OP8).
+trait Additive < Add[Out = Self] & Sub[Self, Out = Self]
 
 trait Complement < Not[Out = Self] & Shl[u32, Out = Self]

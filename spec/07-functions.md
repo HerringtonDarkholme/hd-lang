@@ -759,7 +759,7 @@ first[string](names)
 ### Explicit Type Arguments
 
 1. r[fn.generic.explicit.trailing] An explicit type-argument list may omit trailing slots. Each omitted slot is inferred as a `_` slot is, then takes its default if inference leaves it unsolved.
-2. r[fn.generic.explicit.too-long] A list with more slots than the function has generic parameters is invalid.
+2. r[fn.generic.explicit.too-long-count] A list with more slots than the function has generic parameters is an error. Error: `argument-count`.
 3. r[fn.generic.explicit.row] The slot of a row parameter takes a [row type argument](02-grammar.md#row-type-arguments): a row after `$`, one bare key, or a bare row alias ([`req.row.alias.bare`](11-requirements-and-suspension.md#r-req.row.alias.bare)).
 
 ```text
@@ -767,6 +767,14 @@ fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
     (left, right)
 
 value := pair[string]("left", 1)  # Right is inferred as i32
+```
+
+```text
+fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
+    (left, right)
+
+fn triple() -> (string, i32):
+    pair[string, i32, bool]("left", 1)  # error: argument-count
 ```
 
 > **Why.** A list names only the leading arguments the reader should see or

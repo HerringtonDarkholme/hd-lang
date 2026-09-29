@@ -9,12 +9,12 @@ data Stamp:
 data Span:
     length: i64
 
-impl Sub[Stamp] for Stamp:
+impl Sub for Stamp:
     type Out = Span
     fn sub(self, rhs: Stamp) -> Span:
         Span { length: self.at - rhs.at }
 
-impl Add[Span] for Span:
+impl Add for Span:
     type Out = Span
     fn add(self, rhs: Span) -> Span:
         Span { length: self.length + rhs.length }

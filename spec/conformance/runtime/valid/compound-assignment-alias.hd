@@ -6,7 +6,7 @@ use std.testing.assert_equal
 data Score:
     points: i64
 
-impl Add[Score] for Score:
+impl Add for Score:
     type Out = Score
     fn add(self, rhs: Score) -> Score:
         Score { points: self.points + rhs.points }

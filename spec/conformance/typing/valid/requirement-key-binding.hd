@@ -1,0 +1,35 @@
+# test: a bound requirement key works in rows, row aliases, row subsumption, and provider scopes
+# Spec 11 Bound Requirement Keys: req.key.binding, req.key.binding.rows, req.key.binding.value; req.row.alias.bound-key; req.with.type.binding (owner decision AT5).
+
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+trait Log:
+    fn write(self, line: string) -> void
+
+data User:
+    name: string
+
+data UserStore: pass
+
+impl Store for UserStore:
+    type Item = User
+    fn load(self, id: string) -> User: User { name: id }
+
+type Users = Store[Item = User]
+
+type AppRow = Store[Item = User] + Log
+
+fn find(id: string) -> User $ Store[Item = User]:
+    $.use(Store[Item = User]).load(id)
+
+fn greet(id: string) -> string $ Users:
+    find(id).name
+
+fn handlers() -> List[fn(string) -> string $ AppRow]:
+    [greet]
+
+fn serve(id: string) -> string:
+    $.with(Store[Item = User]=UserStore {}):
+        greet(id)

@@ -1101,7 +1101,7 @@ fn first[T, I < NamedSupplier[Item = T]](source: I) -> T:
 1. r[trait.binding.scope] The bound type may name any parameter of the same generic parameter list.
 2. r[trait.binding.name-reach] A binding name must be an associated type that the named trait declares or reaches through its supertraits, as `NamedSupplier` reaches `Supplier`'s `Item`. Naming anything else is an error. Error: `unknown-associated-type`.
 3. r[trait.binding.name-reach.meaning] A binding of a supertrait's associated type constrains that supertrait's projection, so `I::Item` above equals `T`.
-4. r[trait.binding.name-reach.ambiguous] When two different associated type declarations reachable that way have the name, the binding is ambiguous. An ambiguous binding is an error. Error: `ambiguous-method`.
+4. r[trait.binding.name-reach.ambiguous-type] When two different associated type declarations reachable that way have the name, the binding is ambiguous. An ambiguous binding is an error. Error: `ambiguous-associated-type`.
 5. r[trait.binding.once] Each projection may be bound at most once in one generic parameter list.
 6. r[trait.binding.once.error] A second binding of the same parameter's associated type, in the same bound or another bound, is an error even when both bindings name the same type. Error: `duplicate-associated-binding`.
 
@@ -1124,7 +1124,7 @@ trait Keyed:
 
 trait Record < Named & Keyed
 
-fn third[T, R < Record[Item = T]](record: R) -> T:  # error: ambiguous-method
+fn third[T, R < Record[Item = T]](record: R) -> T:  # error: ambiguous-associated-type
     panic("unreachable")
 ```
 
@@ -1134,7 +1134,7 @@ fn third[T, R < Record[Item = T]](record: R) -> T:  # error: ambiguous-method
 
 #### Binding Positions
 
-1. r[trait.binding.positions-value] Bindings appear in generic parameter bounds, in supertrait lists, and in [trait value types](#bound-associated-types).
+1. r[trait.binding.positions-key] Bindings appear in generic parameter bounds, in supertrait lists, in [trait value types](#bound-associated-types), and in [requirement keys](11-requirements-and-suspension.md#r-req.key.binding).
 2. r[trait.binding.rejected-trait-type] The trait of an `impl` header, a trait-qualified call, and a method reference do not accept them. The grammar reports an error there. Error: `syntax-error`.
 3. r[trait.binding.non-trait] A binding in the arguments of a named type that is not a trait, as in `List[i32, Item = i32]`, is an error. Error: `unknown-associated-type`.
 4. r[trait.binding.ambiguous] A binding does not make an ambiguous projection unambiguous: when two bounds on `I` both declare `Item`, `I::Item` is still ambiguous even if one of them binds it.
@@ -1147,7 +1147,7 @@ implementation fixes it:
 ```text
 use std.ops.Add
 
-trait Summable < Add[Self, Out = Self]
+trait Summable < Add[Out = Self]
 
 fn double[T < Summable](value: T) -> T:
     value + value
@@ -1162,12 +1162,12 @@ fn double[T < Summable](value: T) -> T:
 ```text
 use std.ops.Add
 
-trait Summable < Add[Self, Out = Self]
+trait Summable < Add[Out = Self]
 
 data Money:
     cents: i64
 
-impl Add[Money] for Money:
+impl Add for Money:
     type Out = i64
     fn add(self, rhs: Money) -> i64:
         self.cents + rhs.cents
@@ -1429,7 +1429,7 @@ fn kilo[N < Num](n: N) -> N:
 `Num` is declared in this shape:
 
 ```text
-pub trait Num < AnyVal & PartialOrd & Display & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Self, Out = Self] & Div[Self, Out = Self] & Rem[Self, Out = Self]:
+pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self] & Mul[Out = Self] & Div[Out = Self] & Rem[Out = Self]:
     fn zero() -> Self
     fn one() -> Self
     fn from_i64(n: i64) -> Self
@@ -1437,8 +1437,8 @@ pub trait Num < AnyVal & PartialOrd & Display & Add[Self, Out = Self] & Sub[Self
 
 | Rule | Trait | Supertraits |
 | --- | --- | --- |
-| r[trait.num.num-ordered] Num | `Num` | `AnyVal`, `PartialOrd` (and so `Eq`), `Display`, and `Add`, `Sub`, `Mul`, `Div`, and `Rem`, each as `[Self, Out = Self]` |
-| r[trait.num.integer] Integer | `Integer` | `Num`, `Ord`, `BitAnd`, `BitOr`, and `BitXor`, each as `[Self, Out = Self]`, `Not[Out = Self]`, `Shl[u32, Out = Self]`, and `Shr[u32, Out = Self]` |
+| r[trait.num.num-ordered] Num | `Num` | `AnyVal`, `PartialOrd` (and so `Eq`), `Display`, and `Add`, `Sub`, `Mul`, `Div`, and `Rem`, each as `[Out = Self]` |
+| r[trait.num.integer] Integer | `Integer` | `Num`, `Ord`, `BitAnd`, `BitOr`, and `BitXor`, each as `[Out = Self]`, `Not[Out = Self]`, `Shl[u32, Out = Self]`, and `Shr[u32, Out = Self]` |
 | r[trait.num.float] Float | `Float` | `Num`, `PartialOrd`, and `Neg[Out = Self]` |
 
 1. r[trait.num.module] `std.num` declares `Num`, `Integer`, and `Float`, with the supertraits in the table above.

@@ -52,7 +52,7 @@ requirement_row = requirement_list
                 | "(", ")"
                 ;
 requirement_list = requirement_key, { "+", requirement_key } ;
-requirement_key = trait_type ;
+requirement_key = bound_trait_type ;
 ```
 
 1. r[req.row.syntax.signature] A function signature may end with `$` and an unordered list of requirement traits.
@@ -385,12 +385,13 @@ fn get_order() -> string $ AppRow + Clock:
 13. r[req.row.alias.bare.by-name] The slot's syntax is that of one key; the checker reads the name as a row because it names a row alias.
 14. r[req.row.alias.type-or-key] A row alias is row-kinded. Using one as a value type, a bound, a type-kinded argument, or a single key, as in `$.use(AppRow)` or `AppRow=value`, is an error. Error: `generic-kind-mismatch`.
 15. r[req.row.alias.one-key] An ordinary alias of one trait, such as `type Store = Db`, names that trait wherever it is used: `x: Store` is a `Db` trait value, and `$ Store` is the key `Db`.
-16. r[req.row.alias.access] A key reached through an alias is its trait, so its provider's access follows [`req.mut.trait-access`](#r-req.mut.trait-access).
-17. r[req.row.alias.no-mut] An alias whose target is written with `mut`, as in `type Store = mut Db`, is an error where it is used as a key. Error: `syntax-error`.
-18. r[req.row.alias.generic] A row alias may declare generic parameters. One written as a key on its right side is a row parameter, as in `type WithLog[R] = R + Log`.
-19. r[req.row.alias.generic.use] `$ WithLog[Clock]` is the row `$ Clock + Log`, and in a function with row parameter `R`, `$ WithLog[R]` extends `R` with `Log`.
-20. r[req.row.alias.generic.kind] A row argument for a type-kinded alias parameter, as in `$ Only[AppRow]` after `type Only[T] = T`, is an error. Error: `generic-kind-mismatch`.
-21. r[req.row.alias.cycle] A row alias that expands to itself is an [alias cycle](04-type-system.md#r-types.alias.cycle). Error: `alias-cycle`.
+16. r[req.row.alias.bound-key] A row alias may list a [bound key](#bound-requirement-keys), as in `type UserRow = Store[Item = User] + Log`. An ordinary alias of one bound trait, as in `type UserStore = Store[Item = User]`, is that bound key in a row.
+17. r[req.row.alias.access] A key reached through an alias is its trait, so its provider's access follows [`req.mut.trait-access`](#r-req.mut.trait-access).
+18. r[req.row.alias.no-mut] An alias whose target is written with `mut`, as in `type Store = mut Db`, is an error where it is used as a key. Error: `syntax-error`.
+19. r[req.row.alias.generic] A row alias may declare generic parameters. One written as a key on its right side is a row parameter, as in `type WithLog[R] = R + Log`.
+20. r[req.row.alias.generic.use] `$ WithLog[Clock]` is the row `$ Clock + Log`, and in a function with row parameter `R`, `$ WithLog[R]` extends `R` with `Log`.
+21. r[req.row.alias.generic.kind] A row argument for a type-kinded alias parameter, as in `$ Only[AppRow]` after `type Only[T] = T`, is an error. Error: `generic-kind-mismatch`.
+22. r[req.row.alias.cycle] A row alias that expands to itself is an [alias cycle](04-type-system.md#r-types.alias.cycle). Error: `alias-cycle`.
 
 ```text
 use std.function.Fn
@@ -490,6 +491,48 @@ fn load() -> void $ Storage:  # error: inspectable-requirement
 
 See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
+#### Bound Requirement Keys
+
+A requirement key may bind the trait's associated types, as a bound does:
+
+```text
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+data User:
+    name: string
+
+data Post:
+    title: string
+
+fn find(id: string) -> User $ Store[Item = User]:
+    $.use(Store[Item = User]).load(id)
+
+type UserStore = Store[Item = User]
+
+fn greet(id: string) -> string $ UserStore:
+    find(id).name
+
+fn wrong(id: string) -> User $ Store[Item = Post]:
+    find(id)  # error: missing-requirement
+```
+
+1. r[req.key.binding] A requirement key may bind associated types after its positional arguments, as in `$ Store[Item = User]`.
+2. r[req.key.binding.names] The rules of [Binding Names](09-traits.md#binding-names) apply to a key's bindings, so a binding may name a supertrait's associated type, and an unknown or ambiguous name is an error.
+3. r[req.key.binding.identity] Two keys are the same key when they name the same trait instantiation and bind the same associated types to the same types, in any order.
+4. r[req.key.binding.identity.example] So `Store[Item = User]` and `Store[Item = Post]` are two keys, as `Repo[User]` and `Repo[Post]` are.
+5. r[req.key.binding.rows] Row sets, entailment, least row solutions, and row subsumption compare keys by that identity. A row that lists `Store[Item = Post]` therefore does not entail `Store[Item = User]`.
+6. r[req.key.binding.value] The provider value of a bound key has the bound trait value type, so `$.use(Store[Item = User])` has type `Store[Item = User]` and its `load` returns `User`.
+
+> **Why.** A key names the type of its provider value
+> ([`req.use.value.ordinary`](#r-req.use.value.ordinary)), and a trait value
+> type may bind associated types
+> ([Bound Associated Types](09-traits.md#bound-associated-types)). The key
+> takes the same form, so a provider's methods have concrete types.
+
+See also: [Associated Type Bindings](09-traits.md#associated-type-bindings).
+
 ## Provider Access
 
 `$.use` retrieves providers from the statically known current context:
@@ -539,13 +582,14 @@ fn demo!() -> Result[User?, DbError] $ Cache:
 1. r[req.with.block] `$.with` binds providers for one lexical trailing block.
 2. r[req.with.evaluated] Each provider expression is evaluated before entering the block.
 3. r[req.with.type] Each provider expression must have a type implementing its named requirement trait.
-4. r[req.with.nested] Nested scopes may replace an outer provider for the same key within the nested block.
-5. r[req.with.nearest] A call receives, for each key of its row, the nearest provider in effect at the call.
-6. r[req.with.nearest.which] The nearest provider is that of the innermost enclosing `$.with` that binds the key, or else the one the caller received.
-7. r[req.with.nearest.suspending] A suspending call receives its providers when its suspension is constructed ([`req.bind.construction`](#r-req.bind.construction)).
-8. r[req.with.nearest.row-parameter] This holds when a key reaches a callback both through a row parameter and through a nearer scope.
-9. r[req.with.nearest.forced] So when a caller fixes `R` to a row listing a key the callee installs, the callback's lookups of that key use the callee's provider.
-10. r[req.with.nearest.not-error] Such an overlap is not an error.
+4. r[req.with.type.binding] For a [bound key](#bound-requirement-keys), the provider's implementation must also bind each associated type to the type the key states, as a value converting to that trait value type must ([`trait.dyn.binding.convert`](09-traits.md#r-trait.dyn.binding.convert)). A provider whose implementation binds another type is an error. Error: `type-mismatch`.
+5. r[req.with.nested] Nested scopes may replace an outer provider for the same key within the nested block.
+6. r[req.with.nearest] A call receives, for each key of its row, the nearest provider in effect at the call.
+7. r[req.with.nearest.which] The nearest provider is that of the innermost enclosing `$.with` that binds the key, or else the one the caller received.
+8. r[req.with.nearest.suspending] A suspending call receives its providers when its suspension is constructed ([`req.bind.construction`](#r-req.bind.construction)).
+9. r[req.with.nearest.row-parameter] This holds when a key reaches a callback both through a row parameter and through a nearer scope.
+10. r[req.with.nearest.forced] So when a caller fixes `R` to a row listing a key the callee installs, the callback's lookups of that key use the callee's provider.
+11. r[req.with.nearest.not-error] Such an overlap is not an error.
 
 ```text
 trait Tag:
@@ -580,6 +624,7 @@ fn run() -> string:
 4. r[req.with.collision.exact] An exact replacement written with the same key expression remains the ordinary nested-scope override described above.
 5. r[req.with.collision.before-erasure] This check is performed before erasure or specialization, so compilation strategy cannot change which provider a lookup selects.
 6. r[req.with.collision.concrete] Distinct concrete keys such as `Repo[User]` and `Repo[Post]` remain valid.
+7. r[req.with.collision.bindings] A key's bindings take part in the comparison as its type arguments do, so `Store[Item = T]` and `Store[Item = User]` collide.
 
 For example, a generic body may not make `Repo[T]` and `Repo[U]` concurrently
 visible, because an instantiation can choose `T = U`. It likewise may not

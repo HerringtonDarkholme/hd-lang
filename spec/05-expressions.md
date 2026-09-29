@@ -65,7 +65,7 @@ use std.ops.Add
 
 type Meters(i64)
 
-impl Add[Meters] for Meters:
+impl Add for Meters:
     type Out = Meters
     fn add(self, rhs: Meters) -> Meters:
         Meters(i64(self) + i64(rhs))
@@ -1124,7 +1124,7 @@ use std.ops.{Add, Mul, Neg}
 data Money:
     cents: i64
 
-impl Add[Money] for Money:
+impl Add for Money:
     type Out = Money
     fn add(self, rhs: Money) -> Money:
         Money { cents: self.cents + rhs.cents }
@@ -1147,7 +1147,7 @@ fn net(price: Money, refund: Money) -> Money:
 unary ones without the argument:
 
 ```text
-pub trait Add[Rhs]:
+pub trait Add[Rhs = Self]:
     type Out
     fn add(self, rhs: Rhs) -> Self::Out
 
@@ -1174,26 +1174,28 @@ pub trait Neg:
 1. r[expr.op.builtin] Arithmetic and bitwise operators are built in for the numeric types specified by this chapter and [Type System](04-type-system.md).
 2. r[expr.op.concat] `string + string` concatenates strings.
 3. r[expr.op.trait.std] `std.ops` declares the twelve operator traits in the table above.
-4. r[expr.op.trait.shape] A binary operator trait takes the right operand's type as its one argument `Rhs`. It declares an associated type `Out` and one method `fn m(self, rhs: Rhs) -> Self::Out`.
-5. r[expr.op.trait.unary-shape] `Neg` and `Not` take no argument. Each declares `Out` and one method `fn m(self) -> Self::Out`.
-6. r[expr.op.primitive] When every operand is primitive after literal typing, the built-in rules of this chapter and [Type System](04-type-system.md) decide the operator, and no trait is searched.
-7. r[expr.op.desugar] Otherwise `a op b` is the trait-qualified call `Op[R]::m(a, b)` of the operator's trait, as in `Add[R]::add(a, b)`. Likewise `-a` is `Neg::neg(a)` and `~a` is `Not::not(a)`.
-8. r[expr.op.no-use] The call needs no `use` of the trait.
-9. r[expr.op.left-dispatch] The left operand's type selects the implementation. Its instantiations of the trait are the candidates, and [Instantiations Of One Generic Trait](09-traits.md#instantiations-of-one-generic-trait) chooses among them by the right operand.
-10. r[expr.op.left-dispatch.example] So `price * 3` checks `3` against `i64` in `Mul[i64]`.
-11. r[expr.op.left-dispatch.exact-function] A left operand of function type selects implementations by its own type. [Row subsumption](11-requirements-and-suspension.md#row-subsumption) does not apply, so an implementation for a function type with a wider row does not fit. Error: `type-mismatch`.
-12. r[expr.op.left-dispatch.exact-function.message] That error's message should suggest a binding typed with the implementation's function type, as in `let handler: fn(i32) -> i32 $ Db = get`.
-13. r[expr.op.generic] When an operand's type is a type parameter, the candidates come from its bounds and their supertraits.
-14. r[expr.op.out] The operator's result type is the chosen implementation's `Out`. Implementations are unique per trait instantiation and target, so `a + b` has one type.
-15. r[expr.op.order] The left operand is evaluated, then the right one, and then the method is called.
-16. r[expr.op.left-literal] An untyped literal on the left of a non-primitive operand takes its default type, `i32` or `f64`. The implementations never type it.
-17. r[expr.op.left-literal.example] So `3 * price` needs an `impl Mul[Money] for i32`, and with only `Mul[i64] for Money` it is an error; write `price * 3`. Error: `type-mismatch`.
-18. r[expr.op.no-impl] An operator for which no implementation fits is an error, and its message should name the missing trait. Error: `type-mismatch`.
-19. r[expr.op.newtype] A newtype has only the operators its author implements. It inherits none from its base type, and no derivation supplies an operator trait.
-20. r[expr.op.fixed] Operator traits never change precedence or associativity, and they add no operator symbols.
-21. r[expr.op.not-overloaded] `&&`, `||`, prefix `!`, unary `+`, `**`, `is`, `=`, `:=`, and postfix `?` have no trait and keep their built-in meaning.
-22. r[expr.op.comparison] `==`, `!=`, and the relational operators call `Eq` and `PartialOrd`, as [Equality](#equality) and [Ordering](#ordering) define. `std.ops` declares no comparison trait.
-23. r[expr.op.suffix-negation] `-5s` stays the call `s(-5)`: the minus belongs to the suffixed literal, so `Neg` is not called.
+4. r[expr.op.trait.shape-default] A binary operator trait takes the right operand's type as its one argument `Rhs`, whose [default](04-type-system.md#type-argument-defaults) is `Self`. It declares an associated type `Out` and one method `fn m(self, rhs: Rhs) -> Self::Out`.
+5. r[expr.op.trait.rhs-self] So `impl Add for Money` implements `Add[Money]`, and the bound `T < Add[Out = T]` means `T < Add[T, Out = T]`.
+6. r[expr.op.trait.rhs-explicit] The explicit form, such as `impl Add[Money] for Money`, stays valid and names the same trait.
+7. r[expr.op.trait.unary-shape] `Neg` and `Not` take no argument. Each declares `Out` and one method `fn m(self) -> Self::Out`.
+8. r[expr.op.primitive] When every operand is primitive after literal typing, the built-in rules of this chapter and [Type System](04-type-system.md) decide the operator, and no trait is searched.
+9. r[expr.op.desugar] Otherwise `a op b` is the trait-qualified call `Op[R]::m(a, b)` of the operator's trait, as in `Add[R]::add(a, b)`. Likewise `-a` is `Neg::neg(a)` and `~a` is `Not::not(a)`.
+10. r[expr.op.no-use] The call needs no `use` of the trait.
+11. r[expr.op.left-dispatch] The left operand's type selects the implementation. Its instantiations of the trait are the candidates, and [Instantiations Of One Generic Trait](09-traits.md#instantiations-of-one-generic-trait) chooses among them by the right operand.
+12. r[expr.op.left-dispatch.example] So `price * 3` checks `3` against `i64` in `Mul[i64]`.
+13. r[expr.op.left-dispatch.exact-function] A left operand of function type selects implementations by its own type. [Row subsumption](11-requirements-and-suspension.md#row-subsumption) does not apply, so an implementation for a function type with a wider row does not fit. Error: `type-mismatch`.
+14. r[expr.op.left-dispatch.exact-function.message] That error's message should suggest a binding typed with the implementation's function type, as in `let handler: fn(i32) -> i32 $ Db = get`.
+15. r[expr.op.generic] When an operand's type is a type parameter, the candidates come from its bounds and their supertraits.
+16. r[expr.op.out] The operator's result type is the chosen implementation's `Out`. Implementations are unique per trait instantiation and target, so `a + b` has one type.
+17. r[expr.op.order] The left operand is evaluated, then the right one, and then the method is called.
+18. r[expr.op.left-literal] An untyped literal on the left of a non-primitive operand takes its default type, `i32` or `f64`. The implementations never type it.
+19. r[expr.op.left-literal.example] So `3 * price` needs an `impl Mul[Money] for i32`, and with only `Mul[i64] for Money` it is an error; write `price * 3`. Error: `type-mismatch`.
+20. r[expr.op.no-impl] An operator for which no implementation fits is an error, and its message should name the missing trait. Error: `type-mismatch`.
+21. r[expr.op.newtype] A newtype has only the operators its author implements. It inherits none from its base type, and no derivation supplies an operator trait.
+22. r[expr.op.fixed] Operator traits never change precedence or associativity, and they add no operator symbols.
+23. r[expr.op.not-overloaded] `&&`, `||`, prefix `!`, unary `+`, `**`, `is`, `=`, `:=`, and postfix `?` have no trait and keep their built-in meaning.
+24. r[expr.op.comparison] `==`, `!=`, and the relational operators call `Eq` and `PartialOrd`, as [Equality](#equality) and [Ordering](#ordering) define. `std.ops` declares no comparison trait.
+25. r[expr.op.suffix-negation] `-5s` stays the call `s(-5)`: the minus belongs to the suffixed literal, so `Neg` is not called.
 
 ```text
 use std.ops.Mul
@@ -1224,7 +1226,7 @@ accepts them:
 ```text
 use std.ops.Add
 
-fn sum[T < Add[T, Out = T]](items: List[T], zero: T) -> T:
+fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
     let total = zero
     for item in items:
         total = total + item
@@ -1236,20 +1238,21 @@ fn count(items: List[i32]) -> i32:
 
 | Rule | Traits | Implementations, with `Out = T` |
 | --- | --- | --- |
-| r[expr.op.std.arith] Arithmetic | `Add`, `Sub`, `Mul`, `Div`, `Rem` | `impl Add[T] for T` and the like, for every integer and floating-point type `T` |
+| r[expr.op.std.arith] Arithmetic | `Add`, `Sub`, `Mul`, `Div`, `Rem` | `impl Add for T` and the like, for every integer and floating-point type `T` |
 | r[expr.op.std.neg] Negation | `Neg` | every signed integer and floating-point type |
-| r[expr.op.std.bitwise] Bitwise | `BitAnd`, `BitOr`, `BitXor` | `impl BitAnd[T] for T` and the like, for every integer type `T` |
+| r[expr.op.std.bitwise] Bitwise | `BitAnd`, `BitOr`, `BitXor` | `impl BitAnd for T` and the like, for every integer type `T` |
 | r[expr.op.std.not] Complement | `Not` | every integer type |
-| r[expr.op.std.string-add] Concatenation | `Add` | `impl Add[string] for string` |
+| r[expr.op.std.string-add] Concatenation | `Add` | `impl Add for string` |
 | r[expr.op.std.shift] Shifts | `Shl`, `Shr` | `impl Shl[C] for T` and the like, for every pair of integer types `T` and `C` |
 
 1. r[expr.op.std.intrinsic] The body of each implementation in the table is a compiler intrinsic. It behaves exactly as the built-in operator on the same operands, including checked overflow and its panics.
 2. r[expr.op.std.same-type] The arithmetic and bitwise implementations are same-type only. Generic code therefore gets no widening, while `i16 + i64` stays built in.
-3. r[expr.op.std.string-concat] `impl Add[string] for string` concatenates, as `string + string` does. Two `string` operands are primitive, so `a + b` stays built in, and generic code such as `T < Add[T, Out = T]` accepts `string`.
+3. r[expr.op.std.string-concat] `impl Add for string` concatenates, as `string + string` does. Two `string` operands are primitive, so `a + b` stays built in, and generic code such as `T < Add[Out = T]` accepts `string`.
 4. r[expr.op.std.bool-char] The standard library declares no operator trait implementation for `bool` or `char`.
 
 > **Why.** This is Rust's shape. The right operand is a trait argument, so a
-> type may scale by `i64` and add its own kind. The output is an associated
+> type may scale by `i64` and add its own kind. As in Rust, the argument
+> defaults to `Self`, so the common same-type case omits it. The output is an associated
 > type that the operands fix, so `x := a + b` never becomes ambiguous when an
 > implementation is added. Primitive operands skip trait search, so numeric
 > code compiles as before and type checking never searches across numeric

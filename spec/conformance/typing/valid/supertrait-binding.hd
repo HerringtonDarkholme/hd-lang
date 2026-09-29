@@ -2,12 +2,12 @@
 # Spec 09 Supertrait Bindings: trait.binding.super.form, trait.binding.super.projection (Operator Traits OP8).
 use std.ops.Add
 
-trait Summable < Add[Self, Out = Self]
+trait Summable < Add[Out = Self]
 
 data Money:
     cents: i64
 
-impl Add[Money] for Money:
+impl Add for Money:
     type Out = Money
     fn add(self, rhs: Money) -> Money:
         Money { cents: self.cents + rhs.cents }

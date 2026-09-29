@@ -1,0 +1,13 @@
+# test: a key's bindings take part in the generic key collision check
+# Spec 11 Generic Key Collisions: req.with.collision.bindings (owner decision AT5).
+
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+data User:
+    name: string
+
+fn mixed[T](local: Store[Item = User]) -> void $ Store[Item = T]:
+    $.with(Store[Item = User]=local):  # diagnostic: generic-requirement-key-collision
+        pass

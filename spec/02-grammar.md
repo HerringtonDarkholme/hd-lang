@@ -581,8 +581,8 @@ fn label[T < Named + Tagged](value: T) -> string: value.name()  # error: old-bou
 
 1. r[grammar.generic.binding] A trait in a generic parameter bound may end its bracketed arguments with associated type bindings: `I < Supplier[Item = T]` requires `I` to implement `Supplier` with `I::Item` equal to `T`.
 2. r[grammar.generic.binding.order] Bindings follow every positional type argument.
-3. r[grammar.generic.binding.positions] Bindings are valid in `trait_bounds`, in `supertrait_bounds`, as in `trait Summable < Add[Self, Out = Self]`, and in a `named_type`, as in the trait value type `Supplier[Item = i32]`.
-4. r[grammar.generic.binding.trait-type] The trait of an implementation header, a trait-qualified call, a method reference, and a requirement key is a `trait_type`, whose arguments take no binding. A binding there is an error. Error: `syntax-error`.
+3. r[grammar.generic.binding.positions-key] Bindings are valid in `trait_bounds`, in `supertrait_bounds`, as in `trait Summable < Add[Out = Self]`, in a `named_type`, as in the trait value type `Supplier[Item = i32]`, and in a `requirement_key`, as in `$ Store[Item = User]`.
+4. r[grammar.generic.binding.trait-type-only] The trait of an implementation header, a trait-qualified call, and a method reference is a `trait_type`, whose arguments take no binding. A binding there is an error. Error: `syntax-error`.
 5. r[grammar.generic.binding.named-type] Only a trait value type gives a binding in a `named_type` a meaning; [Binding Positions](09-traits.md#binding-positions) rejects one elsewhere.
 
 ```text
@@ -694,7 +694,7 @@ requirement_row = requirement_list
                 | "(", ")"
                 ;
 requirement_list = requirement_key, { "+", requirement_key } ;
-requirement_key = trait_type ;
+requirement_key = bound_trait_type ;
 ```
 
 ### Requirement Clauses
@@ -707,6 +707,8 @@ requirement_key = trait_type ;
 6. r[grammar.type.row.no-mut-key] A requirement key has no `mut` prefix, so `$ R + mut Logger` is an error. Error: `syntax-error`.
 7. r[grammar.type.row.no-parentheses] Parentheses never surround a nonempty row, so the former `$(A + B)` is an error. Error: `syntax-error`.
 8. r[grammar.type.row.in-type.comma] Inside a type, a comma after a key ends the row, so `fn f(cb: fn() -> i32 $ A, B) -> i32:` is an error. Error: `syntax-error`.
+9. r[grammar.type.row.key-binding] A requirement key may end its bracketed arguments with associated type bindings, as a bound does: `$ Store[Item = User]`.
+10. r[grammar.type.row.key-binding.everywhere] Every place that names a key takes the same form, including `$.use`, `$.with`, `$.context`, and `$.Context[...]`. In a provider entry the binding's `=` sits inside the brackets, as in `$.with(Store[Item = User]=store)`.
 
 ```text
 trait Clock

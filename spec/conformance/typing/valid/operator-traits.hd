@@ -5,7 +5,7 @@ use std.ops.{Add, Mul, Neg}
 data Money:
     cents: i64
 
-impl Add[Money] for Money:
+impl Add for Money:
     type Out = Money
     fn add(self, rhs: Money) -> Money:
         Money { cents: self.cents + rhs.cents }
