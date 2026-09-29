@@ -8,31 +8,33 @@ and tooling work is listed separately at the end.
 
 ## Language Design Decisions
 
-### Local Mutability From The Right Side
+### Local Mutability: `let mut` As An Inference Helper
 
-**Decided (owner, 2026-09-29); not yet applied.** This is Kotlin's model,
-where mutability is part of the value's type and a local infers it.
-1. A `let` binding's object mutability comes from its right side:
-   - a fresh literal (data, list or map literal) is `mut`;
-   - a call keeps its declared result (`mut T` or `T`), and so does
-     `$.use(...)`, which is `mut` for a mutable trait;
-   - a value read from a read-only source stays read-only.
+**Decided (owner, 2026-09-29, final); not yet applied.** This replaces
+the Kotlin-style inference recorded earlier the same day (89c6a11).
 
-   Examples: `let a = User { ... }` is `mut User`, and
-   `let (log, db) = $.use(Log, Db)` needs no annotations.
-2. An explicit annotation may downgrade (`let cfg: Config = Config { ... }`
-   is read-only) but never upgrade.
-3. **`:=` stays read-only,** as today (`types.bind.short`). So `let` means
-   a reassignable name with inferred mutability, and `:=` means a fixed
-   name with a read-only view.
-4. `mut` still appears at boundaries (parameters, results, fields) and at
-   each change site (`a.name = ...`, `mut self` calls). Only the
-   redundant `mut` on fresh local declarations goes away.
+1. `mut` stays a permission in the type (`x: mut T`, `List[mut User]`), as
+   decided in August (SYNTAX_NOTES).
+2. **`let mut` is only a mutability inference helper.** It tells the
+   compiler to infer the binding's root as `mut`:
+   - `let mut a = User { ... }` gives `a: mut User`;
+   - `let mut xs: List[i32] = []` gives `xs: mut List[i32]`, the annotated
+     type with a `mut` root;
+   - `let (mut log, db) = $.use(Log, Db)` works per name in patterns.
 
-A reassignable name holding a read-only object stays useful: a cursor over
-data you don't own, a "best so far" accumulator, switching between shared
-snapshots. Those values come from read-only sources, so inference gives
-read-only.
+   It can't upgrade a read-only value: `let mut c = readonly_source()` is
+   `mutable-upgrade`.
+3. A plain `let` without `mut` infers read-only, unless its annotation
+   says `mut` (`let a: mut List[i32] = []` stays valid). Fresh literals are
+   not silently `mut`.
+4. `:=` stays read-only.
+5. Left for the apply pass: whether `let mut a: mut T` (redundant) is
+   allowed quietly or linted. The recommendation is to allow it, with an
+   optional style lint.
+
+Why: it removes the repeated type (`let a: mut User = User {...}`) while
+the declaration still says which locals change, and `mut` keeps a single
+meaning, a permission in the type.
 
 ### Dependency Cycles
 
