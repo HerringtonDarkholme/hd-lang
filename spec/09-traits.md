@@ -235,6 +235,23 @@ trait Hash:
 9. r[trait.derive.supertraits] The target must also satisfy each derived trait's supertraits, whether through an existing implementation or another derivation.
 10. r[trait.derive.intrinsic-set] The intrinsic derivations are exactly `Eq`, `PartialOrd`, `Ord`, and `Hash`. Each covers every member, and no member line or derivation block configures it.
 11. r[trait.derive.templated] `@derive` also accepts a trait that has a derivation template, as [Typed Derivation](14-annotations.md#typed-derivation) defines. Any other trait is an error. Error: `underivable-trait`.
+12. r[trait.derive.field-missing-trait] A field that an intrinsic derivation compares, orders, or hashes must implement the derived trait. A field that does not is an error at the field, whose message names the trait and the field. Error: `derive-field-missing-trait`.
+13. r[trait.derive.bound-unmet] A use of a derived implementation whose type argument does not meet a bound that `trait.derive.bounds` added is an error at the use, as `==` on two `Box[fn() -> void]` values is. Error: `missing-derived-bound`.
+
+```text
+data Opaque: pass
+
+@derive(Eq, Hash)
+data Key:
+    value: Opaque  # error: derive-field-missing-trait
+
+@derive(Eq)
+data Box[T]:
+    value: T
+
+fn same(left: Box[fn() -> void], right: Box[fn() -> void]) -> bool:
+    left == right  # error: missing-derived-bound
+```
 
 #### Law Partners
 
@@ -270,7 +287,7 @@ impl Eq for Session:
 4. r[trait.derive.newtype.not-inherited] A newtype still inherits no implementation it does not derive or implement.
 5. r[trait.derive.newtype.templated] A trait with a template also derives through the base type: the newtype gets no `Structure`, and the base type's implementation is rewrapped.
 6. r[trait.derive.newtype.self-positions] Forwarding is allowed only where the trait's methods use `Self` as the receiver, as plain `Self`, or inside `Self?`, `Result[Self, E]`, or `List[Self]`.
-7. r[trait.derive.newtype.self-error] Any other position, such as `Map[Self, V]`, `Set[Self]`, or a tuple holding `Self`, is an error at the `@derive` line that names the trait method. Error: `newtype-derivation-self`.
+7. r[trait.derive.newtype.self-error] Any other position, such as `Map[Self, V]`, `Map[string, Self]`, or a tuple holding `Self`, is an error at the `@derive` line that names the trait method. Error: `newtype-derivation-self`.
 
 ```text
 @derive(Eq, Hash)
@@ -321,7 +338,7 @@ See also: [Newtypes](04-type-system.md#newtypes).
 3. r[trait.derive.hash.enum] For an enum, it hashes the variant identity, then shared enum data in declaration order, then that variant's payload fields in declaration order.
 4. r[trait.derive.hash.fields] Every hashed field must implement `Hash`; no field is implicitly excluded.
 5. r[trait.derive.hash.cycles] Like derived equality, derived hashing does not detect cycles, so hashing a cyclic graph may exhaust the execution stack.
-6. r[trait.derive.hash.seeded] Hash values from the standard `Hasher` are stable within one code identity and runtime profile, and may change when either changes.
+6. r[trait.derive.hash.seeded] Hash values computed from a hash seed that the runtime provides are stable within one code identity and runtime profile, and may change when either changes.
 
 ### Conversion Trait
 
@@ -501,6 +518,7 @@ impl Debug for Point:
 | r[trait.debug.derive-builders.record] Record variant | a variant whose payload fields are all named | `out.debug_struct(variant_name)`, then `.field(field_name, value)` per payload field in order, then `.finish()` |
 | r[trait.debug.derive-builders.tuple] Tuple variant | a variant whose payload fields are all positional | `out.debug_tuple(variant_name)`, then `.field(value)` per payload value in order, then `.finish()` |
 | r[trait.debug.derive-builders.unit] Unit variant | a variant without a payload | `out.write(variant_name)` only |
+| r[trait.debug.derive-builders.mixed] Mixed variant | a variant with both positional and named payload fields, such as `Mixed(i32, label: string)` | `out.debug_struct(variant_name)`, then `.field(field_name, value)` per payload field in order, where a positional field is named `_0`, `_1`, and so on by its position, then `.finish()`, printing `Mixed { _0: 1, label: "x" }` |
 
 > **Why.** `assert_equal` and property tests show failing values through
 > `Debug`, so any type a test compares can show itself without a

@@ -1,0 +1,6 @@
+# test: a type name where a value is required is type-used-as-value
+data User:
+    name: string
+
+fn make() -> void:
+    x := User  # diagnostic: type-used-as-value

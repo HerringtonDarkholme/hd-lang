@@ -1,0 +1,21 @@
+# test: integer-to-integer casts wrap to the target width
+
+use std.testing.assert_equal
+
+fn narrow(wide: i64) -> u8:
+    u8(wide)
+
+tests:
+    it("narrowing casts keep the low bits"):
+        assert_equal(narrow(300), 44, reason="300 wraps to 44 in u8")
+        let big: i32 = 200
+        assert_equal(i8(big), -56, reason="200 wraps to -56 in i8")
+        let negative: i64 = -1
+        assert_equal(u64(negative), 18446744073709551615, reason="-1 wraps to the u64 maximum")
+        assert_equal(u16(negative), 65535, reason="-1 wraps to the u16 maximum")
+        let top: u64 = 18446744073709551615
+        assert_equal(i64(top), -1, reason="the u64 maximum wraps to -1 in i64")
+        let wide: i32 = 70000
+        assert_equal(i16(wide), 4464, reason="70000 wraps to 4464 in i16")
+        let low: i8 = -128
+        assert_equal(u8(low), 128, reason="a sign change keeps the bits")

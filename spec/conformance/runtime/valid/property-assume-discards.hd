@@ -1,0 +1,24 @@
+# test: discarded property cases do not count toward cases, and a Debug input type runs
+use std.testing.{assert, Arbitrary, Choices, it_prop, it_prop_with}
+
+@derive(Debug)
+data Reading:
+    level: i64
+
+impl Arbitrary for Reading:
+    fn arbitrary(c: mut Choices) -> Reading:
+        Reading { level: c.int(0, 9) }
+
+fn even(c: mut Choices) -> i64:
+    value := c.int(0, 100)
+    c.assume(value % 2 == 0)
+    value
+
+tests:
+    it_prop("levels stay small", prop=fn!(reading: Reading):
+        assert(reading.level <= 9, reason="drawn from 0 to 9")
+    )
+
+    it_prop_with("only even values are checked", gen=even, cases=20, prop=fn!(n: i64):
+        assert(n % 2 == 0, reason="assume discards odd values")
+    )

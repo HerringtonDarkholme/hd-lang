@@ -176,9 +176,9 @@ typing/valid/data-decorator.hd	type	accept	14-annotations.md#prefix-decorators
 typing/valid/embedded-field-decorator.hd	type	accept	14-annotations.md#prefix-decorators
 typing/valid/derived-equality.hd	type	accept	09-traits.md#comparison-traits
 typing/valid/derived-hash.hd	type	accept	09-traits.md#comparison-traits
-typing/invalid/derived-hash-field-not-hash.hd	type	reject:field-not-hash	09-traits.md#comparison-traits
+typing/invalid/derived-hash-field-not-hash.hd	type	reject:derive-field-missing-trait	09-traits.md#r-trait.derive.field-missing-trait
 typing/valid/derived-ordering.hd	type	accept	09-traits.md#comparison-traits
-typing/invalid/derived-total-order-float.hd	type	reject:field-not-eq	09-traits.md#comparison-traits
+typing/invalid/derived-total-order-float.hd	type	reject:derive-field-missing-trait	09-traits.md#r-trait.derive.field-missing-trait
 typing/valid/optional-some-pattern.hd	type	accept	06-control-flow.md#match-expressions
 typing/invalid/some-pattern-nonoptional.hd	type	reject:missing-contextual-enum-type	06-control-flow.md#match-expressions
 parse/valid/decorators.hd	parse	accept	02-grammar.md#annotations
@@ -228,7 +228,7 @@ typing/invalid/child-trait-redeclares-transitive-supertrait-member.hd	type	rejec
 typing/valid/child-trait-distinct-member-names.hd	type	accept	09-traits.md#trait-declarations
 typing/invalid/nonhost-entry-requirement.hd	type	reject:nonhost-entry-requirement	11-requirements-and-suspension.md#provider-access
 typing/valid/host-entry-requirement.hd	type	accept	11-requirements-and-suspension.md#provider-access
-typing/invalid/derived-generic-bound.hd	type	reject:missing-derived-bound	09-traits.md#comparison-traits
+typing/invalid/derived-generic-bound.hd	type	reject:missing-derived-bound	09-traits.md#r-trait.derive.bound-unmet
 typing/valid/derived-generic-bound.hd	type	accept	09-traits.md#comparison-traits
 typing/valid/row-kinded-arguments.hd	type	accept	02-grammar.md#types
 typing/invalid/row-kind-mismatch.hd	type	reject:generic-kind-mismatch	02-grammar.md#types
@@ -1331,3 +1331,8 @@ typing/invalid/row-alias-bare-context.hd	type	reject:generic-kind-mismatch	11-re
 typing/invalid/row-alias-mut-key.hd	type	reject:syntax-error	11-requirements-and-suspension.md#r-req.row.alias.no-mut
 typing/invalid/row-alias-generic-kind.hd	type	reject:generic-kind-mismatch	11-requirements-and-suspension.md#r-req.row.alias.generic.kind
 runtime/valid/installer-function-runs.hd	runtime	accept	11-requirements-and-suspension.md#r-req.poly.extension
+typing/invalid/cast-literal-out-of-range.hd	type	reject:integer-literal-range	04-type-system.md#r-types.cast.literal-range
+runtime/valid/narrowing-cast-wraps.hd	runtime	accept	04-type-system.md#r-types.cast.wrap
+typing/invalid/property-input-not-debug.hd	type	reject:unsatisfied-trait-bound	10-modules.md#r-module.testing.prop.debug
+runtime/valid/property-assume-discards.hd	runtime	accept	10-modules.md#r-module.testing.prop.discard
+typing/invalid/type-name-as-value.hd	type	reject:type-used-as-value	03-names-and-scopes.md#r-names.type-as-value

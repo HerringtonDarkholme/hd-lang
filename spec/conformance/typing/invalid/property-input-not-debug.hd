@@ -1,0 +1,14 @@
+# test: it_prop requires its input type to implement Debug
+use std.testing.{Arbitrary, Choices, it_prop}
+
+data Reading:
+    level: i64
+
+impl Arbitrary for Reading:
+    fn arbitrary(c: mut Choices) -> Reading:
+        Reading { level: c.int(0, 9) }
+
+tests:
+    it_prop("levels stay small", prop=fn!(reading: Reading):  # diagnostic: unsatisfied-trait-bound
+        pass
+    )

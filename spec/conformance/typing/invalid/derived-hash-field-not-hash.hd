@@ -1,6 +1,6 @@
 
 data Opaque: pass
 
-@derive(Hash)
+@derive(Eq, Hash)
 data Key:
-    value: Opaque  # diagnostic: field-not-hash
+    value: Opaque  # diagnostic: derive-field-missing-trait

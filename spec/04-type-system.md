@@ -401,21 +401,29 @@ narrow := i16(wide)
 ```
 
 1. r[types.cast.syntax] Explicit numeric conversion uses constructor-style casts.
-2. r[types.cast.range-check] A narrowing integer cast must range-check at runtime when the compiler cannot prove it safe.
-3. r[types.cast.out-of-range] An out-of-range cast causes a checked runtime failure; the exact panic reporting ABI is deferred to runtime design.
-4. r[types.cast.fallible] Libraries may provide separate fallible conversion functions returning `Result`.
+2. r[types.cast.wrap] An integer-to-integer cast wraps at run time, as Go conversions and Rust `as` do: the result keeps the low bits of the source value's two's-complement form, read in the target type. It never panics.
+3. r[types.cast.wrap.example] So `u8(x)` with `x = 300` gives 44, and `i8(x)` with `x = 200` gives -56.
+4. r[types.cast.literal-range] When a cast's argument is an integer literal, alone or under unary `-` or `+`, the literal is checked with the target type as its expected type, by [Integer Literals](#integer-literals). An out-of-range literal is an error, as Go reports a constant overflow. Error: `integer-literal-range`.
+5. r[types.cast.fallible] Libraries may provide separate fallible conversion functions returning `Result`.
+
+```text
+fn narrow(wide: i64) -> u8:
+    u8(wide)          # wraps: 300 gives 44
+fn fixed() -> u8:
+    u8(300)           # error: integer-literal-range
+```
 
 The core numeric cast rules are:
 
 | Cast | Behavior |
 | --- | --- |
-| r[types.cast.int-int] Integer to integer | checks the target integer range |
+| r[types.cast.int-int-wrap] Integer to integer | wraps to the target width, by `types.cast.wrap` |
 | r[types.cast.int-float] Integer to floating point | rounds to the nearest representable IEEE 754 value using ties-to-even |
 | r[types.cast.f32-f64] `f32` to `f64` | is exact |
 | r[types.cast.f64-f32] `f64` to `f32` | uses IEEE 754 ties-to-even rounding |
 | r[types.cast.float-int] Floating point to integer | first truncates toward zero, then checks that the original value was finite and the truncated value is in the target range |
 
-1. r[types.cast.panic] A failed integer range check or a non-finite floating-to-integer conversion panics.
+1. r[types.cast.float-int-panic] A floating-to-integer conversion panics when the value is not finite or the truncated value is outside the target range. An integer-to-integer cast never panics.
 2. r[types.cast.precision] An explicit numeric cast may lose precision according to these rules.
 3. r[types.cast.exact] Libraries may expose exact or fallible conversions when loss must be rejected.
 4. r[types.cast.nonnumeric] Constructor-style calls involving nonnumeric types are not numeric casts: they must resolve to a nominal newtype constructor, enum constructor, or ordinary function.

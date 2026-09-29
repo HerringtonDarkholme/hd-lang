@@ -1212,7 +1212,7 @@ impl[S] Source[S] for Strict:  # variant, next, and member elided
 1. r[annot.bound.params] A derived implementation for a generic type gets `T < Trait` for each type parameter `T` that appears in a walked, described, or built member.
 2. r[annot.bound.omitted] An omitted member contributes no bound.
 3. r[annot.bound.recursive] Recursion is checked coinductively: while checking the members of `Tree[T]`, its own derived implementation is assumed to hold.
-4. r[annot.bound.more] When a member needs more than `T < Trait`, as a `Set[T]` member needs `T < Hash`, the error suggests a derivation block whose header states the bounds. Error: `member-not-derivable`.
+4. r[annot.bound.more] When a member needs more than `T < Trait`, as a `Map[T, V]` member needs `T < Hash`, the error suggests a derivation block whose header states the bounds. Error: `member-not-derivable`.
 
 See also: [`trait.derive.bounds`](09-traits.md#r-trait.derive.bounds),
 [Derived Newtypes](09-traits.md#derived-newtypes).

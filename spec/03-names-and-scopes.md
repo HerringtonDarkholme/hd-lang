@@ -19,13 +19,27 @@ resolve. It does not define type compatibility or access permission.
 1. r[names.category.syntax] A use is resolved in the category required by its syntax.
 2. r[names.category.syntax.type] For example, the name before `{` in `User { ... }` is resolved as a type.
 3. r[names.category.syntax.value] In `user.email`, `user` is resolved as a value and `email` as a member of its type.
-4. r[names.module.unique] A module cannot contain two declarations with the same module name, even if they are different kinds of declaration.
-5. r[names.module.no-overloading] Function overloading is therefore not permitted.
+4. r[names.type-as-value] A name resolved as a value that names a type, a trait, or a type alias and no value is an error, as in `let x = User` or `field.metadata(MaxLen)`. Error: `type-used-as-value`.
+5. r[names.module.unique] A module cannot contain two declarations with the same module name, even if they are different kinds of declaration.
+6. r[names.module.no-overloading] Function overloading is therefore not permitted.
 
 ```text
 fn value(input: i32) -> i32: input
 fn value(input: string) -> string: input  # error
 ```
+
+```text
+data User:
+    name: string
+
+fn make() -> void:
+    x := User  # error: type-used-as-value
+```
+
+> **Note.** By `names.category.syntax`, a form whose syntax names a type
+> resolves the name as a type. So `User { name: "Ada" }`, a newtype
+> constructor call such as `Mile(1)`, and a cast such as `i16(wide)` are not
+> value uses.
 
 ### Prelude Names
 

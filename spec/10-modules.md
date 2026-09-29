@@ -575,12 +575,12 @@ A property test draws its inputs from a `Choices` source, the only
 randomness a generator sees:
 
 ```text
-pub fn it_prop[T < Arbitrary, R < Termination](name: string, ignore: string? = .None,
-                                               expect_panic: string? = .None, timeout: Duration? = .None,
-                                               cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void
-pub fn it_prop_with[T, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
-                                        expect_panic: string? = .None, timeout: Duration? = .None,
-                                        cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void
+pub fn it_prop[T < Arbitrary & Debug, R < Termination](name: string, ignore: string? = .None,
+                                                       expect_panic: string? = .None, timeout: Duration? = .None,
+                                                       cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void
+pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
+                                                expect_panic: string? = .None, timeout: Duration? = .None,
+                                                cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void
 
 trait Arbitrary:
     fn arbitrary(c: mut Choices) -> Self
@@ -601,6 +601,13 @@ trait Arbitrary:
 2. r[module.testing.choices.runner] The runner creates every `Choices`. It records each draw, so the runner can replay and shrink a case.
 3. r[module.testing.arbitrary] `Arbitrary` gives a type its default generator, which `it_prop` and `Choices.draw` use.
 4. r[module.testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
+5. r[module.testing.prop.debug] `it_prop` and `it_prop_with` require `T < Debug`. A property whose input type does not implement `Debug` is an error. Error: `unsatisfied-trait-bound`.
+6. r[module.testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
+7. r[module.testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
+8. r[module.testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
+9. r[module.testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshots).
+10. r[module.testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
+11. r[module.testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
 
 ```text
 use std.testing.{Arbitrary, Choices}
@@ -615,6 +622,22 @@ impl Arbitrary for Point:
 
 fn small_counts(c: mut Choices) -> List[i64]:
     c.list(3, fn(inner: mut Choices) -> i64: inner.int(0, 10))
+```
+
+```text
+use std.testing.{Arbitrary, Choices, it_prop}
+
+data Reading:
+    level: i64
+
+impl Arbitrary for Reading:
+    fn arbitrary(c: mut Choices) -> Reading:
+        Reading { level: c.int(0, 9) }
+
+tests:
+    it_prop("levels stay small", prop=fn!(reading: Reading):  # error: unsatisfied-trait-bound
+        pass
+    )
 ```
 
 > **Note.** How often a draw returns boundary values, and how the runner

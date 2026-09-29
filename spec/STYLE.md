@@ -1004,3 +1004,12 @@ style lint rejects a chapter that reuses one.
 - `req.row.param.inferred`: retired 2026-09-28. Requirement Reuse RU3: a
   data type, enum, or trait takes no row parameter. Replaced by
   `req.row.param.callables` and `req.row.param.no-data`.
+- `types.cast.range-check`: retired 2026-09-28. Open Issues item 1 makes
+  integer casts wrap. Replaced by `types.cast.wrap`.
+- `types.cast.out-of-range`: retired 2026-09-28. Open Issues item 1.
+  Replaced by `types.cast.wrap` and `types.cast.literal-range`.
+- `types.cast.int-int`: retired 2026-09-28. Open Issues item 1: integer to
+  integer wraps instead of checking the range. Replaced by
+  `types.cast.int-int-wrap`.
+- `types.cast.panic`: retired 2026-09-28. Open Issues item 1: only a
+  float-to-integer cast panics. Replaced by `types.cast.float-int-panic`.
