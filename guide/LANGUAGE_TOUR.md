@@ -1532,11 +1532,11 @@ data Money:
     amount: i64
     currency: string
 
-trait Add[T]:
-    fn add(self, other: T) -> T
+trait Merge[T]:
+    fn merge(self, other: T) -> T
 
-impl Add[Money] for Money:
-    fn add(self, other: Money) -> Money:
+impl Merge[Money] for Money:
+    fn merge(self, other: Money) -> Money:
         Money {
             amount: self.amount + other.amount,
             currency: self.currency
@@ -1544,6 +1544,56 @@ impl Add[Money] for Money:
 ```
 
 Trait implementation is explicit. A type does not implement a trait just because it has matching methods.
+
+### Operators
+
+Operators on your own types come from the `std.ops` traits, in Rust's
+shape. The right operand's type is the trait argument, and the result is
+the associated type `Out`. Operator syntax needs no `use`; the `impl` does:
+
+```text
+use std.ops.{Add, Mul}
+
+impl Add[Money] for Money:
+    type Out = Money
+    fn add(self, rhs: Money) -> Money:
+        Money { amount: self.amount + rhs.amount, currency: self.currency }
+
+impl Mul[i64] for Money:
+    type Out = Money
+    fn mul(self, rhs: i64) -> Money:
+        Money { amount: self.amount * rhs, currency: self.currency }
+
+fn total(price: Money, fee: Money) -> Money:
+    price * 3 + fee
+```
+
+The twelve operators are `+ - * / %`, unary `-`, `& | ^ ~`, `<<`, and
+`>>`. `==` and `<` keep using `Eq` and `PartialOrd`, and `**`, `&&`, and
+`||` cannot be overloaded. The left operand chooses the implementation,
+so write `price * 3`: `3 * price` types `3` as `i32` and looks for an
+`impl Mul[Money] for i32`. A newtype such as `type Meters(f64)` inherits no
+operators; implement the ones it needs by hand. Two primitive operands keep
+the built-in rules.
+
+Compound assignment, such as `total += x`, works on primitives. On other
+types it calls an `AddAssign`-family method that takes `mut self`, so on a
+`data` value every alias sees the change. `Index` and `IndexSet` give a
+type `grid[i]` and `grid[i] = v`.
+
+Generic numeric code uses the sealed `std.num` traits `Num`, `Integer`,
+and `Float`, which only the primitive number types implement. Constants
+come from `T::zero()`, `T::one()`, and `T::from_i64(n)`:
+
+```text
+use std.num.Num
+
+fn sum[T < Num](items: List[T]) -> T:
+    let total = T::zero()
+    for item in items:
+        total = total + item
+    total
+```
 
 Data embedding does not interact with traits. Embedding never grants trait conformance, an embedded type's trait methods are not promoted, and a promoted method never fills a trait method. An implementation that wants the embedded behavior delegates the trait to the embedded field, which forwards every method, or forwards by hand:
 

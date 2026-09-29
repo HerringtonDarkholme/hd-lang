@@ -707,15 +707,25 @@ pass, each with a recommendation, are in
 **Decided direction (2026-09-28).** hd plans operator traits in `std.ops`
 (Rust's model: `Add`, `Sub`, `Mul`, `Div`, `Neg`, comparison already via
 `Eq`/`Ord`), so library types such as `Duration` support `5s + 3s` and `-d`.
-Today hd has no operator overloading. `std.ops` already holds the
+Until OP1-OP9, hd had no operator overloading. `std.ops` already held the
 literal-suffix marker `NumSuffix`
 ([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L5, L11).
 
-**Open.** Which operators, their signatures (same-type or mixed operands,
-output types), coherence for primitives, compound assignment, and whether
-comparison operators map to the existing comparison traits. The brainstorm
-[Operator Traits](OPERATOR_TRAITS.md) compares four trait shapes and asks
-eight questions; it recommends Rust's `Add[Rhs]` with an associated `Out`.
+**Decided and applied (2026-09-29).** Owner decisions OP1-OP9 in
+[Operator Traits](OPERATOR_TRAITS.md#owner-decisions): Rust-shaped
+`std.ops` traits (`Add[Rhs]` with an associated `Out`) for twelve
+operators, std implementations for the primitive numbers, `AddAssign`-style
+compound assignment, `Index` and `IndexSet`, supertrait `Out` bindings, and
+the sealed `std.num` traits `Num`, `Integer`, and `Float`
+([Operator Traits](../spec/05-expressions.md#operator-traits),
+[Compound Assignment](../spec/05-expressions.md#compound-assignment),
+[Numeric Traits](../spec/09-traits.md#numeric-traits)). Comparison stays
+on `Eq` and `PartialOrd`.
+
+**Open.** Fifteen points from the apply pass, each with a recommendation,
+are in [Operator Traits](OPERATOR_TRAITS.md#still-open): among them whether
+`a += b` falls back to `a = a + b`, how primitives relate to the assign
+traits, floating `%`, and the `Index` signatures.
 
 ### Decorators
 

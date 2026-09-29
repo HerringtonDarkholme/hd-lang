@@ -1,7 +1,12 @@
 # Operator Traits: Survey And Design Options
 
-Status: design exploration, 2026-09-28; nothing here is decided or in the
-specification. Since this record was written, Literal Suffixes L11 removed
+Status: design exploration, 2026-09-28. The owner decided OP1-OP9 on
+2026-09-29, and [Owner Decisions](#owner-decisions) lists where the
+specification applies them; [Still Open](#still-open) holds the points the
+apply pass met. The rest of the record is the survey as written, and nothing
+in it beyond those decisions is accepted behavior.
+
+Since this record was written, Literal Suffixes L11 removed
 `std.ops.LiteralSuffix`: a suffix is a function marked `@num_suffix`, so
 the comparisons below with `LiteralSuffix[In, Out]` are historical.
 
@@ -81,9 +86,52 @@ Decided 2026-09-29.
      generic `@num_suffix` function over `N < Num` is valid (L20, L22): `N`
      comes from the literal or from the expected type.
 
+**Applied 2026-09-29.** The specification now states each decision:
+
+| Decision | Specification |
+| --- | --- |
+| OP1 | [Operator Traits](../spec/05-expressions.md#operator-traits): [`expr.op.trait.shape`](../spec/05-expressions.md#r-expr.op.trait.shape), [`expr.op.desugar`](../spec/05-expressions.md#r-expr.op.desugar), [`expr.op.left-dispatch`](../spec/05-expressions.md#r-expr.op.left-dispatch), and [`expr.op.out`](../spec/05-expressions.md#r-expr.op.out). [`trait.cmp.operators-comparison`](../spec/09-traits.md#r-trait.cmp.operators-comparison) and [`expr.unsupported.custom-operators`](../spec/05-expressions.md#r-expr.unsupported.custom-operators) replace `trait.cmp.operators`, `expr.op.traits`, and `expr.unsupported.overloading`. |
+| OP2 | [`expr.op.primitive`](../spec/05-expressions.md#r-expr.op.primitive) and [Primitive Implementations](../spec/05-expressions.md#primitive-implementations). |
+| OP3 | The twelve rows of the [Operator Traits](../spec/05-expressions.md#operator-traits) table and [`expr.op.not-overloaded`](../spec/05-expressions.md#r-expr.op.not-overloaded). |
+| OP4 | [`expr.op.left-literal`](../spec/05-expressions.md#r-expr.op.left-literal). |
+| OP5 | [Compound Assignment](../spec/05-expressions.md#compound-assignment), with the aliasing Note; the tokens in [`lex.op.compound-assign`](../spec/01-lexical-structure.md#r-lex.op.compound-assign) and the grammar's `compound_assign_op`. |
+| OP6 | [`expr.op.newtype`](../spec/05-expressions.md#r-expr.op.newtype). |
+| OP7 | [Index Traits](../spec/05-expressions.md#index-traits), with the signatures of Still Open 11. |
+| OP8 | [Supertrait Bindings](../spec/09-traits.md#supertrait-bindings); [`trait.binding.rejected-other`](../spec/09-traits.md#r-trait.binding.rejected-other) and [`grammar.generic.binding.bounds-and-supertraits`](../spec/02-grammar.md#r-grammar.generic.binding.bounds-and-supertraits) replace `trait.binding.rejected` and its grammar rules. |
+| OP9 | [Numeric Traits](../spec/09-traits.md#numeric-traits), three rows of [Sealed Traits](../spec/09-traits.md#sealed-traits), [`expr.suffix.fn-shape-param`](../spec/05-expressions.md#r-expr.suffix.fn-shape-param), and [`expr.float.remainder-truncated`](../spec/05-expressions.md#r-expr.float.remainder-truncated). |
+
+The prototype implements none of them yet; its 34 fixtures are listed in
+`test/portable/KNOWN_FAILURES.tsv` under OP1 to OP9, and the
+[audit](../audit/README.md) counts them.
+
+## Still Open
+
+Points the apply pass met (2026-09-29). Each waits for the owner; the
+specification states the reading in the Applied column, so each can change
+without breaking a decision.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 1 | OP5 fallback: does `a += b` mean `a = a + b` when the place's type has no assign implementation? | No, as in Rust: it is `type-mismatch` ([`expr.assign.compound.no-impl`](../spec/05-expressions.md#r-expr.assign.compound.no-impl)) | Fall back, as Kotlin, Scala and C# 14 do, when `a + b` has the place's type; the assign method wins when both exist, as in C# 14. A newtype such as `Meters` and generic `T < Num` code have no `mut` view, so without it they can never write `+=`. The cost: adding an assign impl later changes what aliases see. |
+| 2 | OP5: how does std implement the assign traits for primitives? `types.prim.no-mut` forbids `mut i32`, so `add_assign(mut self, ...)` cannot be written for `i32`. | Primitive compound assignment is built in, and primitives implement no assign trait ([`expr.assign.compound.primitive-no-trait`](../spec/05-expressions.md#r-expr.assign.compound.primitive-no-trait)); `T < AddAssign[T]` rejects `i32` | Keep, and let point 1's fallback serve generic code. |
+| 3 | OP5 syntax: which tokens, and where may the right side be a suite? | Ten tokens (`**=` is not one), and the right side takes the forms of `=`, suites included ([`grammar.stmt.compound-assign`](../spec/02-grammar.md#r-grammar.stmt.compound-assign)) | Keep. |
+| 4 | OP5: what may the left side be? | A name, field, or index expression, as Rust requires a place ([`expr.assign.compound.place`](../spec/05-expressions.md#r-expr.assign.compound.place)); a call is `invalid-assignment-target`. Only the primitive path stores, so only it needs a reassignable local; `tally += hit` on a parameter `tally: mut Tally` calls the method ([`expr.assign.compound.mut`](../spec/05-expressions.md#r-expr.assign.compound.mut)) | Keep: it matches `tally.add_assign(hit)`. |
+| 5 | OP4 says a left literal "works only when both operands are the same primitive type". May `5 + money` use `impl Add[Money] for i32`, which [`trait.own.argument.example`](../spec/09-traits.md#r-trait.own.argument.example) allows? | Yes: the literal takes its default type, then dispatches on `i32` ([`expr.op.left-literal`](../spec/05-expressions.md#r-expr.op.left-literal)) | Keep: one rule, the same default as everywhere else. The alternative rejects every left literal beside a non-primitive operand. |
+| 6 | OP1/OP3 names | `Add Sub Mul Div Rem Neg BitAnd BitOr BitXor BitNot Shl Shr`, methods in snake case, parameter `rhs`, from this record's [Which Operators](#which-operators) table. `BitNot`, not Rust's `Not`, since `!` stays `bool`-only | Keep. |
+| 7 | OP2: which primitive implementations exist? | Same-type arithmetic and bitwise, `Neg` for signed and float types, `BitNot` for integers, and `Shl[C]`/`Shr[C]` for every integer pair, matching the built-in shift ([Primitive Implementations](../spec/05-expressions.md#primitive-implementations)). `i16 + i64` widens only in built-in code | Keep. |
+| 8 | OP2: does `string` implement `Add`? It is a primitive. | No; `string + string` stays built in, and `T < Add[T, Out = T]` rejects `string` ([`expr.op.std.other-primitives`](../spec/05-expressions.md#r-expr.op.std.other-primitives)) | Keep, as this record's P1 said. |
+| 9 | OP9 puts `%` on `Num`, and `f32`/`f64` are `Num`, but `%` was integer-only. | Floating `%` is valid and truncates, as C `fmod` and Rust `%` do ([`expr.float.remainder-truncated`](../spec/05-expressions.md#r-expr.float.remainder-truncated)); the old `float-remainder` rejection fixture is now valid | Keep: Rust, C#, Go's `math.Mod`, and JavaScript agree. The alternative moves `Rem` from `Num` to `Integer`. |
+| 10 | OP9 member lists | `Num < AnyVal` plus `Add`-`Rem` as `[Self, Out = Self]`, with `zero`, `one`, `from_i64`. `Integer` adds `Ord`, the bitwise traits, `BitNot[Out = Self]`, and `Shl`/`Shr[u32, Out = Self]`. `Float` adds `PartialOrd` and `Neg[Out = Self]` ([Numeric Traits](../spec/09-traits.md#numeric-traits)). Other methods, such as `checked_add` and `is_nan`, are library API in [STDLIB](STDLIB.md#stdnum), whose older `Integer < Ord & Hash & Display` loses `Hash` and `Display` | Keep; `u32` is Rust's count type for `pow`, `rotate_left`, and `checked_shl`. Every primitive number implements `Hash` and `Display` anyway. |
+| 11 | OP7 signatures | `Index[K]` with `type Out` and `fn index(self, key: K) -> Self::Out`; `IndexSet[K, V]` with `fn index_set(mut self, key: K, value: V) -> void`. They are independent, and `List` and `Map` implement neither ([Index Traits](../spec/05-expressions.md#index-traits)) | Confirm. Rust's `IndexMut` requires `Index`; Kotlin's `get` and `set` are independent, which fits a write-only sink. |
+| 12 | OP7: what does `grid[i] += 1` do? | A primitive element is read through `index` and stored through `index_set`; a non-primitive element receives the assign call ([`expr.assign.compound.index`](../spec/05-expressions.md#r-expr.assign.compound.index)) | Keep. |
+| 13 | OP7: a store on a readonly receiver | `mutable-receiver-required`, as for any `mut self` call, while a readonly `List` gives `readonly-root` | Keep: the message names the method's receiver. |
+| 14 | OP8: which code rejects an implementation whose supertrait binds another `Out`? | `missing-supertrait-implementation` ([`trait.binding.super.mismatch`](../spec/09-traits.md#r-trait.binding.super.mismatch)) | Keep: the bound supertrait is what is missing. |
+| 15 | OP9: which parameter types may a generic suffix take? | A type parameter bounded by `Num`, `Integer`, or `Float` ([`expr.suffix.fn-shape-param`](../spec/05-expressions.md#r-expr.suffix.fn-shape-param)); an unbounded `N` stays `type-mismatch` | Keep. |
+
 ## Contents
 
 - [Owner Decisions](#owner-decisions)
+- [Still Open](#still-open)
 - [Problem](#problem)
 - [What hd Has Today](#what-hd-has-today)
 - [Use Cases](#use-cases)
@@ -829,4 +877,4 @@ a placeholder.
 | 15 | Question 5 | parses |
 | 16 | Question 6 | parses |
 | 17 | Question 7 | parses |
-| 18 | Question 8 | `syntax-error` at the marked line 1, as `trait.binding.rejected` requires |
+| 18 | Question 8 | `syntax-error` at the marked line 1 when written; it parses since OP8 was applied |

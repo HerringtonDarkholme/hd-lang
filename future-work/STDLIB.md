@@ -54,7 +54,8 @@ every user module that already declares it.
 | `std.resource` | `ResourceError[E]` | [Wasm Boundary](../spec/10-modules.md#wasm-boundary) |
 | `std.convert` | `From[T]` | [Conversion Trait](../spec/09-traits.md#conversion-trait) |
 | `std.error` | `Error` (a `Display` subtrait whose members all have defaults) | [Error Trait](../spec/09-traits.md#error-trait) |
-| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings) |
+| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; the twelve operator traits `Add` to `Shr`, the ten assign traits `AddAssign` to `ShrAssign`, and `Index` and `IndexSet` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings), [Operator Traits](../spec/05-expressions.md#operator-traits), [Compound Assignment](../spec/05-expressions.md#compound-assignment), [Index Traits](../spec/05-expressions.md#index-traits) |
+| `std.num` | the sealed traits `Num`, `Integer`, and `Float`, with `zero`, `one`, and `from_i64` on `Num` | [Numeric Traits](../spec/09-traits.md#numeric-traits) |
 | `std.text` | the string prefix `r` | [Prefixed Strings](../spec/05-expressions.md#prefixed-strings) |
 | `std.time` | `Duration`; the literal suffixes `ms`, `s`, `min`, `h` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
 | `std.host` | `Args` | [Program Entry Points](../guide/LANGUAGE_TOUR.md#program-entry-points) (example) |
@@ -258,14 +259,14 @@ std
 ├── cmp             comparison traits (fixed), min, max, clamp, sort keys
 ├── hash            Hash, Hasher (fixed), default hasher
 ├── iter            Iterator, Iterable (fixed), adapters
-├── num             inherent checked, wrapping, saturating arithmetic; parsing; Integer, Float traits
+├── num             Num, Integer, Float (fixed, sealed); inherent checked, wrapping, saturating arithmetic; parsing
 ├── decimal         decimal number
 ├── text            inherent string methods, StringBuilder, UTF-8 encode and decode
 ├── bytes           Bytes (decision 5)
 ├── option          inherent methods on T?
 ├── result          inherent methods on Result[T, E]
 ├── convert         From[T] (fixed)
-├── ops             NumSuffix, num_suffix (fixed); operator traits later
+├── ops             NumSuffix, num_suffix; operator, assign, and index traits (fixed)
 ├── error           Error trait (fixed), error chains
 ├── collections     Set, Deque, SortedMap, SortedSet; inherent List and Map methods
 ├── path            Path (pure, platform-neutral)
@@ -313,16 +314,39 @@ All core modules are pure: no declaration here has a requirement row.
 
 Integer overflow is checked by default; the tour promises "explicit wrapping
 APIs". `std` declares the arithmetic variants as inherent methods on every
-integer type (decision 8), so `count.checked_add(1)` needs no `use`. The
-`Integer` and `Float` traits collect the same methods for generic code:
+integer type (decision 8), so `count.checked_add(1)` needs no `use`.
+
+The specification fixes three sealed traits
+([Numeric Traits](../spec/09-traits.md#numeric-traits), Operator Traits
+OP9). Only std implements them, for the primitive number types, and each
+implementation's body is an intrinsic. `Num` carries `+ - * / %` through
+its supertraits, and generic code builds constants with `zero`, `one`, and
+`from_i64`, which converts as a cast does:
 
 ```text
+use std.ops.{Add, Div, Mul, Rem, Sub}
+
+pub trait Num < AnyVal & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Self, Out = Self] & Div[Self, Out = Self] & Rem[Self, Out = Self]:
+    fn zero() -> Self
+    fn one() -> Self
+    fn from_i64(n: i64) -> Self
+```
+
+`Integer` and `Float` extend it with the supertraits the specification
+lists, and collect the inherent methods for generic code. The earlier draft
+had `Integer < Ord & Hash & Display`; the specification's list has no
+`Hash` or `Display`, which every primitive number implements anyway
+([Operator Traits Still Open 10](OPERATOR_TRAITS.md#still-open)):
+
+```text
+use std.ops.{BitAnd, BitNot, BitOr, BitXor, Neg, Shl, Shr}
+
 pub enum ParseNumberError:
     Empty
     InvalidDigit(position: i32)
     OutOfRange
 
-pub trait Integer < Ord & Hash & Display:
+pub trait Integer < Num & Ord & BitAnd[Self, Out = Self] & BitOr[Self, Out = Self] & BitXor[Self, Out = Self] & BitNot[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]:
     fn checked_add(self, other: Self) -> Self?
     fn checked_sub(self, other: Self) -> Self?
     fn checked_mul(self, other: Self) -> Self?
@@ -336,7 +360,7 @@ pub trait Integer < Ord & Hash & Display:
     fn count_ones(self) -> i32
     fn leading_zeros(self) -> i32
 
-pub trait Float < PartialOrd & Display:
+pub trait Float < Num & PartialOrd & Neg[Out = Self]:
     fn is_nan(self) -> bool
     fn is_finite(self) -> bool
     fn floor(self) -> Self
@@ -731,9 +755,33 @@ calls `sql` with a `Template[T]` of the raw text pieces and the values.
 raw-text prefix `r` lives in `std.text`
 (L20, [Prefixed Strings](../spec/05-expressions.md#prefixed-strings)), so
 code writes `use std.text.r`. The helpers `interpolate`, `process_escapes`,
-and `EscapeError` moved there too (L22; see [`std.text`](#stdtext)). Operator traits such as `Add` and `Neg` are planned
-here too, and are designed separately
-([Open Issues](OPEN_ISSUES.md#operator-traits)).
+and `EscapeError` moved there too (L22; see [`std.text`](#stdtext)).
+
+`std.ops` also declares the operator traits
+([Operator Traits](OPERATOR_TRAITS.md#owner-decisions) OP1-OP9): `Add`,
+`Sub`, `Mul`, `Div`, `Rem`, `Neg`, `BitAnd`, `BitOr`, `BitXor`, `BitNot`,
+`Shl`, and `Shr`, each with an associated `Out`; the ten assign traits
+from `AddAssign` to `ShrAssign`, each with a `mut self` method; and `Index`
+and `IndexSet`. Std implements the operator traits for the primitive
+numbers with intrinsic bodies, and `std.time` can implement them for
+`Duration`, so `5s + 250ms` works. `std.time` is not yet written against
+them; that is library work, not a language question.
+
+```text
+pub trait Add[Rhs]:
+    type Out
+    fn add(self, rhs: Rhs) -> Self::Out
+
+pub trait AddAssign[Rhs]:
+    fn add_assign(mut self, rhs: Rhs) -> void
+
+pub trait Index[K]:
+    type Out
+    fn index(self, key: K) -> Self::Out
+
+pub trait IndexSet[K, V]:
+    fn index_set(mut self, key: K, value: V) -> void
+```
 
 ### `Clone`
 

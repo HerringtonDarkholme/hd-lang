@@ -81,7 +81,9 @@ language specification:
   becomes the std prefix `std.ops.r`. All are applied, with follow-up
   points still open.
 - [Operator Traits](OPERATOR_TRAITS.md) surveys operator overloading and
-  compares four `std.ops` trait shapes, with questions for the owner.
+  compares four `std.ops` trait shapes. The owner chose Rust's shape with
+  compound assignment, index traits, and sealed numeric traits (OP1-OP9),
+  now applied, with fifteen follow-up points still open.
 - [Decorators](DECORATORS.md) surveys annotation systems and compares five
   designs for general, read-only, target-checked decorators. The owner
   chose plain values with a kind-only `@annotate` (D1-D9), now applied,
