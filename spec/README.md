@@ -1232,3 +1232,10 @@ existing source. Each entry names the decision that made the change.
   nonempty row such as `$(Db + Cache)` and a `-` between keys are
   `syntax-error`. `$()` is still the empty row. `old-row-operator` was
   withdrawn.
+- Bound and row operators, item 4 (owner decision in
+  [Open Issues](../future-work/OPEN_ISSUES.md#bound-and-row-operators),
+  2026-09-28): a callback whose row lacks the key a provider-installing
+  function discharges now matches the extension pattern. Passing
+  `fn tick() -> void $ Clock` to `cb: fn() -> void $ R + Logger`, previously
+  a `type-mismatch`, is valid, and `R` is `Clock`. Rows still have no
+  subtraction.

@@ -738,11 +738,11 @@ export function inferRequirementRows(
   ];
   if (rowNames.length === 0) return undefined;
   const concrete = formal.filter((requirement) => !rowParameterName(requirement));
+  // A callback whose row lacks a concrete key of the pattern still matches,
+  // with the row parameter set to its own row
+  // (11-requirements-and-suspension.md#r-req.row.least.absent-key).
   const actualSet = new Set(actual);
-  const missingConcrete = concrete.filter((requirement) => !actualSet.has(requirement));
-  if (missingConcrete.length > 0) {
-    return `callable requirement row is missing ${missingConcrete.join(", ")}`;
-  }
+  const present = concrete.filter((requirement) => actualSet.has(requirement));
   const boundRequirements = formal.flatMap((requirement) => {
     const name = rowParameterName(requirement);
     return name ? (substitutions.get(name) ?? []) : [];
@@ -757,7 +757,7 @@ export function inferRequirementRows(
     );
   }
   const instantiated = normalizedRequirements([
-    ...concrete,
+    ...present,
     ...formal.flatMap((requirement) => {
       const name = rowParameterName(requirement);
       return name ? (substitutions.get(name) ?? []) : [];
@@ -773,6 +773,37 @@ export function inferRequirementRows(
 /** A row as source writes it: `$()` or `$ A + B` (02-grammar.md#types). */
 function writtenRow(keys: readonly string[]): string {
   return keys.length === 0 ? "$()" : `$ ${keys.join(" + ")}`;
+}
+
+/**
+ * True when `actual` is the instantiated row pattern `instantiated` of
+ * `formal` except that its row lacks some concrete keys of the pattern, as a
+ * callback lacking the discharged key of `$ R + K` does
+ * (11-requirements-and-suspension.md#r-req.row.least.absent-key).
+ */
+export function lacksOnlyPatternKeys(
+  formal: ValueType,
+  instantiated: ValueType,
+  actual: ValueType,
+): boolean {
+  const pattern = functionParts(formal);
+  const wide = functionParts(instantiated);
+  const narrow = functionParts(actual);
+  if (!pattern || !wide || !narrow || !pattern.requirements.some(rowParameterName)) return false;
+  if (
+    wide.suspending !== narrow.suspending ||
+    wide.variadic !== narrow.variadic ||
+    wide.result !== narrow.result ||
+    wide.parameters.length !== narrow.parameters.length ||
+    !wide.parameters.every((parameter, index) => parameter === narrow.parameters[index])
+  )
+    return false;
+  const present = new Set(narrow.requirements);
+  const concrete = new Set(pattern.requirements.filter((key) => !rowParameterName(key)));
+  return (
+    narrow.requirements.every((key) => wide.requirements.includes(key)) &&
+    wide.requirements.every((key) => present.has(key) || concrete.has(key))
+  );
 }
 
 export function functionTypeMatchesRowPattern(

@@ -991,7 +991,7 @@ parse/invalid/row-subtraction.hd	parse
 parse/invalid/old-row-separator-in-type.hd	parse
 parse/invalid/old-row-separator-in-context.hd	parse
 parse/invalid/bare-row-list-in-type.hd	parse
-typing/invalid/row-extension-absent-key.hd	type
+typing/valid/row-extension-absent-key.hd	type
 parse/invalid/old-row-separator-type-argument.hd	parse
 parse/invalid/numeric-member-access.hd	parse
 parse/invalid/numeric-member-access-float.hd	parse
@@ -1250,3 +1250,4 @@ parse/invalid/old-bound-operator-generic.hd	parse
 parse/invalid/old-bound-operator-supertrait.hd	parse
 parse/invalid/old-bound-operator-impl.hd	parse
 parse/valid/bound-and-lists.hd	parse
+runtime/valid/row-extension-absent-key-runs.hd	runtime

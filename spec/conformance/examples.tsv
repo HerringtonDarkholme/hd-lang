@@ -374,7 +374,7 @@ specification	block	classification	fixture
 11-requirements-and-suspension.md	28	mixed	typing/invalid/missing-requirement-cold-construction.hd
 11-requirements-and-suspension.md	29	accept	typing/valid/requirements-and-suspension.hd
 11-requirements-and-suspension.md	30	accept	typing/valid/row-extension-entailment.hd
-11-requirements-and-suspension.md	31	mixed	typing/invalid/row-extension-absent-key.hd
+11-requirements-and-suspension.md	31	accept	typing/valid/row-extension-absent-key.hd
 12-variadic-generics.md	1	accept	typing/valid/variadic-generics.hd
 12-variadic-generics.md	2	accept	typing/valid/variadic-generics.hd
 12-variadic-generics.md	3	mixed	typing/invalid/multiple-positional-value-packs.hd|typing/invalid/nonfinal-positional-value-pack.hd

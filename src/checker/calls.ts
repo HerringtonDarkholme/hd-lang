@@ -30,6 +30,7 @@ import {
   containsGenericType,
   genericTypeName,
   inferGenericType,
+  lacksOnlyPatternKeys,
   matchGenericTypePattern,
   matchTraitImplementation,
   normalizeBoundProjections,
@@ -648,6 +649,9 @@ export abstract class CallChecker extends StatementChecker {
             source.span,
           );
         }
+        // A callback lacking a discharged key keeps its own type; the emitter
+        // adapts it to the pattern (11-requirements-and-suspension.md#r-req.poly.absent-matches).
+        if (lacksOnlyPatternKeys(formal, instantiatedFormal, checked.type)) return checked;
         return this.requireCoercion(checked, instantiatedFormal, source.span);
       }
       const nominal = nominalGenericParts(formal);

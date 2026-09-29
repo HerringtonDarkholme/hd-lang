@@ -974,3 +974,8 @@ style lint rejects a chapter that reuses one.
   composes bounds with `&`. Replaced by `trait.bound.compose-and`.
 - `fn.generic.bounds`: retired 2026-09-28. Bound And Row Operators composes
   bounds with `&`. Replaced by `fn.generic.bounds-and`.
+- `req.row.least.no-solution`: retired 2026-09-28. Bound And Row Operators
+  item 4 lets a callback whose row lacks the extra key match. Replaced by
+  `req.row.least.absent-key`.
+- `req.poly.absent`: retired 2026-09-28. Bound And Row Operators item 4.
+  Replaced by `req.poly.absent-matches`.

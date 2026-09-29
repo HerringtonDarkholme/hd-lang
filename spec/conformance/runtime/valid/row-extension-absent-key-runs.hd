@@ -1,0 +1,39 @@
+# test: a callback whose row lacks the discharged key runs with its own providers
+# expect: test
+use std.testing.assert_equal
+
+trait Logger:
+    fn prefix(self) -> string
+
+trait Tag:
+    fn name(self) -> string
+
+data FixedLogger: pass
+
+impl Logger for FixedLogger:
+    fn prefix(self) -> string: "log:"
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string: self.value
+
+fn provide_logger[R](callback: fn() -> string $ R + Logger) -> string $ R:
+    $.with(Logger=FixedLogger {}):
+        callback()
+
+fn tag_only() -> string $ Tag:
+    $.use(Tag).name()
+
+fn logged_tag() -> string $ Tag + Logger:
+    $.use(Logger).prefix() + $.use(Tag).name()
+
+tests:
+    it("R is the callback's own row when the callback lacks Logger"):
+        $.with(Tag=FixedTag { value: "t" }):
+            assert_equal(provide_logger(tag_only), "t", reason="R is Tag")
+            assert_equal(provide_logger(logged_tag), "log:t", reason="R is Tag, Logger discharged")
+
+    it("a callback with no requirements matches with the empty row"):
+        assert_equal(provide_logger(fn() -> string: "none"), "none", reason="R is the empty row")

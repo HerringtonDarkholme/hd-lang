@@ -1,4 +1,4 @@
-# test: a callback whose row lacks the removed key has no least solution for the extension pattern
+# test: a callback whose row lacks the discharged key still matches the extension pattern, with R set to its own row
 
 trait Logger:
     fn write(self, message: string) -> void
@@ -17,4 +17,4 @@ fn provide_logger[R](callback: fn() -> void $ R + Logger) -> void $ R:
 fn tick() -> void $ Clock: pass
 
 fn run() -> void $ Clock:
-    provide_logger(tick)  # diagnostic: type-mismatch
+    provide_logger(tick)

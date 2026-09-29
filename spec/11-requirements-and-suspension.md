@@ -163,8 +163,11 @@ pub fn invalid() -> void:
 
 1. r[req.row.least.solution] Inference for a parameter pattern that lists a row parameter beside concrete keys chooses the least row solution.
 2. r[req.row.least.examples] Matching `$ R + K` against the row `$ K` infers the empty row for `R`, and matching it against `$ K + Clock` infers `$ Clock`.
-3. r[req.row.least.no-solution] When the matched row lacks `K`, the pattern has no solution, and the argument is an error. Error: `type-mismatch`.
+3. r[req.row.least.absent-key] When the matched row lacks `K`, the pattern still matches, and `R` is the whole matched row.
 4. r[req.row.least.removal] This least-solution rule is also how a callee removes a key from a callback row.
+
+> **Why.** A callback that needs fewer keys than its pattern allows is
+> always safe to call where the pattern's keys are provided.
 
 See also: [Requirement Polymorphism](#requirement-polymorphism).
 
@@ -768,7 +771,7 @@ fn provide_logger[R](callback: fn(string) -> void $ R + Logger) -> void $ R:
 5. r[req.poly.naming] Row parameters follow the ordinary uppercase convention for generic parameters.
 6. r[req.poly.least] At a call, the compiler infers `R` as the least row solution of the callback pattern.
 7. r[req.poly.least.example] Passing a callback with row `$ Logger + Clock` infers `R` as `$ Clock`, so the call requires only `Clock`.
-8. r[req.poly.absent] Passing a callback whose row lacks `Logger` is an error. Error: `type-mismatch`.
+8. r[req.poly.absent-matches] Passing a callback whose row lacks `Logger` is valid, and `R` is the callback's own row.
 9. r[req.poly.body] Inside the body, calling `callback` requires `R` and `Logger`; the declared row supplies `R`, and the `$.with` scope supplies `Logger`.
 10. r[req.poly.one-body] A row parameter's providers are passed as one bundle, so a row-polymorphic body is compiled once and never specialized per row.
 11. r[req.poly.no-subtraction] Rows have no subtraction operator.
@@ -792,7 +795,7 @@ fn provide_logger[R](callback: fn() -> void $ R + Logger) -> void $ R:
 fn tick() -> void $ Clock: pass
 
 fn run() -> void $ Clock:
-    provide_logger(tick)  # error: type-mismatch
+    provide_logger(tick)  # valid: R is Clock
 ```
 
 > **Note.** Extension in the input and the plain row variable in the output
