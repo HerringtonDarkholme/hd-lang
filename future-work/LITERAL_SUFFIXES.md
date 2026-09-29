@@ -301,6 +301,15 @@ the decorator redesign; see its entry below.
     already `invalid-string-prefix`. Readings the apply pass had to choose
     are points 24-27 under [Still Open](#still-open).
 
+22. **L22 (2026-09-29): answers to Still Open 24-27.**
+    - A marker function takes **exactly one parameter**. Extra parameters
+      are not allowed, even with defaults.
+    - Which line the wrong-shape error points at is an implementation
+      detail, too small for the spec. The prototype uses the `fn` line.
+    - `interpolate`, `process_escapes` and `EscapeError` move to
+      `std.text` next to `r`. `std.ops` keeps the markers and `Template`.
+    - `EscapeError.offset` counts Unicode scalars.
+
 ## Contents
 
 - [Problem](#problem)
