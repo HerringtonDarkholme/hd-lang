@@ -267,8 +267,33 @@ type for every implementation.
 **Option 3 decided and applied (2026-09-29)** by
 Operator Traits OP8: a supertrait list
 binds associated types, as in `trait Summable < Add[Self, Out = Self]`
-([Supertrait Bindings](../spec/09-traits.md#supertrait-bindings)). Option 2
-stays open.
+([Supertrait Bindings](../spec/09-traits.md#supertrait-bindings)).
+
+**Option 2 and a trait-value extension decided by the owner (2026-09-29);
+not yet applied.**
+
+1. **AT1 (option 2, recommended): a binding may name an associated type
+   reachable through the bound trait's supertraits,** as in Rust:
+   `I < NamedSupplier[Item = T]`. When two supertraits declare the same
+   name, the binding is ambiguous and an error, reusing an existing code if
+   one fits. AT1 retires `trait.binding.own-trait` and
+   `trait.binding.supertrait`.
+2. **AT2 (trait value types bind associated types; the owner chose it over
+   the recommendation):**
+   - A trait value type may bind associated types, as Rust's
+     `dyn Iterator<Item = T>` does. `Supplier[Item = i32]` is a trait value
+     type when every associated type is bound, including those that
+     supertraits declare.
+   - A trait value that leaves an associated type unbound stays not
+     dynamically safe, and associated functions stay banned.
+   - When a trait value satisfies its own trait's bound, `T::Item` is the
+     bound type.
+   - AT2 relaxes `trait.dyn.safe.no-assoc` and `trait.binding.rejected-other`
+     for trait value types only. `impl` headers and trait-qualified calls
+     still reject bindings.
+   - The owner asked why hd could not do this while Rust can. The answer:
+     it had simply not been added, since the binding makes every signature
+     concrete. The specification's Why note says so.
 
 **Unblocks.** Shorter bounds for trait hierarchies with associated types.
 
