@@ -12,22 +12,13 @@ and [Prefixed Strings](../spec/05-expressions.md#prefixed-strings)
 string prefix is a function marked `@str_prefix`. The survey, the options,
 and the decision log are in git history.
 
-## Still Open
+## Status
 
-The L19 apply pass (2026-09-28) met these points. L19 said "lexed the way
-raw strings are today, including `$name` interpolation", but raw strings
-never interpolated, so the pass had to fill in how `$` and `\` behave. The
-specification states the reading in the Applied column, so each can change
-without breaking a decision. Each waits for the owner.
+All points are decided (2026-09-29):
+- 16 and 17 were covered by L20 ("keep the `$` readings"): `r"$true"` is
+  `syntax-error`, and `\$` stops interpolation and keeps its backslash.
+- 23 was confirmed by the owner: a prefixed string as a test name is
+  `non-literal-test-argument`.
 
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 16 | A `$` before a reserved word other than `self`, as in `r"$true"` | `syntax-error` ([`lex.prefix.reserved-dollar`](../spec/01-lexical-structure.md#r-lex.prefix.reserved-dollar)), as in interpreted strings | Keep. |
-| 17 | How to write `$name` as text in a prefixed string | A backslash keeps a following `$` from interpolating and stays in the text ([`lex.prefix.backslash`](../spec/01-lexical-structure.md#r-lex.prefix.backslash)), as JavaScript's `String.raw` does; `process_escapes` turns `\$` into `$` | Keep. |
-| 23 | A prefixed string as a test name, as in `it(r"a\b"):` | A call, so `non-literal-test-argument` by the existing rule | Keep. |
-
-```text
-use std.text.r
-
-kept := r"\$name"      # the text \$name
-```
+The specification already states all three, so nothing remains to apply.
+This record can be deleted in the next future-work cleanup.
