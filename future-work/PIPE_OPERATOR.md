@@ -125,6 +125,12 @@ Decided 2026-09-29.
       A method capture (`user.greet(_, "hi")`) fixes the receiver at
       creation, as MR1 bound references do.
 
+13. **PL13 (2026-09-29): no function placeholder at all.** The owner
+    reversed PL12 the same day. `f(_, a)` capture doesn't exist anywhere,
+    so PL11 stands again: outside a pipe step `_` has no expression
+    meaning. Callbacks are closures (`fn(u): format_user(u, style)`) or
+    method references (MR1). Inside a pipe step, `_` is only the pipe slot.
+
 ## Contents
 
 1. [Problem](#problem)
