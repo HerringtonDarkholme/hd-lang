@@ -274,8 +274,9 @@ the decorator redesign; see its entry below.
       Decorators follow-up questions.
     - `process_escapes` (std-only) returns `Result[string, EscapeError]`,
       and the error carries the offset of the bad escape.
-    - Still open: whether a test case can be written `it"name": ...`
-      (Still Open 23), which the owner raised for discussion.
+    - `it"name": ...` is rejected (owner, the same day). A prefix call
+      takes only its template, so options such as `timeout=` and `ignore=`
+      would have nowhere to go. Test cases stay `it("name", ...)`.
 
 ## Contents
 
