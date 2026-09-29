@@ -1594,14 +1594,21 @@ so write `price * 3`: `3 * price` types `3` as `i32` and looks for an
 operators; implement the ones it needs by hand. Two primitive operands keep
 the built-in rules.
 
-Compound assignment, such as `total += x`, works on primitives. On other
-types it calls an `AddAssign`-family method that takes `mut self`, so on a
-`data` value every alias sees the change. `Index` and `IndexSet` give a
-type `grid[i]` and `grid[i] = v`.
+Compound assignment, such as `total += x`, depends on the type's kind. On
+a value without identity (a primitive, a newtype over one, or `T < Num`),
+`total += x` means `total = total + x`. On a `data` value it calls an
+`AddAssign`-family method that takes `mut self`, so every alias sees the
+change. Without that method it is an error that suggests
+`total = total + x`; it never picks either meaning silently. By
+convention, value-like `data` types such as vectors and money implement
+only `Add`, and callers write `a = a + b`. Accumulators and builders
+implement `AddAssign`. `Index` and `IndexSet` give a type `grid[i]` and
+`grid[i] = v`.
 
 Generic numeric code uses the sealed `std.num` traits `Num`, `Integer`,
 and `Float`, which only the primitive number types implement. Constants
-come from `T::zero()`, `T::one()`, and `T::from_i64(n)`:
+come from `T::zero()`, `T::one()`, and `T::from_i64(n)`, which panics
+when `n` does not fit. `Num` also brings `<`, `==`, and `"$x"`:
 
 ```text
 use std.num.Num
@@ -1609,7 +1616,7 @@ use std.num.Num
 fn sum[T < Num](items: List[T]) -> T:
     let total = T::zero()
     for item in items:
-        total = total + item
+        total += item
     total
 ```
 

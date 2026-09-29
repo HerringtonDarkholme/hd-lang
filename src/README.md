@@ -736,7 +736,13 @@ else`, `break`, `break value`, and `continue`;
   `Add[Self, Out = Self]`, and the sealed `std.num` traits `Num`, `Integer`,
   and `Float` follow the same path. The primitive implementations are hd
   code whose bodies are the built-in operators. Floating `%` calls the
-  host's `rem_f64`, JavaScript's truncated remainder;
+  host's `rem_f64`, JavaScript's truncated remainder. Compound assignment
+  on an `AnyVal` place (a newtype over a primitive, or a type parameter
+  whose bound extends `AnyVal`, recorded as `HirTrait.valueCategory`)
+  stores `place op value`; other places call the assign method. A newtype
+  construction over an `AnyVal` base is readonly. `Num::from_i64` checks
+  its range in `lib/std/num.hd`, and `"$x"` on `T < Num` reaches `Display`
+  through the supertrait;
 - homogeneous `List[T]` literals, indexing, `len()`, and mutable `append()` over
   a growable Wasm GC vector with erased backing storage, plus indexed
   replacement through `mut List[T]`;

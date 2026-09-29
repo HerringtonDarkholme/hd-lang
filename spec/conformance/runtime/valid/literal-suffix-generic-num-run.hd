@@ -1,5 +1,5 @@
 # test: a generic suffix takes N from the literal or from the expected type
-# Spec 05 Literal Suffixes: expr.suffix.generic-num; spec 09 Numeric Traits: trait.num.from-i64 (Operator Traits OP9).
+# Spec 05 Literal Suffixes: expr.suffix.generic-num; spec 09 Numeric Traits: trait.num.from-i64-checked (Operator Traits OP9, OP10).
 use std.num.Num
 use std.ops.num_suffix
 use std.testing.assert_equal

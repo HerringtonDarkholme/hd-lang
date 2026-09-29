@@ -1,5 +1,5 @@
-# test: a non-primitive place needs an assign implementation, even with Add
-# Spec 05 Compound Assignment: expr.assign.compound.no-impl (Operator Traits OP5).
+# test: a place whose type does not implement AnyVal needs an assign implementation, even with Add
+# Spec 05 Compound Assignment: expr.assign.compound.ref-no-impl (Operator Traits OP5, OP10).
 use std.ops.Add
 
 data Score:

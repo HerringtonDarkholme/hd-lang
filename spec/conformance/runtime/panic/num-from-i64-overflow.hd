@@ -1,0 +1,10 @@
+# test: from_i64 panics when the value does not fit the target integer type
+# Spec 09 Numeric Traits: trait.num.from-i64-checked (Operator Traits OP10).
+use std.num.Num
+
+fn convert[T < Num](n: i64) -> T:
+    T::from_i64(n)  # panic: integer-overflow
+
+tests:
+    it("overflows"):
+        _ := convert[u8](1000)

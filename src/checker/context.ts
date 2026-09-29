@@ -1073,18 +1073,22 @@ export abstract class CheckerContext {
     }
     const trait = this.traitTypes.get("Display")!;
     const generic = genericTypeName(type);
-    const boundIndex = generic
-      ? this.signature.genericBounds.findIndex(
-          (bound) => bound.parameter === generic && bound.traitName === trait.name,
-        )
-      : -1;
-    if (boundIndex >= 0) {
+    // A bound on `Display`, or one whose trait extends it, as `T < Num` does
+    // (09-traits.md#r-trait.num.num-ordered).
+    for (const [boundIndex, bound] of this.signature.genericBounds.entries()) {
+      const boundTrait = generic === bound.parameter && this.traitTypes.get(bound.traitName);
+      const path = !boundTrait
+        ? undefined
+        : boundTrait.index === trait.index
+          ? []
+          : this.findSupertraitPath(boundTrait, bound.traitArguments, trait.index, []);
+      if (!boundTrait || !path) continue;
       const receiver: HirExpression = {
         kind: "trait-bound",
         value,
-        traitIndex: trait.index,
+        traitIndex: boundTrait.index,
         boundIndex,
-        type: "trait:Display",
+        type: `trait:${bound.traitName}`,
         span,
       };
       return {
@@ -1092,6 +1096,7 @@ export abstract class CheckerContext {
         receiver,
         traitIndex: trait.index,
         methodIndex: 0,
+        ...(path.length > 0 ? { supertraitPath: path } : {}),
         arguments: [],
         providers: [],
         type: "string",

@@ -111,9 +111,34 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
   }
 
   /**
+   * Whether a type implements `AnyVal`: a concrete type without identity, or
+   * a type parameter bounded by `AnyVal` directly or through a supertrait
+   * (04-type-system.md#r-types.sealed.type-parameter).
+   */
+  private implementsAnyVal(type: ValueType): boolean {
+    const plain = readonlyType(type);
+    const generic = genericTypeName(plain);
+    if (!generic) return !this.isIdentityType(plain);
+    if ((this.signature.valueParameters ?? []).includes(generic)) return true;
+    const byIndex = new Map([...this.traitTypes.values()].map((trait) => [trait.index, trait]));
+    const valueTrait = (index: number, seen: Set<number>): boolean => {
+      const trait = byIndex.get(index);
+      if (!trait || seen.has(index)) return false;
+      seen.add(index);
+      return (
+        trait.valueCategory === "AnyVal" ||
+        trait.supertraits.some((supertrait) => valueTrait(supertrait.traitIndex, seen))
+      );
+    };
+    return this.signature.genericBounds.some(
+      (bound) => bound.parameter === generic && valueTrait(bound.traitIndex, new Set()),
+    );
+  }
+
+  /**
    * `place op= value` (05-expressions.md#compound-assignment). The place's
    * receiver and index are evaluated once, into hidden locals when they are
-   * not plain names. A primitive place stores `place op value`; any other
+   * not plain names. An `AnyVal` place stores `place op value`; any other
    * place receives the assign trait's call.
    */
   protected checkCompoundAssignment(
@@ -149,7 +174,9 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
               index: once(statement.target.index),
             };
     const current = this.checkExpression(place);
-    if (isPrimitiveOperand(current.type)) {
+    // An `AnyVal` place rebinds: `p op= e` is `p = p op e`
+    // (05-expressions.md#r-expr.assign.compound.value).
+    if (isPrimitiveOperand(current.type) || this.implementsAnyVal(current.type)) {
       const value: Expression = {
         kind: "binary",
         operator,

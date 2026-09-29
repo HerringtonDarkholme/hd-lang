@@ -1,6 +1,13 @@
-# test: += is built in on primitives and calls AddAssign on other types
-# Spec 05 Compound Assignment: expr.assign.compound.primitive, expr.assign.compound.call (Operator Traits OP5).
-use std.ops.AddAssign
+# test: += is built in on primitives, rebinds a newtype, and calls AddAssign on data
+# Spec 05 Compound Assignment: expr.assign.compound.primitive, expr.assign.compound.value, expr.assign.compound.ref-call (Operator Traits OP5, OP10).
+use std.ops.{Add, AddAssign}
+
+type Meters(i64)
+
+impl Add[Meters] for Meters:
+    type Out = Meters
+    fn add(self, rhs: Meters) -> Meters:
+        Meters(i64(self) + i64(rhs))
 
 data Tally:
     count: i64
@@ -9,9 +16,11 @@ impl AddAssign[i64] for Tally:
     fn add_assign(mut self, rhs: i64) -> void:
         self.count = self.count + rhs
 
-fn record(tally: mut Tally, hits: List[i64]) -> i64:
+fn record(tally: mut Tally, hits: List[i64]) -> Meters:
     let seen: i64 = 0
+    let walked = Meters(0)
     for hit in hits:
         seen += 1
+        walked += Meters(hit)
         tally += hit
-    seen
+    walked

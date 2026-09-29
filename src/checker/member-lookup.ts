@@ -120,7 +120,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         );
       const typeArguments = (expression.callee as { readonly typeArguments?: readonly TypeRef[] })
         .typeArguments;
-      return this.checkExpression(
+      const constructed = this.checkExpression(
         {
           kind: "data",
           name,
@@ -130,6 +130,11 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         },
         expected,
       );
+      // A newtype over an `AnyVal` base has no identity, so its construction
+      // is not a fresh mutable object (04-type-system.md#r-types.fresh.mutable).
+      return this.isIdentityType(constructed.type)
+        ? constructed
+        : this.coerce(constructed, readonlyType(constructed.type), expression.span);
     }
     if (!single) return undefined;
     return this.unwrapNewtype(

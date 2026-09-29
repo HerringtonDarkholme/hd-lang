@@ -1147,3 +1147,20 @@ style lint rejects a chapter that reuses one.
 - `expr.suffix.fn-shape-one`: retired 2026-09-29. Operator traits OP9
   allows a suffix function generic over `N < Num`. Replaced by
   `expr.suffix.fn-shape-num` and `expr.suffix.fn-shape-param`.
+- `expr.assign.compound.call`: retired 2026-09-29. Operator traits OP10:
+  only a place whose type does not implement `AnyVal` calls the assign
+  method. Replaced by `expr.assign.compound.ref-call` and
+  `expr.assign.compound.value`.
+- `expr.assign.compound.no-impl`: retired 2026-09-29. Operator traits
+  OP10: an `AnyVal` place needs no assign implementation. Replaced by
+  `expr.assign.compound.ref-no-impl`.
+- `expr.assign.compound.index`: retired 2026-09-29. Operator traits OP10
+  splits elements by `AnyVal`, not by primitive type. Replaced by
+  `expr.assign.compound.index-by-kind`.
+- `trait.num.num`: retired 2026-09-29. Operator traits OP10 adds
+  `PartialOrd` and `Display` to `Num`. Replaced by `trait.num.num-ordered`.
+- `trait.num.from-i64`: retired 2026-09-29. Operator traits OP10 makes
+  `from_i64` checked. Replaced by `trait.num.from-i64-checked` and
+  `trait.num.from-i64-cast`.
+- `trait.num.std`: retired 2026-09-29. Operator traits OP10: `from_i64`
+  no longer behaves as a cast. Replaced by `trait.num.std-operators`.

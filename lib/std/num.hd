@@ -6,8 +6,9 @@ use std.ops.{Add, BitAnd, BitNot, BitOr, BitXor, Div, Mul, Neg, Rem, Shl, Shr, S
 
 # The numeric traits (spec/09-traits.md#numeric-traits). They are sealed:
 # only these implementations exist, one per primitive number type
-# (r-trait.num.sealed). `from_i64` converts as the cast `T(n)` does.
-pub trait Num < AnyVal & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Self, Out = Self] & Div[Self, Out = Self] & Rem[Self, Out = Self]:
+# (r-trait.num.sealed). `from_i64` is checked (r-trait.num.from-i64-checked):
+# a value the integer type cannot hold panics with integer overflow.
+pub trait Num < AnyVal & PartialOrd & Display & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Self, Out = Self] & Div[Self, Out = Self] & Rem[Self, Out = Self]:
     fn zero() -> Self
     fn one() -> Self
     fn from_i64(n: i64) -> Self
@@ -19,42 +20,42 @@ pub trait Float < Num & PartialOrd & Neg[Out = Self]
 impl Num for i8:
     fn zero() -> i8: 0
     fn one() -> i8: 1
-    fn from_i64(n: i64) -> i8: i8(n)
+    fn from_i64(n: i64) -> i8: i8(fit(n, -128, 127))
 
 impl Num for i16:
     fn zero() -> i16: 0
     fn one() -> i16: 1
-    fn from_i64(n: i64) -> i16: i16(n)
+    fn from_i64(n: i64) -> i16: i16(fit(n, -32768, 32767))
 
 impl Num for i32:
     fn zero() -> i32: 0
     fn one() -> i32: 1
-    fn from_i64(n: i64) -> i32: i32(n)
+    fn from_i64(n: i64) -> i32: i32(fit(n, -2147483648, 2147483647))
 
 impl Num for i64:
     fn zero() -> i64: 0
     fn one() -> i64: 1
-    fn from_i64(n: i64) -> i64: i64(n)
+    fn from_i64(n: i64) -> i64: n
 
 impl Num for u8:
     fn zero() -> u8: 0
     fn one() -> u8: 1
-    fn from_i64(n: i64) -> u8: u8(n)
+    fn from_i64(n: i64) -> u8: u8(fit(n, 0, 255))
 
 impl Num for u16:
     fn zero() -> u16: 0
     fn one() -> u16: 1
-    fn from_i64(n: i64) -> u16: u16(n)
+    fn from_i64(n: i64) -> u16: u16(fit(n, 0, 65535))
 
 impl Num for u32:
     fn zero() -> u32: 0
     fn one() -> u32: 1
-    fn from_i64(n: i64) -> u32: u32(n)
+    fn from_i64(n: i64) -> u32: u32(fit(n, 0, 4294967295))
 
 impl Num for u64:
     fn zero() -> u64: 0
     fn one() -> u64: 1
-    fn from_i64(n: i64) -> u64: u64(n)
+    fn from_i64(n: i64) -> u64: u64(fit(n, 0, i64_max()))
 
 impl Num for f32:
     fn zero() -> f32: 0.0
@@ -303,6 +304,13 @@ pub fn parse_i64(text: string) -> Result[i64, ParseNumberError]:
             .None => return .Err(ParseNumberError.OutOfRange)
         index = index + 1
     .Ok(value)
+
+# Returns `n` when `low <= n <= high`. Otherwise the checked sum of the
+# largest `i64` and one panics with integer overflow.
+fn fit(n: i64, low: i64, high: i64) -> i64:
+    if n < low || n > high:
+        return i64_max() + 1
+    n
 
 # `i64` literals take their type from context, so the bounds are functions.
 fn i64_max() -> i64:

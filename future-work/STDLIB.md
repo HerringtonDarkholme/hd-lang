@@ -330,12 +330,14 @@ The specification fixes three sealed traits
 OP9). Only std implements them, for the primitive number types, and each
 implementation's body is an intrinsic. `Num` carries `+ - * / %` through
 its supertraits, and generic code builds constants with `zero`, `one`, and
-`from_i64`, which converts as a cast does:
+`from_i64`, which is checked: a value the integer type cannot hold panics
+with `integer-overflow` (Operator Traits OP10). `Num` also has `PartialOrd`
+and `Display`:
 
 ```text
 use std.ops.{Add, Div, Mul, Rem, Sub}
 
-pub trait Num < AnyVal & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Self, Out = Self] & Div[Self, Out = Self] & Rem[Self, Out = Self]:
+pub trait Num < AnyVal & PartialOrd & Display & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Self, Out = Self] & Div[Self, Out = Self] & Rem[Self, Out = Self]:
     fn zero() -> Self
     fn one() -> Self
     fn from_i64(n: i64) -> Self
@@ -344,7 +346,8 @@ pub trait Num < AnyVal & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Sel
 `Integer` and `Float` extend it with the supertraits the specification
 lists, and collect the inherent methods for generic code. The earlier draft
 had `Integer < Ord & Hash & Display`; the specification's list has no
-`Hash` or `Display`, which every primitive number implements anyway
+`Hash`, which every primitive number implements anyway, and `Display`
+comes through `Num`
 ([Operator Traits Still Open 10](OPERATOR_TRAITS.md#still-open)):
 
 ```text

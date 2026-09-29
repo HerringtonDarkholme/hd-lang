@@ -99,6 +99,11 @@ export interface HirTrait {
   readonly index: number;
   readonly genericParameters: readonly string[];
   readonly supertraits: readonly HirSupertrait[];
+  /**
+   * `AnyVal` or `AnyRef` when the trait lists it as a supertrait, as
+   * `Num < AnyVal` does (04-type-system.md#r-types.sealed.type-parameter).
+   */
+  readonly valueCategory?: "AnyVal" | "AnyRef";
   readonly associatedTypes: readonly HirAssociatedType[];
   readonly methods: readonly HirTraitMethod[];
   readonly span: SourceSpan;

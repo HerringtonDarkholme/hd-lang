@@ -1,0 +1,21 @@
+# test: Num has PartialOrd, and so Eq, and Display, so generic code compares and interpolates
+# Spec 09 Numeric Traits: trait.num.num-ordered (Operator Traits OP10).
+use std.num.Num
+use std.testing.assert_equal
+
+fn largest[T < Num](items: List[T]) -> T:
+    let best = items[0]
+    for item in items:
+        if item > best:
+            best = item
+    best
+
+fn describe[T < Num](value: T) -> string:
+    if value == T::zero(): "zero" else: "value $value"
+
+tests:
+    it("compares and prints generically"):
+        assert_equal(largest([3, 9, 4]), 9, reason="i32 is Num")
+        assert_equal(largest([0.5, 0.25]), 0.5, reason="f64 is Num")
+        assert_equal(describe(0), "zero", reason="Eq through PartialOrd")
+        assert_equal(describe(7), "value 7", reason="Display")

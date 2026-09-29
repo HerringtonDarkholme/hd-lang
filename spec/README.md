@@ -1462,6 +1462,16 @@ existing source. Each entry names the decision that made the change.
   `%`, floating `%` is now valid and truncates as C `fmod` does, where
   `2.0 % 1.0` was `type-mismatch`. A function marked `@num_suffix` may be
   generic over `N < Num`, which was `type-mismatch` at the definition.
+- Operator traits OP10 (same record, 2026-09-29): compound assignment
+  depends on the place's kind. On an `AnyVal` type, such as a newtype over
+  `i64` or a type parameter bounded by `Num`, `a += b` now means
+  `a = a + b`; it needs `Add` and a reassignable place, where it was
+  `type-mismatch` without an `AddAssign` implementation. On any other type
+  it still calls the assign method, never falls back, and its error offers
+  `a = a + b` as a fix-it. `Num::from_i64` is now checked:
+  `u8::from_i64(300)`, which wrapped to 44, panics with
+  `integer-overflow`. `Num` gains the supertraits `PartialOrd` and
+  `Display`, so `T < Num` code may compare and interpolate.
 - Iterator adapters (STDLIB questions 14 and 18, owner decision,
   2026-09-29): the prelude `Iterator[T]` gains the default methods
   `filter`, `take`, `enumerate`, and `collect`, as Rust's `Iterator` has

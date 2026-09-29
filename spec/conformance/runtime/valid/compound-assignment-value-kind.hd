@@ -1,0 +1,38 @@
+# test: += on a newtype and on a Num type parameter rebinds the place through the operator trait
+# Spec 05 Compound Assignment: expr.assign.compound.value, expr.assign.compound.by-kind (Operator Traits OP10).
+use std.num.Num
+use std.ops.Add
+use std.testing.assert_equal
+
+type Meters(i64)
+
+impl Add[Meters] for Meters:
+    type Out = Meters
+    fn add(self, rhs: Meters) -> Meters:
+        Meters(i64(self) + i64(rhs))
+
+fn walk(steps: List[i64]) -> i64:
+    let walked = Meters(0)
+    for step in steps:
+        walked += Meters(step)
+    i64(walked)
+
+fn sum[T < Num](items: List[T]) -> T:
+    let total = T::zero()
+    for item in items:
+        total += item
+    total
+
+fn alias() -> i64:
+    let first = Meters(1)
+    second := first
+    first += Meters(2)
+    i64(second)
+
+tests:
+    it("rebinds a newtype place"):
+        assert_equal(walk([2, 3, 4]), 9, reason="2 + 3 + 4")
+    it("rebinds a generic Num place"):
+        assert_equal(sum([1.5, 2.5]), 4.0, reason="1.5 + 2.5")
+    it("leaves an earlier copy unchanged"):
+        assert_equal(alias(), 1, reason="a newtype over i64 has no identity")

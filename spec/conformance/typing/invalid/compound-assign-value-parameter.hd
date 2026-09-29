@@ -1,0 +1,14 @@
+# test: += on a newtype stores into the place, so a parameter cannot be the left side
+# Spec 05 Compound Assignment: expr.assign.compound.value (Operator Traits OP10).
+use std.ops.Add
+
+type Meters(i64)
+
+impl Add[Meters] for Meters:
+    type Out = Meters
+    fn add(self, rhs: Meters) -> Meters:
+        Meters(i64(self) + i64(rhs))
+
+fn walk(walked: Meters, step: Meters) -> Meters:
+    walked += step  # diagnostic: non-reassignable-parameter-binding
+    walked

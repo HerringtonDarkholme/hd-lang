@@ -1333,7 +1333,7 @@ fn kilo[N < Num](n: N) -> N:
 `Num` is declared in this shape:
 
 ```text
-pub trait Num < AnyVal & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Self, Out = Self] & Div[Self, Out = Self] & Rem[Self, Out = Self]:
+pub trait Num < AnyVal & PartialOrd & Display & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Self, Out = Self] & Div[Self, Out = Self] & Rem[Self, Out = Self]:
     fn zero() -> Self
     fn one() -> Self
     fn from_i64(n: i64) -> Self
@@ -1341,7 +1341,7 @@ pub trait Num < AnyVal & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Sel
 
 | Rule | Trait | Supertraits |
 | --- | --- | --- |
-| r[trait.num.num] Num | `Num` | `AnyVal`, and `Add`, `Sub`, `Mul`, `Div`, and `Rem`, each as `[Self, Out = Self]` |
+| r[trait.num.num-ordered] Num | `Num` | `AnyVal`, `PartialOrd` (and so `Eq`), `Display`, and `Add`, `Sub`, `Mul`, `Div`, and `Rem`, each as `[Self, Out = Self]` |
 | r[trait.num.integer] Integer | `Integer` | `Num`, `Ord`, `BitAnd`, `BitOr`, and `BitXor`, each as `[Self, Out = Self]`, `BitNot[Out = Self]`, `Shl[u32, Out = Self]`, and `Shr[u32, Out = Self]` |
 | r[trait.num.float] Float | `Float` | `Num`, `PartialOrd`, and `Neg[Out = Self]` |
 
@@ -1350,10 +1350,11 @@ pub trait Num < AnyVal & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Sel
 3. r[trait.num.not-newtypes] A newtype over a number, such as `type Meters(i64)`, and a library number type, such as a `BigInt`, are not `Num`. They implement the operator traits they need by hand.
 4. r[trait.num.members] `Num` declares `zero`, `one`, and `from_i64`. `Integer` and `Float` may declare further library methods, such as `checked_add` and `is_nan`, which this specification does not list.
 5. r[trait.num.zero-one] `T::zero()` and `T::one()` are the values 0 and 1 of `T`. A numeric literal never has a type parameter's type, so generic code builds constants from these functions.
-6. r[trait.num.from-i64] `T::from_i64(n)` converts `n` as the [numeric cast](04-type-system.md#numeric-casts) `T(n)` does: an integer type wraps, and a floating-point type takes the nearest value.
-7. r[trait.num.division] `/` and `%` keep each type's own meaning under `Num`. Integer division truncates and panics on a zero divisor, and floating-point division follows IEEE 754.
-8. r[trait.num.std] The standard library's implementations behave as the built-in operators and casts do.
-9. r[trait.num.suffix] A suffix function may be generic over `N < Num`, as [`expr.suffix.fn-shape-param`](05-expressions.md#r-expr.suffix.fn-shape-param) allows.
+6. r[trait.num.from-i64-checked] `T::from_i64(n)` is checked. For an integer type `T`, it returns `n` as a `T` when `T` can hold it, and otherwise panics with `integer-overflow`. A floating-point type takes the nearest value.
+7. r[trait.num.from-i64-cast] A [numeric cast](04-type-system.md#numeric-casts) `T(n)` stays the way to wrap.
+8. r[trait.num.division] `/` and `%` keep each type's own meaning under `Num`. Integer division truncates and panics on a zero divisor, and floating-point division follows IEEE 754.
+9. r[trait.num.std-operators] The standard library's operator implementations behave as the built-in operators do.
+10. r[trait.num.suffix] A suffix function may be generic over `N < Num`, as [`expr.suffix.fn-shape-param`](05-expressions.md#r-expr.suffix.fn-shape-param) allows.
 
 ```text
 use std.num.Num
