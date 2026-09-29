@@ -28,9 +28,8 @@ the Kotlin-style inference recorded earlier the same day (89c6a11).
    says `mut` (`let a: mut List[i32] = []` stays valid). Fresh literals are
    not silently `mut`.
 4. `:=` stays read-only.
-5. Left for the apply pass: whether `let mut a: mut T` (redundant) is
-   allowed quietly or linted. The recommendation is to allow it, with an
-   optional style lint.
+5. `let mut a: mut User = User { ... }` is allowed but redundant (owner,
+   the same day). At most a style lint suggests removing one `mut`.
 
 Why: it removes the repeated type (`let a: mut User = User {...}`) while
 the declaration still says which locals change, and `mut` keeps a single
