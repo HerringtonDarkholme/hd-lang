@@ -119,11 +119,12 @@ impl TypeShape:
             _ => false
 
 # The kinds of target a decorator value attaches to (r-annot.target.kind.fn
-# and the rows after it). A newtype has no kind.
+# and the rows after it); a newtype is `.Newtype` (Decorators D10).
 pub enum Target:
     Fn
     Data
     Enum
+    Newtype
     Field
     Variant
     Param

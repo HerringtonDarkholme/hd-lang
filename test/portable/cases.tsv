@@ -1333,3 +1333,4 @@ typing/valid/row-union-closure-result.hd	type
 typing/valid/row-union-omitted-result.hd	type
 typing/invalid/row-union-if-nested-lists.hd	type
 runtime/valid/row-union-branches-run.hd	runtime
+typing/valid/decorator-target-newtype-kind.hd	type

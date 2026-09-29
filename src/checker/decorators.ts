@@ -21,7 +21,7 @@ import { markerShapeDiagnostics } from "./literal-suffixes.ts";
 //   standard library is joined, for `std`'s own decorators.
 // - `checkDecoratorTargets`: a value whose type carries a
 //   `std.annotation.Annotate` fact may be attached only to the target kinds
-//   it lists (annot.target.limit.error). The check reads the `@annotate`
+//   it lists (annot.target.limit.kind-error). The check reads the `@annotate`
 //   arguments syntactically, as the prototype's other fact passes do.
 
 /**
@@ -33,18 +33,18 @@ export const STANDARD_NUM_SUFFIX = "std.ops.NumSuffix";
 export const STANDARD_STR_PREFIX = "std.ops.StrPrefix";
 export const STANDARD_TEMPLATE = "std.ops.Template";
 
-/** A target kind: a variant of `std.annotation.Target`, or none for a newtype. */
+/** A target kind: a variant of `std.annotation.Target`. */
 type TargetKind =
   | "Fn"
   | "Data"
   | "Enum"
+  | "Newtype"
   | "Field"
   | "Variant"
   | "Param"
   | "Trait"
   | "Impl"
-  | "Method"
-  | undefined;
+  | "Method";
 
 interface Attached {
   readonly fact: Expression;
@@ -71,7 +71,7 @@ function attachedValues(program: Program): Attached[] {
     parameters(declaration.parameters);
   }
   for (const declaration of program.data) {
-    add(declaration.decorators?.facts, declaration.newtype ? undefined : "Data");
+    add(declaration.decorators?.facts, declaration.newtype ? "Newtype" : "Data");
     for (const field of declaration.fields) add(field.metadata, "Field");
   }
   for (const declaration of program.enums) {
@@ -90,7 +90,7 @@ function attachedValues(program: Program): Attached[] {
     methods(declaration.methods);
   }
   for (const declaration of program.types ?? [])
-    if (declaration.base) add(declaration.decorators?.facts, undefined);
+    if (declaration.base) add(declaration.decorators?.facts, "Newtype");
   return result;
 }
 
@@ -259,9 +259,9 @@ function listedKinds(fact: Expression): Set<string> | undefined {
 }
 
 /**
- * `decorator-not-annotator` for each value attached to a kind of target
- * that its type's `@annotate` fact does not list (annot.target.limit.error,
- * annot.target.newtype).
+ * `decorator-target-kind` for each value attached to a kind of target
+ * that its type's `@annotate` fact does not list (annot.target.limit.kind-error;
+ * a newtype is `.Newtype`, annot.target.kind.newtype-kind).
  */
 export function checkDecoratorTargets(program: Program): Diagnostic[] {
   const functions = new Map(program.functions.map((item) => [item.name, item] as const));
@@ -289,15 +289,12 @@ export function checkDecoratorTargets(program: Program): Diagnostic[] {
     const type = typeOf(fact);
     if (!type) continue;
     const limit = limitOf(type);
-    if (!limit || (kind !== undefined && limit.has(kind))) continue;
+    if (!limit || limit.has(kind)) continue;
     const listed = [...limit].map((item) => `.${item}`).join(", ");
     const name = type.kind === "data" ? (type.standardName ?? type.name) : type.name;
     diagnostics.push({
-      code: "decorator-not-annotator",
-      message:
-        kind === undefined
-          ? `a '${name}' value may be attached only to ${listed}; a newtype has no target kind`
-          : `a '${name}' value may be attached only to ${listed}, not to a .${kind} target`,
+      code: "decorator-target-kind",
+      message: `a '${name}' value may be attached only to ${listed}, not to a .${kind} target`,
       span: fact.span,
     });
   }

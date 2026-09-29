@@ -634,7 +634,7 @@ else`, `break`, `break value`, and `continue`;
   load. The prototype cannot check `annot.traitless.module` across the
   modules of a linked package, which share one namespace;
 - decorators as plain values (spec/14-annotations.md#prefix-decorators,
-  Decorators D1-D9), in `checker/decorators.ts`: a decorator before a
+  Decorators D1-D10), in `checker/decorators.ts`: a decorator before a
   function, trait, implementation, newtype, method, or method parameter
   attaches its value, which is checked as a compile-time expression like
   any fact, counted by `duplicate-fact`, and, on a module-level function,
@@ -646,7 +646,9 @@ else`, `break`, `break value`, and `continue`;
   `std.annotation.Annotate` by the qualified name the loader records
   (`DataDecl.standardName`), and reads the listed kinds from the written
   arguments, as the other fact passes read types from syntax. A value
-  that a member line attaches is checked on that line;
+  that a member line attaches is checked on that line. A newtype is a
+  `.Newtype` target, and a value on a kind its limit omits is
+  `decorator-target-kind` (D10);
 - runtime type identity: importing a `std.inspect` name or `std.error.Error`
   declares the sealed `Inspectable` (`std.error.Error` extends it) and
   `TypeId`, a data type holding the canonical printable name (an inner
