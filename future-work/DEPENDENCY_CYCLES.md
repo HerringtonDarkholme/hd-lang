@@ -27,6 +27,37 @@ The owner's main goal is parallel compilation, and the owner worries about
 a large cyclic "mud ball" becoming one compilation unit. Both are central
 axes here. Problem IDs are DC-1 to DC-11; no earlier report exists.
 
+
+## Owner Decisions
+
+Decided 2026-09-29. This is option O6, with these answers:
+
+1. **DC1: `pub` items have full signatures**, methods included. This was
+   already decided earlier; the apply pass closes gap G1 by stating it for
+   `pub` methods. It carries parallel compilation.
+2. **DC2: one merged rule, one code:** the folder dependency graph is
+   acyclic. File import cycles inside one folder are therefore allowed, and
+   package cycles are forbidden. The code name is left to the apply pass,
+   for example `folder-cycle`.
+3. **DC3: a file's folder is its directory,** `mod.hd` included. Nested
+   folders are separate nodes.
+4. **DC4: no parent/child exemption.**
+5. **DC5: shared items go in a leaf folder.** The error's fix-it moves
+   `x.hd` to `x/mod.hd`, which keeps the module name, so no `use` line
+   changes.
+6. **DC6: test code's edges don't count** (`*_test.hd`, `tests/`, test
+   helpers), as Go exempts `_test` packages.
+7. **DC7: initialization inside a same-folder cycle uses Go's rule:**
+   declarations are ordered by their dependencies across the group, then
+   by file order. A true initialization cycle is an error.
+8. **DC8: a `pub use` chain must end at a declaration.** This replaces the
+   blanket `module.pub-use.cycles`.
+9. **DC9: the diagnostic shows one shortest folder loop,** with the `use`
+   line for each edge, the size of the tangle, and the fix-it.
+10. **DC10: decorator facts that call other files are evaluated after
+    bodies are checked,** and their values are hashed into the package
+    interface.
+
 ## Contents
 
 1. [Surface Being Tested](#surface-being-tested)
