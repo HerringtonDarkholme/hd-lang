@@ -873,6 +873,8 @@ safe, so `mut Iterator[T]` could not be a value type. That point and six
 
 **Open.** [Pipe Operator](PIPE_OPERATOR.md#questions-for-the-owner) asks PL1-PL9: how `map` and `fold` reach iterators, and whether and how hd gets `|>`.
 
+**Open.** [Chaining Study](CHAINING_STUDY.md#questions-for-the-owner) asks CS1-CS6 on the pipe, function shorthand, and adapter style together.
+
 ### Cross-Feature Stress Test (2026-09-29)
 
 **Open.** [STRESS_2026_09_29](STRESS_2026_09_29.md#questions-for-the-owner) asks 11 questions across OP, L, D, RU, and DC, led by the `+=` fallback and a checked `from_i64`.

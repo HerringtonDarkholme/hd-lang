@@ -112,6 +112,7 @@ language specification:
   ST-14), led by `+=` aliasing and `from_i64`'s silent wrap, with 11
   owner questions.
 - [Pipe Operator And Iterator `map`/`fold`](PIPE_OPERATOR.md) surveys pipes, UFCS, and extension methods in 17 languages, compares five options, and asks PL1-PL9.
+- [Chaining Study: Pipe, Function Shorthand, And Iterator Adapters](CHAINING_STUDY.md) measures six combinations on one real-code corpus, recommends methods, substitution-only pipe steps, and `.name` member paths, and asks CS1-CS6.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 
