@@ -513,26 +513,27 @@ pub fn main() -> ExitCode:
 
 ### Literal Suffixes
 
-**Decided and applied (2026-09-28).** Owner decisions L1-L9: a suffix is a
-newtype implementing `std.ops.LiteralSuffix`, imported by `use`, and
-`250ms` calls its `from_literal`
+**Decided and applied (2026-09-28).** Owner decisions L1-L11: a suffix is a
+function marked `@num_suffix` (L11, with the names of Decorators D9),
+imported by `use`, and `250ms` calls `ms(250)`
 ([Literal Suffixes](../spec/05-expressions.md#literal-suffixes)). L12, L13
 and L15-L17 are applied too: only decimal and float literals take a suffix,
 `5else` is `invalid-token`, a suffixed literal has no compile-time rule of
 its own, the test `timeout` option takes any `Duration`, and `Duration` is
 whole milliseconds with the suffixes `ms s min h`.
 
-**Open.** L11 (`@suffix fn` in place of `LiteralSuffix`) waits for the
-[decorator redesign](DECORATORS.md). Nine points, each with a recommendation, are in
-[Literal Suffixes](LITERAL_SUFFIXES.md#still-open).
+**Open.** Five points from the L11 apply pass, each with a recommendation,
+are in [Literal Suffixes](LITERAL_SUFFIXES.md#still-open), among them the new
+`invalid-literal-suffix` code.
 
 ### Operator Traits
 
 **Decided direction (2026-09-28).** hd plans operator traits in `std.ops`
 (Rust's model: `Add`, `Sub`, `Mul`, `Div`, `Neg`, comparison already via
 `Eq`/`Ord`), so library types such as `Duration` support `5s + 3s` and `-d`.
-Today hd has no operator overloading. `std.ops.LiteralSuffix` is the first
-member ([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L5).
+Today hd has no operator overloading. `std.ops` already holds the
+literal-suffix marker `NumSuffix`
+([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L5, L11).
 
 **Open.** Which operators, their signatures (same-type or mixed operands,
 output types), coherence for primitives, compound assignment, and whether

@@ -157,9 +157,8 @@ mask := 0x_FF_FF_00
 ```
 
 A numeric literal may end in a suffix that a library declares, such as
-`250ms`. The suffix is a type brought in with `use`, and the literal calls
-its `std.ops.LiteralSuffix` implementation: `250ms` means
-`ms::from_literal(250)`, a `std.time.Duration`. Only decimal and
+`250ms`. The suffix is a function brought in with `use`, and the literal
+calls it: `250ms` means `ms(250)`, a `std.time.Duration`. Only decimal and
 floating-point literals take a suffix, and `-5s` negates the literal before
 the call. A `Duration` is a whole number of milliseconds, and the standard
 library declares only `ms`, `s`, `min`, and `h`:
@@ -171,9 +170,9 @@ timeout := 5s
 let backoff: Duration = 1_500ms
 ```
 
-A library declares its own suffix by implementing the trait on a newtype
-named after it, as in `impl LiteralSuffix[i32, Pixels] for px`; see
-[Literal Suffixes](../spec/05-expressions.md#literal-suffixes).
+A library declares its own suffix by marking a function `@num_suffix`, as
+in `@num_suffix fn px(count: i32) -> Pixels` after `use std.ops.num_suffix`;
+see [Literal Suffixes](../spec/05-expressions.md#literal-suffixes).
 
 Python-style raw strings preserve backslashes and escape-looking text. Their
 multiline form uses three double quotes:

@@ -49,12 +49,12 @@ every user module that already declares it.
 | `std.iter` | `Iterator`, `Iterable` | [For Loops](../spec/06-control-flow.md) |
 | `std.console` | `Console`, `ConsoleError`, `println` | [Prelude](../spec/10-modules.md#prelude) |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, a retry combinator | [Requirements and Suspension](../spec/11-requirements-and-suspension.md) |
-| `std.annotation` | shape names and `shape`, `shape_of` | [Annotations](../spec/14-annotations.md) |
+| `std.annotation` | shape names and `shape`, `shape_of`; `Target`, `Annotate`, `annotate` | [Annotations](../spec/14-annotations.md) |
 | `std.testing` | `assert`, `assert_equal`, `it`, `it_each`, `it_prop`, `it_prop_with`, `snapshot`, `snapshot_file` | [Standard Testing](../spec/10-modules.md#standard-testing) |
 | `std.resource` | `ResourceError[E]` | [Wasm Boundary](../spec/10-modules.md#wasm-boundary) |
 | `std.convert` | `From[T]` | [Conversion Trait](../spec/09-traits.md#conversion-trait) |
 | `std.error` | `Error` (a `Display` subtrait whose members all have defaults) | [Error Trait](../spec/09-traits.md#error-trait) |
-| `std.ops` | `LiteralSuffix[In, Out]` | [Literal Suffix Trait](../spec/09-traits.md#literal-suffix-trait) |
+| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
 | `std.time` | `Duration`; the literal suffixes `ms`, `s`, `min`, `h` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
 | `std.host` | `Args` | [Program Entry Points](../guide/LANGUAGE_TOUR.md#program-entry-points) (example) |
 | `std.fingerprint` | the persisted-identity digest | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
@@ -264,7 +264,7 @@ std
 ├── option          inherent methods on T?
 ├── result          inherent methods on Result[T, E]
 ├── convert         From[T] (fixed)
-├── ops             LiteralSuffix (fixed); operator traits later
+├── ops             NumSuffix, num_suffix (fixed); operator traits later
 ├── error           Error trait (fixed), error chains
 ├── collections     Set, Deque, SortedMap, SortedSet; inherent List and Map methods
 ├── path            Path (pure, platform-neutral)
@@ -688,18 +688,24 @@ blocked; none needs a question.
 
 ### `std.ops`
 
-`std.ops` holds the traits that give library types literal and, later,
-operator syntax. Its first member is `LiteralSuffix`
-([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L2, L5):
+`std.ops` holds what gives library types literal and, later, operator
+syntax. Its first member is the literal-suffix marker
+([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L11,
+[Decorators](DECORATORS.md#owner-decisions) D9):
 
 ```text
-pub trait LiteralSuffix[In, Out]:
-    fn from_literal(n: In) -> Out
+use std.annotation.annotate
+
+@annotate(.Fn)
+pub data NumSuffix: pass
+
+pub fn num_suffix() -> NumSuffix:
+    NumSuffix {}
 ```
 
-A library declares a suffix by implementing it on a newtype named after the
-suffix; `250ms` then means `ms::from_literal(250)`. Operator traits such as
-`Add` and `Neg` are planned here too, and are designed separately
+A library declares a suffix by marking a function `@num_suffix`; `250ms`
+then means `ms(250)`. Operator traits such as `Add` and `Neg` are planned
+here too, and are designed separately
 ([Open Issues](OPEN_ISSUES.md#operator-traits)).
 
 ### `Clone`
@@ -781,27 +787,26 @@ methods, and an entry point requires it as a plain `$ K`
 ### `std.time`
 
 ```text
-use std.ops.LiteralSuffix
+use std.ops.num_suffix
 
 pub data Duration:
     millis: i64
 
-pub type ms(i64)
-pub type s(i64)
-pub type min(i64)
-pub type h(i64)
+@num_suffix
+pub fn ms(count: i64) -> Duration:
+    Duration::milliseconds(count)
 
-impl LiteralSuffix[i64, Duration] for ms:
-    fn from_literal(n: i64) -> Duration: Duration::milliseconds(n)
+@num_suffix
+pub fn s(count: i64) -> Duration:
+    Duration::seconds(count)
 
-impl LiteralSuffix[i64, Duration] for s:
-    fn from_literal(n: i64) -> Duration: Duration::seconds(n)
+@num_suffix
+pub fn min(count: i64) -> Duration:
+    Duration::seconds(count * 60)
 
-impl LiteralSuffix[i64, Duration] for min:
-    fn from_literal(n: i64) -> Duration: Duration::seconds(n * 60)
-
-impl LiteralSuffix[i64, Duration] for h:
-    fn from_literal(n: i64) -> Duration: Duration::seconds(n * 3_600)
+@num_suffix
+pub fn h(count: i64) -> Duration:
+    Duration::seconds(count * 3_600)
 
 impl Duration:
     pub fn milliseconds(count: i64) -> Duration:

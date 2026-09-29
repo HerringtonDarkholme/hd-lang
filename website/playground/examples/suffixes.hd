@@ -1,16 +1,14 @@
-# A number with a suffix calls its suffix type's `LiteralSuffix`
-# implementation: `12px` means `px::from_literal(12)`. `std.time` declares
-# `ms`, `s`, `min`, and `h`, so `250ms` and `5s` are both a `Duration`.
-use std.ops.LiteralSuffix
+# A number with a suffix calls its suffix function, one marked
+# `@num_suffix`: `12px` means `px(12)`. `std.time` declares `ms`, `s`,
+# `min`, and `h`, so `250ms` and `5s` are both a `Duration`.
+use std.ops.num_suffix
 use std.time.{Duration, ms, s}
 
 data Pixels:
     count: i32
 
-type px(i32)
-
-impl LiteralSuffix[i32, Pixels] for px:
-    fn from_literal(n: i32) -> Pixels: Pixels { count: n }
+@num_suffix
+fn px(count: i32) -> Pixels: Pixels { count: count }
 
 fn add(a: Pixels, b: Pixels) -> Pixels: Pixels { count: a.count + b.count }
 

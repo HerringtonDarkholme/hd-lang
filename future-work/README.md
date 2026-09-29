@@ -76,8 +76,8 @@ language specification:
 - [Literal Suffixes](LITERAL_SUFFIXES.md) surveys unit literals such as
   `5s` and `12px` and compares four designs. The owner chose imported
   suffix types that implement `std.ops.LiteralSuffix` (L1-L9), then
-  revised them (L10-L17). All but L11 (`@suffix fn`, waiting for the
-  decorator redesign) are applied, with nine follow-up points still open.
+  revised them (L10-L18), ending with functions marked `@num_suffix`
+  (L11). All are applied, with five follow-up points still open.
 - [Operator Traits](OPERATOR_TRAITS.md) surveys operator overloading and
   compares four `std.ops` trait shapes, with questions for the owner.
 - [Decorators](DECORATORS.md) surveys annotation systems and compares five

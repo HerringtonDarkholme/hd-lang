@@ -3,9 +3,10 @@
 Status: design exploration, 2026-09-27; owner decisions L1-L18 (2026-09-28)
 are below. L1-L9 were applied to the specification on 2026-09-28 (L5's
 operator traits excepted, which are designed separately), and L12, L13,
-L15-L17 and L18 the same day. L11 (`@suffix fn`) is not applied: the owner is
-rethinking decorators, so the `LiteralSuffix` mechanism stays in the
-specification for now. The survey and options before the decisions are the
+L15-L17 and L18 the same day. L11 (`@suffix fn`) was applied later that
+day with the names of [Decorators D9](DECORATORS.md#owner-decisions)
+(`@num_suffix`, `std.ops.NumSuffix`), replacing the `LiteralSuffix`
+mechanism. The survey and options before the decisions are the
 exploration they came from. Questions raised while applying them are under
 [Still Open](#still-open).
 
@@ -35,8 +36,8 @@ L15-L17 were applied on 2026-09-28 in the same sections, as
 [`expr.suffix.exact-call`](../spec/05-expressions.md#r-expr.suffix.exact-call),
 [`module.testing.option.timeout-at-run`](../spec/10-modules.md#r-module.testing.option.timeout-at-run)
 and [`expr.suffix.std.duration`](../spec/05-expressions.md#r-expr.suffix.std.duration).
-L10 and L14 confirm what was applied. L11 is not applied yet (see
-[Still Open](#still-open)).
+L10 and L14 confirm what was applied. L11 was applied on 2026-09-28, after
+the decorator redesign; see its entry below.
 
 1. **L1: suffixes are imported library declarations** (option 3's
    resolution): `250ms` resolves the suffix `ms` through ordinary `use`
@@ -117,6 +118,20 @@ L10 and L14 confirm what was applied. L11 is not applied yet (see
     suspends. There is no overloading, so `1.5s` is a type error when `s`
     takes `i64`. Lookup is unchanged from L8 and L10: the name is found at
     module scope, locals never take part, and it is imported explicitly.
+
+    Applied 2026-09-28 with [Decorators D9](DECORATORS.md#owner-decisions)'s
+    names: the marker is `@num_suffix`, from `std.ops.NumSuffix`, which
+    carries `@annotate(.Fn)`, and no decorator exception is needed after
+    D1. See [`expr.suffix.fn-call`](../spec/05-expressions.md#r-expr.suffix.fn-call),
+    [`expr.suffix.marker`](../spec/05-expressions.md#r-expr.suffix.marker),
+    [`expr.suffix.fn-shape`](../spec/05-expressions.md#r-expr.suffix.fn-shape),
+    [`expr.suffix.fn-shape.reader`](../spec/05-expressions.md#r-expr.suffix.fn-shape.reader),
+    [`expr.suffix.std.fn`](../spec/05-expressions.md#r-expr.suffix.std.fn),
+    [`names.suffix.unknown-name`](../spec/03-names-and-scopes.md#r-names.suffix.unknown-name)
+    and [`module.prelude.ops-num-suffix`](../spec/10-modules.md#r-module.prelude.ops-num-suffix).
+    As D3 directs, a parameter the literal cannot fill is the ordinary call
+    error at the literal, and the suffix reader checks L11's other
+    constraints there, as the new error `invalid-literal-suffix`.
 12. **L12: only decimal and float literals take a suffix.** Radix literals
     take none, so the `'` form (`0xff'B`, `5'ms`) is gone.
     String, character and boolean literals never take a suffix. The owner
@@ -722,30 +737,41 @@ fn pattern() -> string:
 
 ## Still Open
 
-These points came up while applying L1-L9 and then L12-L17 on 2026-09-28.
-Each waits for the owner. The specification states the reading in the
-Applied column, so each can change without breaking a decision.
+These points came up while applying L1-L9, L12-L17 and L11 on 2026-09-28.
+Each open one waits for the owner. The specification states the reading in
+the Applied column, so each can change without breaking a decision.
 
 The first pass's points 1-3 and 8-10 are answered: L12 removed the `'`
 form (points 1 and 2), L13 made `5else` an `invalid-token` (point 3), L16
 lets `timeout=` take any `Duration` (point 8), L15 makes a panic in a suffix
 behave as in any other call (point 9), and L17 fixes `Duration` as whole
-milliseconds (point 10). L14 kept points 4 and 5 as applied. Points 6 and 7
-concern the `LiteralSuffix` mechanism, which L11 would replace. L18 answered
-the second pass's points 4-9 below (applied 2026-09-28); only points 1-3
-remain open.
+milliseconds (point 10). L14 kept points 4 and 5 as applied, and first-pass
+points 6 and 7 are the second pass's points 2 and 3.
+
+The second pass's points 1-3 are resolved by applying L11 (2026-09-28), and
+L18 answered points 4-9:
+
+| # | Point | Resolution |
+| --- | --- | --- |
+| 1 | L11, `@suffix fn` in place of `LiteralSuffix` | Applied with D9's names: a suffix is a function marked `@num_suffix` ([`expr.suffix.marker`](../spec/05-expressions.md#r-expr.suffix.marker)); `std.ops.LiteralSuffix` and the newtype carriers are gone, and `std.ops` holds `NumSuffix` and `num_suffix`. |
+| 2 | One suffix type with two `LiteralSuffix` impls | Moot: a suffix is one function, with no overloading. |
+| 3 | A `LiteralSuffix` impl on a data type rather than a newtype | Moot: there are no carriers. |
+| 4 | When a `timeout` value is evaluated, relative to the body | L18: an ordinary argument, evaluated when the call runs. |
+| 5 | Whether a `timeout` value may need providers or suspend | L18: the ordinary provider and suspension rules. |
+| 6 | A `Duration` suffix that overflows `i64` milliseconds | L18: a run-time `integer-overflow` panic. |
+| 7 | `std.time` constructors and accessors under L17 | L18: `milliseconds`, `seconds` and `as_milliseconds`. |
+| 8 | `Timestamp` precision | L18: whole milliseconds. |
+| 9 | Which words count as reserved for L13 | L18: the reserved words only. |
+
+The L11 apply pass met these points:
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
-| 1 | L11, `@suffix fn` in place of `LiteralSuffix` | Not applied: the owner is rethinking decorators. The spec keeps `std.ops.LiteralSuffix` and the newtype carriers ([Literal Suffix Trait](../spec/09-traits.md#literal-suffix-trait)), and `std.ops` stays | Apply L11 once the decorator design settles, with Typed Derivation M25's `@suffix` note. |
-| 2 | One suffix type with two `LiteralSuffix` impls (first-pass point 6) | Chosen by the ordinary rule for instantiations of one generic trait ([`expr.suffix.instantiations`](../spec/05-expressions.md#r-expr.suffix.instantiations)) | Moot under L11, which has no overloading; keep until then. |
-| 3 | A `LiteralSuffix` impl on a data type rather than a newtype (first-pass point 7) | No diagnostic | Moot under L11; keep until then. |
-| 4 | When a `timeout` value is evaluated, relative to the body | "When the test case runs, in its program instance, as `it_each` rows are" ([`module.testing.option.timeout-at-run`](../spec/10-modules.md#r-module.testing.option.timeout-at-run)); the order against the body is unstated | Evaluate it before the body starts, outside the time limit. |
-| 5 | Whether a `timeout` value may need providers or suspend | Not specified: it is an ordinary argument of `it`, whose row is `R` | Require it to be requirement-free and non-suspending, as a default value is. |
-| 6 | A `Duration` suffix whose result overflows `i64` milliseconds, as in `10_000_000_000_000_000h` | Not specified; the prototype panics on its checked multiplication | A checked arithmetic panic, as for any `i64` overflow. |
-| 7 | `std.time` constructors and accessors under L17 | STDLIB now drafts `Duration` with private `millis: i64`, `milliseconds`, `seconds` and `as_milliseconds`; `nanoseconds` and `as_nanoseconds` are dropped | Keep that set until `Duration` gets a finer representation. |
-| 8 | `Timestamp` and `Instant` precision, now that `Duration` is milliseconds | Not changed: STDLIB drafts `Timestamp` with `unix_nanos: i64`, so `since` loses precision | Store `Timestamp` as milliseconds too, matching `Duration`. |
-| 9 | Which words count as reserved for L13 | The reserved-word list of [Keywords And Reserved Words](../spec/01-lexical-structure.md#keywords-and-reserved-words), so `5true` and `5self` are `invalid-token`; contextual words such as `5as` stay suffixes | Keep: contextual words are ordinary names outside their positions. |
+| 10 | The code for a suffix that is not a usable suffix function: unmarked, generic, with providers, suspending, or not one numeric parameter | The new error `invalid-literal-suffix`, at the literal ([`expr.suffix.not-marked`](../spec/05-expressions.md#r-expr.suffix.not-marked), [`expr.suffix.fn-shape.reader`](../spec/05-expressions.md#r-expr.suffix.fn-shape.reader)). L14 had said no literal-suffix code, but no existing code fits a function that lacks a marker | Keep the new code. |
+| 11 | Which error wins when both apply, as for `@num_suffix fn px(n: i32) $ Console` used where no `Console` is provided | The ordinary call error (`missing-requirement` there); the reader's `invalid-literal-suffix` only for a call that is otherwise valid | Keep: D3 reports signature problems as call errors first. |
+| 12 | A suffix with a second, defaulted parameter, as in `fn s(n: i64, scale: i64 = 1)` | `invalid-literal-suffix`: the call is valid, but L11 requires exactly one parameter | Keep. |
+| 13 | A suffix that names nothing | `unknown-name`, since a suffix is now a value name, not a type (previously `unknown-type`) | Keep. |
+| 14 | `@num_suffix` on a generic or provider-needing function is accepted at the declaration | Accepted; only literals that use it fail (D3) | Keep; a lint may warn at the declaration. |
 
 ```text
 use std.time.{Duration, h}

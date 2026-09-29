@@ -1,7 +1,9 @@
 # Operator Traits: Survey And Design Options
 
 Status: design exploration, 2026-09-28; nothing here is decided or in the
-specification.
+specification. Since this record was written, Literal Suffixes L11 removed
+`std.ops.LiteralSuffix`: a suffix is a function marked `@num_suffix`, so
+the comparisons below with `LiteralSuffix[In, Out]` are historical.
 
 The owner decided that hd plans operator traits in `std.ops`, on Rust's
 model, so library types such as `Duration` support `5s + 3s` and `-d`
