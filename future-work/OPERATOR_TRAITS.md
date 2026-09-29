@@ -128,6 +128,26 @@ without breaking a decision.
 | 14 | OP8: which code rejects an implementation whose supertrait binds another `Out`? | `missing-supertrait-implementation` ([`trait.binding.super.mismatch`](../spec/09-traits.md#r-trait.binding.super.mismatch)) | Keep: the bound supertrait is what is missing. |
 | 15 | OP9: which parameter types may a generic suffix take? | A type parameter bounded by `Num`, `Integer`, or `Float` ([`expr.suffix.fn-shape-param`](../spec/05-expressions.md#r-expr.suffix.fn-shape-param)); an unbounded `N` stays `type-mismatch` | Keep. |
 
+**OP10 (2026-09-29): stress-test follow-ups.** This replaces the fallback
+answer given earlier the same day.
+- **`+=` and the other compound assignments depend on the type's kind, and
+  there is no silent fallback for references:**
+  - `AnyVal` types (primitives and newtypes of primitives): `a op= b`
+    means `a = a op b`. It needs the operator trait and a reassignable
+    place. These values have no identity, so nothing aliases them.
+  - `AnyRef` types (`data`, lists, maps): `a op= b` mutates in place
+    through the assign trait (`add_assign(mut self, ...)`). It needs a
+    mutable view of the left place and an assign impl. A read-only view,
+    or a type with no assign impl, is an **error** whose fix-it suggests
+    `a = a + b`. So in-place mutation is never picked silently, and a new
+    value is never swapped in silently either.
+  - The std and guide convention: value-like `data` types (vectors, money)
+    implement only `Add`, and users write `a = a + b`. Accumulators and
+    builders implement `AddAssign`.
+- `Num::from_i64` is **checked**: it panics with `integer-overflow` when the
+  value doesn't fit. Explicit casts stay the way to wrap.
+- `Num` includes `PartialOrd` (and so `Eq`) and `Display`.
+
 ## Contents
 
 - [Owner Decisions](#owner-decisions)
