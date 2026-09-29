@@ -1,0 +1,17 @@
+# test: Integer adds order, bitwise, and shifts; Float adds partial order and negation
+# Spec 09 Numeric Traits: trait.num.integer, trait.num.float (Operator Traits OP9).
+use std.num.{Float, Integer}
+
+fn low_bits[T < Integer](value: T, mask: T) -> T:
+    (value & mask) | (~value << 1)
+
+fn larger[T < Integer](left: T, right: T) -> T:
+    if left > right: left else: right
+
+fn magnitude[T < Float](value: T) -> T:
+    if value < T::zero(): -value else: value
+
+fn uses() -> f64:
+    _ := low_bits(u8(12), u8(10))
+    _ := larger(3, 4)
+    magnitude(-2.5)

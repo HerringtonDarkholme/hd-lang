@@ -114,7 +114,8 @@ suite_statement = defer_statement
                   suite_right_side
                 | "let", binding_pattern, [ ":", type ], "=",
                   suite_right_side
-                | postfix_expression, "=", suite_right_side
+                | postfix_expression, ( "=" | compound_assign_op ),
+                  suite_right_side
                 | "return", suite_right_side
                 | "break", suite_right_side
                 ;
@@ -141,7 +142,12 @@ short_binding_statement = identifier, ",", identifier,
 
 discard_statement = "_", ":=", closed_expression ;
 
-assignment_statement = postfix_expression, ( "=" | "...=" ), closed_expression ;
+assignment_statement = postfix_expression, ( "=" | "...=" | compound_assign_op ),
+                       closed_expression ;
+
+compound_assign_op = "+=" | "-=" | "*=" | "/=" | "%="
+                   | "&=" | "|=" | "^=" | "<<=" | ">>="
+                   ;
 
 return_statement = "return", [ closed_expression ] ;
 break_statement = "break", [ closed_expression ] ;
@@ -152,7 +158,8 @@ binding_pattern = identifier, { ",", identifier } ;
 
 inline_statement = "let", identifier, [ ":", type ], "=", inline_expression
                  | "_", ":=", inline_expression
-                 | postfix_expression, ( "=" | "...=" ), inline_expression
+                 | postfix_expression, ( "=" | "...=" | compound_assign_op ),
+                   inline_expression
                  | "return", [ inline_expression ]
                  | "break", [ inline_expression ]
                  | continue_statement
@@ -251,6 +258,7 @@ See also: [Physical And Logical Lines](01-lexical-structure.md#physical-and-logi
 3. r[grammar.stmt.assign-target] The left side of an assignment must resolve to a reassignable local, mutable field, or mutable indexed place; calls and other non-place postfix expressions are rejected semantically.
 4. r[grammar.stmt.copy-assign] The copy assignment `place ...= value` is valid only when the place is an embedded field.
 5. r[grammar.stmt.copy-assign.embedded] An embedded field is assigned only with `...=`.
+6. r[grammar.stmt.compound-assign] A compound assignment `place op= value` takes the same left side as an assignment, and its right side follows the same forms as `=`. [Compound Assignment](05-expressions.md#compound-assignment) defines it.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
@@ -391,7 +399,7 @@ trait_decl = "trait", identifier, [ type_params ],
                trait_member, { trait_member }, DEDENT )
              ;
 
-supertrait_bounds = trait_type, { "&", trait_type } ;
+supertrait_bounds = bound_trait_type, { "&", bound_trait_type } ;
 
 trait_member = associated_type_decl
              | { decorator_line }, "fn", callable_name, [ generic_params ], parameter_clause,
@@ -530,8 +538,8 @@ fn label[T < Named + Tagged](value: T) -> string: value.name()  # error: old-bou
 
 1. r[grammar.generic.binding] A trait in a generic parameter bound may end its bracketed arguments with associated type bindings: `I < Supplier[Item = T]` requires `I` to implement `Supplier` with `I::Item` equal to `T`.
 2. r[grammar.generic.binding.order] Bindings follow every positional type argument.
-3. r[grammar.generic.binding.bounds-only] Bindings are valid only in `trait_bounds`.
-4. r[grammar.generic.binding.elsewhere] A supertrait, an implemented trait, a trait-qualified call, a type argument, or a dynamic trait value type uses `trait_type` or `type`, so a binding there is an error. Error: `syntax-error`.
+3. r[grammar.generic.binding.bounds-and-supertraits] Bindings are valid only in `trait_bounds` and `supertrait_bounds`, so a supertrait may bind an associated type, as in `trait Summable < Add[Self, Out = Self]`.
+4. r[grammar.generic.binding.other-positions] An implemented trait, a trait-qualified call, a type argument, or a dynamic trait value type uses `trait_type` or `type`, so a binding there is an error. Error: `syntax-error`.
 
 ```text
 trait Supplier:

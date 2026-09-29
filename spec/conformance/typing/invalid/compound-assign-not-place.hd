@@ -1,0 +1,6 @@
+# test: the left side of a compound assignment must be a place
+# Spec 05 Compound Assignment: expr.assign.compound.place (Operator Traits OP5).
+fn current() -> i64: 1
+
+fn invalid() -> void:
+    current() += 1  # diagnostic: invalid-assignment-target

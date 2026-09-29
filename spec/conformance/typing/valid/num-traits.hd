@@ -1,0 +1,15 @@
+# test: generic code over Num builds constants with zero and from_i64
+# Spec 09 Numeric Traits: trait.num.zero-one, trait.num.from-i64 (Operator Traits OP9).
+use std.num.Num
+
+fn sum[T < Num](items: List[T]) -> T:
+    let total = T::zero()
+    for item in items:
+        total = total + item
+    total
+
+fn kilo[N < Num](n: N) -> N:
+    n * N::from_i64(1000)
+
+fn totals() -> f64:
+    f64(sum([1, 2, 3])) + sum([0.5, 0.25]) + kilo(1.5)

@@ -197,7 +197,7 @@ The standard library defines `Eq`, `PartialOrd`, `Ord`, and `Ordering` in
 6. r[trait.cmp.laws] These semantic laws are obligations of the implementer; ordinary trait checking cannot prove them.
 7. r[trait.cmp.float-eq] Floating-point types implement `Eq` with IEEE 754 semantics, so NaN is unequal even to itself. This is the one documented exception to the reflexive law.
 8. r[trait.cmp.float-ord] Floating-point types implement `PartialOrd` but not `Ord`, because NaN is unordered.
-9. r[trait.cmp.operators] Comparison traits are the only traits invoked by operator syntax.
+9. r[trait.cmp.operators-comparison] `==`, `!=`, and the relational operators invoke the comparison traits. The other operators invoke the `std.ops` traits of [Operator Traits](05-expressions.md#operator-traits).
 
 > **Why.** This follows Swift's `Equatable`: one equality trait serves `==`,
 > map keys, and derivation, and floats keep IEEE 754 equality.
@@ -1102,9 +1102,45 @@ fn second[T, I < Supplier[Item = T, Item = T]](source: I) -> T:  # error: duplic
 
 #### Binding Positions
 
-1. r[trait.binding.positions] Bindings appear only in generic parameter bounds.
-2. r[trait.binding.rejected] A supertrait list, the trait of an `impl` header, a trait-qualified call, a type argument, and a dynamic trait value type do not accept them. The grammar reports an error there. Error: `syntax-error`.
+1. r[trait.binding.positions-supertrait] Bindings appear only in generic parameter bounds and in supertrait lists.
+2. r[trait.binding.rejected-other] The trait of an `impl` header, a trait-qualified call, a type argument, and a dynamic trait value type do not accept them. The grammar reports an error there. Error: `syntax-error`.
 3. r[trait.binding.ambiguous] A binding does not make an ambiguous projection unambiguous: when two bounds on `I` both declare `Item`, `I::Item` is still ambiguous even if one of them binds it.
+
+#### Supertrait Bindings
+
+A supertrait may bind an associated type of its trait, so every
+implementation fixes it:
+
+```text
+use std.ops.Add
+
+trait Summable < Add[Self, Out = Self]
+
+fn double[T < Summable](value: T) -> T:
+    value + value
+```
+
+1. r[trait.binding.super.form] A trait in a supertrait list may bind associated types after its positional arguments, as a bound does.
+2. r[trait.binding.super.meaning] `trait C < S[A, Out = U]` requires that a type `X` implementing `C` implement `S[A]` with `Out` equal to `U`, where `A` and `U` read `X` for `Self`.
+3. r[trait.binding.super.projection] For a type parameter `T < C`, and for `Self` inside `C`, the projection is known to equal `U`. So `value + value` above has type `T`.
+4. r[trait.binding.super.mismatch] An `impl C for X` whose implementation of `S[A]` binds `Out` to another type is an error. Error: `missing-supertrait-implementation`.
+5. r[trait.binding.super.names] The rules of [Binding Names](#binding-names) apply to a supertrait list as to a generic parameter list.
+
+```text
+use std.ops.Add
+
+trait Summable < Add[Self, Out = Self]
+
+data Money:
+    cents: i64
+
+impl Add[Money] for Money:
+    type Out = i64
+    fn add(self, rhs: Money) -> i64:
+        self.cents + rhs.cents
+
+impl Summable for Money  # error: missing-supertrait-implementation
+```
 
 ## Dynamic Trait Values
 
@@ -1235,6 +1271,9 @@ compiler and the standard library supply.
 | r[trait.sealed.shape-metadata] ShapeMetadata | `ShapeMetadata` | the concrete shape types ([Common Shape Representation](14-annotations.md#common-shape-representation)) |
 | r[trait.sealed.inspectable] Inspectable | `Inspectable` | the inspectable types ([Inspectable Types](#inspectable-types)) |
 | r[trait.sealed.structure] Structure | `Structure` | each derivation's target, while its template is instantiated ([The Structure Trait](14-annotations.md#the-structure-trait)) |
+| r[trait.sealed.num] Num | `Num` | every integer and floating-point type ([Numeric Traits](#numeric-traits)) |
+| r[trait.sealed.integer] Integer | `Integer` | `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, and `u64` ([Numeric Traits](#numeric-traits)) |
+| r[trait.sealed.float] Float | `Float` | `f32` and `f64` ([Numeric Traits](#numeric-traits)) |
 
 1. r[trait.sealed.definition] A sealed trait is a standard trait whose implementations only the compiler and the standard library supply.
 2. r[trait.sealed.list] The sealed traits are those in the table above.
@@ -1272,6 +1311,71 @@ impl AnyRef for Handle  # error: sealed-trait-implementation
 1. r[trait.sealed.extend] A trait that extends a sealed trait is declared and implemented normally.
 2. r[trait.sealed.extend.members] Its implementation writes only the child's members; the sealed supertrait's implementation comes from the compiler.
 3. r[trait.sealed.extend.missing] When the target is not a type the compiler supplies the sealed trait for, the implementation is an error, as for any missing supertrait. Error: `missing-supertrait-implementation`.
+
+### Numeric Traits
+
+`std.num` declares three sealed traits for the primitive number types, so
+generic code can compute over any of them:
+
+```text
+use std.num.Num
+
+fn sum[T < Num](items: List[T]) -> T:
+    let total = T::zero()
+    for item in items:
+        total = total + item
+    total
+
+fn kilo[N < Num](n: N) -> N:
+    n * N::from_i64(1000)
+```
+
+`Num` is declared in this shape:
+
+```text
+pub trait Num < AnyVal & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Self, Out = Self] & Div[Self, Out = Self] & Rem[Self, Out = Self]:
+    fn zero() -> Self
+    fn one() -> Self
+    fn from_i64(n: i64) -> Self
+```
+
+| Rule | Trait | Supertraits |
+| --- | --- | --- |
+| r[trait.num.num] Num | `Num` | `AnyVal`, and `Add`, `Sub`, `Mul`, `Div`, and `Rem`, each as `[Self, Out = Self]` |
+| r[trait.num.integer] Integer | `Integer` | `Num`, `Ord`, `BitAnd`, `BitOr`, and `BitXor`, each as `[Self, Out = Self]`, `BitNot[Out = Self]`, `Shl[u32, Out = Self]`, and `Shr[u32, Out = Self]` |
+| r[trait.num.float] Float | `Float` | `Num`, `PartialOrd`, and `Neg[Out = Self]` |
+
+1. r[trait.num.module] `std.num` declares `Num`, `Integer`, and `Float`, with the supertraits in the table above.
+2. r[trait.num.sealed] The three traits are sealed. They stand for the built-in primitive number types only, and only the standard library implements them.
+3. r[trait.num.not-newtypes] A newtype over a number, such as `type Meters(i64)`, and a library number type, such as a `BigInt`, are not `Num`. They implement the operator traits they need by hand.
+4. r[trait.num.members] `Num` declares `zero`, `one`, and `from_i64`. `Integer` and `Float` may declare further library methods, such as `checked_add` and `is_nan`, which this specification does not list.
+5. r[trait.num.zero-one] `T::zero()` and `T::one()` are the values 0 and 1 of `T`. A numeric literal never has a type parameter's type, so generic code builds constants from these functions.
+6. r[trait.num.from-i64] `T::from_i64(n)` converts `n` as the [numeric cast](04-type-system.md#numeric-casts) `T(n)` does: an integer type wraps, and a floating-point type takes the nearest value.
+7. r[trait.num.division] `/` and `%` keep each type's own meaning under `Num`. Integer division truncates and panics on a zero divisor, and floating-point division follows IEEE 754.
+8. r[trait.num.std] The standard library's implementations behave as the built-in operators and casts do.
+9. r[trait.num.suffix] A suffix function may be generic over `N < Num`, as [`expr.suffix.fn-shape-param`](05-expressions.md#r-expr.suffix.fn-shape-param) allows.
+
+```text
+use std.num.Num
+
+type Meters(i64)
+
+fn sum[T < Num](items: List[T]) -> T:
+    let total = T::zero()
+    for item in items:
+        total = total + item
+    total
+
+fn total(items: List[Meters]) -> Meters:
+    sum(items)  # error: unsatisfied-trait-bound
+```
+
+> **Why.** Sealing keeps the families to types whose operators the compiler
+> knows. `zero` and `one` replace polymorphic literals, the simpler model of
+> Rust's `num-traits` rather than Haskell's `fromInteger`.
+
+See also: [Operator Traits](05-expressions.md#operator-traits),
+[Supertrait Bindings](#supertrait-bindings).
 
 ## Runtime Type Identity
 

@@ -1,0 +1,37 @@
+# test: operators on a data type call its std.ops implementations
+# Spec 05 Operator Traits: expr.op.desugar, expr.op.order (Operator Traits OP1).
+use std.ops.{Add, Mul, Neg, Sub}
+use std.testing.assert_equal
+
+data Stamp:
+    at: i64
+
+data Span:
+    length: i64
+
+impl Sub[Stamp] for Stamp:
+    type Out = Span
+    fn sub(self, rhs: Stamp) -> Span:
+        Span { length: self.at - rhs.at }
+
+impl Add[Span] for Span:
+    type Out = Span
+    fn add(self, rhs: Span) -> Span:
+        Span { length: self.length + rhs.length }
+
+impl Mul[i64] for Span:
+    type Out = Span
+    fn mul(self, rhs: i64) -> Span:
+        Span { length: self.length * rhs }
+
+impl Neg for Span:
+    type Out = Span
+    fn neg(self) -> Span:
+        Span { length: -self.length }
+
+fn budget(start: Stamp, now: Stamp) -> Span:
+    -(now - start) * 2 + Span { length: 100 }
+
+tests:
+    it("calls the operator methods"):
+        assert_equal(budget(Stamp { at: 10 }, Stamp { at: 25 }).length, 70, reason="-(15) * 2 + 100")

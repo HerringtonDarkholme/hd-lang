@@ -723,7 +723,6 @@ parse/invalid/discard-binding-ends-in-suite.hd	parse
 parse/invalid/return-binding-ends-in-suite.hd	parse
 parse/invalid/repeated-numeric-separator.hd	parse
 typing/invalid/none-without-expected-type.hd	type
-typing/invalid/float-remainder.hd	type
 typing/invalid/bool-ordering.hd	type
 parse/invalid/header-after-indented-suite.hd	parse
 typing/valid/duplicate-trait-bound.hd	type
@@ -1334,3 +1333,5 @@ typing/valid/row-union-omitted-result.hd	type
 typing/invalid/row-union-if-nested-lists.hd	type
 runtime/valid/row-union-branches-run.hd	runtime
 typing/valid/decorator-target-newtype-kind.hd	type
+typing/invalid/operator-newtype-no-inherit.hd	type
+typing/invalid/literal-suffix-generic-unbounded.hd	type

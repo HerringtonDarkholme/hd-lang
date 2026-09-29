@@ -1,0 +1,19 @@
+# test: a user type supports r[k] and r[k] = v through Index and IndexSet
+# Spec 05 Index Traits: expr.index.trait.read, expr.index.trait.write (Operator Traits OP7).
+use std.ops.{Index, IndexSet}
+
+data Ring:
+    items: mut List[i32]
+
+impl Index[i32] for Ring:
+    type Out = i32
+    fn index(self, key: i32) -> i32:
+        self.items[key % self.items.len()]
+
+impl IndexSet[i32, i32] for Ring:
+    fn index_set(mut self, key: i32, value: i32) -> void:
+        self.items[key % self.items.len()] = value
+
+fn rotate(ring: mut Ring) -> i32:
+    ring[5] = ring[0]
+    ring[5]

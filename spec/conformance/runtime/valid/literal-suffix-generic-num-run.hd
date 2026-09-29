@@ -1,0 +1,19 @@
+# test: a generic suffix takes N from the literal or from the expected type
+# Spec 05 Literal Suffixes: expr.suffix.generic-num; spec 09 Numeric Traits: trait.num.from-i64 (Operator Traits OP9).
+use std.num.Num
+use std.ops.num_suffix
+use std.testing.assert_equal
+
+@num_suffix
+fn k[N < Num](n: N) -> N:
+    n * N::from_i64(1000)
+
+fn wide() -> i64:
+    let limit: i64 = 5k
+    limit
+
+tests:
+    it("scales the literal"):
+        assert_equal(wide(), 5000, reason="N is i64 from the expected type")
+        assert_equal(2k, 2000, reason="N is i32 from the literal")
+        assert_equal(1.5k, 1500.0, reason="N is f64 from the literal")

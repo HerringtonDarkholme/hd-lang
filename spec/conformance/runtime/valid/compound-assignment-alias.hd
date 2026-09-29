@@ -1,0 +1,21 @@
+# test: an assign method changes a shared data value, so an alias observes it
+# Spec 05 Compound Assignment: expr.assign.compound.shared (Operator Traits OP5).
+use std.ops.AddAssign
+use std.testing.assert_equal
+
+data Tally:
+    count: i64
+
+impl AddAssign[i64] for Tally:
+    fn add_assign(mut self, rhs: i64) -> void:
+        self.count = self.count + rhs
+
+fn alias() -> i64:
+    let a: mut Tally = Tally { count: 1 }
+    b := a
+    a += 2
+    b.count
+
+tests:
+    it("changes the value in place"):
+        assert_equal(alias(), 3, reason="b is the same Tally as a")

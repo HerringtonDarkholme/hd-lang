@@ -1,0 +1,31 @@
+# test: bitwise and shift operators call std.ops traits on a user type
+# Spec 05 Operator Traits: the BitOr, BitAnd, BitNot, and Shl rows (Operator Traits OP3).
+use std.ops.{BitAnd, BitNot, BitOr, Shl}
+
+type Perms(u32)
+
+impl BitOr[Perms] for Perms:
+    type Out = Perms
+    fn bit_or(self, rhs: Perms) -> Perms:
+        Perms(u32(self) | u32(rhs))
+
+impl BitAnd[Perms] for Perms:
+    type Out = Perms
+    fn bit_and(self, rhs: Perms) -> Perms:
+        Perms(u32(self) & u32(rhs))
+
+impl BitNot for Perms:
+    type Out = Perms
+    fn bit_not(self) -> Perms:
+        Perms(~u32(self))
+
+impl Shl[u32] for Perms:
+    type Out = Perms
+    fn shl(self, rhs: u32) -> Perms:
+        Perms(u32(self) << rhs)
+
+fn revoke(held: Perms, taken: Perms) -> Perms:
+    held & ~taken
+
+fn widen(held: Perms, extra: Perms) -> Perms:
+    (held | extra) << 1

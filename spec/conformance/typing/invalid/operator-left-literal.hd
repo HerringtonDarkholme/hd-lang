@@ -1,0 +1,14 @@
+# test: a literal on the left of a data operand is not typed from its implementations
+# Spec 05 Operator Traits: expr.op.left-literal (Operator Traits OP4); write price * 3.
+use std.ops.Mul
+
+data Money:
+    cents: i64
+
+impl Mul[i64] for Money:
+    type Out = Money
+    fn mul(self, rhs: i64) -> Money:
+        Money { cents: self.cents * rhs }
+
+fn triple(price: Money) -> Money:
+    3 * price  # diagnostic: type-mismatch

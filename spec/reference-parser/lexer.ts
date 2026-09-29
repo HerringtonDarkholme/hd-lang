@@ -36,6 +36,8 @@ export const openToClose = new Map([
 export const closeToOpen = new Map([...openToClose].map(([open, close]) => [close, open]));
 const multiOperators = [
   "...=",
+  "<<=",
+  ">>=",
   "...",
   ":=",
   "->",
@@ -51,6 +53,13 @@ const multiOperators = [
   "&&",
   "||",
   "+=",
+  "-=",
+  "*=",
+  "/=",
+  "%=",
+  "&=",
+  "|=",
+  "^=",
 ];
 const simpleEscapes = new Set(`\\"'nrt0$`);
 

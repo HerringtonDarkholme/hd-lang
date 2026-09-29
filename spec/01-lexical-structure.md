@@ -773,7 +773,7 @@ r[lex.punct.tokens] The lexer recognizes these punctuation tokens:
 name := "Ada";  # error
 ```
 
-r[lex.op.token-list] The lexer recognizes these operators and compound
+r[lex.op.token-list-assign] The lexer recognizes these operators and compound
 punctuation tokens:
 
 ```text
@@ -781,13 +781,16 @@ punctuation tokens:
 &  |  ^  ~  <<  >>  &&  ||
 =  ==  !=  <  <=  >  >=
 :=  ->  =>  ?  !  $  @  ...  ...=  ::  +=
+-=  *=  /=  %=  &=  |=  ^=  <<=  >>=
 ```
 
 1. r[lex.op.longest] When two tokens share a prefix, the lexer uses the longest valid token.
 2. r[lex.op.longest.examples] For example, `**` is one token rather than two `*` tokens, and `...` is one token rather than three `.` tokens. Likewise `...=` is one token rather than `...` and `=`, and `&&` and `||` are single tokens.
 3. r[lex.op.inequality] The sequence `!=` is always the inequality token, so `f!=g` lexes as `f`, `!=`, `g`.
 4. r[lex.op.bang-call] A suspension call needs `!` immediately followed by `(`.
-5. r[lex.op.plus-equals] `+=` is one token. Only a member line uses it, as [Member Lines](14-annotations.md#member-lines) defines; hd has no compound assignment.
+5. r[lex.op.compound-assign] `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=` are single tokens. A statement uses them for [compound assignment](05-expressions.md#compound-assignment), and a member line also uses `+=`, as [Member Lines](14-annotations.md#member-lines) defines.
+6. r[lex.op.compound-assign.examples] By longest match, `a-=b` lexes as `a`, `-=`, `b`, and `x<<=1` as `x`, `<<=`, `1`.
+7. r[lex.op.no-power-assign] `**=` is not a token: it lexes as `**` and `=`, which no grammar rule accepts.
 
 See also: [Expressions](05-expressions.md), which defines operator
 precedence and semantics, including prefix `!` as logical not;
@@ -826,6 +829,8 @@ operator = "+" | "-" | "*" | "/" | "%" | "**"
          | "=" | "==" | "!=" | "<" | "<=" | ">" | ">="
          | ":=" | "->" | "=>" | "?" | "!" | "$" | "@"
          | "..." | "...=" | "::"
+         | "+=" | "-=" | "*=" | "/=" | "%="
+         | "&=" | "|=" | "^=" | "<<=" | ">>="
          ;
 
 keyword = ? a reserved word listed in Keywords And Reserved Words ? ;

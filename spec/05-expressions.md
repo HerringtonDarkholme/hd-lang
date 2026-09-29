@@ -55,6 +55,97 @@ fn invalid() -> (i32, i32):
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
+#### Compound Assignment
+
+A **compound assignment** `place op= value` combines an operator with a
+store:
+
+```text
+use std.ops.AddAssign
+
+data Tally:
+    count: i64
+
+impl AddAssign[i64] for Tally:
+    fn add_assign(mut self, rhs: i64) -> void:
+        self.count = self.count + rhs
+
+fn record(tally: mut Tally, hits: List[i64]) -> i64:
+    let seen: i64 = 0
+    for hit in hits:
+        seen += 1
+        tally += hit
+    seen
+```
+
+`std.ops` declares one assign trait per compound operator, in this shape:
+
+```text
+pub trait AddAssign[Rhs]:
+    fn add_assign(mut self, rhs: Rhs) -> void
+```
+
+| Rule | Statement | Trait | Method |
+| --- | --- | --- | --- |
+| r[expr.assign.compound.add] Add | `p += e` | `AddAssign[Rhs]` | `add_assign` |
+| r[expr.assign.compound.sub] Subtract | `p -= e` | `SubAssign[Rhs]` | `sub_assign` |
+| r[expr.assign.compound.mul] Multiply | `p *= e` | `MulAssign[Rhs]` | `mul_assign` |
+| r[expr.assign.compound.div] Divide | `p /= e` | `DivAssign[Rhs]` | `div_assign` |
+| r[expr.assign.compound.rem] Remainder | `p %= e` | `RemAssign[Rhs]` | `rem_assign` |
+| r[expr.assign.compound.bit-and] Bitwise AND | `p &= e` | `BitAndAssign[Rhs]` | `bit_and_assign` |
+| r[expr.assign.compound.bit-or] Bitwise OR | `p \|= e` | `BitOrAssign[Rhs]` | `bit_or_assign` |
+| r[expr.assign.compound.bit-xor] Bitwise XOR | `p ^= e` | `BitXorAssign[Rhs]` | `bit_xor_assign` |
+| r[expr.assign.compound.shl] Shift left | `p <<= e` | `ShlAssign[Rhs]` | `shl_assign` |
+| r[expr.assign.compound.shr] Shift right | `p >>= e` | `ShrAssign[Rhs]` | `shr_assign` |
+
+1. r[expr.assign.compound.form] Compound assignment is a statement, written with one of the ten operators in the table above.
+2. r[expr.assign.compound.no-others] There is no `**=`, `&&=`, or `||=`.
+3. r[expr.assign.compound.traits] `std.ops` declares the ten assign traits in the table. Each takes the right operand type as its one argument and declares one `mut self` method that returns `void`.
+4. r[expr.assign.compound.place] The left side must have the form of a place: a name, a field selection, or an index expression. Any other left side, such as a call, is an error. Error: `invalid-assignment-target`.
+5. r[expr.assign.compound.once] The receiver and index of the place are evaluated once, then the right-hand expression.
+6. r[expr.assign.compound.primitive] When the place and the right operand have primitive types, `p op= e` computes `p op e` by the built-in rules and stores the result in the place. The store follows the rules of `p = p op e`, so a name must be a reassignable local.
+7. r[expr.assign.compound.primitive-no-trait] The standard library implements no assign trait for a primitive type, because a primitive has no `mut` view.
+8. r[expr.assign.compound.call] Otherwise `p op= e` is the call `OpAssign[R]::m(p, e)` of the operator's assign trait, as in `AddAssign[R]::add_assign(p, e)`. The candidates are chosen as for a binary operator, by the place's type and then by `e`.
+9. r[expr.assign.compound.no-use] The call needs no `use` of the trait.
+10. r[expr.assign.compound.mut] The method takes `mut self`, so the place's value must have mutable access, as for any `mut self` call. Error: `mutable-receiver-required`.
+11. r[expr.assign.compound.no-store] Nothing is stored in the place, so a parameter or a `:=` binding with mutable access may be the left side.
+12. r[expr.assign.compound.no-impl] A place of a non-primitive type with no fitting assign implementation is an error, even when the type implements the plain operator's trait. Error: `type-mismatch`.
+13. r[expr.assign.compound.shared] On a composite value, the method changes the shared value in place, so every alias of it observes the change.
+14. r[expr.assign.compound.index] On an index place of a user type, a primitive element is read through `Index` and stored through `IndexSet`, as [Index Traits](#index-traits) defines; a non-primitive element receives the assign call.
+
+```text
+use std.ops.{Add, AddAssign}
+
+data Tally:
+    count: i64
+
+impl AddAssign[i64] for Tally:
+    fn add_assign(mut self, rhs: i64) -> void:
+        self.count = self.count + rhs
+
+data Score:
+    points: i64
+
+impl Add[Score] for Score:
+    type Out = Score
+    fn add(self, rhs: Score) -> Score:
+        Score { points: self.points + rhs.points }
+
+fn current() -> i64: 1
+
+fn invalid(tally: Tally, score: mut Score, bonus: Score) -> void:
+    tally += 1        # error: mutable-receiver-required
+    score += bonus    # error: type-mismatch
+    current() += 1    # error: invalid-assignment-target
+```
+
+> **Note.** A `data` value is shared by reference, so an in-place `+=`
+> reaches every alias: after `b := a` and `a += 2`, `b` sees the new count.
+> Primitives and other values without identity have no aliases to observe.
+
+See also: [Operator Traits](#operator-traits),
+[Mutation Checks](04-type-system.md#mutation-checks).
+
 ## Primary Expressions
 
 This section defines names, literals, and parenthesized, tuple, collection,
@@ -157,11 +248,13 @@ pub fn num_suffix() -> NumSuffix:
 5. r[expr.suffix.not-marked] A suffix that resolves to anything other than a suffix function is an error, reported at the literal. Error: `invalid-literal-suffix`.
 6. r[expr.suffix.no-marker-import] The call needs no import of `num_suffix` or `NumSuffix`: a `use` of the suffix function alone makes the literal valid.
 7. r[expr.suffix.call-errors] The call is checked as an ordinary call. An argument that the function cannot accept is the ordinary call error at the literal, such as `type-mismatch` or `argument-count`.
-8. r[expr.suffix.fn-shape-one] A suffix function declares exactly one parameter, of a primitive integer or floating-point type, and never suspends. A second parameter breaks this shape even when it has a default.
-9. r[expr.suffix.fn-shape.definition] The compiler checks this shape at the definition that carries `@num_suffix`, not at each literal. A marked function that breaks it is an error at that definition. Error: `type-mismatch`.
-10. r[expr.suffix.ordinary-rules] Otherwise the call follows the ordinary rules. A generic suffix function's type arguments are inferred at the literal, and its requirement row joins the row of the code that contains the literal, as any call's does.
-11. r[expr.suffix.exact-call] A suffixed literal is exactly that call wherever it appears, and it has no evaluation rule of its own.
-12. r[expr.suffix.position-rules] In a [fact](14-annotations.md#r-annot.fact.eval), in [shared enum data](08-data-and-enums.md#r-data.shared.compile-time), or in any other position, the call follows the rules for any call there, including what a panic in the suffix function does. So a compile-time position that must be requirement-free rejects a suffix function that needs providers, as it rejects any such call.
+8. r[expr.suffix.fn-shape-num] A suffix function declares exactly one parameter and never suspends. A second parameter breaks this shape even when it has a default.
+9. r[expr.suffix.fn-shape-param] The parameter's type is a primitive integer or floating-point type, or a type parameter of the function bounded by `std.num.Num`, `Integer`, or `Float`.
+10. r[expr.suffix.generic-num] So `@num_suffix fn k[N < Num](n: N) -> N` is valid. As in any generic call, `5k` takes `N` from the literal, or from the expected type, as in `let limit: i64 = 5k`.
+11. r[expr.suffix.fn-shape.definition] The compiler checks this shape at the definition that carries `@num_suffix`, not at each literal. A marked function that breaks it is an error at that definition. Error: `type-mismatch`.
+12. r[expr.suffix.ordinary-rules] Otherwise the call follows the ordinary rules. A generic suffix function's type arguments are inferred at the literal, and its requirement row joins the row of the code that contains the literal, as any call's does.
+13. r[expr.suffix.exact-call] A suffixed literal is exactly that call wherever it appears, and it has no evaluation rule of its own.
+14. r[expr.suffix.position-rules] In a [fact](14-annotations.md#r-annot.fact.eval), in [shared enum data](08-data-and-enums.md#r-data.shared.compile-time), or in any other position, the call follows the rules for any call there, including what a panic in the suffix function does. So a compile-time position that must be requirement-free rejects a suffix function that needs providers, as it rejects any such call.
 
 ```text
 use std.ops.num_suffix
@@ -536,6 +629,75 @@ See also: [Unsupported Function Extensions](07-functions.md#unsupported-function
 4. r[expr.index.map.assign] Assigning `entries[key] = value` requires `mut Map[K, V]` and inserts or replaces the entry.
 5. r[expr.index.map.library] Removal and entry APIs are standard-library methods rather than special syntax.
 
+#### Index Traits
+
+Other types get `[]` by implementing the `std.ops` traits `Index` and
+`IndexSet`:
+
+```text
+use std.ops.{Index, IndexSet}
+
+data Ring:
+    items: mut List[i32]
+
+impl Index[i32] for Ring:
+    type Out = i32
+    fn index(self, key: i32) -> i32:
+        self.items[key % self.items.len()]
+
+impl IndexSet[i32, i32] for Ring:
+    fn index_set(mut self, key: i32, value: i32) -> void:
+        self.items[key % self.items.len()] = value
+
+fn rotate(ring: mut Ring) -> i32:
+    ring[5] = ring[0]
+    ring[5]
+```
+
+`std.ops` declares them in this shape:
+
+```text
+pub trait Index[K]:
+    type Out
+    fn index(self, key: K) -> Self::Out
+
+pub trait IndexSet[K, V]:
+    fn index_set(mut self, key: K, value: V) -> void
+```
+
+1. r[expr.index.trait.std] `std.ops` declares `Index[K]`, with an associated type `Out`, and `IndexSet[K, V]`, as shown above.
+2. r[expr.index.trait.read] For a receiver whose type is not `List` or `Map`, reading `r[k]` is the call `Index[K]::index(r, k)`, and its type is that implementation's `Out`.
+3. r[expr.index.trait.write] Assigning `r[k] = v` to such a receiver is the call `IndexSet[K, V]::index_set(r, k, v)`.
+4. r[expr.index.trait.choice] The candidates are chosen as for a binary operator, by the receiver's type, then by the key and, for a store, the value.
+5. r[expr.index.trait.no-use] Neither call needs a `use` of the trait.
+6. r[expr.index.trait.mut] `index_set` takes `mut self`, so a store needs mutable access to the receiver, as any `mut self` call does.
+7. r[expr.index.trait.place] `r[k]` is a place only when the receiver's type implements `IndexSet`. Assigning to it otherwise is an error. Error: `invalid-assignment-target`.
+8. r[expr.index.trait.no-read] Reading `r[k]` when the receiver's type has no fitting `Index` implementation is an error. Error: `type-mismatch`.
+9. r[expr.index.trait.builtin] `List` and `Map` keep the built-in indexing above and implement neither trait.
+10. r[expr.index.trait.independent] The two traits are independent: a type may implement either one alone.
+
+```text
+use std.ops.Index
+
+data Row:
+    cells: List[i32]
+
+impl Index[i32] for Row:
+    type Out = i32
+    fn index(self, key: i32) -> i32:
+        self.cells[key]
+
+data Plain:
+    value: i32
+
+fn invalid(row: mut Row, plain: Plain) -> i32:
+    row[0] = 1  # error: invalid-assignment-target
+    plain[0]    # error: type-mismatch
+```
+
+See also: [Operator Traits](#operator-traits),
+[Compound Assignment](#compound-assignment).
+
 ### Calls
 
 A call applies a callable to positional and named arguments:
@@ -802,9 +964,9 @@ This section defines operator precedence and the meaning of each operator.
 
 ### Arithmetic Operators
 
-1. r[expr.arith.numeric] Arithmetic operators require compatible numeric operands.
-2. r[expr.arith.non-numeric] A binary `+`, `-`, `*`, `/`, `%`, or `**` with an operand of a non-numeric type, such as `true + false` or `[1] * [2]`, is an error. Error: `type-mismatch`.
-3. r[expr.arith.string] `string + string` is the only non-numeric arithmetic form.
+1. r[expr.arith.primitive-numeric] Between primitive operands, arithmetic operators require compatible numeric operands. Other operands use [Operator Traits](#operator-traits).
+2. r[expr.arith.non-numeric-no-impl] A binary `+`, `-`, `*`, `/`, `%`, or `**` is an error when an operand is a non-numeric primitive, as in `true + false`. It is also an error when no operator trait implementation fits, as in `[1] * [2]`. Error: `type-mismatch`.
+3. r[expr.arith.string-primitive] `string + string` is the only arithmetic form on non-numeric primitives.
 4. r[expr.arith.defined] Mixed-width result types, overflow, division, and shifts are defined in [Type System](04-type-system.md).
 5. r[expr.arith.cast] Signed/unsigned and integer/floating mixing requires an explicit cast.
 6. r[expr.arith.int.checked] For compatible integer operands, `+`, `-`, and `*` produce the common integer type and use checked arithmetic.
@@ -819,8 +981,8 @@ fn product(a: List[i32], b: List[i32]) -> List[i32]: a * b  # error: type-mismat
 
 ### Bitwise Operators
 
-1. r[expr.bit.integer] `~`, `&`, `|`, and `^` accept integer values only and produce the operand common type.
-2. r[expr.bit.non-integer] A binary `&`, `|`, or `^` with an operand that is not an integer, such as a `bool`, floating-point, or `string` operand, is an error. Error: `type-mismatch`.
+1. r[expr.bit.primitive-integer] Between primitive operands, `~`, `&`, `|`, and `^` accept integer values only and produce the operand common type. Other operands use [Operator Traits](#operator-traits).
+2. r[expr.bit.non-integer-no-impl] A binary `&`, `|`, or `^` with a primitive operand that is not an integer, such as a `bool`, floating-point, or `string` operand, is an error. So is one with a non-primitive operand when no operator trait implementation fits. Error: `type-mismatch`.
 
 ```text
 fn both(a: bool, b: bool) -> bool: a & b          # error: type-mismatch
@@ -857,7 +1019,8 @@ fn main() -> f64: 2 ** 2.0                     # error: mixed-numeric-types
 
 1. r[expr.float.basic] Floating `+`, `-`, `*`, and `/` use the corresponding required IEEE 754 basic operation, including infinities, signed zero, and NaN.
 2. r[expr.float.power] Floating `**` uses the `pow` rule of [Exponentiation](#exponentiation).
-3. r[expr.float.remainder] `%` is integer-only.
+3. r[expr.float.remainder-truncated] Floating `%` returns the remainder of division truncated toward zero, as C `fmod` and Rust `%` do. The result is exact and has the dividend's sign.
+4. r[expr.float.remainder-special] A zero divisor, an infinite dividend, or a NaN operand gives NaN. A finite dividend with an infinite divisor gives the dividend.
 
 ### Logical Operators
 
@@ -957,9 +1120,144 @@ See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 
 ### Operator Traits
 
+An **operator trait** is a `std.ops` trait that gives a type one operator. A
+library type gets the operator by implementing the trait:
+
+```text
+use std.ops.{Add, Mul, Neg}
+
+data Money:
+    cents: i64
+
+impl Add[Money] for Money:
+    type Out = Money
+    fn add(self, rhs: Money) -> Money:
+        Money { cents: self.cents + rhs.cents }
+
+impl Mul[i64] for Money:
+    type Out = Money
+    fn mul(self, rhs: i64) -> Money:
+        Money { cents: self.cents * rhs }
+
+impl Neg for Money:
+    type Out = Money
+    fn neg(self) -> Money:
+        Money { cents: -self.cents }
+
+fn net(price: Money, refund: Money) -> Money:
+    price * 3 + -refund
+```
+
+`std.ops` declares each binary operator trait in this shape, and the two
+unary ones without the argument:
+
+```text
+pub trait Add[Rhs]:
+    type Out
+    fn add(self, rhs: Rhs) -> Self::Out
+
+pub trait Neg:
+    type Out
+    fn neg(self) -> Self::Out
+```
+
+| Rule | Operator | Trait | Method |
+| --- | --- | --- | --- |
+| r[expr.op.trait.add] Add | `a + b` | `Add[Rhs]` | `add` |
+| r[expr.op.trait.sub] Subtract | `a - b` | `Sub[Rhs]` | `sub` |
+| r[expr.op.trait.mul] Multiply | `a * b` | `Mul[Rhs]` | `mul` |
+| r[expr.op.trait.div] Divide | `a / b` | `Div[Rhs]` | `div` |
+| r[expr.op.trait.rem] Remainder | `a % b` | `Rem[Rhs]` | `rem` |
+| r[expr.op.trait.neg] Negate | `-a` | `Neg` | `neg` |
+| r[expr.op.trait.bit-and] Bitwise AND | `a & b` | `BitAnd[Rhs]` | `bit_and` |
+| r[expr.op.trait.bit-or] Bitwise OR | `a \| b` | `BitOr[Rhs]` | `bit_or` |
+| r[expr.op.trait.bit-xor] Bitwise XOR | `a ^ b` | `BitXor[Rhs]` | `bit_xor` |
+| r[expr.op.trait.bit-not] Complement | `~a` | `BitNot` | `bit_not` |
+| r[expr.op.trait.shl] Shift left | `a << b` | `Shl[Rhs]` | `shl` |
+| r[expr.op.trait.shr] Shift right | `a >> b` | `Shr[Rhs]` | `shr` |
+
 1. r[expr.op.builtin] Arithmetic and bitwise operators are built in for the numeric types specified by this chapter and [Type System](04-type-system.md).
 2. r[expr.op.concat] `string + string` concatenates strings.
-3. r[expr.op.traits] Comparison traits are the only operator traits; other user-defined operator overloading is not part of the language.
+3. r[expr.op.trait.std] `std.ops` declares the twelve operator traits in the table above.
+4. r[expr.op.trait.shape] A binary operator trait takes the right operand's type as its one argument `Rhs`. It declares an associated type `Out` and one method `fn m(self, rhs: Rhs) -> Self::Out`.
+5. r[expr.op.trait.unary-shape] `Neg` and `BitNot` take no argument. Each declares `Out` and one method `fn m(self) -> Self::Out`.
+6. r[expr.op.primitive] When every operand is primitive after literal typing, the built-in rules of this chapter and [Type System](04-type-system.md) decide the operator, and no trait is searched.
+7. r[expr.op.desugar] Otherwise `a op b` is the trait-qualified call `Op[R]::m(a, b)` of the operator's trait, as in `Add[R]::add(a, b)`. Likewise `-a` is `Neg::neg(a)` and `~a` is `BitNot::bit_not(a)`.
+8. r[expr.op.no-use] The call needs no `use` of the trait.
+9. r[expr.op.left-dispatch] The left operand's type selects the implementation. Its instantiations of the trait are the candidates, and [Instantiations Of One Generic Trait](09-traits.md#instantiations-of-one-generic-trait) chooses among them by the right operand.
+10. r[expr.op.left-dispatch.example] So `price * 3` checks `3` against `i64` in `Mul[i64]`.
+11. r[expr.op.generic] When an operand's type is a type parameter, the candidates come from its bounds and their supertraits.
+12. r[expr.op.out] The operator's result type is the chosen implementation's `Out`. Implementations are unique per trait instantiation and target, so `a + b` has one type.
+13. r[expr.op.order] The left operand is evaluated, then the right one, and then the method is called.
+14. r[expr.op.left-literal] An untyped literal on the left of a non-primitive operand takes its default type, `i32` or `f64`. The implementations never type it.
+15. r[expr.op.left-literal.example] So `3 * price` needs an `impl Mul[Money] for i32`, and with only `Mul[i64] for Money` it is an error; write `price * 3`. Error: `type-mismatch`.
+16. r[expr.op.no-impl] An operator for which no implementation fits is an error, and its message should name the missing trait. Error: `type-mismatch`.
+17. r[expr.op.newtype] A newtype has only the operators its author implements. It inherits none from its base type, and no derivation supplies an operator trait.
+18. r[expr.op.fixed] Operator traits never change precedence or associativity, and they add no operator symbols.
+19. r[expr.op.not-overloaded] `&&`, `||`, prefix `!`, unary `+`, `**`, `is`, `=`, `:=`, and postfix `?` have no trait and keep their built-in meaning.
+20. r[expr.op.comparison] `==`, `!=`, and the relational operators call `Eq` and `PartialOrd`, as [Equality](#equality) and [Ordering](#ordering) define. `std.ops` declares no comparison trait.
+21. r[expr.op.suffix-negation] `-5s` stays the call `s(-5)`: the minus belongs to the suffixed literal, so `Neg` is not called.
+
+```text
+use std.ops.Mul
+
+data Money:
+    cents: i64
+
+impl Mul[i64] for Money:
+    type Out = Money
+    fn mul(self, rhs: i64) -> Money:
+        Money { cents: self.cents * rhs }
+
+type Meters(f64)
+
+fn triple(price: Money) -> Money:
+    3 * price  # error: type-mismatch
+
+fn total(a: Meters, b: Meters) -> Meters:
+    a + b  # error: type-mismatch
+```
+
+#### Primitive Implementations
+
+The standard library implements the operator traits for the primitive number
+types, so generic code bounded by an operator trait accepts them:
+
+```text
+use std.ops.Add
+
+fn sum[T < Add[T, Out = T]](items: List[T], zero: T) -> T:
+    let total = zero
+    for item in items:
+        total = total + item
+    total
+
+fn count(items: List[i32]) -> i32:
+    sum(items, 0)
+```
+
+| Rule | Traits | Implementations, with `Out = T` |
+| --- | --- | --- |
+| r[expr.op.std.arith] Arithmetic | `Add`, `Sub`, `Mul`, `Div`, `Rem` | `impl Add[T] for T` and the like, for every integer and floating-point type `T` |
+| r[expr.op.std.neg] Negation | `Neg` | every signed integer and floating-point type |
+| r[expr.op.std.bitwise] Bitwise | `BitAnd`, `BitOr`, `BitXor` | `impl BitAnd[T] for T` and the like, for every integer type `T` |
+| r[expr.op.std.bit-not] Complement | `BitNot` | every integer type |
+| r[expr.op.std.shift] Shifts | `Shl`, `Shr` | `impl Shl[C] for T` and the like, for every pair of integer types `T` and `C` |
+
+1. r[expr.op.std.intrinsic] The body of each implementation in the table is a compiler intrinsic. It behaves exactly as the built-in operator on the same operands, including checked overflow and its panics.
+2. r[expr.op.std.same-type] The arithmetic and bitwise implementations are same-type only. Generic code therefore gets no widening, while `i16 + i64` stays built in.
+3. r[expr.op.std.other-primitives] The standard library declares no operator trait implementation for `bool`, `char`, or `string`. `string + string` stays a built-in form.
+
+> **Why.** This is Rust's shape. The right operand is a trait argument, so a
+> type may scale by `i64` and add its own kind. The output is an associated
+> type that the operands fix, so `x := a + b` never becomes ambiguous when an
+> implementation is added. Primitive operands skip trait search, so numeric
+> code compiles as before and type checking never searches across numeric
+> types, the cost Swift pays for overloaded operators.
+
+See also: [Compound Assignment](#compound-assignment),
+[Index Traits](#index-traits),
+[Numeric Traits](09-traits.md#numeric-traits).
 
 ## Binding Expressions
 
@@ -1038,7 +1336,7 @@ labels := [for user in users
 
 ## Unsupported Expression Extensions
 
-1. r[expr.unsupported.overloading] hd-lang has no user-defined arithmetic or bitwise operator overloading.
+1. r[expr.unsupported.custom-operators] hd-lang has no user-defined operator symbols, and no overloading of the operators that [`expr.op.not-overloaded`](#r-expr.op.not-overloaded) lists.
 2. r[expr.unsupported.chaining] hd-lang has no comparison chaining.
 3. r[expr.unsupported.any-fallback] hd-lang has no fallback conversion of heterogeneous literals to `Any`.
 4. r[expr.unsupported.try-mapping] Postfix `?` has no mapping clause.

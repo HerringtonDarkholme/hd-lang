@@ -1,0 +1,13 @@
+# test: a suffix function may be generic over N < Num
+# Spec 05 Literal Suffixes: expr.suffix.fn-shape-param, expr.suffix.generic-num (Operator Traits OP9).
+use std.num.Num
+use std.ops.num_suffix
+
+@num_suffix
+fn k[N < Num](n: N) -> N:
+    n * N::from_i64(1000)
+
+fn limits() -> i64:
+    let limit: i64 = 5k
+    small := 2k
+    limit + i64(small)

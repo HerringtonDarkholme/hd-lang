@@ -1,0 +1,18 @@
+# test: a newtype gets an operator from a hand-written implementation
+# Spec 05 Operator Traits: expr.op.newtype (Operator Traits OP6).
+use std.ops.{Add, Sub}
+
+type Meters(f64)
+
+impl Add[Meters] for Meters:
+    type Out = Meters
+    fn add(self, rhs: Meters) -> Meters:
+        Meters(f64(self) + f64(rhs))
+
+impl Sub[Meters] for Meters:
+    type Out = Meters
+    fn sub(self, rhs: Meters) -> Meters:
+        Meters(f64(self) - f64(rhs))
+
+fn leg(a: Meters, b: Meters, c: Meters) -> Meters:
+    a + b - c

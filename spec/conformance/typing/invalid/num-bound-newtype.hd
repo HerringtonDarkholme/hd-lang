@@ -1,0 +1,14 @@
+# test: a newtype over a number is not Num
+# Spec 09 Numeric Traits: trait.num.sealed, trait.num.not-newtypes (Operator Traits OP9).
+use std.num.Num
+
+type Meters(i64)
+
+fn sum[T < Num](items: List[T]) -> T:
+    let total = T::zero()
+    for item in items:
+        total = total + item
+    total
+
+fn total(items: List[Meters]) -> Meters:
+    sum(items)  # diagnostic: unsatisfied-trait-bound

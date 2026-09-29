@@ -1,0 +1,7 @@
+# test: reading r[k] needs an Index implementation
+# Spec 05 Index Traits: expr.index.trait.no-read (Operator Traits OP7).
+data Plain:
+    value: i32
+
+fn invalid(plain: Plain) -> i32:
+    plain[0]  # diagnostic: type-mismatch

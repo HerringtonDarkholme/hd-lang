@@ -1,0 +1,17 @@
+# test: += is built in on primitives and calls AddAssign on other types
+# Spec 05 Compound Assignment: expr.assign.compound.primitive, expr.assign.compound.call (Operator Traits OP5).
+use std.ops.AddAssign
+
+data Tally:
+    count: i64
+
+impl AddAssign[i64] for Tally:
+    fn add_assign(mut self, rhs: i64) -> void:
+        self.count = self.count + rhs
+
+fn record(tally: mut Tally, hits: List[i64]) -> i64:
+    let seen: i64 = 0
+    for hit in hits:
+        seen += 1
+        tally += hit
+    seen

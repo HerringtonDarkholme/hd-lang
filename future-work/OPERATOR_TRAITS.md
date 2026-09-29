@@ -119,16 +119,16 @@ primitive operators relate to the traits, and what `+=` and newtypes do.
 
 | Topic | Today | Rule |
 | --- | --- | --- |
-| User operators | None except comparison: arithmetic and bitwise operators are built in for numeric types | [`expr.op.builtin`](../spec/05-expressions.md#r-expr.op.builtin), [`expr.op.traits`](../spec/05-expressions.md#r-expr.op.traits), [`expr.unsupported.overloading`](../spec/05-expressions.md#r-expr.unsupported.overloading) |
-| `true + false` | `type-mismatch` | [`expr.arith.non-numeric`](../spec/05-expressions.md#r-expr.arith.non-numeric) |
-| `string + string` | Concatenation, the one non-numeric arithmetic form | [`expr.arith.string`](../spec/05-expressions.md#r-expr.arith.string) |
-| `==`, `<` | Call `Eq.eq` and `PartialOrd.partial_cmp`, same-type only | [`expr.eq.calls-eq`](../spec/05-expressions.md#r-expr.eq.calls-eq), [`expr.ord.partial-cmp`](../spec/05-expressions.md#r-expr.ord.partial-cmp), [`trait.cmp.operators`](../spec/09-traits.md#r-trait.cmp.operators) |
+| User operators | None except comparison: arithmetic and bitwise operators are built in for numeric types | [`expr.op.builtin`](../spec/05-expressions.md#r-expr.op.builtin), `expr.op.traits` (retired), `expr.unsupported.overloading` (retired) |
+| `true + false` | `type-mismatch` | `expr.arith.non-numeric` (retired) |
+| `string + string` | Concatenation, the one non-numeric arithmetic form | `expr.arith.string` (retired) |
+| `==`, `<` | Call `Eq.eq` and `PartialOrd.partial_cmp`, same-type only | [`expr.eq.calls-eq`](../spec/05-expressions.md#r-expr.eq.calls-eq), [`expr.ord.partial-cmp`](../spec/05-expressions.md#r-expr.ord.partial-cmp), `trait.cmp.operators` (retired) |
 | `i16 + i64` | Widens within one signedness family; a literal adopts the other operand's type | [`types.num.binary.widen`](../spec/04-type-system.md#r-types.num.binary.widen), [`types.num.binary.literal`](../spec/04-type-system.md#r-types.num.binary.literal) |
 | Overflow | Integer arithmetic is checked and panics | [`types.arith.checked`](../spec/04-type-system.md#r-types.arith.checked) |
-| Compound assignment | None; `+=` is one token used only by derivation member lines | [`lex.op.plus-equals`](../spec/01-lexical-structure.md#r-lex.op.plus-equals) |
+| Compound assignment | None; `+=` is one token used only by derivation member lines | `lex.op.plus-equals` (retired) |
 | Indexing | Built in for `List` and `Map` only | [List Indexing](../spec/05-expressions.md#list-indexing), [Map Indexing](../spec/05-expressions.md#map-indexing) |
 | Generic traits | Allowed; the spec's own example is `trait Add[T]` | [`trait.decl.generic`](../spec/09-traits.md#r-trait.decl.generic) |
-| Associated types | Allowed, with bound bindings `I < Supplier[Item = T]`; not in supertrait lists | [`trait.assoc.declare`](../spec/09-traits.md#r-trait.assoc.declare), [`trait.binding.rejected`](../spec/09-traits.md#r-trait.binding.rejected) |
+| Associated types | Allowed, with bound bindings `I < Supplier[Item = T]`; not in supertrait lists | [`trait.assoc.declare`](../spec/09-traits.md#r-trait.assoc.declare), `trait.binding.rejected` (retired) |
 | `impl Add[Money] for i32` | Allowed in the package that owns `Money` (trait-argument ownership) | [`trait.own.argument.example`](../spec/09-traits.md#r-trait.own.argument.example) |
 | `impl Add[i32] for Money` and `impl Add[Money] for Money` | Do not overlap; a call picks the instantiation whose argument fits, with a literal-default tie-break | [Overlap](../spec/09-traits.md#overlap), [`trait.resolve.one-fit`](../spec/09-traits.md#r-trait.resolve.one-fit), [`trait.resolve.literal-default`](../spec/09-traits.md#r-trait.resolve.literal-default) |
 | Newtypes | Inherit no implementation; `@derive` forwards only where `Self` is the receiver, plain, `Self?`, `Result[Self, E]`, or `List[Self]` | [`types.newtype.no-inherit`](../spec/04-type-system.md#r-types.newtype.no-inherit), [`trait.derive.newtype.self-positions`](../spec/09-traits.md#r-trait.derive.newtype.self-positions) |
@@ -302,7 +302,7 @@ it.
 | Aspect | Effect |
 | --- | --- |
 | Generic bound | `T < Add[T, Out = T]`, with the existing binding syntax |
-| Supertrait alias | `trait Integer < Add[Self, Out = Self]` is rejected today by [`trait.binding.rejected`](../spec/09-traits.md#r-trait.binding.rejected); see question 8 |
+| Supertrait alias | `trait Integer < Add[Self, Out = Self]` is rejected today by `trait.binding.rejected` (retired); see question 8 |
 | Name clash | Every operator trait declares `Out`, so `T::Out` is ambiguous under two bounds; the bindings avoid naming it |
 | Dynamic safety | Not dynamically safe (associated type); nobody needs `Add` as a value |
 | `LiteralSuffix[In, Out]` | Differs: there the output is a trait argument |

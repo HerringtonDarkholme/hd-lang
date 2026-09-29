@@ -1,0 +1,19 @@
+# test: a generic operator call on primitives behaves as the built-in operator
+# Spec 05 Primitive Implementations: expr.op.std.arith, expr.op.std.intrinsic (Operator Traits OP2).
+use std.ops.{Add, Rem}
+use std.testing.assert_equal
+
+fn sum[T < Add[T, Out = T]](items: List[T], zero: T) -> T:
+    let total = zero
+    for item in items:
+        total = total + item
+    total
+
+fn remainder[T < Rem[T, Out = T]](left: T, right: T) -> T:
+    left % right
+
+tests:
+    it("adds through the std implementations"):
+        assert_equal(sum([1, 2, 3], 0), 6, reason="i32 implements Add[i32]")
+        assert_equal(sum([1.5, 2.5], 0.0), 4.0, reason="f64 implements Add[f64]")
+        assert_equal(remainder(-7, 3), -1, reason="integer remainder keeps the dividend's sign")

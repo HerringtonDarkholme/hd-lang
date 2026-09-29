@@ -1,0 +1,5 @@
+# test: supertrait_bounds accept associated type bindings
+# Spec 02 Associated Type Bindings In Bounds: grammar.generic.binding.bounds-and-supertraits (Operator Traits OP8).
+trait Additive < Add[Self, Out = Self] & Sub[Self, Out = Self]
+
+trait Complement < BitNot[Out = Self] & Shl[u32, Out = Self]

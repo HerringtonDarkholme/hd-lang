@@ -1,0 +1,12 @@
+# test: primitives implement the operator traits, so a generic bound accepts i32
+# Spec 05 Primitive Implementations: expr.op.std.arith (Operator Traits OP2).
+use std.ops.Add
+
+fn sum[T < Add[T, Out = T]](items: List[T], zero: T) -> T:
+    let total = zero
+    for item in items:
+        total = total + item
+    total
+
+fn count(items: List[i32]) -> i32:
+    sum(items, 0)

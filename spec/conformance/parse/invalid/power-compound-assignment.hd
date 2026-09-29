@@ -1,0 +1,6 @@
+# test: **= is not a compound assignment token
+# Spec 01 Operators And Delimiters: lex.op.no-power-assign (Operator Traits OP3, OP5).
+fn square() -> i64:
+    let x: i64 = 3
+    x **= 2  # diagnostic: syntax-error
+    x

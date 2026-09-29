@@ -1,0 +1,24 @@
+# test: a data type gets +, * and unary - by implementing std.ops traits
+# Spec 05 Operator Traits: expr.op.desugar, expr.op.left-dispatch, expr.op.out (Operator Traits OP1).
+use std.ops.{Add, Mul, Neg}
+
+data Money:
+    cents: i64
+
+impl Add[Money] for Money:
+    type Out = Money
+    fn add(self, rhs: Money) -> Money:
+        Money { cents: self.cents + rhs.cents }
+
+impl Mul[i64] for Money:
+    type Out = Money
+    fn mul(self, rhs: i64) -> Money:
+        Money { cents: self.cents * rhs }
+
+impl Neg for Money:
+    type Out = Money
+    fn neg(self) -> Money:
+        Money { cents: -self.cents }
+
+fn net(price: Money, refund: Money) -> Money:
+    price * 3 + -refund

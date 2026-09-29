@@ -1,0 +1,7 @@
+# test: ** has no operator trait, so it rejects a data operand
+# Spec 05 Operator Traits: expr.op.not-overloaded (Operator Traits OP3).
+data Money:
+    cents: i64
+
+fn squared(price: Money) -> Money:
+    price ** 2  # diagnostic: type-mismatch

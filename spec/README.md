@@ -169,6 +169,7 @@ links to the rule that defines the term.
 
 | Term | Definition |
 | --- | --- |
+| **compound assignment** | A statement `place op= value`, such as `total += x`, that combines an operator with a store. See [Compound Assignment](05-expressions.md#compound-assignment). |
 | **copy-update literal** | A data literal with one leading spread, which builds a new value from an existing one. See [Copy-Update Literals](08-data-and-enums.md#copy-update-literals). |
 | **data type** | A nominal product type with reference semantics. See [`data.kind.data`](08-data-and-enums.md#r-data.kind.data). |
 | **derivation block** | An `impl Trait for X by Structure:` that applies a trait's template to one type, with optional member lines. See [Derivation Blocks](14-annotations.md#derivation-blocks). |
@@ -184,6 +185,7 @@ links to the rule that defines the term.
 | **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. See [Member Lines](14-annotations.md#member-lines). |
 | **mutable edges** | What a data type has when it declares a direct `field: mut U`, or embeds a type that has mutable edges. See [`data.edge.definition`](08-data-and-enums.md#r-data.edge.definition). |
 | **mutable requirement trait** | A trait that declares or inherits a `mut self` method; its providers always have mutable access. See [`req.mut.trait`](11-requirements-and-suspension.md#r-req.mut.trait). |
+| **operator trait** | A `std.ops` trait, such as `Add[Rhs]`, whose implementation gives a type one operator. See [Operator Traits](05-expressions.md#operator-traits). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](08-data-and-enums.md#parts-and-copies). |
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
 | **suffix function** | A function marked `@num_suffix`, which a suffixed literal calls. See [`expr.suffix.marker`](05-expressions.md#r-expr.suffix.marker). |
@@ -1419,3 +1421,44 @@ existing source. Each entry names the decision that made the change.
   before anything but a function. A misplaced `@derive` stays
   `decorator-not-annotator`, and a suffix naming an unmarked function stays
   `invalid-literal-suffix`.
+- Operator traits OP1 (owner decision in
+  [Operator Traits](../future-work/OPERATOR_TRAITS.md#owner-decisions),
+  2026-09-29): `std.ops` declares Rust-shaped operator traits, such as
+  `Add[Rhs]` with an associated `Out`. A binary operator with a
+  non-primitive operand calls the left operand's implementation, so
+  `a + b` on a `data` type with `impl Add[Money] for Money`, previously
+  `type-mismatch`, is valid. An operand type without one stays
+  `type-mismatch`.
+- Operator traits OP2 (same record, 2026-09-29): the standard library
+  implements the operator traits for the primitive number types with
+  intrinsic bodies, so `fn sum[T < Add[T, Out = T]]` accepts `i32`. Two
+  primitive operands keep the built-in rules and search no trait, so no
+  existing numeric expression changes.
+- Operator traits OP3 (same record, 2026-09-29): the twelve operators
+  `+ - * / %`, unary `-`, `& | ^ ~`, `<<` and `>>` have traits. `**`,
+  unary `+`, the logical operators, and the comparisons have none.
+- Operator traits OP4 (same record, 2026-09-29): a literal on the left of
+  a non-primitive operand takes its default type and is never typed from
+  an implementation, so `3 * price` is `type-mismatch` unless `i32`
+  implements `Mul` for the price type.
+- Operator traits OP5 (same record, 2026-09-29): compound assignment is
+  new. `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=` become
+  tokens, so `a-=b`, previously `a`, `-`, `=`, `b` and a syntax error,
+  lexes as one assignment. On primitives `x += 1` is built in; on other
+  types it calls an `AddAssign`-family `mut self` method, which changes a
+  `data` value in place for every alias.
+- Operator traits OP6 (same record, 2026-09-29): a newtype gets operators
+  only from hand-written implementations. No source changes validity.
+- Operator traits OP7 (same record, 2026-09-29): a user type implementing
+  `std.ops.Index` or `IndexSet` supports `r[k]` or `r[k] = v`, which were
+  `type-mismatch` before. `List` and `Map` keep built-in indexing.
+- Operator traits OP8 (same record, 2026-09-29): a supertrait list may bind
+  an associated type, as in `trait Summable < Add[Self, Out = Self]`,
+  which was `syntax-error`. An implementation whose supertrait binds
+  another type is `missing-supertrait-implementation`.
+- Operator traits OP9 (same record, 2026-09-29): `std.num` declares the
+  sealed traits `Num`, `Integer`, and `Float` for the primitive number
+  types, with `zero`, `one`, and `from_i64` on `Num`. Because `Num` has
+  `%`, floating `%` is now valid and truncates as C `fmod` does, where
+  `2.0 % 1.0` was `type-mismatch`. A function marked `@num_suffix` may be
+  generic over `N < Num`, which was `type-mismatch` at the definition.

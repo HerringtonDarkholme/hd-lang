@@ -1,0 +1,26 @@
+# test: user indexing reads through index and stores through index_set
+# Spec 05 Index Traits: expr.index.trait.read, expr.index.trait.write, expr.assign.compound.index (Operator Traits OP7).
+use std.ops.{Index, IndexSet}
+use std.testing.assert_equal
+
+data Ring:
+    items: mut List[i32]
+
+impl Index[i32] for Ring:
+    type Out = i32
+    fn index(self, key: i32) -> i32:
+        self.items[key % self.items.len()]
+
+impl IndexSet[i32, i32] for Ring:
+    fn index_set(mut self, key: i32, value: i32) -> void:
+        self.items[key % self.items.len()] = value
+
+fn exercise() -> i32:
+    ring := Ring { items: [1, 2, 3] }
+    ring[4] = ring[0] + 10
+    ring[4] += 5
+    ring[1]
+
+tests:
+    it("wraps the index"):
+        assert_equal(exercise(), 16, reason="index 4 is element 1")

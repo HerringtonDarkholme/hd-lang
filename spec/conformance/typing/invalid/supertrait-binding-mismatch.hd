@@ -1,0 +1,15 @@
+# test: an implementation whose supertrait binds another Out is rejected
+# Spec 09 Supertrait Bindings: trait.binding.super.mismatch (Operator Traits OP8).
+use std.ops.Add
+
+trait Summable < Add[Self, Out = Self]
+
+data Money:
+    cents: i64
+
+impl Add[Money] for Money:
+    type Out = i64
+    fn add(self, rhs: Money) -> i64:
+        self.cents + rhs.cents
+
+impl Summable for Money  # diagnostic: missing-supertrait-implementation

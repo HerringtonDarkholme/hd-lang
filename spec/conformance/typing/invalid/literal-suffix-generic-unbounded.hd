@@ -1,0 +1,7 @@
+# test: a generic suffix parameter must be bounded by Num, Integer, or Float
+# Spec 05 Literal Suffixes: expr.suffix.fn-shape-param, checked at the definition (Operator Traits OP9).
+use std.ops.num_suffix
+
+@num_suffix
+fn same[N](n: N) -> N:  # diagnostic: type-mismatch
+    n

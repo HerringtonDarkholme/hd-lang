@@ -1108,3 +1108,42 @@ style lint rejects a chapter that reuses one.
   by `expr.suffix.marker.fn-only`.
 - `expr.prefix.marker.module`: retired 2026-09-29. Decorators D10. Replaced
   by `expr.prefix.marker.fn-only`.
+- `lex.op.token-list`: retired 2026-09-29. Operator traits OP5 adds the
+  compound assignment tokens. Replaced by `lex.op.token-list-assign`.
+- `lex.op.plus-equals`: retired 2026-09-29. Operator traits OP5 gives
+  `+=` a second use, compound assignment. Replaced by
+  `lex.op.compound-assign`.
+- `grammar.generic.binding.bounds-only`: retired 2026-09-29. Operator
+  traits OP8 lets a supertrait list bind an associated type. Replaced by
+  `grammar.generic.binding.bounds-and-supertraits`.
+- `grammar.generic.binding.elsewhere`: retired 2026-09-29. Operator traits
+  OP8. Replaced by `grammar.generic.binding.other-positions`.
+- `trait.binding.positions`: retired 2026-09-29. Operator traits OP8.
+  Replaced by `trait.binding.positions-supertrait`.
+- `trait.binding.rejected`: retired 2026-09-29. Operator traits OP8.
+  Replaced by `trait.binding.rejected-other` and the Supertrait Bindings
+  rules `trait.binding.super.*`.
+- `trait.cmp.operators`: retired 2026-09-29. Operator traits OP1 lets the
+  other operators call `std.ops` traits. Replaced by
+  `trait.cmp.operators-comparison`.
+- `expr.op.traits`: retired 2026-09-29. Operator traits OP1-OP3. Replaced
+  by `expr.op.trait.std` and `expr.op.desugar`.
+- `expr.unsupported.overloading`: retired 2026-09-29. Operator traits OP1.
+  Replaced by `expr.unsupported.custom-operators`.
+- `expr.arith.numeric`: retired 2026-09-29. Operator traits OP1 and OP2
+  limit the numeric requirement to primitive operands. Replaced by
+  `expr.arith.primitive-numeric`.
+- `expr.arith.non-numeric`: retired 2026-09-29. Operator traits OP1.
+  Replaced by `expr.arith.non-numeric-no-impl`.
+- `expr.arith.string`: retired 2026-09-29. Operator traits OP1. Replaced by
+  `expr.arith.string-primitive`.
+- `expr.bit.integer`: retired 2026-09-29. Operator traits OP1 and OP3.
+  Replaced by `expr.bit.primitive-integer`.
+- `expr.bit.non-integer`: retired 2026-09-29. Operator traits OP1 and OP3.
+  Replaced by `expr.bit.non-integer-no-impl`.
+- `expr.float.remainder`: retired 2026-09-29. Operator traits OP9 puts `%`
+  on `Num`, which `f32` and `f64` implement. Replaced by
+  `expr.float.remainder-truncated` and `expr.float.remainder-special`.
+- `expr.suffix.fn-shape-one`: retired 2026-09-29. Operator traits OP9
+  allows a suffix function generic over `N < Num`. Replaced by
+  `expr.suffix.fn-shape-num` and `expr.suffix.fn-shape-param`.

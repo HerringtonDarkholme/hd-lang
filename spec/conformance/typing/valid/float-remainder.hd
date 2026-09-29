@@ -1,0 +1,3 @@
+# test: floating % is valid, because f64 implements Num and so Rem
+# Spec 05 Floating-Point Arithmetic: expr.float.remainder-truncated (Operator Traits OP9).
+fn main() -> f64: 2.0 % 1.0

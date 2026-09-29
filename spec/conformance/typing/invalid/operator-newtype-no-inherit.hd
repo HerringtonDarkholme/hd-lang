@@ -1,0 +1,6 @@
+# test: a newtype inherits no operator from its base type
+# Spec 05 Operator Traits: expr.op.newtype, expr.op.no-impl (Operator Traits OP6).
+type Meters(f64)
+
+fn total(a: Meters, b: Meters) -> Meters:
+    a + b  # diagnostic: type-mismatch

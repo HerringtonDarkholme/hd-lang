@@ -1,0 +1,21 @@
+# test: a supertrait list may bind Out, so T + T has type T
+# Spec 09 Supertrait Bindings: trait.binding.super.form, trait.binding.super.projection (Operator Traits OP8).
+use std.ops.Add
+
+trait Summable < Add[Self, Out = Self]
+
+data Money:
+    cents: i64
+
+impl Add[Money] for Money:
+    type Out = Money
+    fn add(self, rhs: Money) -> Money:
+        Money { cents: self.cents + rhs.cents }
+
+impl Summable for Money
+
+fn double[T < Summable](value: T) -> T:
+    value + value
+
+fn twice(price: Money) -> Money:
+    double(price)

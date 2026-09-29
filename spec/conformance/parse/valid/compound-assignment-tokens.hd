@@ -1,0 +1,18 @@
+# test: the ten compound assignment operators are single tokens
+# Spec 01 Operators And Delimiters: lex.op.compound-assign; spec 02 Statements (Operator Traits OP5).
+fn update(flag: bool) -> i64:
+    let x: i64 = 1
+    x += 1
+    x -= 1
+    x *= 2
+    x /= 2
+    x %= 7
+    x &= 3
+    x |= 4
+    x ^= 5
+    x <<= 1
+    x >>= 1
+    x-=1
+    if flag: x += 1
+    x += if flag: 1 else: 2
+    x

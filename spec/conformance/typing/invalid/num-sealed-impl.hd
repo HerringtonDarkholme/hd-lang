@@ -1,0 +1,7 @@
+# test: user code cannot implement the sealed Integer trait
+# Spec 09 Numeric Traits: trait.num.sealed; Sealed Traits: trait.sealed.user-impl (Operator Traits OP9).
+use std.num.Integer
+
+type Count(i64)
+
+impl Integer for Count  # diagnostic: sealed-trait-implementation

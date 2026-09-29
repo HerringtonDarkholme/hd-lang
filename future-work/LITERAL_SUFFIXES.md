@@ -311,8 +311,9 @@ the decorator redesign; see its entry below.
     - `EscapeError.offset` counts Unicode scalars.
 
     Applied 2026-09-29 in
-    [`expr.suffix.fn-shape-one`](../spec/05-expressions.md#r-expr.suffix.fn-shape-one)
-    and [`expr.prefix.fn-shape-one`](../spec/05-expressions.md#r-expr.prefix.fn-shape-one),
+    `expr.suffix.fn-shape-one` (since replaced by
+    [`expr.suffix.fn-shape-num`](../spec/05-expressions.md#r-expr.suffix.fn-shape-num),
+    Operator Traits OP9) and [`expr.prefix.fn-shape-one`](../spec/05-expressions.md#r-expr.prefix.fn-shape-one),
     which replace the `-required` rules. The spec names no line for the
     shape error. The helpers moved to `lib/std/text.hd` and the
     [STDLIB draft](STDLIB.md#stdtext); the spec names neither module for
@@ -357,7 +358,7 @@ as a literal in positions that accept only literals, such as test options.
 | `-5` | `-` is an operator, not part of the literal | [`lex.int.sign`](../spec/01-lexical-structure.md#r-lex.int.sign) |
 | `-128` as `i8` | Negation of a literal is range-checked as a unit | [`types.literal.negation`](../spec/04-type-system.md#r-types.literal.negation) |
 | Literal type | From the expected type; else `i32` or `f64` | [`types.literal.int-default`](../spec/04-type-system.md#r-types.literal.int-default) |
-| Operators on user types | None: no arithmetic operator overloading | [`expr.unsupported.overloading`](../spec/05-expressions.md#r-expr.unsupported.overloading) |
+| Operators on user types | None: no arithmetic operator overloading (since changed by [Operator Traits](OPERATOR_TRAITS.md#owner-decisions)) | `expr.unsupported.overloading`, retired |
 | Methods on `i32` | Only std declares inherent ones; any package may implement its own trait for `i32` | [`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std), [`trait.own.orphan`](../spec/09-traits.md#r-trait.own.orphan) |
 | `5.seconds()` | Parses today: a method call on the literal `5` | [Member Access](../spec/05-expressions.md#member-access) |
 | `.Queued` | Resolved on the expected enum type; an error without one | [`data.enum.shorthand`](../spec/08-data-and-enums.md#r-data.enum.shorthand) |
@@ -886,7 +887,7 @@ The L20 and L21 apply pass met these points, and L22 answered them:
 
 | # | Point | Resolution |
 | --- | --- | --- |
-| 24 | L21 says "exactly one required parameter", where L11 said "exactly one parameter" | L22: exactly one parameter; `fn kb(count: i64, unit: i64 = 1024)` is `type-mismatch` ([`expr.suffix.fn-shape-one`](../spec/05-expressions.md#r-expr.suffix.fn-shape-one)) |
+| 24 | L21 says "exactly one required parameter", where L11 said "exactly one parameter" | L22: exactly one parameter; `fn kb(count: i64, unit: i64 = 1024)` is `type-mismatch` ([`expr.suffix.fn-shape-num`](../spec/05-expressions.md#r-expr.suffix.fn-shape-num)) |
 | 25 | Which line a definition-site shape error names | L22: not specified; the prototype names the `fn` line |
 | 26 | Whether `interpolate`, `process_escapes` and `EscapeError` move to `std.text` with `r` | L22: they move to `std.text`; `std.ops` keeps the markers and `Template` |
 | 27 | What `EscapeError.offset` counts | L22: Unicode scalars |
