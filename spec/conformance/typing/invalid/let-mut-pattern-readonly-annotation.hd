@@ -1,0 +1,9 @@
+# test: a mut name needs a mut element type in the tuple annotation
+data User:
+    name: string
+
+fn pair() -> (mut User, mut User):
+    (User { name: "Ada" }, User { name: "Grace" })
+
+fn invalid() -> void:
+    let mut first, second: (User, User) = pair()  # diagnostic: let-mut-readonly-type

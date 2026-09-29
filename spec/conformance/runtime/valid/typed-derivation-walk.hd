@@ -72,13 +72,13 @@ impl[S] Describer[S] for KeyLister:
 
 impl[T] Encode for T by Structure:
     fn encode(self) -> string:
-        let w: mut Encoder = Encoder { style: style_of(T::facts()), out: "" }
+        let mut w = Encoder { style: style_of(T::facts()), out: "" }
         _ := Structure::walk(self, w)
         w.out
 
 impl[T] Keys for T by Structure:
     fn keys() -> List[string]:
-        let d: mut KeyLister = KeyLister { style: style_of(T::facts()), keys: [] }
+        let mut d = KeyLister { style: style_of(T::facts()), keys: [] }
         _ := T::describe(d)
         d.keys
 

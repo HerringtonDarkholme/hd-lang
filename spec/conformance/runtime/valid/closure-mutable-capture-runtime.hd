@@ -20,13 +20,13 @@ tests:
         assert_equal(count, 2, reason="the defining scope sees the captured writes")
 
     it("a closure reads through a readonly view and sees later writes"):
-        let user: mut User = User { name: "Ada" }
+        let mut user = User { name: "Ada" }
         read := fn() -> string: user.name
         user.name = "Grace"
         assert_equal(read(), "Grace", reason="readonly view is not a snapshot")
 
     it("a closure mutates a captured mutable object"):
-        let user: mut User = User { name: "Ada" }
+        let mut user = User { name: "Ada" }
         rename_it := fn() -> void: rename(user)
         rename_it()
         assert_equal(user.name, "renamed", reason="mutation through the capture is visible")

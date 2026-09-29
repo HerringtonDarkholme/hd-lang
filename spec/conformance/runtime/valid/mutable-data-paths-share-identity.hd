@@ -14,8 +14,8 @@ fn rename(parent: mut Parent) -> void:
     parent.snapshot = Child { name: "updated" }
 
 fn main() -> i32:
-    let child: mut Child = Child { name: "Ada" }
-    let parent: mut Parent = Parent { child: child, snapshot: Child { name: "old" } }
+    let mut child = Child { name: "Ada" }
+    let mut parent = Parent { child: child, snapshot: Child { name: "old" } }
     readonly := parent
     rename(parent)
     if readonly.child.name == "Grace" && readonly.snapshot.name == "updated":

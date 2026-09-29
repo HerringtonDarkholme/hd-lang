@@ -17,14 +17,14 @@ data Post:
 fn edit(post: mut Post, stamps: Timestamps) -> void:
     post.touch(1700000100)            # promoted mut self method
     post.updated_at = 1700000200      # promoted field through a mut root
-    let alias = post.Timestamps       # mut Timestamps, the same part
+    let mut alias = post.Timestamps   # mut Timestamps, the same part
     alias.created_at = 1700000000     # observed as post.created_at
-    let copy: mut Post = Post { Timestamps: ...stamps, id: "p", title: "t" }
+    let mut copy = Post { Timestamps: ...stamps, id: "p", title: "t" }
     copy.touch(1700000300)            # changes copy's part, never stamps
 
 tests:
     it("access follows the container"):
-        let post: mut Post = Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
+        let mut post = Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
         stamps := Timestamps { created_at: 5, updated_at: 5 }
         edit(post, stamps)
         assert_equal(post.updated_at, 1700000200, reason="promoted field assignment")

@@ -548,7 +548,7 @@ fn invalid(user: User) -> void:
 4. r[types.readonly.deep-api] APIs that require a deep no-mutation guarantee must not expose mutable references through such nested field types.
 
 ```text
-let user: mut User = User { name: "Ada" }
+let mut user = User { name: "Ada" }
 readonly := user
 user.name = "Grace"
 println(readonly.name)  # observes "Grace"
@@ -583,8 +583,7 @@ See also: [Mutable Paths](#mutable-paths).
    - an annotated `mut T` binding;
    - a `mut T` argument or result;
    - a store into a `mut T` field or element.
-8. r[types.fresh.let] An unannotated `let` infers readonly `T` when any such field or copy is readonly.
-9. r[types.fresh.generic-field] A generic field declared `field: P` still requires its substituted type, including `mut U` when `P = mut U`.
+8. r[types.fresh.generic-field] A generic field declared `field: P` still requires its substituted type, including `mut U` when `P = mut U`.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
@@ -596,16 +595,76 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 user := User { name: "Ada" }  # User
 ```
 
-2. r[types.bind.let-mut] `let` may state mutable access explicitly:
+2. r[types.bind.let-mut] A `let` annotation may state mutable access explicitly:
 
 ```text
-let user: mut User = User { name: "Ada" }
+let names: mut List[string] = []
 ```
 
-3. r[types.bind.let-infer] An unannotated `let` infers the initializer's access type.
-4. r[types.bind.fresh-infer] A fresh composite construction may infer `mut T`; an existing `T` remains `T`, and inference never upgrades readonly access.
-5. r[types.bind.call-result] Passing through a function also follows the declared result type rather than recovering freshness.
-6. r[types.bind.call-result.argument] Consequently, a fresh literal may be passed directly to a `mut T` parameter. A call declared to return `T` cannot be passed to one, even when its implementation constructs a fresh value.
+3. r[types.bind.let-readonly] A `let` without `mut` and without an annotation infers the readonly view of its initializer's type, even when the initializer creates a fresh value.
+4. r[types.bind.let-rebind] Such a binding may still be reassigned; only mutation through it is rejected.
+
+```text
+fn rename(other: User) -> void:
+    let user = User { name: "Ada" }  # User
+    user = other                     # valid: reassignment
+```
+
+```text
+fn invalid() -> void:
+    let user = User { name: "Ada" }
+    user.name = "Grace"  # error: readonly-root
+```
+
+5. r[types.bind.let-mut-infer] `let mut name = value` infers mutable access: when `value` has type `mut T`, the binding has type `mut T`.
+6. r[types.bind.let-mut-upgrade] `let mut` never upgrades access: an initializer with a readonly type is an error. Error: `mutable-upgrade`.
+7. r[types.bind.let-mut-expected] The initializer of an unannotated `let mut` is used as `mut T`, so a fresh literal whose direct `mut` field or embedded copy is readonly is an error, as [`types.fresh.expected-mut`](#r-types.fresh.expected-mut) states. Error: `mutable-upgrade`.
+8. r[types.bind.let-mut-copy] A mutable copy of a readonly value is therefore written as a fresh literal, such as `User { ...user }`, whose `mut` fields are supplied mutable values.
+
+```text
+fn edit(user: User) -> void:
+    let mut draft = User { name: "Ada" }  # mut User
+    draft.name = "Grace"
+    let mut copy = User { ...user }       # a fresh copy
+    copy.name = "Grace"
+```
+
+```text
+fn invalid(user: User) -> void:
+    let mut alias = user  # error: mutable-upgrade
+```
+
+9. r[types.bind.let-mut-annotated] `let mut` with an annotation whose type is `mut T`, as in `let mut user: mut User = ...`, is valid; the `mut` after `let` is redundant.
+10. r[types.bind.let-mut-annotation] `let mut` with a readonly annotation, as in `let mut user: User = ...`, is an error, because the annotation and `let mut` disagree. Error: `let-mut-readonly-type`.
+11. r[types.bind.let-mut-annotation.fix] The diagnostic suggests adding `mut` to the type or removing the `mut` after `let`.
+
+```text
+fn invalid() -> void:
+    let mut names: List[string] = []  # error: let-mut-readonly-type
+```
+
+12. r[types.bind.let-mut-pattern] In a multi-name `let`, each name follows these rules for its own tuple element. In `let mut log, db = pair`, `log` has mutable access and `db` the readonly view.
+13. r[types.bind.let-mut-pattern.annotated] With a tuple annotation, the element type of each name written `mut` must be a `mut` type. Error: `let-mut-readonly-type`.
+
+```text
+fn pair() -> (mut User, mut User):
+    (User { name: "Ada" }, User { name: "Grace" })
+
+fn edit() -> void:
+    let mut first, second = pair()  # mut User, User
+    first.name = "Lin"
+    println(second.name)
+```
+
+> **Note.** No binding form is non-reassignable and mutable at once: a
+> local that is mutated but never reassigned is written with `let mut`.
+
+> **Why.** `let mut` removes the repeated type from
+> `let mut user = User { ... }`, while the declaration still says
+> which locals change. `mut` keeps one meaning, a permission in the type.
+
+14. r[types.bind.call-result] Passing through a function also follows the declared result type rather than recovering freshness.
+15. r[types.bind.call-result.argument] Consequently, a fresh literal may be passed directly to a `mut T` parameter. A call declared to return `T` cannot be passed to one, even when its implementation constructs a fresh value.
 
 ### Mutable Paths
 
@@ -651,7 +710,7 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 data Account:
     profile: mut Profile
 
-let account: mut Account = Account { profile: profile }
+let mut account = Account { profile: profile }
 account.profile.display_name = "Ada"   # account.profile has type mut Profile
 ```
 

@@ -1,0 +1,17 @@
+# test: let mut infers mut T from a fresh literal or a mutable value; a spread copy is fresh
+data User:
+    name: string
+
+fn fresh() -> mut User:
+    User { name: "Lin" }
+
+fn edit(user: User) -> string:
+    let mut draft = User { name: "Ada" }  # mut User
+    draft.name = "Grace"
+    let mut copy = User { ...user }       # a fresh copy
+    copy.name = "Grace"
+    let mut made = fresh()
+    made.name = draft.name
+    let mut redundant: mut User = User { name: "Kay" }
+    redundant.name = made.name
+    copy.name

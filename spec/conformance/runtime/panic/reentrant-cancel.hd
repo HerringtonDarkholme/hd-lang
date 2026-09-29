@@ -11,7 +11,7 @@ fn outer!(slot: mut Slot) -> i32:
     inner!(slot)
 
 pub fn main!() -> void:
-    let slot: mut Slot = Slot { task: .None }
+    let mut slot = Slot { task: .None }
     let pending: mut Suspend[i32] = outer(slot)
     slot.task = pending
     _ := pending!()  # panic: suspension-reentrant-poll

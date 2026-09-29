@@ -1,0 +1,10 @@
+# test: a spread from a readonly value cannot supply a mut field of a let mut copy
+data Owner:
+    name: string
+
+data Pet:
+    name: string
+    owner: mut Owner
+
+fn invalid(pet: Pet) -> void:
+    let mut copy = Pet { ...pet }  # diagnostic: mutable-upgrade

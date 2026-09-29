@@ -16,7 +16,7 @@ impl IndexSet[i32, i32] for Ring:
         self.items[key % self.items.len()] = value
 
 fn exercise() -> i32:
-    let ring: mut Ring = Ring { items: [1, 2, 3] }
+    let mut ring = Ring { items: [1, 2, 3] }
     ring[4] = ring[0] + 10
     ring[4] += 5
     ring[1]

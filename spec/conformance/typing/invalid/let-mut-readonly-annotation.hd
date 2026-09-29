@@ -1,0 +1,3 @@
+# test: let mut with a readonly annotation disagrees with it
+fn invalid() -> void:
+    let mut names: List[string] = []  # diagnostic: let-mut-readonly-type

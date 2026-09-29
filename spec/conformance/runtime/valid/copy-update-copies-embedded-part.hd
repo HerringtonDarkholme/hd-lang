@@ -16,8 +16,8 @@ data Post:
 
 tests:
     it("copy-update independence"):
-        let post: mut Post = Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
-        let copy: mut Post = Post { ...post, id: "copy" }
+        let mut post = Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
+        let mut copy = Post { ...post, id: "copy" }
         copy.touch(42)
         assert_equal(copy.updated_at, 42, reason="the copy's part changed")
         assert_equal(post.updated_at, 1, reason="the original's part is separate")
@@ -26,6 +26,6 @@ tests:
 
     it("copy of a readonly original"):
         original := Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
-        let copy: mut Post = Post { ...original, id: "copy" }
+        let mut copy = Post { ...original, id: "copy" }
         copy.touch(3)
         assert_equal(original.updated_at, 1, reason="the readonly original is untouched")

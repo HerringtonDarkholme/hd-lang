@@ -748,7 +748,7 @@ use std.structure.Structure
 
 impl[T] Encode for T by Structure:
     fn encode(self) -> string:
-        let w: mut Encoder = Encoder { style: style_of(T::facts()), out: "" }
+        let mut w = Encoder { style: style_of(T::facts()), out: "" }
         _ := Structure::walk(self, w)
         w.out
 ```

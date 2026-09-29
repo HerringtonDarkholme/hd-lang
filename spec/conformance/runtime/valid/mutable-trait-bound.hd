@@ -16,7 +16,7 @@ fn clear_value[T < mut Clear](value: T) -> void:
     value.clear()
 
 fn cleared_value() -> i32:
-    let counter: mut Counter = Counter { value: 42 }
+    let mut counter = Counter { value: 42 }
     clear_value(counter)
     counter.value
 

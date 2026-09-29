@@ -370,9 +370,10 @@ See also: [Primary Expressions](02-grammar.md#primary-expressions).
 3. r[data.part.access.promoted] Promoted members are reached through the same step. Through a `mut Post`, a promoted field may be assigned and a promoted `mut self` method called.
 4. r[data.part.access.readonly-promoted] Through a readonly `Post`, the promoted field is readonly and the promoted `mut self` call is an error. Error: `mutable-receiver-required`.
 5. r[data.part.alias] A read of an embedded field yields the part itself, not a copy.
-6. r[data.part.alias.mut] `let stamps = post.Timestamps` on a `mut Post` binds a `mut Timestamps` alias, and a mutation through either name is observed through the other.
+6. r[data.part.alias.let-mut] `let mut stamps = post.Timestamps` on a `mut Post` binds a `mut Timestamps` alias, and a mutation through either name is observed through the other.
 7. r[data.part.alias.readonly] On a readonly `Post` the alias is readonly.
 8. r[data.part.alias.binding] A `:=` binding exposes a readonly view, as it does for every composite value.
+9. r[data.part.alias.plain-let] So does a `let` without `mut`: `let stamps = post.Timestamps` binds a readonly `Timestamps` alias.
 
 The following example assumes the `Post` and `Timestamps` declarations
 above:
@@ -385,9 +386,9 @@ impl Timestamps:
 fn edit(post: mut Post, stamps: Timestamps) -> void:
     post.touch(1700000100)            # promoted mut self method
     post.updated_at = 1700000200      # promoted field through a mut root
-    let alias = post.Timestamps       # mut Timestamps, the same part
+    let mut alias = post.Timestamps   # mut Timestamps, the same part
     alias.created_at = 1700000000     # observed as post.created_at
-    let copy: mut Post = Post { Timestamps: ...stamps, id: "p", title: "t" }
+    let mut copy = Post { Timestamps: ...stamps, id: "p", title: "t" }
     copy.touch(1700000300)            # changes copy's part, never stamps
     post.Timestamps ...= stamps       # copy assignment
 ```
@@ -428,8 +429,8 @@ data Post:
     id: string
 
 fn invalid(stamp: Stamp) -> void:
-    let post: mut Post = Post { Stamp: ...stamp, id: "p" }  # error: mutable-upgrade
-    kept := Post { Stamp: ...stamp, id: "q" }               # valid: the binding is readonly
+    let mut post = Post { Stamp: ...stamp, id: "p" }  # error: mutable-upgrade
+    kept := Post { Stamp: ...stamp, id: "q" }         # valid: the binding is readonly
 ```
 
 > **Why.** The copy reads each direct `mut U` field of the readonly `e` as

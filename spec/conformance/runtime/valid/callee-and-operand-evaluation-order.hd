@@ -17,19 +17,19 @@ fn pick(log: mut Log) -> fn(i32) -> i32:
 
 tests:
     it("positional arguments evaluate left to right"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         total := combine(note(log, "a", 1), note(log, "b", 2), note(log, "c", 3))
         assert_equal(log.text, "abc", reason="positional order")
         assert_equal(total, 123, reason="positional binding")
 
     it("callee evaluates before arguments"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         value := pick(log)(note(log, "x", 7))
         assert_equal(log.text, "fx", reason="callee first")
         assert_equal(value, 7, reason="call result")
 
     it("binary operands evaluate left to right"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         value := note(log, "l", 40) - note(log, "r", 2)
         assert_equal(log.text, "lr", reason="operand order")
         assert_equal(value, 38, reason="operand result")

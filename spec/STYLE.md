@@ -1247,3 +1247,16 @@ style lint rejects a chapter that reuses one.
 - `module.prelude.ops-operators`: retired 2026-09-29. Operator traits OP13
   removes the assign traits from `std.ops`. Replaced by
   `module.prelude.ops-operator-traits`.
+- `types.bind.let-infer`: retired 2026-09-29. The local mutability decision
+  makes a plain `let` infer the readonly view, not the initializer's access.
+  Replaced by `types.bind.let-readonly` and `types.bind.let-mut-infer`.
+- `types.bind.fresh-infer`: retired 2026-09-29. The local mutability
+  decision stops a fresh value from making a plain `let` mutable. Replaced
+  by `types.bind.let-readonly` and `types.bind.let-mut-upgrade`.
+- `types.fresh.let`: retired 2026-09-29. The local mutability decision
+  makes every plain `let` readonly, and a `let mut` literal is used as
+  `mut T`. Replaced by `types.bind.let-readonly` and
+  `types.bind.let-mut-expected`.
+- `data.part.alias.mut`: retired 2026-09-29. The local mutability decision
+  makes `let stamps = post.Timestamps` a readonly alias. Replaced by
+  `data.part.alias.let-mut` and `data.part.alias.plain-let`.

@@ -683,7 +683,7 @@ fn tick() -> i32 $ Counter:
     $.use(Counter).count()
 
 fn demo() -> i32:
-    let counter: mut MemoryCounter = MemoryCounter { value: 0 }
+    let mut counter = MemoryCounter { value: 0 }
     $.with(Counter=counter):
         _ := tick()
         tick()   # 2
@@ -745,7 +745,7 @@ fn tick() -> void $ Counter:
 ```
 
 > **Note.** Code that keeps a mutable provider in a local writes
-> `let counter: mut Counter = $.use(Counter)`.
+> `let mut counter = $.use(Counter)`.
 
 ### Access In Rows
 

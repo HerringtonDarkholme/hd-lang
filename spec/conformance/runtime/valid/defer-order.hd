@@ -12,7 +12,7 @@ fn observed_value(trace: mut Trace) -> string:
 
 tests:
     it("defer preserves the result and runs LIFO"):
-        let trace: mut Trace = Trace { text: "start" }
+        let mut trace = Trace { text: "start" }
         observed := observed_value(trace)
         assert_equal(observed, "start", reason="result is saved before cleanup")
         assert_equal(trace.text, "startba", reason="cleanup runs in LIFO order")

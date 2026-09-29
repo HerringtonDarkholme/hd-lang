@@ -16,5 +16,5 @@ fn stamped(stamps: Timestamps) -> mut Post:
     Post { Timestamps: ...stamps, id: "p", title: "t" }
 
 fn edit(stamps: Timestamps) -> void:
-    let post: mut Post = Post { Timestamps: ...stamps, id: "p", title: "t" }
+    let mut post = Post { Timestamps: ...stamps, id: "p", title: "t" }
     post.touch(9)

@@ -1,0 +1,8 @@
+# test: a plain let infers the readonly view of a fresh value and may still be reassigned
+data User:
+    name: string
+
+fn rename(other: User) -> string:
+    let user = User { name: "Ada" }  # User
+    user = other                     # valid: reassignment
+    user.name

@@ -15,7 +15,7 @@ fn get[T](box: Box[T]) -> T:
     box.value
 
 readonly_child := Child { name: "Ada" }
-let editable: mut Child = Child { name: "Grace" }
+let mut editable = Child { name: "Grace" }
 
 let mixed: Mixed[mut Child] = Mixed {
     direct: readonly_child,

@@ -1,0 +1,13 @@
+# test: a let mut copy of a readonly value overrides each mut field with a fresh value
+data Owner:
+    name: string
+
+data Pet:
+    name: string
+    owner: mut Owner
+
+fn copy(pet: Pet) -> string:
+    let mut copy = Pet { ...pet, owner: Owner { name: "Ada" } }
+    copy.owner.name = "Grace"
+    copy.name = "Rex"
+    copy.owner.name

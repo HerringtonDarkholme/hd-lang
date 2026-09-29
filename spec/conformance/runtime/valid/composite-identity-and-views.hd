@@ -14,7 +14,7 @@ fn same_ref[T < AnyRef](left: T, right: T) -> bool:
 
 tests:
     it("mut and readonly views of one object are identical"):
-        let mutable: mut User = User { name: "Ada" }
+        let mut mutable = User { name: "Ada" }
         let readonly: User = mutable
         twin := User { name: "Ada" }
         assert(mutable is readonly, reason="permission does not change identity")

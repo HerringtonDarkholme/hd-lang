@@ -14,6 +14,6 @@ fn greet(name: string) -> void $ Console:
 
 tests:
     it("println panics under the test driver"):
-        let console: mut BufferConsole = BufferConsole { lines: [] }
+        let mut console = BufferConsole { lines: [] }
         $.with(Console=console):
             greet("Ada")

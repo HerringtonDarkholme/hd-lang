@@ -15,9 +15,9 @@ impl Iterator[i32] for Counter:
         value
 
 fn main() -> i32:
-    let counter: mut Counter = Counter { current: 2, end: 5 }
+    let mut counter = Counter { current: 2, end: 5 }
     values := [for value in counter => value * 10]
-    let second: mut Counter = Counter { current: 0, end: 3 }
+    let mut second = Counter { current: 0, end: 3 }
     let total: i32 = 0
     for value in second:
         total = total + value

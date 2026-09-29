@@ -1,4 +1,4 @@
-# test: a := binding exposes a readonly view even of a fresh value; the unannotated let twin keeps mut
+# test: a := binding exposes a readonly view even of a fresh value; the let mut twin keeps mut
 data Child:
     name: string
 
@@ -7,7 +7,7 @@ fn short_binding_is_readonly() -> string:
     child.name = "b"  # diagnostic: readonly-root
     child.name
 
-fn unannotated_let_keeps_fresh_mut() -> string:
-    let child = Child { name: "a" }
+fn let_mut_keeps_fresh_mut() -> string:
+    let mut child = Child { name: "a" }
     child.name = "b"
     child.name

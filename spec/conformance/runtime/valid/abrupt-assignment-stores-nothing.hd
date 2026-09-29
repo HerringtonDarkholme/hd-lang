@@ -19,7 +19,7 @@ fn set_element(target: mut List[i32], value: i32?) -> i32?:
 
 tests:
     it("field assignment with a propagating right side stores nothing"):
-        let target: mut Box = Box { value: 7 }
+        let mut target = Box { value: 7 }
         let absent: i32? = .None
         assert_equal(set_field(target, .None), absent, reason=".None propagates")
         assert_equal(target.value, 7, reason="no store occurred")
@@ -31,7 +31,7 @@ tests:
         assert_equal(target, [7, 8], reason="no store occurred")
 
     it("a completed right side stores once"):
-        let target: mut Box = Box { value: 7 }
+        let mut target = Box { value: 7 }
         let stored: i32? = 9
         assert_equal(set_field(target, 9), stored, reason="value stored")
         assert_equal(target.value, 9, reason="store occurred")

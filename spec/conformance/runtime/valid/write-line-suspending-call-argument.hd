@@ -4,6 +4,6 @@
 fn two!() -> i32: 2
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
-    let console: mut Console = $.use(Console)
+    let mut console = $.use(Console)
     console.write_line!("${two!()}")?
     console.write_line!("done")

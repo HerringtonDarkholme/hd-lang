@@ -16,8 +16,8 @@ data Post:
 
 tests:
     it("mut alias"):
-        let post: mut Post = Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
-        let stamps = post.Timestamps
+        let mut post = Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
+        let mut stamps = post.Timestamps
         stamps.touch(5)
         assert_equal(post.updated_at, 5, reason="the alias is the part")
         let explicit: mut Timestamps = post.Timestamps

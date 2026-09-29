@@ -23,7 +23,7 @@ impl[S] Walker[S] for Shower:
 
 impl[T] Show for T by Structure:
     fn show(self) -> string:
-        let w: mut Shower = Shower { out: "" }
+        let mut w = Shower { out: "" }
         _ := Structure::walk(self, w)
         w.out
 

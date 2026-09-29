@@ -1,0 +1,6 @@
+# test: let mut never upgrades a readonly value
+data User:
+    name: string
+
+fn invalid(user: User) -> void:
+    let mut alias = user  # diagnostic: mutable-upgrade

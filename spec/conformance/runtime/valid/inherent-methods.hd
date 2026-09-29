@@ -12,7 +12,7 @@ impl Counter:
         self.value + amount
 
 fn main!() -> i32:
-    let counter: mut Counter = Counter { value: 10 }
+    let mut counter = Counter { value: 10 }
     counter.add(amount=12)
     counter.load!(20)
 

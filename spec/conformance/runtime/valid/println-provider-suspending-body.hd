@@ -23,7 +23,7 @@ fn report(values: List[string]) -> void $ Console:
         println(value)
 
 pub fn main() -> void $ Console:
-    let numbered: mut NumberedConsole = NumberedConsole { lines: [] }
+    let mut numbered = NumberedConsole { lines: [] }
     $.with(Console=numbered):
         report(["a", "b", "c"])
     println("recorded ${numbered.lines.len()}")

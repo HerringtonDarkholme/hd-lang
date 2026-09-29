@@ -13,7 +13,7 @@ fn two!() -> i32 $ Clock:
     2
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
-    let console: mut Console = $.use(Console)
+    let mut console = $.use(Console)
     console.write_line!("before")?
     $.with(Clock=FixedClock {}):
         x := two!()

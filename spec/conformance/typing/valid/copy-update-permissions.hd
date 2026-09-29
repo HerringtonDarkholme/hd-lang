@@ -17,6 +17,6 @@ fn copy_readonly_mutable_field(source: MutableChild) -> MutableChild:
     MutableChild { ...source }
 
 fn copy_readonly(source: ReadonlyChild) -> mut ReadonlyChild:
-    let copy: mut ReadonlyChild = ReadonlyChild { ...source }
+    let mut copy = ReadonlyChild { ...source }
     copy.child = Child { name: "new" }
     copy

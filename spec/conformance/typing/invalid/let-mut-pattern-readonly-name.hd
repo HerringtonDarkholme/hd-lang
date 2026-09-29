@@ -1,0 +1,11 @@
+# test: a name without mut in a multi-name let has the readonly view
+data User:
+    name: string
+
+fn pair() -> (mut User, mut User):
+    (User { name: "Ada" }, User { name: "Grace" })
+
+fn invalid() -> void:
+    let mut first, second = pair()
+    first.name = "Lin"
+    second.name = "Kay"  # diagnostic: readonly-root

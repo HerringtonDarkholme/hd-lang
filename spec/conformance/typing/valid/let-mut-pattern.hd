@@ -1,0 +1,13 @@
+# test: each name of a multi-name let takes its own mut
+data User:
+    name: string
+
+fn pair() -> (mut User, mut User):
+    (User { name: "Ada" }, User { name: "Grace" })
+
+fn edit() -> string:
+    let mut first, second = pair()  # mut User, User
+    first.name = "Lin"
+    let third, mut fourth: (User, mut User) = pair()
+    fourth.name = third.name
+    second.name

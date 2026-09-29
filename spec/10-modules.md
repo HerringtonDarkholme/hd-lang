@@ -392,7 +392,7 @@ fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
 pub fn main() -> void $ Console:
-    let console: mut BufferConsole = BufferConsole { lines: [] }
+    let mut console = BufferConsole { lines: [] }
     $.with(Console=console):
         greet("Ada")
     println("recorded: ${console.lines[0]}")  # recorded: hello, Ada
@@ -403,7 +403,7 @@ Suspending code, such as `main!` or a test body, writes with
 
 ```text
 pub fn main!() -> Result[void, ConsoleError] $ Console:
-    let console: mut Console = $.use(Console)
+    let mut console = $.use(Console)
     console.write_line!("done")
 ```
 

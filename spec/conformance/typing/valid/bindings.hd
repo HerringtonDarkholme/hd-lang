@@ -5,7 +5,10 @@ fn rename(user: mut User, name: string) -> void:
     user.name = name
 
 fn example() -> string:
-    let user: mut User = User { name: "Ada" }
+    let mut user = User { name: "Ada" }
     readonly := user
     rename(user, "Grace")
+    short := User { name: "Lin" }
+    let names: mut List[string] = []
+    names.append(short.name)
     readonly.name

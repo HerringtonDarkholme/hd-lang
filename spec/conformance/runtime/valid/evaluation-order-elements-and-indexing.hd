@@ -17,19 +17,19 @@ fn items(log: mut Log) -> List[i32]:
 
 tests:
     it("tuple elements evaluate left to right"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         triple := (note(log, "a", 1), note(log, "b", 2), note(log, "c", 3))
         assert_equal(log.text, "abc", reason="tuple element order")
         assert_equal(triple._2, 3, reason="tuple element value")
 
     it("list elements evaluate left to right"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         values := [note(log, "x", 1), note(log, "y", 2), note(log, "z", 3)]
         assert_equal(log.text, "xyz", reason="list element order")
         assert_equal(values, [1, 2, 3], reason="list element values")
 
     it("an index receiver evaluates before its index"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         value := items(log)[note(log, "i", 1)]
         assert_equal(log.text, "ri", reason="receiver, then index, each once")
         assert_equal(value, 20, reason="indexed value")

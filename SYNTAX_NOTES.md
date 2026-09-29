@@ -68,7 +68,14 @@ attempts = attempts + 1
 counter = counter + 1
 ```
 
-For composite values, mutation permission is part of the type. `T` provides const access and `mut T` provides mutable access. `mut` is always written in the type position, including local declarations. A const composite reference cannot be upgraded:
+For composite values, mutation permission is part of the type. `T` provides const access and `mut T` provides mutable access. The binding forms fit together this way (owner decision, 2026-09-29):
+
+- `a := ...` makes a name that can't be reassigned, with a const type.
+- `let a = ...` makes a reassignable name, with a const type by default, even for a fresh value.
+- `let mut a = ...` infers the root as `mut`, and `let a: mut T = ...` states it. `let mut a: mut T` is allowed but redundant; `let mut a: T` is an error, `let-mut-readonly-type`.
+- In a multi-name `let`, each name takes its own `mut`: `let mut log, db = pair`.
+
+`mut` after `let` only helps inference; `mut` itself stays a permission in the type. A const composite reference cannot be upgraded, so `let mut` of a const value is an error:
 
 ```text
 user := User {
@@ -78,12 +85,14 @@ user := User {
 }
 
 let alias: mut User = user  # error: User cannot become mut User
+let mut copy = user         # error: User cannot become mut User
+let mut fresh = User { ...user }  # a fresh copy; each `mut` field needs a fresh value
 ```
 
 A mutable reference can be downgraded to a const view. The const view may observe changes made through an existing mutable alias:
 
 ```text
-let user: mut User = User {
+let mut user = User {
     id: "user_123",
     email: "ada@example.com",
     display_name: "Ada"
@@ -103,7 +112,7 @@ Reasoning:
 2. `let` makes rebinding explicit without conflating it with reference permission.
 3. Mutation through a composite value is review-relevant, so `mut` appears uniformly in its type.
 
-An unannotated `let` infers the initializer's access type. A fresh composite initializer may infer `mut T`, but an existing `T` remains `T`; inference never upgrades const access.
+An unannotated `let` without `mut` infers the const view, even of a fresh composite initializer. `let mut` infers `mut T` and never upgrades const access. There is no form for a name that can't be reassigned holding a mutable object; a mutated local uses `let mut` even when it is never reassigned.
 
 A function returning mutable access must declare `-> mut T`. A return type of `T` exposes only const access, even if the function creates a fresh object internally. Callers use the declared return type; freshness does not propagate across a function boundary to recover mutation permission.
 
@@ -713,14 +722,14 @@ data Profile:
 data Account:
     profile: mut Profile
 
-let profile: mut Profile = Profile {
+let mut profile = Profile {
     display_name: "Ada"
 }
 
 account := Account { profile: profile }
 account.profile.display_name = "Ada Lovelace"  # error: const root
 
-let editable: mut Account = Account { profile: profile }
+let mut editable = Account { profile: profile }
 editable.profile.display_name = "Ada Lovelace"  # mutable root + mutable edge
 ```
 
@@ -790,7 +799,7 @@ Cell[mut User] -> Cell[User]               # invalid: invariant
 
 The compiler checks declared variance against the read-only fields and methods. Return positions are positive, parameter positions are negative, and entering a function parameter reverses polarity. A parameter used in both directions must be invariant. Members requiring `mut self` do not participate in read-only variance, because mutable outer views never receive variance conversions.
 
-Local declarations use `let name: mut T`; the former `let mut name: T` spelling does not exist. Receiver syntax remains `mut self`, shorthand for `self: mut Self`.
+Local declarations use `let mut name = value` or `let name: mut T`; `let mut name: T` with a const `T` is an error. Receiver syntax remains `mut self`, shorthand for `self: mut Self`.
 
 For lists, the root controls slot replacement and the generic element type
 controls mutation of a referenced element:

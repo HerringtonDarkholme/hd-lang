@@ -39,7 +39,7 @@ impl[S] Walker[S] for Prober:
 
 impl[T] Probe for T by Structure:
     fn probe(self) -> string:
-        let w: mut Prober = Prober { out: "" }
+        let mut w = Prober { out: "" }
         _ := Structure::walk(self, w)
         w.out
 

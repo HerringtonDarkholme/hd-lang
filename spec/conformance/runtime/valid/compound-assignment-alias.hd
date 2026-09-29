@@ -12,7 +12,7 @@ impl Add[Score] for Score:
         Score { points: self.points + rhs.points }
 
 fn alias() -> (i64, i64):
-    let a: Score = Score { points: 1 }
+    let a = Score { points: 1 }  # readonly Score, so += rebinds a
     b := a
     a += Score { points: 2 }
     (a.points, b.points)

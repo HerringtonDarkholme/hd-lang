@@ -22,8 +22,8 @@ impl Stamp:
 
 tests:
     it("construction copies the part"):
-        let stamp: mut Stamp = Stamp { at: 1, owner: Owner { name: "ada" } }
-        let note: mut Note = Note { Tagged: ...Tagged { Stamp: ...stamp, label: "l" }, text: "t" }
+        let mut stamp = Stamp { at: 1, owner: Owner { name: "ada" } }
+        let mut note = Note { Tagged: ...Tagged { Stamp: ...stamp, label: "l" }, text: "t" }
         note.bump()
         assert_equal(note.at, 2, reason="the note's part changed")
         assert_equal(stamp.at, 1, reason="the source is not the part")
@@ -32,7 +32,7 @@ tests:
         assert(note.owner is stamp.owner, reason="an ordinary composite field is copied shallowly")
 
     it("nested parts are copied recursively"):
-        let tagged: mut Tagged = Tagged { Stamp: ...Stamp { at: 1, owner: Owner { name: "ada" } }, label: "l" }
-        let note: mut Note = Note { Tagged: ...tagged, text: "t" }
+        let mut tagged = Tagged { Stamp: ...Stamp { at: 1, owner: Owner { name: "ada" } }, label: "l" }
+        let mut note = Note { Tagged: ...tagged, text: "t" }
         note.bump()
         assert_equal(tagged.at, 1, reason="the nested part was copied too")

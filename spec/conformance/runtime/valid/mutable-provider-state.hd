@@ -9,7 +9,7 @@ fn tick() -> i32 $ Counter:
     $.use(Counter).count()
 
 fn keep() -> i32 $ Counter:
-    let counter: mut Counter = $.use(Counter)
+    let mut counter = $.use(Counter)
     counter.bump()
     counter.count()
 
@@ -29,7 +29,7 @@ impl Counter for MemoryCounter:
 
 tests:
     it("a mutable provider changes its own state"):
-        let counter: mut MemoryCounter = MemoryCounter { value: 0 }
+        let mut counter = MemoryCounter { value: 0 }
         $.with(Counter=counter):
             _ := tick()
             assert_equal(keep(), 2, reason="both calls bump the installed provider")

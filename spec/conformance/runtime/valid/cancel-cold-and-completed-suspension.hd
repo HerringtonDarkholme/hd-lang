@@ -13,14 +13,14 @@ fn work!(log: mut Log) -> i32:
 
 tests:
     it("cancelling a cold suspension runs neither body nor cleanup"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         let pending: mut Suspend[i32] = work(log)
         pending.cancel()
         pending.cancel()
         assert_equal(log.text, "", reason="no registered suites exist before the first poll")
 
     it("cancelling a completed suspension has no further effect"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         let pending: mut Suspend[i32] = work(log)
         result := pending!()
         pending.cancel()

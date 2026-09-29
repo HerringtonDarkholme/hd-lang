@@ -1,0 +1,6 @@
+# test: a mut name in a multi-name let never upgrades its readonly element
+data User:
+    name: string
+
+fn invalid(user: User) -> void:
+    let first, mut second = (user, user)  # diagnostic: mutable-upgrade

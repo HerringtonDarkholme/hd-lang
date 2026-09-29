@@ -22,18 +22,18 @@ tests:
         assert_equal(first_evens([1, 2, 3, 4, 5, 6]), [(0, 2), (1, 4)], reason="two evens with indices")
 
     it("does not advance until next"):
-        let counter: mut Counter = Counter { current: 0, pulled: 0 }
+        let mut counter = Counter { current: 0, pulled: 0 }
         let evens: mut Iterator[i32] = counter.filter(fn(value): value % 2 == 0)
         assert_equal(counter.pulled, 0, reason="filter is lazy")
         assert_equal(evens.take(1).collect(), [2], reason="first even")
         assert_equal(counter.pulled, 2, reason="two items pulled")
 
     it("take pulls at most count items"):
-        let counter: mut Counter = Counter { current: 0, pulled: 0 }
+        let mut counter = Counter { current: 0, pulled: 0 }
         assert_equal(counter.take(3).collect(), [1, 2, 3], reason="first three")
         assert_equal(counter.pulled, 3, reason="no fourth pull")
 
     it("collect leaves the source exhausted"):
-        let counter: mut Counter = Counter { current: 7, pulled: 0 }
+        let mut counter = Counter { current: 7, pulled: 0 }
         assert_equal(counter.collect(), [8, 9, 10], reason="the rest")
         assert_equal(counter.collect().len(), 0, reason="exhausted")

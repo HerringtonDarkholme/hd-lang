@@ -10,13 +10,13 @@ data Box[T]:
 
 tests:
     it("readonly List[mut User] permits element mutation on the path"):
-        let user: mut User = User { name: "a" }
+        let mut user = User { name: "a" }
         let users: List[mut User] = [user]
         users[0].name = "b"
         assert_equal(user.name, "b", reason="table: List[mut User] can mutate referenced elements")
 
     it("readonly Box[mut User] permits child mutation on the path"):
-        let user: mut User = User { name: "a" }
+        let mut user = User { name: "a" }
         let box: Box[mut User] = Box[mut User] { value: user }
         box.value.name = "c"
         assert_equal(user.name, "c", reason="generic field yields mut User through a readonly root")

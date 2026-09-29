@@ -1,0 +1,4 @@
+# test: a for loop's names take no mut
+fn invalid(items: List[i32]) -> void:
+    for mut item in items:  # diagnostic: syntax-error
+        pass

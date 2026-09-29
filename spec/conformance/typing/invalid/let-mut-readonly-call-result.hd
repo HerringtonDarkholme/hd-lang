@@ -1,0 +1,9 @@
+# test: let mut follows a call's declared readonly result, even when the body builds a fresh value
+data User:
+    name: string
+
+fn make() -> User:
+    User { name: "Ada" }
+
+fn invalid() -> void:
+    let mut user = make()  # diagnostic: mutable-upgrade

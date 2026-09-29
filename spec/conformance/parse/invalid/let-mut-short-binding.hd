@@ -1,0 +1,3 @@
+# test: only let accepts mut before a name
+fn invalid() -> void:
+    mut total := 0  # diagnostic: syntax-error

@@ -112,7 +112,7 @@ suite_statement = defer_statement
                 | "_", ":=", suite_right_side
                 | binding_pattern, ":=", { identifier, ":=" },
                   suite_right_side
-                | "let", binding_pattern, [ ":", type ], "=",
+                | "let", let_pattern, [ ":", type ], "=",
                   suite_right_side
                 | postfix_expression, ( "=" | compound_assign_op ),
                   suite_right_side
@@ -134,7 +134,7 @@ simple_statement = let_statement
                  | expression_statement
                  ;
 
-let_statement = "let", binding_pattern, [ ":", type ], "=",
+let_statement = "let", let_pattern, [ ":", type ], "=",
                 closed_expression ;
 
 short_binding_statement = identifier, ",", identifier,
@@ -156,7 +156,10 @@ expression_statement = closed_expression ;
 
 binding_pattern = identifier, { ",", identifier } ;
 
-inline_statement = "let", identifier, [ ":", type ], "=", inline_expression
+let_pattern = let_name, { ",", let_name } ;
+let_name = [ "mut" ], identifier ;
+
+inline_statement = "let", let_name, [ ":", type ], "=", inline_expression
                  | "_", ":=", inline_expression
                  | postfix_expression, ( "=" | "...=" | compound_assign_op ),
                    inline_expression
@@ -165,6 +168,17 @@ inline_statement = "let", identifier, [ ":", type ], "=", inline_expression
                  | continue_statement
                  | inline_expression
                  ;
+```
+
+### Let Statements
+
+1. r[grammar.stmt.let-mut] In a `let` statement, `mut` may precede each bound name, as in `let mut user = ...` and `let mut log, db = ...`.
+2. r[grammar.stmt.let-mut.per-name] A `mut` belongs to the one name it precedes. The access it requests is a semantic rule of [Binding Forms](04-type-system.md#binding-forms).
+3. r[grammar.stmt.let-mut.only-let] Only `let` accepts it: `mut user := ...` and `for mut item in items:` are errors. Error: `syntax-error`.
+
+```text
+fn invalid() -> void:
+    mut total := 0  # error
 ```
 
 ### Discard And Defer Statements

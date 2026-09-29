@@ -16,7 +16,7 @@ fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
 pub fn main() -> void $ Console:
-    let console: mut BufferConsole = BufferConsole { lines: [] }
+    let mut console = BufferConsole { lines: [] }
     $.with(Console=console):
         greet("Ada")
     println("recorded: ${console.lines[0]}")

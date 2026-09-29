@@ -39,13 +39,13 @@ impl[S] Describer[S] for Counter:
 
 impl[T] Show for T by Structure:
     fn show(self) -> string:
-        let w: mut Shower = Shower { out: "" }
+        let mut w = Shower { out: "" }
         _ := Structure::walk(self, w)
         w.out
 
 impl[T] Count for T by Structure:
     fn count() -> i32:
-        let d: mut Counter = Counter { total: 0 }
+        let mut d = Counter { total: 0 }
         _ := T::describe(d)
         d.total
 

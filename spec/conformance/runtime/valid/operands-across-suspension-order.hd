@@ -23,13 +23,13 @@ fn outer!(log: mut Log) -> i32:
 
 tests:
     it("binary operands around a bang call"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         result := note(log, "L", 1) + child!(log, "C", 20) * note(log, "R", 3)
         assert_equal(log.text, "LCR", reason="left operand, child, right operand")
         assert_equal(result, 61, reason="multiplication binds tighter")
 
     it("list and tuple elements around bang calls"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         values := [child!(log, "1", 1), note(log, "2", 2), child!(log, "3", 3)]
         pair := (note(log, "4", 4), child!(log, "5", 5))
         assert_equal(log.text, "12345", reason="elements evaluate in order")
@@ -37,13 +37,13 @@ tests:
         assert_equal(pair._1, 5, reason="tuple element preserved")
 
     it("statements around child calls keep source order"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         result := outer!(log)
         assert_equal(log.text, "<a|b>", reason="each child completes before the next statement")
         assert_equal(result, 3, reason="locals survive suspension points")
 
     it("interpolation segments around a bang call"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         x := "x"
         y := "y"
         z := "z"

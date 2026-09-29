@@ -11,31 +11,31 @@ fn flag(log: mut Log, tag: string, value: bool) -> bool:
 
 tests:
     it("and skips its right operand when the left is false"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         result := flag(log, "a", false) && flag(log, "b", true)
         assert_equal(result, false, reason="false and anything is false")
         assert_equal(log.text, "a", reason="right operand must not run")
 
     it("or skips its right operand when the left is true"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         result := flag(log, "a", true) || flag(log, "b", false)
         assert_equal(result, true, reason="true or anything is true")
         assert_equal(log.text, "a", reason="right operand must not run")
 
     it("and evaluates both operands left to right when needed"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         result := flag(log, "a", true) && flag(log, "b", false)
         assert_equal(result, false, reason="second operand decides")
         assert_equal(log.text, "ab", reason="left before right")
 
     it("and binds tighter than or"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         result := flag(log, "a", true) || flag(log, "b", false) && flag(log, "c", false)
         assert_equal(result, true, reason="a or (b and c)")
         assert_equal(log.text, "a", reason="the whole and-group is skipped")
 
     it("if chain stops at the first true condition"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         chosen := if flag(log, "1", false):
             1
         else if flag(log, "2", true):
@@ -48,7 +48,7 @@ tests:
         assert_equal(log.text, "12", reason="later conditions are not evaluated")
 
     it("a guard is not evaluated when its pattern fails"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         let value: i32? = .None
         label := match value:
             .Some(present) if flag(log, "g", true) => "present $present"
@@ -58,7 +58,7 @@ tests:
         assert_equal(log.text, "", reason="guard of a failed pattern never runs")
 
     it("a false guard falls through to the next arm"):
-        let log: mut Log = Log { text: "" }
+        let mut log = Log { text: "" }
         let value: i32? = 5
         label := match value:
             .Some(present) if flag(log, "g", false) => "guarded $present"

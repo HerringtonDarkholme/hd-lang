@@ -16,7 +16,7 @@ fn bump(value: mut Inspectable) -> bool:
 
 tests:
     it("a mutable erased counter is bumped in place"):
-        let counter: mut Counter = Counter { count: 1 }
+        let mut counter = Counter { count: 1 }
         assert_equal(bump(counter), true, reason="the exact type matches")
         assert_equal(counter.count, 2, reason="the write reaches the original object")
 

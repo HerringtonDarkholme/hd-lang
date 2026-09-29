@@ -1,0 +1,9 @@
+# test: the literal after let mut is used as mut T, so a readonly value in a mut field is rejected
+data Owner:
+    name: string
+
+data Pet:
+    owner: mut Owner
+
+fn invalid(owner: Owner) -> void:
+    let mut pet = Pet { owner: owner }  # diagnostic: mutable-upgrade
