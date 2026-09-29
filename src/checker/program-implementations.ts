@@ -170,6 +170,44 @@ function substituteSelfType(type: TypeRef, targetName: string): TypeRef {
   };
 }
 
+// The AST keys whose values are written types (`TypeRef`s).
+const WRITTEN_TYPE_KEYS = new Set(["type", "annotation", "result", "typeArguments"]);
+
+/**
+ * A trait's default method as one implementation's own: each of the trait's
+ * type parameters becomes the implementation's written trait argument, in
+ * the signature and in the types the body writes, as in `List[T]` becoming
+ * `List[i32]` for `impl Iterator[i32] for Countdown`.
+ */
+function instantiateDefault(
+  method: MethodDecl,
+  implementation: ImplDecl,
+  trait: HirTrait,
+): MethodDecl {
+  if (trait.genericParameters.length === 0) return method;
+  const written = nominalGenericParts(implementation.traitName!)?.arguments ?? [];
+  const generics = new Set(trait.genericParameters);
+  const substitutions = new Map(
+    trait.genericParameters.map((parameter, index) => [parameter, written[index] ?? parameter]),
+  );
+  const instantiate = (type: TypeRef): TypeRef => ({
+    ...type,
+    name: substituteGenericType(resolveGenericType(type.name, generics), substitutions),
+  });
+  const visit = (node: unknown, writtenType: boolean): unknown => {
+    if (Array.isArray(node)) return node.map((item) => visit(item, writtenType));
+    if (!node || typeof node !== "object") return node;
+    const record = node as Record<string, unknown>;
+    if (writtenType && typeof record.name === "string" && !("kind" in record))
+      return instantiate(record as unknown as TypeRef);
+    const result: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(record))
+      result[key] = key === "span" ? child : visit(child, WRITTEN_TYPE_KEYS.has(key));
+    return result;
+  };
+  return visit(method, false) as MethodDecl;
+}
+
 function substituteSelfParameter(parameter: Parameter, targetName: string): Parameter {
   return {
     ...parameter,
@@ -361,7 +399,10 @@ function checkImplementationOwnership(
     nominalGenericParts(readonlyType(type))?.name ?? readonlyType(type);
   const isLocalConstructor = (type: string): boolean =>
     dataTypes.has(constructorOf(type)) || enumTypes.has(constructorOf(type));
-  const traitIsLocal = program.traits.some((declaration) => declaration.name === trait.name);
+  // A std trait joined into the program, such as `Iterator`, stays foreign.
+  const traitIsLocal = program.traits.some(
+    (declaration) => declaration.name === trait.name && declaration.standardName === undefined,
+  );
   const argumentIsLocal =
     genericTypeName(readonlyType(targetType)) === undefined &&
     traitArguments.some(isLocalConstructor);
@@ -482,9 +523,13 @@ export function prepareImplementations(context: ProgramCheckContext): void {
       });
       continue;
     }
-    // 09 Implementation Targets: a trait value type is never a target.
+    // 09 Implementation Targets: a trait value type is never a target. The
+    // prototype's `Iterator[T]` value is the built-in cursor, which std
+    // implements `Iterator` for so that it gets the default methods
+    // (lib/std/iter.hd).
     const targetBase = nominalGenericParts(implementation.targetName)?.name;
-    if (traitTypes.has(targetBase ?? implementation.targetName)) {
+    const cursor = implementation.standard === true && targetBase === "Iterator";
+    if (traitTypes.has(targetBase ?? implementation.targetName) && !cursor) {
       diagnostics.push({
         code: "trait-value-impl-target",
         message: `implementation target '${implementation.targetName}' is a trait value type; implement the trait for concrete types instead`,
@@ -568,7 +613,11 @@ export function prepareImplementations(context: ProgramCheckContext): void {
       const defaultMethod = program.traits[trait.index]?.methods[required.index];
       // E5: only a written method or a trait default fills a trait method; a
       // method promoted from an embedded field never does.
-      const method = suppliedMethod ?? (defaultMethod?.body ? defaultMethod : undefined);
+      const method =
+        suppliedMethod ??
+        (defaultMethod?.body
+          ? instantiateDefault(defaultMethod, implementation, trait)
+          : undefined);
       if (!method) {
         diagnostics.push({
           code: "missing-trait-method",

@@ -978,3 +978,28 @@ fn main() -> i32:
   const { instance } = await instantiate(program);
   assert.equal((instance.exports.main as CallableFunction)(), 1);
 });
+
+test("a trait default method instantiates the trait's type parameters", async () => {
+  const program = `trait Source[T]:
+    fn next(mut self) -> T?
+    fn second(mut self) -> T?:
+        let first: T? = self.next()
+        self.next()
+
+data Counter:
+    n: i32
+
+impl Source[i32] for Counter:
+    fn next(mut self) -> i32?:
+        self.n = self.n + 1
+        .Some(self.n)
+
+fn main() -> i32:
+    let counter: mut Counter = Counter { n: 0 }
+    match counter.second():
+        .Some(value) => value
+        .None => 0
+`;
+  const { instance } = await instantiate(program);
+  assert.equal((instance.exports.main as CallableFunction)(), 2);
+});

@@ -619,7 +619,9 @@ export function matchGenericTypePattern(
     substitutions.set(generic, actual);
     return true;
   }
-  if (pattern === actual) return true;
+  // An identical type that names a parameter, such as `Filter[T]` inside
+  // `impl[T] ... for Filter[T]`, still binds that parameter to itself.
+  if (pattern === actual && !pattern.includes("generic:")) return true;
   const patternMutable = mutableInner(pattern);
   const actualMutable = mutableInner(actual);
   if (patternMutable !== undefined || actualMutable !== undefined)

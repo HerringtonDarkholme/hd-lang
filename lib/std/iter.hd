@@ -1,13 +1,82 @@
-# std.iter: iterator adapters and `range` (future-work/STDLIB.md#stditer).
-# `Iterator` and `Iterable` are prelude names.
+# std.iter: the prelude `Iterator[T]` with its adapters, the free functions
+# `map_each` and `fold`, and `range` (future-work/STDLIB.md#stditer).
+# `Iterator` is a prelude name; `Iterable` is still declared by the compiler.
 #
-# The draft's `IteratorExt` extension trait would need an implementation for
-# the trait value type `Iterator[T]`, which spec/09-traits.md rejects
-# (`trait-value-impl-target`), so each adapter is a free function that takes
-# its source first. The prototype's `mut Iterator[T]` is the built-in list and
-# map cursor, so an adapter collects what it yields into a list and returns
-# that list's cursor: `map_each`, `filter`, and `enumerate` read their whole
-# source at once, and `take` reads only `count` items.
+# The adapters are default methods of `Iterator[T]`
+# (spec/06-control-flow.md#iterator-adapters). `filter`, `take`, and
+# `enumerate` return a lazy iterator that pulls from `self` only when its own
+# `next` is called; `collect` drains `self`.
+#
+# Prototype: the value type `mut Iterator[T]` is the built-in list and map
+# cursor, which also holds a converted implementation. The implementation
+# `Iterator[T] for Iterator[T]` below gives that cursor the default methods,
+# so a call through the value runs the default body. `map_each` and `fold`
+# stay free functions: as default methods their type parameters would make
+# `Iterator` not dynamically safe (STDLIB.md, Still Open 1).
+
+pub trait Iterator[T]:
+    fn next(mut self) -> T?
+
+    fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]:
+        Filter[T] { source: self, keep: keep }
+
+    fn take(mut self, count: i32) -> mut Iterator[T]:
+        if count < 0:
+            panic("take: count must not be negative")
+        Take[T] { source: self, left: count }
+
+    fn enumerate(mut self) -> mut Iterator[(i32, T)]:
+        Enumerate[T] { source: self, index: 0 }
+
+    fn collect(mut self) -> List[T]:
+        let items: mut List[T] = []
+        while true:
+            match self.next():
+                .Some(item) => items.append(item)
+                .None => break
+        items
+
+impl[T] Iterator[T] for Iterator[T]:
+    fn next(mut self) -> T?:
+        self.next()
+
+data Filter[T]:
+    source: mut Iterator[T]
+    keep: fn(T) -> bool
+
+impl[T] Iterator[T] for Filter[T]:
+    fn next(mut self) -> T?:
+        while true:
+            match self.source.next():
+                .Some(item) =>
+                    if (self.keep)(item):
+                        return .Some(item)
+                .None => return .None
+        .None
+
+data Take[T]:
+    source: mut Iterator[T]
+    left: i32
+
+impl[T] Iterator[T] for Take[T]:
+    fn next(mut self) -> T?:
+        if self.left <= 0:
+            return .None
+        self.left = self.left - 1
+        self.source.next()
+
+data Enumerate[T]:
+    source: mut Iterator[T]
+    index: i32
+
+impl[T] Iterator[(i32, T)] for Enumerate[T]:
+    fn next(mut self) -> (i32, T)?:
+        match self.source.next():
+            .Some(item) =>
+                let numbered = (self.index, item)
+                self.index = self.index + 1
+                .Some(numbered)
+            .None => .None
 
 pub fn map_each[T, U](source: mut Iterator[T], transform: fn(T) -> U) -> mut Iterator[U]:
     let mapped: mut List[U] = []
@@ -16,40 +85,6 @@ pub fn map_each[T, U](source: mut Iterator[T], transform: fn(T) -> U) -> mut Ite
             .Some(item) => mapped.append(transform(item))
             .None => break
     mapped.iter()
-
-pub fn filter[T](source: mut Iterator[T], keep: fn(T) -> bool) -> mut Iterator[T]:
-    let kept: mut List[T] = []
-    while true:
-        match source.next():
-            .Some(item) =>
-                if keep(item):
-                    kept.append(item)
-            .None => break
-    kept.iter()
-
-pub fn take[T](source: mut Iterator[T], count: i32) -> mut Iterator[T]:
-    let taken: mut List[T] = []
-    while taken.len() < count:
-        match source.next():
-            .Some(item) => taken.append(item)
-            .None => break
-    taken.iter()
-
-pub fn enumerate[T](source: mut Iterator[T]) -> mut Iterator[(i32, T)]:
-    let numbered: mut List[(i32, T)] = []
-    while true:
-        match source.next():
-            .Some(item) => numbered.append((numbered.len(), item))
-            .None => break
-    numbered.iter()
-
-pub fn collect[T](source: mut Iterator[T]) -> List[T]:
-    let items: mut List[T] = []
-    while true:
-        match source.next():
-            .Some(item) => items.append(item)
-            .None => break
-    items
 
 pub fn fold[T, A](source: mut Iterator[T], initial: A, step: fn(A, T) -> A) -> A:
     let total = initial

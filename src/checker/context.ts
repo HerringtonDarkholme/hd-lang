@@ -58,6 +58,7 @@ import { findSupertraitPath, resolveTraitPath } from "./trait-paths.ts";
 import {
   contextKeys,
   functionParts,
+  iteratorCursorSource,
   mutableInner,
   mutableType,
   nominalGenericParts,
@@ -577,6 +578,10 @@ export abstract class CheckerContext {
         span,
       };
     }
+    // An implementation converts to the `Iterator[T]` cursor as a dynamic value.
+    const cursorSource = iteratorCursorSource(value.type, expected);
+    const converted = cursorSource ? this.coerce(value, cursorSource, span, false) : undefined;
+    if (converted?.kind === "trait-wrap") return { ...converted, type: expected };
     const traitName = traitTypeName(expected);
     const trait = traitName && this.traitTypes.get(traitName);
     if (trait) {

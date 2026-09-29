@@ -30,8 +30,3 @@ typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic
 typing/invalid/root-orphan-impl.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	F-250
 typing/warnings/per-trait-self-line-unused-fact.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one package, so a fact never comes from a package without the block trait	M29
 typing/valid/println-top-level-script.hd	MVP reports missing-requirement at line 6: the prototype infers no script entry requirement row (module.init.script-row), so a script top level has no Console	MHP-1
-typing/valid/iterator-adapters.hd	check fails: unknown-method at lines 15, 18, 21: the prototype's prelude Iterator declares only next, and its std.iter adapters are free functions	STD14
-runtime/valid/iterator-adapters-run.hd	check fails: unknown-method at lines 18, 26, 33, 38: the prototype's prelude Iterator has no filter, take, or collect default methods	STD14
-runtime/panic/iterator-take-negative.hd	check fails: unknown-method at line 5 instead of the explicit-panic: the prototype's prelude Iterator has no take method	STD14
-typing/invalid/iterator-filter-callback-row.hd	MVP reports unknown-method at line 10 instead of type-mismatch: the prototype's prelude Iterator has no filter method	STD14
-typing/invalid/iterator-adapter-readonly.hd	MVP reports unknown-method at line 5 instead of mutable-receiver-required: the prototype's prelude Iterator has no collect method	STD14

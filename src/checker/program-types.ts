@@ -159,30 +159,34 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     ],
     span: program.span,
   });
-  traitTypes.set("Iterator", {
-    name: "Iterator",
-    index: program.traits.length + 4,
-    genericParameters: ["T"],
-    supertraits: [],
-    associatedTypes: [],
-    methods: [
-      {
-        name: "next",
-        index: 0,
-        associated: false,
-        genericParameters: [],
-        suspending: false,
-        receiverMutable: true,
-        parameters: [],
-        parameterNames: [],
-        variadic: false,
-        result: "generic:T?",
-        requirements: [],
-        span: program.span,
-      },
-    ],
-    span: program.span,
-  });
+  // `Iterator[T]` is declared by `std.iter` when a program needs its
+  // default methods (lib/std/iter.hd); this declaration, with `next` only,
+  // stands in for it otherwise.
+  if (!traitTypes.has("Iterator"))
+    traitTypes.set("Iterator", {
+      name: "Iterator",
+      index: program.traits.length + 4,
+      genericParameters: ["T"],
+      supertraits: [],
+      associatedTypes: [],
+      methods: [
+        {
+          name: "next",
+          index: 0,
+          associated: false,
+          genericParameters: [],
+          suspending: false,
+          receiverMutable: true,
+          parameters: [],
+          parameterNames: [],
+          variadic: false,
+          result: "generic:T?",
+          requirements: [],
+          span: program.span,
+        },
+      ],
+      span: program.span,
+    });
   // `Iterable[T]`: `for` and comprehension clauses call `iter` on a value
   // whose type implements it (06-control-flow.md#for-loops).
   traitTypes.set("Iterable", {

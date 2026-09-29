@@ -22,12 +22,12 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-29 the prototype passes 1,372 of the 1,408 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 36 are listed in
+On 2026-09-29 the prototype passes 1,377 of the 1,408 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 31 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 36 still fail. The iterator adapters (STD14) account
-for 5 of them. Operator Traits OP1-OP9 are implemented and pass all 34 of
-their cases.
+decision below; all 31 still fail. Operator Traits OP1-OP9 are implemented
+and pass all 34 of their cases, and the iterator adapters (STD14) pass all 5
+of theirs.
 
 ## Specification Follow-Ups
 
@@ -53,7 +53,6 @@ Revision Notes in `spec/README.md` are the record.
 | GQ4 | `pack.map(` and `pack.map_list(` always form the pack operation, even beside a local named `pack`. The prototype checks the operation's argument shape but has no pack operations, so a valid use still resolves as a method call. |
 | MHP-1 | A `println` call at the top level of a script is valid (the second round). The prototype infers no script entry requirement row (`module.init.script-row`), so `println-top-level-script.hd` reports `missing-requirement`. |
 | DC7 | The top-level statements of an initialization group run in dependency order, then by module identity and source position. The package linker joins a group's modules by identity and cannot interleave their statements, so a read that needs a later-joined module's binding is `top-level-read-before-initialization`. No fixture covers it, because the fixture format has no multi-file environment. |
-| STD14 | STDLIB question 14: `filter`, `take`, `enumerate`, and `collect` are default methods of the prelude `Iterator[T]`, and a negative `take` count panics. The prototype's prelude `Iterator` declares only `next`, and its `std.iter` keeps the adapters as free functions, so every fixture reports `unknown-method`. |
 | M29 | A `Self` line in a per-trait derivation block warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package, and the prototype CLI has no package roles. The other M29 rules, and M27 and M28, are implemented. |
 
 The shape intrinsics (K1) pass their fixtures and run: `shape[T]()` and

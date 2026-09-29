@@ -404,8 +404,8 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
           ? `(ref.cast (ref $hd.map) (local.get $self))`
           : `(ref.cast (ref $hd.vector) (local.get $self))`;
         body = map
-          ? `(struct.new $hd.iterator (ref.null $hd.vector) ${collection} (i32.const 0) (struct.get $hd.map $hd.map-version ${collection}))`
-          : `(struct.new $hd.iterator ${collection} (ref.null $hd.map) (i32.const 0) (struct.get $hd.vector $hd.vector-version ${collection}))`;
+          ? `(struct.new $hd.iterator (ref.null $hd.vector) ${collection} (i32.const 0) (struct.get $hd.map $hd.map-version ${collection}) (ref.null none))`
+          : `(struct.new $hd.iterator ${collection} (ref.null $hd.map) (i32.const 0) (struct.get $hd.vector $hd.vector-version ${collection}) (ref.null none))`;
       } else {
         const compared = this.emitValueOrdering(
           self,

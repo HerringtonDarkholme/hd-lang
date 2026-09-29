@@ -67,6 +67,7 @@ const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
   ["format", "debug"],
   ["hash", "Hash"],
   ["hash", "Hasher"],
+  ["iter", "Iterator"],
   // The shape surface (spec/14-annotations.md#common-shape-representation).
   ...[
     "DeclarationId",
@@ -82,6 +83,15 @@ const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
     "FnShape",
     "ShapeMetadata",
   ].map((name) => ["annotation", name] as const),
+];
+
+/**
+ * The default methods of a std prelude trait. A program that selects one, as
+ * in `values.iter().filter(keep)`, declares the trait even when it never
+ * names it (spec/06-control-flow.md#r-flow.adapter.prelude).
+ */
+const PRELUDE_TRAIT_METHODS: readonly (readonly [StandardModule, string, readonly string[]])[] = [
+  ["iter", "Iterator", ["filter", "take", "enumerate", "collect"]],
 ];
 
 /** std declarations that a prelude trait names, declared when a program mentions the trait. */
@@ -407,6 +417,10 @@ export function withStandardLibrary(source: Program): Program {
     reached.add(name);
     if (!spans.has(module)) spans.set(module, program.span);
   }
+  const selectedByProgram = new Set<string>();
+  memberNames(program, selectedByProgram);
+  for (const [, name, methods] of PRELUDE_TRAIT_METHODS)
+    if (methods.some((method) => selectedByProgram.has(method))) mentionedByProgram.add(name);
   for (const [module, name] of PRELUDE_DECLARATIONS) {
     if (!mentionedByProgram.has(name) || included.has(module)) continue;
     if (

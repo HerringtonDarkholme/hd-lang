@@ -1371,3 +1371,8 @@ typing/invalid/num-bound-newtype.hd	type
 typing/invalid/num-sealed-impl.hd	type
 typing/valid/row-union-spread.hd	type
 runtime/valid/row-union-closure-result-runs.hd	runtime
+typing/valid/iterator-adapters.hd	type
+runtime/valid/iterator-adapters-run.hd	runtime
+runtime/panic/iterator-take-negative.hd	runtime
+typing/invalid/iterator-filter-callback-row.hd	type
+typing/invalid/iterator-adapter-readonly.hd	type
