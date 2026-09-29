@@ -1,0 +1,10 @@
+# test: a pub use chain through two facades ends at the declaration
+# Spec 10 Public Uses: module.pub-use.chain (Dependency Cycles DC8, DC11).
+# fixture-package-tree: reexport-chain/src/main.hd
+use pkg.shop.{Token}
+
+fn label(token: Token) -> string:
+    token.text
+
+pub fn main() -> void:
+    _ := label(Token { text: "tea" })

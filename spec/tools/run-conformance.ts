@@ -26,7 +26,7 @@
 import { spawn } from "node:child_process";
 import { readdir, readFile, realpath } from "node:fs/promises";
 import { availableParallelism } from "node:os";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 
 type Phase = "parse" | "runtime" | "type";
 
@@ -51,6 +51,8 @@ interface Fixture {
   readonly markerLine?: number;
   readonly packageRole?: string;
   readonly testLayout?: string;
+  /** `# fixture-package-tree: TREE/PATH` (README, Package Trees). */
+  readonly packageTree?: { readonly tree: string; readonly path: string };
   readonly pendingFunction?: string;
   readonly profile?: string;
   readonly scenario?: string;
@@ -95,6 +97,7 @@ const headerDirectives = new Set([
   "fixture-runtime-pending-function",
   "fixture-package-role",
   "fixture-test-layout",
+  "fixture-package-tree",
 ]);
 
 class UsageError extends Error {}
@@ -246,6 +249,15 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
     return `unknown test layout '${testLayout}'`;
   if (testLayout !== undefined && packageRole !== undefined)
     return "'# fixture-test-layout' names no package role";
+  const treeHeader = headers.get("fixture-package-tree");
+  const treeMatch =
+    treeHeader === undefined
+      ? undefined
+      : /^([a-z0-9][a-z0-9-]*)\/((?:src|tests)\/[^\s]+\.hd)$/.exec(treeHeader);
+  if (treeHeader !== undefined && !treeMatch)
+    return `'# fixture-package-tree: ${treeHeader}' is not TREE/PATH with PATH under src/ or tests/`;
+  if (treeHeader !== undefined && (packageRole !== undefined || testLayout !== undefined))
+    return "'# fixture-package-tree' names no package role and no test layout";
   const profile = headers.get("fixture-runtime-profile");
   if (stdoutLines.length > 0) {
     if (row.phase !== "runtime" || row.expectation !== "accept")
@@ -261,6 +273,7 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
     markerLine: markers[0]?.line,
     packageRole,
     testLayout,
+    ...(treeMatch ? { packageTree: { tree: treeMatch[1]!, path: treeMatch[2]! } } : {}),
     pendingFunction,
     profile,
     scenario,
@@ -315,8 +328,15 @@ function outputLines(result: CommandResult): string[] {
     .filter((line) => line !== "");
 }
 
-async function locatedDiagnostics(result: CommandResult, file: string): Promise<Located[]> {
+// In a package tree case, a diagnostic in any tree file also counts as the
+// fixture's own (README, Package Trees).
+async function locatedDiagnostics(
+  result: CommandResult,
+  file: string,
+  tree?: string,
+): Promise<Located[]> {
   const target = await realPathOf(file);
+  const treeRoot = tree === undefined ? undefined : await realPathOf(tree);
   const located: Located[] = [];
   for (const text of outputLines(result)) {
     const match = /^(.+?):(\d+):(\d+): (?:(warning): )?([a-z0-9-]+):(?:\s|$)/.exec(text);
@@ -326,7 +346,9 @@ async function locatedDiagnostics(result: CommandResult, file: string): Promise<
       code: match[5]!,
       line: Number(match[2]),
       path: match[1]!,
-      sameFile: target !== undefined && reported === target,
+      sameFile:
+        (target !== undefined && reported === target) ||
+        (treeRoot !== undefined && reported !== undefined && reported.startsWith(treeRoot + sep)),
       text,
       warning: match[4] === "warning",
     });
@@ -349,13 +371,14 @@ async function contractViolation(
   result: CommandResult,
   file: string,
   panics: Set<string>,
+  tree?: string,
 ): Promise<string | undefined> {
   if (result.error) return `could not start the implementation: ${result.error}`;
   if (result.timedOut) return `ran longer than ${timeoutMs / 1000} s`;
   if (result.signal) return `terminated by signal ${result.signal}`;
   if (result.status !== 0 && result.status !== 1) return `exit status ${result.status}`;
   if (result.status === 1) {
-    const located = (await locatedDiagnostics(result, file)).some((entry) => entry.sameFile);
+    const located = (await locatedDiagnostics(result, file, tree)).some((entry) => entry.sameFile);
     if (!located && panicReports(result, panics).length === 0)
       return "exit 1 without a located diagnostic or panic report";
   }
@@ -373,20 +396,23 @@ async function judgeRejectOrWarn(
   file: string,
   row: IndexRow,
   line: number,
+  tree?: string,
 ): Promise<string | undefined> {
   const [kind, code] = row.expectation.split(":") as [string, string];
-  const located = await locatedDiagnostics(result, file);
+  const located = await locatedDiagnostics(result, file, tree);
+  // A package tree case judges the code, not the line (README, Package Trees).
+  const onLine = (entry: Located): boolean => tree !== undefined || entry.line === line;
   if (kind === "warn") {
     if (result.status !== 0) return `expected exit 0 with warning ${code}, got exit 1`;
     const found = located.some(
-      (entry) => entry.warning && entry.sameFile && entry.code === code && entry.line === line,
+      (entry) => entry.warning && entry.sameFile && entry.code === code && onLine(entry),
     );
     return found ? undefined : `no located warning ${code} on line ${line}`;
   }
   if (result.status !== 1) return `expected rejection ${code}, got exit 0`;
   const errors = located.filter((entry) => !entry.warning);
   const marked = (entry: Located): boolean =>
-    entry.sameFile && entry.code === code && entry.line === line;
+    entry.sameFile && entry.code === code && onLine(entry);
   if (!errors.some(marked)) {
     const near = located.filter((entry) => entry.code === code);
     return `no located error ${code} on line ${line}${near.length ? ` (found ${describe(near)})` : ""}`;
@@ -430,10 +456,16 @@ async function runCase(options: Options, row: IndexRow, panics: Set<string>): Pr
   }
   const fixture = readFixture(source, row, panics);
   if (typeof fixture === "string") return { path: row.path, reason: fixture };
+  const tree = fixture.packageTree && resolve(options.root, "trees", fixture.packageTree.tree);
+  if (tree && (await realPathOf(tree)) === undefined)
+    return { path: row.path, reason: `package tree ${tree} does not exist` };
+  if (tree && (await realPathOf(resolve(tree, fixture.packageTree!.path))) !== undefined)
+    return { path: row.path, reason: `package tree already holds ${fixture.packageTree!.path}` };
   const profile = [
     ...(fixture.profile ? ["--profile", fixture.profile] : []),
     ...(await packageOptions(options, fixture.packageRole)),
     ...(fixture.testLayout ? ["--test-layout", fixture.testLayout] : []),
+    ...(tree ? ["--package-tree", tree, "--package-path", fixture.packageTree!.path] : []),
   ];
   const fail = (reason: string, results: readonly CommandResult[]): Verdict => ({
     output: snippet(results),
@@ -449,7 +481,7 @@ async function runCase(options: Options, row: IndexRow, panics: Set<string>): Pr
       action === "check" ? ["--tests", ...profile] : [],
       file,
     );
-    const violation = await contractViolation(result, file, panics);
+    const violation = await contractViolation(result, file, panics, tree);
     if (violation) return fail(`${action}: ${violation}`, [result]);
     if (row.expectation === "accept")
       return result.status === 0
@@ -457,14 +489,14 @@ async function runCase(options: Options, row: IndexRow, panics: Set<string>): Pr
         : fail(`${action}: expected exit 0, got exit 1`, [result]);
     if (row.expectation.startsWith("panic:"))
       return { path: row.path, reason: `${row.phase}-phase case cannot expect a panic` };
-    const problem = await judgeRejectOrWarn(result, file, row, fixture.markerLine!);
+    const problem = await judgeRejectOrWarn(result, file, row, fixture.markerLine!, tree);
     return problem ? fail(`${action}: ${problem}`, [result]) : { path: row.path };
   }
 
   if (row.expectation.startsWith("reject:") || row.expectation.startsWith("warn:"))
     return { path: row.path, reason: `runtime case cannot expect ${row.expectation}` };
   const checked = await invoke(options.command, "check", ["--tests", ...profile], file);
-  const checkViolation = await contractViolation(checked, file, panics);
+  const checkViolation = await contractViolation(checked, file, panics, tree);
   if (checkViolation) return fail(`check: ${checkViolation}`, [checked]);
   if (checked.status !== 0) return fail("check: runtime case did not type-check", [checked]);
   const testOptions = [
@@ -473,7 +505,7 @@ async function runCase(options: Options, row: IndexRow, panics: Set<string>): Pr
     ...(fixture.pendingFunction ? ["--pending-function", fixture.pendingFunction] : []),
   ];
   const tested = await invoke(options.command, "test", testOptions, file);
-  const testViolation = await contractViolation(tested, file, panics);
+  const testViolation = await contractViolation(tested, file, panics, tree);
   if (testViolation) return fail(`test: ${testViolation}`, [checked, tested]);
   if (row.expectation === "accept") {
     if (tested.status !== 0) return fail("test: expected exit 0, got exit 1", [tested]);

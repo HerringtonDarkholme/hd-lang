@@ -6,5 +6,6 @@ TQ-2	2	Trait-argument ownership fixtures need the `Iterable` trait or package ro
 F-150	2	Entry-point cases use a private declaration in `pub fn main`, so they also report `private-type-leak`
 M29	1	Typed derivation M29's per-trait Self-line warning needs a second package, and the prototype CLI has no package roles
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
+DC7	1	An initialization group's statements are not interleaved: the package linker joins the group's modules by identity, so a read of a later-joined module's binding fails
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer

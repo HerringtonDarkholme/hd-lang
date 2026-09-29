@@ -83,17 +83,18 @@ if grep -R -n -E '^# expect-(error|warning|panic):' "$spec_dir/conformance" --in
 fi
 
 if grep -R -n -E '^# [a-z][a-z-]*:' "$spec_dir/conformance" --include='*.hd' |
-    grep -v -E ':# (test|expect|fixture-runtime-profile|fixture-runtime-scenario|fixture-runtime-pending-function|fixture-package-role|fixture-test-layout|expect-stdout): ' |
+    grep -v -E ':# (test|expect|fixture-runtime-profile|fixture-runtime-scenario|fixture-runtime-pending-function|fixture-package-role|fixture-test-layout|fixture-package-tree|expect-stdout): ' |
     grep -v -E ':# expect-stdout:$'; then
     fail "fixture uses a header directive not defined in conformance/README.md"
 fi
 
-# Package sources (conformance/packages) are inputs of the package-role
-# environment, not cases: no index row, no directives, and they must parse.
-packages_dir="$spec_dir/conformance/packages"
+# Package sources (conformance/packages and conformance/trees) are inputs of
+# the package-role and package-tree environments, not cases: no index row, no
+# directives, and they must parse.
+for packages_dir in "$spec_dir/conformance/packages" "$spec_dir/conformance/trees"; do
 if [ -d "$packages_dir" ]; then
     if grep -R -n -E '^# [a-z][a-z-]*:|# (diagnostic|warning|panic): ' "$packages_dir" --include='*.hd'; then
-        fail "package sources under conformance/packages must not carry fixture directives"
+        fail "package sources under ${packages_dir#"$spec_dir/"} must not carry fixture directives"
     fi
     packages_manifest=$(mktemp "${TMPDIR:-/tmp}/hd-spec-packages.XXXXXX")
     {
@@ -104,17 +105,28 @@ if [ -d "$packages_dir" ]; then
     } > "$packages_manifest"
     if ! node --experimental-strip-types "$spec_dir/reference-parser/index.ts" "$packages_manifest" "$spec_dir/conformance"; then
         rm -f "$packages_manifest"
-        fail "a package source under conformance/packages does not parse"
+        fail "a package source under ${packages_dir#"$spec_dir/"} does not parse"
     fi
     rm -f "$packages_manifest"
 fi
+done
+
+# A package tree header names an existing tree and a path the tree leaves free.
+grep -R -l -E '^# fixture-package-tree: ' "$spec_dir/conformance" --include='*.hd' | sort | while IFS= read -r file; do
+    value=$(sed -n 's/^# fixture-package-tree: //p' "$file")
+    tree=${value%%/*}
+    [ -d "$spec_dir/conformance/trees/$tree" ] ||
+        fail "fixture ${file#"$spec_dir/conformance/"} names a missing package tree $tree"
+    [ ! -e "$spec_dir/conformance/trees/$value" ] ||
+        fail "fixture ${file#"$spec_dir/conformance/"} takes $value, which the tree already holds"
+done
 
 if grep -R -n -E '^# expect: ' "$spec_dir/conformance" --include='*.hd' |
     grep -v -E ':# expect: (parse|accept|test)[[:space:]]*$'; then
     fail "fixture uses an undefined # expect: value"
 fi
 
-find "$spec_dir/conformance" -path "$spec_dir/conformance/packages" -prune -o -type f -name '*.hd' -print | sort | while IFS= read -r file; do
+find "$spec_dir/conformance" \( -path "$spec_dir/conformance/packages" -o -path "$spec_dir/conformance/trees" \) -prune -o -type f -name '*.hd' -print | sort | while IFS= read -r file; do
     relative=${file#"$spec_dir/conformance/"}
     count=$(awk -F "$tab" -v path="$relative" 'NR > 1 && $1 == path { count += 1 } END { print count + 0 }' "$manifest")
     [ "$count" -eq 1 ] || fail "fixture $relative has $count manifest entries"

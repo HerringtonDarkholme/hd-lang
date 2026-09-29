@@ -1412,3 +1412,12 @@ typing/invalid/compound-assign-value-no-operator.hd	type	reject:type-mismatch	05
 typing/invalid/compound-assign-value-parameter.hd	type	reject:non-reassignable-parameter-binding	05-expressions.md#r-expr.assign.compound.value
 runtime/panic/num-from-i64-overflow.hd	runtime	panic:integer-overflow	09-traits.md#r-trait.num.from-i64-checked
 runtime/valid/num-ordered-display.hd	runtime	accept	09-traits.md#r-trait.num.num-ordered
+typing/invalid/folder-cycle-facade.hd	type	reject:folder-cycle	10-modules.md#r-module.cycle.acyclic
+typing/valid/folder-cycle-leaf-folder.hd	type	accept	10-modules.md#folder-graph
+typing/valid/folder-loop-within-folder.hd	type	accept	10-modules.md#r-module.cycle.within-folder
+typing/invalid/folder-cycle-nested.hd	type	reject:folder-cycle	10-modules.md#r-module.cycle.nested
+runtime/valid/folder-graph-test-edges.hd	runtime	accept	10-modules.md#r-module.cycle.test-code
+typing/valid/pub-use-chain.hd	type	accept	10-modules.md#r-module.pub-use.chain
+typing/invalid/pub-use-loop.hd	type	reject:re-export-loop	10-modules.md#r-module.pub-use.chain.loop
+runtime/valid/init-group-order.hd	runtime	accept	10-modules.md#r-module.init.group.step
+typing/invalid/init-group-cycle.hd	type	reject:top-level-read-before-initialization	10-modules.md#r-module.init.group.cycle

@@ -202,7 +202,8 @@ test("uses in test code make no folder edge", () => {
 });
 
 test("a pub use chain must end at a declaration", () => {
-  // spec/10-modules.md#r-module.pub-use.chain.loop names no code.
+  // spec/10-modules.md#r-module.pub-use.chain.loop: `re-export-loop` on each
+  // pub use of the loop; a plain use of the name finds no declaration.
   assert.deepEqual(
     codes({
       "src/main.hd": "use pkg.shop.a.{Token}\npub fn main() -> void: pass\n",
@@ -211,8 +212,8 @@ test("a pub use chain must end at a declaration", () => {
     }),
     [
       "src/main.hd:1:unknown-import",
-      "src/shop/a.hd:1:unknown-import",
-      "src/shop/b.hd:1:unknown-import",
+      "src/shop/a.hd:1:re-export-loop",
+      "src/shop/b.hd:1:re-export-loop",
     ],
   );
 });

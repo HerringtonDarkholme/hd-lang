@@ -1,0 +1,6 @@
+use pkg.shop.a.{read_a}
+
+let b = read_a()
+
+pub fn read_b() -> i32:
+    b

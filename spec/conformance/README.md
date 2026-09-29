@@ -11,7 +11,7 @@ outside `spec/` to run the suite.
 ## Terms
 
 - **Fixture:** one UTF-8 `.hd` file under `spec/conformance/`, outside
-  `packages/`, the single primary input of one case.
+  `packages/` and `trees/`, the single primary input of one case.
 - **Case:** one row of `cases.tsv`. It names a fixture, a phase, and an
   expectation.
 - **Implementation under test:** a command prefix, such as `hd` or
@@ -52,7 +52,7 @@ A fixture may rely only on:
 - its own declarations;
 - the environment its fixture directives name (see
   [Fixture Environments](#fixture-environments)), including the package
-  sources a package role supplies.
+  sources a package role or a package tree supplies.
 
 Every other user-defined type, trait, and function must be declared in the
 fixture, including every requirement key.
@@ -60,7 +60,7 @@ fixture, including every requirement key.
 A fixture must not depend on:
 
 - its file name, its directory, the working directory, or other files,
-  except the package sources its package role supplies;
+  except the package sources its package role or package tree supplies;
 - the clock, randomness, or timing;
 - diagnostic message text;
 - map iteration order beyond insertion order;
@@ -106,6 +106,7 @@ directive not listed below.
 | `# fixture-runtime-pending-function: NAME`  | header      | Holds the named suspending function pending. Valid only with the `cancellation-cleanup` scenario. |
 | `# fixture-package-role: ROLE`              | header      | Selects the synthetic multi-package environment. See [Package Roles](#package-roles). |
 | `# fixture-test-layout: LAYOUT`             | header      | Places the fixture as a test module or an integration test module. See [Test Layouts](#test-layouts). |
+| `# fixture-package-tree: TREE/PATH`         | header      | Places the fixture in a package of several files. See [Package Trees](#package-trees). |
 | `# expect-stdout: TEXT`                     | header      | One line of the entry point's exact standard output, in order. Valid only in a `runtime` `accept` case. See [Standard Output](#standard-output). |
 
 ## Case Index
@@ -167,7 +168,8 @@ Rules that apply to every case:
 - **Marker line.** A located diagnostic counts for the marker when its
   `LINE` equals the marker's line number. Its column is not judged. The line
   is the one given by the location rule in
-  [Diagnostics](../README.md#diagnostics).
+  [Diagnostics](../README.md#diagnostics). A [package tree](#package-trees) case
+  judges the code and not the line.
 - **No other errors.** A reject case fails if any error other than its
   marked one is reported. Warnings never fail a case.
 - **Phase is the latest point.** The phase names the latest command at which
@@ -346,6 +348,40 @@ package, as Package Roles does for the multi-package environment
 - The runner passes `--test-layout LAYOUT` to `check` and `test`.
 - A fixture with this header names no package role.
 
+### Package Trees
+
+`# fixture-package-tree: TREE/PATH` places the primary file in a package
+of several files (Dependency Cycles DC11), as Package Roles does for the
+multi-package environment:
+
+- `TREE` names a directory [`trees/TREE/`](trees), which is the root of one
+  package: its files are `src/...` and `tests/...` paths, as
+  [Path-Inferred Modules](../10-modules.md#path-inferred-modules) and
+  [Test Modules](../10-modules.md#test-modules) place them.
+- `PATH` is the package path the primary file takes, such as
+  `src/shop/mod.hd`. The tree holds no file at that path.
+- The package has the tree's files and the primary file, and no
+  dependencies. Its module under test is the primary file's module.
+- Tree files are not cases. They have no row in `cases.tsv`, carry no
+  directives, and are never judged on their own.
+- A fixture with this header names no package role and no test layout.
+
+The runner passes `--package-tree DIR` and `--package-path PATH` to `check`
+and `test`, where `DIR` is the absolute path of `trees/TREE`.
+
+A tree case differs from the Judging a Case table in two points:
+
+- **Codes, not lines.** A located error or warning in any file of the tree
+  counts for the marker, whatever its line, as a panic's line is not judged.
+  A rule about several files, such as a loop of folders, does not say which
+  file reports it. The marker documents one intended line.
+- **Paths.** A located diagnostic's `PATH` names the primary file, as
+  `FILE` or another path to it, or a file under `DIR`.
+
+`test FILE` runs the primary module's entry point and test cases, after
+initializing that module and the modules it uses, as
+[Runtime Execution](#runtime-execution) describes.
+
 ### Standard Output
 
 A `runtime` `accept` case may state the exact standard output of its entry
@@ -389,8 +425,8 @@ IMPL ACTION [OPTION VALUE]... FILE
 | Action  | Options the runner may pass                                     | Used for |
 | ------- | --------------------------------------------------------------- | -------- |
 | `parse` | none                                                            | `parse` phase |
-| `check` | `--tests` (always), `--profile NAME`, `--package-role ROLE`, `--dependency NAME=DIR`, `--test-layout LAYOUT` | `type` phase, and the first step of `runtime` |
-| `test`  | `--profile NAME`, `--scenario NAME`, `--pending-function NAME`, `--package-role ROLE`, `--dependency NAME=DIR`, `--test-layout LAYOUT` | `runtime` phase |
+| `check` | `--tests` (always), `--profile NAME`, `--package-role ROLE`, `--dependency NAME=DIR`, `--test-layout LAYOUT`, `--package-tree DIR`, `--package-path PATH` | `type` phase, and the first step of `runtime` |
+| `test`  | `--profile NAME`, `--scenario NAME`, `--pending-function NAME`, `--package-role ROLE`, `--dependency NAME=DIR`, `--test-layout LAYOUT`, `--package-tree DIR`, `--package-path PATH` | `runtime` phase |
 | `run`   | none                                                            | `runtime` cases with `# expect-stdout:` |
 
 `run FILE` executes only the entry point, in a fresh program instance under
@@ -409,7 +445,8 @@ Exit statuses and limits:
 Output lines the runner reads:
 
 - **Located diagnostic:** `PATH:LINE:COL: CODE: message`. `PATH` names the
-  same file as `FILE`, either as given or as any other path to that file.
+  same file as `FILE`, either as given or as any other path to that file,
+  or, in a [package tree](#package-trees) case, a file under the tree.
   `LINE` and `COL` are 1-based. The message is free text.
 - **Located warning:** `PATH:LINE:COL: warning: CODE: message`.
 - **Panic report:** `CODE: message`, optionally prefixed by

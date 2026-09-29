@@ -198,15 +198,17 @@ export function linkPackage(
     }
     return [...base, ...path];
   };
-  // Follows `pub use` re-exports to the module that declares `name`.
+  // Follows `pub use` re-exports to the module that declares `name`; "loop"
+  // when the chain returns to a module it passed
+  // (spec/10-modules.md#r-module.pub-use.chain.loop).
   const exporter = (
     target: PackageModule,
     name: string,
     seen: Set<PackageModule>,
-  ): PackageModule | "private" | undefined => {
+  ): PackageModule | "private" | "loop" | undefined => {
     const program = target.program!;
     if (topLevelNames(program).has(name)) return isPublic(program, name) ? target : "private";
-    if (seen.has(target)) return undefined;
+    if (seen.has(target)) return "loop";
     seen.add(target);
     for (const use of resolvedUses.get(target) ?? [])
       if (use.declaration.public && use.names.includes(name))
@@ -285,7 +287,14 @@ export function linkPackage(
         );
       for (const name of use.names) {
         const found = exporter(use.target, name, new Set());
-        if (found === undefined)
+        if (found === "loop" && use.declaration.public)
+          report(
+            module.path,
+            "re-export-loop",
+            `'pub use' of '${name}' leads back to itself through module '${use.target.identity}'; a pub use chain must end at a declaration`,
+            use.declaration.span,
+          );
+        else if (found === undefined || found === "loop")
           report(
             module.path,
             "unknown-import",

@@ -1,0 +1,14 @@
+# test: a group's statements run in dependency order, so catalog's binding waits for prices' markup
+# Spec 10 Order Inside A Group: module.init.group.step (Dependency Cycles DC7, DC11).
+# fixture-package-tree: init-group/src/shop/catalog.hd
+use pkg.shop.prices.{price_of}
+use std.testing.assert_equal
+
+let featured = price_of("tea")
+
+pub fn base_price(sku: string) -> i32:
+    if sku == "tea": 10 else: 20
+
+tests:
+    it("runs after markup"):
+        assert_equal(featured, 15, reason="10 + markup 5")

@@ -495,7 +495,7 @@ else`, `break`, `break value`, and `continue`;
   `std.task.block_on` support, a per-instance active-driver guard, and nested
   driver traps;
 - in-process package linking (`package.ts`, used by the browser playground,
-  not the CLI): `pkg`, `self`, and `super` uses between the modules of one
+  and by the CLI for a package tree): `pkg`, `self`, and `super` uses between the modules of one
   package resolve to public declarations and `pub use` re-exports, and the
   modules reachable from the entry are joined into one program in
   initialization order. A `*_test.hd` test module joins as a `tests:`
@@ -505,7 +505,9 @@ else`, `break`, `break value`, and `continue`;
   `folder-cycle`, reported once per tangle with one shortest folder loop,
   each edge's `use` line, the tangle size, and an `x.hd` to `x/mod.hd`
   fix-it; uses in test code make no folder edge
-  (10-modules.md#dependency-cycles). Modules that use each other form one
+  (10-modules.md#dependency-cycles). Each `pub use` whose chain returns to
+  a module it passed is `re-export-loop`; a plain use through such a loop
+  is the prototype's `unknown-import`. Modules that use each other form one
   initialization group, joined by module identity after the groups it
   uses. The prototype does not order a group's statements by dependency
   (10-modules.md#order-inside-a-group), so a read that needs a later-joined
@@ -697,6 +699,10 @@ else`, `break`, `break value`, and `continue`;
 - `--test-layout test-module|integration` compiles a file as a test module
   (the conformance Test Layouts); both layouts are test modules, since
   the prototype has no separate integration view;
+- `--package-tree DIR --package-path PATH` (the conformance Package Trees)
+  links FILE, as the package path PATH, with every `.hd` file under DIR,
+  entered at FILE's module, and reports each diagnostic in the file it
+  points into. Package dependencies (`package-cycle`) are not modeled;
 - suspension CFG lowering for bang calls nested in expressions, call
   arguments, short-circuiting, branches, loops, match guards, propagation, and
   provider scopes, with scoped cleanup and cancellation;

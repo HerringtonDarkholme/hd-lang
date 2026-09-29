@@ -1,0 +1,7 @@
+# test: a folder and its child folder are separate nodes, so a use in each direction is a loop
+# Spec 10 Folder Graph: module.cycle.nested (Dependency Cycles DC3, DC4, DC11).
+# fixture-package-tree: nested-folders/src/shop/orders/mod.hd
+use pkg.shop.{money}  # diagnostic: folder-cycle
+
+pub fn order() -> i32:
+    money()

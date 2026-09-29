@@ -1,5 +1,5 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { basename, extname, resolve } from "node:path";
+import { readdir, readFile, writeFile } from "node:fs/promises";
+import { basename, extname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -13,7 +13,8 @@ import {
 } from "./compiler.ts";
 import { explainCommand, lookupCommand } from "./cli-queries.ts";
 import { DiagnosticReporter, type OutputFormat } from "./diagnostic-report.ts";
-import { DiagnosticError } from "./diagnostics.ts";
+import { DiagnosticError, type Diagnostic } from "./diagnostics.ts";
+import { linkPackage, type PackageDiagnostic } from "./package.ts";
 import { RuntimePanicError, UnsupportedAtRunTimeError } from "./runtime-panic.ts";
 import { parse } from "./parser/index.ts";
 import { explainRequirements } from "./requirements.ts";
@@ -119,10 +120,21 @@ function runRuntimeScenario(
   throw new Error(`${scenario} scenario completed without a runtime panic`);
 }
 
+/** Every `.hd` file under a package tree, keyed by its package path. */
+async function packageTreeFiles(root: string): Promise<Record<string, string>> {
+  const files: Record<string, string> = {};
+  for (const entry of await readdir(root, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".hd")) continue;
+    const full = join(entry.parentPath, entry.name);
+    files[relative(root, full).split(sep).join("/")] = await readFile(full, "utf8");
+  }
+  return files;
+}
+
 function usage(): never {
   console.error(
     [
-      "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--format text|json] [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] [--tests] [--update] [--seed N] [--cases N] [--shrink N] [--test-layout test-module|integration] FILE",
+      "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--format text|json] [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] [--tests] [--update] [--seed N] [--cases N] [--shrink N] [--test-layout test-module|integration] [--package-tree DIR --package-path PATH] FILE",
       "       hd explain [--format text|json] CODE",
       "       hd <def|doc> [--format text|json] NAME [FILE|PACKAGE-DIR]",
       "       hd repl",
@@ -152,6 +164,10 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   let runOptions = false;
   let checkTests = false;
   let testLayout: string | undefined;
+  // A package tree (spec/conformance/README.md, Package Trees): the other
+  // files of the package, and the package path FILE takes among them.
+  let packageTree: string | undefined;
+  let packagePath: string | undefined;
   let update = false;
   // `hd test --seed N`, `--cases N`, and `--shrink N` (Testing T36, T38, T51).
   const propertyOptions: { seed?: number; cases?: number; shrink?: number } = {};
@@ -175,7 +191,9 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     } else if (option === "--test-layout") {
       testLayout = args.shift();
       if (testLayout !== "test-module" && testLayout !== "integration") usage();
-    } else usage();
+    } else if (option === "--package-tree") packageTree = args.shift() ?? usage();
+    else if (option === "--package-path") packagePath = args.shift() ?? usage();
+    else usage();
   }
   if (command === "explain") {
     const code = args.shift();
@@ -196,24 +214,59 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   if (Object.keys(propertyOptions).length > 0 && command !== "test") usage();
   if (scenario && command !== "test") usage();
   if (pendingFunctionName && scenario !== "cancellation-cleanup") usage();
+  if ((packageTree === undefined) !== (packagePath === undefined)) usage();
+  if (packageTree !== undefined && ((command !== "check" && command !== "test") || testLayout))
+    usage();
   const path = resolve(file);
-  const source = await readFile(path, "utf8");
+  const fileSource = await readFile(path, "utf8");
+  // In a package tree, FILE joins the tree's files; the linker joins the
+  // modules into one program (src/package.ts).
+  const treeRoot = packageTree === undefined ? undefined : resolve(packageTree);
+  const treeFiles =
+    treeRoot === undefined
+      ? undefined
+      : { ...(await packageTreeFiles(treeRoot)), [packagePath!]: fileSource };
+  const linked = treeFiles
+    ? linkPackage(treeFiles, packagePath!, { tests: checkTests || command === "test" })
+    : undefined;
+  const source = linked?.source ?? fileSource;
   const profile = profileName ? RUNTIME_PROFILES[profileName] : undefined;
   // A `*_test.hd` file is a test module (spec/10-modules.md#test-modules), as
   // is a file that `--test-layout` places as one (spec/conformance, Test
   // Layouts); the prototype has no separate integration test view.
-  const parseOptions =
-    path.endsWith("_test.hd") || testLayout !== undefined ? { testModule: true } : {};
+  const parseOptions = linked
+    ? { joinedModules: true }
+    : path.endsWith("_test.hd") || testLayout !== undefined
+      ? { testModule: true }
+      : {};
   const compileOptions: CompileOptions = {
     hostCapabilities: profile?.hostCapabilities,
     parse: parseOptions,
   };
-  const reporter = new DiagnosticReporter(
-    format,
-    file,
-    source,
-    format === "json" ? await loadSpecIndex() : undefined,
-  );
+  const specIndex = format === "json" ? await loadSpecIndex() : undefined;
+  const reporter = new DiagnosticReporter(format, file, fileSource, specIndex);
+  // A diagnostic in a package tree names the file it points into.
+  const treeReporters = new Map<string, DiagnosticReporter>();
+  const report = (diagnostic: Diagnostic | PackageDiagnostic): void => {
+    if (!linked || !treeFiles) return reporter.diagnostic(diagnostic);
+    const located = "path" in diagnostic ? diagnostic : linked.locate(diagnostic);
+    if (located.path === packagePath) return reporter.diagnostic(located);
+    let treeReporter = treeReporters.get(located.path);
+    if (!treeReporter) {
+      treeReporter = new DiagnosticReporter(
+        format,
+        join(treeRoot!, located.path),
+        treeFiles[located.path] ?? "",
+        specIndex,
+      );
+      treeReporters.set(located.path, treeReporter);
+    }
+    treeReporter.diagnostic(located);
+  };
+  if (linked) {
+    for (const diagnostic of linked.diagnostics) report(diagnostic);
+    if (!linked.source) return 1;
+  }
   try {
     if (command === "parse") {
       const result = parse(source, parseOptions);
@@ -225,7 +278,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       // `hd check` checks test code only with `--tests` (Testing T42).
       const result = analyze(source, { ...compileOptions, skipTestCode: !checkTests });
       if (!result.hir) throw new DiagnosticError(result.diagnostics);
-      for (const diagnostic of result.diagnostics) reporter.diagnostic(diagnostic);
+      for (const diagnostic of result.diagnostics) report(diagnostic);
       console.log(`${file}: ok`);
       return 0;
     }
@@ -398,7 +451,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     usage();
   } catch (error) {
     if (error instanceof DiagnosticError) {
-      for (const diagnostic of error.diagnostics) reporter.diagnostic(diagnostic);
+      for (const diagnostic of error.diagnostics) report(diagnostic);
       return 1;
     }
     if (error instanceof RuntimePanicError) {

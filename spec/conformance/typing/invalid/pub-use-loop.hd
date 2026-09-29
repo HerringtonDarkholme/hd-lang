@@ -1,0 +1,4 @@
+# test: a pub use chain that returns to a pub use it passed is an error
+# Spec 10 Public Uses: module.pub-use.chain.loop (Dependency Cycles DC8, DC11).
+# fixture-package-tree: reexport-loop/src/shop/a.hd
+pub use pkg.shop.b.{Token}  # diagnostic: re-export-loop

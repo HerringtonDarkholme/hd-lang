@@ -1,0 +1,6 @@
+use pkg.shop.catalog.{base_price}
+
+let markup = 5
+
+pub fn price_of(sku: string) -> i32:
+    base_price(sku) + markup

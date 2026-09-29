@@ -219,7 +219,7 @@ A source file's **folder** is the directory that holds it:
 4. r[module.cycle.nested] A folder and its parent or child folder are separate nodes, and an edge between them counts like any other.
 5. r[module.cycle.acyclic] The folder graph must be acyclic. A folder that depends on itself through other folders is an error. Error: `folder-cycle`.
 6. r[module.cycle.within-folder] Uses between files of one folder make no edge, so those files may use each other in any pattern, loops included.
-7. r[module.cycle.package] The dependency graph of packages must be acyclic: a package that depends on itself, directly or through other packages, is invalid.
+7. r[module.cycle.package] The dependency graph of packages must be acyclic: a package that depends on itself, directly or through other packages, is an error. Error: `package-cycle`.
 
 A root facade that uses a child folder, beside a shared root file that the
 child uses, makes a loop of folders:
@@ -958,11 +958,11 @@ use pkg.user.{User, UserId, load_user}
 3. r[module.pub-use.binding] `pub use` introduces the same local binding as `use` and additionally exposes that binding to other modules.
 4. r[module.pub-use.identity] `pub use` does not create a new declaration identity.
 5. r[module.pub-use.chain] A `pub use` chain must end at a declaration: following each `pub use` of a name to the module it names must reach the module that declares the name.
-6. r[module.pub-use.chain.loop] A chain that returns to a `pub use` it has already passed is invalid.
+6. r[module.pub-use.chain.loop] A chain that returns to a `pub use` it has already passed is an error. Error: `re-export-loop`.
 
 ```text
 # src/shop/a.hd
-pub use pkg.shop.b.{Token}  # error
+pub use pkg.shop.b.{Token}  # error: re-export-loop
 
 # src/shop/b.hd
 pub use pkg.shop.a.{Token}

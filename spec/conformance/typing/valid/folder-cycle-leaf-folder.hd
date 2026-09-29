@@ -1,0 +1,10 @@
+# test: moving the shared file to a leaf folder keeps its module name and breaks the loop
+# Spec 10 Folder Graph: module.cycle.acyclic (Dependency Cycles DC5, DC11).
+# fixture-package-tree: facade-leaf/src/shop/mod.hd
+use pkg.error.{Error}
+
+pub data Cart:
+    pub count: i32
+
+pub fn empty() -> Error:
+    Error.Empty

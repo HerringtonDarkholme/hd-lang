@@ -1,0 +1,2 @@
+pub fn total() -> i32:
+    2

@@ -1381,3 +1381,11 @@ typing/invalid/compound-assign-value-no-operator.hd	type
 typing/invalid/compound-assign-value-parameter.hd	type
 runtime/panic/num-from-i64-overflow.hd	runtime
 runtime/valid/num-ordered-display.hd	runtime
+typing/invalid/folder-cycle-facade.hd	type
+typing/valid/folder-cycle-leaf-folder.hd	type
+typing/valid/folder-loop-within-folder.hd	type
+typing/invalid/folder-cycle-nested.hd	type
+runtime/valid/folder-graph-test-edges.hd	runtime
+typing/valid/pub-use-chain.hd	type
+typing/invalid/pub-use-loop.hd	type
+typing/invalid/init-group-cycle.hd	type

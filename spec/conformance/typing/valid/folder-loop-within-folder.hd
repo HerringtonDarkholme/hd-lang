@@ -1,0 +1,13 @@
+# test: files of one folder may use each other in a loop
+# Spec 10 Folder Graph: module.cycle.within-folder (Dependency Cycles DC2, DC11).
+# fixture-package-tree: folder-loop/src/shop/cart.hd
+use pkg.shop.{Item}
+
+pub data Cart:
+    pub items: List[Item]
+
+pub fn total(cart: Cart) -> i32:
+    let sum = 0
+    for item in cart.items:
+        sum = sum + item.price
+    sum

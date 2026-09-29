@@ -1,0 +1,4 @@
+pub use pkg.shop.orders.{order}
+
+pub fn money() -> i32:
+    1

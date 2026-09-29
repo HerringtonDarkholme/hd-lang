@@ -101,8 +101,10 @@ given (2026-09-28):
 
 The apply pass answered the design points (#40): initialization inside a
 loop follows Go's rule, test code makes no folder edge, and the code is
-`folder-cycle`. Entry modules inside a loop and multi-file fixtures are
-listed in the record's [Still Open](DEPENDENCY_CYCLES.md#still-open).
+`folder-cycle`. DC11 (2026-09-29) kept those answers, named
+`re-export-loop` and `package-cycle`, and added package-tree fixtures; the
+record's [Still Open](DEPENDENCY_CYCLES.md#still-open) lists what that pass
+met.
 
 ### Casts, Property Discards, Type Names As Values, Std Scope
 

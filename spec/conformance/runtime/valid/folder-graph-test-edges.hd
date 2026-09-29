@@ -1,0 +1,8 @@
+# test: a use in test code makes no folder edge, so a test module may use a helper folder that uses its own folder
+# Spec 10 Folder Graph: module.cycle.test-code (Dependency Cycles DC6, DC11).
+# fixture-package-tree: test-edges/src/shop/cart_test.hd
+use pkg.testkit.{make}
+use std.testing.assert_equal
+
+it("totals through the helper"):
+    assert_equal(make(), 2, reason="testkit calls shop.cart.total")

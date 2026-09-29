@@ -1,0 +1,4 @@
+use pkg.shop.cart.{total}
+
+pub fn make() -> i32:
+    total()
