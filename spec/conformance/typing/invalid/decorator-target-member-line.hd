@@ -1,5 +1,5 @@
 # test: a limited value attached by a member line is rejected on that line
-# Spec 14 Target Kinds: annot.target.limit.error covers member lines.
+# Spec 14 Target Kinds: annot.target.limit.kind-error covers member lines.
 use std.annotation.annotate
 use std.structure.Structure
 
@@ -14,4 +14,4 @@ data Page:
     title: string
 
 impl Page by Structure:
-    title = [route("/title")]  # diagnostic: decorator-not-annotator
+    title = [route("/title")]  # diagnostic: decorator-target-kind

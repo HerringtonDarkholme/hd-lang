@@ -1097,3 +1097,14 @@ style lint rejects a chapter that reuses one.
   `types.lct.row-union-every-site`.
 - `types.lct.row-union.only`: retired 2026-09-29. Requirement Reuse RU15.
   Replaced by `types.lct.row-union-every-site` and `req.row.union.sites`.
+- `annot.target.kind.newtype`: retired 2026-09-29. Decorators D10 gives a
+  newtype the `.Newtype` kind. Replaced by `annot.target.kind.newtype-kind`.
+- `annot.target.newtype`: retired 2026-09-29. Decorators D10. Replaced by
+  `annot.target.kind.newtype-kind` and `annot.target.limit.kind-error`.
+- `annot.target.limit.error`: retired 2026-09-29. Decorators D10 reports
+  the kind check as `decorator-target-kind`. Replaced by
+  `annot.target.limit.kind-error`.
+- `expr.suffix.marker.module`: retired 2026-09-29. Decorators D10. Replaced
+  by `expr.suffix.marker.fn-only`.
+- `expr.prefix.marker.module`: retired 2026-09-29. Decorators D10. Replaced
+  by `expr.prefix.marker.fn-only`.

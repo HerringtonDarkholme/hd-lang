@@ -153,7 +153,7 @@ pub fn num_suffix() -> NumSuffix:
 1. r[expr.suffix.fn-call] A suffixed literal `Nx` is the call `x(N)` of the suffix function `x`, with the literal `N` as its one argument.
 2. r[expr.suffix.fn-call.example] So `250ms` means `ms(250)`, and `-5s` means `s(-5)`.
 3. r[expr.suffix.marker] A **suffix function** is a function that carries a `std.ops.NumSuffix` value, written `@num_suffix`. The compiler recognizes `std.ops.NumSuffix` by its qualified name.
-4. r[expr.suffix.marker.module] `std.ops` declares `NumSuffix` and `num_suffix`. `NumSuffix` carries `@annotate(.Fn)`, so `@num_suffix` before anything but a function is an error. Error: `decorator-not-annotator`.
+4. r[expr.suffix.marker.fn-only] `std.ops` declares `NumSuffix` and `num_suffix`. `NumSuffix` carries `@annotate(.Fn)`, so `@num_suffix` before anything but a function is an error. Error: `decorator-target-kind`.
 5. r[expr.suffix.not-marked] A suffix that resolves to anything other than a suffix function is an error, reported at the literal. Error: `invalid-literal-suffix`.
 6. r[expr.suffix.no-marker-import] The call needs no import of `num_suffix` or `NumSuffix`: a `use` of the suffix function alone makes the literal valid.
 7. r[expr.suffix.call-errors] The call is checked as an ordinary call. An argument that the function cannot accept is the ordinary call error at the literal, such as `type-mismatch` or `argument-count`.
@@ -277,7 +277,7 @@ pub data Template[T]:
 6. r[expr.prefix.no-join] The compiler never joins the pieces and never calls `Display`. The prefix function decides what the string means.
 7. r[expr.prefix.order] The interpolated expressions are evaluated from left to right before the call, as arguments are.
 8. r[expr.prefix.marker] A **prefix function** is a function that carries a `std.ops.StrPrefix` value, written `@str_prefix`. The compiler recognizes `std.ops.StrPrefix` and `std.ops.Template` by their qualified names.
-9. r[expr.prefix.marker.module] `std.ops` declares `StrPrefix`, `str_prefix`, and `Template`. `StrPrefix` carries `@annotate(.Fn)`, so `@str_prefix` before anything but a function is an error. Error: `decorator-not-annotator`.
+9. r[expr.prefix.marker.fn-only] `std.ops` declares `StrPrefix`, `str_prefix`, and `Template`. `StrPrefix` carries `@annotate(.Fn)`, so `@str_prefix` before anything but a function is an error. Error: `decorator-target-kind`.
 10. r[expr.prefix.not-marked] A prefix that resolves to anything other than a prefix function is an error, reported at the string. Error: `invalid-string-prefix`.
 11. r[expr.prefix.no-marker-import] The call needs no import of `str_prefix`, `StrPrefix`, or `Template`: a `use` of the prefix function alone makes the string valid.
 12. r[expr.prefix.fn-shape-one] A prefix function declares exactly one parameter, of type `std.ops.Template[T]` for some type `T`, and never suspends. A second parameter breaks this shape even when it has a default.

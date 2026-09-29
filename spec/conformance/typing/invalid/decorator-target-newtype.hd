@@ -1,5 +1,5 @@
-# test: a newtype has no target kind, so a limited value before it is rejected
-# Spec 14 Target Kinds: annot.target.newtype.
+# test: a newtype has the .Newtype kind, so a value limited to data types and enums is rejected before it
+# Spec 14 Target Kinds: annot.target.kind.newtype-kind and annot.target.limit.kind-error (Decorators D10).
 use std.annotation.annotate
 
 @annotate(.Data, .Enum)
@@ -13,5 +13,5 @@ fn wire(tag: string) -> Wire:
 data User:
     id: i64
 
-@wire("id")  # diagnostic: decorator-not-annotator
+@wire("id")  # diagnostic: decorator-target-kind
 type UserId(i64)

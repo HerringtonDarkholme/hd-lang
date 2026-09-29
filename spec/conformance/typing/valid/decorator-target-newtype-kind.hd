@@ -1,0 +1,13 @@
+# test: a fact type that lists .Newtype may be attached to a newtype
+# Spec 14 Target Kinds: annot.target.kind.newtype-kind (Decorators D10).
+use std.annotation.annotate
+
+@annotate(.Newtype)
+data Unit:
+    symbol: string
+
+fn unit(symbol: string) -> Unit:
+    Unit { symbol: symbol }
+
+@unit("m")
+type Meters(i64)

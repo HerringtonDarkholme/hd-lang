@@ -479,7 +479,7 @@ data Profile:
     @max_len(80)
     name: string
 
-@max_len(3)  # error: decorator-not-annotator
+@max_len(3)  # error: decorator-target-kind
 fn greet() -> string:
     "hi"
 ```
@@ -491,6 +491,7 @@ pub enum Target:
     Fn
     Data
     Enum
+    Newtype
     Field
     Variant
     Param
@@ -519,16 +520,15 @@ Each target has one kind:
 | r[annot.target.kind.trait] Trait | a trait declaration | `.Trait` |
 | r[annot.target.kind.impl] Implementation | an implementation, including a derivation block | `.Impl` |
 | r[annot.target.kind.method] Method | a method or associated function of a trait or implementation | `.Method` |
-| r[annot.target.kind.newtype] Newtype | a newtype declaration | none |
+| r[annot.target.kind.newtype-kind] Newtype | a newtype declaration | `.Newtype` |
 
 1. r[annot.target.declarations] `std.annotation` declares `Target`, `Annotate`, and `annotate`. They are not prelude names, so code imports them, as in `use std.annotation.annotate`.
 2. r[annot.target.limit] A data type or enum `F` whose type-level facts include an `Annotate` value limits values of type `F` to targets whose kind that value lists.
-3. r[annot.target.limit.error] A value of a limited type attached to a target of any other kind is an error, reported on the decorator or member line that attaches it. Error: `decorator-not-annotator`.
-4. r[annot.target.newtype] A newtype has no kind, so a value of a limited type before a newtype is always this error. Error: `decorator-not-annotator`.
-5. r[annot.target.unlimited] A type without an `Annotate` fact is not limited: its values may be attached to any target, as `@"note"` may.
-6. r[annot.target.recognized] The compiler recognizes `std.annotation.Annotate` by its qualified name. A type of another package named `Annotate` limits nothing.
-7. r[annot.target.bootstrap] `Annotate` itself carries `@annotate(.Data, .Enum)`, so an `Annotate` value may be attached only to a data type or an enum.
-8. r[annot.target.kind-only] The compiler checks only the kind. Whether a value suits its target's type or signature is checked by the code that reads the value.
+3. r[annot.target.limit.kind-error] A value of a limited type attached to a target of any other kind is an error, reported on the decorator or member line that attaches it. Error: `decorator-target-kind`.
+4. r[annot.target.unlimited] A type without an `Annotate` fact is not limited: its values may be attached to any target, as `@"note"` may.
+5. r[annot.target.recognized] The compiler recognizes `std.annotation.Annotate` by its qualified name. A type of another package named `Annotate` limits nothing.
+6. r[annot.target.bootstrap] `Annotate` itself carries `@annotate(.Data, .Enum)`, so an `Annotate` value may be attached only to a data type or an enum.
+7. r[annot.target.kind-only] The compiler checks only the kind. Whether a value suits its target's type or signature is checked by the code that reads the value.
 
 > **Why.** Java, C#, Kotlin, and Dart check declared target kinds the
 > same way. A signature check belongs to the reader, which knows what it

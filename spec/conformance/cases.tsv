@@ -1270,15 +1270,15 @@ typing/invalid/duplicate-function-fact.hd	type	reject:duplicate-fact	14-annotati
 runtime/valid/bare-marker-decorator.hd	runtime	accept	14-annotations.md#r-annot.decorator.bare-call
 runtime/valid/function-fact-read.hd	runtime	accept	14-annotations.md#r-annot.decorator.fn-read
 typing/valid/decorator-target-kinds.hd	type	accept	14-annotations.md#r-annot.target.limit
-typing/invalid/decorator-target-kind.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.target.limit.error
-typing/invalid/decorator-target-newtype.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.target.newtype
-typing/invalid/annotate-before-function.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.target.bootstrap
-typing/invalid/decorator-target-member-line.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.target.limit.error
+typing/invalid/decorator-target-kind.hd	type	reject:decorator-target-kind	14-annotations.md#r-annot.target.limit.kind-error
+typing/invalid/decorator-target-newtype.hd	type	reject:decorator-target-kind	14-annotations.md#r-annot.target.kind.newtype-kind
+typing/invalid/annotate-before-function.hd	type	reject:decorator-target-kind	14-annotations.md#r-annot.target.bootstrap
+typing/invalid/decorator-target-member-line.hd	type	reject:decorator-target-kind	14-annotations.md#r-annot.target.limit.kind-error
 typing/invalid/literal-suffix-parameter-type.hd	type	reject:type-mismatch	05-expressions.md#r-expr.suffix.fn-shape.definition
 typing/valid/literal-suffix-generic.hd	type	accept	05-expressions.md#r-expr.suffix.ordinary-rules
 typing/invalid/literal-suffix-extra-parameter.hd	type	reject:type-mismatch	05-expressions.md#r-expr.suffix.fn-shape-one
 typing/invalid/literal-suffix-suspending.hd	type	reject:type-mismatch	05-expressions.md#r-expr.suffix.fn-shape.definition
-typing/invalid/num-suffix-before-data.hd	type	reject:decorator-not-annotator	05-expressions.md#r-expr.suffix.marker.module
+typing/invalid/num-suffix-before-data.hd	type	reject:decorator-target-kind	05-expressions.md#r-expr.suffix.marker.fn-only
 parse/invalid/old-row-separator-callback.hd	parse	reject:old-row-separator	02-grammar.md#r-grammar.type.row.old-separator
 parse/invalid/parenthesized-row.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.type.row.no-parentheses
 parse/invalid/old-bound-operator-generic.hd	parse	reject:old-bound-operator	02-grammar.md#r-grammar.generic.bound.old-plus
@@ -1300,7 +1300,7 @@ typing/invalid/string-prefix-requirement.hd	type	reject:missing-requirement	05-e
 typing/valid/string-prefix-generic.hd	type	accept	05-expressions.md#r-expr.prefix.ordinary-rules
 typing/invalid/string-prefix-extra-parameter.hd	type	reject:type-mismatch	05-expressions.md#r-expr.prefix.fn-shape-one
 typing/invalid/string-prefix-suspending.hd	type	reject:type-mismatch	05-expressions.md#r-expr.prefix.fn-shape.definition
-typing/invalid/str-prefix-before-data.hd	type	reject:decorator-not-annotator	05-expressions.md#r-expr.prefix.marker.module
+typing/invalid/str-prefix-before-data.hd	type	reject:decorator-target-kind	05-expressions.md#r-expr.prefix.marker.fn-only
 typing/invalid/string-prefix-value-mismatch.hd	type	reject:type-mismatch	04-type-system.md#r-types.literal.prefixed.value-errors
 typing/invalid/string-prefix-value-narrowing.hd	type	reject:implicit-narrowing	04-type-system.md#r-types.literal.prefixed.value-errors
 runtime/valid/string-prefix-template.hd	runtime	accept	05-expressions.md#r-expr.prefix.parts
@@ -1366,3 +1366,4 @@ typing/valid/row-union-omitted-result.hd	type	accept	11-requirements-and-suspens
 typing/invalid/row-union-if-nested-lists.hd	type	reject:no-common-type	11-requirements-and-suspension.md#r-req.row.union.sites.direct
 runtime/valid/row-union-branches-run.hd	runtime	accept	11-requirements-and-suspension.md#r-req.row.union.sites
 runtime/valid/row-union-closure-result-runs.hd	runtime	accept	11-requirements-and-suspension.md#r-req.row.union.sites.type
+typing/valid/decorator-target-newtype-kind.hd	type	accept	14-annotations.md#r-annot.target.kind.newtype-kind

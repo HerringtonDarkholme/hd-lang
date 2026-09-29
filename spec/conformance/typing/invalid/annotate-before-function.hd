@@ -2,6 +2,6 @@
 # Spec 14 Target Kinds: annot.target.bootstrap.
 use std.annotation.annotate
 
-@annotate(.Fn)  # diagnostic: decorator-not-annotator
+@annotate(.Fn)  # diagnostic: decorator-target-kind
 fn marker() -> i32:
     0

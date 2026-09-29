@@ -1,7 +1,7 @@
 # test: NumSuffix carries @annotate(.Fn), so @num_suffix before a data type is rejected
-# Spec 05 Literal Suffixes: expr.suffix.marker.module.
+# Spec 05 Literal Suffixes: expr.suffix.marker.fn-only.
 use std.ops.num_suffix
 
-@num_suffix  # diagnostic: decorator-not-annotator
+@num_suffix  # diagnostic: decorator-target-kind
 data Pixels:
     count: i32
