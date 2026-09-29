@@ -37,6 +37,14 @@ and tooling work is listed separately at the end.
    with `R` set to its own row. Needing fewer requirements is always safe,
    so it is no longer a `type-mismatch`. Callers never write `R`: it is
    inferred at each call.
+5. **No row subtraction, confirmed (2026-09-28).** Two generic rows work
+   with `+` alone. `R1 + R2` from independent arguments is a union. A
+   generic key or bundle fixed by another argument, as in
+   `provide[T, K, R](provider: K, f: fn() -> T $ R + K) -> T $ R`, is
+   solved by the least-row rule. A pattern with two unknown rows, such as
+   `f: fn() $ R1 + R2`, has no single best solution; Koka forbids it too.
+   Candidate rule for the apply pass: each row pattern has at most one
+   unknown row variable. Adding `-` later would be backward compatible.
 
 ```text
 trait Ord < Eq & PartialOrd: ...
