@@ -1387,6 +1387,13 @@ existing source. Each entry names the decision that made the change.
   package dependency cycle is `package-cycle`. No source changes validity.
   The conformance format gains the `# fixture-package-tree:` header, which
   places a fixture in a package of several files.
+- Small follow-ups (owner decision in
+  [Open Issues](../future-work/OPEN_ISSUES.md#small-follow-ups-2026-09-29),
+  2026-09-29): in a prefixed string, a `$` is text unless `{` or a
+  character that can start an identifier follows, so `r"costs $5"` keeps
+  `$5` as text where the rule left it undefined. A suffix function's one
+  parameter may have a default, and a non-public function's inferred
+  result takes the union row; both were already valid.
 - Literal suffixes L22 (owner decision in
   [Literal Suffixes](../future-work/LITERAL_SUFFIXES.md#owner-decisions),
   2026-09-29): a function marked `@num_suffix` or `@str_prefix` declares

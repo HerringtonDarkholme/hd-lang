@@ -267,12 +267,13 @@ pub fn num_suffix() -> NumSuffix:
 6. r[expr.suffix.no-marker-import] The call needs no import of `num_suffix` or `NumSuffix`: a `use` of the suffix function alone makes the literal valid.
 7. r[expr.suffix.call-errors] The call is checked as an ordinary call. An argument that the function cannot accept is the ordinary call error at the literal, such as `type-mismatch` or `argument-count`.
 8. r[expr.suffix.fn-shape-num] A suffix function declares exactly one parameter and never suspends. A second parameter breaks this shape even when it has a default.
-9. r[expr.suffix.fn-shape-param] The parameter's type is a primitive integer or floating-point type, or a type parameter of the function bounded by `std.num.Num`, `Integer`, or `Float`.
-10. r[expr.suffix.generic-num] So `@num_suffix fn k[N < Num](n: N) -> N` is valid. As in any generic call, `5k` takes `N` from the literal, or from the expected type, as in `let limit: i64 = 5k`.
-11. r[expr.suffix.fn-shape.definition] The compiler checks this shape at the definition that carries `@num_suffix`, not at each literal. A marked function that breaks it is an error at that definition. Error: `type-mismatch`.
-12. r[expr.suffix.ordinary-rules] Otherwise the call follows the ordinary rules. A generic suffix function's type arguments are inferred at the literal, and its requirement row joins the row of the code that contains the literal, as any call's does.
-13. r[expr.suffix.exact-call] A suffixed literal is exactly that call wherever it appears, and it has no evaluation rule of its own.
-14. r[expr.suffix.position-rules] In a [fact](14-annotations.md#r-annot.fact.eval), in [shared enum data](08-data-and-enums.md#r-data.shared.compile-time), or in any other position, the call follows the rules for any call there, including what a panic in the suffix function does. So a compile-time position that must be requirement-free rejects a suffix function that needs providers, as it rejects any such call.
+9. r[expr.suffix.fn-shape.default] The one parameter may have a default. In `@num_suffix fn unit(count: i64 = 1)`, `5unit` passes `5`, and the ordinary call `unit()` uses the default.
+10. r[expr.suffix.fn-shape-param] The parameter's type is a primitive integer or floating-point type, or a type parameter of the function bounded by `std.num.Num`, `Integer`, or `Float`.
+11. r[expr.suffix.generic-num] So `@num_suffix fn k[N < Num](n: N) -> N` is valid. As in any generic call, `5k` takes `N` from the literal, or from the expected type, as in `let limit: i64 = 5k`.
+12. r[expr.suffix.fn-shape.definition] The compiler checks this shape at the definition that carries `@num_suffix`, not at each literal. A marked function that breaks it is an error at that definition. Error: `type-mismatch`.
+13. r[expr.suffix.ordinary-rules] Otherwise the call follows the ordinary rules. A generic suffix function's type arguments are inferred at the literal, and its requirement row joins the row of the code that contains the literal, as any call's does.
+14. r[expr.suffix.exact-call] A suffixed literal is exactly that call wherever it appears, and it has no evaluation rule of its own.
+15. r[expr.suffix.position-rules] In a [fact](14-annotations.md#r-annot.fact.eval), in [shared enum data](08-data-and-enums.md#r-data.shared.compile-time), or in any other position, the call follows the rules for any call there, including what a panic in the suffix function does. So a compile-time position that must be requirement-free rejects a suffix function that needs providers, as it rejects any such call.
 
 ```text
 use std.ops.num_suffix

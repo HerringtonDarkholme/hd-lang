@@ -1164,3 +1164,6 @@ style lint rejects a chapter that reuses one.
   `trait.num.from-i64-cast`.
 - `trait.num.std`: retired 2026-09-29. Operator traits OP10: `from_i64`
   no longer behaves as a cast. Replaced by `trait.num.std-operators`.
+- `lex.prefix.plain-dollar`: retired 2026-09-29. Small follow-ups: a `$`
+  is text unless the next character can start an identifier, so `$5` is
+  text. Replaced by `lex.prefix.plain-dollar-start`.

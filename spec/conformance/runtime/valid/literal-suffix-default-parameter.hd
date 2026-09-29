@@ -1,0 +1,13 @@
+# test: a suffix function's one parameter may have a default; the literal always passes its value
+# Spec 05 Literal Suffixes: expr.suffix.fn-shape.default (Literal Suffixes Still Open 28).
+use std.ops.num_suffix
+use std.testing.assert_equal
+
+@num_suffix
+fn unit(count: i64 = 1) -> i64:
+    count * 10
+
+tests:
+    it("passes the literal, or the default in a plain call"):
+        assert_equal(5unit, 50, reason="5unit passes 5")
+        assert_equal(unit(), 10, reason="unit() uses the default")

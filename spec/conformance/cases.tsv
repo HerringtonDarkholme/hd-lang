@@ -1421,3 +1421,6 @@ typing/valid/pub-use-chain.hd	type	accept	10-modules.md#r-module.pub-use.chain
 typing/invalid/pub-use-loop.hd	type	reject:re-export-loop	10-modules.md#r-module.pub-use.chain.loop
 runtime/valid/init-group-order.hd	runtime	accept	10-modules.md#r-module.init.group.step
 typing/invalid/init-group-cycle.hd	type	reject:top-level-read-before-initialization	10-modules.md#r-module.init.group.cycle
+runtime/valid/string-prefix-plain-dollar-digit.hd	runtime	accept	01-lexical-structure.md#r-lex.prefix.plain-dollar-start
+runtime/valid/literal-suffix-default-parameter.hd	runtime	accept	05-expressions.md#r-expr.suffix.fn-shape.default
+typing/valid/row-union-private-result.hd	type	accept	11-requirements-and-suspension.md#r-req.row.union.sites

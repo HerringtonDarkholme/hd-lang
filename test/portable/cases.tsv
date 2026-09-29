@@ -1389,3 +1389,6 @@ runtime/valid/folder-graph-test-edges.hd	runtime
 typing/valid/pub-use-chain.hd	type
 typing/invalid/pub-use-loop.hd	type
 typing/invalid/init-group-cycle.hd	type
+runtime/valid/string-prefix-plain-dollar-digit.hd	runtime
+runtime/valid/literal-suffix-default-parameter.hd	runtime
+typing/valid/row-union-private-result.hd	type

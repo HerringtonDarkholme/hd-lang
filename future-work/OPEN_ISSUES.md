@@ -10,7 +10,11 @@ and tooling work is listed separately at the end.
 
 ### Small Follow-Ups (2026-09-29)
 
-**Decided by the owner; not yet applied.**
+**Decided by the owner; applied 2026-09-29** (items 1-3): items 1 and 2 are
+[`lex.prefix.plain-dollar-start`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar-start)
+and [`expr.suffix.fn-shape.default`](../spec/05-expressions.md#r-expr.suffix.fn-shape.default);
+item 3 was already [`req.row.union.sites`](../spec/11-requirements-and-suspension.md#r-req.row.union.sites)
+and now has a fixture.
 1. `lex.prefix.plain-dollar`: a `$` is plain text when the next character
    is neither `{` nor a character that can **start** an identifier. This
    matches `lex.interp.stray-dollar`, so `r"costs $5"` keeps `$5` as text.
@@ -774,16 +778,16 @@ suffixed literal is plain call sugar, the test `timeout` option takes any
 function declares exactly one parameter, checked at its definition (L21,
 L22).
 
-**Open.** Six points, each with a recommendation, are in
+**Open.** Three points, each with a recommendation, are in
 [Literal Suffixes](LITERAL_SUFFIXES.md#still-open): how `$` and `\` behave
-in a prefixed string (15-17), a prefixed test name (23), a defaulted
-suffix parameter (28), and the line a shape error names (29).
+in a prefixed string (16, 17) and a prefixed test name (23). The owner
+decided 15, 28, and 29 in Small Follow-Ups (2026-09-29).
 
 **Raised by the docs sweep (2026-09-29).** Nothing here is decided.
 
 | Question | Effect | **Recommendation** |
 | --- | --- | --- |
-| Is `$5` inside a prefixed string text? [`lex.prefix.plain-dollar`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar) makes a `$` text when "neither an identifier character nor `{`" follows. A digit continues an identifier but cannot start one, which [`lex.interp.stray-dollar`](../spec/01-lexical-structure.md#r-lex.interp.stray-dollar) spells out for interpreted strings. | [Learn in 10 Minutes](../guide/LEARN_IN_10_MINUTES.md#bindings-and-values) writes `r"\d+ costs $5"`, and the reference parser and the prototype read `$5` as text. Read literally, the rule leaves it neither text nor a name. | Say "a character that can start an identifier", as `lex.interp.stray-dollar` does, so `$5` stays text. |
+| Is `$5` inside a prefixed string text? **Decided and applied 2026-09-29 (Small Follow-Ups 1).** The retired `lex.prefix.plain-dollar` made a `$` text when "neither an identifier character nor `{`" follows. A digit continues an identifier but cannot start one, which [`lex.interp.stray-dollar`](../spec/01-lexical-structure.md#r-lex.interp.stray-dollar) spells out for interpreted strings. | [Learn in 10 Minutes](../guide/LEARN_IN_10_MINUTES.md#bindings-and-values) writes `r"\d+ costs $5"`, and the reference parser and the prototype read `$5` as text. Read literally, the rule leaves it neither text nor a name. | Say "a character that can start an identifier", as `lex.interp.stray-dollar` does, so `$5` stays text. |
 
 ```text
 use std.text.r

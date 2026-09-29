@@ -185,7 +185,7 @@ specification states the reading in the Applied column.
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
-| 20 | RU15 names `if`, `match`, closure results and literals. Does a non-public function with an omitted result type, the table's last site, also take the union? | Yes: RU15 says every common-type site ([`req.row.union.sites`](../spec/11-requirements-and-suspension.md#r-req.row.union.sites)) | Keep: the table lists it as a site. |
+| 20 | RU15 names `if`, `match`, closure results and literals. Does a non-public function with an omitted result type, the table's last site, also take the union? | Yes: RU15 says every common-type site ([`req.row.union.sites`](../spec/11-requirements-and-suspension.md#r-req.row.union.sites)); fixture `row-union-private-result.hd` | **Decided (Small Follow-Ups, 2026-09-29).** |
 
 ## Contents
 

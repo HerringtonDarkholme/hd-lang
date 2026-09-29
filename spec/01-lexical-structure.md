@@ -717,7 +717,7 @@ quoted := r"say \"hi\""
 11. r[lex.prefix.no-hash] Hash-delimited prefixed strings are not part of the language.
 12. r[lex.prefix.interpolation] A prefixed string interpolates with the forms of [Interpolation](#interpolation): `$name`, `$self`, and `${expression}`.
 13. r[lex.prefix.reserved-dollar] A `$` followed by a reserved word other than `self`, as in `r"$true"`, is an error. Error: `syntax-error`.
-14. r[lex.prefix.plain-dollar] A `$` followed by neither an identifier character nor `{` is text, so `r"^\d+$"` ends in a dollar sign.
+14. r[lex.prefix.plain-dollar-start] A `$` followed by neither `{` nor a character that can start an identifier is text, by the same test as [`lex.interp.stray-dollar`](#r-lex.interp.stray-dollar). So `r"^\d+$"` ends in a dollar sign, and `r"costs $5"` keeps `$5` as text.
 15. r[lex.prefix.meaning] The prefix is resolved as a name and the string is applied as a call, as [Prefixed Strings](05-expressions.md#prefixed-strings) specifies.
 
 ```text

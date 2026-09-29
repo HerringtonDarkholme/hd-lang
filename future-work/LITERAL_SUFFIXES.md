@@ -873,7 +873,7 @@ interpolated, so points 15-17 fill in how `$` and `\` behave:
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
-| 15 | A `$` followed by neither an identifier character nor `{`, as in `r"^\d+$"` | Plain text ([`lex.prefix.plain-dollar`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar)), as in today's raw strings; an interpreted string rejects it | Keep: regex anchors and prices stay easy to write. |
+| 15 | A `$` followed by neither an identifier character nor `{`, as in `r"^\d+$"` | Plain text ([`lex.prefix.plain-dollar-start`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar-start), which replaced `lex.prefix.plain-dollar` so that `$5` is text too), as in today's raw strings; an interpreted string rejects it | **Decided (Small Follow-Ups, 2026-09-29).** |
 | 16 | A `$` before a reserved word other than `self`, as in `r"$true"` | `syntax-error` ([`lex.prefix.reserved-dollar`](../spec/01-lexical-structure.md#r-lex.prefix.reserved-dollar)), as in interpreted strings | Keep. |
 | 17 | How to write `$name` as text in a prefixed string | A backslash keeps a following `$` from interpolating and stays in the text ([`lex.prefix.backslash`](../spec/01-lexical-structure.md#r-lex.prefix.backslash)), as JavaScript's `String.raw` does; `process_escapes` turns `\$` into `$` | Keep. |
 | 18 | A reserved word directly before a quote, as in `return"done"` | L21: two tokens ([`lex.prefix.reserved`](../spec/01-lexical-structure.md#r-lex.prefix.reserved)); no function can be named with a reserved word | Done. |
@@ -896,8 +896,8 @@ The L22 apply pass met these points:
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
-| 28 | Whether the one parameter may have a default, as in `@num_suffix fn unit(count: i64 = 1)` | Valid: the rule counts parameters, and a literal always passes its value | Keep: the owner's words count parameters, and a default harms nothing. |
-| 29 | L22 leaves the error's line open, but a fixture's marker names one line | The shape fixtures mark the `fn` line, as the general location rule in [Diagnostics](../spec/README.md#diagnostics) reads for a signature | Keep the `fn` line, so fixtures stay exact; or let the conformance format accept any line of a marked definition. |
+| 28 | Whether the one parameter may have a default, as in `@num_suffix fn unit(count: i64 = 1)` | Valid ([`expr.suffix.fn-shape.default`](../spec/05-expressions.md#r-expr.suffix.fn-shape.default)): the rule counts parameters, and a literal always passes its value | **Decided (Small Follow-Ups, 2026-09-29).** |
+| 29 | L22 leaves the error's line open, but a fixture's marker names one line | The shape fixtures mark the `fn` line, as the general location rule in [Diagnostics](../spec/README.md#diagnostics) reads for a signature | **Decided (Small Follow-Ups 4, 2026-09-29):** a presentation detail left to the implementation; fixtures keep the `fn` line. |
 
 ```text
 use std.text.r
