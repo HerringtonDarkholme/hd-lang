@@ -1442,6 +1442,8 @@ by_id := {for user in users if user.active => user.id: user}
 2. r[expr.comp.no-suspension] Comprehensions cannot contain suspension calls.
 3. r[expr.comp.no-jumps] `return`, `break`, and `continue` are not valid inside a comprehension.
 4. r[expr.comp.no-let] There is no comprehension `let` clause.
+5. r[expr.comp.propagation] Postfix `?` is valid inside a comprehension. It returns from the nearest enclosing function or closure, as anywhere else.
+6. r[expr.comp.propagation.stop] When `?` returns, the comprehension stops: it evaluates no later clause, guard, or element.
 
 ```text
 fn ready!() -> i32: 1

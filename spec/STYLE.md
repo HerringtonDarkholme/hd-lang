@@ -1304,3 +1304,8 @@ style lint rejects a chapter that reuses one.
 - `expr.member.method-values`: retired 2026-09-29. MR1 makes `Type::name`
   and `value::name` method references. Replaced by
   `expr.member.method-references`.
+- `flow.adapter.collect`: retired 2026-09-29. Collect CO1 makes `collect`
+  generic over `FromIterator`. Replaced by `flow.adapter.collect-into`.
+- `flow.adapter.collect.drain`: retired 2026-09-29. Under CO1 a `Result`
+  or optional target stops early. Replaced by `flow.collect.drain` and
+  `flow.collect.stop`.

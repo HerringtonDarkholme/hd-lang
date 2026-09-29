@@ -178,7 +178,7 @@ fn first_evens(values: List[i32]) -> List[(i32, i32)]:
 | r[flow.adapter.enumerate] `enumerate` | `fn enumerate(mut self) -> mut Iterator[(i32, T)]` | a new iterator over `(index, item)` pairs, with indices counting from `0` |
 | r[flow.adapter.map] `map` | `fn map[U](mut self, transform: fn(T) -> U) -> mut Iterator[U]` | a new iterator over `transform(item)` for each item of `self`, in order |
 | r[flow.adapter.fold] `fold` | `fn fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
-| r[flow.adapter.collect] `collect` | `fn collect(mut self) -> List[T]` | a list of the remaining items of `self`, in order |
+| r[flow.adapter.collect-into] `collect` | `fn collect[C < FromIterator[T]](mut self) -> C` | a `C` built from the remaining items of `self`, as [Collect Targets](#collect-targets) specifies |
 
 1. r[flow.adapter.methods] The adapters are ordinary methods of the prelude `Iterator[T]`, so every iterator has them without a `use`.
 2. r[flow.adapter.lazy] Calling `filter`, `take`, or `enumerate` does not advance `self`.
@@ -187,11 +187,10 @@ fn first_evens(values: List[i32]) -> List[(i32, i32)]:
 5. r[flow.adapter.take.limit] The iterator that `take` returns calls `next` on `self` at most `count` times.
 6. r[flow.adapter.take.negative] A negative `count` panics when `take` is called. Panic: `explicit-panic`.
 7. r[flow.adapter.fold.drain] `fold` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
-8. r[flow.adapter.collect.drain] `collect` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
-9. r[flow.adapter.mut-receiver] Each adapter takes `mut self`. Calling one on a readonly iterator is an error. Error: `mutable-receiver-required`.
-10. r[flow.adapter.callback-row] The `keep` callback has the empty row. A function value whose row lists a requirement key does not fit it. Error: `type-mismatch`.
-11. r[flow.adapter.callback-row.map] The `transform` callback of `map` has the empty row too.
-12. r[flow.adapter.fold.row] The `step` callback of `fold` may have a requirement row `R`, and `fold` then requires `R`.
+8. r[flow.adapter.mut-receiver] Each adapter takes `mut self`. Calling one on a readonly iterator is an error. Error: `mutable-receiver-required`.
+9. r[flow.adapter.callback-row] The `keep` callback has the empty row. A function value whose row lists a requirement key does not fit it. Error: `type-mismatch`.
+10. r[flow.adapter.callback-row.map] The `transform` callback of `map` has the empty row too.
+11. r[flow.adapter.fold.row] The `step` callback of `fold` may have a requirement row `R`, and `fold` then requires `R`.
 
 ```text
 trait Logger
@@ -211,6 +210,61 @@ fn drain(source: Iterator[i32]) -> List[i32]:
 > providers. A callback that needs one captures the provider value from
 > `$.use` instead. `fold` calls `step` before it returns, so the row passes
 > through.
+
+#### Collect Targets
+
+`collect` builds the collection that the expected type names:
+
+```text
+fn parse_port(text: string) -> Result[i32, string]:
+    .Ok(text.len())
+
+fn index(names: List[string]) -> Map[string, i32]:
+    names.iter().map(fn(name): (name, name.len())).collect()
+
+fn parse_all(lines: List[string]) -> Result[List[i32], string]:
+    lines.iter().map(parse_port).collect()
+
+fn count(values: List[i32]) -> i32:
+    copied := values.iter().collect()
+    copied.len()
+```
+
+The target implements the `std.iter` trait `FromIterator[T]`:
+
+```text
+trait FromIterator[T]:
+    fn from_iter(items: mut Iterator[T]) -> Self
+```
+
+1. r[flow.collect.trait] `std.iter` declares `FromIterator[T]`, whose `from_iter` builds a `Self` from the items of an iterator.
+2. r[flow.collect.call] `collect` returns `C::from_iter(self)`.
+3. r[flow.collect.target] `C` is solved like any call-site type argument: from the expected type, or from an explicit list such as `collect[Map[string, i32]]()`.
+4. r[flow.collect.default] When nothing determines `C`, it is `List[T]`.
+5. r[flow.collect.bound] A target that does not implement `FromIterator[T]` is an error. Error: `unsatisfied-trait-bound`.
+
+The standard library implements `FromIterator` for these prelude types:
+
+| Rule | Target | Items | Result |
+| --- | --- | --- | --- |
+| r[flow.collect.list] List | `List[T]` | `T` | every remaining item, in order |
+| r[flow.collect.map] Map | `Map[K, V]` | `(K, V)` | one entry per pair; for an equal key the later value wins, and the key keeps its first position |
+| r[flow.collect.result] All results | `Result[C, E]`, where `C < FromIterator[T]` | `Result[T, E]` | `.Ok` of the `C` collected from the `.Ok` payloads, or the first `.Err` |
+| r[flow.collect.option] All values | `C?`, where `C < FromIterator[T]` | `T?` | `.Some` of the `C` collected from the `.Some` payloads, or `.None` at the first `.None` |
+
+1. r[flow.collect.drain] Collecting into a `List` or a `Map` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
+2. r[flow.collect.stop] Collecting into a `Result` or an optional stops at the first `.Err` or `.None` and leaves the rest of `self` unread.
+3. r[flow.collect.map-key] A `Map` target needs `K < Eq & Hash`, as every map does.
+
+```text
+fn total(values: List[i32]) -> i32:
+    let size: i32 = values.iter().collect()  # error: unsatisfied-trait-bound
+    size
+```
+
+> **Why.** The expected type already names the target, as Rust's
+> `collect` does. A `Map` built by `collect` agrees with a map literal and
+> a map comprehension on equal keys.
 
 ### Built-In Collection Iteration
 

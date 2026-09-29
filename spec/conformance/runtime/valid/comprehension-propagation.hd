@@ -1,0 +1,25 @@
+# test: ? inside a comprehension propagates from the enclosing function, and the comprehension stops
+# Spec 05 Comprehension Restrictions: expr.comp.propagation, expr.comp.propagation.stop (Collect CO4).
+use std.testing.assert_equal
+
+data Tally:
+    seen: i32
+
+fn parse(tally: mut Tally, text: string) -> Result[i32, string]:
+    tally.seen = tally.seen + 1
+    if text == "x":
+        return .Err("bad: $text")
+    .Ok(text.len())
+
+fn parse_all(tally: mut Tally, lines: List[string]) -> Result[List[i32], string]:
+    .Ok([for line in lines => parse(tally, line)?])
+
+tests:
+    it("the first error returns from the function"):
+        let mut tally = Tally { seen: 0 }
+        assert_equal(parse_all(tally, ["a", "x", "bb"]), .Err("bad: x"), reason="propagated")
+        assert_equal(tally.seen, 2, reason="no element after the error")
+
+    it("without errors the comprehension completes"):
+        let mut tally = Tally { seen: 0 }
+        assert_equal(parse_all(tally, ["a", "bb"]), .Ok([1, 2]), reason="all elements")

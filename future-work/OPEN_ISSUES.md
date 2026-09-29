@@ -349,7 +349,7 @@ a step. PL1 and PL2 are superseded by CS7.
 
 **Open.** Three readings, each with a recommendation, are in
 [Pipe Operator Still Open](PIPE_OPERATOR.md#still-open). CS6 (key-function
-helpers in `std`) is decided and belongs to STDLIB.
+helpers) is std-only, in [STDLIB](STDLIB.md#stditer).
 
 ### Method And Field References
 
@@ -362,12 +362,14 @@ the record recommends; see its [Still Open](METHOD_REFERENCES.md#still-open).
 
 ### Collecting Iterators
 
-**Open.** `collect` returns only a `List`
-([Iterator Adapters](../spec/06-control-flow.md#iterator-adapters)).
-[Collecting Iterators Into Collections](COLLECT.md) compares five ways to
-reach a `Map`, a `Set`, or an all-or-nothing `Result`, and asks five
-questions, including the duplicate-key policy and whether `?` may appear
-inside a comprehension.
+**Decided and applied (owner, 2026-09-29).** [Collect](COLLECT.md#owner-decisions)
+CO1-CO4 are in [Collect Targets](../spec/06-control-flow.md#collect-targets)
+and [Comprehension Restrictions](../spec/05-expressions.md#comprehension-restrictions):
+a generic `collect` over `FromIterator`, last-wins keys, std-only helpers,
+and `?` inside comprehensions.
+
+**Open.** Two readings, each with a recommendation, are in
+[Collect Still Open](COLLECT.md#still-open).
 
 ### Iterator Performance
 

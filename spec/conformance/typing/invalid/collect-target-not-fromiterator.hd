@@ -1,0 +1,6 @@
+# test: a collect target that does not implement FromIterator is an error
+# Spec 06 Collect Targets: flow.collect.bound (Collect CO1).
+
+fn total(values: List[i32]) -> i32:
+    let size: i32 = values.iter().collect()  # diagnostic: unsatisfied-trait-bound
+    size

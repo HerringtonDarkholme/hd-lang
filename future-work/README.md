@@ -54,7 +54,8 @@ Open questions for the owner:
   decisions MR1-MR4 are applied; one reading waits for the owner.
 - [Collecting Iterators Into Collections](COLLECT.md) compares five ways
   for a data `Iterator[T]` to end in a `Map`, a `Set`, or an all-or-nothing
-  `Result`, with the duplicate-key policy and the spec-or-STDLIB split.
+  `Result`. Its decisions CO1-CO4 are applied; two readings wait for the
+  owner.
 - [Iterator Performance Study](ITERATOR_PERF.md) is stage 1 of a
   performance study: it compares closure, nested, and flat-stage iterator
   designs by calls, allocation, and fusion potential, and specifies the

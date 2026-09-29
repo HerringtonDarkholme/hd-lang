@@ -1,0 +1,29 @@
+# test: collect builds the target that the expected type or an explicit list names, and defaults to List
+# Spec 06 Collect Targets: flow.adapter.collect-into, flow.collect.target, flow.collect.default, flow.collect.list, flow.collect.map, flow.collect.result, flow.collect.option (Collect CO1).
+
+fn parse_port(text: string) -> Result[i32, string]:
+    .Ok(text.len())
+
+fn find_port(name: string) -> i32?:
+    .Some(name.len())
+
+fn index(names: List[string]) -> Map[string, i32]:
+    names.iter().map(fn(name): (name, name.len())).collect()
+
+fn parse_all(lines: List[string]) -> Result[List[i32], string]:
+    lines.iter().map(parse_port).collect()
+
+fn find_all(names: List[string]) -> List[i32]?:
+    names.iter().map(find_port).collect()
+
+fn count(values: List[i32]) -> i32:
+    copied := values.iter().collect()
+    copied.len()
+
+fn explicit(names: List[string]) -> i32:
+    by_name := names.iter().map(fn(name): (name, 1)).collect[Map[string, i32]]()
+    by_name.len()
+
+fn propagated(lines: List[string]) -> Result[i32, string]:
+    let ports: List[i32] = lines.iter().map(parse_port).collect()?
+    .Ok(ports.len())

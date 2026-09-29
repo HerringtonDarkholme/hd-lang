@@ -1471,3 +1471,7 @@ typing/invalid/bound-reference-readonly-receiver.hd	type	reject:mutable-receiver
 typing/invalid/trait-reference-unsolved-self.hd	type	reject:unresolved-generic-placeholder	07-functions.md#r-fn.ref.trait-self.unsolved
 typing/invalid/mut-self-reference-readonly-callback.hd	type	reject:type-mismatch	07-functions.md#r-fn.ref.unbound.mut-self
 typing/invalid/pipe-suspending-method-reference.hd	type	reject:suspending-pipe-step	05-expressions.md#r-expr.pipe.bare.no-suspend
+typing/valid/collect-targets.hd	type	accept	06-control-flow.md#collect-targets
+runtime/valid/collect-targets-run.hd	runtime	accept	06-control-flow.md#r-flow.collect.map
+typing/invalid/collect-target-not-fromiterator.hd	type	reject:unsatisfied-trait-bound	06-control-flow.md#r-flow.collect.bound
+runtime/valid/comprehension-propagation.hd	runtime	accept	05-expressions.md#r-expr.comp.propagation

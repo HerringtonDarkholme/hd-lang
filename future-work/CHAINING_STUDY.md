@@ -7,8 +7,9 @@ authoritative for them:
 [Leading-Pipe Continuation](../spec/01-lexical-structure.md#leading-pipe-continuation),
 [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols), and
 [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters). CS1 and
-CS3 changed nothing in the specification, and CS5 became
-[Method References](METHOD_REFERENCES.md). The rest of the record is the
+CS3 changed nothing in the specification, CS5 became
+[Method References](METHOD_REFERENCES.md), and CS6 is std-only, in
+[STDLIB `std.iter`](STDLIB.md#stditer). The rest of the record is the
 study behind the decisions.
 
 The owner asked for one joint study of three linked questions, because each

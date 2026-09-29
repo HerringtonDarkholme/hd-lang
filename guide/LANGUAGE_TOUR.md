@@ -526,6 +526,18 @@ fn total_length(names: List[string]) -> i32:
     names.iter().map(fn(name): name.len()).fold(0, fn(sum, size): sum + size)
 ```
 
+`collect` builds whatever the expected type names, and a `List` when nothing names one. Pairs collect into a `Map`, where the last value of a repeated key wins, and `Result` items collect all-or-nothing, stopping at the first error:
+
+```text
+fn index(names: List[string]) -> Map[string, i32]:
+    names.iter().map(fn(name): (name, name.len())).collect()
+
+fn parse_all(lines: List[string]) -> Result[List[i32], ParseError]:
+    lines.iter().map(parse_port).collect()
+```
+
+A comprehension may use `?` too: `.Ok([for line in lines => parse_port(line)?])` returns the first error from the function, and the comprehension stops there.
+
 Use `while` when the loop condition is not just iterating a collection:
 
 ```text

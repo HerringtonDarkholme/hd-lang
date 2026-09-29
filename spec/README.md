@@ -1570,3 +1570,12 @@ existing source. Each entry names the decision that made the change.
   `deferred-method-value` is withdrawn. `::` never names a field, so
   `User::email` for a field is `unknown-method`. A method reference is a
   bare pipe step.
+- Collect (owner decisions CO1-CO4 in
+  [Collecting Iterators](../future-work/COLLECT.md#owner-decisions),
+  2026-09-29): `collect` is `collect[C < FromIterator[T]]`, with `C` taken
+  from the expected type, an explicit list, or `List[T]` when nothing
+  fixes it, so existing `collect()` calls keep their `List[T]`. A `Map`
+  target keeps the last value of an equal key; a `Result` or optional
+  target stops at the first failure and leaves the rest of the iterator
+  unread. `?` inside a comprehension, which no rule covered, is valid: it
+  propagates, and the comprehension stops.

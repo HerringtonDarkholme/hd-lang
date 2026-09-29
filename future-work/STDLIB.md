@@ -47,7 +47,7 @@ every user module that already declares it.
 | `std.format` | `Display`, `Debug`, `DebugWriter`, `debug` | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md), [Debug Trait](../spec/09-traits.md#debug-trait) |
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.hash` | `Hash`, `Hasher` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
-| `std.iter` | `Iterator` (a data type), `Iterable`; the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as `Iterator` methods | [For Loops](../spec/06-control-flow.md), [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) |
+| `std.iter` | `Iterator` (a data type), `Iterable`, `FromIterator`; the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as `Iterator` methods | [For Loops](../spec/06-control-flow.md), [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) |
 | `std.console` | `Console`, `ConsoleError`, `println` | [Prelude](../spec/10-modules.md#prelude) |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, a retry combinator | [Requirements and Suspension](../spec/11-requirements-and-suspension.md) |
 | `std.annotation` | shape names and `shape`, `shape_of`; `Target`, `Annotate`, `annotate` | [Annotations](../spec/14-annotations.md) |
@@ -814,12 +814,42 @@ impl[T] Iterator[T]:
     pub fn fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
         pass
 
-    pub fn collect(mut self) -> List[T]:
+    pub fn collect[C < FromIterator[T]](mut self) -> C:
         pass
+
+pub trait FromIterator[T]:
+    fn from_iter(items: mut Iterator[T]) -> Self
 
 pub fn range(start: i32, end: i32) -> mut Iterator[i32]:
     pass
 ```
+
+`collect` builds the target that the expected type names, or a `List[T]`
+when nothing does ([Collect CO1](COLLECT.md#owner-decisions),
+[Collect Targets](../spec/06-control-flow.md#collect-targets)). `std`
+implements `FromIterator` for `List`, `Map` (the last value of an equal key
+wins), all-or-nothing `Result[C, E]` and `C?`, and `Set`. Convenience
+names such as `to_map` or `try_collect`, if `std` adds any, are std-only
+(CO3).
+
+**Key-function helpers** ([Chaining Study CS6](CHAINING_STUDY.md#owner-decisions),
+decided 2026-09-29, std-only): `std` adds helpers that take a key function
+instead of a comparator or a mapped value, as Rust's `sort_by_key` and
+Kotlin's `sumOf` do. Draft signatures:
+
+```text
+impl[T] List[T]:
+    pub fn sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]:
+        pass
+
+impl[T] Iterator[T]:
+    pub fn sum_by[N < Num](mut self, value: fn(T) -> N) -> N:
+        pass
+```
+
+A caller writes `people.sorted_by_key(fn(p): p.age)` and
+`orders.iter().sum_by(fn(o): o.total)`. Which other key-function helpers
+ship is std design, not a language rule.
 
 `filter`, `take`, `enumerate`, and `map` are lazy: the returned iterator
 advances `self` only from its own `next`. `collect` and `fold` drain

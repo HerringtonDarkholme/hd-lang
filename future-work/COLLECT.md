@@ -1,7 +1,11 @@
 # Collecting Iterators Into Collections: Survey And Design Options
 
-Status: design exploration, 2026-09-29; nothing here is decided or in the
-specification. It changes no decision, spec text, or prototype code.
+Status: design exploration, 2026-09-29. Owner decisions CO1-CO4 are
+applied (2026-09-29), and the specification is authoritative for them:
+[Collect Targets](../spec/06-control-flow.md#collect-targets) and
+[Comprehension Restrictions](../spec/05-expressions.md#comprehension-restrictions).
+CO3's helpers are std-only, in [STDLIB](STDLIB.md#stditer). The rest of
+the record is the survey behind the decisions.
 
 [Chaining Study CS7](CHAINING_STUDY.md#owner-decisions) makes
 `Iterator[T]` a closure-backed `data` type whose adapters are ordinary
@@ -48,6 +52,15 @@ Decided 2026-09-29.
    the enclosing function, and the comprehension stops at that point. This
    closes the spec gap; `return` stays banned there.
 
+## Still Open
+
+Points the apply pass met (2026-09-29). Each waits for the owner.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 1 | CO1's open point: what `xs := it.collect()` means with no expected type | `C` is `List[T]` when nothing determines it ([`flow.collect.default`](../spec/06-control-flow.md#r-flow.collect.default)), as the record recommends | Keep. |
+| 2 | Is `FromIterator` a prelude name? | The specification says only that `std.iter` declares it ([`flow.collect.trait`](../spec/06-control-flow.md#r-flow.collect.trait)); no fixture names it | Not a prelude name: code that implements it imports it, as `std.convert.From` is imported, and callers of `collect` never write it. |
+
 ## Contents
 
 1. [Problem](#problem)
@@ -83,7 +96,7 @@ Three sub-questions travel with it:
 
 | Area | Today | Source |
 | --- | --- | --- |
-| `collect` | `fn collect(mut self) -> List[T]` drains the iterator in order | [`flow.adapter.collect`](../spec/06-control-flow.md#r-flow.adapter.collect) |
+| `collect` | `fn collect(mut self) -> List[T]` drains the iterator in order | `flow.adapter.collect` (retired; see [Collect Targets](../spec/06-control-flow.md#collect-targets)) |
 | `Iterator` shape | a `data` type with a `step` closure; generic methods raise no dynamic-safety question (decided, not yet applied) | [CS7](CHAINING_STUDY.md#owner-decisions) |
 | Comprehensions | `[for ...]` and `{for ... => k: v}` accept an iterator as well as an iterable | [`flow.for.comprehension`](../spec/06-control-flow.md#r-flow.for.comprehension) |
 | Duplicate keys | in a map literal and a map comprehension the later value wins, and the key keeps its first position | [`expr.map.duplicate`](../spec/05-expressions.md#r-expr.map.duplicate), [`expr.comp.map.duplicate`](../spec/05-expressions.md#r-expr.comp.map.duplicate) |
