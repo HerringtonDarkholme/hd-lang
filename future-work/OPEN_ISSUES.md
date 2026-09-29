@@ -18,8 +18,10 @@ the Kotlin-style inference recorded earlier the same day (89c6a11).
 2. **`let mut` is only a mutability inference helper.** It tells the
    compiler to infer the binding's root as `mut`:
    - `let mut a = User { ... }` gives `a: mut User`;
-   - `let mut xs: List[i32] = []` gives `xs: mut List[i32]`, the annotated
-     type with a `mut` root;
+   - with an annotation, the annotation must agree. `let mut a: User = ...`
+     and `let mut xs: List[i32] = []` are errors, because the type says
+     read-only while `let mut` asks for `mut`. The fix-it adds `mut` to the
+     type or drops the `mut` after `let` (owner, the same day);
    - `let (mut log, db) = $.use(Log, Db)` works per name in patterns.
 
    It can't upgrade a read-only value: `let mut c = readonly_source()` is
