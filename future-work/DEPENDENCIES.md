@@ -18,6 +18,37 @@ below, and reviews these records and sections:
 > **Owner direction (2026-09-28).** hd has no package registry. Follow Go
 > and manage dependencies through GitHub and other version control hosts.
 
+## Owner Decisions
+
+Decided 2026-09-29.
+
+1. **DEP1: option A, Go modules in hd spelling.** There is no registry.
+   - The host path lives only in `hd.toml`; source keeps `dep.<name>`.
+   - Versions are git tags, and the tag is the only version (no
+     `version =` field).
+   - Resolution is minimal version selection.
+   - Integrity comes from an `hd.sum` file.
+
+   This overturns PACKAGES decisions 2, 3 and 11.
+2. **DEP2:** two major versions of one repository are told apart by the
+   requirement line (two keys), with no `/vN` path suffix.
+3. **DEP3:** the manifest stays `hd.toml` (TOML).
+4. **DEP4: integrity is `hd.sum` only.** This is a grassroots project with
+   no paid servers. A checksum log or a caching proxy is added only if it
+   needs no infrastructure or can reuse free public infrastructure.
+5. **DEP5:** private repositories use git's own credentials (helpers and
+   SSH keys) plus a private-path pattern. hd never stores credentials.
+6. **DEP6:** one repository may hold several packages, using prefixed tags
+   such as `lint/v1.2.0`.
+7. **DEP7: accepted, with phasing.**
+   - **Must have first:** workspaces (committable) and untagged commits
+     through pseudo-versions.
+   - **Later:** the `hd api diff` compatibility check at release and
+     upgrade, vendoring (`hd vendor`), and local-path patches hashed into
+     the code identity.
+   - Hosts: known hosts, plus a `.git` suffix for others, with no meta-tag
+     discovery.
+
 ## Contents
 
 1. [Problem](#problem)
