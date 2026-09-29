@@ -87,6 +87,17 @@ Decided 2026-09-29.
    Elixir allows `|> case do ... end`, but its style tool, Credo,
    discourages it.
 
+10. **PL10 (2026-09-29): no `_` lambda shorthand for now.** Closures stay
+    `fn(v): v * 2`. The pipe already owns `_` in expression position.
+    - Scala's bare `_ * 2` can't be parsed next to the pipe.
+    - `it` is taken by the prelude test function.
+    - `$0` collides with requirements and string interpolation.
+    - `fn: _ * 2` would work but needs a "not inside a pipe step"
+      exception.
+
+    Revisit using evidence from `audit/hd-writing-log.md`: if cheap-model
+    agents show demand, add `fn: _` then, which breaks no code.
+
 ## Contents
 
 1. [Problem](#problem)
