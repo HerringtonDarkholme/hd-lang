@@ -1689,6 +1689,23 @@ file holds one decimal draw per line. This replaces the earlier `Strategy` sketc
 
 ## Owner Decisions
 
+**Questions 14-22 (decided 2026-09-29, all as recommended).**
+- Iterator adapters are default methods on the prelude `Iterator`, as in
+  Rust (`map`, `filter`, `take`, `enumerate`, `fold`, `collect`). There is
+  no separate `IteratorExt`.
+- `and_then` is added on `T?` and `Result`.
+- `Map` gets `contains_key`, `keys` and `values`.
+- `lines()` follows Rust: a final `\n` ends the last line, and `\r\n`
+  is stripped.
+- Out-of-range counts panic: `repeat(-1)`, `chunks(0)`, and `clamp` with
+  low > high.
+- `abs_diff` returns the unsigned type of the same width.
+- Integer parsing takes an optional `+` or `-`, then decimal digits only;
+  a lone sign is `InvalidDigit(0)`.
+- Std value types implement `Eq` everywhere, `Ord` for `Duration`, and
+  `Display` for each error enum.
+- `ScriptedProcess::new(outputs)` is the constructor.
+
 Decided 2026-09-26:
 
 1. **Question 1: `$.use` can return `mut`.** A provider installed with
