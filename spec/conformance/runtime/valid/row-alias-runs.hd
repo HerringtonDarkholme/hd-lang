@@ -35,12 +35,11 @@ fn describe() -> string $ AppRow + Clock:
 fn app_context() -> $.Context[$ AppRow]:
     $.context(Db=MemoryDb {}, Log=PlainLog {})
 
-fn handler() -> Fn[(), string, $ AppRow + Clock]:
-    describe
+fn call(handler: Fn[(), string, $ AppRow + Clock]) -> string $ AppRow + Clock:
+    handler()
 
 tests:
     it("the alias names the keys a context provides"):
         $.with(app_context()..., Clock=FixedClock {}):
             assert_equal(describe(), "db log 3", reason="AppRow is Db and Log")
-            call := handler()
-            assert_equal(call(), "db log 3", reason="the function type names the same row")
+            assert_equal(call(describe), "db log 3", reason="the function type names the same row")

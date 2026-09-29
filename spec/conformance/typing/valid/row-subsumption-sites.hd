@@ -12,7 +12,7 @@ fn now() -> i32 $ Clock: 1
 fn call(handler: fn() -> i32 $ Db + Clock) -> i32 $ Db + Clock:
     handler()
 
-fn pick() -> fn() -> i32 $ Db + Clock:
+fn pick() -> (fn() -> i32 $ Db + Clock):
     now
 
 fn run() -> i32 $ Db + Clock:

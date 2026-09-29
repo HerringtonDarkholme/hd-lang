@@ -27,13 +27,19 @@ fn orders() -> string $ Db + Clock:
 fn plain() -> string:
     "plain"
 
-fn routes() -> List[fn() -> string $ Db + Clock]:
-    [health, orders, plain]
+fn serve(handler: fn() -> string $ Db + Clock) -> string $ Db + Clock:
+    handler()
+
+fn serve_all(handlers: List[fn() -> string $ Db + Clock]) -> string $ Db + Clock:
+    let text = ""
+    for handler in handlers:
+        text = text + handler() + ";"
+    text
 
 tests:
     it("each handler sees the providers of its own row"):
         $.with(Db=MemoryDb {}, Clock=FixedClock {}):
-            handlers := routes()
-            assert_equal(handlers[0](), "ok 7", reason="Clock only")
-            assert_equal(handlers[1](), "db 7", reason="Db and Clock")
-            assert_equal(handlers[2](), "plain", reason="the empty row")
+            assert_equal(serve(health), "ok 7", reason="Clock only")
+            assert_equal(serve(orders), "db 7", reason="Db and Clock")
+            assert_equal(serve(plain), "plain", reason="the empty row")
+            assert_equal(serve_all([health, orders, plain]), "ok 7;db 7;plain;", reason="a list of handlers")
