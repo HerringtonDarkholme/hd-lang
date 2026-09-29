@@ -311,9 +311,8 @@ marked `@num_suffix`, and `250ms` calls `ms(250)`
 prefix is a function marked `@str_prefix`
 ([Prefixed Strings](../spec/05-expressions.md#prefixed-strings)).
 
-**Open.** Three points, each with a recommendation, are in
-[Literal Suffixes](LITERAL_SUFFIXES.md#still-open): how `$` and `\` behave
-in a prefixed string (16, 17) and a prefixed test name (23).
+**Closed.** The last three points (16, 17, 23) are decided; see
+[Literal Suffixes](LITERAL_SUFFIXES.md#status). Nothing remains to apply.
 
 ### Operator Traits
 
