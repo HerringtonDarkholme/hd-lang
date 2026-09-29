@@ -10,8 +10,12 @@ and tooling work is listed separately at the end.
 
 ### Bound And Row Operators
 
-**Decided (owner, 2026-09-28); not yet applied.** This supersedes the
-2026-09-27 comma-list row decision (e176f5d).
+**Decided (owner, 2026-09-28); items 1 to 4 applied 2026-09-28.** This
+supersedes the 2026-09-27 comma-list row decision (e176f5d). The spec text
+is in [Multiple Bounds](../spec/02-grammar.md#multiple-bounds),
+[Requirement Clauses](../spec/02-grammar.md#requirement-clauses),
+[Row Operators](../spec/02-grammar.md#row-operators), and
+[Least Row Solutions](../spec/11-requirements-and-suspension.md#least-row-solutions).
 
 1. Multiple trait bounds use `&`, which means both at once (an
    intersection), in every bound position: generic parameters
@@ -50,6 +54,21 @@ and tooling work is listed separately at the end.
 trait Ord < Eq & PartialOrd: ...
 fn f[T < Eq & Hash](x: T) -> void $ Db + Clock: ...
 ```
+
+**Questions from applying items 1 to 4.** Each needs an owner answer; the
+spec states the current behavior.
+
+| Question | Applied now | Recommendation |
+| --- | --- | --- |
+| The empty row, once `$(A, B)` is gone | `$()` stays the empty row, in headers, `Fn[..., $()]`, and `$.Context[$()]` | Keep `$()`. It is the smallest option and needs no new syntax. |
+| Does `$ A + B` inside `[...]` or a parameter list need precedence rules? | A row ends at the first `,`, `)`, or `]`; nested function types keep the innermost-owner rule | None needed. No ambiguity was found in type arguments, parameters, `$.Context[...]`, or closure headers. |
+| Codes for other old row spellings | `$(A + B)`, `$(A)`, a `-` between keys, and the pre-2026-09-27 `Job[A + B]` and `$.Context[A + B]` are `syntax-error` | Keep `syntax-error`. Only the two decided codes carry fix-its. |
+| Item 5's candidate rule, at most one unknown row variable per pattern | Not applied: it is labeled a candidate. The prototype accepts such a pattern and leaves the rows uninferred | Confirm it; it would get a rule in [Least Row Solutions](../spec/11-requirements-and-suspension.md#least-row-solutions) and a code. |
+| `$.Context[$ A + B]` keeps its inner `$`, while one key is `$.Context[A]` | Kept: the context type takes a key or a row type argument | Keep it. It matches row type arguments such as `Job[$ A + B]`. |
+
+[REQUIREMENT_REUSE.md](REQUIREMENT_REUSE.md) still names the comma
+spelling in its prose. It is a stress report whose options compare row
+spellings, so it was left as written.
 
 ### Replay Determinism And Durable Workflows
 
