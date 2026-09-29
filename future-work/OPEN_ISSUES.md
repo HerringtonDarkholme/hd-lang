@@ -49,6 +49,20 @@ listed in the record's [Still Open](DEPENDENCY_CYCLES.md#still-open).
   `derive-field-missing-trait`, not `missing-partial-eq`.
 - A type alias used as a value is a prototype gap, not a spec question.
 
+**Follow-ups applied 2026-09-29.** Saturation is
+[`types.cast.saturate`](../spec/04-type-system.md#r-types.cast.saturate),
+[`types.cast.float-int-saturate`](../spec/04-type-system.md#r-types.cast.float-int-saturate)
+and [`types.cast.no-panic`](../spec/04-type-system.md#r-types.cast.no-panic),
+which retire `types.cast.float-int` and `types.cast.float-int-panic`. The
+newtype code is
+[`trait.derive.newtype.requires.error`](../spec/09-traits.md#r-trait.derive.newtype.requires.error).
+The other three follow-ups keep the applied behavior. Points this pass met:
+
+| Question | Applied now | **Recommendation** |
+| --- | --- | --- |
+| Which line a newtype's missing-trait error names: the `@derive` line or the `type` line | The base type on the `type` line, as a derived field's error is at the field | Keep: the base type is the newtype's one field. |
+| `@derive(Debug)` on a newtype whose base lacks `Debug` | The rule covers it; the prototype accepts it silently | A prototype gap, not a spec question. |
+
 **Decided (owner, 2026-09-28); applied 2026-09-28.** The rules are
 [`types.cast.wrap`](../spec/04-type-system.md#r-types.cast.wrap) and
 [`types.cast.literal-range`](../spec/04-type-system.md#r-types.cast.literal-range)
@@ -92,13 +106,13 @@ and [`trait.derive.bound-unmet`](../spec/09-traits.md#r-trait.derive.bound-unmet
    string)` uses the struct builder, with positional fields named `_0`,
    `_1` and so on: `Mixed { _0: 1, label: "x" }`.
 
-**Questions from applying items 1 to 8.** Each needs an owner answer; the
-spec states the current behavior.
+**Questions from applying items 1 to 8.** The follow-ups above answer
+each one (2026-09-29).
 
 | Question | Applied now | **Recommendation** |
 | --- | --- | --- |
 | Item 1 says "narrowing"; does a same-width sign change wrap too, as `u64(x)` with `x: i64 = -1`? | Every integer-to-integer cast wraps, so that gives the `u64` maximum, as in Go and Rust | Keep: both cited languages treat every integer conversion alike. |
-| A float-to-integer cast out of range, such as `i8(300.0)` | Still panics ([`types.cast.float-int-panic`](../spec/04-type-system.md#r-types.cast.float-int-panic)); the category is unnamed (audit F-253) | Keep the panic, and name `integer-overflow` as F-253 recommends. Rust saturates instead ([reference](https://doc.rust-lang.org/reference/expressions/operator-expr.html#numeric-cast)); Go leaves the value implementation-dependent ([spec](https://go.dev/ref/spec#Conversions)). |
+| A float-to-integer cast out of range, such as `i8(300.0)` | Panicked (`types.cast.float-int-panic`, retired 2026-09-29 for saturation); the category is unnamed (audit F-253) | Keep the panic, and name `integer-overflow` as F-253 recommends. Rust saturates instead ([reference](https://doc.rust-lang.org/reference/expressions/operator-expr.html#numeric-cast)); Go leaves the value implementation-dependent ([spec](https://go.dev/ref/spec#Conversions)). |
 | The code for an out-of-range literal cast argument | `integer-literal-range`, and `u8(-1)` gets the negated-literal error `unsigned-negation` | Keep: the literal is checked as under an expected type. |
 | Whether a replayed regression stream counts toward `cases`, and what happens to a saved stream that passes | It runs before new cases and does not count; the file stays | Keep, as proptest keeps its regression files ([docs](https://proptest-rs.github.io/proptest/proptest/failure-persistence.html)). |
 | A newtype whose base type lacks a derived trait, as `@derive(Eq) type Wrapped(Opaque)` | Not changed: the prototype reports `missing-partial-eq` on the `@derive` line | Use `derive-field-missing-trait` there too, naming the base type, since `trait.derive.newtype.requires` says "as a derived field must". |
