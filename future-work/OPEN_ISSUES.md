@@ -35,6 +35,18 @@ Stress test with ten owner questions: [Dependency Cycles](DEPENDENCY_CYCLES.md).
 
 ### Casts, Property Discards, Type Names As Values, Std Scope
 
+**Follow-ups decided (owner, 2026-09-29).**
+- A float-to-integer cast out of range **saturates**, like Rust `as` since
+  1.45: it clamps to the target's minimum or maximum, and NaN becomes 0.
+  There is no panic.
+- Same-width sign changes wrap, and a negative literal cast to an unsigned
+  type stays `unsigned-negation`.
+- A saved regression stream is replayed first, doesn't count toward
+  `cases`, and its file is kept after the test passes.
+- `@derive` on a newtype whose base lacks the trait uses
+  `derive-field-missing-trait`, not `missing-partial-eq`.
+- A type alias used as a value is a prototype gap, not a spec question.
+
 **Decided (owner, 2026-09-28); applied 2026-09-28.** The rules are
 [`types.cast.wrap`](../spec/04-type-system.md#r-types.cast.wrap) and
 [`types.cast.literal-range`](../spec/04-type-system.md#r-types.cast.literal-range)
