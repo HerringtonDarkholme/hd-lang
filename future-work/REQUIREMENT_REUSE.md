@@ -100,6 +100,13 @@ Open:**
     nearest provider wins** (dynamic scoping), as a nested `$.with` does.
     The owner chose this over rejecting the overlap and over lexical
     (tunneling) semantics.
+14. **RU14: the other applied readings stay** (Still Open 1, 3-9, 11 and
+    13, as amended by RU10 and RU12). The owner confirmed two of them:
+    - `split`-style declarations are rejected (`ambiguous-row-pattern`),
+      even when explicit type arguments are available;
+    - containers of functions don't convert. A list is invariant, as the
+      variance rules already say, so a wider list is made by an explicit
+      copy (`narrow.map(fn(f): f)`).
 
 **Applied 2026-09-28.** The specification now states each decision:
 
