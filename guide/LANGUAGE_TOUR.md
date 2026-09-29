@@ -1767,6 +1767,24 @@ fn show_static[T < Describe](value: T) -> string:
     value.describe()
 ```
 
+A trait with an associated type becomes a value type once the type binds
+it, as Rust's `dyn Iterator<Item = T>` does. The binding makes every
+method signature concrete, so one body still serves every caller:
+
+```text
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn read(source: Supplier[Item = i32]) -> i32:
+    source.get() + 1
+```
+
+`Supplier` alone, with `Item` unbound, is not a value type, and a trait
+with an associated function never is. A bound may likewise fix an
+associated type that a supertrait declares, as in
+`I < NamedSupplier[Item = T]`.
+
 ## Type System
 
 hd-lang is statically typed. The compiler knows the type of every expression before code runs, but local code can rely on inference when the type is obvious:

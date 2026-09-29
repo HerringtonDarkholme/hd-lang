@@ -269,8 +269,10 @@ Operator Traits OP8: a supertrait list
 binds associated types, as in `trait Summable < Add[Self, Out = Self]`
 ([Supertrait Bindings](../spec/09-traits.md#supertrait-bindings)).
 
-**Option 2 and a trait-value extension decided by the owner (2026-09-29);
-not yet applied.**
+**Option 2 and a trait-value extension decided by the owner (2026-09-29)
+and applied (2026-09-29):** [Binding Names](../spec/09-traits.md#binding-names),
+[Binding Positions](../spec/09-traits.md#binding-positions), and
+[Bound Associated Types](../spec/09-traits.md#bound-associated-types).
 
 1. **AT1 (option 2, recommended): a binding may name an associated type
    reachable through the bound trait's supertraits,** as in Rust:
@@ -294,6 +296,15 @@ not yet applied.**
    - The owner asked why hd could not do this while Rust can. The answer:
      it had simply not been added, since the binding makes every signature
      concrete. The specification's Why note says so.
+
+**Still open from the AT apply pass.** Each point waits for the owner.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 1 | Which existing code reports an ambiguous binding | `ambiguous-method`, which [`trait.assoc-call.parameter.one`](../spec/09-traits.md#r-trait.assoc-call.parameter.one) already uses when two supertraits declare one `::` name ([`trait.binding.name-reach.ambiguous`](../spec/09-traits.md#r-trait.binding.name-reach.ambiguous)) | Keep; a new `ambiguous-associated-type` code would read better but adds a code. |
+| 2 | A named type now parses a binding, so `List[i32, Item = i32]` is no longer a grammar error | `unknown-associated-type`, as `List` declares no `Item` ([`trait.binding.non-trait`](../spec/09-traits.md#r-trait.binding.non-trait)) | Keep. |
+| 3 | A requirement key, as in `$ Supplier[Item = i32]`, still takes no binding | Unchanged: a key is a `trait_type` ([`grammar.generic.binding.trait-type`](../spec/02-grammar.md#r-grammar.generic.binding.trait-type)) | Keep until a provider needs one. |
+| 4 | Widening a trait value to a supertrait with an associated type | The widened type keeps the bindings the supertrait reaches ([`trait.dyn.binding.widen`](../spec/09-traits.md#r-trait.dyn.binding.widen)); otherwise it would be unbound | Confirm. |
 
 **Unblocks.** Shorter bounds for trait hierarchies with associated types.
 
