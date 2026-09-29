@@ -8,6 +8,29 @@ and tooling work is listed separately at the end.
 
 ## Language Design Decisions
 
+### Dependency Cycles
+
+**Direction (owner, 2026-09-28); design task queued, not yet specified.**
+1. Package dependency cycles are forbidden.
+2. A module stays one file with explicit `use` lines. A file import cycle
+   is allowed only when every file in it is in the same folder. The
+   compiler finds each group of files that import each other in a loop
+   (a strongly connected component), and a group spanning folders is an
+   error that prints the loop.
+3. The folder-level dependency graph must also be acyclic: if a file in
+   `shop/` uses `billing/`, no file in `billing/` may use `shop/`.
+4. Mutually recursive declarations inside one file stay allowed, and cyclic
+   run-time values are unaffected.
+5. Shared items that children need go in a leaf such as `common.hd` or
+   `types.hd`, which children import instead of their facade.
+
+Open for the design (#40):
+- how this fits with `module.init.graph` and `module.pub-use.cycles`;
+- entry modules inside a loop;
+- test modules;
+- the diagnostic code;
+- fixture migration.
+
 ### Casts, Property Discards, Type Names As Values, Std Scope
 
 **Decided (owner, 2026-09-28); not yet applied.**
