@@ -40,6 +40,28 @@ Decided 2026-09-29.
    A left literal works only when both operands are the same primitive
    type.
 
+5. **OP5: compound assignment through `AddAssign`-style traits,** as in
+   Rust: `total += x` calls `add_assign(mut self, rhs: Rhs)`. There is one
+   trait per compound operator. Consequence to handle in the apply pass:
+   hd `data` values are shared references, so in-place `+=` on a `data`
+   value is visible through every alias, and the receiver needs `mut`.
+   Primitives and other value types (`AnyVal`) aren't affected. Open
+   details for the apply pass:
+   - whether `a += b` falls back to `a = a + b` when no assign impl exists;
+   - how std implements the assign traits for primitives.
+6. **OP6: newtype operators are hand-written.** A newtype doesn't inherit
+   its base's operators, and there is no operator derive.
+7. **OP7: user indexing through `Index` and `IndexSet` traits,** so
+   `grid[i]` and `grid[i] = v` work for user types. The trait signatures
+   (key type, output, mutability) are left to the apply pass, with a
+   recommendation.
+8. **OP8: a supertrait list may bind an associated output,** as in
+   `trait Integer < Add[Self, Out = Self] & Sub[Self, Out = Self]`. This
+   retires `trait.binding.rejected` for supertraits.
+
+The numeric trait family idea (`IntLike`, `FloatLike`, `Num`) and its
+pitfalls are logged below and still undecided.
+
 ## Contents
 
 - [Owner Decisions](#owner-decisions)
