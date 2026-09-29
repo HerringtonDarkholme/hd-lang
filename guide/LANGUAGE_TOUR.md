@@ -174,10 +174,14 @@ A library declares its own suffix by marking a function `@num_suffix`, as
 in `@num_suffix fn px(count: i32) -> Pixels` after `use std.ops.num_suffix`;
 see [Literal Suffixes](../spec/05-expressions.md#literal-suffixes).
 
-Python-style raw strings preserve backslashes and escape-looking text. Their
-multiline form uses three double quotes:
+A name written directly before a string's quote is a string prefix, and
+the string is a call of that function. The standard prefix `r` keeps
+backslashes and escape-looking text as written. The multiline form uses
+three double quotes:
 
 ```text
+use std.ops.r
+
 pattern := r"\d+\s+\w+"
 prompt := r"""Summarize the input.
 Return one paragraph."""
@@ -199,11 +203,15 @@ directly; other expressions use `${...}`. Interpolated values must implement
 greeting := "Hello, $name"
 summary := "User ${user.name} has ${posts.len()} posts"
 price := "Cost: \$5"
-literal := r"$name and ${user.name} are not expanded here"
+raw := r"\d+ for $name"
 ```
 
-Use `\$` for a literal dollar sign in an interpreted string. Raw strings treat
-every dollar sign literally.
+Use `\$` for a literal dollar sign in an interpreted string. A prefixed
+string also interpolates `$name` and `${...}`, but a `$` before anything
+else is plain text. Its prefix function receives a `std.ops.Template` of the
+raw text pieces and the values, so a library prefix such as `sql"..."` can
+keep values apart from the text; see
+[Prefixed Strings](../spec/05-expressions.md#prefixed-strings).
 
 Core types, traits, and functions such as `List`, `Map`, `Result`, `Display`,
 `Ordering`, and `println` come from the prelude. A declaration, type parameter,

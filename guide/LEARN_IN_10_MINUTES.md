@@ -59,8 +59,9 @@ million := 1_000_000
 narrow := i16(big)
 ```
 
-Strings interpolate `$name` and `${expression}`. Raw strings start with `r`
-and never interpolate.
+Strings interpolate `$name` and `${expression}`. A name directly before the
+quote is a prefix function: `r"..."`, from `use std.ops.r`, keeps
+backslashes as written and still interpolates.
 
 ```hd
 summary := "User ${user.name} has ${posts.len()} posts"

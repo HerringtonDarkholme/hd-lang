@@ -45,7 +45,7 @@ export const EXAMPLES: readonly Example[] = [
   single("tests", "Tests: it, it_each, and snapshot", tests),
   single("errors", "Error conversion with ? (tests)", conversion),
   single("exit-code", "Exit codes from main", exitCode),
-  single("suffixes", "Literal suffixes: 12px and 250ms", suffixes),
+  single("suffixes", 'Literal suffixes and string prefixes: 12px and r"..."', suffixes),
   single("std", "The toy standard library", standard),
   single("derive", "Typed derivation with @derive", derive),
   single("mutable-requirement", "Mutable requirements", mutableRequirement),

@@ -615,11 +615,15 @@ imported by `use`, and `250ms` calls `ms(250)`
 and L15-L17 are applied too: only decimal and float literals take a suffix,
 `5else` is `invalid-token`, a suffixed literal has no compile-time rule of
 its own, the test `timeout` option takes any `Duration`, and `Duration` is
-whole milliseconds with the suffixes `ms s min h`.
+whole milliseconds with the suffixes `ms s min h`. L19 is applied too:
+`sql"a $x"` calls a function marked `@str_prefix` with a
+`std.ops.Template`, and `r"..."` is the std prefix `std.ops.r`
+([Prefixed Strings](../spec/05-expressions.md#prefixed-strings)).
 
-**Open.** Five points from the L11 apply pass, each with a recommendation,
-are in [Literal Suffixes](LITERAL_SUFFIXES.md#still-open), among them the new
-`invalid-literal-suffix` code.
+**Open.** Five points from the L11 apply pass and nine from the L19 apply
+pass, each with a recommendation, are in
+[Literal Suffixes](LITERAL_SUFFIXES.md#still-open), among them the new
+`invalid-literal-suffix` and `invalid-string-prefix` codes.
 
 ### Operator Traits
 

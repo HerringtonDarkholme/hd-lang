@@ -1,12 +1,13 @@
 # Literal Suffixes: Survey And Design Options
 
-Status: design exploration, 2026-09-27; owner decisions L1-L18 (2026-09-28)
+Status: design exploration, 2026-09-27; owner decisions L1-L19 (2026-09-28)
 are below. L1-L9 were applied to the specification on 2026-09-28 (L5's
 operator traits excepted, which are designed separately), and L12, L13,
 L15-L17 and L18 the same day. L11 (`@suffix fn`) was applied later that
 day with the names of [Decorators D9](DECORATORS.md#owner-decisions)
 (`@num_suffix`, `std.ops.NumSuffix`), replacing the `LiteralSuffix`
-mechanism. The survey and options before the decisions are the
+mechanism. L19 (string prefixes) was applied the same day. The survey and
+options before the decisions are the
 exploration they came from. Questions raised while applying them are under
 [Still Open](#still-open).
 
@@ -225,6 +226,19 @@ the decorator redesign; see its entry below.
         suffixes.
 
       The helper names are left to the apply pass.
+
+    Applied 2026-09-28 in
+    [Prefixed Strings](../spec/01-lexical-structure.md#prefixed-strings)
+    (lexing), [String Prefix Names](../spec/03-names-and-scopes.md#string-prefix-names),
+    [Prefixed Strings](../spec/04-type-system.md#prefixed-strings) (typing),
+    [Prefixed Strings](../spec/05-expressions.md#prefixed-strings) (the
+    call, `std.ops`, and `r`), and
+    [`grammar.pattern.no-prefixed-string`](../spec/02-grammar.md#r-grammar.pattern.no-prefixed-string).
+    The helpers are `interpolate[T < Display](t: Template[T]) -> string`
+    and `process_escapes(text: string) -> string?`, both in `std.ops`
+    beside `r`. The new error `invalid-string-prefix` mirrors
+    `invalid-literal-suffix`. Readings the apply pass had to choose are
+    points 15-23 under [Still Open](#still-open).
 
 ## Contents
 
@@ -772,6 +786,29 @@ The L11 apply pass met these points:
 | 12 | A suffix with a second, defaulted parameter, as in `fn s(n: i64, scale: i64 = 1)` | `invalid-literal-suffix`: the call is valid, but L11 requires exactly one parameter | Keep. |
 | 13 | A suffix that names nothing | `unknown-name`, since a suffix is now a value name, not a type (previously `unknown-type`) | Keep. |
 | 14 | `@num_suffix` on a generic or provider-needing function is accepted at the declaration | Accepted; only literals that use it fail (D3) | Keep; a lint may warn at the declaration. |
+
+The L19 apply pass met these points. L19 said "lexed the way raw strings
+are today, including `$name` interpolation", but today's raw strings never
+interpolated, so points 15-17 fill in how `$` and `\` behave:
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 15 | A `$` followed by neither an identifier character nor `{`, as in `r"^\d+$"` | Plain text ([`lex.prefix.plain-dollar`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar)), as in today's raw strings; an interpreted string rejects it | Keep: regex anchors and prices stay easy to write. |
+| 16 | A `$` before a reserved word other than `self`, as in `r"$true"` | `syntax-error` ([`lex.prefix.reserved-dollar`](../spec/01-lexical-structure.md#r-lex.prefix.reserved-dollar)), as in interpreted strings | Keep. |
+| 17 | How to write `$name` as text in a prefixed string | A backslash keeps a following `$` from interpolating and stays in the text ([`lex.prefix.backslash`](../spec/01-lexical-structure.md#r-lex.prefix.backslash)), as JavaScript's `String.raw` does; `process_escapes` turns `\$` into `$` | Keep. |
+| 18 | A reserved word directly before a quote, as in `return"done"` | Two tokens, as before ([`lex.prefix.reserved`](../spec/01-lexical-structure.md#r-lex.prefix.reserved)); L13 made `5else` an `invalid-token` instead | Keep: no existing source changes meaning. |
+| 19 | The shape of a prefix function and its code | Mirrors L11: one `Template[T]` parameter, no type parameters, no providers, no suspension, checked at the string as the new error `invalid-string-prefix` ([`expr.prefix.fn-shape`](../spec/05-expressions.md#r-expr.prefix.fn-shape)) | Keep; the no-provider rule could be relaxed, since L15 removed the compile-time reason for it. |
+| 20 | Where `r` lives, and whether it is a prelude name | `std.ops.r`, imported with `use std.ops.r` ([`expr.prefix.std.import`](../spec/05-expressions.md#r-expr.prefix.std.import)). A prelude `r` would make every local named `r` a `prelude-name-shadow` | Keep. |
+| 21 | The helper names and results | `interpolate[T < Display](t: Template[T]) -> string` and `process_escapes(text: string) -> string?`, `.None` on an invalid escape | Keep; a `Result` with the error position is the alternative. |
+| 22 | A prefix function whose parameter is not a `Template`, as in `count(n: i32)` | The ordinary call's `type-mismatch` at the string ([`expr.prefix.call-errors`](../spec/05-expressions.md#r-expr.prefix.call-errors)) | Keep. |
+| 23 | A prefixed string as a test name, as in `it(r"a\b"):` | A call, so `non-literal-test-argument` by the existing rule | Keep. |
+
+```text
+use std.ops.r
+
+anchored := r"^\d+$"   # ends in a dollar sign
+kept := r"\$name"      # the text \$name
+```
 
 ```text
 use std.time.{Duration, h}
