@@ -7,7 +7,7 @@ F-250	15	Deferred features are rejected with generic or wrong diagnostics, not s
 STR	14	Strings STR1-STR8: `len` counting bytes, `s[i]` as a `u8`, the built-in `chars`, `char_indices`, `bytes`, and `slice` methods, the `index-out-of-bounds` slice panics, and the `Index` and `IndexSet` implementations of `List`, `Map`, and `string` are not implemented; the prototype still counts scalars and rejects string indexing
 MREF	10	Method references `Type::name` and `value::name` (Method References MR1-MR4, MR6) are not implemented
 ITER	8	The closure-backed data `Iterator[T]` with a private `step`, `Iterator::from_fn`, `map` and `fold`, and `for` over `Iterable` only (Chaining Study CS7-CS11), are not implemented: the prototype keeps the `Iterator` trait
-ERRD	8	The `@error` intrinsic (Error Conversion decision 10) is not implemented: the prototype resolves `@error` as an ordinary decorator, so it derives no `Display`, `Error`, or `From`, and `@from` and `@source` are unknown names
+ERRD	20	The `@error` intrinsic (Error Conversion decision 10) and its batch 9 codes, bounds, and scope (decisions 21-27) are not implemented: the prototype resolves `@error` as an ordinary decorator, so it derives no `Display`, `Error`, or `From`, and `@from` and `@source` are unknown names
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
 COLLECT	4	Generic `collect[C]` with `FromIterator` (Collect CO1-CO3, CO6) is not implemented
