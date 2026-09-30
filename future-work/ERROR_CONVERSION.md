@@ -1,6 +1,6 @@
 # Error Conversion: The `@error` Intrinsic
 
-Status: every owner decision of this record is applied. Nothing here is
+Status: decisions 28-30 (batch 11) are decided, not yet applied. Nothing here is
 accepted behavior; the specification is authoritative. Decisions 1-9, 11,
 and 13-20 (2026-09-26 and 2026-09-27) are applied, or superseded by the
 testing redesign:
@@ -16,7 +16,7 @@ testing redesign:
 Decisions 10 and 12, the `@error` intrinsic, were applied on 2026-09-29 in
 [Error Derivation](../spec/14-annotations.md#error-derivation). The
 owner answered its apply-pass points as decisions 21-27, applied the same
-day. Two points from applying them are under [Still Open](#still-open).
+day, and the second pass's points as decisions 28-30 (batch 11).
 
 The error-chain helpers (`Context`, `.context`, `chain`, `find`,
 `root_cause`, `ErrorReport`) are library API in
@@ -101,16 +101,20 @@ recommended):
 | 26 | [`annot.error.no-use`](../spec/14-annotations.md#r-annot.error.no-use) |
 | 27 | the existing rules, unchanged; the misplaced forms take decision 21's code |
 
-### Apply-Pass Readings
+Decided 2026-09-29 (batch 11, the second apply pass's points; all as
+recommended), not yet applied:
 
-The owner confirmed the first apply pass's readings as decision 27.
-Applying decisions 21-27 read two more points from them; each is listed so
-the owner can confirm it.
-
-| Reading | Rule |
-| --- | --- |
-| `@from` beside a second payload member is misplaced, so it is `decorator-target-kind`: the form table lists `@from` only for a variant's only payload member. | [`annot.error.form.misplaced.examples`](../spec/14-annotations.md#r-annot.error.form.misplaced.examples) |
-| A type parameter is "carried-only" for `Error` when no interpolated, transparent, `@from`, or `@source` member has it as its type. | [`annot.error.bound.carried`](../spec/14-annotations.md#r-annot.error.bound.carried) |
+28. **ERR SO7: a parameter only a message interpolates.** A type parameter
+    that only a message interpolates, as `T` in `Got(value: T)` with
+    `"got $value"`, gets `T < Display` on the generated `Display` and
+    `T < Display & Inspectable` on the generated `impl Error`.
+29. **ERR SO8: a wrong `@error` argument.** An `@error` argument that is
+    neither a message nor `transparent`, such as `@error(opaque)`,
+    `@error(42)`, or extra arguments, is `invalid-error-marker`.
+30. **Readings confirmed.** `@from` beside a second payload member is
+    misplaced, so it is `decorator-target-kind`. "Carried-only" means that
+    no interpolated, transparent, `@from`, or `@source` member has the
+    type `P`.
 
 ## Current Design
 
@@ -119,35 +123,12 @@ The specification holds the design:
 
 ## Still To Do
 
-Nothing remains to apply. The points below wait for the owner.
+Apply decisions 28-30 (batch 11).
 
 ## Still Open
 
-Applying decisions 21-27 met these points. Each waits for the owner; the
-Applied column says what the specification states now.
-
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 7 | Which bounds does the generated `Error` give a type parameter that only an interpolated member has? Decision 25 covers carried and transparent parameters. `Display` gets `P < Display`, but the generated `Error` needs `Display` for the whole type and an inspectable target. | No rule; the Note under [Generated Error Bounds](../spec/14-annotations.md#generated-error-bounds) names it | `P < Display & Inspectable`: the `Display` bound plus the inspectable target that decision 25 gives a carried parameter. |
-| 8 | Which code rejects an `@error` line whose argument is neither one message nor `transparent`, such as `@error(opaque)`? Decision 21 covers a form before the wrong target, not a wrong argument. | "Invalid", with no code ([`annot.error.form.other`](../spec/14-annotations.md#r-annot.error.form.other)) | `invalid-error-marker`: the intrinsic does not accept that marker. |
-
-Point 7 in hd:
-
-```text
-@error
-enum Named[T]:
-    @error("got $value")
-    Got(value: T)
-```
-
-The generated `Display` is `impl[T < Display] Display for Named[T]`, and
-no rule yet bounds `T` on the generated `Error`.
+Nothing waits for the owner.
 
 ## Parse Log
 
-The one `text` block of this record parses with the reference parser.
-Parsing checks syntax only.
-
-| Block | Result |
-| --- | --- |
-| 1 (`Named[T]`) | parse |
+This record has no `text` block.
