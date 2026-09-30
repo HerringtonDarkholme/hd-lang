@@ -14,12 +14,12 @@ decision, spec text, or prototype code. Under review:
 [Primary Expressions](../spec/02-grammar.md#primary-expressions), and
 [Explicit Type Arguments](../spec/07-functions.md#explicit-type-arguments).
 
-**Revision, 2026-09-30 (second pass).** The owner rejected D and C2, and
-replaced C3 with C3′, an ordered one-namespace lookup. This pass adds a
-[survey of trait-based languages](#survey-fields-methods-and-traits),
-corpus counts for C3′, and a side-by-side [comparison](#comparison) of B,
-C1, and C3′. The [recommendation](#recommendation) and
-[questions](#questions-for-the-owner) are rewritten.
+**Revision, 2026-09-30 (third pass).** The owner rejected D, C2, C3, and
+then C3′, an ordered one-namespace lookup. Only B and C1 remain. This pass
+keeps the [survey of trait-based languages](#survey-fields-methods-and-traits),
+drops the C3′ material, and rewrites the [comparison](#comparison) of B
+and C1, the [recommendation](#recommendation), and the
+[questions](#questions-for-the-owner).
 
 ## Owner Direction So Far
 
@@ -31,8 +31,8 @@ applied to the specification.
 | D, no index syntax | Rejected. |
 | C2, fall back to a field when no method has the name | Rejected. |
 | C3, one namespace as first written | Rejected, because trait methods collide with fields. |
-| C3′ | Replaces C3; see [Option C3′](#c3-one-namespace-with-an-ordered-lookup). |
-| Remaining options | B, C1, and C3′, with A as the baseline. |
+| C3′, one namespace with an ordered lookup (own members, then promoted, then trait methods) | Rejected, after the second pass. |
+| Remaining options | B and C1, with A as the baseline. |
 
 The owner wrote: "i hate syntax ambiguity. i have one crazy thing"
 
@@ -223,26 +223,21 @@ run locally; "unverified" means no source was found.
 1. The trait-based languages closest to hd keep **C1's shape**. Rust and
    MoonBit keep fields and methods apart, and both call a stored function
    as `(x.f)(args)`.
-2. **C3′'s steps 1 and 2 resemble Lean 4 and Go.** Lean 4 puts fields and
-   namespace functions in one namespace and searches parents in order. Go
-   picks the shallowest member. Neither lets a trait or class method compete
-   for `x.f`.
-3. **C3′'s step 3 resembles Scala 3 and Swift.** An extension method, or a
-   protocol extension's method, is used only when the type's own members do
-   not answer. So an own field silently wins over it, as C3′ proposes.
-4. **Lean 4 and Haskell keep class methods off the dot entirely.** MoonBit
+2. **One namespace is found in Go, Lean 4, Scala 3, and Swift.** Each
+   then needs an order between fields, own methods, and extension or trait
+   methods, which is what the rejected C3′ tried to supply.
+3. **Lean 4 and Haskell keep class methods off the dot entirely.** MoonBit
    deprecated implicit trait dot calls in favor of `extend`, because an
    upstream trait change can make a dot call ambiguous. Carbon requires
    `extend impl`, so a type's API is fixed by its class definition.
-5. Where fields and methods share a namespace, a same-name pair is a
-   declaration error in Go, Swift (same full name), C#, and Haskell. That
-   matches C3′'s step 1.
+4. Where fields and methods share a namespace, a same-name pair is a
+   declaration error in Go, Swift (same full name), C#, and Haskell.
 
 ## Options
 
-Three options remain, ranked later by the
+Two options remain, ranked later by the
 [Design Cost Order](../AGENTS.md#design-cost-order): B, and option C with
-its field variants C1 and C3′. A is the baseline.
+its field variant C1. A is the baseline.
 
 ### Option A: Keep Today's Rule
 
@@ -422,7 +417,7 @@ fn tally(counts: mut Map[string, i32], word: string) -> i32:
 | Type | `Apply` | `Update` |
 | --- | --- | --- |
 | `List[T]` | `Apply[(i32,)]`, `Out = T`, panics out of range | `Update[(i32,), T]` |
-| `Map[K, V]` | `Apply[(K,)]`, `Out = V` or `V?`: see [Q3](#q3-map-read-type) | `Update[(K,), V]`, inserts or replaces |
+| `Map[K, V]` | `Apply[(K,)]`, `Out = V` or `V?`: see [Q4](#q4-map-read-type) | `Update[(K,), V]`, inserts or replaces |
 | `string` | `Apply[(i32,)]`, `Out = u8` | none |
 
 **Compound assignment.** `r(ks) op= v` evaluates `r` and the keys once,
@@ -516,99 +511,10 @@ widens from function fields to applicable fields.
 **C2: fall back to the field.** Rejected by owner, 2026-09-30.
 
 **C3: one namespace, as first written.** Rejected by owner, 2026-09-30,
-because trait methods collide with fields. C3′ replaces it.
+because trait methods collide with fields.
 
-#### C3′: One Namespace With An Ordered Lookup
-
-Fields and methods form one member namespace. `x.name` and `x.name(args)`
-resolve `name` by one ordered lookup. `x.name(args)` applies whatever
-member it finds: a method is called, and a field is read and applied.
-
-| Step | Members | Clash inside the step |
-| --- | --- | --- |
-| 1 | the type's own fields and inherent methods | a field and an inherent method of one name: a declaration error, `duplicate-inherent-member` as under M1 |
-| 2 | promoted fields and methods, shallowest depth first | same depth: `ambiguous-promoted-member` at the declaration, as today |
-| 3 | trait methods | two traits: `ambiguous-method`, as today |
-
-- A promoted member beside a trait method of the same name stays
-  `ambiguous-method`, with no silent winner, as
-  [`names.method-lookup.no-silent`](../spec/03-names-and-scopes.md#r-names.method-lookup.no-silent)
-  and [`names.change.candidate`](../spec/03-names-and-scopes.md#r-names.change.candidate)
-  say today.
-- An own field beside a trait method is decided by the order: the field
-  wins, as an own inherent method wins today
-  ([`names.method-lookup.inherent`](../spec/03-names-and-scopes.md#r-names.method-lookup.inherent)).
-  The trait method stays reachable as `Trait::name(x)`.
-- In generic code, `T < Trait`, and on trait values, only trait methods
-  exist, so fields never compete.
-
-```text
-trait Named:
-    fn name(self) -> string
-
-data User:
-    name: string
-    tags: List[string]
-
-impl Named for User:
-    fn name(self) -> string: self.name
-
-fn first_tag(user: User) -> string:
-    user.tags(0)
-
-fn first_byte(user: User) -> u8:
-    user.name(0)
-
-fn greeting(user: User) -> string:
-    Named::name(user)
-
-fn show[T < Named](value: T) -> string:
-    value.name()
-```
-
-`user.name(0)` reads byte 0 of the field. `Named::name(user)` and
-`value.name()` reach the trait method.
-
-```text
-data User:
-    tags: List[string]
-
-impl User:
-    fn tags(self) -> List[string]:  # error under C3′: duplicate-inherent-member
-        self.tags
-```
-
-```text
-trait Labeled:
-    fn label(self) -> string
-
-data Base:
-    pub label: fn() -> string
-
-data Page:
-    Base
-
-impl Labeled for Page:
-    fn label(self) -> string: "page"
-
-fn invalid(page: Page) -> string:
-    page.label()  # error under C3′: ambiguous-method
-```
-
-**How C3′ answers M2's reason.** A trait that gains a method named like an
-own field changes no call, because the field wins at step 1. A trait that
-gains a method named like a promoted member makes `x.name(args)`
-`ambiguous-method` at the use, as a promoted method does today. Neither
-switches a call silently.
-
-**Open points inside C3′.** The owner's text leaves three cases open; each
-is a question below.
-
-| Case | Choices |
-| --- | --- |
-| Bare `x.name` where step 2 finds a field and step 3 a trait method | ambiguous, as for a call; or the bare form skips trait methods, since a method is not a value |
-| A private own field beside a trait method of one name | skip the field outside its module, as today's [`names.take-part.trait-caller`](../spec/03-names-and-scopes.md#r-names.take-part.trait-caller) skips a private inherent method; or the field always wins and is `private-member` outside |
-| `User::email` for a field | keep [`fn.ref.no-fields`](../spec/07-functions.md#r-fn.ref.no-fields); or a field becomes a member reference |
+**C3′: one namespace with an ordered lookup.** Rejected by owner,
+2026-09-30.
 
 **C4: other ideas considered.**
 
@@ -678,51 +584,9 @@ Findings:
 3. The 6 shared-name types are all fixtures that test
    `names.member.shared-name`. None is in std or the tour, but one,
    `field-and-trait-method-share-name.hd`, has a function-typed field
-   beside a same-named method: the exact case C3′ must decide.
+   beside a same-named method: the case a one-namespace rule must decide.
 4. No code indexes twice in a row, and no code indexes with a tuple key.
    U5 and U6 have no current users.
-
-### C3′ Counts
-
-A second script, on `main` at c2e50a32, read every `data` declaration,
-inherent `impl`, trait `impl`, and trait in the same corpus, plus
-`typing/warnings`. Trait methods include defaults from the trait
-declaration and the prelude traits of
-[Built-In Methods](../spec/10-modules.md#built-in-methods). Enums with
-shared fields were not scanned. Every hit was checked by hand. The table
-lists 10 types; it replaces the first pass's estimate of 6 shared-name
-types.
-
-| Collision on one type | Tour | std | Examples | Fixtures |
-| --- | --- | --- | --- | --- |
-| own field and own inherent method | 0 | 0 | 0 | 1 type, 2 names |
-| promoted field and own or promoted method | 0 | 0 | 0 | 0 |
-| own field and promoted method | 0 | 0 | 0 | 1 |
-| own field and trait method | 0 | 0 | 0 | 8 types |
-| promoted field and trait method | 0 | 0 | 0 | 0 |
-
-Sites whose meaning C3′ changes, all in fixtures:
-
-| Site | Today | Under C3′ |
-| --- | --- | --- |
-| `field-and-inherent-method-share-name.hd`, `user.name()` and `user.Base()` | inherent methods | the type is `duplicate-inherent-member` |
-| `outer-field-beside-embedded-method.hd`, `page.label()` | the promoted method | the own field `label: string` applied to `()`: a type error |
-| `field-and-trait-method-share-name.hd`, `user.name()` | the trait method, `"trait"` | the own field `name: fn() -> string`, `"field"`: it type-checks and the result changes |
-| `function-typed-field-method-call.hd`, `button.on_click(41)` (invalid) | `unknown-method` | valid: applies the field |
-| `embedded-field-not-called.hd`, `job.run()` (invalid) | `unknown-method` | valid: applies the promoted field |
-
-Findings:
-1. Every collision is a fixture written to test today's separate
-   namespaces. The tour, std, and examples have none.
-2. Seven of the 8 field-and-trait types follow one idiom: a field `name`
-   and a trait getter `name(self)` that returns it. Their calls go through
-   `Trait::name`, a bound `T < Trait`, or a trait value, so C3′ leaves them
-   alone. A concrete `user.name()` on such a type would apply the field.
-3. The 10 `obj.field[i]` sites become `obj.field(i)` with no parentheses.
-   None of those receivers has a method or trait method of the field's
-   name, so none changes meaning.
-4. The 8 `(x.f)(args)` sites keep their meaning and may drop the
-   parentheses.
 
 ### Rewrites
 
@@ -735,18 +599,6 @@ pub fn interpolate[T < Display](t: Template[T]) -> string:
     let index = 0
     while index < t.values.len():
         joined = joined + (t.values)(index).to_string() + (t.raw_parts)(index + 1)
-        index = index + 1
-    joined
-```
-
-The same under C3′:
-
-```text
-pub fn interpolate[T < Display](t: Template[T]) -> string:
-    let joined = t.raw_parts(0)
-    let index = 0
-    while index < t.values.len():
-        joined = joined + t.values(index).to_string() + t.raw_parts(index + 1)
         index = index + 1
     joined
 ```
@@ -817,118 +669,112 @@ That last line holds three calls in a row, and only the type of
 | A | 0 | 0 | 0 |
 | B | 124, up to about 220 | 0 | 0 |
 | C1 | 178 | 10 gain parentheses | 0 |
-| C3′ | 178 | 0; 8 stored-function calls may drop parentheses | 3 valid fixtures; 2 invalid fixtures become valid |
 
 ## Comparison
 
 Kinds follow the Design Cost Order: 1 is a syntax change, 2 a semantic
-rule exception, 3 a compiler intrinsic, and 4 a core library addition. C1
-and C3′ share call indexing; they differ only in how `x.name(args)` treats
-a field.
+rule exception, 3 a compiler intrinsic, and 4 a core library addition.
+Both options make brackets context-free. They differ in which of the two
+bracket uses moves.
 
 ### Use Cases Side By Side
 
-| | A: keep | B: `::[T]` | C1: call, parentheses | C3′: call, ordered namespace |
-| --- | --- | --- | --- | --- |
-| U1 list | `xs[0]` | `xs[0]` | `xs(0)` | `xs(0)` |
-| U2 map count | `m[k] += 1` | same | `m(k) += 1` | same |
-| U3 field index | `t.parts[0]` | same | `(t.parts)(0)` | `t.parts(0)` |
-| U3 field store | `cart.items[0].quantity = 0` | same | `(cart.items)(0).quantity = 0` | `cart.items(0).quantity = 0` |
-| U4 type arguments | `first[string](xs)` | `first::[string](xs)` | unchanged | unchanged |
-| U5 grid | `g[(0, 1)]` | same | `g(0, 1)` | same |
-| U6 cell | `c.get()` | same | `c()` | same |
-| Stored function | `(h.callback)(e)` | same | same | `h.callback(e)` |
+| | A: keep | B: `::[T]` | C1: call indexing |
+| --- | --- | --- | --- |
+| U1 list | `xs[0]` | `xs[0]` | `xs(0)` |
+| U2 map count | `m[k] += 1` | same | `m(k) += 1` |
+| U3 field index | `t.parts[0]` | same | `(t.parts)(0)` |
+| U3 field store | `cart.items[0].quantity = 0` | same | `(cart.items)(0).quantity = 0` |
+| U4 type arguments | `first[string](xs)` | `first::[string](xs)` | unchanged |
+| U4 on a method | `parser.parse[User](text)` | `parser.parse::[User](text)` | unchanged |
+| U5 grid | `g[(0, 1)]` | same | `g(0, 1)` |
+| U6 cell | `c.get()` | same | `c()` |
 
 ### Rule Accounting
 
 Counts are estimates from the rule lists in
 [What hd Has Today](#what-hd-has-today); a spec-update pass would give exact
-numbers. The C3′ column counts only what it changes beyond C1.
+numbers.
 
-| | B | C1 | C3′, beyond C1 |
-| --- | --- | --- | --- |
-| Added | about 2: the `"::", function_type_arguments` production and its rule | about 6: `Apply` and `Update` calls, the call place rule, keys tuples | about 7: one namespace; the step order; a field beside an inherent method is `duplicate-inherent-member`; `x.name(args)` applies a field; an own field wins over a trait method; a promoted field beside a trait method is `ambiguous-method`; the bare-form rule of [Q4](#q4-bare-field-beside-a-trait-method) |
-| Removed | 5: `grammar.primary.generic-reference`, `.preserve-ambiguity`, `fn.generic.brackets`, and 2 folded method-type-argument rules | the same 5 | 13: `names.member.namespaces`, `.shared-name`, `.no-hiding`; `names.lookup.field-form`, `.method-form`, `.stored-fn`; `names.conflict.namespace`; `names.method-lookup.hint.field`; `expr.member.no-field-call`, `.stored-fn`, `.stored-fn.error`, `.stored-fn.hint`; `trait.resolve.no-field` |
-| Reworded | about 15: `expr.call.generic.*`, `grammar.expr.method-type-arguments`, pipe placeholder rules | about 44 index, place, and assignment rules; `expr.member.stored-fn.hint` widens to applicable fields | about 30: the 5 `names.field-lookup.*` and 12 `names.method-lookup.*` rules merge into one lookup; `names.hide.depth`, `names.conflict.definition`, `.private-own`; the 5 `names.method-example.*`; `names.change.candidate`, `names.promoted.readonly`, `names.take-part.trait-caller`; `expr.member.field-read`, `.method-call`, `.method-not-value`; `trait.resolve.lookup`, `.lookup.kinds`, `.inherent-first`, `.ambiguous.promoted` |
-| Chapter 03 lookup | unchanged | unchanged | rewritten; reverses M2 of 2026-09-26 |
-| Embedding, chapter 08 | unchanged | unchanged | unchanged rules; promotion now crosses fields and methods |
-| Fixtures | 124 sites respelled | 178 sites respelled | also 3 valid fixtures fail and 2 invalid ones pass |
-| Costliest kind | 1, a new token pair | 2, some calls are places | 2, several lookup rules |
-| Kinds needed | 1 | 1 (a removal), 2, 3 (`Index` renamed `Apply`) | C1's, plus 2 several times |
-
-### Action At A Distance
-
-Each row is a change made somewhere else, and what it does to an existing
-`x.name(args)` or `x.name`.
-
-| Change elsewhere | A, B, C1 | C3′ |
+| | B | C1 |
 | --- | --- | --- |
-| A trait gains a method named like an own field | nothing | nothing: the field wins at step 1 |
-| A trait gains a method named like a promoted field | nothing | `x.name(args)` becomes `ambiguous-method`, an error at the use |
-| A dependency's embedded type gains a shallower `pub` field named like the method a call selects | nothing: fields and methods are apart | the call silently applies the field, by [`names.change.shallower`](../spec/03-names-and-scopes.md#r-names.change.shallower) |
-| The type's own package adds a field named like a trait method | nothing | concrete `x.name(args)` silently switches to the field; generic calls do not |
-| The type's own package adds a method named like an own field | legal | `duplicate-inherent-member` at the declaration |
+| Added | about 2: the `"::", function_type_arguments` production and its rule | about 6: `Apply` and `Update` calls, the call place rule, keys tuples |
+| Removed | 5: `grammar.primary.generic-reference`, `.preserve-ambiguity`, `fn.generic.brackets`, and 2 folded method-type-argument rules | the same 5, and the `postfix_suffix` index form |
+| Reworded | about 15: `expr.call.generic.*`, `grammar.expr.method-type-arguments`, pipe placeholder rules | about 44 index, place, and assignment rules; `expr.member.stored-fn.hint` widens to applicable fields |
+| Chapter 03 lookup | unchanged | unchanged |
+| Index traits | unchanged: `Index`, `IndexSet` | renamed and generalized: `Apply[Keys]`, `Update[Keys, V]` |
+| Sites respelled | 124, up to about 220 with type-name expressions | 178, and 10 gain parentheses |
+| Costliest kind | 1, a new token pair | 2, some calls are places |
+| Kinds needed | 1 | 1 (a removal), 2, 3 (`Index` renamed `Apply`) |
 
-The third row is new: today `names.change.shallower` switches only a field
-to a field or a method to a method. Under C3′ it can switch a method call to
-a field application across packages. The fourth row matches today's rule
-that an own inherent method silently beats a trait method, but a field
-rarely means what a trait method means.
+### Where They Differ
 
-### Agent-Writability And Readability
+| Question | B | C1 |
+| --- | --- | --- |
+| What a reader sees at `x(0)` | always a call | a call or an element read; the callee's type decides |
+| What marks a place | `[...]`, syntactically | the callee's type: `f(x) = v` is a store only when `f` has `Update` |
+| Three calls in a row, `list_of(log, xs)(note(log, "i", 1))` | cannot happen: it would be `list_of(log, xs)[note(log, "i", 1)]` | legal, and only types say which call is the store |
+| Type-name expressions, `Box[i32]::get` and `Shipment[i32] { ... }` | ambiguous again: `values[0]::describe` has the same shape, so they need `::[` too, or a rule by name; see [Q2](#q2-type-name-expressions-under-b) | unchanged: `[` after an operand is always type arguments |
+| Grids and cells, U5 and U6 | not given; a multi-key `Index` would be a separate change | given by the keys tuple |
+| `Map` read type, [Special Cases Q9](SPECIAL_CASES.md#q9-map-indexing) | stays a separate question | must be decided now: `Apply` has one `Out` ([Q4](#q4-map-read-type)) |
+| Pipes, `x \|> f[0]` | `f[0]` is always an index, so the placeholder exception can go | `f[0]` is always type arguments, so the exception can go too |
+| Change to std and the tour | small: 3 method sites in std | 39 std index sites and the tour's indexing section |
 
-| | B | C1 | C3′ |
-| --- | --- | --- | --- |
-| Agent writes `x.f(i)` for a field | works: indexing stays `x.f[i]` | `unknown-method`; the hint gives `(x.f)(i)` | works |
-| Agent writes `(x.f)(i)` from Rust or MoonBit habit | n/a | works | works |
-| Agent writes `user.name()` for a trait getter beside a field `name` | works | works | applies the field: a type error, or a wrong value when the field holds a function |
-| Agent writes `f[T](x)` from today's hd | `syntax-error` with a fix-it | works | works |
-| A reader sees `x.f(i)` | a method call | a method call | a method call or a field read; the type decides |
-| Closest languages | Rust (`::<>`), Nim (`[:`) | Rust, MoonBit | Go and Lean 4 for steps 1 and 2; Scala 3 and Swift for step 3 |
+### Agent-Writability
+
+hd is written mostly by agents
+([Roadmap, area 8](ROADMAP.md#8-tooling-for-agents)). Each option breaks
+one habit, and the habits differ in strength.
+
+| Habit an agent brings | B | C1 |
+| --- | --- | --- |
+| `xs[0]`, from Python, Rust, Go, TypeScript, Java, and Swift | works | a type-arguments error on a value; a fix-it gives `xs(0)` |
+| `f[T](x)`, from today's hd and Go | an index of a function: an error with a fix-it to `f::[T](x)` | works |
+| `f::<T>(x)`, from Rust | a `syntax-error`; the fix is one character | a `syntax-error` |
+| `x.f(i)` for a field, from Go, Swift, or Scala | works as a method call only | `unknown-method`; the hint gives `(x.f)(i)` |
+
+Indexing is far more common than explicit type arguments in the code
+agents learned from. In hd's own corpus the two are close, 178 index sites
+against 124 type-argument sites. No trial has measured either option; a
+Haiku probe on the same tasks under B and C1 would, as AGENTS.md
+"Writing hd Code" allows.
 
 ## Recommendation
 
-**Recommendation.** Option C1, call indexing with parentheses for a field.
-C3′ is the next best; B is third.
+**Recommendation.** Option C1 by the Design Cost Order, with B as a close
+second. The choice turns on
+[Q1](#q1-b-or-c1): whether the owner weighs rule kinds or agent habits more.
 
-- C1 changes no lookup rule and keeps M2, decided four days earlier. Its
-  cost is 10 sites of parentheses, in the form `(x.f)(args)` that Rust and
-  MoonBit use.
-- The survey found no trait-based language that lets trait methods compete
-  with fields on the dot without a rule like C3′'s order. Lean 4 and
-  Haskell keep class methods off the dot. MoonBit and Carbon make trait dot
-  calls explicit with `extend`.
-- C3′ solves M2's trait collision for own fields, but it opens a new silent
-  switch across packages: a promoted field can take over a promoted method's
-  call.
-- C3′ turns the fixtures' common idiom, a field `name` beside a trait
-  getter `name()`, into a case where `user.name()` applies the field.
-- C3′ reads best at the 10 sites and drops the `(x.f)(args)` special form,
-  which is its real gain.
+- C1's costliest change is kind 2, "some calls are places"; B's is kind 1,
+  a new token pair. The Design Cost Order ranks C1 first.
+- C1 keeps one spelling of type arguments, `List[i32]` and `first[i32]`
+  alike. B has two, `List[i32]` in types and `first::[i32]` in expressions.
+- C1 gives grids and cells with no new mechanism, and it settles the split
+  `Map` read.
+- B keeps the syntactic mark on element reads and stores, and the indexing
+  every agent already writes. Its type-name expressions need one more
+  decision, [Q2](#q2-type-name-expressions-under-b).
 
-**What it gives up.** `t.parts(0)` reads better than `(t.parts)(0)`, and
-agents from Go, Swift, Zig, or Scala will first write the former. Under C1
-they get `unknown-method` with a fix-it.
+**What C1 gives up.** The `[]` cue on element reads and places, and the
+most common indexing habit in agents' training. Every `xs[0]` an agent
+writes costs one fix-it round.
 
-**Next best.** C3′, if the owner prefers one member namespace, with
-[Q4](#q4-bare-field-beside-a-trait-method) and
-[Q5](#q5-private-own-field-beside-a-trait-method) answered. B keeps `[]`
-indexing but adds a token pair for 124 sites.
+**Next best.** B. It changes less code in std and the tour, and a reader
+can still see every place.
 
 ## Questions For The Owner
 
-Q1 to Q3 need an answer under any option but A. Q4 and Q5 apply only if Q1
-picks C3′.
+Q1 decides the option. Q2 applies only under B; Q3 and Q4 only under C1.
 
-### Q1. Which Option
+### Q1. B Or C1
 
-**Effect:** decides whether `[]` or `()` indexes, and whether
-`user.tags(0)` reaches a field.
+**Effect:** decides which bracket use moves: type arguments in expressions
+under B, or indexing under C1.
 
-1. **C1** (recommended): `xs(0)`, and a field is indexed as
-   `(user.tags)(0)`.
-2. C3′: `xs(0)` and `user.tags(0)`, with one ordered member namespace.
-3. B: `xs[0]` stays, and type arguments become `first::[string](xs)`.
+1. **C1** (recommended by rule kind): `xs(0)`, `first[string](xs)`, and a
+   field is indexed as `(user.tags)(0)`.
+2. B: `xs[0]` stays, and type arguments become `first::[string](xs)`.
+3. Decide after a Haiku probe writes the same tasks under both.
 
 ```text
 data User:
@@ -938,9 +784,26 @@ fn first_tag(user: User) -> string:
     (user.tags)(0)
 ```
 
-### Q2. Keys Argument Shape
+### Q2. Type-Name Expressions Under B
 
-**Effect:** a bound on a one-key type spells a one-element tuple.
+**Effect:** only under B. `Box[i32]::get` has the shape of
+`values[0]::describe`, a method reference on an indexed element, so the
+bracket is ambiguous again.
+
+1. **`::[` after a type name too** (recommended): `Box::[i32]::get` and
+   `Shipment::[i32] { ... }`, one rule for every expression.
+2. Name resolution decides after a type name only: keeps today's
+   spelling, and keeps a small part of the ambiguity.
+
+```text
+fn demo(names: List[string]) -> string:
+    names[0]
+```
+
+### Q3. Keys Argument Shape
+
+**Effect:** only under C1. A bound on a one-key type spells a one-element
+tuple.
 
 1. **A tuple-kinded `Keys`, as `Fn` has** (recommended): `Apply[(i32,)]`,
    and `g(0, 1)` passes `(0, 1)`.
@@ -954,10 +817,10 @@ fn head[C < Apply[(i32,)]](items: C) -> C::Out:
     items(0)
 ```
 
-### Q3. Map Read Type
+### Q4. Map Read Type
 
-**Effect:** today `m[k]` reads `V?`, but `m[k] += 1` reads `V`. Under call
-indexing, `Apply` has one `Out` for both.
+**Effect:** only under C1. Today `m[k]` reads `V?`, but `m[k] += 1` reads
+`V`. Under call indexing, `Apply` has one `Out` for both.
 
 1. **`m(k)` reads `V` and panics; `m.get(k)` gives `V?`** (recommended), as
    Scala's `Map.apply` does. This is Special Cases question
@@ -969,59 +832,6 @@ fn score(scores: Map[string, i32], name: string) -> i32:
     match scores.get(name):
         .Some(value) => value
         .None => 0
-```
-
-### Q4. Bare Field Beside A Trait Method
-
-**Effect:** only under C3′. If `page.label` is ambiguous when a trait gains
-a method `label`, that trait breaks every read of a promoted field.
-
-1. **The bare form skips trait methods** (recommended), since a method is
-   not a value: `page.label` reads the promoted field.
-2. The bare form uses the same lookup as a call, so `page.label` is
-   `ambiguous-method`.
-
-```text
-trait Labeled:
-    fn label(self) -> string
-
-data Base:
-    pub label: string
-
-data Page:
-    Base
-
-impl Labeled for Page:
-    fn label(self) -> string: "page"
-
-fn read(page: Page) -> string:
-    page.label
-```
-
-### Q5. Private Own Field Beside A Trait Method
-
-**Effect:** only under C3′. Today a caller that cannot see an own inherent
-method skips it and may reach a trait method. For a field, that makes
-`user.name()` mean two things, by module.
-
-1. **The field always wins; outside its module the call is
-   `private-member`** (recommended): one meaning for every caller.
-2. Skip the private field outside its module, as
-   [`names.take-part.trait-caller`](../spec/03-names-and-scopes.md#r-names.take-part.trait-caller)
-   does for methods.
-
-```text
-trait Named:
-    fn name(self) -> string
-
-pub data User:
-    name: string
-
-impl Named for User:
-    fn name(self) -> string: self.name
-
-fn outside(user: User) -> string:
-    Named::name(user)
 ```
 
 ## Sources
@@ -1149,21 +959,16 @@ their meaning is the proposal.
 | 10 | Invalid places | parses; the errors are semantic |
 | 11 | `user.tags(0)` today | parses; the error is semantic |
 | 12 | C1 parentheses | parses |
-| 13 | C3′ lookup: field, trait method, generic | parses |
-| 14 | C3′ field beside an inherent method | parses; the error is semantic |
-| 15 | C3′ promoted field beside a trait method | parses; the error is semantic |
-| 16 | `interpolate` under C1 | parses |
-| 17 | `interpolate` under C3′ | parses |
-| 18 | `fill`, map store and call | parses |
-| 19 | `first` and `last` | parses |
-| 20 | Cart store through an index | parses |
-| 21 | Call result indexed | parses |
-| 22 | Evaluation-order fixture | parses |
-| 23 | Q1 | parses |
-| 24 | Q2 | parses |
-| 25 | Q3 | parses |
-| 26 | Q4 | parses |
-| 27 | Q5 | parses |
+| 13 | `interpolate` under C1 | parses |
+| 14 | `fill`, map store and call | parses |
+| 15 | `first` and `last` | parses |
+| 16 | Cart store through an index | parses |
+| 17 | Call result indexed | parses |
+| 18 | Evaluation-order fixture | parses |
+| 19 | Q1 | parses |
+| 20 | Q2 | parses |
+| 21 | Q3 | parses |
+| 22 | Q4 | parses |
 
 Reference-parser finding: none. The parser accepts `f(x) = v` and
 `(x.f)(k) = v` today, as [`grammar.stmt.assign-target`](../spec/02-grammar.md#r-grammar.stmt.assign-target)

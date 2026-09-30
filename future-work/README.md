@@ -34,8 +34,8 @@ Open questions for the owner:
 - [Call Indexing](CALL_INDEXING.md) studies the owner's idea of indexing
   with call syntax, `list(0)` and `list(0) = v`, so `[]` after an operand
   means only type arguments. It counts 178 index sites, surveys how
-  trait-based languages separate fields from methods, and compares B, C1,
-  and C3′ in five questions.
+  trait-based languages separate fields from methods, and compares the two
+  remaining options, B and C1, in four questions.
 
 Deferred:
 
