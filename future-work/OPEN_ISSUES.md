@@ -49,6 +49,15 @@ above.
 | TB1 | Editorial: the next-line rule names its code, `syntax-error`. `if close: trailing(): xxx` and `if close: trailing:` with an indented body are both errors; the valid forms indent the `if` body or write `trailing(fn(): xxx)`. | [`grammar.call.trailing-block.next-line`](../spec/02-grammar.md#r-grammar.call.trailing-block.next-line) |
 | AUD | Delete four audit inputs that back no open finding: `audit/scripts/runtime/provider-config.ts`, `audit/probes/runtime/config/gate.hd`, `audit/probes/runtime/truncated/`, and `audit/scripts/runtime/suspension-fixtures.txt`. | [audit/README.md](../audit/README.md) |
 
+**Batch 17 (owner decision, 2026-09-30).** Recorded, not yet applied.
+SR1 is recorded in [TESTING](TESTING.md#owner-decisions) and
+[TYPED_DERIVATION](TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30).
+
+| # | Decision | Where |
+| --- | --- | --- |
+| INF-mut | Revised by the owner ("no number widening"). When generic call inference solves one type parameter from several arguments, the only conversion is permission weakening: `mut X` and `X` meet at `X`. No numeric widening: `max(x_i32, y_i64)` is `type-mismatch`; write `max(i64(x_i32), y_i64)`, as Rust and Go do. Never a trait-value conversion (`types.lct.no-trait-value`): `cmp(user, display_value)` is `no-common-type` unless written `cmp[Display](...)`, where the explicit argument acts as an expected type, as in `types.lct.expected-trait`. It is its own rule in chapter 04's generic inference, cross-linked to the least-common-type rules but not a row of their table, since it is a narrower join. The prototype's `assert_equal` special case goes. | not yet applied |
+| LM-c | Confirmed: calling a `mut self` method on a primitive needs no mutable access; the receiver is a copy, so `n.next()` leaves `n` unchanged. Applied in batch 16. | [`types.prim.no-mut.self-call`](../spec/04-type-system.md#r-types.prim.no-mut.self-call) |
+
 ### Bound And Row Operators
 
 The owner's decisions (2026-09-28) are applied: bounds join with `&`, rows

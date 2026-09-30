@@ -32,6 +32,31 @@ Still waiting on other areas: non-escaping handles (NonEscapable,
 parked), function targets (FN_TYPE Q9/Q10, parked), and `Clone`'s module
 and the derived-function cache (std).
 
+## Owner Decision SR1 (2026-09-30)
+
+Batch 17, recorded and not yet applied. The owner chose compiler-supplied
+information over an intrinsic `Arbitrary` (testing point PT-d), then
+generalized it for every template.
+
+| Part | Decision |
+| --- | --- |
+| Declaration | `std.structure` gains a compiler-computed `pub enum SelfRef: Absent / Optional / Required`, and a `self_ref: SelfRef` field on `VariantInfo` and on `Member`. |
+| `Absent` | The member or variant never refers to the enclosing type. |
+| `Optional` | It refers to the enclosing type only where the simplest value is empty or `.None` (`List`, `Map`, `T?`), so recursion can end. |
+| `Required` | Its simplest value still needs the enclosing type: testing Q7's "recursive". |
+| One enum | Not two bools, because needing the enclosing type implies mentioning it. |
+| Derived `Arbitrary` | An ordinary `std.testing` template that reads `SelfRef`. The prototype's checker-generated `Arbitrary` is a stopgap. |
+
+Uses the owner listed:
+
+| Use | How it reads `self_ref` |
+| --- | --- |
+| Derived `Arbitrary` and `Default` | The simplest variant is the first with `self_ref != .Required`. |
+| No finite value | Every variant, or one data field, is `.Required`: the no-finite panic. |
+| Codecs | A nesting-depth limit when any `self_ref != .Absent`. |
+| Schema generators | A named definition and a `$ref` when any `self_ref != .Absent`. |
+| `Debug` | May truncate deep output. |
+
 ## Remaining Open
 
 Nothing below is decided. Each item waits for the owner. The specification
