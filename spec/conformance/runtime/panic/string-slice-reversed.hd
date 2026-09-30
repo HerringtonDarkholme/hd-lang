@@ -1,0 +1,4 @@
+# test: a slice whose start is greater than its end panics as index-out-of-bounds
+# Spec 10 String Methods: module.string.slice.reversed (Strings STR7).
+text := "abc"
+part := text.slice(2, 1)  # panic: index-out-of-bounds

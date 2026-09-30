@@ -1,0 +1,31 @@
+# test: List, Map, and string index through Index and IndexSet bounds as built-in indexing does
+# Spec 05 Built-In Implementations: expr.index.std.list, expr.index.std.map, expr.index.std.map-store, expr.index.std.string (Strings STR8).
+# expect: test
+use std.ops.{Index, IndexSet}
+use std.testing.assert_equal
+
+fn first[C < Index[i32]](items: C) -> C::Out:
+    items[0]
+
+fn lookup[K, C < Index[K]](entries: C, key: K) -> C::Out:
+    entries[key]
+
+fn put[K, V, C < mut IndexSet[K, V]](target: C, key: K, value: V) -> void:
+    target[key] = value
+
+tests:
+    it("a list reads and stores through the bounds"):
+        let numbers: mut List[i32] = [4, 5]
+        put(numbers, 1, 9)
+        assert_equal(first(numbers), 4, reason="Out is the element type")
+        assert_equal(numbers[1], 9, reason="index_set replaces the element")
+
+    it("a map reads a present key as V and stores through IndexSet"):
+        let ages: mut Map[string, i32] = {"ada": 36}
+        put(ages, "grace", 45)
+        assert_equal(lookup(ages, "ada"), 36, reason="Out is V, not V?")
+        assert_equal(lookup(ages, "grace"), 45, reason="index_set inserts")
+
+    it("a string reads a byte"):
+        let lead: u8 = 195
+        assert_equal(first("é"), lead, reason="Out is u8")

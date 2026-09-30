@@ -1457,3 +1457,13 @@ style lint rejects a chapter that reuses one.
 - `trait.error.api`: retired 2026-09-29. Error Conversion decision 10
   makes the compiler generate `cause`, so the specification states its
   signature. Replaced by `trait.error.cause` and `trait.error.api-helpers`.
+- `grammar.inline.multi-name-let-for`: retired 2026-09-29. Owner decision
+  Let 7 allows a parenthesized `let` list in a same-line suite. Replaced by
+  `grammar.inline.multi-name-for` and `grammar.inline.let-list`.
+- `module.string.slice.boundary`: retired 2026-09-29. Strings STR7 names
+  the panic category and adds past-the-end and reversed offsets. Replaced
+  by `module.string.slice.bad-offset` and `module.string.slice.reversed`.
+- `expr.index.trait.builtin-string`: retired 2026-09-29. Strings STR8 makes
+  `List`, `Map`, and `string` implement the index traits. Replaced by
+  `expr.index.trait.builtin-direct` and `expr.index.std.list`,
+  `expr.index.std.map`, and `expr.index.std.string`.

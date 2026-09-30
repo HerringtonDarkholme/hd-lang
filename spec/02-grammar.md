@@ -161,7 +161,7 @@ let_pattern = let_name
             ;
 let_name = [ "mut" ], identifier ;
 
-inline_statement = "let", let_name, [ ":", type ], "=", inline_expression
+inline_statement = "let", let_pattern, [ ":", type ], "=", inline_expression
                  | "_", ":=", inline_expression
                  | postfix_expression, ( "=" | "...=" | compound_assign_op ),
                    inline_expression
@@ -243,7 +243,9 @@ fn choose(flag: bool) -> i32:
 6. r[grammar.inline.else-if] `else if` continues the same conditional rather than nesting one.
 7. r[grammar.inline.loops] Same-line `for` and `while` loops may still appear directly in a same-line suite.
 8. r[grammar.inline.multi-name-binding] A multi-name binding such as `a, b := pair` needs an indented body or parentheses, as in `(a, b := pair)`.
-9. r[grammar.inline.multi-name-let-for] A `let` or `for` over several names needs an indented body.
+9. r[grammar.inline.multi-name-for] A `for` over several names needs an indented body.
+10. r[grammar.inline.let-list] A parenthesized `let` list may be a same-line suite body, as in `if ok: let (a, b) = pair` and `if ok: let (mut log, db) = pair`, because its commas are inside parentheses.
+11. r[grammar.inline.bare-comma] The bare comma forms still close the suite, so `if ok: a, b := pair` and `if ok: let a, b = pair` are syntax errors. Error: `syntax-error`.
 
 ```text
 fn pair() -> (i32, i32): (1, 2)
@@ -257,6 +259,19 @@ fn sign(x: i32) -> i32: if x < 0: -1 else: 1  # error
 fn release(flag: bool) -> void:
     defer: if flag: pass  # error
     if flag: a, b := pair()  # error
+    if flag: let a, b = pair()  # error
+```
+
+> **Note.** A binding is scoped to its block, so a name that a same-line
+> suite binds is never read after the suite ends. The
+> [`unused-local-binding`](06-control-flow.md#r-flow.unused.warning)
+> warning reports it:
+
+```text
+fn pair() -> (i32, i32): (1, 2)
+
+fn split(ready: bool) -> void:
+    if ready: let (low, high) = pair()  # warning: unused-local-binding
 ```
 
 ### Expressions Followed By Another Token

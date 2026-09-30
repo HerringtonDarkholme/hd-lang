@@ -1,0 +1,9 @@
+# test: string implements Index but not IndexSet, so an IndexSet bound rejects it
+# Spec 05 Built-In Implementations: expr.index.std.string-no-store (Strings STR8).
+use std.ops.IndexSet
+
+fn store[C < mut IndexSet[i32, u8]](items: C, byte: u8) -> void:
+    items[0] = byte
+
+fn invalid(text: string) -> void:
+    store(text, 65)  # diagnostic: unsatisfied-trait-bound

@@ -1,0 +1,4 @@
+# test: a slice offset inside a scalar encoding panics as index-out-of-bounds
+# Spec 10 String Methods: module.string.slice.bad-offset (Strings STR7).
+text := "héllo"
+part := text.slice(0, 2)  # panic: index-out-of-bounds

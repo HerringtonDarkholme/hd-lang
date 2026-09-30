@@ -1791,3 +1791,25 @@ existing source. Each entry names the decision that made the change.
   one type, are `overlapping-impl`. `Error`'s `cause` method is now
   specified. `trait.error.api` is retired. No code is added; the codes for
   the other invalid forms are undecided.
+- `let` batch 7 (owner decision Let 7 in
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  2026-09-29): a parenthesized `let` list may be a same-line suite body,
+  so `if ok: let (a, b) = pair`, previously a `syntax-error`, is valid.
+  Its names are never read, so each gets the existing
+  `unused-local-binding` warning. `if ok: a, b := pair` and
+  `if ok: let a, b = pair` stay `syntax-error`, and a `for` over several
+  names still needs an indented body. `grammar.inline.multi-name-let-for`
+  is retired.
+- Strings STR7-STR10 (owner decisions in
+  [Strings](../future-work/STRINGS.md#owner-decisions), 2026-09-29): a
+  `slice` offset off a scalar boundary or past the end, and a `start`
+  greater than `end`, panic as `index-out-of-bounds`; the boundary panic
+  named no category before, and the reversed case had no rule. `List[T]`
+  implements `Index[i32]` and `IndexSet[i32, T]`, `Map[K, V]` implements
+  `Index[K]` and `IndexSet[K, V]`, and `string` implements `Index[i32]`
+  with `Out = u8`. Generic code bounded by these traits, previously
+  rejected with `unsatisfied-trait-bound` for these types, now accepts
+  them. Through the bound, a `Map` read returns `V` and panics on a missing
+  key. Built-in indexing is unchanged, and `s[i] = v` stays
+  `invalid-assignment-target`. `module.string.slice.boundary` and
+  `expr.index.trait.builtin-string` are retired.

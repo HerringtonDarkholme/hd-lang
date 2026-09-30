@@ -644,15 +644,16 @@ fn first_word(text: string) -> string:
 5. r[module.string.bytes] `bytes` yields the string's bytes in order, each as a `u8`.
 6. r[module.string.slice] `slice(start, end)` returns the bytes from offset `start` up to but not including offset `end`, in constant time.
 7. r[module.string.slice.shared] The result shares the original string's bytes rather than copying them.
-8. r[module.string.slice.boundary] An offset that is not a [scalar boundary](04-type-system.md#r-types.string.boundary) is a checked runtime panic.
-9. r[module.string.lower] `lower` uses Unicode Default Case Conversion with full mappings.
-10. r[module.string.trim] `trim` removes the Unicode `White_Space` property at both ends.
-11. r[module.string.split] `split(separator)` retains empty pieces between adjacent separators and at either end.
-12. r[module.string.split.empty-separator] An empty separator splits into one-scalar strings, with an empty input producing an empty list.
-13. r[module.string.split.absent] With a non-empty separator, an input without that separator, including the empty string, yields one piece, so `"".split(",")` is `[""]`.
-14. r[module.string.replace] `replace` replaces non-overlapping matches from left to right.
-15. r[module.string.replace.empty] An empty `old` inserts the replacement at scalar boundaries.
-16. r[module.string.starts-with] `starts_with` compares scalar sequences exactly and performs no normalization or case folding.
+8. r[module.string.slice.bad-offset] An offset that is not a [scalar boundary](04-type-system.md#r-types.string.boundary), inside a scalar's encoding or past the end, is a checked runtime panic. Panic: `index-out-of-bounds`.
+9. r[module.string.slice.reversed] A `start` greater than `end` is a checked runtime panic, even when both are scalar boundaries. Panic: `index-out-of-bounds`.
+10. r[module.string.lower] `lower` uses Unicode Default Case Conversion with full mappings.
+11. r[module.string.trim] `trim` removes the Unicode `White_Space` property at both ends.
+12. r[module.string.split] `split(separator)` retains empty pieces between adjacent separators and at either end.
+13. r[module.string.split.empty-separator] An empty separator splits into one-scalar strings, with an empty input producing an empty list.
+14. r[module.string.split.absent] With a non-empty separator, an input without that separator, including the empty string, yields one piece, so `"".split(",")` is `[""]`.
+15. r[module.string.replace] `replace` replaces non-overlapping matches from left to right.
+16. r[module.string.replace.empty] An empty `old` inserts the replacement at scalar boundaries.
+17. r[module.string.starts-with] `starts_with` compares scalar sequences exactly and performs no normalization or case folding.
 
 > **Note.** `char_indices` gives the offsets that Go's `range` over a
 > string gives. There is no slice syntax: a substring is always a

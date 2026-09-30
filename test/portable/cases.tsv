@@ -1393,3 +1393,5 @@ typing/invalid/newtype-unwrap-readonly.hd	type
 typing/warnings/derivation-block-decorator-std.hd	type
 parse/invalid/let-list-one-name.hd	parse
 typing/invalid/for-over-string.hd	type
+parse/invalid/same-line-suite-bare-let-list.hd	parse
+typing/invalid/index-set-string.hd	type

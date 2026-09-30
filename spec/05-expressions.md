@@ -676,14 +676,14 @@ pub trait IndexSet[K, V]:
 ```
 
 1. r[expr.index.trait.std] `std.ops` declares `Index[K]`, with an associated type `Out`, and `IndexSet[K, V]`, as shown above.
-2. r[expr.index.trait.read-other] For a receiver whose type is not `List`, `Map`, or `string`, reading `r[k]` is the call `Index[K]::index(r, k)`, and its type is that implementation's `Out`.
+2. r[expr.index.trait.read-other] For a receiver whose type is not `List`, `Map`, or `string`, a type parameter included, reading `r[k]` is the call `Index[K]::index(r, k)`, and its type is that implementation's `Out`.
 3. r[expr.index.trait.write] Assigning `r[k] = v` to such a receiver is the call `IndexSet[K, V]::index_set(r, k, v)`.
 4. r[expr.index.trait.choice] The candidates are chosen as for a binary operator, by the receiver's type, then by the key and, for a store, the value.
 5. r[expr.index.trait.no-use] Neither call needs a `use` of the trait.
 6. r[expr.index.trait.mut] `index_set` takes `mut self`, so a store needs mutable access to the receiver, as any `mut self` call does.
 7. r[expr.index.trait.place] `r[k]` is a place only when the receiver's type implements `IndexSet`. Assigning to it otherwise is an error. Error: `invalid-assignment-target`.
 8. r[expr.index.trait.no-read] Reading `r[k]` when the receiver's type has no fitting `Index` implementation is an error. Error: `type-mismatch`.
-9. r[expr.index.trait.builtin-string] `List`, `Map`, and `string` keep the built-in indexing above and implement neither trait.
+9. r[expr.index.trait.builtin-direct] A receiver whose type is `List`, `Map`, or `string` keeps the built-in indexing above, even though these types implement the traits, as [Built-In Implementations](#built-in-implementations) states.
 10. r[expr.index.trait.independent] The two traits are independent: a type may implement either one alone.
 
 ```text
@@ -709,6 +709,53 @@ fn invalid(row: mut Row, plain: Plain) -> i32:
 > permission. An element's permission comes from `Out`, as a `List[mut U]`
 > element's comes from `U`: an `Out = mut Cell` gives `mut Cell` even
 > through a readonly receiver.
+
+##### Built-In Implementations
+
+The standard library implements the index traits for `List`, `Map`, and
+`string`, so generic code bounded by them accepts these types:
+
+```text
+use std.ops.{Index, IndexSet}
+
+fn first[C < Index[i32]](items: C) -> C::Out:
+    items[0]
+
+fn reset[C < mut IndexSet[i32, i32]](items: C) -> void:
+    items[0] = 0
+
+fn lead(counts: mut List[i32], text: string) -> u8:
+    reset(counts)
+    first(text)
+```
+
+| Rule | Type | Implementations |
+| --- | --- | --- |
+| r[expr.index.std.list] List | `List[T]` | `Index[i32]` with `Out = T`, and `IndexSet[i32, T]` |
+| r[expr.index.std.map] Map | `Map[K, V]` | `Index[K]` with `Out = V`, and `IndexSet[K, V]` |
+| r[expr.index.std.string] String | `string` | `Index[i32]` with `Out = u8`, and no `IndexSet` |
+
+1. r[expr.index.std.intrinsic] The body of each implementation in the table is a compiler intrinsic. It behaves as the built-in indexing of its type, including the checks and their panics.
+2. r[expr.index.std.map-read] The exception is `Map`'s `index`: it returns `V`, not `V?`, and panics when no equal key exists. Panic: `index-out-of-bounds`.
+3. r[expr.index.std.map-store] `Map`'s `index_set` inserts or replaces the entry, as `entries[key] = value` does.
+4. r[expr.index.std.string-no-store] `string` implements no `IndexSet`, so a bound such as `IndexSet[i32, u8]` rejects it. Error: `unsatisfied-trait-bound`.
+
+```text
+use std.ops.IndexSet
+
+fn store[C < mut IndexSet[i32, u8]](items: C, byte: u8) -> void:
+    items[0] = byte
+
+fn invalid(text: string) -> void:
+    store(text, 65)  # error: unsatisfied-trait-bound
+```
+
+> **Note.** Through a bound, `items[k]` has type `Out`, the declared
+> element or value type, whatever the receiver's permission. Built-in
+> indexing gives the same type, as
+> [`types.path.collection`](04-type-system.md#r-types.path.collection)
+> states: a `List[mut User]` yields `mut User`, and a `mut List[User]`
+> yields `User`.
 
 See also: [Operator Traits](#operator-traits),
 [Compound Assignment](#compound-assignment).

@@ -1,0 +1,13 @@
+# test: generic code indexes List and string through Index and IndexSet bounds
+# Spec 05 Built-In Implementations: expr.index.std.list, expr.index.std.string (Strings STR8).
+use std.ops.{Index, IndexSet}
+
+fn first[C < Index[i32]](items: C) -> C::Out:
+    items[0]
+
+fn reset[C < mut IndexSet[i32, i32]](items: C) -> void:
+    items[0] = 0
+
+fn lead(counts: mut List[i32], text: string) -> u8:
+    reset(counts)
+    first(text)

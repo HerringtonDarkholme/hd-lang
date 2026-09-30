@@ -1,0 +1,9 @@
+# test: Map's Index implementation panics on a missing key
+# Spec 05 Built-In Implementations: expr.index.std.map-read (Strings STR8).
+use std.ops.Index
+
+fn lookup[K, C < Index[K]](entries: C, key: K) -> C::Out:
+    entries[key]
+
+ages := {"ada": 36}
+age := lookup(ages, "grace")  # panic: index-out-of-bounds
