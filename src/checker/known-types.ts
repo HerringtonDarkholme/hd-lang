@@ -90,10 +90,10 @@ export function isKnownType(
         isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
       );
     }
+    // `List[void]` is a valid type, as a mapped `void` callback's result.
     if (nominal.name === "List") {
       return (
         nominal.arguments.length === 1 &&
-        nominal.arguments[0] !== "void" &&
         isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
       );
     }

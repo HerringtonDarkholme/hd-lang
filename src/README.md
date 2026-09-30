@@ -389,7 +389,9 @@ else`, `break`, `break value`, and `continue`;
   parameter/result inference, result inference for nonrecursive closures, and
   GC environments for direct and transitive captures; a closure captures no
   provider from an enclosing `$.with`, so each key its body uses stays in its
-  row and resolves at each call, and a provider value bound by `$.use` is
+  row and resolves at each call, and its `$.with` keys are compared for
+  collisions only with its own row and its own `$.with` blocks (the declared
+  row's keys name the enclosing generics); a provider value bound by `$.use` is
   captured like any local and outlives its scope; a captured `let` is a
   shared heap cell, and every closure may assign it and keep mutable
   captures (`mut fn` is a syntax error); a generic function used as a value is
@@ -491,8 +493,10 @@ else`, `break`, `break value`, and `continue`;
   A called reference is an ordinary call: `value::name(...)` is a method
   call, and `Type::method(receiver, ...)` calls the method on its first
   argument. `to_string` on a primitive calls its built-in `Display`. A
-  closure cannot reach its enclosing function's bound dictionaries, so a
-  `T::method` reference to a bound's method fails, as such a closure does;
+  non-suspending closure shares its enclosing function's generic parameters
+  and bounds, and its environment keeps the bound dictionaries after its
+  captures, so a `T::method` reference calls through the bound; a
+  suspending closure still reaches no bound dictionary;
 - blanket trait implementations over generic targets, with unified target and
   trait-argument inference; their adapters materialize static, dynamic, and
   bound dictionaries for ordinary and suspending methods; bounded blanket

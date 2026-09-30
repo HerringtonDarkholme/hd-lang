@@ -49,6 +49,14 @@ export const PRIMITIVE_TYPES: ReadonlySet<ValueType> = new Set(
   "bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char string".split(" "),
 );
 
+/**
+ * A value that satisfies a `mut self` receiver: one with mutable access, or
+ * a primitive, which has no `mut` form (04-type-system.md#r-types.prim.no-mut.self-call).
+ */
+export function mutableOrPrimitive(type: ValueType): boolean {
+  return mutableInner(type) !== undefined || PRIMITIVE_TYPES.has(type);
+}
+
 export function mutableType(type: ValueType): ValueType {
   return `mut:${type}`;
 }

@@ -158,6 +158,15 @@ export class EmitterContext {
     return { dictionary, trait };
   }
 
+  /**
+   * A closure keeps the enclosing function's bound dictionaries in its
+   * environment after its captures (`closureBoundLoads`).
+   */
+  protected closureBoundValues(closureIndex: number): string[] {
+    const bounds = this.closuresByIndex.get(closureIndex)?.genericBounds ?? [];
+    return bounds.map((_, index) => `(local.get $bound${index})`);
+  }
+
   /** A bound's dictionary, or a supertrait's dictionary reached through it. */
   protected boundDictionary(
     boundIndex: number,
@@ -493,4 +502,47 @@ export class EmitterContext {
     if (enumType) return `(ref.null $e${enumType.index})`;
     throw new Error(`cannot produce a default for '${type}'`);
   }
+}
+
+/**
+ * A closure's environment: its captures, then one dictionary for each
+ * generic bound it shares with the enclosing function.
+ */
+export function environmentType(
+  closure: HirFunction,
+  emitter: { watType(type: ValueType): string },
+): string {
+  const fields = [
+    ...closure.captures.map(
+      (capture) =>
+        `      (field $env${closure.index}f${capture.fieldIndex} ${emitter.watType(capture.source.type)})`,
+    ),
+    ...closure.genericBounds.map(
+      (bound, index) =>
+        `      (field $env${closure.index}b${index} (ref null $trait${bound.traitIndex}))`,
+    ),
+  ];
+  return `    (type $env${closure.index} (struct${fields.length ? "\n" + fields.join("\n") : ""}))`;
+}
+
+/**
+ * A non-suspending closure loads the enclosing function's bound
+ * dictionaries from its environment into its own `$bound` locals, so a
+ * call through a bound in its body reads them as a function's do.
+ */
+export function closureBoundLoads(closure: HirFunction): {
+  readonly locals: readonly string[];
+  readonly loads: readonly string[];
+} {
+  if (!closure.closure) return { locals: [], loads: [] };
+  const environment = `(ref.cast (ref $env${closure.index}) (local.get $env))`;
+  return {
+    locals: closure.genericBounds.map(
+      (bound, index) => `  (local $bound${index} (ref null $trait${bound.traitIndex}))`,
+    ),
+    loads: closure.genericBounds.map(
+      (_, index) =>
+        `(local.set $bound${index} (struct.get $env${closure.index} $env${closure.index}b${index} ${environment}))`,
+    ),
+  };
 }

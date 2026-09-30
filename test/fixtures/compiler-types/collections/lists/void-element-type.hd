@@ -1,4 +1,0 @@
-# test: collections / lists / void element type
-
-fn consume(values: List[void]) -> void:  # diagnostic: unknown-type
-    pass

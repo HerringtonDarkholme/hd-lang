@@ -10,7 +10,7 @@ import {
   nominalGenericType,
   optionalInner,
   optionalType,
-  PRIMITIVE_TYPES,
+  mutableOrPrimitive,
   readonlyType,
   resultParts,
   storedSuspensionParts,
@@ -655,13 +655,8 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         : [];
     });
     const callCandidate = (candidate: (typeof candidates)[number]): HirExpression => {
-      // A primitive receiver needs no mutable access
-      // (04-type-system.md#r-types.prim.no-mut.self-call).
-      if (
-        candidate.method.receiverMutable &&
-        mutableInner(receiver.type) === undefined &&
-        !PRIMITIVE_TYPES.has(receiver.type)
-      ) {
+      // A primitive receiver needs no mutable access (04-type-system.md#r-types.prim.no-mut.self-call).
+      if (candidate.method.receiverMutable && !mutableOrPrimitive(receiver.type)) {
         this.fail(
           "mutable-receiver-required",
           `method '${candidate.method.name}' requires mutable access to ${receiverImplementationType}`,

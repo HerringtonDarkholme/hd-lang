@@ -451,7 +451,8 @@ export abstract class StatementChecker extends CheckerContext {
   }): void {
     this.diagnostics.push({
       code: "redundant-let-mut",
-      message: "the annotated type already has mutable access, so 'mut' before the name is redundant",
+      message:
+        "the annotated type already has mutable access, so 'mut' before the name is redundant",
       span: site.mutSpan ?? site.span,
       severity: "warning",
       ...(site.mutSpan

@@ -68,7 +68,6 @@ cannot be conformance cases yet. Each stays here for the reason given. The
 TypeScript tests read promoted fixtures from `spec/conformance/` through
 `conformance()` in `fixture.ts`.
 
-- `compiler-types/collections/lists/void-element-type.hd`: marks unknown-type for List[void]; void resolves, and the spec names no code for a void type argument.
 - `compiler-types/enums/generic/unsaturated-type.hd`: marks partial-generic-arguments for a generic enum written without arguments (types.generic.default.bare); it waits for a conformance fixture of that case.
 - `frontend/00-core-program.hd`: implementation detail: lexer and AST snapshot input.
 - `suspension/05-unresolved-race-task-combinator.hd`: marks unsupported-task-combinator; unsupported-* codes stay out of the inventory (the spec has no portable unsupported result).

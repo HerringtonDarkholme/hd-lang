@@ -43,6 +43,7 @@ import {
 } from "./shared.ts";
 
 import { FunctionBodyEmitter } from "./function-body.ts";
+import { closureBoundLoads, environmentType } from "./context.ts";
 import { emitHostProviders } from "./host-providers.ts";
 import { emitHostFunctionImports, emitIntrinsicBody } from "./intrinsics.ts";
 import { lowerRunTimeGaps } from "./run-time-gaps.ts";
@@ -106,9 +107,11 @@ class FunctionEmitter extends FunctionBodyEmitter {
           .join(" ");
     const result =
       declaration.result === "void" ? "" : ` (result ${this.watType(declaration.result)})`;
+    const closureBounds = closureBoundLoads(declaration);
     const locals = declaration.locals
       .filter((local) => !local.parameter)
-      .map((local) => `  (local ${localName(local.index)} ${this.watType(local.type)})`);
+      .map((local) => `  (local ${localName(local.index)} ${this.watType(local.type)})`)
+      .concat(closureBounds.locals);
     this.temporaryTypes.length = 0;
     this.cleanupFrames.length = 0;
     const cache = enumSharedCache(declaration);
@@ -160,6 +163,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
       `(func ${internalName}${signature}${exportClause}${allParameters ? " " + allParameters : ""}${result}`,
       ...locals,
       ...temporaries,
+      ...closureBounds.loads.map((load) => indent(load)),
       indent(body),
       `)`,
       ...this.emitResultEntryExport(declaration, internalName),
@@ -1321,7 +1325,7 @@ ${[...program.functions, ...program.closures]
       (field $s${suspensionIndex(declaration)}polls (mut i32))${declaration.closure ? `\n      (field $s${suspensionIndex(declaration)}env anyref)` : ""}${declaration.parameters.map((parameter, index) => `\n      (field $s${suspensionIndex(declaration)}a${index} ${emitter.watType(parameter.type)})`).join("")}${declaration.genericBounds.map((bound, index) => `\n      (field $s${suspensionIndex(declaration)}b${index} (ref null $trait${bound.traitIndex}))`).join("")}${declaration.requirements.map((requirement, index) => `\n      (field $s${suspensionIndex(declaration)}p${index} ${providerWatType(requirement, traitsByName)})`).join("")}${storedLocals.map((local) => `\n      (field $s${suspensionIndex(declaration)}l${local.index} (mut ${emitter.watType(local.type)}))`).join("")}${sites.map((site) => `\n      (field $s${suspensionIndex(declaration)}child${"siteIndex" in site ? site.siteIndex : site.index} (mut (ref null ${suspensionFrameTypeName(site.drive)})))`).join("")}${declaration.result === "void" ? "" : `\n      (field $s${suspensionIndex(declaration)}result (mut ${emitter.watType(declaration.result)}))`}))`;
   })
   .join("\n")}
-${program.closures.map((closure) => `    (type $env${closure.index} (struct${closure.captures.length ? "\n" + closure.captures.map((capture) => `      (field $env${closure.index}f${capture.fieldIndex} ${emitter.watType(capture.source.type)})`).join("\n") : ""}))`).join("\n")}\n${program.data
+${program.closures.map((closure) => environmentType(closure, emitter)).join("\n")}\n${program.data
     .map((declaration) => {
       const fields = declaration.fields
         .map(

@@ -219,6 +219,24 @@ export class FunctionChecker extends ExpressionControlChecker {
       : this.checkExpressionRaw(operand, guide);
   }
 
+  /**
+   * A closure sees the enclosing function's generic parameters and bounds,
+   * so its body calls methods through those bounds
+   * (07-functions.md#method-references), and its declared row is compared
+   * with its own `$.with` keys
+   * (11-requirements-and-suspension.md#r-req.with.collision.closure). The
+   * prototype passes a suspending closure no bound dictionaries.
+   */
+  private enclosingGenerics(
+    suspending: boolean,
+  ): Pick<Signature, "genericParameters" | "genericBounds" | "rowParameters"> {
+    return {
+      genericParameters: this.signature.genericParameters,
+      genericBounds: suspending ? [] : this.signature.genericBounds,
+      rowParameters: this.signature.rowParameters,
+    };
+  }
+
   protected checkClosureExpression(
     expression: Expression,
     expected?: ValueType,
@@ -351,15 +369,16 @@ export class FunctionChecker extends ExpressionControlChecker {
           body: expression.body,
           span: expression.span,
         };
-        let requirements = expression.requirements;
+        const enclosingGenerics = this.enclosingGenerics(suspending);
+        let requirements: readonly string[] | undefined = expression.requirements?.map((key) =>
+          this.canonicalProviderKey(key, expression.span),
+        );
         if (requirements === undefined || inferResult) {
           const discoverySignature: Signature = {
             name: baseDeclaration.name,
             index: closureIndex,
             suspending,
-            genericParameters: [],
-            genericBounds: [],
-            rowParameters: [],
+            ...enclosingGenerics,
             parameters: parameterTypes,
             parameterNames: parameters.map((parameter) => parameter.name),
             defaultFunctionNames: parameters.map(() => undefined),
@@ -414,9 +433,7 @@ export class FunctionChecker extends ExpressionControlChecker {
           name: declaration.name,
           index: closureIndex,
           suspending,
-          genericParameters: [],
-          genericBounds: [],
-          rowParameters: [],
+          ...enclosingGenerics,
           parameters: parameterTypes,
           parameterNames: parameters.map((parameter) => parameter.name),
           defaultFunctionNames: parameters.map(() => undefined),

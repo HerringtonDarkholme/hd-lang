@@ -642,7 +642,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       case "closure-self":
         return `(struct.new $closure${this.functionSignatures.get(readonlyType(expression.type))} (ref.func $c${expression.closureIndex}) (local.get $env))`;
       case "closure":
-        return `(struct.new $closure${this.functionSignatures.get(readonlyType(expression.type))} (ref.func $c${expression.closureIndex}) (struct.new $env${expression.closureIndex}${expression.captures.length ? " " : ""}${expression.captures.map((capture) => this.emitExpression(capture)).join(" ")}))`;
+        return `(struct.new $closure${this.functionSignatures.get(readonlyType(expression.type))} (ref.func $c${expression.closureIndex}) (struct.new $env${expression.closureIndex}${[...expression.captures.map((capture) => this.emitExpression(capture)), ...this.closureBoundValues(expression.closureIndex)].map((value) => ` ${value}`).join("")}))`;
       case "closure-call": {
         const signature = this.functionSignatures.get(readonlyType(expression.callee.type));
         const temporary = this.allocateTemporary(expression.callee.type);
