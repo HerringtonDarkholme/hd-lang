@@ -147,11 +147,38 @@ today's rules. Q5 supersedes Q1b's nested form, and Q8 reverses the
 
 **Still open from applying batch 26.** The specification applies the
 reading in the middle column; each point asks the owner to confirm it.
+The owner answered Q5-list with LP1 below.
 
 | # | Question | Applied reading and **Recommendation** |
 | --- | --- | --- |
-| Q5-list | Removing the wrapping rules left `[a, b := value]` without a rule. It could read as a list of `a` and the single-name binding `b := value`. | It stays an error, now `syntax-error`, under [`grammar.expr.multi-binding.statement-only`](../spec/02-grammar.md#r-grammar.expr.multi-binding.statement-only), as `(a, b := value)` is. **Recommendation:** keep it, since a reader takes it for a multi-name binding. |
 | Q7-code | The decision says a `mut` key "stays an error" but names no code. | It keeps `invalid-map-key` ([`types.map-key.no-mut`](../spec/04-type-system.md#r-types.map-key.no-mut)), as variant B of [Special Cases C8](SPECIAL_CASES.md#c8-map-keys-through-the-ordinary-bound) proposed. **Recommendation:** keep it; the code names a rule no bound states. |
+
+**Batch 26, LP1: patterns in `let` (owner decision, 2026-09-30).** Not
+yet applied. The owner asked "can i do pattern matching in let? let Point
+{x , y} = point", then chose "also refutable, with else". The LP1 details
+that followed are final, each as recommended except the `:=` scope, which
+the owner narrowed. Later the same day the owner narrowed it again:
+`:=` binds exactly one name, and every destructuring goes through `let`.
+That revision, LP1-one, replaces LP1-scope, LP1-unify, and LP1-cover
+where they differ.
+
+| # | Decision | Where |
+| --- | --- | --- |
+| LP1 | `let` accepts the `match` pattern grammar: data patterns (`Point { x, y }`, `Point { x: px }`), tuple patterns, nested patterns, `_`, and variant patterns. An irrefutable pattern needs no `else`, as in `let Point { x, y } = point`. | [Let Statements](../spec/02-grammar.md#let-statements) |
+| LP1-else | A refutable pattern, such as a literal field, an enum variant, or `.Some(v)`, requires `else:` with a block that must diverge: `return`, `break`, `continue`, or a panic. The block never falls through, as in Rust's let-else and Swift's `guard let`. A refutable pattern without `else` is an error. | [Control Flow](../spec/06-control-flow.md) |
+| LP1-scope | Patterns, let-else included, come only after `let`. `:=` keeps a name or a tuple of names, so `Point { x, y } := p` is an error: write `let`. Owner: "let's first use this, we can add in future". Revised by LP1-one. | [Short Binding Lists](../spec/02-grammar.md#short-binding-lists) |
+| LP1-mut | `mut` may precede each name in a `let` pattern, as in `let Point { mut tags, name } = user`, following the `let mut` rules. | [Binding Forms](../spec/04-type-system.md#binding-forms) |
+| LP1-unify | Today's `let (a, b)` and `(a, b) :=` lists become ordinary tuple patterns, with the same meaning. Revised by LP1-one: only `let (a, b)` remains. | [Let Statements](../spec/02-grammar.md#let-statements) |
+| LP1-inline | A let-else body may be a same-line suite: `let .Some(user) = find(id) else: return .None`. | [Same-Line Suite Bodies](../spec/02-grammar.md#same-line-suite-bodies) |
+| LP1-cover | The owner noted that `(a, b) := pair` is also ambiguous. It is the cover-grammar case: a short lookahead finds `:=`. It is kept. Superseded by LP1-one, which removes the form. | [Short Binding Lists](../spec/02-grammar.md#short-binding-lists) |
+| LP1-one | `:=` binds exactly one name. Multi-name `(a, b) := value` is removed; every destructuring, tuple patterns included, uses `let`, as in `let (a, b) = pair`. So `(a, b) := pair` is an error that says to use `let`, as `Point { x, y } := p` is. The multi-name `:=` rules are retired, and every `(a, b) :=` site is respelled `let (a, b) =`. `for (k, v) in m` is not a `:=` binding and stays. | [Short Binding Lists](../spec/02-grammar.md#short-binding-lists), [Multi-Name Bindings](../spec/02-grammar.md#multi-name-bindings) |
+| Q5-list | Answers the question left open from applying batch 26. `[a, b := value]` is a list whose last element is the single-name binding expression `b := value`, as `[a, (b := value)]` is. A list item already takes a binding expression. | [Multi-Name Bindings](../spec/02-grammar.md#multi-name-bindings) |
+
+**Noted for the future, not decided.** A cover grammar for `:=`, as in
+JavaScript, Python, Rust's destructuring assignment, and Elixir, would let
+`:=` take patterns too. With it would come data-literal field shorthand,
+`Point { x, y }` for `Point { x: x, y: y }`, so a pattern and a literal
+read the same. The owner deferred both ("we can add in future").
 
 ### Bound And Row Operators
 
