@@ -32,7 +32,7 @@ files it cites are in this directory.
 | --------------------- | ----------------------------------------------------------- | ------------------------------------------ |
 | structure             | `ast-grep outline` on core files                           | read only                                  |
 | HIR shape             | `hd dump-hir` on `desugar.hd`, `varargs-named.hd`; `hir-shape.ts` | `desugar-hir.md`                       |
-| rows                  | `hd check`, `hd explain-requirements` on row probes         | `row-omission.md`, `explain-requirements.md` |
+| rows                  | `hd check` on row probes                                    | `row-omission.md`                          |
 | row ripple            | `row-ripple.ts audit/probes/compiler/row-ripple`            | `row-ripple.md`                            |
 | error recovery        | `hd check probes/compiler/errors-*.hd`                      | `error-recovery.md`                        |
 | import graph          | `import-graph.ts src`                                       | `module-structure.md`                      |
@@ -42,7 +42,6 @@ files it cites are in this directory.
 | WAT stability         | `wat-stability.ts probes/compiler/scale-100.hd`             | `wat-stability.md`                         |
 | closure nesting       | `nested-closures.ts <dir> 20`                               | `nested-closures.md`                       |
 | interpolation spans   | `hd check interp-span*.hd`                                  | `interpolation-span.md`                    |
-| replay identity       | `hd record` and `hd replay` on 3 formatting variants        | `replay-identity.md`                       |
 | frame liveness        | `hd build --wat frame-liveness.hd`                          | `frame-liveness.md`                        |
 
 ## 6.1 Pipeline and HIR
@@ -106,9 +105,7 @@ A lowered IR is needed; `SuspensionPlan` is the natural seed.
 ### Requirements in HIR
 
 Rows are carried on function types (`$Logger`, `$row:r`) and in
-`HirFunction.requirements`. `explain-requirements` reads those rows but
-rebuilds call paths with a separate hand-written walker, which misses cases
-(F-600, F-601, F-612).
+`HirFunction.requirements`.
 
 ### Module structure
 
@@ -243,8 +240,6 @@ stable declaration identities, and one shared lowered IR.
 
 | ID    | Severity | Title                                                                         |
 | ----- | -------- | ----------------------------------------------------------------------------- |
-| F-600 | minor    | `explain-requirements` skips 23 of 80 HIR kinds and reports real uses as "declared" |
-| F-601 | minor    | `explain-requirements` shows closure-routed requirements as a direct `$.use`  |
 | F-604 | minor    | nested unannotated closures double check time per level (3.2 s at depth 20)   |
 | F-605 | minor    | error recovery limits                                                         |
 | F-606 | minor    | errors inside `${...}` are reported at 1:1                                    |
@@ -252,7 +247,6 @@ stable declaration identities, and one shared lowered IR.
 | F-608 | note     | program-wide numbering makes WAT unstable under edits                         |
 | F-609 | note     | desugaring split between checker and emitter; control flow lowered three times |
 | F-610 | note     | `??` dispatch chains defeat exhaustiveness checking                           |
-| F-612 | note     | `explain-requirements` output grows exponentially                             |
 
 ## Phase-7 Questions
 
@@ -263,7 +257,6 @@ stable declaration identities, and one shared lowered IR.
    execution order?
 3. Should the conformance contract require independent errors from
    different declarations to be reported?
-4. Should `explain-requirements` print one witness path per key?
 
 Two questions from this phase are answered. Module initialization counts a
 trait call through a bound or a dynamic value as reaching every

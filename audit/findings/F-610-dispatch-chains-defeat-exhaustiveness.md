@@ -8,7 +8,7 @@ Evidence: src/checker/checker.ts:14-27 (10 partial handlers),
   300-line cap; emitValueExpression 291)
 Effect: When a new HIR or AST kind is added and one handler is forgotten,
   `tsc` stays silent. The compiler throws `unsupported expression` at run time,
-  or skips the kind silently in walkers without a `default` (see F-600). The
+  or skips the kind silently in walkers without a `default`. The
   split appears to be shaped by the 300-line function cap. 13 functions sit
   at 258-300 lines.
 Recommendation: implementation change. Keep one exhaustive `switch` per kind

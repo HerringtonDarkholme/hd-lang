@@ -32,8 +32,6 @@ Generated from `audit/findings/` on 2026-09-29. "Merged duplicates" lists the ID
 | [F-558](../findings/F-558-string-boundary-byte-per-call.md) | minor | runtime | strings cross the host boundary one byte per import call |  |  |
 | [F-559](../findings/F-559-checked-programs-crash-emission.md) | minor | correctness | A type-checked multi-provider use crashes Wasm emission with an internal error |  |  |
 | [F-560](../findings/F-560-cli-always-loads-binaryen.md) | note | architecture | every CLI command loads binaryen.js, even commands that emit no Wasm |  |  |
-| [F-600](../findings/F-600-explain-requirements-skips-hir-kinds.md) | minor | correctness | explain-requirements skips 23 HIR kinds and reports real uses as "declared" |  |  |
-| [F-601](../findings/F-601-explain-requirements-closure-paths.md) | minor | correctness | explain-requirements shows closure-routed requirements as a direct `$.use` |  |  |
 | [F-604](../findings/F-604-nested-closure-inference-exponential.md) | minor | architecture | Checking nested unannotated closures doubles in time per nesting level |  |  |
 | [F-605](../findings/F-605-error-recovery-limits.md) | minor | architecture | Error recovery stops at the first parse error and the first error per function |  |  |
 | [F-606](../findings/F-606-interpolation-diagnostic-location.md) | minor | correctness | Diagnostics inside `${...}` interpolation are reported at 1:1 |  |  |
@@ -41,4 +39,3 @@ Generated from `audit/findings/` on 2026-09-29. "Merged duplicates" lists the ID
 | [F-608](../findings/F-608-order-dependent-numbering.md) | note | architecture | Program-wide numbering makes one inserted declaration rewrite half the WAT |  |  |
 | [F-609](../findings/F-609-lowering-split-and-triplicated.md) | note | architecture | Desugaring is split between checker and emitter, and control flow is lowered three times |  |  |
 | [F-610](../findings/F-610-dispatch-chains-defeat-exhaustiveness.md) | note | architecture | Expression dispatch is split into `??` chains, so missing kinds fail only at runtime |  |  |
-| [F-612](../findings/F-612-explain-requirements-path-explosion.md) | note | architecture | explain-requirements prints every call path, so output grows exponentially |  |  |
