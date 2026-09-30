@@ -1,9 +1,7 @@
 id	count	title
 F-250	12	Packs, GADT variant results, and package roles are not implemented: a pack function is `unsupported-generic-parameter`, `pack.map` is an unknown name, and GADT results and package roles get generic diagnostics
-STR	14	Strings STR1-STR8: `len` counting bytes, `s[i]` as a `u8`, the built-in `chars`, `char_indices`, `bytes`, and `slice` methods, the `index-out-of-bounds` slice panics, and the `Index` and `IndexSet` implementations of `List`, `Map`, and `string` are not implemented; the prototype still counts scalars and rejects string indexing
 MREF	2	Method references (Method References MR1-MR4, MR6) are implemented, but a closure in a generic function cannot call a method through the enclosing function's bounds, so `T::label` fails, and `List[void]`, which one fixture's result type names, is still an unknown type
 ERRD	25	The `@error` intrinsic (Error Conversion decision 10) and its batch 9, 11, and 13 codes, bounds, and scope (decisions 21-31) are not implemented: the prototype resolves `@error` as an ordinary decorator, so it derives no `Display`, `Error`, or `From`, and `@from` and `@source` are unknown names
-PT	9	The property-test API batch 12 (Testing PT2-PT7) and its batch 13 answers (Q5-Q8) are not implemented: generic `Choices.int` and `Choices.float`, `string(max_chars)`, `Choices.map`, the `examples` option, the per-case draw budget and its simplest values, the `Arbitrary` template with its recursive-variant rules, and the generic `arbitrary.with` fact
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
 TQ-2	1	The trait-argument ownership fixture for a foreign trait argument needs package roles, which the prototype lacks
