@@ -1,5 +1,5 @@
 # test: a trait-qualified call writes the trait's arguments after `::`
-# Spec 02 Type Arguments In Expressions: grammar.expr.type-arguments.unmarked (owner decision CI3).
+# Spec 02 Type Arguments In Expressions: grammar.expr.type-arguments.unmarked (owner decision D3).
 
 trait Add[T]:
     fn add(self, other: T) -> T

@@ -9,4 +9,4 @@ DC7	1	An initialization group's statements are not interleaved: the package link
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer
 INF-mut	3	Generic call inference from several arguments (batch 17, INF-mut) is not implemented: an i32 and an i64 argument widen instead of type-mismatch, a User and a Display argument are type-mismatch instead of no-common-type, and assert_equal still coerces expected to the type of actual
-BF	83	Explicit type arguments in expressions take `::` (batch 22, CI1 and CI3): the prototype does not parse `::[`, still accepts a type name's arguments without `::`, and reads brackets before `(` as type arguments
+BF	83	Explicit type arguments in expressions take `::` (batch 22, D1 and D3): the prototype does not parse `::[`, still accepts a type name's arguments without `::`, and reads brackets before `(` as type arguments

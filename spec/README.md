@@ -2259,8 +2259,8 @@ existing source. Each entry names the decision that made the change.
   `slice`, `len`, interpolation, or a local helper. Source is unaffected.
   The stdlib terms move to a [Glossary](std/README.md#glossary) of their
   own.
-- Type arguments in expressions take `::` (owner decisions CI1, its
-  type-argument part, and CI3 in
+- Type arguments in expressions take `::` (owner decisions D1, its
+  type-argument part, and D3 in
   [Call Indexing](../future-work/CALL_INDEXING.md#owner-decisions),
   2026-09-30): language tier. `[` after an expression always indexes, and
   an explicit type-argument list in an expression follows `::`:

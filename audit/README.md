@@ -35,7 +35,7 @@ them by tag:
 | GQ4 | 1 | the prototype has no pack operations |
 | MHP-1 | 1 | no inferred script entry requirement row |
 | INF-mut | 3 | batch 17: generic inference widens numbers, reports a trait-value conflict as `type-mismatch`, and `assert_equal` keeps its special case |
-| BF | 83 | batch 22, CI1 and CI3: the prototype does not parse `::[` type arguments, still accepts `Box[i32] { ... }`, and reads `handlers[1](5)` as type arguments |
+| BF | 83 | batch 22, D1 and D3: the prototype does not parse `::[` type arguments, still accepts `Box[i32] { ... }`, and reads `handlers[1](5)` as type arguments |
 
 ## What Remains
 
@@ -70,7 +70,7 @@ Revision Notes in `spec/README.md` are the record.
 | MHP-1 | A `println` call at the top level of a script is valid (the second round). The prototype infers no script entry requirement row (`module.init.script-row`), so `println-top-level-script.hd` reports `missing-requirement`. |
 | DC7 | The top-level statements of an initialization group run in dependency order, then by module identity and source position. The package linker joins a group's modules by identity and cannot interleave their statements, so a read that needs a later-joined module's binding is `top-level-read-before-initialization`, which `init-group-order.hd`, a package-tree fixture, shows. |
 | M29 | A `Self` line in a per-trait derivation block warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package, and the prototype CLI has no package roles. The other M29 rules, and M27 and M28, are implemented. |
-| BF | CI1 (its type-argument part) and CI3: explicit type arguments in an expression follow `::`, as in `first::[string](names)` and `Box::[i32] { ... }`, and `[` after an expression always indexes. The prototype parser reads neither `::[` nor an index before `(`, and still accepts `Box[i32] { ... }`. `lib/std` and `src/` keep the old spelling until it does. |
+| BF | D1 (its type-argument part) and D3: explicit type arguments in an expression follow `::`, as in `first::[string](names)` and `Box::[i32] { ... }`, and `[` after an expression always indexes. The prototype parser reads neither `::[` nor an index before `(`, and still accepts `Box[i32] { ... }`. `lib/std` and `src/` keep the old spelling until it does. |
 
 ## Prototype Gaps No Fixture Reaches
 

@@ -1,5 +1,5 @@
 # test: brackets after an expression index it, so `handlers[1](5)` calls an element
-# Spec 02 Type Arguments In Expressions: grammar.expr.index-only (owner decision CI1).
+# Spec 02 Type Arguments In Expressions: grammar.expr.index-only (owner decision D1).
 
 use std.testing.assert_equal
 
