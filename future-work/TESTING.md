@@ -23,9 +23,10 @@ applied in the same sections.
 
 ## Owner Decisions
 
-All applied, SR1 (batch 17, 2026-09-30) and AT-with (batch 20,
-2026-09-30) included; [Spec Tiers](SPEC_TIERS.md#migration-plan)
-migration step 5 applied AT-with. The specification is authoritative; the
+All applied, SR1 (batch 17, 2026-09-30), AT-with (batch 20,
+2026-09-30), and AT-any (batch 21, 2026-09-30) included;
+[Spec Tiers](SPEC_TIERS.md#migration-plan) migration step 5 applied
+AT-with. The specification is authoritative; the
 decision texts and the batch 12 apply-pass readings, confirmed by Q9 and
 Q10, are in git history.
 
@@ -49,6 +50,9 @@ Q10, are in git history.
 | Q9, Q10 | The batch 12 readings are confirmed | unchanged |
 | SR1 | `std.structure` gains a compiler-computed `pub enum SelfRef: Absent / Optional / Required` and a `self_ref: SelfRef` field on `VariantInfo` and `Member`. Derived `Arbitrary` becomes an ordinary `std.testing` template that picks the simplest variant by `self_ref != .Required`; a type whose every variant, or one data field, is `.Required` has no finite value. The prototype's checker-generated `Arbitrary` is a stopgap. | [`std-testing.arbitrary.derive.template`](../spec/std/testing.md#r-std-testing.arbitrary.derive.template), [`.no-finite.data`](../spec/std/testing.md#r-std-testing.arbitrary.derive.no-finite.data), [Self References](../spec/14-annotations.md#self-references); the full text is in [TYPED_DERIVATION](TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30) |
 | AT-with | Option B (batch 20): "let's first go with B, thanks if it is not derivable, ask users to do manual impl". Annotations stay unchecked, with no compile-time check hook (M30). `arbitrary.with(gen)` stores the generator as `Any`. The derived template requires every member `F < Arbitrary & Inspectable`, tuned or not, and downcasts a tuned member's generator result. A mismatch panics with `explicit-panic`, naming the member. A type whose members fail either bound, such as one with a function-typed or non-inspectable member, is not derivable: the derive reports `unsatisfied-trait-bound`, and the user writes a manual `impl Arbitrary`. AT-with supersedes Q5's `arbitrary.with` details only where they differ. Member-typed facts (option D) are a future option in [Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets), not decided. | [`std-testing.arbitrary.derive.member-bounds`](../spec/std/testing.md#r-std-testing.arbitrary.derive.member-bounds), [`.derive.not-derivable`](../spec/std/testing.md#r-std-testing.arbitrary.derive.not-derivable), [`.with.downcast-failure`](../spec/std/testing.md#r-std-testing.arbitrary.with.downcast-failure) |
+| AT-any | Batch 21 confirms the reading of AT-with's "as `Any`": `with[T < Inspectable](gen)` returns an opaque `Generator` holding `fn(mut Choices) -> Inspectable`. Each drawn value is erased to `Inspectable`, and the template downcasts it to the member's type; a mismatch is `explicit-panic`, naming the member. A raw `Any` could not be type-tested. | [`std-testing.arbitrary.with.wrap`](../spec/std/testing.md#r-std-testing.arbitrary.with.wrap), and a Note in [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary) |
+| ST8-newtype | Batch 21: a newtype gets no `Structure` today, so a newtype that derives `Arbitrary` through a base with no finite value panics with the base's name. The newtype-name rule stays for when newtypes gain a `Structure`. | Notes in [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary) and [The Structure Trait](../spec/14-annotations.md#the-structure-trait) |
+| ST8-clash | Batch 21: inside a template, a clash between the generated `facts` or `name` and the derived trait's own receiverless member is resolved by qualifying, `Structure::name` vs `MyTrait::name`, as M30 does for `Structure::walk`. | The Note on generated names in [Templates](../spec/14-annotations.md#templates); `Self` of the qualified call is open in [Open Issues](OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening) |
 
 ### Apply-Pass Readings
 

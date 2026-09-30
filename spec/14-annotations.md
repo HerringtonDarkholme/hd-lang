@@ -751,6 +751,12 @@ fn fields[X < Structure]() -> void:  # error: structure-outside-template
 For `data Box[T]` declared in the module `shapes`, `T::name()` is
 `"Box"`, not `"shapes.Box"` or `"Box[i32]"`.
 
+> **Note.** A newtype gets no `Structure` today
+> ([`trait.derive.newtype.templated`](09-traits.md#r-trait.derive.newtype.templated)),
+> so no template reads a newtype's `name()`. A derivation through the base
+> type sees the base type's name. `annot.structure.name.newtype` applies
+> once newtypes gain a `Structure`.
+
 > **Why.** Traversal stays pure, as serde's is: input and output happen
 > before `build` or after `walk`, so a derivation never needs a provider.
 
@@ -807,6 +813,12 @@ impl[T] Tagged for T by Structure  # error: marker-template
 > even when the derived trait or another trait of `T` has a method of the
 > same name. The qualified call `Structure::walk(self, w)` always calls the
 > generated `walk`.
+
+> **Note.** The receiverless `facts` and `name` clash the same way when
+> the derived trait declares its own receiverless member of that name.
+> Inside the template, qualifying the call resolves it. When `Encode`
+> declares its own `name`, `Structure::name()` is the generated one and
+> `Encode::name()` is `Encode`'s.
 
 ### Derivation Blocks
 

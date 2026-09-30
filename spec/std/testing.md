@@ -244,6 +244,16 @@ message `Loop has no finite value`. So does `Ring`'s, because its member
 > fact can lift it from one member. So every member meets both bounds, and
 > a type whose members cannot is written by hand.
 
+> **Note.** A `Generator` is opaque: it holds the wrapped
+> `fn(mut Choices) -> Inspectable`. It is not a raw `Any` value, which has
+> no type test ([`types.unsupported.no-assertions`](../04-type-system.md#r-types.unsupported.no-assertions)),
+> so the template can downcast each drawn value to the member's type.
+
+> **Note.** A newtype gets no `Structure`
+> ([`trait.derive.newtype.templated`](../09-traits.md#r-trait.derive.newtype.templated)).
+> A newtype that derives `Arbitrary` through a base with no finite value
+> panics with the base type's name.
+
 > **Note.** These are runner behavior, not rules of this chapter: how often
 > a draw returns small and boundary values, any small-first order of cases,
 > and the size of the draw budget. So are which chars `string` draws and

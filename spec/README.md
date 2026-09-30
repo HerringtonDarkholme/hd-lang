@@ -2231,3 +2231,15 @@ existing source. Each entry names the decision that made the change.
   signatures keep `timeout: Duration?`; a Note in
   [Test Cases](10-modules.md#test-cases) says `Duration` is the
   stdlib-tier `std.time.Duration`, named there only.
+- Batch 21 follow-ups to batch 20 (owner decisions AT-any, ST8-newtype,
+  and ST8-clash in [Open Issues](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  2026-09-30): both tiers, Notes only. Source is unaffected, and no rule
+  ID changes. AT-any confirms that `arbitrary.with` returns an opaque
+  `Generator`, not a raw `Any`
+  ([Derived Arbitrary](std/testing.md#derived-arbitrary)). ST8-newtype
+  accepts that a newtype, which gets no `Structure`, panics with its base
+  type's name ([The Structure Trait](14-annotations.md#the-structure-trait)).
+  ST8-clash extends the Note on generated names in
+  [Templates](14-annotations.md#templates) to `facts` and `name`: a clash
+  with the derived trait's own receiverless member is resolved by
+  qualifying the call.

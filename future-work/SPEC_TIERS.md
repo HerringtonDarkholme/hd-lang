@@ -345,6 +345,10 @@ next to `facts()`.
 `Structure.name()` is a language-tier addition: `std.structure` bodies are
 compiler-supplied. Step 5 applied it in
 [The Structure Trait](../spec/14-annotations.md#the-structure-trait).
+Batch 21 (2026-09-30) accepted that a newtype, which gets no `Structure`
+today, panics with its base's name, and resolved a clash with a trait's
+own `facts` or `name` by qualifying the call
+([Open Issues](OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening)).
 
 ## Still Open
 
