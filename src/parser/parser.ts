@@ -1221,33 +1221,7 @@ class Parser extends DecoratorParser {
         this.current().span,
       );
     if (this.matchText("let")) {
-      // Each name may be written `mut name`; several names go in parentheses
-      // (02-grammar.md#let-statements).
-      const letName = (message: string) => {
-        const mutableAccess = this.matchText("mut");
-        return { token: this.expectKind("identifier", message), mutableAccess };
-      };
-      const names: ReturnType<typeof letName>[] = [];
-      if (this.atText("(")) {
-        const open = this.advance();
-        names.push(letName("expected a binding name"));
-        while (this.matchText(",")) names.push(letName("expected a binding name after ','"));
-        const close = this.expectText(")");
-        if (names.length < 2)
-          this.fail(
-            "syntax-error",
-            "a parenthesized let list needs at least two names; write 'let name = ...' for one",
-            { start: open.span.start, end: close.span.end },
-          );
-      } else {
-        const first = this.current();
-        names.push(letName("expected a binding name"));
-        this.rejectCommaClosingInlineSuite();
-        if (this.atText(",")) {
-          while (this.matchText(",")) names.push(letName("expected a binding name after ','"));
-          this.failBareNameList("let", first, this.peek(-1));
-        }
-      }
+      const names = this.parseLetNames();
       const annotation = this.matchText(":") ? this.parseType() : undefined;
       this.expectText("=");
       const value = this.parseRightSide();
@@ -1417,50 +1391,6 @@ class Parser extends DecoratorParser {
     }
     const end = this.finishExpressionStatement(expression, topOrInline);
     return { kind: "expression", expression, span: { start, end } };
-  }
-
-  /**
-   * At the start of a statement, `(`, names separated by commas, `)`, and
-   * `:=` always form a binding list, never a tuple expression
-   * (02-grammar.md#r-grammar.stmt.bind-list.not-tuple). Returns the number of
-   * names, or undefined when the tokens do not have that shape.
-   */
-  private bindingListLength(): number | undefined {
-    if (!this.atText("(")) return undefined;
-    let offset = 1;
-    let count = 0;
-    for (;;) {
-      if (this.peek(offset).kind !== "identifier") return undefined;
-      count += 1;
-      offset += 1;
-      if (this.peek(offset).text !== ",") break;
-      offset += 1;
-    }
-    return this.peek(offset).text === ")" && this.peek(offset + 1).text === ":="
-      ? count
-      : undefined;
-  }
-
-  /**
-   * A multi-name `let` or `:=` without parentheses is an error whose fix-it
-   * adds them (02-grammar.md#r-grammar.stmt.let-list.bare,
-   * 02-grammar.md#r-grammar.stmt.bind-list.bare).
-   */
-  private failBareNameList(form: "let" | ":=", first: Token, last: Token): never {
-    const span = { start: first.span.start, end: last.span.end };
-    const example = form === "let" ? "let (a, b) = ..." : "(a, b) := ...";
-    this.fail(
-      "syntax-error",
-      `several names in a ${form === "let" ? "'let'" : "':='"} binding go in parentheses, as in '${example}'`,
-      span,
-      {
-        message: "put the names in parentheses",
-        edits: [
-          { span: { start: span.start, end: span.start }, replacement: "(" },
-          { span: { start: span.end, end: span.end }, replacement: ")" },
-        ],
-      },
-    );
   }
 
   // The right side of `let ... =`, `=`, `_ :=`, `return`, and `break`: an
