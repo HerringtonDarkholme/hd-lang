@@ -1,0 +1,54 @@
+# test: a template reads each variant's and member's self_ref
+# Spec 14 Self References: annot.self-ref.member, .variant, .variant.empty, .needs.containers;
+# The std.structure Module: annot.structure.self-ref-field (SR1, owner decision 2026-09-30).
+use std.structure.{Structure, Field, Variant, Describer, SelfRef}
+use std.testing.assert_equal
+
+trait Shape:
+    fn shape() -> string
+
+fn ref_name(r: SelfRef) -> string:
+    match r:
+        .Absent => "absent"
+        .Optional => "optional"
+        .Required => "required"
+
+data ShapeLister:
+    out: string
+
+impl[S] Describer[S] for ShapeLister:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        self.out = self.out + v.info.name + "=" + ref_name(v.info.self_ref) + ";"
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.out = self.out + h.info.name + "=" + ref_name(h.info.self_ref) + ";"
+        .Ok()
+
+impl[T] Shape for T by Structure:
+    fn shape() -> string:
+        let mut d = ShapeLister { out: "" }
+        _ := T::describe(d)
+        d.out
+
+@derive(Shape)
+enum Expr:
+    Num(value: i32)
+    Add(left: Expr, right: Expr)
+    Block(items: List[Expr])
+    Empty
+
+@derive(Shape)
+data Node:
+    label: string
+    parent: Node?
+
+tests:
+    it("an enum's variants and members report their self references"):
+        expected := "Num=absent;value=absent;Add=required;left=required;right=required;Block=optional;items=optional;Empty=absent;"
+        assert_equal(Expr::shape(), expected, reason="direct, list, and no self references")
+
+    it("a data type's one variant reports its members' strongest self reference"):
+        assert_equal(Node::shape(), "Node=optional;label=absent;parent=optional;", reason="an optional self reference")

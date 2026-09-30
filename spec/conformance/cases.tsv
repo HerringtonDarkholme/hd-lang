@@ -1611,3 +1611,10 @@ parse/invalid/trailing-block-same-line-body.hd	parse	reject:syntax-error	02-gram
 parse/invalid/trailing-block-in-same-line-suite.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.call.trailing-block.next-line
 parse/valid/trailing-block-under-if.hd	parse	accept	02-grammar.md#r-grammar.call.trailing-block.next-line
 runtime/valid/mut-self-primitive-arithmetic.hd	runtime	accept	04-type-system.md#r-types.prim.no-mut.self-type
+runtime/valid/generic-inference-mut-weakening.hd	runtime	accept	04-type-system.md#r-types.generic.infer.join
+typing/invalid/generic-inference-numeric-widening.hd	type	reject:type-mismatch	04-type-system.md#r-types.generic.infer.join.no-widen
+typing/invalid/generic-inference-trait-value.hd	type	reject:no-common-type	04-type-system.md#r-types.generic.infer.join.no-trait-value
+runtime/valid/generic-inference-explicit-conversions.hd	runtime	accept	04-type-system.md#r-types.generic.infer.join.explicit
+typing/invalid/assert-equal-numeric-widening.hd	type	reject:type-mismatch	04-type-system.md#r-types.generic.infer.join.no-widen
+runtime/valid/derived-arbitrary-no-finite-data.hd	runtime	accept	10-modules.md#r-module.testing.arbitrary.derive.no-finite.data
+runtime/valid/structure-self-ref.hd	runtime	accept	14-annotations.md#r-annot.self-ref.member

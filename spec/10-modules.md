@@ -959,11 +959,13 @@ Once the budget is spent, `c.int(0, 2)` returns `0`, so `tree` returns
 #### Derived Arbitrary
 
 1. r[module.testing.arbitrary.derive] `@derive(Arbitrary)` derives `Arbitrary` through its [template](14-annotations.md#templates). The derived `arbitrary` draws each member with its type's `Arbitrary`. For an enum, it draws a variant, then that variant's payload.
-2. r[module.testing.arbitrary.derive.simplest] A derived enum's simplest choice is its first non-recursive variant, whatever the declaration order.
-3. r[module.testing.arbitrary.derive.recursive] A variant is recursive when its simplest payload still needs a value of the enum: a member whose type is the enum, directly or through the members of a data type or a tuple.
-4. r[module.testing.arbitrary.derive.recursive.containers] A `List`, `Map`, or optional member does not make its variant recursive, because its simplest value is empty or `.None`.
-5. r[module.testing.arbitrary.derive.no-finite] When every variant of a derived enum is recursive, the derived `arbitrary` panics on the property's first case, with a message that names the type. Panic: `explicit-panic`.
-6. r[module.testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
+2. r[module.testing.arbitrary.derive.template] That template is ordinary `std.testing` code over `std.structure`: it reads each variant's and member's [`self_ref`](14-annotations.md#self-references), and the compiler supplies nothing for `Arbitrary` itself.
+3. r[module.testing.arbitrary.derive.simplest] A derived enum's simplest choice is its first non-recursive variant, whatever the declaration order.
+4. r[module.testing.arbitrary.derive.recursive] A variant is recursive when its `self_ref` is `.Required`: its simplest payload still needs a value of the enum, directly or through the members of a data type, a tuple, or a `Result`'s `.Ok`.
+5. r[module.testing.arbitrary.derive.recursive.containers] A `List`, `Map`, or optional member does not make its variant recursive, because its `self_ref` is at most `.Optional`: its simplest value is empty or `.None`.
+6. r[module.testing.arbitrary.derive.no-finite] When every variant of a derived enum is recursive, the derived `arbitrary` panics on the property's first case, with a message that names the type. Panic: `explicit-panic`.
+7. r[module.testing.arbitrary.derive.no-finite.data] When a member of a derived data type has `self_ref` `.Required`, its derived `arbitrary` panics the same way, and the compiler does not reject the type either. Panic: `explicit-panic`.
+8. r[module.testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
 7. r[module.testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
 8. r[module.testing.arbitrary.with.module] The module `std.testing.arbitrary` declares `with` and its result type `Generator`, as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
 9. r[module.testing.arbitrary.with.wrap] `with` wraps `gen` so that each drawn value is erased to `Inspectable`, and returns the wrapped generator as a `Generator`.
@@ -1014,11 +1016,16 @@ enum Tree:
 @derive(Arbitrary, Debug)
 enum Loop:
     More(next: Loop)
+
+@derive(Arbitrary, Debug)
+data Ring:
+    next: Ring
 ```
 
-`Tree`'s one variant is not recursive, because an empty list holds no
-`Tree`. Every variant of `Loop` is recursive, so its derived `arbitrary`
-panics on the first case.
+`Tree`'s one variant is not recursive: its `self_ref` is `.Optional`,
+because an empty list holds no `Tree`. Every variant of `Loop` is
+recursive, so its derived `arbitrary` panics on the first case. So does
+`Ring`'s, because its member `next` is `.Required`.
 
 > **Why.** One fact that holds a whole generator covers every range,
 > length, and shape, so derived `Arbitrary` needs no range or length facts.

@@ -244,6 +244,7 @@ Each entry links to the rule, or the section, that defines the term.
 | **scalar boundary** | A byte offset of a string, from `0` to its length, that does not fall inside a scalar value's encoding. See [`types.string.boundary`](04-type-system.md#r-types.string.boundary). |
 | **script** | An entry module with no `main`, whose top-level executable statements are the entry behavior. See [`module.init.script`](10-modules.md#r-module.init.script). |
 | **sealed trait** | A standard trait whose implementations only the compiler and the standard library supply. See [Sealed Traits](09-traits.md#sealed-traits). |
+| **self reference** | A member's or variant's `self_ref`: whether its type refers to the type being derived (`.Optional`), needs it for its simplest value (`.Required`), or neither (`.Absent`). See [Self References](14-annotations.md#self-references). |
 | **shape** | In generic code, the machine representation a value occupies; see [Shapes and Generic Code](04-type-system.md#shapes-and-generic-code). In annotations, a compiler-provided runtime value that describes a declaration's or type's structure; see [Terminology](14-annotations.md#terminology). |
 | **specialized data shape type** | The type of `shape[D]()` for a data type `D`: the members of `DataShape`, plus a `fields` record with one member per direct field. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
 | **specialized enum shape type** | The type of `shape[E]()` for an enum `E`, which adds a `variants` record with one member per variant. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
@@ -2061,3 +2062,20 @@ existing source. Each entry names the decision that made the change.
   of a `mut self` receiver is dropped, so `self` has the plain type
   `Self`. In an impl for `i32`, `self + 1` is valid, and a call such as
   `start.next()` needs no mutable access. No rule ID is retired.
+- Self references (owner decision SR1 in
+  [Typed Derivation](../future-work/TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30),
+  batch 17, 2026-09-30): `std.structure` declares `enum SelfRef` with
+  `Absent`, `Optional`, and `Required`, and `Member` and `VariantInfo`
+  gain a compiler-computed `self_ref` field. A `Member` or `VariantInfo`
+  built by hand, if any, now needs it. Derived `Arbitrary` is an ordinary
+  `std.testing` template that reads `self_ref`. A derived data type with a
+  `.Required` member, such as `data Ring: next: Ring`, now panics on the
+  first case as an enum with no finite value does. No rule ID is retired.
+- Generic inference from several arguments (owner decision INF-mut in
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  batch 17, 2026-09-30): when one type parameter is solved from several
+  arguments, only permission weakening joins their types. `max(small,
+  large)` with an `i32` and an `i64` is now a `type-mismatch`; write
+  `max(i64(small), large)`. `cmp(user, label)` with a `User` and a
+  `Display` is `no-common-type`; write `cmp[Display](user, label)`. This
+  applies to `assert_equal` too. No rule ID is retired.

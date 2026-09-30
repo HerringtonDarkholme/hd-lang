@@ -641,6 +641,7 @@ pub data Member:
     pub doc: string?
     pub embedded: bool
     pub positional: bool
+    pub self_ref: SelfRef
 
 pub data VariantInfo:
     pub name: string
@@ -649,6 +650,12 @@ pub data VariantInfo:
     pub doc: string?
     pub of_data: bool
     pub shared: List[(string, Any)]
+    pub self_ref: SelfRef
+
+pub enum SelfRef:
+    Absent
+    Optional
+    Required
 
 pub data Field[-S, +F]:
     pub info: Member
@@ -700,6 +707,8 @@ pub trait Source[S]:
 4. r[annot.structure.find-lookup] `find` performs the same narrow runtime type lookup as `metadata[M]` in [Common Shape Representation](#common-shape-representation), and nothing more.
 5. r[annot.structure.members-api] `members.end()` is the end key, `members.at(position)` is the key of the member at that position, and `members.find(matches)` is the key of the first member that `matches` accepts. Each returns the end key when no member fits.
 6. r[annot.structure.no-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
+7. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
+8. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
 
 > **Note.** Standard walkers, describers, and sources, such as the ones a
 > `std.json` would use, are library design.
@@ -1140,6 +1149,50 @@ traversed as an enum with one variant.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 [Shared Enum Constructor Data](08-data-and-enums.md#shared-enum-constructor-data).
+
+### Self References
+
+A member's or variant's **self reference**, its `self_ref`, tells a
+template whether the member's values can hold a value of the type being
+derived, and whether its simplest value must.
+
+1. r[annot.self-ref.enclosing] The enclosing type of a member or a variant is the data type or enum that declares it.
+2. r[annot.self-ref.refers] A type refers to the enclosing type when it is that type, or has a type argument or a tuple element that refers to it.
+3. r[annot.self-ref.refers.members] A data type or enum also refers to the enclosing type when one of its members has a type that refers to it.
+4. r[annot.self-ref.needs] A type needs the enclosing type when its simplest value holds a value of it.
+5. r[annot.self-ref.needs.forms] So the enclosing type needs itself, a tuple or data type needs it through an element or member type that needs it, and `Result[T, E]` needs it when `T` does.
+6. r[annot.self-ref.needs.containers] A `List`, `Map`, or optional type never needs the enclosing type, because its simplest value is empty or `.None`, as in the [Draw Budget](10-modules.md#draw-budget) table.
+7. r[annot.self-ref.member] A member's `self_ref` is `.Required` when its type needs the enclosing type, `.Optional` when its type refers to it without needing it, and `.Absent` otherwise.
+8. r[annot.self-ref.variant] A variant's `self_ref` is the strongest of its members' values, where `.Required` is stronger than `.Optional` and `.Optional` than `.Absent`.
+9. r[annot.self-ref.variant.empty] A variant with no members has `self_ref` `.Absent`.
+
+```text
+enum Expr:
+    Num(value: i32)
+    Add(left: Expr, right: Expr)
+    Block(items: List[Expr])
+
+data Node:
+    label: string
+    parent: Node?
+```
+
+| Variant or member | `self_ref` |
+| --- | --- |
+| `Num` and `value`; `label` | `.Absent` |
+| `Add`, `left`, and `right` | `.Required` |
+| `Block` and `items`; `Node`'s one variant and `parent` | `.Optional` |
+
+> **Why.** One enum, not two flags: a type that needs the enclosing type
+> also refers to it, so two independent flags would allow a state that
+> cannot occur.
+
+> **Note.** Templates other than `Arbitrary` read `self_ref` too, as
+> library design. A derived `Default` may pick its simplest variant the
+> same way. When any `self_ref` is not `.Absent`, a codec may add a
+> nesting-depth limit, and a schema generator may emit a named definition
+> with a `$ref`. `Debug` may truncate deep output.
+> [STDLIB](../future-work/STDLIB.md) tracks these.
 
 ### Handles
 

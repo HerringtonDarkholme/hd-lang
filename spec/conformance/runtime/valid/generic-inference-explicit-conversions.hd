@@ -1,0 +1,35 @@
+# test: an explicit type argument or a cast joins arguments that inference will not
+# Spec 04 Inference From Several Arguments: types.generic.infer.join.explicit and
+# .no-widen (INF-mut, owner decision 2026-09-30). cmp[Display] converts the User argument
+# to a Display value; max(i64(small), large) casts before the call.
+use std.testing.assert_equal
+
+data User:
+    name: string
+
+impl Display for User:
+    fn to_string(self) -> string:
+        self.name
+
+fn cmp[T < Display](left: T, right: T) -> bool:
+    "$left" == "$right"
+
+fn max[T < Ord](left: T, right: T) -> T:
+    match left.cmp(right):
+        .Less => right
+        _ => left
+
+fn same(user: User, label: Display) -> bool:
+    cmp[Display](user, label)
+
+fn widest(small: i32, large: i64) -> i64:
+    max(i64(small), large)
+
+tests:
+    it("an explicit Display argument converts the User"):
+        user := User { name: "ada" }
+        let label: Display = "ada"
+        assert_equal(same(user, label), true, reason="both display as ada")
+
+    it("a cast widens before the call"):
+        assert_equal(widest(7, 3), 7, reason="i64(7) is the larger")

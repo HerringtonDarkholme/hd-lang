@@ -928,6 +928,54 @@ fn count(names: List[string, i32]) -> i32:  # error: argument-count
     0
 ```
 
+### Inference From Several Arguments
+
+When a call solves one type parameter from several arguments, the
+arguments' types may differ only in `mut`:
+
+1. r[types.generic.infer.join] When generic call inference solves one type parameter from several arguments, the only conversion between their types is permission weakening: `mut X` and `X` meet at `X`.
+2. r[types.generic.infer.join.no-widen] Numeric widening does not apply, so `max(small, large)` with an `i32` and an `i64` argument is an error. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
+3. r[types.generic.infer.join.no-trait-value] A trait-value conversion never applies, as [`types.lct.no-trait-value`](#r-types.lct.no-trait-value) states for the least common type. So `cmp(user, label)` with a `User` and a `Display` argument is an error. Error: `no-common-type`.
+4. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp[Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
+5. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
+
+```text
+fn max[T < Ord](left: T, right: T) -> T:
+    match left.cmp(right):
+        .Less => right
+        _ => left
+
+fn cmp[T < Display](left: T, right: T) -> bool:
+    "$left" == "$right"
+
+fn widest(small: i32, large: i64) -> i64:
+    max(small, large)  # error: type-mismatch
+
+fn same(user: User, label: Display) -> bool:
+    cmp(user, label)  # error: no-common-type
+```
+
+```text
+data User:
+    name: string
+
+fn pick[T](left: T, right: T) -> T:
+    left
+
+fn first(owned: mut User, shared: User) -> User:
+    pick(owned, shared)  # T is User
+
+fn widest(small: i32, large: i64) -> i64:
+    max(i64(small), large)
+
+fn same(user: User, label: Display) -> bool:
+    cmp[Display](user, label)
+```
+
+> **Why.** A call's arguments are not a list literal: a reader expects `T`
+> to be the type written at the call, as Rust and Go do. So a mixed
+> numeric call names its cast, and a trait value is asked for by name.
+
 ### Type-Argument Defaults
 
 A generic parameter may declare a **type-argument default**, written with
@@ -1258,6 +1306,10 @@ r[types.lct.sites] Several constructs infer one type from several values when no
 3. r[types.lct.contributors] Numeric widening, permission weakening, and declared readonly variance may contribute.
 4. r[types.lct.no-combine] Least-common-type inference never combines permission weakening with a variance step for the same candidate conversion.
 5. r[types.lct.row-union-every-site] At every construct in the table, function values with different rows are first widened to the union of their rows ([Row Union In Literals](11-requirements-and-suspension.md#row-union-in-literals)).
+
+See also: a generic call that solves one type parameter from several
+arguments uses a narrower join, permission weakening only
+([`types.generic.infer.join`](#r-types.generic.infer.join)).
 
 ### No Implicit Erasure
 
