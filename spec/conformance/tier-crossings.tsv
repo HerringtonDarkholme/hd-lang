@@ -33,10 +33,3 @@ runtime/valid/method-references-run.hd	List.map	tests a bound method reference a
 typing/invalid/mut-self-reference-readonly-callback.hd	List.map	tests a readonly callback through List.map; List.map moves (task 7); use a local higher-order function
 runtime/valid/iterator-from-fn.hd	Iterator.collect	tests from_fn, a language item, and collects the result; collect moves to std/iter.md (task 7); drain with a for loop
 runtime/valid/try-operand-expected-type.hd	Iterator.map,Iterator.collect	tests the try operand's expected type through map and collect; both move (task 7); use a language-tier producer
-runtime/valid/derived-arbitrary-with.hd	std.testing.Arbitrary,std.testing.Choices	cites Derived Arbitrary, which moves to std/testing.md in task 5; cite its std/ section then
-runtime/valid/derived-arbitrary-with-mismatch.hd	std.testing.Arbitrary,std.testing.Choices	cites Derived Arbitrary, which moves to std/testing.md in task 5; cite its std/ section then
-runtime/valid/derived-arbitrary-recursive-members.hd	std.testing.Arbitrary	cites Derived Arbitrary, which moves to std/testing.md in task 5; cite its std/ section then
-runtime/valid/derived-arbitrary-no-finite-value.hd	std.testing.Arbitrary	cites Derived Arbitrary, which moves to std/testing.md in task 5; cite its std/ section then
-runtime/valid/derived-arbitrary-no-finite-data.hd	std.testing.Arbitrary	cites Derived Arbitrary, which moves to std/testing.md in task 5; cite its std/ section then
-typing/invalid/arbitrary-with-non-inspectable-generator.hd	std.testing.Arbitrary,std.testing.Choices	cites Derived Arbitrary, which moves to std/testing.md in task 5; cite its std/ section then
-typing/invalid/arbitrary-with-non-inspectable-member.hd	std.testing.Arbitrary,std.testing.Choices	cites Derived Arbitrary, which moves to std/testing.md in task 5; cite its std/ section then

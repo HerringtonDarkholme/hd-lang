@@ -1,0 +1,52 @@
+# test: a member whose type is an enum all of whose variants need the enclosing type is required
+# Spec 14 Self References: annot.self-ref.needs.enum, .needs.self, and .member (SIMPLE, owner decision
+# 2026-09-30). Choice's Skip needs no Expr, so Pick and choice are only optional.
+use std.structure.{Structure, Field, Variant, Describer, SelfRef}
+use std.testing.assert_equal
+
+trait Shape:
+    fn shape() -> string
+
+fn ref_name(r: SelfRef) -> string:
+    match r:
+        .Absent => "absent"
+        .Optional => "optional"
+        .Required => "required"
+
+data ShapeLister:
+    out: string
+
+impl[S] Describer[S] for ShapeLister:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        self.out = self.out + v.info.name + "=" + ref_name(v.info.self_ref) + ";"
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.out = self.out + h.info.name + "=" + ref_name(h.info.self_ref) + ";"
+        .Ok()
+
+impl[T] Shape for T by Structure:
+    fn shape() -> string:
+        let mut d = ShapeLister { out: "" }
+        _ := T::describe(d)
+        d.out
+
+enum Inner:
+    Only(expr: Expr)
+
+enum Choice:
+    Skip
+    Take(expr: Expr)
+
+@derive(Shape)
+enum Expr:
+    Num(value: i32)
+    Wrap(inner: Inner)
+    Pick(choice: Choice)
+
+tests:
+    it("an enum whose every variant needs the enclosing type makes a member required"):
+        expected := "Num=absent;value=absent;Wrap=required;inner=required;Pick=optional;choice=optional;"
+        assert_equal(Expr::shape(), expected, reason="Inner always needs an Expr, and Choice can Skip")

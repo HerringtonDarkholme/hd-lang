@@ -1578,8 +1578,8 @@ typing/invalid/error-extra-argument.hd	type	reject:invalid-error-marker	14-annot
 typing/valid/error-interpolated-bound.hd	type	accept	14-annotations.md#r-annot.error.bound.interpolated
 typing/valid/choices-generic-draws.hd	type	accept	std/testing.md#r-std-testing.choices.int-generic
 runtime/valid/property-draw-budget.hd	runtime	accept	std/testing.md#r-std-testing.budget
-runtime/valid/derived-arbitrary-with.hd	runtime	accept	10-modules.md#r-module.testing.arbitrary.with
-runtime/valid/derived-arbitrary-with-mismatch.hd	runtime	accept	10-modules.md#r-module.testing.arbitrary.with.downcast-failure
+runtime/valid/derived-arbitrary-with.hd	runtime	accept	std/testing.md#r-std-testing.arbitrary.with
+runtime/valid/derived-arbitrary-with-mismatch.hd	runtime	accept	std/testing.md#r-std-testing.arbitrary.with.downcast-failure
 typing/invalid/property-examples-wrong-type.hd	type	reject:type-mismatch	std/testing.md#r-std-testing.prop.examples
 parse/valid/binding-list.hd	parse	accept	02-grammar.md#r-grammar.stmt.bind-list
 parse/valid/paren-line-new-statement.hd	parse	accept	01-lexical-structure.md#r-lex.continue.paren-line
@@ -1590,10 +1590,10 @@ typing/invalid/error-from-marker-argument.hd	type	reject:invalid-error-marker	14
 typing/invalid/tuple-inherent-impl.hd	type	reject:invalid-impl-target	09-traits.md#r-trait.own.inherent.tuple-alias
 typing/invalid/alias-inherent-impl.hd	type	reject:invalid-impl-target	09-traits.md#r-trait.own.inherent.tuple-alias
 typing/invalid/trait-value-inherent-impl.hd	type	reject:trait-value-impl-target	09-traits.md#r-trait.own.inherent.trait-value
-runtime/valid/derived-arbitrary-recursive-members.hd	runtime	accept	10-modules.md#r-module.testing.arbitrary.derive.recursive.containers
-runtime/valid/derived-arbitrary-no-finite-value.hd	runtime	accept	10-modules.md#r-module.testing.arbitrary.derive.no-finite
-typing/invalid/arbitrary-with-non-inspectable-generator.hd	type	reject:unsatisfied-trait-bound	10-modules.md#r-module.testing.arbitrary.with.module
-typing/invalid/arbitrary-with-non-inspectable-member.hd	type	reject:unsatisfied-trait-bound	10-modules.md#r-module.testing.arbitrary.with.inspectable
+runtime/valid/derived-arbitrary-recursive-members.hd	runtime	accept	std/testing.md#r-std-testing.arbitrary.derive.recursive.containers
+runtime/valid/derived-arbitrary-no-finite-value.hd	runtime	accept	std/testing.md#r-std-testing.arbitrary.derive.no-finite
+typing/invalid/arbitrary-with-non-inspectable-generator.hd	type	reject:unsatisfied-trait-bound	std/testing.md#r-std-testing.arbitrary.with.module
+typing/invalid/arbitrary-with-non-inspectable-member.hd	type	reject:unsatisfied-trait-bound	std/testing.md#r-std-testing.arbitrary.derive.not-derivable
 runtime/valid/provider-scope-dynamic-callback.hd	runtime	accept	11-requirements-and-suspension.md#r-req.with.dynamic
 runtime/valid/provider-scope-lexical-capture.hd	runtime	accept	11-requirements-and-suspension.md#r-req.with.lexical
 typing/invalid/closure-escapes-provider-scope.hd	type	reject:type-mismatch	11-requirements-and-suspension.md#r-req.row.omitted.outer-scope
@@ -1617,5 +1617,10 @@ typing/invalid/generic-inference-numeric-widening.hd	type	reject:type-mismatch	0
 typing/invalid/generic-inference-trait-value.hd	type	reject:no-common-type	04-type-system.md#r-types.generic.infer.join.no-trait-value
 runtime/valid/generic-inference-explicit-conversions.hd	runtime	accept	04-type-system.md#r-types.generic.infer.join.explicit
 typing/invalid/assert-equal-numeric-widening.hd	type	reject:type-mismatch	04-type-system.md#r-types.generic.infer.join.no-widen
-runtime/valid/derived-arbitrary-no-finite-data.hd	runtime	accept	10-modules.md#r-module.testing.arbitrary.derive.no-finite.data
+runtime/valid/derived-arbitrary-no-finite-data.hd	runtime	accept	std/testing.md#r-std-testing.arbitrary.derive.no-finite.data
 runtime/valid/structure-self-ref.hd	runtime	accept	14-annotations.md#r-annot.self-ref.member
+typing/invalid/derived-arbitrary-function-member.hd	type	reject:unsatisfied-trait-bound	std/testing.md#r-std-testing.arbitrary.derive.not-derivable
+typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd	type	reject:unsatisfied-trait-bound	std/testing.md#r-std-testing.arbitrary.derive.member-bounds
+runtime/valid/structure-name.hd	runtime	accept	14-annotations.md#r-annot.structure.name
+runtime/valid/structure-self-ref-enum.hd	runtime	accept	14-annotations.md#r-annot.self-ref.needs.enum
+runtime/valid/structure-self-ref-type-arguments.hd	runtime	accept	14-annotations.md#r-annot.self-ref.enclosing.arguments

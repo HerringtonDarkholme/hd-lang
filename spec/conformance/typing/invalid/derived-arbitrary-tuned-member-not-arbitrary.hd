@@ -1,0 +1,17 @@
+# test: a member that arbitrary.with tunes must still implement Arbitrary
+# std Testing, Derived Arbitrary: std-testing.arbitrary.derive.member-bounds and .derive.not-derivable
+# (Testing AT-with, owner decision 2026-09-30). Port is inspectable but has no Arbitrary, so the
+# generator does not make Server derivable.
+use std.testing.{Arbitrary, Choices}
+use std.testing.arbitrary
+
+data Port:
+    number: i32
+
+fn port(c: mut Choices) -> Port:
+    Port { number: c.int(1024, 65535) }
+
+@derive(Arbitrary)  # diagnostic: unsatisfied-trait-bound
+data Server:
+    @arbitrary.with(port)
+    port: Port

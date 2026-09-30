@@ -1,6 +1,6 @@
 # test: the draw budget ends a leaf-first recursive generator and a derived recursive enum
-# std Testing, Draw Budget: std-testing.budget and .budget.every-draw; Spec 10 Derived Arbitrary:
-# module.testing.arbitrary.derive.simplest picks Num although Add comes first (Testing PT6).
+# std Testing, Draw Budget: std-testing.budget and .budget.every-draw; Derived Arbitrary:
+# std-testing.arbitrary.derive.simplest picks Num although Add comes first (Testing PT6).
 use std.testing.{Arbitrary, Choices, assert, it_prop, it_prop_with}
 
 @derive(Debug)

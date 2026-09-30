@@ -1,0 +1,51 @@
+# test: a template reads the target's declared name through T::name()
+# Spec 14 The Structure Trait: annot.structure.name and .name.constant (ST8, owner decision 2026-09-30).
+# The name has no module path and no type arguments.
+use std.structure.{Structure, Field, Variant, Describer}
+use std.testing.assert_equal
+
+trait Named:
+    fn type_name() -> string
+
+data MemberCount:
+    count: i32
+
+impl[S] Describer[S] for MemberCount:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.count = self.count + 1
+        .Ok()
+
+impl[T] Named for T by Structure:
+    fn type_name() -> string:
+        let mut d = MemberCount { count: 0 }
+        _ := T::describe(d)
+        T::name()
+
+@derive(Named)
+data Point:
+    x: i32
+    y: i32
+
+@derive(Named)
+enum Shape:
+    Dot
+    Line(from: Point, to: Point)
+
+@derive(Named)
+data Box[T]:
+    value: T
+
+tests:
+    it("a data type's name"):
+        assert_equal(Point::type_name(), "Point", reason="the declared name")
+
+    it("an enum's name"):
+        assert_equal(Shape::type_name(), "Shape", reason="the declared name")
+
+    it("a generic type's name has no type arguments"):
+        assert_equal(Box[Point]::type_name(), "Box", reason="no type arguments")

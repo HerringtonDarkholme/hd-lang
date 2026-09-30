@@ -1,5 +1,5 @@
 # test: a derived data type with a required self reference panics on the first case
-# Spec 10 Derived Arbitrary: module.testing.arbitrary.derive.no-finite.data; Spec 14 Self
+# std Testing, Derived Arbitrary: std-testing.arbitrary.derive.no-finite.data; Spec 14 Self
 # References: annot.self-ref.member (SR1, owner decision 2026-09-30). Ring's member next is
 # .Required, so Ring has no finite value; the check passes, and the property panics when it runs.
 use std.testing.{Arbitrary, it_prop}

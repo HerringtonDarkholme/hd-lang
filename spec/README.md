@@ -248,7 +248,7 @@ Each entry links to the rule, or the section, that defines the term.
 | **scalar boundary** | A byte offset of a string, from `0` to its length, that does not fall inside a scalar value's encoding. See [`types.string.boundary`](04-type-system.md#r-types.string.boundary). |
 | **script** | An entry module with no `main`, whose top-level executable statements are the entry behavior. See [`module.init.script`](10-modules.md#r-module.init.script). |
 | **sealed trait** | A standard trait whose implementations only the compiler and the standard library supply. See [Sealed Traits](09-traits.md#sealed-traits). |
-| **self reference** | A member's or variant's `self_ref`: whether its type refers to the type being derived (`.Optional`), needs it for its simplest value (`.Required`), or neither (`.Absent`). See [Self References](14-annotations.md#self-references). |
+| **self reference** | A member's or variant's `self_ref`: whether its type needs the type being derived (`.Required`), only refers to it (`.Optional`), or neither (`.Absent`), computed from its type alone. See [Self References](14-annotations.md#self-references). |
 | **shape** | In generic code, the machine representation a value occupies; see [Shapes and Generic Code](04-type-system.md#shapes-and-generic-code). In annotations, a compiler-provided runtime value that describes a declaration's or type's structure; see [Terminology](14-annotations.md#terminology). |
 | **specialized data shape type** | The type of `shape[D]()` for a data type `D`: the members of `DataShape`, plus a `fields` record with one member per direct field. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
 | **specialized enum shape type** | The type of `shape[E]()` for an enum `E`, which adds a `variants` record with one member per variant. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
@@ -2120,3 +2120,51 @@ existing source. Each entry names the decision that made the change.
   [`module.testing.it.options-strings`](10-modules.md#r-module.testing.it.options-strings)
   now names the three options itself, since the option table no longer
   lists `timeout`; its meaning is unchanged.
+- Derived `Arbitrary` moves to the stdlib tier (owner decisions ST2, ST3,
+  and ST7 in [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions),
+  migration step 5, 2026-09-30): stdlib tier. Modules' Derived Arbitrary
+  section moves to [Derived Arbitrary](std/testing.md#derived-arbitrary)
+  in Testing, and its heading is deleted. Source is unaffected.
+  `module.testing.arbitrary.derive` and `module.testing.arbitrary.derive.*`
+  become `std-testing.arbitrary.derive` and `std-testing.arbitrary.derive.*`.
+  `module.testing.arbitrary.with` and `module.testing.arbitrary.with.*`
+  become `std-testing.arbitrary.with` and `std-testing.arbitrary.with.*`,
+  except `.with.inspectable`, which AT-with retires below. The old IDs are
+  retired. [`module.testing.it-prop`](10-modules.md#r-module.testing.it-prop)
+  keeps the registration of a property test case; its sentence on how the
+  runner generates and shrinks inputs becomes
+  [`std-testing.it-prop`](std/testing.md#r-std-testing.it-prop).
+- Derived `Arbitrary` member bounds (owner decision AT-with in
+  [Testing](../future-work/TESTING.md#owner-decisions), batch 20,
+  2026-09-30): stdlib tier. The derived template requires every member to
+  implement `Arbitrary` and to be inspectable, whether or not
+  `arbitrary.with` tunes it. A tuned member whose type has no `Arbitrary`,
+  previously valid, is now `unsatisfied-trait-bound`, and so is a member of
+  a function type. The error is reported at `@derive(Arbitrary)` and names
+  the member; a tuned member that is not inspectable was reported on its
+  `@arbitrary.with` line. Such a type writes its `impl Arbitrary` by hand.
+  A generator of the wrong type still panics with `explicit-panic`.
+  Retired: `module.testing.arbitrary.with.inspectable`, replaced by
+  `std-testing.arbitrary.derive.member-bounds`, `.derive.not-derivable`,
+  and `.derive.manual`.
+- Self references, restated (owner decision SIMPLE in
+  [Typed Derivation](../future-work/TYPED_DERIVATION.md#owner-decision-simple-2026-09-30),
+  batch 20, 2026-09-30): language tier. `self_ref` follows from a member's
+  type alone, with no simplest value. A member whose type is another enum,
+  every variant of which needs the enclosing type, was `.Optional` and is
+  now `.Required`. So a derived `Arbitrary` for such a type panics on the
+  first case instead of never ending. The enclosing type counts with any
+  type arguments, as `Nest[List[T]]` inside `enum Nest[T]`. Retired:
+  `annot.self-ref.needs`, `.needs.forms`, and `.needs.containers`, replaced
+  by `annot.self-ref.enclosing.arguments`, `.needs.self`, `.needs.compound`,
+  `.needs.result`, `.needs.enum`, `.needs.stop`, and `.needs.only`.
+- Structure names (owner decision ST8, revised, in
+  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions),
+  2026-09-30): language tier. `Structure` gains the receiverless,
+  compiler-supplied `fn name() -> string`: the target's declared name, with
+  no module path and no type arguments, a compile-time constant callable
+  only inside a template. A newtype has its own name; a transparent alias
+  has its base type's. In the stdlib tier, the no-finite panic of derived
+  `Arbitrary` reads `"${T::name()} has no finite value"`
+  ([`std-testing.arbitrary.derive.no-finite.message`](std/testing.md#r-std-testing.arbitrary.derive.no-finite.message)).
+  Source is unaffected. No rule ID is retired.

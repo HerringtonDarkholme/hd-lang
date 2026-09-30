@@ -1,5 +1,5 @@
 # test: List, Map, optional, Result, and tuple members whose simplest value needs no enum value leave a variant non-recursive
-# Spec 10 Derived Arbitrary: module.testing.arbitrary.derive.recursive and .recursive.containers; std Testing, Draw Budget:
+# std Testing, Derived Arbitrary: std-testing.arbitrary.derive.recursive and .recursive.containers; Draw Budget:
 # std-testing.budget.simplest.optional, .result, and .tuple (Testing Q7, Q8, owner decisions 2026-09-30).
 use std.testing.{Arbitrary, it_prop}
 

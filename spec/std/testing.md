@@ -7,6 +7,7 @@ runner implement over the language tier:
 
 - how a property test draws, discards, reports, and replays its inputs;
 - the draw budget;
+- how `@derive(Arbitrary)` builds a type's default generator;
 - what the `timeout` option does;
 - how an `it_each` call expands and names its rows;
 - how snapshots compare text, and where snapshot files live.
@@ -48,15 +49,16 @@ trait Arbitrary:
 6. r[std-testing.arbitrary] `Arbitrary` gives a type its default generator, which `it_prop` and `Choices.draw` use.
 7. r[std-testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
 8. r[std-testing.arbitrary.float] The `Arbitrary` implementations of `f32` and `f64` draw any value of the type, including NaN, both infinities, `-0.0`, and subnormal values, as Hypothesis's `floats()` does.
-9. r[std-testing.prop.debug] `it_prop` and `it_prop_with` require `T < Debug`. A property whose input type does not implement `Debug` is an error. Error: `unsatisfied-trait-bound`.
-10. r[std-testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
-11. r[std-testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
-12. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
-13. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
-14. r[std-testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
-15. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
-16. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
-17. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
+9. r[std-testing.it-prop] The runner generates the inputs of each property test case that `it_prop` or `it_prop_with` registers, and shrinks a failing one.
+10. r[std-testing.prop.debug] `it_prop` and `it_prop_with` require `T < Debug`. A property whose input type does not implement `Debug` is an error. Error: `unsatisfied-trait-bound`.
+11. r[std-testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
+12. r[std-testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
+13. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
+14. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
+15. r[std-testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
+16. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
+17. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
+18. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
 
 ```text
 use std.testing.{Arbitrary, Choices}
@@ -131,6 +133,121 @@ fn tree(c: mut Choices) -> Tree:
 
 Once the budget is spent, `c.int(0, 2)` returns `0`, so `tree` returns
 `.Leaf`.
+
+## Derived Arbitrary
+
+`@derive(Arbitrary)` gives a data type or enum its default generator
+through the template of `Arbitrary`.
+
+1. r[std-testing.arbitrary.derive] `@derive(Arbitrary)` derives `Arbitrary` through its [template](../14-annotations.md#templates). The derived `arbitrary` draws each member with its type's `Arbitrary`. For an enum, it draws a variant, then that variant's payload.
+2. r[std-testing.arbitrary.derive.template] That template is ordinary `std.testing` code over `std.structure`: it reads each variant's and member's [`self_ref`](../14-annotations.md#self-references), and the compiler supplies nothing for `Arbitrary` itself.
+3. r[std-testing.arbitrary.derive.member-bounds] The template requires the type of every member to implement `Arbitrary` and to be [inspectable](../09-traits.md#inspectable-types), whether or not `arbitrary.with` tunes the member.
+4. r[std-testing.arbitrary.derive.not-derivable] A type with a member whose type fails either bound, such as a function-typed member, is not derivable. `@derive(Arbitrary)` on it is an error, reported at the opt-in and naming the member. Error: `unsatisfied-trait-bound`.
+5. r[std-testing.arbitrary.derive.manual] Such a type gets its default generator only from a hand-written `impl Arbitrary`.
+6. r[std-testing.arbitrary.derive.simplest] A derived enum's simplest choice is its first non-recursive variant, whatever the declaration order.
+7. r[std-testing.arbitrary.derive.recursive] A variant is recursive when its `self_ref` is `.Required`, as [Self References](../14-annotations.md#self-references) computes it from the member types.
+8. r[std-testing.arbitrary.derive.recursive.containers] A `List`, `Map`, or optional member does not make its variant recursive, because its `self_ref` is at most `.Optional`: its simplest value is empty or `.None`.
+9. r[std-testing.arbitrary.derive.no-finite] When every variant of a derived enum is recursive, the derived `arbitrary` panics on the property's first case, with a message that names the type. Panic: `explicit-panic`.
+10. r[std-testing.arbitrary.derive.no-finite.message] The message is `"${T::name()} has no finite value"`, where [`T::name()`](../14-annotations.md#r-annot.structure.name) is the type's declared name.
+11. r[std-testing.arbitrary.derive.no-finite.data] When a member of a derived data type has `self_ref` `.Required`, its derived `arbitrary` panics the same way, and the compiler does not reject the type either. Panic: `explicit-panic`.
+12. r[std-testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
+13. r[std-testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
+14. r[std-testing.arbitrary.with.module] The module `std.testing.arbitrary` declares `with` and its result type `Generator`, as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
+15. r[std-testing.arbitrary.with.wrap] `with` wraps `gen` so that each drawn value is erased to `Inspectable`, and returns the wrapped generator as a `Generator`.
+16. r[std-testing.arbitrary.with.downcast] The derived `arbitrary` draws the member with the wrapped generator, and downcasts the first drawn value to the member's type.
+17. r[std-testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
+18. r[std-testing.arbitrary.with.unchecked] The compiler does not check `gen` against the member's type, as for any [metadata value](../14-annotations.md#member-metadata).
+19. r[std-testing.arbitrary.with.downcast-failure] When the downcast fails, the derived `arbitrary` panics on the property's first case. The message names the member, the member's type, and the type that `gen` drew. Panic: `explicit-panic`.
+20. r[std-testing.arbitrary.with.no-fallback] The derived `arbitrary` never ignores a mismatched generator, and never falls back to the member type's own `Arbitrary`.
+
+```text
+pub fn with[T < Inspectable](gen: fn(mut Choices) -> T) -> Generator
+```
+
+```text
+use std.testing.{Arbitrary, Choices, assert, it_prop}
+use std.testing.arbitrary
+
+fn cents(c: mut Choices) -> i32:
+    c.int(0, 10_000)
+
+@derive(Arbitrary, Debug)
+data Item:
+    name: string
+    @arbitrary.with(cents)
+    price: i32
+
+@derive(Arbitrary, Debug)
+enum Expr:
+    Add(left: Expr, right: Expr)
+    Num(value: i32)
+
+tests:
+    it_prop("prices are never negative", examples=[Item { name: "", price: 0 }], prop=fn!(item: Item):
+        assert(item.price >= 0, reason="cents draws from 0 to 10_000")
+    )
+```
+
+`Expr`'s simplest choice is `Num`, although `Add` comes first.
+
+```text
+use std.testing.{Arbitrary, Choices}
+
+@derive(Arbitrary)  # error: unsatisfied-trait-bound
+data Task:
+    run: fn() -> i32
+
+data Job:
+    run: fn() -> i32
+
+impl Arbitrary for Job:
+    fn arbitrary(c: mut Choices) -> Job:
+        n := c.int(0, 9)
+        Job { run: fn() -> i32: n }
+```
+
+`Task`'s member `run` has a function type, which implements neither
+`Arbitrary` nor `Inspectable`, so `Task` is not derivable. `Job` writes
+its own `impl Arbitrary` instead.
+
+```text
+use std.testing.Arbitrary
+
+@derive(Arbitrary, Debug)
+enum Tree:
+    Node(children: List[Tree])
+
+@derive(Arbitrary, Debug)
+enum Loop:
+    More(next: Loop)
+
+@derive(Arbitrary, Debug)
+data Ring:
+    next: Ring
+```
+
+`Tree`'s one variant is not recursive: its `self_ref` is `.Optional`,
+because an empty list holds no `Tree`. Every variant of `Loop` is
+recursive, so its derived `arbitrary` panics on the first case with the
+message `Loop has no finite value`. So does `Ring`'s, because its member
+`next` is `.Required`.
+
+> **Why.** One fact that holds a whole generator covers every range,
+> length, and shape, so derived `Arbitrary` needs no range or length facts.
+> A fact generic in its member's type, such as `With[T]`, is not used:
+> looking up `With[i32]` would miss a `With[string]` and silently use the
+> default generator. The function `with` is generic instead: it erases each
+> drawn value to `Inspectable`, so the derived code can check the value's
+> type when the test runs.
+
+> **Why.** A template states one bound for all of a type's members, and no
+> fact can lift it from one member. So every member meets both bounds, and
+> a type whose members cannot is written by hand.
+
+> **Note.** These are runner behavior, not rules of this chapter: how often
+> a draw returns small and boundary values, any small-first order of cases,
+> and the size of the draw budget. So are which chars `string` draws and
+> how the runner shrinks a failing case.
 
 ## Test Timeout
 

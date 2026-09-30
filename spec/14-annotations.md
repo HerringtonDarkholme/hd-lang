@@ -441,10 +441,12 @@ fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
 
 The language does not check that a metadata value suits its member's type.
 The code that reads the value checks it, and a fact type has no
-compile-time check hook. So a derived `Arbitrary` finds an
-`arbitrary.with` generator of the wrong type only when a test runs, as
-[`module.testing.arbitrary.with.downcast-failure`](10-modules.md#r-module.testing.arbitrary.with.downcast-failure)
-states.
+compile-time check hook.
+
+> **Note.** So a derived `Arbitrary` finds an `arbitrary.with` generator of
+> the wrong type only when a test runs, as
+> [`std-testing.arbitrary.with.downcast-failure`](std/testing.md#r-std-testing.arbitrary.with.downcast-failure)
+> states in the stdlib tier.
 
 Reusable compositions are ordinary values or lists, not new language syntax:
 
@@ -630,6 +632,7 @@ supplies every body written `pass`:
 ```text
 pub trait Structure:
     fn facts() -> Facts
+    fn name() -> string
     fn walk[W < Walker[Self]](self, w: mut W) -> Result[void, W::Error]
     fn describe[D < Describer[Self]](d: mut D) -> Result[void, D::Error]
     fn build[S < Source[Self]](s: mut S) -> Result[mut Self, S::Error]
@@ -728,6 +731,10 @@ pub trait Source[S]:
 8. r[annot.structure.private] `walk`, `describe`, and `build` include private members. Opting a type in is consent for the template's library to read every member.
 9. r[annot.structure.pure] `walk`, `describe`, and `build`, and every method of `Walker`, `Describer`, and `Source`, have the empty requirement row and are not suspending.
 10. r[annot.structure.pure.impl] An implementation method of `Walker`, `Describer`, or `Source` that declares a requirement or suspends is an error. Error: `trait-method-signature`.
+11. r[annot.structure.name] `T::name()` returns the target's declared name, with no module path and no type arguments. Like `facts`, `name` is receiverless.
+12. r[annot.structure.name.constant] `T::name()` is a compile-time constant. Like every use of `Structure`, it may be called only inside a template.
+13. r[annot.structure.name.newtype] A newtype has its own name: its `name()` is the newtype's declared name, not its base type's.
+14. r[annot.structure.name.alias] A transparent alias has no `Structure` of its own. A derivation through it sees its base type's, so `name()` is the base type's declared name.
 
 ```text
 use std.structure.Structure
@@ -741,8 +748,20 @@ fn fields[X < Structure]() -> void:  # error: structure-outside-template
     pass
 ```
 
+For `data Box[T]` declared in the module `shapes`, `T::name()` is
+`"Box"`, not `"shapes.Box"` or `"Box[i32]"`.
+
 > **Why.** Traversal stays pure, as serde's is: input and output happen
 > before `build` or after `walk`, so a derivation never needs a provider.
+
+> **Why.** `name()` gives a template the one piece of type information it
+> needs for a message or a tag, without runtime reflection. Runtime type
+> information stays opt-in through `Inspectable`. The declared name alone
+> does not change when a file moves.
+
+> **Note.** Once a codec writes `name()` into its output, renaming the type
+> changes that output, as renaming a type does with serde or Go's
+> encoders.
 
 ### Templates
 
@@ -1153,24 +1172,38 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 ### Self References
 
 A member's or variant's **self reference**, its `self_ref`, tells a
-template whether the member's values can hold a value of the type being
-derived, and whether its simplest value must.
+template whether the member's type refers to the type being derived, and
+whether it needs that type. Both follow from the member's declared type
+alone, by the rules below.
 
 1. r[annot.self-ref.enclosing] The enclosing type of a member or a variant is the data type or enum that declares it.
-2. r[annot.self-ref.refers] A type refers to the enclosing type when it is that type, or has a type argument or a tuple element that refers to it.
-3. r[annot.self-ref.refers.members] A data type or enum also refers to the enclosing type when one of its members has a type that refers to it.
-4. r[annot.self-ref.needs] A type needs the enclosing type when its simplest value holds a value of it.
-5. r[annot.self-ref.needs.forms] So the enclosing type needs itself, a tuple or data type needs it through an element or member type that needs it, and `Result[T, E]` needs it when `T` does.
-6. r[annot.self-ref.needs.containers] A `List`, `Map`, or optional type never needs the enclosing type, because its simplest value is empty or `.None`.
-7. r[annot.self-ref.member] A member's `self_ref` is `.Required` when its type needs the enclosing type, `.Optional` when its type refers to it without needing it, and `.Absent` otherwise.
-8. r[annot.self-ref.variant] A variant's `self_ref` is the strongest of its members' values, where `.Required` is stronger than `.Optional` and `.Optional` than `.Absent`.
-9. r[annot.self-ref.variant.empty] A variant with no members has `self_ref` `.Absent`.
+2. r[annot.self-ref.enclosing.arguments] In these rules, the enclosing type is its declaration applied to any type arguments. Inside `enum Nest[T]`, `Nest[List[T]]` is the enclosing type.
+3. r[annot.self-ref.refers] A type refers to the enclosing type when it is that type, or has a type argument or a tuple element that refers to it.
+4. r[annot.self-ref.refers.members] A data type or enum also refers to the enclosing type when one of its members has a type that refers to it.
+5. r[annot.self-ref.needs.self] A type needs the enclosing type when it is the enclosing type.
+6. r[annot.self-ref.needs.compound] A tuple or data type needs it when one of its element or member types needs it, with the data type's type arguments substituted.
+7. r[annot.self-ref.needs.result] `Result[T, E]` needs it when `T` does.
+8. r[annot.self-ref.needs.enum] Any other enum type needs it when each of its variants has a member whose type needs it, with the enum's type arguments substituted.
+9. r[annot.self-ref.needs.stop] A `List`, `Map`, or optional type never needs the enclosing type, whatever its type arguments.
+10. r[annot.self-ref.needs.only] No other type needs the enclosing type.
+11. r[annot.self-ref.member] A member's `self_ref` is `.Required` when its type needs the enclosing type, `.Optional` when its type refers to it without needing it, and `.Absent` otherwise.
+12. r[annot.self-ref.variant] A variant's `self_ref` is the strongest of its members' values, where `.Required` is stronger than `.Optional` and `.Optional` than `.Absent`.
+13. r[annot.self-ref.variant.empty] A variant with no members has `self_ref` `.Absent`.
 
 ```text
 enum Expr:
     Num(value: i32)
     Add(left: Expr, right: Expr)
     Block(items: List[Expr])
+    Wrap(inner: Inner)
+    Pick(choice: Choice)
+
+enum Inner:
+    Only(expr: Expr)
+
+enum Choice:
+    Skip
+    Take(expr: Expr)
 
 data Node:
     label: string
@@ -1181,6 +1214,8 @@ data Node:
 | --- | --- |
 | `Num` and `value`; `label` | `.Absent` |
 | `Add`, `left`, and `right` | `.Required` |
+| `Wrap` and `inner`, since `Inner`'s every variant needs `Expr` | `.Required` |
+| `Pick` and `choice`, since `Choice`'s `Skip` does not | `.Optional` |
 | `Block` and `items`; `Node`'s one variant and `parent` | `.Optional` |
 
 > **Why.** One enum, not two flags: a type that needs the enclosing type
@@ -1193,9 +1228,6 @@ data Node:
 > nesting-depth limit, and a schema generator may emit a named definition
 > with a `$ref`. `Debug` may truncate deep output.
 > [STDLIB](../future-work/STDLIB.md) tracks these.
-
-See also: the [Draw Budget](std/testing.md#draw-budget) table, which gives
-each draw's simplest value.
 
 ### Handles
 

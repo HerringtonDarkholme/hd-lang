@@ -54,7 +54,7 @@ above.
 SR1 is recorded in [TESTING](TESTING.md#owner-decisions) and
 [TYPED_DERIVATION](TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30), and
 applied in [Self References](../spec/14-annotations.md#self-references)
-and [Derived Arbitrary](../spec/10-modules.md#derived-arbitrary).
+and [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary).
 
 | # | Decision | Where |
 | --- | --- | --- |
@@ -71,6 +71,19 @@ answers SR-enum and SR-args.
 | INF-lit | Does an integer literal argument take the type solved from the other arguments in any position? Without that, `pick(1, large)` with an `i64` `large` is a `type-mismatch`, since the literal alone is `i32`, while `pick(large, 1)` checks. | Yes: a literal is not a conversion, so it takes the solved type as its expected type in any position, as Rust's integer literals do. |
 | INF-code | Which code does any other conflict get, such as a `List[mut User]` and a `List[User]` (variance), a `T` and a `T?`, or two child-trait values? The decision names `type-mismatch` for numbers and `no-common-type` for trait values. | `no-common-type` where the least common type also fails (trait values, supertrait widening); `type-mismatch` otherwise, as `choose(1, true)` already is. |
 | SR-omit | Does a variant's `self_ref` count a member that the derivation block omits (`cache = pass`)? | No: count only the members the derivation sees, since an omitted member takes its default and is never walked or built. |
+
+**Still open from applying batch 20.** Spec Tiers migration step 5 applied
+Testing AT-with, SIMPLE, and ST8, stating only what the decisions say
+([Derived Arbitrary](../spec/std/testing.md#derived-arbitrary),
+[The Structure Trait](../spec/14-annotations.md#the-structure-trait),
+[Self References](../spec/14-annotations.md#self-references)).
+
+| # | Question | **Recommendation** |
+| --- | --- | --- |
+| AT-code | [`annot.walker.obligation.error`](../spec/14-annotations.md#r-annot.walker.obligation.error) gives `member-not-derivable` for a member that fails a source's bound. AT-with names `unsatisfied-trait-bound`, which [`std-testing.arbitrary.derive.not-derivable`](../spec/std/testing.md#r-std-testing.arbitrary.derive.not-derivable) states. So two rules name different codes for one check. | `member-not-derivable`, the code every other template reports at the opt-in, naming the member. |
+| AT-any | AT-with says `arbitrary.with` stores its generator as `Any`. An `Any` value has no type test ([`types.unsupported.no-assertions`](../spec/04-type-system.md#r-types.unsupported.no-assertions)), so a template could not call or downcast one. The spec keeps [`std-testing.arbitrary.with.wrap`](../spec/std/testing.md#r-std-testing.arbitrary.with.wrap): `with` erases each drawn value to `Inspectable` inside an opaque `Generator`. | Confirm that reading: "as `Any`" means the fact's type does not mention the member's type. |
+| ST8-newtype | A newtype gets no `Structure` ([`trait.derive.newtype.templated`](../spec/09-traits.md#r-trait.derive.newtype.templated)), so no template reads a newtype's `name()` today. A newtype that derives `Arbitrary` through a base with no finite value panics with the base's name. | Keep [`annot.structure.name.newtype`](../spec/14-annotations.md#r-annot.structure.name.newtype) for when newtypes gain a `Structure`, and accept the base's name in the forwarded panic. |
+| ST8-clash | Inside a template whose trait declares its own receiverless `name`, `T::name()` could mean either method. | Extend the Note on generated names in [Templates](../spec/14-annotations.md#templates) to `facts` and `name`: in a template, `T::name()` is always `Structure`'s. |
 
 ### Bound And Row Operators
 

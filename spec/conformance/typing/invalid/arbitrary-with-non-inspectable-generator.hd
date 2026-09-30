@@ -1,5 +1,5 @@
 # test: arbitrary.with takes only a generator whose value type is inspectable
-# Spec 10 Derived Arbitrary: module.testing.arbitrary.with.module, the signature
+# std Testing, Derived Arbitrary: std-testing.arbitrary.with.module, the signature
 # with[T < Inspectable] (Testing Q5, owner decision 2026-09-30).
 use std.testing.{Arbitrary, Choices}
 use std.testing.arbitrary

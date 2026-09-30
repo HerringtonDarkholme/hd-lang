@@ -1967,14 +1967,15 @@ impl Arbitrary for Item by Structure:
 
 `with` is generic, `pub fn with[T < Inspectable](gen: fn(mut Choices) -> T) -> Generator`
 (Q5). It wraps `gen` so that each drawn value is erased to `Inspectable`,
-and the derived code downcasts the first drawn value to the member's type,
-so the member's type must be inspectable. A fact is an unchecked value, so
+and the derived code downcasts the first drawn value to the member's type.
+Every member's type must be inspectable and implement `Arbitrary`, tuned
+or not; a type whose members cannot is written by hand (Testing AT-with). A fact is an unchecked value, so
 the compiler does not catch a generator of the wrong type. The derived
 code panics on the first case instead, naming the member and both types;
 it never ignores the fact. A generic `With[T]` fact was rejected, because
 looking up `With[i32]` would miss a `With[string]` and silently use the
 default. See
-[Derived Arbitrary](../spec/10-modules.md#derived-arbitrary).
+[Derived Arbitrary](../spec/std/testing.md#derived-arbitrary).
 
 **A generator** for anything a type cannot express is a plain function
 over `Choices`, passed to `it_prop_with`. Dependent draws need nothing

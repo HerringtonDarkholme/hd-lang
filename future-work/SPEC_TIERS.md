@@ -2,11 +2,11 @@
 
 Status: decided plan. The owner accepted every recommendation on
 2026-09-30 ([Owner Decisions](#owner-decisions)), and migration steps 1
-to 4 and 6 are done. Nothing here is accepted behavior until a move task
+to 6 are done. Nothing here is accepted behavior until a move task
 puts it in the spec. Step 4 moved Property Tests and Draw Budget to
-[Testing](../spec/std/testing.md), and step 6 moved the `timeout` option's
-effect, table-test rows, and snapshot files there; nothing else has moved
-yet. It answers
+[Testing](../spec/std/testing.md), step 5 moved Derived Arbitrary, and
+step 6 moved the `timeout` option's effect, table-test rows, and snapshot
+files there; nothing else has moved yet. It answers
 the owner's request of 2026-09-30:
 
 > is Arbitrary/stdlib stuff should be inside language spec? if they can be
@@ -57,7 +57,7 @@ fixtures, 87 use such an item, and about 40 cite its section.
 | Section | Rule IDs | Why it exceeds the rule |
 | --- | --- | --- |
 | [Property Tests](../spec/std/testing.md#property-tests), [Draw Budget](../spec/std/testing.md#draw-budget) | `module.testing.choices.*`, `.prop.*`, `.budget.*` | `Choices`, `Arbitrary`, discard limits, and regression files are runner and library behavior, not prelude |
-| [Derived Arbitrary](../spec/10-modules.md#derived-arbitrary) | `module.testing.arbitrary.*` | [`module.testing.arbitrary.derive.template`](../spec/10-modules.md#r-module.testing.arbitrary.derive.template) says the compiler supplies nothing for it |
+| [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary) | `module.testing.arbitrary.*` | [`std-testing.arbitrary.derive.template`](../spec/std/testing.md#r-std-testing.arbitrary.derive.template) says the compiler supplies nothing for it |
 | [String Methods](../spec/10-modules.md#string-methods) | `module.string.*` | `trim`, `lower`, `split`, `replace`, `starts_with` are std code over bytes |
 | [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) | `flow.adapter.*`, `flow.collect.*` | [`flow.adapter.methods`](../spec/06-control-flow.md#r-flow.adapter.methods) calls them ordinary methods |
 | [Debug Builders](../spec/09-traits.md#debug-builders) | `trait.debug.builder.*`, `.derive-builders.*` | `DebugStruct` and its layout are not prelude names |
@@ -128,13 +128,13 @@ so that test would pull every string method into the language tier.
 | `println`, `Console` | prelude, host capability, harness | language |
 | `Duration`, `ms`, `s`, `r` | no: ordinary suffix and prefix functions | stdlib |
 | retry combinator in `std.task` | no, if a `fn!` loop of bang calls expresses it | stdlib; check in task 10 |
-| derived `Arbitrary` | no, by its rules; the prototype still needs the checker | stdlib, with two gaps below |
+| derived `Arbitrary` | no, by its rules; the prototype still needs the checker | stdlib; the two gaps below are settled |
 
 ### Gaps Found By The Prototype
 
 The SR1 pass (commit `06ad949b`) moved derived `Arbitrary` into a
-`std.testing` template, as `module.testing.arbitrary.derive.template`
-requires. Two rules still cannot be written that way:
+`std.testing` template, as `std-testing.arbitrary.derive.template`
+requires. Two rules could not be written that way:
 
 | Gap | Cause | Kind |
 | --- | --- | --- |
@@ -144,7 +144,13 @@ requires. Two rules still cannot be written that way:
 The prototype keeps a checker path for a target with an `arbitrary.with`
 fact. Neither gap keeps derived `Arbitrary` in the language tier: its rules
 are std behavior, and the first gap belongs to the template machinery. ST7
-and ST8 in [Owner Decisions](#owner-decisions) settle both.
+and ST8 in [Owner Decisions](#owner-decisions) settle both, and step 5
+applied them:
+
+| Gap | Settled by |
+| --- | --- |
+| `arbitrary.with` | Testing AT-with (option B): every member must implement `Arbitrary` and be inspectable, tuned or not ([`std-testing.arbitrary.derive.member-bounds`](../spec/std/testing.md#r-std-testing.arbitrary.derive.member-bounds)). Member-typed facts, which would lift the bound from a tuned member, are a future option in [Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets). |
+| enum name in the panic | [`annot.structure.name`](../spec/14-annotations.md#r-annot.structure.name) and [`std-testing.arbitrary.derive.no-finite.message`](../spec/std/testing.md#r-std-testing.arbitrary.derive.no-finite.message) |
 
 ## Inventory
 
@@ -284,7 +290,7 @@ Each task is about an hour, and each ends with `bash spec/check.sh`,
 | 2 | Done. Process: AGENTS.md rule, spec-update skill, STDLIB.md tier column | nothing |
 | 3 | Done. Conformance plumbing: README Tiers section, split list, `check.sh` name check (`spec/check-spec-tiers.ts`, `stdlib-items.tsv`), `--tier` in both runners; `tier-crossings.tsv` records 37 crossing fixtures | nothing |
 | 4 | Done. `std/testing.md`, part 1: Property Tests and Draw Budget, 37 IDs; `std.testing.Arbitrary` and `.Choices` in `stdlib-items.tsv`; the 7 Derived Arbitrary fixtures recorded in `tier-crossings.tsv` until task 5 | 6 cases |
-| 5 | `std/testing.md`, part 2: Derived Arbitrary; `Structure.name()` and the no-finite message (ST8); the `arbitrary.with` gap into [Open Issues](OPEN_ISSUES.md) (ST7) | 7 cases |
+| 5 | Done. `std/testing.md`, part 2: Derived Arbitrary, 16 IDs moved and one retired, with Testing AT-with; `Structure.name()` and the no-finite message (ST8); Self References restated (SIMPLE); the `arbitrary.with` gap and option D in [Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets) (ST7); `std.testing.arbitrary` in `stdlib-items.tsv`; the 7 crossing rows removed; four questions in [Open Issues](OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening) | 7 cases, and 5 new cases |
 | 6 | Done. `std/testing.md`, part 3: Test Timeout, Table-Test Rows, Snapshot Files, 18 IDs; `std.testing.snapshot_file` in `stdlib-items.tsv`; the three `timeout` and `snapshot_file` crossing rows removed | 6 cases, and 1 new case split from two language cases |
 | 7 | `std/iter.md`: adapters, collect targets, `FromIterator`, `List.map`, optional `map` | 13 cases |
 | 8 | `std/text.md`: string methods above the intrinsics, and `r` | 4 cases |
@@ -330,5 +336,5 @@ next to `facts()`.
 | Known cost | Once codecs emit the name, renaming a type changes their output, as with serde or Go. Because it is the declared name only, moving a file does not change it. |
 
 `Structure.name()` is a language-tier addition: `std.structure` bodies are
-compiler-supplied. It is recorded here only. The spec text changes when
-Derived Arbitrary moves, in task 5.
+compiler-supplied. Step 5 applied it in
+[The Structure Trait](../spec/14-annotations.md#the-structure-trait).

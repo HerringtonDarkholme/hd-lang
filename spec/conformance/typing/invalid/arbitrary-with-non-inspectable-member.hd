@@ -1,12 +1,13 @@
 # test: a member that arbitrary.with tunes must have an inspectable type
-# Spec 10 Derived Arbitrary: module.testing.arbitrary.with.inspectable (Testing Q5, owner decision 2026-09-30).
+# std Testing, Derived Arbitrary: std-testing.arbitrary.derive.member-bounds and .derive.not-derivable
+# (Testing Q5 and AT-with, owner decisions 2026-09-30); the derive reports it at the opt-in.
 use std.testing.{Arbitrary, Choices}
 use std.testing.arbitrary
 
 fn digit(c: mut Choices) -> i32:
     c.int(0, 9)
 
-@derive(Arbitrary)
+@derive(Arbitrary)  # diagnostic: unsatisfied-trait-bound
 data Task:
-    @arbitrary.with(digit)  # diagnostic: unsatisfied-trait-bound
+    @arbitrary.with(digit)
     run: fn() -> i32

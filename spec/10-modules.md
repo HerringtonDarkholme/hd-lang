@@ -800,7 +800,7 @@ pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choice
 1. r[module.testing.it-each.import] `it_each` is not a prelude name; code imports it with `use std.testing.it_each`.
 2. r[module.testing.it-each.body-closure] Its body has a parameter, so it is an explicit `fn!` closure, not a trailing block. After omitted options, a call passes it by name, as in `body=fn!(value: i32): ...`.
 3. r[module.testing.it-each.name-clash] Another test case of the module must not be named `name[i]` for any index `i`. Error: `duplicate-test-name`.
-4. r[module.testing.it-prop] A top-level call of `std.testing.it_prop` or `std.testing.it_prop_with` registers one property test case. The runner generates its inputs and shrinks a failing one.
+4. r[module.testing.it-prop] A top-level call of `std.testing.it_prop` or `std.testing.it_prop_with` registers one property test case.
 5. r[module.testing.it-prop.import] Neither is a prelude name; code imports them from `std.testing`.
 6. r[module.testing.variants.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
 7. r[module.testing.variants.options] Each takes the options of `it`, `ignore`, `expect_panic`, and `timeout`, under the same rules.
@@ -824,91 +824,9 @@ See also: [Table-Test Rows](std/testing.md#table-test-rows) in the stdlib
 tier, for how an `it_each` call expands and names its rows. Its
 [Property Tests](std/testing.md#property-tests) and
 [Draw Budget](std/testing.md#draw-budget) cover `Choices`, `Arbitrary`, and
-how the runner draws, discards, and replays a property's inputs.
-
-#### Derived Arbitrary
-
-1. r[module.testing.arbitrary.derive] `@derive(Arbitrary)` derives `Arbitrary` through its [template](14-annotations.md#templates). The derived `arbitrary` draws each member with its type's `Arbitrary`. For an enum, it draws a variant, then that variant's payload.
-2. r[module.testing.arbitrary.derive.template] That template is ordinary `std.testing` code over `std.structure`: it reads each variant's and member's [`self_ref`](14-annotations.md#self-references), and the compiler supplies nothing for `Arbitrary` itself.
-3. r[module.testing.arbitrary.derive.simplest] A derived enum's simplest choice is its first non-recursive variant, whatever the declaration order.
-4. r[module.testing.arbitrary.derive.recursive] A variant is recursive when its `self_ref` is `.Required`: its simplest payload still needs a value of the enum, directly or through the members of a data type, a tuple, or a `Result`'s `.Ok`.
-5. r[module.testing.arbitrary.derive.recursive.containers] A `List`, `Map`, or optional member does not make its variant recursive, because its `self_ref` is at most `.Optional`: its simplest value is empty or `.None`.
-6. r[module.testing.arbitrary.derive.no-finite] When every variant of a derived enum is recursive, the derived `arbitrary` panics on the property's first case, with a message that names the type. Panic: `explicit-panic`.
-7. r[module.testing.arbitrary.derive.no-finite.data] When a member of a derived data type has `self_ref` `.Required`, its derived `arbitrary` panics the same way, and the compiler does not reject the type either. Panic: `explicit-panic`.
-8. r[module.testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
-7. r[module.testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
-8. r[module.testing.arbitrary.with.module] The module `std.testing.arbitrary` declares `with` and its result type `Generator`, as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
-9. r[module.testing.arbitrary.with.wrap] `with` wraps `gen` so that each drawn value is erased to `Inspectable`, and returns the wrapped generator as a `Generator`.
-10. r[module.testing.arbitrary.with.downcast] The derived `arbitrary` draws the member with the wrapped generator, and downcasts the first drawn value to the member's type.
-11. r[module.testing.arbitrary.with.inspectable] A member that `arbitrary.with` tunes must have an inspectable type, because the derived code downcasts to it. Error: `unsatisfied-trait-bound`.
-12. r[module.testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
-13. r[module.testing.arbitrary.with.unchecked] The compiler does not check `gen` against the member's type, as for any [metadata value](14-annotations.md#member-metadata).
-14. r[module.testing.arbitrary.with.downcast-failure] When the downcast fails, the derived `arbitrary` panics on the property's first case. The message names the member, the member's type, and the type that `gen` drew. Panic: `explicit-panic`.
-15. r[module.testing.arbitrary.with.no-fallback] The derived `arbitrary` never ignores a mismatched generator, and never falls back to the member type's own `Arbitrary`.
-
-```text
-pub fn with[T < Inspectable](gen: fn(mut Choices) -> T) -> Generator
-```
-
-```text
-use std.testing.{Arbitrary, Choices, assert, it_prop}
-use std.testing.arbitrary
-
-fn cents(c: mut Choices) -> i32:
-    c.int(0, 10_000)
-
-@derive(Arbitrary, Debug)
-data Item:
-    name: string
-    @arbitrary.with(cents)
-    price: i32
-
-@derive(Arbitrary, Debug)
-enum Expr:
-    Add(left: Expr, right: Expr)
-    Num(value: i32)
-
-tests:
-    it_prop("prices are never negative", examples=[Item { name: "", price: 0 }], prop=fn!(item: Item):
-        assert(item.price >= 0, reason="cents draws from 0 to 10_000")
-    )
-```
-
-`Expr`'s simplest choice is `Num`, although `Add` comes first.
-
-```text
-use std.testing.Arbitrary
-
-@derive(Arbitrary, Debug)
-enum Tree:
-    Node(children: List[Tree])
-
-@derive(Arbitrary, Debug)
-enum Loop:
-    More(next: Loop)
-
-@derive(Arbitrary, Debug)
-data Ring:
-    next: Ring
-```
-
-`Tree`'s one variant is not recursive: its `self_ref` is `.Optional`,
-because an empty list holds no `Tree`. Every variant of `Loop` is
-recursive, so its derived `arbitrary` panics on the first case. So does
-`Ring`'s, because its member `next` is `.Required`.
-
-> **Why.** One fact that holds a whole generator covers every range,
-> length, and shape, so derived `Arbitrary` needs no range or length facts.
-> A fact generic in its member's type, such as `With[T]`, is not used:
-> looking up `With[i32]` would miss a `With[string]` and silently use the
-> default generator. The function `with` is generic instead: it erases each
-> drawn value to `Inspectable`, so the derived code can check the value's
-> type when the test runs.
-
-> **Note.** These are runner behavior, not rules of this chapter: how often
-> a draw returns small and boundary values, any small-first order of cases,
-> and the size of the draw budget. So are which chars `string` draws and
-> how the runner shrinks a failing case.
+how the runner generates, discards, shrinks, and replays a property's
+inputs, and its [Derived Arbitrary](std/testing.md#derived-arbitrary)
+covers `@derive(Arbitrary)` and `arbitrary.with`.
 
 ### Test Outcomes
 

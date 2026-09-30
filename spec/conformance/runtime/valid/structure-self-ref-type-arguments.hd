@@ -1,0 +1,48 @@
+# test: the enclosing type applied to other type arguments is still the enclosing type
+# Spec 14 Self References: annot.self-ref.enclosing.arguments, .needs.self, and .member
+# (SIMPLE, owner decision 2026-09-30). Nest[List[T]] inside enum Nest[T] makes Deep required.
+use std.structure.{Structure, Field, Variant, Describer, SelfRef}
+use std.testing.assert_equal
+
+trait Shape:
+    fn shape() -> string
+
+fn ref_name(r: SelfRef) -> string:
+    match r:
+        .Absent => "absent"
+        .Optional => "optional"
+        .Required => "required"
+
+data ShapeLister:
+    out: string
+
+impl[S] Describer[S] for ShapeLister:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        self.out = self.out + v.info.name + "=" + ref_name(v.info.self_ref) + ";"
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.out = self.out + h.info.name + "=" + ref_name(h.info.self_ref) + ";"
+        .Ok()
+
+impl[T] Shape for T by Structure:
+    fn shape() -> string:
+        let mut d = ShapeLister { out: "" }
+        _ := T::describe(d)
+        d.out
+
+@derive(Shape)
+data Tag:
+    label: string
+
+@derive(Shape)
+enum Nest[T]:
+    Leaf(value: T)
+    Deep(next: Nest[List[T]])
+
+tests:
+    it("the enclosing type with other type arguments is still the enclosing type"):
+        expected := "Leaf=absent;value=absent;Deep=required;next=required;"
+        assert_equal(Nest[Tag]::shape(), expected, reason="Nest[List[T]] is the enclosing type")
