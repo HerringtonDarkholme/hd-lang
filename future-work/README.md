@@ -27,6 +27,11 @@ Open questions for the owner:
 - [Special Cases: Inventory And Simplification](SPECIAL_CASES.md) lists
   hd's compiler intrinsics, rule exceptions, special syntax, magic names,
   and single-construct diagnostics, and ranks nine cuts as owner questions.
+- [Syntax And Semantics Cost Review](SYNTAX_SEMANTICS_COST.md) weighs
+  each language-tier syntax form and rule exception by its rule count
+  against its use in real hd code. It ranks six cuts, including C4-C7,
+  and marks seven owner decisions, led by embedding, literal sugar, and
+  packs, as possible reopens.
 - [Spec Tiers](SPEC_TIERS.md) splits the spec into a language tier and a
   stdlib tier under `spec/std/`, with an inventory, a conformance split,
   and a migration plan. The owner decided ST1-ST8 on 2026-09-30; step 1,
