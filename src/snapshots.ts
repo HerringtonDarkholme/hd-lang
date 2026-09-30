@@ -3,7 +3,7 @@ import { basename, dirname, join, relative, sep } from "node:path";
 import type { HostFunction } from "./host-functions.ts";
 import type { RegressionStore } from "./property-tests.ts";
 
-// The runner side of `std.testing.snapshot_file` (spec/10-modules.md#snapshots,
+// The runner side of `std.testing.snapshot_file` (spec/std/testing.md#snapshot-files,
 // Testing T53). The file is `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`;
 // the slug, counter, and table-row rules are in
 // future-work/RUNTIME_AND_LIBRARY.md#snapshot-tests. A missing file fails the

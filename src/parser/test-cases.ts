@@ -173,7 +173,7 @@ function testArguments(
         argument.span,
       );
     // `timeout` takes any `Duration` value, evaluated when the test case runs
-    // (10-modules.md#r-module.testing.option.timeout-any-duration); the
+    // (std/testing.md#r-std-testing.option.timeout-any-duration); the
     // checker types it.
     if (option === "timeout") {
       timeout = argument;
@@ -247,7 +247,7 @@ export function testCase(statement: Statement, fail: Fail): TestDecl {
 }
 
 // `std.testing.it_each(name, rows, ..., body=)` registers one case per row
-// (spec/10-modules.md#table-tests). The prototype compiles one test function
+// (spec/std/testing.md#table-test-rows). The prototype compiles one test function
 // that the runner calls once per row, each in a fresh instance: it evaluates
 // `rows`, reports their count, and runs the body with the selected row. With
 // no rows, row 0 panics with `index-out-of-bounds` after reporting count 0.

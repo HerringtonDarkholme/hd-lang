@@ -2,9 +2,11 @@
 
 Status: decided plan. The owner accepted every recommendation on
 2026-09-30 ([Owner Decisions](#owner-decisions)), and migration steps 1
-to 4 are done. Nothing here is accepted behavior until a move task puts it
-in the spec. Step 4 moved Property Tests and Draw Budget to
-[Testing](../spec/std/testing.md); nothing else has moved yet. It answers
+to 4 and 6 are done. Nothing here is accepted behavior until a move task
+puts it in the spec. Step 4 moved Property Tests and Draw Budget to
+[Testing](../spec/std/testing.md), and step 6 moved the `timeout` option's
+effect, table-test rows, and snapshot files there; nothing else has moved
+yet. It answers
 the owner's request of 2026-09-30:
 
 > is Arbitrary/stdlib stuff should be inside language spec? if they can be
@@ -59,7 +61,7 @@ fixtures, 87 use such an item, and about 40 cite its section.
 | [String Methods](../spec/10-modules.md#string-methods) | `module.string.*` | `trim`, `lower`, `split`, `replace`, `starts_with` are std code over bytes |
 | [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) | `flow.adapter.*`, `flow.collect.*` | [`flow.adapter.methods`](../spec/06-control-flow.md#r-flow.adapter.methods) calls them ordinary methods |
 | [Debug Builders](../spec/09-traits.md#debug-builders) | `trait.debug.builder.*`, `.derive-builders.*` | `DebugStruct` and its layout are not prelude names |
-| [Snapshots](../spec/10-modules.md#snapshots), [Table Tests](../spec/10-modules.md#table-tests) | `module.testing.snapshot*`, `.it-each.*` | file paths, update runs, and row names are runner behavior |
+| [Snapshot Files](../spec/std/testing.md#snapshot-files), [Table-Test Rows](../spec/std/testing.md#table-test-rows) | `module.testing.snapshot*`, `.it-each.*` | file paths, update runs, and row names are runner behavior |
 | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings) | `expr.suffix.std.*`, `expr.prefix.std.*` | `ms`, `s`, and `r` are ordinary functions |
 
 Go and Rust keep these apart. The
@@ -168,10 +170,10 @@ prefix instead, so the rule it shows stays language-tier.
 | 10 | String Methods: `chars`, `char_indices`, `lower`, `trim`, `split`, `replace`, `starts_with` | stdlib | `std/text.md` |
 | 10 | Standard Testing exports, Test Cases (less `timeout`), Test Outcomes | language | stays |
 | 10 | `timeout` option rules | stdlib | `std/testing.md` |
-| 10 | Table Tests: `module.testing.it-each.import`, `.variants.*`, `.it-prop.import` | language | stays |
+| 10 | Table Tests: `module.testing.it-each.import`, `.it-each.body-closure`, `.it-each.name-clash`, `.it-prop`, `.it-prop.import`, `.variants.*` | language | stays |
 | 10 | Table Tests: `it-each` rows, names, run timing | stdlib | `std/testing.md` |
 | 10 | Property Tests, Draw Budget, Derived Arbitrary | stdlib | `std/testing.md` |
-| 10 | Snapshots: `module.testing.snapshot.literal` | language | stays |
+| 10 | Snapshots: the `snapshot` signature and `module.testing.snapshot.literal` | language | stays |
 | 10 | Snapshots: the rest | stdlib | `std/testing.md` |
 | [11](../spec/11-requirements-and-suspension.md) | everything but the next row | language | stays |
 | 11 | `req.combinator.retry` | stdlib if a `fn!` loop expresses it | `std/task.md` |
@@ -283,7 +285,7 @@ Each task is about an hour, and each ends with `bash spec/check.sh`,
 | 3 | Done. Conformance plumbing: README Tiers section, split list, `check.sh` name check (`spec/check-spec-tiers.ts`, `stdlib-items.tsv`), `--tier` in both runners; `tier-crossings.tsv` records 37 crossing fixtures | nothing |
 | 4 | Done. `std/testing.md`, part 1: Property Tests and Draw Budget, 37 IDs; `std.testing.Arbitrary` and `.Choices` in `stdlib-items.tsv`; the 7 Derived Arbitrary fixtures recorded in `tier-crossings.tsv` until task 5 | 6 cases |
 | 5 | `std/testing.md`, part 2: Derived Arbitrary; `Structure.name()` and the no-finite message (ST8); the `arbitrary.with` gap into [Open Issues](OPEN_ISSUES.md) (ST7) | 7 cases |
-| 6 | `std/testing.md`, part 3: table-test rows, snapshot files, `timeout` | 9 cases |
+| 6 | Done. `std/testing.md`, part 3: Test Timeout, Table-Test Rows, Snapshot Files, 18 IDs; `std.testing.snapshot_file` in `stdlib-items.tsv`; the three `timeout` and `snapshot_file` crossing rows removed | 6 cases, and 1 new case split from two language cases |
 | 7 | `std/iter.md`: adapters, collect targets, `FromIterator`, `List.map`, optional `map` | 13 cases |
 | 8 | `std/text.md`: string methods above the intrinsics, and `r` | 4 cases |
 | 9 | `std/format.md`: Debug builders and layout; `std/time.md`: `Duration` and suffixes; local suffixes and prefixes in the ch01, 03, 04, 05 examples | 4 cases, and most of the 17 fixtures that import `std.time` or `std.text` |

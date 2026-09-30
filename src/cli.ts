@@ -300,7 +300,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     if (command === "test" || command === "run") {
       let scenarioInstance: WebAssembly.Instance | undefined;
       let pendingFunctionIndex: number | undefined;
-      // `snapshot_file` files (spec/10-modules.md#snapshots); `--update` records them.
+      // `snapshot_file` files (spec/std/testing.md#snapshot-files); `--update` records them.
       const snapshots = snapshotRun(path, update);
       // Property-test regression files (spec/std/testing.md#r-std-testing.prop.regression-file).
       const { root: packageRoot, module: testModule } = snapshotModule(path);

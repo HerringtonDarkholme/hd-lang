@@ -12,7 +12,7 @@ import {
 // selected (spec/10-modules.md#test-outcomes). An `it_each` table is one test
 // function that runs once per row: the runner selects the row through the
 // exported `__hd_each_index` global and stops at the row count the function
-// reports through `__hd_each_count` (spec/10-modules.md#table-tests).
+// reports through `__hd_each_count` (spec/std/testing.md#table-test-rows).
 
 export type RunOutcome =
   | { readonly kind: "passed"; readonly count: number; readonly result?: unknown }
@@ -72,7 +72,7 @@ function timeoutMillis(exports: Exports): number | undefined {
 }
 
 // A test case fails when it runs longer than its `timeout`
-// (spec/10-modules.md#r-module.testing.option.timeout-any-duration). The
+// (spec/std/testing.md#r-std-testing.option.timeout-any-duration). The
 // prototype runs a body synchronously, so it checks the elapsed time after
 // the body returns; it cannot stop a body that never returns.
 function overran(exports: Exports, started: number, subject: string): RunOutcome | undefined {

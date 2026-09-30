@@ -292,7 +292,7 @@ test("hd test runs a _test.hd test module", async () => {
 });
 
 // Each it_each row is its own test case in a fresh program instance
-// (spec/10-modules.md#table-tests and #r-module.testing.instance).
+// (spec/std/testing.md#table-test-rows and spec/10-modules.md#r-module.testing.instance).
 test("hd test runs each it_each row in a fresh instance", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
@@ -329,7 +329,7 @@ test("hd test runs each it_each row in a fresh instance", async () => {
 });
 
 // A `timeout` is any Duration, evaluated when the test case runs; a body
-// that runs longer fails (spec/10-modules.md#r-module.testing.option.timeout-at-run).
+// that runs longer fails (spec/std/testing.md#r-std-testing.option.timeout-at-run).
 test("hd test fails a test case that runs longer than its timeout", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {

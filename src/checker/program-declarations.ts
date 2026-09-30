@@ -11,7 +11,7 @@ interface ExplicitEnumFieldValue {
 }
 
 // A `timeout` value is any `Duration`, evaluated when the test case runs
-// (spec/10-modules.md#r-module.testing.option.timeout-at-run). The test
+// (spec/std/testing.md#r-std-testing.option.timeout-at-run). The test
 // function evaluates it first, as a `Duration` binding, and reports its
 // milliseconds to the runner, which fails a body that runs longer.
 function timeoutStatements(value: Expression, duration: string): Statement[] {

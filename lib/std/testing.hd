@@ -357,7 +357,7 @@ fn prop_draw(bound: i64) -> i64:
 fn prop_discard() -> void:
     panic("intrinsic")
 
-# `snapshot_file(text)` (spec/10-modules.md#snapshots) compares `text` with
+# `snapshot_file(text)` (spec/std/testing.md#snapshot-files) compares `text` with
 # the file the runner names from the running test case,
 # `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`. The host
 # reads, and on `hd test --update` writes, the file, and returns why it
