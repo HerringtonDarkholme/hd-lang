@@ -101,8 +101,8 @@ syn sync minlines=200
 hi def link hdConditional     Conditional
 hi def link hdRepeat          Repeat
 hi def link hdStatement       Statement
-hi def link hdStructure       Structure
-hi def link hdStorage         StorageClass
+hi def link hdStructure       Keyword
+hi def link hdStorage         Keyword
 hi def link hdKeyword         Keyword
 hi def link hdInclude         Include
 hi def link hdBoolean         Boolean

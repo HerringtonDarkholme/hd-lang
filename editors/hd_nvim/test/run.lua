@@ -86,6 +86,11 @@ local function link(group)
 end
 for group, target in pairs({
   hdKeyword = "Keyword",
+  -- Structure and StorageClass link to Type by default, which made
+  -- `pub trait Add` one color; declaration keywords stay Keyword.
+  hdStructure = "Keyword",
+  hdStorage = "Keyword",
+  hdType = "Type",
   hdString = "String",
   hdInterpName = "Identifier",
   hdComment = "Comment",
