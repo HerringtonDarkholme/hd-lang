@@ -9,10 +9,10 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,547 of the 1,608 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 61 are listed in
+On 2026-09-30 the prototype passes 1,549 of the 1,612 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 63 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 61 still fail.
+decision below, and all 63 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
@@ -33,6 +33,8 @@ them by tag:
 | Q1a | 2 | batch 15: a `:=` list is not yet a same-line suite body |
 | LM-a | 1 | batch 15: no `redundant-let-mut` for a list name |
 | PS3a | 1 | batch 15: a closure's declared row is not compared with its own `$.with` keys |
+| TB1 | 1 | batch 16: a trailing block with an indented body is accepted as a same-line `if` body |
+| LM-c | 1 | batch 16: `self` in a primitive `mut self` method is typed `mut i32`, and the call needs mutable access |
 
 ## What Remains
 

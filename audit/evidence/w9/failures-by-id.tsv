@@ -14,3 +14,5 @@ Q1a	2	A parenthesized `:=` list as a same-line suite body (batch 15, Q1a) is not
 Q1b	4	The nested multi-name binding `((a, b) := value)` (batch 15, Q1b) is not implemented: the parser still reads only the dropped grouped form `(a, b := value)`
 LM-a	1	The `redundant-let-mut` warning for a list name whose annotated element is already `mut` (batch 15, LM-a) is not implemented
 PS3a	1	Inside a closure, the collision check (batch 15, PS3a) does not compare the closure's declared row with keys its own `$.with` binds
+TB1	1	A trailing block call whose indented body starts on the next line is accepted as a same-line if body instead of syntax-error (batch 16, TB1)
+LM-c	1	In a mut self method of a primitive impl, self is typed mut i32 instead of the plain Self, so self + 1 is a type-mismatch, and the call is mutable-receiver-required (batch 16, LM-c)

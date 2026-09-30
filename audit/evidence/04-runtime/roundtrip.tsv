@@ -1,5 +1,5 @@
 # commit bd985d7, 2026-09-25T21:01:23.843Z, node v24.19.0
-# command: node --experimental-strip-types audit/scripts/runtime/roundtrip.ts audit/scripts/runtime/suspension-fixtures.txt
+# command (roundtrip.ts and its fixture list were removed; kept as history): node --experimental-strip-types audit/scripts/runtime/roundtrip.ts audit/scripts/runtime/suspension-fixtures.txt
 fixture	profile	scenario	check	run	record	replay	events	stdout_match	verdict
 examples/suspension.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
 spec/conformance/runtime/panic/competing-suspension-drivers.hd	-	competing-drivers	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
