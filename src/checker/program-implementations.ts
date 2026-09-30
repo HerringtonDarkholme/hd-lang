@@ -399,11 +399,51 @@ function prepareInherentImplementation(
       // (11-requirements-and-suspension.md#r-req.row.omitted.empty-pub).
       ...(method.requirementsOmitted && !method.public ? { requirementsOmitted: true } : {}),
       ...(implementation.standard ? { standard: true } : {}),
-      ...(method.genericDefaults ? { genericDefaults: method.genericDefaults } : {}),
+      ...selfDefaults(method, implementation.targetName),
       body: method.body ?? [],
       span: method.span,
     });
   }
+}
+
+/** A method's type-argument defaults, with `Self` read as the implementation's target. */
+function selfDefaults(
+  method: MethodDecl,
+  targetName: string,
+): Pick<FunctionDecl, "genericDefaults"> {
+  if (!method.genericDefaults) return {};
+  return {
+    genericDefaults: Object.fromEntries(
+      Object.entries(method.genericDefaults).map(([name, type]) => [
+        name,
+        substituteSelfType(type, targetName),
+      ]),
+    ),
+  };
+}
+
+/**
+ * Whether an implementation method repeats the trait method's defaults, slot
+ * by slot (09-traits.md#r-trait.impl.generics.default).
+ */
+function sameMethodDefaults(
+  required: MethodDecl | undefined,
+  method: MethodDecl,
+  renaming: ReadonlyMap<string, ValueType>,
+  traitGenerics: ReadonlySet<string>,
+  methodGenerics: ReadonlySet<string>,
+): boolean {
+  const requiredParameters = required?.genericParameters ?? [];
+  return requiredParameters.every((name, index) => {
+    const renamed = method.genericParameters[index];
+    const expected = required?.genericDefaults?.[name];
+    const actual = renamed === undefined ? undefined : method.genericDefaults?.[renamed];
+    if (expected === undefined || actual === undefined) return expected === actual;
+    return (
+      substituteGenericType(resolveGenericType(expected.name, traitGenerics), renaming) ===
+      resolveGenericType(actual.name, methodGenerics)
+    );
+  });
 }
 
 function resolveImplementationTarget(
@@ -739,6 +779,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
           (method.parameters[0]?.name !== "self") !== required.associated ||
           method.genericParameters.length !== required.genericParameters.length ||
           !boundsMatch ||
+          !sameMethodDefaults(defaultMethod, method, renaming, traitGenerics, methodGenerics) ||
           parameterTypes.length !== expectedParameters.length ||
           parameterTypes.some((parameter, index) => parameter !== expectedParameters[index]) ||
           (method.parameters.at(-1)?.variadic === true) !== required.variadic ||
@@ -765,6 +806,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         result: substituteSelfType(method.result, implementation.targetName),
         requirements: method.requirements,
         ...(implementation.standard ? { standard: true } : {}),
+        ...selfDefaults(method, implementation.targetName),
         body: method.body ?? [],
         span: method.span,
       };

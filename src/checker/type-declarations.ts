@@ -53,7 +53,7 @@ function isTypeRef(value: unknown): value is TypeRef {
   );
 }
 
-function words(type: string): readonly string[] {
+export function words(type: string): readonly string[] {
   return type.split(/[^\p{ID_Continue}#]+/u).filter(Boolean);
 }
 
@@ -85,7 +85,7 @@ function rowKindedParameters(alias: Alias): ReadonlySet<string> {
 }
 
 /** Replaces alias parameters, written by name, with their arguments. */
-function substitute(type: string, substitutions: ReadonlyMap<string, string>): string {
+export function substitute(type: string, substitutions: ReadonlyMap<string, string>): string {
   if (substitutions.size === 0) return type;
   const direct = substitutions.get(type);
   if (direct !== undefined) return direct;

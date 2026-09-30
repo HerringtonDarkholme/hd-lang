@@ -483,6 +483,16 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           referenceParameters: method.referenceParameters,
           valueParameters: method.valueParameters,
           rowParameters: [],
+          ...(method.genericDefaults
+            ? {
+                genericDefaults: new Map(
+                  [...method.genericDefaults].map(([name, type]) => [
+                    name,
+                    substituteGenericType(type, traitSubstitutions),
+                  ]),
+                ),
+              }
+            : {}),
           parameters: methodParameters,
           parameterNames: method.parameterNames,
           defaultFunctionNames: method.parameters.map(() => undefined),

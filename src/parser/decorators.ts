@@ -6,6 +6,7 @@ import type {
   MemberLine,
   TypeDecl,
   TypeRef,
+  VarianceMarker,
 } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { ExpressionParser } from "./expression.ts";
@@ -15,22 +16,48 @@ export interface ParsedGenericParameters {
   readonly bounds: readonly GenericBound[];
   /** Parameters written `reified`; the prototype erases them all. */
   readonly reified?: readonly string[];
-  /** Type-argument defaults, which only `lib/std` may write in the prototype. */
+  /** Type-argument defaults (04-type-system.md#type-argument-defaults). */
   readonly defaults?: Readonly<Record<string, TypeRef>>;
+  /** `+T` and `-T` markers of a declaration's type parameters, one per parameter. */
+  readonly variances?: readonly VarianceMarker[];
+}
+
+/** Which generic parameter list is parsed (02-grammar.md#generic-parameters-and-bounds). */
+export interface GenericParameterForm {
+  /** A data type's or enum's `type_params` take variance markers; a trait's reject them. */
+  readonly variance?: "allow" | "reject";
+  /** `generic_params` of an implementation take no default (grammar.generic.default.positions). */
+  readonly defaults?: boolean;
+  /** Who owns the parameters, as in "a trait's generic parameters", for the variance error. */
+  readonly owner?: string;
 }
 
 // Decorators, member lines, generic parameters, and trait bounds
 // (spec/02-grammar.md#annotations and #r-grammar.impl.derivation-line),
 // shared by the declaration parser.
 export abstract class DecoratorParser extends ExpressionParser {
-  protected parseGenericParameters(): ParsedGenericParameters {
+  protected parseGenericParameters(
+    form: GenericParameterForm = { defaults: true },
+  ): ParsedGenericParameters {
     const parameters: string[] = [];
     const bounds: GenericBound[] = [];
     const reified: string[] = [];
     const defaults: Record<string, TypeRef> = {};
+    const variances: VarianceMarker[] = [];
     if (!this.matchText("[")) return { parameters, bounds };
     if (!this.atText("]")) {
       do {
+        if (form.variance) {
+          const marker = this.current();
+          const variance = this.parseVarianceMarker();
+          if (variance && form.variance === "reject")
+            this.fail(
+              "invalid-variance",
+              `${form.owner ?? "these generic parameters"} take no variance marker`,
+              marker.span,
+            );
+          variances.push(variance);
+        }
         // `reified` modifies a parameter only directly before its name; the
         // prototype erases every generic parameter.
         // An unbackticked `reified` is always the modifier, so a lone one is
@@ -69,18 +96,27 @@ export abstract class DecoratorParser extends ExpressionParser {
               ...(bindings.length > 0 ? { bindings } : {}),
               span: { start: parameter.span.start, end: this.peek(-1).span.end },
             });
-        } else if (this.atText("...") || (this.atText("=") && !this.options.standardLibrary)) {
+        } else if (this.atText("...")) {
+          // A type pack takes no default (grammar.generic.default.positions).
+          if (this.peek(1).text === "=")
+            this.fail("syntax-error", "a type pack takes no default", this.peek(1).span);
           this.fail(
             "unsupported-generic-parameter",
-            "packs and defaults are outside the current erased-generic slice",
+            "packs are outside the current erased-generic slice",
             this.current().span,
           );
         }
-        // std's `collect[C < FromIterator[T] = List[T]]` is the one default the
-        // prototype reads (06-control-flow.md#r-flow.collect.target-default).
-        if (this.atText("=") && this.options.standardLibrary) {
+        // `= type` after the bound is a type-argument default, which an
+        // implementation's parameters do not take (grammar.generic.default.positions).
+        if (this.atText("=")) {
+          if (!form.defaults)
+            this.fail(
+              "syntax-error",
+              "an implementation's generic parameters take no default",
+              this.current().span,
+            );
           this.advance();
-          defaults[parameter.text] = this.parseType();
+          defaults[parameter.text] = this.parseTypeArgument();
         }
       } while (this.matchText(",") && !this.atText("]"));
     }
@@ -90,6 +126,7 @@ export abstract class DecoratorParser extends ExpressionParser {
       bounds,
       ...(reified.length > 0 ? { reified } : {}),
       ...(Object.keys(defaults).length > 0 ? { defaults } : {}),
+      ...(variances.some(Boolean) ? { variances } : {}),
     };
   }
 

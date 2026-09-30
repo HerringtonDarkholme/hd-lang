@@ -364,6 +364,16 @@ export function defineProgramData(context: ProgramCheckContext): void {
         });
       names.add(field.name);
       const rowParameters = new Set(data.rowParameters ?? []);
+      // A parameter bounded by `Eq` and `Hash` may key a map (trait.hash.map-key).
+      const hashable = new Set(
+        declaration.genericParameters.filter((name) =>
+          ["Eq", "Hash"].every((trait) =>
+            (declaration.genericBounds ?? []).some(
+              (bound) => bound.parameter === name && bound.traits.includes(trait),
+            ),
+          ),
+        ),
+      );
       const type =
         typeName(
           field.type,
@@ -373,6 +383,7 @@ export function defineProgramData(context: ProgramCheckContext): void {
           diagnostics,
           new Set(declaration.genericParameters.filter((name) => !rowParameters.has(name))),
           rowParameters,
+          hashable,
         ) ?? "void";
       if (type === "void")
         diagnostics.push({
@@ -411,7 +422,25 @@ export function defineProgramData(context: ProgramCheckContext): void {
         span: field.span,
       };
     });
-    dataTypes.set(declaration.name, { ...data, fields });
+    const defaults = Object.entries(declaration.genericDefaults ?? {}).map(
+      ([name, type]) =>
+        [
+          name,
+          typeName(
+            type,
+            dataTypes,
+            enumTypes,
+            traitTypes,
+            diagnostics,
+            new Set(declaration.genericParameters),
+          ) ?? "void",
+        ] as const,
+    );
+    dataTypes.set(declaration.name, {
+      ...data,
+      fields,
+      ...(defaults.length > 0 ? { genericDefaults: new Map(defaults) } : {}),
+    });
   }
 }
 
@@ -700,12 +729,20 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
           ];
         }),
       );
+      const defaults = Object.entries(method.genericDefaults ?? {}).map(
+        ([name, type]) =>
+          [
+            name,
+            typeName(type, dataTypes, enumTypes, traitTypes, diagnostics, memberGenerics) ?? "void",
+          ] as const,
+      );
       return {
         name: method.name,
         index,
         associated,
         genericParameters: method.genericParameters,
         genericBounds,
+        ...(defaults.length > 0 ? { genericDefaults: new Map(defaults) } : {}),
         referenceParameters,
         valueParameters,
         ...(method.reifiedParameters ? { reifiedParameters: method.reifiedParameters } : {}),

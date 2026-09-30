@@ -15,7 +15,6 @@ import type {
   TraitDecl,
   TypeDecl,
   TypeRef,
-  VarianceMarker,
 } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { lex, type Token } from "../lexer.ts";
@@ -306,6 +305,7 @@ class Parser extends DecoratorParser {
       name: name.text,
       suspending,
       genericParameters,
+      ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
       genericBounds,
       parameters,
       result,
@@ -332,30 +332,17 @@ class Parser extends DecoratorParser {
   protected parseTrait(doc?: string, public_ = false): TraitDecl {
     const start = this.expectText("trait").span.start;
     const name = this.expectKind("identifier", "expected a trait name");
-    const genericParameters: string[] = [];
-    if (this.matchText("[")) {
-      if (!this.atText("]")) {
-        do {
-          // Trait parameters are invariant (09-traits.md#generic-traits).
-          const marker = this.current();
-          if (this.parseVarianceMarker())
-            this.fail(
-              "invalid-variance",
-              "a trait's generic parameters take no variance marker",
-              marker.span,
-            );
-          const parameter = this.expectKind("identifier", "expected a generic trait parameter");
-          if (genericParameters.includes(parameter.text))
-            this.fail(
-              "duplicate-generic-parameter",
-              `generic parameter '${parameter.text}' is declared more than once`,
-              parameter.span,
-            );
-          genericParameters.push(parameter.text);
-        } while (this.matchText(",") && !this.atText("]"));
-      }
-      this.expectText("]");
-    }
+    // Trait parameters are invariant (09-traits.md#generic-traits).
+    const parsedGenerics = this.parseGenericParameters({
+      variance: "reject",
+      defaults: true,
+      owner: "a trait's generic parameters",
+    });
+    const genericParameters = [...parsedGenerics.parameters];
+    const generics = {
+      ...(parsedGenerics.bounds.length > 0 ? { genericBounds: parsedGenerics.bounds } : {}),
+      ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
+    };
     const supertraits: TypeRef[] = [];
     // A supertrait may bind associated types (02-grammar.md#r-grammar.generic.binding.bounds-and-supertraits).
     const supertraitBindings: AssociatedTypeBinding[] = [];
@@ -413,6 +400,7 @@ class Parser extends DecoratorParser {
         ...(public_ ? { public: true } : {}),
         name: name.text,
         genericParameters,
+        ...generics,
         supertraits,
         ...(supertraitBindings.length > 0 ? { supertraitBindings } : {}),
         associatedTypes,
@@ -427,6 +415,7 @@ class Parser extends DecoratorParser {
       ...(public_ ? { public: true } : {}),
       name: name.text,
       genericParameters,
+      ...generics,
       supertraits,
       ...bindingField,
       associatedTypes: [],
@@ -438,7 +427,7 @@ class Parser extends DecoratorParser {
 
   protected parseImpl(doc?: string): ImplDecl {
     const start = this.expectText("impl").span.start;
-    const parsedGenerics = this.parseGenericParameters();
+    const parsedGenerics = this.parseGenericParameters({ defaults: false });
     const genericParameters = [...parsedGenerics.parameters];
     const genericBounds = [...parsedGenerics.bounds];
     const enclosingGenericParameters = this.activeGenericParameters;
@@ -678,7 +667,8 @@ class Parser extends DecoratorParser {
   protected parseTypeDecl(doc?: string, public_ = false): TypeDecl {
     const start = this.expectText("type").span.start;
     const name = this.expectKind("identifier", "expected a type name");
-    const { parameters: genericParameters } = this.parseGenericParameters();
+    const parsedGenerics = this.parseGenericParameters();
+    const genericParameters = parsedGenerics.parameters;
     const enclosingGenericParameters = this.activeGenericParameters;
     this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
     let alias: TypeRef | undefined;
@@ -699,6 +689,8 @@ class Parser extends DecoratorParser {
       ...(public_ ? { public: true } : {}),
       name: name.text,
       genericParameters,
+      ...(parsedGenerics.bounds.length > 0 ? { genericBounds: parsedGenerics.bounds } : {}),
+      ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
       ...(alias ? { alias } : {}),
       ...(row ? { row } : {}),
       ...(base ? { base } : {}),
@@ -710,30 +702,13 @@ class Parser extends DecoratorParser {
   protected parseData(doc?: string, public_ = false): DataDecl {
     const start = this.expectText("data").span.start;
     const name = this.expectKind("identifier", "expected a data type name");
-    const genericParameters: string[] = [];
-    const variances: VarianceMarker[] = [];
-    if (this.matchText("[")) {
-      if (!this.atText("]")) {
-        do {
-          variances.push(this.parseVarianceMarker());
-          const parameter = this.expectKind("identifier", "expected a generic data parameter");
-          if (genericParameters.includes(parameter.text))
-            this.fail(
-              "duplicate-generic-parameter",
-              `generic parameter '${parameter.text}' is declared more than once`,
-              parameter.span,
-            );
-          genericParameters.push(parameter.text);
-          if (this.atText(":"))
-            this.fail(
-              "unsupported-generic-data-bound",
-              "generic data bounds are introduced after the initial erased-data slice",
-              this.current().span,
-            );
-        } while (this.matchText(",") && !this.atText("]"));
-      }
-      this.expectText("]");
-    }
+    const parsedGenerics = this.parseGenericParameters({ variance: "allow", defaults: true });
+    const genericParameters = parsedGenerics.parameters;
+    const variances = parsedGenerics.variances ?? [];
+    const generics = {
+      ...(parsedGenerics.bounds.length > 0 ? { genericBounds: parsedGenerics.bounds } : {}),
+      ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
+    };
     this.expectText(":");
     if (this.matchText("pass")) {
       const end = this.peek(-1).span.end;
@@ -744,6 +719,7 @@ class Parser extends DecoratorParser {
         name: name.text,
         genericParameters,
         ...(variances.some(Boolean) ? { variances } : {}),
+        ...generics,
         fields: [],
         doc,
         span: { start, end },
@@ -809,6 +785,7 @@ class Parser extends DecoratorParser {
       name: name.text,
       genericParameters,
       ...(variances.some(Boolean) ? { variances } : {}),
+      ...generics,
       fields,
       doc,
       span: { start, end: close.span.end },
@@ -818,30 +795,13 @@ class Parser extends DecoratorParser {
   protected parseEnum(doc?: string, public_ = false): EnumDecl {
     const start = this.expectText("enum").span.start;
     const name = this.expectKind("identifier", "expected an enum type name");
-    const genericParameters: string[] = [];
-    const variances: VarianceMarker[] = [];
-    if (this.matchText("[")) {
-      if (!this.atText("]")) {
-        do {
-          variances.push(this.parseVarianceMarker());
-          const parameter = this.expectKind("identifier", "expected a generic enum parameter");
-          if (genericParameters.includes(parameter.text))
-            this.fail(
-              "duplicate-generic-parameter",
-              `generic parameter '${parameter.text}' is declared more than once`,
-              parameter.span,
-            );
-          genericParameters.push(parameter.text);
-          if (this.atText(":"))
-            this.fail(
-              "unsupported-generic-enum-bound",
-              "generic enum bounds are introduced after the initial erased-enum slice",
-              this.current().span,
-            );
-        } while (this.matchText(",") && !this.atText("]"));
-      }
-      this.expectText("]");
-    }
+    const parsedGenerics = this.parseGenericParameters({ variance: "allow", defaults: true });
+    const genericParameters = parsedGenerics.parameters;
+    const variances = parsedGenerics.variances ?? [];
+    const generics = {
+      ...(parsedGenerics.bounds.length > 0 ? { genericBounds: parsedGenerics.bounds } : {}),
+      ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
+    };
     const sharedFields: EnumDecl["sharedFields"][number][] = [];
     if (this.matchText("(")) {
       if (!this.atText(")")) {
@@ -920,6 +880,7 @@ class Parser extends DecoratorParser {
       name: name.text,
       genericParameters,
       ...(variances.some(Boolean) ? { variances } : {}),
+      ...generics,
       sharedFields,
       variants,
       doc,

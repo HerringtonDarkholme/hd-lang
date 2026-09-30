@@ -281,11 +281,10 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
     const substitutions = new Map(member.substitutions);
     const typeArguments = expression.typeArguments;
     if (typeArguments) {
-      if (typeArguments.length !== member.ownGenerics.length)
+      // Omitted trailing slots are inferred (types.generic.short-list).
+      if (typeArguments.length > member.ownGenerics.length)
         this.fail(
-          typeArguments.length < member.ownGenerics.length
-            ? "partial-generic-arguments"
-            : "generic-argument-count",
+          "argument-count",
           `'${expression.owner}::${expression.name}' expects ${member.ownGenerics.length} type arguments, received ${typeArguments.length}`,
           expression.span,
         );

@@ -8,12 +8,12 @@ use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
 # only these implementations exist, one per primitive number type
 # (r-trait.num.sealed). `from_i64` is checked (r-trait.num.from-i64-checked):
 # a value the integer type cannot hold panics with integer overflow.
-pub trait Num < AnyVal & PartialOrd & Display & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Self, Out = Self] & Div[Self, Out = Self] & Rem[Self, Out = Self]:
+pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self] & Mul[Out = Self] & Div[Out = Self] & Rem[Out = Self]:
     fn zero() -> Self
     fn one() -> Self
     fn from_i64(n: i64) -> Self
 
-pub trait Integer < Num & Ord & BitAnd[Self, Out = Self] & BitOr[Self, Out = Self] & BitXor[Self, Out = Self] & Not[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]
+pub trait Integer < Num & Ord & BitAnd[Out = Self] & BitOr[Out = Self] & BitXor[Out = Self] & Not[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]
 
 pub trait Float < Num & PartialOrd & Neg[Out = Self]
 

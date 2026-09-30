@@ -28,6 +28,7 @@ import { hoistLocalDeclarations } from "./local-declarations.ts";
 import { varianceDiagnostics } from "./variance.ts";
 import { rowRuleDiagnostics } from "./row-rules.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
+import { defaultBoundDiagnostics, withTypeDefaults } from "./type-defaults.ts";
 import { withTypedDerivation } from "./typed-derivation.ts";
 import { withShapes } from "./shapes.ts";
 import { setHashableKeyTypes } from "./shared.ts";
@@ -80,7 +81,14 @@ function checkProgram(source: Program, options: CheckOptions): CheckResult {
   // Target kinds are checked before newtypes are lowered to data types
   // (spec/14-annotations.md#target-kinds).
   const targetDiagnostics = checkDecoratorTargets(hoisted.program);
-  const declared = withTypeDeclarations(hoisted.program);
+  // Written types take their omitted defaults before aliases expand
+  // (04-type-system.md#type-argument-defaults).
+  const defaulted = withTypeDefaults(hoisted.program);
+  if (defaulted.diagnostics.length > 0)
+    return {
+      diagnostics: [...hoisted.diagnostics, ...targetDiagnostics, ...defaulted.diagnostics],
+    };
+  const declared = withTypeDeclarations(defaulted.program);
   const program = declared.program;
   setHashableKeyTypes(program);
   const context: ProgramCheckContext = {
@@ -114,6 +122,7 @@ function checkProgram(source: Program, options: CheckOptions): CheckResult {
   defineProgramTraits(context);
   validateHostCapabilities(context);
   prepareImplementations(context);
+  context.diagnostics.push(...defaultBoundDiagnostics(context));
   checkEmbeddingLimits(context);
   checkEmbeddedMemberConflicts(context);
   const declarations = createProgramDeclarations(context);

@@ -66,7 +66,7 @@ export interface FunctionDecl {
   readonly name: string;
   readonly suspending: boolean;
   readonly genericParameters: readonly string[];
-  /** Type-argument defaults, which only `lib/std` writes (`collect`). */
+  /** Type-argument defaults (04-type-system.md#type-argument-defaults). */
   readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   readonly genericBounds: readonly GenericBound[];
   readonly parameters: readonly Parameter[];
@@ -117,7 +117,7 @@ export interface MethodDecl {
   readonly name: string;
   readonly suspending: boolean;
   readonly genericParameters: readonly string[];
-  /** Type-argument defaults, which only `lib/std` writes (`collect`). */
+  /** Type-argument defaults (04-type-system.md#type-argument-defaults). */
   readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   readonly genericBounds: readonly GenericBound[];
   /** Generic parameters written `reified`. */
@@ -146,6 +146,8 @@ export interface TraitDecl {
   readonly public?: boolean;
   readonly name: string;
   readonly genericParameters: readonly string[];
+  readonly genericBounds?: readonly GenericBound[];
+  readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   readonly supertraits: readonly TypeRef[];
   /** Associated type bindings in the supertrait list, as in `trait C < Add[Self, Out = Self]`. */
   readonly supertraitBindings?: readonly AssociatedTypeBinding[];
@@ -213,6 +215,9 @@ export interface DataDecl {
   readonly public?: boolean;
   readonly name: string;
   readonly genericParameters: readonly string[];
+  /** Bounds on the parameters, which the prototype checks only against a default. */
+  readonly genericBounds?: readonly GenericBound[];
+  readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   /** Present when a parameter is written `+T` or `-T`. */
   readonly variances?: readonly VarianceMarker[];
   readonly fields: readonly DataField[];
@@ -239,6 +244,8 @@ export interface TypeDecl {
   readonly public?: boolean;
   readonly name: string;
   readonly genericParameters: readonly string[];
+  readonly genericBounds?: readonly GenericBound[];
+  readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   readonly alias?: TypeRef;
   /**
    * The keys of a row alias, `type AppRow = Db + Cache` or `type NoRow = $()`
@@ -265,6 +272,8 @@ export interface EnumDecl {
   readonly public?: boolean;
   readonly name: string;
   readonly genericParameters: readonly string[];
+  readonly genericBounds?: readonly GenericBound[];
+  readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   /** Present when a parameter is written `+T` or `-T`. */
   readonly variances?: readonly VarianceMarker[];
   readonly sharedFields: readonly DataField[];

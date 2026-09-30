@@ -107,7 +107,7 @@ export interface Signature {
   readonly numSuffix?: boolean;
   /** A prefix function, marked `@str_prefix` (spec/05-expressions.md#r-expr.prefix.marker). */
   readonly strPrefix?: { readonly templateParameter: boolean };
-  /** Type-argument defaults, which only std declares (`collect`). */
+  /** Type-argument defaults, applied to what a use site leaves unsolved (04 Type-Argument Defaults). */
   readonly genericDefaults?: ReadonlyMap<string, ValueType>;
   readonly span: SourceSpan;
 }

@@ -4,5 +4,5 @@ enum Maybe[T]:
     Some(value: T)
     None
 
-fn consume(value: Maybe) -> void:  # diagnostic: unknown-type
+fn consume(value: Maybe) -> void:  # diagnostic: partial-generic-arguments
     pass

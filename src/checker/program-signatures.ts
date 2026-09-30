@@ -29,8 +29,8 @@ function signatureMarkers(
 }
 
 /**
- * A std declaration's type-argument defaults, resolved with its generic
- * parameters in scope (06-control-flow.md#r-flow.collect.target-default).
+ * A declaration's type-argument defaults, resolved with its generic
+ * parameters in scope (04-type-system.md#type-argument-defaults).
  */
 function genericDefaultTypes(
   declaration: FunctionDecl,

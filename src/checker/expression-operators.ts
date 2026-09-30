@@ -95,11 +95,10 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     const substitutions = new Map<string, ValueType>();
     const typeArguments = expression.typeArguments;
     if (typeArguments) {
-      if (typeArguments.length !== signature.genericParameters.length)
+      // Omitted trailing slots are inferred and then defaulted (types.generic.short-list).
+      if (typeArguments.length > signature.genericParameters.length)
         this.fail(
-          typeArguments.length < signature.genericParameters.length
-            ? "partial-generic-arguments"
-            : "generic-argument-count",
+          "argument-count",
           `function '${signature.name}' expects ${signature.genericParameters.length} type arguments, received ${typeArguments.length}`,
           expression.span,
         );
@@ -120,6 +119,9 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       if (!pending(callable.result))
         inferGenericType(signature.result, callable.result, substitutions);
     }
+    // A generic function value takes the defaults of what nothing solved
+    // (07-functions.md#r-fn.type.generic.default).
+    this.applyGenericDefaults(signature, substitutions, new Map());
     if (!signature.genericParameters.every((parameter) => substitutions.has(parameter)))
       return undefined;
     const type = functionType(

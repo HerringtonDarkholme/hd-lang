@@ -573,17 +573,15 @@ export abstract class CallChecker extends StatementChecker {
     const rowSubstitutions = new Map<string, readonly string[]>();
     if (expression.typeArguments) {
       const slots = signature.typeArgumentOrder ?? signature.genericParameters;
-      if (expression.typeArguments.length !== slots.length) {
-        const code =
-          expression.typeArguments.length < slots.length
-            ? "partial-generic-arguments"
-            : "generic-argument-count";
+      // A short list leaves its omitted trailing slots to inference and
+      // defaults, as `_` does (types.generic.short-list); a long one is an
+      // error (types.generic.too-long).
+      if (expression.typeArguments.length > slots.length)
         this.fail(
-          code,
+          "argument-count",
           `${callable} expects ${slots.length} type arguments, received ${expression.typeArguments.length}`,
           expression.span,
         );
-      }
       expression.typeArguments.forEach((argument, index) => {
         if (argument.name === "_") return;
         const parameter = slots[index]!;
@@ -723,11 +721,7 @@ export abstract class CallChecker extends StatementChecker {
         span: expression.span,
       };
     });
-    // A parameter that nothing solved takes its default
-    // (06-control-flow.md#r-flow.collect.target-default).
-    for (const [parameter, fallback] of signature.genericDefaults ?? [])
-      if (!substitutions.has(parameter))
-        substitutions.set(parameter, substituteGenericType(fallback, substitutions));
+    this.applyGenericDefaults(signature, substitutions, rowSubstitutions);
     const mapping = plan.map((entry) => entry.parameterIndex);
     const supplied = new Set(mapping);
     return {
@@ -743,6 +737,28 @@ export abstract class CallChecker extends StatementChecker {
       substitutions,
       rowSubstitutions,
     };
+  }
+
+  /**
+   * Gives each parameter that inference left unsolved its default, in
+   * declaration order with the earlier solutions substituted
+   * (types.generic.default.after-inference, types.generic.default.fill).
+   */
+  protected applyGenericDefaults(
+    signature: Pick<Signature, "genericDefaults" | "rowParameters">,
+    substitutions: Map<string, ValueType>,
+    rowSubstitutions: Map<string, readonly string[]>,
+  ): void {
+    for (const [parameter, fallback] of signature.genericDefaults ?? []) {
+      if (signature.rowParameters.includes(parameter)) {
+        if (!rowSubstitutions.has(parameter))
+          rowSubstitutions.set(parameter, rowArgumentKeys(fallback) ?? [fallback]);
+      } else if (!substitutions.has(parameter))
+        substitutions.set(
+          parameter,
+          substituteGenericType(fallback, substitutions, rowSubstitutions),
+        );
+    }
   }
 
   protected checkProviderEntries(

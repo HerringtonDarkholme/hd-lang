@@ -111,6 +111,31 @@ export function nominalGenericType(name: string, arguments_: readonly ValueType[
   return `${name}[${arguments_.join(",")}]`;
 }
 
+/** An associated type binding `Name=type` among a named type's arguments. */
+export interface TypeBinding {
+  readonly name: string;
+  readonly type: ValueType;
+}
+
+/**
+ * A named type's positional arguments and its associated type bindings,
+ * which a trait value type or requirement key writes after them as
+ * `Name=type` (09-traits.md#bound-associated-types).
+ */
+export function splitTypeBindings(arguments_: readonly ValueType[]): {
+  readonly positional: readonly ValueType[];
+  readonly bindings: readonly TypeBinding[];
+} {
+  const positional: ValueType[] = [];
+  const bindings: TypeBinding[] = [];
+  for (const argument of arguments_) {
+    const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.+)$/su.exec(argument);
+    if (match) bindings.push({ name: match[1]!, type: match[2]! });
+    else positional.push(argument);
+  }
+  return { positional, bindings };
+}
+
 function isFunctionTypeText(type: ValueType): boolean {
   return (type.startsWith("fn(") || type.startsWith("fn!(")) && functionParts(type) !== undefined;
 }

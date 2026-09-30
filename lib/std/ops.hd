@@ -33,23 +33,23 @@ pub data Template[T]:
 # The operator traits (spec/05-expressions.md#operator-traits). An operator
 # on a primitive operand never searches them; any other operand calls the
 # left operand's implementation (r-expr.op.desugar).
-pub trait Add[Rhs]:
+pub trait Add[Rhs = Self]:
     type Out
     fn add(self, rhs: Rhs) -> Self::Out
 
-pub trait Sub[Rhs]:
+pub trait Sub[Rhs = Self]:
     type Out
     fn sub(self, rhs: Rhs) -> Self::Out
 
-pub trait Mul[Rhs]:
+pub trait Mul[Rhs = Self]:
     type Out
     fn mul(self, rhs: Rhs) -> Self::Out
 
-pub trait Div[Rhs]:
+pub trait Div[Rhs = Self]:
     type Out
     fn div(self, rhs: Rhs) -> Self::Out
 
-pub trait Rem[Rhs]:
+pub trait Rem[Rhs = Self]:
     type Out
     fn rem(self, rhs: Rhs) -> Self::Out
 
@@ -57,15 +57,15 @@ pub trait Neg:
     type Out
     fn neg(self) -> Self::Out
 
-pub trait BitAnd[Rhs]:
+pub trait BitAnd[Rhs = Self]:
     type Out
     fn bit_and(self, rhs: Rhs) -> Self::Out
 
-pub trait BitOr[Rhs]:
+pub trait BitOr[Rhs = Self]:
     type Out
     fn bit_or(self, rhs: Rhs) -> Self::Out
 
-pub trait BitXor[Rhs]:
+pub trait BitXor[Rhs = Self]:
     type Out
     fn bit_xor(self, rhs: Rhs) -> Self::Out
 
@@ -73,11 +73,11 @@ pub trait Not:
     type Out
     fn not(self) -> Self::Out
 
-pub trait Shl[Rhs]:
+pub trait Shl[Rhs = Self]:
     type Out
     fn shl(self, rhs: Rhs) -> Self::Out
 
-pub trait Shr[Rhs]:
+pub trait Shr[Rhs = Self]:
     type Out
     fn shr(self, rhs: Rhs) -> Self::Out
 

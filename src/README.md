@@ -250,9 +250,29 @@ listed yet.
 - named `test` blocks retained in the AST and checked as active driver bodies,
   including the same explicit-discard and must-use rules as functions, and
   emitted as internal `__hd_test_N` Wasm driver exports for the harness;
-- complete explicit generic call arguments with per-slot `_` inference for
-  functions and inherent methods, plus indented zero-argument trailing
-  callback blocks;
+- explicit generic call arguments with per-slot `_` inference for
+  functions and inherent methods, where a short list infers its omitted
+  trailing slots and a long one is `argument-count`, plus indented
+  zero-argument trailing callback blocks;
+- type-argument defaults (`[T < Bound = Default]`) on functions, methods,
+  data types, enums, traits, and `type` declarations, never on an
+  implementation header or a type pack (`syntax-error`). `type-defaults.ts`
+  fills the slots a written type omits, with the earlier arguments and
+  `Self` substituted (`Self` is the bounded parameter, the implementation's
+  target, or the trait's own `Self`), before aliases expand; a written type
+  that omits a slot without a default is `partial-generic-arguments`, and a
+  trait value type whose default names `Self` is too. It also reports
+  `default-order`, `binding-not-yet-visible`, a row default for a type
+  parameter (`generic-kind-mismatch`), and, after implementations are
+  prepared, a default naming a data type or enum that does not implement
+  its bound (`unsatisfied-trait-bound`). A
+  call, a generic function value, a data literal, and a call of a trait
+  method through a bound apply a default only to what inference left
+  unsolved (`applyGenericDefaults`), and an implementation method must
+  repeat its trait method's defaults (`trait-method-signature`). The
+  `std.ops` binary operator traits default `Rhs = Self`. Bounds on the
+  parameters of a data type, enum, or trait are parsed, and the prototype
+  checks them only against a default and, for `Eq & Hash`, as map keys;
 - stored function fields remain callable through readonly data views and
   preserve their declared result permission;
 - first-class `fn!` values for named suspending functions and capturing
@@ -794,10 +814,8 @@ else`, `break`, `break value`, and `continue`;
 - `collect[C < FromIterator[T] = List[T]]` over the `std.iter` trait
   `FromIterator`, which is not a prelude name. `C` comes from an explicit
   type argument or the expected type, which reaches the operand of `x?` as
-  `Result[T, E]` or `T?`, and otherwise from its default. Only std may
-  write a type-argument default: the parser reads one in `lib/std` and
-  `checkSignatureArguments` applies it to a parameter nothing solved.
-  `List`, `Result`, and optional targets are hd code; the compiler supplies
+  `Result[T, E]` or `T?`, and otherwise from its ordinary type-argument
+  default. `List`, `Result`, and optional targets are hd code; the compiler supplies
   `FromIterator` for `Map[K, V]` (`mapCollectionPlan`), because generic hd
   code cannot build a map over a type-parameter key;
 - typed HIR, readable WAT output, Binaryen validation, and V8 execution; and

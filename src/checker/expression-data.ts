@@ -118,28 +118,34 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         }
         const substitutions = new Map<string, ValueType>();
         if (expression.typeArguments) {
-          if (expression.typeArguments.length !== declaration.genericParameters.length) {
-            const code =
-              expression.typeArguments.length < declaration.genericParameters.length
-                ? "partial-generic-arguments"
-                : "generic-argument-count";
+          if (expression.typeArguments.length > declaration.genericParameters.length)
             this.fail(
-              code,
+              "argument-count",
               `data type '${declaration.name}' expects ${declaration.genericParameters.length} type arguments, received ${expression.typeArguments.length}`,
               expression.span,
             );
-          }
-          // A row-kinded parameter reads a single requirement key as a row.
-          const written = this.resolveType({
-            name: nominalGenericType(
-              declaration.name,
-              expression.typeArguments.map((argument) => argument.name),
-            ),
-            span: expression.span,
-          });
-          (nominalGenericParts(written)?.arguments ?? []).forEach((argument, index) => {
-            substitutions.set(declaration.genericParameters[index]!, argument);
-          });
+          if (expression.typeArguments.length === declaration.genericParameters.length) {
+            // A row-kinded parameter reads a single requirement key as a row.
+            const written = this.resolveType({
+              name: nominalGenericType(
+                declaration.name,
+                expression.typeArguments.map((argument) => argument.name),
+              ),
+              span: expression.span,
+            });
+            (nominalGenericParts(written)?.arguments ?? []).forEach((argument, index) => {
+              substitutions.set(declaration.genericParameters[index]!, argument);
+            });
+          } else
+            // A short list leaves the other slots to inference and defaults
+            // (types.generic.short-list).
+            expression.typeArguments.forEach((argument, index) => {
+              if (argument.name !== "_")
+                substitutions.set(
+                  declaration.genericParameters[index]!,
+                  this.resolveType(argument),
+                );
+            });
         }
         const expectedNominal = expected ? nominalGenericParts(expected) : undefined;
         if (
@@ -243,6 +249,10 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
           }
           return checked;
         });
+        // What inference left unsolved takes its default (types.generic.default.fill).
+        for (const [parameter, fallback] of declaration.genericDefaults ?? [])
+          if (!substitutions.has(parameter))
+            substitutions.set(parameter, substituteGenericType(fallback, substitutions));
         const unresolved = declaration.genericParameters.filter(
           (parameter) => !substitutions.has(parameter),
         );
