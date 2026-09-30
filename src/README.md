@@ -355,7 +355,10 @@ else`, `break`, `break value`, and `continue`;
   non-generic data literal as `mut T`; multi-name `:=` bindings are written
   `(a, b) := pair`, and the bare `let a, b` and `a, b :=` lists are
   `syntax-error`s whose fix-it adds the parentheses. A primitive type
-  written `mut`, as in `mut i32`, is `mut-on-primitive`;
+  written `mut`, as in `mut i32`, is `mut-on-primitive`. In a `mut self`
+  method of an implementation for a primitive, `self` has the plain type,
+  and a call, `Type::method` reference, or qualified call of it needs no
+  mutable access;
 - lexical branch and loop scopes;
 - data declarations, literals, and field reads backed by Wasm GC structs,
   including requirement-free per-construction field defaults evaluated after explicit

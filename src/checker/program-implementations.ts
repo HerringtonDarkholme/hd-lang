@@ -18,6 +18,7 @@ import {
   mutableType,
   nominalGenericParts,
   nominalGenericType,
+  PRIMITIVE_TYPES,
   readonlyType,
   tupleParts,
   tupleType,
@@ -210,10 +211,22 @@ function instantiateDefault(
 }
 
 function substituteSelfParameter(parameter: Parameter, targetName: string): Parameter {
+  // A primitive has no `mut` form, so `mut self` is the plain `Self`
+  // (04-type-system.md#r-types.prim.no-mut.self-type).
+  if (primitiveMutSelf(parameter, targetName))
+    return { ...parameter, type: { name: targetName, span: parameter.type.span } };
   return {
     ...parameter,
     type: substituteSelfType(parameter.type, targetName),
   };
+}
+
+function primitiveMutSelf(parameter: Parameter | undefined, targetName: string): boolean {
+  return (
+    parameter?.name === "self" &&
+    parameter.type.name === "mut:Self" &&
+    PRIMITIVE_TYPES.has(targetName)
+  );
 }
 
 interface RegisteredInherentMember {
@@ -377,7 +390,10 @@ function prepareInherentImplementation(
       name: method.name,
       public: method.public === true,
       associated,
-      receiverMutable: !associated && method.parameters[0]!.type.name === "mut:Self",
+      receiverMutable:
+        !associated &&
+        method.parameters[0]!.type.name === "mut:Self" &&
+        !primitiveMutSelf(method.parameters[0], implementation.targetName),
       parameters,
       parameterNames: sourceParameters.map((parameter) => parameter.name),
       variadic: sourceParameters.at(-1)?.variadic === true,

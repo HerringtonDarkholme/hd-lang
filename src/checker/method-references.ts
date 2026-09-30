@@ -8,6 +8,7 @@ import {
   mutableType,
   nominalGenericParts,
   nominalGenericType,
+  PRIMITIVE_TYPES,
   readonlyType,
 } from "../types.ts";
 import { numericType } from "../numeric.ts";
@@ -532,7 +533,14 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
     return {
       ...(method.associated
         ? {}
-        : { receiver: method.receiverMutable ? mutableType(ownerType) : ownerType }),
+        : {
+            // A primitive `mut self` receiver is the plain type
+            // (04-type-system.md#r-types.prim.no-mut.self-type).
+            receiver:
+              method.receiverMutable && !PRIMITIVE_TYPES.has(ownerType)
+                ? mutableType(ownerType)
+                : ownerType,
+          }),
       parameters: method.parameters,
       result: method.result,
       requirements: method.requirements,
