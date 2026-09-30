@@ -104,6 +104,13 @@ For composite values (data, lists, maps), mutation permission is part of the typ
 
 Rule of thumb: prefer `:=`, use `let` when you need to reassign, and write `mut` at most once; `let mut a: mut T` warns that one `mut` is redundant.
 
+The warning's fix-it removes the `mut` before the name and keeps the type, because the type may be what solves a generic call. For a function `fn make[A, B]() -> (A, B)`, the annotation below both picks `A` and `B` and makes `b` mutable, with no `mut` before a name:
+
+```text
+let (a, b): (Read, mut Mut) = make()        # b: mut Mut
+let (c, mut d): (Read, mut Mut) = make()    # warning: redundant-let-mut; the fix-it removes `mut` before d
+```
+
 ```text
 user := User { id: "user_123", email: "ada@example.com", display_name: "Ada" }   # readonly
 let mut draft = User { id: "user_124", email: "bob@example.com", display_name: "Bob" }   # mut User
@@ -409,9 +416,10 @@ code that names `Error` imports it. See
 [Error Derivation](../spec/14-annotations.md#error-derivation).
 
 Use parentheses when a binding expression appears inside a larger expression.
-A nested multi-name binding is written `(a, b := value)` and is never parsed as
-a tuple; to put a binding in a tuple, parenthesize that element separately, as
-in `(a, (b := value))`.
+A nested multi-name binding keeps the parentheses around its names and gets
+its own around the whole binding: `((a, b) := value)`. The old form
+`(a, b := value)` is a syntax error. To put a binding in a tuple, parenthesize
+that element separately, as in `(a, (b := value))`.
 
 `void` is used for functions that return no useful value:
 

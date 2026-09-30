@@ -23,20 +23,35 @@ each. The two that batch 15 below builds on:
   `(dt, key) := case`, and a line that starts with `(` begins a new
   statement ([Short Binding Lists](../spec/02-grammar.md#short-binding-lists)).
 
-**Batch 15 (owner decision, 2026-09-30).** The owner answered the two
-points left open by applying Q1, settled two `let mut` points (LM), and
-stated three clarifications. Not yet applied:
+**Batch 15 (owner decision, 2026-09-30).** Applied; the
+[Revision Notes](../spec/README.md#revision-notes) list each. The owner
+answered the two points left open by applying Q1, settled two `let mut`
+points (LM), and stated three clarifications:
 
-| # | Decision |
-| --- | --- |
-| Q1a | A parenthesized `:=` list may be a same-line suite body, as in `if ok: (a, b) := pair`, as Let 7 allowed `let (a, b)`. `unused-local-binding` reports the unread names. |
-| Q1b | The grouped form `(a, b := value)` is dropped. The one shape is `(a, b) := value`, and a nested use writes `((a, b) := value)`. The old form is a `syntax-error` whose fix-it writes `(a, b) := value`. |
-| LM-a | A list name written `mut` whose annotated element is already `mut` warns `redundant-let-mut`, as the single-name form does. In both forms the fix-it removes the name-level `mut`, never the annotation. |
-| LM-a note | With a generic right side, as in `make_pair[A, B]() -> (A, B)`, the annotation solves the type parameters; a name-level `mut` never supplies a type. `let (a, b): (Read, mut Mut) = make()` is the guide example. |
-| LM-b | `mut self` in an impl whose `Self` is primitive is not `mut-on-primitive`; only a `mut` written before a primitive type is. The rationale: an impl repeats its trait method's signature, so a trait with `mut self` must stay implementable for primitives. |
-| CLO1 | A closure is monomorphic: it declares no type parameters, and its types come from its annotations or the expected function type. `fn[T](x: T): x` is a `syntax-error`. This clarifies the rules; no behavior changes. |
-| Q-? | The operand of `x?` gets an expected type as an inference hint, never a coercion. From an expected `T` for `x?`, the hint is `Result[T, E]` with the enclosing function's error type `E`, or `T?`. So `let ports: List[i32] = it.collect()?` works. |
-| Q-map | There is no std-only exception: std writes `impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]`, and `FromIterator` likewise. No new rule. |
+| # | Decision | Where |
+| --- | --- | --- |
+| Q1a | A parenthesized `:=` list may be a same-line suite body, as in `if ok: (a, b) := pair`. | [`grammar.inline.bind-list`](../spec/02-grammar.md#r-grammar.inline.bind-list) |
+| Q1b | The grouped form `(a, b := value)` is dropped; a nested use writes `((a, b) := value)`. | [Multi-Name Bindings](../spec/02-grammar.md#multi-name-bindings) |
+| LM-a | A list name written `mut` whose annotated element is already `mut` warns `redundant-let-mut`. The fix-it removes the name-level `mut`, never the annotation. | [`types.bind.let-mut-pattern.redundant`](../spec/04-type-system.md#r-types.bind.let-mut-pattern.redundant), [`types.bind.let-mut-annotated.fix`](../spec/04-type-system.md#r-types.bind.let-mut-annotated.fix) |
+| LM-b | `mut self` in an impl whose `Self` is primitive is not `mut-on-primitive`. | [`types.prim.no-mut.self`](../spec/04-type-system.md#r-types.prim.no-mut.self) |
+| CLO1 | A closure is monomorphic, and `fn[T](x: T): x` is a `syntax-error`. | [`fn.closure.monomorphic`](../spec/07-functions.md#r-fn.closure.monomorphic) |
+| Q-? | The operand of `x?` gets an expected type as an inference hint, never a coercion. | [`expr.try.expected`](../spec/05-expressions.md#r-expr.try.expected) |
+| Q-map | std writes the `Iterable` and `FromIterator` impls for `Map` with `K < Eq & Hash`; no new rule. | [Collect Targets](../spec/06-control-flow.md#collect-targets) |
+
+**Still open from applying batch 15.** The specification is unchanged for
+this point.
+
+| # | Question | **Recommendation** |
+| --- | --- | --- |
+| LM-c | In a `mut self` method of an impl for `i32`, what is the type of `self`? LM-b makes the receiver valid, but no rule gives its type. The prototype types it `mut i32`, so `self + 1` is a `type-mismatch`. | `self` has the plain type `Self`, here `i32`, since a primitive has no `mut` form ([`types.prim.no-mut`](../spec/04-type-system.md#r-types.prim.no-mut)). |
+
+```text
+trait Counter:
+    fn bump(mut self) -> i32
+
+impl Counter for i32:
+    fn bump(mut self) -> i32: self + 1  # type-mismatch in the prototype
+```
 
 ### Bound And Row Operators
 
@@ -131,8 +146,11 @@ lexical scoping is explicit, by capturing `$.use(K)` in the closure. PS3:
 no closure captures a `$.with`-bound key implicitly; its row resolves at
 each call.
 
-**Batch 15 (owner decision, 2026-09-30).** Not yet applied. PS3a:
-inside a closure,
+**Batch 15 (owner decision, 2026-09-30).** Applied in
+[`req.with.collision.closure`](../spec/11-requirements-and-suspension.md#r-req.with.collision.closure)
+and
+[`req.with.collision.closure.outer`](../spec/11-requirements-and-suspension.md#r-req.with.collision.closure.outer).
+PS3a: inside a closure,
 [`req.with.collision.compared`](../spec/11-requirements-and-suspension.md#r-req.with.collision.compared)
 counts only keys that a lookup in the closure body can select. Those are
 the closure's declared or inferred row and the `$.with` blocks inside the
