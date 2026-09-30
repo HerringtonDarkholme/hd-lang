@@ -1812,8 +1812,9 @@ prints stable, multi-line, consistently indented output. `std` implements
 Property testing stays a library facility (T12), as
 [Runtime and Library Design](RUNTIME_AND_LIBRARY.md#property-testing)
 describes. `@derive(Arbitrary)` derives a `build` over a recording
-`std.testing.Choices` source, and member lines tune one member (T35). Other
-constraints use a plain generator `fn(mut Choices) -> T`. The runner shrinks
+`std.testing.Choices` source (T35), and one member fact,
+`arbitrary.with(gen)`, tunes a member (PT2). Other constraints use a plain
+generator `fn(mut Choices) -> T`. The runner shrinks
 by replaying smaller choice streams through the same generator, so no type
 needs shrink code (T25, T35). Properties register with `it_prop` and
 `it_prop_with` (T36); failing streams are committed under
@@ -1822,43 +1823,86 @@ stops after 500 attempts, reporting the smallest failing input so far,
 marked "shrinking stopped early" (T51). A property body returns `void`, or
 `Result[void, Error]` when it uses `?`, and an `.Err` is a failing case
 shrunk like an assertion failure (T50). The signatures, with `it`'s options
-(T41) in the order the specification uses for `it_each`:
+(T41) in the order the specification uses for `it_each`, and `examples`
+(PT7) before `prop`:
 
 ```text
 pub fn it_prop[T < Arbitrary & Debug, R < Termination](name: string, ignore: string? = .None,
                                                        expect_panic: string? = .None, timeout: Duration? = .None,
-                                                       cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
+                                                       cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
+                                                       prop: fn!(T) -> R) -> void:
     pass
 
 pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
                                                 expect_panic: string? = .None, timeout: Duration? = .None,
-                                                cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
+                                                cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
+                                                prop: fn!(T) -> R) -> void:
     pass
 ```
 
 #### Proposal: choices first, `Arbitrary` for defaults
 
 Draft, 2026-09-28 (owner: "choices, Hypothesis first, then Arbitrary to
-give sensible defaults"). Nothing below is normative; names may change when
-the library is built.
+give sensible defaults"), revised by Testing PT1-PT9 (2026-09-29). The
+specification states the language-facing parts in
+[Property Tests](../spec/10-modules.md#property-tests); names below that it
+does not list may change when the library is built.
 
 **`Choices`** is the only source of randomness a generator sees. Every draw
 is recorded as a number in one stream, and spans mark where each logical
 value (a list element, a member, a variant payload) starts and ends, so the
-shrinker can delete whole values.
+shrinker can delete whole values. There is no size (PT1): as in
+Hypothesis, draws lean toward small values and edges, and any small-first
+order of cases is the runner's own business.
 
 ```text
 pub data Choices                               # opaque; created by the runner
 impl Choices:
-    pub fn int(mut self, lo: i64, hi: i64) -> i64          # biased toward lo, 0, -1, hi
-    pub fn float(mut self, lo: f64, hi: f64) -> f64         # also draws 0.0, -0.0, bounds
+    pub fn int[N < Integer](mut self, lo: N, hi: N) -> N      # biased toward lo, 0, -1, hi
+    pub fn float[F < Float](mut self, lo: F, hi: F) -> F      # finite; also 0.0, -0.0, bounds
     pub fn bool(mut self) -> bool
     pub fn pick[T](mut self, items: List[T]) -> T           # earlier items shrink first
     pub fn list[T](mut self, max: i32, item: fn(mut Choices) -> T) -> List[T]
-    pub fn string(mut self, max: i32) -> string
+    pub fn map[K < Eq & Hash, V](mut self, max: i32, key: fn(mut Choices) -> K,
+                                 value: fn(mut Choices) -> V) -> Map[K, V]
+    pub fn string(mut self, max_chars: i32) -> string       # counts chars, not bytes
     pub fn assume(mut self, ok: bool) -> void               # discards this case
     pub fn draw[T < Arbitrary](mut self) -> T               # the type's default
 ```
+
+`int` and `float` take their type from the bounds or the context (PT3):
+`let b: u8 = c.int(0, 255)`. `map` draws up to `max` entries, and a
+duplicate key keeps the last value, so the map may be smaller (PT5).
+`string(max_chars=12)` counts chars, and which chars it draws is the
+runner's choice (PT4).
+
+`list`'s item generator takes its own `Choices` (PT1). It is the same `c`,
+passed back, for two reasons. `list` brackets each element's draws as one
+span, so the shrinker can delete or simplify an element whole. And the
+closure does not capture the outer `mut c` while `list` is using it. A
+named generator needs no closure at all:
+
+```text
+fn digit(c: mut Choices) -> i32:
+    c.int(0, 9)
+
+fn digits(c: mut Choices) -> List[i32]:
+    c.list(50, digit)
+
+fn small_counts(c: mut Choices) -> List[i32]:
+    c.list(3, fn(inner: mut Choices) -> i32: inner.int(0, 10))
+```
+
+**The draw budget** ends recursive generation, with no API (PT6). Each case
+has a budget of draws; once it is spent, every draw returns its simplest
+value: an integer `0` or the bound nearest `0`, a float likewise, `false`,
+`pick`'s first item, and an empty list, map, or string. So a hand-written
+recursive generator ends when its leaf comes first, as in
+`match c.int(0, 5)` with the leaf at `0`. The budget's size is the
+runner's.
+
+**`assume`** belongs to generators only (PT8). A property body has no
+`Choices`, so it cannot discard a case.
 
 **`Arbitrary`** gives each type a sensible default generator:
 
@@ -1869,13 +1913,29 @@ pub trait Arbitrary:
 
 `std` implements it for primitives (boundary values drawn more often),
 `string`, `List[T]` and `Map[K, V]` (a length, then elements), `T?`
-(`.None` or `.Some`), `Result[T, E]`, and tuples. `@derive(Arbitrary)` is a
-derived `build` whose source is `Choices`: each member is drawn by its own
-`Arbitrary`, and an enum picks a variant, then its payload. Member lines
-in a derivation block tune one member:
+(`.None` or `.Some`), `Result[T, E]`, and tuples. The `f32` and `f64`
+defaults cover the whole type, NaN, the infinities, `-0.0`, and subnormals
+included, as Hypothesis's `st.floats()` does (PT9); `c.float(lo, hi)` stays
+finite. `@derive(Arbitrary)` is a derived `build` whose source is
+`Choices`: each member is drawn by its own `Arbitrary`, and an enum picks a
+variant, then its payload. A derived enum's simplest choice is its first
+non-recursive variant, whatever the declaration order (PT6).
+
+One fact tunes a member: `arbitrary.with(gen)`, from the module
+`std.testing.arbitrary`, draws that member with `gen` (PT2). There are no
+range or length facts, because a generator already expresses any range,
+length, or shape:
 
 ```text
 use std.structure.Structure
+use std.testing.{Arbitrary, Choices}
+use std.testing.arbitrary
+
+fn cents(c: mut Choices) -> i32:
+    c.int(0, 10_000)
+
+fn short_name(c: mut Choices) -> string:
+    c.string(max_chars=12)
 
 @derive(Debug)
 data Item:
@@ -1883,34 +1943,82 @@ data Item:
     price: i32
 
 impl Arbitrary for Item by Structure:
-    price = [arbitrary.range(0, 10_000)]
-    name = [arbitrary.len(0, 12)]
+    price = [arbitrary.with(cents)]
+    name = [arbitrary.with(short_name)]
 ```
 
+The fact stores the generator as `Any`, and the derived code checks it
+against the member's type `fn(mut Choices) -> T`. A fact is an unchecked
+value, so the compiler does not catch a generator of the wrong type. The
+derived code panics on the first case instead, naming the member and the
+generator type it expected; it never ignores the fact. A generic
+`With[T]` fact was rejected, because looking up `With[i32]` would miss a
+`With[string]` and silently use the default. How the derived code
+recovers the generator's type from `Any` is open
+([Testing Still Open](TESTING.md#still-open)).
+
 **A generator** for anything a type cannot express is a plain function
-over `Choices`, passed to `it_prop_with`:
+over `Choices`, passed to `it_prop_with`. Dependent draws need nothing
+extra: a later draw reads an earlier one, as Hypothesis's `@composite`
+does. Several inputs are one tuple:
 
 ```text
-fn sorted_prices(c: mut Choices) -> List[i32]:
-    xs := c.list(20, fn(c): i32(c.int(0, 10_000)))
-    xs.sorted()
+fn ordered_pair(c: mut Choices) -> (i32, i32):
+    low := c.int(0, 100)
+    high := c.int(low, 100)
+    (low, high)
 
 tests:
     it_prop("total is never negative", prop=fn!(order: Order):
         assert(total(order) >= 0, reason="total")
     )
-    it_prop_with("merge keeps order", sorted_prices, prop=fn!(xs: List[i32]):
-        assert_equal(merge(xs, []), xs, reason="identity")
+    it_prop_with("a range holds its low end", gen=ordered_pair, prop=fn!(pair: (i32, i32)):
+        let (low, high) = pair
+        assert(clamp(low, low, high) == low, reason="the low end is in range")
     )
 ```
 
+**A worked example: a JSON round trip.** Printing a value and parsing it
+back must give the value back, the first property Zac Hatfield-Dodds
+suggests in ["Sufficiently Advanced Testing"](https://zhd.dev/sufficiently/).
+The generator puts the leaf first, so the draw budget ends the recursion:
+
+```text
+use std.json
+use std.json.{Json, Number}
+use std.testing.{assert_equal, Choices, it_prop_with}
+
+fn key(c: mut Choices) -> string:
+    c.string(max_chars=8)
+
+fn json_value(c: mut Choices) -> Json:
+    match c.int(0, 5):
+        0 => .Null
+        1 => .Bool(c.bool())
+        2 => .Number(Number::from_i64(c.draw[i64]()))
+        3 => .Text(c.string(max_chars=12))
+        4 => .Array(c.list(4, json_value))
+        _ => .Object(c.map(4, key, json_value))
+
+tests:
+    it_prop_with("print then parse gives the value back", gen=json_value, prop=fn!(value: Json):
+        match json.parse(json.print(value)):
+            .Ok(back) => assert_equal(back, value, reason="JSON round trip")
+            .Err(error) => panic("printed JSON does not parse: ${error.message}")
+    )
+```
+
+This assumes that `Json` implements `Eq` and `Debug`, which
+[`std.json`](#stdjson) does not list yet. Integers are drawn as `i64`,
+because `Number::from_f64` rejects NaN and the infinities.
+
 **The runner** owns generation, shrinking, and replay:
 
-1. Replay the committed streams under
-   `__regressions__/<module>/<test-slug>` first.
-2. Run `cases` fresh instances (default 100), sizes growing from small to
-   large, from a printed seed.
-3. On a failure (assertion panic, other panic, or `.Err`), shrink the
+1. Run the property's `examples` first (PT7).
+2. Replay the committed streams under
+   `__regressions__/<module>/<test-slug>`.
+3. Run `cases` fresh instances (default 100) from a printed seed.
+4. On a failure (assertion panic, other panic, or `.Err`), shrink the
    recorded stream. Each candidate is replayed through the same generator
    in a fresh instance; a stream the generator rejects is discarded, and a
    stream already tried is skipped. Passes, repeated until none helps:
@@ -1918,7 +2026,7 @@ tests:
    search, sort and swap neighbours toward shortlex order, and
    redistribute between pairs of numbers. Stop after `shrink` attempts
    (default 500), marking the result "shrinking stopped early".
-4. Report the shrunk value with `Debug`, the seed, and the saved path, and
+5. Report the shrunk value with `Debug`, the seed, and the saved path, and
    write the shrunk stream to `__regressions__/`.
 
 Because shrinking edits choices rather than values, every shrunk input is
@@ -1930,13 +2038,15 @@ trees, a combinator API), this keeps the user API to `Choices`,
 runner. Coverage-guided fuzzing can later mutate the same streams, and
 stateful testing waits for area 3's event log.
 
-Still to design: the member-line facts (`arbitrary.range`, `arbitrary.len`)
-and size scheduling. The owner decided the rest on 2026-09-28
-(Open Issues
-items 2, 6 and 7): discarded cases do not count toward `cases` and fail
-the property beyond 10 × `cases`, `T < Debug`, and the `__regressions__`
-file holds one decimal draw per line. This replaces the earlier `Strategy` sketch with its own
-`shrink` function.
+The owner decided the rest on 2026-09-28 (Open Issues items 2, 6 and 7):
+discarded cases do not count toward `cases` and fail the property beyond
+10 × `cases`, `T < Debug`, and the `__regressions__` file holds one
+decimal draw per line. This replaces the earlier `Strategy` sketch with
+its own `shrink` function. Testing PT1-PT9 (2026-09-29) settled the size
+model, the facts, and the draw API above. The generators keep the
+`mut Choices` parameter style; a requirement-row style
+(`fn() -> T $ Choices`) is being compared, as
+[Testing Still Open](TESTING.md#still-open) records.
 
 ## Open Language Dependencies
 

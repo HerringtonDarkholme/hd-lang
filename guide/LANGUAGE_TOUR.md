@@ -2464,6 +2464,110 @@ tests:
     )
 ```
 
+Property tests check a claim over many generated inputs.
+`std.testing.it_prop_with` takes a generator, a function that draws values
+from a `Choices` source, and the runner shrinks a failing input to a small
+one. Several inputs are one tuple. A later draw may depend on an earlier
+one, as in `ordered_pair`, and `examples` lists inputs that run first on
+every run:
+
+```text
+use std.testing.{assert, assert_equal, Choices, it_prop_with}
+
+fn to_local(utc: i64, offset: i32) -> i64: utc + i64(offset)
+
+fn to_utc(local: i64, offset: i32) -> i64: local - i64(offset)
+
+fn instant_and_offset(c: mut Choices) -> (i64, i32):
+    (c.int(-1_000_000, 1_000_000), c.int(-720, 840))
+
+fn ordered_pair(c: mut Choices) -> (i32, i32):
+    low := c.int(0, 100)
+    high := c.int(low, 100)
+    (low, high)
+
+tests:
+    it_prop_with("local time converts back", gen=instant_and_offset, examples=[(0, 0), (0, 840)], prop=fn!(input: (i64, i32)):
+        let (utc, offset) = input
+        assert_equal(to_utc(to_local(utc, offset), offset), utc, reason="the offset cancels")
+    )
+
+    it_prop_with("the high end is never below the low end", gen=ordered_pair, prop=fn!(pair: (i32, i32)):
+        let (low, high) = pair
+        assert(low <= high, reason="high is drawn from low upward")
+    )
+```
+
+A generator draws with `c.int(lo, hi)`, `c.float(lo, hi)`, `c.bool()`,
+`c.pick(items)`, `c.string(max_chars=12)`, `c.list(max, item)`,
+`c.map(max, key, value)`, and `c.draw[T]()`. `int` and `float` take their
+type from the bounds or the context. There is no size to tune: draws
+already lean toward small values and edges. Only a generator discards a
+case, with `c.assume(ok)`; a property body cannot.
+
+`list`'s item generator takes its own `Choices`, as in
+`c.list(3, fn(inner: mut Choices) -> i32: inner.int(0, 9))`. It is the
+same `c`, passed back. That lets `list` mark each element's draws as one
+span, which the shrinker deletes or simplifies whole. It also keeps the
+closure from capturing the outer `mut c` while `list` is using it. A named
+generator needs no closure, as in `c.list(50, digit)`.
+
+A recursive generator puts its leaf first. Each case has a draw budget, and
+once it is spent, every draw returns its simplest value: `0`, `false`, or
+an empty list, map, or string. So `c.int(0, 5)` returns `0` and the
+generator ends:
+
+```text
+use std.testing.Choices
+
+enum Value:
+    Null
+    Flag(on: bool)
+    Count(n: i32)
+    Text(text: string)
+    Items(items: List[Value])
+    Fields(fields: Map[string, Value])
+
+fn label(c: mut Choices) -> string:
+    c.string(max_chars=8)
+
+fn value(c: mut Choices) -> Value:
+    match c.int(0, 5):
+        0 => .Null
+        1 => .Flag(c.bool())
+        2 => .Count(c.int(-100, 100))
+        3 => .Text(c.string(max_chars=12))
+        4 => .Items(c.list(4, value))
+        _ => .Fields(c.map(4, label, value))
+```
+
+`it_prop` uses the input type's default generator, its `Arbitrary`.
+`@derive(Arbitrary)` derives one, and one member fact,
+`arbitrary.with(gen)`, draws a member with a generator of your own. The
+compiler does not check that generator against the member's type, so a
+wrong one panics on the first case and names the member. The default
+`f32` and `f64` generators include NaN, the infinities, and `-0.0`, while
+`c.float(lo, hi)` stays finite:
+
+```text
+use std.testing.{Arbitrary, Choices, assert, it_prop}
+use std.testing.arbitrary
+
+fn cents(c: mut Choices) -> i32:
+    c.int(0, 10_000)
+
+@derive(Arbitrary, Debug)
+data Item:
+    name: string
+    @arbitrary.with(cents)
+    price: i32
+
+tests:
+    it_prop("prices are never negative", prop=fn!(item: Item):
+        assert(item.price >= 0, reason="cents draws from 0 to 10_000")
+    )
+```
+
 The test-case functions are called only directly at the top level of test
 code, never as values, so a tool can list every test without running it.
 `snapshot(text, expect="...")` from `std.testing` compares text with a

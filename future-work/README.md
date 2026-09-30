@@ -53,8 +53,9 @@ Open questions for the owner:
   prefixed-string readings.
 - [Operator Traits: Open Points](OPERATOR_TRAITS.md) records its apply
   passes; no reading waits for the owner.
-- [Testing Redesign: Open Points](TESTING.md) keeps the property-test API
-  beyond T53 and two deferred fixtures.
+- [Testing Redesign: Open Points](TESTING.md) records the property-test API
+  decisions PT1-PT9, applied; four points from applying them, the generator
+  parameter style, and two deferred fixtures wait for the owner.
 - [Stress Test 2026-09-29: Open Points](STRESS_2026_09_29.md) records its
   answers; no reading waits for the owner.
 - [Method And Field References](METHOD_REFERENCES.md) designs CS5: it
