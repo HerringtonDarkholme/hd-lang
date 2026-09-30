@@ -12,3 +12,7 @@ F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md 
 DC7	1	An initialization group's statements are not interleaved: the package linker joins the group's modules by identity, so a read of a later-joined module's binding fails
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer
+Q1a	2	A parenthesized `:=` list as a same-line suite body (batch 15, Q1a) is not implemented: the parser still requires an indented body
+Q1b	4	The nested multi-name binding `((a, b) := value)` (batch 15, Q1b) is not implemented: the parser still reads only the dropped grouped form `(a, b := value)`
+LM-a	1	The `redundant-let-mut` warning for a list name whose annotated element is already `mut` (batch 15, LM-a) is not implemented
+PS3a	1	Inside a closure, the collision check (batch 15, PS3a) does not compare the closure's declared row with keys its own `$.with` binds

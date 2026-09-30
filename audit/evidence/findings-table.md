@@ -1,6 +1,6 @@
 # All Findings
 
-Generated from `audit/findings/` on 2026-09-29. "Merged duplicates" lists the IDs folded into each finding (its `Duplicates:` line). "Known failures" counts the rows tagged with the ID in `test/portable/KNOWN_FAILURES.tsv`.
+Generated from `audit/findings/` on 2026-09-30. "Merged duplicates" lists the IDs folded into each finding (its `Duplicates:` line). "Known failures" counts the rows tagged with the ID in `test/portable/KNOWN_FAILURES.tsv`.
 
 | ID | Severity | Area | Title | Merged duplicates | Known failures |
 | -- | -------- | ---- | ----- | ----------------- | -------------- |
@@ -13,9 +13,7 @@ Generated from `audit/findings/` on 2026-09-29. "Merged duplicates" lists the ID
 | [F-265](../findings/F-265-cli-uncaught-exceptions.md) | minor | architecture | Replay rejection and several CLI errors exit through uncaught JavaScript exceptions | F-162, F-306 |  |
 | [F-310](../findings/F-310-colon-line-attaches-trailing-block.md) | minor | correctness | A line starting with `:` is parsed as a trailing block on the previous statement |  |  |
 | [F-401](../findings/F-401-replay-accepts-changed-callee.md) | minor | runtime | Replay code identity is a per-function source hash, not the decided whole-module semantic hash | F-611, F-264 |  |
-| [F-402](../findings/F-402-cli-provider-configuration-constant.md) | minor | runtime | `hd replay` accepts a history recorded under a different runtime profile |  |  |
 | [F-403](../findings/F-403-test-blocks-share-one-instance.md) | major | runtime | `hd test` runs `main` and every test block in one shared instance |  |  |
-| [F-404](../findings/F-404-failing-runs-leave-no-history.md) | minor | runtime | `hd record` writes no history when the run panics or never finishes |  |  |
 | [F-501](../findings/F-501-map-is-linear-association-list.md) | major | runtime | `Map[K, V]` is an unhashed association list with O(n) get and insert |  |  |
 | [F-502](../findings/F-502-bounded-calls-allocate-dictionaries.md) | major | runtime | Bounded generic calls rebuild dictionaries and allocate a trait value per method call |  |  |
 | [F-503](../findings/F-503-interpolation-pairwise-concat.md) | minor | runtime | String interpolation lowers to pairwise concatenation and re-allocates literals |  |  |

@@ -9,10 +9,10 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,523 of the 1,599 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 76 are listed in
+On 2026-09-30 the prototype passes 1,524 of the 1,608 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 84 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 76 still fail.
+decision below, and all 84 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
@@ -31,16 +31,20 @@ them by tag:
 | DC7 | 1 | group statements are not interleaved across modules |
 | GQ4 | 1 | the prototype has no pack operations |
 | MHP-1 | 1 | no inferred script entry requirement row |
+| Q1b | 4 | batch 15: the parser reads only the dropped `(a, b := value)`, not `((a, b) := value)` |
+| Q1a | 2 | batch 15: a `:=` list is not yet a same-line suite body |
+| LM-a | 1 | batch 15: no `redundant-let-mut` for a list name |
+| PS3a | 1 | batch 15: a closure's declared row is not compared with its own `$.with` keys |
 
 ## What Remains
 
 | Path | What it holds | Why it stays |
 | ---- | ------------- | ------------ |
 | [`REPORT.md`](REPORT.md) | the architecture review and the ranked open findings | the review still describes the prototype |
-| [`findings/`](findings/) | one file per open finding (35), indexed in [`evidence/findings-table.md`](evidence/findings-table.md) | still open: the tagged cases still fail, and the others were re-run or spot-checked on 2026-09-29 |
+| [`findings/`](findings/) | one file per open finding (33), indexed in [`evidence/findings-table.md`](evidence/findings-table.md) | still open: the tagged cases still fail, and the others were re-run or spot-checked on 2026-09-29 |
 | [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) | `KNOWN_FAILURES.tsv` grouped by tag | the prototype's fix list |
 | [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/) | minimized fuzz fixtures for F-265 and F-310 | open findings; `spec/tools/fuzz/README.md` points here |
-| [`evidence/04-runtime/`](evidence/04-runtime/) | replay, edit, and panic result tables | back F-155, F-161, F-401, and F-404 |
+| [`evidence/04-runtime/`](evidence/04-runtime/) | replay, edit, and panic result tables | back F-155, F-161, and F-401; `roundtrip.tsv` stays as the history of F-404, closed with F-402 on 2026-09-30 because both described only the removed `hd replay` and `hd record` commands |
 | [`evidence/05-object-model/`](evidence/05-object-model/SUMMARY.md), [`05-requirements/`](evidence/05-requirements/SUMMARY.md), [`06-compiler/`](evidence/06-compiler/SUMMARY.md) | representation, cost, and compiler-structure measurements | back the architecture review and F-501 to F-610 |
 | [`probes/`](probes/), [`scripts/`](scripts/), [`bench/`](bench/) | the inputs and scripts that reproduce those runs | needed to re-run the open findings |
 | [`grammar/FINDINGS.md`](grammar/FINDINGS.md) | GR-10 item f, GR-21, and the ambiguity tool in [`grammar/tools/`](grammar/tools/) | open reference-parser and teaching findings |
@@ -84,3 +88,7 @@ its limits. These gaps are recorded only here:
   `.Ok` value's `ExitCode`.
 - Testing T40: a trailing block binds the final parameter only for calls
   that the checker plans, not for the built-in functions it special-cases.
+- Map implementations (batch 15, Q-map): `lib/std/iter.hd` writes
+  `impl[K, V] Iterable[(K, V)] for Map[K, V]` without `K < Eq & Hash`,
+  which a std-only exception in the checker allows. The spec's std writes
+  the bound and has no such exception.

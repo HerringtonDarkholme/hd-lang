@@ -134,7 +134,7 @@ multi-module or incremental work, it needs:
 
 ## 2. Open Findings
 
-The most important open findings, ranked by impact. All 35 open findings,
+The most important open findings, ranked by impact. All 33 open findings,
 with the conformance cases each one keeps failing, are in
 [`evidence/findings-table.md`](evidence/findings-table.md). Duplicates found
 by several workers are merged under one canonical ID.
