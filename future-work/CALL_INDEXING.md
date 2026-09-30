@@ -71,9 +71,13 @@ and D4 are in [Callable Values](../spec/05-expressions.md#callable-values),
 language tier, since call syntax uses the traits. Examples there declare
 a local `Cell` and `live`; no std cell type is decided.
 
-**Follow-ups, batch 25 (owner decision, 2026-09-30).** Final. Applying
-D1 to D4 raised six points; the owner answered each. Only BF(c) and BFF2
-change any text.
+**Follow-ups, batch 25 (owner decision, 2026-09-30).** Final and
+applied. Applying D1 to D4 raised six points; the owner answered each.
+Only BF(c) and BFF2 change any text: BF(c) in
+[SYNTAX_NOTES](../SYNTAX_NOTES.md#built-in-collections) and its
+permission sections, and BFF2 in
+[Callable Values](../spec/05-expressions.md#callable-values), where
+`xs(0)` is [`expr.call.apply.not-callable`](../spec/05-expressions.md#r-expr.call.apply.not-callable).
 
 | # | Point | Decision |
 | --- | --- | --- |

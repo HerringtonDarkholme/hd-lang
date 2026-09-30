@@ -43,7 +43,8 @@ Open questions for the owner:
   remaining options, B and C1. It also shows how B can keep a live
   variable, `var()`, while arrays keep `xs[0]`. The owner chose B+F as
   D1 to D4 on 2026-09-30, and all four are applied: the `::[` type
-  arguments, and the callable values, `Apply` and `Update`.
+  arguments, and the callable values, `Apply` and `Update`. Its batch 25
+  follow-ups, BF and BFF, are applied too.
 
 Deferred:
 

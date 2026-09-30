@@ -109,7 +109,8 @@ with B, keep.
 | IT2 | `Iterator[T]` does not implement `Iterable[T]`, so a readonly iterator cannot be advanced by any path. `for`, and each comprehension `for` clause, accepts a value implementing `Iterable`, or a `mut Iterator[T]` directly: a rule exception in `for`. An `I < Iterable` bound no longer accepts iterators; callers `collect()` first. This reverses Chaining Study CS10 ("Iterator 2: keep, and document that iter() on an iterator shares progress"). `flow.for.iterator-self`, `flow.for.iterator-bound`, and the CS10 guide note are retired; only `List` and `Map` implement `Iterable`. `lib/std/iter.hd` drops `impl Iterable for Iterator`. | [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols) |
 | IT3 | No `clone_mut` or `tee`. An iterator is single-pass: iterate twice by calling `.iter()` on the collection again, or `collect()` first, as in Rust and Go. | [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols), [Iterators](../spec/std/iter.md) |
 
-**Batch 25 (owner decision, 2026-09-30).** Final; not yet applied. The
+**Batch 25 (owner decision, 2026-09-30).** Applied; the
+[Revision Notes](../spec/README.md#revision-notes) list each. The
 owner answered ST8-self, from batch 20 above, and a duplicate found while
 checking the stdlib tier, each as recommended. The Call Indexing
 follow-ups of the same batch, BF and BFF, are in
@@ -117,8 +118,14 @@ follow-ups of the same batch, BF and BFF, are in
 
 | # | Decision | Where |
 | --- | --- | --- |
-| ST8-self | Inside a template, a `Structure::` call has the template's `T` as its `Self`, so `Structure::name()` is `T`'s declared name, and `Structure::facts()` is `T`'s facts. Language tier. | [Templates](../spec/14-annotations.md#templates) |
-| r-merge | `std-text.prefix.std.import-text` and `std-text.prelude.text-r` both say that `std.text` declares `r` and code imports it. Merge them into one rule and retire the duplicate. | [Raw Text Prefix](../spec/std/text.md#raw-text-prefix) |
+| ST8-self | Inside a template, a `Structure::` call has the template's `T` as its `Self`, so `Structure::name()` is `T`'s declared name, and `Structure::facts()` is `T`'s facts. Language tier. | [`annot.template.structure-self`](../spec/14-annotations.md#r-annot.template.structure-self) |
+| r-merge | `std-text.prefix.std.import-text` and `std-text.prelude.text-r` both say that `std.text` declares `r` and code imports it. Merge them into one rule and retire the duplicate. | [`std-text.prefix.std.import-text`](../spec/std/text.md#r-std-text.prefix.std.import-text) |
+
+**Still open from applying batch 25.**
+
+| # | Question | **Recommendation** |
+| --- | --- | --- |
+| ST8-own | The Templates clash Note says that, when `Encode` declares its own receiverless `name`, `Encode::name()` is `Encode`'s. That call has no argument either, so [`trait.assoc-call.trait.undetermined`](../spec/09-traits.md#r-trait.assoc-call.trait.undetermined) rejects it, as it rejected `Structure::name()`. | Inside a template, a call qualified by the derived trait also has `T` as its `Self`, since the template implements that trait for `T` alone. |
 
 ### Bound And Row Operators
 
