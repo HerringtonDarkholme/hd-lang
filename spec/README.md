@@ -1596,7 +1596,7 @@ existing source. Each entry names the decision that made the change.
   available trait with a `take` method is now `ambiguous-method`; an
   inherent `take` still wins.
 - Local mutability (owner decision in
-  [Open Issues](../future-work/OPEN_ISSUES.md#local-mutability-let-mut-as-an-inference-helper),
+  Open Issues,
   2026-09-29): `let mut name = value`, previously a `syntax-error`, is valid
   and infers `mut T`; it is `mutable-upgrade` when `value` is readonly. A
   plain `let` now infers the readonly view even of a fresh value, so
@@ -1606,8 +1606,8 @@ existing source. Each entry names the decision that made the change.
   readonly `T` is the new error `let-mut-readonly-type`. `mut name := ...`
   and `for mut item in ...` stay `syntax-error`.
 - Pipe operator (owner decisions PL3-PL13 in
-  [Pipe Operator](../future-work/PIPE_OPERATOR.md#owner-decisions), as
-  amended by [Chaining Study](../future-work/CHAINING_STUDY.md#owner-decisions)
+  Pipe Operator, as
+  amended by Chaining Study
   CS2, 2026-09-29): `|>` is a new token, and `a |> b`, previously a
   `syntax-error`, is a pipe expression between `|` and comparison. A step
   is a substitution step with exactly one `_` or a bare name or path. A
@@ -1620,7 +1620,7 @@ existing source. Each entry names the decision that made the change.
   `suspending-pipe-step`, `multi-line-pipe-step`, and
   `placeholder-outside-pipe`.
 - Iterators (owner decisions CS7 and CS8 in
-  [Chaining Study](../future-work/CHAINING_STUDY.md#owner-decisions),
+  Chaining Study,
   2026-09-29): `Iterator[T]` is a concrete prelude `data` type holding a
   `step: fn() -> T?` closure, not a trait. `impl Iterator[T] for X`, which
   made `X` an iterator, is now an error, since `Iterator` is not a trait.
@@ -1630,7 +1630,7 @@ existing source. Each entry names the decision that made the change.
   bound where it was `unsatisfied-trait-bound`. A type that implemented
   both traits, iterated through `Iterable`, no longer arises.
 - Method references (owner decisions MR1-MR4 in
-  [Method References](../future-work/METHOD_REFERENCES.md#owner-decisions),
+  Method References,
   2026-09-29): `Type::name`, `Trait::name`, and `T::name` without a call,
   previously `deferred-method-value`, are unbound method references with
   the receiver first. `value::name`, also `deferred-method-value`, is a
@@ -1640,7 +1640,7 @@ existing source. Each entry names the decision that made the change.
   `User::email` for a field is `unknown-method`. A method reference is a
   bare pipe step.
 - Collect (owner decisions CO1-CO4 in
-  [Collecting Iterators](../future-work/COLLECT.md#owner-decisions),
+  Collecting Iterators,
   2026-09-29): `collect` is `collect[C < FromIterator[T]]`, with `C` taken
   from the expected type, an explicit list, or `List[T]` when nothing
   fixes it, so existing `collect()` calls keep their `List[T]`. A `Map`
@@ -1649,7 +1649,7 @@ existing source. Each entry names the decision that made the change.
   unread. `?` inside a comprehension, which no rule covered, is valid: it
   propagates, and the comprehension stops.
 - Dependencies (owner decisions DEP1-DEP7 in
-  [Dependencies](../future-work/DEPENDENCIES.md#owner-decisions),
+  Dependencies,
   2026-09-29, with the still-valid
   [Packages](../future-work/PACKAGES.md#owner-decisions) decisions 1, 4, 8,
   10, 12, and 13): no source changes, and `use dep.NAME` stays. There is
@@ -1660,14 +1660,14 @@ existing source. Each entry names the decision that made the change.
   `hd.sum` holds the hashes; there is no lockfile. `module.manifest.tooling`
   and `module.tooling.package` are retired.
 - Pipe steps (owner decisions PL14-PL16 in
-  [Pipe Operator](../future-work/PIPE_OPERATOR.md#owner-decisions),
+  Pipe Operator,
   2026-09-29): a `_` belongs to the innermost pipe step that contains it,
   so `x |> f(_, y |> g(_))`, which no rule covered, is valid. A
   leading-dot line before the first `|>` stays part of the chain, and
   `x |> user.greet` is `user.greet(x)`, as the first apply pass read them;
   both are now stated.
 - Iterator construction and exhaustion (owner decisions CS9-CS11 in
-  [Chaining Study](../future-work/CHAINING_STUDY.md#owner-decisions),
+  Chaining Study,
   2026-09-29): `step` is private, so `source.step` outside `std` is
   `private-member`, and code builds an iterator with the new associated
   function `Iterator::from_fn(step)`. What `next` returns after it has
@@ -1676,17 +1676,17 @@ existing source. Each entry names the decision that made the change.
   portable result. `from_fn` does not fuse. `flow.for.iterator-progress`
   is retired.
 - Method references (owner decisions MR6 and MR7 in
-  [Method References](../future-work/METHOD_REFERENCES.md#owner-decisions),
+  Method References,
   2026-09-29): `value::name` for an associated function, which no rule
   covered, is `unknown-method`. `Identity::echo[i32]!(42)` stays a
   `syntax-error`.
 - `FromIterator` (owner decision CO6 in
-  [Collecting Iterators](../future-work/COLLECT.md#owner-decisions),
+  Collecting Iterators,
   2026-09-29): `FromIterator` is not a prelude name, so an `impl` of it
   without `use std.iter.FromIterator` is `unknown-trait`. A `collect` call
   needs no import.
 - Dependencies (owner decisions DEP8-DEP15 in
-  [Dependencies](../future-work/DEPENDENCIES.md#owner-decisions),
+  Dependencies,
   2026-09-29): no source changes. A workspace member depends on another
   member through a path requirement, `{ path = "../billing" }`, and a
   tagged version whose manifest holds one is rejected. `github.com` is the
@@ -1696,8 +1696,8 @@ existing source. Each entry names the decision that made the change.
   require a pseudo-version. `module.dep.requirement` and
   `module.repo.known-host` are retired.
 - Type-argument defaults (owner decisions TD1-TD7 in
-  [Type-Argument Defaults](../future-work/TYPE_ARG_DEFAULTS.md#owner-decisions)
-  and CO5 in [Collecting Iterators](../future-work/COLLECT.md#owner-decisions),
+  Type-Argument Defaults
+  and CO5 in Collecting Iterators,
   2026-09-29): a generic parameter of a function, method, data type, enum,
   trait, or `type` declaration may declare a default after its bound, as in
   `collect[C < FromIterator[T] = List[T]]`. An implementation header, an
@@ -1713,7 +1713,7 @@ existing source. Each entry names the decision that made the change.
   default, so existing calls keep their meaning; `flow.collect.default`
   and eleven other rule IDs are retired.
 - Associated type bindings (owner decisions AT1 and AT2 in
-  [Open Issues](../future-work/OPEN_ISSUES.md#associated-type-bindings-beyond-direct-bounds),
+  Open Issues,
   2026-09-29): a binding may name an associated type that a supertrait
   declares, so `I < NamedSupplier[Item = T]`, previously
   `unknown-associated-type`, is valid; a name that two supertraits declare
@@ -1761,8 +1761,8 @@ existing source. Each entry names the decision that made the change.
   blocks are confirmed. Undecided Parts keeps only the points that wait on
   other areas.
 - Chaining Study CS12 and Dependencies DEP16-DEP18 (owner decisions in
-  [Chaining Study](../future-work/CHAINING_STUDY.md#owner-decisions) and
-  [Dependencies](../future-work/DEPENDENCIES.md#owner-decisions),
+  Chaining Study and
+  Dependencies,
   2026-09-29): no source changes. CS12 and DEP16 confirm rules already
   applied. A fetched package that requires a workspace member's host path
   is a separate package from the local member, so a build may hold both.
@@ -1770,7 +1770,7 @@ existing source. Each entry names the decision that made the change.
   toolchain never falls back to an untagged commit or a nearby version;
   the error's code is named later with the other manifest diagnostics.
 - Type-argument defaults TD8-TD10 (owner decisions in
-  [Type-Argument Defaults](../future-work/TYPE_ARG_DEFAULTS.md#owner-decisions),
+  Type-Argument Defaults,
   2026-09-29): a type-argument list with more positional arguments than
   its declaration has generic parameters is `argument-count`, in a call
   and in a written type; it named no code before. The binary `std.ops`
@@ -1780,7 +1780,7 @@ existing source. Each entry names the decision that made the change.
   meaning. `fn.generic.explicit.too-long` and `expr.op.trait.shape` are
   retired.
 - Associated type bindings AT3-AT5 (owner decisions in
-  [Associated Type Bindings Beyond Direct Bounds](../future-work/OPEN_ISSUES.md#associated-type-bindings-beyond-direct-bounds),
+  Open Issues,
   2026-09-29): a binding name that two supertraits declare separately,
   previously `ambiguous-method`, is the new error
   `ambiguous-associated-type`. A requirement key may bind associated
@@ -1805,7 +1805,7 @@ existing source. Each entry names the decision that made the change.
   `grammar.stmt.let-mut-list.bare` and
   `grammar.stmt.let-mut-list.needs-mut` are retired.
 - Associated type bindings AT6-AT7 (owner decisions in
-  [Associated Type Bindings Beyond Direct Bounds](../future-work/OPEN_ISSUES.md#associated-type-bindings-beyond-direct-bounds),
+  Open Issues,
   2026-09-29): an ambiguous projection, such as `I::Item` when two bounds
   on `I` both declare `Item`, is `ambiguous-associated-type`; it was an
   error with no code. A requirement key must bind every associated type of
@@ -1813,15 +1813,15 @@ existing source. Each entry names the decision that made the change.
   `Item`, is `trait-not-dynamically-safe`. `trait.assoc.ambiguous` and
   `trait.binding.ambiguous` are retired.
 - Type-Argument Defaults TD11 and Dependencies DEP19 (owner decisions in
-  [Type-Argument Defaults](../future-work/TYPE_ARG_DEFAULTS.md#owner-decisions)
-  and [Dependencies](../future-work/DEPENDENCIES.md#owner-decisions),
+  Type-Argument Defaults
+  and Dependencies,
   2026-09-29): TD11 confirms `argument-count` for a written type with too
   many arguments and changes nothing. A pseudo-version whose hash names no
   commit, or whose time does not match its commit, is invalid with no
   fallback, as a missing tag is; its code is named later with the other
   manifest diagnostics.
 - Strings STR1-STR6 (owner decisions in
-  [Strings](../future-work/STRINGS.md#owner-decisions), 2026-09-29): a
+  Strings, 2026-09-29): a
   `string` is an immutable sequence of bytes that is always valid UTF-8,
   as in Go. `s.len()`, previously a scalar count, is the byte count, so
   `"héllo".len()` is 6, not 5. `s[i]`, previously
@@ -1838,7 +1838,7 @@ existing source. Each entry names the decision that made the change.
   `expr.index.trait.builtin`, `expr.ord.std.text`, `module.method.i32`, and
   `module.string.scalar`.
 - Error derivation (Error Conversion decision 10, owner decision in
-  [Error Conversion](../future-work/ERROR_CONVERSION.md#owner-decisions),
+  Error Conversion,
   2026-09-27): `@error` is a compiler intrinsic that derives `Display`,
   `Error`, and `From` for an enum or data type, as Rust's `thiserror` does.
   Chapter 14 named it only in prose before. An `@error` line always means
@@ -1858,7 +1858,7 @@ existing source. Each entry names the decision that made the change.
   names still needs an indented body. `grammar.inline.multi-name-let-for`
   is retired.
 - Strings STR7-STR10 (owner decisions in
-  [Strings](../future-work/STRINGS.md#owner-decisions), 2026-09-29): a
+  Strings, 2026-09-29): a
   `slice` offset off a scalar boundary or past the end, and a `start`
   greater than `end`, panic as `index-out-of-bounds`; the boundary panic
   named no category before, and the reversed case had no rule. `List[T]`
@@ -1871,7 +1871,7 @@ existing source. Each entry names the decision that made the change.
   `invalid-assignment-target`. `module.string.slice.boundary` and
   `expr.index.trait.builtin-string` are retired.
 - Spec follow-ups (owner decisions of 2026-09-27 in
-  [Spec Follow-Ups](../future-work/SPEC_FOLLOWUPS.md), applied 2026-09-29):
+  Spec Follow-Ups, applied 2026-09-29):
   confusable and mixed-script identifiers are warnings, not errors. Two
   available traits with same-named default methods make a dot call
   `ambiguous-method`. An expected type never weakens the
@@ -1889,7 +1889,7 @@ existing source. Each entry names the decision that made the change.
   `types.infer.explicit.results`, and `types.infer.body-result`.
 - Error derivation batch 9 (Error Conversion decisions 21-27, owner
   decisions in
-  [Error Conversion](../future-work/ERROR_CONVERSION.md#owner-decisions),
+  Error Conversion,
   2026-09-29): the invalid `@error` forms now have codes. A misplaced
   `@error`, `@from`, or `@source`, such as `@error` before a function, a
   bare `@error` before a data type, or `@error("...")` before an enum, is
@@ -1904,7 +1904,7 @@ existing source. Each entry names the decision that made the change.
   Writing `@error` needs no `use std.error.Error`, so a module that
   imports it only for `@error` may drop the import. No rule ID is retired.
 - Spec follow-ups batch 10 (SF1-SF3, owner decisions in
-  [Spec Follow-Ups](../future-work/SPEC_FOLLOWUPS.md#open-for-the-owner),
+  Spec Follow-Ups,
   2026-09-29): an inherent implementation outside the package that owns its
   target, such as `impl i32:` in an application, is `orphan-impl`. A raw tab
   inside a string or character literal, already invalid, is
@@ -1914,7 +1914,7 @@ existing source. Each entry names the decision that made the change.
   `missing-partial-eq` is retired. No rule ID is retired.
 - Error derivation batch 11 (Error Conversion decisions 28-30, owner
   decisions in
-  [Error Conversion](../future-work/ERROR_CONVERSION.md#owner-decisions),
+  Error Conversion,
   2026-09-29): an `@error` line whose arguments are neither one message
   nor `transparent`, such as `@error(opaque)`, `@error(42)`, or
   `@error("closed", "shut")`, is `invalid-error-marker`; it was invalid
@@ -1953,12 +1953,12 @@ existing source. Each entry names the decision that made the change.
   The grouped expression `(a, b := pair)` is unchanged, and
   `if ok: (a, b) := pair` is a `syntax-error`. No rule ID is retired.
 - Error derivation batch 13 (Error Conversion decision 31, owner decision
-  in [Error Conversion](../future-work/ERROR_CONVERSION.md#owner-decisions),
+  in Error Conversion,
   2026-09-30): an `@from` or `@source` line with arguments inside an error
   type, such as `@from(yaml)`, is `invalid-error-marker`; it was invalid
   without a code. No rule ID is retired.
 - Spec follow-ups batch 13 (SF4, owner decision in
-  [Spec Follow-Ups](../future-work/SPEC_FOLLOWUPS.md#open-for-the-owner),
+  Spec Follow-Ups,
   2026-09-30): an inherent implementation whose target is a tuple or a
   transparent alias is the new error `invalid-impl-target`, and one whose
   target is a trait value type is `trait-value-impl-target`. Both were

@@ -1,22 +1,19 @@
 # Packages: Survey And Manifest Draft
 
-Status: research and design draft for [Roadmap area 5](ROADMAP.md#5-packages),
-revised to the [owner decisions](#owner-decisions) 1 to 14 of 2026-09-26.
-[Dependencies](DEPENDENCIES.md#owner-decisions) DEP1 (2026-09-29) removes
-the registry and supersedes decisions 2, 3, and 11, so the registry
-names, caret ranges, solver, lockfile, and distribution drafted below are
-superseded too. Decisions 1, 4, 8, 10, 12, and 13 are applied with DEP1-DEP7
-in [Package Manifest](../spec/10-modules.md#package-manifest) and
-[Runtime Profiles](../spec/10-modules.md#runtime-profiles), and the
-specification is authoritative for them. Nothing else here is accepted
-language behavior. The draft sections below follow
-the decisions; details the decisions leave open are marked as open.
-Decisions that change the language go to the
-[specification](../spec/README.md): decision 5's test-dependency boundary
-now follows [Testing](../spec/10-modules.md#test-modules) T11, T13, T23, and T24,
-applied in [Test Modules](../spec/10-modules.md#test-modules). The
-root-application orphan exception that decision 4 restated was dropped on
-2026-09-27, so no package may hold an orphan.
+Status: research and design draft for [Roadmap area 5](ROADMAP.md#5-packages).
+Nothing here is accepted language behavior. The owner decided questions
+1 to 14 on 2026-09-26 ([Owner Decisions](#owner-decisions)). Dependencies
+decisions DEP1-DEP19 (2026-09-29) then removed the registry: versions are
+git tags, resolution is minimal version selection, and `hd.sum` gives
+integrity. They are applied in
+[Package Manifest](../spec/10-modules.md#package-manifest), which is
+authoritative. So the registry names, caret ranges, solver, lockfile,
+and distribution that this draft first proposed are superseded, and
+their text is in git history. What stays open here is the final
+`hd.toml` schema ([`module.tooling.package-schema`](../spec/10-modules.md#r-module.tooling.package-schema)),
+the checked compatibility rule behind `hd api diff`, and the agent-first
+CLI; the tooling plan is in
+[Package Tooling](RUNTIME_AND_LIBRARY.md#package-tooling).
 
 Inputs:
 
@@ -144,6 +141,12 @@ added `/vN` module paths so majors can coexist, following Go.
    ([Test Modules](../spec/10-modules.md#test-modules)).
 
 ## 2. Draft: `hd.toml`
+
+The examples and schema below predate DEP1. Their registry forms
+(`owner/name@X.Y.Z`, `id`, `registry`), `git` sources, the `version`
+field, and `hd.lock` are superseded by
+[Package Manifest](../spec/10-modules.md#package-manifest); the rest is
+the open schema draft.
 
 ### 2.1 Design Goals
 
@@ -355,11 +358,9 @@ A version is `MAJOR.MINOR.PATCH` with an optional `-PRE` pre-release suffix
 using SemVer 2.0.0 ordering. All three numeric parts are required in the
 manifest, the lockfile, and CLI output. Build metadata is rejected.
 
-A dependency requirement is a caret range (decision 2): `X.Y.Z` means at
-least `X.Y.Z` and below the next compatibility line, as `^X.Y.Z` does in
-Cargo. Whether other range operators are accepted is open; this draft
-proposes none. A pre-release is selected only when some manifest names that
-exact pre-release.
+A dependency requirement names one tag. The decided requirement forms
+are in [Dependency Requirements](../spec/10-modules.md#dependency-requirements);
+the caret ranges of decision 2 are superseded.
 
 ### 3.2 Compatibility Lines
 
@@ -421,32 +422,8 @@ declaration of that name becomes a `prelude-name-shadow` error.
 
 ### 4.1 Algorithm
 
-Caret ranges solved by a PubGrub-style resolver, as in Cargo and uv
-(decision 2):
-
-1. Start from the root package, or from every member of a workspace.
-2. Collect requirements transitively from each candidate version's manifest.
-   `[test-dependencies]` of non-root packages are not visited.
-3. For each package identity and compatibility line, select one version that
-   satisfies every range on it, preferring the version in `hd.lock` and
-   otherwise the newest non-yanked release. The solver backtracks, and when
-   no assignment exists it fails with a derivation that names the
-   conflicting requirements.
-4. Apply root `[patch]` entries.
-5. Check the graph: no cycles, only packages with a library as dependencies,
-   each package's `hd` minimum at most the selected toolchain.
-6. Load the interface file of every selected package and run the link-time
-   coherence check (next section). A failure here is a resolution failure.
-
-Because the registry checks compatibility, choosing a newer version within a
-line is verified to be safe rather than trusted.
-
-Selection is recorded in `hd.lock`. It changes only when `hd add`,
-`hd update`, or `hd remove` re-resolves, or when a manifest range no longer
-admits the locked version.
-
-A yanked version is never newly selected. A version already in `hd.lock`
-stays usable after it is yanked, and `hd` warns, as Cargo does.
+Superseded by DEP1: resolution is minimal version selection
+([Version Selection](../spec/10-modules.md#version-selection)).
 
 ### 4.2 Coherence Across Packages
 
@@ -500,101 +477,10 @@ Owner decision 1 chose this rule.
 
 ## 5. Lockfile
 
-`hd.lock` sits next to the root manifest, or the workspace manifest, and is
-committed. The lockfile of a dependency is ignored. With ranges, manifests
-alone do not determine selection, so the lockfile records the selected
-versions as well as their hashes. Builds use the locked versions.
-`hd build --locked` fails if resolution would produce a different
-lockfile.
-
-Format: TOML written by `hd` only, with packages sorted by `id` then version,
-and keys in a fixed order. Every hash is written as `algorithm:hex` so the
-algorithm can change later.
-
-```toml
-# Written by hd. Do not edit.
-format = 1
-toolchain = "0.9.4"
-std = "sha256:4b1e9f0c2d3a5b6c7d8e9f00112233445566778899aabbccddeeff0011223344"
-
-[[root]]
-name = "invoice_cli"
-path = "."
-requires = ["acme/billing@0.9.3", "acme/billing@1.4.2", "acme/json@2.1.0", "pdf", "shared"]
-
-[[package]]
-id = "acme/billing"
-version = "0.9.3"
-source = "registry+https://packages.hd-lang.org"
-content = "sha256:0c5d2f1e7a9b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5"
-interface = "sha256:7d1a3b5c9e2f4a6b8c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b"
-requires = ["acme/money@2.3.0"]
-
-[[package]]
-id = "acme/billing"
-version = "1.4.2"
-source = "registry+https://packages.hd-lang.org"
-content = "sha256:9a8b7c6d5e4f30211a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7081"
-interface = "sha256:1f2e3d4c5b6a79880a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f6071"
-requires = ["acme/money@3.0.1"]
-
-[[package]]
-id = "acme/json"
-version = "2.1.0"
-source = "path+../json"
-patched = true
-interface = "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80910"
-requires = []
-
-[[package]]
-id = "acme/money"
-version = "2.3.0"
-source = "registry+https://packages.hd-lang.org"
-content = "sha256:3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b"
-interface = "sha256:4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c"
-requires = []
-
-[[package]]
-id = "acme/money"
-version = "3.0.1"
-source = "registry+https://packages.hd-lang.org"
-content = "sha256:5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d"
-interface = "sha256:6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e"
-requires = []
-
-[[package]]
-name = "pdf"
-version = "0.4.0"
-source = "git+https://github.com/acme/hd-pdf?rev=3f2c9e1a7b6d4c58e0f1a2b3c4d5e6f708192a3b"
-content = "sha256:708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f"
-interface = "sha256:8192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f70"
-requires = []
-
-[[package]]
-name = "shared"
-version = "0.1.0"
-source = "path+../shared"
-interface = "sha256:92a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7081"
-requires = ["acme/json@2.1.0"]
-```
-
-Hashes:
-
-- `content` is a tree hash, as in Go: SHA-256 over the sorted lines
-  `sha256(file) path` for every file in the published package, with `/`
-  separators and NFC paths. It is the same for a registry archive, a git
-  checkout, and an unpacked directory with the same files. Path sources have
-  no `content` entry, because they are expected to change.
-- `interface` is the SHA-256 of the canonical interface file. It lets a build
-  cache skip downstream recompilation when a dependency's interface did not
-  change, and it lets `hd resolve` detect an interface that differs from what
-  the registry recorded.
-- `std` is the interface hash of the toolchain's standard library.
-
-Reproducibility: a build is determined by the lockfile, the toolchain
-version, the build configuration name, and the source tree. Output Wasm must
-be byte-identical for equal inputs. Environment variables, timestamps, and
-absolute paths must not reach the output.
+Superseded by DEP1 and DEP4: there is no lockfile, and `hd.sum` is the only
+integrity source ([Package Manifest](../spec/10-modules.md#package-manifest)).
+Its line format is tooling work in
+[Package Tooling](RUNTIME_AND_LIBRARY.md#package-tooling).
 
 ## 6. Standard Library
 
@@ -612,34 +498,8 @@ absolute paths must not reach the output.
 
 ## 7. Distribution
 
-A published package is a canonical archive containing:
-
-- `hd.toml`, normalized: keys canonical, `[patch]` and `[workspace]`
-  removed, path and git dependencies rejected before publishing;
-- the source root and the test root;
-- the interface file, regenerated and checked by the registry;
-- `README` and license files.
-
-It contains no compiled Wasm. Packages build from source, so there is one
-compiler-owned representation of generic code. Shipping executables as Wasm
-components is decided with the component ABI, separate from the registry
-(decision 11).
-
-Registry rules:
-
-- Package identity is `owner/name`. `owner` is a verified account or
-  organization (decision 3).
-- Published versions are immutable. Yanking marks a version as not
-  selectable for new requirements; it does not delete it.
-- At publish, the registry recompiles the package's declarations, compares
-  the interface hash with the uploaded one, runs `hd api diff` against the
-  previous version in the line, and runs the link-time coherence check
-  against the package's own minimum dependency graph.
-- The registry serves each version's manifest and interface file separately
-  from its archive, so resolution and coherence checks need no source
-  download.
-- Once a public registry exists, it runs a public checksum transparency log,
-  like `sum.golang.org`, which `hd` checks on first download (decision 14).
+Superseded by DEP1: there is no registry and no publish step, and a
+version is the tagged tree.
 
 ## 8. Agent-First CLI
 
@@ -681,226 +541,28 @@ Output rules:
   package. Then "which package provides the `(Validation, User)` slot" is a
   query.
 
-## 9. Rules Summary
-
-1. A package is one source root, one version, and one interface file, with
-   a library, executables, or both. Unknown manifest keys are errors.
-2. A dependency key is the `NAME` of `dep.NAME`. A key cannot be `std`, `pkg`,
-   or `dep`.
-3. Only a package with a library can be a dependency. No package may hold
-   an orphan implementation or derivation (decision 4).
-4. An executable selects an entry module. The entry point is that module's
-   public `main` or `main!`; without one, the module must be a script.
-5. Only test code may use a test dependency: a `tests:` block, a
-   `_test.hd` test module, or a module under `tests/`. A test dependency
-   that depends back on the package is usable only from `tests/`.
-6. A requirement is a caret range within its compatibility line.
-   Resolution is a PubGrub-style solver, and `hd.lock` records the
-   selection.
-7. At most one version per compatibility line. Distinct lines are distinct
-   package identities for declarations, orphan rules, and coherence.
-8. Coherence is checked over resolved interface files before any body is
-   compiled. A conflict is a resolution failure.
-9. The registry enforces the checked compatibility rule at publish. Any
-   interface difference it cannot classify counts as breaking.
-10. `hd.lock` records selections, tree hashes, and interface hashes. Path and
-    git sources are allowed only in unpublished packages; git sources are
-    pinned to a full commit.
-11. `std` is the toolchain's. `[package] hd` states the minimum toolchain,
-    and the root may pin one.
-12. No command prompts. Every command accepts `--format json`.
-
 ## Owner Decisions
 
-Decided 2026-09-26. Applied to the draft sections above on 2026-09-27.
-On 2026-09-29, [Dependencies DEP1](DEPENDENCIES.md#owner-decisions)
-superseded decisions 2, 3, and 11. Decision 14 is moot, since no registry
-will exist; DEP4 governs a checksum log. Decisions 1, 4, 8, 10, 12, and 13
-are applied in [Package Manifest](../spec/10-modules.md#package-manifest)
-and [Runtime Profiles](../spec/10-modules.md#runtime-profiles). Decisions 6
-and 7 classify changes for `hd api diff`, which DEP7 schedules later.
-Decision 9 is kept by [Dependencies DEP15](DEPENDENCIES.md#owner-decisions):
-a tagged version whose manifest holds a path requirement is rejected
-([`module.version.no-path-release`](../spec/10-modules.md#r-module.version.no-path-release)).
-Decision 4's orphan part is superseded: the root-application orphan
-exception is dropped (2026-09-27). Decision 5 is language syntax. It is
-superseded by the testing redesign, whose test-dependency rules are applied
-in [Test Modules](../spec/10-modules.md#test-modules) and
-[Test Blocks](../spec/02-grammar.md#test-blocks).
+Decided 2026-09-26. The options weighed for each are in git history.
 
-1. **Question 1: one version per compatibility line.** Two majors of one
-   package may coexist (`json = "acme/json@2.1.0"`,
-   `json_old = "acme/json@1.9.0"`), as distinct packages.
-2. **Question 2: version ranges with a solver** (Cargo and uv style caret
-   ranges, PubGrub-style resolution), not minimal version selection.
-   Superseded by DEP1: resolution is minimal version selection.
-3. **Question 3: registry names are `owner/name`.** Superseded by DEP1:
-   there is no registry, and a dependency is named by its host path.
-4. **Question 4: Cargo style.** One package may have a library root and
-   executables. The root-application orphan exception must be restated for
-   this shape (which targets count as the root application). Decided
-   2026-09-27, then superseded the same day: with `Annotate` removed by
-   typed derivation, the root-application orphan exception is dropped
-   entirely. No package may hold an orphan; a foreign type is derived
-   through a local mirror type or a newtype.
-5. **Question 5: `use` inside `test` blocks.** A `test` block may contain
-   `use` declarations scoped to that block, and only those may name
-   test-only dependencies; test builds include test dependencies, and the
-   separate `tests/` root may use them anywhere. Detail decided 2026-09-27:
-   the `use` lines come first in the block, and like any inner scope they
-   may shadow a module-level name. Superseded 2026-09-27 by
-   [Testing T2 and T11](../spec/10-modules.md#test-modules): no `use` inside a test
-   case; test-only dependencies are named from a file's `tests:` block.
-   Testing T13, T23, and T24 complete the rule: test dependencies are named
-   from `tests:` blocks, `_test.hd` modules, and `tests/`, and one that
-   depends back on the package is usable only from `tests/`.
-6. **Question 6: adding an implementation or annotation for a foreign trait
-   or facet is a minor change;** `hd update` reports a resulting coherence
-   conflict before writing.
-7. **Question 7: adding an enum variant is breaking,** for now.
-8. **Question 8: each `0.MINOR` is its own compatibility line.**
-9. **Question 9: git and path dependencies are not allowed in published
-   packages.**
-10. **Question 10: a toolchain minimum plus an optional root pin** that `hd`
-    downloads; no editions yet.
-11. **Question 11: published packages contain sources and the interface
-    file;** Wasm components are decided with the component ABI. Superseded
-    by DEP1: there is no publish step, and a version is the tagged tree.
-12. **Question 12: no optional features or conditional compilation.**
-13. **Question 13: only toolchain-defined runtime profile names,** until the
-    host capability catalog is settled.
-14. **Question 14: a public checksum transparency log** once a public
-    registry exists. Moot under DEP1 and DEP4: `hd.sum` is the only
-    integrity source.
+| # | Decision | Status |
+| --- | --- | --- |
+| 1 | One version per compatibility line; two majors coexist as distinct packages | Applied in [Package Manifest](../spec/10-modules.md#package-manifest) |
+| 2 | Caret ranges with a solver | Superseded by DEP1: minimal version selection |
+| 3 | Registry names are `owner/name` | Superseded by DEP1: no registry; a dependency is named by its host path |
+| 4 | Cargo style: a library, executables, or both; no package holds an orphan | Applied |
+| 5 | `use` inside `test` blocks | Superseded by the testing redesign ([Test Modules](../spec/10-modules.md#test-modules)) |
+| 6 | Adding an implementation for a foreign trait is a minor change | For `hd api diff`, which DEP7 schedules later ([3.3](#33-the-checked-compatibility-rule)) |
+| 7 | Adding an enum variant is breaking, for now | For `hd api diff`, as 6 |
+| 8 | Each `0.MINOR` is its own compatibility line | Applied |
+| 9 | No git or path dependencies in released versions | Kept by DEP15 ([`module.version.no-path-release`](../spec/10-modules.md#r-module.version.no-path-release)) |
+| 10 | A toolchain minimum plus an optional root pin; no editions | Applied ([Toolchain Version](../spec/10-modules.md#toolchain-version)) |
+| 11 | Published packages hold sources and the interface file | Superseded by DEP1: no publish step |
+| 12 | No optional features or conditional compilation | Applied |
+| 13 | Only toolchain-defined runtime profile names | Applied ([Runtime Profiles](../spec/10-modules.md#runtime-profiles)) |
+| 14 | A public checksum log once a registry exists | Moot under DEP1 and DEP4 |
 
 ## 10. Questions For The Owner
 
 All fourteen questions were decided on 2026-09-26; see
-[Owner Decisions](#owner-decisions). The options and recommendations below
-are kept as the record of what was proposed.
-
-1. **Can two majors of one package coexist in a graph?**
-   Options: (a) one version per package per graph, as in SwiftPM, uv, and
-   Gradle; (b) one version per compatibility line, as in Go, MoonBit, and
-   Cargo; (c) any number, as in npm.
-   Recommendation: (b). It supports gradual migration, where `models`
-   implements both `json@1` and `json@2` traits, and `pub use` makes the
-   semver trick work. Diagnostics must print the line.
-   Example: `json = "acme/json@2.1.0"` and `json_old = "acme/json@1.9.0"` in
-   one manifest.
-
-2. **Minimum-only requirements (MVS) or ranges with a solver?**
-   Options: (a) MVS, minimum only; (b) caret ranges with a PubGrub solver,
-   as in Cargo and uv; (c) MVS plus root-only `exclude`.
-   Recommendation: (a), with `[patch]` as the only override. The registry's
-   compatibility check covers MVS's trust assumption. Add (c) only if yanking
-   proves insufficient.
-   Example: `billing = "acme/billing@1.4.2"` means "1.4.2 or the largest
-   1.x any other manifest asks for".
-
-3. **Registry names: namespaced or flat?**
-   Options: (a) `owner/name`, as in Go and MoonBit; (b) flat names, as in
-   crates.io and PyPI.
-   Recommendation: (a). It avoids name squatting and makes ownership
-   visible. The dependency key keeps source short, so `dep.json` does not
-   repeat the owner.
-   Example: `json = "acme/json@2.1.0"`, used as `use dep.json.{Value}`.
-
-4. **Entry module default, and can one package be both library and
-   application?**
-   Options: (a) default entry module `main` (`src/main.hd`), and a package is
-   exactly one kind; (b) default entry is the root module `src/mod.hd`;
-   (c) Cargo style, where one package has a library root and executables.
-   Recommendation: (a). The root-application orphan exception needs an
-   unambiguous role. A project that ships both uses a workspace with two
-   packages.
-   Example: `kind = "application"` with no `[[executable]]` runs
-   `pub fn main` in `src/main.hd`.
-
-5. **Where do test-only dependencies apply?**
-   Options: (a) a separate `tests` root that sees the package's public
-   surface; (b) a filename convention such as `*_test.hd`, whose modules are
-   test-only; (c) no test dependencies.
-   Recommendation: (a). A `use` is module-wide, so inline `test` blocks cannot
-   be restricted. A separate root also tests the public API the way a
-   downstream package does. (b) changes path-inferred module naming.
-   Example: `tests/billing_roundtrip.hd` uses `dep.fixtures` and
-   `pkg.invoice.{Invoice}`.
-
-6. **Is adding an implementation or annotation on a foreign trait or facet
-   a minor change?**
-   Options: (a) minor; the conflict, if any, appears when the root raises
-   the version; (b) major, because it can take a slot a root application
-   filled with an orphan annotation; (c) minor, and `hd update` reports the
-   possible conflict before writing.
-   Recommendation: (c). A major bump for every new trait conformance would
-   stall the ecosystem, and MVS confines the failure to an explicit update.
-   Example: `acme/models@1.3.0` adds `annotate Validation for User`. An app
-   that already had its own `annotate Validation for User` sees
-   `coherence-conflict` on `hd update models`, naming both annotations.
-
-7. **Is adding an enum variant always breaking?**
-   Options: (a) yes, as drafted; (b) add a language-level marker for open
-   enums that forces a wildcard arm downstream.
-   Recommendation: (a) for now. (b) is a language feature and belongs in
-   [Open Issues](OPEN_ISSUES.md) if wanted.
-   Example: adding `Refunded` to `pub enum PaymentState` in `acme/billing`
-   requires `2.0.0`.
-
-8. **How are `0.x` versions treated?**
-   Options: (a) each `0.MINOR` is its own compatibility line, as in Cargo;
-   (b) `0.x` has no compatibility promise and the check is skipped, as in
-   Go; (c) `0.x` versions are all one line.
-   Recommendation: (a). The check still applies to patches, and coexistence
-   treats `0.3` and `0.4` like majors.
-   Example: `0.3.1` to `0.3.2` must keep the interface signature-equal;
-   `0.3.2` to `0.4.0` may break it.
-
-9. **Are git and path dependencies allowed in published packages?**
-   Options: (a) no, as in Cargo; (b) git allowed when pinned to a commit.
-   Recommendation: (a). The registry must be able to recompile and check
-   every package in a published graph.
-   Example: `hd publish` rejects `pdf = { git = ... }` with
-   `unpublishable-dependency` and suggests publishing `pdf` first.
-
-10. **How is the toolchain selected?**
-    Options: (a) `hd` minimum only, and the user installs toolchains;
-    (b) minimum plus an optional root pin that `hd` downloads, as Go's
-    `toolchain` line does; (c) language editions in addition.
-    Recommendation: (b), without editions for now. `std` breaking changes wait
-    for a toolchain major.
-    Example: `hd = "0.9.0"` in a library; `[toolchain] pin = "0.9.4"` in an
-    application.
-
-11. **What does a published package contain?**
-    Options: (a) sources and interface file only; (b) also precompiled Wasm
-    per package; (c) applications publish Wasm components through a separate
-    channel.
-    Recommendation: (a) for the registry, and decide (c) with the component
-    ABI in area 3.
-    Example: `acme/billing-1.4.2` contains `hd.toml`, `src/`, `tests/`, the
-    interface file, `README.md`, and `LICENSE`.
-
-12. **Optional features or conditional compilation?**
-    Options: (a) none; (b) additive features as in Cargo or Swift traits.
-    Recommendation: (a). One build per package version keeps one interface
-    file per version, which the compatibility check and the lockfile rely on.
-    Example: a JSON library that wants optional `std.time` support ships a
-    second package, `acme/json_time`.
-
-13. **Can a manifest define runtime profiles?**
-    Options: (a) only toolchain-defined profile names; (b) custom profiles in
-    `hd.toml` that list host capability traits.
-    Recommendation: (a) until the host capability catalog in
-    [Open Issues](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work) is
-    settled.
-    Example: `profile = "console-fs"` is valid only if the toolchain defines
-    `console-fs`.
-
-14. **Should the registry run a public checksum log?**
-    Options: (a) no, the lockfile hash is enough; (b) a transparency log like
-    `sum.golang.org`, which `hd` checks on first download.
-    Recommendation: (b) once there is a public registry. It gives every user
-    the same hash for a version, even without a committed lockfile.
-    Example: `hd add` fails with `checksum-mismatch` if the downloaded tree
-    hash differs from the log.
+[Owner Decisions](#owner-decisions).

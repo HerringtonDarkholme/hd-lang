@@ -301,11 +301,10 @@ primitive is an ordinary declaration with a placeholder body.
 
 ## Package Tooling
 
-[Dependencies](DEPENDENCIES.md#owner-decisions) DEP1-DEP15 fix the package
+Owner decisions DEP1-DEP19 (Go modules in hd spelling) fix the package
 model in [Package Manifest](../spec/10-modules.md#package-manifest). The
 commands and file formats below are tooling work, not specification.
-Nothing here is decided beyond those decisions; the names follow the
-Dependencies record's option A.
+Nothing here is decided beyond those decisions; the names follow Go's.
 
 | Item | Phase | Draft |
 | --- | --- | --- |

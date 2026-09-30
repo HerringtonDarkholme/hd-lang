@@ -10,8 +10,7 @@ authoritative. The survey, the design options, the worked examples, and
 the three stress tests behind the decisions are in git history.
 
 Error derivation is the separate `@error` intrinsic, applied in
-[Error Derivation](../spec/14-annotations.md#error-derivation)
-([Error Conversion](ERROR_CONVERSION.md#owner-decisions)).
+[Error Derivation](../spec/14-annotations.md#error-derivation).
 
 The prototype implements M1-M29 by lowering ([src/README.md](../src/README.md)).
 Its gaps are rows of [KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv),
@@ -20,19 +19,14 @@ needs package roles.
 
 ## Owner Decisions M30 (2026-09-29)
 
-The owner answered the leftover points. **Applied 2026-09-29** to
-[Typed Derivation](../spec/14-annotations.md#typed-derivation):
-
-| Point | Decision | Where |
-| --- | --- | --- |
-| Fact check hook | None; readers validate (Decorators D2 and D3) | the prose under [Member Metadata](../spec/14-annotations.md#member-metadata) |
-| `T -> U` mapping | Out of scope | removed from Undecided Parts |
-| Name clashes | Generated `walk`, `describe`, and `build` keep their names; `Structure::walk(self, w)` picks the generated `walk` | a Note under [Templates](../spec/14-annotations.md#templates) |
-| Derived bound | No rule change; the diagnostic names the walker's strengthened bound | a Note under [Derived Bounds](../spec/14-annotations.md#derived-bounds) |
-| Plan constants, typed shared constants | Deferred until a real template, such as `std.json`, needs them | a Note under [Limits](../spec/14-annotations.md#limits) says there are none |
-| `default()` allocation | Accepted and not specified | removed from Undecided Parts |
-| Composing templates | Deferred until needed; M9's restriction stays | the same Note under Limits |
-| M26 readings | All confirmed as applied | see below |
+The owner answered the leftover points; all are applied (2026-09-29) in
+[Typed Derivation](../spec/14-annotations.md#typed-derivation). There is
+no fact check hook (readers validate); `T -> U` mapping is out of scope;
+generated `walk`, `describe`, and `build` keep their names; the derived
+bound needs no rule change; plan constants, typed shared constants, and
+composing templates are deferred until a real template needs them; and
+`default()` allocation is accepted and not specified. M30 also confirms
+every M26 apply-pass reading.
 
 Still waiting on other areas: non-escaping handles (NonEscapable,
 parked), function targets (FN_TYPE Q9/Q10, parked), and `Clone`'s module

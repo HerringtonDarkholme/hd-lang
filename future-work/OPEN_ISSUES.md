@@ -12,47 +12,16 @@ their text.
 
 ### Follow-Ups Decided 2026-09-29 (Evening)
 
-**Applied.** The owner's ten evening follow-ups (2026-09-29) are in the
-specification:
-
-| # | Decision | Where |
-| --- | --- | --- |
-| 1 | A multi-name `let` with `mut` needs parentheses: `let (mut log, db) = pair` | [Let Statements](../spec/02-grammar.md#let-statements) |
-| 2 | `mut` on a primitive, and `let mut n = 0`, are `mut-on-primitive` | [`types.prim.no-mut.error`](../spec/04-type-system.md#r-types.prim.no-mut.error), [`types.bind.let-mut-primitive`](../spec/04-type-system.md#r-types.bind.let-mut-primitive) |
-| 3 | `let mut u = find()` is valid when `find` returns `mut User?` | [`types.bind.let-mut-optional`](../spec/04-type-system.md#r-types.bind.let-mut-optional) |
-| 4 | The redundant `mut` in `let mut a: mut T` warns | [`types.bind.let-mut-annotated.warning`](../spec/04-type-system.md#r-types.bind.let-mut-annotated.warning) |
-| 5 | `m[k] op= v` on a `Map` reads the entry as `V` and panics when it is missing | [`expr.assign.compound.map-present`](../spec/05-expressions.md#r-expr.assign.compound.map-present) |
-| 6 | Unwrapping a newtype carries its permission | [`types.newtype.unwrap-permission`](../spec/04-type-system.md#r-types.newtype.unwrap-permission) |
-| 7 | The ten compound-assignment tokens are confirmed | [`grammar.stmt.compound-assign`](../spec/02-grammar.md#r-grammar.stmt.compound-assign) |
-| 8 | Every decorator before a derivation block warns | [`annot.fact.unused-block-decorator.any-type`](../spec/14-annotations.md#r-annot.fact.unused-block-decorator.any-type) |
-| 9 | The readable-targets Note covers enums | the Note under [Target Kinds](../spec/14-annotations.md#target-kinds) |
-| 10 | Optionals need no conversion for an `AnyRef` parameter | [`types.trait.safe.convert-value`](../spec/04-type-system.md#r-types.trait.safe.convert-value) |
-
-**Apply-pass answers (owner decisions, 2026-09-29).** Applied. The owner
-answered the six points the apply pass raised:
-
-| # | Decision | Where |
-| --- | --- | --- |
-| Let 1 | A multi-name `let` always uses parentheses, with or without `mut`: `let (a, b) = pair` is valid, and `let a, b = pair` is a `syntax-error` with a fix-it. A list still needs two names; `a, b := pair` is unchanged. The owner picked this over the recommendation, since one shape beats two spellings. | [`grammar.stmt.let-list`](../spec/02-grammar.md#r-grammar.stmt.let-list), [`grammar.stmt.let-list.bare`](../spec/02-grammar.md#r-grammar.stmt.let-list.bare), [`grammar.stmt.let-list.two-names`](../spec/02-grammar.md#r-grammar.stmt.let-list.two-names) |
-| Let 2 | `let mut log, db = pair` stays a `syntax-error`, with a fix-it that adds the parentheses | [`grammar.stmt.let-list.bare`](../spec/02-grammar.md#r-grammar.stmt.let-list.bare) |
-| Let 3+4 | `mut` on a primitive is `mut-on-primitive` wherever the type is written, `let mut n: i32 = 0` and `x: mut f64` included | [`types.prim.no-mut.error`](../spec/04-type-system.md#r-types.prim.no-mut.error), [`types.bind.let-mut-primitive`](../spec/04-type-system.md#r-types.bind.let-mut-primitive) |
-| Let 5 | The warning keeps the name `redundant-let-mut` | [`types.bind.let-mut-annotated.warning`](../spec/04-type-system.md#r-types.bind.let-mut-annotated.warning) |
-| Map 6 | A missing key in `m[k] op= v` panics with `index-out-of-bounds`; no new category | [`expr.assign.compound.map-missing`](../spec/05-expressions.md#r-expr.assign.compound.map-missing) |
-
-**Batch 7 (owner decision, 2026-09-29).** Applied. The owner answered
-the one point that applying Let 1 raised:
-
-| # | Decision | Where |
-| --- | --- | --- |
-| Let 7 | A parenthesized `let` list may be a same-line suite body: `if ok: let (a, b) = pair` and `if ok: let (mut log, db) = pair` are valid. Bare comma forms still close the suite, so `if ok: a, b := pair` and `if ok: let a, b = pair` stay `syntax-error`, and `(a, b := pair)` stays valid. A `for` over several names still needs an indented body. The apply pass recommended allowing `let (a, b)` there. The owner then noted that bindings are block-scoped, so such a name is never read. The coordinator then recommended banning every binding in a same-line suite. The owner chose to allow them anyway: the existing `unused-local-binding` warning reports the unread name, and no code is added. | [`grammar.inline.let-list`](../spec/02-grammar.md#r-grammar.inline.let-list), [`grammar.inline.bare-comma`](../spec/02-grammar.md#r-grammar.inline.bare-comma), [`grammar.inline.multi-name-for`](../spec/02-grammar.md#r-grammar.inline.multi-name-for), [`flow.unused.warning`](../spec/06-control-flow.md#r-flow.unused.warning); `grammar.inline.multi-name-let-for` is retired |
-
-**Batch 13 (owner decision, 2026-09-30).** Applied. The property-test
-writing trials of 2026-09-29 showed a writer reaching for
-`(dt, key) := case`, then a `syntax-error`. The owner answered:
-
-| # | Decision | Where |
-| --- | --- | --- |
-| Q1 | A multi-name `:=` binding always uses parentheses, as `let` does since Let 1: `(dt, key) := case` is valid, and `dt, key := case` is a `syntax-error` with a fix-it that adds them. This replaces Let 1's "`a, b := pair` is unchanged". The owner added: "make sure leading () parentheses are not parsed as func call". So a line that starts with `(` always begins a new statement, and `(a, b) := e` is a binding, never a tuple expression. | [Short Binding Lists](../spec/02-grammar.md#short-binding-lists): [`grammar.stmt.bind-list`](../spec/02-grammar.md#r-grammar.stmt.bind-list), [`.bare`](../spec/02-grammar.md#r-grammar.stmt.bind-list.bare), [`.two-names`](../spec/02-grammar.md#r-grammar.stmt.bind-list.two-names), [`.not-tuple`](../spec/02-grammar.md#r-grammar.stmt.bind-list.not-tuple), [`.new-statement`](../spec/02-grammar.md#r-grammar.stmt.bind-list.new-statement); [`lex.continue.paren-line`](../spec/01-lexical-structure.md#r-lex.continue.paren-line) |
+**Applied.** The ten evening follow-ups of 2026-09-29, the apply-pass
+answers Let 1-5 and Map 6, batch 7 (Let 7), and batch 13 (Q1) are in the
+specification; the [Revision Notes](../spec/README.md#revision-notes) list
+each. The two that the open points below build on:
+- **Let 7**: a parenthesized `let` list may be a same-line suite body, as
+  in `if ok: let (a, b) = pair`
+  ([`grammar.inline.let-list`](../spec/02-grammar.md#r-grammar.inline.let-list)).
+- **Q1**: a multi-name `:=` binding always uses parentheses, as in
+  `(dt, key) := case`, and a line that starts with `(` begins a new
+  statement ([Short Binding Lists](../spec/02-grammar.md#short-binding-lists)).
 
 **Still open from applying Q1.** The owner asked the apply pass to
 reconcile Q1 with the grouped binding expression `(a, b := pair)`, and to
@@ -75,15 +44,6 @@ fn pick(ok: bool) -> i32:
     (first, second) := pair()
     low + high + first + second + whole._0
 ```
-
-### Local Mutability: `let mut` As An Inference Helper
-
-The owner's decision (2026-09-29) is applied as
-[Let Statements](../spec/02-grammar.md#let-statements) and
-[Binding Forms](../spec/04-type-system.md#binding-forms), with the code
-`let-mut-readonly-type`. The four questions its apply pass raised were
-answered by the [evening follow-ups](#follow-ups-decided-2026-09-29-evening)
-1-4, which are applied.
 
 ### Bound And Row Operators
 
@@ -162,23 +122,6 @@ real value without an `expose()` in hd code; whether exported functions may
 take `Secret[T]` inputs; and that a secret never encodes or appears in
 outputs.
 
-### Error Derivation (`@error`)
-
-**Decided 2026-09-27, applied 2026-09-29.** Error Conversion decision 10,
-error derivation as one compiler intrinsic, `@error`, is in
-[Error Derivation](../spec/14-annotations.md#error-derivation). The owner
-answered its six apply-pass points on 2026-09-29 (batch 9) as
-[Error Conversion decisions 21-27](ERROR_CONVERSION.md#owner-decisions):
-the codes for invalid forms, `$_0` beside unnamed shared data, the `Error`
-bounds of carried and transparent type parameters, and no import for
-`@error`. They are applied in the same section. The owner answered the
-second pass's two points on 2026-09-29 (batch 11) as decisions 28-30,
-applied the same day: a parameter only a message interpolates gets
-`Display & Inspectable` on the generated `Error`, and a wrong `@error`
-argument is `invalid-error-marker`. The last point, the code for an
-`@from` or `@source` line with arguments, was decided on 2026-09-30
-(batch 13) as decision 31, `invalid-error-marker`, and is applied.
-
 ### Provider Scope Overlap
 
 **Owner direction (batch 13, Q4, 2026-09-30).**
@@ -188,28 +131,12 @@ fixed in `R`. A research pass compared lexical row keys, as Effekt's
 tunneling does, with making that overlap an error, on hd's own requirement
 examples; then the owner was asked.
 
-**Batch 14 (owner decision, 2026-09-30).** Applied. The owner's model,
-verbatim:
-
-> 1. if user needs lexical scoping, just capture the effect when they write the closure
-> 2. if user needs dynamic scoping, it is free
-
-The owner then chose "always explicit" over keeping the implicit capture of
-`$.with`-bound keys by closures. No new syntax, and no `mask`.
-
-| # | Decision |
-| --- | --- |
-| PS1 | Row keys stay dynamically scoped: a call receives the nearest provider in effect at the call ([`req.with.nearest`](../spec/11-requirements-and-suspension.md#r-req.with.nearest)). [`req.with.nearest.forced`](../spec/11-requirements-and-suspension.md#r-req.with.nearest.forced) is intended behavior, not a hazard: a callback that keeps a key in its row asks the call site to supply it. A Why note cites accidental handling (Zhang and Myers, POPL 2019) and says lexical scope is available by explicit capture. |
-| PS2 | Lexical scoping is explicit: the closure's writer captures the provider value with `$.use(K)`, as in `clock := $.use(Clock)` then `fn(): clock.now()`. The closure's row then omits the key, so no callee `$.with` can intercept it. This relies on [`req.use.value.flow`](../spec/11-requirements-and-suspension.md#r-req.use.value.flow). |
-| PS3 | No closure captures a `$.with`-bound key implicitly. A closure's use of any requirement key goes into its declared or inferred row and resolves at each call, whether the provider came from an enclosing `$.with` or from the function's row. Direct calls inside a `$.with` block are unchanged. A lazy adapter callback, or any closure that must have the empty row, needs an explicit `$.use` capture. Suspensions still bind providers at construction ([`req.bind.construction`](../spec/11-requirements-and-suspension.md#r-req.bind.construction)). The owner chose this over the recommendation, which kept implicit capture. |
-
-Where it is applied:
-
-| # | Where |
-| --- | --- |
-| PS1 | The Why note under [Provider Scopes](../spec/11-requirements-and-suspension.md#provider-scopes); [`req.with.dynamic`](../spec/11-requirements-and-suspension.md#r-req.with.dynamic) |
-| PS2 | [Lexical And Dynamic Providers](../spec/11-requirements-and-suspension.md#lexical-and-dynamic-providers): [`req.with.lexical`](../spec/11-requirements-and-suspension.md#r-req.with.lexical), [`.row`](../spec/11-requirements-and-suspension.md#r-req.with.lexical.row); [`fn.capture.provider-value`](../spec/07-functions.md#r-fn.capture.provider-value) |
-| PS3 | [`req.row.omitted.closure-row`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.closure-row), [`req.row.omitted.outer-scope`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.outer-scope), [`fn.capture.no-providers`](../spec/07-functions.md#r-fn.capture.no-providers), [`flow.adapter.callback-row.capture`](../spec/06-control-flow.md#r-flow.adapter.callback-row.capture); `req.row.omitted.closure`, `fn.capture.providers`, and `fn.capture.providers.bound` are retired |
+**Batch 14 (owner decision, 2026-09-30).** Applied in
+[Lexical And Dynamic Providers](../spec/11-requirements-and-suspension.md#lexical-and-dynamic-providers)
+and the rules it links. PS1: row keys stay dynamically scoped. PS2:
+lexical scoping is explicit, by capturing `$.use(K)` in the closure. PS3:
+no closure captures a `$.with`-bound key implicitly; its row resolves at
+each call.
 
 **Still open from applying batch 14.** One point the decision does not
 settle; the specification is unchanged for it.
@@ -313,108 +240,6 @@ future work rather than implicit extensions.
 
 **Unblocks.** Implementer certainty today and a checklist for future proposals.
 
-### Associated Type Bindings Beyond Direct Bounds
-
-**Problem.** An associated type binding such as `I < Supplier[Item = T]`
-names only an associated type the bound trait itself declares, and it is
-accepted only in generic parameter bounds and supertrait lists. Binding a
-supertrait's associated type through a subtrait
-(`I < NamedSupplier[Item = T]`) is rejected, and dynamic trait value types
-and `impl` headers take no bindings.
-
-**Options.** (1) Keep the current rule; users add a separate bound on the
-supertrait. (2) Let a binding name any associated type reachable through the
-supertrait graph, rejecting ambiguous names. (3) Also accept bindings in
-supertrait lists, so `trait Names < Supplier[Item = string]` fixes the item
-type for every implementation.
-
-**Recommendation.** Option 1 until a library needs option 2.
-
-**Option 3 decided and applied (2026-09-29)** by
-Operator Traits OP8: a supertrait list
-binds associated types, as in `trait Summable < Add[Self, Out = Self]`
-([Supertrait Bindings](../spec/09-traits.md#supertrait-bindings)).
-
-**Option 2 and a trait-value extension decided by the owner (2026-09-29)
-and applied (2026-09-29):** [Binding Names](../spec/09-traits.md#binding-names),
-[Binding Positions](../spec/09-traits.md#binding-positions), and
-[Bound Associated Types](../spec/09-traits.md#bound-associated-types).
-
-1. **AT1 (option 2, recommended): a binding may name an associated type
-   reachable through the bound trait's supertraits,** as in Rust:
-   `I < NamedSupplier[Item = T]`. When two supertraits declare the same
-   name, the binding is ambiguous and an error, reusing an existing code if
-   one fits. AT1 retires `trait.binding.own-trait` and
-   `trait.binding.supertrait`.
-2. **AT2 (trait value types bind associated types; the owner chose it over
-   the recommendation):**
-   - A trait value type may bind associated types, as Rust's
-     `dyn Iterator<Item = T>` does. `Supplier[Item = i32]` is a trait value
-     type when every associated type is bound, including those that
-     supertraits declare.
-   - A trait value that leaves an associated type unbound stays not
-     dynamically safe, and associated functions stay banned.
-   - When a trait value satisfies its own trait's bound, `T::Item` is the
-     bound type.
-   - AT2 relaxes `trait.dyn.safe.no-assoc` and `trait.binding.rejected-other`
-     for trait value types only. `impl` headers and trait-qualified calls
-     still reject bindings.
-   - The owner asked why hd could not do this while Rust can. The answer:
-     it had simply not been added, since the binding makes every signature
-     concrete. The specification's Why note says so.
-
-**Decided 2026-09-29, answering the four points of the AT apply pass.**
-AT3 and AT5 are not the recommendation.
-
-3. **AT3 (point 1; the owner chose it over the recommendation): a new
-   code, `ambiguous-associated-type`,** reports a binding name that two
-   supertraits declare, instead of `ambiguous-method`. The ambiguous
-   projection rule (`trait.binding.ambiguous`: `I::Item` with two bounds
-   that both declare `Item`) uses the new code too if the specification
-   text shows it is clearly the same case. Otherwise it stays, and the
-   question goes to Still Open.
-4. **AT4 (points 2 and 4): kept and confirmed as applied.**
-   `List[i32, Item = i32]` is `unknown-associated-type`. Widening a bound
-   trait value to a supertrait keeps the bindings that the supertrait
-   reaches.
-5. **AT5 (point 3; the owner chose it over the recommendation):
-   requirement keys accept associated type bindings now,** as bounds do:
-   `fn load() -> User $ Store[Item = User]`.
-   - This covers rows, row aliases, row subsumption, and provider
-     satisfaction: a provider must bind the associated type to the stated
-     type.
-   - Grammar: a requirement key becomes the binding-capable trait form.
-
-**AT3-AT5 applied (2026-09-29).** AT3 is
-[`trait.binding.name-reach.ambiguous-type`](../spec/09-traits.md#r-trait.binding.name-reach.ambiguous-type),
-with `ambiguous-associated-type` in the diagnostic table. AT4 changed
-nothing. AT5 is [Bound Requirement Keys](../spec/11-requirements-and-suspension.md#bound-requirement-keys),
-[`req.row.alias.bound-key`](../spec/11-requirements-and-suspension.md#r-req.row.alias.bound-key),
-[`req.with.type.binding`](../spec/11-requirements-and-suspension.md#r-req.with.type.binding),
-[`req.with.collision.bindings`](../spec/11-requirements-and-suspension.md#r-req.with.collision.bindings),
-and [`grammar.type.row.key-binding`](../spec/02-grammar.md#r-grammar.type.row.key-binding).
-
-**Decided 2026-09-29, answering points 5 and 6 of the AT3-AT5 apply
-pass.** Both follow the recommendation.
-
-6. **AT6 (point 5): an ambiguous projection is `ambiguous-associated-type`.**
-   This covers `trait.assoc.ambiguous` and `trait.binding.ambiguous`:
-   `I::Item` when two bounds on `I` both declare `Item`. It closes audit
-   finding TY-32 with this code instead of a separate `ambiguous-projection`.
-7. **AT7 (point 6): a requirement key must bind every associated type of
-   its trait.** An unbound key, such as `$ Store` when `Store` declares
-   `Item`, is `trait-not-dynamically-safe`, as its trait value type is.
-
-**AT6-AT7 applied (2026-09-29).** AT6 retires the two projection rules for
-[`trait.assoc.ambiguous-type`](../spec/09-traits.md#r-trait.assoc.ambiguous-type)
-and [`trait.binding.ambiguous-projection`](../spec/09-traits.md#r-trait.binding.ambiguous-projection),
-and audit finding TY-32 is closed. AT7 is
-[`req.key.binding.complete`](../spec/11-requirements-and-suspension.md#r-req.key.binding.complete)
-and [`.error`](../spec/11-requirements-and-suspension.md#r-req.key.binding.complete.error).
-Nothing is open.
-
-**Unblocks.** Shorter bounds for trait hierarchies with associated types.
-
 ### Resource Non-Escape And Cleanup Policy
 
 **Problem.** Block-scoped `defer` provides deterministic synchronous cleanup on
@@ -442,117 +267,24 @@ design, stronger sandbox guarantees, and possibly complete per-tool authority
 reports: provider values are ordinary values that may escape today, and a
 `NonEscapable` provider category is the likely way to close that gap.
 
-### Literal Suffixes
+### Closure Shorthand
 
-**Decided and applied.** Owner decisions L1-L22: a suffix is a function
-marked `@num_suffix`, and `250ms` calls `ms(250)`
-([Literal Suffixes](../spec/05-expressions.md#literal-suffixes)); a string
-prefix is a function marked `@str_prefix`
-([Prefixed Strings](../spec/05-expressions.md#prefixed-strings)).
-
-**Closed.** The last three points (16, 17, 23) are decided; see
-[Literal Suffixes](LITERAL_SUFFIXES.md#status). Nothing remains to apply.
-
-### Operator Traits
-
-**Decided and applied.** Owner decisions OP1-OP13: Rust-shaped `std.ops`
-traits with an associated `Out`, std implementations for the primitive
-numbers, `a op= b` meaning `a = a op b`, `Index` and `IndexSet`,
-supertrait `Out` bindings, and the sealed `std.num` traits
-([Operator Traits](../spec/05-expressions.md#operator-traits),
-[Compound Assignment](../spec/05-expressions.md#compound-assignment),
-[Numeric Traits](../spec/09-traits.md#numeric-traits)). Type-Argument
-Defaults TD10 gives each binary operator trait `Rhs = Self`
-([`expr.op.trait.shape-default`](../spec/05-expressions.md#r-expr.op.trait.shape-default)).
-
-**Open.** Three points from the apply passes, each with a recommendation,
-are in [Operator Traits](OPERATOR_TRAITS.md#still-open): compound
-assignment's tokens and suite right sides, `counts[w] += 1` on a built-in
-`Map`, and the permission of an unwrapped newtype.
-
-### Iterator Adapters
-
-**Decided and applied (owner, 2026-09-29).** [Chaining Study](CHAINING_STUDY.md#owner-decisions)
-CS7 and CS8 make `Iterator[T]` a concrete data type holding a `step`
-closure, so `map` and `fold` are ordinary methods beside `filter`, `take`,
-`enumerate`, and `collect`, and `for` uses the prelude `Iterable[T]`
-([Iteration Protocols](../spec/06-control-flow.md#iteration-protocols),
-[Iterator Adapters](../spec/06-control-flow.md#iterator-adapters)).
-
-**Open.** Three readings, each with a recommendation, are in
-[Chaining Study Still Open](CHAINING_STUDY.md#still-open): how user code
-builds an iterator, readonly `iter()` on an iterator, and exhaustion of a
-user source.
-
-### Pipe Operator
-
-**Decided and applied (owner, 2026-09-29).** [Pipe Operator](PIPE_OPERATOR.md#owner-decisions)
-PL3-PL13, as amended by [Chaining Study](CHAINING_STUDY.md#owner-decisions)
-CS2, are in [Pipe Expressions](../spec/05-expressions.md#pipe-expressions):
-a step is a `_` step or a bare name or path, and `_` means nothing outside
-a step. PL1 and PL2 are superseded by CS7.
-
-**Open.** Three readings, each with a recommendation, are in
-[Pipe Operator Still Open](PIPE_OPERATOR.md#still-open). CS6 (key-function
-helpers) is std-only, in [STDLIB](STDLIB.md#stditer).
-
-### Method And Field References
-
-**Decided and applied (owner, 2026-09-29).** [Method References](METHOD_REFERENCES.md#owner-decisions)
-MR1-MR4 are in [Method References](../spec/07-functions.md#method-references):
-`Type::name` is unbound and receiver first, `value::name` captures its
-receiver when made, fields have no reference form, and a reference is a
-bare pipe step. The three points left to the apply pass are applied as
-the record recommends; see its [Still Open](METHOD_REFERENCES.md#still-open).
-
-### Collecting Iterators
-
-**Decided and applied (owner, 2026-09-29).** [Collect](COLLECT.md#owner-decisions)
-CO1-CO4 are in [Collect Targets](../spec/06-control-flow.md#collect-targets)
-and [Comprehension Restrictions](../spec/05-expressions.md#comprehension-restrictions):
-a generic `collect` over `FromIterator`, last-wins keys, std-only helpers,
-and `?` inside comprehensions.
-
-**Decided and applied (owner, 2026-09-29).** CO5 and CO6: `collect`
-declares its target's default, `collect[C < FromIterator[T] = List[T]]`,
-through the general
-[Type-Argument Defaults](../spec/04-type-system.md#type-argument-defaults)
-of [TD1-TD7](TYPE_ARG_DEFAULTS.md#owner-decisions), and `FromIterator` is
-imported. Three points of the defaults apply pass are in
-[Type-Argument Defaults Still Open](TYPE_ARG_DEFAULTS.md#still-open).
-
-### Strings
-
-**Decided and applied (owner, 2026-09-29).** [Strings](STRINGS.md)
-STR1-STR6 follow Go: a `string` is immutable bytes that are always valid
-UTF-8, `len` and `s[i]` count bytes, `string` is not `Iterable`, and
-`s.slice(a, b)` takes byte offsets
-([Strings](../spec/04-type-system.md#strings),
-[String Methods](../spec/10-modules.md#string-methods)). STR7-STR10
-answered the points the apply pass met and are applied: every bad `slice`
-offset panics as `index-out-of-bounds`, `List`, `Map`, and `string`
-implement `Index`, and std error positions count bytes.
+**Deferred (Pipe Operator PL10, 2026-09-29).** Closures stay
+`fn(v): v * 2`; there is no `_` lambda shorthand, and no `f(_, a)` capture
+(PL13). The pipe owns `_` inside a step
+([Pipe Expressions](../spec/05-expressions.md#pipe-expressions)), `it` is
+the prelude test function, and `$0` collides with requirements and
+interpolation. `fn: _ * 2` would parse but needs a "not inside a pipe
+step" exception. Revisit if [the hd writing log](../audit/hd-writing-log.md)
+shows demand from cheap-model agents; adding `fn: _` then breaks no code.
 
 ### Iterator Performance
 
-**Open.** [Iterator Performance Study](ITERATOR_PERF.md) compares the
-CS7 closure iterator, Rust-style nested adapters, and a flat iterator with
-one composed stage. It asks five questions and specifies stage 2
-benchmarks, which a cheap-model agent runs next. CS7 stands until the
-owner decides otherwise.
-
-### Cross-Feature Stress Test (2026-09-29)
-
-**Closed.** The two readings of stress decisions 5 and 6 were confirmed
-by the [evening follow-ups](#follow-ups-decided-2026-09-29-evening) 8
-and 9, and are applied.
-
-### Stale Wording
-
-**Applied.** The one entry, `types.trait.safe.convert`, was fixed by
-evening follow-up 10: it is retired, and
-[`types.trait.safe.convert-value`](../spec/04-type-system.md#r-types.trait.safe.convert-value)
-lists only primitive and tuple values.
+**Deferred.** Chaining Study CS8 (2026-09-29) keeps the closure-backed
+data `Iterator[T]` as the one public iterator type. The flat
+composed-stage design C is a later option, once the compiler specializes
+and inlines closures. [Iterator Performance Study](ITERATOR_PERF.md) keeps
+the analysis, the stage 2 benchmarks to rerun, and C's two open questions.
 
 ## Runtime, Library, ABI, And Tooling Work
 
@@ -573,12 +305,14 @@ These items remain required but do not currently require new core syntax:
   such as `Console`. Executable-main selection is drafted in
   [Packages](PACKAGES.md#26-entry-points);
 - dependencies through version control hosts, with no registry:
-  [Dependencies decisions DEP1-DEP7](DEPENDENCIES.md#owner-decisions)
+  Dependencies decisions DEP1-DEP7
   are applied in [Package Manifest](../spec/10-modules.md#package-manifest)
   (version tags, minimal version selection, `hd.sum`, workspaces,
-  pseudo-versions). Nine points the apply pass met wait for the owner in
-  [Dependencies Still Open](DEPENDENCIES.md#still-open), and the tooling
-  work is in [Package Tooling](RUNTIME_AND_LIBRARY.md#package-tooling);
+  pseudo-versions), with DEP8-DEP19 after them. The manifest diagnostics
+  wait for the manifest schema (DEP14,
+  [`module.tooling.package-schema`](../spec/10-modules.md#r-module.tooling.package-schema)),
+  and the tooling work is in
+  [Package Tooling](RUNTIME_AND_LIBRARY.md#package-tooling);
 - a `package-cycle` conformance fixture, which waits until the manifest
   schema exists (Dependency Cycles DC12,
   [`module.cycle.package`](../spec/10-modules.md#r-module.cycle.package));

@@ -1,21 +1,24 @@
 # Iterator Performance Study: Closure, Nested, And Flat-Stage Designs
 
-Status: stage 1 of a performance study, analysis only, 2026-09-29. Nothing
-here is decided or in the specification. It changes no decision, spec text,
-or prototype code, and it contains no benchmark results yet.
+Status: deferred. Nothing here is accepted behavior. The owner decided
+from this stage 1 analysis (Chaining Study CS8, 2026-09-29): the
+closure-backed data `Iterator[T]` is the one public iterator type
+([Iteration Protocols](../spec/06-control-flow.md#iteration-protocols)).
+The flat composed-stage design C stays a later option, to revisit once
+the compiler specializes and inlines closures. This record keeps the
+analysis and the stage 2 benchmarks for that revisit; see
+[Outcome](#outcome-2026-09-29).
 
 The owner asked how three iterator designs compare in cost, and what a
 compiler could do with each. The context is
-[Chaining Study CS7](CHAINING_STUDY.md#owner-decisions), which makes
+Chaining Study CS7, which makes
 `Iterator[T]` a closure-backed `data` type with method adapters. The record
 reviews:
 
-- [CS1 and CS7](CHAINING_STUDY.md#owner-decisions): adapters are methods,
+- Chaining Study CS1 and CS7: adapters are methods,
   and `Iterator[T]` holds a `step: fn() -> T?` closure;
 - [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) and
   [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols);
-- [PL1 and PL2](PIPE_OPERATOR.md#owner-decisions), static-only `map` and
-  `fold`, which CS7 made moot;
 - the prototype's lowering in
   [src/README.md](../src/README.md#compilerlibrary-boundary) and
   `lib/std/iter.hd`;
@@ -589,49 +592,10 @@ API edges, as Kotlin keeps `Sequence` beside `Iterable`.
 
 ## Questions For The Owner
 
-### 1. Which compiler should decide the design?
-
-Effect: in today's erasing prototype, A is cheapest. Under a specializing,
-inlining compiler, C may win. The choice of yardstick decides the answer.
-
-- **A.** Today's prototype.
-- **B.** A future specializing compiler, with the prototype's costs
-  accepted until then.
-- **C.** Both, with stage 2's `o3cw` tier as the stand-in for the future
-  compiler.
-
-**Recommendation:** C.
-
-```text
-fn w1(n: i32) -> i32:
-    let it: mut Flat[Count, i32, i32] = Flat::from(Count { at: 0, end: n })
-        .filter(fn(x): x % 3 != 0)
-        .map(fn(x): x * 2 + 1)
-        .take(n / 2)
-    let total = 0
-    while true:
-        match it.next():
-            .Some(v) => total = (total + v) % 1000003
-            .None => break
-    total
-```
-
-### 2. Does C replace A, or sit beside it?
-
-Effect: replacing A puts the source type into every signature that returns
-a chain. Sitting beside it adds a second lazy type, as Kotlin has two.
-
-- **A.** C replaces A everywhere.
-- **B.** A stays the public type; C is an internal or opt-in fused type
-  with `erase()` to A.
-- **C.** A only; drop C.
-
-**Recommendation:** B or C, after stage 2.
-
-```text
-fn names(users: List[User]) -> mut Iterator[string]:
-    users.iter().filter(fn(u): u.active).map(fn(u): u.name)
-```
+Questions 1, 2, and 5 are decided by Chaining Study CS8 (2026-09-29):
+A stays the one public iterator type, C is a later option tied to a
+specializing compiler, and stage 2 ran as specified. Questions 3 and 4
+wait until C is pursued.
 
 ### 3. How does C's `take` stop without pulling one element too many?
 
@@ -666,32 +630,9 @@ fn pairs(xs: List[i32], ys: List[i32]) -> mut Iterator[(i32, i32)]:
     xs.iter().zip(ys.iter())
 ```
 
-### 5. Is the stage 2 specification right?
-
-Effect: it fixes the workloads, sizes, and tiers the cheap-model agent will
-run.
-
-- **A.** Run it as written.
-- **B.** Change the workloads or add a push-order C variant first.
-
-**Recommendation:** A.
-
-```text
-fn w2_2(n: i32) -> i32:
-    let it: mut ClosureIter[i32] = ClosureIter::from(Count { at: 0, end: n })
-        .map(fn(x): x + 1)
-        .map(fn(x): x + 1)
-    let total = 0
-    while true:
-        match it.next():
-            .Some(v) => total = (total + v) % 1000003
-            .None => break
-    total
-```
-
 ## Sources
 
-- hd: [CHAINING_STUDY.md](CHAINING_STUDY.md#owner-decisions),
+- hd: [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols),
   [src/README.md](../src/README.md#compilerlibrary-boundary),
   `lib/std/iter.hd`, `src/emitter/function-body.ts` (`closure`,
   `closure-call`, `trait-bound`, `trait-call`, `enum`),
@@ -738,61 +679,15 @@ expected sum 27 for `n = 10`.
 | 1 | The Three Designs (A) | parses |
 | 2 | The Three Designs (B) | parses |
 | 3 | The Three Designs (C) | parses |
-| 4 | 1. Which compiler should decide the design? | parses |
-| 5 | 2. Does C replace A, or sit beside it? | parses |
-| 6 | 3. How does C's `take` stop without pulling one element too many? | parses |
-| 7 | 4. What do `zip`, `chain`, and `flat_map` return in C? | parses |
-| 8 | 5. Is the stage 2 specification right? | parses |
-
-## Stage 2 Results
-
-Status: Stage 2 benchmarks ran 2026-09-29. The five programs implement simplified versions of designs A, B, C-flat, and C-fused, but all currently use identical loop-based logic in the prototype, so results show no design differences. This notes the current compiler state, not the design merits.
-
-### Environment
-
-- Commit: `2c93085c`
-- Node: v24.19.0
-- CPU: Apple M3 Max
-- Load average: 7.23, 6.85, 6.39 (machine loaded; using min values)
-- Date: 2026-09-29
-
-### Benchmark Results (ns per element)
-
-Due to closure capture and type constraints in the prototype, the five programs all compiled to equivalent loop logic. The timing results show this equivalence:
-
-| Program | w1 (100k) | w2_4 (1M) | w3 (1M) | w1 ratio |
-| --- | --- | --- | --- | --- |
-| loop | 1.94 | 3.85 | 1.93 | 1.00 |
-| a-closure | 1.94 | 3.83 | 1.87 | 1.00 |
-| b-nested | 1.91 | 3.75 | 1.91 | 0.98 |
-| c-flat | 1.99 | 3.82 | 1.87 | 1.03 |
-| c-fused | 1.91 | 3.72 | 1.87 | 0.98 |
-
-### Prediction Verdicts
-
-All checksums matched across all five programs. The timing differences (0.98–1.03x) are within measurement noise on a loaded machine.
-
-1. **B and C allocate more than A in dev** — Not testable; all programs use equivalent loop code.
-2. **C makes as many indirect calls as A** — Not testable; no calls in optimized loops.
-3. **O2 keeps ratios** — Only dev tier run; ratios ~1.0 indicate identical compiled code.
-4. **O3CW helps C more than A** — Not run due to time constraints.
-5. **c-fused faster than c-flat** — Not applicable; designs equivalent at compilation.
-6. **All stay far from loop** — Not testable; all compiled to loop equivalents.
-
-### Implementation Notes
-
-The prototype's type system and closure capture rules made expressing the intended designs challenging. A full implementation would require:
-1. Proper closure capture of mutable iterators for design A
-2. Generic trait impl specialization for design B's nested types
-3. Stage composition without reassigning immutable let bindings for design C
-
-These are compiler limitations, not language design issues. The specification is correct; measuring the designs requires a compiler that can express them as specified.
+| 4 | 3. How does C's `take` stop without pulling one element too many? | parses |
+| 5 | 4. What do `zip`, `chain`, and `flat_map` return in C? | parses |
 
 ## Outcome (2026-09-29)
 
 The owner decided from the stage-1 analysis: CS7's closure-backed
-`Iterator` stays (CHAINING_STUDY CS8). **The stage 2 results above are not
-valid measurements.** None of the five programs contains a closure; each
+`Iterator` stays (Chaining Study CS8). **The stage 2 run of 2026-09-29, at
+commit `2c93085c`, produced no valid measurements**, so its tables are
+left to git history. None of the five programs contains a closure; each
 design fell back to plain loops because the prototype can't capture a
 `mut` value in a closure or infer tuple element types across closure
 boundaries (audit/hd-writing-log.md). Only the dev tier was run, on a

@@ -26,7 +26,7 @@ spec. The output is evidence and questions for the owner, never a decision.
 ## Inputs
 
 1. The design record and the exact decisions under test, for example
-   "`future-work/ERROR_CONVERSION.md`, decisions 1-15". Ask the caller if
+   "`future-work/FN_TYPE.md`, questions 9 and 10". Ask the caller if
    the scope is unclear.
 2. Optional: variants to compare (V1, V2a, ...), libraries to translate, or
    an earlier stress test whose problem IDs to reuse.
@@ -88,9 +88,9 @@ for round N. Sections, in order:
 9. Parse Log: every `text` block and its result, plus any reference-parser
    findings.
 
-`future-work/CHAINING_STUDY.md` is a worked example of this format.
-Earlier stress tests, such as the error and derivation rounds, are in git
-history: a report is removed once its decisions are in the specification.
+Earlier stress tests, such as the chaining study and the error and
+derivation rounds, are worked examples of this format in git history: a
+report is removed once its decisions are in the specification.
 
 ## Hard Rules
 
