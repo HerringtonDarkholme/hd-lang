@@ -9,17 +9,16 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,577 of the 1,619 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 42 are listed in
+On 2026-09-30 the prototype passes 1,589 of the 1,619 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 30 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 42 still fail.
+decision below, and all 30 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
 | Tag | Cases | Why they fail |
 | --- | ----- | ------------- |
 | F-250 | 12 | a pack function is `unsupported-generic-parameter` and `pack.map` is unknown; GADT variant results and package roles give generic diagnostics |
-| MREF | 2 | a closure in a generic function cannot call through the enclosing bounds, which `T::label` needs; `List[void]` is still an unknown type |
 | EMB-S | 4 | trait availability needs package roles |
 | P2 | 4 | member visibility needs package roles |
 | TQ-2 | 1 | package roles |
@@ -28,12 +27,6 @@ them by tag:
 | DC7 | 1 | group statements are not interleaved across modules |
 | GQ4 | 1 | the prototype has no pack operations |
 | MHP-1 | 1 | no inferred script entry requirement row |
-| Q1b | 4 | batch 15: the parser reads only the dropped `(a, b := value)`, not `((a, b) := value)` |
-| Q1a | 2 | batch 15: a `:=` list is not yet a same-line suite body |
-| LM-a | 1 | batch 15: no `redundant-let-mut` for a list name |
-| PS3a | 1 | batch 15: a closure's declared row is not compared with its own `$.with` keys |
-| TB1 | 1 | batch 16: a trailing block with an indented body is accepted as a same-line `if` body |
-| LM-c | 1 | batch 16: `self` in a primitive `mut self` method is typed `mut i32`, and the call needs mutable access |
 | INF-mut | 3 | batch 17: generic inference widens numbers, reports a trait-value conflict as `type-mismatch`, and `assert_equal` keeps its special case |
 | SR1 | 1 | batch 17: `std.structure` has no `SelfRef` and no `self_ref` field |
 
@@ -93,6 +86,9 @@ its limits. These gaps are recorded only here:
   `impl[K, V] Iterable[(K, V)] for Map[K, V]` without `K < Eq & Hash`,
   which a std-only exception in the checker allows. The spec's std writes
   the bound and has no such exception.
+- Closures: a suspending closure in a generic function reaches no bound
+  dictionary, so its body cannot call a method through the enclosing
+  function's bounds. A non-suspending closure can.
 - Strings: `slice` copies its bytes instead of sharing them, so it takes
   linear time (`module.string.slice`, `.slice.shared`), because the
   runtime `string` is a bare byte array.
