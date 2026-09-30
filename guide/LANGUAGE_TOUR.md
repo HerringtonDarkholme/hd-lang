@@ -2575,7 +2575,10 @@ fn value(c: mut Choices) -> Value:
 `@derive(Arbitrary)` derives one, and one member fact,
 `arbitrary.with(gen)`, draws a member with a generator of your own. The
 compiler does not check that generator against the member's type, so a
-wrong one panics on the first case and names the member and both types. The default
+wrong one panics on the first case and names the member and both types.
+Every member, tuned or not, must implement `Arbitrary` and be
+inspectable; a type with a function-typed member writes its own
+`impl Arbitrary` instead. The default
 `f32` and `f64` generators include NaN, the infinities, and `-0.0`, while
 `c.float(lo, hi)` stays finite:
 
@@ -2600,12 +2603,13 @@ tests:
 
 The derived `Arbitrary` is an ordinary `std.testing` template. It reads
 each variant's and member's `self_ref` from `std.structure`: `.Absent`
-when the type never holds itself, `.Optional` when it does only inside a
-list, map, or optional, and `.Required` when even its simplest value does.
-An enum's simplest variant is its first one that is not `.Required`. An
+when the member's type never holds the type being derived, `.Optional`
+when it does only inside a list, map, or optional, and `.Required` when
+it holds that type directly, or through tuples, data types, a `Result`'s
+`.Ok`, or an enum whose every variant does. An enum's simplest variant is its first one that is not `.Required`. An
 enum whose every variant is `.Required`, or a data type with a
 `.Required` member, has no finite value, and its property panics on the
-first case.
+first case with a message such as `Loop has no finite value`.
 
 The test-case functions are called only directly at the top level of test
 code, never as values, so a tool can list every test without running it.
