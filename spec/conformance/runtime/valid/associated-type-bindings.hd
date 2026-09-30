@@ -51,6 +51,6 @@ tests:
         assert_equal(projected(Counter { start: 3 }, 3), 3, reason="I::Item is T")
 
     it("an implementation parameter is constrained through a binding"):
-        feed := Feed[Counter] { source: Counter { start: 5 } }
+        feed := Feed::[Counter] { source: Counter { start: 5 } }
         assert_equal(feed.to_string(), "feed of 5", reason="direct method call")
         assert_equal(show(feed), "feed of 5", reason="through a Display bound")

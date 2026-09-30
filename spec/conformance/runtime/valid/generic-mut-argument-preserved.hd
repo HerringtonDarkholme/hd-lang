@@ -20,7 +20,7 @@ tests:
 
     it("a readonly Box[mut User] field read yields mut User"):
         let mut user = User { name: "Ada" }
-        let box: Box[mut User] = Box[mut User] { value: user }
+        let box: Box[mut User] = Box::[mut User] { value: user }
         let inner: mut User = box.value
         inner.name = "Lin"
         assert_equal(user.name, "Lin", reason="generic field keeps its substituted type")

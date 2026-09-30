@@ -8,4 +8,4 @@ fn echo![Value](value: Value) -> Value:
 
 tests:
     it("a generic suspending function takes its type arguments after the bang"):
-        assert_equal(echo![i32](42), 42, reason="the explicit type argument follows the bang")
+        assert_equal(echo!::[i32](42), 42, reason="the explicit type argument follows the bang")

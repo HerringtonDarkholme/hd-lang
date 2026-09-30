@@ -11,17 +11,17 @@ data Post:
     title: string
 
 fn user_name(value: Inspectable) -> string:
-    match value.downcast[User]():
+    match value.downcast::[User]():
         .Some(user) => user.name
         .None => "not a user"
 
 fn post_title(value: Inspectable) -> string:
-    match value.downcast[Post]():
+    match value.downcast::[Post]():
         .Some(post) => post.title
         .None => "not a post"
 
 fn number(value: Inspectable) -> i32:
-    match downcast_val[i32](value):
+    match downcast_val::[i32](value):
         .Some(found) => found
         .None => -1
 
@@ -31,7 +31,7 @@ tests:
         let erased: Inspectable = user
         assert_equal(user_name(erased), "Ada", reason="the exact type matches")
         assert_equal(post_title(erased), "not a post", reason="another type does not")
-        match erased.downcast[User]():
+        match erased.downcast::[User]():
             .Some(found) => assert(found is user, reason="the same reference is recovered")
             .None => assert(false, reason="the downcast must succeed")
 
@@ -45,6 +45,6 @@ tests:
     it("a concrete value is erased at the call or uses its own implementation"):
         user := User { name: "Grace" }
         assert_equal(user_name(user), "Grace", reason="User converts to Inspectable by assignability")
-        match user.downcast[User]():
+        match user.downcast::[User]():
             .Some(found) => assert(found is user, reason="a concrete receiver recovers itself")
             .None => assert(false, reason="the downcast must succeed")

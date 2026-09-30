@@ -15,7 +15,7 @@ impl Store[mut User] for Shelf:
     fn keep(self, value: mut User) -> i32: 2
 
 fn readonly_store(shelf: Shelf, user: User) -> i32:
-    Store[User]::keep(shelf, user)
+    Store::[User]::keep(shelf, user)
 
 fn mutable_store(shelf: Shelf, user: mut User) -> i32:
-    Store[mut User]::keep(shelf, user)
+    Store::[mut User]::keep(shelf, user)

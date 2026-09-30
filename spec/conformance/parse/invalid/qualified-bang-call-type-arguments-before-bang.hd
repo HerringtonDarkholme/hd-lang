@@ -7,4 +7,4 @@ impl Identity:
         value
 
 fn run!() -> i32:
-    Identity::echo[i32]!(42)  # diagnostic: syntax-error
+    Identity::echo::[i32]!(42)  # diagnostic: syntax-error

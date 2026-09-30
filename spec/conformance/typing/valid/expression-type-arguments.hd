@@ -1,0 +1,11 @@
+# test: explicit type arguments in an expression follow `::`, and a type keeps its brackets
+# Spec 02 Type Arguments In Expressions: grammar.expr.type-arguments.marker, grammar.expr.type-arguments.type-name, grammar.expr.type-arguments.in-types (owner decisions CI1, CI3).
+
+data Box[T]:
+    value: T
+
+fn first[T](items: List[T]) -> T: items[0]
+
+fn demo(names: List[string]) -> Box[string]:
+    head := first::[string](names)
+    Box::[string] { value: head }

@@ -21,7 +21,7 @@ fn count(values: List[i32]) -> i32:
     copied.len()
 
 fn explicit(names: List[string]) -> i32:
-    by_name := names.iter().map(fn(name): (name, 1)).collect[Map[string, i32]]()
+    by_name := names.iter().map(fn(name): (name, 1)).collect::[Map[string, i32]]()
     by_name.len()
 
 fn propagated(lines: List[string]) -> Result[i32, string]:

@@ -401,7 +401,7 @@ fn provide_log[R](callback: fn() -> void $ R + Log) -> void $ R:
     pass
 
 fn run() -> void $ AppRow:
-    provide_log[AppRow](logged)
+    provide_log::[AppRow](logged)
 ```
 
 ```text
@@ -605,7 +605,7 @@ fn with_tag[R](callback: fn() -> string $ R + Tag) -> string $ R:
 
 fn run() -> string:
     $.with(Tag=Named { label: "outer" }):
-        with_tag[Tag](read_tag)  # "inner": the callee installs the nearer Tag
+        with_tag::[Tag](read_tag)  # "inner": the callee installs the nearer Tag
 ```
 
 > **Why.** One rule finds every provider: the nearest scope that binds the

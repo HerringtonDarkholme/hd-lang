@@ -32,4 +32,4 @@ tests:
         assert_equal(User::label(), "inherent", reason="inherent first")
 
     it("a type parameter calls through its bound"):
-        assert_equal(make[User]().name, "made", reason="bound evidence supplies create")
+        assert_equal(make::[User]().name, "made", reason="bound evidence supplies create")

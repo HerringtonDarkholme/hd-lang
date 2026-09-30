@@ -13,5 +13,5 @@ impl Identity for Picker:
 
 tests:
     it("dot and trait-qualified calls with explicit type arguments"):
-        assert_equal(Picker {}.select[i32](42), 42, reason="dot call with explicit type argument")
-        assert_equal(Identity::select[i32](Picker {}, 42), 42, reason="trait-qualified call with explicit type argument")
+        assert_equal(Picker {}.select::[i32](42), 42, reason="dot call with explicit type argument")
+        assert_equal(Identity::select::[i32](Picker {}, 42), 42, reason="trait-qualified call with explicit type argument")

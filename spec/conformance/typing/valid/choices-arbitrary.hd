@@ -15,4 +15,4 @@ fn small_counts(c: mut Choices) -> List[i64]:
 
 fn anything(c: mut Choices) -> (Point, bool, string, f64, string):
     c.assume(true)
-    (c.draw[Point](), c.bool(), c.string(8), c.float(0.0, 1.0), c.pick(["a", "b"]))
+    (c.draw::[Point](), c.bool(), c.string(8), c.float(0.0, 1.0), c.pick(["a", "b"]))

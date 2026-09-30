@@ -16,4 +16,4 @@ impl Duration:
 tests:
     it("qualified associated calls with and without type arguments"):
         assert_equal(Duration::days(30).day_count, 30, reason="ordinary associated function")
-        assert_equal(Duration::choose[i32](42), 42, reason="explicit type argument after the name")
+        assert_equal(Duration::choose::[i32](42), 42, reason="explicit type argument after the name")

@@ -478,7 +478,7 @@ fn bumper(counter: mut Counter) -> fn(i32) -> void:
 6. r[fn.ref.lookup.ambiguous] Two trait candidates for one name are an error. Error: `ambiguous-method`.
 7. r[fn.ref.trait-self] For `Trait::name`, `Self` is inferred from the expected function type, as a generic function value's parameters are.
 8. r[fn.ref.trait-self.unsolved] A trait reference whose `Self` nothing determines is an error. Error: `unresolved-generic-placeholder`.
-9. r[fn.ref.generic] A generic member's reference writes its type arguments after the name, as in `Json::decode[User]`, and the owner's before `::`, as in `Box[i32]::get`.
+9. r[fn.ref.generic] A generic member's reference writes its type arguments after the name, as in `Json::decode::[User]`, and the owner's before the member's `::`, as in `Box::[i32]::get`.
 10. r[fn.ref.generic.instantiate] Every type parameter of the member is instantiated as for a [generic function value](#generic-function-values).
 11. r[fn.ref.bound] `value::name`, where `value` names a value rather than a type or trait, is a **bound method reference**.
 12. r[fn.ref.bound.capture] It evaluates `value` once, when the reference is created, and captures that receiver. Calling the reference later calls the method on the captured receiver, whatever `value` names by then.
@@ -777,14 +777,15 @@ Callers may rely on inference or write an explicit type argument list:
 
 ```text
 first(names)
-first[string](names)
+first::[string](names)
 ```
 
 1. r[fn.generic.parameters] Generic parameters follow the function name.
 2. r[fn.generic.bounds-and] Trait bounds compose with `&`.
 3. r[fn.generic.call-list] Callers may rely on inference or write an explicit type argument list, which may omit trailing slots.
-4. r[fn.generic.erased] Generic parameters are erased by default.
-5. r[fn.generic.reified] `reified T` requests runtime type metadata, as defined in [Type System](04-type-system.md).
+4. r[fn.generic.call-marker] In an expression, the explicit list follows `::`, as in `first::[string](names)`, while a type keeps `List[string]`.
+5. r[fn.generic.erased] Generic parameters are erased by default.
+6. r[fn.generic.reified] `reified T` requests runtime type metadata, as defined in [Type System](04-type-system.md).
 
 ### Explicit Type Arguments
 
@@ -796,7 +797,7 @@ first[string](names)
 fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
     (left, right)
 
-value := pair[string]("left", 1)  # Right is inferred as i32
+value := pair::[string]("left", 1)  # Right is inferred as i32
 ```
 
 ```text
@@ -804,7 +805,7 @@ fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
     (left, right)
 
 fn triple() -> (string, i32):
-    pair[string, i32, bool]("left", 1)  # error: argument-count
+    pair::[string, i32, bool]("left", 1)  # error: argument-count
 ```
 
 > **Why.** A list names only the leading arguments the reader should see or
@@ -817,7 +818,7 @@ An explicit list may write `_` in any slot to infer that argument:
 fn convert[From, To](value: From) -> To:
     ...
 
-user := convert[_, User](payload)
+user := convert::[_, User](payload)
 ```
 
 1. r[fn.generic.placeholder] An explicit list may write `_` in any slot to infer that argument.
@@ -830,7 +831,7 @@ user := convert[_, User](payload)
 fn make[T]() -> T:
     panic("not implemented")
 
-value := make[_]()  # error: unresolved-generic-placeholder
+value := make::[_]()  # error: unresolved-generic-placeholder
 ```
 
 ### Generic Methods And Qualified Calls
@@ -838,19 +839,18 @@ value := make[_]()  # error: unresolved-generic-placeholder
 The same explicit-list rules apply to generic methods:
 
 ```text
-parser.parse[User](text)
-parser.convert[_, User](payload)
+parser.parse::[User](text)
+parser.convert::[_, User](payload)
 ```
 
 1. r[fn.generic.methods] The same explicit-list rules apply to generic methods.
 2. r[fn.generic.qualified] They also apply to qualified calls of generic associated functions and trait methods.
-3. r[fn.generic.qualified.member-list] The method-level list follows the member name, as in `Type::name[T](...)` and `Trait::name[T](receiver, ...)`.
-4. r[fn.generic.qualified.owner-list] Type arguments of the qualifying type or trait stay before `::`, as in `Add[Money]::add(left, right)`.
+3. r[fn.generic.qualified.member-list] The method-level list follows the member name, as in `Type::name::[T](...)` and `Trait::name::[T](receiver, ...)`.
+4. r[fn.generic.qualified.owner-list] Type arguments of the qualifying type or trait stay before the member's `::`, as in `Add::[Money]::add(left, right)`.
 5. r[fn.generic.bang] A bang call keeps the `!` on the name, as the declaration does, and writes the list after it.
-6. r[fn.generic.bang.examples] `fn all![Ts...](...)` is called as `all![i32, string](a, b)`, and suspending methods as `parser.load![User](text)` and `Store::load![User](key)`.
-7. r[fn.generic.brackets] Name resolution distinguishes the brackets from an indexing operation.
-8. r[fn.generic.method-inference] A generic method may still rely entirely on inference by omitting the list.
-9. r[fn.generic.dot-member-value] A dot member with type arguments and no call, as in `parser.parse[User]`, is not a function value; the reference form is `parser::parse[User]`.
+6. r[fn.generic.bang.examples] `fn all![Ts...](...)` is called as `all!::[i32, string](a, b)`, and suspending methods as `parser.load!::[User](text)` and `Store::load!::[User](key)`.
+7. r[fn.generic.method-inference] A generic method may still rely entirely on inference by omitting the list.
+8. r[fn.generic.dot-member-value] A dot member with type arguments and no call, as in `parser.parse::[User]`, is not a function value; the reference form is `parser::parse::[User]`.
 
 ## Methods And Receivers
 
@@ -865,7 +865,7 @@ impl User:
     fn tagged[T](self, value: T) -> T:
         value
 
-label := user.tagged[string]("admin")
+label := user.tagged::[string]("admin")
 ```
 
 1. r[fn.method.form] Functions declared in `impl` blocks are methods when their first parameter is `self` or `mut self`.
@@ -936,7 +936,7 @@ This section defines program entry functions.
 Method values are written as `::` [method references](#method-references).
 The rules below still hold:
 
-1. r[fn.unsupported.qualified-call] A qualified call such as `User::guest()`, `Display::to_string(value)`, or `Add[Money]::add(left, right)` remains an ordinary call.
+1. r[fn.unsupported.qualified-call] A qualified call such as `User::guest()`, `Display::to_string(value)`, or `Add::[Money]::add(left, right)` remains an ordinary call.
 2. r[fn.unsupported.closure-adapter] An explicit closure, such as `fn(user: User) -> string: user.domain()`, adapts a method where a function value is needed.
 3. r[fn.unsupported.variant-value] A variant constructor with exactly one payload field, written `Enum.Variant` with a `.` and no argument clause, is already a function value.
 4. r[fn.unsupported.variant-multi] A constructor with two or more payload fields stays an error. Error: `unsaturated-enum-constructor`.

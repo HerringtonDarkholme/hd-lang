@@ -3,6 +3,6 @@
 use std.inspect.Inspectable
 
 fn number(value: Inspectable) -> i32:
-    match value.downcast[i32]():  # diagnostic: unsatisfied-trait-bound
+    match value.downcast::[i32]():  # diagnostic: unsatisfied-trait-bound
         .Some(found) => found
         .None => 0

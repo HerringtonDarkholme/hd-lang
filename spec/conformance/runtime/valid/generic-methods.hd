@@ -20,7 +20,7 @@ impl Identity:
 
 fn explicit_right() -> i32:
     identity := Identity {}
-    pair := identity.pair[string, i32]("left", 42)
+    pair := identity.pair::[string, i32]("left", 42)
     pair._1
 
 fn inferred_right() -> i32:
@@ -30,7 +30,7 @@ fn inferred_right() -> i32:
 
 fn bounded_display() -> i32:
     identity := Identity {}
-    if identity.render[Label](Label { value: "label" }) == "label": 1
+    if identity.render::[Label](Label { value: "label" }) == "label": 1
     else: 0
 
 tests:

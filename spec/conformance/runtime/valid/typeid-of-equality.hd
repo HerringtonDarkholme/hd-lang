@@ -16,22 +16,22 @@ fn of_value(value: Inspectable) -> TypeId:
 tests:
     it("TypeId::of agrees with runtime_type"):
         user := User { name: "Ada" }
-        assert(of_value(user) == TypeId::of[User](), reason="a User records User")
-        assert(of_value(7) == TypeId::of[i32](), reason="an i32 records i32")
-        assert(of_value(7) != TypeId::of[string](), reason="i32 is not string")
+        assert(of_value(user) == TypeId::of::[User](), reason="a User records User")
+        assert(of_value(7) == TypeId::of::[i32](), reason="an i32 records i32")
+        assert(of_value(7) != TypeId::of::[string](), reason="i32 is not string")
 
     it("only the outer mut is ignored"):
-        assert(TypeId::of[mut User]() == TypeId::of[User](), reason="the outer mut is ignored")
-        assert(TypeId::of[List[mut User]]() != TypeId::of[List[User]](), reason="an inner mut is part of identity")
-        assert(TypeId::of[List[mut User]]().to_string() != TypeId::of[List[User]]().to_string(), reason="the printable name shows an inner mut")
+        assert(TypeId::of::[mut User]() == TypeId::of::[User](), reason="the outer mut is ignored")
+        assert(TypeId::of::[List[mut User]]() != TypeId::of::[List[User]](), reason="an inner mut is part of identity")
+        assert(TypeId::of::[List[mut User]]().to_string() != TypeId::of::[List[User]]().to_string(), reason="the printable name shows an inner mut")
 
     it("type arguments are part of identity"):
-        assert(TypeId::of[Box[i32]]() != TypeId::of[Box[string]](), reason="Box[i32] and Box[string] differ")
-        assert(TypeId::of[i32?]() != TypeId::of[i32](), reason="i32? and i32 differ")
+        assert(TypeId::of::[Box[i32]]() != TypeId::of::[Box[string]](), reason="Box[i32] and Box[string] differ")
+        assert(TypeId::of::[i32?]() != TypeId::of::[i32](), reason="i32? and i32 differ")
 
     it("printable names of prelude types"):
-        assert_equal(TypeId::of[i32]().to_string(), "i32", reason="a primitive prints as written")
-        assert_equal(TypeId::of[List[string]]().to_string(), "List[string]", reason="List prints unqualified")
-        assert_equal(TypeId::of[Map[string, i32]]().to_string(), "Map[string, i32]", reason="Map prints unqualified")
-        assert_equal(TypeId::of[i32?]().to_string(), "i32?", reason="Option prints as T?")
-        assert_equal(TypeId::of[(i32, string)]().to_string(), "(i32, string)", reason="a tuple prints as (A, B)")
+        assert_equal(TypeId::of::[i32]().to_string(), "i32", reason="a primitive prints as written")
+        assert_equal(TypeId::of::[List[string]]().to_string(), "List[string]", reason="List prints unqualified")
+        assert_equal(TypeId::of::[Map[string, i32]]().to_string(), "Map[string, i32]", reason="Map prints unqualified")
+        assert_equal(TypeId::of::[i32?]().to_string(), "i32?", reason="Option prints as T?")
+        assert_equal(TypeId::of::[(i32, string)]().to_string(), "(i32, string)", reason="a tuple prints as (A, B)")

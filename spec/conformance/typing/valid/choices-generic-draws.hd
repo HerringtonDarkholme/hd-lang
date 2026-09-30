@@ -16,7 +16,7 @@ fn ratio(c: mut Choices) -> f32:
     c.float(0.0, 1.0)
 
 fn any_float(c: mut Choices) -> f64:
-    c.draw[f64]()
+    c.draw::[f64]()
 
 fn digits(c: mut Choices) -> List[u8]:
     c.list(50, byte)

@@ -25,14 +25,14 @@ impl Display for HttpError:
 impl Error for HttpError
 
 fn missing_path(error: Error) -> string:
-    match error.downcast[FsError]():
+    match error.downcast::[FsError]():
         .Some(found) =>
             match found:
                 FsError.NotFound(path) => path
         .None => "other: " + error.to_string()
 
 fn is_error_target(error: Error) -> bool:
-    match error.downcast[Error]():
+    match error.downcast::[Error]():
         .Some(_) => true
         .None => false
 

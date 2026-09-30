@@ -17,5 +17,5 @@ tests:
         assert_equal(apply(identity, 42), 42, reason="T solved as i32 from the parameter type")
 
     it("instantiated with explicit arguments"):
-        g := identity[i32]
+        g := identity::[i32]
         assert_equal(g(7), 7, reason="explicit instantiation")

@@ -15,7 +15,7 @@ impl[T] Source for Box[T]:
     fn get(self) -> T: self.value
 
 fn projected_value() -> i32:
-    Box[i32] { value: 42 }.get()
+    Box::[i32] { value: 42 }.get()
 
 data FixedSource: pass
 
@@ -34,7 +34,7 @@ fn bounded_projected_value() -> i32:
     read_source(FixedSource {})
 
 fn generic_bounded_projected_value() -> i32:
-    read_source(Box[i32] { value: 42 })
+    read_source(Box::[i32] { value: 42 })
 
 tests:
     it("projected_value returns 42"):

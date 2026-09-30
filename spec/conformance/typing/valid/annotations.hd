@@ -25,5 +25,5 @@ data User:
 impl User by Structure:
     name = [min_len(1), max_len(80)]
 
-user_shape := shape[User]()
-limit := user_shape.fields.name.metadata[MaxLen]()
+user_shape := shape::[User]()
+limit := user_shape.fields.name.metadata::[MaxLen]()

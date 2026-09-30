@@ -22,7 +22,7 @@ fn provide_log[R](callback: fn() -> void $ R + Log) -> void $ R:
     pass
 
 fn run() -> void $ AppRow:
-    provide_log[AppRow](logged)
+    provide_log::[AppRow](logged)
 
 fn load!() -> string $ Db + Cache:
     "loaded"

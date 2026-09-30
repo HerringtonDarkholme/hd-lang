@@ -16,7 +16,7 @@ The language tier names a std item only when the compiler must know it:
 
 - a lang item, such as `Iterable` for `for`, `std.process.Termination`, or
   a `std.ops` operator trait;
-- an intrinsic, such as `List.append`, `string.len`, or `shape[T]()`;
+- an intrinsic, such as `List.append`, `string.len`, or `shape::[T]()`;
 - a prelude name and its signature;
 - test registration that the compiler checks, such as `it_each` and
   `it_prop`;

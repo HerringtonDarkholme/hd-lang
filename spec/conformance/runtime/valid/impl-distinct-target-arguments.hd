@@ -30,4 +30,4 @@ tests:
     it("each exact instantiation has its own implementation"):
         assert_equal(Box { value: 1 }.describe(), "int box", reason="Box[i32]")
         assert_equal(Box { value: "s" }.describe(), "string box s", reason="Box[string]")
-        assert_equal(Convert[i32]::convert(Box { value: "s" }), "cross", reason="joint substitution keeps them apart")
+        assert_equal(Convert::[i32]::convert(Box { value: "s" }), "cross", reason="joint substitution keeps them apart")

@@ -660,8 +660,8 @@ pub trait IndexSet[K, V]:
 ```
 
 1. r[expr.index.trait.std] `std.ops` declares `Index[K]`, with an associated type `Out`, and `IndexSet[K, V]`, as shown above.
-2. r[expr.index.trait.read-other] For a receiver whose type is not `List`, `Map`, or `string`, a type parameter included, reading `r[k]` is the call `Index[K]::index(r, k)`, and its type is that implementation's `Out`.
-3. r[expr.index.trait.write] Assigning `r[k] = v` to such a receiver is the call `IndexSet[K, V]::index_set(r, k, v)`.
+2. r[expr.index.trait.read-other] For a receiver whose type is not `List`, `Map`, or `string`, a type parameter included, reading `r[k]` is the call `Index::[K]::index(r, k)`, and its type is that implementation's `Out`.
+3. r[expr.index.trait.write] Assigning `r[k] = v` to such a receiver is the call `IndexSet::[K, V]::index_set(r, k, v)`.
 4. r[expr.index.trait.choice] The candidates are chosen as for a binary operator, by the receiver's type, then by the key and, for a store, the value.
 5. r[expr.index.trait.no-use] Neither call needs a `use` of the trait.
 6. r[expr.index.trait.mut] `index_set` takes `mut self`, so a store needs mutable access to the receiver, as any `mut self` call does.
@@ -793,7 +793,7 @@ fn total(values: List[i32]) -> i32: fixed(values...)  # error: positional-spread
 Explicit generic arguments occur before the call argument list:
 
 ```text
-first[string](names)
+first::[string](names)
 ```
 
 1. r[expr.call.generic.position] Generic arguments, when explicit, occur before the call argument list.
@@ -1248,7 +1248,7 @@ pub trait Neg:
 6. r[expr.op.trait.rhs-explicit] The explicit form, such as `impl Add[Money] for Money`, stays valid and names the same trait.
 7. r[expr.op.trait.unary-shape] `Neg` and `Not` take no argument. Each declares `Out` and one method `fn m(self) -> Self::Out`.
 8. r[expr.op.primitive] When every operand is primitive after literal typing, the built-in rules of this chapter and [Type System](04-type-system.md) decide the operator, and no trait is searched.
-9. r[expr.op.desugar] Otherwise `a op b` is the trait-qualified call `Op[R]::m(a, b)` of the operator's trait, as in `Add[R]::add(a, b)`. Likewise `-a` is `Neg::neg(a)` and `~a` is `Not::not(a)`.
+9. r[expr.op.desugar] Otherwise `a op b` is the trait-qualified call `Op::[R]::m(a, b)` of the operator's trait, as in `Add::[R]::add(a, b)`. Likewise `-a` is `Neg::neg(a)` and `~a` is `Not::not(a)`.
 10. r[expr.op.no-use] The call needs no `use` of the trait.
 11. r[expr.op.left-dispatch] The left operand's type selects the implementation. Its instantiations of the trait are the candidates, and [Instantiations Of One Generic Trait](09-traits.md#instantiations-of-one-generic-trait) chooses among them by the right operand.
 12. r[expr.op.left-dispatch.example] So `price * 3` checks `3` against `i64` in `Mul[i64]`.
@@ -1412,7 +1412,7 @@ fn tidy(raw: string) -> string:
 3. r[expr.pipe.bare.method] When the path's prefix names a value, the call is a method call on that value: `x |> user.greet` means `user.greet(x)`.
 4. r[expr.pipe.bare.no-suspend] A bare step whose callee is a suspending function is an error. Write a substitution step, as in `x |> load!(_)`. Error: `suspending-pipe-step`.
 5. r[expr.pipe.bare.needs-placeholder] A step without `_` that is not a bare step is an error. Error: `pipe-step-needs-placeholder`.
-6. r[expr.pipe.bare.needs-placeholder.forms] That covers a call such as `x |> f(y)`, brackets such as `x |> f[0]` or `x |> parse[i32]`, and a suffix such as `x |> f?`.
+6. r[expr.pipe.bare.needs-placeholder.forms] That covers a call such as `x |> f(y)`, an index such as `x |> f[0]`, type arguments such as `x |> parse::[i32]`, and a suffix such as `x |> f?`.
 7. r[expr.pipe.bare.method-reference] A [method reference](07-functions.md#method-references) without type arguments, such as `Config::parse`, is also a bare step: `raw |> Config::parse` means `Config::parse(raw)`.
 
 ```text
@@ -1428,9 +1428,9 @@ fn loaded!(n: i32) -> i32:
 ```
 
 > **Why.** Elixir reads `x |> f(y)` as `f(x, y)`, and F# reads it as
-> `f(y)(x)`. Rejecting the form removes both readings. Brackets after a bare
-> name could index the function or give it type arguments, so they need `_`
-> too. A suspending bare step would suspend with no visible `!`.
+> `f(y)(x)`. Rejecting the form removes both readings. A bare step is only
+> a name or path, so an index or type arguments after it need `_` too. A
+> suspending bare step would suspend with no visible `!`.
 
 ### Pipe Layout
 

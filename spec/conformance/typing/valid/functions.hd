@@ -49,7 +49,7 @@ fn with_user(callback: fn() -> User) -> User:
 
 fn example(users: List[User]) -> User? $ Console:
     _ := resize(640, height=480)
-    value := first[User](users)
+    value := first::[User](users)
     total := sum(1, 2, 3)
     println(connect("localhost", port=8080))
     println(total)
@@ -59,4 +59,4 @@ fn example(users: List[User]) -> User? $ Console:
 
 names := ["Ada", "Grace"]
 _ := first(names)
-_ := first[string](names)
+_ := first::[string](names)

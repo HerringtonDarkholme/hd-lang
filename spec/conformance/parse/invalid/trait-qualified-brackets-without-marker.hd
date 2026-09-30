@@ -1,0 +1,8 @@
+# test: a trait-qualified call writes the trait's arguments after `::`
+# Spec 02 Type Arguments In Expressions: grammar.expr.type-arguments.unmarked (owner decision CI3).
+
+trait Add[T]:
+    fn add(self, other: T) -> T
+
+fn total(price: i32) -> i32:
+    Add[i32]::add(price, 5)  # diagnostic: syntax-error

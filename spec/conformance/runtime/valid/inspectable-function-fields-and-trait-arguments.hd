@@ -14,12 +14,12 @@ impl Display for Label:
     fn to_string(self) -> string: self.text
 
 fn run_handler(value: Inspectable) -> i32:
-    match value.downcast[Handler]():
+    match value.downcast::[Handler]():
         .Some(handler) => (handler.run)()
         .None => 0
 
 fn joined(value: Inspectable) -> string:
-    match value.downcast[List[Display]]():
+    match value.downcast::[List[Display]]():
         .Some(parts) =>
             let text: string = ""
             for part in parts:

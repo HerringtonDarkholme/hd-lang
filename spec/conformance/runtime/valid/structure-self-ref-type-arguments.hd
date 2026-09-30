@@ -45,4 +45,4 @@ enum Nest[T]:
 tests:
     it("the enclosing type with other type arguments is still the enclosing type"):
         expected := "Leaf=absent;value=absent;Deep=required;next=required;"
-        assert_equal(Nest[Tag]::shape(), expected, reason="Nest[List[T]] is the enclosing type")
+        assert_equal(Nest::[Tag]::shape(), expected, reason="Nest[List[T]] is the enclosing type")

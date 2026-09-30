@@ -32,12 +32,12 @@ impl Encode for string:
         "'$self'"
 
 fn style_of(facts: Facts) -> Style:
-    match facts.find[Style]():
+    match facts.find::[Style]():
         .Some(found) => found
         .None => Style {}
 
 fn key_for(style: Style, m: Member) -> string:
-    match m.facts.find[Rename]():
+    match m.facts.find::[Rename]():
         .Some(r) => r.name
         .None => style.prefix + m.name
 

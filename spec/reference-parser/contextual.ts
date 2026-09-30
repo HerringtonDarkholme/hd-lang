@@ -201,7 +201,7 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
     diagnostics.push(diagnostic("multi-binding-needs-parentheses", line));
   // A qualified bang call writes its type arguments after `!`
   // (chapter 02 `grammar.primary.method-reference.no-bang`).
-  if (/::[\p{L}_][\p{L}\p{N}_]*\[(?:[^[\]]|\[[^[\]]*\])*\]!\(/u.test(clean))
+  if (/::[\p{L}_][\p{L}\p{N}_]*::\[(?:[^[\]]|\[[^[\]]*\])*\]!\(/u.test(clean))
     diagnostics.push(diagnostic("syntax-error", line));
   // A bracketed control-flow expression or closure may end its header line
   // in `:`; only a call colon inside brackets is a misplaced trailing block.
@@ -224,7 +224,8 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
   if (
     !new Set(["data", "enum", "trait", "impl"]).has(parent) &&
     !reserved.has(firstWord) &&
-    /^[\p{L}_][\p{L}\p{N}_]*\s*:\s*[^=]+(?<![!<>])=(?!=)/u.test(clean)
+    // `name::[...]` is a type-argument list, not an annotation.
+    /^[\p{L}_][\p{L}\p{N}_]*\s*:(?!:)\s*[^=]+(?<![!<>])=(?!=)/u.test(clean)
   )
     diagnostics.push(diagnostic("missing-let", line));
   return diagnostics;

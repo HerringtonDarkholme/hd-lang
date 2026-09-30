@@ -18,4 +18,4 @@ fn direct_replaced_copy(source: Direct) -> mut Direct:
     Direct { ...source, child: Child { name: "new" } }
 
 fn generic_copy(source: Box[mut Child]) -> mut Box[mut Child]:
-    Box[mut Child] { ...source }
+    Box::[mut Child] { ...source }

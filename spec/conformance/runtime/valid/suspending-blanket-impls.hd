@@ -34,9 +34,9 @@ fn score_bound![T < AsyncScore](value: T) -> i32:
 
 tests:
     it("blanket dictionaries retain their erased suspending ABI"):
-        let dynamic: Read[i32] = Box[i32] { value: 20 }
+        let dynamic: Read[i32] = Box::[i32] { value: 20 }
         direct := dynamic.read!()
-        bounded := read_bound!(Box[i32] { value: 22 })
+        bounded := read_bound!(Box::[i32] { value: 22 })
         assert_equal(
             direct + bounded,
             42,

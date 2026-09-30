@@ -48,4 +48,4 @@ tests:
         assert_equal(Shape::type_name(), "Shape", reason="the declared name")
 
     it("a generic type's name has no type arguments"):
-        assert_equal(Box[Point]::type_name(), "Box", reason="no type arguments")
+        assert_equal(Box::[Point]::type_name(), "Box", reason="no type arguments")

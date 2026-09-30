@@ -12,18 +12,18 @@ data Post:
 
 fn first_of[T < AnyRef & Inspectable](items: List[Inspectable]) -> T?:
     for item in items:
-        match item.downcast[T]():
+        match item.downcast::[T]():
             .Some(found) => return .Some(found)
             .None => pass
     .None
 
 fn first_user_name(items: List[Inspectable]) -> string:
-    match first_of[User](items):
+    match first_of::[User](items):
         .Some(user) => user.name
         .None => "none"
 
 fn first_post_title(items: List[Inspectable]) -> string:
-    match first_of[Post](items):
+    match first_of::[Post](items):
         .Some(post) => post.title
         .None => "none"
 

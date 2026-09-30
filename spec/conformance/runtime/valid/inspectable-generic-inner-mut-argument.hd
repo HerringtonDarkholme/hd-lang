@@ -11,7 +11,7 @@ fn erase_list[T < Inspectable](values: List[T]) -> Inspectable:
     values
 
 fn is_owner_list(value: Inspectable) -> bool:
-    match value.downcast[List[mut User]]():
+    match value.downcast::[List[mut User]]():
         .Some(_) => true
         .None => false
 

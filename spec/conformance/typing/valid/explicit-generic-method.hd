@@ -6,8 +6,8 @@ impl Identity:
         (left, right)
 
 identity := Identity { name: "identity" }
-explicit := identity.pair[string, i32]("left", 1)
-inferred := identity.pair[_, i32]("left", 1)
+explicit := identity.pair::[string, i32]("left", 1)
+inferred := identity.pair::[_, i32]("left", 1)
 
 fn convert[From, To](value: From) -> To:
     panic("fixture does not convert")
@@ -19,8 +19,8 @@ impl Parser:
         panic("fixture does not parse")
 
 parser := Parser {}
-parsed := parser.parse[Identity]("identity")
-converted := convert[_, Identity](identity)
+parsed := parser.parse::[Identity]("identity")
+converted := convert::[_, Identity](identity)
 
 data User:
     email: string
@@ -33,4 +33,4 @@ impl User:
         value
 
 user := User { email: "ada@example.com" }
-label := user.tagged[string]("admin")
+label := user.tagged::[string]("admin")

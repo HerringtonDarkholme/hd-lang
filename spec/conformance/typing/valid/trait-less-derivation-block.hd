@@ -20,5 +20,5 @@ impl User by Structure:
     name += [min_len(1)]
     email = [max_len(320)]
 
-name_floor := shape[User]().fields.name.metadata[MinLen]()
-email_limit := shape[User]().fields.email.metadata[MaxLen]()
+name_floor := shape::[User]().fields.name.metadata::[MinLen]()
+email_limit := shape::[User]().fields.email.metadata::[MaxLen]()

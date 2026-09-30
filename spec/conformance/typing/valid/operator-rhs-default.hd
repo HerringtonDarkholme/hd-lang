@@ -25,7 +25,7 @@ fn net(price: Money, refund: Money) -> Money:
     spread(total(price, refund), refund)
 
 fn explicit(price: Money, refund: Money) -> Money:
-    Add[Money]::add(price, refund)
+    Add::[Money]::add(price, refund)
 
 fn count(left: i32, right: i32) -> i32:
     total(left, right)

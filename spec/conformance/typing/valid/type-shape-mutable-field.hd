@@ -6,4 +6,4 @@ data Cell:
 data Holder:
     cell: mut Cell
 
-holder_shape := shape[Holder]()
+holder_shape := shape::[Holder]()

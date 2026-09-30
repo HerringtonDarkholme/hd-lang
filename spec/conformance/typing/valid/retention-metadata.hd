@@ -21,4 +21,4 @@ data Post:
     userId: UserId
 
 impl Post by Structure:
-    userId = [retention_owner(shape[User]()), delete_when(shape[User]().fields.deleted)]
+    userId = [retention_owner(shape::[User]()), delete_when(shape::[User]().fields.deleted)]

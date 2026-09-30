@@ -3,6 +3,6 @@
 use std.inspect.Inspectable
 
 fn shown(value: Inspectable) -> bool:
-    match value.downcast[Display]():  # diagnostic: unsatisfied-trait-bound
+    match value.downcast::[Display]():  # diagnostic: unsatisfied-trait-bound
         .Some(_) => true
         .None => false

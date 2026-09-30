@@ -625,7 +625,7 @@ fn label[T < Named + Tagged](value: T) -> string: value.name()  # error: old-bou
 1. r[grammar.generic.binding] A trait in a generic parameter bound may end its bracketed arguments with associated type bindings: `I < Supplier[Item = T]` requires `I` to implement `Supplier` with `I::Item` equal to `T`.
 2. r[grammar.generic.binding.order] Bindings follow every positional type argument.
 3. r[grammar.generic.binding.positions-key] Bindings are valid in `trait_bounds`, in `supertrait_bounds`, as in `trait Summable < Add[Out = Self]`, in a `named_type`, as in the trait value type `Supplier[Item = i32]`, and in a `requirement_key`, as in `$ Store[Item = User]`.
-4. r[grammar.generic.binding.trait-type-only] The trait of an implementation header, a trait-qualified call, and a method reference is a `trait_type`, whose arguments take no binding. A binding there is an error. Error: `syntax-error`.
+4. r[grammar.generic.binding.trait-type-only] The trait of an implementation header is a `trait_type`, and the qualifier of a trait-qualified call or a method reference is an `expression_trait_type`. Neither takes a binding in its arguments. A binding there is an error. Error: `syntax-error`.
 5. r[grammar.generic.binding.named-type] Only a trait value type gives a binding in a `named_type` a meaning; [Binding Positions](09-traits.md#binding-positions) rejects one elsewhere.
 
 ```text
@@ -968,13 +968,14 @@ unary_expression = ( "+" | "-" | "~" | "!" ), unary_expression
 power_expression = postfix_expression, [ "**", unary_expression ] ;
 
 postfix_expression = primary_expression, { postfix_suffix } ;
-postfix_suffix = ".", identifier, [ function_type_arguments ]
+postfix_suffix = ".", identifier, [ "::", function_type_arguments ]
                | "[", expression, "]"
                | argument_clause
                | suspension_call_suffix
                | "?"
                ;
-suspension_call_suffix = "!", [ function_type_arguments ], argument_clause ;
+suspension_call_suffix = "!", [ "::", function_type_arguments ],
+                         argument_clause ;
 ```
 
 ### Precedence And Associativity
@@ -1012,7 +1013,7 @@ grouped := (first, second := pair())  # error: syntax-error
 
 ### Bang And Dot Tokens
 
-1. r[grammar.expr.bang-suffix] `!(` or `![` after a completed operand begins a suspension call suffix at ordinary call precedence.
+1. r[grammar.expr.bang-suffix] `!(` or `!::[` after a completed operand begins a suspension call suffix at ordinary call precedence.
 2. r[grammar.expr.prefix-not] A `!` at the start of an operand is the prefix logical-not operator of `unary_expression`, so `!fetch!(id)` negates a suspending call's result.
 3. r[grammar.expr.not-equal] `!=` is a single token by longest match: `f!=g` is the comparison `f != g`.
 4. r[grammar.expr.member-identifier] A member suffix takes an identifier after `.`, so the tuple selection `t._0._1` is two member suffixes.
@@ -1023,11 +1024,46 @@ first := pair.0       # error: syntax-error
 second := nested.0.1  # error: syntax-error
 ```
 
+### Type Arguments In Expressions
+
+In an expression, an explicit type-argument list follows `::`, the
+**type-argument marker**. A type keeps its plain brackets:
+
+```text
+data Box[T]:
+    value: T
+
+fn first[T](items: List[T]) -> T: items[0]
+
+fn demo(names: List[string]) -> Box[string]:
+    head := first::[string](names)
+    Box::[string] { value: head }
+```
+
+1. r[grammar.expr.type-arguments.marker] In an expression, an explicit type-argument list follows `::`: a generic function takes `first::[string](names)`, a method `parser.parse::[User](text)`, and a reference `Json::decode::[User]`.
+2. r[grammar.expr.type-arguments.type-name] A type name in an expression also takes its type arguments after `::`, in a data expression such as `Box::[i32] { value: 1 }` and in a qualified call such as `Add::[i32]::add(price, 5)`.
+3. r[grammar.expr.type-arguments.in-types] In a type, type arguments follow the name directly, as in `List[i32]`, with no `::`.
+4. r[grammar.expr.index-only] `[` directly after a completed operand always begins an indexing suffix, never type arguments, so `handlers[i](event)` indexes `handlers` and calls the element.
+5. r[grammar.expr.type-arguments.unmarked] A data expression or qualified call whose type name takes brackets without `::`, as in `Box[i32] { value: 1 }` or `Add[i32]::add(price, 5)`, is an error. Error: `syntax-error`.
+
+```text
+data Box[T]:
+    value: T
+
+fn boxed() -> Box[i32]:
+    Box[i32] { value: 1 }  # error: syntax-error
+```
+
+> **Why.** Each form has one reading that a parser can see. Brackets after
+> an expression always index, and `::[` always gives type arguments, so
+> neither a reader nor a tool needs name resolution to tell them apart.
+> Rust marks expression type arguments the same way, as in
+> `parse::<i32>()`.
+
 ### Method Type Arguments
 
-1. r[grammar.expr.method-type-arguments] After member resolution, brackets immediately following a generic method name are parsed as `function_type_arguments`, not as an indexing suffix.
-2. r[grammar.expr.method-type-arguments.valid] An explicit method type-argument list is valid only when the selected member is generic and the expression proceeds to an ordinary call.
-3. r[grammar.expr.method-type-arguments.bang] A bang call writes the `!` on the name and the list after it, as the declaration `fn all![Ts...](...)` does: the calls are `all![i32, string](a, b)`, `parser.load![User](text)`, and `Store::load![User](key)`.
+1. r[grammar.expr.method-type-arguments.valid] An explicit method type-argument list is valid only when the selected member is generic and the expression proceeds to an ordinary call.
+2. r[grammar.expr.method-type-arguments.bang] A bang call writes the `!` on the name and the list after it, as the declaration `fn all![Ts...](...)` does: the calls are `all!::[i32, string](a, b)`, `parser.load!::[User](text)`, and `Store::load!::[User](key)`.
 
 ```text
 data Identity: pass
@@ -1037,7 +1073,7 @@ impl Identity:
         value
 
 fn run!() -> i32:
-    Identity::echo[i32]!(42)  # error: syntax-error
+    Identity::echo::[i32]!(42)  # error: syntax-error
 ```
 
 ### Primary Expressions
@@ -1065,17 +1101,20 @@ primary_expression = literal
 
 pipe_placeholder = "_" ;
 
-generic_function_reference = qualified_name, function_type_arguments ;
+generic_function_reference = qualified_name, "::", function_type_arguments ;
 function_type_arguments = "[", function_type_argument,
                           { ",", function_type_argument }, [ "," ], "]" ;
 function_type_argument = type_argument | "_" ;
 contextual_variant_expression = ".", identifier ;
-trait_qualified_call = trait_type, "::", identifier,
-                       ( [ function_type_arguments ], argument_clause
+trait_qualified_call = expression_trait_type, "::", identifier,
+                       ( [ "::", function_type_arguments ], argument_clause
                        | suspension_call_suffix ) ;
 
-method_reference = trait_type, "::", identifier,
-                   [ function_type_arguments ] ;
+method_reference = expression_trait_type, "::", identifier,
+                   [ "::", function_type_arguments ] ;
+
+expression_trait_type = qualified_name, [ "::", type_arguments ] ;
+expression_named_type = qualified_name, [ "::", bound_type_arguments ] ;
 
 pack_map_expression = "pack", ".", ( "map" | "map_list" ), "(",
                       expression, ",", qualified_name,
@@ -1151,7 +1190,7 @@ map_expression = "{", [ map_items ], "}"
 map_items = map_item, { ",", map_item }, [ "," ] ;
 map_item = continued_expression, ":", expression ;
 
-data_expression = named_type, "{", [ data_items ], "}" ;
+data_expression = expression_named_type, "{", [ data_items ], "}" ;
 data_items = [ "...", expression, "," ],
              data_field_item, { ",", data_field_item }, [ "," ]
              | "...", expression, [ "," ]
@@ -1175,7 +1214,7 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 #### Reflection
 
 1. r[grammar.primary.no-reflection-syntax] Declaration reflection has no dedicated syntax.
-2. r[grammar.primary.shape-intrinsics] `shape[User]()` and `shape_of(get_user)` are ordinary calls to prelude intrinsics specified in [Shape Intrinsics](14-annotations.md#shape-intrinsics).
+2. r[grammar.primary.shape-intrinsics] `shape::[User]()` and `shape_of(get_user)` are ordinary calls to prelude intrinsics specified in [Shape Intrinsics](14-annotations.md#shape-intrinsics).
 
 #### Suffixed Literals
 
@@ -1208,14 +1247,12 @@ See also: [Prefixed Strings](01-lexical-structure.md#prefixed-strings).
 #### Forms Resolved By Name
 
 1. r[grammar.primary.resolution] Name resolution distinguishes a data expression from a map expression and an enum variant selection from ordinary field access.
-2. r[grammar.primary.generic-reference] Name resolution also distinguishes a named generic-function reference from indexing: in `first[string](names)`, the bracketed form is parsed as function type arguments because `first` resolves to a named generic function.
-3. r[grammar.primary.preserve-ambiguity] A parser may preserve this syntactic ambiguity until name resolution.
-4. r[grammar.primary.function-type-argument] Each function type argument is a type, a type-pack expansion, or the inference placeholder `_`.
-5. r[grammar.primary.placeholder] The placeholder is not part of ordinary `type_arguments` and therefore cannot occur in a type such as `List[_]`.
-6. r[grammar.primary.qualified-type-arguments] In a qualified call such as `Type::name[T](...)`, `Trait::name[T](...)`, or `Type::name![T](...)`, type arguments of the qualifying type or trait stay before `::`, as in `Add[Money]::add`.
-7. r[grammar.primary.member-type-arguments] Method-level type arguments follow the member name, as in the dot call `parser.parse[User](text)`.
-8. r[grammar.primary.member-type-arguments.rules] Name resolution treats that bracket like any other generic reference: it is valid only when the selected member is generic, and it follows the explicit-list rules of [Generic Functions](07-functions.md#generic-functions).
-9. r[grammar.primary.pack-map] The token sequences `pack . map (` and `pack . map_list (` always select `pack_map_expression`, even when a local or parameter named `pack` is in scope; a raw identifier `` `pack` `` never does.
+2. r[grammar.primary.function-type-argument] Each function type argument is a type, a type-pack expansion, or the inference placeholder `_`.
+3. r[grammar.primary.placeholder] The placeholder is not part of ordinary `type_arguments` and therefore cannot occur in a type such as `List[_]`.
+4. r[grammar.primary.qualified-type-arguments] In a qualified call such as `Type::name::[T](...)`, `Trait::name::[T](...)`, or `Type::name!::[T](...)`, type arguments of the qualifying type or trait stay before the member's `::`, as in `Add::[Money]::add`.
+5. r[grammar.primary.member-type-arguments] Method-level type arguments follow the member name, as in the dot call `parser.parse::[User](text)`.
+6. r[grammar.primary.member-type-arguments.rules] That list is valid only when the selected member is generic, and it follows the explicit-list rules of [Generic Functions](07-functions.md#generic-functions).
+7. r[grammar.primary.pack-map] The token sequences `pack . map (` and `pack . map_list (` always select `pack_map_expression`, even when a local or parameter named `pack` is in scope; a raw identifier `` `pack` `` never does.
 
 #### Prefix And Suffix `...`
 
@@ -1237,9 +1274,9 @@ See also: [List And Map Expressions](05-expressions.md#list-and-map-expressions)
 
 #### Member References
 
-1. r[grammar.primary.method-reference] A `::` member without an argument clause, such as `User::domain`, `Json::decode[User]`, or `user::domain`, is a `method_reference`.
+1. r[grammar.primary.method-reference] A `::` member without an argument clause, such as `User::domain`, `Json::decode::[User]`, or `user::domain`, is a `method_reference`.
 2. r[grammar.primary.method-reference.meaning] [Method References](07-functions.md#method-references) gives its meaning; with an argument clause, the same form is a call.
-3. r[grammar.primary.method-reference.no-bang] A reference with type arguments directly followed by `!(` is not a bang call of that reference: `Identity::echo[i32]!(42)` is an error, and the call is `Identity::echo![i32](42)`. Error: `syntax-error`.
+3. r[grammar.primary.method-reference.no-bang] A reference with type arguments directly followed by `!(` is not a bang call of that reference: `Identity::echo::[i32]!(42)` is an error, and the call is `Identity::echo!::[i32](42)`. Error: `syntax-error`.
 
 ### Calls And Arguments
 

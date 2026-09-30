@@ -16,5 +16,5 @@ fn plain() -> bool:
 
 tests:
     it("attaches the marker's result"):
-        assert_equal(shape_of(internal_check).metadata[Hidden]().is_some(), true, reason="the marker was called")
-        assert_equal(shape_of(plain).metadata[Hidden]().is_some(), false, reason="an undecorated function holds none")
+        assert_equal(shape_of(internal_check).metadata::[Hidden]().is_some(), true, reason="the marker was called")
+        assert_equal(shape_of(plain).metadata::[Hidden]().is_some(), false, reason="an undecorated function holds none")

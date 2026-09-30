@@ -52,7 +52,7 @@ fn labels[T < Named](items: List[T]) -> List[string]:
     apply_all(items, T::label)
 
 fn picker() -> fn(Counter, i32) -> i32:
-    Counter::pick[i32]
+    Counter::pick::[i32]
 
 fn loader() -> fn!(Store, i32) -> i32:
     Store::load

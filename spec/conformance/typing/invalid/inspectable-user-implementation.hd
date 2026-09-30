@@ -6,4 +6,4 @@ data User:
     name: string
 
 impl Inspectable for User:  # diagnostic: sealed-trait-implementation
-    fn runtime_type(self) -> TypeId: TypeId::of[string]()
+    fn runtime_type(self) -> TypeId: TypeId::of::[string]()

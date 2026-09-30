@@ -32,10 +32,10 @@ impl[S] Walker[S] for Prober:
         .Ok()
 
     fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
-        tagged := match h.info.facts.find[Tag]():
+        tagged := match h.info.facts.find::[Tag]():
             .Some(found) => found.text
             .None => "-"
-        noted := match h.info.facts.find[Note]():
+        noted := match h.info.facts.find::[Note]():
             .Some(found) => found.text
             .None => "-"
         self.out = self.out + h.info.name + "=" + tagged + "/" + noted + ";"

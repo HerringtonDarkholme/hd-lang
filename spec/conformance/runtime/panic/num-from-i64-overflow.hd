@@ -7,4 +7,4 @@ fn convert[T < Num](n: i64) -> T:
 
 tests:
     it("overflows"):
-        _ := convert[u8](1000)
+        _ := convert::[u8](1000)

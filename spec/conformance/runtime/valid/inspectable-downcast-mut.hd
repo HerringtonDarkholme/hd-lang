@@ -8,7 +8,7 @@ data Counter:
     count: i32
 
 fn bump(value: mut Inspectable) -> bool:
-    match value.downcast_mut[Counter]():
+    match value.downcast_mut::[Counter]():
         .Some(counter) =>
             counter.count = counter.count + 1
             true

@@ -1,4 +1,4 @@
 fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
     (left, right)
 
-value := pair[_, i32]("left", 1)
+value := pair::[_, i32]("left", 1)

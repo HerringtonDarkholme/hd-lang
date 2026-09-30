@@ -13,4 +13,4 @@ data User:
     @max_len(80)
     name: string
 
-user_shape := shape[User]()
+user_shape := shape::[User]()

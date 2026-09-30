@@ -1,0 +1,12 @@
+# test: brackets after an expression index it, so `handlers[1](5)` calls an element
+# Spec 02 Type Arguments In Expressions: grammar.expr.index-only (owner decision CI1).
+
+use std.testing.assert_equal
+
+fn double(value: i32) -> i32: value * 2
+
+fn triple(value: i32) -> i32: value * 3
+
+fn main() -> void:
+    handlers := [double, triple]
+    assert_equal(handlers[1](5), 15, reason="the index picks triple")

@@ -6,4 +6,4 @@ trait Supplier:
     fn get(self) -> Self::Item
 
 fn read(source: Supplier[Item = i32]) -> i32:
-    Supplier[Item = i32]::get(source)  # diagnostic: syntax-error
+    Supplier::[Item = i32]::get(source)  # diagnostic: syntax-error

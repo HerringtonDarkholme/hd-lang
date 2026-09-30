@@ -19,7 +19,7 @@ fn forms(counter: mut Counter, values: List[i32]) -> void:
     zero := Counter::zero
     bump := counter::bump
     shown := apply_all(values, Display::to_string)
-    boxed := Box[i32]::get
-    decode := Json::decode[User]
+    boxed := Box::[i32]::get
+    decode := Json::decode::[User]
     parsed := "8080" |> Config::parse
     same := counter::read()

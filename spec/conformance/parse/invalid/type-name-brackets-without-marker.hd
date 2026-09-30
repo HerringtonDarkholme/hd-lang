@@ -1,0 +1,8 @@
+# test: a data expression writes its type name's arguments after `::`
+# Spec 02 Type Arguments In Expressions: grammar.expr.type-arguments.unmarked (owner decision CI3).
+
+data Box[T]:
+    value: T
+
+fn boxed() -> Box[i32]:
+    Box[i32] { value: 1 }  # diagnostic: syntax-error

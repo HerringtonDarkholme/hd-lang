@@ -10,4 +10,4 @@ fn first[T](items: List[T]) -> void:
     pass
 
 fn run() -> void:
-    first[AppRow]([1])  # diagnostic: generic-kind-mismatch
+    first::[AppRow]([1])  # diagnostic: generic-kind-mismatch

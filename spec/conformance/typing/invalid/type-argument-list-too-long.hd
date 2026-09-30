@@ -5,4 +5,4 @@ fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
     (left, right)
 
 fn triple() -> (string, i32):
-    pair[string, i32, bool]("left", 1)  # diagnostic: argument-count
+    pair::[string, i32, bool]("left", 1)  # diagnostic: argument-count

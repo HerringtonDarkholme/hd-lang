@@ -10,14 +10,14 @@ enum JobStatus:
 fn optional(target: TypeShape) -> bool:
     target.is_optional()
 
-user_shape := shape[User]()
+user_shape := shape::[User]()
 field_shape := user_shape.fields.name
-status_shape := shape[JobStatus]()
+status_shape := shape::[JobStatus]()
 running_shape := status_shape.variants.Running
 documentation := field_shape.doc
 field_count := user_shape.field_list.len()
 let generic_user: DataShape = user_shape
 let generic_status: EnumShape = status_shape
-let list_shape: TypeShape = shape[List[i32]]()
+let list_shape: TypeShape = shape::[List[i32]]()
 optional_shape := shape_of(optional)
 parameter_count := optional_shape.params.len()

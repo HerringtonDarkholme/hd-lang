@@ -20,7 +20,7 @@ fn max[T < Ord](left: T, right: T) -> T:
         _ => left
 
 fn same(user: User, label: Display) -> bool:
-    cmp[Display](user, label)
+    cmp::[Display](user, label)
 
 fn widest(small: i32, large: i64) -> i64:
     max(i64(small), large)

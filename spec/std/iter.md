@@ -120,7 +120,7 @@ trait FromIterator[T]:
 1. r[std-iter.collect.trait] `std.iter` declares `FromIterator[T]`, whose `from_iter` builds a `Self` from the items of an iterator.
 2. r[std-iter.prelude.from-iterator] `std.iter` also declares `FromIterator`, which is not a prelude name. Code imports it to implement or name it, as in `use std.iter.FromIterator`, and a `collect` call needs no import.
 3. r[std-iter.collect.call] `collect` returns `C::from_iter(self)`.
-4. r[std-iter.collect.target] `C` is solved like any call-site type argument: from the expected type, or from an explicit list such as `collect[Map[string, i32]]()`.
+4. r[std-iter.collect.target] `C` is solved like any call-site type argument: from the expected type, or from an explicit list such as `collect::[Map[string, i32]]()`.
 5. r[std-iter.collect.target-default] When nothing determines `C`, its declared [default](../04-type-system.md#type-argument-defaults) `List[T]` applies.
 6. r[std-iter.collect.bound] A target that does not implement `FromIterator[T]` is an error. Error: `unsatisfied-trait-bound`.
 

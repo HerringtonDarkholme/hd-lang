@@ -12,7 +12,7 @@ impl Identity:
 tests:
     it("a qualified generic suspension returns its concrete value"):
         assert_equal(
-            Identity::echo![i32](42),
+            Identity::echo!::[i32](42),
             42,
             reason="the associated function keeps its explicit result type",
         )

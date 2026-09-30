@@ -443,7 +443,7 @@ See also: [Sealed Traits](#sealed-traits),
 3. r[trait.error.entry-point] A dynamic trait value satisfies bounds on its own trait and its supertraits. `Error` therefore satisfies an entry point's `E < Display` requirement, so `pub fn main() -> Result[void, Error]` is a valid entry point.
 4. r[trait.error.boundary] Like every dynamic trait value, an erased `Error` is not boundary-safe and never crosses a registered boundary.
 5. r[trait.error.convert-first] Code converts an erased `Error` explicitly to a boundary-safe error type first.
-6. r[trait.error.downcast] Because `Error` extends `Inspectable`, an erased `Error` inherits the `downcast` methods, so `error.downcast[FsError]()` recovers the concrete error.
+6. r[trait.error.downcast] Because `Error` extends `Inspectable`, an erased `Error` inherits the `downcast` methods, so `error.downcast::[FsError]()` recovers the concrete error.
 
 ```text
 use std.error.Error
@@ -916,7 +916,7 @@ each supply the method, as with `impl Add[i32] for Money` and
 5. r[trait.resolve.one-fit] Exactly one fitting candidate is selected, so `price.add(5)` calls the `Add[i32]` method.
 6. r[trait.resolve.literal-default] Suppose two or more candidates fit. If exactly one of them fits with every integer literal argument at `i32` and every floating-point literal argument at `f64`, the literals' default types, that candidate is selected.
 7. r[trait.resolve.literal-default.example] With `impl Add[i32] for Money` and `impl Add[i64] for Money`, `price.add(5)` calls the `Add[i32]` method.
-8. r[trait.resolve.many-fit] Otherwise two or more fitting candidates are an error, and a trait-qualified call such as `Add[i64]::add(price, 5)` resolves it. Error: `ambiguous-method`.
+8. r[trait.resolve.many-fit] Otherwise two or more fitting candidates are an error, and a trait-qualified call such as `Add::[i64]::add(price, 5)` resolves it. Error: `ambiguous-method`.
 9. r[trait.resolve.no-fit] When no candidate fits, the call is an error whose message lists the available instantiations. Error: `type-mismatch`.
 10. r[trait.resolve.one-trait-only] This choice applies only among instantiations of one trait. Methods of two different traits stay ambiguous whatever the argument types. Error: `ambiguous-method`.
 
@@ -945,14 +945,14 @@ Select one trait explicitly with `Trait::method(receiver, arguments...)`:
 
 ```text
 label := Display::to_string(value)
-sum := Add[Money]::add(left, right)
+sum := Add::[Money]::add(left, right)
 ```
 
 1. r[trait.qualified.form] `Trait::method(receiver, arguments...)` selects one trait explicitly.
 2. r[trait.qualified.receiver] The receiver is the first ordinary argument and must implement the named trait instantiation.
 3. r[trait.qualified.arguments] Remaining arguments follow normal positional/named ordering.
 4. r[trait.qualified.bypass] This form bypasses member lookup and selects exactly the named trait method.
-5. r[trait.qualified.type-arguments] A generic trait method takes its explicit type arguments after the method name, as in `Identity::select[i32](picker, 42)`.
+5. r[trait.qualified.type-arguments] A generic trait method takes its explicit type arguments after the method name, as in `Identity::select::[i32](picker, 42)`.
 6. r[trait.qualified.trait-arguments] The trait's own type arguments stay before `::`.
 7. r[trait.qualified.generic-rules] The type argument list follows the rules of [Generic Functions](07-functions.md#generic-functions).
 
@@ -976,7 +976,7 @@ fn make[T < Factory]() -> T:
     T::create()
 
 first := User::create()
-second := make[User]()
+second := make::[User]()
 ```
 
 1. r[trait.assoc-call.type] `Type::f(args)` first looks for an inherent associated function or method `f` of `Type`.
@@ -1382,7 +1382,7 @@ data User:
 data Handle: pass
 
 impl Inspectable for User:  # error: sealed-trait-implementation
-    fn runtime_type(self) -> TypeId: TypeId::of[string]()
+    fn runtime_type(self) -> TypeId: TypeId::of::[string]()
 
 impl AnyRef for Handle  # error: sealed-trait-implementation
 ```
@@ -1508,7 +1508,7 @@ See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 
 1. r[trait.typeid.opaque] `TypeId` is an opaque data type. User code cannot construct one or read its fields.
 2. r[trait.typeid.traits] `TypeId` implements `Eq`, `Hash`, and `Display`.
-3. r[trait.typeid.of] `TypeId` has the associated function `TypeId::of[T]()`, which returns the `TypeId` of `T`.
+3. r[trait.typeid.of] `TypeId` has the associated function `TypeId::of::[T]()`, which returns the `TypeId` of `T`.
 4. r[trait.typeid.equality] Equality holds exactly when two `TypeId` values denote the same runtime identity, as defined below.
 5. r[trait.typeid.no-ops] `TypeId` has no other operations. It exposes no type arguments, fields, or shape.
 6. r[trait.typeid.no-trait-query] A `TypeId` cannot answer whether a type implements a trait, and nothing can be constructed or called through it.
@@ -1623,10 +1623,10 @@ fn erase[T < Inspectable](value: T) -> Inspectable:
     Box { value: value }
 
 fn is_int_box(value: Inspectable) -> bool:
-    value.runtime_type() == TypeId::of[Box[i32]]()
+    value.runtime_type() == TypeId::of::[Box[i32]]()
 
 fn read_box(value: Inspectable) -> i32:
-    match value.downcast[Box[i32]]():
+    match value.downcast::[Box[i32]]():
         .Some(found) => found.value
         .None => 0
 ```
@@ -1646,9 +1646,9 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 
 ### Recovering A Concrete Type
 
-1. r[trait.downcast.some] `value.downcast[T]()` returns `.Some` of the value exactly when the value's recorded type has the same runtime identity as `T`, and `.None` otherwise.
-2. r[trait.downcast.mut] `value.downcast_mut[T]()` does the same through a mutable receiver and returns `mut T?`.
-3. r[trait.downcast.val] `downcast_val[T](value)` does the same for any inspectable `T`, including the value types that `AnyRef` excludes, such as scalars, `string`, and tuples.
+1. r[trait.downcast.some] `value.downcast::[T]()` returns `.Some` of the value exactly when the value's recorded type has the same runtime identity as `T`, and `.None` otherwise.
+2. r[trait.downcast.mut] `value.downcast_mut::[T]()` does the same through a mutable receiver and returns `mut T?`.
+3. r[trait.downcast.val] `downcast_val::[T](value)` does the same for any inspectable `T`, including the value types that `AnyRef` excludes, such as scalars, `string`, and tuples.
 4. r[trait.downcast.val.readonly] The result of `downcast_val` is readonly.
 5. r[trait.downcast.exact] Type arguments must match exactly: an erased `Box[i32]` is not a `Box[i64]`, and an erased `List[FsError]` is not a `List[Error]`.
 6. r[trait.downcast.no-conversion] No variance, numeric widening, optional unwrapping, newtype unwrapping, or supertrait search takes place.
@@ -1674,9 +1674,9 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 11. r[trait.downcast.bound.examples] `Any`, `Display`, and function types fail `Inspectable` everywhere. `i32`, `string`, and tuples fail `AnyRef`, so they are recovered with `downcast_val`.
 
 > **Note.** A concrete receiver uses its own compiler-supplied
-> implementation, so `user.downcast[User]()` with `user: User` is valid and
+> implementation, so `user.downcast::[User]()` with `user: User` is valid and
 > always returns `.Some`. A trait value target such as
-> `error.downcast[Error]()` satisfies the bounds and always returns `.None`,
+> `error.downcast::[Error]()` satisfies the bounds and always returns `.None`,
 > because a recorded type is never a trait value type. Tools may warn about
 > both.
 

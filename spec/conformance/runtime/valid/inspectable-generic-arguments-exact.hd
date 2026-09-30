@@ -11,22 +11,22 @@ data User:
     name: string
 
 fn is_int_box(value: Inspectable) -> bool:
-    match value.downcast[Box[i32]]():
+    match value.downcast::[Box[i32]]():
         .Some(_) => true
         .None => false
 
 fn is_string_list(value: Inspectable) -> bool:
-    match value.downcast[List[string]]():
+    match value.downcast::[List[string]]():
         .Some(_) => true
         .None => false
 
 fn is_user(value: Inspectable) -> bool:
-    match value.downcast[User]():
+    match value.downcast::[User]():
         .Some(_) => true
         .None => false
 
 fn is_optional_user(value: Inspectable) -> bool:
-    match value.downcast[User?]():
+    match value.downcast::[User?]():
         .Some(_) => true
         .None => false
 

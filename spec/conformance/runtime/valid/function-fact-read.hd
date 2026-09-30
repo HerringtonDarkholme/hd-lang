@@ -13,7 +13,7 @@ fn list_users() -> string:
     "[]"
 
 fn route_of_list_users() -> string:
-    match shape_of(list_users).metadata[Route]():
+    match shape_of(list_users).metadata::[Route]():
         .Some(found) => found.path
         .None => ""
 

@@ -15,7 +15,7 @@ impl Add[Number] for Number:
 fn add_qualified() -> i32:
     left := Number { value: 20 }
     right := Number { value: 22 }
-    Add[Number]::add(left, right).value
+    Add::[Number]::add(left, right).value
 
 fn apply_add(value: Add[Number], other: Number) -> Number:
     value.add(other)
@@ -37,7 +37,7 @@ impl[T] Add[T] for Keep[T]:
     fn add(self, other: T) -> T: other
 
 fn add_blanket() -> i32:
-    20 + Add[i32]::add(Keep[i32] { value: 0 }, 22)
+    20 + Add::[i32]::add(Keep::[i32] { value: 0 }, 22)
 
 tests:
     it("add_qualified returns 42"):

@@ -11,10 +11,10 @@ fn erase[T < Inspectable](value: T) -> Inspectable:
     Box { value: value }
 
 fn is_int_box(value: Inspectable) -> bool:
-    value.runtime_type() == TypeId::of[Box[i32]]()
+    value.runtime_type() == TypeId::of::[Box[i32]]()
 
 fn read_box(value: Inspectable) -> i32:
-    match value.downcast[Box[i32]]():
+    match value.downcast::[Box[i32]]():
         .Some(found) => found.value
         .None => 0
 

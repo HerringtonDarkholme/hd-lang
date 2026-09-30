@@ -17,6 +17,6 @@ tests:
 
     it("readonly Box[mut User] permits child mutation on the path"):
         let mut user = User { name: "a" }
-        let box: Box[mut User] = Box[mut User] { value: user }
+        let box: Box[mut User] = Box::[mut User] { value: user }
         box.value.name = "c"
         assert_equal(user.name, "c", reason="generic field yields mut User through a readonly root")

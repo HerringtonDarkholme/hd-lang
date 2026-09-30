@@ -252,8 +252,8 @@ The stdlib chapters' terms are in the
 | **sealed trait** | A standard trait whose implementations only the compiler and the standard library supply. See [Sealed Traits](09-traits.md#sealed-traits). |
 | **self reference** | A member's or variant's `self_ref`: whether its type needs the type being derived (`.Required`), only refers to it (`.Optional`), or neither (`.Absent`), computed from its type alone. See [Self References](14-annotations.md#self-references). |
 | **shape** | In generic code, the machine representation a value occupies; see [Shapes and Generic Code](04-type-system.md#shapes-and-generic-code). In annotations, a compiler-provided runtime value that describes a declaration's or type's structure; see [Terminology](14-annotations.md#terminology). |
-| **specialized data shape type** | The type of `shape[D]()` for a data type `D`: the members of `DataShape`, plus a `fields` record with one member per direct field. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
-| **specialized enum shape type** | The type of `shape[E]()` for an enum `E`, which adds a `variants` record with one member per variant. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
+| **specialized data shape type** | The type of `shape::[D]()` for a data type `D`: the members of `DataShape`, plus a `fields` record with one member per direct field. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
+| **specialized enum shape type** | The type of `shape::[E]()` for an enum `E`, which adds a `variants` record with one member per variant. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
 | **substitution step** | A pipe step that contains `_`. See [`expr.pipe.step-kinds`](05-expressions.md#r-expr.pipe.step-kinds). |
 | **suffix function** | A function marked `@num_suffix`, which a suffixed literal calls. See [`expr.suffix.marker`](05-expressions.md#r-expr.suffix.marker). |
 | **suffixed literal** | A numeric literal with a literal suffix, such as `250ms`, which calls the suffix function, as `ms(250)`. See [Literal Suffixes](05-expressions.md#literal-suffixes). |
@@ -269,6 +269,7 @@ The stdlib chapters' terms are in the
 | **trait-less derivation block** | An `impl X by Structure:` without a trait, whose member lines write shared metadata of `X` for every derivation and its shape. See [Trait-Less Derivation Blocks](14-annotations.md#trait-less-derivation-blocks). |
 | **type pack** | A generic parameter ending in `...`, which stands for a list of types. See [Pack Parameters](12-variadic-generics.md#pack-parameters). |
 | **type-argument default** | A type written with `=` after a generic parameter's bound, used when a use site leaves the parameter unsolved or a written type omits it. See [Type-Argument Defaults](04-type-system.md#type-argument-defaults). |
+| **type-argument marker** | The `::` before an explicit type-argument list in an expression, as in `first::[string](names)`. See [`grammar.expr.type-arguments.marker`](02-grammar.md#r-grammar.expr.type-arguments.marker). |
 | **typed derivation** | Implementing a trait for a data type or enum from its members through the trait's template. See [Typed Derivation](14-annotations.md#typed-derivation). |
 | **unbound method reference** | `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter. See [`fn.ref.unbound`](07-functions.md#r-fn.ref.unbound). |
 | **value expression** | An expression that produces a value. See [`expr.category.value`](05-expressions.md#r-expr.category.value). |
@@ -2258,3 +2259,22 @@ existing source. Each entry names the decision that made the change.
   `slice`, `len`, interpolation, or a local helper. Source is unaffected.
   The stdlib terms move to a [Glossary](std/README.md#glossary) of their
   own.
+- Type arguments in expressions take `::` (owner decisions CI1, its
+  type-argument part, and CI3 in
+  [Call Indexing](../future-work/CALL_INDEXING.md#owner-decisions),
+  2026-09-30): language tier. `[` after an expression always indexes, and
+  an explicit type-argument list in an expression follows `::`:
+  `first[string](names)` becomes `first::[string](names)`,
+  `parser.parse[User](text)` becomes `parser.parse::[User](text)`,
+  `Json::decode[User]` becomes `Json::decode::[User]`, and a bang call
+  `all![i32](a)` becomes `all!::[i32](a)`. A type name in an expression
+  takes `::` too: `Box[i32] { value: 1 }` becomes `Box::[i32] { value: 1 }`,
+  and `Add[i32]::add(price, 5)` becomes `Add::[i32]::add(price, 5)`; the
+  old forms are a `syntax-error`. The old spelling of a generic call now
+  indexes its callee. Types keep `List[i32]`. The name-resolution rules
+  `grammar.primary.generic-reference`, `grammar.primary.preserve-ambiguity`,
+  `grammar.expr.method-type-arguments`, and `fn.generic.brackets` are
+  retired for [Type Arguments In Expressions](02-grammar.md#type-arguments-in-expressions)
+  and [`fn.generic.call-marker`](07-functions.md#r-fn.generic.call-marker).
+  The pipe rule still needs `_` after a bare step with an index or type
+  arguments.

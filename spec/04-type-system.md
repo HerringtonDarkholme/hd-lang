@@ -580,7 +580,7 @@ r[types.assign] An expression of type `S` is assignable to a location of type `T
 6. r[types.assign.trait-value] `S` explicitly implements trait `T`, or `T` is `Inspectable` and `S` is an inspectable type, allowing construction of a dynamic trait value.
 7. r[types.assign.supertrait] `S` is a dynamic child-trait value whose trait has `T` as a direct or transitive supertrait.
 8. r[types.assign.optional] A value of `T` is injected into `T?`. The injection adds one layer only, so a `T` is not injected into `T??`.
-9. r[types.assign.shape] `S` is a specialized shape type returned by `shape[D]()` and `T` is its generic shape type, `DataShape` or `EnumShape`.
+9. r[types.assign.shape] `S` is a specialized shape type returned by `shape::[D]()` and `T` is its generic shape type, `DataShape` or `EnumShape`.
 10. r[types.assign.row-subsumption] `S` and `T` are function types, `T`'s row entails every key of `S`'s row, and `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
 
 See also: [Inspectable Types](09-traits.md#inspectable-types),
@@ -946,7 +946,7 @@ arguments' types may differ only in `mut`:
 1. r[types.generic.infer.join] When generic call inference solves one type parameter from several arguments, the only conversion between their types is permission weakening: `mut X` and `X` meet at `X`.
 2. r[types.generic.infer.join.no-widen] Numeric widening does not apply, so `max(small, large)` with an `i32` and an `i64` argument is an error. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
 3. r[types.generic.infer.join.no-trait-value] A trait-value conversion never applies, as [`types.lct.no-trait-value`](#r-types.lct.no-trait-value) states for the least common type. So `cmp(user, label)` with a `User` and a `Display` argument is an error. Error: `no-common-type`.
-4. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp[Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
+4. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp::[Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
 5. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
 
 ```text
@@ -979,7 +979,7 @@ fn widest(small: i32, large: i64) -> i64:
     max(i64(small), large)
 
 fn same(user: User, label: Display) -> bool:
-    cmp[Display](user, label)
+    cmp::[Display](user, label)
 ```
 
 > **Why.** A call's arguments are not a list literal: a reader expects `T`
@@ -1070,10 +1070,10 @@ describes the reference strategy.
 
 ### Reified Parameters
 
-1. r[types.reified.metadata] A parameter marked `reified` carries runtime type metadata. It may be used by operations such as `shape[T]()` or passed to another reified operation.
+1. r[types.reified.metadata] A parameter marked `reified` carries runtime type metadata. It may be used by operations such as `shape::[T]()` or passed to another reified operation.
 2. r[types.reified.erased] An erased parameter must not be used where runtime type identity is required.
 3. r[types.reified.inspectable] Runtime type identity for `Inspectable` comes from a bound instead: the evidence for `T < Inspectable` carries the runtime identity of `T`.
-4. r[types.reified.inspectable.uses] Erasing a value of a type parameter to `Inspectable`, `TypeId::of[T]()`, and the `downcast` target need that bound, and `reified` alone permits none of them.
+4. r[types.reified.inspectable.uses] Erasing a value of a type parameter to `Inspectable`, `TypeId::of::[T]()`, and the `downcast` target need that bound, and `reified` alone permits none of them.
 5. r[types.reified.abi] Reification is part of the function's public type and ABI, but its descriptor is not a source-level value argument.
 6. r[types.reified.specialize] A backend may specialize a reified call only when doing so preserves observable reflection behavior.
 
@@ -1081,9 +1081,9 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
 ### Shape Descriptors
 
-1. r[types.shape.consumes] The prelude intrinsic `shape[T]()` consumes the reification descriptor.
-2. r[types.shape.result] For a data type or enum, `shape[T]()` returns the corresponding specialized shape type.
-3. r[types.shape.other] For any other type, including a reified type parameter, `shape[T]()` returns `TypeShape`.
+1. r[types.shape.consumes] The prelude intrinsic `shape::[T]()` consumes the reification descriptor.
+2. r[types.shape.result] For a data type or enum, `shape::[T]()` returns the corresponding specialized shape type.
+3. r[types.shape.other] For any other type, including a reified type parameter, `shape::[T]()` returns `TypeShape`.
 4. r[types.shape.erased] An erased generic parameter cannot be passed as its type argument.
 5. r[types.shape.members] Field and variant shapes are selected from the specialized result, and `shape_of(f)` reflects a function declaration.
 

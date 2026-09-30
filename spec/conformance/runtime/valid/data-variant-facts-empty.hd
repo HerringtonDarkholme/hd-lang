@@ -19,7 +19,7 @@ impl[S] Walker[S] for Prober:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        label := match v.info.facts.find[Style]():
+        label := match v.info.facts.find::[Style]():
             .Some(found) => found.prefix
             .None => "none"
         self.out = self.out + "variant:" + label + ";"
@@ -32,7 +32,7 @@ impl[T] Probe for T by Structure:
     fn probe(self) -> string:
         let mut w = Prober { out: "" }
         _ := Structure::walk(self, w)
-        label := match T::facts().find[Style]():
+        label := match T::facts().find::[Style]():
             .Some(found) => found.prefix
             .None => "none"
         w.out + "type:" + label

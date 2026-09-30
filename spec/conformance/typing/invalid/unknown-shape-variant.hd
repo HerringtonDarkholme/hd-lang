@@ -2,4 +2,4 @@ enum JobStatus:
     Queued
     Running
 
-missing := shape[JobStatus]().variants.Finished  # diagnostic: unknown-shape-target
+missing := shape::[JobStatus]().variants.Finished  # diagnostic: unknown-shape-target

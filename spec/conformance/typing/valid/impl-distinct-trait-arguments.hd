@@ -15,4 +15,4 @@ impl Combine[Money] for Money:
         Money { cents: self.cents + other.cents }
 
 fn total(price: Money, tip: Money) -> i32:
-    Combine[Money]::combine(Combine[i32]::combine(price, 5), tip).cents
+    Combine::[Money]::combine(Combine::[i32]::combine(price, 5), tip).cents

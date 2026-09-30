@@ -21,7 +21,7 @@ impl Supplier for Constant:
     fn get(self) -> string: self.value
 
 fn feed_text() -> string:
-    Feed[Constant] { source: Constant { value: "Ada" } }.to_string()
+    Feed::[Constant] { source: Constant { value: "Ada" } }.to_string()
 
 fn same_type[T, I < Supplier[Item = T]](source: I) -> I::Item:
     let item: T = source.get()
