@@ -1,8 +1,9 @@
 # Call Indexing: `list(0)` Instead Of `list[0]`
 
 Status: design exploration, 2026-09-30, with the owner's decisions in
-[Owner Decisions](#owner-decisions). Nothing here is in the specification
-yet; a separate spec-update task applies the decisions. Under review:
+[Owner Decisions](#owner-decisions). D1's `::[` type arguments and D3 are
+in the specification; the callable values of D1, D2, and D4 are not yet.
+Under review:
 [Indexing](../spec/05-expressions.md#indexing),
 [Index Traits](../spec/05-expressions.md#index-traits),
 [Places](../spec/05-expressions.md#places),
@@ -59,6 +60,11 @@ fn badge(count: Cell[i32]) -> string:
 | --- | --- |
 | [Q3](#q3-keys-argument-shape), keys argument shape | Moot: D2 removes keys. |
 | [Q4](#q4-map-read-type), map read type under C1 | Moot: C1 is not chosen. The `m[k]` read type stays open as Special Cases Q9, carried by [Syntax And Semantics Cost Q8](SYNTAX_SEMANTICS_COST.md#q8-map-read-type). |
+
+**Applied, 2026-09-30.** D1's type-argument part and D3 are in
+[Type Arguments In Expressions](../spec/02-grammar.md#type-arguments-in-expressions)
+(batch 22 CI1 and CI3). The callable values, `Apply` and `Update`, and D2
+and D4 wait for a later task.
 
 **Still open.**
 - A separate idea, not part of this record: the owner wants "an escape
@@ -138,11 +144,11 @@ zero-argument form are library design, and they wait for the core answer.
 
 | Rule | Text, shortened |
 | --- | --- |
-| [`grammar.primary.generic-reference`](../spec/02-grammar.md#r-grammar.primary.generic-reference) | Name resolution tells `first[string](names)` from indexing. |
-| [`grammar.primary.preserve-ambiguity`](../spec/02-grammar.md#r-grammar.primary.preserve-ambiguity) | A parser may keep the ambiguity until name resolution. |
-| [`grammar.expr.method-type-arguments`](../spec/02-grammar.md#r-grammar.expr.method-type-arguments) | After member resolution, brackets after a generic method name are type arguments. |
+| `grammar.primary.generic-reference` (retired by D1) | Name resolution tells `first[string](names)` from indexing. |
+| `grammar.primary.preserve-ambiguity` (retired by D1) | A parser may keep the ambiguity until name resolution. |
+| `grammar.expr.method-type-arguments` (retired by D1) | After member resolution, brackets after a generic method name are type arguments. |
 | [`grammar.primary.member-type-arguments.rules`](../spec/02-grammar.md#r-grammar.primary.member-type-arguments.rules) | Such a bracket is valid only when the selected member is generic. |
-| [`fn.generic.brackets`](../spec/07-functions.md#r-fn.generic.brackets) | Name resolution tells the brackets from an indexing operation. |
+| `fn.generic.brackets` (retired by D1) | Name resolution tells the brackets from an indexing operation. |
 | [`expr.pipe.bare.needs-placeholder.forms`](../spec/05-expressions.md#r-expr.pipe.bare.needs-placeholder.forms) | `x \|> f[0]` needs `_`, because brackets could index or instantiate. |
 
 The postfix grammar holds both readings: `postfix_suffix` has `"[",

@@ -632,7 +632,7 @@ pub trait Error < Display & Inspectable:
 
     fn find[T < AnyRef & Inspectable](self) -> T?:
         for part in chain(self):
-            match part.downcast[T]():
+            match part.downcast::[T]():
                 .Some(found) => return .Some(found)
                 .None => pass
         .None
@@ -2016,7 +2016,7 @@ fn json_value(c: mut Choices) -> Json:
     match c.int(0, 5):
         0 => .Null
         1 => .Bool(c.bool())
-        2 => .Number(Number::from_i64(c.draw[i64]()))
+        2 => .Number(Number::from_i64(c.draw::[i64]()))
         3 => .Text(c.string(max_chars=12))
         4 => .Array(c.list(4, json_value))
         _ => .Object(c.map(4, key, json_value))

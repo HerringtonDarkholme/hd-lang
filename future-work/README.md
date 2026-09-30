@@ -41,7 +41,9 @@ Open questions for the owner:
   means only type arguments. It counts 178 index sites, surveys how
   trait-based languages separate fields from methods, and compares the two
   remaining options, B and C1. It also shows how B can keep a live
-  variable, `var()`, while arrays keep `xs[0]`.
+  variable, `var()`, while arrays keep `xs[0]`. The owner chose B+F as
+  D1 to D4 on 2026-09-30; the `::[` type arguments are applied, and the
+  callable values, `Apply` and `Update`, are not yet.
 
 Deferred:
 

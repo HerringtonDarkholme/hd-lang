@@ -921,8 +921,8 @@ data Shipment[T]:
     Box[T]
     id: string
 
-shipment := Shipment[i32] {
-    Box: ...Box[i32] { value: 5 },
+shipment := Shipment::[i32] {
+    Box: ...Box::[i32] { value: 5 },
     id: "shipment_1",
 }
 shipment.value
@@ -1533,11 +1533,16 @@ Generic arguments are inferred at call sites when the type is unambiguous. Calle
 ```text
 names := ["Ada", "Grace"]
 
-a := first(names)          # T inferred as string
-b := first[string](names)  # explicit generic argument
+a := first(names)            # T inferred as string
+b := first::[string](names)  # explicit generic argument
 ```
 
-An explicit list may stop early: `pair[string]("left", 1)` writes `Left`
+In an expression, the list follows `::`, so brackets right after a value
+always index it: `handlers[0](event)` calls the first handler. A type
+keeps plain brackets, as in `List[string]`, and so does a declaration's
+own parameter list, as in `fn first[T]`.
+
+An explicit list may stop early: `pair::[string]("left", 1)` writes `Left`
 and leaves `Right` to inference. Use `_` to infer a slot before one you
 write:
 
@@ -1545,7 +1550,7 @@ write:
 fn convert[From, To](value: From) -> To:
     ...
 
-user := convert[_, User](payload)
+user := convert::[_, User](payload)
 ```
 
 Every `_` or omitted slot is determined by the call arguments, expected
@@ -1568,7 +1573,7 @@ fn widest(small: i32, large: i64) -> i64:
     max(i64(small), large)     # max(small, large) is a type-mismatch
 
 fn same(user: User, label: Display) -> bool:
-    cmp[Display](user, label)  # cmp(user, label) is no-common-type
+    cmp::[Display](user, label)  # cmp(user, label) is no-common-type
 ```
 
 A generic parameter may declare a default after its bound. The default
@@ -1605,20 +1610,20 @@ Function generic parameters are erased at runtime by default. Mark a parameter `
 
 ```text
 fn runtime_shape[reified T]() -> TypeShape:
-    shape[T]()
+    shape::[T]()
 ```
 
 `reified` is written on the generic parameter, not on the function. The compiler passes a hidden runtime type descriptor at each call:
 
 ```text
-string_shape := runtime_shape[string]()
+string_shape := runtime_shape::[string]()
 ```
 
 An erased generic parameter cannot be used where runtime type information is required:
 
 ```text
 fn invalid_shape[T]() -> TypeShape:
-    shape[T]()  # compile error: T is erased
+    shape::[T]()  # compile error: T is erased
 ```
 
 Reification propagates through generic calls. A function passing its own type parameter to a reified parameter must also declare that parameter as reified:
@@ -1628,10 +1633,10 @@ fn resolve[reified T]() -> T $ TypeProvider:
     ...
 
 fn resolved[reified T]() -> T $ TypeProvider:
-    resolve[T]()
+    resolve::[T]()
 
 fn invalid_resolved[T]() -> T $ TypeProvider:
-    resolve[T]()  # compile error: resolve requires runtime type information for T
+    resolve::[T]()  # compile error: resolve requires runtime type information for T
 ```
 
 Unlike Kotlin's JVM implementation, hd-lang does not require a reified function to be `inline`. Backends may specialize calls and remove descriptors when doing so cannot change observable reflection behavior.
@@ -1689,7 +1694,7 @@ impl User:
         value
 
 domain := user.domain()
-label := user.tagged[string]("admin")
+label := user.tagged::[string]("admin")
 ```
 
 Generic methods infer all arguments when brackets are omitted. Their explicit
@@ -2025,11 +2030,11 @@ Function generic parameters are erased by default. Use `reified` only when runti
 fn resolve[reified T]() -> T $ TypeProvider:
     ...
 
-items := resolve[List[i32]]()
+items := resolve::[List[i32]]()
 ```
 
 At the language level, a reified call behaves as if it passes a hidden runtime
-type descriptor, observable only as `shape[T]()`, a `TypeShape`. This descriptor is
+type descriptor, observable only as `shape::[T]()`, a `TypeShape`. This descriptor is
 not an ordinary source-level argument and cannot be supplied with a named
 argument. Reification is part of a function's public type and ABI.
 
@@ -2530,7 +2535,7 @@ tests:
 
 A generator draws with `c.int(lo, hi)`, `c.float(lo, hi)`, `c.bool()`,
 `c.pick(items)`, `c.string(max_chars=12)`, `c.list(max, item)`,
-`c.map(max, key, value)`, and `c.draw[T]()`. `int` and `float` take their
+`c.map(max, key, value)`, and `c.draw::[T]()`. `int` and `float` take their
 type from the bounds or the context. There is no size to tune: draws
 already lean toward small values and edges. Only a generator discards a
 case, with `c.assume(ok)`; a property body cannot.
@@ -2923,7 +2928,7 @@ fn list_users() -> string:
     "[]"
 
 fn users_path() -> string:
-    match shape_of(list_users).metadata[Route]():
+    match shape_of(list_users).metadata::[Route]():
         .Some(found) => found.path
         .None => ""
 ```
@@ -2983,20 +2988,20 @@ it, not by the compiler.
 The compiler exposes shapes for the declarations a library can inspect:
 
 ```text
-shape[User]()                        # DataShape
-shape[User]().fields.email           # FieldShape
-shape[JobStatus]()                   # EnumShape
-shape[JobStatus]().variants.Active   # VariantShape
+shape::[User]()                        # DataShape
+shape::[User]().fields.email           # FieldShape
+shape::[JobStatus]()                   # EnumShape
+shape::[JobStatus]().variants.Active   # VariantShape
 shape_of(get_user)                   # FnShape
 ```
 
 `shape` and `shape_of` are compiler intrinsics in the prelude, not keywords.
-`shape[T]()` takes the reflected type as a type argument; for a data type or
+`shape::[T]()` takes the reflected type as a type argument; for a data type or
 enum its result has typed `fields` or `variants` members, so a misspelled field
 name is a compile-time error. Iterate the ordered members with `field_list` or
 `variant_list`. `shape_of` accepts only the name of a module-level function,
 not a closure or other function value. A member's metadata is read with
-`metadata[M]()`, as in `shape[User]().fields.display_name.metadata[MaxLen]()`.
+`metadata::[M]()`, as in `shape::[User]().fields.display_name.metadata::[MaxLen]()`.
 
 `TypeShape` covers every type a declaration can mention: besides primitives,
 collections, tuples, named types, and functions, it has `Newtype(decl, base)`,

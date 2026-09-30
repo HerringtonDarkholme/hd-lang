@@ -80,7 +80,7 @@ impl[T] ClosureIter[T]:
                             return .Some(item)
                     .None => return .None
             .None
-        ClosureIter[T] { step: step }
+        ClosureIter::[T] { step: step }
 ```
 
 **(B) Nested adapter types** (Rust style). Each adapter is a struct over its
@@ -144,7 +144,7 @@ impl[S < Source[A], A, T] Flat[S, A, T]:
                     .Skip
                 .Skip => .Skip
                 .Stop => .Stop
-        Flat[S, A, T] { source: self.source, stage: stage, done: self.done }
+        Flat::[S, A, T] { source: self.source, stage: stage, done: self.done }
 ```
 
 Java Streams build the same shape: a flat `Stream<T>` whose terminal

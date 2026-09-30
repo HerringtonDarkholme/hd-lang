@@ -359,9 +359,9 @@ as `Error`, can be downcast back.
 use std.inspect.{Inspectable, TypeId}
 
 fn describe_value(value: Inspectable) -> string:
-    if value.runtime_type() == TypeId::of[i32]():
+    if value.runtime_type() == TypeId::of::[i32]():
         return "an i32"
-    match value.downcast[User]():
+    match value.downcast::[User]():
         .Some(user) => "user " + user.email
         .None => "something else"
 ```

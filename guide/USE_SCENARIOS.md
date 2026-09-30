@@ -72,7 +72,7 @@ tool_registry.register(get_user)
 *Mechanism:* a tool is an ordinary typed function, not a wrapper or a
 separate declaration kind, and registration is an explicit runtime call. A
 decorator before the function attaches a plain value, which an adapter reads
-with `shape_of(get_user).metadata[M]()`
+with `shape_of(get_user).metadata::[M]()`
 ([Prefix Decorators](../spec/14-annotations.md#prefix-decorators)).
 Deriving an adapter for a function is still undecided
 ([FN_TYPE questions 9 and 10](../future-work/FN_TYPE.md#9-how-do-tool-adapters-get-per-declaration-data)),
@@ -303,7 +303,7 @@ data Post:
     userId: UserId
 
 impl Post by Structure:
-    userId = [retention_owner(shape[User]()), delete_when(shape[User]().fields.deleted)]
+    userId = [retention_owner(shape::[User]()), delete_when(shape::[User]().fields.deleted)]
 ```
 
 An ownership marker alone is insufficient; metadata must state the lifecycle

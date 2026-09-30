@@ -254,8 +254,8 @@ Generic arguments are inferred at call sites when the type is unambiguous. Calle
 ```text
 names := ["Ada", "Grace"]
 
-a := first(names)          # T inferred as string
-b := first[string](names)  # explicit generic argument
+a := first(names)            # T inferred as string
+b := first::[string](names)  # explicit generic argument
 ```
 
 An explicit generic argument list must provide every generic argument. Partial
@@ -263,7 +263,7 @@ prefix lists are not supported; omit the list to infer all arguments. A full
 list may use `_` to infer selected slots:
 
 ```text
-value := convert[_, User](input)
+value := convert::[_, User](input)
 ```
 
 An unresolved `_` is an ambiguity error. The placeholder is available only in
@@ -280,9 +280,9 @@ Use `reified` when a function needs the concrete runtime type:
 
 ```text
 fn runtime_shape[reified T]() -> TypeShape:
-    shape[T]()
+    shape::[T]()
 
-user_shape := runtime_shape[User]()
+user_shape := runtime_shape::[User]()
 ```
 
 The compiler implements a reified parameter by passing hidden runtime type metadata. The hidden descriptor is not part of the source-level argument list:
@@ -300,21 +300,21 @@ fn resolve[reified T]() -> T $ TypeProvider:
     ...
 
 fn resolved[reified T]() -> T $ TypeProvider:
-    resolve[T]()
+    resolve::[T]()
 
 fn invalid_resolved[T]() -> T $ TypeProvider:
-    resolve[T]()  # compile error: T is erased
+    resolve::[T]()  # compile error: T is erased
 ```
 
 The initial runtime-type operations requiring reification include:
 
-1. `shape[T]()` when `T` is a generic parameter.
+1. `shape::[T]()` when `T` is a generic parameter.
 2. Runtime annotation lookup for `T`.
-3. Type-directed dependency injection such as `resolve[T]()`.
+3. Type-directed dependency injection such as `resolve::[T]()`.
 4. Runtime serialization or deserialization selected from `T`.
 5. Runtime type tests or casts involving `T`, if those operations are added.
 
-Concrete type expressions always have materializable descriptors, so `resolve[List[i32]]()` does not require the caller itself to be generic. A generic expression such as `resolve[List[T]]()` requires `T` to be reified.
+Concrete type expressions always have materializable descriptors, so `resolve::[List[i32]]()` does not require the caller itself to be generic. A generic expression such as `resolve::[List[T]]()` requires `T` to be reified.
 
 Reified functions do not require an `inline` modifier. The WebAssembly backend can use descriptor passing, specialization, or both. It may erase an unused descriptor or specialize a concrete call only when observable reflection behavior remains unchanged.
 
@@ -1486,8 +1486,8 @@ fn show[T < Display](value: T) -> string:
 ```
 
 Generic method calls accept complete explicit argument lists, including `_`
-in inferred slots: `user.tagged[string]("admin")` and
-`codec.convert[_, User](payload)`. Brackets are resolved as method type
+in inferred slots: `user.tagged::[string]("admin")` and
+`codec.convert::[_, User](payload)`. Brackets are resolved as method type
 arguments rather than indexing when the selected member is generic.
 
 Traits can provide default implementations:
@@ -2058,8 +2058,8 @@ The common representation should cover at least:
 Shape vocabulary:
 
 ```text
-shape[User]()       # DataShape
-shape[JobStatus]()  # EnumShape
+shape::[User]()       # DataShape
+shape::[JobStatus]()  # EnumShape
 shape_of(get_user)  # FnShape
 ```
 
@@ -2072,10 +2072,10 @@ The common path should be structural derivation from a shape. A facet such as JS
 Conceptually:
 
 ```text
-Json.derive(shape[User]())
-UI.derive(shape[User]())
+Json.derive(shape::[User]())
+UI.derive(shape::[User]())
 Tool.derive(shape_of(get_user))
-Retention.derive(shape[Post]())
+Retention.derive(shape::[Post]())
 ```
 
 The exact user-facing spelling is still open. Candidate directions include `derive Facet for Target`, facet-led blocks, or another syntax that keeps the derived facet and target obvious.
@@ -2123,9 +2123,9 @@ A promising direction is to model annotations as uniformly typed derivation prot
 Shape values should be usable as runtime values:
 
 ```text
-shape[User]()             # DataShape
-shape[User]().fields.id   # FieldShape
-shape[JobStatus]()        # EnumShape
+shape::[User]()             # DataShape
+shape::[User]().fields.id   # FieldShape
+shape::[JobStatus]()        # EnumShape
 shape_of(get_user)        # FnShape
 ```
 
@@ -2566,7 +2566,7 @@ ErrorSchema := ErrorDoc::annotation(ToolError)    # ErrorSchema
 The spelling `Facet::annotation(Target)` is the language syntax. Semantically, it means:
 
 ```text
-shape_value := shape[Target]()
+shape_value := shape::[Target]()
 fields := Dict.from_entries(
     [for field in shape_value.field_list => (
         field.name,
@@ -2585,7 +2585,7 @@ param_map := Dict.from_entries(
 )
 tool_spec := Tool.build(fn_shape, param_map)
 
-enum_shape := shape[ToolError]()
+enum_shape := shape::[ToolError]()
 variant_map := Dict.from_entries(
     [for variant in enum_shape.variant_list => (
         variant.name,
@@ -2604,7 +2604,7 @@ error_schema := ErrorDoc.build(enum_shape, variant_map)
 If a package-local annotation block exists, the compiler/runtime applies its field overrides between generic mapping and whole-generation construction:
 
 ```text
-user_shape := shape[User]()
+user_shape := shape::[User]()
 default_fields := Dict.from_entries(
     [for field in user_shape.field_list => (
         field.name,
@@ -3084,7 +3084,7 @@ Illustrative lowering for facet materialization:
 fn __annotation_DatabaseSchema_User() -> Result[TableSchema, AnnotationError]:
     user_shape := __meta_User()?
 
-    let fields: mut Dict[string, DatabaseColumn] = Dict[string, DatabaseColumn].empty()
+    let fields: mut Dict[string, DatabaseColumn] = Dict::[string, DatabaseColumn].empty()
     for field in user_shape.field_list:
         type_metadata := DatabaseSchema::annotation_ref(field.type)
         fields[field.name] = DatabaseSchema.map_field(field, type_metadata)
@@ -3170,7 +3170,7 @@ fn map_field(
 Runtime/tooling can also inspect the attached values directly:
 
 ```text
-field := shape[User]().fields.email
+field := shape::[User]().fields.email
 metadata := field.metadata
 ```
 
@@ -3191,7 +3191,7 @@ annotate Employee:
 Conceptual external validation override, not final syntax:
 
 ```text
-Validation.derive(shape[Employee](), overrides={
+Validation.derive(shape::[Employee](), overrides={
     email: string.email().max_len(320).refine(company_email),
     age: i32.range(18..150),
 })
@@ -3200,13 +3200,13 @@ Validation.derive(shape[Employee](), overrides={
 The same mechanism should work for other tooling facets:
 
 ```text
-DatabaseSchema.derive(shape[User](), overrides={
+DatabaseSchema.derive(shape::[User](), overrides={
     userId: varchar(36).primary_key(),
     email: varchar(320).unique(),
     createdAt: timestamp(),
 })
 
-UI.derive(shape[User](), overrides={
+UI.derive(shape::[User](), overrides={
     userId: text,
     avatar: ProfileImage.rounded(size=40),
     email: link.mailto(),
@@ -3218,7 +3218,7 @@ Reusable validation pieces can be ordinary values/functions, not new type-level 
 ```text
 CompanyEmail := string.email().max_len(320).refine(company_email)
 
-Validation.derive(shape[Employee](), overrides={
+Validation.derive(shape::[Employee](), overrides={
     email: CompanyEmail,
 })
 ```
@@ -3310,7 +3310,7 @@ data Post:
     id: PostId
     userId: UserId
 
-Retention.derive(shape[Post](), overrides={
+Retention.derive(shape::[Post](), overrides={
     userId: ownerId,
     policy: deleteWhen(User.deleted),
 })
@@ -3319,11 +3319,11 @@ Retention.derive(shape[Post](), overrides={
 Here, `ownerId` and `deleteWhen` are not new language keywords. They are annotation terms provided by the `Retention` facet, similar to how validation might provide `email`, `max_len`, or `range`.
 
 ```text
-Validation.derive(shape[User](), overrides={
+Validation.derive(shape::[User](), overrides={
     email: email.max_len(320),
 })
 
-Retention.derive(shape[Post](), overrides={
+Retention.derive(shape::[Post](), overrides={
     userId: ownerId,
     policy: deleteWhen(User.deleted),
 })
