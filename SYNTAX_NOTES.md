@@ -73,7 +73,7 @@ For composite values, mutation permission is part of the type. `T` provides cons
 - `a := ...` makes a name that can't be reassigned, with a const type.
 - `let a = ...` makes a reassignable name, with a const type by default, even for a fresh value.
 - `let mut a = ...` infers the root as `mut`, and `let a: mut T = ...` states it. `let mut a: mut T` is allowed but warns (`redundant-let-mut`); `let mut a: T` is an error, `let-mut-readonly-type`.
-- A multi-name `let` always puts its names in parentheses, with or without `mut`: `let (name, score) = pair`, and `let (mut log, db) = pair` where each name takes its own `mut`. `let name, score = pair` and `let mut log, db = pair` are syntax errors. A multi-name `:=` binding puts its names in parentheses the same way, `(a, b) := pair`, and `a, b := pair` is a syntax error. A line that starts with `(` is always a new statement, never a call of the line before.
+- A multi-name `let` always puts its names in parentheses, with or without `mut`: `let (name, score) = pair`, and `let (mut log, db) = pair` where each name takes its own `mut`. `let name, score = pair` and `let mut log, db = pair` are syntax errors. `:=` binds exactly one name, so `(a, b) := pair` is `missing-let`: destructure with `let (a, b) = pair`. `let` takes any `match` pattern, and a pattern that may fail needs a diverging let-else block: `let .Some(user) = find(id) else: return .None`. A line that starts with `(` is always a new statement, never a call of the line before.
 - Primitives have no `mut` form, so `let mut n = 0` and `let n: mut i32` are `mut-on-primitive` errors.
 
 `mut` after `let` only helps inference; `mut` itself stays a permission in the type. A const composite reference cannot be upgraded, so `let mut` of a const value is an error:
@@ -522,7 +522,7 @@ An executable package uses `pub fn main` as its conventional default entry point
 use std.host.{Args, Console}
 
 pub fn main!() -> Result[void, AppError] $ Args + Console:
-    (args, console) := $.use(Args, Console)
+    let (args, console) = $.use(Args, Console)
     console.write_line!("starting " + args.program_name())?
 ```
 
@@ -691,10 +691,10 @@ x := point._0
 y := point._1
 ```
 
-Tuple destructuring works with both binding forms:
+Tuple destructuring uses a `let` tuple pattern:
 
 ```text
-(x, y) := point
+let (x, y) = point
 let (name, score) = entry
 ```
 
@@ -1886,7 +1886,7 @@ trait Cache:
     fn get_user(self, id: UserId) -> User?
 
 fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
-    (db, cache) := $.use(Database, Cache)
+    let (db, cache) = $.use(Database, Cache)
     cached := cache.get_user(id)
     if cached != .None:
         return .Ok(cached)
@@ -1917,7 +1917,7 @@ fn prod_context() -> $.Context[Metrics + Cache]:
     $.context(Metrics=metrics, Cache=cache)
 
 $.with(Database=mock_db, Logger=console_logger, prod_context()...):
-    (db, logger, cache) := $.use(Database, Logger, Cache)
+    let (db, logger, cache) = $.use(Database, Logger, Cache)
     result := load_user!(UserId("user_123"))
 ```
 

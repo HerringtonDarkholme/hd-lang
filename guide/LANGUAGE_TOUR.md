@@ -141,7 +141,7 @@ println(readonly.display_name)  # "Ada Lovelace"
 
 This is shared reference permission, not ownership or deep immutability. Multiple mutable aliases may exist, but mutation authority cannot be created from a readonly reference.
 
-A plain `let` infers the readonly view, even of a fresh value, so `let draft = User { ... }` can be reassigned but not mutated. A multi-name `let` always puts its names in parentheses, as in `let (name, score) = pair`, and each name takes its own `mut`: `let (mut log, db) = pair`.
+A plain `let` infers the readonly view, even of a fresh value, so `let draft = User { ... }` can be reassigned but not mutated. A multi-name `let` is a tuple pattern, as in `let (name, score) = pair`, and each name takes its own `mut`: `let (mut log, db) = pair`.
 
 Types appear where they make interfaces between code clear: function parameters, return types, data fields, and public APIs.
 
@@ -268,8 +268,8 @@ fn first_word(text: string) -> string:
 size := "héllo".len()  # 6: é is two bytes
 ```
 
-A loop over pairs puts its names in parentheses, as `let (a, b)` and
-`(a, b) :=` do: `for (offset, letter) in ...`. The bare
+A loop over pairs puts its names in parentheses, as `let (a, b)`
+does: `for (offset, letter) in ...`. The bare
 `for offset, letter in ...` is a syntax error.
 
 Numeric values support ordinary arithmetic operators:
@@ -420,10 +420,12 @@ code that names `Error` imports it. See
 [Error Derivation](../spec/14-annotations.md#error-derivation).
 
 Use parentheses when a binding expression appears inside a larger expression.
-A multi-name binding such as `(a, b) := value` is a statement only, so
-`((a, b) := value)` and the old form `(a, b := value)` are syntax errors;
-bind first, on its own line. To put a single-name binding in a tuple,
-parenthesize that element separately, as in `(a, (b := value))`.
+`:=` binds exactly one name; destructuring is a `let` statement, so
+`(a, b) := value` is `missing-let`, and `((a, b) := value)` and the old
+form `(a, b := value)` are syntax errors. A list item may be a binding,
+so `[a, b := value]` holds `a` and `b := value`. To put a single-name
+binding in a tuple, parenthesize that element separately, as in
+`(a, (b := value))`.
 
 `void` is used for functions that return no useful value:
 
@@ -448,12 +450,20 @@ x := point._0
 y := point._1
 ```
 
-Tuple destructuring works with both binding forms, and both put the names
-in parentheses. `x, y := point` without them is a `syntax-error`:
+Tuple destructuring is a `let` tuple pattern. `(x, y) := point` is
+`missing-let`, since `:=` binds one name:
 
 ```text
-(x, y) := point
+let (x, y) = point
 let (name, score) = ("Ada", 10)
+```
+
+`let` takes any `match` pattern. A pattern that may fail, such as
+`.Some(user)`, needs a let-else block that leaves the function or loop:
+
+```text
+let Point { x, y: py } = point
+let .Some(user) = find(id) else: return .None
 ```
 
 Use data types instead of named tuples when field names are part of the meaning.
@@ -2670,7 +2680,7 @@ trait Cache:
     fn get_user(self, id: UserId) -> User?
 
 fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
-    (db, cache) := $.use(Database, Cache)
+    let (db, cache) = $.use(Database, Cache)
     match cache.get_user(id):
         .Some(user) => return .Ok(user)
         .None => pass
