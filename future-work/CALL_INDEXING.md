@@ -22,7 +22,8 @@ and C1, the [recommendation](#recommendation), and the
 [questions](#questions-for-the-owner). The owner then noted that C1
 gives live variables but makes array indexing read oddly, so
 [Live Variables Without Call Indexing](#live-variables-without-call-indexing)
-shows two ways to get `var()` or `var[]` under B.
+shows two ways to get `var()` or `var[]` under B. The owner chose to
+try B+F first; [Trying B+F](#trying-bf) applies it.
 
 ## Owner Direction So Far
 
@@ -36,6 +37,7 @@ applied to the specification.
 | C3, one namespace as first written | Rejected, because trait methods collide with fields. |
 | C3′, one namespace with an ordered lookup (own members, then promoted, then trait methods) | Rejected, after the second pass. |
 | Remaining options | B and C1, with A as the baseline. |
+| B+F, B with callable values | Try first; see [Trying B+F](#trying-bf). |
 
 The owner wrote: "i hate syntax ambiguity. i have one crazy thing"
 
@@ -59,6 +61,7 @@ var() = 1
 - [Options](#options)
 - [Stress Test](#stress-test)
 - [Comparison](#comparison)
+- [Trying B+F](#trying-bf)
 - [Recommendation](#recommendation)
 - [Questions For The Owner](#questions-for-the-owner)
 - [Sources](#sources)
@@ -783,10 +786,112 @@ fn demo(names: List[string], var: mut Cell[i32]) -> string:
 
 The block above is B+F: `names[0]` indexes, and `var()` reads the cell.
 
+## Trying B+F
+
+The owner chose to try B+F first (2026-09-30): `[]` indexes, `::[`
+marks type arguments in expressions, and a type opts in to `var()` and
+`var() = v`. This section applies it to the corpus and to the
+live-variable case. Nothing here is decided.
+
+### B+F Site Counts
+
+Same corpus as [Counts](#counts), with the type-name forms counted by a
+heuristic script on main at eac2289f.
+
+| Site | Tour | std | Fixtures | Total | Under B+F |
+| --- | --- | --- | --- | --- | --- |
+| Explicit type arguments on a function | 13 | 0 | 61 | 74 | `f::[T](x)` |
+| Explicit type arguments on a method | 2 | 3 | 45 | 50 | `x.m::[T]()` |
+| Type-name literal, `Box[i32] { ... }` | 2 | 3 | 22 | 27 | [Q2](#q2-type-name-expressions-under-b) |
+| Type-name path, `Add[i32]::add` | 0 | 0 | 11 | 11 | [Q2](#q2-type-name-expressions-under-b) |
+| Index sites | 9 | 39 | 130 | 178 | unchanged |
+| Live variables | 0 | 0 | 0 | 0 | new |
+
+The first pass guessed about 100 type-name sites; the count is 38. All 11
+paths are trait-qualified calls such as `Add[i32]::add(price, 5)`.
+
+### Rewrites
+
+`lib/std/testing.hd` puts an index and a type-argument call on one line.
+Under B+F each bracket says what it is:
+
+```text
+fn pick[T < Arbitrary](c: mut Choices, examples: List[T], index: i32) -> T:
+    if index >= 0: examples[index] else: c.draw::[T]()  # hypothetical syntax
+```
+
+The tour's reflection chain:
+
+```text
+fn limit() -> MaxLen:
+    shape::[User]().fields.display_name.metadata::[MaxLen]()  # hypothetical syntax
+```
+
+A live variable in a local, the owner's sample, and a counter closure that
+captures it:
+
+```text
+fn demo() -> void:
+    var := live(0)
+    println(var())
+    var() = 1
+    var() += 1
+
+fn counter() -> fn() -> i32:
+    count := live(0)
+    fn() -> i32:
+        count() += 1
+        count()
+```
+
+A live variable in a field. `state.count()` is a method call, so the read
+takes parentheses, or a method the cell type defines, such as `get`:
+
+```text
+data AppState:
+    count: mut Cell[i32]
+
+fn bump(state: AppState) -> i32:
+    (state.count)() += 1
+    state.count.get()
+```
+
+The owner expects cells in fields to be rare. The corpus has no cells at
+all, so it gives no evidence either way. The field case costs parentheses,
+the same rule `(x.f)(args)` that stored functions use.
+
+### What B+F Surfaced
+
+Ranked by how much each affects the design.
+
+| # | Finding | Effect | Question |
+| --- | --- | --- | --- |
+| 1 | Two keyed-access trait pairs | `Index`/`IndexSet` serve `[]` and `Apply`/`Update` serve `()`. A grid could use either, which is two mechanisms for one job. Limiting F to zero keys removes the overlap. | [Q6](#q6-arity-of-callable-values) |
+| 2 | Type-name paths | `Add[i32]::add` has the shape of `values[0]::describe`, a method reference on an element. It needs `Add::[i32]::add`, or a rule. | [Q2](#q2-type-name-expressions-under-b) |
+| 3 | Type-name literals | `Box[i32] { ... }` is never an index followed by a block, since hd blocks use `:`. A parser can tell it by the `{`, with no marker. | [Q2](#q2-type-name-expressions-under-b) |
+| 4 | Calls as places | `var() = 1` makes a call a place when its type has `Update`. Today's [`expr.assign.compound.place`](../spec/05-expressions.md#r-expr.assign.compound.place) says a call is never one. | none; it is F's one exception |
+| 5 | Cells in fields | `(state.count)()`, as for stored functions | none; the owner expects it to be rare |
+| 6 | Mutable binding | `var() = 1` needs `var` to hold a `mut Cell`. Whether `var := live(0)` keeps the `mut` of `live`'s result must be checked against [Mutable Paths](../spec/04-type-system.md#mutable-paths). | a check for spec-update, not a design question |
+
+With F limited to zero keys, the traits lose their `Keys` parameter, and
+Q3 and Q4 no longer apply:
+
+```text
+pub trait Apply:
+    type Out
+    fn apply(self) -> Self::Out
+
+pub trait Update[V]:
+    fn update(mut self, value: V) -> void
+```
+
 ## Recommendation
 
 **Recommendation.** Option B for the brackets, with callable values, B+F,
-if the owner wants `var()` now. C1 is next best.
+if the owner wants `var()` now. C1 is next best. Within B+F, zero keys
+only ([Q6](#q6-arity-of-callable-values)) and `::[` after type names too
+([Q2](#q2-type-name-expressions-under-b)) add no second mechanism and no
+exception.
 
 - The live variable does not need call indexing. B+F gives the owner's
   `var()` and `var() = 1` exactly, and arrays keep `xs[0]`.
@@ -807,8 +912,8 @@ arguments outweigh `xs(0)`. B+Z, `var[]`, if calls should never be places.
 
 ## Questions For The Owner
 
-Q1 decides the option. Q2 and Q5 apply only under B; Q3 and Q4 apply
-under C1, and Q3 under B+F too.
+Q1 decides the option. Q2, Q5, and Q6 apply only under B; Q3 and Q4
+apply under C1, and Q3 under B+F only if Q6 allows keys.
 
 ### Q1. B Or C1
 
@@ -831,14 +936,17 @@ fn first_tag(user: User) -> string:
 
 ### Q2. Type-Name Expressions Under B
 
-**Effect:** only under B. `Box[i32]::get` has the shape of
-`values[0]::describe`, a method reference on an indexed element, so the
-bracket is ambiguous again.
+**Effect:** only under B. 38 sites write type arguments after a type name:
+27 literals such as `Box[i32] { ... }` and 11 trait-qualified paths such as
+`Add[i32]::add`. The path has the shape of `values[0]::describe`.
 
-1. **`::[` after a type name too** (recommended): `Box::[i32]::get` and
-   `Shipment::[i32] { ... }`, one rule for every expression.
-2. Name resolution decides after a type name only: keeps today's
-   spelling, and keeps a small part of the ambiguity.
+1. **`::[` after a type name too** (recommended): `Box::[i32] { ... }`
+   and `Add::[i32]::add(price, 5)`. One rule for every expression, and no
+   exception.
+2. Literals by the `{` that follows, which no index can precede; paths
+   by a rule that a method reference on an index result needs
+   parentheses, `(values[0])::describe`. The 38 sites keep today's
+   spelling, and B gains two exceptions.
 
 ```text
 fn demo(names: List[string]) -> string:
@@ -889,6 +997,22 @@ while arrays keep `xs[0]`.
 2. B+Z, zero-key index: `var[]` and `var[] = 1`, through a keys-tuple
    `Index`.
 3. Neither for now: a cell uses methods, `var.get()` and `var.set(1)`.
+
+```text
+fn bump(var: mut Cell[i32]) -> void:
+    var() += 1
+```
+
+### Q6. Arity Of Callable Values
+
+**Effect:** only under B+F. With keys, `Apply` and `Index` both give keyed
+reads, so a grid has two ways to be written.
+
+1. **Zero keys only** (recommended): `var()` and `var() = v`; grids keep
+   `g[(0, 1)]`. `Apply` and `Update` lose their `Keys` parameter, and Q3
+   no longer applies.
+2. Any keys, as C1's `Apply[Keys]`: `g(0, 1)` is possible, and a type
+   picks `[]` or `()`.
 
 ```text
 fn bump(var: mut Cell[i32]) -> void:
@@ -1027,11 +1151,17 @@ their meaning is the proposal.
 | 17 | Call result indexed | parses |
 | 18 | Evaluation-order fixture | parses |
 | 19 | B+F cell beside an index | parses |
-| 20 | Q1 | parses |
-| 21 | Q2 | parses |
-| 22 | Q3 | parses |
-| 23 | Q4 | parses |
-| 24 | Q5 | parses |
+| 20 | B+F: an index and type arguments on one line | `syntax-error` at line 2, on a line marked `# hypothetical syntax` |
+| 21 | B+F: reflection chain | `syntax-error` at line 2, on a line marked `# hypothetical syntax` |
+| 22 | B+F: a local live variable and a counter | parses |
+| 23 | B+F: a live variable in a field | parses |
+| 24 | Zero-key `Apply` and `Update` | parses |
+| 25 | Q1 | parses |
+| 26 | Q2 | parses |
+| 27 | Q3 | parses |
+| 28 | Q4 | parses |
+| 29 | Q5 | parses |
+| 30 | Q6 | parses |
 
 Reference-parser finding: none. The parser accepts `f(x) = v` and
 `(x.f)(k) = v` today, as [`grammar.stmt.assign-target`](../spec/02-grammar.md#r-grammar.stmt.assign-target)
