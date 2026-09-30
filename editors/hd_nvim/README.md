@@ -14,19 +14,36 @@ syntax file. It needs no tree-sitter, no plugin library, and no `hd` CLI.
 
 ## Install
 
-Add the folder to `runtimepath` in your `init.lua`:
+Neovim reads `ftdetect/` only at startup, when it loads plugins. An
+`rtp:append` that runs later, such as after lazy.nvim's `setup`, never
+loads the detection, so `*.hd` files get no filetype. Use one of these:
 
-```lua
-vim.opt.rtp:append("/path/to/hd-lang/editors/hd_nvim")
-```
+1. Append early in `init.lua`, so it runs before Neovim loads plugins at
+   startup. With lazy.nvim, use option 3 instead:
+
+   ```lua
+   vim.opt.rtp:append("/path/to/hd-lang/editors/hd_nvim")
+   ```
+
+2. Or, if the append must run later, load the detection yourself right
+   after it:
+
+   ```lua
+   vim.opt.rtp:append("/path/to/hd-lang/editors/hd_nvim")
+   vim.cmd("runtime! ftdetect/hd.lua")
+   ```
+
+3. With lazy.nvim, add a local plugin spec that is not lazy-loaded:
+
+   ```lua
+   { dir = "/path/to/hd-lang/editors/hd_nvim", lazy = false }
+   ```
 
 Or copy it into your config:
 
 ```sh
 cp -r /path/to/hd-lang/editors/hd_nvim/ftdetect /path/to/hd-lang/editors/hd_nvim/syntax ~/.config/nvim/
 ```
-
-With lazy.nvim, if you use it: `{ dir = "/path/to/hd-lang/editors/hd_nvim" }`.
 
 ## What It Highlights
 
