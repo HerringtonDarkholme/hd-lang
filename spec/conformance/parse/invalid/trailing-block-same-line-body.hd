@@ -1,0 +1,6 @@
+# test: a trailing block body must begin on the next logical line
+# Spec 02 Trailing Blocks: grammar.call.trailing-block.next-line (owner decision TB1, batch 16, 2026-09-30).
+fn trailing(body: fn() -> void) -> void: body()
+
+fn close_all(close: bool) -> void:
+    if close: trailing(): pass  # diagnostic: syntax-error

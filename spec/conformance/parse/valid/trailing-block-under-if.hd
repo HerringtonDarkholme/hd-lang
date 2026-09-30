@@ -1,0 +1,9 @@
+# test: a trailing block under an if uses an indented if body or an explicit closure
+# Spec 02 Trailing Blocks: grammar.call.trailing-block.next-line (owner decision TB1, batch 16, 2026-09-30).
+fn trailing(body: fn() -> void) -> void: body()
+
+fn close_all(close: bool) -> void:
+    if close:
+        trailing:
+            pass
+    if close: trailing(fn(): pass)

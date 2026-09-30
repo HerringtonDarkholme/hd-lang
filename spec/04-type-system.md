@@ -103,6 +103,19 @@ impl Counter for i32:
 > `mut self` method must therefore stay implementable for a primitive
 > `Self`.
 
+8. r[types.prim.no-mut.self-type] In such a method the `mut` is dropped, because a primitive has no `mut` form: `self` has the plain type `Self`, as in `i32`.
+9. r[types.prim.no-mut.self-call] A call of such a method therefore needs no mutable access to its receiver.
+
+```text
+trait Step:
+    fn next(mut self) -> i32
+
+impl Step for i32:
+    fn next(mut self) -> i32: self + 1  # valid: self is i32
+
+fn advance(start: i32) -> i32: start.next()  # valid
+```
+
 ### `void` And The Empty Tuple
 
 1. r[types.void] `void` is the return type of a function that produces no useful value.

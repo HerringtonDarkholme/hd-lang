@@ -1279,7 +1279,7 @@ indented_suite_body = NEWLINE, INDENT, statement, { statement }, DEDENT ;
 2. r[grammar.call.trailing-block.no-arguments] When there are no ordinary arguments, the call omits `()`, as in `transaction:`.
 3. r[grammar.call.trailing-block.accepted] This production is accepted only at delimiter depth zero when the call is the complete statement or one of those complete right-hand sides.
 4. r[grammar.call.trailing-block.eligible] It is also accepted only when name and type resolution identify a callable with an eligible final parameter.
-5. r[grammar.call.trailing-block.next-line] Its body must begin on the next logical line.
+5. r[grammar.call.trailing-block.next-line] Its body must begin on the next logical line. A body on the same line is an error. Error: `syntax-error`.
 6. r[grammar.call.trailing-block.not-header] It is not accepted in an `if`, `while`, `for`, or `match` header or inside brackets. A trailing block there is an error. Error: `trailing-block-position`.
 
 ```text
@@ -1287,6 +1287,38 @@ fn run(callback: fn() -> i32) -> i32: callback()
 
 values := [run:  # error: trailing-block-position
     1]
+```
+
+The next-line rule also rules out a trailing block call as a same-line
+suite body. Written on the call's line, the body breaks the next-line rule.
+Written on the next line, it is an indented suite, which a same-line suite
+never holds ([`grammar.inline.no-comma`](#r-grammar.inline.no-comma)):
+
+```text
+fn trailing(body: fn() -> void) -> void: body()
+
+fn close_all(close: bool) -> void:
+    if close: trailing(): pass  # error: syntax-error
+```
+
+```text
+fn trailing(body: fn() -> void) -> void: body()
+
+fn close_all(close: bool) -> void:
+    if close: trailing:  # error: syntax-error
+        pass
+```
+
+The valid forms indent the `if` body, or pass the closure as an argument:
+
+```text
+fn trailing(body: fn() -> void) -> void: body()
+
+fn close_all(close: bool) -> void:
+    if close:
+        trailing:
+            pass
+    if close: trailing(fn(): pass)
 ```
 
 ### Closures

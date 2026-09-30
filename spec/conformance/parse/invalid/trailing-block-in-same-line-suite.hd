@@ -1,0 +1,7 @@
+# test: a same-line suite holds no trailing block with an indented body
+# Spec 02 Trailing Blocks: grammar.call.trailing-block.next-line and grammar.inline.no-comma (owner decision TB1, batch 16, 2026-09-30).
+fn trailing(body: fn() -> void) -> void: body()
+
+fn close_all(close: bool) -> void:
+    if close: trailing:  # diagnostic: syntax-error
+        pass

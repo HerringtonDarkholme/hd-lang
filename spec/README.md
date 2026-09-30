@@ -2048,3 +2048,16 @@ existing source. Each entry names the decision that made the change.
   inside the closure only. A key bound by a `$.with` around the closure no
   longer collides, and a key of the closure's declared row now can. No
   rule ID is retired.
+- Trailing block on the same line (owner decision TB1 in
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  batch 16, 2026-09-30): editorial.
+  `grammar.call.trailing-block.next-line` now names its code,
+  `syntax-error`, and examples show that `if close: trailing(): pass` and
+  `if close: trailing:` with an indented body are both errors. Source is
+  unaffected. No rule ID is retired.
+- `self` in a primitive `mut self` method (owner decision LM-c in
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  batch 16, 2026-09-30): in an impl whose `Self` is primitive, the `mut`
+  of a `mut self` receiver is dropped, so `self` has the plain type
+  `Self`. In an impl for `i32`, `self + 1` is valid, and a call such as
+  `start.next()` needs no mutable access. No rule ID is retired.

@@ -1,0 +1,18 @@
+# test: self in a mut self method of a primitive impl has the plain type Self
+# expect: test
+# Spec 04 Primitive Types: types.prim.no-mut.self-type (owner decision LM-c, batch 16, 2026-09-30).
+
+use std.testing.assert_equal
+
+trait Step:
+    fn next(mut self) -> i32
+
+impl Step for i32:
+    fn next(mut self) -> i32: self + 1
+
+fn advance(start: i32) -> i32:
+    start.next()
+
+tests:
+    it("arithmetic on a primitive mut self receiver"):
+        assert_equal(advance(41), 42, reason="next")

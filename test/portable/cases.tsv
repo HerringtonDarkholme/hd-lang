@@ -1546,3 +1546,5 @@ runtime/valid/derived-arbitrary-recursive-members.hd	runtime
 runtime/valid/derived-arbitrary-no-finite-value.hd	runtime
 typing/invalid/arbitrary-with-non-inspectable-generator.hd	type
 typing/invalid/arbitrary-with-non-inspectable-member.hd	type
+parse/invalid/trailing-block-same-line-body.hd	parse
+parse/valid/trailing-block-under-if.hd	parse
