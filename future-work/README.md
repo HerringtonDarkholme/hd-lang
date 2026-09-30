@@ -24,6 +24,9 @@ Open questions for the owner:
   property-test decisions PT1-PT9 and Q5-Q10, and the two apply-pass
   readings the owner confirmed. The generator parameter style and two
   deferred fixtures wait for the owner.
+- [Special Cases: Inventory And Simplification](SPECIAL_CASES.md) lists
+  hd's compiler intrinsics, rule exceptions, special syntax, magic names,
+  and single-construct diagnostics, and ranks nine cuts as owner questions.
 
 Deferred:
 
