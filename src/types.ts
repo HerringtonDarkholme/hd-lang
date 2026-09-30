@@ -129,11 +129,22 @@ export function splitTypeBindings(arguments_: readonly ValueType[]): {
   const positional: ValueType[] = [];
   const bindings: TypeBinding[] = [];
   for (const argument of arguments_) {
-    const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.+)$/su.exec(argument);
-    if (match) bindings.push({ name: match[1]!, type: match[2]! });
+    const binding = bindingParts(argument);
+    if (binding) bindings.push(binding);
     else positional.push(argument);
   }
   return { positional, bindings };
+}
+
+/** The parts of one binding argument `Name=type`, or undefined for a type. */
+export function bindingParts(argument: ValueType): TypeBinding | undefined {
+  const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.+)$/su.exec(argument);
+  return match ? { name: match[1]!, type: match[2]! } : undefined;
+}
+
+/** A binding argument with its type rewritten. */
+export function bindingType(binding: TypeBinding, type: ValueType): ValueType {
+  return `${binding.name}=${type}`;
 }
 
 function isFunctionTypeText(type: ValueType): boolean {
@@ -265,6 +276,8 @@ export function substituteTypeParameters(
   type: ValueType,
   substitutions: ReadonlyMap<string, ValueType>,
 ): ValueType {
+  const binding = bindingParts(type);
+  if (binding) return bindingType(binding, substituteTypeParameters(binding.type, substitutions));
   const mutable = mutableInner(type);
   if (mutable !== undefined) return mutableType(substituteTypeParameters(mutable, substitutions));
   const tuple = tupleParts(type);

@@ -1,3 +1,4 @@
+import { traitValueBindings, writtenBindingProblem } from "./associated-bindings.ts";
 import type { Expression, Program, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { isIntegerType, isNarrowInteger, numericType, widensTo } from "../numeric.ts";
@@ -26,6 +27,9 @@ import {
   tupleParts,
   tupleType,
   CURSOR_TYPE,
+  bindingParts,
+  bindingType,
+  splitTypeBindings,
 } from "../types.ts";
 
 interface NamedParameter {
@@ -237,6 +241,8 @@ export function isKnownType(
   enumTypes: ReadonlyMap<string, HirEnum>,
   traitTypes: ReadonlyMap<string, HirTrait> = new Map(),
 ): boolean {
+  const binding = bindingParts(type);
+  if (binding) return isKnownType(binding.type, dataTypes, enumTypes, traitTypes);
   const mutable = mutableInner(type);
   if (mutable !== undefined)
     return mutable !== "void" && isKnownType(mutable, dataTypes, enumTypes, traitTypes);
@@ -253,7 +259,8 @@ export function isKnownType(
     if (!trait) return false;
     if (!nominalTrait) return trait.genericParameters.length === 0;
     return (
-      trait.genericParameters.length === nominalTrait.arguments.length &&
+      trait.genericParameters.length ===
+        splitTypeBindings(nominalTrait.arguments).positional.length &&
       nominalTrait.arguments.every((argument) =>
         isKnownType(argument, dataTypes, enumTypes, traitTypes),
       )
@@ -359,6 +366,12 @@ export function substituteGenericType(
   substitutions: ReadonlyMap<string, ValueType>,
   rowSubstitutions: ReadonlyMap<string, readonly string[]> = new Map(),
 ): ValueType {
+  const binding = bindingParts(type);
+  if (binding)
+    return bindingType(
+      binding,
+      substituteGenericType(binding.type, substitutions, rowSubstitutions),
+    );
   const mutable = mutableInner(type);
   if (mutable !== undefined)
     return mutableType(substituteGenericType(mutable, substitutions, rowSubstitutions));
@@ -428,6 +441,9 @@ export function requirementKeysMayCollide(left: string, right: string): boolean 
     return substitution ? resolve(substitution) : type;
   };
   const children = (type: ValueType): TypeChildren => {
+    // A key's bindings take part as its type arguments do (req.with.collision.bindings).
+    const binding = bindingParts(type);
+    if (binding) return { head: `binding:${binding.name}`, values: [binding.type] };
     const tuple = tupleParts(type);
     if (tuple !== undefined) return { head: `tuple:${tuple.length}`, values: tuple };
     const optional = optionalInner(type);
@@ -478,6 +494,8 @@ export function requirementKeysMayCollide(left: string, right: string): boolean 
 
 export function containsGenericType(type: ValueType): boolean {
   if (genericTypeName(type)) return true;
+  const binding = bindingParts(type);
+  if (binding) return containsGenericType(binding.type);
   const mutable = mutableInner(type);
   if (mutable !== undefined) return containsGenericType(mutable);
   const tuple = tupleParts(type);
@@ -501,6 +519,12 @@ export function inferGenericType(
   substitutions: Map<string, ValueType>,
   rowSubstitutions: Map<string, readonly string[]> = new Map(),
 ): string | undefined {
+  const formalBinding = bindingParts(formal);
+  const actualBinding = bindingParts(actual);
+  if (formalBinding || actualBinding)
+    return formalBinding && actualBinding && formalBinding.name === actualBinding.name
+      ? inferGenericType(formalBinding.type, actualBinding.type, substitutions, rowSubstitutions)
+      : undefined;
   const generic = genericTypeName(formal);
   if (generic) {
     const existing = substitutions.get(generic);
@@ -606,6 +630,15 @@ export function matchGenericTypePattern(
   actual: ValueType,
   substitutions: Map<string, ValueType>,
 ): boolean {
+  const patternBinding = bindingParts(pattern);
+  const actualBinding = bindingParts(actual);
+  if (patternBinding || actualBinding)
+    return Boolean(
+      patternBinding &&
+      actualBinding &&
+      patternBinding.name === actualBinding.name &&
+      matchGenericTypePattern(patternBinding.type, actualBinding.type, substitutions),
+    );
   const generic = genericTypeName(pattern);
   if (generic) {
     const existing = substitutions.get(generic);
@@ -830,6 +863,9 @@ export function resolveGenericType(
   rowParameters: ReadonlySet<string> = new Set(),
 ): ValueType {
   if (genericParameters.has(type)) return `generic:${type}`;
+  const binding = bindingParts(type);
+  if (binding)
+    return bindingType(binding, resolveGenericType(binding.type, genericParameters, rowParameters));
   const projection = /^([^:]+)::([A-Za-z_][A-Za-z0-9_]*)$/.exec(type);
   if (projection && genericParameters.has(projection[1]!)) return `generic:${type}`;
   const mutable = mutableInner(type);
@@ -914,6 +950,8 @@ export function resolveGenericRequirement(
 }
 
 export function firstPrivateSignatureType(type: ValueType, program: Program): string | undefined {
+  const binding = bindingParts(type);
+  if (binding) return firstPrivateSignatureType(binding.type, program);
   const mutable = mutableInner(type);
   if (mutable !== undefined) return firstPrivateSignatureType(mutable, program);
   const tuple = tupleParts(type);
@@ -969,6 +1007,8 @@ export function normalizeRowArguments(
 ): ValueType | { readonly mismatch: string } {
   let mismatch: string | undefined;
   const visit = (current: ValueType): ValueType => {
+    const binding = bindingParts(current);
+    if (binding) return bindingType(binding, visit(binding.type));
     const mutable = mutableInner(current);
     if (mutable !== undefined) return mutableType(visit(mutable));
     const tuple = tupleParts(current);
@@ -1031,9 +1071,17 @@ export function typeName(
     return undefined;
   }
   const resolved = kinded;
+  const bindingProblem = writtenBindingProblem(resolved, traitTypes);
+  if (bindingProblem) {
+    diagnostics.push({ ...bindingProblem, span: type.span });
+    return undefined;
+  }
   const dynamicTraitName = traitTypeName(resolved);
   const dynamicTrait = dynamicTraitName && traitTypes.get(dynamicTraitName);
-  if (dynamicTrait && !traitIsDynamicallySafe(dynamicTrait, traitTypes)) {
+  if (
+    dynamicTrait &&
+    !traitIsDynamicallySafe(dynamicTrait, traitTypes, new Set(traitValueBindings(resolved).keys()))
+  ) {
     diagnostics.push({
       code: "trait-not-dynamically-safe",
       message: `trait '${dynamicTrait.name}' cannot be used as a dynamic value`,
@@ -1076,14 +1124,20 @@ function isMethodRowParameter(method: HirTrait["methods"][number], parameter: st
   return method.parameters.some((type) => inRow.test(type)) || inRow.test(method.result);
 }
 
-function traitIsDynamicallySafe(
+/**
+ * The one-copy rule (09-traits.md#dynamic-safety). An associated type is safe
+ * only when the value type binds it, so `bound` holds the names the value
+ * type binds (trait.dyn.binding.complete).
+ */
+export function traitIsDynamicallySafe(
   trait: HirTrait,
   traitTypes: ReadonlyMap<string, HirTrait>,
+  bound: ReadonlySet<string> = new Set(),
   seen: ReadonlySet<number> = new Set(),
 ): boolean {
   if (seen.has(trait.index)) return true;
   if (
-    trait.associatedTypes.length > 0 ||
+    trait.associatedTypes.some((associated) => !bound.has(associated.name)) ||
     trait.methods.some(
       (method) =>
         method.associated ||
@@ -1093,8 +1147,9 @@ function traitIsDynamicallySafe(
             !(method.referenceParameters ?? []).includes(parameter) &&
             !isMethodRowParameter(method, parameter),
         ) ||
-        method.parameters.some((parameter) => parameter.includes("generic:Self")) ||
-        method.result.includes("generic:Self"),
+        // A projection `Self::Item` is the bound type, not `Self`.
+        method.parameters.some((parameter) => /generic:Self(?!::)/.test(parameter)) ||
+        /generic:Self(?!::)/.test(method.result),
     )
   )
     return false;
@@ -1103,7 +1158,7 @@ function traitIsDynamicallySafe(
     const parent = [...traitTypes.values()].find(
       (candidate) => candidate.index === supertrait.traitIndex,
     );
-    return !parent || traitIsDynamicallySafe(parent, traitTypes, next);
+    return !parent || traitIsDynamicallySafe(parent, traitTypes, bound, next);
   });
 }
 
@@ -1111,6 +1166,8 @@ export function resolveTraitType(
   type: ValueType,
   traitTypes: ReadonlyMap<string, HirTrait>,
 ): ValueType {
+  const binding = bindingParts(type);
+  if (binding) return bindingType(binding, resolveTraitType(binding.type, traitTypes));
   const mutable = mutableInner(type);
   if (mutable !== undefined) return mutableType(resolveTraitType(mutable, traitTypes));
   if (traitTypes.has(type)) return `trait:${type}`;

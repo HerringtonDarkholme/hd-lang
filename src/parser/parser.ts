@@ -18,7 +18,13 @@ import type {
 } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { lex, type Token } from "../lexer.ts";
-import { functionResultText, optionalType, PRIMITIVE_TYPES } from "../types.ts";
+import {
+  functionResultText,
+  nominalGenericParts,
+  optionalType,
+  PRIMITIVE_TYPES,
+  splitTypeBindings,
+} from "../types.ts";
 import { DecoratorParser } from "./decorators.ts";
 import { ParseFailure, type ExpressionParseResult, type ParseOptions } from "./base.ts";
 import {
@@ -434,6 +440,17 @@ class Parser extends DecoratorParser {
     this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
     const first = this.parseType();
     const trait = this.matchText("for") ? first : undefined;
+    // The trait of an implementation header is a `trait_type`, which takes
+    // no binding (02-grammar.md#r-grammar.generic.binding.trait-type-only).
+    if (
+      trait &&
+      splitTypeBindings(nominalGenericParts(trait.name)?.arguments ?? []).bindings.length
+    )
+      this.fail(
+        "syntax-error",
+        "the trait of an implementation header takes no associated type binding; bind it with `type Name = ...` in the body",
+        trait.span,
+      );
     const target = trait ? this.parseType() : first;
     // `by` is contextual: it delegates to an embedded field, or, without a
     // trait, declares a trait-less derivation block (02 grammar.impl.traitless-by).
@@ -635,6 +652,36 @@ class Parser extends DecoratorParser {
     };
   }
 
+  /**
+   * The arguments of a named type or requirement key after its `[`: type
+   * arguments, then associated type bindings `Name = type`, rendered
+   * `Name=type` in name order so that the order written does not matter
+   * (02-grammar.md#r-grammar.generic.binding.positions-key,
+   * 09-traits.md#r-trait.dyn.binding.identity).
+   */
+  private parseNamedTypeArguments(): string[] {
+    const positional: string[] = [];
+    const bindings: [string, string][] = [];
+    while (!this.atText("]")) {
+      if (this.current().kind === "identifier" && this.peek(1).text === "=") {
+        const binding = this.advance();
+        this.advance();
+        bindings.push([binding.text, this.parseType().name]);
+      } else {
+        if (bindings.length > 0)
+          this.fail(
+            "syntax-error",
+            "type arguments must precede associated type bindings",
+            this.current().span,
+          );
+        positional.push(this.parseTypeArgument().name);
+      }
+      if (!this.matchText(",")) break;
+    }
+    bindings.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+    return [...positional, ...bindings.map(([name, type]) => `${name}=${type}`)];
+  }
+
   protected parseRequirementKey(): string {
     // A requirement key has no `mut` prefix: the trait's `mut self` methods
     // decide the access (spec/11-requirements-and-suspension.md#r-req.mut.no-spelling).
@@ -646,13 +693,10 @@ class Parser extends DecoratorParser {
       );
     const name = this.expectKind("identifier", "expected a concrete requirement name");
     if (!this.matchText("[")) return name.text;
-    const arguments_: TypeRef[] = [];
-    if (!this.atText("]")) {
-      // A generic row alias takes a row argument, as in `WithLog[$ Db + Clock]`
-      // (11-requirements-and-suspension.md#r-req.row.alias.generic).
-      do arguments_.push(this.parseTypeArgument());
-      while (this.matchText(",") && !this.atText("]"));
-    }
+    // A generic row alias takes a row argument, as in `WithLog[$ Db + Clock]`
+    // (11-requirements-and-suspension.md#r-req.row.alias.generic), and a key
+    // may bind associated types, as in `Store[Item = User]` (req.key.binding).
+    const arguments_ = this.parseNamedTypeArguments();
     this.expectText("]");
     if (arguments_.length === 0)
       this.fail(
@@ -660,7 +704,7 @@ class Parser extends DecoratorParser {
         `generic requirement '${name.text}' requires type arguments`,
         name.span,
       );
-    return `${name.text}[${arguments_.map((argument) => argument.name).join(",")}]`;
+    return `${name.text}[${arguments_.join(",")}]`;
   }
 
   // `type Name[T] = type` or `type Name[T](type)` (02-grammar.md#type-declarations).
@@ -997,11 +1041,7 @@ class Parser extends DecoratorParser {
     let rendered = name.text;
     let end = name.span.end;
     if (this.matchText("[")) {
-      const arguments_: TypeRef[] = [];
-      if (!this.atText("]")) {
-        do arguments_.push(this.parseTypeArgument());
-        while (this.matchText(",") && !this.atText("]"));
-      }
+      const arguments_ = this.parseNamedTypeArguments();
       const close = this.expectText("]");
       if (arguments_.length === 0)
         this.fail(
@@ -1012,8 +1052,8 @@ class Parser extends DecoratorParser {
       // `Option[T]` is exactly `T?`; both spellings render to one type.
       rendered =
         name.text === "Option" && arguments_.length === 1
-          ? optionalType(arguments_[0]!.name)
-          : `${name.text}[${arguments_.map((argument) => argument.name).join(",")}]`;
+          ? optionalType(arguments_[0]!)
+          : `${name.text}[${arguments_.join(",")}]`;
       end = close.span.end;
     }
     if (this.matchText("::")) {

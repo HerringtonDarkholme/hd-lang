@@ -1,6 +1,8 @@
 import type { DataDecl, ImplDecl, Program, TypeDecl, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import {
+  bindingParts,
+  bindingType,
   contextKeys,
   contextType,
   functionParts,
@@ -90,6 +92,8 @@ export function substitute(type: string, substitutions: ReadonlyMap<string, stri
   const direct = substitutions.get(type);
   if (direct !== undefined) return direct;
   const visit = (inner: string): string => substitute(inner, substitutions);
+  const binding = bindingParts(type);
+  if (binding) return bindingType(binding, visit(binding.type));
   const row = (keys: readonly string[]): string[] =>
     keys.flatMap((key) => {
       const argument = substitutions.get(key);
@@ -264,6 +268,8 @@ class AliasExpander {
   type(type: string, span: SourceSpan, depth = 0): string {
     if (depth > 64 || !this.mentions(type)) return type;
     const expand = (inner: string): string => this.type(inner, span, depth + 1);
+    const binding = bindingParts(type);
+    if (binding) return bindingType(binding, expand(binding.type));
     const mutable = mutableInner(type);
     if (mutable !== undefined) return mutableType(expand(mutable));
     const rowArgument = rowArgumentKeys(type);

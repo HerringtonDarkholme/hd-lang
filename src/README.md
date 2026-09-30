@@ -411,6 +411,23 @@ else`, `break`, `break value`, and `continue`;
   `Fn[(), void, $ Logger + Clock]`, with `generic-kind-mismatch` for a data,
   enum, or trait parameter used in a row; a dynamic trait value satisfying
   bounds on its own trait and supertraits through forwarding dictionaries;
+- associated type bindings (`associated-bindings.ts`): a binding may name an
+  associated type the trait reaches through its supertraits, and a name two
+  reachable declarations share is `ambiguous-associated-type`, as is a
+  projection `I::Item` that two bounds on `I` both reach, bound or not. A
+  trait value type and a requirement key may bind associated types
+  (`Supplier[Item = i32]`, `$ Store[Item = User]`), rendered
+  `Supplier[Item=i32]` with the bindings after the positional arguments in
+  name order, so two spellings are one type or key. A trait value type is
+  dynamically safe only when it binds every associated type its trait
+  reaches, and a key that leaves one unbound is
+  `trait-not-dynamically-safe`. Through such a value each `Self::Item` is
+  the bound type; a concrete value converts, and a provider installs, only
+  when its implementation binds the same types (`type-mismatch`); widening
+  keeps the bindings; and the value satisfies a bound on its trait with the
+  projection equal to its binding. A binding on a type that is not a trait
+  is `unknown-associated-type`, and one in an implementation header or a
+  trait-qualified call is a `syntax-error`;
 - concrete requirement rows with hidden `externref` provider threading;
 - `+`-joined requirement rows (`$ A + B` in every position) normalized as
   sets, with `old-row-separator` for the former `$ A, B` and `$(A, B)` and

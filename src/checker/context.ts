@@ -1,3 +1,9 @@
+import {
+  ambiguousProjection,
+  traitKeyParts,
+  traitValueBindings,
+  writtenBindingProblem,
+} from "./associated-bindings.ts";
 import { PRELUDE_NAMES } from "./prelude-names.ts";
 import type { Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
@@ -56,8 +62,6 @@ import {
 import { generalizedShape } from "./shapes.ts";
 import { findSupertraitPath, resolveTraitPath } from "./trait-paths.ts";
 import {
-  contextKeys,
-  functionParts,
   mutableInner,
   mutableType,
   nominalGenericParts,
@@ -65,14 +69,12 @@ import {
   optionalInner,
   readonlyType,
   resultParts,
-  rowArgumentKeys,
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
   tupleParts,
-  CURSOR_TYPE,
 } from "../types.ts";
-import { narrowsTo, NUMERIC_TYPES, numericType } from "../numeric.ts";
+import { narrowsTo, numericType } from "../numeric.ts";
 import { derivedFieldDiagnostic } from "./derive-intrinsics.ts";
 
 export interface CheckResult {
@@ -160,125 +162,15 @@ function hirValueReadsLocal(value: unknown, local: HirLocal): boolean {
   );
 }
 
-const TYPE_NAMES = new Set<ValueType>([
-  ...NUMERIC_TYPES.keys(),
-  "bool",
-  "char",
-  "string",
-  "void",
-  "ConsoleError",
-]);
-
 export { PRELUDE_NAMES };
 
 export { isPermissionWeakening, weakenBoundedGenericActual };
 
 export { mapKeyKind };
 
-export function isKnownType(
-  type: ValueType,
-  dataTypes: ReadonlyMap<string, HirData>,
-  enumTypes: ReadonlyMap<string, HirEnum>,
-  traitTypes: ReadonlyMap<string, HirTrait> = new Map(),
-): boolean {
-  const mutable = mutableInner(type);
-  if (mutable !== undefined)
-    return mutable !== "void" && isKnownType(mutable, dataTypes, enumTypes, traitTypes);
-  if (genericTypeName(type) || rowArgumentKeys(type)) return true;
-  if (TYPE_NAMES.has(type)) return true;
-  const plainData = dataTypes.get(type);
-  if (plainData) return plainData.genericParameters.length === 0;
-  const plainEnum = enumTypes.get(type);
-  if (plainEnum) return plainEnum.genericParameters.length === 0;
-  if (type.startsWith("trait:")) {
-    const key = type.slice("trait:".length);
-    const nominalTrait = nominalGenericParts(key);
-    const trait = traitTypes.get(nominalTrait?.name ?? key);
-    if (!trait) return false;
-    if (!nominalTrait) return trait.genericParameters.length === 0;
-    return (
-      trait.genericParameters.length === nominalTrait.arguments.length &&
-      nominalTrait.arguments.every((argument) =>
-        isKnownType(argument, dataTypes, enumTypes, traitTypes),
-      )
-    );
-  }
-  if (type.startsWith("provider:")) return true;
-  if (contextKeys(type)) return true;
-  const tuple = tupleParts(type);
-  if (tuple !== undefined)
-    return tuple.every(
-      (element) => element !== "void" && isKnownType(element, dataTypes, enumTypes, traitTypes),
-    );
-  const optional = optionalInner(type);
-  if (optional !== undefined)
-    return optional !== "void" && isKnownType(optional, dataTypes, enumTypes, traitTypes);
-  const result = resultParts(type);
-  if (result)
-    return (
-      isKnownType(result.ok, dataTypes, enumTypes, traitTypes) &&
-      result.error !== "void" &&
-      isKnownType(result.error, dataTypes, enumTypes, traitTypes)
-    );
-  const nominal = nominalGenericParts(type);
-  if (nominal) {
-    if (nominal.name === "Suspend") {
-      return (
-        nominal.arguments.length === 1 &&
-        isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
-      );
-    }
-    if (nominal.name === CURSOR_TYPE) {
-      return (
-        nominal.arguments.length === 1 &&
-        nominal.arguments[0] !== "void" &&
-        isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
-      );
-    }
-    if (nominal.name === "List") {
-      return (
-        nominal.arguments.length === 1 &&
-        nominal.arguments[0] !== "void" &&
-        isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
-      );
-    }
-    if (nominal.name === "Map") {
-      return (
-        nominal.arguments.length === 2 &&
-        (mapKeyKind(nominal.arguments[0]!) !== undefined ||
-          genericTypeName(nominal.arguments[0]!) !== undefined) &&
-        nominal.arguments[1] !== "void" &&
-        isKnownType(nominal.arguments[1]!, dataTypes, enumTypes, traitTypes)
-      );
-    }
-    const declaration = dataTypes.get(nominal.name);
-    if (declaration) {
-      return (
-        declaration.genericParameters.length === nominal.arguments.length &&
-        nominal.arguments.every((argument) =>
-          isKnownType(argument, dataTypes, enumTypes, traitTypes),
-        )
-      );
-    }
-    const enumDeclaration = enumTypes.get(nominal.name);
-    return Boolean(
-      enumDeclaration &&
-      enumDeclaration.genericParameters.length === nominal.arguments.length &&
-      nominal.arguments.every((argument) =>
-        isKnownType(argument, dataTypes, enumTypes, traitTypes),
-      ),
-    );
-  }
-  const callable = functionParts(type);
-  return Boolean(
-    callable &&
-    callable.parameters.every(
-      (parameter) =>
-        parameter !== "void" && isKnownType(parameter, dataTypes, enumTypes, traitTypes),
-    ) &&
-    isKnownType(callable.result, dataTypes, enumTypes, traitTypes),
-  );
-}
+import { isKnownType } from "./known-types.ts";
+
+export { isKnownType };
 
 export abstract class CheckerContext {
   protected abstract checkStatement(
@@ -595,15 +487,17 @@ export abstract class CheckerContext {
         return value;
       }
       const expectedTraitKey = readonlyType(expected).slice("trait:".length);
-      const expectedTraitArguments = nominalGenericParts(expectedTraitKey)?.arguments ?? [];
+      const expectedTraitArguments = traitKeyParts(expectedTraitKey).positional;
+      // A trait value type's bindings must agree with the value's
+      // (09-traits.md#r-trait.dyn.binding.convert, #r-trait.dyn.binding.widen).
+      const expectedBindings = traitValueBindings(expected);
       const sourceTraitName = traitTypeName(value.type);
       const sourceTrait = sourceTraitName && this.traitTypes.get(sourceTraitName);
       const sourceTraitKey = sourceTrait
         ? readonlyType(value.type).slice("trait:".length)
         : undefined;
-      const sourceTraitArguments = sourceTraitKey
-        ? (nominalGenericParts(sourceTraitKey)?.arguments ?? [])
-        : [];
+      const sourceTraitArguments = sourceTraitKey ? traitKeyParts(sourceTraitKey).positional : [];
+      const sourceBindings = traitValueBindings(value.type);
       const supertraitPath = sourceTrait
         ? this.findSupertraitPath(
             sourceTrait,
@@ -612,7 +506,11 @@ export abstract class CheckerContext {
             expectedTraitArguments,
           )
         : undefined;
-      if (sourceTrait && supertraitPath) {
+      if (
+        sourceTrait &&
+        supertraitPath &&
+        [...expectedBindings].every(([name, bound]) => sourceBindings.get(name) === bound)
+      ) {
         return {
           kind: "trait-upcast",
           value,
@@ -651,7 +549,18 @@ export abstract class CheckerContext {
           ),
         );
       });
-      if (implementation) {
+      if (
+        implementation &&
+        [...expectedBindings].every(
+          ([name, bound]) =>
+            this.implementationAssociatedType(
+              implementationType,
+              trait,
+              expectedTraitArguments,
+              name,
+            ) === bound,
+        )
+      ) {
         const receiverType = mutableTrait ? mutableType(implementationType) : implementationType;
         const wrappedValue =
           receiverType === value.type ? value : this.coerce(value, receiverType, span);
@@ -708,6 +617,56 @@ export abstract class CheckerContext {
       }
     }
     return value;
+  }
+
+  /**
+   * The associated type `name` of a concrete type's implementation of `trait`
+   * or of the supertrait of `trait` that declares it
+   * (09-traits.md#r-trait.binding.name-reach.meaning).
+   */
+  protected implementationAssociatedType(
+    type: ValueType,
+    trait: HirTrait,
+    traitArguments: readonly ValueType[],
+    name: string,
+    depth = 0,
+  ): ValueType | undefined {
+    const bound = traitValueBindings(type).get(name);
+    if (bound !== undefined) return bound;
+    const index = trait.associatedTypes.findIndex((associated) => associated.name === name);
+    if (index >= 0) {
+      for (const candidate of this.implementations) {
+        const substitutions = matchTraitImplementation(
+          candidate,
+          trait.index,
+          readonlyType(type),
+          traitArguments,
+        );
+        if (substitutions)
+          return substituteGenericType(candidate.associatedTypes[index]!, substitutions);
+      }
+      return undefined;
+    }
+    if (depth > 64) return undefined;
+    const parameters = new Map(
+      trait.genericParameters.map((parameter, position) => [parameter, traitArguments[position]!]),
+    );
+    parameters.set("Self", readonlyType(type));
+    for (const supertrait of trait.supertraits) {
+      const parent = [...this.traitTypes.values()].find(
+        (candidate) => candidate.index === supertrait.traitIndex,
+      );
+      if (!parent) continue;
+      const found = this.implementationAssociatedType(
+        type,
+        parent,
+        supertrait.traitArguments.map((argument) => substituteGenericType(argument, parameters)),
+        name,
+        depth + 1,
+      );
+      if (found !== undefined) return found;
+    }
+    return undefined;
   }
 
   protected findSupertraitPath(
@@ -1311,6 +1270,10 @@ export abstract class CheckerContext {
       new Set(this.signature.rowParameters),
     );
     if (typeof kinded !== "string") this.fail("generic-kind-mismatch", kinded.mismatch, type.span);
+    const problem =
+      writtenBindingProblem(kinded, this.traitTypes) ??
+      ambiguousProjection(kinded, this.signature.genericBounds, this.traitTypes);
+    if (problem) this.fail(problem.code, problem.message, type.span);
     const declared = normalizeBoundProjections(kinded, this.signature.genericBounds);
     const nominal = nominalGenericParts(declared);
     if (

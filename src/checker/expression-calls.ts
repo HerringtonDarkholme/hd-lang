@@ -1,3 +1,4 @@
+import { traitValueBindings } from "./associated-bindings.ts";
 import type { Expression } from "../ast.ts";
 import type { HirExpression, ValueType } from "../hir.ts";
 import { CheckFailure, type Signature } from "./context.ts";
@@ -18,6 +19,7 @@ import {
   traitSuspensionType,
   tupleType,
   CURSOR_TYPE,
+  splitTypeBindings,
 } from "../types.ts";
 import {
   containsGenericType,
@@ -415,7 +417,14 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         );
       }
       const traitKey = readonlyType(dispatchReceiver.type).slice("trait:".length);
-      const traitArguments = nominalGenericParts(traitKey)?.arguments ?? [];
+      const traitArguments = splitTypeBindings(
+        nominalGenericParts(traitKey)?.arguments ?? [],
+      ).positional;
+      // Through a trait value that binds associated types, each projection
+      // in a signature is its bound type (09-traits.md#r-trait.dyn.binding.signatures).
+      const valueBindings = receiverBound
+        ? new Map<string, ValueType>()
+        : traitValueBindings(dispatchReceiver.type);
       const selfSubstitution = new Map(
         receiverBound && receiverGeneric ? [["Self", `generic:${receiverGeneric}`] as const] : [],
       );
@@ -445,14 +454,24 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         selectedMethod.trait.associatedTypes.forEach((associated) =>
           traitSubstitutions.set(
             `Self::${associated.name}`,
-            (selectedMethod.path.length > 0
-              ? pathBindings
-              : (receiverBound.bound.associatedBindings ?? [])
-            ).find((binding) => binding.name === associated.name)?.type ??
+            (selectedMethod.path.length > 0 ? pathBindings : []).find(
+              (binding) => binding.name === associated.name,
+            )?.type ??
+              // A bound's binding may name a supertrait's associated type
+              // (09-traits.md#r-trait.binding.name-reach.meaning).
+              (receiverBound.bound.associatedBindings ?? []).find(
+                (binding) => binding.name === associated.name,
+              )?.type ??
               `generic:${receiverGeneric}::${associated.name}`,
           ),
         );
-      }
+      } else if (valueBindings.size > 0)
+        selectedMethod.trait.associatedTypes.forEach((associated) => {
+          const bound =
+            pathBindings.find((binding) => binding.name === associated.name)?.type ??
+            valueBindings.get(associated.name);
+          if (bound !== undefined) traitSubstitutions.set(`Self::${associated.name}`, bound);
+        });
       const methodParameters = method.parameters.map((parameter) =>
         substituteGenericType(parameter, traitSubstitutions),
       );

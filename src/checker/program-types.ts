@@ -1,3 +1,4 @@
+import type { TraitDecl } from "../ast.ts";
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import { debugWriterName, INSPECTABLE_MEMBERS } from "./standard-traits.ts";
 import type { HirAssociatedBinding, HirData, HirTrait } from "../hir.ts";
@@ -614,13 +615,19 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
       const declared = program.traits[supertrait.index];
       for (const binding of declaration.supertraitBindings ?? []) {
         if (binding.trait !== reference.name) continue;
-        if (
-          declared?.name !== supertrait.name ||
-          !declared.associatedTypes.some((associated) => associated.name === binding.name)
-        ) {
+        // The supertrait's own supertraits may not be defined yet, so the
+        // names it reaches come from the declarations (trait.binding.super.names).
+        const declaring =
+          declared?.name === supertrait.name
+            ? declaringTraits(program.traits, declared, binding.name)
+            : [];
+        if (declaring.length !== 1) {
           diagnostics.push({
-            code: "unknown-associated-type",
-            message: `trait '${supertrait.name}' declares no associated type '${binding.name}'`,
+            code: declaring.length === 0 ? "unknown-associated-type" : "ambiguous-associated-type",
+            message:
+              declaring.length === 0
+                ? `trait '${supertrait.name}' declares or reaches no associated type '${binding.name}'`
+                : `'${binding.name}' of '${supertrait.name}' is ambiguous: ${declaring.join(" and ")} each declare it`,
             span: binding.span,
           });
           continue;
@@ -850,4 +857,23 @@ function diagnoseSupertraitCycles(context: ProgramCheckContext): void {
         span: declaration.span,
       });
   });
+}
+
+/** The traits among `trait` and its declared supertraits that declare the associated type `name`. */
+function declaringTraits(traits: readonly TraitDecl[], trait: TraitDecl, name: string): string[] {
+  const seen = new Set<string>();
+  const declaring: string[] = [];
+  const visit = (current: TraitDecl): void => {
+    if (seen.has(current.name)) return;
+    seen.add(current.name);
+    if (current.associatedTypes.some((associated) => associated.name === name))
+      declaring.push(current.name);
+    for (const supertrait of current.supertraits) {
+      const head = nominalGenericParts(supertrait.name)?.name ?? supertrait.name;
+      const parent = traits.find((candidate) => candidate.name === head);
+      if (parent) visit(parent);
+    }
+  };
+  visit(trait);
+  return declaring;
 }

@@ -1,4 +1,10 @@
-import type { SourceSpan } from "../diagnostics.ts";
+import {
+  ambiguousProjection,
+  associatedNames,
+  bindingNameProblem,
+  traitKeyParts,
+} from "./associated-bindings.ts";
+import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import type { FunctionDecl } from "../ast.ts";
 import type { HirAssociatedBinding } from "../hir.ts";
@@ -186,12 +192,10 @@ export function createProgramSignatures(
         const associatedBindings: HirAssociatedBinding[] = [];
         for (const binding of bound.bindings ?? []) {
           if (binding.trait !== traitKey) continue;
-          if (!trait.associatedTypes.some((associated) => associated.name === binding.name)) {
-            diagnostics.push({
-              code: "unknown-associated-type",
-              message: `trait '${trait.name}' declares no associated type '${binding.name}'`,
-              span: binding.span,
-            });
+          // A binding may name a supertrait's associated type (trait.binding.name-reach).
+          const problem = bindingNameProblem(trait, binding.name, traitTypes);
+          if (problem) {
+            diagnostics.push({ ...problem, span: binding.span });
             continue;
           }
           const projection = `${bound.parameter}::${binding.name}`;
@@ -272,6 +276,13 @@ export function createProgramSignatures(
       hashable,
     );
     if (parameters.some((type) => type === undefined) || !result) return;
+    const ambiguous = [...parameters, result]
+      .map((type) => ambiguousProjection(type!, genericBounds, traitTypes))
+      .find((problem) => problem !== undefined);
+    if (ambiguous) {
+      diagnostics.push({ ...ambiguous, span: declaration.span });
+      return;
+    }
     const normalizedParameters = parameters.map((type) =>
       normalizeBoundProjections(type!, genericBounds),
     );
@@ -287,27 +298,7 @@ export function createProgramSignatures(
             : resolveGenericType(requirement, genericParameters, new Set(rowParameters)),
         ),
     );
-    for (const requirement of requirements) {
-      if (rowParameterName(requirement)) continue;
-      const nominal = nominalGenericParts(requirement);
-      if (!nominal) continue;
-      const trait = traitTypes.get(nominal.name);
-      if (!trait) {
-        diagnostics.push({
-          code: "unknown-requirement",
-          message: `unknown generic requirement key '${requirement}'`,
-          span: declaration.span,
-        });
-        continue;
-      }
-      if (trait.genericParameters.length !== nominal.arguments.length) {
-        diagnostics.push({
-          code: "generic-arity",
-          message: `trait '${trait.name}' expects ${trait.genericParameters.length} type arguments`,
-          span: declaration.span,
-        });
-      }
-    }
+    diagnostics.push(...requirementKeyDiagnostics(requirements, traitTypes, declaration.span));
     if (declaration.public) {
       const privateType =
         declaration.parameters
@@ -397,4 +388,56 @@ function inspectableRequirement(
     span,
   });
   return true;
+}
+
+/**
+ * Each written requirement key: a known trait with its arity, binding names
+ * its trait reaches, and every associated type bound (req.key.binding).
+ */
+function requirementKeyDiagnostics(
+  requirements: readonly string[],
+  traitTypes: ProgramCheckContext["traitTypes"],
+  span: SourceSpan,
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  for (const requirement of requirements) {
+    if (rowParameterName(requirement)) continue;
+    const key = traitKeyParts(requirement);
+    const trait = traitTypes.get(key.name);
+    if (!trait) {
+      if (nominalGenericParts(requirement))
+        diagnostics.push({
+          code: "unknown-requirement",
+          message: `unknown generic requirement key '${requirement}'`,
+          span,
+        });
+      continue;
+    }
+    if (trait.genericParameters.length !== key.positional.length) {
+      diagnostics.push({
+        code: "generic-arity",
+        message: `trait '${trait.name}' expects ${trait.genericParameters.length} type arguments`,
+        span,
+      });
+      continue;
+    }
+    // A key binds associated types by the binding-name rules, and must bind
+    // every one its trait reaches (req.key.binding.names, req.key.binding.complete).
+    const problem = key.bindings
+      .map((binding) => bindingNameProblem(trait, binding.name, traitTypes))
+      .find((candidate) => candidate !== undefined);
+    if (problem) {
+      diagnostics.push({ ...problem, span });
+      continue;
+    }
+    const bound = new Set(key.bindings.map((binding) => binding.name));
+    const unbound = [...associatedNames(trait, traitTypes)].filter((name) => !bound.has(name));
+    if (unbound.length > 0)
+      diagnostics.push({
+        code: "trait-not-dynamically-safe",
+        message: `requirement key '${requirement}' leaves the associated type${unbound.length === 1 ? "" : "s"} ${unbound.join(", ")} of '${trait.name}' unbound; write '${trait.name}[${unbound.map((name) => `${name} = ...`).join(", ")}]'`,
+        span,
+      });
+  }
+  return diagnostics;
 }

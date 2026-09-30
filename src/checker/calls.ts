@@ -20,6 +20,7 @@ import {
   rowArgumentKeys,
   storedSuspensionParts,
   suspensionType,
+  splitTypeBindings,
 } from "../types.ts";
 import {
   isKnownType,
@@ -893,7 +894,7 @@ export abstract class CallChecker extends StatementChecker {
     if (!nominal) return resolved;
     const trait = this.traitTypes.get(nominal.name);
     if (!trait) this.fail("unknown-requirement", `unknown generic requirement key '${key}'`, span);
-    if (trait.genericParameters.length !== nominal.arguments.length) {
+    if (trait.genericParameters.length !== splitTypeBindings(nominal.arguments).positional.length) {
       this.fail(
         "generic-arity",
         `trait '${trait.name}' expects ${trait.genericParameters.length} type arguments`,
@@ -1062,57 +1063,49 @@ export abstract class CallChecker extends StatementChecker {
       const trait = [...this.traitTypes.values()].find(
         (candidate) => candidate.index === bound.traitIndex,
       );
-      if (!trait || trait.associatedTypes.length === 0) continue;
+      if (!trait) continue;
+      // The trait's own associated types, and a supertrait's that a binding
+      // names (09-traits.md#r-trait.binding.name-reach.meaning).
+      const names = [
+        ...new Set([
+          ...trait.associatedTypes.map((associated) => associated.name),
+          ...(bound.associatedBindings ?? []).map((binding) => binding.name),
+        ]),
+      ];
+      if (names.length === 0) continue;
       const actual = substitutions.get(bound.parameter);
       if (!actual) continue;
       const forwarded = genericTypeName(actual);
       if (forwarded) {
-        trait.associatedTypes.forEach((associated) => {
+        for (const name of names) {
           const projection = normalizeBoundProjections(
-            `generic:${forwarded}::${associated.name}`,
+            `generic:${forwarded}::${name}`,
             this.signature.genericBounds,
           );
-          substitutions.set(`${bound.parameter}::${associated.name}`, projection);
-          this.bindAssociatedType(
-            signature,
-            bound,
-            associated.name,
-            projection,
-            substitutions,
-            span,
-          );
-        });
+          substitutions.set(`${bound.parameter}::${name}`, projection);
+          this.bindAssociatedType(signature, bound, name, projection, substitutions, span);
+        }
         continue;
       }
       const traitArguments = bound.traitArguments.map((argument) =>
         substituteGenericType(argument, substitutions),
       );
-      const implementation = this.implementations.find((candidate) =>
-        Boolean(matchTraitImplementation(candidate, bound.traitIndex, actual, traitArguments)),
-      );
-      if (!implementation) continue;
-      const implementationSubstitutions = matchTraitImplementation(
-        implementation,
-        bound.traitIndex,
-        actual,
-        traitArguments,
-      )!;
-      trait.associatedTypes.forEach((associated, index) => {
-        const key = `${bound.parameter}::${associated.name}`;
-        const resolved = substituteGenericType(
-          implementation.associatedTypes[index]!,
-          implementationSubstitutions,
-        );
+      // A trait value type's bindings answer its projections
+      // (09-traits.md#r-trait.dyn.bound.projection).
+      for (const name of names) {
+        const resolved = this.implementationAssociatedType(actual, trait, traitArguments, name);
+        if (resolved === undefined) continue;
+        const key = `${bound.parameter}::${name}`;
         const inferred = substitutions.get(key);
         if (inferred !== undefined && inferred !== resolved)
           this.fail(
             "associated-type-mismatch",
-            `projection '${bound.parameter}::${associated.name}' resolves to '${resolved}', not '${inferred}'`,
+            `projection '${bound.parameter}::${name}' resolves to '${resolved}', not '${inferred}'`,
             signature.span,
           );
         substitutions.set(key, resolved);
-        this.bindAssociatedType(signature, bound, associated.name, resolved, substitutions, span);
-      });
+        this.bindAssociatedType(signature, bound, name, resolved, substitutions, span);
+      }
     }
     return substitutions;
   }
