@@ -1,0 +1,5 @@
+# test: an inherent implementation outside the package that owns its target
+
+impl i32:  # diagnostic: orphan-impl
+    fn twice(self) -> i32:
+        self * 2

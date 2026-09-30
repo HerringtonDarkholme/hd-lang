@@ -61,7 +61,7 @@ typing/valid/collections.hd	type	accept	05-expressions.md#comprehensions
 typing/valid/readonly-list-mutable-elements.hd	type	accept	05-expressions.md#indexing
 typing/invalid/readonly-list-element-replacement.hd	type	reject:readonly-root	05-expressions.md#indexing
 typing/valid/equality.hd	type	accept	05-expressions.md#unary-and-binary-operators
-typing/invalid/implicit-data-equality.hd	type	reject:missing-partial-eq	05-expressions.md#unary-and-binary-operators
+typing/invalid/implicit-data-equality.hd	type	reject:missing-eq	05-expressions.md#unary-and-binary-operators
 typing/invalid/primitive-identity.hd	type	reject:identity-requires-references	05-expressions.md#unary-and-binary-operators
 typing/valid/comparison-traits.hd	type	accept	09-traits.md#comparison-traits
 typing/invalid/implicit-data-ordering.hd	type	reject:missing-partial-ord	09-traits.md#comparison-traits
@@ -258,7 +258,7 @@ typing/invalid/contravariant-representation-change.hd	type	reject:variance-repre
 typing/invalid/generic-requirement-key-collision.hd	type	reject:generic-requirement-key-collision	11-requirements-and-suspension.md#provider-scopes
 typing/valid/distinct-requirement-keys.hd	type	accept	11-requirements-and-suspension.md#provider-scopes
 runtime/panic/nested-block-on.hd	runtime	panic:suspension-nested-driver	11-requirements-and-suspension.md#suspending-functions
-typing/invalid/assert-equal-non-eq.hd	type	reject:missing-partial-eq	10-modules.md#standard-testing
+typing/invalid/assert-equal-non-eq.hd	type	reject:missing-eq	10-modules.md#standard-testing
 typing/invalid/supertrait-cycle.hd	type	reject:supertrait-cycle	09-traits.md#trait-declarations
 typing/invalid/missing-trait-method.hd	type	reject:missing-trait-method	09-traits.md#trait-implementations
 typing/invalid/trait-method-signature.hd	type	reject:trait-method-signature	09-traits.md#trait-implementations
@@ -634,7 +634,7 @@ runtime/panic/block-on-inside-driver.hd	runtime	panic:suspension-nested-driver	1
 typing/invalid/block-on-in-defer.hd	type	reject:suspension-forbidden-context	11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/block-on-stored-suspension.hd	runtime	accept	11-requirements-and-suspension.md#suspendt-protocol
 runtime/panic/assert-equal-lists-in-main.hd	runtime	panic:assertion-failed	10-modules.md#standard-testing
-typing/invalid/assert-equal-fieldless-data-without-partial-eq.hd	type	reject:missing-partial-eq	10-modules.md#standard-testing
+typing/invalid/assert-equal-fieldless-data-without-partial-eq.hd	type	reject:missing-eq	10-modules.md#standard-testing
 runtime/valid/assert-equal-nested-tuple.hd	runtime	accept	10-modules.md#standard-testing
 typing/invalid/reassign-short-module-binding.hd	type	reject:non-reassignable-binding	10-modules.md#module-initialization
 runtime/valid/module-binding-shared-with-functions.hd	runtime	accept	10-modules.md#module-initialization
@@ -1078,7 +1078,7 @@ runtime/valid/float-eq-bound.hd	runtime	accept	09-traits.md#r-trait.cmp.float-eq
 typing/valid/type-shape-mutable-field.hd	type	accept	14-annotations.md#common-shape-representation
 typing/invalid/enum-shared-field-assignment.hd	type	reject:invalid-assignment-target	08-data-and-enums.md#r-data.shared.read-only
 typing/invalid/enum-shared-constructor-payload.hd	type	reject:unknown-name	08-data-and-enums.md#r-data.shared.no-payload
-typing/invalid/payload-free-enum-equality.hd	type	reject:missing-partial-eq	09-traits.md#r-trait.hash.not-inferred
+typing/invalid/payload-free-enum-equality.hd	type	reject:missing-eq	09-traits.md#r-trait.hash.not-inferred
 runtime/valid/enum-shared-data-per-variant.hd	runtime	accept	08-data-and-enums.md#r-data.shared.per-variant
 typing/valid/dynamic-trait-suspending-method.hd	type	accept	09-traits.md#r-trait.dyn.safe.suspending
 typing/valid/newtype-value-category.hd	type	accept	04-type-system.md#r-types.sealed.newtype
@@ -1568,3 +1568,5 @@ runtime/panic/index-trait-map-missing.hd	runtime	panic:index-out-of-bounds	05-ex
 typing/invalid/ambiguous-default-methods.hd	type	reject:ambiguous-method	09-traits.md#r-trait.conflict.ambiguous-available
 runtime/valid/never-break-continue.hd	runtime	accept	04-type-system.md#r-types.never.expressions
 typing/invalid/fresh-element-not-weakened.hd	type	reject:type-mismatch	04-type-system.md#r-types.fresh.element-no-weaken
+typing/invalid/foreign-inherent-impl.hd	type	reject:orphan-impl	09-traits.md#r-trait.own.inherent
+parse/invalid/tab-in-string-literal.hd	parse	reject:tab-whitespace	01-lexical-structure.md#r-lex.tab.content

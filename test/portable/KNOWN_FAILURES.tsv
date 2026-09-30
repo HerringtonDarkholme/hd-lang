@@ -166,3 +166,9 @@ runtime/panic/string-slice-reversed.hd	the prototype has no built-in slice metho
 typing/valid/index-traits-builtin.hd	the prototype gives List, Map, and string no Index or IndexSet implementation (Strings STR8); check: expected exit 0, got exit 1 (line 12: unsatisfied-trait-bound: type 'List[i32]' does not implement IndexSet)	STR
 runtime/valid/index-traits-builtin-run.hd	the prototype gives List, Map, and string no Index or IndexSet implementation (Strings STR8); check: runtime case did not type-check (line 19: unsatisfied-trait-bound: type 'List[i32]' does not implement IndexSet)	STR
 runtime/panic/index-trait-map-missing.hd	the prototype gives List, Map, and string no Index or IndexSet implementation (Strings STR8); check: runtime case did not type-check (line 9: unsatisfied-trait-bound: type 'Map[string,i32]' does not implement Index)	STR
+typing/invalid/foreign-inherent-impl.hd	MVP reports unknown-type at line 3 instead of orphan-impl: unknown inherent implementation target 'i32'	SF
+parse/invalid/tab-in-string-literal.hd	parse accepts the file: the MVP lexer keeps a raw tab inside a string literal instead of reporting tab-whitespace at line 4	SF
+typing/invalid/implicit-data-equality.hd	MVP reports missing-partial-eq at line 5 instead of missing-eq: type 'User' does not implement Eq	SF
+typing/invalid/assert-equal-non-eq.hd	MVP reports missing-partial-eq at line 10 instead of missing-eq: type 'Result[i32,Error]' does not implement Eq	SF
+typing/invalid/assert-equal-fieldless-data-without-partial-eq.hd	MVP reports missing-partial-eq at line 6 instead of missing-eq: type 'mut:Value' does not implement Eq	SF
+typing/invalid/payload-free-enum-equality.hd	MVP reports missing-partial-eq at line 8 instead of missing-eq: type 'Color' does not implement Eq	SF

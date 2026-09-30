@@ -1,0 +1,4 @@
+# test: a raw tab inside a string literal
+
+fn label() -> string:
+    "a	b"  # diagnostic: tab-whitespace

@@ -247,10 +247,17 @@ function scanString(source: string, start: number, initialLine: number, raw = fa
       index += 1;
       continue;
     }
+    if (character === "\t") {
+      // A raw tab is never literal content; only the `\t` escape is.
+      diagnostics.push(diagnostic("tab-whitespace", line));
+      index += 1;
+      continue;
+    }
     if (character === "\\" && raw) {
       // A backslash keeps the next quote from terminating a raw literal, and
-      // both characters remain content.
-      index += source[index + 1] === "\n" || index + 1 >= source.length ? 1 : 2;
+      // both characters remain content. A following line break or tab is
+      // scanned on its own.
+      index += "\n\t".includes(source[index + 1] ?? "\n") ? 1 : 2;
       continue;
     }
     if (character === "\\") {
@@ -262,7 +269,7 @@ function scanString(source: string, start: number, initialLine: number, raw = fa
       const end = escapeEnd(source, index);
       if (end === undefined) {
         diagnostics.push(diagnostic("invalid-escape", line));
-        index += 2;
+        index += source[index + 1] === "\t" ? 1 : 2;
       } else index = end;
       continue;
     }

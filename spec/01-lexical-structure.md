@@ -296,7 +296,7 @@ fn test() -> void $ Console: println("hi")
 ### Tabs
 
 1. r[lex.tab.invalid] A horizontal tab character used as source whitespace is an error. Error: `tab-whitespace`.
-2. r[lex.tab.content] They may occur only as literal content represented by the `\t` escape or as raw characters inside comments.
+2. r[lex.tab.content] They may occur only as literal content represented by the `\t` escape or as raw characters inside comments. Error: `tab-whitespace`.
 3. r[lex.tab.spaces] Indentation therefore consists only of ASCII space characters.
 
 > **Note.** Visual tab-width configuration therefore cannot change block

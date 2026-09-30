@@ -75,7 +75,6 @@ typing/valid/transitive-initialized-binding.hd	type
 typing/invalid/forward-module-binding.hd	type
 typing/invalid/transitive-uninitialized-binding.hd	type
 typing/invalid/possibly-uninitialized-binding.hd	type
-typing/invalid/implicit-data-equality.hd	type
 typing/invalid/implicit-data-ordering.hd	type
 typing/invalid/bare-variant-pattern.hd	type
 typing/invalid/nonexhaustive-match.hd	type
@@ -114,7 +113,6 @@ typing/invalid/some-pattern-nonoptional.hd	type
 typing/invalid/missing-requirement.hd	type
 typing/invalid/bang-call-outside-suspension.hd	type
 typing/invalid/row-extension-unsound.hd	type
-typing/invalid/assert-equal-non-eq.hd	type
 typing/invalid/break-value-without-else.hd	type
 typing/invalid/reimport-prelude-name.hd	type
 typing/invalid/suspension-forbidden-context.hd	type
@@ -501,7 +499,6 @@ runtime/panic/block-on-inside-driver.hd	runtime
 typing/invalid/block-on-in-defer.hd	type
 runtime/valid/block-on-stored-suspension.hd	runtime
 runtime/panic/assert-equal-lists-in-main.hd	runtime
-typing/invalid/assert-equal-fieldless-data-without-partial-eq.hd	type
 runtime/valid/assert-equal-nested-tuple.hd	runtime
 typing/invalid/reassign-short-module-binding.hd	type
 runtime/valid/module-binding-shared-with-functions.hd	runtime
@@ -997,7 +994,6 @@ typing/invalid/partial-ord-requires-eq.hd	type
 runtime/valid/float-eq-bound.hd	runtime
 typing/invalid/enum-shared-field-assignment.hd	type
 typing/invalid/enum-shared-constructor-payload.hd	type
-typing/invalid/payload-free-enum-equality.hd	type
 runtime/valid/enum-shared-data-per-variant.hd	runtime
 runtime/valid/variant-identity-through-any.hd	runtime
 typing/valid/dynamic-trait-suspending-method.hd	type

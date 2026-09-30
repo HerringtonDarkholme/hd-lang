@@ -708,7 +708,7 @@ one of these declarations:
 7. r[trait.own.std] The standard library owns primitives, built-in collection type constructors, tuple constructors, and the prelude enums `Option` and `Result`.
 8. r[trait.own.optional] An implementation for `string?` therefore needs the package of the trait or of a trait argument. An example is `impl Validate for string?` in the package that owns `Validate`.
 9. r[trait.own.std.function] The standard library also owns the function type constructors `Fn` and `SuspendFn`. An implementation for a function type therefore needs the package of the trait or of a trait argument.
-10. r[trait.own.inherent] An inherent implementation may be declared only in the package that owns its target nominal type.
+10. r[trait.own.inherent] An inherent implementation may be declared only in the package that owns its target nominal type. Error: `orphan-impl`.
 11. r[trait.own.inherent.target-kinds] An inherent implementation cannot target a trait value, tuple, transparent alias, or type owned by another package.
 12. r[trait.own.inherent.std] The standard library, which owns them, may declare inherent implementations for primitives, built-in collection type constructors, and the prelude enums `Option` and `Result`.
 13. r[trait.own.inherent.std.no-use] Their `pub` members are found by ordinary member lookup on the receiver's type, so calling one needs no `use`.
@@ -723,6 +723,10 @@ impl Display for i32:  # error: orphan-impl
 impl Display for fn() -> i32:  # error: orphan-impl
     fn to_string(self) -> string:
         "function"
+
+impl i32:  # error: orphan-impl
+    fn twice(self) -> i32:
+        self * 2
 ```
 
 > **Why.** These ownership rules prevent downstream packages from creating

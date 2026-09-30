@@ -5,4 +5,4 @@ enum Color:
     Green
 
 fn same(left: Color, right: Color) -> bool:
-    left == right  # diagnostic: missing-partial-eq
+    left == right  # diagnostic: missing-eq

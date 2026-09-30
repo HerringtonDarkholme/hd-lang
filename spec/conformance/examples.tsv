@@ -338,7 +338,7 @@ specification	block	classification	fixture
 09-traits.md	27	mixed	typing/invalid/impl-method-generic-bound-added.hd
 09-traits.md	28	mixed	typing/invalid/bare-parameter-impl-target.hd|typing/invalid/trait-value-impl-target.hd|typing/invalid/mutable-impl-target.hd
 09-traits.md	29	accept	typing/valid/function-type-pack-impl.hd
-09-traits.md	30	mixed	typing/invalid/orphan-impl.hd|typing/invalid/function-type-orphan-impl.hd
+09-traits.md	30	mixed	typing/invalid/orphan-impl.hd|typing/invalid/function-type-orphan-impl.hd|typing/invalid/foreign-inherent-impl.hd
 09-traits.md	31	illustrative-pseudocode	-
 09-traits.md	32	mixed	typing/invalid/overlapping-impl-despite-bounds.hd
 09-traits.md	33	accept	typing/valid/traits.hd
