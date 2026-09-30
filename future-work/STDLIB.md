@@ -719,8 +719,11 @@ that walks `chain` and returns the first part whose recorded type is exactly
 The specification fixes the trait's module, its `Display` and `Inspectable`
 supertraits, the rule that every member has a default, and that an erased
 `Error` never crosses a registered boundary
-([Error Trait](../spec/09-traits.md#error-trait)). `cause`, `Context`,
-`.context(...)`, `chain`, `find`, and `root_cause` are library API. How `?`
+([Error Trait](../spec/09-traits.md#error-trait)). It also fixes `cause`'s
+signature, because the `@error` intrinsic generates `cause`
+([Error Derivation](../spec/14-annotations.md#error-derivation)).
+`Context`, `.context(...)`, `chain`, `find`, and `root_cause` are library
+API. How `?`
 combines errors from several domains is specified in
 [Propagation](../spec/05-expressions.md#propagation), with the conversion
 trait `std.convert.From` in

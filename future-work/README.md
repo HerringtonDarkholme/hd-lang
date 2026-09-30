@@ -18,9 +18,6 @@ Planning and backlog:
 
 Decided, not yet applied:
 
-- [Error Conversion: The `@error` Intrinsic](ERROR_CONVERSION.md) holds
-  decision 10, error derivation as one compiler intrinsic. The rest of the
-  error design is in the specification.
 - [Dependencies Through Version Control](DEPENDENCIES.md) surveys
   registry-free dependency management and records owner decisions
   DEP1-DEP7 (Go modules in hd spelling), applied in
@@ -35,6 +32,10 @@ Decided, not yet applied:
 
 Open questions for the owner:
 
+- [Error Conversion: The `@error` Intrinsic](ERROR_CONVERSION.md) records
+  decision 10, error derivation as one compiler intrinsic, applied in
+  [Error Derivation](../spec/14-annotations.md#error-derivation); six
+  apply-pass points wait for the owner.
 - [Pipe Operator And Iterator `map`/`fold`](PIPE_OPERATOR.md) surveys pipes,
   UFCS, and extension methods in 17 languages. Its decisions PL3-PL13 are
   applied; three pipe readings wait for the owner.

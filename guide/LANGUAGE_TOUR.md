@@ -374,8 +374,36 @@ Facts and member metadata are `List[Any]` values evaluated once at compile
 time, so they must be requirement-free and may not reach `block_on`.
 `@derive` before a function, trait, or implementation is an error. A
 newtype has no derivation block: it derives only through its base type.
-`Error` is not derived: an error type uses the `@error` intrinsic. See
-[Typed Derivation](../spec/14-annotations.md#typed-derivation).
+See [Typed Derivation](../spec/14-annotations.md#typed-derivation).
+
+`Error` is not in `@derive`'s list. An error type uses the separate
+`@error` intrinsic, Rust's `thiserror` in hd. It generates `Display`,
+`std.error.Error` with `cause`, and one `From` per `@from` member:
+
+```text
+use std.error.Error
+
+@error
+enum LoadError:
+    @error("cannot read $path")
+    Read(path: string, @source error: FsError)
+    @error("bad config at line $_0")
+    Syntax(i64)
+    @error(transparent)
+    Fs(@from error: FsError)
+    Cancelled
+
+@error("config $name is missing")
+data MissingConfig:
+    name: string
+```
+
+A message is an interpolated string over the variant's members, with
+unnamed ones as `_0`, `_1`; a variant without one displays as its name.
+`@source` marks the cause, `@from` also generates the conversion that `?`
+uses, and `@error(transparent)` forwards both to the one payload. Writing
+`Display` or `Error` by hand beside `@error` is `overlapping-impl`. See
+[Error Derivation](../spec/14-annotations.md#error-derivation).
 
 Use parentheses when a binding expression appears inside a larger expression.
 A nested multi-name binding is written `(a, b := value)` and is never parsed as

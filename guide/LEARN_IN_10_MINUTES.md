@@ -291,6 +291,23 @@ fn load(path: string) -> Result[string, Error]:
     .Ok(text)
 ```
 
+Usually `@error` writes those implementations for you, as Rust's
+`thiserror` does. `@error("...")` gives a variant its message, `@from`
+generates the `From` conversion, and `@source` marks a cause without one:
+
+```hd
+use std.error.Error
+
+@error
+enum ConfigError:
+    @error("config not found: $path")
+    Missing(path: string)
+    @error("cannot read $path")
+    Read(path: string, @source error: FsError)
+    @error("cannot load config")
+    Load(@from error: FsError)
+```
+
 ## Traits
 
 Traits describe behavior, and every implementation is explicit. A generic

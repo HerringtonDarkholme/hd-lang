@@ -104,7 +104,9 @@ fn report!() -> void $ Console:
 **Decided.** Owner decisions M1-M30 are applied in
 [Typed Derivation](../spec/14-annotations.md#typed-derivation), and M30
 confirms the readings of the M26 apply pass. Error derivation is the
-separate `@error` intrinsic, listed below.
+separate `@error` intrinsic, applied in
+[Error Derivation](../spec/14-annotations.md#error-derivation) and listed
+below.
 
 **Waiting on other areas.** The spec lists these as
 [undecided parts](../spec/14-annotations.md#undecided-parts); each waits
@@ -132,12 +134,13 @@ outputs.
 
 ### Error Derivation (`@error`)
 
-**Decided 2026-09-27, not yet applied.** Error Conversion decision 10 makes
-error derivation one compiler intrinsic, `@error`, Rust's `thiserror`
-moved into hd: messages, `@from`, `@source`, and `@error(transparent)`.
-Chapter 14 mentions it only in prose, as an intrinsic beside `@derive`.
-The decision text and what the apply pass must specify are in
-[Error Conversion](ERROR_CONVERSION.md#owner-decisions).
+**Decided 2026-09-27, applied 2026-09-29.** Error Conversion decision 10,
+error derivation as one compiler intrinsic, `@error`, is in
+[Error Derivation](../spec/14-annotations.md#error-derivation). Six
+apply-pass points wait for the owner in
+[Error Conversion](ERROR_CONVERSION.md#still-open): the codes for invalid
+forms, `$_0` beside unnamed shared data, the `Error` bounds of carried and
+transparent type parameters, and whether `@error` needs an import.
 
 ### Serializable Closures And Incremental Computation
 

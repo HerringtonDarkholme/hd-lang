@@ -9,8 +9,9 @@ and [09](../spec/09-traits.md#derived-implementations). The specification is
 authoritative. The survey, the design options, the worked examples, and
 the three stress tests behind the decisions are in git history.
 
-Error derivation is the separate `@error` intrinsic, which is decided but
-not yet applied ([Error Conversion](ERROR_CONVERSION.md#owner-decisions)).
+Error derivation is the separate `@error` intrinsic, applied in
+[Error Derivation](../spec/14-annotations.md#error-derivation)
+([Error Conversion](ERROR_CONVERSION.md#owner-decisions)).
 
 The prototype implements M1-M29 by lowering ([src/README.md](../src/README.md)).
 Its gaps are rows of [KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv),
