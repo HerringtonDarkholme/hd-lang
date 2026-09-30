@@ -9,15 +9,15 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,494 of the 1,654 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 160 are listed in
+On 2026-09-30 the prototype passes 1,492 of the 1,669 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 177 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 160 still fail. By
+decision below, and all 177 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,601 | 1,447 | 154 |
+| language | 1,616 | 1,445 | 171 |
 | stdlib | 53 | 47 | 6 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -42,10 +42,12 @@ them by tag:
 | SSC-Q2 | 2 | batch 26: a bang call in a comprehension is still `suspension-forbidden-context` |
 | SSC-Q3 | 3 | batch 26: a plain-string `$` that begins no interpolation is still a `syntax-error` |
 | SSC-Q4 | 20 | batch 26: `for (key, value) in m` does not parse, and the bare form is accepted |
-| SSC-Q5 | 3 | batch 26: `((a, b) := value)` is accepted, and a list form reports the withdrawn `multi-binding-needs-parentheses` |
+| SSC-Q5 | 2 | batch 26: `((a, b) := value)` is accepted, and `[(a, b) := value]` reports the withdrawn `multi-binding-needs-parentheses` |
 | SSC-Q7 | 7 | batch 26: a key without `Eq` or `Hash` is `invalid-map-key`, and a `mut` key type is accepted |
 | SSC-Q8 | 3 | batch 26: `m[k]` is still typed `V?` |
 | AT-gen | 2 | batch 26: derived `Arbitrary` gives a member's type parameter no `Inspectable` bound |
+| LP | 17 | batch 26, LP1 and LP1-one: `let` takes only a name or a name list, with no let-else, and `(a, b) :=` is still accepted |
+| Q5-list | 1 | batch 26: `[a, b := value]` still reports the withdrawn `multi-binding-needs-parentheses` |
 
 ## What Remains
 
