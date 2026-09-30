@@ -22,5 +22,16 @@ The commands use exit status for success, rejection, and runtime panic.
 Diagnostics must include their stable code followed by `:`. The `test` command
 runs `main` and every test case of a fixture's `tests:` block.
 
+Select one tier of the specification with `--tier language` or `--tier std`
+([Tiers](../../spec/conformance/README.md#tiers)). A case whose
+`specification` column in `spec/conformance/cases.tsv` cites a `std/` path
+is stdlib tier, and every other case is language tier. Like `--phase`,
+`--tier` runs only conformance cases, not `test/fixtures`. Without it, both
+tiers run. The summary line counts passes per tier.
+
+```sh
+npm run test:portable -- --tier language
+```
+
 Independent cases run concurrently. Set `HD_TEST_JOBS` or pass `--jobs` to
 change the default of up to eight compiler processes.

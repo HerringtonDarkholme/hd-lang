@@ -17,6 +17,9 @@
 //                      field is `path` is a header. Unlisted cases are not run.
 //   --jobs N           parallel cases (default: $HD_TEST_JOBS, else min(8, cpus))
 //   --phase PHASE      run only cases of phase parse, type, or runtime
+//   --tier TIER        run only cases of tier language or std (README, Tiers):
+//                      a case whose specification cites a std/ path is std,
+//                      every other case is language (default: both tiers)
 //   --cases PATH       case index (default: spec/conformance/cases.tsv)
 //   --root DIR         directory the index paths are relative to
 //                      (default: the directory of the case index)
@@ -29,6 +32,7 @@ import { availableParallelism } from "node:os";
 import { dirname, resolve, sep } from "node:path";
 
 type Phase = "parse" | "runtime" | "type";
+type Tier = "language" | "std";
 
 interface Options {
   readonly cases: string;
@@ -37,12 +41,14 @@ interface Options {
   readonly manifest?: string;
   readonly phase?: Phase;
   readonly root: string;
+  readonly tier?: Tier;
 }
 
 interface IndexRow {
   readonly expectation: string;
   readonly path: string;
   readonly phase: Phase;
+  readonly tier: Tier;
 }
 
 interface Fixture {
@@ -80,6 +86,7 @@ interface Verdict {
   readonly output?: string;
   readonly path: string;
   readonly reason?: string;
+  readonly tier?: Tier;
 }
 
 const specRoot = resolve(import.meta.dirname, "..");
@@ -116,6 +123,7 @@ function parseOptions(args: readonly string[]): Options {
   let manifest: string | undefined;
   let phase: Phase | undefined;
   let root: string | undefined;
+  let tier: Tier | undefined;
   for (let index = 0; index < args.length; index += 2) {
     const option = args[index];
     const value = args[index + 1];
@@ -126,11 +134,12 @@ function parseOptions(args: readonly string[]): Options {
     else if (option === "--cases") cases = resolve(value);
     else if (option === "--root") root = resolve(value);
     else if (option === "--phase" && /^(parse|type|runtime)$/.test(value)) phase = value as Phase;
+    else if (option === "--tier" && /^(language|std)$/.test(value)) tier = value as Tier;
     else throw new UsageError(`invalid option ${option} ${value}`);
   }
   if (command.length === 0) throw new UsageError("compiler command must not be empty");
   if (!Number.isInteger(jobs) || jobs < 1) throw new UsageError("jobs must be a positive integer");
-  return { cases, command, jobs, manifest, phase, root: root ?? dirname(cases) };
+  return { cases, command, jobs, manifest, phase, root: root ?? dirname(cases), tier };
 }
 
 async function readPanicCategories(): Promise<Set<string>> {
@@ -146,7 +155,7 @@ async function readIndex(path: string): Promise<Map<string, IndexRow>> {
   const rows = new Map<string, IndexRow>();
   for (const line of lines) {
     const fields = line.split("\t");
-    const [casePath, phase, expectation] = fields;
+    const [casePath, phase, expectation, specification] = fields;
     if (
       fields.length !== 4 ||
       fields.some((field) => field === "") ||
@@ -155,7 +164,12 @@ async function readIndex(path: string): Promise<Map<string, IndexRow>> {
     )
       throw new UsageError(`${path}: invalid row: ${line}`);
     if (rows.has(casePath!)) throw new UsageError(`${path}: duplicate row for ${casePath}`);
-    rows.set(casePath!, { expectation: expectation!, path: casePath!, phase: phase as Phase });
+    rows.set(casePath!, {
+      expectation: expectation!,
+      path: casePath!,
+      phase: phase as Phase,
+      tier: specification!.startsWith("std/") ? "std" : "language",
+    });
   }
   return rows;
 }
@@ -568,9 +582,18 @@ async function main(): Promise<number> {
   for (const path of selected) {
     const row = index.get(path);
     if (!row) verdicts.push({ path, reason: "selected case is not in the case index" });
-    else if (!options.phase || row.phase === options.phase) rows.push(row);
+    else if (
+      (!options.phase || row.phase === options.phase) &&
+      (!options.tier || row.tier === options.tier)
+    )
+      rows.push(row);
   }
-  verdicts.push(...(await mapParallel(rows, options.jobs, (row) => runCase(options, row, panics))));
+  verdicts.push(
+    ...(await mapParallel(rows, options.jobs, async (row) => ({
+      ...(await runCase(options, row, panics)),
+      tier: row.tier,
+    }))),
+  );
   let failed = 0;
   for (const verdict of verdicts) {
     if (!verdict.reason) {
@@ -581,8 +604,14 @@ async function main(): Promise<number> {
     console.log(`FAIL  ${verdict.path}: ${verdict.reason}`);
     if (verdict.output) console.log(verdict.output.replace(/^/gm, "      | "));
   }
+  // Per-tier passes, as audit/README.md reports them: "language: X of Y; stdlib: X of Y".
+  const tierCount = (tier: Tier): string => {
+    const ran = verdicts.filter((verdict) => verdict.tier === tier);
+    return `${ran.filter((verdict) => !verdict.reason).length} of ${ran.length}`;
+  };
   console.log(
-    `conformance: ${verdicts.length - failed} passed, ${failed} failed, ${verdicts.length} selected`,
+    `conformance: ${verdicts.length - failed} passed, ${failed} failed, ${verdicts.length} selected` +
+      ` (language: ${tierCount("language")}; stdlib: ${tierCount("std")})`,
   );
   return failed ? 1 : 0;
 }

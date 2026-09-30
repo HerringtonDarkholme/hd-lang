@@ -30,6 +30,7 @@ interface Options {
   readonly jobs: number;
   readonly phase?: Phase;
   readonly suite: "all" | "conformance" | "fixtures";
+  readonly tier?: "language" | "std";
 }
 
 const root = resolve(import.meta.dirname, "..");
@@ -53,6 +54,7 @@ function parseOptions(args: readonly string[]): Options {
   let jobs = Number(process.env.HD_TEST_JOBS ?? Math.min(8, availableParallelism()));
   let phase: Options["phase"];
   let suite: Options["suite"] = "all";
+  let tier: Options["tier"];
   for (let index = 0; index < args.length; index += 1) {
     const option = args[index];
     const value = args[index + 1];
@@ -62,6 +64,8 @@ function parseOptions(args: readonly string[]): Options {
       phase = value as Phase;
     else if (option === "--suite" && /^(all|conformance|fixtures)$/.test(value ?? ""))
       suite = value as Options["suite"];
+    else if (option === "--tier" && /^(language|std)$/.test(value ?? ""))
+      tier = value as Options["tier"];
     else throw new Error(`invalid option ${option ?? ""}`);
     index += 1;
   }
@@ -69,7 +73,8 @@ function parseOptions(args: readonly string[]): Options {
   if (command.length === 0) throw new Error("compiler command must not be empty");
   if (!Number.isInteger(jobs) || jobs < 1) throw new Error("jobs must be a positive integer");
   if (phase && suite === "fixtures") throw new Error("--phase cannot use --suite fixtures");
-  return { command, commandText, jobs, phase, suite };
+  if (tier && suite === "fixtures") throw new Error("--tier cannot use --suite fixtures");
+  return { command, commandText, jobs, phase, suite, tier };
 }
 
 async function invoke(
@@ -146,6 +151,7 @@ async function runConformance(options: Options): Promise<boolean> {
     "--jobs",
     String(options.jobs),
     ...(options.phase ? ["--phase", options.phase] : []),
+    ...(options.tier ? ["--tier", options.tier] : []),
   ];
   return new Promise((complete, reject) => {
     const child = spawn(process.execPath, args, {
@@ -262,7 +268,8 @@ async function main(): Promise<number> {
   const options = parseOptions(process.argv.slice(2));
   let passed = true;
   if (options.suite !== "fixtures") passed = await runConformance(options);
-  if (!options.phase && options.suite !== "conformance") {
+  // test/fixtures cases have no phase or tier; --phase and --tier select conformance cases only.
+  if (!options.phase && !options.tier && options.suite !== "conformance") {
     const cases = await Promise.all((await fixturePaths(fixtureRoot)).map(readFixtureCase));
     const problems = await mapParallel(cases, options.jobs, (testCase) =>
       runFixtureCase(options.command, testCase),
