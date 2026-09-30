@@ -1,0 +1,4 @@
+# test: a list implements no Apply, so an element is read with [], not ()
+# Spec 05 Callable Values: expr.call.apply.builtin-none (Call Indexing D1).
+fn invalid(tags: List[string]) -> string:
+    tags(0)  # diagnostic: not-callable

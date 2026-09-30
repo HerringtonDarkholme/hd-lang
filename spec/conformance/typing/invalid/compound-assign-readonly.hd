@@ -1,5 +1,5 @@
 # test: += stores into the place, so a field needs a mutable root
-# Spec 05 Compound Assignment: expr.assign.compound.store (Operator Traits OP13).
+# Spec 05 Compound Assignment: expr.assign.compound.store-rules (Operator Traits OP13).
 data Tally:
     count: i64
 

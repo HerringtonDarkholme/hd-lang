@@ -1,0 +1,13 @@
+# test: a callable value takes no keys, so an argument is an error
+# Spec 05 Callable Values: expr.call.apply.arguments (Call Indexing D2).
+use std.ops.Apply
+
+data Counter:
+    hits: i32
+
+impl Apply for Counter:
+    type Out = i32
+    fn apply(self) -> i32: self.hits
+
+fn invalid(counter: Counter) -> i32:
+    counter(1)  # diagnostic: argument-count

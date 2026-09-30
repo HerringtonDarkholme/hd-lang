@@ -25,15 +25,17 @@ This section defines value expressions and place expressions.
 
 ### Places
 
-The core place expressions are locals, fields, and index operations:
+The core place expressions are locals, fields, index operations, and
+calls through a callable value that accepts a store:
 
 1. r[expr.place.local] A reassignable local introduced by `let` is a core place expression.
 2. r[expr.place.field] A field selected through a mutable composite root is a core place expression.
 3. r[expr.place.index] An index operation whose receiver and indexing protocol expose mutable storage is a core place expression.
 4. r[expr.place.receiver] The receiver of a field or index place may be any expression of mutable composite type, including a call that returns mutable access.
-5. r[expr.place.not-places] `:=` bindings, literals, calls, arithmetic, and temporary values are not places.
-6. r[expr.place.tuple-element] A tuple element selection such as `pair._0` is not a place: tuples are immutable, and a changed tuple is built as a new tuple value.
-7. r[expr.place.enum-shared-field] A shared enum field such as `status.phrase` is not a place: enum values never change once built.
+5. r[expr.place.call-update] A call is a place only when its callee's type implements `Update`, as [Callable Values](#callable-values) defines.
+6. r[expr.place.value-forms] `:=` bindings, literals, other calls, arithmetic, and temporary values are not places.
+7. r[expr.place.tuple-element] A tuple element selection such as `pair._0` is not a place: tuples are immutable, and a changed tuple is built as a new tuple value.
+8. r[expr.place.enum-shared-field] A shared enum field such as `status.phrase` is not a place: enum values never change once built.
 
 ### Assignment
 
@@ -43,8 +45,9 @@ The core place expressions are locals, fields, and index operations:
 4. r[expr.assign.order.local] A local place requires no subexpression evaluation.
 5. r[expr.assign.order.field] A field assignment evaluates its receiver, then the right-hand expression.
 6. r[expr.assign.order.index] An indexed assignment evaluates the receiver, the index, and the right-hand expression in that order.
-7. r[expr.assign.abrupt] If any step completes abruptly, no store occurs.
-8. r[expr.assign.embedded] An embedded field is assigned with the copy assignment `place ...= value`, which stores a copy of the value.
+7. r[expr.assign.order.call] An assignment through a call evaluates the callee, then the right-hand expression.
+8. r[expr.assign.abrupt] If any step completes abruptly, no store occurs.
+9. r[expr.assign.embedded] An embedded field is assigned with the copy assignment `place ...= value`, which stores a copy of the value.
 
 ```text
 fn invalid() -> (i32, i32):
@@ -85,17 +88,19 @@ fn record(tally: mut Tally, hits: List[i64]) -> Meters:
 
 1. r[expr.assign.compound.form] Compound assignment is a statement, written with one of ten operators: `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=`.
 2. r[expr.assign.compound.no-others] There is no `**=`, `&&=`, or `||=`.
-3. r[expr.assign.compound.place] The left side must have the form of a place: a name, a field selection, or an index expression. Any other left side, such as a call, is an error. Error: `invalid-assignment-target`.
+3. r[expr.assign.compound.place-form] The left side must have the form of a place: a name, a field selection, an index expression, or a call whose callee's type implements `Update`. Any other left side, such as a function call, is an error. Error: `invalid-assignment-target`.
 4. r[expr.assign.compound.once] The receiver and index of the place are evaluated once, then the right-hand expression.
 5. r[expr.assign.compound.meaning] For every type, `p op= e` means `p = p op e`: it reads the place, applies the operator to that value and `e`, and stores the result in the place.
 6. r[expr.assign.compound.primitive] When the place and the right operand have primitive types, `p op= e` computes `p op e` by the built-in rules and stores the result in the place. The store follows the rules of `p = p op e`, so a name must be a reassignable local.
 7. r[expr.assign.compound.operator] Otherwise the operator follows [Operator Traits](#operator-traits), so the place's type needs the operator's trait. Without a fitting implementation, the statement is an error. Error: `type-mismatch`.
-8. r[expr.assign.compound.store] The store follows the rules of assignment. So the place must be a reassignable local, a field selected through a mutable root, or an index place that accepts a store.
+8. r[expr.assign.compound.store-rules] The store follows the rules of assignment. So the place must be a reassignable local, a field selected through a mutable root, an index place that accepts a store, or a call place.
 9. r[expr.assign.compound.index-read-write] On an index place, the read is `r[k]` and the store is `r[k] = v`. `List` and `Map` use their built-in indexing, and another type needs both `Index` and `IndexSet`, as [Index Traits](#index-traits) defines.
-10. r[expr.assign.compound.map-present] On a `Map[K, V]`, the read differs from a plain `m[k]`: it has type `V`, as if the key must exist.
-11. r[expr.assign.compound.map-missing] When the map holds no equal key, that read is a checked runtime panic with category `index-out-of-bounds`, and nothing is stored.
-12. r[expr.assign.compound.fresh-value] On a composite value, the store replaces the place's value with the operator's result. Other references to the old value keep the old value.
-13. r[expr.assign.compound.no-assign-traits] `std.ops` declares no assign trait, and no operator changes a value in place.
+10. r[expr.assign.compound.call-once] On a call place `v() op= e`, the callee `v` is evaluated once, then `e`.
+11. r[expr.assign.compound.call-read-write] On a call place, the read is `v()` and the store is `v() = x`, so the callee's type needs both `Apply` and `Update`, as [Callable Values](#callable-values) defines.
+12. r[expr.assign.compound.map-present] On a `Map[K, V]`, the read differs from a plain `m[k]`: it has type `V`, as if the key must exist.
+13. r[expr.assign.compound.map-missing] When the map holds no equal key, that read is a checked runtime panic with category `index-out-of-bounds`, and nothing is stored.
+14. r[expr.assign.compound.fresh-value] On a composite value, the store replaces the place's value with the operator's result. Other references to the old value keep the old value.
+15. r[expr.assign.compound.no-assign-traits] `std.ops` declares no assign trait, and no operator changes a value in place.
 
 ```text
 data Tally:
@@ -127,6 +132,7 @@ fn tally(counts: mut Map[string, i32], word: string) -> void:
 > `sb.push(x)`.
 
 See also: [Operator Traits](#operator-traits),
+[Callable Values](#callable-values),
 [Mutation Checks](04-type-system.md#mutation-checks).
 
 ## Primary Expressions
@@ -802,6 +808,120 @@ first::[string](names)
 4. r[expr.call.generic.methods] The same explicit-list rules apply to generic methods.
 
 See also: [Functions](07-functions.md).
+
+#### Callable Values
+
+A **callable value** is a value whose type implements the `std.ops` trait
+`Apply`: `v()` reads it. When the type also implements `Update`, `v()` is
+a **call place**, and `v() = x` stores through it. This example declares a
+live cell:
+
+```text
+use std.ops.{Apply, Update}
+
+data Cell[T]:
+    value: T
+
+impl[T] Apply for Cell[T]:
+    type Out = T
+    fn apply(self) -> T: self.value
+
+impl[T] Update[T] for Cell[T]:
+    fn update(mut self, value: T) -> void:
+        self.value = value
+
+fn live[T](value: T) -> mut Cell[T]:
+    Cell { value: value }
+
+data Panel:
+    count: mut Cell[i32]
+
+fn parent(panel: mut Panel) -> string:
+    let mut count = live(0)
+    count() = 1
+    count() += 1
+    (panel.count)() += 1
+    badge(count)
+
+fn badge(count: Cell[i32]) -> string:
+    "clicked ${count()}"
+```
+
+`std.ops` declares them in this shape:
+
+```text
+pub trait Apply:
+    type Out
+    fn apply(self) -> Self::Out
+
+pub trait Update[V]:
+    fn update(mut self, value: V) -> void
+```
+
+1. r[expr.call.apply.std] `std.ops` declares `Apply`, with an associated type `Out`, and `Update[V]`, as shown above.
+2. r[expr.call.apply.zero-keys] Neither trait takes a key: a callable value is called with no arguments.
+3. r[expr.call.apply.read] When the callee's type is not a function type and implements `Apply`, a type parameter included, the call `v()` is the call `Apply::apply(v)`.
+4. r[expr.call.apply.read-type] The type of `v()` is that implementation's `Out`.
+5. r[expr.call.apply.arguments] A call that passes a callable value any argument, positional or named, is an error. Error: `argument-count`.
+6. r[expr.call.apply.write] Assigning `v() = x` is the call `Update::[V]::update(v, x)`.
+7. r[expr.call.apply.choice] The `Update` implementation is chosen by the callee's type, then by the type of `x`, as an index store's is.
+8. r[expr.call.apply.no-use] Neither call needs a `use` of the trait.
+9. r[expr.call.apply.place] `v()` is a place only when the callee's type implements `Update`. Assigning to any other call, including a function call, is an error. Error: `invalid-assignment-target`.
+10. r[expr.call.apply.mut] A store through `v()` mutates `v`, so `v` must have type `mut T`, as [Mutation Checks](04-type-system.md#mutation-checks) require of `e[i] = value`.
+11. r[expr.call.apply.readonly] A store through a readonly callee is an error. Error: `readonly-root`.
+12. r[expr.call.apply.not-callable] Calling a value whose type is neither a function type nor implements `Apply` is an error. Error: `not-callable`.
+13. r[expr.call.apply.builtin-none] `List`, `Map`, and `string` implement neither trait, so an element is read with `xs[0]`, never `xs(0)`.
+14. r[expr.call.apply.independent] The two traits are independent: a type may implement either one alone.
+15. r[expr.call.apply.field] A callable value in a field is called by parenthesizing the field read, as in `(panel.count)()`, as [`expr.member.stored-fn`](#r-expr.member.stored-fn) states for a stored function.
+
+A value with `Apply` alone reads but does not store, and a callable value
+takes no keys:
+
+```text
+use std.ops.Apply
+
+data Counter:
+    hits: i32
+
+impl Apply for Counter:
+    type Out = i32
+    fn apply(self) -> i32: self.hits
+
+fn current() -> i32: 1
+
+fn invalid(counter: mut Counter, tags: List[string]) -> void:
+    counter() = 2  # error: invalid-assignment-target
+    current() = 2  # error: invalid-assignment-target
+    counter(1)     # error: argument-count
+    tags(0)        # error: not-callable
+```
+
+A store needs a `mut` cell. With `Cell` and `live` from the first example,
+a `:=` binding and a parameter typed `Cell[i32]` are readonly views:
+
+```text
+fn invalid(count: Cell[i32]) -> void:
+    view := live(0)
+    view() = 1   # error: readonly-root
+    count() = 2  # error: readonly-root
+```
+
+> **Note.** `let mut count = live(0)` keeps the `mut Cell[i32]` that
+> `live` returns, as [`types.bind.let-mut-infer`](04-type-system.md#r-types.bind.let-mut-infer)
+> states. `view := live(0)` is readonly by
+> [`types.bind.short`](04-type-system.md#r-types.bind.short): it reads
+> `view()` but does not store. A cell reached through a readonly edge,
+> `field: Cell[i32]`, gives `readonly-edge` instead, as
+> [`types.path.readonly-edge`](04-type-system.md#r-types.path.readonly-edge) states.
+
+> **Why.** Keyed reads have one syntax, `[]`, so `Apply` and `Update` take
+> no keys, and a grid keeps `g[(0, 1)]`. `update` takes `mut self`, so a
+> write through a cell shows in its holder's type, as every other
+> mutation does.
+
+See also: [Index Traits](#index-traits),
+[Compound Assignment](#compound-assignment),
+[Operator Traits](#operator-traits).
 
 #### Suspension Calls
 

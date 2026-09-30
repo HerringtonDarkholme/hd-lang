@@ -111,7 +111,7 @@ table describes the failure:
 | `duplicate-variant` | One enum declares the same variant name twice. |
 | `type-mismatch` | A value's type is not assignable to the type its context requires. |
 | `argument-count` | A call supplies more or fewer arguments than the callee accepts, or a type-argument list has more positional arguments than its declaration has generic parameters. |
-| `not-callable` | A call's callee is not a function, closure, or constructor. |
+| `not-callable` | A call's callee is not a function, closure, constructor, or callable value. |
 | `break-outside-loop` | `break` or `continue` appears outside a loop body. |
 
 A diagnostic is reported on the line where the smallest construct that breaks
@@ -180,6 +180,8 @@ The stdlib chapters' terms are in the
 | **bare step** | A pipe step that is a name or path without `_`. See [`expr.pipe.step-kinds`](05-expressions.md#r-expr.pipe.step-kinds). |
 | **bound method reference** | `value::name`, where `value` names a value, as a function value. See [`fn.ref.bound`](07-functions.md#r-fn.ref.bound). |
 | **bound requirement key** | A requirement key that binds associated types, such as `Store[Item = User]`; its provider value has that trait value type. See [Bound Requirement Keys](11-requirements-and-suspension.md#bound-requirement-keys). |
+| **call place** | A call `v()` whose callee's type implements `Update`, so `v() = x` and `v() op= x` store through it. See [Callable Values](05-expressions.md#callable-values). |
+| **callable value** | A value whose type implements `Apply`, read by calling it with no arguments, as in `count()`. See [Callable Values](05-expressions.md#callable-values). |
 | **coherence slot** | One `(trait, concrete target)` pair over the resolved package graph. See [Terminology](14-annotations.md#terminology). |
 | **compatibility line** | The versions of a package that must stay compatible: one major number, or `0.MINOR` below 1.0. See [`module.version.line`](10-modules.md#r-module.version.line). |
 | **compound assignment** | A statement `place op= value`, such as `total += x`, that combines an operator with a store. See [Compound Assignment](05-expressions.md#compound-assignment). |
@@ -2278,3 +2280,25 @@ existing source. Each entry names the decision that made the change.
   and [`fn.generic.call-marker`](07-functions.md#r-fn.generic.call-marker).
   The pipe rule still needs `_` after a bare step with an index or type
   arguments.
+- Callable values (owner decisions D1, its callable-value part, D2, and
+  D4 in [Call Indexing](../future-work/CALL_INDEXING.md#owner-decisions),
+  2026-09-30): language tier, since call syntax uses the traits.
+  `std.ops` declares `Apply`, with `type Out` and `fn apply(self)`, and
+  `Update[V]`, with `fn update(mut self, value: V)`. Neither takes a key.
+  `v()` on a value whose type implements `Apply` reads it; with `Update`,
+  `v()` is a call place, and `v() = x` and `v() op= x` store through it
+  ([Callable Values](05-expressions.md#callable-values)). An argument to a
+  callable value is `argument-count`, and a store through a readonly
+  callee is `readonly-root`, so a live cell is bound with `let mut`, and
+  a `:=` binding or a parameter typed `Cell[i32]` reads only. Assigning to
+  any other call stays `invalid-assignment-target`. The rules
+  `expr.place.not-places`, `expr.assign.compound.place`,
+  `expr.assign.compound.store`, and `grammar.stmt.assign-target`, which
+  said a call is never a place, are retired for
+  [`expr.place.call-update`](05-expressions.md#r-expr.place.call-update)
+  and [`expr.place.value-forms`](05-expressions.md#r-expr.place.value-forms),
+  [`expr.assign.compound.place-form`](05-expressions.md#r-expr.assign.compound.place-form),
+  [`expr.assign.compound.store-rules`](05-expressions.md#r-expr.assign.compound.store-rules),
+  and [`grammar.stmt.assign-place`](02-grammar.md#r-grammar.stmt.assign-place).
+  Existing source is unaffected: `std` collections implement neither
+  trait, so `xs(0)` stays `not-callable`.

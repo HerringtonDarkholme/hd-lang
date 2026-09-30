@@ -329,7 +329,7 @@ See also: [Physical And Logical Lines](01-lexical-structure.md#physical-and-logi
 
 1. r[grammar.stmt.semantic] Whether a statement may appear in a particular value-producing block is a semantic rule.
 2. r[grammar.stmt.break] In particular, `break` is valid only inside a loop, and `break` with a value is valid only in a loop with an `else` suite.
-3. r[grammar.stmt.assign-target] The left side of an assignment must resolve to a reassignable local, mutable field, or mutable indexed place; calls and other non-place postfix expressions are rejected semantically.
+3. r[grammar.stmt.assign-place] The left side of an assignment must resolve to a reassignable local, a mutable field, a mutable indexed place, or a [call place](05-expressions.md#callable-values); other postfix expressions are rejected semantically.
 4. r[grammar.stmt.copy-assign] The copy assignment `place ...= value` is valid only when the place is an embedded field.
 5. r[grammar.stmt.copy-assign.embedded] An embedded field is assigned only with `...=`.
 6. r[grammar.stmt.compound-assign] A compound assignment `place op= value` takes the same left side as an assignment, and its right side follows the same forms as `=`. [Compound Assignment](05-expressions.md#compound-assignment) defines it.

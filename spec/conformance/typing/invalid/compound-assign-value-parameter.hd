@@ -1,5 +1,5 @@
 # test: += on a newtype stores into the place, so a parameter cannot be the left side
-# Spec 05 Compound Assignment: expr.assign.compound.store (Operator Traits OP10, OP13).
+# Spec 05 Compound Assignment: expr.assign.compound.store-rules (Operator Traits OP10, OP13).
 use std.ops.Add
 
 type Meters(i64)

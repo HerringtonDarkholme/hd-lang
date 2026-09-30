@@ -1,0 +1,22 @@
+# test: a := binding of a live cell is a readonly view, so a store through it is an error
+# Spec 05 Callable Values: expr.call.apply.readonly (Call Indexing D4).
+use std.ops.{Apply, Update}
+
+data Cell[T]:
+    value: T
+
+impl[T] Apply for Cell[T]:
+    type Out = T
+    fn apply(self) -> T: self.value
+
+impl[T] Update[T] for Cell[T]:
+    fn update(mut self, value: T) -> void:
+        self.value = value
+
+fn live[T](value: T) -> mut Cell[T]:
+    Cell { value: value }
+
+fn invalid() -> i32:
+    view := live(0)
+    view() = 1  # diagnostic: readonly-root
+    view()

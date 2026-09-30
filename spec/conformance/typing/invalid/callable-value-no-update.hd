@@ -1,0 +1,13 @@
+# test: without Update, a call on a callable value is not a place
+# Spec 05 Callable Values: expr.call.apply.place (Call Indexing D1).
+use std.ops.Apply
+
+data Counter:
+    hits: i32
+
+impl Apply for Counter:
+    type Out = i32
+    fn apply(self) -> i32: self.hits
+
+fn invalid(counter: mut Counter) -> void:
+    counter() = 2  # diagnostic: invalid-assignment-target
