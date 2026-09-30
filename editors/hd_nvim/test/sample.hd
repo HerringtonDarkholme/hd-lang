@@ -1,0 +1,25 @@
+## A counter with a doc comment.
+@derive(Eq)
+data Counter:
+    value: i32
+
+enum Mode:
+    Fast
+    Slow
+
+fn adjust(counter: Counter, enabled: bool) -> i32:
+    if enabled:
+        counter.value + 1
+    else:
+        counter.value
+
+pub fn main!() -> void $ Console:
+    delay := 1_500ms
+    mask := 0xff
+    mode := .Fast
+    name := "Ada"
+    pattern := r"\d+$"
+    greeting := "Hello, $name: ${adjust(Counter { value: 2 }, true)}\n"
+    story := """first
+second"""
+    $.use(Console).write_line!(greeting)  # say hello
