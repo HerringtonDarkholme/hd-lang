@@ -1033,7 +1033,10 @@ export abstract class ExpressionParser extends ParserBase {
     }
     this.expectText("->");
     const result = this.parseResultType();
-    const requirements = this.matchText("$") ? this.parseRequirements() : [];
+    // Without a requirement clause the row is inferred, and a `$.with` block
+    // around the declaration never satisfies it
+    // (11-requirements-and-suspension.md#r-req.row.omitted.inferred-private).
+    const requirements = this.matchText("$") ? this.parseRequirements() : undefined;
     const body = this.parseSuite();
     const end = body.at(-1)!.span.end;
     const closure: Expression = {
@@ -1041,7 +1044,7 @@ export abstract class ExpressionParser extends ParserBase {
       ...(suspending ? { suspending: true } : {}),
       parameters,
       result,
-      requirements,
+      ...(requirements ? { requirements } : {}),
       body,
       span: { start, end },
     };
@@ -1049,10 +1052,14 @@ export abstract class ExpressionParser extends ParserBase {
       kind: "binding",
       name: name.text,
       mutable: false,
-      annotation: {
-        name: `fn${suspending ? "!" : ""}(${parameters.map((parameter) => parameter.type!.name).join(",")})->${result.name}${requirements.length ? `$${requirements.join("+")}` : ""}`,
-        span: { start: name.span.start, end: result.span.end },
-      },
+      ...(requirements
+        ? {
+            annotation: {
+              name: `fn${suspending ? "!" : ""}(${parameters.map((parameter) => parameter.type!.name).join(",")})->${result.name}${requirements.length ? `$${requirements.join("+")}` : ""}`,
+              span: { start: name.span.start, end: result.span.end },
+            },
+          }
+        : {}),
       value: closure,
       span: { start, end },
     };

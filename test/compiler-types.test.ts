@@ -264,11 +264,12 @@ test("nested closures propagate grandparent captures through GC environments", (
   assert.match(compilation.wat, /struct\.get \$env0 \$env0f0/);
 });
 
-test("closures store escaped lexical provider overrides in GC environments", () => {
+test("closures store captured provider values in GC environments", () => {
   const source = `fn make_reader() -> (fn() -> i32) $ Backup:
     $.with(Clock=$.use(Backup)):
+        clock := $.use(Clock)
         fn() -> i32:
-            _ := $.use(Clock)
+            _ := clock
             42
 
 fn main() -> i32 $ Backup:

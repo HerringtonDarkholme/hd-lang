@@ -358,8 +358,10 @@ else`, `break`, `break value`, and `continue`;
   carrier;
 - named function values plus typed nested and recursive closures, expected-type
   parameter/result inference, result inference for nonrecursive closures, and
-  GC environments for direct and transitive captures, including lexical
-  provider overrides that escape their `$.with` scope; a captured `let` is a
+  GC environments for direct and transitive captures; a closure captures no
+  provider from an enclosing `$.with`, so each key its body uses stays in its
+  row and resolves at each call, and a provider value bound by `$.use` is
+  captured like any local and outlives its scope; a captured `let` is a
   shared heap cell, and every closure may assign it and keep mutable
   captures (`mut fn` is a syntax error); a generic function used as a value is
   instantiated from explicit type arguments or the expected function type;

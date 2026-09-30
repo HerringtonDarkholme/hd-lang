@@ -13,6 +13,7 @@ import {
 import { CheckFailure, type Signature } from "./context.ts";
 import { functionTypeMatchesRowPattern, matchTraitImplementation } from "./shared.ts";
 import { STANDARD_FROM } from "./standard-traits.ts";
+import { mismatchMessage } from "./row-rules.ts";
 
 import { ExpressionControlChecker } from "./expression-control.ts";
 export class FunctionChecker extends ExpressionControlChecker {
@@ -353,7 +354,7 @@ export class FunctionChecker extends ExpressionControlChecker {
             true,
             this.visibleCaptureSources(),
             closureIndex,
-            this.visibleProviders(),
+            new Map(),
             requirements === undefined,
             inferResult,
             this.pendingRecursiveClosure,
@@ -410,7 +411,7 @@ export class FunctionChecker extends ExpressionControlChecker {
           true,
           this.visibleCaptureSources(),
           closureIndex,
-          this.visibleProviders(),
+          new Map(),
           false,
           false,
           this.pendingRecursiveClosure,
@@ -435,6 +436,17 @@ export class FunctionChecker extends ExpressionControlChecker {
         ) {
           this.fail("type-mismatch", `expected ${expected}, found ${type}`, expression.span);
         }
+        // A closure's row keeps each key its body uses, even inside a
+        // `$.with` block, so an expected row without that key rejects the
+        // closure itself (11-requirements-and-suspension.md#r-req.row.omitted.outer-scope).
+        const expectedRow =
+          expectedCallableType && functionParts(expectedCallableType)?.requirements;
+        if (
+          expectedRow &&
+          !expectedRow.some((key) => key.startsWith("row:")) &&
+          requirements.some((key) => !expectedRow.includes(key))
+        )
+          this.fail("type-mismatch", mismatchMessage(type, expected!), expression.span);
         return { kind: "closure", closureIndex, captures, type, span: expression.span };
       }
       case "provider-use": {

@@ -145,8 +145,13 @@ test("parser lowers named local functions to typed closure bindings", () => {
   const statement = result.program?.functions[0]?.body[0];
   if (statement?.kind === "binding") {
     assert.equal(statement.name, "add");
-    assert.equal(statement.annotation?.name, "fn(i32)->i32");
+    // Without a requirement clause the row is inferred, so no annotation fixes it.
+    assert.equal(statement.annotation, undefined);
     assert.equal(statement.value.kind, "closure");
+    if (statement.value.kind === "closure") {
+      assert.equal(statement.value.result?.name, "i32");
+      assert.equal(statement.value.requirements, undefined);
+    }
   } else {
     assert.fail("expected a local closure binding");
   }

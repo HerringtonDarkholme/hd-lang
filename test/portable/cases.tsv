@@ -1434,3 +1434,7 @@ typing/invalid/trait-value-inherent-impl.hd	type
 typing/valid/newtype-unwrap-permission.hd	type
 runtime/valid/compound-assign-map-run.hd	runtime
 runtime/panic/compound-assign-map-missing-key.hd	runtime
+runtime/valid/provider-capture-timing.hd	runtime
+runtime/valid/provider-scope-dynamic-callback.hd	runtime
+typing/invalid/closure-escapes-provider-scope.hd	type
+typing/invalid/adapter-callback-scope-key.hd	type
