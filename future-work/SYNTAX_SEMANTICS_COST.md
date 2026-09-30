@@ -54,7 +54,8 @@ production-like hd code, is the harder test.
 
 A sixth, [K6](#k6-readonly-iterators-in-loops) (SPECIAL_CASES C6),
 deletes the readonly-iterator loop error; the owner kept the error
-(batch 24). All six are independent.
+(batch 24). All six are independent. Batch 26 took K1, K3, K4, and K5,
+and kept K2's rules.
 
 ### Top 3 Reopen Candidates
 
@@ -204,6 +205,8 @@ pattern ([Rust][rust-for], [Swift][swift-for]). Kotlin writes
 `for ((k, v) in m)` ([Kotlin][kotlin-destructure]). Python and Go write
 the bare form.
 
+**Owner decision (batch 26, 2026-09-30): taken** ([Q4](#q4-parentheses-in-for)).
+
 ### K2. `let mut` Takes No Annotation
 
 `let mut` exists to avoid repeating a type: `let mut user = User { ... }`.
@@ -263,6 +266,9 @@ write `let mut x: T` and get the fix-it.
 or `val`, and the type never repeats it ([Swift][swift-let],
 [Kotlin][kotlin-var]).
 
+**Owner decision (batch 26, 2026-09-30): not taken.** Today's warning
+and error stay ([Q6](#q6-let-mut-with-an-annotation)).
+
 ### K3. A Multi-Name Binding Is A Statement
 
 `(a, b) := p` may also appear nested, wrapped as `((a, b) := p)`. Four
@@ -315,6 +321,8 @@ line. The single-name walrus, `if (n := f()) > 0:`, is unchanged.
 out unpacking ([PEP 572][pep-572]). Go's `:=` is a statement
 ([Go][go-short-var]).
 
+**Owner decision (batch 26, 2026-09-30): taken** ([Q5](#q5-nested-multi-name-bindings)).
+
 ### K4. A Comprehension Follows Its Loop
 
 A comprehension "is equivalent in iteration shape to nested loops"
@@ -365,6 +373,8 @@ so a partial list is safe. Outside a suspending body the call is still
 async function ([PEP 530][pep-530]). Rust, Swift, Kotlin, and MoonBit
 have no comprehensions; a loop there may `await` or suspend.
 
+**Owner decision (batch 26, 2026-09-30): taken** ([Q2](#q2-bang-calls-in-comprehensions)).
+
 ### K5. One Dollar Rule For Every String
 
 A `$` that begins no interpolation is an error in a plain string and text
@@ -408,6 +418,8 @@ valid, so no valid string changes value.
 
 **Other languages.** Kotlin, whose interpolation hd follows, keeps such a
 `$` as text ([Kotlin][kotlin-templates]).
+
+**Owner decision (batch 26, 2026-09-30): taken** ([Q3](#q3-dollar-as-text)).
 
 ### K6. Readonly Iterators In Loops
 
@@ -753,6 +765,10 @@ fn names!(ids: List[i32]) -> List[string]:
     [for id in ids => fetch!(id)]
 ```
 
+**Owner decision (batch 26, 2026-09-30): A.** A bang call is valid in a
+comprehension in a suspending body, and the calls run in order; the `?`
+rules become a Note. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
+
 ### Q3. Dollar As Text
 
 `"costs $5"` is an error, while `r"costs $5"` keeps `$5` as text
@@ -767,6 +783,9 @@ fn names!(ids: List[i32]) -> List[string]:
 fn label() -> string:
     "costs $5"  # hypothetical syntax
 ```
+
+**Owner decision (batch 26, 2026-09-30): A.** A `$` that starts no
+interpolation is text in every string. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
 
 ### Q4. Parentheses In `for`
 
@@ -784,6 +803,10 @@ and 13, and deletes a same-line exception.
 fn names(scores: Map[string, i32]) -> List[string]:
     [for (name, score) in scores => name]  # hypothetical syntax
 ```
+
+**Owner decision (batch 26, 2026-09-30): A.** `for (k, v) in m`, in
+loops and comprehension clauses; the bare form is `syntax-error` with a
+fix-it. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
 
 ### Q5. Nested Multi-Name Bindings
 
@@ -803,6 +826,9 @@ fn sum() -> i32:
     low + high
 ```
 
+**Owner decision (batch 26, 2026-09-30): A.** A multi-name `:=` is a
+statement only; this supersedes Q1b's nested form. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
+
 ### Q6. `let mut` With An Annotation
 
 `let mut x: mut T` warns and `let mut x: T` is an error; seven rules cover
@@ -821,6 +847,9 @@ fn build() -> List[string]:
     names.append("Ada")
     names
 ```
+
+**Owner decision (batch 26, 2026-09-30): B, keep.** The warning and the
+error stay as they are. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
 
 ### Q7. Map Key Bound
 
@@ -844,6 +873,10 @@ fn setup() -> void:
     pass
 ```
 
+**Owner decision (batch 26, 2026-09-30): B.** `Map[K < Eq & Hash, V]`
+reports `unsatisfied-trait-bound`; a `mut` key type stays an error. See
+[Open Issues](OPEN_ISSUES.md#language-design-decisions).
+
 ### Q8. Map Read Type
 
 `m[k]` reads `V?`, while `m[k] += v` and `Index::index` read `V` and panic
@@ -863,6 +896,10 @@ fn score(scores: Map[string, i32], name: string) -> i32:
         .Some(value) => value
         .None => 0
 ```
+
+**Owner decision (batch 26, 2026-09-30): A.** `m[k]` reads `V` and
+panics with `index-out-of-bounds`; `m.get(k)` reads `V?`. This reverses
+the 2026-09-29 split. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
 
 ### Q9. Reopen Embedding?
 

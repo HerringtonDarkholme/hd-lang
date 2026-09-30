@@ -127,6 +127,23 @@ follow-ups of the same batch, BF and BFF, are in
 | --- | --- | --- |
 | ST8-own | The Templates clash Note says that, when `Encode` declares its own receiverless `name`, `Encode::name()` is `Encode`'s. That call has no argument either, so [`trait.assoc-call.trait.undetermined`](../spec/09-traits.md#r-trait.assoc-call.trait.undetermined) rejects it, as it rejected `Structure::name()`. | Inside a template, a call qualified by the derived trait also has `T` as its `Self`, since the template implements that trait for `T` alone. |
 
+**Batch 26 (owner decision, 2026-09-30).** Not yet applied. The owner
+answered AT-gen and [Syntax And Semantics Cost](SYNTAX_SEMANTICS_COST.md#questions-for-the-owner)
+Q2-Q8. Each follows the recommendation, except Q6, where the owner kept
+today's rules. Q5 supersedes Q1b's nested form, and Q8 reverses the
+2026-09-29 split (follow-up 5, Map 6).
+
+| # | Decision | Where |
+| --- | --- | --- |
+| AT-gen | Derived `Arbitrary` generates `T < Arbitrary & Inspectable` for each type parameter a member uses, so `@derive(Arbitrary)` on `data Box[T]: value: T` works without a manual block. Stdlib tier. | [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary) |
+| SSC Q2 (K4) | A comprehension follows the loop it abbreviates. A bang call is valid inside a comprehension in a suspending body, and the calls run one at a time, in order. The two `?` rules become a Note. | [Comprehension Restrictions](../spec/05-expressions.md#comprehension-restrictions) |
+| SSC Q3 (K5) | One `$` rule for every string: a `$` that starts no interpolation is text, so `"costs $5"` is valid, as `r"costs $5"` is. A `$` before a reserved word other than `self` stays an error. | [Interpolation](../spec/01-lexical-structure.md#interpolation), [Prefixed Strings](../spec/01-lexical-structure.md#prefixed-strings) |
+| SSC Q4 (K1) | A multi-name loop writes `for (k, v) in m`, in loops and in comprehension clauses, matching `let (a, b)` and `(a, b) :=`. Bare `for k, v in m` is `syntax-error` with a fix-it. The same-line multi-name `for` exception, `grammar.inline.multi-name-for`, is retired. | [Same-Line Suite Bodies](../spec/02-grammar.md#same-line-suite-bodies), [For Loops](../spec/06-control-flow.md#for-loops) |
+| SSC Q5 (K3) | A multi-name `:=` is a statement only. The nested `((a, b) := p)` form and its wrapping rules are removed. | [Multi-Name Bindings](../spec/02-grammar.md#multi-name-bindings) |
+| SSC Q6 (K2) | Keep today's rules: `let mut x: mut T` warns `redundant-let-mut`, and `let mut x: T` is `let-mut-readonly-type`. | unchanged |
+| SSC Q7 (C8) | Map keys use an ordinary bound, `Map[K < Eq & Hash, V]`, reporting `unsatisfied-trait-bound`. A `mut` key type stays an error. | [Map Key Types](../spec/04-type-system.md#map-key-types) |
+| SSC Q8 (C9) | `m[k]` reads `V` and panics with `index-out-of-bounds` on a missing key; `m.get(k)` reads `V?`. This reverses the 2026-09-29 split. | [Map Indexing](../spec/05-expressions.md#map-indexing) |
+
 ### Bound And Row Operators
 
 The owner's decisions (2026-09-28) are applied: bounds join with `&`, rows

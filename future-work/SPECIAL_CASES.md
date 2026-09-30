@@ -641,6 +641,9 @@ Python writes the bare form.
 **Recommendation.** Take it; it completes the Q1 decision. Question
 [Q7](#q7-parentheses-in-for).
 
+**Owner decision (batch 26, 2026-09-30): taken**, as Syntax And Semantics
+Cost Q4.
+
 ### C5. One Dollar Rule For Every String
 
 A `$` that begins no interpolation is an error in a plain string and text
@@ -696,6 +699,9 @@ that begins no template as text, as in `"costs $5"`
 ([Kotlin, string templates](https://kotlinlang.org/docs/strings.html#string-templates)).
 
 **Recommendation.** Take it. Question [Q4](#q4-dollar-in-plain-strings).
+
+**Owner decision (batch 26, 2026-09-30): taken**, as Syntax And Semantics
+Cost Q3.
 
 ### C6. Readonly Iterators In Loops
 
@@ -807,6 +813,9 @@ async function ([PEP 530](https://peps.python.org/pep-0530/)).
 
 **Recommendation.** Take it. Question [Q6](#q6-bang-calls-in-comprehensions).
 
+**Owner decision (batch 26, 2026-09-30): taken**, as Syntax And Semantics
+Cost Q2; the `?` rules become a Note.
+
 ### C8. Map Keys Through The Ordinary Bound
 
 The map-key check is a compiler rule with its own code. The standard
@@ -868,6 +877,9 @@ so A widens an accepted risk rather than adding a new one.
 and reports a missing trait as E0277 ([HashMap](https://doc.rust-lang.org/std/collections/struct.HashMap.html)).
 
 **Recommendation.** Variant B. Question [Q8](#q8-map-key-bound).
+
+**Owner decision (batch 26, 2026-09-30): variant B**, as Syntax And
+Semantics Cost Q7.
 
 ### C9. One Meaning For Map Indexing
 
@@ -937,6 +949,9 @@ Swift returns an optional from `dict[k]`
 
 **Recommendation.** Ask, but do not push: it reverses a day-old choice and
 changes valid source. Question [Q9](#q9-map-indexing).
+
+**Owner decision (batch 26, 2026-09-30): taken**, as Syntax And Semantics
+Cost Q8. It reverses the 2026-09-29 split.
 
 ### Cuts Considered And Not Proposed
 
@@ -1093,6 +1108,9 @@ fn label() -> string:
     "costs $5"  # hypothetical syntax
 ```
 
+**Owner decision (batch 26, 2026-09-30): A**, as Syntax And Semantics
+Cost Q3. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
+
 ### Q5. Readonly Iterator Loops
 
 A loop over a readonly iterator is an error, while a readonly `iter()`
@@ -1131,6 +1149,9 @@ fn names!(ids: List[i32]) -> List[string]:
     [for id in ids => fetch!(id)]
 ```
 
+**Owner decision (batch 26, 2026-09-30): A**, as Syntax And Semantics
+Cost Q2. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
+
 ### Q7. Parentheses In `for`
 
 `let (a, b)` and `(a, b) :=` use parentheses; `for a, b in m:` does not
@@ -1146,6 +1167,9 @@ same-line `for` exception.
 fn names(scores: Map[string, i32]) -> List[string]:
     [for (name, score) in scores => name]  # hypothetical syntax
 ```
+
+**Owner decision (batch 26, 2026-09-30): A**, as Syntax And Semantics
+Cost Q4. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
 
 ### Q8. Map Key Bound
 
@@ -1168,6 +1192,9 @@ fn setup() -> void:
     pass
 ```
 
+**Owner decision (batch 26, 2026-09-30): B**, as Syntax And Semantics
+Cost Q7. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
+
 ### Q9. Map Indexing
 
 `m[k]` reads `V?`, while `m[k] += v` and `Index::index` read `V`
@@ -1185,6 +1212,9 @@ fn score(scores: Map[string, i32], name: string) -> i32:
         .Some(value) => value
         .None => 0
 ```
+
+**Owner decision (batch 26, 2026-09-30): A**, as Syntax And Semantics
+Cost Q8. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
 
 ## Parse Log
 
