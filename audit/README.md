@@ -9,10 +9,10 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-29 the prototype passes 1,399 of the 1,576 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 177 are listed in
+On 2026-09-29 the prototype passes 1,399 of the 1,581 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 182 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 177 still fail.
+decision below, and all 182 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
@@ -28,6 +28,7 @@ them by tag:
 | ITER | 8 | `Iterator` is still a trait; no `from_fn`, `map`, `fold`, or `Iterable` for iterators |
 | ERRD | 24 | no `@error` intrinsic or its batch 9 and 11 codes and bounds: `@error` resolves as an ordinary decorator, so `error`, `from`, and `source` are unknown names |
 | SF | 6 | spec follow-ups batch 10: `impl i32:` is `unknown-type`, a raw tab in a string is accepted, and `==` without `Eq` still reports `missing-partial-eq` |
+| PT | 5 | property-test batch 12: `int` and `float` are not generic, no `string(max_chars)`, `map`, `examples`, draw budget, `Arbitrary` template, or `arbitrary.with` |
 | EMB-S | 4 | trait availability needs package roles |
 | P2 | 4 | member visibility needs package roles |
 | COLLECT | 4 | `collect` returns only `List[T]`, and there is no `FromIterator` |
