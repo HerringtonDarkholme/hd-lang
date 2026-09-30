@@ -1,0 +1,7 @@
+# test: an @error argument that is a name, neither a message nor transparent
+# Spec 14 Error Types: annot.error.form.argument.
+
+@error
+enum WriteError:
+    @error(opaque)  # diagnostic: invalid-error-marker
+    Full

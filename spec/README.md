@@ -1910,3 +1910,13 @@ existing source. Each entry names the decision that made the change.
   renamed `missing-eq`, because `PartialEq` no longer exists: `==` or
   `assert_equal` on a type without `Eq` now reports `missing-eq`, and
   `missing-partial-eq` is retired. No rule ID is retired.
+- Error derivation batch 11 (Error Conversion decisions 28-30, owner
+  decisions in
+  [Error Conversion](../future-work/ERROR_CONVERSION.md#owner-decisions),
+  2026-09-29): an `@error` line whose arguments are neither one message
+  nor `transparent`, such as `@error(opaque)`, `@error(42)`, or
+  `@error("closed", "shut")`, is `invalid-error-marker`; it was invalid
+  without a code. A type parameter that only a message interpolates gets
+  `P < Display & Inspectable` on the generated `Error`, a bound that was
+  undecided before. The two readings of batch 9 stay as applied. No rule
+  ID is retired.

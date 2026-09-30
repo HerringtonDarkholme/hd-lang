@@ -1571,3 +1571,7 @@ typing/invalid/fresh-element-not-weakened.hd	type	reject:type-mismatch	04-type-s
 typing/invalid/foreign-inherent-impl.hd	type	reject:orphan-impl	09-traits.md#r-trait.own.inherent
 parse/invalid/tab-in-string-literal.hd	parse	reject:tab-whitespace	01-lexical-structure.md#r-lex.tab.content
 parse/invalid/tab-between-tokens.hd	parse	reject:tab-whitespace	01-lexical-structure.md#r-lex.tab.invalid
+typing/invalid/error-argument-identifier.hd	type	reject:invalid-error-marker	14-annotations.md#r-annot.error.form.argument
+typing/invalid/error-argument-number.hd	type	reject:invalid-error-marker	14-annotations.md#r-annot.error.form.argument
+typing/invalid/error-extra-argument.hd	type	reject:invalid-error-marker	14-annotations.md#r-annot.error.form.argument
+typing/valid/error-interpolated-bound.hd	type	accept	14-annotations.md#r-annot.error.bound.interpolated

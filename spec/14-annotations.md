@@ -1352,10 +1352,12 @@ The forms are:
 7. r[annot.error.form.other] Any other `@error` line is invalid, and so is any other `@from` or `@source` line inside an error type.
 8. r[annot.error.form.misplaced] A form written before a target that the table does not list for it is an error, reported on the form. Error: `decorator-target-kind`.
 9. r[annot.error.form.misplaced.examples] So `@error` before a function or a newtype, a bare `@error` before a data type, `@error("...")` before an enum, and `@from` beside a second payload member are each `decorator-target-kind`.
-10. r[annot.error.marker] Inside an error type, `from`, `source`, and `transparent` in these forms are markers, not names. A binding with the same name does not change them.
-11. r[annot.error.marker.no-value] A marker attaches no value, so it is neither member metadata nor a fact.
-12. r[annot.error.marker.outside] Outside an error type, `@from` and `@source` have no special meaning: each is an ordinary decorator.
-13. r[annot.error.no-use] Writing `@error`, `@from`, or `@source` needs no `use std.error.Error`, as [`annot.derive.no-use`](#r-annot.derive.no-use) needs none for `Structure`. Code that names `Error` itself still imports it, as [`trait.error.import`](09-traits.md#r-trait.error.import) states.
+10. r[annot.error.form.argument] An `@error` line whose arguments are neither one message nor `transparent` is an error, reported on the line. Error: `invalid-error-marker`.
+11. r[annot.error.form.argument.examples] So `@error(opaque)`, `@error(42)`, and `@error("closed", "shut")` are each `invalid-error-marker`.
+12. r[annot.error.marker] Inside an error type, `from`, `source`, and `transparent` in these forms are markers, not names. A binding with the same name does not change them.
+13. r[annot.error.marker.no-value] A marker attaches no value, so it is neither member metadata nor a fact.
+14. r[annot.error.marker.outside] Outside an error type, `@from` and `@source` have no special meaning: each is an ordinary decorator.
+15. r[annot.error.no-use] Writing `@error`, `@from`, or `@source` needs no `use std.error.Error`, as [`annot.derive.no-use`](#r-annot.derive.no-use) needs none for `Structure`. Code that names `Error` itself still imports it, as [`trait.error.import`](09-traits.md#r-trait.error.import) states.
 
 ```text
 @error
@@ -1372,6 +1374,11 @@ enum Plain:
 @error("no tool")  # error: decorator-target-kind
 fn tool() -> string:
     "hammer"
+
+@error
+enum WriteError:
+    @error(opaque)  # error: invalid-error-marker
+    Full
 ```
 
 > **Why.** Typed derivation generates one implementation per trait. An
@@ -1511,6 +1518,7 @@ converts a `RepoError` into it.
 3. r[annot.error.bound.display-carried] The generated `Display` gives no bound to a type parameter that is only carried.
 4. r[annot.error.bound.transparent] The generated `Error` gets `P < Error` for each type parameter `P` that is the type of a transparent member, so its `cause` can forward.
 5. r[annot.error.bound.carried] The generated `Error` gets `P < Inspectable` for each type parameter `P` that is only carried: no interpolated, transparent, `@from`, or `@source` member has the type `P`.
+6. r[annot.error.bound.interpolated] The generated `Error` gets `P < Display & Inspectable` for each type parameter `P` that only interpolated members have as their type: an interpolated member has the type `P`, and no transparent, `@from`, or `@source` member does.
 
 ```text
 @error
@@ -1522,6 +1530,11 @@ enum TaskError[E, T]:
 enum Wrapped[P]:
     @error(transparent)
     Inner(error: P)
+
+@error
+enum Named[T]:
+    @error("got $value")
+    Got(value: T)
 ```
 
 `TaskError[E, T]` gets `impl[E < Error, T < Inspectable] Error for
@@ -1529,17 +1542,18 @@ TaskError[E, T]`, and its `Display` needs no bound on `E` or `T`.
 `Wrapped[P]` gets `impl[P < Display] Display for Wrapped[P]` and
 `impl[P < Error] Error for Wrapped[P]`. Its transparent member has no
 `@from`, since a `@from` member of a bare type parameter is invalid.
+`Named[T]` gets `impl[T < Display] Display for Named[T]` and
+`impl[T < Display & Inspectable] Error for Named[T]`.
 
 > **Why.** An `impl Error` needs an inspectable target, as
 > [`trait.error.not-inspectable`](09-traits.md#r-trait.error.not-inspectable)
 > states, and an unbounded type parameter is not inspectable. `Display`
 > needs no such bound, so it keeps none.
 
-> **Note.** Two parts are undecided and listed in
+> **Note.** The code for an `@from` or `@source` line with arguments inside
+> an error type is undecided and listed in
 > [Error Conversion](../future-work/ERROR_CONVERSION.md#still-open). An
-> implementation must not guess them. One is the `Error` bounds of a type
-> parameter that only an interpolated member has. The other is the code for
-> an `@error` line whose argument is neither a message nor `transparent`.
+> implementation must not guess it.
 
 See also: [Error Trait](09-traits.md#error-trait),
 [Conversion Trait](09-traits.md#conversion-trait),

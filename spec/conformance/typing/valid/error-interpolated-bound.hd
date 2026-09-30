@@ -1,0 +1,19 @@
+# test: the generated Error bound of a type parameter that only a message interpolates
+# Spec 14 Generated Error Bounds: annot.error.bound.interpolated gives it Display & Inspectable,
+# and annot.error.bound.display gives the generated Display only Display.
+use std.error.Error
+use std.inspect.Inspectable
+
+@error
+enum Named[T]:
+    @error("got $value")
+    Got(value: T)
+
+fn erase_named(value: Named[i32]) -> Error:
+    value
+
+fn erase_generic[T < Display & Inspectable](value: Named[T]) -> Error:
+    value
+
+fn show_named[T < Display](value: Named[T]) -> string:
+    value.to_string()

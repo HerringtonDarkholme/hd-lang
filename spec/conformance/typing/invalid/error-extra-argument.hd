@@ -1,0 +1,7 @@
+# test: an @error line with a message and an extra argument
+# Spec 14 Error Types: annot.error.form.argument; a message line takes exactly one message.
+
+@error
+enum ReadError:
+    @error("closed", "shut")  # diagnostic: invalid-error-marker
+    Closed
