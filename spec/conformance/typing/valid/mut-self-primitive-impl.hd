@@ -1,0 +1,7 @@
+# test: a mut self receiver in an impl for a primitive is not mut-on-primitive
+# Spec 04 Primitive Types: types.prim.no-mut.self (owner decision LM-b, batch 15, 2026-09-30).
+trait Counter:
+    fn reset(mut self) -> void
+
+impl Counter for i32:
+    fn reset(mut self) -> void: pass

@@ -410,7 +410,6 @@ typing/invalid/bang-call-in-comprehension.hd	type
 typing/invalid/closure-argument-type-mismatch.hd	type
 runtime/valid/closure-as-function-argument.hd	runtime
 typing/invalid/binding-expression-redeclaration.hd	type
-runtime/valid/binding-expressions.hd	runtime
 runtime/valid/closure-parameter-inference.hd	runtime
 runtime/valid/closure-result-inference.hd	runtime
 runtime/valid/string-trim-and-lower.hd	runtime
@@ -565,7 +564,6 @@ parse/invalid/out-of-range-unicode-escape.hd	parse
 runtime/valid/evaluation-order-elements-and-indexing.hd	runtime
 runtime/valid/result-propagation-evaluates-once.hd	runtime
 runtime/valid/abrupt-assignment-stores-nothing.hd	runtime
-runtime/valid/binding-expression-tuple-value.hd	runtime
 runtime/valid/method-receiver-before-arguments.hd	runtime
 runtime/valid/associated-function-qualified-call.hd	runtime
 typing/invalid/self-receiver-is-readonly.hd	type
@@ -757,7 +755,6 @@ parse/invalid/reserved-word-interpolation.hd	parse
 runtime/valid/contextual-words-as-names.hd	runtime
 parse/valid/contextual-reified.hd	parse
 parse/invalid/use-declaration-needs-root.hd	parse
-parse/valid/grammar-disambiguation.hd	parse
 parse/valid/nested-layout.hd	parse
 parse/valid/binding-same-line-if-else.hd	parse
 parse/valid/uses.hd	parse
@@ -1394,7 +1391,6 @@ runtime/valid/never-break-continue.hd	runtime
 typing/invalid/fresh-element-not-weakened.hd	type
 parse/invalid/tab-between-tokens.hd	parse
 parse/invalid/binding-list-one-name.hd	parse
-parse/invalid/same-line-suite-binding-list.hd	parse
 runtime/valid/provider-scope-lexical-capture.hd	runtime
 typing/valid/adapter-callback-captured-provider.hd	type
 parse/valid/let-mut-names.hd	parse
@@ -1522,3 +1518,8 @@ typing/invalid/requirement-key-unbound.hd	type
 typing/invalid/multiple-positional-value-packs.hd	type
 typing/invalid/nonfinal-positional-value-pack.hd	type
 typing/invalid/dynamic-safety-pack-parameter.hd	type
+parse/invalid/multi-binding-unwrapped-in-list.hd	parse
+parse/invalid/closure-type-parameters.hd	parse
+typing/valid/mut-self-primitive-impl.hd	type
+typing/valid/closure-with-ignores-outer-key.hd	type
+runtime/valid/try-operand-expected-type.hd	runtime

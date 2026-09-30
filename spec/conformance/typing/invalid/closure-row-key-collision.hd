@@ -1,0 +1,10 @@
+# test: inside a closure, a key of the closure's declared row is compared with a key its own $.with binds
+# Spec 11 Generic Key Collisions: req.with.collision.closure (owner decision PS3a, batch 15, 2026-09-30).
+trait Repo[T]
+
+data User: pass
+
+fn declared[T](local: Repo[User]) -> void:
+    _ := fn() -> void $ Repo[T]:
+        $.with(Repo[User]=local):  # diagnostic: generic-requirement-key-collision
+            pass

@@ -11,5 +11,5 @@ result := apply(fn(value: i32): (if value > 0: value else: 0))
 
 fn pair() -> (i32, i32): (1, 2)
 
-_ := (left, right := pair())
+_ := ((left, right) := pair())
 tuple_with_binding := (left, (copy := right))

@@ -1,0 +1,6 @@
+# test: a name that a same-line := list binds is never read, so it warns
+# Spec 02 Same-Line Suite Bodies: grammar.inline.bind-list with flow.unused.warning (owner decision Q1a, batch 15, 2026-09-30).
+fn pair() -> (i32, i32): (1, 2)
+
+fn split(ready: bool) -> void:
+    if ready: (first, second) := pair()  # warning: unused-local-binding

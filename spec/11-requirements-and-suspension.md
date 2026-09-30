@@ -667,12 +667,14 @@ See also: [Omitted Requirement Clauses](#omitted-requirement-clauses),
 ### Generic Key Collisions
 
 1. r[req.with.collision.compared] At each `$.with`, the compiler compares every newly bound key with every other new key and with every declared-row or lexical key visible in the block.
-2. r[req.with.collision] Two distinct generic key expressions that can become identical under any valid type-argument substitution are an error. Error: `generic-requirement-key-collision`.
-3. r[req.with.collision.context] The same check applies among entries of a `$.context` expression.
-4. r[req.with.collision.exact] An exact replacement written with the same key expression remains the ordinary nested-scope override described above.
-5. r[req.with.collision.before-erasure] This check is performed before erasure or specialization, so compilation strategy cannot change which provider a lookup selects.
-6. r[req.with.collision.concrete] Distinct concrete keys such as `Repo[User]` and `Repo[Post]` remain valid.
-7. r[req.with.collision.bindings] A key's bindings take part in the comparison as its type arguments do, so `Store[Item = T]` and `Store[Item = User]` collide.
+2. r[req.with.collision.closure] Inside a closure, the visible keys are only those a lookup in the closure body can select: the closure's declared or inferred row, and the keys of `$.with` blocks inside the closure.
+3. r[req.with.collision.closure.outer] The keys of a `$.with` block around the closure are therefore not compared.
+4. r[req.with.collision] Two distinct generic key expressions that can become identical under any valid type-argument substitution are an error. Error: `generic-requirement-key-collision`.
+5. r[req.with.collision.context] The same check applies among entries of a `$.context` expression.
+6. r[req.with.collision.exact] An exact replacement written with the same key expression remains the ordinary nested-scope override described above.
+7. r[req.with.collision.before-erasure] This check is performed before erasure or specialization, so compilation strategy cannot change which provider a lookup selects.
+8. r[req.with.collision.concrete] Distinct concrete keys such as `Repo[User]` and `Repo[Post]` remain valid.
+9. r[req.with.collision.bindings] A key's bindings take part in the comparison as its type arguments do, so `Store[Item = T]` and `Store[Item = User]` collide.
 
 For example, a generic body must not make `Repo[T]` and `Repo[U]` concurrently
 visible, because an instantiation can choose `T = U`. It likewise must not
@@ -693,6 +695,30 @@ fn mixed[T](local: Repo[User]) -> void $ Repo[T]:
     $.with(Repo[User]=local):  # error: generic-requirement-key-collision
         pass
 ```
+
+Inside a closure, only the closure's own row and blocks count:
+
+```text
+trait Repo[T]
+
+data User: pass
+
+fn outer[T](generic: Repo[T], local: Repo[User]) -> void:
+    $.with(Repo[T]=generic):
+        run := fn() -> void:
+            $.with(Repo[User]=local):  # valid: the outer block is not compared
+                pass
+        run()
+
+fn declared[T](local: Repo[User]) -> void:
+    _ := fn() -> void $ Repo[T]:
+        $.with(Repo[User]=local):  # error: generic-requirement-key-collision
+            pass
+```
+
+> **Why.** No closure takes a provider from a `$.with` block around it
+> ([`req.row.omitted.outer-scope`](#r-req.row.omitted.outer-scope)), so
+> no lookup in its body can select that block's key.
 
 ### Reusable Contexts
 

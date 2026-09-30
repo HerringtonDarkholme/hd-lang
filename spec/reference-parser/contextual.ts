@@ -161,6 +161,29 @@ const oldBoundOperator = new RegExp(
   "u",
 );
 
+// Chapter 02 `grammar.expr.multi-binding.wrapped`: a multi-name binding
+// directly inside `[...]` must sit in its own parentheses, as in
+// `[((a, b) := pair)]`. Flags `[(a, b) := pair]` and `[a, b := pair]`: a
+// `:=` whose innermost open bracket is `[`, after a comma at that depth or
+// after a parenthesized name list.
+function unwrappedMultiBinding(clean: string): boolean {
+  const stack: { character: string; comma: boolean; start: number }[] = [];
+  for (let index = 0; index < clean.length; index += 1) {
+    const character = clean[index]!;
+    if (openToClose.has(character)) stack.push({ character, comma: false, start: index + 1 });
+    else if (closeToOpen.has(character)) stack.pop();
+    else if (character === "," && stack.length > 0) {
+      stack.at(-1)!.comma = true;
+      stack.at(-1)!.start = index + 1;
+    } else if (character === ":" && clean[index + 1] === "=") {
+      const top = stack.at(-1);
+      if (top?.character !== "[") continue;
+      if (top.comma || clean.slice(top.start, index).trim().startsWith("(")) return true;
+    }
+  }
+  return false;
+}
+
 function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
   const { clean, line } = record;
   const diagnostics: Diagnostic[] = [];
@@ -174,7 +197,7 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
     diagnostics.push(diagnostic("direct-variant-use", line));
   if (/\b[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+/u.test(clean))
     diagnostics.push(diagnostic("comparison-chaining", line));
-  if (/\[[^\]]*,\s*[^\],]+\s*:=/.test(clean))
+  if (unwrappedMultiBinding(clean))
     diagnostics.push(diagnostic("multi-binding-needs-parentheses", line));
   // A qualified bang call writes its type arguments after `!`
   // (chapter 02 `grammar.primary.method-reference.no-bang`).

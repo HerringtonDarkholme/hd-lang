@@ -540,6 +540,22 @@ slugify := fn(text: string) -> string:
 inc := fn(x: i32) -> i32: x + 1
 ```
 
+4. r[fn.closure.monomorphic] A closure declares no type parameters and always has a monomorphic function type.
+5. r[fn.closure.monomorphic.sources] Its parameter and result types come from its annotations or from the expected function type, as [Closure Annotations](#closure-annotations) states.
+6. r[fn.closure.no-type-parameters] A closure header has no place for a type-parameter list, so `fn[T](x: T): x` is an error. Error: `syntax-error`.
+
+```text
+fn run() -> i32:
+    same := fn[T](value: T) -> T: value  # error: syntax-error
+    0
+```
+
+> **Why.** A closure is a value, and generic functions are not first-class
+> polymorphic values
+> ([`fn.type.generic.not-polymorphic`](#r-fn.type.generic.not-polymorphic)).
+> A method reference is instantiated the same way
+> ([`fn.ref.generic.instantiate`](#r-fn.ref.generic.instantiate)).
+
 ### Suspending Closures And Clauses
 
 A suspending closure places `!` after `fn`:

@@ -1,0 +1,12 @@
+# test: inside a closure, the keys of a $.with around it take no part in the collision check
+# Spec 11 Generic Key Collisions: req.with.collision.closure, req.with.collision.closure.outer (owner decision PS3a, batch 15, 2026-09-30).
+trait Repo[T]
+
+data User: pass
+
+fn outer[T](generic: Repo[T], local: Repo[User]) -> void:
+    $.with(Repo[T]=generic):
+        run := fn() -> void:
+            $.with(Repo[User]=local):
+                pass
+        run()

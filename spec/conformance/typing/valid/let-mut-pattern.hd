@@ -8,6 +8,6 @@ fn pair() -> (mut User, mut User):
 fn edit() -> string:
     let (mut first, second) = pair()  # mut User, User
     first.name = "Lin"
-    let (third, mut fourth): (User, mut User) = pair()
+    let (third, fourth): (User, mut User) = pair()  # the annotation sets the access
     fourth.name = third.name
     second.name

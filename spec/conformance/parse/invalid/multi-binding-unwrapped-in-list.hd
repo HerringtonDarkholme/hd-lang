@@ -1,0 +1,5 @@
+# test: a nested multi-name binding goes in its own parentheses
+# Spec 02 Multi-Name Bindings: grammar.expr.multi-binding.wrapped (owner decision Q1b, batch 15, 2026-09-30).
+fn pair() -> (i32, i32): (1, 2)
+
+wrapped := [(a, b) := pair()]  # diagnostic: multi-binding-needs-parentheses

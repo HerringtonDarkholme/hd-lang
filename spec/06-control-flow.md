@@ -309,6 +309,11 @@ fn total(values: List[i32]) -> i32:
 > `collect` does. A `Map` built by `collect` agrees with a map literal and
 > a map comprehension on equal keys.
 
+> **Note.** The standard library writes both of its `Map` implementations
+> with that bound, as `impl[K < Eq & Hash, V] FromIterator[(K, V)] for Map[K, V]`
+> and `impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]`. Neither
+> leaves the key unbounded.
+
 ### Built-In Collection Iteration
 
 1. r[flow.for.list] The built-in `List[T]` iterable yields each element as `T`, including `mut U` when `T = mut U`, even through a readonly list.

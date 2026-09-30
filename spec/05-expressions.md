@@ -835,6 +835,22 @@ Postfix `?` handles either an optional or a `Result` value:
 
 1. r[expr.try.once] The operand is evaluated once.
 2. r[expr.try.no-panic] `?` does not catch runtime panics and does not interact with suspension by itself.
+3. r[expr.try.expected] When `x?` has an expected type `T`, its operand gets an expected type as an inference hint.
+4. r[expr.try.expected.result] The hint is `Result[T, E]` when the nearest function returns `Result[U, E]`.
+5. r[expr.try.expected.option] The hint is `T?` when the nearest function returns an optional.
+6. r[expr.try.expected.hint-only] The hint only solves what the operand leaves open, such as a call's type arguments; it never coerces the operand.
+
+```text
+fn parse_port(text: string) -> Result[i32, string]:
+    .Ok(text.len())
+
+fn all_ports(lines: List[string]) -> Result[List[i32], string]:
+    let ports: List[i32] = lines.iter().map(parse_port).collect()?
+    .Ok(ports)
+```
+
+In `all_ports`, the hint `Result[List[i32], string]` is the target that
+`collect` builds.
 
 #### Error Conversion
 

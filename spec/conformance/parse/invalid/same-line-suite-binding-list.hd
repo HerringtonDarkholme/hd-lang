@@ -1,6 +1,0 @@
-# test: a parenthesized := list is not a same-line suite body
-# Spec 02 Same-Line Suite Bodies: grammar.inline.multi-name-binding (owner decision Q1, 2026-09-30).
-fn pair() -> (i32, i32): (1, 2)
-
-fn invalid(flag: bool) -> void:
-    if flag: (a, b) := pair()  # diagnostic: syntax-error

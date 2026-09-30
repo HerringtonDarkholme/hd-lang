@@ -1,0 +1,5 @@
+# test: a closure declares no type parameters
+# Spec 07 Closures: fn.closure.no-type-parameters (owner decision CLO1, batch 15, 2026-09-30).
+fn run() -> i32:
+    same := fn[T](value: T) -> T: value  # diagnostic: syntax-error
+    0

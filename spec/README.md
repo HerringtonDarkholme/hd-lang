@@ -1994,3 +1994,57 @@ existing source. Each entry names the decision that made the change.
   `req.row.omitted.outer-scope`; `fn.capture.providers` and
   `fn.capture.providers.bound`, replaced by `fn.capture.no-providers` and
   `fn.capture.provider-value`.
+- Same-line `:=` lists (owner decision Q1a in
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  batch 15, 2026-09-30): `if ok: (a, b) := pair`, previously a
+  `syntax-error`, is valid, as `if ok: let (a, b) = pair` is.
+  `unused-local-binding` reports the names it binds. Retired:
+  `grammar.inline.multi-name-binding`, replaced by
+  `grammar.inline.bind-list`.
+- Grouped bindings dropped (owner decision Q1b in
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  batch 15, 2026-09-30): the grouped expression `(a, b := value)`,
+  previously valid, is now a `syntax-error` whose fix-it writes
+  `(a, b) := value`. A nested multi-name binding is written
+  `((a, b) := value)`, and `[(a, b) := pair]` is
+  `multi-binding-needs-parentheses`. Retired:
+  `grammar.expr.multi-binding.nested` and
+  `grammar.expr.multi-binding.not-tuple`, replaced by
+  `grammar.expr.multi-binding.wrapped`,
+  `grammar.expr.multi-binding.no-grouped`, and
+  `grammar.expr.multi-binding.no-grouped.fix`.
+- Redundant `mut` in a `let` list (owner decision LM-a in
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  batch 15, 2026-09-30): in `let (mut a, b): (mut User, User) = pair`,
+  the `mut` before `a` now warns `redundant-let-mut`, as
+  `let mut a: mut User` does. In both forms the fix-it removes the `mut`
+  before the name and keeps the annotation. No rule ID is retired.
+- `mut self` on a primitive (owner decision LM-b in
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  batch 15, 2026-09-30): a `mut self` receiver in an impl whose `Self` is
+  primitive is valid; it is not `mut-on-primitive`. No rule ID is
+  retired.
+- Monomorphic closures (owner decision CLO1 in
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  batch 15, 2026-09-30): a closure declares no type parameters, and
+  `fn[T](x: T): x` is a `syntax-error`. The grammar already rejected it;
+  the rule is now stated. No rule ID is retired.
+- `?` operand hint (owner decision Q-? in
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  batch 15, 2026-09-30): the operand of `x?` gets an expected type as an
+  inference hint, never a coercion: `Result[T, E]` with the enclosing
+  function's error type, or `T?`. So `let ports: List[i32] = it.collect()?`
+  builds a `Result` or optional target instead of the default `List`. No
+  rule ID is retired.
+- `Map` trait implementations (owner decision Q-map in
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  batch 15, 2026-09-30): the standard library writes `Iterable` and
+  `FromIterator` for `Map[K, V]` with `K < Eq & Hash`, with no std-only
+  exception. Source is unaffected. No rule ID is retired.
+- Collision check in closures (owner decision PS3a in
+  [Open Issues](../future-work/OPEN_ISSUES.md#provider-scope-overlap),
+  batch 15, 2026-09-30): inside a closure, a `$.with` compares its keys
+  with the closure's declared or inferred row and the `$.with` blocks
+  inside the closure only. A key bound by a `$.with` around the closure no
+  longer collides, and a key of the closure's declared row now can. No
+  rule ID is retired.

@@ -89,6 +89,20 @@ fn invalid(scale: mut f64) -> void:  # error: mut-on-primitive
 
 > **Why.** Primitive types do not expose mutable reference state.
 
+7. r[types.prim.no-mut.self] A `mut self` receiver in an impl whose `Self` is primitive is valid: it is not a primitive type written with `mut`.
+
+```text
+trait Counter:
+    fn reset(mut self) -> void
+
+impl Counter for i32:
+    fn reset(mut self) -> void: pass  # valid
+```
+
+> **Why.** An impl repeats its trait method's signature. A trait with a
+> `mut self` method must therefore stay implementable for a primitive
+> `Self`.
+
 ### `void` And The Empty Tuple
 
 1. r[types.void] `void` is the return type of a function that produces no useful value.
@@ -700,8 +714,9 @@ fn invalid(user: User) -> void:
 
 12. r[types.bind.let-mut-annotated] `let mut` with an annotation whose type is `mut T`, as in `let mut user: mut User = ...`, is valid; the `mut` after `let` is redundant.
 13. r[types.bind.let-mut-annotated.warning] That redundant `mut` gets a warning. Warning: `redundant-let-mut`.
-14. r[types.bind.let-mut-annotation] `let mut` with a readonly annotation, as in `let mut user: User = ...`, is an error, because the annotation and `let mut` disagree. Error: `let-mut-readonly-type`.
-15. r[types.bind.let-mut-annotation.fix] The diagnostic suggests adding `mut` to the type or removing the `mut` after `let`.
+14. r[types.bind.let-mut-annotated.fix] The warning's fix-it removes the `mut` before the name and keeps the annotation.
+15. r[types.bind.let-mut-annotation] `let mut` with a readonly annotation, as in `let mut user: User = ...`, is an error, because the annotation and `let mut` disagree. Error: `let-mut-readonly-type`.
+16. r[types.bind.let-mut-annotation.fix] The diagnostic suggests adding `mut` to the type or removing the `mut` after `let`.
 
 ```text
 fn invalid() -> void:
@@ -709,8 +724,9 @@ fn invalid() -> void:
     let mut ids: mut List[i64] = []   # warning: redundant-let-mut
 ```
 
-16. r[types.bind.let-mut-pattern] In a multi-name `let`, each name follows these rules for its own tuple element. In `let (mut log, db) = pair`, `log` has mutable access and `db` the readonly view.
-17. r[types.bind.let-mut-pattern.annotated] With a tuple annotation, the element type of each name written `mut` must be a `mut` type. Error: `let-mut-readonly-type`.
+17. r[types.bind.let-mut-pattern] In a multi-name `let`, each name follows these rules for its own tuple element. In `let (mut log, db) = pair`, `log` has mutable access and `db` the readonly view.
+18. r[types.bind.let-mut-pattern.annotated] With a tuple annotation, the element type of each name written `mut` must be a `mut` type. Error: `let-mut-readonly-type`.
+19. r[types.bind.let-mut-pattern.redundant] That `mut` before the name is redundant and gets the same warning, with the same fix-it. Warning: `redundant-let-mut`.
 
 ```text
 fn pair() -> (mut User, mut User):
@@ -721,6 +737,22 @@ fn edit() -> void:
     first.name = "Lin"
     println(second.name)
 ```
+
+```text
+fn pair() -> (mut User, mut User):
+    (User { name: "Ada" }, User { name: "Grace" })
+
+fn edit() -> void:
+    let (mut first, second): (mut User, User) = pair()  # warning: redundant-let-mut
+    first.name = "Lin"
+    println(second.name)
+```
+
+> **Why.** The fix-it keeps the annotation because the annotation may be
+> what solves a generic right-hand side, as in
+> `let (a, b): (User, mut User) = make_pair()` for
+> `fn make_pair[A, B]() -> (A, B)`. A `mut` before a name never supplies a
+> type.
 
 > **Note.** No binding form is non-reassignable and mutable at once: a
 > local that is mutated but never reassigned is written with `let mut`.
