@@ -1,8 +1,11 @@
 # Call Indexing: `list(0)` Instead Of `list[0]`
 
 Status: design exploration, 2026-09-30, with the owner's decisions in
-[Owner Decisions](#owner-decisions). D1's `::[` type arguments and D3 are
-in the specification; the callable values of D1, D2, and D4 are not yet.
+[Owner Decisions](#owner-decisions). All four are in the specification:
+D1's `::[` type arguments and D3 in
+[Type Arguments In Expressions](../spec/02-grammar.md#type-arguments-in-expressions),
+and D1's callable values, D2, and D4 in
+[Callable Values](../spec/05-expressions.md#callable-values).
 Under review:
 [Indexing](../spec/05-expressions.md#indexing),
 [Index Traits](../spec/05-expressions.md#index-traits),
@@ -28,8 +31,8 @@ try B+F first; [Trying B+F](#trying-bf) applies it.
 
 ## Owner Decisions
 
-Final, 2026-09-30. Each takes the recommended option. Not yet applied to
-the specification.
+Final, 2026-09-30. Each takes the recommended option. All four are
+applied; see the Applied note below the table.
 
 | # | Question | Decision |
 | --- | --- | --- |
@@ -64,7 +67,9 @@ fn badge(count: Cell[i32]) -> string:
 **Applied, 2026-09-30.** D1's type-argument part and D3 are in
 [Type Arguments In Expressions](../spec/02-grammar.md#type-arguments-in-expressions)
 (batch 22 CI1 and CI3). The callable values, `Apply` and `Update`, and D2
-and D4 wait for a later task.
+and D4 are in [Callable Values](../spec/05-expressions.md#callable-values),
+language tier, since call syntax uses the traits. Examples there declare
+a local `Cell` and `live`; no std cell type is decided.
 
 **Still open.**
 - A separate idea, not part of this record: the owner wants "an escape
@@ -512,7 +517,7 @@ fn invalid(scale: fn(i32) -> i32, text: string) -> void:
     text(0) = 65   # error: invalid-assignment-target
 ```
 
-Today's [`expr.assign.compound.place`](../spec/05-expressions.md#r-expr.assign.compound.place)
+Today's `expr.assign.compound.place` (retired 2026-09-30)
 says "a call" is not a place. Under C, some calls are places, decided by
 the callee's type. That is one reworded rule and the one real semantic
 exception in the option.
@@ -917,7 +922,7 @@ Ranked by how much each affects the design.
 | 1 | Two keyed-access trait pairs | `Index`/`IndexSet` serve `[]` and `Apply`/`Update` serve `()`. A grid could use either, which is two mechanisms for one job. Limiting F to zero keys removes the overlap. | [Q6](#q6-arity-of-callable-values) |
 | 2 | Type-name paths | `Add[i32]::add` has the shape of `values[0]::describe`, a method reference on an element. It needs `Add::[i32]::add`, or a rule. | [Q2](#q2-type-name-expressions-under-b) |
 | 3 | Type-name literals | `Box[i32] { ... }` is never an index followed by a block, since hd blocks use `:`. A parser can tell it by the `{`, with no marker. | [Q2](#q2-type-name-expressions-under-b) |
-| 4 | Calls as places | `var() = 1` makes a call a place when its type has `Update`. Today's [`expr.assign.compound.place`](../spec/05-expressions.md#r-expr.assign.compound.place) says a call is never one. | none; it is F's one exception |
+| 4 | Calls as places | `var() = 1` makes a call a place when its type has `Update`. Today's `expr.assign.compound.place` (retired 2026-09-30) says a call is never one. | none; it is F's one exception |
 | 5 | Cells in fields | `(state.count)()`, as for stored functions | none; the owner expects it to be rare |
 | 6 | Mutable binding | `var() = 1` needs `var` to hold a `mut Cell`. `var := live(0)` is readonly by `types.bind.short`, so a writer binds `let mut var = live(0)`. | answered by D4 |
 
@@ -1263,5 +1268,5 @@ their meaning is the proposal.
 | 32 | Q7 | parses |
 
 Reference-parser finding: none. The parser accepts `f(x) = v` and
-`(x.f)(k) = v` today, as [`grammar.stmt.assign-target`](../spec/02-grammar.md#r-grammar.stmt.assign-target)
+`(x.f)(k) = v` today, as `grammar.stmt.assign-target` (retired 2026-09-30)
 leaves the place check to semantics.
