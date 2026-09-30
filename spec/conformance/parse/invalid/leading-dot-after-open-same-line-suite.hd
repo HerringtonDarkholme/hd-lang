@@ -1,6 +1,6 @@
 # test: a leading-dot line cannot continue a line whose same-line suite is still open
 
-fn trimmer() -> fn(string) -> string:
-    f := fn(name: string) -> string: name
-        .trim()  # diagnostic: syntax-error
+fn sizer() -> fn(string) -> i32:
+    f := fn(name: string) -> i32: name
+        .len()  # diagnostic: syntax-error
     f

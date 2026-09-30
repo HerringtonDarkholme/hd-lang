@@ -2,7 +2,7 @@
 # Spec 01 Leading-Pipe Continuation: lex.pipe.no-dot-line (Chaining Study CS2).
 
 fn clean(raw: string) -> string:
-    raw.trim()
+    "[$raw]"
 
 fn size(raw: string) -> i32:
     count := raw |> clean

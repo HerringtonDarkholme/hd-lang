@@ -460,8 +460,8 @@ impl Counter:
     fn zero() -> Counter:
         Counter { value: 0 }
 
-fn readings(counters: List[Counter]) -> List[i32]:
-    counters.map(Counter::read)
+fn reader() -> fn(Counter) -> i32:
+    Counter::read
 
 fn maker() -> fn() -> Counter:
     Counter::zero
@@ -528,8 +528,8 @@ See also: [Associated Function Calls](09-traits.md#associated-function-calls),
 A closure uses `fn` without a name:
 
 ```text
-slugify := fn(text: string) -> string:
-    text.trim().lower().replace(" ", "-")
+initial := fn(text: string) -> string:
+    text.slice(0, 1)
 ```
 
 1. r[fn.closure.form] A closure uses `fn` without a name.
@@ -860,7 +860,7 @@ is `self` or `mut self`:
 ```text
 impl User:
     fn domain(self) -> string:
-        self.email.split("@")[1]
+        self.email.slice(1, self.email.len())
 
     fn tagged[T](self, value: T) -> T:
         value

@@ -170,6 +170,8 @@ runtime and library work.
 
 This glossary lists the terms that the numbered chapters define in bold.
 Each entry links to the rule, or the section, that defines the term.
+The stdlib chapters' terms are in the
+[Standard Library glossary](std/README.md#glossary).
 
 | Term | Definition |
 | --- | --- |
@@ -209,7 +211,7 @@ Each entry links to the rule, or the section, that defines the term.
 | **initialization group** | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. See [`module.init.group`](10-modules.md#r-module.init.group). |
 | **inspectable types** | The types for which the compiler supplies `Inspectable`: primitives, module-level declarations, collections and tuples of inspectable types, and matching dynamic values. See [Inspectable Types](09-traits.md#inspectable-types). |
 | **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](10-modules.md#r-module.test.integration). |
-| **iterator adapters** | Methods of the prelude `Iterator[T]` that wrap an iterator in a new one, or drain it. See [Iterator Adapters](std/iter.md#iterator-adapters). |
+| **iterator adapters** | A stdlib term, in the [Standard Library glossary](std/README.md#glossary). |
 | **known implementation** | An implementation in the program's dependency graph whose target matches a type; a local one counts only where its methods are available. See [`names.member.known-impl`](03-names-and-scopes.md#r-names.member.known-impl). |
 | **law partners** | Comparison and hash traits whose laws relate them, such as `Hash` and `Eq`. See [Law Partners](09-traits.md#law-partners). |
 | **lexical provider** | A provider a closure fixes where it is written, by capturing the value of `$.use`. See [Lexical And Dynamic Providers](11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
@@ -2243,3 +2245,16 @@ existing source. Each entry names the decision that made the change.
   [Templates](14-annotations.md#templates) to `facts` and `name`: a clash
   with the derived trait's own receiverless member is resolved by
   qualifying the call.
+- Language-chapter examples and the raw-string rule leave the stdlib tier
+  (owner decisions ST2 and ST3 in
+  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  step 11, 2026-09-30): language tier. `lex.raw-string.none-text`, which
+  named `std.text.r` as the prefix of `r"..."`, is retired for
+  [`lex.raw-string.prefix`](01-lexical-structure.md#r-lex.raw-string.prefix):
+  `r` resolves as any prefix name does, and a See also points to
+  [Raw Text Prefix](std/text.md#raw-text-prefix). Examples in Lexical
+  Structure, Expressions, Functions, and Traits that called `trim`,
+  `lower`, `replace`, `split`, `filter`, `map`, or `collect` now use
+  `slice`, `len`, interpolation, or a local helper. Source is unaffected.
+  The stdlib terms move to a [Glossary](std/README.md#glossary) of their
+  own.

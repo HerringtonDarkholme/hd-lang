@@ -42,8 +42,8 @@ That alone does not make a method language-tier.
 
 Each chapter is one unnumbered file named after its std module. The
 [Spec Tiers migration plan](../../future-work/SPEC_TIERS.md#migration-plan)
-adds the files below one at a time. Until a file exists, its rules stay in
-the numbered chapters.
+added the files below, and it is complete. A new decided std module gets a
+file of its own.
 
 | File | Module | Rule ID prefix | Scope |
 | --- | --- | --- | --- |
@@ -52,6 +52,20 @@ the numbered chapters.
 | [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, the `r` prefix |
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls |
 | [`time.md`](time.md) | `std.time` | `std-time` | `Duration` and its suffixes |
+
+## Glossary
+
+This glossary lists the terms of the stdlib chapters. Each entry links to
+the rule, or the section, that defines the term. The language terms are in
+the [language glossary](../README.md#glossary).
+
+| Term | Definition |
+| --- | --- |
+| **collect target** | The collection that `collect` builds, named by the expected type. See [Collect Targets](iter.md#collect-targets). |
+| **Debug builders** | The `DebugWriter` methods that describe a value as a struct, tuple, list, or map. See [Debug Builders](format.md#debug-builders). |
+| **draw budget** | The per-case limit on draws from `Choices`; once it is spent, every draw returns its simplest value. See [`std-testing.budget`](testing.md#r-std-testing.budget). |
+| **iterator adapters** | Methods of the prelude `Iterator[T]` that wrap an iterator in a new one, or drain it. See [Iterator Adapters](iter.md#iterator-adapters). |
+| **property test** | A test case whose body runs on inputs drawn from a `Choices` source. See [Property Tests](testing.md#property-tests). |
 
 ## Rule IDs
 

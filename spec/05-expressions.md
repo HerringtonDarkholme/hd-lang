@@ -825,16 +825,16 @@ Postfix `?` handles either an optional or a `Result` value:
 6. r[expr.try.expected.hint-only] The hint only solves what the operand leaves open, such as a call's type arguments; it never coerces the operand.
 
 ```text
-fn parse_port(text: string) -> Result[i32, string]:
-    .Ok(text.len())
+fn empty_ok[T]() -> Result[List[T], string]:
+    .Ok([])
 
-fn all_ports(lines: List[string]) -> Result[List[i32], string]:
-    let ports: List[i32] = lines.iter().map(parse_port).collect()?
+fn no_ports() -> Result[List[i32], string]:
+    let ports: List[i32] = empty_ok()?
     .Ok(ports)
 ```
 
-In `all_ports`, the hint `Result[List[i32], string]` is the target that
-`collect` builds.
+In `no_ports`, the hint `Result[List[i32], string]` solves `empty_ok`'s
+open type argument `T` as `i32`.
 
 #### Error Conversion
 
@@ -1341,7 +1341,7 @@ fn tag(label: string, level: i32) -> string:
     "$label:$level"
 
 fn clean(raw: string) -> string:
-    raw.trim().lower()
+    "[$raw]"
 
 fn label(raw: string) -> string:
     raw |> clean |> tag(_, 2)
@@ -1401,7 +1401,7 @@ A bare step names the function to call, so `x |> f` means `f(x)`:
 
 ```text
 fn clean(raw: string) -> string:
-    raw.trim()
+    "[$raw]"
 
 fn tidy(raw: string) -> string:
     raw |> clean

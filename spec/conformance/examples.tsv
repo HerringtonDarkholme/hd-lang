@@ -178,7 +178,7 @@ specification	block	classification	fixture
 05-expressions.md	31	mixed	typing/invalid/unknown-named-argument.hd|typing/invalid/duplicate-argument.hd
 05-expressions.md	32	mixed	typing/invalid/positional-spread-without-vararg.hd
 05-expressions.md	33	accept	typing/valid/functions.hd
-05-expressions.md	34	accept	runtime/valid/collect-target-from-try-hint.hd
+05-expressions.md	34	accept	runtime/valid/try-operand-expected-type.hd
 05-expressions.md	35	accept	runtime/valid/propagation-from-two-domains.hd
 05-expressions.md	36	mixed	typing/invalid/propagation-without-target.hd
 05-expressions.md	37	accept	runtime/valid/test-block-propagation.hd

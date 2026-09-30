@@ -185,6 +185,10 @@ The suite covers both tiers of the specification
    calls, such as `string.trim`. The check allows a listed import.
 7. `spec/check.sh` rejects a crossing row whose case is stdlib tier, or
    whose fixture no longer imports or calls one of its items.
+8. A `parse`-phase fixture resolves no names, so a name it uses selects no
+   item of either tier. Such a fixture may call a method or apply a prefix,
+   such as `r"..."`, that is stdlib tier elsewhere. It needs no crossing
+   row, and it runs in `--tier language` unchanged.
 
 An implementation with a different standard library runs the stdlib-tier
 cases alone with `--tier std`. A new compiler whose standard library has

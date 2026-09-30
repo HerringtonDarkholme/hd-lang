@@ -5,12 +5,12 @@ enum Step:
     Add
     Double
 
-fn chain(users: List[string], step: Step) -> i32:
-    names := users
-        .filter(fn(user): user != "")
+fn chain(line: string, step: Step) -> i32:
+    names := line
+        .slice(0, 8)
         # a comment line does not end the chain
 
-        .map(fn(user): user.len())
+        .slice(2, 5)
     match step:
         .Add => names
             .len()

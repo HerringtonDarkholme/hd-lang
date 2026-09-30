@@ -88,9 +88,9 @@ For example, a method chain may continue on lines that start with a member
 suffix:
 
 ```text
-names := users
-    .filter(fn(user): user.active)
-    .map(fn(user): user.name)
+word := line
+    .slice(0, 8)
+    .slice(2, 5)
 ```
 
 1. r[lex.dot.continue] A physical line also continues the previous logical line when all three of the following conditions hold.
@@ -101,7 +101,7 @@ names := users
 6. r[lex.dot.blank-lines] Blank lines and comment-only lines before it do not matter.
 7. r[lex.dot.joined] The joined text is read as if it were written on one physical line.
 8. r[lex.dot.open-suite] A leading-dot line is an error when a same-line suite is still open at the end of the logical line it would continue, as after `f := fn(x): x`. Error: `syntax-error`.
-9. r[lex.dot.closed-suite] A same-line suite that closed earlier on the line, such as one inside `xs.map(fn(x): x)`, does not prevent the continuation.
+9. r[lex.dot.closed-suite] A same-line suite that closed earlier on the line, such as one inside `apply(xs, fn(x): x)`, does not prevent the continuation.
 10. r[lex.dot.same-indent] A line starting with `.Variant` at the same indentation as the previous line, such as a match arm or an expression statement, starts a new logical line.
 11. r[lex.dot.suite-line] So does the first line of an indented suite, whose header ends in `:`.
 12. r[lex.dot.where] The rule applies at delimiter depth zero and on the body lines of a suite nested inside delimiters. Elsewhere inside delimiters every line already continues.
@@ -109,9 +109,9 @@ names := users
 14. r[lex.continue.paren-line] A line whose first token is `(` never continues the previous line either. Outside delimiters it starts a new logical line, so `f` on one line and `(a, b) := pair` on the next are two statements, never the call `f(a, b)`.
 
 ```text
-fn trimmer() -> fn(string) -> string:
-    f := fn(name: string) -> string: name
-        .trim()  # error: syntax-error
+fn sizer() -> fn(string) -> i32:
+    f := fn(name: string) -> i32: name
+        .len()  # error: syntax-error
     f
 
 fn total(a: i32, b: i32) -> i32:
@@ -134,10 +134,10 @@ A [pipe](05-expressions.md#pipe-expressions) chain may continue on lines
 that start with `|>`:
 
 ```text
-fn label(raw: string) -> string:
+fn label(raw: string) -> i32:
     raw
-        |> _.trim()
-        |> _.lower()
+        |> _.slice(0, 8)
+        |> _.len()
 ```
 
 1. r[lex.pipe.continue] A physical line whose first token is `|>` continues the previous logical line under the conditions of a leading-dot line.
@@ -150,7 +150,7 @@ fn label(raw: string) -> string:
 ```text
 fn size(raw: string) -> i32:
     count := raw
-        |> _.trim()
+        |> _.slice(0, 8)
         .len()  # error: syntax-error
     count
 ```
@@ -253,7 +253,7 @@ See also: [Trailing Callback Blocks](07-functions.md#trailing-callback-blocks).
 3. r[lex.suite-end.newline] At delimiter depth zero the outermost `SUITE_END` replaces that line's `NEWLINE`; it does not precede a second terminator.
 4. r[lex.suite-end.continuation] In an implicit continuation, the equivalent boundary is a comma or closing delimiter that returns control to the enclosing expression. The same innermost-first sequence is emitted before that token.
 5. r[lex.suite-end.comma] A comma at the delimiter depth where a same-line suite opened always closes that suite, including at depth zero, so the suite body cannot contain such a comma.
-6. r[lex.suite-end.example] For example, the body of `fn(name): name.lower()` ends immediately before that closure's closing `)`.
+6. r[lex.suite-end.example] For example, the body of `fn(name): name.len()` ends immediately before that closure's closing `)`.
 7. r[lex.suite-end.else] `else` is also a boundary for the immediately preceding same-line `if`, `for`, or `while` suite. Layout emits that suite's `SUITE_END` before `else` and keeps the enclosing conditional or loop open, as the conditional and loop productions require.
 8. r[lex.suite-end.else-example] Thus `x := if c: 1 else: 2` is one conditional expression. The line boundary after `2` closes the `else` suite and then any enclosing same-line suite, innermost first.
 9. r[lex.suite-end.no-spelling] `SUITE_END` has no source spelling. Parser-aware layout processing identifies the boundary from the expected suite and enclosing delimiter structure.
@@ -726,7 +726,10 @@ price := "$"  # error: syntax-error
 
 #### Raw Strings
 
-1. r[lex.raw-string.none-text] hd has no built-in raw string literal. `r"..."` is a [prefixed string](#prefixed-strings) whose prefix is the standard function `std.text.r`.
+1. r[lex.raw-string.prefix] hd has no built-in raw string literal. `r"..."` is an ordinary [prefixed string](#prefixed-strings), and its prefix `r` resolves as any prefix name does.
+
+See also: [Raw Text Prefix](std/text.md#raw-text-prefix) for the standard
+library's `r`.
 
 #### Prefixed Strings
 

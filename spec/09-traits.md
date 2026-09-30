@@ -463,7 +463,7 @@ fn read_config(path: string) -> Result[string, FsError]:
 
 fn load(path: string) -> Result[string, Error]:
     text := read_config(path)?
-    .Ok(text.trim())
+    .Ok(text)
 ```
 
 See also: [Propagation](05-expressions.md#propagation),
@@ -776,7 +776,7 @@ members attached directly to the nominal type `T`:
 ```text
 impl User:
     fn domain(self) -> string:
-        self.email.split("@")[1]
+        self.email.slice(1, self.email.len())
 ```
 
 ### Inherent Members

@@ -3,6 +3,6 @@
 
 fn size(raw: string) -> i32:
     count := raw
-        |> _.trim()
+        |> _.slice(0, 8)
         .len()  # diagnostic: syntax-error
     count

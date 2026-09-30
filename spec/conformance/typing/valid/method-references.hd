@@ -33,6 +33,9 @@ fn apply_all[T, U](items: List[T], transform: fn(T) -> U) -> List[U]:
 fn readings(counters: List[Counter]) -> List[i32]:
     apply_all(counters, Counter::read)
 
+fn reader() -> fn(Counter) -> i32:
+    Counter::read
+
 fn maker() -> fn() -> Counter:
     Counter::zero
 

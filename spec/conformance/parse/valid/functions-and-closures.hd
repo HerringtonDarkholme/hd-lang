@@ -8,10 +8,10 @@ fn choice(
     first(1)
     second("two")
 
-slugify := fn(text: string) -> string:
-    text.trim().lower()
+initial := fn(text: string) -> string:
+    text.slice(0, 1)
 
-inline := names.map(fn(name): name.lower())
+inline := apply("name", fn(name): name.slice(0, 1))
 inc := fn(x: i32) -> i32: x + 1
 
 choice(
