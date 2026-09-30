@@ -1,7 +1,9 @@
 # Spec Tiers: Language Spec And Stdlib Spec
 
-Status: proposal. Nothing here is accepted behavior, and no spec text,
-fixture, or tool has moved. It answers the owner's request of 2026-09-30:
+Status: decided plan. The owner accepted every recommendation on
+2026-09-30 ([Owner Decisions](#owner-decisions)). Nothing here is accepted
+behavior until a move task puts it in the spec, and no spec text or
+fixture has moved yet. It answers the owner's request of 2026-09-30:
 
 > is Arbitrary/stdlib stuff should be inside language spec? if they can be
 > implemented outside compiler. i would suggest have tiers of spec, language
@@ -25,8 +27,7 @@ Under review: the AGENTS.md rule
 5. [Conformance Split](#conformance-split)
 6. [Tooling And Process](#tooling-and-process)
 7. [Migration Plan](#migration-plan)
-8. [Questions For The Owner](#questions-for-the-owner)
-9. [Parse Log](#parse-log)
+8. [Owner Decisions](#owner-decisions)
 
 ## Problem
 
@@ -138,9 +139,8 @@ requires. Two rules still cannot be written that way:
 
 The prototype keeps a checker path for a target with an `arbitrary.with`
 fact. Neither gap keeps derived `Arbitrary` in the language tier: its rules
-are std behavior, and the first gap belongs to the template machinery. See
-[Q1](#q1-enum-name-in-the-derived-arbitrary-panic) and
-[Q8](#q8-derived-arbitrary-and-the-arbitrarywith-gap).
+are std behavior, and the first gap belongs to the template machinery. ST7
+and ST8 in [Owner Decisions](#owner-decisions) settle both.
 
 ## Inventory
 
@@ -280,7 +280,7 @@ Each task is about an hour, and each ends with `bash spec/check.sh`,
 | 2 | Process: AGENTS.md rule, spec-update skill, STDLIB.md tier column | nothing |
 | 3 | Conformance plumbing: README Tiers section, split list, `check.sh` name check, `--tier` in both runners | nothing |
 | 4 | `std/testing.md`, part 1: Property Tests and Draw Budget, about 30 IDs | 6 cases |
-| 5 | `std/testing.md`, part 2: Derived Arbitrary; both gaps into [Open Issues](OPEN_ISSUES.md) | 7 cases |
+| 5 | `std/testing.md`, part 2: Derived Arbitrary; drop the enum-name clause (ST8); the `arbitrary.with` gap into [Open Issues](OPEN_ISSUES.md) (ST7) | 7 cases |
 | 6 | `std/testing.md`, part 3: table-test rows, snapshot files, `timeout` | 9 cases |
 | 7 | `std/iter.md`: adapters, collect targets, `FromIterator`, `List.map`, optional `map` | 13 cases |
 | 8 | `std/text.md`: string methods above the intrinsics, and `r` | 4 cases |
@@ -294,196 +294,21 @@ and `guide/`, and adds one Revision Notes entry. It also adds its names to
 the stdlib list and fixes the cross-tier fixtures that the check flags.
 About 140 links point at moved anchors today, 35 of them in `cases.tsv`.
 
-## Questions For The Owner
+## Owner Decisions
 
-Smallest first. Each one is independent.
+The owner accepted all eight recommendations on 2026-09-30. The decisions
+are final.
 
-### Q1. Enum Name In The Derived Arbitrary Panic
-
-**Effect.** Derived `Arbitrary` cannot be pure std code while
-[`module.testing.arbitrary.derive.no-finite`](../spec/10-modules.md#r-module.testing.arbitrary.derive.no-finite)
-requires the message to name the enum: a template cannot see the type name.
-
-- **A.** Drop the naming requirement. The category `explicit-panic` is what
-  conformance judges.
-- **B.** Keep it, and add a type name to what `Structure` exposes, a
-  language-tier change.
-
-**Recommendation.** A. Message text is not judged, and the prototype's
-message already lists the variants.
-
-```text
-use std.testing.Arbitrary
-
-@derive(Arbitrary, Debug)
-enum Loop:
-    More(next: Loop)
-```
-
-### Q2. Rule IDs For Moved Rules
-
-**Effect.** About 130 rules change chapters. Their IDs either change or break
-the prefix rule.
-
-- **A.** Retire each and re-ID it with a `std-<module>` prefix, keeping the
-  tail, as [Stability](../spec/STYLE.md#stability) already requires.
-- **B.** Keep the old IDs, and let the linter accept `module.testing` in
-  `std/testing.md`.
-
-**Recommendation.** A. It is the existing rule, and the prefix shows the
-tier in every citation.
-
-```text
-# test: std-testing.prop.debug: a property input needs Debug
-use std.testing.Arbitrary
-```
-
-### Q3. Anchors Of Moved Headings
-
-**Effect.** Links to headings such as `10-modules.md#property-tests` break
-when the section leaves chapter 10.
-
-- **A.** Delete the headings and fix every repo link in the same task. The
-  anchor checker proves none dangles.
-- **B.** Leave a one-line stub heading that links to the new page.
-
-**Recommendation.** A. Stubs accumulate, and the site has no outside users
-yet.
-
-```markdown
-[Property Tests](../spec/std/testing.md#property-tests)
-```
-
-### Q4. Where The Stdlib Spec Lives
-
-**Effect.** It sets every path in the migration and what "self-contained
-in `spec/`" means.
-
-- **A.** `spec/std/`, one file per module.
-- **B.** A top-level `stdlib-spec/`, with its own conformance folder.
-
-**Recommendation.** A. Every check and runner already reads `spec/`.
-
-```text
-use std.testing.{Choices, it_prop}
-```
-
-This `use` line would be specified in `spec/std/testing.md` under A.
-
-### Q5. How A Case Records Its Tier
-
-**Effect.** Runners and audit counts need to tell language cases from
-stdlib cases.
-
-- **A.** Derive it from the `specification` column, with no format change.
-- **B.** A `# fixture-tier: std` header directive.
-- **C.** A `spec/conformance/std/` directory with its own `cases.tsv`.
-
-**Recommendation.** A. The column already names each case's primary
-section. A check stops a language-tier fixture from using a stdlib item:
-
-```text
-use std.time.s
-
-tests:
-    it("waits", timeout=5s):
-        pass
-```
-
-This fixture uses `std.time`, so its primary section must be stdlib-tier.
-
-### Q6. The Conformance Harness Stays Language-Tier
-
-**Effect.** The language suite observes every result through `it`,
-`assert`, `assert_equal`, and `println`. If they were stdlib-tier, no
-language case could run without the stdlib.
-
-- **A.** Keep the four, with their signatures and checks, in the language
-  tier.
-- **B.** Move them to the stdlib tier, and let the language suite depend on
-  it.
-
-**Recommendation.** A. Rust's Reference likewise keeps `#[test]` and
-leaves the harness out.
-
-```text
-use std.testing.assert_equal
-
-tests:
-    it("adds"):
-        assert_equal(1 + 1, 2, reason="small sums")
-```
-
-### Q7. Test Registration Functions
-
-**Effect.** `it_each`, `it_prop`, and `it_prop_with` are in the closed list
-of [`module.testing.position-statements`](../spec/10-modules.md#r-module.testing.position-statements),
-so the compiler knows their names.
-
-- **A.** Keep the registration rules language-tier. Move row naming,
-  generation, shrinking, and files to `std/testing.md`.
-- **B.** Replace the closed list with a marker any std function can carry.
-  That is a new intrinsic, cost 3 in the Design Cost Order.
-- **C.** Keep all three wholly in the language tier.
-
-**Recommendation.** A. It needs no new mechanism, and it matches Rust's
-split between `#[test]` and libtest.
-
-```text
-use std.testing.it_each
-
-tests:
-    it_each("doubles", [1, 2], body=fn!(value: i32): pass)
-```
-
-### Q8. Derived Arbitrary And The `arbitrary.with` Gap
-
-**Effect.** A template cannot draw a member tuned by `arbitrary.with`,
-because [`annot.walker.obligation`](../spec/14-annotations.md#r-annot.walker.obligation)
-bounds every member `F < Arbitrary`. The prototype keeps a checker path for
-such targets.
-
-- **A.** Move derived `Arbitrary` to the stdlib tier now, and record the
-  gap in Open Issues as a template-machinery question.
-- **B.** Keep derived `Arbitrary` in the language tier until the template
-  machinery can express it.
-
-**Recommendation.** A. The rules describe std behavior. How a fact
-discharges a member's bound is a separate language question, and it waits
-until the tiers settle.
-
-```text
-use std.testing.{Arbitrary, Choices}
-use std.testing.arbitrary
-
-@derive(Debug)
-data Opaque:
-    id: i32
-
-fn opaque(c: mut Choices) -> Opaque:
-    Opaque { id: c.int(0, 9) }
-
-@derive(Arbitrary, Debug)
-data Holder:
-    @arbitrary.with(opaque)
-    item: Opaque
-```
-
-`Opaque` has no `Arbitrary`, so the template's `member[F < Arbitrary]`
-rejects `item`, although the fact supplies its generator.
-
-## Parse Log
-
-Every `text` block was parsed with `parseSource` from
-[the reference parser](../spec/reference-parser/parser.ts). Parsing checks
-syntax only; no block is claimed to type-check.
-
-| Block | Where | Result |
+| # | Decision | Was |
 | --- | --- | --- |
-| 1 | Q1 | parses |
-| 2 | Q2 | parses |
-| 3 | Q4 | parses |
-| 4 | Q5 | parses |
-| 5 | Q6 | parses |
-| 6 | Q7 | parses |
-| 7 | Q8 | parses |
+| ST1 | The stdlib spec lives in `spec/std/`, one unnumbered file per module. The website gets a "Standard Library" nav section. | Q4 |
+| ST2 | A moved rule is re-IDed with a `std-<module>` prefix that keeps the tail: `module.testing.prop.debug` becomes `std-testing.prop.debug`. The old IDs are deleted. | Q2 |
+| ST3 | A moved heading is deleted, and every link to it is fixed in the same task. No stub headings. | Q3 |
+| ST4 | A fixture's tier comes from its `specification` column. The runners get `--tier language\|std`. `spec/check.sh` stops a language-tier fixture from using a stdlib item. | Q5 |
+| ST5 | `it`, `assert`, `assert_equal`, and `println` stay in the language tier. | Q6 |
+| ST6 | `it_each`, `it_prop`, and `it_prop_with` registration stays in the language tier. Rows, generation, shrinking, and the draw budget move to the stdlib tier. | Q7 |
+| ST7 | Derived `Arbitrary` moves to the stdlib tier now. The `arbitrary.with` template gap is recorded in [Open Issues](OPEN_ISSUES.md). | Q8 |
+| ST8 | The rule that the no-finite panic message names the enum is dropped. | Q1 |
+
+ST8 is applied by task 5. When Derived Arbitrary moves,
+`module.testing.arbitrary.derive.no-finite` loses its naming clause.
