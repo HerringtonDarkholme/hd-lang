@@ -1,0 +1,27 @@
+# test: an iterator is single-pass; a second pass calls iter() on the collection again
+# Spec 06 Iteration Protocols: flow.for.iterator-direct, flow.for.iterator.position, flow.for.iter-independent (batch 24 IT2, IT3).
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    values := [1, 2, 3, 4]
+    let mut source = values.iter()
+    let first: i32 = 0
+    for value in source:
+        first = first + value
+        if value == 2:
+            break
+    let rest: i32 = 0
+    for value in source:
+        rest = rest + value
+    let again: i32 = 0
+    for value in values.iter():
+        again = again + value
+    if first == 3 && rest == 7 && again == 10:
+        42
+    else:
+        0
+
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="a second loop over one iterator continues it; a new iter() starts over")

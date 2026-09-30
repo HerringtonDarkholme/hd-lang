@@ -1397,7 +1397,6 @@ typing/invalid/readonly-iterator-in-comprehension.hd	type
 typing/valid/iterator-adapters.hd	type
 typing/invalid/impl-iterator-trait.hd	type
 typing/invalid/iterator-map-callback-row.hd	type
-typing/valid/iterator-satisfies-iterable-bound.hd	type
 runtime/valid/iterator-from-fn.hd	runtime
 typing/invalid/iterator-step-private.hd	type
 runtime/valid/collect-targets-run.hd	runtime
@@ -1520,3 +1519,5 @@ runtime/valid/structure-self-ref-enum.hd	runtime
 typing/invalid/derived-arbitrary-function-member.hd	type
 typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd	type
 typing/invalid/arbitrary-with-non-inspectable-member.hd	type
+typing/valid/for-over-mut-iterator.hd	type
+runtime/valid/iterator-single-pass.hd	runtime

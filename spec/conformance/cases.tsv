@@ -1465,8 +1465,8 @@ runtime/valid/pipe-suspending-substitution-step.hd	runtime	accept	05-expressions
 typing/invalid/pipe-multi-line-step.hd	type	reject:multi-line-pipe-step	05-expressions.md#r-expr.pipe.single-line
 typing/invalid/placeholder-outside-pipe.hd	type	reject:placeholder-outside-pipe	05-expressions.md#r-expr.pipe.placeholder-outside
 typing/invalid/iterator-map-callback-row.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row.map
-runtime/valid/iterator-drives-loops.hd	runtime	accept	06-control-flow.md#r-flow.for.iterator-self
-typing/valid/iterator-satisfies-iterable-bound.hd	type	accept	06-control-flow.md#r-flow.for.iterator-bound
+runtime/valid/iterator-drives-loops.hd	runtime	accept	06-control-flow.md#r-flow.for.iterator-direct
+typing/invalid/mut-iterator-iterable-bound.hd	type	reject:unsatisfied-trait-bound	06-control-flow.md#r-flow.for.iterator-no-bound
 typing/invalid/impl-iterator-trait.hd	type	reject:unknown-trait	06-control-flow.md#r-flow.for.iterator-type
 parse/valid/method-references.hd	parse	accept	02-grammar.md#r-grammar.primary.method-reference
 typing/valid/method-references.hd	type	accept	07-functions.md#method-references
@@ -1637,3 +1637,6 @@ typing/valid/expression-type-arguments.hd	type	accept	02-grammar.md#r-grammar.ex
 parse/invalid/type-name-brackets-without-marker.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.expr.type-arguments.unmarked
 parse/invalid/trait-qualified-brackets-without-marker.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.expr.type-arguments.unmarked
 runtime/valid/index-then-call-element.hd	runtime	accept	02-grammar.md#r-grammar.expr.index-only
+typing/invalid/readonly-iterator-iterable-bound.hd	type	reject:unsatisfied-trait-bound	06-control-flow.md#r-flow.for.iterator-no-bound
+typing/valid/for-over-mut-iterator.hd	type	accept	06-control-flow.md#r-flow.for.iterator-direct
+runtime/valid/iterator-single-pass.hd	runtime	accept	06-control-flow.md#r-flow.for.iterator.position

@@ -1,0 +1,14 @@
+# test: a mutable iterator does not satisfy an Iterable bound, while a list does
+# Spec 06 Iteration Protocols: flow.for.iterator-no-bound, flow.for.iterable-collections (batch 24 IT2).
+
+fn count[I < Iterable[i32]](source: I) -> i32:
+    let total: i32 = 0
+    for item in source:
+        total = total + item
+    total
+
+fn from_list(values: List[i32]) -> i32:
+    count(values)
+
+fn from_iterator(source: mut Iterator[i32]) -> i32:
+    count(source)  # diagnostic: unsatisfied-trait-bound

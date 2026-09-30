@@ -1,5 +1,5 @@
-# test: for and comprehensions accept Iterable values, including a mutable iterator
-# Spec 06 Iteration Protocols: flow.for.iterable-only, flow.for.iterable-impls, flow.for.iterator-self (Chaining Study CS7).
+# test: for and comprehensions accept Iterable values and a mutable iterator
+# Spec 06 Iteration Protocols: flow.for.accepts, flow.for.iterable-collections, flow.for.iterator-direct (Chaining Study CS7, batch 24 IT2).
 
 fn consume(source: mut Iterator[i32]) -> List[i32]:
     [for value in source => value]

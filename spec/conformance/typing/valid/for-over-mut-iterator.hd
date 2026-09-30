@@ -1,0 +1,14 @@
+# test: for accepts a mutable iterator directly, though Iterator is not Iterable
+# Spec 06 Iteration Protocols: flow.for.accepts, flow.for.iterator-direct, flow.for.comprehension (batch 24 IT2).
+
+fn drain(source: mut Iterator[i32]) -> i32:
+    let total: i32 = 0
+    for value in source:
+        total = total + value
+    total
+
+fn doubled(source: mut Iterator[i32]) -> List[i32]:
+    [for value in source => value * 2]
+
+fn from_list(values: List[i32]) -> i32:
+    drain(values.iter())

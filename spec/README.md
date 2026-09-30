@@ -213,6 +213,8 @@ The stdlib chapters' terms are in the
 | **initialization group** | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. See [`module.init.group`](10-modules.md#r-module.init.group). |
 | **inspectable types** | The types for which the compiler supplies `Inspectable`: primitives, module-level declarations, collections and tuples of inspectable types, and matching dynamic values. See [Inspectable Types](09-traits.md#inspectable-types). |
 | **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](10-modules.md#r-module.test.integration). |
+| **iterable** | A value whose type implements `Iterable[T]`, such as a `List` or a `Map`. An `Iterator` is not iterable, though `for` takes a mutable one directly. See [`flow.for.accepts`](06-control-flow.md#r-flow.for.accepts). |
+| **iterator** | A value of the prelude type `Iterator[T]`. It stores one traversal's progress and is single-pass: a second traversal calls `iter()` on the source again. See [`flow.for.iterator-type`](06-control-flow.md#r-flow.for.iterator-type). |
 | **iterator adapters** | A stdlib term, in the [Standard Library glossary](std/README.md#glossary). |
 | **known implementation** | An implementation in the program's dependency graph whose target matches a type; a local one counts only where its methods are available. See [`names.member.known-impl`](03-names-and-scopes.md#r-names.member.known-impl). |
 | **law partners** | Comparison and hash traits whose laws relate them, such as `Hash` and `Eq`. See [Law Partners](09-traits.md#law-partners). |
@@ -2302,3 +2304,25 @@ existing source. Each entry names the decision that made the change.
   and [`grammar.stmt.assign-place`](02-grammar.md#r-grammar.stmt.assign-place).
   Existing source is unaffected: `std` collections implement neither
   trait, so `xs(0)` stays `not-callable`.
+- Iterator consumption (owner decisions IT1-IT3, batch 24 in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
+  2026-09-30): language tier. `Iterator[T]` no longer implements
+  `Iterable[T]`, which reverses Chaining Study CS10. `for` and each
+  comprehension `for` clause take an `Iterable` value, or an `Iterator[T]`
+  with mutable access directly, so `for x in mut_it` is unchanged. A loop
+  over a readonly iterator stays `mutable-receiver-required` (IT1), and
+  `source.iter()` on a readonly iterator, which advanced it, is now
+  `unknown-method`. An iterator passed to an `I < Iterable[T]` bound,
+  valid before, is `unsatisfied-trait-bound`; collect it first. There is
+  no `clone` or `tee` of an iterator (IT3): a second traversal calls
+  `iter()` on the collection again. `flow.for.iterable-impls` is retired
+  for [`flow.for.iterable-collections`](06-control-flow.md#r-flow.for.iterable-collections),
+  `flow.for.iterable-only` for [`flow.for.accepts`](06-control-flow.md#r-flow.for.accepts),
+  and `flow.for.not-iterable` for
+  [`flow.for.not-iterable-or-iterator`](06-control-flow.md#r-flow.for.not-iterable-or-iterator).
+  `flow.for.iterator-self` is retired for
+  [`flow.for.iterator-direct`](06-control-flow.md#r-flow.for.iterator-direct),
+  and `flow.for.iterator-bound` for
+  [`flow.for.iterator-no-bound`](06-control-flow.md#r-flow.for.iterator-no-bound).
+  [`flow.for.iterator-not-iterable`](06-control-flow.md#r-flow.for.iterator-not-iterable)
+  is new.

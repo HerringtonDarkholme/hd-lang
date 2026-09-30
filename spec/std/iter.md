@@ -16,9 +16,9 @@ The language tier keeps what the compiler knows by name
 
 | Item | Why it stays in the language tier |
 | --- | --- |
-| `Iterator[T]` | a prelude type that `Iterable.iter` returns, so `for` depends on it |
+| `Iterator[T]` | a prelude type that `Iterable.iter` returns and `for` accepts directly, so `for` depends on it |
 | `Iterator::from_fn`, `next` | the only way to build and advance an `Iterator[T]`, since `step` is private |
-| `Iterable[T]` and its impls | the lang item that drives `for` and comprehensions |
+| `Iterable[T]` and its impls | the lang item that drives `for` and comprehensions; only `List` and `Map` implement it, not `Iterator` |
 
 Nothing in the language tier names an adapter, `collect`, or
 `FromIterator`. `collect`'s default target, `List[T]`, is an ordinary

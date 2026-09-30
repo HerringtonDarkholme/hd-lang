@@ -116,3 +116,5 @@ runtime/valid/callable-values-run.hd	the prototype does not know `Apply` or `Upd
 typing/invalid/callable-value-arguments.hd	the prototype does not know `Apply` (D2), so `impl Apply for Counter` is unknown-trait before `counter(1)` is checked	BFF
 typing/invalid/callable-value-short-binding-store.hd	the prototype does not know `Update` (D4), so `view() = 1` is invalid-assignment-target, not readonly-root	BFF
 typing/invalid/callable-value-readonly-parameter.hd	the prototype does not know `Update` (D4), so `count() = 2` is invalid-assignment-target, not readonly-root	BFF
+typing/invalid/readonly-iterator-iterable-bound.hd	lib/std/iter.hd still declares `impl[T] Iterable[T] for Iterator[T]`, so the prototype accepts a readonly iterator for an `Iterable[i32]` bound instead of reporting unsatisfied-trait-bound	IT
+typing/invalid/mut-iterator-iterable-bound.hd	lib/std/iter.hd still declares `impl[T] Iterable[T] for Iterator[T]`, so the prototype accepts a mutable iterator for an `Iterable[i32]` bound instead of reporting unsatisfied-trait-bound	IT

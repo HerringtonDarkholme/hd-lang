@@ -1,5 +1,5 @@
 # test: an iterator drives for loops and comprehensions from its current position
-# Spec 06 Iteration Protocols: flow.for.iterator-self, flow.for.iterator.position, flow.for.comprehension (Chaining Study CS7).
+# Spec 06 Iteration Protocols: flow.for.iterator-direct, flow.for.iterator.position, flow.for.comprehension (Chaining Study CS7, batch 24 IT2).
 
 use std.testing.assert_equal
 

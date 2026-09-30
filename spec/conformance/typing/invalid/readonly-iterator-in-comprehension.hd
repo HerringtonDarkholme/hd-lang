@@ -1,5 +1,5 @@
 # test: a readonly iterator cannot drive a comprehension
-# Spec 06 Iteration Protocols: flow.for.iterator-mut (Chaining Study CS7).
+# Spec 06 Iteration Protocols: flow.for.iterator-mut, flow.for.comprehension (Chaining Study CS7, batch 24 IT1).
 
 fn main(source: Iterator[i32]) -> List[i32]:
     [for value in source => value]  # diagnostic: mutable-receiver-required
