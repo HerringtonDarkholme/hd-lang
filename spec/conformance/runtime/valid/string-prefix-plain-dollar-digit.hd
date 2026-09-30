@@ -1,5 +1,5 @@
 # test: in a prefixed string, a $ before a character that cannot start an identifier is text
-# Spec 01 Prefixed Strings: lex.prefix.plain-dollar-start (Small Follow-Ups 2026-09-29).
+# Spec 01 Interpolation: lex.interp.dollar-text (Small Follow-Ups 2026-09-29; SSC Q3, batch 26, 2026-09-30).
 use std.ops.{Template, str_prefix}
 use std.testing.assert_equal
 

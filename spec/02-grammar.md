@@ -153,8 +153,6 @@ break_statement = "break", [ closed_expression ] ;
 continue_statement = "continue" ;
 expression_statement = closed_expression ;
 
-binding_pattern = identifier, { ",", identifier } ;
-
 binding_target = identifier | binding_list ;
 binding_list = "(", identifier, ",", identifier, { ",", identifier }, ")" ;
 
@@ -269,9 +267,9 @@ fn choose(flag: bool) -> i32:
 5. r[grammar.inline.nested-if] Parentheses nest a conditional, as in `if a: (if b: 1 else: 2) else: 3`, and an indented body may hold one.
 6. r[grammar.inline.else-if] `else if` continues the same conditional rather than nesting one.
 7. r[grammar.inline.loops] Same-line `for` and `while` loops may still appear directly in a same-line suite.
-8. r[grammar.inline.multi-name-for] A `for` over several names needs an indented body.
-9. r[grammar.inline.let-list] A parenthesized `let` list may be a same-line suite body, as in `if ok: let (a, b) = pair` and `if ok: let (mut log, db) = pair`, because its commas are inside parentheses.
-10. r[grammar.inline.bind-list] A parenthesized `:=` list may be a same-line suite body for the same reason, as in `if ok: (a, b) := pair`.
+8. r[grammar.inline.let-list] A parenthesized `let` list may be a same-line suite body, as in `if ok: let (a, b) = pair` and `if ok: let (mut log, db) = pair`, because its commas are inside parentheses.
+9. r[grammar.inline.bind-list] A parenthesized `:=` list may be a same-line suite body for the same reason, as in `if ok: (a, b) := pair`.
+10. r[grammar.inline.for-list] A `for` over a parenthesized list may be a same-line suite body, or have one, for the same reason, as in `if ok: for (key, value) in entries: use(key)`.
 11. r[grammar.inline.bare-comma] The bare comma forms still close the suite, so `if ok: a, b := pair` and `if ok: let a, b = pair` are syntax errors. Error: `syntax-error`.
 
 ```text
@@ -994,22 +992,24 @@ inside := 0 < value < 10  # error: comparison-chaining
 ### Multi-Name Bindings
 
 1. r[grammar.expr.multi-binding] A multi-name short binding such as `(a, b) := value` is a statement.
-2. r[grammar.expr.multi-binding.wrapped] Used as a nested expression, including inside any delimiter, the complete binding goes in its own parentheses: `((a, b) := value)`. Error: `multi-binding-needs-parentheses`.
+2. r[grammar.expr.multi-binding.statement-only] It is never part of an expression. Nested anywhere, as in `((a, b) := value)`, `[(a, b) := value]`, or `[a, b := value]`, it is an error whose fix-it hoists it to a statement before the expression. Error: `syntax-error`.
 3. r[grammar.expr.multi-binding.no-grouped] The former grouped form `(a, b := value)`, whose `:=` stands inside the parentheses of the names, is an error, never a tuple whose final element is a binding. Error: `syntax-error`.
-4. r[grammar.expr.multi-binding.no-grouped.fix] Its fix-it writes `(a, b) := value`, inside its own parentheses where the binding is nested.
+4. r[grammar.expr.multi-binding.no-grouped.hoist] Its fix-it writes the statement `(a, b) := value` before the expression that held it.
 5. r[grammar.expr.multi-binding.tuple-element] A tuple that contains a binding must parenthesize that element separately, as in `(a, (b := value))`.
 
 ```text
 fn pair() -> (i32, i32): (1, 2)
 
-values := [a, b := pair()]  # error: multi-binding-needs-parentheses
-wrapped := [(a, b) := pair()]  # error: multi-binding-needs-parentheses
-whole := ((low, high) := pair())  # valid
+values := [a, b := pair()]  # error: syntax-error
+wrapped := [(a, b) := pair()]  # error: syntax-error
+whole := ((low, high) := pair())  # error: syntax-error
 grouped := (first, second := pair())  # error: syntax-error
 ```
 
-> **Why.** One shape reads better than two spellings. A statement and a
-> nested use both write the names as `(a, b)` before `:=`.
+> **Why.** A multi-name binding that tests or passes its value binds on
+> its own line first. Python's `:=` also takes one name, and Go's `:=` is a
+> statement. The single-name binding, as in `if (n := f()) > 0:`, stays an
+> expression.
 
 ### Bang And Dot Tokens
 
@@ -1090,7 +1090,6 @@ primary_expression = literal
                    | context_use
                    | context_create
                    | pack_map_expression
-                   | grouped_binding_expression
                    | tuple_or_group_expression
                    | list_expression
                    | map_expression
@@ -1119,9 +1118,6 @@ expression_named_type = qualified_name, [ "::", bound_type_arguments ] ;
 pack_map_expression = "pack", ".", ( "map" | "map_list" ), "(",
                       expression, ",", qualified_name,
                       { ",", expression }, [ "," ], ")" ;
-
-grouped_binding_expression = "(", binding_list, ":=",
-                             binding_expression, ")" ;
 
 literal = boolean_literal
         | suffixed_literal
@@ -1384,7 +1380,7 @@ if_expression = "if", continued_expression, ":", suite_body,
                 [ "else", ":", suite_body ]
                 ;
 
-for_expression = "for", binding_pattern, "in", continued_expression, ":",
+for_expression = "for", binding_target, "in", continued_expression, ":",
                  suite_body, [ "else", ":", suite_body ]
                  ;
 
@@ -1400,7 +1396,7 @@ indented_if_expression = "if", continued_expression, ":", indented_suite_body
                          indented_suite_body
                        ;
 
-indented_for_expression = "for", binding_pattern, "in", continued_expression,
+indented_for_expression = "for", binding_target, "in", continued_expression,
                           ":", ( indented_suite_body
                                | suite_body, "else", ":",
                                  indented_suite_body )
@@ -1411,7 +1407,7 @@ indented_while_expression = "while", continued_expression, ":",
                             | suite_body, "else", ":", indented_suite_body )
                             ;
 
-inline_for_expression = "for", identifier, "in", closed_expression, ":",
+inline_for_expression = "for", binding_target, "in", closed_expression, ":",
                         inline_suite_body, [ "else", ":", inline_suite_body ]
                         ;
 
@@ -1429,7 +1425,7 @@ statement_if_expression = "if", closed_expression, ":", suite_body,
                           [ "else", ":", suite_body ]
                           ;
 
-statement_for_expression = "for", binding_pattern, "in", closed_expression,
+statement_for_expression = "for", binding_target, "in", closed_expression,
                            ":", suite_body, [ "else", ":", suite_body ]
                            ;
 
@@ -1448,10 +1444,25 @@ arm_body = suite_expression
          ;
 ```
 
-1. r[grammar.flow.for-in-brackets] A `for` loop is an expression, so it may also appear inside brackets, as in `[for x in xs: body]` or `(for k, v in m: body)`.
+1. r[grammar.flow.for-in-brackets] A `for` loop is an expression, so it may also appear inside brackets, as in `[for x in xs: body]` or `(for (k, v) in m: body)`.
 2. r[grammar.flow.if-else] An `if` used where a value is required must have an `else`; statement-position `if` may omit it.
 3. r[grammar.flow.loop-void] A loop without `else` has type `void`.
 4. r[grammar.flow.semantic] The `if` and loop rules above are semantic rules, not separate grammar productions.
+5. r[grammar.flow.for-list] A `for` loop or a comprehension `for` clause over several names puts them in parentheses, as in `for (key, value) in entries`, with the `binding_list` of [Short Binding Lists](#short-binding-lists).
+6. r[grammar.flow.for-list.bare] A bare list, as in `for key, value in entries`, is an error whose fix-it adds the parentheses. Error: `syntax-error`.
+
+```text
+fn names(scores: Map[string, i32]) -> List[string]:
+    for (name, score) in scores:  # valid
+        pass
+    for name, score in scores:  # error: syntax-error
+        pass
+    [for (name, score) in scores => name]
+```
+
+> **Why.** A `let` list, a `:=` list, and a `for` list put their names in
+> parentheses the same way. One shape reads better than two spellings, and
+> the commas inside parentheses let a same-line suite hold the loop.
 
 ## Patterns
 
@@ -1549,7 +1560,7 @@ map_comprehension = "{", comprehension_clauses, "=>",
 
 comprehension_clauses = comprehension_for,
                         { comprehension_for | comprehension_if } ;
-comprehension_for = "for", binding_pattern, "in", continued_expression ;
+comprehension_for = "for", binding_target, "in", continued_expression ;
 comprehension_if = "if", continued_expression ;
 ```
 

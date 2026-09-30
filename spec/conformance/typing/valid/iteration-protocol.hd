@@ -5,7 +5,7 @@ fn consume(source: mut Iterator[i32]) -> List[i32]:
     [for value in source => value]
 
 fn labels(entries: Map[string, i32]) -> List[string]:
-    [for key, count in entries => "$key=$count"]
+    [for (key, count) in entries => "$key=$count"]
 
 fn total(values: List[i32]) -> i32:
     let sum: i32 = 0

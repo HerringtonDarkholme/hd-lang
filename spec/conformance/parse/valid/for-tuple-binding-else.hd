@@ -1,7 +1,7 @@
 # test: parser builds for loops with tuple bindings and else suites
 
 fn first(entries: Map[string, i32]) -> i32:
-    for key, value in entries:
+    for (key, value) in entries:
         break value
     else:
         0

@@ -1,14 +1,16 @@
-# test: a tuple binding expression evaluates to the original tuple value
-# Spec 05 Binding Expressions: "For tuple binding, the right side must have the same arity. The value of
-# the whole binding expression is the original tuple value."
+# test: a multi-name binding statement destructures a tuple of the same arity
+# Spec 05 Binding Expressions: expr.bind.tuple. A multi-name := is a statement
+# (owner decision SSC Q5, batch 26, 2026-09-30), so the tuple is kept by
+# binding it first.
 use std.testing.assert_equal
 
 fn pair() -> (i32, string):
     (42, "answer")
 
 tests:
-    it("the binding expression yields the tuple"):
-        whole := ((number, word) := pair())
+    it("the binding statement destructures the tuple"):
+        whole := pair()
+        (number, word) := whole
         assert_equal(number, 42, reason="first element bound")
         assert_equal(word, "answer", reason="second element bound")
-        assert_equal(whole, (42, "answer"), reason="whole expression is the original tuple")
+        assert_equal(whole, (42, "answer"), reason="the tuple is unchanged")

@@ -1,5 +1,5 @@
 # test: ? inside a comprehension propagates from the enclosing function, and the comprehension stops
-# Spec 05 Comprehension Restrictions: expr.comp.propagation, expr.comp.propagation.stop (Collect CO4).
+# Spec 05 Comprehension Restrictions: the Note on `?` (Collect CO4; SSC Q2, batch 26, 2026-09-30).
 use std.testing.assert_equal
 
 data Tally:

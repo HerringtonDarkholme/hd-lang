@@ -1,5 +1,5 @@
 # test: += on a missing map key panics, since the read expects the key
-# Spec 05 Compound Assignment: expr.assign.compound.map-missing (evening follow-up 5, 2026-09-29).
+# Spec 05 Map Indexing: expr.index.map.read-value, through expr.assign.compound.index-read-write (evening follow-up 5, 2026-09-29; SSC Q8, batch 26).
 fn tally(word: string) -> Map[string, i32]:
     let counts: mut Map[string, i32] = {}
     counts[word] += 1  # panic: index-out-of-bounds

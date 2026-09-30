@@ -142,23 +142,24 @@ through the template of `Arbitrary`.
 1. r[std-testing.arbitrary.derive] `@derive(Arbitrary)` derives `Arbitrary` through its [template](../14-annotations.md#templates). The derived `arbitrary` draws each member with its type's `Arbitrary`. For an enum, it draws a variant, then that variant's payload.
 2. r[std-testing.arbitrary.derive.template] That template is ordinary `std.testing` code over `std.structure`: it reads each variant's and member's [`self_ref`](../14-annotations.md#self-references), and the compiler supplies nothing for `Arbitrary` itself.
 3. r[std-testing.arbitrary.derive.member-bounds] The template requires the type of every member to implement `Arbitrary` and to be [inspectable](../09-traits.md#inspectable-types), whether or not `arbitrary.with` tunes the member.
-4. r[std-testing.arbitrary.derive.not-derivable] A type with a member whose type fails either bound, such as a function-typed member, is not derivable. `@derive(Arbitrary)` on it is an error, reported at the opt-in and naming the member. Error: `unsatisfied-trait-bound`.
-5. r[std-testing.arbitrary.derive.manual] Such a type gets its default generator only from a hand-written `impl Arbitrary`.
-6. r[std-testing.arbitrary.derive.simplest] A derived enum's simplest choice is its first non-recursive variant, whatever the declaration order.
-7. r[std-testing.arbitrary.derive.recursive] A variant is recursive when its `self_ref` is `.Required`, as [Self References](../14-annotations.md#self-references) computes it from the member types.
-8. r[std-testing.arbitrary.derive.recursive.containers] A `List`, `Map`, or optional member does not make its variant recursive, because its `self_ref` is at most `.Optional`: its simplest value is empty or `.None`.
-9. r[std-testing.arbitrary.derive.no-finite] When every variant of a derived enum is recursive, the derived `arbitrary` panics on the property's first case, with a message that names the type. Panic: `explicit-panic`.
-10. r[std-testing.arbitrary.derive.no-finite.message] The message is `"${T::name()} has no finite value"`, where [`T::name()`](../14-annotations.md#r-annot.structure.name) is the type's declared name.
-11. r[std-testing.arbitrary.derive.no-finite.data] When a member of a derived data type has `self_ref` `.Required`, its derived `arbitrary` panics the same way, and the compiler does not reject the type either. Panic: `explicit-panic`.
-12. r[std-testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
-13. r[std-testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
-14. r[std-testing.arbitrary.with.module] The module `std.testing.arbitrary` declares `with` and its result type `Generator`, as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
-15. r[std-testing.arbitrary.with.wrap] `with` wraps `gen` so that each drawn value is erased to `Inspectable`, and returns the wrapped generator as a `Generator`.
-16. r[std-testing.arbitrary.with.downcast] The derived `arbitrary` draws the member with the wrapped generator, and downcasts the first drawn value to the member's type.
-17. r[std-testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
-18. r[std-testing.arbitrary.with.unchecked] The compiler does not check `gen` against the member's type, as for any [metadata value](../14-annotations.md#member-metadata).
-19. r[std-testing.arbitrary.with.downcast-failure] When the downcast fails, the derived `arbitrary` panics on the property's first case. The message names the member, the member's type, and the type that `gen` drew. Panic: `explicit-panic`.
-20. r[std-testing.arbitrary.with.no-fallback] The derived `arbitrary` never ignores a mismatched generator, and never falls back to the member type's own `Arbitrary`.
+4. r[std-testing.arbitrary.derive.params] For a generic type, the derived implementation gets `T < Arbitrary & Inspectable` for each type parameter `T` that a member's type uses, in place of the `T < Arbitrary` of [`annot.bound.params`](../14-annotations.md#r-annot.bound.params). So `@derive(Arbitrary)` on `data Box[T]` with a member `value: T` needs no hand-written block.
+5. r[std-testing.arbitrary.derive.not-derivable] A type with a member whose type fails either bound, such as a function-typed member, is not derivable. `@derive(Arbitrary)` on it is an error, reported at the opt-in and naming the member. Error: `unsatisfied-trait-bound`.
+6. r[std-testing.arbitrary.derive.manual] Such a type gets its default generator only from a hand-written `impl Arbitrary`.
+7. r[std-testing.arbitrary.derive.simplest] A derived enum's simplest choice is its first non-recursive variant, whatever the declaration order.
+8. r[std-testing.arbitrary.derive.recursive] A variant is recursive when its `self_ref` is `.Required`, as [Self References](../14-annotations.md#self-references) computes it from the member types.
+9. r[std-testing.arbitrary.derive.recursive.containers] A `List`, `Map`, or optional member does not make its variant recursive, because its `self_ref` is at most `.Optional`: its simplest value is empty or `.None`.
+10. r[std-testing.arbitrary.derive.no-finite] When every variant of a derived enum is recursive, the derived `arbitrary` panics on the property's first case, with a message that names the type. Panic: `explicit-panic`.
+11. r[std-testing.arbitrary.derive.no-finite.message] The message is `"${T::name()} has no finite value"`, where [`T::name()`](../14-annotations.md#r-annot.structure.name) is the type's declared name.
+12. r[std-testing.arbitrary.derive.no-finite.data] When a member of a derived data type has `self_ref` `.Required`, its derived `arbitrary` panics the same way, and the compiler does not reject the type either. Panic: `explicit-panic`.
+13. r[std-testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
+14. r[std-testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
+15. r[std-testing.arbitrary.with.module] The module `std.testing.arbitrary` declares `with` and its result type `Generator`, as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
+16. r[std-testing.arbitrary.with.wrap] `with` wraps `gen` so that each drawn value is erased to `Inspectable`, and returns the wrapped generator as a `Generator`.
+17. r[std-testing.arbitrary.with.downcast] The derived `arbitrary` draws the member with the wrapped generator, and downcasts the first drawn value to the member's type.
+18. r[std-testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
+19. r[std-testing.arbitrary.with.unchecked] The compiler does not check `gen` against the member's type, as for any [metadata value](../14-annotations.md#member-metadata).
+20. r[std-testing.arbitrary.with.downcast-failure] When the downcast fails, the derived `arbitrary` panics on the property's first case. The message names the member, the member's type, and the type that `gen` drew. Panic: `explicit-panic`.
+21. r[std-testing.arbitrary.with.no-fallback] The derived `arbitrary` never ignores a mismatched generator, and never falls back to the member type's own `Arbitrary`.
 
 ```text
 pub fn with[T < Inspectable](gen: fn(mut Choices) -> T) -> Generator
@@ -209,6 +210,26 @@ impl Arbitrary for Job:
 `Task`'s member `run` has a function type, which implements neither
 `Arbitrary` nor `Inspectable`, so `Task` is not derivable. `Job` writes
 its own `impl Arbitrary` instead.
+
+```text
+use std.testing.Arbitrary
+
+@derive(Arbitrary, Debug)
+data Box[T]:
+    value: T
+
+fn needs[T < Arbitrary](value: T) -> T: value
+
+fn check(item: Box[i32]) -> Box[i32]:
+    needs(item)
+
+fn invalid(item: Box[fn() -> i32]) -> Box[fn() -> i32]:
+    needs(item)  # error: unsatisfied-trait-bound
+```
+
+The derived implementation is for `Box[T]` with `T < Arbitrary & Inspectable`.
+`Box[i32]` meets it; `Box[fn() -> i32]` does not, since a function type
+implements neither trait.
 
 ```text
 use std.testing.Arbitrary

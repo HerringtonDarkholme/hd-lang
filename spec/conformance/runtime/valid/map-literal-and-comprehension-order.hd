@@ -19,7 +19,7 @@ fn flag(log: mut Log, tag: string, value: bool) -> bool:
 
 fn keys(values: Map[string, i32]) -> List[string]:
     let result: mut List[string] = []
-    for name, value in values:
+    for (name, value) in values:
         if value >= 0:
             result.append(name)
     result
@@ -35,7 +35,7 @@ tests:
         values := {"a": 1, "b": 2, "a": 3}
         let three: i32? = 3
         assert_equal(keys(values), ["a", "b"], reason="first insertion position kept")
-        assert_equal(values["a"], three, reason="later value wins")
+        assert_equal(values.get("a"), three, reason="later value wins")
         assert_equal(values.len(), 2, reason="one entry per key")
 
     it("comprehension filter runs at its position"):

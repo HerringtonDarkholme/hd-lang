@@ -1,5 +1,5 @@
 # test: Map's Index implementation panics on a missing key
-# Spec 05 Built-In Implementations: expr.index.std.map-read (Strings STR8).
+# Spec 05 Built-In Implementations: expr.index.std.intrinsic, expr.index.map.read-value (Strings STR8; SSC Q8, batch 26).
 use std.ops.Index
 
 fn lookup[K, C < Index[K]](entries: C, key: K) -> C::Out:

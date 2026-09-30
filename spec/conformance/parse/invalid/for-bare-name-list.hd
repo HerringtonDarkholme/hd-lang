@@ -1,0 +1,8 @@
+# test: a for loop over several names puts them in parentheses; the bare list is an error whose fix-it adds them
+# Spec 02 Control-Flow Expressions: grammar.flow.for-list.bare (owner decision SSC Q4, batch 26, 2026-09-30).
+fn names(scores: Map[string, i32]) -> List[string]:
+    for (name, score) in scores:
+        pass
+    for name, score in scores:  # diagnostic: syntax-error
+        pass
+    [for (name, score) in scores => name]

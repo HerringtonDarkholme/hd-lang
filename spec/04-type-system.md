@@ -1271,16 +1271,35 @@ impl AnyVal for Handle  # error: sealed-trait-implementation
 
 This section defines which types may be map keys, and how keys behave.
 
-1. r[types.map-key.bound] `Map[K, V]` requires `K < Eq & Hash` and rejects a `mut T` key type. Any other key type is an error. Error: `invalid-map-key`.
-2. r[types.map-key.hash] `Hash` is a standard-library trait in `std.hash`.
-3. r[types.map-key.user] User-defined data and enum types can become keys by explicitly implementing or deriving both traits.
-4. r[types.map-key.builtin-types] Standard-library implementations cover eligible built-in scalar types and their supported compositions: `bool`, integers, `char`, `string`, tuples of hashable elements, and optionals of hashable elements.
-5. r[types.map-key.no-hash] Lists, maps, floating-point values, functions, suspensions, dynamic trait values, and `Any` do not have built-in `Hash`.
-6. r[types.map-key.user-enums] User data and every user enum, including a payload-free one, require an explicit or derived implementation of both traits.
-7. r[types.map-key.float-no-hash] Floating-point types implement `Eq` but not `Hash`, so they are not valid map keys.
-8. r[types.map-key.no-map-hash] Consequently maps have no built-in hash and impose no order-independent map-hash obligation.
+1. r[types.map-key.declared-bound] `Map` is declared as `Map[K < Eq & Hash, V]`. A key type that does not implement both traits fails that bound, as any unmet bound does. Error: `unsatisfied-trait-bound`.
+2. r[types.map-key.no-mut] A `mut T` key type is an error, even when `T` implements both traits. Error: `invalid-map-key`.
+3. r[types.map-key.hash] `Hash` is a standard-library trait in `std.hash`.
+4. r[types.map-key.user] User-defined data and enum types can become keys by explicitly implementing or deriving both traits.
+5. r[types.map-key.builtin-types] Standard-library implementations cover eligible built-in scalar types and their supported compositions: `bool`, integers, `char`, `string`, tuples of hashable elements, and optionals of hashable elements.
+6. r[types.map-key.no-hash] Lists, maps, floating-point values, functions, suspensions, dynamic trait values, and `Any` do not have built-in `Hash`.
+7. r[types.map-key.user-enums] User data and every user enum, including a payload-free one, require an explicit or derived implementation of both traits.
+8. r[types.map-key.float-no-hash] Floating-point types implement `Eq` but not `Hash`, so they are not valid map keys.
+9. r[types.map-key.no-map-hash] Consequently maps have no built-in hash and impose no order-independent map-hash obligation.
+
+```text
+data UserId:
+    value: string
+
+@derive(Eq, Hash)
+data Session:
+    token: string
+
+fn setup() -> void:
+    let users: Map[UserId, string] = {}  # error: unsatisfied-trait-bound
+    let open: Map[mut Session, i32] = {}  # error: invalid-map-key
+    pass
+```
 
 > **Why.** A NaN key is unequal even to itself, so no lookup could find it.
+
+> **Why.** The key traits are an ordinary bound, so a missing trait reads
+> as any other unmet bound. A `mut` key stays an error: code holding it
+> could change the key and leave a [ghost entry](#r-types.map.ghost).
 
 ### Lookup And Order
 

@@ -1,0 +1,12 @@
+# test: a generic type's derived Arbitrary needs its type argument to meet Arbitrary & Inspectable
+# Spec std/testing Derived Arbitrary: std-testing.arbitrary.derive.params (owner decision AT-gen, batch 26, 2026-09-30).
+use std.testing.Arbitrary
+
+@derive(Arbitrary, Debug)
+data Box[T]:
+    value: T
+
+fn needs[T < Arbitrary](value: T) -> T: value
+
+fn invalid(item: Box[fn() -> i32]) -> Box[fn() -> i32]:
+    needs(item)  # diagnostic: unsatisfied-trait-bound

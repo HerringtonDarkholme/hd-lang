@@ -3,7 +3,7 @@
 use std.testing.assert_equal
 
 fn lookup[T](values: Map[string, T], key: string) -> T?:
-    values[key]
+    values.get(key)
 
 fn unwrap(value: i32?) -> i32:
     match value:
@@ -16,7 +16,7 @@ fn main() -> i32:
 
 fn scalar_keys() -> i32:
     values := {1: 20, 2: 2, 1: 40}
-    unwrap(values[1]) + values.len()
+    unwrap(values.get(1)) + values.len()
 
 fn empty() -> i32:
     let values: Map[string, i32] = {}

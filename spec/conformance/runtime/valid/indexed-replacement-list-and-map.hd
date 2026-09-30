@@ -7,7 +7,7 @@ fn main() -> i32:
     let scores: mut Map[string, i32] = {"x": 1}
     values[0] = 40
     scores["x"] = 2
-    score := match scores["x"]:
+    score := match scores.get("x"):
         .Some(found) => found
         .None => 0
     values[0] + score

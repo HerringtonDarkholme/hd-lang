@@ -127,10 +127,10 @@ typing/invalid/integer-narrowing.hd	type	reject:implicit-narrowing	04-type-syste
 typing/invalid/integer-literal-range.hd	type	reject:integer-literal-range	04-type-system.md#literal-types
 typing/invalid/float-literal-range.hd	type	reject:float-literal-range	04-type-system.md#literal-types
 typing/invalid/heterogeneous-list.hd	type	reject:no-common-type	05-expressions.md#list-and-map-expressions
-typing/invalid/invalid-map-key.hd	type	reject:invalid-map-key	04-type-system.md#map-key-types
-typing/invalid/nominal-map-key.hd	type	reject:invalid-map-key	04-type-system.md#map-key-types
-typing/invalid/tuple-map-key.hd	type	reject:invalid-map-key	04-type-system.md#map-key-types
-typing/invalid/float-map-key.hd	type	reject:invalid-map-key	04-type-system.md#map-key-types
+typing/invalid/invalid-map-key.hd	type	reject:unsatisfied-trait-bound	04-type-system.md#r-types.map-key.declared-bound
+typing/invalid/nominal-map-key.hd	type	reject:unsatisfied-trait-bound	04-type-system.md#r-types.map-key.declared-bound
+typing/invalid/tuple-map-key.hd	type	reject:unsatisfied-trait-bound	04-type-system.md#r-types.map-key.declared-bound
+typing/invalid/float-map-key.hd	type	reject:unsatisfied-trait-bound	04-type-system.md#r-types.map-key.declared-bound
 typing/valid/generic-map-key.hd	type	accept	04-type-system.md#map-key-types
 typing/valid/pack-map.hd	type	accept	12-variadic-generics.md#pack-mapping
 typing/invalid/pack-map-mapper-mismatch.hd	type	reject:pack-map-mapper-mismatch	12-variadic-generics.md#pack-mapping
@@ -272,7 +272,7 @@ typing/invalid/shape-of-closure.hd	type	reject:unknown-shape-target	14-annotatio
 typing/invalid/unknown-shape-variant.hd	type	reject:unknown-shape-target	14-annotations.md#shape-intrinsics
 typing/invalid/suspension-forbidden-context.hd	type	reject:suspension-forbidden-context	11-requirements-and-suspension.md#suspending-functions
 typing/invalid/reimport-prelude-name.hd	type	reject:prelude-name-shadow	10-modules.md#prelude
-parse/invalid/multi-binding-needs-parentheses.hd	parse	reject:multi-binding-needs-parentheses	02-grammar.md#expressions
+parse/invalid/multi-binding-bare-in-list.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.expr.multi-binding.statement-only
 typing/invalid/mixed-numeric-power.hd	type	reject:mixed-numeric-types	05-expressions.md#unary-and-binary-operators
 runtime/panic/second-suspension-drive.hd	runtime	panic:suspension-invalid-state	11-requirements-and-suspension.md#suspendt-protocol
 runtime/panic/test-block-on.hd	runtime	panic:suspension-nested-driver	11-requirements-and-suspension.md#r-req.bang.test-driven
@@ -299,7 +299,7 @@ parse/valid/nested-named-arguments.hd	parse	accept	02-grammar.md#calls-and-argum
 parse/valid/context-spread-after-binding.hd	parse	accept	11-requirements-and-suspension.md#provider-scopes
 parse/invalid/prefix-context-spread-in-scope.hd	parse	reject:syntax-error	11-requirements-and-suspension.md#provider-scopes
 parse/invalid/prefix-context-spread-in-context.hd	parse	reject:syntax-error	11-requirements-and-suspension.md#provider-scopes
-parse/invalid/stray-dollar.hd	parse	reject:syntax-error	01-lexical-structure.md#string-and-character-literals
+parse/valid/stray-dollar.hd	parse	accept	01-lexical-structure.md#r-lex.interp.dollar-text
 parse/invalid/same-line-suite-comma.hd	parse	reject:syntax-error	02-grammar.md#statements
 parse/invalid/same-line-let-comma.hd	parse	reject:syntax-error	02-grammar.md#statements
 parse/invalid/discard-binding-ends-in-suite.hd	parse	reject:syntax-error	02-grammar.md#statements
@@ -374,7 +374,7 @@ typing/invalid/closure-inferred-row-missing-requirement.hd	type	reject:missing-r
 runtime/valid/closure-explicit-requirement-row.hd	runtime	accept	11-requirements-and-suspension.md#construction-time-requirement-binding
 runtime/valid/generic-list-element.hd	runtime	accept	05-expressions.md#list-and-map-expressions
 typing/invalid/heterogeneous-list-bool-int.hd	type	reject:no-common-type	05-expressions.md#list-and-map-expressions
-typing/invalid/float-literal-map-key.hd	type	reject:invalid-map-key	04-type-system.md#map-key-types
+typing/invalid/float-literal-map-key.hd	type	reject:unsatisfied-trait-bound	04-type-system.md#r-types.map-key.declared-bound
 typing/invalid/heterogeneous-map-values.hd	type	reject:no-common-type	05-expressions.md#list-and-map-expressions
 runtime/valid/map-lookup-and-duplicate-keys.hd	runtime	accept	05-expressions.md#list-and-map-expressions
 runtime/valid/list-of-trait-values.hd	runtime	accept	09-traits.md#dynamic-trait-values
@@ -530,7 +530,7 @@ typing/warnings/unused-nested-optional-binding.hd	type	warn:unused-local-binding
 typing/invalid/discarded-optional-result.hd	type	reject:discarded-must-use-value	06-control-flow.md#blocks-and-completion
 typing/valid/optional-result-explicitly-discarded.hd	type	accept	06-control-flow.md#blocks-and-completion
 runtime/valid/comprehensions.hd	runtime	accept	05-expressions.md#comprehensions
-typing/invalid/bang-call-in-comprehension.hd	type	reject:suspension-forbidden-context	05-expressions.md#comprehensions
+typing/invalid/bang-call-in-comprehension.hd	type	reject:bang-call-outside-suspension	05-expressions.md#r-expr.comp.suspension
 typing/invalid/closure-argument-type-mismatch.hd	type	reject:type-mismatch	07-functions.md#closures
 runtime/valid/closure-as-function-argument.hd	runtime	accept	07-functions.md#closures
 typing/invalid/binding-expression-redeclaration.hd	type	reject:duplicate-binding	03-names-and-scopes.md#binding-expressions
@@ -576,7 +576,7 @@ parse/invalid/tab-in-function-body.hd	parse	reject:tab-whitespace	01-lexical-str
 parse/invalid/double-numeric-separator.hd	parse	reject:invalid-token	01-lexical-structure.md#literals
 parse/invalid/binary-literal-bad-digit.hd	parse	reject:syntax-error	01-lexical-structure.md#literals
 parse/valid/identifier-interpolation.hd	parse	accept	01-lexical-structure.md#literals
-parse/invalid/stray-dollar-in-string.hd	parse	reject:syntax-error	01-lexical-structure.md#literals
+parse/valid/stray-dollar-in-string.hd	parse	accept	01-lexical-structure.md#r-lex.interp.dollar-text
 parse/valid/unicode-scalar-escape.hd	parse	accept	01-lexical-structure.md#literals
 parse/invalid/semicolon-after-binding.hd	parse	reject:reserved-semicolon	01-lexical-structure.md#literals
 parse/valid/raw-string-dollars.hd	parse	accept	01-lexical-structure.md#r-lex.prefix.interpolation
@@ -733,7 +733,7 @@ runtime/valid/evaluation-order-elements-and-indexing.hd	runtime	accept	05-expres
 runtime/valid/propagation-in-closure-targets-closure.hd	runtime	accept	05-expressions.md#propagation
 runtime/valid/result-propagation-evaluates-once.hd	runtime	accept	05-expressions.md#propagation
 runtime/valid/abrupt-assignment-stores-nothing.hd	runtime	accept	05-expressions.md#expression-categories
-runtime/valid/binding-expression-tuple-value.hd	runtime	accept	05-expressions.md#binding-expressions
+runtime/valid/binding-expression-tuple-value.hd	runtime	accept	05-expressions.md#r-expr.bind.tuple
 runtime/valid/method-receiver-before-arguments.hd	runtime	accept	07-functions.md#methods-and-receivers
 runtime/valid/associated-function-qualified-call.hd	runtime	accept	07-functions.md#methods-and-receivers
 typing/invalid/self-receiver-is-readonly.hd	type	reject:readonly-root	07-functions.md#methods-and-receivers
@@ -893,7 +893,7 @@ parse/invalid/qualified-bang-call-type-arguments-before-bang.hd	parse	reject:syn
 runtime/valid/list-suffix-spread.hd	runtime	accept	05-expressions.md#list-and-map-expressions
 typing/invalid/list-spread-non-list.hd	type	reject:type-mismatch	05-expressions.md#list-and-map-expressions
 runtime/valid/self-interpolation.hd	runtime	accept	05-expressions.md#literals
-parse/invalid/reserved-word-interpolation.hd	parse	reject:syntax-error	01-lexical-structure.md#string-and-character-literals
+parse/invalid/reserved-word-interpolation.hd	parse	reject:syntax-error	01-lexical-structure.md#r-lex.interp.reserved-dollar
 runtime/valid/contextual-words-as-names.hd	runtime	accept	01-lexical-structure.md#keywords-and-reserved-words
 parse/valid/contextual-reified.hd	parse	accept	01-lexical-structure.md#keywords-and-reserved-words
 parse/invalid/use-declaration-needs-root.hd	parse	reject:syntax-error	02-grammar.md#use-declarations
@@ -1280,7 +1280,7 @@ parse/invalid/old-bound-operator-impl.hd	parse	reject:old-bound-operator	02-gram
 parse/valid/bound-and-lists.hd	parse	accept	02-grammar.md#r-grammar.generic.bound.and
 runtime/valid/row-extension-absent-key-runs.hd	runtime	accept	11-requirements-and-suspension.md#r-req.row.least.absent-key
 parse/valid/prefixed-strings.hd	parse	accept	01-lexical-structure.md#prefixed-strings
-parse/invalid/prefixed-string-reserved-dollar.hd	parse	reject:syntax-error	01-lexical-structure.md#r-lex.prefix.reserved-dollar
+parse/invalid/prefixed-string-reserved-dollar.hd	parse	reject:syntax-error	01-lexical-structure.md#r-lex.interp.reserved-dollar
 parse/invalid/prefixed-string-pattern.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.pattern.no-prefixed-string
 typing/valid/string-prefix-user.hd	type	accept	05-expressions.md#r-expr.prefix.marker
 typing/valid/string-prefix-local-shadow.hd	type	accept	03-names-and-scopes.md#r-names.prefix.no-local
@@ -1422,7 +1422,7 @@ typing/valid/pub-use-chain.hd	type	accept	10-modules.md#r-module.pub-use.chain
 typing/invalid/pub-use-loop.hd	type	reject:re-export-loop	10-modules.md#r-module.pub-use.chain.loop
 runtime/valid/init-group-order.hd	runtime	accept	10-modules.md#r-module.init.group.step
 typing/invalid/init-group-cycle.hd	type	reject:top-level-read-before-initialization	10-modules.md#r-module.init.group.cycle
-runtime/valid/string-prefix-plain-dollar-digit.hd	runtime	accept	01-lexical-structure.md#r-lex.prefix.plain-dollar-start
+runtime/valid/string-prefix-plain-dollar-digit.hd	runtime	accept	01-lexical-structure.md#r-lex.interp.dollar-text
 runtime/valid/literal-suffix-default-parameter.hd	runtime	accept	05-expressions.md#r-expr.suffix.fn-shape.default
 typing/valid/row-union-private-result.hd	type	accept	11-requirements-and-suspension.md#r-req.row.union.sites
 runtime/valid/operator-string-add.hd	runtime	accept	05-expressions.md#r-expr.op.std.string-concat
@@ -1480,7 +1480,7 @@ typing/invalid/pipe-suspending-method-reference.hd	type	reject:suspending-pipe-s
 typing/valid/collect-targets.hd	type	accept	std/iter.md#collect-targets
 runtime/valid/collect-targets-run.hd	runtime	accept	std/iter.md#r-std-iter.collect.map
 typing/invalid/collect-target-not-fromiterator.hd	type	reject:unsatisfied-trait-bound	std/iter.md#r-std-iter.collect.bound
-runtime/valid/comprehension-propagation.hd	runtime	accept	05-expressions.md#r-expr.comp.propagation
+runtime/valid/comprehension-propagation.hd	runtime	accept	05-expressions.md#comprehension-restrictions
 runtime/valid/pipe-nested-placeholder.hd	runtime	accept	05-expressions.md#r-expr.pipe.slot.nested
 runtime/valid/pipe-bare-method-step.hd	runtime	accept	05-expressions.md#r-expr.pipe.bare.method
 runtime/valid/iterator-from-fn.hd	runtime	accept	06-control-flow.md#r-flow.for.iterator-from-fn
@@ -1521,8 +1521,8 @@ typing/valid/let-mut-optional.hd	type	accept	04-type-system.md#r-types.bind.let-
 typing/warnings/redundant-let-mut.hd	type	warn:redundant-let-mut	04-type-system.md#r-types.bind.let-mut-annotated.warning
 typing/valid/newtype-unwrap-permission.hd	type	accept	04-type-system.md#r-types.newtype.unwrap-permission
 typing/invalid/newtype-unwrap-readonly.hd	type	reject:mutable-upgrade	04-type-system.md#r-types.newtype.unwrap-permission
-runtime/valid/compound-assign-map-run.hd	runtime	accept	05-expressions.md#r-expr.assign.compound.map-present
-runtime/panic/compound-assign-map-missing-key.hd	runtime	panic:index-out-of-bounds	05-expressions.md#r-expr.assign.compound.map-missing
+runtime/valid/compound-assign-map-run.hd	runtime	accept	05-expressions.md#r-expr.index.map.read-value
+runtime/panic/compound-assign-map-missing-key.hd	runtime	panic:index-out-of-bounds	05-expressions.md#r-expr.index.map.read-value
 typing/warnings/derivation-block-decorator-std.hd	type	warn:unused-derivation-fact	14-annotations.md#r-annot.fact.unused-block-decorator.any-type
 typing/valid/operator-rhs-default.hd	type	accept	05-expressions.md#r-expr.op.trait.rhs-self
 typing/invalid/operator-rhs-default-mismatch.hd	type	reject:type-mismatch	05-expressions.md#r-expr.op.trait.rhs-self
@@ -1573,7 +1573,7 @@ runtime/panic/string-slice-reversed.hd	runtime	panic:index-out-of-bounds	10-modu
 typing/valid/index-traits-builtin.hd	type	accept	05-expressions.md#built-in-implementations
 typing/invalid/index-set-string.hd	type	reject:unsatisfied-trait-bound	05-expressions.md#r-expr.index.std.string-no-store
 runtime/valid/index-traits-builtin-run.hd	runtime	accept	05-expressions.md#r-expr.index.std.map
-runtime/panic/index-trait-map-missing.hd	runtime	panic:index-out-of-bounds	05-expressions.md#r-expr.index.std.map-read
+runtime/panic/index-trait-map-missing.hd	runtime	panic:index-out-of-bounds	05-expressions.md#r-expr.index.std.intrinsic
 typing/invalid/ambiguous-default-methods.hd	type	reject:ambiguous-method	09-traits.md#r-trait.conflict.ambiguous-available
 runtime/valid/never-break-continue.hd	runtime	accept	04-type-system.md#r-types.never.expressions
 typing/invalid/fresh-element-not-weakened.hd	type	reject:type-mismatch	04-type-system.md#r-types.fresh.element-no-weaken
@@ -1609,7 +1609,8 @@ typing/invalid/adapter-callback-scope-key.hd	type	reject:type-mismatch	std/iter.
 typing/valid/adapter-callback-captured-provider.hd	type	accept	std/iter.md#r-std-iter.adapter.callback-row.capture
 typing/warnings/same-line-bind-list-unused.hd	type	warn:unused-local-binding	02-grammar.md#r-grammar.inline.bind-list
 parse/invalid/grouped-binding-expression.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.expr.multi-binding.no-grouped
-parse/invalid/multi-binding-unwrapped-in-list.hd	parse	reject:multi-binding-needs-parentheses	02-grammar.md#r-grammar.expr.multi-binding.wrapped
+parse/invalid/multi-binding-in-list.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.expr.multi-binding.statement-only
+parse/invalid/multi-binding-nested.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.expr.multi-binding.statement-only
 typing/valid/mut-self-primitive-impl.hd	type	accept	04-type-system.md#r-types.prim.no-mut.self
 typing/warnings/let-list-redundant-mut.hd	type	warn:redundant-let-mut	04-type-system.md#r-types.bind.let-mut-pattern.redundant
 runtime/valid/try-operand-expected-type.hd	runtime	accept	05-expressions.md#r-expr.try.expected
@@ -1641,3 +1642,14 @@ typing/invalid/readonly-iterator-iterable-bound.hd	type	reject:unsatisfied-trait
 typing/valid/for-over-mut-iterator.hd	type	accept	06-control-flow.md#r-flow.for.iterator-direct
 runtime/valid/iterator-single-pass.hd	runtime	accept	06-control-flow.md#r-flow.for.iterator.position
 runtime/valid/structure-qualified-self.hd	runtime	accept	14-annotations.md#r-annot.template.structure-self
+parse/invalid/for-bare-name-list.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.flow.for-list.bare
+parse/invalid/comprehension-bare-name-list.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.flow.for-list.bare
+parse/valid/same-line-for-list.hd	parse	accept	02-grammar.md#r-grammar.inline.for-list
+runtime/valid/plain-dollar-text.hd	runtime	accept	01-lexical-structure.md#r-lex.interp.dollar-text
+runtime/valid/comprehension-bang-calls.hd	runtime	accept	05-expressions.md#r-expr.comp.suspension.sequential
+typing/invalid/mut-map-key.hd	type	reject:invalid-map-key	04-type-system.md#r-types.map-key.no-mut
+typing/invalid/user-map-key-bound.hd	type	reject:unsatisfied-trait-bound	04-type-system.md#r-types.map-key.declared-bound
+runtime/panic/map-index-missing-key.hd	runtime	panic:index-out-of-bounds	05-expressions.md#r-expr.index.map.read-value
+runtime/valid/map-index-reads-value.hd	runtime	accept	05-expressions.md#r-expr.index.map.get
+typing/valid/derived-arbitrary-generic.hd	type	accept	std/testing.md#r-std-testing.arbitrary.derive.params
+typing/invalid/derived-arbitrary-generic-bound.hd	type	reject:unsatisfied-trait-bound	std/testing.md#r-std-testing.arbitrary.derive.params

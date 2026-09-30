@@ -225,7 +225,8 @@ function scanInterpolation(
 }
 
 // `start` is the opening quote. A prefixed string (`raw`) keeps backslashes as
-// text and still interpolates; a `$` that begins no interpolation is text.
+// text and still interpolates. In every string, a `$` that begins no
+// interpolation is text.
 function scanString(source: string, start: number, initialLine: number, raw = false): StringScan {
   const diagnostics: Diagnostic[] = [];
   const quote = source[start]!;
@@ -285,11 +286,11 @@ function scanString(source: string, start: number, initialLine: number, raw = fa
         }
         continue;
       }
-      // `$name` takes an identifier or `self`; any other reserved word, like
-      // a character that cannot start an identifier, leaves a bare `$`. In a
-      // prefixed string a `$` before no identifier is text.
-      const named = startsInterpolatedName(source, index + 1);
-      if ((named || !raw) && (!named || !interpolatedName(source, index + 1)))
+      // `$name` takes an identifier or `self`; any other reserved word
+      // leaves a bare `$`, which is an error. In every string, plain or
+      // prefixed, a `$` before no identifier start is text
+      // (lex.interp.dollar-text).
+      if (startsInterpolatedName(source, index + 1) && !interpolatedName(source, index + 1))
         diagnostics.push(diagnostic("syntax-error", line));
       index += 1;
       continue;

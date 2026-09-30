@@ -1,0 +1,5 @@
+# test: a for over a parenthesized list may sit in a same-line suite and have a same-line body
+# Spec 02 Same-Line Suite Bodies: grammar.inline.for-list (owner decision SSC Q4, batch 26, 2026-09-30).
+fn visit(entries: Map[string, i32], ready: bool) -> void:
+    if ready: for (key, value) in entries: pass
+    for (key, value) in entries: pass

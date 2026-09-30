@@ -4,7 +4,7 @@ use std.testing.{assert, assert_equal}
 
 fn keys(values: Map[string, i32]) -> List[string]:
     let result: mut List[string] = []
-    for name, value in values:
+    for (name, value) in values:
         if value >= 0:
             result.append(name)
     result
@@ -13,7 +13,7 @@ tests:
     it("replacing a later map value during for is observed"):
         let values: mut Map[string, i32] = {"a": 1, "b": 2, "c": 3}
         let seen: mut List[i32] = []
-        for name, value in values:
+        for (name, value) in values:
             if name == "a":
                 values["c"] = 30
             seen.append(value)

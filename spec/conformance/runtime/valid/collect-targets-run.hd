@@ -15,7 +15,7 @@ fn find(text: string) -> i32?:
 tests:
     it("the last value of an equal key wins, at the key's first position"):
         let entries: Map[string, i32] = [("a", 1), ("b", 2), ("a", 3)].iter().collect()
-        assert_equal([for key, value in entries => "$key=$value"], ["a=3", "b=2"], reason="last value, first position")
+        assert_equal([for (key, value) in entries => "$key=$value"], ["a=3", "b=2"], reason="last value, first position")
 
     it("a Result target stops at the first error"):
         let mut source = ["1", "x", "22", "333"].iter()

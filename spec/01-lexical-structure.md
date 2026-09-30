@@ -648,10 +648,12 @@ string_literal = interpreted_string_literal
                | interpreted_multiline_string_literal
                ;
 interpreted_string_literal = '"',
-                             { string_character | escape_sequence }, '"' ;
+                             { string_character | escape_sequence
+                             | dollar_text }, '"' ;
 interpreted_multiline_string_literal = '"""',
                                        { multiline_string_character
-                                       | escape_sequence }, '"""' ;
+                                       | escape_sequence | dollar_text },
+                                       '"""' ;
 char_literal   = "'", (char_character | escape_sequence), "'" ;
 prefixed_string_literal = string_prefix, '"',
                           { prefixed_string_character }, '"'
@@ -673,6 +675,7 @@ multiline_string_character = ? any Unicode scalar value other than a backslash, 
 prefixed_string_character = ? any Unicode scalar value other than an unescaped double quote or a line ending ? ;
 prefixed_multiline_character = ? any Unicode scalar value other than the start of an unescaped """ delimiter ? ;
 char_character = ? any Unicode scalar value other than a single quote, a backslash, or a line ending ? ;
+dollar_text = ? a dollar sign followed by neither "{" nor a character that can start an identifier ? ;
 ```
 
 1. r[lex.string.quotes] Double quotes delimit a `string` literal.
@@ -686,6 +689,7 @@ char_character = ? any Unicode scalar value other than a single quote, a backsla
 | `prefixed_string_character` | any Unicode scalar value other than an unescaped `"` or a line ending |
 | `prefixed_multiline_character` | any Unicode scalar value other than the start of an unescaped `"""` delimiter |
 | `char_character` | any Unicode scalar value other than `'`, `\\`, or a line ending |
+| `dollar_text` | a `$` followed by neither `{` nor a character that can start an identifier, as [`lex.interp.dollar-text`](#r-lex.interp.dollar-text) states |
 
 1. r[lex.string.text-runs] `string_text` and `multiline_string_text` are maximal nonempty runs of their corresponding character class between interpolation or escape segments.
 2. r[lex.char.one-scalar] A character literal must decode to exactly one Unicode scalar value.
@@ -712,17 +716,22 @@ Kotlin-style interpolation:
 | r[lex.interp.expression] Expression | `${expression}` | an arbitrary expression with balanced nested delimiters |
 
 1. r[lex.interp.name-extent] The name after `$` extends over every identifier character.
-2. r[lex.interp.stray-dollar] An unescaped `$` must begin one of those forms. A `$` followed by any other reserved word, as in `"$true"`, or by a character that cannot start an identifier, as in `"costs $5"`, is an error. Error: `syntax-error`.
-3. r[lex.interp.escaped-dollar] `\$` produces a literal dollar sign.
-4. r[lex.interp.braces] Braces without a leading `$` are ordinary string content.
-5. r[lex.interp.scanning] The lexer switches back to normal expression tokenization inside `${...}` and resumes string scanning at the matching `}`.
+2. r[lex.interp.dollar-text] In every string, plain or prefixed, an unescaped `$` followed by neither `{` nor a character that can start an identifier is text. So `"costs $5"` keeps `$5` as text, and `"$"` is a one-character string.
+3. r[lex.interp.reserved-dollar] In every string, a `$` followed by a reserved word other than `self`, as in `"$true"` or `r"$true"`, is an error. Error: `syntax-error`.
+4. r[lex.interp.escaped-dollar] `\$` produces a literal dollar sign.
+5. r[lex.interp.braces] Braces without a leading `$` are ordinary string content.
+6. r[lex.interp.scanning] The lexer switches back to normal expression tokenization inside `${...}` and resumes string scanning at the matching `}`.
 
 ```text
 fn main() -> string:
     "flag: $true"  # error: syntax-error
 
-price := "$"  # error: syntax-error
+price := "costs $5"  # valid: `$5` is text
 ```
+
+> **Why.** A `$` before a digit, a space, or the closing quote can start no
+> interpolation, so it has one reading. Kotlin, whose templates hd follows,
+> keeps it as text. A prefixed and a plain string follow the same rule.
 
 #### Raw Strings
 
@@ -757,9 +766,11 @@ quoted := r"say \"hi\""
 10. r[lex.prefix.multiline] A multiline prefixed string may contain line endings, keeps them and its indentation as written, and continues until an unescaped `"""` delimiter.
 11. r[lex.prefix.no-hash] Hash-delimited prefixed strings are not part of the language.
 12. r[lex.prefix.interpolation] A prefixed string interpolates with the forms of [Interpolation](#interpolation): `$name`, `$self`, and `${expression}`.
-13. r[lex.prefix.reserved-dollar] A `$` followed by a reserved word other than `self`, as in `r"$true"`, is an error. Error: `syntax-error`.
-14. r[lex.prefix.plain-dollar-start] A `$` followed by neither `{` nor a character that can start an identifier is text, by the same test as [`lex.interp.stray-dollar`](#r-lex.interp.stray-dollar). So `r"^\d+$"` ends in a dollar sign, and `r"costs $5"` keeps `$5` as text.
-15. r[lex.prefix.meaning] The prefix is resolved as a name and the string is applied as a call, as [Prefixed Strings](05-expressions.md#prefixed-strings) specifies.
+13. r[lex.prefix.meaning] The prefix is resolved as a name and the string is applied as a call, as [Prefixed Strings](05-expressions.md#prefixed-strings) specifies.
+
+A `$` that begins no interpolation follows the rules of
+[Interpolation](#interpolation), as in every string. So `r"^\d+$"` ends
+in a dollar sign, and a reserved word after `$` is an error:
 
 ```text
 flag := r"$true"  # error: syntax-error

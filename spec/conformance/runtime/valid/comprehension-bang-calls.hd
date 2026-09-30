@@ -1,0 +1,21 @@
+# test: a comprehension in a suspending body may make bang calls, which run one at a time in clause order
+# Spec 05 Comprehension Restrictions: expr.comp.suspension, expr.comp.suspension.sequential (owner decision SSC Q2, batch 26, 2026-09-30).
+# expect: test
+use std.testing.assert_equal
+
+data Log:
+    text: string
+
+fn fetch!(log: mut Log, id: i32) -> string:
+    log.text = log.text + "<$id>"
+    "user$id"
+
+fn names!(log: mut Log, ids: List[i32]) -> List[string]:
+    [for id in ids if id != 2 => fetch!(log, id)]
+
+tests:
+    it("runs the bang calls in order"):
+        let mut log = Log { text: "" }
+        result := names!(log, [1, 2, 3])
+        assert_equal(result, ["user1", "user3"], reason="one element per path that reaches =>")
+        assert_equal(log.text, "<1><3>", reason="each call completes before the next path")

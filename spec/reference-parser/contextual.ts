@@ -161,11 +161,12 @@ const oldBoundOperator = new RegExp(
   "u",
 );
 
-// Chapter 02 `grammar.expr.multi-binding.wrapped`: a multi-name binding
-// directly inside `[...]` must sit in its own parentheses, as in
-// `[((a, b) := pair)]`. Flags `[(a, b) := pair]` and `[a, b := pair]`: a
-// `:=` whose innermost open bracket is `[`, after a comma at that depth or
-// after a parenthesized name list.
+// Chapter 02 `grammar.expr.multi-binding.statement-only`: a multi-name
+// binding is never part of an expression. The grammar already rejects
+// `[(a, b) := pair]` and `((a, b) := pair)`; `[a, b := pair]` would parse as
+// a list whose last element is a binding, so it is flagged here: a `:=`
+// whose innermost open bracket is `[`, after a comma at that depth or after
+// a parenthesized name list.
 function unwrappedMultiBinding(clean: string): boolean {
   const stack: { character: string; comma: boolean; start: number }[] = [];
   for (let index = 0; index < clean.length; index += 1) {
@@ -197,8 +198,7 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
     diagnostics.push(diagnostic("direct-variant-use", line));
   if (/\b[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+/u.test(clean))
     diagnostics.push(diagnostic("comparison-chaining", line));
-  if (unwrappedMultiBinding(clean))
-    diagnostics.push(diagnostic("multi-binding-needs-parentheses", line));
+  if (unwrappedMultiBinding(clean)) diagnostics.push(diagnostic("syntax-error", line));
   // A qualified bang call writes its type arguments after `!`
   // (chapter 02 `grammar.primary.method-reference.no-bang`).
   if (/::[\p{L}_][\p{L}\p{N}_]*::\[(?:[^[\]]|\[[^[\]]*\])*\]!\(/u.test(clean))

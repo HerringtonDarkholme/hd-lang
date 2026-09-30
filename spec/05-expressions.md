@@ -97,10 +97,8 @@ fn record(tally: mut Tally, hits: List[i64]) -> Meters:
 9. r[expr.assign.compound.index-read-write] On an index place, the read is `r[k]` and the store is `r[k] = v`. `List` and `Map` use their built-in indexing, and another type needs both `Index` and `IndexSet`, as [Index Traits](#index-traits) defines.
 10. r[expr.assign.compound.call-once] On a call place `v() op= e`, the callee `v` is evaluated once, then `e`.
 11. r[expr.assign.compound.call-read-write] On a call place, the read is `v()` and the store is `v() = x`, so the callee's type needs both `Apply` and `Update`, as [Callable Values](#callable-values) defines.
-12. r[expr.assign.compound.map-present] On a `Map[K, V]`, the read differs from a plain `m[k]`: it has type `V`, as if the key must exist.
-13. r[expr.assign.compound.map-missing] When the map holds no equal key, that read is a checked runtime panic with category `index-out-of-bounds`, and nothing is stored.
-14. r[expr.assign.compound.fresh-value] On a composite value, the store replaces the place's value with the operator's result. Other references to the old value keep the old value.
-15. r[expr.assign.compound.no-assign-traits] `std.ops` declares no assign trait, and no operator changes a value in place.
+12. r[expr.assign.compound.fresh-value] On a composite value, the store replaces the place's value with the operator's result. Other references to the old value keep the old value.
+13. r[expr.assign.compound.no-assign-traits] `std.ops` declares no assign trait, and no operator changes a value in place.
 
 ```text
 data Tally:
@@ -598,15 +596,28 @@ See also: [Method References](07-functions.md#method-references).
 #### Map Indexing
 
 1. r[expr.index.map.type] For `Map[K, V]`, the index must have type `K`.
-2. r[expr.index.map.read] Reading `entries[key]` returns `V?`: `.None` means no equal key exists.
-3. r[expr.index.map.generic] The generic `V` is preserved through a readonly map, including `mut U` when `V = mut U`; unwrapping the optional returns `V`.
-4. r[expr.index.map.assign] Assigning `entries[key] = value` requires `mut Map[K, V]` and inserts or replaces the entry.
-5. r[expr.index.map.library] Removal and entry APIs are standard-library methods rather than special syntax.
+2. r[expr.index.map.read-value] Reading `entries[key]` returns `V`. When the map holds no equal key, the read is a checked runtime panic. Panic: `index-out-of-bounds`.
+3. r[expr.index.map.value-type] The read's type is the declared `V`, preserved through a readonly map, including `mut U` when `V = mut U`.
+4. r[expr.index.map.get] The optional read is the built-in method `get`: `entries.get(key)` returns `V?`, and `.None` means no equal key exists.
+5. r[expr.index.map.assign] Assigning `entries[key] = value` requires `mut Map[K, V]` and inserts or replaces the entry.
+6. r[expr.index.map.library] Removal and entry APIs are standard-library methods rather than special syntax.
 
-> **Note.** A compound assignment such as `counts[w] += 1` reads the entry
-> as `V` and panics when the key is missing, as
-> [`expr.assign.compound.map-missing`](#r-expr.assign.compound.map-missing)
-> states.
+```text
+fn score(scores: Map[string, i32], name: string) -> i32:
+    match scores.get(name):
+        .Some(value) => value
+        .None => 0
+
+fn strict(scores: Map[string, i32], name: string) -> i32:
+    scores[name]  # panics with index-out-of-bounds when `name` is absent
+```
+
+> **Why.** A map read means one thing everywhere: `m[k]`,
+> `m[k] += v`, and `Index::index` all read `V`, as a list index reads `T`.
+> Rust and Python also panic or raise on a missing key and offer `get` for
+> the optional read.
+
+See also: [Built-In Methods](10-modules.md#built-in-methods).
 
 #### String Indexing
 
@@ -725,10 +736,9 @@ fn lead(counts: mut List[i32], text: string) -> u8:
 | r[expr.index.std.map] Map | `Map[K, V]` | `Index[K]` with `Out = V`, and `IndexSet[K, V]` |
 | r[expr.index.std.string] String | `string` | `Index[i32]` with `Out = u8`, and no `IndexSet` |
 
-1. r[expr.index.std.intrinsic] The body of each implementation in the table is a compiler intrinsic. It behaves as the built-in indexing of its type, including the checks and their panics.
-2. r[expr.index.std.map-read] The exception is `Map`'s `index`: it returns `V`, not `V?`, and panics when no equal key exists. Panic: `index-out-of-bounds`.
-3. r[expr.index.std.map-store] `Map`'s `index_set` inserts or replaces the entry, as `entries[key] = value` does.
-4. r[expr.index.std.string-no-store] `string` implements no `IndexSet`, so a bound such as `IndexSet[i32, u8]` rejects it. Error: `unsatisfied-trait-bound`.
+1. r[expr.index.std.intrinsic] The body of each implementation in the table is a compiler intrinsic. It behaves as the built-in indexing of its type, including the checks and their panics, so `Map`'s `index` panics when no equal key exists.
+2. r[expr.index.std.map-store] `Map`'s `index_set` inserts or replaces the entry, as `entries[key] = value` does.
+3. r[expr.index.std.string-no-store] `string` implements no `IndexSet`, so a bound such as `IndexSet[i32, u8]` rejects it. Error: `unsatisfied-trait-bound`.
 
 ```text
 use std.ops.IndexSet
@@ -1606,13 +1616,17 @@ if (size := input.len()) > 0:
 2. r[expr.bind.precedence] `:=` has the lowest precedence.
 3. r[expr.bind.parens] Parentheses are required when a binding appears as an operand of another expression, as above.
 4. r[expr.bind.tuple] For tuple binding, the right side must be a tuple of the same arity; any other value is an error. Error: `type-mismatch`.
-5. r[expr.bind.tuple.value] The value of the whole binding expression is the original tuple value.
 
 ```text
 fn run() -> i32:
     (first, second) := (1, 2, 3)  # error: type-mismatch
     first
 ```
+
+> **Note.** A tuple binding such as `(a, b) := pair` is a statement, never
+> part of an expression, as
+> [`grammar.expr.multi-binding.statement-only`](02-grammar.md#r-grammar.expr.multi-binding.statement-only)
+> states. Only a single-name binding has a value.
 
 See also: [Binding Expressions](03-names-and-scopes.md#binding-expressions),
 which defines the binding's scope.
@@ -1643,18 +1657,25 @@ by_id := {for user in users if user.active => user.id: user}
 ### Comprehension Restrictions
 
 1. r[expr.comp.eager] Comprehensions are eager.
-2. r[expr.comp.no-suspension] Comprehensions cannot contain suspension calls. A bang call inside one is an error. Error: `suspension-forbidden-context`.
-3. r[expr.comp.no-jumps] `return`, `break`, and `continue` are not valid inside a comprehension.
-4. r[expr.comp.no-let] There is no comprehension `let` clause.
-5. r[expr.comp.propagation] Postfix `?` is valid inside a comprehension. It returns from the nearest enclosing function or closure, as anywhere else.
-6. r[expr.comp.propagation.stop] When `?` returns, the comprehension stops: it evaluates no later clause, guard, or element.
+2. r[expr.comp.suspension] A comprehension follows the loops it abbreviates, so a bang call inside it is valid exactly where it would be valid in those loops: in a [driver context](11-requirements-and-suspension.md#r-req.bang.driver-contexts). Outside one it is an error. Error: `bang-call-outside-suspension`.
+3. r[expr.comp.suspension.sequential] The bang calls of a comprehension run one at a time, in the order the loops reach them: each call completes before the comprehension evaluates any later clause, guard, key, or element.
+4. r[expr.comp.no-jumps] `return`, `break`, and `continue` are not valid inside a comprehension.
+5. r[expr.comp.no-let] There is no comprehension `let` clause.
 
 ```text
-fn ready!() -> i32: 1
+fn fetch!(id: i32) -> string: "user"
 
-fn main!() -> List[i32]:
-    [for value in [1] => ready!()]  # error: suspension-forbidden-context
+fn names!(ids: List[i32]) -> List[string]:
+    [for id in ids => fetch!(id)]
+
+fn invalid(ids: List[i32]) -> List[string]:
+    [for id in ids => fetch!(id)]  # error: bang-call-outside-suspension
 ```
+
+> **Note.** Postfix `?` inside a comprehension returns from the nearest
+> enclosing function or closure, as it would from the loop. The
+> comprehension then stops: it evaluates no later clause, guard, or
+> element.
 
 In place of a `let` clause, use a parenthesized `:=` binding in a guard or
 result expression:

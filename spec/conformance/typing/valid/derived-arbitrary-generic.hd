@@ -1,0 +1,12 @@
+# test: derived Arbitrary on a generic type bounds each type parameter a member uses by Arbitrary & Inspectable
+# Spec std/testing Derived Arbitrary: std-testing.arbitrary.derive.params (owner decision AT-gen, batch 26, 2026-09-30).
+use std.testing.Arbitrary
+
+@derive(Arbitrary, Debug)
+data Box[T]:
+    value: T
+
+fn needs[T < Arbitrary](value: T) -> T: value
+
+fn check(item: Box[i32]) -> Box[i32]:
+    needs(item)

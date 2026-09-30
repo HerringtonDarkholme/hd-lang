@@ -1,3 +1,3 @@
 # test: a dollar before a reserved word is an error in a prefixed string
-# Spec 01 Prefixed Strings: lex.prefix.reserved-dollar.
+# Spec 01 Prefixed Strings: lex.interp.reserved-dollar (SSC Q3, batch 26).
 flag := r"$true"  # diagnostic: syntax-error

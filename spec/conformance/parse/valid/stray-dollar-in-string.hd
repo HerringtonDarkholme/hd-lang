@@ -1,0 +1,4 @@
+# test: a dollar sign before the closing quote is text
+# Spec 01 Interpolation: lex.interp.dollar-text (owner decision SSC Q3, batch 26, 2026-09-30).
+
+value := "price: $"

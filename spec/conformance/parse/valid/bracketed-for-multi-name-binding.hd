@@ -2,4 +2,4 @@
 # expect: parse
 
 fn visit(entries: Map[string, i32]) -> void:
-    (for key, value in entries: pass)
+    (for (key, value) in entries: pass)

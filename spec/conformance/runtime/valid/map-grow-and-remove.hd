@@ -17,7 +17,7 @@ fn main() -> i32:
         .Some(value) => value
         .None => 0
     let remaining = 0
-    for key, value in values:
+    for (key, value) in values:
         _ := key
         remaining = remaining + value
     removed + missing + remaining

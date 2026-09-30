@@ -1,5 +1,10 @@
-fn lookup(scores: Map[string, i32], id: string) -> i32?:
+# test: m[k] reads V; m.get(k) reads V?; m[k] = v stores
+# Spec 05 Map Indexing: expr.index.map.read-value, expr.index.map.get (owner decision SSC Q8, batch 26, 2026-09-30).
+fn lookup(scores: Map[string, i32], id: string) -> i32:
     scores[id]
+
+fn find(scores: Map[string, i32], id: string) -> i32?:
+    scores.get(id)
 
 fn insert(scores: mut Map[string, i32], id: string, score: i32) -> void:
     scores[id] = score

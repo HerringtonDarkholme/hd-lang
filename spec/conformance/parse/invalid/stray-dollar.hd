@@ -1,2 +1,0 @@
-# test: an unescaped dollar sign must begin an interpolation
-price := "$"  # diagnostic: syntax-error

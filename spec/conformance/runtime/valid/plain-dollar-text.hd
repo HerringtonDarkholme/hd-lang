@@ -1,0 +1,10 @@
+# test: in a plain string, a $ before a character that cannot start an identifier is text, as in a prefixed string
+# Spec 01 Interpolation: lex.interp.dollar-text (owner decision SSC Q3, batch 26, 2026-09-30).
+use std.testing.assert_equal
+
+tests:
+    it("keeps a dollar that begins no interpolation as text"):
+        name := "Ada"
+        assert_equal("costs $5", "costs \$5", reason="5 cannot start an identifier")
+        assert_equal("$5 for $name", "\$5 for Ada", reason="an identifier start interpolates")
+        assert_equal("$", "\$", reason="a dollar before the closing quote is text")

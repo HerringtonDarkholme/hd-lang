@@ -36,6 +36,6 @@ tests:
         values := [positive, negative]
         assert(values[0] > values[1], reason="list elements keep their values")
         lookup := {"high": positive}
-        match lookup["high"]:
+        match lookup.get("high"):
             .Some(value) => assert(value == positive, reason="map values keep inf")
             .None => panic("map lost its value")

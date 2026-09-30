@@ -1,5 +1,5 @@
 # test: += on a present map entry reads it as V, then stores the sum
-# Spec 05 Compound Assignment: expr.assign.compound.map-present (evening follow-up 5, 2026-09-29).
+# Spec 05 Compound Assignment and Map Indexing: expr.assign.compound.index-read-write, expr.index.map.read-value (evening follow-up 5, 2026-09-29; SSC Q8, batch 26).
 use std.testing.assert_equal
 
 fn count(words: List[string]) -> Map[string, i32]:
@@ -11,5 +11,5 @@ fn count(words: List[string]) -> Map[string, i32]:
 tests:
     it("adds to present entries"):
         counts := count(["a", "b", "a"])
-        assert_equal(counts["a"], .Some(2), reason="two a")
-        assert_equal(counts["b"], .Some(1), reason="one b")
+        assert_equal(counts["a"], 2, reason="two a")
+        assert_equal(counts["b"], 1, reason="one b")

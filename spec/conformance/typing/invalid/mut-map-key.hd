@@ -1,0 +1,9 @@
+# test: a mut key type is an error, even when its type implements Eq and Hash
+# Spec 04 Map Key Types: types.map-key.no-mut (owner decision SSC Q7, batch 26, 2026-09-30).
+@derive(Eq, Hash)
+data Session:
+    token: string
+
+fn setup() -> void:
+    let open: Map[mut Session, i32] = {}  # diagnostic: invalid-map-key
+    pass

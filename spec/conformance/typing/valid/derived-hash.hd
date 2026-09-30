@@ -14,7 +14,7 @@ enum Status:
     Failed(code: i32, reason: string)
 
 fn lookup_key(items: Map[Key, i32], key: Key) -> i32?:
-    items[key]
+    items.get(key)
 
 fn lookup_status(items: Map[Status, i32], status: Status) -> i32?:
-    items[status]
+    items.get(status)

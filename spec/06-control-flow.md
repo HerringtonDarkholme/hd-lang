@@ -112,12 +112,12 @@ for value in values:
 1. r[flow.for.iterable-once] The iterable expression is evaluated exactly once.
 2. r[flow.for.fresh-iterator] A new iterator is obtained for each execution of the loop.
 3. r[flow.for.binding] The binding pattern receives each yielded value before the body executes.
-4. r[flow.for.tuple-binding] A binding list of several names, such as `for key, value in entries`, destructures each yielded value as a tuple.
+4. r[flow.for.tuple-binding] A binding list of several names, such as `for (key, value) in entries`, destructures each yielded value as a tuple.
 5. r[flow.for.tuple-arity] When the yielded type is not a tuple of that arity, the loop is an error. Error: `type-mismatch`.
 
 ```text
 fn bad(values: List[i32]) -> void:
-    for left, right in values:  # error: type-mismatch
+    for (left, right) in values:  # error: type-mismatch
         pass
 ```
 

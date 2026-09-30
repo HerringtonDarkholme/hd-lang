@@ -1,0 +1,8 @@
+# test: reading a missing key with m[k] panics
+# Spec 05 Map Indexing: expr.index.map.read-value (owner decision SSC Q8, batch 26, 2026-09-30).
+fn strict(scores: Map[string, i32], name: string) -> i32:
+    scores[name]  # panic: index-out-of-bounds
+
+tests:
+    it("panics on a missing key"):
+        _ := strict({"ada": 36}, "grace")

@@ -1,6 +1,7 @@
-# test: comprehensions reject suspension calls
+# test: a bang call in a comprehension outside a driver context is an error, as it is in the loop the comprehension abbreviates
+# Spec 05 Comprehension Restrictions: expr.comp.suspension (owner decision SSC Q2, batch 26, 2026-09-30).
 
-fn ready!() -> i32: 1
+fn fetch!(id: i32) -> string: "user"
 
-fn main!() -> List[i32]:
-    [for value in [1] => ready!()]  # diagnostic: suspension-forbidden-context
+fn invalid(ids: List[i32]) -> List[string]:
+    [for id in ids => fetch!(id)]  # diagnostic: bang-call-outside-suspension

@@ -1,4 +1,4 @@
 # test: collections / maps / float key
 
 fn main() -> void:
-    values := {1.5: 1}  # diagnostic: invalid-map-key
+    values := {1.5: 1}  # diagnostic: unsatisfied-trait-bound

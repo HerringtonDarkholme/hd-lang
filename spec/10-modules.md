@@ -636,7 +636,7 @@ is explicit:
 
 ```text
 fn first_word(text: string) -> string:
-    for offset, letter in text.char_indices():
+    for (offset, letter) in text.char_indices():
         if letter == ' ':
             return text.slice(0, offset)
     text

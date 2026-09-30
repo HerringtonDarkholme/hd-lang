@@ -16,7 +16,7 @@ fn total_length(users: List[User]) -> i32:
 
 fn value_length(users: Map[string, User]) -> i32:
     let total: i32 = 0
-    for key, user in users:
+    for (key, user) in users:
         total = total + key.len() + user.name.len()
     total
 

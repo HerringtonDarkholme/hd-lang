@@ -17,7 +17,7 @@ fn main!() -> i32:
             continue
         total = total + value
     scores := {"a": 10, "b": 20}
-    for key, score in scores:
+    for (key, score) in scores:
         total = total + score + key.len() - 1
     for entry in {"c": 7}:
         total = total + entry._1

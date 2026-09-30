@@ -1,4 +1,4 @@
 
 type UserId(string)
 
-let users: Map[UserId, string] = {}  # diagnostic: invalid-map-key
+let users: Map[UserId, string] = {}  # diagnostic: unsatisfied-trait-bound
