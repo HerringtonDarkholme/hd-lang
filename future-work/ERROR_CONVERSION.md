@@ -1,6 +1,6 @@
 # Error Conversion: The `@error` Intrinsic
 
-Status: decisions 28-30 (batch 11) are decided, not yet applied. Nothing here is
+Status: every owner decision of this record is applied. Nothing here is
 accepted behavior; the specification is authoritative. Decisions 1-9, 11,
 and 13-20 (2026-09-26 and 2026-09-27) are applied, or superseded by the
 testing redesign:
@@ -16,7 +16,9 @@ testing redesign:
 Decisions 10 and 12, the `@error` intrinsic, were applied on 2026-09-29 in
 [Error Derivation](../spec/14-annotations.md#error-derivation). The
 owner answered its apply-pass points as decisions 21-27, applied the same
-day, and the second pass's points as decisions 28-30 (batch 11).
+day, and the second pass's points as decisions 28-30 (batch 11), also
+applied the same day. One point from applying them is under
+[Still Open](#still-open).
 
 The error-chain helpers (`Context`, `.context`, `chain`, `find`,
 `root_cause`, `ErrorReport`) are library API in
@@ -101,8 +103,8 @@ recommended):
 | 26 | [`annot.error.no-use`](../spec/14-annotations.md#r-annot.error.no-use) |
 | 27 | the existing rules, unchanged; the misplaced forms take decision 21's code |
 
-Decided 2026-09-29 (batch 11, the second apply pass's points; all as
-recommended), not yet applied:
+Decided and applied 2026-09-29 (batch 11, the second apply pass's points;
+all as recommended):
 
 28. **ERR SO7: a parameter only a message interpolates.** A type parameter
     that only a message interpolates, as `T` in `Got(value: T)` with
@@ -116,6 +118,12 @@ recommended), not yet applied:
     no interpolated, transparent, `@from`, or `@source` member has the
     type `P`.
 
+| Decision | Rules |
+| --- | --- |
+| 28 | [`annot.error.bound.interpolated`](../spec/14-annotations.md#r-annot.error.bound.interpolated) |
+| 29 | [`annot.error.form.argument`](../spec/14-annotations.md#r-annot.error.form.argument), [`.form.argument.examples`](../spec/14-annotations.md#r-annot.error.form.argument.examples) |
+| 30 | [`annot.error.form.misplaced.examples`](../spec/14-annotations.md#r-annot.error.form.misplaced.examples), [`annot.error.bound.carried`](../spec/14-annotations.md#r-annot.error.bound.carried), unchanged |
+
 ## Current Design
 
 The specification holds the design:
@@ -123,12 +131,35 @@ The specification holds the design:
 
 ## Still To Do
 
-Apply decisions 28-30 (batch 11).
+Nothing remains to apply. The point below waits for the owner.
 
 ## Still Open
 
-Nothing waits for the owner.
+Applying decisions 28-30 met this point. The Applied column says what the
+specification states now.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 9 | Which code rejects an `@from` or `@source` line with arguments inside an error type, such as `@from(yaml)`? Decision 29 covers only `@error`'s arguments, and decision 21 covers a marker before a wrong target. | "Invalid", with no code ([`annot.error.form.other`](../spec/14-annotations.md#r-annot.error.form.other)); the Note under [Generated Error Bounds](../spec/14-annotations.md#generated-error-bounds) names it | `invalid-error-marker`, as for a wrong `@error` argument: a marker takes no value. |
+
+Point 9 in hd:
+
+```text
+@error("bad yaml")
+data YamlError:
+    line: i64
+
+@error
+enum LoadError:
+    @error("bad config")
+    Yaml(@from(yaml) error: YamlError)
+```
 
 ## Parse Log
 
-This record has no `text` block.
+The one `text` block of this record parses with the reference parser.
+Parsing checks syntax only.
+
+| Block | Result |
+| --- | --- |
+| 1 (`LoadError`) | parse |
