@@ -1,5 +1,5 @@
 # test: a chained binding cannot continue with a multi-name pattern
 
 fn pairs() -> void:
-    a, b := c, d := fn() -> (i32, i32): (1, 2)  # diagnostic: syntax-error
+    (a, b) := (c, d) := fn() -> (i32, i32): (1, 2)  # diagnostic: syntax-error
     pass

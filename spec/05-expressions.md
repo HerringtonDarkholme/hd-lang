@@ -1491,7 +1491,7 @@ if (trimmed := input.trim()) != "":
 
 ```text
 fn run() -> i32:
-    first, second := (1, 2, 3)  # error: type-mismatch
+    (first, second) := (1, 2, 3)  # error: type-mismatch
     first
 ```
 

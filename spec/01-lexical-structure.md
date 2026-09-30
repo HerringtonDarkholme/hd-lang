@@ -106,6 +106,7 @@ names := users
 11. r[lex.dot.suite-line] So does the first line of an indented suite, whose header ends in `:`.
 12. r[lex.dot.where] The rule applies at delimiter depth zero and on the body lines of a suite nested inside delimiters. Elsewhere inside delimiters every line already continues.
 13. r[lex.continue.no-other-operator] A line starting with a binary operator other than `|>` never continues the previous line.
+14. r[lex.continue.paren-line] A line whose first token is `(` never continues the previous line either. Outside delimiters it starts a new logical line, so `f` on one line and `(a, b) := pair` on the next are two statements, never the call `f(a, b)`.
 
 ```text
 fn trimmer() -> fn(string) -> string:

@@ -1,0 +1,9 @@
+# test: a multi-name := binding puts its names in parentheses
+# Spec 02 Short Binding Lists: grammar.stmt.bind-list and .not-tuple (owner decision Q1, 2026-09-30).
+fn pair() -> (i32, i32): (1, 2)
+
+fn split(flag: bool) -> i32:
+    (low, high) := pair()
+    (first, second) := whole := pair()
+    (left, right) := if flag: pair() else: whole
+    low + high + first + second + left + right

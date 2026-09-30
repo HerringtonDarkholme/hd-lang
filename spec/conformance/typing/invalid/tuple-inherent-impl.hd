@@ -1,0 +1,6 @@
+# test: an inherent implementation cannot target a tuple
+# Spec 09 Implementation Ownership: trait.own.inherent.tuple-alias (Spec follow-up SF4, owner decision 2026-09-30).
+
+impl (i32, i32):  # diagnostic: invalid-impl-target
+    fn sum(self) -> i32:
+        self._0 + self._1

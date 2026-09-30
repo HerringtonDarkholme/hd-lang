@@ -1,0 +1,45 @@
+# test: List, Map, optional, Result, and tuple members whose simplest value needs no enum value leave a variant non-recursive
+# Spec 10 Derived Arbitrary: module.testing.arbitrary.derive.recursive and .recursive.containers; Draw Budget:
+# module.testing.budget.simplest.optional, .result, and .tuple (Testing Q7, Q8, owner decisions 2026-09-30).
+use std.testing.{Arbitrary, it_prop}
+
+@derive(Arbitrary, Debug)
+enum Tree:
+    Node(children: List[Tree])
+
+@derive(Arbitrary, Debug)
+enum Index:
+    Entries(entries: Map[string, Index])
+
+@derive(Arbitrary, Debug)
+enum Chain:
+    Link(next: Chain?)
+
+@derive(Arbitrary, Debug)
+enum Pairing:
+    Both(pair: (i32, Pairing?))
+
+@derive(Arbitrary, Debug)
+enum Outcome:
+    Done(result: Result[i32, Outcome])
+
+tests:
+    it_prop("a list member ends a tree", prop=fn!(tree: Tree):
+        pass
+    )
+
+    it_prop("a map member ends an index", prop=fn!(index: Index):
+        pass
+    )
+
+    it_prop("an optional member ends a chain", prop=fn!(chain: Chain):
+        pass
+    )
+
+    it_prop("a tuple of simplest values ends a pairing", prop=fn!(pairing: Pairing):
+        pass
+    )
+
+    it_prop("an Ok of the simplest i32 ends an outcome", prop=fn!(outcome: Outcome):
+        pass
+    )

@@ -1,0 +1,11 @@
+# test: an inherent implementation cannot target a transparent alias, even of a local data type
+# Spec 09 Implementation Ownership: trait.own.inherent.tuple-alias (Spec follow-up SF4, owner decision 2026-09-30).
+
+data User:
+    name: string
+
+type Person = User
+
+impl Person:  # diagnostic: invalid-impl-target
+    fn label(self) -> string:
+        self.name

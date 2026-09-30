@@ -110,7 +110,7 @@ suite_statement = defer_statement
                 | suite_expression
                 | trailing_block_call
                 | "_", ":=", suite_right_side
-                | binding_pattern, ":=", { identifier, ":=" },
+                | binding_target, ":=", { identifier, ":=" },
                   suite_right_side
                 | "let", let_pattern, [ ":", type ], "=",
                   suite_right_side
@@ -137,8 +137,7 @@ simple_statement = let_statement
 let_statement = "let", let_pattern, [ ":", type ], "=",
                 closed_expression ;
 
-short_binding_statement = identifier, ",", identifier,
-                          { ",", identifier }, ":=", closed_expression ;
+short_binding_statement = binding_list, ":=", closed_expression ;
 
 discard_statement = "_", ":=", closed_expression ;
 
@@ -155,6 +154,9 @@ continue_statement = "continue" ;
 expression_statement = closed_expression ;
 
 binding_pattern = identifier, { ",", identifier } ;
+
+binding_target = identifier | binding_list ;
+binding_list = "(", identifier, ",", identifier, { ",", identifier }, ")" ;
 
 let_pattern = let_name
             | "(", let_name, ",", let_name, { ",", let_name }, ")"
@@ -198,6 +200,30 @@ fn invalid() -> void:
 > `let` uses them even without `mut`, since one shape reads better than two
 > spellings.
 
+### Short Binding Lists
+
+1. r[grammar.stmt.bind-list] A multi-name `:=` binding always puts its names in parentheses, as in `(a, b) := pair`.
+2. r[grammar.stmt.bind-list.bare] A multi-name `:=` binding without parentheses, as in `a, b := pair`, is an error whose fix-it adds the parentheses. Error: `syntax-error`.
+3. r[grammar.stmt.bind-list.two-names] A parenthesized list must hold at least two names, so `(a) := pair` is an error. Error: `syntax-error`.
+4. r[grammar.stmt.bind-list.not-tuple] At the start of a statement, `(`, two or more names separated by commas, `)`, and `:=` always form this binding. The parenthesized names are never a tuple expression.
+5. r[grammar.stmt.bind-list.new-statement] A line that starts with `(` never continues the previous line as a call, as [`lex.continue.paren-line`](01-lexical-structure.md#r-lex.continue.paren-line) states. So a binding list on the line after `limit := low` is its own statement, never the call `low(first, second)`.
+
+```text
+fn pair() -> (i32, i32): (1, 2)
+
+fn split() -> i32:
+    (low, high) := pair()  # valid
+    limit := low
+    (first, second) := pair()  # valid: a new statement
+    a, b := pair()  # error: syntax-error
+    (only) := pair()  # error: syntax-error
+    limit + high + first + second
+```
+
+> **Why.** A `let` list and a `:=` list put their names in parentheses the
+> same way, as in `let (a, b) = pair` and `(a, b) := pair`. One shape reads
+> better than two spellings.
+
 ### Discard And Defer Statements
 
 1. r[grammar.stmt.discard] The dedicated discard forms make `_ := expression` a statement without making the placeholder `_` an identifier or a binding pattern.
@@ -211,12 +237,12 @@ fn invalid() -> void:
 3. r[grammar.stmt.suite.right-side] This separate production is what permits `value := if ...`, `let callback = fn ...`, and similar direct right-hand-side forms.
 4. r[grammar.stmt.suite.trailing-block] Every right-hand side that accepts a suite expression, after `:=`, `let ... =`, `=`, `_ :=`, `return`, and `break`, also accepts a trailing block call.
 5. r[grammar.stmt.chain] A chain of bindings continues only with single names, as in `a := b := if c: 1 else: 2`.
-6. r[grammar.stmt.chain.multi-name-first] A multi-name pattern may only come first, so `a, b := c, d := pair` is a syntax error with or without a suite. Error: `syntax-error`.
+6. r[grammar.stmt.chain.multi-name-first] A multi-name pattern may only come first, so `(a, b) := (c, d) := pair` is a syntax error with or without a suite. Error: `syntax-error`.
 7. r[grammar.stmt.suite.in-delimiters] A suite expression nested inside delimiters remains part of its enclosing expression, and the enclosing statement ends normally after the closing delimiter.
 
 ```text
 fn pairs() -> void:
-    a, b := c, d := fn() -> (i32, i32): (1, 2)  # error: syntax-error
+    (a, b) := (c, d) := fn() -> (i32, i32): (1, 2)  # error: syntax-error
     pass
 ```
 
@@ -242,7 +268,7 @@ fn choose(flag: bool) -> i32:
 5. r[grammar.inline.nested-if] Parentheses nest a conditional, as in `if a: (if b: 1 else: 2) else: 3`, and an indented body may hold one.
 6. r[grammar.inline.else-if] `else if` continues the same conditional rather than nesting one.
 7. r[grammar.inline.loops] Same-line `for` and `while` loops may still appear directly in a same-line suite.
-8. r[grammar.inline.multi-name-binding] A multi-name binding such as `a, b := pair` needs an indented body or parentheses, as in `(a, b := pair)`.
+8. r[grammar.inline.multi-name-binding] A multi-name binding statement such as `(a, b) := pair` needs an indented body, so `if ok: (a, b) := pair` is an error. A same-line suite may hold the grouped binding expression `(a, b := pair)` instead. Error: `syntax-error`.
 9. r[grammar.inline.multi-name-for] A `for` over several names needs an indented body.
 10. r[grammar.inline.let-list] A parenthesized `let` list may be a same-line suite body, as in `if ok: let (a, b) = pair` and `if ok: let (mut log, db) = pair`, because its commas are inside parentheses.
 11. r[grammar.inline.bare-comma] The bare comma forms still close the suite, so `if ok: a, b := pair` and `if ok: let a, b = pair` are syntax errors. Error: `syntax-error`.
@@ -260,6 +286,7 @@ fn release(flag: bool) -> void:
     defer: if flag: pass  # error: syntax-error
     if flag: a, b := pair()  # error: syntax-error
     if flag: let a, b = pair()  # error: syntax-error
+    if flag: (a, b) := pair()  # error: syntax-error
 ```
 
 > **Note.** A binding is scoped to its block, so a name that a same-line
@@ -964,7 +991,7 @@ inside := 0 < value < 10  # error: comparison-chaining
 
 ### Multi-Name Bindings
 
-1. r[grammar.expr.multi-binding] A multi-name short binding such as `a, b := value` is a statement.
+1. r[grammar.expr.multi-binding] A multi-name short binding such as `(a, b) := value` is a statement.
 2. r[grammar.expr.multi-binding.nested] When used as a nested expression, including inside any delimiter, the complete binding must be parenthesized: `(a, b := value)`. Error: `multi-binding-needs-parentheses`.
 3. r[grammar.expr.multi-binding.not-tuple] Inside parentheses, the token sequence `identifier, identifier, ... :=` always forms this grouped binding; it is never a tuple whose final element is a binding expression.
 4. r[grammar.expr.multi-binding.tuple-element] A tuple that contains a binding must parenthesize that element separately, as in `(a, (b := value))`.

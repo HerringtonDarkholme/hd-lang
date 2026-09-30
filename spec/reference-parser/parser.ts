@@ -29,6 +29,9 @@ export function parserSelfTest(): string[] {
     ["flags := [x == 1, y != 2]\n", true],
     ['fn f() -> void: log("a;b")\n', true],
     ['fn f() -> void: log("a < b > c")\n', true],
+    ["fn f(pair: (i32, i32)) -> void:\n    (a, b) := pair\n", true],
+    ["fn f(pair: (i32, i32)) -> void:\n    a, b := pair\n", false],
+    ["fn f(g: fn(i32, i32) -> i32, pair: (i32, i32)) -> void:\n    g\n    (a, b) := pair\n", true],
     [
       "fn f(flag: bool) -> void:\n    let total: i32 = 1\n    if flag: total = 2\n    else: total = 0\n",
       true,

@@ -494,7 +494,6 @@ runtime/valid/suspending-call-in-scoped-defer.hd	runtime
 runtime/valid/provider-from-suspending-call.hd	runtime
 runtime/valid/dynamic-suspending-method.hd	runtime
 typing/invalid/println-without-console.hd	type
-runtime/valid/multi-provider-use-order.hd	runtime
 runtime/panic/block-on-inside-driver.hd	runtime
 typing/invalid/block-on-in-defer.hd	type
 runtime/valid/block-on-stored-suspension.hd	runtime
@@ -538,7 +537,6 @@ typing/invalid/defer-transitive-block-on-plain-twin.hd	type
 typing/invalid/defer-bang-call-cold-twin.hd	type
 runtime/valid/nested-provider-restoration.hd	runtime
 runtime/valid/row-extension-restores-provider.hd	runtime
-runtime/valid/requirement-row-union-and-order.hd	runtime
 typing/invalid/missing-requirement-cold-construction.hd	type
 runtime/valid/provider-capture-timing.hd	runtime
 typing/invalid/declared-generic-key-lexical-collision.hd	type
@@ -662,8 +660,6 @@ typing/invalid/readonly-argument-for-mut-bound.hd	type
 typing/invalid/interpolation-without-display.hd	type
 typing/invalid/bang-call-non-suspending.hd	type
 typing/invalid/incompatible-identity-operands.hd	type
-typing/invalid/tuple-binding-non-tuple.hd	type
-typing/invalid/tuple-binding-arity.hd	type
 runtime/valid/println-console-stdout.hd	runtime
 typing/valid/default-reads-top-level-binding.hd	type
 runtime/valid/primitive-display-bound-and-trait-values.hd	runtime
@@ -1398,3 +1394,5 @@ typing/invalid/ambiguous-default-methods.hd	type
 runtime/valid/never-break-continue.hd	runtime
 typing/invalid/fresh-element-not-weakened.hd	type
 parse/invalid/tab-between-tokens.hd	parse
+parse/invalid/binding-list-one-name.hd	parse
+parse/invalid/same-line-suite-binding-list.hd	parse

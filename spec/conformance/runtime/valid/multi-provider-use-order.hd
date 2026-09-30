@@ -19,7 +19,7 @@ impl Right for Number:
 
 fn main() -> i32:
     $.with(Left=Number { value: 20 }, Right=Number { value: 22 }):
-        left, right := $.use(Left, Right)
+        (left, right) := $.use(Left, Right)
         left.value() + right.value()
 
 tests:

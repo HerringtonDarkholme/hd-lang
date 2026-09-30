@@ -1,0 +1,9 @@
+# test: an inherent implementation cannot target a trait value type
+# Spec 09 Implementation Ownership: trait.own.inherent.trait-value (Spec follow-up SF4, owner decision 2026-09-30).
+
+trait Shape:
+    fn area(self) -> f64
+
+impl Shape:  # diagnostic: trait-value-impl-target
+    fn double(self) -> f64:
+        self.area() * 2.0

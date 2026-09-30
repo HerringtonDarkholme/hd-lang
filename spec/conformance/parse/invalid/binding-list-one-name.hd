@@ -1,0 +1,6 @@
+# test: a parenthesized := list holds at least two names
+# Spec 02 Short Binding Lists: grammar.stmt.bind-list.two-names (owner decision Q1, 2026-09-30).
+fn pair() -> (i32, i32): (1, 2)
+
+fn invalid() -> void:
+    (only) := pair()  # diagnostic: syntax-error

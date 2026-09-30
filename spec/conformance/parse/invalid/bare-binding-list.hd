@@ -1,0 +1,7 @@
+# test: a multi-name := binding without parentheses is a syntax error
+# Spec 02 Short Binding Lists: grammar.stmt.bind-list.bare (owner decision Q1, 2026-09-30).
+fn pair() -> (i32, i32): (1, 2)
+
+fn invalid() -> i32:
+    a, b := pair()  # diagnostic: syntax-error
+    a + b

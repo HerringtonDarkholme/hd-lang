@@ -14,7 +14,7 @@ fn find(id: string) -> string $ Store[Item = string] + Log:
     $.use(Store[Item = string]).load(id)
 
 fn both(id: string) -> string $ UserRow:
-    store, log := $.use(Store[Item = string], Log)
+    (store, log) := $.use(Store[Item = string], Log)
     store.load(id)
 
 fn keep(handler: fn(string) -> string $ Store[Item = string]) -> $.Context[Store[Item = string]]:

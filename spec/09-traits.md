@@ -710,10 +710,12 @@ one of these declarations:
 9. r[trait.own.std.function] The standard library also owns the function type constructors `Fn` and `SuspendFn`. An implementation for a function type therefore needs the package of the trait or of a trait argument.
 10. r[trait.own.inherent] An inherent implementation may be declared only in the package that owns its target nominal type. Error: `orphan-impl`.
 11. r[trait.own.inherent.target-kinds] An inherent implementation cannot target a trait value, tuple, transparent alias, or type owned by another package.
-12. r[trait.own.inherent.std] The standard library, which owns them, may declare inherent implementations for primitives, built-in collection type constructors, and the prelude enums `Option` and `Result`.
-13. r[trait.own.inherent.std.no-use] Their `pub` members are found by ordinary member lookup on the receiver's type, so calling one needs no `use`.
-14. r[trait.own.inherent.std.no-tuple] Tuples have no inherent members, including from the standard library; they get only trait implementations.
-15. r[trait.own.graph] The compiler must also reject a resolved dependency graph containing duplicate exact implementations. This includes the possible conflict where two owning packages each provide the same pair.
+12. r[trait.own.inherent.tuple-alias] An inherent implementation whose target is a tuple or a transparent alias is an error, whichever package owns the type it names. Error: `invalid-impl-target`.
+13. r[trait.own.inherent.trait-value] An inherent implementation whose target is a trait value type is an error. Error: `trait-value-impl-target`.
+14. r[trait.own.inherent.std] The standard library, which owns them, may declare inherent implementations for primitives, built-in collection type constructors, and the prelude enums `Option` and `Result`.
+15. r[trait.own.inherent.std.no-use] Their `pub` members are found by ordinary member lookup on the receiver's type, so calling one needs no `use`.
+16. r[trait.own.inherent.std.no-tuple] Tuples have no inherent members, including from the standard library; they get only trait implementations.
+17. r[trait.own.graph] The compiler must also reject a resolved dependency graph containing duplicate exact implementations. This includes the possible conflict where two owning packages each provide the same pair.
 
 ```text
 impl Display for i32:  # error: orphan-impl
@@ -727,6 +729,26 @@ impl Display for fn() -> i32:  # error: orphan-impl
 impl i32:  # error: orphan-impl
     fn twice(self) -> i32:
         self * 2
+
+impl (i32, i32):  # error: invalid-impl-target
+    fn sum(self) -> i32:
+        self._0 + self._1
+
+data User:
+    name: string
+
+type Person = User
+
+impl Person:  # error: invalid-impl-target
+    fn label(self) -> string:
+        self.name
+
+trait Shape:
+    fn area(self) -> f64
+
+impl Shape:  # error: trait-value-impl-target
+    fn double(self) -> f64:
+        self.area() * 2.0
 ```
 
 > **Why.** These ownership rules prevent downstream packages from creating

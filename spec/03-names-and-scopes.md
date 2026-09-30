@@ -294,7 +294,7 @@ fn invalid() -> void:
 A tuple binding introduces several names at once:
 
 ```text
-x, y := point
+(x, y) := point
 let (name, score) = entry
 ```
 

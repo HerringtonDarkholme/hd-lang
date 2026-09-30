@@ -443,7 +443,7 @@ The language does not check that a metadata value suits its member's type.
 The code that reads the value checks it, and a fact type has no
 compile-time check hook. So a derived `Arbitrary` finds an
 `arbitrary.with` generator of the wrong type only when a test runs, as
-[`module.testing.arbitrary.with.mismatch`](10-modules.md#r-module.testing.arbitrary.with.mismatch)
+[`module.testing.arbitrary.with.downcast-failure`](10-modules.md#r-module.testing.arbitrary.with.downcast-failure)
 states.
 
 Reusable compositions are ordinary values or lists, not new language syntax:
@@ -1357,10 +1357,11 @@ The forms are:
 9. r[annot.error.form.misplaced.examples] So `@error` before a function or a newtype, a bare `@error` before a data type, `@error("...")` before an enum, and `@from` beside a second payload member are each `decorator-target-kind`.
 10. r[annot.error.form.argument] An `@error` line whose arguments are neither one message nor `transparent` is an error, reported on the line. Error: `invalid-error-marker`.
 11. r[annot.error.form.argument.examples] So `@error(opaque)`, `@error(42)`, and `@error("closed", "shut")` are each `invalid-error-marker`.
-12. r[annot.error.marker] Inside an error type, `from`, `source`, and `transparent` in these forms are markers, not names. A binding with the same name does not change them.
-13. r[annot.error.marker.no-value] A marker attaches no value, so it is neither member metadata nor a fact.
-14. r[annot.error.marker.outside] Outside an error type, `@from` and `@source` have no special meaning: each is an ordinary decorator.
-15. r[annot.error.no-use] Writing `@error`, `@from`, or `@source` needs no `use std.error.Error`, as [`annot.derive.no-use`](#r-annot.derive.no-use) needs none for `Structure`. Code that names `Error` itself still imports it, as [`trait.error.import`](09-traits.md#r-trait.error.import) states.
+12. r[annot.error.form.marker-argument] An `@from` or `@source` line with arguments inside an error type, such as `@from(yaml)`, is an error, reported on the line: a marker takes no value. Error: `invalid-error-marker`.
+13. r[annot.error.marker] Inside an error type, `from`, `source`, and `transparent` in these forms are markers, not names. A binding with the same name does not change them.
+14. r[annot.error.marker.no-value] A marker attaches no value, so it is neither member metadata nor a fact.
+15. r[annot.error.marker.outside] Outside an error type, `@from` and `@source` have no special meaning: each is an ordinary decorator.
+16. r[annot.error.no-use] Writing `@error`, `@from`, or `@source` needs no `use std.error.Error`, as [`annot.derive.no-use`](#r-annot.derive.no-use) needs none for `Structure`. Code that names `Error` itself still imports it, as [`trait.error.import`](09-traits.md#r-trait.error.import) states.
 
 ```text
 @error
@@ -1382,6 +1383,8 @@ fn tool() -> string:
 enum WriteError:
     @error(opaque)  # error: invalid-error-marker
     Full
+    @error("read failed")
+    Read(@from(strict) error: ReadError)  # error: invalid-error-marker
 ```
 
 > **Why.** Typed derivation generates one implementation per trait. An
@@ -1552,11 +1555,6 @@ TaskError[E, T]`, and its `Display` needs no bound on `E` or `T`.
 > [`trait.error.not-inspectable`](09-traits.md#r-trait.error.not-inspectable)
 > states, and an unbounded type parameter is not inspectable. `Display`
 > needs no such bound, so it keeps none.
-
-> **Note.** The code for an `@from` or `@source` line with arguments inside
-> an error type is undecided and listed in
-> [Error Conversion](../future-work/ERROR_CONVERSION.md#still-open). An
-> implementation must not guess it.
 
 See also: [Error Trait](09-traits.md#error-trait),
 [Conversion Trait](09-traits.md#conversion-trait),

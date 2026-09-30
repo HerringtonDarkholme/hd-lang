@@ -533,7 +533,7 @@ See also: [Associated Type Bindings](09-traits.md#associated-type-bindings).
 
 ```text
 db := $.use(Database)
-db, cache := $.use(Database, Cache)
+(db, cache) := $.use(Database, Cache)
 ```
 
 1. r[req.use.context] `$.use` retrieves providers from the statically known current context.

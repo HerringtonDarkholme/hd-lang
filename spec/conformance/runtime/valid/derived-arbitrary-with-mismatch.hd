@@ -1,6 +1,6 @@
 # test: an arbitrary.with generator of the wrong type panics on the first case
-# Spec 10 Derived Arbitrary: module.testing.arbitrary.with.unchecked, .with.mismatch, and
-# .with.no-fallback (Testing PT2); the check passes, and the property panics when it runs.
+# Spec 10 Derived Arbitrary: module.testing.arbitrary.with.unchecked, .with.downcast-failure, and
+# .with.no-fallback (Testing PT2, Q5); the check passes, and the property panics when it runs.
 use std.testing.{Arbitrary, Choices, it_prop}
 use std.testing.arbitrary
 

@@ -1,0 +1,22 @@
+# test: a derived enum whose every variant is recursive panics on the first case
+# Spec 10 Derived Arbitrary: module.testing.arbitrary.derive.no-finite and .no-finite.unchecked; the check passes,
+# and each property panics when it runs. Draw Budget: module.testing.budget.simplest.result makes Step
+# recursive, since the simplest Result is Ok (Testing Q6, Q8, owner decisions 2026-09-30).
+use std.testing.{Arbitrary, it_prop}
+
+@derive(Arbitrary, Debug)
+enum Loop:
+    More(next: Loop)
+
+@derive(Arbitrary, Debug)
+enum Step:
+    Next(result: Result[Step, string])
+
+tests:
+    it_prop("a directly recursive enum panics", expect_panic="explicit-panic", prop=fn!(value: Loop):
+        pass
+    )
+
+    it_prop("an enum recursive through Ok panics", expect_panic="explicit-panic", prop=fn!(value: Step):
+        pass
+    )

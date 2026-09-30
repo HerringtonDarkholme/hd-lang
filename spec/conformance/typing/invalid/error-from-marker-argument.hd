@@ -1,0 +1,11 @@
+# test: an @from marker with arguments inside an error type
+# Spec 14 Error Types: annot.error.form.marker-argument (Error Conversion decision 31, owner decision 2026-09-30).
+
+@error("bad yaml")
+data YamlError:
+    line: i64
+
+@error
+enum LoadError:
+    @error("bad config")
+    Yaml(@from(yaml) error: YamlError)  # diagnostic: invalid-error-marker

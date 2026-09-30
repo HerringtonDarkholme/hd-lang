@@ -1,0 +1,11 @@
+# test: a line that starts with ( begins a new statement, never a call of the name that ends the line before
+# Spec 01 Leading-Dot Continuation: lex.continue.paren-line; Spec 02 Short Binding Lists:
+# grammar.stmt.bind-list.new-statement (owner decision Q1, 2026-09-30).
+fn pair() -> (i32, i32): (1, 2)
+
+fn split(f: fn(i32, i32) -> i32) -> i32:
+    f
+    (a, b) := pair()
+    limit := a
+    (first, second) := pair()
+    limit + b + first + second

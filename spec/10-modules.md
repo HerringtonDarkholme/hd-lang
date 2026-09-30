@@ -936,6 +936,9 @@ tests:
 | r[module.testing.budget.simplest.bool] Boolean | `bool` | `false` |
 | r[module.testing.budget.simplest.pick] Pick | `pick` | the first item |
 | r[module.testing.budget.simplest.empty] Collections | `list`, `map`, and `string` | an empty list, map, or string |
+| r[module.testing.budget.simplest.optional] Optional | the default `T?` generator | `.None` |
+| r[module.testing.budget.simplest.result] Result | the default `Result[T, E]` generator | `.Ok` of `T`'s simplest value |
+| r[module.testing.budget.simplest.tuple] Tuple | the default tuple generators | each element's simplest value |
 
 ```text
 use std.testing.Choices
@@ -957,11 +960,23 @@ Once the budget is spent, `c.int(0, 2)` returns `0`, so `tree` returns
 
 1. r[module.testing.arbitrary.derive] `@derive(Arbitrary)` derives `Arbitrary` through its [template](14-annotations.md#templates). The derived `arbitrary` draws each member with its type's `Arbitrary`. For an enum, it draws a variant, then that variant's payload.
 2. r[module.testing.arbitrary.derive.simplest] A derived enum's simplest choice is its first non-recursive variant, whatever the declaration order.
-3. r[module.testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
-4. r[module.testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
-5. r[module.testing.arbitrary.with.unchecked] The compiler does not check `gen` against the member's type, as for any [metadata value](14-annotations.md#member-metadata).
-6. r[module.testing.arbitrary.with.mismatch] When `gen` is not a `fn(mut Choices) -> T` for the member's type `T`, the derived `arbitrary` panics on the property's first case. The message names the member and the generator type it expected.
-7. r[module.testing.arbitrary.with.no-fallback] The derived `arbitrary` never ignores a mismatched generator, and never falls back to the member type's own `Arbitrary`.
+3. r[module.testing.arbitrary.derive.recursive] A variant is recursive when its simplest payload still needs a value of the enum: a member whose type is the enum, directly or through the members of a data type or a tuple.
+4. r[module.testing.arbitrary.derive.recursive.containers] A `List`, `Map`, or optional member does not make its variant recursive, because its simplest value is empty or `.None`.
+5. r[module.testing.arbitrary.derive.no-finite] When every variant of a derived enum is recursive, the derived `arbitrary` panics on the property's first case, with a message that names the type. Panic: `explicit-panic`.
+6. r[module.testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
+7. r[module.testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
+8. r[module.testing.arbitrary.with.module] The module `std.testing.arbitrary` declares `with` and its result type `Generator`, as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
+9. r[module.testing.arbitrary.with.wrap] `with` wraps `gen` so that each drawn value is erased to `Inspectable`, and returns the wrapped generator as a `Generator`.
+10. r[module.testing.arbitrary.with.downcast] The derived `arbitrary` draws the member with the wrapped generator, and downcasts the first drawn value to the member's type.
+11. r[module.testing.arbitrary.with.inspectable] A member that `arbitrary.with` tunes must have an inspectable type, because the derived code downcasts to it. Error: `unsatisfied-trait-bound`.
+12. r[module.testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
+13. r[module.testing.arbitrary.with.unchecked] The compiler does not check `gen` against the member's type, as for any [metadata value](14-annotations.md#member-metadata).
+14. r[module.testing.arbitrary.with.downcast-failure] When the downcast fails, the derived `arbitrary` panics on the property's first case. The message names the member, the member's type, and the type that `gen` drew. Panic: `explicit-panic`.
+15. r[module.testing.arbitrary.with.no-fallback] The derived `arbitrary` never ignores a mismatched generator, and never falls back to the member type's own `Arbitrary`.
+
+```text
+pub fn with[T < Inspectable](gen: fn(mut Choices) -> T) -> Generator
+```
 
 ```text
 use std.testing.{Arbitrary, Choices, assert, it_prop}
@@ -989,11 +1004,29 @@ tests:
 
 `Expr`'s simplest choice is `Num`, although `Add` comes first.
 
+```text
+use std.testing.Arbitrary
+
+@derive(Arbitrary, Debug)
+enum Tree:
+    Node(children: List[Tree])
+
+@derive(Arbitrary, Debug)
+enum Loop:
+    More(next: Loop)
+```
+
+`Tree`'s one variant is not recursive, because an empty list holds no
+`Tree`. Every variant of `Loop` is recursive, so its derived `arbitrary`
+panics on the first case.
+
 > **Why.** One fact that holds a whole generator covers every range,
 > length, and shape, so derived `Arbitrary` needs no range or length facts.
 > A fact generic in its member's type, such as `With[T]`, is not used:
 > looking up `With[i32]` would miss a `With[string]` and silently use the
-> default generator.
+> default generator. The function `with` is generic instead: it erases each
+> drawn value to `Inspectable`, so the derived code can check the value's
+> type when the test runs.
 
 > **Note.** These are runner behavior, not rules of this chapter: how often
 > a draw returns small and boundary values, any small-first order of cases,
