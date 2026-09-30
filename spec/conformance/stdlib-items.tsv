@@ -5,3 +5,8 @@ std.testing.snapshot_file	std/testing.md#snapshot-files
 std.testing.arbitrary	std/testing.md#derived-arbitrary
 std.iter.FromIterator	std/iter.md#collect-targets
 std.text.r	std/text.md#raw-text-prefix
+std.format.DebugStruct	std/format.md#debug-builders
+std.format.DebugTuple	std/format.md#debug-builders
+std.format.DebugList	std/format.md#debug-builders
+std.format.DebugMap	std/format.md#debug-builders
+std.time	std/time.md#duration

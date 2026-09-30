@@ -215,10 +215,13 @@ The suffix of a [suffixed literal](01-lexical-structure.md#literal-suffixes)
 names a function in module scope, usually one brought in by `use`:
 
 ```text
-use std.time.s
+use std.ops.num_suffix
+
+@num_suffix
+fn s(count: i64) -> i64: count * 1000
 
 fn retry_after(s: i32) -> i32:
-    limit := 5s  # std.time.s, not the parameter
+    limit := 5s  # the module's suffix function s, not the parameter
     s
 ```
 
@@ -246,10 +249,14 @@ The prefix of a [prefixed string](01-lexical-structure.md#prefixed-strings)
 names a function in module scope, as a literal suffix does:
 
 ```text
-use std.text.r
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn r(t: Template[string]) -> string:
+    t.raw_parts[0]
 
 fn escape(r: i32) -> string:
-    r"\d+"  # std.text.r, not the parameter
+    r"\d+"  # the module's prefix function r, not the parameter
 ```
 
 1. r[names.prefix.module-name] A string prefix is resolved as a module name: a declaration at module scope, or a name that a use declaration or the prelude introduces.

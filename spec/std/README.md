@@ -50,8 +50,8 @@ the numbered chapters.
 | [`testing.md`](testing.md) | `std.testing` | `std-testing` | property tests, the draw budget, derived `Arbitrary`, table-test rows, snapshot files, the `timeout` option |
 | [`iter.md`](iter.md) | `std.iter` | `std-iter` | iterator adapters, collect targets, `FromIterator` and its impls, `map` on a list or an optional |
 | [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, the `r` prefix |
-| `format.md` | `std.format` | `std-format` | `Debug` builders and layout |
-| `time.md` | `std.time` | `std-time` | `Duration` and its suffixes |
+| [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls |
+| [`time.md`](time.md) | `std.time` | `std-time` | `Duration` and its suffixes |
 
 ## Rule IDs
 

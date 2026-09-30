@@ -1,7 +1,10 @@
 # test: a literal suffix resolves in module scope only
 # Spec 03 Literal Suffix Names: a parameter named `s` does not change what `5s` calls.
-use std.time.s
+use std.ops.num_suffix
+
+@num_suffix
+fn s(count: i64) -> i64: count * 1000
 
 fn retry_after(s: i32) -> i32:
-    limit := 5s  # std.time.s, not the parameter
+    limit := 5s  # the module's suffix function s, not the parameter
     s

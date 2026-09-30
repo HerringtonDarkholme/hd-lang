@@ -580,7 +580,13 @@ A numeric literal may end in a **literal suffix**, a name written directly
 after its digits:
 
 ```text
-use std.time.{ms, s}
+use std.ops.num_suffix
+
+@num_suffix
+fn ms(count: i64) -> i64: count
+
+@num_suffix
+fn s(count: i64) -> i64: count * 1000
 
 timeout := 5s
 delay := 1_500ms

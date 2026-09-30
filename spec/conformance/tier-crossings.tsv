@@ -1,7 +1,1 @@
 path	items	reason
-parse/valid/uses.hd	std.time.Duration	shows a braced use form; std.time moves to std/time.md (task 9); import a language-tier module instead
-parse/valid/suffixed-literals.hd	std.time.ms,std.time.s	shows suffix syntax with the std duration suffixes (task 9); declare local suffixes
-typing/valid/literal-suffix-duration.hd	std.time.Duration,std.time.ms,std.time.s	tests the suffix mechanism through std.time (task 9); declare a local suffix, or cite std/time.md if Duration is its point
-typing/valid/literal-suffix-local-shadow.hd	std.time.s	tests suffix name lookup with std.time.s (task 9); declare a local suffix
-typing/valid/literal-suffix-compile-time.hd	std.time.Duration,std.time.ms,std.time.s	tests suffix position rules through std.time (task 9); declare a local suffix
-typing/invalid/literal-suffix-float-into-integer.hd	std.time.s	tests suffixed literal kinds with std.time.s (task 9); declare a local suffix

@@ -1,5 +1,5 @@
 # test: std.time suffixes build Duration values
-# Spec 05 Literal Suffixes: `250ms` is `ms(250)`, a Duration.
+# Spec std/time Duration Suffixes: `250ms` is `ms(250)`, a Duration, and the suffixes mix.
 use std.time.{Duration, ms, s}
 
 fn delay() -> Duration:
@@ -10,3 +10,7 @@ fn rewind() -> Duration:
 
 fn both() -> List[Duration]:
     [5s, 250ms]
+
+enum Tier(limit: Duration):
+    Fast -> Tier(limit=250ms)
+    Slow -> Tier(limit=5s)

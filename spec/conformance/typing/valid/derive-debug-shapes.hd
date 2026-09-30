@@ -1,5 +1,5 @@
 # test: Debug derives for a fieldless data type and for record, tuple, and unit variants
-# Spec 09 Debug Builders: trait.debug.derive-builders.mapping (Testing T54).
+# Spec std/format Debug Builders: std-format.debug.derive-builders.mapping (Testing T54).
 @derive(Debug)
 data Marker: pass
 

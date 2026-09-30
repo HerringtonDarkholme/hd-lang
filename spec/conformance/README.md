@@ -62,8 +62,9 @@ every fixture. They are the items a numbered chapter specifies:
   `it_prop_with`, and a literal `snapshot`;
 - the lang items and traits of `std.task`, `std.resource`, `std.convert`,
   `std.error`, `std.inspect`, `std.function`, `std.process`, `std.ops`,
-  `std.num`, `std.structure`, `std.annotation`, and `std.format` (`Display`
-  and `Debug`), and `Iterable` and `Iterator` from `std.iter`;
+  `std.num`, `std.structure`, `std.annotation`, and `std.format`
+  (`Display`, `Debug`, `DebugWriter`, and `debug`), and `Iterable` and
+  `Iterator` from `std.iter`;
 - the intrinsics of built-in types, such as `List.append`, `string.len`,
   and `string.slice`.
 
@@ -75,8 +76,9 @@ path, so the list cannot name it; a language-tier fixture still does not
 call one.
 
 A numbered chapter still specifies an item until a migration task moves it
-into `spec/std/`, and until then any fixture may use it. The items waiting
-to move include `std.time` and the `Debug` builders.
+into `spec/std/`, and until then any fixture may use it. Every planned
+move is done; the `std.task` retry combinator stays in the language tier
+until its signature is decided.
 
 A fixture must not depend on:
 

@@ -252,7 +252,8 @@ message `Loop has no finite value`. So does `Ring`'s, because its member
 ## Test Timeout
 
 `it`, `it_each`, `it_prop`, and `it_prop_with` each take a `timeout`
-option of type `Duration?` ([Test Cases](../10-modules.md#test-cases)).
+option of type [`Duration?`](time.md#duration)
+([Test Cases](../10-modules.md#test-cases)).
 
 | Rule | Option | Value | Effect |
 | --- | --- | --- | --- |

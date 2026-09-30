@@ -91,12 +91,12 @@ function deriveDebug(target: Target, writer: string, span: SourceSpan): ImplDecl
   const out = new Source_();
   derivedImpl(target, "Debug", out);
   out.add(`    fn debug(self, out: mut ${writer}) -> void:`);
-  // One builder per value, as Rust's derive does (trait.debug.derive-builders.mapping):
+  // One builder per value, as Rust's derive does (std-format.debug.derive-builders.mapping):
   // `debug_struct` for a data type, even a fieldless one, and for a variant
   // with named members; `debug_tuple` for a variant with positional ones; and
   // the bare name for a variant without a payload. A variant that mixes both
   // uses `debug_struct`, naming a positional field `_0`, `_1`, and so on
-  // (trait.debug.derive-builders.mixed).
+  // (std-format.debug.derive-builders.mixed).
   const label = (member: DataField): string =>
     member.positional ? `_${member.name}` : member.name;
   const struct = (members: readonly DataField[], name: string, value: (index: number) => string) =>

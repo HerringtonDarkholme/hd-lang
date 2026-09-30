@@ -318,7 +318,7 @@ Relative lookup starts at a base that depends on the source file:
 A use names a single public declaration or a module namespace:
 
 ```text
-use std.time.Duration
+use std.format.DebugWriter
 use pkg.user.types
 use pkg.user.types as user_types
 ```
@@ -466,16 +466,16 @@ fn main() -> i32:
 8. r[module.prelude.function-sugar] The function type sugar `fn(...) -> T` needs no import.
 9. r[module.prelude.annotation-targets] `std.annotation` also declares `Target`, `Annotate`, and `annotate`, which code imports to limit a fact type's [target kinds](14-annotations.md#target-kinds), as in `use std.annotation.annotate`.
 10. r[module.prelude.ops-num-suffix] `std.ops` declares `NumSuffix` and `num_suffix`, which code imports to declare a literal suffix, as in `use std.ops.num_suffix`.
-11. r[module.prelude.time-suffixes] `std.time` declares `Duration` and the duration suffixes `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
-12. r[module.prelude.no-suffix] The prelude supplies no literal suffix.
-13. r[module.prelude.ops-str-prefix-markers] `std.ops` also declares `StrPrefix`, `str_prefix`, and `Template`, which code imports to declare a string prefix, as in `use std.ops.{Template, str_prefix}`.
-14. r[module.prelude.no-prefix] The prelude supplies no string prefix.
-15. r[module.prelude.ops-operator-traits] `std.ops` also declares the [operator traits](05-expressions.md#operator-traits), and `Index` and `IndexSet`. Code imports one to name it, as in `use std.ops.Add`; operator syntax needs no import.
-16. r[module.prelude.num] `std.num` declares the [numeric traits](09-traits.md#numeric-traits) `Num`, `Integer`, and `Float`, which code imports, as in `use std.num.Num`.
+11. r[module.prelude.no-suffix] The prelude supplies no literal suffix.
+12. r[module.prelude.ops-str-prefix-markers] `std.ops` also declares `StrPrefix`, `str_prefix`, and `Template`, which code imports to declare a string prefix, as in `use std.ops.{Template, str_prefix}`.
+13. r[module.prelude.no-prefix] The prelude supplies no string prefix.
+14. r[module.prelude.ops-operator-traits] `std.ops` also declares the [operator traits](05-expressions.md#operator-traits), and `Index` and `IndexSet`. Code imports one to name it, as in `use std.ops.Add`; operator syntax needs no import.
+15. r[module.prelude.num] `std.num` declares the [numeric traits](09-traits.md#numeric-traits) `Num`, `Integer`, and `Float`, which code imports, as in `use std.num.Num`.
 
-> **Note.** Two more standard names outside the prelude are stdlib tier:
-> the string prefix [`r`](std/text.md#raw-text-prefix) of `std.text`, and
-> [`FromIterator`](std/iter.md#collect-targets) of `std.iter`.
+> **Note.** More standard names outside the prelude are stdlib tier:
+> the string prefix [`r`](std/text.md#raw-text-prefix) of `std.text`,
+> [`FromIterator`](std/iter.md#collect-targets) of `std.iter`, and
+> [`Duration`](std/time.md#duration) and its suffixes of `std.time`.
 
 See also: [Conversion Trait](09-traits.md#conversion-trait),
 [Function Type Constructors](07-functions.md#function-type-constructors),
@@ -764,6 +764,11 @@ fn register() -> void:
 > its final body parameter ([Default Values](07-functions.md#default-values)).
 > Allowing only direct calls in test position keeps every test case
 > statically listable.
+
+> **Note.** The `timeout` parameter of `it`, and of `it_each`, `it_prop`,
+> and `it_prop_with` below, has type `std.time.Duration?`. `Duration` is a
+> stdlib-tier type ([Time](std/time.md#duration)): the language tier names
+> it in these signatures only and specifies none of its values.
 
 See also: [Test Timeout](std/testing.md#test-timeout) in the stdlib tier,
 for what the `timeout` option does.

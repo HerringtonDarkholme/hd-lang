@@ -1,5 +1,5 @@
 # test: a hand-written Debug describes a value with DebugWriter builders, like Rust's Formatter
-# Spec 09 Debug Builders: trait.debug.builder.struct and the other builders (Testing T53).
+# Spec std/format Debug Builders: std-format.debug.builder.struct and the other builders (Testing T53).
 use std.format.{DebugWriter, DebugList, DebugMap}
 
 data Point:

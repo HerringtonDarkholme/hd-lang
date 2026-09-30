@@ -1,5 +1,5 @@
 # test: a standard suffix whose Duration does not fit in i64 milliseconds panics at run time
-# Spec 05 Literal Suffixes: expr.suffix.std.overflow (Literal Suffixes L18).
+# Spec std/time Duration Suffixes: std-time.suffix.std.overflow (Literal Suffixes L18).
 use std.time.{Duration, h}
 
 fn forever() -> Duration:

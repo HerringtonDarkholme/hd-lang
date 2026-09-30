@@ -270,40 +270,38 @@ pub fn layout() -> Pixels:
     12px  # error: missing-requirement
 ```
 
-The standard library declares these suffixes in `std.time`:
-
-| Rule | Suffix | Meaning |
-| --- | --- | --- |
-| r[expr.suffix.std.ms] Milliseconds | `ms` | `Duration` of that many milliseconds |
-| r[expr.suffix.std.s] Seconds | `s` | `Duration` of that many seconds |
-| r[expr.suffix.std.min] Minutes | `min` | `Duration` of that many minutes |
-| r[expr.suffix.std.h] Hours | `h` | `Duration` of that many hours |
-
-1. r[expr.suffix.std.fn] Each is a suffix function that takes one `i64` and returns the standard `std.time.Duration`, as in `@num_suffix pub fn ms(count: i64) -> Duration`.
-2. r[expr.suffix.std.duration] A `std.time.Duration` is a whole number of milliseconds, held in an `i64`.
-3. r[expr.suffix.std.only-four] These four are the only standard suffixes. `std` declares no `ns`, `us`, `m`, `d`, byte-size, or string suffix.
-4. r[expr.suffix.std.import] None is a prelude name; code imports them, as in `use std.time.{ms, s}`.
-5. r[expr.suffix.std.duration-api] The public API of `Duration` is `Duration::milliseconds(n: i64)`, `Duration::seconds(n: i64)`, and `d.as_milliseconds() -> i64`.
-6. r[expr.suffix.std.overflow] A standard suffix call whose result does not fit in `i64` milliseconds, as in `10_000_000_000_000_000h`, panics at run time, as checked `i64` arithmetic does. Panic: `integer-overflow`.
+A suffixed literal in shared enum data is a call there, as the position
+rules say:
 
 ```text
-use std.time.{Duration, ms, s}
+use std.ops.num_suffix
 
-enum Tier(limit: Duration):
+data Millis:
+    count: i64
+
+@num_suffix
+fn ms(count: i64) -> Millis:
+    Millis { count: count }
+
+enum Tier(limit: Millis):
     Fast -> Tier(limit=250ms)
-    Slow -> Tier(limit=5s)
+    Slow -> Tier(limit=5_000ms)
 ```
 
 > **Why.** A suffix is an ordinary function found through `use`, so
 > libraries can add `12px` without new syntax. The literal's type is the
-> function's result, so `5s` and `250ms` are both `Duration` and mix
-> freely. The literal is plain call sugar, so the one rule kept is that it
-> never suspends: hd marks every suspending call with `!`, and `5s` has no
-> place to show it. The compiler reads the marker, so it checks the
-> signature once, at the marked definition.
+> function's result, so `12px` is a `Pixels`. The literal is plain call
+> sugar, so the one rule kept is that it never suspends: hd marks every
+> suspending call with `!`, and `5s` has no place to show it. The compiler
+> reads the marker, so it checks the signature once, at the marked
+> definition.
 
 > **Note.** A compiler may warn when a suffixed literal always overflows,
 > as Rust's `unconditional_panic` lint does, but none is required.
+
+> **Note.** The standard library's duration suffixes `ms`, `s`, `min`, and
+> `h` of `std.time`, and its `Duration` type, are stdlib tier:
+> [Time](std/time.md).
 
 See also: [Suffixed Literals](04-type-system.md#suffixed-literals),
 [Literal Suffix Names](03-names-and-scopes.md#literal-suffix-names),

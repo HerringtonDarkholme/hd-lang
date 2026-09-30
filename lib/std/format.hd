@@ -1,4 +1,5 @@
-# std.format, the part written in hd (spec/09-traits.md#debug-trait).
+# std.format, the part written in hd (spec/09-traits.md#debug-trait,
+# spec/std/format.md).
 # `Display` and `Debug` are prelude traits that the checker declares;
 # `DebugWriter`, its builders, `debug`, and the standard `Debug`
 # implementations are declared here (Testing T48, T53).
@@ -171,7 +172,7 @@ impl[T < Debug, E < Debug] Debug for Result[T, E]:
             .Err(error) => out.debug_tuple("Err").field(error).finish()
 
 # `debug(value)` (spec/10-modules.md#r-module.prelude.debug): the text that
-# `Debug` writes for `value`.
+# `Debug` writes for `value` (spec/std/format.md#r-std-format.debug.render).
 pub fn debug[T < Debug](value: T) -> string:
     let mut out = DebugWriter { text: "" }
     value.debug(out)

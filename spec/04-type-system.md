@@ -208,10 +208,17 @@ let bad: u8 = 300    # error: integer-literal-range
 A suffixed literal has the type that its suffix function returns:
 
 ```text
-use std.time.{Duration, ms}
+use std.ops.num_suffix
 
-fn delay() -> Duration:
-    250ms  # ms(250): Duration
+data Millis:
+    count: i64
+
+@num_suffix
+fn ms(count: i64) -> Millis:
+    Millis { count: count }
+
+fn delay() -> Millis:
+    250ms  # ms(250): Millis
 ```
 
 1. r[types.literal.suffixed] A suffixed literal has the result type of its suffix function.
@@ -221,7 +228,10 @@ fn delay() -> Duration:
 5. r[types.literal.suffixed.negation.check] The negated literal is checked against the parameter type as a unit, as [Negated Integer Literals](#negated-integer-literals) are, so an `i8` parameter accepts `-128b`.
 
 ```text
-use std.time.s
+use std.ops.num_suffix
+
+@num_suffix
+fn s(count: i64) -> i64: count * 1000
 
 fn wait() -> void:
     half := 1.5s  # error: type-mismatch

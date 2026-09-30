@@ -1,6 +1,12 @@
 # test: decimal and floating-point literals take suffixes
 # Spec 01 Literal Suffixes: the forms a suffixed literal takes.
-use std.time.{ms, s}
+use std.ops.num_suffix
+
+@num_suffix
+fn ms(count: i64) -> i64: count
+
+@num_suffix
+fn s(count: i64) -> i64: count * 1000
 
 timeout := 5s
 delay := 1_500ms

@@ -1,0 +1,19 @@
+# test: a suffixed literal has the result type of its suffix function
+# Spec 04 Suffixed Literals: `250ms` is `ms(250)`, a Millis.
+use std.ops.num_suffix
+
+data Millis:
+    count: i64
+
+@num_suffix
+fn ms(count: i64) -> Millis:
+    Millis { count: count }
+
+fn delay() -> Millis:
+    250ms  # ms(250): Millis
+
+fn rewind() -> Millis:
+    -5ms
+
+fn both() -> List[Millis]:
+    [5ms, 250ms]

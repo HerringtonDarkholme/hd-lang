@@ -1,5 +1,5 @@
 # test: Duration is whole milliseconds, built with milliseconds or seconds and read with as_milliseconds
-# Spec 05 Literal Suffixes: expr.suffix.std.duration-api (Literal Suffixes L17, L18).
+# Spec std/time Duration: std-time.suffix.std.duration-api (Literal Suffixes L17, L18).
 use std.testing.assert_equal
 use std.time.{Duration, ms, s, min}
 

@@ -2202,3 +2202,32 @@ existing source. Each entry names the decision that made the change.
   `char_indices` stay in [String Methods](10-modules.md#string-methods):
   [`flow.for.string-explicit`](06-control-flow.md#r-flow.for.string-explicit)
   names `chars` and `char_indices`, so the tier test keeps them.
+- Debug text and builders move to the stdlib tier (owner decisions ST2
+  and ST3 in
+  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  step 9, 2026-09-30): stdlib tier. `trait.debug.render` and Traits'
+  Debug Builders section, with the derived builder mapping, move to
+  [Format](std/format.md), with their text unchanged, and the Debug
+  Builders heading is deleted. Source is unaffected.
+  `trait.debug.render` becomes `std-format.debug.render`,
+  `trait.debug.builder.*` becomes `std-format.debug.builder.*`,
+  `trait.debug.layout` becomes `std-format.debug.layout`, and
+  `trait.debug.derive-builders*` becomes
+  `std-format.debug.derive-builders*`. The old IDs are retired. The other
+  `trait.debug.*` rules stay in [Debug Trait](09-traits.md#debug-trait):
+  `Debug` and `debug` are prelude names, and `Debug`'s method names
+  `DebugWriter`.
+- `Duration` and its suffixes move to the stdlib tier (owner decisions
+  ST2 and ST3 in
+  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  step 9, 2026-09-30): stdlib tier. The `std.time` suffix rules leave
+  Expressions' Literal Suffixes, and `module.prelude.time-suffixes`
+  leaves Standard Names Outside The Prelude, for [Time](std/time.md),
+  with their text unchanged. Source is unaffected. `expr.suffix.std.*`
+  becomes `std-time.suffix.std.*`, and `module.prelude.time-suffixes`
+  becomes `std-time.prelude.time-suffixes`. The old IDs are retired. The
+  suffix mechanism, `@num_suffix`, stays language tier, and the language
+  chapters' suffix examples declare their own suffix functions. The test
+  signatures keep `timeout: Duration?`; a Note in
+  [Test Cases](10-modules.md#test-cases) says `Duration` is the
+  stdlib-tier `std.time.Duration`, named there only.
