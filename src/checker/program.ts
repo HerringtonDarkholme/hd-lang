@@ -30,11 +30,11 @@ import { rowRuleDiagnostics } from "./row-rules.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
 import { defaultBoundDiagnostics, withTypeDefaults } from "./type-defaults.ts";
 import { withTypedDerivation } from "./typed-derivation.ts";
-import { withArbitraryModule } from "./derive-arbitrary.ts";
+import { withArbitraryModule } from "./arbitrary-module.ts";
 import { withErrorDerivation } from "./error-derivation.ts";
 import { withShapes } from "./shapes.ts";
 import { setHashableKeyTypes } from "./shared.ts";
-import type { Diagnostic } from "../diagnostics.ts";
+import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 
 export interface CheckOptions {
   readonly hostCapabilities?: readonly string[];
@@ -66,20 +66,37 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
   const result = checkProgram(withShapes(derived.program), options);
   // A member that fails the walker's bound is reported at the opt-in
   // (spec/14-annotations.md#r-annot.walker.obligation.error).
-  const remapped = result.diagnostics.map((diagnostic): Diagnostic =>
-    diagnostic.code === "unsatisfied-trait-bound" &&
-    derived.optInSpans.some(
-      (span) =>
-        span.start.offset === diagnostic.span.start.offset &&
-        span.end.offset === diagnostic.span.end.offset,
-    )
+  const sameSpan = (span: SourceSpan, diagnostic: Diagnostic): boolean =>
+    span.start.offset === diagnostic.span.start.offset &&
+    span.end.offset === diagnostic.span.end.offset;
+  const remapped = result.diagnostics.map((diagnostic): Diagnostic => {
+    // A member that fails derived `Arbitrary`'s bounds is reported at the
+    // opt-in, naming the member (std-testing.arbitrary.derive.not-derivable).
+    const arbitrary =
+      diagnostic.code === "unsatisfied-trait-bound"
+        ? derived.arbitraryOptIns.find((optIn) => sameSpan(optIn.span, diagnostic))
+        : undefined;
+    if (arbitrary) {
+      const failing = /type '([^']*)'/.exec(diagnostic.message)?.[1]?.replaceAll(" ", "");
+      const members = arbitrary.members.filter(
+        (member) => member.type.replaceAll(" ", "") === failing,
+      );
+      return members.length === 0
+        ? diagnostic
+        : {
+            ...diagnostic,
+            message: `${members.map((member) => `member '${member.name}'`).join(", ")} cannot be derived: ${diagnostic.message}; write the impl of Arbitrary by hand`,
+          };
+    }
+    return diagnostic.code === "unsatisfied-trait-bound" &&
+      derived.optInSpans.some((span) => sameSpan(span, diagnostic))
       ? {
           ...diagnostic,
           code: "member-not-derivable",
           message: `a member does not satisfy the walker's, describer's, or source's bound: ${diagnostic.message}`,
         }
-      : diagnostic,
-  );
+      : diagnostic;
+  });
   return { ...result, diagnostics: [...derived.diagnostics, ...remapped] };
 }
 

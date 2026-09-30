@@ -1192,7 +1192,11 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     return undefined;
   }
 
-  private checkDeclaredCall(expression: NamedCallExpression, expected?: ValueType): HirExpression {
+  private checkDeclaredCall(
+    expression: NamedCallExpression,
+    expected?: ValueType,
+    initialSubstitutions?: ReadonlyMap<string, ValueType>,
+  ): HirExpression {
     if (this.globals.has(expression.callee.name) && !this.resolveGlobal(expression.callee.name)) {
       this.fail(
         "binding-not-yet-visible",
@@ -1207,7 +1211,13 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         `unknown function '${expression.callee.name}'`,
         expression.callee.span,
       );
-    const checkedArguments = this.checkSignatureArguments(expression, signature, expected);
+    const checkedArguments = this.checkSignatureArguments(
+      expression,
+      signature,
+      expected,
+      undefined,
+      initialSubstitutions,
+    );
     const { rowSubstitutions } = checkedArguments;
     const substitutions = this.resolveAssociatedTypeSubstitutions(
       signature,
@@ -1392,20 +1402,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       expression.arguments.length > 0
     )
       return this.checkReceiverFirstCall(expression, ownerType, expected);
-    const associatedCandidates = this.implementations.flatMap((implementation) => {
-      const substitutions = new Map<string, ValueType>();
-      if (!matchGenericTypePattern(implementation.targetType, ownerType, substitutions)) return [];
-      const candidateTrait = [...this.traitTypes.values()].find(
-        (candidate) => candidate.index === implementation.traitIndex,
-      );
-      const method = candidateTrait?.methods.find(
-        (candidate) => candidate.associated && candidate.name === expression.callee.name,
-      );
-      const mapping =
-        method &&
-        implementation.methodFunctions.find((candidate) => candidate.methodIndex === method.index);
-      return candidateTrait && method && mapping ? [{ candidateTrait, method, mapping }] : [];
-    });
+    const associatedCandidates = this.associatedCandidates(ownerType, expression.callee.name);
     const signatureOf = (candidate: (typeof associatedCandidates)[number]): Signature =>
       [...this.signatures.values()].find(
         (signature) => signature.index === candidate.mapping.functionIndex,
@@ -1483,6 +1480,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     const associatedSignature = [...this.signatures.values()].find(
       (signature) => signature.index === associated.mapping.functionIndex,
     )!;
+    // The target's arguments solve the implementation's own parameters.
     return this.checkDeclaredCall(
       {
         ...expression,
@@ -1493,6 +1491,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         },
       },
       expected,
+      associated.substitutions,
     );
   }
 }

@@ -9,16 +9,16 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,593 of the 1,627 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 34 are listed in
+On 2026-09-30 the prototype passes 1,598 of the 1,627 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 29 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 34 still fail. By
+decision below, and all 29 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,576 | 1,545 | 31 |
-| stdlib | 51 | 48 | 3 (AT-with) |
+| language | 1,576 | 1,547 | 29 |
+| stdlib | 51 | 51 | 0 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
@@ -35,9 +35,6 @@ them by tag:
 | GQ4 | 1 | the prototype has no pack operations |
 | MHP-1 | 1 | no inferred script entry requirement row |
 | INF-mut | 3 | batch 17: generic inference widens numbers, reports a trait-value conflict as `type-mismatch`, and `assert_equal` keeps its special case |
-| AT-with | 3 | batch 20: the derived `Arbitrary` template does not require `Arbitrary & Inspectable` of every member, and reports a non-inspectable tuned member on its `@arbitrary.with` line |
-| ST8 | 1 | `Structure` has no `name()` |
-| SIMPLE | 1 | a receiverless template method on a generic target is `unresolved-generic-placeholder` |
 
 ## What Remains
 

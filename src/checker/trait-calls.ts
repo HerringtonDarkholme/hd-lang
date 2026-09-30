@@ -1,7 +1,13 @@
 import type { Expression } from "../ast.ts";
-import type { HirExpression, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
+import type {
+  HirExpression,
+  HirTrait,
+  HirTraitMethod,
+  HirTraitMethodFunction,
+  ValueType,
+} from "../hir.ts";
 import { nominalGenericType } from "../types.ts";
-import { containsGenericType, substituteGenericType } from "./shared.ts";
+import { containsGenericType, matchGenericTypePattern, substituteGenericType } from "./shared.ts";
 
 import { InspectChecker } from "./expression-inspect.ts";
 
@@ -17,6 +23,39 @@ export interface ResolvedTraitMethod {
 
 /** Trait method lookup through supertraits, and associated calls through a bound. */
 export abstract class TraitCallChecker extends InspectChecker {
+  /**
+   * The implementations whose trait supplies the associated function `name`
+   * for `ownerType`, with the implementation's parameters that the target
+   * solves, as `T = Point` for `Box[Point]::name()`, which a receiverless
+   * call's arguments may not mention.
+   */
+  protected associatedCandidates(
+    ownerType: ValueType,
+    name: string,
+  ): {
+    readonly candidateTrait: HirTrait;
+    readonly method: HirTraitMethod;
+    readonly mapping: HirTraitMethodFunction;
+    readonly substitutions: ReadonlyMap<string, ValueType>;
+  }[] {
+    return this.implementations.flatMap((implementation) => {
+      const substitutions = new Map<string, ValueType>();
+      if (!matchGenericTypePattern(implementation.targetType, ownerType, substitutions)) return [];
+      const candidateTrait = [...this.traitTypes.values()].find(
+        (candidate) => candidate.index === implementation.traitIndex,
+      );
+      const method = candidateTrait?.methods.find(
+        (candidate) => candidate.associated && candidate.name === name,
+      );
+      const mapping =
+        method &&
+        implementation.methodFunctions.find((candidate) => candidate.methodIndex === method.index);
+      return candidateTrait && method && mapping
+        ? [{ candidateTrait, method, mapping, substitutions }]
+        : [];
+    });
+  }
+
   protected findTraitMethods(
     trait: HirTrait,
     name: string,

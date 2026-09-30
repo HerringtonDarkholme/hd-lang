@@ -4,6 +4,7 @@ import {
   type ImplDecl,
   type MethodDecl,
   type Program,
+  type UseDecl,
 } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
@@ -55,6 +56,15 @@ interface ParsedModule {
    * each under its hidden name, so the name keeps its ordinary meaning.
    */
   readonly compilerUses: readonly { readonly module: string; readonly name: string }[];
+  /**
+   * The `use` lines whose names only the module's templates and their
+   * protocol implementations mention, such as `std.testing`'s use of
+   * `std.testing.arbitrary.Generator`. They join nothing by themselves: a
+   * derivation that instantiates the template brings them in
+   * (`standardTemplate`).
+   */
+  readonly templateUses: readonly { readonly module: StandardModule; readonly name: string }[];
+  readonly templateCompilerUses: readonly { readonly module: string; readonly name: string }[];
 }
 
 const parsedModules = new Map<StandardModule, ParsedModule>();
@@ -108,6 +118,45 @@ function isStandardModule(name: string): name is StandardModule {
 /** The hidden name of a `std` declaration that the program did not import. */
 export function hiddenStandardName(module: string, name: string): string {
   return `__std_${module}_${name}`;
+}
+
+/**
+ * Compiler-provided names that the prototype declares only under their
+ * standard names, since it supports no alias for them
+ * (checker/standard-traits.ts): a std module's use of one keeps the name.
+ */
+const UNALIASED_COMPILER_NAMES = new Set(["inspect.Inspectable", "inspect.TypeId"]);
+
+/** The name a std module's use of a compiler-provided name has in the joined program. */
+function compilerUseName(module: string, name: string): string {
+  return UNALIASED_COMPILER_NAMES.has(`${module}.${name}`)
+    ? name
+    : hiddenStandardName(module, name);
+}
+
+/** A `use` of a compiler-provided name, under the name `compilerUseName` gives it. */
+function compilerUse(
+  used: { readonly module: string; readonly name: string },
+  span: SourceSpan,
+): UseDecl {
+  const alias = compilerUseName(used.module, used.name);
+  return {
+    kind: "use",
+    module: `std.${used.module}`,
+    names: [alias === used.name ? { name: used.name } : { name: used.name, alias }],
+    span,
+  };
+}
+
+/** Whether the program already imports `name` from `module` under `local`. */
+function imports(program: Program, module: string, name: string, local: string): boolean {
+  return program.uses.some(
+    (declaration) =>
+      declaration.module === module &&
+      declaration.names.some(
+        (imported) => imported.name === name && (imported.alias ?? imported.name) === local,
+      ),
+  );
 }
 
 function builtInBase(implementation: ImplDecl): boolean {
@@ -185,6 +234,29 @@ function standardModule(name: StandardModule): ParsedModule {
   ];
   const uses: { module: StandardModule; name: string }[] = [];
   const compilerUses: { module: string; name: string }[] = [];
+  const templateUses: { module: StandardModule; name: string }[] = [];
+  const templateCompilerUses: { module: string; name: string }[] = [];
+  // The names that the module's declarations and ordinary implementations
+  // mention; any other imported name is used only by a template part.
+  const structure = new Set(
+    program.uses
+      .filter((declaration) => declaration.module === `std.${STRUCTURE}`)
+      .flatMap((declaration) => declaration.names.map((imported) => imported.name)),
+  );
+  const outside = new Set<string>();
+  mentionedNames(
+    [
+      ...(program.types ?? []),
+      ...program.data,
+      ...program.enums,
+      ...program.traits,
+      ...program.functions,
+      ...program.implementations.filter(
+        (implementation) => !isTemplatePart(implementation, structure),
+      ),
+    ],
+    outside,
+  );
   for (const declaration of program.uses) {
     const module = declaration.module.replace(/^std\./, "");
     if (!declaration.module.startsWith("std."))
@@ -193,10 +265,12 @@ function standardModule(name: StandardModule): ParsedModule {
       // A module's own compiler-checked name, such as `std.testing.assert`
       // in `std.testing`, is a compiler use: the module does not declare it.
       if (isStandardModule(module) && !(module === name && !names.includes(imported.name)))
-        uses.push({ module, name: imported.name });
-      else compilerUses.push({ module, name: imported.name });
+        (outside.has(imported.name) ? uses : templateUses).push({ module, name: imported.name });
+      else if (module === STRUCTURE || outside.has(imported.name))
+        compilerUses.push({ module, name: imported.name });
+      else templateCompilerUses.push({ module, name: imported.name });
   }
-  const module = { name, program, names, uses, compilerUses };
+  const module = { name, program, names, uses, compilerUses, templateUses, templateCompilerUses };
   parsedModules.set(name, module);
   return module;
 }
@@ -318,6 +392,20 @@ export function importedMarkerFunctions(program: Program): Set<string> {
   return markers;
 }
 
+/** How a module's source is renamed into the program: its names and the names it uses. */
+function moduleRenames(
+  parsed: ParsedModule,
+  nameOf: (module: StandardModule, name: string) => string,
+): Map<string, string> {
+  const renames = new Map<string, string>();
+  for (const name of parsed.names) renames.set(name, nameOf(parsed.name, name));
+  for (const used of [...parsed.uses, ...parsed.templateUses])
+    renames.set(used.name, nameOf(used.module, used.name));
+  for (const used of [...parsed.compilerUses, ...parsed.templateCompilerUses])
+    if (used.module !== STRUCTURE) renames.set(used.name, compilerUseName(used.module, used.name));
+  return renames;
+}
+
 /** The node with each `name` equal to `from` replaced by `to`. */
 function renamed<T>(node: T, from: string, to: string): T {
   if (Array.isArray(node)) return node.map((item) => renamed(item, from, to)) as T;
@@ -407,7 +495,14 @@ function standardLocalNames(program: Program): Map<string, string> {
 export function standardTemplate(
   program: Program,
   trait: string,
-): { readonly template: ImplDecl; readonly support: readonly ImplDecl[] } | undefined {
+):
+  | {
+      readonly template: ImplDecl;
+      readonly support: readonly ImplDecl[];
+      /** The compiler-provided names that only the template parts use. */
+      readonly uses: readonly UseDecl[];
+    }
+  | undefined {
   for (const declaration of program.uses) {
     const module = declaration.module.replace(/^std\./, "");
     if (!declaration.module.startsWith("std.") || !isStandardModule(module)) continue;
@@ -417,12 +512,7 @@ export function standardTemplate(
     const localNames = standardLocalNames(program);
     const nameOf = (owner: StandardModule, name: string): string =>
       localNames.get(`${owner}.${name}`) ?? hiddenStandardName(owner, name);
-    const renames = new Map<string, string>();
-    for (const name of parsed.names) renames.set(name, nameOf(module, name));
-    for (const used of parsed.uses) renames.set(used.name, nameOf(used.module, used.name));
-    for (const used of parsed.compilerUses)
-      if (used.module !== STRUCTURE)
-        renames.set(used.name, hiddenStandardName(used.module, used.name));
+    const renames = moduleRenames(parsed, nameOf);
     const source = renameSource(standardSource(module).replace(/^use .*$/gm, ""), renames);
     const structure = structureNames(parsed);
     const implementations = parseModule(module, source).implementations;
@@ -436,7 +526,13 @@ export function standardTemplate(
       (implementation) =>
         implementation.byStructure === undefined && isTemplatePart(implementation, structure),
     );
-    return { template, support };
+    const uses = parsed.templateCompilerUses
+      .map((used) => compilerUse(used, declaration.span))
+      .filter((use) => {
+        const imported = use.names[0]!;
+        return !imports(program, use.module, imported.name, imported.alias ?? imported.name);
+      });
+    return { template, support, uses };
   }
   return undefined;
 }
@@ -482,12 +578,7 @@ export function withStandardLibrary(source: Program): Program {
     let renamed = modules.get(module);
     if (renamed) return renamed;
     const parsed = standardModule(module);
-    const renames = new Map<string, string>();
-    for (const name of parsed.names) renames.set(name, nameOf(module, name));
-    for (const used of parsed.uses) renames.set(used.name, nameOf(used.module, used.name));
-    for (const used of parsed.compilerUses)
-      if (used.module !== STRUCTURE)
-        renames.set(used.name, hiddenStandardName(used.module, used.name));
+    const renames = moduleRenames(parsed, nameOf);
     const source = renameSource(standardSource(module).replace(/^use .*$/gm, ""), renames);
     renamed = renamedModules.get(source) ?? withoutTemplates(parseModule(module, source), parsed);
     renamedModules.set(source, renamed);
@@ -665,15 +756,10 @@ export function withStandardLibrary(source: Program): Program {
   for (const module of STANDARD_MODULES) {
     if (!spans.has(module)) continue;
     for (const used of standardModule(module).compilerUses) {
-      const alias = hiddenStandardName(used.module, used.name);
-      if (imported.has(alias)) continue;
+      const alias = compilerUseName(used.module, used.name);
+      if (imported.has(alias) || imports(program, `std.${used.module}`, used.name, alias)) continue;
       imported.add(alias);
-      uses.push({
-        kind: "use",
-        module: `std.${used.module}`,
-        names: [{ name: used.name, alias }],
-        span: program.span,
-      });
+      uses.push(compilerUse(used, program.span));
     }
   }
   return { ...program, uses, types, data, enums, traits, functions, implementations };

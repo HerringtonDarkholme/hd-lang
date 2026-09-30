@@ -9,6 +9,3 @@ DC7	1	An initialization group's statements are not interleaved: the package link
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer
 INF-mut	3	Generic call inference from several arguments (batch 17, INF-mut) is not implemented: an i32 and an i64 argument widen instead of type-mismatch, a User and a Display argument are type-mismatch instead of no-common-type, and assert_equal still coerces expected to the type of actual
-AT-with	3	Derived Arbitrary member bounds (batch 20, AT-with) are not implemented: the template does not require Inspectable of every member, a tuned member needs no Arbitrary, and a non-inspectable tuned member is reported on its @arbitrary.with line instead of the opt-in
-ST8	1	Structure has no name() (Spec Tiers ST8), and a receiverless template method on a generic target is unresolved-generic-placeholder
-SIMPLE	1	A receiverless template method on a generic target is unresolved-generic-placeholder, so the SIMPLE rule for the enclosing type with other type arguments is untested

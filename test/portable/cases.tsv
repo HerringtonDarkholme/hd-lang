@@ -1592,3 +1592,8 @@ typing/valid/method-references.hd	type
 typing/invalid/mut-self-reference-readonly-callback.hd	type
 runtime/valid/structure-self-ref.hd	runtime
 runtime/valid/structure-self-ref-enum.hd	runtime
+typing/invalid/derived-arbitrary-function-member.hd	type
+typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd	type
+typing/invalid/arbitrary-with-non-inspectable-member.hd	type
+runtime/valid/structure-name.hd	runtime
+runtime/valid/structure-self-ref-type-arguments.hd	runtime

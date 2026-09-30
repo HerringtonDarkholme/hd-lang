@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 export const STANDARD_MODULES = [
   "annotation",
   // `std.testing.arbitrary`, reached only through `use std.testing.arbitrary`
-  // (checker/derive-arbitrary.ts).
+  // (checker/arbitrary-module.ts).
   "arbitrary",
   "cmp",
   "format",
