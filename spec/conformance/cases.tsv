@@ -1385,7 +1385,7 @@ typing/valid/callable-values.hd	type	accept	05-expressions.md#callable-values
 runtime/valid/callable-values-run.hd	runtime	accept	05-expressions.md#r-expr.call.apply.write
 typing/invalid/callable-value-no-update.hd	type	reject:invalid-assignment-target	05-expressions.md#r-expr.call.apply.place
 typing/invalid/callable-value-arguments.hd	type	reject:argument-count	05-expressions.md#r-expr.call.apply.arguments
-typing/invalid/list-call-not-callable.hd	type	reject:not-callable	05-expressions.md#r-expr.call.apply.builtin-none
+typing/invalid/list-call-not-callable.hd	type	reject:not-callable	05-expressions.md#r-expr.call.apply.not-callable
 typing/invalid/callable-value-short-binding-store.hd	type	reject:readonly-root	05-expressions.md#r-expr.call.apply.readonly
 typing/invalid/callable-value-readonly-parameter.hd	type	reject:readonly-root	05-expressions.md#r-expr.call.apply.readonly
 typing/invalid/index-missing.hd	type	reject:type-mismatch	05-expressions.md#r-expr.index.trait.no-read
@@ -1640,3 +1640,4 @@ runtime/valid/index-then-call-element.hd	runtime	accept	02-grammar.md#r-grammar.
 typing/invalid/readonly-iterator-iterable-bound.hd	type	reject:unsatisfied-trait-bound	06-control-flow.md#r-flow.for.iterator-no-bound
 typing/valid/for-over-mut-iterator.hd	type	accept	06-control-flow.md#r-flow.for.iterator-direct
 runtime/valid/iterator-single-pass.hd	runtime	accept	06-control-flow.md#r-flow.for.iterator.position
+runtime/valid/structure-qualified-self.hd	runtime	accept	14-annotations.md#r-annot.template.structure-self

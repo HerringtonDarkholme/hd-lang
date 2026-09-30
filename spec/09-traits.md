@@ -990,7 +990,9 @@ second := make::[User]()
 9. r[trait.assoc-call.trait.undetermined] A `Trait::f(args)` call whose `Self` that inference does not determine is invalid; write `Type::f(args)` or `T::f(args)` instead.
 
 See also: [Trait-Qualified Calls](#trait-qualified-calls),
-[Trait Availability](#trait-availability).
+[Trait Availability](#trait-availability), and
+[Templates](14-annotations.md#templates), where a `Structure::` call has
+the template's `T` as its `Self`.
 
 ## Generic Bounds And Static Dispatch
 

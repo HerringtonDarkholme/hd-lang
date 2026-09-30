@@ -52,8 +52,7 @@ The standard library declares one prefix, in `std.text`:
 
 1. r[std-text.prefix.std.r-meaning] So `r"\d+ $n"` is the text `\d+ ` followed by the `Display` text of `n`, and `r"a\"b"` keeps its backslash.
 2. r[std-text.prefix.std.only-r] `r` is the only standard prefix. `std` declares no `b`, so `b"..."` names nothing until a bytes type exists.
-3. r[std-text.prefix.std.import-text] `std.text` declares `r`. It is not a prelude name; code imports it, as in `use std.text.r`.
-4. r[std-text.prelude.text-r] `std.text` declares the string prefix `r`, which code imports, as in `use std.text.r`.
+3. r[std-text.prefix.std.import-text] `std.text` declares the string prefix `r`. It is not a prelude name; code imports it, as in `use std.text.r`.
 
 ```text
 use std.text.r

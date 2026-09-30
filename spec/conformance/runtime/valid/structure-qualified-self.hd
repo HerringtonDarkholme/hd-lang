@@ -1,0 +1,53 @@
+# test: inside a template, a Structure:: call's Self is the template's T
+# Spec 14 Templates: annot.template.structure-self and .receiverless (ST8-self, owner decision 2026-09-30).
+# Structure::name() and Structure::facts() take no argument, so no inference gives their Self.
+# The derived trait declares its own receiverless `name`; Structure::name() is the generated one.
+use std.structure.{Structure, Field, Variant, Describer}
+use std.testing.assert_equal
+
+data Style:
+    prefix: string = ""
+
+fn style(prefix: string = "") -> Style:
+    Style { prefix: prefix }
+
+trait Named:
+    fn name() -> string
+
+data MemberCount:
+    count: i32
+
+impl[S] Describer[S] for MemberCount:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.count = self.count + 1
+        .Ok()
+
+impl[T] Named for T by Structure:
+    fn name() -> string:
+        let mut d = MemberCount { count: 0 }
+        _ := T::describe(d)
+        prefix := match Structure::facts().find::[Style]():
+            .Some(found) => found.prefix
+            .None => ""
+        prefix + Structure::name()
+
+@derive(Named)
+@style(prefix="p_")
+data Point:
+    x: i32
+
+@derive(Named)
+enum Shape:
+    Dot
+
+tests:
+    it("Structure::name() is the target's declared name"):
+        assert_equal(Shape::name(), "Shape", reason="Self is the template's T")
+
+    it("Structure::facts() reads the target's type-level facts"):
+        assert_equal(Point::name(), "p_Point", reason="Self is the template's T")

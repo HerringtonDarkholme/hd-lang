@@ -870,9 +870,8 @@ pub trait Update[V]:
 10. r[expr.call.apply.mut] A store through `v()` mutates `v`, so `v` must have type `mut T`, as [Mutation Checks](04-type-system.md#mutation-checks) require of `e[i] = value`.
 11. r[expr.call.apply.readonly] A store through a readonly callee is an error. Error: `readonly-root`.
 12. r[expr.call.apply.not-callable] Calling a value whose type is neither a function type nor implements `Apply` is an error. Error: `not-callable`.
-13. r[expr.call.apply.builtin-none] `List`, `Map`, and `string` implement neither trait, so an element is read with `xs[0]`, never `xs(0)`.
-14. r[expr.call.apply.independent] The two traits are independent: a type may implement either one alone.
-15. r[expr.call.apply.field] A callable value in a field is called by parenthesizing the field read, as in `(panel.count)()`, as [`expr.member.stored-fn`](#r-expr.member.stored-fn) states for a stored function.
+13. r[expr.call.apply.independent] The two traits are independent: a type may implement either one alone.
+14. r[expr.call.apply.field] A callable value in a field is called by parenthesizing the field read, as in `(panel.count)()`, as [`expr.member.stored-fn`](#r-expr.member.stored-fn) states for a stored function.
 
 A value with `Apply` alone reads but does not store, and a callable value
 takes no keys:

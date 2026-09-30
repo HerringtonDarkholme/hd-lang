@@ -817,10 +817,13 @@ fn edit_users(users: mut List[mut User]) -> void:
 The container root and element edge are independent:
 
 ```text
-List[User]           # const container, const elements
-List[mut User]       # const container, mutable elements
-mut List[User]       # mutable container, const elements
-mut List[mut User]   # mutable container, mutable elements
+fn views(
+    a: List[User],           # const container, const elements
+    b: List[mut User],       # const container, mutable elements
+    c: mut List[User],       # mutable container, const elements
+    d: mut List[mut User],   # mutable container, mutable elements
+) -> void:
+    pass
 ```
 
 The built-in `List` type declares a covariant element parameter, conceptually `List[+T]`. Therefore a read-only list view may weaken element permission:
@@ -850,8 +853,11 @@ An ordinary generic parameter denotes a complete type, including any access modi
 data Box[T]:
     value: T
 
-Box[User]       # value: User
-Box[mut User]   # value: mut User
+fn boxes(
+    plain: Box[User],        # value: User
+    editable: Box[mut User], # value: mut User
+) -> void:
+    pass
 
 data InvalidBox[T]:
     value: mut T  # invalid: T may already be `mut U`
@@ -1124,8 +1130,8 @@ hd-lang should have built-in list and map collection types and literals, not onl
 Candidate collection types:
 
 ```text
-List[string]
-Map[string, i32]
+let names: List[string] = []
+let scores: Map[string, i32] = {}
 ```
 
 Collection literals should infer their collection type when possible:

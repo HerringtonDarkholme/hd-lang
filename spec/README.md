@@ -2326,3 +2326,27 @@ existing source. Each entry names the decision that made the change.
   [`flow.for.iterator-no-bound`](06-control-flow.md#r-flow.for.iterator-no-bound).
   [`flow.for.iterator-not-iterable`](06-control-flow.md#r-flow.for.iterator-not-iterable)
   is new.
+- Redundant built-in rule for callable values (owner decision BFF2,
+  batch 25 in [Call Indexing](../future-work/CALL_INDEXING.md#owner-decisions),
+  2026-09-30): language tier. `expr.call.apply.builtin-none`, which said
+  `List`, `Map`, and `string` implement neither `Apply` nor `Update`, is
+  retired with no replacement. Those types implement neither trait, so
+  [`expr.call.apply.not-callable`](05-expressions.md#r-expr.call.apply.not-callable)
+  already rejects `xs(0)`. Source is unaffected.
+- The `Self` of a `Structure::` call (owner decision ST8-self, batch 25 in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
+  2026-09-30): language tier. Inside a template, a `Structure::` call has
+  the template's `T` as its `Self`
+  ([`annot.template.structure-self`](14-annotations.md#r-annot.template.structure-self)),
+  so `Structure::name()` and `Structure::facts()`, which were
+  `trait.assoc-call.trait.undetermined`, are valid and mean `T::name()`
+  and `T::facts()`
+  ([`annot.template.structure-self.receiverless`](14-annotations.md#r-annot.template.structure-self.receiverless)).
+  The Templates note on clashes names the rule. Existing valid source is
+  unaffected.
+- One rule for importing `r` (owner decision r-merge, batch 25 in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
+  2026-09-30): stdlib tier. `std-text.prelude.text-r` said what
+  [`std-text.prefix.std.import-text`](std/text.md#r-std-text.prefix.std.import-text)
+  says, so it is retired, and the kept rule now names `r` a string prefix.
+  Text and source are unaffected.
