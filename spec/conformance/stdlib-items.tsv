@@ -1,1 +1,3 @@
 item	specification
+std.testing.Arbitrary	std/testing.md#property-tests
+std.testing.Choices	std/testing.md#property-tests

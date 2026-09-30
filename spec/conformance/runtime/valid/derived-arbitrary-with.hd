@@ -1,6 +1,6 @@
 # test: derived Arbitrary draws a member by its arbitrary.with generator, and examples run
-# Spec 10 Derived Arbitrary: module.testing.arbitrary.derive and .with; Property Tests:
-# module.testing.prop.examples (Testing PT2, PT7).
+# Spec 10 Derived Arbitrary: module.testing.arbitrary.derive and .with; std Testing, Property Tests:
+# std-testing.prop.examples (Testing PT2, PT7).
 use std.testing.{Arbitrary, Choices, assert, it_prop}
 use std.testing.arbitrary
 

@@ -47,7 +47,7 @@ the numbered chapters.
 
 | File | Module | Rule ID prefix | Scope |
 | --- | --- | --- | --- |
-| `testing.md` | `std.testing` | `std-testing` | property tests, the draw budget, derived `Arbitrary`, table-test rows, snapshot files, the `timeout` option |
+| [`testing.md`](testing.md) | `std.testing` | `std-testing` | property tests, the draw budget, derived `Arbitrary`, table-test rows, snapshot files, the `timeout` option |
 | `iter.md` | `std.iter` | `std-iter` | iterator adapters, collect targets, `FromIterator` and its impls |
 | `text.md` | `std.text` | `std-text` | string methods above the intrinsics, the `r` prefix |
 | `format.md` | `std.format` | `std-format` | `Debug` builders and layout |

@@ -1,5 +1,5 @@
 # test: generic integer and float draws, a string limit in chars, and a map draw
-# Spec 10 Property Tests: module.testing.choices.int-generic, .float-generic, .string-chars,
+# std Testing, Property Tests: std-testing.choices.int-generic, .float-generic, .string-chars,
 # and .map (Testing PT3-PT5).
 use std.testing.Choices
 

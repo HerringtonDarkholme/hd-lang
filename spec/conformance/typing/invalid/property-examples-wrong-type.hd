@@ -1,5 +1,5 @@
 # test: a property's examples have the property's input type
-# Spec 10 Property Tests: it_prop_with takes examples: List[T] (Testing PT7).
+# std Testing, Property Tests: it_prop_with takes examples: List[T] (Testing PT7).
 use std.testing.{Choices, it_prop_with}
 
 fn small(c: mut Choices) -> i32:

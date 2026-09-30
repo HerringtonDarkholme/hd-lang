@@ -1249,7 +1249,7 @@ typing/invalid/integration-test-tests-block.hd	type	reject:misplaced-tests-block
 typing/invalid/test-module-tests-root.hd	type	reject:test-only-use	10-modules.md#r-module.test.tests-root-elsewhere
 runtime/valid/test-module-top-level-cases.hd	runtime	accept	10-modules.md#r-module.test.module
 typing/valid/debug-writer-builders.hd	type	accept	09-traits.md#r-trait.debug.builder.struct
-typing/valid/choices-arbitrary.hd	type	accept	10-modules.md#r-module.testing.choices.declare
+typing/valid/choices-arbitrary.hd	type	accept	std/testing.md#r-std-testing.choices.declare
 runtime/panic/duration-suffix-overflow.hd	runtime	panic:integer-overflow	05-expressions.md#r-expr.suffix.std.overflow
 runtime/valid/duration-api.hd	runtime	accept	05-expressions.md#r-expr.suffix.std.duration-api
 typing/valid/println-top-level-script.hd	type	accept	10-modules.md#r-module.console.println-script
@@ -1324,8 +1324,8 @@ typing/invalid/row-alias-generic-kind.hd	type	reject:generic-kind-mismatch	11-re
 runtime/valid/installer-function-runs.hd	runtime	accept	11-requirements-and-suspension.md#r-req.poly.extension
 typing/invalid/cast-literal-out-of-range.hd	type	reject:integer-literal-range	04-type-system.md#r-types.cast.literal-range
 runtime/valid/narrowing-cast-wraps.hd	runtime	accept	04-type-system.md#r-types.cast.wrap
-typing/invalid/property-input-not-debug.hd	type	reject:unsatisfied-trait-bound	10-modules.md#r-module.testing.prop.debug
-runtime/valid/property-assume-discards.hd	runtime	accept	10-modules.md#r-module.testing.prop.discard
+typing/invalid/property-input-not-debug.hd	type	reject:unsatisfied-trait-bound	std/testing.md#r-std-testing.prop.debug
+runtime/valid/property-assume-discards.hd	runtime	accept	std/testing.md#r-std-testing.prop.discard
 typing/invalid/type-name-as-value.hd	type	reject:type-used-as-value	03-names-and-scopes.md#r-names.type-as-value
 typing/valid/literal-suffix-requirement.hd	type	accept	05-expressions.md#r-expr.suffix.ordinary-rules
 typing/invalid/literal-suffix-no-parameter.hd	type	reject:type-mismatch	05-expressions.md#r-expr.suffix.fn-shape.definition
@@ -1575,11 +1575,11 @@ typing/invalid/error-argument-identifier.hd	type	reject:invalid-error-marker	14-
 typing/invalid/error-argument-number.hd	type	reject:invalid-error-marker	14-annotations.md#r-annot.error.form.argument
 typing/invalid/error-extra-argument.hd	type	reject:invalid-error-marker	14-annotations.md#r-annot.error.form.argument
 typing/valid/error-interpolated-bound.hd	type	accept	14-annotations.md#r-annot.error.bound.interpolated
-typing/valid/choices-generic-draws.hd	type	accept	10-modules.md#r-module.testing.choices.int-generic
-runtime/valid/property-draw-budget.hd	runtime	accept	10-modules.md#r-module.testing.budget
+typing/valid/choices-generic-draws.hd	type	accept	std/testing.md#r-std-testing.choices.int-generic
+runtime/valid/property-draw-budget.hd	runtime	accept	std/testing.md#r-std-testing.budget
 runtime/valid/derived-arbitrary-with.hd	runtime	accept	10-modules.md#r-module.testing.arbitrary.with
 runtime/valid/derived-arbitrary-with-mismatch.hd	runtime	accept	10-modules.md#r-module.testing.arbitrary.with.downcast-failure
-typing/invalid/property-examples-wrong-type.hd	type	reject:type-mismatch	10-modules.md#r-module.testing.prop.examples
+typing/invalid/property-examples-wrong-type.hd	type	reject:type-mismatch	std/testing.md#r-std-testing.prop.examples
 parse/valid/binding-list.hd	parse	accept	02-grammar.md#r-grammar.stmt.bind-list
 parse/valid/paren-line-new-statement.hd	parse	accept	01-lexical-structure.md#r-lex.continue.paren-line
 parse/invalid/bare-binding-list.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.stmt.bind-list.bare

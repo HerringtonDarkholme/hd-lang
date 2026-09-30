@@ -2083,3 +2083,15 @@ existing source. Each entry names the decision that made the change.
   `max(i64(small), large)`. `cmp(user, label)` with a `User` and a
   `Display` is `no-common-type`; write `cmp[Display](user, label)`. This
   applies to `assert_equal` too. No rule ID is retired.
+- Property tests move to the stdlib tier (owner decisions ST2, ST3, and ST6
+  in [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  step 4, 2026-09-30): stdlib tier. The Property Tests and Draw Budget
+  sections of Modules move to [Testing](std/testing.md), with their text
+  unchanged. Source is unaffected. `module.testing.choices.*` becomes
+  `std-testing.choices.*`, `module.testing.arbitrary`, `.arbitrary.std`, and
+  `.arbitrary.float` become `std-testing.arbitrary`, `.arbitrary.std`, and
+  `.arbitrary.float`, `module.testing.prop.*` becomes `std-testing.prop.*`,
+  and `module.testing.budget` and `module.testing.budget.*` become
+  `std-testing.budget` and `std-testing.budget.*`. The old IDs are
+  retired. The signatures of `it_prop` and `it_prop_with` stay in
+  [Table Tests](10-modules.md#table-tests) with their registration rules.

@@ -1,5 +1,5 @@
 # test: generators draw from Choices, and Arbitrary gives a type its default generator
-# Spec 10 Property Tests: module.testing.choices.declare and the Choices members (Testing T53).
+# std Testing, Property Tests: std-testing.choices.declare and the Choices members (Testing T53).
 use std.testing.{Arbitrary, Choices}
 
 data Point:

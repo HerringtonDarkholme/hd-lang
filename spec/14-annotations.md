@@ -1161,7 +1161,7 @@ derived, and whether its simplest value must.
 3. r[annot.self-ref.refers.members] A data type or enum also refers to the enclosing type when one of its members has a type that refers to it.
 4. r[annot.self-ref.needs] A type needs the enclosing type when its simplest value holds a value of it.
 5. r[annot.self-ref.needs.forms] So the enclosing type needs itself, a tuple or data type needs it through an element or member type that needs it, and `Result[T, E]` needs it when `T` does.
-6. r[annot.self-ref.needs.containers] A `List`, `Map`, or optional type never needs the enclosing type, because its simplest value is empty or `.None`, as in the [Draw Budget](10-modules.md#draw-budget) table.
+6. r[annot.self-ref.needs.containers] A `List`, `Map`, or optional type never needs the enclosing type, because its simplest value is empty or `.None`.
 7. r[annot.self-ref.member] A member's `self_ref` is `.Required` when its type needs the enclosing type, `.Optional` when its type refers to it without needing it, and `.Absent` otherwise.
 8. r[annot.self-ref.variant] A variant's `self_ref` is the strongest of its members' values, where `.Required` is stronger than `.Optional` and `.Optional` than `.Absent`.
 9. r[annot.self-ref.variant.empty] A variant with no members has `self_ref` `.Absent`.
@@ -1193,6 +1193,9 @@ data Node:
 > nesting-depth limit, and a schema generator may emit a named definition
 > with a `$ref`. `Debug` may truncate deep output.
 > [STDLIB](../future-work/STDLIB.md) tracks these.
+
+See also: the [Draw Budget](std/testing.md#draw-budget) table, which gives
+each draw's simplest value.
 
 ### Handles
 
