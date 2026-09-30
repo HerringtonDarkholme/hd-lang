@@ -1,0 +1,34 @@
+# test: the generated Error bounds of carried and transparent type parameters
+# Spec 14 Generated Error Bounds: annot.error.bound.carried gives a carried-only parameter
+# Inspectable, and annot.error.bound.transparent gives a transparent member's parameter Error.
+use std.error.Error
+use std.inspect.Inspectable
+
+@error("disk full")
+data DiskError:
+    free: i64
+
+data Job:
+    id: i64
+
+@error
+enum TaskError[E, T]:
+    @error("task $name failed")
+    Failed(name: string, @source error: E, input: T)
+
+@error
+enum Wrapped[P]:
+    @error(transparent)
+    Inner(error: P)
+
+fn erase_task(value: TaskError[DiskError, Job]) -> Error:
+    value
+
+fn erase_generic[E < Error, T < Inspectable](value: TaskError[E, T]) -> Error:
+    value
+
+fn erase_wrapped(value: Wrapped[DiskError]) -> Error:
+    value
+
+fn show_wrapped[P < Display](value: Wrapped[P]) -> string:
+    value.to_string()

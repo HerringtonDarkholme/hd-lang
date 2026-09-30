@@ -1,0 +1,6 @@
+# test: @error("...") before an enum is misplaced
+# Spec 14 Error Types: annot.error.form.misplaced; an enum takes a bare @error, and its variants take messages.
+
+@error("disk failed")  # diagnostic: decorator-target-kind
+enum DiskError:
+    Full

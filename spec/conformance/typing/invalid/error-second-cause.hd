@@ -1,0 +1,11 @@
+# test: a variant with two cause members
+# Spec 14 Error Causes: annot.error.cause.one is reported on the second cause member.
+
+@error("disk full")
+data DiskError:
+    free: i64
+
+@error
+enum SaveError:
+    @error("two causes")
+    Both(@source first: DiskError, @source second: DiskError)  # diagnostic: invalid-error-marker

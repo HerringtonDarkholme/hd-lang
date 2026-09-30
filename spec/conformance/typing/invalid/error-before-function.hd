@@ -1,0 +1,6 @@
+# test: @error before a function is misplaced
+# Spec 14 Error Types: annot.error.form.misplaced; a function is not a target of any @error form.
+
+@error("no tool")  # diagnostic: decorator-target-kind
+fn tool() -> string:
+    "hammer"

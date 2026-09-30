@@ -1,7 +1,6 @@
 # test: a hand-written From that @from already generates overlaps it
 # Spec 14 Error Types: annot.error.hand-written covers a generated From[P].
 use std.convert.From
-use std.error.Error
 
 @error
 enum ReadError:

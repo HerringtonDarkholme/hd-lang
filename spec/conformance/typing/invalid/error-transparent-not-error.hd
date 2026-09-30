@@ -1,0 +1,7 @@
+# test: a transparent member whose type does not implement Error
+# Spec 14 Transparent Errors: annot.error.transparent.type, as for any unmet bound.
+
+@error
+enum SaveError:
+    @error(transparent)
+    Text(reason: string)  # diagnostic: unsatisfied-trait-bound

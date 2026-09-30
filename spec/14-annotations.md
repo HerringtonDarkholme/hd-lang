@@ -1350,13 +1350,14 @@ The forms are:
 | r[annot.error.form.source] Cause marker | `@source` | one payload parameter of a variant of an error enum, or one field of an error data type | marks the cause |
 
 7. r[annot.error.form.other] Any other `@error` line is invalid, and so is any other `@from` or `@source` line inside an error type.
-8. r[annot.error.marker] Inside an error type, `from`, `source`, and `transparent` in these forms are markers, not names. A binding with the same name does not change them.
-9. r[annot.error.marker.no-value] A marker attaches no value, so it is neither member metadata nor a fact.
-10. r[annot.error.marker.outside] Outside an error type, `@from` and `@source` have no special meaning: each is an ordinary decorator.
+8. r[annot.error.form.misplaced] A form written before a target that the table does not list for it is an error, reported on the form. Error: `decorator-target-kind`.
+9. r[annot.error.form.misplaced.examples] So `@error` before a function or a newtype, a bare `@error` before a data type, `@error("...")` before an enum, and `@from` beside a second payload member are each `decorator-target-kind`.
+10. r[annot.error.marker] Inside an error type, `from`, `source`, and `transparent` in these forms are markers, not names. A binding with the same name does not change them.
+11. r[annot.error.marker.no-value] A marker attaches no value, so it is neither member metadata nor a fact.
+12. r[annot.error.marker.outside] Outside an error type, `@from` and `@source` have no special meaning: each is an ordinary decorator.
+13. r[annot.error.no-use] Writing `@error`, `@from`, or `@source` needs no `use std.error.Error`, as [`annot.derive.no-use`](#r-annot.derive.no-use) needs none for `Structure`. Code that names `Error` itself still imports it, as [`trait.error.import`](09-traits.md#r-trait.error.import) states.
 
 ```text
-use std.error.Error
-
 @error
 enum ReadError:
     @error("closed")
@@ -1367,6 +1368,10 @@ impl Display for ReadError:  # error: overlapping-impl
 
 enum Plain:
     Wrap(@from error: ReadError)  # error: unknown-name
+
+@error("no tool")  # error: decorator-target-kind
+fn tool() -> string:
+    "hammer"
 ```
 
 > **Why.** Typed derivation generates one implementation per trait. An
@@ -1384,12 +1389,13 @@ enum Plain:
 2. r[annot.error.message.scope] A variant's message sees the variant's named payload members by name, and its unnamed payload members as `_0`, `_1`, and so on.
 3. r[annot.error.message.unnamed] Unnamed payload members are numbered from zero, in declaration order.
 4. r[annot.error.message.shared] A variant's message also sees the enum's named [shared fields](08-data-and-enums.md#shared-fields) by name.
-5. r[annot.error.message.data] A data type's message sees the type's fields by name.
-6. r[annot.error.message.checked] A message is type-checked as ordinary code in that scope. A name that resolves to nothing is an error. Error: `unknown-name`.
-7. r[annot.error.message.display] Each interpolated value must implement `Display`, as [`expr.interp.no-display`](05-expressions.md#r-expr.interp.no-display) requires. Error: `unsatisfied-trait-bound`.
-8. r[annot.error.message.no-self] A message is not inside a method, so `$self` in a message is invalid.
-9. r[annot.error.message.eval] The generated `to_string` evaluates the value's message each time it is called, with the value's members bound.
-10. r[annot.error.message.absent] A variant without a message displays as its variant name, as `FsError.Busy` displays as `Busy`.
+5. r[annot.error.message.shared-unnamed] Unnamed shared data is not in scope, so `$_0` and `$_1` always name the variant's unnamed payload members.
+6. r[annot.error.message.data] A data type's message sees the type's fields by name.
+7. r[annot.error.message.checked] A message is type-checked as ordinary code in that scope. A name that resolves to nothing is an error. Error: `unknown-name`.
+8. r[annot.error.message.display] Each interpolated value must implement `Display`, as [`expr.interp.no-display`](05-expressions.md#r-expr.interp.no-display) requires. Error: `unsatisfied-trait-bound`.
+9. r[annot.error.message.no-self] A message is not inside a method, so `self` names nothing there, and `$self` in a message is an error. Error: `unknown-name`.
+10. r[annot.error.message.eval] The generated `to_string` evaluates the value's message each time it is called, with the value's members bound.
+11. r[annot.error.message.absent] A variant without a message displays as its variant name, as `FsError.Busy` displays as `Busy`.
 
 ```text
 data Span:
@@ -1401,7 +1407,19 @@ enum ParseError:
     BadToken(text: string)
     @error("bad span $span")  # error: unsatisfied-trait-bound
     BadSpan(span: Span)
+    @error("bad $self")  # error: unknown-name
+    Other
+
+@error
+enum HttpError(i32):
+    @error("denied: $_0")
+    Denied(string) -> HttpError(403)
+    @error("status $_0")  # error: unknown-name
+    Missing -> HttpError(404)
 ```
+
+In `HttpError`, `$_0` names `Denied`'s payload member, never the shared
+status code, so `Missing` has no `_0` in scope.
 
 > **Why.** `$self` would call the generated `to_string` from inside itself
 > and never finish.
@@ -1411,13 +1429,11 @@ enum ParseError:
 1. r[annot.error.cause.method] The generated `Error` implementation defines [`cause`](09-traits.md#r-trait.error.cause), which returns the value's cause member, or `.None` when it has none.
 2. r[annot.error.cause.member] A variant's or data type's cause member is its `@from` or `@source` member.
 3. r[annot.error.cause.explicit] A variant or data type without `@from` or `@source` has no cause. There is no automatic cause and no field-name convention.
-4. r[annot.error.cause.one] A variant or data type has at most one `@from` or `@source` member. A second one is invalid.
-5. r[annot.error.cause.type] A cause member's type must implement `Error`.
+4. r[annot.error.cause.one] A variant or data type has at most one `@from` or `@source` member. A second one is an error, reported on that member. Error: `invalid-error-marker`.
+5. r[annot.error.cause.type] A cause member's type must implement `Error`. Error: `unsatisfied-trait-bound`.
 6. r[annot.error.cause.optional] A `@source` member may instead have the type `E?`, where `E` implements `Error`. A `.None` member gives no cause.
 
 ```text
-use std.error.Error
-
 @error("disk full")
 data DiskError:
     free: i64
@@ -1428,6 +1444,10 @@ enum SaveError:
     Write(path: string, @source error: DiskError?)
     @error("save failed")
     Other(@source error: DiskError)
+    @error("two causes")
+    Both(@source first: DiskError, @source second: DiskError)  # error: invalid-error-marker
+    @error("bad path")
+    Path(@source reason: string)  # error: unsatisfied-trait-bound
 ```
 
 ### Error Conversions
@@ -1436,11 +1456,9 @@ enum SaveError:
 2. r[annot.error.from.data] `@from` on an error data type's only field generates the same implementation, whose `from` builds the data value.
 3. r[annot.error.from.unmarked] A member without `@from` generates no `From`, so `Invalid(reason: string)` never yields `From[string]`.
 4. r[annot.error.from.same-type] Two `@from` members of one type `P` generate overlapping implementations of `From[P]`. The later one is an error, reported on its member. Error: `overlapping-impl`.
-5. r[annot.error.from.type-parameter] A `@from` member whose type is a bare type parameter is invalid.
+5. r[annot.error.from.type-parameter] A `@from` member whose type is a bare type parameter is an error. Error: `invalid-error-marker`.
 
 ```text
-use std.error.Error
-
 @error("bad yaml")
 data YamlError:
     line: i64
@@ -1451,6 +1469,11 @@ enum RuleError:
     Utils(@from error: YamlError)
     @error("bad rule")
     Rule(@from error: YamlError)  # error: overlapping-impl
+
+@error
+enum AppError[E]:
+    @error("inner failed")
+    Inner(@from error: E)  # error: invalid-error-marker
 ```
 
 > **Why.** `impl[E] From[E] for AppError[E]` would overlap every other
@@ -1461,11 +1484,9 @@ enum RuleError:
 
 1. r[annot.error.transparent.display] A transparent variant or data type displays as its one member displays.
 2. r[annot.error.transparent.cause] Its `cause` returns that member's own `cause`, so a chain does not repeat the inner message.
-3. r[annot.error.transparent.type] The member's type must implement `Error`.
+3. r[annot.error.transparent.type] The member's type must implement `Error`. Error: `unsatisfied-trait-bound`.
 
 ```text
-use std.error.Error
-
 @error
 enum RepoError:
     @error("missing $_0")
@@ -1488,25 +1509,37 @@ converts a `RepoError` into it.
 1. r[annot.error.bound.display] For a generic error type, the generated `Display` gets `P < Display` for each type parameter `P` that is the type of an interpolated member or a transparent member.
 2. r[annot.error.bound.error] The generated `Error` gets `P < Error` for each type parameter `P` that is the type of a `@from` or `@source` member.
 3. r[annot.error.bound.display-carried] The generated `Display` gives no bound to a type parameter that is only carried.
+4. r[annot.error.bound.transparent] The generated `Error` gets `P < Error` for each type parameter `P` that is the type of a transparent member, so its `cause` can forward.
+5. r[annot.error.bound.carried] The generated `Error` gets `P < Inspectable` for each type parameter `P` that is only carried: no interpolated, transparent, `@from`, or `@source` member has the type `P`.
 
 ```text
-use std.error.Error
+@error
+enum TaskError[E, T]:
+    @error("task $name failed")
+    Failed(name: string, @source error: E, input: T)
 
 @error
-enum TaskError[E]:
-    @error("task $name failed")
-    Failed(name: string, @source error: E)
+enum Wrapped[P]:
+    @error(transparent)
+    Inner(error: P)
 ```
 
-`TaskError[E]` gets `impl[E < Error] Error for TaskError[E]`, and its
-`Display` needs no bound on `E`.
+`TaskError[E, T]` gets `impl[E < Error, T < Inspectable] Error for
+TaskError[E, T]`, and its `Display` needs no bound on `E` or `T`.
+`Wrapped[P]` gets `impl[P < Display] Display for Wrapped[P]` and
+`impl[P < Error] Error for Wrapped[P]`. Its transparent member has no
+`@from`, since a `@from` member of a bare type parameter is invalid.
 
-> **Note.** Some parts are undecided and listed in
-> [Error Conversion](../future-work/ERROR_CONVERSION.md#still-open), and an
-> implementation must not guess them. They are the codes for the invalid
-> forms above, `_0` in a message beside unnamed shared data, the `Error`
-> bounds for a carried or transparent type parameter, and whether `@error`
-> needs an import.
+> **Why.** An `impl Error` needs an inspectable target, as
+> [`trait.error.not-inspectable`](09-traits.md#r-trait.error.not-inspectable)
+> states, and an unbounded type parameter is not inspectable. `Display`
+> needs no such bound, so it keeps none.
+
+> **Note.** Two parts are undecided and listed in
+> [Error Conversion](../future-work/ERROR_CONVERSION.md#still-open). An
+> implementation must not guess them. One is the `Error` bounds of a type
+> parameter that only an interpolated member has. The other is the code for
+> an `@error` line whose argument is neither a message nor `transparent`.
 
 See also: [Error Trait](09-traits.md#error-trait),
 [Conversion Trait](09-traits.md#conversion-trait),

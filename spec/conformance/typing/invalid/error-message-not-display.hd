@@ -1,6 +1,5 @@
 # test: a message that interpolates a member whose type has no Display
 # Spec 14 Error Messages: annot.error.message.display, as for any interpolated string.
-use std.error.Error
 
 data Span:
     start: i64

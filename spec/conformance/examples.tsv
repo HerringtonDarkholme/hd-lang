@@ -511,9 +511,9 @@ specification	block	classification	fixture
 14-annotations.md	29	accept	typing/valid/typed-derivation.hd
 14-annotations.md	30	mixed	typing/invalid/derive-member-not-derivable.hd|typing/invalid/generic-member-call.hd|typing/valid/generic-missing-call.hd|typing/invalid/strengthened-missing-bound.hd
 14-annotations.md	31	accept	typing/valid/error-derivation.hd
-14-annotations.md	32	mixed	typing/invalid/error-hand-written-display.hd|typing/invalid/error-marker-outside.hd
-14-annotations.md	33	mixed	typing/invalid/error-message-unknown-name.hd|typing/invalid/error-message-not-display.hd
-14-annotations.md	34	accept	typing/valid/error-derivation.hd
-14-annotations.md	35	mixed	typing/invalid/error-from-same-type.hd
+14-annotations.md	32	mixed	typing/invalid/error-hand-written-display.hd|typing/invalid/error-marker-outside.hd|typing/invalid/error-before-function.hd
+14-annotations.md	33	mixed	typing/invalid/error-message-unknown-name.hd|typing/invalid/error-message-not-display.hd|typing/invalid/error-message-self.hd|typing/invalid/error-message-shared-unnamed.hd
+14-annotations.md	34	mixed	typing/valid/error-derivation.hd|typing/invalid/error-second-cause.hd|typing/invalid/error-cause-not-error.hd
+14-annotations.md	35	mixed	typing/invalid/error-from-same-type.hd|typing/invalid/error-from-type-parameter.hd
 14-annotations.md	36	accept	typing/valid/error-derivation.hd
-14-annotations.md	37	accept	typing/valid/error-derivation.hd
+14-annotations.md	37	accept	typing/valid/error-generated-bounds.hd

@@ -1,0 +1,7 @@
+# test: $self in an error message
+# Spec 14 Error Messages: annot.error.message.no-self; a message is not inside a method, so self names nothing.
+
+@error
+enum ParseError:
+    @error("bad $self")  # diagnostic: unknown-name
+    Other

@@ -1,6 +1,5 @@
 # test: a hand-written Display beside @error overlaps the generated one
 # Spec 14 Error Types: annot.error.hand-written is reported on the hand-written implementation.
-use std.error.Error
 
 @error
 enum ReadError:

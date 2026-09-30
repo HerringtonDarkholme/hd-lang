@@ -1,0 +1,7 @@
+# test: @from on a member whose type is a bare type parameter
+# Spec 14 Error Conversions: annot.error.from.type-parameter; that From would overlap every other From.
+
+@error
+enum AppError[E]:
+    @error("inner failed")
+    Inner(@from error: E)  # diagnostic: invalid-error-marker

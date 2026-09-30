@@ -1,0 +1,7 @@
+# test: a @source member whose type does not implement Error
+# Spec 14 Error Causes: annot.error.cause.type, as for any unmet bound.
+
+@error
+enum SaveError:
+    @error("bad path")
+    Path(@source reason: string)  # diagnostic: unsatisfied-trait-bound

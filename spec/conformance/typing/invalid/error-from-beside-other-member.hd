@@ -1,0 +1,11 @@
+# test: @from beside a second payload member is misplaced
+# Spec 14 Error Types: annot.error.form.misplaced; @from marks only a variant's only payload member.
+
+@error("disk full")
+data DiskError:
+    free: i64
+
+@error
+enum SaveError:
+    @error("cannot save $path")
+    Write(path: string, @from error: DiskError)  # diagnostic: decorator-target-kind

@@ -1,6 +1,7 @@
 # test: @error messages, causes, From conversions, and transparent forwarding at run time
 # Spec 14 Error Derivation: a message interpolates members, a variant without one shows its
 # name, cause returns the @from or @source member, and a transparent error forwards both.
+# $_0 names an unnamed payload member even beside unnamed shared data.
 use std.error.Error
 use std.testing.assert_equal
 
@@ -11,6 +12,11 @@ enum FsError:
     @error("permission denied: $_0")
     Denied(string)
     Busy
+
+@error
+enum HttpError(i32):
+    @error("denied: $_0")
+    Denied(string) -> HttpError(403)
 
 @error("bad yaml at line $line")
 data YamlError:
@@ -62,6 +68,9 @@ tests:
     it("a message interpolates named and unnamed payload members"):
         assert_equal(FsError.NotFound("a.txt").to_string(), "not found: a.txt", reason="a named member")
         assert_equal(FsError.Denied("b.txt").to_string(), "permission denied: b.txt", reason="_0")
+
+    it("_0 names the unnamed payload member, never unnamed shared data"):
+        assert_equal(HttpError.Denied("f.txt").to_string(), "denied: f.txt", reason="the payload member")
 
     it("a data type's message interpolates its fields"):
         assert_equal(YamlError { line: 3 }.to_string(), "bad yaml at line 3", reason="a field")

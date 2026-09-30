@@ -1,0 +1,30 @@
+# test: @error, @from, and @source need no import of std.error.Error
+# Spec 14 Error Types: annot.error.no-use. Error Messages: annot.error.message.shared-unnamed,
+# so $_0 names the unnamed payload member beside unnamed shared data.
+
+@error("disk full")
+data DiskError:
+    free: i64
+
+@error
+enum SaveError:
+    @error("cannot save $path")
+    Write(path: string, @source error: DiskError)
+    @error("disk")
+    Disk(@from error: DiskError)
+
+@error
+enum HttpError(i32):
+    @error("denied: $_0")
+    Denied(string) -> HttpError(403)
+    Missing -> HttpError(404)
+
+fn check(free: i64) -> Result[i64, DiskError]:
+    if free == 0: .Err(DiskError { free: free }) else: .Ok(free)
+
+fn save(free: i64) -> Result[i64, SaveError]:
+    left := check(free)?
+    .Ok(left)
+
+fn describe(value: HttpError) -> string:
+    value.to_string()

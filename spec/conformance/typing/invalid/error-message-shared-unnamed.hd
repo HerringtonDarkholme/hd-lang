@@ -1,0 +1,9 @@
+# test: $_0 in a message does not name unnamed shared enum data
+# Spec 14 Error Messages: annot.error.message.shared-unnamed; Missing has no unnamed payload member.
+
+@error
+enum HttpError(i32):
+    @error("denied: $_0")
+    Denied(string) -> HttpError(403)
+    @error("status $_0")  # diagnostic: unknown-name
+    Missing -> HttpError(404)
