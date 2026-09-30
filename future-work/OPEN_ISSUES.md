@@ -94,6 +94,20 @@ waits for the error-code revamp (#101).
 | AT-code | [`annot.walker.obligation.error`](../spec/14-annotations.md#r-annot.walker.obligation.error) gives `member-not-derivable` for a member that fails a source's bound. AT-with names `unsatisfied-trait-bound`, which [`std-testing.arbitrary.derive.not-derivable`](../spec/std/testing.md#r-std-testing.arbitrary.derive.not-derivable) states. So two rules name different codes for one check. | `member-not-derivable`, the code every other template reports at the opt-in, naming the member. |
 | ST8-self | Applying ST8-clash: `Structure::name()` and `Structure::facts()` take no argument, so nothing infers their `Self`, and [`trait.assoc-call.trait.undetermined`](../spec/09-traits.md#r-trait.assoc-call.trait.undetermined) rejects them. The qualified form the decision names is not yet valid. | Inside a template, a `Structure::` call's `Self` is the template's `T`, since a template has exactly one target. This is a language-tier rule. |
 
+**Batch 24 (owner decision, 2026-09-30).** Iterator consumption. Not yet
+applied. The owner wrote: "Iterator[i32] is immutable. consume it twice in
+for should be an error, unless via something like clone_mut". The owner
+then chose "Iterator is not Iterable" and "no clone; iterate the source".
+IT1 answers [Special Cases Q5](SPECIAL_CASES.md#q5-readonly-iterator-loops)
+and [Syntax And Semantics Cost Q1](SYNTAX_SEMANTICS_COST.md#q1-readonly-iterator-loops)
+with B, keep.
+
+| # | Decision | Where |
+| --- | --- | --- |
+| IT1 | Keep [`flow.for.iterator-mut`](../spec/06-control-flow.md#r-flow.for.iterator-mut): a loop over a readonly iterator stays `mutable-receiver-required`. | [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols) |
+| IT2 | `Iterator[T]` does not implement `Iterable[T]`, so a readonly iterator cannot be advanced by any path. `for`, and each comprehension `for` clause, accepts a value implementing `Iterable`, or a `mut Iterator[T]` directly: a rule exception in `for`. An `I < Iterable` bound no longer accepts iterators; callers `collect()` first. This reverses Chaining Study CS10 ("Iterator 2: keep, and document that iter() on an iterator shares progress"). `flow.for.iterator-self`, `flow.for.iterator-bound`, and the CS10 guide note are retired; only `List` and `Map` implement `Iterable`. `lib/std/iter.hd` drops `impl Iterable for Iterator`. | [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols) |
+| IT3 | No `clone_mut` or `tee`. An iterator is single-pass: iterate twice by calling `.iter()` on the collection again, or `collect()` first, as in Rust and Go. | [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols), [Iterators](../spec/std/iter.md) |
+
 ### Bound And Row Operators
 
 The owner's decisions (2026-09-28) are applied: bounds join with `&`, rows

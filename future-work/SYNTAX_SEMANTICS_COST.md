@@ -53,7 +53,8 @@ production-like hd code, is the harder test.
 | 5 | [K5](#k5-one-dollar-rule-for-every-string) One `$` rule for every string (SPECIAL_CASES C5) | [`lex.prefix.plain-dollar-start`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar-start) | half of 1 rule | invalid becomes valid | holds |
 
 A sixth, [K6](#k6-readonly-iterators-in-loops) (SPECIAL_CASES C6),
-deletes the readonly-iterator loop error. All six are independent.
+deletes the readonly-iterator loop error; the owner kept the error
+(batch 24). All six are independent.
 
 ### Top 3 Reopen Candidates
 
@@ -445,6 +446,9 @@ so the rule guarded nothing that `source.iter()` does not already allow.
 **Other languages.** Rust's `for` accepts `&mut I` for any iterator `I`
 ([IntoIterator][rust-intoiter]).
 
+**Owner decision (batch 24, 2026-09-30): not taken.** The rule stays, and
+`Iterator[T]` stops implementing `Iterable[T]` instead.
+
 ### Cuts Considered And Not Proposed
 
 | Idea | Why not |
@@ -723,6 +727,11 @@ Cases C6).
 fn drain(source: Iterator[i32]) -> List[i32]:
     [for value in source => value]
 ```
+
+**Owner decision (batch 24, IT1-IT3, 2026-09-30): B, keep.** `Iterator[T]`
+no longer implements `Iterable[T]`, which reverses CS10, so a readonly
+iterator cannot be advanced by any path. See
+[Open Issues](OPEN_ISSUES.md#language-design-decisions).
 
 ### Q2. Bang Calls In Comprehensions
 

@@ -747,6 +747,9 @@ borrowed one ([std::iter::IntoIterator](https://doc.rust-lang.org/std/iter/trait
 
 **Recommendation.** Take it. Question [Q5](#q5-readonly-iterator-loops).
 
+**Owner decision (batch 24, 2026-09-30): not taken.** The rule stays, and
+`Iterator[T]` stops implementing `Iterable[T]` instead.
+
 ### C7. Suspension In Comprehensions
 
 A comprehension is eager and runs where it is written. A `for` loop in a
@@ -1104,6 +1107,11 @@ advances the same traversal ([C6](#c6-readonly-iterators-in-loops)).
 fn drain(source: Iterator[i32]) -> List[i32]:
     [for value in source => value]
 ```
+
+**Owner decision (batch 24, IT1-IT3, 2026-09-30): B, keep.** `Iterator[T]`
+no longer implements `Iterable[T]`, which reverses CS10, so a readonly
+iterator cannot be advanced by any path. See
+[Open Issues](OPEN_ISSUES.md#language-design-decisions).
 
 ### Q6. Bang Calls In Comprehensions
 
