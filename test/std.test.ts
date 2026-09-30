@@ -52,9 +52,7 @@ test("a string method declares only the std helpers it reaches", () => {
   const program = parse('fn size() -> i32: "abc".len()\n').program!;
   const joined = withStandardLibrary(program);
   assert.deepEqual(joined.functions.map((declaration) => declaration.name).sort(), [
-    "__std_text_byte_at",
     "__std_text_byte_len",
-    "__std_text_continuation_byte",
     "size",
   ]);
   assert.deepEqual(joined.data, []);

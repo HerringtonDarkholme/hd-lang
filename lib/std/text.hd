@@ -1,8 +1,8 @@
 # std.text: the `string` methods, `join`, and `StringBuilder`
 # (spec/10-modules.md#string-methods, future-work/STDLIB.md#stdtext).
-# Positions and lengths count Unicode scalars. The prelude methods (`len`,
-# `trim`, `lower`, `split`, `replace`, `starts_with`) are ordinary hd code
-# here too. Every method is built on the byte primitives at the end of this
+# Positions and lengths are byte offsets (Strings STR1-STR6, STR10). The
+# built-in methods (`len`, `chars`, `char_indices`, `bytes`, `slice`, `trim`,
+# `lower`, `split`, `replace`, `starts_with`) are ordinary hd code here too. Every method is built on the byte primitives at the end of this
 # file; `lower` and `upper` call the host, which holds the Unicode case
 # tables (src/README.md, Compiler/library boundary). The raw-text prefix
 # `r` is here too (Literal Suffixes L20), with the prefix helpers
@@ -25,95 +25,201 @@ pub fn interpolate[T < Display](t: Template[T]) -> string:
         index = index + 1
     joined
 
-# An invalid escape sequence: `offset` counts the Unicode scalars before
-# its backslash (Literal Suffixes L21, L22).
+# An invalid escape sequence: `offset` is the byte offset of its backslash
+# (Literal Suffixes L21, L22; Strings STR10).
 pub data EscapeError:
     pub offset: i32
 
 # The text with each escape sequence replaced by its meaning, or an
 # `EscapeError` at the first invalid one (future-work/STDLIB.md#stdtext,
-# spec/01-lexical-structure.md#escape-sequences).
+# spec/01-lexical-structure.md#escape-sequences). Every escape is ASCII, so
+# the walk reads bytes and copies each run of plain text whole.
 pub fn process_escapes(text: string) -> Result[string, EscapeError]:
-    scalars := text.split("")
+    size := byte_len(text)
     let processed = ""
+    let plain = 0
     let index = 0
-    while index < scalars.len():
-        current := scalars[index]
-        if current != "\\":
-            processed = processed + current
+    while index < size:
+        if byte_at(text, index) != 92:
             index = index + 1
             continue
-        start := index
-        if index + 1 >= scalars.len():
-            return .Err(EscapeError { offset: start })
-        escaped := scalars[index + 1]
+        processed = processed + byte_slice(text, plain, index)
+        backslash := index
+        if index + 1 >= size:
+            return .Err(EscapeError { offset: backslash })
+        escaped := byte_at(text, index + 1)
         index = index + 2
-        if escaped == "u":
-            match unicode_escape(scalars, index):
+        if escaped == 117:
+            match unicode_escape(text, index):
                 .Some(found) =>
                     processed = processed + found.text
                     index = found.end
                 .None =>
-                    return .Err(EscapeError { offset: start })
-            continue
-        match simple_escape(escaped):
-            .Some(meaning) =>
-                processed = processed + meaning
-            .None =>
-                return .Err(EscapeError { offset: start })
-    .Ok(processed)
+                    return .Err(EscapeError { offset: backslash })
+        else:
+            match simple_escape(escaped):
+                .Some(meaning) =>
+                    processed = processed + meaning
+                .None =>
+                    return .Err(EscapeError { offset: backslash })
+        plain = index
+    .Ok(processed + byte_slice(text, plain, size))
 
-# The meaning of a simple escape. The carriage return is written `\u{d}`
-# because the std loader renames every bare word equal to a top-level name.
-fn simple_escape(escaped: string) -> string?:
+# The meaning of a simple escape, by the byte after the backslash. The
+# carriage return is written `\u{d}` because the std loader renames every
+# bare word equal to a top-level name.
+fn simple_escape(escaped: i32) -> string?:
     match escaped:
-        "\\" => .Some("\\")
-        "\"" => .Some("\"")
-        "'" => .Some("'")
-        "n" => .Some("\n")
-        "r" => .Some("\u{d}")
-        "t" => .Some("\t")
-        "0" => .Some("\0")
-        "\$" => .Some("\$")
+        92 => .Some("\\")
+        34 => .Some("\"")
+        39 => .Some("'")
+        110 => .Some("\n")
+        114 => .Some("\u{d}")
+        116 => .Some("\t")
+        48 => .Some("\0")
+        36 => .Some("\$")
         _ => .None
 
 data EscapedScalar:
     text: string
     end: i32
 
-# `{` hex digits `}` after `\u`, starting at `start`: one to six digits
+# `{` hex digits `}` at byte `start`, after `\u`: one to six digits
 # naming a Unicode scalar value (spec/01-lexical-structure.md#r-lex.escape.unicode).
-fn unicode_escape(scalars: List[string], start: i32) -> EscapedScalar?:
-    if start >= scalars.len() || scalars[start] != "{":
+fn unicode_escape(text: string, start: i32) -> EscapedScalar?:
+    size := byte_len(text)
+    if start >= size || byte_at(text, start) != 123:
         return .None
     let point = 0
     let digits = 0
     let index = start + 1
-    while index < scalars.len() && scalars[index] != "}":
-        match "0123456789abcdef".find(scalars[index].lower()):
-            .Some(value) =>
-                if digits == 6 || scalars[index].len() != 1:
-                    return .None
-                point = point * 16 + value
-                digits = digits + 1
-            .None =>
-                return .None
+    while index < size && byte_at(text, index) != 125:
+        value := hex_digit(byte_at(text, index))
+        if value < 0 || digits == 6:
+            return .None
+        point = point * 16 + value
+        digits = digits + 1
         index = index + 1
-    if index >= scalars.len() || digits == 0 || point > 1114111 || (point >= 55296 && point <= 57343):
+    if index >= size || digits == 0 || !scalar_value(point):
         return .None
     .Some(EscapedScalar { text: scalar_text(point), end: index + 1 })
 
+# The value of an ASCII hex digit byte, or -1.
+fn hex_digit(byte: i32) -> i32:
+    if byte >= 48 && byte <= 57:
+        return byte - 48
+    if byte >= 97 && byte <= 102:
+        return byte - 87
+    if byte >= 65 && byte <= 70:
+        return byte - 55
+    -1
+
+# Whether `point` is a Unicode scalar value: at most U+10FFFF and not a
+# surrogate.
+fn scalar_value(point: i32) -> bool:
+    point >= 0 && point <= 1114111 && (point < 55296 || point > 57343)
+
+# A malformed byte sequence given to `string::from_utf8`
+# (future-work/STDLIB.md#stdtext).
+pub enum Utf8Error:
+    # The byte offset where the first invalid sequence starts.
+    InvalidSequence(position: i32)
+    # The bytes end inside a sequence.
+    Truncated
+
 impl string:
-    # The number of Unicode scalars.
+    # The number of bytes (spec/04-type-system.md#r-types.string.len-bytes).
     pub fn len(self) -> i32:
-        let count = 0
+        byte_len(self)
+
+    # The scalar values in order (spec/10-modules.md#r-module.string.chars).
+    pub fn chars(self) -> mut Iterator[char]:
+        let at = 0
+        Iterator::from_fn(fn() -> char?:
+            if at >= byte_len(self):
+                return .None
+            point := scalar_at(self, at)
+            at = scalar_end(self, at)
+            .Some(scalar_char(point))
+        )
+
+    # Each scalar value with the byte offset where its encoding starts
+    # (spec/10-modules.md#r-module.string.char-indices).
+    pub fn char_indices(self) -> mut Iterator[(i32, char)]:
+        let at = 0
+        Iterator::from_fn(fn() -> (i32, char)?:
+            if at >= byte_len(self):
+                return .None
+            start := at
+            at = scalar_end(self, start)
+            .Some((start, scalar_char(scalar_at(self, start))))
+        )
+
+    # The bytes in order (spec/10-modules.md#r-module.string.bytes).
+    pub fn bytes(self) -> mut Iterator[u8]:
+        let at = 0
+        Iterator::from_fn(fn() -> u8?:
+            if at >= byte_len(self):
+                return .None
+            at = at + 1
+            .Some(u8(byte_at(self, at - 1)))
+        )
+
+    # The bytes from offset `start` up to `end`. Both must be scalar
+    # boundaries with `start <= end`, or it panics with `index-out-of-bounds`
+    # (spec/10-modules.md#r-module.string.slice.bad-offset). Prototype: the
+    # result copies the bytes rather than sharing them.
+    pub fn slice(self, start: i32, end: i32) -> string:
+        if start < 0 || start > end || !boundary(self, start) || !boundary(self, end):
+            index_out_of_bounds()
+        byte_slice(self, start, end)
+
+    # A copy of the bytes.
+    pub fn to_utf8(self) -> List[u8]:
+        let found: mut List[u8] = []
+        for byte in self.bytes():
+            found.append(byte)
+        found
+
+    # The string whose UTF-8 encoding is `bytes`, or where they are not
+    # valid UTF-8 (spec/04-type-system.md#r-types.string.from-bytes).
+    pub fn from_utf8(bytes: List[u8]) -> Result[string, Utf8Error]:
+        let text = ""
         let index = 0
-        size := byte_len(self)
+        size := bytes.len()
         while index < size:
-            if !continuation_byte(byte_at(self, index)):
-                count = count + 1
-            index = index + 1
-        count
+            lead := i32(bytes[index])
+            let width = 1
+            let point = lead
+            let lowest = 0
+            if lead >= 240 && lead <= 244:
+                width = 4
+                point = lead - 240
+                lowest = 65536
+            else if lead >= 224 && lead < 240:
+                width = 3
+                point = lead - 224
+                lowest = 2048
+            else if lead >= 194 && lead < 224:
+                width = 2
+                point = lead - 192
+                lowest = 128
+            else if lead >= 128:
+                return .Err(Utf8Error.InvalidSequence(index))
+            let at = 1
+            while at < width:
+                if index + at >= size:
+                    return .Err(Utf8Error.Truncated)
+                next := i32(bytes[index + at])
+                if !continuation_byte(next):
+                    return .Err(Utf8Error.InvalidSequence(index))
+                point = point * 64 + next - 128
+                at = at + 1
+            if point < lowest || !scalar_value(point):
+                return .Err(Utf8Error.InvalidSequence(index))
+            text = text + scalar_text(point)
+            index = index + width
+        .Ok(text)
 
     pub fn is_empty(self) -> bool:
         byte_len(self) == 0
@@ -129,11 +235,9 @@ impl string:
             .Some(_) => true
             .None => false
 
-    # The scalar position of the first `needle`; an empty needle is at 0.
+    # The byte offset of the first `needle`; an empty needle is at 0.
     pub fn find(self, needle: string) -> i32?:
-        match byte_find(self, needle, 0):
-            .Some(start) => .Some(byte_slice(self, 0, start).len())
-            .None => .None
+        byte_find(self, needle, 0)
 
     # The pieces between separators, keeping empty ones. An empty separator
     # splits into one-scalar strings.
@@ -287,6 +391,12 @@ fn byte_find(text: string, needle: string, from: i32) -> i32?:
 fn continuation_byte(byte: i32) -> bool:
     byte >= 128 && byte < 192
 
+# Whether byte `offset` is a scalar boundary of `text`
+# (spec/04-type-system.md#r-types.string.boundary).
+fn boundary(text: string, offset: i32) -> bool:
+    size := byte_len(text)
+    offset == size || (offset >= 0 && offset < size && !continuation_byte(byte_at(text, offset)))
+
 # The byte position just past the scalar that starts at byte `start`.
 fn scalar_end(text: string, start: i32) -> i32:
     let end = start + 1
@@ -358,4 +468,14 @@ fn host_upper(text: string) -> string:
 
 @intrinsic("string_from_scalar")
 fn scalar_text(point: i32) -> string:
+    panic("intrinsic")
+
+# The `char` of a scalar value.
+@intrinsic("char_from_scalar")
+fn scalar_char(point: i32) -> char:
+    panic("intrinsic")
+
+# The checked runtime panic `index-out-of-bounds`; it does not return.
+@intrinsic("index_out_of_bounds")
+fn index_out_of_bounds() -> void:
     panic("intrinsic")

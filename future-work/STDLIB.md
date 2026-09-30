@@ -543,20 +543,13 @@ Unicode rules follow the built-ins: valid UTF-8, byte offsets, no locale,
 full case mappings. Normalization, segmentation, and collation are later additions
 (questions for a Unicode-data policy stay with the lexical Unicode version).
 
-`lib/std/text.hd` still implements the scalar model and should follow
-Strings STR1-STR6 (applied 2026-09-29):
-
-- `len` returns `byte_len(self)`, and `find` returns the byte offset
-  from `byte_find` without converting it to a scalar count;
-- add `chars`, `char_indices`, `bytes`, and `slice`, and move `from_utf8`
-  onto `impl string` as `string::from_utf8`;
-- the header comment's "Positions and lengths count Unicode scalars"
-  becomes byte offsets;
-- `process_escapes` and `parse_i32`, `parse_i64`, and `parse_f64` in
-  `lib/std/num.hd` walk a string through `split("")`, which still works,
-  but their error positions count scalars. STR10 makes them byte
-  offsets: `EscapeError.offset` and `ParseNumberError.InvalidDigit`
-  report the byte offset of the offending character.
+`lib/std/text.hd` follows Strings STR1-STR6 and STR10 (applied
+2026-09-29): `len` is `byte_len(self)`, `find` and `EscapeError.offset`
+are byte offsets, and `chars`, `char_indices`, `bytes`, `slice`, and
+`string::from_utf8` are on `impl string`. `parse_i32` and `parse_i64` in
+`lib/std/num.hd` still walk the text through `split("")`, but every
+character before the first invalid one is ASCII, so the scalar index they
+report as `ParseNumberError.InvalidDigit` is also its byte offset.
 
 ### `std.option` and `std.result`
 

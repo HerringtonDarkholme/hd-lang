@@ -24,6 +24,10 @@ const RUNTIME_PRIMITIVES: Readonly<
   string_byte_at: ([text, index]) => `(array.get_u $hd.bytes (ref.as_non_null ${text}) ${index})`,
   string_byte_slice: ([text, start, end]) =>
     `(call $hd.string_slice (ref.as_non_null ${text}) ${start} ${end})`,
+  // A `char` is its scalar value at run time.
+  char_from_scalar: ([point]) => point!,
+  index_out_of_bounds: () =>
+    `(call $hd.panic (global.get $hd.panic-index-out-of-bounds))\nunreachable`,
 };
 
 /** Whether `name` is a runtime primitive rather than a host function. */

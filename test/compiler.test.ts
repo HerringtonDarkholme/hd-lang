@@ -512,18 +512,12 @@ test("data patterns destructure nested fields and test literals", async () => {
   );
 });
 
-test(
-  "strings use GC byte arrays and len counts bytes",
-  {
-    todo: "lib/std/text.hd still counts Unicode scalars in len (known failure STR)",
-  },
-  async () => {
-    const source = conformance("runtime/valid/string-length-counts-bytes");
-    const { instance, compilation } = await instantiate(source);
-    assert.match(compilation.wat, /array\.new_fixed \$hd\.bytes 8/);
-    assert.equal((instance.exports.main as CallableFunction)(), 8);
-  },
-);
+test("strings use GC byte arrays and len counts bytes", async () => {
+  const source = conformance("runtime/valid/string-length-counts-bytes");
+  const { instance, compilation } = await instantiate(source);
+  assert.match(compilation.wat, /array\.new_fixed \$hd\.bytes 8/);
+  assert.equal((instance.exports.main as CallableFunction)(), 8);
+});
 
 test("string interpolation displays built-ins from left to right", async () => {
   const source = conformance("runtime/valid/string-interpolation-built-ins");
@@ -542,19 +536,13 @@ test("strings compare by UTF-8 value order", async () => {
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 });
 
-test(
-  "strings concatenate and unnamed enum fields use underscore selectors",
-  {
-    todo: "lib/std/text.hd still counts Unicode scalars in len (known failure STR)",
-  },
-  async () => {
-    const source = conformance("runtime/valid/string-concatenation-and-numeric-selectors");
-    const { instance, compilation } = await instantiate(source);
-    assert.deepEqual(compilation.diagnostics, []);
-    assert.match(compilation.wat, /call \$hd\.string_concat/);
-    assert.equal((instance.exports.main as CallableFunction)(), 42);
-  },
-);
+test("strings concatenate and unnamed enum fields use underscore selectors", async () => {
+  const source = conformance("runtime/valid/string-concatenation-and-numeric-selectors");
+  const { instance, compilation } = await instantiate(source);
+  assert.deepEqual(compilation.diagnostics, []);
+  assert.match(compilation.wat, /call \$hd\.string_concat/);
+  assert.equal((instance.exports.main as CallableFunction)(), 42);
+});
 
 test("character literals carry Unicode scalar values and compare in scalar order", async () => {
   const source = conformance("runtime/valid/character-literals");

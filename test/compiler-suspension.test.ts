@@ -732,7 +732,7 @@ test("a leading U+FEFF host string is text on the live and replayed boundary", a
     "",
     "pub fn main!() -> void $ TextBridge:",
     '    joined := $.use(TextBridge).join!("\\u{FEFF}", "x")',
-    '    assert_equal(joined.len(), 2, reason="a leading U+FEFF is not a byte order mark")',
+    '    assert_equal(joined.len(), 4, reason="a leading U+FEFF is three bytes of text, not a byte order mark")',
     "",
   ].join("\n");
   const events: ReplayEvent[] = [];

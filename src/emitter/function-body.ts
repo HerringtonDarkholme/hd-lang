@@ -50,6 +50,7 @@ import {
 import { DataEmitter } from "./data.ts";
 import { scalarWasm } from "./scalars.ts";
 import { integerConstant, shiftCount } from "./sized-numeric.ts";
+import { numericType } from "../numeric.ts";
 
 export abstract class FunctionBodyEmitter extends DataEmitter {
   protected abstract emitLinearContinuation(
@@ -877,6 +878,13 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           `(call $hd.vector_get (ref.as_non_null ${this.emitExpression(expression.receiver)}) ${this.emitExpression(expression.index)})`,
           expression.elementType,
         );
+      case "string-index": {
+        const text = `(ref.as_non_null ${this.emitExpression(expression.receiver)})`;
+        const index = this.emitExpression(expression.index);
+        return numericType(readonlyType(expression.index.type))?.wasm === "i64"
+          ? `(call $hd.string_get_wide ${text} ${index})`
+          : `(call $hd.string_get ${text} ${index})`;
+      }
       case "list-set":
         return `(call $hd.vector_set (ref.as_non_null ${this.emitExpression(expression.receiver)}) ${this.emitExpression(expression.index)} ${this.boxValue(expression.value, expression.elementType)})`;
       case "list-append":

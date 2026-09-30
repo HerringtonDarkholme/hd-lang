@@ -607,7 +607,7 @@ else`, `break`, `break value`, and `continue`;
   checked at the definition as `type-mismatch` on the `fn` line
   (`checker/literal-suffixes.ts`); an unmarked function at the string is
   `invalid-string-prefix`. `std.text` declares `r`, `interpolate`, and
-  `process_escapes` (which returns `Result[string, EscapeError]` with the scalar offset of
+  `process_escapes` (which returns `Result[string, EscapeError]` with the byte offset of
   the bad escape) in hd; a `\u{...}` escape uses the host function
   `string_from_scalar`;
 - imported `std.convert.From[T]` and `std.error.Error` as trait
@@ -796,7 +796,10 @@ else`, `break`, `break value`, and `continue`;
   assignment, `Index` and `IndexSet`, supertrait bindings such as
   `Add[Self, Out = Self]`, and the sealed `std.num` traits `Num`, `Integer`,
   and `Float` follow the same path. The primitive implementations are hd
-  code whose bodies are the built-in operators. Floating `%` calls the
+  code whose bodies are the built-in operators, and so are the index
+  traits of `List`, `Map`, and `string`, whose bodies index directly; a
+  `Map` read of a missing key panics through the runtime primitive
+  `index_out_of_bounds`. Floating `%` calls the
   host's `rem_f64`, JavaScript's truncated remainder. Compound assignment
   `place op= value` stores `place op value` for every type, and an index
   place reads and stores its element; on a `Map` that read has type `V` and
@@ -911,20 +914,22 @@ What it provides:
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
-| `std.text` | on `string`: `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
+| `std.text` | on `string`: `chars`, `char_indices`, `bytes`, `slice`, `to_utf8`, `string::from_utf8` with `Utf8Error`, `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
 | `std.iter` | the prelude `Iterator[T]` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Result`, and `T?` (the compiler supplies `Map`); `Iterable` for `List`, `Map`, and `Iterator`; `range` |
 | `std.cmp` | `min`, `max`, `clamp`, `Reverse[T]` |
 | `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
-| `std.ops` | the twelve operator traits, `Index`, and `IndexSet`, with the primitive implementations of the operator traits; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template` |
+| `std.ops` | the twelve operator traits, `Index`, and `IndexSet`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template` |
 | `std.format` | `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and pairs |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives and `string`), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
 
 The prelude `string` methods live in `std.text` too, and `lower` and
-`upper` are backed by the host. Prototype limits: there is no `chars`, `to_utf8`, or `from_utf8` (the byte primitives are
-private to `std.text`), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no
+`upper` are backed by the host. Positions and lengths are byte offsets. A string index is the
+`string-index` HIR node, a bounds-checked byte read (`$hd.string_get`).
+Prototype limits: `slice` copies its bytes instead of sharing them (the
+runtime `string` is a bare `$hd.bytes` array, with no offset to share), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no
 `Integer` or `Float` trait, no `Set` (the specification does not define it,
 and a map built in generic code has no key equality for a type-parameter
 key, so a generic `Set.new()` could not create its map), and no host `ConsoleInput`; a `BufferConsole` records both direct
@@ -955,7 +960,8 @@ declare a host function (a question in
    type-checks and is never emitted. Calls are ordinary calls.
    - A **runtime primitive** is a few Wasm instructions over the runtime's
      own value layout, listed in `emitter/intrinsics.ts`: today
-     `string_byte_len`, `string_byte_at`, and `string_byte_slice`.
+     `string_byte_len`, `string_byte_at`, `string_byte_slice`,
+     `char_from_scalar`, and `index_out_of_bounds`.
    - Every other name is a **host function**, imported as `hd`
      `host:<name>` through one generic path. Scalars cross as Wasm numbers,
      and a `string` crosses as a host handle that `emitter/runtime/boundary.wat`

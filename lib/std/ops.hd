@@ -11,6 +11,7 @@
 # each marker to functions (r-expr.suffix.marker.fn-only,
 # r-expr.prefix.marker.fn-only).
 use std.annotation.annotate
+use std.hash.Hash
 
 @annotate(.Fn)
 pub data NumSuffix: pass
@@ -81,7 +82,7 @@ pub trait Shr[Rhs = Self]:
     type Out
     fn shr(self, rhs: Rhs) -> Self::Out
 
-# `r[k]` and `r[k] = v` on a type other than `List` and `Map`
+# `r[k]` and `r[k] = v` on a type other than `List`, `Map`, and `string`
 # (spec/05-expressions.md#index-traits).
 pub trait Index[K]:
     type Out
@@ -89,6 +90,40 @@ pub trait Index[K]:
 
 pub trait IndexSet[K, V]:
     fn index_set(mut self, key: K, value: V) -> void
+
+# The built-in implementations (spec/05-expressions.md#built-in-implementations).
+# Each body is the built-in indexing of its type, with its checks and
+# panics, except that `Map`'s `index` returns `V` and panics on a missing
+# key (r-expr.index.std.map-read).
+impl[T] Index[i32] for List[T]:
+    type Out = T
+    fn index(self, key: i32) -> T: self[key]
+
+impl[T] IndexSet[i32, T] for List[T]:
+    fn index_set(mut self, key: i32, value: T) -> void:
+        self[key] = value
+
+impl[K < Eq & Hash, V] Index[K] for Map[K, V]:
+    type Out = V
+    fn index(self, key: K) -> V:
+        match self[key]:
+            .Some(value) => value
+            .None =>
+                index_out_of_bounds()
+                panic("unreachable")
+
+impl[K < Eq & Hash, V] IndexSet[K, V] for Map[K, V]:
+    fn index_set(mut self, key: K, value: V) -> void:
+        self[key] = value
+
+impl Index[i32] for string:
+    type Out = u8
+    fn index(self, key: i32) -> u8: self[key]
+
+# The checked runtime panic `index-out-of-bounds`; it does not return.
+@intrinsic("index_out_of_bounds")
+fn index_out_of_bounds() -> void:
+    panic("intrinsic")
 
 # The primitive implementations (spec/05-expressions.md#primitive-implementations).
 # Each body is the built-in operator on primitive operands, so it behaves as

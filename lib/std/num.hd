@@ -253,6 +253,8 @@ impl f64:
         self - self == 0.0
 
 # Parsing accepts an optional `+` or `-` and then decimal digits only.
+# Every scalar before the first invalid one is ASCII, so the scalar index
+# that `InvalidDigit` reports is also its byte offset (Strings STR10).
 pub fn parse_i32(text: string) -> Result[i32, ParseNumberError]:
     scalars := text.split("")
     if scalars.len() == 0:

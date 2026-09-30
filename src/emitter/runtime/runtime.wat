@@ -371,6 +371,19 @@
       (then (call $hd.panic (global.get $hd.panic-invalid-shift)) unreachable))
     (i32.shr_s (local.get $value) (local.get $count)))
 
+  ;; `text[index]`: the byte at a byte offset, or an index-out-of-bounds panic
+  ;; (spec/05-expressions.md#string-indexing). A narrow index is read as
+  ;; unsigned, so a negative one is out of range too.
+  (func $hd.string_get (param $text (ref $hd.bytes)) (param $index i32) (result i32)
+    (if (i32.ge_u (local.get $index) (array.len (local.get $text)))
+      (then (call $hd.panic (global.get $hd.panic-index-out-of-bounds)) unreachable))
+    (array.get_u $hd.bytes (local.get $text) (local.get $index)))
+
+  (func $hd.string_get_wide (param $text (ref $hd.bytes)) (param $index i64) (result i32)
+    (if (i64.ge_u (local.get $index) (i64.extend_i32_u (array.len (local.get $text))))
+      (then (call $hd.panic (global.get $hd.panic-index-out-of-bounds)) unreachable))
+    (array.get_u $hd.bytes (local.get $text) (i32.wrap_i64 (local.get $index))))
+
   (func $hd.string_slice
     (param $source (ref $hd.bytes))
     (param $start i32)

@@ -21,6 +21,7 @@ import {
 
 import { ExpressionSuspensionChecker } from "./expression-suspensions.ts";
 import { isShapeMemberRecord } from "./shapes.ts";
+import { isIntegerType } from "../numeric.ts";
 
 /** The decimal position a tuple-style member such as `_0` or `_12` names. */
 function underscorePosition(name: string): string | undefined {
@@ -816,12 +817,17 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             span: expression.span,
           };
         }
-        if (receiver.type === "string") {
-          this.fail(
-            "unsupported-string-indexing",
-            "strings are not indexable; iterate Unicode scalars explicitly",
-            expression.span,
-          );
+        // A string index reads the byte at a byte offset of any integer
+        // type (05-expressions.md#string-indexing).
+        if (readonlyType(receiver.type) === "string") {
+          const index = this.checkExpression(expression.index, "i32");
+          if (!isIntegerType(readonlyType(index.type)))
+            this.fail(
+              "type-mismatch",
+              `a string index must be an integer, found '${index.type}'`,
+              expression.index.span,
+            );
+          return { kind: "string-index", receiver, index, type: "u8", span: expression.span };
         }
         // Any other receiver reads through `Index[K]::index`
         // (05-expressions.md#r-expr.index.trait.read).

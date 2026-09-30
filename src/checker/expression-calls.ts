@@ -1046,7 +1046,10 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       const actualIndex = sourceIndex(0);
       const expectedIndex = sourceIndex(1);
       const reasonIndex = sourceIndex(2);
-      const actual = this.checkExpression(expression.arguments[actualIndex]!);
+      // `T` is the readonly view of `actual`'s type, so a `mut` actual
+      // compares with a readonly expected value.
+      const checkedActual = this.checkExpression(expression.arguments[actualIndex]!);
+      const actual = { ...checkedActual, type: readonlyType(checkedActual.type) };
       const strategy = this.equalityStrategy(actual.type);
       if (!strategy) {
         this.fail("missing-eq", `type '${actual.type}' does not implement Eq`, actual.span);

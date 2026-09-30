@@ -27,10 +27,10 @@ tests:
 
     it("process_escapes replaces each escape"):
         assert_equal(escaped("a\\tb\\u{41}\\\\n\\\$"), "a\tbA\\n\$", reason="escapes")
-        assert_equal(escaped("bad\\q"), "?3", reason="an invalid escape at scalar 3")
+        assert_equal(escaped("bad\\q"), "?3", reason="an invalid escape at byte 3")
         assert_equal(escaped("end\\"), "?3", reason="a lone final backslash")
         assert_equal(escaped("\\u{110000}"), "?0", reason="beyond the scalar range")
-        assert_equal(escaped("é\\q"), "?1", reason="the offset counts scalars")
+        assert_equal(escaped("é\\q"), "?2", reason="the offset counts bytes")
 
     it("a prefix can process escapes in its pieces"):
         n := 7

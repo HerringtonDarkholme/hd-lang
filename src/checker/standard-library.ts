@@ -230,7 +230,10 @@ function respan<T>(value: T, span: SourceSpan): T {
   return result as T;
 }
 
-/** Every `.name` the node selects: the member names a program may call. */
+/**
+ * Every `.name` or `Owner::name` the node selects: the member names a
+ * program may call, such as `string::from_utf8`.
+ */
 function memberNames(node: unknown, names: Set<string>): void {
   if (Array.isArray(node)) {
     for (const item of node) memberNames(item, names);
@@ -238,7 +241,11 @@ function memberNames(node: unknown, names: Set<string>): void {
   }
   if (!node || typeof node !== "object") return;
   const record = node as Record<string, unknown>;
-  if (record.kind === "member" && typeof record.name === "string") names.add(record.name);
+  if (
+    (record.kind === "member" || record.kind === "qualified-name") &&
+    typeof record.name === "string"
+  )
+    names.add(record.name);
   for (const [key, child] of Object.entries(record)) if (key !== "span") memberNames(child, names);
 }
 

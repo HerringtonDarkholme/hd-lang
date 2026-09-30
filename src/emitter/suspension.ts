@@ -680,6 +680,7 @@ class SuspensionPlanBuilder {
           context,
         );
       case "list-index":
+      case "string-index":
         return this.lowerValueList(
           [expression.receiver, expression.index],
           ([receiver, index]) =>

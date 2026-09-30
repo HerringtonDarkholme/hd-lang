@@ -1523,3 +1523,17 @@ parse/invalid/closure-type-parameters.hd	parse
 typing/valid/mut-self-primitive-impl.hd	type
 typing/valid/closure-with-ignores-outer-key.hd	type
 runtime/valid/try-operand-expected-type.hd	runtime
+runtime/valid/string-length-counts-bytes.hd	runtime
+runtime/valid/string-concatenation-and-numeric-selectors.hd	runtime
+runtime/valid/multibyte-scalar-strings.hd	runtime
+runtime/valid/replace-empty-old.hd	runtime
+typing/valid/string-bytes.hd	type
+typing/invalid/string-index-assignment.hd	type
+runtime/valid/string-byte-methods.hd	runtime
+runtime/panic/string-index-out-of-bounds.hd	runtime
+runtime/panic/string-slice-inside-scalar.hd	runtime
+runtime/panic/string-slice-past-end.hd	runtime
+runtime/panic/string-slice-reversed.hd	runtime
+typing/valid/index-traits-builtin.hd	type
+runtime/valid/index-traits-builtin-run.hd	runtime
+runtime/panic/index-trait-map-missing.hd	runtime
