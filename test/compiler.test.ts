@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { analyze, compile, instantiate } from "../src/compiler.ts";
-import { conformance } from "./fixture.ts";
+import { conformance, prototypeSpelling } from "./fixture.ts";
 
 const PROGRAM = conformance("runtime/valid/conditional-call-program");
 
@@ -337,7 +337,7 @@ test("while else produces values on break or normal exhaustion", async () => {
 });
 
 test("for loops iterate lists and maps with continue, destructuring, and else values", async () => {
-  const source = conformance("runtime/valid/for-loops-lists-and-maps");
+  const source = prototypeSpelling(conformance("runtime/valid/for-loops-lists-and-maps"));
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
@@ -346,7 +346,8 @@ test("for loops iterate lists and maps with continue, destructuring, and else va
     "unsatisfied-trait-bound",
   );
   assert.equal(
-    analyze(conformance("typing/invalid/for-binding-arity")).diagnostics[0]?.code,
+    analyze(prototypeSpelling(conformance("typing/invalid/for-binding-arity"))).diagnostics[0]
+      ?.code,
     "type-mismatch",
   );
 });
@@ -390,7 +391,7 @@ test("mutable lists append through growable Wasm GC storage", async () => {
 });
 
 test("mutable maps grow from empty storage and remove entries in insertion order", async () => {
-  const source = conformance("runtime/valid/map-grow-and-remove");
+  const source = prototypeSpelling(conformance("runtime/valid/map-grow-and-remove"));
   const { instance, compilation } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.match(compilation.wat, /call \$hd\.map_remove/);

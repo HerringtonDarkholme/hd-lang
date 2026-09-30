@@ -9,16 +9,16 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,522 of the 1,642 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 120 are listed in
+On 2026-09-30 the prototype passes 1,494 of the 1,654 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 160 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 120 still fail. By
+decision below, and all 160 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,591 | 1,474 | 117 |
-| stdlib | 51 | 48 | 3 |
+| language | 1,601 | 1,447 | 154 |
+| stdlib | 53 | 47 | 6 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
@@ -39,6 +39,13 @@ them by tag:
 | BFF | 5 | D1's callable values, D2, and D4: the prototype does not know `Apply` or `Update`, so `v() = x` is `invalid-assignment-target` and `impl Apply` is `unknown-trait` |
 | IT | 2 | batch 24, IT2: `lib/std/iter.hd` still implements `Iterable` for `Iterator`, so an iterator satisfies an `Iterable` bound |
 | ST8-self | 1 | batch 25: the prototype resolves a receiverless template call only as `T::name()`, so `Structure::name()` is `unknown-type` |
+| SSC-Q2 | 2 | batch 26: a bang call in a comprehension is still `suspension-forbidden-context` |
+| SSC-Q3 | 3 | batch 26: a plain-string `$` that begins no interpolation is still a `syntax-error` |
+| SSC-Q4 | 20 | batch 26: `for (key, value) in m` does not parse, and the bare form is accepted |
+| SSC-Q5 | 3 | batch 26: `((a, b) := value)` is accepted, and a list form reports the withdrawn `multi-binding-needs-parentheses` |
+| SSC-Q7 | 7 | batch 26: a key without `Eq` or `Hash` is `invalid-map-key`, and a `mut` key type is accepted |
+| SSC-Q8 | 3 | batch 26: `m[k]` is still typed `V?` |
+| AT-gen | 2 | batch 26: derived `Arbitrary` gives a member's type parameter no `Inspectable` bound |
 
 ## What Remains
 

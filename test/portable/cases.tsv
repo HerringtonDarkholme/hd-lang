@@ -22,7 +22,6 @@ parse/invalid/chained-comparison.hd	parse
 parse/invalid/positional-after-named.hd	parse
 parse/invalid/named-pattern-before-positional.hd	parse
 parse/invalid/trailing-block-in-brackets.hd	parse
-parse/invalid/multi-binding-needs-parentheses.hd	parse
 parse/valid/reserved-receiver-names.hd	parse
 parse/valid/test-block.hd	parse
 parse/valid/consecutive-trailing-block-calls.hd	parse
@@ -42,11 +41,9 @@ runtime/valid/display-dispatch.hd	runtime
 runtime/valid/float-display.hd	runtime
 runtime/valid/assert.hd	runtime
 typing/valid/readonly-outer-mutable-field-init.hd	type
-typing/valid/map-indexing.hd	type
 typing/valid/readonly-list-mutable-elements.hd	type
 typing/valid/generic-result-permission.hd	type
 typing/valid/readonly-callable-mutable-result.hd	type
-typing/valid/readonly-map-mutable-values.hd	type
 typing/valid/row-polymorphic-callback.hd	type
 typing/valid/requirements-and-suspension.hd	type
 typing/valid/host-entry-requirement.hd	type
@@ -58,7 +55,6 @@ typing/valid/stored-suspension-driving.hd	type
 typing/valid/control-flow.hd	type
 typing/valid/names-and-scopes.hd	type
 typing/valid/partly-consumed-iterator.hd	type
-typing/valid/iteration-protocol.hd	type
 typing/valid/local-functions.hd	type
 typing/valid/match-guards.hd	type
 typing/valid/contextual-variants.hd	type
@@ -84,8 +80,6 @@ typing/invalid/reassign-parameter.hd	type
 typing/invalid/discarded-suspension.hd	type
 typing/invalid/float-literal-range.hd	type
 typing/invalid/heterogeneous-list.hd	type
-typing/invalid/invalid-map-key.hd	type
-typing/invalid/float-map-key.hd	type
 typing/invalid/nonnumeric-unary-plus.hd	type
 typing/invalid/readonly-suspension-cancel.hd	type
 typing/invalid/user-suspend-implementation.hd	type
@@ -134,7 +128,6 @@ typing/valid/enums.hd	type
 typing/valid/reference-generic-identity.hd	type
 typing/invalid/primitive-identity.hd	type
 typing/invalid/tuple-identity.hd	type
-typing/invalid/tuple-map-key.hd	type
 typing/invalid/unbounded-generic-identity.hd	type
 typing/invalid/readonly-generic-field-init.hd	type
 typing/invalid/readonly-spread-mutable-field.hd	type
@@ -158,7 +151,6 @@ runtime/panic/second-suspension-drive.hd	runtime
 runtime/panic/test-block-on.hd	runtime
 runtime/valid/construction-provider-capture.hd	runtime
 runtime/valid/defer-order.hd	runtime
-runtime/valid/map-insertion-order.hd	runtime
 runtime/valid/partial-equality-dispatch.hd	runtime
 runtime/valid/partial-ordering-dispatch.hd	runtime
 runtime/valid/structural-equality.hd	runtime
@@ -344,14 +336,12 @@ runtime/valid/while-else-break-value.hd	runtime
 typing/invalid/plain-break-in-value-loop.hd	type
 typing/invalid/break-value-in-void-loop.hd	type
 runtime/valid/while-else-exhaustion-value.hd	runtime
-runtime/valid/for-loops-lists-and-maps.hd	runtime
 runtime/valid/data-fields-named-in-any-order.hd	runtime
 runtime/valid/mutable-data-paths-share-identity.hd	runtime
 runtime/valid/indexed-replacement-list-and-map.hd	runtime
 typing/invalid/readonly-list-append.hd	type
 runtime/valid/list-append-grows.hd	runtime
 typing/invalid/readonly-map-remove.hd	type
-runtime/valid/map-grow-and-remove.hd	runtime
 runtime/valid/data-field-evaluation-order.hd	runtime
 runtime/valid/data-field-defaults.hd	runtime
 typing/valid/generic-optional-field-default.hd	type
@@ -397,8 +387,6 @@ runtime/valid/result-pattern-nested-enum.hd	runtime
 typing/warnings/unused-nested-optional-binding.hd	type
 typing/invalid/discarded-optional-result.hd	type
 typing/valid/optional-result-explicitly-discarded.hd	type
-runtime/valid/comprehensions.hd	runtime
-typing/invalid/bang-call-in-comprehension.hd	type
 typing/invalid/closure-argument-type-mismatch.hd	type
 runtime/valid/closure-as-function-argument.hd	runtime
 typing/invalid/binding-expression-redeclaration.hd	type
@@ -419,7 +407,6 @@ typing/invalid/generic-supertrait-upcast-mismatch.hd	type
 runtime/valid/bounded-blanket-supertraits.hd	runtime
 runtime/panic/assert-failure-in-main.hd	runtime
 parse/valid/while-else.hd	parse
-parse/valid/for-tuple-binding-else.hd	parse
 parse/valid/named-local-function.hd	parse
 parse/valid/mutable-list-parameter-index-assignment.hd	parse
 parse/valid/mutable-parameter-field-assignment.hd	parse
@@ -508,7 +495,6 @@ runtime/valid/logical-operators.hd	runtime
 runtime/valid/bang-call-arguments-before-body.hd	runtime
 runtime/valid/operands-across-suspension-order.hd	runtime
 runtime/valid/assignment-place-before-value.hd	runtime
-runtime/valid/map-literal-and-comprehension-order.hd	runtime
 runtime/valid/propagation-before-cleanup.hd	runtime
 runtime/valid/cancellation-lifo-across-three-frames.hd	runtime
 runtime/valid/cancellation-loop-and-branch-scopes.hd	runtime
@@ -529,11 +515,8 @@ runtime/valid/optional-identity.hd	runtime
 typing/invalid/string-identity.hd	type
 typing/invalid/short-binding-readonly-root.hd	type
 typing/invalid/readonly-parent-mut-field-argument.hd	type
-runtime/panic/for-map-insert-invalidates.hd	runtime
-runtime/panic/for-map-remove-invalidates.hd	runtime
 runtime/panic/exhausted-iterator-invalidated-by-growth.hd	runtime
 runtime/panic/alias-growth-invalidates-readonly-iterator.hd	runtime
-runtime/valid/iterator-shape-versus-value-changes.hd	runtime
 runtime/valid/map-remove-absent-key.hd	runtime
 runtime/valid/defaults-reference-earlier-parameters.hd	runtime
 runtime/valid/copy-update-source-order-observed.hd	runtime
@@ -581,7 +564,6 @@ parse/valid/leading-dot-continuation.hd	parse
 runtime/valid/leading-dot-chain.hd	runtime
 parse/invalid/leading-operator-does-not-continue.hd	parse
 parse/invalid/leading-tuple-index-does-not-continue.hd	parse
-parse/valid/bracketed-for-multi-name-binding.hd	parse
 runtime/valid/assert-equal-generic-primitive.hd	runtime
 runtime/panic/assert-equal-generic-primitive-unequal.hd	runtime
 typing/invalid/parameter-default-later-parameter.hd	type
@@ -617,7 +599,6 @@ typing/invalid/duplicate-argument.hd	type
 typing/invalid/unknown-named-argument.hd	type
 typing/invalid/variant-unknown-payload-field.hd	type
 typing/invalid/variant-pattern-unknown-field.hd	type
-typing/invalid/for-binding-arity.hd	type
 typing/invalid/for-over-non-iterable.hd	type
 typing/invalid/defer-return.hd	type
 typing/invalid/variant-pattern-missing-payload.hd	type
@@ -660,7 +641,6 @@ runtime/valid/reference-bounded-dynamic-method.hd	runtime
 runtime/valid/fieldless-data-canonical.hd	runtime
 runtime/valid/write-line-suspending-call-argument.hd	runtime
 runtime/valid/write-line-around-suspending-provider-scope.hd	runtime
-typing/invalid/float-literal-map-key.hd	type
 typing/invalid/heterogeneous-map-values.hd	type
 typing/invalid/generic-data-field-type-mismatch.hd	type
 typing/invalid/generic-inference-conflict.hd	type
@@ -670,11 +650,9 @@ parse/invalid/mut-non-self-parameter.hd	parse
 parse/invalid/dedent-to-unused-column.hd	parse
 parse/invalid/double-numeric-separator.hd	parse
 parse/invalid/binary-literal-bad-digit.hd	parse
-parse/invalid/stray-dollar-in-string.hd	parse
 parse/invalid/vararg-with-default.hd	parse
 parse/invalid/copy-update-spread-not-first.hd	parse
 parse/invalid/wildcard-use.hd	parse
-parse/invalid/stray-dollar.hd	parse
 parse/invalid/discard-binding-ends-in-suite.hd	parse
 parse/invalid/return-binding-ends-in-suite.hd	parse
 parse/invalid/repeated-numeric-separator.hd	parse
@@ -892,7 +870,6 @@ typing/invalid/none-to-any.hd	type
 runtime/valid/optional-erased-to-any.hd	runtime
 parse/valid/declarations.hd	parse
 typing/valid/local-types.hd	type
-typing/invalid/nominal-map-key.hd	type
 typing/invalid/local-impl-nonlocal-pair.hd	type
 typing/invalid/error-implementation-local-type.hd	type
 runtime/valid/closure-captured-let-shared.hd	runtime
@@ -1217,12 +1194,10 @@ typing/valid/literal-suffix-requirement.hd	type
 typing/invalid/literal-suffix-no-parameter.hd	type
 typing/valid/string-prefix-requirement.hd	type
 typing/valid/row-union-list.hd	type
-typing/valid/row-union-map.hd	type
 typing/invalid/row-union-list-no-convert.hd	type
 typing/invalid/row-union-other-parts.hd	type
 typing/invalid/row-union-nested-lists.hd	type
 typing/invalid/row-union-missing-requirement.hd	type
-runtime/valid/row-union-list-runs.hd	runtime
 typing/valid/row-list-copy-wider.hd	type
 runtime/valid/row-alias-bare-runs.hd	runtime
 typing/valid/row-alias-bare-impl-head.hd	type
@@ -1399,7 +1374,6 @@ typing/invalid/impl-iterator-trait.hd	type
 typing/invalid/iterator-map-callback-row.hd	type
 runtime/valid/iterator-from-fn.hd	runtime
 typing/invalid/iterator-step-private.hd	type
-runtime/valid/collect-targets-run.hd	runtime
 typing/invalid/collect-target-not-fromiterator.hd	type
 typing/valid/from-iterator-imported.hd	type
 parse/valid/type-argument-defaults.hd	parse
@@ -1447,7 +1421,6 @@ typing/invalid/requirement-key-unbound.hd	type
 typing/invalid/multiple-positional-value-packs.hd	type
 typing/invalid/nonfinal-positional-value-pack.hd	type
 typing/invalid/dynamic-safety-pack-parameter.hd	type
-parse/invalid/multi-binding-unwrapped-in-list.hd	parse
 parse/invalid/closure-type-parameters.hd	parse
 typing/valid/mut-self-primitive-impl.hd	type
 typing/valid/closure-with-ignores-outer-key.hd	type
@@ -1459,7 +1432,6 @@ runtime/valid/multibyte-scalar-strings.hd	runtime
 runtime/valid/replace-empty-old.hd	runtime
 typing/valid/string-bytes.hd	type
 typing/invalid/string-index-assignment.hd	type
-runtime/valid/string-byte-methods.hd	runtime
 runtime/panic/string-index-out-of-bounds.hd	runtime
 runtime/panic/string-slice-inside-scalar.hd	runtime
 runtime/panic/string-slice-past-end.hd	runtime
