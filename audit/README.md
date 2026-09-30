@@ -9,10 +9,10 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-29 the prototype passes 1,398 of the 1,571 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 173 are listed in
+On 2026-09-29 the prototype passes 1,399 of the 1,576 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 177 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 173 still fail.
+decision below, and all 177 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
@@ -26,7 +26,7 @@ them by tag:
 | MREF | 10 | `Type::name` without a call is still `deferred-method-value` |
 | STR | 14 | `len` still counts scalars; `s[i]` is `unsupported-string-indexing`; no `chars`, `char_indices`, `bytes`, or `slice`; `List`, `Map`, and `string` implement no `Index` |
 | ITER | 8 | `Iterator` is still a trait; no `from_fn`, `map`, `fold`, or `Iterable` for iterators |
-| ERRD | 20 | no `@error` intrinsic or its batch 9 codes and bounds: `@error` resolves as an ordinary decorator, so `error`, `from`, and `source` are unknown names |
+| ERRD | 24 | no `@error` intrinsic or its batch 9 and 11 codes and bounds: `@error` resolves as an ordinary decorator, so `error`, `from`, and `source` are unknown names |
 | SF | 6 | spec follow-ups batch 10: `impl i32:` is `unknown-type`, a raw tab in a string is accepted, and `==` without `Eq` still reports `missing-partial-eq` |
 | EMB-S | 4 | trait availability needs package roles |
 | P2 | 4 | member visibility needs package roles |
