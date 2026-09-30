@@ -19,7 +19,10 @@ then C3′, an ordered one-namespace lookup. Only B and C1 remain. This pass
 keeps the [survey of trait-based languages](#survey-fields-methods-and-traits),
 drops the C3′ material, and rewrites the [comparison](#comparison) of B
 and C1, the [recommendation](#recommendation), and the
-[questions](#questions-for-the-owner).
+[questions](#questions-for-the-owner). The owner then noted that C1
+gives live variables but makes array indexing read oddly, so
+[Live Variables Without Call Indexing](#live-variables-without-call-indexing)
+shows two ways to get `var()` or `var[]` under B.
 
 ## Owner Direction So Far
 
@@ -739,41 +742,83 @@ against 124 type-argument sites. No trial has measured either option; a
 Haiku probe on the same tasks under B and C1 would, as AGENTS.md
 "Writing hd Code" allows.
 
+### Live Variables Without Call Indexing
+
+The owner wants `var()` and `var() = 1`, but not `xs(0)` for arrays. The
+two are separable: a live variable needs a zero-key read and store, not
+call indexing. Two ways give it under B.
+
+| | B+Z: zero-key index | B+F: callable values |
+| --- | --- | --- |
+| Live variable | `var[]`, `var[] = 1`, `var[] += 1` | `var()`, `var() = 1`, `var() += 1` |
+| Arrays | `xs[0]` | `xs[0]` |
+| Grid | `g[0, 1]` | `g[0, 1]`, or `g(0, 1)` if the type chooses |
+| Mechanism | `Index` and `IndexSet` take a keys tuple, as C1's `Apply` does; `[` after an operand may hold zero or several keys | C1's `Apply[Keys]` and `Update[Keys, V]` for calls; std's `List` and `Map` do not implement them |
+| New rules | grammar: `[]` and `[a, b]` after an operand; keys tuples | C1's call rules and its place exception: a call is a store when the callee has `Update` |
+| Costliest kind | 1, a grammar extension, beside B's own kind 1 | 2, some calls are places |
+| Precedent | Swift: `subscript()` with no parameters, read, set, and `+=` (tested, Swift 6.4) | Swift `callAsFunction` and Kotlin `invoke` read only: Swift rejects `v() = 1`, "expression is not assignable" (tested). Scala's `update` allows it. |
+| Risk | `var[]` reads less well than `var()` | a library can still make its collection callable, so `xs(0)` stays possible by convention only |
+
+B+Z needs B: today `f[]` would read as empty type arguments. B+F does not
+need B; it could be added to A as well.
+
+```text
+use std.ops.{Apply, Update}
+
+data Cell[T]:
+    value: T
+
+impl[T] Apply[()] for Cell[T]:
+    type Out = T
+    fn apply(self, keys: ()) -> T: self.value
+
+impl[T] Update[(), T] for Cell[T]:
+    fn update(mut self, keys: (), value: T) -> void:
+        self.value = value
+
+fn demo(names: List[string], var: mut Cell[i32]) -> string:
+    var() = var() + 1
+    names[0]
+```
+
+The block above is B+F: `names[0]` indexes, and `var()` reads the cell.
+
 ## Recommendation
 
-**Recommendation.** Option C1 by the Design Cost Order, with B as a close
-second. The choice turns on
-[Q1](#q1-b-or-c1): whether the owner weighs rule kinds or agent habits more.
+**Recommendation.** Option B for the brackets, with callable values, B+F,
+if the owner wants `var()` now. C1 is next best.
 
-- C1's costliest change is kind 2, "some calls are places"; B's is kind 1,
-  a new token pair. The Design Cost Order ranks C1 first.
-- C1 keeps one spelling of type arguments, `List[i32]` and `first[i32]`
-  alike. B has two, `List[i32]` in types and `first::[i32]` in expressions.
-- C1 gives grids and cells with no new mechanism, and it settles the split
-  `Map` read.
-- B keeps the syntactic mark on element reads and stores, and the indexing
-  every agent already writes. Its type-name expressions need one more
-  decision, [Q2](#q2-type-name-expressions-under-b).
+- The live variable does not need call indexing. B+F gives the owner's
+  `var()` and `var() = 1` exactly, and arrays keep `xs[0]`.
+- B keeps the `[]` mark on element reads and stores, and the indexing
+  every agent already writes.
+- B+F's costliest change is C1's own place exception, kind 2. It applies
+  only to types that opt in with `Update`.
+- B's cost is a kind 1 token pair and two spellings of type arguments,
+  `List[i32]` and `first::[i32]`. Its type-name expressions need
+  [Q2](#q2-type-name-expressions-under-b).
 
-**What C1 gives up.** The `[]` cue on element reads and places, and the
-most common indexing habit in agents' training. Every `xs[0]` an agent
-writes costs one fix-it round.
+**What it gives up.** One spelling of type arguments, and the Design Cost
+Order's preference for C1, whose costliest change is kind 2 against B's
+kind 1. `var()` and `xs[0]` also look different for two kinds of read.
 
-**Next best.** B. It changes less code in std and the tour, and a reader
-can still see every place.
+**Next best.** C1, if one bracket meaning and one spelling of type
+arguments outweigh `xs(0)`. B+Z, `var[]`, if calls should never be places.
 
 ## Questions For The Owner
 
-Q1 decides the option. Q2 applies only under B; Q3 and Q4 only under C1.
+Q1 decides the option. Q2 and Q5 apply only under B; Q3 and Q4 apply
+under C1, and Q3 under B+F too.
 
 ### Q1. B Or C1
 
 **Effect:** decides which bracket use moves: type arguments in expressions
 under B, or indexing under C1.
 
-1. **C1** (recommended by rule kind): `xs(0)`, `first[string](xs)`, and a
-   field is indexed as `(user.tags)(0)`.
-2. B: `xs[0]` stays, and type arguments become `first::[string](xs)`.
+1. **B** (recommended): `xs[0]` stays, and type arguments become
+   `first::[string](xs)`. Q5 decides the live variable.
+2. C1: `xs(0)`, `first[string](xs)`, and a field is indexed as
+   `(user.tags)(0)`.
 3. Decide after a Haiku probe writes the same tasks under both.
 
 ```text
@@ -802,8 +847,8 @@ fn demo(names: List[string]) -> string:
 
 ### Q3. Keys Argument Shape
 
-**Effect:** only under C1. A bound on a one-key type spells a one-element
-tuple.
+**Effect:** under C1 or B+F. A bound on a one-key type spells a
+one-element tuple.
 
 1. **A tuple-kinded `Keys`, as `Fn` has** (recommended): `Apply[(i32,)]`,
    and `g(0, 1)` passes `(0, 1)`.
@@ -832,6 +877,22 @@ fn score(scores: Map[string, i32], name: string) -> i32:
     match scores.get(name):
         .Some(value) => value
         .None => 0
+```
+
+### Q5. Live Variables Under B
+
+**Effect:** only under B. Decides how a cell or signal reads and stores
+while arrays keep `xs[0]`.
+
+1. **B+F, callable values** (recommended): `var()` and `var() = 1`,
+   through `Apply` and `Update`; std collections do not implement them.
+2. B+Z, zero-key index: `var[]` and `var[] = 1`, through a keys-tuple
+   `Index`.
+3. Neither for now: a cell uses methods, `var.get()` and `var.set(1)`.
+
+```text
+fn bump(var: mut Cell[i32]) -> void:
+    var() += 1
 ```
 
 ## Sources
@@ -965,10 +1026,12 @@ their meaning is the proposal.
 | 16 | Cart store through an index | parses |
 | 17 | Call result indexed | parses |
 | 18 | Evaluation-order fixture | parses |
-| 19 | Q1 | parses |
-| 20 | Q2 | parses |
-| 21 | Q3 | parses |
-| 22 | Q4 | parses |
+| 19 | B+F cell beside an index | parses |
+| 20 | Q1 | parses |
+| 21 | Q2 | parses |
+| 22 | Q3 | parses |
+| 23 | Q4 | parses |
+| 24 | Q5 | parses |
 
 Reference-parser finding: none. The parser accepts `f(x) = v` and
 `(x.f)(k) = v` today, as [`grammar.stmt.assign-target`](../spec/02-grammar.md#r-grammar.stmt.assign-target)
