@@ -1588,3 +1588,4 @@ runtime/valid/mut-self-primitive-arithmetic.hd	runtime
 typing/invalid/closure-row-key-collision.hd	type
 typing/valid/method-references.hd	type
 typing/invalid/mut-self-reference-readonly-callback.hd	type
+runtime/valid/structure-self-ref.hd	runtime

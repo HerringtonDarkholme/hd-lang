@@ -1,34 +1,24 @@
-import type {
-  DataDecl,
-  DataField,
-  EnumDecl,
-  Expression,
-  ImplDecl,
-  Program,
-  UseDecl,
-} from "../ast.ts";
+import type { DataField, EnumDecl, Expression, ImplDecl, Program, UseDecl } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
-import {
-  mutableInner,
-  nominalGenericParts,
-  optionalInner,
-  resultParts,
-  tupleParts,
-} from "../types.ts";
+import { fieldsSelfRef, selfRefScope, type SelfRefScope } from "./self-ref.ts";
 import { Source_ } from "./generated-source.ts";
 import type { Target } from "./member-lines.ts";
 
-// Derived `Arbitrary` (spec/10-modules.md#derived-arbitrary) and the
-// `std.testing.arbitrary` module.
+// Derived `Arbitrary` (spec/10-modules.md#derived-arbitrary) for a target
+// with an `arbitrary.with` fact, and the `std.testing.arbitrary` module.
 //
-// The prototype generates a derived `Arbitrary` directly, as it does the
-// intrinsic derivations, rather than through a std template: its derivation
-// pass runs before std is joined, and choosing the first non-recursive
-// variant needs the member types, which `Structure` does not give a
-// template. The generated `arbitrary` draws each member with
-// `c.draw[F]()`, or with its `arbitrary.with(gen)` fact's generator, whose
-// drawn value it downcasts to `F`. An enum draws a variant index first, with
-// the simplest variant at index 0, so a spent draw budget picks it.
+// Every other derived `Arbitrary` instantiates the `std.testing` template
+// (lib/std/testing.hd). A template cannot draw a tuned member: its
+// `Source` strengthens `member[F]` to `F < Arbitrary`, which every built
+// member must satisfy (r-annot.walker.obligation), while a tuned member need
+// not implement `Arbitrary` and must instead be inspectable, reported at
+// the fact (r-module.testing.arbitrary.with.inspectable). So the checker
+// generates such a derivation directly. The generated `arbitrary` draws
+// each member with `c.draw[F]()`, or with its `arbitrary.with(gen)` fact's
+// generator, whose drawn value it downcasts to `F`. An enum draws a variant
+// index first, with the simplest variant at index 0, so a spent draw budget
+// picks it; the simplest is the first variant whose `self_ref` is not
+// `.Required`, as in the template (self-ref.ts).
 
 /** The hidden name of `std.testing.arbitrary.with` (lib/std/arbitrary.hd). */
 export const ARBITRARY_WITH = "__std_arbitrary_with";
@@ -120,52 +110,15 @@ function generatorFact(facts: readonly Expression[]): Expression | undefined {
   );
 }
 
-/** Substitutes a data type's own parameters in a member type. */
-function substitute(
-  type: string,
-  parameters: readonly string[],
-  arguments_: readonly string[],
-): string {
-  return parameters.reduce(
-    (text, parameter, index) =>
-      text.replace(new RegExp(`\\b${parameter}\\b`, "g"), arguments_[index] ?? parameter),
-    type,
-  );
-}
-
-/**
- * Whether the simplest value of `type` still needs a value of the enum
- * `name`: the type is the enum, or reaches it through a data type's
- * members, a tuple's elements, or `Result`'s `.Ok` payload. `List`, `Map`,
- * and optional types reach nothing, because their simplest value is empty
- * or `.None` (r-module.testing.arbitrary.derive.recursive).
- */
-function needs(
-  type: string,
-  name: string,
-  data: ReadonlyMap<string, DataDecl>,
-  visiting: Set<string>,
+/** Whether a member of `target` has an `arbitrary.with` fact. */
+export function hasGeneratorFact(
+  target: Target,
+  factsOf: (member: string) => readonly Expression[],
 ): boolean {
-  const inner = mutableInner(type) ?? type;
-  if (optionalInner(inner) !== undefined) return false;
-  const tuple = tupleParts(inner);
-  if (tuple) return tuple.some((element) => needs(element, name, data, visiting));
-  const result = resultParts(inner);
-  if (result) return needs(result.ok, name, data, visiting);
-  const nominal = nominalGenericParts(inner);
-  const head = nominal?.name ?? inner;
-  if (head === name) return true;
-  if (head === "List" || head === "Map") return false;
-  const declaration = data.get(head);
-  if (!declaration || visiting.has(inner)) return false;
-  visiting.add(inner);
-  return declaration.fields.some((field) =>
-    needs(
-      substitute(field.type.name, declaration.genericParameters, nominal?.arguments ?? []),
-      name,
-      data,
-      visiting,
-    ),
+  if (target.kind === "data")
+    return target.declaration.fields.some((field) => generatorFact(factsOf(field.name)));
+  return target.declaration.variants.some((variant) =>
+    variant.fields.some((field) => generatorFact(field.metadata ?? [])),
   );
 }
 
@@ -174,7 +127,7 @@ function deriveOne(
   item: ArbitraryDerivation,
   index: number,
   names: { readonly arbitrary: string; readonly choices: string },
-  data: ReadonlyMap<string, DataDecl>,
+  scope: SelfRefScope,
 ): { readonly implementation: ImplDecl; readonly program: Program } {
   const { target } = item;
   const declaration = target.declaration;
@@ -208,7 +161,7 @@ function deriveOne(
     return `${helper}(c)`;
   };
   const recursive = (fields: readonly DataField[]): boolean =>
-    fields.some((field) => needs(field.type.name, declaration.name, data, new Set()));
+    fieldsSelfRef(fields, declaration.name, scope).variant === "Required";
   const noFinite = `        panic(${out.string(`${declaration.name} has no finite value: every way to build it needs another ${declaration.name}`)})`;
   if (target.kind === "data") {
     const fields = target.declaration.fields;
@@ -267,8 +220,8 @@ export function deriveArbitrary(
     arbitrary,
     choices: testingName(program, "Choices") ?? "__std_testing_Choices",
   };
-  const data = new Map(program.data.map((declaration) => [declaration.name, declaration] as const));
-  const generated = items.map((item, index) => deriveOne(item, index, names, data));
+  const scope = selfRefScope(program);
+  const generated = items.map((item, index) => deriveOne(item, index, names, scope));
   return {
     implementations: generated.map((item) => item.implementation),
     functions: generated.flatMap((item) => item.program.functions),

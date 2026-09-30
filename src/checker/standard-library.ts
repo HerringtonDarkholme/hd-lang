@@ -342,6 +342,105 @@ function withTemplateName(program: Program): Program {
   return program;
 }
 
+/** `std.structure`, which the typed-derivation pass declares (checker/typed-derivation.ts). */
+const STRUCTURE = "structure";
+
+/** The `std.structure` names a module imports. */
+function structureNames(module: ParsedModule): Set<string> {
+  return new Set(
+    module.compilerUses.filter((used) => used.module === STRUCTURE).map((used) => used.name),
+  );
+}
+
+/**
+ * A module's templates, and its implementations of the `std.structure`
+ * protocol traits, which only a derivation instantiates
+ * (spec/14-annotations.md#templates).
+ */
+function isTemplatePart(implementation: ImplDecl, structure: ReadonlySet<string>): boolean {
+  return (
+    implementation.byStructure !== undefined ||
+    (implementation.traitName !== undefined && structure.has(baseName(implementation.traitName)))
+  );
+}
+
+/**
+ * A renamed module without its template parts: the typed-derivation pass
+ * instantiates them through `standardTemplate`, and they name
+ * `std.structure`, which the program declares only when it derives.
+ */
+function withoutTemplates(renamed: Program, original: ParsedModule): Program {
+  const structure = structureNames(original);
+  return withStandardNames(
+    {
+      ...renamed,
+      implementations: renamed.implementations.filter(
+        (implementation) => !isTemplatePart(implementation, structure),
+      ),
+    },
+    original,
+  );
+}
+
+/** The program's local names of the `std` declarations it imports, and the prelude names. */
+function standardLocalNames(program: Program): Map<string, string> {
+  const localNames = new Map<string, string>();
+  for (const declaration of program.uses) {
+    const module = declaration.module.replace(/^std\./, "");
+    if (!declaration.module.startsWith("std.") || !isStandardModule(module)) continue;
+    const declared = standardModule(module).names;
+    for (const imported of declaration.names)
+      if (declared.includes(imported.name))
+        localNames.set(`${module}.${imported.name}`, imported.alias ?? imported.name);
+  }
+  for (const [module, name] of PRELUDE_DECLARATIONS) localNames.set(`${module}.${name}`, name);
+  return localNames;
+}
+
+/**
+ * The template of the `std` trait that the program imports as `trait`,
+ * with the module's `std.structure` protocol implementations, written with
+ * the program's names: a name it imports by its local name, any other `std`
+ * name by its hidden name, and `std.structure` names as the typed-derivation
+ * pass declares them (spec/14-annotations.md#templates).
+ */
+export function standardTemplate(
+  program: Program,
+  trait: string,
+): { readonly template: ImplDecl; readonly support: readonly ImplDecl[] } | undefined {
+  for (const declaration of program.uses) {
+    const module = declaration.module.replace(/^std\./, "");
+    if (!declaration.module.startsWith("std.") || !isStandardModule(module)) continue;
+    const imported = declaration.names.find((name) => (name.alias ?? name.name) === trait);
+    const parsed = standardModule(module);
+    if (!imported || !parsed.names.includes(imported.name)) continue;
+    const localNames = standardLocalNames(program);
+    const nameOf = (owner: StandardModule, name: string): string =>
+      localNames.get(`${owner}.${name}`) ?? hiddenStandardName(owner, name);
+    const renames = new Map<string, string>();
+    for (const name of parsed.names) renames.set(name, nameOf(module, name));
+    for (const used of parsed.uses) renames.set(used.name, nameOf(used.module, used.name));
+    for (const used of parsed.compilerUses)
+      if (used.module !== STRUCTURE)
+        renames.set(used.name, hiddenStandardName(used.module, used.name));
+    const source = renameSource(standardSource(module).replace(/^use .*$/gm, ""), renames);
+    const structure = structureNames(parsed);
+    const implementations = parseModule(module, source).implementations;
+    const template = implementations.find(
+      (implementation) =>
+        implementation.byStructure !== undefined &&
+        baseName(implementation.traitName ?? "") === trait,
+    );
+    if (!template) return undefined;
+    const support = implementations.filter(
+      (implementation) =>
+        implementation.byStructure === undefined && isTemplatePart(implementation, structure),
+    );
+    return { template, support };
+  }
+  return undefined;
+}
+
 /** Declares the `std` modules and built-in methods that the program uses. */
 export function withStandardLibrary(source: Program): Program {
   const program = withTemplateName(source);
@@ -387,9 +486,10 @@ export function withStandardLibrary(source: Program): Program {
     for (const name of parsed.names) renames.set(name, nameOf(module, name));
     for (const used of parsed.uses) renames.set(used.name, nameOf(used.module, used.name));
     for (const used of parsed.compilerUses)
-      renames.set(used.name, hiddenStandardName(used.module, used.name));
+      if (used.module !== STRUCTURE)
+        renames.set(used.name, hiddenStandardName(used.module, used.name));
     const source = renameSource(standardSource(module).replace(/^use .*$/gm, ""), renames);
-    renamed = renamedModules.get(source) ?? withStandardNames(parseModule(module, source), parsed);
+    renamed = renamedModules.get(source) ?? withoutTemplates(parseModule(module, source), parsed);
     renamedModules.set(source, renamed);
     modules.set(module, renamed);
     return renamed;

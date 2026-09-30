@@ -191,8 +191,8 @@ export function resultParts(type: ValueType): ResultParts | undefined {
   let depth = 0;
   for (let index = 0; index < contents.length; index += 1) {
     const character = contents[index];
-    if (character === "[") depth += 1;
-    else if (character === "]") depth -= 1;
+    if (character === "[" || character === "(") depth += 1;
+    else if (character === "]" || character === ")") depth -= 1;
     else if (character === "," && depth === 0) {
       return { ok: contents.slice(0, index), error: contents.slice(index + 1) };
     }

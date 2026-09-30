@@ -9,10 +9,10 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,589 of the 1,619 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 30 are listed in
+On 2026-09-30 the prototype passes 1,590 of the 1,619 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 29 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 30 still fail.
+decision below, and all 29 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
@@ -28,7 +28,6 @@ them by tag:
 | GQ4 | 1 | the prototype has no pack operations |
 | MHP-1 | 1 | no inferred script entry requirement row |
 | INF-mut | 3 | batch 17: generic inference widens numbers, reports a trait-value conflict as `type-mismatch`, and `assert_equal` keeps its special case |
-| SR1 | 1 | batch 17: `std.structure` has no `SelfRef` and no `self_ref` field |
 
 ## What Remains
 
