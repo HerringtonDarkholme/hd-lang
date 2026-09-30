@@ -134,6 +134,11 @@ done
 
 node --experimental-strip-types "$spec_dir/reference-parser/index.ts" "$manifest" "$spec_dir/conformance"
 node --experimental-strip-types "$spec_dir/check-spec-anchors.ts" "$spec_dir" "$manifest"
+# Tiers (conformance/README.md): a language-tier fixture imports no item that
+# conformance/stdlib-items.tsv lists, except as conformance/tier-crossings.tsv
+# records; each crossing row must still hold.
+node --experimental-strip-types "$spec_dir/check-spec-tiers.ts" "$spec_dir" ||
+    fail "a language-tier fixture uses a stdlib-tier item, or tier-crossings.tsv is stale"
 # Style lint (spec/STYLE.md): long paragraphs and sentences only warn; rule ID
 # syntax, placement, prefixes, and uniqueness fail.
 node --experimental-strip-types "$spec_dir/check-spec-style.ts" "$spec_dir"

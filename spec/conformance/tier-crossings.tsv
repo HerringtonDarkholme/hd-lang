@@ -1,0 +1,38 @@
+path	items	reason
+parse/valid/uses.hd	std.time.Duration	shows a braced use form; std.time moves to std/time.md (task 9); import a language-tier module instead
+parse/valid/suffixed-literals.hd	std.time.ms,std.time.s	shows suffix syntax with the std duration suffixes (task 9); declare local suffixes
+typing/valid/literal-suffix-duration.hd	std.time.Duration,std.time.ms,std.time.s	tests the suffix mechanism through std.time (task 9); declare a local suffix, or cite std/time.md if Duration is its point
+typing/valid/literal-suffix-local-shadow.hd	std.time.s	tests suffix name lookup with std.time.s (task 9); declare a local suffix
+typing/valid/literal-suffix-compile-time.hd	std.time.Duration,std.time.ms,std.time.s	tests suffix position rules through std.time (task 9); declare a local suffix
+typing/invalid/literal-suffix-float-into-integer.hd	std.time.s	tests suffixed literal kinds with std.time.s (task 9); declare a local suffix
+typing/valid/string-prefix-local-shadow.hd	std.text.r	tests prefix name lookup with std.text.r (task 8); declare a local prefix
+runtime/valid/string-prefix-plain-dollar-digit.hd	std.text.r	tests a lexical prefix rule with std.text.r (task 8); declare a local prefix
+runtime/valid/test-case-options.hd	std.time.s	tests the it options; the timeout option and std.time move (tasks 6, 9); drop timeout or split the case
+runtime/valid/it-each-options.hd	std.time.s	tests it_each options; the timeout option and std.time move (tasks 6, 9); drop timeout or split the case
+typing/valid/snapshot-inline.hd	std.testing.snapshot_file	cites Snapshots, which splits: the literal rule stays, snapshot files move (task 6); drop snapshot_file or cite std/testing.md
+typing/valid/collections.hd	string.trim,string.lower	tests comprehensions; trim and lower move to std/text.md (task 8); use a language-tier operation
+typing/valid/control-flow.hd	string.starts_with	tests control flow; starts_with moves to std/text.md (task 8); use a language-tier operation
+typing/valid/names-and-scopes.hd	string.trim	tests lexical scopes; trim moves to std/text.md (task 8); use a local function
+typing/valid/traits.hd	string.split	tests traits; split moves to std/text.md (task 8); use a language-tier operation
+typing/valid/explicit-generic-method.hd	string.split	tests generic functions; split moves to std/text.md (task 8); use a language-tier operation
+typing/valid/trait-argument-owner-impl.hd	string.split	tests implementation ownership; split moves to std/text.md (task 8); use a language-tier operation
+typing/valid/prelude-surface.hd	string.trim,string.lower,List.map	tests prelude names; trim and lower move to std/text.md (task 8), List.map to std/iter.md (task 7)
+typing/valid/pipe-steps.hd	string.trim,string.lower	tests pipe steps; trim and lower move to std/text.md (task 8); use local functions
+typing/valid/string-bytes.hd	string.chars,string.char_indices	cites Strings; chars and char_indices move to std/text.md (task 8); cite std/text.md or drop them
+runtime/valid/assert-equal-string.hd	string.trim,string.lower	tests assert_equal on strings; trim and lower move to std/text.md (task 8); compare language-tier values
+runtime/valid/propagation-into-erased-error.hd	string.trim	tests propagation; trim moves to std/text.md (task 8); use a language-tier operation
+runtime/valid/string-ordering.hd	string.starts_with	tests string ordering; starts_with moves to std/text.md (task 8); drop the starts_with checks or split the case
+runtime/valid/string-trim-and-lower.hd	string.trim,string.lower	tests trim and lower but cites Strings; cite std/text.md when it exists (task 8)
+runtime/valid/string-split.hd	string.split	tests split but cites Strings; cite std/text.md when it exists (task 8)
+runtime/valid/multibyte-scalar-strings.hd	string.split,string.replace,string.starts_with,string.lower	tests multibyte strings with text methods; split the case or cite std/text.md (task 8)
+runtime/valid/empty-string-operations.hd	string.trim,string.lower,string.starts_with	tests text methods on the empty string but cites Prelude; cite std/text.md (task 8)
+runtime/valid/split-empty-input-nonempty-separator.hd	string.split	tests split but cites Prelude; cite std/text.md (task 8)
+runtime/valid/trim-unicode-white-space.hd	string.trim	tests trim but cites Prelude; cite std/text.md (task 8)
+runtime/valid/replace-non-overlapping.hd	string.replace	tests replace but cites Prelude; cite std/text.md (task 8)
+runtime/valid/replace-empty-old.hd	string.replace,string.lower	tests replace but cites Prelude; cite std/text.md (task 8)
+runtime/valid/string-byte-methods.hd	string.chars,string.char_indices	cites String Methods, which splits: the byte intrinsics stay, chars and char_indices move (task 8)
+typing/valid/method-references.hd	List.map	tests method references as List.map callbacks; List.map moves to std/iter.md (task 7); pass them to a local function
+runtime/valid/method-references-run.hd	List.map	tests a bound method reference as a List.map callback; List.map moves (task 7); use a local function
+typing/invalid/mut-self-reference-readonly-callback.hd	List.map	tests a readonly callback through List.map; List.map moves (task 7); use a local higher-order function
+runtime/valid/iterator-from-fn.hd	Iterator.collect	tests from_fn, a language item, and collects the result; collect moves to std/iter.md (task 7); drain with a for loop
+runtime/valid/try-operand-expected-type.hd	Iterator.map,Iterator.collect	tests the try operand's expected type through map and collect; both move (task 7); use a language-tier producer

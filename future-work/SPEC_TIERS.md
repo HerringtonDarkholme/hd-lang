@@ -278,7 +278,7 @@ Each task is about an hour, and each ends with `bash spec/check.sh`,
 | --- | --- | --- |
 | 1 | Done. Scaffold: `spec/std/README.md`, prefix table, `spec-prose.ts`, style lint, `check.sh` loops, rule-inventory glob, `hd explain` index, website nav | nothing |
 | 2 | Process: AGENTS.md rule, spec-update skill, STDLIB.md tier column | nothing |
-| 3 | Conformance plumbing: README Tiers section, split list, `check.sh` name check, `--tier` in both runners | nothing |
+| 3 | Done. Conformance plumbing: README Tiers section, split list, `check.sh` name check (`spec/check-spec-tiers.ts`, `stdlib-items.tsv`), `--tier` in both runners; `tier-crossings.tsv` records 37 crossing fixtures | nothing |
 | 4 | `std/testing.md`, part 1: Property Tests and Draw Budget, about 30 IDs | 6 cases |
 | 5 | `std/testing.md`, part 2: Derived Arbitrary; `Structure.name()` and the no-finite message (ST8); the `arbitrary.with` gap into [Open Issues](OPEN_ISSUES.md) (ST7) | 7 cases |
 | 6 | `std/testing.md`, part 3: table-test rows, snapshot files, `timeout` | 9 cases |
@@ -292,6 +292,7 @@ Each task is about an hour, and each ends with `bash spec/check.sh`,
 spec text, the IDs, `cases.tsv`, `examples.tsv`, and the links in `spec/`
 and `guide/`, and adds one Revision Notes entry. It also adds its names to
 the stdlib list and fixes the cross-tier fixtures that the check flags.
+It deletes each fixed fixture's row from `spec/conformance/tier-crossings.tsv`.
 About 140 links point at moved anchors today, 35 of them in `cases.tsv`.
 
 ## Owner Decisions

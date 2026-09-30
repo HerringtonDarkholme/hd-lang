@@ -45,10 +45,7 @@ A fixture may rely only on:
 
 - primitive types and prelude names
   ([Modules](../10-modules.md#prelude));
-- standard modules that a numbered chapter specifies, such as `std.testing`,
-  `std.task`, `std.resource`, `std.convert`, `std.error`, `std.inspect`,
-  `std.function`, `std.process`, `std.ops`, `std.num`, `std.text` (for
-  `r`), and `std.time`;
+- the standard items its [tier](#tiers) allows, listed below;
 - its own declarations;
 - the environment its fixture directives name (see
   [Fixture Environments](#fixture-environments)), including the package
@@ -56,6 +53,28 @@ A fixture may rely only on:
 
 Every other user-defined type, trait, and function must be declared in the
 fixture, including every requirement key.
+
+The standard items split by tier. **Language-tier items** are usable by
+every fixture. They are the items a numbered chapter specifies:
+
+- the harness and the test registration the compiler checks, from
+  `std.testing`: `it`, `assert`, `assert_equal`, `it_each`, `it_prop`,
+  `it_prop_with`, and a literal `snapshot`;
+- the lang items and traits of `std.task`, `std.resource`, `std.convert`,
+  `std.error`, `std.inspect`, `std.function`, `std.process`, `std.ops`,
+  `std.num`, `std.structure`, `std.annotation`, and `std.format` (`Display`
+  and `Debug`), and `Iterable` and `Iterator` from `std.iter`;
+- the intrinsics of built-in types, such as `List.append`, `string.len`,
+  and `string.slice`.
+
+**Stdlib-tier items** are usable only by a stdlib-tier fixture. They are the
+items a [stdlib chapter](../std/README.md#chapters) specifies, and
+[`stdlib-items.tsv`](stdlib-items.tsv) lists the import path of each.
+
+A numbered chapter still specifies an item until a migration task moves it
+into `spec/std/`, and until then any fixture may use it. The items waiting
+to move include `std.time`, `std.text`'s `r`, the string methods above the
+intrinsics, the iterator adapters, `Arbitrary`, and `Choices`.
 
 A fixture must not depend on:
 
@@ -120,9 +139,10 @@ tab-separated fields:
 - `expectation`: `accept`, `reject:CODE`, `warn:CODE`, or `panic:CODE`. For a
   marked fixture, it equals the marker kind (`diagnostic` is written
   `reject`) and code;
-- `specification`: the one primary section, as `NN-chapter.md#anchor`. The
-  anchor may instead name one rule, as `r-` followed by its
-  [rule ID](../STYLE.md#rule-ids).
+- `specification`: the one primary section, as `NN-chapter.md#anchor`, or
+  as `std/MODULE.md#anchor` for a stdlib chapter. The anchor may instead
+  name one rule, as `r-` followed by its [rule ID](../STYLE.md#rule-ids).
+  This column sets the case's [tier](#tiers).
 
 Every fixture has exactly one row.
 
@@ -134,6 +154,39 @@ compilable files. `spec/check.sh` verifies that every core `text` fence has
 exactly one inventory entry, and that every runnable entry names an indexed
 fixture.
 
+## Tiers
+
+The suite covers both tiers of the specification
+([spec/std](../std/README.md#tiers)).
+
+1. A case's tier is the tier of its `specification` column. A value that
+   starts with `std/` makes the case stdlib tier. Every other case is
+   language tier.
+2. There is no tier column, directive, or directory. The fixture's
+   directory stays informative.
+3. A language-tier fixture uses only language-tier standard items (see
+   [Self-Containment and Determinism](#self-containment-and-determinism)).
+   A stdlib-tier fixture may use items of both tiers.
+4. [`stdlib-items.tsv`](stdlib-items.tsv) lists the stdlib-tier items by
+   import path. Its header is `item	specification`. `item` is a module
+   path, such as `std.time`, or an item path, such as `std.time.s`.
+   `specification` is the `std/` section that specifies the item. Each
+   migration task that moves a section adds its items.
+5. `spec/check.sh` rejects a language-tier fixture whose `use` line imports
+   a listed item, or a member of a listed module.
+6. [`tier-crossings.tsv`](tier-crossings.tsv) lists the language-tier
+   fixtures that still use a stdlib-tier item, until a migration task fixes
+   each one. Its header is `path	items	reason`. `items` is a
+   comma-separated list of import paths, such as `std.time.s`, and method
+   calls, such as `string.trim`. The check allows a listed import.
+7. `spec/check.sh` rejects a crossing row whose case is stdlib tier, or
+   whose fixture no longer imports or calls one of its items.
+
+An implementation with a different standard library runs the stdlib-tier
+cases alone with `--tier std`. A new compiler whose standard library has
+only the language tier runs `--tier language`, which needs no stdlib-tier
+item once `tier-crossings.tsv` is empty.
+
 ## Case Selection
 
 An implementation that supports only part of the language may give the
@@ -141,6 +194,12 @@ runner a selection manifest: a text file listing one case path per line.
 The runner then runs only the listed cases, and reports pass and fail counts
 for them. Unlisted cases are not run and are not reported as passing. Without
 a manifest, the runner runs every case.
+
+A runner may also select cases by [tier](#tiers) with `--tier language` or
+`--tier std`, and by phase with `--phase parse`, `type`, or `runtime`. Each
+option narrows a manifest's selection further. Without them, the runner
+runs cases of every tier and phase. Its summary line reports passes per
+tier, as `language: X of Y; stdlib: X of Y`.
 
 There is no "unsupported" result. A case that an implementation runs is
 judged only by the rules below.
