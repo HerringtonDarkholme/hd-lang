@@ -34,8 +34,9 @@ Open questions for the owner:
 
 - [Error Conversion: The `@error` Intrinsic](ERROR_CONVERSION.md) records
   decision 10, error derivation as one compiler intrinsic, applied in
-  [Error Derivation](../spec/14-annotations.md#error-derivation); six
-  apply-pass points wait for the owner.
+  [Error Derivation](../spec/14-annotations.md#error-derivation), and the
+  owner's answers to its first apply-pass points (decisions 21-27); two
+  later points wait for the owner.
 - [Pipe Operator And Iterator `map`/`fold`](PIPE_OPERATOR.md) surveys pipes,
   UFCS, and extension methods in 17 languages. Its decisions PL3-PL13 are
   applied; three pipe readings wait for the owner.

@@ -383,8 +383,6 @@ See [Typed Derivation](../spec/14-annotations.md#typed-derivation).
 `std.error.Error` with `cause`, and one `From` per `@from` member:
 
 ```text
-use std.error.Error
-
 @error
 enum LoadError:
     @error("cannot read $path")
@@ -404,7 +402,10 @@ A message is an interpolated string over the variant's members, with
 unnamed ones as `_0`, `_1`; a variant without one displays as its name.
 `@source` marks the cause, `@from` also generates the conversion that `?`
 uses, and `@error(transparent)` forwards both to the one payload. Writing
-`Display` or `Error` by hand beside `@error` is `overlapping-impl`. See
+`Display` or `Error` by hand beside `@error` is `overlapping-impl`, and a
+form before the wrong target, such as `@error` before a function, is
+`decorator-target-kind`. `@error` needs no `use std.error.Error`; only
+code that names `Error` imports it. See
 [Error Derivation](../spec/14-annotations.md#error-derivation).
 
 Use parentheses when a binding expression appears inside a larger expression.

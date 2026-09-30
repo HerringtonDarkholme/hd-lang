@@ -293,11 +293,10 @@ fn load(path: string) -> Result[string, Error]:
 
 Usually `@error` writes those implementations for you, as Rust's
 `thiserror` does. `@error("...")` gives a variant its message, `@from`
-generates the `From` conversion, and `@source` marks a cause without one:
+generates the `From` conversion, and `@source` marks a cause without one.
+`@error` needs no import:
 
 ```hd
-use std.error.Error
-
 @error
 enum ConfigError:
     @error("config not found: $path")

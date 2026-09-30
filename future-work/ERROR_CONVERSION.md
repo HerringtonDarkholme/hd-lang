@@ -1,8 +1,7 @@
 # Error Conversion: The `@error` Intrinsic
 
-Status: decisions 21-27 (batch 9, 2026-09-29) are decided and not yet
-applied; every earlier decision is applied. Nothing here is accepted
-behavior; the specification is authoritative. Decisions 1-9, 11,
+Status: every owner decision of this record is applied. Nothing here is
+accepted behavior; the specification is authoritative. Decisions 1-9, 11,
 and 13-20 (2026-09-26 and 2026-09-27) are applied, or superseded by the
 testing redesign:
 [Propagation](../spec/05-expressions.md#propagation),
@@ -16,7 +15,8 @@ testing redesign:
 [Propagation In Test Blocks](../spec/05-expressions.md#propagation-in-test-blocks).
 Decisions 10 and 12, the `@error` intrinsic, were applied on 2026-09-29 in
 [Error Derivation](../spec/14-annotations.md#error-derivation). The
-owner answered its apply-pass points as decisions 21-27.
+owner answered its apply-pass points as decisions 21-27, applied the same
+day. Two points from applying them are under [Still Open](#still-open).
 
 The error-chain helpers (`Context`, `.context`, `chain`, `find`,
 `root_cause`, `ErrorReport`) are library API in
@@ -59,8 +59,8 @@ The review R12 rule about common fields without a default is not
 specified: Enum Semantics decision 4 made shared enum data per-variant
 constants, which made it moot.
 
-Decided 2026-09-29, not yet applied (batch 9, the apply-pass points; all
-as recommended):
+Decided and applied 2026-09-29 (batch 9, the apply-pass points; all as
+recommended):
 
 21. **ERR SO1: a misplaced marker.** A misplaced `@error`, `@from`, or
     `@source` is `decorator-target-kind`.
@@ -91,9 +91,26 @@ as recommended):
     decisions 21-26 where one covers it, and the applied reading stays
     otherwise.
 
+| Decision | Rules |
+| --- | --- |
+| 21 | [`annot.error.form.misplaced`](../spec/14-annotations.md#r-annot.error.form.misplaced), [`.form.misplaced.examples`](../spec/14-annotations.md#r-annot.error.form.misplaced.examples) |
+| 22 | [`annot.error.cause.one`](../spec/14-annotations.md#r-annot.error.cause.one), [`.from.type-parameter`](../spec/14-annotations.md#r-annot.error.from.type-parameter), [`.cause.type`](../spec/14-annotations.md#r-annot.error.cause.type), [`.transparent.type`](../spec/14-annotations.md#r-annot.error.transparent.type) |
+| 23 | [`annot.error.message.no-self`](../spec/14-annotations.md#r-annot.error.message.no-self) |
+| 24 | [`annot.error.message.shared-unnamed`](../spec/14-annotations.md#r-annot.error.message.shared-unnamed) |
+| 25 | [`annot.error.bound.carried`](../spec/14-annotations.md#r-annot.error.bound.carried), [`.bound.transparent`](../spec/14-annotations.md#r-annot.error.bound.transparent) |
+| 26 | [`annot.error.no-use`](../spec/14-annotations.md#r-annot.error.no-use) |
+| 27 | the existing rules, unchanged; the misplaced forms take decision 21's code |
+
 ### Apply-Pass Readings
 
-The owner confirmed the apply pass's readings as decision 27.
+The owner confirmed the first apply pass's readings as decision 27.
+Applying decisions 21-27 read two more points from them; each is listed so
+the owner can confirm it.
+
+| Reading | Rule |
+| --- | --- |
+| `@from` beside a second payload member is misplaced, so it is `decorator-target-kind`: the form table lists `@from` only for a variant's only payload member. | [`annot.error.form.misplaced.examples`](../spec/14-annotations.md#r-annot.error.form.misplaced.examples) |
+| A type parameter is "carried-only" for `Error` when no interpolated, transparent, `@from`, or `@source` member has it as its type. | [`annot.error.bound.carried`](../spec/14-annotations.md#r-annot.error.bound.carried) |
 
 ## Current Design
 
@@ -102,13 +119,35 @@ The specification holds the design:
 
 ## Still To Do
 
-Apply decisions 21-27 to
-[Error Derivation](../spec/14-annotations.md#error-derivation).
+Nothing remains to apply. The points below wait for the owner.
 
 ## Still Open
 
-Nothing is open.
+Applying decisions 21-27 met these points. Each waits for the owner; the
+Applied column says what the specification states now.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 7 | Which bounds does the generated `Error` give a type parameter that only an interpolated member has? Decision 25 covers carried and transparent parameters. `Display` gets `P < Display`, but the generated `Error` needs `Display` for the whole type and an inspectable target. | No rule; the Note under [Generated Error Bounds](../spec/14-annotations.md#generated-error-bounds) names it | `P < Display & Inspectable`: the `Display` bound plus the inspectable target that decision 25 gives a carried parameter. |
+| 8 | Which code rejects an `@error` line whose argument is neither one message nor `transparent`, such as `@error(opaque)`? Decision 21 covers a form before the wrong target, not a wrong argument. | "Invalid", with no code ([`annot.error.form.other`](../spec/14-annotations.md#r-annot.error.form.other)) | `invalid-error-marker`: the intrinsic does not accept that marker. |
+
+Point 7 in hd:
+
+```text
+@error
+enum Named[T]:
+    @error("got $value")
+    Got(value: T)
+```
+
+The generated `Display` is `impl[T < Display] Display for Named[T]`, and
+no rule yet bounds `T` on the generated `Error`.
 
 ## Parse Log
 
-This record has no `text` blocks.
+The one `text` block of this record parses with the reference parser.
+Parsing checks syntax only.
+
+| Block | Result |
+| --- | --- |
+| 1 (`Named[T]`) | parse |

@@ -141,7 +141,10 @@ answered its six apply-pass points on 2026-09-29 (batch 9) as
 [Error Conversion decisions 21-27](ERROR_CONVERSION.md#owner-decisions):
 the codes for invalid forms, `$_0` beside unnamed shared data, the `Error`
 bounds of carried and transparent type parameters, and no import for
-`@error`. They are not yet applied.
+`@error`. They are applied in the same section. Two points from applying
+them wait in [Error Conversion](ERROR_CONVERSION.md#still-open): the
+`Error` bounds of a parameter only a message interpolates, and the code
+for an `@error` argument that is neither a message nor `transparent`.
 
 ### Serializable Closures And Incremental Computation
 
