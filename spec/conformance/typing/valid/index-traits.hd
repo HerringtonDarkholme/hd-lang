@@ -1,5 +1,5 @@
 # test: a user type supports r[k] and r[k] = v through Index and IndexSet
-# Spec 05 Index Traits: expr.index.trait.read, expr.index.trait.write (Operator Traits OP7).
+# Spec 05 Index Traits: expr.index.trait.read-other, expr.index.trait.write (Operator Traits OP7).
 use std.ops.{Index, IndexSet}
 
 data Ring:

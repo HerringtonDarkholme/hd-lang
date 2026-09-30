@@ -1,0 +1,30 @@
+# test: a string's length and index count bytes, and iteration is explicit
+# Spec 04 Strings, 05 String Indexing, 10 String Methods (Strings STR1-STR5).
+# expect: accept
+
+fn initial(name: string) -> u8:
+    name[0]
+
+fn size(name: string) -> i32:
+    name.len()  # 6 for "héllo"
+
+fn wide_index(name: string, at: i64) -> u8:
+    name[at]
+
+fn letters(text: string) -> mut Iterator[char]:
+    text.chars()
+
+fn positions(text: string) -> mut Iterator[(i32, char)]:
+    text.char_indices()
+
+fn raw(text: string) -> mut Iterator[u8]:
+    text.bytes()
+
+fn head(text: string, end: i32) -> string:
+    text.slice(0, end)
+
+fn count_letters(text: string) -> i32:
+    let count = 0
+    for letter in text.chars():
+        count = count + 1
+    count

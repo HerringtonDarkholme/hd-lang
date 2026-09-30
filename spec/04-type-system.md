@@ -85,19 +85,44 @@ fn invalid(scale: mut f64) -> void:  # error: mut-on-primitive
 
 ### Strings
 
-1. r[types.string.scalars] A `string` is a sequence of Unicode scalar values whose contents cannot be mutated.
-2. r[types.string.no-normalization] Source text and runtime operations do not perform Unicode normalization.
-3. r[types.string.compare] Equality and ordering compare scalar values in sequence.
-4. r[types.string.encodings] Canonically equivalent but differently encoded scalar sequences are distinct.
-5. r[types.string.len] `string.len()` counts scalar values.
-6. r[types.string.no-indexing] The core type has no integer-indexing or slicing operation with an O(1) guarantee.
-7. r[types.string.traversal] Libraries may provide explicit scalar, byte, or grapheme traversal.
-8. r[types.string.host-utf8] At every Wasm host boundary, strings are encoded as UTF-8, including embedded U+0000 scalar values.
+A `string` is an immutable sequence of bytes that is always valid UTF-8. Its
+length and its index count bytes:
 
-> **Note.** Because `string.len()` counts scalar values, not bytes or code
-> units, the specification states no constant-time bound for it. It takes time
-> linear in the string's length unless the representation stores the scalar
-> count.
+```text
+fn initial(name: string) -> u8:
+    name[0]
+
+fn size(name: string) -> i32:
+    name.len()  # 6 for "héllo"
+```
+
+1. r[types.string.utf8-bytes] A `string` is a sequence of bytes whose contents cannot be mutated.
+2. r[types.string.valid-utf8] Every `string` value is valid UTF-8.
+3. r[types.string.literal-utf8] The value of a string literal is the UTF-8 encoding of its Unicode scalar values.
+4. r[types.string.concat-bytes] Concatenation joins the bytes of its operands, so its result is valid UTF-8.
+5. r[types.string.from-bytes] A conversion from arbitrary bytes to `string` must check that they are valid UTF-8, and must fail when they are not.
+6. r[types.string.boundary] A **scalar boundary** of a string is a byte offset from `0` to its length that does not fall inside the encoding of a scalar value.
+7. r[types.string.split-scalar] An operation given a byte offset that is not a scalar boundary is a checked runtime panic.
+8. r[types.string.no-normalization] Source text and runtime operations do not perform Unicode normalization.
+9. r[types.string.compare-bytes] Equality and ordering compare bytes in sequence.
+10. r[types.string.encodings] Canonically equivalent but differently encoded scalar sequences are distinct.
+11. r[types.string.len-bytes] `string.len()` is the number of bytes, and takes constant time.
+12. r[types.string.graphemes] Libraries may provide grapheme traversal.
+13. r[types.string.host-bytes] At every Wasm host boundary, a string crosses as its UTF-8 bytes with no conversion, including embedded U+0000 scalar values.
+
+> **Note.** For valid UTF-8, the order of bytes is the order of scalar
+> values, so comparing bytes sorts strings by scalar value.
+
+> **Why.** This is Go's layout with the validity guarantee of Rust and
+> Swift. Length and indexing take constant time, and a host string crosses
+> without conversion. Because `len` and `s[i]` count bytes, a string is not
+> `Iterable`: a loop over characters is written out, so no code silently
+> treats a string as characters.
+
+See also: [String Indexing](05-expressions.md#string-indexing),
+[Ordering](05-expressions.md#ordering),
+[Iteration Protocols](06-control-flow.md#iteration-protocols),
+[String Methods](10-modules.md#string-methods).
 
 ## Literal Types
 

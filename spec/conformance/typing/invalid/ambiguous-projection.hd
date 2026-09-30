@@ -1,0 +1,11 @@
+# test: a projection that two bounds both declare is ambiguous
+# Spec 09 Associated Types: trait.assoc.ambiguous-type (owner decision AT6).
+
+trait Named:
+    type Item
+
+trait Keyed:
+    type Item
+
+fn pick[I < Named & Keyed](value: I) -> I::Item:  # diagnostic: ambiguous-associated-type
+    panic("unreachable")

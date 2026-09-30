@@ -524,6 +524,17 @@ fn wrong(id: string) -> User $ Store[Item = Post]:
 4. r[req.key.binding.identity.example] So `Store[Item = User]` and `Store[Item = Post]` are two keys, as `Repo[User]` and `Repo[Post]` are.
 5. r[req.key.binding.rows] Row sets, entailment, least row solutions, and row subsumption compare keys by that identity. A row that lists `Store[Item = Post]` therefore does not entail `Store[Item = User]`.
 6. r[req.key.binding.value] The provider value of a bound key has the bound trait value type, so `$.use(Store[Item = User])` has type `Store[Item = User]` and its `load` returns `User`.
+7. r[req.key.binding.complete] A requirement key must bind every associated type of its trait, including those that its supertraits declare.
+8. r[req.key.binding.complete.error] A key that leaves one unbound, such as `$ Store` for the `Store` above, is an error, as its trait value type is. Error: `trait-not-dynamically-safe`.
+
+```text
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+fn count(id: string) -> i32 $ Store:  # error: trait-not-dynamically-safe
+    0
+```
 
 > **Why.** A key names the type of its provider value
 > ([`req.use.value.ordinary`](#r-req.use.value.ordinary)), and a trait value

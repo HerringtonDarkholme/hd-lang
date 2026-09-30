@@ -169,8 +169,19 @@ impl Supplier for NameSupplier:
 1. r[trait.assoc.declare] Traits may declare associated types, and implementations bind them.
 2. r[trait.assoc.self] `Self::Item` projects from the current implementation.
 3. r[trait.assoc.projection] `T::Item` projects from a generic type whose bounds select exactly one associated type declaration.
-4. r[trait.assoc.ambiguous] Ambiguous projections are compile-time errors.
+4. r[trait.assoc.ambiguous-type] A projection whose bounds select two different associated type declarations is ambiguous. An ambiguous projection is an error. Error: `ambiguous-associated-type`.
 5. r[trait.assoc.bound] A bound may also fix a projection to a type.
+
+```text
+trait Named:
+    type Item
+
+trait Keyed:
+    type Item
+
+fn pick[I < Named & Keyed](value: I) -> I::Item:  # error: ambiguous-associated-type
+    panic("unreachable")
+```
 
 See also: [Associated Type Bindings](#associated-type-bindings).
 
@@ -1137,7 +1148,7 @@ fn third[T, R < Record[Item = T]](record: R) -> T:  # error: ambiguous-associate
 1. r[trait.binding.positions-key] Bindings appear in generic parameter bounds, in supertrait lists, in [trait value types](#bound-associated-types), and in [requirement keys](11-requirements-and-suspension.md#r-req.key.binding).
 2. r[trait.binding.rejected-trait-type] The trait of an `impl` header, a trait-qualified call, and a method reference do not accept them. The grammar reports an error there. Error: `syntax-error`.
 3. r[trait.binding.non-trait] A binding in the arguments of a named type that is not a trait, as in `List[i32, Item = i32]`, is an error. Error: `unknown-associated-type`.
-4. r[trait.binding.ambiguous] A binding does not make an ambiguous projection unambiguous: when two bounds on `I` both declare `Item`, `I::Item` is still ambiguous even if one of them binds it.
+4. r[trait.binding.ambiguous-projection] A binding does not make an ambiguous projection unambiguous: when two bounds on `I` both declare `Item`, `I::Item` is still ambiguous even if one of them binds it. Error: `ambiguous-associated-type`.
 
 #### Supertrait Bindings
 

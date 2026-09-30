@@ -102,6 +102,8 @@ A package's versions are the git tags of its repository:
 9. r[module.version.no-path-release] A tagged version's manifest must not hold a path requirement. Such a version is rejected when it is fetched, and the toolchain does not tag one.
 10. r[module.version.tag-missing] A dependency requirement whose version is not a pseudo-version, and whose package has no tag for that version, is invalid. So `lint = "github.com/acme/tools/lint@2.4.1"` is invalid when the repository has no tag `lint/v2.4.1`.
 11. r[module.version.no-fallback] The toolchain never falls back to an untagged commit or to a nearby version in place of a missing tag.
+12. r[module.version.pseudo-missing] A pseudo-version whose `HASH` names no commit of the package's repository, or whose `TIME` is not that commit's time, is invalid, as a missing tag is.
+13. r[module.version.pseudo-missing.no-fallback] The toolchain never falls back to another commit or version in place of such a pseudo-version.
 
 Pseudo-versions take Go's three forms:
 
@@ -116,7 +118,8 @@ Pseudo-versions take Go's three forms:
 
 > **Why.** A requirement names one exact release, so a typo or a deleted
 > tag fails the build rather than silently choosing other code. Go reports
-> the same case as `unknown revision`. The error's code is named with the
+> the same case as `unknown revision`, and rejects a pseudo-version that
+> does not match its commit. The error's code is named with the
 > other manifest diagnostics, once the manifest schema is written
 > ([`module.tooling.package-schema`](#r-module.tooling.package-schema)).
 
@@ -600,7 +603,7 @@ The following built-in methods are normative:
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `len(self) -> i32`; `trim(self) -> string`; `lower(self) -> string`; `split(self, separator: string) -> List[string]`; `replace(self, old: string, replacement: string) -> string`; `starts_with(self, prefix: string) -> bool` |
+| `string` | `len(self) -> i32`; `chars(self) -> mut Iterator[char]`; `char_indices(self) -> mut Iterator[(i32, char)]`; `bytes(self) -> mut Iterator[u8]`; `slice(self, start: i32, end: i32) -> string`; `trim(self) -> string`; `lower(self) -> string`; `split(self, separator: string) -> List[string]`; `replace(self, old: string, replacement: string) -> string`; `starts_with(self, prefix: string) -> bool` |
 | `List[T]` | `len(self) -> i32`; `iter(self) -> mut Iterator[T]`; `map[U](self, transform: fn(T) -> U) -> List[U]` |
 | `mut List[T]` | `append(mut self, value: T) -> void` plus the readonly methods |
 | `Map[K, V]` | `len(self) -> i32`; `get(self, key: K) -> V?` |
@@ -609,7 +612,7 @@ The following built-in methods are normative:
 | `Display` | `to_string(self) -> string` |
 
 1. r[module.method.normative] The built-in methods in the table are normative.
-2. r[module.method.i32] Lengths and scalar positions use `i32`.
+2. r[module.method.i32-bytes] Lengths and byte offsets use `i32`.
 3. r[module.method.map] `List.map` and optional `map` are non-suspending and evaluate the transform in source order.
 4. r[module.method.no-set] No `set` type is part of the core prelude.
 
@@ -623,15 +626,37 @@ See also: [Indexing](05-expressions.md#indexing).
 
 #### String Methods
 
-1. r[module.string.scalar] String methods operate on Unicode scalar-value strings without locale.
-2. r[module.string.lower] `lower` uses Unicode Default Case Conversion with full mappings.
-3. r[module.string.trim] `trim` removes the Unicode `White_Space` property at both ends.
-4. r[module.string.split] `split(separator)` retains empty pieces between adjacent separators and at either end.
-5. r[module.string.split.empty-separator] An empty separator splits into one-scalar strings, with an empty input producing an empty list.
-6. r[module.string.split.absent] With a non-empty separator, an input without that separator, including the empty string, yields one piece, so `"".split(",")` is `[""]`.
-7. r[module.string.replace] `replace` replaces non-overlapping matches from left to right.
-8. r[module.string.replace.empty] An empty `old` inserts the replacement at scalar boundaries.
-9. r[module.string.starts-with] `starts_with` compares scalar sequences exactly and performs no normalization or case folding.
+A string method takes and returns byte offsets, and iteration over a string
+is explicit:
+
+```text
+fn first_word(text: string) -> string:
+    for offset, letter in text.char_indices():
+        if letter == ' ':
+            return text.slice(0, offset)
+    text
+```
+
+1. r[module.string.utf8] String methods operate on valid UTF-8 strings without locale.
+2. r[module.string.byte-offsets] Every position that a string method takes or returns is a byte offset.
+3. r[module.string.chars] `chars` yields the string's scalar values in order, each as a `char`.
+4. r[module.string.char-indices] `char_indices` yields each scalar value in order, as `(offset, char)`, where `offset` is the byte offset at which its encoding starts.
+5. r[module.string.bytes] `bytes` yields the string's bytes in order, each as a `u8`.
+6. r[module.string.slice] `slice(start, end)` returns the bytes from offset `start` up to but not including offset `end`, in constant time.
+7. r[module.string.slice.shared] The result shares the original string's bytes rather than copying them.
+8. r[module.string.slice.boundary] An offset that is not a [scalar boundary](04-type-system.md#r-types.string.boundary) is a checked runtime panic.
+9. r[module.string.lower] `lower` uses Unicode Default Case Conversion with full mappings.
+10. r[module.string.trim] `trim` removes the Unicode `White_Space` property at both ends.
+11. r[module.string.split] `split(separator)` retains empty pieces between adjacent separators and at either end.
+12. r[module.string.split.empty-separator] An empty separator splits into one-scalar strings, with an empty input producing an empty list.
+13. r[module.string.split.absent] With a non-empty separator, an input without that separator, including the empty string, yields one piece, so `"".split(",")` is `[""]`.
+14. r[module.string.replace] `replace` replaces non-overlapping matches from left to right.
+15. r[module.string.replace.empty] An empty `old` inserts the replacement at scalar boundaries.
+16. r[module.string.starts-with] `starts_with` compares scalar sequences exactly and performs no normalization or case folding.
+
+> **Note.** `char_indices` gives the offsets that Go's `range` over a
+> string gives. There is no slice syntax: a substring is always a
+> `slice` call.
 
 ## Standard Testing
 

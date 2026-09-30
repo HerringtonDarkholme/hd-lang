@@ -52,7 +52,7 @@ tests:
         entries := {"ada": 1, "grace": 2}
         assert(entries.len() == 2, reason="the map has two entries")
         assert_equal(entries.len(), 2, reason="assert_equal agrees on the length")
-        assert("ada".len() == 3, reason="the string has three scalars")
+        assert("ada".len() == 3, reason="the string has three bytes")
         assert_equal("ada".len(), 3, reason="assert_equal agrees on the length")
 
     it("variant matches agree with assert_equal"):

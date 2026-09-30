@@ -1423,3 +1423,34 @@ style lint rejects a chapter that reuses one.
 - `grammar.stmt.let-mut-list.needs-mut`: retired 2026-09-29. Under Let 1
   a parenthesized list needs no `mut`, so `let (a, b) = pair` is valid.
   Replaced by `grammar.stmt.let-list.two-names`.
+- `trait.assoc.ambiguous`: retired 2026-09-29. Associated type bindings
+  AT6 names a code for an ambiguous projection. Replaced by
+  `trait.assoc.ambiguous-type`.
+- `trait.binding.ambiguous`: retired 2026-09-29. AT6 names the code
+  `ambiguous-associated-type`. Replaced by
+  `trait.binding.ambiguous-projection`.
+- `types.string.scalars`: retired 2026-09-29. Strings STR1 makes a string
+  a sequence of bytes that is always valid UTF-8. Replaced by
+  `types.string.utf8-bytes` and `types.string.valid-utf8`.
+- `types.string.compare`: retired 2026-09-29. STR6 compares bytes.
+  Replaced by `types.string.compare-bytes`.
+- `types.string.len`: retired 2026-09-29. STR2 makes `len` the byte count.
+  Replaced by `types.string.len-bytes`.
+- `types.string.no-indexing`: retired 2026-09-29. STR3 and STR5 add `s[i]`
+  and `slice` in constant time. Replaced by `expr.index.string.byte` and
+  `module.string.slice`.
+- `types.string.traversal`: retired 2026-09-29. STR4 makes scalar and
+  byte traversal built-in methods. Replaced by `module.string.chars`,
+  `module.string.bytes`, and `types.string.graphemes`.
+- `types.string.host-utf8`: retired 2026-09-29. STR6 passes a string's
+  bytes with no conversion. Replaced by `types.string.host-bytes`.
+- `expr.index.trait.read`: retired 2026-09-29. STR3 gives `string` built-in
+  indexing. Replaced by `expr.index.trait.read-other`.
+- `expr.index.trait.builtin`: retired 2026-09-29. STR3 adds `string` to the
+  built-in indexing. Replaced by `expr.index.trait.builtin-string`.
+- `expr.ord.std.text`: retired 2026-09-29. STR6 orders strings by byte.
+  Replaced by `expr.ord.std.char-scalar` and `expr.ord.std.string-bytes`.
+- `module.method.i32`: retired 2026-09-29. STR6 makes positions byte
+  offsets. Replaced by `module.method.i32-bytes`.
+- `module.string.scalar`: retired 2026-09-29. STR1 makes strings UTF-8
+  bytes. Replaced by `module.string.utf8` and `module.string.byte-offsets`.

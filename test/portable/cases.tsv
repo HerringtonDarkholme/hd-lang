@@ -126,7 +126,6 @@ typing/valid/data-field-defaults.hd	type
 typing/invalid/missing-required-data-field.hd	type
 typing/invalid/generic-requirement-key-collision.hd	type
 typing/valid/string-semantics.hd	type
-typing/invalid/string-indexing.hd	type
 typing/invalid/duplicate-trait-member.hd	type
 typing/invalid/mixed-numeric-power.hd	type
 typing/invalid/defer-suspends.hd	type
@@ -380,10 +379,8 @@ typing/invalid/data-pattern-unknown-field.hd	type
 runtime/valid/data-patterns.hd	runtime
 typing/valid/data-pattern-colon-labels.hd	type
 parse/invalid/data-pattern-equals-label.hd	parse
-runtime/valid/string-length-counts-scalars.hd	runtime
 runtime/valid/string-interpolation-built-ins.hd	runtime
 runtime/valid/string-ordering.hd	runtime
-runtime/valid/string-concatenation-and-numeric-selectors.hd	runtime
 runtime/valid/character-literals.hd	runtime
 runtime/valid/defer-after-return-value.hd	runtime
 runtime/valid/defer-lifo-and-loop-exits.hd	runtime
@@ -928,7 +925,6 @@ parse/invalid/same-line-let-comma.hd	parse
 parse/valid/raw-string-escaped-quote.hd	parse
 parse/invalid/colon-generic-bound.hd	parse
 runtime/valid/propagation-in-closure-targets-closure.hd	runtime
-runtime/valid/multibyte-scalar-strings.hd	runtime
 runtime/valid/trim-unicode-white-space.hd	runtime
 runtime/valid/replace-non-overlapping.hd	runtime
 typing/invalid/least-type-weakening-variance.hd	type
@@ -940,7 +936,6 @@ parse/valid/bracketed-suite-header-line.hd	parse
 parse/valid/same-line-loop-else.hd	parse
 typing/invalid/duplicate-binding-in-one-pattern.hd	type
 typing/invalid/variant-result-owner.hd	type
-runtime/valid/replace-empty-old.hd	runtime
 runtime/valid/generic-function-value-instantiation.hd	runtime
 runtime/valid/boxed-primitive-identity.hd	runtime
 runtime/valid/composite-identity-and-views.hd	runtime
@@ -1397,3 +1392,4 @@ typing/valid/let-mut-optional.hd	type
 typing/invalid/newtype-unwrap-readonly.hd	type
 typing/warnings/derivation-block-decorator-std.hd	type
 parse/invalid/let-list-one-name.hd	parse
+typing/invalid/for-over-string.hd	type

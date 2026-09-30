@@ -143,14 +143,16 @@ data Iterator[T]:
 7. r[flow.for.iterator-after-none] What `next` returns when it is called again on an exhausted iterator is unspecified, except for the panic that [Iterator Invalidation](#iterator-invalidation) requires.
 8. r[flow.for.iterator-from-fn.no-fuse] An iterator that `from_fn` builds calls `step` on every `next`, even after `step` has returned `.None`.
 9. r[flow.for.iterable-impls] `List[T]`, `Map[K, V]`, and `Iterator[T]` implement `Iterable`: a list yields `T`, a map `(K, V)`, and an iterator its remaining items.
-10. r[flow.for.iterable-only] `for` accepts a value whose type implements `Iterable[T]`.
-11. r[flow.for.iterable] When the iterable expression's type implements `Iterable[T]`, the loop calls `iter` once and advances the resulting cursor.
-12. r[flow.for.iterator-self] The `iter` of `Iterator[T]` returns an iterator over the same traversal, so a loop over an iterator advances that iterator, without cloning or resetting it.
-13. r[flow.for.iterator.position] Iteration therefore continues from the cursor's current position and leaves it exhausted.
-14. r[flow.for.iterator-mut] An iterator must be accessed mutably to advance. A loop over an `Iterator[T]` expression that has only readonly access is an error. Error: `mutable-receiver-required`.
-15. r[flow.for.not-iterable] An iterable expression whose type does not implement `Iterable[T]` is an error. Error: `unsatisfied-trait-bound`.
-16. r[flow.for.comprehension] Comprehension `for` clauses accept the same values by the same rules.
-17. r[flow.for.iterator-bound] A generic parameter bounded by `Iterable[T]` therefore accepts an iterator argument.
+10. r[flow.for.string-not-iterable] `string` does not implement `Iterable`, so a loop over a string is an error. Error: `unsatisfied-trait-bound`.
+11. r[flow.for.string-explicit] A loop over a string's contents iterates `chars()`, `char_indices()`, or `bytes()`, which [String Methods](10-modules.md#string-methods) defines.
+12. r[flow.for.iterable-only] `for` accepts a value whose type implements `Iterable[T]`.
+13. r[flow.for.iterable] When the iterable expression's type implements `Iterable[T]`, the loop calls `iter` once and advances the resulting cursor.
+14. r[flow.for.iterator-self] The `iter` of `Iterator[T]` returns an iterator over the same traversal, so a loop over an iterator advances that iterator, without cloning or resetting it.
+15. r[flow.for.iterator.position] Iteration therefore continues from the cursor's current position and leaves it exhausted.
+16. r[flow.for.iterator-mut] An iterator must be accessed mutably to advance. A loop over an `Iterator[T]` expression that has only readonly access is an error. Error: `mutable-receiver-required`.
+17. r[flow.for.not-iterable] An iterable expression whose type does not implement `Iterable[T]` is an error. Error: `unsatisfied-trait-bound`.
+18. r[flow.for.comprehension] Comprehension `for` clauses accept the same values by the same rules.
+19. r[flow.for.iterator-bound] A generic parameter bounded by `Iterable[T]` therefore accepts an iterator argument.
 
 ```text
 fn countdown(start: i32) -> mut Iterator[i32]:
@@ -167,6 +169,10 @@ fn main(source: Iterator[i32]) -> List[i32]:
 
 fn bad() -> void:
     for value in 1:  # error: unsatisfied-trait-bound
+        pass
+
+fn letters(text: string) -> void:
+    for letter in text:  # error: unsatisfied-trait-bound
         pass
 
 fn peek(source: Iterator[i32]) -> fn() -> i32?:

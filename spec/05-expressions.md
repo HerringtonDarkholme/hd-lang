@@ -618,6 +618,27 @@ See also: [Method References](07-functions.md#method-references).
 > [`expr.assign.compound.map-missing`](#r-expr.assign.compound.map-missing)
 > states.
 
+#### String Indexing
+
+A string index reads one byte:
+
+```text
+fn first(text: string) -> u8:
+    text[0]
+
+fn invalid(text: string) -> void:
+    text[0] = 65  # error: invalid-assignment-target
+```
+
+1. r[expr.index.string.byte] For `string`, `text[index]` reads the byte at that byte offset, as a `u8`, in constant time.
+2. r[expr.index.string.offset] The index counts bytes, not scalar values, so `"é"[0]` is `0xC3`, the first byte of its encoding.
+3. r[expr.index.string.type] The index may have any integer type.
+4. r[expr.index.string.range] The index must be non-negative and less than the string's length in bytes.
+5. r[expr.index.string.panic] A failed check causes the standard checked runtime panic, as a failed list index does.
+6. r[expr.index.string.no-assign] A string is immutable, so `text[index]` is not a place. Assigning to it is an error. Error: `invalid-assignment-target`.
+
+See also: [Strings](04-type-system.md#strings).
+
 #### Index Traits
 
 Other types get `[]` by implementing the `std.ops` traits `Index` and
@@ -655,14 +676,14 @@ pub trait IndexSet[K, V]:
 ```
 
 1. r[expr.index.trait.std] `std.ops` declares `Index[K]`, with an associated type `Out`, and `IndexSet[K, V]`, as shown above.
-2. r[expr.index.trait.read] For a receiver whose type is not `List` or `Map`, reading `r[k]` is the call `Index[K]::index(r, k)`, and its type is that implementation's `Out`.
+2. r[expr.index.trait.read-other] For a receiver whose type is not `List`, `Map`, or `string`, reading `r[k]` is the call `Index[K]::index(r, k)`, and its type is that implementation's `Out`.
 3. r[expr.index.trait.write] Assigning `r[k] = v` to such a receiver is the call `IndexSet[K, V]::index_set(r, k, v)`.
 4. r[expr.index.trait.choice] The candidates are chosen as for a binary operator, by the receiver's type, then by the key and, for a store, the value.
 5. r[expr.index.trait.no-use] Neither call needs a `use` of the trait.
 6. r[expr.index.trait.mut] `index_set` takes `mut self`, so a store needs mutable access to the receiver, as any `mut self` call does.
 7. r[expr.index.trait.place] `r[k]` is a place only when the receiver's type implements `IndexSet`. Assigning to it otherwise is an error. Error: `invalid-assignment-target`.
 8. r[expr.index.trait.no-read] Reading `r[k]` when the receiver's type has no fitting `Index` implementation is an error. Error: `type-mismatch`.
-9. r[expr.index.trait.builtin] `List` and `Map` keep the built-in indexing above and implement neither trait.
+9. r[expr.index.trait.builtin-string] `List`, `Map`, and `string` keep the built-in indexing above and implement neither trait.
 10. r[expr.index.trait.independent] The two traits are independent: a type may implement either one alone.
 
 ```text
@@ -1042,13 +1063,14 @@ fn invalid(left: fn() -> void, right: fn() -> void) -> bool:
 
 1. r[expr.ord.partial-cmp] `<`, `<=`, `>`, and `>=` use `PartialOrd.partial_cmp`.
 2. r[expr.ord.std] The standard library implements `PartialOrd.partial_cmp` for compatible numeric values, characters, strings, tuples, lists, and optionals.
-3. r[expr.ord.std.text] Characters are ordered by Unicode scalar value, and strings lexicographically by scalar value.
-4. r[expr.ord.std.sequences] Tuples and lists are ordered lexicographically.
-5. r[expr.ord.std.optional] Optionals are ordered with `.None` before every present value.
-6. r[expr.ord.composite] Composite ordering is available when the corresponding elements implement the comparison trait, and it stops at the first unequal or unordered element.
-7. r[expr.ord.user] Users can implement comparison traits for their own types.
-8. r[expr.ord.total] `Ord` is the total-order refinement; floating-point types have `PartialOrd` but not `Ord` because NaN is unordered.
-9. r[expr.ord.unordered] An unordered comparison makes all four relational operators false.
+3. r[expr.ord.std.char-scalar] Characters are ordered by Unicode scalar value.
+4. r[expr.ord.std.string-bytes] Strings are ordered lexicographically by byte, which for valid UTF-8 is the order by scalar value.
+5. r[expr.ord.std.sequences] Tuples and lists are ordered lexicographically.
+6. r[expr.ord.std.optional] Optionals are ordered with `.None` before every present value.
+7. r[expr.ord.composite] Composite ordering is available when the corresponding elements implement the comparison trait, and it stops at the first unequal or unordered element.
+8. r[expr.ord.user] Users can implement comparison traits for their own types.
+9. r[expr.ord.total] `Ord` is the total-order refinement; floating-point types have `PartialOrd` but not `Ord` because NaN is unordered.
+10. r[expr.ord.unordered] An unordered comparison makes all four relational operators false.
 
 ### Identity
 

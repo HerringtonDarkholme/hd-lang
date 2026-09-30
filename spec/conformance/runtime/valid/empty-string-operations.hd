@@ -5,7 +5,7 @@ use std.testing.{assert, assert_equal}
 tests:
     it("empty string basics"):
         empty := ""
-        assert_equal(empty.len(), 0, reason="no scalars")
+        assert_equal(empty.len(), 0, reason="no bytes")
         assert_equal(empty.trim(), "", reason="trim of empty")
         assert_equal(empty.lower(), "", reason="lower of empty")
         assert(empty.starts_with(""), reason="empty prefix of empty")

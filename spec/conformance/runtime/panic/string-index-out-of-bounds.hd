@@ -1,0 +1,4 @@
+# test: a string index past the last byte panics as a list index does
+# Spec 05 String Indexing: expr.index.string.panic (Strings STR3).
+text := "é"
+byte := text[2]  # panic: index-out-of-bounds

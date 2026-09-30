@@ -1,2 +1,0 @@
-fn first(value: string) -> char:
-    value[0]  # diagnostic: unsupported-string-indexing

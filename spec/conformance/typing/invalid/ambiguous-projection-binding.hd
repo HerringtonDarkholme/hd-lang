@@ -1,0 +1,11 @@
+# test: binding one of two associated types named Item leaves the projection ambiguous
+# Spec 09 Binding Positions: trait.binding.ambiguous-projection (owner decision AT6).
+
+trait Named:
+    type Item
+
+trait Keyed:
+    type Item
+
+fn pick[T, I < Named[Item = T] & Keyed](value: I) -> I::Item:  # diagnostic: ambiguous-associated-type
+    panic("unreachable")

@@ -1,5 +1,5 @@
 # test: user indexing reads through index and stores through index_set
-# Spec 05 Index Traits: expr.index.trait.read, expr.index.trait.write, expr.assign.compound.index-read-write (Operator Traits OP7, OP13).
+# Spec 05 Index Traits: expr.index.trait.read-other, expr.index.trait.write, expr.assign.compound.index-read-write (Operator Traits OP7, OP13).
 use std.ops.{Index, IndexSet}
 use std.testing.assert_equal
 

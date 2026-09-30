@@ -239,7 +239,6 @@ typing/valid/blanket-impl-and-associated-function.hd	type	accept	09-traits.md#tr
 typing/valid/numeric-widening-and-display-list.hd	type	accept	04-type-system.md#numeric-conversions
 typing/valid/row-polymorphic-callback.hd	type	accept	11-requirements-and-suspension.md#requirement-polymorphism
 typing/valid/string-semantics.hd	type	accept	04-type-system.md#strings
-typing/invalid/string-indexing.hd	type	reject:unsupported-string-indexing	04-type-system.md#strings
 typing/valid/numeric-corners.hd	type	accept	04-type-system.md#numeric-conversions
 runtime/panic/signed-min-division-overflow.hd	runtime	panic:integer-overflow	04-type-system.md#numeric-conversions
 typing/valid/composite-ordering.hd	type	accept	05-expressions.md#unary-and-binary-operators
@@ -500,7 +499,7 @@ typing/invalid/data-pattern-unknown-field.hd	type	reject:unknown-data-field	06-c
 runtime/valid/data-patterns.hd	runtime	accept	06-control-flow.md#match-expressions
 typing/valid/data-pattern-colon-labels.hd	type	accept	06-control-flow.md#match-expressions
 parse/invalid/data-pattern-equals-label.hd	parse	reject:syntax-error	02-grammar.md#patterns
-runtime/valid/string-length-counts-scalars.hd	runtime	accept	04-type-system.md#strings
+runtime/valid/string-length-counts-bytes.hd	runtime	accept	04-type-system.md#strings
 runtime/valid/string-interpolation-built-ins.hd	runtime	accept	01-lexical-structure.md#string-and-character-literals
 runtime/valid/string-ordering.hd	runtime	accept	04-type-system.md#strings
 runtime/valid/string-concatenation-and-numeric-selectors.hd	runtime	accept	04-type-system.md#strings
@@ -1378,7 +1377,7 @@ typing/invalid/compound-assign-not-place.hd	type	reject:invalid-assignment-targe
 parse/valid/compound-assignment-tokens.hd	parse	accept	01-lexical-structure.md#r-lex.op.compound-assign
 parse/invalid/power-compound-assignment.hd	parse	reject:syntax-error	01-lexical-structure.md#r-lex.op.no-power-assign
 typing/valid/index-traits.hd	type	accept	05-expressions.md#index-traits
-runtime/valid/index-traits-run.hd	runtime	accept	05-expressions.md#r-expr.index.trait.read
+runtime/valid/index-traits-run.hd	runtime	accept	05-expressions.md#r-expr.index.trait.read-other
 typing/invalid/index-set-missing.hd	type	reject:invalid-assignment-target	05-expressions.md#r-expr.index.trait.place
 typing/invalid/index-missing.hd	type	reject:type-mismatch	05-expressions.md#r-expr.index.trait.no-read
 typing/valid/float-remainder.hd	type	accept	05-expressions.md#r-expr.float.remainder-truncated
@@ -1528,3 +1527,11 @@ typing/invalid/requirement-key-binding-subsumption.hd	type	reject:type-mismatch	
 typing/invalid/requirement-key-unknown-binding.hd	type	reject:unknown-associated-type	11-requirements-and-suspension.md#r-req.key.binding.names
 typing/invalid/requirement-key-binding-collision.hd	type	reject:generic-requirement-key-collision	11-requirements-and-suspension.md#r-req.with.collision.bindings
 runtime/valid/requirement-key-binding-run.hd	runtime	accept	11-requirements-and-suspension.md#r-req.key.binding.value
+typing/invalid/ambiguous-projection.hd	type	reject:ambiguous-associated-type	09-traits.md#r-trait.assoc.ambiguous-type
+typing/invalid/ambiguous-projection-binding.hd	type	reject:ambiguous-associated-type	09-traits.md#r-trait.binding.ambiguous-projection
+typing/invalid/requirement-key-unbound.hd	type	reject:trait-not-dynamically-safe	11-requirements-and-suspension.md#r-req.key.binding.complete.error
+typing/invalid/for-over-string.hd	type	reject:unsatisfied-trait-bound	06-control-flow.md#r-flow.for.string-not-iterable
+typing/invalid/string-index-assignment.hd	type	reject:invalid-assignment-target	05-expressions.md#r-expr.index.string.no-assign
+typing/valid/string-bytes.hd	type	accept	04-type-system.md#strings
+runtime/valid/string-byte-methods.hd	runtime	accept	10-modules.md#string-methods
+runtime/panic/string-index-out-of-bounds.hd	runtime	panic:index-out-of-bounds	05-expressions.md#r-expr.index.string.panic

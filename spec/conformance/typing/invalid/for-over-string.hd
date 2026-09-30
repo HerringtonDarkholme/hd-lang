@@ -1,0 +1,6 @@
+# test: a string is not Iterable, so a for loop over it is rejected
+# Spec 06 Iteration Protocols: flow.for.string-not-iterable (Strings STR4).
+
+fn letters(text: string) -> void:
+    for letter in text:  # diagnostic: unsatisfied-trait-bound
+        pass

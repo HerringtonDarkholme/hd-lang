@@ -1,0 +1,9 @@
+# test: a requirement key must bind every associated type of its trait
+# Spec 11 Bound Requirement Keys: req.key.binding.complete (owner decision AT7).
+
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+fn count(id: string) -> i32 $ Store:  # diagnostic: trait-not-dynamically-safe
+    0

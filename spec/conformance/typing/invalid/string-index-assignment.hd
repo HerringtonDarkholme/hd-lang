@@ -1,0 +1,8 @@
+# test: a string index reads a byte and is not a place
+# Spec 05 String Indexing: expr.index.string.no-assign (Strings STR1, STR3).
+
+fn first(text: string) -> u8:
+    text[0]
+
+fn invalid(text: string) -> void:
+    text[0] = 65  # diagnostic: invalid-assignment-target
