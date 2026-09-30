@@ -1422,3 +1422,12 @@ runtime/valid/multi-provider-use-order.hd	runtime
 runtime/valid/requirement-row-union-and-order.hd	runtime
 typing/invalid/tuple-binding-non-tuple.hd	type
 typing/invalid/tuple-binding-arity.hd	type
+typing/invalid/foreign-inherent-impl.hd	type
+parse/invalid/tab-in-string-literal.hd	parse
+typing/invalid/implicit-data-equality.hd	type
+typing/invalid/assert-equal-non-eq.hd	type
+typing/invalid/assert-equal-fieldless-data-without-partial-eq.hd	type
+typing/invalid/payload-free-enum-equality.hd	type
+typing/invalid/tuple-inherent-impl.hd	type
+typing/invalid/alias-inherent-impl.hd	type
+typing/invalid/trait-value-inherent-impl.hd	type

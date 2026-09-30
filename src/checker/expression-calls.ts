@@ -1050,7 +1050,7 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       const actual = this.checkExpression(expression.arguments[actualIndex]!);
       const strategy = this.equalityStrategy(actual.type);
       if (!strategy) {
-        this.fail("missing-partial-eq", `type '${actual.type}' does not implement Eq`, actual.span);
+        this.fail("missing-eq", `type '${actual.type}' does not implement Eq`, actual.span);
       }
       // spec/10-modules.md#r-module.testing.assert-equal-debug
       if (!this.implementsDebug(actual.type))

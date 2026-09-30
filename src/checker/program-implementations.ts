@@ -19,6 +19,7 @@ import {
   nominalGenericParts,
   nominalGenericType,
   readonlyType,
+  tupleParts,
   tupleType,
 } from "../types.ts";
 import {
@@ -221,6 +222,52 @@ interface RegisteredInherentMember {
   readonly genericParameters: readonly string[];
 }
 
+/**
+ * Why an inherent implementation outside `std` cannot have this target: a
+ * tuple, a trait value, or a type this package does not own
+ * (09-traits.md#r-trait.own.inherent).
+ */
+function invalidInherentTarget(
+  implementation: ImplDecl,
+  targetBase: string,
+  context: ProgramCheckContext,
+): Diagnostic {
+  const { dataTypes, enumTypes, traitTypes } = context;
+  const span = implementation.span;
+  const target = implementation.targetName;
+  if (tupleParts(target) !== undefined)
+    return {
+      code: "invalid-impl-target",
+      message: `an inherent implementation cannot target the tuple type '${target}'; tuples get only trait implementations`,
+      span,
+    };
+  if (traitTypes.has(targetBase))
+    return {
+      code: "trait-value-impl-target",
+      message: `an inherent implementation cannot target the trait value type '${target}'; add a provided method to the trait instead`,
+      span,
+    };
+  const known = typeName(
+    { name: target, span },
+    dataTypes,
+    enumTypes,
+    traitTypes,
+    [],
+    new Set(implementation.genericParameters),
+  );
+  if (known !== undefined)
+    return {
+      code: "orphan-impl",
+      message: `an inherent implementation of '${target}' must be declared in the package that owns it`,
+      span,
+    };
+  return {
+    code: "unknown-type",
+    message: `unknown inherent implementation target '${target}'`,
+    span,
+  };
+}
+
 function prepareInherentImplementation(
   implementation: ImplDecl,
   implementationIndex: number,
@@ -247,11 +294,7 @@ function prepareInherentImplementation(
     // `T?`, and `List[T]` (09-traits.md#r-trait.own.inherent.std).
     targetType = resolveTarget();
   } else if (!target) {
-    diagnostics.push({
-      code: "unknown-type",
-      message: `unknown inherent implementation target '${implementation.targetName}'`,
-      span: implementation.span,
-    });
+    diagnostics.push(invalidInherentTarget(implementation, targetBase, context));
     return;
   } else if (target.genericParameters.length > 0 && targetBase === implementation.targetName) {
     diagnostics.push({

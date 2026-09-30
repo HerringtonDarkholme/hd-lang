@@ -485,6 +485,17 @@ export function withTypeDeclarations(program: Program): {
     ],
   };
   const rewritten = rewriteTypes(lowered, expander);
+  // An inherent implementation cannot target a transparent alias
+  // (09-traits.md#r-trait.own.inherent.tuple-alias).
+  for (const implementation of rewritten.implementations) {
+    const head = nominalGenericParts(implementation.targetName)?.name ?? implementation.targetName;
+    if (implementation.traitName === undefined && aliases.has(head))
+      diagnostics.push({
+        code: "invalid-impl-target",
+        message: `an inherent implementation cannot target the transparent alias '${head}'; implement its target type where that type is declared`,
+        span: implementation.span,
+      });
+  }
   const implementations = rewritten.implementations.map((implementation): ImplDecl =>
     expander.mentions(implementation.targetName)
       ? {

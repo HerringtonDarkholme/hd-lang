@@ -512,6 +512,13 @@ class Scanner {
         break;
       }
       if (!triple && (this.peek() === "\n" || this.peek() === "\r")) break;
+      // A tab in a literal is written `\t` (01-lexical-structure.md#r-lex.tab.content).
+      if (this.peek() === "\t")
+        this.report(
+          "tab-whitespace",
+          "a tab inside a literal must be written as the '\\t' escape",
+          this.position(),
+        );
       const current = this.advance();
       text += current;
       if (current === "\n") {

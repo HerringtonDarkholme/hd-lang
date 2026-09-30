@@ -677,7 +677,7 @@ else`, `break`, `break value`, and `continue`;
   `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
   and order-independent map values and for explicit nominal or bounded generic
   `Eq` implementations, with mandatory reasons and
-  `missing-partial-eq` at unsupported types; `std.testing.snapshot` runs as
+  `missing-eq` at unsupported types; `std.testing.snapshot` runs as
   a string `assert_equal` with a literal `expect` (no update run rewrites
   it), and `snapshot_file` is hd code in `lib/std/testing.hd` whose host
   function (`src/snapshots.ts`) compares the text with

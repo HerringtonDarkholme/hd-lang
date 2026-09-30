@@ -822,7 +822,7 @@ test("imported assert_equal compares supported structural values", async () => {
   const unsupported = analyze(
     conformance("typing/invalid/assert-equal-fieldless-data-without-partial-eq"),
   );
-  assert.ok(unsupported.diagnostics.some((diagnostic) => diagnostic.code === "missing-partial-eq"));
+  assert.ok(unsupported.diagnostics.some((diagnostic) => diagnostic.code === "missing-eq"));
 });
 
 test("module bindings lower to Wasm globals shared with declared functions", async () => {

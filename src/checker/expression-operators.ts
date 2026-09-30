@@ -373,11 +373,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             this.dataTypes.has(nominalGenericParts(left.type)?.name ?? left.type) ||
             this.enumTypes.has(nominalGenericParts(left.type)?.name ?? left.type)
           ) {
-            this.fail(
-              "missing-partial-eq",
-              `type '${left.type}' does not implement Eq`,
-              expression.span,
-            );
+            this.fail("missing-eq", `type '${left.type}' does not implement Eq`, expression.span);
           }
         }
         if (comparison && !equality) {

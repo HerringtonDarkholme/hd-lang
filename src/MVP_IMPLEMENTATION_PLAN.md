@@ -229,7 +229,7 @@ The comparison slice now lowers `==` and `!=` through explicit `Eq`
 implementations for nominal values and through erased dictionaries for bounded
 generic values. Built-in composite equality covers tuples, lists, optionals,
 `Result`, and maps with comparable contents. Types without that implementation
-continue to receive `missing-partial-eq`; data and enum declarations do not
+continue to receive `missing-eq`; data and enum declarations do not
 acquire equality implicitly.
 `PartialOrd.partial_cmp` follows the same concrete and generic dictionary paths
 through the canonical `Ordering?` result. Built-in tuple and list ordering is
