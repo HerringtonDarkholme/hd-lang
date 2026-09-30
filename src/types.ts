@@ -38,6 +38,11 @@ export function mutableInner(type: ValueType): ValueType | undefined {
   return type.startsWith("mut:") ? type.slice("mut:".length) : undefined;
 }
 
+/** The primitive types (04-type-system.md#primitive-types). */
+export const PRIMITIVE_TYPES: ReadonlySet<ValueType> = new Set(
+  "bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char string".split(" "),
+);
+
 export function mutableType(type: ValueType): ValueType {
   return `mut:${type}`;
 }

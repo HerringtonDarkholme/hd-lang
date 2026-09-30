@@ -1,5 +1,5 @@
 import type { Expression, Statement, TypeRef, UseDecl, UseName, VarianceMarker } from "../ast.ts";
-import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
+import type { Diagnostic, DiagnosticFix, SourceSpan } from "../diagnostics.ts";
 import type { Token, TokenKind } from "../lexer.ts";
 import { rowArgumentType } from "../types.ts";
 
@@ -485,8 +485,8 @@ export abstract class ParserBase {
     return this.peek(offset).text === "=" ? keyword.span : undefined;
   }
 
-  protected fail(code: string, message: string, span: SourceSpan): never {
-    this.diagnostics.push({ code, message, span });
+  protected fail(code: string, message: string, span: SourceSpan, fix?: DiagnosticFix): never {
+    this.diagnostics.push({ code, message, span, ...(fix ? { fix } : {}) });
     throw new ParseFailure(message);
   }
 

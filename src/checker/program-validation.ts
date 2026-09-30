@@ -11,6 +11,12 @@ import type { ProgramCheckContext } from "./program-context.ts";
 
 export function validateProgram(context: ProgramCheckContext): void {
   const { program, diagnostics, imports } = context;
+  for (const type of program.mutPrimitives ?? [])
+    diagnostics.push({
+      code: "mut-on-primitive",
+      message: `the primitive type '${type.name.slice("mut:".length)}' takes no 'mut'; a primitive value has no mutable state, and a 'let' binding is already reassignable`,
+      span: type.span,
+    });
   for (const declaration of program.uses) {
     for (const imported of declaration.names) {
       const localName = imported.alias ?? imported.name;

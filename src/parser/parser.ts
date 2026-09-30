@@ -20,7 +20,7 @@ import type {
 } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { lex, type Token } from "../lexer.ts";
-import { functionResultText, optionalType } from "../types.ts";
+import { functionResultText, optionalType, PRIMITIVE_TYPES } from "../types.ts";
 import { DecoratorParser } from "./decorators.ts";
 import { ParseFailure, type ExpressionParseResult, type ParseOptions } from "./base.ts";
 import {
@@ -66,6 +66,7 @@ class Parser extends DecoratorParser {
   parse(): ParseResult {
     const items = emptyModuleItems();
     this.localDeclarations = false;
+    this.mutPrimitives = [];
     const start = this.current().span.start;
     let testsBlock = false;
     try {
@@ -108,6 +109,7 @@ class Parser extends DecoratorParser {
         uses,
         ...(types.length > 0 ? { types } : {}),
         ...(this.localDeclarations ? { localDeclarations: true } : {}),
+        ...(this.mutPrimitives.length > 0 ? { mutPrimitives: this.mutPrimitives } : {}),
         data,
         enums,
         traits,
@@ -1038,10 +1040,11 @@ class Parser extends DecoratorParser {
           inner.span,
         );
       }
-      return {
-        name: `mut:${inner.name}`,
-        span: { start, end: inner.span.end },
-      };
+      const written = { name: `mut:${inner.name}`, span: { start, end: inner.span.end } };
+      // `mut` on a primitive is a type error the checker reports
+      // (04-type-system.md#r-types.prim.no-mut.error).
+      if (PRIMITIVE_TYPES.has(inner.name.replace(/\?+$/u, ""))) this.mutPrimitives.push(written);
+      return written;
     }
     if (this.matchText("$")) {
       const start = this.peek(-1).span.start;
@@ -1160,6 +1163,7 @@ class Parser extends DecoratorParser {
   }
 
   private localDeclarations = false;
+  private mutPrimitives: TypeRef[] = [];
 
   // `data`, `enum`, `trait`, `type`, and `impl` may be declared in a block
   // suite (03-names-and-scopes.md#module-scope).
@@ -1217,14 +1221,33 @@ class Parser extends DecoratorParser {
         this.current().span,
       );
     if (this.matchText("let")) {
-      // Each name may be written `mut name` (02-grammar.md#r-grammar.stmt.let-mut).
+      // Each name may be written `mut name`; several names go in parentheses
+      // (02-grammar.md#let-statements).
       const letName = (message: string) => {
         const mutableAccess = this.matchText("mut");
         return { token: this.expectKind("identifier", message), mutableAccess };
       };
-      const names = [letName("expected a binding name")];
-      this.rejectCommaClosingInlineSuite();
-      while (this.matchText(",")) names.push(letName("expected a binding name after ','"));
+      const names: ReturnType<typeof letName>[] = [];
+      if (this.atText("(")) {
+        const open = this.advance();
+        names.push(letName("expected a binding name"));
+        while (this.matchText(",")) names.push(letName("expected a binding name after ','"));
+        const close = this.expectText(")");
+        if (names.length < 2)
+          this.fail(
+            "syntax-error",
+            "a parenthesized let list needs at least two names; write 'let name = ...' for one",
+            { start: open.span.start, end: close.span.end },
+          );
+      } else {
+        const first = this.current();
+        names.push(letName("expected a binding name"));
+        this.rejectCommaClosingInlineSuite();
+        if (this.atText(",")) {
+          while (this.matchText(",")) names.push(letName("expected a binding name after ','"));
+          this.failBareNameList("let", first, this.peek(-1));
+        }
+      }
       const annotation = this.matchText(":") ? this.parseType() : undefined;
       this.expectText("=");
       const value = this.parseRightSide();
@@ -1298,10 +1321,36 @@ class Parser extends DecoratorParser {
       return { kind: "binding", name: name.text, mutable: false, value, span: { start, end } };
     }
     if (this.atKind("identifier") && this.peek(1).text === ",") {
-      const names = [this.advance()];
+      const first = this.advance();
       this.rejectCommaClosingInlineSuite();
       while (this.matchText(","))
-        names.push(this.expectKind("identifier", "expected a binding name after ','"));
+        this.expectKind("identifier", "expected a binding name after ','");
+      const last = this.peek(-1);
+      this.expectText(":=");
+      this.failBareNameList(":=", first, last);
+    }
+    const bindingList = this.bindingListLength();
+    if (bindingList !== undefined) {
+      const open = this.current();
+      if (bindingList < 2)
+        this.fail(
+          "syntax-error",
+          "a parenthesized binding list needs at least two names; write 'name := ...' for one",
+          { start: open.span.start, end: this.peek(bindingList * 2).span.end },
+        );
+      // A multi-name binding needs an indented body
+      // (02-grammar.md#r-grammar.inline.multi-name-binding).
+      if (topOrInline && this.inlineSuiteDepths.at(-1) === this.delimiterDepth(this.index))
+        this.fail(
+          "syntax-error",
+          "a multi-name binding needs an indented body; a same-line suite may hold '(a, b := pair)'",
+          open.span,
+        );
+      this.advance();
+      const names: Token[] = [];
+      do names.push(this.advance());
+      while (this.matchText(","));
+      this.expectText(")");
       this.expectText(":=");
       const value = this.parseTrailingBlockCall(this.parseExpression());
       const end = this.finishExpressionStatement(value, topOrInline);
@@ -1370,6 +1419,50 @@ class Parser extends DecoratorParser {
     return { kind: "expression", expression, span: { start, end } };
   }
 
+  /**
+   * At the start of a statement, `(`, names separated by commas, `)`, and
+   * `:=` always form a binding list, never a tuple expression
+   * (02-grammar.md#r-grammar.stmt.bind-list.not-tuple). Returns the number of
+   * names, or undefined when the tokens do not have that shape.
+   */
+  private bindingListLength(): number | undefined {
+    if (!this.atText("(")) return undefined;
+    let offset = 1;
+    let count = 0;
+    for (;;) {
+      if (this.peek(offset).kind !== "identifier") return undefined;
+      count += 1;
+      offset += 1;
+      if (this.peek(offset).text !== ",") break;
+      offset += 1;
+    }
+    return this.peek(offset).text === ")" && this.peek(offset + 1).text === ":="
+      ? count
+      : undefined;
+  }
+
+  /**
+   * A multi-name `let` or `:=` without parentheses is an error whose fix-it
+   * adds them (02-grammar.md#r-grammar.stmt.let-list.bare,
+   * 02-grammar.md#r-grammar.stmt.bind-list.bare).
+   */
+  private failBareNameList(form: "let" | ":=", first: Token, last: Token): never {
+    const span = { start: first.span.start, end: last.span.end };
+    const example = form === "let" ? "let (a, b) = ..." : "(a, b) := ...";
+    this.fail(
+      "syntax-error",
+      `several names in a ${form === "let" ? "'let'" : "':='"} binding go in parentheses, as in '${example}'`,
+      span,
+      {
+        message: "put the names in parentheses",
+        edits: [
+          { span: { start: span.start, end: span.start }, replacement: "(" },
+          { span: { start: span.end, end: span.end }, replacement: ")" },
+        ],
+      },
+    );
+  }
+
   // The right side of `let ... =`, `=`, `_ :=`, `return`, and `break`: an
   // expression or trailing block call. A nested binding there cannot end in a
   // suite unless parenthesized (02-grammar.md#statements).
@@ -1392,6 +1485,14 @@ class Parser extends DecoratorParser {
 
   protected parseTrailingBlockCall(callee: Expression): Expression {
     if (!this.atText(":")) return callee;
+    // The body begins on the next logical line
+    // (02-grammar.md#r-grammar.call.trailing-block.next-line).
+    if (this.peek(1).kind !== "newline")
+      this.fail(
+        "syntax-error",
+        "a trailing block's body must begin on the next line",
+        this.peek(1).span,
+      );
     const body = this.parseSuite();
     if (this.atText(":"))
       this.fail(

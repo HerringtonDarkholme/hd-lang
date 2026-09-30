@@ -413,6 +413,11 @@ export interface Program {
   readonly types?: readonly TypeDecl[];
   /** Set when a block suite declares a type or implementation. */
   readonly localDeclarations?: boolean;
+  /**
+   * Types written with `mut` on a primitive, such as `mut i32`, which the
+   * checker rejects (04-type-system.md#r-types.prim.no-mut.error).
+   */
+  readonly mutPrimitives?: readonly TypeRef[];
   readonly data: readonly DataDecl[];
   readonly enums: readonly EnumDecl[];
   readonly traits: readonly TraitDecl[];

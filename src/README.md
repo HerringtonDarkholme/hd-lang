@@ -322,9 +322,14 @@ else`, `break`, `break value`, and `continue`;
   visibility, readonly inferred bindings, and flow-sensitive initialization
   across short-circuit conditions;
 - `let` bindings that infer the readonly view, and `let mut` bindings,
-  per name in a multi-name `let`, that infer `mut T`, reject a readonly
-  value (`mutable-upgrade`) or a readonly annotation
-  (`let-mut-readonly-type`), and use a non-generic data literal as `mut T`;
+  per name in a parenthesized `let (mut a, b)` list, that infer `mut T`,
+  reject a readonly value (`mutable-upgrade`), a readonly annotation
+  (`let-mut-readonly-type`), or a primitive (`mut-on-primitive`), warn on
+  a redundant `mut` annotation (`redundant-let-mut`), and use a
+  non-generic data literal as `mut T`; multi-name `:=` bindings are written
+  `(a, b) := pair`, and the bare `let a, b` and `a, b :=` lists are
+  `syntax-error`s whose fix-it adds the parentheses. A primitive type
+  written `mut`, as in `mut i32`, is `mut-on-primitive`;
 - lexical branch and loop scopes;
 - data declarations, literals, and field reads backed by Wasm GC structs,
   including requirement-free per-construction field defaults evaluated after explicit

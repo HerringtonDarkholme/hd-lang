@@ -7,6 +7,7 @@ import {
   mutableInner,
   mutableType,
   nominalGenericParts,
+  PRIMITIVE_TYPES,
   optionalInner,
   readonlyType,
   resultParts,
@@ -442,6 +443,7 @@ export abstract class StatementChecker extends CheckerContext {
     site: { readonly span: SourceSpan },
   ): void {
     if (mutableInner(annotation) !== undefined) return;
+    this.rejectLetMutPrimitive(annotation, site.span);
     this.fail(
       "let-mut-readonly-type",
       `'let mut' asks for mutable access, but the type '${annotation}' is readonly; write 'mut ${annotation}', or drop 'mut' after 'let'`,
@@ -452,9 +454,24 @@ export abstract class StatementChecker extends CheckerContext {
   /** `let mut` never upgrades a readonly value (04-type-system.md#r-types.bind.let-mut-upgrade). */
   private requireMutableValue(type: ValueType, span: SourceSpan): void {
     if (mutableInner(type) !== undefined || type === "never") return;
+    this.rejectLetMutPrimitive(type, span);
     this.fail(
       "mutable-upgrade",
       `'let mut' needs a value with mutable access, but '${type}' is readonly and cannot be upgraded; copy it into a fresh value instead`,
+      span,
+    );
+  }
+
+  /**
+   * `let mut` on a primitive is `mut-on-primitive`, in place of
+   * `mutable-upgrade` or `let-mut-readonly-type`
+   * (04-type-system.md#r-types.bind.let-mut-primitive).
+   */
+  private rejectLetMutPrimitive(type: ValueType, span: SourceSpan): void {
+    if (!PRIMITIVE_TYPES.has(type)) return;
+    this.fail(
+      "mut-on-primitive",
+      `'let mut' asks for mutable access, but '${type}' is a primitive type with no mutable state; a plain 'let' is already reassignable`,
       span,
     );
   }
@@ -492,7 +509,17 @@ export abstract class StatementChecker extends CheckerContext {
     }
     const annotation = statement.annotation ? this.resolveType(statement.annotation) : undefined;
     const letMut = statement.mutableAccess === true;
-    if (letMut && annotation !== undefined) this.requireMutableAnnotation(annotation, statement);
+    if (letMut && annotation !== undefined) {
+      this.requireMutableAnnotation(annotation, statement);
+      // The `mut` after `let` is redundant with a `mut T` annotation
+      // (04-type-system.md#r-types.bind.let-mut-annotated.warning).
+      this.diagnostics.push({
+        code: "redundant-let-mut",
+        message: "the annotated type already has mutable access, so 'mut' after 'let' is redundant",
+        span: statement.span,
+        severity: "warning",
+      });
+    }
     const storedSuspension = annotation ? storedSuspensionParts(annotation) : undefined;
     let recursiveLocal: HirLocal | undefined;
     let recursiveGlobal: HirGlobal | undefined;

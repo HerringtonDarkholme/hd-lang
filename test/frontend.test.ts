@@ -439,33 +439,27 @@ test("parser retains underscore tuple member selectors", () => {
   }
 });
 
-test(
-  "parser distinguishes grouped expressions from tuple types and literals",
-  {
-    todo: "the fixture now writes `let (a, b)`, which the prototype does not parse (known failure LMUT)",
-  },
-  () => {
-    const result = parse(conformanceBody("parse/valid/tuples-and-groups"));
-    assert.deepEqual(result.diagnostics, []);
-    assert.equal(result.program?.functions[0]?.parameters[0]?.type.name, "(i32,string)");
-    assert.equal(result.program?.functions[0]?.result.name, "(i32,)");
-    const body = result.program?.functions[0]?.body[0];
-    assert.equal(body?.kind, "expression");
-    if (body?.kind === "expression") assert.equal(body.expression.kind, "tuple");
-    const empty = result.program?.statements[0];
-    if (empty?.kind === "binding") assert.equal(empty.value.kind, "tuple");
-    assert.equal(result.program?.statements[1]?.kind, "tuple-binding");
-    const mutable = result.program?.statements[2];
-    if (mutable?.kind === "tuple-binding") {
-      assert.deepEqual(
-        mutable.bindings.map((binding) => binding.name),
-        ["name", "score"],
-      );
-      assert.equal(mutable.annotation?.name, "(string,i32)");
-      assert.equal(mutable.mutable, true);
-    }
-  },
-);
+test("parser distinguishes grouped expressions from tuple types and literals", () => {
+  const result = parse(conformanceBody("parse/valid/tuples-and-groups"));
+  assert.deepEqual(result.diagnostics, []);
+  assert.equal(result.program?.functions[0]?.parameters[0]?.type.name, "(i32,string)");
+  assert.equal(result.program?.functions[0]?.result.name, "(i32,)");
+  const body = result.program?.functions[0]?.body[0];
+  assert.equal(body?.kind, "expression");
+  if (body?.kind === "expression") assert.equal(body.expression.kind, "tuple");
+  const empty = result.program?.statements[0];
+  if (empty?.kind === "binding") assert.equal(empty.value.kind, "tuple");
+  assert.equal(result.program?.statements[1]?.kind, "tuple-binding");
+  const mutable = result.program?.statements[2];
+  if (mutable?.kind === "tuple-binding") {
+    assert.deepEqual(
+      mutable.bindings.map((binding) => binding.name),
+      ["name", "score"],
+    );
+    assert.equal(mutable.annotation?.name, "(string,i32)");
+    assert.equal(mutable.mutable, true);
+  }
+});
 
 test("documentation comments attach to AST declarations and members", () => {
   const source = conformanceBody("parse/valid/documentation-comments");
