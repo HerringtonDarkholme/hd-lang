@@ -10,11 +10,10 @@ impl Hash for Label:
 
 fn normalize(values: mut List[string], entries: mut Map[string, i32]) -> i32:
     values.append(" Added ")
-    clean := values.map(fn(value: string): value.trim().lower())
+    clean := [for value in values => "[$value]"]
     removed := entries.remove("old")
-    lengths := removed.map(fn(value: i32): value + clean.len())
-    match lengths:
-        .Some(value) => value
+    match removed:
+        .Some(value) => value + clean.len()
         .None => 0
 
 fn report(label: Label) -> void $ Console:

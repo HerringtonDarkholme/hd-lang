@@ -15,6 +15,9 @@ impl Counter:
     fn zero() -> Counter:
         Counter { value: 0 }
 
+fn apply_all[T, U](items: List[T], transform: fn(T) -> U) -> List[U]:
+    [for item in items => transform(item)]
+
 tests:
     it("a bound reference keeps its receiver"):
         let mut counter = Counter { value: 1 }
@@ -28,7 +31,7 @@ tests:
     it("an unbound reference takes the receiver first"):
         read := Counter::read
         assert_equal(read(Counter { value: 7 }), 7, reason="receiver as the argument")
-        assert_equal([Counter { value: 1 }, Counter { value: 2 }].map(Counter::read), [1, 2], reason="as a callback")
+        assert_equal(apply_all([Counter { value: 1 }, Counter { value: 2 }], Counter::read), [1, 2], reason="as a callback")
         assert_equal(Counter::zero().value, 0, reason="associated call")
 
     it("a called bound reference is a method call"):

@@ -203,7 +203,7 @@ export function rowUnionType(types: readonly ValueType[]): ValueType | undefined
 /**
  * `std.iter.FromIterator[(K, V)]` for `Map[K, V]`, which std cannot write in
  * hd: a map built in generic code has no key equality for a type-parameter
- * key (06-control-flow.md#r-flow.collect.map).
+ * key (spec/std/iter.md#r-std-iter.collect.map).
  */
 export function mapCollectionPlan(
   traitIndex: number,

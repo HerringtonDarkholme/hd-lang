@@ -474,7 +474,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
 
   /**
    * `from_iter` of `FromIterator` for a map: insert each pair that `next`
-   * yields from the iterator `$a0` (06-control-flow.md#r-flow.collect.map).
+   * yields from the iterator `$a0` (spec/std/iter.md#r-std-iter.collect.map).
    */
   private emitMapCollection(
     builtin: Extract<HirBuiltinTraitImplementation, { kind: "map-collection" }>,

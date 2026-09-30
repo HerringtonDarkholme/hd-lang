@@ -1,5 +1,6 @@
 # std.text: the `string` methods, `join`, and `StringBuilder`
-# (spec/10-modules.md#string-methods, future-work/STDLIB.md#stdtext).
+# (spec/10-modules.md#string-methods for the intrinsics, spec/std/text.md for
+# the methods above them, future-work/STDLIB.md#stdtext).
 # Positions and lengths are byte offsets (Strings STR1-STR6, STR10). The
 # built-in methods (`len`, `chars`, `char_indices`, `bytes`, `slice`, `trim`,
 # `lower`, `split`, `replace`, `starts_with`) are ordinary hd code here too. Every method is built on the byte primitives at the end of this
@@ -9,7 +10,7 @@
 # `interpolate`, `process_escapes`, and `EscapeError` (L22).
 use std.ops.{Template, str_prefix}
 
-# The standard raw-text prefix (spec/05-expressions.md#r-expr.prefix.std.r):
+# The standard raw-text prefix (spec/std/text.md#r-std-text.prefix.std.r):
 # no escape is processed.
 @str_prefix
 pub fn r(t: Template[Display]) -> string:

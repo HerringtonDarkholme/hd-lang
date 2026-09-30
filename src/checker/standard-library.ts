@@ -88,7 +88,7 @@ const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
 /**
  * Methods that declare a std prelude type. A program that selects one, as in
  * `values.iter().filter(keep)`, declares `Iterator` even when it never names
- * it (spec/06-control-flow.md#iterator-adapters).
+ * it (spec/std/iter.md#iterator-adapters).
  */
 const PRELUDE_TYPE_METHODS: readonly (readonly [StandardModule, string, readonly string[]])[] = [
   ["iter", "Iterator", ["iter", "take", "enumerate", "fold", "collect"]],

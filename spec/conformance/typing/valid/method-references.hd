@@ -27,8 +27,11 @@ impl Store:
     fn load!(self, key: i32) -> i32:
         key
 
+fn apply_all[T, U](items: List[T], transform: fn(T) -> U) -> List[U]:
+    [for item in items => transform(item)]
+
 fn readings(counters: List[Counter]) -> List[i32]:
-    counters.map(Counter::read)
+    apply_all(counters, Counter::read)
 
 fn maker() -> fn() -> Counter:
     Counter::zero
@@ -40,10 +43,10 @@ fn stepper() -> fn(mut Counter, i32) -> void:
     Counter::bump
 
 fn shown(values: List[i32]) -> List[string]:
-    values.map(Display::to_string)
+    apply_all(values, Display::to_string)
 
 fn labels[T < Named](items: List[T]) -> List[string]:
-    items.map(T::label)
+    apply_all(items, T::label)
 
 fn picker() -> fn(Counter, i32) -> i32:
     Counter::pick[i32]

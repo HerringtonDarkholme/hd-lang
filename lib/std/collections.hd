@@ -1,5 +1,5 @@
 # std.collections: inherent `List` methods (future-work/STDLIB.md#stdcollections).
-# `map` is the normative built-in method (spec/10-modules.md#built-in-methods).
+# `map` is the std method of spec/std/iter.md#list-and-optional-map.
 # Each method returns a new list and leaves its receiver unchanged.
 
 impl[T] List[T]:

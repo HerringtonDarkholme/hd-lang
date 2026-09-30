@@ -27,7 +27,7 @@ data User:
 
 impl User:
     fn domain(self) -> string:
-        self.email.split("@")[1]
+        self.email.slice(1, self.email.len())
 
     fn tagged[T](self, value: T) -> T:
         value

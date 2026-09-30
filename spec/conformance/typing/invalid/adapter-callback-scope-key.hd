@@ -1,5 +1,5 @@
 # test: a filter closure that uses a key bound by an enclosing $.with has that key in its row
-# Spec 06 Iterator Adapters: flow.adapter.callback-row.capture (batch 14, PS3).
+# std Iterators, Iterator Adapters: std-iter.adapter.callback-row.capture (batch 14, PS3).
 
 trait Logger
 

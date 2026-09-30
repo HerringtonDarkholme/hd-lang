@@ -1,5 +1,5 @@
 # test: a map callback with a requirement row does not fit the empty-row transform parameter
-# Spec 06 Iterator Adapters: flow.adapter.callback-row.map (Chaining Study CS7).
+# std Iterators, Iterator Adapters: std-iter.adapter.callback-row.map (Chaining Study CS7).
 
 trait Logger
 

@@ -9,7 +9,7 @@ fn tag(label: string, level: i32) -> string:
     "$label:$level"
 
 fn clean(raw: string) -> string:
-    raw.trim().lower()
+    "[$raw]"
 
 fn shift(point: Point, by: i32) -> i32:
     point.x + by
@@ -32,7 +32,7 @@ fn check(n: i32) -> bool:
     n + 1 |> twice == 4
 
 fn port(raw: string) -> Result[i32, string]:
-    value := raw |> _.trim() |> parse_port(_)?
+    value := raw |> clean(_) |> parse_port(_)?
     .Ok(value |> twice)
 
 fn tidy(raw: string) -> string:

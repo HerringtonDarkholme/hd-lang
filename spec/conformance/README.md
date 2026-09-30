@@ -70,11 +70,13 @@ every fixture. They are the items a numbered chapter specifies:
 **Stdlib-tier items** are usable only by a stdlib-tier fixture. They are the
 items a [stdlib chapter](../std/README.md#chapters) specifies, and
 [`stdlib-items.tsv`](stdlib-items.tsv) lists the import path of each.
+A std method, such as `string.trim` or `Iterator.filter`, has no import
+path, so the list cannot name it; a language-tier fixture still does not
+call one.
 
 A numbered chapter still specifies an item until a migration task moves it
 into `spec/std/`, and until then any fixture may use it. The items waiting
-to move include `std.time`, `std.text`'s `r`, the string methods above the
-intrinsics, the iterator adapters, `Arbitrary`, and `Choices`.
+to move include `std.time` and the `Debug` builders.
 
 A fixture must not depend on:
 

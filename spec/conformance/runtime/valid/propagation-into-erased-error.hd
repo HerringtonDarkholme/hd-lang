@@ -16,13 +16,13 @@ impl Error for FsError
 
 fn read_config(path: string, present: bool) -> Result[string, FsError]:
     if present:
-        .Ok(" https://example.test ")
+        .Ok("https://example.test")
     else:
         .Err(FsError.NotFound(path))
 
 fn load(path: string, present: bool) -> Result[string, Error]:
     text := read_config(path, present)?
-    .Ok(text.trim())
+    .Ok(text)
 
 fn describe(result: Result[string, Error]) -> string:
     match result:

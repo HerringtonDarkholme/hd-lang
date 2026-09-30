@@ -1,32 +1,44 @@
-# test: the operand of ? gets an expected type as a hint, so collect finds its target
-# Spec 05 Propagation: expr.try.expected, expr.try.expected.result, expr.try.expected.option (owner decision Q-?, batch 15, 2026-09-30).
+# test: the operand of ? gets an expected type as a hint, which solves a call's open type argument
+# Spec 05 Propagation: expr.try.expected, expr.try.expected.result, expr.try.expected.option, expr.try.expected.hint-only (owner decision Q-?, batch 15, 2026-09-30).
 use std.testing.assert_equal
 
-fn parse_port(text: string) -> Result[i32, string]:
-    if text == "x":
-        return .Err("bad")
-    .Ok(text.len())
+fn empty_ok[T]() -> Result[List[T], string]:
+    .Ok([])
 
-fn find(text: string) -> i32?:
-    if text == "x":
-        return .None
-    .Some(text.len())
+fn failed[T](message: string) -> Result[T, string]:
+    .Err(message)
 
-fn all_ports(lines: List[string]) -> Result[List[i32], string]:
-    let ports: List[i32] = lines.iter().map(parse_port).collect()?
+fn empty_some[T]() -> List[T]?:
+    .Some([])
+
+fn missing[T]() -> T?:
+    .None
+
+fn no_ports() -> Result[List[i32], string]:
+    let ports: List[i32] = empty_ok()?
     .Ok(ports)
 
-fn all_found(lines: List[string]) -> List[i32]?:
-    let found: List[i32] = lines.iter().map(find).collect()?
+fn bad_port() -> Result[i32, string]:
+    let port: i32 = failed("bad")?
+    .Ok(port)
+
+fn none_found() -> List[i32]?:
+    let found: List[i32] = empty_some()?
+    .Some(found)
+
+fn not_found() -> i32?:
+    let found: i32 = missing()?
     .Some(found)
 
 tests:
-    it("a Result hint collects every Ok payload"):
-        assert_equal(all_ports(["a", "bb"]), .Ok([1, 2]), reason="all payloads")
+    it("a Result hint solves the type argument of an Ok producer"):
+        let none: List[i32] = []
+        assert_equal(no_ports(), .Ok(none), reason="the Ok payload continues")
 
-    it("a Result hint propagates the first error"):
-        assert_equal(all_ports(["a", "x"]), .Err("bad"), reason="first error")
+    it("a Result hint solves the type argument of an Err producer"):
+        assert_equal(bad_port(), .Err("bad"), reason="the error propagates")
 
-    it("an optional hint collects every value"):
-        assert_equal(all_found(["a", "bb"]), .Some([1, 2]), reason="all values")
-        assert_equal(all_found(["x"]), .None, reason="first None")
+    it("an optional hint solves the type argument of a producer"):
+        let none: List[i32] = []
+        assert_equal(none_found(), .Some(none), reason="the Some payload continues")
+        assert_equal(not_found(), .None, reason="None propagates")

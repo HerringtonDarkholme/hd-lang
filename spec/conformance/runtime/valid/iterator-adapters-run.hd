@@ -1,5 +1,5 @@
 # test: iterator adapters are lazy, take stops pulling at its count, and collect, map, and fold work
-# Spec 06 Iterator Adapters: flow.adapter.lazy, flow.adapter.lazy.map, flow.adapter.lazy.next, flow.adapter.take.limit, flow.collect.drain, flow.adapter.enumerate, flow.adapter.map, flow.adapter.fold (STDLIB question 14, Chaining Study CS7).
+# std Iterators, Iterator Adapters: std-iter.adapter.lazy, std-iter.adapter.lazy.map, std-iter.adapter.lazy.next, std-iter.adapter.take.limit, std-iter.collect.drain, std-iter.adapter.enumerate, std-iter.adapter.map, std-iter.adapter.fold (STDLIB question 14, Chaining Study CS7).
 use std.testing.assert_equal
 
 data Tally:

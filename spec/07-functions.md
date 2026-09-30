@@ -579,7 +579,10 @@ When an expected function type is available, an inline closure may omit
 parameter and result annotations:
 
 ```text
-lower := names.map(fn(name): name.lower())
+fn apply_all(values: List[i32], transform: fn(i32) -> i32) -> List[i32]:
+    [for value in values => transform(value)]
+
+doubled := apply_all(counts, fn(count): count * 2)
 ```
 
 1. r[fn.closure.annotations-omitted] When an expected function type is available, an inline closure may omit parameter and result annotations.

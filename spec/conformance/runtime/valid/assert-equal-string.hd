@@ -6,5 +6,5 @@ tests:
         assert_equal("", "", reason="empty strings are equal")
 
     it("equal strings from different sources pass assert_equal"):
-        assert_equal("  ada  ".trim(), "ada", reason="trimmed text equals the literal")
-        assert_equal("ADA".lower(), "ada", reason="lowered text equals the literal")
+        assert_equal("  ada  ".slice(2, 5), "ada", reason="sliced text equals the literal")
+        assert_equal("ad" + "a", "ada", reason="concatenated text equals the literal")

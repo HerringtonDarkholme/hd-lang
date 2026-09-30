@@ -6,7 +6,7 @@
 #
 # `Iterator[T]` is a data type whose private `step` closure yields the next
 # item (spec/06-control-flow.md#iteration-protocols), and the adapters are
-# its ordinary methods (spec/06-control-flow.md#iterator-adapters). `filter`,
+# its ordinary methods (spec/std/iter.md#iterator-adapters). `filter`,
 # `take`, `enumerate`, and `map` return a lazy iterator that pulls from
 # `self` only when its own `next` is called; `fold` and `collect` drain
 # `self`.
@@ -76,7 +76,7 @@ impl[T] Iterator[T]:
 
     # The target is solved from the expected type or an explicit type
     # argument, and is `List[T]` when nothing determines it
-    # (spec/06-control-flow.md#collect-targets).
+    # (spec/std/iter.md#collect-targets).
     pub fn collect[C < FromIterator[T] = List[T]](mut self) -> C:
         C::from_iter(self)
 

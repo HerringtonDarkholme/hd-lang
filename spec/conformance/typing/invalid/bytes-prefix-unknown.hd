@@ -1,5 +1,5 @@
 # test: std declares no b prefix, so b"..." names nothing
-# Spec 05 Prefixed Strings: expr.prefix.std.only-r; bytes wait for a bytes type.
+# std Text, Raw Text Prefix: std-text.prefix.std.only-r; bytes wait for a bytes type.
 use std.text.r
 
 fn payload() -> string:

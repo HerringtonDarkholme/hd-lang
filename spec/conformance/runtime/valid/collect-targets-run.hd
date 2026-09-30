@@ -1,5 +1,5 @@
 # test: a Map target keeps the last value of an equal key at its first position; Result and optional targets stop at the first failure
-# Spec 06 Collect Targets: flow.collect.map, flow.collect.result, flow.collect.option, flow.collect.drain, flow.collect.stop (Collect CO1, CO2).
+# std Iterators, Collect Targets: std-iter.collect.map, std-iter.collect.result, std-iter.collect.option, std-iter.collect.drain, std-iter.collect.stop (Collect CO1, CO2).
 use std.testing.assert_equal
 
 fn parse_digit(text: string) -> Result[i32, string]:

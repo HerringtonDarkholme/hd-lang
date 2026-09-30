@@ -1,5 +1,5 @@
 # std.option: inherent methods on `T?` (future-work/STDLIB.md#stdoption-and-stdresult).
-# `map` is the normative built-in method (spec/10-modules.md#built-in-methods).
+# `map` is the std method of spec/std/iter.md#list-and-optional-map.
 
 impl[T] T?:
     pub fn map[U](self, transform: fn(T) -> U) -> U?:

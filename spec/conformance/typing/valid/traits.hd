@@ -14,7 +14,7 @@ impl Display for User:
 
 impl User:
     fn domain(self) -> string:
-        self.name.split("@")[1]
+        self.name.slice(1, self.name.len())
 
 fn show[T < Describe](value: T) -> string:
     value.describe()

@@ -1,4 +1,4 @@
-fn normalize(value: string) -> string: value.trim()
+fn normalize(value: string) -> string: "[$value]"
 
 name := " outer "
 
@@ -9,8 +9,8 @@ fn normalize_again() -> string:
 fn example(input: string, items: List[string]) -> string $ Console:
     outer := "fallback"
 
-    if (trimmed := input.trim()) != "":
-        println(trimmed)
+    if (size := input.len()) > 0:
+        println(size)
 
     for item in items:
         inner := normalize(item)

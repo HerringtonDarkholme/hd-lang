@@ -6,7 +6,7 @@ data Word:
 
 impl Iterable[mut Word] for string:
     fn iter(self) -> mut Iterator[mut Word]:
-        [for part in self.split(" ") => Word { text: part }].iter()
+        [for part in [self] => Word { text: part }].iter()
 
 fn first_word(text: string) -> string:
     for word in text:

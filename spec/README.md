@@ -209,7 +209,7 @@ Each entry links to the rule, or the section, that defines the term.
 | **initialization group** | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. See [`module.init.group`](10-modules.md#r-module.init.group). |
 | **inspectable types** | The types for which the compiler supplies `Inspectable`: primitives, module-level declarations, collections and tuples of inspectable types, and matching dynamic values. See [Inspectable Types](09-traits.md#inspectable-types). |
 | **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](10-modules.md#r-module.test.integration). |
-| **iterator adapters** | Methods of the prelude `Iterator[T]` that wrap an iterator in a new one, or drain it. See [Iterator Adapters](06-control-flow.md#iterator-adapters). |
+| **iterator adapters** | Methods of the prelude `Iterator[T]` that wrap an iterator in a new one, or drain it. See [Iterator Adapters](std/iter.md#iterator-adapters). |
 | **known implementation** | An implementation in the program's dependency graph whose target matches a type; a local one counts only where its methods are available. See [`names.member.known-impl`](03-names-and-scopes.md#r-names.member.known-impl). |
 | **law partners** | Comparison and hash traits whose laws relate them, such as `Hash` and `Eq`. See [Law Partners](09-traits.md#law-partners). |
 | **lexical provider** | A provider a closure fixes where it is written, by capturing the value of `$.use`. See [Lexical And Dynamic Providers](11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
@@ -2168,3 +2168,37 @@ existing source. Each entry names the decision that made the change.
   `Arbitrary` reads `"${T::name()} has no finite value"`
   ([`std-testing.arbitrary.derive.no-finite.message`](std/testing.md#r-std-testing.arbitrary.derive.no-finite.message)).
   Source is unaffected. No rule ID is retired.
+- Iterator adapters and collect targets move to the stdlib tier (owner
+  decisions ST2 and ST3 in
+  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  step 7, 2026-09-30): stdlib tier. Control Flow's Iterator Adapters and
+  Collect Targets sections move to [Iterators](std/iter.md), with their
+  text unchanged, and their headings are deleted. `map` on a list or an
+  optional leaves Modules' Built-In Methods for
+  [List And Optional Map](std/iter.md#list-and-optional-map). Source is
+  unaffected. `flow.adapter.*` becomes `std-iter.adapter.*`,
+  `flow.collect.*` becomes `std-iter.collect.*`, `module.method.map`
+  becomes `std-iter.method.map`, and `module.prelude.from-iterator`
+  becomes `std-iter.prelude.from-iterator`. The old IDs are retired.
+  `Iterator[T]`, `from_fn`, `next`, and `Iterable` stay in
+  [Iteration Protocols](06-control-flow.md#iteration-protocols): `for`
+  depends on them. No language rule names an adapter or `collect`.
+- String methods and the `r` prefix move to the stdlib tier (owner
+  decisions ST2 and ST3 in
+  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  step 8, 2026-09-30): stdlib tier. The rules for `lower`, `trim`, `split`,
+  `replace`, and `starts_with` leave Modules' String Methods, and their
+  signatures leave the Built-In Methods table, for
+  [String Methods](std/text.md#string-methods) in Text. The `r` rules
+  leave Expressions' Prefixed Strings, and `module.prelude.text-r` leaves
+  Standard Names Outside The Prelude, for
+  [Raw Text Prefix](std/text.md#raw-text-prefix). Text is unchanged, and
+  source is unaffected. `module.string.lower`, `.trim`, `.split`,
+  `.split.empty-separator`, `.split.absent`, `.replace`, `.replace.empty`,
+  and `.starts-with` become `std-text.string.lower` and so on,
+  `expr.prefix.std.*` becomes `std-text.prefix.std.*`, and
+  `module.prelude.text-r` becomes `std-text.prelude.text-r`. The old IDs
+  are retired. `len`, `s[i]`, `bytes`, `slice`, `chars`, and
+  `char_indices` stay in [String Methods](10-modules.md#string-methods):
+  [`flow.for.string-explicit`](06-control-flow.md#r-flow.for.string-explicit)
+  names `chars` and `char_indices`, so the tier test keeps them.

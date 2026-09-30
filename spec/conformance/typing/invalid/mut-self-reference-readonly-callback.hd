@@ -8,5 +8,8 @@ impl Counter:
     fn reset(mut self) -> void:
         self.value = 0
 
+fn apply_all[T, U](items: List[T], transform: fn(T) -> U) -> List[U]:
+    [for item in items => transform(item)]
+
 fn clear(counters: List[Counter]) -> List[void]:
-    counters.map(Counter::reset)  # diagnostic: type-mismatch
+    apply_all(counters, Counter::reset)  # diagnostic: type-mismatch

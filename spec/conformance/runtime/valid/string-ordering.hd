@@ -3,7 +3,7 @@
 use std.testing.assert_equal
 
 fn main() -> i32:
-    if "same" == "same" && "a" < "é" && "é" < "界" && "abc" < "abcd" && "界面".starts_with("界") && "abc".starts_with("") && !"a".starts_with("ab"):
+    if "same" == "same" && "a" < "é" && "é" < "界" && "abc" < "abcd" && "界" < "界面":
         42
     else:
         0

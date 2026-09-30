@@ -36,7 +36,11 @@ const SPEC_CHAPTERS: readonly [file: string, title: string][] = [
 ];
 
 /** The stdlib chapters in spec/std/, one per std module, in reading order. */
-const STD_CHAPTERS: readonly [module: string, title: string][] = [["testing", "Testing"]];
+const STD_CHAPTERS: readonly [module: string, title: string][] = [
+  ["iter", "Iterators"],
+  ["testing", "Testing"],
+  ["text", "Text"],
+];
 
 const page = (source: string, output: string, navTitle: string, section: string): PageSource => ({
   source,

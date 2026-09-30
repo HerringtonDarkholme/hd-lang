@@ -19,7 +19,7 @@ fn gappy() -> mut Iterator[i32]:
 
 tests:
     it("from_fn yields the items of its closure"):
-        let items: List[i32] = countdown(3).collect()
+        items := [for item in countdown(3) => item]
         assert_equal(items, [3, 2, 1], reason="the iterator yields until step returns .None")
 
     it("from_fn does not fuse"):

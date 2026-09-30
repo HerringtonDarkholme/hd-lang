@@ -1,5 +1,5 @@
 # test: FromIterator is not a prelude name
-# Spec 10 Standard Names Outside The Prelude: module.prelude.from-iterator (Collect CO6).
+# std Iterators, Collect Targets: std-iter.prelude.from-iterator (Collect CO6).
 
 data Bag:
     items: List[i32]

@@ -17,7 +17,7 @@ reviews:
 
 - Chaining Study CS1 and CS7: adapters are methods,
   and `Iterator[T]` holds a `step: fn() -> T?` closure;
-- [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) and
+- [Iterator Adapters](../spec/std/iter.md#iterator-adapters) and
   [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols);
 - the prototype's lowering in
   [src/README.md](../src/README.md#compilerlibrary-boundary) and

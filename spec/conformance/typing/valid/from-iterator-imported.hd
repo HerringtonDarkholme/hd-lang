@@ -1,5 +1,5 @@
 # test: code imports FromIterator to implement it, and collect needs no import
-# Spec 10 Standard Names Outside The Prelude: module.prelude.from-iterator (Collect CO6).
+# std Iterators, Collect Targets: std-iter.prelude.from-iterator (Collect CO6).
 
 use std.iter.FromIterator
 

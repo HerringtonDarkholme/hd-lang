@@ -389,28 +389,14 @@ pub fn render() -> string:
     logged"x"  # error: missing-requirement
 ```
 
-The standard library declares one prefix, in `std.text`:
-
-| Rule | Declaration | Meaning |
-| --- | --- | --- |
-| r[expr.prefix.std.r] Raw text | `@str_prefix pub fn r(t: Template[Display]) -> string` | the pieces joined with the values' `Display` text, with no escape processed |
-
-1. r[expr.prefix.std.r-meaning] So `r"\d+ $n"` is the text `\d+ ` followed by the `Display` text of `n`, and `r"a\"b"` keeps its backslash.
-2. r[expr.prefix.std.only-r] `r` is the only standard prefix. `std` declares no `b`, so `b"..."` names nothing until a bytes type exists.
-3. r[expr.prefix.std.import-text] `std.text` declares `r`. It is not a prelude name; code imports it, as in `use std.text.r`.
-
-```text
-use std.text.r
-
-fn digits(count: i32) -> string:
-    r"\d{$count}"  # the text \d{ then count, then }
-```
-
 > **Why.** A prefix is an ordinary function found through `use`, so a
 > library adds `sql"..."` without new syntax. The template keeps text and
 > values apart, so `sql` can send values as parameters instead of splicing
 > them into the query text. As for a suffix, the string is plain call
 > sugar and never suspends, because `sql"..."` has no place for `!`.
+
+> **Note.** The standard library's one prefix, the raw-text `r` of
+> `std.text`, is stdlib tier: [Raw Text Prefix](std/text.md#raw-text-prefix).
 
 See also: [Prefixed Strings](04-type-system.md#prefixed-strings),
 [String Prefix Names](03-names-and-scopes.md#string-prefix-names),
@@ -1495,8 +1481,8 @@ See also: [Precedence](#precedence),
 `:=` binds names inside an expression:
 
 ```text
-if (trimmed := input.trim()) != "":
-    println(trimmed)
+if (size := input.len()) > 0:
+    println(size)
 ```
 
 1. r[expr.bind.value] `:=` introduces one or more inferred, non-reassignable names and evaluates to the initializer's value.
@@ -1557,9 +1543,9 @@ In place of a `let` clause, use a parenthesized `:=` binding in a guard or
 result expression:
 
 ```text
-labels := [for user in users
-           if (label := user.name.trim().lower()) != ""
-           => label]
+sizes := [for user in users
+          if (size := user.name.len()) > 0
+          => size]
 ```
 
 ## Closures And Control Expressions

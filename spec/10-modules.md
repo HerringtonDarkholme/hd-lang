@@ -469,11 +469,13 @@ fn main() -> i32:
 11. r[module.prelude.time-suffixes] `std.time` declares `Duration` and the duration suffixes `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
 12. r[module.prelude.no-suffix] The prelude supplies no literal suffix.
 13. r[module.prelude.ops-str-prefix-markers] `std.ops` also declares `StrPrefix`, `str_prefix`, and `Template`, which code imports to declare a string prefix, as in `use std.ops.{Template, str_prefix}`.
-14. r[module.prelude.text-r] `std.text` declares the string prefix `r`, which code imports, as in `use std.text.r`.
-15. r[module.prelude.no-prefix] The prelude supplies no string prefix.
-16. r[module.prelude.ops-operator-traits] `std.ops` also declares the [operator traits](05-expressions.md#operator-traits), and `Index` and `IndexSet`. Code imports one to name it, as in `use std.ops.Add`; operator syntax needs no import.
-17. r[module.prelude.num] `std.num` declares the [numeric traits](09-traits.md#numeric-traits) `Num`, `Integer`, and `Float`, which code imports, as in `use std.num.Num`.
-18. r[module.prelude.from-iterator] `std.iter` also declares [`FromIterator`](06-control-flow.md#collect-targets), which is not a prelude name. Code imports it to implement or name it, as in `use std.iter.FromIterator`, and a `collect` call needs no import.
+14. r[module.prelude.no-prefix] The prelude supplies no string prefix.
+15. r[module.prelude.ops-operator-traits] `std.ops` also declares the [operator traits](05-expressions.md#operator-traits), and `Index` and `IndexSet`. Code imports one to name it, as in `use std.ops.Add`; operator syntax needs no import.
+16. r[module.prelude.num] `std.num` declares the [numeric traits](09-traits.md#numeric-traits) `Num`, `Integer`, and `Float`, which code imports, as in `use std.num.Num`.
+
+> **Note.** Two more standard names outside the prelude are stdlib tier:
+> the string prefix [`r`](std/text.md#raw-text-prefix) of `std.text`, and
+> [`FromIterator`](std/iter.md#collect-targets) of `std.iter`.
 
 See also: [Conversion Trait](09-traits.md#conversion-trait),
 [Function Type Constructors](07-functions.md#function-type-constructors),
@@ -603,18 +605,20 @@ The following built-in methods are normative:
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `len(self) -> i32`; `chars(self) -> mut Iterator[char]`; `char_indices(self) -> mut Iterator[(i32, char)]`; `bytes(self) -> mut Iterator[u8]`; `slice(self, start: i32, end: i32) -> string`; `trim(self) -> string`; `lower(self) -> string`; `split(self, separator: string) -> List[string]`; `replace(self, old: string, replacement: string) -> string`; `starts_with(self, prefix: string) -> bool` |
-| `List[T]` | `len(self) -> i32`; `iter(self) -> mut Iterator[T]`; `map[U](self, transform: fn(T) -> U) -> List[U]` |
+| `string` | `len(self) -> i32`; `chars(self) -> mut Iterator[char]`; `char_indices(self) -> mut Iterator[(i32, char)]`; `bytes(self) -> mut Iterator[u8]`; `slice(self, start: i32, end: i32) -> string` |
+| `List[T]` | `len(self) -> i32`; `iter(self) -> mut Iterator[T]` |
 | `mut List[T]` | `append(mut self, value: T) -> void` plus the readonly methods |
 | `Map[K, V]` | `len(self) -> i32`; `get(self, key: K) -> V?` |
 | `mut Map[K, V]` | `remove(mut self, key: K) -> V?` plus the readonly methods |
-| `T?` | `map[U](self, transform: fn(T) -> U) -> U?` |
 | `Display` | `to_string(self) -> string` |
 
 1. r[module.method.normative] The built-in methods in the table are normative.
 2. r[module.method.i32-bytes] Lengths and byte offsets use `i32`.
-3. r[module.method.map] `List.map` and optional `map` are non-suspending and evaluate the transform in source order.
-4. r[module.method.no-set] No `set` type is part of the core prelude.
+3. r[module.method.no-set] No `set` type is part of the core prelude.
+
+See also: [Text](std/text.md#string-methods) for the string methods above
+these, such as `trim` and `split`, and [Iterators](std/iter.md#list-and-optional-map)
+for `map` on a list or an optional.
 
 #### Map Complexity
 
@@ -646,14 +650,6 @@ fn first_word(text: string) -> string:
 7. r[module.string.slice.shared] The result shares the original string's bytes rather than copying them.
 8. r[module.string.slice.bad-offset] An offset that is not a [scalar boundary](04-type-system.md#r-types.string.boundary), inside a scalar's encoding or past the end, is a checked runtime panic. Panic: `index-out-of-bounds`.
 9. r[module.string.slice.reversed] A `start` greater than `end` is a checked runtime panic, even when both are scalar boundaries. Panic: `index-out-of-bounds`.
-10. r[module.string.lower] `lower` uses Unicode Default Case Conversion with full mappings.
-11. r[module.string.trim] `trim` removes the Unicode `White_Space` property at both ends.
-12. r[module.string.split] `split(separator)` retains empty pieces between adjacent separators and at either end.
-13. r[module.string.split.empty-separator] An empty separator splits into one-scalar strings, with an empty input producing an empty list.
-14. r[module.string.split.absent] With a non-empty separator, an input without that separator, including the empty string, yields one piece, so `"".split(",")` is `[""]`.
-15. r[module.string.replace] `replace` replaces non-overlapping matches from left to right.
-16. r[module.string.replace.empty] An empty `old` inserts the replacement at scalar boundaries.
-17. r[module.string.starts-with] `starts_with` compares scalar sequences exactly and performs no normalization or case folding.
 
 > **Note.** `char_indices` gives the offsets that Go's `range` over a
 > string gives. There is no slice syntax: a substring is always a

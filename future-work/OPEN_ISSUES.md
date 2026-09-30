@@ -37,7 +37,7 @@ points (LM), and stated three clarifications:
 | LM-c | Batch 16: in such a method the `mut` is dropped, so `self` has the plain type `Self`, as in `i32`, and `self + 1` type-checks. | [`types.prim.no-mut.self-type`](../spec/04-type-system.md#r-types.prim.no-mut.self-type) |
 | CLO1 | A closure is monomorphic, and `fn[T](x: T): x` is a `syntax-error`. | [`fn.closure.monomorphic`](../spec/07-functions.md#r-fn.closure.monomorphic) |
 | Q-? | The operand of `x?` gets an expected type as an inference hint, never a coercion. | [`expr.try.expected`](../spec/05-expressions.md#r-expr.try.expected) |
-| Q-map | std writes the `Iterable` and `FromIterator` impls for `Map` with `K < Eq & Hash`; no new rule. | [Collect Targets](../spec/06-control-flow.md#collect-targets) |
+| Q-map | std writes the `Iterable` and `FromIterator` impls for `Map` with `K < Eq & Hash`; no new rule. | [Collect Targets](../spec/std/iter.md#collect-targets) |
 
 **Batch 16 (owner decision, 2026-09-30).** Applied; the
 [Revision Notes](../spec/README.md#revision-notes) list TB1 and LM-c. LM-c

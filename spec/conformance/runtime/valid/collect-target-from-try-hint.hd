@@ -1,0 +1,32 @@
+# test: collect finds its target from the expected type that ? gives its operand
+# std Iterators, Collect Targets: std-iter.collect.target, std-iter.collect.result, std-iter.collect.option, with Spec 05 expr.try.expected (owner decision Q-?, batch 15, 2026-09-30).
+use std.testing.assert_equal
+
+fn parse_port(text: string) -> Result[i32, string]:
+    if text == "x":
+        return .Err("bad")
+    .Ok(text.len())
+
+fn find(text: string) -> i32?:
+    if text == "x":
+        return .None
+    .Some(text.len())
+
+fn all_ports(lines: List[string]) -> Result[List[i32], string]:
+    let ports: List[i32] = lines.iter().map(parse_port).collect()?
+    .Ok(ports)
+
+fn all_found(lines: List[string]) -> List[i32]?:
+    let found: List[i32] = lines.iter().map(find).collect()?
+    .Some(found)
+
+tests:
+    it("a Result hint collects every Ok payload"):
+        assert_equal(all_ports(["a", "bb"]), .Ok([1, 2]), reason="all payloads")
+
+    it("a Result hint propagates the first error"):
+        assert_equal(all_ports(["a", "x"]), .Err("bad"), reason="first error")
+
+    it("an optional hint collects every value"):
+        assert_equal(all_found(["a", "bb"]), .Some([1, 2]), reason="all values")
+        assert_equal(all_found(["x"]), .None, reason="first None")

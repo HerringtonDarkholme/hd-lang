@@ -308,14 +308,14 @@ let (name, score) = entry
 A `:=` binding expression binds in its enclosing scope:
 
 ```text
-if (trimmed := input.trim()) != "":
-    println(trimmed)
+if (size := input.len()) > 0:
+    println(size)
 ```
 
 1. r[names.bind.expression] `:=` may appear as the lowest-precedence expression.
 2. r[names.bind.scope] The binding of a `:=` expression belongs to the nearest enclosing executable scope, not to a synthetic scope around the subexpression.
-3. r[names.bind.visible] In the example, `trimmed` is visible after its initializer completes, including in the selected `if` suite and in later statements of the enclosing scope.
-4. r[names.bind.initialized] `trimmed` is initialized regardless of which `if` branch executes because the condition is evaluated before branch selection.
+3. r[names.bind.visible] In the example, `size` is visible after its initializer completes, including in the selected `if` suite and in later statements of the enclosing scope.
+4. r[names.bind.initialized] `size` is initialized regardless of which `if` branch executes because the condition is evaluated before branch selection.
 5. r[names.bind.no-redeclare] A binding expression must not redeclare a name already bound in that same scope. Error: `duplicate-binding`.
 
 ```text
@@ -487,12 +487,12 @@ pairs := [for x in xs for y in ys if x.id == y.owner_id => (x, y)]
 4. r[names.comp.bind] A `:=` expression in a comprehension binds in the comprehension scope and is visible after the point where it is evaluated.
 
 ```text
-labels := [for user in users
-           if (label := user.name.trim().lower()) != ""
-           => label]
+sizes := [for user in users
+          if (size := user.name.len()) > 0
+          => size]
 ```
 
-1. r[names.comp.no-leak] The names `user` and `label` are not visible after the comprehension. A use there is an error. Error: `unknown-name`.
+1. r[names.comp.no-leak] The names `user` and `size` are not visible after the comprehension. A use there is an error. Error: `unknown-name`.
 
 ```text
 fn doubled(values: List[i32]) -> i32:

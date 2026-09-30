@@ -1,10 +1,20 @@
 # test: in a prefixed string, a $ before a character that cannot start an identifier is text
 # Spec 01 Prefixed Strings: lex.prefix.plain-dollar-start (Small Follow-Ups 2026-09-29).
-use std.text.r
+use std.ops.{Template, str_prefix}
 use std.testing.assert_equal
+
+# A local raw-text prefix: the pieces joined with the values, no escape processed.
+@str_prefix
+fn raw(t: Template[string]) -> string:
+    let joined = t.raw_parts[0]
+    let index = 0
+    while index < t.values.len():
+        joined = joined + t.values[index] + t.raw_parts[index + 1]
+        index = index + 1
+    joined
 
 tests:
     it("keeps a dollar before a digit as text"):
         name := "Ada"
-        assert_equal(r"costs $5", "costs \$5", reason="5 cannot start an identifier")
-        assert_equal(r"$5 for $name", "\$5 for Ada", reason="an identifier start interpolates")
+        assert_equal(raw"costs $5", "costs \$5", reason="5 cannot start an identifier")
+        assert_equal(raw"$5 for $name", "\$5 for Ada", reason="an identifier start interpolates")

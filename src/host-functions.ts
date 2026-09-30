@@ -16,7 +16,7 @@ export type HostFunction = (...arguments_: HostFunctionValue[]) => HostFunctionV
 
 export const HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = {
   // Unicode Default Case Conversion with full mappings and no locale
-  // (spec/10-modules.md#string-methods).
+  // (spec/std/text.md#r-std-text.string.lower).
   string_lower: (text) => String(text).toLowerCase(),
   string_upper: (text) => String(text).toUpperCase(),
   // The one-scalar string of a Unicode scalar value, for `\u{...}` in

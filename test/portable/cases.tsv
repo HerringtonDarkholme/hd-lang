@@ -1524,6 +1524,7 @@ parse/invalid/closure-type-parameters.hd	parse
 typing/valid/mut-self-primitive-impl.hd	type
 typing/valid/closure-with-ignores-outer-key.hd	type
 runtime/valid/try-operand-expected-type.hd	runtime
+runtime/valid/collect-target-from-try-hint.hd	runtime
 runtime/valid/string-length-counts-bytes.hd	runtime
 runtime/valid/string-concatenation-and-numeric-selectors.hd	runtime
 runtime/valid/multibyte-scalar-strings.hd	runtime

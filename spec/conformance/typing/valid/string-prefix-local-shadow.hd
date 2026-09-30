@@ -1,6 +1,10 @@
 # test: a string prefix resolves in module scope only
 # Spec 03 String Prefix Names: a parameter named `r` does not change what `r"..."` calls.
-use std.text.r
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn r(t: Template[string]) -> string:
+    t.raw_parts[0]
 
 fn escape(r: i32) -> string:
-    r"\d+"  # std.text.r, not the parameter
+    r"\d+"  # the module's prefix function r, not the parameter

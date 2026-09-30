@@ -2,11 +2,13 @@
 
 Status: decided plan. The owner accepted every recommendation on
 2026-09-30 ([Owner Decisions](#owner-decisions)), and migration steps 1
-to 6 are done. Nothing here is accepted behavior until a move task
+to 8 are done. Nothing here is accepted behavior until a move task
 puts it in the spec. Step 4 moved Property Tests and Draw Budget to
 [Testing](../spec/std/testing.md), step 5 moved Derived Arbitrary, and
 step 6 moved the `timeout` option's effect, table-test rows, and snapshot
-files there; nothing else has moved yet. It answers
+files there. Step 7 moved the iterator adapters and collect targets to
+[Iterators](../spec/std/iter.md), and step 8 moved the string methods
+above the intrinsics and `r` to [Text](../spec/std/text.md). It answers
 the owner's request of 2026-09-30:
 
 > is Arbitrary/stdlib stuff should be inside language spec? if they can be
@@ -17,7 +19,7 @@ Under review: the AGENTS.md rule
 [Spec Scope For The Standard Library](../AGENTS.md#spec-scope-for-the-standard-library),
 [Standard Testing](../spec/10-modules.md#standard-testing),
 [Built-In Methods](../spec/10-modules.md#built-in-methods),
-[Iterator Adapters](../spec/06-control-flow.md#iterator-adapters),
+[Iterator Adapters](../spec/std/iter.md#iterator-adapters),
 [Debug Trait](../spec/09-traits.md#debug-trait),
 [Rule IDs](../spec/STYLE.md#rule-ids), and the
 [conformance format](../spec/conformance/README.md).
@@ -58,8 +60,8 @@ fixtures, 87 use such an item, and about 40 cite its section.
 | --- | --- | --- |
 | [Property Tests](../spec/std/testing.md#property-tests), [Draw Budget](../spec/std/testing.md#draw-budget) | `module.testing.choices.*`, `.prop.*`, `.budget.*` | `Choices`, `Arbitrary`, discard limits, and regression files are runner and library behavior, not prelude |
 | [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary) | `module.testing.arbitrary.*` | [`std-testing.arbitrary.derive.template`](../spec/std/testing.md#r-std-testing.arbitrary.derive.template) says the compiler supplies nothing for it |
-| [String Methods](../spec/10-modules.md#string-methods) | `module.string.*` | `trim`, `lower`, `split`, `replace`, `starts_with` are std code over bytes |
-| [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) | `flow.adapter.*`, `flow.collect.*` | [`flow.adapter.methods`](../spec/06-control-flow.md#r-flow.adapter.methods) calls them ordinary methods |
+| [String Methods](../spec/std/text.md#string-methods) | `module.string.*` | `trim`, `lower`, `split`, `replace`, `starts_with` are std code over bytes |
+| [Iterator Adapters](../spec/std/iter.md#iterator-adapters) | `flow.adapter.*`, `flow.collect.*` | [`std-iter.adapter.methods`](../spec/std/iter.md#r-std-iter.adapter.methods) calls them ordinary methods |
 | [Debug Builders](../spec/09-traits.md#debug-builders) | `trait.debug.builder.*`, `.derive-builders.*` | `DebugStruct` and its layout are not prelude names |
 | [Snapshot Files](../spec/std/testing.md#snapshot-files), [Table-Test Rows](../spec/std/testing.md#table-test-rows) | `module.testing.snapshot*`, `.it-each.*` | file paths, update runs, and row names are runner behavior |
 | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings) | `expr.suffix.std.*`, `expr.prefix.std.*` | `ms`, `s`, and `r` are ordinary functions |
@@ -172,8 +174,8 @@ prefix instead, so the rule it shows stays language-tier.
 | 10 | `module.prelude.time-suffixes`, `.text-r`, `.from-iterator` | stdlib | with their modules |
 | 10 | Built-In Methods: `len`, `iter`, `append`, `get`, `remove`, `to_string`; Map Complexity | language | stays |
 | 10 | Built-In Methods: `List.map`, optional `map` | stdlib | `std/iter.md` |
-| 10 | String Methods: `module.string.utf8`, `.byte-offsets`, `.bytes`, `.slice.*` | language | stays |
-| 10 | String Methods: `chars`, `char_indices`, `lower`, `trim`, `split`, `replace`, `starts_with` | stdlib | `std/text.md` |
+| 10 | String Methods: `module.string.utf8`, `.byte-offsets`, `.chars`, `.char-indices`, `.bytes`, `.slice.*` | language | stays; step 8 kept `chars` and `char_indices`, because [`flow.for.string-explicit`](../spec/06-control-flow.md#r-flow.for.string-explicit) names them |
+| 10 | String Methods: `lower`, `trim`, `split`, `replace`, `starts_with` | stdlib | `std/text.md` |
 | 10 | Standard Testing exports, Test Cases (less `timeout`), Test Outcomes | language | stays |
 | 10 | `timeout` option rules | stdlib | `std/testing.md` |
 | 10 | Table Tests: `module.testing.it-each.import`, `.it-each.body-closure`, `.it-each.name-clash`, `.it-prop`, `.it-prop.import`, `.variants.*` | language | stays |
@@ -292,8 +294,8 @@ Each task is about an hour, and each ends with `bash spec/check.sh`,
 | 4 | Done. `std/testing.md`, part 1: Property Tests and Draw Budget, 37 IDs; `std.testing.Arbitrary` and `.Choices` in `stdlib-items.tsv`; the 7 Derived Arbitrary fixtures recorded in `tier-crossings.tsv` until task 5 | 6 cases |
 | 5 | Done. `std/testing.md`, part 2: Derived Arbitrary, 16 IDs moved and one retired, with Testing AT-with; `Structure.name()` and the no-finite message (ST8); Self References restated (SIMPLE); the `arbitrary.with` gap and option D in [Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets) (ST7); `std.testing.arbitrary` in `stdlib-items.tsv`; the 7 crossing rows removed; four questions in [Open Issues](OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening) | 7 cases, and 5 new cases |
 | 6 | Done. `std/testing.md`, part 3: Test Timeout, Table-Test Rows, Snapshot Files, 18 IDs; `std.testing.snapshot_file` in `stdlib-items.tsv`; the three `timeout` and `snapshot_file` crossing rows removed | 6 cases, and 1 new case split from two language cases |
-| 7 | `std/iter.md`: adapters, collect targets, `FromIterator`, `List.map`, optional `map` | 13 cases |
-| 8 | `std/text.md`: string methods above the intrinsics, and `r` | 4 cases |
+| 7 | Done. `std/iter.md`: adapters, collect targets, `FromIterator`, `List.map`, optional `map`, 32 IDs; `std.iter.FromIterator` in `stdlib-items.tsv`; five `List.map`, `map`, and `collect` fixtures rewritten over local helpers or a `for` loop, and their crossing rows removed | 13 cases, and 1 new case split from `try-operand-expected-type.hd` |
+| 8 | Done. `std/text.md`: `trim`, `lower`, `split`, `replace`, `starts_with`, and `r`, 12 IDs; `chars` and `char_indices` stay language tier; `std.text.r` in `stdlib-items.tsv`; the 23 text crossing rows removed: 8 cases now cite `std/text.md`, 13 fixtures use language-tier operations or a local prefix instead, and 2 need nothing | 11 cases |
 | 9 | `std/format.md`: Debug builders and layout; `std/time.md`: `Duration` and suffixes; local suffixes and prefixes in the ch01, 03, 04, 05 examples | 4 cases, and most of the 17 fixtures that import `std.time` or `std.text` |
 | 10 | Retry combinator, if a `fn!` loop expresses it; else record why it stays | 0 or 1 |
 | 11 | Links: `future-work/TESTING.md` (23), `SPECIAL_CASES.md`, `RUNTIME_AND_LIBRARY.md`, `lib/std` and `src/` comments; audit per-tier counts | nothing |

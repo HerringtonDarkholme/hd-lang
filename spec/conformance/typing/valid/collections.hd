@@ -20,18 +20,25 @@ fn collections(users: List[User]) -> Map[string, User] $ Console:
     let (entry_name, score) = (entry.name, entry.score)
     scores := {"Ada": 10, "Grace": 12}
     names := [for user in users if user.active => user.name]
-    labels := [
+    sizes := [
         for user in users
-        if (label := user.name.trim().lower()) != ""
-        => label
+        if (size := user.name.len()) > 0
+        => size
     ]
-    pairs := [for left in names for right in labels => (left, right)]
+    pairs := [for left in names for right in sizes => (left, right)]
     by_id := {for user in users if user.active => user.id: user}
     println("$x,$y")
     println("${entry_name}${score}")
     _ := empty
     _ := single
     by_id
+
+fn apply_all(values: List[i32], transform: fn(i32) -> i32) -> List[i32]:
+    [for value in values => transform(value)]
+
+fn doubled_counts(counts: List[i32]) -> List[i32]:
+    doubled := apply_all(counts, fn(count): count * 2)
+    doubled
 
 fn related(xs: List[Link], ys: List[Link]) -> List[(Link, Link)]:
     [for x in xs for y in ys if x.id == y.owner_id => (x, y)]

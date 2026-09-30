@@ -55,7 +55,7 @@ that changes the meaning of valid source ranks below one that does not.
 | --- | --- | --- |
 | `missing-partial-ord` and `nonnumeric-unary-plus` are stable codes with fixtures, but no numbered rule names either one. | A second implementation cannot learn from the chapters when to report them. | [Diagnostics](../spec/README.md#diagnostics), `typing/invalid/bool-ordering.hd`, `typing/invalid/nonnumeric-unary-plus.hd`; [C1](#c1-one-code-for-an-operator-with-no-meaning) removes both |
 | No chapter or record defines `SelfRef`. | The request named it; the nearest item is the undecided `Ref[T]` of the derived-function cache. | [STDLIB Derived Function Cache](STDLIB.md#derived-function-cache) |
-| The `Map` implementations of `FromIterator` and `Iterable` are ordinary `std` code, not compiler-supplied. | Nothing to cut: batch 15 (Q-map) already removed the std-only exception. | [Collect Targets](../spec/06-control-flow.md#collect-targets) |
+| The `Map` implementations of `FromIterator` and `Iterable` are ordinary `std` code, not compiler-supplied. | Nothing to cut: batch 15 (Q-map) already removed the std-only exception. | [Collect Targets](../spec/std/iter.md#collect-targets) |
 | `assert` and `assert_equal` are ordinary `std.testing` functions. The compiler checks only their bounds. | Nothing to cut; see [C1](#c1-one-code-for-an-operator-with-no-meaning) for the `missing-eq` code. | [`module.testing.exports`](../spec/10-modules.md#r-module.testing.exports) |
 
 ## Inventory
@@ -93,7 +93,7 @@ Things the compiler supplies, generates, or recognizes by a qualified name.
 | I20 | Erased `Error` in test bodies | [`expr.try.test.with-try`](../spec/05-expressions.md#r-expr.try.test.with-try) | A trailing block given to `it` gets `Result[void, Error]` when it uses `?`. | Testing T15. |
 | I21 | `Termination` | [`module.entry.result-termination`](../spec/10-modules.md#r-module.entry.result-termination), [`module.testing.it.body`](../spec/10-modules.md#r-module.testing.it.body) | An ordinary bound on entry results and test bodies. | Testing T5, T8. |
 | I22 | `Iterable` drives `for` | [`flow.for.iterable-only`](../spec/06-control-flow.md#r-flow.for.iterable-only) | `for` and comprehensions call `iter()` once. | CS7, CS8. |
-| I23 | `collect` default | [`flow.collect.target-default`](../spec/06-control-flow.md#r-flow.collect.target-default) | Ordinary `FromIterator` bound with the default `List[T]`; no compiler rule. | CO1-CO6, TD. |
+| I23 | `collect` default | [`std-iter.collect.target-default`](../spec/std/iter.md#r-std-iter.collect.target-default) | Ordinary `FromIterator` bound with the default `List[T]`; no compiler rule. | CO1-CO6, TD. |
 | I24 | `Option` and `Result` support | [`data.prelude.support`](../spec/08-data-and-enums.md#r-data.prelude.support) | `T?`, the one-layer wrap, `?`, and `.Ok()` for `void`. | O1-O3, Result variants decision. |
 | I25 | Must-use types | [`flow.must-use.discard`](../spec/06-control-flow.md#r-flow.must-use.discard) | Discarding `Result`, `T?`, or `mut Suspend[T]` is an error. | Why callout: the discard is visible in review. |
 | I26 | Test-case functions | [`module.testing.position-statements`](../spec/10-modules.md#r-module.testing.position-statements), [`module.testing.direct-call`](../spec/10-modules.md#r-module.testing.direct-call) | `it`, `it_each`, `it_prop`, `it_prop_with` are recognized in test position. | Testing T2-T50: tools list tests statically. |
@@ -127,7 +127,7 @@ A rule that applies to one type, one name, or one context. Grouped by area.
 | R17 | `is` on function types | [`expr.is.function`](../spec/05-expressions.md#r-expr.is.function), [`expr.is.function.generic`](../spec/05-expressions.md#r-expr.is.function.generic) | Direct use is an error; through `T < AnyRef` it compiles. | FN_TYPE 9. |
 | R18 | `is` on tuples | [`expr.is.tuple`](../spec/05-expressions.md#r-expr.is.tuple) | An error even when the tuple holds references. | Tuples have no identity. |
 | R19 | Readonly iterator in a loop | [`flow.for.iterator-mut`](../spec/06-control-flow.md#r-flow.for.iterator-mut) | An error, though a readonly `iter()` advances it. | Predates CS10. |
-| R20 | Adapter callback rows | [`flow.adapter.callback-row`](../spec/06-control-flow.md#r-flow.adapter.callback-row), [`flow.adapter.fold.row`](../spec/06-control-flow.md#r-flow.adapter.fold.row) | `filter` and `map` take the empty row; `fold` takes `R`. | STDLIB 14-22, PS3. |
+| R20 | Adapter callback rows | [`std-iter.adapter.callback-row`](../spec/std/iter.md#r-std-iter.adapter.callback-row), [`std-iter.adapter.fold.row`](../spec/std/iter.md#r-std-iter.adapter.fold.row) | `filter` and `map` take the empty row; `fold` takes `R`. | STDLIB 14-22, PS3. |
 | R21 | Comprehension restrictions | [`expr.comp.no-suspension`](../spec/05-expressions.md#r-expr.comp.no-suspension), [`expr.comp.no-jumps`](../spec/05-expressions.md#r-expr.comp.no-jumps) | No bang calls, `return`, `break`, `continue`, or `let`; `?` is allowed. | Initial spec; CO1-CO4 added `?`. |
 | R22 | Unread must-use binding | [`flow.unused.must-use`](../spec/06-control-flow.md#r-flow.unused.must-use) | An error, where other unread bindings warn. | The discard must be visible. |
 | R23 | Recursive local closure | [`names.scope.recursive-closure`](../spec/03-names-and-scopes.md#r-names.scope.recursive-closure) | The one binding visible in its own initializer. | Local recursion without forward references. |
@@ -250,7 +250,7 @@ Names that the compiler, the toolchain, or the prelude gives a meaning.
 | N18 | `std.convert.From`, `std.error.Error`, `std.process.Termination`, `std.format.Display` | [`trait.from.propagation`](../spec/09-traits.md#r-trait.from.propagation), [`module.entry.termination`](../spec/10-modules.md#r-module.entry.termination) | Traits the language calls without an import. |
 | N19 | `std.task.block_on`, `all!`, `race!`, `host_wait!` | [`req.drive.block-on`](../spec/11-requirements-and-suspension.md#r-req.drive.block-on) | Drivers and combinators. |
 | N20 | `std.function.Fn`, `SuspendFn`, `Rest` | [`fn.type.ctor.decl`](../spec/07-functions.md#r-fn.type.ctor.decl) | Function type constructors. |
-| N21 | `std.time` `ms`, `s`, `min`, `h`; `std.text.r` | [`expr.suffix.std.only-four`](../spec/05-expressions.md#r-expr.suffix.std.only-four), [`expr.prefix.std.only-r`](../spec/05-expressions.md#r-expr.prefix.std.only-r) | The standard suffixes and prefix. |
+| N21 | `std.time` `ms`, `s`, `min`, `h`; `std.text.r` | [`expr.suffix.std.only-four`](../spec/05-expressions.md#r-expr.suffix.std.only-four), [`std-text.prefix.std.only-r`](../spec/std/text.md#r-std-text.prefix.std.only-r) | The standard suffixes and prefix. |
 | N22 | `Iterator::from_fn`, `iter`, `next` | [`flow.for.iterator-from-fn`](../spec/06-control-flow.md#r-flow.for.iterator-from-fn) | The iteration protocol. |
 | N23 | `T::zero`, `one`, `from_i64` | [`trait.num.members`](../spec/09-traits.md#r-trait.num.members) | Numeric constants in generic code. |
 | N24 | Panic categories | [`flow.panic.category-set`](../spec/06-control-flow.md#r-flow.panic.category-set) | 13 names, also the `expect_panic` vocabulary. |
@@ -739,7 +739,7 @@ does not already break.
 | [`flow.for.iterator-mut`](../spec/06-control-flow.md#r-flow.for.iterator-mut) | deleted |
 | [`flow.for.comprehension`](../spec/06-control-flow.md#r-flow.for.comprehension) | unchanged |
 | Fixture `typing/invalid/readonly-iterator-in-comprehension.hd` | moves to `typing/valid`; 1 row becomes `accept` |
-| [`flow.adapter.mut-receiver`](../spec/06-control-flow.md#r-flow.adapter.mut-receiver) | unchanged: adapters still take `mut self` |
+| [`std-iter.adapter.mut-receiver`](../spec/std/iter.md#r-std-iter.adapter.mut-receiver) | unchanged: adapters still take `mut self` |
 
 **Other languages.** Rust's `for` takes any `IntoIterator`. For an
 iterator `I`, `&mut I` is an iterator too, so a loop may advance a
@@ -858,7 +858,7 @@ so A widens an accepted risk rather than adding a new one.
 | --- | --- |
 | [`types.map-key.bound`](../spec/04-type-system.md#r-types.map-key.bound) | reworded: `Map` declares `K < Eq & Hash`; A drops the `mut` clause, B keeps it |
 | `invalid-map-key` | A: deleted, reports `unsatisfied-trait-bound`; B: kept for `mut` keys only |
-| [`flow.collect.map-key`](../spec/06-control-flow.md#r-flow.collect.map-key) | unchanged |
+| [`std-iter.collect.map-key`](../spec/std/iter.md#r-std-iter.collect.map-key) | unchanged |
 | Fixtures `tuple-map-key.hd`, `float-map-key.hd`, `invalid-map-key.hd`, `nominal-map-key.hd`, `float-literal-map-key.hd` | marker becomes `unsatisfied-trait-bound`; 5 rows |
 
 **Other languages.** Rust's `HashMap` states `K: Eq + Hash` on its methods

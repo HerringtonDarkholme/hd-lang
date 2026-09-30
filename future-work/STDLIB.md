@@ -53,7 +53,7 @@ undecided design.
 | `std.format` | `Display`, `Debug`, `DebugWriter`, `debug` | language; `DebugWriter` builders and layout: std | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md), [Debug Trait](../spec/09-traits.md#debug-trait) |
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | language | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.hash` | `Hash`, `Hasher` | language | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
-| `std.iter` | `Iterator` (a data type), `Iterable`, `FromIterator`; the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as `Iterator` methods | language: `Iterator`, `Iterable`; std: `FromIterator` and the adapters | [For Loops](../spec/06-control-flow.md), [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) |
+| `std.iter` | `Iterator` (a data type), `Iterable`, `FromIterator`; the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as `Iterator` methods | language: `Iterator`, `Iterable`; std: `FromIterator` and the adapters | [For Loops](../spec/06-control-flow.md), [Iterator Adapters](../spec/std/iter.md#iterator-adapters) |
 | `std.console` | `Console`, `ConsoleError`, `println` | language | [Prelude](../spec/10-modules.md#prelude) |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, a retry combinator | language; the retry combinator: std if a `fn!` loop expresses it | [Requirements and Suspension](../spec/11-requirements-and-suspension.md) |
 | `std.annotation` | shape names and `shape`, `shape_of`; `Target`, `Annotate`, `annotate` | language | [Annotations](../spec/14-annotations.md) |
@@ -63,7 +63,7 @@ undecided design.
 | `std.error` | `Error` (a `Display` subtrait whose members all have defaults) | language | [Error Trait](../spec/09-traits.md#error-trait) |
 | `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; the twelve operator traits `Add` to `Shr`, and `Index` and `IndexSet` | language | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings), [Operator Traits](../spec/05-expressions.md#operator-traits), [Compound Assignment](../spec/05-expressions.md#compound-assignment), [Index Traits](../spec/05-expressions.md#index-traits) |
 | `std.num` | the sealed traits `Num`, `Integer`, and `Float`, with `zero`, `one`, and `from_i64` on `Num` | language | [Numeric Traits](../spec/09-traits.md#numeric-traits) |
-| `std.text` | the string prefix `r` | std | [Prefixed Strings](../spec/05-expressions.md#prefixed-strings) |
+| `std.text` | the string prefix `r`; the `string` methods `trim`, `lower`, `split`, `replace`, and `starts_with` | std | [Text](../spec/std/text.md) |
 | `std.time` | `Duration`; the literal suffixes `ms`, `s`, `min`, `h` | std | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
 | `std.host` | `Args` | not in the spec | [Program Entry Points](../guide/LANGUAGE_TOUR.md#program-entry-points) (example) |
 | `std.fingerprint` | the persisted-identity digest | not in the spec | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
@@ -436,10 +436,11 @@ through a bound was open; it is now specified in
 
 ### `std.text`
 
-The built-in `string` methods are the ten in the
-[normative table](../spec/10-modules.md#built-in-methods), including
-`chars`, `char_indices`, `bytes`, and `slice` from
-Strings STR4 and STR5. The rest are inherent
+The specified `string` methods are ten: `len`, `chars`, `char_indices`,
+`bytes`, and `slice` in the language tier's
+[normative table](../spec/10-modules.md#built-in-methods), four of them from
+Strings STR4 and STR5, and `trim`, `lower`, `split`, `replace`, and
+`starts_with` in [Text](../spec/std/text.md#string-methods). The rest are inherent
 methods that `std` declares on `string` (decision 8). They are available in
 every module without a `use`:
 
@@ -812,7 +813,7 @@ the adapters are its ordinary methods
 replaces the `Iterator` trait of question 14. The specification fixes
 `next`, `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` in
 [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols) and
-[Iterator Adapters](../spec/06-control-flow.md#iterator-adapters). `step`
+[Iterator Adapters](../spec/std/iter.md#iterator-adapters). `step`
 is private, and user code builds an iterator with `Iterator::from_fn`
 (Chaining Study CS9):
 
@@ -854,7 +855,7 @@ pub fn range(start: i32, end: i32) -> mut Iterator[i32]:
 
 `collect` builds the target that the expected type names, or its declared
 default `List[T]` when nothing does (Collect CO1 and CO5,
-[Collect Targets](../spec/06-control-flow.md#collect-targets)). `std`
+[Collect Targets](../spec/std/iter.md#collect-targets)). `std`
 implements `FromIterator` for `List`, `Map` (the last value of an equal key
 wins), all-or-nothing `Result[C, E]` and `C?`, and `Set`. Convenience
 names such as `to_map` or `try_collect`, if `std` adds any, are std-only
@@ -2090,12 +2091,12 @@ model, the facts, and the draw API above. The generators keep the
 **STDLIB Still Open after the question 14-22 pass (decided 2026-09-29).**
 - `map[U]` and `fold[A]` on `Iterator`: closed by Chaining Study CS7,
   which makes `Iterator` a data type, so both are ordinary methods
-  ([Iterator Adapters](../spec/06-control-flow.md#iterator-adapters)).
+  ([Iterator Adapters](../spec/std/iter.md#iterator-adapters)).
 - A callback passed to a lazy adapter (`filter`) runs inside `next`, whose
   row is empty. It needs no providers; one that uses a provider captures
   the value from `$.use` explicitly, since a closure never captures a
   provider from an enclosing `$.with` (provider scope batch 14, PS3,
-  [`flow.adapter.callback-row.capture`](../spec/06-control-flow.md#r-flow.adapter.callback-row.capture)). When the
+  [`std-iter.adapter.callback-row.capture`](../spec/std/iter.md#r-std-iter.adapter.callback-row.capture)). When the
   eager `fold` lands, it carries a row parameter:
   `fold[A, R](init: A, step: fn(A, T) -> A $ R) -> A $ R`.
 - Kept as applied:
@@ -2130,7 +2131,7 @@ text names no `fold`, so the row parameter is in the draft signature under
 - `ScriptedProcess::new(outputs)` is the constructor.
 
 Applied 2026-09-29. The prelude `Iterator` part is in the specification:
-[Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) gives
+[Iterator Adapters](../spec/std/iter.md#iterator-adapters) gives
 `filter`, `take`, `enumerate`, and `collect`. Superseded 2026-09-29 by
 Chaining Study CS7 and CS8:
 `Iterator` is a data type, so `map` and `fold` are ordinary methods and

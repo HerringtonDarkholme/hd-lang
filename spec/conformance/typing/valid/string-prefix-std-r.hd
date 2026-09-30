@@ -1,5 +1,5 @@
 # test: the standard prefix r takes any displayable value
-# Spec 05 Prefixed Strings: r is an ordinary std.text prefix over Template[Display].
+# std Text, Raw Text Prefix: r is an ordinary std.text prefix over Template[Display].
 use std.text.r
 
 fn digits(count: i32) -> string:

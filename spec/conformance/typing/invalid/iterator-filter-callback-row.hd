@@ -1,5 +1,5 @@
 # test: a filter callback with a requirement row does not fit the empty-row keep parameter
-# Spec 06 Iterator Adapters: flow.adapter.callback-row (STDLIB question 14).
+# std Iterators, Iterator Adapters: std-iter.adapter.callback-row (STDLIB question 14).
 
 trait Logger
 
