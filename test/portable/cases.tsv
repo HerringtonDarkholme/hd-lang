@@ -1454,3 +1454,11 @@ typing/invalid/placeholder-outside-pipe.hd	type
 typing/valid/pipe-steps.hd	type
 runtime/valid/pipe-nested-placeholder.hd	runtime
 runtime/valid/pipe-bare-method-step.hd	runtime
+parse/valid/method-references.hd	parse
+runtime/valid/method-references-run.hd	runtime
+runtime/valid/pipe-method-reference-step.hd	runtime
+typing/invalid/bound-reference-readonly-receiver.hd	type
+typing/invalid/field-reference.hd	type
+typing/invalid/pipe-suspending-method-reference.hd	type
+typing/invalid/trait-reference-unsolved-self.hd	type
+typing/invalid/bound-reference-associated-function.hd	type

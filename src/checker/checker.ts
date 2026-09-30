@@ -34,6 +34,7 @@ export class FunctionChecker extends ExpressionControlChecker {
       this.checkControlExpression(expression, expected) ??
       this.checkMatchExpression(expression, expected) ??
       this.checkPipeExpression(expression, expected) ??
+      this.checkMethodReference(expression, expected) ??
       this.checkClosureExpression(expression, expected);
     if (checked !== undefined) return checked;
     throw new Error(`unsupported expression '${expression.kind}'`);

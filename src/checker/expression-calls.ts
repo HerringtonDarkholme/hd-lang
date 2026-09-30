@@ -27,7 +27,8 @@ import {
   traitTypeName,
 } from "./shared.ts";
 
-import { type QualifiedCallExpression, TraitCallChecker } from "./trait-calls.ts";
+import type { QualifiedCallExpression } from "./trait-calls.ts";
+import { MethodReferenceChecker } from "./method-references.ts";
 import { supertraitPathBindings } from "./trait-paths.ts";
 import { literalArgumentsUseDefaults, speculationSafeArguments } from "./call-speculation.ts";
 import { isDowncastValImport } from "./inspectable.ts";
@@ -43,7 +44,7 @@ interface NamedCallExpression extends CallExpression {
   readonly callee: Extract<Expression, { kind: "name" }>;
 }
 
-export abstract class ExpressionCallChecker extends TraitCallChecker {
+export abstract class ExpressionCallChecker extends MethodReferenceChecker {
   protected checkCallExpression(
     expression: Expression,
     expected?: ValueType,
@@ -245,6 +246,10 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
             type: "void",
             span: expression.span,
           };
+    }
+    if (expression.arguments.length === 0) {
+      const display = this.primitiveToString(receiver, methodName, expression.span);
+      if (display) return display;
     }
     const receiverNominal = nominalGenericParts(readonlyType(receiver.type));
     if (receiverNominal?.name === "List" && expression.callee.name === "len") {
@@ -1294,15 +1299,10 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       const inspection = this.checkInspectFunctionCall(expression, "of", expected);
       if (inspection) return inspection;
     }
-    if (
-      !this.traitTypes.has(owner) &&
-      (this.resolveLocal(owner) || this.availableCaptures.has(owner) || this.resolveGlobal(owner))
-    )
-      this.fail(
-        "deferred-method-value",
-        `'${owner}::${expression.callee.name}' is a bound method value, which is deferred; call '${owner}.${expression.callee.name}(...)'`,
-        expression.callee.span,
-      );
+    // A called bound reference `value::name(...)` is the method call
+    // `value.name(...)` (07-functions.md#r-fn.ref.call).
+    if (this.namesReferenceValue(owner))
+      return this.checkMemberCall(this.receiverMemberCall(expression, 0), expected);
     const trait = this.traitTypes.get(owner);
     if (trait) {
       const sourceArguments = expression.callee.ownerTypeArguments ?? [];
@@ -1340,6 +1340,10 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
         );
       const receiverSource = expression.arguments[0]!;
       const receiver = this.checkExpression(receiverSource);
+      if (trait.name === "Display" && expression.arguments.length === 1) {
+        const display = this.primitiveToString(receiver, expression.callee.name, expression.span);
+        if (display) return display;
+      }
       const memberExpression: MemberCallExpression = {
         ...expression,
         callee: {
@@ -1378,6 +1382,13 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       this.resolveType(argument),
     );
     const ownerType = ownerArguments.length > 0 ? nominalGenericType(owner, ownerArguments) : owner;
+    // `Type::method(receiver, ...)` calls the unbound reference, receiver
+    // first (07-functions.md#r-fn.ref.call).
+    if (
+      this.hasReceiverMethod(ownerType, expression.callee.name) &&
+      expression.arguments.length > 0
+    )
+      return this.checkReceiverFirstCall(expression, ownerType, expected);
     const associatedCandidates = this.implementations.flatMap((implementation) => {
       const substitutions = new Map<string, ValueType>();
       if (!matchGenericTypePattern(implementation.targetType, ownerType, substitutions)) return [];

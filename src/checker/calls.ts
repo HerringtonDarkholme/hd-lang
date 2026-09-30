@@ -531,6 +531,9 @@ export abstract class CallChecker extends StatementChecker {
    * (07-functions.md#generic-function-values).
    */
   private isGenericFunctionValue(source: Expression): boolean {
+    // A method reference may take its generic parameters, such as a trait
+    // reference's `Self`, from the expected type (07-functions.md#r-fn.ref.trait-self).
+    if (source.kind === "qualified-name") return true;
     if (source.kind === "name") {
       if (source.typeArguments) return false;
       if (this.resolveLocal(source.name) || this.availableCaptures.has(source.name)) return false;

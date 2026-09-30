@@ -151,7 +151,11 @@ export abstract class ExpressionParser extends ParserBase {
       if (
         this.atText("[") &&
         (left.kind === "name" || left.kind === "member" || left.kind === "qualified-name") &&
-        (this.typeArgumentsFollowedBySuffix() || this.bracketHoldsTypeArgumentList())
+        // A method reference writes its type arguments after the name
+        // (07-functions.md#r-fn.ref.generic).
+        ((left.kind === "qualified-name" && left.typeArguments === undefined) ||
+          this.typeArgumentsFollowedBySuffix() ||
+          this.bracketHoldsTypeArgumentList())
       ) {
         const start = left.span.start;
         this.advance();
@@ -166,7 +170,6 @@ export abstract class ExpressionParser extends ParserBase {
             this.current().span,
           );
         left = { ...left, typeArguments, span: { start, end: close.span.end } };
-        if (left.kind === "qualified-name") this.rejectMethodValue(left.span);
         continue;
       }
       if (
@@ -203,7 +206,6 @@ export abstract class ExpressionParser extends ParserBase {
           name: member.text,
           span: { start: left.span.start, end: member.span.end },
         };
-        if (!this.atText("[")) this.rejectMethodValue(left.span);
         continue;
       }
       if (this.atText("{") && left.kind === "name") {
@@ -1230,19 +1232,6 @@ export abstract class ExpressionParser extends ParserBase {
       "unsupported-context-operation",
       `provider-context operation '$.${operation.text}' is not implemented yet`,
       operation.span,
-    );
-  }
-
-  /**
-   * `Type::name` and `x::name` without a call are reserved for future method
-   * values (the unbound method function and the bound method value).
-   */
-  private rejectMethodValue(span: SourceSpan): void {
-    if (this.atText("(") || (this.atText("!") && ["(", "["].includes(this.peek(1).text))) return;
-    this.fail(
-      "deferred-method-value",
-      "method values are deferred: 'Type::name' and 'x::name' must be called",
-      span,
     );
   }
 

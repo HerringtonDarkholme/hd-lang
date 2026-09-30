@@ -442,6 +442,16 @@ else`, `break`, `break value`, and `continue`;
   `Self` substitution, method-level generics, and suspending calls, inherent
   first and then the implemented traits (`ambiguous-method` for two);
   `T::function()` on a type parameter calls through the bound's dictionary;
+- method references (`checker/method-references.ts`): `Type::method`,
+  `Trait::method`, and `T::method` are checked as the closure that calls the
+  member, receiver first, with type arguments written after the name or
+  solved from the expected function type (a trait reference's `Self`
+  included). `value::method` evaluates the receiver once and closes over it.
+  A called reference is an ordinary call: `value::name(...)` is a method
+  call, and `Type::method(receiver, ...)` calls the method on its first
+  argument. `to_string` on a primitive calls its built-in `Display`. A
+  closure cannot reach its enclosing function's bound dictionaries, so a
+  `T::method` reference to a bound's method fails, as such a closure does;
 - blanket trait implementations over generic targets, with unified target and
   trait-argument inference; their adapters materialize static, dynamic, and
   bound dictionaries for ordinary and suspending methods; bounded blanket
