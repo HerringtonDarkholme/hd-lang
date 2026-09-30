@@ -1180,7 +1180,7 @@ class Parser extends DecoratorParser {
             name: names[0]!.token.text,
             annotation,
             mutable: true,
-            ...(names[0]!.mutableAccess ? { mutableAccess: true } : {}),
+            ...(names[0]!.mutSpan ? { mutableAccess: true, mutSpan: names[0]!.mutSpan } : {}),
             value,
             span: { start, end },
           }
@@ -1188,7 +1188,7 @@ class Parser extends DecoratorParser {
             kind: "tuple-binding",
             bindings: names.map((name) => ({
               name: name.token.text,
-              ...(name.mutableAccess ? { mutableAccess: true } : {}),
+              ...(name.mutSpan ? { mutableAccess: true, mutSpan: name.mutSpan } : {}),
               span: name.token.span,
             })),
             annotation,

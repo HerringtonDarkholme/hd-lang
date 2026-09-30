@@ -1583,3 +1583,4 @@ parse/valid/grammar-disambiguation.hd	parse
 runtime/valid/binding-expressions.hd	runtime
 runtime/valid/binding-expression-tuple-value.hd	runtime
 parse/invalid/trailing-block-in-same-line-suite.hd	parse
+typing/warnings/let-list-redundant-mut.hd	type

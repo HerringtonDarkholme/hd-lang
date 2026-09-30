@@ -370,8 +370,11 @@ export abstract class StatementChecker extends CheckerContext {
       const element = elements[index]!;
       if (binding.mutableAccess) {
         const annotated = annotatedElements?.[index];
-        if (annotated !== undefined) this.requireMutableAnnotation(annotated, binding);
-        else this.requireMutableValue(element, binding.span);
+        if (annotated !== undefined) {
+          this.requireMutableAnnotation(annotated, binding);
+          // (04-type-system.md#r-types.bind.let-mut-pattern.redundant)
+          this.warnRedundantLetMut(binding);
+        } else this.requireMutableValue(element, binding.span);
         return element;
       }
       return annotation ? element : readonlyType(element);
@@ -437,6 +440,31 @@ export abstract class StatementChecker extends CheckerContext {
     }
     return output;
   }
+  /**
+   * A `mut` before a name whose annotated type is already `mut T` is
+   * redundant; the fix-it deletes it and keeps the annotation
+   * (04-type-system.md#r-types.bind.let-mut-annotated.fix).
+   */
+  private warnRedundantLetMut(site: {
+    readonly span: SourceSpan;
+    readonly mutSpan?: SourceSpan;
+  }): void {
+    this.diagnostics.push({
+      code: "redundant-let-mut",
+      message: "the annotated type already has mutable access, so 'mut' before the name is redundant",
+      span: site.mutSpan ?? site.span,
+      severity: "warning",
+      ...(site.mutSpan
+        ? {
+            fix: {
+              message: "remove 'mut'",
+              edits: [{ span: site.mutSpan, replacement: "" }],
+            },
+          }
+        : {}),
+    });
+  }
+
   /** `let mut` needs an annotation whose root is `mut` (04-type-system.md#r-types.bind.let-mut-annotation). */
   private requireMutableAnnotation(
     annotation: ValueType,
@@ -513,12 +541,7 @@ export abstract class StatementChecker extends CheckerContext {
       this.requireMutableAnnotation(annotation, statement);
       // The `mut` after `let` is redundant with a `mut T` annotation
       // (04-type-system.md#r-types.bind.let-mut-annotated.warning).
-      this.diagnostics.push({
-        code: "redundant-let-mut",
-        message: "the annotated type already has mutable access, so 'mut' after 'let' is redundant",
-        span: statement.span,
-        severity: "warning",
-      });
+      this.warnRedundantLetMut(statement);
     }
     const storedSuspension = annotation ? storedSuspensionParts(annotation) : undefined;
     let recursiveLocal: HirLocal | undefined;

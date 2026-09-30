@@ -377,6 +377,8 @@ export interface BindingName {
   readonly name: string;
   /** Written `mut name` in a multi-name `let` (04-type-system.md#r-types.bind.let-mut-pattern). */
   readonly mutableAccess?: boolean;
+  /** From `mut` to the name, which the `redundant-let-mut` fix-it deletes. */
+  readonly mutSpan?: SourceSpan;
   readonly span: SourceSpan;
 }
 
@@ -456,6 +458,8 @@ export type Statement =
       readonly mutable: boolean;
       /** Written `let mut name` (04-type-system.md#r-types.bind.let-mut-infer). */
       readonly mutableAccess?: boolean;
+      /** From `mut` to the name, which the `redundant-let-mut` fix-it deletes. */
+      readonly mutSpan?: SourceSpan;
       readonly value: Expression;
       // A local `fn` declaration that omits its result type.
       readonly localFunction?: boolean;

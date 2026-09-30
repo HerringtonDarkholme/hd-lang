@@ -491,10 +491,15 @@ export abstract class ParserBase {
    * The names after `let`: one name, or a parenthesized list of two or more,
    * each optionally written `mut name` (02-grammar.md#let-statements).
    */
-  protected parseLetNames(): { token: Token; mutableAccess: boolean }[] {
+  protected parseLetNames(): { token: Token; mutableAccess: boolean; mutSpan?: SourceSpan }[] {
     const letName = (message: string) => {
-      const mutableAccess = this.matchText("mut");
-      return { token: this.expectKind("identifier", message), mutableAccess };
+      const mut = this.atText("mut") ? this.advance() : undefined;
+      const token = this.expectKind("identifier", message);
+      return {
+        token,
+        mutableAccess: mut !== undefined,
+        ...(mut ? { mutSpan: { start: mut.span.start, end: token.span.start } } : {}),
+      };
     };
     const names: ReturnType<typeof letName>[] = [];
     if (this.atText("(")) {

@@ -350,7 +350,8 @@ else`, `break`, `break value`, and `continue`;
   per name in a parenthesized `let (mut a, b)` list, that infer `mut T`,
   reject a readonly value (`mutable-upgrade`), a readonly annotation
   (`let-mut-readonly-type`), or a primitive (`mut-on-primitive`), warn on
-  a redundant `mut` annotation (`redundant-let-mut`), and use a
+  a redundant `mut` before a name, alone or in a list, whose annotated type
+  is already `mut` (`redundant-let-mut`, with a fix-it that deletes it), and use a
   non-generic data literal as `mut T`; multi-name `:=` bindings are written
   `(a, b) := pair`, and the bare `let a, b` and `a, b :=` lists are
   `syntax-error`s whose fix-it adds the parentheses. A primitive type
