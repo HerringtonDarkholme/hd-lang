@@ -250,7 +250,7 @@ Names that the compiler, the toolchain, or the prelude gives a meaning.
 | N18 | `std.convert.From`, `std.error.Error`, `std.process.Termination`, `std.format.Display` | [`trait.from.propagation`](../spec/09-traits.md#r-trait.from.propagation), [`module.entry.termination`](../spec/10-modules.md#r-module.entry.termination) | Traits the language calls without an import. |
 | N19 | `std.task.block_on`, `all!`, `race!`, `host_wait!` | [`req.drive.block-on`](../spec/11-requirements-and-suspension.md#r-req.drive.block-on) | Drivers and combinators. |
 | N20 | `std.function.Fn`, `SuspendFn`, `Rest` | [`fn.type.ctor.decl`](../spec/07-functions.md#r-fn.type.ctor.decl) | Function type constructors. |
-| N21 | `std.time` `ms`, `s`, `min`, `h`; `std.text.r` | [`expr.suffix.std.only-four`](../spec/05-expressions.md#r-expr.suffix.std.only-four), [`std-text.prefix.std.only-r`](../spec/std/text.md#r-std-text.prefix.std.only-r) | The standard suffixes and prefix. |
+| N21 | `std.time` `ms`, `s`, `min`, `h`; `std.text.r` | [`std-time.suffix.std.only-four`](../spec/std/time.md#r-std-time.suffix.std.only-four), [`std-text.prefix.std.only-r`](../spec/std/text.md#r-std-text.prefix.std.only-r) | The standard suffixes and prefix. |
 | N22 | `Iterator::from_fn`, `iter`, `next` | [`flow.for.iterator-from-fn`](../spec/06-control-flow.md#r-flow.for.iterator-from-fn) | The iteration protocol. |
 | N23 | `T::zero`, `one`, `from_i64` | [`trait.num.members`](../spec/09-traits.md#r-trait.num.members) | Numeric constants in generic code. |
 | N24 | Panic categories | [`flow.panic.category-set`](../spec/06-control-flow.md#r-flow.panic.category-set) | 13 names, also the `expect_panic` vocabulary. |

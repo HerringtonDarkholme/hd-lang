@@ -2,13 +2,17 @@
 
 Status: decided plan. The owner accepted every recommendation on
 2026-09-30 ([Owner Decisions](#owner-decisions)), and migration steps 1
-to 8 are done. Nothing here is accepted behavior until a move task
+to 10 are done. Nothing here is accepted behavior until a move task
 puts it in the spec. Step 4 moved Property Tests and Draw Budget to
 [Testing](../spec/std/testing.md), step 5 moved Derived Arbitrary, and
 step 6 moved the `timeout` option's effect, table-test rows, and snapshot
 files there. Step 7 moved the iterator adapters and collect targets to
 [Iterators](../spec/std/iter.md), and step 8 moved the string methods
-above the intrinsics and `r` to [Text](../spec/std/text.md). It answers
+above the intrinsics and `r` to [Text](../spec/std/text.md). Step 9
+moved `debug`'s text and the Debug builders to [Format](../spec/std/format.md),
+and `Duration` and its suffixes to [Time](../spec/std/time.md). Step 10
+left the retry combinator in the language tier ([Still Open](#still-open)).
+It answers
 the owner's request of 2026-09-30:
 
 > is Arbitrary/stdlib stuff should be inside language spec? if they can be
@@ -34,6 +38,7 @@ Under review: the AGENTS.md rule
 6. [Tooling And Process](#tooling-and-process)
 7. [Migration Plan](#migration-plan)
 8. [Owner Decisions](#owner-decisions)
+9. [Still Open](#still-open)
 
 ## Problem
 
@@ -62,9 +67,9 @@ fixtures, 87 use such an item, and about 40 cite its section.
 | [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary) | `module.testing.arbitrary.*` | [`std-testing.arbitrary.derive.template`](../spec/std/testing.md#r-std-testing.arbitrary.derive.template) says the compiler supplies nothing for it |
 | [String Methods](../spec/std/text.md#string-methods) | `module.string.*` | `trim`, `lower`, `split`, `replace`, `starts_with` are std code over bytes |
 | [Iterator Adapters](../spec/std/iter.md#iterator-adapters) | `flow.adapter.*`, `flow.collect.*` | [`std-iter.adapter.methods`](../spec/std/iter.md#r-std-iter.adapter.methods) calls them ordinary methods |
-| [Debug Builders](../spec/09-traits.md#debug-builders) | `trait.debug.builder.*`, `.derive-builders.*` | `DebugStruct` and its layout are not prelude names |
+| [Debug Builders](../spec/std/format.md#debug-builders) | `trait.debug.builder.*`, `.derive-builders.*` | `DebugStruct` and its layout are not prelude names |
 | [Snapshot Files](../spec/std/testing.md#snapshot-files), [Table-Test Rows](../spec/std/testing.md#table-test-rows) | `module.testing.snapshot*`, `.it-each.*` | file paths, update runs, and row names are runner behavior |
-| [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings) | `expr.suffix.std.*`, `expr.prefix.std.*` | `ms`, `s`, and `r` are ordinary functions |
+| [Duration Suffixes](../spec/std/time.md#duration-suffixes), [Raw Text Prefix](../spec/std/text.md#raw-text-prefix) | `expr.suffix.std.*`, `expr.prefix.std.*` | `ms`, `s`, and `r` are ordinary functions |
 
 Go and Rust keep these apart. The
 [Go spec](https://go.dev/ref/spec) defines built-ins such as `len` and
@@ -129,7 +134,7 @@ so that test would pull every string method into the language tier.
 | `DebugWriter` builders, layout, derived mapping | no | stdlib |
 | `println`, `Console` | prelude, host capability, harness | language |
 | `Duration`, `ms`, `s`, `r` | no: ordinary suffix and prefix functions | stdlib |
-| retry combinator in `std.task` | no, if a `fn!` loop of bang calls expresses it | stdlib; check in task 10 |
+| retry combinator in `std.task` | undecided: it turns on retry's signature, which is not decided | language until the owner decides; step 10 left it ([Still Open](#still-open)) |
 | derived `Arbitrary` | no, by its rules; the prototype still needs the checker | stdlib; the two gaps below are settled |
 
 ### Gaps Found By The Prototype
@@ -184,7 +189,7 @@ prefix instead, so the rule it shows stays language-tier.
 | 10 | Snapshots: the `snapshot` signature and `module.testing.snapshot.literal` | language | stays |
 | 10 | Snapshots: the rest | stdlib | `std/testing.md` |
 | [11](../spec/11-requirements-and-suspension.md) | everything but the next row | language | stays |
-| 11 | `req.combinator.retry` | stdlib if a `fn!` loop expresses it | `std/task.md` |
+| 11 | `req.combinator.retry` | language until its signature is decided | stays; step 10 recorded why in [Still Open](#still-open) |
 | [README](../spec/README.md) | diagnostics, glossary, Revision Notes | language | stays; moved terms' glossary rows move |
 
 Every diagnostic code stays in the README table: each is a compiler check.
@@ -296,8 +301,8 @@ Each task is about an hour, and each ends with `bash spec/check.sh`,
 | 6 | Done. `std/testing.md`, part 3: Test Timeout, Table-Test Rows, Snapshot Files, 18 IDs; `std.testing.snapshot_file` in `stdlib-items.tsv`; the three `timeout` and `snapshot_file` crossing rows removed | 6 cases, and 1 new case split from two language cases |
 | 7 | Done. `std/iter.md`: adapters, collect targets, `FromIterator`, `List.map`, optional `map`, 32 IDs; `std.iter.FromIterator` in `stdlib-items.tsv`; five `List.map`, `map`, and `collect` fixtures rewritten over local helpers or a `for` loop, and their crossing rows removed | 13 cases, and 1 new case split from `try-operand-expected-type.hd` |
 | 8 | Done. `std/text.md`: `trim`, `lower`, `split`, `replace`, `starts_with`, and `r`, 12 IDs; `chars` and `char_indices` stay language tier; `std.text.r` in `stdlib-items.tsv`; the 23 text crossing rows removed: 8 cases now cite `std/text.md`, 13 fixtures use language-tier operations or a local prefix instead, and 2 need nothing | 11 cases |
-| 9 | `std/format.md`: Debug builders and layout; `std/time.md`: `Duration` and suffixes; local suffixes and prefixes in the ch01, 03, 04, 05 examples | 4 cases, and most of the 17 fixtures that import `std.time` or `std.text` |
-| 10 | Retry combinator, if a `fn!` loop expresses it; else record why it stays | 0 or 1 |
+| 9 | Done. `std/format.md`: `debug`'s text, the Debug builders and layout, and the derived builder mapping, 17 IDs; `std/time.md`: `Duration`, its API, and the `ms`, `s`, `min`, and `h` suffixes, 11 IDs; the ch01, 03, 04, and 05 examples declare local suffixes and prefixes; `std.time` and the four `std.format` builder types in `stdlib-items.tsv`; the 6 `std.time` crossing rows removed, which empties `tier-crossings.tsv`; the `Duration` reading in [Still Open](#still-open) | 5 cases, and 1 new case split from `literal-suffix-duration.hd` |
+| 10 | Done. The retry combinator stays in the language tier: the tier test turns on its undecided signature ([Still Open](#still-open)) | 0 |
 | 11 | Links: `future-work/TESTING.md` (23), `SPECIAL_CASES.md`, `RUNTIME_AND_LIBRARY.md`, `lib/std` and `src/` comments; audit per-tier counts | nothing |
 
 "Cases" counts rows whose primary section moves. Each move task edits the
@@ -340,3 +345,58 @@ next to `facts()`.
 `Structure.name()` is a language-tier addition: `std.structure` bodies are
 compiler-supplied. Step 5 applied it in
 [The Structure Trait](../spec/14-annotations.md#the-structure-trait).
+
+## Still Open
+
+Nothing in this section is decided. Each item is a reading that a
+migration step applied, or a question it could not settle, with a
+labeled recommendation for the owner.
+
+### Duration In The Test Signatures
+
+The language tier's signatures of `it`, `it_each`, `it_prop`, and
+`it_prop_with` name `timeout: Duration?`. Step 9 moved `Duration` to
+[Time](../spec/std/time.md#duration).
+
+| Option | Language-tier text | Kinds of change |
+| --- | --- | --- |
+| A. The harness signatures name a std type | a Note in [Test Cases](../spec/10-modules.md#test-cases) says `Duration` is the stdlib-tier `std.time.Duration`, named in these signatures only | none |
+| B. `Duration` becomes a lang item | a language rule declares `std.time.Duration` and its representation | compiler intrinsic |
+| C. `timeout` takes a language-tier type | the signatures change, for example to milliseconds in an `i64` | a design change, with every `timeout` fixture |
+
+**Reading applied (option A).** The language tier names `Duration` as the
+parameter type and specifies nothing else about it. No language rule
+depends on its values: `module.testing.it.options-strings` checks only
+`ignore` and `expect_panic`, and `timeout="5s"` fails as any string
+argument to a non-string parameter does. What the option does is already
+stdlib tier ([Test Timeout](../spec/std/testing.md#test-timeout)). The
+same reading already covers `Arbitrary` and `Choices` in the `it_prop` and
+`it_prop_with` signatures, which step 4 moved. It is consistent with ST5,
+since `it` stays language tier, and with ST6, since registration stays
+while generation moves.
+
+**Recommendation.** Keep option A. It needs no new rule and no compiler
+knowledge of `Duration`. A compiler with only the language-tier std must
+still declare some `std.time.Duration` for these signatures to resolve.
+That is one data type, and the language suite never builds a value of it.
+
+### The Retry Combinator
+
+[`req.combinator.retry`](../spec/11-requirements-and-suspension.md#r-req.combinator.retry)
+stays in the language tier. The tier test does not clearly move it:
+
+| Point | Effect |
+| --- | --- |
+| Signature | None is decided. [`req.combinator.library`](../spec/11-requirements-and-suspension.md#r-req.combinator.library) leaves it, and the complete intrinsic set, to std design. |
+| Candidate | [STDLIB's draft](STDLIB.md) `retry!` takes `attempt: fn() -> mut Suspend[Result[T, E]]`, so it drives `Suspend` values, as `all!` and `race!` do. |
+| Intrinsic? | [`req.combinator.intrinsic`](../spec/11-requirements-and-suspension.md#r-req.combinator.intrinsic) makes the polling combinators intrinsics, and [Open Issues](OPEN_ISSUES.md) lists retry among the compiler-intrinsic `std.task` combinators. |
+| A `fn!` loop | A retry whose attempt is a `fn!` body is a loop of bang calls. Its cancellation rule then follows from [Cancellation](../spec/11-requirements-and-suspension.md#cancellation) alone. |
+
+So the answer turns on a signature the owner has not chosen. Moving the
+rule now would also make `std/task.md` a chapter for one rule about an
+API with no specified signature.
+
+**Recommendation.** Leave the rule where it is. When the owner decides
+`retry!`'s signature, apply the tier test to it: a `fn!` body moves the
+rule to `std/task.md` as `std-task.combinator.retry`, and a `Suspend`
+constructor keeps it beside `all!` and `race!`.

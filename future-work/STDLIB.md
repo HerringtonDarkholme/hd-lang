@@ -50,12 +50,12 @@ undecided design.
 | Module | Names fixed today | Tier | Source |
 | --- | --- | --- | --- |
 | `std.core` | primitives, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` | language | [Prelude](../spec/10-modules.md#prelude) |
-| `std.format` | `Display`, `Debug`, `DebugWriter`, `debug` | language; `DebugWriter` builders and layout: std | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md), [Debug Trait](../spec/09-traits.md#debug-trait) |
+| `std.format` | `Display`, `Debug`, `DebugWriter`, `debug` | language; `debug`'s text, `DebugWriter` builders and layout, derived builder calls: std | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md), [Debug Trait](../spec/09-traits.md#debug-trait), [Format](../spec/std/format.md) |
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | language | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.hash` | `Hash`, `Hasher` | language | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.iter` | `Iterator` (a data type), `Iterable`, `FromIterator`; the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as `Iterator` methods | language: `Iterator`, `Iterable`; std: `FromIterator` and the adapters | [For Loops](../spec/06-control-flow.md), [Iterator Adapters](../spec/std/iter.md#iterator-adapters) |
 | `std.console` | `Console`, `ConsoleError`, `println` | language | [Prelude](../spec/10-modules.md#prelude) |
-| `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, a retry combinator | language; the retry combinator: std if a `fn!` loop expresses it | [Requirements and Suspension](../spec/11-requirements-and-suspension.md) |
+| `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, a retry combinator | language; the retry combinator stays until its signature is decided ([Spec Tiers, Still Open](SPEC_TIERS.md#still-open)) | [Requirements and Suspension](../spec/11-requirements-and-suspension.md) |
 | `std.annotation` | shape names and `shape`, `shape_of`; `Target`, `Annotate`, `annotate` | language | [Annotations](../spec/14-annotations.md) |
 | `std.testing` | `assert`, `assert_equal`, `it`, `it_each`, `it_prop`, `it_prop_with`, `snapshot`, `snapshot_file` | language: `assert`, `assert_equal`, `it`, registration of the rest, `snapshot`'s literal check; std: rows, generation, shrinking, draw budget, snapshot files, `timeout` | [Standard Testing](../spec/10-modules.md#standard-testing) |
 | `std.resource` | `ResourceError[E]` | language | [Wasm Boundary](../spec/10-modules.md#wasm-boundary) |
@@ -64,7 +64,7 @@ undecided design.
 | `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; the twelve operator traits `Add` to `Shr`, and `Index` and `IndexSet` | language | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings), [Operator Traits](../spec/05-expressions.md#operator-traits), [Compound Assignment](../spec/05-expressions.md#compound-assignment), [Index Traits](../spec/05-expressions.md#index-traits) |
 | `std.num` | the sealed traits `Num`, `Integer`, and `Float`, with `zero`, `one`, and `from_i64` on `Num` | language | [Numeric Traits](../spec/09-traits.md#numeric-traits) |
 | `std.text` | the string prefix `r`; the `string` methods `trim`, `lower`, `split`, `replace`, and `starts_with` | std | [Text](../spec/std/text.md) |
-| `std.time` | `Duration`; the literal suffixes `ms`, `s`, `min`, `h` | std | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
+| `std.time` | `Duration`; the literal suffixes `ms`, `s`, `min`, `h` | std | [Time](../spec/std/time.md) |
 | `std.host` | `Args` | not in the spec | [Program Entry Points](../guide/LANGUAGE_TOUR.md#program-entry-points) (example) |
 | `std.fingerprint` | the persisted-identity digest | not in the spec | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
 | `std.incremental` | incremental graph library | not in the spec | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
@@ -1120,11 +1120,11 @@ impl Clock for ManualClock:
 
 The suffix newtypes let code write `250ms` or `5s` for a `Duration`, each
 imported by name, as in `use std.time.{ms, s}`
-([Literal Suffixes](../spec/05-expressions.md#literal-suffixes)). There is no
+([Duration Suffixes](../spec/std/time.md#duration-suffixes)). There is no
 `m`, which could mean meters, and no `d`, since a day is not always 24
 hours (L9). A `Duration` is a whole number of milliseconds in an `i64`, so
 there is no `ns` or `us` until a finer representation exists (L17,
-[`expr.suffix.std.duration`](../spec/05-expressions.md#r-expr.suffix.std.duration)).
+[`std-time.suffix.std.duration`](../spec/std/time.md#r-std-time.suffix.std.duration)).
 
 Reading the clock is a plain call (decision 2); only `sleep!` suspends. A
 test installs a manual clock with mutable access, so `sleep!` can advance it:
@@ -1806,7 +1806,7 @@ pub trait Debug:
 ```
 
 `DebugWriter` is a structured writer with builder calls, like Rust's
-`debug_struct` and `field`, as [Debug Builders](../spec/09-traits.md#debug-builders) specifies (Testing T53). The
+`debug_struct` and `field`, as [Debug Builders](../spec/std/format.md#debug-builders) specifies (Testing T53). The
 derived implementation is a walker over the members, and `debug(x) -> string`
 prints stable, multi-line, consistently indented output. `std` implements
 `Debug` for primitives, collections, `T?`, `Result`, and tuples.
