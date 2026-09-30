@@ -9,10 +9,10 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,397 of the 1,594 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 197 are listed in
+On 2026-09-30 the prototype passes 1,398 of the 1,599 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 201 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 197 still fail.
+decision below, and all 201 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
@@ -39,6 +39,7 @@ them by tag:
 | DC7 | 1 | group statements are not interleaved across modules |
 | GQ4 | 1 | the prototype has no pack operations |
 | MHP-1 | 1 | no inferred script entry requirement row |
+| PS | 4 | provider scope batch 14: a closure written in a `$.with` block still captures that block's providers, so its row omits the key |
 
 ## What Remains
 

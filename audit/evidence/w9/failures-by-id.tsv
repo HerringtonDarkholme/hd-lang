@@ -20,3 +20,4 @@ F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md 
 DC7	1	An initialization group's statements are not interleaved: the package linker joins the group's modules by identity, so a read of a later-joined module's binding fails
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer
+PS	4	Provider scope batch 14 (PS3): closures no longer capture providers from an enclosing `$.with`, so each key they use stays in their row; the prototype still captures them, so it accepts escaping or empty-row closures and serves the caller's provider
