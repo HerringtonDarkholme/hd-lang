@@ -1172,7 +1172,7 @@ runtime/valid/suspending-test-body.hd	runtime	accept	10-modules.md#r-module.test
 runtime/valid/test-body-return.hd	runtime	accept	06-control-flow.md#r-flow.return.callback
 runtime/valid/test-body-explicit-closure.hd	runtime	accept	05-expressions.md#r-expr.try.test.explicit-closure
 typing/invalid/test-body-string-error.hd	type	reject:invalid-result-propagation	05-expressions.md#r-expr.try.test.converts
-runtime/valid/it-each-rows.hd	runtime	accept	10-modules.md#r-module.testing.it-each
+runtime/valid/it-each-rows.hd	runtime	accept	std/testing.md#r-std-testing.it-each
 typing/invalid/unit-test-missing-requirement.hd	type	reject:missing-requirement	10-modules.md#r-module.testing.unit-row
 typing/valid/default-before-final-function.hd	type	accept	07-functions.md#r-fn.default.final-function
 runtime/valid/it-body-by-name.hd	runtime	accept	10-modules.md#r-module.testing.it-function
@@ -1183,6 +1183,7 @@ typing/invalid/it-each-outside-test-position.hd	type	reject:misplaced-test-case	
 typing/invalid/it-each-name-clash.hd	type	reject:duplicate-test-name	10-modules.md#r-module.testing.it-each.name-clash
 typing/invalid/it-each-non-literal-name.hd	type	reject:non-literal-test-argument	10-modules.md#r-module.testing.variants.name
 runtime/valid/it-each-options.hd	runtime	accept	10-modules.md#r-module.testing.variants.options
+runtime/valid/test-timeout-options.hd	runtime	accept	std/testing.md#r-std-testing.option.timeout-any-duration
 runtime/valid/it-each-propagation.hd	runtime	accept	05-expressions.md#r-expr.try.test.row-body
 typing/valid/snapshot-inline.hd	type	accept	10-modules.md#snapshots
 typing/invalid/snapshot-non-literal-expect.hd	type	reject:non-literal-test-argument	10-modules.md#r-module.testing.snapshot.literal
@@ -1201,14 +1202,14 @@ typing/valid/literal-suffix-user.hd	type	accept	05-expressions.md#r-expr.suffix.
 typing/valid/literal-suffix-local-shadow.hd	type	accept	03-names-and-scopes.md#r-names.suffix.no-local
 typing/valid/literal-suffix-compile-time.hd	type	accept	05-expressions.md#r-expr.suffix.position-rules
 typing/valid/literal-suffix-negative-minimum.hd	type	accept	04-type-system.md#r-types.literal.suffixed.negation.check
-typing/valid/test-timeout-duration.hd	type	accept	10-modules.md#r-module.testing.option.timeout-any-duration
-typing/valid/test-timeout-call.hd	type	accept	10-modules.md#r-module.testing.option.timeout-any-duration
+typing/valid/test-timeout-duration.hd	type	accept	std/testing.md#r-std-testing.option.timeout-any-duration
+typing/valid/test-timeout-call.hd	type	accept	std/testing.md#r-std-testing.option.timeout-any-duration
 typing/invalid/unknown-literal-suffix.hd	type	reject:unknown-name	03-names-and-scopes.md#r-names.suffix.unknown-name
 typing/invalid/literal-suffix-float-into-integer.hd	type	reject:type-mismatch	04-type-system.md#r-types.literal.suffixed.kind
 typing/invalid/literal-suffix-unmarked.hd	type	reject:invalid-literal-suffix	05-expressions.md#r-expr.suffix.not-marked
 typing/invalid/literal-suffix-negative-range.hd	type	reject:integer-literal-range	04-type-system.md#r-types.literal.suffixed.negation.check
 typing/invalid/literal-suffix-requirement.hd	type	reject:missing-requirement	05-expressions.md#r-expr.suffix.ordinary-rules
-typing/invalid/test-timeout-string.hd	type	reject:type-mismatch	10-modules.md#r-module.testing.option.timeout-any-duration
+typing/invalid/test-timeout-string.hd	type	reject:type-mismatch	10-modules.md#r-module.testing.it-function
 typing/invalid/tests-root-outside-tests.hd	type	reject:test-only-use	10-modules.md#r-module.test.tests-root-elsewhere
 runtime/valid/literal-suffix-call.hd	runtime	accept	05-expressions.md#r-expr.suffix.fn-call
 typing/valid/decorator-targets.hd	type	accept	14-annotations.md#r-annot.decorator.targets
@@ -1253,8 +1254,8 @@ typing/valid/choices-arbitrary.hd	type	accept	std/testing.md#r-std-testing.choic
 runtime/panic/duration-suffix-overflow.hd	runtime	panic:integer-overflow	05-expressions.md#r-expr.suffix.std.overflow
 runtime/valid/duration-api.hd	runtime	accept	05-expressions.md#r-expr.suffix.std.duration-api
 typing/valid/println-top-level-script.hd	type	accept	10-modules.md#r-module.console.println-script
-runtime/panic/snapshot-mismatch.hd	runtime	panic:assertion-failed	10-modules.md#r-module.testing.snapshot.mismatch
-runtime/panic/snapshot-file-missing.hd	runtime	panic:assertion-failed	10-modules.md#r-module.testing.snapshot-file.missing-panic
+runtime/panic/snapshot-mismatch.hd	runtime	panic:assertion-failed	std/testing.md#r-std-testing.snapshot.mismatch
+runtime/panic/snapshot-file-missing.hd	runtime	panic:assertion-failed	std/testing.md#r-std-testing.snapshot-file.missing-panic
 typing/valid/derive-debug-shapes.hd	type	accept	09-traits.md#r-trait.debug.derive-builders.mapping
 typing/invalid/derive-before-trait.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.decorator.derive-targets
 typing/invalid/duplicate-function-fact.hd	type	reject:duplicate-fact	14-annotations.md#r-annot.decorator.duplicate

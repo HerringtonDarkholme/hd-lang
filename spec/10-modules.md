@@ -716,7 +716,7 @@ pub fn it[T < Termination, R](name: string, ignore: string? = .None, expect_pani
 2. r[module.testing.it.form] A call passes the test name as its one positional argument, then optional named options, then the body as its final argument, usually as a trailing block.
 3. r[module.testing.it.body] The body has type `fn!() -> T $ R` with `T < std.process.Termination`, so a trailing block body is a suspending closure.
 4. r[module.testing.it.name] The name must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
-5. r[module.testing.it.options-strings] The named options are those in the table below. An `ignore` or `expect_panic` value must be a string literal without interpolation. Any other value for them is an error. Error: `non-literal-test-argument`.
+5. r[module.testing.it.options-strings] The named options are those of the signature above: `ignore`, `expect_panic`, and `timeout`. An `ignore` or `expect_panic` value must be a string literal without interpolation. Any other value for them is an error. Error: `non-literal-test-argument`.
 6. r[module.testing.it.unknown-option] Any other named argument is an error. Error: `unknown-named-argument`.
 7. r[module.testing.test-position] **Test position** is the top level of a `tests:` block, of a [test module](#test-modules), or of an integration test module.
 8. r[module.testing.position-statements] Every statement in test position must be a call of `it`, `std.testing.it_each`, `std.testing.it_prop`, or `std.testing.it_prop_with`. Any other statement is an error. Error: `invalid-test-statement`.
@@ -727,24 +727,8 @@ pub fn it[T < Termination, R](name: string, ignore: string? = .None, expect_pani
 | --- | --- | --- | --- |
 | r[module.testing.option.ignore] Ignore | `ignore` | a reason | The runner does not run the test case and reports it as ignored, with the reason. |
 | r[module.testing.option.expect-panic] Expected panic | `expect_panic` | a [panic category](06-control-flow.md#panic-categories) | The test case passes only when its body panics with that category. |
-| r[module.testing.option.timeout-any-duration] Timeout | `timeout` | any `std.time.Duration` value, such as `5s` or a call that returns one | The runner fails the test case when its body runs longer than the duration. |
 
 1. r[module.testing.option.expect-panic.known] An `expect_panic` value that names no [panic category](06-control-flow.md#r-flow.panic.category-set) is an error. Error: `unknown-panic-category`.
-2. r[module.testing.option.timeout-at-run] A `timeout` value is an ordinary argument, not a literal. It is evaluated when the test case runs, in its program instance, as `it_each` rows are.
-3. r[module.testing.option.timeout-import] A suffix in a `timeout` value is imported like any other, as in `use std.time.s`; `it` adds no suffix of its own.
-
-```text
-use std.time.{Duration, s}
-
-fn budget() -> Duration: 30s
-
-tests:
-    it("fetches the index", timeout=5s):
-        pass
-
-    it("loads the archive", timeout=budget()):
-        pass
-```
 
 ```text
 fn name_of() -> string: "computed"
@@ -785,6 +769,9 @@ fn register() -> void:
 > Allowing only direct calls in test position keeps every test case
 > statically listable.
 
+See also: [Test Timeout](std/testing.md#test-timeout) in the stdlib tier,
+for what the `timeout` option does.
+
 #### Table Tests
 
 `std.testing` also declares `it_each`, which registers one test case per
@@ -810,28 +797,14 @@ pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choice
                                                 prop: fn!(T) -> R) -> void
 ```
 
-1. r[module.testing.it-each] A top-level call of `std.testing.it_each` registers one test case for each element of `rows`, which runs `body` with that element.
-2. r[module.testing.it-each.name] The test case for the element at index `i` is named `name[i]`.
-3. r[module.testing.it-each.import] `it_each` is not a prelude name; code imports it with `use std.testing.it_each`.
-4. r[module.testing.it-each.body-closure] Its body has a parameter, so it is an explicit `fn!` closure, not a trailing block. After omitted options, a call passes it by name, as in `body=fn!(value: i32): ...`.
-5. r[module.testing.it-each.rows-at-run] `rows` is evaluated when the test runs, in its program instance, not when test cases are listed.
-6. r[module.testing.it-each.name-clash] Another test case of the module must not be named `name[i]` for any index `i`. Error: `duplicate-test-name`.
-7. r[module.testing.it-prop] A top-level call of `std.testing.it_prop` or `std.testing.it_prop_with` registers one property test case. The runner generates its inputs and shrinks a failing one.
-8. r[module.testing.it-prop.import] Neither is a prelude name; code imports them from `std.testing`.
-9. r[module.testing.variants.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
-10. r[module.testing.variants.options] Each takes the options of `it`, `ignore`, `expect_panic`, and `timeout`, under the same rules.
-11. r[module.testing.variants.body] The body's result follows [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, Error]` when it uses `?`.
-
-```text
-use std.testing.{assert_equal, it_each}
-
-fn double(value: i32) -> i32: value * 2
-
-tests:
-    it_each("doubles", [1, 2, 3], body=fn!(value: i32):
-        assert_equal(double(value), value + value, reason="doubling adds the value to itself")
-    )
-```
+1. r[module.testing.it-each.import] `it_each` is not a prelude name; code imports it with `use std.testing.it_each`.
+2. r[module.testing.it-each.body-closure] Its body has a parameter, so it is an explicit `fn!` closure, not a trailing block. After omitted options, a call passes it by name, as in `body=fn!(value: i32): ...`.
+3. r[module.testing.it-each.name-clash] Another test case of the module must not be named `name[i]` for any index `i`. Error: `duplicate-test-name`.
+4. r[module.testing.it-prop] A top-level call of `std.testing.it_prop` or `std.testing.it_prop_with` registers one property test case. The runner generates its inputs and shrinks a failing one.
+5. r[module.testing.it-prop.import] Neither is a prelude name; code imports them from `std.testing`.
+6. r[module.testing.variants.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
+7. r[module.testing.variants.options] Each takes the options of `it`, `ignore`, `expect_panic`, and `timeout`, under the same rules.
+8. r[module.testing.variants.body] The body's result follows [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, Error]` when it uses `?`.
 
 ```text
 use std.testing.it_each
@@ -847,10 +820,11 @@ tests:
     it_each(label(), [1, 2], body=fn!(value: i32): pass)  # error: non-literal-test-argument
 ```
 
-See also: [Property Tests](std/testing.md#property-tests) and
-[Draw Budget](std/testing.md#draw-budget) in the stdlib tier, for `Choices`,
-`Arbitrary`, and how the runner draws, discards, and replays a property's
-inputs.
+See also: [Table-Test Rows](std/testing.md#table-test-rows) in the stdlib
+tier, for how an `it_each` call expands and names its rows. Its
+[Property Tests](std/testing.md#property-tests) and
+[Draw Budget](std/testing.md#draw-budget) cover `Choices`, `Arbitrary`, and
+how the runner draws, discards, and replays a property's inputs.
 
 #### Derived Arbitrary
 
@@ -992,29 +966,14 @@ See also: [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blo
 
 ### Snapshots
 
-`std.testing` declares two snapshot functions, which compare text:
+`std.testing` declares `snapshot`, which compares text with an expectation
+written in the source:
 
 ```text
 pub fn snapshot(text: string, expect: string = "") -> void
-pub fn snapshot_file(text: string) -> void
 ```
 
-1. r[module.testing.snapshot] `snapshot` compares `text` with `expect`, the expected text written in the source.
-2. r[module.testing.snapshot-file] `snapshot_file` compares `text` with a snapshot file, which the test runner names from the running test case.
-3. r[module.testing.snapshot.import] Neither is a prelude name; code imports them from `std.testing`.
-4. r[module.testing.snapshot.literal] An `expect` argument must be a string literal without interpolation. Any other value is an error. Error: `non-literal-test-argument`.
-5. r[module.testing.snapshot-file.path] `snapshot_file` keeps its file at `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`, whose parts the table below defines.
-6. r[module.testing.snapshot-file.missing] When that file does not exist, the test case fails, except in an update run, as `hd test --update` makes, which records the file.
-7. r[module.testing.snapshot.mismatch] When `text` differs from the expected text, `snapshot` or `snapshot_file` fails as a failed assertion does. Panic: `assertion-failed`.
-8. r[module.testing.snapshot-file.missing-panic] A missing snapshot file outside an update run fails the same way. Panic: `assertion-failed`.
-
-| Rule | Part | Value |
-| --- | --- | --- |
-| r[module.testing.snapshot-file.folder] Folder | `__snapshots__/` | one folder at the package root, beside `hd.toml`; it has no `mod.hd`, so it is never a module |
-| r[module.testing.snapshot-file.module] Module | `<module>` | the test's module path, such as `billing`; a module under `tests/` is `tests.<name>` |
-| r[module.testing.snapshot-file.slug] Slug | `<test-slug>` | the test case name, lowercased, with each run of characters other than ASCII letters and digits turned into `-` |
-| r[module.testing.snapshot-file.counter] Counter | `<n>` | the count of `snapshot_file` calls within one test case run, from 1 |
-| r[module.testing.snapshot-file.row] Table row | `<test-slug>.<i>` | the slug of an `it_each` row adds the row's index |
+1. r[module.testing.snapshot.literal] An `expect` argument must be a string literal without interpolation. Any other value is an error. Error: `non-literal-test-argument`.
 
 ```text
 use std.testing.snapshot
@@ -1031,11 +990,11 @@ tests:
 
 > **Why.** A literal `expect` lets a tool rewrite it in place, so an update
 > run records a new or changed expectation, and an empty `expect` is filled
-> on the first update. The test picks the rendering, such as `debug(value)`.
-> A missing snapshot file fails outside an update run, so a test that was
-> never recorded cannot pass by accident.
+> on the first update.
 
-See also: [Debug Trait](09-traits.md#debug-trait).
+See also: [Snapshot Files](std/testing.md#snapshot-files) in the stdlib
+tier, for how `snapshot` and `snapshot_file` compare text, update runs, and
+where snapshot files live.
 
 ## Module Initialization
 

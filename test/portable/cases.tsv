@@ -1060,6 +1060,7 @@ typing/invalid/it-each-outside-test-position.hd	type
 typing/invalid/it-each-name-clash.hd	type
 typing/invalid/it-each-non-literal-name.hd	type
 runtime/valid/it-each-options.hd	runtime
+runtime/valid/test-timeout-options.hd	runtime
 runtime/valid/it-each-propagation.hd	runtime
 typing/invalid/snapshot-non-literal-expect.hd	type
 parse/valid/suffixed-literals.hd	parse

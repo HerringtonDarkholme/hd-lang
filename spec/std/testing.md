@@ -3,13 +3,20 @@
 Status: standard library specification draft.
 
 This chapter defines the part of `std.testing` that `lib/std` and the test
-runner implement over the language tier: how a property test draws,
-discards, reports, and replays its inputs, and the draw budget.
+runner implement over the language tier:
 
-The language tier keeps what the compiler checks: the assertion functions,
-`it`, and the registration of `it_each`, `it_prop`, and `it_prop_with`, with
-their signatures ([Standard Testing](../10-modules.md#standard-testing),
-[Table Tests](../10-modules.md#table-tests)).
+- how a property test draws, discards, reports, and replays its inputs;
+- the draw budget;
+- what the `timeout` option does;
+- how an `it_each` call expands and names its rows;
+- how snapshots compare text, and where snapshot files live.
+
+The language tier keeps what the compiler checks. That is the assertion
+functions, `it` and its options, the signatures and registration of
+`it_each`, `it_prop`, and `it_prop_with`, and the literal `expect` of
+`snapshot` ([Standard Testing](../10-modules.md#standard-testing),
+[Table Tests](../10-modules.md#table-tests),
+[Snapshots](../10-modules.md#snapshots)).
 
 ## Property Tests
 
@@ -47,7 +54,7 @@ trait Arbitrary:
 12. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
 13. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
 14. r[std-testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
-15. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](../10-modules.md#snapshots).
+15. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
 16. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
 17. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
 
@@ -124,3 +131,81 @@ fn tree(c: mut Choices) -> Tree:
 
 Once the budget is spent, `c.int(0, 2)` returns `0`, so `tree` returns
 `.Leaf`.
+
+## Test Timeout
+
+`it`, `it_each`, `it_prop`, and `it_prop_with` each take a `timeout`
+option of type `Duration?` ([Test Cases](../10-modules.md#test-cases)).
+
+| Rule | Option | Value | Effect |
+| --- | --- | --- | --- |
+| r[std-testing.option.timeout-any-duration] Timeout | `timeout` | any `std.time.Duration` value, such as `5s` or a call that returns one | The runner fails the test case when its body runs longer than the duration. |
+
+1. r[std-testing.option.timeout-at-run] A `timeout` value is an ordinary argument, not a literal. It is evaluated when the test case runs, in its program instance, as [`it_each` rows](#r-std-testing.it-each.rows-at-run) are.
+2. r[std-testing.option.timeout-import] A suffix in a `timeout` value is imported like any other, as in `use std.time.s`; `it` adds no suffix of its own.
+
+```text
+use std.time.{Duration, s}
+
+fn budget() -> Duration: 30s
+
+tests:
+    it("fetches the index", timeout=5s):
+        pass
+
+    it("loads the archive", timeout=budget()):
+        pass
+```
+
+## Table-Test Rows
+
+A call of `it_each` in test position is registered as the language tier
+specifies ([Table Tests](../10-modules.md#table-tests)).
+
+1. r[std-testing.it-each] A top-level call of `std.testing.it_each` registers one test case for each element of `rows`, which runs `body` with that element.
+2. r[std-testing.it-each.name] The test case for the element at index `i` is named `name[i]`.
+3. r[std-testing.it-each.rows-at-run] `rows` is evaluated when the test runs, in its program instance, not when test cases are listed.
+
+```text
+use std.testing.{assert_equal, it_each}
+
+fn double(value: i32) -> i32: value * 2
+
+tests:
+    it_each("doubles", [1, 2, 3], body=fn!(value: i32):
+        assert_equal(double(value), value + value, reason="doubling adds the value to itself")
+    )
+```
+
+The call runs the test cases `doubles[0]`, `doubles[1]`, and `doubles[2]`.
+
+## Snapshot Files
+
+`std.testing` declares a second snapshot function, beside `snapshot`
+([Snapshots](../10-modules.md#snapshots)):
+
+```text
+pub fn snapshot_file(text: string) -> void
+```
+
+1. r[std-testing.snapshot] `snapshot` compares `text` with `expect`, the expected text written in the source.
+2. r[std-testing.snapshot-file] `snapshot_file` compares `text` with a snapshot file, which the test runner names from the running test case.
+3. r[std-testing.snapshot.import] Neither is a prelude name; code imports them from `std.testing`.
+4. r[std-testing.snapshot-file.path] `snapshot_file` keeps its file at `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`, whose parts the table below defines.
+5. r[std-testing.snapshot-file.missing] When that file does not exist, the test case fails, except in an update run, as `hd test --update` makes, which records the file.
+6. r[std-testing.snapshot.mismatch] When `text` differs from the expected text, `snapshot` or `snapshot_file` fails as a failed assertion does. Panic: `assertion-failed`.
+7. r[std-testing.snapshot-file.missing-panic] A missing snapshot file outside an update run fails the same way. Panic: `assertion-failed`.
+
+| Rule | Part | Value |
+| --- | --- | --- |
+| r[std-testing.snapshot-file.folder] Folder | `__snapshots__/` | one folder at the package root, beside `hd.toml`; it has no `mod.hd`, so it is never a module |
+| r[std-testing.snapshot-file.module] Module | `<module>` | the test's module path, such as `billing`; a module under `tests/` is `tests.<name>` |
+| r[std-testing.snapshot-file.slug] Slug | `<test-slug>` | the test case name, lowercased, with each run of characters other than ASCII letters and digits turned into `-` |
+| r[std-testing.snapshot-file.counter] Counter | `<n>` | the count of `snapshot_file` calls within one test case run, from 1 |
+| r[std-testing.snapshot-file.row] Table row | `<test-slug>.<i>` | the slug of an `it_each` row adds the row's index |
+
+> **Why.** The test picks the rendering, such as `debug(value)`. A missing
+> snapshot file fails outside an update run, so a test that was never
+> recorded cannot pass by accident.
+
+See also: [Debug Trait](../09-traits.md#debug-trait).

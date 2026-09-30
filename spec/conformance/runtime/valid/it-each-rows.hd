@@ -1,5 +1,5 @@
 # test: it_each registers one test case per row
-# Spec 10 Table Tests: std.testing.it_each runs its body once per element, as the cases
+# Spec std/testing Table-Test Rows: std.testing.it_each runs its body once per element, as the cases
 # doubles[0], doubles[1], and doubles[2].
 use std.testing.{assert_equal, it_each}
 

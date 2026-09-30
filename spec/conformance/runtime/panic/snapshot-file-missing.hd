@@ -1,5 +1,5 @@
 # test: a snapshot_file call with no recorded file fails as an assertion
-# Spec 10 Snapshots: module.testing.snapshot-file.missing-panic (Testing T54).
+# Spec std/testing Snapshot Files: std-testing.snapshot-file.missing-panic (Testing T54).
 # No snapshot file is ever recorded for this case, and the run is not an
 # update run.
 use std.testing.snapshot_file

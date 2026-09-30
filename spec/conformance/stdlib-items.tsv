@@ -1,3 +1,4 @@
 item	specification
 std.testing.Arbitrary	std/testing.md#property-tests
 std.testing.Choices	std/testing.md#property-tests
+std.testing.snapshot_file	std/testing.md#snapshot-files

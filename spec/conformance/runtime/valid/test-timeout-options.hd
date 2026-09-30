@@ -1,0 +1,13 @@
+# test: it and it_each take a timeout, and a body within it passes
+# Spec std/testing Test Timeout: the runner fails a body only when it runs longer
+# than its timeout.
+use std.testing.{assert, it_each}
+use std.time.s
+
+tests:
+    it("finishes quickly", timeout=5s):
+        assert(1 + 1 == 2, reason="well within the limit")
+
+    it_each("positive", [1, 2], timeout=5s, body=fn!(value: i32):
+        assert(value > 0, reason="every row is positive")
+    )

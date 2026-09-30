@@ -30,8 +30,8 @@ describes the runner, the command line, and the testing library around them.
 | The `tests:` block and its items | [Test Blocks](../spec/02-grammar.md#test-blocks) |
 | `_test.hd` test modules, integration tests under `tests/`, test dependencies | [Test Modules](../spec/10-modules.md#test-modules) |
 | `assert` and `assert_equal` | [Standard Testing](../spec/10-modules.md#standard-testing) |
-| `it`, its options, `it_each`, and test position | [Test Cases](../spec/10-modules.md#test-cases) |
-| `snapshot` and `snapshot_file` | [Snapshots](../spec/10-modules.md#snapshots) |
+| `it`, its options, `it_each`, and test position | [Test Cases](../spec/10-modules.md#test-cases), [Test Timeout](../spec/std/testing.md#test-timeout), [Table-Test Rows](../spec/std/testing.md#table-test-rows) |
+| `snapshot` and `snapshot_file` | [Snapshots](../spec/10-modules.md#snapshots), [Snapshot Files](../spec/std/testing.md#snapshot-files) |
 | `Debug` and `debug` | [Debug Trait](../spec/09-traits.md#debug-trait) |
 | Instances, fakes, providers, pass and fail | [Test Outcomes](../spec/10-modules.md#test-outcomes) |
 | A test body's result and `?` | [Propagation In Test Blocks](../spec/05-expressions.md#propagation-in-test-blocks) |
@@ -123,7 +123,7 @@ Renaming a test, or reordering its `snapshot_file` calls, changes the file
 names; the owner accepted that cost. A mismatch, or a missing file outside
 an update run, fails with `assertion-failed`, as `assert_equal` does
 ([T54](TESTING.md),
-[`module.testing.snapshot.mismatch`](../spec/10-modules.md#r-module.testing.snapshot.mismatch)).
+[`std-testing.snapshot.mismatch`](../spec/std/testing.md#r-std-testing.snapshot.mismatch)).
 
 | Command | Effect |
 | --- | --- |

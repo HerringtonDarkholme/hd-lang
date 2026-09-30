@@ -7,9 +7,6 @@ typing/valid/literal-suffix-compile-time.hd	std.time.Duration,std.time.ms,std.ti
 typing/invalid/literal-suffix-float-into-integer.hd	std.time.s	tests suffixed literal kinds with std.time.s (task 9); declare a local suffix
 typing/valid/string-prefix-local-shadow.hd	std.text.r	tests prefix name lookup with std.text.r (task 8); declare a local prefix
 runtime/valid/string-prefix-plain-dollar-digit.hd	std.text.r	tests a lexical prefix rule with std.text.r (task 8); declare a local prefix
-runtime/valid/test-case-options.hd	std.time.s	tests the it options; the timeout option and std.time move (tasks 6, 9); drop timeout or split the case
-runtime/valid/it-each-options.hd	std.time.s	tests it_each options; the timeout option and std.time move (tasks 6, 9); drop timeout or split the case
-typing/valid/snapshot-inline.hd	std.testing.snapshot_file	cites Snapshots, which splits: the literal rule stays, snapshot files move (task 6); drop snapshot_file or cite std/testing.md
 typing/valid/collections.hd	string.trim,string.lower	tests comprehensions; trim and lower move to std/text.md (task 8); use a language-tier operation
 typing/valid/control-flow.hd	string.starts_with	tests control flow; starts_with moves to std/text.md (task 8); use a language-tier operation
 typing/valid/names-and-scopes.hd	string.trim	tests lexical scopes; trim moves to std/text.md (task 8); use a local function

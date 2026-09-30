@@ -2095,3 +2095,28 @@ existing source. Each entry names the decision that made the change.
   `std-testing.budget` and `std-testing.budget.*`. The old IDs are
   retired. The signatures of `it_prop` and `it_prop_with` stay in
   [Table Tests](10-modules.md#table-tests) with their registration rules.
+- Test timeouts, table-test rows, and snapshot files move to the stdlib
+  tier (owner decisions ST2, ST3, and ST6 in
+  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  step 6, 2026-09-30): stdlib tier. Rules move from Modules' Test Cases,
+  Table Tests, and Snapshots to the new sections
+  [Test Timeout](std/testing.md#test-timeout),
+  [Table-Test Rows](std/testing.md#table-test-rows), and
+  [Snapshot Files](std/testing.md#snapshot-files) of Testing, with their
+  text unchanged. Source is unaffected. `module.testing.option.timeout-any-duration`,
+  `.option.timeout-at-run`, and `.option.timeout-import` become
+  `std-testing.option.timeout-any-duration`, `.option.timeout-at-run`, and
+  `.option.timeout-import`. `module.testing.it-each`, `.it-each.name`, and
+  `.it-each.rows-at-run` become `std-testing.it-each`, `.it-each.name`, and
+  `.it-each.rows-at-run`. `module.testing.snapshot`, `.snapshot.import`, and
+  `.snapshot.mismatch` become `std-testing.snapshot`, `.snapshot.import`,
+  and `.snapshot.mismatch`, and `module.testing.snapshot-file` and
+  `module.testing.snapshot-file.*` become `std-testing.snapshot-file` and
+  `std-testing.snapshot-file.*`. The old IDs are retired. The language tier
+  keeps what the compiler checks: the `timeout` parameter's type, the
+  registration and name-clash rules of `it_each`, and the `snapshot`
+  signature with its literal `expect`
+  ([`module.testing.snapshot.literal`](10-modules.md#r-module.testing.snapshot.literal)).
+  [`module.testing.it.options-strings`](10-modules.md#r-module.testing.it.options-strings)
+  now names the three options itself, since the option table no longer
+  lists `timeout`; its meaning is unchanged.

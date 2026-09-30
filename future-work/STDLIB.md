@@ -1725,7 +1725,7 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], ignore: strin
 
 `timeout` takes any `Duration` value, usually a suffixed literal, as in
 `timeout=5s` with `use std.time.s`
-([`module.testing.option.timeout-any-duration`](../spec/10-modules.md#r-module.testing.option.timeout-any-duration)).
+([`std-testing.option.timeout-any-duration`](../spec/std/testing.md#r-std-testing.option.timeout-any-duration)).
 
 Assertion helpers, same shape:
 
@@ -1779,7 +1779,7 @@ can advance the clock, step the generator, and write files.
 
 Snapshot functions compare a string with expected text (T30, T32). Their
 signatures are specified in [Snapshots](../spec/10-modules.md#snapshots)
-(T49), and `expect` must be a string literal:
+and [Snapshot Files](../spec/std/testing.md#snapshot-files) (T49), and `expect` must be a string literal:
 
 ```text
 pub fn snapshot(text: string, expect: string = "") -> void:

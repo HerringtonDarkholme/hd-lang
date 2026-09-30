@@ -1,6 +1,6 @@
 # test: snapshot compares text with a literal expectation
-# Spec 10 Snapshots: snapshot and snapshot_file are imported from std.testing.
-use std.testing.{snapshot, snapshot_file}
+# Spec 10 Snapshots: a literal or omitted expect is accepted.
+use std.testing.snapshot
 
 fn greeting(name: string) -> string: "hello, " + name
 
@@ -10,6 +10,3 @@ tests:
 
     it("records an expectation on update"):
         snapshot(greeting("Grace"))
-
-    it("stores larger output in a file"):
-        snapshot_file(greeting("Hopper"))

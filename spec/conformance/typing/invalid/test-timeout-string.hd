@@ -1,5 +1,5 @@
 # test: a timeout option is a Duration, not a string
-# Spec 10 Test Cases: `timeout="5s"` does not have type Duration.
+# Spec 10 Test Cases: `timeout="5s"` does not have the parameter's type, Duration?.
 tests:
     it("waits", timeout="5s"):  # diagnostic: type-mismatch
         pass
