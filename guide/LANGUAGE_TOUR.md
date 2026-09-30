@@ -436,10 +436,11 @@ x := point._0
 y := point._1
 ```
 
-Tuple destructuring works with both binding forms:
+Tuple destructuring works with both binding forms, and both put the names
+in parentheses. `x, y := point` without them is a `syntax-error`:
 
 ```text
-x, y := point
+(x, y) := point
 let (name, score) = ("Ada", 10)
 ```
 
@@ -2545,7 +2546,7 @@ fn value(c: mut Choices) -> Value:
 `@derive(Arbitrary)` derives one, and one member fact,
 `arbitrary.with(gen)`, draws a member with a generator of your own. The
 compiler does not check that generator against the member's type, so a
-wrong one panics on the first case and names the member. The default
+wrong one panics on the first case and names the member and both types. The default
 `f32` and `f64` generators include NaN, the infinities, and `-0.0`, while
 `c.float(lo, hi)` stays finite:
 
@@ -2617,7 +2618,7 @@ trait Cache:
     fn get_user(self, id: UserId) -> User?
 
 fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
-    db, cache := $.use(Database, Cache)
+    (db, cache) := $.use(Database, Cache)
     match cache.get_user(id):
         .Some(user) => return .Ok(user)
         .None => pass

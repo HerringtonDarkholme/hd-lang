@@ -36,24 +36,32 @@ Any other std type or function, such as `Set` or a default hasher, lives only
 in [future-work/STDLIB.md](future-work/STDLIB.md) and the std sources. Spec
 examples must not depend on those. Owner direction, 2026-09-28.
 
-## Writing hd Code: Cheapest Model And A Feedback Log
+## Writing hd Code: Model Choice And A Feedback Log
 
-When a task is **writing hd programs**, use the least capable and cheapest
-model available (for example Haiku). Examples of such tasks:
-- the standard library in `lib/std`;
-- examples, playground examples, and hd test files;
-- sample apps.
+When a task is **writing hd programs**, pick the model by what the code is
+for:
+- **Real implementation runs on Sonnet.** Code that must be correct uses
+  at least Sonnet: the standard library in `lib/std`, examples, playground
+  examples, sample apps, and hd test files.
+- **Haiku is a probe.** A Haiku agent writes hd to show how a weak model
+  copes with the language, and above all whether the compiler's error
+  messages lead it to the fix. Its code is evidence, not a deliverable.
 
-The point is to learn how hard hd is to use, and how well the compiler's
-feedback helps.
+Evidence: in the property-test writing trials of 2026-09-29, checked only
+with the reference parser, Sonnet wrote `not x`, `const`, a top-level
+`NAME := ...`, and `(dt, key) := case`, which was a `syntax-error` then.
+Haiku wrote `mut` before a parameter name, `{ ... }` blocks in match arms,
+and bool-returning property bodies. Both kinds of mistake are worth
+logging.
 
-Every such agent logs each mistake it made in
+Every such agent, on either model, logs each mistake it made in
 [audit/hd-writing-log.md](audit/hd-writing-log.md): one row per syntax
 error, type error, API misuse, or semantic misunderstanding. Record:
 - what it wrote;
 - what the compiler said, word for word;
 - whether that message led it to the fix;
-- the fix.
+- the fix;
+- the model, in the Model column.
 
 The log is used to audit the compiler's diagnostics and the docs.
 
@@ -61,4 +69,5 @@ This rule does **not** apply to:
 - specification text and conformance fixtures;
 - the compiler prototype itself (`src/`).
 
-Those tasks use the normal model. Owner direction, 2026-09-29.
+Those tasks use the normal model. Owner direction, 2026-09-29, revised
+the same day to split implementation from probing (batch 13, Q11).

@@ -194,7 +194,7 @@ pub data Stamped:
     pub loaded_at: Timestamp
 
 pub fn load_stamped!(path: Path) -> Result[Stamped, FsError] $ FsRead + Clock:
-    files, clock := $.use(FsRead, Clock)
+    (files, clock) := $.use(FsRead, Clock)
     text := files.read_text!(path)?
     .Ok(Stamped { text: text, loaded_at: clock.now() })
 ```
@@ -1896,7 +1896,9 @@ fn small_counts(c: mut Choices) -> List[i32]:
 **The draw budget** ends recursive generation, with no API (PT6). Each case
 has a budget of draws; once it is spent, every draw returns its simplest
 value: an integer `0` or the bound nearest `0`, a float likewise, `false`,
-`pick`'s first item, and an empty list, map, or string. So a hand-written
+`pick`'s first item, and an empty list, map, or string. The default `T?`
+generator gives `.None`, `Result[T, E]` gives `.Ok` of `T`'s simplest
+value, and a tuple gives each element's simplest value (Q8). So a hand-written
 recursive generator ends when its leaf comes first, as in
 `match c.int(0, 5)` with the leaf at `0`. The budget's size is the
 runner's.
@@ -1919,7 +1921,11 @@ included, as Hypothesis's `st.floats()` does (PT9); `c.float(lo, hi)` stays
 finite. `@derive(Arbitrary)` is a derived `build` whose source is
 `Choices`: each member is drawn by its own `Arbitrary`, and an enum picks a
 variant, then its payload. A derived enum's simplest choice is its first
-non-recursive variant, whatever the declaration order (PT6).
+non-recursive variant, whatever the declaration order (PT6). A variant is
+recursive when its simplest payload still needs a value of the enum;
+`List`, `Map`, and optional members do not count (Q7). When every variant
+is recursive, the derived generator panics on the first case, naming the
+type (Q6).
 
 One fact tunes a member: `arbitrary.with(gen)`, from the module
 `std.testing.arbitrary`, draws that member with `gen` (PT2). There are no
@@ -1947,15 +1953,16 @@ impl Arbitrary for Item by Structure:
     name = [arbitrary.with(short_name)]
 ```
 
-The fact stores the generator as `Any`, and the derived code checks it
-against the member's type `fn(mut Choices) -> T`. A fact is an unchecked
-value, so the compiler does not catch a generator of the wrong type. The
-derived code panics on the first case instead, naming the member and the
-generator type it expected; it never ignores the fact. A generic
-`With[T]` fact was rejected, because looking up `With[i32]` would miss a
-`With[string]` and silently use the default. How the derived code
-recovers the generator's type from `Any` is open
-([Testing Still Open](TESTING.md#still-open)).
+`with` is generic, `pub fn with[T < Inspectable](gen: fn(mut Choices) -> T) -> Generator`
+(Q5). It wraps `gen` so that each drawn value is erased to `Inspectable`,
+and the derived code downcasts the first drawn value to the member's type,
+so the member's type must be inspectable. A fact is an unchecked value, so
+the compiler does not catch a generator of the wrong type. The derived
+code panics on the first case instead, naming the member and both types;
+it never ignores the fact. A generic `With[T]` fact was rejected, because
+looking up `With[i32]` would miss a `With[string]` and silently use the
+default. See
+[Derived Arbitrary](../spec/10-modules.md#derived-arbitrary).
 
 **A generator** for anything a type cannot express is a plain function
 over `Choices`, passed to `it_prop_with`. Dependent draws need nothing
@@ -2261,7 +2268,7 @@ records every host call at the boundary regardless of suspension.
 
 ```text
 fn deadline(budget: Duration) -> Timestamp $ Clock + Env:
-    clock, env := $.use(Clock, Env)
+    (clock, env) := $.use(Clock, Env)
     extra := env.get("EXTRA_SECONDS")
     clock.now().plus(budget)
 ```

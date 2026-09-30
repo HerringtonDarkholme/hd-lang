@@ -327,7 +327,7 @@ A suspending function can be run as a durable workflow without adding checkpoint
 
 ```text
 fn sync_user!(id: UserId) -> Result[void, SyncError] $ Database + RemoteApi:
-    db, remote := $.use(Database, RemoteApi)
+    (db, remote) := $.use(Database, RemoteApi)
     user := db.load_user!(id)?
     remote.push_user!(user)?
     db.mark_synced!(id)?

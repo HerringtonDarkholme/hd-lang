@@ -108,7 +108,7 @@ blocks.forEach((m, i) => {
 ## Writing hd Code
 
 When the task is writing hd programs, follow AGENTS.md "Writing hd Code:
-Cheapest Model And A Feedback Log". Examples: `lib/std`, examples,
+Model Choice And A Feedback Log". Examples: `lib/std`, examples,
 playground code, and hd test files. It does not apply to spec text,
 fixtures, or `src/`. Log every syntax, type, API or semantic mistake in
 `audit/hd-writing-log.md`.

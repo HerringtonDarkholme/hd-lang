@@ -88,7 +88,7 @@ Comprehensions put the clauses before `=>` and the produced value after it.
 names := ["Ada", "Grace", "Linus"]
 scores := {"Ada": 10, "Grace": 12}
 point := (10, 20)
-x, y := point
+(x, y) := point
 
 long_names := [for name in names if name.len() > 3 => name]
 by_name := {for user in users => user.name: user.score}

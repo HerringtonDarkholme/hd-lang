@@ -445,7 +445,7 @@ fusion are compiler implementation work that changes no language rule.
 ## Stage 2 Benchmark Specification
 
 Stage 2 is run by a cheap-model agent under
-[Writing hd Code](../AGENTS.md#writing-hd-code-cheapest-model-and-a-feedback-log).
+[Writing hd Code](../AGENTS.md#writing-hd-code-model-choice-and-a-feedback-log).
 It logs every hd mistake in [audit/hd-writing-log.md](../audit/hd-writing-log.md).
 It must not change `src/` or `lib/std/`.
 
