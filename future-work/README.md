@@ -31,6 +31,10 @@ Open questions for the owner:
   stdlib tier under `spec/std/`, with an inventory, a conformance split,
   and a migration plan. The owner decided ST1-ST8 on 2026-09-30; step 1,
   the `spec/std/` scaffold, is done.
+- [Call Indexing](CALL_INDEXING.md) studies the owner's idea of indexing
+  with call syntax, `list(0)` and `list(0) = v`, so `[]` after an operand
+  means only type arguments. It counts 178 index sites and asks four
+  questions, starting with how `user.tags(0)` reaches a field.
 
 Deferred:
 
