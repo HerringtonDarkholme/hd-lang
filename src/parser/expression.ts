@@ -52,6 +52,10 @@ const BINARY_PRECEDENCE: Readonly<Record<string, number>> = {
   "**": 11,
 };
 
+// `|>` binds more loosely than `|` and more tightly than every comparison
+// (05-expressions.md#r-expr.pipe.precedence).
+const PIPE_PRECEDENCE = 4.5;
+
 // The AST keeps the names "and", "or", and "not" for `&&`, `||`, and prefix `!`.
 const LOGICAL_OPERATOR_NAMES: Readonly<Record<string, string>> = {
   "&&": "and",
@@ -66,6 +70,56 @@ interface PatternBindings {
 }
 
 type NameExpression = Extract<Expression, { kind: "name" }>;
+
+/**
+ * Collects the `_` placeholders that belong to a pipe step: a nested pipe's
+ * step keeps its own (05-expressions.md#r-expr.pipe.slot.nested), and one
+ * inside a closure is reported (05-expressions.md#r-expr.pipe.slot.closure).
+ */
+function collectPipePlaceholders(
+  value: unknown,
+  inClosure: boolean,
+  found: Expression[],
+  inClosureFound: (placeholder: Expression) => never,
+): void {
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    for (const item of value) collectPipePlaceholders(item, inClosure, found, inClosureFound);
+    return;
+  }
+  const node = value as Expression;
+  if (node.kind === "name" && node.name === "_") {
+    if (inClosure) inClosureFound(node);
+    found.push(node);
+    return;
+  }
+  if (node.kind === "pipe") {
+    collectPipePlaceholders(node.value, inClosure, found, inClosureFound);
+    return;
+  }
+  const closure = node.kind === "closure";
+  for (const [key, child] of Object.entries(node))
+    if (key !== "span") collectPipePlaceholders(child, inClosure || closure, found, inClosureFound);
+}
+
+/**
+ * A bare step is a name, names joined by `.`, or a method reference, with no
+ * type arguments or suffix (05-expressions.md#r-expr.pipe.bare.form).
+ */
+function isBarePipeStep(step: Expression): boolean {
+  if (step.kind === "name") return step.typeArguments === undefined;
+  if (step.kind === "member")
+    return (
+      step.typeArguments === undefined &&
+      step.parenthesized !== true &&
+      isBarePipeStep(step.receiver)
+    );
+  return (
+    step.kind === "qualified-name" &&
+    step.typeArguments === undefined &&
+    step.ownerTypeArguments === undefined
+  );
+}
 
 export abstract class ExpressionParser extends ParserBase {
   protected parseExpression(minimumPrecedence = 0): Expression {
@@ -223,6 +277,11 @@ export abstract class ExpressionParser extends ParserBase {
         };
         continue;
       }
+      if (this.atText("|>")) {
+        if (PIPE_PRECEDENCE < minimumPrecedence) break;
+        left = this.parsePipe(left);
+        continue;
+      }
       const precedence = BINARY_PRECEDENCE[this.current().text];
       if (precedence === undefined || precedence < minimumPrecedence) break;
       const comparisons = new Set(["==", "!=", "<", "<=", ">", ">=", "is"]);
@@ -238,7 +297,10 @@ export abstract class ExpressionParser extends ParserBase {
       // (spec/01-lexical-structure.md#r-lex.op.no-power-assign).
       if (operator.text === "**" && this.atText("="))
         this.fail("syntax-error", "there is no '**=' compound assignment", this.current().span);
-      const right = this.parseExpression(precedence + (operator.text === "**" ? 0 : 1));
+      // An ordering comparison's right operand still takes a pipe.
+      const right = this.parseExpression(
+        operator.text === "**" ? precedence : precedence === 4 ? PIPE_PRECEDENCE : precedence + 1,
+      );
       left = {
         kind: "binary",
         operator: LOGICAL_OPERATOR_NAMES[operator.text] ?? operator.text,
@@ -248,6 +310,56 @@ export abstract class ExpressionParser extends ParserBase {
       };
     }
     return left;
+  }
+
+  /** `value |> step`, at the `|>` (05-expressions.md#pipe-expressions). */
+  private parsePipe(value: Expression): Expression {
+    const operator = this.current();
+    // A leading-`|>` line cannot continue a line whose same-line suite is
+    // still open (01-lexical-structure.md#r-lex.pipe.open-suite).
+    if (operator.continuation && this.inlineSuiteDepths.includes(0))
+      this.fail(
+        "syntax-error",
+        "a leading-'|>' line cannot continue a line whose same-line suite is still open",
+        operator.span,
+      );
+    this.advance();
+    const first = this.index;
+    const step = this.parseExpression(PIPE_PRECEDENCE + 0.5);
+    if (this.tokens.slice(first, this.index).some((token) => token.kind === "indent"))
+      this.fail(
+        "multi-line-pipe-step",
+        "a pipe step must fit on one line; bind a name first or extract a function",
+        step.span,
+      );
+    const placeholders: Expression[] = [];
+    collectPipePlaceholders(step, false, placeholders, (placeholder) =>
+      this.fail(
+        "pipe-placeholder-in-closure",
+        "'_' inside a closure does not name the piped value; use the closure's own parameter",
+        placeholder.span,
+      ),
+    );
+    if (placeholders.length > 1)
+      this.fail(
+        "duplicate-pipe-placeholder",
+        "a pipe step takes exactly one '_'",
+        placeholders[1]!.span,
+      );
+    const bare = placeholders.length === 0;
+    if (bare && !isBarePipeStep(step))
+      this.fail(
+        "pipe-step-needs-placeholder",
+        "a pipe step other than a bare name or path needs '_' to mark the piped value, as in 'f(_, y)'",
+        step.span,
+      );
+    return {
+      kind: "pipe",
+      value,
+      step,
+      bare,
+      span: { start: value.span.start, end: step.span.end },
+    };
   }
 
   private parseTypeArgumentList(): TypeRef[] {
@@ -514,6 +626,12 @@ export abstract class ExpressionParser extends ParserBase {
       }
       const close = this.expectText("}");
       return { kind: "map", entries, span: { start: token.span.start, end: close.span.end } };
+    }
+    // `_` is a pipe step's placeholder; the checker rejects it anywhere else
+    // (05-expressions.md#r-expr.pipe.placeholder-outside).
+    if (token.text === "_") {
+      this.advance();
+      return { kind: "name", name: "_", span: token.span };
     }
     if (token.kind === "identifier" || token.text === "self") {
       if (this.atPackOperation()) this.checkPackOperationArguments();

@@ -1415,6 +1415,9 @@ class Parser extends DecoratorParser {
 
   protected parseTrailingBlockCall(callee: Expression): Expression {
     if (!this.atText(":")) return callee;
+    // A pipe step takes no trailing block (05-expressions.md#r-expr.pipe.no-trailing-block).
+    if (callee.kind === "pipe")
+      this.fail("syntax-error", "a pipe step takes no trailing block", this.current().span);
     // The body begins on the next logical line
     // (02-grammar.md#r-grammar.call.trailing-block.next-line).
     if (this.peek(1).kind !== "newline")

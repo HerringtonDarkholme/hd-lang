@@ -195,6 +195,13 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         }
         const global = this.resolveGlobal(expression.name);
         if (global) return { kind: "global", global, type: global.type, span: expression.span };
+        // `_` names a value only in a pipe step (05-expressions.md#r-expr.pipe.placeholder-outside).
+        if (expression.name === "_")
+          this.fail(
+            "placeholder-outside-pipe",
+            "'_' has a value only in a pipe step; write a closure such as 'fn(value): f(value, a)'",
+            expression.span,
+          );
         if (this.globals.has(expression.name)) {
           this.fail(
             "binding-not-yet-visible",

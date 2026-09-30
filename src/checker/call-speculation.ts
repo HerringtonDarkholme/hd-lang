@@ -13,6 +13,7 @@ const SPECULATION_UNSAFE_KINDS = new Set([
   "for",
   "while",
   "match",
+  "pipe",
   "provider-context",
   "provider-with",
   "suspend-call",

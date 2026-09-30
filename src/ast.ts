@@ -624,6 +624,18 @@ export type Expression =
     }
   | { readonly kind: "propagate"; readonly operand: Expression; readonly span: SourceSpan }
   | {
+      /**
+       * `value |> step` (05-expressions.md#pipe-expressions). A bare step is a
+       * name, path, or method reference called with the value; any other step
+       * holds exactly one `_`, the value's slot.
+       */
+      readonly kind: "pipe";
+      readonly value: Expression;
+      readonly step: Expression;
+      readonly bare: boolean;
+      readonly span: SourceSpan;
+    }
+  | {
       readonly kind: "closure";
       readonly suspending?: boolean;
       /** A trailing callback block (spec/07-functions.md#trailing-callback-blocks). */

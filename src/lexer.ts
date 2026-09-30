@@ -31,7 +31,7 @@ export interface Token {
   // A backtick raw identifier: never a keyword or contextual word
   // (01-lexical-structure.md#raw-identifiers).
   readonly raw?: boolean;
-  // The `.` that starts a leading-dot continuation line.
+  // The `.` or `|>` that starts a leading-dot or leading-pipe continuation line.
   readonly continuation?: boolean;
   // A numeric literal's suffix (01-lexical-structure.md#literal-suffixes),
   // as in `250ms`; `text` still holds the whole token.
@@ -115,6 +115,7 @@ const MULTI_SYMBOLS = [
   "**",
   "&&",
   "||",
+  "|>",
 ];
 const SINGLE_SYMBOLS = new Set("+-*/%<>&|^~!?=.,:;()[]{}$@");
 const OPEN_TO_CLOSE: Readonly<Record<string, string>> = { "(": ")", "[": "]", "{": "}" };
@@ -137,6 +138,8 @@ class Scanner {
   private lineStart = true;
   private lineHasToken = false;
   private continuationDot = false;
+  // The delimiter depths at which the current logical line has a `|>`.
+  private readonly pipeDepths = new Set<number>();
 
   constructor(source: string) {
     this.source = source;
@@ -261,6 +264,7 @@ class Scanner {
     if (this.delimiters.length === 0 && this.lineHasToken && this.continuesWithLeadingDot()) return;
     if (this.delimiters.length === 0 && this.lineHasToken) {
       this.emit("newline", "\n", start, this.position());
+      this.pipeDepths.clear();
     }
     this.lineStart = true;
     this.lineHasToken = false;
@@ -268,8 +272,10 @@ class Scanner {
 
   // Leading-dot continuation (01-lexical-structure.md#physical-and-logical-lines):
   // a line starting with `.name`, indented farther than the logical line it
-  // follows, continues it unless that line ends in `:` or `=>`. On success the
-  // scanner is left at the `.` with the logical line still open.
+  // follows, continues it unless that line ends in `:` or `=>`. A line
+  // starting with `|>` continues it the same way
+  // (01-lexical-structure.md#leading-pipe-continuation). On success the
+  // scanner is left at the `.` or `|>` with the logical line still open.
   private continuesWithLeadingDot(): boolean {
     const last = this.tokens.at(-1)?.text;
     if (last === ":" || last === "=>") return false;
@@ -290,13 +296,23 @@ class Scanner {
         continue;
       }
       const next = this.source[offset + 1] ?? "";
-      if (value !== "." || !isIdentifierStart(next) || width <= this.indents.at(-1)!) return false;
+      const leadingDot = value === "." && isIdentifierStart(next);
+      const leadingPipe = value === "|" && next === ">";
+      if ((!leadingDot && !leadingPipe) || width <= this.indents.at(-1)!) return false;
       break;
     }
     while (this.offset < lineOffset) this.advance();
     while (this.peek() === " ") this.advance();
     this.lineStart = false;
     this.continuationDot = true;
+    // A leading-dot line cannot continue a line with a `|>` at its depth
+    // (01-lexical-structure.md#r-lex.pipe.no-dot-line).
+    if (this.peek() === "." && this.pipeDepths.has(this.delimiters.length))
+      this.report(
+        "syntax-error",
+        "a leading-dot line cannot continue a pipe chain; write the call as a step, such as '|> _.name()'",
+        this.position(),
+      );
     return true;
   }
 
@@ -762,7 +778,9 @@ class Scanner {
     end: SourcePosition,
     value?: Token["value"],
   ): void {
-    const continuation = this.continuationDot && kind === "symbol" && text === ".";
+    const continuation =
+      this.continuationDot && kind === "symbol" && (text === "." || text === "|>");
+    if (kind === "symbol" && text === "|>") this.pipeDepths.add(this.delimiters.length);
     this.tokens.push({
       kind,
       text,

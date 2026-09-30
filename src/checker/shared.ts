@@ -174,6 +174,8 @@ function eagerExpressionChildren(expression: Expression): readonly Expression[] 
       return [expression.iterable];
     case "match":
       return [expression.subject];
+    case "pipe":
+      return [expression.value];
     case "integer":
     case "float":
     case "string":

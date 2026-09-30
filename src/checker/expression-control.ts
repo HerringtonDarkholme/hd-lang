@@ -17,6 +17,9 @@ import {
   nominalGenericParts,
   optionalInner,
   resultParts,
+  storedSuspensionParts,
+  suspensionParts,
+  traitSuspensionParts,
   tupleParts,
 } from "../types.ts";
 import { numericType } from "../numeric.ts";
@@ -238,6 +241,68 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       this.allowedConditionalBindingLocals.clear();
       previous.forEach((index) => this.allowedConditionalBindingLocals.add(index));
     }
+  }
+
+  /**
+   * `value |> step` (05-expressions.md#pipe-expressions). The value is
+   * evaluated first and bound to `_` for the step; a bare step `path` is the
+   * call `path(_)`. It lowers to a one-arm match on the value.
+   */
+  protected checkPipeExpression(
+    expression: Expression,
+    expected?: ValueType,
+  ): HirExpression | undefined {
+    if (expression.kind !== "pipe") return undefined;
+    const value = this.checkExpression(expression.value);
+    const local: HirLocal = {
+      name: "_",
+      type: value.type,
+      index: this.locals.length,
+      mutable: false,
+      parameter: false,
+      span: expression.value.span,
+    };
+    this.locals.push(local);
+    this.scopes.push(new Map([["_", local]]));
+    let step: HirExpression;
+    try {
+      if (expression.bare) {
+        const call = this.checkExpression({
+          kind: "call",
+          callee: expression.step,
+          arguments: [{ kind: "name", name: "_", span: expression.value.span }],
+          span: expression.step.span,
+        });
+        // A bare step never suspends (05-expressions.md#r-expr.pipe.bare.no-suspend).
+        if (
+          suspensionParts(call.type) ||
+          traitSuspensionParts(call.type) ||
+          storedSuspensionParts(call.type)
+        )
+          this.fail(
+            "suspending-pipe-step",
+            "a bare pipe step cannot call a suspending function; write a substitution step such as 'x |> load!(_)'",
+            expression.step.span,
+          );
+        step = this.coerce(call, expected, expression.step.span);
+      } else step = this.checkExpression(expression.step, expected);
+    } finally {
+      this.scopes.pop();
+    }
+    return {
+      kind: "match",
+      subject: value,
+      representation: "scalar",
+      arms: [
+        {
+          bindings: [{ local, fieldIndex: -1, type: value.type }],
+          body: [{ kind: "expression", expression: step, span: step.span }],
+          span: expression.span,
+        },
+      ],
+      type: step.type,
+      span: expression.span,
+    };
   }
 
   protected checkMatchExpression(

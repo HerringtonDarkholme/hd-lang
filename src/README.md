@@ -321,6 +321,11 @@ else`, `break`, `break value`, and `continue`;
 - right-associative single and tuple binding expressions with enclosing-scope
   visibility, readonly inferred bindings, and flow-sensitive initialization
   across short-circuit conditions;
+- pipe expressions `value |> step` with leading-`|>` continuation lines. The
+  parser checks each step's own `_` placeholders, bare steps, and one-line
+  steps; the checker binds the value to `_` and lowers the pipe to a one-arm
+  match, so the value is evaluated first. A bare step `path` is the call
+  `path(_)`;
 - `let` bindings that infer the readonly view, and `let mut` bindings,
   per name in a parenthesized `let (mut a, b)` list, that infer `mut T`,
   reject a readonly value (`mutable-upgrade`), a readonly annotation
