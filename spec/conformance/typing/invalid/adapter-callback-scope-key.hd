@@ -1,0 +1,11 @@
+# test: a filter closure that uses a key bound by an enclosing $.with has that key in its row
+# Spec 06 Iterator Adapters: flow.adapter.callback-row.capture (batch 14, PS3).
+
+trait Logger
+
+fn noisy(value: i32) -> bool $ Logger:
+    value > 0
+
+fn scoped(values: List[i32], logger: Logger) -> List[i32]:
+    $.with(Logger=logger):
+        values.iter().filter(fn(value): noisy(value)).collect()  # diagnostic: type-mismatch

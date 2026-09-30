@@ -184,6 +184,7 @@ Each entry links to the rule, or the section, that defines the term.
 | **depth** | The number of embedded fields on a part's path. See [`names.part.depth`](03-names-and-scopes.md#r-names.part.depth). |
 | **derivation block** | An `impl Trait for X by Structure:` that applies a trait's template to one type, with optional member lines. See [Derivation Blocks](14-annotations.md#derivation-blocks). |
 | **driver context** | Where a bang call is valid: a suspending function or closure body, or the host executor driving `main!`. See [`req.bang.driver-contexts`](11-requirements-and-suspension.md#r-req.bang.driver-contexts). |
+| **dynamic provider** | A provider a closure gets at each call, because its row keeps the key. See [Lexical And Dynamic Providers](11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
 | **embedded field** | A bare type-name member of a data declaration, which embeds another data type. See [Data Embedding](08-data-and-enums.md#data-embedding). |
 | **entry module** | The selected root module of an executable package. See [`module.init.entry-module`](10-modules.md#r-module.init.entry-module). |
 | **enum** | A nominal sum type. See [`data.kind.enum`](08-data-and-enums.md#r-data.kind.enum). |
@@ -207,6 +208,7 @@ Each entry links to the rule, or the section, that defines the term.
 | **iterator adapters** | Methods of the prelude `Iterator[T]` that wrap an iterator in a new one, or drain it. See [Iterator Adapters](06-control-flow.md#iterator-adapters). |
 | **known implementation** | An implementation in the program's dependency graph whose target matches a type; a local one counts only where its methods are available. See [`names.member.known-impl`](03-names-and-scopes.md#r-names.member.known-impl). |
 | **law partners** | Comparison and hash traits whose laws relate them, such as `Hash` and `Eq`. See [Law Partners](09-traits.md#law-partners). |
+| **lexical provider** | A provider a closure fixes where it is written, by capturing the value of `$.use`. See [Lexical And Dynamic Providers](11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
 | **literal suffix** | A name written directly after a numeric literal's digits, which names a suffix function. See [Literal Suffixes](01-lexical-structure.md#literal-suffixes). |
 | **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. See [Member Lines](14-annotations.md#member-lines). |
 | **member metadata** | The ordered list of values attached to a data field, an enum variant, or a parameter. See [Terminology](14-annotations.md#terminology). |
@@ -1976,3 +1978,19 @@ existing source. Each entry names the decision that made the change.
   each element's simplest value. Retired:
   `module.testing.arbitrary.with.mismatch`, replaced by
   `module.testing.arbitrary.with.downcast-failure`.
+- Provider scope batch 14 (PS1-PS3, owner decision in
+  [Open Issues](../future-work/OPEN_ISSUES.md#provider-scope-overlap),
+  2026-09-30): a closure or local `fn` no longer captures providers from an
+  enclosing `$.with` block. Each key its body uses goes into its declared
+  or inferred row and is resolved at each call, so a callee's `$.with` may
+  supply it. A closure written in a `$.with` block that uses a key and then
+  escapes the block, or is passed to an empty-row parameter such as a
+  `filter` callback, is now `type-mismatch`. Lexical scope is explicit:
+  capture the value, as in `clock := $.use(Clock)` and then
+  `fn(): clock.now()`. Direct calls inside a `$.with` block, and providers
+  bound when a suspension is constructed, are unchanged. The overlap
+  `req.with.nearest.forced` is intended behavior. Retired:
+  `req.row.omitted.closure`, replaced by `req.row.omitted.closure-row` and
+  `req.row.omitted.outer-scope`; `fn.capture.providers` and
+  `fn.capture.providers.bound`, replaced by `fn.capture.no-providers` and
+  `fn.capture.provider-value`.

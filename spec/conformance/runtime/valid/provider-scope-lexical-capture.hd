@@ -1,0 +1,35 @@
+# expect-stdout: 9
+# expect-stdout: 7
+# test: a closure that captures a provider value from $.use keeps that provider
+# Spec 11 Lexical And Dynamic Providers: req.with.lexical and
+# req.with.lexical.row; Spec 07 Captures: fn.capture.provider-value (batch 14,
+# PS2). The callee's Clock does not reach the captured value, and the value
+# stays bound after its provider scope ends.
+
+trait Clock:
+    fn now(self) -> i32
+
+data Fixed:
+    hour: i32
+
+impl Clock for Fixed:
+    fn now(self) -> i32: self.hour
+
+fn at_noon[R](callback: fn() -> i32 $ R + Clock) -> i32 $ R:
+    $.with(Clock=Fixed { hour: 12 }):
+        callback()
+
+fn lexical() -> i32:
+    $.with(Clock=Fixed { hour: 9 }):
+        clock := $.use(Clock)
+        at_noon(fn(): clock.now())
+
+fn make_reader() -> fn() -> i32 $ Clock:
+    clock := $.use(Clock)
+    fn() -> i32: clock.now()
+
+pub fn main() -> void $ Console:
+    println("${lexical()}")
+    reader := $.with(Clock=Fixed { hour: 7 }):
+        make_reader()
+    println("${reader()}")

@@ -8,8 +8,9 @@ impl Logger for SilentLogger:
 
 fn make_log() -> fn(string) -> void:
     $.with(Logger=SilentLogger {}):
+        logger := $.use(Logger)
         fn(message: string) -> void:
-            $.use(Logger).write(message)
+            logger.write(message)
 
 fn use_log() -> void:
     log := make_log()

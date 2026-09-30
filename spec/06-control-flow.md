@@ -218,6 +218,7 @@ fn first_evens(values: List[i32]) -> List[(i32, i32)]:
 9. r[flow.adapter.callback-row] The `keep` callback has the empty row. A function value whose row lists a requirement key does not fit it. Error: `type-mismatch`.
 10. r[flow.adapter.callback-row.map] The `transform` callback of `map` has the empty row too.
 11. r[flow.adapter.fold.row] The `step` callback of `fold` may have a requirement row `R`, and `fold` then requires `R`.
+12. r[flow.adapter.callback-row.capture] A `keep` or `transform` closure whose body uses a requirement key has that key in its row, even inside a `$.with` block, so it does not fit. Error: `type-mismatch`.
 
 ```text
 trait Logger
@@ -228,14 +229,29 @@ fn noisy(value: i32) -> bool $ Logger:
 fn positives(values: List[i32]) -> List[i32] $ Logger:
     values.iter().filter(noisy).collect()  # error: type-mismatch
 
+fn scoped(values: List[i32], logger: Logger) -> List[i32]:
+    $.with(Logger=logger):
+        values.iter().filter(fn(value): noisy(value)).collect()  # error: type-mismatch
+
 fn drain(source: Iterator[i32]) -> List[i32]:
     source.collect()  # error: mutable-receiver-required
 ```
 
+A callback that needs a provider captures the provider value from `$.use`
+outside the closure, so its row stays empty:
+
+```text
+trait Logger:
+    fn level(self) -> i32
+
+fn above_level(values: List[i32]) -> List[i32] $ Logger:
+    logger := $.use(Logger)
+    values.iter().filter(fn(value): value > logger.level()).collect()
+```
+
 > **Why.** A lazy adapter's iterator calls `keep` or `transform` from its
 > `next`, whose row is empty, so a stored callback cannot wait for
-> providers. A callback that needs one captures the provider value from
-> `$.use` instead. `fold` calls `step` before it returns, so the row passes
+> providers. `fold` calls `step` before it returns, so the row passes
 > through.
 
 #### Collect Targets

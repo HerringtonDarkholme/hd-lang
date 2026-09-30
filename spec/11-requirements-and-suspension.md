@@ -84,14 +84,15 @@ requirement clause:
 ### Omitted Requirement Clauses
 
 1. r[req.row.omitted.empty-pub] A public function, a public inherent method, a trait method, or a method of a trait implementation without a requirement clause has the empty row.
-2. r[req.row.omitted.empty.body] The body of such a callable may use only requirements satisfied by an enclosing lexical provider scope.
+2. r[req.row.omitted.empty.body] The body of such a callable may use only requirements satisfied by a `$.with` block in that body.
 3. r[req.row.omitted.inferred-private] A non-public function, a non-public inherent method, or a local `fn` declaration without a requirement clause has an inferred row, computed by the same rule as a closure's below.
 4. r[req.row.omitted.cycle] Inferred rows of functions that call each other in a cycle are the least rows that satisfy every member of the cycle.
-5. r[req.row.omitted.closure] When a closure omits its requirement clause, the compiler infers the least row containing every requirement used by its body that is not satisfied by an enclosing lexical provider scope.
-6. r[req.row.omitted.parameter-calls] Calls through function parameters contribute their normalized rows.
-7. r[req.row.omitted.expected-parameter] If an expected function type contains a row parameter, the inferred concrete row is unified with that parameter.
-8. r[req.row.omitted.not-empty] Omission never means an empty row merely because the expected row is generic.
-9. r[req.row.omitted.written] A written `$` clause is explicit and must entail the same body requirements.
+5. r[req.row.omitted.closure-row] When a closure omits its requirement clause, the compiler infers the least row containing every requirement its body uses outside the `$.with` blocks of that body.
+6. r[req.row.omitted.outer-scope] A `$.with` block around a closure or local `fn` declaration never satisfies that callable's requirements, so each key its body uses goes into its row.
+7. r[req.row.omitted.parameter-calls] Calls through function parameters contribute their normalized rows.
+8. r[req.row.omitted.expected-parameter] If an expected function type contains a row parameter, the inferred concrete row is unified with that parameter.
+9. r[req.row.omitted.not-empty] Omission never means an empty row merely because the expected row is generic.
+10. r[req.row.omitted.written] A written `$` clause is explicit and must entail the same body requirements.
 
 ```text
 trait Logger:
@@ -609,6 +610,59 @@ fn run() -> string:
 
 > **Why.** One rule finds every provider: the nearest scope that binds the
 > key, as for nested `$.with` scopes.
+>
+> [`req.with.nearest.forced`](#r-req.with.nearest.forced) is intended: a
+> callback that keeps a key in its row asks its call site to supply that key.
+> Zhang and Myers (POPL 2019) name the unintended case *accidental handling*.
+> They prevent it with lexically scoped handlers. hd keeps one dynamic rule,
+> and a closure gets lexical scope by an explicit capture
+> ([Lexical And Dynamic Providers](#lexical-and-dynamic-providers)).
+
+### Lexical And Dynamic Providers
+
+A closure gets a **dynamic provider** at each call when its row keeps the
+key. It fixes a **lexical provider** where it is written by capturing the
+value of `$.use`. The dynamic form keeps `Clock` in the callback's row, so
+the callee's `$.with` supplies it:
+
+```text
+trait Clock:
+    fn now(self) -> i32
+
+data Fixed:
+    hour: i32
+
+impl Clock for Fixed:
+    fn now(self) -> i32: self.hour
+
+fn at_noon[R](callback: fn() -> i32 $ R + Clock) -> i32 $ R:
+    $.with(Clock=Fixed { hour: 12 }):
+        callback()
+
+fn dynamic() -> i32:
+    $.with(Clock=Fixed { hour: 9 }):
+        at_noon(fn(): $.use(Clock).now())  # 12: the callee's Clock
+```
+
+The lexical form captures the provider value when the closure is written:
+
+```text
+fn lexical() -> i32:
+    $.with(Clock=Fixed { hour: 9 }):
+        clock := $.use(Clock)
+        at_noon(fn(): clock.now())  # 9: the captured Clock
+```
+
+1. r[req.with.dynamic] A closure's row keys are resolved at each call, so a callee's `$.with` may supply a key the closure keeps in its row.
+2. r[req.with.lexical] A closure fixes a provider where it is written only by capturing the value of `$.use`, as in `clock := $.use(Clock)` and then `fn(): clock.now()`.
+3. r[req.with.lexical.row] Such a closure's row omits that key, so no callee's `$.with` changes the provider it uses.
+
+> **Why.** Dynamic scope costs nothing to write, and lexical scope is one
+> binding. A closure that captured providers implicitly would hide which of
+> the two a reader is looking at.
+
+See also: [Omitted Requirement Clauses](#omitted-requirement-clauses),
+[Provider Values](#provider-values), [Captures](07-functions.md#captures).
 
 ### Generic Key Collisions
 

@@ -1,4 +1,4 @@
-# test: closures capture lexical providers at creation; uncovered closures keep the row
+# test: closures fix a provider only by capturing its value; other closures keep the key in their row
 # expect: test
 use std.testing.assert_equal
 
@@ -19,12 +19,20 @@ fn later!() -> string $ Tag:
     current()
 
 tests:
-    it("closure created in a provider scope keeps that provider"):
+    it("closure that captured a provider value keeps that provider"):
         let reader: fn() -> string = $.with(Tag=FixedTag { value: "created" }):
+            tag := $.use(Tag)
+            fn() -> string: tag.name()
+        seen := $.with(Tag=FixedTag { value: "caller" }):
+            reader()
+        assert_equal(seen, "created", reason="captured provider value outlives its scope")
+
+    it("closure created in a provider scope without a capture keeps the key in its row"):
+        let reader: fn() -> string $ Tag = $.with(Tag=FixedTag { value: "created" }):
             fn() -> string: current()
         seen := $.with(Tag=FixedTag { value: "caller" }):
             reader()
-        assert_equal(seen, "created", reason="captured provider outlives its scope")
+        assert_equal(seen, "caller", reason="the enclosing scope does not satisfy the closure's row")
 
     it("closure without a provider in scope uses the caller's provider"):
         reader := fn() -> string: current()

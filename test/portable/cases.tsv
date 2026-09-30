@@ -538,7 +538,6 @@ typing/invalid/defer-bang-call-cold-twin.hd	type
 runtime/valid/nested-provider-restoration.hd	runtime
 runtime/valid/row-extension-restores-provider.hd	runtime
 typing/invalid/missing-requirement-cold-construction.hd	type
-runtime/valid/provider-capture-timing.hd	runtime
 typing/invalid/declared-generic-key-lexical-collision.hd	type
 runtime/valid/i32-extremes-through-generics.hd	runtime
 runtime/panic/generic-i32-overflow.hd	runtime
@@ -1396,3 +1395,5 @@ typing/invalid/fresh-element-not-weakened.hd	type
 parse/invalid/tab-between-tokens.hd	parse
 parse/invalid/binding-list-one-name.hd	parse
 parse/invalid/same-line-suite-binding-list.hd	parse
+runtime/valid/provider-scope-lexical-capture.hd	runtime
+typing/valid/adapter-callback-captured-provider.hd	type

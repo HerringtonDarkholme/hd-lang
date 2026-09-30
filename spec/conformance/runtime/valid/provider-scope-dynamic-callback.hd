@@ -1,0 +1,25 @@
+# expect-stdout: 12
+# test: a callee's $.with supplies a key that a callback written inside another $.with keeps in its row
+# Spec 11 Lexical And Dynamic Providers: req.with.dynamic and
+# req.row.omitted.outer-scope (batch 14, PS1 and PS3). The closure captures no
+# provider from the caller's scope, so the callee's Clock serves it.
+
+trait Clock:
+    fn now(self) -> i32
+
+data Fixed:
+    hour: i32
+
+impl Clock for Fixed:
+    fn now(self) -> i32: self.hour
+
+fn at_noon[R](callback: fn() -> i32 $ R + Clock) -> i32 $ R:
+    $.with(Clock=Fixed { hour: 12 }):
+        callback()
+
+fn dynamic() -> i32:
+    $.with(Clock=Fixed { hour: 9 }):
+        at_noon(fn(): $.use(Clock).now())
+
+pub fn main() -> void $ Console:
+    println("${dynamic()}")

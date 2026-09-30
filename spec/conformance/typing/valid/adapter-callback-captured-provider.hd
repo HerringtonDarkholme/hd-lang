@@ -1,0 +1,14 @@
+# test: a filter closure uses a provider value captured from $.use, so its row stays empty
+# Spec 06 Iterator Adapters: flow.adapter.callback-row.capture (batch 14, PS2).
+
+trait Logger:
+    fn level(self) -> i32
+
+fn above_level(values: List[i32]) -> List[i32] $ Logger:
+    logger := $.use(Logger)
+    values.iter().filter(fn(value): value > logger.level()).collect()
+
+fn scoped(values: List[i32], logger: Logger) -> List[i32]:
+    $.with(Logger=logger):
+        captured := $.use(Logger)
+        values.iter().filter(fn(value): value > captured.level()).collect()

@@ -1,0 +1,17 @@
+# test: a closure returned from a $.with block keeps the key in its row
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.outer-scope (batch 14,
+# PS3). The block does not satisfy the closure's use of Logger, so the closure
+# does not fit the empty-row result type.
+
+trait Logger:
+    fn write(self, message: string) -> void
+
+data SilentLogger: pass
+
+impl Logger for SilentLogger:
+    fn write(self, message: string) -> void: pass
+
+fn make_log() -> fn(string) -> void:
+    $.with(Logger=SilentLogger {}):
+        fn(message: string) -> void:  # diagnostic: type-mismatch
+            $.use(Logger).write(message)

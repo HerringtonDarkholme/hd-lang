@@ -30,8 +30,9 @@ tests:
     it("the removed key needs no provider at the call site"):
         assert_equal(provide_inner(current), "inner", reason="R is inferred as the empty row")
 
-    it("a closure that captured a provider keeps it inside the removing callee"):
+    it("a closure that captured a provider value keeps it inside the removing callee"):
         reader := $.with(Tag=FixedTag { value: "captured" }):
-            fn() -> string: current()
+            tag := $.use(Tag)
+            fn() -> string: tag.name()
         seen := provide_inner(fn() -> string $ Tag: reader())
-        assert_equal(seen, "captured", reason="closure providers bind at creation")
+        assert_equal(seen, "captured", reason="a captured provider value is not looked up again")

@@ -584,8 +584,19 @@ fn run() -> i32:
 This section defines what a closure captures and how it may use its captures.
 
 1. r[fn.capture.locals] A closure captures local bindings that it references from enclosing lexical scopes.
-2. r[fn.capture.providers] It also captures, when created, every lexical provider from an enclosing `$.with` scope that its body uses.
-3. r[fn.capture.providers.bound] Those provider values remain bound to the closure after the provider scope ends, exactly as providers captured by a suspension frame remain bound after construction.
+2. r[fn.capture.no-providers] A closure captures no provider from an enclosing `$.with` scope: each requirement key its body uses goes into its row ([`req.row.omitted.outer-scope`](11-requirements-and-suspension.md#r-req.row.omitted.outer-scope)).
+3. r[fn.capture.provider-value] A provider value bound to a local by `$.use` is captured like any other local, and stays bound after its provider scope ends.
+
+```text
+trait Clock:
+    fn now(self) -> i32
+
+fn make_reader() -> fn() -> i32 $ Clock:
+    clock := $.use(Clock)
+    fn() -> i32: clock.now()
+```
+
+See also: [Lexical And Dynamic Providers](11-requirements-and-suspension.md#lexical-and-dynamic-providers).
 
 #### Plain Closures
 
