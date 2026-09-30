@@ -2,8 +2,9 @@
 
 Logged from the 2026-09-27 chapter restyles. The owner decided these, and
 they were applied in one `spec-update` pass on 2026-09-29. Each item below
-names where it landed, or why it no longer applies. Points that need a new
-decision are under [Open, for the owner](#open-for-the-owner).
+names where it landed, or why it no longer applies. The three points left
+for the owner were decided and applied as batch 10, under
+[Open, for the owner](#open-for-the-owner).
 
 ## Decided, to apply
 
@@ -31,7 +32,7 @@ Applied on 2026-09-29, except where marked obsolete.
 | 01: confusable and mixed-script identifiers are warnings | Applied: [`lex.ident.confusable.warning`](../spec/01-lexical-structure.md#r-lex.ident.confusable.warning), [`lex.ident.mixed-script.warning`](../spec/01-lexical-structure.md#r-lex.ident.mixed-script.warning) |
 | 06: `break value` in a loop without `else` is `break-value-context` | Applied: [`flow.loop.void.break`](../spec/06-control-flow.md#r-flow.loop.void.break), [`flow.loop.else.plain-break`](../spec/06-control-flow.md#r-flow.loop.else.plain-break) |
 | 07: a `pub` inherent method declares its result type; inference only for non-public functions, methods, and local `fn`s | Obsolete: already applied as [`fn.decl.result-required-pub`](../spec/07-functions.md#r-fn.decl.result-required-pub) and [`req.row.omitted.inferred-private`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.inferred-private) |
-| A raw tab inside a string is an error | Already stated by [`lex.tab.content`](../spec/01-lexical-structure.md#r-lex.tab.content); its code is open below |
+| A raw tab inside a string is an error | Already stated by [`lex.tab.content`](../spec/01-lexical-structure.md#r-lex.tab.content); its code, `tab-whitespace`, came with batch 10 (SF2) |
 | A lone `"` inside `"""..."""` is allowed | Applied: the `multiline_string_character` class in [String And Character Literals](../spec/01-lexical-structure.md#string-and-character-literals) |
 | 06's list of discarded suites is complete | Nothing to apply |
 | State the vararg `List[T]` rule in words | Applied: [`fn.vararg.list`](../spec/07-functions.md#r-fn.vararg.list) |
@@ -50,7 +51,7 @@ now ends with "Error: `code`." (or "Panic: `code`."), and every bare
 | 03 | `duplicate-module-name`, `non-reassignable-binding`, `binding-not-yet-visible`, `possibly-uninitialized-binding`, `duplicate-binding`, `unknown-name` | Applied |
 | 04 | `integer-literal-range`, `float-literal-range`, `invalid-map-key`, `mixed-signedness`, `implicit-narrowing`, `invalid-variance`, `variance-representation-change`, `identity-needs-reference-bound`, `trait-not-dynamically-safe` | Applied |
 | 05 | `missing-contextual-enum-type`, `identity-requires-references`, `unsigned-negation`, `type-mismatch`, `suspension-forbidden-context` | Applied; `type-mismatch` is named where a 05 rule owns the check |
-| 09 | `trait-not-dynamically-safe`, `local-impl-nonlocal-pair`, inherent impl outside the owning package | Applied, except the inherent implementation, whose code is open below |
+| 09 | `trait-not-dynamically-safe`, `local-impl-nonlocal-pair`, inherent impl outside the owning package | Applied; the inherent implementation's code, `orphan-impl`, came with batch 10 (SF1) |
 | 10 | `direct-variant-use`, `top-level-read-before-initialization`, `private-type-leak`, `missing-requirement`, `missing-partial-eq`, `syntax-error`, `duplicate-module-name` | Applied; `duplicate-module-name` is obsolete for 10, because 03's [`names.module.unique`](../spec/03-names-and-scopes.md#r-names.module.unique) names it for every module name, uses included |
 | 12 | `multiple-positional-value-packs`, `pack-length-mismatch`, `pack-map-mapper-mismatch` | Applied |
 | 13 | `impossible-gadt-pattern` | Applied |
@@ -62,10 +63,14 @@ now ends with "Error: `code`." (or "Panic: `code`."), and every bare
 
 ## Open, for the owner
 
-Each point waits for the owner; the specification keeps the current text.
+Batch 10. The owner decided these on 2026-09-29: "accept all
+recommendations". They are applied; see the
+[Revision Notes](../spec/README.md#revision-notes) entry "Spec follow-ups
+batch 10". The prototype does not implement them yet, so their fixtures are
+known failures tagged `SF`.
 
-| # | Point | Applied | **Recommendation** |
+| # | Point | Decision | Applied |
 | --- | --- | --- | --- |
-| 1 | Which code rejects an inherent implementation outside the package that owns its target? | [`trait.own.inherent`](../spec/09-traits.md#r-trait.own.inherent) names no code | `orphan-impl`, the code for the same mistake with a trait implementation |
-| 2 | Which code rejects a raw tab inside a string or character literal? The reference parser and the prototype accept one today. | [`lex.tab.content`](../spec/01-lexical-structure.md#r-lex.tab.content) makes it invalid with no code | `tab-whitespace`, the one tab code |
-| 3 | Should `missing-partial-eq` be renamed? EQ-1 removed `PartialEq`, but `assert_equal` on a type without `Eq` still reports this code. | [`module.testing.no-implicit-eq`](../spec/10-modules.md#r-module.testing.no-implicit-eq) names `missing-partial-eq` | Rename it `missing-eq`, and keep the old name as a retired code |
+| SF1 | Which code rejects an inherent implementation outside the package that owns its target? | `orphan-impl`, the code for the same mistake with a trait implementation | [`trait.own.inherent`](../spec/09-traits.md#r-trait.own.inherent) names it, with an error example; fixture `foreign-inherent-impl.hd` |
+| SF2 | Which code rejects a raw tab inside a string or character literal? | `tab-whitespace`, the one tab code | [`lex.tab.content`](../spec/01-lexical-structure.md#r-lex.tab.content) names it; the reference parser now rejects the tab; fixture `tab-in-string-literal.hd` |
+| SF3 | Should `missing-partial-eq` be renamed, since EQ-1 removed `PartialEq`? | Rename it `missing-eq`, and retire the old name | [`module.testing.no-implicit-eq`](../spec/10-modules.md#r-module.testing.no-implicit-eq) and four fixtures use `missing-eq`; the Diagnostics table drops `missing-partial-eq` |

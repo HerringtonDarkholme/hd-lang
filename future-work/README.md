@@ -14,7 +14,8 @@ Planning and backlog:
 - [Open Issues](OPEN_ISSUES.md) is the single backlog for unresolved language,
   runtime, library, ABI, product, and tooling work.
 - [Spec Follow-Ups](SPEC_FOLLOWUPS.md) logs decided editorial fixes, the
-  glossary pass, and unnamed diagnostic codes, to apply in one pass.
+  glossary pass, and unnamed diagnostic codes, all applied on 2026-09-29,
+  batch 10 (SF1-SF3) included.
 
 Decided, not yet applied:
 
