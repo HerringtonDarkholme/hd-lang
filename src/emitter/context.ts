@@ -158,6 +158,17 @@ export class EmitterContext {
     return { dictionary, trait };
   }
 
+  /** A bound's dictionary, or a supertrait's dictionary reached through it. */
+  protected boundDictionary(
+    boundIndex: number,
+    supertrait?: { readonly sourceTraitIndex: number; readonly path: readonly number[] },
+  ): string {
+    const dictionary = `(local.get $bound${boundIndex})`;
+    if (!supertrait) return dictionary;
+    const source = this.traitsByIndex.get(supertrait.sourceTraitIndex)!;
+    return this.traitDictionaryPath(`trait:${source.name}`, supertrait.path, dictionary).dictionary;
+  }
+
   protected emitTraitUpcast(
     sourceTrait: HirTrait,
     targetTrait: HirTrait,

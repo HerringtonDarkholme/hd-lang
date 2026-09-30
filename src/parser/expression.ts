@@ -562,7 +562,11 @@ export abstract class ExpressionParser extends ParserBase {
       const value = token.value as InterpolatedStringValue;
       const segments = value.segments.map((segment) => {
         if (segment.kind === "text") return segment;
-        const expression = this.interpolatedExpression(segment.source, segment.span);
+        // The expression keeps its segment's span, so a diagnostic names its line.
+        const expression = withSpan(
+          this.interpolatedExpression(segment.source, segment.span),
+          segment.span,
+        );
         return { kind: "expression" as const, expression, span: segment.span };
       });
       return { kind: "interpolated-string", segments, span: token.span };

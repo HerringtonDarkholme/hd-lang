@@ -31,6 +31,7 @@ import { withTypeDeclarations } from "./type-declarations.ts";
 import { defaultBoundDiagnostics, withTypeDefaults } from "./type-defaults.ts";
 import { withTypedDerivation } from "./typed-derivation.ts";
 import { withArbitraryModule } from "./derive-arbitrary.ts";
+import { withErrorDerivation } from "./error-derivation.ts";
 import { withShapes } from "./shapes.ts";
 import { setHashableKeyTypes } from "./shared.ts";
 import type { Diagnostic } from "../diagnostics.ts";
@@ -39,7 +40,12 @@ export interface CheckOptions {
   readonly hostCapabilities?: readonly string[];
 }
 
-export function check(source: Program, options: CheckOptions = {}): CheckResult {
+export function check(written: Program, options: CheckOptions = {}): CheckResult {
+  // `@error` is an intrinsic, lowered before any decorator is resolved
+  // (spec/14-annotations.md#error-derivation).
+  const errors = withErrorDerivation(written);
+  if (errors.diagnostics.length > 0) return { diagnostics: [...errors.diagnostics] };
+  const source = errors.program;
   // A bare decorator name of a function with no parameters is a call
   // (spec/14-annotations.md#r-annot.decorator.bare-call).
   const markers = new Set([

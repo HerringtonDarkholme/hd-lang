@@ -56,7 +56,7 @@ function occurrences(
     occurrences(callable.result, polarity, declarations, found);
     return;
   }
-  if (type.startsWith("trait:")) {
+  if (type.startsWith("trait:") && !type.endsWith("?")) {
     for (const argument of nominalGenericParts(type.slice("trait:".length))?.arguments ?? [])
       occurrences(argument, 0, declarations, found);
     return;

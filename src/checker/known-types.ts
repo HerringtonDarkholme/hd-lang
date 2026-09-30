@@ -44,7 +44,7 @@ export function isKnownType(
   if (plainData) return plainData.genericParameters.length === 0;
   const plainEnum = enumTypes.get(type);
   if (plainEnum) return plainEnum.genericParameters.length === 0;
-  if (type.startsWith("trait:")) {
+  if (type.startsWith("trait:") && !type.endsWith("?")) {
     const key = type.slice("trait:".length);
     const nominalTrait = nominalGenericParts(key);
     const trait = traitTypes.get(nominalTrait?.name ?? key);

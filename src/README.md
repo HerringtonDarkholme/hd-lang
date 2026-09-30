@@ -715,18 +715,36 @@ else`, `break`, `break value`, and `continue`;
   `mut` kept, the outer `mut` dropped); every
   inspectable type erases to `Inspectable` or `mut Inspectable` through a
   generated dictionary whose `runtime_type` builds that name, splicing in the
-  names carried by `T < Inspectable` dictionaries; `downcast`, `downcast_mut`,
+  names carried by `T < Inspectable` dictionaries, or by the `Inspectable`
+  part of a bound whose trait extends it, such as `E < Error`; `downcast`, `downcast_mut`,
   `downcast_val`, and `TypeId::of` are checker intrinsics that compare names
   and unwrap the stored payload; `impl Inspectable`, a redeclared or
   implemented `runtime_type`/`downcast`/`downcast_mut`, and an Inspectable
   requirement key in a function's requirement clause are rejected. Not
-  covered: `Hash` for `TypeId`, a type
-  parameter bounded only by a subtrait of `Inspectable`, Inspectable keys in
+  covered: `Hash` for `TypeId`, Inspectable keys in
   closure types and provider scopes, qualified printable names (the
   prototype has one module), and opaqueness (`TypeId { key: ... }` is
   constructible). A type parameter instantiated with `mut U` looks up
   implementations for `U`, and its Inspectable dictionary adds the inner
   `mut` when a composite key is built from it;
+- error derivation (spec/14-annotations.md#error-derivation), lowered before
+  any decorator is resolved by `checker/error-derivation.ts`: it removes each
+  `@error` form, and each `@from` and `@source` marker inside an error type,
+  whatever a binding named `error`, `from`, or `source` means, and reports
+  their placement (`decorator-target-kind`), arguments and cause members
+  (`invalid-error-marker`), and overlaps (`overlapping-impl`).
+  `checker/error-generation.ts` writes `impl Display`, `impl Error` with
+  `cause`, and one `impl From[P]` per `@from` member as hd source with the
+  generated bounds. Each message becomes a helper function whose parameters
+  are the members it names, so `self` and unnamed shared data are unknown
+  names there; a cause or transparent member goes through a bounded helper
+  on a line with the member's span, so a member that is not an `Error` is
+  `unsatisfied-trait-bound` there. Without `use std.error.Error` or
+  `use std.convert.From`, the pass imports them under hidden names. The
+  declared `std.error.Error` has `fn cause(self) -> Error?` with a `.None`
+  default (spec/09-traits.md#r-trait.error.cause); an optional trait value
+  type such as `Error?` is a known type, and a value of `T < Trait` erases
+  to `Trait` through the bound's dictionary;
 - executable `std.testing.assert` with source-order argument evaluation, plus
   `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
   and order-independent map values and for explicit nominal or bounded generic

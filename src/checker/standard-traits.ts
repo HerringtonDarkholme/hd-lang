@@ -8,7 +8,8 @@ import { parse } from "../parser/index.ts";
 // its local name, with every span pointing at the use declaration.
 const STANDARD_TRAITS: Readonly<Record<string, (name: string) => string>> = {
   "std.convert.From": (name) => `trait ${name}[T]:\n    fn from(value: T) -> Self\n`,
-  "std.error.Error": (name) => `trait ${name} < Display & ${INSPECTABLE}\n`,
+  "std.error.Error": (name) =>
+    `trait ${name} < Display & ${INSPECTABLE}:\n    fn cause(self) -> ${name}?: .None\n`,
 };
 
 export const STANDARD_FROM = "std.convert.From";

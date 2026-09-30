@@ -461,7 +461,11 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
     const variantNames = new Set<string>();
     const allFields: HirData["fields"][number][] = [];
     const sharedNames = new Set<string>();
+    // A named payload member must not repeat a named shared field; unnamed
+    // ones never clash (08-data-and-enums.md#r-data.shared.payload-names).
+    const sharedNamed = new Set<string>();
     const sharedFields = declaration.sharedFields.map((field) => {
+      if (!field.positional) sharedNamed.add(field.name);
       if (sharedNames.has(field.name))
         diagnostics.push({
           code: "duplicate-data-field",
@@ -506,7 +510,7 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
       variantNames.add(variant.name);
       const fieldNames = new Set<string>();
       const fields = variant.fields.map((field) => {
-        if (sharedNames.has(field.name))
+        if (!field.positional && sharedNamed.has(field.name))
           diagnostics.push({
             code: "duplicate-data-field",
             message: `payload field '${field.name}' duplicates a shared enum field`,

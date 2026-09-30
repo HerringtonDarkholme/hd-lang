@@ -91,7 +91,7 @@ export function inspectKey(
   }
   if (PRIMITIVES.has(type)) return [type];
   if (type === "void") return argument ? ["void"] : undefined;
-  if (type.startsWith("trait:")) {
+  if (type.startsWith("trait:") && !type.endsWith("?")) {
     if (!argument) return undefined;
     const traitKey = type.slice("trait:".length);
     const application = nominalGenericParts(traitKey);

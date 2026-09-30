@@ -169,6 +169,7 @@ export { isPermissionWeakening, weakenBoundedGenericActual };
 export { mapKeyKind };
 
 import { isKnownType } from "./known-types.ts";
+import { ZERO_SPAN } from "./generated-source.ts";
 
 export { isKnownType };
 
@@ -522,10 +523,12 @@ export abstract class CheckerContext {
         };
       }
       const implementationType = readonlyType(value.type);
-      const erasedParameter = inspectTarget ? genericTypeName(implementationType) : undefined;
+      const erasedParameter =
+        inspectTarget || !mutableTrait ? genericTypeName(implementationType) : undefined;
       if (erasedParameter) {
         // Erasing `x: T` needs `T < Inspectable`; the bound's dictionary
         // records the instantiated type (spec/09-traits.md#erasure-to-inspectable).
+        // A value of `T < Trait` erases to `Trait` through the same dictionary.
         const boundIndex = this.signature.genericBounds.findIndex(
           (bound) => bound.parameter === erasedParameter && bound.traitIndex === trait.index,
         );
@@ -875,10 +878,40 @@ export abstract class CheckerContext {
           (declaration) => declaration !== undefined && !declaration.local,
         ),
       inspectableParameter: (name) =>
-        this.signature.genericBounds.some(
-          (bound) => bound.parameter === name && bound.traitIndex === inspectable?.index,
-        ),
+        this.inspectableBound(name, inspectable?.index ?? -1, ZERO_SPAN) !== undefined,
     };
+  }
+
+  /**
+   * The Inspectable dictionary of type parameter `name`: its own `Inspectable`
+   * bound, or one whose trait extends it, as `E < Error` does.
+   */
+  private inspectableBound(
+    name: string,
+    traitIndex: number,
+    span: SourceSpan,
+  ): HirExpression | undefined {
+    const bounds = this.signature.genericBounds;
+    const type = `trait:${INSPECTABLE}`;
+    const direct = bounds.findIndex(
+      (bound) => bound.parameter === name && bound.traitIndex === traitIndex,
+    );
+    if (direct >= 0)
+      return { kind: "trait-bound-dictionary", traitIndex, boundIndex: direct, type, span };
+    for (const [boundIndex, bound] of bounds.entries()) {
+      const trait = bound.parameter === name ? this.traitTypes.get(bound.traitName) : undefined;
+      const path = trait && this.findSupertraitPath(trait, bound.traitArguments, traitIndex, []);
+      if (trait && path)
+        return {
+          kind: "trait-bound-dictionary",
+          traitIndex,
+          boundIndex,
+          supertrait: { sourceTraitIndex: trait.index, path },
+          type,
+          span,
+        };
+    }
+    return undefined;
   }
 
   // The standard library implements Display for the printable primitives and
@@ -919,15 +952,7 @@ export abstract class CheckerContext {
         if (position === undefined) {
           position = bounds.length;
           positions.set(part.generic, position);
-          bounds.push({
-            kind: "trait-bound-dictionary",
-            traitIndex,
-            boundIndex: this.signature.genericBounds.findIndex(
-              (bound) => bound.parameter === part.generic && bound.traitIndex === traitIndex,
-            ),
-            type: `trait:${INSPECTABLE}`,
-            span,
-          });
+          bounds.push(this.inspectableBound(part.generic, traitIndex, span)!);
         }
         return { bound: position };
       });

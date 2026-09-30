@@ -808,6 +808,8 @@ export type HirExpression =
       readonly kind: "trait-bound-dictionary";
       readonly traitIndex: number;
       readonly boundIndex: number;
+      /** Reaches `traitIndex` through the supertraits of the bound's own trait. */
+      readonly supertrait?: { readonly sourceTraitIndex: number; readonly path: readonly number[] };
     })
   | (HirExpressionBase & {
       readonly kind: "trait-bound";

@@ -688,7 +688,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           expression.kind === "inspect-downcast" ? this.emitExpression(expression.value) : "",
         );
       case "trait-bound-dictionary":
-        return `(local.get $bound${expression.boundIndex})`;
+        return this.boundDictionary(expression.boundIndex, expression.supertrait);
       case "trait-bound": {
         const trait = this.traitsByIndex.get(expression.traitIndex)!;
         const dictionary = `(local.get $bound${expression.boundIndex})`;
