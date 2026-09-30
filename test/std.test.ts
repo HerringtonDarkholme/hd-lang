@@ -110,6 +110,6 @@ test("user code cannot declare inherent methods on a built-in type", () => {
   const analysis = analyze("impl string:\n    pub fn shout(self) -> string: self\n");
   assert.deepEqual(
     analysis.diagnostics.map((diagnostic) => diagnostic.code),
-    ["unknown-type"],
+    ["orphan-impl"],
   );
 });
