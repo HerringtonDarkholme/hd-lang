@@ -1260,14 +1260,8 @@ class Parser extends DecoratorParser {
           "a parenthesized binding list needs at least two names; write 'name := ...' for one",
           { start: open.span.start, end: this.peek(bindingList * 2).span.end },
         );
-      // A multi-name binding needs an indented body
-      // (02-grammar.md#r-grammar.inline.multi-name-binding).
-      if (topOrInline && this.inlineSuiteDepths.at(-1) === this.delimiterDepth(this.index))
-        this.fail(
-          "syntax-error",
-          "a multi-name binding needs an indented body; a same-line suite may hold '(a, b := pair)'",
-          open.span,
-        );
+      // Its commas are inside parentheses, so a same-line suite may hold it
+      // (02-grammar.md#r-grammar.inline.bind-list).
       this.advance();
       const names: Token[] = [];
       do names.push(this.advance());
@@ -1373,6 +1367,14 @@ class Parser extends DecoratorParser {
         "syntax-error",
         "a trailing block's body must begin on the next line",
         this.peek(1).span,
+      );
+    // A same-line suite holds no indented suite, so no trailing block
+    // (02-grammar.md#r-grammar.inline.no-comma).
+    if (this.inlineSuiteDepths.at(-1) === this.delimiterDepth(this.index))
+      this.fail(
+        "syntax-error",
+        "a same-line suite body cannot hold a trailing block; give the suite an indented body",
+        this.current().span,
       );
     const body = this.parseSuite();
     if (this.atText(":"))

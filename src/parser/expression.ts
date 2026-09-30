@@ -730,25 +730,48 @@ export abstract class ExpressionParser extends ParserBase {
     );
   }
 
+  /**
+   * `((a, b) := value)` nests a multi-name binding
+   * (02-grammar.md#r-grammar.expr.multi-binding.wrapped). The former grouped
+   * form `(a, b := value)` is an error whose fix-it parenthesizes the names
+   * (02-grammar.md#r-grammar.expr.multi-binding.no-grouped).
+   */
   private parseGroupedBindingExpression(open: Token): Expression | undefined {
+    if (this.bindingListLength() !== undefined) {
+      this.advance();
+      const names = [this.advance()];
+      while (this.matchText(",")) names.push(this.advance());
+      this.expectText(")");
+      this.expectText(":=");
+      const value = this.parseExpression();
+      const close = this.expectText(")");
+      return {
+        kind: "binding-expression",
+        bindings: names.map((name) => ({ name: name.text, span: name.span })),
+        value,
+        span: { start: open.span.start, end: close.span.end },
+      };
+    }
     if (this.current().kind !== "identifier" || this.peek(1).text !== ",") return undefined;
     let distance = 2;
     while (this.peek(distance).kind === "identifier" && this.peek(distance + 1).text === ",")
       distance += 2;
     if (this.peek(distance).kind !== "identifier" || this.peek(distance + 1).text !== ":=")
       return undefined;
-    const names = [this.advance()];
-    while (this.matchText(","))
-      names.push(this.expectKind("identifier", "expected a binding name after ','"));
-    this.expectText(":=");
-    const value = this.parseExpression();
-    const close = this.expectText(")");
-    return {
-      kind: "binding-expression",
-      bindings: names.map((name) => ({ name: name.text, span: name.span })),
-      value,
-      span: { start: open.span.start, end: close.span.end },
-    };
+    const first = this.current().span;
+    const last = this.peek(distance).span;
+    this.fail(
+      "syntax-error",
+      "the grouped binding '(a, b := value)' was replaced by '((a, b) := value)'",
+      { start: first.start, end: this.peek(distance + 1).span.end },
+      {
+        message: "put the names in their own parentheses",
+        edits: [
+          { span: { start: first.start, end: first.start }, replacement: "(" },
+          { span: { start: last.end, end: last.end }, replacement: ")" },
+        ],
+      },
+    );
   }
 
   private unparenthesizedMultiBindingOperator(): Token | undefined {

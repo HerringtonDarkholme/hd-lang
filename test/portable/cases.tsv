@@ -1576,3 +1576,10 @@ typing/invalid/error-from-marker-argument.hd	type
 runtime/valid/generic-inference-mut-weakening.hd	runtime
 runtime/valid/generic-inference-explicit-conversions.hd	runtime
 runtime/valid/derived-arbitrary-no-finite-data.hd	runtime
+parse/valid/same-line-suite-binding-list.hd	parse
+typing/warnings/same-line-bind-list-unused.hd	type
+parse/invalid/grouped-binding-expression.hd	parse
+parse/valid/grammar-disambiguation.hd	parse
+runtime/valid/binding-expressions.hd	runtime
+runtime/valid/binding-expression-tuple-value.hd	runtime
+parse/invalid/trailing-block-in-same-line-suite.hd	parse
