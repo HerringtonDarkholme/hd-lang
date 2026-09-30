@@ -9,18 +9,16 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,475 of the 1,599 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 124 are listed in
+On 2026-09-30 the prototype passes 1,523 of the 1,599 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 76 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 124 still fail.
+decision below, and all 76 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
 | Tag | Cases | Why they fail |
 | --- | ----- | ------------- |
-| TDEF | 26 | no type-argument defaults, short explicit lists, `Rhs = Self` on the operator traits, or `argument-count` for a long list |
-| ATB | 19 | a binding names only the bound trait's own associated types; trait value types and requirement keys take no binding; no `ambiguous-associated-type`; an unbound requirement key is accepted |
-| F-250 | 15 | packs, GADT variant results, and package roles give generic diagnostics |
+| F-250 | 12 | a pack function is `unsupported-generic-parameter` and `pack.map` is unknown; GADT variant results and package roles give generic diagnostics |
 | MREF | 2 | a closure in a generic function cannot call through the enclosing bounds, which `T::label` needs; `List[void]` is still an unknown type |
 | STR | 14 | `len` still counts scalars; `s[i]` is `unsupported-string-indexing`; no `chars`, `char_indices`, `bytes`, or `slice`; `List`, `Map`, and `string` implement no `Index` |
 | ERRD | 25 | no `@error` intrinsic or its batch 9, 11, and 13 codes and bounds: `@error` resolves as an ordinary decorator, so `error`, `from`, and `source` are unknown names |
