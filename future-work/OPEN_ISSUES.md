@@ -94,8 +94,9 @@ waits for the error-code revamp (#101).
 | AT-code | [`annot.walker.obligation.error`](../spec/14-annotations.md#r-annot.walker.obligation.error) gives `member-not-derivable` for a member that fails a source's bound. AT-with names `unsatisfied-trait-bound`, which [`std-testing.arbitrary.derive.not-derivable`](../spec/std/testing.md#r-std-testing.arbitrary.derive.not-derivable) states. So two rules name different codes for one check. | `member-not-derivable`, the code every other template reports at the opt-in, naming the member. |
 | ST8-self | Applying ST8-clash: `Structure::name()` and `Structure::facts()` take no argument, so nothing infers their `Self`, and [`trait.assoc-call.trait.undetermined`](../spec/09-traits.md#r-trait.assoc-call.trait.undetermined) rejects them. The qualified form the decision names is not yet valid. | Inside a template, a `Structure::` call's `Self` is the template's `T`, since a template has exactly one target. This is a language-tier rule. |
 
-**Batch 24 (owner decision, 2026-09-30).** Iterator consumption. Not yet
-applied. The owner wrote: "Iterator[i32] is immutable. consume it twice in
+**Batch 24 (owner decision, 2026-09-30).** Iterator consumption. Applied;
+the [Revision Notes](../spec/README.md#revision-notes) list it. The owner
+wrote: "Iterator[i32] is immutable. consume it twice in
 for should be an error, unless via something like clone_mut". The owner
 then chose "Iterator is not Iterable" and "no clone; iterate the source".
 IT1 answers [Special Cases Q5](SPECIAL_CASES.md#q5-readonly-iterator-loops)

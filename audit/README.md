@@ -9,15 +9,15 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,521 of the 1,638 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 117 are listed in
+On 2026-09-30 the prototype passes 1,522 of the 1,641 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 119 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 117 still fail. By
+decision below, and all 119 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,587 | 1,473 | 114 |
+| language | 1,590 | 1,474 | 116 |
 | stdlib | 51 | 48 | 3 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -37,6 +37,7 @@ them by tag:
 | INF-mut | 3 | batch 17: generic inference widens numbers, reports a trait-value conflict as `type-mismatch`, and `assert_equal` keeps its special case |
 | BF | 83 | batch 22, D1 and D3: the prototype does not parse `::[` type arguments, still accepts `Box[i32] { ... }`, and reads `handlers[1](5)` as type arguments |
 | BFF | 5 | D1's callable values, D2, and D4: the prototype does not know `Apply` or `Update`, so `v() = x` is `invalid-assignment-target` and `impl Apply` is `unknown-trait` |
+| IT | 2 | batch 24, IT2: `lib/std/iter.hd` still implements `Iterable` for `Iterator`, so an iterator satisfies an `Iterable` bound |
 
 ## What Remains
 
@@ -73,6 +74,7 @@ Revision Notes in `spec/README.md` are the record.
 | M29 | A `Self` line in a per-trait derivation block warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package, and the prototype CLI has no package roles. The other M29 rules, and M27 and M28, are implemented. |
 | BF | D1 (its type-argument part) and D3: explicit type arguments in an expression follow `::`, as in `first::[string](names)` and `Box::[i32] { ... }`, and `[` after an expression always indexes. The prototype parser reads neither `::[` nor an index before `(`, and still accepts `Box[i32] { ... }`. `lib/std` and `src/` keep the old spelling until it does. |
 | BFF | D1 (its callable-value part), D2, and D4: `v()` on a value whose type implements `std.ops.Apply` calls `apply`, and with `Update`, `v() = x` and `v() op= x` store through `update`. The prototype and `lib/std/ops.hd` declare neither trait, and every call target is `invalid-assignment-target`, so `callable-value-no-update.hd` passes without the traits. |
+| IT | Batch 24, IT2: `Iterator[T]` does not implement `Iterable[T]`, so an `I < Iterable` bound rejects an iterator, readonly or mutable, and `for` takes a mutable iterator directly. `lib/std/iter.hd` still declares `impl[T] Iterable[T] for Iterator[T]`, so the prototype accepts both bound fixtures. Its `for` over a mutable iterator already works, through that impl. |
 
 ## Prototype Gaps No Fixture Reaches
 

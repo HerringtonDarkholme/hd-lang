@@ -884,7 +884,8 @@ ship is std design, not a language rule.
 advances `self` only from its own `next`. `collect` and `fold` drain
 `self`, and a negative `take` count panics. A caller writes
 `items.iter().filter(keep).collect()`. `for` uses the prelude trait
-`Iterable[T]`, which `List`, `Map`, and `Iterator` implement. User code
+`Iterable[T]`, which `List` and `Map` implement, and takes a mutable
+`Iterator` directly (batch 24, IT2). User code
 builds an `Iterator` from its own closure with `Iterator::from_fn`
 ([Iteration Protocols](../spec/06-control-flow.md#iteration-protocols)).
 

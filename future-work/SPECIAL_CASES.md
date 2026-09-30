@@ -92,7 +92,7 @@ Things the compiler supplies, generates, or recognizes by a qualified name.
 | I19 | `From` for `?` | [`expr.try.convert.from`](../spec/05-expressions.md#r-expr.try.convert.from), [`trait.from.propagation`](../spec/09-traits.md#r-trait.from.propagation) | `?` calls `From[E]` once, with no import. | Error Conversion 1-11. |
 | I20 | Erased `Error` in test bodies | [`expr.try.test.with-try`](../spec/05-expressions.md#r-expr.try.test.with-try) | A trailing block given to `it` gets `Result[void, Error]` when it uses `?`. | Testing T15. |
 | I21 | `Termination` | [`module.entry.result-termination`](../spec/10-modules.md#r-module.entry.result-termination), [`module.testing.it.body`](../spec/10-modules.md#r-module.testing.it.body) | An ordinary bound on entry results and test bodies. | Testing T5, T8. |
-| I22 | `Iterable` drives `for` | [`flow.for.iterable-only`](../spec/06-control-flow.md#r-flow.for.iterable-only) | `for` and comprehensions call `iter()` once. | CS7, CS8. |
+| I22 | `Iterable` drives `for` | [`flow.for.accepts`](../spec/06-control-flow.md#r-flow.for.accepts) | `for` and comprehensions call `iter()` once, or advance a mutable iterator directly. | CS7, CS8, batch 24 IT2. |
 | I23 | `collect` default | [`std-iter.collect.target-default`](../spec/std/iter.md#r-std-iter.collect.target-default) | Ordinary `FromIterator` bound with the default `List[T]`; no compiler rule. | CO1-CO6, TD. |
 | I24 | `Option` and `Result` support | [`data.prelude.support`](../spec/08-data-and-enums.md#r-data.prelude.support) | `T?`, the one-layer wrap, `?`, and `.Ok()` for `void`. | O1-O3, Result variants decision. |
 | I25 | Must-use types | [`flow.must-use.discard`](../spec/06-control-flow.md#r-flow.must-use.discard) | Discarding `Result`, `T?`, or `mut Suspend[T]` is an error. | Why callout: the discard is visible in review. |
@@ -126,7 +126,7 @@ A rule that applies to one type, one name, or one context. Grouped by area.
 | R16 | Map keys | [`types.map-key.bound`](../spec/04-type-system.md#r-types.map-key.bound) | `K < Eq & Hash`, no `mut K`, own code `invalid-map-key`. | NaN keys; ghost entries. |
 | R17 | `is` on function types | [`expr.is.function`](../spec/05-expressions.md#r-expr.is.function), [`expr.is.function.generic`](../spec/05-expressions.md#r-expr.is.function.generic) | Direct use is an error; through `T < AnyRef` it compiles. | FN_TYPE 9. |
 | R18 | `is` on tuples | [`expr.is.tuple`](../spec/05-expressions.md#r-expr.is.tuple) | An error even when the tuple holds references. | Tuples have no identity. |
-| R19 | Readonly iterator in a loop | [`flow.for.iterator-mut`](../spec/06-control-flow.md#r-flow.for.iterator-mut) | An error, though a readonly `iter()` advances it. | Predates CS10. |
+| R19 | Readonly iterator in a loop | [`flow.for.iterator-mut`](../spec/06-control-flow.md#r-flow.for.iterator-mut), [`flow.for.iterator-direct`](../spec/06-control-flow.md#r-flow.for.iterator-direct) | An error; `for` takes only a mutable iterator directly, since `Iterator` is not `Iterable`. | Batch 24 IT1, IT2. |
 | R20 | Adapter callback rows | [`std-iter.adapter.callback-row`](../spec/std/iter.md#r-std-iter.adapter.callback-row), [`std-iter.adapter.fold.row`](../spec/std/iter.md#r-std-iter.adapter.fold.row) | `filter` and `map` take the empty row; `fold` takes `R`. | STDLIB 14-22, PS3. |
 | R21 | Comprehension restrictions | [`expr.comp.no-suspension`](../spec/05-expressions.md#r-expr.comp.no-suspension), [`expr.comp.no-jumps`](../spec/05-expressions.md#r-expr.comp.no-jumps) | No bang calls, `return`, `break`, `continue`, or `let`; `?` is allowed. | Initial spec; CO1-CO4 added `?`. |
 | R22 | Unread must-use binding | [`flow.unused.must-use`](../spec/06-control-flow.md#r-flow.unused.must-use) | An error, where other unread bindings warn. | The discard must be visible. |
@@ -721,7 +721,7 @@ fn drain_direct(source: Iterator[i32]) -> List[i32]:
 ```
 
 **Absorbed by.** [`flow.for.iterable`](../spec/06-control-flow.md#r-flow.for.iterable)
-and [`flow.for.iterator-self`](../spec/06-control-flow.md#r-flow.for.iterator-self),
+and `flow.for.iterator-self`, retired by batch 24,
 with the CS10 Note on shallow readonly access.
 
 **Cost.** A readonly iterator parameter no longer signals "this function

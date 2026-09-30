@@ -432,7 +432,7 @@ fn drain_direct(source: Iterator[i32]) -> List[i32]:
 ```
 
 **Absorbed by.** [`flow.for.iterable`](../spec/06-control-flow.md#r-flow.for.iterable)
-and [`flow.for.iterator-self`](../spec/06-control-flow.md#r-flow.for.iterator-self).
+and `flow.for.iterator-self`, retired by batch 24.
 
 **Soundness.** Readonly views are shallow
 ([`types.readonly.not-deep`](../spec/04-type-system.md#r-types.readonly.not-deep)),

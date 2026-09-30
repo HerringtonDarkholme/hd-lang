@@ -11,3 +11,4 @@ MHP-1	1	A script's top-level println needs the inferred script entry requirement
 INF-mut	3	Generic call inference from several arguments (batch 17, INF-mut) is not implemented: an i32 and an i64 argument widen instead of type-mismatch, a User and a Display argument are type-mismatch instead of no-common-type, and assert_equal still coerces expected to the type of actual
 BF	83	Explicit type arguments in expressions take `::` (batch 22, D1 and D3): the prototype does not parse `::[`, still accepts a type name's arguments without `::`, and reads brackets before `(` as type arguments
 BFF	5	Callable values (D1 callable-value part, D2, D4): the prototype does not know `Apply` or `Update`, so `v() = x` is invalid-assignment-target and `impl Apply` is unknown-trait
+IT	2	Iterator is not Iterable (batch 24, IT2): lib/std/iter.hd still implements Iterable for Iterator, so the prototype accepts an iterator for an Iterable bound
