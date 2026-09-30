@@ -265,15 +265,3 @@ export function knownCodes(readme: string, controlFlow: string): Set<string> {
   if (panics) for (const match of panics[1]!.matchAll(/`([a-z0-9-]+)`/g)) codes.add(match[1]!);
   return codes;
 }
-
-/** Retired rule IDs: the backticked IDs listed under "Retired Rule IDs" in spec/STYLE.md. */
-export function retiredRuleIds(style: string): Set<string> {
-  const section = /^## Retired Rule IDs\s*$([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(style);
-  const retired = new Set<string>();
-  if (!section) return retired;
-  for (const line of section[1]!.split("\n")) {
-    const item = /^\s*[-*]\s+`([^`]+)`/.exec(line);
-    if (item) retired.add(item[1]!);
-  }
-  return retired;
-}

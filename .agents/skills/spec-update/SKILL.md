@@ -45,8 +45,9 @@ the spec, and it adds exactly what the decision says, no more.
 3. **Write the spec text** per `spec/STYLE.md`:
    - one rule per sentence, each with a rule ID that uses the chapter
      prefix;
-   - a rule whose meaning changes gets a new ID, and the old ID is retired
-     under Retired Rule IDs with the date and replacement;
+   - a rule whose meaning changes gets a new ID, and the old ID is retired:
+     delete it, and do not list it anywhere, not in `spec/STYLE.md` either;
+     the Revision Note names it in plain text with its replacement;
    - never rename a heading or anchor;
    - an error example for each new diagnostic, and a Why callout for the
      rationale.
@@ -68,7 +69,9 @@ the spec, and it adds exactly what the decision says, no more.
    ```
 
    Nothing may be lost except what the decision removes. Explain every
-   lost code, example, or rule ID in the commit message.
+   lost code, example, or rule ID in the commit message. A retired ID shows
+   up as lost. The diff fails when an added ID appears in the history of
+   the numbered chapters: that ID was retired before, so choose another.
 7. **Update the prototype.** Implement the decision in `src/` with tests.
    When it is too large for this change, add the new fixtures to
    `test/portable/KNOWN_FAILURES.tsv` (`path`, `reason`, and the decision

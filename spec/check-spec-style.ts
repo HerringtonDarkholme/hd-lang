@@ -8,8 +8,10 @@
 // line; other chapters get a one-line count unless --all is given.
 //
 // Failures: a malformed or misplaced rule ID marker, a duplicate rule ID, an
-// ID without its chapter's prefix, a marker outside a numbered chapter, reuse
-// of a retired ID, and an error-example marker naming an unknown code.
+// ID without its chapter's prefix, a marker outside a numbered chapter, and
+// an error-example marker naming an unknown code. Retired IDs are not listed
+// anywhere, so the rule inventory diff (spec/tools/rule-inventory.ts) catches
+// a reused one by searching the history.
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,7 +23,6 @@ import {
   knownCodes,
   paragraphs,
   readable,
-  retiredRuleIds,
   ruleMarkers,
   sentences,
   wordCount,
@@ -73,7 +74,6 @@ async function main(args: readonly string[]): Promise<number> {
   const specDirectory = resolve(positional[0]!);
   const read = (name: string): Promise<string> => readFile(resolve(specDirectory, name), "utf8");
   const codes = knownCodes(await read("README.md"), await read("06-control-flow.md"));
-  const retired = retiredRuleIds(await read("STYLE.md"));
   const names = (await readdir(specDirectory)).filter((name) => name.endsWith(".md")).sort();
   const failures: string[] = selfCheck();
   const seen = new Map<string, string>();
@@ -96,8 +96,6 @@ async function main(args: readonly string[]): Promise<number> {
         failures.push(
           `${where}: rule ID ${marker.id} must start with this chapter's prefix ${prefix}.`,
         );
-      if (retired.has(marker.id))
-        failures.push(`${where}: rule ID ${marker.id} is retired and must not be reused`);
       const previous = seen.get(marker.id);
       if (previous) failures.push(`${where}: duplicate rule ID ${marker.id}, first at ${previous}`);
       else seen.set(marker.id, where);

@@ -10,7 +10,11 @@
 // code example, and every rule ID, with prose statistics. The diff is the
 // review aid for a restyle (spec/STYLE.md, "Restyling A Chapter"): a rewrite
 // must lose no diagnostic code, no example line, and no rule ID. Examples may
-// be moved or split, and error examples added. Normative sentences cannot be
+// be moved or split, and error examples added. A retired rule ID is simply
+// gone, so the diff reports it as lost, and the change explains it. When OLD
+// is REV:PATH, the diff also reports each added rule ID whose marker appears
+// in REV's history of the numbered chapters: that ID was retired and must
+// not be reused. Normative sentences cannot be
 // matched mechanically, so the diff pairs each old sentence with its closest
 // new one and lists weak pairs for a human to check.
 //
@@ -20,7 +24,7 @@
 //   --all         with --diff, pair every prose sentence, not only normative ones
 //
 // Exit status: 0 when nothing is lost, 1 when a diff loses a code, an example
-// line, or a rule ID, and 2 on a usage error. It imports only Node built-ins
+// line, or a rule ID, or reuses a rule ID, and 2 on a usage error. It imports only Node built-ins
 // and spec/.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -37,7 +41,6 @@ import {
   paragraphs,
   display,
   readable,
-  retiredRuleIds,
   ruleMarkers,
   sentences,
   wordCount,
@@ -103,6 +106,29 @@ function load(spec: string): string {
       maxBuffer: 1 << 26,
     });
   throw new Error(`cannot read ${spec}`);
+}
+
+/**
+ * For OLD given as REV:PATH, a test of whether a rule ID's marker appears
+ * anywhere in REV's history of the numbered chapters.
+ */
+function historySearch(spec: string): ((id: string) => boolean) | undefined {
+  const colon = spec.indexOf(":");
+  if (existsSync(spec) || colon <= 0) return undefined;
+  const revision = spec.slice(0, colon);
+  const pickaxe = (id: string): string[] => [
+    "-C",
+    repoRoot,
+    "log",
+    "-1",
+    "--format=%h",
+    "-S",
+    `r[${id}]`,
+    revision,
+    "--",
+    "spec/[0-9][0-9]-*.md",
+  ];
+  return (id) => execFileSync("git", pickaxe(id), { encoding: "utf8" }).trim() !== "";
 }
 
 function proseOf(block: Block): string {
@@ -206,6 +232,8 @@ export interface Diff {
   readonly addedExamples: Example[];
   readonly lostRules: string[];
   readonly addedRules: string[];
+  /** Added rule IDs that an earlier version of the specification used; undefined when not checked. */
+  readonly reusedRules: string[] | undefined;
   readonly sentences: SentenceMatch[];
   /** New normative sentences that are no old sentence's closest match. */
   readonly unmatchedNew: Sentence[];
@@ -273,8 +301,8 @@ function similarity(a: Set<string>, b: Set<string>): number {
 export function diff(
   old: Inventory,
   next: Inventory,
-  retired: ReadonlySet<string>,
   allSentences = false,
+  usedBefore?: (id: string) => boolean,
 ): Diff {
   const lostCodes = Object.keys(old.codes)
     .filter((code) => !(code in next.codes))
@@ -287,8 +315,9 @@ export function diff(
   const addedExamples = next.examples.filter((example) => !used.has(example.index));
   const nextIds = new Set(next.rules.map((rule) => rule.id));
   const oldIds = new Set(old.rules.map((rule) => rule.id));
-  const lostRules = [...oldIds].filter((id) => !nextIds.has(id) && !retired.has(id)).sort();
+  const lostRules = [...oldIds].filter((id) => !nextIds.has(id)).sort();
   const addedRules = [...nextIds].filter((id) => !oldIds.has(id));
+  const reusedRules = usedBefore && addedRules.filter(usedBefore).sort();
   const oldSentences = allSentences ? old.sentences : old.normative;
   const nextSentences = allSentences ? next.sentences : next.normative;
   const nextTokens = nextSentences.map((sentence) => tokens(sentence.text));
@@ -311,6 +340,7 @@ export function diff(
   const ok =
     lostCodes.length === 0 &&
     lostRules.length === 0 &&
+    (reusedRules ?? []).length === 0 &&
     examples.every((match) => match.status !== "lost");
   return {
     old,
@@ -321,6 +351,7 @@ export function diff(
     addedExamples,
     lostRules,
     addedRules,
+    reusedRules,
     sentences: matches,
     unmatchedNew,
     allSentences,
@@ -425,8 +456,13 @@ export function diffReport(result: Diff): string {
     "",
     `Old: ${old.rules.length}. New: ${next.rules.length}.`,
     "",
-    `- Lost (neither kept nor retired): ${result.lostRules.map((id) => `\`${id}\``).join(", ") || "none"}`,
+    `- Lost (retired; explain each in the commit and the Revision Note): ${result.lostRules.map((id) => `\`${id}\``).join(", ") || "none"}`,
     `- Added: ${result.addedRules.length}`,
+    `- Reused (added, but an earlier version used it): ${
+      result.reusedRules === undefined
+        ? "not checked; give OLD as REV:PATH"
+        : result.reusedRules.map((id) => `\`${id}\``).join(", ") || "none"
+    }`,
     "",
     result.allSentences ? "## Sentences" : "## Normative sentences",
     "",
@@ -479,13 +515,11 @@ function main(args: readonly string[]): number {
   let ok = true;
   if (diffing) {
     const [oldSpec, newSpec] = rest as [string, string];
-    const style = resolve(specRoot, "STYLE.md");
-    const retired = retiredRuleIds(existsSync(style) ? readFileSync(style, "utf8") : "");
     const result = diff(
       inventory(oldSpec, load(oldSpec), known),
       inventory(newSpec, load(newSpec), known),
-      retired,
       allSentences,
+      historySearch(oldSpec),
     );
     ok = result.ok;
     text = json ? `${JSON.stringify(result, null, 2)}\n` : diffReport(result);
