@@ -242,6 +242,23 @@ letter := 'A'          # char
 name := "Ada"          # string
 ```
 
+A string is immutable UTF-8 bytes, as in Go. `len()` counts bytes and
+`s[i]` reads one byte as a `u8`, both in constant time. A string is not
+iterable, so say what you walk: `chars()` yields each `char`,
+`char_indices()` yields `(byte offset, char)` pairs like Go's `range`, and
+`bytes()` yields each `u8`. `slice(start, end)` takes byte offsets, and so
+do the positions that string methods return:
+
+```text
+fn first_word(text: string) -> string:
+    for offset, letter in text.char_indices():
+        if letter == ' ':
+            return text.slice(0, offset)
+    text
+
+size := "héllo".len()  # 6: é is two bytes
+```
+
 Numeric values support ordinary arithmetic operators:
 
 ```text

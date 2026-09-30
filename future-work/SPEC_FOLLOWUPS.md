@@ -22,7 +22,8 @@ are applied later in one `spec-update` pass, not per chapter.
   "must not"; STYLE.md adopts "Panic: `code`." for panic codes at the end of
   a rule; the agents' literal readings of unclear referents stand.
 
-- **04, decided 2026-09-27:** `types.string.host-utf8` stays normative;
+- **04, decided 2026-09-27:** `types.string.host-utf8` stays normative
+  (retired 2026-09-29 by Strings STR6 for `types.string.host-bytes`);
   package interfaces carry the generic and pack function bodies needed
   downstream (fix the Implementation Model note to say per-shape bodies are
   compiled in the defining package but carried bodies may be used for
@@ -76,7 +77,7 @@ example, as the 08 pilot did.
 | Chapter | Codes |
 | --- | --- |
 | 03 | `duplicate-module-name`, `non-reassignable-binding`, `binding-not-yet-visible`, `possibly-uninitialized-binding`, `duplicate-binding`, `unknown-name` |
-| 04 | `integer-literal-range`, `float-literal-range`, `invalid-map-key`, `mixed-signedness`, `implicit-narrowing`, `invalid-variance`, `variance-representation-change`, `identity-needs-reference-bound`, `unsupported-string-indexing`, `trait-not-dynamically-safe` |
+| 04 | `integer-literal-range`, `float-literal-range`, `invalid-map-key`, `mixed-signedness`, `implicit-narrowing`, `invalid-variance`, `variance-representation-change`, `identity-needs-reference-bound`, `trait-not-dynamically-safe` |
 | 05 | `missing-contextual-enum-type`, `identity-requires-references`, `unsigned-negation`, `type-mismatch`, `suspension-forbidden-context` |
 | 09 | dynamic-safety break (`trait-not-dynamically-safe`), misplaced local impl (`local-impl-nonlocal-pair`), inherent impl outside the owning package |
 | 10 | `direct-variant-use`, `top-level-read-before-initialization`, `private-type-leak`, `missing-requirement`, `missing-partial-eq`, `syntax-error`, `duplicate-module-name` |

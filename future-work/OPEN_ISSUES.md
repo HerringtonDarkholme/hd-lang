@@ -316,16 +316,23 @@ nothing. AT5 is [Bound Requirement Keys](../spec/11-requirements-and-suspension.
 and [`grammar.type.row.key-binding`](../spec/02-grammar.md#r-grammar.type.row.key-binding).
 
 **Decided 2026-09-29, answering points 5 and 6 of the AT3-AT5 apply
-pass.** Both follow the recommendation. Not yet applied.
+pass.** Both follow the recommendation.
 
 6. **AT6 (point 5): an ambiguous projection is `ambiguous-associated-type`.**
-   This covers [`trait.assoc.ambiguous`](../spec/09-traits.md#r-trait.assoc.ambiguous)
-   and [`trait.binding.ambiguous`](../spec/09-traits.md#r-trait.binding.ambiguous):
+   This covers `trait.assoc.ambiguous` and `trait.binding.ambiguous`:
    `I::Item` when two bounds on `I` both declare `Item`. It closes audit
    finding TY-32 with this code instead of a separate `ambiguous-projection`.
 7. **AT7 (point 6): a requirement key must bind every associated type of
    its trait.** An unbound key, such as `$ Store` when `Store` declares
    `Item`, is `trait-not-dynamically-safe`, as its trait value type is.
+
+**AT6-AT7 applied (2026-09-29).** AT6 retires the two projection rules for
+[`trait.assoc.ambiguous-type`](../spec/09-traits.md#r-trait.assoc.ambiguous-type)
+and [`trait.binding.ambiguous-projection`](../spec/09-traits.md#r-trait.binding.ambiguous-projection),
+and audit finding TY-32 is closed. AT7 is
+[`req.key.binding.complete`](../spec/11-requirements-and-suspension.md#r-req.key.binding.complete)
+and [`.error`](../spec/11-requirements-and-suspension.md#r-req.key.binding.complete.error).
+Nothing is open.
 
 **Unblocks.** Shorter bounds for trait hierarchies with associated types.
 
@@ -437,11 +444,13 @@ imported. Three points of the defaults apply pass are in
 
 ### Strings
 
-**Decided (owner, 2026-09-29), not yet applied.** [Strings](STRINGS.md)
+**Decided and applied (owner, 2026-09-29).** [Strings](STRINGS.md)
 STR1-STR6 follow Go: a `string` is immutable bytes that are always valid
 UTF-8, `len` and `s[i]` count bytes, `string` is not `Iterable`, and
-`s.slice(a, b)` takes byte offsets. Its Still Open lists the points the
-decisions leave.
+`s.slice(a, b)` takes byte offsets
+([Strings](../spec/04-type-system.md#strings),
+[String Methods](../spec/10-modules.md#string-methods)). Points the apply
+pass met are in [Strings Still Open](STRINGS.md#still-open).
 
 ### Iterator Performance
 

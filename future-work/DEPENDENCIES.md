@@ -1,8 +1,8 @@
 # Dependencies Through Version Control: Survey And Options
 
 Status: design exploration, 2026-09-29. Owner decisions DEP1-DEP13 and
-DEP15-DEP18 are applied (2026-09-29), DEP14 has nothing to apply yet,
-and DEP19 is decided but not yet applied. The specification is authoritative for the applied ones:
+DEP15-DEP19 are applied (2026-09-29), and DEP14 has nothing to apply yet.
+The specification is authoritative for them:
 [Package Manifest](../spec/10-modules.md#package-manifest) and its
 subsections, from [Dependency Requirements](../spec/10-modules.md#dependency-requirements)
 to [Toolchain Version](../spec/10-modules.md#toolchain-version). DEP7's
@@ -101,7 +101,7 @@ apply pass, with one rule for a missing tag.
     the manifest diagnostics that DEP14 defers, and is named with them.
 
 Decided 2026-09-29, answering Still Open point 13 of the DEP16-DEP18
-apply pass. It follows the recommendation. Not yet applied.
+apply pass. It follows the recommendation.
 
 19. **DEP19: a pseudo-version that names a missing commit, or whose time
     does not match its commit, is the same error as a missing tag,** with
@@ -133,6 +133,10 @@ answer. DEP16-DEP18 are applied (2026-09-29):
 | DEP18 | [`module.version.tag-missing`](../spec/10-modules.md#r-module.version.tag-missing), [`module.version.no-fallback`](../spec/10-modules.md#r-module.version.no-fallback); the code waits for DEP14 |
 
 The DEP16-DEP18 apply pass met one point, point 13, which DEP19 answers.
+DEP19 is applied (2026-09-29) as
+[`module.version.pseudo-missing`](../spec/10-modules.md#r-module.version.pseudo-missing)
+and [`.no-fallback`](../spec/10-modules.md#r-module.version.pseudo-missing.no-fallback);
+its code waits for DEP14. Nothing is open.
 
 ## Contents
 

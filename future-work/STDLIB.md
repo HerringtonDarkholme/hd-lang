@@ -430,8 +430,10 @@ through a bound was open; it is now specified in
 
 ### `std.text`
 
-The built-in `string` methods are the six in the
-[normative table](../spec/10-modules.md#prelude). The rest are inherent
+The built-in `string` methods are the ten in the
+[normative table](../spec/10-modules.md#built-in-methods), including
+`chars`, `char_indices`, `bytes`, and `slice` from
+[Strings](STRINGS.md) STR4 and STR5. The rest are inherent
 methods that `std` declares on `string` (decision 8). They are available in
 every module without a `use`:
 
@@ -443,7 +445,7 @@ impl string:
     pub fn contains(self, needle: string) -> bool:
         pass
 
-    pub fn find(self, needle: string) -> i32?:
+    pub fn find(self, needle: string) -> i32?:  # a byte offset (STR6)
         pass
 
     pub fn upper(self) -> string:
@@ -461,9 +463,6 @@ impl string:
     pub fn strip_suffix(self, suffix: string) -> string?:
         pass
 
-    pub fn chars(self) -> List[char]:
-        pass
-
     pub fn lines(self) -> List[string]:
         pass
 
@@ -476,12 +475,12 @@ impl string:
     pub fn to_utf8(self) -> List[u8]:
         pass
 
+    pub fn from_utf8(bytes: List[u8]) -> Result[string, Utf8Error]:
+        pass
+
 pub enum Utf8Error:
     InvalidSequence(position: i32)
     Truncated
-
-pub fn from_utf8(bytes: List[u8]) -> Result[string, Utf8Error]:
-    pass
 
 pub fn join(parts: List[string], separator: string) -> string:
     pass
@@ -532,10 +531,30 @@ and starts no empty one, and a `\r` not followed by `\n` stays:
 `interpolate` joins the pieces with the values' `Display` text.
 `process_escapes` fails at the first invalid escape, and
 `EscapeError.offset` counts the Unicode scalars before its backslash (L22).
+Whether it should count bytes instead is
+[Strings Still Open](STRINGS.md#still-open) point 5.
 
-Unicode rules follow the built-ins: scalar values, no locale, full case
-mappings. Normalization, segmentation, and collation are later additions
+`string::from_utf8` is the one checked conversion from bytes that
+[`types.string.from-bytes`](../spec/04-type-system.md#r-types.string.from-bytes)
+requires (Strings STR1). `Utf8Error.InvalidSequence` gives the byte offset
+of the first invalid sequence. `to_utf8` copies a string's bytes out.
+
+Unicode rules follow the built-ins: valid UTF-8, byte offsets, no locale,
+full case mappings. Normalization, segmentation, and collation are later additions
 (questions for a Unicode-data policy stay with the lexical Unicode version).
+
+`lib/std/text.hd` still implements the scalar model and should follow
+Strings STR1-STR6 (applied 2026-09-29):
+
+- `len` returns `byte_len(self)`, and `find` returns the byte offset
+  from `byte_find` without converting it to a scalar count;
+- add `chars`, `char_indices`, `bytes`, and `slice`, and move `from_utf8`
+  onto `impl string` as `string::from_utf8`;
+- the header comment's "Positions and lengths count Unicode scalars"
+  becomes byte offsets;
+- `process_escapes` and `parse_i32`, `parse_i64`, and `parse_f64` in
+  `lib/std/num.hd` walk a string through `split("")`, which still works,
+  but their error positions count scalars (Still Open point 5).
 
 ### `std.option` and `std.result`
 
