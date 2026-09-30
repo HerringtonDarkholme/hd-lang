@@ -1,7 +1,8 @@
 # Error Conversion: The `@error` Intrinsic
 
-Status: every owner decision of this record is applied. Nothing here is
-accepted behavior; the specification is authoritative. Decisions 1-9, 11,
+Status: decisions 21-27 (batch 9, 2026-09-29) are decided and not yet
+applied; every earlier decision is applied. Nothing here is accepted
+behavior; the specification is authoritative. Decisions 1-9, 11,
 and 13-20 (2026-09-26 and 2026-09-27) are applied, or superseded by the
 testing redesign:
 [Propagation](../spec/05-expressions.md#propagation),
@@ -14,8 +15,8 @@ testing redesign:
 [Exit Status](../spec/10-modules.md#exit-status), and
 [Propagation In Test Blocks](../spec/05-expressions.md#propagation-in-test-blocks).
 Decisions 10 and 12, the `@error` intrinsic, were applied on 2026-09-29 in
-[Error Derivation](../spec/14-annotations.md#error-derivation). Points
-that need the owner are under [Still Open](#still-open).
+[Error Derivation](../spec/14-annotations.md#error-derivation). The
+owner answered its apply-pass points as decisions 21-27.
 
 The error-chain helpers (`Context`, `.context`, `chain`, `find`,
 `root_cause`, `ErrorReport`) are library API in
@@ -58,21 +59,41 @@ The review R12 rule about common fields without a default is not
 specified: Enum Semantics decision 4 made shared enum data per-variant
 constants, which made it moot.
 
+Decided 2026-09-29, not yet applied (batch 9, the apply-pass points; all
+as recommended):
+
+21. **ERR SO1: a misplaced marker.** A misplaced `@error`, `@from`, or
+    `@source` is `decorator-target-kind`.
+22. **ERR SO2: invalid markers.** A second cause member, and `@from` on a
+    bare type parameter, are a new code, `invalid-error-marker`. A cause
+    or transparent member that is not an `Error` is
+    `unsatisfied-trait-bound`.
+23. **ERR SO3: `$self`.** `$self` in a message is `unknown-name`.
+24. **ERR SO4: `$_0` in a message.** `$_0`, `$_1` in a message name the
+    variant's unnamed payload members. Unnamed shared enum data is not in
+    scope.
+25. **ERR SO5: generated bounds.** A carried-only type parameter gets
+    `P < Inspectable` on the generated `impl Error`; `Display` keeps
+    gap 1, so it gives a carried-only parameter no bound. A transparent
+    member of type `P` gets `P < Error`, so `cause` forwards. An example
+    uses `@error(transparent) Inner(e: P)` without `@from`, since
+    decision 22 makes `@from` on a bare `P` invalid.
+26. **ERR SO6: no import.** Writing `@error` needs no
+    `use std.error.Error`, matching
+    [`annot.derive.no-use`](../spec/14-annotations.md#r-annot.derive.no-use).
+    Fixtures that import it only for this reason drop the import where
+    that is natural.
+27. **Apply-pass readings confirmed.** Two `@from` members of one type, or
+    a hand-written `Display`, `Error`, or `From` for an error type, are
+    `overlapping-impl`. Markers attach no value. A message is evaluated
+    each time the value is displayed. A bare `@error` before a data type,
+    and `@error("...")` before an enum, are invalid; the code comes from
+    decisions 21-26 where one covers it, and the applied reading stays
+    otherwise.
+
 ### Apply-Pass Readings
 
-The apply pass read these points from the decision. None adds behavior the
-decision did not state; each is listed so the owner can confirm it.
-
-| Reading | Rule |
-| --- | --- |
-| A marker is not a name, so it attaches no value: other derivations of the type do not see it. | [`annot.error.marker.no-value`](../spec/14-annotations.md#r-annot.error.marker.no-value) |
-| Two `@from` members of one type are `overlapping-impl`, reported on the later member, since generated impls are ordinary. | [`annot.error.from.same-type`](../spec/14-annotations.md#r-annot.error.from.same-type) |
-| A hand-written `Display`, `Error`, or generated `From` is `overlapping-impl`, reported on the hand-written impl. | [`annot.error.hand-written`](../spec/14-annotations.md#r-annot.error.hand-written) |
-| A message is evaluated each time the value is displayed, not once at compile time as a fact is. | [`annot.error.message.eval`](../spec/14-annotations.md#r-annot.error.message.eval) |
-| "Common fields" are now the enum's shared fields; named ones are in scope. | [`annot.error.message.shared`](../spec/14-annotations.md#r-annot.error.message.shared) |
-| Only the listed forms are valid, so a bare `@error` before a data type, and `@error("...")` before an enum, are invalid. | [`annot.error.form.other`](../spec/14-annotations.md#r-annot.error.form.other) |
-| A transparent member must implement `Error`, since its `cause` is forwarded. | [`annot.error.transparent.type`](../spec/14-annotations.md#r-annot.error.transparent.type) |
-| The compiler now generates `cause`, so the specification states its signature; `trait.error.api` is retired. | [`trait.error.cause`](../spec/09-traits.md#r-trait.error.cause) |
+The owner confirmed the apply pass's readings as decision 27.
 
 ## Current Design
 
@@ -81,40 +102,13 @@ The specification holds the design:
 
 ## Still To Do
 
-Nothing remains to apply. The points below wait for the owner.
+Apply decisions 21-27 to
+[Error Derivation](../spec/14-annotations.md#error-derivation).
 
 ## Still Open
 
-The apply pass met these points, where the recorded decision meets later
-rules or leaves a code unnamed. Each waits for the owner; the Applied column
-says what the specification states now.
-
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 1 | Which code rejects a misplaced `@error`, `@from`, or `@source`, such as `@error` before a function or newtype? A misplaced `@derive` is `decorator-not-annotator`, while a value outside its `@annotate` kinds is `decorator-target-kind`. | "Invalid", with no code ([`annot.error.form.other`](../spec/14-annotations.md#r-annot.error.form.other)) | `decorator-target-kind`: the problem is the target's kind, as for `@annotate`. |
-| 2 | Which codes reject a second cause member, a `@from` member whose type is a bare type parameter, and a cause or transparent member that is not an `Error`? The decision calls each an error without a code. | "Invalid", with no code ([`annot.error.cause.one`](../spec/14-annotations.md#r-annot.error.cause.one), [`.from.type-parameter`](../spec/14-annotations.md#r-annot.error.from.type-parameter), [`.cause.type`](../spec/14-annotations.md#r-annot.error.cause.type), [`.transparent.type`](../spec/14-annotations.md#r-annot.error.transparent.type)) | `unsatisfied-trait-bound` for a member that is not an `Error`, as for any unmet bound; one new code, `invalid-error-marker`, for the other two. |
-| 3 | Which code rejects `$self` in a message? The decision (review R7) calls it a compile error, apart from an unknown name. `self` outside a method has no code today. | "Invalid", with no code ([`annot.error.message.no-self`](../spec/14-annotations.md#r-annot.error.message.no-self)) | `unknown-name`: a message is not inside a method, so `self` names nothing. |
-| 4 | What does `$_0` name in a message when the enum also has unnamed shared data? Gap 3 names unnamed payload members `_0`, `_1`, and [`data.shared.underscore-field`](../spec/08-data-and-enums.md#r-data.shared.underscore-field) names unnamed shared data the same way. E1 put common fields in scope before Enum Semantics decision 4. | Only named shared fields are in scope ([`annot.error.message.shared`](../spec/14-annotations.md#r-annot.error.message.shared)) | The payload member wins, and unnamed shared data is not in scope: the message describes the value. |
-| 5 | Which bounds does the generated `Error` get for a type parameter that is only carried, or that a transparent member has? Gap 1 gives a carried parameter no bound, but `impl Error` needs an inspectable target ([`trait.error.not-inspectable`](../spec/09-traits.md#r-trait.error.not-inspectable)), and an unbounded parameter is not inspectable ([`trait.inspectable.not.parameter`](../spec/09-traits.md#r-trait.inspectable.not.parameter)). A transparent member forwards `cause`, which needs `P < Error`. | Only `P < Error` for a `@from` or `@source` member ([`annot.error.bound.error`](../spec/14-annotations.md#r-annot.error.bound.error)); `Display` follows gap 1 | The generated `Error` gets `P < Inspectable` for a carried parameter and `P < Error` for a transparent one; `Display` keeps gap 1. |
-| 6 | Does a module that writes `@error` need `use std.error.Error`? The decision's example imports it, but for other uses too. | No rule; the fixtures import it | No import, as [`annot.derive.no-use`](../spec/14-annotations.md#r-annot.derive.no-use) needs none for `Structure`. |
-
-Point 5 in hd:
-
-```text
-@error
-enum TaskError[E, T]:
-    @error("task failed")
-    Failed(@source error: E, input: T)
-```
-
-Under gap 1 alone, `impl[E < Error, T] Error for TaskError[E, T]` has a
-target that is not inspectable, because `T` has no bound.
+Nothing is open.
 
 ## Parse Log
 
-The one `text` block of this record parses with the reference parser.
-Parsing checks syntax only.
-
-| Block | Result |
-| --- | --- |
-| 1 (`TaskError[E, T]`) | parse |
+This record has no `text` blocks.

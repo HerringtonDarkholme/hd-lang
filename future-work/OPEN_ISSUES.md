@@ -44,7 +44,7 @@ the one point that applying Let 1 raised:
 
 | # | Decision | Where |
 | --- | --- | --- |
-| Let 7 | A parenthesized `let` list may be a same-line suite body: `if ok: let (a, b) = pair` and `if ok: let (mut log, db) = pair` are valid. Bare comma forms still close the suite, so `if ok: a, b := pair` and `if ok: let a, b = pair` stay `syntax-error`, and `(a, b := pair)` stays valid. A `for` over several names still needs an indented body. The owner picked this over the recommendation. Bindings are block-scoped, so such a name is never read, and the existing `unused-local-binding` warning reports it; no code is added. | [`grammar.inline.let-list`](../spec/02-grammar.md#r-grammar.inline.let-list), [`grammar.inline.bare-comma`](../spec/02-grammar.md#r-grammar.inline.bare-comma), [`grammar.inline.multi-name-for`](../spec/02-grammar.md#r-grammar.inline.multi-name-for), [`flow.unused.warning`](../spec/06-control-flow.md#r-flow.unused.warning); `grammar.inline.multi-name-let-for` is retired |
+| Let 7 | A parenthesized `let` list may be a same-line suite body: `if ok: let (a, b) = pair` and `if ok: let (mut log, db) = pair` are valid. Bare comma forms still close the suite, so `if ok: a, b := pair` and `if ok: let a, b = pair` stay `syntax-error`, and `(a, b := pair)` stays valid. A `for` over several names still needs an indented body. The apply pass recommended allowing `let (a, b)` there. The owner then noted that bindings are block-scoped, so such a name is never read. The coordinator then recommended banning every binding in a same-line suite. The owner chose to allow them anyway: the existing `unused-local-binding` warning reports the unread name, and no code is added. | [`grammar.inline.let-list`](../spec/02-grammar.md#r-grammar.inline.let-list), [`grammar.inline.bare-comma`](../spec/02-grammar.md#r-grammar.inline.bare-comma), [`grammar.inline.multi-name-for`](../spec/02-grammar.md#r-grammar.inline.multi-name-for), [`flow.unused.warning`](../spec/06-control-flow.md#r-flow.unused.warning); `grammar.inline.multi-name-let-for` is retired |
 
 ### Local Mutability: `let mut` As An Inference Helper
 
@@ -136,11 +136,12 @@ outputs.
 
 **Decided 2026-09-27, applied 2026-09-29.** Error Conversion decision 10,
 error derivation as one compiler intrinsic, `@error`, is in
-[Error Derivation](../spec/14-annotations.md#error-derivation). Six
-apply-pass points wait for the owner in
-[Error Conversion](ERROR_CONVERSION.md#still-open): the codes for invalid
-forms, `$_0` beside unnamed shared data, the `Error` bounds of carried and
-transparent type parameters, and whether `@error` needs an import.
+[Error Derivation](../spec/14-annotations.md#error-derivation). The owner
+answered its six apply-pass points on 2026-09-29 (batch 9) as
+[Error Conversion decisions 21-27](ERROR_CONVERSION.md#owner-decisions):
+the codes for invalid forms, `$_0` beside unnamed shared data, the `Error`
+bounds of carried and transparent type parameters, and no import for
+`@error`. They are not yet applied.
 
 ### Serializable Closures And Incremental Computation
 
