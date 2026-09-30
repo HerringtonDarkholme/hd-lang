@@ -33,8 +33,9 @@ Open questions for the owner:
   the `spec/std/` scaffold, is done.
 - [Call Indexing](CALL_INDEXING.md) studies the owner's idea of indexing
   with call syntax, `list(0)` and `list(0) = v`, so `[]` after an operand
-  means only type arguments. It counts 178 index sites and asks four
-  questions, starting with how `user.tags(0)` reaches a field.
+  means only type arguments. It counts 178 index sites, surveys how
+  trait-based languages separate fields from methods, and compares B, C1,
+  and C3′ in five questions.
 
 Deferred:
 
