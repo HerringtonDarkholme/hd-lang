@@ -1255,6 +1255,8 @@ typing/valid/operator-newtype-hand-written.hd	type
 typing/valid/index-traits.hd	type
 runtime/valid/index-traits-run.hd	runtime
 typing/invalid/index-set-missing.hd	type
+typing/invalid/callable-value-no-update.hd	type
+typing/invalid/list-call-not-callable.hd	type
 typing/invalid/index-missing.hd	type
 parse/valid/supertrait-binding.hd	parse
 typing/invalid/supertrait-binding-unknown.hd	type

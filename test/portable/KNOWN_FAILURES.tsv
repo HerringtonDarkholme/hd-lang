@@ -111,3 +111,8 @@ typing/valid/expression-type-arguments.hd	the prototype does not parse `::[` typ
 parse/invalid/type-name-brackets-without-marker.hd	the prototype still accepts a type name's arguments without `::` (D3), so `Box[i32] { value: 1 }` parses	BF
 parse/invalid/trait-qualified-brackets-without-marker.hd	the prototype still accepts a trait's arguments without `::` (D3), so `Add[i32]::add(price, 5)` parses	BF
 runtime/valid/index-then-call-element.hd	the prototype reads brackets before `(` as type arguments (D1), so `handlers[1](5)` is a syntax-error	BF
+typing/valid/callable-values.hd	the prototype does not know `Apply` or `Update` (D1), so `count() = 1` is invalid-assignment-target	BFF
+runtime/valid/callable-values-run.hd	the prototype does not know `Apply` or `Update` (D1), so `count() = 1` is invalid-assignment-target	BFF
+typing/invalid/callable-value-arguments.hd	the prototype does not know `Apply` (D2), so `impl Apply for Counter` is unknown-trait before `counter(1)` is checked	BFF
+typing/invalid/callable-value-short-binding-store.hd	the prototype does not know `Update` (D4), so `view() = 1` is invalid-assignment-target, not readonly-root	BFF
+typing/invalid/callable-value-readonly-parameter.hd	the prototype does not know `Update` (D4), so `count() = 2` is invalid-assignment-target, not readonly-root	BFF

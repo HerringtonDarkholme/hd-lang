@@ -9,15 +9,15 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,519 of the 1,631 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 112 are listed in
+On 2026-09-30 the prototype passes 1,521 of the 1,638 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 117 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 112 still fail. By
+decision below, and all 117 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,580 | 1,471 | 109 |
+| language | 1,587 | 1,473 | 114 |
 | stdlib | 51 | 48 | 3 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -36,6 +36,7 @@ them by tag:
 | MHP-1 | 1 | no inferred script entry requirement row |
 | INF-mut | 3 | batch 17: generic inference widens numbers, reports a trait-value conflict as `type-mismatch`, and `assert_equal` keeps its special case |
 | BF | 83 | batch 22, D1 and D3: the prototype does not parse `::[` type arguments, still accepts `Box[i32] { ... }`, and reads `handlers[1](5)` as type arguments |
+| BFF | 5 | D1's callable values, D2, and D4: the prototype does not know `Apply` or `Update`, so `v() = x` is `invalid-assignment-target` and `impl Apply` is `unknown-trait` |
 
 ## What Remains
 
@@ -71,6 +72,7 @@ Revision Notes in `spec/README.md` are the record.
 | DC7 | The top-level statements of an initialization group run in dependency order, then by module identity and source position. The package linker joins a group's modules by identity and cannot interleave their statements, so a read that needs a later-joined module's binding is `top-level-read-before-initialization`, which `init-group-order.hd`, a package-tree fixture, shows. |
 | M29 | A `Self` line in a per-trait derivation block warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package, and the prototype CLI has no package roles. The other M29 rules, and M27 and M28, are implemented. |
 | BF | D1 (its type-argument part) and D3: explicit type arguments in an expression follow `::`, as in `first::[string](names)` and `Box::[i32] { ... }`, and `[` after an expression always indexes. The prototype parser reads neither `::[` nor an index before `(`, and still accepts `Box[i32] { ... }`. `lib/std` and `src/` keep the old spelling until it does. |
+| BFF | D1 (its callable-value part), D2, and D4: `v()` on a value whose type implements `std.ops.Apply` calls `apply`, and with `Update`, `v() = x` and `v() op= x` store through `update`. The prototype and `lib/std/ops.hd` declare neither trait, and every call target is `invalid-assignment-target`, so `callable-value-no-update.hd` passes without the traits. |
 
 ## Prototype Gaps No Fixture Reaches
 
