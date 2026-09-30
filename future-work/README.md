@@ -27,6 +27,9 @@ Open questions for the owner:
 - [Special Cases: Inventory And Simplification](SPECIAL_CASES.md) lists
   hd's compiler intrinsics, rule exceptions, special syntax, magic names,
   and single-construct diagnostics, and ranks nine cuts as owner questions.
+- [Spec Tiers](SPEC_TIERS.md) proposes splitting the spec into a language
+  tier and a stdlib tier under `spec/std/`, with an inventory, a
+  conformance split, a migration plan, and eight owner questions.
 
 Deferred:
 
