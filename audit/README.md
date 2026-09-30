@@ -9,10 +9,10 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-29 the prototype passes 1,394 of the 1,536 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 142 are listed in
+On 2026-09-29 the prototype passes 1,394 of the 1,544 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 150 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 142 still fail.
+decision below, and all 150 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
@@ -26,6 +26,7 @@ them by tag:
 | MREF | 10 | `Type::name` without a call is still `deferred-method-value` |
 | STR | 8 | `len` still counts scalars; `s[i]` is `unsupported-string-indexing`; no `chars`, `char_indices`, `bytes`, or `slice` |
 | ITER | 8 | `Iterator` is still a trait; no `from_fn`, `map`, `fold`, or `Iterable` for iterators |
+| ERRD | 8 | no `@error` intrinsic: `@error` resolves as an ordinary decorator, so `error` and `from` are unknown names |
 | EMB-S | 4 | trait availability needs package roles |
 | P2 | 4 | member visibility needs package roles |
 | COLLECT | 4 | `collect` returns only `List[T]`, and there is no `FromIterator` |
