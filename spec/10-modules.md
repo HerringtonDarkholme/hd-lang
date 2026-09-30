@@ -333,17 +333,17 @@ use dep.billing.types.{UserId as BillingUserId}
 1. r[module.use.single] A use may name a single public declaration or a module namespace.
 2. r[module.use.grouped] A grouped use names selected public declarations.
 3. r[module.use.trailing-comma] Grouped uses may have a trailing comma.
-4. r[module.use.no-wildcard] Wildcard uses are not supported.
-5. r[module.use.no-variant] Enum variants are members, not module declarations, and cannot be used directly.
+4. r[module.use.no-wildcard] Wildcard uses are not supported. A wildcard use is an error. Error: `syntax-error`.
+5. r[module.use.no-variant] Enum variants are members, not module declarations, and cannot be used directly. Error: `direct-variant-use`.
 6. r[module.use.private-or-missing] Using a private or missing declaration is a compile-time error.
-7. r[module.use.pub-grouped] Only the grouped form accepts a `pub` prefix.
+7. r[module.use.pub-grouped] Only the grouped form accepts a `pub` prefix. A `pub` single use is an error. Error: `syntax-error`.
 8. r[module.use.facade] Public facades expose selected declarations rather than module namespace aliases.
 9. r[module.use.whole-module] Use declarations introduce names for the whole module and are resolved before type checking.
 
 ```text
-use std.testing.*                 # error
-use pkg.status.{Status.Queued}    # error
-pub use std.testing.assert_equal  # error
+use std.testing.*                 # error: syntax-error
+use pkg.status.{Status.Queued}    # error: direct-variant-use
+pub use std.testing.assert_equal  # error: syntax-error
 ```
 
 ## Dependency Cycles
@@ -518,7 +518,7 @@ trait Console:
 1. r[module.console.host-trait] `Console` is a host capability trait.
 2. r[module.console.write-line-mut] `write_line!` takes `mut self`, so `Console` is a mutable requirement trait and a provider may record what it writes.
 3. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
-4. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope.
+4. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
 5. r[module.console.println-write] A call `println(value)` calls `write_line!(value.to_string())` on the `Console` provider that covers the call.
 6. r[module.console.println-drive.block-on] `println` drives that `write_line!` call with [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on), exactly as `block_on` drives a stored suspension, and returns after the call completes.
 7. r[module.console.println-drive.pending] When a poll of that call returns `Pending` on a host write, `println` keeps driving the call until it finishes, as `block_on` does.
@@ -534,7 +534,7 @@ trait Console:
 
 ```text
 pub fn main() -> void:
-    println("missing")  # error
+    println("missing")  # error: missing-requirement
 
 fn report() -> void $ Console:
     defer:
@@ -587,7 +587,7 @@ See also: [Driving A Stored Suspension](11-requirements-and-suspension.md#drivin
 ### Value-Category Traits
 
 1. r[module.prelude.any-subtraits] `AnyVal` and `AnyRef` are the two sealed marker subtraits of `Any`.
-2. r[module.prelude.anyref] `AnyRef` is implemented by data values, stored enum values (optionals included), lists, maps, dynamic trait values, and `Any`. It is also implemented by closures, suspensions, and runtime handles that have identity, and payload-free enum values with canonical variant identity.
+2. r[module.prelude.anyref] `AnyRef` is implemented by data values, stored enum values (optionals included), lists, maps, dynamic trait values, and `Any`. It is also implemented by closures, suspensions, payload-free enum values with canonical variant identity, and those runtime handles that have identity.
 3. r[module.prelude.anyref-not] `AnyRef` is not implemented by primitives or tuples.
 4. r[module.prelude.anyval-types] `AnyVal` is implemented by exactly the primitives, `void`, tuples, and newtypes whose base type implements `AnyVal`.
 5. r[module.prelude.newtype-category] A newtype implements `AnyRef` exactly when its base type does.
@@ -672,7 +672,7 @@ fn assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void
 2. r[module.testing.reason] `reason` is required and must explain the checked condition.
 3. r[module.testing.assert-panic] A failed assertion causes a runtime panic, inside a test case or not. Panic: `assertion-failed`.
 4. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
-5. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type.
+5. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type. An argument type without `Eq` is an error. Error: `missing-partial-eq`.
 6. r[module.testing.assert-equal-debug] `assert_equal` also requires `T < Debug`, and a failure shows both values as `debug` renders them. A type without `Debug` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
@@ -685,7 +685,7 @@ data Error:
 tests:
     it("result equality needs Eq"):
         let actual: Result[i32, Error] = .Ok(1)
-        assert_equal(actual, .Ok(1), reason="values match")  # error
+        assert_equal(actual, .Ok(1), reason="values match")  # error: missing-partial-eq
 ```
 
 ### Test Cases
@@ -1067,14 +1067,14 @@ pub fn price_of(sku: string) -> i32:
 
 ### Definite Initialization
 
-1. r[module.init.definite] Before accepting a top-level executable statement, the compiler checks the transitive read set of each function or closure it references. Every top-level binding in that set must already be initialized.
+1. r[module.init.definite] Before accepting a top-level executable statement, the compiler checks the transitive read set of each function or closure it references. Every top-level binding in that set must already be initialized. Error: `top-level-read-before-initialization`.
 2. r[module.init.definite.implicit] References passed as values and functions reached by trait dispatch, interpolation, iteration, or another implicit call are included.
 3. r[module.init.definite.dispatch] A trait method call through a generic bound or a dynamic trait value reaches every implementation of that method in the module.
 4. r[module.init.definite.whole-module] This definite-initialization check covers the whole module value-flow and call graph.
 5. r[module.init.definite.local] The check is local to one module.
 
 ```text
-first := apply(first_name)  # error
+first := apply(first_name)  # error: top-level-read-before-initialization
 let names: List[string] = ["Ada"]
 
 fn apply(callback: fn() -> string) -> string:
@@ -1174,7 +1174,7 @@ use pkg.shop.a.{Token}  # error: re-export-loop
 
 ### Public Signatures
 
-1. r[module.vis.signature] A public declaration's complete source-level signature must not expose a module-private declaration.
+1. r[module.vis.signature] A public declaration's complete source-level signature must not expose a module-private declaration. Error: `private-type-leak`.
 2. r[module.vis.signature.coverage] This check recursively covers function parameters and results, data fields (every embedded field included), and enum constructor data and payloads. It also covers alias/newtype underlying types, trait bounds, supertraits, public generic arguments, and every requirement-row key.
 3. r[module.vis.body] A private implementation detail may occur in a public function body but not in its public typed interface.
 
@@ -1182,7 +1182,7 @@ use pkg.shop.a.{Token}  # error: re-export-loop
 data Secret:
     value: string
 
-pub fn reveal() -> Secret:  # error
+pub fn reveal() -> Secret:  # error: private-type-leak
     Secret { value: "hidden" }
 ```
 
@@ -1201,10 +1201,10 @@ See also: [Field Visibility](08-data-and-enums.md#field-visibility).
 1. r[module.package.annotated] Every public declaration is fully annotated: its complete signature is written in source.
 2. r[module.package.annotated.parts] That signature includes parameter and result types, requirement rows, suspension, and generic parameters with their bounds, variance, and reification. It also includes the types of public fields and enum data.
 3. r[module.package.no-inference] Nothing in a public signature is inferred from a function body.
-4. r[module.package.no-pub-binding] Top-level bindings cannot be public.
+4. r[module.package.no-pub-binding] Top-level bindings cannot be public. A `pub` binding is an error. Error: `syntax-error`.
 
 ```text
-pub answer := 42  # error
+pub answer := 42  # error: syntax-error
 ```
 
 ### Package Interfaces
@@ -1259,7 +1259,7 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 7. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
 
 ```text
-data HiddenError: pass
+pub data HiddenError: pass
 
 pub fn main() -> Result[void, HiddenError]:  # error: unsatisfied-trait-bound
     .Err(HiddenError {})

@@ -25,7 +25,7 @@ mechanisms:
 5. r[req.model.suspend-no-errors] Suspension does not raise ordinary errors.
 6. r[req.model.no-provider-choice] Declaring a requirement does not by itself choose a provider.
 7. r[req.model.runtimes] Production, test, sandbox, and replay runtimes may bind different providers or drivers at explicit requirement and suspension boundaries.
-8. r[req.model.no-reinterpretation] Code outside those boundaries is not generally reinterpreted.
+8. r[req.model.never-reinterpreted] Code outside those boundaries is never reinterpreted: every runtime runs it the same way.
 
 ## Requirement Rows
 
@@ -46,14 +46,8 @@ fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
     ...
 ```
 
-```ebnf
-requirement_clause = "$", requirement_row ;
-requirement_row = requirement_list
-                | "(", ")"
-                ;
-requirement_list = requirement_key, { "+", requirement_key } ;
-requirement_key = bound_trait_type ;
-```
+[Requirement Clauses](02-grammar.md#requirement-clauses) gives the
+grammar of `requirement_clause`, `requirement_row`, and `requirement_key`.
 
 1. r[req.row.syntax.signature] A function signature may end with `$` and an unordered list of requirement traits.
 2. r[req.row.syntax.plus-list] Each key names a separate injected value, and several keys are joined with `+`, as in `$ Database + Cache`.
@@ -79,20 +73,9 @@ See also: [Mutable Providers](#mutable-providers),
 Function declarations, closure expressions, and function types use the same
 requirement clause:
 
-```ebnf
-function_decl = "fn", callable_name, [ function_generic_params ], parameter_clause,
-                [ "->", type ], [ requirement_clause ], ":",
-                suite_body ;
-
-function_type = "fn", [ "!" ], "(", [ type_list ], ")",
-                "->", type, [ requirement_clause ] ;
-
-closure_expression = "fn", [ "!" ], closure_parameter_clause,
-                     [ "->", type ], [ requirement_clause ],
-                     ":", suite_body ;
-
-callable_name = identifier, [ "!" ] ;
-```
+[Functions](02-grammar.md#functions), [Types](02-grammar.md#types), and
+[Closures](02-grammar.md#closures) give the productions `function_decl`,
+`function_type`, and `closure_expression`.
 
 1. r[req.row.callable.same-clause] Function declarations, closure expressions, and function types use the same requirement clause.
 2. r[req.row.callable.methods] The same callable name and optional requirement clause apply to trait methods and functions inside `impl` blocks.
@@ -125,7 +108,7 @@ data Nightly: pass
 
 impl Job for Nightly:
     fn run(self) -> void:
-        log("nightly")  # error
+        log("nightly")  # error: missing-requirement
 ```
 
 > **Why.** A public row is the reader's summary of what a function reaches,
@@ -139,7 +122,7 @@ impl Job for Nightly:
 3. r[req.row.set.union] The row denoted by a list is the union of its keys.
 4. r[req.row.set.parameter] A row parameter listed beside other keys contributes every key of its row.
 5. r[req.row.set.duplicate] `$ Logger + Clock + Logger` is the row `$ Clock + Logger`.
-6. r[req.row.set.call] A function may call another required function only when its own row includes those requirements or a lexical provider scope satisfies them.
+6. r[req.row.set.call] A function may call another required function only when its own row includes those requirements or a lexical provider scope satisfies them. Error: `missing-requirement`.
 
 ```text
 trait Database
@@ -148,7 +131,7 @@ fn query() -> void $ Database:
     pass
 
 pub fn invalid() -> void:
-    query()  # error
+    query()  # error: missing-requirement
 ```
 
 ### Entailment
@@ -555,14 +538,14 @@ db, cache := $.use(Database, Cache)
 
 1. r[req.use.context] `$.use` retrieves providers from the statically known current context.
 2. r[req.use.order] The result order matches the requested key order.
-3. r[req.use.missing] A missing provider is a compile-time error at every call site below an entry point.
-4. r[req.use.entry-row] Entry-point rows may contain only host capability traits declared by the selected runtime profile.
+3. r[req.use.missing] A missing provider is a compile-time error at every call site below an entry point. Error: `missing-requirement`.
+4. r[req.use.entry-row] Entry-point rows may contain only host capability traits declared by the selected runtime profile. Error: `nonhost-entry-requirement`.
 5. r[req.use.registered-profile-set] For a registered boundary, the registration contract's explicit bindable-trait set is that boundary's profile.
 6. r[req.use.host-configuration] Failure to configure one of those host providers is a pre-execution host configuration error.
 7. r[req.use.no-dynamic-search] `$.use` is non-suspending and performs no dynamic handler search that can fail at runtime below that boundary.
 
 ```text
-pub fn main() -> void: _ := $.use(Clock)  # error
+pub fn main() -> void: _ := $.use(Clock)  # error: missing-requirement
 
 trait Clock
 ```
@@ -637,8 +620,8 @@ fn run() -> string:
 6. r[req.with.collision.concrete] Distinct concrete keys such as `Repo[User]` and `Repo[Post]` remain valid.
 7. r[req.with.collision.bindings] A key's bindings take part in the comparison as its type arguments do, so `Store[Item = T]` and `Store[Item = User]` collide.
 
-For example, a generic body may not make `Repo[T]` and `Repo[U]` concurrently
-visible, because an instantiation can choose `T = U`. It likewise may not
+For example, a generic body must not make `Repo[T]` and `Repo[U]` concurrently
+visible, because an instantiation can choose `T = U`. It likewise must not
 combine a declared `Repo[T]` with a lexical `Repo[User]`, because `T` can be
 `User`:
 
@@ -675,7 +658,7 @@ $.with(Database=db, Logger=logger, prod_context()...):
 4. r[req.context.empty] `$.Context[$()]` is the empty context.
 5. r[req.context.create] `$.context` creates a context value.
 6. r[req.context.spread] An entry `ctx...` spreads the providers of the context value `ctx`.
-7. r[req.context.spread.suffix] Like every spread, a context spread is written with a suffix `...`, and a prefix `...ctx` is a syntax error.
+7. r[req.context.spread.suffix] Like every spread, a context spread is written with a suffix `...`, and a prefix `...ctx` is a syntax error. Error: `syntax-error`.
 8. r[req.context.order] Context spreads and explicit bindings are applied left to right, and the later binding wins when the same key appears more than once.
 9. r[req.context.one-per-key] The resulting context still has one provider per key.
 
@@ -684,7 +667,7 @@ trait Tag:
     fn name(self) -> string
 
 fn run(ctx: $.Context[Tag]) -> void:
-    $.with(...ctx):  # error
+    $.with(...ctx):  # error: syntax-error
         pass
 ```
 
@@ -694,21 +677,9 @@ See also: [Data Expressions](05-expressions.md#data-expressions).
 
 ### Provider Grammar
 
-```ebnf
-context_use = "$", ".", "use", "(", requirement_key,
-              { ",", requirement_key }, [ "," ], ")" ;
-
-context_create = "$", ".", "context", "(", context_entries, ")" ;
-context_type = "$", ".", "Context", "[",
-               ( requirement_key | row_type_argument ), "]" ;
-context_scope = "$", ".", "with", "(", context_entries, ")",
-                ":", suite_body ;
-
-context_entries = context_entry, { ",", context_entry }, [ "," ] ;
-context_entry = requirement_key, "=", expression
-              | continued_expression, "..."
-              ;
-```
+[Requirements And Provider Contexts](02-grammar.md#requirements-and-provider-contexts)
+gives the productions `context_use`, `context_create`, `context_type`,
+`context_scope`, and `context_entries`.
 
 1. r[req.context.grammar.categories] `context_use` and `context_create` are primary expressions; `context_type` is a reference type; and `context_scope` is a suite expression.
 2. r[req.context.ordinary-values] Provider values are ordinary values and use ordinary trait implementations.
@@ -889,14 +860,13 @@ loader := fn!(id: UserId) -> Result[User, DbError] $ Database:
 
 ### Bang Calls And Driver Contexts
 
-```ebnf
-suspension_call_suffix = "!", argument_clause ;
-```
+A bang call ends in the `suspension_call_suffix` of
+[Expressions](02-grammar.md#expressions): `!`, optional type arguments, and an argument clause.
 
 1. r[req.bang.suffix] This suffix is part of `postfix_suffix` at ordinary call precedence.
 2. r[req.bang.not-negation] It follows a completed operand, so it never collides with prefix logical `!` at the start of an operand: `!fetch!(id)` is a legal negation of a bang call's `bool` result.
 3. r[req.bang.driver-contexts] A bang call is valid only in a **driver context**, which is exactly one of: a suspending function or closure body, or the host executor driving `main!`. A test body is a suspending closure.
-4. r[req.bang.top-level] Module top level is not a driver context.
+4. r[req.bang.top-level] Module top level is not a driver context. A bang call outside a driver context is an error. Error: `bang-call-outside-suspension`.
 5. r[req.bang.active] A driver is **active** while its executor is evaluating or polling that driver context on the current program-instance call stack.
 6. r[req.bang.pending-not-active] A pending invocation retained by the host between polls is unfinished but not active.
 7. r[req.bang.test-driven] The test runner drives each test body as a suspension, so a driver is active throughout the test, including calls through non-suspending helpers.
@@ -904,7 +874,7 @@ suspension_call_suffix = "!", argument_clause ;
 
 ```text
 fn work!() -> i32: 42
-fn main() -> i32: work!()  # error
+fn main() -> i32: work!()  # error: bang-call-outside-suspension
 ```
 
 ### Driving A Stored Suspension
@@ -1024,7 +994,8 @@ trait Waker:
 
 1. r[req.schedule.one-thread] Each program instance executes cooperatively on one thread.
 2. r[req.schedule.yield-points] Bang calls are the only language-level yield points; code between them does not interleave with a sibling suspension in that instance.
-3. r[req.schedule.all-order] `std.task.all!` polls children in argument order on its initial poll and again in argument order after every wake.
+3. r[req.schedule.all-unfinished] `std.task.all!` polls its children in argument order on its initial poll. After every wake it polls again, in argument order, only the children that have not completed.
+4. r[req.schedule.all-completed] `all!` never polls a completed child again; it keeps that child's result.
 
 ## Compilation Strategy
 
@@ -1085,7 +1056,7 @@ let pending: mut Suspend[Result[User?, DbError]] = $.with(Database=mock_db):
 
 1. r[req.bind.construction] Requirements of a suspending function are resolved when its cold suspension is constructed, not when a later driver first polls it.
 2. r[req.bind.captured] The chosen providers are captured by the generated frame.
-3. r[req.bind.caller] A caller constructing a required suspension must itself satisfy that requirement even if it does not immediately bang-call the suspension.
+3. r[req.bind.caller] A caller constructing a required suspension must itself satisfy that requirement even if it does not immediately bang-call the suspension. Error: `missing-requirement`.
 
 ```text
 trait Tag:
@@ -1095,7 +1066,7 @@ fn tagged!() -> string $ Tag:
     $.use(Tag).name()
 
 pub fn rejected_construction() -> void:
-    let pending: mut Suspend[string] = tagged()  # error
+    let pending: mut Suspend[string] = tagged()  # error: missing-requirement
     pending.cancel()
 ```
 

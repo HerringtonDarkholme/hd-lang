@@ -20,12 +20,12 @@ resolve. It does not define type compatibility or access permission.
 2. r[names.category.syntax.type] For example, the name before `{` in `User { ... }` is resolved as a type.
 3. r[names.category.syntax.value] In `user.email`, `user` is resolved as a value and `email` as a member of its type.
 4. r[names.type-as-value] A name resolved as a value that names a type, a trait, or a type alias and no value is an error, as in `let x = User` or `field.metadata(MaxLen)`. Error: `type-used-as-value`.
-5. r[names.module.unique] A module cannot contain two declarations with the same module name, even if they are different kinds of declaration.
+5. r[names.module.unique] A module cannot contain two declarations with the same module name, even if they are different kinds of declaration. Error: `duplicate-module-name`.
 6. r[names.module.no-overloading] Function overloading is therefore not permitted.
 
 ```text
 fn value(input: i32) -> i32: input
-fn value(input: string) -> string: input  # error
+fn value(input: string) -> string: input  # error: duplicate-module-name
 ```
 
 ```text
@@ -113,13 +113,13 @@ name := normalize(name)  # the right-hand name, if valid, resolves outward
 2. r[names.exec.visible] Bindings created by those statements become visible to later top-level statements and to the bodies of functions declared after their binding point.
 3. r[names.exec.access] Those functions may read a top-level `:=` or `let` binding and may reassign a top-level `let` binding.
 4. r[names.exec.not-usable] Such bindings are not nameable by a `use` declaration.
-5. r[names.exec.not-before] Such bindings are not visible before their binding point, including from the body of a function declared earlier.
+5. r[names.exec.not-before] Such bindings are not visible before their binding point, including from the body of a function declared earlier. Error: `binding-not-yet-visible`.
 6. r[names.exec.declarations] A top-level executable statement may refer to a named module declaration regardless of that declaration's textual position.
 7. r[names.exec.methods] In the rules of this subsection, a function also means an inherent or trait method, and a method's position is that of its `impl` block.
 
 ```text
 fn read_count() -> i32:
-    count  # error
+    count  # error: binding-not-yet-visible
 
 let count: i32 = 0
 ```
@@ -278,7 +278,7 @@ let count: i32 = 0
 count = count + 1
 ```
 
-1. r[names.local.short] `:=` introduces inferred, non-reassignable local names.
+1. r[names.local.short] `:=` introduces inferred, non-reassignable local names. Reassigning one is an error. Error: `non-reassignable-binding`.
 2. r[names.local.let] `let` introduces local names that may be reassigned.
 3. r[names.local.same-scope] The two forms differ in rebinding permission, not in lexical scope.
 4. r[names.local.mutation] Reference mutation permission comes from `mut T` in the binding's type and is independent of whether the local name can be reassigned.
@@ -286,7 +286,7 @@ count = count + 1
 ```text
 fn invalid() -> void:
     name := "Ada"
-    name = "Grace"  # error
+    name = "Grace"  # error: non-reassignable-binding
 ```
 
 ### Tuple Bindings
@@ -316,12 +316,12 @@ if (trimmed := input.trim()) != "":
 2. r[names.bind.scope] The binding of a `:=` expression belongs to the nearest enclosing executable scope, not to a synthetic scope around the subexpression.
 3. r[names.bind.visible] In the example, `trimmed` is visible after its initializer completes, including in the selected `if` suite and in later statements of the enclosing scope.
 4. r[names.bind.initialized] `trimmed` is initialized regardless of which `if` branch executes because the condition is evaluated before branch selection.
-5. r[names.bind.no-redeclare] A binding expression must not redeclare a name already bound in that same scope.
+5. r[names.bind.no-redeclare] A binding expression must not redeclare a name already bound in that same scope. Error: `duplicate-binding`.
 
 ```text
 fn main() -> i32:
     value := 1
-    (value := 2)  # error
+    (value := 2)  # error: duplicate-binding
 ```
 
 > **Note.** Use assignment to update a `let` binding, or introduce an inner
@@ -332,7 +332,7 @@ fn main() -> i32:
 1. r[names.definite.required] Lexical scope does not waive definite initialization.
 2. r[names.definite.path] A `:=` name is usable on a control-flow path only after that path evaluates its initializer.
 3. r[names.definite.merge] At a merge, the name is definitely initialized only if every incoming reachable path has evaluated the same binding.
-4. r[names.definite.reject] The compiler rejects a use that may observe an uninitialized binding.
+4. r[names.definite.reject] A use that may observe an uninitialized binding is an error. Error: `possibly-uninitialized-binding`.
 5. r[names.definite.condition] A direct binding in an `if` or `while` condition is evaluated whenever that condition is evaluated.
 6. r[names.definite.skipped] A binding inside the conditionally evaluated operand of `&&` or `||`, an unselected branch or match arm, or a loop body is not thereby initialized on paths that skip it.
 7. r[names.definite.proof] Flow analysis may still prove it initialized inside a branch whose selection implies that the binding ran.
@@ -341,7 +341,7 @@ fn main() -> i32:
 fn invalid(flag: bool) -> string:
     if flag && (name := "Ada") != "":
         pass
-    name  # error
+    name  # error: possibly-uninitialized-binding
 ```
 
 ## Function And Closure Scopes
@@ -418,14 +418,14 @@ matches, and comprehensions.
 ### Conditional Suites
 
 1. r[names.cond.child] Each `if`, `else if`, and `else` suite has its own child scope.
-2. r[names.cond.no-leak] A binding made inside one branch is not visible in another branch or after the conditional.
+2. r[names.cond.no-leak] A binding made inside one branch is not visible in another branch or after the conditional. A use there is an error. Error: `unknown-name`.
 3. r[names.cond.condition] A binding expression in a condition follows the enclosing-scope rule of [Binding Expressions](#binding-expressions).
 
 ```text
 fn main() -> i32:
     if true:
         hidden := 1
-    hidden  # error
+    hidden  # error: unknown-name
 ```
 
 ### Loops
@@ -438,7 +438,7 @@ for item in items:
 ```
 
 1. r[names.loop.for-local] A `for` binding is local to the loop body.
-2. r[names.loop.for-else] A `for` binding is not visible in the loop's `else` suite or after the loop.
+2. r[names.loop.for-else] A `for` binding is not visible in the loop's `else` suite or after the loop. A use there is an error. Error: `unknown-name`.
 3. r[names.loop.separate] The loop body and `else` suite are separate child scopes.
 4. r[names.loop.per-iteration] Each iteration creates the body bindings for that iteration; a closure that escapes an iteration captures that iteration's binding rather than one shared loop variable.
 5. r[names.loop.while] A `while` body and its `else` suite likewise have separate child scopes.
@@ -449,7 +449,7 @@ fn last(values: List[i32]) -> i32:
         if value > 10:
             break value
     else:
-        value  # error
+        value  # error: unknown-name
 ```
 
 ### Matches
@@ -465,12 +465,12 @@ match error:
 1. r[names.match.arm-scope] Every match arm has an independent child scope.
 2. r[names.match.visible] Names bound by an arm's pattern are visible in that arm's optional guard and body only.
 3. r[names.match.reuse] Pattern bindings in different arms may reuse the same spelling.
-4. r[names.match.duplicate] Duplicate bindings within one pattern are a compile-time error.
+4. r[names.match.duplicate] Duplicate bindings within one pattern are a compile-time error. Error: `duplicate-binding`.
 
 ```text
 fn sum(pair: (i32, i32)) -> i32:
     match pair:
-        (n, n) => n  # error
+        (n, n) => n  # error: duplicate-binding
 ```
 
 ### Comprehensions
@@ -492,12 +492,12 @@ labels := [for user in users
            => label]
 ```
 
-1. r[names.comp.no-leak] The names `user` and `label` are not visible after the comprehension.
+1. r[names.comp.no-leak] The names `user` and `label` are not visible after the comprehension. A use there is an error. Error: `unknown-name`.
 
 ```text
 fn doubled(values: List[i32]) -> i32:
     results := [for value in values => value * 2]
-    value  # error
+    value  # error: unknown-name
 ```
 
 ## Member Resolution

@@ -1,4 +1,4 @@
-data HiddenError: pass
+pub data HiddenError: pass
 
 pub fn main() -> Result[void, HiddenError]:  # diagnostic: unsatisfied-trait-bound
     .Err(HiddenError {})

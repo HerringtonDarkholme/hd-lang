@@ -71,13 +71,13 @@ positional_argument = expression
 
 ### Value-Pack Parameters
 
-1. r[pack.value.positional] A function signature may contain at most one value-pack parameter that accepts positional arguments.
+1. r[pack.value.positional] A function signature may contain at most one value-pack parameter that accepts positional arguments. Error: `multiple-positional-value-packs`.
 2. r[pack.value.at-most-one] Because the current language has no named-only parameter separator, this means a signature may contain at most one value-pack parameter.
 3. r[pack.value.final] Like an ordinary homogeneous vararg, that value-pack parameter must be the final positional parameter. A later positional parameter is an error. Error: `nonfinal-positional-value-pack`.
 4. r[pack.value.no-partition] Calls never guess a partition between positional packs or between a pack and a later fixed parameter.
 
 ```text
-fn split[As..., Bs...](left: As..., right: Bs...) -> ((As...), (Bs...)):  # error
+fn split[As..., Bs...](left: As..., right: Bs...) -> ((As...), (Bs...)):  # error: multiple-positional-value-packs
     ((left...), (right...))
 
 fn invalid[Ts...](values: Ts..., tail: i32) -> void:  # error: nonfinal-positional-value-pack
@@ -102,7 +102,7 @@ fn zip_apply[As..., Bs..., Rs...](
     ...
 ```
 
-1. r[pack.lockstep.equal-lengths] If one repeated pattern references multiple packs, expansion is positional and all referenced packs must have equal lengths.
+1. r[pack.lockstep.equal-lengths] If one repeated pattern references multiple packs, expansion is positional and all referenced packs must have equal lengths. Error: `pack-length-mismatch`.
 2. r[pack.lockstep.element] Element `i` from every pack is substituted into repetition `i`.
 
 > **Note.** The `zip_apply` example is valid only when the three inferred
@@ -117,7 +117,7 @@ The following call assumes the `zip_apply` declaration above:
 result := zip_apply(
     ((1, 2),),
     fn(a: i32, b: i32) -> i32: a + b,
-    fn(a: string, b: string) -> string: a + b,  # error
+    fn(a: string, b: string) -> string: a + b,  # error: pack-length-mismatch
 )
 ```
 
@@ -138,14 +138,14 @@ See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-res
 
 1. r[pack.map.items] The first argument is evaluated once and must have tuple type `(T1, ..., Tn)`.
 2. r[pack.map.mapper] The second argument names a non-suspending function; it is not evaluated as a function value.
-3. r[pack.map.instantiate] The compiler type-checks and instantiates one call `mapper(item_i, extras...)` for each tuple element.
+3. r[pack.map.instantiate] The compiler type-checks and instantiates one call `mapper(item_i, extras...)` for each tuple element. A call that does not type-check is an error. Error: `pack-map-mapper-mismatch`.
 4. r[pack.map.generic-mapper] A generic mapper may infer different type arguments for each call without requiring a first-class polymorphic function type.
 
 ```text
 fn double(value: i32) -> i32:
     value * 2
 
-let values: (i32, i32) = pack.map((1, "x"), double)  # error
+let values: (i32, i32) = pack.map((1, "x"), double)  # error: pack-map-mapper-mismatch
 ```
 
 ### Mapping Results

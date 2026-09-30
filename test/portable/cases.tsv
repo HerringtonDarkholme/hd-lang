@@ -1395,3 +1395,9 @@ parse/invalid/let-list-one-name.hd	parse
 typing/invalid/for-over-string.hd	type
 parse/invalid/same-line-suite-bare-let-list.hd	parse
 typing/invalid/index-set-string.hd	type
+typing/invalid/nondisplay-entry-error.hd	type
+typing/invalid/nonhost-entry-requirement.hd	type
+typing/valid/trait-argument-owner-impl.hd	type
+typing/invalid/ambiguous-default-methods.hd	type
+runtime/valid/never-break-continue.hd	runtime
+typing/invalid/fresh-element-not-weakened.hd	type

@@ -164,51 +164,106 @@ runtime and library work.
 
 ## Glossary
 
-This glossary is a stub. It grows as chapters are restyled, and each entry
-links to the rule that defines the term.
+This glossary lists the terms that the numbered chapters define in bold.
+Each entry links to the rule, or the section, that defines the term.
 
 | Term | Definition |
 | --- | --- |
+| **active** | A driver context while its executor is evaluating or polling it on the current program-instance call stack. See [`req.bang.active`](11-requirements-and-suspension.md#r-req.bang.active). |
+| **available** | A trait method is available in a module when its trait is available to dot-call lookup there. See [`names.visible.trait`](03-names-and-scopes.md#r-names.visible.trait). |
+| **bare step** | A pipe step that is a name or path without `_`. See [`expr.pipe.step-kinds`](05-expressions.md#r-expr.pipe.step-kinds). |
+| **bound method reference** | `value::name`, where `value` names a value, as a function value. See [`fn.ref.bound`](07-functions.md#r-fn.ref.bound). |
 | **bound requirement key** | A requirement key that binds associated types, such as `Store[Item = User]`; its provider value has that trait value type. See [Bound Requirement Keys](11-requirements-and-suspension.md#bound-requirement-keys). |
+| **coherence slot** | One `(trait, concrete target)` pair over the resolved package graph. See [Terminology](14-annotations.md#terminology). |
 | **compatibility line** | The versions of a package that must stay compatible: one major number, or `0.MINOR` below 1.0. See [`module.version.line`](10-modules.md#r-module.version.line). |
 | **compound assignment** | A statement `place op= value`, such as `total += x`, that combines an operator with a store. See [Compound Assignment](05-expressions.md#compound-assignment). |
+| **conflict** | Two or more members with one name at the smallest depth where that name occurs, including one member reached through two paths. See [`names.conflict.definition`](03-names-and-scopes.md#r-names.conflict.definition). |
 | **copy-update literal** | A data literal with one leading spread, which builds a new value from an existing one. See [Copy-Update Literals](08-data-and-enums.md#copy-update-literals). |
 | **data type** | A nominal product type with reference semantics. See [`data.kind.data`](08-data-and-enums.md#r-data.kind.data). |
 | **dependency requirement** | A manifest entry `PATH@VERSION` that maps a dependency key to a host path and a minimum version. See [Dependency Requirements](10-modules.md#dependency-requirements). |
+| **depth** | The number of embedded fields on a part's path. See [`names.part.depth`](03-names-and-scopes.md#r-names.part.depth). |
 | **derivation block** | An `impl Trait for X by Structure:` that applies a trait's template to one type, with optional member lines. See [Derivation Blocks](14-annotations.md#derivation-blocks). |
+| **driver context** | Where a bang call is valid: a suspending function or closure body, or the host executor driving `main!`. See [`req.bang.driver-contexts`](11-requirements-and-suspension.md#r-req.bang.driver-contexts). |
 | **embedded field** | A bare type-name member of a data declaration, which embeds another data type. See [Data Embedding](08-data-and-enums.md#data-embedding). |
+| **entry module** | The selected root module of an executable package. See [`module.init.entry-module`](10-modules.md#r-module.init.entry-module). |
 | **enum** | A nominal sum type. See [`data.kind.enum`](08-data-and-enums.md#r-data.kind.enum). |
 | **error derivation** | Implementing `Display`, `Error`, and `From` for an error type from its `@error` lines. See [Error Derivation](14-annotations.md#error-derivation). |
 | **error type** | An enum with a bare `@error` line, or a data type with an `@error("...")` or `@error(transparent)` line. See [`annot.error.type`](14-annotations.md#r-annot.error.type). |
+| **executable entry point** | A public top-level function named `main` or `main!` with no parameters. See [`module.entry.definition`](10-modules.md#r-module.entry.definition). |
 | **exhausted iterator** | An iterator whose `next` has returned `.None`. What a later `next` returns is unspecified. See [`flow.for.iterator-exhausted`](06-control-flow.md#r-flow.for.iterator-exhausted). |
 | **fact** | An ordinary value attached to a type, member, or variant for derivations to read. See [Facts](14-annotations.md#facts). |
-| **initialization group** | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. See [`module.init.group`](10-modules.md#r-module.init.group). |
-| **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](10-modules.md#r-module.test.integration). |
+| **field lookup** | The steps that resolve `x.name` to one field from a module. See [Field Lookup](03-names-and-scopes.md#field-lookup). |
+| **fits** | A candidate implementation fits a call when the call's arguments check against its method's parameter types. See [`trait.resolve.fits`](09-traits.md#r-trait.resolve.fits). |
 | **folder** | The directory that holds a source file; `mod.hd` included, and nested directories are separate folders. See [`module.folder.directory`](10-modules.md#r-module.folder.directory). |
 | **folder graph** | A package's folders, with an edge where a file in one folder uses a module in another. It must be acyclic. See [`module.cycle.folder-edge`](10-modules.md#r-module.cycle.folder-edge). |
+| **generic field** | A field whose declared type is a generic parameter; reading it yields the substituted type unchanged. See [`types.path.field.generic`](04-type-system.md#r-types.path.field.generic). |
 | **handle** | A compiler-generated constant naming one member (`Field[S, F]`) or variant (`Variant[S]`) of a derivation's target. See [Handles](14-annotations.md#handles). |
+| **hides** | A member hides every member with the same name at a greater depth, in the same namespace. See [`names.hide.depth`](03-names-and-scopes.md#r-names.hide.depth). |
+| **inherent associated function** | A member of an inherent implementation without a `self` parameter, called through the type, as in `User::guest()`. See [Inherent Members](09-traits.md#inherent-members). |
+| **inherent method** | A member of an inherent implementation whose first parameter is `self` or `mut self`, called with dot syntax. See [Inherent Members](09-traits.md#inherent-members). |
+| **initialization group** | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. See [`module.init.group`](10-modules.md#r-module.init.group). |
+| **inspectable types** | The types for which the compiler supplies `Inspectable`: primitives, module-level declarations, collections and tuples of inspectable types, and matching dynamic values. See [Inspectable Types](09-traits.md#inspectable-types). |
+| **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](10-modules.md#r-module.test.integration). |
+| **iterator adapters** | Methods of the prelude `Iterator[T]` that wrap an iterator in a new one, or drain it. See [Iterator Adapters](06-control-flow.md#iterator-adapters). |
+| **known implementation** | An implementation in the program's dependency graph whose target matches a type; a local one counts only where its methods are available. See [`names.member.known-impl`](03-names-and-scopes.md#r-names.member.known-impl). |
+| **law partners** | Comparison and hash traits whose laws relate them, such as `Hash` and `Eq`. See [Law Partners](09-traits.md#law-partners). |
 | **literal suffix** | A name written directly after a numeric literal's digits, which names a suffix function. See [Literal Suffixes](01-lexical-structure.md#literal-suffixes). |
 | **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. See [Member Lines](14-annotations.md#member-lines). |
+| **member metadata** | The ordered list of values attached to a data field, an enum variant, or a parameter. See [Terminology](14-annotations.md#terminology). |
+| **method lookup** | The steps that resolve `x.name(args)` to an own inherent method or a candidate. See [Method Lookup](03-names-and-scopes.md#method-lookup). |
+| **method reference** | A method or associated function named as a function value, written `Owner::name` or `value::name` without arguments. See [Method References](07-functions.md#method-references). |
 | **minimal version selection** | Choosing, for each host path and compatibility line, the largest minimum that any reached manifest states. See [Version Selection](10-modules.md#version-selection). |
+| **mutable edge** | A direct field declared `field: mut U`; a readonly container removes its `mut`. See [`types.path.field.mutable-edge`](04-type-system.md#r-types.path.field.mutable-edge). |
 | **mutable edges** | What a data type has when it declares a direct `field: mut U`, or embeds a type that has mutable edges. See [`data.edge.definition`](08-data-and-enums.md#r-data.edge.definition). |
 | **mutable requirement trait** | A trait that declares or inherits a `mut self` method; its providers always have mutable access. See [`req.mut.trait`](11-requirements-and-suspension.md#r-req.mut.trait). |
+| **non-reassignable** | A binding whose name cannot be rebound. See [`types.view.non-reassignable`](04-type-system.md#r-types.view.non-reassignable). |
+| **one-key row slot** | A place where one bare key may stand for a row: `$.Context[...]` or a row-kinded type argument written without `$`. See [`req.row.alias.one-key-slot`](11-requirements-and-suspension.md#r-req.row.alias.one-key-slot). |
 | **operator trait** | A `std.ops` trait, such as `Add[Rhs = Self]`, whose implementation gives a type one operator. See [Operator Traits](05-expressions.md#operator-traits). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](08-data-and-enums.md#parts-and-copies). |
 | **path requirement** | A manifest value `{ path = "DIR" }` through which a workspace member depends on another member. See [`module.workspace.path-requirement`](10-modules.md#r-module.workspace.path-requirement). |
+| **pipe expression** | `value |> step`, which passes a value to a step. See [Pipe Expressions](05-expressions.md#pipe-expressions). |
+| **place expression** | An expression that identifies a storage location, which may be read or, when permissions allow, assigned. See [`expr.category.place`](05-expressions.md#r-expr.category.place). |
+| **prefix function** | A function marked `@str_prefix`, which a prefixed string calls. See [`expr.prefix.marker`](05-expressions.md#r-expr.prefix.marker). |
+| **prefixed string** | An identifier followed directly by `"` or `"""`, as in `sql"..."`. See [`lex.prefix.form`](01-lexical-structure.md#r-lex.prefix.form). |
+| **prelude** | The implicit scope of public standard-library names that every module has. See [Prelude](10-modules.md#prelude). |
+| **program instance** | One instantiated Wasm module graph with its module storage, provider bindings, and execution state. See [`module.init.program-instance`](10-modules.md#r-module.init.program-instance). |
+| **promoted candidate** | Among the promoted inherent methods that take part, the one with the called name at the smallest depth. See [`names.method-lookup.promoted-candidate`](03-names-and-scopes.md#r-names.method-lookup.promoted-candidate). |
+| **promoted member** | A `pub` field or `pub` inherent method of a part's type, reached from the outer type through the part's path. See [`names.promote.member`](03-names-and-scopes.md#r-names.promote.member). |
 | **pseudo-version** | A version that names one untagged commit by a base version, its time, and its hash. See [`module.version.pseudo`](10-modules.md#r-module.version.pseudo). |
+| **readonly edge** | A field declared `field: U` with a composite `U`, which gives readonly access through any container. See [`types.path.field.readonly-edge`](04-type-system.md#r-types.path.field.readonly-edge). |
+| **readonly view** | The `T` access to a composite value; it does not imply deep immutability. See [`types.view.term`](04-type-system.md#r-types.view.term). |
+| **requirement row** | The normalized unordered set of requirement keys on a callable signature. See [`req.row.definition`](11-requirements-and-suspension.md#r-req.row.definition). |
+| **requirement-free** | A default expression that uses no provider and does not suspend. See [`fn.default.requirement-free`](07-functions.md#r-fn.default.requirement-free). |
+| **row alias** | A transparent alias that names a set of requirement keys. See [Row Aliases](11-requirements-and-suspension.md#row-aliases). |
+| **row parameter** | A generic parameter whose values are requirement rows. See [`req.row.parameter`](11-requirements-and-suspension.md#r-req.row.parameter). |
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
+| **runtime identity** | Two types share it when they are the same declaration applied to type arguments with the same runtime identity. See [`trait.identity.definition`](09-traits.md#r-trait.identity.definition). |
+| **runtime profile** | A named compile-time set of host capability traits, their boundary adapters, and runtime choices such as panic exit statuses. See [`module.profile.definition`](10-modules.md#r-module.profile.definition). |
 | **scalar boundary** | A byte offset of a string, from `0` to its length, that does not fall inside a scalar value's encoding. See [`types.string.boundary`](04-type-system.md#r-types.string.boundary). |
+| **script** | An entry module with no `main`, whose top-level executable statements are the entry behavior. See [`module.init.script`](10-modules.md#r-module.init.script). |
+| **sealed trait** | A standard trait whose implementations only the compiler and the standard library supply. See [Sealed Traits](09-traits.md#sealed-traits). |
+| **shape** | In generic code, the machine representation a value occupies; see [Shapes and Generic Code](04-type-system.md#shapes-and-generic-code). In annotations, a compiler-provided runtime value that describes a declaration's or type's structure; see [Terminology](14-annotations.md#terminology). |
+| **specialized data shape type** | The type of `shape[D]()` for a data type `D`: the members of `DataShape`, plus a `fields` record with one member per direct field. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
+| **specialized enum shape type** | The type of `shape[E]()` for an enum `E`, which adds a `variants` record with one member per variant. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
+| **substitution step** | A pipe step that contains `_`. See [`expr.pipe.step-kinds`](05-expressions.md#r-expr.pipe.step-kinds). |
 | **suffix function** | A function marked `@num_suffix`, which a suffixed literal calls. See [`expr.suffix.marker`](05-expressions.md#r-expr.suffix.marker). |
 | **suffixed literal** | A numeric literal with a literal suffix, such as `250ms`, which calls the suffix function, as `ms(250)`. See [Literal Suffixes](05-expressions.md#literal-suffixes). |
+| **take part** | The members of a type that lookup considers: its own fields and inherent methods, whatever their visibility, and its promoted members. See [`names.take-part.definition`](03-names-and-scopes.md#r-names.take-part.definition). |
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](14-annotations.md#templates). |
-| **trait-less derivation block** | An `impl X by Structure:` without a trait, whose member lines write shared metadata of `X` for every derivation and its shape. See [Trait-Less Derivation Blocks](14-annotations.md#trait-less-derivation-blocks). |
 | **test case** | One test, registered by a call of the prelude function `it`, or one row of `it_each`, in test position. See [Test Cases](10-modules.md#test-cases). |
 | **test code** | A package's `tests:` blocks, test modules, and integration test modules, compiled only by a test build. See [`module.test.code`](10-modules.md#r-module.test.code). |
 | **test dependency** | A dependency that the manifest declares for test builds only. See [`module.test.dependency`](10-modules.md#r-module.test.dependency). |
-| **test position** | The top level of a `tests:` block, a test module, or an integration test module, where test-case calls go. See [`module.testing.test-position`](10-modules.md#r-module.testing.test-position). |
 | **test module** | A module whose file name ends in `_test.hd`. See [Test Modules](10-modules.md#test-modules). |
+| **test position** | The top level of a `tests:` block, a test module, or an integration test module, where test-case calls go. See [`module.testing.test-position`](10-modules.md#r-module.testing.test-position). |
+| **trait candidates** | The trait methods of the receiver's type with the called name whose trait is available at the call. See [`names.method-lookup.trait-candidates`](03-names-and-scopes.md#r-names.method-lookup.trait-candidates). |
+| **trait methods** | The methods of every trait that a known implementation implements for a type. See [`names.member.trait-methods`](03-names-and-scopes.md#r-names.member.trait-methods). |
+| **trait-less derivation block** | An `impl X by Structure:` without a trait, whose member lines write shared metadata of `X` for every derivation and its shape. See [Trait-Less Derivation Blocks](14-annotations.md#trait-less-derivation-blocks). |
+| **type pack** | A generic parameter ending in `...`, which stands for a list of types. See [Pack Parameters](12-variadic-generics.md#pack-parameters). |
 | **type-argument default** | A type written with `=` after a generic parameter's bound, used when a use site leaves the parameter unsolved or a written type omits it. See [Type-Argument Defaults](04-type-system.md#type-argument-defaults). |
 | **typed derivation** | Implementing a trait for a data type or enum from its members through the trait's template. See [Typed Derivation](14-annotations.md#typed-derivation). |
+| **unbound method reference** | `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter. See [`fn.ref.unbound`](07-functions.md#r-fn.ref.unbound). |
+| **value expression** | An expression that produces a value. See [`expr.category.value`](05-expressions.md#r-expr.category.value). |
+| **visible** | A field or inherent method is visible from a module that declares it, and from every module when it is `pub`. See [`names.visible.field-method`](03-names-and-scopes.md#r-names.visible.field-method). |
 | **workspace** | A set of packages that one committed workspace manifest lists, selected as one graph. See [Workspaces](10-modules.md#workspaces). |
 
 ## Revision Notes
@@ -1813,3 +1868,20 @@ existing source. Each entry names the decision that made the change.
   key. Built-in indexing is unchanged, and `s[i] = v` stays
   `invalid-assignment-target`. `module.string.slice.boundary` and
   `expr.index.trait.builtin-string` are retired.
+- Spec follow-ups (owner decisions of 2026-09-27 in
+  [Spec Follow-Ups](../future-work/SPEC_FOLLOWUPS.md), applied 2026-09-29):
+  confusable and mixed-script identifiers are warnings, not errors. Two
+  available traits with same-named default methods make a dot call
+  `ambiguous-method`. An expected type never weakens the
+  elements of a list already built: returning
+  `[for p in ps => Word { ... }].iter()` as `mut Iterator[Word]` is
+  `type-mismatch`. One declared result type in a recursive cycle is
+  enough. A lone `"` inside `"""..."""` is allowed. `all!` re-polls only
+  unfinished children. `break` and `continue` are `never` expressions.
+  Many rules now name the code their fixtures already expect, which
+  changes no program's validity. The glossary lists every bold defined
+  term. Retired: `trait.dyn.methods`, `trait.conflict.ambiguous`,
+  `lex.ident.confusable`, `lex.ident.mixed-script`,
+  `req.model.no-reinterpretation`, `req.schedule.all-order`,
+  `fn.recursion.named`, `fn.decl.omitted-not-recursive`,
+  `types.infer.explicit.results`, and `types.infer.body-result`.

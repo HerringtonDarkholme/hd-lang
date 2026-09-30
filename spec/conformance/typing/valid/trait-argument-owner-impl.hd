@@ -1,10 +1,11 @@
 # test: the package owning a trait argument may implement a foreign trait for a foreign type
+# Fresh Word literals keep mut, so the element type is mut Word (TQ-2 fresh elements, 2026-09-27).
 
 data Word:
     text: string
 
-impl Iterable[Word] for string:
-    fn iter(self) -> mut Iterator[Word]:
+impl Iterable[mut Word] for string:
+    fn iter(self) -> mut Iterator[mut Word]:
         [for part in self.split(" ") => Word { text: part }].iter()
 
 fn first_word(text: string) -> string:

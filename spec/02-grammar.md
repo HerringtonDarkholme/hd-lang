@@ -187,10 +187,10 @@ fn pair() -> (List[i32], List[i32]): ([1], [2])
 
 fn invalid() -> void:
     let (first, second) = pair()  # valid: no mut needed
-    mut total := 0  # error
-    let mut log, db = pair()  # error
-    let a, b = pair()  # error
-    let (only) = pair()  # error
+    mut total := 0  # error: syntax-error
+    let mut log, db = pair()  # error: syntax-error
+    let a, b = pair()  # error: syntax-error
+    let (only) = pair()  # error: syntax-error
 ```
 
 > **Why.** In `let mut log, db`, a reader may take `mut` as covering both
@@ -211,12 +211,12 @@ fn invalid() -> void:
 3. r[grammar.stmt.suite.right-side] This separate production is what permits `value := if ...`, `let callback = fn ...`, and similar direct right-hand-side forms.
 4. r[grammar.stmt.suite.trailing-block] Every right-hand side that accepts a suite expression, after `:=`, `let ... =`, `=`, `_ :=`, `return`, and `break`, also accepts a trailing block call.
 5. r[grammar.stmt.chain] A chain of bindings continues only with single names, as in `a := b := if c: 1 else: 2`.
-6. r[grammar.stmt.chain.multi-name-first] A multi-name pattern may only come first, so `a, b := c, d := pair` is a syntax error with or without a suite.
+6. r[grammar.stmt.chain.multi-name-first] A multi-name pattern may only come first, so `a, b := c, d := pair` is a syntax error with or without a suite. Error: `syntax-error`.
 7. r[grammar.stmt.suite.in-delimiters] A suite expression nested inside delimiters remains part of its enclosing expression, and the enclosing statement ends normally after the closing delimiter.
 
 ```text
 fn pairs() -> void:
-    a, b := c, d := fn() -> (i32, i32): (1, 2)  # error
+    a, b := c, d := fn() -> (i32, i32): (1, 2)  # error: syntax-error
     pass
 ```
 
@@ -224,13 +224,13 @@ fn pairs() -> void:
 
 1. r[grammar.stmt.closed] A statement that ends at `NEWLINE` takes a `closed_expression`, which cannot end in a suite, because layout emits no `NEWLINE` after a suite's `SUITE_END` or `DEDENT`.
 2. r[grammar.stmt.closed.suite-alternatives] Only the `suite_statement` alternatives may end in a suite.
-3. r[grammar.stmt.closed.examples] Thus `y := if c: 1 else: 2` is a statement, but `_ := y := if c: 1 else: 2` and `return y := if c: 1 else: 2` are syntax errors.
+3. r[grammar.stmt.closed.examples] Thus `y := if c: 1 else: 2` is a statement, but `_ := y := if c: 1 else: 2` and `return y := if c: 1 else: 2` are syntax errors. Error: `syntax-error`.
 4. r[grammar.stmt.closed.parenthesized] Parenthesizing the inner binding makes them valid.
 
 ```text
 fn choose(flag: bool) -> i32:
-    _ := y := if flag: 1 else: 2  # error
-    return y := if flag: 1 else: 2  # error
+    _ := y := if flag: 1 else: 2  # error: syntax-error
+    return y := if flag: 1 else: 2  # error: syntax-error
 ```
 
 ### Same-Line Suite Bodies
@@ -238,7 +238,7 @@ fn choose(flag: bool) -> i32:
 1. r[grammar.inline.statement] A same-line suite body is an `inline_statement`.
 2. r[grammar.inline.closed-by-layout] Layout closes a same-line suite at the end of its logical line and at any comma at the suite's own delimiter depth.
 3. r[grammar.inline.no-comma] The body therefore contains no comma at that depth and no indented suite.
-4. r[grammar.inline.no-if] It also contains no same-line `if` at that depth: `if a: if b: 1 else: 2 else: 3`, `fn f() -> i32: if c: 1 else: 2`, and `defer: if flag: pass` are syntax errors.
+4. r[grammar.inline.no-if] It also contains no same-line `if` at that depth: `if a: if b: 1 else: 2 else: 3`, `fn f() -> i32: if c: 1 else: 2`, and `defer: if flag: pass` are syntax errors. Error: `syntax-error`.
 5. r[grammar.inline.nested-if] Parentheses nest a conditional, as in `if a: (if b: 1 else: 2) else: 3`, and an indented body may hold one.
 6. r[grammar.inline.else-if] `else if` continues the same conditional rather than nesting one.
 7. r[grammar.inline.loops] Same-line `for` and `while` loops may still appear directly in a same-line suite.
@@ -251,15 +251,15 @@ fn choose(flag: bool) -> i32:
 fn pair() -> (i32, i32): (1, 2)
 
 fn pick(a: bool, b: bool) -> i32:
-    v := if a: if b: 1 else: 2 else: 3  # error
+    v := if a: if b: 1 else: 2 else: 3  # error: syntax-error
     v
 
-fn sign(x: i32) -> i32: if x < 0: -1 else: 1  # error
+fn sign(x: i32) -> i32: if x < 0: -1 else: 1  # error: syntax-error
 
 fn release(flag: bool) -> void:
-    defer: if flag: pass  # error
-    if flag: a, b := pair()  # error
-    if flag: let a, b = pair()  # error
+    defer: if flag: pass  # error: syntax-error
+    if flag: a, b := pair()  # error: syntax-error
+    if flag: let a, b = pair()  # error: syntax-error
 ```
 
 > **Note.** A binding is scoped to its block, so a name that a same-line
@@ -285,12 +285,12 @@ fn split(ready: bool) -> void:
 7. r[grammar.closed.outside-brackets] Outside brackets, an expression followed by another token cannot end in any suite.
 8. r[grammar.closed.header-positions] A control-flow header in a statement and a match guard therefore take a `closed_expression`.
 9. r[grammar.closed.bracketed-suite] A suite may still appear inside brackets within the header, as in `if check(fn(x): ...):`.
-10. r[grammar.closed.indented-header] But a statement `if fn() -> bool:`, followed by the closure's indented body and then a line beginning `: 1 else: 2`, is a syntax error: its header ends in an indented suite.
+10. r[grammar.closed.indented-header] But a statement `if fn() -> bool:`, followed by the closure's indented body and then a line beginning `: 1 else: 2`, is a syntax error, because its header ends in an indented suite. Error: `syntax-error`.
 11. r[grammar.closed.nested-statements] The statements of a suite nested inside brackets follow the same rule, because they are statements too.
 
 ```text
 fn pick() -> i32:
-    if fn() -> bool:  # error
+    if fn() -> bool:  # error: syntax-error
         true
     : 1 else: 2
 ```
@@ -486,7 +486,7 @@ associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 4. r[grammar.trait.marker] A trait declaration without a body is a marker trait.
 5. r[grammar.impl.bodyless] A trait implementation may omit its body when the trait is a marker or when every trait method has a default.
 6. r[grammar.impl.promoted] A method promoted from an embedded field never fills a trait method.
-7. r[grammar.impl.pub-method] A `pub` method is permitted only in an inherent implementation; trait method visibility follows the trait.
+7. r[grammar.impl.pub-method] A `pub` method is permitted only in an inherent implementation; trait method visibility follows the trait. A `pub` trait method or trait implementation method is an error. Error: `trait-method-visibility`.
 8. r[grammar.trait.method-end] A bodyless trait method ends at `NEWLINE`; a default method has `:` followed by a suite.
 9. r[grammar.trait.supertrait] `trait Child < Parent:` declares `Parent` as a supertrait and opens the body with `:`.
 10. r[grammar.decl.bound-vs-colon] In declarations, `<` introduces a bound (a supertrait or a generic parameter bound), while `:` means "has type" or opens a suite.
@@ -501,12 +501,12 @@ associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 
 ```text
 pub trait Display:
-    pub fn to_string(self) -> string  # error
+    pub fn to_string(self) -> string  # error: trait-method-visibility
 
 trait Named:
     fn name(self) -> string
 
-trait Greeter: Named  # error
+trait Greeter: Named  # error: syntax-error
 ```
 
 See also: [Trait Delegation](09-traits.md#trait-delegation).
@@ -760,13 +760,13 @@ fn drop_logger[R](callback: fn() -> void $ R) -> void $ R - Logger: callback()  
 1. r[grammar.type.row-argument] For a row-kinded generic parameter, a type argument may be a row after `$`, as in `Fn[(), void, $ Logger + Clock]`, or `$()` for the empty row.
 2. r[grammar.type.row-argument.key] A single requirement key is syntactically also a type; the parameter kind selects its interpretation.
 3. r[grammar.type.row-argument.alias] A bare name there that names a row alias is that alias's row, as [`req.row.alias.bare`](11-requirements-and-suspension.md#r-req.row.alias.bare) states.
-4. r[grammar.type.row-argument.kind] Using a row argument for a type-kinded parameter (or conversely) is an error.
+4. r[grammar.type.row-argument.kind] Using a row argument for a type-kinded parameter, or a type for a row-kinded one, is an error. Error: `generic-kind-mismatch`.
 
 ```text
 data Box[T]:
     value: T
 
-fn invalid(value: Box[$()]) -> void: pass  # error
+fn invalid(value: Box[$()]) -> void: pass  # error: generic-kind-mismatch
 ```
 
 ### Modifiers, Optionality, And Grouping
@@ -952,27 +952,27 @@ suspension_call_suffix = "!", [ function_type_arguments ], argument_clause ;
 ### Precedence And Associativity
 
 1. r[grammar.expr.binding] `:=` is right-associative and has the lowest precedence.
-2. r[grammar.expr.no-comparison-chain] Comparisons do not chain.
+2. r[grammar.expr.no-comparison-chain] Comparisons do not chain, so `a < b < c` is an error. Error: `comparison-chaining`.
 3. r[grammar.expr.power] Exponentiation is right-associative.
 4. r[grammar.expr.power.unary] The right operand of `**` may therefore begin with a unary operator.
 5. r[grammar.expr.pipe] `|>` is left-associative and binds more tightly than comparison and more loosely than `|`.
 6. r[grammar.expr.pipe.step] Each pipe step is a `bitwise_or_expression`, so a step with a comparison, `&&`, `||`, or a control-flow expression needs parentheses.
 
 ```text
-inside := 0 < value < 10  # error
+inside := 0 < value < 10  # error: comparison-chaining
 ```
 
 ### Multi-Name Bindings
 
 1. r[grammar.expr.multi-binding] A multi-name short binding such as `a, b := value` is a statement.
-2. r[grammar.expr.multi-binding.nested] When used as a nested expression, including inside any delimiter, the complete binding must be parenthesized: `(a, b := value)`.
+2. r[grammar.expr.multi-binding.nested] When used as a nested expression, including inside any delimiter, the complete binding must be parenthesized: `(a, b := value)`. Error: `multi-binding-needs-parentheses`.
 3. r[grammar.expr.multi-binding.not-tuple] Inside parentheses, the token sequence `identifier, identifier, ... :=` always forms this grouped binding; it is never a tuple whose final element is a binding expression.
 4. r[grammar.expr.multi-binding.tuple-element] A tuple that contains a binding must parenthesize that element separately, as in `(a, (b := value))`.
 
 ```text
 fn pair() -> (i32, i32): (1, 2)
 
-values := [a, b := pair()]  # error
+values := [a, b := pair()]  # error: multi-binding-needs-parentheses
 ```
 
 ### Bang And Dot Tokens
@@ -1002,7 +1002,7 @@ impl Identity:
         value
 
 fn run!() -> i32:
-    Identity::echo[i32]!(42)  # error
+    Identity::echo[i32]!(42)  # error: syntax-error
 ```
 
 ### Primary Expressions
@@ -1222,12 +1222,12 @@ positional_argument = expression
 named_argument = identifier, "=", expression ;
 ```
 
-1. r[grammar.call.positional-first] Positional arguments, including positional spreads, must precede named arguments.
+1. r[grammar.call.positional-first] Positional arguments, including positional spreads, must precede named arguments. Error: `argument-order`.
 2. r[grammar.call.named-vararg] A named vararg receives an ordinary list value and does not use spread syntax.
 3. r[grammar.call.spread-final] Semantic rules require a positional spread to be the final positional argument and to feed a declared vararg parameter.
 
 ```text
-resize(width=640, 480)  # error
+resize(width=640, 480)  # error: argument-order
 ```
 
 #### Trailing Blocks
@@ -1246,12 +1246,12 @@ indented_suite_body = NEWLINE, INDENT, statement, { statement }, DEDENT ;
 3. r[grammar.call.trailing-block.accepted] This production is accepted only at delimiter depth zero when the call is the complete statement or one of those complete right-hand sides.
 4. r[grammar.call.trailing-block.eligible] It is also accepted only when name and type resolution identify a callable with an eligible final parameter.
 5. r[grammar.call.trailing-block.next-line] Its body must begin on the next logical line.
-6. r[grammar.call.trailing-block.not-header] It is not accepted in an `if`, `while`, `for`, or `match` header or inside brackets.
+6. r[grammar.call.trailing-block.not-header] It is not accepted in an `if`, `while`, `for`, or `match` header or inside brackets. A trailing block there is an error. Error: `trailing-block-position`.
 
 ```text
 fn run(callback: fn() -> i32) -> i32: callback()
 
-values := [run:  # error
+values := [run:  # error: trailing-block-position
     1]
 ```
 
@@ -1397,7 +1397,7 @@ tuple_pattern = "(", pattern, ",",
 2. r[grammar.pattern.bare-variant] The unqualified `identifier, pattern_argument_clause` form parses so that a checker can report it as an error. Error: `bare-variant-pattern`.
 3. r[grammar.pattern.positional-names] Positional binding names need not match payload field names.
 4. r[grammar.pattern.named] In a payload list, only `field=pattern` is a named pattern.
-5. r[grammar.pattern.named-last] No positional pattern may follow a named pattern.
+5. r[grammar.pattern.named-last] No positional pattern may follow a named pattern. Error: `pattern-order`.
 6. r[grammar.pattern.data-field] In a data pattern, bare `field` binds that field's value to a new name of the same spelling.
 7. r[grammar.pattern.data-field.nested] `field: pattern` matches the field against a nested pattern, and `field: name` binds it to `name`.
 8. r[grammar.pattern.data-unlisted] Unlisted fields are ignored.
@@ -1413,7 +1413,7 @@ fn value_or_zero(value: i32?) -> i32:
 
 fn invalid(value: Pair) -> i32:
     match value:
-        Pair.Values(left=l, r) => l + r  # error
+        Pair.Values(left=l, r) => l + r  # error: pattern-order
 ```
 
 See also: [Match Expressions](06-control-flow.md#match-expressions).

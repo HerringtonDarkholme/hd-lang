@@ -45,6 +45,23 @@ See also: [Requirements and Suspension](11-requirements-and-suspension.md),
 2. r[types.never.assignable] `never` is assignable to every type, and no ordinary value is assignable to it.
 3. r[types.never.abrupt] An expression that completes abruptly has type `never` on that control-flow path.
 4. r[types.never.abrupt-forms] These expressions complete abruptly: an unconditional `return`, `break`, or `continue`, propagation that exits the current body, and a call to `panic`.
+5. r[types.never.expressions] `return`, `break`, `continue`, a call to `panic`, and any other call whose result type is `never` are expressions of type `never`. These five forms are the complete list.
+6. r[types.never.fits] Each of them therefore fits any expected type, as in a match arm `.None => continue` or a branch `else: break`.
+
+```text
+fn total(entries: List[i32?]) -> i32:
+    let sum = 0
+    for entry in entries:
+        amount := match entry:
+            .Some(value) => value
+            .None => continue
+        sum = sum + amount
+    sum
+```
+
+> **Note.** This explains why every reachable branch of a value-producing
+> `if` or `match` may end in one of these forms. It changes no program's
+> validity.
 
 ## Primitive Types
 
@@ -136,11 +153,11 @@ x := 1  # i32
 
 1. r[types.literal.int-default] An integer literal in any supported radix with no expected type has type `i32` in every value range.
 2. r[types.literal.int-no-widen] An integer literal does not automatically choose a wider type.
-3. r[types.literal.int-range] When an integer literal has an expected integer type, the compiler checks the literal against that type's range.
+3. r[types.literal.int-range] When an integer literal has an expected integer type, the compiler checks the literal against that type's range. A literal outside it is an error. Error: `integer-literal-range`.
 
 ```text
 let small: i8 = 1    # valid
-let bad: u8 = 300    # error
+let bad: u8 = 300    # error: integer-literal-range
 ```
 
 4. r[types.literal.int-diagnostic] The diagnostic must identify the literal, the target range, and an appropriate wider type when one exists.
@@ -157,7 +174,7 @@ let bad: u8 = 300    # error
 
 1. r[types.literal.float-default] A floating-point literal with no expected type has type `f64` and must be representable as a finite `f64` value.
 2. r[types.literal.float-expected] When an expected `f32` or `f64` type is available, the literal is converted directly to that type.
-3. r[types.literal.float-finite] The converted literal must be representable as a finite value under that type's IEEE 754 rounding rules.
+3. r[types.literal.float-finite] The converted literal must be representable as a finite value under that type's IEEE 754 rounding rules. Error: `float-literal-range`.
 
 ### Suffixed Literals
 
@@ -432,7 +449,7 @@ i8 -> i16 -> i32 -> i64
 u8 -> u16 -> u32 -> u64
 ```
 
-1. r[types.num.widen] Implicit integer conversion is limited to widening conversions that preserve every value of the source type.
+1. r[types.num.widen] Implicit integer conversion is limited to widening conversions that preserve every value of the source type. An implicit narrowing conversion is an error. Error: `implicit-narrowing`.
 2. r[types.num.chains] The signed and unsigned widening chains are the two chains above.
 3. r[types.num.no-sign-change] There is no implicit conversion between signed and unsigned integers.
 4. r[types.num.no-int-float] There is no implicit integer-to-floating or floating-to-integer conversion in the current core.
@@ -443,7 +460,7 @@ u8 -> u16 -> u32 -> u64
 1. r[types.num.binary.literal] For a binary numeric operator, an untyped literal first adopts the compatible type expected from the other operand.
 2. r[types.num.binary.widen] Otherwise, operands within one integer signedness family widen to the wider operand type, and the result has that type.
 3. r[types.num.binary.float] `f32 op f32` produces `f32`; when one operand is `f64`, an `f32` operand widens and the result is `f64`.
-4. r[types.num.binary.no-mix] Signed and unsigned integers do not mix implicitly, and integers do not mix implicitly with floating-point values.
+4. r[types.num.binary.no-mix] Signed and unsigned integers do not mix implicitly, and integers do not mix implicitly with floating-point values. A signed and an unsigned operand are an error. Error: `mixed-signedness`.
 5. r[types.num.binary.cast] The user must cast one operand explicitly in those cases.
 
 ### Numeric Casts
@@ -607,6 +624,7 @@ See also: [Mutable Paths](#mutable-paths).
 2. r[types.fresh.weaken] This permission may be weakened immediately by an expected readonly type.
 3. r[types.fresh.not-recursive] Freshness does not recursively upgrade composite values stored in the new object.
 4. r[types.fresh.element-permission] Each field or element keeps the permission of the supplied expression and declared edge.
+5. r[types.fresh.element-no-weaken] An expected type weakens only the fresh expression it applies to, never the elements of a collection already built. So `[for p in parts => Word { text: p }].iter()` has type `mut Iterator[mut Word]`, and returning it as `mut Iterator[Word]` is an error. Error: `type-mismatch`.
 
 #### Fresh Literals With Readonly Parts
 
@@ -970,7 +988,7 @@ See also: [Shape Intrinsics](14-annotations.md#shape-intrinsics).
 
 ### Identity On Type Parameters
 
-1. r[types.generic.identity] Identity comparison `is` on a type parameter is permitted only with the sealed `T < AnyRef` bound.
+1. r[types.generic.identity] Identity comparison `is` on a type parameter is permitted only with the sealed `T < AnyRef` bound. Without it, the comparison is an error. Error: `identity-needs-reference-bound`.
 2. r[types.generic.identity.primitive] An unconstrained type parameter may be primitive after substitution and therefore cannot be used with `is`.
 
 ### Type Packs
@@ -1029,8 +1047,8 @@ r[types.polarity] Polarity is computed as follows:
 > **Why.** The referenced storage beneath `mut` can be both read and
 > written. Access through an embedded field follows its container.
 
-1. r[types.variance.covariant-check] A declared `+T` is rejected if any occurrence is negative or invariant.
-2. r[types.variance.contravariant-check] A declared `-T` is rejected if any occurrence is positive or invariant.
+1. r[types.variance.covariant-check] A declared `+T` is rejected if any occurrence is negative or invariant. Error: `invalid-variance`.
+2. r[types.variance.contravariant-check] A declared `-T` is rejected if any occurrence is positive or invariant. Error: `invalid-variance`.
 3. r[types.variance.unmarked] An unmarked invariant parameter may occur in any position.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
@@ -1060,7 +1078,7 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding).
    - construction of a trait value such as `i32 -> Display` or `User -> Display`;
    - child-dynamic-trait to supertrait widening;
    - optional injection `U -> U?`.
-5. r[types.variance.no-insertion] Variance never inserts element wrappers, metadata rewrapping, boxing, copies, or per-access conversions.
+5. r[types.variance.no-insertion] Variance never inserts element wrappers, metadata rewrapping, boxing, copies, or per-access conversions. A variance conversion that would need one is an error. Error: `variance-representation-change`.
 
 See also: [Representation-Preserving Conversions](#representation-preserving-conversions).
 
@@ -1087,7 +1105,7 @@ gives the rule.
 
 ### Dynamic Safety
 
-1. r[types.trait.safe] Only a dynamically safe trait may be used as a value type.
+1. r[types.trait.safe] Only a dynamically safe trait may be used as a value type. Error: `trait-not-dynamically-safe`.
 2. r[types.trait.safe.one-copy] Dynamic safety is defined by the one-copy rule, [`trait.dyn.safe.one-copy`](09-traits.md#r-trait.dyn.safe.one-copy); the rules below restate its consequences.
 3. r[types.trait.safe.members-bound] A dynamically safe trait and every supertrait must have no associated functions, and `Self` may appear only as the receiver type.
 4. r[types.trait.safe.assoc-bound] The trait value type must bind each associated type of the trait and its supertraits, as in `Supplier[Item = i32]`.
@@ -1150,7 +1168,7 @@ impl AnyVal for Handle  # error: sealed-trait-implementation
 
 This section defines which types may be map keys, and how keys behave.
 
-1. r[types.map-key.bound] `Map[K, V]` requires `K < Eq & Hash` and rejects a `mut T` key type.
+1. r[types.map-key.bound] `Map[K, V]` requires `K < Eq & Hash` and rejects a `mut T` key type. Any other key type is an error. Error: `invalid-map-key`.
 2. r[types.map-key.hash] `Hash` is a standard-library trait in `std.hash`.
 3. r[types.map-key.user] User-defined data and enum types can become keys by explicitly implementing or deriving both traits.
 4. r[types.map-key.builtin-types] Standard-library implementations cover eligible built-in scalar types and their supported compositions: `bool`, integers, `char`, `string`, tuples of hashable elements, and optionals of hashable elements.
@@ -1243,13 +1261,15 @@ r[types.infer.sites] The compiler infers the following:
 r[types.infer.explicit] The following declarations require explicit types:
 
 1. r[types.infer.explicit.parameters] Named function parameters.
-2. r[types.infer.explicit.results] The results of public functions, trait methods, methods of trait implementations, and recursive functions.
+2. r[types.infer.explicit.results-declared] The results of public functions, public inherent methods, trait methods, and methods of trait implementations, and of at least one function in each recursive cycle.
 3. r[types.infer.explicit.fields] Public and private data fields.
 4. r[types.infer.explicit.enum] Enum payload fields and constructor data.
 5. r[types.infer.explicit.trait-methods] Trait method parameters and results.
 6. r[types.infer.explicit.fn-type] Named function type parameters and bounds where applicable.
 
-r[types.infer.body-result] A non-public, nonrecursive function may infer its result from its body.
+r[types.infer.body-result-private] Any other named function, inherent method, or local `fn` may infer its result from its body, as [Parameter And Result Types](07-functions.md#parameter-and-result-types) states.
+
+r[types.infer.named-fn] For a named function, inference covers only its result type and its requirement row. Its parameter types, generic parameters, and bounds are always written in its declaration.
 
 ### Ambiguous Inference
 
@@ -1303,8 +1323,11 @@ The reference strategy uses five shapes:
 | reference | every other type, including strings, tuples, optionals, data, enums, collections, closures, and trait values |
 
 A generic function is compiled in its defining package once for each shape,
-at most five bodies, so a downstream package needs only its signature. All
-reference-shaped instantiations share one body. Scalar-shaped instantiations
+at most five bodies. Packages ship their sources, and package interfaces
+carry generic and pack function bodies, as
+[`types.generic.interfaces`](#r-types.generic.interfaces) requires, so a
+downstream package may also use a carried body to specialize an
+instantiation. All reference-shaped instantiations share one body. Scalar-shaped instantiations
 get a specialized body, so a generic function over `List[i32]` reads and
 writes unboxed `i32` elements.
 

@@ -1,4 +1,4 @@
-trait Database
+pub trait Database
 
 pub fn main() -> void $ Database:  # diagnostic: nonhost-entry-requirement
     pass

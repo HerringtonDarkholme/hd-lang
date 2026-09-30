@@ -1,0 +1,27 @@
+# test: break and continue have type never, so they fit any expected type in a value-producing branch
+# Spec 04 The never Type: types.never.expressions, types.never.fits (spec follow-ups, 2026-09-27).
+# expect: test
+use std.testing.assert_equal
+
+fn total(entries: List[i32?]) -> i32:
+    let sum = 0
+    for entry in entries:
+        amount := match entry:
+            .Some(value) => value
+            .None => continue
+        sum = sum + amount
+    sum
+
+fn first_negative(values: List[i32]) -> i32:
+    let found = 0
+    for value in values:
+        found = if value < 0: value else: continue
+        break
+    found
+
+tests:
+    it("continue skips a missing entry"):
+        assert_equal(total([1, .None, 2]), 3, reason="continue has type never")
+
+    it("break ends the loop after a match"):
+        assert_equal(first_negative([3, -4, -5]), -4, reason="continue in an else branch")

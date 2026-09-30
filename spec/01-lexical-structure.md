@@ -28,7 +28,7 @@ do not appear in the parser token stream. Layout tokens are the exception.
 2. r[lex.encoding.invalid] Invalid UTF-8 is a compile-time lexical error.
 3. r[lex.encoding.bom] If the first three bytes are `EF BB BF`, they are removed before lexical analysis.
 4. r[lex.encoding.other-bom] No other byte-order mark is removed.
-5. r[lex.encoding.stray-bom] A `U+FEFF` outside a comment or literal at any other position is a compile-time lexical error.
+5. r[lex.encoding.stray-bom] A `U+FEFF` outside a comment or literal at any other position is a compile-time lexical error. Error: `unexpected-bom`.
 6. r[lex.encoding.scalars] Unicode scalar values are valid in identifiers, under the identifier rules below, and in comments, string literals, and character literals.
 
 See also: [Identifiers](#identifiers).
@@ -115,12 +115,12 @@ fn trimmer() -> fn(string) -> string:
 
 fn total(a: i32, b: i32) -> i32:
     sum := a
-        + b  # error
+        + b  # error: syntax-error
     sum
 
 fn first(pair: (i32, i32)) -> i32:
     value := pair
-        .0  # error
+        .0  # error: syntax-error
     value
 ```
 
@@ -273,7 +273,7 @@ See also: [Trailing Callback Blocks](07-functions.md#trailing-callback-blocks).
 2. r[lex.indent.equal] Equal indentation emits no layout token.
 3. r[lex.indent.greater] Greater indentation pushes the new level and emits one `INDENT`.
 4. r[lex.indent.lesser] Lesser indentation emits one or more `DEDENT` tokens until an existing level is reached.
-5. r[lex.indent.unknown-column] Dedenting to a column that is not an active indentation level is a compile-time error.
+5. r[lex.indent.unknown-column] Dedenting to a column that is not an active indentation level is a compile-time error. Error: `invalid-dedent`.
 6. r[lex.indent.first] The first indentation level is zero.
 7. r[lex.indent.eof] At end of file, the lexer emits any remaining `DEDENT` tokens.
 8. r[lex.indent.eof-newline] If the final non-empty logical line has no physical line ending, the lexer emits its terminating `NEWLINE` before those `DEDENT` tokens.
@@ -295,7 +295,7 @@ fn test() -> void $ Console: println("hi")
 
 ### Tabs
 
-1. r[lex.tab.invalid] Horizontal tab characters are invalid as source whitespace.
+1. r[lex.tab.invalid] A horizontal tab character used as source whitespace is an error. Error: `tab-whitespace`.
 2. r[lex.tab.content] They may occur only as literal content represented by the `\t` escape or as raw characters inside comments.
 3. r[lex.tab.spaces] Indentation therefore consists only of ASCII space characters.
 
@@ -373,8 +373,8 @@ See also: [Bang And Dot Tokens](02-grammar.md#bang-and-dot-tokens).
 
 ### Identifier Security
 
-1. r[lex.ident.confusable] The compiler must diagnose identifiers that are visually confusable with another identifier visible in the same scope.
-2. r[lex.ident.mixed-script] The compiler must diagnose identifiers that suspiciously mix scripts.
+1. r[lex.ident.confusable.warning] The compiler must warn about an identifier that is visually confusable with another identifier visible in the same scope. Warning: `confusable-identifier`.
+2. r[lex.ident.mixed-script.warning] The compiler must warn about an identifier that suspiciously mixes scripts. Warning: `mixed-script-identifier`.
 3. r[lex.ident.identity] These security diagnostics do not change name identity: two different NFC identifier strings remain different names.
 4. r[lex.ident.ascii] Standard-library APIs, language keywords, and compiler-generated source names use ASCII.
 
@@ -423,7 +423,7 @@ data Token:
     `type`: string
 
 fn kind(token: Token) -> string:
-    token.type  # error
+    token.type  # error: syntax-error
 ```
 
 ## Keywords And Reserved Words
@@ -486,11 +486,11 @@ boolean_literal = "true" | "false" ;
 ```
 
 1. r[lex.bool.literals] `true` and `false` are boolean literals.
-2. r[lex.bool.no-nil] There is no literal for an absent optional: `nil` is an ordinary identifier.
+2. r[lex.bool.no-nil] There is no literal for an absent optional: `nil` is an ordinary identifier, so an undeclared `nil` is an error. Error: `unknown-name`.
 3. r[lex.bool.none] Absence is written with the enum variant `.None`.
 
 ```text
-let value: i32? = nil  # error
+let value: i32? = nil  # error: unknown-name
 ```
 
 See also: [Optional Types](04-type-system.md#optional-types).
@@ -662,7 +662,7 @@ unicode_escape = "u", "{", HEX_DIGIT, { HEX_DIGIT }, "}" ;
 HEX_DIGIT = DECIMAL_DIGIT | "A" ... "F" | "a" ... "f" ;
 
 string_character = ? any Unicode scalar value other than a double quote, a backslash, a dollar sign, or a line ending ? ;
-multiline_string_character = ? any Unicode scalar value other than a double quote, a backslash, or a dollar sign ? ;
+multiline_string_character = ? any Unicode scalar value other than a backslash, a dollar sign, or the start of an unescaped """ delimiter ? ;
 prefixed_string_character = ? any Unicode scalar value other than an unescaped double quote or a line ending ? ;
 prefixed_multiline_character = ? any Unicode scalar value other than the start of an unescaped """ delimiter ? ;
 char_character = ? any Unicode scalar value other than a single quote, a backslash, or a line ending ? ;
@@ -675,7 +675,7 @@ char_character = ? any Unicode scalar value other than a single quote, a backsla
 | Class | Contents |
 | --- | --- |
 | `string_character` | any Unicode scalar value other than `"`, `\\`, `$`, or a line ending |
-| `multiline_string_character` | the same exclusions as `string_character`, except that line endings are allowed |
+| `multiline_string_character` | any Unicode scalar value other than `\\`, `$`, or the start of an unescaped `"""` delimiter, so line endings and a lone `"` are allowed |
 | `prefixed_string_character` | any Unicode scalar value other than an unescaped `"` or a line ending |
 | `prefixed_multiline_character` | any Unicode scalar value other than the start of an unescaped `"""` delimiter |
 | `char_character` | any Unicode scalar value other than `'`, `\\`, or a line ending |
@@ -778,15 +778,15 @@ quote, line feed, carriage return, horizontal tab, and null respectively:
 | `\t` | horizontal tab |
 | `\0` | null |
 
-1. r[lex.escape.unicode] A Unicode escape has one to six hexadecimal digits and must denote a Unicode scalar value in `0..10FFFF`, excluding surrogate code points `D800..DFFF`.
-2. r[lex.escape.other] Any other escape is a lexical error.
+1. r[lex.escape.unicode] A Unicode escape has one to six hexadecimal digits and must denote a Unicode scalar value in `0..10FFFF`, excluding surrogate code points `D800..DFFF`. Error: `invalid-escape`.
+2. r[lex.escape.other] Any other escape is a lexical error. Error: `invalid-escape`.
 3. r[lex.bytes.none] hd-lang has no byte or bytes literal and no primitive byte or bytes type.
 
 ```text
 maximum := "\u{10FFFF}"  # valid: the maximum scalar value
-beyond := "\u{110000}"   # error
-high := "\u{D800}"       # error
-value := "bad\xescape"   # error
+beyond := "\u{110000}"   # error: invalid-escape
+high := "\u{D800}"       # error: invalid-escape
+value := "bad\xescape"   # error: invalid-escape
 ```
 
 ## Operators And Delimiters
@@ -798,10 +798,10 @@ r[lex.punct.tokens] The lexer recognizes these punctuation tokens:
 ```
 
 1. r[lex.punct.semicolon] The current grammar does not use `;` as a statement separator.
-2. r[lex.punct.semicolon-reserved] It is reserved for possible future use and must be diagnosed if it appears in a program.
+2. r[lex.punct.semicolon-reserved] It is reserved for possible future use, and a `;` in a program is an error. Error: `reserved-semicolon`.
 
 ```text
-name := "Ada";  # error
+name := "Ada";  # error: reserved-semicolon
 ```
 
 r[lex.op.token-list-assign] The lexer recognizes these operators and compound

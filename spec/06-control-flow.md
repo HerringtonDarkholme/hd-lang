@@ -298,14 +298,14 @@ fn total(values: List[i32]) -> i32:
 1. r[flow.for.list] The built-in `List[T]` iterable yields each element as `T`, including `mut U` when `T = mut U`, even through a readonly list.
 2. r[flow.for.map] The built-in `Map[K, V]` iterable yields `(K, V)` tuples in insertion order.
 3. r[flow.for.map.value] Destructuring each entry preserves `V`, including `mut U` when `V = mut U`, even through a readonly map.
-4. r[flow.for.no-root-grant] Iteration does not grant mutable element access merely because the list root is mutable. The declared list or map value type determines that permission.
+4. r[flow.for.no-root-grant] Iteration does not grant mutable element access merely because the list root is mutable. The declared list or map value type determines that permission, and mutating a readonly element is an error. Error: `readonly-root`.
 5. r[flow.for.library] Libraries may provide additional mutable-iteration APIs with separate aliasing rules.
 
 ### Iterator Invalidation
 
 1. r[flow.for.version] Built-in list and map iterators capture a structural-version counter.
 2. r[flow.for.invalidate] Inserting, removing, clearing, or otherwise changing collection shape invalidates existing iterators.
-3. r[flow.for.invalidate.panic] An invalidated iterator's next `next` call causes a checked runtime panic, even when the iterator was already exhausted.
+3. r[flow.for.invalidate.panic] An invalidated iterator's next `next` call causes a checked runtime panic, even when the iterator was already exhausted. Panic: `iterator-invalidated`.
 4. r[flow.for.replace] Replacing an existing list element or map value without changing collection shape does not invalidate the iterator.
 5. r[flow.for.replace.observed] Later visits observe the replacement.
 6. r[flow.for.user-defined] User-defined iterables must document equivalent mutation behavior in their own contract.
@@ -332,10 +332,10 @@ produces a value.
 1. r[flow.continue] `continue` skips the remainder of the current loop body and begins the next iteration.
 2. r[flow.break] `break` exits the nearest enclosing loop.
 3. r[flow.break.boundary] Neither operation targets a loop across a function or closure boundary.
-4. r[flow.break.outside-loop] `break` and `continue` outside a loop are compile-time errors, including at module top level and directly in a test body.
+4. r[flow.break.outside-loop] `break` and `continue` outside a loop are compile-time errors, including at module top level and directly in a test body. Error: `break-outside-loop`.
 
 ```text
-fn main() -> void: break  # error
+fn main() -> void: break  # error: break-outside-loop
 ```
 
 ### Loop Values
@@ -351,11 +351,11 @@ else:
 ```
 
 1. r[flow.loop.void] A loop without `else` has type `void`.
-2. r[flow.loop.void.break] A loop without `else` permits plain `break` but not `break value`.
+2. r[flow.loop.void.break] A loop without `else` permits plain `break` but not `break value`. A `break value` there is an error. Error: `break-value-context`.
 3. r[flow.loop.else.value] A `for` or `while` loop with `else` is value-producing.
 4. r[flow.loop.else.break-value] `break value` terminates the loop and supplies its value.
 5. r[flow.loop.else.exhaustion] Normal exhaustion of a `for` loop, or a `false` `while` condition, evaluates the `else` suite and uses that suite's value.
-6. r[flow.loop.else.plain-break] Plain `break` is invalid in a value-producing loop.
+6. r[flow.loop.else.plain-break] Plain `break` in a value-producing loop is an error. Error: `break-value-context`.
 7. r[flow.loop.else.type] Every reachable `break value` and the `else` suite must produce one compatible loop result type.
 8. r[flow.loop.else.continue] `continue` does not produce a loop value.
 9. r[flow.loop.else.skipped] The `else` suite is not executed after any `break`, abrupt function return, propagation with `?`, cancellation, or runtime panic.
@@ -363,11 +363,11 @@ else:
 ```text
 fn invalid(values: List[i32]) -> void:
     for value in values:
-        break value  # error
+        break value  # error: break-value-context
 
 fn main() -> i32:
     while true:
-        break  # error
+        break  # error: break-value-context
     else:
         1
 ```
@@ -396,7 +396,7 @@ message := match status:
 
 ### Exhaustiveness
 
-1. r[flow.match.exhaustive] A match must be exhaustive. Coverage is checked as the table below states.
+1. r[flow.match.exhaustive] A match must be exhaustive. Coverage is checked as the table below states. Error: `nonexhaustive-match`.
 
 | Rule | Coverage |
 | --- | --- |
@@ -425,7 +425,7 @@ enum Flag:
     Off
 
 fn invalid(status: Status) -> string:
-    match status:  # error
+    match status:  # error: nonexhaustive-match
         Status.Ready => "ready"
 
 fn choose(flag: Flag) -> i32:
@@ -537,13 +537,15 @@ match value:
 5. r[flow.match.data.unlisted] Unlisted fields are ignored.
 6. r[flow.match.data.label] As in a data expression, a field label inside the braces is followed by `:`. The `=` label belongs to payload patterns in parentheses.
 7. r[flow.match.data.fields] Listed fields must be distinct and exist on the named data type.
-8. r[flow.match.data.public] A cross-module pattern may name only public fields.
-9. r[flow.match.data.empty] An empty data pattern is irrefutable for that data type.
-10. r[flow.match.data.nominal] A named data pattern must match the subject's nominal type. It does not structurally match a different data type with the same fields.
-11. r[flow.match.data.bind-primitive] Primitive fields bind by value.
-12. r[flow.match.data.bind-composite] Composite fields bind reference access under the data subject's effective field types.
-13. r[flow.match.data.readonly-mut] A direct `mut U` field in a readonly subject binds as `U`.
-14. r[flow.match.data.generic] A generic field declared `field: P` binds as substituted `P`, including `mut U` when `P = mut U`.
+8. r[flow.match.data.fields.unknown] A listed field that the data type does not declare is an error. Error: `unknown-data-field`.
+9. r[flow.match.data.fields.duplicate] A field listed twice is an error. Error: `duplicate-data-pattern-field`.
+10. r[flow.match.data.public] A cross-module pattern may name only public fields.
+11. r[flow.match.data.empty] An empty data pattern is irrefutable for that data type.
+12. r[flow.match.data.nominal] A named data pattern must match the subject's nominal type. It does not structurally match a different data type with the same fields.
+13. r[flow.match.data.bind-primitive] Primitive fields bind by value.
+14. r[flow.match.data.bind-composite] Composite fields bind reference access under the data subject's effective field types.
+15. r[flow.match.data.readonly-mut] A direct `mut U` field in a readonly subject binds as `U`.
+16. r[flow.match.data.generic] A generic field declared `field: P` binds as substituted `P`, including `mut U` when `P = mut U`.
 
 ```text
 data User:
@@ -552,11 +554,11 @@ data User:
 
 fn read(user: User) -> i32:
     match user:
-        User { missing } => 1  # error
+        User { missing } => 1  # error: unknown-data-field
 
 fn invalid(user: User) -> string:
     match user:
-        User { name, name: alias } => alias  # error
+        User { name, name: alias } => alias  # error: duplicate-data-pattern-field
 ```
 
 See also: [Generalized Algebraic Data Types](13-gadts.md), which defines GADT
@@ -569,7 +571,7 @@ pattern refinement.
 1. r[flow.return.value] `return expression` immediately completes the nearest enclosing named function or closure with that value.
 2. r[flow.return.type] The value must be assignable to the declared or inferred return type.
 3. r[flow.return.bare] Bare `return` is valid only for a `void`-returning function or closure.
-4. r[flow.return.outside] `return` outside a named function or closure is a compile-time error.
+4. r[flow.return.outside] `return` outside a named function or closure is a compile-time error. Error: `return-outside-function`.
 5. r[flow.return.script-only] A module script is not an implicit return target.
 6. r[flow.return.fallthrough] Falling through a function body evaluates its final expression as the return value.
 7. r[flow.return.void-fallthrough] A function declared `-> void` may fall through after a statement whose result is `void`.
@@ -577,7 +579,7 @@ pattern refinement.
 9. r[flow.return.non-local] hd-lang has no non-local return from a closure.
 
 ```text
-return 1  # error
+return 1  # error: return-outside-function
 ```
 
 ## Deferred Cleanup

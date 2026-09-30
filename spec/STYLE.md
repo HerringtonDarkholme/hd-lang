@@ -16,7 +16,8 @@ Each section, or subsection, follows this order:
 2. **Example.** A minimal example of the common case.
 3. **Rules.** A numbered list, one rule per item, each with a
    [rule ID](#rule-ids). A rule that names a diagnostic ends with
-   "Error: `code`."
+   "Error: `code`.", and a rule that names a runtime panic category ends
+   with "Panic: `code`."
 4. **Error examples.** A code block in which each rejected line ends with an
    `# error: code` comment. See [Examples](#examples).
 5. **Why.** An optional rationale callout, set apart from the rules. See
@@ -40,8 +41,8 @@ anchor checker, audits, and conformance cases link to them.
   their section.
 - Write a defined term in bold where it is defined, and add it to the
   [glossary](README.md#glossary).
-- Put a diagnostic code at the end of its rule, never in the middle of a
-  sentence.
+- Put a diagnostic code or panic category at the end of its rule, never in
+  the middle of a sentence.
 - Keep rationale out of rules. It goes in a Why callout.
 
 The style lint in `spec/check.sh` warns about a paragraph over 90 words or a
@@ -1467,3 +1468,33 @@ style lint rejects a chapter that reuses one.
   `List`, `Map`, and `string` implement the index traits. Replaced by
   `expr.index.trait.builtin-direct` and `expr.index.std.list`,
   `expr.index.std.map`, and `expr.index.std.string`.
+- `fn.recursion.named`: retired 2026-09-29. The spec follow-ups (decided
+  2026-09-27) make one declared result type in a recursive cycle enough.
+  Replaced by `fn.recursion.named-cycle`.
+- `fn.decl.omitted-not-recursive`: retired 2026-09-29. The same follow-up
+  allows recursion through a function with a declared result type.
+  Replaced by `fn.decl.omitted-recursion`.
+- `types.infer.explicit.results`: retired 2026-09-29. The spec follow-ups
+  require a result type on public inherent methods and on one function per
+  recursive cycle, not on every recursive function. Replaced by
+  `types.infer.explicit.results-declared`.
+- `types.infer.body-result`: retired 2026-09-29. The same follow-ups let a
+  non-public function in a cycle with a declared member infer its result.
+  Replaced by `types.infer.body-result-private`.
+- `trait.dyn.methods`: retired 2026-09-29. The spec follow-ups (decided
+  2026-09-27) make a trait value expose its supertraits' methods too.
+  Replaced by `trait.dyn.methods-supertraits`.
+- `trait.conflict.ambiguous`: retired 2026-09-29. The spec follow-ups make
+  the dot call `ambiguous-method` when both traits are available, not
+  "may be ambiguous". Replaced by `trait.conflict.ambiguous-available`.
+- `lex.ident.confusable`: retired 2026-09-29. The spec follow-ups make it a
+  warning, as the diagnostics table lists it. Replaced by
+  `lex.ident.confusable.warning`.
+- `lex.ident.mixed-script`: retired 2026-09-29. The spec follow-ups make
+  it a warning. Replaced by `lex.ident.mixed-script.warning`.
+- `req.model.no-reinterpretation`: retired 2026-09-29. The spec follow-ups
+  change "not generally" to "never". Replaced by
+  `req.model.never-reinterpreted`.
+- `req.schedule.all-order`: retired 2026-09-29. The spec follow-ups make
+  `all!` re-poll only unfinished children. Replaced by
+  `req.schedule.all-unfinished` and `req.schedule.all-completed`.

@@ -1,0 +1,7 @@
+# test: an expected result type does not weaken the elements of a list already built
+# Spec 04 Bindings And Fresh Values: types.fresh.element-no-weaken (TQ-2 fresh elements, 2026-09-27).
+data Word:
+    text: string
+
+fn words(parts: List[string]) -> mut Iterator[Word]:
+    [for p in parts => Word { text: p }].iter()  # diagnostic: type-mismatch

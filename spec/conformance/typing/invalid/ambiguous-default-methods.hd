@@ -1,0 +1,18 @@
+# test: two available traits with same-named default methods make a dot call ambiguous
+# Spec 09 Default-Method Conflicts: trait.conflict.ambiguous-available (spec follow-ups, 2026-09-27).
+trait Named:
+    fn label(self) -> string:
+        "named"
+
+trait Tagged:
+    fn label(self) -> string:
+        "tagged"
+
+data User:
+    name: string
+
+impl Named for User
+impl Tagged for User
+
+fn invalid(user: User) -> string:
+    user.label()  # diagnostic: ambiguous-method

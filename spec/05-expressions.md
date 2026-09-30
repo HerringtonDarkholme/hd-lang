@@ -143,14 +143,14 @@ This section defines identifier, qualified, and contextual variant names.
 3. r[expr.name.contextual] `.Variant` selects a variant only when the expression has an expected type that fixes one nominal enum.
 4. r[expr.name.contextual.rules] `.Variant` has the same construction and argument rules as `Enum.Variant`; a payload-bearing variant still requires a call.
 5. r[expr.name.contextual.no-search] The compiler does not search all visible enums for a matching variant name.
-6. r[expr.name.contextual.no-type] Without a unique expected enum type, `.Variant` is a type error.
+6. r[expr.name.contextual.no-type] Without a unique expected enum type, `.Variant` is a type error. Error: `missing-contextual-enum-type`.
 
 ```text
 enum Status:
     Queued
 
 fn invalid() -> void:
-    status := .Queued  # error
+    status := .Queued  # error: missing-contextual-enum-type
     pass
 ```
 
@@ -461,7 +461,7 @@ scores := {"Ada": 10, "Grace": 12}
 2. r[expr.list.type] A list literal produces `List[T]`, where every element is assignable to `T`.
 3. r[expr.list.spread] A list element ending in `...` is a spread.
 4. r[expr.list.spread.once] A spread's operand is evaluated once, in element order.
-5. r[expr.list.spread.type] A spread's operand must have a list type `List[U]`.
+5. r[expr.list.spread.type] A spread's operand must have a list type `List[U]`. Error: `type-mismatch`.
 6. r[expr.list.spread.insert] The spread's elements are inserted at its position, in order.
 7. r[expr.list.spread.position] A literal may contain several spreads in any position, so `[0, xs...]` and `[xs..., ys...]` are valid.
 8. r[expr.list.spread.expected] With an expected `List[T]`, `U` must be assignable to `T`.
@@ -469,7 +469,7 @@ scores := {"Ada": 10, "Grace": 12}
 
 ```text
 fn numbers(count: i32) -> List[i32]:
-    [0, count...]  # error
+    [0, count...]  # error: type-mismatch
 ```
 
 #### Map Literals
@@ -1035,7 +1035,7 @@ This section defines operator precedence and the meaning of each operator.
 6. r[expr.arith.int.checked] For compatible integer operands, `+`, `-`, and `*` produce the common integer type and use checked arithmetic.
 7. r[expr.arith.int.divide] `/` truncates toward zero, `%` produces the corresponding remainder, and a zero divisor panics.
 8. r[expr.arith.unary-plus] Unary `+` accepts all numeric types, preserves its operand's type and value, and evaluates the operand once.
-9. r[expr.arith.unary-minus] Unary `-` accepts signed integers and floating-point values, but not unsigned integers.
+9. r[expr.arith.unary-minus] Unary `-` accepts signed integers and floating-point values, but not unsigned integers. Negating an unsigned operand is an error. Error: `unsigned-negation`.
 
 ```text
 fn sum(a: bool, b: bool) -> bool: a + b                     # error: type-mismatch
@@ -1067,7 +1067,7 @@ fn toggle(a: string, b: string) -> string: a ^ b  # error: type-mismatch
 3. r[expr.power.int.signed] A signed integer exponent is an error. Error: `type-mismatch`.
 4. r[expr.power.negated-literal] A negated literal is signed: in `2 ** -1` the literal `1` is the operand of unary `-`, not the exponent itself. So `-1` has a signed type, and the expression is a compile-time error. Error: `type-mismatch`.
 5. r[expr.power.negated-literal.not-other] That error is not `unsigned-negation` and not a runtime panic.
-6. r[expr.power.checked] Exponentiation uses checked multiplication in the base's result type.
+6. r[expr.power.checked] Integer exponentiation uses checked multiplication in the base's result type.
 7. r[expr.power.float.exponent] For a floating-point base, the exponent must be floating point after ordinary floating widening.
 8. r[expr.power.float.pow] Floating `**` computes IEEE 754-2019 `pow` as specified in clause 9.2, including its special cases, and rounds the result correctly to the destination format.
 9. r[expr.power.mixed] Integer and floating operands do not mix without an explicit cast; a mixed power expression is an error. Error: `mixed-numeric-types`.
@@ -1143,8 +1143,8 @@ fn invalid(left: fn() -> void, right: fn() -> void) -> bool:
 
 #### Identity Operands
 
-1. r[expr.is.tuple] Tuples have no identity, and using `is` with a tuple is rejected even if it contains references.
-2. r[expr.is.primitive] Primitive values likewise cannot be compared with `is`: an operand type must implement `AnyRef`, not `AnyVal`.
+1. r[expr.is.tuple] Tuples have no identity, and using `is` with a tuple is an error even if it contains references. Error: `identity-requires-references`.
+2. r[expr.is.primitive] Primitive values likewise cannot be compared with `is`: an operand type must implement `AnyRef`, not `AnyVal`. Error: `identity-requires-references`.
 3. r[expr.is.compatible] Both operands must otherwise have compatible composite reference types. Two such types are compatible when, after removing `mut` at every level, they are equal, or one is a trait value or `Any` type that the other converts to.
 4. r[expr.is.permissions] Permissions never affect identity, so `List[User]` and `mut List[mut User]` are compatible.
 5. r[expr.is.incompatible] Two composite reference operands that are not compatible, such as `List[User]` and `List[Order]`, are an error. Error: `incompatible-identity-operands`.
@@ -1162,7 +1162,7 @@ fn same(user: User, order: Order) -> bool:
     user is order  # error: incompatible-identity-operands
 
 fn tuples(left: (i32, i32), right: (i32, i32)) -> bool:
-    left is right  # error
+    left is right  # error: identity-requires-references
 ```
 
 ```text
@@ -1524,7 +1524,7 @@ by_id := {for user in users if user.active => user.id: user}
 ### Comprehension Restrictions
 
 1. r[expr.comp.eager] Comprehensions are eager.
-2. r[expr.comp.no-suspension] Comprehensions cannot contain suspension calls.
+2. r[expr.comp.no-suspension] Comprehensions cannot contain suspension calls. A bang call inside one is an error. Error: `suspension-forbidden-context`.
 3. r[expr.comp.no-jumps] `return`, `break`, and `continue` are not valid inside a comprehension.
 4. r[expr.comp.no-let] There is no comprehension `let` clause.
 5. r[expr.comp.propagation] Postfix `?` is valid inside a comprehension. It returns from the nearest enclosing function or closure, as anywhere else.
@@ -1534,7 +1534,7 @@ by_id := {for user in users if user.active => user.id: user}
 fn ready!() -> i32: 1
 
 fn main!() -> List[i32]:
-    [for value in [1] => ready!()]  # error
+    [for value in [1] => ready!()]  # error: suspension-forbidden-context
 ```
 
 In place of a `let` clause, use a parenthesized `:=` binding in a guard or

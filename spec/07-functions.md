@@ -49,7 +49,7 @@ impl Cart:
 
 ### Recursion Without A Result Type
 
-1. r[fn.decl.omitted-not-recursive] A function whose result type is omitted must not be recursive.
+1. r[fn.decl.omitted-recursion] A function whose result type is omitted must not be recursive through functions whose result types are all omitted, itself included.
 2. r[fn.decl.omitted-cycle] A cycle of functions with omitted result types that call each other, directly or through one another, is an error. Error: `recursive-function-needs-result-type`.
 3. r[fn.decl.omitted-cycle.report] The error is reported once, on the member of the cycle that appears first in source order.
 4. r[fn.decl.omitted-cycle.resolve] Adding a result type to any member of the cycle resolves it.
@@ -69,12 +69,12 @@ fn is_odd(n: i32):
 1. r[fn.body.final-value] The body's normal final value must be assignable to the declared or inferred result.
 2. r[fn.body.early-return] Explicit `return` may complete the function earlier.
 3. r[fn.body.paths] Every reachable control path must return a value assignable to the declared result, fall through with such a final value, or complete abruptly by propagation or panic.
-4. r[fn.body.value-less-fallthrough] A non-`void` function with a reachable value-less fallthrough is rejected.
+4. r[fn.body.value-less-fallthrough] A non-`void` function with a reachable value-less fallthrough is an error. Error: `missing-return-value`.
 5. r[fn.body.void-final] A `void` function likewise rejects a non-`void` final expression.
 
 ```text
 fn invalid(flag: bool) -> i32:
-    if flag:  # error
+    if flag:  # error: missing-return-value
         return 1
 ```
 
@@ -128,7 +128,7 @@ fn rename(user: mut User, name: string) -> void:
 ```
 
 1. r[fn.param.init-order] Parameters are evaluated and initialized from left to right after argument mapping.
-2. r[fn.param.non-reassignable] Parameters are non-reassignable bindings: their names cannot be reassigned.
+2. r[fn.param.non-reassignable] Parameters are non-reassignable bindings: their names cannot be reassigned. Reassigning one is an error. Error: `non-reassignable-parameter-binding`.
 3. r[fn.param.access] For composite parameters, `T` permits readonly access and `mut T` requires mutable access.
 4. r[fn.param.primitive] Primitive parameters pass by value.
 5. r[fn.param.composite] Composite parameters pass shared reference access according to their declared type.
@@ -136,7 +136,7 @@ fn rename(user: mut User, name: string) -> void:
 
 ```text
 fn normalize(value: i32) -> i32:
-    value = 0  # error
+    value = 0  # error: non-reassignable-parameter-binding
     value
 ```
 
@@ -235,7 +235,7 @@ fn sum(values: i32...) -> i32:
 ```
 
 1. r[fn.vararg.declare] A final positional parameter may end in `...`.
-2. r[fn.vararg.list] Within the function, `values` is a `List[i32]`.
+2. r[fn.vararg.list] Within the function, a vararg parameter declared `name: T...` has type `List[T]`, so `values` above is a `List[i32]`.
 3. r[fn.vararg.call] A call may supply zero or more positional elements or spread one compatible list.
 
 ```text
@@ -247,7 +247,7 @@ sum(items...)
 1. r[fn.vararg.last] A vararg must be the last positional parameter. A non-final vararg, in a declaration or in a function type, is an error. Error: `nonfinal-vararg`.
 2. r[fn.vararg.by-name] Passing a vararg by name supplies a list without spread syntax.
 3. r[fn.vararg.no-default] A vararg has no default expression.
-4. r[fn.vararg.spread] At a call site, one list spread may supply the remaining vararg elements and must be the final positional argument.
+4. r[fn.vararg.spread] At a call site, one list spread may supply the remaining vararg elements and must be the final positional argument. Error: `nonfinal-positional-spread`.
 5. r[fn.vararg.spread-fixed] The spread does not fill fixed parameters.
 6. r[fn.vararg.spread-needs-vararg] A spread passed to a callee without a vararg is an error. Error: `positional-spread-needs-vararg`.
 7. r[fn.vararg.ellipsis] Homogeneous varargs and heterogeneous type-pack expansion share the ellipsis token. Name resolution distinguishes them.
@@ -569,9 +569,9 @@ lower := names.map(fn(name): name.lower())
 1. r[fn.closure.annotations-omitted] When an expected function type is available, an inline closure may omit parameter and result annotations.
 2. r[fn.closure.needs-annotation] Without a sufficient expected type, parameters must be annotated. An unannotated parameter is then an error. Error: `closure-parameter-needs-annotation`.
 3. r[fn.closure.result-inferred] A nonrecursive closure may infer its result type from its body.
-4. r[fn.closure.result-inferred.common] The inferred result is the [least common type](04-type-system.md#least-common-type) of the body's final value and every `return` operand.
+4. r[fn.closure.result-inferred.common] The inferred result is the [least common type](04-type-system.md#least-common-type) of the body's final value and every `return` operand. When they have no common type, the closure is an error. Error: `no-common-type`.
 5. r[fn.closure.result-expected] An expected function type may instead supply the result type.
-6. r[fn.closure.recursive-result] A recursive local closure must always write its result type explicitly, even if an expected function type could supply it.
+6. r[fn.closure.recursive-result] A recursive local closure must always write its result type explicitly, even if an expected function type could supply it. Error: `recursive-closure-needs-result-type`.
 
 ```text
 fn run() -> i32:
@@ -696,7 +696,7 @@ transaction:
 3. r[fn.trailing.empty-parentheses] If there are no ordinary arguments, empty `()` is omitted.
 4. r[fn.trailing.closure] The trailing block is equivalent to a zero-argument closure whose result and behavior are contextually inferred from the final parameter.
 5. r[fn.trailing.position] A trailing block call may be a complete statement or the complete right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`, as in `total = sum_of(items):` or `return retry(3):` followed by the block.
-6. r[fn.trailing.one] Only one trailing block is permitted, and only for a zero-argument final parameter.
+6. r[fn.trailing.one] Only one trailing block is permitted, and only for a zero-argument final parameter. Error: `trailing-block-position`.
 7. r[fn.trailing.parameterized] Parameterized callbacks use explicit closure syntax.
 8. r[fn.trailing.return] `return` inside the block returns from the generated callback, not from the enclosing function.
 9. r[fn.trailing.suspending] When the final parameter has a suspending function type, as in `body: fn!() -> T`, the trailing block is a suspending closure. This holds for every callee.
@@ -705,7 +705,7 @@ transaction:
 ```text
 transaction:
     save_user()
-:  # error
+:  # error: trailing-block-position
     save_again()
 ```
 
@@ -839,7 +839,7 @@ label := user.tagged[string]("admin")
 ```
 
 1. r[fn.method.form] Functions declared in `impl` blocks are methods when their first parameter is `self` or `mut self`.
-2. r[fn.method.self] `self` is readonly access to the receiver.
+2. r[fn.method.self] `self` is readonly access to the receiver, so mutating the receiver through it is an error. Error: `readonly-root`.
 3. r[fn.method.mut-self] `mut self` is shorthand for `self: mut Self`.
 4. r[fn.method.no-sigil] There is no reference sigil or ownership-taking receiver form.
 5. r[fn.method.associated] Receiverless members are associated functions and are called with qualified `Type::function(...)` or `Trait::function(...)` syntax.
@@ -853,7 +853,7 @@ data Counter:
 
 impl Counter:
     fn reset(self) -> void:
-        self.value = 0  # error
+        self.value = 0  # error: readonly-root
 ```
 
 See also: [Member Resolution](03-names-and-scopes.md#member-resolution), which
@@ -865,7 +865,7 @@ defines member lookup, including promotion;
 
 This section defines recursive functions and closures.
 
-1. r[fn.recursion.named] Named functions may call themselves or other visible named functions recursively, provided every function in a recursive cycle has a declared result type.
+1. r[fn.recursion.named-cycle] Named functions may call themselves or other visible named functions recursively, provided at least one function in each recursive cycle has a declared result type. The others may omit theirs.
 2. r[fn.recursion.closure.no-self-name] Closures do not acquire an implicit self-name.
 3. r[fn.recursion.closure.binding] A closure directly initialized by a statement-form local `:=` or `let` binding may refer to that binding's name inside its body.
 4. r[fn.recursion.closure.result] Its result type after `->` is mandatory.
@@ -879,7 +879,7 @@ This section defines recursive functions and closures.
 
 ```text
 fn sum_to(limit: i32) -> i32:
-    sum := fn(n: i32):  # error
+    sum := fn(n: i32):  # error: recursive-closure-needs-result-type
         if n == 0: 0
         else: n + sum(n - 1)
     sum(limit)

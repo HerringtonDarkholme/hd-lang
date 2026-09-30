@@ -106,14 +106,14 @@ fn eval[T](expr: Expr[T]) -> T:
 2. r[gadt.refine.arm-local] Refinement is arm-local.
 3. r[gadt.refine.scope] Refinement affects payload binding types, nested calls, and the arm result check, then disappears after the arm.
 4. r[gadt.refine.match-type] The complete match still has the result type required by its expected type.
-5. r[gadt.refine.impossible] An arm whose variant result cannot unify with the subject type is rejected as statically impossible.
+5. r[gadt.refine.impossible] An arm whose variant result cannot unify with the subject type is an error, because it is statically impossible. Error: `impossible-gadt-pattern`.
 6. r[gadt.refine.exhaustive] Exhaustiveness is checked over variants whose result types can inhabit the subject type.
 
 ```text
 fn invalid(expr: Expr[i64]) -> i64:
     match expr:
         Expr.IntLit(value) => value
-        Expr.BoolLit(value) => 0  # error
+        Expr.BoolLit(value) => 0  # error: impossible-gadt-pattern
 ```
 
 See also: [Refinement Algorithm](#refinement-algorithm),

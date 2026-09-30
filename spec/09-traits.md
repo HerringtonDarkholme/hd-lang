@@ -616,7 +616,7 @@ impl Describe for Describer:
 1. r[trait.impl.local] An `impl` inside an executable block suite is a compile-time declaration.
 2. r[trait.impl.local.trait] A local trait implementation must involve a local trait or a local nominal target type visible at its declaration point.
 3. r[trait.impl.local.inherent] A local inherent implementation must target a local nominal type.
-4. r[trait.impl.local.nonlocal] Implementations for a pair of nonlocal types belong at module scope.
+4. r[trait.impl.local.nonlocal] Implementations for a pair of nonlocal types belong at module scope. A local one is an error. Error: `local-impl-nonlocal-pair`.
 5. r[trait.impl.local.checks] Local implementations obey the same target, ownership, overlap, and uniqueness checks as module-level implementations.
 6. r[trait.impl.local.no-second] Lexical scope does not permit a second implementation for an existing pair.
 7. r[trait.impl.local.no-capture] Local methods and local-trait default methods cannot capture enclosing runtime values.
@@ -823,7 +823,7 @@ See also: [Implementation Ownership](#implementation-ownership),
 ### Inherent Member Names
 
 1. r[trait.inherent.unique-unifying] Two inherent members with one name are an error when their implementations' targets unify, including two members of one implementation. Error: `duplicate-inherent-member`.
-2. r[trait.inherent.unique-unifying.disjoint] Inherent implementations of one type constructor whose targets cannot unify may repeat a member name. `impl Box[i32]` and `impl Box[string]` may each declare `show`, but `impl[T] Box[T]` and `impl Box[i32]` may not.
+2. r[trait.inherent.unique-unifying.disjoint] Inherent implementations of one type constructor whose targets cannot unify may repeat a member name. `impl Box[i32]` and `impl Box[string]` may each declare `show`, but `impl[T] Box[T]` and `impl Box[i32]` must not.
 3. r[trait.inherent.unique-unifying.unify] Targets unify as implementation heads do in [Overlap](#overlap), after renaming each implementation's parameters apart.
 4. r[trait.inherent.target-match] An inherent member is a member of a receiver's type only when its implementation's target matches that type, so `box.show()` on a `Box[string]` calls the member of `impl Box[string]`.
 5. r[trait.inherent.field-names] An inherent member may share its name with a field of the type, named or embedded, because fields and methods are separate namespaces.
@@ -1202,7 +1202,7 @@ fn print_display(value: Display) -> void $ Console:
 1. r[trait.dyn.form] Using a trait name directly as a value type creates a Go-style dynamic trait value.
 2. r[trait.dyn.contents] Such a value contains a concrete value plus dispatch metadata for the trait.
 3. r[trait.dyn.no-dyn] There is no `dyn` marker.
-4. r[trait.dyn.methods] Only methods declared by the trait are available through the erased value.
+4. r[trait.dyn.methods-supertraits] Only the methods of the trait and of its transitive supertraits are available through the erased value; the concrete type's inherent methods are not.
 
 ### Dynamic Safety
 
@@ -1877,16 +1877,35 @@ impl Named for Service by Logger  # error: missing-trait-method
 1. r[trait.by.ordinary] Otherwise a delegating implementation is an ordinary trait implementation.
 2. r[trait.by.ordinary.rules] It obeys [Implementation Ownership](#implementation-ownership), [Overlap](#overlap), and trait visibility, satisfies bounds, and supports dynamic trait values.
 3. r[trait.by.ordinary.candidates] Its methods are candidates in [Method Resolution](#method-resolution) where the trait is available.
-4. r[trait.by.dot-call] A dot call such as `service.describe()` therefore has one candidate unless an embedded type also has an inherent method of that name. In that case the call is an error, as for any implementation. Error: `ambiguous-method`.
+4. r[trait.by.dot-call] A dot call such as `service.describe()` therefore has one candidate unless an embedded type also has a `pub` inherent method of that name, which is promoted. In that case the call is an error, as for any implementation. Error: `ambiguous-method`.
 
 ## Default-Method Conflicts
 
-A type that implements two traits with same-named default methods may make a
-dot call ambiguous.
+A type that implements two traits with same-named default methods makes a
+dot call of that name ambiguous where both traits are available.
 
-1. r[trait.conflict.ambiguous] If a type implements two traits that provide default methods with the same name, ordinary method-call resolution may be ambiguous even though both trait implementations are individually valid.
+1. r[trait.conflict.ambiguous-available] If a type implements two traits that provide default methods with the same name, a dot call of that name is an error when both traits are available, even though both implementations are individually valid. Error: `ambiguous-method`.
 2. r[trait.conflict.inherent] The type may define an inherent method to provide its ordinary dot-call behavior.
 3. r[trait.conflict.qualified] The caller may instead use `Trait::method(value, ...)` to select one implementation.
+
+```text
+trait Named:
+    fn label(self) -> string:
+        "named"
+
+trait Tagged:
+    fn label(self) -> string:
+        "tagged"
+
+data User:
+    name: string
+
+impl Named for User
+impl Tagged for User
+
+fn invalid(user: User) -> string:
+    user.label()  # error: ambiguous-method
+```
 
 ## Unsupported Trait Extensions
 

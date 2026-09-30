@@ -1,6 +1,4 @@
 path	reason	finding
-typing/invalid/nondisplay-entry-error.hd	extra error: MVP also reports private-type-leak at line 3	F-150
-typing/invalid/nonhost-entry-requirement.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 typing/valid/pack-map.hd	check fails: unsupported-generic-parameter at line 10: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/pack-map-mapper-mismatch.hd	MVP reports unknown-name at line 5 instead of pack-map-mapper-mismatch: unknown name 'pack'	F-250
 typing/valid/mutable-suspension.hd	check fails: unsupported-generic-parameter at line 4: packs and defaults are outside the current erased-generic slice	F-250
@@ -11,9 +9,8 @@ typing/invalid/impossible-gadt-pattern.hd	MVP reports unsupported-gadt-result at
 typing/invalid/covariant-gadt-result.hd	MVP reports syntax-error at line 4 instead of invalid-variance: expected a generic enum parameter	F-250
 typing/valid/invariant-gadt-result.hd	check fails: expected-expression at line 5: expected an expression, found 'mut'	F-250
 typing/invalid/multiple-positional-value-packs.hd	MVP reports unsupported-generic-parameter at line 1 instead of multiple-positional-value-packs: packs and defaults are outside the current erased-generic slice	F-250
-runtime/valid/resource-disposed-result.hd	check exits 2 with usage text: the disposed-file profile does not exist; the fixture also exposes the private trait Files from pub main (private-type-leak, F-150)	F-259
+runtime/valid/resource-disposed-result.hd	check exits 2 with usage text: the disposed-file profile does not exist	F-259
 typing/invalid/nonfinal-positional-value-pack.hd	MVP reports unsupported-generic-parameter at line 1 instead of nonfinal-positional-value-pack: packs and defaults are outside the current erased-generic slice	F-250
-typing/valid/trait-argument-owner-impl.hd	check reports type-mismatch at line 8: the comprehension element Word { ... } is a fresh mut Word, so .iter() gives mut Iterator[mut Word], not the declared mut Iterator[Word]; no rule states that the expected result weakens the element (Iterable itself is implemented)	TQ-2
 typing/invalid/orphan-impl-foreign-trait-argument.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	TQ-2
 runtime/valid/unavailable-trait-method-invisible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 typing/invalid/unavailable-trait-method-not-found.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S

@@ -1,14 +1,14 @@
 # fixture-runtime-profile: disposed-file
 use std.resource.ResourceError
 
-data IoError:
+pub data IoError:
     message: string
 
-trait FileHandle:
+pub trait FileHandle:
     fn read!(mut self) -> Result[string, ResourceError[IoError]]
     fn close(mut self) -> Result[void, ResourceError[IoError]]
 
-trait Files:
+pub trait Files:
     fn open!(self) -> mut FileHandle
 
 pub fn main!() -> void $ Files:
