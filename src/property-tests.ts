@@ -1,6 +1,6 @@
 import type { HostFunction } from "./host-functions.ts";
 
-// The property-test runner (spec/10-modules.md#property-tests, Testing
+// The property-test runner (spec/std/testing.md#property-tests, Testing
 // T35-T38, T50, T51). A lowered `it_prop` or `it_prop_with` test function
 // (parser/test-cases.ts) reports its `cases` and `shrink` caps through
 // `prop_config`, and every `Choices` member draws through `prop_draw`, a
@@ -16,19 +16,19 @@ import type { HostFunction } from "./host-functions.ts";
 // - `Choices.assume(false)` calls `prop_discard`, which ends the case as
 //   neither passing nor failing. A discarded case does not count toward
 //   `cases`, and the property fails after more than 10 × `cases` discards
-//   (spec/10-modules.md#r-module.testing.prop.discard-limit);
+//   (spec/std/testing.md#r-std-testing.prop.discard-limit);
 // - the lowered test reports its input's `Debug` text through `prop_show`,
 //   and the failure report prints the shrunk case's text
-//   (spec/10-modules.md#r-module.testing.prop.report);
+//   (spec/std/testing.md#r-std-testing.prop.report);
 // - each case has a draw budget of `DRAW_BUDGET` draws, which `prop_budget`
 //   reports; once `Choices` has spent it, every draw returns its simplest
-//   value without calling `prop_draw` (spec/10-modules.md#draw-budget);
+//   value without calling `prop_draw` (spec/std/testing.md#draw-budget);
 // - a property's `examples` run first, each as one case: the lowered test
 //   asks `prop_example` which example to run, and the host discards the
-//   case once every example has run (spec/10-modules.md#r-module.testing.prop.examples);
+//   case once every example has run (spec/std/testing.md#r-std-testing.prop.examples);
 // - a failing property's shrunk stream is saved, one decimal draw per line,
 //   under `__regressions__/<module>/<test-slug>` and replayed before new
-//   cases on the next run (spec/10-modules.md#r-module.testing.prop.regression-file).
+//   cases on the next run (spec/std/testing.md#r-std-testing.prop.regression-file).
 //
 // The failure report names the seed, which `hd test --seed N` reuses (T36),
 // the shrunk input, and the shrunk choice stream.

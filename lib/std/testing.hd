@@ -10,20 +10,20 @@ use std.num.{Float, Integer, parse_i64}
 use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
 
 # The only source of randomness a generator sees
-# (spec/10-modules.md#property-tests). The runner creates each one and
+# (spec/std/testing.md#property-tests). The runner creates each one and
 # records each draw, so it can replay and shrink a case: every member draws
 # through `prop_draw`, a host function that returns an integer from 0 to a
 # bound, and a replayed or shrunk case returns the recorded values
 # (src/property-tests.ts). Once a case's draws have spent the runner's draw
 # budget, every member returns its simplest value without drawing
-# (spec/10-modules.md#draw-budget).
+# (spec/std/testing.md#draw-budget).
 pub data Choices:
     draws: i32
     budget: i32
 
 impl Choices:
     # Whether the draw budget is spent. No public member reads it
-    # (r-module.testing.budget.no-api).
+    # (r-std-testing.budget.no-api).
     fn spent(self) -> bool:
         self.draws >= self.budget
 
@@ -82,7 +82,7 @@ impl Choices:
         items
 
     # At most `max` entries, each key drawn before its value. A key drawn
-    # again keeps the later value (r-module.testing.choices.map.duplicate).
+    # again keeps the later value (r-std-testing.choices.map.duplicate).
     pub fn map[K < Eq & Hash, V](mut self, max: i32, key: fn(mut Choices) -> K, value: fn(mut Choices) -> V) -> Map[K, V]:
         let entries: mut Map[K, V] = {}
         if self.spent():
@@ -95,7 +95,7 @@ impl Choices:
             index = index + 1
         entries
 
-    # At most `max_chars` chars (r-module.testing.choices.string-limit).
+    # At most `max_chars` chars (r-std-testing.choices.string-limit).
     pub fn string(mut self, max_chars: i32) -> string:
         if self.spent():
             return ""
@@ -108,7 +108,7 @@ impl Choices:
             index = index + 1
         text
 
-    # A false `ok` discards the case (spec/10-modules.md#property-tests).
+    # A false `ok` discards the case (spec/std/testing.md#property-tests).
     pub fn assume(mut self, ok: bool) -> void:
         if !ok:
             prop_discard()
@@ -146,7 +146,7 @@ fn wide[N < Integer](n: N) -> i64:
         .Ok(value) => value
         .Err(_) => 9223372036854775807
 
-# A type's default generator (spec/10-modules.md#property-tests).
+# A type's default generator (spec/std/testing.md#property-tests).
 pub trait Arbitrary:
     fn arbitrary(c: mut Choices) -> Self
 
@@ -215,7 +215,7 @@ impl[S] Source[S] for ArbitrarySource[S]:
         panic("an arbitrary source names every member")
 
 # `std` implements `Arbitrary` for the primitives, `string`, `List`, `Map`,
-# `T?`, `Result`, and pairs and triples (r-module.testing.arbitrary.std).
+# `T?`, `Result`, and pairs and triples (r-std-testing.arbitrary.std).
 # The 32- and 64-bit integers draw from -1000 to 1000, or 0 to 1000.
 impl Arbitrary for i8:
     fn arbitrary(c: mut Choices) -> i8: c.int(-128, 127)
@@ -242,7 +242,7 @@ impl Arbitrary for u64:
     fn arbitrary(c: mut Choices) -> u64: c.int(0, 1000)
 
 # Any `f64`, NaN, both infinities, -0.0, and subnormals included
-# (r-module.testing.arbitrary.float). The simplest is 0.0.
+# (r-std-testing.arbitrary.float). The simplest is 0.0.
 impl Arbitrary for f64:
     fn arbitrary(c: mut Choices) -> f64:
         let zero: f64 = 0.0
@@ -287,12 +287,12 @@ impl[K < Arbitrary & Eq & Hash, V < Arbitrary] Arbitrary for Map[K, V]:
     fn arbitrary(c: mut Choices) -> Map[K, V]:
         c.map_of[K, V](8)
 
-# The simplest is `.None` (r-module.testing.budget.simplest.optional).
+# The simplest is `.None` (r-std-testing.budget.simplest.optional).
 impl[T < Arbitrary] Arbitrary for T?:
     fn arbitrary(c: mut Choices) -> T?:
         if c.bool(): .Some(T::arbitrary(c)) else: .None
 
-# The simplest is `.Ok` of `T`'s simplest (r-module.testing.budget.simplest.result).
+# The simplest is `.Ok` of `T`'s simplest (r-std-testing.budget.simplest.result).
 impl[T < Arbitrary, E < Arbitrary] Arbitrary for Result[T, E]:
     fn arbitrary(c: mut Choices) -> Result[T, E]:
         if c.bool(): .Err(E::arbitrary(c)) else: .Ok(T::arbitrary(c))
@@ -312,7 +312,7 @@ fn prop_choices() -> mut Choices:
     Choices { draws: 0, budget: prop_budget() }
 
 # The input of one case: the example the runner selects while it runs a
-# property's examples first (r-module.testing.prop.examples), or else a
+# property's examples first (r-std-testing.prop.examples), or else a
 # value that `gen` draws.
 fn prop_value[T](examples: List[T], gen: fn(mut Choices) -> T, c: mut Choices) -> T:
     index := prop_example(examples.len())
@@ -340,7 +340,7 @@ fn prop_example(count: i32) -> i32:
 
 # Reports the drawn input's `Debug` text, which the runner prints for the
 # shrunk case; `it_prop` and `it_prop_with` require `T < Debug`
-# (spec/10-modules.md#r-module.testing.prop.debug).
+# (spec/std/testing.md#r-std-testing.prop.debug).
 fn prop_input[T < Debug](value: T) -> void:
     prop_show(debug(value))
 

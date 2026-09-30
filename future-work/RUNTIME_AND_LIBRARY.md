@@ -177,7 +177,7 @@ pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choice
 
 `examples` lists inputs that run first on every run, before the saved
 regressions and the generated cases (Testing PT7). The `Choices` API and
-derived `Arbitrary` are in [Property Tests](../spec/10-modules.md#property-tests)
+derived `Arbitrary` are in [Property Tests](../spec/std/testing.md#property-tests)
 and the [Testing Layer](STDLIB.md#testing-layer) proposal; stateful testing
 waits for the event log.
 

@@ -63,7 +63,7 @@ export function snapshotRun(file: string, update: boolean): SnapshotRun {
   };
 }
 
-// The property-test regression files (spec/10-modules.md#r-module.testing.prop.regression-file,
+// The property-test regression files (spec/std/testing.md#r-std-testing.prop.regression-file,
 // Testing T37): a failing property's shrunk choice stream, one decimal draw
 // per line, which the runner replays before new cases on the next run.
 

@@ -331,12 +331,12 @@ function tableTest(
 
 // `std.testing.it_prop(name, ..., cases=, shrink=, prop=)` and
 // `it_prop_with(name, gen, ...)` register one property test case
-// (spec/10-modules.md#property-tests). The prototype compiles one test
+// (spec/std/testing.md#property-tests). The prototype compiles one test
 // function that the runner calls once per generated case, each in a fresh
 // instance: it reports `cases` and `shrink` to the runner, takes a
 // runner-created `Choices`, draws the input with `gen` or the parameter
 // type's `Arbitrary`, reports the input's `Debug` text (so `T < Debug`,
-// spec/10-modules.md#r-module.testing.prop.debug), and runs `prop` with it
+// spec/std/testing.md#r-std-testing.prop.debug), and runs `prop` with it
 // (src/property-tests.ts).
 function propertyTest(
   statement: Statement,

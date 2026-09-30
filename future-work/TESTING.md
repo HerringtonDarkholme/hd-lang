@@ -15,8 +15,8 @@ authoritative for their language parts:
 [Standard Library](STDLIB.md#testing-layer). The survey, the decision log,
 and the testing stress test are in git history. The property-test API
 decisions PT1-PT9 (batch 12, 2026-09-29) are applied in
-[Property Tests](../spec/10-modules.md#property-tests),
-[Draw Budget](../spec/10-modules.md#draw-budget), and
+[Property Tests](../spec/std/testing.md#property-tests),
+[Draw Budget](../spec/std/testing.md#draw-budget), and
 [Derived Arbitrary](../spec/10-modules.md#derived-arbitrary). The
 answers to that pass's open points, Q5-Q10 (batch 13, 2026-09-30), are
 applied in the same sections.
@@ -30,21 +30,21 @@ git history.
 
 | ID | Decision | Where |
 | --- | --- | --- |
-| PT1 | No size API; draws are biased toward small values and edges | [`module.testing.choices.no-size`](../spec/10-modules.md#r-module.testing.choices.no-size); the `list` explanation is in [STDLIB](STDLIB.md#proposal-choices-first-arbitrary-for-defaults) and the [guide](../guide/LANGUAGE_TOUR.md#tests) |
+| PT1 | No size API; draws are biased toward small values and edges | [`std-testing.choices.no-size`](../spec/std/testing.md#r-std-testing.choices.no-size); the `list` explanation is in [STDLIB](STDLIB.md#proposal-choices-first-arbitrary-for-defaults) and the [guide](../guide/LANGUAGE_TOUR.md#tests) |
 | PT2 | Derived-`Arbitrary` tuning is one fact, `arbitrary.with(gen)`, unchecked until a test runs | [Derived Arbitrary](../spec/10-modules.md#derived-arbitrary) |
-| PT3 | `int` and `float` are generic over `Integer` and `Float` | [`module.testing.choices.int-generic`](../spec/10-modules.md#r-module.testing.choices.int-generic), [`.float-generic`](../spec/10-modules.md#r-module.testing.choices.float-generic) |
-| PT4 | `string(max_chars)` counts chars | [`module.testing.choices.string-chars`](../spec/10-modules.md#r-module.testing.choices.string-chars) |
-| PT5 | `map(max, key, value)`; a duplicate key keeps the last value | [`module.testing.choices.map`](../spec/10-modules.md#r-module.testing.choices.map) |
-| PT6 | Recursion ends by a per-case draw budget | [Draw Budget](../spec/10-modules.md#draw-budget) |
-| PT7 | `examples: List[T] = []` run first | [`module.testing.prop.examples`](../spec/10-modules.md#r-module.testing.prop.examples) |
-| PT8 | `assume` is generator-only | [`module.testing.prop.body-no-discard`](../spec/10-modules.md#r-module.testing.prop.body-no-discard) |
-| PT9 | Default float generators include NaN, infinities, -0.0, and subnormals | [`module.testing.arbitrary.float`](../spec/10-modules.md#r-module.testing.arbitrary.float) |
+| PT3 | `int` and `float` are generic over `Integer` and `Float` | [`std-testing.choices.int-generic`](../spec/std/testing.md#r-std-testing.choices.int-generic), [`.float-generic`](../spec/std/testing.md#r-std-testing.choices.float-generic) |
+| PT4 | `string(max_chars)` counts chars | [`std-testing.choices.string-chars`](../spec/std/testing.md#r-std-testing.choices.string-chars) |
+| PT5 | `map(max, key, value)`; a duplicate key keeps the last value | [`std-testing.choices.map`](../spec/std/testing.md#r-std-testing.choices.map) |
+| PT6 | Recursion ends by a per-case draw budget | [Draw Budget](../spec/std/testing.md#draw-budget) |
+| PT7 | `examples: List[T] = []` run first | [`std-testing.prop.examples`](../spec/std/testing.md#r-std-testing.prop.examples) |
+| PT8 | `assume` is generator-only | [`std-testing.prop.body-no-discard`](../spec/std/testing.md#r-std-testing.prop.body-no-discard) |
+| PT9 | Default float generators include NaN, infinities, -0.0, and subnormals | [`std-testing.arbitrary.float`](../spec/std/testing.md#r-std-testing.arbitrary.float) |
 | Examples | Worked examples go in the guide or STDLIB | [STDLIB](STDLIB.md#proposal-choices-first-arbitrary-for-defaults), the [guide](../guide/LANGUAGE_TOUR.md#tests) |
 | Stateful | Stateful testing waits for the event log | [Open Issues](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work) |
 | Q5 | `arbitrary.with` is generic and returns a `Generator`; a failed downcast panics | [`module.testing.arbitrary.with.wrap`](../spec/10-modules.md#r-module.testing.arbitrary.with.wrap), [`.with.downcast-failure`](../spec/10-modules.md#r-module.testing.arbitrary.with.downcast-failure) |
 | Q6 | An enum with no finite value panics on the first case | [`module.testing.arbitrary.derive.no-finite`](../spec/10-modules.md#r-module.testing.arbitrary.derive.no-finite) |
 | Q7 | `List[E]`, `Map[_, E]`, and `E?` members do not make a variant recursive | [`module.testing.arbitrary.derive.recursive.containers`](../spec/10-modules.md#r-module.testing.arbitrary.derive.recursive.containers) |
-| Q8 | Simplest values of `T?`, `Result`, and tuples | [`module.testing.budget.simplest.optional`](../spec/10-modules.md#r-module.testing.budget.simplest.optional) and the rules after it |
+| Q8 | Simplest values of `T?`, `Result`, and tuples | [`std-testing.budget.simplest.optional`](../spec/std/testing.md#r-std-testing.budget.simplest.optional) and the rules after it |
 | Q9, Q10 | The batch 12 readings are confirmed | unchanged |
 | SR1 | `std.structure` gains a compiler-computed `pub enum SelfRef: Absent / Optional / Required` and a `self_ref: SelfRef` field on `VariantInfo` and `Member`. Derived `Arbitrary` becomes an ordinary `std.testing` template that picks the simplest variant by `self_ref != .Required`; a type whose every variant, or one data field, is `.Required` has no finite value. The prototype's checker-generated `Arbitrary` is a stopgap. | [`module.testing.arbitrary.derive.template`](../spec/10-modules.md#r-module.testing.arbitrary.derive.template), [`.no-finite.data`](../spec/10-modules.md#r-module.testing.arbitrary.derive.no-finite.data), [Self References](../spec/14-annotations.md#self-references); the full text is in [TYPED_DERIVATION](TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30) |
 

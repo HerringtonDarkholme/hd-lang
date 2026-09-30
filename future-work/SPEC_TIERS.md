@@ -1,9 +1,11 @@
 # Spec Tiers: Language Spec And Stdlib Spec
 
 Status: decided plan. The owner accepted every recommendation on
-2026-09-30 ([Owner Decisions](#owner-decisions)), and migration step 1 is
-done. Nothing here is accepted behavior until a move task puts it in the
-spec, and no spec text or fixture has moved yet. It answers the owner's request of 2026-09-30:
+2026-09-30 ([Owner Decisions](#owner-decisions)), and migration steps 1
+to 4 are done. Nothing here is accepted behavior until a move task puts it
+in the spec. Step 4 moved Property Tests and Draw Budget to
+[Testing](../spec/std/testing.md); nothing else has moved yet. It answers
+the owner's request of 2026-09-30:
 
 > is Arbitrary/stdlib stuff should be inside language spec? if they can be
 > implemented outside compiler. i would suggest have tiers of spec, language
@@ -52,7 +54,7 @@ fixtures, 87 use such an item, and about 40 cite its section.
 
 | Section | Rule IDs | Why it exceeds the rule |
 | --- | --- | --- |
-| [Property Tests](../spec/10-modules.md#property-tests), [Draw Budget](../spec/10-modules.md#draw-budget) | `module.testing.choices.*`, `.prop.*`, `.budget.*` | `Choices`, `Arbitrary`, discard limits, and regression files are runner and library behavior, not prelude |
+| [Property Tests](../spec/std/testing.md#property-tests), [Draw Budget](../spec/std/testing.md#draw-budget) | `module.testing.choices.*`, `.prop.*`, `.budget.*` | `Choices`, `Arbitrary`, discard limits, and regression files are runner and library behavior, not prelude |
 | [Derived Arbitrary](../spec/10-modules.md#derived-arbitrary) | `module.testing.arbitrary.*` | [`module.testing.arbitrary.derive.template`](../spec/10-modules.md#r-module.testing.arbitrary.derive.template) says the compiler supplies nothing for it |
 | [String Methods](../spec/10-modules.md#string-methods) | `module.string.*` | `trim`, `lower`, `split`, `replace`, `starts_with` are std code over bytes |
 | [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) | `flow.adapter.*`, `flow.collect.*` | [`flow.adapter.methods`](../spec/06-control-flow.md#r-flow.adapter.methods) calls them ordinary methods |
@@ -277,9 +279,9 @@ Each task is about an hour, and each ends with `bash spec/check.sh`,
 | # | Task | Moves |
 | --- | --- | --- |
 | 1 | Done. Scaffold: `spec/std/README.md`, prefix table, `spec-prose.ts`, style lint, `check.sh` loops, rule-inventory glob, `hd explain` index, website nav | nothing |
-| 2 | Process: AGENTS.md rule, spec-update skill, STDLIB.md tier column | nothing |
+| 2 | Done. Process: AGENTS.md rule, spec-update skill, STDLIB.md tier column | nothing |
 | 3 | Done. Conformance plumbing: README Tiers section, split list, `check.sh` name check (`spec/check-spec-tiers.ts`, `stdlib-items.tsv`), `--tier` in both runners; `tier-crossings.tsv` records 37 crossing fixtures | nothing |
-| 4 | `std/testing.md`, part 1: Property Tests and Draw Budget, about 30 IDs | 6 cases |
+| 4 | Done. `std/testing.md`, part 1: Property Tests and Draw Budget, 37 IDs; `std.testing.Arbitrary` and `.Choices` in `stdlib-items.tsv`; the 7 Derived Arbitrary fixtures recorded in `tier-crossings.tsv` until task 5 | 6 cases |
 | 5 | `std/testing.md`, part 2: Derived Arbitrary; `Structure.name()` and the no-finite message (ST8); the `arbitrary.with` gap into [Open Issues](OPEN_ISSUES.md) (ST7) | 7 cases |
 | 6 | `std/testing.md`, part 3: table-test rows, snapshot files, `timeout` | 9 cases |
 | 7 | `std/iter.md`: adapters, collect targets, `FromIterator`, `List.map`, optional `map` | 13 cases |

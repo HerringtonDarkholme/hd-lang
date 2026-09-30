@@ -1847,7 +1847,7 @@ pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choice
 Draft, 2026-09-28 (owner: "choices, Hypothesis first, then Arbitrary to
 give sensible defaults"), revised by Testing PT1-PT9 (2026-09-29). The
 specification states the language-facing parts in
-[Property Tests](../spec/10-modules.md#property-tests); names below that it
+[Property Tests](../spec/std/testing.md#property-tests); names below that it
 does not list may change when the library is built.
 
 **`Choices`** is the only source of randomness a generator sees. Every draw

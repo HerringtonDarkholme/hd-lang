@@ -397,7 +397,7 @@ test("hd test shrinks a failing property case", async () => {
       return true;
     });
     // The shrunk stream is saved one draw per line and replayed first
-    // (spec/10-modules.md#r-module.testing.prop.regression-file).
+    // (spec/std/testing.md#r-std-testing.prop.regression-file).
     const saved = join(directory, "__regressions__", "property", "stays-small");
     assert.equal(await readFile(saved, "utf8"), "10\n");
     await writeFile(saved, "12\n");
@@ -420,7 +420,7 @@ test("hd test shrinks a failing property case", async () => {
 });
 
 // A property's examples run before generated cases, and a failing example is
-// reported with its input (spec/10-modules.md#r-module.testing.prop.examples).
+// reported with its input (spec/std/testing.md#r-std-testing.prop.examples).
 test("hd test runs property examples first", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
@@ -451,7 +451,7 @@ test("hd test runs property examples first", async () => {
 });
 
 // Discarded cases do not count toward `cases`, and more than 10 × `cases`
-// discards fail the property (spec/10-modules.md#r-module.testing.prop.discard-limit).
+// discards fail the property (spec/std/testing.md#r-std-testing.prop.discard-limit).
 test("hd test fails a property that discards too many cases", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {

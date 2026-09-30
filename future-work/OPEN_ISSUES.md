@@ -354,7 +354,7 @@ These items remain required but do not currently require new core syntax:
 - stateful property testing in `std.testing`, which waits for the event
   log. The property-test API is decided and applied
   ([Testing PT1-PT9](TESTING.md#owner-decisions),
-  [Property Tests](../spec/10-modules.md#property-tests));
+  [Property Tests](../spec/std/testing.md#property-tests));
 - doc tests and benchmarks, which no decision covers yet. The testing
   stress test (TS-15) found a direction: doc tests as fenced `hd` blocks in
   `##` comments of `pub` items, run with the `tests/` view, and benchmarks

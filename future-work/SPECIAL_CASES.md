@@ -242,7 +242,7 @@ Names that the compiler, the toolchain, or the prelude gives a meaning.
 | N10 | `mod.hd` | [`module.path.directory`](../spec/10-modules.md#r-module.path.directory) | Directory module. |
 | N11 | `*_test.hd`, `tests/` | [`module.test.module`](../spec/10-modules.md#r-module.test.module), [`module.test.integration`](../spec/10-modules.md#r-module.test.integration) | Test modules and integration tests. |
 | N12 | `src`, `hd.toml`, `hd.sum` | [`module.manifest.file`](../spec/10-modules.md#r-module.manifest.file), [`module.sum.file`](../spec/10-modules.md#r-module.sum.file) | Source root, manifest, integrity file. |
-| N13 | `__snapshots__`, `__regressions__` | [`module.testing.snapshot-file.path`](../spec/10-modules.md#r-module.testing.snapshot-file.path), [`module.testing.prop.regression-file`](../spec/10-modules.md#r-module.testing.prop.regression-file) | Runner-owned folders. |
+| N13 | `__snapshots__`, `__regressions__` | [`module.testing.snapshot-file.path`](../spec/10-modules.md#r-module.testing.snapshot-file.path), [`std-testing.prop.regression-file`](../spec/std/testing.md#r-std-testing.prop.regression-file) | Runner-owned folders. |
 | N14 | `github.com` | [`module.repo.github`](../spec/10-modules.md#r-module.repo.github) | The one known host. |
 | N15 | `std.ops.NumSuffix`, `StrPrefix`, `Template` | [`expr.suffix.marker`](../spec/05-expressions.md#r-expr.suffix.marker) | Literal-sugar markers. |
 | N16 | `std.annotation.Annotate` | [`annot.target.recognized`](../spec/14-annotations.md#r-annot.target.recognized) | Target-kind limiter. |
