@@ -20,3 +20,10 @@ export function conformance(path: string): string {
 export function conformanceBody(path: string): string {
   return conformance(path).replace(/^(?:# (?:test|expect(?:-result)?):[^\n]*\n)+\n?/, "");
 }
+
+// The prototype does not parse `::[` type arguments yet (CI1 and CI3, tag BF
+// in test/portable/KNOWN_FAILURES.tsv), so a unit test that feeds it a
+// respelled conformance fixture writes the list without `::`, as before.
+export function prototypeSpelling(source: string): string {
+  return source.replaceAll("::[", "[");
+}
