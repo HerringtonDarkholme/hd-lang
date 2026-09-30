@@ -1431,3 +1431,6 @@ typing/invalid/payload-free-enum-equality.hd	type
 typing/invalid/tuple-inherent-impl.hd	type
 typing/invalid/alias-inherent-impl.hd	type
 typing/invalid/trait-value-inherent-impl.hd	type
+typing/valid/newtype-unwrap-permission.hd	type
+runtime/valid/compound-assign-map-run.hd	runtime
+runtime/panic/compound-assign-map-missing-key.hd	runtime

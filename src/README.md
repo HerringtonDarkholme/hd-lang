@@ -745,9 +745,10 @@ else`, `break`, `break value`, and `continue`;
   code whose bodies are the built-in operators. Floating `%` calls the
   host's `rem_f64`, JavaScript's truncated remainder. Compound assignment
   `place op= value` stores `place op value` for every type, and an index
-  place reads and stores its element. A newtype construction over an
-  `AnyVal` base is readonly, and one over an `AnyRef` base carries its
-  argument's permission. `Num::from_i64` checks
+  place reads and stores its element; on a `Map` that read has type `V` and
+  a missing key panics with `index-out-of-bounds`. A newtype construction
+  over an `AnyVal` base is readonly, and one over an `AnyRef` base carries
+  its argument's permission, as unwrapping one does. `Num::from_i64` checks
   its range in `lib/std/num.hd`, and `"$x"` on `T < Num` reaches `Display`
   through the supertrait;
 - homogeneous `List[T]` literals, indexing, `len()`, and mutable `append()` over

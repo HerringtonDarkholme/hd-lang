@@ -615,6 +615,11 @@ export type Expression =
       readonly kind: "index";
       readonly receiver: Expression;
       readonly index: Expression;
+      /**
+       * The read of `m[k] op= v`: on a `Map` it has type `V` and panics when
+       * the key is missing (05-expressions.md#r-expr.assign.compound.map-present).
+       */
+      readonly required?: boolean;
       readonly span: SourceSpan;
     }
   | { readonly kind: "propagate"; readonly operand: Expression; readonly span: SourceSpan }

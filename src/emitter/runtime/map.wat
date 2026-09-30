@@ -143,6 +143,18 @@
         (br $scan)))
     (struct.new $hd.variant (i32.const 0) (ref.null any)))
 
+;; The read of `m[k] op= v`: the value, or an index-out-of-bounds panic
+  ;; when the key is missing (05-expressions.md#r-expr.assign.compound.map-missing).
+  (func $hd.map_get_required
+    (param $map (ref $hd.map))
+    (param $key anyref)
+    (result anyref)
+    (local $found (ref null $hd.variant))
+    (local.set $found (call $hd.map_get (local.get $map) (local.get $key)))
+    (if (i32.eqz (struct.get $hd.variant $hd.variant-tag (local.get $found)))
+      (then (call $hd.panic (global.get $hd.panic-index-out-of-bounds)) unreachable))
+    (struct.get $hd.variant $hd.variant-payload (local.get $found)))
+
   (func $hd.map_remove
     (param $map (ref $hd.map))
     (param $key anyref)

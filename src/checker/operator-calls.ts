@@ -150,6 +150,7 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
               ...statement.target,
               receiver: once(statement.target.receiver),
               index: once(statement.target.index),
+              required: true,
             };
     // `p op= e` is `p = p op e` for every type: the operator follows
     // Operator Traits and the store follows assignment

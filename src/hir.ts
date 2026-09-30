@@ -941,6 +941,8 @@ export type HirExpression =
       readonly key: HirExpression;
       readonly keyType: ValueType;
       readonly valueType: ValueType;
+      /** Reads `V`, panicking `index-out-of-bounds` on a missing key, instead of `V?`. */
+      readonly required?: boolean;
     })
   | (HirExpressionBase & {
       readonly kind: "map-remove";

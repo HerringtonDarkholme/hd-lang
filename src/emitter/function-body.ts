@@ -892,6 +892,11 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       case "map-length":
         return `(struct.get $hd.map $hd.map-size (ref.as_non_null ${this.emitExpression(expression.receiver)}))`;
       case "map-index":
+        if (expression.required)
+          return this.unboxValue(
+            `(call $hd.map_get_required (ref.as_non_null ${this.emitExpression(expression.receiver)}) ${this.boxValue(expression.key, expression.keyType)})`,
+            expression.valueType,
+          );
         return `(call $hd.map_get (ref.as_non_null ${this.emitExpression(expression.receiver)}) ${this.boxValue(expression.key, expression.keyType)})`;
       case "map-remove":
         return `(call $hd.map_remove (ref.as_non_null ${this.emitExpression(expression.receiver)}) ${this.boxValue(expression.key, expression.keyType)})`;

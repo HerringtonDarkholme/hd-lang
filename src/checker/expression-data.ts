@@ -801,7 +801,8 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             key,
             keyType: nominal.arguments[0]!,
             valueType: nominal.arguments[1]!,
-            type: optionalType(nominal.arguments[1]!),
+            ...(expression.required ? { required: true } : {}),
+            type: expression.required ? nominal.arguments[1]! : optionalType(nominal.arguments[1]!),
             span: expression.span,
           };
         }

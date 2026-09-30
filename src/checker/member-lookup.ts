@@ -176,7 +176,12 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         `'${name}(...)' cannot unwrap '${value.type}', a newtype over '${base}'`,
         expression.span,
       );
-    return this.dataMember(value, declaration, field, substitutions, expression.span);
+    const member = this.dataMember(value, declaration, field, substitutions, expression.span);
+    // Unwrapping a newtype over an `AnyRef` base carries the newtype value's
+    // permission (04-type-system.md#r-types.newtype.unwrap-permission).
+    return mutableInner(value.type) !== undefined && this.isIdentityType(member.type)
+      ? { ...member, type: mutableType(readonlyType(member.type)) }
+      : member;
   }
 
   protected dataSubstitutions(
