@@ -23,8 +23,8 @@ applied in the same sections.
 
 ## Owner Decisions
 
-All applied except SR1 (batch 17, 2026-09-30), which is recorded here and
-waits to be applied. The specification is authoritative; the decision
+All applied, SR1 (batch 17, 2026-09-30) included. The specification is
+authoritative; the decision
 texts and the batch 12 apply-pass readings, confirmed by Q9 and Q10, are in
 git history.
 
@@ -46,7 +46,7 @@ git history.
 | Q7 | `List[E]`, `Map[_, E]`, and `E?` members do not make a variant recursive | [`module.testing.arbitrary.derive.recursive.containers`](../spec/10-modules.md#r-module.testing.arbitrary.derive.recursive.containers) |
 | Q8 | Simplest values of `T?`, `Result`, and tuples | [`module.testing.budget.simplest.optional`](../spec/10-modules.md#r-module.testing.budget.simplest.optional) and the rules after it |
 | Q9, Q10 | The batch 12 readings are confirmed | unchanged |
-| SR1 | `std.structure` gains a compiler-computed `pub enum SelfRef: Absent / Optional / Required` and a `self_ref: SelfRef` field on `VariantInfo` and `Member`. Derived `Arbitrary` becomes an ordinary `std.testing` template that picks the simplest variant by `self_ref != .Required`; a type whose every variant, or one data field, is `.Required` has no finite value. The prototype's checker-generated `Arbitrary` is a stopgap. | not yet applied; the full text is in [TYPED_DERIVATION](TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30) |
+| SR1 | `std.structure` gains a compiler-computed `pub enum SelfRef: Absent / Optional / Required` and a `self_ref: SelfRef` field on `VariantInfo` and `Member`. Derived `Arbitrary` becomes an ordinary `std.testing` template that picks the simplest variant by `self_ref != .Required`; a type whose every variant, or one data field, is `.Required` has no finite value. The prototype's checker-generated `Arbitrary` is a stopgap. | [`module.testing.arbitrary.derive.template`](../spec/10-modules.md#r-module.testing.arbitrary.derive.template), [`.no-finite.data`](../spec/10-modules.md#r-module.testing.arbitrary.derive.no-finite.data), [Self References](../spec/14-annotations.md#self-references); the full text is in [TYPED_DERIVATION](TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30) |
 
 ### Apply-Pass Readings
 

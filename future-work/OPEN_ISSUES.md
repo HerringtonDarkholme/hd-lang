@@ -49,14 +49,28 @@ above.
 | TB1 | Editorial: the next-line rule names its code, `syntax-error`. `if close: trailing(): xxx` and `if close: trailing:` with an indented body are both errors; the valid forms indent the `if` body or write `trailing(fn(): xxx)`. | [`grammar.call.trailing-block.next-line`](../spec/02-grammar.md#r-grammar.call.trailing-block.next-line) |
 | AUD | Delete four audit inputs that back no open finding: `audit/scripts/runtime/provider-config.ts`, `audit/probes/runtime/config/gate.hd`, `audit/probes/runtime/truncated/`, and `audit/scripts/runtime/suspension-fixtures.txt`. | [audit/README.md](../audit/README.md) |
 
-**Batch 17 (owner decision, 2026-09-30).** Recorded, not yet applied.
+**Batch 17 (owner decision, 2026-09-30).** Applied; the
+[Revision Notes](../spec/README.md#revision-notes) list SR1 and INF-mut.
 SR1 is recorded in [TESTING](TESTING.md#owner-decisions) and
-[TYPED_DERIVATION](TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30).
+[TYPED_DERIVATION](TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30), and
+applied in [Self References](../spec/14-annotations.md#self-references)
+and [Derived Arbitrary](../spec/10-modules.md#derived-arbitrary).
 
 | # | Decision | Where |
 | --- | --- | --- |
-| INF-mut | Revised by the owner ("no number widening"). When generic call inference solves one type parameter from several arguments, the only conversion is permission weakening: `mut X` and `X` meet at `X`. No numeric widening: `max(x_i32, y_i64)` is `type-mismatch`; write `max(i64(x_i32), y_i64)`, as Rust and Go do. Never a trait-value conversion (`types.lct.no-trait-value`): `cmp(user, display_value)` is `no-common-type` unless written `cmp[Display](...)`, where the explicit argument acts as an expected type, as in `types.lct.expected-trait`. It is its own rule in chapter 04's generic inference, cross-linked to the least-common-type rules but not a row of their table, since it is a narrower join. The prototype's `assert_equal` special case goes. | not yet applied |
+| INF-mut | Revised by the owner ("no number widening"). When generic call inference solves one type parameter from several arguments, the only conversion is permission weakening: `mut X` and `X` meet at `X`. No numeric widening: `max(x_i32, y_i64)` is `type-mismatch`; write `max(i64(x_i32), y_i64)`, as Rust and Go do. Never a trait-value conversion (`types.lct.no-trait-value`): `cmp(user, display_value)` is `no-common-type` unless written `cmp[Display](...)`, where the explicit argument acts as an expected type, as in `types.lct.expected-trait`. It is its own rule in chapter 04's generic inference, cross-linked to the least-common-type rules but not a row of their table, since it is a narrower join. The prototype's `assert_equal` special case goes. | [Inference From Several Arguments](../spec/04-type-system.md#inference-from-several-arguments), from [`types.generic.infer.join`](../spec/04-type-system.md#r-types.generic.infer.join) |
 | LM-c | Confirmed: calling a `mut self` method on a primitive needs no mutable access; the receiver is a copy, so `n.next()` leaves `n` unchanged. Applied in batch 16. | [`types.prim.no-mut.self-call`](../spec/04-type-system.md#r-types.prim.no-mut.self-call) |
+
+**Still open from applying batch 17.** The specification states only what
+the decisions say; each point below is unchanged there.
+
+| # | Question | **Recommendation** |
+| --- | --- | --- |
+| INF-lit | Does an integer literal argument take the type solved from the other arguments in any position? Without that, `pick(1, large)` with an `i64` `large` is a `type-mismatch`, since the literal alone is `i32`, while `pick(large, 1)` checks. | Yes: a literal is not a conversion, so it takes the solved type as its expected type in any position, as Rust's integer literals do. |
+| INF-code | Which code does any other conflict get, such as a `List[mut User]` and a `List[User]` (variance), a `T` and a `T?`, or two child-trait values? The decision names `type-mismatch` for numbers and `no-common-type` for trait values. | `no-common-type` where the least common type also fails (trait values, supertrait widening); `type-mismatch` otherwise, as `choose(1, true)` already is. |
+| SR-enum | `annot.self-ref.needs` follows only tuples, data types, and `Result`'s `.Ok`. In `enum A: X(e: E)` with `enum E: P(a: A)`, `X` is `.Optional`, yet `A` has no finite value and its derived `arbitrary` never ends. | An enum type needs the enclosing type when its simplest variant does, that is, when every one of its variants needs it. |
+| SR-omit | Does a variant's `self_ref` count a member that the derivation block omits (`cache = pass`)? | No: count only the members the derivation sees, since an omitted member takes its default and is never walked or built. |
+| SR-args | Is `Nest[List[T]]`, inside `enum Nest[T]`, "the enclosing type" for `annot.self-ref.refers`? | Yes: the same declaration with any type arguments counts. |
 
 ### Bound And Row Operators
 

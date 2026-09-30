@@ -1916,12 +1916,22 @@ defaults cover the whole type, NaN, the infinities, `-0.0`, and subnormals
 included, as Hypothesis's `st.floats()` does (PT9); `c.float(lo, hi)` stays
 finite. `@derive(Arbitrary)` is a derived `build` whose source is
 `Choices`: each member is drawn by its own `Arbitrary`, and an enum picks a
-variant, then its payload. A derived enum's simplest choice is its first
-non-recursive variant, whatever the declaration order (PT6). A variant is
-recursive when its simplest payload still needs a value of the enum;
-`List`, `Map`, and optional members do not count (Q7). When every variant
-is recursive, the derived generator panics on the first case, naming the
-type (Q6).
+variant, then its payload. The template is ordinary `std.testing` code: it
+reads the compiler-computed `self_ref` of each variant and member from
+`std.structure` (SR1). A derived enum's simplest choice is its first
+variant whose `self_ref` is not `.Required`, whatever the declaration order
+(PT6). A variant is `.Required` when its simplest payload still needs a
+value of the enum; `List`, `Map`, and optional members are at most
+`.Optional` (Q7). When every variant is `.Required`, or a data type has a
+`.Required` member, the derived generator panics on the first case, naming
+the type (Q6, SR1). See
+[Self References](../spec/14-annotations.md#self-references).
+
+> **Note.** Other templates can read `self_ref` too (SR1). A derived
+> `Default` picks its simplest variant the same way. When any `self_ref`
+> is not `.Absent`, a codec such as `std.json` adds a nesting-depth limit,
+> and a schema generator emits a named definition with a `$ref`. `Debug`
+> may truncate deep output.
 
 One fact tunes a member: `arbitrary.with(gen)`, from the module
 `std.testing.arbitrary`, draws that member with `gen` (PT2). There are no

@@ -1552,6 +1552,25 @@ Every `_` or omitted slot is determined by the call arguments, expected
 result type, or generic constraints. It is not a type and cannot be used
 in `List[_]`.
 
+When several arguments solve one type parameter, their types may differ
+only in `mut`: a `mut User` and a `User` give `T = User`. A call never
+widens a number or makes a trait value to match them, as Rust and Go
+don't. Write the cast, or name the type:
+
+```text
+fn max[T < Ord](left: T, right: T) -> T:
+    ...
+
+fn cmp[T < Display](left: T, right: T) -> bool:
+    ...
+
+fn widest(small: i32, large: i64) -> i64:
+    max(i64(small), large)     # max(small, large) is a type-mismatch
+
+fn same(user: User, label: Display) -> bool:
+    cmp[Display](user, label)  # cmp(user, label) is no-common-type
+```
+
 A generic parameter may declare a default after its bound. The default
 fills the parameter only when the use site leaves it unsolved, and a
 written type that leaves out a trailing slot gets it:
@@ -2578,6 +2597,15 @@ tests:
         assert(item.price >= 0, reason="cents draws from 0 to 10_000")
     )
 ```
+
+The derived `Arbitrary` is an ordinary `std.testing` template. It reads
+each variant's and member's `self_ref` from `std.structure`: `.Absent`
+when the type never holds itself, `.Optional` when it does only inside a
+list, map, or optional, and `.Required` when even its simplest value does.
+An enum's simplest variant is its first one that is not `.Required`. An
+enum whose every variant is `.Required`, or a data type with a
+`.Required` member, has no finite value, and its property panics on the
+first case.
 
 The test-case functions are called only directly at the top level of test
 code, never as values, so a tool can list every test without running it.

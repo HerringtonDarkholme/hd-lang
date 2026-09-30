@@ -34,9 +34,14 @@ and the derived-function cache (std).
 
 ## Owner Decision SR1 (2026-09-30)
 
-Batch 17, recorded and not yet applied. The owner chose compiler-supplied
-information over an intrinsic `Arbitrary` (testing point PT-d), then
-generalized it for every template.
+Batch 17, applied (2026-09-30) in
+[`annot.structure.self-ref-field`](../spec/14-annotations.md#r-annot.structure.self-ref-field),
+[Self References](../spec/14-annotations.md#self-references), and
+[Derived Arbitrary](../spec/10-modules.md#derived-arbitrary). The owner
+chose compiler-supplied information over an intrinsic `Arbitrary` (testing
+point PT-d), then generalized it for every template. Points left open by
+applying it are in
+[Open Issues](OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening).
 
 | Part | Decision |
 | --- | --- |
