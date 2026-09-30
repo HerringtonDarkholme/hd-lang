@@ -31,7 +31,7 @@ points (LM), and stated three clarifications:
 | # | Decision | Where |
 | --- | --- | --- |
 | Q1a | A parenthesized `:=` list may be a same-line suite body, as in `if ok: (a, b) := pair`. | [`grammar.inline.bind-list`](../spec/02-grammar.md#r-grammar.inline.bind-list) |
-| Q1b | The grouped form `(a, b := value)` is dropped; a nested use writes `((a, b) := value)`. | [Multi-Name Bindings](../spec/02-grammar.md#multi-name-bindings) |
+| Q1b | The grouped form `(a, b := value)` is dropped; a nested use writes `((a, b) := value)`. Batch 26 (SSC Q5) removed the nested form: a multi-name `:=` is a statement only. | [Multi-Name Bindings](../spec/02-grammar.md#multi-name-bindings) |
 | LM-a | A list name written `mut` whose annotated element is already `mut` warns `redundant-let-mut`. The fix-it removes the name-level `mut`, never the annotation. | [`types.bind.let-mut-pattern.redundant`](../spec/04-type-system.md#r-types.bind.let-mut-pattern.redundant), [`types.bind.let-mut-annotated.fix`](../spec/04-type-system.md#r-types.bind.let-mut-annotated.fix) |
 | LM-b | `mut self` in an impl whose `Self` is primitive is not `mut-on-primitive`. | [`types.prim.no-mut.self`](../spec/04-type-system.md#r-types.prim.no-mut.self) |
 | LM-c | Batch 16: in such a method the `mut` is dropped, so `self` has the plain type `Self`, as in `i32`, and `self + 1` type-checks. | [`types.prim.no-mut.self-type`](../spec/04-type-system.md#r-types.prim.no-mut.self-type) |
@@ -127,7 +127,8 @@ follow-ups of the same batch, BF and BFF, are in
 | --- | --- | --- |
 | ST8-own | The Templates clash Note says that, when `Encode` declares its own receiverless `name`, `Encode::name()` is `Encode`'s. That call has no argument either, so [`trait.assoc-call.trait.undetermined`](../spec/09-traits.md#r-trait.assoc-call.trait.undetermined) rejects it, as it rejected `Structure::name()`. | Inside a template, a call qualified by the derived trait also has `T` as its `Self`, since the template implements that trait for `T` alone. |
 
-**Batch 26 (owner decision, 2026-09-30).** Not yet applied. The owner
+**Batch 26 (owner decision, 2026-09-30).** Applied; the
+[Revision Notes](../spec/README.md#revision-notes) list each. The owner
 answered AT-gen and [Syntax And Semantics Cost](SYNTAX_SEMANTICS_COST.md#questions-for-the-owner)
 Q2-Q8. Each follows the recommendation, except Q6, where the owner kept
 today's rules. Q5 supersedes Q1b's nested form, and Q8 reverses the
@@ -143,6 +144,14 @@ today's rules. Q5 supersedes Q1b's nested form, and Q8 reverses the
 | SSC Q6 (K2) | Keep today's rules: `let mut x: mut T` warns `redundant-let-mut`, and `let mut x: T` is `let-mut-readonly-type`. | unchanged |
 | SSC Q7 (C8) | Map keys use an ordinary bound, `Map[K < Eq & Hash, V]`, reporting `unsatisfied-trait-bound`. A `mut` key type stays an error. | [Map Key Types](../spec/04-type-system.md#map-key-types) |
 | SSC Q8 (C9) | `m[k]` reads `V` and panics with `index-out-of-bounds` on a missing key; `m.get(k)` reads `V?`. This reverses the 2026-09-29 split. | [Map Indexing](../spec/05-expressions.md#map-indexing) |
+
+**Still open from applying batch 26.** The specification applies the
+reading in the middle column; each point asks the owner to confirm it.
+
+| # | Question | Applied reading and **Recommendation** |
+| --- | --- | --- |
+| Q5-list | Removing the wrapping rules left `[a, b := value]` without a rule. It could read as a list of `a` and the single-name binding `b := value`. | It stays an error, now `syntax-error`, under [`grammar.expr.multi-binding.statement-only`](../spec/02-grammar.md#r-grammar.expr.multi-binding.statement-only), as `(a, b := value)` is. **Recommendation:** keep it, since a reader takes it for a multi-name binding. |
+| Q7-code | The decision says a `mut` key "stays an error" but names no code. | It keeps `invalid-map-key` ([`types.map-key.no-mut`](../spec/04-type-system.md#r-types.map-key.no-mut)), as variant B of [Special Cases C8](SPECIAL_CASES.md#c8-map-keys-through-the-ordinary-bound) proposed. **Recommendation:** keep it; the code names a rule no bound states. |
 
 ### Bound And Row Operators
 

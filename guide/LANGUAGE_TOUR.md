@@ -260,13 +260,17 @@ character, past the end, or a `start` after `end` panics with
 
 ```text
 fn first_word(text: string) -> string:
-    for offset, letter in text.char_indices():
+    for (offset, letter) in text.char_indices():
         if letter == ' ':
             return text.slice(0, offset)
     text
 
 size := "héllo".len()  # 6: é is two bytes
 ```
+
+A loop over pairs puts its names in parentheses, as `let (a, b)` and
+`(a, b) :=` do: `for (offset, letter) in ...`. The bare
+`for offset, letter in ...` is a syntax error.
 
 Numeric values support ordinary arithmetic operators:
 
@@ -416,10 +420,10 @@ code that names `Error` imports it. See
 [Error Derivation](../spec/14-annotations.md#error-derivation).
 
 Use parentheses when a binding expression appears inside a larger expression.
-A nested multi-name binding keeps the parentheses around its names and gets
-its own around the whole binding: `((a, b) := value)`. The old form
-`(a, b := value)` is a syntax error. To put a binding in a tuple, parenthesize
-that element separately, as in `(a, (b := value))`.
+A multi-name binding such as `(a, b) := value` is a statement only, so
+`((a, b) := value)` and the old form `(a, b := value)` are syntax errors;
+bind first, on its own line. To put a single-name binding in a tuple,
+parenthesize that element separately, as in `(a, (b := value))`.
 
 `void` is used for functions that return no useful value:
 
@@ -508,7 +512,7 @@ active_by_id := {for user in users if user.active => user.id: user}
 
 If a map comprehension produces the same key more than once, the later value wins.
 
-Comprehensions cannot contain suspension points. Use an explicit loop when the body needs a `!` call.
+A comprehension follows the loops it abbreviates. In a suspending body it may make `!` calls, which run one at a time, in order; elsewhere a `!` call is `bang-call-outside-suspension`, as in a loop.
 
 Use `:=` for ordinary readonly local values and `let` for variables that may be reassigned. Composite mutation permission is written in the type as `mut T`; explicit types remain important at boundaries that humans, tools, and AI agents need to review.
 
@@ -820,8 +824,9 @@ A readonly list view may weaken element permission because `List` declares its e
 
 Maps follow the same separation: a readonly `Map[K, mut User]` can yield
 `mut User` from lookup or iteration, but replacing an entry requires a
-`mut Map[K, mut User]`. Lookup returns `mut User?`; matching the present case
-or propagating `?` yields `mut User`.
+`mut Map[K, mut User]`. `users[id]` returns `mut User` and panics with
+`index-out-of-bounds` when the key is missing; `users.get(id)` returns
+`mut User?` for a key that may be absent.
 The same generic-content rule applies to `Result[mut User, E]`: propagating a
 successful result with `?` yields `mut User`, not a weakened reference.
 

@@ -50,7 +50,7 @@ production-like hd code, is the harder test.
 | 2 | [K2](#k2-let-mut-takes-no-annotation) `let mut` takes no type annotation | [`types.bind.let-mut`](../spec/04-type-system.md#r-types.bind.let-mut): the annotation states access | 7 rules become 2; 1 warning | yes: a warned form becomes an error | holds |
 | 3 | [K3](#k3-a-multi-name-binding-is-a-statement) A multi-name `:=` is a statement only | [`grammar.expr.multi-binding`](../spec/02-grammar.md#r-grammar.expr.multi-binding) | 1 rule, 1 nested form | yes: `((a, b) := p)` becomes an error | holds |
 | 4 | [K4](#k4-a-comprehension-follows-its-loop) A comprehension follows the loop it abbreviates (SPECIAL_CASES C7) | [`expr.comp.shape`](../spec/05-expressions.md#r-expr.comp.shape), [`req.bang.driver-contexts`](../spec/11-requirements-and-suspension.md#r-req.bang.driver-contexts) | 3 rules | invalid becomes valid | holds |
-| 5 | [K5](#k5-one-dollar-rule-for-every-string) One `$` rule for every string (SPECIAL_CASES C5) | [`lex.prefix.plain-dollar-start`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar-start) | half of 1 rule | invalid becomes valid | holds |
+| 5 | [K5](#k5-one-dollar-rule-for-every-string) One `$` rule for every string (SPECIAL_CASES C5) | `lex.prefix.plain-dollar-start` | half of 1 rule | invalid becomes valid | holds |
 
 A sixth, [K6](#k6-readonly-iterators-in-loops) (SPECIAL_CASES C6),
 deletes the readonly-iterator loop error; the owner kept the error
@@ -194,7 +194,7 @@ it; the fix-it is mechanical.
 | Item | Change |
 | --- | --- |
 | `binding_pattern` production | deleted; loops and comprehension `for` clauses take `binding_target` |
-| [`grammar.inline.multi-name-for`](../spec/02-grammar.md#r-grammar.inline.multi-name-for) | deleted: absorbed by `grammar.inline.bind-list` |
+| `grammar.inline.multi-name-for` | deleted: absorbed by `grammar.inline.bind-list` |
 | [`grammar.inline.loops`](../spec/02-grammar.md#r-grammar.inline.loops) | reworded: a same-line `for` takes one name or a list |
 | [`flow.for.tuple-binding`](../spec/06-control-flow.md#r-flow.for.tuple-binding) | reworded: `for (key, value) in entries` |
 | New rule beside `grammar.stmt.bind-list.bare` | added: `for a, b in m` is `syntax-error` with a fix-it |
@@ -311,8 +311,8 @@ line. The single-name walrus, `if (n := f()) > 0:`, is unchanged.
 
 | Item | Change |
 | --- | --- |
-| [`grammar.expr.multi-binding.wrapped`](../spec/02-grammar.md#r-grammar.expr.multi-binding.wrapped) | deleted; a nested multi-name binding is `syntax-error` |
-| [`grammar.expr.multi-binding.no-grouped`](../spec/02-grammar.md#r-grammar.expr.multi-binding.no-grouped), [`.no-grouped.fix`](../spec/02-grammar.md#r-grammar.expr.multi-binding.no-grouped.fix) | reworded: the fix-it hoists the binding to a statement |
+| `grammar.expr.multi-binding.wrapped` | deleted; a nested multi-name binding is `syntax-error` |
+| [`grammar.expr.multi-binding.no-grouped`](../spec/02-grammar.md#r-grammar.expr.multi-binding.no-grouped), `.no-grouped.fix` | reworded: the fix-it hoists the binding to a statement |
 | [`grammar.expr.multi-binding.tuple-element`](../spec/02-grammar.md#r-grammar.expr.multi-binding.tuple-element) | unchanged |
 | Fixtures `grammar-disambiguation.hd`, `binding-expression-tuple-value.hd`, `binding-expressions.hd` | rewritten or moved to invalid |
 | Fixture `grouped-binding-expression.hd` | comment reworded |
@@ -364,8 +364,8 @@ so a partial list is safe. Outside a suspending body the call is still
 
 | Item | Change |
 | --- | --- |
-| [`expr.comp.no-suspension`](../spec/05-expressions.md#r-expr.comp.no-suspension) | deleted |
-| [`expr.comp.propagation`](../spec/05-expressions.md#r-expr.comp.propagation), [`.propagation.stop`](../spec/05-expressions.md#r-expr.comp.propagation.stop) | merged into `expr.comp.shape` as a Note |
+| `expr.comp.no-suspension` | deleted |
+| `expr.comp.propagation`, `.propagation.stop` | merged into `expr.comp.shape` as a Note |
 | [`expr.comp.eager`](../spec/05-expressions.md#r-expr.comp.eager), [`expr.comp.no-jumps`](../spec/05-expressions.md#r-expr.comp.no-jumps), [`expr.comp.no-let`](../spec/05-expressions.md#r-expr.comp.no-let) | unchanged |
 | Fixture `typing/invalid/bang-call-in-comprehension.hd` | moves to valid, or keeps an error in a non-suspending body |
 
@@ -401,8 +401,8 @@ fn prices() -> void:
     pass
 ```
 
-**Absorbed by.** [`lex.prefix.plain-dollar-start`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar-start)
-and [`lex.prefix.reserved-dollar`](../spec/01-lexical-structure.md#r-lex.prefix.reserved-dollar),
+**Absorbed by.** `lex.prefix.plain-dollar-start`
+and `lex.prefix.reserved-dollar`,
 stated once for every string.
 
 **Soundness.** The removed half rejected text with one reading. `\$` stays
@@ -412,8 +412,8 @@ valid, so no valid string changes value.
 
 | Item | Change |
 | --- | --- |
-| [`lex.interp.stray-dollar`](../spec/01-lexical-structure.md#r-lex.interp.stray-dollar) | reworded: keeps the reserved-word error only |
-| [`lex.prefix.plain-dollar-start`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar-start) | merged into one rule for every string |
+| `lex.interp.stray-dollar` | reworded: keeps the reserved-word error only |
+| `lex.prefix.plain-dollar-start` | merged into one rule for every string |
 | Fixtures `stray-dollar.hd`, `stray-dollar-in-string.hd` | move to valid |
 
 **Other languages.** Kotlin, whose interpolation hd follows, keeps such a
@@ -854,7 +854,7 @@ error stay as they are. See [Open Issues](OPEN_ISSUES.md#language-design-decisio
 ### Q7. Map Key Bound
 
 The map-key check is a compiler rule with its own code
-([`types.map-key.bound`](../spec/04-type-system.md#r-types.map-key.bound),
+(`types.map-key.bound`,
 Special Cases C8 and Q8). It is 8 rules and 31 spec lines.
 
 - **A.** `Map[K < Eq & Hash, V]`; `mut` keys become valid.

@@ -43,7 +43,7 @@ lists the ones that single out one type, one name, or one context.
 | 2 | [C2](#c2-diagnostic-twins) Four pairs of twin codes merge | the partner code of each pair | 4 codes | one fixture marker each | holds |
 | 3 | [C3](#c3-value-packs-follow-the-vararg-rule) Value packs follow the vararg finality rule | [`fn.vararg.last`](../spec/07-functions.md#r-fn.vararg.last) | 2 codes, 2 rules | none for valid code | holds while hd has no named-only parameters |
 | 4 | [C4](#c4-parenthesized-names-in-for) `for (k, v) in m:` like `(a, b) :=` and `let (a, b)` | [`grammar.stmt.bind-list`](../spec/02-grammar.md#r-grammar.stmt.bind-list) | 1 grammar exception, 1 of 3 list spellings | about 25 loops gain parentheses | holds |
-| 5 | [C5](#c5-one-dollar-rule-for-every-string) One `$` rule for every string | [`lex.prefix.plain-dollar-start`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar-start) | half of one rule | `"costs $5"` becomes valid | holds |
+| 5 | [C5](#c5-one-dollar-rule-for-every-string) One `$` rule for every string | `lex.prefix.plain-dollar-start` | half of one rule | `"costs $5"` becomes valid | holds |
 
 The full ranking, with four more cuts, is in [Cut Candidates](#cut-candidates).
 Ranks weigh rules, codes, and forms removed against risk and churn. A cut
@@ -115,7 +115,7 @@ A rule that applies to one type, one name, or one context. Grouped by area.
 | R5 | `mut` dropped on a primitive `Self` | [`types.prim.no-mut.self`](../spec/04-type-system.md#r-types.prim.no-mut.self), [`types.prim.no-mut.self-type`](../spec/04-type-system.md#r-types.prim.no-mut.self-type) | `mut self` is valid in an impl for `i32`, and `self` is plain `i32`. | LM-b, LM-c. |
 | R6 | `let mut n = 0` reports `mut-on-primitive` | [`types.bind.let-mut-primitive`](../spec/04-type-system.md#r-types.bind.let-mut-primitive) | In place of `mutable-upgrade`. | `let mut` follow-ups. |
 | R7 | Built-in types keep built-in indexing | [`expr.index.trait.builtin-direct`](../spec/05-expressions.md#r-expr.index.trait.builtin-direct) | `List`, `Map`, and `string` skip their own `Index` impls. | OP7, STR7-STR10. |
-| R8 | `Map` index read differs by form | [`expr.index.map.read`](../spec/05-expressions.md#r-expr.index.map.read), [`expr.assign.compound.map-present`](../spec/05-expressions.md#r-expr.assign.compound.map-present), [`expr.index.std.map-read`](../spec/05-expressions.md#r-expr.index.std.map-read) | `m[k]` is `V?`; `m[k] += v` and `Index::index` read `V` and panic. | Follow-up 5, Map 6. |
+| R8 | `Map` index read differs by form | `expr.index.map.read`, `expr.assign.compound.map-present`, `expr.index.std.map-read` | `m[k]` is `V?`; `m[k] += v` and `Index::index` read `V` and panic. | Follow-up 5, Map 6. |
 | R9 | Primitive operands skip traits | [`expr.op.primitive`](../spec/05-expressions.md#r-expr.op.primitive) | Built-in rules decide; no trait search. | OP2: no cross-type search cost. |
 | R10 | Left literal takes its default type | [`expr.op.left-literal`](../spec/05-expressions.md#r-expr.op.left-literal) | `3 * price` needs `Mul[Money] for i32`. | OP4. |
 | R11 | `-5s` is `s(-5)` | [`expr.op.suffix-negation`](../spec/05-expressions.md#r-expr.op.suffix-negation) | The minus joins the suffixed literal; `Neg` is not called. | L4. |
@@ -123,12 +123,12 @@ A rule that applies to one type, one name, or one context. Grouped by area.
 | R13 | Shifts do not unify operands | [`expr.shift.unification`](../spec/05-expressions.md#r-expr.shift.unification) | Count and value types are independent. | As in Rust and Go. |
 | R14 | `string + string` | [`expr.arith.string-primitive`](../spec/05-expressions.md#r-expr.arith.string-primitive) | The only arithmetic on a non-numeric primitive. | Concatenation. |
 | R15 | Floats break `Eq` reflexivity | [`trait.cmp.float-eq`](../spec/09-traits.md#r-trait.cmp.float-eq) | NaN is unequal to itself. | EQ-1. |
-| R16 | Map keys | [`types.map-key.bound`](../spec/04-type-system.md#r-types.map-key.bound) | `K < Eq & Hash`, no `mut K`, own code `invalid-map-key`. | NaN keys; ghost entries. |
+| R16 | Map keys | `types.map-key.bound` | `K < Eq & Hash`, no `mut K`, own code `invalid-map-key`. | NaN keys; ghost entries. |
 | R17 | `is` on function types | [`expr.is.function`](../spec/05-expressions.md#r-expr.is.function), [`expr.is.function.generic`](../spec/05-expressions.md#r-expr.is.function.generic) | Direct use is an error; through `T < AnyRef` it compiles. | FN_TYPE 9. |
 | R18 | `is` on tuples | [`expr.is.tuple`](../spec/05-expressions.md#r-expr.is.tuple) | An error even when the tuple holds references. | Tuples have no identity. |
 | R19 | Readonly iterator in a loop | [`flow.for.iterator-mut`](../spec/06-control-flow.md#r-flow.for.iterator-mut), [`flow.for.iterator-direct`](../spec/06-control-flow.md#r-flow.for.iterator-direct) | An error; `for` takes only a mutable iterator directly, since `Iterator` is not `Iterable`. | Batch 24 IT1, IT2. |
 | R20 | Adapter callback rows | [`std-iter.adapter.callback-row`](../spec/std/iter.md#r-std-iter.adapter.callback-row), [`std-iter.adapter.fold.row`](../spec/std/iter.md#r-std-iter.adapter.fold.row) | `filter` and `map` take the empty row; `fold` takes `R`. | STDLIB 14-22, PS3. |
-| R21 | Comprehension restrictions | [`expr.comp.no-suspension`](../spec/05-expressions.md#r-expr.comp.no-suspension), [`expr.comp.no-jumps`](../spec/05-expressions.md#r-expr.comp.no-jumps) | No bang calls, `return`, `break`, `continue`, or `let`; `?` is allowed. | Initial spec; CO1-CO4 added `?`. |
+| R21 | Comprehension restrictions | `expr.comp.no-suspension`, [`expr.comp.no-jumps`](../spec/05-expressions.md#r-expr.comp.no-jumps) | No bang calls, `return`, `break`, `continue`, or `let`; `?` is allowed. | Initial spec; CO1-CO4 added `?`. |
 | R22 | Unread must-use binding | [`flow.unused.must-use`](../spec/06-control-flow.md#r-flow.unused.must-use) | An error, where other unread bindings warn. | The discard must be visible. |
 | R23 | Recursive local closure | [`names.scope.recursive-closure`](../spec/03-names-and-scopes.md#r-names.scope.recursive-closure) | The one binding visible in its own initializer. | Local recursion without forward references. |
 | R24 | Defaults before a final function parameter | [`fn.default.order-final-function`](../spec/07-functions.md#r-fn.default.order-final-function) | A final `fn` parameter may follow defaulted ones. | T40: `it` options before the body. |
@@ -191,7 +191,7 @@ Forms that exist for one feature.
 | S8 | `"""..."""` | [`lex.multiline.form`](../spec/01-lexical-structure.md#r-lex.multiline.form) | Multiline string, kept verbatim. | |
 | S9 | `$name`, `$self`, `${e}` | [`lex.interp.forms`](../spec/01-lexical-structure.md#r-lex.interp.forms) | Interpolation. | Kotlin style; GQ15 added `$self`. |
 | S10 | `let (a, b) = p`, `let mut x` | [`grammar.stmt.let-list`](../spec/02-grammar.md#r-grammar.stmt.let-list), [`types.bind.let-mut-infer`](../spec/04-type-system.md#r-types.bind.let-mut-infer) | Multi-name `let` in parentheses; `let mut` infers `mut T`. | Let 1-7, local mutability decision. |
-| S11 | `(a, b) := p`, `((a, b) := p)` | [`grammar.stmt.bind-list`](../spec/02-grammar.md#r-grammar.stmt.bind-list), [`grammar.expr.multi-binding.wrapped`](../spec/02-grammar.md#r-grammar.expr.multi-binding.wrapped) | Multi-name binding; nested use in its own parentheses. | Q1, Q1b. |
+| S11 | `(a, b) := p`, `((a, b) := p)` | [`grammar.stmt.bind-list`](../spec/02-grammar.md#r-grammar.stmt.bind-list), `grammar.expr.multi-binding.wrapped` | Multi-name binding; nested use in its own parentheses. | Q1, Q1b. |
 | S12 | `x := e` as an expression | [`names.bind.expression`](../spec/03-names-and-scopes.md#r-names.bind.expression) | Binds in the enclosing scope. | Walrus-style guards. |
 | S13 | `_ := e` | [`grammar.stmt.discard`](../spec/02-grammar.md#r-grammar.stmt.discard) | Explicit discard of a must-use value. | `_` is not an identifier. |
 | S14 | Trailing block `f(a):` | [`fn.trailing.form`](../spec/07-functions.md#r-fn.trailing.form) | Last zero-argument callback as an indented block. | Kotlin and Swift. |
@@ -221,7 +221,7 @@ Forms that exist for one feature.
 | S38 | Leading `.` continuation | [`lex.dot.continue`](../spec/01-lexical-structure.md#r-lex.dot.continue) | 12 rules, with open-suite and `.Variant` exceptions. | GQ7. |
 | S39 | Leading `\|>` continuation | [`lex.pipe.continue`](../spec/01-lexical-structure.md#r-lex.pipe.continue), [`lex.pipe.no-dot-line`](../spec/01-lexical-structure.md#r-lex.pipe.no-dot-line) | Continues a chain; no dot line after a `\|>`. | PL6, CS2, PL15. |
 | S40 | Line starts: `(`, `[`, `{`, `!`, operators | [`lex.continue.suffix-line`](../spec/01-lexical-structure.md#r-lex.continue.suffix-line), [`lex.continue.paren-line`](../spec/01-lexical-structure.md#r-lex.continue.paren-line), [`lex.continue.no-other-operator`](../spec/01-lexical-structure.md#r-lex.continue.no-other-operator) | Such a line never continues the previous one. | GQ8, Q1, PL6. |
-| S41 | Same-line suites | [`grammar.inline.no-comma`](../spec/02-grammar.md#r-grammar.inline.no-comma), [`grammar.inline.no-if`](../spec/02-grammar.md#r-grammar.inline.no-if), [`grammar.inline.multi-name-for`](../spec/02-grammar.md#r-grammar.inline.multi-name-for) | No comma, no same-line `if`, no multi-name `for` inside one. | GQ9, Let 7, Q1a. |
+| S41 | Same-line suites | [`grammar.inline.no-comma`](../spec/02-grammar.md#r-grammar.inline.no-comma), [`grammar.inline.no-if`](../spec/02-grammar.md#r-grammar.inline.no-if), `grammar.inline.multi-name-for` | No comma, no same-line `if`, no multi-name `for` inside one. | GQ9, Let 7, Q1a. |
 | S42 | Closure ends inside brackets | [`lex.closure.end`](../spec/01-lexical-structure.md#r-lex.closure.end), [`lex.colon.trailing-block`](../spec/01-lexical-structure.md#r-lex.colon.trailing-block) | Stricter end lines; trailing-block colons only at depth zero. | GQ2, GQ10, TB1. |
 
 ### Magic Names
@@ -481,7 +481,7 @@ fn count(limit: i32) -> i32:
 ```
 
 **Absorbed by.** [`flow.defer.block-on`](../spec/06-control-flow.md#r-flow.defer.block-on)
-and [`expr.comp.no-suspension`](../spec/05-expressions.md#r-expr.comp.no-suspension)
+and `expr.comp.no-suspension`
 (`suspension-forbidden-context`); [`expr.is.primitive`](../spec/05-expressions.md#r-expr.is.primitive)
 (`identity-requires-references`); [`fn.decl.omitted-cycle`](../spec/07-functions.md#r-fn.decl.omitted-cycle)
 (`recursive-function-needs-result-type`);
@@ -625,7 +625,7 @@ and scopes are unchanged.
 | Item | Change |
 | --- | --- |
 | `binding_pattern` production | deleted; `for_expression`, `statement_for_expression`, `indented_for_expression`, and `comprehension_for` take `binding_target` |
-| [`grammar.inline.multi-name-for`](../spec/02-grammar.md#r-grammar.inline.multi-name-for) | deleted: absorbed by `grammar.inline.bind-list` |
+| `grammar.inline.multi-name-for` | deleted: absorbed by `grammar.inline.bind-list` |
 | [`grammar.inline.loops`](../spec/02-grammar.md#r-grammar.inline.loops) | reworded: a same-line `for` takes one name or a list |
 | [`flow.for.tuple-binding`](../spec/06-control-flow.md#r-flow.for.tuple-binding) | reworded: `for (key, value) in entries` |
 | New rule, as `grammar.stmt.bind-list.bare` | added: `for a, b in m` is `syntax-error` with a fix-it |
@@ -674,8 +674,8 @@ fn prices() -> void:
     pass
 ```
 
-**Absorbed by.** [`lex.prefix.plain-dollar-start`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar-start)
-and [`lex.prefix.reserved-dollar`](../spec/01-lexical-structure.md#r-lex.prefix.reserved-dollar),
+**Absorbed by.** `lex.prefix.plain-dollar-start`
+and `lex.prefix.reserved-dollar`,
 stated once for every string.
 
 **Cost.** A plain string can no longer catch a stray `$` as a typo. `\$`
@@ -688,8 +688,8 @@ valid program changes meaning; two invalid ones become valid.
 
 | Item | Change |
 | --- | --- |
-| [`lex.interp.stray-dollar`](../spec/01-lexical-structure.md#r-lex.interp.stray-dollar) | reworded: keeps the reserved-word error, drops the non-identifier error |
-| [`lex.prefix.plain-dollar-start`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar-start) | merged into one rule for every string |
+| `lex.interp.stray-dollar` | reworded: keeps the reserved-word error, drops the non-identifier error |
+| `lex.prefix.plain-dollar-start` | merged into one rule for every string |
 | `string_character`, `multiline_string_character` classes | reworded: a `$` that begins no interpolation is text |
 | Fixtures `parse/invalid/stray-dollar.hd`, `parse/invalid/stray-dollar-in-string.hd` | move to `parse/valid`; 2 rows become `accept` |
 | A fixture for `"$true"` | unchanged or added |
@@ -803,7 +803,7 @@ The comprehension's `return`, `break`, and `continue` ban stays.
 
 | Item | Change |
 | --- | --- |
-| [`expr.comp.no-suspension`](../spec/05-expressions.md#r-expr.comp.no-suspension) | deleted |
+| `expr.comp.no-suspension` | deleted |
 | [`expr.comp.eager`](../spec/05-expressions.md#r-expr.comp.eager) | unchanged |
 | Fixture `typing/invalid/bang-call-in-comprehension.hd` | moves to `typing/valid`, or keeps its marker in a non-suspending body as `bang-call-outside-suspension`; 1 row |
 | STDLIB `std.iter` text that cites the ban | reworded |
@@ -868,7 +868,7 @@ so A widens an accepted risk rather than adding a new one.
 
 | Item | Change |
 | --- | --- |
-| [`types.map-key.bound`](../spec/04-type-system.md#r-types.map-key.bound) | reworded: `Map` declares `K < Eq & Hash`; A drops the `mut` clause, B keeps it |
+| `types.map-key.bound` | reworded: `Map` declares `K < Eq & Hash`; A drops the `mut` clause, B keeps it |
 | `invalid-map-key` | A: deleted, reports `unsatisfied-trait-bound`; B: kept for `mut` keys only |
 | [`std-iter.collect.map-key`](../spec/std/iter.md#r-std-iter.collect.map-key) | unchanged |
 | Fixtures `tuple-map-key.hd`, `float-map-key.hd`, `invalid-map-key.hd`, `nominal-map-key.hd`, `float-literal-map-key.hd` | marker becomes `unsatisfied-trait-bound`; 5 rows |
@@ -914,7 +914,7 @@ fn bump(counts: mut Map[string, i32], word: string) -> void:
     counts[word] += 1
 ```
 
-**Absorbed by.** [`expr.index.std.map-read`](../spec/05-expressions.md#r-expr.index.std.map-read)
+**Absorbed by.** `expr.index.std.map-read`
 becomes the only rule, and `get(self, key: K) -> V?` in
 [Built-In Methods](../spec/10-modules.md#built-in-methods) serves the
 optional read.
@@ -931,11 +931,11 @@ program becomes valid.
 
 | Item | Change |
 | --- | --- |
-| [`expr.index.map.read`](../spec/05-expressions.md#r-expr.index.map.read) | reworded: returns `V`, panics on a missing key |
-| [`expr.index.map.generic`](../spec/05-expressions.md#r-expr.index.map.generic) | reworded: no unwrapping step |
-| [`expr.assign.compound.map-present`](../spec/05-expressions.md#r-expr.assign.compound.map-present) | deleted: the ordinary read is `V` |
-| [`expr.assign.compound.map-missing`](../spec/05-expressions.md#r-expr.assign.compound.map-missing) | merged into `expr.index.map.read` |
-| [`expr.index.std.map-read`](../spec/05-expressions.md#r-expr.index.std.map-read) | reworded: no longer an exception |
+| `expr.index.map.read` | reworded: returns `V`, panics on a missing key |
+| `expr.index.map.generic` | reworded: no unwrapping step |
+| `expr.assign.compound.map-present` | deleted: the ordinary read is `V` |
+| `expr.assign.compound.map-missing` | merged into `expr.index.map.read` |
+| `expr.index.std.map-read` | reworded: no longer an exception |
 | Note after Map Indexing | deleted |
 | Fixtures `map-indexing.hd`, `readonly-map-mutable-values.hd`, `map-lookup-and-duplicate-keys.hd` | rewritten with `get`; rows unchanged |
 | Fixtures `compound-assign-map-run.hd`, `compound-assign-map-missing-key.hd`, `index-trait-map-missing.hd` | unchanged; `cases.tsv` anchors move to `expr.index.map.read` |

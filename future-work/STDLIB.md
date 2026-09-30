@@ -895,8 +895,9 @@ from `$.use` explicitly, since an enclosing `$.with` never satisfies it
 ([Owner Decisions](#owner-decisions),
 [Lexical And Dynamic Providers](../spec/11-requirements-and-suspension.md#lexical-and-dynamic-providers)). `fold` calls its callback
 before it returns, so it carries the row `R`. Iterator adapters that call
-suspending code are not provided: comprehensions already forbid suspension
-points, and the same rule keeps adapters simple.
+suspending code are not provided: a lazy adapter's `next` is not a driver
+context. A comprehension in a suspending body may make bang calls, since it
+runs eagerly where it is written (Syntax And Semantics Cost Q2, batch 26).
 
 ### `std.cmp`, `std.hash`, `std.format`
 

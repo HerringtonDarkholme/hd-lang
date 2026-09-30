@@ -60,9 +60,10 @@ million := 1_000_000
 narrow := i16(big)
 ```
 
-Strings interpolate `$name` and `${expression}`. A name directly before the
-quote is a prefix function: `r"..."`, from `use std.text.r`, keeps
-backslashes as written and still interpolates.
+Strings interpolate `$name` and `${expression}`; a `$` that starts neither,
+as in `"costs $5"`, is plain text. A name directly before the quote is a
+prefix function: `r"..."`, from `use std.text.r`, keeps backslashes as
+written and still interpolates.
 
 ```hd
 use std.text.r

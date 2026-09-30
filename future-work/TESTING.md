@@ -24,7 +24,8 @@ applied in the same sections.
 ## Owner Decisions
 
 All applied, SR1 (batch 17, 2026-09-30), AT-with (batch 20,
-2026-09-30), and AT-any (batch 21, 2026-09-30) included;
+2026-09-30), AT-any (batch 21, 2026-09-30), and AT-gen (batch 26,
+2026-09-30) included;
 [Spec Tiers](SPEC_TIERS.md#migration-plan) migration step 5 applied
 AT-with. The specification is authoritative; the
 decision texts and the batch 12 apply-pass readings, confirmed by Q9 and
@@ -53,7 +54,7 @@ Q10, are in git history.
 | AT-any | Batch 21 confirms the reading of AT-with's "as `Any`": `with[T < Inspectable](gen)` returns an opaque `Generator` holding `fn(mut Choices) -> Inspectable`. Each drawn value is erased to `Inspectable`, and the template downcasts it to the member's type; a mismatch is `explicit-panic`, naming the member. A raw `Any` could not be type-tested. | [`std-testing.arbitrary.with.wrap`](../spec/std/testing.md#r-std-testing.arbitrary.with.wrap), and a Note in [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary) |
 | ST8-newtype | Batch 21: a newtype gets no `Structure` today, so a newtype that derives `Arbitrary` through a base with no finite value panics with the base's name. The newtype-name rule stays for when newtypes gain a `Structure`. | Notes in [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary) and [The Structure Trait](../spec/14-annotations.md#the-structure-trait) |
 | ST8-clash | Batch 21: inside a template, a clash between the generated `facts` or `name` and the derived trait's own receiverless member is resolved by qualifying, `Structure::name` vs `MyTrait::name`, as M30 does for `Structure::walk`. | The Note on generated names in [Templates](../spec/14-annotations.md#templates); `Self` of the qualified call is open in [Open Issues](OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening) |
-| AT-gen | Batch 26, not yet applied: derived `Arbitrary` generates `T < Arbitrary & Inspectable` for each type parameter a member uses, so `@derive(Arbitrary)` on `data Box[T]: value: T` works without a manual block. | [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary) |
+| AT-gen | Batch 26: derived `Arbitrary` generates `T < Arbitrary & Inspectable` for each type parameter a member uses, so `@derive(Arbitrary)` on `data Box[T]: value: T` works without a manual block. | [`std-testing.arbitrary.derive.params`](../spec/std/testing.md#r-std-testing.arbitrary.derive.params) |
 
 ### Apply-Pass Readings
 

@@ -62,7 +62,7 @@ fn badge(count: Cell[i32]) -> string:
 | Question | Status |
 | --- | --- |
 | [Q3](#q3-keys-argument-shape), keys argument shape | Moot: D2 removes keys. |
-| [Q4](#q4-map-read-type), map read type under C1 | Moot: C1 is not chosen. The `m[k]` read type stays open as Special Cases Q9, carried by [Syntax And Semantics Cost Q8](SYNTAX_SEMANTICS_COST.md#q8-map-read-type). |
+| [Q4](#q4-map-read-type), map read type under C1 | Moot: C1 is not chosen. The `m[k]` read type was carried by [Syntax And Semantics Cost Q8](SYNTAX_SEMANTICS_COST.md#q8-map-read-type), which batch 26 answered: `m[k]` reads `V` and panics, and `m.get(k)` reads `V?`. |
 
 **Applied, 2026-09-30.** D1's type-argument part and D3 are in
 [Type Arguments In Expressions](../spec/02-grammar.md#type-arguments-in-expressions)
