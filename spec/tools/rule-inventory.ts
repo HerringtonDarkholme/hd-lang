@@ -13,8 +13,8 @@
 // be moved or split, and error examples added. A retired rule ID is simply
 // gone, so the diff reports it as lost, and the change explains it. When OLD
 // is REV:PATH, the diff also reports each added rule ID whose marker appears
-// in REV's history of the numbered chapters: that ID was retired and must
-// not be reused. Normative sentences cannot be
+// in REV's history of the chapters, numbered or in spec/std/: that ID was
+// retired and must not be reused. Normative sentences cannot be
 // matched mechanically, so the diff pairs each old sentence with its closest
 // new one and lists weak pairs for a human to check.
 //
@@ -110,7 +110,8 @@ function load(spec: string): string {
 
 /**
  * For OLD given as REV:PATH, a test of whether a rule ID's marker appears
- * anywhere in REV's history of the numbered chapters.
+ * anywhere in REV's history of the chapters: the numbered language chapters
+ * and the stdlib chapters in spec/std/.
  */
 function historySearch(spec: string): ((id: string) => boolean) | undefined {
   const colon = spec.indexOf(":");
@@ -127,6 +128,7 @@ function historySearch(spec: string): ((id: string) => boolean) | undefined {
     revision,
     "--",
     "spec/[0-9][0-9]-*.md",
+    "spec/std/*.md",
   ];
   return (id) => execFileSync("git", pickaxe(id), { encoding: "utf8" }).trim() !== "";
 }

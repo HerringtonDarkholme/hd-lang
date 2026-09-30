@@ -1,6 +1,7 @@
 # Specification Style
 
-This guide defines how the numbered chapters are written. The goal is a
+This guide defines how the chapters are written: the numbered language
+chapters and the stdlib chapters in [`std/`](std/README.md). The goal is a
 reference that is precise but quick to read: one rule per sentence, the
 common case first, and every rule citable by a stable ID.
 
@@ -117,6 +118,15 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | [Variadic Generics](12-variadic-generics.md) | `pack` |
 | [GADTs](13-gadts.md) | `gadt` |
 | [Annotations](14-annotations.md) | `annot` |
+| `std/format.md` | `std-format` |
+| `std/iter.md` | `std-iter` |
+| `std/testing.md` | `std-testing` |
+| `std/text.md` | `std-text` |
+| `std/time.md` | `std-time` |
+
+A stdlib chapter's prefix is `std-` and its module name. The
+[stdlib chapter table](std/README.md#chapters) lists each chapter; a later
+move task adds its file.
 
 `spec/tools/spec-prose.ts` holds the same table for the checks; change both
 together.
@@ -147,11 +157,11 @@ together.
 ### Checks
 
 `spec/check.sh` runs `spec/check-spec-style.ts`, which fails when an ID is
-malformed, misplaced, outside a numbered chapter, without its chapter's
-prefix, or duplicated anywhere in the specification. The rule inventory
+malformed, misplaced, outside a chapter, without its chapter's prefix, or
+duplicated anywhere in the specification. The rule inventory
 diff (see [Restyling A Chapter](#restyling-a-chapter)) reports a retired ID
-as lost, and fails when an added ID appears in the history of the numbered
-chapters, which means it was retired before.
+as lost, and fails when an added ID appears in the history of the
+chapters, numbered or stdlib, which means it was retired before.
 
 ## Examples
 

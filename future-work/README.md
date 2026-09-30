@@ -29,7 +29,8 @@ Open questions for the owner:
   and single-construct diagnostics, and ranks nine cuts as owner questions.
 - [Spec Tiers](SPEC_TIERS.md) splits the spec into a language tier and a
   stdlib tier under `spec/std/`, with an inventory, a conformance split,
-  and a migration plan. The owner decided ST1-ST8 on 2026-09-30.
+  and a migration plan. The owner decided ST1-ST8 on 2026-09-30; step 1,
+  the `spec/std/` scaffold, is done.
 
 Deferred:
 

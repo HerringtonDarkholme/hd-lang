@@ -1,9 +1,9 @@
 # Spec Tiers: Language Spec And Stdlib Spec
 
 Status: decided plan. The owner accepted every recommendation on
-2026-09-30 ([Owner Decisions](#owner-decisions)). Nothing here is accepted
-behavior until a move task puts it in the spec, and no spec text or
-fixture has moved yet. It answers the owner's request of 2026-09-30:
+2026-09-30 ([Owner Decisions](#owner-decisions)), and migration step 1 is
+done. Nothing here is accepted behavior until a move task puts it in the
+spec, and no spec text or fixture has moved yet. It answers the owner's request of 2026-09-30:
 
 > is Arbitrary/stdlib stuff should be inside language spec? if they can be
 > implemented outside compiler. i would suggest have tiers of spec, language
@@ -276,7 +276,7 @@ Each task is about an hour, and each ends with `bash spec/check.sh`,
 
 | # | Task | Moves |
 | --- | --- | --- |
-| 1 | Scaffold: `spec/std/README.md`, prefix table, `spec-prose.ts`, style lint, `check.sh` loops, rule-inventory glob, website nav | nothing |
+| 1 | Done. Scaffold: `spec/std/README.md`, prefix table, `spec-prose.ts`, style lint, `check.sh` loops, rule-inventory glob, `hd explain` index, website nav | nothing |
 | 2 | Process: AGENTS.md rule, spec-update skill, STDLIB.md tier column | nothing |
 | 3 | Conformance plumbing: README Tiers section, split list, `check.sh` name check, `--tier` in both runners | nothing |
 | 4 | `std/testing.md`, part 1: Property Tests and Draw Budget, about 30 IDs | 6 cases |

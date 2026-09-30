@@ -25,8 +25,10 @@ export interface RuleMarker {
 }
 
 /**
- * The first dotted segment each numbered chapter's rule IDs start with.
- * spec/STYLE.md documents the same table; keep the two in step.
+ * The first dotted segment each chapter's rule IDs start with, keyed by the
+ * path under spec/: the numbered language chapters, then the stdlib chapters
+ * in spec/std/ (spec/std/README.md). spec/STYLE.md documents the same table;
+ * keep the two in step. A stdlib key may name a file that a later move adds.
  */
 export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "01-lexical-structure.md": "lex",
@@ -43,7 +45,15 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "12-variadic-generics.md": "pack",
   "13-gadts.md": "gadt",
   "14-annotations.md": "annot",
+  "std/format.md": "std-format",
+  "std/iter.md": "std-iter",
+  "std/testing.md": "std-testing",
+  "std/text.md": "std-text",
+  "std/time.md": "std-time",
 };
+
+/** The subdirectory of spec/ that holds the stdlib chapters. */
+export const STD_DIRECTORY = "std";
 
 /** Rule ID syntax: two or more dot-separated lowercase kebab-case segments. */
 export const RULE_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*)+$/;

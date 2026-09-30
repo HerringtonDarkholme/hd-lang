@@ -35,6 +35,9 @@ const SPEC_CHAPTERS: readonly [file: string, title: string][] = [
   ["14-annotations", "Annotations"],
 ];
 
+/** The stdlib chapters in spec/std/, one per std module, in reading order. */
+const STD_CHAPTERS: readonly [module: string, title: string][] = [];
+
 const page = (source: string, output: string, navTitle: string, section: string): PageSource => ({
   source,
   output,
@@ -60,6 +63,10 @@ export const PAGES: readonly PageSource[] = [
     page(`spec/${file}.md`, `spec/${file}.html`, `${index + 1}. ${title}`, "Reference"),
   ),
   page("spec/STYLE.md", "spec/style.html", "Specification Style Guide", "Reference"),
+  page("spec/std/README.md", "spec/std/index.html", "Standard Library", "Standard Library"),
+  ...STD_CHAPTERS.map(([module, title]) =>
+    page(`spec/std/${module}.md`, `spec/std/${module}.html`, title, "Standard Library"),
+  ),
   page("future-work/ROADMAP.md", "roadmap.html", "Roadmap", "Project"),
 ];
 

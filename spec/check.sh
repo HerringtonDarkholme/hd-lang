@@ -12,7 +12,7 @@ fail() {
     exit 1
 }
 
-for file in "$spec_dir"/*.md "$spec_dir"/conformance/*.md; do
+for file in "$spec_dir"/*.md "$spec_dir"/std/*.md "$spec_dir"/conformance/*.md; do
     fences=$(awk '/^```/{ count += 1 } END { print count + 0 }' "$file")
     [ $((fences % 2)) -eq 0 ] || fail "unbalanced code fence in $file"
 done
@@ -164,8 +164,11 @@ awk -F "$tab" '
     seen[$1 SUBSEP $2]++ { exit 1 }
 ' "$examples" || fail "malformed or duplicate conformance/examples.tsv entry"
 
-for file in "$spec_dir"/[0-9][0-9]-*.md; do
+# Chapters: the numbered language chapters and the stdlib chapters in std/
+# (std/README.md). Each chapter's text examples are inventoried.
+for file in "$spec_dir"/[0-9][0-9]-*.md "$spec_dir"/std/*.md; do
     name=${file#"$spec_dir/"}
+    [ "$name" != std/README.md ] || continue
     blocks=$(awk '/^```text/{ count += 1 } END { print count + 0 }' "$file")
     indexed=$(awk -F "$tab" -v name="$name" 'NR > 1 && $1 == name { count += 1 } END { print count + 0 }' "$examples")
     [ "$blocks" -eq "$indexed" ] ||
@@ -203,8 +206,8 @@ if grep -R -n -E '(^|[^[:alnum:]_])(v1|MVP|provisional)([^[:alnum:]_]|$)' \
 fi
 
 if grep -n -E '^## (Open|Unresolved)|remain(s)? (open|unresolved)|not yet specified' \
-    "$spec_dir"/[0-9][0-9]-*.md; then
-    fail "numbered specification chapter contains an unresolved design marker"
+    "$spec_dir"/[0-9][0-9]-*.md "$spec_dir"/std/*.md; then
+    fail "specification chapter contains an unresolved design marker"
 fi
 
 tail -n +2 "$examples" | while IFS="$tab" read -r specification block classification fixtures; do

@@ -3,13 +3,14 @@
 //   node --experimental-strip-types spec/check-spec-style.ts SPEC_DIR [--all]
 //
 // Warnings, which never fail the check: a paragraph, list item, or quote over
-// 90 words, and a sentence over 35 words, in a numbered chapter. A chapter
-// that carries rule IDs has been restyled, so its warnings are listed one per
-// line; other chapters get a one-line count unless --all is given.
+// 90 words, and a sentence over 35 words, in a chapter: a numbered language
+// chapter, or a stdlib chapter in spec/std/. A chapter that carries rule IDs
+// has been restyled, so its warnings are listed one per line; other chapters
+// get a one-line count unless --all is given.
 //
 // Failures: a malformed or misplaced rule ID marker, a duplicate rule ID, an
-// ID without its chapter's prefix, a marker outside a numbered chapter, and
-// an error-example marker naming an unknown code. Retired IDs are not listed
+// ID without its chapter's prefix, a marker outside a chapter, and an
+// error-example marker naming an unknown code. Retired IDs are not listed
 // anywhere, so the rule inventory diff (spec/tools/rule-inventory.ts) catches
 // a reused one by searching the history.
 import { readFile, readdir } from "node:fs/promises";
@@ -20,6 +21,7 @@ import {
   blocks,
   CHAPTER_PREFIXES,
   errorMarkerCodes,
+  STD_DIRECTORY,
   knownCodes,
   paragraphs,
   readable,
@@ -74,7 +76,12 @@ async function main(args: readonly string[]): Promise<number> {
   const specDirectory = resolve(positional[0]!);
   const read = (name: string): Promise<string> => readFile(resolve(specDirectory, name), "utf8");
   const codes = knownCodes(await read("README.md"), await read("06-control-flow.md"));
-  const names = (await readdir(specDirectory)).filter((name) => name.endsWith(".md")).sort();
+  const markdown = async (directory: string): Promise<string[]> =>
+    (await readdir(resolve(specDirectory, directory)).catch(() => []))
+      .filter((name) => name.endsWith(".md"))
+      .sort()
+      .map((name) => (directory === "." ? name : `${directory}/${name}`));
+  const names = [...(await markdown(".")), ...(await markdown(STD_DIRECTORY))];
   const failures: string[] = selfCheck();
   const seen = new Map<string, string>();
   const summaries: string[] = [];
@@ -89,7 +96,7 @@ async function main(args: readonly string[]): Promise<number> {
     for (const marker of markers) {
       const where = `spec/${name}:${marker.line}`;
       if (prefix === undefined) {
-        failures.push(`${where}: rule ID ${marker.id} outside a numbered chapter`);
+        failures.push(`${where}: rule ID ${marker.id} outside a chapter`);
         continue;
       }
       if (marker.id.split(".", 1)[0] !== prefix)

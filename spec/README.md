@@ -26,6 +26,10 @@ versioned subsets.
 | [GADTs](13-gadts.md) | variant result refinement and match typing |
 | [Annotations](14-annotations.md) | shapes, decorators, member metadata, typed derivation, error derivation |
 
+These chapters are the language tier. The stdlib tier, std APIs that
+ordinary hd can implement, is specified in the
+[Standard Library](std/README.md) chapters.
+
 Deferred language design and the runtime, library, ABI, product, and tooling
 backlog are tracked in [Open Issues](../future-work/OPEN_ISSUES.md).
 

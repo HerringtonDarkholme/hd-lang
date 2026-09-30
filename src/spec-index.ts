@@ -245,7 +245,7 @@ export function indexSpec(files: Readonly<Record<string, string>>): SpecIndex {
   const rulesByCode = new Map<string, SpecRule[]>();
   const mentions = new Map<string, SpecMention[]>();
   const chapters = Object.keys(files)
-    .filter((path) => /^\d\d-[^/]+\.md$/.test(path))
+    .filter((path) => /^(?:\d\d-[^/]+|std\/(?!README\.md$)[^/]+)\.md$/.test(path))
     .sort();
   for (const file of chapters) {
     const slugs = new Map<string, number>();
@@ -305,13 +305,18 @@ export function specDirectory(): string {
 /** Reads and indexes the specification sources; missing files index as empty. */
 export async function loadSpecIndex(directory = specDirectory()): Promise<SpecIndex> {
   const files: Record<string, string> = {};
-  let names: string[] = [];
-  try {
-    names = await readdir(directory);
-  } catch {
-    names = [];
-  }
-  for (const name of [...names.filter((entry) => entry.endsWith(".md")), "conformance/cases.tsv"])
+  const markdown = async (subdirectory: string): Promise<string[]> => {
+    try {
+      return (await readdir(join(directory, subdirectory)))
+        .filter((entry) => entry.endsWith(".md"))
+        .map((entry) => (subdirectory === "." ? entry : `${subdirectory}/${entry}`));
+    } catch {
+      return [];
+    }
+  };
+  // The numbered language chapters and the stdlib chapters in spec/std/.
+  const names = [...(await markdown(".")), ...(await markdown("std"))];
+  for (const name of [...names, "conformance/cases.tsv"])
     try {
       files[name] = await readFile(join(directory, name), "utf8");
     } catch {

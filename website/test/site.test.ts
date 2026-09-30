@@ -38,7 +38,7 @@ describe("website build", () => {
     assert.equal(result.playground, false);
     grammar = result.grammar;
     const sources = new Set(PAGES.map((entry) => entry.source));
-    for (const directory of ["spec", "guide"])
+    for (const directory of ["spec", "spec/std", "guide"])
       for (const name of await readdir(join(REPO_DIR, directory)))
         if (name.endsWith(".md"))
           assert.ok(sources.has(`${directory}/${name}`), `${directory}/${name} is rendered`);
