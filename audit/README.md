@@ -9,10 +9,17 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,591 of the 1,625 conformance cases, all
+On 2026-09-30 the prototype passes 1,593 of the 1,627 conformance cases, all
 of them selected in `test/portable/cases.tsv`. The other 34 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 34 still fail.
+decision below, and all 34 still fail. By
+[tier](../spec/conformance/README.md#tiers):
+
+| Tier | Cases | Pass | Known failures |
+| --- | ---: | ---: | ---: |
+| language | 1,576 | 1,545 | 31 |
+| stdlib | 51 | 48 | 3 (AT-with) |
+
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 

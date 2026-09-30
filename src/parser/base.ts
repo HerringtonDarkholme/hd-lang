@@ -450,7 +450,7 @@ export abstract class ParserBase {
 
   // The prototype parses no decorators, but the grammar lets derive lines
   // precede only data, enum, and newtype declarations
-  // (02-grammar.md#r-grammar.annot.newtype-derive.error). Looking past
+  // (02-grammar.md#r-grammar.annot.alias-no-decorator). Looking past
   // `@derive(...)` lines, this returns the span of a transparent alias's
   // `type` keyword, which is then a syntax error.
   protected aliasAfterDeriveLines(): SourceSpan | undefined {

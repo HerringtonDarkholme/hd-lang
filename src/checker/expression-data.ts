@@ -830,7 +830,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
           return { kind: "string-index", receiver, index, type: "u8", span: expression.span };
         }
         // Any other receiver reads through `Index[K]::index`
-        // (05-expressions.md#r-expr.index.trait.read).
+        // (05-expressions.md#r-expr.index.trait.read-other).
         return this.operatorTraitCall(
           ["Index", "index"],
           "[]",

@@ -1,5 +1,5 @@
 # std.testing.arbitrary: the one fact that derived `Arbitrary` reads
-# (spec/10-modules.md#derived-arbitrary). The prototype has no std
+# (spec/std/testing.md#derived-arbitrary). The prototype has no std
 # submodules, so this is `std.arbitrary`, which code does not import by that
 # name: `use std.testing.arbitrary` makes each `arbitrary.with(gen)` a call of
 # `with` under its hidden name, and imports `std.inspect.Inspectable`, which

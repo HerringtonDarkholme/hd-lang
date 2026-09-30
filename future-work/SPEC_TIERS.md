@@ -1,8 +1,8 @@
 # Spec Tiers: Language Spec And Stdlib Spec
 
-Status: decided plan. The owner accepted every recommendation on
+Status: migration complete. The owner accepted every recommendation on
 2026-09-30 ([Owner Decisions](#owner-decisions)), and migration steps 1
-to 10 are done. Nothing here is accepted behavior until a move task
+to 11 are done. Nothing here is accepted behavior until a move task
 puts it in the spec. Step 4 moved Property Tests and Draw Budget to
 [Testing](../spec/std/testing.md), step 5 moved Derived Arbitrary, and
 step 6 moved the `timeout` option's effect, table-test rows, and snapshot
@@ -11,8 +11,8 @@ files there. Step 7 moved the iterator adapters and collect targets to
 above the intrinsics and `r` to [Text](../spec/std/text.md). Step 9
 moved `debug`'s text and the Debug builders to [Format](../spec/std/format.md),
 and `Duration` and its suffixes to [Time](../spec/std/time.md). Step 10
-left the retry combinator in the language tier ([Still Open](#still-open)).
-It answers
+left the retry combinator in the language tier ([Still Open](#still-open)),
+and step 11 cleaned the language chapters' examples and links. It answers
 the owner's request of 2026-09-30:
 
 > is Arbitrary/stdlib stuff should be inside language spec? if they can be
@@ -303,7 +303,7 @@ Each task is about an hour, and each ends with `bash spec/check.sh`,
 | 8 | Done. `std/text.md`: `trim`, `lower`, `split`, `replace`, `starts_with`, and `r`, 12 IDs; `chars` and `char_indices` stay language tier; `std.text.r` in `stdlib-items.tsv`; the 23 text crossing rows removed: 8 cases now cite `std/text.md`, 13 fixtures use language-tier operations or a local prefix instead, and 2 need nothing | 11 cases |
 | 9 | Done. `std/format.md`: `debug`'s text, the Debug builders and layout, and the derived builder mapping, 17 IDs; `std/time.md`: `Duration`, its API, and the `ms`, `s`, `min`, and `h` suffixes, 11 IDs; the ch01, 03, 04, and 05 examples declare local suffixes and prefixes; `std.time` and the four `std.format` builder types in `stdlib-items.tsv`; the 6 `std.time` crossing rows removed, which empties `tier-crossings.tsv`; the `Duration` reading in [Still Open](#still-open) | 5 cases, and 1 new case split from `literal-suffix-duration.hd` |
 | 10 | Done. The retry combinator stays in the language tier: the tier test turns on its undecided signature ([Still Open](#still-open)) | 0 |
-| 11 | Links: `future-work/TESTING.md` (23), `SPECIAL_CASES.md`, `RUNTIME_AND_LIBRARY.md`, `lib/std` and `src/` comments; audit per-tier counts | nothing |
+| 11 | Done. Cleanup: the language chapters' examples in 01, 05, 07, and 09 use language-tier operations or a local helper, with the fixtures they index; `lex.raw-string.none-text` retired for `lex.raw-string.prefix`; the parse-phase reading in the conformance README Tiers section; a stdlib [Glossary](../spec/std/README.md#glossary); links in `lib/std` and `src/` comments; per-tier counts in [audit/README.md](../audit/README.md#conformance) | nothing |
 
 "Cases" counts rows whose primary section moves. Each move task edits the
 spec text, the IDs, `cases.tsv`, `examples.tsv`, and the links in `spec/`

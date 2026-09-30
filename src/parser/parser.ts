@@ -351,7 +351,7 @@ class Parser extends DecoratorParser {
       ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
     };
     const supertraits: TypeRef[] = [];
-    // A supertrait may bind associated types (02-grammar.md#r-grammar.generic.binding.bounds-and-supertraits).
+    // A supertrait may bind associated types (02-grammar.md#r-grammar.generic.binding.positions-key).
     const supertraitBindings: AssociatedTypeBinding[] = [];
     const parseSupertrait = (): TypeRef =>
       this.boundHasBindings()

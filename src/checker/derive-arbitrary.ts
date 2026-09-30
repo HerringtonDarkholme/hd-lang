@@ -4,7 +4,7 @@ import { fieldsSelfRef, selfRefScope, type SelfRefScope } from "./self-ref.ts";
 import { Source_ } from "./generated-source.ts";
 import type { Target } from "./member-lines.ts";
 
-// Derived `Arbitrary` (spec/10-modules.md#derived-arbitrary) for a target
+// Derived `Arbitrary` (spec/std/testing.md#derived-arbitrary) for a target
 // with an `arbitrary.with` fact, and the `std.testing.arbitrary` module.
 //
 // Every other derived `Arbitrary` instantiates the `std.testing` template

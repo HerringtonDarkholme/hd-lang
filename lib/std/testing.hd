@@ -150,7 +150,7 @@ fn wide[N < Integer](n: N) -> i64:
 pub trait Arbitrary:
     fn arbitrary(c: mut Choices) -> Self
 
-# Derived `Arbitrary` (spec/10-modules.md#derived-arbitrary). The template
+# Derived `Arbitrary` (spec/std/testing.md#derived-arbitrary). The template
 # builds the value through an `ArbitrarySource`, which draws each member
 # with its type's `Arbitrary`. The typed-derivation pass instantiates it
 # with the `Source` implementation below; the prototype joins neither into a
