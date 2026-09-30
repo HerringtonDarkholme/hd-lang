@@ -1281,7 +1281,11 @@ export abstract class CheckerContext {
       nominal.arguments.length === 2 &&
       isKnownType(nominal.arguments[0]!, this.dataTypes, this.enumTypes, this.traitTypes) &&
       isKnownType(nominal.arguments[1]!, this.dataTypes, this.enumTypes, this.traitTypes) &&
-      mapKeyKind(nominal.arguments[0]!) === undefined
+      mapKeyKind(nominal.arguments[0]!) === undefined &&
+      !(
+        genericTypeName(nominal.arguments[0]!) &&
+        this.equalityDispatch(nominal.arguments[0]!)?.kind === "bound"
+      )
     ) {
       this.fail(
         "invalid-map-key",

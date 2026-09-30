@@ -1,15 +1,20 @@
-  ;; Kind 0 compares boxed i32 scalars, kind 1 strings, and kind 2 calls the
-  ;; key type's Eq through the map's `$equal` wrapper.
+  ;; Kind 0 compares boxed i32 scalars, kind 1 strings, and kinds 2 and 3
+  ;; call the key type's Eq through the map's `$equal` wrapper, with the map's
+  ;; key context: kind 3, a type-parameter key, passes its Eq dictionary.
   (func $hd.map_key_equal
     (param $kind i32)
     (param $left anyref)
     (param $right anyref)
-    (param $equal (ref null $hd.key-eq))
+    (param $map (ref $hd.map))
     (result i32)
-    (if (i32.eq (local.get $kind) (i32.const 2))
+    (if (i32.ge_u (local.get $kind) (i32.const 2))
       (then
         (return
-          (call_ref $hd.key-eq (local.get $left) (local.get $right) (local.get $equal)))))
+          (call_ref $hd.key-eq
+            (local.get $left)
+            (local.get $right)
+            (struct.get $hd.map $hd.map-key-context (local.get $map))
+            (struct.get $hd.map $hd.map-key-eq (local.get $map))))))
     (if (result i32)
       (i32.eqz (local.get $kind))
       (then
@@ -46,7 +51,7 @@
               (struct.get $hd.map $hd.map-keys (local.get $map))
               (local.get $index))
             (local.get $key)
-            (struct.get $hd.map $hd.map-key-eq (local.get $map)))
+            (local.get $map))
           (then
             (array.set $hd.list
               (struct.get $hd.map $hd.map-values (local.get $map))
@@ -132,7 +137,7 @@
               (struct.get $hd.map $hd.map-keys (local.get $map))
               (local.get $index))
             (local.get $key)
-            (struct.get $hd.map $hd.map-key-eq (local.get $map)))
+            (local.get $map))
           (then
             (return
               (struct.new $hd.variant
@@ -175,7 +180,7 @@
               (struct.get $hd.map $hd.map-keys (local.get $map))
               (local.get $index))
             (local.get $key)
-            (struct.get $hd.map $hd.map-key-eq (local.get $map)))
+            (local.get $map))
           (then
             (local.set $removed
               (array.get $hd.list

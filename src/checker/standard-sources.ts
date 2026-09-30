@@ -9,6 +9,9 @@ import { readFileSync } from "node:fs";
 /** The `std` modules written in hd, by module path (`std.<name>`). */
 export const STANDARD_MODULES = [
   "annotation",
+  // `std.testing.arbitrary`, reached only through `use std.testing.arbitrary`
+  // (checker/derive-arbitrary.ts).
+  "arbitrary",
   "cmp",
   "format",
   "hash",

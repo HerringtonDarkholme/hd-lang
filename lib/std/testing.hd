@@ -2,51 +2,108 @@
 # `assert`, `assert_equal`, `snapshot`, `it_each`, `it_prop`, and
 # `it_prop_with` are checked by the compiler; `Choices`, `Arbitrary`, and
 # `snapshot_file` are declared here (Testing T53), with the property-test
-# runner protocol.
+# runner protocol. `std.testing.arbitrary` is `lib/std/arbitrary.hd`.
 use std.testing.assert
 use std.format.debug
+use std.hash.Hash
+use std.num.{Float, Integer, parse_i64}
 
 # The only source of randomness a generator sees
 # (spec/10-modules.md#property-tests). The runner creates each one and
 # records each draw, so it can replay and shrink a case: every member draws
 # through `prop_draw`, a host function that returns an integer from 0 to a
 # bound, and a replayed or shrunk case returns the recorded values
-# (src/property-tests.ts). Outside a property test the draws are random.
+# (src/property-tests.ts). Once a case's draws have spent the runner's draw
+# budget, every member returns its simplest value without drawing
+# (spec/10-modules.md#draw-budget).
 pub data Choices:
     draws: i32
+    budget: i32
 
 impl Choices:
+    # Whether the draw budget is spent. No public member reads it
+    # (r-module.testing.budget.no-api).
+    fn spent(self) -> bool:
+        self.draws >= self.budget
+
     # One recorded draw from 0 to `bound`; a shrunk draw moves toward 0.
     fn next(mut self, bound: i64) -> i64:
         self.draws = self.draws + 1
         prop_draw(bound)
 
-    pub fn int(mut self, lo: i64, hi: i64) -> i64:
-        if hi <= lo: lo else: lo + self.next(hi - lo)
+    # A recorded draw from `lo` to `hi`. A range wider than `i64` picks a
+    # half first.
+    fn between(mut self, lo: i64, hi: i64) -> i64:
+        match hi.checked_sub(lo):
+            .Some(width) => lo + self.next(width)
+            .None => if self.next(1) == 0: self.between(lo, -1) else: self.between(0, hi)
 
-    pub fn float(mut self, lo: f64, hi: f64) -> f64:
-        if hi <= lo: lo else: lo + (hi - lo) * (f64(self.next(1000000)) / 1000000.0)
+    # An integer from `lo` to `hi`; the simplest is 0, or the bound nearest 0.
+    pub fn int[N < Integer](mut self, lo: N, hi: N) -> N:
+        if hi <= lo:
+            return lo
+        zero := N::zero()
+        if self.spent():
+            return if lo > zero: lo else if hi < zero: hi else: zero
+        N::from_i64(self.between(wide(lo), wide(hi)))
+
+    # A finite float from `lo` to `hi`; the simplest is 0.0, or the bound
+    # nearest 0.0.
+    pub fn float[F < Float](mut self, lo: F, hi: F) -> F:
+        if !(lo < hi):
+            return lo
+        zero := F::zero()
+        if self.spent():
+            return if lo > zero: lo else if hi < zero: hi else: zero
+        steps := F::from_i64(1000000)
+        t := F::from_i64(self.next(1000000)) / steps
+        value := lo * (F::one() - t) + hi * t
+        if value < lo: lo else if value > hi: hi else: value
 
     pub fn bool(mut self) -> bool:
+        if self.spent():
+            return false
         self.next(1) == 1
 
+    # One of `items`; earlier items shrink first, and the simplest is the first.
     pub fn pick[T](mut self, items: List[T]) -> T:
+        if self.spent():
+            return items[0]
         items[i32(self.next(i64(items.len() - 1)))]
 
     pub fn list[T](mut self, max: i32, item: fn(mut Choices) -> T) -> List[T]:
         let items: mut List[T] = []
+        if self.spent():
+            return items
         let count: i32 = i32(self.next(i64(max)))
         while items.len() < count:
             items.append(item(self))
         items
 
-    pub fn string(mut self, max: i32) -> string:
-        letters := ["a", "b", "z", " ", "0"]
-        let text: string = ""
+    # At most `max` entries, each key drawn before its value. A key drawn
+    # again keeps the later value (r-module.testing.choices.map.duplicate).
+    pub fn map[K < Eq & Hash, V](mut self, max: i32, key: fn(mut Choices) -> K, value: fn(mut Choices) -> V) -> Map[K, V]:
+        let entries: mut Map[K, V] = {}
+        if self.spent():
+            return entries
         let count: i32 = i32(self.next(i64(max)))
+        let index = 0
+        while index < count:
+            drawn := key(self)
+            entries[drawn] = value(self)
+            index = index + 1
+        entries
+
+    # At most `max_chars` chars (r-module.testing.choices.string-limit).
+    pub fn string(mut self, max_chars: i32) -> string:
+        if self.spent():
+            return ""
+        letters := ["a", "b", "z", " ", "0", "\u{E9}", "\u{3C0}", "\u{1F600}"]
+        let text: string = ""
+        let count: i32 = i32(self.next(i64(max_chars)))
         let index: i32 = 0
         while index < count:
-            text = text + letters[i32(self.next(4))]
+            text = text + self.pick(letters)
             index = index + 1
         text
 
@@ -58,35 +115,162 @@ impl Choices:
     pub fn draw[T < Arbitrary](mut self) -> T:
         T::arbitrary(self)
 
+    # `list` and `map` with each item drawn by its type's `Arbitrary`. The
+    # prototype cannot pass a bound through a function value.
+    fn list_of[T < Arbitrary](mut self, max: i32) -> List[T]:
+        let items: mut List[T] = []
+        if self.spent():
+            return items
+        let count: i32 = i32(self.next(i64(max)))
+        while items.len() < count:
+            items.append(T::arbitrary(self))
+        items
+
+    fn map_of[K < Arbitrary & Eq & Hash, V < Arbitrary](mut self, max: i32) -> Map[K, V]:
+        let entries: mut Map[K, V] = {}
+        if self.spent():
+            return entries
+        let count: i32 = i32(self.next(i64(max)))
+        let index = 0
+        while index < count:
+            drawn := K::arbitrary(self)
+            entries[drawn] = V::arbitrary(self)
+            index = index + 1
+        entries
+
+# The `i64` value of an integer. A `u64` above the largest `i64` reads as
+# the largest `i64`, so the prototype never draws it.
+fn wide[N < Integer](n: N) -> i64:
+    match parse_i64(n.to_string()):
+        .Ok(value) => value
+        .Err(_) => 9223372036854775807
+
 # A type's default generator (spec/10-modules.md#property-tests).
 pub trait Arbitrary:
     fn arbitrary(c: mut Choices) -> Self
 
-# `std` implements `Arbitrary` for the primitives and `string`. The
-# prototype has no `List`, `Map`, `T?`, `Result`, or tuple implementations yet.
+# `std` implements `Arbitrary` for the primitives, `string`, `List`, `Map`,
+# `T?`, `Result`, and pairs and triples (r-module.testing.arbitrary.std).
+# The 32- and 64-bit integers draw from -1000 to 1000, or 0 to 1000.
+impl Arbitrary for i8:
+    fn arbitrary(c: mut Choices) -> i8: c.int(-128, 127)
+
+impl Arbitrary for i16:
+    fn arbitrary(c: mut Choices) -> i16: c.int(-32768, 32767)
+
+impl Arbitrary for i32:
+    fn arbitrary(c: mut Choices) -> i32: c.int(-1000, 1000)
+
 impl Arbitrary for i64:
     fn arbitrary(c: mut Choices) -> i64: c.int(-1000, 1000)
 
-impl Arbitrary for i32:
-    fn arbitrary(c: mut Choices) -> i32: i32(c.int(-1000, 1000))
+impl Arbitrary for u8:
+    fn arbitrary(c: mut Choices) -> u8: c.int(0, 255)
 
+impl Arbitrary for u16:
+    fn arbitrary(c: mut Choices) -> u16: c.int(0, 65535)
+
+impl Arbitrary for u32:
+    fn arbitrary(c: mut Choices) -> u32: c.int(0, 1000)
+
+impl Arbitrary for u64:
+    fn arbitrary(c: mut Choices) -> u64: c.int(0, 1000)
+
+# Any `f64`, NaN, both infinities, -0.0, and subnormals included
+# (r-module.testing.arbitrary.float). The simplest is 0.0.
 impl Arbitrary for f64:
-    fn arbitrary(c: mut Choices) -> f64: c.float(-1000.0, 1000.0)
+    fn arbitrary(c: mut Choices) -> f64:
+        let zero: f64 = 0.0
+        match c.int(0, 9):
+            5 => zero / zero
+            6 => if c.bool(): -1.0 / zero else: 1.0 / zero
+            7 => zero * -1.0
+            8 => f64(c.int(1, 1000000)) * 4.9406564584124654e-324
+            9 => c.float(-1.0, 1.0) * 1.7976931348623157e308
+            _ => c.float(-1000.0, 1000.0)
+
+impl Arbitrary for f32:
+    fn arbitrary(c: mut Choices) -> f32:
+        let zero: f32 = 0.0
+        let tiny: f32 = 1.4e-45
+        let huge: f32 = 3.4028235e38
+        let low: f32 = -1000.0
+        let high: f32 = 1000.0
+        let unit: f32 = 1.0
+        match c.int(0, 9):
+            5 => zero / zero
+            6 => if c.bool(): -unit / zero else: unit / zero
+            7 => zero * -unit
+            8 => f32(c.int(1, 1000)) * tiny
+            9 => c.float(-unit, unit) * huge
+            _ => c.float(low, high)
 
 impl Arbitrary for bool:
     fn arbitrary(c: mut Choices) -> bool: c.bool()
 
+impl Arbitrary for char:
+    fn arbitrary(c: mut Choices) -> char: c.pick(['a', 'b', 'z', ' ', '0', '\u{E9}', '\u{3C0}', '\u{1F600}'])
+
 impl Arbitrary for string:
     fn arbitrary(c: mut Choices) -> string: c.string(16)
+
+impl[T < Arbitrary] Arbitrary for List[T]:
+    fn arbitrary(c: mut Choices) -> List[T]:
+        c.list_of[T](8)
+
+impl[K < Arbitrary & Eq & Hash, V < Arbitrary] Arbitrary for Map[K, V]:
+    fn arbitrary(c: mut Choices) -> Map[K, V]:
+        c.map_of[K, V](8)
+
+# The simplest is `.None` (r-module.testing.budget.simplest.optional).
+impl[T < Arbitrary] Arbitrary for T?:
+    fn arbitrary(c: mut Choices) -> T?:
+        if c.bool(): .Some(T::arbitrary(c)) else: .None
+
+# The simplest is `.Ok` of `T`'s simplest (r-module.testing.budget.simplest.result).
+impl[T < Arbitrary, E < Arbitrary] Arbitrary for Result[T, E]:
+    fn arbitrary(c: mut Choices) -> Result[T, E]:
+        if c.bool(): .Err(E::arbitrary(c)) else: .Ok(T::arbitrary(c))
+
+impl[A < Arbitrary, B < Arbitrary] Arbitrary for (A, B):
+    fn arbitrary(c: mut Choices) -> (A, B):
+        (A::arbitrary(c), B::arbitrary(c))
+
+impl[A < Arbitrary, B < Arbitrary, C < Arbitrary] Arbitrary for (A, B, C):
+    fn arbitrary(c: mut Choices) -> (A, B, C):
+        (A::arbitrary(c), B::arbitrary(c), C::arbitrary(c))
 
 # The runner protocol of a lowered `it_prop` or `it_prop_with`
 # (parser/test-cases.ts): the test function reports its case and shrink
 # caps, then draws from a fresh `Choices`.
 fn prop_choices() -> mut Choices:
-    Choices { draws: 0 }
+    Choices { draws: 0, budget: prop_budget() }
+
+# The input of one case: the example the runner selects while it runs a
+# property's examples first (r-module.testing.prop.examples), or else a
+# value that `gen` draws.
+fn prop_value[T](examples: List[T], gen: fn(mut Choices) -> T, c: mut Choices) -> T:
+    index := prop_example(examples.len())
+    if index >= 0: examples[index] else: gen(c)
+
+# The same for `it_prop`, which draws with the input type's `Arbitrary`.
+fn prop_example_or_draw[T < Arbitrary](examples: List[T], c: mut Choices) -> T:
+    index := prop_example(examples.len())
+    if index >= 0: examples[index] else: c.draw[T]()
 
 @intrinsic("prop_config")
 fn prop_config(cases: i32, shrink: i32) -> void:
+    panic("intrinsic")
+
+# The runner's draw budget for one case.
+@intrinsic("prop_budget")
+fn prop_budget() -> i32:
+    panic("intrinsic")
+
+# The index of the example this case runs, or -1 for a generated case. The
+# host ends the case once every example has run.
+@intrinsic("prop_example")
+fn prop_example(count: i32) -> i32:
     panic("intrinsic")
 
 # Reports the drawn input's `Debug` text, which the runner prints for the

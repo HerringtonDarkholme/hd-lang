@@ -313,7 +313,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           `      (array.new_default $hd.list (i32.const ${capacity}))`,
           `      (array.new_default $hd.list (i32.const ${capacity}))`,
           `      (i32.const 0)`,
-          `      ${this.keyEquality(expression.keyType, expression.keyKind)}))`,
+          `      ${this.keyEquality(expression.keyType, expression.keyKind, expression.keyDispatch)}))`,
           ...expression.entries.map((entry) =>
             [
               `  (call $hd.map_insert`,

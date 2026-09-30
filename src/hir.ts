@@ -619,7 +619,9 @@ export type HirExpression =
       readonly entries: readonly HirMapEntry[];
       readonly keyType: ValueType;
       readonly valueType: ValueType;
-      readonly keyKind: 0 | 1 | 2;
+      /** Kind 3 is a type-parameter key, compared through `keyDispatch`'s dictionary. */
+      readonly keyKind: 0 | 1 | 2 | 3;
+      readonly keyDispatch?: HirEqualityDispatch;
     })
   | (HirExpressionBase & {
       readonly kind: "map-comprehension";

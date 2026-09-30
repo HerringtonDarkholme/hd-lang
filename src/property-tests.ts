@@ -20,6 +20,12 @@ import type { HostFunction } from "./host-functions.ts";
 // - the lowered test reports its input's `Debug` text through `prop_show`,
 //   and the failure report prints the shrunk case's text
 //   (spec/10-modules.md#r-module.testing.prop.report);
+// - each case has a draw budget of `DRAW_BUDGET` draws, which `prop_budget`
+//   reports; once `Choices` has spent it, every draw returns its simplest
+//   value without calling `prop_draw` (spec/10-modules.md#draw-budget);
+// - a property's `examples` run first, each as one case: the lowered test
+//   asks `prop_example` which example to run, and the host discards the
+//   case once every example has run (spec/10-modules.md#r-module.testing.prop.examples);
 // - a failing property's shrunk stream is saved, one decimal draw per line,
 //   under `__regressions__/<module>/<test-slug>` and replayed before new
 //   cases on the next run (spec/10-modules.md#r-module.testing.prop.regression-file).
@@ -50,6 +56,9 @@ export interface RegressionStore {
   save(name: string, stream: readonly bigint[]): string;
 }
 
+/** The draws of one case before every draw returns its simplest value. */
+export const DRAW_BUDGET = 256;
+
 /** One case's result, as the test runner reports it. */
 export type CaseResult = "pass" | "discard" | { readonly failure: string };
 
@@ -59,6 +68,10 @@ export interface PropertyRun {
   readonly options: PropertyOptions;
   /** Prepares the next case: replay `stream`, then draw from `seed` at `size`, or 0 when shrinking. */
   start(stream: readonly bigint[], seed: number, size: number, shrinking: boolean): void;
+  /** Prepares a case that runs example `index`. */
+  startExample(index: number): void;
+  /** Whether the last example case found no example left to run. */
+  examplesDone(): boolean;
   /** The draws of the last case. */
   recorded(): readonly bigint[];
   /** The caps the last case reported. */
@@ -99,17 +112,32 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
   let shrinking = false;
   let caps = { cases: 100, shrink: 500 };
   let shown: string | undefined;
+  let example: number | undefined;
+  let examplesDone = false;
+  const start = (
+    next: readonly bigint[],
+    caseSeed: number,
+    caseSize: number,
+    shrinkingCase: boolean,
+  ): void => {
+    stream = next;
+    recorded = [];
+    random = generator(caseSeed);
+    size = caseSize;
+    shrinking = shrinkingCase;
+    shown = undefined;
+    example = undefined;
+  };
   return {
     seed,
     options,
-    start(next, caseSeed, caseSize, shrinkingCase) {
-      stream = next;
-      recorded = [];
-      random = generator(caseSeed);
-      size = caseSize;
-      shrinking = shrinkingCase;
-      shown = undefined;
+    start,
+    startExample(index) {
+      start([], seed, 0, true);
+      example = index;
+      examplesDone = false;
     },
+    examplesDone: () => examplesDone,
     recorded: () => recorded,
     caps: () => caps,
     shown: () => shown,
@@ -137,6 +165,15 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
         return drawn;
       },
       prop_discard() {
+        throw new PropertyDiscard();
+      },
+      prop_budget() {
+        return DRAW_BUDGET;
+      },
+      prop_example(count) {
+        if (example === undefined) return -1;
+        if (example < Number(count)) return example;
+        examplesDone = true;
         throw new PropertyDiscard();
       },
       prop_show(text) {
@@ -169,14 +206,28 @@ function* candidates(stream: readonly bigint[]): Generator<readonly bigint[]> {
 
 /**
  * Runs one property test case by case, then shrinks a failure. `once` runs
- * the test function in a fresh instance with the prepared draws. A saved
- * regression stream runs first; discarded cases do not count toward `cases`.
+ * the test function in a fresh instance with the prepared draws. The
+ * examples run first, then a saved regression stream; discarded cases do
+ * not count toward `cases`.
  */
 export async function runProperty(
   run: PropertyRun,
   name: string,
   once: () => Promise<CaseResult>,
 ): Promise<{ readonly subject: string; readonly outcome: string } | undefined> {
+  for (let example = 0; ; example += 1) {
+    run.startExample(example);
+    const result = await once();
+    if (run.examplesDone()) break;
+    if (typeof result === "object")
+      return {
+        subject: `property test "${name}" (seed ${run.seed}, example ${example + 1})`,
+        outcome: [
+          ...(run.shown() === undefined ? [] : [`input ${run.shown()}`]),
+          result.failure,
+        ].join("; "),
+      };
+  }
   const saved = run.options.regressions?.load(name);
   if (saved !== undefined) {
     run.start(saved, run.seed, 0, true);

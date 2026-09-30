@@ -1,0 +1,32 @@
+# std.testing.arbitrary: the one fact that derived `Arbitrary` reads
+# (spec/10-modules.md#derived-arbitrary). The prototype has no std
+# submodules, so this is `std.arbitrary`, which code does not import by that
+# name: `use std.testing.arbitrary` makes each `arbitrary.with(gen)` a call of
+# `with` under its hidden name, and imports `std.inspect.Inspectable`, which
+# `Generator` names (checker/derive-arbitrary.ts).
+use std.testing.Choices
+
+# A generator whose drawn values are erased to `Inspectable`, so the derived
+# code can downcast each one to its member's type
+# (r-module.testing.arbitrary.with.wrap).
+pub data Generator:
+    drawer: Draw
+
+pub fn with[T < Inspectable](gen: fn(mut Choices) -> T) -> Generator:
+    Generator { drawer: Drawer[T] { gen: gen } }
+
+# One value drawn by the generator, as the derived code reads it.
+fn draw_with(generator: Generator, c: mut Choices) -> Inspectable:
+    generator.drawer.draw(c)
+
+# The erasing wrapper. A trait implementation holds `T`'s `Inspectable`
+# dictionary, which a closure in `with` could not capture in the prototype.
+trait Draw:
+    fn draw(self, c: mut Choices) -> Inspectable
+
+data Drawer[T]:
+    gen: fn(mut Choices) -> T
+
+impl[T < Inspectable] Draw for Drawer[T]:
+    fn draw(self, c: mut Choices) -> Inspectable:
+        (self.gen)(c)

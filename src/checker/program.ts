@@ -30,6 +30,7 @@ import { rowRuleDiagnostics } from "./row-rules.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
 import { defaultBoundDiagnostics, withTypeDefaults } from "./type-defaults.ts";
 import { withTypedDerivation } from "./typed-derivation.ts";
+import { withArbitraryModule } from "./derive-arbitrary.ts";
 import { withShapes } from "./shapes.ts";
 import { setHashableKeyTypes } from "./shared.ts";
 import type { Diagnostic } from "../diagnostics.ts";
@@ -45,7 +46,9 @@ export function check(source: Program, options: CheckOptions = {}): CheckResult 
     ...markerFunctions(source.functions),
     ...importedMarkerFunctions(source),
   ]);
-  const spelled = withFunctionTypeConstructors(withBareMarkerCalls(source, markers));
+  const spelled = withFunctionTypeConstructors(
+    withBareMarkerCalls(withArbitraryModule(source), markers),
+  );
   // A malformed spelled function type leaves no type to check against.
   if (spelled.diagnostics.length > 0) return { diagnostics: [...spelled.diagnostics] };
   // Typed derivation is lowered to ordinary implementations first

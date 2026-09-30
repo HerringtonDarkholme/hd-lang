@@ -419,6 +419,37 @@ test("hd test shrinks a failing property case", async () => {
   }
 });
 
+// A property's examples run before generated cases, and a failing example is
+// reported with its input (spec/10-modules.md#r-module.testing.prop.examples).
+test("hd test runs property examples first", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    const source = join(directory, "examples.hd");
+    await writeFile(
+      source,
+      [
+        "use std.testing.{assert, Choices, it_prop_with}",
+        "",
+        "fn small(c: mut Choices) -> i32:",
+        "    c.int(0, 9)",
+        "",
+        "tests:",
+        '    it_prop_with("small values", gen=small, examples=[3, 42], prop=fn!(n: i32):',
+        '        assert(n < 10, reason="small")',
+        "    )",
+        "",
+      ].join("\n"),
+    );
+    await assert.rejects(hd(["test", source]), (error: CommandResult) => {
+      const output = error.stdout + error.stderr;
+      assert.match(output, /property test "small values" \(seed \d+, example 2\) input 42; /);
+      return true;
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 // Discarded cases do not count toward `cases`, and more than 10 × `cases`
 // discards fail the property (spec/10-modules.md#r-module.testing.prop.discard-limit).
 test("hd test fails a property that discards too many cases", async () => {

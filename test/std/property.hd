@@ -12,6 +12,18 @@ fn even(c: mut Choices) -> i64:
     c.assume(value % 2 == 0)
     value
 
+fn stock(c: mut Choices) -> Map[string, i32]:
+    c.map(3, key=fn(inner: mut Choices) -> string: inner.string(max_chars=1), value=fn(inner: mut Choices) -> i32: inner.int(0, 9))
+
+fn byte(c: mut Choices) -> u8:
+    c.int(250, 255)
+
+# A leaf-first recursive generator ends once the draw budget is spent.
+fn depth(c: mut Choices) -> i32:
+    match c.int(0, 3):
+        0 => 0
+        _ => 1 + depth(c)
+
 tests:
     it_prop("addition commutes", prop=fn!(value: i64):
         assert(value + 1 == 1 + value, reason="commutes")
@@ -29,6 +41,25 @@ tests:
         assert(n % 2 == 0, reason="only even values reach the property")
     )
 
-    it_prop("a string is at most 16 characters", prop=fn!(text: string):
-        assert(text.len() <= 16, reason="the default string size")
+    it_prop("a string is at most 16 chars", prop=fn!(text: string):
+        let count = 0
+        for letter in text.chars():
+            count = count + 1
+        assert(count <= 16, reason="the default string size counts chars")
+    )
+
+    it_prop_with("a map holds at most max entries", gen=stock, prop=fn!(entries: Map[string, i32]):
+        assert(entries.len() <= 3, reason="a drawn key again keeps one entry")
+    )
+
+    it_prop_with("int takes its type from the context", gen=byte, prop=fn!(b: u8):
+        assert(b >= 250, reason="from 250 to 255")
+    )
+
+    it_prop_with("the draw budget ends recursion", gen=depth, prop=fn!(d: i32):
+        assert(d >= 0, reason="a finite depth")
+    )
+
+    it_prop("an f64 may be any value", prop=fn!(x: f64):
+        assert(x == x || x != x, reason="NaN is not equal to itself")
     )

@@ -116,12 +116,26 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
   /** The `Eq` function of each declared map key type, by function index. */
   private readonly keyEqualityTypes = new Map<number, ValueType>();
 
+  /** The `Eq` traits whose bound dictionaries key a map (kind 3), by trait index. */
+  private readonly boundKeyTraits = new Set<number>();
+
   /**
-   * A map's key equality: null for a scalar or string key (kinds 0 and 1),
-   * else a wrapper of the key type's `Eq` implementation (kind 2).
+   * A map's key equality and key context, its last two `$hd.map` operands:
+   * null for a scalar or string key (kinds 0 and 1); a wrapper of the key
+   * type's `Eq` implementation (kind 2); or, for a type-parameter key (kind
+   * 3), a wrapper that calls `Eq` through the bound's dictionary, which is
+   * the context.
    */
-  protected keyEquality(keyType: ValueType, keyKind: number): string {
-    if (keyKind !== 2) return `(ref.null $hd.key-eq)`;
+  protected keyEquality(
+    keyType: ValueType,
+    keyKind: number,
+    dispatch?: HirEqualityDispatch,
+  ): string {
+    if (keyKind === 3 && dispatch?.kind === "bound") {
+      this.boundKeyTraits.add(dispatch.traitIndex);
+      return `(ref.func $hd.keqb${dispatch.traitIndex}) ${this.boundDispatchDictionary(dispatch)}`;
+    }
+    if (keyKind !== 2) return `(ref.null $hd.key-eq) (ref.null any)`;
     const type = readonlyType(keyType);
     const eq = this.traitsByName.get("Eq");
     const implementation = [...this.implementationsByIndex.values()].find(
@@ -130,20 +144,29 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     const method = implementation?.methodFunctions.find(({ methodIndex }) => methodIndex === 0);
     if (!method) throw new Error(`map key type '${type}' has no Eq implementation`);
     this.keyEqualityTypes.set(method.functionIndex, type);
-    return `(ref.func $hd.keq${method.functionIndex})`;
+    return `(ref.func $hd.keq${method.functionIndex}) (ref.null any)`;
   }
 
   keyEqualityNames(): string[] {
-    return [...this.keyEqualityTypes.keys()].map((index) => `$hd.keq${index}`);
+    return [
+      ...[...this.keyEqualityTypes.keys()].map((index) => `$hd.keq${index}`),
+      ...[...this.boundKeyTraits].map((index) => `$hd.keqb${index}`),
+    ];
   }
 
   emitKeyEqualities(): string {
-    return [...this.keyEqualityTypes]
-      .map(
+    const signature =
+      "(type $hd.key-eq) (param $left anyref) (param $right anyref) (param $context anyref) (result i32)";
+    return [
+      ...[...this.keyEqualityTypes].map(
         ([index, type]) =>
-          `(func $hd.keq${index} (type $hd.key-eq) (param $left anyref) (param $right anyref) (result i32)\n  (call ${functionName(index)} ${this.unboxValue("(local.get $left)", type)} ${this.unboxValue("(local.get $right)", type)}))`,
-      )
-      .join("\n\n");
+          `(func $hd.keq${index} ${signature}\n  (call ${functionName(index)} ${this.unboxValue("(local.get $left)", type)} ${this.unboxValue("(local.get $right)", type)}))`,
+      ),
+      ...[...this.boundKeyTraits].map((index) => {
+        const dictionary = `(ref.cast (ref null $trait${index}) (local.get $context))`;
+        return `(func $hd.keqb${index} ${signature}\n  (call_ref $tsig${index}_0 (local.get $left) ${dictionary} (local.get $right) (struct.get $trait${index} $trait${index}m0 ${dictionary})))`;
+      }),
+    ].join("\n\n");
   }
 
   /** Signed integer `/` or `%`, panicking on a zero divisor and on overflow. */

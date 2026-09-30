@@ -15,6 +15,7 @@ import {
 } from "../types.ts";
 import { leastCommonType, rowUnionType } from "./assignability.ts";
 import { mapKeyKind } from "./context.ts";
+import { genericTypeName } from "./shared.ts";
 
 import { PatternChecker } from "./patterns.ts";
 
@@ -343,7 +344,12 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             expression.entries[index]!.value.span,
           ),
         }));
-        const keyKind = mapKeyKind(keyType);
+        // A type-parameter key compares through its `Eq` bound's dictionary.
+        const keyDispatch =
+          mapKeyKind(keyType) === undefined && genericTypeName(readonlyType(keyType))
+            ? this.equalityDispatch(keyType)
+            : undefined;
+        const keyKind = keyDispatch?.kind === "bound" ? 3 : mapKeyKind(keyType);
         if (keyKind === undefined) {
           this.fail(
             "invalid-map-key",
@@ -362,6 +368,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           keyType,
           valueType,
           keyKind,
+          ...(keyKind === 3 ? { keyDispatch } : {}),
           type,
           span: expression.span,
         };

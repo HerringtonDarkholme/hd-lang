@@ -1258,14 +1258,15 @@ export function emitWat(source: HirProgram): string {
       (field $hd.iterator-index (mut i32))
       (field $hd.iterator-version i32)
       (field $hd.iterator-source (ref null struct))))
-    (type $hd.key-eq (func (param anyref) (param anyref) (result i32)))
+    (type $hd.key-eq (func (param anyref) (param anyref) (param anyref) (result i32)))
     (type $hd.map (struct
       (field $hd.map-key-kind i32)
       (field $hd.map-size (mut i32))
       (field $hd.map-keys (mut (ref $hd.list)))
       (field $hd.map-values (mut (ref $hd.list)))
       (field $hd.map-version (mut i32))
-      (field $hd.map-key-eq (ref null $hd.key-eq))))
+      (field $hd.map-key-eq (ref null $hd.key-eq))
+      (field $hd.map-key-context anyref)))
     (type $hd.providers (struct
       (field $hd.provider-key i32)
       (field $hd.provider-value anyref)

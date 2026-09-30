@@ -750,7 +750,23 @@ else`, `break`, `break value`, and `continue`;
   toward `cases`, and more than 10 × `cases` discards fail the property.
   The shrunk stream is saved, one draw per line, under
   `__regressions__/<module>/<test-slug>` (`src/snapshots.ts`) and
-  replayed before new cases on the next run;
+  replayed before new cases on the next run. `examples` run first, one
+  case each: the lowered test asks the `prop_example` host function which
+  example to run, and the runner stops asking once the test reports no
+  more. Each case has a draw budget of 256 draws (`prop_budget`); once
+  `Choices` has spent it, every draw returns its simplest value without
+  recording a draw. `Choices.int[N < Integer]` draws through `i64`, so a
+  `u64` above the largest `i64` is never drawn;
+- `@derive(Arbitrary)` and `impl Arbitrary for T by Structure` for
+  `std.testing.Arbitrary` are generated directly
+  (`checker/derive-arbitrary.ts`), not through a std template: the
+  derivation pass runs before std is joined, and the simplest variant, the
+  first non-recursive one, needs the member types. Each member is drawn by
+  `c.draw[F]()`, or by its `arbitrary.with(gen)` fact's generator and a
+  downcast to `F`; an enum draws its variant index with the simplest
+  variant at 0, and a type with no finite value panics. `use
+  std.testing.arbitrary` makes `arbitrary.with` a call of
+  `lib/std/arbitrary.hd`'s `with` and imports `std.inspect`;
 - `--test-layout test-module|integration` compiles a file as a test module
   (the conformance Test Layouts); both layouts are test modules, since
   the prototype has no separate integration view;
@@ -817,7 +833,9 @@ else`, `break`, `break value`, and `continue`;
   A key is an `i32`-like scalar, a string, or a non-generic declared type
   with `Eq` and `Hash` implementations (trait.hash.map-key), which the map
   compares with a wrapper of its `Eq`; a type parameter bounded by `Eq` and
-  `Hash` keys a map built elsewhere;
+  `Hash` keys a map too, and a map literal over one (key kind 3) compares
+  its keys through the bound's `Eq` dictionary, which the map holds as its
+  key context;
 - the prelude `Iterator[T]`, a `lib/std/iter.hd` data type whose private
   `step` closure `next` calls, built by `Iterator::from_fn`, with the
   adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as
@@ -923,7 +941,8 @@ What it provides:
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
 | `std.ops` | the twelve operator traits, `Index`, and `IndexSet`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template` |
 | `std.format` | `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and pairs |
-| `std.testing` | `Choices`, `Arbitrary` (for the primitives and `string`), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
+| `std.testing` | `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
+| `std.testing.arbitrary` | `with` and `Generator`, in `lib/std/arbitrary.hd`, since the prototype has no std submodules |
 
 The prelude `string` methods live in `std.text` too, and `lower` and
 `upper` are backed by the host. Positions and lengths are byte offsets. A string index is the

@@ -352,6 +352,8 @@ function prepareInherentImplementation(
           traitTypes,
           diagnostics,
           genericParameters,
+          new Set(),
+          hashableParameters(implementation, method),
         ) ?? "void";
       return parameter.variadic ? nominalGenericType("List", [resolved]) : resolved;
     });
@@ -363,6 +365,8 @@ function prepareInherentImplementation(
         traitTypes,
         diagnostics,
         genericParameters,
+        new Set(),
+        hashableParameters(implementation, method),
       ) ?? "void";
     const functionName = `$inherent${implementationIndex}.${method.name}`;
     inherentMethods.push({
@@ -447,6 +451,24 @@ function sameMethodDefaults(
   });
 }
 
+/**
+ * The type parameters of an implementation, and of one of its methods, that
+ * may key a map: those bounded by `Eq` and `Hash` (09-traits.md#r-trait.hash.map-key).
+ */
+function hashableParameters(
+  implementation: ImplDecl,
+  method?: { readonly genericBounds?: readonly GenericBound[] },
+): Set<string> {
+  const bounds = [...implementation.genericBounds, ...(method?.genericBounds ?? [])];
+  const bounded = (name: string, trait: string): boolean =>
+    bounds.some((bound) => bound.parameter === name && bound.traits.includes(trait));
+  return new Set(
+    bounds
+      .map((bound) => bound.parameter)
+      .filter((name) => bounded(name, "Eq") && bounded(name, "Hash")),
+  );
+}
+
 function resolveImplementationTarget(
   implementation: ImplDecl,
   context: ProgramCheckContext,
@@ -462,7 +484,9 @@ function resolveImplementationTarget(
       new Set(implementation.genericParameters),
       new Set(),
       // A std target may be a map over an unbounded key (lib/std/iter.hd).
-      new Set(implementation.standard ? implementation.genericParameters : []),
+      implementation.standard
+        ? new Set(implementation.genericParameters)
+        : hashableParameters(implementation),
     ) ?? "void";
   if (isKnownType(targetType, dataTypes, enumTypes, traitTypes)) return targetType;
   diagnostics.push({
@@ -754,6 +778,8 @@ export function prepareImplementations(context: ProgramCheckContext): void {
               traitTypes,
               diagnostics,
               methodGenerics,
+              new Set(),
+              hashableParameters(implementation, method),
             ) ?? "void";
           return parameter.variadic ? nominalGenericType("List", [type]) : type;
         });
@@ -775,6 +801,8 @@ export function prepareImplementations(context: ProgramCheckContext): void {
             traitTypes,
             diagnostics,
             methodGenerics,
+            new Set(),
+            hashableParameters(implementation, method),
           ) ?? "void";
         if (
           (method.parameters[0]?.name !== "self") !== required.associated ||

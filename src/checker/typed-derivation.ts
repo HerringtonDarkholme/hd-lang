@@ -19,6 +19,7 @@ import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { Source_, ZERO_SPAN } from "./generated-source.ts";
 import { deriveIntrinsics, intrinsicHelpers } from "./derive-intrinsics.ts";
+import { deriveArbitrary, testingName, type ArbitraryDerivation } from "./derive-arbitrary.ts";
 import { nominalGenericParts, readonlyType } from "../types.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
 import { debugWriterName } from "./standard-traits.ts";
@@ -415,6 +416,240 @@ export function withTypedDerivation(source: Program): DerivationResult {
   ]);
 
   // Templates and derivation blocks.
+  const { templates, blocks, kept } = sortImplementations(
+    program,
+    structureVisible,
+    localTraits,
+    error,
+  );
+
+  // `Structure` named outside a template (annot.structure.named-positions).
+  if (structureVisible) checkStructureMentions(program, new Set(templates.values()), error);
+
+  // `member` through a generic walker, describer, or source (annot.walker.generic-member-call).
+  if (imported.size > 0) checkGenericMemberCalls(program, error);
+
+  // Opt-ins.
+  const derivations: Derivation[] = [];
+  const derivedPairs = new Map<string, SourceSpan>();
+  const intrinsic: { trait: string; target: Target; span: SourceSpan }[] = [];
+  const newtypeDerivations: { trait: string; declaration: TypeDecl; span: SourceSpan }[] = [];
+  const newtypeIntrinsic: { trait: string; declaration: TypeDecl; span: SourceSpan }[] = [];
+  // `std.testing.Arbitrary` is derived without a template (derive-arbitrary.ts).
+  const arbitrary = testingName(program, "Arbitrary");
+  const arbitraryDerivations: ArbitraryDerivation[] = [];
+  const optIn = (target: Target | undefined, declaration: DataDecl | EnumDecl | TypeDecl): void => {
+    for (const trait of declaration.decorators?.derives ?? []) {
+      const name = trait.name;
+      if (name === arbitrary && target && !templates.has(name)) {
+        derivedPairs.set(`${name} ${declaration.name}`, trait.span);
+        arbitraryDerivations.push({
+          target,
+          facts: (member) => effectiveFacts(target, [], member),
+          span: trait.span,
+        });
+        continue;
+      }
+      if (INTRINSIC_DERIVES.has(name)) {
+        const span = trait.span;
+        if (target) intrinsic.push({ trait: name, target, span });
+        else if (declaration.kind === "type")
+          newtypeIntrinsic.push({ trait: name, declaration, span });
+        continue;
+      }
+      if (!templates.has(name)) {
+        error(
+          "underivable-trait",
+          name === "Error"
+            ? "Error has no template and is not intrinsic; an error type uses @error"
+            : `trait '${name}' has neither a template nor an intrinsic derivation`,
+          trait.span,
+        );
+        continue;
+      }
+      if (!target) {
+        newtypeDerivations.push({
+          trait: name,
+          declaration: declaration as TypeDecl,
+          span: trait.span,
+        });
+        continue;
+      }
+      if (target.kind === "enum" && isGadt(target.declaration)) {
+        error(
+          "gadt-derivation",
+          `enum '${target.declaration.name}' is a GADT and cannot be derived through a template`,
+          trait.span,
+        );
+        continue;
+      }
+      derivedPairs.set(`${name} ${declaration.name}`, trait.span);
+      derivations.push({ trait: name, target, lines: [], span: trait.span });
+    }
+  };
+  for (const declaration of program.data) optIn(targets.get(declaration.name), declaration);
+  for (const declaration of program.enums) optIn(targets.get(declaration.name), declaration);
+  for (const declaration of newtypes.values()) optIn(undefined, declaration);
+
+  for (const block of blocks) {
+    const trait = headName(block.traitName!);
+    const targetName = headName(block.targetName);
+    if (newtypes.has(targetName)) {
+      error(
+        "misplaced-derivation",
+        "a newtype derives only through its base type, with @derive",
+        block.span,
+      );
+      continue;
+    }
+    const target = targets.get(targetName);
+    if (trait === arbitrary && target && !templates.has(trait)) {
+      const lines = block.memberLines ?? [];
+      if (derivedPairs.has(`${trait} ${targetName}`))
+        error(
+          "overlapping-impl",
+          `'${trait}' is already derived for '${targetName}' by @derive`,
+          block.span,
+        );
+      else if (checkMemberLines(target, lines, fact, knownType, error))
+        arbitraryDerivations.push({
+          target,
+          facts: (member) => effectiveFacts(target, lines, member),
+          span: block.span,
+        });
+      continue;
+    }
+    if (!templates.has(trait)) {
+      error("underivable-trait", `trait '${trait}' has no derivation template`, block.span);
+      continue;
+    }
+    if (!target) {
+      error(
+        "misplaced-derivation",
+        `a derivation block must target a data type or enum declared in this module`,
+        block.span,
+      );
+      continue;
+    }
+    if (derivedPairs.has(`${trait} ${targetName}`)) {
+      error(
+        "overlapping-impl",
+        `'${trait}' is already derived for '${targetName}' by @derive`,
+        block.span,
+      );
+      continue;
+    }
+    if (target.kind === "enum" && isGadt(target.declaration)) {
+      error(
+        "gadt-derivation",
+        `enum '${targetName}' is a GADT and cannot be derived through a template`,
+        block.span,
+      );
+      continue;
+    }
+    const lines = block.memberLines ?? [];
+    if (!checkMemberLines(target, lines, fact, knownType, error)) continue;
+    derivations.push({ trait, target, lines, block, span: block.span });
+  }
+
+  // Warnings: line drift and unused type-level facts.
+  // Only a decorator's fact can be unused (annot.fact.unused-non-std).
+  lintDerivations(source, derivations, diagnostics);
+
+  if (diagnostics.some((item) => item.severity !== "warning"))
+    return { program, diagnostics, optInSpans };
+
+  // Generation.
+  const generated: Program[] = [];
+  const implementations: ImplDecl[] = [...kept];
+
+  derivations.forEach((derivation, index) => {
+    optInSpans.push(derivation.span);
+    const result = generateDerivation(
+      derivation,
+      index,
+      templates.get(derivation.trait)!,
+      program.implementations,
+      error,
+    );
+    if (!result) return;
+    implementations.push(result.implementation);
+    generated.push(result.program);
+  });
+  for (const item of newtypeDerivations) {
+    const result = forwardNewtype(item, templates.get(item.trait)!, error);
+    if (result) implementations.push(result);
+  }
+  const writer = debugWriterName(program.uses);
+  implementations.push(...deriveIntrinsics(program, intrinsic, newtypeIntrinsic, writer, error));
+  const arbitraryDerived = deriveArbitrary(program, arbitraryDerivations, arbitrary ?? "");
+  implementations.push(...arbitraryDerived.implementations);
+  if (diagnostics.some((item) => item.severity !== "warning"))
+    return { program, diagnostics, optInSpans };
+
+  const factFunctions = factCheckFunctions(program);
+
+  const needsStructure = imported.size > 0 || derivations.length > 0;
+  const structure = needsStructure ? parse(STRUCTURE_SOURCE).program : undefined;
+  if (needsStructure && !structure) throw new Error("std.structure source does not parse");
+  const structureUse: UseDecl = {
+    kind: "use",
+    module: "std.inspect",
+    names: [{ name: "Inspectable" }, { name: "downcast_val", alias: DOWNCAST }],
+    span: program.span,
+  };
+  const structureTraits = (structure?.traits ?? []).map((trait): TraitDecl => ({
+    ...trait,
+    strengthenableMembers: ["member"],
+  }));
+  const alreadyImportsInspectable = program.uses.some(
+    (use) => use.module === "std.inspect" && use.names.some((name) => name.name === "Inspectable"),
+  );
+  return {
+    program: {
+      ...program,
+      uses: [
+        ...program.uses.filter((use) => use.module !== STRUCTURE_MODULE),
+        ...(needsStructure
+          ? [
+              alreadyImportsInspectable
+                ? { ...structureUse, names: [structureUse.names[1]!] }
+                : structureUse,
+            ]
+          : []),
+      ],
+      data: [
+        ...program.data,
+        ...(structure?.data ?? []),
+        ...generated.flatMap((item) => item.data),
+      ],
+      enums: program.enums,
+      traits: [...program.traits, ...structureTraits],
+      implementations: [
+        ...implementations,
+        ...(structure?.implementations ?? []),
+        ...generated.flatMap((item) => item.implementations),
+      ],
+      functions: [
+        ...program.functions,
+        ...intrinsicHelpers(intrinsic, newtypeIntrinsic, writer),
+        ...factFunctions,
+        ...arbitraryDerived.functions,
+        ...generated.flatMap((item) => item.functions),
+      ],
+    },
+    diagnostics,
+    optInSpans,
+  };
+}
+
+/** Splits the implementations into templates, derivation blocks, and the rest. */
+function sortImplementations(
+  program: Program,
+  structureVisible: boolean,
+  localTraits: ReadonlyMap<string, TraitDecl>,
+  error: (code: string, message: string, span: SourceSpan) => void,
+): { templates: Map<string, ImplDecl>; blocks: ImplDecl[]; kept: ImplDecl[] } {
   const templates = new Map<string, ImplDecl>();
   const blocks: ImplDecl[] = [];
   const kept: ImplDecl[] = [];
@@ -491,194 +726,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
       templates.set(trait, implementation);
     } else blocks.push(implementation);
   }
-
-  // `Structure` named outside a template (annot.structure.named-positions).
-  if (structureVisible) checkStructureMentions(program, new Set(templates.values()), error);
-
-  // `member` through a generic walker, describer, or source (annot.walker.generic-member-call).
-  if (imported.size > 0) checkGenericMemberCalls(program, error);
-
-  // Opt-ins.
-  const derivations: Derivation[] = [];
-  const derivedPairs = new Map<string, SourceSpan>();
-  const intrinsic: { trait: string; target: Target; span: SourceSpan }[] = [];
-  const newtypeDerivations: { trait: string; declaration: TypeDecl; span: SourceSpan }[] = [];
-  const newtypeIntrinsic: { trait: string; declaration: TypeDecl; span: SourceSpan }[] = [];
-  const optIn = (target: Target | undefined, declaration: DataDecl | EnumDecl | TypeDecl): void => {
-    for (const trait of declaration.decorators?.derives ?? []) {
-      const name = trait.name;
-      if (INTRINSIC_DERIVES.has(name)) {
-        const span = trait.span;
-        if (target) intrinsic.push({ trait: name, target, span });
-        else if (declaration.kind === "type")
-          newtypeIntrinsic.push({ trait: name, declaration, span });
-        continue;
-      }
-      if (!templates.has(name)) {
-        error(
-          "underivable-trait",
-          name === "Error"
-            ? "Error has no template and is not intrinsic; an error type uses @error"
-            : `trait '${name}' has neither a template nor an intrinsic derivation`,
-          trait.span,
-        );
-        continue;
-      }
-      if (!target) {
-        newtypeDerivations.push({
-          trait: name,
-          declaration: declaration as TypeDecl,
-          span: trait.span,
-        });
-        continue;
-      }
-      if (target.kind === "enum" && isGadt(target.declaration)) {
-        error(
-          "gadt-derivation",
-          `enum '${target.declaration.name}' is a GADT and cannot be derived through a template`,
-          trait.span,
-        );
-        continue;
-      }
-      derivedPairs.set(`${name} ${declaration.name}`, trait.span);
-      derivations.push({ trait: name, target, lines: [], span: trait.span });
-    }
-  };
-  for (const declaration of program.data) optIn(targets.get(declaration.name), declaration);
-  for (const declaration of program.enums) optIn(targets.get(declaration.name), declaration);
-  for (const declaration of newtypes.values()) optIn(undefined, declaration);
-
-  for (const block of blocks) {
-    const trait = headName(block.traitName!);
-    const targetName = headName(block.targetName);
-    if (newtypes.has(targetName)) {
-      error(
-        "misplaced-derivation",
-        "a newtype derives only through its base type, with @derive",
-        block.span,
-      );
-      continue;
-    }
-    if (!templates.has(trait)) {
-      error("underivable-trait", `trait '${trait}' has no derivation template`, block.span);
-      continue;
-    }
-    const target = targets.get(targetName);
-    if (!target) {
-      error(
-        "misplaced-derivation",
-        `a derivation block must target a data type or enum declared in this module`,
-        block.span,
-      );
-      continue;
-    }
-    if (derivedPairs.has(`${trait} ${targetName}`)) {
-      error(
-        "overlapping-impl",
-        `'${trait}' is already derived for '${targetName}' by @derive`,
-        block.span,
-      );
-      continue;
-    }
-    if (target.kind === "enum" && isGadt(target.declaration)) {
-      error(
-        "gadt-derivation",
-        `enum '${targetName}' is a GADT and cannot be derived through a template`,
-        block.span,
-      );
-      continue;
-    }
-    const lines = block.memberLines ?? [];
-    if (!checkMemberLines(target, lines, fact, knownType, error)) continue;
-    derivations.push({ trait, target, lines, block, span: block.span });
-  }
-
-  // Warnings: line drift and unused type-level facts.
-  // Only a decorator's fact can be unused (annot.fact.unused-non-std).
-  lintDerivations(source, derivations, diagnostics);
-
-  if (diagnostics.some((item) => item.severity !== "warning"))
-    return { program, diagnostics, optInSpans };
-
-  // Generation.
-  const generated: Program[] = [];
-  const implementations: ImplDecl[] = [...kept];
-
-  derivations.forEach((derivation, index) => {
-    optInSpans.push(derivation.span);
-    const result = generateDerivation(
-      derivation,
-      index,
-      templates.get(derivation.trait)!,
-      program.implementations,
-      error,
-    );
-    if (!result) return;
-    implementations.push(result.implementation);
-    generated.push(result.program);
-  });
-  for (const item of newtypeDerivations) {
-    const result = forwardNewtype(item, templates.get(item.trait)!, error);
-    if (result) implementations.push(result);
-  }
-  const writer = debugWriterName(program.uses);
-  implementations.push(...deriveIntrinsics(program, intrinsic, newtypeIntrinsic, writer, error));
-  if (diagnostics.some((item) => item.severity !== "warning"))
-    return { program, diagnostics, optInSpans };
-
-  const factFunctions = factCheckFunctions(program);
-
-  const needsStructure = imported.size > 0 || derivations.length > 0;
-  const structure = needsStructure ? parse(STRUCTURE_SOURCE).program : undefined;
-  if (needsStructure && !structure) throw new Error("std.structure source does not parse");
-  const structureUse: UseDecl = {
-    kind: "use",
-    module: "std.inspect",
-    names: [{ name: "Inspectable" }, { name: "downcast_val", alias: DOWNCAST }],
-    span: program.span,
-  };
-  const structureTraits = (structure?.traits ?? []).map((trait): TraitDecl => ({
-    ...trait,
-    strengthenableMembers: ["member"],
-  }));
-  const alreadyImportsInspectable = program.uses.some(
-    (use) => use.module === "std.inspect" && use.names.some((name) => name.name === "Inspectable"),
-  );
-  return {
-    program: {
-      ...program,
-      uses: [
-        ...program.uses.filter((use) => use.module !== STRUCTURE_MODULE),
-        ...(needsStructure
-          ? [
-              alreadyImportsInspectable
-                ? { ...structureUse, names: [structureUse.names[1]!] }
-                : structureUse,
-            ]
-          : []),
-      ],
-      data: [
-        ...program.data,
-        ...(structure?.data ?? []),
-        ...generated.flatMap((item) => item.data),
-      ],
-      enums: program.enums,
-      traits: [...program.traits, ...structureTraits],
-      implementations: [
-        ...implementations,
-        ...(structure?.implementations ?? []),
-        ...generated.flatMap((item) => item.implementations),
-      ],
-      functions: [
-        ...program.functions,
-        ...intrinsicHelpers(intrinsic, newtypeIntrinsic, writer),
-        ...factFunctions,
-        ...generated.flatMap((item) => item.functions),
-      ],
-    },
-    diagnostics,
-    optInSpans,
-  };
+  return { templates, blocks, kept };
 }
 
 function checkStructureMentions(

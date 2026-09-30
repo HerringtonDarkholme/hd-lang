@@ -349,7 +349,7 @@ function propertyTest(
   const signature = {
     bodyName: "prop",
     named: withGenerator ? ["gen"] : [],
-    options: ["cases", "shrink"],
+    options: ["cases", "shrink", "examples"],
   };
   const { name, body, options, timeout, positional, named } = testArguments(
     call,
@@ -392,15 +392,29 @@ function propertyTest(
     expression,
     span,
   });
+  // With `examples`, a helper takes the example the runner selects or
+  // draws a value; without, the case still asks which example to run, so
+  // the runner learns there is none (src/property-tests.ts).
+  const examples = named.examples;
   const draw: Expression = withGenerator
-    ? invoke(local("$prop.gen"), [local("$prop.choices")])
-    : {
-        kind: "call",
-        callee: { kind: "member", receiver: local("$prop.choices"), name: "draw", span },
-        typeArguments: [parameter!.type!],
-        arguments: [],
-        span,
-      };
+    ? examples
+      ? invoke(local(PROPERTY_VALUE), [examples, local("$prop.gen"), local("$prop.choices")])
+      : invoke(local("$prop.gen"), [local("$prop.choices")])
+    : examples
+      ? {
+          kind: "call",
+          callee: local(PROPERTY_EXAMPLE_OR_DRAW),
+          typeArguments: [parameter!.type!],
+          arguments: [examples, local("$prop.choices")],
+          span,
+        }
+      : {
+          kind: "call",
+          callee: { kind: "member", receiver: local("$prop.choices"), name: "draw", span },
+          typeArguments: [parameter!.type!],
+          arguments: [],
+          span,
+        };
   const bangCall: Expression = {
     kind: "suspend-call",
     callee: local("$prop.body"),
@@ -427,6 +441,15 @@ function propertyTest(
         value: invoke(local(PROPERTY_CHOICES)),
         span,
       },
+      ...(examples
+        ? []
+        : [
+            {
+              kind: "discard",
+              value: invoke(local(PROPERTY_EXAMPLE), [integer(0)]),
+              span,
+            } as Statement,
+          ]),
       bind("$prop.value", draw),
       statementOf(invoke(local(PROPERTY_INPUT), [local("$prop.value")])),
       statementOf(propagates ? { kind: "propagate", operand: bangCall, span } : bangCall),
@@ -445,6 +468,10 @@ function propertyTest(
 /** The hidden `std.testing` functions a lowered property test calls. */
 const PROPERTY_CONFIG = "__std_testing_prop_config";
 const PROPERTY_CHOICES = "__std_testing_prop_choices";
+/** The example the runner selects, or -1; see `examples` in lib/std/testing.hd. */
+const PROPERTY_EXAMPLE = "__std_testing_prop_example";
+const PROPERTY_VALUE = "__std_testing_prop_value";
+const PROPERTY_EXAMPLE_OR_DRAW = "__std_testing_prop_example_or_draw";
 /** Reports the input's `Debug` text, so `T` must implement `Debug`. */
 const PROPERTY_INPUT = "__std_testing_prop_input";
 

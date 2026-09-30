@@ -1537,3 +1537,12 @@ runtime/panic/string-slice-reversed.hd	runtime
 typing/valid/index-traits-builtin.hd	type
 runtime/valid/index-traits-builtin-run.hd	runtime
 runtime/panic/index-trait-map-missing.hd	runtime
+typing/valid/choices-generic-draws.hd	type
+runtime/valid/property-draw-budget.hd	runtime
+runtime/valid/derived-arbitrary-with.hd	runtime
+runtime/valid/derived-arbitrary-with-mismatch.hd	runtime
+typing/invalid/property-examples-wrong-type.hd	type
+runtime/valid/derived-arbitrary-recursive-members.hd	runtime
+runtime/valid/derived-arbitrary-no-finite-value.hd	runtime
+typing/invalid/arbitrary-with-non-inspectable-generator.hd	type
+typing/invalid/arbitrary-with-non-inspectable-member.hd	type
