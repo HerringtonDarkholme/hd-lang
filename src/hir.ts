@@ -26,6 +26,8 @@ export interface HirData {
   readonly newtype?: true;
   /** Declared in a block suite, so not inspectable. */
   readonly local?: true;
+  /** Declared by `lib/std`, whose private fields other code cannot read. */
+  readonly standard?: true;
   readonly span: SourceSpan;
 }
 
@@ -157,12 +159,6 @@ export type HirBuiltinTraitImplementation =
       readonly traitIndex: number;
       readonly targetType: ValueType;
       readonly strategy: HirOrderingStrategy;
-    }
-  | {
-      // `Iterable` for `List[T]` and `Map[K, V]`: `iter` returns a cursor.
-      readonly kind: "iterable";
-      readonly traitIndex: number;
-      readonly targetType: ValueType;
     }
   | {
       // A dynamic value of trait `sourceTraitIndex` used where its own trait or

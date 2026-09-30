@@ -287,8 +287,13 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
    * always `pub`. The prototype compiles a single module, so every own member
    * is declared in the calling module.
    */
-  private memberVisible(_member: HirDataField | InherentMethod): boolean {
-    return true;
+  /**
+   * The prototype checks one module, so every member of the program's own
+   * types is visible. Only a `lib/std` type's private field is hidden, from
+   * code outside std (08-data-and-enums.md#field-visibility).
+   */
+  private memberVisible(member: HirDataField | InherentMethod, owner?: HirData): boolean {
+    return member.public === true || owner?.standard !== true || this.declaration.standard === true;
   }
 
   /**
@@ -386,7 +391,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       if (inherent) ownInvisible = true;
     } else {
       const field = declaration?.fields.find((candidate) => candidate.name === name);
-      if (declaration && field && this.memberVisible(field))
+      if (declaration && field && this.memberVisible(field, declaration))
         return { kind: "field", steps: [], final: { declaration, field, substitutions } };
       if (field) ownInvisible = true;
     }

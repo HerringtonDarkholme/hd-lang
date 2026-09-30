@@ -7,7 +7,6 @@ import type {
   HirExpression,
   HirGenericBound,
   HirTrait,
-  HirTraitImplementation,
   ValueType,
 } from "../hir.ts";
 import {
@@ -26,6 +25,7 @@ import {
   rowArgumentType,
   tupleParts,
   tupleType,
+  CURSOR_TYPE,
 } from "../types.ts";
 
 interface NamedParameter {
@@ -50,35 +50,27 @@ export interface IterableInfo {
   readonly yieldType: ValueType;
 }
 
+/**
+ * How a loop advances `iterable`: a list or map through the built-in cursor,
+ * and the prelude `Iterator` by calling its `next`, `iteratorNext`.
+ */
 export function iterableInfo(
   iterable: HirExpression,
-  implementations: readonly HirTraitImplementation[],
+  iteratorNext: number | undefined,
 ): IterableInfo | undefined {
   const nominal = nominalGenericParts(readonlyType(iterable.type));
   if (nominal?.name === "List" && nominal.arguments.length === 1)
     return { iteratorKind: "list", yieldType: nominal.arguments[0]! };
   if (nominal?.name === "Map" && nominal.arguments.length === 2)
     return { iteratorKind: "map", yieldType: tupleType(nominal.arguments) };
-  if (
-    nominal?.name === "Iterator" &&
-    nominal.arguments.length === 1 &&
-    mutableInner(iterable.type) !== undefined
-  )
+  if (nominal?.name === CURSOR_TYPE && nominal.arguments.length === 1)
     return { iteratorKind: "iterator", yieldType: nominal.arguments[0]! };
-  const implementation = implementations.find(
-    (candidate) =>
-      candidate.traitName === "Iterator" &&
-      readonlyType(candidate.targetType) === readonlyType(iterable.type) &&
-      candidate.traitArguments.length === 1,
-  );
-  const iteratorFunctionIndex = implementation?.methodFunctions.find(
-    (method) => method.methodIndex === 0,
-  )?.functionIndex;
-  if (!implementation || iteratorFunctionIndex === undefined) return undefined;
+  if (nominal?.name !== "Iterator" || nominal.arguments.length !== 1 || iteratorNext === undefined)
+    return undefined;
   return {
     iteratorKind: "trait",
-    iteratorFunctionIndex,
-    yieldType: implementation.traitArguments[0]!,
+    iteratorFunctionIndex: iteratorNext,
+    yieldType: nominal.arguments[0]!,
   };
 }
 
@@ -292,7 +284,7 @@ export function isKnownType(
         isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
       );
     }
-    if (nominal.name === "Iterator") {
+    if (nominal.name === CURSOR_TYPE) {
       return (
         nominal.arguments.length === 1 &&
         nominal.arguments[0] !== "void" &&
@@ -1134,10 +1126,6 @@ export function resolveTraitType(
   if (nominal) {
     const arguments_ = nominal.arguments.map((argument) => resolveTraitType(argument, traitTypes));
     const resolved = nominalGenericType(nominal.name, arguments_);
-    // Iterator[T] is also the concrete cursor type returned by the MVP list and
-    // map runtime. Keep type annotations nominal while implementations still
-    // resolve Iterator as the synthesized protocol trait.
-    if (nominal.name === "Iterator") return resolved;
     return traitTypes.has(nominal.name) ? `trait:${resolved}` : resolved;
   }
   const callable = functionParts(type);

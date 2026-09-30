@@ -142,7 +142,7 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
   private checkIterable(expression: Expression): CheckedIterableInfo {
     const value = this.checkExpression(expression);
     const iterable = this.iterableIterCall(value, expression) ?? value;
-    const info = iterableInfo(iterable, this.implementations);
+    const info = iterableInfo(iterable, this.iteratorNextFunction());
     if (info?.iteratorKind === "trait" && mutableInner(iterable.type) === undefined)
       this.fail(
         "mutable-receiver-required",

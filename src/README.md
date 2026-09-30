@@ -778,23 +778,19 @@ else`, `break`, `break value`, and `continue`;
   with `Eq` and `Hash` implementations (trait.hash.map-key), which the map
   compares with a wrapper of its `Eq`; a type parameter bounded by `Eq` and
   `Hash` keys a map built elsewhere;
-- built-in list and map `iter()` values as mutable Wasm GC cursors whose
-  `next()` yields `T?`; explicit and `for`-loop iteration share exhaustion,
-  partly consumed cursor, replacement, and structural invalidation behavior;
-- explicit `Iterator[T]` implementations participate in ordinary `for` loops
-  and comprehensions through their mutable `next()` method;
-- the iterator adapters `filter`, `take`, `enumerate`, and `collect` as
-  default methods of the prelude `Iterator[T]`, declared in
-  `lib/std/iter.hd`. The value type `mut Iterator[T]` is the built-in
-  cursor; converting an implementation to it stores a dynamic `Iterator`
-  value in the cursor, whose `next` calls through it. A std implementation
-  `Iterator[T] for Iterator[T]` gives the cursor the default methods, so a
-  call through the value runs the default body even when the converted
-  implementation overrides that method. The loader declares `Iterator`
-  when a program names it or calls one of its default methods; otherwise a
-  compiler declaration with `next` alone stands in. A default method
-  instantiates the trait's type parameters with the implementation's
-  trait arguments;
+- the prelude `Iterator[T]`, a `lib/std/iter.hd` data type whose private
+  `step` closure `next` calls, built by `Iterator::from_fn`, with the
+  adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as
+  its ordinary methods (`checker/iteration.ts`). A list or map `iter()` is
+  `from_fn` over a closure that advances the built-in Wasm GC cursor
+  (`$Cursor[T]`, a name source code cannot spell), so explicit and
+  `for`-loop iteration share exhaustion, partly consumed cursor,
+  replacement, and structural invalidation behavior. A `for` loop over a
+  list or map advances the cursor directly, and one over a `mut Iterator`
+  calls its `next`. The loader declares `Iterator` when a program names it
+  or `Iterable`, or selects `iter`, `take`, `enumerate`, `fold`, or
+  `collect`. A private field of a std type is hidden from code outside std,
+  which is the only field visibility the one-module prototype checks;
 - typed HIR, readable WAT output, Binaryen validation, and V8 execution; and
 - an implementation-neutral conformance gate tied to
   `spec/conformance/cases.tsv`, invoked through the public CLI by a concurrent
@@ -863,7 +859,7 @@ What it provides:
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
 | `std.text` | on `string`: `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
-| `std.iter` | the prelude `Iterator[T]` with the default methods `filter`, `take`, `enumerate`, and `collect`; `range`, and `map_each` and `fold` as free functions |
+| `std.iter` | the prelude `Iterator[T]` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `Iterable` for `List`, `Map`, and `Iterator`; `range` |
 | `std.cmp` | `min`, `max`, `clamp`, `Reverse[T]` |
 | `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
@@ -874,8 +870,7 @@ What it provides:
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives and `string`), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
 
 The prelude `string` methods live in `std.text` too, and `lower` and
-`upper` are backed by the host. Prototype limits: `map_each` collects
-eagerly; there is no `chars`, `to_utf8`, or `from_utf8` (the byte primitives are
+`upper` are backed by the host. Prototype limits: there is no `chars`, `to_utf8`, or `from_utf8` (the byte primitives are
 private to `std.text`), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no
 `Integer` or `Float` trait, no `Set` (the specification does not define it,
 and a map built in generic code has no key equality for a type-parameter
@@ -962,7 +957,7 @@ marks what this refactor removed.
 | HIR | `inspect-type-id`, `inspect-downcast` | `std.inspect` | Remains: runtime type identity is a compiler service |
 | Checker | `block_on`, `all!`, `race!`, `shape`, `shape_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `shape` and `shape_of` lower to calls of generated hd builders over `lib/std/annotation.hd`, with no HIR node |
 | Checker | `Duration` for test `timeout`, `ExitCode` and `Termination` for entry results (`standard-traits.ts`, `termination.ts`) | `std.time`, `std.process` | Remains: language hooks that name a std type; the declarations are already hd |
-| Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterator`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Remains: operators, `for`, and interpolation are wired to them. `Hash` and `Iterator` are declared in `lib/std`; the TypeScript `Iterator` stands in only when a program neither names it nor calls an adapter |
+| Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Remains: operators, `for`, and interpolation are wired to them. `Hash` and `Iterator` are declared in `lib/std`, and so are the `Iterable` implementations |
 | Emitter | `float.wat` and the `format_f64`, `format_f32`, `pow_f64`, and `rem_f64` imports | float display, `**`, and floating `%` | Remains: operator and interpolation support |
 
 Counts: the HIR expression union had 92 kinds, of which 15 were library-

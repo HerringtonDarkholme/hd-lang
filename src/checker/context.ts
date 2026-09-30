@@ -28,7 +28,6 @@ import {
   type InspectEnvironment,
 } from "./inspectable.ts";
 import {
-  collectionIterablePlan,
   isPermissionWeakening,
   rowUnionType,
   weakenBoundedGenericActual,
@@ -58,7 +57,6 @@ import { findSupertraitPath, resolveTraitPath } from "./trait-paths.ts";
 import {
   contextKeys,
   functionParts,
-  iteratorCursorSource,
   mutableInner,
   mutableType,
   nominalGenericParts,
@@ -71,6 +69,7 @@ import {
   suspensionParts,
   traitSuspensionParts,
   tupleParts,
+  CURSOR_TYPE,
 } from "../types.ts";
 import { narrowsTo, NUMERIC_TYPES, numericType } from "../numeric.ts";
 import { derivedFieldDiagnostic } from "./derive-intrinsics.ts";
@@ -226,7 +225,7 @@ export function isKnownType(
         isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
       );
     }
-    if (nominal.name === "Iterator") {
+    if (nominal.name === CURSOR_TYPE) {
       return (
         nominal.arguments.length === 1 &&
         nominal.arguments[0] !== "void" &&
@@ -578,10 +577,6 @@ export abstract class CheckerContext {
         span,
       };
     }
-    // An implementation converts to the `Iterator[T]` cursor as a dynamic value.
-    const cursorSource = iteratorCursorSource(value.type, expected);
-    const converted = cursorSource ? this.coerce(value, cursorSource, span, false) : undefined;
-    if (converted?.kind === "trait-wrap") return { ...converted, type: expected };
     const traitName = traitTypeName(expected);
     const trait = traitName && this.traitTypes.get(traitName);
     if (trait) {
@@ -939,7 +934,6 @@ export abstract class CheckerContext {
     const traitName = [...this.traitTypes.values()].find(
       (candidate) => candidate.index === traitIndex,
     )?.name;
-    if (traitName === "Iterable") return collectionIterablePlan(traitIndex, type, traitArguments);
     if (traitArguments.length > 0) return undefined;
     const plan = (
       builtin: HirBuiltinTraitImplementation,

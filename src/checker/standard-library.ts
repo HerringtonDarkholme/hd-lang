@@ -86,17 +86,19 @@ const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
 ];
 
 /**
- * The default methods of a std prelude trait. A program that selects one, as
- * in `values.iter().filter(keep)`, declares the trait even when it never
- * names it (spec/06-control-flow.md#r-flow.adapter.prelude).
+ * Methods that declare a std prelude type. A program that selects one, as in
+ * `values.iter().filter(keep)`, declares `Iterator` even when it never names
+ * it (spec/06-control-flow.md#iterator-adapters).
  */
-const PRELUDE_TRAIT_METHODS: readonly (readonly [StandardModule, string, readonly string[]])[] = [
-  ["iter", "Iterator", ["filter", "take", "enumerate", "collect"]],
+const PRELUDE_TYPE_METHODS: readonly (readonly [StandardModule, string, readonly string[]])[] = [
+  ["iter", "Iterator", ["iter", "take", "enumerate", "fold", "collect"]],
 ];
 
 /** std declarations that a prelude trait names, declared when a program mentions the trait. */
 const TRAIT_DECLARATIONS: readonly (readonly [StandardModule, string, string])[] = [
   ["format", "DebugWriter", "Debug"],
+  // `Iterable.iter` returns an `Iterator` (spec/06-control-flow.md#iteration-protocols).
+  ["iter", "Iterator", "Iterable"],
 ];
 
 function isStandardModule(name: string): name is StandardModule {
@@ -419,7 +421,7 @@ export function withStandardLibrary(source: Program): Program {
   }
   const selectedByProgram = new Set<string>();
   memberNames(program, selectedByProgram);
-  for (const [, name, methods] of PRELUDE_TRAIT_METHODS)
+  for (const [, name, methods] of PRELUDE_TYPE_METHODS)
     if (methods.some((method) => selectedByProgram.has(method))) mentionedByProgram.add(name);
   for (const [module, name] of PRELUDE_DECLARATIONS) {
     if (!mentionedByProgram.has(name) || included.has(module)) continue;

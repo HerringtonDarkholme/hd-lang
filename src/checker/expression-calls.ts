@@ -17,6 +17,7 @@ import {
   traitSuspensionParts,
   traitSuspensionType,
   tupleType,
+  CURSOR_TYPE,
 } from "../types.ts";
 import {
   containsGenericType,
@@ -28,7 +29,7 @@ import {
 } from "./shared.ts";
 
 import type { QualifiedCallExpression } from "./trait-calls.ts";
-import { MethodReferenceChecker } from "./method-references.ts";
+import { IterationChecker } from "./iteration.ts";
 import { supertraitPathBindings } from "./trait-paths.ts";
 import { literalArgumentsUseDefaults, speculationSafeArguments } from "./call-speculation.ts";
 import { isDowncastValImport } from "./inspectable.ts";
@@ -44,7 +45,7 @@ interface NamedCallExpression extends CallExpression {
   readonly callee: Extract<Expression, { kind: "name" }>;
 }
 
-export abstract class ExpressionCallChecker extends MethodReferenceChecker {
+export abstract class ExpressionCallChecker extends IterationChecker {
   protected checkCallExpression(
     expression: Expression,
     expected?: ValueType,
@@ -169,40 +170,6 @@ export abstract class ExpressionCallChecker extends MethodReferenceChecker {
     return this.checkImplementedMemberCall(expression, receiver, expected);
   }
 
-  /**
-   * `value.iter()` when a loop or comprehension iterates a value whose type
-   * implements `Iterable`, or a type parameter bounded by it; Iterable wins
-   * over Iterator (06-control-flow.md#for-loops). Undefined otherwise.
-   */
-  protected iterableIterCall(value: HirExpression, source: Expression): HirExpression | undefined {
-    const iterable = this.traitTypes.get("Iterable");
-    if (!iterable) return undefined;
-    const type = readonlyType(value.type);
-    const generic = genericTypeName(type);
-    const bounded =
-      generic !== undefined &&
-      this.signature.genericBounds.some(
-        (bound) => bound.parameter === generic && bound.traitIndex === iterable.index,
-      );
-    const implemented =
-      generic === undefined &&
-      this.implementations.some(
-        (implementation) =>
-          implementation.traitIndex === iterable.index &&
-          matchGenericTypePattern(implementation.targetType, type, new Map()),
-      );
-    if (!bounded && !implemented) return undefined;
-    const call: MemberCallExpression = {
-      kind: "call",
-      callee: { kind: "member", receiver: source, name: "iter", span: source.span },
-      arguments: [],
-      span: source.span,
-    };
-    return bounded
-      ? this.checkDynamicMemberCall(call, value)
-      : this.checkImplementedMemberCall(call, value);
-  }
-
   private checkBuiltInMemberCall(
     expression: MemberCallExpression,
     receiver: HirExpression,
@@ -261,23 +228,18 @@ export abstract class ExpressionCallChecker extends MethodReferenceChecker {
       if (expression.arguments.length !== 0)
         this.fail("argument-count", "list.iter expects no arguments", expression.span);
       const elementType = receiverNominal.arguments[0]!;
-      return {
-        kind: "list-iterator",
-        receiver,
+      return this.collectionIterator(
+        {
+          kind: "list-iterator",
+          receiver,
+          elementType,
+          type: this.cursorType(elementType),
+          span: expression.span,
+        },
         elementType,
-        type: mutableType(nominalGenericType("Iterator", [elementType])),
-        span: expression.span,
-      };
+      );
     }
-    if (receiverNominal?.name === "Iterator" && expression.callee.name === "next") {
-      if (mutableInner(receiver.type) === undefined)
-        this.fail(
-          "mutable-receiver-required",
-          "Iterator.next requires mutable iterator access",
-          expression.callee.receiver.span,
-        );
-      if (expression.arguments.length !== 0)
-        this.fail("argument-count", "Iterator.next expects no arguments", expression.span);
+    if (receiverNominal?.name === CURSOR_TYPE && expression.callee.name === "next") {
       const elementType = receiverNominal.arguments[0]!;
       return {
         kind: "iterator-next",
@@ -327,13 +289,16 @@ export abstract class ExpressionCallChecker extends MethodReferenceChecker {
       if (expression.arguments.length !== 0)
         this.fail("argument-count", "map.iter expects no arguments", expression.span);
       const elementType = tupleType(receiverNominal.arguments);
-      return {
-        kind: "map-iterator",
-        receiver,
+      return this.collectionIterator(
+        {
+          kind: "map-iterator",
+          receiver,
+          elementType,
+          type: this.cursorType(elementType),
+          span: expression.span,
+        },
         elementType,
-        type: mutableType(nominalGenericType("Iterator", [elementType])),
-        span: expression.span,
-      };
+      );
     }
     if (
       receiverNominal?.name === "Map" &&
@@ -1366,9 +1331,13 @@ export abstract class ExpressionCallChecker extends MethodReferenceChecker {
     }
     if (this.signature.genericParameters.includes(owner))
       return this.checkBoundAssociatedCall(expression, owner);
+    // A generic target's parameters, as `T` of `Iterator::from_fn`, are
+    // inferred like the function's own.
     const member = this.inherentMethods.find(
       (method) =>
-        method.associated && method.targetType === owner && method.name === expression.callee.name,
+        method.associated &&
+        (nominalGenericParts(method.targetType)?.name ?? method.targetType) === owner &&
+        method.name === expression.callee.name,
     );
     if (member)
       return this.checkDeclaredCall(

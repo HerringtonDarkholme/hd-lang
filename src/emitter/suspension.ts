@@ -8,7 +8,7 @@ import type {
   HirStatement,
   ValueType,
 } from "../hir.ts";
-import { mutableType, nominalGenericType, optionalType } from "../types.ts";
+import { CURSOR_TYPE, mutableType, nominalGenericType, optionalType } from "../types.ts";
 
 export type HirSuspensionDrive = Extract<
   HirExpression,
@@ -974,7 +974,11 @@ class SuspensionPlanBuilder {
         ? undefined
         : this.temporary(expression.type, expression.span, "for");
     const after = continuation(result ? this.local(result, expression.span) : undefined);
-    const iteratorType = mutableType(nominalGenericType("Iterator", [expression.yieldType]));
+    // A list or map advances its built-in cursor; an `Iterator` calls its `next`.
+    const iteratorType =
+      expression.iteratorKind === "trait"
+        ? expression.iterable.type
+        : mutableType(nominalGenericType(CURSOR_TYPE, [expression.yieldType]));
     const iterator = this.temporary(iteratorType, expression.iterable.span, "iterator");
     const next = this.temporary(optionalType(expression.yieldType), expression.span, "next");
     const iteratorValue = this.local(iterator, expression.iterable.span);
@@ -1047,13 +1051,24 @@ class SuspensionPlanBuilder {
         {
           kind: "assign",
           local: next,
-          value: {
-            kind: "iterator-next",
-            receiver: iteratorValue,
-            elementType: expression.yieldType,
-            type: optionalType(expression.yieldType),
-            span: expression.span,
-          },
+          value:
+            expression.iteratorKind === "trait"
+              ? {
+                  kind: "call",
+                  functionIndex: expression.iteratorFunctionIndex!,
+                  functionName: "next",
+                  arguments: [iteratorValue],
+                  providers: [],
+                  type: optionalType(expression.yieldType),
+                  span: expression.span,
+                }
+              : {
+                  kind: "iterator-next",
+                  receiver: iteratorValue,
+                  elementType: expression.yieldType,
+                  type: optionalType(expression.yieldType),
+                  span: expression.span,
+                },
         },
       ],
       { kind: "jump", target: conditionEntry },

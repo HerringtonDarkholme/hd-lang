@@ -1462,3 +1462,11 @@ typing/invalid/field-reference.hd	type
 typing/invalid/pipe-suspending-method-reference.hd	type
 typing/invalid/trait-reference-unsolved-self.hd	type
 typing/invalid/bound-reference-associated-function.hd	type
+runtime/valid/iterator-adapters-run.hd	runtime
+typing/invalid/readonly-iterator-in-comprehension.hd	type
+typing/valid/iterator-adapters.hd	type
+typing/invalid/impl-iterator-trait.hd	type
+typing/invalid/iterator-map-callback-row.hd	type
+typing/valid/iterator-satisfies-iterable-bound.hd	type
+runtime/valid/iterator-from-fn.hd	runtime
+typing/invalid/iterator-step-private.hd	type

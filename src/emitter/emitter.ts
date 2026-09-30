@@ -1413,7 +1413,8 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
       ),
     ),
     ...program.implementations.flatMap((implementation) => {
-      const trait = program.traits[implementation.traitIndex]!;
+      // Trait indices may skip a compiler trait the program does not declare.
+      const trait = program.traits.find((item) => item.index === implementation.traitIndex)!;
       return implementation.methodFunctions.flatMap((mapping) =>
         trait.methods[mapping.methodIndex]?.suspending
           ? [

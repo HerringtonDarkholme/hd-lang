@@ -1,34 +1,79 @@
-# std.iter: the prelude `Iterator[T]` with its adapters, the free functions
-# `map_each` and `fold`, and `range` (future-work/STDLIB.md#stditer).
-# `Iterator` is a prelude name; `Iterable` is still declared by the compiler.
+# std.iter: the prelude `Iterator[T]` with its adapters, the `Iterable`
+# implementations of `List`, `Map`, and `Iterator`, and `range`
+# (future-work/STDLIB.md#stditer). `Iterator` is a prelude name; `Iterable`
+# is still declared by the compiler.
 #
-# The adapters are default methods of `Iterator[T]`
-# (spec/06-control-flow.md#iterator-adapters). `filter`, `take`, and
-# `enumerate` return a lazy iterator that pulls from `self` only when its own
-# `next` is called; `collect` drains `self`.
+# `Iterator[T]` is a data type whose private `step` closure yields the next
+# item (spec/06-control-flow.md#iteration-protocols), and the adapters are
+# its ordinary methods (spec/06-control-flow.md#iterator-adapters). `filter`,
+# `take`, `enumerate`, and `map` return a lazy iterator that pulls from
+# `self` only when its own `next` is called; `fold` and `collect` drain
+# `self`.
 #
-# Prototype: the value type `mut Iterator[T]` is the built-in list and map
-# cursor, which also holds a converted implementation. The implementation
-# `Iterator[T] for Iterator[T]` below gives that cursor the default methods,
-# so a call through the value runs the default body. `map_each` and `fold`
-# stay free functions: as default methods their type parameters would make
-# `Iterator` not dynamically safe (STDLIB.md, Still Open 1).
+# Prototype: the compiler builds `list.iter()` and `map.iter()` as
+# `Iterator::from_fn` over its built-in cursor, which keeps the iterator
+# invalidation checks, and a `for` loop over a list or map uses that cursor
+# directly.
 
-pub trait Iterator[T]:
-    fn next(mut self) -> T?
+pub data Iterator[T]:
+    step: fn() -> T?
 
-    fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]:
-        Filter[T] { source: self, keep: keep }
+impl[T] Iterator[T]:
+    pub fn from_fn(step: fn() -> T?) -> mut Iterator[T]:
+        Iterator[T] { step: step }
 
-    fn take(mut self, count: i32) -> mut Iterator[T]:
+    pub fn next(mut self) -> T?:
+        (self.step)()
+
+    pub fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]:
+        Iterator::from_fn(fn() -> T?:
+            while true:
+                match self.next():
+                    .Some(item) =>
+                        if keep(item):
+                            return .Some(item)
+                    .None => return .None
+            .None
+        )
+
+    pub fn take(mut self, count: i32) -> mut Iterator[T]:
         if count < 0:
             panic("take: count must not be negative")
-        Take[T] { source: self, left: count }
+        let left = count
+        Iterator::from_fn(fn() -> T?:
+            if left <= 0:
+                return .None
+            left = left - 1
+            self.next()
+        )
 
-    fn enumerate(mut self) -> mut Iterator[(i32, T)]:
-        Enumerate[T] { source: self, index: 0 }
+    pub fn enumerate(mut self) -> mut Iterator[(i32, T)]:
+        let index = 0
+        Iterator::from_fn(fn() -> (i32, T)?:
+            match self.next():
+                .Some(item) =>
+                    let numbered = (index, item)
+                    index = index + 1
+                    .Some(numbered)
+                .None => .None
+        )
 
-    fn collect(mut self) -> List[T]:
+    pub fn map[U](mut self, transform: fn(T) -> U) -> mut Iterator[U]:
+        Iterator::from_fn(fn() -> U?:
+            match self.next():
+                .Some(item) => .Some(transform(item))
+                .None => .None
+        )
+
+    pub fn fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
+        let total = initial
+        while true:
+            match self.next():
+                .Some(item) => total = step(total, item)
+                .None => break
+        total
+
+    pub fn collect(mut self) -> List[T]:
         let items: mut List[T] = []
         while true:
             match self.next():
@@ -36,69 +81,26 @@ pub trait Iterator[T]:
                 .None => break
         items
 
-impl[T] Iterator[T] for Iterator[T]:
-    fn next(mut self) -> T?:
-        self.next()
+# A loop over an iterator continues its traversal
+# (spec/06-control-flow.md#r-flow.for.iterator-self).
+impl[T] Iterable[T] for Iterator[T]:
+    fn iter(self) -> mut Iterator[T]:
+        Iterator::from_fn(self.step)
 
-data Filter[T]:
-    source: mut Iterator[T]
-    keep: fn(T) -> bool
+impl[T] Iterable[T] for List[T]:
+    fn iter(self) -> mut Iterator[T]:
+        self.iter()
 
-impl[T] Iterator[T] for Filter[T]:
-    fn next(mut self) -> T?:
-        while true:
-            match self.source.next():
-                .Some(item) =>
-                    if (self.keep)(item):
-                        return .Some(item)
-                .None => return .None
-        .None
-
-data Take[T]:
-    source: mut Iterator[T]
-    left: i32
-
-impl[T] Iterator[T] for Take[T]:
-    fn next(mut self) -> T?:
-        if self.left <= 0:
-            return .None
-        self.left = self.left - 1
-        self.source.next()
-
-data Enumerate[T]:
-    source: mut Iterator[T]
-    index: i32
-
-impl[T] Iterator[(i32, T)] for Enumerate[T]:
-    fn next(mut self) -> (i32, T)?:
-        match self.source.next():
-            .Some(item) =>
-                let numbered = (self.index, item)
-                self.index = self.index + 1
-                .Some(numbered)
-            .None => .None
-
-pub fn map_each[T, U](source: mut Iterator[T], transform: fn(T) -> U) -> mut Iterator[U]:
-    let mapped: mut List[U] = []
-    while true:
-        match source.next():
-            .Some(item) => mapped.append(transform(item))
-            .None => break
-    mapped.iter()
-
-pub fn fold[T, A](source: mut Iterator[T], initial: A, step: fn(A, T) -> A) -> A:
-    let total = initial
-    while true:
-        match source.next():
-            .Some(item) => total = step(total, item)
-            .None => break
-    total
+impl[K, V] Iterable[(K, V)] for Map[K, V]:
+    fn iter(self) -> mut Iterator[(K, V)]:
+        self.iter()
 
 # The integers from `start` up to, not including, `end`.
 pub fn range(start: i32, end: i32) -> mut Iterator[i32]:
-    let values: mut List[i32] = []
-    let value = start
-    while value < end:
-        values.append(value)
-        value = value + 1
-    values.iter()
+    let next = start
+    Iterator::from_fn(fn() -> i32?:
+        if next >= end:
+            return .None
+        next = next + 1
+        next - 1
+    )

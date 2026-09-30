@@ -31,7 +31,14 @@ function timeoutStatements(value: Expression, duration: string): Statement[] {
       expression: {
         kind: "call",
         callee: { kind: "name", name: "$test-timeout", span },
-        arguments: [{ kind: "member", receiver: local, name: "millis", span }],
+        arguments: [
+          {
+            kind: "call",
+            callee: { kind: "member", receiver: local, name: "as_milliseconds", span },
+            arguments: [],
+            span,
+          },
+        ],
         span,
       },
       span,

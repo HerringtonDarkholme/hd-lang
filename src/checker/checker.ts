@@ -262,6 +262,12 @@ export class FunctionChecker extends ExpressionControlChecker {
         if (optionalCallable && functionParts(readonlyType(optionalCallable)))
           return this.checkClosureExpression(expression, optionalCallable);
         const expectedCallable = expected ? functionParts(readonlyType(expected)) : undefined;
+        // An argument's expected type may still hold the call's unsolved
+        // parameters, as `U` in `map[U](transform: fn(T) -> U)`; only its
+        // solved positions type the closure.
+        const pending = this.takePendingCallGenerics();
+        const solved = (type: ValueType | undefined): ValueType | undefined =>
+          type !== undefined && !pending(type) ? type : undefined;
         // A trailing block passed for an `fn!` parameter is a suspending
         // closure (spec/07-functions.md#r-fn.trailing.suspending).
         const suspending =
@@ -286,7 +292,7 @@ export class FunctionChecker extends ExpressionControlChecker {
         }
         const parameterTypes = expression.parameters.map((parameter, index) => {
           if (parameter.type) return this.resolveType(parameter.type);
-          const inferred = expectedCallable?.parameters[index];
+          const inferred = solved(expectedCallable?.parameters[index]);
           if (!inferred)
             this.fail(
               "closure-parameter-needs-annotation",
@@ -297,7 +303,7 @@ export class FunctionChecker extends ExpressionControlChecker {
         });
         let result = expression.result
           ? this.resolveType(expression.result)
-          : expectedCallable?.result;
+          : solved(expectedCallable?.result);
         const inferResult = result === undefined;
         const provisionalResult = result ?? "void";
         const parameters: Parameter[] = expression.parameters.map((parameter, index) => ({
@@ -315,6 +321,7 @@ export class FunctionChecker extends ExpressionControlChecker {
           kind: "function",
           name: `$closure${closureIndex}`,
           ...(this.declaration.testOnly ? { testOnly: true } : {}),
+          ...(this.declaration.standard ? { standard: true } : {}),
           suspending,
           genericParameters: [],
           genericBounds: [],
@@ -430,7 +437,7 @@ export class FunctionChecker extends ExpressionControlChecker {
         );
         const callableType = functionType(parameterTypes, result, requirements, false, suspending);
         const type = callableType;
-        const expectedCallableType = expected && readonlyType(expected);
+        const expectedCallableType = expected && solved(readonlyType(expected));
         if (
           expectedCallableType &&
           expectedCallableType !== callableType &&

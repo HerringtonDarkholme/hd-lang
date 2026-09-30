@@ -662,12 +662,9 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           expression.dictionary,
           this.boxWatValue(`(local.get ${temporary})`, expression.value.type),
         );
-        // The prototype's `Iterator[T]` value is the built-in cursor, which
-        // holds a converted implementation (lib/std/iter.hd).
-        const cursor = nominalGenericParts(readonlyType(expression.type))?.name === "Iterator";
         return `(block (result ${this.watType(expression.type)})
   (local.set ${temporary} ${this.emitExpression(expression.value)})
-  ${cursor ? this.emitIteratorFromTraitValue(wrapped) : wrapped}
+  ${wrapped}
 )`;
       }
       case "trait-upcast": {

@@ -45,6 +45,7 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
       fields: [],
       ...(declaration.newtype ? { newtype: true as const } : {}),
       ...(declaration.local ? { local: true as const } : {}),
+      ...(declaration.standard ? { standard: true as const } : {}),
       ...(declaration.variances ? { variances: declaration.variances } : {}),
       span: declaration.span,
     });
@@ -159,60 +160,34 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     ],
     span: program.span,
   });
-  // `Iterator[T]` is declared by `std.iter` when a program needs its
-  // default methods (lib/std/iter.hd); this declaration, with `next` only,
-  // stands in for it otherwise.
-  if (!traitTypes.has("Iterator"))
-    traitTypes.set("Iterator", {
-      name: "Iterator",
-      index: program.traits.length + 4,
+  // `Iterable[T]`: `for` and comprehension clauses call `iter` on a value
+  // whose type implements it (06-control-flow.md#for-loops). Its `iter`
+  // returns the std `Iterator`, which a program that names `Iterable` gets.
+  if (dataTypes.has("Iterator"))
+    traitTypes.set("Iterable", {
+      name: "Iterable",
+      index: program.traits.length + 5,
       genericParameters: ["T"],
       supertraits: [],
       associatedTypes: [],
       methods: [
         {
-          name: "next",
+          name: "iter",
           index: 0,
           associated: false,
           genericParameters: [],
           suspending: false,
-          receiverMutable: true,
+          receiverMutable: false,
           parameters: [],
           parameterNames: [],
           variadic: false,
-          result: "generic:T?",
+          result: "mut:Iterator[generic:T]",
           requirements: [],
           span: program.span,
         },
       ],
       span: program.span,
     });
-  // `Iterable[T]`: `for` and comprehension clauses call `iter` on a value
-  // whose type implements it (06-control-flow.md#for-loops).
-  traitTypes.set("Iterable", {
-    name: "Iterable",
-    index: program.traits.length + 5,
-    genericParameters: ["T"],
-    supertraits: [],
-    associatedTypes: [],
-    methods: [
-      {
-        name: "iter",
-        index: 0,
-        associated: false,
-        genericParameters: [],
-        suspending: false,
-        receiverMutable: false,
-        parameters: [],
-        parameterNames: [],
-        variadic: false,
-        result: "mut:Iterator[generic:T]",
-        requirements: [],
-        span: program.span,
-      },
-    ],
-    span: program.span,
-  });
   // `Any`, the built-in universal empty trait: every value type implements it
   // (04-type-system.md#trait-values-and-any).
   traitTypes.set("Any", {

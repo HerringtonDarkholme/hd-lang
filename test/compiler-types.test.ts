@@ -370,14 +370,14 @@ test("context creation accepts spreads and normalizes exact replacement keys", (
 
 test("owning a trait argument's outer constructor permits a foreign trait impl (TQ-2)", () => {
   const owned = analyze(
-    "data Word:\n    text: string\n\nimpl Iterator[Word] for string:\n    fn next(mut self) -> Word?: .None\n",
+    "data Word:\n    text: string\n\nimpl Iterable[Word] for string:\n    fn iter(self) -> mut Iterator[Word]:\n        Iterator::from_fn(fn() -> Word?: .None)\n",
   );
   assert.deepEqual(
     owned.diagnostics.map((diagnostic) => diagnostic.code),
     [],
   );
   const nested = analyze(
-    "data Word:\n    text: string\n\nimpl Iterator[List[Word]] for string:\n    fn next(mut self) -> List[Word]?: .None\n",
+    "data Word:\n    text: string\n\nimpl Iterable[List[Word]] for string:\n    fn iter(self) -> mut Iterator[List[Word]]:\n        Iterator::from_fn(fn() -> List[Word]?: .None)\n",
   );
   assert.deepEqual(
     nested.diagnostics.map((diagnostic) => diagnostic.code),

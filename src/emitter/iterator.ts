@@ -1,12 +1,11 @@
 import type {
-  HirTrait,
   HirComprehensionClause,
   HirComprehensionForClause,
   HirExpression,
   HirStatement,
   ValueType,
 } from "../hir.ts";
-import { mutableType, nominalGenericType, optionalType } from "../types.ts";
+import { CURSOR_TYPE, mutableType, nominalGenericType, optionalType } from "../types.ts";
 import { functionName, indent, localName } from "./shared.ts";
 import { ValueComparisonEmitter } from "./value-comparison.ts";
 
@@ -67,7 +66,7 @@ export abstract class IteratorEmitter extends ValueComparisonEmitter {
     const iteratorType =
       expression.iteratorKind === "trait"
         ? expression.iterable.type
-        : mutableType(nominalGenericType("Iterator", [expression.yieldType]));
+        : mutableType(nominalGenericType(CURSOR_TYPE, [expression.yieldType]));
     const iterator = this.allocateTemporary(iteratorType);
     const next = this.allocateTemporary(optionalType(expression.yieldType));
     const yielded = this.allocateTemporary(expression.yieldType);
@@ -192,7 +191,7 @@ export abstract class IteratorEmitter extends ValueComparisonEmitter {
     const iteratorType =
       clause.iteratorKind === "trait"
         ? clause.iterable.type
-        : mutableType(nominalGenericType("Iterator", [clause.yieldType]));
+        : mutableType(nominalGenericType(CURSOR_TYPE, [clause.yieldType]));
     const iterator = this.allocateTemporary(iteratorType);
     const next = this.allocateTemporary(optionalType(clause.yieldType));
     const yielded = this.allocateTemporary(clause.yieldType);
@@ -239,53 +238,18 @@ export abstract class IteratorEmitter extends ValueComparisonEmitter {
     const resultTemporary = this.allocateTemporary(optionalType(elementType));
     const iterator = `(ref.as_non_null (local.get ${iteratorTemporary}))`;
     const list = `(struct.get $hd.iterator $hd.iterator-list ${iterator})`;
-    const collection = [
+    const next = [
       `(if (result (ref null $hd.variant))`,
       `  (ref.is_null ${list})`,
       `  (then ${this.emitIteratorSourceNext(iterator, resultTemporary, "map")})`,
       `  (else ${this.emitIteratorSourceNext(iterator, resultTemporary, "list")}))`,
     ].join("\n");
-    const trait = this.traitsByName.get("Iterator");
-    const source = `(struct.get $hd.iterator $hd.iterator-source ${iterator})`;
-    const next = trait
-      ? [
-          `(if (result (ref null $hd.variant))`,
-          `  (ref.is_null ${source})`,
-          `  (then`,
-          indent(collection, 4),
-          `  )`,
-          `  (else ${this.emitDynamicIteratorNext(trait, source)}))`,
-        ].join("\n")
-      : collection;
     return [
       `(block (result (ref null $hd.variant))`,
       `  (local.set ${iteratorTemporary} ${receiverValue})`,
       indent(next, 2),
       `)`,
     ].join("\n");
-  }
-
-  /**
-   * `next` on a cursor that holds a converted `Iterator[T]` implementation:
-   * a dynamic call through the trait value it stores (lib/std/iter.hd).
-   */
-  private emitDynamicIteratorNext(trait: HirTrait, source: string): string {
-    const name = `$trait${trait.index}`;
-    const value = this.allocateTemporary(`trait:${trait.name}`);
-    const dictionary = `(local.get ${value})`;
-    return [
-      `(block (result (ref null $hd.variant))`,
-      `  (local.set ${value} (ref.cast (ref null ${name}) ${source}))`,
-      `  (call_ref $tsig${trait.index}_0`,
-      `    (struct.get ${name} ${name}value ${dictionary})`,
-      `    ${dictionary}`,
-      `    (struct.get ${name} ${name}m0 ${dictionary})))`,
-    ].join("\n");
-  }
-
-  /** A converted `Iterator[T]` implementation as the built-in cursor that holds it. */
-  protected emitIteratorFromTraitValue(traitValue: string): string {
-    return `(struct.new $hd.iterator (ref.null $hd.vector) (ref.null $hd.map) (i32.const 0) (i32.const 0) ${traitValue})`;
   }
 
   private emitIteratorSourceNext(

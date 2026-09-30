@@ -28,6 +28,28 @@ function signatureMarkers(
   };
 }
 
+/**
+ * The type parameters that may key a map: those bounded by `Eq` and `Hash`
+ * (09-traits.md#r-trait.hash.map-key), and in std every one, for `Iterable`
+ * on `Map[K, V]` (lib/std/iter.hd).
+ */
+function hashableParameters(
+  declaration: FunctionDecl,
+  typeParameters: readonly string[],
+): Set<string> {
+  return new Set(
+    typeParameters.filter((name) =>
+      ["Eq", "Hash"].every(
+        (trait) =>
+          declaration.standard === true ||
+          declaration.genericBounds.some(
+            (bound) => bound.parameter === name && bound.traits.includes(trait),
+          ),
+      ),
+    ),
+  );
+}
+
 export function createProgramSignatures(
   context: ProgramCheckContext,
   declarations: readonly FunctionDecl[],
@@ -193,15 +215,7 @@ export function createProgramSignatures(
       return;
     }
     const genericParameters = new Set(typeParameters);
-    const hashable = new Set(
-      typeParameters.filter((name) =>
-        ["Eq", "Hash"].every((trait) =>
-          declaration.genericBounds.some(
-            (bound) => bound.parameter === name && bound.traits.includes(trait),
-          ),
-        ),
-      ),
-    );
+    const hashable = hashableParameters(declaration, typeParameters);
     declaration.parameters.forEach((parameter, parameterIndex) => {
       if (parameter.variadic && parameterIndex !== declaration.parameters.length - 1) {
         diagnostics.push({

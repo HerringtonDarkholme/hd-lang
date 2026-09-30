@@ -398,6 +398,7 @@ function prepareInherentImplementation(
       // A public method without a clause has the empty row
       // (11-requirements-and-suspension.md#r-req.row.omitted.empty-pub).
       ...(method.requirementsOmitted && !method.public ? { requirementsOmitted: true } : {}),
+      ...(implementation.standard ? { standard: true } : {}),
       body: method.body ?? [],
       span: method.span,
     });
@@ -417,6 +418,9 @@ function resolveImplementationTarget(
       traitTypes,
       diagnostics,
       new Set(implementation.genericParameters),
+      new Set(),
+      // A std target may be a map over an unbounded key (lib/std/iter.hd).
+      new Set(implementation.standard ? implementation.genericParameters : []),
     ) ?? "void";
   if (isKnownType(targetType, dataTypes, enumTypes, traitTypes)) return targetType;
   diagnostics.push({
@@ -566,13 +570,9 @@ export function prepareImplementations(context: ProgramCheckContext): void {
       });
       continue;
     }
-    // 09 Implementation Targets: a trait value type is never a target. The
-    // prototype's `Iterator[T]` value is the built-in cursor, which std
-    // implements `Iterator` for so that it gets the default methods
-    // (lib/std/iter.hd).
+    // 09 Implementation Targets: a trait value type is never a target.
     const targetBase = nominalGenericParts(implementation.targetName)?.name;
-    const cursor = implementation.standard === true && targetBase === "Iterator";
-    if (traitTypes.has(targetBase ?? implementation.targetName) && !cursor) {
+    if (traitTypes.has(targetBase ?? implementation.targetName)) {
       diagnostics.push({
         code: "trait-value-impl-target",
         message: `implementation target '${implementation.targetName}' is a trait value type; implement the trait for concrete types instead`,
@@ -763,6 +763,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         ),
         result: substituteSelfType(method.result, implementation.targetName),
         requirements: method.requirements,
+        ...(implementation.standard ? { standard: true } : {}),
         body: method.body ?? [],
         span: method.span,
       };

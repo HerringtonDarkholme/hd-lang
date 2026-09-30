@@ -1,6 +1,6 @@
 # std.cmp and std.iter.
 use std.cmp.{clamp, max, min, Reverse}
-use std.iter.{fold, map_each, range}
+use std.iter.range
 use std.testing.{assert, assert_equal}
 
 fn is_greater(order: Ordering) -> bool:
@@ -33,9 +33,9 @@ tests:
     it("adapters"):
         evens := range(0, 100).filter(fn(value: i32) -> bool: value % 2 == 0).take(3).collect()
         assert_equal(evens, [0, 2, 4], reason="filter then take")
-        assert_equal(map_each([1, 2].iter(), fn(value: i32) -> string: "$value").collect(), ["1", "2"], reason="map_each")
+        assert_equal([1, 2].iter().map(fn(value: i32) -> string: "$value").collect(), ["1", "2"], reason="map")
         assert_equal(["a", "b"].iter().enumerate().collect(), [(0, "a"), (1, "b")], reason="enumerate")
-        assert_equal(fold(range(1, 5), 0, fn(sum: i32, value: i32) -> i32: sum + value), 10, reason="fold")
+        assert_equal(range(1, 5).fold(0, fn(sum: i32, value: i32) -> i32: sum + value), 10, reason="fold")
 
     it("take reads only what it yields"):
         let source: mut Iterator[i32] = [1, 2, 3].iter()

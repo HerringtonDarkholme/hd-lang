@@ -1,5 +1,11 @@
 import type { ValueType } from "./hir.ts";
 
+/**
+ * The built-in list and map cursor behind `list.iter()` and `map.iter()`,
+ * which checks iterator invalidation. `$` keeps its name out of source code.
+ */
+export const CURSOR_TYPE = "$Cursor";
+
 export interface ResultParts {
   readonly ok: ValueType;
   readonly error: ValueType;
@@ -128,22 +134,6 @@ export function optionalInner(type: ValueType): ValueType | undefined {
  */
 export function functionResultText(result: ValueType): ValueType {
   return isFunctionTypeText(result) ? `(${result})` : result;
-}
-
-/**
- * The dynamic `Iterator[T]` type that a value converts to on its way to the
- * prototype's `Iterator[T]` cursor, which holds such a value
- * (lib/std/iter.hd), or `undefined` when `expected` is no cursor or `actual`
- * is one already.
- */
-export function iteratorCursorSource(
-  actual: ValueType,
-  expected: ValueType,
-): ValueType | undefined {
-  const cursor = readonlyType(expected);
-  if (nominalGenericParts(cursor)?.name !== "Iterator") return undefined;
-  if (nominalGenericParts(readonlyType(actual))?.name === "Iterator") return undefined;
-  return cursor === expected ? `trait:${cursor}` : mutableType(`trait:${cursor}`);
 }
 
 /** `T?`, parenthesizing a function type so its `?` is not read as the result's. */

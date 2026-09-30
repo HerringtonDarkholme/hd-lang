@@ -622,7 +622,7 @@ export abstract class CallChecker extends StatementChecker {
         let checked: HirExpression;
         if (!containsGenericType(inferredFormal)) {
           checked = this.checkExpression(source, inferredFormal);
-        } else if (this.isGenericFunctionValue(source)) {
+        } else if (source.kind === "closure" || this.isGenericFunctionValue(source)) {
           this.pendingCallGenerics = new Set(
             signature.genericParameters.filter((parameter) => !substitutions.has(parameter)),
           );

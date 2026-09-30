@@ -21,6 +21,7 @@ import {
   suspensionParts,
   traitSuspensionParts,
   tupleParts,
+  CURSOR_TYPE,
 } from "../types.ts";
 import type { SuspensionPlan } from "./suspension.ts";
 
@@ -207,7 +208,7 @@ export class EmitterContext {
     if (type === "void") return "";
     const data = this.dataByName.get(type);
     const nominalData = nominalGenericParts(type);
-    if (nominalData?.name === "Iterator" && nominalData.arguments.length === 1)
+    if (nominalData?.name === CURSOR_TYPE && nominalData.arguments.length === 1)
       return `(ref null $hd.iterator)`;
     if (nominalData?.name === "List" && nominalData.arguments.length === 1)
       return `(ref null $hd.vector)`;
@@ -426,7 +427,7 @@ export class EmitterContext {
     const nominalData = nominalGenericParts(type);
     if (nominalData?.name === "List" && nominalData.arguments.length === 1)
       return `(ref.cast (ref null $hd.vector) ${payload})`;
-    if (nominalData?.name === "Iterator" && nominalData.arguments.length === 1)
+    if (nominalData?.name === CURSOR_TYPE && nominalData.arguments.length === 1)
       return `(ref.cast (ref null $hd.iterator) ${payload})`;
     if (nominalData?.name === "Map" && nominalData.arguments.length === 2)
       return `(ref.cast (ref null $hd.map) ${payload})`;
@@ -466,7 +467,7 @@ export class EmitterContext {
     if (callable) return `(ref.null $closure${this.functionSignatures.get(type)})`;
     const data = this.dataByName.get(type);
     const nominalData = nominalGenericParts(type);
-    if (nominalData?.name === "Iterator" && nominalData.arguments.length === 1)
+    if (nominalData?.name === CURSOR_TYPE && nominalData.arguments.length === 1)
       return `(ref.null $hd.iterator)`;
     if (nominalData?.name === "List" && nominalData.arguments.length === 1)
       return `(ref.null $hd.vector)`;
