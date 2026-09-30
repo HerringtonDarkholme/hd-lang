@@ -615,17 +615,3 @@ test("hd doc on a single file reports inferred types", async () => {
     assert.equal(jsonLines(failed.stderr)[0]?.kind, "diagnostic");
   });
 });
-
-test("explain-requirements --format json lists each function's requirement paths", async () => {
-  const result = await hd([
-    "explain-requirements",
-    "--format",
-    "json",
-    resolve(root, "examples/suspension.hd"),
-  ]);
-  const parsed = JSON.parse(result.stdout) as {
-    functions: { functionName: string; declared: string[]; paths: unknown[] }[];
-  };
-  const main = parsed.functions.find((entry) => entry.functionName === "main");
-  assert.deepEqual(main?.declared, ["Console"]);
-});

@@ -56,37 +56,31 @@ test("documented CLI commands work end to end", async () => {
   const parsedHir = JSON.parse(hir.stdout) as SerializedHir;
   assert.ok(parsedHir.functions?.some((declaration) => declaration.name === "main"));
 
-  const requirements = await hd(["explain-requirements", suspension]);
-  assert.match(requirements.stdout, /main: \$ Console/);
-  assert.match(requirements.stdout, /add_two: \$ Clock/);
-  assert.match(requirements.stdout, /compute: \$\(\)/);
-
-  const trace = await hd(["trace", suspension]);
-  assert.match(trace.stdout, /construct main[\s\S]*poll main[\s\S]*42[\s\S]*ready main/);
-
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
-    const replaySource = join(directory, "suspension.hd");
-    await copyFile(suspension, replaySource);
+    const buildSource = join(directory, "suspension.hd");
+    await copyFile(suspension, buildSource);
 
-    const recorded = await hd(["record", replaySource]);
-    const replayPath = `${replaySource}.replay.json`;
-    assert.match(
-      recorded.stdout,
-      new RegExp(`42[\\s\\S]*${basename(replayPath).replaceAll(".", "\\.")}`),
-    );
-    const events = JSON.parse(await readFile(replayPath, "utf8")) as unknown[];
-    assert.ok(events.length > 0);
-
-    const replayed = await hd(["replay", replaySource]);
-    assert.equal(replayed.stdout.trim(), "42");
-
-    const built = await hd(["build", replaySource], directory);
+    const built = await hd(["build", buildSource], directory);
     const wasmPath = built.stdout.trim();
     assert.equal(basename(wasmPath), "suspension.wasm");
     assert.ok((await stat(wasmPath)).size > 8);
   } finally {
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+// trace, record, replay, and explain-requirements were removed from the CLI;
+// each is now an unknown command, which prints usage and exits 2.
+test("removed CLI commands fail as unknown commands", async () => {
+  const suspension = resolve(root, "examples/suspension.hd");
+  for (const command of ["trace", "record", "replay", "explain-requirements"]) {
+    await assert.rejects(hd([command, suspension]), (error: CommandResult & { code?: number }) => {
+      assert.equal(error.code, 2);
+      assert.equal(error.stdout, "");
+      assert.match(error.stderr, /^usage: hd <parse\|check\|test\|run\|build\|dump-hir>/);
+      return true;
+    });
   }
 });
 

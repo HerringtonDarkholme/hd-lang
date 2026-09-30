@@ -440,8 +440,6 @@ hd check FILE
 hd test FILE
 hd build --wat FILE
 hd dump-hir FILE
-hd explain-requirements FILE
-hd trace FILE
 ```
 
 ## Deferred Work

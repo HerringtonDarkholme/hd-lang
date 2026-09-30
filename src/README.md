@@ -27,9 +27,6 @@ npm run hd -- check examples/core.hd
 npm run hd -- test spec/conformance/runtime/valid/defer-order.hd
 npm run hd -- build --wat examples/core.hd
 npm run hd -- run examples/core.hd
-npm run hd -- trace examples/suspension.hd
-npm run hd -- record examples/suspension.hd
-npm run hd -- replay examples/suspension.hd
 npm run hd -- repl
 npm run hd -- check --format json examples/core.hd
 npm run hd -- explain unknown-data-field
@@ -78,8 +75,7 @@ format a person needs.
 ### Machine-Readable Diagnostics
 
 `--format json` is accepted by every command that compiles a file: `parse`,
-`check`, `test`, `run`, `trace`, `record`, `replay`, `build`, `dump-hir`, and
-`explain-requirements`. It changes only the diagnostic stream: each
+`check`, `test`, `run`, `build`, and `dump-hir`. It changes only the diagnostic stream: each
 diagnostic the text format would print goes to stderr as one JSON object per
 line (JSON Lines), in the same order. Stdout keeps what the command prints,
 such as the `ok` line or program output, and exit codes do not change.
@@ -223,9 +219,6 @@ lists the qualified names that end in the query's last segment.
 `supertraits`, and `via` (the re-exported name the query matched).
 Promoted members of embedded fields and blanket implementations are not
 listed yet.
-
-`hd explain-requirements --format json` prints the same facts as its text
-form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}`.
 
 ## Implemented Surface
 
@@ -386,8 +379,7 @@ else`, `break`, `break value`, and `continue`;
   `Fn[(), void, $ Logger + Clock]`, with `generic-kind-mismatch` for a data,
   enum, or trait parameter used in a row; a dynamic trait value satisfying
   bounds on its own trait and supertraits through forwarding dictionaries;
-- concrete requirement rows with hidden `externref` provider threading and
-  transitive call paths from `hd explain-requirements`;
+- concrete requirement rows with hidden `externref` provider threading;
 - `+`-joined requirement rows (`$ A + B` in every position) normalized as
   sets, with `old-row-separator` for the former `$ A, B` and `$(A, B)` and
   `old-bound-operator` for a `+` between bounds, plus statically resolved `$.use`
@@ -728,8 +720,8 @@ else`, `break`, `break value`, and `continue`;
   top-level cleanup, plus scalar development start/poll/cancel exports;
 - suspension poll record/replay with function-name-based site identities that
   survive unrelated declaration insertion, source-derived function code
-  identity, argument/result and provider configuration checks, and CLI sidecar
-  commands;
+  identity, and argument/result and provider configuration checks, through the
+  in-process compiler API (the CLI has no record or replay command);
 - strings backed by Wasm GC byte arrays. The prelude string methods
   (`len`, `trim`, `lower`, `split`, `replace`, `starts_with`) are hd code in
   `lib/std/text.hd` over three byte primitives; `lower` and `upper` call
@@ -979,8 +971,9 @@ one namespace, so the prototype cannot reject a driver in another
 module's initialization.
 
 The host console is a built-in entry of the generic capability bridge.
-Its calls stay out of record and replay (`UNRECORDED_PROVIDERS`), so
-`hd replay` prints console lines again rather than reading them back.
+Its calls stay out of record and replay (`UNRECORDED_PROVIDERS`), so a
+replay through the compiler API prints console lines again rather than
+reading them back.
 Whether a replay should capture them is an owner question in
 [OPEN_ISSUES.md](../future-work/OPEN_ISSUES.md#mutable-host-providers).
 
@@ -1005,7 +998,6 @@ What remains:
 - `wasm.ts` parses, validates, and emits Wasm with pinned Binaryen.
 - `compiler.ts` exposes the in-process compiler API.
 - `package.ts` links the modules of a multi-file package into one program.
-- `requirements.ts` computes transitive provider explanations.
 - `cli.ts` implements the current command-line interface; `cli-queries.ts`
   implements `explain`, `def`, and `doc`.
 - `diagnostic-report.ts` writes diagnostics as text or JSON Lines and derives

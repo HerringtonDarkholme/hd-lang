@@ -9,7 +9,6 @@ import {
   type CompileOptions,
   type HostSuspensionCall,
   type HostSuspensionOutcome,
-  type ReplayEvent,
 } from "./compiler.ts";
 import { explainCommand, lookupCommand } from "./cli-queries.ts";
 import { DiagnosticReporter, type OutputFormat } from "./diagnostic-report.ts";
@@ -17,7 +16,6 @@ import { DiagnosticError, type Diagnostic } from "./diagnostics.ts";
 import { linkPackage, type PackageDiagnostic } from "./package.ts";
 import { RuntimePanicError, UnsupportedAtRunTimeError } from "./runtime-panic.ts";
 import { parse } from "./parser/index.ts";
-import { explainRequirements } from "./requirements.ts";
 import { runRepl } from "./repl-terminal.ts";
 import { loadSpecIndex } from "./spec-index.ts";
 import { regressionStore, snapshotModule, snapshotRun } from "./snapshots.ts";
@@ -134,7 +132,7 @@ async function packageTreeFiles(root: string): Promise<Record<string, string>> {
 function usage(): never {
   console.error(
     [
-      "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--format text|json] [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] [--tests] [--update] [--seed N] [--cases N] [--shrink N] [--test-layout test-module|integration] [--package-tree DIR --package-path PATH] FILE",
+      "usage: hd <parse|check|test|run|build|dump-hir> [--format text|json] [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] [--tests] [--update] [--seed N] [--cases N] [--shrink N] [--test-layout test-module|integration] [--package-tree DIR --package-path PATH] FILE",
       "       hd explain [--format text|json] CODE",
       "       hd <def|doc> [--format text|json] NAME [FILE|PACKAGE-DIR]",
       "       hd repl",
@@ -288,22 +286,6 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       console.log(JSON.stringify(result.hir, null, 2));
       return 0;
     }
-    if (command === "explain-requirements") {
-      const result = analyze(source, compileOptions);
-      if (!result.hir) throw new DiagnosticError(result.diagnostics);
-      if (format === "json") {
-        console.log(JSON.stringify({ functions: explainRequirements(result.hir) }, null, 2));
-        return 0;
-      }
-      for (const explanation of explainRequirements(result.hir)) {
-        console.log(
-          `${explanation.functionName}: ${explanation.declared.length > 0 ? "$ " + explanation.declared.join(", ") : "$()"}`,
-        );
-        for (const requirement of explanation.paths)
-          console.log(`  ${requirement.key}: ${requirement.path.join(" -> ")}`);
-      }
-      return 0;
-    }
     if (command === "build") {
       const result = compile(source, compileOptions);
       if (wat) {
@@ -315,30 +297,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       }
       return 0;
     }
-    if (
-      command === "test" ||
-      command === "run" ||
-      command === "trace" ||
-      command === "record" ||
-      command === "replay"
-    ) {
-      const functionNames = new Map<number, string>();
-      const eventNames = [
-        "construct",
-        "poll",
-        "ready",
-        "cancel",
-        "reentrant",
-        "invalid-state",
-        "pending",
-        "cleanup",
-      ] as const;
-      const replayPath = `${path}.replay.json`;
-      const recorded: ReplayEvent[] = [];
-      const replayEvents =
-        command === "replay"
-          ? (JSON.parse(await readFile(replayPath, "utf8")) as ReplayEvent[])
-          : undefined;
+    if (command === "test" || command === "run") {
       let scenarioInstance: WebAssembly.Instance | undefined;
       let pendingFunctionIndex: number | undefined;
       // `snapshot_file` files (spec/10-modules.md#snapshots); `--update` records them.
@@ -352,15 +311,6 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       const instantiateOptions: Parameters<typeof instantiate>[1] = {
         hostFunctions: { ...snapshots.hostFunctions, ...properties.hostFunctions },
         console: (text) => console.log(text),
-        trace:
-          command === "trace"
-            ? (functionIndex, event) =>
-                console.log(
-                  `${eventNames[event]} ${functionNames.get(functionIndex) ?? `function#${functionIndex}`}`,
-                )
-            : undefined,
-        record: command === "record" ? (event) => recorded.push(event) : undefined,
-        replay: replayEvents,
         pending:
           scenario === "cancellation-cleanup"
             ? (functionIndex) => functionIndex === pendingFunctionIndex
@@ -374,13 +324,12 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
                     return false;
                   }
                 : undefined,
-        providerConfigurationId: "cli-default",
         hostCapabilities: profile?.hostCapabilities,
         parse: parseOptions,
         hostSuspensionInvoke: profile?.invoke,
         hostSuspensionPending: profile?.pending,
       };
-      const { instance, compilation, replay } = await instantiate(source, instantiateOptions);
+      const { instance, compilation } = await instantiate(source, instantiateOptions);
       scenarioInstance = instance;
       if (pendingFunctionName) {
         pendingFunctionIndex = compilation.hir.functions.find(
@@ -389,15 +338,11 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         if (pendingFunctionIndex === undefined)
           throw new Error(`program has no suspending ${pendingFunctionName} function`);
       }
-      compilation.hir.functions.forEach((declaration) =>
-        functionNames.set(declaration.index, declaration.name),
-      );
       const mainDeclaration = compilation.hir.functions.find(({ entry }) => entry);
       const scenarioProviders =
         mainDeclaration?.requirements.map((requirement) => ({ requirement })) ?? [];
       if (scenario) {
         runRuntimeScenario(scenario, instance, scenarioProviders);
-        replay.assertComplete();
         console.log(`${file}: 1 passed`);
         return 0;
       }
@@ -421,7 +366,6 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         );
       });
       if (selected.length === 0 && command === "test") {
-        replay.assertComplete();
         console.log(`${file}: 0 passed`);
         return 0;
       }
@@ -438,11 +382,6 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       if (outcome.kind === "failed") {
         reporter.entryError(outcome.subject, outcome.outcome);
         return 1;
-      }
-      replay.assertComplete();
-      if (command === "record") {
-        await writeFile(replayPath, JSON.stringify(recorded, null, 2) + "\n");
-        console.log(replayPath);
       }
       if (command === "test") console.log(`${file}: ${outcome.count} passed`);
       else if (outcome.result !== undefined) console.log(outcome.result);
