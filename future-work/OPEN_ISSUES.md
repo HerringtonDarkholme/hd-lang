@@ -39,12 +39,12 @@ answered the six points the apply pass raised:
 | Let 5 | The warning keeps the name `redundant-let-mut` | [`types.bind.let-mut-annotated.warning`](../spec/04-type-system.md#r-types.bind.let-mut-annotated.warning) |
 | Map 6 | A missing key in `m[k] op= v` panics with `index-out-of-bounds`; no new category | [`expr.assign.compound.map-missing`](../spec/05-expressions.md#r-expr.assign.compound.map-missing) |
 
-**Still open (raised by applying Let 1).** The spec keeps the current
-reading; nothing here is decided.
+**Batch 7 (owner decision, 2026-09-29).** Applied. The owner answered
+the one point that applying Let 1 raised:
 
-| Point | Applied | **Recommendation** |
+| # | Decision | Where |
 | --- | --- | --- |
-| `let (a, b) = pair` in a same-line suite, as `if ok: let (a, b) = pair` | `syntax-error`: [`grammar.inline.multi-name-let-for`](../spec/02-grammar.md#r-grammar.inline.multi-name-let-for) still asks for an indented body | Allow it. The rule exists because a bare comma closes a same-line suite, and the parentheses remove that comma, as `(a, b := pair)` already shows. |
+| Let 7 | A parenthesized `let` list may be a same-line suite body: `if ok: let (a, b) = pair` and `if ok: let (mut log, db) = pair` are valid. Bare comma forms still close the suite, so `if ok: a, b := pair` and `if ok: let a, b = pair` stay `syntax-error`, and `(a, b := pair)` stays valid. A `for` over several names still needs an indented body. The owner picked this over the recommendation. Bindings are block-scoped, so such a name is never read, and the existing `unused-local-binding` warning reports it; no code is added. | [`grammar.inline.let-list`](../spec/02-grammar.md#r-grammar.inline.let-list), [`grammar.inline.bare-comma`](../spec/02-grammar.md#r-grammar.inline.bare-comma), [`grammar.inline.multi-name-for`](../spec/02-grammar.md#r-grammar.inline.multi-name-for), [`flow.unused.warning`](../spec/06-control-flow.md#r-flow.unused.warning); `grammar.inline.multi-name-let-for` is retired |
 
 ### Local Mutability: `let mut` As An Inference Helper
 
@@ -452,8 +452,10 @@ STR1-STR6 follow Go: a `string` is immutable bytes that are always valid
 UTF-8, `len` and `s[i]` count bytes, `string` is not `Iterable`, and
 `s.slice(a, b)` takes byte offsets
 ([Strings](../spec/04-type-system.md#strings),
-[String Methods](../spec/10-modules.md#string-methods)). Points the apply
-pass met are in [Strings Still Open](STRINGS.md#still-open).
+[String Methods](../spec/10-modules.md#string-methods)). STR7-STR10
+answered the points the apply pass met and are applied: every bad `slice`
+offset panics as `index-out-of-bounds`, `List`, `Map`, and `string`
+implement `Index`, and std error positions count bytes.
 
 ### Iterator Performance
 

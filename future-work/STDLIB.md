@@ -417,7 +417,7 @@ integers (question 20):
 | an optional `+` or `-`, then one or more ASCII digits `0`-`9`, and nothing else | `.Ok(value)` |
 | the empty string | `.Err(.Empty)` |
 | a lone `+` or `-` | `.Err(.InvalidDigit(0))` |
-| any other character, including `_`, a space, or a radix prefix | `.Err(.InvalidDigit(position))`, the first such character's position counted in scalars |
+| any other character, including `_`, a space, or a radix prefix | `.Err(.InvalidDigit(position))`, the byte offset of the first such character ([Strings](STRINGS.md#owner-decisions) STR10) |
 | digits whose value does not fit the type | `.Err(.OutOfRange)` |
 
 Parsing user input accepts no literal syntax: `"1_000"` and `"0x10"` are
@@ -530,9 +530,9 @@ and starts no empty one, and a `\r` not followed by `\n` stays:
 
 `interpolate` joins the pieces with the values' `Display` text.
 `process_escapes` fails at the first invalid escape, and
-`EscapeError.offset` counts the Unicode scalars before its backslash (L22).
-Whether it should count bytes instead is
-[Strings Still Open](STRINGS.md#still-open) point 5.
+`EscapeError.offset` is the byte offset of its backslash: every position in
+std counts bytes, as string positions do
+([Strings](STRINGS.md#owner-decisions) STR10).
 
 `string::from_utf8` is the one checked conversion from bytes that
 [`types.string.from-bytes`](../spec/04-type-system.md#r-types.string.from-bytes)
@@ -554,7 +554,9 @@ Strings STR1-STR6 (applied 2026-09-29):
   becomes byte offsets;
 - `process_escapes` and `parse_i32`, `parse_i64`, and `parse_f64` in
   `lib/std/num.hd` walk a string through `split("")`, which still works,
-  but their error positions count scalars (Still Open point 5).
+  but their error positions count scalars. STR10 makes them byte
+  offsets: `EscapeError.offset` and `ParseNumberError.InvalidDigit`
+  report the byte offset of the offending character.
 
 ### `std.option` and `std.result`
 
@@ -934,7 +936,12 @@ and `EscapeError` moved there too (L22; see [`std.text`](#stdtext)).
 ([Operator Traits](../spec/05-expressions.md#operator-traits) OP1-OP9, OP11): `Add`,
 `Sub`, `Mul`, `Div`, `Rem`, `Neg`, `BitAnd`, `BitOr`, `BitXor`, `Not`,
 `Shl`, and `Shr`, each with an associated `Out`, and `Index` and
-`IndexSet`; OP13 removed the assign traits. Std implements the operator
+`IndexSet`; OP13 removed the assign traits. `List`, `Map`, and `string`
+implement `Index`, and `List` and `Map` implement `IndexSet`, with
+intrinsic bodies
+([Built-In Implementations](../spec/05-expressions.md#built-in-implementations),
+[Strings](STRINGS.md#owner-decisions) STR8). Neither `lib/std` nor the
+prototype provides them yet. Std implements the operator
 traits for the primitive numbers with intrinsic bodies and `Add` for
 `string`, and `std.time` can implement them for `Duration`, so `5s + 250ms` works. `std.time` is not yet written against
 them; that is library work, not a language question. Each binary

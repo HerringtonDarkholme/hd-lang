@@ -1,6 +1,6 @@
 # Strings: Go's Byte Model
 
-Status: owner decisions STR1-STR6 (2026-09-29), applied on 2026-09-29.
+Status: owner decisions STR1-STR10 (2026-09-29), applied on 2026-09-29.
 The specification is authoritative for them. They reverse the
 scalar-sequence model of
 [Strings](../spec/04-type-system.md#strings) and change
@@ -8,7 +8,7 @@ scalar-sequence model of
 [Indexing](../spec/05-expressions.md#indexing),
 [Ordering](../spec/05-expressions.md#ordering), and
 [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols).
-Points that need the owner are under [Still Open](#still-open).
+No point waits for the owner ([Still Open](#still-open)).
 
 > **Owner (2026-09-29).** "i regret one thing. hd lang's string. I think we
 > should follow golang here. make the representation simple, but perf not
@@ -48,16 +48,48 @@ Decided 2026-09-29. They are final.
    - Retired: `types.string.len` (scalar count), `types.string.no-indexing`,
      and the Note that `len` takes linear time.
 
+The owner answered the apply pass's points on 2026-09-29 (batch 8). They
+are final.
+
+7. **STR7: every bad `slice` offset panics as `index-out-of-bounds`.** This
+   covers an offset inside a scalar's encoding, an offset past the end, and
+   `a > b`. No new panic category is added.
+8. **STR8: "List/Map/string all has Index, string does not have
+   IndexSet".** The owner first chose no implementations, then gave this
+   final answer.
+   - `List[T]` implements `Index[i32]` with `Out = T`, and
+     `IndexSet[i32, T]`.
+   - `Map[K, V]` implements `Index[K]` with `Out = V`, a read that panics
+     on a missing key, and `IndexSet[K, V]`.
+   - `string` implements `Index[i32]` with `Out = u8`, and no `IndexSet`.
+   - Built-in indexing is unchanged. The implementations let generic code
+     index these types through a bound.
+9. **STR9: `s[i] = v` is `invalid-assignment-target`.** This confirms the
+   applied reading.
+10. **STR10: std error positions count bytes,** like every string
+    position: `EscapeError.offset`, `ParseNumberError.InvalidDigit`, and
+    the like.
+
+STR3 stands as applied: `s[i]` reads one byte as `u8`, in constant time,
+as in Go. The owner rejected an `as_bytes()` accessor: "as_bytes will
+still somehow alloc in hd". A `List` view of the bytes needs at least a
+new header object in Wasm GC, or a copy, while `s[i]` reads the byte with
+no allocation.
+
 ## Applied
 
 | Decision | Rules |
 | --- | --- |
 | STR1 | [`types.string.utf8-bytes`](../spec/04-type-system.md#r-types.string.utf8-bytes), [`.valid-utf8`](../spec/04-type-system.md#r-types.string.valid-utf8), [`.literal-utf8`](../spec/04-type-system.md#r-types.string.literal-utf8), [`.concat-bytes`](../spec/04-type-system.md#r-types.string.concat-bytes), [`.from-bytes`](../spec/04-type-system.md#r-types.string.from-bytes), [`.boundary`](../spec/04-type-system.md#r-types.string.boundary), [`.split-scalar`](../spec/04-type-system.md#r-types.string.split-scalar) |
 | STR2 | [`types.string.len-bytes`](../spec/04-type-system.md#r-types.string.len-bytes) |
-| STR3 | [String Indexing](../spec/05-expressions.md#string-indexing), [`expr.index.trait.read-other`](../spec/05-expressions.md#r-expr.index.trait.read-other), [`expr.index.trait.builtin-string`](../spec/05-expressions.md#r-expr.index.trait.builtin-string); the code `unsupported-string-indexing` is withdrawn |
+| STR3 | [String Indexing](../spec/05-expressions.md#string-indexing), [`expr.index.trait.read-other`](../spec/05-expressions.md#r-expr.index.trait.read-other); the code `unsupported-string-indexing` is withdrawn |
 | STR4 | [`flow.for.string-not-iterable`](../spec/06-control-flow.md#r-flow.for.string-not-iterable), [`flow.for.string-explicit`](../spec/06-control-flow.md#r-flow.for.string-explicit), [`module.string.chars`](../spec/10-modules.md#r-module.string.chars), [`.char-indices`](../spec/10-modules.md#r-module.string.char-indices), [`.bytes`](../spec/10-modules.md#r-module.string.bytes) |
-| STR5 | [`module.string.slice`](../spec/10-modules.md#r-module.string.slice), [`.shared`](../spec/10-modules.md#r-module.string.slice.shared), [`.boundary`](../spec/10-modules.md#r-module.string.slice.boundary) |
+| STR5 | [`module.string.slice`](../spec/10-modules.md#r-module.string.slice), [`.shared`](../spec/10-modules.md#r-module.string.slice.shared); the boundary rule is now STR7's |
 | STR6 | [`module.string.byte-offsets`](../spec/10-modules.md#r-module.string.byte-offsets), [`module.method.i32-bytes`](../spec/10-modules.md#r-module.method.i32-bytes), [`types.string.compare-bytes`](../spec/04-type-system.md#r-types.string.compare-bytes), [`expr.ord.std.string-bytes`](../spec/05-expressions.md#r-expr.ord.std.string-bytes), [`types.string.host-bytes`](../spec/04-type-system.md#r-types.string.host-bytes) |
+| STR7 | [`module.string.slice.bad-offset`](../spec/10-modules.md#r-module.string.slice.bad-offset), [`module.string.slice.reversed`](../spec/10-modules.md#r-module.string.slice.reversed); `module.string.slice.boundary` is retired |
+| STR8 | [Built-In Implementations](../spec/05-expressions.md#built-in-implementations): [`expr.index.std.list`](../spec/05-expressions.md#r-expr.index.std.list), [`.map`](../spec/05-expressions.md#r-expr.index.std.map), [`.string`](../spec/05-expressions.md#r-expr.index.std.string), [`.map-read`](../spec/05-expressions.md#r-expr.index.std.map-read), [`expr.index.trait.builtin-direct`](../spec/05-expressions.md#r-expr.index.trait.builtin-direct); `expr.index.trait.builtin-string` is retired |
+| STR9 | [`expr.index.string.no-assign`](../spec/05-expressions.md#r-expr.index.string.no-assign), unchanged |
+| STR10 | Not in the specification, which names no std error position; the library change is in [`std.text`](STDLIB.md#stdtext) |
 
 `string::from_utf8` and `Utf8Error` are std items outside the
 specification's scope; they are in [`std.text`](STDLIB.md#stdtext), with
@@ -66,13 +98,5 @@ that a conversion from bytes checks validity.
 
 ## Still Open
 
-The apply pass met these points. Each waits for the owner; the Applied
-column says what the specification states now.
-
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 1 | Which panic category does `s.slice(a, b)` use when an offset is not a scalar boundary? The category set in [`flow.panic.category-set`](../spec/06-control-flow.md#r-flow.panic.category-set) is closed, and none names a boundary. | "A checked runtime panic", with no category. A **scalar boundary** runs from `0` to the length, so an offset past the end panics too. | `index-out-of-bounds`: the offset is outside the positions the string accepts, and no new category is needed. |
-| 2 | What does `s.slice(a, b)` do when `a > b`, with both on scalar boundaries? STR5 names only the boundary case. | No rule | Panic with the category of point 1, as Go and Rust do. |
-| 3 | May generic code index a string through an `Index` bound? | No: [`expr.index.trait.builtin-string`](../spec/05-expressions.md#r-expr.index.trait.builtin-string) treats `string` as `List` and `Map` are treated, with built-in indexing and neither trait | Keep: the same rule for every built-in indexable type. |
-| 4 | Which code rejects `s[i] = v`? STR1 makes strings immutable but names no code. | `invalid-assignment-target`, the code for any index that is not a place ([`expr.index.string.no-assign`](../spec/05-expressions.md#r-expr.index.string.no-assign)) | Keep. |
-| 5 | Do std positions outside string methods count bytes too? `EscapeError.offset` and `ParseNumberError.InvalidDigit` count scalars in `lib/std`. STR6 names string methods only. | Not in the specification: these are std items | Byte offsets, so every position in std means one thing. |
+None. STR7-STR10 answered the five points the STR1-STR6 apply pass
+raised.

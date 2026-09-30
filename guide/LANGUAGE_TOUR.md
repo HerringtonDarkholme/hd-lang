@@ -247,7 +247,9 @@ A string is immutable UTF-8 bytes, as in Go. `len()` counts bytes and
 iterable, so say what you walk: `chars()` yields each `char`,
 `char_indices()` yields `(byte offset, char)` pairs like Go's `range`, and
 `bytes()` yields each `u8`. `slice(start, end)` takes byte offsets, and so
-do the positions that string methods return:
+do the positions that string methods return. An offset inside a
+character, past the end, or a `start` after `end` panics with
+`index-out-of-bounds`:
 
 ```text
 fn first_word(text: string) -> string:
@@ -1749,7 +1751,9 @@ an element. On a `data` value it stores a new value, so another reference
 to the old one is unaffected. Accumulators and builders change themselves
 through ordinary methods, such as `sb.push(x)`. `Index` and `IndexSet`
 give a type `grid[i]` and `grid[i] = v`, and `grid[i] += 1` reads, then
-stores. On a `Map`, `counts[w] += 1` reads the entry as if the key must
+stores. `List`, `Map`, and `string` implement `Index`, and `List` and `Map`
+implement `IndexSet`, so generic code bounded by them can index the
+built-ins; through the bound, a missing `Map` key panics. On a `Map`, `counts[w] += 1` reads the entry as if the key must
 exist, so it panics when `w` is absent; a plain read `counts[w]` still
 gives an optional.
 
