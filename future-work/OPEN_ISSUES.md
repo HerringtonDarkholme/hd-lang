@@ -181,13 +181,27 @@ argument is `invalid-error-marker`. The last point, the code for an
 
 ### Provider Scope Overlap
 
-**Owner direction (batch 13, Q4, 2026-09-30).** Nothing is decided.
+**Owner direction (batch 13, Q4, 2026-09-30).**
 [`req.with.nearest.forced`](../spec/11-requirements-and-suspension.md#r-req.with.nearest.forced)
 lets a callee's provider serve a callback's lookup of a key that the caller
-fixed in `R`. Before deciding, a research pass compares lexical row keys,
-as Effekt's tunneling does, with making that overlap an error, on hd's own
-requirement examples; then the owner is asked. A separate research task
-runs it, and chapter 11 is unchanged.
+fixed in `R`. A research pass compared lexical row keys, as Effekt's
+tunneling does, with making that overlap an error, on hd's own requirement
+examples; then the owner was asked.
+
+**Batch 14 (owner decision, 2026-09-30).** Decided, not yet applied. The
+owner's model, verbatim:
+
+> 1. if user needs lexical scoping, just capture the effect when they write the closure
+> 2. if user needs dynamic scoping, it is free
+
+The owner then chose "always explicit" over keeping the implicit capture of
+`$.with`-bound keys by closures. No new syntax, and no `mask`.
+
+| # | Decision |
+| --- | --- |
+| PS1 | Row keys stay dynamically scoped: a call receives the nearest provider in effect at the call ([`req.with.nearest`](../spec/11-requirements-and-suspension.md#r-req.with.nearest)). [`req.with.nearest.forced`](../spec/11-requirements-and-suspension.md#r-req.with.nearest.forced) is intended behavior, not a hazard: a callback that keeps a key in its row asks the call site to supply it. A Why note cites accidental handling (Zhang and Myers, POPL 2019) and says lexical scope is available by explicit capture. |
+| PS2 | Lexical scoping is explicit: the closure's writer captures the provider value with `$.use(K)`, as in `clock := $.use(Clock)` then `fn(): clock.now()`. The closure's row then omits the key, so no callee `$.with` can intercept it. This relies on [`req.use.value.flow`](../spec/11-requirements-and-suspension.md#r-req.use.value.flow). |
+| PS3 | No closure captures a `$.with`-bound key implicitly. A closure's use of any requirement key goes into its declared or inferred row and resolves at each call, whether the provider came from an enclosing `$.with` or from the function's row. Direct calls inside a `$.with` block are unchanged. A lazy adapter callback, or any closure that must have the empty row, needs an explicit `$.use` capture. Suspensions still bind providers at construction ([`req.bind.construction`](../spec/11-requirements-and-suspension.md#r-req.bind.construction)). The owner chose this over the recommendation, which kept implicit capture. |
 
 ### Serializable Closures And Incremental Computation
 
