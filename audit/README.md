@@ -9,10 +9,10 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-29 the prototype passes 1,399 of the 1,581 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 182 are listed in
+On 2026-09-30 the prototype passes 1,397 of the 1,594 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 197 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 182 still fail.
+decision below, and all 197 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
@@ -21,14 +21,14 @@ them by tag:
 | TDEF | 26 | no type-argument defaults, short explicit lists, `Rhs = Self` on the operator traits, or `argument-count` for a long list |
 | PIPE | 16 | no `\|>` token or `_` placeholder |
 | ATB | 19 | a binding names only the bound trait's own associated types; trait value types and requirement keys take no binding; no `ambiguous-associated-type`; an unbound requirement key is accepted |
-| LMUT | 18 | no parenthesized `let (a, b)` list, in a same-line suite or not, bare `let a, b` still accepted, no `mut-on-primitive` or `redundant-let-mut` |
+| LMUT | 25 | no parenthesized `let (a, b)` or `(a, b) :=` list, in a same-line suite or not, bare `let a, b` and `a, b :=` still accepted, no `mut-on-primitive` or `redundant-let-mut` |
 | F-250 | 15 | packs, GADT variant results, and package roles give generic diagnostics |
 | MREF | 10 | `Type::name` without a call is still `deferred-method-value` |
 | STR | 14 | `len` still counts scalars; `s[i]` is `unsupported-string-indexing`; no `chars`, `char_indices`, `bytes`, or `slice`; `List`, `Map`, and `string` implement no `Index` |
 | ITER | 8 | `Iterator` is still a trait; no `from_fn`, `map`, `fold`, or `Iterable` for iterators |
-| ERRD | 24 | no `@error` intrinsic or its batch 9 and 11 codes and bounds: `@error` resolves as an ordinary decorator, so `error`, `from`, and `source` are unknown names |
-| SF | 6 | spec follow-ups batch 10: `impl i32:` is `unknown-type`, a raw tab in a string is accepted, and `==` without `Eq` still reports `missing-partial-eq` |
-| PT | 5 | property-test batch 12: `int` and `float` are not generic, no `string(max_chars)`, `map`, `examples`, draw budget, `Arbitrary` template, or `arbitrary.with` |
+| ERRD | 25 | no `@error` intrinsic or its batch 9, 11, and 13 codes and bounds: `@error` resolves as an ordinary decorator, so `error`, `from`, and `source` are unknown names |
+| SF | 9 | spec follow-ups batches 10 and 13: `impl i32:`, `impl (i32, i32):`, and `impl Shape:` are `unknown-type`, an inherent implementation on an alias is accepted, a raw tab in a string is accepted, and `==` without `Eq` still reports `missing-partial-eq` |
+| PT | 9 | property-test batches 12 and 13: `int` and `float` are not generic, no `string(max_chars)`, `map`, `examples`, draw budget, `Arbitrary` template, or generic `arbitrary.with` |
 | EMB-S | 4 | trait availability needs package roles |
 | P2 | 4 | member visibility needs package roles |
 | COLLECT | 4 | `collect` returns only `List[T]`, and there is no `FromIterator` |
