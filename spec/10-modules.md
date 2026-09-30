@@ -841,10 +841,12 @@ randomness a generator sees:
 ```text
 pub fn it_prop[T < Arbitrary & Debug, R < Termination](name: string, ignore: string? = .None,
                                                        expect_panic: string? = .None, timeout: Duration? = .None,
-                                                       cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void
+                                                       cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
+                                                       prop: fn!(T) -> R) -> void
 pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
                                                 expect_panic: string? = .None, timeout: Duration? = .None,
-                                                cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void
+                                                cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
+                                                prop: fn!(T) -> R) -> void
 
 trait Arbitrary:
     fn arbitrary(c: mut Choices) -> Self
@@ -852,26 +854,33 @@ trait Arbitrary:
 
 | Rule | Member of `Choices` | Draws |
 | --- | --- | --- |
-| r[module.testing.choices.int] Integer | `fn int(mut self, lo: i64, hi: i64) -> i64` | an integer from `lo` to `hi` |
-| r[module.testing.choices.float] Float | `fn float(mut self, lo: f64, hi: f64) -> f64` | a float from `lo` to `hi` |
+| r[module.testing.choices.int-generic] Integer | `fn int[N < Integer](mut self, lo: N, hi: N) -> N` | an integer from `lo` to `hi` |
+| r[module.testing.choices.float-generic] Float | `fn float[F < Float](mut self, lo: F, hi: F) -> F` | a finite float from `lo` to `hi` |
 | r[module.testing.choices.bool] Boolean | `fn bool(mut self) -> bool` | a `bool` |
 | r[module.testing.choices.pick] Pick | `fn pick[T](mut self, items: List[T]) -> T` | one of `items`; earlier items shrink first |
 | r[module.testing.choices.list] List | `fn list[T](mut self, max: i32, item: fn(mut Choices) -> T) -> List[T]` | at most `max` items, each drawn by `item` |
-| r[module.testing.choices.string] String | `fn string(mut self, max: i32) -> string` | a string of at most `max` characters |
+| r[module.testing.choices.map] Map | `fn map[K < Eq & Hash, V](mut self, max: i32, key: fn(mut Choices) -> K, value: fn(mut Choices) -> V) -> Map[K, V]` | at most `max` entries, each key drawn by `key` and its value by `value` |
+| r[module.testing.choices.string-chars] String | `fn string(mut self, max_chars: i32) -> string` | a string of at most `max_chars` chars |
 | r[module.testing.choices.assume] Assume | `fn assume(mut self, ok: bool) -> void` | nothing; a false `ok` discards the case |
 | r[module.testing.choices.draw] Draw | `fn draw[T < Arbitrary](mut self) -> T` | `T::arbitrary(self)`, the type's default |
 
 1. r[module.testing.choices.declare] `std.testing` declares `Choices`, `Arbitrary`, `it_prop`, and `it_prop_with`. None is a prelude name.
 2. r[module.testing.choices.runner] The runner creates every `Choices`. It records each draw, so the runner can replay and shrink a case.
-3. r[module.testing.arbitrary] `Arbitrary` gives a type its default generator, which `it_prop` and `Choices.draw` use.
-4. r[module.testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
-5. r[module.testing.prop.debug] `it_prop` and `it_prop_with` require `T < Debug`. A property whose input type does not implement `Debug` is an error. Error: `unsatisfied-trait-bound`.
-6. r[module.testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
-7. r[module.testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
-8. r[module.testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
-9. r[module.testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshots).
-10. r[module.testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
-11. r[module.testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
+3. r[module.testing.choices.no-size] `Choices` has no size: no member reads or sets one, and no option of `it_prop` or `it_prop_with` sets one.
+4. r[module.testing.choices.string-limit] The limit of `string` counts `char` values, not bytes.
+5. r[module.testing.choices.map.duplicate] When `key` draws a key that the map already holds, the later value replaces the earlier one. So the map may hold fewer entries than were drawn.
+6. r[module.testing.arbitrary] `Arbitrary` gives a type its default generator, which `it_prop` and `Choices.draw` use.
+7. r[module.testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
+8. r[module.testing.arbitrary.float] The `Arbitrary` implementations of `f32` and `f64` draw any value of the type, including NaN, both infinities, `-0.0`, and subnormal values, as Hypothesis's `floats()` does.
+9. r[module.testing.prop.debug] `it_prop` and `it_prop_with` require `T < Debug`. A property whose input type does not implement `Debug` is an error. Error: `unsatisfied-trait-bound`.
+10. r[module.testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
+11. r[module.testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
+12. r[module.testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
+13. r[module.testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
+14. r[module.testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
+15. r[module.testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshots).
+16. r[module.testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
+17. r[module.testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
 
 ```text
 use std.testing.{Arbitrary, Choices}
@@ -886,6 +895,12 @@ impl Arbitrary for Point:
 
 fn small_counts(c: mut Choices) -> List[i64]:
     c.list(3, fn(inner: mut Choices) -> i64: inner.int(0, 10))
+
+fn label(c: mut Choices) -> string:
+    c.string(max_chars=8)
+
+fn stock(c: mut Choices) -> Map[string, i32]:
+    c.map(5, key=label, value=fn(inner: mut Choices) -> i32: inner.int(0, 99))
 ```
 
 ```text
@@ -904,8 +919,86 @@ tests:
     )
 ```
 
-> **Note.** How often a draw returns boundary values, and how the runner
-> shrinks a failing case, are runner behavior, not rules of this chapter.
+> **Why.** A generator draws the parts of its value in order, so a later
+> draw may depend on an earlier one. The runner shrinks the recorded draws,
+> not the value, so it needs no size.
+
+#### Draw Budget
+
+1. r[module.testing.budget] Each case has a draw budget. Once the case's draws have spent it, every draw returns its simplest value.
+2. r[module.testing.budget.no-api] No member of `Choices` reads or changes the budget.
+3. r[module.testing.budget.every-draw] The budget applies to every draw from the case's `Choices`, including a hand-written generator's. So a recursive generator whose simplest draws choose a leaf ends.
+
+| Rule | Draw | Simplest value |
+| --- | --- | --- |
+| r[module.testing.budget.simplest.int] Integer | `int` and the default integer generators | `0`, or the bound nearest `0` when `0` is out of range |
+| r[module.testing.budget.simplest.float] Float | `float` and the default `f32` and `f64` generators | `0.0`, or the bound nearest `0.0` when `0.0` is out of range |
+| r[module.testing.budget.simplest.bool] Boolean | `bool` | `false` |
+| r[module.testing.budget.simplest.pick] Pick | `pick` | the first item |
+| r[module.testing.budget.simplest.empty] Collections | `list`, `map`, and `string` | an empty list, map, or string |
+
+```text
+use std.testing.Choices
+
+enum Tree:
+    Leaf
+    Node(left: Tree, right: Tree)
+
+fn tree(c: mut Choices) -> Tree:
+    match c.int(0, 2):
+        0 => .Leaf
+        _ => .Node(tree(c), tree(c))
+```
+
+Once the budget is spent, `c.int(0, 2)` returns `0`, so `tree` returns
+`.Leaf`.
+
+#### Derived Arbitrary
+
+1. r[module.testing.arbitrary.derive] `@derive(Arbitrary)` derives `Arbitrary` through its [template](14-annotations.md#templates). The derived `arbitrary` draws each member with its type's `Arbitrary`. For an enum, it draws a variant, then that variant's payload.
+2. r[module.testing.arbitrary.derive.simplest] A derived enum's simplest choice is its first non-recursive variant, whatever the declaration order.
+3. r[module.testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
+4. r[module.testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
+5. r[module.testing.arbitrary.with.unchecked] The compiler does not check `gen` against the member's type, as for any [metadata value](14-annotations.md#member-metadata).
+6. r[module.testing.arbitrary.with.mismatch] When `gen` is not a `fn(mut Choices) -> T` for the member's type `T`, the derived `arbitrary` panics on the property's first case. The message names the member and the generator type it expected.
+7. r[module.testing.arbitrary.with.no-fallback] The derived `arbitrary` never ignores a mismatched generator, and never falls back to the member type's own `Arbitrary`.
+
+```text
+use std.testing.{Arbitrary, Choices, assert, it_prop}
+use std.testing.arbitrary
+
+fn cents(c: mut Choices) -> i32:
+    c.int(0, 10_000)
+
+@derive(Arbitrary, Debug)
+data Item:
+    name: string
+    @arbitrary.with(cents)
+    price: i32
+
+@derive(Arbitrary, Debug)
+enum Expr:
+    Add(left: Expr, right: Expr)
+    Num(value: i32)
+
+tests:
+    it_prop("prices are never negative", examples=[Item { name: "", price: 0 }], prop=fn!(item: Item):
+        assert(item.price >= 0, reason="cents draws from 0 to 10_000")
+    )
+```
+
+`Expr`'s simplest choice is `Num`, although `Add` comes first.
+
+> **Why.** One fact that holds a whole generator covers every range,
+> length, and shape, so derived `Arbitrary` needs no range or length facts.
+> A fact generic in its member's type, such as `With[T]`, is not used:
+> looking up `With[i32]` would miss a `With[string]` and silently use the
+> default generator.
+
+> **Note.** These are runner behavior, not rules of this chapter: how often
+> a draw returns small and boundary values, any small-first order of cases,
+> and the size of the draw budget. So are which chars `string` draws and
+> how the runner shrinks a failing case.
 
 ### Test Outcomes
 

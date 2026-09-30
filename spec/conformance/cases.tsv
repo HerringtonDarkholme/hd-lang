@@ -1575,3 +1575,8 @@ typing/invalid/error-argument-identifier.hd	type	reject:invalid-error-marker	14-
 typing/invalid/error-argument-number.hd	type	reject:invalid-error-marker	14-annotations.md#r-annot.error.form.argument
 typing/invalid/error-extra-argument.hd	type	reject:invalid-error-marker	14-annotations.md#r-annot.error.form.argument
 typing/valid/error-interpolated-bound.hd	type	accept	14-annotations.md#r-annot.error.bound.interpolated
+typing/valid/choices-generic-draws.hd	type	accept	10-modules.md#r-module.testing.choices.int-generic
+runtime/valid/property-draw-budget.hd	runtime	accept	10-modules.md#r-module.testing.budget
+runtime/valid/derived-arbitrary-with.hd	runtime	accept	10-modules.md#r-module.testing.arbitrary.with
+runtime/valid/derived-arbitrary-with-mismatch.hd	runtime	accept	10-modules.md#r-module.testing.arbitrary.with.mismatch
+typing/invalid/property-examples-wrong-type.hd	type	reject:type-mismatch	10-modules.md#r-module.testing.prop.examples

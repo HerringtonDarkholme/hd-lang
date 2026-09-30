@@ -1920,3 +1920,23 @@ existing source. Each entry names the decision that made the change.
   `P < Display & Inspectable` on the generated `Error`, a bound that was
   undecided before. The two readings of batch 9 stay as applied. No rule
   ID is retired.
+- Property-test API batch 12 (Testing PT1-PT9, owner decisions in
+  [Testing](../future-work/TESTING.md#owner-decisions), 2026-09-29):
+  `Choices.int` and `Choices.float` are generic, as
+  `int[N < Integer](lo: N, hi: N) -> N` and
+  `float[F < Float](lo: F, hi: F) -> F`, so a draw takes its type from its
+  bounds or its context. `value := c.int(0, 100)` is now an `i32`, and
+  code that needs an `i64` writes `let value: i64 = c.int(0, 100)`.
+  `float` draws only finite values. `Choices.string`'s parameter is
+  renamed `max_chars` and counts chars, and `Choices.map` is new.
+  `Choices` has no size, and a per-case draw budget, with no API, makes
+  every draw return its simplest value once it is spent. `it_prop` and
+  `it_prop_with` take `examples: List[T] = []`, run first on every run.
+  A property body cannot discard a case. The default `f32` and `f64`
+  generators include NaN, the infinities, `-0.0`, and subnormals.
+  `@derive(Arbitrary)` is specified, tuned by one member fact,
+  `arbitrary.with(gen)`; a generator of the wrong type panics on the
+  first case. Retired: `module.testing.choices.int`,
+  `module.testing.choices.float`, and `module.testing.choices.string`,
+  replaced by `module.testing.choices.int-generic`, `.float-generic`, and
+  `.string-chars`.

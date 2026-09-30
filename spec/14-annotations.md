@@ -441,7 +441,10 @@ fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
 
 The language does not check that a metadata value suits its member's type.
 The code that reads the value checks it, and a fact type has no
-compile-time check hook.
+compile-time check hook. So a derived `Arbitrary` finds an
+`arbitrary.with` generator of the wrong type only when a test runs, as
+[`module.testing.arbitrary.with.mismatch`](10-modules.md#r-module.testing.arbitrary.with.mismatch)
+states.
 
 Reusable compositions are ordinary values or lists, not new language syntax:
 

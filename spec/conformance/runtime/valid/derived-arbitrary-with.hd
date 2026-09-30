@@ -1,0 +1,23 @@
+# test: derived Arbitrary draws a member by its arbitrary.with generator, and examples run
+# Spec 10 Derived Arbitrary: module.testing.arbitrary.derive and .with; Property Tests:
+# module.testing.prop.examples (Testing PT2, PT7).
+use std.testing.{Arbitrary, Choices, assert, it_prop}
+use std.testing.arbitrary
+
+fn cents(c: mut Choices) -> i32:
+    c.int(7, 7)
+
+@derive(Arbitrary, Debug)
+data Item:
+    name: string
+    @arbitrary.with(cents)
+    price: i32
+
+tests:
+    it_prop("prices come from cents", prop=fn!(item: Item):
+        assert(item.price == 7, reason="cents always draws 7")
+    )
+
+    it_prop("prices are never negative", examples=[Item { name: "", price: 0 }], prop=fn!(item: Item):
+        assert(item.price >= 0, reason="cents draws 7, and the example has 0")
+    )

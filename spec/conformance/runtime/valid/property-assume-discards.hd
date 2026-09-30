@@ -10,7 +10,7 @@ impl Arbitrary for Reading:
         Reading { level: c.int(0, 9) }
 
 fn even(c: mut Choices) -> i64:
-    value := c.int(0, 100)
+    let value: i64 = c.int(0, 100)
     c.assume(value % 2 == 0)
     value
 

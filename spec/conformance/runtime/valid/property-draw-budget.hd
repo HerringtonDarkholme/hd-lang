@@ -1,0 +1,38 @@
+# test: the draw budget ends a leaf-first recursive generator and a derived recursive enum
+# Spec 10 Draw Budget: module.testing.budget and .budget.every-draw; Derived Arbitrary:
+# module.testing.arbitrary.derive.simplest picks Num although Add comes first (Testing PT6).
+use std.testing.{Arbitrary, Choices, assert, it_prop, it_prop_with}
+
+@derive(Debug)
+enum Tree:
+    Leaf
+    Node(left: Tree, right: Tree)
+
+fn tree(c: mut Choices) -> Tree:
+    match c.int(0, 2):
+        0 => .Leaf
+        _ => .Node(tree(c), tree(c))
+
+fn size(t: Tree) -> i32:
+    match t:
+        .Leaf => 1
+        .Node(left, right) => size(left) + size(right) + 1
+
+@derive(Arbitrary, Debug)
+enum Expr:
+    Add(left: Expr, right: Expr)
+    Num(value: i32)
+
+fn depth(e: Expr) -> i32:
+    match e:
+        .Num(_) => 1
+        .Add(left, right) => depth(left) + depth(right)
+
+tests:
+    it_prop_with("generated trees are finite", gen=tree, prop=fn!(t: Tree):
+        assert(size(t) >= 1, reason="every tree ends in leaves")
+    )
+
+    it_prop("derived expressions are finite", prop=fn!(e: Expr):
+        assert(depth(e) >= 1, reason="every expression ends in numbers")
+    )
