@@ -34,24 +34,20 @@ points (LM), and stated three clarifications:
 | Q1b | The grouped form `(a, b := value)` is dropped; a nested use writes `((a, b) := value)`. | [Multi-Name Bindings](../spec/02-grammar.md#multi-name-bindings) |
 | LM-a | A list name written `mut` whose annotated element is already `mut` warns `redundant-let-mut`. The fix-it removes the name-level `mut`, never the annotation. | [`types.bind.let-mut-pattern.redundant`](../spec/04-type-system.md#r-types.bind.let-mut-pattern.redundant), [`types.bind.let-mut-annotated.fix`](../spec/04-type-system.md#r-types.bind.let-mut-annotated.fix) |
 | LM-b | `mut self` in an impl whose `Self` is primitive is not `mut-on-primitive`. | [`types.prim.no-mut.self`](../spec/04-type-system.md#r-types.prim.no-mut.self) |
+| LM-c | Batch 16: in such a method the `mut` is dropped, so `self` has the plain type `Self`, as in `i32`, and `self + 1` type-checks. | [`types.prim.no-mut.self-type`](../spec/04-type-system.md#r-types.prim.no-mut.self-type) |
 | CLO1 | A closure is monomorphic, and `fn[T](x: T): x` is a `syntax-error`. | [`fn.closure.monomorphic`](../spec/07-functions.md#r-fn.closure.monomorphic) |
 | Q-? | The operand of `x?` gets an expected type as an inference hint, never a coercion. | [`expr.try.expected`](../spec/05-expressions.md#r-expr.try.expected) |
 | Q-map | std writes the `Iterable` and `FromIterator` impls for `Map` with `K < Eq & Hash`; no new rule. | [Collect Targets](../spec/06-control-flow.md#collect-targets) |
 
-**Still open from applying batch 15.** The specification is unchanged for
-this point.
+**Batch 16 (owner decision, 2026-09-30).** Applied; the
+[Revision Notes](../spec/README.md#revision-notes) list TB1 and LM-c. LM-c
+answers the point left open by applying batch 15 and is in the table
+above.
 
-| # | Question | **Recommendation** |
+| # | Decision | Where |
 | --- | --- | --- |
-| LM-c | In a `mut self` method of an impl for `i32`, what is the type of `self`? LM-b makes the receiver valid, but no rule gives its type. The prototype types it `mut i32`, so `self + 1` is a `type-mismatch`. | `self` has the plain type `Self`, here `i32`, since a primitive has no `mut` form ([`types.prim.no-mut`](../spec/04-type-system.md#r-types.prim.no-mut)). |
-
-```text
-trait Counter:
-    fn bump(mut self) -> i32
-
-impl Counter for i32:
-    fn bump(mut self) -> i32: self + 1  # type-mismatch in the prototype
-```
+| TB1 | Editorial: the next-line rule names its code, `syntax-error`. `if close: trailing(): xxx` and `if close: trailing:` with an indented body are both errors; the valid forms indent the `if` body or write `trailing(fn(): xxx)`. | [`grammar.call.trailing-block.next-line`](../spec/02-grammar.md#r-grammar.call.trailing-block.next-line) |
+| AUD | Delete four audit inputs that back no open finding: `audit/scripts/runtime/provider-config.ts`, `audit/probes/runtime/config/gate.hd`, `audit/probes/runtime/truncated/`, and `audit/scripts/runtime/suspension-fixtures.txt`. | [audit/README.md](../audit/README.md) |
 
 ### Bound And Row Operators
 
