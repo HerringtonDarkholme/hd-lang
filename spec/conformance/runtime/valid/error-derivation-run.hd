@@ -1,0 +1,94 @@
+# test: @error messages, causes, From conversions, and transparent forwarding at run time
+# Spec 14 Error Derivation: a message interpolates members, a variant without one shows its
+# name, cause returns the @from or @source member, and a transparent error forwards both.
+use std.error.Error
+use std.testing.assert_equal
+
+@error
+enum FsError:
+    @error("not found: $path")
+    NotFound(path: string)
+    @error("permission denied: $_0")
+    Denied(string)
+    Busy
+
+@error("bad yaml at line $line")
+data YamlError:
+    line: i64
+
+@error
+enum LoadError:
+    @error("cannot read $path")
+    Read(path: string, @source error: FsError)
+    @error("cannot open $path")
+    Open(path: string, @source error: FsError?)
+    @error("bad config")
+    Yaml(@from error: YamlError)
+    @error(transparent)
+    Fs(@from error: FsError)
+
+@error(transparent)
+data PublicError:
+    @from
+    repr: LoadError
+
+fn cause_text(error: Error) -> string:
+    match error.cause():
+        .Some(cause) => cause.to_string()
+        .None => "none"
+
+fn parse(text: string) -> Result[i64, YamlError]:
+    if text == "": .Err(YamlError { line: 3 }) else: .Ok(1)
+
+fn load(text: string) -> Result[i64, LoadError]:
+    value := parse(text)?
+    .Ok(value)
+
+fn publish(text: string) -> Result[i64, PublicError]:
+    value := load(text)?
+    .Ok(value)
+
+fn load_text(result: Result[i64, LoadError]) -> string:
+    match result:
+        .Ok(_) => "ok"
+        .Err(error) => error.to_string() + " / " + cause_text(error)
+
+fn publish_text(result: Result[i64, PublicError]) -> string:
+    match result:
+        .Ok(_) => "ok"
+        .Err(error) => error.to_string() + " / " + cause_text(error)
+
+tests:
+    it("a message interpolates named and unnamed payload members"):
+        assert_equal(FsError.NotFound("a.txt").to_string(), "not found: a.txt", reason="a named member")
+        assert_equal(FsError.Denied("b.txt").to_string(), "permission denied: b.txt", reason="_0")
+
+    it("a data type's message interpolates its fields"):
+        assert_equal(YamlError { line: 3 }.to_string(), "bad yaml at line 3", reason="a field")
+
+    it("a variant without a message displays as its variant name"):
+        assert_equal(FsError.Busy.to_string(), "Busy", reason="the variant name")
+
+    it("a variant without @from or @source has no cause"):
+        assert_equal(cause_text(FsError.Busy), "none", reason="no automatic cause")
+
+    it("a @source member is the cause"):
+        assert_equal(cause_text(LoadError.Read("c.txt", FsError.Busy)), "Busy", reason="the source")
+
+    it("an optional @source member gives a cause only when present"):
+        assert_equal(cause_text(LoadError.Open("c.txt", .None)), "none", reason="an absent cause")
+        assert_equal(cause_text(LoadError.Open("c.txt", FsError.Busy)), "Busy", reason="a present cause")
+
+    it("? converts through the generated From, and @from marks the cause"):
+        assert_equal(load_text(load("")), "bad config / bad yaml at line 3", reason="From[YamlError]")
+        assert_equal(load_text(load("x")), "ok", reason="no error")
+
+    it("a transparent variant forwards its message and its payload's cause"):
+        let wrapped: LoadError = LoadError.Fs(FsError.NotFound("d.txt"))
+        assert_equal(wrapped.to_string(), "not found: d.txt", reason="the payload's message")
+        assert_equal(cause_text(wrapped), "none", reason="the payload's own cause")
+
+    it("a transparent data type forwards to its field and converts with From"):
+        assert_equal(publish_text(publish("")), "bad config / bad yaml at line 3", reason="From[LoadError]")
+        let public: PublicError = PublicError { repr: LoadError.Read("e.txt", FsError.Busy) }
+        assert_equal(cause_text(public), "Busy", reason="the field's cause")

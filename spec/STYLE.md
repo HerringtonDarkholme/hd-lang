@@ -1454,3 +1454,6 @@ style lint rejects a chapter that reuses one.
   offsets. Replaced by `module.method.i32-bytes`.
 - `module.string.scalar`: retired 2026-09-29. STR1 makes strings UTF-8
   bytes. Replaced by `module.string.utf8` and `module.string.byte-offsets`.
+- `trait.error.api`: retired 2026-09-29. Error Conversion decision 10
+  makes the compiler generate `cause`, so the specification states its
+  signature. Replaced by `trait.error.cause` and `trait.error.api-helpers`.

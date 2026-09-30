@@ -1,0 +1,11 @@
+# test: outside an error type, @from is an ordinary decorator that must resolve
+# Spec 14 Error Types: annot.error.marker.outside; with no binding named from, the name is unknown.
+use std.error.Error
+
+@error
+enum ReadError:
+    @error("closed")
+    Closed
+
+enum Plain:
+    Wrap(@from error: ReadError)  # diagnostic: unknown-name

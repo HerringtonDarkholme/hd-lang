@@ -19,8 +19,8 @@ objects automatically.
 The design principles are:
 
 1. attached values are ordinary typed values;
-2. derived behavior is requested explicitly, with `@derive` or a derivation
-   block;
+2. derived behavior is requested explicitly, with `@derive`, `@error`, or a
+   derivation block;
 3. runtime information is produced explicitly when requested;
 4. the semantic foundation is ordinary traits, implementations, values, and
    compiler-provided shape values.
@@ -394,7 +394,7 @@ local functions.
 
 `@derive` uses the same prefix position but is not an ordinary decorator.
 It stays a compiler intrinsic, as `@error` does
-([Error Conversion decision 10](../future-work/ERROR_CONVERSION.md#owner-decisions)).
+([Error Derivation](#error-derivation)).
 Its arguments are trait names rather than metadata values. The compiler
 checks and generates each requested implementation.
 [Opting In](#opting-in) defines which traits it accepts.
@@ -617,8 +617,7 @@ impl Show for Point by Structure:  # error: overlapping-impl
 ```
 
 > **Note.** An error type uses the separate `@error` intrinsic, as
-> [Error Conversion decision 10](../future-work/ERROR_CONVERSION.md#owner-decisions)
-> records.
+> [Error Derivation](#error-derivation) defines.
 
 ### The `std.structure` Module
 
@@ -1278,3 +1277,237 @@ An implementation must not guess them:
 | `Clone`'s module | Which standard module declares `Clone`. It is chosen with the standard library. |
 | Derived-function cache | The API of the standard cache for derived associated functions. It is chosen with the standard library. |
 | Function targets | Deriving for functions, as tool adapters need ([FN_TYPE questions 9 and 10](../future-work/FN_TYPE.md#9-how-do-tool-adapters-get-per-declaration-data)). A decorator before a function attaches a value, as [Prefix Decorators](#prefix-decorators) defines. |
+
+## Error Derivation
+
+**Error derivation** implements `Display`, `std.error.Error`, and `From`
+for an error type from its `@error` lines. It is Rust's `thiserror` in hd:
+messages, `@from`, `@source`, and transparent errors.
+
+```text
+use std.error.Error
+
+data YamlError:
+    line: i64
+
+impl Display for YamlError:
+    fn to_string(self) -> string:
+        "bad yaml at line ${self.line}"
+
+impl Error for YamlError
+
+@error
+enum FsError:
+    @error("not found: $path")
+    NotFound(path: string)
+    @error("permission denied: $_0")
+    Denied(string)
+    Busy
+
+@error
+enum LoadError:
+    @error("cannot read $path")
+    Read(path: string, @source error: FsError)
+    @error("bad config")
+    Yaml(@from error: YamlError)
+    @error(transparent)
+    Fs(@from error: FsError)
+
+@error("config $name is missing")
+data MissingConfig:
+    name: string
+
+fn parse(text: string) -> Result[i64, YamlError]:
+    .Err(YamlError { line: 1 })
+
+fn load(text: string) -> Result[i64, LoadError]:
+    value := parse(text)?
+    .Ok(value)
+```
+
+`load` converts a `YamlError` through the generated
+`impl From[YamlError] for LoadError`. `FsError.Busy` displays as `Busy`.
+
+### Error Types
+
+1. r[annot.error.intrinsic] `@error` is a compiler intrinsic, as `@derive` is. It is not an ordinary decorator and attaches no value.
+2. r[annot.error.name] `@error` always means the intrinsic. A binding named `error` in scope, such as an import, does not change it.
+3. r[annot.error.type] An **error type** is an enum with a bare `@error` line, or a data type with an `@error("...")` or `@error(transparent)` line.
+4. r[annot.error.generates] For an error type `E`, the compiler generates `impl Display for E`, `impl Error for E`, and one `impl From[P] for E` for each `@from` member.
+5. r[annot.error.ordinary] The generated implementations are ordinary implementations, under the ordinary rules for coherence and overlap.
+6. r[annot.error.hand-written] A hand-written implementation of `Display`, `Error`, or a generated `From[P]` for an error type is an error, reported on that implementation. Error: `overlapping-impl`.
+
+The forms are:
+
+| Rule | Form | Written before | Meaning |
+| --- | --- | --- | --- |
+| r[annot.error.form.enum] Error enum | `@error` | an enum | makes the enum an error type |
+| r[annot.error.form.variant-message] Variant message | `@error("...")` | a variant of an error enum | the variant's message |
+| r[annot.error.form.variant-transparent] Transparent variant | `@error(transparent)` | a variant of an error enum with one payload member | forwards the message and the cause to that member |
+| r[annot.error.form.data-message] Error data type | `@error("...")` | a data type | makes it an error type with that message |
+| r[annot.error.form.data-transparent] Transparent data type | `@error(transparent)` | a data type with one field | makes it an error type that forwards to that field |
+| r[annot.error.form.from] Conversion marker | `@from` | the only payload parameter of a variant of an error enum, or the only field of an error data type | generates `From` and marks the cause |
+| r[annot.error.form.source] Cause marker | `@source` | one payload parameter of a variant of an error enum, or one field of an error data type | marks the cause |
+
+7. r[annot.error.form.other] Any other `@error` line is invalid, and so is any other `@from` or `@source` line inside an error type.
+8. r[annot.error.marker] Inside an error type, `from`, `source`, and `transparent` in these forms are markers, not names. A binding with the same name does not change them.
+9. r[annot.error.marker.no-value] A marker attaches no value, so it is neither member metadata nor a fact.
+10. r[annot.error.marker.outside] Outside an error type, `@from` and `@source` have no special meaning: each is an ordinary decorator.
+
+```text
+use std.error.Error
+
+@error
+enum ReadError:
+    @error("closed")
+    Closed
+
+impl Display for ReadError:  # error: overlapping-impl
+    fn to_string(self) -> string: "read error"
+
+enum Plain:
+    Wrap(@from error: ReadError)  # error: unknown-name
+```
+
+> **Why.** Typed derivation generates one implementation per trait. An
+> error type needs one `From` per marked variant, each a different
+> instantiation, and `Display`, `Error`, and `From` all come from the same
+> markers. One intrinsic generates them together.
+
+> **Why.** Error derivation has no error codes. Inside a program the
+> variant is the code: code finds it with `find[T]()` and matches it. Codes
+> for logs and APIs belong to a boundary-safe report type.
+
+### Error Messages
+
+1. r[annot.error.message.string] A message is an ordinary interpolated string, as [String Interpolation](05-expressions.md#string-interpolation) defines.
+2. r[annot.error.message.scope] A variant's message sees the variant's named payload members by name, and its unnamed payload members as `_0`, `_1`, and so on.
+3. r[annot.error.message.unnamed] Unnamed payload members are numbered from zero, in declaration order.
+4. r[annot.error.message.shared] A variant's message also sees the enum's named [shared fields](08-data-and-enums.md#shared-fields) by name.
+5. r[annot.error.message.data] A data type's message sees the type's fields by name.
+6. r[annot.error.message.checked] A message is type-checked as ordinary code in that scope. A name that resolves to nothing is an error. Error: `unknown-name`.
+7. r[annot.error.message.display] Each interpolated value must implement `Display`, as [`expr.interp.no-display`](05-expressions.md#r-expr.interp.no-display) requires. Error: `unsatisfied-trait-bound`.
+8. r[annot.error.message.no-self] A message is not inside a method, so `$self` in a message is invalid.
+9. r[annot.error.message.eval] The generated `to_string` evaluates the value's message each time it is called, with the value's members bound.
+10. r[annot.error.message.absent] A variant without a message displays as its variant name, as `FsError.Busy` displays as `Busy`.
+
+```text
+data Span:
+    start: i64
+
+@error
+enum ParseError:
+    @error("bad token $token")  # error: unknown-name
+    BadToken(text: string)
+    @error("bad span $span")  # error: unsatisfied-trait-bound
+    BadSpan(span: Span)
+```
+
+> **Why.** `$self` would call the generated `to_string` from inside itself
+> and never finish.
+
+### Error Causes
+
+1. r[annot.error.cause.method] The generated `Error` implementation defines [`cause`](09-traits.md#r-trait.error.cause), which returns the value's cause member, or `.None` when it has none.
+2. r[annot.error.cause.member] A variant's or data type's cause member is its `@from` or `@source` member.
+3. r[annot.error.cause.explicit] A variant or data type without `@from` or `@source` has no cause. There is no automatic cause and no field-name convention.
+4. r[annot.error.cause.one] A variant or data type has at most one `@from` or `@source` member. A second one is invalid.
+5. r[annot.error.cause.type] A cause member's type must implement `Error`.
+6. r[annot.error.cause.optional] A `@source` member may instead have the type `E?`, where `E` implements `Error`. A `.None` member gives no cause.
+
+```text
+use std.error.Error
+
+@error("disk full")
+data DiskError:
+    free: i64
+
+@error
+enum SaveError:
+    @error("cannot save $path")
+    Write(path: string, @source error: DiskError?)
+    @error("save failed")
+    Other(@source error: DiskError)
+```
+
+### Error Conversions
+
+1. r[annot.error.from.generate] `@from` on a variant's only payload member of type `P` generates `impl From[P] for E`, whose `from` builds that variant.
+2. r[annot.error.from.data] `@from` on an error data type's only field generates the same implementation, whose `from` builds the data value.
+3. r[annot.error.from.unmarked] A member without `@from` generates no `From`, so `Invalid(reason: string)` never yields `From[string]`.
+4. r[annot.error.from.same-type] Two `@from` members of one type `P` generate overlapping implementations of `From[P]`. The later one is an error, reported on its member. Error: `overlapping-impl`.
+5. r[annot.error.from.type-parameter] A `@from` member whose type is a bare type parameter is invalid.
+
+```text
+use std.error.Error
+
+@error("bad yaml")
+data YamlError:
+    line: i64
+
+@error
+enum RuleError:
+    @error("bad utils")
+    Utils(@from error: YamlError)
+    @error("bad rule")
+    Rule(@from error: YamlError)  # error: overlapping-impl
+```
+
+> **Why.** `impl[E] From[E] for AppError[E]` would overlap every other
+> `From` of `AppError`, as a generic `#[from]` field does in Rust. Code
+> converts such an error explicitly, as in `map_err(AppError.Inner)`.
+
+### Transparent Errors
+
+1. r[annot.error.transparent.display] A transparent variant or data type displays as its one member displays.
+2. r[annot.error.transparent.cause] Its `cause` returns that member's own `cause`, so a chain does not repeat the inner message.
+3. r[annot.error.transparent.type] The member's type must implement `Error`.
+
+```text
+use std.error.Error
+
+@error
+enum RepoError:
+    @error("missing $_0")
+    Missing(string)
+
+@error(transparent)
+pub data PublicError:
+    @from
+    repr: RepoError
+```
+
+`PublicError` hides `RepoError` behind a stable public type, and `?`
+converts a `RepoError` into it.
+
+> **Note.** Because a transparent value's `cause` skips the inner error,
+> `find[Inner]()` does not see that inner error itself, as in Rust.
+
+### Generated Error Bounds
+
+1. r[annot.error.bound.display] For a generic error type, the generated `Display` gets `P < Display` for each type parameter `P` that is the type of an interpolated member or a transparent member.
+2. r[annot.error.bound.error] The generated `Error` gets `P < Error` for each type parameter `P` that is the type of a `@from` or `@source` member.
+3. r[annot.error.bound.display-carried] The generated `Display` gives no bound to a type parameter that is only carried.
+
+```text
+use std.error.Error
+
+@error
+enum TaskError[E]:
+    @error("task $name failed")
+    Failed(name: string, @source error: E)
+```
+
+`TaskError[E]` gets `impl[E < Error] Error for TaskError[E]`, and its
+`Display` needs no bound on `E`.
+
+> **Note.** Some parts are undecided and listed in
+> [Error Conversion](../future-work/ERROR_CONVERSION.md#still-open), and an
+> implementation must not guess them. They are the codes for the invalid
+> forms above, `_0` in a message beside unnamed shared data, the `Error`
+> bounds for a carried or transparent type parameter, and whether `@error`
+> needs an import.
+
+See also: [Error Trait](09-traits.md#error-trait),
+[Conversion Trait](09-traits.md#conversion-trait),
+[Propagation](05-expressions.md#propagation).

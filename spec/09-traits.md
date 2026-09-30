@@ -413,9 +413,11 @@ The standard library declares the standard error trait `Error` in
 3. r[trait.error.defaults] Every member `Error` declares has a default, so an implementation needs no body.
 4. r[trait.error.complete] `impl Error for FsError` is complete when `FsError` implements `Display`, because the compiler supplies `Inspectable` for every inspectable type.
 5. r[trait.error.not-inspectable] An `impl Error` whose target is not inspectable, such as a type declared in a block suite, is an error. Error: `missing-supertrait-implementation`.
-6. r[trait.error.api] Those members, and error-chain helpers built on them, such as `cause`, `chain`, `find[T]`, and `root_cause`, are standard-library API.
-7. r[trait.error.import] `Error` is not a prelude name; code imports it with `use std.error.Error`.
-8. r[trait.error.no-inspect-import] Implementing `Error` needs no import of `std.inspect`.
+6. r[trait.error.cause] `Error` declares `fn cause(self) -> Error?`, which returns the error that caused this one. Its default returns `.None`.
+7. r[trait.error.api-helpers] The other members, and the error-chain helpers built on them, such as `chain`, `find[T]`, and `root_cause`, are standard-library API.
+8. r[trait.error.derive] A data type or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
+9. r[trait.error.import] `Error` is not a prelude name; code imports it with `use std.error.Error`.
+10. r[trait.error.no-inspect-import] Implementing `Error` needs no import of `std.inspect`.
 
 ```text
 use std.error.Error
@@ -431,7 +433,8 @@ fn local() -> void:
     pass
 ```
 
-See also: [Sealed Traits](#sealed-traits).
+See also: [Sealed Traits](#sealed-traits),
+[Error Derivation](14-annotations.md#error-derivation).
 
 #### Erased Errors
 

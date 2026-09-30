@@ -1,0 +1,14 @@
+# test: two @from members of one type generate overlapping From implementations
+# Spec 14 Error Conversions: annot.error.from.same-type is reported on the later member.
+use std.error.Error
+
+@error("bad yaml")
+data YamlError:
+    line: i64
+
+@error
+enum RuleError:
+    @error("bad utils")
+    Utils(@from error: YamlError)
+    @error("bad rule")
+    Rule(@from error: YamlError)  # diagnostic: overlapping-impl

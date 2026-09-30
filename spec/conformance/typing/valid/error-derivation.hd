@@ -1,0 +1,109 @@
+# test: @error derives Display, Error, and From for enums and data types
+# Spec 14 Error Derivation: the forms, messages with named and unnamed members,
+# @source causes (optional too), @from conversions used by ?, transparent errors,
+# generated bounds, and markers that bindings named error, from, or source do not change.
+use std.error.Error
+
+data Origin: pass
+
+fn origin() -> Origin:
+    Origin {}
+
+fn from() -> Origin:
+    Origin {}
+
+fn source() -> Origin:
+    Origin {}
+
+fn error(text: string) -> string:
+    text
+
+data YamlError:
+    line: i64
+
+impl Display for YamlError:
+    fn to_string(self) -> string:
+        "bad yaml at line ${self.line}"
+
+impl Error for YamlError
+
+@error
+enum FsError:
+    @error("not found: $path")
+    NotFound(path: string)
+    @error("permission denied: $_0")
+    Denied(string)
+    Busy
+
+@error
+enum LoadError:
+    @error("cannot read $path")
+    Read(path: string, @source error: FsError)
+    @error("bad config")
+    Yaml(@from error: YamlError)
+    @error(transparent)
+    Fs(@from error: FsError)
+
+@error("config $name is missing")
+data MissingConfig:
+    name: string
+
+fn parse(text: string) -> Result[i64, YamlError]:
+    .Err(YamlError { line: 1 })
+
+fn load(text: string) -> Result[i64, LoadError]:
+    value := parse(text)?
+    .Ok(value)
+
+fn read(path: string) -> Result[string, FsError]:
+    .Err(FsError.NotFound(path))
+
+fn read_config(path: string) -> Result[string, LoadError]:
+    text := read(path)?
+    .Ok(text)
+
+@error("disk full")
+data DiskError:
+    free: i64
+
+@error
+enum SaveError:
+    @error("cannot save $path")
+    Write(path: string, @source error: DiskError?)
+    @error("save failed")
+    Other(@source error: DiskError)
+
+@error
+enum RepoError:
+    @error("missing $_0")
+    Missing(string)
+
+@error(transparent)
+pub data PublicError:
+    @from
+    repr: RepoError
+
+fn find_repo(name: string) -> Result[string, RepoError]:
+    .Err(RepoError.Missing(name))
+
+fn public_find(name: string) -> Result[string, PublicError]:
+    found := find_repo(name)?
+    .Ok(found)
+
+@error
+enum TaskError[E]:
+    @error("task $name failed")
+    Failed(name: string, @source error: E)
+
+enum Plain:
+    @origin
+    Wrap(@from value: string)
+
+fn erase(value: TaskError[FsError]) -> Error:
+    value
+
+fn describe(value: MissingConfig) -> string:
+    value.to_string()
+
+fn save_error(path: string) -> Error:
+    SaveError.Write(path, .None)

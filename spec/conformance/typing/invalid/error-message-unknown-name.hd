@@ -1,0 +1,8 @@
+# test: a message that interpolates a name the variant does not have
+# Spec 14 Error Messages: annot.error.message.checked; no member or other binding is named token.
+use std.error.Error
+
+@error
+enum ParseError:
+    @error("bad token $token")  # diagnostic: unknown-name
+    BadToken(text: string)

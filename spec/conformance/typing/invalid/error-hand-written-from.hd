@@ -1,0 +1,18 @@
+# test: a hand-written From that @from already generates overlaps it
+# Spec 14 Error Types: annot.error.hand-written covers a generated From[P].
+use std.convert.From
+use std.error.Error
+
+@error
+enum ReadError:
+    @error("closed")
+    Closed
+
+@error
+enum LoadError:
+    @error("read failed")
+    Read(@from error: ReadError)
+
+impl From[ReadError] for LoadError:  # diagnostic: overlapping-impl
+    fn from(value: ReadError) -> LoadError:
+        LoadError.Read(value)

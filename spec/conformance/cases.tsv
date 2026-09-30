@@ -1535,3 +1535,11 @@ typing/invalid/string-index-assignment.hd	type	reject:invalid-assignment-target	
 typing/valid/string-bytes.hd	type	accept	04-type-system.md#strings
 runtime/valid/string-byte-methods.hd	runtime	accept	10-modules.md#string-methods
 runtime/panic/string-index-out-of-bounds.hd	runtime	panic:index-out-of-bounds	05-expressions.md#r-expr.index.string.panic
+typing/valid/error-derivation.hd	type	accept	14-annotations.md#error-derivation
+runtime/valid/error-derivation-run.hd	runtime	accept	14-annotations.md#error-derivation
+typing/invalid/error-hand-written-display.hd	type	reject:overlapping-impl	14-annotations.md#r-annot.error.hand-written
+typing/invalid/error-hand-written-from.hd	type	reject:overlapping-impl	14-annotations.md#r-annot.error.hand-written
+typing/invalid/error-marker-outside.hd	type	reject:unknown-name	14-annotations.md#r-annot.error.marker.outside
+typing/invalid/error-message-unknown-name.hd	type	reject:unknown-name	14-annotations.md#r-annot.error.message.checked
+typing/invalid/error-message-not-display.hd	type	reject:unsatisfied-trait-bound	14-annotations.md#r-annot.error.message.display
+typing/invalid/error-from-same-type.hd	type	reject:overlapping-impl	14-annotations.md#r-annot.error.from.same-type

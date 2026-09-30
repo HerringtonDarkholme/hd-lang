@@ -24,7 +24,7 @@ versioned subsets.
 | [Requirements and Suspension](11-requirements-and-suspension.md) | requirement rows, providers, `fn!`, `Suspend[T]` |
 | [Variadic Generics](12-variadic-generics.md) | type/value packs and pattern expansion |
 | [GADTs](13-gadts.md) | variant result refinement and match typing |
-| [Annotations](14-annotations.md) | shapes, decorators, member metadata, typed derivation |
+| [Annotations](14-annotations.md) | shapes, decorators, member metadata, typed derivation, error derivation |
 
 Deferred language design and the runtime, library, ABI, product, and tooling
 backlog are tracked in [Open Issues](../future-work/OPEN_ISSUES.md).
@@ -178,6 +178,8 @@ links to the rule that defines the term.
 | **derivation block** | An `impl Trait for X by Structure:` that applies a trait's template to one type, with optional member lines. See [Derivation Blocks](14-annotations.md#derivation-blocks). |
 | **embedded field** | A bare type-name member of a data declaration, which embeds another data type. See [Data Embedding](08-data-and-enums.md#data-embedding). |
 | **enum** | A nominal sum type. See [`data.kind.enum`](08-data-and-enums.md#r-data.kind.enum). |
+| **error derivation** | Implementing `Display`, `Error`, and `From` for an error type from its `@error` lines. See [Error Derivation](14-annotations.md#error-derivation). |
+| **error type** | An enum with a bare `@error` line, or a data type with an `@error("...")` or `@error(transparent)` line. See [`annot.error.type`](14-annotations.md#r-annot.error.type). |
 | **exhausted iterator** | An iterator whose `next` has returned `.None`. What a later `next` returns is unspecified. See [`flow.for.iterator-exhausted`](06-control-flow.md#r-flow.for.iterator-exhausted). |
 | **fact** | An ordinary value attached to a type, member, or variant for derivations to read. See [Facts](14-annotations.md#facts). |
 | **initialization group** | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. See [`module.init.group`](10-modules.md#r-module.init.group). |
@@ -1778,3 +1780,14 @@ existing source. Each entry names the decision that made the change.
   `types.string.host-utf8`, `expr.index.trait.read`,
   `expr.index.trait.builtin`, `expr.ord.std.text`, `module.method.i32`, and
   `module.string.scalar`.
+- Error derivation (Error Conversion decision 10, owner decision in
+  [Error Conversion](../future-work/ERROR_CONVERSION.md#owner-decisions),
+  2026-09-27): `@error` is a compiler intrinsic that derives `Display`,
+  `Error`, and `From` for an enum or data type, as Rust's `thiserror` does.
+  Chapter 14 named it only in prose before. An `@error` line always means
+  the intrinsic, even where a binding named `error` is in scope, and inside
+  an error type `@from` and `@source` are markers, not decorator values. A hand-written `Display`,
+  `Error`, or matching `From` beside `@error`, and two `@from` members of
+  one type, are `overlapping-impl`. `Error`'s `cause` method is now
+  specified. `trait.error.api` is retired. No code is added; the codes for
+  the other invalid forms are undecided.

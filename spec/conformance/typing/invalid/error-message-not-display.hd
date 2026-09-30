@@ -1,0 +1,11 @@
+# test: a message that interpolates a member whose type has no Display
+# Spec 14 Error Messages: annot.error.message.display, as for any interpolated string.
+use std.error.Error
+
+data Span:
+    start: i64
+
+@error
+enum ParseError:
+    @error("bad span $span")  # diagnostic: unsatisfied-trait-bound
+    BadSpan(span: Span)
