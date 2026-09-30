@@ -1,8 +1,8 @@
 # Call Indexing: `list(0)` Instead Of `list[0]`
 
-Status: design exploration, 2026-09-30; nothing here is decided or in the
-specification. It is a brainstorm with a stress test, and it changes no
-decision, spec text, or prototype code. Under review:
+Status: design exploration, 2026-09-30, with the owner's decisions in
+[Owner Decisions](#owner-decisions). Nothing here is in the specification
+yet; a separate spec-update task applies the decisions. Under review:
 [Indexing](../spec/05-expressions.md#indexing),
 [Index Traits](../spec/05-expressions.md#index-traits),
 [Places](../spec/05-expressions.md#places),
@@ -25,6 +25,47 @@ gives live variables but makes array indexing read oddly, so
 shows two ways to get `var()` or `var[]` under B. The owner chose to
 try B+F first; [Trying B+F](#trying-bf) applies it.
 
+## Owner Decisions
+
+Final, 2026-09-30. Each takes the recommended option. Not yet applied to
+the specification.
+
+| # | Question | Decision |
+| --- | --- | --- |
+| D1 | [Q1](#q1-b-or-c1) and [Q5](#q5-live-variables-under-b): which option | **B+F.** `[]` after an operand is always indexing. Type arguments in an expression take `::[`, as in `first::[string](xs)` and `parser.parse::[User](text)`. A type opts in to `var()` and `var() = v` through `Apply` and `Update`. |
+| D2 | [Q6](#q6-arity-of-callable-values): arity of callable values | **Zero keys only.** `Apply` and `Update` take no keys, so `[]` and `()` never overlap; grids keep `g[(0, 1)]`. |
+| D3 | [Q2](#q2-type-name-expressions-under-b): type arguments after a type name | **`::[` there too**: `Box::[i32] { ... }` and `Add::[i32]::add(price, 5)`. One rule for every expression, with no exception. |
+| D4 | [Q7](#q7-does-a-live-variable-need-mut): does a live variable need `mut` | **Yes.** `update` takes `mut self`, so `var() = 1` needs a `mut` cell and a write shows in the holder's type. The owner writes `let mut var = live(0)`, and passes a readonly view to a child, as a UI component does. |
+
+D4 needs no new permission rule. `var := live(0)` is always a readonly
+view ([`types.bind.short`](../spec/04-type-system.md#r-types.bind.short)),
+so it can read `var()` but not store. `let mut var = live(0)` keeps
+`live`'s `mut Cell[i32]`
+([`types.bind.let-mut-infer`](../spec/04-type-system.md#r-types.bind.let-mut-infer)).
+A parameter typed `Cell[i32]` is a readonly view: the child reads, and a
+store is `readonly-root`.
+
+```text
+fn parent() -> void:
+    let mut count = live(0)
+    count() += 1
+    badge(count)
+
+fn badge(count: Cell[i32]) -> string:
+    "clicked " + count().to_string()
+```
+
+| Question | Status |
+| --- | --- |
+| [Q3](#q3-keys-argument-shape), keys argument shape | Moot: D2 removes keys. |
+| [Q4](#q4-map-read-type), map read type under C1 | Moot: C1 is not chosen. The `m[k]` read type stays open as Special Cases Q9, carried by [Syntax And Semantics Cost Q8](SYNTAX_SEMANTICS_COST.md#q8-map-read-type). |
+
+**Still open.**
+- A separate idea, not part of this record: the owner wants "an escape
+  hatch to get mut from readonly" (2026-09-30). It is a core question
+  about [Access Permission](../spec/04-type-system.md#access-permission)
+  and needs its own brainstorm. D4 does not depend on it.
+
 ## Owner Direction So Far
 
 Stated by the owner on 2026-09-30 and relayed with this task. None of it is
@@ -37,7 +78,7 @@ applied to the specification.
 | C3, one namespace as first written | Rejected, because trait methods collide with fields. |
 | C3′, one namespace with an ordered lookup (own members, then promoted, then trait methods) | Rejected, after the second pass. |
 | Remaining options | B and C1, with A as the baseline. |
-| B+F, B with callable values | Try first; see [Trying B+F](#trying-bf). |
+| B+F, B with callable values | Try first; see [Trying B+F](#trying-bf). Then decided: see [Owner Decisions](#owner-decisions). |
 
 The owner wrote: "i hate syntax ambiguity. i have one crazy thing"
 
@@ -52,6 +93,7 @@ var() = 1
 
 ## Contents
 
+- [Owner Decisions](#owner-decisions)
 - [Owner Direction So Far](#owner-direction-so-far)
 - [Problem](#problem)
 - [What hd Has Today](#what-hd-has-today)
@@ -827,18 +869,18 @@ fn limit() -> MaxLen:
     shape::[User]().fields.display_name.metadata::[MaxLen]()  # hypothetical syntax
 ```
 
-A live variable in a local, the owner's sample, and a counter closure that
-captures it:
+A live variable in a local, the owner's sample with `let mut` (D4), and a
+counter closure that captures it:
 
 ```text
 fn demo() -> void:
-    var := live(0)
+    let mut var = live(0)
     println(var())
     var() = 1
     var() += 1
 
 fn counter() -> fn() -> i32:
-    count := live(0)
+    let mut count = live(0)
     fn() -> i32:
         count() += 1
         count()
@@ -871,7 +913,7 @@ Ranked by how much each affects the design.
 | 3 | Type-name literals | `Box[i32] { ... }` is never an index followed by a block, since hd blocks use `:`. A parser can tell it by the `{`, with no marker. | [Q2](#q2-type-name-expressions-under-b) |
 | 4 | Calls as places | `var() = 1` makes a call a place when its type has `Update`. Today's [`expr.assign.compound.place`](../spec/05-expressions.md#r-expr.assign.compound.place) says a call is never one. | none; it is F's one exception |
 | 5 | Cells in fields | `(state.count)()`, as for stored functions | none; the owner expects it to be rare |
-| 6 | Mutable binding | `var() = 1` needs `var` to hold a `mut Cell`. Whether `var := live(0)` keeps the `mut` of `live`'s result must be checked against [Mutable Paths](../spec/04-type-system.md#mutable-paths). | a check for spec-update, not a design question |
+| 6 | Mutable binding | `var() = 1` needs `var` to hold a `mut Cell`. `var := live(0)` is readonly by `types.bind.short`, so a writer binds `let mut var = live(0)`. | answered by D4 |
 
 With F limited to zero keys, the traits lose their `Keys` parameter, and
 Q3 and Q4 no longer apply:
@@ -912,10 +954,13 @@ arguments outweigh `xs(0)`. B+Z, `var[]`, if calls should never be places.
 
 ## Questions For The Owner
 
+All seven are answered or moot; see [Owner Decisions](#owner-decisions).
 Q1 decides the option. Q2, Q5, and Q6 apply only under B; Q3 and Q4
 apply under C1, and Q3 under B+F only if Q6 allows keys.
 
 ### Q1. B Or C1
+
+**Answered, 2026-09-30:** B+F (D1).
 
 **Effect:** decides which bracket use moves: type arguments in expressions
 under B, or indexing under C1.
@@ -936,6 +981,8 @@ fn first_tag(user: User) -> string:
 
 ### Q2. Type-Name Expressions Under B
 
+**Answered, 2026-09-30:** `::[` after type names too (D3).
+
 **Effect:** only under B. 38 sites write type arguments after a type name:
 27 literals such as `Box[i32] { ... }` and 11 trait-qualified paths such as
 `Add[i32]::add`. The path has the shape of `values[0]::describe`.
@@ -955,6 +1002,8 @@ fn demo(names: List[string]) -> string:
 
 ### Q3. Keys Argument Shape
 
+**Moot:** zero keys only (D2).
+
 **Effect:** under C1 or B+F. A bound on a one-key type spells a
 one-element tuple.
 
@@ -971,6 +1020,8 @@ fn head[C < Apply[(i32,)]](items: C) -> C::Out:
 ```
 
 ### Q4. Map Read Type
+
+**Moot:** C1 is not chosen. The `m[k]` read type stays open in [Syntax And Semantics Cost Q8](SYNTAX_SEMANTICS_COST.md#q8-map-read-type).
 
 **Effect:** only under C1. Today `m[k]` reads `V?`, but `m[k] += 1` reads
 `V`. Under call indexing, `Apply` has one `Out` for both.
@@ -989,6 +1040,8 @@ fn score(scores: Map[string, i32], name: string) -> i32:
 
 ### Q5. Live Variables Under B
 
+**Answered, 2026-09-30:** B+F, `var()` (D1).
+
 **Effect:** only under B. Decides how a cell or signal reads and stores
 while arrays keep `xs[0]`.
 
@@ -1005,6 +1058,8 @@ fn bump(var: mut Cell[i32]) -> void:
 
 ### Q6. Arity Of Callable Values
 
+**Answered, 2026-09-30:** zero keys only (D2).
+
 **Effect:** only under B+F. With keys, `Apply` and `Index` both give keyed
 reads, so a grid has two ways to be written.
 
@@ -1013,6 +1068,40 @@ reads, so a grid has two ways to be written.
    no longer applies.
 2. Any keys, as C1's `Apply[Keys]`: `g(0, 1)` is possible, and a type
    picks `[]` or `()`.
+
+```text
+fn bump(var: mut Cell[i32]) -> void:
+    var() += 1
+```
+
+### Q7. Does A Live Variable Need `mut`?
+
+**Answered, 2026-09-30:** yes, keep `mut` (D4). The escape hatch moves to
+its own brainstorm.
+
+**Effect:** `Update` as sketched takes `mut self`, so `var() = 1` needs a
+`mut Cell`, and every holder spells `mut`. The owner is unsure about that,
+and wrote: "i'm pretty sure i want one thing, an escape hatch to get mut
+from readonly."
+
+This is a core question about [Access Permission](../spec/04-type-system.md#access-permission),
+wider than call syntax, and it needs its own brainstorm. Candidate
+answers:
+
+1. **Keep `mut`.** `update(mut self, ...)`; a write shows in the holder's
+   type, which is what `mut` is for
+   ([`types.path.mutation.forms`](../spec/04-type-system.md#r-types.path.mutation.forms)).
+   No escape hatch.
+2. **One interior-mutable std type, as Rust's `Cell`.** A lang item whose
+   `update` takes a readonly `self`, so a readonly holder may write. Rust:
+   cell types "may be mutated through shared references", and "interior
+   mutability is something of a last resort". A compiler intrinsic, kind 3.
+3. **A general escape hatch**, an intrinsic that turns a readonly view of
+   any value into `mut`. It serves every case, and it removes the readonly
+   guarantee everywhere.
+
+Option 1 was chosen. Options 2 and 3 remain inputs to the separate
+escape-hatch brainstorm.
 
 ```text
 fn bump(var: mut Cell[i32]) -> void:
@@ -1117,6 +1206,8 @@ fetched 2026-09-30:
   <https://github.com/carbon-language/carbon-lang/blob/trunk/docs/design/expressions/member_access.md>,
   <https://github.com/carbon-language/carbon-lang/blob/trunk/docs/design/generics/details.md>
 - Mojo manual, Traits: <https://mojolang.org/docs/manual/traits>
+- Rust, `std::cell`, interior mutability:
+  <https://doc.rust-lang.org/std/cell/index.html>
 - Java Language Specification SE 21, 8.2 Class Members:
   <https://docs.oracle.com/javase/specs/jls/se21/html/jls-8.html>
 - C# specification 15.3.1, Class members:
@@ -1132,36 +1223,38 @@ their meaning is the proposal.
 
 | Block | Where | Result |
 | --- | --- | --- |
-| 1 | Problem: the owner's sample | parses |
-| 2 | Option A | parses |
-| 3 | Option B, `::[T]` | `syntax-error` at line 4, on a line marked `# hypothetical syntax` (lines 4 and 5 are both marked) |
-| 4 | Option C, U1, U2, U4 | parses |
-| 5 | `Apply` and `Update` traits | parses |
-| 6 | Grid, two keys | parses |
-| 7 | Cell, zero keys | parses |
-| 8 | Map `tally` | parses |
-| 9 | Compound desugaring | parses |
-| 10 | Invalid places | parses; the errors are semantic |
-| 11 | `user.tags(0)` today | parses; the error is semantic |
-| 12 | C1 parentheses | parses |
-| 13 | `interpolate` under C1 | parses |
-| 14 | `fill`, map store and call | parses |
-| 15 | `first` and `last` | parses |
-| 16 | Cart store through an index | parses |
-| 17 | Call result indexed | parses |
-| 18 | Evaluation-order fixture | parses |
-| 19 | B+F cell beside an index | parses |
-| 20 | B+F: an index and type arguments on one line | `syntax-error` at line 2, on a line marked `# hypothetical syntax` |
-| 21 | B+F: reflection chain | `syntax-error` at line 2, on a line marked `# hypothetical syntax` |
-| 22 | B+F: a local live variable and a counter | parses |
-| 23 | B+F: a live variable in a field | parses |
-| 24 | Zero-key `Apply` and `Update` | parses |
-| 25 | Q1 | parses |
-| 26 | Q2 | parses |
-| 27 | Q3 | parses |
-| 28 | Q4 | parses |
-| 29 | Q5 | parses |
-| 30 | Q6 | parses |
+| 1 | Owner Decisions: `let mut` and a readonly child | parses |
+| 2 | Problem: the owner's sample | parses |
+| 3 | Option A | parses |
+| 4 | Option B, `::[T]` | `syntax-error` at line 4, on a line marked `# hypothetical syntax` (lines 4 and 5 are both marked) |
+| 5 | Option C, U1, U2, U4 | parses |
+| 6 | `Apply` and `Update` traits | parses |
+| 7 | Grid, two keys | parses |
+| 8 | Cell, zero keys | parses |
+| 9 | Map `tally` | parses |
+| 10 | Compound desugaring | parses |
+| 11 | Invalid places | parses; the errors are semantic |
+| 12 | `user.tags(0)` today | parses; the error is semantic |
+| 13 | C1 parentheses | parses |
+| 14 | `interpolate` under C1 | parses |
+| 15 | `fill`, map store and call | parses |
+| 16 | `first` and `last` | parses |
+| 17 | Cart store through an index | parses |
+| 18 | Call result indexed | parses |
+| 19 | Evaluation-order fixture | parses |
+| 20 | B+F cell beside an index | parses |
+| 21 | B+F: an index and type arguments on one line | `syntax-error` at line 2, on a line marked `# hypothetical syntax` |
+| 22 | B+F: reflection chain | `syntax-error` at line 2, on a line marked `# hypothetical syntax` |
+| 23 | B+F: a local live variable and a counter | parses |
+| 24 | B+F: a live variable in a field | parses |
+| 25 | Zero-key `Apply` and `Update` | parses |
+| 26 | Q1 | parses |
+| 27 | Q2 | parses |
+| 28 | Q3 | parses |
+| 29 | Q4 | parses |
+| 30 | Q5 | parses |
+| 31 | Q6 | parses |
+| 32 | Q7 | parses |
 
 Reference-parser finding: none. The parser accepts `f(x) = v` and
 `(x.f)(k) = v` today, as [`grammar.stmt.assign-target`](../spec/02-grammar.md#r-grammar.stmt.assign-target)
