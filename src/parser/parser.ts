@@ -313,6 +313,7 @@ class Parser extends DecoratorParser {
       genericParameters,
       ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
       genericBounds,
+      ...(parsedGenerics.packs ? { packParameters: parsedGenerics.packs } : {}),
       parameters,
       result,
       requirements,
@@ -433,7 +434,7 @@ class Parser extends DecoratorParser {
 
   protected parseImpl(doc?: string): ImplDecl {
     const start = this.expectText("impl").span.start;
-    const parsedGenerics = this.parseGenericParameters({ defaults: false });
+    const parsedGenerics = this.parseGenericParameters({ defaults: false, packs: "unsupported" });
     const genericParameters = [...parsedGenerics.parameters];
     const genericBounds = [...parsedGenerics.bounds];
     const enclosingGenericParameters = this.activeGenericParameters;
@@ -558,6 +559,7 @@ class Parser extends DecoratorParser {
     const generics = {
       ...(parsedGenerics.reified ? { reifiedParameters: parsedGenerics.reified } : {}),
       ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
+      ...(parsedGenerics.packs ? { packParameters: parsedGenerics.packs } : {}),
     };
     const enclosingGenericParameters = this.activeGenericParameters;
     this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
@@ -711,7 +713,7 @@ class Parser extends DecoratorParser {
   protected parseTypeDecl(doc?: string, public_ = false): TypeDecl {
     const start = this.expectText("type").span.start;
     const name = this.expectKind("identifier", "expected a type name");
-    const parsedGenerics = this.parseGenericParameters();
+    const parsedGenerics = this.parseGenericParameters({ defaults: true });
     const genericParameters = parsedGenerics.parameters;
     const enclosingGenericParameters = this.activeGenericParameters;
     this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
@@ -940,12 +942,20 @@ class Parser extends DecoratorParser {
       const start = this.peek(-1).span.start;
       const elements: TypeRef[] = [];
       let tuple = false;
+      // A tuple element may expand a type pack, as in `(Ts...)`
+      // (12-variadic-generics.md#pattern-expansion).
+      const element = (): TypeRef => {
+        const type = this.parseType();
+        if (!this.matchText("...")) return type;
+        tuple = true;
+        return { ...type, name: `${type.name}...` };
+      };
       if (!this.atText(")")) {
-        elements.push(this.parseType());
+        elements.push(element());
         if (this.matchText(",")) {
           tuple = true;
           while (!this.atText(")")) {
-            elements.push(this.parseType());
+            elements.push(element());
             if (!this.matchText(",")) break;
           }
         }

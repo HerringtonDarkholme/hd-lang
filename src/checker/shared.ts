@@ -1142,6 +1142,7 @@ export function traitIsDynamicallySafe(
       (method) =>
         method.associated ||
         (method.reifiedParameters ?? []).length > 0 ||
+        (method.packParameters ?? []).length > 0 ||
         method.genericParameters.some(
           (parameter) =>
             !(method.referenceParameters ?? []).includes(parameter) &&

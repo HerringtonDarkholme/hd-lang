@@ -20,6 +20,8 @@ export interface ParsedGenericParameters {
   readonly defaults?: Readonly<Record<string, TypeRef>>;
   /** `+T` and `-T` markers of a declaration's type parameters, one per parameter. */
   readonly variances?: readonly VarianceMarker[];
+  /** Type packs, written `Ts...` (12-variadic-generics.md#pack-parameters). */
+  readonly packs?: readonly string[];
 }
 
 /** Which generic parameter list is parsed (02-grammar.md#generic-parameters-and-bounds). */
@@ -30,6 +32,11 @@ export interface GenericParameterForm {
   readonly defaults?: boolean;
   /** Who owns the parameters, as in "a trait's generic parameters", for the variance error. */
   readonly owner?: string;
+  /**
+   * A function's or method's parameters may be type packs; an
+   * implementation's are outside the prototype's slice; `type_params` take none.
+   */
+  readonly packs?: "allow" | "unsupported";
 }
 
 // Decorators, member lines, generic parameters, and trait bounds
@@ -37,13 +44,14 @@ export interface GenericParameterForm {
 // shared by the declaration parser.
 export abstract class DecoratorParser extends ExpressionParser {
   protected parseGenericParameters(
-    form: GenericParameterForm = { defaults: true },
+    form: GenericParameterForm = { defaults: true, packs: "allow" },
   ): ParsedGenericParameters {
     const parameters: string[] = [];
     const bounds: GenericBound[] = [];
     const reified: string[] = [];
     const defaults: Record<string, TypeRef> = {};
     const variances: VarianceMarker[] = [];
+    const packs: string[] = [];
     if (!this.matchText("[")) return { parameters, bounds };
     if (!this.atText("]")) {
       do {
@@ -80,6 +88,22 @@ export abstract class DecoratorParser extends ExpressionParser {
             parameter.span,
           );
         parameters.push(parameter.text);
+        const pack = this.matchText("...");
+        if (pack) {
+          if (form.packs === "unsupported")
+            this.fail(
+              "unsupported-generic-parameter",
+              "an implementation's type pack is outside the current erased-generic slice",
+              this.peek(-1).span,
+            );
+          if (form.packs !== "allow")
+            this.fail(
+              "syntax-error",
+              "only a function, a method, or an implementation declares a type pack",
+              this.peek(-1).span,
+            );
+          packs.push(parameter.text);
+        }
         if (this.atText(":"))
           this.fail(
             "syntax-error",
@@ -96,16 +120,10 @@ export abstract class DecoratorParser extends ExpressionParser {
               ...(bindings.length > 0 ? { bindings } : {}),
               span: { start: parameter.span.start, end: this.peek(-1).span.end },
             });
-        } else if (this.atText("...")) {
-          // A type pack takes no default (grammar.generic.default.positions).
-          if (this.peek(1).text === "=")
-            this.fail("syntax-error", "a type pack takes no default", this.peek(1).span);
-          this.fail(
-            "unsupported-generic-parameter",
-            "packs are outside the current erased-generic slice",
-            this.current().span,
-          );
         }
+        // A type pack takes no default (grammar.generic.default.positions).
+        if (pack && this.atText("="))
+          this.fail("syntax-error", "a type pack takes no default", this.current().span);
         // `= type` after the bound is a type-argument default, which an
         // implementation's parameters do not take (grammar.generic.default.positions).
         if (this.atText("=")) {
@@ -127,6 +145,7 @@ export abstract class DecoratorParser extends ExpressionParser {
       ...(reified.length > 0 ? { reified } : {}),
       ...(Object.keys(defaults).length > 0 ? { defaults } : {}),
       ...(variances.some(Boolean) ? { variances } : {}),
+      ...(packs.length > 0 ? { packs } : {}),
     };
   }
 

@@ -72,6 +72,8 @@ export interface HirTraitMethod {
   // Method-level generic parameters written `reified`. They keep the method
   // out of dynamic dispatch (09-traits.md#dynamic-safety).
   readonly reifiedParameters?: readonly string[];
+  /** Method-level type packs, which keep the method out of dynamic dispatch (trait.dyn.safe.reified-or-pack). */
+  readonly packParameters?: readonly string[];
   /** Type-argument defaults of the method-level parameters (09-traits.md#method-generic-parameters). */
   readonly genericDefaults?: ReadonlyMap<string, ValueType>;
   readonly suspending: boolean;

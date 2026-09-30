@@ -1519,3 +1519,6 @@ runtime/valid/requirement-key-binding-run.hd	runtime
 typing/invalid/ambiguous-projection.hd	type
 typing/invalid/ambiguous-projection-binding.hd	type
 typing/invalid/requirement-key-unbound.hd	type
+typing/invalid/multiple-positional-value-packs.hd	type
+typing/invalid/nonfinal-positional-value-pack.hd	type
+typing/invalid/dynamic-safety-pack-parameter.hd	type

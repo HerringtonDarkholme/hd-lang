@@ -69,6 +69,8 @@ export interface FunctionDecl {
   /** Type-argument defaults (04-type-system.md#type-argument-defaults). */
   readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   readonly genericBounds: readonly GenericBound[];
+  /** Type packs among the generic parameters (12-variadic-generics.md#pack-parameters). */
+  readonly packParameters?: readonly string[];
   readonly parameters: readonly Parameter[];
   readonly result: TypeRef;
   readonly requirements: readonly string[];
@@ -122,6 +124,8 @@ export interface MethodDecl {
   readonly genericBounds: readonly GenericBound[];
   /** Generic parameters written `reified`. */
   readonly reifiedParameters?: readonly string[];
+  /** Type packs among the generic parameters (12-variadic-generics.md#pack-parameters). */
+  readonly packParameters?: readonly string[];
   readonly parameters: readonly Parameter[];
   readonly result: TypeRef;
   readonly requirements: readonly string[];
@@ -541,7 +545,13 @@ export type Expression =
       readonly value: Expression;
       readonly span: SourceSpan;
     }
-  | { readonly kind: "tuple"; readonly elements: readonly Expression[]; readonly span: SourceSpan }
+  | {
+      readonly kind: "tuple";
+      readonly elements: readonly Expression[];
+      /** Elements written `values...`, a value-pack expansion (12-variadic-generics.md#tuple-expansion). */
+      readonly expansions?: readonly boolean[];
+      readonly span: SourceSpan;
+    }
   | {
       readonly kind: "map";
       readonly entries: readonly MapEntry[];

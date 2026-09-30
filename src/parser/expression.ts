@@ -654,17 +654,27 @@ export abstract class ExpressionParser extends ParserBase {
       const groupedBinding = this.parseGroupedBindingExpression(token);
       if (groupedBinding) return groupedBinding;
       const first = this.parseExpression();
-      if (!this.matchText(",")) {
+      // `(values...)` expands a value pack into tuple elements
+      // (12-variadic-generics.md#tuple-expansion).
+      const expansions = [this.matchText("...")];
+      if (!expansions[0] && !this.matchText(",")) {
         this.expectText(")");
         return first.kind === "member" ? { ...first, parenthesized: true } : first;
       }
+      if (expansions[0]) this.matchText(",");
       const elements = [first];
       while (!this.atText(")")) {
         elements.push(this.parseExpression());
+        expansions.push(this.matchText("..."));
         if (!this.matchText(",")) break;
       }
       const close = this.expectText(")");
-      return { kind: "tuple", elements, span: { start: token.span.start, end: close.span.end } };
+      return {
+        kind: "tuple",
+        elements,
+        ...(expansions.some(Boolean) ? { expansions } : {}),
+        span: { start: token.span.start, end: close.span.end },
+      };
     }
     // A deeper line that opens no suite and is not a leading-dot continuation
     // (01-lexical-structure.md#physical-and-logical-lines) is a syntax error.

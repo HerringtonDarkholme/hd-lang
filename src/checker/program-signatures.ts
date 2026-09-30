@@ -6,6 +6,7 @@ import {
 } from "./associated-bindings.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
+import { words } from "./type-declarations.ts";
 import type { FunctionDecl } from "../ast.ts";
 import type { HirAssociatedBinding } from "../hir.ts";
 import { mutableInner, nominalGenericParts, nominalGenericType } from "../types.ts";
@@ -112,6 +113,11 @@ export function createProgramSignatures(
         message: `'${declaration.name}' is already declared as a type`,
         span: declaration.span,
       });
+      return;
+    }
+    const packProblem = packSignatureDiagnostic(declaration);
+    if (packProblem) {
+      diagnostics.push(packProblem);
       return;
     }
     const declaredGenerics = new Set(declaration.genericParameters);
@@ -440,4 +446,34 @@ function requirementKeyDiagnostics(
       });
   }
   return diagnostics;
+}
+
+/**
+ * A function with a type pack: at most one value-pack parameter, and it is
+ * final (12-variadic-generics.md#value-pack-parameters). The prototype erases
+ * generics, so an otherwise valid pack function is outside its slice.
+ */
+function packSignatureDiagnostic(declaration: FunctionDecl): Diagnostic | undefined {
+  const packs = new Set(declaration.packParameters ?? []);
+  if (packs.size === 0) return undefined;
+  const valuePacks = declaration.parameters.flatMap((parameter, index) =>
+    parameter.variadic && words(parameter.type.name).some((word) => packs.has(word)) ? [index] : [],
+  );
+  if (valuePacks.length > 1)
+    return {
+      code: "multiple-positional-value-packs",
+      message: `function '${declaration.name}' declares ${valuePacks.length} value-pack parameters; a signature takes at most one`,
+      span: declaration.span,
+    };
+  if (valuePacks.length === 1 && valuePacks[0] !== declaration.parameters.length - 1)
+    return {
+      code: "nonfinal-positional-value-pack",
+      message: `value-pack parameter '${declaration.parameters[valuePacks[0]!]!.name}' must be the final parameter`,
+      span: declaration.span,
+    };
+  return {
+    code: "unsupported-generic-parameter",
+    message: `function '${declaration.name}' declares a type pack; packs are outside the current erased-generic slice`,
+    span: declaration.span,
+  };
 }

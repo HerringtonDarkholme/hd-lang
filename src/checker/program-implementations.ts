@@ -400,6 +400,7 @@ function prepareInherentImplementation(
       ...(method.requirementsOmitted && !method.public ? { requirementsOmitted: true } : {}),
       ...(implementation.standard ? { standard: true } : {}),
       ...selfDefaults(method, implementation.targetName),
+      ...(method.packParameters ? { packParameters: method.packParameters } : {}),
       body: method.body ?? [],
       span: method.span,
     });
@@ -807,6 +808,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         requirements: method.requirements,
         ...(implementation.standard ? { standard: true } : {}),
         ...selfDefaults(method, implementation.targetName),
+        ...(method.packParameters ? { packParameters: method.packParameters } : {}),
         body: method.body ?? [],
         span: method.span,
       };

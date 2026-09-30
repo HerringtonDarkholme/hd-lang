@@ -753,6 +753,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         referenceParameters,
         valueParameters,
         ...(method.reifiedParameters ? { reifiedParameters: method.reifiedParameters } : {}),
+        ...(method.packParameters ? { packParameters: method.packParameters } : {}),
         suspending: method.suspending,
         receiverMutable: method.parameters[0]?.type.name === "mut:Self",
         parameters: parameters.map((parameter) => parameter ?? "void"),

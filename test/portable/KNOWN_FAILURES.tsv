@@ -1,16 +1,14 @@
 path	reason	finding
-typing/valid/pack-map.hd	check fails: unsupported-generic-parameter at line 10: packs and defaults are outside the current erased-generic slice	F-250
-typing/invalid/pack-map-mapper-mismatch.hd	MVP reports unknown-name at line 5 instead of pack-map-mapper-mismatch: unknown name 'pack'	F-250
-typing/valid/mutable-suspension.hd	check fails: unsupported-generic-parameter at line 4: packs and defaults are outside the current erased-generic slice	F-250
-typing/valid/variadic-generics.hd	check fails: unsupported-generic-parameter at line 1: packs and defaults are outside the current erased-generic slice	F-250
-typing/valid/gadts.hd	check fails: syntax-error at line 7: expected a line ending after an enum variant	F-250
-typing/invalid/pack-length-mismatch.hd	MVP reports unsupported-generic-parameter at line 2 instead of pack-length-mismatch: packs and defaults are outside the current erased-generic slice	F-250
-typing/invalid/impossible-gadt-pattern.hd	MVP reports unsupported-gadt-result at line 3 instead of impossible-gadt-pattern	F-250
-typing/invalid/covariant-gadt-result.hd	MVP reports syntax-error at line 4 instead of invalid-variance: expected a generic enum parameter	F-250
-typing/valid/invariant-gadt-result.hd	check fails: expected-expression at line 5: expected an expression, found 'mut'	F-250
-typing/invalid/multiple-positional-value-packs.hd	MVP reports unsupported-generic-parameter at line 1 instead of multiple-positional-value-packs: packs and defaults are outside the current erased-generic slice	F-250
+typing/valid/pack-map.hd	type packs parse, but the prototype erases generics and cannot specialize a pack function, so box_all[Ts...] is unsupported-generic-parameter; pack.map and pack.map_list are not implemented	F-250
+typing/invalid/pack-map-mapper-mismatch.hd	pack.map and pack.map_list are not implemented, so pack is an unknown name	F-250
+typing/valid/mutable-suspension.hd	type packs parse, but the prototype erases generics and cannot specialize a pack function, so accept_all[Ts...] is unsupported-generic-parameter	F-250
+typing/valid/variadic-generics.hd	type packs parse, but the prototype erases generics and cannot specialize a pack function, so call_with[Args..., R] is unsupported-generic-parameter	F-250
+typing/valid/gadts.hd	GADT variant results (13-gadts.md) are not implemented: a variant with its own generic parameters is a syntax error	F-250
+typing/invalid/pack-length-mismatch.hd	type packs parse, but pack inference is not implemented, so zip_apply is unsupported-generic-parameter before its call is checked	F-250
+typing/invalid/impossible-gadt-pattern.hd	GADT variant results (13-gadts.md) are not implemented: a variant result is unsupported-gadt-result	F-250
+typing/invalid/covariant-gadt-result.hd	GADT variant results (13-gadts.md) are not implemented: a mut type in a variant result is an expected-expression error, not invalid-variance	F-250
+typing/valid/invariant-gadt-result.hd	GADT variant results (13-gadts.md) are not implemented, and a mut type in a variant result is an expected-expression error	F-250
 runtime/valid/resource-disposed-result.hd	check exits 2 with usage text: the disposed-file profile does not exist	F-259
-typing/invalid/nonfinal-positional-value-pack.hd	MVP reports unsupported-generic-parameter at line 1 instead of nonfinal-positional-value-pack: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/orphan-impl-foreign-trait-argument.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	TQ-2
 runtime/valid/unavailable-trait-method-invisible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 typing/invalid/unavailable-trait-method-not-found.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
@@ -21,10 +19,9 @@ typing/invalid/private-field-nothing-visible.hd	check exits 2 with usage text: t
 typing/invalid/private-promoted-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-own-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-embedded-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
-typing/invalid/dynamic-safety-pack-parameter.hd	MVP reports unsupported-generic-parameter at line 4 instead of trait-not-dynamically-safe: packs and defaults are outside the current erased-generic slice (the TQ-10 row and reified exclusions are implemented)	F-250
-typing/valid/function-type-pack-impl.hd	check fails: unsupported-generic-parameter at line 7: packs are outside the erased-generic slice, so an impl over Fn[(Is...), O, R] is rejected	F-250
-typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic-parameter at line 6 instead of overlapping-impl: packs are outside the erased-generic slice	F-250
-typing/invalid/root-orphan-impl.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	F-250
+typing/valid/function-type-pack-impl.hd	an implementation header takes no type pack in the prototype, which cannot specialize Fn[(Is...), O, R]	F-250
+typing/invalid/function-type-overlapping-impl.hd	an implementation header takes no type pack in the prototype, so the overlap with Fn[(Is...), O, R] is not checked	F-250
+typing/invalid/root-orphan-impl.hd	the prototype CLI has no --package-role or --dependency option, so package roles cannot be checked	F-250
 typing/warnings/per-trait-self-line-unused-fact.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one package, so a fact never comes from a package without the block trait	M29
 typing/valid/println-top-level-script.hd	MVP reports missing-requirement at line 6: the prototype infers no script entry requirement row (module.init.script-row), so a script top level has no Console	MHP-1
 runtime/valid/init-group-order.hd	check reports top-level-read-before-initialization at line 7: the package linker joins a group's modules by identity (catalog before prices) and does not interleave their statements, so featured runs before markup	DC7

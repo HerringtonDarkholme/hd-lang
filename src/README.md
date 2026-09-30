@@ -853,6 +853,15 @@ Task combinator intrinsics, and strings and structural values in the
 host-provider ABI, remain in later MVP slices. The compiler rejects syntax it
 recognizes from those slices rather than assigning placeholder semantics;
 unresolved `all!` and `race!` calls report `unsupported-task-combinator`.
+Variadic generics parse: a function's or method's type packs (`Ts...`),
+pack expansions in tuple types and tuple expressions (`(Ts...)`,
+`(values...)`), and value-pack parameters. The checker reports
+`multiple-positional-value-packs` and `nonfinal-positional-value-pack`, and
+a method with a type pack makes its trait not dynamically safe; a pack
+function is otherwise `unsupported-generic-parameter`, because erased
+generics cannot specialize one, and so is a pack in an implementation
+header. `pack.map`, `pack.map_list`, and GADT variant results are not
+implemented.
 Interpolation and `println` report `unsatisfied-trait-bound` when the displayed type
 does not implement the canonical prelude trait.
 

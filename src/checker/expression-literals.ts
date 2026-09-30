@@ -268,6 +268,14 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         return { kind: "list", elements, elementType, type, span: expression.span };
       }
       case "tuple": {
+        // `(values...)` expands a value pack, which only a pack function,
+        // outside the prototype's slice, has (12-variadic-generics.md#tuple-expansion).
+        if (expression.expansions?.some(Boolean))
+          this.fail(
+            "unsupported-generic-parameter",
+            "a tuple expansion needs a value pack, and packs are outside the current erased-generic slice",
+            expression.span,
+          );
         const contextual = expected ? tupleParts(expected) : undefined;
         if (contextual && contextual.length !== expression.elements.length) {
           this.fail(
