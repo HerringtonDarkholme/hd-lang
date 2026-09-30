@@ -135,7 +135,7 @@ requires. Two rules still cannot be written that way:
 | Gap | Cause | Kind |
 | --- | --- | --- |
 | `arbitrary.with` | [`annot.walker.obligation`](../spec/14-annotations.md#r-annot.walker.obligation) makes every member meet the source's `member[F < Arbitrary]` bound. A tuned member need not implement `Arbitrary`. | language-tier gap: templates have no per-member bound that a fact discharges |
-| enum name in the panic | `VariantInfo` and `Members` carry no type name, and the template's `T` is not `reified`, so `shape[T]()` is out | message text only: conformance judges the `explicit-panic` category, not wording |
+| enum name in the panic | `VariantInfo` and `Members` carry no type name, and the template's `T` is not `reified`, so `shape[T]()` is out | language-tier gap: `Structure` exposes no type name; ST8 adds `name()` |
 
 The prototype keeps a checker path for a target with an `arbitrary.with`
 fact. Neither gap keeps derived `Arbitrary` in the language tier: its rules
@@ -280,7 +280,7 @@ Each task is about an hour, and each ends with `bash spec/check.sh`,
 | 2 | Process: AGENTS.md rule, spec-update skill, STDLIB.md tier column | nothing |
 | 3 | Conformance plumbing: README Tiers section, split list, `check.sh` name check, `--tier` in both runners | nothing |
 | 4 | `std/testing.md`, part 1: Property Tests and Draw Budget, about 30 IDs | 6 cases |
-| 5 | `std/testing.md`, part 2: Derived Arbitrary; drop the enum-name clause (ST8); the `arbitrary.with` gap into [Open Issues](OPEN_ISSUES.md) (ST7) | 7 cases |
+| 5 | `std/testing.md`, part 2: Derived Arbitrary; `Structure.name()` and the no-finite message (ST8); the `arbitrary.with` gap into [Open Issues](OPEN_ISSUES.md) (ST7) | 7 cases |
 | 6 | `std/testing.md`, part 3: table-test rows, snapshot files, `timeout` | 9 cases |
 | 7 | `std/iter.md`: adapters, collect targets, `FromIterator`, `List.map`, optional `map` | 13 cases |
 | 8 | `std/text.md`: string methods above the intrinsics, and `r` | 4 cases |
@@ -308,7 +308,22 @@ are final.
 | ST5 | `it`, `assert`, `assert_equal`, and `println` stay in the language tier. | Q6 |
 | ST6 | `it_each`, `it_prop`, and `it_prop_with` registration stays in the language tier. Rows, generation, shrinking, and the draw budget move to the stdlib tier. | Q7 |
 | ST7 | Derived `Arbitrary` moves to the stdlib tier now. The `arbitrary.with` template gap is recorded in [Open Issues](OPEN_ISSUES.md). | Q8 |
-| ST8 | The rule that the no-finite panic message names the enum is dropped. | Q1 |
+| ST8 | Revised by the owner, below: the no-finite panic message keeps naming the type, through a new `Structure.name()`. | Q1 |
 
-ST8 is applied by task 5. When Derived Arbitrary moves,
-`module.testing.arbitrary.derive.no-finite` loses its naming clause.
+**ST8, revised.** The owner revised ST8 on 2026-09-30. The rule that the
+no-finite panic message names the type stays. `std.structure`'s
+`Structure` gains a receiverless, compiler-supplied `fn name() -> string`
+next to `facts()`.
+
+| Point | Decision |
+| --- | --- |
+| Value | The declared name only: no module path and no type arguments. |
+| Use | A compile-time constant, usable only inside templates. It is not a runtime reflection hook; runtime type information stays opt-in through `Inspectable`. |
+| Newtype | A newtype has its own name. |
+| Alias | A transparent alias has no structure of its own; it uses its base's. |
+| Message | The derived `Arbitrary` template panics with `"${T::name()} has no finite value"`. |
+| Known cost | Once codecs emit the name, renaming a type changes their output, as with serde or Go. Because it is the declared name only, moving a file does not change it. |
+
+`Structure.name()` is a language-tier addition: `std.structure` bodies are
+compiler-supplied. It is recorded here only. The spec text changes when
+Derived Arbitrary moves, in task 5.
