@@ -8,5 +8,4 @@ Recommendation: implementation change: add the profile to src/cli.ts RUNTIME_PRO
 and select the case. The profile's surface is fixed in spec/conformance/README.md
 (Runtime Profiles): `open!`, `read!` (`Ok("")` before close), and `close`, with every
 operation after a successful close returning `Err(ResourceError.Disposed)`. The
-case also needs the fixture change in F-150: it exposes the private trait
-`Files` from `pub fn main`.
+fixture's declarations that `pub fn main` exposes are public since 2026-09-29.

@@ -4,7 +4,6 @@ Generated from `audit/findings/` on 2026-09-29. "Merged duplicates" lists the ID
 
 | ID | Severity | Area | Title | Merged duplicates | Known failures |
 | -- | -------- | ---- | ----- | ----------------- | -------------- |
-| [F-150](../findings/F-150-entry-cases-private-type-leak.md) | minor | test-integrity | Entry-point cases use a private declaration in `pub fn main`, so they also report `private-type-leak` |  | 2 |
 | [F-155](../findings/F-155-panic-line-unchecked-and-unreported.md) | minor | runtime | Runtime panics carry no source location, so panic marker lines are never checked |  |  |
 | [F-161](../findings/F-161-stack-exhaustion-is-a-host-crash.md) | minor | runtime | Unbounded recursion crashes the host instead of panicking with `stack-exhausted` |  |  |
 | [F-163](../findings/F-163-list-literal-operand-type-mismatch.md) | major | correctness | Comparing a readonly list binding with a list literal is rejected |  |  |

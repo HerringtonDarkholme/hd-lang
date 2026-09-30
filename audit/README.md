@@ -9,10 +9,10 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-29 the prototype passes 1,394 of the 1,544 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 150 are listed in
+On 2026-09-29 the prototype passes 1,402 of the 1,557 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 155 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 150 still fail.
+decision below, and all 155 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
@@ -21,18 +21,17 @@ them by tag:
 | TDEF | 26 | no type-argument defaults, short explicit lists, `Rhs = Self` on the operator traits, or `argument-count` for a long list |
 | PIPE | 16 | no `\|>` token or `_` placeholder |
 | ATB | 19 | a binding names only the bound trait's own associated types; trait value types and requirement keys take no binding; no `ambiguous-associated-type`; an unbound requirement key is accepted |
-| LMUT | 16 | no parenthesized `let (a, b)` list, bare `let a, b` still accepted, no `mut-on-primitive` or `redundant-let-mut` |
+| LMUT | 18 | no parenthesized `let (a, b)` list, in a same-line suite or not, bare `let a, b` still accepted, no `mut-on-primitive` or `redundant-let-mut` |
 | F-250 | 15 | packs, GADT variant results, and package roles give generic diagnostics |
 | MREF | 10 | `Type::name` without a call is still `deferred-method-value` |
-| STR | 8 | `len` still counts scalars; `s[i]` is `unsupported-string-indexing`; no `chars`, `char_indices`, `bytes`, or `slice` |
+| STR | 14 | `len` still counts scalars; `s[i]` is `unsupported-string-indexing`; no `chars`, `char_indices`, `bytes`, or `slice`; `List`, `Map`, and `string` implement no `Index` |
 | ITER | 8 | `Iterator` is still a trait; no `from_fn`, `map`, `fold`, or `Iterable` for iterators |
 | ERRD | 8 | no `@error` intrinsic: `@error` resolves as an ordinary decorator, so `error` and `from` are unknown names |
 | EMB-S | 4 | trait availability needs package roles |
 | P2 | 4 | member visibility needs package roles |
 | COLLECT | 4 | `collect` returns only `List[T]`, and there is no `FromIterator` |
 | OPF | 3 | `m[k] op= v` on a `Map` reads `V?`, and a newtype unwraps to a readonly base |
-| TQ-2 | 2 | package roles, and a comprehension element typed `mut Word` |
-| F-150 | 2 | the fixtures expose a private type from `pub fn main` |
+| TQ-2 | 1 | package roles |
 | M29 | 1 | the unused-fact warning needs a second package |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | DC7 | 1 | group statements are not interleaved across modules |
@@ -44,7 +43,7 @@ them by tag:
 | Path | What it holds | Why it stays |
 | ---- | ------------- | ------------ |
 | [`REPORT.md`](REPORT.md) | the architecture review and the ranked open findings | the review still describes the prototype |
-| [`findings/`](findings/) | one file per open finding (39), indexed in [`evidence/findings-table.md`](evidence/findings-table.md) | still open: the tagged cases still fail, and the others were re-run or spot-checked on 2026-09-29 |
+| [`findings/`](findings/) | one file per open finding (38), indexed in [`evidence/findings-table.md`](evidence/findings-table.md) | still open: the tagged cases still fail, and the others were re-run or spot-checked on 2026-09-29 |
 | [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) | `KNOWN_FAILURES.tsv` grouped by tag | the prototype's fix list |
 | [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/) | minimized fuzz fixtures for F-265 and F-310 | open findings; `spec/tools/fuzz/README.md` points here |
 | [`evidence/04-runtime/`](evidence/04-runtime/) | replay, edit, and panic result tables | back F-155, F-161, F-401, and F-404 |
@@ -58,15 +57,6 @@ them by tag:
 The scripts write fresh WAT and timings when run. Only the WAT that an open
 finding cites is kept.
 
-## Specification Follow-Ups
-
-- F-150: `typing/invalid/nondisplay-entry-error.hd`,
-  `typing/invalid/nonhost-entry-requirement.hd`, and
-  `runtime/valid/resource-disposed-result.hd` use a private declaration in
-  the signature or requirement row of `pub fn main`, so every conforming
-  implementation also reports `private-type-leak`. The fixtures need `pub`
-  on those declarations.
-
 ## Applied Decisions the Prototype Does Not Follow Yet
 
 Every other applied decision is implemented in the prototype; the spec's
@@ -74,7 +64,7 @@ Revision Notes in `spec/README.md` are the record.
 
 | #  | Decision |
 | -- | -------- |
-| TQ-2 | The owner of a trait argument's outer constructor may write the impl. The check and `Iterable` are implemented; one fixture needs package roles (`--package-role`, `--dependency`), which the prototype CLI lacks, and `trait-argument-owner-impl.hd` builds `mut Word` comprehension elements where its result type asks for `Word`. |
+| TQ-2 | The owner of a trait argument's outer constructor may write the impl. The check and `Iterable` are implemented; one fixture needs package roles (`--package-role`, `--dependency`), which the prototype CLI lacks. |
 | EMB-S | Rust-style trait lookup: a trait method is a candidate only where its trait is available, wherever the impl is declared; an unavailable trait is invisible, so a promoted method of that name is selected and a call that finds nothing is `unknown-method` suggesting the import. `member-lookup.ts` and `program-embedding.ts` implement the rest, but the prototype checks one module without trait imports (a multi-file package is linked into one namespace), so every trait is available, and the fixtures need package roles. |
 | P2 | Member lookup skips own fields and inherent methods not visible from the calling module; a private member of an embedded type is never promoted, and `private-member` is reported only for an invisible own member when nothing visible matches. `member-lookup.ts` follows the algorithm, but the prototype checks one module (a linked package shares one namespace), so every own member is visible, and the fixtures need package roles. |
 | GQ4 | `pack.map(` and `pack.map_list(` always form the pack operation, even beside a local named `pack`. The prototype checks the operation's argument shape but has no pack operations, so a valid use still resolves as a method call. |
