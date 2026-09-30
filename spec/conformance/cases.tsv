@@ -1570,3 +1570,4 @@ runtime/valid/never-break-continue.hd	runtime	accept	04-type-system.md#r-types.n
 typing/invalid/fresh-element-not-weakened.hd	type	reject:type-mismatch	04-type-system.md#r-types.fresh.element-no-weaken
 typing/invalid/foreign-inherent-impl.hd	type	reject:orphan-impl	09-traits.md#r-trait.own.inherent
 parse/invalid/tab-in-string-literal.hd	parse	reject:tab-whitespace	01-lexical-structure.md#r-lex.tab.content
+parse/invalid/tab-between-tokens.hd	parse	reject:tab-whitespace	01-lexical-structure.md#r-lex.tab.invalid

@@ -1397,3 +1397,4 @@ typing/valid/trait-argument-owner-impl.hd	type
 typing/invalid/ambiguous-default-methods.hd	type
 runtime/valid/never-break-continue.hd	runtime
 typing/invalid/fresh-element-not-weakened.hd	type
+parse/invalid/tab-between-tokens.hd	parse

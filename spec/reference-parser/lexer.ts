@@ -623,6 +623,8 @@ export function lexSource(source: string): LexResult {
       continue;
     }
     if (" \r\t".includes(character)) {
+      // A tab between tokens is source whitespace, which lex.tab.invalid bans.
+      if (character === "\t") diagnostics.push(diagnostic("tab-whitespace", line));
       index += 1;
       continue;
     }

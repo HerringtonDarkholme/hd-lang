@@ -1,0 +1,5 @@
+# test: a tab between tokens in the middle of a line
+
+fn total() -> i32:
+    value :=	1  # diagnostic: tab-whitespace
+    value
