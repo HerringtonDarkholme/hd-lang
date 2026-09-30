@@ -1,5 +1,5 @@
-# test: the former nested form ((a, b) := value) is an error; the fix-it hoists the binding to a statement
-# Spec 02 Multi-Name Bindings: grammar.expr.multi-binding.statement-only (owner decision SSC Q5, batch 26, 2026-09-30).
+# test: the former nested form ((a, b) := value) is an error; the fix-it writes a let statement before it
+# Spec 02 Multi-Name Bindings: grammar.expr.multi-binding.let-only (owner decision LP1-one, batch 26, 2026-09-30).
 fn pair() -> (i32, i32): (1, 2)
 
 whole := ((low, high) := pair())  # diagnostic: syntax-error

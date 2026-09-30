@@ -1,0 +1,6 @@
+# test: a tuple of names before := needs let in a same-line suite too
+# Spec 02 Short Binding Lists: grammar.stmt.short-binding.let-only (owner decision LP1-one, batch 26, 2026-09-30).
+fn pair() -> (i32, i32): (1, 2)
+
+fn split(flag: bool) -> void:
+    if flag: (a, b) := pair()  # diagnostic: missing-let

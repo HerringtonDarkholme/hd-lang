@@ -747,9 +747,10 @@ fn invalid() -> void:
     let mut ids: mut List[i64] = []   # warning: redundant-let-mut
 ```
 
-17. r[types.bind.let-mut-pattern] In a multi-name `let`, each name follows these rules for its own tuple element. In `let (mut log, db) = pair`, `log` has mutable access and `db` the readonly view.
-18. r[types.bind.let-mut-pattern.annotated] With a tuple annotation, the element type of each name written `mut` must be a `mut` type. Error: `let-mut-readonly-type`.
-19. r[types.bind.let-mut-pattern.redundant] That `mut` before the name is redundant and gets the same warning, with the same fix-it. Warning: `redundant-let-mut`.
+17. r[types.bind.let-pattern-mut] In a `let` pattern, each name follows these rules for the value it binds, as a `match` arm would bind it. In `let (mut log, db) = pair`, `log` has mutable access and `db` the readonly view.
+18. r[types.bind.let-pattern-mut.data] The same holds in a data or variant pattern. In `let User { mut tags, name } = user`, with `user: mut User` and a field `tags: mut List[string]`, `tags` has type `mut List[string]`.
+19. r[types.bind.let-mut-pattern.annotated] With a tuple annotation, the element type of each name written `mut` must be a `mut` type. Error: `let-mut-readonly-type`.
+20. r[types.bind.let-mut-pattern.redundant] That `mut` before the name is redundant and gets the same warning, with the same fix-it. Warning: `redundant-let-mut`.
 
 ```text
 fn pair() -> (mut User, mut User):
@@ -759,6 +760,17 @@ fn edit() -> void:
     let (mut first, second) = pair()  # mut User, User
     first.name = "Lin"
     println(second.name)
+```
+
+```text
+data Profile:
+    name: string
+    tags: mut List[string]
+
+fn tag(profile: mut Profile, readonly: Profile) -> void:
+    let Profile { mut tags, name } = profile  # mut List[string], string
+    tags.push(name)
+    let Profile { tags: mut others } = readonly  # error: mutable-upgrade
 ```
 
 ```text

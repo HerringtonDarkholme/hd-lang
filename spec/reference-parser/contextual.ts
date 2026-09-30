@@ -161,28 +161,52 @@ const oldBoundOperator = new RegExp(
   "u",
 );
 
-// Chapter 02 `grammar.expr.multi-binding.statement-only`: a multi-name
-// binding is never part of an expression. The grammar already rejects
-// `[(a, b) := pair]` and `((a, b) := pair)`; `[a, b := pair]` would parse as
-// a list whose last element is a binding, so it is flagged here: a `:=`
-// whose innermost open bracket is `[`, after a comma at that depth or after
-// a parenthesized name list.
-function unwrappedMultiBinding(clean: string): boolean {
-  const stack: { character: string; comma: boolean; start: number }[] = [];
+// The index of the first `:=` or `=>` outside every bracket of the line, or
+// -1 when there is none.
+function topLevelOperator(clean: string, operator: ":=" | "=>"): number {
+  let depth = 0;
   for (let index = 0; index < clean.length; index += 1) {
     const character = clean[index]!;
-    if (openToClose.has(character)) stack.push({ character, comma: false, start: index + 1 });
-    else if (closeToOpen.has(character)) stack.pop();
-    else if (character === "," && stack.length > 0) {
-      stack.at(-1)!.comma = true;
-      stack.at(-1)!.start = index + 1;
-    } else if (character === ":" && clean[index + 1] === "=") {
-      const top = stack.at(-1);
-      if (top?.character !== "[") continue;
-      if (top.comma || clean.slice(top.start, index).trim().startsWith("(")) return true;
-    }
+    if (openToClose.has(character)) depth += 1;
+    else if (closeToOpen.has(character)) depth -= 1;
+    else if (depth === 0 && clean.startsWith(operator, index)) return index;
   }
-  return false;
+  return -1;
+}
+
+// Chapter 02 `grammar.stmt.short-binding.let-only`: `:=` binds exactly one
+// name. A pattern before `:=`, as in `(a, b) := pair`, `Point { x, y } := p`,
+// or `.Some(v) := found`, needs `let`. A parenthesized single name, as in
+// `(a) := pair`, is no pattern and stays a syntax error.
+function patternBeforeShortBinding(clean: string): boolean {
+  const at = topLevelOperator(clean, ":=");
+  if (at < 0) return false;
+  let left = clean.slice(0, at).trim();
+  // In a same-line suite body, as in `if ok: (a, b) := pair`, the binding
+  // starts after the header's last `:` outside brackets.
+  let depth = 0;
+  let bodyStart = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    const character = left[index]!;
+    if (openToClose.has(character)) depth += 1;
+    else if (closeToOpen.has(character)) depth -= 1;
+    else if (depth === 0 && character === ":" && left[index + 1] !== ":" && left[index - 1] !== ":")
+      bodyStart = index + 1;
+  }
+  left = left.slice(bodyStart).trim();
+  if (!/[)}]$/u.test(left)) return false;
+  if (/^(?:\p{Lu}[\p{L}\p{N}_]*\.)*\p{Lu}[\p{L}\p{N}_]*\s*[{(]/u.test(left)) return true;
+  if (/^\.[\p{L}_][\p{L}\p{N}_]*\s*\(/u.test(left)) return true;
+  if (!left.startsWith("(") || !left.endsWith(")")) return false;
+  return splitTopLevel(left.slice(1, -1)).length >= 2;
+}
+
+// Chapter 02 `grammar.pattern.mut-let-only`: `mut` before a binding name is
+// valid only in a `let` pattern, never in a match arm's pattern.
+function mutInArmPattern(clean: string): boolean {
+  const at = topLevelOperator(clean, "=>");
+  if (at < 0 || /^(?:\[|for\b)/u.test(clean)) return false;
+  return /(?:^|[({,:])\s*mut\s+[\p{L}_]/u.test(clean.slice(0, at));
 }
 
 function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
@@ -198,7 +222,8 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
     diagnostics.push(diagnostic("direct-variant-use", line));
   if (/\b[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+/u.test(clean))
     diagnostics.push(diagnostic("comparison-chaining", line));
-  if (unwrappedMultiBinding(clean)) diagnostics.push(diagnostic("syntax-error", line));
+  if (patternBeforeShortBinding(clean)) diagnostics.push(diagnostic("missing-let", line));
+  if (mutInArmPattern(clean)) diagnostics.push(diagnostic("syntax-error", line));
   // A qualified bang call writes its type arguments after `!`
   // (chapter 02 `grammar.primary.method-reference.no-bang`).
   if (/::[\p{L}_][\p{L}\p{N}_]*::\[(?:[^[\]]|\[[^[\]]*\])*\]!\(/u.test(clean))

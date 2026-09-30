@@ -1612,21 +1612,13 @@ if (size := input.len()) > 0:
     println(size)
 ```
 
-1. r[expr.bind.value] `:=` introduces one or more inferred, non-reassignable names and evaluates to the initializer's value.
+1. r[expr.bind.one-name] `:=` introduces one inferred, non-reassignable name and evaluates to the initializer's value.
 2. r[expr.bind.precedence] `:=` has the lowest precedence.
 3. r[expr.bind.parens] Parentheses are required when a binding appears as an operand of another expression, as above.
-4. r[expr.bind.tuple] For tuple binding, the right side must be a tuple of the same arity; any other value is an error. Error: `type-mismatch`.
-
-```text
-fn run() -> i32:
-    (first, second) := (1, 2, 3)  # error: type-mismatch
-    first
-```
-
-> **Note.** A tuple binding such as `(a, b) := pair` is a statement, never
-> part of an expression, as
-> [`grammar.expr.multi-binding.statement-only`](02-grammar.md#r-grammar.expr.multi-binding.statement-only)
-> states. Only a single-name binding has a value.
+> **Note.** Destructuring is a `let` statement, as in
+> `let (a, b) = pair`, never a `:=` binding, as
+> [`grammar.stmt.short-binding.let-only`](02-grammar.md#r-grammar.stmt.short-binding.let-only)
+> states.
 
 See also: [Binding Expressions](03-names-and-scopes.md#binding-expressions),
 which defines the binding's scope.

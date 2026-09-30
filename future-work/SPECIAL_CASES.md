@@ -42,7 +42,7 @@ lists the ones that single out one type, one name, or one context.
 | 1 | [C1](#c1-one-code-for-an-operator-with-no-meaning) Operator-operand codes become `type-mismatch` | [`expr.op.no-impl`](../spec/05-expressions.md#r-expr.op.no-impl), [`trait.bound.unsatisfied`](../spec/09-traits.md#r-trait.bound.unsatisfied) | 6 codes, 2 of them with no rule today | coarser code; the message still names the trait | holds |
 | 2 | [C2](#c2-diagnostic-twins) Four pairs of twin codes merge | the partner code of each pair | 4 codes | one fixture marker each | holds |
 | 3 | [C3](#c3-value-packs-follow-the-vararg-rule) Value packs follow the vararg finality rule | [`fn.vararg.last`](../spec/07-functions.md#r-fn.vararg.last) | 2 codes, 2 rules | none for valid code | holds while hd has no named-only parameters |
-| 4 | [C4](#c4-parenthesized-names-in-for) `for (k, v) in m:` like `(a, b) :=` and `let (a, b)` | [`grammar.stmt.bind-list`](../spec/02-grammar.md#r-grammar.stmt.bind-list) | 1 grammar exception, 1 of 3 list spellings | about 25 loops gain parentheses | holds |
+| 4 | [C4](#c4-parenthesized-names-in-for) `for (k, v) in m:` like `(a, b) :=` and `let (a, b)` | `grammar.stmt.bind-list` (now [`grammar.stmt.short-binding.one-name`](../spec/02-grammar.md#r-grammar.stmt.short-binding.one-name)) | 1 grammar exception, 1 of 3 list spellings | about 25 loops gain parentheses | holds |
 | 5 | [C5](#c5-one-dollar-rule-for-every-string) One `$` rule for every string | `lex.prefix.plain-dollar-start` | half of one rule | `"costs $5"` becomes valid | holds |
 
 The full ranking, with four more cuts, is in [Cut Candidates](#cut-candidates).
@@ -190,8 +190,8 @@ Forms that exist for one feature.
 | S7 | `sql"..."` | [`lex.prefix.form`](../spec/01-lexical-structure.md#r-lex.prefix.form) | Prefixed string, a call of an `@str_prefix` function; raw text. | L19-L22. |
 | S8 | `"""..."""` | [`lex.multiline.form`](../spec/01-lexical-structure.md#r-lex.multiline.form) | Multiline string, kept verbatim. | |
 | S9 | `$name`, `$self`, `${e}` | [`lex.interp.forms`](../spec/01-lexical-structure.md#r-lex.interp.forms) | Interpolation. | Kotlin style; GQ15 added `$self`. |
-| S10 | `let (a, b) = p`, `let mut x` | [`grammar.stmt.let-list`](../spec/02-grammar.md#r-grammar.stmt.let-list), [`types.bind.let-mut-infer`](../spec/04-type-system.md#r-types.bind.let-mut-infer) | Multi-name `let` in parentheses; `let mut` infers `mut T`. | Let 1-7, local mutability decision. |
-| S11 | `(a, b) := p`, `((a, b) := p)` | [`grammar.stmt.bind-list`](../spec/02-grammar.md#r-grammar.stmt.bind-list), `grammar.expr.multi-binding.wrapped` | Multi-name binding; nested use in its own parentheses. | Q1, Q1b. |
+| S10 | `let (a, b) = p`, `let mut x` | `grammar.stmt.let-list` (now [`grammar.stmt.let-pattern.tuple`](../spec/02-grammar.md#r-grammar.stmt.let-pattern.tuple)), [`types.bind.let-mut-infer`](../spec/04-type-system.md#r-types.bind.let-mut-infer) | Multi-name `let` in parentheses; `let mut` infers `mut T`. | Let 1-7, local mutability decision. |
+| S11 | `(a, b) := p`, `((a, b) := p)` | `grammar.stmt.bind-list` (now [`grammar.stmt.short-binding.one-name`](../spec/02-grammar.md#r-grammar.stmt.short-binding.one-name)), `grammar.expr.multi-binding.wrapped` | Multi-name binding; nested use in its own parentheses. | Q1, Q1b. |
 | S12 | `x := e` as an expression | [`names.bind.expression`](../spec/03-names-and-scopes.md#r-names.bind.expression) | Binds in the enclosing scope. | Walrus-style guards. |
 | S13 | `_ := e` | [`grammar.stmt.discard`](../spec/02-grammar.md#r-grammar.stmt.discard) | Explicit discard of a must-use value. | `_` is not an identifier. |
 | S14 | Trailing block `f(a):` | [`fn.trailing.form`](../spec/07-functions.md#r-fn.trailing.form) | Last zero-argument callback as an indented block. | Kotlin and Swift. |
@@ -608,8 +608,8 @@ fn total(scores: Map[string, i32], ready: bool) -> i32 $ Console:
     sum
 ```
 
-**Absorbed by.** [`grammar.stmt.bind-list`](../spec/02-grammar.md#r-grammar.stmt.bind-list)
-and [`grammar.inline.bind-list`](../spec/02-grammar.md#r-grammar.inline.bind-list):
+**Absorbed by.** `grammar.stmt.bind-list` (now [`grammar.stmt.short-binding.one-name`](../spec/02-grammar.md#r-grammar.stmt.short-binding.one-name))
+and `grammar.inline.bind-list`:
 the `binding_list` production replaces `binding_pattern`.
 
 **Cost.** Every multi-name loop gains two characters: 18 fixtures, 3 spec

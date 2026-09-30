@@ -1,5 +1,5 @@
-# test: a parenthesized := list holds at least two names
-# Spec 02 Short Binding Lists: grammar.stmt.bind-list.two-names (owner decision Q1, 2026-09-30).
+# test: := binds exactly one name, and a parenthesized name is not one
+# Spec 02 Short Binding Lists: grammar.stmt.short-binding.one-name (owner decision LP1-one, batch 26, 2026-09-30).
 fn pair() -> (i32, i32): (1, 2)
 
 fn invalid() -> void:

@@ -1,0 +1,7 @@
+# test: := binds one name, so a tuple of names before it needs let
+# Spec 02 Short Binding Lists: grammar.stmt.short-binding.let-only (owner decision LP1-one, batch 26, 2026-09-30).
+fn pair() -> (i32, i32): (1, 2)
+
+fn split() -> i32:
+    (low, high) := pair()  # diagnostic: missing-let
+    low + high

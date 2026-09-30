@@ -1,0 +1,8 @@
+# test: mut before a binding name is valid only in a let pattern, not in a match arm
+# Spec 02 Patterns: grammar.pattern.mut-let-only (owner decision LP1, batch 26, 2026-09-30).
+enum Pair:
+    Values(left: i32, right: i32)
+
+fn rebind(value: Pair) -> i32:
+    match value:
+        Pair.Values(mut l, r) => l + r  # diagnostic: syntax-error

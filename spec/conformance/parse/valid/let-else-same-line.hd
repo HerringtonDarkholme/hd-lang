@@ -1,0 +1,10 @@
+# test: a let-else body may be a same-line suite or an indented one
+# Spec 02 Let-Else Statements: grammar.stmt.let-else.same-line, .closed (owner decision LP1, batch 26, 2026-09-30).
+fn find(id: i32) -> i32?:
+    if id == 0: .Some(7) else: .None
+
+fn read(id: i32, flag: bool) -> i32?:
+    let .Some(user) = find(id) else: return .None
+    let .Some(other) = (if flag: find(id) else: find(0)) else:
+        return .None
+    .Some(user + other)

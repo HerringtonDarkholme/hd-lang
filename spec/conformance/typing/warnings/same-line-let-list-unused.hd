@@ -1,5 +1,5 @@
 # test: a name bound in a same-line suite is never read, so it warns
-# Spec 02 Same-Line Suite Bodies: grammar.inline.let-list with flow.unused.warning (owner decision Let 7, 2026-09-29).
+# Spec 02 Same-Line Suite Bodies: grammar.inline.let-pattern with flow.unused.warning (owner decision Let 7, 2026-09-29).
 fn pair() -> (i32, i32): (1, 2)
 
 fn split(ready: bool) -> void:

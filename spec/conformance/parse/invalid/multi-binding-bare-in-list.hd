@@ -1,5 +1,0 @@
-# test: a bare multi-name binding inside a list is an error, never a list whose last element is a binding
-# Spec 02 Multi-Name Bindings: grammar.expr.multi-binding.statement-only (owner decision SSC Q5, batch 26, 2026-09-30).
-fn pair() -> (i32, i32): (1, 2)
-
-values := [a, b := pair()]  # diagnostic: syntax-error

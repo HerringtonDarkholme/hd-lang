@@ -29,18 +29,31 @@ export function parserSelfTest(): string[] {
     ["flags := [x == 1, y != 2]\n", true],
     ['fn f() -> void: log("a;b")\n', true],
     ['fn f() -> void: log("a < b > c")\n', true],
-    ["fn f(pair: (i32, i32)) -> void:\n    (a, b) := pair\n", true],
+    ["fn f(pair: (i32, i32)) -> void:\n    (a, b) := pair\n", false],
+    ["fn f(pair: (i32, i32)) -> void:\n    let (a, b) = pair\n", true],
     ["fn f(pair: (i32, i32)) -> void:\n    a, b := pair\n", false],
-    ["fn f(ok: bool, pair: (i32, i32)) -> void:\n    if ok: (a, b) := pair\n", true],
+    ["fn f(ok: bool, pair: (i32, i32)) -> void:\n    if ok: let (a, b) = pair\n", true],
     ["fn f(pair: (i32, i32)) -> void:\n    whole := ((a, b) := pair)\n", false],
     ["fn f(m: Map[i32, i32]) -> void:\n    for (k, v) in m: pass\n", true],
     ["fn f(m: Map[i32, i32]) -> void:\n    for k, v in m: pass\n", false],
     ["fn f(pair: (i32, i32)) -> void:\n    whole := (a, b := pair)\n", false],
-    ["fn f(g: fn(i32, i32) -> i32, pair: (i32, i32)) -> void:\n    g\n    (a, b) := pair\n", true],
+    [
+      "fn f(g: fn(i32, i32) -> i32, pair: (i32, i32)) -> void:\n    g\n    let (a, b) = pair\n",
+      true,
+    ],
+    ["fn f(pair: (i32, i32)) -> void:\n    values := [a, b := pair]\n", true],
     [
       "fn f(flag: bool) -> void:\n    let total: i32 = 1\n    if flag: total = 2\n    else: total = 0\n",
       true,
     ],
+    [
+      "fn f(id: i32) -> i32?:\n    let .Some(u) = find(id) else: return .None\n    .Some(u)\n",
+      true,
+    ],
+    ["fn f(l: Line) -> i32:\n    let Line { start: Point { x, y: _ }, end: _ } = l\n    x\n", true],
+    ["fn f(u: mut User) -> void:\n    let User { mut tags, name } = u\n", true],
+    ["fn f(p: Point) -> void:\n    Point { x, y } := p\n", false],
+    ["fn f(p: i32?) -> i32:\n    match p:\n        .Some(mut v) => v\n        _ => 0\n", false],
   ]);
   const failures: string[] = [];
   for (const [source, expected] of probes) {

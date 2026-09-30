@@ -26,7 +26,7 @@ impl Clock for FixedClock:
         self.value
 
 fn both() -> string $ Tag + Clock:
-    (tag, clock) := $.use(Tag, Clock)
+    let (tag, clock) = $.use(Tag, Clock)
     tag.name() + "@" + "${clock.now()}"
 
 fn reordered() -> string $ Clock + Tag:

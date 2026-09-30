@@ -46,9 +46,9 @@ production-like hd code, is the harder test.
 
 | Rank | Cut | Absorbed by | Rules removed | Changes valid source | Soundness |
 | ---: | --- | --- | ---: | --- | --- |
-| 1 | [K1](#k1-one-name-list-shape-in-for) `for (k, v) in m`, as in `let (a, b)` and `(a, b) :=` (SPECIAL_CASES C4) | [`grammar.stmt.bind-list`](../spec/02-grammar.md#r-grammar.stmt.bind-list), [`grammar.inline.bind-list`](../spec/02-grammar.md#r-grammar.inline.bind-list) | 1 exception, 1 of 3 list spellings | yes, with a fix-it | holds |
+| 1 | [K1](#k1-one-name-list-shape-in-for) `for (k, v) in m`, as in `let (a, b)` and `(a, b) :=` (SPECIAL_CASES C4) | `grammar.stmt.bind-list` (now [`grammar.stmt.short-binding.one-name`](../spec/02-grammar.md#r-grammar.stmt.short-binding.one-name)), `grammar.inline.bind-list` | 1 exception, 1 of 3 list spellings | yes, with a fix-it | holds |
 | 2 | [K2](#k2-let-mut-takes-no-annotation) `let mut` takes no type annotation | [`types.bind.let-mut`](../spec/04-type-system.md#r-types.bind.let-mut): the annotation states access | 7 rules become 2; 1 warning | yes: a warned form becomes an error | holds |
-| 3 | [K3](#k3-a-multi-name-binding-is-a-statement) A multi-name `:=` is a statement only | [`grammar.expr.multi-binding`](../spec/02-grammar.md#r-grammar.expr.multi-binding) | 1 rule, 1 nested form | yes: `((a, b) := p)` becomes an error | holds |
+| 3 | [K3](#k3-a-multi-name-binding-is-a-statement) A multi-name `:=` is a statement only | `grammar.expr.multi-binding` | 1 rule, 1 nested form | yes: `((a, b) := p)` becomes an error | holds |
 | 4 | [K4](#k4-a-comprehension-follows-its-loop) A comprehension follows the loop it abbreviates (SPECIAL_CASES C7) | [`expr.comp.shape`](../spec/05-expressions.md#r-expr.comp.shape), [`req.bang.driver-contexts`](../spec/11-requirements-and-suspension.md#r-req.bang.driver-contexts) | 3 rules | invalid becomes valid | holds |
 | 5 | [K5](#k5-one-dollar-rule-for-every-string) One `$` rule for every string (SPECIAL_CASES C5) | `lex.prefix.plain-dollar-start` | half of 1 rule | invalid becomes valid | holds |
 
@@ -179,8 +179,8 @@ fn names(scores: Map[string, i32], ready: bool) -> List[string] $ Console:
 ```
 
 **Absorbed by.** The `binding_list` production of
-[`grammar.stmt.bind-list`](../spec/02-grammar.md#r-grammar.stmt.bind-list),
-and [`grammar.inline.bind-list`](../spec/02-grammar.md#r-grammar.inline.bind-list)
+`grammar.stmt.bind-list` (now [`grammar.stmt.short-binding.one-name`](../spec/02-grammar.md#r-grammar.stmt.short-binding.one-name)),
+and `grammar.inline.bind-list`
 for the same-line body.
 
 **Soundness.** The change is syntactic. Destructuring, the arity check
@@ -252,7 +252,7 @@ write `let mut x: T` and get the fix-it.
 
 | Item | Change |
 | --- | --- |
-| [`grammar.stmt.let-mut-single`](../spec/02-grammar.md#r-grammar.stmt.let-mut-single), [`grammar.stmt.let-mut-list`](../spec/02-grammar.md#r-grammar.stmt.let-mut-list) | reworded: `mut` before a name only when the `let` has no annotation |
+| `grammar.stmt.let-mut-single`, `grammar.stmt.let-mut-list` (now [`grammar.stmt.let-pattern.mut`](../spec/02-grammar.md#r-grammar.stmt.let-pattern.mut)) | reworded: `mut` before a name only when the `let` has no annotation |
 | [`types.bind.let-mut-annotated`](../spec/04-type-system.md#r-types.bind.let-mut-annotated) | reworded: `let mut` with an annotation is `syntax-error` |
 | [`types.bind.let-mut-annotated.fix`](../spec/04-type-system.md#r-types.bind.let-mut-annotated.fix) | reworded: the fix-it moves `mut` into the type |
 | [`types.bind.let-mut-annotated.warning`](../spec/04-type-system.md#r-types.bind.let-mut-annotated.warning) | deleted; `redundant-let-mut` retires |
@@ -298,7 +298,7 @@ fn sum() -> i32:
     low + high + a + b
 ```
 
-**Absorbed by.** [`grammar.expr.multi-binding`](../spec/02-grammar.md#r-grammar.expr.multi-binding):
+**Absorbed by.** `grammar.expr.multi-binding`:
 "a multi-name short binding such as `(a, b) := value` is a statement".
 The nested case becomes a plain syntax error.
 

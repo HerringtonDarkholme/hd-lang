@@ -1,5 +1,5 @@
 # test: a parenthesized let list needs no mut
-# Spec 02 Let Statements: grammar.stmt.let-list (apply-pass answer Let 1, 2026-09-29).
+# Spec 02 Let Statements: grammar.stmt.let-pattern.tuple (apply-pass answer Let 1, 2026-09-29).
 fn pair() -> (List[i32], List[i32]): ([1], [2])
 
 fn valid() -> void:

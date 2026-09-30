@@ -1,5 +1,5 @@
 # test: a parenthesized let list holds at least two names
-# Spec 02 Let Statements: grammar.stmt.let-list.two-names (apply-pass answer Let 1, 2026-09-29).
+# Spec 02 Let Statements: grammar.stmt.let-pattern.parenthesized (apply-pass answer Let 1, 2026-09-29).
 fn pair() -> (i32, i32): (1, 2)
 
 fn invalid() -> void:

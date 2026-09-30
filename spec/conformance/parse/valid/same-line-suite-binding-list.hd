@@ -1,6 +1,0 @@
-# test: a parenthesized := list may be a same-line suite body, because its commas are inside parentheses
-# Spec 02 Same-Line Suite Bodies: grammar.inline.bind-list (owner decision Q1a, batch 15, 2026-09-30).
-fn pair() -> (i32, i32): (1, 2)
-
-fn valid(flag: bool) -> void:
-    if flag: (a, b) := pair()

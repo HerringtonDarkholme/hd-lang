@@ -1,0 +1,8 @@
+# test: a refutable let pattern without an else block is an error
+# Spec 06 Let Patterns: flow.let.refutable.else (owner decision LP1, batch 26, 2026-09-30).
+fn find(id: i32) -> i32?:
+    if id == 0: .Some(7) else: .None
+
+fn missing_else(id: i32) -> i32:
+    let .Some(value) = find(id)  # diagnostic: refutable-let-pattern
+    value

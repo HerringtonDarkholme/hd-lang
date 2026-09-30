@@ -1,7 +1,6 @@
-# test: a multi-name binding statement destructures a tuple of the same arity
-# Spec 05 Binding Expressions: expr.bind.tuple. A multi-name := is a statement
-# (owner decision SSC Q5, batch 26, 2026-09-30), so the tuple is kept by
-# binding it first.
+# test: a let tuple pattern destructures a tuple of the same arity
+# Spec 06 Let Patterns: flow.let.tuple-arity. Destructuring uses let
+# (owner decision LP1-one, batch 26, 2026-09-30), so the tuple is kept by binding it first.
 use std.testing.assert_equal
 
 fn pair() -> (i32, string):
@@ -10,7 +9,7 @@ fn pair() -> (i32, string):
 tests:
     it("the binding statement destructures the tuple"):
         whole := pair()
-        (number, word) := whole
+        let (number, word) = whole
         assert_equal(number, 42, reason="first element bound")
         assert_equal(word, "answer", reason="second element bound")
         assert_equal(whole, (42, "answer"), reason="the tuple is unchanged")

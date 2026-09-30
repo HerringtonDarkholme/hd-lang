@@ -80,7 +80,7 @@ maps each exercised code to its fixture.
 
 | Severity | Stable diagnostic codes |
 | --- | --- |
-| Error | `alias-cycle`, `ambiguous-associated-type`, `ambiguous-method`, `ambiguous-promoted-member`, `ambiguous-row-pattern`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `cyclic-test-dependency`, `decorator-not-annotator`, `decorator-not-top-level`, `decorator-target-kind`, `default-order`, `derive-field-missing-trait`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-fact`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-pipe-placeholder`, `duplicate-test-name`, `duplicate-tests-block`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-too-deep`, `float-literal-range`, `folder-cycle`, `gadt-derivation`, `generic-kind-mismatch`, `generic-member-call`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-error-marker`, `invalid-escape`, `invalid-impl-target`, `invalid-literal-suffix`, `invalid-map-key`, `invalid-member-line`, `invalid-result-propagation`, `invalid-string-prefix`, `invalid-test-statement`, `invalid-variance`, `let-mut-readonly-type`, `local-impl-nonlocal-pair`, `marker-template`, `member-not-derivable`, `misplaced-derivation`, `misplaced-test-case`, `misplaced-tests-block`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-eq`, `missing-let`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-derived-law`, `mixed-numeric-types`, `mixed-signedness`, `multi-line-pipe-step`, `multiple-positional-value-packs`, `mut-on-primitive`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `newtype-derivation-self`, `no-common-type`, `no-least-common-type`, `non-literal-test-argument`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-positional-value-pack`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonlocal-impl`, `nonnumeric-unary-plus`, `not-suspending`, `old-bound-operator`, `old-export-declaration`, `old-import-declaration`, `old-row-separator`, `old-struct-declaration`, `omitted-member-without-default`, `orphan-impl`, `overlapping-impl`, `pack-length-mismatch`, `pack-map-mapper-mismatch`, `package-cycle`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `pipe-placeholder-in-closure`, `pipe-step-needs-placeholder`, `placeholder-outside-pipe`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `public-test-item`, `re-export-loop`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `row-parameter-in-context`, `sealed-trait-implementation`, `structure-outside-template`, `supertrait-cycle`, `suspending-pipe-step`, `suspension-forbidden-context`, `tab-whitespace`, `test-only-use`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-resolution-depth`, `trait-value-impl-target`, `type-used-as-value`, `underivable-trait`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-panic-category`, `unknown-shape-target`, `unreachable-match-arm`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-function-identity`, `variance-representation-change`, `variant-result-owner` |
+| Error | `alias-cycle`, `ambiguous-associated-type`, `ambiguous-method`, `ambiguous-promoted-member`, `ambiguous-row-pattern`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `cyclic-test-dependency`, `decorator-not-annotator`, `decorator-not-top-level`, `decorator-target-kind`, `default-order`, `derive-field-missing-trait`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-fact`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-pipe-placeholder`, `duplicate-test-name`, `duplicate-tests-block`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-too-deep`, `float-literal-range`, `folder-cycle`, `gadt-derivation`, `generic-kind-mismatch`, `generic-member-call`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-error-marker`, `invalid-escape`, `invalid-impl-target`, `invalid-literal-suffix`, `invalid-map-key`, `invalid-member-line`, `invalid-result-propagation`, `invalid-string-prefix`, `invalid-test-statement`, `invalid-variance`, `let-else-falls-through`, `let-mut-readonly-type`, `local-impl-nonlocal-pair`, `marker-template`, `member-not-derivable`, `misplaced-derivation`, `misplaced-test-case`, `misplaced-tests-block`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-eq`, `missing-let`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-derived-law`, `mixed-numeric-types`, `mixed-signedness`, `multi-line-pipe-step`, `multiple-positional-value-packs`, `mut-on-primitive`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `newtype-derivation-self`, `no-common-type`, `no-least-common-type`, `non-literal-test-argument`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-positional-value-pack`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonlocal-impl`, `nonnumeric-unary-plus`, `not-suspending`, `old-bound-operator`, `old-export-declaration`, `old-import-declaration`, `old-row-separator`, `old-struct-declaration`, `omitted-member-without-default`, `orphan-impl`, `overlapping-impl`, `pack-length-mismatch`, `pack-map-mapper-mismatch`, `package-cycle`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `pipe-placeholder-in-closure`, `pipe-step-needs-placeholder`, `placeholder-outside-pipe`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `public-test-item`, `re-export-loop`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `refutable-let-pattern`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `row-parameter-in-context`, `sealed-trait-implementation`, `structure-outside-template`, `supertrait-cycle`, `suspending-pipe-step`, `suspension-forbidden-context`, `tab-whitespace`, `test-only-use`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-resolution-depth`, `trait-value-impl-target`, `type-used-as-value`, `underivable-trait`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-panic-category`, `unknown-shape-target`, `unreachable-match-arm`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-function-identity`, `variance-representation-change`, `variant-result-owner` |
 | Error | `defer-control-flow`, `defer-outside-cleanup-scope`, `suspending-defer` |
 | Error (general) | `argument-count`, `break-outside-loop`, `duplicate-binding`, `duplicate-type`, `duplicate-variant`, `invalid-dedent`, `invalid-token`, `not-callable`, `syntax-error`, `type-mismatch`, `unclosed-delimiter`, `unexpected-indentation`, `unknown-data-field`, `unknown-method`, `unknown-name`, `unknown-trait`, `unknown-type`, `unknown-variant`, `unmatched-delimiter`, `unterminated-string` |
 | Warning | `confusable-identifier`, `derivation-line-drift`, `mixed-script-identifier`, `redundant-let-mut`, `unreachable-code`, `unused-derivation-fact`, `unused-local-binding`, `variant-binding-name-mismatch` |
@@ -213,11 +213,13 @@ The stdlib chapters' terms are in the
 | **initialization group** | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. See [`module.init.group`](10-modules.md#r-module.init.group). |
 | **inspectable types** | The types for which the compiler supplies `Inspectable`: primitives, module-level declarations, collections and tuples of inspectable types, and matching dynamic values. See [Inspectable Types](09-traits.md#inspectable-types). |
 | **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](10-modules.md#r-module.test.integration). |
+| **irrefutable** | A pattern that alone covers its initializer's type, so a `let` with it needs no `else`. Any other pattern is refutable. See [`flow.let.irrefutable`](06-control-flow.md#r-flow.let.irrefutable). |
 | **iterable** | A value whose type implements `Iterable[T]`, such as a `List` or a `Map`. An `Iterator` is not iterable, though `for` takes a mutable one directly. See [`flow.for.accepts`](06-control-flow.md#r-flow.for.accepts). |
 | **iterator** | A value of the prelude type `Iterator[T]`. It stores one traversal's progress and is single-pass: a second traversal calls `iter()` on the source again. See [`flow.for.iterator-type`](06-control-flow.md#r-flow.for.iterator-type). |
 | **iterator adapters** | A stdlib term, in the [Standard Library glossary](std/README.md#glossary). |
 | **known implementation** | An implementation in the program's dependency graph whose target matches a type; a local one counts only where its methods are available. See [`names.member.known-impl`](03-names-and-scopes.md#r-names.member.known-impl). |
 | **law partners** | Comparison and hash traits whose laws relate them, such as `Hash` and `Eq`. See [Law Partners](09-traits.md#law-partners). |
+| **let-else** | A `let` statement with a refutable pattern and an `else` block, which runs when the pattern does not match and must diverge. See [Let-Else Statements](02-grammar.md#let-else-statements). |
 | **lexical provider** | A provider a closure fixes where it is written, by capturing the value of `$.use`. See [Lexical And Dynamic Providers](11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
 | **literal suffix** | A name written directly after a numeric literal's digits, which names a suffix function. See [Literal Suffixes](01-lexical-structure.md#literal-suffixes). |
 | **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. See [Member Lines](14-annotations.md#member-lines). |
@@ -244,6 +246,7 @@ The stdlib chapters' terms are in the
 | **pseudo-version** | A version that names one untagged commit by a base version, its time, and its hash. See [`module.version.pseudo`](10-modules.md#r-module.version.pseudo). |
 | **readonly edge** | A field declared `field: U` with a composite `U`, which gives readonly access through any container. See [`types.path.field.readonly-edge`](04-type-system.md#r-types.path.field.readonly-edge). |
 | **readonly view** | The `T` access to a composite value; it does not imply deep immutability. See [`types.view.term`](04-type-system.md#r-types.view.term). |
+| **refutable** | A pattern that may fail to match its initializer, such as `.Some(v)`; a `let` with one needs an `else` block. See [`flow.let.irrefutable`](06-control-flow.md#r-flow.let.irrefutable). |
 | **requirement row** | The normalized unordered set of requirement keys on a callable signature. See [`req.row.definition`](11-requirements-and-suspension.md#r-req.row.definition). |
 | **requirement-free** | A default expression that uses no provider and does not suspend. See [`fn.default.requirement-free`](07-functions.md#r-fn.default.requirement-free). |
 | **row alias** | A transparent alias that names a set of requirement keys. See [Row Aliases](11-requirements-and-suspension.md#row-aliases). |
@@ -2401,11 +2404,11 @@ existing source. Each entry names the decision that made the change.
   `((a, b) := value)`, valid before, is now `syntax-error`, and
   `[(a, b) := value]` and `[a, b := value]` are `syntax-error` instead of
   `multi-binding-needs-parentheses`, which is withdrawn
-  ([`grammar.expr.multi-binding.statement-only`](02-grammar.md#r-grammar.expr.multi-binding.statement-only)).
+  (`grammar.expr.multi-binding.statement-only`).
   Bind first, on its own line: `whole := pair()`, then
   `(low, high) := whole`. `grammar.expr.multi-binding.wrapped` is retired,
   `grammar.expr.multi-binding.no-grouped.fix` is retired for
-  [`grammar.expr.multi-binding.no-grouped.hoist`](02-grammar.md#r-grammar.expr.multi-binding.no-grouped.hoist),
+  `grammar.expr.multi-binding.no-grouped.hoist`,
   and `expr.bind.tuple.value`, the value of the nested form, is retired.
   The `grouped_binding_expression` production is gone.
 - Map keys through an ordinary bound (owner decision SSC Q7, batch 26 in
@@ -2432,3 +2435,57 @@ existing source. Each entry names the decision that made the change.
   `expr.assign.compound.map-present`, `expr.assign.compound.map-missing`,
   and `expr.index.std.map-read`, which stated the exceptions, are retired
   with no replacement.
+- Patterns in `let` (owner decision LP1, batch 26 in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
+  2026-09-30): language tier. `let` takes any `match` pattern, such as
+  `let Point { x, y: py } = point` or `let Shape.Dot(p) = s else: return`
+  ([`grammar.stmt.let-pattern`](02-grammar.md#r-grammar.stmt.let-pattern)),
+  which were `syntax-error` before. A refutable pattern needs a let-else
+  block that diverges; without one it is `refutable-let-pattern`, and a
+  block that may fall through is `let-else-falls-through`
+  ([Let Patterns](06-control-flow.md#let-patterns)). The else body may be
+  a same-line suite, and the pattern's names are not visible in it
+  ([Let-Else Scope](03-names-and-scopes.md#let-else-scope)). `mut` may
+  precede each name of a `let` pattern
+  ([`types.bind.let-pattern-mut`](04-type-system.md#r-types.bind.let-pattern-mut));
+  in a `match` arm's pattern it stays `syntax-error`
+  ([`grammar.pattern.mut-let-only`](02-grammar.md#r-grammar.pattern.mut-let-only)).
+  `let (a, b)` is now a tuple pattern, with the same meaning. Retired:
+  `grammar.stmt.let-mut-single`, `grammar.stmt.let-list`, and
+  `grammar.stmt.let-mut-list` for `grammar.stmt.let-pattern`,
+  `.let-pattern.tuple`, and `.let-pattern.mut`;
+  `grammar.stmt.let-list.two-names` for
+  `grammar.stmt.let-pattern.parenthesized`; `grammar.inline.let-list` for
+  `grammar.inline.let-pattern`; `names.tuple.simultaneous` and
+  `names.tuple.distinct` for `names.pattern.simultaneous` and
+  `names.pattern.distinct`, which now name `duplicate-binding`; and
+  `types.bind.let-mut-pattern` for `types.bind.let-pattern-mut`. The
+  `let_pattern` and `let_name` productions are gone.
+- `:=` binds one name (owner decision LP1-one, batch 26 in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
+  2026-09-30): language tier. Multi-name `(a, b) := value`, valid before,
+  is now `missing-let`; write `let (a, b) = value`. Any other pattern
+  before `:=`, as in `Point { x, y } := p`, is `missing-let` too
+  ([`grammar.stmt.short-binding.let-only`](02-grammar.md#r-grammar.stmt.short-binding.let-only)).
+  Inside an expression, as in `((a, b) := value)`, it stays
+  `syntax-error`, and the fix-its now write a `let` statement
+  ([`grammar.expr.multi-binding.let-only`](02-grammar.md#r-grammar.expr.multi-binding.let-only),
+  [`.no-grouped.let`](02-grammar.md#r-grammar.expr.multi-binding.no-grouped.let)).
+  A tuple pattern of the wrong arity stays `type-mismatch`
+  ([`flow.let.tuple-arity`](06-control-flow.md#r-flow.let.tuple-arity)).
+  `for (k, v) in m` is unchanged. Retired: `grammar.stmt.bind-list` for
+  `grammar.stmt.short-binding.one-name`; `grammar.stmt.bind-list.bare` for
+  `grammar.stmt.short-binding.bare-list`, whose fix-it writes `let`;
+  `grammar.stmt.bind-list.two-names`, `.not-tuple`, `.new-statement`,
+  `grammar.stmt.chain.multi-name-first`, `grammar.inline.bind-list`, and
+  `grammar.expr.multi-binding`, with no replacement;
+  `grammar.expr.multi-binding.statement-only` for `.let-only`;
+  `grammar.expr.multi-binding.no-grouped.hoist` for `.no-grouped.let`;
+  `expr.bind.value` for `expr.bind.one-name`; and `expr.bind.tuple` for
+  `flow.let.tuple-arity`. The `short_binding_statement` production is
+  gone, and `binding_target` serves `for` alone.
+- List items may be bindings (owner decision Q5-list, batch 26 in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
+  2026-09-30): language tier. `[a, b := value]`, which was `syntax-error`,
+  is a list of `a` and the binding expression `b := value`
+  ([`grammar.expr.multi-binding.list-item`](02-grammar.md#r-grammar.expr.multi-binding.list-item)).

@@ -1,0 +1,9 @@
+# test: a let-else block runs without the pattern's names
+# Spec 03 Let-Else Scope: names.let-else.after, names.let-else.not-in-else (owner decision LP1, batch 26, 2026-09-30).
+fn find(id: i32) -> i32?:
+    if id == 0: .Some(7) else: .None
+
+fn read(id: i32) -> i32:
+    let .Some(value) = find(id) else:
+        return 0  # value is not visible here
+    value + 1

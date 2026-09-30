@@ -1,0 +1,14 @@
+# test: a let pattern nests data and tuple patterns to any depth
+# Spec 02 Let Statements: grammar.stmt.let-pattern (owner decision LP1, batch 26, 2026-09-30).
+data Point:
+    x: i32
+    y: i32
+
+data Line:
+    start: Point
+    end: Point
+
+fn span(line: Line, pairs: ((i32, i32), i32)) -> i32:
+    let Line { start: Point { x, y: _ }, end: Point { x: end_x } } = line
+    let ((a, b), c) = pairs
+    end_x - x + a + b + c

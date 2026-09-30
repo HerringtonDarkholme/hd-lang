@@ -1,5 +1,5 @@
 # test: a parenthesized let list may be a same-line suite body, because its commas are inside parentheses
-# Spec 02 Same-Line Suite Bodies: grammar.inline.let-list (owner decision Let 7, 2026-09-29).
+# Spec 02 Same-Line Suite Bodies: grammar.inline.let-pattern (owner decision Let 7, 2026-09-29).
 fn pair() -> (mut List[i32], List[i32]): ([1], [2])
 
 fn valid(ok: bool) -> void:

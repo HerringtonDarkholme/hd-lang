@@ -1,0 +1,10 @@
+# test: a mut name in a let data pattern never upgrades a readonly field
+# Spec 04 Binding Forms: types.bind.let-pattern-mut.data, types.bind.let-mut-upgrade (owner decision LP1, batch 26, 2026-09-30).
+data Profile:
+    name: string
+    tags: mut List[string]
+
+fn tag(profile: mut Profile, readonly: Profile) -> void:
+    let Profile { mut tags, name } = profile  # mut List[string], string
+    tags.push(name)
+    let Profile { tags: mut others } = readonly  # diagnostic: mutable-upgrade

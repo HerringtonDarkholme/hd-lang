@@ -1,0 +1,12 @@
+# test: an irrefutable data or tuple pattern after let needs no else
+# Spec 02 Let Statements: grammar.stmt.let-pattern; Spec 06 Let Patterns: flow.let.irrefutable.no-else (owner decision LP1, batch 26, 2026-09-30).
+data Point:
+    x: i32
+    y: i32
+
+fn total(point: Point, pair: (i32, i32)) -> i32:
+    let Point { x, y: py } = point
+    let (low, _) = pair
+    let mut sum = x + py
+    sum = sum + low
+    sum

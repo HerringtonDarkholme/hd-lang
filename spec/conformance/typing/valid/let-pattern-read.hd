@@ -1,0 +1,13 @@
+# test: let takes a variant pattern, and the names it binds are visible after the statement
+# Spec 06 Let Patterns: flow.let.match; Spec 03 Let-Else Scope: names.let-else.after (owner decision LP1, batch 26, 2026-09-30).
+data Point:
+    x: i32
+    y: i32
+
+fn find(id: i32) -> Point?:
+    if id == 0: .Some(Point { x: 1, y: 2 }) else: .None
+
+fn read(id: i32) -> i32:
+    let .Some(point) = find(id) else: return 0
+    let Point { x, y } = point
+    x + y

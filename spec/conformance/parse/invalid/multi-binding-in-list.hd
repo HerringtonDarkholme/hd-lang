@@ -1,5 +1,5 @@
-# test: a multi-name binding is a statement, so it cannot be a list element
-# Spec 02 Multi-Name Bindings: grammar.expr.multi-binding.statement-only (owner decision SSC Q5, batch 26, 2026-09-30).
+# test: a name list before := inside a list is an error; destructuring is a let statement
+# Spec 02 Multi-Name Bindings: grammar.expr.multi-binding.let-only (owner decision LP1-one, batch 26, 2026-09-30).
 fn pair() -> (i32, i32): (1, 2)
 
 wrapped := [(a, b) := pair()]  # diagnostic: syntax-error

@@ -110,10 +110,11 @@ suite_statement = defer_statement
                 | suite_expression
                 | trailing_block_call
                 | "_", ":=", suite_right_side
-                | binding_target, ":=", { identifier, ":=" },
+                | identifier, ":=", { identifier, ":=" },
                   suite_right_side
-                | "let", let_pattern, [ ":", type ], "=",
+                | "let", pattern, [ ":", type ], "=",
                   suite_right_side
+                | let_else_statement
                 | postfix_expression, ( "=" | compound_assign_op ),
                   suite_right_side
                 | "return", suite_right_side
@@ -125,7 +126,6 @@ suite_right_side = suite_expression | trailing_block_call ;
 defer_statement = "defer", ":", suite_body ;
 
 simple_statement = let_statement
-                 | short_binding_statement
                  | discard_statement
                  | assignment_statement
                  | return_statement
@@ -134,10 +134,11 @@ simple_statement = let_statement
                  | expression_statement
                  ;
 
-let_statement = "let", let_pattern, [ ":", type ], "=",
+let_statement = "let", pattern, [ ":", type ], "=",
                 closed_expression ;
 
-short_binding_statement = binding_list, ":=", closed_expression ;
+let_else_statement = "let", pattern, [ ":", type ], "=",
+                     closed_expression, "else", ":", suite_body ;
 
 discard_statement = "_", ":=", closed_expression ;
 
@@ -153,16 +154,7 @@ break_statement = "break", [ closed_expression ] ;
 continue_statement = "continue" ;
 expression_statement = closed_expression ;
 
-binding_target = identifier | binding_list ;
-binding_list = "(", identifier, ",", identifier, { ",", identifier }, ")" ;
-
-let_pattern = let_name
-            | "(", let_name, ",", let_name, { ",", let_name }, ")"
-            ;
-let_name = [ "mut" ], identifier ;
-
-inline_statement = "let", let_pattern, [ ":", type ], "=", inline_expression
-                 | binding_list, ":=", inline_expression
+inline_statement = "let", pattern, [ ":", type ], "=", inline_expression
                  | "_", ":=", inline_expression
                  | postfix_expression, ( "=" | "...=" | compound_assign_op ),
                    inline_expression
@@ -175,13 +167,30 @@ inline_statement = "let", let_pattern, [ ":", type ], "=", inline_expression
 
 ### Let Statements
 
-1. r[grammar.stmt.let-mut-single] In a `let` statement with one name, `mut` may precede the name, as in `let mut user = ...`.
-2. r[grammar.stmt.let-list] A multi-name `let` always puts its names in parentheses, with or without `mut`, as in `let (a, b) = ...`.
+A `let` statement binds the names of a pattern to the parts of its
+initializer:
+
+```text
+data Point:
+    x: i32
+    y: i32
+
+fn total(point: Point, pair: (i32, i32)) -> i32:
+    let Point { x, y: py } = point
+    let (low, _) = pair
+    let mut sum = x + py
+    sum = sum + low
+    sum
+```
+
+1. r[grammar.stmt.let-pattern] A `let` takes any `match` pattern: a name, `_`, a literal, or a tuple, data, or variant pattern, nested to any depth.
+2. r[grammar.stmt.let-pattern.tuple] A multi-name `let` is a tuple pattern, so its names stand in parentheses, as in `let (a, b) = ...`.
 3. r[grammar.stmt.let-list.bare] A multi-name `let` without parentheses, as in `let a, b = ...` or `let mut log, db = ...`, is an error whose fix-it adds the parentheses. Error: `syntax-error`.
-4. r[grammar.stmt.let-list.two-names] A parenthesized list must hold at least two names, so `let (a) = ...` is an error. Error: `syntax-error`.
-5. r[grammar.stmt.let-mut-list] In a parenthesized list, `mut` may precede each name, as in `let (mut log, db) = ...`.
+4. r[grammar.stmt.let-pattern.parenthesized] Parentheses around one pattern with no comma form no pattern, so `let (a) = ...` is an error. Error: `syntax-error`.
+5. r[grammar.stmt.let-pattern.mut] In a `let` pattern, `mut` may precede each name the pattern binds, as in `let mut user = ...`, `let (mut log, db) = ...`, and `let Point { mut tags, name } = ...`.
 6. r[grammar.stmt.let-mut.per-name] A `mut` belongs to the one name it precedes. The access it requests is a semantic rule of [Binding Forms](04-type-system.md#binding-forms).
 7. r[grammar.stmt.let-mut.only-let] Only `let` accepts it: `mut user := ...` and `for mut item in items:` are errors. Error: `syntax-error`.
+8. r[grammar.stmt.let-pattern.semantic] Whether a pattern may fail, and so needs an `else`, is a semantic rule of [Let Patterns](06-control-flow.md#let-patterns).
 
 ```text
 fn pair() -> (List[i32], List[i32]): ([1], [2])
@@ -199,29 +208,64 @@ fn invalid() -> void:
 > `let` uses them even without `mut`, since one shape reads better than two
 > spellings.
 
+### Let-Else Statements
+
+A **let-else** statement adds `else:` and a block, which runs when the
+pattern does not match:
+
+```text
+fn find(id: i32) -> i32?:
+    if id == 0: .Some(7) else: .None
+
+fn sum(id: i32) -> i32?:
+    let .Some(first) = find(id) else: return .None
+    let .Some(second) = find(id + 1) else:
+        return .None
+    .Some(first + second)
+```
+
+1. r[grammar.stmt.let-else] A `let` statement may end in `else`, `:`, and a suite body, as the `let_else_statement` production states.
+2. r[grammar.stmt.let-else.same-line] The else body may be a same-line suite, as in `let .Some(user) = find(id) else: return .None`, or an indented suite.
+3. r[grammar.stmt.let-else.closed] The initializer of a let-else is a `closed_expression`, so it cannot end in a suite. Parentheses hold such an initializer, as in `let .Some(v) = (if c: a else: b) else: return`.
+4. r[grammar.stmt.let-else.not-inline] A let-else is never a same-line suite body. In `if ok: let .Some(v) = f() else: return`, layout ends the `if` suite before `else`, so the `else` belongs to the `if`.
+5. r[grammar.stmt.let-else.semantic] The else block must diverge, which is a semantic rule of [Let Patterns](06-control-flow.md#let-patterns).
+
+> **Why.** An else body that returns early keeps the matched names at the
+> function's own indentation. Rust's `let ... else` and Swift's
+> `guard let ... else` read the same way.
+
 ### Short Binding Lists
 
-1. r[grammar.stmt.bind-list] A multi-name `:=` binding always puts its names in parentheses, as in `(a, b) := pair`.
-2. r[grammar.stmt.bind-list.bare] A multi-name `:=` binding without parentheses, as in `a, b := pair`, is an error whose fix-it adds the parentheses. Error: `syntax-error`.
-3. r[grammar.stmt.bind-list.two-names] A parenthesized list must hold at least two names, so `(a) := pair` is an error. Error: `syntax-error`.
-4. r[grammar.stmt.bind-list.not-tuple] At the start of a statement, `(`, two or more names separated by commas, `)`, and `:=` always form this binding. The parenthesized names are never a tuple expression.
-5. r[grammar.stmt.bind-list.new-statement] A line that starts with `(` never continues the previous line as a call, as [`lex.continue.paren-line`](01-lexical-structure.md#r-lex.continue.paren-line) states. So a binding list on the line after `limit := low` is its own statement, never the call `low(first, second)`.
+A `:=` binding binds exactly one name; destructuring uses `let`:
 
 ```text
 fn pair() -> (i32, i32): (1, 2)
 
 fn split() -> i32:
-    (low, high) := pair()  # valid
-    limit := low
-    (first, second) := pair()  # valid: a new statement
-    a, b := pair()  # error: syntax-error
-    (only) := pair()  # error: syntax-error
-    limit + high + first + second
+    total := 0
+    let (low, high) = pair()
+    total + low + high
 ```
 
-> **Why.** A `let` list and a `:=` list put their names in parentheses the
-> same way, as in `let (a, b) = pair` and `(a, b) := pair`. One shape reads
-> better than two spellings.
+1. r[grammar.stmt.short-binding.one-name] `:=` binds exactly one name, as in `total := 0`.
+2. r[grammar.stmt.short-binding.let-only] A pattern before `:=`, such as `(a, b) := pair`, `Point { x, y } := p`, or `.Some(v) := found`, is an error whose fix-it writes `let` and `=`, as in `let (a, b) = pair`. Error: `missing-let`.
+3. r[grammar.stmt.short-binding.bare-list] A bare list before `:=`, as in `a, b := pair`, is an error whose fix-it writes `let (a, b) = pair`. Error: `syntax-error`.
+
+```text
+data Point:
+    x: i32
+    y: i32
+
+fn sum(p: Point, pair: (i32, i32)) -> i32:
+    Point { x, y } := p  # error: missing-let
+    (low, high) := pair  # error: missing-let
+    a, b := pair  # error: syntax-error
+    x + y
+```
+
+> **Why.** One way to destructure is easier to read and to write than
+> two. `let` already takes every pattern, and `:=` stays the short form
+> for one name.
 
 ### Discard And Defer Statements
 
@@ -236,14 +280,7 @@ fn split() -> i32:
 3. r[grammar.stmt.suite.right-side] This separate production is what permits `value := if ...`, `let callback = fn ...`, and similar direct right-hand-side forms.
 4. r[grammar.stmt.suite.trailing-block] Every right-hand side that accepts a suite expression, after `:=`, `let ... =`, `=`, `_ :=`, `return`, and `break`, also accepts a trailing block call.
 5. r[grammar.stmt.chain] A chain of bindings continues only with single names, as in `a := b := if c: 1 else: 2`.
-6. r[grammar.stmt.chain.multi-name-first] A multi-name pattern may only come first, so `(a, b) := (c, d) := pair` is a syntax error with or without a suite. Error: `syntax-error`.
-7. r[grammar.stmt.suite.in-delimiters] A suite expression nested inside delimiters remains part of its enclosing expression, and the enclosing statement ends normally after the closing delimiter.
-
-```text
-fn pairs() -> void:
-    (a, b) := (c, d) := fn() -> (i32, i32): (1, 2)  # error: syntax-error
-    pass
-```
+6. r[grammar.stmt.suite.in-delimiters] A suite expression nested inside delimiters remains part of its enclosing expression, and the enclosing statement ends normally after the closing delimiter.
 
 ### Statements Ending At A Newline
 
@@ -267,10 +304,9 @@ fn choose(flag: bool) -> i32:
 5. r[grammar.inline.nested-if] Parentheses nest a conditional, as in `if a: (if b: 1 else: 2) else: 3`, and an indented body may hold one.
 6. r[grammar.inline.else-if] `else if` continues the same conditional rather than nesting one.
 7. r[grammar.inline.loops] Same-line `for` and `while` loops may still appear directly in a same-line suite.
-8. r[grammar.inline.let-list] A parenthesized `let` list may be a same-line suite body, as in `if ok: let (a, b) = pair` and `if ok: let (mut log, db) = pair`, because its commas are inside parentheses.
-9. r[grammar.inline.bind-list] A parenthesized `:=` list may be a same-line suite body for the same reason, as in `if ok: (a, b) := pair`.
-10. r[grammar.inline.for-list] A `for` over a parenthesized list may be a same-line suite body, or have one, for the same reason, as in `if ok: for (key, value) in entries: use(key)`.
-11. r[grammar.inline.bare-comma] The bare comma forms still close the suite, so `if ok: a, b := pair` and `if ok: let a, b = pair` are syntax errors. Error: `syntax-error`.
+8. r[grammar.inline.let-pattern] A `let` statement may be a same-line suite body, because a pattern's commas stand inside brackets, as in `if ok: let (a, b) = pair` and `if ok: let Point { x, y } = p`.
+9. r[grammar.inline.for-list] A `for` over a parenthesized list may be a same-line suite body, or have one, for the same reason, as in `if ok: for (key, value) in entries: use(key)`.
+10. r[grammar.inline.bare-comma] The bare comma forms still close the suite, so `if ok: a, b := pair` and `if ok: let a, b = pair` are syntax errors. Error: `syntax-error`.
 
 ```text
 fn pair() -> (i32, i32): (1, 2)
@@ -297,7 +333,6 @@ fn pair() -> (i32, i32): (1, 2)
 
 fn split(ready: bool) -> void:
     if ready: let (low, high) = pair()  # warning: unused-local-binding
-    if ready: (first, second) := pair()  # warning: unused-local-binding
 ```
 
 ### Expressions Followed By Another Token
@@ -991,25 +1026,33 @@ inside := 0 < value < 10  # error: comparison-chaining
 
 ### Multi-Name Bindings
 
-1. r[grammar.expr.multi-binding] A multi-name short binding such as `(a, b) := value` is a statement.
-2. r[grammar.expr.multi-binding.statement-only] It is never part of an expression. Nested anywhere, as in `((a, b) := value)`, `[(a, b) := value]`, or `[a, b := value]`, it is an error whose fix-it hoists it to a statement before the expression. Error: `syntax-error`.
+A binding expression binds one name, so a list may hold one as its last
+element:
+
+```text
+fn pair() -> (i32, i32): (1, 2)
+
+fn items(a: (i32, i32)) -> List[(i32, i32)]:
+    [a, b := pair()]
+```
+
+1. r[grammar.expr.multi-binding.list-item] A list item may be a binding expression, so `[a, b := value]` holds `a` and the binding `b := value`, as `[a, (b := value)]` does.
+2. r[grammar.expr.multi-binding.let-only] A name list before `:=` inside an expression, as in `((a, b) := value)` or `[(a, b) := value]`, is an error. Its fix-it writes `let (a, b) = value` as a statement before the expression. Error: `syntax-error`.
 3. r[grammar.expr.multi-binding.no-grouped] The former grouped form `(a, b := value)`, whose `:=` stands inside the parentheses of the names, is an error, never a tuple whose final element is a binding. Error: `syntax-error`.
-4. r[grammar.expr.multi-binding.no-grouped.hoist] Its fix-it writes the statement `(a, b) := value` before the expression that held it.
+4. r[grammar.expr.multi-binding.no-grouped.let] Its fix-it writes the statement `let (a, b) = value` before the expression that held it.
 5. r[grammar.expr.multi-binding.tuple-element] A tuple that contains a binding must parenthesize that element separately, as in `(a, (b := value))`.
 
 ```text
 fn pair() -> (i32, i32): (1, 2)
 
-values := [a, b := pair()]  # error: syntax-error
 wrapped := [(a, b) := pair()]  # error: syntax-error
 whole := ((low, high) := pair())  # error: syntax-error
 grouped := (first, second := pair())  # error: syntax-error
 ```
 
-> **Why.** A multi-name binding that tests or passes its value binds on
-> its own line first. Python's `:=` also takes one name, and Go's `:=` is a
-> statement. The single-name binding, as in `if (n := f()) > 0:`, stays an
-> expression.
+> **Why.** Destructuring is a `let` statement, on its own line. Python's
+> `:=` also takes one name, and Go's `:=` is a statement. The single-name
+> binding, as in `if (n := f()) > 0:`, stays an expression.
 
 ### Bang And Dot Tokens
 
@@ -1380,6 +1423,9 @@ if_expression = "if", continued_expression, ":", suite_body,
                 [ "else", ":", suite_body ]
                 ;
 
+binding_target = identifier | binding_list ;
+binding_list = "(", identifier, ",", identifier, { ",", identifier }, ")" ;
+
 for_expression = "for", binding_target, "in", continued_expression, ":",
                  suite_body, [ "else", ":", suite_body ]
                  ;
@@ -1448,7 +1494,7 @@ arm_body = suite_expression
 2. r[grammar.flow.if-else] An `if` used where a value is required must have an `else`; statement-position `if` may omit it.
 3. r[grammar.flow.loop-void] A loop without `else` has type `void`.
 4. r[grammar.flow.semantic] The `if` and loop rules above are semantic rules, not separate grammar productions.
-5. r[grammar.flow.for-list] A `for` loop or a comprehension `for` clause over several names puts them in parentheses, as in `for (key, value) in entries`, with the `binding_list` of [Short Binding Lists](#short-binding-lists).
+5. r[grammar.flow.for-list] A `for` loop or a comprehension `for` clause over several names puts them in parentheses, as in `for (key, value) in entries`, with the `binding_list` production.
 6. r[grammar.flow.for-list.bare] A bare list, as in `for key, value in entries`, is an error whose fix-it adds the parentheses. Error: `syntax-error`.
 
 ```text
@@ -1460,7 +1506,7 @@ fn names(scores: Map[string, i32]) -> List[string]:
     [for (name, score) in scores => name]
 ```
 
-> **Why.** A `let` list, a `:=` list, and a `for` list put their names in
+> **Why.** A `let` tuple pattern and a `for` list put their names in
 > parentheses the same way. One shape reads better than two spellings, and
 > the commas inside parentheses let a same-line suite hold the loop.
 
@@ -1481,7 +1527,7 @@ literal_pattern = boolean_literal
                 | char_literal
                 ;
 
-binding_pattern_atom = identifier ;
+binding_pattern_atom = [ "mut" ], identifier ;
 
 variant_pattern = qualified_variant_name, [ pattern_argument_clause ]
                 | ".", identifier, [ pattern_argument_clause ]
@@ -1501,7 +1547,9 @@ named_pattern = identifier, "=", pattern ;
 data_pattern = qualified_name, "{", [ data_pattern_fields ], "}" ;
 data_pattern_fields = data_pattern_field,
                       { ",", data_pattern_field }, [ "," ] ;
-data_pattern_field = identifier, [ ":", pattern ] ;
+data_pattern_field = [ "mut" ], identifier
+                   | identifier, ":", pattern
+                   ;
 
 tuple_pattern = "(", pattern, ",",
                 [ pattern, { ",", pattern }, [ "," ] ], ")" ;
@@ -1512,9 +1560,10 @@ tuple_pattern = "(", pattern, ",",
 3. r[grammar.pattern.positional-names] Positional binding names need not match payload field names.
 4. r[grammar.pattern.named] In a payload list, only `field=pattern` is a named pattern.
 5. r[grammar.pattern.named-last] No positional pattern may follow a named pattern. Error: `pattern-order`.
-6. r[grammar.pattern.data-field] In a data pattern, bare `field` binds that field's value to a new name of the same spelling.
-7. r[grammar.pattern.data-field.nested] `field: pattern` matches the field against a nested pattern, and `field: name` binds it to `name`.
-8. r[grammar.pattern.data-unlisted] Unlisted fields are ignored.
+6. r[grammar.pattern.mut-let-only] `mut` may precede a binding name only in a `let` pattern. In a `match` arm's pattern, as in `.Some(mut user) => ...`, it is an error. Error: `syntax-error`.
+7. r[grammar.pattern.data-field] In a data pattern, bare `field` binds that field's value to a new name of the same spelling.
+8. r[grammar.pattern.data-field.nested] `field: pattern` matches the field against a nested pattern, and `field: name` binds it to `name`.
+9. r[grammar.pattern.data-unlisted] Unlisted fields are ignored.
 
 ```text
 enum Pair:
@@ -1528,6 +1577,10 @@ fn value_or_zero(value: i32?) -> i32:
 fn invalid(value: Pair) -> i32:
     match value:
         Pair.Values(left=l, r) => l + r  # error: pattern-order
+
+fn rebind(value: Pair) -> i32:
+    match value:
+        Pair.Values(mut l, r) => l + r  # error: syntax-error
 ```
 
 See also: [Match Expressions](06-control-flow.md#match-expressions).

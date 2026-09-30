@@ -230,7 +230,7 @@ This section defines how pack arguments are inferred and represented.
 The standard-library `all!` combinator needs heterogeneous input and output:
 
 ```text
-(user, count, ready) := all!(load_user(), load_count(), check_ready())
+let (user, count, ready) = all!(load_user(), load_count(), check_ready())
 ```
 
 1. r[pack.all.signature] The signature of `all!` preserves each result type with one pack.

@@ -1,0 +1,5 @@
+# test: a variant pattern before := needs let
+# Spec 02 Short Binding Lists: grammar.stmt.bind-pattern.let-only (owner decision LP1, batch 26, 2026-09-30).
+fn read(found: i32?) -> i32:
+    .Some(v) := found  # diagnostic: missing-let
+    v

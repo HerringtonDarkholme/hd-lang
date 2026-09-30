@@ -495,6 +495,63 @@ fn invalid(user: User) -> string:
 See also: [Generalized Algebraic Data Types](13-gadts.md), which defines GADT
 pattern refinement.
 
+## Let Patterns
+
+A `let` pattern matches its initializer as a `match` arm's pattern would,
+and a let-else block handles the values it does not match:
+
+```text
+data Point:
+    x: i32
+    y: i32
+
+fn find(id: i32) -> Point?:
+    if id == 0: .Some(Point { x: 1, y: 2 }) else: .None
+
+fn read(id: i32) -> i32:
+    let .Some(point) = find(id) else: return 0
+    let Point { x, y } = point
+    x + y
+```
+
+1. r[flow.let.match] A `let` pattern matches the initializer's value under the pattern rules of [Match Expressions](#match-expressions), as one unguarded arm would.
+2. r[flow.let.bind] Its names bind as that arm's names would, as [Payload Bindings](#payload-bindings) and [Nested And Data Patterns](#nested-and-data-patterns) state.
+3. r[flow.let.irrefutable] A pattern is **irrefutable** when it alone covers the initializer's type, under the coverage rules of [Exhaustiveness](#exhaustiveness). Any other pattern is **refutable**.
+4. r[flow.let.irrefutable.no-else] A `let` with an irrefutable pattern needs no `else`.
+5. r[flow.let.refutable.else] A `let` with a refutable pattern, such as a literal, an enum variant, or `.Some(v)`, must have an `else` block. A refutable pattern without one is an error. Error: `refutable-let-pattern`.
+6. r[flow.let.else.order] A let-else evaluates its initializer once. When the pattern matches, it binds the names; otherwise the `else` block runs.
+7. r[flow.let.else.diverge] The `else` block must diverge: control never reaches its end.
+8. r[flow.let.else.diverge.forms] A block diverges when its final statement has type `never`, such as `return`, `break`, `continue`, or a call to `panic`, or is an `if` or `match` whose every branch diverges.
+9. r[flow.let.else.falls-through] An `else` block that may complete normally is an error. Error: `let-else-falls-through`.
+10. r[flow.let.else.irrefutable] An `else` block after an irrefutable pattern is valid, and it never runs.
+11. r[flow.let.tuple-arity] A tuple pattern needs a tuple of the same arity. Against any other value it is an error. Error: `type-mismatch`.
+
+```text
+fn find(id: i32) -> i32?:
+    if id == 0: .Some(7) else: .None
+
+fn missing_else(id: i32) -> i32:
+    let .Some(value) = find(id)  # error: refutable-let-pattern
+    value
+
+fn falls_through(id: i32) -> i32:
+    let .Some(value) = find(id) else:  # error: let-else-falls-through
+        println("missing")
+    value
+
+fn arity() -> i32:
+    let (first, second) = (1, 2, 3)  # error: type-mismatch
+    first
+```
+
+> **Why.** An `else` block that fell through would reach code that reads
+> names the pattern never bound. Rust's let-else and Swift's `guard let`
+> require the same divergence.
+
+See also: [Let-Else Statements](02-grammar.md#let-else-statements), and
+[Let-Else Scope](03-names-and-scopes.md#let-else-scope) for where the
+names are visible.
+
 ## Return
 
 `return` completes the nearest enclosing named function or closure.

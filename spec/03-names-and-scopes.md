@@ -75,6 +75,7 @@ data i32:  # error: prelude-name-shadow
 - each indented or same-line suite of `if`, `else if`, and `else`;
 - the body and `else` suite of a `for` or `while` loop;
 - each `match` arm;
+- the `else` block of a let-else statement;
 - a comprehension;
 - a trailing callback block.
 
@@ -298,17 +299,38 @@ fn invalid() -> void:
 
 ### Tuple Bindings
 
-A tuple binding introduces several names at once:
+A tuple binding, like any `let` pattern, introduces several names at once:
 
 ```text
-(x, y) := point
+let (x, y) = point
 let (name, score) = entry
 ```
 
-1. r[names.tuple.simultaneous] Tuple binding introduces every listed name simultaneously after evaluating the initializer.
-2. r[names.tuple.distinct] All names in one binding pattern must be distinct.
+1. r[names.pattern.simultaneous] A `let` pattern introduces every name it binds at once, after the initializer is evaluated and matched.
+2. r[names.pattern.distinct] All names in one binding pattern must be distinct. A name bound twice is an error. Error: `duplicate-binding`.
 3. r[names.tuple.annotation] When a `let` tuple binding has one type annotation, that annotation describes the complete right-hand tuple, not each individual name.
 4. r[names.tuple.arity] The annotation's arity must match the binding pattern, and each local receives the corresponding element type.
+
+### Let-Else Scope
+
+The names that a let-else pattern binds are visible after the statement,
+and not in its `else` block:
+
+```text
+fn find(id: i32) -> i32?:
+    if id == 0: .Some(7) else: .None
+
+fn read(id: i32) -> i32:
+    let .Some(value) = find(id) else:
+        return 0  # value is not visible here
+    value + 1
+```
+
+1. r[names.let-else.after] The names that a `let` pattern binds are visible from the end of the statement, after any `else` block, to the end of the enclosing scope.
+2. r[names.let-else.not-in-else] They are not visible in the `else` block. A use there resolves to an outer binding of the same name, if one exists.
+
+> **Why.** The `else` block runs only when the pattern did not match, so
+> no name of the pattern has a value there.
 
 ## Binding Expressions
 

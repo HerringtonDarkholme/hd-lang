@@ -1,0 +1,10 @@
+# test: a refutable let pattern with an else block that diverges
+# Spec 02 Let-Else Statements: grammar.stmt.let-else; Spec 06 Let Patterns: flow.let.refutable.else (owner decision LP1, batch 26, 2026-09-30).
+fn find(id: i32) -> i32?:
+    if id == 0: .Some(7) else: .None
+
+fn sum(id: i32) -> i32?:
+    let .Some(first) = find(id) else: return .None
+    let .Some(second) = find(id + 1) else:
+        return .None
+    .Some(first + second)

@@ -1,0 +1,9 @@
+# test: a data pattern with a literal field is refutable, so let needs an else block
+# Spec 06 Let Patterns: flow.let.irrefutable, flow.let.refutable.else (owner decision LP1, batch 26, 2026-09-30).
+data Point:
+    x: i32
+    y: i32
+
+fn height(point: Point) -> i32:
+    let Point { x: 0, y } = point  # diagnostic: refutable-let-pattern
+    y

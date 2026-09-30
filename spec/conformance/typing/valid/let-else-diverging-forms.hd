@@ -1,0 +1,14 @@
+# test: a let-else block may end in continue, break, a panic, or an if whose branches diverge
+# Spec 06 Let Patterns: flow.let.else.diverge.forms (owner decision LP1, batch 26, 2026-09-30).
+enum Shape:
+    Dot(x: i32)
+    Empty
+
+fn first_dots(shapes: List[Shape], strict: bool) -> i32:
+    let total = 0
+    for shape in shapes:
+        let Shape.Dot(x) = shape else: continue
+        let 0 = x else:
+            if strict: panic("nonzero") else: break
+        total = total + 1
+    total

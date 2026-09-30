@@ -18,7 +18,7 @@ specification; the [Revision Notes](../spec/README.md#revision-notes) list
 each. The two that batch 15 below builds on:
 - **Let 7**: a parenthesized `let` list may be a same-line suite body, as
   in `if ok: let (a, b) = pair`
-  ([`grammar.inline.let-list`](../spec/02-grammar.md#r-grammar.inline.let-list)).
+  (`grammar.inline.let-list` (now [`grammar.inline.let-pattern`](../spec/02-grammar.md#r-grammar.inline.let-pattern))).
 - **Q1**: a multi-name `:=` binding always uses parentheses, as in
   `(dt, key) := case`, and a line that starts with `(` begins a new
   statement ([Short Binding Lists](../spec/02-grammar.md#short-binding-lists)).
@@ -30,7 +30,7 @@ points (LM), and stated three clarifications:
 
 | # | Decision | Where |
 | --- | --- | --- |
-| Q1a | A parenthesized `:=` list may be a same-line suite body, as in `if ok: (a, b) := pair`. | [`grammar.inline.bind-list`](../spec/02-grammar.md#r-grammar.inline.bind-list) |
+| Q1a | A parenthesized `:=` list may be a same-line suite body, as in `if ok: (a, b) := pair`. | `grammar.inline.bind-list` |
 | Q1b | The grouped form `(a, b := value)` is dropped; a nested use writes `((a, b) := value)`. Batch 26 (SSC Q5) removed the nested form: a multi-name `:=` is a statement only. | [Multi-Name Bindings](../spec/02-grammar.md#multi-name-bindings) |
 | LM-a | A list name written `mut` whose annotated element is already `mut` warns `redundant-let-mut`. The fix-it removes the name-level `mut`, never the annotation. | [`types.bind.let-mut-pattern.redundant`](../spec/04-type-system.md#r-types.bind.let-mut-pattern.redundant), [`types.bind.let-mut-annotated.fix`](../spec/04-type-system.md#r-types.bind.let-mut-annotated.fix) |
 | LM-b | `mut self` in an impl whose `Self` is primitive is not `mut-on-primitive`. | [`types.prim.no-mut.self`](../spec/04-type-system.md#r-types.prim.no-mut.self) |
@@ -153,8 +153,9 @@ The owner answered Q5-list with LP1 below.
 | --- | --- | --- |
 | Q7-code | The decision says a `mut` key "stays an error" but names no code. | It keeps `invalid-map-key` ([`types.map-key.no-mut`](../spec/04-type-system.md#r-types.map-key.no-mut)), as variant B of [Special Cases C8](SPECIAL_CASES.md#c8-map-keys-through-the-ordinary-bound) proposed. **Recommendation:** keep it; the code names a rule no bound states. |
 
-**Batch 26, LP1: patterns in `let` (owner decision, 2026-09-30).** Not
-yet applied. The owner asked "can i do pattern matching in let? let Point
+**Batch 26, LP1: patterns in `let` (owner decision, 2026-09-30).**
+Applied; the [Revision Notes](../spec/README.md#revision-notes) list each.
+The owner asked "can i do pattern matching in let? let Point
 {x , y} = point", then chose "also refutable, with else". The LP1 details
 that followed are final, each as recommended except the `:=` scope, which
 the owner narrowed. Later the same day the owner narrowed it again:
@@ -179,6 +180,19 @@ JavaScript, Python, Rust's destructuring assignment, and Elixir, would let
 `:=` take patterns too. With it would come data-literal field shorthand,
 `Point { x, y }` for `Point { x: x, y: y }`, so a pattern and a literal
 read the same. The owner deferred both ("we can add in future").
+
+**Still open from applying LP1.** The specification applies the reading in
+the middle column; each point asks the owner to confirm it.
+
+| # | Question | Applied reading and **Recommendation** |
+| --- | --- | --- |
+| LP-codes | The decisions name no codes for a refutable pattern without `else`, an `else` block that falls through, or a pattern before `:=`. | Two new codes, `refutable-let-pattern` and `let-else-falls-through` ([Let Patterns](../spec/06-control-flow.md#let-patterns)); a pattern before `:=` reuses `missing-let`. **Recommendation:** keep them until the planned code revamp. |
+| LP-irrefutable-else | An `else` after an irrefutable pattern, as in `let (a, b) = pair else: return`, can never run. | It is valid and never runs ([`flow.let.else.irrefutable`](../spec/06-control-flow.md#r-flow.let.else.irrefutable)). **Recommendation:** add the `unreachable-code` warning on it, as Rust's `irrefutable_let_patterns` lint does. |
+| LP-inline | Layout ends a same-line suite before `else`, so a let-else is never a same-line suite body. `if ok: let .Some(v) = f() else: return` is an `if` with an `else`, and its `let` is `refutable-let-pattern`. | Stated as [`grammar.stmt.let-else.not-inline`](../spec/02-grammar.md#r-grammar.stmt.let-else.not-inline). **Recommendation:** keep it; an indented body holds a let-else. |
+| LP-discard | `let _ = save()` binds no name. [`flow.unused.discard-form`](../spec/06-control-flow.md#r-flow.unused.discard-form) makes `_ := expression` the only discard of a must-use value. | Nothing new: `let _ = save()` on a must-use value is `discarded-must-use-value`. **Recommendation:** keep `_ :=` as the one discard spelling. |
+| LP-bare | `a, b := pair` was `syntax-error` with a fix-it that added parentheses, which would now give `missing-let`. | It stays `syntax-error`, and the fix-it writes `let (a, b) = pair` ([`grammar.stmt.short-binding.bare-list`](../spec/02-grammar.md#r-grammar.stmt.short-binding.bare-list)). **Recommendation:** keep it. |
+| LP-for | `for` still takes a name or a name list, not a pattern, so `for Point { x, y } in points` is a `syntax-error`. | Unchanged; the decision covers `let` only. **Recommendation:** leave `for` as it is until patterns in `let` have been used for a while. |
+| Q5-tuple | `[a, b := value]` is now a list ending in a binding, but `(a, b := value)` is still `syntax-error` ([`grammar.expr.multi-binding.no-grouped`](../spec/02-grammar.md#r-grammar.expr.multi-binding.no-grouped)), since a tuple element takes no binding. | Unchanged. **Recommendation:** keep it; `(a, b := value)` reads as the removed multi-name binding. |
 
 ### Bound And Row Operators
 

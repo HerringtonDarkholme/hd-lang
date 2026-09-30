@@ -15,7 +15,7 @@ fn collections(users: List[User]) -> Map[string, User] $ Console:
     empty := ()
     single := (1,)
     point := (10, 20)
-    (x, y) := point
+    let (x, y) = point
     entry := Entry { name: "Ada", score: 10 }
     let (entry_name, score) = (entry.name, entry.score)
     scores := {"Ada": 10, "Grace": 12}

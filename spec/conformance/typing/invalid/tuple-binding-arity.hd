@@ -1,5 +1,6 @@
-# test: a tuple binding needs a tuple of the same arity
+# test: a let tuple pattern needs a tuple of the same arity
+# Spec 06 Let Patterns: flow.let.tuple-arity (owner decision LP1-one, batch 26, 2026-09-30).
 
 fn run() -> i32:
-    (first, second) := (1, 2, 3)  # diagnostic: type-mismatch
+    let (first, second) = (1, 2, 3)  # diagnostic: type-mismatch
     first
