@@ -15,7 +15,7 @@ their text.
 **Applied.** The ten evening follow-ups of 2026-09-29, the apply-pass
 answers Let 1-5 and Map 6, batch 7 (Let 7), and batch 13 (Q1) are in the
 specification; the [Revision Notes](../spec/README.md#revision-notes) list
-each. The two that the open points below build on:
+each. The two that batch 15 below builds on:
 - **Let 7**: a parenthesized `let` list may be a same-line suite body, as
   in `if ok: let (a, b) = pair`
   ([`grammar.inline.let-list`](../spec/02-grammar.md#r-grammar.inline.let-list)).
@@ -23,27 +23,20 @@ each. The two that the open points below build on:
   `(dt, key) := case`, and a line that starts with `(` begins a new
   statement ([Short Binding Lists](../spec/02-grammar.md#short-binding-lists)).
 
-**Still open from applying Q1.** The owner asked the apply pass to
-reconcile Q1 with the grouped binding expression `(a, b := pair)`, and to
-apply a reading only if one is forced. Neither point below is forced, so
-the specification keeps the current forms: `if ok: (a, b) := pair` is a
-`syntax-error`, and `(a, b := pair)` stays valid in every expression
-position, a statement included.
+**Batch 15 (owner decision, 2026-09-30).** The owner answered the two
+points left open by applying Q1, settled two `let mut` points (LM), and
+stated three clarifications. Not yet applied:
 
-| # | Question | **Recommendation** |
-| --- | --- | --- |
-| Q1a | May a parenthesized `:=` list be a same-line suite body, as in `if ok: (a, b) := pair`? Today it is a `syntax-error` ([`grammar.inline.multi-name-binding`](../spec/02-grammar.md#r-grammar.inline.multi-name-binding)), while `if ok: let (a, b) = pair` is valid (Let 7). | Allow it, as Let 7 allowed `let (a, b)`: its commas are inside parentheses, and `unused-local-binding` reports the unread names. |
-| Q1b | Should the grouped expression `(a, b := value)` stay? It is now a second spelling of the statement `(a, b) := value`, and the only nested form ([`grammar.expr.multi-binding.nested`](../spec/02-grammar.md#r-grammar.expr.multi-binding.nested)). | Keep one shape: a nested binding writes `((a, b) := value)`, and `(a, b := value)` becomes a `syntax-error` with a fix-it. |
-
-```text
-fn pair() -> (i32, i32): (1, 2)
-
-fn pick(ok: bool) -> i32:
-    if ok: (a, b) := pair()  # error: syntax-error
-    whole := (low, high := pair())
-    (first, second) := pair()
-    low + high + first + second + whole._0
-```
+| # | Decision |
+| --- | --- |
+| Q1a | A parenthesized `:=` list may be a same-line suite body, as in `if ok: (a, b) := pair`, as Let 7 allowed `let (a, b)`. `unused-local-binding` reports the unread names. |
+| Q1b | The grouped form `(a, b := value)` is dropped. The one shape is `(a, b) := value`, and a nested use writes `((a, b) := value)`. The old form is a `syntax-error` whose fix-it writes `(a, b) := value`. |
+| LM-a | A list name written `mut` whose annotated element is already `mut` warns `redundant-let-mut`, as the single-name form does. In both forms the fix-it removes the name-level `mut`, never the annotation. |
+| LM-a note | With a generic right side, as in `make_pair[A, B]() -> (A, B)`, the annotation solves the type parameters; a name-level `mut` never supplies a type. `let (a, b): (Read, mut Mut) = make()` is the guide example. |
+| LM-b | `mut self` in an impl whose `Self` is primitive is not `mut-on-primitive`; only a `mut` written before a primitive type is. The rationale: an impl repeats its trait method's signature, so a trait with `mut self` must stay implementable for primitives. |
+| CLO1 | A closure is monomorphic: it declares no type parameters, and its types come from its annotations or the expected function type. `fn[T](x: T): x` is a `syntax-error`. This clarifies the rules; no behavior changes. |
+| Q-? | The operand of `x?` gets an expected type as an inference hint, never a coercion. From an expected `T` for `x?`, the hint is `Result[T, E]` with the enclosing function's error type `E`, or `T?`. So `let ports: List[i32] = it.collect()?` works. |
+| Q-map | There is no std-only exception: std writes `impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]`, and `FromIterator` likewise. No new rule. |
 
 ### Bound And Row Operators
 
@@ -138,12 +131,13 @@ lexical scoping is explicit, by capturing `$.use(K)` in the closure. PS3:
 no closure captures a `$.with`-bound key implicitly; its row resolves at
 each call.
 
-**Still open from applying batch 14.** One point the decision does not
-settle; the specification is unchanged for it.
-
-| # | Question | **Recommendation** |
-| --- | --- | --- |
-| PS3a | Inside a closure's own `$.with`, is a key of the closure's inferred row a "declared-row" key for the collision check ([`req.with.collision.compared`](../spec/11-requirements-and-suspension.md#r-req.with.collision.compared)), and are the keys of a `$.with` around the closure still "visible"? PS3 makes the outer block unable to serve the closure's lookups. | Count the closure's declared or inferred row as its declared row, and stop counting the outer block's keys, since no lookup inside the closure can select them. |
+**Batch 15 (owner decision, 2026-09-30).** Not yet applied. PS3a:
+inside a closure,
+[`req.with.collision.compared`](../spec/11-requirements-and-suspension.md#r-req.with.collision.compared)
+counts only keys that a lookup in the closure body can select. Those are
+the closure's declared or inferred row and the `$.with` blocks inside the
+closure. A `$.with` block outside the closure does not count: since batch
+14 removed implicit capture, no lookup in the closure reaches it.
 
 ### Serializable Closures And Incremental Computation
 

@@ -21,8 +21,9 @@ Open questions for the owner:
 - [Nominal Function Types: Per-Declaration Data For Tools](FN_TYPE.md)
   keeps questions 9 and 10, how tool adapters get per-declaration data.
 - [Testing Redesign: Open Points](TESTING.md) summarizes the applied
-  property-test decisions PT1-PT9 and Q5-Q10. Two apply-pass readings, the
-  generator parameter style, and two deferred fixtures wait for the owner.
+  property-test decisions PT1-PT9 and Q5-Q10, and the two apply-pass
+  readings the owner confirmed. The generator parameter style and two
+  deferred fixtures wait for the owner.
 
 Deferred:
 

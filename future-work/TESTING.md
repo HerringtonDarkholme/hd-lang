@@ -48,8 +48,8 @@ history.
 
 ### Apply-Pass Readings
 
-Applying batch 13 read these points from the decisions. Each is listed so
-the owner can confirm it.
+Applying batch 13 read these points from the decisions. The owner
+confirmed both (batch 15, 2026-09-30).
 
 | Reading | Where |
 | --- | --- |
