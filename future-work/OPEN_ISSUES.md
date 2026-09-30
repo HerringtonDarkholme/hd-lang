@@ -315,12 +315,17 @@ nothing. AT5 is [Bound Requirement Keys](../spec/11-requirements-and-suspension.
 [`req.with.collision.bindings`](../spec/11-requirements-and-suspension.md#r-req.with.collision.bindings),
 and [`grammar.type.row.key-binding`](../spec/02-grammar.md#r-grammar.type.row.key-binding).
 
-**Still open from the AT3-AT5 apply pass.** Each point waits for the owner.
+**Decided 2026-09-29, answering points 5 and 6 of the AT3-AT5 apply
+pass.** Both follow the recommendation. Not yet applied.
 
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 5 | Is an ambiguous projection the same case as AT3's ambiguous binding name? [`trait.assoc.ambiguous`](../spec/09-traits.md#r-trait.assoc.ambiguous) and [`trait.binding.ambiguous`](../spec/09-traits.md#r-trait.binding.ambiguous) cover `I::Item` when two bounds on `I` declare `Item`. The specification keeps them apart: they concern a projection, not a binding name, and name no code. Audit finding TY-32 proposes a separate `ambiguous-projection`. | Not changed: the projection rules still name no code | Use `ambiguous-associated-type` for both, and close TY-32 with it. In both cases one associated type name selects two declarations. |
-| 6 | Must a requirement key bind every associated type of its trait? `$ Store` with `Store` declaring `Item` is not addressed. | [`req.key.binding.identity`](../spec/11-requirements-and-suspension.md#r-req.key.binding.identity) makes `Store` and `Store[Item = User]` different keys; nothing rejects the unbound one | Yes: an unbound key is `trait-not-dynamically-safe`, as its trait value type is, because its provider value has that type ([`req.use.value.ordinary`](../spec/11-requirements-and-suspension.md#r-req.use.value.ordinary)). |
+6. **AT6 (point 5): an ambiguous projection is `ambiguous-associated-type`.**
+   This covers [`trait.assoc.ambiguous`](../spec/09-traits.md#r-trait.assoc.ambiguous)
+   and [`trait.binding.ambiguous`](../spec/09-traits.md#r-trait.binding.ambiguous):
+   `I::Item` when two bounds on `I` both declare `Item`. It closes audit
+   finding TY-32 with this code instead of a separate `ambiguous-projection`.
+7. **AT7 (point 6): a requirement key must bind every associated type of
+   its trait.** An unbound key, such as `$ Store` when `Store` declares
+   `Item`, is `trait-not-dynamically-safe`, as its trait value type is.
 
 **Unblocks.** Shorter bounds for trait hierarchies with associated types.
 
@@ -429,6 +434,14 @@ through the general
 of [TD1-TD7](TYPE_ARG_DEFAULTS.md#owner-decisions), and `FromIterator` is
 imported. Three points of the defaults apply pass are in
 [Type-Argument Defaults Still Open](TYPE_ARG_DEFAULTS.md#still-open).
+
+### Strings
+
+**Decided (owner, 2026-09-29), not yet applied.** [Strings](STRINGS.md)
+STR1-STR6 follow Go: a `string` is immutable bytes that are always valid
+UTF-8, `len` and `s[i]` count bytes, `string` is not `Iterable`, and
+`s.slice(a, b)` takes byte offsets. Its Still Open lists the points the
+decisions leave.
 
 ### Iterator Performance
 

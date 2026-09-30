@@ -1,7 +1,8 @@
 # Dependencies Through Version Control: Survey And Options
 
 Status: design exploration, 2026-09-29. Owner decisions DEP1-DEP13 and
-DEP15-DEP18 are applied (2026-09-29), and DEP14 has nothing to apply yet, and the specification is authoritative for them:
+DEP15-DEP18 are applied (2026-09-29), DEP14 has nothing to apply yet,
+and DEP19 is decided but not yet applied. The specification is authoritative for the applied ones:
 [Package Manifest](../spec/10-modules.md#package-manifest) and its
 subsections, from [Dependency Requirements](../spec/10-modules.md#dependency-requirements)
 to [Toolchain Version](../spec/10-modules.md#toolchain-version). DEP7's
@@ -99,6 +100,14 @@ apply pass, with one rule for a missing tag.
     Go's `unknown revision`. "No fallback" is a rule now. Its code joins
     the manifest diagnostics that DEP14 defers, and is named with them.
 
+Decided 2026-09-29, answering Still Open point 13 of the DEP16-DEP18
+apply pass. It follows the recommendation. Not yet applied.
+
+19. **DEP19: a pseudo-version that names a missing commit, or whose time
+    does not match its commit, is the same error as a missing tag,** with
+    no fallback (point 13). Go rejects such a pseudo-version too. Its code
+    is named with the manifest diagnostics that DEP14 defers.
+
 ## Still Open
 
 The owner answered the nine points of the DEP1-DEP7 apply pass with
@@ -123,11 +132,7 @@ answer. DEP16-DEP18 are applied (2026-09-29):
 | DEP17 | [`module.workspace.fetched-member`](../spec/10-modules.md#r-module.workspace.fetched-member), [`.two`](../spec/10-modules.md#r-module.workspace.fetched-member.two) |
 | DEP18 | [`module.version.tag-missing`](../spec/10-modules.md#r-module.version.tag-missing), [`module.version.no-fallback`](../spec/10-modules.md#r-module.version.no-fallback); the code waits for DEP14 |
 
-The DEP16-DEP18 apply pass met one point. It waits for the owner.
-
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 13 | DEP18 covers a missing tag. What of a pseudo-version whose commit does not exist, or whose time does not match its commit? | No rule: `module.version.tag-missing` excludes pseudo-versions | The same error with no fallback, as Go rejects such a pseudo-version; its code joins the DEP14 list. |
+The DEP16-DEP18 apply pass met one point, point 13, which DEP19 answers.
 
 ## Contents
 

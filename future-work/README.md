@@ -25,6 +25,10 @@ Decided, not yet applied:
   registry-free dependency management and records owner decisions
   DEP1-DEP7 (Go modules in hd spelling), applied in
   [Package Manifest](../spec/10-modules.md#package-manifest).
+- [Strings: Go's Byte Model](STRINGS.md) records owner decisions
+  STR1-STR6: a string is immutable UTF-8 bytes, `len` and `s[i]` count
+  bytes, and iteration is explicit through `chars`, `char_indices`, and
+  `bytes`.
 - [Packages: Survey And Manifest Draft](PACKAGES.md) surveys package
   managers and drafts the `hd.toml` schema, versioning, resolution, and
   lockfile under owner decisions 1-14, some now overturned by DEP1.
@@ -59,8 +63,8 @@ Open questions for the owner:
 - [Type-Argument Defaults](TYPE_ARG_DEFAULTS.md) designs general
   defaults, such as `C < FromIterator[T] = List[T]`, that replace the
   retired `flow.collect.default`. It surveys C++, Rust, TypeScript, Swift,
-  and C#. Its decisions TD1-TD7 are applied; three points wait for the
-  owner.
+  and C#. Its decisions TD1-TD11 are applied or confirmed; nothing waits
+  for the owner.
 - [Iterator Performance Study](ITERATOR_PERF.md) is stage 1 of a
   performance study: it compares closure, nested, and flat-stage iterator
   designs by calls, allocation, and fusion potential, and specifies the

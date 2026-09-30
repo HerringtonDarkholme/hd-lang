@@ -1,15 +1,15 @@
 # Type-Argument Defaults: Survey And Design
 
 Status: design exploration, 2026-09-29. The owner answered its questions
-as [TD1-TD7](#owner-decisions), and the apply pass's points as TD8-TD10,
+as [TD1-TD7](#owner-decisions), and the apply passes' points as TD8-TD11,
 all applied on 2026-09-29. The specification is authoritative for them:
 [Type-Argument Defaults](../spec/04-type-system.md#type-argument-defaults),
 [Type-Argument Default Syntax](../spec/02-grammar.md#type-argument-default-syntax),
 [Explicit Type Arguments](../spec/07-functions.md#explicit-type-arguments),
 and [Method Generic Parameters](../spec/09-traits.md#method-generic-parameters).
 The rest of the record is the survey behind them; nothing else in it is
-accepted behavior. One point of the TD8-TD10 apply pass waits for the
-owner in [Still Open](#still-open). Under review before the apply pass:
+accepted behavior. TD11 confirms the one point of the TD8-TD10 apply pass;
+see [Still Open](#still-open). Under review before the apply pass:
 
 - `flow.collect.default` (retired),
   which these defaults replace, and the rest of
@@ -71,6 +71,13 @@ apply pass.
     Operator Traits text, examples, and fixtures use the shorter form
     where it is the natural spelling. The explicit form stays valid.
 
+Decided 2026-09-29, answering the one Still Open point of the TD8-TD10
+apply pass.
+
+11. **TD11: point 4 is confirmed as applied.** `argument-count` also
+    covers a written type with too many arguments, as in
+    `List[string, i32]`.
+
 ## Still Open
 
 The three points of the TD1-TD7 apply pass are answered by TD8-TD10,
@@ -84,11 +91,8 @@ with the short form in the Operator Traits, Supertrait Bindings, and
 Numeric Traits examples. `lib/std/ops.hd` and `lib/std/num.hd` still spell
 `Rhs` out; they should follow.
 
-The TD8-TD10 apply pass met one point. It waits for the owner.
-
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 4 | Does TD9 cover a written type too, as in `List[string, i32]`? The old rule covered explicit call lists only, and no rule named a code for a written type. | Yes: [`types.generic.too-long`](../spec/04-type-system.md#r-types.generic.too-long) reports both as `argument-count`, reading TD9's "a type-argument list" literally | Keep: one code for every list that is too long. |
+The TD8-TD10 apply pass met one point, point 4, which TD11 confirms as
+applied. Nothing is open.
 
 ## Contents
 
