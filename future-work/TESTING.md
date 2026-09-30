@@ -23,10 +23,11 @@ applied in the same sections.
 
 ## Owner Decisions
 
-All applied, SR1 (batch 17, 2026-09-30) included. The specification is
-authoritative; the decision
-texts and the batch 12 apply-pass readings, confirmed by Q9 and Q10, are in
-git history.
+All applied, SR1 (batch 17, 2026-09-30) included, except AT-with (batch
+20, 2026-09-30), which [Spec Tiers](SPEC_TIERS.md#migration-plan)
+migration step 5 applies. The specification is authoritative; the
+decision texts and the batch 12 apply-pass readings, confirmed by Q9 and
+Q10, are in git history.
 
 | ID | Decision | Where |
 | --- | --- | --- |
@@ -47,6 +48,7 @@ git history.
 | Q8 | Simplest values of `T?`, `Result`, and tuples | [`std-testing.budget.simplest.optional`](../spec/std/testing.md#r-std-testing.budget.simplest.optional) and the rules after it |
 | Q9, Q10 | The batch 12 readings are confirmed | unchanged |
 | SR1 | `std.structure` gains a compiler-computed `pub enum SelfRef: Absent / Optional / Required` and a `self_ref: SelfRef` field on `VariantInfo` and `Member`. Derived `Arbitrary` becomes an ordinary `std.testing` template that picks the simplest variant by `self_ref != .Required`; a type whose every variant, or one data field, is `.Required` has no finite value. The prototype's checker-generated `Arbitrary` is a stopgap. | [`module.testing.arbitrary.derive.template`](../spec/10-modules.md#r-module.testing.arbitrary.derive.template), [`.no-finite.data`](../spec/10-modules.md#r-module.testing.arbitrary.derive.no-finite.data), [Self References](../spec/14-annotations.md#self-references); the full text is in [TYPED_DERIVATION](TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30) |
+| AT-with | Option B (batch 20): "let's first go with B, thanks if it is not derivable, ask users to do manual impl". Annotations stay unchecked, with no compile-time check hook (M30). `arbitrary.with(gen)` stores the generator as `Any`. The derived template requires every member `F < Arbitrary & Inspectable`, tuned or not, and downcasts a tuned member's generator result. A mismatch panics with `explicit-panic`, naming the member. A type whose members fail either bound, such as one with a function-typed or non-inspectable member, is not derivable: the derive reports `unsatisfied-trait-bound`, and the user writes a manual `impl Arbitrary`. AT-with supersedes Q5's `arbitrary.with` details only where they differ. Member-typed facts (option D) are a future option in [Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets), not decided. | applied with Spec Tiers migration step 5 |
 
 ### Apply-Pass Readings
 

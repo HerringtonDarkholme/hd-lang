@@ -62,6 +62,20 @@ Uses the owner listed:
 | Schema generators | A named definition and a `$ref` when any `self_ref != .Absent`. |
 | `Debug` | May truncate deep output. |
 
+## Owner Decision SIMPLE (2026-09-30)
+
+Batch 20. The owner accepted the recommendation to restate `self_ref`
+structurally in chapter 14, with no "simplest value" concept. The
+[Draw Budget](../spec/std/testing.md#draw-budget)'s simplest values then
+agree with it by construction. It answers SR-enum and SR-args, which
+applying SR1 left open.
+
+| Part | Decision |
+| --- | --- |
+| `.Required` | The member's type is the enclosing type, with any type arguments, or it is a tuple, a data type, `Result`'s `.Ok`, or an enum all of whose variants need it, whose members include a `.Required` one. |
+| Stops | A `List`, `Map`, or `T?` member stops it: at most `.Optional`. |
+| Applied | With [Spec Tiers](SPEC_TIERS.md#migration-plan) migration step 5. |
+
 ## Remaining Open
 
 Nothing below is decided. Each item waits for the owner. The specification

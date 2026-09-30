@@ -62,15 +62,15 @@ and [Derived Arbitrary](../spec/10-modules.md#derived-arbitrary).
 | LM-c | Confirmed: calling a `mut self` method on a primitive needs no mutable access; the receiver is a copy, so `n.next()` leaves `n` unchanged. Applied in batch 16. | [`types.prim.no-mut.self-call`](../spec/04-type-system.md#r-types.prim.no-mut.self-call) |
 
 **Still open from applying batch 17.** The specification states only what
-the decisions say; each point below is unchanged there.
+the decisions say; each point below is unchanged there. SIMPLE (batch 20,
+[Typed Derivation](TYPED_DERIVATION.md#owner-decision-simple-2026-09-30))
+answers SR-enum and SR-args.
 
 | # | Question | **Recommendation** |
 | --- | --- | --- |
 | INF-lit | Does an integer literal argument take the type solved from the other arguments in any position? Without that, `pick(1, large)` with an `i64` `large` is a `type-mismatch`, since the literal alone is `i32`, while `pick(large, 1)` checks. | Yes: a literal is not a conversion, so it takes the solved type as its expected type in any position, as Rust's integer literals do. |
 | INF-code | Which code does any other conflict get, such as a `List[mut User]` and a `List[User]` (variance), a `T` and a `T?`, or two child-trait values? The decision names `type-mismatch` for numbers and `no-common-type` for trait values. | `no-common-type` where the least common type also fails (trait values, supertrait widening); `type-mismatch` otherwise, as `choose(1, true)` already is. |
-| SR-enum | `annot.self-ref.needs` follows only tuples, data types, and `Result`'s `.Ok`. In `enum A: X(e: E)` with `enum E: P(a: A)`, `X` is `.Optional`, yet `A` has no finite value and its derived `arbitrary` never ends. | An enum type needs the enclosing type when its simplest variant does, that is, when every one of its variants needs it. |
 | SR-omit | Does a variant's `self_ref` count a member that the derivation block omits (`cache = pass`)? | No: count only the members the derivation sees, since an omitted member takes its default and is never walked or built. |
-| SR-args | Is `Nest[List[T]]`, inside `enum Nest[T]`, "the enclosing type" for `annot.self-ref.refers`? | Yes: the same declaration with any type arguments counts. |
 
 ### Bound And Row Operators
 
@@ -139,6 +139,20 @@ gives their background:
 
 M30 deferred template constants, typed shared constants, and composing
 templates until a real template needs them; they are not in the spec.
+
+**Member-typed facts (future option, not decided).** Testing AT-with
+(batch 20, 2026-09-30) chose option B: derived `Arbitrary` requires every
+member to satisfy `Arbitrary & Inspectable`, and a type that fails is not
+derivable ([Testing](TESTING.md#owner-decisions)). The owner said "let's
+first go with B", so option D stays open for later.
+
+| Option | What it adds | What it would change |
+| --- | --- | --- |
+| D, member-typed facts | A fact type generic in its member's type, such as `MemberFact[F]`, checked against the member at compile time | A tuned member would need no `Arbitrary`, and a mismatched generator would be a compile-time error, not a panic |
+
+Templates have no per-member bound that a fact discharges today
+([`annot.walker.obligation`](../spec/14-annotations.md#r-annot.walker.obligation)),
+and M30 gave facts no compile-time check hook, so D needs both.
 
 **Secret values (removed for now).** `Secret[T]` and `Redact` were removed
 from the standard-library design as too early
