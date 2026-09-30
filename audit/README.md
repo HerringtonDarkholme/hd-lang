@@ -9,10 +9,10 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,549 of the 1,612 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 63 are listed in
+On 2026-09-30 the prototype passes 1,574 of the 1,612 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 38 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 63 still fail.
+decision below, and all 38 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
@@ -20,7 +20,6 @@ them by tag:
 | --- | ----- | ------------- |
 | F-250 | 12 | a pack function is `unsupported-generic-parameter` and `pack.map` is unknown; GADT variant results and package roles give generic diagnostics |
 | MREF | 2 | a closure in a generic function cannot call through the enclosing bounds, which `T::label` needs; `List[void]` is still an unknown type |
-| ERRD | 25 | no `@error` intrinsic or its batch 9, 11, and 13 codes and bounds: `@error` resolves as an ordinary decorator, so `error`, `from`, and `source` are unknown names |
 | EMB-S | 4 | trait availability needs package roles |
 | P2 | 4 | member visibility needs package roles |
 | TQ-2 | 1 | package roles |
