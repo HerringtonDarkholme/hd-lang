@@ -75,10 +75,7 @@ Goal: state trait behavior as normative rules rather than prose.
 - Moved here:
   - the open parts of
     [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets),
-    listed in [Typed Derivation: Open Points](TYPED_DERIVATION.md), and
-    the open points of the `@error` intrinsic, applied in
-    [Error Derivation](../spec/14-annotations.md#error-derivation)
-    ([Error Conversion](ERROR_CONVERSION.md#still-open));
+    listed in [Typed Derivation: Open Points](TYPED_DERIVATION.md);
   - the propagation rules and dependent-return provenance from
     [Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy);
   - [Confirmed Deferred Type Features](OPEN_ISSUES.md#confirmed-deferred-type-features).

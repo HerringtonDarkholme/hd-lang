@@ -46,6 +46,36 @@ the one point that applying Let 1 raised:
 | --- | --- | --- |
 | Let 7 | A parenthesized `let` list may be a same-line suite body: `if ok: let (a, b) = pair` and `if ok: let (mut log, db) = pair` are valid. Bare comma forms still close the suite, so `if ok: a, b := pair` and `if ok: let a, b = pair` stay `syntax-error`, and `(a, b := pair)` stays valid. A `for` over several names still needs an indented body. The apply pass recommended allowing `let (a, b)` there. The owner then noted that bindings are block-scoped, so such a name is never read. The coordinator then recommended banning every binding in a same-line suite. The owner chose to allow them anyway: the existing `unused-local-binding` warning reports the unread name, and no code is added. | [`grammar.inline.let-list`](../spec/02-grammar.md#r-grammar.inline.let-list), [`grammar.inline.bare-comma`](../spec/02-grammar.md#r-grammar.inline.bare-comma), [`grammar.inline.multi-name-for`](../spec/02-grammar.md#r-grammar.inline.multi-name-for), [`flow.unused.warning`](../spec/06-control-flow.md#r-flow.unused.warning); `grammar.inline.multi-name-let-for` is retired |
 
+**Batch 13 (owner decision, 2026-09-30).** Applied. The property-test
+writing trials of 2026-09-29 showed a writer reaching for
+`(dt, key) := case`, then a `syntax-error`. The owner answered:
+
+| # | Decision | Where |
+| --- | --- | --- |
+| Q1 | A multi-name `:=` binding always uses parentheses, as `let` does since Let 1: `(dt, key) := case` is valid, and `dt, key := case` is a `syntax-error` with a fix-it that adds them. This replaces Let 1's "`a, b := pair` is unchanged". The owner added: "make sure leading () parentheses are not parsed as func call". So a line that starts with `(` always begins a new statement, and `(a, b) := e` is a binding, never a tuple expression. | [Short Binding Lists](../spec/02-grammar.md#short-binding-lists): [`grammar.stmt.bind-list`](../spec/02-grammar.md#r-grammar.stmt.bind-list), [`.bare`](../spec/02-grammar.md#r-grammar.stmt.bind-list.bare), [`.two-names`](../spec/02-grammar.md#r-grammar.stmt.bind-list.two-names), [`.not-tuple`](../spec/02-grammar.md#r-grammar.stmt.bind-list.not-tuple), [`.new-statement`](../spec/02-grammar.md#r-grammar.stmt.bind-list.new-statement); [`lex.continue.paren-line`](../spec/01-lexical-structure.md#r-lex.continue.paren-line) |
+
+**Still open from applying Q1.** The owner asked the apply pass to
+reconcile Q1 with the grouped binding expression `(a, b := pair)`, and to
+apply a reading only if one is forced. Neither point below is forced, so
+the specification keeps the current forms: `if ok: (a, b) := pair` is a
+`syntax-error`, and `(a, b := pair)` stays valid in every expression
+position, a statement included.
+
+| # | Question | **Recommendation** |
+| --- | --- | --- |
+| Q1a | May a parenthesized `:=` list be a same-line suite body, as in `if ok: (a, b) := pair`? Today it is a `syntax-error` ([`grammar.inline.multi-name-binding`](../spec/02-grammar.md#r-grammar.inline.multi-name-binding)), while `if ok: let (a, b) = pair` is valid (Let 7). | Allow it, as Let 7 allowed `let (a, b)`: its commas are inside parentheses, and `unused-local-binding` reports the unread names. |
+| Q1b | Should the grouped expression `(a, b := value)` stay? It is now a second spelling of the statement `(a, b) := value`, and the only nested form ([`grammar.expr.multi-binding.nested`](../spec/02-grammar.md#r-grammar.expr.multi-binding.nested)). | Keep one shape: a nested binding writes `((a, b) := value)`, and `(a, b := value)` becomes a `syntax-error` with a fix-it. |
+
+```text
+fn pair() -> (i32, i32): (1, 2)
+
+fn pick(ok: bool) -> i32:
+    if ok: (a, b) := pair()  # error: syntax-error
+    whole := (low, high := pair())
+    (first, second) := pair()
+    low + high + first + second + whole._0
+```
+
 ### Local Mutability: `let mut` As An Inference Helper
 
 The owner's decision (2026-09-29) is applied as
@@ -145,9 +175,19 @@ bounds of carried and transparent type parameters, and no import for
 second pass's two points on 2026-09-29 (batch 11) as decisions 28-30,
 applied the same day: a parameter only a message interpolates gets
 `Display & Inspectable` on the generated `Error`, and a wrong `@error`
-argument is `invalid-error-marker`. One point waits in
-[Error Conversion](ERROR_CONVERSION.md#still-open): the code for an
-`@from` or `@source` line with arguments.
+argument is `invalid-error-marker`. The last point, the code for an
+`@from` or `@source` line with arguments, was decided on 2026-09-30
+(batch 13) as decision 31, `invalid-error-marker`, and is applied.
+
+### Provider Scope Overlap
+
+**Owner direction (batch 13, Q4, 2026-09-30).** Nothing is decided.
+[`req.with.nearest.forced`](../spec/11-requirements-and-suspension.md#r-req.with.nearest.forced)
+lets a callee's provider serve a callback's lookup of a key that the caller
+fixed in `R`. Before deciding, a research pass compares lexical row keys,
+as Effekt's tunneling does, with making that overlap an error, on hd's own
+requirement examples; then the owner is asked. A separate research task
+runs it, and chapter 11 is unchanged.
 
 ### Serializable Closures And Incremental Computation
 

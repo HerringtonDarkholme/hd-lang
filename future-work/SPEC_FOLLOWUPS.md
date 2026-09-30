@@ -4,7 +4,8 @@ Logged from the 2026-09-27 chapter restyles. The owner decided these, and
 they were applied in one `spec-update` pass on 2026-09-29. Each item below
 names where it landed, or why it no longer applies. The three points left
 for the owner were decided and applied as batch 10, under
-[Open, for the owner](#open-for-the-owner).
+[Open, for the owner](#open-for-the-owner), and one later point as batch
+13.
 
 ## Decided, to apply
 
@@ -74,3 +75,12 @@ known failures tagged `SF`.
 | SF1 | Which code rejects an inherent implementation outside the package that owns its target? | `orphan-impl`, the code for the same mistake with a trait implementation | [`trait.own.inherent`](../spec/09-traits.md#r-trait.own.inherent) names it, with an error example; fixture `foreign-inherent-impl.hd` |
 | SF2 | Which code rejects a raw tab inside a string or character literal? | `tab-whitespace`, the one tab code | [`lex.tab.content`](../spec/01-lexical-structure.md#r-lex.tab.content) names it; the reference parser now rejects the tab; fixture `tab-in-string-literal.hd` |
 | SF3 | Should `missing-partial-eq` be renamed, since EQ-1 removed `PartialEq`? | Rename it `missing-eq`, and retire the old name | [`module.testing.no-implicit-eq`](../spec/10-modules.md#r-module.testing.no-implicit-eq) and four fixtures use `missing-eq`; the Diagnostics table drops `missing-partial-eq` |
+
+Batch 13. The owner decided this point on 2026-09-30, as recommended. It
+is applied; see the [Revision Notes](../spec/README.md#revision-notes)
+entry "Spec follow-ups batch 13". The prototype does not implement it, so
+its fixtures are known failures tagged `SF`.
+
+| # | Point | Decision | Applied |
+| --- | --- | --- | --- |
+| SF4 | [`trait.own.inherent.target-kinds`](../spec/09-traits.md#r-trait.own.inherent.target-kinds) lists four targets an inherent implementation cannot have, but named no code for a tuple or a transparent alias. Which code rejects them? | A new code, `invalid-impl-target`. A trait value target keeps `trait-value-impl-target`, and a type owned by another package keeps `orphan-impl`. | [`trait.own.inherent.tuple-alias`](../spec/09-traits.md#r-trait.own.inherent.tuple-alias) and [`trait.own.inherent.trait-value`](../spec/09-traits.md#r-trait.own.inherent.trait-value), with error examples; fixtures `tuple-inherent-impl.hd`, `alias-inherent-impl.hd`, and `trait-value-inherent-impl.hd` |

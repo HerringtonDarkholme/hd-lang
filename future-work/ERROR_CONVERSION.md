@@ -17,8 +17,8 @@ Decisions 10 and 12, the `@error` intrinsic, were applied on 2026-09-29 in
 [Error Derivation](../spec/14-annotations.md#error-derivation). The
 owner answered its apply-pass points as decisions 21-27, applied the same
 day, and the second pass's points as decisions 28-30 (batch 11), also
-applied the same day. One point from applying them is under
-[Still Open](#still-open).
+applied the same day. The one point left from applying them was decided
+as decision 31 (batch 13, 2026-09-30) and is applied.
 
 The error-chain helpers (`Context`, `.context`, `chain`, `find`,
 `root_cause`, `ErrorReport`) are library API in
@@ -124,6 +124,17 @@ all as recommended):
 | 29 | [`annot.error.form.argument`](../spec/14-annotations.md#r-annot.error.form.argument), [`.form.argument.examples`](../spec/14-annotations.md#r-annot.error.form.argument.examples) |
 | 30 | [`annot.error.form.misplaced.examples`](../spec/14-annotations.md#r-annot.error.form.misplaced.examples), [`annot.error.bound.carried`](../spec/14-annotations.md#r-annot.error.bound.carried), unchanged |
 
+Decided and applied 2026-09-30 (batch 13, as recommended):
+
+31. **ERR SO9: a marker with arguments.** An `@from` or `@source` line
+    with arguments inside an error type, such as `@from(yaml)`, is
+    `invalid-error-marker`, as for a wrong `@error` argument: a marker
+    takes no value.
+
+| Decision | Rules |
+| --- | --- |
+| 31 | [`annot.error.form.marker-argument`](../spec/14-annotations.md#r-annot.error.form.marker-argument); the Note under [Generated Error Bounds](../spec/14-annotations.md#generated-error-bounds) that called the code undecided is removed |
+
 ## Current Design
 
 The specification holds the design:
@@ -131,35 +142,15 @@ The specification holds the design:
 
 ## Still To Do
 
-Nothing remains to apply. The point below waits for the owner.
+Nothing remains to apply.
 
 ## Still Open
 
-Applying decisions 28-30 met this point. The Applied column says what the
-specification states now.
-
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 9 | Which code rejects an `@from` or `@source` line with arguments inside an error type, such as `@from(yaml)`? Decision 29 covers only `@error`'s arguments, and decision 21 covers a marker before a wrong target. | "Invalid", with no code ([`annot.error.form.other`](../spec/14-annotations.md#r-annot.error.form.other)); the Note under [Generated Error Bounds](../spec/14-annotations.md#generated-error-bounds) names it | `invalid-error-marker`, as for a wrong `@error` argument: a marker takes no value. |
-
-Point 9 in hd:
-
-```text
-@error("bad yaml")
-data YamlError:
-    line: i64
-
-@error
-enum LoadError:
-    @error("bad config")
-    Yaml(@from(yaml) error: YamlError)
-```
+None. Decision 31 answered the last point.
 
 ## Parse Log
 
-The one `text` block of this record parses with the reference parser.
-Parsing checks syntax only.
-
-| Block | Result |
-| --- | --- |
-| 1 (`LoadError`) | parse |
+This record has no `text` block. Decision 31's example is in
+[Error Derivation](../spec/14-annotations.md#error-derivation), and its
+fixture is
+[`error-from-marker-argument.hd`](../spec/conformance/typing/invalid/error-from-marker-argument.hd).

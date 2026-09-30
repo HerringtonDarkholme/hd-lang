@@ -17,7 +17,9 @@ and the testing stress test are in git history. The property-test API
 decisions PT1-PT9 (batch 12, 2026-09-29) are applied in
 [Property Tests](../spec/10-modules.md#property-tests),
 [Draw Budget](../spec/10-modules.md#draw-budget), and
-[Derived Arbitrary](../spec/10-modules.md#derived-arbitrary).
+[Derived Arbitrary](../spec/10-modules.md#derived-arbitrary). The
+answers to that pass's open points, Q5-Q10 (batch 13, 2026-09-30), are
+applied in the same sections.
 
 ## Owner Decisions
 
@@ -47,7 +49,7 @@ mistake can surface only when a test runs.
 | Decision | Rules |
 | --- | --- |
 | PT1 | [`module.testing.choices.no-size`](../spec/10-modules.md#r-module.testing.choices.no-size); the Note that ends [Derived Arbitrary](../spec/10-modules.md#derived-arbitrary) keeps scheduling and bias runner behavior. The `list` explanation is in [STDLIB](STDLIB.md#proposal-choices-first-arbitrary-for-defaults) and the [guide](../guide/LANGUAGE_TOUR.md#tests). |
-| PT2 | [`module.testing.arbitrary.derive`](../spec/10-modules.md#r-module.testing.arbitrary.derive), [`.with`](../spec/10-modules.md#r-module.testing.arbitrary.with), [`.with.only`](../spec/10-modules.md#r-module.testing.arbitrary.with.only), [`.with.unchecked`](../spec/10-modules.md#r-module.testing.arbitrary.with.unchecked), [`.with.mismatch`](../spec/10-modules.md#r-module.testing.arbitrary.with.mismatch), [`.with.no-fallback`](../spec/10-modules.md#r-module.testing.arbitrary.with.no-fallback); [Member Metadata](../spec/14-annotations.md#member-metadata) names the fact |
+| PT2 | [`module.testing.arbitrary.derive`](../spec/10-modules.md#r-module.testing.arbitrary.derive), [`.with`](../spec/10-modules.md#r-module.testing.arbitrary.with), [`.with.only`](../spec/10-modules.md#r-module.testing.arbitrary.with.only), [`.with.unchecked`](../spec/10-modules.md#r-module.testing.arbitrary.with.unchecked), `.with.mismatch` (retired by Q5 for [`.with.downcast-failure`](../spec/10-modules.md#r-module.testing.arbitrary.with.downcast-failure)), [`.with.no-fallback`](../spec/10-modules.md#r-module.testing.arbitrary.with.no-fallback); [Member Metadata](../spec/14-annotations.md#member-metadata) names the fact |
 | PT3 | [`module.testing.choices.int-generic`](../spec/10-modules.md#r-module.testing.choices.int-generic), [`.float-generic`](../spec/10-modules.md#r-module.testing.choices.float-generic); they retire `module.testing.choices.int` and `.float` |
 | PT4 | [`module.testing.choices.string-chars`](../spec/10-modules.md#r-module.testing.choices.string-chars), [`.string-limit`](../spec/10-modules.md#r-module.testing.choices.string-limit); they retire `module.testing.choices.string` |
 | PT5 | [`module.testing.choices.map`](../spec/10-modules.md#r-module.testing.choices.map), [`.map.duplicate`](../spec/10-modules.md#r-module.testing.choices.map.duplicate) |
@@ -58,10 +60,31 @@ mistake can surface only when a test runs.
 | Examples | [STDLIB](STDLIB.md#proposal-choices-first-arbitrary-for-defaults) holds the JSON round trip, which needs `std.json`; the [guide](../guide/LANGUAGE_TOUR.md#tests) holds the two-input test, the ordered pair, and a leaf-first recursive generator |
 | Stateful | [Open Issues](OPEN_ISSUES.md) lists it as deferred |
 
+Decided and applied 2026-09-30 (batch 13, all as recommended). They
+answer the open points of batch 12.
+
+| ID | Decision |
+| --- | --- |
+| Q5 | `arbitrary.with` is generic: `pub fn with[T < Inspectable](gen: fn(mut Choices) -> T) -> Generator`. It wraps `gen` to return each drawn value erased to `Inspectable`. The derived code downcasts the first drawn value to the member's type, and a failed downcast panics, naming the member and both types. So the member's type must be inspectable. The apply pass named the result type `Generator`. |
+| Q6 | A derived `Arbitrary` for an enum with no finite value, where every variant is recursive, panics on the first case and names the type. There is no compile-time check, since no derivation check hook exists. |
+| Q7 | A variant is recursive only when its simplest payload still needs a value of the enum. `List[E]`, `Map[_, E]`, and `E?` members do not count, since their simplest values are empty or `.None`. |
+| Q8 | Simplest values: `T?` gives `.None`, `Result[T, E]` gives `.Ok` of `T`'s simplest value, and a tuple gives each element's simplest value. |
+| Q9 | The four batch 12 readings below are confirmed: `examples` comes after `shrink` and before `prop`; `arbitrary.with` lives in `std.testing.arbitrary`; a mismatched generator panics with `explicit-panic`, naming the member; `max_chars` counts `char` values. |
+| Q10 | A generic `int` with bare literals infers `i32`, the default integer literal type. Confirmed. |
+
+| Decision | Rules |
+| --- | --- |
+| Q5 | [`module.testing.arbitrary.with.module`](../spec/10-modules.md#r-module.testing.arbitrary.with.module), [`.with.wrap`](../spec/10-modules.md#r-module.testing.arbitrary.with.wrap), [`.with.downcast`](../spec/10-modules.md#r-module.testing.arbitrary.with.downcast), [`.with.inspectable`](../spec/10-modules.md#r-module.testing.arbitrary.with.inspectable), [`.with.downcast-failure`](../spec/10-modules.md#r-module.testing.arbitrary.with.downcast-failure), which retires `module.testing.arbitrary.with.mismatch` |
+| Q6 | [`module.testing.arbitrary.derive.no-finite`](../spec/10-modules.md#r-module.testing.arbitrary.derive.no-finite), [`.no-finite.unchecked`](../spec/10-modules.md#r-module.testing.arbitrary.derive.no-finite.unchecked) |
+| Q7 | [`module.testing.arbitrary.derive.recursive`](../spec/10-modules.md#r-module.testing.arbitrary.derive.recursive), [`.recursive.containers`](../spec/10-modules.md#r-module.testing.arbitrary.derive.recursive.containers) |
+| Q8 | [`module.testing.budget.simplest.optional`](../spec/10-modules.md#r-module.testing.budget.simplest.optional), [`.simplest.result`](../spec/10-modules.md#r-module.testing.budget.simplest.result), [`.simplest.tuple`](../spec/10-modules.md#r-module.testing.budget.simplest.tuple) |
+| Q9 | unchanged, except that `.with.downcast-failure` and `.with.module` now state the panic category and the module |
+| Q10 | unchanged; [`property-assume-discards.hd`](../spec/conformance/runtime/valid/property-assume-discards.hd) keeps its `i32` reading |
+
 ### Apply-Pass Readings
 
-Applying batch 12 read these points from the decisions. Each is listed so
-the owner can confirm it.
+Applying batch 12 read these points from the decisions. The owner
+confirmed all five on 2026-09-30 (Q9 and Q10).
 
 | Reading | Where |
 | --- | --- |
@@ -71,15 +94,19 @@ the owner can confirm it.
 | `max_chars` counts `char` values, the Unicode scalar values that a `char` holds. | [`module.testing.choices.string-limit`](../spec/10-modules.md#r-module.testing.choices.string-limit) |
 | A generic `int` infers `i32` from bare literals, so `value := c.int(0, 100)` is an `i32`; an `i64` needs a context, as in `let value: i64 = c.int(0, 100)`. | [`property-assume-discards.hd`](../spec/conformance/runtime/valid/property-assume-discards.hd) |
 
+Applying batch 13 read these points from the decisions. Each is listed so
+the owner can confirm it.
+
+| Reading | Where |
+| --- | --- |
+| The no-finite-value panic is `explicit-panic`, since the accepted recommendation says it panics "as PT2's mismatch does". | [`module.testing.arbitrary.derive.no-finite`](../spec/10-modules.md#r-module.testing.arbitrary.derive.no-finite); [`derived-arbitrary-no-finite-value.hd`](../spec/conformance/runtime/valid/derived-arbitrary-no-finite-value.hd) |
+| A member that `arbitrary.with` tunes, whose type is not inspectable, is `unsatisfied-trait-bound`, the code for any unmet bound, reported on the `@arbitrary.with` line. | [`module.testing.arbitrary.with.inspectable`](../spec/10-modules.md#r-module.testing.arbitrary.with.inspectable); [`arbitrary-with-non-inspectable-member.hd`](../spec/conformance/typing/invalid/arbitrary-with-non-inspectable-member.hd) |
+
 ## Still Open
 
 | Question | Applied | **Recommendation** |
 | --- | --- | --- |
 | Parameter style for generators | This batch keeps `mut Choices` parameters. The owner is comparing a requirement-row style (`fn() -> T $ Choices`), which may replace it. | Re-evaluate the two styles against a working compiler. |
-| How derived code recovers a generator from `Any` | PT2 says the derived code casts the `Any` value to `fn(mut Choices) -> T`. But `Any` erasure is one-way ([`types.any.one-way`](../spec/04-type-system.md#r-types.any.one-way)), and a function is not `Inspectable` ([`trait.inspectable.not.function`](../spec/09-traits.md#r-trait.inspectable.not.function)), so no hd code can make that cast. The spec states only the behavior ([`module.testing.arbitrary.with.mismatch`](../spec/10-modules.md#r-module.testing.arbitrary.with.mismatch)). | Make the constructor generic, `with[T < Inspectable](gen: fn(mut Choices) -> T)`, and store `fn(c) -> Inspectable: gen(c)`. The derived code downcasts the first drawn value to the member's type; a failed downcast is PT2's panic. |
-| A type with no finite value | An enum whose every variant is recursive, such as `enum Loop: More(next: Loop)`, has no non-recursive variant, so [`module.testing.arbitrary.derive.simplest`](../spec/10-modules.md#r-module.testing.arbitrary.derive.simplest) gives no choice. No rule covers it. Without one, the derived code recurses until the case panics with `stack-exhausted`. | The derived `arbitrary` panics on the first case with a message naming the type, as PT2's mismatch does. |
-| What makes a variant recursive | PT6 names the first non-recursive variant, and no rule says when a variant is recursive. | A variant is recursive when its simplest payload still needs a value of the enum: a member of the enum's type, directly or through a data type's or tuple's members. `List`, `Map`, and `T?` members do not count, since their simplest values are empty or `.None`. |
-| Simplest values of the other std generators | PT6 lists integers, floats, `bool`, `pick`, `list`, `map`, and `string`, but not `T?`, `Result[T, E]`, or tuples. | `T?` gives `.None`, `Result[T, E]` gives `.Ok` of `T`'s simplest value, and a tuple gives each element's simplest value. |
 
 ## Decided, Waiting For Coverage
 
