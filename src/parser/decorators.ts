@@ -2,6 +2,7 @@ import type {
   AssociatedTypeBinding,
   Decorators,
   Expression,
+  GenericBound,
   MemberLine,
   TypeDecl,
   TypeRef,
@@ -9,9 +10,89 @@ import type {
 import type { SourceSpan } from "../diagnostics.ts";
 import { ExpressionParser } from "./expression.ts";
 
-// Decorators, member lines, and trait bounds (spec/02-grammar.md#annotations and
-// #r-grammar.impl.derivation-line), shared by the declaration parser.
+export interface ParsedGenericParameters {
+  readonly parameters: readonly string[];
+  readonly bounds: readonly GenericBound[];
+  /** Parameters written `reified`; the prototype erases them all. */
+  readonly reified?: readonly string[];
+  /** Type-argument defaults, which only `lib/std` may write in the prototype. */
+  readonly defaults?: Readonly<Record<string, TypeRef>>;
+}
+
+// Decorators, member lines, generic parameters, and trait bounds
+// (spec/02-grammar.md#annotations and #r-grammar.impl.derivation-line),
+// shared by the declaration parser.
 export abstract class DecoratorParser extends ExpressionParser {
+  protected parseGenericParameters(): ParsedGenericParameters {
+    const parameters: string[] = [];
+    const bounds: GenericBound[] = [];
+    const reified: string[] = [];
+    const defaults: Record<string, TypeRef> = {};
+    if (!this.matchText("[")) return { parameters, bounds };
+    if (!this.atText("]")) {
+      do {
+        // `reified` modifies a parameter only directly before its name; the
+        // prototype erases every generic parameter.
+        // An unbackticked `reified` is always the modifier, so a lone one is
+        // an error; a parameter named reified is written `` `reified` ``.
+        if (this.atText("reified") && !this.current().raw) {
+          if (this.peek(1).kind !== "identifier")
+            this.fail(
+              "syntax-error",
+              "`reified` must be followed by a generic parameter name; write `reified` in backticks to name a parameter reified",
+              this.current().span,
+            );
+          this.advance();
+          reified.push(this.current().text);
+        }
+        const parameter = this.expectKind("identifier", "expected a generic parameter name");
+        if (parameters.includes(parameter.text))
+          this.fail(
+            "duplicate-generic-parameter",
+            `generic parameter '${parameter.text}' is declared more than once`,
+            parameter.span,
+          );
+        parameters.push(parameter.text);
+        if (this.atText(":"))
+          this.fail(
+            "syntax-error",
+            `a generic bound is written with '<', not ':': write '${parameter.text} < Trait'`,
+            this.current().span,
+          );
+        if (this.matchText("<")) {
+          const bindings: AssociatedTypeBinding[] = [];
+          const traits = this.parseTraitBoundNames(bindings);
+          if (traits.length > 0 || bindings.length > 0)
+            bounds.push({
+              parameter: parameter.text,
+              traits,
+              ...(bindings.length > 0 ? { bindings } : {}),
+              span: { start: parameter.span.start, end: this.peek(-1).span.end },
+            });
+        } else if (this.atText("...") || (this.atText("=") && !this.options.standardLibrary)) {
+          this.fail(
+            "unsupported-generic-parameter",
+            "packs and defaults are outside the current erased-generic slice",
+            this.current().span,
+          );
+        }
+        // std's `collect[C < FromIterator[T] = List[T]]` is the one default the
+        // prototype reads (06-control-flow.md#r-flow.collect.target-default).
+        if (this.atText("=") && this.options.standardLibrary) {
+          this.advance();
+          defaults[parameter.text] = this.parseType();
+        }
+      } while (this.matchText(",") && !this.atText("]"));
+    }
+    this.expectText("]");
+    return {
+      parameters,
+      bounds,
+      ...(reified.length > 0 ? { reified } : {}),
+      ...(Object.keys(defaults).length > 0 ? { defaults } : {}),
+    };
+  }
+
   // Whether the decorator lines here precede a data, enum, function, trait,
   // newtype, alias, or implementation declaration
   // (spec/02-grammar.md#r-grammar.annot.item-targets).

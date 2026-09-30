@@ -1470,3 +1470,7 @@ typing/invalid/iterator-map-callback-row.hd	type
 typing/valid/iterator-satisfies-iterable-bound.hd	type
 runtime/valid/iterator-from-fn.hd	runtime
 typing/invalid/iterator-step-private.hd	type
+typing/valid/collect-targets.hd	type
+runtime/valid/collect-targets-run.hd	runtime
+typing/invalid/collect-target-not-fromiterator.hd	type
+typing/valid/from-iterator-imported.hd	type

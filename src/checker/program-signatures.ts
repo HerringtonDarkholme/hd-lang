@@ -29,6 +29,29 @@ function signatureMarkers(
 }
 
 /**
+ * A std declaration's type-argument defaults, resolved with its generic
+ * parameters in scope (06-control-flow.md#r-flow.collect.target-default).
+ */
+function genericDefaultTypes(
+  declaration: FunctionDecl,
+  context: ProgramCheckContext,
+  typeParameters: readonly string[],
+): Pick<Signature, "genericDefaults"> {
+  const written = Object.entries(declaration.genericDefaults ?? {});
+  if (written.length === 0) return {};
+  const { dataTypes, enumTypes, traitTypes, diagnostics } = context;
+  const scope = new Set(typeParameters);
+  return {
+    genericDefaults: new Map(
+      written.map(([name, type]) => [
+        name,
+        typeName(type, dataTypes, enumTypes, traitTypes, diagnostics, scope) ?? "void",
+      ]),
+    ),
+  };
+}
+
+/**
  * The type parameters that may key a map: those bounded by `Eq` and `Hash`
  * (09-traits.md#r-trait.hash.map-key), and in std every one, for `Iterable`
  * on `Map[K, V]` (lib/std/iter.hd).
@@ -342,6 +365,7 @@ export function createProgramSignatures(
       result: normalizedResult,
       requirements,
       ...signatureMarkers(declaration),
+      ...genericDefaultTypes(declaration, context, typeParameters),
       span: declaration.span,
     });
   });

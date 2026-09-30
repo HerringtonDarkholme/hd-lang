@@ -66,6 +66,8 @@ export interface FunctionDecl {
   readonly name: string;
   readonly suspending: boolean;
   readonly genericParameters: readonly string[];
+  /** Type-argument defaults, which only `lib/std` writes (`collect`). */
+  readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   readonly genericBounds: readonly GenericBound[];
   readonly parameters: readonly Parameter[];
   readonly result: TypeRef;
@@ -115,6 +117,8 @@ export interface MethodDecl {
   readonly name: string;
   readonly suspending: boolean;
   readonly genericParameters: readonly string[];
+  /** Type-argument defaults, which only `lib/std` writes (`collect`). */
+  readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   readonly genericBounds: readonly GenericBound[];
   /** Generic parameters written `reified`. */
   readonly reifiedParameters?: readonly string[];

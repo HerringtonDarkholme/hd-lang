@@ -29,6 +29,7 @@ import {
 } from "./inspectable.ts";
 import {
   isPermissionWeakening,
+  mapCollectionPlan,
   rowUnionType,
   weakenBoundedGenericActual,
 } from "./assignability.ts";
@@ -106,6 +107,8 @@ export interface Signature {
   readonly numSuffix?: boolean;
   /** A prefix function, marked `@str_prefix` (spec/05-expressions.md#r-expr.prefix.marker). */
   readonly strPrefix?: { readonly templateParameter: boolean };
+  /** Type-argument defaults, which only std declares (`collect`). */
+  readonly genericDefaults?: ReadonlyMap<string, ValueType>;
   readonly span: SourceSpan;
 }
 
@@ -931,9 +934,12 @@ export abstract class CheckerContext {
     span: SourceSpan,
   ): HirTraitDictionaryPlan | undefined {
     const type = readonlyType(targetType);
-    const traitName = [...this.traitTypes.values()].find(
-      (candidate) => candidate.index === traitIndex,
-    )?.name;
+    const trait = [...this.traitTypes.values()].find((candidate) => candidate.index === traitIndex);
+    const traitName = trait?.name;
+    if (trait?.standardName === "std.iter.FromIterator") {
+      const { inherentMethods, signatures } = this;
+      return mapCollectionPlan(traitIndex, type, traitArguments, inherentMethods, signatures);
+    }
     if (traitArguments.length > 0) return undefined;
     const plan = (
       builtin: HirBuiltinTraitImplementation,
@@ -943,7 +949,6 @@ export abstract class CheckerContext {
     if (traitName === "Any" && type !== "void" && type !== "never")
       return plan({ kind: "marker", traitIndex, targetType: type });
     if (genericTypeName(type)) return undefined;
-    const trait = [...this.traitTypes.values()].find((candidate) => candidate.index === traitIndex);
     if (trait && this.isStandardInspectable(trait)) {
       const parts = inspectKey(type, this.inspectEnvironment());
       if (!parts) return undefined;

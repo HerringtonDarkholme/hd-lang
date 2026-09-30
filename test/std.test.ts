@@ -34,7 +34,7 @@ for (const file of readdirSync(directory).filter((name) => name.endsWith(".hd"))
 
 test("every std module parses on its own", () => {
   for (const module of STANDARD_MODULES) {
-    const parsed = parse(standardSource(module));
+    const parsed = parse(standardSource(module), { standardLibrary: true });
     assert.deepEqual(
       parsed.diagnostics.map((diagnostic) => diagnostic.code),
       [],

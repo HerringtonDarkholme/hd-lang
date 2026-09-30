@@ -7,8 +7,10 @@ import {
   functionParts,
   nominalGenericParts,
   optionalInner,
+  optionalType,
   readonlyType,
   resultParts,
+  resultType,
 } from "../types.ts";
 import { CheckFailure, type Signature } from "./context.ts";
 import { functionTypeMatchesRowPattern, matchTraitImplementation } from "./shared.ts";
@@ -195,13 +197,35 @@ export class FunctionChecker extends ExpressionControlChecker {
     };
   }
 
+  /**
+   * The operand of `x?`. An expected type `T` for `x?` guides the operand's
+   * inference as `Result[T, E]`, with the enclosing function's error type
+   * `E`, or as `T?`, as in `let ports: List[i32] = items.collect()?`. It is
+   * no coercion, so an error `From` converts still reaches the operand.
+   */
+  private checkPropagationOperand(operand: Expression, expected?: ValueType): HirExpression {
+    const result = this.signature.result;
+    const target = resultParts(result);
+    const guide =
+      expected === undefined || this.inferResult
+        ? undefined
+        : target
+          ? resultType(expected, target.error)
+          : optionalInner(result) !== undefined
+            ? optionalType(expected)
+            : undefined;
+    return guide === undefined
+      ? this.checkExpression(operand)
+      : this.checkExpressionRaw(operand, guide);
+  }
+
   protected checkClosureExpression(
     expression: Expression,
     expected?: ValueType,
   ): HirExpression | undefined {
     switch (expression.kind) {
       case "propagate": {
-        const operand = this.checkExpression(expression.operand);
+        const operand = this.checkPropagationOperand(expression.operand, expected);
         const optional = optionalInner(operand.type);
         if (this.inferResult) return this.checkInferredPropagation(expression, operand);
         if (optional !== undefined) {
@@ -262,12 +286,8 @@ export class FunctionChecker extends ExpressionControlChecker {
         if (optionalCallable && functionParts(readonlyType(optionalCallable)))
           return this.checkClosureExpression(expression, optionalCallable);
         const expectedCallable = expected ? functionParts(readonlyType(expected)) : undefined;
-        // An argument's expected type may still hold the call's unsolved
-        // parameters, as `U` in `map[U](transform: fn(T) -> U)`; only its
-        // solved positions type the closure.
-        const pending = this.takePendingCallGenerics();
-        const solved = (type: ValueType | undefined): ValueType | undefined =>
-          type !== undefined && !pending(type) ? type : undefined;
+        // Only solved positions of an argument's expected type type the closure.
+        const solved = this.takeSolvedPositions();
         // A trailing block passed for an `fn!` parameter is a suspending
         // closure (spec/07-functions.md#r-fn.trailing.suspending).
         const suspending =

@@ -22,6 +22,8 @@ export interface ParseOptions {
    * `tests:` block (src/package.ts), so `duplicate-tests-block` does not apply.
    */
   readonly joinedModules?: boolean;
+  /** The source is a `lib/std` module, which may write `collect`'s type-argument default. */
+  readonly standardLibrary?: boolean;
 }
 
 export abstract class ParserBase {

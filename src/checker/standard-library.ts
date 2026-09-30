@@ -149,7 +149,7 @@ function intrinsicName(declaration: FunctionDecl): string | undefined {
 }
 
 function parseModule(name: StandardModule, source: string): Program {
-  const parsed = parse(source);
+  const parsed = parse(source, { standardLibrary: true });
   if (!parsed.program || parsed.diagnostics.some((d) => d.severity !== "warning"))
     throw new Error(
       `std.${name} does not parse: ${parsed.diagnostics.map((d) => `${d.code}@${d.span.start.line}: ${d.message}`).join("; ")}`,

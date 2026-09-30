@@ -525,6 +525,15 @@ export abstract class CallChecker extends StatementChecker {
   }
 
   /**
+   * Takes the pending call generics as a filter that keeps a type only when it
+   * mentions none of them (07-functions.md#generic-function-values).
+   */
+  protected takeSolvedPositions(): (type: ValueType | undefined) => ValueType | undefined {
+    const pending = this.takePendingCallGenerics();
+    return (type) => (type !== undefined && !pending(type) ? type : undefined);
+  }
+
+  /**
    * Whether an argument names a generic function or a generic single-payload
    * variant constructor. Such a value receives the partly solved formal
    * parameter type, so its type arguments are solved at the use site
@@ -714,6 +723,11 @@ export abstract class CallChecker extends StatementChecker {
         span: expression.span,
       };
     });
+    // A parameter that nothing solved takes its default
+    // (06-control-flow.md#r-flow.collect.target-default).
+    for (const [parameter, fallback] of signature.genericDefaults ?? [])
+      if (!substitutions.has(parameter))
+        substitutions.set(parameter, substituteGenericType(fallback, substitutions));
     const mapping = plan.map((entry) => entry.parameterIndex);
     const supplied = new Set(mapping);
     return {

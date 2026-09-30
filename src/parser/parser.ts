@@ -7,7 +7,6 @@ import type {
   DataDecl,
   EnumDecl,
   FunctionDecl,
-  GenericBound,
   ImplDecl,
   MethodDecl,
   Parameter,
@@ -53,13 +52,6 @@ export interface ParseResult {
 interface FunctionTypeParameter {
   readonly type: TypeRef;
   readonly variadic: boolean;
-}
-
-interface ParsedGenericParameters {
-  readonly parameters: readonly string[];
-  readonly bounds: readonly GenericBound[];
-  /** Parameters written `reified`; the prototype erases them all. */
-  readonly reified?: readonly string[];
 }
 
 class Parser extends DecoratorParser {
@@ -337,64 +329,6 @@ class Parser extends DecoratorParser {
     return { result: { name: "void", span: close }, resultOmitted: true };
   }
 
-  protected parseGenericParameters(): ParsedGenericParameters {
-    const parameters: string[] = [];
-    const bounds: GenericBound[] = [];
-    const reified: string[] = [];
-    if (!this.matchText("[")) return { parameters, bounds };
-    if (!this.atText("]")) {
-      do {
-        // `reified` modifies a parameter only directly before its name; the
-        // prototype erases every generic parameter.
-        // An unbackticked `reified` is always the modifier, so a lone one is
-        // an error; a parameter named reified is written `` `reified` ``.
-        if (this.atText("reified") && !this.current().raw) {
-          if (this.peek(1).kind !== "identifier")
-            this.fail(
-              "syntax-error",
-              "`reified` must be followed by a generic parameter name; write `reified` in backticks to name a parameter reified",
-              this.current().span,
-            );
-          this.advance();
-          reified.push(this.current().text);
-        }
-        const parameter = this.expectKind("identifier", "expected a generic parameter name");
-        if (parameters.includes(parameter.text))
-          this.fail(
-            "duplicate-generic-parameter",
-            `generic parameter '${parameter.text}' is declared more than once`,
-            parameter.span,
-          );
-        parameters.push(parameter.text);
-        if (this.atText(":"))
-          this.fail(
-            "syntax-error",
-            `a generic bound is written with '<', not ':': write '${parameter.text} < Trait'`,
-            this.current().span,
-          );
-        if (this.matchText("<")) {
-          const bindings: AssociatedTypeBinding[] = [];
-          const traits = this.parseTraitBoundNames(bindings);
-          if (traits.length > 0 || bindings.length > 0)
-            bounds.push({
-              parameter: parameter.text,
-              traits,
-              ...(bindings.length > 0 ? { bindings } : {}),
-              span: { start: parameter.span.start, end: this.peek(-1).span.end },
-            });
-        } else if (this.atText("...") || this.atText("=")) {
-          this.fail(
-            "unsupported-generic-parameter",
-            "packs and defaults are outside the current erased-generic slice",
-            this.current().span,
-          );
-        }
-      } while (this.matchText(",") && !this.atText("]"));
-    }
-    this.expectText("]");
-    return { parameters, bounds, ...(reified.length > 0 ? { reified } : {}) };
-  }
-
   protected parseTrait(doc?: string, public_ = false): TraitDecl {
     const start = this.expectText("trait").span.start;
     const name = this.expectKind("identifier", "expected a trait name");
@@ -615,7 +549,10 @@ class Parser extends DecoratorParser {
     const parsedGenerics = this.parseGenericParameters();
     const genericParameters = [...parsedGenerics.parameters];
     const genericBounds = [...parsedGenerics.bounds];
-    const reified = parsedGenerics.reified ? { reifiedParameters: parsedGenerics.reified } : {};
+    const generics = {
+      ...(parsedGenerics.reified ? { reifiedParameters: parsedGenerics.reified } : {}),
+      ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
+    };
     const enclosingGenericParameters = this.activeGenericParameters;
     this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
     this.expectText("(");
@@ -681,7 +618,7 @@ class Parser extends DecoratorParser {
         suspending,
         genericParameters,
         genericBounds,
-        ...reified,
+        ...generics,
         parameters,
         result,
         requirements,
@@ -697,7 +634,7 @@ class Parser extends DecoratorParser {
       suspending,
       genericParameters,
       genericBounds,
-      ...reified,
+      ...generics,
       parameters,
       result,
       requirements,

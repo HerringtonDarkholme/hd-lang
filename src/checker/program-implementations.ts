@@ -399,6 +399,7 @@ function prepareInherentImplementation(
       // (11-requirements-and-suspension.md#r-req.row.omitted.empty-pub).
       ...(method.requirementsOmitted && !method.public ? { requirementsOmitted: true } : {}),
       ...(implementation.standard ? { standard: true } : {}),
+      ...(method.genericDefaults ? { genericDefaults: method.genericDefaults } : {}),
       body: method.body ?? [],
       span: method.span,
     });

@@ -791,6 +791,15 @@ else`, `break`, `break value`, and `continue`;
   or `Iterable`, or selects `iter`, `take`, `enumerate`, `fold`, or
   `collect`. A private field of a std type is hidden from code outside std,
   which is the only field visibility the one-module prototype checks;
+- `collect[C < FromIterator[T] = List[T]]` over the `std.iter` trait
+  `FromIterator`, which is not a prelude name. `C` comes from an explicit
+  type argument or the expected type, which reaches the operand of `x?` as
+  `Result[T, E]` or `T?`, and otherwise from its default. Only std may
+  write a type-argument default: the parser reads one in `lib/std` and
+  `checkSignatureArguments` applies it to a parameter nothing solved.
+  `List`, `Result`, and optional targets are hd code; the compiler supplies
+  `FromIterator` for `Map[K, V]` (`mapCollectionPlan`), because generic hd
+  code cannot build a map over a type-parameter key;
 - typed HIR, readable WAT output, Binaryen validation, and V8 execution; and
 - an implementation-neutral conformance gate tied to
   `spec/conformance/cases.tsv`, invoked through the public CLI by a concurrent
@@ -859,7 +868,7 @@ What it provides:
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
 | `std.text` | on `string`: `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
-| `std.iter` | the prelude `Iterator[T]` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `Iterable` for `List`, `Map`, and `Iterator`; `range` |
+| `std.iter` | the prelude `Iterator[T]` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Result`, and `T?` (the compiler supplies `Map`); `Iterable` for `List`, `Map`, and `Iterator`; `range` |
 | `std.cmp` | `min`, `max`, `clamp`, `Reverse[T]` |
 | `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |

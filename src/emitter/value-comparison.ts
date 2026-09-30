@@ -7,12 +7,14 @@ import type {
   ValueType,
 } from "../hir.ts";
 import {
+  mutableType,
   nominalGenericParts,
   optionalInner,
   optionalType,
   readonlyType,
   resultParts,
   tupleParts,
+  tupleType,
 } from "../types.ts";
 import { EmitterContext } from "./context.ts";
 import { numericType } from "../numeric.ts";
@@ -398,6 +400,8 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         body = "(nop)";
       } else if (builtin.kind === "marker" || builtin.kind === "forward") {
         throw new Error(`a ${builtin.kind} dictionary has no builtin adapter`);
+      } else if (builtin.kind === "map-collection") {
+        body = this.emitMapCollection(builtin);
       } else {
         const compared = this.emitValueOrdering(
           self,
@@ -443,6 +447,34 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     this.temporaryTypes.length = 0;
     this.temporaryTypes.push(...savedTemporaries);
     return adapters.join("\n\n");
+  }
+
+  /**
+   * `from_iter` of `FromIterator` for a map: insert each pair that `next`
+   * yields from the iterator `$a0` (06-control-flow.md#r-flow.collect.map).
+   */
+  private emitMapCollection(
+    builtin: Extract<HirBuiltinTraitImplementation, { kind: "map-collection" }>,
+  ): string {
+    const [keyType, valueType] = nominalGenericParts(builtin.targetType)!.arguments;
+    const pairType = tupleType([keyType!, valueType!]);
+    const map = this.allocateTemporary(mutableType(builtin.targetType));
+    const item = this.allocateTemporary(optionalType(pairType));
+    const pair = this.allocateTemporary(pairType);
+    const itemValue = `(ref.as_non_null (local.get ${item}))`;
+    const pairValue = `(ref.as_non_null (local.get ${pair}))`;
+    const payload = `(struct.get $hd.variant $hd.variant-payload ${itemValue})`;
+    return [
+      `(block (result (ref null $hd.map))`,
+      `  (local.set ${map} (struct.new $hd.map (i32.const ${builtin.keyKind}) (i32.const 0) (array.new_default $hd.list (i32.const 0)) (array.new_default $hd.list (i32.const 0)) (i32.const 0) ${this.keyEquality(keyType!, builtin.keyKind)}))`,
+      `  (block $collected (loop $collect`,
+      `    (local.set ${item} (call ${functionName(builtin.nextFunctionIndex)} (local.get $a0)))`,
+      `    (br_if $collected (i32.eqz (struct.get $hd.variant $hd.variant-tag ${itemValue})))`,
+      `    (local.set ${pair} ${this.unboxValue(payload, pairType)})`,
+      `    (call $hd.map_insert (ref.as_non_null (local.get ${map})) (array.get $hd.list ${pairValue} (i32.const 0)) (array.get $hd.list ${pairValue} (i32.const 1)))`,
+      `    (br $collect)))`,
+      `  (local.get ${map}))`,
+    ].join("\n");
   }
 
   protected emitValueEquality(
