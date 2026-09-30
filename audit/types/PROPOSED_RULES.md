@@ -83,6 +83,7 @@ been removed; the spec's Revision Notes in
   bounds to Γ for that arm, backed by the stored evidence.
 - R4.10 `T::N` resolves when exactly one trait among T's elaborated bounds
   declares `N`. Otherwise report `ambiguous-projection` *(new)*.
+  Superseded: AT6 (2026-09-29) reports it as `ambiguous-associated-type`.
 
 ## R5. Supertraits
 

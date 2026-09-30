@@ -5,7 +5,7 @@ GADTs (13), and the trait-related parts of 03, 05, 06, 07, 08, 10, 11, 14.
 Audited at commit 158a430; re-checked against the specification on 2026-09-26.
 Resolved findings are removed (TY-01, TY-02, TY-03, TY-06, TY-09, TY-10,
 TY-11, TY-12, TY-13, TY-14, TY-16, TY-19, TY-24, TY-25, TY-26, TY-27, TY-30,
-TY-33); the decisions that settled them are in the spec's Revision Notes.
+TY-32, TY-33); the decisions that settled them are in the spec's Revision Notes.
 Decisions taken but not yet applied are in [QUESTIONS.md](QUESTIONS.md).
 
 Severity: **High**: two normative statements contradict, or a permitted reading
@@ -29,7 +29,6 @@ anchor, or statement is missing.
 | TY-28 | Low | Diagnostics | `mutable-receiver-required` contradicts Mutable Paths prose | R12.2 | - |
 | TY-29 | Low | Diagnostics | 9 trait codes only in README table and fixtures | R14 | - |
 | TY-31 | Low | Provided traits | Whether `void` and `never` satisfy `Any` | R13.2 | - |
-| TY-32 | Low | Assoc. types | An ambiguous projection has no code | R4.10 | - |
 
 ## TY-04: "Constrained By A Reachable Bound" Is Ambiguous
 High. Anchor: 09 Trait Implementations.
@@ -202,10 +201,3 @@ is `sealed-trait-implementation`. Chapter 04 now says every value type,
 including optionals, function types, and `mut` views, satisfies `Any`. Still
 unstated: whether `void` and `never` do.
 Fix: R13.2.
-
-## TY-32: Ambiguous Projections Have No Code
-Low. K2 added associated type bindings in bounds
-(`S < Supplier[Item = string]`), so a projection can now be constrained. 09
-says "Ambiguous projections are compile-time errors" but names no code.
-
-Fix: code `ambiguous-projection` (R4.10).

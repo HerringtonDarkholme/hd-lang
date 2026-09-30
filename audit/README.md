@@ -9,10 +9,10 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-29 the prototype passes 1,398 of the 1,529 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 131 are listed in
+On 2026-09-29 the prototype passes 1,394 of the 1,536 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 142 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 131 still fail.
+decision below, and all 142 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
@@ -20,10 +20,11 @@ them by tag:
 | --- | ----- | ------------- |
 | TDEF | 26 | no type-argument defaults, short explicit lists, `Rhs = Self` on the operator traits, or `argument-count` for a long list |
 | PIPE | 16 | no `\|>` token or `_` placeholder |
-| ATB | 16 | a binding names only the bound trait's own associated types; trait value types and requirement keys take no binding; no `ambiguous-associated-type` |
+| ATB | 19 | a binding names only the bound trait's own associated types; trait value types and requirement keys take no binding; no `ambiguous-associated-type`; an unbound requirement key is accepted |
 | LMUT | 16 | no parenthesized `let (a, b)` list, bare `let a, b` still accepted, no `mut-on-primitive` or `redundant-let-mut` |
 | F-250 | 15 | packs, GADT variant results, and package roles give generic diagnostics |
 | MREF | 10 | `Type::name` without a call is still `deferred-method-value` |
+| STR | 8 | `len` still counts scalars; `s[i]` is `unsupported-string-indexing`; no `chars`, `char_indices`, `bytes`, or `slice` |
 | ITER | 8 | `Iterator` is still a trait; no `from_fn`, `map`, `fold`, or `Iterable` for iterators |
 | EMB-S | 4 | trait availability needs package roles |
 | P2 | 4 | member visibility needs package roles |
