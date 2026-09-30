@@ -35,8 +35,9 @@ The owner's past cuts show the kind of result wanted:
 
 ## Inputs
 
-1. The area: a spec chapter or section (for example
-   `spec/11-requirements-and-suspension.md`), a design record, or a feature
+1. The area: a spec chapter or section in either tier (for example
+   `spec/11-requirements-and-suspension.md` or `spec/std/testing.md`), a
+   design record, or a feature
    named across several files.
 2. Optional: the owner's goal (fewer keywords, fewer diagnostics, one form
    per idea) and anything declared off limits.
@@ -46,7 +47,8 @@ The owner's past cuts show the kind of result wanted:
 1. **Inventory.** List what the area defines: forms and spellings,
    markers and annotations, rules with their IDs, diagnostic codes, and
    concepts. For a chapter, start from
-   `node --experimental-strip-types spec/tools/rule-inventory.ts spec/<chapter>.md`.
+   `node --experimental-strip-types spec/tools/rule-inventory.ts spec/<chapter>.md`,
+   where a stdlib chapter's `<chapter>` is `std/<module>`.
    Note which fixtures in `spec/conformance/` and which guide pages use each
    item.
 2. **Find candidates.** Look for:
@@ -55,6 +57,8 @@ The owner's past cuts show the kind of result wanted:
    - a concept that only one use case needs;
    - a mechanism that an existing one could express (a trait, an ordinary
      function, an existing annotation, an existing row or bound form);
+   - a language-tier rule for a std item that passes the tier test in
+     AGENTS.md, which the cut would move to the stdlib tier;
    - a rule that exists only to patch another rule's corner case;
    - inference whose result a short explicit form would state better.
 3. **Shape each cut.** Give before and after hd examples, each a few lines

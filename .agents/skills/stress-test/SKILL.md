@@ -34,7 +34,8 @@ spec. The output is evidence and questions for the owner, never a decision.
 ## Method
 
 1. **Fix the surface.** Read the record, its owner decisions, and every spec
-   section it depends on. Write a short "Surface Being Tested" section that
+   section it depends on, in both tiers: the numbered chapters and
+   `spec/std/` (see the shared rules, Spec Tiers). Write a short "Surface Being Tested" section that
    lists exactly what the report assumes. Where the record leaves an API
    open, state the assumption the examples use.
 2. **Pick use cases.** Choose 8-20 cases that cover the design's claims.

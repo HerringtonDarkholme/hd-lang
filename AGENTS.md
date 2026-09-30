@@ -27,14 +27,45 @@ counting changes. Owner direction, 2026-09-28.
 
 ## Spec Scope For The Standard Library
 
-The spec names a std item only when the language needs it:
-- the compiler or runtime gives it support;
-- it is in the prelude;
-- or syntax refers to it, such as a literal form.
+The specification has two tiers, one style, and one conformance suite:
 
-Any other std type or function, such as `Set` or a default hasher, lives only
-in [future-work/STDLIB.md](future-work/STDLIB.md) and the std sources. Spec
-examples must not depend on those. Owner direction, 2026-09-28.
+| Tier | Holds | Where |
+| --- | --- | --- |
+| language | syntax, static and dynamic semantics, intrinsics, and anything the compiler knows by name | the numbered chapters `spec/01-*.md` to `spec/14-*.md` |
+| stdlib | decided std APIs that `lib/std` can implement in plain hd over the language tier | [spec/std/](spec/std/README.md), one file per module |
+
+The language tier names a std item only when the compiler must know it: a
+lang item, an intrinsic, a prelude name, or the conformance harness (`it`,
+`assert`, `assert_equal`, `println`). Any other std API that the owner
+decides lives in `spec/std/`. Undecided std design lives in
+[future-work/STDLIB.md](future-work/STDLIB.md).
+
+**The tier test.** Could `lib/std` implement the item in ordinary hd, over
+language-tier items only, with no compiler knowledge of its name, and keep
+the same observable behavior? Yes puts it in the stdlib tier. A diagnostic
+code about it, a language rule that names it, or a position rule that lists
+it each mean no.
+
+| Kind of rule | Where it goes |
+| --- | --- |
+| syntax, typing, evaluation, a lang item, an intrinsic | the numbered chapter for its topic |
+| a prelude name and its signature | [Modules, Prelude](spec/10-modules.md#prelude) |
+| test registration the compiler checks, such as `it_each` or a literal `snapshot` argument | [Standard Testing](spec/10-modules.md#standard-testing) |
+| a std API that passes the tier test, such as an iterator adapter or `trim` | `spec/std/<module>.md`, rule IDs `std-<module>.*` |
+| every diagnostic code, and every panic category | the language tier: README Diagnostics, and Control Flow |
+| a Revision Notes entry, naming its tier | the one log in [spec/README.md](spec/README.md#revision-notes) |
+| a fixture | `spec/conformance/`; its tier is the tier of its `specification` column |
+| undecided std design, such as `Set` or a default hasher | future-work/STDLIB.md only |
+
+A stdlib chapter may cite any language rule. A language chapter links to
+`spec/std/` only from a Note or See also, never from a numbered rule. A
+language-tier fixture or example uses only language-tier std items.
+Undecided std items appear in no spec example.
+
+Owner direction, 2026-09-28; tiers from
+[Spec Tiers](future-work/SPEC_TIERS.md#owner-decisions), 2026-09-30.
+Until a migration task moves a section, its rules and fixtures stay where
+they are, even when the tier test says stdlib.
 
 ## Writing hd Code: Model Choice And A Feedback Log
 

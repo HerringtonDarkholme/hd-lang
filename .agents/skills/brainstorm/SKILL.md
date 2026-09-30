@@ -34,7 +34,7 @@ recommendation is advice, labeled as such.
 ## Method
 
 1. **State the problem.** Restate the question, what hd has today (with
-   spec links), and the use cases an answer must serve. Pick three to six
+   spec links to either tier, the numbered chapters or `spec/std/`), and the use cases an answer must serve. Pick three to six
    concrete use cases and keep them fixed for every option.
 2. **Check it is core.** If the question depends on an unsettled core
    decision, say so and ask that question first instead.
@@ -48,7 +48,8 @@ recommendation is advice, labeled as such.
    each option by its idea, not a letter alone.
 5. **Show each option.** Give a short hd example of the same use case for
    every option, parsed with the reference parser. State the rules the
-   option adds or removes, its soundness conditions, and its interaction
+   option adds or removes and the tier of each, by the tier test in
+   AGENTS.md "Spec Scope For The Standard Library", its soundness conditions, and its interaction
    with existing features (traits, requirement rows, suspension, derivation,
    Wasm GC representation).
 6. **Compare.** Build one table: options as columns, and as rows the use

@@ -1,6 +1,6 @@
 ---
 name: spec-update
-description: Apply owner decisions that are decided but not yet applied, end to end - spec text in the spec/STYLE.md format with rule IDs, README diagnostics and Revision Notes, conformance fixtures and indexes, a rule inventory diff, the toy prototype in src/ or a KNOWN_FAILURES.tsv entry, audit cleanup, guide and website examples, the full check suite, and a fast-forward push. Use when the owner says a decision is final and should go into the specification. Anything ambiguous goes back to the owner as a question.
+description: Apply owner decisions that are decided but not yet applied, end to end - spec text in the spec/STYLE.md format with rule IDs, in the language tier or the stdlib tier (spec/std/), README diagnostics and Revision Notes, conformance fixtures and indexes, a rule inventory diff, the toy prototype in src/ or a KNOWN_FAILURES.tsv entry, audit cleanup, guide and website examples, the full check suite, and a fast-forward push. Use when the owner says a decision is final and should go into the specification. Anything ambiguous goes back to the owner as a question.
 ---
 
 # Spec Update
@@ -36,56 +36,95 @@ the spec, and it adds exactly what the decision says, no more.
 
 1. **Read the decision and its scope.** Quote the decision text. List every
    spec section, diagnostic, fixture, and example it touches (`grep` the
-   spec, `spec/conformance/`, `guide/`, `website/` (including
+   spec, including `spec/std/`, `spec/conformance/`, `guide/`, `website/` (including
    `website/playground/`), `src/`, and `test/`). If the text leaves a rule
    open, stop and ask the owner.
    Never fill a gap with a default.
 2. **Work in a worktree** on a new branch from `origin/main`, and keep the
    main checkout untouched.
-3. **Write the spec text** per `spec/STYLE.md`:
+3. **Choose the tier** of each new rule, by the tier test in AGENTS.md
+   ("Spec Scope For The Standard Library") and
+   [spec/std/README.md](../../../spec/std/README.md#the-tier-test):
+   - **Language tier**, a numbered chapter: syntax, semantics, intrinsics,
+     lang items, prelude names, test registration the compiler checks, the
+     conformance harness, and anything a diagnostic code names.
+   - **Stdlib tier**, `spec/std/<module>.md`: a std API that `lib/std` can
+     write in ordinary hd over language-tier items only.
+   - A rule in a section that no migration task has moved yet goes next to
+     its neighbors in the numbered chapter. Moving a section is a
+     migration task of its own, not part of a decision.
+   - A decision that splits across tiers gets rules in both. When the tier
+     is unclear, ask the owner.
+4. **Write the spec text** per `spec/STYLE.md`:
    - one rule per sentence, each with a rule ID that uses the chapter
-     prefix;
+     prefix: the numbered chapter's prefix, or `std-<module>` in
+     `spec/std/<module>.md`;
+   - no language-tier rule depends on `spec/std/`: a numbered chapter
+     links there only from a Note or See also, never from a numbered rule,
+     and a language-tier example uses no stdlib-tier item;
+   - a stdlib chapter may cite any language rule;
    - a rule whose meaning changes gets a new ID, and the old ID is retired:
      delete it, and do not list it anywhere, not in `spec/STYLE.md` either;
      the Revision Note names it in plain text with its replacement;
-   - never rename a heading or anchor;
+   - never rename a heading or anchor; only a Spec Tiers move task deletes
+     a moved heading, and it fixes every link to it in the same commit;
    - an error example for each new diagnostic, and a Why callout for the
      rationale.
-4. **Update `spec/README.md`.** Add any new diagnostic code to the
-   Diagnostics table and remove one the decision withdraws. Add one
-   Revision Notes entry per decision: "Name (owner decision, YYYY-MM-DD):"
-   and what changed for existing source.
-5. **Update conformance.** Add or change fixtures under
+
+   **A new stdlib chapter file** needs, in the same commit:
+   - an entry in `STD_CHAPTERS` in `website/src/pages.ts`, such as
+     `["testing", "Testing"]`;
+   - a link from its row in the chapter table of `spec/std/README.md`;
+   - for a module not yet in that table, a new row there, a prefix row in
+     `spec/STYLE.md`, and a key in `CHAPTER_PREFIXES` in
+     `spec/tools/spec-prose.ts`.
+5. **Update `spec/README.md`.** Add any new diagnostic code to the
+   Diagnostics table and remove one the decision withdraws. A diagnostic
+   stays in this table even when its rule is stdlib-tier. Add one
+   Revision Notes entry per decision: "Name (owner decision, YYYY-MM-DD):",
+   its tier, and what changed for existing source.
+6. **Update conformance.** Add or change fixtures under
    `spec/conformance/` in the format its README defines. Keep
    `cases.tsv` and `examples.tsv` consistent: one `cases.tsv` row per
    fixture, one `examples.tsv` row per `text` fence. Fixtures stay
    implementation-neutral. The spec owns their format; never shape one to
    the prototype.
-6. **Diff the rule inventory** of each changed chapter against `main`:
+   - A fixture's tier is the tier of its `specification` column: a path
+     under `std/` is stdlib, any other is language. There is no other
+     tier marker.
+   - Cite the section the fixture tests. A language-tier fixture uses only
+     language-tier std items; a stdlib fixture may use both tiers.
+   - A stdlib chapter's examples get `examples.tsv` rows keyed
+     `std/<module>.md`.
+7. **Diff the rule inventory** of each changed chapter against `main`:
 
    ```sh
    node --experimental-strip-types spec/tools/rule-inventory.ts --diff --all \
        main:spec/<chapter>.md spec/<chapter>.md --out /tmp/<chapter>-diff.md
    ```
 
+   For a stdlib chapter, `<chapter>` is `std/<module>`. A new chapter has
+   no `main` version to diff; list its rule IDs in the commit message.
+
    Nothing may be lost except what the decision removes. Explain every
    lost code, example, or rule ID in the commit message. A retired ID shows
    up as lost. The diff fails when an added ID appears in the history of
-   the numbered chapters: that ID was retired before, so choose another.
-7. **Update the prototype.** Implement the decision in `src/` with tests.
+   the numbered or stdlib chapters: that ID was retired before, so choose
+   another.
+8. **Update the prototype.** Implement the decision in `src/` with tests.
    When it is too large for this change, add the new fixtures to
    `test/portable/KNOWN_FAILURES.tsv` (`path`, `reason`, and the decision
    or finding ID), as the existing rows do. Never change the spec to match
    the prototype.
-8. **Clean up the audit.** Move the decision out of "Decided, Not Yet
+9. **Clean up the audit.** Move the decision out of "Decided, Not Yet
    Applied" in `audit/types/QUESTIONS.md`. Delete a finding or its evidence
    only when it no longer reproduces and a `grep` of the repo shows no other
    reference. Recount `audit/evidence/w9/failures-by-id.tsv` from
    `KNOWN_FAILURES.tsv`, and refresh the audit index files that cite it.
-9. **Update everything that shows the behavior.** Examples and prose in
+10. **Update everything that shows the behavior.** Examples and prose in
    `guide/`, the website, the playground's examples, and `future-work/`
    design records (mark the decision applied, with a spec link).
-10. **Run every check** and fix what fails:
+11. **Run every check** and fix what fails:
 
     ```sh
     bash spec/check.sh
@@ -94,7 +133,7 @@ the spec, and it adds exactly what the decision says, no more.
     npm run website:e2e
     ```
 
-11. **Integrate.** Make logical commits (spec and fixtures, prototype,
+12. **Integrate.** Make logical commits (spec and fixtures, prototype,
     audit cleanup, docs), each message naming the decision and the rule
     anchors. Rebase on `origin/main`, rerun the checks if anything moved,
     and push as a fast-forward. Never force-push.
@@ -116,14 +155,15 @@ the spec, and it adds exactly what the decision says, no more.
 - No rule, diagnostic, or example disappears unless the decision removes
   it, and the inventory diff proves it.
 - The spec leads and the prototype follows.
+- No language-tier rule, example, or fixture depends on `spec/std/`.
 - Never rename headings or anchors, and never reuse a retired rule ID.
 
 ## Done When
 
-- The decision is in the spec with rule IDs, in the README Revision Notes,
-  and out of "Decided, Not Yet Applied".
+- The decision is in the spec, in the tier the tier test gives, with rule
+  IDs; in the README Revision Notes; and out of "Decided, Not Yet Applied".
 - Fixtures cover each new rule and diagnostic, and both indexes agree.
 - The prototype implements it, or `KNOWN_FAILURES.tsv` records the gap and
   `failures-by-id.tsv` is recounted.
-- All checks in step 10 pass, and the commits are pushed as a
+- All checks in step 11 pass, and the commits are pushed as a
   fast-forward.

@@ -8,9 +8,9 @@ starting, and reread it before committing.
 1. The owner decides every design question. An agent researches,
    stress-tests, compares, and asks. It never picks an option on the owner's
    behalf, and never records a decision the owner did not state. Only the
-   `spec-update` skill edits a numbered spec chapter or the prototype in
-   `src/`, and only to apply a decision the owner made. The other skills
-   write reports and questions.
+   `spec-update` skill edits a spec chapter, numbered or in `spec/std/`, or
+   the prototype in `src/`, and only to apply a decision the owner made.
+   The other skills write reports and questions.
 2. A recommendation is allowed only where the skill says so, and it is
    labeled **Recommendation** and kept apart from the facts.
 3. Fix-style work adds no features. When a fix would need a design choice,
@@ -43,12 +43,33 @@ before relying on one, because they change.
 - Per-tool authority reports are application-level. Do not raise them as a
   language next step.
 
+## Spec Tiers
+
+The specification has two tiers; AGENTS.md "Spec Scope For The Standard
+Library" states the tier test and where each kind of rule goes.
+
+- The **language tier** is the numbered chapters `spec/01-*.md` to
+  `spec/14-*.md`: syntax, semantics, intrinsics, and anything the compiler
+  knows by name.
+- The **stdlib tier** is [spec/std/](../../spec/std/README.md), one file
+  per std module, with rule IDs `std-<module>.*`: std APIs that `lib/std`
+  can write in plain hd over the language tier.
+- Search both tiers when you list the spec text an area depends on.
+- When a report proposes a new rule or std item, name its tier by the test.
+  A core library addition, the cheapest change in AGENTS.md "Design Cost
+  Order", is a stdlib-tier item.
+- A language-tier rule, example, or fixture never depends on a
+  stdlib-tier item. Undecided std design stays in
+  [future-work/STDLIB.md](../../future-work/STDLIB.md).
+
 ## Writing
 
 - Follow [spec/STYLE.md](../../spec/STYLE.md) for any spec text: one rule per
   sentence, rule IDs, error examples, Why callouts. Never rename an existing
   heading or anchor in `spec/`, `future-work/`, `guide/`, or `audit/`: the
-  website, the anchor checker, audits, and fixtures link to them.
+  website, the anchor checker, audits, and fixtures link to them. The one
+  exception is a Spec Tiers move task, which deletes a moved heading and
+  fixes every link to it.
 - Design records use the same prose targets: paragraphs of at most four
   sentences, sentences of at most 25 words, enumerations in tables.
 - Open every report with a status line that says nothing in it is accepted
