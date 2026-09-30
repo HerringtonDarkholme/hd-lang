@@ -41,28 +41,34 @@ The design must keep every name below. The prelude list is normative, and the
 `prelude-name-shadow` rule means any name added to the prelude later breaks
 every user module that already declares it.
 
-| Module | Names fixed today | Source |
-| --- | --- | --- |
-| `std.core` | primitives, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` | [Prelude](../spec/10-modules.md#prelude) |
-| `std.format` | `Display`, `Debug`, `DebugWriter`, `debug` | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md), [Debug Trait](../spec/09-traits.md#debug-trait) |
-| `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
-| `std.hash` | `Hash`, `Hasher` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
-| `std.iter` | `Iterator` (a data type), `Iterable`, `FromIterator`; the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as `Iterator` methods | [For Loops](../spec/06-control-flow.md), [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) |
-| `std.console` | `Console`, `ConsoleError`, `println` | [Prelude](../spec/10-modules.md#prelude) |
-| `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, a retry combinator | [Requirements and Suspension](../spec/11-requirements-and-suspension.md) |
-| `std.annotation` | shape names and `shape`, `shape_of`; `Target`, `Annotate`, `annotate` | [Annotations](../spec/14-annotations.md) |
-| `std.testing` | `assert`, `assert_equal`, `it`, `it_each`, `it_prop`, `it_prop_with`, `snapshot`, `snapshot_file` | [Standard Testing](../spec/10-modules.md#standard-testing) |
-| `std.resource` | `ResourceError[E]` | [Wasm Boundary](../spec/10-modules.md#wasm-boundary) |
-| `std.convert` | `From[T]` | [Conversion Trait](../spec/09-traits.md#conversion-trait) |
-| `std.error` | `Error` (a `Display` subtrait whose members all have defaults) | [Error Trait](../spec/09-traits.md#error-trait) |
-| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; the twelve operator traits `Add` to `Shr`, and `Index` and `IndexSet` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings), [Operator Traits](../spec/05-expressions.md#operator-traits), [Compound Assignment](../spec/05-expressions.md#compound-assignment), [Index Traits](../spec/05-expressions.md#index-traits) |
-| `std.num` | the sealed traits `Num`, `Integer`, and `Float`, with `zero`, `one`, and `from_i64` on `Num` | [Numeric Traits](../spec/09-traits.md#numeric-traits) |
-| `std.text` | the string prefix `r` | [Prefixed Strings](../spec/05-expressions.md#prefixed-strings) |
-| `std.time` | `Duration`; the literal suffixes `ms`, `s`, `min`, `h` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
-| `std.host` | `Args` | [Program Entry Points](../guide/LANGUAGE_TOUR.md#program-entry-points) (example) |
-| `std.fingerprint` | the persisted-identity digest | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
-| `std.incremental` | incremental graph library | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
-| `Observability`, `log.info` | provider draft and logging helper | [Observability](RUNTIME_AND_LIBRARY.md#observability) |
+The Tier column follows the [Spec Tiers inventory](SPEC_TIERS.md#inventory).
+A language item stays in the numbered chapters. A std item moves to
+[spec/std/](../spec/std/README.md) in its migration task, and until then its
+rules stay where the Source column links. "Not in the spec" marks
+undecided design.
+
+| Module | Names fixed today | Tier | Source |
+| --- | --- | --- | --- |
+| `std.core` | primitives, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` | language | [Prelude](../spec/10-modules.md#prelude) |
+| `std.format` | `Display`, `Debug`, `DebugWriter`, `debug` | language; `DebugWriter` builders and layout: std | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md), [Debug Trait](../spec/09-traits.md#debug-trait) |
+| `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | language | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
+| `std.hash` | `Hash`, `Hasher` | language | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
+| `std.iter` | `Iterator` (a data type), `Iterable`, `FromIterator`; the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as `Iterator` methods | language: `Iterator`, `Iterable`; std: `FromIterator` and the adapters | [For Loops](../spec/06-control-flow.md), [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) |
+| `std.console` | `Console`, `ConsoleError`, `println` | language | [Prelude](../spec/10-modules.md#prelude) |
+| `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, a retry combinator | language; the retry combinator: std if a `fn!` loop expresses it | [Requirements and Suspension](../spec/11-requirements-and-suspension.md) |
+| `std.annotation` | shape names and `shape`, `shape_of`; `Target`, `Annotate`, `annotate` | language | [Annotations](../spec/14-annotations.md) |
+| `std.testing` | `assert`, `assert_equal`, `it`, `it_each`, `it_prop`, `it_prop_with`, `snapshot`, `snapshot_file` | language: `assert`, `assert_equal`, `it`, registration of the rest, `snapshot`'s literal check; std: rows, generation, shrinking, draw budget, snapshot files, `timeout` | [Standard Testing](../spec/10-modules.md#standard-testing) |
+| `std.resource` | `ResourceError[E]` | language | [Wasm Boundary](../spec/10-modules.md#wasm-boundary) |
+| `std.convert` | `From[T]` | language | [Conversion Trait](../spec/09-traits.md#conversion-trait) |
+| `std.error` | `Error` (a `Display` subtrait whose members all have defaults) | language | [Error Trait](../spec/09-traits.md#error-trait) |
+| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; the twelve operator traits `Add` to `Shr`, and `Index` and `IndexSet` | language | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings), [Operator Traits](../spec/05-expressions.md#operator-traits), [Compound Assignment](../spec/05-expressions.md#compound-assignment), [Index Traits](../spec/05-expressions.md#index-traits) |
+| `std.num` | the sealed traits `Num`, `Integer`, and `Float`, with `zero`, `one`, and `from_i64` on `Num` | language | [Numeric Traits](../spec/09-traits.md#numeric-traits) |
+| `std.text` | the string prefix `r` | std | [Prefixed Strings](../spec/05-expressions.md#prefixed-strings) |
+| `std.time` | `Duration`; the literal suffixes `ms`, `s`, `min`, `h` | std | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
+| `std.host` | `Args` | not in the spec | [Program Entry Points](../guide/LANGUAGE_TOUR.md#program-entry-points) (example) |
+| `std.fingerprint` | the persisted-identity digest | not in the spec | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
+| `std.incremental` | incremental graph library | not in the spec | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
+| `Observability`, `log.info` | provider draft and logging helper | not in the spec | [Observability](RUNTIME_AND_LIBRARY.md#observability) |
 
 Other facts the library must respect:
 
@@ -1698,11 +1704,11 @@ are ordinary functions; only their registration is special. Each is called
 only directly in test position, with a literal name and `it`'s literal
 options.
 
-| Name | What it is | How code reaches it |
-| --- | --- | --- |
-| `it` | One test case; the body is a trailing block or `body=`. | The prelude supplies it, so it cannot be shadowed. |
-| `it_each` | One test case per row, named `name[i]`; the body is `body=fn!(row: A): ...`. | `use std.testing.it_each` |
-| `it_prop`, `it_prop_with` | One property test case; the body is `prop=fn!(value: T): ...`. | `use std.testing.{it_prop, it_prop_with}` |
+| Name | What it is | How code reaches it | Tier |
+| --- | --- | --- | --- |
+| `it` | One test case; the body is a trailing block or `body=`. | The prelude supplies it, so it cannot be shadowed. | language; its `timeout` option: std |
+| `it_each` | One test case per row, named `name[i]`; the body is `body=fn!(row: A): ...`. | `use std.testing.it_each` | language: registration; std: rows, names, run timing |
+| `it_prop`, `it_prop_with` | One property test case; the body is `prop=fn!(value: T): ...`. | `use std.testing.{it_prop, it_prop_with}` | language: registration; std: generation, shrinking, draw budget |
 
 ```text
 use std.process.Termination
