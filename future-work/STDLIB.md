@@ -890,7 +890,9 @@ builds an `Iterator` from its own closure is
 
 A lazy adapter calls its callback from `next`, whose row is empty, so the
 callback takes no requirement; one that needs a provider captures the value
-from `$.use` ([Still Open](#still-open) 2). `fold` calls its callback
+from `$.use` explicitly, since an enclosing `$.with` never satisfies it
+([Still Open](#still-open) 2,
+[Lexical And Dynamic Providers](../spec/11-requirements-and-suspension.md#lexical-and-dynamic-providers)). `fold` calls its callback
 before it returns, so it carries the row `R`. Iterator adapters that call
 suspending code are not provided: comprehensions already forbid suspension
 points, and the same rule keeps adapters simple.
@@ -2079,7 +2081,10 @@ model, the facts, and the draw API above. The generators keep the
   (#47). The dynamic-safety conflict and its Rust-style exclusion rule are
   weighed there.
 - A callback passed to a lazy adapter (`filter`) runs inside `next`, whose
-  row is empty. It needs no providers and captures what it uses. When the
+  row is empty. It needs no providers; one that uses a provider captures
+  the value from `$.use` explicitly, since a closure never captures a
+  provider from an enclosing `$.with` (provider scope batch 14, PS3,
+  [`flow.adapter.callback-row.capture`](../spec/06-control-flow.md#r-flow.adapter.callback-row.capture)). When the
   eager `fold` lands, it carries a row parameter:
   `fold[A, R](init: A, step: fn(A, T) -> A $ R) -> A $ R`.
 - Kept as applied:

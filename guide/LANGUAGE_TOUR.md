@@ -1458,11 +1458,13 @@ fn repeat(times: i32, f: fn() -> void) -> void:
         i = i + 1
 ```
 
-A closure that uses a provider from an enclosing `$.with` scope captures that
-provider value when the closure is created. Its function type lists only
-requirements that no enclosing provider scope satisfies. Provider values are
-ordinary captured values, so a requirement row is not a complete authority
-escape report. Serializable closures are a separate deferred design area; the
+A closure never captures a provider from an enclosing `$.with` scope. Every
+requirement its body uses goes into its function type's row, and each call
+supplies it. To keep the provider in effect where the closure is written,
+capture its value: `clock := $.use(Clock)`, then `fn(): clock.now()` (see
+[Lexical or dynamic providers](#lexical-or-dynamic-providers)). Provider
+values are ordinary captured values, so a requirement row is not a complete
+authority escape report. Serializable closures are a separate deferred design area; the
 language has not yet defined their compatibility or execution semantics.
 
 When a closure is passed where a function type is already expected, parameter and return types can usually be inferred:
@@ -2795,6 +2797,36 @@ runtime-profile configuration; there are no implicit provider defaults. Row
 parameters combine with other keys by listing them, as in `$ R + Logger`;
 there is no row subtraction. Additional
 `Result[T, E]` convenience APIs belong to the standard library.
+
+### Lexical or dynamic providers
+
+A callback that keeps a key in its row gets that provider at each call, so a
+callee's `$.with` can supply it. That is the dynamic form, and it costs
+nothing to write:
+
+```text
+fn at_noon[R](callback: fn() -> i32 $ R + Clock) -> i32 $ R:
+    $.with(Clock=Fixed { hour: 12 }):
+        callback()
+
+fn dynamic() -> i32:
+    $.with(Clock=Fixed { hour: 9 }):
+        at_noon(fn(): $.use(Clock).now())  # 12: the callee's Clock
+```
+
+For the lexical form, capture the provider value when you write the closure.
+Its row then omits the key, so no callee can change the provider it uses:
+
+```text
+fn lexical() -> i32:
+    $.with(Clock=Fixed { hour: 9 }):
+        clock := $.use(Clock)
+        at_noon(fn(): clock.now())  # 9: the captured Clock
+```
+
+The `$.with` block around a closure never satisfies the closure's own row.
+So a closure that must have the empty row, such as a `filter` callback or a
+closure returned from the block, captures the value the same way.
 
 ## Using Annotations
 

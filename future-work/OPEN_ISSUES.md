@@ -188,8 +188,8 @@ fixed in `R`. A research pass compared lexical row keys, as Effekt's
 tunneling does, with making that overlap an error, on hd's own requirement
 examples; then the owner was asked.
 
-**Batch 14 (owner decision, 2026-09-30).** Decided, not yet applied. The
-owner's model, verbatim:
+**Batch 14 (owner decision, 2026-09-30).** Applied. The owner's model,
+verbatim:
 
 > 1. if user needs lexical scoping, just capture the effect when they write the closure
 > 2. if user needs dynamic scoping, it is free
@@ -202,6 +202,21 @@ The owner then chose "always explicit" over keeping the implicit capture of
 | PS1 | Row keys stay dynamically scoped: a call receives the nearest provider in effect at the call ([`req.with.nearest`](../spec/11-requirements-and-suspension.md#r-req.with.nearest)). [`req.with.nearest.forced`](../spec/11-requirements-and-suspension.md#r-req.with.nearest.forced) is intended behavior, not a hazard: a callback that keeps a key in its row asks the call site to supply it. A Why note cites accidental handling (Zhang and Myers, POPL 2019) and says lexical scope is available by explicit capture. |
 | PS2 | Lexical scoping is explicit: the closure's writer captures the provider value with `$.use(K)`, as in `clock := $.use(Clock)` then `fn(): clock.now()`. The closure's row then omits the key, so no callee `$.with` can intercept it. This relies on [`req.use.value.flow`](../spec/11-requirements-and-suspension.md#r-req.use.value.flow). |
 | PS3 | No closure captures a `$.with`-bound key implicitly. A closure's use of any requirement key goes into its declared or inferred row and resolves at each call, whether the provider came from an enclosing `$.with` or from the function's row. Direct calls inside a `$.with` block are unchanged. A lazy adapter callback, or any closure that must have the empty row, needs an explicit `$.use` capture. Suspensions still bind providers at construction ([`req.bind.construction`](../spec/11-requirements-and-suspension.md#r-req.bind.construction)). The owner chose this over the recommendation, which kept implicit capture. |
+
+Where it is applied:
+
+| # | Where |
+| --- | --- |
+| PS1 | The Why note under [Provider Scopes](../spec/11-requirements-and-suspension.md#provider-scopes); [`req.with.dynamic`](../spec/11-requirements-and-suspension.md#r-req.with.dynamic) |
+| PS2 | [Lexical And Dynamic Providers](../spec/11-requirements-and-suspension.md#lexical-and-dynamic-providers): [`req.with.lexical`](../spec/11-requirements-and-suspension.md#r-req.with.lexical), [`.row`](../spec/11-requirements-and-suspension.md#r-req.with.lexical.row); [`fn.capture.provider-value`](../spec/07-functions.md#r-fn.capture.provider-value) |
+| PS3 | [`req.row.omitted.closure-row`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.closure-row), [`req.row.omitted.outer-scope`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.outer-scope), [`fn.capture.no-providers`](../spec/07-functions.md#r-fn.capture.no-providers), [`flow.adapter.callback-row.capture`](../spec/06-control-flow.md#r-flow.adapter.callback-row.capture); `req.row.omitted.closure`, `fn.capture.providers`, and `fn.capture.providers.bound` are retired |
+
+**Still open from applying batch 14.** One point the decision does not
+settle; the specification is unchanged for it.
+
+| # | Question | **Recommendation** |
+| --- | --- | --- |
+| PS3a | Inside a closure's own `$.with`, is a key of the closure's inferred row a "declared-row" key for the collision check ([`req.with.collision.compared`](../spec/11-requirements-and-suspension.md#r-req.with.collision.compared)), and are the keys of a `$.with` around the closure still "visible"? PS3 makes the outer block unable to serve the closure's lookups. | Count the closure's declared or inferred row as its declared row, and stop counting the outer block's keys, since no lookup inside the closure can select them. |
 
 ### Serializable Closures And Incremental Computation
 

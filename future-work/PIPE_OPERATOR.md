@@ -202,7 +202,8 @@ Recorded decisions that bind this record:
 
 - iterator adapters are default methods of the prelude `Iterator`, with no
   `IteratorExt` (STDLIB decision 14);
-- lazy adapter callbacks have the empty row and capture their providers;
+- lazy adapter callbacks have the empty row and capture their provider
+  values explicitly with `$.use` (provider scope batch 14, PS3);
   the eager `fold` carries a row parameter,
   `fold[A, R](init: A, step: fn(A, T) -> A $ R) -> A $ R`
   ([STDLIB Owner Decisions](STDLIB.md#owner-decisions));
