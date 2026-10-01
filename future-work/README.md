@@ -25,6 +25,10 @@ Open questions for the owner:
   the shape types came from, finds no owner decision that approved them,
   and compares removing them, keeping only a function-fact read, and
   keeping them, against `Structure` templates.
+- [Reified Review](REIFIED_REVIEW.md) answers the Shape Review's Q3:
+  with shapes gone, nothing reads a `reified` descriptor. It traces the
+  2026-08-08 decision, finds the fact lookup's key unstated, and compares
+  removing, narrowing, and keeping `reified`.
 
 Prototype plan:
 
