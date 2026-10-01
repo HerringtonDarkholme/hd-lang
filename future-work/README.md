@@ -30,6 +30,10 @@ Open questions for the owner:
   property-test decisions PT1-PT9 and Q5-Q10, and the two apply-pass
   readings the owner confirmed. The generator parameter style and two
   deferred fixtures wait for the owner.
+- [Shape Review](SHAPE_REVIEW.md) traces where `shape`, `shape_of`, and
+  the shape types came from, finds no owner decision that approved them,
+  and compares removing them, keeping only a function-fact read, and
+  keeping them, against `Structure` templates.
 - [Special Cases: Inventory And Simplification](SPECIAL_CASES.md) lists
   hd's compiler intrinsics, rule exceptions, special syntax, magic names,
   and single-construct diagnostics, and ranks nine cuts. Batches 24, 26,
