@@ -37,6 +37,7 @@ Open questions for the owner:
   `all!` and arity-generic impls work with no packs, through tuple-kinded
   `Fn` inputs and one call intrinsic. It also trims literal suffixes and
   prefixes from 89 rules to 38, and asks nine questions.
+- [Simplify Embedding](SIMPLIFY_EMBEDDING.md) trims embedding, promotion, and `by` delegation from 219 rules to 61, keeping embedding, and asks six questions.
 - [Spec Tiers](SPEC_TIERS.md) splits the spec into a language tier and a
   stdlib tier under `spec/std/`, with an inventory, a conformance split,
   and a migration plan. The owner decided ST1-ST8 on 2026-09-30; step 1,
