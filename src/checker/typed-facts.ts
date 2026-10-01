@@ -154,8 +154,8 @@ export function withTypedFacts(program: Program, error: Report): Program {
   const annotate = annotateNames(program);
   const local = new Map<string, TypedFactType>();
 
-  // Declarations: read and drop `annotate`'s type argument, which is never
-  // inferred (annot.typed-fact.opt-in).
+  // Declarations: read and drop `annotate`'s type argument. Without one, it
+  // is the default `Any`, an untyped fact type (annot.typed-fact.untyped).
   const declare = <T extends DataDecl | EnumDecl>(declaration: T): T => {
     const decorators = declaration.decorators;
     if (!decorators || annotate.size === 0) return declaration;

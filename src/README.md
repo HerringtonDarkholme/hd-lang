@@ -788,7 +788,8 @@ else`, `break`, `break value`, and `continue`;
   before derivations read the facts: `@annotate::[F](...)` on a data type
   or enum makes it a typed fact type, its argument must be one of the
   type's parameters (`type-mismatch` at the decorator), and the pass then
-  drops the argument, which `lib/std`'s `annotate[T = Any]` never infers.
+  drops the argument. `lib/std`'s `annotate[T = Any]` takes the ordinary
+  default, so `@annotate(...)` without one is an untyped fact type.
   A typed fact on any target but a field or a module-level function is
   `decorator-target-kind`. Each value `v` on a field, or on a derivation
   block's member line for one, or on a module-level function becomes
