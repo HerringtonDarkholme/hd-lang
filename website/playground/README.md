@@ -122,7 +122,7 @@ dependencies get browser versions in `build.ts`:
 - `node:crypto`'s `createHash("sha256")`, which names functions for traces,
   is replaced by a small synchronous SHA-256 ([`src/shims/crypto.ts`](src/shims/crypto.ts)).
 
-Binaryen's npm build already runs in browsers. It makes up most of the
+Binaryen's published JavaScript build already runs in browsers. It makes up most of the
 14.6 MB worker bundle, which the page loads in the background.
 
 ## The Website REPL Panel

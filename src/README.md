@@ -12,8 +12,8 @@ Small pipeline stages remain direct modules such as `lexer.ts`, `ast.ts`,
 
 ## Run It
 
-The repository pins Node 24.19.0 and npm dependencies through
-`package-lock.json`.
+The repository pins Node 24.19.0 and its dependencies through
+`pnpm-lock.yaml`.
 
 ```sh
 pnpm install
@@ -62,7 +62,7 @@ In a terminal the REPL colors the line being typed, printed values, and
 `NO_COLOR` or `TERM=dumb` to turn coloring off; piped input is never colored.
 
 The package also exposes `bin/hd.js` as the `hd` executable when installed or
-linked through npm.
+linked with `pnpm link`.
 
 ## Agent Queries
 
