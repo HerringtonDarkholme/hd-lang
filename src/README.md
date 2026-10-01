@@ -22,15 +22,15 @@ pnpm run lint
 pnpm run format:check
 pnpm run test:portable
 pnpm test
-pnpm run hd -- parse spec/conformance/parse/valid/layout.hd
-pnpm run hd -- check examples/core.hd
-pnpm run hd -- test spec/conformance/runtime/valid/defer-order.hd
-pnpm run hd -- build --wat examples/core.hd
-pnpm run hd -- run examples/core.hd
-pnpm run hd -- repl
-pnpm run hd -- check --format json examples/core.hd
-pnpm run hd -- explain unknown-data-field
-pnpm run hd -- doc main examples/core.hd
+pnpm run hd parse spec/conformance/parse/valid/layout.hd
+pnpm run hd check examples/core.hd
+pnpm run hd test spec/conformance/runtime/valid/defer-order.hd
+pnpm run hd build --wat examples/core.hd
+pnpm run hd run examples/core.hd
+pnpm run hd repl
+pnpm run hd check --format json examples/core.hd
+pnpm run hd explain unknown-data-field
+pnpm run hd doc main examples/core.hd
 pnpm run check
 ```
 

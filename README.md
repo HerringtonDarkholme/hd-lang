@@ -15,5 +15,5 @@ is intended to satisfy. Forward-looking material is grouped under
 The executable compiler is under [src](src/README.md), and its toy standard
 library, written in hd, is under [lib/std](lib/std/). The compiler emits genuine Wasm GC
 from its first supported slice; run `pnpm run toolchain:gate` to verify the local
-Binaryen and V8 toolchain, or `pnpm run hd -- run examples/core.hd` to compile and
+Binaryen and V8 toolchain, or `pnpm run hd run examples/core.hd` to compile and
 execute the current core example.

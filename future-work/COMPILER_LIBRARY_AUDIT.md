@@ -15,7 +15,7 @@ audit of 2026-09-28, which moved the string methods, `println`, and
 
 Inputs: the tier table in [AGENTS.md](../AGENTS.md#spec-scope-for-the-standard-library),
 [Spec Tiers](SPEC_TIERS.md), [spec/std/](../spec/std/README.md),
-`pnpm run spec -- counts` (3,616 language rules, 180 stdlib rules, 111
+`pnpm run spec counts` (3,616 language rules, 180 stdlib rules, 111
 rules the heuristic calls intrinsic), `src/README.md`, `ast-grep outline`
 of `src/checker` and `src/emitter`, and the 246 rows of
 `test/portable/KNOWN_FAILURES.tsv`.

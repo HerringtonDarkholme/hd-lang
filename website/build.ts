@@ -146,7 +146,7 @@ function playgroundBody(base: string, available: boolean): string {
   return `<div class="prose"><h1>Playground</h1>
 <p class="notice">The playground is not part of this build. <code>pnpm run website:build</code> builds it and serves it here.</p>
 <div id="playground-code-wrap" hidden><p>The code you opened:</p><pre class="code hd"><code id="playground-code"></code></pre></div>
-<p>Until then, read <a href="${siteLink(base, "guide/learn-in-10-minutes.html")}">Learn hd-lang in 10 Minutes</a> or run examples locally with <code>pnpm run hd -- run examples/core.hd</code>.</p></div>`;
+<p>Until then, read <a href="${siteLink(base, "guide/learn-in-10-minutes.html")}">Learn hd-lang in 10 Minutes</a> or run examples locally with <code>pnpm run hd run examples/core.hd</code>.</p></div>`;
 }
 
 interface SearchEntry {

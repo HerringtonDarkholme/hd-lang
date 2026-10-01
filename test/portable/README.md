@@ -30,7 +30,7 @@ is stdlib tier, and every other case is language tier. Like `--phase`,
 tiers run. The summary line counts passes per tier.
 
 ```sh
-pnpm run test:portable -- --tier language
+pnpm run test:portable --tier language
 ```
 
 Independent cases run concurrently. Set `HD_TEST_JOBS` or pass `--jobs` to

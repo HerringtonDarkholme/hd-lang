@@ -74,7 +74,7 @@ hold after packs were removed in batch 31.
 ## What hd Has Today
 
 Rule counts are numbered `r[...]` items, taken on 2026-10-01 from
-`pnpm run spec -- counts --by topic` and a grep of rule IDs. The whole
+`pnpm run spec counts --by topic` and a grep of rule IDs. The whole
 specification has 3,616 language-tier and 180 stdlib-tier rules.
 
 ### Rules In Scope
