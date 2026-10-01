@@ -411,7 +411,7 @@ stayed in the language tier at step 10, since the tier test did not clearly move
 
 | Point | Effect |
 | --- | --- |
-| Signature | None is decided. [`req.combinator.library`](../spec/11-requirements-and-suspension.md#r-req.combinator.library) leaves it, and the complete intrinsic set, to std design. |
+| Signature | None is decided. [`req.combinator.library-rest`](../spec/11-requirements-and-suspension.md#r-req.combinator.library-rest) leaves it, and the complete intrinsic set, to std design. |
 | Candidate | [STDLIB's draft](STDLIB.md) `retry!` takes `attempt: fn() -> mut Suspend[Result[T, E]]`, so it drives `Suspend` values, as `all!` and `race!` do. |
 | Intrinsic? | [`req.combinator.intrinsic`](../spec/11-requirements-and-suspension.md#r-req.combinator.intrinsic) makes the polling combinators intrinsics, and [Open Issues](OPEN_ISSUES.md) lists retry among the compiler-intrinsic `std.task` combinators. |
 | A `fn!` loop | A retry whose attempt is a `fn!` body is a loop of bang calls. Its cancellation rule then follows from [Cancellation](../spec/11-requirements-and-suspension.md#cancellation) alone. |

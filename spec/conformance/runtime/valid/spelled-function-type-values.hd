@@ -1,6 +1,6 @@
 # test: values of spelled function types call like values of the sugar
 # expect: test
-use std.function.{Fn, Rest}
+use std.function.Fn
 use std.testing.assert_equal
 
 trait Scale:
@@ -13,7 +13,7 @@ impl Scale for Triple:
     fn factor(self) -> i32: 3
 
 fn inc(value: i32) -> i32: value + 1
-fn count(label: string, values: i32...) -> i32: values.len()
+fn count(label: string, values...: List[i32]) -> i32: values.len()
 
 fn scaled(value: i32) -> i32 $ Scale:
     value * $.use(Scale).factor()
@@ -24,12 +24,12 @@ fn apply(callback: Fn[(i32,), i32, $()], value: i32) -> i32:
 fn apply_row(callback: Fn[(i32,), i32, Scale], value: i32) -> i32 $ Scale:
     callback(value)
 
-fn spread(callback: Fn[(string, Rest[i32]), i32, $()]) -> i32:
-    callback("n", 1, 2, 3)
+fn spread(callback: Fn[(string, List[i32]), i32, $()]) -> i32:
+    callback("n", [1, 2, 3])
 
 tests:
     it("spelled function types call like the sugar"):
         assert_equal(apply(inc, 1), 2, reason="the spelled type is the sugar type")
-        assert_equal(spread(count), 3, reason="Rest[i32] is a vararg element")
+        assert_equal(spread(count), 3, reason="a vararg function value takes its collected list")
         $.with(Scale=Triple { value: 0 }):
             assert_equal(apply_row(scaled, 2), 6, reason="the row argument is the requirement row")

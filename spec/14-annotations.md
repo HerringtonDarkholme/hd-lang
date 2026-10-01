@@ -505,7 +505,7 @@ pub enum Target:
 pub data Annotate:
     pub kinds: List[Target]
 
-pub fn annotate(kinds: Target...) -> Annotate:
+pub fn annotate(kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }
 ```
 

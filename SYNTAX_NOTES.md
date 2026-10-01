@@ -1327,10 +1327,10 @@ fn load(cached: User, use_cache: bool) -> User:
 
 The `return cached` above returns from the callback passed to `transaction`. Execution then continues with `audit(user)` in `load`. Non-local return through a trailing block is not supported.
 
-Varargs accept zero or more positional arguments:
+Varargs accept zero or more positional arguments. `...` follows the parameter name, and the type after `:` is the collected type:
 
 ```text
-fn sum(values: i32...) -> i32:
+fn sum(values...: List[i32]) -> i32:
     let total: i32 = 0
     for value in values:
         total = total + value
@@ -1342,10 +1342,10 @@ nums := [1, 2, 3]
 sum(nums...)
 ```
 
-Varargs must be the final positional parameter. Spread syntax is positional only. A named vararg accepts a list:
+Varargs must be the final positional parameter. Spread syntax is positional only. A named vararg accepts its collected value, here a list:
 
 ```text
-fn tagged_sum(tag: string, values: i32...) -> i32:
+fn tagged_sum(tag: string, values...: List[i32]) -> i32:
     ...
 
 tagged_sum("score", 1, 2, 3)

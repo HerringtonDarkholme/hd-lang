@@ -1,0 +1,6 @@
+# test: a type parameter bounded by Tuple accepts only tuple types
+use std.function.Tuple
+
+fn keep[T < Tuple](value: T) -> T: value
+
+fn wrong() -> i32: keep(5)  # diagnostic: unsatisfied-trait-bound

@@ -41,7 +41,7 @@ lists the ones that single out one type, one name, or one context.
 | ---: | --- | --- | --- | --- | --- |
 | 1 | [C1](#c1-one-code-for-an-operator-with-no-meaning) Operator-operand codes become `type-mismatch` | [`expr.op.no-impl`](../spec/05-expressions.md#r-expr.op.no-impl), [`trait.bound.unsatisfied`](../spec/09-traits.md#r-trait.bound.unsatisfied) | 6 codes, 2 of them with no rule today | coarser code; the message still names the trait | holds |
 | 2 | [C2](#c2-diagnostic-twins) Four pairs of twin codes merge | the partner code of each pair | 4 codes | one fixture marker each | holds |
-| 3 | [C3](#c3-value-packs-follow-the-vararg-rule) Value packs follow the vararg finality rule | [`fn.vararg.last`](../spec/07-functions.md#r-fn.vararg.last) | 2 codes, 2 rules | none for valid code | holds while hd has no named-only parameters |
+| 3 | [C3](#c3-value-packs-follow-the-vararg-rule) Value packs follow the vararg finality rule | [`fn.vararg.final`](../spec/07-functions.md#r-fn.vararg.final) | 2 codes, 2 rules | none for valid code | holds while hd has no named-only parameters |
 | 4 | [C4](#c4-parenthesized-names-in-for) `for (k, v) in m:` like `(a, b) :=` and `let (a, b)` | `grammar.stmt.bind-list` (now [`grammar.stmt.short-binding.one-name`](../spec/02-grammar.md#r-grammar.stmt.short-binding.one-name)) | 1 grammar exception, 1 of 3 list spellings | about 25 loops gain parentheses | holds |
 | 5 | [C5](#c5-one-dollar-rule-for-every-string) One `$` rule for every string | `lex.prefix.plain-dollar-start` | half of one rule | `"costs $5"` becomes valid | holds |
 
@@ -97,7 +97,7 @@ Things the compiler supplies, generates, or recognizes by a qualified name.
 | I24 | `Option` and `Result` support | [`data.prelude.support`](../spec/08-data-and-enums.md#r-data.prelude.support) | `T?`, the one-layer wrap, `?`, and `.Ok()` for `void`. | O1-O3, Result variants decision. |
 | I25 | Must-use types | [`flow.must-use.discard`](../spec/06-control-flow.md#r-flow.must-use.discard) | Discarding `Result`, `T?`, or `mut Suspend[T]` is an error. | Why callout: the discard is visible in review. |
 | I26 | Test-case functions | [`module.testing.position-statements`](../spec/10-modules.md#r-module.testing.position-statements), [`module.testing.direct-call`](../spec/10-modules.md#r-module.testing.direct-call) | `it`, `it_each`, `it_prop`, `it_prop_with` are recognized in test position. | Testing T2-T50: tools list tests statically. |
-| I27 | Function type constructors | [`fn.type.ctor.decl`](../spec/07-functions.md#r-fn.type.ctor.decl), [`fn.type.rest`](../spec/07-functions.md#r-fn.type.rest) | `fn(...)` is sugar for `Fn` or `SuspendFn`; `Rest[T]` marks a vararg; inputs are tuple-kinded. | FN_TYPE 1-8. |
+| I27 | Function type constructors | [`fn.type.ctor.decl`](../spec/07-functions.md#r-fn.type.ctor.decl), `fn.type.rest` (retired in batch 31) | `fn(...)` is sugar for `Fn` or `SuspendFn`; `Rest[T]` marks a vararg; inputs are tuple-kinded. | FN_TYPE 1-8. |
 | I28 | Delegation bodies | [`trait.by.generated`](../spec/09-traits.md#r-trait.by.generated) | `impl Tr for C by E` generates forwarding methods. | Trait delegation decision. |
 | I29 | Newtype derivation | [`trait.derive.newtype`](../spec/09-traits.md#r-trait.derive.newtype) | Derives by rewrapping the base type's implementation. | TQ-11. |
 | I30 | Doc comments in shapes | [`lex.doc.field`](../spec/01-lexical-structure.md#r-lex.doc.field) | `##` text becomes the shape's `doc` field. | Tools read documentation from shapes. |
@@ -528,7 +528,7 @@ fn split[As..., Bs...](left: As..., right: Bs...) -> void:  # error: multiple-po
 fn tail[Ts...](values: Ts..., last: i32) -> void:  # error: nonfinal-positional-value-pack
     pass
 
-fn scaled(values: i32..., factor: i32) -> i32:  # error: nonfinal-vararg
+fn scaled(values...: List[i32], factor: i32) -> i32:  # error: nonfinal-vararg
     factor
 ```
 
@@ -542,11 +542,11 @@ fn split[As..., Bs...](left: As..., right: Bs...) -> void:  # error: nonfinal-va
 fn tail[Ts...](values: Ts..., last: i32) -> void:  # error: nonfinal-vararg
     pass
 
-fn scaled(values: i32..., factor: i32) -> i32:  # error: nonfinal-vararg
+fn scaled(values...: List[i32], factor: i32) -> i32:  # error: nonfinal-vararg
     factor
 ```
 
-**Absorbed by.** [`fn.vararg.last`](../spec/07-functions.md#r-fn.vararg.last),
+**Absorbed by.** [`fn.vararg.final`](../spec/07-functions.md#r-fn.vararg.final),
 which [`grammar.fn.vararg.value-pack`](../spec/02-grammar.md#r-grammar.fn.vararg.value-pack)
 already extends to value packs.
 

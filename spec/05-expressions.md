@@ -791,18 +791,44 @@ fn area() -> i32:
 
 #### Positional Spreads
 
-1. r[expr.call.spread] An argument ending in `...` is a positional spread.
-2. r[expr.call.spread.type] A positional spread is evaluated once, must have `List[T]` compatible with the callee's final `T...` parameter, and supplies that vararg's remaining positional elements.
-3. r[expr.call.spread.fixed] A positional spread cannot fill fixed parameters.
-4. r[expr.call.spread.needs-vararg] A positional spread in a call whose callee has no vararg parameter is an error. Error: `positional-spread-needs-vararg`.
-5. r[expr.call.spread.one] A call has at most one positional spread; it must be the final positional argument and therefore precedes every named argument.
-6. r[expr.call.vararg-by-name] Passing a vararg by name uses one ordinary list value without `...`.
-7. r[expr.call.vararg-by-name.exclusive] A call that passes a vararg by name must not also supply positional values for that vararg.
+A **positional spread** `x...` passes the value `x` in place of separate
+arguments. A tuple fills fixed parameters, and a vararg takes a value of its
+own type:
 
 ```text
-fn fixed(value: i32) -> i32: value
-fn total(values: List[i32]) -> i32: fixed(values...)  # error: positional-spread-needs-vararg
+fn add(a: i32, b: i32) -> i32: a + b
+fn sum(values...: List[i32]) -> i32: values.len()
+
+fn spreads(pair: (i32, i32), items: List[i32]) -> i32:
+    add(pair...) + sum(items...) + sum(1, 2)
 ```
+
+1. r[expr.call.spread] An argument ending in `...` is a positional spread.
+2. r[expr.call.spread.one] A call has at most one positional spread; it must be the final positional argument and therefore precedes every named argument. Error: `nonfinal-positional-spread`.
+3. r[expr.call.spread.fills] A spread operand of type `X` is evaluated once and fills what `X` describes, as the table below states.
+
+| Rule | Where the spread stands | `X` must be assignable to | It fills |
+| --- | --- | --- | --- |
+| r[expr.call.spread.at-vararg] At a vararg | the next positional parameter is a [vararg](07-functions.md#varargs) | the vararg's type | the vararg, as its collected value |
+| r[expr.call.spread.tuple] Before fixed parameters | any other position | the tuple of the remaining positional parameter types | each remaining parameter with one element, in order |
+
+4. r[expr.call.spread.mismatch] An operand that is not assignable to the type the table requires is an error. Error: `type-mismatch`.
+5. r[expr.call.spread.list-needs-vararg] A `List[T]` operand where the next positional parameter is not a vararg is an error. Error: `positional-spread-needs-vararg`.
+6. r[expr.call.vararg-by-name.exclusive] A call that passes a vararg by name must not also supply positional values for that vararg.
+
+```text
+fn add(a: i32, b: i32) -> i32: a + b
+fn fixed(value: i32) -> i32: value
+
+fn triple(values: (i32, i32, i32)) -> i32: add(values...)  # error: type-mismatch
+fn total(values: List[i32]) -> i32: fixed(values...)       # error: positional-spread-needs-vararg
+```
+
+> **Note.** For a function value of type `Fn[Args, O, R]`, the remaining
+> parameters are `Args`, so `f(args...)` with `args: Args` calls it. A
+> suspending callee is written `f!(args...)`.
+
+See also: [Varargs](07-functions.md#varargs).
 
 #### Explicit Generic Arguments
 

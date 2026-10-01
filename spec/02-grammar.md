@@ -411,6 +411,7 @@ parameter = receiver_parameter
 
 parameter_decorator = "@", continued_expression ;
 value_parameter = identifier, ":", type, [ "=", expression ]
+                | identifier, "...", ":", type
                 | identifier, ":", type, "..."
                 ;
 
@@ -420,8 +421,8 @@ receiver_parameter = "self" | "mut", "self" ;
 1. r[grammar.fn.receiver] The receiver forms are valid only for methods.
 2. r[grammar.fn.decorator-param-targets] Among function parameters, parameter decorators are valid only on value parameters of module-level named functions and of methods. Variant payload parameters also accept them, as [Enums](#enums) states.
 3. r[grammar.fn.decorator.lines] Within a multiline parameter clause, each decorator may occupy its own prefix line; delimiter line breaks do not terminate the parameter.
-4. r[grammar.fn.vararg] A vararg parameter ends in `...`; it must be the final positional parameter.
-5. r[grammar.fn.vararg.value-pack] The final-parameter rule includes a value-pack parameter, whose nonfinal use is an error. Error: `nonfinal-positional-value-pack`.
+4. r[grammar.fn.vararg-name] A [vararg](07-functions.md#varargs) parameter writes `...` after its name, as in `values...: List[i32]`; it takes no default and must be the final positional parameter.
+5. r[grammar.fn.vararg.value-pack] The final-parameter rule includes a value-pack parameter, the form with `...` after its type, whose nonfinal use is an error. Error: `nonfinal-positional-value-pack`.
 6. r[grammar.fn.semantic] Default-argument ordering and the requirement-free rule are semantic constraints defined in [Functions](07-functions.md).
 
 ```text
@@ -1328,12 +1329,12 @@ named_argument = identifier, "=", expression ;
 ```
 
 1. r[grammar.call.positional-first] Positional arguments, including positional spreads, must precede named arguments. Error: `argument-order`.
-2. r[grammar.call.named-vararg] A named vararg receives an ordinary list value and does not use spread syntax.
-3. r[grammar.call.spread-final] Semantic rules require a positional spread to be the final positional argument and to feed a declared vararg parameter.
 
 ```text
 resize(width=640, 480)  # error: argument-order
 ```
+
+See also: [Positional Spreads](05-expressions.md#positional-spreads), for what a spread fills.
 
 #### Trailing Blocks
 
@@ -1671,5 +1672,5 @@ See also: [Typed Derivation](14-annotations.md#typed-derivation).
 
 1. r[grammar.pack.declare] An ellipsis following a generic parameter declares a type pack.
 2. r[grammar.pack.expand] In a type, parameter, tuple, or argument position, an ellipsis following a subtree that contains a pack reference expands that subtree once per pack element.
-3. r[grammar.pack.vararg] The same token denotes an ordinary homogeneous vararg or list spread when no pack is referenced.
+3. r[grammar.pack.no-pack] Where no pack is referenced, an argument ellipsis is a positional spread, and an ellipsis after a type is an error, as [`fn.type.no-ellipsis`](07-functions.md#r-fn.type.no-ellipsis) states.
 4. r[grammar.pack.resolution] Name and type resolution make the distinction; unresolved or mixed uses are compile-time errors.

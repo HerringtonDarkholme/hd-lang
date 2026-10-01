@@ -354,7 +354,6 @@ typing/invalid/parameter-default-later-parameter.hd	type	reject:binding-not-yet-
 typing/valid/parameter-default-writes-state.hd	type	accept	07-functions.md#default-values
 runtime/valid/parameter-default-earlier-parameter.hd	runtime	accept	07-functions.md#default-values
 typing/invalid/nonfinal-vararg-declaration.hd	type	reject:nonfinal-vararg	07-functions.md#varargs
-typing/invalid/nonfinal-vararg-function-type.hd	type	reject:nonfinal-vararg	07-functions.md#varargs
 runtime/valid/final-vararg.hd	runtime	accept	07-functions.md#varargs
 typing/invalid/method-without-requirement-clause.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#requirement-rows
 typing/valid/declaration-owns-requirement-clause.hd	type	accept	02-grammar.md#types
@@ -445,8 +444,7 @@ typing/invalid/function-result-type-mismatch.hd	type	reject:type-mismatch	04-typ
 typing/invalid/nonfinal-vararg-then-parameter.hd	type	reject:nonfinal-vararg	07-functions.md#varargs
 typing/invalid/unknown-value-name.hd	type	reject:unknown-name	03-names-and-scopes.md#lexical-scopes
 runtime/valid/homogeneous-varargs.hd	runtime	accept	07-functions.md#varargs
-typing/invalid/list-function-to-vararg-function-type.hd	type	reject:type-mismatch	07-functions.md#varargs
-runtime/valid/vararg-function-values.hd	runtime	accept	07-functions.md#varargs
+runtime/valid/vararg-function-values.hd	runtime	accept	07-functions.md#r-fn.vararg.value
 runtime/valid/parameter-defaults-after-explicit-arguments.hd	runtime	accept	07-functions.md#default-values
 typing/invalid/parameter-default-type-mismatch.hd	type	reject:type-mismatch	07-functions.md#default-values
 typing/invalid/suspending-parameter-default.hd	type	reject:suspension-forbidden-context	07-functions.md#default-values
@@ -585,7 +583,7 @@ parse/invalid/positional-after-named-argument.hd	parse	reject:argument-order	02-
 parse/valid/named-call-arguments.hd	parse	accept	02-grammar.md#calls-and-arguments
 parse/valid/spread-before-named-argument.hd	parse	accept	02-grammar.md#calls-and-arguments
 typing/invalid/positional-after-spread.hd	type	reject:nonfinal-positional-spread	02-grammar.md#calls-and-arguments
-parse/valid/vararg-and-spread.hd	parse	accept	02-grammar.md#calls-and-arguments
+parse/valid/vararg-and-spread.hd	parse	accept	02-grammar.md#r-grammar.fn.vararg-name
 parse/invalid/vararg-with-default.hd	parse	reject:syntax-error	02-grammar.md#declarations
 parse/valid/parameter-defaults.hd	parse	accept	02-grammar.md#declarations
 parse/invalid/copy-update-spread-not-first.hd	parse	reject:syntax-error	02-grammar.md#data-types
@@ -785,7 +783,7 @@ typing/invalid/empty-map-without-context.hd	type	reject:unresolved-generic-place
 typing/invalid/reference-bound-unsatisfied.hd	type	reject:unsatisfied-trait-bound	09-traits.md#generic-bounds-and-static-dispatch
 typing/invalid/generic-bound-unsatisfied.hd	type	reject:unsatisfied-trait-bound	09-traits.md#generic-bounds-and-static-dispatch
 typing/valid/duplicate-trait-bound.hd	type	accept	09-traits.md#generic-bounds-and-static-dispatch
-typing/invalid/positional-spread-without-vararg.hd	type	reject:positional-spread-needs-vararg	05-expressions.md#calls
+typing/invalid/positional-spread-without-vararg.hd	type	reject:positional-spread-needs-vararg	05-expressions.md#r-expr.call.spread.list-needs-vararg
 typing/invalid/parameter-default-order.hd	type	reject:default-order	07-functions.md#default-values
 typing/invalid/variant-duplicate-argument.hd	type	reject:duplicate-argument	08-data-and-enums.md#enum-declarations
 typing/invalid/duplicate-argument.hd	type	reject:duplicate-argument	05-expressions.md#calls
@@ -1089,8 +1087,7 @@ parse/invalid/mut-function-type.hd	parse	reject:syntax-error	02-grammar.md#r-gra
 parse/invalid/mut-closure-literal.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.type.mut.no-function
 typing/valid/function-type-constructors.hd	type	accept	07-functions.md#function-type-constructors
 runtime/valid/spelled-function-type-values.hd	runtime	accept	07-functions.md#r-fn.type.ctor.sugar
-typing/invalid/function-type-non-tuple-inputs.hd	type	reject:generic-kind-mismatch	07-functions.md#r-fn.type.ctor.kind-mismatch
-typing/invalid/function-type-rest-nonfinal.hd	type	reject:nonfinal-vararg	07-functions.md#r-fn.type.rest.nonfinal
+typing/invalid/function-type-non-tuple-inputs.hd	type	reject:generic-kind-mismatch	07-functions.md#r-fn.type.ctor.inputs-tuple
 typing/valid/function-type-variance.hd	type	accept	07-functions.md#r-fn.type.declared-variance
 typing/invalid/function-result-representation-change.hd	type	reject:variance-representation-change	07-functions.md#r-fn.type.variance-repr.excluded
 typing/invalid/closure-identity.hd	type	reject:unsupported-function-identity	05-expressions.md#r-expr.is.function
@@ -1681,3 +1678,18 @@ typing/invalid/for-refutable-pattern.hd	type	reject:refutable-let-pattern	06-con
 typing/invalid/comprehension-refutable-pattern.hd	type	reject:refutable-let-pattern	06-control-flow.md#r-flow.for.pattern.irrefutable
 typing/invalid/let-else-irrefutable.hd	type	reject:unreachable-match-arm	06-control-flow.md#r-flow.let.else.unreachable
 typing/valid/let-underscore-discard.hd	type	accept	06-control-flow.md#r-flow.unused.discard-forms
+typing/invalid/function-type-ellipsis.hd	type	reject:syntax-error	07-functions.md#r-fn.type.no-ellipsis
+typing/invalid/vararg-ellipsis-after-type.hd	type	reject:syntax-error	07-functions.md#r-fn.type.no-ellipsis
+typing/invalid/vararg-function-value-arity.hd	type	reject:type-mismatch	07-functions.md#r-fn.vararg.value
+typing/invalid/vararg-type-not-collection.hd	type	reject:type-mismatch	07-functions.md#r-fn.vararg.type.kinds
+typing/invalid/tuple-vararg-arity.hd	type	reject:type-mismatch	07-functions.md#r-fn.vararg.collect.tuple
+typing/invalid/tuple-vararg-no-auto-spread.hd	type	reject:type-mismatch	07-functions.md#r-fn.vararg.no-auto-spread
+typing/invalid/tuple-spread-arity.hd	type	reject:type-mismatch	05-expressions.md#r-expr.call.spread.mismatch
+typing/invalid/function-type-unbounded-inputs.hd	type	reject:generic-kind-mismatch	07-functions.md#r-fn.type.ctor.inputs-tuple
+typing/invalid/tuple-trait-user-impl.hd	type	reject:sealed-trait-implementation	09-traits.md#r-trait.sealed.tuple
+typing/invalid/tuple-bound-non-tuple.hd	type	reject:unsatisfied-trait-bound	07-functions.md#r-fn.type.ctor.tuple-trait
+typing/valid/tuple-trait-bound.hd	type	accept	07-functions.md#r-fn.type.ctor.tuple-trait
+runtime/valid/tuple-bound-vararg-call.hd	runtime	accept	07-functions.md#r-fn.vararg.infer-tuple
+runtime/valid/tuple-vararg.hd	runtime	accept	07-functions.md#r-fn.vararg.collect.tuple
+runtime/valid/tuple-spread-fixed.hd	runtime	accept	05-expressions.md#r-expr.call.spread.tuple
+typing/valid/race-plain-signature.hd	type	accept	11-requirements-and-suspension.md#r-req.combinator.race-signature

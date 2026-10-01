@@ -1,0 +1,5 @@
+# test: a tuple-typed vararg takes exactly one argument per element
+
+fn label(parts...: (i32, string)) -> string: parts._1
+
+fn short() -> string: label(1)  # diagnostic: type-mismatch

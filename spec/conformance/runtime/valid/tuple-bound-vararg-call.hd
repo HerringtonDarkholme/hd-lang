@@ -1,0 +1,22 @@
+# test: a Tuple-bounded vararg type is solved as the tuple of the argument types, one element per argument
+# expect: test
+use std.function.{Fn, Tuple}
+use std.testing.assert_equal
+
+fn add2(a: i32, b: i32) -> i32: a + b
+fn neg(a: i32) -> i32: 0 - a
+fn zero() -> i32: 0
+
+fn call[Args < Tuple, O, R](f: Fn[Args, O, R], args...: Args) -> O $ R:
+    f(args...)
+
+tests:
+    it("separate arguments are collected into Args"):
+        assert_equal(call(add2, 1, 2), 3, reason="Args is (i32, i32)")
+        assert_equal(call(neg, 5), -5, reason="Args is (i32,)")
+        assert_equal(call(zero), 0, reason="Args is ()")
+
+    it("a spread or a named argument passes the collected tuple"):
+        pair := (3, 4)
+        assert_equal(call(add2, pair...), 7, reason="the spread is the collected value")
+        assert_equal(call(add2, args=(5, 6)), 11, reason="by name passes the collected value")

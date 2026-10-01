@@ -1,0 +1,3 @@
+# test: the old vararg spelling, an ellipsis after the parameter's type, is an error
+
+fn sum(values: i32...) -> i32: 0  # diagnostic: syntax-error

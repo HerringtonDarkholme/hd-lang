@@ -1312,10 +1312,10 @@ fn run() -> void:
         pass
 ```
 
-Use varargs when a function accepts zero or more positional arguments of the same type:
+Use varargs when a function accepts zero or more positional arguments. Write `...` after the parameter name; the type after `:` is what the body sees:
 
 ```text
-fn sum(values: i32...) -> i32:
+fn sum(values...: List[i32]) -> i32:
     let total: i32 = 0
     for value in values:
         total = total + value
@@ -1327,10 +1327,10 @@ nums := [1, 2, 3]
 sum(nums...)
 ```
 
-Varargs must be the final positional parameter. `nums...` spreads a list into positional arguments at the call site, and spread syntax is positional only. If a vararg is passed by name, it accepts a list:
+Varargs must be the final positional parameter. `nums...` spreads a list into positional arguments at the call site, and spread syntax is positional only. If a vararg is passed by name, it accepts the collected value, here a list:
 
 ```text
-fn tagged_sum(tag: string, values: i32...) -> i32:
+fn tagged_sum(tag: string, values...: List[i32]) -> i32:
     ...
 
 tagged_sum("score", 1, 2, 3)
@@ -1338,6 +1338,23 @@ tagged_sum("score", nums...)
 tagged_sum(tag="score", values=nums)
 tagged_sum(tag="score", nums...)      # invalid: positional spread after named arg
 ```
+
+A vararg may also collect a tuple. With a type parameter bounded by `Tuple`, one function forwards any number of arguments of any types, and a spread of a tuple fills a function's parameters one element each:
+
+```text
+use std.function.{Fn, Tuple}
+
+fn call[Args < Tuple, O, R](f: Fn[Args, O, R], args...: Args) -> O $ R:
+    f(args...)
+
+fn add(a: i32, b: i32) -> i32: a + b
+
+call(add, 1, 2)        # Args is (i32, i32)
+pair := (1, 2)
+add(pair...)           # a tuple spread fills a and b
+```
+
+Being a vararg belongs to the declaration, not to the function's type: `f := sum` has type `fn(List[i32]) -> i32`, and is called as `f([1, 2, 3])`.
 
 Function types use `fn(...) -> ...`:
 

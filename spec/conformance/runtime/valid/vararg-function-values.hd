@@ -1,11 +1,13 @@
-# test: vararg function values
+# test: a vararg function's value takes the collected list as one ordinary parameter
 
 use std.testing.assert_equal
 
-fn count(values: i32...) -> i32: values.len()
-fn invoke(callback: fn(i32...) -> i32, items: List[i32]) -> i32:
-    callback(1, 2) * 10 + callback(items...)
-fn main() -> i32: invoke(count, [3, 4, 5])
+fn count(values...: List[i32]) -> i32: values.len()
+fn invoke(callback: fn(List[i32]) -> i32, items: List[i32]) -> i32:
+    callback([1, 2]) * 10 + callback(items)
+fn main() -> i32:
+    f := count
+    invoke(f, [3, 4, 5])
 
 tests:
     it("main returns 23"):

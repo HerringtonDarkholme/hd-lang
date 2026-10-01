@@ -234,6 +234,32 @@ follow the recommendation; the other three do not.
 | LP-for | `for` takes an irrefutable pattern now, as in `for Point { x, y } in points`. A refutable one is `refutable-let-pattern`. `for (k, v) in m` is the tuple pattern, and the parenthesized-list rule is retired. | [`grammar.flow.for-pattern`](../spec/02-grammar.md#r-grammar.flow.for-pattern), [`flow.for.pattern`](../spec/06-control-flow.md#r-flow.for.pattern) |
 | Q5-tuple | Owner: "keep rule simple, if this does not need a new rule". Allowing needs fewer rules: a tuple element takes an expression, as a list item does, so `(a, b := v)` is a tuple whose last element is a binding. One rule replaces four, leaving two in the section where there were five. | [`grammar.expr.multi-binding.element`](../spec/02-grammar.md#r-grammar.expr.multi-binding.element) |
 
+**Batch 31, packs and literals (owner decisions, 2026-09-30).** Answers
+the questions of [Reopen: Packs And Literal Sugar](REOPEN_PACKS_LITERALS.md#questions-for-the-owner).
+It is applied in three passes: 31a (varargs, `Tuple`, and tuple spread),
+31b (removing packs, Q9), and 31c (the literal rules, Q1 to Q4). Pass
+31a is applied; the [Revision Notes](../spec/README.md#revision-notes)
+list each. Later entries supersede earlier ones: VARARG-SPELL over
+VARARG-TYPE over SPREAD-SITE over Q5 and Q8.
+
+| # | Decision | Where |
+| --- | --- | --- |
+| Q5 | Not as recommended: an arity-generic `Args` is written `Args < Tuple`, with a new sealed marker trait `Tuple` in `std.function`. It replaces the by-use rule `fn.type.ctor.input-kind`. | [`fn.type.ctor.tuple-trait`](../spec/07-functions.md#r-fn.type.ctor.tuple-trait), [`fn.type.ctor.inputs-tuple`](../spec/07-functions.md#r-fn.type.ctor.inputs-tuple) |
+| Q7 | As recommended: `race!` is the plain signature `fn race![T](tasks...: List[mut Suspend[T]]) -> T`, with no intrinsic typing rule. | [`req.combinator.race-signature`](../spec/11-requirements-and-suspension.md#r-req.combinator.race-signature) |
+| Q8, SPREAD-SITE | Not as recommended: no `call_with`; a call spreads a tuple, `f(args...)`, into fixed parameters, and `f!(args...)` for a suspending callee. `...` never marks a tuple in a type. | [Positional Spreads](../spec/05-expressions.md#positional-spreads) |
+| VARARG-TYPE | Following TypeScript, the type of a vararg is the type the body sees: `List[T]`, a tuple type, or a `Tuple`-bounded parameter, solved as the tuple of the argument types. A tuple is never spread automatically. The chapter 05 and 07 spread rules merge. | [Varargs](../spec/07-functions.md#varargs) |
+| VARARG-SPELL | `...` goes after the parameter name, `args...: Args`, and never in a type. Being a vararg belongs to the declaration: `f := sum` has type `fn(List[i32]) -> i32`. Every existing vararg is respelled. | [`fn.vararg.form`](../spec/07-functions.md#r-fn.vararg.form), [`fn.vararg.value`](../spec/07-functions.md#r-fn.vararg.value) |
+
+**Still open from applying batch 31a.** The specification applies the
+reading in the middle column; each point asks the owner to confirm it.
+
+| # | Question | Applied reading and **Recommendation** |
+| --- | --- | --- |
+| VA-type-code | The decisions name no code for a vararg of another type, as in `values...: i32`. | `type-mismatch` ([`fn.vararg.type.kinds`](../spec/07-functions.md#r-fn.vararg.type.kinds)). **Recommendation:** keep it until the code revamp (#101). |
+| VA-ellipsis-code | `...` in a type, as in `fn(i32...) -> i32` or the old `values: i32...`, needs a code while packs still make some such ellipses valid. | `syntax-error` ([`fn.type.no-ellipsis`](../spec/07-functions.md#r-fn.type.no-ellipsis)), checked once pack names are known. After 31b removes packs it is a plain grammar error. **Recommendation:** keep it. |
+| VA-unbounded-code | An unbounded `Args` used as `Fn`'s inputs needs a code. | `generic-kind-mismatch`, as a non-tuple there already is, rather than `unsatisfied-trait-bound`. **Recommendation:** keep it; one rule covers both. |
+| VA-tuple-then-vararg | A tuple spread before a vararg, as in `g(t...)` for `fn g(a: i32, xs...: List[i32])`, fills the vararg with one element as its collected value, so `t` must be `(i32, List[i32])`. | Applied, by [`expr.call.spread.tuple`](../spec/05-expressions.md#r-expr.call.spread.tuple): the remaining parameters, the vararg included, form one tuple. **Recommendation:** keep it; it matches the function value's type. |
+
 ### Bound And Row Operators
 
 The owner's decisions (2026-09-28) are applied: bounds join with `&`, rows

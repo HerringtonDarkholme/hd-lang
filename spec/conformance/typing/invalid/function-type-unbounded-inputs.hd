@@ -1,0 +1,4 @@
+# test: a type parameter used as Fn's inputs must be bounded by Tuple
+use std.function.Fn
+
+fn unbounded[Args, O](callback: Fn[Args, O, $()]) -> void: pass  # diagnostic: generic-kind-mismatch

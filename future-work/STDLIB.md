@@ -1487,7 +1487,7 @@ pub fn all![Ts...](tasks: mut Suspend[Ts]...) -> (Ts...):
 pub fn all_list![T](tasks: List[mut Suspend[T]]) -> List[T]:
     pass
 
-pub fn race![T](tasks: List[mut Suspend[T]]) -> T:
+pub fn race![T](tasks...: List[mut Suspend[T]]) -> T:
     pass
 
 pub enum Timeout[T]:

@@ -1174,7 +1174,9 @@ combinators cancel their children.
 4. r[req.combinator.ordinary-call] Each is imported and bang-called like an ordinary `fn!` function and has an ordinary `fn!` signature, but the compiler supplies its frame and polling behavior.
 5. r[req.combinator.not-syntax] They are not first-class control-flow syntax.
 6. r[req.combinator.user] Because `Suspend[T]` is sealed, user code cannot define an equivalent polling combinator; it composes the standard intrinsics instead.
-7. r[req.combinator.library] The concrete signatures and the complete intrinsic set remain standard-library API design.
+7. r[req.combinator.race-signature] `race!` has the plain vararg signature `fn race![T](tasks...: List[mut Suspend[T]]) -> T`, with no typing rule of its own.
+8. r[req.combinator.race-join] Its children's result types therefore meet only by permission weakening, as [`types.generic.infer.join`](04-type-system.md#r-types.generic.infer.join) states, so children of unrelated types are an inference error.
+9. r[req.combinator.library-rest] The other concrete signatures, and the complete intrinsic set, remain standard-library API design.
 
 > **Note.** The `retry!` combinator of `std.task` is a plain library loop
 > over a `fn!` attempt, not an intrinsic, so the stdlib tier specifies it

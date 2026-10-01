@@ -409,7 +409,7 @@ A call `c(args)` is resolved by what `c` is. The cases are disjoint.
 #### Traits At Any Arity
 
 The keys argument is tuple-kinded, like `Fn`'s inputs
-([`fn.type.ctor.input-kind`](../spec/07-functions.md#r-fn.type.ctor.input-kind)).
+(`fn.type.ctor.input-kind`, since retired for [`fn.type.ctor.inputs-tuple`](../spec/07-functions.md#r-fn.type.ctor.inputs-tuple)).
 `r(a, b)` passes the tuple `(a, b)`, `r(a)` passes `(a,)`, and `r()`
 passes `()`. A tuple is never flattened, so a map keyed by pairs is read
 as `m((a, b))`.

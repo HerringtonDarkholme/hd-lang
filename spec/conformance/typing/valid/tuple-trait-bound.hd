@@ -1,0 +1,22 @@
+# test: every tuple type implements Tuple, and an arity-generic Fn input is written Args < Tuple
+# expect: accept
+use std.function.{Fn, SuspendFn, Tuple}
+
+trait Describe:
+    fn describe(self) -> string
+
+impl[Args < Tuple, O, R] Describe for Fn[Args, O, R]:
+    fn describe(self) -> string: "function"
+
+fn keep[T < Tuple](value: T) -> T: value
+
+fn retry_once![Args < Tuple, O, R](f: SuspendFn[Args, O, R], args: Args) -> O $ R:
+    f!(args...)
+
+fn inc(value: i32) -> i32: value + 1
+
+fn uses() -> string:
+    _ := keep(())
+    _ := keep((1,))
+    _ := keep((1, "a"))
+    inc.describe()

@@ -1,0 +1,3 @@
+# test: a vararg's type must be List[T], a tuple type, or a type parameter bounded by Tuple
+
+fn count(values...: i32) -> i32: values  # diagnostic: type-mismatch

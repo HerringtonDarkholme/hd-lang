@@ -4,6 +4,12 @@ Status: design exploration, 2026-09-30. Nothing here is decided, accepted
 behavior, or in the specification. It changes no spec text, fixture, or
 prototype code.
 
+> **Note.** The owner answered the questions as batch 31 in
+> [Open Issues](OPEN_ISSUES.md#language-design-decisions). Pass 31a is
+> applied: varargs as in VARARG-SPELL, the `Tuple` bound (Q5), tuple
+> spread (Q8, close to A3), and `race!` (Q7). Packs (Q9) and the literal
+> rules (Q1 to Q4) are not applied yet.
+
 The owner reopened two features on 2026-09-30, after the
 [Syntax And Semantics Cost Review](SYNTAX_SEMANTICS_COST.md) marked them
 as possible reopens ([Q10](SYNTAX_SEMANTICS_COST.md#q10-reopen-literal-sugar),
@@ -74,7 +80,7 @@ counts every rule a removal or trim would touch.
 | [Contextual Words](../spec/01-lexical-structure.md#contextual-words) | [`lex.contextual.pack`](../spec/01-lexical-structure.md#r-lex.contextual.pack), `.always`, `.ordinary` | 3 |
 | [Grammar](../spec/02-grammar.md) | [`grammar.pack.*`](../spec/02-grammar.md#r-grammar.pack.declare) (4), `grammar.fn.vararg.value-pack`, `grammar.primary.pack-map` | 6 |
 | [Type System](../spec/04-type-system.md) | [`types.pack.declare`](../spec/04-type-system.md#r-types.pack.declare), `types.pack.compile-time` | 2 |
-| [Varargs](../spec/07-functions.md#varargs) | [`fn.vararg.ellipsis`](../spec/07-functions.md#r-fn.vararg.ellipsis) | 1 |
+| [Varargs](../spec/07-functions.md#varargs) | `fn.vararg.ellipsis` (since retired) | 1 |
 | Rules that name packs beside other things | `grammar.generic.reified-and-packs`, `grammar.generic.default.positions`, `grammar.primary.function-type-argument`, `grammar.primary.suffix-spreads`, `lex.raw.not-reserved`, `types.generic.specialized`, `types.generic.interfaces`, `types.trait.safe.no-reified-or-pack`, `trait.dyn.safe.reified-or-pack`, `trait.impl.generics.markers`, `trait.target.function-type`, `fn.type.ctor.inputs`, `fn.generic.bang.examples`, `grammar.expr.method-type-arguments.bang` | 14, reworded only |
 
 Diagnostics: `multiple-positional-value-packs`,
@@ -86,12 +92,12 @@ What already works without packs:
 
 | Fact | Rule |
 | --- | --- |
-| A type parameter used as `Fn`'s inputs is tuple-kinded | [`fn.type.ctor.input-kind`](../spec/07-functions.md#r-fn.type.ctor.input-kind) |
-| A non-tuple there is `generic-kind-mismatch` | [`fn.type.ctor.kind-mismatch`](../spec/07-functions.md#r-fn.type.ctor.kind-mismatch) |
+| A type parameter used as `Fn`'s inputs is tuple-kinded | `fn.type.ctor.input-kind` (since retired) |
+| A non-tuple there is `generic-kind-mismatch` | `fn.type.ctor.kind-mismatch` (since retired) |
 | A function type is an ordinary impl target | [`trait.target.function-type.valid`](../spec/09-traits.md#r-trait.target.function-type.valid) |
 | A row parameter may stand in an impl head | [`trait.target.row-argument`](../spec/09-traits.md#r-trait.target.row-argument) |
 | `all!` and `race!` are intrinsics with compiler-supplied frames | [`req.combinator.intrinsic`](../spec/11-requirements-and-suspension.md#r-req.combinator.intrinsic), [`req.combinator.ordinary-call`](../spec/11-requirements-and-suspension.md#r-req.combinator.ordinary-call) |
-| Their concrete signatures are still library design | [`req.combinator.library`](../spec/11-requirements-and-suspension.md#r-req.combinator.library) |
+| Their concrete signatures are still library design | `req.combinator.library` (since retired) |
 | Tuples are reference-shaped, so one generic body serves every tuple | [Implementation Model](../spec/04-type-system.md#implementation-model-non-normative) |
 
 So `impl[Args, O, R] Describe for Fn[Args, O, R]` is valid today. What is
@@ -249,8 +255,8 @@ the tuple-impl gap stays.
 
 As A1, but `f(args...)` spreads a tuple into fixed parameters instead of
 calling `call_with`. The token exists; its meaning is new. It reverses
-[`fn.vararg.spread-fixed`](../spec/07-functions.md#r-fn.vararg.spread-fixed)
-and [`fn.vararg.spread-needs-vararg`](../spec/07-functions.md#r-fn.vararg.spread-needs-vararg)
+`fn.vararg.spread-fixed` (since retired)
+and `fn.vararg.spread-needs-vararg` (since retired)
 for tuple operands. That is a semantic rule exception, which ranks below an
 intrinsic in the Design Cost Order. It also gives `...` two meanings again,
 chosen by the operand's type.

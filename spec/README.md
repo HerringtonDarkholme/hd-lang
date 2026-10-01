@@ -237,6 +237,7 @@ The stdlib chapters' terms are in the
 | **path requirement** | A manifest value `{ path = "DIR" }` through which a workspace member depends on another member. See [`module.workspace.path-requirement`](10-modules.md#r-module.workspace.path-requirement). |
 | **pipe expression** | `value |> step`, which passes a value to a step. See [Pipe Expressions](05-expressions.md#pipe-expressions). |
 | **place expression** | An expression that identifies a storage location, which may be read or, when permissions allow, assigned. See [`expr.category.place`](05-expressions.md#r-expr.category.place). |
+| **positional spread** | An argument `x...` that passes the value `x` in place of separate arguments: a tuple fills fixed parameters, and a vararg takes a value of its own type. See [Positional Spreads](05-expressions.md#positional-spreads). |
 | **prefix function** | A function marked `@str_prefix`, which a prefixed string calls. See [`expr.prefix.marker`](05-expressions.md#r-expr.prefix.marker). |
 | **prefixed string** | An identifier followed directly by `"` or `"""`, as in `sql"..."`. See [`lex.prefix.form`](01-lexical-structure.md#r-lex.prefix.form). |
 | **prelude** | The implicit scope of public standard-library names that every module has. See [Prelude](10-modules.md#prelude). |
@@ -281,6 +282,7 @@ The stdlib chapters' terms are in the
 | **typed derivation** | Implementing a trait for a data type or enum from its members through the trait's template. See [Typed Derivation](14-annotations.md#typed-derivation). |
 | **unbound method reference** | `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter. See [`fn.ref.unbound`](07-functions.md#r-fn.ref.unbound). |
 | **value expression** | An expression that produces a value. See [`expr.category.value`](05-expressions.md#r-expr.category.value). |
+| **vararg** | A final parameter written `name...: T`, which collects the call's remaining positional arguments into `T`. See [`fn.vararg.form`](07-functions.md#r-fn.vararg.form). |
 | **visible** | A field or inherent method is visible from a module that declares it, and from every module when it is `pub`. See [`names.visible.field-method`](03-names-and-scopes.md#r-names.visible.field-method). |
 | **workspace** | A set of packages that one committed workspace manifest lists, selected as one graph. See [Workspaces](10-modules.md#workspaces). |
 
@@ -2601,3 +2603,75 @@ existing source. Each entry names the decision that made the change.
   production takes an `expression`. `grammar.expr.multi-binding.list-item`,
   `.no-grouped`, `.no-grouped.let`, and `.tuple-element` are retired for
   [`grammar.expr.multi-binding.element`](02-grammar.md#r-grammar.expr.multi-binding.element).
+- Varargs are declared with `...` after the name (owner decisions VARARG,
+  VARARG-TYPE, and VARARG-SPELL, batch 31 in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
+  2026-09-30): language tier. `values: i32...` is now `syntax-error`;
+  write `values...: List[i32]`. The type after `:` is the body's type,
+  and must be `List[T]`, a tuple type, or a type parameter bounded by
+  `Tuple`; any other is `type-mismatch`
+  ([`fn.vararg.type.kinds`](07-functions.md#r-fn.vararg.type.kinds)).
+  A `Tuple`-bounded vararg type is solved as the tuple of the argument
+  types ([`fn.vararg.infer-tuple`](07-functions.md#r-fn.vararg.infer-tuple)).
+  Passing a vararg by name passes its collected value. Retired:
+  `fn.vararg.declare`, `fn.vararg.list`, and `fn.vararg.call` for
+  [`fn.vararg.form`](07-functions.md#r-fn.vararg.form),
+  [`fn.vararg.type`](07-functions.md#r-fn.vararg.type), and
+  [`fn.vararg.collect`](07-functions.md#r-fn.vararg.collect);
+  `fn.vararg.last` for [`fn.vararg.final`](07-functions.md#r-fn.vararg.final);
+  `fn.vararg.by-name` and `expr.call.vararg-by-name` for
+  [`fn.vararg.named`](07-functions.md#r-fn.vararg.named);
+  `fn.vararg.ellipsis`, with no replacement; `grammar.fn.vararg` for
+  [`grammar.fn.vararg-name`](02-grammar.md#r-grammar.fn.vararg-name); and
+  `grammar.call.named-vararg` and `grammar.call.spread-final`, which
+  restated chapter 05.
+- Function types have no vararg form (owner decision VARARG-SPELL, batch
+  31, 2026-09-30): language tier. Being a vararg belongs to the
+  declaration, so `f := sum` has type `fn(List[i32]) -> i32`, and
+  `f([1, 2])` calls it ([`fn.vararg.value`](07-functions.md#r-fn.vararg.value)).
+  `fn(i32...) -> i32`, valid before, is now `syntax-error`, as is any
+  ellipsis after a type that expands no pack
+  ([`fn.type.no-ellipsis`](07-functions.md#r-fn.type.no-ellipsis)).
+  `std.function.Rest` is gone. Retired: `fn.type.vararg`, `fn.type.rest`,
+  `fn.type.rest.final`, `fn.type.rest.nonfinal`, and `fn.type.rest.elsewhere`;
+  `fn.type.signature-parts` for [`fn.type.parts`](07-functions.md#r-fn.type.parts);
+  `fn.type.ctor.import` for [`fn.type.ctor.imports`](07-functions.md#r-fn.type.ctor.imports);
+  `module.prelude.function` for
+  [`module.prelude.function-items`](10-modules.md#r-module.prelude.function-items);
+  `grammar.pack.vararg` for [`grammar.pack.no-pack`](02-grammar.md#r-grammar.pack.no-pack);
+  and `pack.ellipsis.ordinary` for
+  [`pack.ellipsis.no-pack`](12-variadic-generics.md#r-pack.ellipsis.no-pack).
+- The `Tuple` marker trait (owner decision Q5, batch 31, 2026-09-30):
+  language tier. `std.function` declares the sealed marker trait `Tuple`,
+  which every tuple type implements
+  ([`fn.type.ctor.tuple-trait`](07-functions.md#r-fn.type.ctor.tuple-trait),
+  [`trait.sealed.tuple`](09-traits.md#r-trait.sealed.tuple)). A type
+  parameter used as `Fn`'s inputs must be bounded by it, so
+  `impl[Args, O, R] Describe for Fn[Args, O, R]`, valid before, is now
+  `generic-kind-mismatch`; write `Args < Tuple`.
+  `fn.type.ctor.input-kind` and `fn.type.ctor.kind-mismatch` are retired
+  for [`fn.type.ctor.inputs-tuple`](07-functions.md#r-fn.type.ctor.inputs-tuple).
+- Tuple spreads at call sites (owner decisions Q8 and SPREAD-SITE, batch
+  31, 2026-09-30): language tier. A spread fills what its operand's type
+  describes. At a vararg it is the collected value; elsewhere a tuple
+  fills the remaining positional parameters, one element each, so
+  `add(pair...)`, previously `positional-spread-needs-vararg`, is valid. A
+  list spread there is still that error. The chapter 07 and chapter 05
+  spread rules merge into [Positional Spreads](05-expressions.md#positional-spreads).
+  Retired: `fn.vararg.spread` for
+  [`expr.call.spread.one`](05-expressions.md#r-expr.call.spread.one);
+  `fn.vararg.spread-fixed`, `expr.call.spread.fixed`, and
+  `expr.call.spread.type` for
+  [`expr.call.spread.fills`](05-expressions.md#r-expr.call.spread.fills),
+  [`expr.call.spread.at-vararg`](05-expressions.md#r-expr.call.spread.at-vararg),
+  [`expr.call.spread.tuple`](05-expressions.md#r-expr.call.spread.tuple), and
+  [`expr.call.spread.mismatch`](05-expressions.md#r-expr.call.spread.mismatch);
+  and `fn.vararg.spread-needs-vararg` and `expr.call.spread.needs-vararg`
+  for [`expr.call.spread.list-needs-vararg`](05-expressions.md#r-expr.call.spread.list-needs-vararg).
+- `race!` has a plain signature (owner decision Q7, batch 31, 2026-09-30):
+  language tier. It is `fn race![T](tasks...: List[mut Suspend[T]]) -> T`
+  with no typing rule of its own; children of unrelated result types are
+  an ordinary inference error
+  ([`req.combinator.race-signature`](11-requirements-and-suspension.md#r-req.combinator.race-signature)).
+  `req.combinator.library` is retired for
+  [`req.combinator.library-rest`](11-requirements-and-suspension.md#r-req.combinator.library-rest).

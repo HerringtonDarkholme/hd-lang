@@ -87,7 +87,7 @@ fn invalid[Ts...](values: Ts..., tail: i32) -> void:  # error: nonfinal-position
 ### Pack Ellipses
 
 1. r[pack.ellipsis.expansion] An ellipsis is a pack expansion when the preceding subtree contains at least one pack reference.
-2. r[pack.ellipsis.ordinary] Otherwise, parameter and argument ellipses retain their ordinary homogeneous-vararg and list-spread meanings.
+2. r[pack.ellipsis.no-pack] Otherwise, an argument ellipsis is a [positional spread](05-expressions.md#positional-spreads), and an ellipsis after a type is an error, as [`fn.type.no-ellipsis`](07-functions.md#r-fn.type.no-ellipsis) states.
 3. r[pack.ellipsis.not-macro] Expansion is not an arbitrary syntax macro: only the designated type, parameter, tuple, and argument positions may repeat.
 
 ## Lockstep Expansion

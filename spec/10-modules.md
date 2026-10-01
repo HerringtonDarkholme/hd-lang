@@ -462,7 +462,7 @@ fn main() -> i32:
 4. r[module.prelude.question-from] Postfix `?` still finds the standard `From` without an import.
 5. r[module.prelude.inspect] Likewise `std.inspect` declares `Inspectable`, `TypeId`, and `downcast_val`, which code imports, as in `use std.inspect.{Inspectable, TypeId}`.
 6. r[module.prelude.error-inspectable] `std.error.Error` extends `Inspectable` without its users importing it.
-7. r[module.prelude.function] `std.function` declares the function type constructors `Fn` and `SuspendFn` and the vararg marker `Rest`, which code imports where it writes them, as in `use std.function.{Fn, SuspendFn}`.
+7. r[module.prelude.function-items] `std.function` declares the function type constructors `Fn` and `SuspendFn` and the marker trait `Tuple`, which code imports where it writes them, as in `use std.function.{Fn, Tuple}`.
 8. r[module.prelude.function-sugar] The function type sugar `fn(...) -> T` needs no import.
 9. r[module.prelude.annotation-targets] `std.annotation` also declares `Target`, `Annotate`, and `annotate`, which code imports to limit a fact type's [target kinds](14-annotations.md#target-kinds), as in `use std.annotation.annotate`.
 10. r[module.prelude.ops-num-suffix] `std.ops` declares `NumSuffix` and `num_suffix`, which code imports to declare a literal suffix, as in `use std.ops.num_suffix`.

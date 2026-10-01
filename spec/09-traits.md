@@ -1368,6 +1368,7 @@ compiler and the standard library supply.
 | r[trait.sealed.num] Num | `Num` | every integer and floating-point type ([Numeric Traits](#numeric-traits)) |
 | r[trait.sealed.integer] Integer | `Integer` | `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, and `u64` ([Numeric Traits](#numeric-traits)) |
 | r[trait.sealed.float] Float | `Float` | `f32` and `f64` ([Numeric Traits](#numeric-traits)) |
+| r[trait.sealed.tuple] Tuple | `Tuple` | every tuple type ([Function Type Constructors](07-functions.md#function-type-constructors)) |
 
 1. r[trait.sealed.definition] A sealed trait is a standard trait whose implementations only the compiler and the standard library supply.
 2. r[trait.sealed.list] The sealed traits are those in the table above.

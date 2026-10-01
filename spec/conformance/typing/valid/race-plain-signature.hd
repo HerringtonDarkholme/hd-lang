@@ -1,0 +1,12 @@
+# test: race! has the plain vararg signature fn race![T](tasks...: List[mut Suspend[T]]) -> T
+# expect: accept
+use std.task.race
+
+fn fast!() -> i32: 1
+fn slow!() -> i32: 2
+
+fn first!() -> i32:
+    race!(fast(), slow())
+
+fn named!() -> i32:
+    race!(tasks=[fast(), slow()])

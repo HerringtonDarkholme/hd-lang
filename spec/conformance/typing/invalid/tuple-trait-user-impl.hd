@@ -1,0 +1,7 @@
+# test: Tuple is sealed; only the compiler implements it
+use std.function.Tuple
+
+data Pair:
+    left: i32
+
+impl Tuple for Pair  # diagnostic: sealed-trait-implementation

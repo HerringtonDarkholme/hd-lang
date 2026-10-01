@@ -56,6 +56,10 @@ export function parserSelfTest(): string[] {
     ["fn f(u: mut User) -> void:\n    let User { mut tags, name } = u\n", true],
     ["fn f(p: Point) -> void:\n    Point { x, y } := p\n", false],
     ["fn f(p: i32?) -> i32:\n    match p:\n        .Some(mut v) => v\n        _ => 0\n", false],
+    ["fn sum(values...: List[i32]) -> i32: values.len()\n", true],
+    ["fn call[Args < Tuple, O](f: Fn[Args, O, $()], args...: Args) -> O: f(args...)\n", true],
+    ["fn sum(values...: List[i32] = []) -> i32: 0\n", false],
+    ["fn sum(values...) -> i32: 0\n", false],
   ]);
   const failures: string[] = [];
   for (const [source, expected] of probes) {
