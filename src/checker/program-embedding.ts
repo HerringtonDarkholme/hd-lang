@@ -26,9 +26,8 @@ interface Part {
  * one name at the smallest depth are `ambiguous-promoted-member` on the later
  * of the two embedded fields that reach them. A conflict reached through a
  * single embedded field is a conflict of that field's type and is reported
- * there. Only a `pub` own member hides promoted ones: a private own member
- * with the name of a promoted member is `ambiguous-promoted-member` on the
- * private member's declaration.
+ * there. Every own member hides promoted ones, private or not
+ * (03 names.hide.depth, batch 32 Q4).
  */
 export function checkEmbeddedMemberConflicts(context: ProgramCheckContext): void {
   for (const declaration of context.dataTypes.values()) {
@@ -39,18 +38,8 @@ export function checkEmbeddedMemberConflicts(context: ProgramCheckContext): void
     const reported = new Set<HirDataField>();
     for (const namespace of ["field", "method"] as const) {
       const own = ownMembers(declaration, declaration.name, namespace, context);
-      const hiding = new Set(own.filter((member) => member.public).map((member) => member.name));
+      const hiding = new Set(own.map((member) => member.name));
       const promoted = promotedMembers(declaration, hiding, namespace, context);
-      for (const member of own) {
-        const shadowed = promoted.get(member.name);
-        if (member.public || !shadowed) continue;
-        promoted.delete(member.name);
-        context.diagnostics.push({
-          code: "ambiguous-promoted-member",
-          message: `private ${namespace} '${member.name}' of '${declaration.name}' has the name of the promoted ${namespace} ${memberPath(declaration, shadowed[0]!)}; a private member cannot shadow a promoted one, so mark it pub or rename it`,
-          span: member.span,
-        });
-      }
       for (const [name, members] of promoted) {
         if (members.length < 2) continue;
         const firstSteps = [...new Set(members.map((member) => member.path[0]!))];
