@@ -1170,12 +1170,15 @@ combinators cancel their children.
 
 1. r[req.combinator.cancel-children] The `std.task` combinators `all!` and `race!` cancel their children when the parent is cancelled.
 2. r[req.combinator.race-losers] `race!` also synchronously cancels losing children before returning the first completed value.
-3. r[req.combinator.retry] A retry combinator in `std.task` cancels its active attempt and starts no further attempt after parent cancellation.
-4. r[req.combinator.intrinsic] The standard polling combinators in `std.task`, including `all!` and `race!`, are compiler intrinsics.
-5. r[req.combinator.ordinary-call] Each is imported and bang-called like an ordinary `fn!` function and has an ordinary `fn!` signature, but the compiler supplies its frame and polling behavior.
-6. r[req.combinator.not-syntax] They are not first-class control-flow syntax.
-7. r[req.combinator.user] Because `Suspend[T]` is sealed, user code cannot define an equivalent polling combinator; it composes the standard intrinsics instead.
-8. r[req.combinator.library] The concrete signatures and the complete intrinsic set remain standard-library API design.
+3. r[req.combinator.intrinsic] The standard polling combinators in `std.task`, including `all!` and `race!`, are compiler intrinsics.
+4. r[req.combinator.ordinary-call] Each is imported and bang-called like an ordinary `fn!` function and has an ordinary `fn!` signature, but the compiler supplies its frame and polling behavior.
+5. r[req.combinator.not-syntax] They are not first-class control-flow syntax.
+6. r[req.combinator.user] Because `Suspend[T]` is sealed, user code cannot define an equivalent polling combinator; it composes the standard intrinsics instead.
+7. r[req.combinator.library] The concrete signatures and the complete intrinsic set remain standard-library API design.
+
+> **Note.** The `retry!` combinator of `std.task` is a plain library loop
+> over a `fn!` attempt, not an intrinsic, so the stdlib tier specifies it
+> ([Retry](std/task.md#retry)). Its cancellation follows the rules above.
 
 ## Requirement Polymorphism
 

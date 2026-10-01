@@ -50,7 +50,7 @@ it each mean no.
 | --- | --- |
 | syntax, typing, evaluation, a lang item, an intrinsic | the numbered chapter for its topic |
 | a prelude name and its signature | [Modules, Prelude](spec/10-modules.md#prelude) |
-| test registration the compiler checks, such as `it_each` or a literal `snapshot` argument | [Standard Testing](spec/10-modules.md#standard-testing) |
+| a test-position rule the compiler checks, or a literal `snapshot` argument | [Standard Testing](spec/10-modules.md#standard-testing) |
 | a std API that passes the tier test, such as an iterator adapter or `trim` | `spec/std/<module>.md`, rule IDs `std-<module>.*` |
 | every diagnostic code, and every panic category | the language tier: README Diagnostics, and Control Flow |
 | a Revision Notes entry, naming its tier | the one log in [spec/README.md](spec/README.md#revision-notes) |

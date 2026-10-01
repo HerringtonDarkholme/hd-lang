@@ -57,9 +57,8 @@ fixture, including every requirement key.
 The standard items split by tier. **Language-tier items** are usable by
 every fixture. They are the items a numbered chapter specifies:
 
-- the harness and the test registration the compiler checks, from
-  `std.testing`: `it`, `assert`, `assert_equal`, `it_each`, `it_prop`,
-  `it_prop_with`, and a literal `snapshot`;
+- the harness from `std.testing`: `it`, `assert`, `assert_equal`, and a
+  literal `snapshot`;
 - the lang items and traits of `std.task`, `std.resource`, `std.convert`,
   `std.error`, `std.inspect`, `std.function`, `std.process`, `std.ops`,
   `std.num`, `std.structure`, `std.annotation`, and `std.format`
@@ -77,8 +76,7 @@ call one.
 
 A numbered chapter still specifies an item until a migration task moves it
 into `spec/std/`, and until then any fixture may use it. Every planned
-move is done; the `std.task` retry combinator stays in the language tier
-until its signature is decided.
+move is done.
 
 A fixture must not depend on:
 

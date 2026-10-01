@@ -8,7 +8,7 @@ authoritative for their language parts:
 [Test Modules](../spec/10-modules.md#test-modules),
 [Test Cases](../spec/10-modules.md#test-cases),
 [Test Outcomes](../spec/10-modules.md#test-outcomes),
-[Table Tests](../spec/10-modules.md#table-tests),
+[Registration Functions](../spec/std/testing.md#registration-functions),
 [Exit Status](../spec/10-modules.md#exit-status), and the `Debug` rules in
 [Traits](../spec/09-traits.md). The runner and library parts are in
 [Runtime And Library](RUNTIME_AND_LIBRARY.md#testing) and

@@ -789,8 +789,8 @@ impl[T] Encode for T by Structure:
 3. r[annot.template.module] A template must be declared in the module that declares its trait. One declared elsewhere is an error. Error: `misplaced-derivation`.
 4. r[annot.template.unique] A trait has at most one template. A second one is an error. Error: `overlapping-impl`.
 5. r[annot.template.structure] Inside a template, `T` implements `Structure`. Its bodies may call `Structure::walk(self, w)`, `T::describe(d)`, `T::build(s)`, and `T::facts()`.
-6. r[annot.template.structure-self] Inside a template, a call `Structure::f(args)` has the template's `T` as its `Self`, instead of the `Self` that [`trait.assoc-call.trait`](09-traits.md#r-trait.assoc-call.trait) infers.
-7. r[annot.template.structure-self.receiverless] So a receiverless `Structure::` call is valid in a template: `Structure::name()` is `T::name()`, and `Structure::facts()` is `T::facts()`.
+6. r[annot.template.qualified-self] Inside a template, a call qualified by `Structure` or by the derived trait, `Structure::f(args)` or `Trait::f(args)`, has the template's `T` as its `Self`. This replaces the `Self` that [`trait.assoc-call.trait`](09-traits.md#r-trait.assoc-call.trait) infers.
+7. r[annot.template.qualified-self.receiverless] So a receiverless qualified call is valid in a template. `Structure::name()` is `T`'s generated `name`, `Structure::facts()` is `T::facts()`, and `Encode::name()` in `Encode`'s template is `Encode`'s `name` for `T`.
 8. r[annot.template.body] A template must have a body in which at least one method calls `walk`, `describe`, or `build`.
 9. r[annot.template.body.error] A template without such a body, such as a bodiless marker template, is an error. Error: `marker-template`.
 10. r[annot.template.instance] Each derivation instantiates the template once, as one ordinary implementation of the trait for the target, in the target's module.
@@ -811,9 +811,10 @@ impl[T] Tagged for T by Structure  # error: marker-template
 > one derivation and a reader finds it beside the trait. A marker template
 > would derive a trait without reading one member.
 
-> **Why.** A template has exactly one target, so `Structure` has one
-> `Self` inside it. A receiverless call such as `Structure::name()` has no
-> argument to infer that `Self` from.
+> **Why.** A template has exactly one target, so `Structure` and the
+> derived trait each have one `Self` inside it. A receiverless call such as
+> `Structure::name()` or `Encode::name()` has no argument to infer that
+> `Self` from.
 
 > **Note.** The generated `walk`, `describe`, and `build` keep their names
 > even when the derived trait or another trait of `T` has a method of the
@@ -823,10 +824,9 @@ impl[T] Tagged for T by Structure  # error: marker-template
 > **Note.** The receiverless `facts` and `name` clash the same way when
 > the derived trait declares its own receiverless member of that name.
 > Inside the template, qualifying the call resolves it. When `Encode`
-> declares its own `name`, `Structure::name()` is the generated one, with
-> `T` as its `Self` by
-> [`annot.template.structure-self`](#r-annot.template.structure-self),
-> and `Encode::name()` is `Encode`'s.
+> declares its own `name`, `Structure::name()` is the generated one, and
+> `Encode::name()` is `Encode`'s. Both have `T` as their `Self`, by
+> [`annot.template.qualified-self`](#r-annot.template.qualified-self).
 
 ### Derivation Blocks
 

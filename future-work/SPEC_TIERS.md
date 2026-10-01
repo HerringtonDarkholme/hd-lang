@@ -11,8 +11,10 @@ files there. Step 7 moved the iterator adapters and collect targets to
 above the intrinsics and `r` to [Text](../spec/std/text.md). Step 9
 moved `debug`'s text and the Debug builders to [Format](../spec/std/format.md),
 and `Duration` and its suffixes to [Time](../spec/std/time.md). Step 10
-left the retry combinator in the language tier ([Still Open](#still-open)),
-and step 11 cleaned the language chapters' examples and links. It answers
+left the retry combinator in the language tier, and step 11 cleaned the
+language chapters' examples and links. Batch 29 then moved `retry!` to
+[Task](../spec/std/task.md) and the registration of `it_each`, `it_prop`,
+and `it_prop_with` to Testing ([Still Open](#still-open)). It answers
 the owner's request of 2026-09-30:
 
 > is Arbitrary/stdlib stuff should be inside language spec? if they can be
@@ -125,7 +127,7 @@ so that test would pull every string method into the language tier.
 | --- | --- | --- |
 | `assert_equal` | yes: `missing-eq` ([`module.testing.no-implicit-eq`](../spec/10-modules.md#r-module.testing.no-implicit-eq)) | language; also harness |
 | `it` | yes: prelude name, literal name check | language |
-| `it_each`, `it_prop`, `it_prop_with` registration | yes: [`module.testing.position-statements`](../spec/10-modules.md#r-module.testing.position-statements) lists them | language for registration; stdlib for rows, generation, shrinking |
+| `it_each`, `it_prop`, `it_prop_with` registration | yes: test registration functions under [`module.testing.position-statements`](../spec/10-modules.md#r-module.testing.position-statements) | stdlib by the owner's decision ST6, revised (batch 29); the test-position rules stay language |
 | `snapshot`'s literal `expect` | yes: `non-literal-test-argument` | language for the check; stdlib for files and update runs |
 | `it`'s `timeout` option | no: an ordinary `Duration` argument | stdlib; the runner enforces it |
 | `Iterator[T]`, `from_fn`, `next` | yes: `Iterable.iter` returns it | language |
@@ -134,7 +136,7 @@ so that test would pull every string method into the language tier.
 | `DebugWriter` builders, layout, derived mapping | no | stdlib |
 | `println`, `Console` | prelude, host capability, harness | language |
 | `Duration`, `ms`, `s`, `r` | no: ordinary suffix and prefix functions | stdlib |
-| retry combinator in `std.task` | undecided: it turns on retry's signature, which is not decided | language until the owner decides; step 10 left it ([Still Open](#still-open)) |
+| retry combinator in `std.task` | no: `retry!` is a library loop over a `fn!` attempt (RETRY, batch 29) | stdlib: [Task](../spec/std/task.md#retry) |
 | derived `Arbitrary` | no, by its rules; the prototype still needs the checker | stdlib; the two gaps below are settled |
 
 ### Gaps Found By The Prototype
@@ -183,13 +185,13 @@ prefix instead, so the rule it shows stays language-tier.
 | 10 | String Methods: `lower`, `trim`, `split`, `replace`, `starts_with` | stdlib | `std/text.md` |
 | 10 | Standard Testing exports, Test Cases (less `timeout`), Test Outcomes | language | stays |
 | 10 | `timeout` option rules | stdlib | `std/testing.md` |
-| 10 | Table Tests: `module.testing.it-each.import`, `.it-each.body-closure`, `.it-each.name-clash`, `.it-prop`, `.it-prop.import`, `.variants.*` | language | stays |
+| 10 | Table Tests: `module.testing.it-each.import`, `.it-each.body-closure`, `.it-each.name-clash`, `.it-prop`, `.it-prop.import`, `.variants.*` | stdlib (ST6, revised) | `std/testing.md`, batch 29 |
 | 10 | Table Tests: `it-each` rows, names, run timing | stdlib | `std/testing.md` |
 | 10 | Property Tests, Draw Budget, Derived Arbitrary | stdlib | `std/testing.md` |
 | 10 | Snapshots: the `snapshot` signature and `module.testing.snapshot.literal` | language | stays |
 | 10 | Snapshots: the rest | stdlib | `std/testing.md` |
 | [11](../spec/11-requirements-and-suspension.md) | everything but the next row | language | stays |
-| 11 | `req.combinator.retry` | language until its signature is decided | stays; step 10 recorded why in [Still Open](#still-open) |
+| 11 | `req.combinator.retry` | stdlib (RETRY) | `std/task.md` as `std-task.combinator.retry`, batch 29 |
 | [README](../spec/README.md) | diagnostics, glossary, Revision Notes | language | stays; moved terms' glossary rows move |
 
 Every diagnostic code stays in the README table: each is a compiler check.
@@ -324,7 +326,7 @@ are final.
 | ST3 | A moved heading is deleted, and every link to it is fixed in the same task. No stub headings. | Q3 |
 | ST4 | A fixture's tier comes from its `specification` column. The runners get `--tier language\|std`. `spec/check.sh` stops a language-tier fixture from using a stdlib item. | Q5 |
 | ST5 | `it`, `assert`, `assert_equal`, and `println` stay in the language tier. | Q6 |
-| ST6 | `it_each`, `it_prop`, and `it_prop_with` registration stays in the language tier. Rows, generation, shrinking, and the draw budget move to the stdlib tier. | Q7 |
+| ST6 | `it_each`, `it_prop`, and `it_prop_with` registration stays in the language tier. Rows, generation, shrinking, and the draw budget move to the stdlib tier. Revised by ST6, revised, in [Still Open](#still-open): registration moves too. | Q7 |
 | ST7 | Derived `Arbitrary` moves to the stdlib tier now. The `arbitrary.with` template gap is recorded in [Open Issues](OPEN_ISSUES.md). | Q8 |
 | ST8 | Revised by the owner, below: the no-finite panic message keeps naming the type, through a new `Structure.name()`. | Q1 |
 
@@ -352,9 +354,27 @@ own `facts` or `name` by qualifying the call
 
 ## Still Open
 
-Nothing in this section is decided. Each item is a reading that a
-migration step applied, or a question it could not settle, with a
-labeled recommendation for the owner.
+The owner answered both items below in batch 29 (2026-09-30), and asked
+for a third move, ST6, revised. All three are applied; the
+[Revision Notes](../spec/README.md#revision-notes) list them.
+
+| # | Decision | Where |
+| --- | --- | --- |
+| DUR | Option A: the language-tier harness signature names the stdlib type `std.time.Duration`, in a Note. No language rule depends on its values. | the Note in [Test Cases](../spec/10-modules.md#test-cases), now for `it` alone |
+| ST6, revised | The owner: "also move it_prop to stdlib, it_each as well, unless they are used in spec conformance test". `it_each`, `it_prop`, and `it_prop_with`, their signatures and registration rules, move to the stdlib tier. `it`, `assert`, `assert_equal`, and `println` stay (ST5). No language-tier fixture needs them: the five language-tier fixtures that used `it_each` tested the moved rules and now cite `std/testing.md`, so the move is complete. | [Registration Functions](../spec/std/testing.md#registration-functions) |
+| RETRY | `retry!` is a plain library loop: `pub fn retry![T, E](times: i32, attempt: fn!() -> Result[T, E]) -> Result[T, E]`. Cancellation follows the ordinary rules. `req.combinator.retry` moves to the new `spec/std/task.md` as `std-task.combinator.retry`, with the new prefix `std-task`. | [Task](../spec/std/task.md#retry) |
+
+**Still open from applying batch 29.** The specification applies the
+reading in the middle column; each point asks the owner to confirm it.
+
+| # | Question | Applied reading and **Recommendation** |
+| --- | --- | --- |
+| ST6-hook | The language tier must still let the three functions stand in test position, without naming a stdlib item in a numbered rule. | `module.testing.position-statements` names `it` and "the registration functions that `std.testing` declares in the stdlib tier"; [`std-testing.registration`](../spec/std/testing.md#r-std-testing.registration) lists them. **Recommendation:** keep it. The compiler still knows the three names, which the tier test would call language tier; the owner's decision outranks it. |
+| RETRY-zero | The decision does not say what `retry!(0, f)` or a negative `times` returns. With no attempt there is no `Result` to return. | Unstated. **Recommendation:** a `times` below 1 makes one attempt, as a loop `for i in 0..max(times, 1)` would; a panic is the alternative. |
+| RETRY-row | The decided `attempt: fn!() -> Result[T, E]` has an empty requirement row, so an attempt cannot use a provider such as `$ Http`. | Signature as decided. **Recommendation:** add a row parameter, `attempt: fn!() -> Result[T, E] $ R` and `-> Result[T, E] $ R`, as `it` has. |
+
+The reasons each item was open follow, for the record.
+
 
 ### Duration In The Test Signatures
 
@@ -386,8 +406,8 @@ That is one data type, and the language suite never builds a value of it.
 
 ### The Retry Combinator
 
-[`req.combinator.retry`](../spec/11-requirements-and-suspension.md#r-req.combinator.retry)
-stays in the language tier. The tier test does not clearly move it:
+`req.combinator.retry`, now [`std-task.combinator.retry`](../spec/std/task.md#r-std-task.combinator.retry),
+stayed in the language tier at step 10, since the tier test did not clearly move it:
 
 | Point | Effect |
 | --- | --- |

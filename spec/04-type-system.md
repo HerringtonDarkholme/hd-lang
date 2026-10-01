@@ -291,10 +291,32 @@ data PostId:
 
 ### Tuple Types
 
+A tuple is an immutable value without identity, so it implements `AnyVal`,
+as [`types.sealed.anyval-types`](#r-types.sealed.anyval-types) states, and
+no element of it is a place, as
+[`expr.place.tuple-element`](05-expressions.md#r-expr.place.tuple-element)
+states.
+
 1. r[types.tuple.structural] Tuple types are structural.
 2. r[types.tuple.same] Two tuples have the same type when they have the same arity and pairwise-equal element types.
 3. r[types.tuple.one-element] One-element tuples require a trailing comma.
 4. r[types.tuple.empty] `()` is the empty tuple.
+5. r[types.tuple.no-mut] A tuple type has no `mut` form. A tuple type written with `mut`, as in `mut (User, i32)`, is an error. Error: `mut-on-tuple`.
+6. r[types.tuple.element-permission] Each element type keeps its own permission, so `(mut User, i32)` is valid, and its first element has mutable access.
+
+```text
+fn rename(pair: (mut User, i32)) -> void:
+    pair._0.name = "Grace"  # valid: the element has mutable access
+```
+
+```text
+fn invalid(pair: mut (User, i32)) -> void:  # error: mut-on-tuple
+    let p: mut (i32, i32) = (1, 2)            # error: mut-on-tuple
+```
+
+> **Why.** A tuple has no identity and no assignable element, so a mutable
+> view of one would permit nothing. Its elements carry their own
+> permissions.
 
 ### Function Type Identity
 
@@ -657,11 +679,12 @@ See also: [Mutable Paths](#mutable-paths).
 
 ### Bindings And Fresh Values
 
-1. r[types.fresh.mutable] A fresh data or copy-update expression, stored enum construction, tuple expression, list expression, or map expression produces mutable access to its new outer object.
-2. r[types.fresh.weaken] This permission may be weakened immediately by an expected readonly type.
-3. r[types.fresh.not-recursive] Freshness does not recursively upgrade composite values stored in the new object.
-4. r[types.fresh.element-permission] Each field or element keeps the permission of the supplied expression and declared edge.
-5. r[types.fresh.element-no-weaken] An expected type weakens only the fresh expression it applies to, never the elements of a collection already built. So `[for p in parts => Word { text: p }].iter()` has type `mut Iterator[mut Word]`, and returning it as `mut Iterator[Word]` is an error. Error: `type-mismatch`.
+1. r[types.fresh.mutable-outer] A fresh data or copy-update expression, stored enum construction, list expression, or map expression produces mutable access to its new outer object.
+2. r[types.fresh.tuple] A tuple expression produces a tuple, which has no `mut` form, as [`types.tuple.no-mut`](#r-types.tuple.no-mut) states. Its elements keep their permissions.
+3. r[types.fresh.weaken] This permission may be weakened immediately by an expected readonly type.
+4. r[types.fresh.not-recursive] Freshness does not recursively upgrade composite values stored in the new object.
+5. r[types.fresh.element-permission] Each field or element keeps the permission of the supplied expression and declared edge.
+6. r[types.fresh.element-no-weaken] An expected type weakens only the fresh expression it applies to, never the elements of a collection already built. So `[for p in parts => Word { text: p }].iter()` has type `mut Iterator[mut Word]`, and returning it as `mut Iterator[Word]` is an error. Error: `type-mismatch`.
 
 #### Fresh Literals With Readonly Parts
 
@@ -712,9 +735,11 @@ fn invalid() -> void:
 6. r[types.bind.let-mut-upgrade] `let mut` never upgrades access: an initializer with a readonly type is an error. Error: `mutable-upgrade`.
 7. r[types.bind.let-mut-primitive] `let mut` on a name whose type is primitive, as in `let mut n = 0`, is an error, in place of `mutable-upgrade` or `let-mut-readonly-type`. Error: `mut-on-primitive`.
 8. r[types.bind.let-mut-primitive.hint] The diagnostic says that a plain `let` is already reassignable.
-9. r[types.bind.let-mut-optional] For `let mut`, an optional written `mut T?` counts as mutable access. So `let mut u = find()` is valid when `find` returns `mut User?`, and `u` has that type.
-10. r[types.bind.let-mut-expected] The initializer of an unannotated `let mut` is used as `mut T`, so a fresh literal whose direct `mut` field or embedded copy is readonly is an error, as [`types.fresh.expected-mut`](#r-types.fresh.expected-mut) states. Error: `mutable-upgrade`.
-11. r[types.bind.let-mut-copy] A mutable copy of a readonly value is therefore written as a fresh literal, such as `User { ...user }`, whose `mut` fields are supplied mutable values.
+9. r[types.bind.let-mut-tuple] `let mut` on a name whose type is a tuple, as in `let mut pair = (1, 2)`, is an error, in place of `mutable-upgrade` or `let-mut-readonly-type`. Error: `mut-on-tuple`.
+10. r[types.bind.let-mut-tuple.hint] The diagnostic says that a plain `let` is already reassignable, and that an element's permission comes from its own type.
+11. r[types.bind.let-mut-optional] For `let mut`, an optional written `mut T?` counts as mutable access. So `let mut u = find()` is valid when `find` returns `mut User?`, and `u` has that type.
+12. r[types.bind.let-mut-expected] The initializer of an unannotated `let mut` is used as `mut T`, so a fresh literal whose direct `mut` field or embedded copy is readonly is an error, as [`types.fresh.expected-mut`](#r-types.fresh.expected-mut) states. Error: `mutable-upgrade`.
+13. r[types.bind.let-mut-copy] A mutable copy of a readonly value is therefore written as a fresh literal, such as `User { ...user }`, whose `mut` fields are supplied mutable values.
 
 ```text
 fn find() -> mut User?:
@@ -733,13 +758,14 @@ fn invalid(user: User) -> void:
     let mut alias = user  # error: mutable-upgrade
     let mut count = 0     # error: mut-on-primitive
     let mut n: i32 = 0    # error: mut-on-primitive
+    let mut pair = (1, 2) # error: mut-on-tuple
 ```
 
-12. r[types.bind.let-mut-annotated] `let mut` with an annotation whose type is `mut T`, as in `let mut user: mut User = ...`, is valid; the `mut` after `let` is redundant.
-13. r[types.bind.let-mut-annotated.warning] That redundant `mut` gets a warning. Warning: `redundant-let-mut`.
-14. r[types.bind.let-mut-annotated.fix] The warning's fix-it removes the `mut` before the name and keeps the annotation.
-15. r[types.bind.let-mut-annotation] `let mut` with a readonly annotation, as in `let mut user: User = ...`, is an error, because the annotation and `let mut` disagree. Error: `let-mut-readonly-type`.
-16. r[types.bind.let-mut-annotation.fix] The diagnostic suggests adding `mut` to the type or removing the `mut` after `let`.
+14. r[types.bind.let-mut-annotated] `let mut` with an annotation whose type is `mut T`, as in `let mut user: mut User = ...`, is valid; the `mut` after `let` is redundant.
+15. r[types.bind.let-mut-annotated.warning] That redundant `mut` gets a warning. Warning: `redundant-let-mut`.
+16. r[types.bind.let-mut-annotated.fix] The warning's fix-it removes the `mut` before the name and keeps the annotation.
+17. r[types.bind.let-mut-annotation] `let mut` with a readonly annotation, as in `let mut user: User = ...`, is an error, because the annotation and `let mut` disagree. Error: `let-mut-readonly-type`.
+18. r[types.bind.let-mut-annotation.fix] The diagnostic suggests adding `mut` to the type or removing the `mut` after `let`.
 
 ```text
 fn invalid() -> void:
@@ -747,10 +773,10 @@ fn invalid() -> void:
     let mut ids: mut List[i64] = []   # warning: redundant-let-mut
 ```
 
-17. r[types.bind.let-pattern-mut] In a `let` pattern, each name follows these rules for the value it binds, as a `match` arm would bind it. In `let (mut log, db) = pair`, `log` has mutable access and `db` the readonly view.
-18. r[types.bind.let-pattern-mut.data] The same holds in a data or variant pattern. In `let User { mut tags, name } = user`, with `user: mut User` and a field `tags: mut List[string]`, `tags` has type `mut List[string]`.
-19. r[types.bind.let-mut-pattern.annotated] With a tuple annotation, the element type of each name written `mut` must be a `mut` type. Error: `let-mut-readonly-type`.
-20. r[types.bind.let-mut-pattern.redundant] That `mut` before the name is redundant and gets the same warning, with the same fix-it. Warning: `redundant-let-mut`.
+19. r[types.bind.let-pattern-mut] In a `let` pattern, each name follows these rules for the value it binds, as a `match` arm would bind it. In `let (mut log, db) = pair`, `log` has mutable access and `db` the readonly view.
+20. r[types.bind.let-pattern-mut.data] The same holds in a data or variant pattern. In `let User { mut tags, name } = user`, with `user: mut User` and a field `tags: mut List[string]`, `tags` has type `mut List[string]`.
+21. r[types.bind.let-mut-pattern.annotated] With a tuple annotation, the element type of each name written `mut` must be a `mut` type. Error: `let-mut-readonly-type`.
+22. r[types.bind.let-mut-pattern.redundant] That `mut` before the name is redundant and gets the same warning, with the same fix-it. Warning: `redundant-let-mut`.
 
 ```text
 fn pair() -> (mut User, mut User):
@@ -796,8 +822,8 @@ fn edit() -> void:
 > `let mut user = User { ... }`, while the declaration still says
 > which locals change. `mut` keeps one meaning, a permission in the type.
 
-18. r[types.bind.call-result] Passing through a function also follows the declared result type rather than recovering freshness.
-19. r[types.bind.call-result.argument] Consequently, a fresh literal may be passed directly to a `mut T` parameter. A call declared to return `T` cannot be passed to one, even when its implementation constructs a fresh value.
+23. r[types.bind.call-result] Passing through a function also follows the declared result type rather than recovering freshness.
+24. r[types.bind.call-result.argument] Consequently, a fresh literal may be passed directly to a `mut T` parameter. A call declared to return `T` cannot be passed to one, even when its implementation constructs a fresh value.
 
 ### Mutable Paths
 
@@ -1458,7 +1484,9 @@ The reference strategy uses five shapes:
 | `i64` | `i64`, `u64` |
 | `f32` | `f32` |
 | `f64` | `f64` |
-| reference | every other type, including strings, tuples, optionals, data, enums, collections, closures, and trait values |
+| reference | every other type except tuples, including strings, optionals, data, enums, collections, closures, and trait values |
+
+This model leaves tuples to the implementation.
 
 A generic function is compiled in its defining package once for each shape,
 at most five bodies. Packages ship their sources, and package interfaces
@@ -1501,8 +1529,6 @@ See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across
 - Shared constructor data is a per-variant constant, stored once in a table
   indexed by the tag and never in an enum value. A payload-free variant
   therefore stays an `i31ref` tag even when its enum declares shared data.
-- A tuple is an immutable record typed by its element shapes. In locals,
-  parameters, and results, it may be split into its elements.
 - `T?` is an enum like any other: `.None` is a canonical constant, which
   the `i31ref` tag or a null reference may represent. `.Some(value)` is a
   tagged record holding the value, unboxed for a scalar `T`. Because each `.Some` construction has

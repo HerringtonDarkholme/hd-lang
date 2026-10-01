@@ -16,7 +16,7 @@ The language tier keeps the suffix mechanism
 | `@num_suffix`, `std.ops.NumSuffix` | the compiler recognizes the marker by its qualified name |
 | a suffixed literal as a call | [`expr.suffix.fn-call`](../05-expressions.md#r-expr.suffix.fn-call), a language rule, turns `250ms` into `ms(250)` |
 | suffix name lookup and typing | [Literal Suffix Names](../03-names-and-scopes.md#literal-suffix-names) and [Suffixed Literals](../04-type-system.md#suffixed-literals) hold for every suffix |
-| `Duration?` in the test signatures | `it`, `it_each`, `it_prop`, and `it_prop_with` name it as their `timeout` type ([Test Cases](../10-modules.md#test-cases)) |
+| `Duration?` in the test signature | `it` names it as its `timeout` type ([Test Cases](../10-modules.md#test-cases)); the stdlib-tier `it_each`, `it_prop`, and `it_prop_with` name it too |
 
 The duration suffixes are ordinary functions marked `@num_suffix`, so
 nothing in the language tier names `ms`, `s`, `min`, or `h`. What the

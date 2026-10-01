@@ -1,5 +1,5 @@
 # test: it_each takes the options of it
-# Spec 10 Table Tests: an ignored it_each call runs none of its rows.
+# Spec std/testing Registration Functions: an ignored it_each call runs none of its rows.
 use std.testing.it_each
 
 tests:

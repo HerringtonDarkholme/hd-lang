@@ -8,16 +8,73 @@ runner implement over the language tier:
 - how a property test draws, discards, reports, and replays its inputs;
 - the draw budget;
 - how `@derive(Arbitrary)` builds a type's default generator;
+- the registration functions `it_each`, `it_prop`, and `it_prop_with`;
 - what the `timeout` option does;
 - how an `it_each` call expands and names its rows;
 - how snapshots compare text, and where snapshot files live.
 
-The language tier keeps what the compiler checks. That is the assertion
-functions, `it` and its options, the signatures and registration of
-`it_each`, `it_prop`, and `it_prop_with`, and the literal `expect` of
-`snapshot` ([Standard Testing](../10-modules.md#standard-testing),
-[Table Tests](../10-modules.md#table-tests),
+The language tier keeps the assertion functions, `it` and its options, the
+test-position rules, and the literal `expect` of `snapshot`
+([Standard Testing](../10-modules.md#standard-testing),
+[Test Cases](../10-modules.md#test-cases),
 [Snapshots](../10-modules.md#snapshots)).
+
+## Registration Functions
+
+`std.testing` declares `it_each`, which registers one test case per row:
+
+```text
+pub fn it_each[A, T < Termination, R](name: string, rows: List[A], ignore: string? = .None,
+                                      expect_panic: string? = .None, timeout: Duration? = .None,
+                                      body: fn!(A) -> T $ R) -> void $ R
+```
+
+It also declares `it_prop` and `it_prop_with`, which register one property
+test case each:
+
+```text
+pub fn it_prop[T < Arbitrary & Debug, R < Termination](name: string, ignore: string? = .None,
+                                                       expect_panic: string? = .None, timeout: Duration? = .None,
+                                                       cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
+                                                       prop: fn!(T) -> R) -> void
+pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
+                                                expect_panic: string? = .None, timeout: Duration? = .None,
+                                                cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
+                                                prop: fn!(T) -> R) -> void
+```
+
+1. r[std-testing.registration] `it_each`, `it_prop`, and `it_prop_with` are [test registration functions](../10-modules.md#r-module.testing.position-statements), so the test-position rules of `it` apply to them.
+2. r[std-testing.it-each.import] `it_each` is not a prelude name; code imports it with `use std.testing.it_each`.
+3. r[std-testing.it-each.body-closure] Its body has a parameter, so it is an explicit `fn!` closure, not a trailing block. After omitted options, a call passes it by name, as in `body=fn!(value: i32): ...`.
+4. r[std-testing.it-each.name-clash] Another test case of the module must not be named `name[i]` for any index `i`. Error: `duplicate-test-name`.
+5. r[std-testing.it-prop.registers] A top-level call of `std.testing.it_prop` or `std.testing.it_prop_with` registers one property test case.
+6. r[std-testing.it-prop.import] Neither is a prelude name; code imports them from `std.testing`.
+7. r[std-testing.variants.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
+8. r[std-testing.variants.options] Each takes the options of `it`, `ignore`, `expect_panic`, and `timeout`, under the same rules.
+9. r[std-testing.variants.body] The body's result follows [Propagation In Test Blocks](../05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, Error]` when it uses `?`.
+10. r[std-testing.try.test.row-body] The body closure of an `it_each`, `it_prop`, or `it_prop_with` call that writes no result type gets its result type by [`expr.try.test.with-try`](../05-expressions.md#r-expr.try.test.with-try) and [`expr.try.test.without-try`](../05-expressions.md#r-expr.try.test.without-try), as a trailing block given to `it` does.
+
+```text
+use std.testing.it_each
+
+fn label() -> string: "halves"
+
+tests:
+    it_each("doubles", [1, 2], body=fn!(value: i32): pass)
+
+    it("doubles[0]"):  # error: duplicate-test-name
+        pass
+
+    it_each(label(), [1, 2], body=fn!(value: i32): pass)  # error: non-literal-test-argument
+```
+
+> **Note.** The `timeout` parameter of each has the type that `it`'s has,
+> `std.time.Duration?` ([Test Timeout](#test-timeout)).
+
+See also: [Table-Test Rows](#table-test-rows), for how an `it_each` call
+expands and names its rows, and [Property Tests](#property-tests),
+[Draw Budget](#draw-budget), and [Derived Arbitrary](#derived-arbitrary),
+for how the runner generates a property's inputs.
 
 ## Property Tests
 
@@ -308,8 +365,8 @@ tests:
 
 ## Table-Test Rows
 
-A call of `it_each` in test position is registered as the language tier
-specifies ([Table Tests](../10-modules.md#table-tests)).
+A call of `it_each` in test position is registered as
+[Registration Functions](#registration-functions) specifies.
 
 1. r[std-testing.it-each] A top-level call of `std.testing.it_each` registers one test case for each element of `rows`, which runs `body` with that element.
 2. r[std-testing.it-each.name] The test case for the element at index `i` is named `name[i]`.

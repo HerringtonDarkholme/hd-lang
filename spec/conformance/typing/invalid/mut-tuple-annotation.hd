@@ -1,0 +1,5 @@
+# test: a tuple annotation written with mut is an error
+# Spec 04 Tuple Types: types.tuple.no-mut (owner decision TU2, batch 27, 2026-09-30).
+fn invalid() -> i32:
+    let p: mut (i32, i32) = (1, 2)  # diagnostic: mut-on-tuple
+    p._0

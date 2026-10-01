@@ -10,3 +10,7 @@ std.format.DebugTuple	std/format.md#debug-builders
 std.format.DebugList	std/format.md#debug-builders
 std.format.DebugMap	std/format.md#debug-builders
 std.time	std/time.md#duration
+std.testing.it_each	std/testing.md#registration-functions
+std.testing.it_prop	std/testing.md#registration-functions
+std.testing.it_prop_with	std/testing.md#registration-functions
+std.task.retry	std/task.md#retry

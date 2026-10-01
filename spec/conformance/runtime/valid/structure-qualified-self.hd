@@ -1,5 +1,5 @@
 # test: inside a template, a Structure:: call's Self is the template's T
-# Spec 14 Templates: annot.template.structure-self and .receiverless (ST8-self, owner decision 2026-09-30).
+# Spec 14 Templates: annot.template.qualified-self and .receiverless (ST8-self and ST8-own, owner decisions 2026-09-30).
 # Structure::name() and Structure::facts() take no argument, so no inference gives their Self.
 # The derived trait declares its own receiverless `name`; Structure::name() is the generated one.
 use std.structure.{Structure, Field, Variant, Describer}

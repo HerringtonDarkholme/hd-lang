@@ -1,5 +1,5 @@
 # test: another test case must not be named like an it_each row
-# Spec 10 Table Tests: it("doubles[0]") beside it_each("doubles", ...) is duplicate-test-name.
+# Spec std/testing Registration Functions: it("doubles[0]") beside it_each("doubles", ...) is duplicate-test-name.
 use std.testing.it_each
 
 tests:

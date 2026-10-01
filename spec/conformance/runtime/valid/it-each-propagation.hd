@@ -1,5 +1,5 @@
 # test: an it_each body that uses ? returns Result[void, Error]
-# Spec 05 Propagation In Test Blocks: a row body without a written result follows the test body rule.
+# Spec std/testing Registration Functions: std-testing.try.test.row-body; a row body without a written result follows the test body rule.
 use std.error.Error
 use std.testing.{assert_equal, it_each}
 

@@ -123,6 +123,7 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/testing.md` | `std-testing` |
 | `std/text.md` | `std-text` |
 | `std/time.md` | `std-time` |
+| `std/task.md` | `std-task` |
 
 A stdlib chapter's prefix is `std-` and its module name. The
 [stdlib chapter table](std/README.md#chapters) lists each chapter; a later

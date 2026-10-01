@@ -134,7 +134,7 @@ an update run, fails with `assertion-failed`, as `assert_equal` does
 
 Property testing is a library in `std.testing`, not language syntax (T12).
 A property registers with `it_prop` or `it_prop_with`, which a `tests:` block
-admits beside `it` ([Table Tests](../spec/10-modules.md#table-tests)):
+admits beside `it` ([Registration Functions](../spec/std/testing.md#registration-functions)):
 
 ```text
 use std.testing.{assert, it_prop}

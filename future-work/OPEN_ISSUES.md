@@ -118,10 +118,11 @@ follow-ups of the same batch, BF and BFF, are in
 
 | # | Decision | Where |
 | --- | --- | --- |
-| ST8-self | Inside a template, a `Structure::` call has the template's `T` as its `Self`, so `Structure::name()` is `T`'s declared name, and `Structure::facts()` is `T`'s facts. Language tier. | [`annot.template.structure-self`](../spec/14-annotations.md#r-annot.template.structure-self) |
+| ST8-self | Inside a template, a `Structure::` call has the template's `T` as its `Self`, so `Structure::name()` is `T`'s declared name, and `Structure::facts()` is `T`'s facts. Language tier. | `annot.template.structure-self`, since replaced by [`annot.template.qualified-self`](../spec/14-annotations.md#r-annot.template.qualified-self) (ST8-own) |
 | r-merge | `std-text.prefix.std.import-text` and `std-text.prelude.text-r` both say that `std.text` declares `r` and code imports it. Merge them into one rule and retire the duplicate. | [`std-text.prefix.std.import-text`](../spec/std/text.md#r-std-text.prefix.std.import-text) |
 
-**Still open from applying batch 25.**
+**Still open from applying batch 25.** The owner answered ST8-own with
+batch 28 below.
 
 | # | Question | **Recommendation** |
 | --- | --- | --- |
@@ -193,6 +194,30 @@ the middle column; each point asks the owner to confirm it.
 | LP-bare | `a, b := pair` was `syntax-error` with a fix-it that added parentheses, which would now give `missing-let`. | It stays `syntax-error`, and the fix-it writes `let (a, b) = pair` ([`grammar.stmt.short-binding.bare-list`](../spec/02-grammar.md#r-grammar.stmt.short-binding.bare-list)). **Recommendation:** keep it. |
 | LP-for | `for` still takes a name or a name list, not a pattern, so `for Point { x, y } in points` is a `syntax-error`. | Unchanged; the decision covers `let` only. **Recommendation:** leave `for` as it is until patterns in `let` have been used for a while. |
 | Q5-tuple | `[a, b := value]` is now a list ending in a binding, but `(a, b := value)` is still `syntax-error` ([`grammar.expr.multi-binding.no-grouped`](../spec/02-grammar.md#r-grammar.expr.multi-binding.no-grouped)), since a tuple element takes no binding. | Unchanged. **Recommendation:** keep it; `(a, b := value)` reads as the removed multi-name binding. |
+
+**Batches 27 and 28 (owner decisions, 2026-09-30).** Applied; the
+[Revision Notes](../spec/README.md#revision-notes) list each. The owner
+wrote of tuples: "change tuple to be value type, immutable", and then
+"tuple is impl, spec does not know". So the spec states only tuple
+semantics; the representation (TU3) is implementation work, task #122.
+Batch 29 is in [Spec Tiers](SPEC_TIERS.md#still-open).
+
+| # | Decision | Where |
+| --- | --- | --- |
+| TU1 | Confirmed: tuples are `AnyVal`, with no identity, and immutable. No rule changed. | [Tuple Types](../spec/04-type-system.md#tuple-types) |
+| TU2 | `mut (A, B)` is an error, as `mut` on a primitive is: a tuple has no `mut` form. Tuple expressions leave `types.fresh.mutable`. An element keeps its permission, so `(mut User, i32)` is valid. | [`types.tuple.no-mut`](../spec/04-type-system.md#r-types.tuple.no-mut), [`types.fresh.mutable-outer`](../spec/04-type-system.md#r-types.fresh.mutable-outer) |
+| TU-spec | No representation, layout, or flattening note about tuples anywhere in `spec/`. The shape table of the non-normative Implementation Model leaves tuples to the implementation. | [Shapes and Generic Code](../spec/04-type-system.md#shapes-and-generic-code) |
+| ST8-own | Inside a template, a call qualified by the derived trait, such as `Encode::name()`, also has the template's `T` as its `Self`: one rule with `Structure::`. | [`annot.template.qualified-self`](../spec/14-annotations.md#r-annot.template.qualified-self) |
+
+**Still open from applying batches 27 and 28.** The specification
+applies the reading in the middle column; each point asks the owner to
+confirm it.
+
+| # | Question | Applied reading and **Recommendation** |
+| --- | --- | --- |
+| TU2-code | TU2 names no code for `mut (A, B)`. | A new code, `mut-on-tuple`; `mut-on-primitive` would misname a tuple. **Recommendation:** keep it until the code revamp (#101), which may merge the two. |
+| TU2-let | `let mut pair = (1, 2)` was valid, since a fresh tuple had mutable access. With no `mut` form, it needs a code. | `mut-on-tuple`, in place of `mutable-upgrade`, as `let mut n = 0` is `mut-on-primitive` ([`types.bind.let-mut-tuple`](../spec/04-type-system.md#r-types.bind.let-mut-tuple)). **Recommendation:** keep it. |
+| ST8-own-args | The one rule also fixes `Self` for a derived-trait call with an argument. In `Encode`'s template, `Encode::encode(item)` for an `item` that is not `T` was valid and is now `type-mismatch`. | Applied, since ST8-self already did this for `Structure::`. **Recommendation:** keep it; write `item.encode()` for another type. |
 
 ### Bound And Row Operators
 
@@ -497,8 +522,9 @@ These items remain required but do not currently require new core syntax:
   with a host clock and their own registration, like Go's `b.Loop` or a
   `benches/` root;
 - final signatures, behavior, and the complete intrinsic set for the
-  compiler-intrinsic `std.task` combinators, such as racing, retry, timeout,
-  and heterogeneous scheduling;
+  compiler-intrinsic `std.task` combinators, such as racing, timeout,
+  and heterogeneous scheduling (`retry!` is a library loop, decided in
+  batch 29: [Task](../spec/std/task.md#retry));
 - the final `std.task` structured-scope API: `Task[T]` is decided as
   structured scopes only, with `scope!`, `start`, and `join!`
   ([STDLIB decision 11](STDLIB.md#owner-decisions)), and must not weaken

@@ -1,0 +1,7 @@
+# test: a tuple parameter type written with mut is an error
+# Spec 04 Tuple Types: types.tuple.no-mut (owner decision TU2, batch 27, 2026-09-30).
+data User:
+    name: string
+
+fn invalid(pair: mut (User, i32)) -> i32:  # diagnostic: mut-on-tuple
+    pair._1

@@ -1491,3 +1491,4 @@ typing/invalid/arbitrary-with-non-inspectable-member.hd	type
 typing/valid/for-over-mut-iterator.hd	type
 runtime/valid/iterator-single-pass.hd	runtime
 parse/invalid/match-arm-mut-pattern.hd	parse
+runtime/valid/tuple-element-permission.hd	runtime

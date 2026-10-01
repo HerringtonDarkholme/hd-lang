@@ -80,7 +80,7 @@ maps each exercised code to its fixture.
 
 | Severity | Stable diagnostic codes |
 | --- | --- |
-| Error | `alias-cycle`, `ambiguous-associated-type`, `ambiguous-method`, `ambiguous-promoted-member`, `ambiguous-row-pattern`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `cyclic-test-dependency`, `decorator-not-annotator`, `decorator-not-top-level`, `decorator-target-kind`, `default-order`, `derive-field-missing-trait`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-fact`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-pipe-placeholder`, `duplicate-test-name`, `duplicate-tests-block`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-too-deep`, `float-literal-range`, `folder-cycle`, `gadt-derivation`, `generic-kind-mismatch`, `generic-member-call`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-error-marker`, `invalid-escape`, `invalid-impl-target`, `invalid-literal-suffix`, `invalid-map-key`, `invalid-member-line`, `invalid-result-propagation`, `invalid-string-prefix`, `invalid-test-statement`, `invalid-variance`, `let-else-falls-through`, `let-mut-readonly-type`, `local-impl-nonlocal-pair`, `marker-template`, `member-not-derivable`, `misplaced-derivation`, `misplaced-test-case`, `misplaced-tests-block`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-eq`, `missing-let`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-derived-law`, `mixed-numeric-types`, `mixed-signedness`, `multi-line-pipe-step`, `multiple-positional-value-packs`, `mut-on-primitive`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `newtype-derivation-self`, `no-common-type`, `no-least-common-type`, `non-literal-test-argument`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-positional-value-pack`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonlocal-impl`, `nonnumeric-unary-plus`, `not-suspending`, `old-bound-operator`, `old-export-declaration`, `old-import-declaration`, `old-row-separator`, `old-struct-declaration`, `omitted-member-without-default`, `orphan-impl`, `overlapping-impl`, `pack-length-mismatch`, `pack-map-mapper-mismatch`, `package-cycle`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `pipe-placeholder-in-closure`, `pipe-step-needs-placeholder`, `placeholder-outside-pipe`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `public-test-item`, `re-export-loop`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `refutable-let-pattern`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `row-parameter-in-context`, `sealed-trait-implementation`, `structure-outside-template`, `supertrait-cycle`, `suspending-pipe-step`, `suspension-forbidden-context`, `tab-whitespace`, `test-only-use`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-resolution-depth`, `trait-value-impl-target`, `type-used-as-value`, `underivable-trait`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-panic-category`, `unknown-shape-target`, `unreachable-match-arm`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-function-identity`, `variance-representation-change`, `variant-result-owner` |
+| Error | `alias-cycle`, `ambiguous-associated-type`, `ambiguous-method`, `ambiguous-promoted-member`, `ambiguous-row-pattern`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `cyclic-test-dependency`, `decorator-not-annotator`, `decorator-not-top-level`, `decorator-target-kind`, `default-order`, `derive-field-missing-trait`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-fact`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-pipe-placeholder`, `duplicate-test-name`, `duplicate-tests-block`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-too-deep`, `float-literal-range`, `folder-cycle`, `gadt-derivation`, `generic-kind-mismatch`, `generic-member-call`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-error-marker`, `invalid-escape`, `invalid-impl-target`, `invalid-literal-suffix`, `invalid-map-key`, `invalid-member-line`, `invalid-result-propagation`, `invalid-string-prefix`, `invalid-test-statement`, `invalid-variance`, `let-else-falls-through`, `let-mut-readonly-type`, `local-impl-nonlocal-pair`, `marker-template`, `member-not-derivable`, `misplaced-derivation`, `misplaced-test-case`, `misplaced-tests-block`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-eq`, `missing-let`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-derived-law`, `mixed-numeric-types`, `mixed-signedness`, `multi-line-pipe-step`, `multiple-positional-value-packs`, `mut-on-primitive`, `mut-on-tuple`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `newtype-derivation-self`, `no-common-type`, `no-least-common-type`, `non-literal-test-argument`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-positional-value-pack`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonlocal-impl`, `nonnumeric-unary-plus`, `not-suspending`, `old-bound-operator`, `old-export-declaration`, `old-import-declaration`, `old-row-separator`, `old-struct-declaration`, `omitted-member-without-default`, `orphan-impl`, `overlapping-impl`, `pack-length-mismatch`, `pack-map-mapper-mismatch`, `package-cycle`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `pipe-placeholder-in-closure`, `pipe-step-needs-placeholder`, `placeholder-outside-pipe`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `public-test-item`, `re-export-loop`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `refutable-let-pattern`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `row-parameter-in-context`, `sealed-trait-implementation`, `structure-outside-template`, `supertrait-cycle`, `suspending-pipe-step`, `suspension-forbidden-context`, `tab-whitespace`, `test-only-use`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-resolution-depth`, `trait-value-impl-target`, `type-used-as-value`, `underivable-trait`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-panic-category`, `unknown-shape-target`, `unreachable-match-arm`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-function-identity`, `variance-representation-change`, `variant-result-owner` |
 | Error | `defer-control-flow`, `defer-outside-cleanup-scope`, `suspending-defer` |
 | Error (general) | `argument-count`, `break-outside-loop`, `duplicate-binding`, `duplicate-type`, `duplicate-variant`, `invalid-dedent`, `invalid-token`, `not-callable`, `syntax-error`, `type-mismatch`, `unclosed-delimiter`, `unexpected-indentation`, `unknown-data-field`, `unknown-method`, `unknown-name`, `unknown-trait`, `unknown-type`, `unknown-variant`, `unmatched-delimiter`, `unterminated-string` |
 | Warning | `confusable-identifier`, `derivation-line-drift`, `mixed-script-identifier`, `redundant-let-mut`, `unreachable-code`, `unused-derivation-fact`, `unused-local-binding`, `variant-binding-name-mismatch` |
@@ -271,6 +271,7 @@ The stdlib chapters' terms are in the
 | **test dependency** | A dependency that the manifest declares for test builds only. See [`module.test.dependency`](10-modules.md#r-module.test.dependency). |
 | **test module** | A module whose file name ends in `_test.hd`. See [Test Modules](10-modules.md#test-modules). |
 | **test position** | The top level of a `tests:` block, a test module, or an integration test module, where test-case calls go. See [`module.testing.test-position`](10-modules.md#r-module.testing.test-position). |
+| **test registration function** | `it`, or a registration function that `std.testing` declares in the stdlib tier; only a direct call of one may stand in test position. See [`module.testing.position-statements`](10-modules.md#r-module.testing.position-statements). |
 | **trait candidates** | The trait methods of the receiver's type with the called name whose trait is available at the call. See [`names.method-lookup.trait-candidates`](03-names-and-scopes.md#r-names.method-lookup.trait-candidates). |
 | **trait methods** | The methods of every trait that a known implementation implements for a type. See [`names.member.trait-methods`](03-names-and-scopes.md#r-names.member.trait-methods). |
 | **trait-less derivation block** | An `impl X by Structure:` without a trait, whose member lines write shared metadata of `X` for every derivation and its shape. See [Trait-Less Derivation Blocks](14-annotations.md#trait-less-derivation-blocks). |
@@ -2104,7 +2105,9 @@ existing source. Each entry names the decision that made the change.
   and `module.testing.budget` and `module.testing.budget.*` become
   `std-testing.budget` and `std-testing.budget.*`. The old IDs are
   retired. The signatures of `it_prop` and `it_prop_with` stay in
-  [Table Tests](10-modules.md#table-tests) with their registration rules.
+  Modules' Table Tests with their registration rules (moved since by
+  ST6, revised, to
+  [Registration Functions](std/testing.md#registration-functions)).
 - Test timeouts, table-test rows, and snapshot files move to the stdlib
   tier (owner decisions ST2, ST3, and ST6 in
   [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
@@ -2140,7 +2143,8 @@ existing source. Each entry names the decision that made the change.
   `module.testing.arbitrary.with` and `module.testing.arbitrary.with.*`
   become `std-testing.arbitrary.with` and `std-testing.arbitrary.with.*`,
   except `.with.inspectable`, which AT-with retires below. The old IDs are
-  retired. [`module.testing.it-prop`](10-modules.md#r-module.testing.it-prop)
+  retired. `module.testing.it-prop` (since moved by ST6, revised, as
+  [`std-testing.it-prop.registers`](std/testing.md#r-std-testing.it-prop.registers))
   keeps the registration of a property test case; its sentence on how the
   runner generates and shrinks inputs becomes
   [`std-testing.it-prop`](std/testing.md#r-std-testing.it-prop).
@@ -2339,12 +2343,11 @@ existing source. Each entry names the decision that made the change.
 - The `Self` of a `Structure::` call (owner decision ST8-self, batch 25 in
   [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
   2026-09-30): language tier. Inside a template, a `Structure::` call has
-  the template's `T` as its `Self`
-  ([`annot.template.structure-self`](14-annotations.md#r-annot.template.structure-self)),
+  the template's `T` as its `Self` (`annot.template.structure-self`,
+  since retired by ST8-own),
   so `Structure::name()` and `Structure::facts()`, which were
   `trait.assoc-call.trait.undetermined`, are valid and mean `T::name()`
-  and `T::facts()`
-  ([`annot.template.structure-self.receiverless`](14-annotations.md#r-annot.template.structure-self.receiverless)).
+  and `T::facts()` (`annot.template.structure-self.receiverless`).
   The Templates note on clashes names the rule. Existing valid source is
   unaffected.
 - One rule for importing `r` (owner decision r-merge, batch 25 in
@@ -2489,3 +2492,72 @@ existing source. Each entry names the decision that made the change.
   2026-09-30): language tier. `[a, b := value]`, which was `syntax-error`,
   is a list of `a` and the binding expression `b := value`
   ([`grammar.expr.multi-binding.list-item`](02-grammar.md#r-grammar.expr.multi-binding.list-item)).
+- Tuples have no `mut` form (owner decisions TU1 and TU2, batch 27 in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
+  2026-09-30): language tier. TU1 confirms that a tuple is an immutable
+  `AnyVal` without identity. A tuple type written with `mut`, as in
+  `mut (User, i32)`, is now `mut-on-tuple`, a new code
+  ([`types.tuple.no-mut`](04-type-system.md#r-types.tuple.no-mut)). `let mut`
+  on a tuple, as in `let mut pair = (1, 2)`, which was valid, is
+  `mut-on-tuple` too
+  ([`types.bind.let-mut-tuple`](04-type-system.md#r-types.bind.let-mut-tuple));
+  write `let pair = (1, 2)`. An element keeps its own permission, so
+  `(mut User, i32)` stays valid
+  ([`types.tuple.element-permission`](04-type-system.md#r-types.tuple.element-permission)).
+  `types.fresh.mutable` is retired for
+  [`types.fresh.mutable-outer`](04-type-system.md#r-types.fresh.mutable-outer),
+  which drops tuple expressions, and
+  [`types.fresh.tuple`](04-type-system.md#r-types.fresh.tuple). The
+  non-normative Implementation Model no longer describes a tuple's
+  representation.
+- The derived trait's own qualified calls in a template (owner decision
+  ST8-own, batch 28 in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
+  2026-09-30): language tier. Inside a template, a call qualified by the
+  derived trait, such as `Encode::name()`, has the template's `T` as its
+  `Self`, as a `Structure::` call does. So a receiverless call such as
+  `Encode::name()`, which was `trait.assoc-call.trait.undetermined`, is
+  valid. One rule covers both:
+  `annot.template.structure-self` and `.structure-self.receiverless` are
+  retired for
+  [`annot.template.qualified-self`](14-annotations.md#r-annot.template.qualified-self)
+  and
+  [`.qualified-self.receiverless`](14-annotations.md#r-annot.template.qualified-self.receiverless).
+  A derived-trait call with an argument of another type, such as
+  `Encode::encode(item)` for an `item` that is not `T`, was valid and is
+  now `type-mismatch`; write `item.encode()`.
+- Test registration functions move to the stdlib tier (owner decisions
+  ST6, revised, and DUR, batch 29 in
+  [Spec Tiers](../future-work/SPEC_TIERS.md#still-open), 2026-09-30):
+  stdlib tier. Modules' Table Tests section moves to
+  [Registration Functions](std/testing.md#registration-functions) in
+  Testing, and its heading is deleted. Source is unaffected.
+  `module.testing.it-each.import`, `.it-each.body-closure`, and
+  `.it-each.name-clash` become `std-testing.it-each.import`,
+  `.it-each.body-closure`, and `.it-each.name-clash`;
+  `module.testing.it-prop` becomes `std-testing.it-prop.registers`;
+  `module.testing.it-prop.import` becomes `std-testing.it-prop.import`;
+  `module.testing.variants.name`, `.variants.options`, and
+  `.variants.body` become `std-testing.variants.name`, `.variants.options`,
+  and `.variants.body`; and `expr.try.test.row-body` becomes
+  `std-testing.try.test.row-body`. The old IDs are retired. The new
+  [`std-testing.registration`](std/testing.md#r-std-testing.registration)
+  makes the three functions test registration functions.
+  [`module.testing.position-statements`](10-modules.md#r-module.testing.position-statements)
+  and
+  [`module.testing.direct-call`](10-modules.md#r-module.testing.direct-call)
+  now name `it` and the test registration functions, with no change in
+  meaning. Under DUR, option A, the language tier's Note names
+  `std.time.Duration` for the `timeout` of `it` alone.
+- `retry!` is a library loop (owner decision RETRY, batch 29 in
+  [Spec Tiers](../future-work/SPEC_TIERS.md#still-open), 2026-09-30):
+  stdlib tier. `std.task` declares
+  `retry![T, E](times: i32, attempt: fn!() -> Result[T, E]) -> Result[T, E]`,
+  an ordinary `fn!` function, in the new chapter [Task](std/task.md#retry).
+  It calls `attempt` at most `times` times and returns the first `.Ok` or
+  the last `.Err`. `req.combinator.retry` is retired for
+  [`std-task.combinator.retry`](std/task.md#r-std-task.combinator.retry)
+  and
+  [`std-task.combinator.retry.cancel`](std/task.md#r-std-task.combinator.retry.cancel):
+  cancellation follows the ordinary rules. No `retry!` was specified
+  before, so source is unaffected.

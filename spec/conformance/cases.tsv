@@ -1177,12 +1177,12 @@ runtime/valid/it-body-by-name.hd	runtime	accept	10-modules.md#r-module.testing.i
 typing/invalid/public-test-item.hd	type	reject:public-test-item	03-names-and-scopes.md#r-names.tests.no-pub
 typing/invalid/unknown-panic-category.hd	type	reject:unknown-panic-category	10-modules.md#r-module.testing.option.expect-panic.known
 typing/invalid/test-case-as-value.hd	type	reject:misplaced-test-case	10-modules.md#r-module.testing.direct-call
-typing/invalid/it-each-outside-test-position.hd	type	reject:misplaced-test-case	10-modules.md#r-module.testing.direct-call
-typing/invalid/it-each-name-clash.hd	type	reject:duplicate-test-name	10-modules.md#r-module.testing.it-each.name-clash
-typing/invalid/it-each-non-literal-name.hd	type	reject:non-literal-test-argument	10-modules.md#r-module.testing.variants.name
-runtime/valid/it-each-options.hd	runtime	accept	10-modules.md#r-module.testing.variants.options
+typing/invalid/it-each-outside-test-position.hd	type	reject:misplaced-test-case	std/testing.md#r-std-testing.registration
+typing/invalid/it-each-name-clash.hd	type	reject:duplicate-test-name	std/testing.md#r-std-testing.it-each.name-clash
+typing/invalid/it-each-non-literal-name.hd	type	reject:non-literal-test-argument	std/testing.md#r-std-testing.variants.name
+runtime/valid/it-each-options.hd	runtime	accept	std/testing.md#r-std-testing.variants.options
 runtime/valid/test-timeout-options.hd	runtime	accept	std/testing.md#r-std-testing.option.timeout-any-duration
-runtime/valid/it-each-propagation.hd	runtime	accept	05-expressions.md#r-expr.try.test.row-body
+runtime/valid/it-each-propagation.hd	runtime	accept	std/testing.md#r-std-testing.try.test.row-body
 typing/valid/snapshot-inline.hd	type	accept	10-modules.md#snapshots
 typing/invalid/snapshot-non-literal-expect.hd	type	reject:non-literal-test-argument	10-modules.md#r-module.testing.snapshot.literal
 typing/valid/derive-debug.hd	type	accept	09-traits.md#r-trait.debug.derive
@@ -1637,7 +1637,7 @@ runtime/valid/index-then-call-element.hd	runtime	accept	02-grammar.md#r-grammar.
 typing/invalid/readonly-iterator-iterable-bound.hd	type	reject:unsatisfied-trait-bound	06-control-flow.md#r-flow.for.iterator-no-bound
 typing/valid/for-over-mut-iterator.hd	type	accept	06-control-flow.md#r-flow.for.iterator-direct
 runtime/valid/iterator-single-pass.hd	runtime	accept	06-control-flow.md#r-flow.for.iterator.position
-runtime/valid/structure-qualified-self.hd	runtime	accept	14-annotations.md#r-annot.template.structure-self
+runtime/valid/structure-qualified-self.hd	runtime	accept	14-annotations.md#r-annot.template.qualified-self
 parse/invalid/for-bare-name-list.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.flow.for-list.bare
 parse/invalid/comprehension-bare-name-list.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.flow.for-list.bare
 parse/valid/same-line-for-list.hd	parse	accept	02-grammar.md#r-grammar.inline.for-list
@@ -1668,3 +1668,9 @@ parse/invalid/match-arm-mut-pattern.hd	parse	reject:syntax-error	02-grammar.md#r
 parse/valid/list-item-binding-expression.hd	parse	accept	02-grammar.md#r-grammar.expr.multi-binding.list-item
 parse/invalid/short-binding-tuple-pattern.hd	parse	reject:missing-let	02-grammar.md#r-grammar.stmt.short-binding.let-only
 parse/invalid/short-binding-tuple-same-line.hd	parse	reject:missing-let	02-grammar.md#r-grammar.stmt.short-binding.let-only
+runtime/valid/tuple-element-permission.hd	runtime	accept	04-type-system.md#r-types.tuple.element-permission
+typing/invalid/mut-tuple-parameter.hd	type	reject:mut-on-tuple	04-type-system.md#r-types.tuple.no-mut
+typing/invalid/mut-tuple-annotation.hd	type	reject:mut-on-tuple	04-type-system.md#r-types.tuple.no-mut
+typing/invalid/let-mut-tuple.hd	type	reject:mut-on-tuple	04-type-system.md#r-types.bind.let-mut-tuple
+runtime/valid/template-derived-trait-self.hd	runtime	accept	14-annotations.md#r-annot.template.qualified-self.receiverless
+runtime/valid/task-retry.hd	runtime	accept	std/task.md#r-std-task.combinator.retry.loop

@@ -1,0 +1,41 @@
+# test: inside a template, a call qualified by the derived trait has the template's T as Self
+# Spec 14 Templates: annot.template.qualified-self and .receiverless (owner decision ST8-own, batch 28, 2026-09-30).
+# Named::name() takes no argument, so no inference gives its Self; the template's T does.
+# Named declares its own receiverless `name`, so Structure::name() and Named::name() are different calls.
+use std.structure.{Structure, Field, Variant, Describer}
+use std.testing.assert_equal
+
+trait Named:
+    fn name() -> string
+    fn title() -> string
+
+data MemberCount:
+    count: i32
+
+impl[S] Describer[S] for MemberCount:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.count = self.count + 1
+        .Ok()
+
+impl[T] Named for T by Structure:
+    fn name() -> string:
+        let mut d = MemberCount { count: 0 }
+        _ := T::describe(d)
+        "${Structure::name()}/${d.count}"
+
+    fn title() -> string:
+        "The " + Named::name()
+
+@derive(Named)
+data Point:
+    x: i32
+    y: i32
+
+tests:
+    it("Named::name() in the template is Named's name for T"):
+        assert_equal(Point::title(), "The Point/2", reason="Self is the template's T")

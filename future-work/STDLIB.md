@@ -55,9 +55,9 @@ undecided design.
 | `std.hash` | `Hash`, `Hasher` | language | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.iter` | `Iterator` (a data type), `Iterable`, `FromIterator`; the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as `Iterator` methods | language: `Iterator`, `Iterable`; std: `FromIterator` and the adapters | [For Loops](../spec/06-control-flow.md), [Iterator Adapters](../spec/std/iter.md#iterator-adapters) |
 | `std.console` | `Console`, `ConsoleError`, `println` | language | [Prelude](../spec/10-modules.md#prelude) |
-| `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, a retry combinator | language; the retry combinator stays until its signature is decided ([Spec Tiers, Still Open](SPEC_TIERS.md#still-open)) | [Requirements and Suspension](../spec/11-requirements-and-suspension.md) |
+| `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, `retry!` | language; std: `retry!`, a library loop (RETRY, batch 29) | [Requirements and Suspension](../spec/11-requirements-and-suspension.md), [Task](../spec/std/task.md) |
 | `std.annotation` | shape names and `shape`, `shape_of`; `Target`, `Annotate`, `annotate` | language | [Annotations](../spec/14-annotations.md) |
-| `std.testing` | `assert`, `assert_equal`, `it`, `it_each`, `it_prop`, `it_prop_with`, `snapshot`, `snapshot_file` | language: `assert`, `assert_equal`, `it`, registration of the rest, `snapshot`'s literal check; std: rows, generation, shrinking, draw budget, snapshot files, `timeout` | [Standard Testing](../spec/10-modules.md#standard-testing) |
+| `std.testing` | `assert`, `assert_equal`, `it`, `it_each`, `it_prop`, `it_prop_with`, `snapshot`, `snapshot_file` | language: `assert`, `assert_equal`, `it`, the test-position rules, `snapshot`'s literal check; std: `it_each`, `it_prop`, and `it_prop_with` (ST6, revised), rows, generation, shrinking, draw budget, snapshot files, `timeout` | [Standard Testing](../spec/10-modules.md#standard-testing), [Testing](../spec/std/testing.md) |
 | `std.resource` | `ResourceError[E]` | language | [Wasm Boundary](../spec/10-modules.md#wasm-boundary) |
 | `std.convert` | `From[T]` | language | [Conversion Trait](../spec/09-traits.md#conversion-trait) |
 | `std.error` | `Error` (a `Display` subtrait whose members all have defaults) | language | [Error Trait](../spec/09-traits.md#error-trait) |
@@ -1515,6 +1515,12 @@ retry schedule becomes
 deterministic. `retry!` takes a constructor, not
 a suspension, because a `Suspend[T]` runs once. `race!` takes a homogeneous
 list; a heterogeneous race returns an enum the caller defines.
+
+**Superseded for `retry!` (owner decision RETRY, batch 29, 2026-09-30).**
+`retry!` is a plain library loop over a `fn!` attempt, with no policy and
+no clock: `retry![T, E](times: i32, attempt: fn!() -> Result[T, E])`. The
+stdlib tier specifies it in [Task](../spec/std/task.md#retry). The
+`RetryPolicy` draft above is not decided.
 
 `Task[T]` exists only inside a structured scope (decision 11). There is no
 detached spawn:

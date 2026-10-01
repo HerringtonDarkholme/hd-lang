@@ -716,8 +716,8 @@ pub fn it[T < Termination, R](name: string, ignore: string? = .None, expect_pani
 5. r[module.testing.it.options-strings] The named options are those of the signature above: `ignore`, `expect_panic`, and `timeout`. An `ignore` or `expect_panic` value must be a string literal without interpolation. Any other value for them is an error. Error: `non-literal-test-argument`.
 6. r[module.testing.it.unknown-option] Any other named argument is an error. Error: `unknown-named-argument`.
 7. r[module.testing.test-position] **Test position** is the top level of a `tests:` block, of a [test module](#test-modules), or of an integration test module.
-8. r[module.testing.position-statements] Every statement in test position must be a call of `it`, `std.testing.it_each`, `std.testing.it_prop`, or `std.testing.it_prop_with`. Any other statement is an error. Error: `invalid-test-statement`.
-9. r[module.testing.direct-call] Those four functions may be used only as such a direct call in test position. Any other use, including a call elsewhere or a use as a value, is an error. Error: `misplaced-test-case`.
+8. r[module.testing.position-statements] Every statement in test position must be a call of a **test registration function**: `it`, or one of the registration functions that `std.testing` declares in the stdlib tier. Any other statement is an error. Error: `invalid-test-statement`.
+9. r[module.testing.direct-call] A test registration function may be used only as such a direct call in test position. Any other use, including a call elsewhere or a use as a value, is an error. Error: `misplaced-test-case`.
 10. r[module.testing.it.unique] Two test cases of one module must not have the same name. Error: `duplicate-test-name`.
 
 | Rule | Option | Value | Effect |
@@ -766,69 +766,18 @@ fn register() -> void:
 > Allowing only direct calls in test position keeps every test case
 > statically listable.
 
-> **Note.** The `timeout` parameter of `it`, and of `it_each`, `it_prop`,
-> and `it_prop_with` below, has type `std.time.Duration?`. `Duration` is a
-> stdlib-tier type ([Time](std/time.md#duration)): the language tier names
-> it in these signatures only and specifies none of its values.
+> **Note.** The `timeout` parameter of `it` has type `std.time.Duration?`.
+> `Duration` is a stdlib-tier type ([Time](std/time.md#duration)): the
+> language tier names it in this signature only and specifies none of its
+> values.
+
+> **Note.** The stdlib tier's test registration functions are `it_each`,
+> which registers one test case per row, and `it_prop` and
+> `it_prop_with`, which register property tests
+> ([Registration Functions](std/testing.md#registration-functions)).
 
 See also: [Test Timeout](std/testing.md#test-timeout) in the stdlib tier,
 for what the `timeout` option does.
-
-#### Table Tests
-
-`std.testing` also declares `it_each`, which registers one test case per
-row:
-
-```text
-pub fn it_each[A, T < Termination, R](name: string, rows: List[A], ignore: string? = .None,
-                                      expect_panic: string? = .None, timeout: Duration? = .None,
-                                      body: fn!(A) -> T $ R) -> void $ R
-```
-
-It also declares `it_prop` and `it_prop_with`, which register one property
-test case each:
-
-```text
-pub fn it_prop[T < Arbitrary & Debug, R < Termination](name: string, ignore: string? = .None,
-                                                       expect_panic: string? = .None, timeout: Duration? = .None,
-                                                       cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
-                                                       prop: fn!(T) -> R) -> void
-pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
-                                                expect_panic: string? = .None, timeout: Duration? = .None,
-                                                cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
-                                                prop: fn!(T) -> R) -> void
-```
-
-1. r[module.testing.it-each.import] `it_each` is not a prelude name; code imports it with `use std.testing.it_each`.
-2. r[module.testing.it-each.body-closure] Its body has a parameter, so it is an explicit `fn!` closure, not a trailing block. After omitted options, a call passes it by name, as in `body=fn!(value: i32): ...`.
-3. r[module.testing.it-each.name-clash] Another test case of the module must not be named `name[i]` for any index `i`. Error: `duplicate-test-name`.
-4. r[module.testing.it-prop] A top-level call of `std.testing.it_prop` or `std.testing.it_prop_with` registers one property test case.
-5. r[module.testing.it-prop.import] Neither is a prelude name; code imports them from `std.testing`.
-6. r[module.testing.variants.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
-7. r[module.testing.variants.options] Each takes the options of `it`, `ignore`, `expect_panic`, and `timeout`, under the same rules.
-8. r[module.testing.variants.body] The body's result follows [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, Error]` when it uses `?`.
-
-```text
-use std.testing.it_each
-
-fn label() -> string: "halves"
-
-tests:
-    it_each("doubles", [1, 2], body=fn!(value: i32): pass)
-
-    it("doubles[0]"):  # error: duplicate-test-name
-        pass
-
-    it_each(label(), [1, 2], body=fn!(value: i32): pass)  # error: non-literal-test-argument
-```
-
-See also: [Table-Test Rows](std/testing.md#table-test-rows) in the stdlib
-tier, for how an `it_each` call expands and names its rows. Its
-[Property Tests](std/testing.md#property-tests) and
-[Draw Budget](std/testing.md#draw-budget) cover `Choices`, `Arbitrary`, and
-how the runner generates, discards, shrinks, and replays a property's
-inputs, and its [Derived Arbitrary](std/testing.md#derived-arbitrary)
-covers `@derive(Arbitrary)` and `arbitrary.with`.
 
 ### Test Outcomes
 
