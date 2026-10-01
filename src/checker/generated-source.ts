@@ -7,10 +7,15 @@ import { parse } from "../parser/index.ts";
 // Generated source with placeholders for user expressions and types.
 
 export class Source_ {
+  /** `defined` may be shared, so helpers are emitted once across several sources. */
+  constructor(defined: Set<string> = new Set()) {
+    this.defined = defined;
+  }
+
   readonly lines: string[] = [];
   /** Helper functions, emitted after `lines` so a helper never splits a body. */
   readonly definitions: string[] = [];
-  private readonly defined = new Set<string>();
+  private readonly defined: Set<string>;
   private readonly expressions: Expression[] = [];
   private readonly types: string[] = [];
   /** Spans for single lines, by index in `lines`, over the program's span. */
@@ -43,9 +48,12 @@ export class Source_ {
     this.definitions.push(...lines());
   }
 
-  /** Parses the collected source and patches placeholders and spans. */
-  program(span: SourceSpan): Program {
-    const source = `${[...this.lines, ...this.definitions].join("\n")}\n`;
+  /**
+   * Parses the collected source and patches placeholders and spans;
+   * `rename` may rewrite the text first.
+   */
+  program(span: SourceSpan, rename: (text: string) => string = (text) => text): Program {
+    const source = rename(`${[...this.lines, ...this.definitions].join("\n")}\n`);
     const parsed = parse(source);
     if (!parsed.program)
       throw new Error(

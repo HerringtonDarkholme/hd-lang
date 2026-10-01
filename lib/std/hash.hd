@@ -4,6 +4,7 @@
 # width, and a `bool` one byte. The specification names no standard hasher
 # yet, so none is declared here.
 use std.text.{byte_at, byte_len}
+use std.structure.{Structure, Walker, Variant, Field}
 
 pub trait Hasher:
     fn write(mut self, bytes: List[u8]) -> void
@@ -84,3 +85,27 @@ fn unsigned_bytes(value: u64, count: i32) -> List[u8]:
         rest = rest >> 8
         index = index + 1
     bytes
+
+# Derived `Hash` (spec/std/hash.md#derived-hashing): an enum's variant index
+# as an `i32`, then each member in declaration order.
+impl[T] Hash for T by Structure:
+    fn hash(self, state: mut Hasher) -> void:
+        let w: mut HashWalker[T] = HashWalker::[T] { state: state }
+        _ := Structure::walk(self, w)
+
+# The field is public because the prototype checks the instantiated walker
+# in the deriving module.
+data HashWalker[S]:
+    pub state: mut Hasher
+
+impl[S] Walker[S] for HashWalker[S]:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        if !v.info.of_data:
+            v.info.index.hash(self.state)
+        .Ok()
+
+    fn member[F < Hash](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        value.hash(self.state)
+        .Ok()

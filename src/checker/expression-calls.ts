@@ -33,7 +33,7 @@ import {
   substituteGenericType,
   traitTypeName,
 } from "./shared.ts";
-
+import { implementationsFor } from "./implementation-index.ts";
 import type { QualifiedCallExpression } from "./trait-calls.ts";
 import { IterationChecker } from "./iteration.ts";
 import { supertraitPathBindings } from "./trait-paths.ts";
@@ -619,9 +619,9 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         return this.checkInherentMethodCall(expression, owner, selection.method, expected);
       }
     }
-    const candidates = this.implementations.flatMap((implementation) => {
-      // An operator call names the trait but not its arguments, so every
-      // instantiation is a candidate (r-expr.op.left-dispatch).
+    const searched = implementationsFor(this.implementations, receiverImplementationType);
+    const candidates = searched.flatMap((implementation) => {
+      // An operator call names no trait arguments: any instance may apply (r-expr.op.left-dispatch).
       const anyInstantiation =
         qualifiedTraitIndex !== undefined && qualifiedTraitArguments === undefined;
       if (anyInstantiation && implementation.traitIndex !== qualifiedTraitIndex) return [];

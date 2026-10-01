@@ -709,15 +709,23 @@ else`, `break`, `break value`, and `continue`;
   (M26), which `checker/member-lines.ts` checks and folds into the
   declaration facts of `T` before any derivation reads them, then drops;
   and the `std.structure` handles, facts, walkers,
-  describers, and sources, declared in hd when imported. Each derivation
-  becomes an ordinary `impl` whose template bodies call generated `walk`,
-  `describe`, `build`, and `facts` functions, specialized to the target and
-  to the walker, describer, or source type, and passed the target's type
-  parameters explicitly; the template must hold that
-  value in a local declared with its type (`unsupported-derivation`
-  otherwise). `T::name()` becomes the target's declared name as a string
-  constant (`annot.structure.name`). Inside a template, `Structure::f(...)`
-  is `T::f(...)`, and a call qualified by the derived trait, as
+  describers, and sources, declared in hd when imported (under hidden
+  names when the program declares a type of the same name, as a `data Key`).
+  A template is checked once (`annot.template.checked`): each method becomes
+  a generic function over the template's `T`, bounded by a hidden trait that
+  stands for `T`'s `Structure` in that template, with `hd_name`, `hd_facts`,
+  and one method per `walk`, `describe`, or `build` call site. Each
+  derivation implements that trait for its target, calling generated
+  traversal functions specialized to the target and to the walker,
+  describer, or source type, and implements the derived trait by calling
+  the template's functions with the target as `T`. So a derivation adds
+  only its traversals and handles, never a copy of the template body. The
+  template must hold the walker, describer, or source in a local declared
+  with its type (`unsupported-derivation` otherwise). A plain handle of a
+  non-generic target is a module constant, and derivations of one target
+  without member lines share their handles. `T::name()` returns the
+  target's declared name (`annot.structure.name`). Inside a template,
+  `Structure::f(...)` is `T::f(...)`, and a call qualified by the derived trait, as
   `Named::name()`, calls the target's own implementation
   (`annot.template.qualified-self`). A walker's `member` may strengthen its bound; its dictionary
   entry traps, since only generated code calls it, concretely. The checks
@@ -733,10 +741,13 @@ else`, `break`, `break value`, and `continue`;
   for declaration facts alike (M25); `VariantInfo.shared`
   is always empty; a build handle's `get` returns the declared type whatever
   its argument's permission; a newtype forwards only through the receiver
-  and plain `Self`; `@derive(Eq)`, `PartialOrd`, `Ord`, and `Hash` are
-  generated as ordinary hd implementations (`checker/derive-intrinsics.ts`),
-  on a newtype through its base type, and `mixed-derived-law` checks the
-  law partners; `==` and `<` use a generic implementation such as a derived
+  and plain `Self`; `@derive(Eq)`, `PartialOrd`, `Ord`, and `Hash`
+  instantiate the std templates in `lib/std/cmp.hd` and `lib/std/hash.hd`,
+  read from the std source as `Arbitrary`'s is. An enum orders by variant
+  index first, so `PartialOrd` and `Ord` first walk `other` to read its
+  index. A newtype calls its base type's method through a bounded helper,
+  and `mixed-derived-law` (`checker/derive-intrinsics.ts`) checks the law
+  partners; `==` and `<` use a generic implementation such as a derived
   `impl[T < Eq] Eq for Box[T]`. `@derive(Debug)` generates
   builder calls in Rust's mapping (Testing T53, T54): `debug_struct` for a
   data type, even a fieldless one, and a variant with named payload fields,

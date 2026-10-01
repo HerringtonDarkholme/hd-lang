@@ -10,6 +10,7 @@ import type {
   HirTrait,
   ValueType,
 } from "../hir.ts";
+import { NOMINAL_HEAD } from "./implementation-index.ts";
 import {
   contextKeys,
   functionParts,
@@ -796,6 +797,13 @@ export function matchGenericTypePattern(
   actual: ValueType,
   substitutions: Map<string, ValueType>,
 ): boolean {
+  // Two nominal types of different declarations never match. Implementation
+  // lookup tries every implementation, so this test comes first.
+  const patternHead = NOMINAL_HEAD.exec(pattern)?.[1];
+  if (patternHead !== undefined) {
+    const actualHead = NOMINAL_HEAD.exec(actual)?.[1];
+    if (actualHead !== undefined && actualHead !== patternHead) return false;
+  }
   const patternBinding = bindingParts(pattern);
   const actualBinding = bindingParts(actual);
   if (patternBinding || actualBinding)

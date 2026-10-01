@@ -10,6 +10,7 @@ import {
   matchGenericTypePattern,
   substituteGenericType,
 } from "./shared.ts";
+import { implementationsFor } from "./implementation-index.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
@@ -256,7 +257,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
    * method lookup (spec 03 Member Resolution, Rust-style trait lookup).
    */
   private traitWithMember(type: ValueType, name: string): string | undefined {
-    for (const implementation of this.implementations) {
+    for (const implementation of implementationsFor(this.implementations, type)) {
       if (!matchGenericTypePattern(implementation.targetType, type, new Map())) continue;
       const trait = [...this.traitTypes.values()].find(
         (candidate) => candidate.index === implementation.traitIndex,

@@ -823,7 +823,8 @@ export function prepareImplementations(context: ProgramCheckContext): void {
             : [required.receiverMutable ? mutableType(targetType) : targetType]),
           ...required.parameters
             .map((parameter) => substituteGenericType(parameter, renaming))
-            .map((parameter) => (parameter === "generic:Self" ? targetType : parameter)),
+            // `Self` anywhere in a parameter type, as in `mut Walker[Self]`.
+            .map((parameter) => substituteGenericType(parameter, new Map([["Self", targetType]]))),
         ];
         const renamedResult = substituteGenericType(required.result, renaming);
         // A result such as `mut Self` names the target (09 Implementation Declarations).

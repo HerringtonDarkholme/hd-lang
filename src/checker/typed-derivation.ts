@@ -17,10 +17,16 @@ import type {
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { Source_, ZERO_SPAN } from "./generated-source.ts";
-import { deriveIntrinsics, intrinsicHelpers } from "./derive-intrinsics.ts";
+import {
+  checkLawPartners,
+  DERIVE_CHECKED_TRAITS,
+  derivedFieldSpan,
+  deriveIntrinsics,
+  intrinsicHelpers,
+} from "./derive-intrinsics.ts";
 import { testingName } from "./arbitrary-module.ts";
 import { standardTemplate } from "./standard-library.ts";
-import { nominalGenericParts, readonlyType } from "../types.ts";
+import { readonlyType } from "../types.ts";
 import { selfRefScope, type SelfRefScope } from "./self-ref.ts";
 import {
   effectiveFacts,
@@ -28,7 +34,18 @@ import {
   type MemberModel,
   type VariantModel,
 } from "./derivation-models.ts";
-import { NEWTYPE_FIELD } from "./type-declarations.ts";
+import {
+  compileTemplate,
+  forwardNewtype,
+  headName,
+  instanceImplementations,
+  renameWords,
+  sourceMemberBound,
+  STRUCTURE,
+  transform,
+  visit,
+  type CompiledTemplate,
+} from "./template-instances.ts";
 import { withTypedFacts } from "./typed-facts.ts";
 import { debugWriterName } from "./standard-traits.ts";
 import { checkDuplicateDeclarationFacts, isLiteralFact } from "./declaration-facts.ts";
@@ -43,28 +60,30 @@ import {
 } from "./member-lines.ts";
 
 // Typed derivation (spec/14-annotations.md#typed-derivation), lowered before
-// checking. The prototype compiles one module, so this pass rewrites every
-// derivation into ordinary source: each `@derive(X)` of a trait with a
-// template, and each derivation block `impl X for T by Structure:`, becomes
-// one ordinary `impl X for T:` whose methods are the template's with `T`
-// replaced. `Structure::walk(self, w)`, `T::describe(d)`, `T::build(s)`, and
-// `T::facts()` become calls of generated module functions specialized to the
-// target and to the walker, describer, or source type, which the template
-// must hold in a local declared with its type; `T::name()` becomes the
-// target's declared name. The handles, facts, and
-// member information are values of the `std.structure` declarations below,
-// written in hd with hidden fields for the compiler-supplied bodies.
+// checking. Each template is checked once (`compileTemplate`): its methods
+// become generic functions over the template's `T`, bounded by a hidden
+// trait that stands for `T`'s `Structure` in that template, with one method
+// per `walk`, `describe`, or `build` call site. Each `@derive(X)` of a trait
+// with a template, and each derivation block `impl X for T by Structure:`,
+// becomes two ordinary implementations (`generateDerivation`): the hidden
+// trait for the target, whose methods call traversal functions specialized
+// to the target and to the walker, describer, or source type, and `X` for
+// the target, whose methods call the template's functions. The template
+// must hold the walker, describer, or source in a local declared with its
+// type. The handles, facts, and member information are values of the
+// `std.structure` declarations below, written in hd with hidden fields for
+// the compiler-supplied bodies.
 //
 // Prototype gaps: `Facts` holds `Inspectable` values rather than `Any`, so a
 // fact must be inspectable; `VariantInfo.shared` is always empty; a build
 // handle's `get` returns the member's declared type whatever the argument's
-// permission; the intrinsic derivations are in derive-intrinsics.ts; drift and
-// unused-fact warnings treat every local trait as one package.
+// permission; the traversals are generated hd source, parsed and checked
+// per derivation; `@derive(Debug)` is still intrinsic (derive-intrinsics.ts);
+// drift and unused-fact warnings treat every local trait as one package.
 
 const STRUCTURE_MODULE = "std.structure";
-const STRUCTURE = "Structure";
 const PROTOCOL_TRAITS = new Set(["Walker", "Describer", "Source"]);
-const INTRINSIC_DERIVES = new Set(["Eq", "PartialOrd", "Ord", "Hash", "Debug"]);
+const INTRINSIC_DERIVES = new Set(["Debug"]);
 const DOWNCAST = "hd__downcast_val";
 
 /** The checker intrinsic that panics with `structure-variant-mismatch`. */
@@ -127,6 +146,13 @@ impl[HdS, HdF] Field[HdS, HdF]:
 
     pub fn fact[HdM < Inspectable](self) -> HdM?:
         self.info.facts.find::[HdM]()
+
+# The handle of a member with no facts, doc comment, or default.
+fn hd__plain_field[HdS, HdF](name: string, position: i32, positional: bool, self_ref: SelfRef, get: fn(HdS) -> HdF) -> Field[HdS, HdF]:
+    Field::[HdS, HdF] { info: Member { name: name, position: position, facts: Facts { items: [] }, doc: .None, embedded: false, positional: positional, self_ref: self_ref }, hd_get: get, hd_has_default: false, hd_default: hd__no_default::[HdF] }
+
+fn hd__no_default[HdF]() -> HdF?:
+    .None
 
 data Variant[HdS]:
     pub info: VariantInfo
@@ -206,83 +232,50 @@ interface Derivation {
 }
 
 // ---------------------------------------------------------------------------
-// Generic AST helpers.
-
-const TYPE_KEYS = new Set(["type", "result", "annotation", "alias", "base"]);
-const TYPE_LIST_KEYS = new Set(["typeArguments", "ownerTypeArguments", "supertraits"]);
-
-function isTypeRef(value: unknown): value is TypeRef {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const keys = Object.keys(value);
-  return (
-    typeof (value as { name?: unknown }).name === "string" &&
-    keys.includes("span") &&
-    keys.every((key) => key === "name" || key === "span")
-  );
-}
-
-function renameWords(text: string, renames: ReadonlyMap<string, string>): string {
-  if (renames.size === 0) return text;
-  return text.replace(/[\p{ID_Start}_][\p{ID_Continue}]*/gu, (word) => renames.get(word) ?? word);
-}
-
-/** Renames generic parameters in every type position of `node`. */
-function renameTypes<T>(node: T, renames: ReadonlyMap<string, string>): T {
-  if (Array.isArray(node)) return node.map((item) => renameTypes(item, renames)) as T;
-  if (!node || typeof node !== "object") return node;
-  const result: Record<string, unknown> = {};
-  for (const [entry, value] of Object.entries(node as Record<string, unknown>)) {
-    if (TYPE_KEYS.has(entry) && isTypeRef(value))
-      result[entry] = { ...value, name: renameWords(value.name, renames) };
-    else if (entry === "value" && isTypeRef(value) && "name" in (node as object))
-      result[entry] = { ...value, name: renameWords(value.name, renames) };
-    else if (TYPE_LIST_KEYS.has(entry) && Array.isArray(value))
-      result[entry] = value.map((item) =>
-        isTypeRef(item)
-          ? { ...item, name: renameWords(item.name, renames) }
-          : renameTypes(item, renames),
-      );
-    else if (entry === "traits" && Array.isArray(value))
-      result[entry] = value.map((item) =>
-        typeof item === "string" ? renameWords(item, renames) : item,
-      );
-    else result[entry] = renameTypes(value, renames);
-  }
-  return result as T;
-}
-
-/** Visits every object in `node`, depth first. */
-function visit(node: unknown, callback: (value: Record<string, unknown>) => void): void {
-  if (Array.isArray(node)) {
-    for (const item of node) visit(item, callback);
-    return;
-  }
-  if (!node || typeof node !== "object") return;
-  callback(node as Record<string, unknown>);
-  for (const value of Object.values(node as Record<string, unknown>)) visit(value, callback);
-}
-
-/** Maps every object bottom-up; `callback` may replace it. */
-function transform(node: unknown, callback: (value: Record<string, unknown>) => unknown): unknown {
-  if (Array.isArray(node)) return node.map((item) => transform(item, callback));
-  if (!node || typeof node !== "object") return node;
-  const result: Record<string, unknown> = {};
-  for (const [entry, value] of Object.entries(node as Record<string, unknown>))
-    result[entry] = transform(value, callback);
-  return callback(result);
-}
-
-function headName(type: string): string {
-  return readonlyType(type).split("[")[0]!;
-}
-
-// ---------------------------------------------------------------------------
 
 function structureImports(program: Program): Set<string> {
   const names = new Set<string>();
   for (const use of program.uses)
     if (use.module === STRUCTURE_MODULE) for (const name of use.names) names.add(name.name);
   return names;
+}
+
+/** The declarations of `std.structure` that the pass declares. */
+const STRUCTURE_DECLARATIONS = [
+  "Facts",
+  "Member",
+  "VariantInfo",
+  "SelfRef",
+  "Field",
+  "Variant",
+  "Key",
+  "Members",
+  "Walker",
+  "Describer",
+  "Source",
+];
+
+/**
+ * The names under which the pass declares `std.structure`'s items, when not
+ * their own: an imported item takes its local name, and one whose name the
+ * program declares itself, such as a `data Key`, a hidden name.
+ */
+export function structureRenames(program: Program): Map<string, string> {
+  const declared = new Set(
+    [...program.data, ...program.enums, ...program.traits, ...(program.types ?? [])].map(
+      (declaration) => declaration.name,
+    ),
+  );
+  const imported = new Map<string, string>();
+  for (const use of program.uses)
+    if (use.module === STRUCTURE_MODULE)
+      for (const name of use.names) imported.set(name.name, name.alias ?? name.name);
+  const renames = new Map<string, string>();
+  for (const name of STRUCTURE_DECLARATIONS) {
+    const local = imported.get(name) ?? (declared.has(name) ? `hd__structure_${name}` : name);
+    if (local !== name) renames.set(name, local);
+  }
+  return renames;
 }
 
 function isGadt(declaration: EnumDecl): boolean {
@@ -329,77 +322,6 @@ function callsTraversal(statements: readonly unknown[], parameter: string): bool
   return found;
 }
 
-/** The declared type of local `name` in a method body. */
-function localType(statements: readonly Statement[], name: string): string | undefined {
-  let type: string | undefined;
-  visit(statements, (value) => {
-    if (value.kind !== "binding" || value.name !== name || type !== undefined) return;
-    if (isTypeRef(value.annotation)) type = value.annotation.name;
-    else {
-      // `let mut w = Encoder { ... }` states its type through the literal.
-      const literal = value.value as { kind?: unknown; name?: unknown; typeArguments?: unknown };
-      if (value.mutableAccess === true && literal.kind === "data" && !literal.typeArguments)
-        type = `mut:${String(literal.name)}`;
-    }
-  });
-  return type;
-}
-
-/**
- * The strengthened bound of `member[F]` in a std template's `Source`
- * implementation (14-annotations.md#r-annot.walker.strengthen-member), read
- * from lib/std, as `Arbitrary & Inspectable` for derived `Arbitrary`.
- */
-function sourceMemberBound(support: readonly ImplDecl[]): readonly string[] {
-  for (const implementation of support) {
-    if (headName(implementation.traitName ?? "") !== "Source") continue;
-    const member = implementation.methods.find((method) => method.name === "member");
-    const parameter = member?.genericParameters[0];
-    const bound = member?.genericBounds.find((item) => item.parameter === parameter);
-    if (bound) return bound.traits;
-  }
-  return [];
-}
-
-/**
- * Inside a template, a call qualified by the derived trait has the
- * template's `T` as its `Self`, so it calls the target's own implementation
- * (14-annotations.md#r-annot.template.qualified-self, .receiverless).
- */
-function qualifiedByTarget(
-  callee: Extract<Expression, { kind: "qualified-name" }>,
-  target: string,
-  parameters: readonly string[],
-): Expression {
-  const ownerTypeArguments = parameters.map((name) => ({ name, span: callee.span }));
-  return { ...callee, owner: target, ...(parameters.length > 0 ? { ownerTypeArguments } : {}) };
-}
-
-/** The `Error` type an implementation of `protocol` for `type` declares. */
-function protocolError(
-  implementations: readonly ImplDecl[],
-  protocol: string,
-  type: string,
-): string | undefined {
-  const actual = readonlyType(type);
-  const actualParts = nominalGenericParts(actual);
-  for (const implementation of implementations) {
-    if (!implementation.traitName || headName(implementation.traitName) !== protocol) continue;
-    if (headName(implementation.targetName) !== headName(actual)) continue;
-    const error = implementation.associatedTypes.find((item) => item.name === "Error")?.value;
-    if (!error) continue;
-    const renames = new Map<string, string>();
-    const declared = nominalGenericParts(implementation.targetName);
-    declared?.arguments.forEach((argument, index) => {
-      const value = actualParts?.arguments[index];
-      if (implementation.genericParameters.includes(argument) && value !== undefined)
-        renames.set(argument, value);
-    });
-    return renameWords(error.name, renames);
-  }
-  return undefined;
-}
-
 // ---------------------------------------------------------------------------
 
 export function withTypedDerivation(source: Program): DerivationResult {
@@ -407,6 +329,9 @@ export function withTypedDerivation(source: Program): DerivationResult {
   const optInSpans: SourceSpan[] = [];
   const arbitraryOptIns: ArbitraryOptIn[] = [];
   const imported = structureImports(source);
+  // The names of std.structure's items in this program.
+  const renames = structureRenames(source);
+  const structureName = (name: string): string => renames.get(name) ?? name;
   const structureVisible = imported.has(STRUCTURE);
   const functions = new Map(source.functions.map((item) => [item.name, item] as const));
   const error = (code: string, message: string, span: SourceSpan): void => {
@@ -473,23 +398,26 @@ export function withTypedDerivation(source: Program): DerivationResult {
   const intrinsic: { trait: string; target: Target; span: SourceSpan }[] = [];
   const newtypeDerivations: { trait: string; declaration: TypeDecl; span: SourceSpan }[] = [];
   const newtypeIntrinsic: { trait: string; declaration: TypeDecl; span: SourceSpan }[] = [];
-  // `std.testing.Arbitrary` derives through its std template, which the
-  // program's derivations instantiate with the `Source` implementation it
-  // needs (spec/std/testing.md#derived-arbitrary).
+  // A std trait derives through its std template, which the program's
+  // derivations instantiate with the walker or source implementations of
+  // its module: `std.testing.Arbitrary` (spec/std/testing.md#derived-arbitrary),
+  // and the comparison traits and `Hash` (spec/std/cmp.md, spec/std/hash.md).
   const arbitrary = testingName(program, "Arbitrary");
-  let templateSupport: readonly ImplDecl[] = [];
-  let templateUses: readonly UseDecl[] = [];
-  if (arbitrary && !templates.has(arbitrary)) {
-    const standard = standardTemplate(program, arbitrary);
-    if (standard) {
-      templates.set(arbitrary, standard.template);
-      templateSupport = standard.support;
-      templateUses = standard.uses;
-    }
-  }
+  const standardTemplates = new Map<
+    string,
+    { readonly support: readonly ImplDecl[]; readonly uses: readonly UseDecl[] }
+  >();
+  const loadStandard = (name: string): void => {
+    if (templates.has(name) || localTraits.has(name)) return;
+    const standard = standardTemplate(program, name, renames);
+    if (!standard) return;
+    templates.set(name, standard.template);
+    standardTemplates.set(name, standard);
+  };
   const optIn = (target: Target | undefined, declaration: DataDecl | EnumDecl | TypeDecl): void => {
     for (const trait of declaration.decorators?.derives ?? []) {
       const name = trait.name;
+      if (!INTRINSIC_DERIVES.has(name)) loadStandard(name);
       if (INTRINSIC_DERIVES.has(name)) {
         const span = trait.span;
         if (target) intrinsic.push({ trait: name, target, span });
@@ -502,7 +430,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
           "underivable-trait",
           name === "Error"
             ? "Error has no template and is not intrinsic; an error type uses @error"
-            : `trait '${name}' has neither a template nor an intrinsic derivation`,
+            : `trait '${name}' has no derivation template`,
           trait.span,
         );
         continue;
@@ -542,6 +470,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
       );
       continue;
     }
+    loadStandard(trait);
     const target = targets.get(targetName);
     if (!templates.has(trait)) {
       error("underivable-trait", `trait '${trait}' has no derivation template`, block.span);
@@ -587,44 +516,92 @@ export function withTypedDerivation(source: Program): DerivationResult {
   const generated: Program[] = [];
   const implementations: ImplDecl[] = [...kept];
 
+  // The walker and source implementations of the std templates in use, and
+  // the names only they use, once each.
+  const supportKeys = new Set<string>();
+  const templateSupport: ImplDecl[] = [];
+  const templateUses: UseDecl[] = [];
+  const useKeys = new Set<string>();
+  // A newtype forwards to its base type, so only a type's derivation uses them.
+  const usedStandard = new Set(derivations.map((derivation) => derivation.trait));
+  for (const [trait, standard] of standardTemplates) {
+    if (!usedStandard.has(trait)) continue;
+    for (const implementation of standard.support) {
+      const key = `${implementation.traitName} ${implementation.targetName}`;
+      if (supportKeys.has(key)) continue;
+      supportKeys.add(key);
+      templateSupport.push(implementation);
+    }
+    for (const use of standard.uses) {
+      const key = `${use.module} ${use.names.map((name) => name.alias ?? name.name).join(",")}`;
+      if (useKeys.has(key)) continue;
+      useKeys.add(key);
+      templateUses.push(use);
+    }
+  }
+
   const scope = selfRefScope(program);
+  // Each template is checked once, as generic functions, whatever the
+  // number of its derivations (annot.template.checked).
+  const compiledTemplates = new Map<string, CompiledTemplate>();
+  const compiledTemplate = (trait: string): CompiledTemplate => {
+    let compiled = compiledTemplates.get(trait);
+    if (!compiled) {
+      compiled = compileTemplate(
+        templates.get(trait)!,
+        [...program.implementations, ...templateSupport],
+        renames,
+        error,
+      );
+      compiledTemplates.set(trait, compiled);
+    }
+    return compiled;
+  };
+  const definedParts = new Set<string>();
+  checkLawPartners(program, error);
   derivations.forEach((derivation, index) => {
     // A member that fails derived `Arbitrary`'s bounds is
     // `unsatisfied-trait-bound` (std-testing.arbitrary.derive.not-derivable).
+    // A compared or hashed member reports at the field instead
+    // (trait.derive.field-missing-trait).
+    const standard = standardTemplates.get(derivation.trait);
+    const checked = standard !== undefined && DERIVE_CHECKED_TRAITS.has(derivation.trait);
     if (derivation.trait === arbitrary)
       arbitraryOptIns.push({ span: derivation.span, members: memberTypes(derivation.target) });
-    else optInSpans.push(derivation.span);
+    else if (!checked) optInSpans.push(derivation.span);
     const result = generateDerivation(
       derivation,
       index,
-      templates.get(derivation.trait)!,
-      [...program.implementations, ...templateSupport],
-      derivation.trait === arbitrary ? sourceMemberBound(templateSupport) : [],
+      compiledTemplate(derivation.trait),
+      standard ? sourceMemberBound(standard.support, structureName("Source")) : [],
       scope,
-      error,
+      checked,
+      renames,
+      definedParts,
     );
     if (!result) return;
-    implementations.push(result.implementation);
+    implementations.push(result.implementation, result.structure);
     generated.push(result.program);
   });
+  const templateDeclarations = [...compiledTemplates.values()].map((item) => item.declarations);
+  const newtypeHelpers = new Map<string, FunctionDecl>();
   for (const item of newtypeDerivations) {
-    const result = forwardNewtype(item, templates.get(item.trait)!, error);
+    const checked = standardTemplates.has(item.trait) && DERIVE_CHECKED_TRAITS.has(item.trait);
+    const result = forwardNewtype(item, templates.get(item.trait)!, checked, newtypeHelpers, error);
     if (result) implementations.push(result);
   }
   const writer = debugWriterName(program.uses);
-  implementations.push(...deriveIntrinsics(program, intrinsic, newtypeIntrinsic, writer, error));
-  // The std template's `Source` implementation and the names only it uses,
-  // once a derivation uses it.
-  const derivesArbitrary =
-    arbitrary !== undefined && derivations.some((derivation) => derivation.trait === arbitrary);
-  if (derivesArbitrary) implementations.push(...templateSupport);
+  implementations.push(...deriveIntrinsics(intrinsic, newtypeIntrinsic, writer));
+  implementations.push(...templateSupport);
   if (diagnostics.some((item) => item.severity !== "warning"))
     return { program, diagnostics, optInSpans, arbitraryOptIns };
 
   const factFunctions = factCheckFunctions(program);
 
   const needsStructure = imported.size > 0 || derivations.length > 0;
-  const structure = needsStructure ? parse(STRUCTURE_SOURCE).program : undefined;
+  const structure = needsStructure
+    ? parse(renameWords(STRUCTURE_SOURCE, renames)).program
+    : undefined;
   if (needsStructure && !structure) throw new Error("std.structure source does not parse");
   const structureUse: UseDecl = {
     kind: "use",
@@ -636,18 +613,17 @@ export function withTypedDerivation(source: Program): DerivationResult {
     ...trait,
     strengthenableMembers: ["member"],
   }));
-  const alreadyImportsInspectable = [
-    ...program.uses,
-    ...(derivesArbitrary ? templateUses : []),
-  ].some(
+  const alreadyImportsInspectable = [...program.uses, ...templateUses].some(
     (use) => use.module === "std.inspect" && use.names.some((name) => name.name === "Inspectable"),
   );
   return {
     program: {
       ...program,
+      // Handle constants come first, so a module binding may call a derived method.
+      statements: [...generated.flatMap((item) => item.statements), ...program.statements],
       uses: [
         ...program.uses.filter((use) => use.module !== STRUCTURE_MODULE),
-        ...(derivesArbitrary ? templateUses : []),
+        ...templateUses,
         ...(needsStructure
           ? [
               alreadyImportsInspectable
@@ -662,7 +638,11 @@ export function withTypedDerivation(source: Program): DerivationResult {
         ...generated.flatMap((item) => item.data),
       ],
       enums: [...program.enums, ...(structure?.enums ?? [])],
-      traits: [...program.traits, ...structureTraits],
+      traits: [
+        ...program.traits,
+        ...structureTraits,
+        ...templateDeclarations.map((item) => item.trait),
+      ],
       implementations: [
         ...implementations,
         ...(structure?.implementations ?? []),
@@ -670,8 +650,11 @@ export function withTypedDerivation(source: Program): DerivationResult {
       ],
       functions: [
         ...program.functions,
-        ...intrinsicHelpers(intrinsic, newtypeIntrinsic, writer),
+        ...intrinsicHelpers(newtypeIntrinsic, writer),
+        ...newtypeHelpers.values(),
         ...factFunctions,
+        ...(structure?.functions ?? []),
+        ...templateDeclarations.flatMap((item) => item.functions),
         ...generated.flatMap((item) => item.functions),
       ],
     },
@@ -1055,26 +1038,36 @@ function factCheckFunctions(program: Program): FunctionDecl[] {
 
 interface Generated {
   readonly implementation: ImplDecl;
+  /** The target's `Structure` for the template. */
+  readonly structure: ImplDecl;
   readonly program: Program;
 }
 
 function generateDerivation(
   derivation: Derivation,
   index: number,
-  template: ImplDecl,
-  implementations: readonly ImplDecl[],
+  compiled: CompiledTemplate,
   memberBound: readonly string[],
   scope: SelfRefScope,
-  error: (code: string, message: string, span: SourceSpan) => void,
+  checked: boolean,
+  renames: ReadonlyMap<string, string>,
+  defined: Set<string>,
 ): Generated | undefined {
+  const owner = derivation.target.declaration.name;
+  // A compared or hashed member is reported at its field (trait.derive.field-missing-trait).
+  const memberSpan = (member: MemberModel): SourceSpan | undefined =>
+    checked ? derivedFieldSpan(member.field, compiled.template.traitName!, owner) : undefined;
   const target = derivation.target;
   const declaration = target.declaration;
   const parameters = declaration.genericParameters;
   const targetType =
     parameters.length > 0 ? `${declaration.name}[${parameters.join(",")}]` : declaration.name;
   const variants = variantModels(target, derivation.lines, scope);
-  const out = new Source_();
+  const out = new Source_(defined);
   const prefix = `hd__d${index}`;
+  // The handles, variants, and facts of a derivation without member lines
+  // are the same in every such derivation of the target, so they share them.
+  const part = derivation.block ? prefix : `hd__s_${declaration.name}`;
   const T = out.type(targetType);
   // Derived bounds (annot.bound.params): each parameter in a traversed member.
   const bounded = parameters.filter((parameter) =>
@@ -1097,17 +1090,18 @@ function generateDerivation(
 
   // Facts and information values.
   const factsCall = (name: string, facts: readonly Expression[]): string => {
+    if (facts.length === 0 && name !== `${part}_facts`) return "Facts { items: [] }";
     out.define(name, () => [
       `fn ${name}() -> Facts:`,
       `    Facts { items: [${facts.map((fact) => `${out.expression(unscoped(fact))}${isSpreadFact(fact) ? "..." : ""}`).join(", ")}] }`,
     ]);
     return `${name}()`;
   };
-  factsCall(`${prefix}_facts`, effectiveFacts(target, derivation.lines, "Self").facts);
+  factsCall(`${part}_facts`, effectiveFacts(target, derivation.lines, "Self").facts);
   const optionalString = (text: string | undefined): string =>
     text === undefined ? ".None" : `.Some(${out.string(text)})`;
   const memberInfo = (variant: VariantModel, member: MemberModel): string => {
-    const facts = factsCall(`${prefix}_facts_${variant.index}_${member.position}`, member.facts);
+    const facts = factsCall(`${part}_facts_${variant.index}_${member.position}`, member.facts);
     return `Member { name: ${out.string(member.name)}, position: ${member.position}, facts: ${facts}, doc: ${optionalString(member.doc)}, embedded: ${member.embedded}, positional: ${member.positional}, self_ref: SelfRef.${member.selfRef} }`;
   };
   const infos = new Map<string, string>();
@@ -1127,31 +1121,33 @@ function generateDerivation(
 
   // Variant handles.
   for (const variant of variants) {
-    const variantFacts = factsCall(`${prefix}_vfacts_${variant.index}`, variant.facts);
-    out.define(`${prefix}_holds_${variant.index}`, () =>
+    const variantFacts = factsCall(`${part}_vfacts_${variant.index}`, variant.facts);
+    out.define(`${part}_holds_${variant.index}`, () =>
       variant.ofData
-        ? [`fn ${prefix}_holds_${variant.index}${plain}(s: ${T}) -> bool:`, `    true`]
+        ? [`fn ${part}_holds_${variant.index}${plain}(s: ${T}) -> bool:`, `    true`]
         : [
-            `fn ${prefix}_holds_${variant.index}${plain}(s: ${T}) -> bool:`,
+            `fn ${part}_holds_${variant.index}${plain}(s: ${T}) -> bool:`,
             `    match s:`,
             `        ${pattern(variant, () => false)} => true`,
             ...(variants.length > 1 ? [`        _ => false`] : []),
           ],
     );
-    out.define(`${prefix}_variant_${variant.index}`, () => [
-      `fn ${prefix}_variant_${variant.index}${plain}() -> Variant[${T}]:`,
-      `    Variant::[${T}] { info: VariantInfo { name: ${out.string(variant.name)}, index: ${variant.index}, facts: ${variantFacts}, doc: ${optionalString(variant.doc)}, of_data: ${variant.ofData}, shared: [], self_ref: SelfRef.${variant.selfRef} }, hd_holds: ${prefix}_holds_${variant.index}${plain} }`,
+    out.define(`${part}_variant_${variant.index}`, () => [
+      `fn ${part}_variant_${variant.index}${plain}() -> Variant[${T}]:`,
+      `    Variant::[${T}] { info: VariantInfo { name: ${out.string(variant.name)}, index: ${variant.index}, facts: ${variantFacts}, doc: ${optionalString(variant.doc)}, of_data: ${variant.ofData}, shared: [], self_ref: SelfRef.${variant.selfRef} }, hd_holds: ${part}_holds_${variant.index}${plain} }`,
     ]);
   }
 
   // Member handles: `r` passes the read type, `d` the declared type.
   const handle = (variant: VariantModel, member: MemberModel, view: "r" | "d"): string => {
-    const name = `${prefix}_${view}field_${variant.index}_${member.position}`;
+    const name = `${part}_${view}field_${variant.index}_${member.position}`;
     const memberType = view === "r" ? readonlyType(member.declared) : member.declared;
     const read = (value: string): string =>
       view === "d" && memberType !== readonlyType(memberType)
         ? `${STRUCTURE_AS_DECLARED}(${value})`
         : value;
+    // A handle is a literal at its use; only its `get`, and a declared
+    // default, are functions.
     out.define(name, () => {
       const F = out.type(memberType);
       const Fo = out.type(optionalType(memberType));
@@ -1164,96 +1160,30 @@ function generateDerivation(
               `        ${pattern(variant, (other) => other === member)} => ${read(binding(member))}`,
               ...(variants.length > 1 ? [`        _ => ${STRUCTURE_MISMATCH}()`] : []),
             ]),
-        `fn ${name}_default${plain}() -> ${Fo}:`,
-        `    ${member.default ? `.Some(${out.expression(member.default)})` : ".None"}`,
-        `fn ${name}${plain}() -> Field[${T}, ${F}]:`,
-        `    Field::[${T}, ${F}] { info: ${infos.get(`${variant.index}_${member.position}`)}, hd_get: ${name}_get${plain}, hd_has_default: ${member.default !== undefined}, hd_default: ${name}_default${plain} }`,
+        ...(member.default
+          ? [
+              `fn ${name}_default${plain}() -> ${Fo}:`,
+              `    .Some(${out.expression(member.default)})`,
+            ]
+          : []),
       ];
     });
-    return `${name}${plain}()`;
-  };
-
-  // Traversal functions, one per call site.
-  let callCount = 0;
-  const traversals = new Set<string>();
-  const rewriteCalls = (method: MethodDecl): MethodDecl => {
-    const templateParameter = template.genericParameters[0]!;
-    const renames = new Map([[templateParameter, targetType]]);
-    const body = transform(method.body ?? [], (value) => {
-      if (value.kind === "call") {
-        const callee = value.callee as Expression;
-        if (callee.kind !== "qualified-name") return value;
-        const args = value.arguments as Expression[];
-        if (callee.owner === headName(template.traitName ?? ""))
-          return { ...value, callee: qualifiedByTarget(callee, declaration.name, parameters) };
-        // `Structure::f(args)` is `T::f(args)`; `Structure::walk` takes its value.
-        const owner =
-          callee.owner === STRUCTURE && callee.name !== "walk" ? templateParameter : callee.owner;
-        const traversal =
-          owner === STRUCTURE && callee.name === "walk"
-            ? "walk"
-            : owner === templateParameter && (callee.name === "describe" || callee.name === "build")
-              ? callee.name
-              : owner === templateParameter && callee.name === "facts"
-                ? "facts"
-                : owner === templateParameter && callee.name === "name" && args.length === 0
-                  ? "name"
-                  : undefined;
-        if (!traversal) return value;
-        // `T::name()` is the target's declared name, a compile-time constant
-        // (annot.structure.name, .name.constant).
-        if (traversal === "name")
-          return { kind: "string", value: declaration.name, span: value.span };
-        if (traversal === "facts")
-          return {
-            ...value,
-            callee: { kind: "name", name: `${prefix}_facts`, span: callee.span },
-            arguments: [],
-          };
-        const argument = traversal === "walk" ? args[1] : args[0];
-        const local =
-          argument?.kind === "name" ? localType(method.body ?? [], argument.name) : undefined;
-        if (!local) {
-          error(
-            "unsupported-derivation",
-            `the prototype needs the ${traversal === "walk" ? "walker" : traversal === "describe" ? "describer" : "source"} of ${traversal} in a local declared with its type`,
-            value.span as SourceSpan,
-          );
-          return value;
-        }
-        const protocol =
-          traversal === "walk" ? "Walker" : traversal === "describe" ? "Describer" : "Source";
-        const localTypeText = renameWords(local, renames);
-        const errorType = protocolError(implementations, protocol, localTypeText) ?? "never";
-        const name = `${prefix}_${traversal}_${callCount}`;
-        callCount += 1;
-        generateTraversal(traversal, name, localTypeText, errorType);
-        traversals.add(name);
-        return {
-          ...value,
-          callee: { kind: "name", name, span: callee.span },
-          arguments: traversal === "walk" ? args : [args[0]],
-        };
-      }
-      return value;
-    }) as Statement[];
-    const renamed = renameTypes({ ...method, body }, renames);
-    if (parameters.length === 0) return renamed;
-    // The target's parameters, which a describer or source need not
-    // mention, are passed to each traversal explicitly, after the renaming
-    // so that a template parameter of the same name is not replaced.
-    return {
-      ...renamed,
-      body: transform(renamed.body ?? [], (value) => {
-        const callee = value.callee as Expression | undefined;
-        if (value.kind !== "call" || callee?.kind !== "name" || !traversals.has(callee.name))
-          return value;
-        return {
-          ...value,
-          typeArguments: parameters.map((parameter) => ({ name: parameter, span: callee.span })),
-        };
-      }) as Statement[],
-    };
+    const F = out.type(memberType);
+    const fallback = member.default ? `${name}_default${plain}` : `hd__no_default::[${F}]`;
+    const plainHandle =
+      member.facts.length === 0 &&
+      member.doc === undefined &&
+      !member.embedded &&
+      member.default === undefined;
+    const literal = plainHandle
+      ? `hd__plain_field::[${T}, ${F}](${out.string(member.name)}, ${member.position}, ${member.positional}, SelfRef.${member.selfRef}, ${name}_get${plain})`
+      : `Field::[${T}, ${F}] { info: ${infos.get(`${variant.index}_${member.position}`)}, hd_get: ${name}_get${plain}, hd_has_default: ${member.default !== undefined}, hd_default: ${fallback} }`;
+    // A plain handle of a non-generic target is a module constant, built
+    // once (annot.handle.constants). One with facts or a default is built
+    // at its use, since evaluating them may call the derived code.
+    if (parameters.length > 0 || !plainHandle) return literal;
+    out.define(`${name}_constant`, () => [`let ${name}: Field[${T}, ${F}] = ${literal}`]);
+    return name;
   };
 
   const generateTraversal = (
@@ -1268,17 +1198,23 @@ function generateDerivation(
       out.add(`fn ${name}${generics}(value: ${T}, w: ${V}) -> Result[void, ${E}]:`);
       if (target.kind === "data") {
         const variant = variants[0]!;
-        out.add(`    w.variant(${prefix}_variant_0${plain}())?`);
+        out.add(`    w.variant(${part}_variant_0${plain}())?`);
         for (const member of variant.members)
           if (!member.omitted)
-            out.add(`    w.member(${handle(variant, member, "r")}, value.${member.access})?`);
+            out.add(
+              `    w.member(${handle(variant, member, "r")}, value.${member.access})?`,
+              memberSpan(member),
+            );
       } else {
         out.add(`    match value:`);
         for (const variant of variants) {
           out.add(`        ${pattern(variant, (member) => !member.omitted)} =>`);
-          out.add(`            w.variant(${prefix}_variant_${variant.index}${plain}())?`);
+          out.add(`            w.variant(${part}_variant_${variant.index}${plain}())?`);
           for (const member of variant.members)
-            out.add(`            w.member(${handle(variant, member, "r")}, ${binding(member)})?`);
+            out.add(
+              `            w.member(${handle(variant, member, "r")}, ${binding(member)})?`,
+              memberSpan(member),
+            );
         }
       }
       out.add(`    .Ok()`);
@@ -1287,7 +1223,7 @@ function generateDerivation(
     if (traversal === "describe") {
       out.add(`fn ${name}${generics}(d: ${V}) -> Result[void, ${E}]:`);
       for (const variant of variants) {
-        out.add(`    d.variant(${prefix}_variant_${variant.index}${plain}())?`);
+        out.add(`    d.variant(${part}_variant_${variant.index}${plain}())?`);
         for (const member of variant.members)
           if (!member.omitted) out.add(`    d.member(${handle(variant, member, "r")})?`);
       }
@@ -1298,7 +1234,7 @@ function generateDerivation(
     const mutT = out.type(`mut:${targetType}`);
     out.add(`fn ${name}${generics}(s: ${V}) -> Result[${mutT}, ${E}]:`);
     out.add(
-      `    chosen := s.variant([${variants.map((variant) => `${prefix}_variant_${variant.index}${plain}()`).join(", ")}])?`,
+      `    chosen := s.variant([${variants.map((variant) => `${part}_variant_${variant.index}${plain}()`).join(", ")}])?`,
     );
     for (const variant of variants) {
       out.add(`    if chosen.info.index == ${variant.index}:`);
@@ -1311,7 +1247,7 @@ function generateDerivation(
       for (const member of offered)
         out.add(`    let ${binding(member)}: ${out.type(optionalType(member.declared))} = .None`);
       out.add(
-        `    members := Members::[${T}] { infos: [${offered.map((member) => infos.get(`${variant.index}_${member.position}`)).join(", ")}], hd_type: ${prefix}_holds_${variant.index}${plain} }`,
+        `    members := Members::[${T}] { infos: [${offered.map((member) => infos.get(`${variant.index}_${member.position}`)).join(", ")}], hd_type: ${part}_holds_${variant.index}${plain} }`,
       );
       out.add(`    while true:`);
       out.add(`        key := s.next(members)?`);
@@ -1353,135 +1289,43 @@ function generateDerivation(
     }
   };
 
-  // The implementation: the template's methods, with the block's overrides.
-  const overridden = new Set((derivation.block?.methods ?? []).map((method) => method.name));
-  const templateRenames = new Map([[template.genericParameters[0]!, targetType]]);
-  const methods = [
-    ...template.methods.filter((method) => !overridden.has(method.name)).map(rewriteCalls),
-    ...(derivation.block?.methods ?? []),
-  ];
-  const implementation: ImplDecl = {
-    kind: "impl",
-    genericParameters: derivation.block?.genericParameters.length
-      ? derivation.block.genericParameters
-      : parameters,
-    genericBounds: derivation.block?.genericParameters.length
-      ? derivation.block.genericBounds
-      : bounded.map((parameter) => ({ parameter, traits, span: derivation.span })),
-    traitName: renameWords(template.traitName!, templateRenames),
-    targetName: targetType,
-    associatedTypes: renameTypes(template.associatedTypes, templateRenames),
-    methods,
-    span: derivation.span,
-  };
-  return { implementation, program: out.program(derivation.span) };
-}
-
-// ---------------------------------------------------------------------------
-// Newtypes derive through their base (annot.derive.means, trait.derive.newtype).
-
-function forwardingAllowed(type: string): boolean {
-  if (!/\bSelf\b/.test(type)) return true;
-  const plain = readonlyType(type);
-  return (
-    plain === "Self" ||
-    plain === "Self?" ||
-    plain === "List[Self]" ||
-    plain.startsWith("Result[Self,")
+  // The traversal of each template call site, specialized to the target
+  // and to the walker, describer, or source type (annot.limit.specialize).
+  const targetRenames = new Map([[compiled.parameter, targetType]]);
+  compiled.sites.forEach((site, position) =>
+    generateTraversal(
+      site.traversal,
+      `${prefix}_${site.traversal}_${position}`,
+      renameWords(site.visitor, targetRenames),
+      renameWords(site.errorType, targetRenames),
+    ),
   );
+
+  const { structure, implementation } = instanceImplementations({
+    compiled,
+    ...(derivation.block ? { block: derivation.block } : {}),
+    declarationName: declaration.name,
+    parameters,
+    targetType,
+    bounded,
+    traits,
+    prefix,
+    part,
+    checked,
+    renames,
+    span: derivation.span,
+  });
+  const generated = out.program(derivation.span, (text) => renameWords(text, renames));
+  // A handle constant is visible in every generated function, which a
+  // binding is only before its declaration.
+  const statements = generated.statements.map((statement) => ({
+    ...statement,
+    span: BEFORE_SOURCE,
+  }));
+  return { implementation, structure, program: { ...generated, statements } };
 }
 
-function forwardNewtype(
-  item: { trait: string; declaration: TypeDecl; span: SourceSpan },
-  template: ImplDecl,
-  error: (code: string, message: string, span: SourceSpan) => void,
-): ImplDecl | undefined {
-  const parameter = template.genericParameters[0]!;
-  const selfRenames = new Map([[parameter, "Self"]]);
-  const methods: MethodDecl[] = [];
-  for (const method of template.methods) {
-    const positions = [
-      ...method.parameters.filter((value) => value.name !== "self").map((value) => value.type.name),
-      method.result.name,
-    ].map((type) => renameWords(type, selfRenames));
-    const bad = positions.find((type) => !forwardingAllowed(type));
-    if (bad !== undefined) {
-      error(
-        "newtype-derivation-self",
-        `method '${method.name}' has Self in '${bad.replace(/mut:/g, "mut ")}'; a newtype forwards only the receiver, Self, Self?, Result[Self, E], and List[Self]`,
-        item.span,
-      );
-      return undefined;
-    }
-    const unsupported = positions.find(
-      (type) => /\bSelf\b/.test(type) && readonlyType(type) !== "Self",
-    );
-    if (unsupported !== undefined) {
-      error(
-        "unsupported-derivation",
-        `the prototype forwards a newtype method only through the receiver and plain Self, not '${unsupported}'`,
-        item.span,
-      );
-      return undefined;
-    }
-    const span = item.span;
-    const base = item.declaration.base!.name;
-    const unwrap = (expression: Expression): Expression => ({
-      kind: "member",
-      receiver: expression,
-      name: NEWTYPE_FIELD,
-      span,
-    });
-    const receiver = method.parameters[0]?.name === "self";
-    const args = method.parameters
-      .filter((value) => value.name !== "self")
-      .map((value): Expression => {
-        const name: Expression = { kind: "name", name: value.name, span };
-        return readonlyType(renameWords(value.type.name, selfRenames)) === "Self"
-          ? unwrap(name)
-          : name;
-      });
-    const call: Expression = receiver
-      ? {
-          kind: "call",
-          callee: {
-            kind: "member",
-            receiver: unwrap({ kind: "name", name: "self", span }),
-            name: method.name,
-            span,
-          },
-          arguments: args,
-          span,
-        }
-      : {
-          kind: "call",
-          callee: { kind: "qualified-name", owner: base, name: method.name, span },
-          arguments: args,
-          span,
-        };
-    const wrapped: Expression =
-      readonlyType(renameWords(method.result.name, selfRenames)) === "Self"
-        ? {
-            kind: "call",
-            callee: { kind: "name", name: item.declaration.name, span },
-            arguments: [call],
-            span,
-          }
-        : call;
-    methods.push({
-      ...renameTypes(method, new Map([[parameter, item.declaration.name]])),
-      body: [{ kind: "expression", expression: wrapped, span }],
-      span,
-    });
-  }
-  return {
-    kind: "impl",
-    genericParameters: item.declaration.genericParameters,
-    genericBounds: [],
-    traitName: item.trait,
-    targetName: item.declaration.name,
-    associatedTypes: [],
-    methods,
-    span: item.span,
-  };
-}
+const BEFORE_SOURCE: SourceSpan = {
+  start: { line: 1, column: 1, offset: -1 },
+  end: { line: 1, column: 1, offset: -1 },
+};

@@ -360,6 +360,46 @@ the seven SSC-Q7 rows and three of the four RETRY rows.
   `examples/core.hd`; a map or `assert_equal` program takes 10 to 40 ms
   more of about 600 ms, from the `Hash` impls and `check_equal`.
 
+**#142 status, 2026-10-01: template lowering and M11 done; tuple
+templates (M8 by O3b) not started.** TS 663 lines deleted and 1,111
+added by `git diff --numstat`, about 450 of them moved from
+`typed-derivation.ts` to `template-instances.ts`; hd 144 lines added. No
+known-failure row changed.
+
+- Template lowering. A template is checked once: each method is a
+  generic function over its `T`, bounded by a hidden trait for `T`'s
+  `Structure` in that template. A derivation implements that trait, whose
+  methods call the generated traversals, and implements the derived trait
+  by calling the template's functions. The traversals and handles are
+  still generated hd source, parsed and checked per derivation; checking
+  them is where the obligation `annot.walker.obligation` is met. Handles
+  got cheaper: a plain handle is one call of a std helper, a non-generic
+  target's is a module constant, and derivations of one target without
+  member lines share them. Implementation lookup now indexes candidates
+  by the target's declaration name, which made checking quadratic in the
+  number of derivations before.
+- Cost per member, from the 1x20 to the 20x20 benchmark of
+  [Compiler Performance](archive/COMPTIME_UNIFICATION.md#compiler-performance):
+  a user walk template went from 0.34 ms and 3.1 KB of WAT to 0.19 ms and
+  1.3 KB. Derived `Eq` went from 0.035 ms and 0.33 KB (TS generator) to
+  0.19 ms and 1.4 KB (template); all four comparison traits from 0.25 ms
+  and 2.4 KB to 0.67 ms and 4.5 KB, since `PartialOrd` and `Ord` each walk
+  `other` once more to read its variant index.
+- M11. `@derive(Eq, PartialOrd, Ord, Hash)` instantiates templates in
+  `lib/std/cmp.hd` and `lib/std/hash.hd`. `derive-field-missing-trait`
+  is reported from the walk's member call at the field, and
+  `missing-derived-bound` from the derived implementation; a newtype
+  calls its base type's method through a bounded helper.
+  `mixed-derived-law` is unchanged. `@derive(Debug)` is still the TS
+  generator (M7).
+- `std.structure` names are hidden when the program declares a type of
+  the same name, since every program that derives `Eq` now declares them.
+- Left: tuple `Structure`, `Walker.rest`, the seven tuple templates, and
+  deleting the per-size tuple impls and the tuple comparison strategies.
+  The pass runs before the std join, so it must learn the tuple shapes a
+  program uses, including inferred ones, and the traits it needs, which
+  the join computes today.
+
 Rules for every chunk:
 
 - Write the hd first, then delete the TS path it replaces. Never keep both.

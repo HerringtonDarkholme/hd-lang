@@ -5,8 +5,9 @@ import { Source_, ZERO_SPAN } from "./generated-source.ts";
 import type { Target } from "./member-lines.ts";
 
 // ---------------------------------------------------------------------------
-// The intrinsic `@derive(Eq)` (spec/09-traits.md#comparison-traits) and
-// `@derive(Debug)` (#debug-trait).
+// The derive checks of the comparison traits, whose implementations come from
+// the std templates (spec/09-traits.md#derived-implementations), and the
+// intrinsic `@derive(Debug)` (#debug-trait).
 
 /** What a derived field line compares or hashes, for its diagnostic. */
 interface DerivedFieldCheck {
@@ -25,11 +26,19 @@ interface DerivedFieldCheck {
 const DERIVED_FIELD_CHECKS = new WeakMap<SourceSpan, DerivedFieldCheck>();
 
 /**
- * The spans of intrinsically derived implementations. An unmet bound of one
- * of their methods is `missing-derived-bound` at the use
+ * The spans of derived implementations of the comparison traits. An unmet
+ * bound of one of their methods is `missing-derived-bound` at the use
  * (spec/09-traits.md#r-trait.derive.bound-unmet).
  */
 export const DERIVED_IMPLEMENTATION_SPANS = new WeakSet<SourceSpan>();
+
+/** The traits whose derivation reports `derive-field-missing-trait` and `missing-derived-bound`. */
+export const DERIVE_CHECKED_TRAITS: ReadonlySet<string> = new Set([
+  "Eq",
+  "PartialOrd",
+  "Ord",
+  "Hash",
+]);
 
 /** The trait errors a derived field line reports as `derive-field-missing-trait`. */
 const DERIVED_FIELD_CODES: ReadonlySet<string> = new Set([
@@ -61,7 +70,7 @@ export function derivedFieldDiagnostic(
 }
 
 /** A fresh span for the line that handles `field`, registered for its diagnostic. */
-function fieldSpan(field: DataField, trait: string, owner: string): SourceSpan {
+export function derivedFieldSpan(field: DataField, trait: string, owner: string): SourceSpan {
   const span = { ...field.span };
   DERIVED_FIELD_CHECKS.set(span, {
     trait,
@@ -71,8 +80,16 @@ function fieldSpan(field: DataField, trait: string, owner: string): SourceSpan {
   return span;
 }
 
+/** A fresh span for the line that forwards to a newtype's base type, registered for its diagnostic. */
+export function derivedBaseSpan(declaration: TypeDecl, trait: string): SourceSpan {
+  const base = declaration.base!;
+  const span = { ...base.span };
+  DERIVED_FIELD_CHECKS.set(span, { trait, owner: declaration.name, field: base.name, base: true });
+  return span;
+}
+
 /** A fresh span for a derived implementation, registered as derived. */
-function implementationSpan(span: SourceSpan): SourceSpan {
+export function derivedImplementationSpan(span: SourceSpan): SourceSpan {
   const fresh = { ...span };
   DERIVED_IMPLEMENTATION_SPANS.add(fresh);
   return fresh;
@@ -130,162 +147,13 @@ function deriveDebug(target: Target, writer: string, span: SourceSpan): ImplDecl
   return out.program(span).implementations[0]!;
 }
 
-function deriveEq(target: Target, span: SourceSpan): ImplDecl {
-  const declaration = target.declaration;
-  const out = new Source_();
-  const T = derivedImpl(target, "Eq", out);
-  out.add(`    fn eq(self, other: ${T}) -> bool:`);
-  // One line per field, whose span is the field's, so a field without `Eq`
-  // is reported there (trait.derive.field-missing-trait).
-  const compare = (field: DataField, left: string, right: string, indent: string): void =>
-    out.add(
-      `${indent}if !(${left} == ${right}): return false`,
-      fieldSpan(field, "Eq", declaration.name),
-    );
-  if (target.kind === "data") {
-    for (const field of target.declaration.fields)
-      compare(field, `self.${field.name}`, `other.${field.name}`, "        ");
-    out.add("        true");
-  } else {
-    const variants = target.declaration.variants;
-    out.add(`        match (self, other):`);
-    for (const variant of variants) {
-      const names = (side: string): string[] =>
-        variant.fields.map((_, position) => `${side}${position}`);
-      const pattern = (side: string): string =>
-        variant.fields.length === 0
-          ? `${declaration.name}.${variant.name}`
-          : `${declaration.name}.${variant.name}(${variant.fields.map((_, position) => names(side)[position]).join(", ")})`;
-      if (variant.fields.length === 0) {
-        out.add(`            (${pattern("l")}, ${pattern("r")}) => true`);
-        continue;
-      }
-      out.add(`            (${pattern("l")}, ${pattern("r")}) =>`);
-      variant.fields.forEach((field, position) =>
-        compare(field, names("l")[position]!, names("r")[position]!, "                "),
-      );
-      out.add("                true");
-    }
-    if (variants.length > 1) out.add(`            _ => false`);
-  }
-  return out.program(implementationSpan(span)).implementations[0]!;
-}
-
-// ---------------------------------------------------------------------------
-// `@derive(PartialOrd)`, `@derive(Ord)`, and `@derive(Hash)`
-// (spec/09-traits.md#derived-ordering, #derived-hashing). A field is compared
-// or hashed through the generated generic helpers below, whose bounds find a
-// built-in or declared implementation. An enum compares, and hashes, its
-// variant's declaration position first.
-
 interface IntrinsicDerivation {
   readonly trait: string;
   readonly target: Target;
   readonly span: SourceSpan;
 }
 
-const PARTIAL_CMP = "hd__partial_cmp";
-const CMP = "hd__cmp";
-const HASH = "hd__hash";
 const DEBUG = "hd__debug";
-
-function rankName(target: Target): string {
-  return `hd__rank_${target.declaration.name}`;
-}
-
-/** One ordering step: a decided comparison of `left` and `right` returns. */
-function orderStep(total: boolean, left: string, right: string, indent: string): string[] {
-  return [
-    `${indent}match ${total ? CMP : PARTIAL_CMP}(${left}, ${right}):`,
-    `${indent}    ${total ? ".Equal" : ".Some(.Equal)"} => pass`,
-    `${indent}    decided => return decided`,
-  ];
-}
-
-/** Adds an ordering step whose first line carries `field`'s span, when given. */
-function addOrderStep(out: Source_, steps: readonly string[], span?: SourceSpan): void {
-  steps.forEach((line, index) => out.add(line, index === 0 ? span : undefined));
-}
-
-function deriveOrdering(target: Target, total: boolean, span: SourceSpan): ImplDecl {
-  const out = new Source_();
-  const T = derivedImpl(target, total ? "Ord" : "PartialOrd", out);
-  const result = total ? "Ordering" : "Ordering?";
-  out.add(`    fn ${total ? "cmp" : "partial_cmp"}(self, other: ${T}) -> ${result}:`);
-  const body = "        ";
-  const trait = total ? "Ord" : "PartialOrd";
-  const owner = target.declaration.name;
-  const fields = (members: readonly DataField[]): void => {
-    for (const member of members)
-      addOrderStep(
-        out,
-        orderStep(total, `self.${member.name}`, `other.${member.name}`, body),
-        fieldSpan(member, trait, owner),
-      );
-  };
-  if (target.kind === "data") fields(target.declaration.fields);
-  else {
-    const { name, variants, sharedFields } = target.declaration;
-    const rank = rankName(target);
-    for (const line of orderStep(total, `${rank}(self)`, `${rank}(other)`, body)) out.add(line);
-    fields(sharedFields);
-    const payloads = variants.filter((variant) => variant.fields.length > 0);
-    if (payloads.length > 0) out.add(`${body}match (self, other):`);
-    for (const variant of payloads) {
-      const names = (side: string): string[] => variant.fields.map((_, index) => `${side}${index}`);
-      const pattern = (side: string): string =>
-        `${name}.${variant.name}(${names(side).join(", ")})`;
-      out.add(`${body}    (${pattern("hd_l")}, ${pattern("hd_r")}) =>`);
-      names("hd_l").forEach((left, index) =>
-        addOrderStep(
-          out,
-          orderStep(total, left, names("hd_r")[index]!, `${body}        `),
-          fieldSpan(variant.fields[index]!, trait, owner),
-        ),
-      );
-    }
-    if (payloads.length > 0 && variants.length > 1) out.add(`${body}    _ => pass`);
-  }
-  out.add(`${body}${total ? ".Equal" : ".Some(.Equal)"}`);
-  return out.program(implementationSpan(span)).implementations[0]!;
-}
-
-function deriveHash(target: Target, span: SourceSpan): ImplDecl {
-  const out = new Source_();
-  derivedImpl(target, "Hash", out);
-  out.add(`    fn hash(self, state: mut Hasher) -> void:`);
-  const body = "        ";
-  const owner = target.declaration.name;
-  const hash = (field: DataField, value: string, indent: string): void =>
-    out.add(`${indent}${HASH}(${value}, state)`, fieldSpan(field, "Hash", owner));
-  if (target.kind === "data") {
-    const fields = target.declaration.fields;
-    if (fields.length === 0) out.add(`${body}pass`);
-    for (const field of fields) hash(field, `self.${field.name}`, body);
-  } else {
-    const { name, variants, sharedFields } = target.declaration;
-    out.add(`${body}${HASH}(${rankName(target)}(self), state)`);
-    for (const field of sharedFields) hash(field, `self.${field.name}`, body);
-    const payloads = variants.filter((variant) => variant.fields.length > 0);
-    if (payloads.length > 0) out.add(`${body}match self:`);
-    for (const variant of payloads) {
-      const names = variant.fields.map((_, index) => `hd_v${index}`);
-      out.add(`${body}    ${name}.${variant.name}(${names.join(", ")}) =>`);
-      names.forEach((value, index) => hash(variant.fields[index]!, value, `${body}        `));
-    }
-    if (payloads.length > 0 && payloads.length < variants.length) out.add(`${body}    _ => pass`);
-  }
-  return out.program(implementationSpan(span)).implementations[0]!;
-}
-
-/** The ordinary implementation that one intrinsic `@derive` entry generates. */
-function deriveIntrinsic(item: IntrinsicDerivation, writer: string): ImplDecl {
-  if (item.trait === "Debug") return deriveDebug(item.target, writer, item.span);
-  if (item.trait === "PartialOrd") return deriveOrdering(item.target, false, item.span);
-  if (item.trait === "Ord") return deriveOrdering(item.target, true, item.span);
-  if (item.trait === "Hash") return deriveHash(item.target, item.span);
-  return deriveEq(item.target, item.span);
-}
 
 interface NewtypeDerivation {
   readonly trait: string;
@@ -294,73 +162,34 @@ interface NewtypeDerivation {
 }
 
 /**
- * An intrinsic derivation on a newtype applies the base type's method to the
- * unwrapped values (spec/09-traits.md#derived-newtypes).
+ * `@derive(Debug)` on a newtype applies the base type's method to the
+ * unwrapped value (spec/09-traits.md#derived-newtypes).
  */
-function deriveNewtypeIntrinsic(item: NewtypeDerivation, writer: string): ImplDecl {
+function deriveNewtypeDebug(item: NewtypeDerivation, writer: string): ImplDecl {
   const { name, genericParameters: parameters, base } = item.declaration;
   const out = new Source_();
   const T = out.type(parameters.length > 0 ? `${name}[${parameters.join(",")}]` : name);
   const bounds = parameters.map((parameter) => `${parameter} < ${item.trait}`).join(", ");
   out.add(`impl${parameters.length > 0 ? `[${bounds}]` : ""} ${item.trait} for ${T}:`);
-  const unwrap = (value: string): string => `${readonlyType(base!.name).split("[")[0]}(${value})`;
-  const [self, other] = [unwrap("self"), unwrap("other")];
+  const self = `${readonlyType(base!.name).split("[")[0]}(self)`;
   // A base type without the trait is `derive-field-missing-trait` at the
   // base type (spec/09-traits.md#r-trait.derive.newtype.requires.error).
-  const at = { ...base!.span };
-  DERIVED_FIELD_CHECKS.set(at, { trait: item.trait, owner: name, field: base!.name, base: true });
-  if (item.trait === "Eq") out.add(`    fn eq(self, other: ${T}) -> bool: ${self} == ${other}`, at);
-  if (item.trait === "PartialOrd")
-    out.add(
-      `    fn partial_cmp(self, other: ${T}) -> Ordering?: ${PARTIAL_CMP}(${self}, ${other})`,
-      at,
-    );
-  if (item.trait === "Ord")
-    out.add(`    fn cmp(self, other: ${T}) -> Ordering: ${CMP}(${self}, ${other})`, at);
-  if (item.trait === "Hash")
-    out.add(`    fn hash(self, state: mut Hasher) -> void: ${HASH}(${self}, state)`, at);
-  if (item.trait === "Debug")
-    out.add(`    fn debug(self, out: mut ${writer}) -> void: ${DEBUG}(${self}, out)`, at);
+  out.add(
+    `    fn debug(self, out: mut ${writer}) -> void: ${DEBUG}(${self}, out)`,
+    derivedBaseSpan(item.declaration, item.trait),
+  );
   return out.program(item.span).implementations[0]!;
 }
 
-/** The generic helpers and enum ranks that the generated implementations call. */
+/** The generic helper that a newtype's derived `Debug` calls. */
 export function intrinsicHelpers(
-  intrinsic: readonly IntrinsicDerivation[],
   newtypes: readonly NewtypeDerivation[],
   writer: string,
 ): FunctionDecl[] {
-  const helped = (item: { readonly trait: string }): boolean =>
-    ["PartialOrd", "Ord", "Hash"].includes(item.trait);
-  const used = intrinsic.filter(helped);
-  const debugged = newtypes.some((item) => item.trait === "Debug");
-  if (used.length === 0 && !newtypes.some(helped) && !debugged) return [];
+  if (newtypes.length === 0) return [];
   const out = new Source_();
-  if (debugged) {
-    out.add(`fn ${DEBUG}[T < Debug](value: T, out: mut ${writer}) -> void:`);
-    out.add(`    value.debug(out)`);
-  }
-  out.add(`fn ${PARTIAL_CMP}[T < PartialOrd](left: T, right: T) -> Ordering?:`);
-  out.add(`    left.partial_cmp(right)`);
-  out.add(`fn ${CMP}[T < Ord](left: T, right: T) -> Ordering:`);
-  out.add(`    left.cmp(right)`);
-  out.add(`fn ${HASH}[T < Hash](value: T, state: mut Hasher) -> void:`);
-  out.add(`    value.hash(state)`);
-  const ranked = new Set<string>();
-  for (const { target } of used) {
-    if (target.kind !== "enum" || ranked.has(target.declaration.name)) continue;
-    ranked.add(target.declaration.name);
-    const { name, genericParameters, variants } = target.declaration;
-    const generic = genericParameters.length > 0 ? `[${genericParameters.join(", ")}]` : "";
-    out.add(`fn ${rankName(target)}${generic}(value: ${name}${generic}) -> i32:`);
-    if (variants.length === 0) out.add("    0");
-    else out.add("    match value:");
-    variants.forEach((variant, position) => {
-      const payload =
-        variant.fields.length > 0 ? `(${variant.fields.map(() => "_").join(", ")})` : "";
-      out.add(`        ${name}.${variant.name}${payload} => ${position}`);
-    });
-  }
+  out.add(`fn ${DEBUG}[T < Debug](value: T, out: mut ${writer}) -> void:`);
+  out.add(`    value.debug(out)`);
   return [...out.program(ZERO_SPAN).functions];
 }
 
@@ -385,7 +214,7 @@ const REQUIRED_PARTNERS: Readonly<Record<string, readonly string[]>> = {
  * list, and a derived and a hand-written law partner never coexist; either
  * is `mixed-derived-law` on the `@derive` line.
  */
-function checkLawPartners(
+export function checkLawPartners(
   program: Program,
   error: (code: string, message: string, span: SourceSpan) => void,
 ): void {
@@ -424,17 +253,14 @@ function checkLawPartners(
   }
 }
 
-/** Every intrinsic derivation's implementation, after the law-partner check. */
+/** Every intrinsic `@derive(Debug)` implementation. */
 export function deriveIntrinsics(
-  program: Program,
   intrinsic: readonly IntrinsicDerivation[],
   newtypes: readonly NewtypeDerivation[],
   writer: string,
-  error: (code: string, message: string, span: SourceSpan) => void,
 ): ImplDecl[] {
-  checkLawPartners(program, error);
   return [
-    ...intrinsic.map((item) => deriveIntrinsic(item, writer)),
-    ...newtypes.map((item) => deriveNewtypeIntrinsic(item, writer)),
+    ...intrinsic.map((item) => deriveDebug(item.target, writer, item.span)),
+    ...newtypes.map((item) => deriveNewtypeDebug(item, writer)),
   ];
 }

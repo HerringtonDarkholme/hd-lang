@@ -72,6 +72,8 @@ interface ParsedModule {
 const parsedModules = new Map<StandardModule, ParsedModule>();
 /** Renamed module sources, parsed once each; most programs rename nothing they import. */
 const renamedModules = new Map<string, Program>();
+/** A std module's implementations, by renamed source, for its templates. */
+const templateModules = new Map<string, readonly ImplDecl[]>();
 
 /** The prelude names that a std module declares in hd, by module. */
 const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
@@ -534,6 +536,7 @@ export function standardSupertraits(program: Program, local: string): readonly s
 function moduleRenames(
   parsed: ParsedModule,
   nameOf: (module: StandardModule, name: string) => string,
+  structureNames: ReadonlyMap<string, string> = new Map(),
 ): Map<string, string> {
   const renames = new Map<string, string>();
   for (const name of parsed.names) renames.set(name, nameOf(parsed.name, name));
@@ -541,6 +544,7 @@ function moduleRenames(
     renames.set(used.name, nameOf(used.module, used.name));
   for (const used of [...parsed.compilerUses, ...parsed.templateCompilerUses])
     if (used.module !== STRUCTURE) renames.set(used.name, compilerUseName(used.module, used.name));
+    else if (structureNames.has(used.name)) renames.set(used.name, structureNames.get(used.name)!);
   return renames;
 }
 
@@ -572,7 +576,7 @@ function withTemplateName(program: Program): Program {
 const STRUCTURE = "structure";
 
 /** The `std.structure` names a module imports. */
-function structureNames(module: ParsedModule): Set<string> {
+function structureNamesOf(module: ParsedModule): Set<string> {
   return new Set(
     module.compilerUses.filter((used) => used.module === STRUCTURE).map((used) => used.name),
   );
@@ -596,7 +600,7 @@ function isTemplatePart(implementation: ImplDecl, structure: ReadonlySet<string>
  * `std.structure`, which the program declares only when it derives.
  */
 function withoutTemplates(renamed: Program, original: ParsedModule): Program {
-  const structure = structureNames(original);
+  const structure = structureNamesOf(original);
   return withStandardNames(
     {
       ...renamed,
@@ -633,6 +637,8 @@ function standardLocalNames(program: Program): Map<string, string> {
 export function standardTemplate(
   program: Program,
   trait: string,
+  /** The names of `std.structure` items the program renames (typed-derivation.ts). */
+  structureNames: ReadonlyMap<string, string>,
 ):
   | {
       readonly template: ImplDecl;
@@ -641,22 +647,39 @@ export function standardTemplate(
       readonly uses: readonly UseDecl[];
     }
   | undefined {
+  // The trait's module: one the program imports it from, or, for a prelude
+  // trait such as `Eq` or `Hash`, the module that declares it.
+  const candidates: { readonly module: StandardModule; readonly span: SourceSpan }[] = [];
   for (const declaration of program.uses) {
     const module = declaration.module.replace(/^std\./, "");
     if (!declaration.module.startsWith("std.") || !isStandardModule(module)) continue;
     const imported = declaration.names.find((name) => (name.alias ?? name.name) === trait);
+    if (imported && standardModule(module).names.includes(imported.name))
+      candidates.push({ module, span: declaration.span });
+  }
+  for (const [module, name] of PRELUDE_DECLARATIONS)
+    if (name === trait) candidates.push({ module, span: program.span });
+  for (const { module, span } of candidates) {
     const parsed = standardModule(module);
-    if (!imported || !parsed.names.includes(imported.name)) continue;
     const localNames = standardLocalNames(program);
     const nameOf = (owner: StandardModule, name: string): string =>
       localNames.get(`${owner}.${name}`) ?? hiddenStandardName(owner, name);
-    const renames = moduleRenames(parsed, nameOf);
+    const renames = moduleRenames(parsed, nameOf, structureNames);
     const source = renameSource(standardSource(module).replace(/^use .*$/gm, ""), renames);
-    const structure = structureNames(parsed);
-    const implementations = parseModule(module, source).implementations;
+    const structure = new Set(
+      [...structureNamesOf(parsed)].map((name) => structureNames.get(name) ?? name),
+    );
+    let implementations = templateModules.get(source);
+    if (!implementations) {
+      implementations = parseModule(module, source).implementations;
+      templateModules.set(source, implementations);
+    }
+    // The template, not a tuple template, whose parameter is bounded by
+    // `Tuple` (annot.template.tuple.separate).
     const template = implementations.find(
       (implementation) =>
         implementation.byStructure !== undefined &&
+        implementation.genericBounds.length === 0 &&
         baseName(implementation.traitName ?? "") === trait,
     );
     if (!template) return undefined;
@@ -665,7 +688,7 @@ export function standardTemplate(
         implementation.byStructure === undefined && isTemplatePart(implementation, structure),
     );
     const uses = parsed.templateCompilerUses
-      .map((used) => compilerUse(used, declaration.span))
+      .map((used) => compilerUse(used, span))
       .filter((use) => {
         const imported = use.names[0]!;
         return !imports(program, use.module, imported.name, imported.alias ?? imported.name);

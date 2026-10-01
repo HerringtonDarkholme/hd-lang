@@ -1,6 +1,7 @@
 # std.cmp (future-work/STDLIB.md#stdcmp-stdhash-stdformat). `Eq`,
 # `PartialOrd`, `Ord`, and `Ordering` are prelude names, declared here
 # (spec/09-traits.md#comparison-traits).
+use std.structure.{Structure, Walker, Variant, Field}
 
 pub enum Ordering:
     Less
@@ -170,3 +171,121 @@ impl[T < Ord] Ord for T?:
                 match other:
                     .Some(_) => .Less
                     .None => .Equal
+
+# Derived `Eq` (spec/std/cmp.md#derived-equality): `self` and `other` are
+# equal when they hold the same variant and every member of `self` equals
+# the same member of `other`. The walk stops at the first difference.
+impl[T] Eq for T by Structure:
+    fn eq(self, other: T) -> bool:
+        let w: mut EqualWalker[T] = EqualWalker::[T] { other: other }
+        match Structure::walk(self, w):
+            .Ok(_) => true
+            .Err(_) => false
+
+# The fields are public because the prototype checks the instantiated
+# walker in the deriving module. A walk's `.Err` only stops it.
+data EqualWalker[S]:
+    pub other: S
+
+impl[S] Walker[S] for EqualWalker[S]:
+    type Error = bool
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, bool]:
+        if v.holds(self.other):
+            return .Ok()
+        .Err(false)
+
+    fn member[F < Eq](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
+        if value == h.get(self.other):
+            return .Ok()
+        .Err(false)
+
+# Derived `PartialOrd` and `Ord` (spec/std/cmp.md#derived-ordering):
+# distinct variants compare by declaration order, and the same variant's
+# members compare in declaration order until one differs. A first walk
+# reads the variant index of `other`.
+impl[T] PartialOrd for T by Structure:
+    fn partial_cmp(self, other: T) -> Ordering?:
+        let probe: mut VariantIndex[T] = VariantIndex::[T] { index: 0 }
+        _ := Structure::walk(other, probe)
+        let w: mut PartialOrderWalker[T] = PartialOrderWalker::[T] { other: other, other_index: probe.index, result: .Some(.Equal) }
+        _ := Structure::walk(self, w)
+        w.result
+
+impl[T] Ord for T by Structure:
+    fn cmp(self, other: T) -> Ordering:
+        let probe: mut VariantIndex[T] = VariantIndex::[T] { index: 0 }
+        _ := Structure::walk(other, probe)
+        let w: mut OrderWalker[T] = OrderWalker::[T] { other: other, other_index: probe.index, result: .Equal }
+        _ := Structure::walk(self, w)
+        w.result
+
+# Reads a value's variant index, then stops.
+data VariantIndex[S]:
+    pub index: i32
+
+impl[S] Walker[S] for VariantIndex[S]:
+    type Error = bool
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, bool]:
+        self.index = v.info.index
+        .Err(true)
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
+        .Ok()
+
+# Holds the order once it is decided, and stops the walk.
+data PartialOrderWalker[S]:
+    pub other: S
+    pub other_index: i32
+    pub result: Ordering?
+
+impl[S] Walker[S] for PartialOrderWalker[S]:
+    type Error = bool
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, bool]:
+        if v.holds(self.other):
+            return .Ok()
+        if v.info.index < self.other_index:
+            self.result = .Some(.Less)
+        else:
+            self.result = .Some(.Greater)
+        .Err(true)
+
+    # An unordered member, such as NaN, makes the values unordered
+    # (r-std-cmp.derive.ord.partial).
+    fn member[F < PartialOrd](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
+        let order = value.partial_cmp(h.get(self.other))
+        match order:
+            .Some(decided) =>
+                match decided:
+                    .Equal => return .Ok()
+                    _ => pass
+            .None => pass
+        self.result = order
+        .Err(true)
+
+data OrderWalker[S]:
+    pub other: S
+    pub other_index: i32
+    pub result: Ordering
+
+impl[S] Walker[S] for OrderWalker[S]:
+    type Error = bool
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, bool]:
+        if v.holds(self.other):
+            return .Ok()
+        if v.info.index < self.other_index:
+            self.result = .Less
+        else:
+            self.result = .Greater
+        .Err(true)
+
+    fn member[F < Ord](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
+        let order = value.cmp(h.get(self.other))
+        match order:
+            .Equal => return .Ok()
+            _ => pass
+        self.result = order
+        .Err(true)

@@ -18,6 +18,8 @@ export interface MemberModel {
   readonly default?: Expression;
   readonly omitted: boolean;
   readonly selfRef: SelfRef;
+  /** The declared field, for a diagnostic there. */
+  readonly field: DataField;
 }
 
 export interface VariantModel {
@@ -75,6 +77,7 @@ export function variantModels(
     ...(field.default ? { default: field.default } : {}),
     omitted,
     selfRef,
+    field,
   });
   if (target.kind === "data") {
     const declaration = target.declaration;

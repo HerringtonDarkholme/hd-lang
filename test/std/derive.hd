@@ -1,4 +1,4 @@
-# The intrinsic derivations: Eq, PartialOrd, Ord, and Hash.
+# Derived Eq, PartialOrd, Ord, and Hash, through the std templates.
 use std.testing.{assert, assert_equal}
 
 @derive(Eq, PartialOrd, Ord, Hash)
