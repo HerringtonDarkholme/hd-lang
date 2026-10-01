@@ -1,5 +1,0 @@
-# test: the former grouped binding (a, b := value) is an error; the fix-it writes the statement let (a, b) = value
-# Spec 02 Multi-Name Bindings: grammar.expr.multi-binding.no-grouped (owner decision Q1b, batch 15, 2026-09-30; SSC Q5 and LP1-one, batch 26).
-fn pair() -> (i32, i32): (1, 2)
-
-grouped := (first, second := pair())  # diagnostic: syntax-error

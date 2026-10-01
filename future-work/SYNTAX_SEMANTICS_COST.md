@@ -184,7 +184,7 @@ and `grammar.inline.bind-list`
 for the same-line body.
 
 **Soundness.** The change is syntactic. Destructuring, the arity check
-[`flow.for.tuple-arity`](../spec/06-control-flow.md#r-flow.for.tuple-arity),
+`flow.for.tuple-arity` (since retired),
 and scopes do not change. No program changes meaning.
 
 **Cost.** Each multi-name loop gains two characters: 1 guide loop and
@@ -196,7 +196,7 @@ it; the fix-it is mechanical.
 | `binding_pattern` production | deleted; loops and comprehension `for` clauses take `binding_target` |
 | `grammar.inline.multi-name-for` | deleted: absorbed by `grammar.inline.bind-list` |
 | [`grammar.inline.loops`](../spec/02-grammar.md#r-grammar.inline.loops) | reworded: a same-line `for` takes one name or a list |
-| [`flow.for.tuple-binding`](../spec/06-control-flow.md#r-flow.for.tuple-binding) | reworded: `for (key, value) in entries` |
+| `flow.for.tuple-binding` (since retired) | reworded: `for (key, value) in entries` |
 | New rule beside `grammar.stmt.bind-list.bare` | added: `for a, b in m` is `syntax-error` with a fix-it |
 | About 23 fixtures with a multi-name loop | rewritten; rows unchanged |
 
@@ -312,8 +312,8 @@ line. The single-name walrus, `if (n := f()) > 0:`, is unchanged.
 | Item | Change |
 | --- | --- |
 | `grammar.expr.multi-binding.wrapped` | deleted; a nested multi-name binding is `syntax-error` |
-| [`grammar.expr.multi-binding.no-grouped`](../spec/02-grammar.md#r-grammar.expr.multi-binding.no-grouped), `.no-grouped.fix` | reworded: the fix-it hoists the binding to a statement |
-| [`grammar.expr.multi-binding.tuple-element`](../spec/02-grammar.md#r-grammar.expr.multi-binding.tuple-element) | unchanged |
+| `grammar.expr.multi-binding.no-grouped` (since retired), `.no-grouped.fix` | reworded: the fix-it hoists the binding to a statement |
+| `grammar.expr.multi-binding.tuple-element` (since retired) | unchanged |
 | Fixtures `grammar-disambiguation.hd`, `binding-expression-tuple-value.hd`, `binding-expressions.hd` | rewritten or moved to invalid |
 | Fixture `grouped-binding-expression.hd` | comment reworded |
 

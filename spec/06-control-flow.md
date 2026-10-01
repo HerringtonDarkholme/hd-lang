@@ -32,7 +32,7 @@ it a value.
    - a statement-position `match` arm;
    - a `defer` suite;
    - a module's top-level script.
-4. r[flow.must-use.handle] Such a value must be propagated with `?`, inspected by `match`, returned, stored for later use, or explicitly discarded with `_ := expression`.
+4. r[flow.must-use.handled] Such a value must be propagated with `?`, inspected by `match`, returned, stored for later use, or explicitly discarded with `_ := expression` or `let _ = expression`.
 5. r[flow.must-use.underscore] The `_` spelling does not bind a local name.
 
 ```text
@@ -43,6 +43,7 @@ fn save_all(values: List[i32]) -> void:
     for value in values:
         save()  # error: discarded-must-use-value
     _ := save()  # valid: an explicit discard
+    let _ = save()  # valid: the same discard
 ```
 
 > **Why.** The `_` spelling makes the discard visible in review.
@@ -52,7 +53,7 @@ fn save_all(values: List[i32]) -> void:
 1. r[flow.unused.warning] The compiler emits an `unused-local-binding` warning when an ordinary local binding is never read.
 2. r[flow.unused.underscore] Names beginning with `_` suppress that warning.
 3. r[flow.unused.must-use] The exception is an unread binding of a must-use value, which is an error. Error: `discarded-must-use-value`.
-4. r[flow.unused.discard-form] Only the exact `_ := expression` discard form explicitly discards a must-use value without binding it.
+4. r[flow.unused.discard-forms] The two discard forms, `_ := expression` and `let _ = expression`, each explicitly discard a must-use value without binding it. No other form discards one.
 
 ## Conditional Expressions
 
@@ -112,14 +113,35 @@ for value in values:
 1. r[flow.for.iterable-once] The iterable expression is evaluated exactly once.
 2. r[flow.for.fresh-iterator] A new iterator is obtained for each execution of the loop.
 3. r[flow.for.binding] The binding pattern receives each yielded value before the body executes.
-4. r[flow.for.tuple-binding] A binding list of several names, such as `for (key, value) in entries`, destructures each yielded value as a tuple.
-5. r[flow.for.tuple-arity] When the yielded type is not a tuple of that arity, the loop is an error. Error: `type-mismatch`.
+4. r[flow.for.pattern] The pattern of a `for` loop or a comprehension `for` clause matches each yielded value of type `T` as a `let` pattern matches an initializer of type `T`, under [Let Patterns](#let-patterns).
+5. r[flow.for.pattern.irrefutable] The pattern must be irrefutable for `T`. A refutable pattern is an error, and a loop's `else` does not handle it. Error: `refutable-let-pattern`.
+
+```text
+data Point:
+    x: i32
+    y: i32
+
+fn total(points: List[Point], scores: Map[string, i32]) -> i32:
+    let sum: i32 = 0
+    for Point { x, y } in points:
+        sum = sum + x + y
+    for (_, score) in scores:
+        sum = sum + score
+    sum
+```
 
 ```text
 fn bad(values: List[i32]) -> void:
     for (left, right) in values:  # error: type-mismatch
         pass
+
+fn present(found: List[i32?]) -> void:
+    for .Some(value) in found:  # error: refutable-let-pattern
+        pass
 ```
+
+> **Note.** A map yields `(K, V)` tuples, so `for (key, value) in entries`
+> is a tuple pattern, and `for entry in entries` binds the whole tuple.
 
 ### Iteration Protocols
 
@@ -523,7 +545,7 @@ fn read(id: i32) -> i32:
 7. r[flow.let.else.diverge] The `else` block must diverge: control never reaches its end.
 8. r[flow.let.else.diverge.forms] A block diverges when its final statement has type `never`, such as `return`, `break`, `continue`, or a call to `panic`, or is an `if` or `match` whose every branch diverges.
 9. r[flow.let.else.falls-through] An `else` block that may complete normally is an error. Error: `let-else-falls-through`.
-10. r[flow.let.else.irrefutable] An `else` block after an irrefutable pattern is valid, and it never runs.
+10. r[flow.let.else.unreachable] An `else` block after an irrefutable pattern could never run, so it is an error. Error: `unreachable-match-arm`.
 11. r[flow.let.tuple-arity] A tuple pattern needs a tuple of the same arity. Against any other value it is an error. Error: `type-mismatch`.
 
 ```text
@@ -542,11 +564,17 @@ fn falls_through(id: i32) -> i32:
 fn arity() -> i32:
     let (first, second) = (1, 2, 3)  # error: type-mismatch
     first
+
+fn always(pair: (i32, i32)) -> i32:
+    let (low, high) = pair else: return 0  # error: unreachable-match-arm
+    low + high
 ```
 
 > **Why.** An `else` block that fell through would reach code that reads
 > names the pattern never bound. Rust's let-else and Swift's `guard let`
 > require the same divergence.
+> An `else` that can never run tells the reader the pattern may fail, which
+> is false, so it is rejected as an unreachable arm would be.
 
 See also: [Let-Else Statements](02-grammar.md#let-else-statements), and
 [Let-Else Scope](03-names-and-scopes.md#let-else-scope) for where the

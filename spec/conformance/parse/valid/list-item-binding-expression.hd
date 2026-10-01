@@ -1,5 +1,5 @@
 # test: a list item may be a single-name binding expression, so [a, b := value] is a two-item list
-# Spec 02 Multi-Name Bindings: grammar.expr.multi-binding.list-item (owner decision Q5-list, batch 26, 2026-09-30).
+# Spec 02 Multi-Name Bindings: grammar.expr.multi-binding.element (owner decision Q5-list, batch 26, 2026-09-30).
 fn pair() -> (i32, i32): (1, 2)
 
 fn items(a: (i32, i32)) -> List[(i32, i32)]:

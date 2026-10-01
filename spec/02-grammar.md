@@ -305,8 +305,7 @@ fn choose(flag: bool) -> i32:
 6. r[grammar.inline.else-if] `else if` continues the same conditional rather than nesting one.
 7. r[grammar.inline.loops] Same-line `for` and `while` loops may still appear directly in a same-line suite.
 8. r[grammar.inline.let-pattern] A `let` statement may be a same-line suite body, because a pattern's commas stand inside brackets, as in `if ok: let (a, b) = pair` and `if ok: let Point { x, y } = p`.
-9. r[grammar.inline.for-list] A `for` over a parenthesized list may be a same-line suite body, or have one, for the same reason, as in `if ok: for (key, value) in entries: use(key)`.
-10. r[grammar.inline.bare-comma] The bare comma forms still close the suite, so `if ok: a, b := pair` and `if ok: let a, b = pair` are syntax errors. Error: `syntax-error`.
+9. r[grammar.inline.bare-comma] The bare comma forms still close the suite, so `if ok: a, b := pair` and `if ok: let a, b = pair` are syntax errors. Error: `syntax-error`.
 
 ```text
 fn pair() -> (i32, i32): (1, 2)
@@ -1026,8 +1025,8 @@ inside := 0 < value < 10  # error: comparison-chaining
 
 ### Multi-Name Bindings
 
-A binding expression binds one name, so a list may hold one as its last
-element:
+A binding expression binds one name, so a list or a tuple may hold one
+as its last element:
 
 ```text
 fn pair() -> (i32, i32): (1, 2)
@@ -1036,18 +1035,14 @@ fn items(a: (i32, i32)) -> List[(i32, i32)]:
     [a, b := pair()]
 ```
 
-1. r[grammar.expr.multi-binding.list-item] A list item may be a binding expression, so `[a, b := value]` holds `a` and the binding `b := value`, as `[a, (b := value)]` does.
+1. r[grammar.expr.multi-binding.element] A list item or a tuple element may be a binding expression. So `[a, b := value]` and `(a, b := value)` each hold `a` and the binding `b := value`, as `[a, (b := value)]` does.
 2. r[grammar.expr.multi-binding.let-only] A name list before `:=` inside an expression, as in `((a, b) := value)` or `[(a, b) := value]`, is an error. Its fix-it writes `let (a, b) = value` as a statement before the expression. Error: `syntax-error`.
-3. r[grammar.expr.multi-binding.no-grouped] The former grouped form `(a, b := value)`, whose `:=` stands inside the parentheses of the names, is an error, never a tuple whose final element is a binding. Error: `syntax-error`.
-4. r[grammar.expr.multi-binding.no-grouped.let] Its fix-it writes the statement `let (a, b) = value` before the expression that held it.
-5. r[grammar.expr.multi-binding.tuple-element] A tuple that contains a binding must parenthesize that element separately, as in `(a, (b := value))`.
 
 ```text
 fn pair() -> (i32, i32): (1, 2)
 
 wrapped := [(a, b) := pair()]  # error: syntax-error
 whole := ((low, high) := pair())  # error: syntax-error
-grouped := (first, second := pair())  # error: syntax-error
 ```
 
 > **Why.** Destructuring is a `let` statement, on its own line. Python's
@@ -1211,7 +1206,7 @@ tuple_or_group_expression = "(", ")"
                             [ tuple_element, { ",", tuple_element }, [ "," ] ], ")"
                           | "(", continued_expression, "...", ")"
                           ;
-tuple_element = conditional_expression
+tuple_element = expression
               | continued_conditional_expression, "..."
               ;
 
@@ -1423,10 +1418,7 @@ if_expression = "if", continued_expression, ":", suite_body,
                 [ "else", ":", suite_body ]
                 ;
 
-binding_target = identifier | binding_list ;
-binding_list = "(", identifier, ",", identifier, { ",", identifier }, ")" ;
-
-for_expression = "for", binding_target, "in", continued_expression, ":",
+for_expression = "for", pattern, "in", continued_expression, ":",
                  suite_body, [ "else", ":", suite_body ]
                  ;
 
@@ -1442,7 +1434,7 @@ indented_if_expression = "if", continued_expression, ":", indented_suite_body
                          indented_suite_body
                        ;
 
-indented_for_expression = "for", binding_target, "in", continued_expression,
+indented_for_expression = "for", pattern, "in", continued_expression,
                           ":", ( indented_suite_body
                                | suite_body, "else", ":",
                                  indented_suite_body )
@@ -1453,7 +1445,7 @@ indented_while_expression = "while", continued_expression, ":",
                             | suite_body, "else", ":", indented_suite_body )
                             ;
 
-inline_for_expression = "for", binding_target, "in", closed_expression, ":",
+inline_for_expression = "for", pattern, "in", closed_expression, ":",
                         inline_suite_body, [ "else", ":", inline_suite_body ]
                         ;
 
@@ -1471,7 +1463,7 @@ statement_if_expression = "if", closed_expression, ":", suite_body,
                           [ "else", ":", suite_body ]
                           ;
 
-statement_for_expression = "for", binding_target, "in", closed_expression,
+statement_for_expression = "for", pattern, "in", closed_expression,
                            ":", suite_body, [ "else", ":", suite_body ]
                            ;
 
@@ -1494,7 +1486,7 @@ arm_body = suite_expression
 2. r[grammar.flow.if-else] An `if` used where a value is required must have an `else`; statement-position `if` may omit it.
 3. r[grammar.flow.loop-void] A loop without `else` has type `void`.
 4. r[grammar.flow.semantic] The `if` and loop rules above are semantic rules, not separate grammar productions.
-5. r[grammar.flow.for-list] A `for` loop or a comprehension `for` clause over several names puts them in parentheses, as in `for (key, value) in entries`, with the `binding_list` production.
+5. r[grammar.flow.for-pattern] A `for` loop or a comprehension `for` clause takes a pattern before `in`, as `let` does. So `for (key, value) in entries` uses a tuple pattern, and `for Point { x, y } in points` a data pattern.
 6. r[grammar.flow.for-list.bare] A bare list, as in `for key, value in entries`, is an error whose fix-it adds the parentheses. Error: `syntax-error`.
 
 ```text
@@ -1506,9 +1498,12 @@ fn names(scores: Map[string, i32]) -> List[string]:
     [for (name, score) in scores => name]
 ```
 
-> **Why.** A `let` tuple pattern and a `for` list put their names in
-> parentheses the same way. One shape reads better than two spellings, and
-> the commas inside parentheses let a same-line suite hold the loop.
+> **Why.** A `for` loop and a `let` take the same patterns, so one shape
+> reads the same in both. The commas of a pattern stand inside brackets,
+> so a same-line suite may hold the loop.
+
+See also: [Let Statements](#let-statements), and
+[For Loops](06-control-flow.md#for-loops) for which patterns a loop accepts.
 
 ## Patterns
 
@@ -1613,7 +1608,7 @@ map_comprehension = "{", comprehension_clauses, "=>",
 
 comprehension_clauses = comprehension_for,
                         { comprehension_for | comprehension_if } ;
-comprehension_for = "for", binding_target, "in", continued_expression ;
+comprehension_for = "for", pattern, "in", continued_expression ;
 comprehension_if = "if", continued_expression ;
 ```
 

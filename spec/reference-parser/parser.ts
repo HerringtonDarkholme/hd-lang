@@ -36,7 +36,9 @@ export function parserSelfTest(): string[] {
     ["fn f(pair: (i32, i32)) -> void:\n    whole := ((a, b) := pair)\n", false],
     ["fn f(m: Map[i32, i32]) -> void:\n    for (k, v) in m: pass\n", true],
     ["fn f(m: Map[i32, i32]) -> void:\n    for k, v in m: pass\n", false],
-    ["fn f(pair: (i32, i32)) -> void:\n    whole := (a, b := pair)\n", false],
+    ["fn f(pair: (i32, i32)) -> void:\n    whole := (a, b := pair)\n", true],
+    ["fn f(points: List[Point]) -> void:\n    for Point { x, y } in points: pass\n", true],
+    ["fn f(points: List[Point]) -> void:\n    for Point { mut x, y } in points: pass\n", false],
     [
       "fn f(g: fn(i32, i32) -> i32, pair: (i32, i32)) -> void:\n    g\n    let (a, b) = pair\n",
       true,

@@ -1,0 +1,9 @@
+# test: a refutable pattern in a for loop is an error, even with a loop else
+# Spec 06 For Loops: flow.for.pattern.irrefutable (owner decision LP-for, batch 30, 2026-09-30).
+fn present(found: List[i32?]) -> i32:
+    let total: i32 = 0
+    for .Some(value) in found:  # diagnostic: refutable-let-pattern
+        total = total + value
+    else:
+        pass
+    total

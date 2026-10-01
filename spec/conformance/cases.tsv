@@ -1604,7 +1604,6 @@ runtime/valid/provider-scope-lexical-capture.hd	runtime	accept	11-requirements-a
 typing/invalid/closure-escapes-provider-scope.hd	type	reject:type-mismatch	11-requirements-and-suspension.md#r-req.row.omitted.outer-scope
 typing/invalid/adapter-callback-scope-key.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row.capture
 typing/valid/adapter-callback-captured-provider.hd	type	accept	std/iter.md#r-std-iter.adapter.callback-row.capture
-parse/invalid/grouped-binding-expression.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.expr.multi-binding.no-grouped
 parse/invalid/multi-binding-in-list.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.expr.multi-binding.let-only
 parse/invalid/multi-binding-nested.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.expr.multi-binding.let-only
 typing/valid/mut-self-primitive-impl.hd	type	accept	04-type-system.md#r-types.prim.no-mut.self
@@ -1640,7 +1639,7 @@ runtime/valid/iterator-single-pass.hd	runtime	accept	06-control-flow.md#r-flow.f
 runtime/valid/structure-qualified-self.hd	runtime	accept	14-annotations.md#r-annot.template.qualified-self
 parse/invalid/for-bare-name-list.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.flow.for-list.bare
 parse/invalid/comprehension-bare-name-list.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.flow.for-list.bare
-parse/valid/same-line-for-list.hd	parse	accept	02-grammar.md#r-grammar.inline.for-list
+parse/valid/same-line-for-list.hd	parse	accept	02-grammar.md#r-grammar.inline.closed-by-layout
 runtime/valid/plain-dollar-text.hd	runtime	accept	01-lexical-structure.md#r-lex.interp.dollar-text
 runtime/valid/comprehension-bang-calls.hd	runtime	accept	05-expressions.md#r-expr.comp.suspension.sequential
 typing/invalid/mut-map-key.hd	type	reject:invalid-map-key	04-type-system.md#r-types.map-key.no-mut
@@ -1665,7 +1664,7 @@ typing/invalid/let-pattern-mut-readonly-field.hd	type	reject:mutable-upgrade	04-
 parse/invalid/short-binding-data-pattern.hd	parse	reject:missing-let	02-grammar.md#r-grammar.stmt.short-binding.let-only
 parse/invalid/short-binding-variant-pattern.hd	parse	reject:missing-let	02-grammar.md#r-grammar.stmt.short-binding.let-only
 parse/invalid/match-arm-mut-pattern.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.pattern.mut-let-only
-parse/valid/list-item-binding-expression.hd	parse	accept	02-grammar.md#r-grammar.expr.multi-binding.list-item
+parse/valid/list-item-binding-expression.hd	parse	accept	02-grammar.md#r-grammar.expr.multi-binding.element
 parse/invalid/short-binding-tuple-pattern.hd	parse	reject:missing-let	02-grammar.md#r-grammar.stmt.short-binding.let-only
 parse/invalid/short-binding-tuple-same-line.hd	parse	reject:missing-let	02-grammar.md#r-grammar.stmt.short-binding.let-only
 runtime/valid/tuple-element-permission.hd	runtime	accept	04-type-system.md#r-types.tuple.element-permission
@@ -1674,3 +1673,11 @@ typing/invalid/mut-tuple-annotation.hd	type	reject:mut-on-tuple	04-type-system.m
 typing/invalid/let-mut-tuple.hd	type	reject:mut-on-tuple	04-type-system.md#r-types.bind.let-mut-tuple
 runtime/valid/template-derived-trait-self.hd	runtime	accept	14-annotations.md#r-annot.template.qualified-self.receiverless
 runtime/valid/task-retry.hd	runtime	accept	std/task.md#r-std-task.combinator.retry.loop
+parse/valid/tuple-element-binding-expression.hd	parse	accept	02-grammar.md#r-grammar.expr.multi-binding.element
+parse/valid/for-data-pattern.hd	parse	accept	02-grammar.md#r-grammar.flow.for-pattern
+parse/invalid/for-pattern-mut.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.pattern.mut-let-only
+runtime/valid/for-patterns.hd	runtime	accept	06-control-flow.md#r-flow.for.pattern
+typing/invalid/for-refutable-pattern.hd	type	reject:refutable-let-pattern	06-control-flow.md#r-flow.for.pattern.irrefutable
+typing/invalid/comprehension-refutable-pattern.hd	type	reject:refutable-let-pattern	06-control-flow.md#r-flow.for.pattern.irrefutable
+typing/invalid/let-else-irrefutable.hd	type	reject:unreachable-match-arm	06-control-flow.md#r-flow.let.else.unreachable
+typing/valid/let-underscore-discard.hd	type	accept	06-control-flow.md#r-flow.unused.discard-forms

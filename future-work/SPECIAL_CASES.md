@@ -617,7 +617,7 @@ examples, and the tour. The fix-it is mechanical, as for Q1. Python, a
 common source of agent habits, writes the bare form.
 
 **Soundness.** The change is syntactic. Destructuring, arity checks
-([`flow.for.tuple-arity`](../spec/06-control-flow.md#r-flow.for.tuple-arity)),
+(`flow.for.tuple-arity` (since retired)),
 and scopes are unchanged.
 
 **Rule accounting.**
@@ -627,7 +627,7 @@ and scopes are unchanged.
 | `binding_pattern` production | deleted; `for_expression`, `statement_for_expression`, `indented_for_expression`, and `comprehension_for` take `binding_target` |
 | `grammar.inline.multi-name-for` | deleted: absorbed by `grammar.inline.bind-list` |
 | [`grammar.inline.loops`](../spec/02-grammar.md#r-grammar.inline.loops) | reworded: a same-line `for` takes one name or a list |
-| [`flow.for.tuple-binding`](../spec/06-control-flow.md#r-flow.for.tuple-binding) | reworded: `for (key, value) in entries` |
+| `flow.for.tuple-binding` (since retired) | reworded: `for (key, value) in entries` |
 | New rule, as `grammar.stmt.bind-list.bare` | added: `for a, b in m` is `syntax-error` with a fix-it |
 | [`names.comp.for`](../spec/03-names-and-scopes.md#r-names.comp.for) | unchanged |
 | 18 fixtures with a multi-name loop, including `for-tuple-binding-else.hd` and `bracketed-for-multi-name-binding.hd` | rewritten with parentheses; rows unchanged |

@@ -209,6 +209,14 @@ function mutInArmPattern(clean: string): boolean {
   return /(?:^|[({,:])\s*mut\s+[\p{L}_]/u.test(clean.slice(0, at));
 }
 
+// Chapter 02 `grammar.pattern.mut-let-only`: a `for` pattern, in a loop or a
+// comprehension clause, takes no `mut`, as in `for mut item in items`.
+function mutInForPattern(clean: string): boolean {
+  for (const match of clean.matchAll(/\bfor\s+(.*?)\s+in\b/gu))
+    if (/(?:^|[({,:\s])mut\s+[\p{L}_]/u.test(match[1]!)) return true;
+  return false;
+}
+
 function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
   const { clean, line } = record;
   const diagnostics: Diagnostic[] = [];
@@ -223,7 +231,8 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
   if (/\b[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+/u.test(clean))
     diagnostics.push(diagnostic("comparison-chaining", line));
   if (patternBeforeShortBinding(clean)) diagnostics.push(diagnostic("missing-let", line));
-  if (mutInArmPattern(clean)) diagnostics.push(diagnostic("syntax-error", line));
+  if (mutInArmPattern(clean) || mutInForPattern(clean))
+    diagnostics.push(diagnostic("syntax-error", line));
   // A qualified bang call writes its type arguments after `!`
   // (chapter 02 `grammar.primary.method-reference.no-bang`).
   if (/::[\p{L}_][\p{L}\p{N}_]*::\[(?:[^[\]]|\[[^[\]]*\])*\]!\(/u.test(clean))

@@ -1474,7 +1474,6 @@ typing/valid/error-interpolated-bound.hd	type
 typing/invalid/error-from-marker-argument.hd	type
 runtime/valid/generic-inference-mut-weakening.hd	runtime
 runtime/valid/derived-arbitrary-no-finite-data.hd	runtime
-parse/invalid/grouped-binding-expression.hd	parse
 parse/valid/grammar-disambiguation.hd	parse
 runtime/valid/binding-expressions.hd	runtime
 runtime/valid/binding-expression-tuple-value.hd	runtime
@@ -1492,3 +1491,4 @@ typing/valid/for-over-mut-iterator.hd	type
 runtime/valid/iterator-single-pass.hd	runtime
 parse/invalid/match-arm-mut-pattern.hd	parse
 runtime/valid/tuple-element-permission.hd	runtime
+parse/invalid/for-pattern-mut.hd	parse

@@ -182,18 +182,19 @@ JavaScript, Python, Rust's destructuring assignment, and Elixir, would let
 `Point { x, y }` for `Point { x: x, y: y }`, so a pattern and a literal
 read the same. The owner deferred both ("we can add in future").
 
-**Still open from applying LP1.** The specification applies the reading in
-the middle column; each point asks the owner to confirm it.
+**Still open from applying LP1.** The owner answered every point with
+batch 30 below; LP-codes was not asked and waits for the code revamp
+(#101).
 
 | # | Question | Applied reading and **Recommendation** |
 | --- | --- | --- |
 | LP-codes | The decisions name no codes for a refutable pattern without `else`, an `else` block that falls through, or a pattern before `:=`. | Two new codes, `refutable-let-pattern` and `let-else-falls-through` ([Let Patterns](../spec/06-control-flow.md#let-patterns)); a pattern before `:=` reuses `missing-let`. **Recommendation:** keep them until the planned code revamp. |
-| LP-irrefutable-else | An `else` after an irrefutable pattern, as in `let (a, b) = pair else: return`, can never run. | It is valid and never runs ([`flow.let.else.irrefutable`](../spec/06-control-flow.md#r-flow.let.else.irrefutable)). **Recommendation:** add the `unreachable-code` warning on it, as Rust's `irrefutable_let_patterns` lint does. |
+| LP-irrefutable-else | An `else` after an irrefutable pattern, as in `let (a, b) = pair else: return`, can never run. | It is valid and never runs (`flow.let.else.irrefutable`, since retired). **Recommendation:** add the `unreachable-code` warning on it, as Rust's `irrefutable_let_patterns` lint does. |
 | LP-inline | Layout ends a same-line suite before `else`, so a let-else is never a same-line suite body. `if ok: let .Some(v) = f() else: return` is an `if` with an `else`, and its `let` is `refutable-let-pattern`. | Stated as [`grammar.stmt.let-else.not-inline`](../spec/02-grammar.md#r-grammar.stmt.let-else.not-inline). **Recommendation:** keep it; an indented body holds a let-else. |
-| LP-discard | `let _ = save()` binds no name. [`flow.unused.discard-form`](../spec/06-control-flow.md#r-flow.unused.discard-form) makes `_ := expression` the only discard of a must-use value. | Nothing new: `let _ = save()` on a must-use value is `discarded-must-use-value`. **Recommendation:** keep `_ :=` as the one discard spelling. |
+| LP-discard | `let _ = save()` binds no name. `flow.unused.discard-form`, since retired, made `_ := expression` the only discard of a must-use value. | Nothing new: `let _ = save()` on a must-use value is `discarded-must-use-value`. **Recommendation:** keep `_ :=` as the one discard spelling. |
 | LP-bare | `a, b := pair` was `syntax-error` with a fix-it that added parentheses, which would now give `missing-let`. | It stays `syntax-error`, and the fix-it writes `let (a, b) = pair` ([`grammar.stmt.short-binding.bare-list`](../spec/02-grammar.md#r-grammar.stmt.short-binding.bare-list)). **Recommendation:** keep it. |
 | LP-for | `for` still takes a name or a name list, not a pattern, so `for Point { x, y } in points` is a `syntax-error`. | Unchanged; the decision covers `let` only. **Recommendation:** leave `for` as it is until patterns in `let` have been used for a while. |
-| Q5-tuple | `[a, b := value]` is now a list ending in a binding, but `(a, b := value)` is still `syntax-error` ([`grammar.expr.multi-binding.no-grouped`](../spec/02-grammar.md#r-grammar.expr.multi-binding.no-grouped)), since a tuple element takes no binding. | Unchanged. **Recommendation:** keep it; `(a, b := value)` reads as the removed multi-name binding. |
+| Q5-tuple | `[a, b := value]` is now a list ending in a binding, but `(a, b := value)` is still `syntax-error` (`grammar.expr.multi-binding.no-grouped`, since retired), since a tuple element takes no binding. | Unchanged. **Recommendation:** keep it; `(a, b := value)` reads as the removed multi-name binding. |
 
 **Batches 27 and 28 (owner decisions, 2026-09-30).** Applied; the
 [Revision Notes](../spec/README.md#revision-notes) list each. The owner
@@ -218,6 +219,20 @@ confirm it.
 | TU2-code | TU2 names no code for `mut (A, B)`. | A new code, `mut-on-tuple`; `mut-on-primitive` would misname a tuple. **Recommendation:** keep it until the code revamp (#101), which may merge the two. |
 | TU2-let | `let mut pair = (1, 2)` was valid, since a fresh tuple had mutable access. With no `mut` form, it needs a code. | `mut-on-tuple`, in place of `mutable-upgrade`, as `let mut n = 0` is `mut-on-primitive` ([`types.bind.let-mut-tuple`](../spec/04-type-system.md#r-types.bind.let-mut-tuple)). **Recommendation:** keep it. |
 | ST8-own-args | The one rule also fixes `Self` for a derived-trait call with an argument. In `Encode`'s template, `Encode::encode(item)` for an `item` that is not `T` was valid and is now `type-mismatch`. | Applied, since ST8-self already did this for `Structure::`. **Recommendation:** keep it; write `item.encode()` for another type. |
+
+**Batch 30 (owner decision, 2026-09-30).** Applied; the
+[Revision Notes](../spec/README.md#revision-notes) list each. The owner
+answered the points left open by applying LP1. LP-inline and LP-bare
+follow the recommendation; the other three do not.
+
+| # | Decision | Where |
+| --- | --- | --- |
+| LP-irrefutable-else | An `else` after an irrefutable pattern, as in `let (a, b) = pair else: return`, is an error, not a warning. It reuses `unreachable-match-arm`, since the `else` is an arm that can never run. | [`flow.let.else.unreachable`](../spec/06-control-flow.md#r-flow.let.else.unreachable) |
+| LP-inline | Keep: a let-else is never a same-line suite body. | [`grammar.stmt.let-else.not-inline`](../spec/02-grammar.md#r-grammar.stmt.let-else.not-inline), unchanged |
+| LP-discard | `let _ = save()` discards a must-use value, as `_ := save()` does. Both spellings are discard forms. | [`flow.unused.discard-forms`](../spec/06-control-flow.md#r-flow.unused.discard-forms) |
+| LP-bare | Keep: `a, b := pair` is `syntax-error`, with a fix-it to `let (a, b) = pair`. | [`grammar.stmt.short-binding.bare-list`](../spec/02-grammar.md#r-grammar.stmt.short-binding.bare-list), unchanged |
+| LP-for | `for` takes an irrefutable pattern now, as in `for Point { x, y } in points`. A refutable one is `refutable-let-pattern`. `for (k, v) in m` is the tuple pattern, and the parenthesized-list rule is retired. | [`grammar.flow.for-pattern`](../spec/02-grammar.md#r-grammar.flow.for-pattern), [`flow.for.pattern`](../spec/06-control-flow.md#r-flow.for.pattern) |
+| Q5-tuple | Owner: "keep rule simple, if this does not need a new rule". Allowing needs fewer rules: a tuple element takes an expression, as a list item does, so `(a, b := v)` is a tuple whose last element is a binding. One rule replaces four, leaving two in the section where there were five. | [`grammar.expr.multi-binding.element`](../spec/02-grammar.md#r-grammar.expr.multi-binding.element) |
 
 ### Bound And Row Operators
 

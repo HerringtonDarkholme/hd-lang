@@ -1,0 +1,40 @@
+# test: a for pattern destructures each yielded value as a let pattern would, over lists, maps, and iterators
+# Spec 06 For Loops: flow.for.pattern (owner decision LP-for, batch 30, 2026-09-30).
+use std.testing.assert_equal
+
+data Point:
+    x: i32
+    y: i32
+
+fn total(points: List[Point]) -> i32:
+    let sum: i32 = 0
+    for Point { x, y } in points:
+        sum = sum + x * y
+    sum
+
+fn weights(scores: Map[string, i32]) -> i32:
+    let sum: i32 = 0
+    for (_, score) in scores:
+        sum = sum + score
+    for entry in scores:
+        sum = sum + entry._1
+    sum
+
+fn nested(pairs: List[(Point, i32)]) -> i32:
+    let sum: i32 = 0
+    for (Point { x, y: _ }, weight) in pairs.iter():
+        sum = sum + x * weight
+    sum
+
+tests:
+    it("a data pattern binds each element's fields"):
+        assert_equal(total([Point { x: 2, y: 3 }, Point { x: 4, y: 5 }]), 26)
+
+    it("a map entry is a tuple, bound whole or by a tuple pattern"):
+        assert_equal(weights({"a": 1, "b": 2}), 6)
+
+    it("a nested pattern destructures an iterator's tuples"):
+        assert_equal(nested([(Point { x: 3, y: 0 }, 2), (Point { x: 1, y: 9 }, 5)]), 11)
+
+    it("a comprehension clause takes the same pattern"):
+        assert_equal([for Point { x, y } in [Point { x: 1, y: 2 }] => x + y], [3])

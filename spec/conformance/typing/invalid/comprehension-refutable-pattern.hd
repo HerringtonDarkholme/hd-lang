@@ -1,0 +1,4 @@
+# test: a refutable pattern in a comprehension for clause is an error
+# Spec 06 For Loops: flow.for.pattern.irrefutable (owner decision LP-for, batch 30, 2026-09-30).
+fn present(found: List[i32?]) -> List[i32]:
+    [for .Some(value) in found => value]  # diagnostic: refutable-let-pattern

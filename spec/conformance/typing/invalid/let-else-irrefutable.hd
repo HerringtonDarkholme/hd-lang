@@ -1,0 +1,5 @@
+# test: an else block after an irrefutable let pattern could never run, so it is an error
+# Spec 06 Let Patterns: flow.let.else.unreachable (owner decision LP-irrefutable-else, batch 30, 2026-09-30).
+fn always(pair: (i32, i32)) -> i32:
+    let (low, high) = pair else: return 0  # diagnostic: unreachable-match-arm
+    low + high

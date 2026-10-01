@@ -2392,12 +2392,12 @@ existing source. Each entry names the decision that made the change.
   [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
   2026-09-30): language tier. A `for` loop or comprehension `for` clause
   over several names writes them in parentheses, `for (key, value) in m`
-  ([`grammar.flow.for-list`](02-grammar.md#r-grammar.flow.for-list)). The
+  (`grammar.flow.for-list`, since retired). The
   bare `for key, value in m`, valid before, is now `syntax-error` with a
   fix-it that adds the parentheses
   ([`grammar.flow.for-list.bare`](02-grammar.md#r-grammar.flow.for-list.bare)).
   A same-line suite may now hold or be the body of a multi-name `for`
-  ([`grammar.inline.for-list`](02-grammar.md#r-grammar.inline.for-list)),
+  (`grammar.inline.for-list`, since retired),
   and `grammar.inline.multi-name-for` is retired. The `binding_pattern`
   production is gone; loops take `binding_target`.
 - Multi-name bindings are statements (owner decision SSC Q5, batch 26 in
@@ -2473,7 +2473,7 @@ existing source. Each entry names the decision that made the change.
   Inside an expression, as in `((a, b) := value)`, it stays
   `syntax-error`, and the fix-its now write a `let` statement
   ([`grammar.expr.multi-binding.let-only`](02-grammar.md#r-grammar.expr.multi-binding.let-only),
-  [`.no-grouped.let`](02-grammar.md#r-grammar.expr.multi-binding.no-grouped.let)).
+  `.no-grouped.let`, since retired).
   A tuple pattern of the wrong arity stays `type-mismatch`
   ([`flow.let.tuple-arity`](06-control-flow.md#r-flow.let.tuple-arity)).
   `for (k, v) in m` is unchanged. Retired: `grammar.stmt.bind-list` for
@@ -2491,7 +2491,8 @@ existing source. Each entry names the decision that made the change.
   [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
   2026-09-30): language tier. `[a, b := value]`, which was `syntax-error`,
   is a list of `a` and the binding expression `b := value`
-  ([`grammar.expr.multi-binding.list-item`](02-grammar.md#r-grammar.expr.multi-binding.list-item)).
+  (`grammar.expr.multi-binding.list-item`, since retired for
+  [`grammar.expr.multi-binding.element`](02-grammar.md#r-grammar.expr.multi-binding.element)).
 - Tuples have no `mut` form (owner decisions TU1 and TU2, batch 27 in
   [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
   2026-09-30): language tier. TU1 confirms that a tuple is an immutable
@@ -2561,3 +2562,42 @@ existing source. Each entry names the decision that made the change.
   [`std-task.combinator.retry.cancel`](std/task.md#r-std-task.combinator.retry.cancel):
   cancellation follows the ordinary rules. No `retry!` was specified
   before, so source is unaffected.
+- An `else` after an irrefutable `let` pattern is an error (owner
+  decision LP-irrefutable-else, batch 30 in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
+  2026-09-30): language tier. `let (a, b) = pair else: return`, which was
+  valid with an `else` that never ran, is now `unreachable-match-arm`;
+  delete the `else`. `flow.let.else.irrefutable` is retired for
+  [`flow.let.else.unreachable`](06-control-flow.md#r-flow.let.else.unreachable).
+- `let _ = expression` discards a must-use value (owner decision
+  LP-discard, batch 30, 2026-09-30): language tier. `let _ = save()`, which
+  was `discarded-must-use-value`, is now valid, as `_ := save()` is.
+  `flow.unused.discard-form` is retired for
+  [`flow.unused.discard-forms`](06-control-flow.md#r-flow.unused.discard-forms),
+  and `flow.must-use.handle` for
+  [`flow.must-use.handled`](06-control-flow.md#r-flow.must-use.handled).
+- Patterns in `for` (owner decision LP-for, batch 30, 2026-09-30):
+  language tier. A `for` loop and a comprehension `for` clause take any
+  pattern before `in`, as `let` does, so `for Point { x, y } in points` is
+  valid; it was `syntax-error`. A refutable pattern there is
+  `refutable-let-pattern`, and a loop's `else` does not handle it.
+  `for (key, value) in m` is now a tuple pattern, with the same meaning,
+  and `for k, v in m` stays `syntax-error`. The `binding_target` and
+  `binding_list` productions are gone; the loop productions take
+  `pattern`. `grammar.flow.for-list` is retired for
+  [`grammar.flow.for-pattern`](02-grammar.md#r-grammar.flow.for-pattern),
+  and `flow.for.tuple-binding` and `flow.for.tuple-arity` for
+  [`flow.for.pattern`](06-control-flow.md#r-flow.for.pattern) and
+  [`flow.for.pattern.irrefutable`](06-control-flow.md#r-flow.for.pattern.irrefutable).
+  A tuple of the wrong arity stays `type-mismatch`, by
+  [`flow.let.tuple-arity`](06-control-flow.md#r-flow.let.tuple-arity).
+  `grammar.inline.for-list` is retired without a replacement, since
+  [`grammar.inline.closed-by-layout`](02-grammar.md#r-grammar.inline.closed-by-layout)
+  already lets bracketed commas stand in a same-line suite.
+- A tuple element may be a binding expression (owner decision Q5-tuple,
+  batch 30, 2026-09-30): language tier. `(a, b := value)`, which was
+  `syntax-error`, is now a tuple whose last element is the binding
+  `b := value`, as `[a, b := value]` is a list. The `tuple_element`
+  production takes an `expression`. `grammar.expr.multi-binding.list-item`,
+  `.no-grouped`, `.no-grouped.let`, and `.tuple-element` are retired for
+  [`grammar.expr.multi-binding.element`](02-grammar.md#r-grammar.expr.multi-binding.element).

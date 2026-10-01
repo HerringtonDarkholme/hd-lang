@@ -1,0 +1,12 @@
+# test: a for loop and a comprehension for clause take a pattern, as let does
+# Spec 02 Control-Flow Expressions: grammar.flow.for-pattern (owner decision LP-for, batch 30, 2026-09-30).
+data Point:
+    x: i32
+    y: i32
+
+fn sums(points: List[Point], pairs: List[((i32, i32), i32)]) -> List[i32]:
+    for Point { x, y: _ } in points:
+        pass
+    for ((low, high), _) in pairs:
+        pass
+    [for Point { x, y } in points => x + y]

@@ -268,9 +268,11 @@ fn first_word(text: string) -> string:
 size := "héllo".len()  # 6: é is two bytes
 ```
 
-A loop over pairs puts its names in parentheses, as `let (a, b)`
-does: `for (offset, letter) in ...`. The bare
-`for offset, letter in ...` is a syntax error.
+A `for` loop takes the same patterns as `let`, so a loop over pairs uses
+a tuple pattern, `for (offset, letter) in ...`, and a loop over points
+may write `for Point { x, y } in points`. The bare
+`for offset, letter in ...` is a syntax error. A pattern that may fail,
+such as `.Some(v)`, is an error in a loop.
 
 Numeric values support ordinary arithmetic operators:
 
@@ -421,11 +423,9 @@ code that names `Error` imports it. See
 
 Use parentheses when a binding expression appears inside a larger expression.
 `:=` binds exactly one name; destructuring is a `let` statement, so
-`(a, b) := value` is `missing-let`, and `((a, b) := value)` and the old
-form `(a, b := value)` are syntax errors. A list item may be a binding,
-so `[a, b := value]` holds `a` and `b := value`. To put a single-name
-binding in a tuple, parenthesize that element separately, as in
-`(a, (b := value))`.
+`(a, b) := value` is `missing-let`, and `((a, b) := value)` is a syntax
+error. A list item or a tuple element may be a binding, so
+`[a, b := value]` and `(a, b := value)` each hold `a` and `b := value`.
 
 `void` is used for functions that return no useful value:
 
@@ -459,7 +459,8 @@ let (name, score) = ("Ada", 10)
 ```
 
 `let` takes any `match` pattern. A pattern that may fail, such as
-`.Some(user)`, needs a let-else block that leaves the function or loop:
+`.Some(user)`, needs a let-else block that leaves the function or loop.
+A pattern that always matches takes no `else`; adding one is an error:
 
 ```text
 let Point { x, y: py } = point
@@ -1194,15 +1195,16 @@ return .Err(db_error)
 one as an ignored statement, including as the final expression of a loop
 or an `if` without `else`. Propagate it, match it, return it, or
 store it for later. When discarding it is deliberate, make that decision
-visible with `_ := expression`:
+visible with `_ := expression`, or with `let _ = expression`:
 
 ```text
 _ := cache.refresh()
+let _ = cache.refresh()
 ```
 
 The compiler warns when an ordinary local binding is never read. A name
 beginning with `_` suppresses that warning for ordinary values, but it does not
-silently discard a must-use value; use the exact `_ :=` form for that.
+silently discard a must-use value; use `_ :=` or `let _ =` for that.
 
 ## Functions
 
