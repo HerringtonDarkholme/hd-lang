@@ -177,9 +177,9 @@ export class DiagnosticReporter {
     );
   }
 
-  runtimePanic(code: string): void {
+  runtimePanic(code: string, detail = "runtime panic"): void {
     if (this.format === "text") {
-      this.write(`${code}: runtime panic`);
+      this.write(`${code}: ${detail}`);
       return;
     }
     const rules = ruleRefs(this.index, code);
@@ -187,7 +187,7 @@ export class DiagnosticReporter {
       kind: "runtime-panic",
       code,
       severity: "error",
-      message: "runtime panic",
+      message: detail,
       file: this.file,
       span: null,
       notes: [],

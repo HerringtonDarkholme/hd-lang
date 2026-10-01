@@ -771,7 +771,11 @@ else`, `break`, `break value`, and `continue`;
   `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
   and order-independent map values and for explicit nominal or bounded generic
   `Eq` implementations, with mandatory reasons and
-  `missing-eq` at unsupported types; `std.testing.snapshot` runs as
+  `missing-eq` at unsupported types. The checker checks the call and lowers
+  it to a call of `check_equal`, hd code in `lib/std/testing.hd`, whose
+  failure panics with `assertion-failed`, the reason, and both values'
+  `debug` text through the `assertion_failed` host function
+  (module.testing.assert-equal-debug); `std.testing.snapshot` runs as
   a string `assert_equal` with a literal `expect` (no update run rewrites
   it), and `snapshot_file` is hd code in `lib/std/testing.hd` whose host
   function (`src/snapshots.ts`) compares the text with
@@ -887,12 +891,16 @@ else`, `break`, `break value`, and `continue`;
 - insertion-ordered `Map[K, V]` literals with duplicate replacement, optional
   indexed or `get()` lookup, `len()`, growable indexed insertion and
   `remove()` through `mut Map[K, V]`, and erased Wasm GC key/value storage.
-  A key is an `i32`-like scalar, a string, or a non-generic declared type
-  with `Eq` and `Hash` implementations (trait.hash.map-key), which the map
-  compares with a wrapper of its `Eq`; a type parameter bounded by `Eq` and
-  `Hash` keys a map too, and a map literal over one (key kind 3) compares
-  its keys through the bound's `Eq` dictionary, which the map holds as its
-  key context;
+  A key type meets the declared bound `Map[K < Eq & Hash, V]`
+  (types.map-key.declared-bound) through non-generic `Eq` and `Hash`
+  implementations, std's `Hash` for the primitives included, or a type
+  parameter's own bounds; a `mut` key type is `invalid-map-key`. The loader
+  adds `Hash` for any code that mentions `Map` or writes a map literal or
+  comprehension. An `i32`-like scalar or a string key compares directly; any
+  other key compares through a wrapper of its type's `Eq`, or of the
+  primitive `Eq` of `i64` and `u64`; and a map over a type-parameter key
+  (key kind 3) compares its keys through the bound's `Eq` dictionary, which
+  the map holds as its key context;
 - the prelude `Iterator[T]`, a `lib/std/iter.hd` data type whose private
   `step` closure `next` calls, built by `Iterator::from_fn`, with the
   adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as
@@ -910,9 +918,7 @@ else`, `break`, `break value`, and `continue`;
   `FromIterator`, which is not a prelude name. `C` comes from an explicit
   type argument or the expected type, which reaches the operand of `x?` as
   `Result[T, E]` or `T?`, and otherwise from its ordinary type-argument
-  default. `List`, `Result`, and optional targets are hd code; the compiler supplies
-  `FromIterator` for `Map[K, V]` (`mapCollectionPlan`), because generic hd
-  code cannot build a map over a type-parameter key;
+  default. `List`, `Map`, `Result`, and optional targets are hd code;
 - typed HIR, readable WAT output, Binaryen validation, and V8 execution; and
 - an implementation-neutral conformance gate tied to
   `spec/conformance/cases.tsv`, invoked through the public CLI by a concurrent
@@ -991,12 +997,13 @@ What it provides:
 | Module | Contents |
 | --- | --- |
 | `std.annotation` | the shape types (`DataShape`, `FieldShape`, `TypeShape`, ...), `ShapeMetadata`, and `TypeShape.is_optional`; `checker/shapes.ts` generates the builders that `shape::[T]()` and `shape_of(f)` call. `Target`, `Annotate`, and `annotate`, which limit a fact type's target kinds |
-| `std.hash` | `Hash` and `Hasher` (prelude names), and `Hash` for `string`, `bool`, and every integer type; no standard hasher, which the specification does not name |
+| `std.hash` | `Hash` and `Hasher` (prelude names), and `Hash` for `string`, `bool`, `char`, and every integer type; no standard hasher, which the specification does not name |
+| `std.task` | `retry!`; `block_on`, `all!`, `race!`, and `Waker` stay compiler-provided names of the module |
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
 | `std.text` | on `string`: `chars`, `char_indices`, `bytes`, `slice`, `to_utf8`, `string::from_utf8` with `Utf8Error`, `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
-| `std.iter` | the prelude `Iterator[T]` and `Iterable[T]`; `Iterator` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Result`, and `T?` (the compiler supplies `Map`); `Iterable` for `List`, `Map`, and `Iterator`; `range` |
+| `std.iter` | the prelude `Iterator[T]` and `Iterable[T]`; `Iterator` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Map`, `Result`, and `T?`; `Iterable` for `List`, `Map`, and `Iterator`; `range` |
 | `std.cmp` | the prelude `Eq`, `PartialOrd`, `Ord`, and `Ordering`; `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?` |
 | `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
@@ -1091,7 +1098,8 @@ marks what this refactor removed.
 | Emitter | `emitConsole` (a hand-written host `Console` provider), `console.wat` (`$hd.console_print`) | capability | Done: the generic capability bridge, with `Result` results |
 | Host glue | `console_byte` import | capability | Done: `Console.write_line` in `HOST_PROVIDERS`, left out of record and replay |
 | Checker | `validateHostCapabilities` skipped `Console` | capability | Done: `Console` passes the same boundary check as any host capability |
-| HIR | `assert`, `assert-equal` | `std.testing` | Remains: `assert_equal` is checked by the compiler; its equality calls `std.cmp` for composites |
+| HIR | `assert` | `std.testing` | Remains: `assert` is checked by the compiler |
+| HIR | `assert-equal` | `std.testing` | Done: the compiler checks an `assert_equal` or `snapshot` call and lowers it to a call of the hd `check_equal` |
 | HIR | `snapshot-file` | `std.testing` | Done: `snapshot_file` is hd code in `lib/std/testing.hd` with a host function |
 | HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Remains: runner protocol, not library code |
 | HIR | `debug-render` | `std.format` | Done: `debug`, `DebugWriter`, and its builders are hd code in `lib/std/format.hd` |
@@ -1104,8 +1112,8 @@ marks what this refactor removed.
 
 Counts: the HIR expression union had 92 kinds, of which 15 were library-
 or capability-specific. The string step removed 5, the `println` step 1,
-and the `debug` and `snapshot_file` step 2, leaving 84 kinds, 7 of them
-specific: the test-runner hooks, `assert`, `assert_equal`,
+the `debug` and `snapshot_file` step 2, and the `assert_equal` step 1,
+leaving 83 kinds, 6 of them specific: the test-runner hooks, `assert`,
 and `std.inspect` rows above. No capability has a HIR node now.
 
 ### Console
@@ -1116,10 +1124,10 @@ It calls `write_line` without `!`, which makes a stored suspension, and
 drives it with `std.task.block_on`, so it inherits all of `block_on`'s
 rules with no checker case of its own
 ([MHP follow-ups](../future-work/OPEN_ISSUES.md#mutable-host-providers)).
-Its `.Err` panic is an ordinary `panic` call. `std.task` is a
-compiler-provided module, not a `lib/std` file: the loader keeps a std
-module's `use std.task.block_on` line as a program `use` under a hidden
-name, so the call is an ordinary `block_on` call. The loader adds
+Its `.Err` panic is an ordinary `panic` call. `block_on` is a
+compiler-provided name that `lib/std/task.hd` does not declare: the loader
+keeps a std module's `use std.task.block_on` line as a program `use` under
+a hidden name, so the call is an ordinary `block_on` call. The loader adds
 `println` under its own name when a program mentions it, because
 `println` is a prelude name.
 

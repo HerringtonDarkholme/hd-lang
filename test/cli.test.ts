@@ -227,6 +227,36 @@ test("hd run runs Console.write_line! on host and program providers", async () =
   }
 });
 
+// A failed `assert_equal` shows its reason and both values' `debug` text
+// (spec/10-modules.md#r-module.testing.assert-equal-debug).
+test("a failed assert_equal shows the reason and both values", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    const source = join(directory, "unequal.hd");
+    await writeFile(
+      source,
+      [
+        "use std.testing.assert_equal",
+        "",
+        "tests:",
+        '    it("differs"):',
+        '        assert_equal([1, 2], [1, 3], reason="lists match")',
+        "",
+      ].join("\n"),
+    );
+    const failed = await hd(["test", source]).then(
+      () => assert.fail("an unequal assert_equal must panic"),
+      (error: { stderr: string }) => error,
+    );
+    assert.match(
+      failed.stderr,
+      /assertion-failed: lists match: actual \[1, 2\], expected \[1, 3\]/,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 // `snapshot_file` keeps `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`;
 // a missing file fails except under `hd test --update` (Testing T53).
 test("hd test compares snapshot_file text with its snapshot file", async () => {

@@ -35,7 +35,6 @@ import {
 } from "./inspectable.ts";
 import {
   isPermissionWeakening,
-  mapCollectionPlan,
   rowUnionType,
   weakenBoundedGenericActual,
 } from "./assignability.ts";
@@ -57,6 +56,7 @@ import {
   builtinTotallyOrdered,
   MAX_BOUND_DEPTH,
   mapKeyKind,
+  mapKeyProblem,
   numericWidening,
 } from "./shared.ts";
 import { generalizedShape } from "./shapes.ts";
@@ -954,10 +954,6 @@ export abstract class CheckerContext {
     const type = readonlyType(targetType);
     const trait = [...this.traitTypes.values()].find((candidate) => candidate.index === traitIndex);
     const traitName = trait?.name;
-    if (trait?.standardName === "std.iter.FromIterator") {
-      const { inherentMethods, signatures } = this;
-      return mapCollectionPlan(traitIndex, type, traitArguments, inherentMethods, signatures);
-    }
     if (traitArguments.length > 0) return undefined;
     const plan = (
       builtin: HirBuiltinTraitImplementation,
@@ -1153,6 +1149,30 @@ export abstract class CheckerContext {
     return this.fail("unsatisfied-trait-bound", missing, span);
   }
 
+  /**
+   * How a map with key type `keyType` compares its keys, once the key type
+   * meets `Map[K < Eq & Hash, V]` (04-type-system.md#map-key-types): a type
+   * parameter key, kind 3, through its `Eq` bound's dictionary.
+   */
+  protected mapKey(
+    keyType: ValueType,
+    span: SourceSpan,
+  ): { readonly keyKind: 0 | 1 | 2 | 3; readonly keyDispatch?: HirEqualityDispatch } {
+    const generic = genericTypeName(keyType);
+    const bounded = (name: string): boolean => {
+      const trait = this.traitTypes.get(name);
+      return trait !== undefined && this.parameterBound(generic!, trait.index, []) !== undefined;
+    };
+    const problem = mapKeyProblem(
+      keyType,
+      new Set(generic && bounded("Eq") && bounded("Hash") ? [generic] : []),
+    );
+    if (problem) this.fail(problem.code, problem.message, span);
+    return generic
+      ? { keyKind: 3, keyDispatch: this.equalityDispatch(keyType) }
+      : { keyKind: mapKeyKind(keyType) };
+  }
+
   protected equalityDispatch(type: ValueType): HirEqualityDispatch | undefined {
     return this.traitMethodDispatch(type, "Eq");
   }
@@ -1305,19 +1325,9 @@ export abstract class CheckerContext {
       nominal?.name === "Map" &&
       nominal.arguments.length === 2 &&
       isKnownType(nominal.arguments[0]!, this.dataTypes, this.enumTypes, this.traitTypes) &&
-      isKnownType(nominal.arguments[1]!, this.dataTypes, this.enumTypes, this.traitTypes) &&
-      mapKeyKind(nominal.arguments[0]!) === undefined &&
-      !(
-        genericTypeName(nominal.arguments[0]!) &&
-        this.equalityDispatch(nominal.arguments[0]!)?.kind === "bound"
-      )
-    ) {
-      this.fail(
-        "invalid-map-key",
-        `type '${nominal.arguments[0]}' does not implement the MVP map-key contract`,
-        type.span,
-      );
-    }
+      isKnownType(nominal.arguments[1]!, this.dataTypes, this.enumTypes, this.traitTypes)
+    )
+      this.mapKey(nominal.arguments[0]!, type.span);
     if (!isKnownType(declared, this.dataTypes, this.enumTypes, this.traitTypes))
       this.fail("unknown-type", `unknown or unsupported type '${type.name}'`, type.span);
     return declared;

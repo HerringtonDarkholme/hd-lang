@@ -13,7 +13,7 @@ import {
   splitTypeBindings,
   tupleParts,
 } from "../types.ts";
-import { genericTypeName, mapKeyKind } from "./shared.ts";
+import { genericTypeName } from "./shared.ts";
 
 // Whether a resolved type names a known type with complete arguments, as the
 // function checker sees it (checker/context.ts re-exports it).
@@ -100,8 +100,7 @@ export function isKnownType(
     if (nominal.name === "Map") {
       return (
         nominal.arguments.length === 2 &&
-        (mapKeyKind(nominal.arguments[0]!) !== undefined ||
-          genericTypeName(nominal.arguments[0]!) !== undefined) &&
+        isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes) &&
         nominal.arguments[1] !== "void" &&
         isKnownType(nominal.arguments[1]!, dataTypes, enumTypes, traitTypes)
       );

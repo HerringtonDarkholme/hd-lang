@@ -9,6 +9,7 @@
 
 import type { HostSuspensionCall, HostSuspensionOutcome } from "./compiler.ts";
 import { propertyRun } from "./property-tests.ts";
+import { RuntimePanicError } from "./runtime-panic.ts";
 
 export type HostFunctionValue = number | bigint | string;
 
@@ -22,6 +23,11 @@ export const HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = {
   // The one-scalar string of a Unicode scalar value, for `\u{...}` in
   // `std.text.process_escapes` (spec/05-expressions.md#prefixed-strings).
   string_from_scalar: (point) => String.fromCodePoint(Number(point)),
+  // A failed `assert_equal` (lib/std/testing.hd) panics with its message
+  // (spec/10-modules.md#r-module.testing.assert-equal-debug).
+  assertion_failed: (message) => {
+    throw new RuntimePanicError("assertion-failed", String(message));
+  },
   // `Choices` outside `hd test` draws at random; the test runner replaces
   // these with its recording draws (src/property-tests.ts).
   ...propertyRun().hostFunctions,

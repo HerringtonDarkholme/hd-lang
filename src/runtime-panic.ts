@@ -17,11 +17,14 @@ export type RuntimePanicName = (typeof RUNTIME_PANIC_NAMES)[number];
 
 export class RuntimePanicError extends Error {
   readonly code: RuntimePanicName;
+  /** What the panic says, such as a failed `assert_equal`'s values. */
+  readonly detail?: string;
 
-  constructor(code: RuntimePanicName) {
-    super(`${code}: runtime panic`);
+  constructor(code: RuntimePanicName, detail?: string) {
+    super(`${code}: ${detail ?? "runtime panic"}`);
     this.name = "RuntimePanicError";
     this.code = code;
+    if (detail !== undefined) this.detail = detail;
   }
 }
 

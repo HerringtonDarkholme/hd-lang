@@ -242,31 +242,6 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         );
         return `(block (result i32) (local.set ${temporary} ${compared}) ${comparisons[expression.operator]})`;
       }
-      case "assert-equal": {
-        const values = Array.from({ length: 3 }, () => "");
-        const setup = expression.arguments.map((argument, argumentIndex) => {
-          const parameterIndex =
-            expression.argumentParameterIndices?.[argumentIndex] ?? argumentIndex;
-          const temporary = this.allocateTemporary(
-            parameterIndex === 2 ? "string" : expression.valueType,
-          );
-          values[parameterIndex] = `(local.get ${temporary})`;
-          return `(local.set ${temporary} ${this.emitExpression(argument)})`;
-        });
-        const equality = this.emitValueEquality(
-          values[0]!,
-          values[1]!,
-          expression.valueType,
-          expression.strategy,
-        );
-        return [
-          `(block`,
-          ...setup.map((line) => `  ${line}`),
-          `  (if (i32.eqz ${equality})`,
-          `    (then ${this.emitRuntimePanic("assertion-failed")}))`,
-          `)`,
-        ].join("\n");
-      }
       case "assert": {
         const values = Array.from({ length: 2 }, () => "");
         const setup = expression.arguments.map((argument, argumentIndex) => {

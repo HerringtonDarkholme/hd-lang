@@ -315,6 +315,49 @@ added. Differences from the plan:
   them (`Duration`, `ExitCode`, `INSPECT_SOURCE`, `From`, `Error`) are lang
   items or M5 work, so they stay.
 
+**#144 status, 2026-10-01: Spec Mismatches 3, 4, 8, and 9 done.** TS 236
+lines added and 236 deleted, by `git diff --numstat`, most of the added
+lines comments and formatting; hd 42 lines added. Ten known failures pass:
+the seven SSC-Q7 rows and three of the four RETRY rows.
+
+- `assert_equal` (item 8, part of M4). The checker still checks the call,
+  since `assert_equal` is language tier, but lowers it, and `snapshot`, to
+  a call of `check_equal` in `lib/std/testing.hd`. That function compares
+  with `!=` and calls the host function `assertion_failed` with the reason
+  and both `debug` texts. The `assert-equal` HIR node and its emitter
+  cases are gone. The loader adds `check_equal` for a program that imports
+  `assert_equal` or `snapshot`. `RuntimePanicError` now carries a detail,
+  which `hd test`, `hd run`, and the REPL print. Switching to the generic
+  call exposed an emitter bug, now fixed: a builtin dictionary adapter
+  whose body made another adapter left that one unemitted
+  (`assert-equal-nested-tuple`).
+- Map keys (item 9). `mapKeyProblem` checks
+  `Map[K < Eq & Hash, V]`: a `mut` key is `invalid-map-key`, and a missing
+  `Eq` or `Hash` is `unsatisfied-trait-bound`. `mapKeyKind` now only picks
+  the runtime key representation. A map type, literal, or comprehension
+  mentions `Hash`, so std's primitive impls are declared. New: `Hash` for
+  `char` in hd, so `char` keys still work; `i64` and `u64` keys, which the
+  old rule rejected, compare through a small primitive-`Eq` wrapper in the
+  emitter; a generic key in a comprehension now uses the bound dictionary,
+  as a literal did. An inferred map key type is readonly.
+- `retry!` (item 4, M10). `lib/std/task.hd` holds `retry!` in hd. The
+  loader now treats any name that a std module does not declare as a
+  compiler use, so `use std.task.block_on` in `std.console` still works.
+  `task-retry-row-missing` stays a known failure: `connect!` is private
+  with no `$` clause, so `req.row.omitted.inferred-private` gives it the
+  row `Console`, and the prototype accepts the call. The fixture seems to
+  contradict that rule; the owner should check it.
+- `FromIterator` for `Map` (item 3, M9) is hd in `lib/std/iter.hd`;
+  `mapCollectionPlan`, the `map-collection` builtin, and its emitter path
+  are gone.
+- The M2 tuple gap: a map type, literal, or comprehension also mentions
+  `tuple`, so a `(K, V)` entry from map iteration gets std's tuple impls,
+  such as `Display` through a bound. Interpolating a tuple still fails
+  (`display-tuples`), which is `displayValue`'s exact-target lookup.
+- Compile time, median of five `hd test` runs: unchanged for
+  `examples/core.hd`; a map or `assert_equal` program takes 10 to 40 ms
+  more of about 600 ms, from the `Hash` impls and `check_equal`.
+
 Rules for every chunk:
 
 - Write the hd first, then delete the TS path it replaces. Never keep both.
@@ -332,9 +375,9 @@ for these groups:
 
 | Group | Rows | The hd way |
 | --- | --- | --- |
-| RETRY | 4 | M10, not a checker case |
+| RETRY | 4, now 1 | M10, not a checker case; done in #144, except `task-retry-row-missing`, an owner check |
 | Q6, TR-traits, Q6-others | 7 | M8 and M1: std impls, not new strategies |
-| SSC-Q7 | 7 | delete `mapKeyKind`'s private rule; check `Map[K < Eq & Hash, V]` as an ordinary bound. This deletes TS |
+| SSC-Q7 | 7, now 0 | delete `mapKeyKind`'s private rule; check `Map[K < Eq & Hash, V]` as an ordinary bound. Done in #144 |
 | SSC-Q8 | 2 | `m[k]` typed `V`; then fix `Map`'s `Index` in `lib/std/ops.hd` |
 | IT | 2 | delete `impl[T] Iterable[T] for Iterator[T]` from `lib/std/iter.hd`; no TS |
 | AT-gen | 2 | fix the template's member bounds in `typed-derivation.ts`, not a new `Arbitrary` path |

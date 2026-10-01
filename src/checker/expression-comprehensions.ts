@@ -8,7 +8,7 @@ import {
   readonlyType,
   tupleParts,
 } from "../types.ts";
-import { mapKeyKind, PRELUDE_NAMES } from "./context.ts";
+import { PRELUDE_NAMES } from "./context.ts";
 import { ExpressionDataChecker } from "./expression-data.ts";
 import { findSuspensionCall } from "./program-effects.ts";
 import { iterableInfo } from "./shared.ts";
@@ -88,18 +88,13 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
         ? expectedNominal.arguments[1]
         : undefined;
     const checkedKey = this.checkExpression(expression.key, contextualKey);
-    const keyType = contextualKey ?? checkedKey.type;
+    // An inferred key type is readonly, as a `mut` key type is invalid.
+    const keyType = contextualKey ?? readonlyType(checkedKey.type);
     const key = this.requireCoercion(checkedKey, keyType, expression.key.span);
     const checkedValue = this.checkExpression(expression.value, contextualValue);
     const valueType = contextualValue ?? checkedValue.type;
     const value = this.requireCoercion(checkedValue, valueType, expression.value.span);
-    const keyKind = mapKeyKind(keyType);
-    if (keyKind === undefined)
-      this.fail(
-        "invalid-map-key",
-        `type '${keyType}' does not have the MVP's built-in Eq and Hash support`,
-        expression.key.span,
-      );
+    const { keyKind, keyDispatch } = this.mapKey(keyType, expression.key.span);
     const readonlyMap = nominalGenericType("Map", [keyType, valueType]);
     const type =
       (expected && mutableInner(expected) !== undefined) || expected === undefined
@@ -113,6 +108,7 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
       keyType,
       valueType,
       keyKind,
+      ...(keyDispatch ? { keyDispatch } : {}),
       type,
       span: expression.span,
     };

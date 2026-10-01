@@ -2,6 +2,8 @@ import { traitValueBindings } from "./associated-bindings.ts";
 import type { Expression } from "../ast.ts";
 import type { HirExpression, ValueType } from "../hir.ts";
 import { CheckFailure, type Signature } from "./context.ts";
+import { CHECK_EQUAL } from "./standard-library.ts";
+import type { SourceSpan } from "../diagnostics.ts";
 import {
   functionParts,
   mutableInner,
@@ -1035,8 +1037,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       // compares with a readonly expected value.
       const checkedActual = this.checkExpression(expression.arguments[actualIndex]!);
       const actual = { ...checkedActual, type: readonlyType(checkedActual.type) };
-      const strategy = this.equalityStrategy(actual.type);
-      if (!strategy) {
+      if (!this.equalityStrategy(actual.type)) {
         this.fail("missing-eq", `type '${actual.type}' does not implement Eq`, actual.span);
       }
       // spec/10-modules.md#r-module.testing.assert-equal-debug
@@ -1059,18 +1060,12 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           expression.arguments[reasonIndex]!.span,
         ),
       ];
-      const arguments_ = expression.arguments.map(
-        (_, index) => checkedByParameter[parameterIndex(index)]!,
+      return this.checkEqualCall(
+        expression.arguments.map((_, index) => checkedByParameter[parameterIndex(index)]!),
+        mapping,
+        actual.type,
+        expression.span,
       );
-      return {
-        kind: "assert-equal",
-        arguments: arguments_,
-        argumentParameterIndices: mapping,
-        valueType: actual.type,
-        strategy,
-        type: "void",
-        span: expression.span,
-      };
     }
     // `std.testing.snapshot(text, expect="")` compares text with a literal
     // expectation (spec/10-modules.md#snapshots). The prototype checks it as an
@@ -1114,10 +1109,8 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         "string",
         expression.arguments[textIndex]!.span,
       );
-      const strategy = this.equalityStrategy("string")!;
-      return {
-        kind: "assert-equal",
-        arguments: [
+      return this.checkEqualCall(
+        [
           text,
           this.checkExpression(expect, "string"),
           this.checkExpression(
@@ -1125,11 +1118,10 @@ export abstract class ExpressionCallChecker extends IterationChecker {
             "string",
           ),
         ],
-        valueType: "string",
-        strategy,
-        type: "void",
-        span: expression.span,
-      };
+        undefined,
+        "string",
+        expression.span,
+      );
     }
     // Checker intrinsics that only typed derivation generates
     // (spec/14-annotations.md#handles).
@@ -1173,6 +1165,32 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       return this.checkInternalEnumLiteral(expression, expression.callee.name, expected);
     }
     return undefined;
+  }
+
+  // A checked `assert_equal` or `snapshot` runs `std.testing`'s hd
+  // `check_equal` with `T = valueType`, which the loader declares for a
+  // program that imports either (checker/standard-library.ts).
+  private checkEqualCall(
+    arguments_: readonly HirExpression[],
+    argumentParameterIndices: readonly number[] | undefined,
+    valueType: ValueType,
+    span: SourceSpan,
+  ): HirExpression {
+    const signature = this.signatures.get(CHECK_EQUAL);
+    if (!signature) throw new Error("std.testing.check_equal is not declared");
+    return {
+      kind: "call",
+      functionIndex: signature.index,
+      functionName: signature.name,
+      arguments: arguments_,
+      argumentParameterIndices,
+      bounds: this.resolveBoundDictionaries(signature, new Map([["T", valueType]]), span),
+      providers: [],
+      erasedParameterTypes: signature.parameters,
+      erasedResultType: signature.result,
+      type: "void",
+      span,
+    };
   }
 
   private checkDeclaredCall(

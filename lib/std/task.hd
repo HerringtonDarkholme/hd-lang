@@ -1,0 +1,15 @@
+# std.task, the part written in hd (spec/std/task.md). The `Suspend`
+# protocol, `block_on`, `all!`, and `race!` are compiler intrinsics
+# (spec/11-requirements-and-suspension.md#standard-combinators), which the
+# compiler provides by name, as it does `Waker`.
+
+# Calls `attempt` one call after another until it returns `.Ok`, at most
+# `times` times, and returns the last result. A `times` below 1 counts as 1
+# (spec/std/task.md#retry). The attempt's row `R` is the call's row.
+pub fn retry![T, E, R](times: i32, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R:
+    let result = attempt!()
+    let tries = 1
+    while tries < times && !result.is_ok():
+        result = attempt!()
+        tries = tries + 1
+    result

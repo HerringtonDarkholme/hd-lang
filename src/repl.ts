@@ -269,7 +269,8 @@ export class ReplSession {
       entry(...main.requirements.map((requirement) => ({ requirement })));
       return { lines };
     } catch (error) {
-      if (error instanceof RuntimePanicError) return { lines, error: `panic: ${error.code}` };
+      if (error instanceof RuntimePanicError)
+        return { lines, error: `panic: ${error.detail ? error.message : error.code}` };
       return { lines, error: `internal error: ${(error as Error).message}` };
     }
   }

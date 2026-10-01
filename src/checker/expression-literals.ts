@@ -14,8 +14,6 @@ import {
   tupleType,
 } from "../types.ts";
 import { leastCommonType, rowUnionType } from "./assignability.ts";
-import { mapKeyKind } from "./context.ts";
-import { genericTypeName } from "./shared.ts";
 
 import { PatternChecker } from "./patterns.ts";
 
@@ -332,8 +330,10 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           else this.inferLeastCommonType(valueTypes, "map values", entry.value.span);
           return { key, value };
         });
+        // An inferred key type is readonly, as a `mut` key type is invalid.
         const keyType =
-          contextualKey ?? this.inferLeastCommonType(keyTypes, "map keys", expression.span);
+          contextualKey ??
+          readonlyType(this.inferLeastCommonType(keyTypes, "map keys", expression.span));
         const valueType =
           contextualValue ?? this.inferLeastCommonType(valueTypes, "map values", expression.span);
         const entries = checkedEntries.map((entry, index) => ({
@@ -344,19 +344,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             expression.entries[index]!.value.span,
           ),
         }));
-        // A type-parameter key compares through its `Eq` bound's dictionary.
-        const keyDispatch =
-          mapKeyKind(keyType) === undefined && genericTypeName(readonlyType(keyType))
-            ? this.equalityDispatch(keyType)
-            : undefined;
-        const keyKind = keyDispatch?.kind === "bound" ? 3 : mapKeyKind(keyType);
-        if (keyKind === undefined) {
-          this.fail(
-            "invalid-map-key",
-            `type '${keyType}' does not have the MVP's built-in Eq and Hash support`,
-            expression.span,
-          );
-        }
+        const { keyKind, keyDispatch } = this.mapKey(keyType, expression.span);
         const readonlyMap = nominalGenericType("Map", [keyType, valueType]);
         const type =
           (expected && mutableInner(expected) !== undefined) || expected === undefined
@@ -368,7 +356,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           keyType,
           valueType,
           keyKind,
-          ...(keyKind === 3 ? { keyDispatch } : {}),
+          ...(keyDispatch ? { keyDispatch } : {}),
           type,
           span: expression.span,
         };

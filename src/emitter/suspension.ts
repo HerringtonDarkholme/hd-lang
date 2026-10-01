@@ -421,7 +421,6 @@ class SuspensionPlanBuilder {
           left: left!,
           right: right!,
         }));
-      case "assert-equal":
       case "assert":
         return lowerValues(expression.arguments, (arguments_) => ({
           ...expression,

@@ -121,6 +121,9 @@ export function hiddenStandardName(module: string, name: string): string {
   return `__std_${module}_${name}`;
 }
 
+/** What a checked `assert_equal` or `snapshot` call runs (lib/std/testing.hd). */
+export const CHECK_EQUAL = hiddenStandardName("testing", "check_equal");
+
 /**
  * Compiler-provided names that the prototype declares only under their
  * standard names, since it supports no alias for them
@@ -233,8 +236,17 @@ function parseModule(name: StandardModule, source: string): Program {
   };
 }
 
-function standardModule(name: StandardModule): ParsedModule {
-  const cached = parsedModules.get(name);
+const declaredModules = new Map<
+  StandardModule,
+  { readonly program: Program; readonly names: readonly string[] }
+>();
+
+/** A module's parsed source and the names it declares. */
+function declaredModule(name: StandardModule): {
+  readonly program: Program;
+  readonly names: readonly string[];
+} {
+  const cached = declaredModules.get(name);
   if (cached) return cached;
   const program = parseModule(name, standardSource(name));
   const names = [
@@ -244,6 +256,15 @@ function standardModule(name: StandardModule): ParsedModule {
     ...(program.types ?? []).map((declaration) => declaration.name),
     ...program.functions.map((declaration) => declaration.name),
   ];
+  const declared = { program, names };
+  declaredModules.set(name, declared);
+  return declared;
+}
+
+function standardModule(name: StandardModule): ParsedModule {
+  const cached = parsedModules.get(name);
+  if (cached) return cached;
+  const { program, names } = declaredModule(name);
   const uses: { module: StandardModule; name: string }[] = [];
   const compilerUses: { module: string; name: string }[] = [];
   const templateUses: { module: StandardModule; name: string }[] = [];
@@ -274,9 +295,9 @@ function standardModule(name: StandardModule): ParsedModule {
     if (!declaration.module.startsWith("std."))
       throw new Error(`std.${name} uses '${declaration.module}', which is not a std module`);
     for (const imported of declaration.names)
-      // A module's own compiler-checked name, such as `std.testing.assert`
-      // in `std.testing`, is a compiler use: the module does not declare it.
-      if (isStandardModule(module) && !(module === name && !names.includes(imported.name)))
+      // A compiler-provided name, such as `std.testing.assert` or
+      // `std.task.block_on`, is a compiler use: its module does not declare it.
+      if (isStandardModule(module) && declaredModule(module).names.includes(imported.name))
         (outside.has(imported.name) ? uses : templateUses).push({ module, name: imported.name });
       else if (module === STRUCTURE || outside.has(imported.name))
         compilerUses.push({ module, name: imported.name });
@@ -349,20 +370,31 @@ const OPERATOR_TRAITS = new Map<string, readonly string[]>([
  * Every identifier-like string in the node, a superset of the names it
  * mentions. A comparison operator mentions the trait it calls, and a tuple
  * type, such as `(i32, string)` or `List[(K, V)]`, mentions `tuple`, as a
- * tuple expression or pattern (`kind: "tuple"`) does.
+ * tuple expression or pattern (`kind: "tuple"`) does. A map type, literal,
+ * or comprehension mentions `Hash`, which its key type's bound
+ * `Map[K < Eq & Hash, V]` checks (04-type-system.md#map-key-types), and
+ * `tuple`, since iterating a map yields `(K, V)` pairs.
  */
+const MAP_MENTIONS = ["Hash", "tuple"];
+
 function mentionedNames(node: unknown, names: Set<string>): void {
   if (Array.isArray(node)) {
     for (const item of node) mentionedNames(item, names);
     return;
   }
   if (typeof node === "string") {
-    for (const word of node.match(/\w+/g) ?? []) names.add(word);
+    for (const word of node.match(/\w+/g) ?? []) {
+      names.add(word);
+      if (word === "Map") for (const name of MAP_MENTIONS) names.add(name);
+    }
     for (const trait of OPERATOR_TRAITS.get(node) ?? []) names.add(trait);
     if (/(^|\W)\(/.test(node)) names.add("tuple");
     return;
   }
   if (!node || typeof node !== "object") return;
+  const kind = (node as { readonly kind?: unknown }).kind;
+  if (kind === "map" || kind === "map-comprehension")
+    for (const name of MAP_MENTIONS) names.add(name);
   for (const [key, child] of Object.entries(node)) if (key !== "span") mentionedNames(child, names);
 }
 
@@ -596,6 +628,16 @@ export function withStandardLibrary(source: Program): Program {
   // (spec/10-modules.md#test-cases).
   const timed = program.tests.find((test) => test.timeout);
   if (timed) include("time", timed.span);
+  // A checked `assert_equal` or `snapshot` call runs `check_equal`.
+  const asserting = program.uses.find(
+    (declaration) =>
+      declaration.module === "std.testing" &&
+      declaration.names.some(({ name }) => name === "assert_equal" || name === "snapshot"),
+  );
+  if (asserting) {
+    reached.add(CHECK_EQUAL);
+    if (!spans.has("testing")) spans.set("testing", asserting.span);
+  }
 
   // Prelude names that std declares keep their names
   // (spec/10-modules.md#prelude).

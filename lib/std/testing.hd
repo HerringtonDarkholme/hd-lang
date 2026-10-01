@@ -372,6 +372,19 @@ fn prop_draw(bound: i64) -> i64:
 fn prop_discard() -> void:
     panic("intrinsic")
 
+# What a checked `assert_equal` or `snapshot` call runs, with `T` the
+# readonly type of `actual`; the compiler checks the call itself. A failure
+# shows the reason and both values as `debug` renders them
+# (spec/10-modules.md#r-module.testing.assert-equal-debug).
+fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
+    if actual != expected:
+        assertion_failed("${reason}: actual ${debug(actual)}, expected ${debug(expected)}")
+
+# Panics with `assertion-failed` and `message`; the host does not return.
+@intrinsic("assertion_failed")
+fn assertion_failed(message: string) -> void:
+    panic("intrinsic")
+
 # `snapshot_file(text)` (spec/std/testing.md#snapshot-files) compares `text` with
 # the file the runner names from the running test case,
 # `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`. The host

@@ -144,7 +144,8 @@ export async function runSelected(
           return { failure: outcome.outcome ?? outcome.subject };
         } catch (error) {
           if (error instanceof PropertyDiscard) return "discard";
-          if (error instanceof RuntimePanicError) return { failure: `panicked with ${error.code}` };
+          if (error instanceof RuntimePanicError)
+            return { failure: `panicked with ${error.message}` };
           throw error;
         }
       };

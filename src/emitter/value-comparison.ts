@@ -6,14 +6,7 @@ import type {
   HirOrderingStrategy,
   ValueType,
 } from "../hir.ts";
-import {
-  mutableType,
-  nominalGenericParts,
-  optionalType,
-  readonlyType,
-  tupleParts,
-  tupleType,
-} from "../types.ts";
+import { readonlyType, tupleParts } from "../types.ts";
 import { EmitterContext } from "./context.ts";
 import { numericType } from "../numeric.ts";
 import { scalarWasm } from "./scalars.ts";
@@ -124,15 +117,18 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
   /** The `Eq` function of each declared map key type, by function index. */
   private readonly keyEqualityTypes = new Map<number, ValueType>();
 
+  /** The map key types compared by the language's primitive `Eq`, such as `i64`. */
+  private readonly primitiveKeyTypes: ValueType[] = [];
+
   /** The `Eq` traits whose bound dictionaries key a map (kind 3), by trait index. */
   private readonly boundKeyTraits = new Set<number>();
 
   /**
    * A map's key equality and key context, its last two `$hd.map` operands:
    * null for a scalar or string key (kinds 0 and 1); a wrapper of the key
-   * type's `Eq` implementation (kind 2); or, for a type-parameter key (kind
-   * 3), a wrapper that calls `Eq` through the bound's dictionary, which is
-   * the context.
+   * type's `Eq` implementation, or of the primitive `Eq` of a wide integer
+   * (kind 2); or, for a type-parameter key (kind 3), a wrapper that calls
+   * `Eq` through the bound's dictionary, which is the context.
    */
   protected keyEquality(
     keyType: ValueType,
@@ -150,6 +146,10 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       (candidate) => candidate.traitIndex === eq?.index && candidate.targetType === type,
     );
     const method = implementation?.methodFunctions.find(({ methodIndex }) => methodIndex === 0);
+    if (!method && numericType(type)) {
+      if (!this.primitiveKeyTypes.includes(type)) this.primitiveKeyTypes.push(type);
+      return `(ref.func $hd.keqp${this.primitiveKeyTypes.indexOf(type)}) (ref.null any)`;
+    }
     if (!method) throw new Error(`map key type '${type}' has no Eq implementation`);
     this.keyEqualityTypes.set(method.functionIndex, type);
     return `(ref.func $hd.keq${method.functionIndex}) (ref.null any)`;
@@ -159,6 +159,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     return [
       ...[...this.keyEqualityTypes.keys()].map((index) => `$hd.keq${index}`),
       ...[...this.boundKeyTraits].map((index) => `$hd.keqb${index}`),
+      ...this.primitiveKeyTypes.map((_, index) => `$hd.keqp${index}`),
     ];
   }
 
@@ -174,6 +175,10 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         const dictionary = `(ref.cast (ref null $trait${index}) (local.get $context))`;
         return `(func $hd.keqb${index} ${signature}\n  (call_ref $tsig${index}_0 (local.get $left) ${dictionary} (local.get $right) (struct.get $trait${index} $trait${index}m0 ${dictionary})))`;
       }),
+      ...this.primitiveKeyTypes.map(
+        (type, index) =>
+          `(func $hd.keqp${index} ${signature}\n  ${this.emitValueEquality(this.unboxValue("(local.get $left)", type), this.unboxValue("(local.get $right)", type), type, { kind: "builtin" })})`,
+      ),
     ].join("\n\n");
   }
 
@@ -395,9 +400,13 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
 
   // Dictionary methods for standard-library implementations without a source
   // `impl`. Each unboxes its erased operands and runs the operator strategy.
+  // An adapter's body may add adapters, as a tuple's equality adds its list
+  // element's, so this runs until no new one appears.
   emitBuiltinTraitAdapters(): string {
     const savedTemporaries = [...this.temporaryTypes];
-    const adapters = [...this.builtinTraitAdapters.values()].map((adapter) => {
+    const adapters: string[] = [];
+    for (let index = 0; index < this.builtinTraitAdapters.size; index += 1) {
+      const adapter = [...this.builtinTraitAdapters.values()][index]!;
       const builtin = adapter.implementation;
       const trait = this.traitsByIndex.get(builtin.traitIndex)!;
       const method = trait.methods[0]!;
@@ -431,8 +440,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         body = "(nop)";
       } else if (builtin.kind === "marker" || builtin.kind === "forward") {
         throw new Error(`a ${builtin.kind} dictionary has no builtin adapter`);
-      } else if (builtin.kind === "map-collection") {
-        body = this.emitMapCollection(builtin);
       } else {
         const compared = this.emitValueOrdering(
           self,
@@ -466,46 +473,20 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       const temporaries = this.temporaryTypes.map(
         (type, index) => `  (local $tmp${index} ${this.watType(type)})`,
       );
-      return [
-        `(func $tbuiltin${adapter.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref)${parameters.length ? " " + parameters.join(" ") : ""}${result}`,
-        ...boundLocals,
-        ...temporaries,
-        ...boundSetup,
-        `  ${body}`,
-        `)`,
-      ].join("\n");
-    });
+      adapters.push(
+        [
+          `(func $tbuiltin${adapter.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref)${parameters.length ? " " + parameters.join(" ") : ""}${result}`,
+          ...boundLocals,
+          ...temporaries,
+          ...boundSetup,
+          `  ${body}`,
+          `)`,
+        ].join("\n"),
+      );
+    }
     this.temporaryTypes.length = 0;
     this.temporaryTypes.push(...savedTemporaries);
     return adapters.join("\n\n");
-  }
-
-  /**
-   * `from_iter` of `FromIterator` for a map: insert each pair that `next`
-   * yields from the iterator `$a0` (spec/std/iter.md#r-std-iter.collect.map).
-   */
-  private emitMapCollection(
-    builtin: Extract<HirBuiltinTraitImplementation, { kind: "map-collection" }>,
-  ): string {
-    const [keyType, valueType] = nominalGenericParts(builtin.targetType)!.arguments;
-    const pairType = tupleType([keyType!, valueType!]);
-    const map = this.allocateTemporary(mutableType(builtin.targetType));
-    const item = this.allocateTemporary(optionalType(pairType));
-    const pair = this.allocateTemporary(pairType);
-    const itemValue = `(ref.as_non_null (local.get ${item}))`;
-    const pairValue = `(ref.as_non_null (local.get ${pair}))`;
-    const payload = `(struct.get $hd.variant $hd.variant-payload ${itemValue})`;
-    return [
-      `(block (result (ref null $hd.map))`,
-      `  (local.set ${map} (struct.new $hd.map (i32.const ${builtin.keyKind}) (i32.const 0) (array.new_default $hd.list (i32.const 0)) (array.new_default $hd.list (i32.const 0)) (i32.const 0) ${this.keyEquality(keyType!, builtin.keyKind)}))`,
-      `  (block $collected (loop $collect`,
-      `    (local.set ${item} (call ${functionName(builtin.nextFunctionIndex)} (local.get $a0)))`,
-      `    (br_if $collected (i32.eqz (struct.get $hd.variant $hd.variant-tag ${itemValue})))`,
-      `    (local.set ${pair} ${this.unboxValue(payload, pairType)})`,
-      `    (call $hd.map_insert (ref.as_non_null (local.get ${map})) (array.get $hd.list ${pairValue} (i32.const 0)) (array.get $hd.list ${pairValue} (i32.const 1)))`,
-      `    (br $collect)))`,
-      `  (local.get ${map}))`,
-    ].join("\n");
   }
 
   protected emitValueEquality(

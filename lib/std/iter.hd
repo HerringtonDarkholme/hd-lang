@@ -81,8 +81,6 @@ impl[T] Iterator[T]:
         C::from_iter(self)
 
 # A collection built from the items of an iterator. It is not a prelude name.
-# The compiler supplies the implementation for `Map[K, V]`: a map built in
-# generic code has no key equality for a type-parameter key.
 pub trait FromIterator[T]:
     fn from_iter(items: mut Iterator[T]) -> Self
 
@@ -92,6 +90,17 @@ impl[T] FromIterator[T] for List[T]:
         while true:
             match items.next():
                 .Some(item) => collected.append(item)
+                .None => break
+        collected
+
+# One entry per pair: for an equal key the later value wins, and the key
+# keeps its first position (spec/std/iter.md#r-std-iter.collect.map).
+impl[K < Eq & Hash, V] FromIterator[(K, V)] for Map[K, V]:
+    fn from_iter(items: mut Iterator[(K, V)]) -> Map[K, V]:
+        let collected: mut Map[K, V] = {}
+        while true:
+            match items.next():
+                .Some((key, value)) => collected[key] = value
                 .None => break
         collected
 

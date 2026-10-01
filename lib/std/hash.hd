@@ -20,6 +20,11 @@ impl Hash for string:
             index = index + 1
         state.write(bytes)
 
+# A `char` hashes as the one-scalar string of its UTF-8 bytes.
+impl Hash for char:
+    fn hash(self, state: mut Hasher) -> void:
+        "${self}".hash(state)
+
 impl Hash for bool:
     fn hash(self, state: mut Hasher) -> void:
         let byte: u8 = 0

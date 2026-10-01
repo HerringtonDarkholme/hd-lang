@@ -167,15 +167,6 @@ export type HirBuiltinTraitImplementation =
       readonly strategy: HirOrderingStrategy;
     }
   | {
-      // `std.iter.FromIterator` for `Map[K, V]`: `from_iter` inserts each pair,
-      // so a later value of an equal key replaces the earlier one in place.
-      readonly kind: "map-collection";
-      readonly traitIndex: number;
-      readonly targetType: ValueType;
-      readonly keyKind: number;
-      readonly nextFunctionIndex: number;
-    }
-  | {
       // A dynamic value of trait `sourceTraitIndex` used where its own trait or
       // a supertrait is bound: each method forwards through the value's own
       // table, reached by the supertrait `path` (09-traits.md#dynamic-trait-values).
@@ -531,13 +522,6 @@ export type HirExpression =
       readonly millis: HirExpression;
     })
   | (HirExpressionBase & {
-      readonly kind: "assert-equal";
-      readonly arguments: readonly HirExpression[];
-      readonly argumentParameterIndices?: readonly number[];
-      readonly valueType: ValueType;
-      readonly strategy: HirEqualityStrategy;
-    })
-  | (HirExpressionBase & {
       readonly kind: "value-equality";
       readonly left: HirExpression;
       readonly right: HirExpression;
@@ -598,7 +582,8 @@ export type HirExpression =
       readonly value: HirExpression;
       readonly keyType: ValueType;
       readonly valueType: ValueType;
-      readonly keyKind: 0 | 1 | 2;
+      readonly keyKind: 0 | 1 | 2 | 3;
+      readonly keyDispatch?: HirEqualityDispatch;
     })
   | (HirExpressionBase & {
       readonly kind: "variant-wrap";

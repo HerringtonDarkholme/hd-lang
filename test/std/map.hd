@@ -1,0 +1,59 @@
+# Map keys through the declared bound `Map[K < Eq & Hash, V]`, `collect`
+# into a map (std.iter), and the tuple implementations a map entry gets.
+use std.testing.assert_equal
+
+@derive(Eq, Hash, Debug)
+data Id:
+    value: string
+
+fn lookup[K < Eq & Hash](items: Map[K, i32], key: K) -> i32?:
+    items.get(key)
+
+fn doubled[K < Eq & Hash & Display](keys: List[K]) -> Map[K, string]:
+    {for k in keys => k: "${k}${k}"}
+
+fn positions[K < Eq & Hash](keys: List[K]) -> Map[K, i32]:
+    keys.iter().enumerate().map(fn(pair): (pair._1, pair._0)).collect()
+
+fn show[T < Display](value: T) -> string:
+    "${value}"
+
+fn first_entry(m: Map[string, i32]) -> string:
+    for entry in m:
+        return show(entry)
+    ""
+
+tests:
+    it("a char keys a map"):
+        let m: Map[char, i32] = {'a': 1, 'b': 2}
+        assert_equal(m['b'], 2, reason="char key")
+
+    it("an i64 keys a map"):
+        let m: mut Map[i64, string] = {}
+        m[5000000000] = "big"
+        m[5000000000] = "bigger"
+        assert_equal(m.len(), 1, reason="one i64 key")
+        assert_equal(m[5000000000], "bigger", reason="the later value")
+
+    it("a derived Eq and Hash type keys a map"):
+        m := {Id { value: "x" }: 1}
+        assert_equal(m[Id { value: "x" }], 1, reason="user key")
+
+    it("a type parameter keys a map"):
+        assert_equal(lookup({"a": 1}, "a"), .Some(1), reason="generic lookup")
+        assert_equal(doubled(["a", "b"])["b"], "bb", reason="generic comprehension")
+
+    it("collect builds a map, the later value wins in the first position"):
+        let m: Map[string, i32] = [("a", 1), ("b", 2), ("a", 3)].iter().collect()
+        assert_equal(m.len(), 2, reason="two keys")
+        assert_equal(m["a"], 3, reason="the later value")
+        let keys: mut List[string] = []
+        for pair in m:
+            keys.append(pair._0)
+        assert_equal(keys, ["a", "b"], reason="the first position")
+
+    it("collect builds a map over a type-parameter key"):
+        assert_equal(positions(["x", "y", "x"])["x"], 2, reason="generic collect")
+
+    it("a map entry meets a Display bound"):
+        assert_equal(first_entry({"a": 1}).len(), 6, reason="entry display")

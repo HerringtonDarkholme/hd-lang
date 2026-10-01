@@ -209,20 +209,54 @@ const TYPE_NAMES = new Set<ValueType>([
 ]);
 
 /**
- * The map key kinds: 0 for an `i32`-like scalar, 1 for a string, and 2 for
- * a declared type with `Eq` and `Hash` implementations, which the map
- * compares with its `Eq` (spec/09-traits.md#r-trait.hash.map-key).
+ * How a map stores and compares its keys at run time: 0 for an `i32`-like
+ * scalar, 1 for a string, and 2 for any other key type, which the map
+ * compares with its `Eq`. Which types may key a map is `mapKeyProblem`'s.
  */
-export function mapKeyKind(type: ValueType): 0 | 1 | 2 | undefined {
+export function mapKeyKind(type: ValueType): 0 | 1 | 2 {
   if (isNarrowInteger(type) || type === "bool" || type === "char") return 0;
   if (type === "string") return 1;
-  if (hashableKeyTypes.has(readonlyType(type))) return 2;
-  return undefined;
+  return 2;
 }
 
-// The declared types that implement both `Eq` and `Hash`, set for each
-// checked program before its types resolve (checker/program.ts).
-let hashableKeyTypes: ReadonlySet<string> = new Set();
+/**
+ * Why `type` may not key a map, if it may not: a `mut` key type, or a key
+ * type that fails the declared bound `Map[K < Eq & Hash, V]`
+ * (spec/04-type-system.md#map-key-types). A type parameter meets it
+ * through its own bounds, `hashableParameters`; any other type through a
+ * non-generic `Eq` and `Hash` implementation, std's included, or the
+ * primitive `Eq` of the language.
+ */
+export function mapKeyProblem(
+  type: ValueType,
+  hashableParameters: ReadonlySet<string> = new Set(),
+): { readonly code: string; readonly message: string } | undefined {
+  if (mutableInner(type) !== undefined)
+    return {
+      code: "invalid-map-key",
+      message: `a map key type must not be mut, found 'mut ${readonlyType(type)}'`,
+    };
+  const generic = genericTypeName(type);
+  const missing = generic
+    ? hashableParameters.has(generic)
+      ? undefined
+      : "Eq and Hash"
+    : ["Hash", "Eq"].find(
+        (trait) =>
+          !(implementedTraits.get(trait)?.has(type) ?? false) &&
+          !(trait === "Eq" && (numericType(type) || ["bool", "char", "string"].includes(type))),
+      );
+  return missing
+    ? {
+        code: "unsatisfied-trait-bound",
+        message: `type '${type}' does not implement ${missing}, required by the bound on 'K' of 'Map'`,
+      }
+    : undefined;
+}
+
+// The types with a non-generic `Eq` or `Hash` implementation, by trait, set
+// for each checked program before its types resolve (checker/program.ts).
+let implementedTraits: ReadonlyMap<string, ReadonlySet<string>> = new Map();
 
 export function setHashableKeyTypes(program: Program): void {
   const implemented = (trait: string): Set<string> =>
@@ -231,8 +265,7 @@ export function setHashableKeyTypes(program: Program): void {
         .filter((item) => item.traitName === trait && item.genericParameters.length === 0)
         .map((item) => item.targetName),
     );
-  const hash = implemented("Hash");
-  hashableKeyTypes = new Set([...implemented("Eq")].filter((name) => hash.has(name)));
+  implementedTraits = new Map(["Eq", "Hash"].map((trait) => [trait, implemented(trait)]));
 }
 
 export function isKnownType(
@@ -308,8 +341,7 @@ export function isKnownType(
     if (nominal.name === "Map") {
       return (
         nominal.arguments.length === 2 &&
-        (mapKeyKind(nominal.arguments[0]!) !== undefined ||
-          genericTypeName(nominal.arguments[0]!) !== undefined) &&
+        isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes) &&
         nominal.arguments[1] !== "void" &&
         isKnownType(nominal.arguments[1]!, dataTypes, enumTypes, traitTypes)
       );
@@ -1089,19 +1121,15 @@ export function typeName(
     });
   }
   const nominal = nominalGenericParts(resolved);
-  if (
+  const keyProblem =
     nominal?.name === "Map" &&
     nominal.arguments.length === 2 &&
     isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes) &&
-    isKnownType(nominal.arguments[1]!, dataTypes, enumTypes, traitTypes) &&
-    mapKeyKind(nominal.arguments[0]!) === undefined &&
-    !hashableParameters.has(genericTypeName(nominal.arguments[0]!) ?? "")
-  ) {
-    diagnostics.push({
-      code: "invalid-map-key",
-      message: `type '${nominal.arguments[0]}' does not implement the MVP map-key contract`,
-      span: type.span,
-    });
+    isKnownType(nominal.arguments[1]!, dataTypes, enumTypes, traitTypes)
+      ? mapKeyProblem(nominal.arguments[0]!, hashableParameters)
+      : undefined;
+  if (keyProblem) {
+    diagnostics.push({ ...keyProblem, span: type.span });
     return undefined;
   }
   if (!isKnownType(resolved, dataTypes, enumTypes, traitTypes)) {

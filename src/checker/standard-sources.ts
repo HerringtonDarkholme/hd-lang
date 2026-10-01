@@ -24,6 +24,7 @@ export const STANDARD_MODULES = [
   "process",
   "resource",
   "result",
+  "task",
   "testing",
   "text",
   "time",

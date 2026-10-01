@@ -56,14 +56,7 @@ runtime/valid/row-union-list-runs.hd	the prototype parses only a bare name list 
 runtime/valid/string-byte-methods.hd	the prototype parses only a bare name list after `for` (`expected a loop binding name`), so the parenthesized `for (key, value) in m` of grammar.flow.for-pattern is a syntax-error	SSC-Q4
 typing/invalid/bang-call-in-comprehension.hd	the prototype reports suspension-forbidden-context for a bang call in a comprehension outside a driver context, not bang-call-outside-suspension (expr.comp.suspension)	SSC-Q2
 typing/invalid/derived-arbitrary-generic-bound.hd	the prototype's checker-generated Arbitrary gives a generic type's member `T` no `Inspectable` bound, so the derived impl reports unsatisfied-trait-bound at the declaration (std-testing.arbitrary.derive.params); the expected error at the call is also reported	AT-gen
-typing/invalid/float-literal-map-key.hd	the prototype checks map keys by its own rule and reports invalid-map-key, not unsatisfied-trait-bound for the declared bound `Map[K < Eq & Hash, V]` (types.map-key.declared-bound)	SSC-Q7
-typing/invalid/float-map-key.hd	the prototype checks map keys by its own rule and reports invalid-map-key, not unsatisfied-trait-bound for the declared bound `Map[K < Eq & Hash, V]` (types.map-key.declared-bound)	SSC-Q7
 typing/invalid/for-binding-arity.hd	the prototype parses only a bare name list after `for` (`expected a loop binding name`), so the parenthesized `for (key, value) in m` of grammar.flow.for-pattern is a syntax-error	SSC-Q4
-typing/invalid/invalid-map-key.hd	the prototype checks map keys by its own rule and reports invalid-map-key, not unsatisfied-trait-bound for the declared bound `Map[K < Eq & Hash, V]` (types.map-key.declared-bound)	SSC-Q7
-typing/invalid/mut-map-key.hd	the prototype accepts a `mut` key type such as `Map[mut Session, i32]` when the type derives Eq and Hash, which types.map-key.no-mut rejects	SSC-Q7
-typing/invalid/nominal-map-key.hd	the prototype checks map keys by its own rule and reports invalid-map-key, not unsatisfied-trait-bound for the declared bound `Map[K < Eq & Hash, V]` (types.map-key.declared-bound)	SSC-Q7
-typing/invalid/tuple-map-key.hd	the prototype checks map keys by its own rule and reports invalid-map-key, not unsatisfied-trait-bound for the declared bound `Map[K < Eq & Hash, V]` (types.map-key.declared-bound)	SSC-Q7
-typing/invalid/user-map-key-bound.hd	the prototype checks map keys by its own rule and reports invalid-map-key, not unsatisfied-trait-bound for the declared bound `Map[K < Eq & Hash, V]` (types.map-key.declared-bound)	SSC-Q7
 typing/valid/derived-arbitrary-generic.hd	the prototype's checker-generated Arbitrary gives a generic type's member `T` no `Inspectable` bound, so the derived impl reports unsatisfied-trait-bound at the declaration (std-testing.arbitrary.derive.params)	AT-gen
 typing/valid/iteration-protocol.hd	the prototype parses only a bare name list after `for` (`expected a loop binding name`), so the parenthesized `for (key, value) in m` of grammar.flow.for-pattern is a syntax-error	SSC-Q4
 typing/valid/map-indexing.hd	the prototype still types `m[k]` as `V?` (expr.index.map.read-value makes it `V`), so reading it as `V` is type-mismatch (`expected i32, found i32?`); lib/std/ops.hd still matches on `self[key]` in Map's Index	SSC-Q8
@@ -91,10 +84,7 @@ typing/invalid/mut-tuple-parameter.hd	the prototype accepts a tuple type written
 typing/invalid/mut-tuple-annotation.hd	the prototype reports mutable-upgrade for `let p: mut (i32, i32) = (1, 2)`, which types.tuple.no-mut makes mut-on-tuple	TU2
 typing/invalid/let-mut-tuple.hd	the prototype reports mutable-upgrade for `let mut pair = (1, 2)`, which types.bind.let-mut-tuple makes mut-on-tuple	TU2
 runtime/valid/template-derived-trait-self.hd	the prototype resolves a receiverless template call only as `T::name()`, so `Structure::name()` is unknown-type and `Named::name()` is associated-function-needs-target (annot.template.qualified-self)	ST8-own
-runtime/valid/task-retry.hd	the prototype has no `std.task.retry`, so `retry!` is unknown-name (std-task.combinator.retry)	RETRY
-runtime/valid/task-retry-at-least-once.hd	the prototype has no `std.task.retry`, so `retry!` is unknown-name (std-task.combinator.retry.at-least-once)	RETRY
-typing/valid/task-retry-row.hd	the prototype has no `std.task.retry`, so `retry!` is unknown-name (std-task.combinator.retry)	RETRY
-typing/invalid/task-retry-row-missing.hd	the prototype has no `std.task.retry`, so `retry!` is unknown-name, not missing-requirement (std-task.combinator.retry)	RETRY
+typing/invalid/task-retry-row-missing.hd	`connect!` is private and writes no `$` clause, so the prototype infers its row `Console` by req.row.omitted.inferred-private and accepts the call; the fixture expects missing-requirement, which that rule seems to contradict (owner check, task #144)	RETRY
 parse/valid/tuple-element-binding-expression.hd	the prototype still rejects the grouped binding (`the grouped binding '(a, b := value)' was replaced`), so the tuple `(a, b := pair())` whose last element is a binding is a syntax-error (grammar.expr.multi-binding.element)	Q5-tuple
 parse/valid/for-data-pattern.hd	the prototype's `for` takes only a name or a bare name list, so `for Point { x, y: _ } in points` is a syntax-error (`expected 'in', found '{'`), not a data pattern (grammar.flow.for-pattern)	LP-for
 runtime/valid/for-patterns.hd	the prototype's `for` takes only a name or a bare name list, so `for Point { x, y } in points` is a syntax-error (`expected 'in', found '{'`), not a data pattern (flow.for.pattern)	LP-for
@@ -127,7 +117,7 @@ typing/invalid/all-non-suspend-argument.hd	the prototype reports every all! call
 typing/invalid/all-bang-child.hd	the prototype reports every all! call as unsupported-task-combinator, not type-mismatch (req.combinator.all-bang-child)	ALL-INTRINSIC
 typing/invalid/all-spread-argument.hd	the prototype reports every all! call as unsupported-task-combinator, not type-mismatch (req.combinator.all-direct)	ALL-INTRINSIC
 typing/invalid/all-function-value.hd	the prototype does not import all from std.task, so all as a value is unknown-name, not type-mismatch (req.combinator.all-direct)	ALL-INTRINSIC
-typing/valid/tuple-derived-traits.hd	the prototype has no Eq and Hash for tuples, so a tuple map key is invalid-map-key (trait.target.tuple.templates)	Q6
+typing/valid/tuple-derived-traits.hd	the prototype has no Hash for tuples (std-hash.tuple.template), so a tuple map key fails the bound Map[K < Eq & Hash, V] with unsatisfied-trait-bound	Q6
 runtime/valid/tuple-derived-order.hd	the prototype has no Eq and Hash for tuples, so a tuple map key is invalid-map-key (std-cmp.tuple.elementwise)	Q6
 typing/invalid/literal-suffix-negative-range.hd	the prototype folds the minus into a suffixed literal, so -2147483648off is off(-2147483648) and fits i32 instead of integer-literal-range (types.literal.suffixed.in)	Q3
 typing/invalid/literal-suffix-negation-no-neg.hd	the prototype folds the minus into a suffixed literal, so -12px is px(-12) and needs no Neg, instead of type-mismatch (expr.op.no-impl)	Q3

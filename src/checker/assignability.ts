@@ -1,6 +1,5 @@
 import type { HirTrait, HirTraitDictionaryPlan, ValueType } from "../hir.ts";
-import type { InherentMethod, Signature } from "./context.ts";
-import { genericTypeName, mapKeyKind } from "./shared.ts";
+import { genericTypeName } from "./shared.ts";
 import {
   functionParts,
   functionType,
@@ -9,7 +8,6 @@ import {
   nominalGenericType,
   readonlyType,
   storedSuspensionParts,
-  tupleType,
 } from "../types.ts";
 
 // Assignability by permission weakening and readonly list variance, and the
@@ -198,37 +196,6 @@ export function rowUnionType(types: readonly ValueType[]): ValueType | undefined
   );
   const least = leastCommonType(widened);
   return "type" in least ? least.type : undefined;
-}
-
-/**
- * `std.iter.FromIterator[(K, V)]` for `Map[K, V]`, which std cannot write in
- * hd: a map built in generic code has no key equality for a type-parameter
- * key (spec/std/iter.md#r-std-iter.collect.map).
- */
-export function mapCollectionPlan(
-  traitIndex: number,
-  type: ValueType,
-  traitArguments: readonly ValueType[],
-  inherentMethods: readonly InherentMethod[],
-  signatures: ReadonlyMap<string, Signature>,
-): HirTraitDictionaryPlan | undefined {
-  const map = nominalGenericParts(type);
-  if (map?.name !== "Map" || map.arguments.length !== 2) return undefined;
-  if (traitArguments.length !== 1 || traitArguments[0] !== tupleType(map.arguments))
-    return undefined;
-  const keyKind = mapKeyKind(map.arguments[0]!);
-  const next = inherentMethods.find(
-    (method) =>
-      method.name === "next" && nominalGenericParts(method.targetType)?.name === "Iterator",
-  );
-  const nextFunctionIndex = next && signatures.get(next.functionName)?.index;
-  if (keyKind === undefined || nextFunctionIndex === undefined) return undefined;
-  return {
-    bounds: [],
-    implementationIndex: -1,
-    supertraits: [],
-    builtin: { kind: "map-collection", traitIndex, targetType: type, keyKind, nextFunctionIndex },
-  };
 }
 
 /**

@@ -394,7 +394,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       return 1;
     }
     if (error instanceof RuntimePanicError) {
-      reporter.runtimePanic(error.code);
+      reporter.runtimePanic(error.code, error.detail);
       return 1;
     }
     if (error instanceof UnsupportedAtRunTimeError) {
