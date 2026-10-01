@@ -10,3 +10,4 @@ MHP-1	1	A script's top-level println needs the inferred script entry requirement
 Q6	2	Tuples derive Eq, PartialOrd, Ord, and Hash, but the prototype has no Hash for tuples, so a tuple map key fails the bound Map[K < Eq & Hash, V] (task #142)
 ANNOTATE-TYPED	2	Typed facts (batches 39 and 40, ANNOTATE-TYPED): the prototype's facts hold Inspectable values, so h.fact::[M]() needs M inspectable, and a typed fact over a type that is not inspectable, such as With[fn() -> i32], cannot be held or read
 O3b	5	Tuple Structure and tuple templates (batch 36, O3b): the prototype has neither, so tuple Debug, Display, and Default stop at 12 elements and impl[T < Tuple] ... by Structure derives nothing
+SHAPE-REVIEW	7	Shapes removed and facts_of added (batch 42, SHAPE-REVIEW): the prototype still implements shape and shape_of and has no facts_of, so every facts_of call is unknown-name

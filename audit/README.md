@@ -9,16 +9,16 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-10-01 the conformance suite has 1,767 cases, and
-`test/portable/cases.tsv` selects the 1,718 that the prototype passes. The
-other 49 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
+On 2026-10-01 the conformance suite has 1,765 cases, and
+`test/portable/cases.tsv` selects the 1,730 that the prototype passes. The
+other 35 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
 finding or with a decision below. Every case is in one of the two files. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Selected | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,693 | 1,648 | 45 |
-| stdlib | 74 | 70 | 4 |
+| language | 1,691 | 1,659 | 32 |
+| stdlib | 74 | 71 | 3 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
@@ -34,10 +34,9 @@ them by tag:
 | DC7 | 1 | group statements are not interleaved across modules |
 | MHP-1 | 1 | no inferred script entry requirement row |
 | Q6 | 2 | batch 31: tuples have no `Hash`, so a tuple map key fails `Map`'s `K < Eq & Hash` bound (task #142) |
-| O7 | 1 | batch 36: `arbitrary.with` still erases its generator, so a mismatched generator panics at run time |
-| ANNOTATE-TYPED | 14 | batches 39 and 40: no typed facts: `annotate` takes no type argument, so `@annotate::[F]` is `argument-count`, `Field` has no `fact`, a bare generic decorator gets no expected type, and a `fn!` target is not `type-mismatch` |
-| LITERAL-MARKERS | 8 | batch 39: the literal-function shape is still checked at the `fn` line, and a parameter outside `Num` is `type-mismatch` |
+| ANNOTATE-TYPED | 2 | batches 39 and 40: the prototype's facts hold `Inspectable` values, so a typed fact over a type that is not inspectable cannot be held or read |
 | O3b | 5 | batch 36: no tuple `Structure` or tuple templates, so tuple traits stop at 12 elements and a tuple template derives nothing |
+| SHAPE-REVIEW | 7 | batch 42: the prototype has no `facts_of` and still implements `shape` and `shape_of`, so every `facts_of` call is `unknown-name` |
 
 ## What Remains
 
@@ -77,12 +76,10 @@ Revision Notes in `spec/README.md` are the record.
 [`src/README.md`](../src/README.md) describes the implemented surface and
 its limits. These gaps are recorded only here:
 
-- Shape intrinsics (K1): `shape[T]()` and `metadata[T]()` for a type
-  parameter `T` report `unsupported-reified-shape`, since the prototype
-  passes no runtime type descriptor. `ShapeMetadata` has no
-  implementations, so a `T < ShapeMetadata` bound is never met.
-  `SourcePosition.file` is empty, and a `DeclarationId` is a hash of the
-  qualified name.
+- Shapes (batch 42): the spec removed `shape`, `shape_of`, and the shape
+  types, but `src/checker/shapes.ts` and `lib/std/annotation.hd` still
+  implement them, so programs that use them still check. A later
+  implementation task removes them and adds `facts_of`.
 - Testing: only functions of a `tests:` block are hidden from code outside
   it. Test dependencies are not implemented. A panic outside
   `expect_panic` stops the run (F-403).

@@ -1,4 +1,4 @@
-# std.annotation: the shape surface (spec/14-annotations.md#common-shape-representation)
+# std.annotation: the shape surface (the former Common Shape Representation, removed from the spec in batch 42)
 # and the target kinds (#target-kinds). Every shape name here is a prelude
 # name; `Target`, `Annotate`, and `annotate` are imported
 # (r-annot.target.declarations). `shape` and `shape_of` are compiler

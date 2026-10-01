@@ -91,7 +91,7 @@ defined in [Classification](#classification).
 | Prelude traits declared in TS: `Display`, `Eq`, `PartialOrd`, `Ord`, `Ordering`, `Debug`, `Iterable`, `Any`, `Waker`, `Console`, `ResourceError` | `checker/program-types.ts` (`declareProgramTypes` tail, `declareComparisonTraits`) | 230 | [Prelude](../spec/10-modules.md#prelude), [Comparison Traits](../spec/09-traits.md#comparison-traits) | C |
 | Std-name shims: hidden `Duration`, `ExitCode`, `Termination`, `DebugWriter`, `STANDARD_TRAITS` | `checker/standard-traits.ts` less `INSPECT_SOURCE` | 115 | lang items; [Time](../spec/std/time.md) | C |
 | Runtime type identity: `downcast`, `downcast_val`, `TypeId::of`, keys | `checker/expression-inspect.ts`, `checker/inspectable.ts` | 508 | [`trait.inspect.supplied`](../spec/09-traits.md#r-trait.inspect.supplied) | A |
-| `shape`, `shape_of` builders | `checker/shapes.ts` | 461 | [`module.prelude.shape`](../spec/10-modules.md#r-module.prelude.shape) | A |
+| `shape`, `shape_of` builders | `checker/shapes.ts` | 461 | `module.prelude.shape`, retired in batch 42 | A |
 | Literal suffix and prefix markers | `checker/literal-suffixes.ts` | 148 | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) | A |
 | `Termination`, entry results | `checker/termination.ts` | 161 | [Executable Entry Point](../spec/10-modules.md#executable-entry-point) | A |
 

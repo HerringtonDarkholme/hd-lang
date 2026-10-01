@@ -688,7 +688,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         if (dataDeclaration) {
           const selection = this.selectField(receiver.type, expression.name, expression.span);
           // A specialized shape's `fields` or `variants` record
-          // (spec/14-annotations.md#shape-intrinsics).
+          // (the former Shape Intrinsics, removed from the spec in batch 42).
           if (selection.kind !== "field" && isShapeMemberRecord(dataDeclaration.name))
             this.fail(
               "unknown-shape-target",

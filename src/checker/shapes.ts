@@ -12,7 +12,7 @@ import type { HirData, HirExpression, ValueType } from "../hir.ts";
 import { Source_ } from "./generated-source.ts";
 import { factType } from "./typed-derivation.ts";
 
-// The shape intrinsics (spec/14-annotations.md#shape-intrinsics).
+// The shape intrinsics (the former Shape Intrinsics, removed from the spec in batch 42).
 //
 // The shape types are ordinary `lib/std/annotation.hd` declarations. This
 // pass generates, for each target the program names in `shape::[T]()` or
@@ -86,7 +86,7 @@ export function specializedShapeBase(type: ValueType): string | undefined {
 
 /**
  * A specialized shape is assignable to its generic shape type
- * (spec/14-annotations.md#shape-intrinsics): the embedded generic value.
+ * (the former Shape Intrinsics, removed from the spec in batch 42): the embedded generic value.
  */
 export function generalizedShape(
   value: HirExpression,
@@ -374,7 +374,7 @@ class ShapeSource {
       }
     }
     for (const declaration of program.functions) {
-      // A function's decorator values (annot.decorator.fn-read).
+      // A function's decorator values (annot.decorator.fn-read, retired in batch 42 for annot.decorator.facts-of).
       add(declaration.name, declaration.decorators?.facts);
       for (const parameter of declaration.parameters)
         add(`${declaration.name}.${parameter.name}`, parameter.metadata);

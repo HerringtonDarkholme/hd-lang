@@ -61,7 +61,7 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
   const derived = withTypedDerivation(spelled.program);
   if (derived.diagnostics.some((diagnostic) => diagnostic.severity !== "warning"))
     return { diagnostics: [...derived.diagnostics] };
-  // Shape intrinsics call generated builders (spec/14-annotations.md#shape-intrinsics).
+  // Shape intrinsics call generated builders (the former Shape Intrinsics, removed from the spec in batch 42).
   const result = checkProgram(withShapes(derived.program), options);
   // A member that fails the walker's bound is reported at the opt-in
   // (spec/14-annotations.md#r-annot.walker.obligation.error).

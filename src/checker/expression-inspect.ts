@@ -242,7 +242,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
   }
 
   /**
-   * `shape::[T]()` and `shape_of(f)` (spec/14-annotations.md#shape-intrinsics):
+   * `shape::[T]()` and `shape_of(f)` (the former Shape Intrinsics, removed from the spec in batch 42):
    * the call of the builder that `shapes.ts` generated for the target.
    */
   protected shapeIntrinsicCall(expression: CallExpression): Expression {
@@ -304,7 +304,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
 
   /**
    * The generated `hd__metadata_M` method that `shape.metadata::[M]()` calls on
-   * a concrete shape type (spec/14-annotations.md#common-shape-representation).
+   * a concrete shape type (the former Common Shape Representation, removed from the spec in batch 42).
    */
   protected shapeMetadataMethod(
     expression: MemberCallExpression,

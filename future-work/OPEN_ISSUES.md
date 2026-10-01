@@ -38,6 +38,10 @@ it.
 | O3-blocks | batch 36 | Templates allow derivation blocks, but comparison derivations were never configurable. | Still unconfigurable ([`trait.derive.cmp-every-member`](../spec/09-traits.md#r-trait.derive.cmp-every-member)), so law partners stay consistent. **Recommendation:** keep it. |
 | O3b-rest | batch 36 | A rest member typed `List[T]` cannot meet a `Display` walker's bound, and text writes its items inline. | `Walker` gains `rest`, whose default calls `member` ([`annot.walk.rest`](../spec/14-annotations.md#r-annot.walk.rest)). **Recommendation:** keep it; the alternative is `Display` for `List`. |
 | O3b-user | batch 36 | Whether a trait outside `std` may declare a tuple template is not stated. | Yes, under the template rules ([`annot.template.tuple.form`](../spec/14-annotations.md#r-annot.template.tuple.form)). **Recommendation:** keep it; it adds no `std` special case. |
+| FO-code | batch 42 | The decision lets a bad `facts_of` argument reuse `unknown-shape-target`, renamed, or an existing code. | Renamed to `invalid-facts-of-target` ([`annot.facts-of.target.error`](../spec/14-annotations.md#r-annot.facts-of.target.error)). It also covers `facts_of` used as a value, as the old code covered `shape_of`. **Recommendation:** keep it; no existing code names a bad target. |
+| FO-facts-type | batch 42 | [`annot.structure.facts-type`](../spec/14-annotations.md#r-annot.structure.facts-type) says a `Facts` holds the facts of a type, member, or variant, but `facts_of` also returns one for a function. | Left unchanged; [`annot.facts-of.result`](../spec/14-annotations.md#r-annot.facts-of.result) states the function case. **Recommendation:** widen it under a new ID only if one statement is wanted. |
+| FO-traitless | batch 42 | [`annot.traitless.declaration-facts`](../spec/14-annotations.md#r-annot.traitless.declaration-facts) also said the field and variant shapes of `X` see a trait-less block's result. The record did not list it among the rules to reword. | Reworded to drop that clause, keeping its ID, since the clause named only removed values. **Recommendation:** keep it. |
+| FO-prelude-list | batch 42 | [`module.prelude.annotation-targets`](../spec/10-modules.md#r-module.prelude.annotation-targets) lists the imported names of `std.annotation` and omits `facts_of`. | Unchanged; [`annot.facts-of.declared`](../spec/14-annotations.md#r-annot.facts-of.declared) states the import. **Recommendation:** add `facts_of` there under a new ID if chapter 10 should list every import. |
 
 ### Codes Waiting For The Code Revamp
 
@@ -104,7 +108,7 @@ gives their background:
 | Non-escaping handles (M18 R5) | Whether the parked NonEscapable design (TQ-24 to TQ-26) makes handles non-escaping. |
 | `Clone`'s module (M24) | Which standard module declares `Clone`; chosen with the standard library (STDLIB). |
 | Derived-function cache (M24) | The cache's API and module; chosen with the standard library (STDLIB). |
-| Function targets | Deriving for functions, as tool adapters need ([parked](#parked-tool-adapters)). A decorator before a function attaches a plain value that `shape_of(f).metadata[M]()` reads ([Prefix Decorators](../spec/14-annotations.md#prefix-decorators)). |
+| Function targets | Deriving for functions, as tool adapters need ([parked](#parked-tool-adapters)). A decorator before a function attaches a plain value that `facts_of(f).find::[M]()` reads ([Function Facts](../spec/14-annotations.md#function-facts)). |
 
 M30 deferred template constants, typed shared constants, and composing
 templates until a real template needs them; they are not in the spec.

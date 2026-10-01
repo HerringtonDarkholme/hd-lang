@@ -90,7 +90,7 @@ const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
   ["hash", "Hasher"],
   ["iter", "Iterator"],
   ["iter", "Iterable"],
-  // The shape surface (spec/14-annotations.md#common-shape-representation).
+  // The shape surface (the former Common Shape Representation, removed from the spec in batch 42).
   ...[
     "DeclarationId",
     "SourcePosition",

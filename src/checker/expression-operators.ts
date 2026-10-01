@@ -245,7 +245,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             span: expression.span,
           };
         }
-        // The shape intrinsics are only callees (spec/14-annotations.md#shape-intrinsics).
+        // The shape intrinsics are only callees (the former Shape Intrinsics, removed from the spec in batch 42).
         if (expression.name === "shape" || expression.name === "shape_of")
           this.fail(
             "unknown-shape-target",

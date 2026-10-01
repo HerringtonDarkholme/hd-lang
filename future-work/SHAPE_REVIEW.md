@@ -1,21 +1,24 @@
 # Shape Review: Are `shape` And `shape_of` Still Needed?
 
-Status: research record, 2026-10-01. Nothing here is accepted behavior,
-and it changes no decision, spec text, fixture, or prototype code. It
+Status: research record, 2026-10-01; the owner decided its questions the
+same day, and batch 42 applied them (see
+[Owner Decisions](#owner-decisions)). The rest of this record is the
+research as written, and nothing else in it is accepted behavior. Links to
+the removed spec sections are now plain text. It
 answers the owner's request: "i don't think we should include
 shape/shape_of. I didn't approve/vet that design ... Please add a research
 to see if shape/shape_of should still be needed, are they covered by
 Structure."
 
 Under review:
-- [Common Shape Representation](../spec/14-annotations.md#common-shape-representation)
-  and [Shape Intrinsics](../spec/14-annotations.md#shape-intrinsics);
-- [`annot.decorator.fn-read`](../spec/14-annotations.md#r-annot.decorator.fn-read)
+- Common Shape Representation
+  and Shape Intrinsics;
+- `annot.decorator.fn-read`
   and the Note under [Target Kinds](../spec/14-annotations.md#target-kinds);
-- [Shape Descriptors](../spec/04-type-system.md#shape-descriptors) and
-  [`types.assign.shape`](../spec/04-type-system.md#r-types.assign.shape);
-- [`grammar.primary.shape-intrinsics`](../spec/02-grammar.md#r-grammar.primary.shape-intrinsics);
-- [`module.prelude.shape`](../spec/10-modules.md#r-module.prelude.shape)
+- Shape Descriptors and
+  `types.assign.shape`;
+- `grammar.primary.shape-intrinsics`;
+- `module.prelude.shape`
   and the `std.annotation` row of the [Prelude](../spec/10-modules.md#prelude);
 - the alternative it is measured against:
   [Typed Derivation](../spec/14-annotations.md#typed-derivation), its
@@ -32,6 +35,7 @@ Under review:
 - [5. Options](#5-options)
 - [6. Recommendation](#6-recommendation)
 - [Questions For The Owner](#questions-for-the-owner)
+- [Owner Decisions](#owner-decisions)
 - [Parse Log](#parse-log)
 
 ## Summary
@@ -107,16 +111,16 @@ Citation counts are from `pnpm run spec refs <id>`.
 
 | Rule | Chapter | Citations | Role |
 | --- | --- | --- | --- |
-| [`types.shape.consumes`](../spec/04-type-system.md#r-types.shape.consumes) | 04 | 1 (spec) | `shape::[T]()` consumes the reification descriptor |
-| [`types.shape.result`](../spec/04-type-system.md#r-types.shape.result) | 04 | 1 (spec) | specialized shape type for data and enums |
-| [`types.shape.other`](../spec/04-type-system.md#r-types.shape.other) | 04 | 1 (spec) | `TypeShape` for any other type |
-| [`types.shape.erased`](../spec/04-type-system.md#r-types.shape.erased) | 04 | 1 (spec) | erased parameter rejected |
-| [`types.shape.members`](../spec/04-type-system.md#r-types.shape.members) | 04 | 1 (spec) | member selection, `shape_of` |
-| [`types.assign.shape`](../spec/04-type-system.md#r-types.assign.shape) | 04 | 1 (spec) | specialized shape assignable to its generic type |
-| [`grammar.primary.shape-intrinsics`](../spec/02-grammar.md#r-grammar.primary.shape-intrinsics) | 02 | 1 (spec) | ordinary calls |
-| [`module.prelude.shape`](../spec/10-modules.md#r-module.prelude.shape) | 10 | 2 (spec, records) | prelude intrinsics |
-| [`trait.sealed.shape-metadata`](../spec/09-traits.md#r-trait.sealed.shape-metadata) | 09 | 1 (spec) | `ShapeMetadata` is sealed |
-| [`annot.decorator.fn-read`](../spec/14-annotations.md#r-annot.decorator.fn-read) | 14 | 4 (spec, 2 fixtures, src) | function facts read by `shape_of` |
+| `types.shape.consumes` | 04 | 1 (spec) | `shape::[T]()` consumes the reification descriptor |
+| `types.shape.result` | 04 | 1 (spec) | specialized shape type for data and enums |
+| `types.shape.other` | 04 | 1 (spec) | `TypeShape` for any other type |
+| `types.shape.erased` | 04 | 1 (spec) | erased parameter rejected |
+| `types.shape.members` | 04 | 1 (spec) | member selection, `shape_of` |
+| `types.assign.shape` | 04 | 1 (spec) | specialized shape assignable to its generic type |
+| `grammar.primary.shape-intrinsics` | 02 | 1 (spec) | ordinary calls |
+| `module.prelude.shape` | 10 | 2 (spec, records) | prelude intrinsics |
+| `trait.sealed.shape-metadata` | 09 | 1 (spec) | `ShapeMetadata` is sealed |
+| `annot.decorator.fn-read` | 14 | 4 (spec, 2 fixtures, src) | function facts read by `shape_of` |
 
 Rules that mention shapes but stay meaningful without them:
 
@@ -540,6 +544,22 @@ rules with no operation that reads its descriptor. This waits for Q2.
 fn runtime_type[T < Inspectable]() -> TypeId:
     TypeId::of::[T]()
 ```
+
+## Owner Decisions
+
+Batch 42, 2026-10-01. Applied in batch 42; see the
+[Revision Notes](../spec/README.md#revision-notes).
+
+1. **Q1: B.** User code reads a function's decorator values through
+   `facts_of(f).find::[M]()`, which returns the existing `Facts` type. `f`
+   must name a module-level function. Applied in
+   [Function Facts](../spec/14-annotations.md#function-facts); a bad
+   argument is `invalid-facts-of-target`, the renamed
+   `unknown-shape-target`.
+2. **Q2: A.** `shape::[T]()`, `shape_of`, and every shape type are
+   removed, with their unnumbered text.
+3. **Q3: A.** `reified` is reviewed next, as research, since its only
+   observable operation was `shape::[T]()`.
 
 ## Parse Log
 

@@ -1665,21 +1665,14 @@ and signature.
 Function generic parameters are erased at runtime by default. Mark a parameter `reified` when the function needs its concrete runtime type:
 
 ```text
-fn runtime_shape[reified T]() -> TypeShape:
-    shape::[T]()
+fn lookup[reified T]() -> T $ TypeProvider:
+    ...
 ```
 
 `reified` is written on the generic parameter, not on the function. The compiler passes a hidden runtime type descriptor at each call:
 
 ```text
-string_shape := runtime_shape::[string]()
-```
-
-An erased generic parameter cannot be used where runtime type information is required:
-
-```text
-fn invalid_shape[T]() -> TypeShape:
-    shape::[T]()  # compile error: T is erased
+names := lookup::[List[string]]()
 ```
 
 Reification propagates through generic calls. A function passing its own type parameter to a reified parameter must also declare that parameter as reified:
@@ -2080,7 +2073,7 @@ invariant in the requirement row. Because only permission changes preserve
 representation, `fn() -> mut User` converts to `fn() -> User`, but
 `fn() -> i32` does not convert to `fn() -> Display`.
 
-Function generic parameters are erased by default. Use `reified` only when runtime behavior needs the concrete type, such as shape inspection, metadata lookup, serialization, or type-directed dependency injection:
+Function generic parameters are erased by default. Use `reified` only when runtime behavior needs the concrete type, such as type-directed dependency injection:
 
 ```text
 fn resolve[reified T]() -> T $ TypeProvider:
@@ -2090,7 +2083,7 @@ items := resolve::[List[i32]]()
 ```
 
 At the language level, a reified call behaves as if it passes a hidden runtime
-type descriptor, observable only as `shape::[T]()`, a `TypeShape`. This descriptor is
+type descriptor. This descriptor is
 not an ordinary source-level argument and cannot be supplied with a named
 argument. Reification is part of a function's public type and ABI.
 
@@ -2974,8 +2967,7 @@ closure returned from the block, captures the value the same way.
 
 ## Using Annotations
 
-Annotations attach typed values to declarations and expose declaration
-structure as shape values. They do not change a declaration's type,
+Annotations attach typed values to declarations. They do not change a declaration's type,
 behavior, name, or visibility, and they register nothing.
 
 A decorator is a plain value. It may precede any item (a function, data
@@ -3002,18 +2994,20 @@ fn get_user(
 ```
 
 The field decorator attaches `max_len(80)` to the metadata of
-`display_name`, visible through its field shape. The embedded-field
+`display_name`, which a template reads through the field's handle. The
+embedded-field
 decorator attaches `flatten()` to `Timestamps` and does not decorate members
 promoted from `Timestamps`. A parameter decorator attaches metadata to the
-parameter's `ParamShape`; it is the only way to give a parameter metadata.
+parameter; it is the only way to give a parameter metadata.
 
-A decorator before a function attaches a value that code reads through the
-function's shape. A bare name of a function with no parameters is called,
+A decorator before a function attaches a value that code reads with
+`facts_of`, imported from `std.annotation`. It accepts only the name of a
+module-level function, not a closure or other function value. A bare name of a function with no parameters is called,
 so a marker needs no parentheses. A fact type may limit where its values
 go with `@annotate`:
 
 ```text
-use std.annotation.annotate
+use std.annotation.{annotate, facts_of}
 
 @annotate(.Fn)
 data Route:
@@ -3027,7 +3021,7 @@ fn list_users() -> string:
     "[]"
 
 fn users_path() -> string:
-    match shape_of(list_users).metadata::[Route]():
+    match facts_of(list_users).find::[Route]():
         .Some(found) => found.path
         .None => ""
 ```
@@ -3038,7 +3032,7 @@ target. See [Target Kinds](../spec/14-annotations.md#target-kinds).
 
 To write shared metadata away from a long declaration, use a trait-less
 derivation block. It names no trait, derives nothing, and holds only member
-lines, which every derivation of the type and its shape see:
+lines, which every derivation of the type sees:
 
 ```text
 use std.structure.Structure
@@ -3084,32 +3078,9 @@ or two type-level decorators of one type on a declaration, are rejected.
 Whether a value suits its member's type is checked by the code that reads
 it, not by the compiler.
 
-The compiler exposes shapes for the declarations a library can inspect:
-
-```text
-shape::[User]()                        # DataShape
-shape::[User]().fields.email           # FieldShape
-shape::[JobStatus]()                   # EnumShape
-shape::[JobStatus]().variants.Active   # VariantShape
-shape_of(get_user)                   # FnShape
-```
-
-`shape` and `shape_of` are compiler intrinsics in the prelude, not keywords.
-`shape::[T]()` takes the reflected type as a type argument; for a data type or
-enum its result has typed `fields` or `variants` members, so a misspelled field
-name is a compile-time error. Iterate the ordered members with `field_list` or
-`variant_list`. `shape_of` accepts only the name of a module-level function,
-not a closure or other function value. A member's metadata is read with
-`metadata::[M]()`, as in `shape::[User]().fields.display_name.metadata::[MaxLen]()`.
-
-`TypeShape` covers every type a declaration can mention: besides primitives,
-collections, tuples, named types, and functions, it has `Newtype(decl, base)`,
-`Mut(inner)` for mutable access, `Trait(decl, args)` for dynamic trait values,
-`Any`, and `Suspend(result)`.
-
-`FnShape` includes ordered parameter shapes, the result type, default presence,
-the suspension marker, and the normalized unordered requirement row. Parameter
-shapes carry their attached metadata.
+A data type's or enum's members and their metadata are read by a template
+over `Structure`, as the next part shows. There is no runtime descriptor of
+a declaration's structure.
 
 Information derived from a whole type, such as a validator, a schema, or a
 form description, is an ordinary trait with an associated function, derived
