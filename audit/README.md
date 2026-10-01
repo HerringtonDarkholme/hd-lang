@@ -9,15 +9,15 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,491 of the 1,694 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 203 are listed in
+On 2026-09-30 the prototype passes 1,486 of the 1,695 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 209 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 203 still fail. By
+decision below, and all 209 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,635 | 1,439 | 196 |
+| language | 1,636 | 1,434 | 202 |
 | stdlib | 59 | 52 | 7 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -25,14 +25,13 @@ them by tag:
 
 | Tag | Cases | Why they fail |
 | --- | ----- | ------------- |
-| F-250 | 12 | a pack function is `unsupported-generic-parameter` and `pack.map` is unknown; GADT variant results and package roles give generic diagnostics |
+| F-250 | 5 | GADT variant results and package roles give generic diagnostics |
 | EMB-S | 4 | trait availability needs package roles |
 | P2 | 4 | member visibility needs package roles |
 | TQ-2 | 1 | package roles |
 | M29 | 1 | the unused-fact warning needs a second package |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | DC7 | 1 | group statements are not interleaved across modules |
-| GQ4 | 1 | the prototype has no pack operations |
 | MHP-1 | 1 | no inferred script entry requirement row |
 | INF-mut | 3 | batch 17: generic inference widens numbers, reports a trait-value conflict as `type-mismatch`, and `assert_equal` keeps its special case |
 | BF | 83 | batch 22, D1 and D3: the prototype does not parse `::[` type arguments, still accepts `Box[i32] { ... }`, and reads `handlers[1](5)` as type arguments |
@@ -60,6 +59,9 @@ them by tag:
 | Q5 | 3 | batch 31: no `std.function.Tuple`, and `Fn` inputs are tuple-kinded only by use |
 | Q8 | 2 | batch 31: a spread still needs a vararg, so a tuple spread is `positional-spread-needs-vararg` |
 | Q7 | 1 | batch 31: every `race!` call is `unsupported-task-combinator` |
+| Q9 | 7 | batch 31: the prototype still parses type packs, pack expansion, and `pack.map(`, and has no `std.function.Tuple` for a rewritten `Fn[Args, O, R]` |
+| ALL-INTRINSIC | 5 | batch 31: every `all!` call is `unsupported-task-combinator` |
+| Q6 | 2 | batch 31: tuples have no `Eq` or `Hash`, so a tuple map key is `invalid-map-key` |
 
 ## What Remains
 
@@ -90,7 +92,6 @@ Revision Notes in `spec/README.md` are the record.
 | TQ-2 | The owner of a trait argument's outer constructor may write the impl. The check and `Iterable` are implemented; one fixture needs package roles (`--package-role`, `--dependency`), which the prototype CLI lacks. |
 | EMB-S | Rust-style trait lookup: a trait method is a candidate only where its trait is available, wherever the impl is declared; an unavailable trait is invisible, so a promoted method of that name is selected and a call that finds nothing is `unknown-method` suggesting the import. `member-lookup.ts` and `program-embedding.ts` implement the rest, but the prototype checks one module without trait imports (a multi-file package is linked into one namespace), so every trait is available, and the fixtures need package roles. |
 | P2 | Member lookup skips own fields and inherent methods not visible from the calling module; a private member of an embedded type is never promoted, and `private-member` is reported only for an invisible own member when nothing visible matches. `member-lookup.ts` follows the algorithm, but the prototype checks one module (a linked package shares one namespace), so every own member is visible, and the fixtures need package roles. |
-| GQ4 | `pack.map(` and `pack.map_list(` always form the pack operation, even beside a local named `pack`. The prototype checks the operation's argument shape but has no pack operations, so a valid use still resolves as a method call. |
 | MHP-1 | A `println` call at the top level of a script is valid (the second round). The prototype infers no script entry requirement row (`module.init.script-row`), so `println-top-level-script.hd` reports `missing-requirement`. |
 | DC7 | The top-level statements of an initialization group run in dependency order, then by module identity and source position. The package linker joins a group's modules by identity and cannot interleave their statements, so a read that needs a later-joined module's binding is `top-level-read-before-initialization`, which `init-group-order.hd`, a package-tree fixture, shows. |
 | M29 | A `Self` line in a per-trait derivation block warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package, and the prototype CLI has no package roles. The other M29 rules, and M27 and M28, are implemented. |

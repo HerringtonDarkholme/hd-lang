@@ -1,12 +1,11 @@
 id	count	title
-F-250	12	Packs, GADT variant results, and package roles are not implemented: a pack function is `unsupported-generic-parameter`, `pack.map` is an unknown name, and GADT results and package roles get generic diagnostics
+F-250	5	GADT variant results and package roles are not implemented: GADT results and package roles get generic diagnostics
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
 TQ-2	1	The trait-argument ownership fixture for a foreign trait argument needs package roles, which the prototype lacks
 M29	1	Typed derivation M29's per-trait Self-line warning needs a second package, and the prototype CLI has no package roles
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 DC7	1	An initialization group's statements are not interleaved: the package linker joins the group's modules by identity, so a read of a later-joined module's binding fails
-GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer
 INF-mut	3	Generic call inference from several arguments (batch 17, INF-mut) is not implemented: an i32 and an i64 argument widen instead of type-mismatch, a User and a Display argument are type-mismatch instead of no-common-type, and assert_equal still coerces expected to the type of actual
 BF	83	Explicit type arguments in expressions take `::` (batch 22, D1 and D3): the prototype does not parse `::[`, still accepts a type name's arguments without `::`, and reads brackets before `(` as type arguments
@@ -34,3 +33,6 @@ VARARG-TYPE	4	Tuple-typed varargs (batch 31, VARARG-TYPE): the prototype support
 Q5	3	The Tuple marker trait (batch 31, Q5): the prototype has no std.function.Tuple and makes Fn inputs tuple-kinded only by use
 Q8	2	Tuple spread (batch 31, Q8): a spread still needs a vararg, so a tuple spread into fixed parameters is positional-spread-needs-vararg
 Q7	1	The plain race! signature (batch 31, Q7): the prototype reports every race! call as unsupported-task-combinator
+Q9	7	Packs are removed in the specification, but the prototype still parses type packs, pack expansion, and pack.map(, and has no std.function.Tuple
+ALL-INTRINSIC	5	all! has one typing rule, but the prototype reports every all! call as unsupported-task-combinator
+Q6	2	Tuples derive Eq, PartialOrd, Ord, and Hash, but the prototype has no Eq or Hash for tuples, so a tuple map key is invalid-map-key

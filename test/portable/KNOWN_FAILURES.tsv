@@ -1,10 +1,5 @@
 path	reason	finding
-typing/valid/pack-map.hd	type packs parse, but the prototype erases generics and cannot specialize a pack function, so box_all[Ts...] is unsupported-generic-parameter; pack.map and pack.map_list are not implemented	F-250
-typing/invalid/pack-map-mapper-mismatch.hd	pack.map and pack.map_list are not implemented, so pack is an unknown name	F-250
-typing/valid/mutable-suspension.hd	type packs parse, but the prototype erases generics and cannot specialize a pack function, so accept_all[Ts...] is unsupported-generic-parameter	F-250
-typing/valid/variadic-generics.hd	type packs parse, but the prototype erases generics and cannot specialize a pack function, so call_with[Args..., R] is unsupported-generic-parameter	F-250
 typing/valid/gadts.hd	GADT variant results (13-gadts.md) are not implemented: a variant with its own generic parameters is a syntax error	F-250
-typing/invalid/pack-length-mismatch.hd	type packs parse, but pack inference is not implemented, so zip_apply is unsupported-generic-parameter before its call is checked	F-250
 typing/invalid/impossible-gadt-pattern.hd	GADT variant results (13-gadts.md) are not implemented: a variant result is unsupported-gadt-result	F-250
 typing/invalid/covariant-gadt-result.hd	GADT variant results (13-gadts.md) are not implemented: a mut type in a variant result is an expected-expression error, not invalid-variance	F-250
 typing/valid/invariant-gadt-result.hd	GADT variant results (13-gadts.md) are not implemented, and a mut type in a variant result is an expected-expression error	F-250
@@ -14,13 +9,10 @@ runtime/valid/unavailable-trait-method-invisible.hd	check exits 2 with usage tex
 typing/invalid/unavailable-trait-method-not-found.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 typing/invalid/available-trait-method-beside-promoted.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 runtime/valid/available-trait-method-across-packages.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
-typing/valid/pack-map-with-local-named-pack.hd	check fails: argument-count at line 16: the prototype has no pack operations, so pack.map( on a local named pack resolves as a method call	GQ4
 typing/invalid/private-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-promoted-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-own-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-embedded-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
-typing/valid/function-type-pack-impl.hd	an implementation header takes no type pack in the prototype, which cannot specialize Fn[(Is...), O, R]	F-250
-typing/invalid/function-type-overlapping-impl.hd	an implementation header takes no type pack in the prototype, so the overlap with Fn[(Is...), O, R] is not checked	F-250
 typing/invalid/root-orphan-impl.hd	the prototype CLI has no --package-role or --dependency option, so package roles cannot be checked	F-250
 typing/warnings/per-trait-self-line-unused-fact.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one package, so a fact never comes from a package without the block trait	M29
 typing/valid/println-top-level-script.hd	MVP reports missing-requirement at line 6: the prototype infers no script entry requirement row (module.init.script-row), so a script top level has no Console	MHP-1
@@ -191,7 +183,6 @@ typing/valid/let-underscore-discard.hd	the prototype's `let` takes only a name o
 runtime/valid/final-vararg.hd	the prototype keeps the vararg in a function value's type, so `scaled` is fn(i32,i32...)->i32 and does not fit fn(i32, List[i32]) -> i32 (fn.vararg.value)	VARARG-SPELL
 runtime/valid/spelled-function-type-values.hd	the prototype keeps the vararg in a function value's type, so `count` does not fit Fn[(string, List[i32]), i32, $()] (fn.vararg.value)	VARARG-SPELL
 runtime/valid/vararg-function-values.hd	the prototype keeps the vararg in a function value's type, so `f := count` does not fit fn(List[i32]) -> i32 (fn.vararg.value)	VARARG-SPELL
-typing/invalid/function-type-ellipsis.hd	the prototype still accepts a vararg function type such as fn(i32...) -> i32, which fn.type.no-ellipsis makes syntax-error	VARARG-SPELL
 runtime/valid/tuple-bound-vararg-call.hd	the prototype supports only a List[T] vararg, so args...: Args is unsupported-tuple-vararg (fn.vararg.infer-tuple)	VARARG-TYPE
 runtime/valid/tuple-vararg.hd	the prototype supports only a List[T] vararg, so a tuple-typed vararg is unsupported-tuple-vararg (fn.vararg.collect.tuple)	VARARG-TYPE
 typing/invalid/tuple-vararg-arity.hd	the prototype supports only a List[T] vararg, so it reports unsupported-tuple-vararg on the declaration, not type-mismatch on the call (fn.vararg.collect.tuple)	VARARG-TYPE
@@ -202,3 +193,18 @@ typing/valid/tuple-trait-bound.hd	the prototype treats a type parameter as Fn in
 runtime/valid/tuple-spread-fixed.hd	the prototype has no tuple spread: a spread needs a vararg, and Fn[Args, O, $()] with Args < Tuple is generic-kind-mismatch (expr.call.spread.tuple)	Q8
 typing/invalid/tuple-spread-arity.hd	the prototype has no tuple spread, so a tuple spread into fixed parameters is positional-spread-needs-vararg, not type-mismatch (expr.call.spread.mismatch)	Q8
 typing/valid/race-plain-signature.hd	the prototype reports every race! call as unsupported-task-combinator, so the plain signature is not checked (req.combinator.race-signature)	Q7
+typing/valid/mutable-suspension.hd	a cold call does not unify with a List[mut Suspend[T]] vararg element: the prototype reports type-mismatch, expected mut:Suspend[generic:T], found suspend(0):i32	Q9
+typing/invalid/function-type-overlapping-impl.hd	the prototype has no std.function.Tuple, so Fn[Args, O, R] with Args < Tuple is generic-kind-mismatch before the overlap is checked	Q9
+typing/valid/function-type-tuple-impl.hd	the prototype has no std.function.Tuple, so Fn[Args, O, R] with Args < Tuple is generic-kind-mismatch (trait.target.function-type)	Q9
+parse/invalid/function-type-ellipsis.hd	the prototype still accepts a vararg function type such as fn(i32...) -> i32, which fn.type.no-ellipsis makes syntax-error	VARARG-SPELL
+parse/invalid/generic-parameter-ellipsis.hd	the prototype still parses a type pack [Ts...], so it reports unsupported-tuple-vararg instead of syntax-error	Q9
+parse/invalid/tuple-type-ellipsis.hd	the prototype still parses a pack expansion (i32...) in a tuple type	Q9
+parse/invalid/tuple-element-spread.hd	the prototype still parses a tuple expansion (values...)	Q9
+typing/valid/pack-ordinary-name.hd	the prototype still treats pack.map( as the pack operation, so a method call on a local named pack is syntax-error (lex.contextual.elsewhere)	Q9
+typing/valid/all-tuple-result.hd	the prototype reports every all! call as unsupported-task-combinator, so the typing rule is not checked (req.combinator.all-typing)	ALL-INTRINSIC
+typing/invalid/all-non-suspend-argument.hd	the prototype reports every all! call as unsupported-task-combinator, not type-mismatch (req.combinator.all-argument)	ALL-INTRINSIC
+typing/invalid/all-bang-child.hd	the prototype reports every all! call as unsupported-task-combinator, not type-mismatch (req.combinator.all-bang-child)	ALL-INTRINSIC
+typing/invalid/all-spread-argument.hd	the prototype reports every all! call as unsupported-task-combinator, not type-mismatch (req.combinator.all-direct)	ALL-INTRINSIC
+typing/invalid/all-function-value.hd	the prototype does not import all from std.task, so all as a value is unknown-name, not type-mismatch (req.combinator.all-direct)	ALL-INTRINSIC
+typing/valid/tuple-derived-traits.hd	the prototype has no Eq and Hash for tuples, so a tuple map key is invalid-map-key (trait.target.tuple.derived)	Q6
+runtime/valid/tuple-derived-order.hd	the prototype has no Eq and Hash for tuples, so a tuple map key is invalid-map-key (trait.target.tuple.derived.elementwise)	Q6

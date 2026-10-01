@@ -681,7 +681,6 @@ runtime/valid/tuple-impl-target.hd	runtime
 typing/invalid/overlapping-tuple-impl.hd	type
 parse/valid/nested-suite-body-deeper-than-statement.hd	parse
 parse/invalid/nested-suite-body-level-with-statement.hd	parse
-parse/invalid/pack-map-local-method-call.hd	parse
 typing/valid/raw-identifiers.hd	type
 runtime/valid/raw-identifiers.hd	runtime
 parse/invalid/reserved-word-member-name.hd	parse
@@ -1371,7 +1370,6 @@ typing/invalid/collect-target-not-fromiterator.hd	type
 typing/valid/from-iterator-imported.hd	type
 parse/valid/type-argument-defaults.hd	parse
 parse/invalid/impl-generic-default.hd	parse
-parse/invalid/pack-generic-default.hd	parse
 typing/valid/type-default-declarations.hd	type
 typing/valid/type-default-function-value.hd	type
 typing/valid/type-default-trait-method.hd	type
@@ -1411,9 +1409,6 @@ runtime/valid/requirement-key-binding-run.hd	runtime
 typing/invalid/ambiguous-projection.hd	type
 typing/invalid/ambiguous-projection-binding.hd	type
 typing/invalid/requirement-key-unbound.hd	type
-typing/invalid/multiple-positional-value-packs.hd	type
-typing/invalid/nonfinal-positional-value-pack.hd	type
-typing/invalid/dynamic-safety-pack-parameter.hd	type
 parse/invalid/closure-type-parameters.hd	parse
 typing/valid/mut-self-primitive-impl.hd	type
 typing/valid/closure-with-ignores-outer-key.hd	type
@@ -1486,7 +1481,7 @@ runtime/valid/iterator-single-pass.hd	runtime
 parse/invalid/match-arm-mut-pattern.hd	parse
 runtime/valid/tuple-element-permission.hd	runtime
 parse/invalid/for-pattern-mut.hd	parse
-typing/invalid/vararg-ellipsis-after-type.hd	type
 typing/invalid/vararg-function-value-arity.hd	type
 typing/invalid/vararg-type-not-collection.hd	type
 typing/invalid/function-type-unbounded-inputs.hd	type
+parse/invalid/vararg-ellipsis-after-type.hd	parse

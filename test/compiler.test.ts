@@ -902,13 +902,11 @@ test("spelled std.function constructors are the function type sugar", async () =
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 23);
   for (const [name, code] of [
-    ["function-type-non-tuple-inputs", "generic-kind-mismatch"],
-    ["vararg-ellipsis-after-type", "syntax-error"],
+    ["typing/invalid/function-type-non-tuple-inputs", "generic-kind-mismatch"],
+    ["parse/invalid/vararg-ellipsis-after-type", "syntax-error"],
   ])
     assert.deepEqual(
-      analyze(conformance(`typing/invalid/${name}`)).diagnostics.map(
-        (diagnostic) => diagnostic.code,
-      ),
+      analyze(conformance(name)).diagnostics.map((diagnostic) => diagnostic.code),
       [code],
     );
 });
