@@ -138,7 +138,7 @@ impl[K < Eq & Hash, V < Eq] Eq for Map[K, V]:
     fn eq(self, other: Map[K, V]) -> bool:
         if self.len() != other.len():
             return false
-        for key, value in self:
+        for (key, value) in self:
             match other.get(key):
                 .Some(found) =>
                     if found != value:

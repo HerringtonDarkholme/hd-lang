@@ -359,8 +359,12 @@ listed yet.
   `f64` bits, and exact hex-encoded UTF-8 bytes;
 - value-producing `if`, statement `if`, `while`, value-producing `while ...
 else`, `break`, `break value`, and `continue`;
-- list and insertion-ordered map `for` iteration with tuple destructuring and
-  value-producing `for ... else`;
+- list and insertion-ordered map `for` iteration with value-producing
+  `for ... else`. A `for` loop or comprehension clause takes an irrefutable
+  pattern: a name or a tuple of names binds directly, and any other pattern
+  binds a hidden item that a one-arm `match` destructures (in a
+  comprehension, through a one-element list per item), so a refutable one is
+  `refutable-let-pattern` and the bare `for a, b in` is `syntax-error`;
 - eager list and map comprehensions with ordered nested clauses, conditional
   filters, lexical clause bindings, duplicate map-key replacement, and a
   compile-time ban on suspension calls;
@@ -619,8 +623,8 @@ else`, `break`, `break value`, and `continue`;
   as source-declared generic enums;
 - literal suffixes (Literal Suffixes L1-L18, L11 with Decorators
   D9's names): `250ms` and `1.5kb` lex as one number with a suffix, and the
-  parser desugars them to the call `ms(250)`, folding a directly applied
-  `-` into the literal. Radix literals take no suffix, and a reserved-word
+  parser desugars them to the call `ms(250)`; `-250ms` is the ordinary
+  negation `-(ms(250))`. Radix literals take no suffix, and a reserved-word
   suffix such as `5else` is `invalid-token`. The checker resolves the
   suffix among module-scope functions only, requires a function marked
   `@num_suffix` (`FunctionDecl.numSuffix`, set after the std join by

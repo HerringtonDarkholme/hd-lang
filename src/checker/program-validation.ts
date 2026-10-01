@@ -17,6 +17,12 @@ export function validateProgram(context: ProgramCheckContext): void {
       message: `the primitive type '${type.name.slice("mut:".length)}' takes no 'mut'; a primitive value has no mutable state, and a 'let' binding is already reassignable`,
       span: type.span,
     });
+  for (const type of program.mutTuples ?? [])
+    diagnostics.push({
+      code: "mut-on-tuple",
+      message: `the tuple type '${type.name.slice("mut:".length)}' takes no 'mut'; each element's permission comes from its own type, and a 'let' binding is already reassignable`,
+      span: type.span,
+    });
   for (const declaration of program.uses) {
     for (const imported of declaration.names) {
       const localName = imported.alias ?? imported.name;

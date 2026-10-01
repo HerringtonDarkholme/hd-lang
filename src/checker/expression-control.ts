@@ -16,6 +16,7 @@ import {
   mutableInner,
   nominalGenericParts,
   optionalInner,
+  readonlyType,
   resultParts,
   storedSuspensionParts,
   suspensionParts,
@@ -34,7 +35,7 @@ import {
 } from "./shared.ts";
 
 import { patternsExhaustive } from "./exhaustiveness.ts";
-import { ExpressionComprehensionChecker } from "./expression-comprehensions.ts";
+import { ExpressionComprehensionChecker, FOR_PATTERN_ITEM } from "./expression-comprehensions.ts";
 type MatchExpression = Extract<Expression, { kind: "match" }>;
 type MatchSourceArm = MatchExpression["arms"][number];
 type MatchBinding = HirMatchArm["bindings"][number];
@@ -121,11 +122,39 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
           );
         }
         const { iteratorKind, iteratorFunctionIndex, yieldType } = info;
-        const bindingTypes = expression.bindings.length === 1 ? [yieldType] : tupleParts(yieldType);
-        if (!bindingTypes || bindingTypes.length !== expression.bindings.length) {
+        let sourceBindings = expression.bindings;
+        let sourceBody = expression.body;
+        if (expression.pattern) {
+          // `for P in xs: body` checks as `for item in xs: match item: P => body`
+          // once P is known to be irrefutable (06-control-flow.md#r-flow.for.pattern).
+          this.requireIrrefutableForPattern(expression.pattern, yieldType);
+          const span = expression.pattern.span;
+          sourceBindings = [{ name: FOR_PATTERN_ITEM, span }];
+          sourceBody = [
+            {
+              kind: "expression",
+              expression: {
+                kind: "match",
+                subject: { kind: "name", name: FOR_PATTERN_ITEM, span },
+                arms: [
+                  { pattern: expression.pattern, body: expression.body, span: expression.span },
+                ],
+                span: expression.span,
+              },
+              span: expression.span,
+            },
+          ];
+        }
+        // The pattern binds readonly names, as a `let` pattern does without `mut`.
+        const bindingTypes = expression.pattern
+          ? [readonlyType(yieldType)]
+          : sourceBindings.length === 1
+            ? [yieldType]
+            : tupleParts(yieldType);
+        if (!bindingTypes || bindingTypes.length !== sourceBindings.length) {
           this.fail(
             "type-mismatch",
-            `loop binding has ${expression.bindings.length} names but '${yieldType}' yields ${bindingTypes?.length ?? 1} value${bindingTypes?.length === 1 ? "" : "s"}`,
+            `loop binding has ${sourceBindings.length} names but '${yieldType}' yields ${bindingTypes?.length ?? 1} value${bindingTypes?.length === 1 ? "" : "s"}`,
             expression.span,
           );
         }
@@ -140,7 +169,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         let body: readonly HirStatement[];
         try {
           const seen = new Set<string>();
-          bindings = expression.bindings.map((binding, index) => {
+          bindings = sourceBindings.map((binding, index) => {
             if (seen.has(binding.name))
               this.fail(
                 "duplicate-binding",
@@ -166,7 +195,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
             this.currentScope().set(binding.name, local);
             return local;
           });
-          body = this.checkStatements(expression.body, false);
+          body = this.checkStatements(sourceBody, false);
         } finally {
           this.scopes.pop();
           this.loopResults.pop();

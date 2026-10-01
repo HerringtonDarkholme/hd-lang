@@ -568,12 +568,22 @@ export abstract class ParserBase {
    * adds them (02-grammar.md#r-grammar.stmt.let-list.bare,
    * 02-grammar.md#r-grammar.stmt.bind-list.bare).
    */
-  protected failBareNameList(form: "let" | ":=", first: Token, last: Token): never {
+  protected failBareNameList(
+    form: "let" | ":=" | "for" | "comprehension",
+    first: { readonly span: SourceSpan },
+    last: { readonly span: SourceSpan },
+  ): never {
     const span = { start: first.span.start, end: last.span.end };
-    const example = form === "let" ? "let (a, b) = ..." : "(a, b) := ...";
+    const [example, where] = {
+      let: ["let (a, b) = ...", "a 'let' binding"],
+      ":=": ["(a, b) := ...", "a ':=' binding"],
+      // A `for` list too (02-grammar.md#r-grammar.flow.for-list.bare).
+      for: ["for (a, b) in ...", "a for loop"],
+      comprehension: ["[for (a, b) in ... => ...]", "a comprehension for clause"],
+    }[form];
     this.fail(
       "syntax-error",
-      `several names in a ${form === "let" ? "'let'" : "':='"} binding go in parentheses, as in '${example}'`,
+      `several names in ${where} go in parentheses, as in '${example}'`,
       span,
       {
         message: "put the names in parentheses",

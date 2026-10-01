@@ -531,11 +531,18 @@ export abstract class StatementChecker extends CheckerContext {
   }
 
   /**
-   * `let mut` on a primitive is `mut-on-primitive`, in place of
+   * `let mut` on a primitive is `mut-on-primitive`, and on a tuple `mut-on-tuple`, in place of
    * `mutable-upgrade` or `let-mut-readonly-type`
    * (04-type-system.md#r-types.bind.let-mut-primitive).
    */
   private rejectLetMutPrimitive(type: ValueType, span: SourceSpan): void {
+    // A tuple has no `mut` form either (04-type-system.md#r-types.bind.let-mut-tuple).
+    if (tupleParts(type) !== undefined)
+      this.fail(
+        "mut-on-tuple",
+        `'let mut' asks for mutable access, but '${type}' is a tuple, which has no 'mut' form; a plain 'let' is already reassignable, and an element's permission comes from its own type`,
+        span,
+      );
     if (!PRIMITIVE_TYPES.has(type)) return;
     this.fail(
       "mut-on-primitive",

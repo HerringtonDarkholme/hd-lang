@@ -599,7 +599,9 @@ class Scanner {
       } else if (
         current === "$" &&
         quote === '"' &&
-        (!raw || isIdentifierStart(this.peek()) || this.peek() === "{")
+        // In every string, a `$` before neither `{` nor an identifier start
+        // is text (01-lexical-structure.md#r-lex.interp.dollar-text).
+        (isIdentifierStart(this.peek()) || this.peek() === "{")
       ) {
         if (value.length > 0)
           segments.push({
@@ -634,7 +636,7 @@ class Scanner {
             span: { start: expressionStart, end: this.position() },
           });
           segmentStart = this.position();
-        } else if (this.peek() === "{") {
+        } else {
           text += this.advance();
           const expressionStart = this.position();
           const source = this.scanInterpolationExpression();
@@ -654,13 +656,6 @@ class Scanner {
             );
             break;
           }
-        } else {
-          this.report(
-            "syntax-error",
-            "an unescaped '$' must be followed by an identifier or '{'",
-            start,
-          );
-          segmentStart = this.position();
         }
       } else {
         value += current;

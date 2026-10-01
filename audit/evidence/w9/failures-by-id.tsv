@@ -12,32 +12,19 @@ BFF	5	Callable values (D1 callable-value part, D2, D4): the prototype does not k
 IT	2	Iterator is not Iterable (batch 24, IT2): lib/std/iter.hd still implements Iterable for Iterator, so the prototype accepts an iterator for an Iterable bound
 ST8-self	1	A template's qualified Structure:: call (batch 25, ST8-self): the prototype resolves a receiverless template call only as T::name() or T::facts(), so Structure::name() is unknown-type
 SSC-Q2	2	Bang calls in comprehensions (batch 26, Syntax And Semantics Cost Q2): the prototype still rejects every bang call in a comprehension as suspension-forbidden-context
-SSC-Q3	3	One dollar rule for every string (batch 26, Q3): the prototype lexer still rejects a plain-string $ that begins no interpolation
-SSC-Q4	21	Parenthesized for lists (batch 26, Q4): the prototype parses only a bare name list after for, so for (key, value) in m is a syntax-error and the bare form is accepted
 SSC-Q5	2	Multi-name bindings are statements (batch 26, Q5): the prototype accepts ((a, b) := value) and reports the withdrawn multi-binding-needs-parentheses for [(a, b) := value]
-SSC-Q8	3	Map index reads V (batch 26, Q8): the prototype still types m[k] as V?
+SSC-Q8	4	Map index reads V (batch 26, Q8): the prototype still types m[k] as V?, and lib/std/ops.hd still matches on self[key] in Map's Index
 AT-gen	2	Generic derived Arbitrary (batch 26, AT-gen): the prototype's checker-generated Arbitrary gives a member's type parameter no Inspectable bound
 LP	17	Patterns in let (batch 26, LP1 and LP1-one): the prototype's let takes only a name or a parenthesized name list and has no let-else, so data, variant, and nested patterns are syntax-error; it still accepts a multi-name := and reports other patterns before := as syntax-error, not missing-let
 Q5-list	1	List items may be bindings (batch 26, Q5-list): the prototype reports the withdrawn multi-binding-needs-parentheses for [a, b := value]
-TU2	3	Tuples have no mut form (batch 27, TU2): the prototype accepts a mut tuple parameter type and reports mutable-upgrade, not mut-on-tuple, for a mut tuple annotation and for let mut on a tuple
 ST8-own	1	A template's call qualified by the derived trait (batch 28, ST8-own): the prototype reports Named::name() as associated-function-needs-target
-LP-for	4	Patterns in for (batch 30, LP-for): the prototype's for and comprehension for take only a name or a bare name list, so a data pattern and a refutable pattern are syntax-error
 LP-irrefutable-else	1	An else after an irrefutable let pattern (batch 30, LP-irrefutable-else): the prototype's let has no else block, so it is syntax-error, not unreachable-match-arm
 LP-discard	1	let _ discards a must-use value (batch 30, LP-discard): the prototype's let takes no _ pattern, so let _ = save() is syntax-error
 Q5-tuple	1	Tuple elements may be bindings (batch 30, Q5-tuple): the prototype still rejects (a, b := value) as the withdrawn grouped binding
-VARARG-TYPE	2	Tuple-typed varargs (batch 31, VARARG-TYPE): the prototype supports only a List[T] vararg, so a tuple or Tuple-bounded vararg is unsupported-tuple-vararg
-Q5	1	The Tuple marker trait (batch 31, Q5): the prototype has no std.function.Tuple and makes Fn inputs tuple-kinded only by use
-Q8	2	Tuple spread (batch 31, Q8): a spread still needs a vararg, so a tuple spread into fixed parameters is positional-spread-needs-vararg
-Q7	1	The plain race! signature (batch 31, Q7): the prototype reports every race! call as unsupported-task-combinator
-Q9	3	Packs are removed in the specification, but the prototype still parses type packs, pack expansion, and pack.map(, and has no std.function.Tuple
-ALL-INTRINSIC	6	all! has one typing rule, but the prototype reports every all! call as unsupported-task-combinator
-Q6	2	Tuples derive Eq, PartialOrd, Ord, and Hash, but the prototype has no Eq or Hash for tuples, so a tuple map key is invalid-map-key
-Q3	3	-5s is the ordinary negation -(5s) (batch 31, Q3): the prototype folds the minus into the literal, as s(-5), so it needs no Neg and range-checks the negated value
-TUPLE-REST	4	Tuple rest elements (batch 33, TUPLE-REST): the prototype has no tuple rest element, no tuple spread, and reads a vararg's type as its element type, so List[i32]... in a type is a vararg of List[i32] elements
+Q6	2	Tuples derive Eq, PartialOrd, Ord, and Hash, but the prototype has no Hash for tuples, so a tuple map key fails the bound Map[K < Eq & Hash, V] (task #142)
 Q6-others	1	Tuple Display (batch 33, Q6-others): the prototype's interpolation finds a Display implementation only for an exact target type, so lib/std's generic tuple implementations are unused
-TR-mixed-tail	1	A list spread ending a tuple vararg's arguments (batch 34, Q4): the prototype supports only a List[T] vararg, so a tuple or Tuple-bounded vararg is unsupported-tuple-vararg
-TR-traits	3	Rest tuples derive the tuple traits (batch 34, Q5): the prototype has no tuple rest element, so a rest tuple is unknown-type and lib/std cannot declare its Debug and Display
-TR-pattern	1	Spread patterns (batch 34, Q6): the prototype has no spread pattern, so (a, xs...) in a pattern is syntax-error
+TR-traits	3	Rest tuples derive the tuple traits (batch 34, Q5): the prototype has tuple rest elements, but no Eq or PartialOrd for a rest tuple and no rest tuple Debug or Display impl in lib/std
 O7	5	Member-typed facts (batch 36, O7): the prototype has no std.annotation.member_typed, no Field.fact, and keeps the erased arbitrary.with Generator, so a mismatched generator panics at run time instead of type-mismatch
 FACT-EXPECTED	3	Expected type from a member-typed fact (batch 38, FACT-EXPECTED): the prototype has no member-typed facts, so a generic function value in such a fact gets no expected type and is unresolved-generic-placeholder
 O3b	5	Tuple Structure and tuple templates (batch 36, O3b): the prototype has neither, so tuple Debug, Display, and Default stop at 12 elements and impl[T < Tuple] ... by Structure derives nothing
+FX-reason	1	Fixture defect: the fixture calls assert_equal without its required reason argument (module.testing.exports), so its tests are argument-count; the spec owner fixes the fixture

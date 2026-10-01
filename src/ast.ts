@@ -395,6 +395,8 @@ export interface MapEntry {
 export interface ComprehensionForClause {
   readonly kind: "for";
   readonly bindings: readonly BindingName[];
+  /** A pattern other than a name or a tuple of names; then `bindings` is empty (grammar.flow.for-pattern). */
+  readonly pattern?: Pattern;
   readonly iterable: Expression;
   readonly span: SourceSpan;
 }
@@ -441,6 +443,11 @@ export interface Program {
    * checker rejects (04-type-system.md#r-types.prim.no-mut.error).
    */
   readonly mutPrimitives?: readonly TypeRef[];
+  /**
+   * Tuple types written with `mut`, such as `mut (User, i32)`, which the
+   * checker rejects (04-type-system.md#r-types.tuple.no-mut).
+   */
+  readonly mutTuples?: readonly TypeRef[];
   readonly data: readonly DataDecl[];
   readonly enums: readonly EnumDecl[];
   readonly traits: readonly TraitDecl[];
@@ -699,6 +706,8 @@ export type Expression =
   | {
       readonly kind: "for";
       readonly bindings: readonly BindingName[];
+      /** A pattern other than a name or a tuple of names; then `bindings` is empty (grammar.flow.for-pattern). */
+      readonly pattern?: Pattern;
       readonly iterable: Expression;
       readonly body: readonly Statement[];
       readonly elseBody: readonly Statement[];

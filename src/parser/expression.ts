@@ -1,5 +1,6 @@
 import {
   TEMPLATE_PLACEHOLDER,
+  type BindingName,
   type ClosureParameter,
   type ComprehensionClause,
   type DataExpressionField,
@@ -470,18 +471,9 @@ export abstract class ExpressionParser extends ParserBase {
     const token = this.current();
     if (["+", "-", "~", "!"].includes(token.text)) {
       this.advance();
+      // `-5s` is the ordinary negation `-(s(5))`, so it needs `Neg` on the
+      // suffix function's result (05-expressions.md#r-expr.op.desugar).
       const operand = this.parseExpression(11);
-      // `-5s` negates the literal before the suffix applies: it is
-      // `s(-5)` (04-type-system.md#suffixed-literals).
-      if (token.text === "-" && operand.kind === "call" && operand.literalSuffix) {
-        const literal = operand.arguments[0]!;
-        const span = { start: token.span.start, end: operand.span.end };
-        return {
-          ...operand,
-          arguments: [{ kind: "unary", operator: "-", operand: literal, span }],
-          span,
-        };
-      }
       return {
         kind: "unary",
         operator: LOGICAL_OPERATOR_NAMES[token.text] ?? token.text,
@@ -894,11 +886,42 @@ export abstract class ExpressionParser extends ParserBase {
     };
   }
 
+  /**
+   * The pattern of a `for` loop or a comprehension `for` clause
+   * (02-grammar.md#r-grammar.flow.for-pattern). A name, or a tuple of two or
+   * more names, comes back as `bindings`; any other pattern as `pattern`. A
+   * bare list `for a, b in m` is an error (02-grammar.md#r-grammar.flow.for-list.bare).
+   */
+  protected parseForPattern(form: "loop" | "comprehension"): {
+    readonly bindings: readonly BindingName[];
+    readonly pattern?: Pattern;
+  } {
+    const pattern = this.parsePattern();
+    if (form === "loop") this.rejectCommaClosingInlineSuite();
+    if (this.atText(",")) {
+      let last = pattern;
+      while (this.matchText(",")) last = this.parsePattern();
+      this.failBareNameList(form === "loop" ? "for" : "comprehension", pattern, last);
+    }
+    if (pattern.kind === "binding")
+      return { bindings: [{ name: pattern.name, span: pattern.span }] };
+    if (
+      pattern.kind === "tuple" &&
+      !pattern.spread &&
+      pattern.elements.length >= 2 &&
+      pattern.elements.every((element) => element.kind === "binding")
+    )
+      return {
+        bindings: pattern.elements.map((element) => ({
+          name: (element as Extract<Pattern, { kind: "binding" }>).name,
+          span: element.span,
+        })),
+      };
+    return { bindings: [], pattern };
+  }
+
   protected parseFor(keyword: Token): Expression {
-    const names = [this.expectKind("identifier", "expected a loop binding name")];
-    this.rejectCommaClosingInlineSuite();
-    while (this.matchText(","))
-      names.push(this.expectKind("identifier", "expected a loop binding name after ','"));
+    const { bindings, pattern } = this.parseForPattern("loop");
     this.expectText("in");
     const iterable = this.parseExpression();
     this.rejectHeaderEndingInSuite(keyword, iterable);
@@ -906,7 +929,8 @@ export abstract class ExpressionParser extends ParserBase {
     const elseBody = this.matchText("else") ? this.parseSuite() : [];
     return {
       kind: "for",
-      bindings: names.map((name) => ({ name: name.text, span: name.span })),
+      bindings,
+      ...(pattern ? { pattern } : {}),
       iterable,
       body,
       elseBody,
@@ -970,16 +994,13 @@ export abstract class ExpressionParser extends ParserBase {
     while (!this.atText("=>")) {
       const keyword = this.current();
       if (this.matchText("for")) {
-        const names = [this.expectKind("identifier", "expected a comprehension binding name")];
-        while (this.matchText(","))
-          names.push(
-            this.expectKind("identifier", "expected a comprehension binding name after ','"),
-          );
+        const { bindings, pattern } = this.parseForPattern("comprehension");
         this.expectText("in");
         const iterable = this.parseExpression();
         clauses.push({
           kind: "for",
-          bindings: names.map((name) => ({ name: name.text, span: name.span })),
+          bindings,
+          ...(pattern ? { pattern } : {}),
           iterable,
           span: { start: keyword.span.start, end: iterable.span.end },
         });

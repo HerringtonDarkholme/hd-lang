@@ -439,7 +439,7 @@ function rendererBody(type: string, hir: HirProgram, nameFor: (type: string) => 
     return [
       'let text: string = "{"',
       "let first: bool = true",
-      "for key, entry in value:",
+      "for (key, entry) in value:",
       "    if !first:",
       '        text = text + ", "',
       "    first = false",

@@ -5,7 +5,7 @@ import test from "node:test";
 
 import { lex } from "../src/lexer.ts";
 import { parse } from "../src/parser/index.ts";
-import { conformanceBody, fixtureBody, prototypeSpelling } from "./fixture.ts";
+import { conformanceBody, fixtureBody } from "./fixture.ts";
 
 const CORE_PROGRAM = fixtureBody("frontend/00-core-program");
 
@@ -48,14 +48,16 @@ test("lexer keeps literal suffixes on decimal and float numbers only", () => {
   );
 });
 
-test("parser desugars a suffixed literal to a call of its suffix function, folding a minus", () => {
+test("parser desugars a suffixed literal to a call of its suffix function, under a minus", () => {
   const program = parse("fn f() -> i32:\n    -5px\n").program!;
   const expression = program.functions[0]!.body.at(-1);
   assert.ok(expression?.kind === "expression");
-  const call = expression.expression;
+  const negation = expression.expression;
+  assert.ok(negation.kind === "unary" && negation.operator === "-");
+  const call = negation.operand;
   assert.ok(call.kind === "call" && call.literalSuffix === "px");
   assert.equal(call.callee.kind === "name" && call.callee.name, "px");
-  assert.equal(call.arguments[0]?.kind, "unary");
+  assert.equal(call.arguments[0]?.kind, "integer");
 });
 
 test("lexer keeps a prefixed string raw and rejects a reserved word glued to a quote", () => {
@@ -128,7 +130,7 @@ test("parser builds value-producing while else", () => {
 });
 
 test("parser builds for loops with tuple bindings and else suites", () => {
-  const result = parse(prototypeSpelling(conformanceBody("parse/valid/for-tuple-binding-else")));
+  const result = parse(conformanceBody("parse/valid/for-tuple-binding-else"));
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.functions[0]?.body[0];
   if (statement?.kind === "expression" && statement.expression.kind === "for") {

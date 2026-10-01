@@ -24,6 +24,7 @@ import {
   optionalType,
   PRIMITIVE_TYPES,
   splitTypeBindings,
+  tupleParts,
 } from "../types.ts";
 import { DecoratorParser } from "./decorators.ts";
 import { ParseFailure, type ExpressionParseResult, type ParseOptions } from "./base.ts";
@@ -64,6 +65,7 @@ class Parser extends DecoratorParser {
     const items = emptyModuleItems();
     this.localDeclarations = false;
     this.mutPrimitives = [];
+    this.mutTuples = [];
     const start = this.current().span.start;
     let testsBlock = false;
     try {
@@ -107,6 +109,7 @@ class Parser extends DecoratorParser {
         ...(types.length > 0 ? { types } : {}),
         ...(this.localDeclarations ? { localDeclarations: true } : {}),
         ...(this.mutPrimitives.length > 0 ? { mutPrimitives: this.mutPrimitives } : {}),
+        ...(this.mutTuples.length > 0 ? { mutTuples: this.mutTuples } : {}),
         data,
         enums,
         traits,
@@ -1032,6 +1035,8 @@ class Parser extends DecoratorParser {
       // `mut` on a primitive is a type error the checker reports
       // (04-type-system.md#r-types.prim.no-mut.error).
       if (PRIMITIVE_TYPES.has(inner.name.replace(/\?+$/u, ""))) this.mutPrimitives.push(written);
+      // A tuple type has no `mut` form (04-type-system.md#r-types.tuple.no-mut).
+      if (tupleParts(inner.name.replace(/\?+$/u, "")) !== undefined) this.mutTuples.push(written);
       return written;
     }
     if (this.matchText("$")) {
@@ -1148,6 +1153,7 @@ class Parser extends DecoratorParser {
 
   private localDeclarations = false;
   private mutPrimitives: TypeRef[] = [];
+  private mutTuples: TypeRef[] = [];
 
   // `data`, `enum`, `trait`, `type`, and `impl` may be declared in a block
   // suite (03-names-and-scopes.md#module-scope).
