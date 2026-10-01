@@ -8,13 +8,12 @@ F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md 
 DC7	1	An initialization group's statements are not interleaved: the package linker joins the group's modules by identity, so a read of a later-joined module's binding fails
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer
 INF-mut	3	Generic call inference from several arguments (batch 17, INF-mut) is not implemented: an i32 and an i64 argument widen instead of type-mismatch, a User and a Display argument are type-mismatch instead of no-common-type, and assert_equal still coerces expected to the type of actual
-BF	83	Explicit type arguments in expressions take `::` (batch 22, D1 and D3): the prototype does not parse `::[`, still accepts a type name's arguments without `::`, and reads brackets before `(` as type arguments
 BFF	5	Callable values (D1 callable-value part, D2, D4): the prototype does not know `Apply` or `Update`, so `v() = x` is invalid-assignment-target and `impl Apply` is unknown-trait
 IT	2	Iterator is not Iterable (batch 24, IT2): lib/std/iter.hd still implements Iterable for Iterator, so the prototype accepts an iterator for an Iterable bound
 ST8-self	1	A template's qualified Structure:: call (batch 25, ST8-self): the prototype resolves a receiverless template call only as T::name() or T::facts(), so Structure::name() is unknown-type
 SSC-Q2	2	Bang calls in comprehensions (batch 26, Syntax And Semantics Cost Q2): the prototype still rejects every bang call in a comprehension as suspension-forbidden-context
 SSC-Q3	3	One dollar rule for every string (batch 26, Q3): the prototype lexer still rejects a plain-string $ that begins no interpolation
-SSC-Q4	20	Parenthesized for lists (batch 26, Q4): the prototype parses only a bare name list after for, so for (key, value) in m is a syntax-error and the bare form is accepted
+SSC-Q4	21	Parenthesized for lists (batch 26, Q4): the prototype parses only a bare name list after for, so for (key, value) in m is a syntax-error and the bare form is accepted
 SSC-Q5	2	Multi-name bindings are statements (batch 26, Q5): the prototype accepts ((a, b) := value) and reports the withdrawn multi-binding-needs-parentheses for [(a, b) := value]
 SSC-Q7	7	Map keys through the declared bound (batch 26, Q7): the prototype reports invalid-map-key for a missing Eq or Hash, and accepts a mut key type
 SSC-Q8	3	Map index reads V (batch 26, Q8): the prototype still types m[k] as V?

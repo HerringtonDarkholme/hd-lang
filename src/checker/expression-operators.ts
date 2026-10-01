@@ -58,7 +58,7 @@ export function isPrimitiveOperand(type: ValueType): boolean {
 
 export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker {
   /**
-   * The operator-trait call `Op[R]::m(receiver, argument)` of a non-primitive
+   * The operator-trait call `Op::[R]::m(receiver, argument)` of a non-primitive
    * operand, or `Op::m(receiver)` for a unary operator
    * (05-expressions.md#r-expr.op.desugar).
    */

@@ -15,7 +15,7 @@ import { factType } from "./typed-derivation.ts";
 // The shape intrinsics (spec/14-annotations.md#shape-intrinsics).
 //
 // The shape types are ordinary `lib/std/annotation.hd` declarations. This
-// pass generates, for each target the program names in `shape[T]()` or
+// pass generates, for each target the program names in `shape::[T]()` or
 // `shape_of(f)`, an ordinary hd builder function over them, and the
 // specialized shape types as hidden data types; the checker lowers each
 // intrinsic call to a builder call (`checkShapeIntrinsicCall`), so no HIR
@@ -26,7 +26,7 @@ import { factType } from "./typed-derivation.ts";
 //   a `hd__ShapeFields_D` record with one `FieldShape` per direct field. The
 //   checker converts it to `DataShape` by reading the embedded value.
 //   Enums are the same with `EnumShape`, `variants`, and `VariantShape`.
-// - `metadata[M]()` on a shape is `hd__metadata_M()`, an inherent method of
+// - `metadata::[M]()` on a shape is `hd__metadata_M()`, an inherent method of
 //   each concrete shape type. It looks the attached value up by
 //   `DeclarationId` in a generated table of the member metadata and type-level
 //   facts whose type is `M` (annot.metadata.duplicate keeps one per type).
@@ -114,7 +114,7 @@ interface ShapeUses {
   readonly metadata: Set<string>;
 }
 
-/** Every `shape[T]()`, `shape_of(f)`, and `.metadata[M]()` in the program. */
+/** Every `shape::[T]()`, `shape_of(f)`, and `.metadata::[M]()` in the program. */
 function shapeUses(program: Program): ShapeUses {
   const uses: ShapeUses = { types: new Set(), functions: new Set(), metadata: new Set() };
   const generics = new Set<string>();
@@ -382,7 +382,7 @@ class ShapeSource {
     return result;
   }
 
-  /** `metadata[M]()` for every concrete shape type, over one lookup table. */
+  /** `metadata::[M]()` for every concrete shape type, over one lookup table. */
   metadataLookup(program: Program, typeText: string): void {
     const functions = new Map(program.functions.map((item) => [item.name, item] as const));
     const wanted = readonlyType(normalized(typeText));

@@ -15,7 +15,7 @@ pub data Generator:
     drawer: Draw
 
 pub fn with[T < Inspectable](gen: fn(mut Choices) -> T) -> Generator:
-    Generator { drawer: Drawer[T] { gen: gen } }
+    Generator { drawer: Drawer::[T] { gen: gen } }
 
 # One value drawn by the generator, as the derived code reads it. Only
 # `std.testing` calls it.

@@ -777,7 +777,7 @@ export type HirExpression =
       readonly dictionary: HirTraitDictionaryPlan;
     })
   | (HirExpressionBase & {
-      // `TypeId::of[T]()`: `runtime_type` through the Inspectable dictionary
+      // `TypeId::of::[T]()`: `runtime_type` through the Inspectable dictionary
       // of T, which never reads its receiver.
       readonly kind: "inspect-type-id";
       readonly traitIndex: number;

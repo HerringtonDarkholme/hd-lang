@@ -204,7 +204,7 @@ export abstract class StatementChecker extends CheckerContext {
             span: statement.span,
           };
         }
-        // Any other receiver stores through `IndexSet[K, V]::index_set`,
+        // Any other receiver stores through `IndexSet::[K, V]::index_set`,
         // and is a place only when it implements `IndexSet`
         // (05-expressions.md#r-expr.index.trait.write, #r-expr.index.trait.place).
         return {

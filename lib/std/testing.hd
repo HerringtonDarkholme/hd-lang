@@ -161,7 +161,7 @@ pub trait Arbitrary:
 # itself, because they name `std.structure` (checker/typed-derivation.ts).
 impl[T] Arbitrary for T by Structure:
     fn arbitrary(c: mut Choices) -> T:
-        let s: mut ArbitrarySource[T] = ArbitrarySource[T] { c: c, at: 0 }
+        let s: mut ArbitrarySource[T] = ArbitrarySource::[T] { c: c, at: 0 }
         match T::build(s):
             .Ok(value) => value
             # No variant is finite (r-std-testing.arbitrary.derive.no-finite.message).
@@ -216,13 +216,13 @@ impl[S] Source[S] for ArbitrarySource[S]:
     # type, never falling back to its `Arbitrary`
     # (r-std-testing.arbitrary.with.downcast, .with.no-fallback).
     fn member[F < Arbitrary & Inspectable](mut self, h: Field[S, F], previous: F?) -> Result[F, NoFiniteValue]:
-        match h.info.facts.find[Generator]():
+        match h.info.facts.find::[Generator]():
             .None => .Ok(F::arbitrary(self.c))
             .Some(generator) =>
                 drawn := draw_with(generator, self.c)
-                match downcast_val[F](drawn):
+                match downcast_val::[F](drawn):
                     .Some(value) => .Ok(value)
-                    .None => panic("arbitrary.with on member ${h.info.name} of type ${TypeId::of[F]()} drew a value of type ${drawn.runtime_type()}")
+                    .None => panic("arbitrary.with on member ${h.info.name} of type ${TypeId::of::[F]()} drew a value of type ${drawn.runtime_type()}")
 
     fn missing[F](mut self, h: Field[S, F]) -> Result[F, NoFiniteValue]:
         panic("an arbitrary source names every member")
@@ -294,11 +294,11 @@ impl Arbitrary for string:
 
 impl[T < Arbitrary] Arbitrary for List[T]:
     fn arbitrary(c: mut Choices) -> List[T]:
-        c.list_of[T](8)
+        c.list_of::[T](8)
 
 impl[K < Arbitrary & Eq & Hash, V < Arbitrary] Arbitrary for Map[K, V]:
     fn arbitrary(c: mut Choices) -> Map[K, V]:
-        c.map_of[K, V](8)
+        c.map_of::[K, V](8)
 
 # The simplest is `.None` (r-std-testing.budget.simplest.optional).
 impl[T < Arbitrary] Arbitrary for T?:
@@ -334,7 +334,7 @@ fn prop_value[T](examples: List[T], gen: fn(mut Choices) -> T, c: mut Choices) -
 # The same for `it_prop`, which draws with the input type's `Arbitrary`.
 fn prop_example_or_draw[T < Arbitrary](examples: List[T], c: mut Choices) -> T:
     index := prop_example(examples.len())
-    if index >= 0: examples[index] else: c.draw[T]()
+    if index >= 0: examples[index] else: c.draw::[T]()
 
 @intrinsic("prop_config")
 fn prop_config(cases: i32, shrink: i32) -> void:

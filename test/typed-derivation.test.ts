@@ -42,7 +42,7 @@ impl[S] Walker[S] for Shower:
         .Ok()
 
     fn member[F < Show](mut self, h: Field[S, F], value: F) -> Result[void, never]:
-        name := match h.info.facts.find[Rename]():
+        name := match h.info.facts.find::[Rename]():
             .Some(found) => found.name
             .None => h.info.name
         self.out = self.out + name + "=" + value.show() + ";"

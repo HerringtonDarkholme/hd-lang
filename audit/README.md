@@ -9,16 +9,16 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-10-01 the prototype passes 1,504 of the 1,750 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 246 are listed in
+On 2026-10-01 the prototype passes 1,586 of the 1,750 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 164 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 246 still fail. By
+decision below, and all 164 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,682 | 1,447 | 235 |
-| stdlib | 68 | 57 | 11 |
+| language | 1,682 | 1,526 | 156 |
+| stdlib | 68 | 60 | 8 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
@@ -34,13 +34,12 @@ them by tag:
 | DC7 | 1 | group statements are not interleaved across modules |
 | MHP-1 | 1 | no inferred script entry requirement row |
 | INF-mut | 3 | batch 17: generic inference widens numbers, reports a trait-value conflict as `type-mismatch`, and `assert_equal` keeps its special case |
-| BF | 83 | batch 22, D1 and D3: the prototype does not parse `::[` type arguments, still accepts `Box[i32] { ... }`, and reads `handlers[1](5)` as type arguments |
 | BFF | 5 | D1's callable values, D2, and D4: the prototype does not know `Apply` or `Update`, so `v() = x` is `invalid-assignment-target` and `impl Apply` is `unknown-trait` |
 | IT | 2 | batch 24, IT2: `lib/std/iter.hd` still implements `Iterable` for `Iterator`, so an iterator satisfies an `Iterable` bound |
 | ST8-self | 1 | batch 25: the prototype resolves a receiverless template call only as `T::name()`, so `Structure::name()` is `unknown-type` |
 | SSC-Q2 | 2 | batch 26: a bang call in a comprehension is still `suspension-forbidden-context` |
 | SSC-Q3 | 3 | batch 26: a plain-string `$` that begins no interpolation is still a `syntax-error` |
-| SSC-Q4 | 20 | batch 26: `for (key, value) in m` does not parse, and the bare form is accepted |
+| SSC-Q4 | 21 | batch 26: `for (key, value) in m` does not parse, and the bare form is accepted |
 | SSC-Q5 | 2 | batch 26: `((a, b) := value)` is accepted, and `[(a, b) := value]` reports the withdrawn `multi-binding-needs-parentheses` |
 | SSC-Q7 | 7 | batch 26: a key without `Eq` or `Hash` is `invalid-map-key`, and a `mut` key type is accepted |
 | SSC-Q8 | 3 | batch 26: `m[k]` is still typed `V?` |
@@ -100,10 +99,9 @@ Revision Notes in `spec/README.md` are the record.
 | MHP-1 | A `println` call at the top level of a script is valid (the second round). The prototype infers no script entry requirement row (`module.init.script-row`), so `println-top-level-script.hd` reports `missing-requirement`. |
 | DC7 | The top-level statements of an initialization group run in dependency order, then by module identity and source position. The package linker joins a group's modules by identity and cannot interleave their statements, so a read that needs a later-joined module's binding is `top-level-read-before-initialization`, which `init-group-order.hd`, a package-tree fixture, shows. |
 | M29 | A `Self` line in a per-trait derivation block warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package, and the prototype CLI has no package roles. The other M29 rules, and M27 and M28, are implemented. |
-| BF | D1 (its type-argument part) and D3: explicit type arguments in an expression follow `::`, as in `first::[string](names)` and `Box::[i32] { ... }`, and `[` after an expression always indexes. The prototype parser reads neither `::[` nor an index before `(`, and still accepts `Box[i32] { ... }`. `lib/std` and `src/` keep the old spelling until it does. |
 | BFF | D1 (its callable-value part), D2, and D4: `v()` on a value whose type implements `std.ops.Apply` calls `apply`, and with `Update`, `v() = x` and `v() op= x` store through `update`. The prototype and `lib/std/ops.hd` declare neither trait, and every call target is `invalid-assignment-target`, so `callable-value-no-update.hd` passes without the traits. |
 | IT | Batch 24, IT2: `Iterator[T]` does not implement `Iterable[T]`, so an `I < Iterable` bound rejects an iterator, readonly or mutable, and `for` takes a mutable iterator directly. `lib/std/iter.hd` still declares `impl[T] Iterable[T] for Iterator[T]`, so the prototype accepts both bound fixtures. Its `for` over a mutable iterator already works, through that impl. |
-| ST8-self | Batch 25: inside a template, a `Structure::` call has the template's `T` as its `Self`, so `Structure::name()` and `Structure::facts()` are valid. The prototype resolves only `T::name()` and `T::facts()`, and reports `Structure::name()` as `unknown-type`. `structure-qualified-self.hd` also uses `find::[Style]`, which it does not parse yet (BF). |
+| ST8-self | Batch 25: inside a template, a `Structure::` call has the template's `T` as its `Self`, so `Structure::name()` and `Structure::facts()` are valid. The prototype resolves only `T::name()` and `T::facts()`, and reports `Structure::name()` as `unknown-type`. |
 
 ## Prototype Gaps No Fixture Reaches
 

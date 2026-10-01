@@ -24,13 +24,13 @@ fn field_count(target: DataShape) -> i32:
     target.field_list.len()
 
 fn limit(field: FieldShape) -> i32:
-    match field.metadata[MaxLen]():
+    match field.metadata::[MaxLen]():
         .Some(found) => found.value
         .None => 0
 
 tests:
     it("a data shape lists its fields"):
-        user := shape[User]()
+        user := shape::[User]()
         assert_equal(user.name, "User", reason="the name")
         assert_equal(field_count(user), 2, reason="the specialized shape converts")
         assert_equal(user.fields.nickname.position, 1, reason="the field position")
@@ -38,12 +38,12 @@ tests:
         assert_equal(user.fields.name.doc, "The display name.", reason="the field doc")
 
     it("metadata finds the attached value by type"):
-        user := shape[User]()
+        user := shape::[User]()
         assert_equal(limit(user.fields.name), 80, reason="the attached value")
         assert_equal(limit(user.fields.nickname), 0, reason="no attached value")
 
     it("an enum shape lists its variants"):
-        status := shape[JobStatus]()
+        status := shape::[JobStatus]()
         assert_equal(status.variant_list.len(), 2, reason="the variant count")
         assert_equal(status.variants.Failed.payload.len(), 1, reason="the payload")
 
@@ -54,5 +54,5 @@ tests:
         assert(!target.suspending, reason="not suspending")
 
     it("another type has a TypeShape"):
-        assert(shape[i32?]().is_optional(), reason="an optional type")
-        assert(!shape[List[i32]]().is_optional(), reason="a list type")
+        assert(shape::[i32?]().is_optional(), reason="an optional type")
+        assert(!shape::[List[i32]]().is_optional(), reason="a list type")

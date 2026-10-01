@@ -807,7 +807,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       if (fitting.length > 1)
         this.fail(
           "ambiguous-method",
-          `method '${expression.callee.name}' fits ${fitting.length} instantiations of trait '${trait.name}'; qualify the call as ${trait.name}[...]::${expression.callee.name}(value, ...)`,
+          `method '${expression.callee.name}' fits ${fitting.length} instantiations of trait '${trait.name}'; qualify the call as ${trait.name}::[...]::${expression.callee.name}(value, ...)`,
           expression.callee.span,
         );
       if (fitting.length === 0) {

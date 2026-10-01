@@ -253,7 +253,10 @@ listed yet.
 - explicit generic call arguments with per-slot `_` inference for
   functions and inherent methods, where a short list infers its omitted
   trailing slots and a long one is `argument-count`, plus indented
-  zero-argument trailing callback blocks;
+  zero-argument trailing callback blocks. In an expression the list follows
+  `::`, as in `first::[string](xs)`, `fetch!::[User](key)`,
+  `Box::[i32] { ... }`, and `Add::[i32]::add(a, b)`; `[` after an operand
+  always indexes, and `Box[i32] { ... }` or `Add[i32]::add` is `syntax-error`;
 - type-argument defaults (`[T < Bound = Default]`) on functions, methods,
   data types, enums, traits, and `type` declarations, never on an
   implementation header or a type pack (`syntax-error`). `type-defaults.ts`
@@ -448,7 +451,7 @@ else`, `break`, `break value`, and `continue`;
   GC provider packs, and lexical restoration of removed providers;
   `ambiguous-row-pattern` for a pattern with two unfixed row parameters and
   `row-parameter-in-context` for `$.Context[R]`; explicit row type arguments
-  for a function's row parameters, as in `provide[$ Db + Log](job)`;
+  for a function's row parameters, as in `provide::[$ Db + Log](job)`;
 - row subsumption: a function value with a narrower concrete row fits a
   wider function type through the callable adapter. A value is not widened
   into a row that holds a row parameter it lacks, which least-row inference
@@ -484,7 +487,7 @@ else`, `break`, `break value`, and `continue`;
 - receiverless associated functions called through `Type::function`, including
   `Self` substitution, method-level generics, and suspending calls, inherent
   first and then the implemented traits (`ambiguous-method` for two);
-  on a generic target, as `Box[Point]::name()`, the target's arguments
+  on a generic target, as `Box::[Point]::name()`, the target's arguments
   solve the implementation's parameters, which the call's arguments need
   not mention; `T::function()` on a type parameter calls through the
   bound's dictionary;
@@ -714,7 +717,7 @@ else`, `break`, `break value`, and `continue`;
   function, trait, implementation, newtype, method, or method parameter
   attaches its value, which is checked as a compile-time expression like
   any fact, counted by `duplicate-fact`, and, on a module-level function,
-  read by `shape_of(f).metadata[M]()`. A bare decorator name of a function
+  read by `shape_of(f).metadata::[M]()`. A bare decorator name of a function
   with no parameters is rewritten to a call, before typed derivation for
   the program's own and imported functions and after the standard library
   is joined for `std`'s own decorators. The target-kind check runs after
@@ -978,7 +981,7 @@ What it provides:
 
 | Module | Contents |
 | --- | --- |
-| `std.annotation` | the shape types (`DataShape`, `FieldShape`, `TypeShape`, ...), `ShapeMetadata`, and `TypeShape.is_optional`; `checker/shapes.ts` generates the builders that `shape[T]()` and `shape_of(f)` call. `Target`, `Annotate`, and `annotate`, which limit a fact type's target kinds |
+| `std.annotation` | the shape types (`DataShape`, `FieldShape`, `TypeShape`, ...), `ShapeMetadata`, and `TypeShape.is_optional`; `checker/shapes.ts` generates the builders that `shape::[T]()` and `shape_of(f)` call. `Target`, `Annotate`, and `annotate`, which limit a fact type's target kinds |
 | `std.hash` | `Hash` and `Hasher` (prelude names), and `Hash` for `string`, `bool`, and every integer type; no standard hasher, which the specification does not name |
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |

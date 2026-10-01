@@ -203,9 +203,7 @@ test("parser marks bare data members as embedded fields", () => {
 });
 
 test("parser retains explicit generic arguments and trailing callbacks", () => {
-  const generic = parse(
-    prototypeSpelling(conformanceBody("parse/valid/explicit-generic-arguments-with-placeholder")),
-  );
+  const generic = parse(conformanceBody("parse/valid/explicit-generic-arguments-with-placeholder"));
   assert.deepEqual(generic.diagnostics, []);
   const binding = generic.program?.statements[0];
   if (binding?.kind === "binding" && binding.value.kind === "call") {
@@ -227,9 +225,7 @@ test("parser retains explicit generic arguments and trailing callbacks", () => {
 });
 
 test("parser retains explicit generic data arguments", () => {
-  const result = parse(
-    prototypeSpelling(conformanceBody("parse/valid/explicit-generic-data-arguments")),
-  );
+  const result = parse(conformanceBody("parse/valid/explicit-generic-data-arguments"));
   assert.deepEqual(result.diagnostics, []);
   const binding = result.program?.statements[0];
   assert.equal(binding?.kind, "binding");

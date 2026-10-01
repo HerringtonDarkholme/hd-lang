@@ -273,7 +273,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     return `(struct.get $d${typeId} $d${typeId}f0 (ref.as_non_null ${call}))`;
   }
 
-  /** `TypeId::of[T]()` and the downcasts (spec/09-traits.md#recovering-a-concrete-type). */
+  /** `TypeId::of::[T]()` and the downcasts (spec/09-traits.md#recovering-a-concrete-type). */
   protected emitInspectExpression(
     expression: Extract<HirExpression, { kind: "inspect-type-id" | "inspect-downcast" }>,
     dictionaryValue: string,

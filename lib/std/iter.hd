@@ -21,7 +21,7 @@ pub data Iterator[T]:
 
 impl[T] Iterator[T]:
     pub fn from_fn(step: fn() -> T?) -> mut Iterator[T]:
-        Iterator[T] { step: step }
+        Iterator::[T] { step: step }
 
     pub fn next(mut self) -> T?:
         (self.step)()

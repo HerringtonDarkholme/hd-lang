@@ -2,10 +2,10 @@
 # and the target kinds (#target-kinds). Every shape name here is a prelude
 # name; `Target`, `Annotate`, and `annotate` are imported
 # (r-annot.target.declarations). `shape` and `shape_of` are compiler
-# intrinsics: the checker lowers `shape[T]()` and `shape_of(f)` to generated
+# intrinsics: the checker lowers `shape::[T]()` and `shape_of(f)` to generated
 # builders over these declarations (src/checker/shapes.ts), so they are not
 # declared here. `ShapeMetadata` is sealed; the generated code gives each
-# concrete shape type its `metadata[M]()` lookup.
+# concrete shape type its `metadata::[M]()` lookup.
 
 # An opaque identity the compiler allocates. The prototype numbers the
 # declarations of the one module it compiles.

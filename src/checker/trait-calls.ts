@@ -26,7 +26,7 @@ export abstract class TraitCallChecker extends InspectChecker {
   /**
    * The implementations whose trait supplies the associated function `name`
    * for `ownerType`, with the implementation's parameters that the target
-   * solves, as `T = Point` for `Box[Point]::name()`, which a receiverless
+   * solves, as `T = Point` for `Box::[Point]::name()`, which a receiverless
    * call's arguments may not mention.
    */
   protected associatedCandidates(

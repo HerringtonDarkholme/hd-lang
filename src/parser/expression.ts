@@ -148,25 +148,25 @@ export abstract class ExpressionParser extends ParserBase {
       // operand's line (01-lexical-structure.md#physical-and-logical-lines).
       const suffixToken = ["(", "[", "{", "!"].includes(this.current().text);
       if (suffixToken && !this.onPreviousLine()) break;
+      // In an expression, type arguments follow the marker `::`, and `[`
+      // after an operand always indexes (02-grammar.md#type-arguments-in-expressions).
       if (
-        this.atText("[") &&
+        this.atText("::") &&
+        this.peek(1).text === "[" &&
         (left.kind === "name" || left.kind === "member" || left.kind === "qualified-name") &&
-        // A method reference writes its type arguments after the name
-        // (07-functions.md#r-fn.ref.generic).
-        ((left.kind === "qualified-name" && left.typeArguments === undefined) ||
-          this.typeArgumentsFollowedBySuffix() ||
-          this.bracketHoldsTypeArgumentList())
+        left.typeArguments === undefined
       ) {
         const start = left.span.start;
         this.advance();
+        this.advance();
         const typeArguments = this.parseTypeArgumentList();
         const close = this.expectText("]");
-        // A bang call writes its type arguments after the `!`
-        // (02-grammar.md#primary-expressions).
-        if (left.kind === "qualified-name" && this.atText("!"))
+        // A bang call writes `!` on the name and the list after it
+        // (02-grammar.md#r-grammar.primary.method-reference.no-bang).
+        if (this.atText("!") && ["(", "::"].includes(this.peek(1).text))
           this.fail(
             "syntax-error",
-            "a qualified bang call writes its type arguments after '!', as in 'Type::name![T](...)'",
+            "a bang call writes '!' before its type arguments, as in 'fetch!::[T](...)'",
             this.current().span,
           );
         left = { ...left, typeArguments, span: { start, end: close.span.end } };
@@ -176,9 +176,21 @@ export abstract class ExpressionParser extends ParserBase {
         this.atText("!") &&
         this.peek(1).text === "[" &&
         (left.kind === "name" || left.kind === "member" || left.kind === "qualified-name")
+      )
+        this.fail(
+          "syntax-error",
+          "a bang call's type arguments follow '!::', as in 'fetch!::[T](...)'",
+          this.peek(1).span,
+        );
+      if (
+        this.atText("!") &&
+        this.peek(1).text === "::" &&
+        this.peek(2).text === "[" &&
+        (left.kind === "name" || left.kind === "member" || left.kind === "qualified-name")
       ) {
         if (12 < minimumPrecedence) break;
         const start = left.span.start;
+        this.advance();
         this.advance();
         this.advance();
         const typeArguments = this.parseTypeArgumentList();
@@ -261,6 +273,17 @@ export abstract class ExpressionParser extends ParserBase {
         this.advance();
         const index = this.parseExpression();
         const close = this.expectText("]");
+        // `Box[i32] { ... }` and `Add[i32]::add(...)` index a name; a type
+        // name's arguments need `::` (02-grammar.md#r-grammar.expr.type-arguments.unmarked).
+        if (
+          left.kind === "name" &&
+          ((this.atText("{") && this.onPreviousLine()) || this.atText("::"))
+        )
+          this.fail(
+            "syntax-error",
+            `a type name's arguments in an expression follow '::', as in '${left.name}::[...]'`,
+            this.current().span,
+          );
         left = {
           kind: "index",
           receiver: left,
@@ -371,51 +394,6 @@ export abstract class ExpressionParser extends ParserBase {
       while (this.matchText(",") && !this.atText("]"));
     }
     return typeArguments;
-  }
-
-  /**
-   * At `[`: true when the brackets hold several entries or a `_` placeholder,
-   * which only a type-argument list can, as in `pair[i32, string]` or
-   * `first[_, bool]` (07-functions.md#function-types-and-values).
-   */
-  private bracketHoldsTypeArgumentList(): boolean {
-    let depth = 0;
-    for (let distance = 0; ; distance += 1) {
-      const token = this.peek(distance);
-      if (token.kind === "eof") return false;
-      if (["(", "[", "{"].includes(token.text)) depth += 1;
-      else if ([")", "]", "}"].includes(token.text)) {
-        depth -= 1;
-        if (depth === 0) return false;
-      } else if (depth === 1 && token.text === ",") return true;
-      else if (
-        depth === 1 &&
-        token.text === "_" &&
-        [",", "["].includes(this.peek(distance - 1).text)
-      )
-        return true;
-    }
-  }
-
-  protected typeArgumentsFollowedBySuffix(): boolean {
-    let depth = 0;
-    for (let distance = 0; ; distance += 1) {
-      const token = this.peek(distance);
-      if (token.kind === "eof" || token.kind === "newline") return false;
-      if (token.text === "[") depth += 1;
-      else if (token.text === "]") {
-        depth -= 1;
-        if (depth === 0) {
-          const next = this.peek(distance + 1);
-          return (
-            next.text === "{" ||
-            next.text === "(" ||
-            next.text === "::" ||
-            (next.text === "!" && this.peek(distance + 2).text === "(")
-          );
-        }
-      }
-    }
   }
 
   // A suffixed literal `Nx` is the call `x(N)` of the suffix function `x`

@@ -80,7 +80,7 @@ const STRUCTURE_SOURCE = `data Facts:
 impl Facts:
     pub fn find[F < Inspectable](self) -> F?:
         for item in self.items:
-            match ${DOWNCAST}[F](item):
+            match ${DOWNCAST}::[F](item):
                 .Some(found) => return .Some(found)
                 .None => pass
         .None
@@ -1088,7 +1088,7 @@ function generateDerivation(
     );
     out.define(`${prefix}_variant_${variant.index}`, () => [
       `fn ${prefix}_variant_${variant.index}${plain}() -> Variant[${T}]:`,
-      `    Variant[${T}] { info: VariantInfo { name: ${out.string(variant.name)}, index: ${variant.index}, facts: ${variantFacts}, doc: ${optionalString(variant.doc)}, of_data: ${variant.ofData}, shared: [], self_ref: SelfRef.${variant.selfRef} }, hd_holds: ${prefix}_holds_${variant.index}${plain} }`,
+      `    Variant::[${T}] { info: VariantInfo { name: ${out.string(variant.name)}, index: ${variant.index}, facts: ${variantFacts}, doc: ${optionalString(variant.doc)}, of_data: ${variant.ofData}, shared: [], self_ref: SelfRef.${variant.selfRef} }, hd_holds: ${prefix}_holds_${variant.index}${plain} }`,
     ]);
   }
 
@@ -1115,7 +1115,7 @@ function generateDerivation(
         `fn ${name}_default${plain}() -> ${Fo}:`,
         `    ${member.default ? `.Some(${out.expression(member.default)})` : ".None"}`,
         `fn ${name}${plain}() -> Field[${T}, ${F}]:`,
-        `    Field[${T}, ${F}] { info: ${infos.get(`${variant.index}_${member.position}`)}, hd_get: ${name}_get${plain}, hd_has_default: ${member.default !== undefined}, hd_default: ${name}_default${plain} }`,
+        `    Field::[${T}, ${F}] { info: ${infos.get(`${variant.index}_${member.position}`)}, hd_get: ${name}_get${plain}, hd_has_default: ${member.default !== undefined}, hd_default: ${name}_default${plain} }`,
       ];
     });
     return `${name}${plain}()`;
@@ -1255,7 +1255,7 @@ function generateDerivation(
       for (const member of offered)
         out.add(`    let ${binding(member)}: ${out.type(optionalType(member.declared))} = .None`);
       out.add(
-        `    members := Members[${T}] { infos: [${offered.map((member) => infos.get(`${variant.index}_${member.position}`)).join(", ")}], hd_type: ${prefix}_holds_${variant.index}${plain} }`,
+        `    members := Members::[${T}] { infos: [${offered.map((member) => infos.get(`${variant.index}_${member.position}`)).join(", ")}], hd_type: ${prefix}_holds_${variant.index}${plain} }`,
       );
       out.add(`    while true:`);
       out.add(`        key := s.next(members)?`);

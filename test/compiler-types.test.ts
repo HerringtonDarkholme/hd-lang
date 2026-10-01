@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import { analyze, compile, instantiate } from "../src/compiler.ts";
-import { conformance, prototypeSpelling } from "./fixture.ts";
+import { conformance } from "./fixture.ts";
 
 test("named functions reify as monomorphic function values", () => {
   const source = conformance("runtime/valid/function-value-argument");
@@ -196,11 +196,9 @@ test("generic data uses one erased GC layout with precise instantiated member ty
 });
 
 test("explicit generic data construction records its instantiated HIR type", () => {
-  const source = prototypeSpelling(
-    readFileSync(
-      resolve(import.meta.dirname, "../spec/conformance/runtime/valid/generic-data-embedding.hd"),
-      "utf8",
-    ),
+  const source = readFileSync(
+    resolve(import.meta.dirname, "../spec/conformance/runtime/valid/generic-data-embedding.hd"),
+    "utf8",
   );
   const compilation = compile(source);
   const body = compilation.hir.functions.find((declaration) => declaration.name === "$test.0");
@@ -425,9 +423,7 @@ test("built-in comparison dictionaries carry their supertrait dictionaries (EQ-1
 });
 
 test("a type parameter calls an associated function through its bound (TQ-9)", () => {
-  const compilation = compile(
-    prototypeSpelling(conformance("runtime/valid/associated-function-calls")),
-  );
+  const compilation = compile(conformance("runtime/valid/associated-function-calls"));
   const make = compilation.hir.functions.find((item) => item.name === "make");
   const call = make?.body[0];
   assert.equal(call?.kind, "expression");

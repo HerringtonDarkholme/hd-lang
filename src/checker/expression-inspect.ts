@@ -117,7 +117,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
     return inferred;
   }
 
-  // `value.downcast[T]()`, `value.downcast_mut[T]()`, and `value.runtime_type()`
+  // `value.downcast::[T]()`, `value.downcast_mut::[T]()`, and `value.runtime_type()`
   // on a concrete receiver (spec/09-traits.md#recovering-a-concrete-type). The
   // prototype lowers the default methods as intrinsics.
   protected checkInspectMemberCall(
@@ -208,7 +208,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
     };
   }
 
-  // `std.inspect.downcast_val[T](value)` and `TypeId::of[T]()`.
+  // `std.inspect.downcast_val::[T](value)` and `TypeId::of::[T]()`.
   protected checkInspectFunctionCall(
     expression: CallExpression,
     kind: "downcast_val" | "of",
@@ -247,7 +247,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
   }
 
   /**
-   * `shape[T]()` and `shape_of(f)` (spec/14-annotations.md#shape-intrinsics):
+   * `shape::[T]()` and `shape_of(f)` (spec/14-annotations.md#shape-intrinsics):
    * the call of the builder that `shapes.ts` generated for the target.
    */
   protected shapeIntrinsicCall(expression: CallExpression): Expression {
@@ -308,7 +308,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
   }
 
   /**
-   * The generated `hd__metadata_M` method that `shape.metadata[M]()` calls on
+   * The generated `hd__metadata_M` method that `shape.metadata::[M]()` calls on
    * a concrete shape type (spec/14-annotations.md#common-shape-representation).
    */
   protected shapeMetadataMethod(
