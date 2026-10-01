@@ -116,16 +116,6 @@ None of these is decided.
   too. With it would come data-literal field shorthand, `Point { x, y }`
   for `Point { x: x, y: y }`, so a pattern and a literal read the same.
   The owner deferred both in batch 26 ("we can add in future").
-- **A way to get `mut` from a readonly view.** The owner wants "an escape
-  hatch to get mut from readonly" (2026-09-30). It is a core question about
-  [Access Permission](../spec/04-type-system.md#access-permission) and
-  needs its own brainstorm
-  ([Call Indexing](archive/CALL_INDEXING.md#owner-decisions)).
-- **Code generation with compile-time reflection.** Batch 36 deferred
-  macros and comptime, but the owner suggested generators that read typed,
-  read-only reflection and emit ordinary hd source, "something between
-  golang and macro"
-  ([One Compile-Time Intrinsic](archive/COMPTIME_UNIFICATION.md#deferred-code-generation-plus-compile-time-reflection)).
 
 ### Bound And Row Operators
 

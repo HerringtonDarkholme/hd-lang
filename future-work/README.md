@@ -35,11 +35,6 @@ Open questions for the owner:
   and single-construct diagnostics, and ranks nine cuts. Batches 24, 26,
   and 31b answered seven of its questions; Q2 and Q3, which merge
   diagnostic codes, wait for the code revamp.
-- [Code Generation With Compile-Time Reflection](CODEGEN_REFLECTION.md)
-  designs typed generators that read declaration data and emit hd. It
-  finds they simplify only by replacing templates, walkers, and `@error`
-  (about -136 language rules), keeps `by` and `all!`, and asks six
-  questions.
 
 Prototype plan:
 
