@@ -1600,3 +1600,15 @@ typing/invalid/tuple-spread-tuple-operand.hd	type
 typing/invalid/tuple-vararg-arity.hd	type
 typing/invalid/vararg-rest-distinct.hd	type
 typing/valid/pack-ordinary-name.hd	type
+parse/valid/spread-pattern-syntax.hd	parse
+runtime/valid/default-tuple-rest.hd	runtime
+typing/invalid/spread-pattern-arity.hd	type
+typing/invalid/spread-pattern-fixed-tuple.hd	type
+typing/invalid/spread-pattern-required.hd	type
+typing/invalid/tuple-bound-non-tuple.hd	type
+typing/invalid/tuple-trait-user-impl.hd	type
+typing/valid/tuple-trait-rest.hd	type
+runtime/valid/tuple-vararg-function-value.hd	runtime
+runtime/valid/tuple-vararg-infer.hd	runtime
+runtime/valid/tuple-vararg-rest.hd	runtime
+runtime/valid/tuple-vararg.hd	runtime

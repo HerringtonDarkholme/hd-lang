@@ -102,6 +102,7 @@ export interface Signature {
   readonly defaultFunctionNames: readonly (string | undefined)[];
   readonly variadic: boolean;
   readonly tupleVararg?: boolean; // a final tuple or `Tuple`-bounded vararg (07 Varargs)
+  readonly tupleParameters?: readonly string[]; // bounded by `std.function.Tuple`
   readonly result: ValueType;
   readonly requirements: readonly string[];
   /** Declared in a `tests:` block (spec/03-names-and-scopes.md#tests-blocks). */
@@ -944,9 +945,8 @@ export abstract class CheckerContext {
 
   // The standard library implements Display for the printable primitives and
   // string, Eq for primitives and equality-comparable built-in
-  // composites, and PartialOrd for ordered ones (05-expressions.md). These
-  // have no source `impl`, so the dictionary is built from the same
-  // strategies the operators use.
+  // composites, and PartialOrd for ordered ones (05-expressions.md). With no
+  // source `impl`, the dictionary uses the operators' strategies.
   protected builtinTraitDictionaryPlan(
     traitIndex: number,
     targetType: ValueType,

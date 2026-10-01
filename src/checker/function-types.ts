@@ -74,10 +74,7 @@ function rewriteType(text: string, names: ReadonlyMap<string, Constructor>): Rew
   return error ? { type: result, error } : { type: result };
 }
 
-function lowerConstructor(
-  constructor: Constructor,
-  arguments_: readonly string[],
-): Rewrite {
+function lowerConstructor(constructor: Constructor, arguments_: readonly string[]): Rewrite {
   const spelled = `${constructor}[${arguments_.join(",")}]`;
   if (arguments_.length !== 3)
     return {

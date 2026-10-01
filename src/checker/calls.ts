@@ -21,6 +21,7 @@ import {
   storedSuspensionParts,
   suspensionType,
   splitTypeBindings,
+  tupleParts,
 } from "../types.ts";
 import {
   isKnownType,
@@ -563,13 +564,65 @@ export abstract class CallChecker extends StatementChecker {
     return false;
   }
 
+  /**
+   * A call of a function with a tuple-typed or `Tuple`-bounded vararg passes
+   * its trailing positional arguments as the tuple expression of them
+   * (07-functions.md#r-fn.vararg.collect.tuple-expr): `call(g, 1, 2, xs...)`
+   * passes `(1, 2, xs...)`. One spread alone passes its operand
+   * (05-expressions.md#r-expr.call.spread.at-vararg).
+   */
+  protected collectTupleVararg<T extends Extract<Expression, { kind: "call" | "suspend-call" }>>(
+    expression: T,
+    signature: Signature,
+  ): T {
+    if (!signature.tupleVararg) return expression;
+    const varargName = signature.parameterNames.at(-1);
+    const names = expression.argumentNames ?? expression.arguments.map(() => undefined);
+    if (names.includes(varargName)) return expression;
+    const spreads = expression.argumentSpreads ?? expression.arguments.map(() => false);
+    const fixedCount = signature.parameters.length - 1;
+    const positional = names.flatMap((name, index) => (name === undefined ? [index] : []));
+    const collected = positional.slice(fixedCount);
+    if (collected.length === 1 && spreads[collected[0]!])
+      return {
+        ...expression,
+        argumentSpreads: spreads.map((spread, index) => spread && index !== collected[0]),
+      };
+    const elements = collected.map((index) => expression.arguments[index]!);
+    const spread = collected.length > 0 && spreads[collected.at(-1)!] === true;
+    const span =
+      elements.length > 0
+        ? { start: elements[0]!.span.start, end: elements.at(-1)!.span.end }
+        : expression.span;
+    const tuple: Expression = { kind: "tuple", elements, ...(spread ? { spread } : {}), span };
+    const kept = expression.arguments.flatMap((_, index) =>
+      collected.includes(index) ? [] : [index],
+    );
+    const at =
+      collected.length > 0 ? collected[0]! : positional.length > 0 ? positional.at(-1)! + 1 : 0;
+    const order = [
+      ...kept.filter((index) => index < at),
+      -1,
+      ...kept.filter((index) => index >= at),
+    ];
+    return {
+      ...expression,
+      arguments: order.map((index) => (index < 0 ? tuple : expression.arguments[index]!)),
+      ...(expression.argumentNames
+        ? { argumentNames: order.map((index) => (index < 0 ? undefined : names[index])) }
+        : {}),
+      argumentSpreads: order.map((index) => (index < 0 ? false : spreads[index]!)),
+    };
+  }
+
   protected checkSignatureArguments(
-    expression: Extract<Expression, { kind: "call" | "suspend-call" }>,
+    written: Extract<Expression, { kind: "call" | "suspend-call" }>,
     signature: Signature,
     expected?: ValueType,
     callable = `function '${signature.name}'`,
     initialSubstitutions: ReadonlyMap<string, ValueType> = new Map(),
   ): CheckedSignatureArguments {
+    const expression = this.collectTupleVararg(written, signature);
     const substitutions = new Map(initialSubstitutions);
     const rowSubstitutions = new Map<string, readonly string[]>();
     if (expression.typeArguments) {
@@ -967,6 +1020,22 @@ export abstract class CallChecker extends StatementChecker {
           span,
         );
       }
+    }
+    // Every tuple type implements the sealed `Tuple` (fn.type.ctor.tuple-trait).
+    for (const parameter of signature.tupleParameters ?? []) {
+      const actual = substitutions.get(parameter);
+      const forwarded = actual && genericTypeName(actual);
+      if (
+        actual &&
+        (forwarded
+          ? !(this.signature.tupleParameters ?? []).includes(forwarded)
+          : tupleParts(readonlyType(actual)) === undefined)
+      )
+        this.fail(
+          "unsatisfied-trait-bound",
+          `type '${actual}' does not implement Tuple, required by the bound on '${parameter}' of '${signature.name}'`,
+          span,
+        );
     }
     // An unmet bound of an intrinsically derived implementation's method
     // (spec/09-traits.md#r-trait.derive.bound-unmet).

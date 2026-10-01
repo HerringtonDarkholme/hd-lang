@@ -1,0 +1,13 @@
+# std.function: the function type constructors and the `Tuple` marker trait
+# (spec/07-functions.md#function-type-constructors).
+#
+# `Fn` and `SuspendFn` are the constructors that `fn(...) -> O $ R` and
+# `fn!(...) -> O $ R` stand for. They have no fields and no construction
+# syntax, so the compiler rewrites a spelled one to its sugar
+# (src/checker/function-types.ts) and they need no declaration here.
+
+# An empty sealed marker trait that every tuple type implements: `()`,
+# `(A,)`, and a tuple with a rest element included
+# (r-fn.type.ctor.tuple-trait, r-fn.type.ctor.tuple-trait.rest). Only the
+# compiler implements it, as it does `Inspectable` (r-trait.sealed.tuple).
+pub trait Tuple

@@ -1,5 +1,5 @@
 import { extendsInspectable, inspectKey, usesStandardInspect } from "./inspectable.ts";
-import { INSPECTABLE, INSPECTABLE_MEMBERS } from "./standard-traits.ts";
+import { INSPECTABLE, INSPECTABLE_MEMBERS, TUPLE_TRAIT } from "./standard-traits.ts";
 import type { Diagnostic } from "../diagnostics.ts";
 import {
   listVararg,
@@ -634,6 +634,14 @@ export function prepareImplementations(context: ProgramCheckContext): void {
       diagnostics.push({
         code: "unknown-trait",
         message: `unknown trait '${implementation.traitName}'`,
+        span: implementation.span,
+      });
+      continue;
+    }
+    if (trait.standardName === TUPLE_TRAIT) {
+      diagnostics.push({
+        code: "sealed-trait-implementation",
+        message: `${trait.name} is sealed: the compiler implements it for every tuple type`,
         span: implementation.span,
       });
       continue;

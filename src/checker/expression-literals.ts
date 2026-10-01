@@ -333,7 +333,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         const contextual = expected ? tupleParts(expected) : undefined;
         if (contextual && contextual.length !== expression.elements.length) {
           this.fail(
-            "tuple-arity",
+            "type-mismatch",
             `expected a ${contextual.length}-element tuple, found ${expression.elements.length} elements`,
             expression.span,
           );

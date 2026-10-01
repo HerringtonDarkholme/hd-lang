@@ -480,6 +480,8 @@ export function requirementKeysMayCollide(left: string, right: string): boolean 
     // A key's bindings take part as its type arguments do (req.with.collision.bindings).
     const binding = bindingParts(type);
     if (binding) return { head: `binding:${binding.name}`, values: [binding.type] };
+    const rest = restInner(type);
+    if (rest !== undefined) return { head: "rest", values: [rest] };
     const tuple = tupleParts(type);
     if (tuple !== undefined) return { head: `tuple:${tuple.length}`, values: tuple };
     const optional = optionalInner(type);
@@ -505,6 +507,8 @@ export function requirementKeysMayCollide(left: string, right: string): boolean 
     const first = resolve(firstType);
     const second = resolve(secondType);
     if (first === second) return true;
+    // A rest element unifies only with a rest element (types.tuple.rest.same).
+    if ((restInner(first) === undefined) !== (restInner(second) === undefined)) return false;
     const firstGeneric = genericTypeName(first);
     if (firstGeneric) {
       if (occurs(firstGeneric, second)) return false;

@@ -14,6 +14,7 @@ export const STANDARD_MODULES = [
   "arbitrary",
   "cmp",
   "format",
+  "function",
   "hash",
   "collections",
   "console",

@@ -1210,7 +1210,7 @@ class Parser extends DecoratorParser {
       this.expectText("=");
       const value = this.parseRightSide();
       const end = this.finishExpressionStatement(value, topOrInline);
-      return names.length === 1
+      return names.length === 1 && !names[0]!.spread
         ? {
             kind: "binding",
             name: names[0]!.token.text,
@@ -1225,6 +1225,7 @@ class Parser extends DecoratorParser {
             bindings: names.map((name) => ({
               name: name.token.text,
               ...(name.mutSpan ? { mutableAccess: true, mutSpan: name.mutSpan } : {}),
+              ...(name.spread ? { spread: true } : {}),
               span: name.token.span,
             })),
             annotation,

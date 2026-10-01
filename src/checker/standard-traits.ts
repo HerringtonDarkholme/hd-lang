@@ -14,6 +14,9 @@ const STANDARD_TRAITS: Readonly<Record<string, (name: string) => string>> = {
 
 export const STANDARD_FROM = "std.convert.From";
 
+/** The sealed marker trait that every tuple type implements (07-functions.md#r-fn.type.ctor.tuple-trait). */
+export const TUPLE_TRAIT = "std.function.Tuple";
+
 // `std.time`, `std.ops`, and `std.process` are hd sources in `lib/std/`,
 // declared by standard-library.ts under a program's local names or hidden
 // names such as these.

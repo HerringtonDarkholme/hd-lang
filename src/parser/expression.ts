@@ -1280,6 +1280,24 @@ export abstract class ExpressionParser extends ParserBase {
     return entries;
   }
 
+  /**
+   * A `...` after a tuple pattern's element makes it a spread pattern: a
+   * name or `_`, last, and alone it keeps the trailing comma
+   * (02-grammar.md#r-grammar.pattern.tuple-spread).
+   */
+  private matchSpreadPattern(element: Pattern, alone: boolean): boolean {
+    if (!this.atText("...")) return false;
+    const ellipsis = this.advance();
+    const last = (this.atText(",") && this.peek(1).text === ")") || (this.atText(")") && !alone);
+    if (!last || (element.kind !== "binding" && element.kind !== "wildcard"))
+      this.fail(
+        "syntax-error",
+        "a spread pattern is a name or '_' that ends a tuple pattern; alone it keeps the trailing comma, as in '(xs...,)'",
+        ellipsis.span,
+      );
+    return true;
+  }
+
   protected parsePattern(): Pattern {
     const start = this.current().span.start;
     if (this.matchText("_"))
@@ -1337,15 +1355,23 @@ export abstract class ExpressionParser extends ParserBase {
       return { kind: "character", value: literal.value as string, span: literal.span };
     }
     if (this.matchText("(")) {
-      // `tuple_pattern` needs a comma: `(p,)` or `(p, q)` (02-grammar.md#patterns).
+      // `tuple_pattern` needs a comma: `(p,)` or `(p, q)`; its last element
+      // may be a spread pattern `xs...` or `_...` (02-grammar.md#patterns).
       const elements = [this.parsePattern()];
+      let spread = this.matchSpreadPattern(elements[0]!, true);
       this.expectText(",");
-      while (!this.atText(")")) {
+      while (!spread && !this.atText(")")) {
         elements.push(this.parsePattern());
+        spread = this.matchSpreadPattern(elements.at(-1)!, false);
         if (!this.matchText(",")) break;
       }
       const close = this.expectText(")");
-      return { kind: "tuple", elements, span: { start, end: close.span.end } };
+      return {
+        kind: "tuple",
+        elements,
+        ...(spread ? { spread: true } : {}),
+        span: { start, end: close.span.end },
+      };
     }
     if (this.matchText(".")) {
       const variant = this.expectKind("identifier", "expected a variant name after '.'");

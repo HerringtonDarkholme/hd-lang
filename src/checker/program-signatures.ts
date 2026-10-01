@@ -10,6 +10,7 @@ import { listVararg, tupleVararg, type FunctionDecl } from "../ast.ts";
 import type { HirAssociatedBinding } from "../hir.ts";
 import { mutableInner, nominalGenericParts } from "../types.ts";
 import { PRELUDE_NAMES, type Signature } from "./context.ts";
+import { TUPLE_TRAIT } from "./standard-traits.ts";
 import {
   collectRowParameterReferences,
   firstPrivateSignatureType,
@@ -137,7 +138,11 @@ export function createProgramSignatures(
     const typeParameters = declaration.genericParameters.filter(
       (parameter) => !rowParameterSet.has(parameter),
     );
-    const categoryParameters = { AnyRef: new Set<string>(), AnyVal: new Set<string>() };
+    const categoryParameters = {
+      AnyRef: new Set<string>(),
+      AnyVal: new Set<string>(),
+      Tuple: new Set<string>(),
+    };
     const boundProjections = new Set<string>();
     const genericBounds = declaration.genericBounds.flatMap((bound) => {
       if (rowParameterSet.has(bound.parameter)) {
@@ -170,6 +175,12 @@ export function createProgramSignatures(
         }
         if (traitName === "Any") return [];
         const trait = traitTypes.get(traitName);
+        // `std.function.Tuple` is a sealed marker that every tuple type
+        // implements; it passes no dictionary (fn.type.ctor.tuple-trait).
+        if (trait?.standardName === TUPLE_TRAIT) {
+          categoryParameters.Tuple.add(bound.parameter);
+          return [];
+        }
         if (!trait) {
           diagnostics.push({
             code: "unknown-trait",
@@ -345,6 +356,9 @@ export function createProgramSignatures(
       genericBounds,
       referenceParameters: [...categoryParameters.AnyRef],
       valueParameters: [...categoryParameters.AnyVal],
+      ...(categoryParameters.Tuple.size > 0
+        ? { tupleParameters: [...categoryParameters.Tuple] }
+        : {}),
       rowParameters,
       ...(rowParameters.length > 0 ? { typeArgumentOrder: declaration.genericParameters } : {}),
       parameters: normalizedParameters,

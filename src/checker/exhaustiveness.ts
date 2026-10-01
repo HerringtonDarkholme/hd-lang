@@ -5,7 +5,7 @@ import {
   optionalInner,
   readonlyType,
   resultParts,
-  tupleParts,
+  tupleLayout,
 } from "../types.ts";
 import { substituteGenericType } from "./shared.ts";
 
@@ -65,7 +65,7 @@ function constructorsOf(
       { name: "Ok", arguments: result.ok === "void" ? [] : [result.ok] },
       { name: "Err", arguments: [result.error] },
     ];
-  const tuple = tupleParts(view);
+  const tuple = tupleLayout(view);
   if (tuple) return [{ name: "()", arguments: tuple }];
   const name = nominalGenericParts(view)?.name ?? view;
   const declaration = environment.enums.get(name);

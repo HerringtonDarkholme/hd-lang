@@ -24,7 +24,7 @@ import {
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
-  tupleParts,
+  tupleLayout,
 } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
@@ -621,9 +621,16 @@ export abstract class PatternChecker extends CallChecker {
     tests: Array<NonNullable<HirMatchArm["tests"]>[number]>,
     accessPath: readonly HirPatternAccessStep[] = [],
   ): boolean {
-    const elements = tupleParts(readonlyType(type));
+    const elements = tupleLayout(readonlyType(type));
     if (!elements)
       this.fail("pattern-type-mismatch", `a tuple pattern does not match '${type}'`, pattern.span);
+    this.checkSpreadArity(
+      pattern.elements.map(
+        (_, index) => pattern.spread === true && index === pattern.elements.length - 1,
+      ),
+      type,
+      pattern.span,
+    );
     if (elements.length !== pattern.elements.length)
       this.fail(
         "pattern-arity",

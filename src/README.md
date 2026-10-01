@@ -241,7 +241,14 @@ listed yet.
 - tuple types with a rest element `(A, List[T]...)`, whose value holds the
   fixed elements and then one `List[T]`; tuple expressions collect trailing
   elements into an expected rest element, or end in a list spread
-  `(a, xs...)`;
+  `(a, xs...)`; spread patterns `(a, xs...)` in `let` lists and `match`
+  arms (not yet in `for` headers, which take bare names);
+- tuple-typed and `Tuple`-bounded varargs (`args...: (i32, string)`,
+  `args...: Args`), which take one tuple input: a call passes its trailing
+  arguments as the tuple expression of them, and a `Tuple`-bounded type
+  parameter is solved from that tuple. `Fn[Args, O, R]` with a type
+  parameter `Args`, and a tuple spread into fixed parameters such as
+  `add(pair...)`, are not implemented;
 - a recursive-descent declaration/statement parser and Pratt expression parser;
 - named functions, forward calls, typed parameters, typed results, and locals;
 - source-ordered module bindings backed by typed Wasm globals, including
@@ -956,7 +963,7 @@ does not implement the canonical prelude trait.
 
 The toy standard library is hd source in the top-level
 [`lib/std/`](../lib/std/) directory, next to `src/` as in Zig, one file per
-module: `std.annotation`, `std.cmp`, `std.collections`, `std.hash`, `std.console`, `std.format`, `std.iter`, `std.num`, `std.ops`,
+module: `std.annotation`, `std.cmp`, `std.collections`, `std.hash`, `std.console`, `std.format`, `std.function`, `std.iter`, `std.num`, `std.ops`,
 `std.option`, `std.process`, `std.resource`, `std.result`, `std.testing`, `std.text`, and `std.time`. It
 follows the draft in
 [future-work/STDLIB.md](../future-work/STDLIB.md#core-layer) where the
@@ -1014,6 +1021,7 @@ What it provides:
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
 | `std.resource` | `ResourceError[E]` |
 | `std.ops` | the twelve operator traits, `Index`, and `IndexSet`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations (spec/std/ops.md) |
+| `std.function` | the sealed marker trait `Tuple`, which the compiler implements for every tuple type; a `Tuple` bound passes no dictionary. `Fn` and `SuspendFn` have no declaration: the checker rewrites them to the `fn(...)` sugar |
 | `std.format` | the prelude `Display` and `Debug`; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and tuples up to 12 elements |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
 | `std.testing.arbitrary` | `with` and `Generator`, in `lib/std/arbitrary.hd`, since the prototype has no std submodules |

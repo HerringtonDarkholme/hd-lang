@@ -15,6 +15,8 @@ import {
   suspensionParts,
   traitSuspensionParts,
   tupleParts,
+  tupleLayout,
+  tupleRest,
 } from "../types.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { CheckerContext, PRELUDE_NAMES } from "./context.ts";
@@ -298,6 +300,36 @@ export abstract class StatementChecker extends CheckerContext {
     }
   }
 
+  /**
+   * A tuple pattern or `let` list against a tuple type: one that ends in a
+   * spread pattern needs a rest tuple with as many fixed elements as the
+   * names before it, and a rest tuple needs a spread pattern
+   * (06-control-flow.md#spread-patterns).
+   */
+  protected checkSpreadArity(spreads: readonly boolean[], type: ValueType, span: SourceSpan): void {
+    const tuple = tupleRest(readonlyType(type));
+    if (!tuple) return;
+    const spread = spreads.at(-1) === true;
+    if (spread && tuple.rest === undefined)
+      this.fail(
+        "type-mismatch",
+        `a spread pattern needs a tuple type with a rest element, found '${type}'`,
+        span,
+      );
+    if (!spread && tuple.rest !== undefined)
+      this.fail(
+        "type-mismatch",
+        `a tuple pattern against '${type}' must end in a spread pattern, as in '(..., xs...)'`,
+        span,
+      );
+    if (spread && spreads.length - 1 !== tuple.fixed.length)
+      this.fail(
+        "type-mismatch",
+        `'${type}' has ${tuple.fixed.length} fixed element${tuple.fixed.length === 1 ? "" : "s"}, but the spread pattern follows ${spreads.length - 1}`,
+        span,
+      );
+  }
+
   protected checkTupleBinding(
     statement: Extract<Statement, { kind: "tuple-binding" }>,
   ): HirStatement[] {
@@ -311,7 +343,7 @@ export abstract class StatementChecker extends CheckerContext {
       );
     }
     const value = this.checkExpression(statement.value, annotation);
-    const elements = tupleParts(value.type);
+    const elements = tupleLayout(value.type);
     if (elements === undefined) {
       this.fail(
         "type-mismatch",
@@ -319,6 +351,11 @@ export abstract class StatementChecker extends CheckerContext {
         statement.value.span,
       );
     }
+    this.checkSpreadArity(
+      statement.bindings.map((binding) => binding.spread === true),
+      value.type,
+      statement.span,
+    );
     if (elements.length !== statement.bindings.length) {
       this.fail(
         "type-mismatch",
@@ -328,6 +365,7 @@ export abstract class StatementChecker extends CheckerContext {
     }
     const names = new Set<string>();
     for (const binding of statement.bindings) {
+      if (binding.name === "_") continue;
       if (names.has(binding.name))
         this.fail(
           "duplicate-binding",
@@ -380,6 +418,7 @@ export abstract class StatementChecker extends CheckerContext {
       return annotation ? element : readonlyType(element);
     });
     for (const [index, binding] of statement.bindings.entries()) {
+      if (binding.name === "_") continue;
       if (this.moduleBody) {
         const global: HirGlobal = {
           name: binding.name,

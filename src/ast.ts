@@ -336,7 +336,13 @@ export type Pattern =
   | { readonly kind: "string"; readonly value: string; readonly span: SourceSpan }
   | { readonly kind: "character"; readonly value: string; readonly span: SourceSpan }
   | { readonly kind: "binding"; readonly name: string; readonly span: SourceSpan }
-  | { readonly kind: "tuple"; readonly elements: readonly Pattern[]; readonly span: SourceSpan }
+  | {
+      readonly kind: "tuple";
+      readonly elements: readonly Pattern[];
+      /** The last element is a spread pattern `xs...` or `_...` (06-control-flow.md#spread-patterns). */
+      readonly spread?: boolean;
+      readonly span: SourceSpan;
+    }
   | {
       readonly kind: "data";
       readonly typeName: string;
@@ -375,6 +381,8 @@ export interface BindingName {
   readonly mutableAccess?: boolean;
   /** From `mut` to the name, which the `redundant-let-mut` fix-it deletes. */
   readonly mutSpan?: SourceSpan;
+  /** Written `name...` last in a `let` list: a spread pattern (06-control-flow.md#spread-patterns). */
+  readonly spread?: boolean;
   readonly span: SourceSpan;
 }
 
