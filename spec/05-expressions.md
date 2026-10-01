@@ -188,9 +188,10 @@ trait Display:
 7. r[expr.interp.no-fallback] There is no fallback conversion through `Any`, runtime reflection, or debug output.
 8. r[expr.interp.std] The standard library provides `Display` implementations for ordinary printable primitive types and `string`.
 9. r[expr.interp.std.tuple] It also implements `Display` for tuples of at most 12 elements whose elements implement `Display`, writing the elements' texts inside parentheses, separated by `, `, as in `(1, a)`.
-10. r[expr.interp.user] Optional and user-defined values are displayable only when the corresponding type implements `Display`.
-11. r[expr.interp.prefixed] A prefixed string does not append its values: they become the values of a template, as [Prefixed Strings](#prefixed-strings) specifies.
-12. r[expr.interp.constant] A string with no interpolation segments is an ordinary constant value and performs no `Display` calls.
+10. r[expr.interp.std.tuple.rest] That tuple `Display` also covers a tuple with a rest element `List[T]...` whose `T` implements `Display`, the rest element counted as one element. It writes the rest's items inline after the fixed elements, as in `(1, 2, 3, 4)`.
+11. r[expr.interp.user] Optional and user-defined values are displayable only when the corresponding type implements `Display`.
+12. r[expr.interp.prefixed] A prefixed string does not append its values: they become the values of a template, as [Prefixed Strings](#prefixed-strings) specifies.
+13. r[expr.interp.constant] A string with no interpolation segments is an ordinary constant value and performs no `Display` calls.
 
 ```text
 data Secret:
@@ -857,6 +858,7 @@ fn spreads(pair: (i32, i32), items: List[i32], t: (i32, i32, List[i32]...)) -> i
 | Rule | Where the spread stands | `X` must be | It fills |
 | --- | --- | --- | --- |
 | r[expr.call.spread.at-vararg] At a vararg | the next positional parameter is a [vararg](07-functions.md#varargs) | assignable to the vararg's type | the vararg, as its collected value |
+| r[expr.call.spread.tuple-vararg-tail] After a tuple vararg's arguments | it follows one or more separate arguments of a tuple-typed or `Tuple`-bounded vararg | what a tuple expression's final spread needs | the rest element, as [`fn.vararg.collect.tuple-expr`](07-functions.md#r-fn.vararg.collect.tuple-expr) states |
 | r[expr.call.spread.inputs] Before fixed parameters | any other position | the same type as the tuple of the callee's remaining inputs, which keeps a [rest element](04-type-system.md#rest-elements) | each remaining parameter with one element, in order, and a `List[T]` vararg with the rest element's list |
 
 4. r[expr.call.spread.mismatch] An operand that does not meet the table's requirement is an error. Error: `type-mismatch`.

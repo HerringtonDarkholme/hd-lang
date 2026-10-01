@@ -1,0 +1,6 @@
+# test: a spread pattern needs a tuple type with a rest element
+# Spec 06 Spread Patterns: flow.match.spread.fixed-tuple (owner decision Q6, batch 34, 2026-10-01).
+
+fn fixed(pair: (i32, i32)) -> i32:
+    let (first, rest...) = pair  # diagnostic: type-mismatch
+    first

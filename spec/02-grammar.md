@@ -1555,8 +1555,14 @@ data_pattern_field = [ "mut" ], identifier
                    | identifier, ":", pattern
                    ;
 
-tuple_pattern = "(", pattern, ",",
-                [ pattern, { ",", pattern }, [ "," ] ], ")" ;
+tuple_pattern = "(", pattern, ",", [ tuple_pattern_elements ], ")"
+              | "(", spread_pattern, ",", ")"
+              ;
+tuple_pattern_elements = pattern, { ",", pattern },
+                         [ ",", spread_pattern ], [ "," ]
+                       | spread_pattern, [ "," ]
+                       ;
+spread_pattern = ( "_" | binding_pattern_atom ), "..." ;
 ```
 
 1. r[grammar.pattern.variant] Variant patterns may use a qualified enum variant name or `.Variant` when the matched value's type supplies one enum.
@@ -1568,6 +1574,7 @@ tuple_pattern = "(", pattern, ",",
 7. r[grammar.pattern.data-field] In a data pattern, bare `field` binds that field's value to a new name of the same spelling.
 8. r[grammar.pattern.data-field.nested] `field: pattern` matches the field against a nested pattern, and `field: name` binds it to `name`.
 9. r[grammar.pattern.data-unlisted] Unlisted fields are ignored.
+10. r[grammar.pattern.tuple-spread] The last element of a tuple pattern may be a **spread pattern**, a name or `_` followed by `...`, as in `(a, b, xs...)`. Alone, it keeps the one-element trailing comma, `(xs...,)`, so `(xs...)` and a spread pattern before another element are errors. Error: `syntax-error`.
 
 ```text
 enum Pair:

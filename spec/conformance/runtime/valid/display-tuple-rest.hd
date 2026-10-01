@@ -1,0 +1,12 @@
+# test: tuple Display covers a rest tuple, writing the rest element's items inline after the fixed elements
+# expect: test
+# Spec 05 Interpolated Strings: expr.interp.std.tuple.rest (owner decision Q5, batch 34, 2026-10-01).
+use std.testing.assert_equal
+
+tests:
+    it("displays the rest inline"):
+        xs := [3, 4]
+        t := (1, 2, xs...)
+        assert_equal("$t", "(1, 2, 3, 4)", reason="the rest's items follow the fixed elements")
+        let only: (List[i32]...,) = (5, 6)
+        assert_equal(only.to_string(), "(5, 6)", reason="a rest-only tuple writes its items")

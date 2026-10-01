@@ -1,0 +1,5 @@
+# test: a spread pattern must be the last element of a tuple pattern
+
+fn early(t: (i32, List[i32]...)) -> i32:
+    let (rest..., first) = t  # diagnostic: syntax-error
+    first

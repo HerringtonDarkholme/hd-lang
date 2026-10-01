@@ -1,0 +1,28 @@
+# test: a spread pattern binds a rest tuple's rest element to its list in let, for, and match
+# expect: test
+# Spec 06 Spread Patterns: flow.match.spread.bind (owner decision Q6, batch 34, 2026-10-01).
+use std.testing.assert_equal
+
+fn total(t: (i32, i32, List[i32]...)) -> i32:
+    let (a, b, xs...) = t
+    a + b + xs.len()
+
+fn lengths(rows: List[(string, List[i32]...)]) -> List[i32]:
+    [for (_, xs...) in rows => xs.len()]
+
+fn describe(t: (i32, List[i32]...)) -> string:
+    match t:
+        (0, _...) => "zero"
+        (n, xs...) => "$n and ${xs.len()} more"
+
+tests:
+    it("let binds the rest as a list"):
+        assert_equal(total((1, 2, 3, 4)), 5, reason="xs is [3, 4]")
+        assert_equal(total((1, 2)), 3, reason="xs is empty")
+
+    it("for and match take spread patterns"):
+        let first: (string, List[i32]...) = ("a", 1, 2)
+        let second: (string, List[i32]...) = ("b",)
+        assert_equal(lengths([first, second]), [2, 0], reason="one length per row")
+        assert_equal(describe((0, 9)), "zero", reason="the literal arm")
+        assert_equal(describe((4, 5, 6)), "4 and 2 more", reason="the binding arm")

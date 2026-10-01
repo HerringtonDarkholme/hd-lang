@@ -496,9 +496,10 @@ fn describe(point: Point) -> string:
 2. r[trait.debug.method] `Debug` declares `fn debug(self, out: mut DebugWriter) -> void`, which writes the value's structure through `out`.
 3. r[trait.debug.writer] `DebugWriter` is the standard structured writer. An implementation describes the value through its builder calls, such as one call per field, rather than raw text.
 4. r[trait.debug.std-types] `std` implements `Debug` for the primitives, collections, `T?`, `Result`, and tuples of at most 12 elements, each when its type arguments implement `Debug`.
-5. r[trait.debug.derive] `@derive(Debug)` derives `Debug` through its [template](14-annotations.md#templates). The derived implementation walks the declaration's members and writes each one.
-6. r[trait.debug.not-display] `Debug` is separate from `Display`, which stays user-facing text.
-7. r[trait.debug.writer-import] `DebugWriter` is not a prelude name, so a hand-written implementation imports it, as in `use std.format.DebugWriter`.
+5. r[trait.debug.std-types.rest] That tuple `Debug` also covers a tuple with a rest element, counted as one element. It writes the rest element's items inline after the fixed elements, so a value `(1, 2, 3, 4)` of type `(i32, i32, List[i32]...)` writes as the tuple `(1, 2, 3, 4)` of four `i32` does.
+6. r[trait.debug.derive] `@derive(Debug)` derives `Debug` through its [template](14-annotations.md#templates). The derived implementation walks the declaration's members and writes each one.
+7. r[trait.debug.not-display] `Debug` is separate from `Display`, which stays user-facing text.
+8. r[trait.debug.writer-import] `DebugWriter` is not a prelude name, so a hand-written implementation imports it, as in `use std.format.DebugWriter`.
 
 > **Note.** The text that `debug` returns, the `DebugWriter` builders,
 > and the builder calls that `@derive(Debug)` generates are stdlib tier:
@@ -658,6 +659,7 @@ fn index(counts: Map[(i32, string), i32]) -> i32:
 
 1. r[trait.target.tuple.derived] Every tuple type implements `Eq`, `PartialOrd`, `Ord`, and `Hash` when each of its elements implements that trait, as an intrinsic derivation over every arity.
 2. r[trait.target.tuple.derived.elementwise] The derived methods work element by element, in order: equality compares every element, ordering is lexicographic, and hashing combines the elements' hashes.
+3. r[trait.target.tuple.derived.rest] A tuple type with a [rest element](04-type-system.md#rest-elements) `List[T]...` derives them too. Its rest element is its last element, of type `List[T]`, so it compares and hashes as that list.
 
 > **Note.** These derivations are the tuple equality of
 > [`expr.eq.std`](05-expressions.md#r-expr.eq.std), the tuple order of
@@ -668,6 +670,13 @@ fn index(counts: Map[(i32, string), i32]) -> i32:
 > standard-library implementations up to 12 elements
 > ([`trait.debug.std-types`](#r-trait.debug.std-types),
 > [`expr.interp.std.tuple`](05-expressions.md#r-expr.interp.std.tuple)).
+
+> **Note.** Lists have no built-in `Hash`
+> ([`types.map-key.no-hash`](04-type-system.md#r-types.map-key.no-hash)),
+> so a tuple with a rest element has no `Hash` and is not a map key.
+
+> **Note.** Tuples have no `Default` yet, since std declares no `Default`
+> trait. Rest tuples will follow tuple `Default` when it exists.
 
 ### Implementation Ownership
 

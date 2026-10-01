@@ -263,6 +263,7 @@ The stdlib chapters' terms are in the
 | **sealed trait** | A standard trait whose implementations only the compiler and the standard library supply. See [Sealed Traits](09-traits.md#sealed-traits). |
 | **self reference** | A member's or variant's `self_ref`: whether its type needs the type being derived (`.Required`), only refers to it (`.Optional`), or neither (`.Absent`), computed from its type alone. See [Self References](14-annotations.md#self-references). |
 | **shape** | In generic code, the machine representation a value occupies; see [Shapes and Generic Code](04-type-system.md#shapes-and-generic-code). In annotations, a compiler-provided runtime value that describes a declaration's or type's structure; see [Terminology](14-annotations.md#terminology). |
+| **spread pattern** | A last tuple-pattern element, a name or `_` followed by `...`, that matches a rest element's list, as in `let (a, xs...) = t`. See [Spread Patterns](06-control-flow.md#spread-patterns). |
 | **specialized data shape type** | The type of `shape::[D]()` for a data type `D`: the members of `DataShape`, plus a `fields` record with one member per direct field. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
 | **specialized enum shape type** | The type of `shape::[E]()` for an enum `E`, which adds a `variants` record with one member per variant. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
 | **substitution step** | A pipe step that contains `_`. See [`expr.pipe.step-kinds`](05-expressions.md#r-expr.pipe.step-kinds). |
@@ -3051,3 +3052,41 @@ existing source. Each entry names the decision that made the change.
   a reserved word directly after a number's digits or directly before a
   string's opening quote is `syntax-error`. `if flag: 5else: 3` and
   `return"done"`, valid before, are now errors; a space fixes each.
+- A tuple vararg's arguments are collected as a tuple expression (owner
+  decision Q4, batch 34, 2026-10-01): language tier.
+  `fn.vararg.collect.tuple` and `fn.vararg.collect.tuple.rest` are
+  retired for
+  [`fn.vararg.collect.tuple-expr`](07-functions.md#r-fn.vararg.collect.tuple-expr),
+  which defers to the tuple-expression rules. So a list spread may end a
+  tuple vararg's separate arguments: `call(g, 1, 2, xs...)` collects
+  `(1, 2, xs...)`. It was not covered before.
+  [`expr.call.spread.tuple-vararg-tail`](05-expressions.md#r-expr.call.spread.tuple-vararg-tail)
+  adds that position to the positional-spread table. No other program
+  changes.
+- Rest tuples derive the tuple traits (owner decision Q5, batch 34,
+  2026-10-01): language tier.
+  [`trait.target.tuple.derived.rest`](09-traits.md#r-trait.target.tuple.derived.rest):
+  a tuple with a rest element derives `Eq`, `PartialOrd`, `Ord`, and
+  `Hash`, its rest element compared and hashed as its `List[T]`. Lists
+  have no `Hash`, so a rest tuple is still not a map key.
+  [`trait.debug.std-types.rest`](09-traits.md#r-trait.debug.std-types.rest)
+  and
+  [`expr.interp.std.tuple.rest`](05-expressions.md#r-expr.interp.std.tuple.rest):
+  tuple `Debug` and `Display` cover rest tuples, the rest element counted
+  as one of the 12 elements, and write the rest's items inline, as in
+  `(1, 2, 3, 4)`. `a == b`, `a < b`, `debug(t)`, and `"$t"` on a rest
+  tuple, `unsatisfied-trait-bound` before, are now valid. Tuple `Default`
+  still waits for a `Default` trait; rest tuples will follow it.
+- Spread patterns (owner decision Q6, batch 34, 2026-10-01): language
+  tier. A tuple pattern may end in a spread pattern, a name or `_`
+  followed by `...`
+  ([`grammar.pattern.tuple-spread`](02-grammar.md#r-grammar.pattern.tuple-spread)),
+  which matches a rest tuple's rest element and binds its list, as in
+  `let (a, b, xs...) = t` ([Spread Patterns](06-control-flow.md#spread-patterns)).
+  It works in `let`, `for`, and `match`, and is irrefutable when the
+  other subpatterns are. A spread pattern against a tuple without a rest
+  element, a plain tuple pattern against one with a rest element, and a
+  count of subpatterns that differs from the fixed elements are each
+  `type-mismatch`. `let (a, b, xs) = t` on a rest tuple, unspecified
+  before, is an error. hd has no list patterns, so there is no
+  `[a, rest...]` rule to share.

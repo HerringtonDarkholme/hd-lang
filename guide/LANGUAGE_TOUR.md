@@ -1370,9 +1370,13 @@ g(t...)                # ok
 h(u...)                # ok
 g(u...)                # invalid: u has no rest element
 call(g, 1, 2, 3, 4)    # Args is (i32, i32, List[i32]...), from g
+call(g, 1, 2, [3]...)  # collected as the tuple (1, 2, [3]...)
+let (a, b, xs...) = t  # a spread pattern binds xs: List[i32]
 ```
 
 A tuple expression may also end in a list spread, as in `(1, 2, xs...)`.
+A rest tuple compares, prints, and displays like a tuple, with the rest's
+items after the fixed ones: `"$t"` is `(1, 2, 3, 4)`.
 
 Function types use `fn(...) -> ...`:
 

@@ -517,6 +517,55 @@ fn invalid(user: User) -> string:
 See also: [Generalized Algebraic Data Types](13-gadts.md), which defines GADT
 pattern refinement.
 
+### Spread Patterns
+
+A [spread pattern](02-grammar.md#r-grammar.pattern.tuple-spread) ends a
+tuple pattern and binds the [rest element](04-type-system.md#rest-elements)
+of a tuple to its list:
+
+```text
+fn total(t: (i32, i32, List[i32]...)) -> i32:
+    let (a, b, xs...) = t
+    a + b + xs.len()
+
+fn lengths(rows: List[(string, List[i32]...)]) -> List[i32]:
+    [for (_, xs...) in rows => xs.len()]
+
+fn describe(t: (i32, List[i32]...)) -> string:
+    match t:
+        (0, _...) => "zero"
+        (n, xs...) => "$n and ${xs.len()} more"
+```
+
+1. r[flow.match.spread.rest] A tuple pattern that ends in a spread pattern matches a tuple type with a rest element `List[T]...`. Its other subpatterns match the fixed elements one each, in order.
+2. r[flow.match.spread.bind] The spread pattern `xs...` binds `xs` to the rest element's `List[T]`, so `xs` above is a `List[i32]`. The spread pattern `_...` binds nothing.
+3. r[flow.match.spread.arity] The subpatterns before a spread pattern must be as many as the type's fixed elements. Error: `type-mismatch`.
+4. r[flow.match.spread.fixed-tuple] A spread pattern against a tuple type without a rest element, or against any other type, is an error. Error: `type-mismatch`.
+5. r[flow.match.spread.required] A tuple pattern without a spread pattern against a tuple type with a rest element is an error. Error: `type-mismatch`.
+6. r[flow.match.spread.cover] A spread pattern covers every list, so a tuple pattern that ends in one is irrefutable when its other subpatterns are.
+
+```text
+fn fixed(pair: (i32, i32)) -> i32:
+    let (first, rest...) = pair  # error: type-mismatch
+    first
+
+fn plain(t: (i32, List[i32]...)) -> i32:
+    let (first, rest) = t  # error: type-mismatch
+    first
+
+fn short(t: (i32, i32, List[i32]...)) -> i32:
+    let (first, rest...) = t  # error: type-mismatch
+    first
+```
+
+> **Note.** A spread pattern stands wherever a tuple pattern does: in a
+> `let`, a `for` loop or comprehension clause, and a `match` arm. hd has
+> no list patterns, so it has no `[a, rest...]` form.
+
+> **Why.** The pattern mirrors the type `(i32, i32, List[i32]...)` and
+> the expression `(a, b, xs...)`, so a rest tuple is built and taken apart
+> in one shape.
+
 ## Let Patterns
 
 A `let` pattern matches its initializer as a `match` arm's pattern would,

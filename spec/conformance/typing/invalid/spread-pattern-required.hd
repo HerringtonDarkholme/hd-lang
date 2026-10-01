@@ -1,0 +1,6 @@
+# test: a tuple pattern against a rest tuple must end in a spread pattern
+# Spec 06 Spread Patterns: flow.match.spread.required (owner decision Q6, batch 34, 2026-10-01).
+
+fn plain(t: (i32, List[i32]...)) -> i32:
+    let (first, rest) = t  # diagnostic: type-mismatch
+    first

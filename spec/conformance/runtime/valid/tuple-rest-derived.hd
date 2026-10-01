@@ -1,0 +1,15 @@
+# test: a tuple with a rest element derives Eq, PartialOrd, and Ord, comparing the rest element as its list
+# expect: test
+# Spec 09 Derived Tuple Implementations: trait.target.tuple.derived.rest (owner decision Q5, batch 34, 2026-10-01).
+use std.testing.assert_equal
+
+tests:
+    it("rest tuples compare element by element, the rest as a list"):
+        let a: (i32, List[i32]...) = (1, 2, 3)
+        let b: (i32, List[i32]...) = (1, 2, 3)
+        let c: (i32, List[i32]...) = (1, 2, 4)
+        let d: (i32, List[i32]...) = (1, 2)
+        assert_equal(a == b, true, reason="equal fixed elements and equal lists")
+        assert_equal(a == c, false, reason="the lists differ")
+        assert_equal(a < c, true, reason="the lists are ordered lexicographically")
+        assert_equal(d < a, true, reason="a list that is a prefix of another comes first")

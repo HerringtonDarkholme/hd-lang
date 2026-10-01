@@ -71,6 +71,10 @@ export function parserSelfTest(): string[] {
     ["fn wrap(xs: List[i32]) -> void:\n    _ := (xs..., 1)\n", false],
     ["fn count[Ts...]() -> i32: 0\n", false],
     ["fn wrap(xs: List[i32]) -> void:\n    _ := (xs...)\n", false],
+    ["fn f(t: (i32, List[i32]...)) -> void:\n    let (a, xs...) = t\n", true],
+    ["fn f(t: (List[i32]...,)) -> void:\n    let (xs...,) = t\n", true],
+    ["fn f(t: (List[i32]...,)) -> void:\n    let (xs...) = t\n", false],
+    ["fn f(t: (i32, List[i32]...)) -> void:\n    let (xs..., a) = t\n", false],
     ["fn f() -> i32:\n    pack := p\n    pack.map(5)\n", true],
   ]);
   const failures: string[] = [];
