@@ -14,7 +14,7 @@ export type TokenKind =
   | "dedent"
   | "eof";
 
-export type InterpolatedStringSegment =
+type InterpolatedStringSegment =
   | { readonly kind: "text"; readonly value: string; readonly span: SourceSpan }
   | { readonly kind: "expression"; readonly source: string; readonly span: SourceSpan };
 
@@ -41,7 +41,7 @@ export interface Token {
   readonly prefix?: { readonly name: string; readonly span: SourceSpan };
 }
 
-export interface LexResult {
+interface LexResult {
   readonly tokens: readonly Token[];
   readonly diagnostics: readonly Diagnostic[];
 }

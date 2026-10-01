@@ -14,7 +14,7 @@ import type { SpecIndex } from "./spec-index.ts";
 
 export type OutputFormat = "text" | "json";
 
-export interface JsonPosition {
+interface JsonPosition {
   /** 1-based line. */
   readonly line: number;
   /** 1-based column, counted in UTF-16 code units. */
@@ -29,7 +29,7 @@ export interface JsonSpan {
   readonly end: JsonPosition;
 }
 
-export interface JsonRuleRef {
+interface JsonRuleRef {
   readonly id: string;
   readonly anchor: string;
 }
@@ -112,7 +112,7 @@ function ruleRefs(index: SpecIndex | undefined, code: string): JsonRuleRef[] {
   return (index?.rulesByCode.get(code) ?? []).map(({ id, anchor }) => ({ id, anchor }));
 }
 
-export function jsonDiagnostic(
+function jsonDiagnostic(
   file: string,
   diagnostic: Diagnostic,
   source: string,

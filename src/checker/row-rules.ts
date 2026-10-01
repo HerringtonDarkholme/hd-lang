@@ -33,7 +33,7 @@ export function mismatchMessage(actual: string, expected: string): string {
  * names a row alias: the row as written and expanded
  * (11-requirements-and-suspension.md#r-req.row.alias.diagnostics.expanded).
  */
-export function aliasedRowNote(code: string, declaration: FunctionDecl): string {
+function aliasedRowNote(code: string, declaration: FunctionDecl): string {
   const written = declaration.writtenRequirements;
   if (!written || (code !== "missing-requirement" && code !== "type-mismatch")) return "";
   const expanded = declaration.requirements.join(" + ") || "()";

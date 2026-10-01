@@ -29,7 +29,7 @@ import {
 } from "../types.ts";
 import type { SuspensionPlan } from "./suspension.ts";
 
-export interface BuiltinTraitAdapter {
+interface BuiltinTraitAdapter {
   readonly index: number;
   readonly implementation: HirBuiltinTraitImplementation;
   readonly boundTraits: readonly number[];

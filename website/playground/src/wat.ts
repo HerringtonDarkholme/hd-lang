@@ -13,7 +13,7 @@ export type WatTokenKind =
   | "paren"
   | "plain";
 
-export interface WatToken {
+interface WatToken {
   readonly text: string;
   readonly kind: WatTokenKind;
 }

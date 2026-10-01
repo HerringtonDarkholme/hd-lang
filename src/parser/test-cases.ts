@@ -28,7 +28,7 @@ export interface ModuleItems {
   pendingEach: Statement[];
 }
 
-export type Fail = (code: string, message: string, span: SourceSpan) => never;
+type Fail = (code: string, message: string, span: SourceSpan) => never;
 
 export function emptyModuleItems(): ModuleItems {
   return {

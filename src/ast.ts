@@ -398,7 +398,7 @@ export interface MapEntry {
   readonly span: SourceSpan;
 }
 
-export interface ComprehensionForClause {
+interface ComprehensionForClause {
   readonly kind: "for";
   readonly bindings: readonly BindingName[];
   /** A pattern other than a name or a tuple of names; then `bindings` is empty (grammar.flow.for-pattern). */
@@ -407,7 +407,7 @@ export interface ComprehensionForClause {
   readonly span: SourceSpan;
 }
 
-export interface ComprehensionIfClause {
+interface ComprehensionIfClause {
   readonly kind: "if";
   readonly condition: Expression;
   readonly span: SourceSpan;

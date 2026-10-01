@@ -18,7 +18,7 @@ import { classify, type TokenClass } from "../../../src/highlight.ts";
 export type StyledClass = Exclude<TokenClass, "plain">;
 
 /** The highlight tag for each class; `plain` text gets no token. */
-export const TOKEN_TAGS: Readonly<Record<StyledClass, Tag>> = {
+const TOKEN_TAGS: Readonly<Record<StyledClass, Tag>> = {
   keyword: tags.keyword,
   literal: tags.atom,
   type: tags.typeName,
@@ -77,7 +77,7 @@ function codeOf(line: string): string {
 }
 
 /** Enter keeps the line's indentation and opens a block after a trailing `:`. */
-export const newlineAndIndent: Command = (view) => {
+const newlineAndIndent: Command = (view) => {
   const { state } = view;
   view.dispatch(
     state.changeByRange((range) => {

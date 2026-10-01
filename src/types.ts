@@ -24,18 +24,18 @@ export interface NominalGenericParts {
   readonly arguments: readonly ValueType[];
 }
 
-export interface SuspensionParts {
+interface SuspensionParts {
   readonly functionIndex: number;
   readonly result: ValueType;
 }
 
-export interface TraitSuspensionParts {
+interface TraitSuspensionParts {
   readonly traitIndex: number;
   readonly methodIndex: number;
   readonly result: ValueType;
 }
 
-export interface StoredSuspensionParts {
+interface StoredSuspensionParts {
   readonly mutable: boolean;
   readonly result: ValueType;
 }

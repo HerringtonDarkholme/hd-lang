@@ -121,7 +121,7 @@ function isStandardModule(name: string): name is StandardModule {
 }
 
 /** The hidden name of a `std` declaration that the program did not import. */
-export function hiddenStandardName(module: string, name: string): string {
+function hiddenStandardName(module: string, name: string): string {
   return `__std_${module}_${name}`;
 }
 

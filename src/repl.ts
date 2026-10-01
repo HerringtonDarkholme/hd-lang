@@ -33,7 +33,7 @@ const DISPLAY_PRIMITIVES = new Set([
   "bool",
 ]);
 
-export interface ReplOutcome {
+interface ReplOutcome {
   /** Console output produced by this input only. */
   readonly output: readonly string[];
   /** The rendered value of an expression input, if any. */
@@ -56,7 +56,7 @@ interface Attempt {
   readonly prefix?: number;
 }
 
-export interface EvaluateOptions {
+interface EvaluateOptions {
   /** False to type-check an input without running it; defaults to true. */
   readonly run?: boolean;
 }
@@ -604,7 +604,7 @@ export async function respond(session: ReplSession, input: string): Promise<Repl
 }
 
 /** The reply lines for an evaluated input, in the order the REPL shows them. */
-export function outcomeEntries(outcome: ReplOutcome): ReplEntry[] {
+function outcomeEntries(outcome: ReplOutcome): ReplEntry[] {
   const entries: ReplEntry[] = [
     ...outcome.output.map((text): ReplEntry => ({ kind: "output", text })),
     ...outcome.warnings.map((text): ReplEntry => ({ kind: "warning", text })),

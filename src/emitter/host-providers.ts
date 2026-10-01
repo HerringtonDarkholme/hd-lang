@@ -2,7 +2,7 @@ import type { HirProgram, HirTrait, HirTraitMethod, ValueType } from "../hir.ts"
 import { runtimePanicCode } from "../runtime-panic.ts";
 import { nominalGenericParts } from "../types.ts";
 
-export interface HostProviderEmission {
+interface HostProviderEmission {
   readonly functions: string;
   readonly imports: string;
   readonly references: readonly string[];

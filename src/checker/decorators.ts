@@ -27,9 +27,9 @@ import { factType } from "./typed-derivation.ts";
  * The qualified names the compiler recognizes (annot.target.recognized,
  * expr.literal-fn.marker).
  */
-export const STANDARD_ANNOTATE = "std.annotation.Annotate";
-export const STANDARD_NUM_SUFFIX = "std.ops.NumSuffix";
-export const STANDARD_STR_PREFIX = "std.ops.StrPrefix";
+const STANDARD_ANNOTATE = "std.annotation.Annotate";
+const STANDARD_NUM_SUFFIX = "std.ops.NumSuffix";
+const STANDARD_STR_PREFIX = "std.ops.StrPrefix";
 
 /** A target kind: a variant of `std.annotation.Target`. */
 type TargetKind =

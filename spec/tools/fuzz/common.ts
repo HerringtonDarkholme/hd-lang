@@ -19,7 +19,7 @@ export interface CommandResult {
   readonly timedOut: boolean;
 }
 
-export type OutcomeKind = "accept" | "panic" | "reject" | "violation";
+type OutcomeKind = "accept" | "panic" | "reject" | "violation";
 
 export interface Outcome {
   /** First diagnostic or panic code; for violations, the violation kind. */

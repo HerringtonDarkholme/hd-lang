@@ -14,9 +14,9 @@ import { allRules, type Corpus } from "./spec-corpus.ts";
 import { CHAPTER_PREFIXES } from "./spec-prose.ts";
 
 /** Where a citation lives; the first four are gated by spec/check.sh. */
-export type Area = "spec" | "fixtures" | "guide" | "lib-std" | "records" | "src";
-export const GATED_AREAS: ReadonlySet<Area> = new Set(["spec", "fixtures", "guide", "lib-std"]);
-export const AREAS: readonly Area[] = ["spec", "fixtures", "guide", "lib-std", "records", "src"];
+type Area = "spec" | "fixtures" | "guide" | "lib-std" | "records" | "src";
+const GATED_AREAS: ReadonlySet<Area> = new Set(["spec", "fixtures", "guide", "lib-std"]);
+const AREAS: readonly Area[] = ["spec", "fixtures", "guide", "lib-std", "records", "src"];
 
 export interface Citation {
   /** Repository-relative path. */
@@ -45,7 +45,7 @@ const WILDCARD = new RegExp(`^${SEGMENT}(?:\\.${SEGMENT})*\\.\\*$`);
 const RELATIVE_ID = new RegExp(`^(?:\\.${SEGMENT})+$`);
 
 /** Words that mark a line as a record of history rather than a live citation. */
-export const HISTORY =
+const HISTORY =
   /\b(?:retired|retires|retiring|since (?:moved|removed|replaced|renamed|revised)|withdrawn|formerly|former|previously|was removed|were removed|replaced by|renamed|reverses|reversed|becomes|became)\b/i;
 
 /** Whether a repository-relative path is an archived record, which is history throughout. */
@@ -69,7 +69,7 @@ export function areaOf(file: string): Area | undefined {
 }
 
 /** The scannable text of each line: prose, comments, or table cells; "" for code. */
-export function citableLines(file: string, text: string): string[] {
+function citableLines(file: string, text: string): string[] {
   const lines = text.split(/\r?\n/);
   if (file.endsWith(".md")) {
     let fence: string | undefined;
@@ -140,7 +140,7 @@ export function citationsIn(
 }
 
 /** Every file refs scans, repository-relative and sorted. */
-export function scannedFiles(repoRoot: string): string[] {
+function scannedFiles(repoRoot: string): string[] {
   const roots = [
     "spec",
     "guide",
@@ -199,7 +199,7 @@ export function historicalIds(repoRoot: string, rev = "HEAD"): Set<string> {
 }
 
 /** The line range of spec/README.md's Revision Notes, whose citations are history by design. */
-export function revisionNotesRange(readme: string): [number, number] {
+function revisionNotesRange(readme: string): [number, number] {
   const lines = readme.split("\n");
   const start = lines.findIndex((line) => /^## Revision Notes\s*$/.test(line));
   if (start < 0) return [0, -1];
@@ -292,7 +292,7 @@ export function buildIndex(corpus: Corpus, repoRoot: string): RefIndex {
 }
 
 /** Why a citation is dead, or undefined when it resolves. */
-export function deadReason(index: RefIndex, citation: Citation): string | undefined {
+function deadReason(index: RefIndex, citation: Citation): string | undefined {
   const home = index.live.get(citation.id);
   if (home) {
     if (citation.target === "") return undefined;
@@ -304,7 +304,7 @@ export function deadReason(index: RefIndex, citation: Citation): string | undefi
 }
 
 /** How a missing rule ID left the specification. */
-export function retiredLabel(index: RefIndex, id: string): string {
+function retiredLabel(index: RefIndex, id: string): string {
   const exact = index.retired.exact.get(id);
   if (exact) return `retired in ${exact}`;
   for (const [prefix, where] of index.retired.wildcards)
@@ -313,7 +313,7 @@ export function retiredLabel(index: RefIndex, id: string): string {
   return "never a rule ID in the chapters' history";
 }
 
-export interface DeadCitation extends Citation {
+interface DeadCitation extends Citation {
   readonly reason: string;
   /** spec/check.sh fails on this one: a gated area and not history. */
   readonly failing: boolean;

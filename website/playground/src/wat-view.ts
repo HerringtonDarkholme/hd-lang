@@ -6,13 +6,13 @@ import type { RunDiagnostic, WatResult } from "./runner.ts";
 import { tokenizeWat } from "./wat.ts";
 
 /** The view renders at most this many lines; Copy and Download give the full text. */
-export const MAX_WAT_LINES = 5000;
+const MAX_WAT_LINES = 5000;
 
 const escapeHtml = (text: string): string =>
   text.replace(/[&<>]/g, (char) => (char === "&" ? "&amp;" : char === "<" ? "&lt;" : "&gt;"));
 
 /** Highlighted HTML for the first `maxLines` lines of `wat`, one `.wat-line` each. */
-export function watHtml(wat: string, maxLines = MAX_WAT_LINES): string {
+function watHtml(wat: string, maxLines = MAX_WAT_LINES): string {
   const lines: string[] = [];
   let line = "";
   for (const { text, kind } of tokenizeWat(wat)) {

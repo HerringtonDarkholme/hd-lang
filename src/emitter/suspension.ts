@@ -10,7 +10,7 @@ import type {
 } from "../hir.ts";
 import { CURSOR_TYPE, mutableType, nominalGenericType, optionalType } from "../types.ts";
 
-export type HirSuspensionDrive = Extract<
+type HirSuspensionDrive = Extract<
   HirExpression,
   { kind: "suspend-drive" | "trait-suspend-drive" | "suspension-drive" }
 >;
@@ -72,7 +72,7 @@ export type SuspensionTerminator =
   | { readonly kind: "complete"; readonly value?: HirExpression }
   | { readonly kind: "unreachable" };
 
-export interface SuspensionBlock {
+interface SuspensionBlock {
   readonly id: number;
   readonly operations: readonly SuspensionOperation[];
   readonly terminator: SuspensionTerminator;

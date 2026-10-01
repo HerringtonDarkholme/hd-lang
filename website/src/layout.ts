@@ -8,7 +8,7 @@ import {
   type PageSource,
 } from "./pages.ts";
 
-export interface LayoutInput {
+interface LayoutInput {
   /** Site base path, beginning and ending with `/`. */
   readonly base: string;
   /** Output path of this page relative to the site root. */

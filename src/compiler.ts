@@ -16,12 +16,12 @@ import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
 import { RuntimePanicError, runtimePanicName } from "./runtime-panic.ts";
 
-export interface Compilation extends WasmArtifact {
+interface Compilation extends WasmArtifact {
   readonly hir: HirProgram;
   readonly diagnostics: readonly Diagnostic[];
 }
 
-export interface Analysis {
+interface Analysis {
   readonly hir?: HirProgram;
   readonly diagnostics: readonly Diagnostic[];
 }
@@ -36,7 +36,7 @@ export interface CompileOptions extends CheckOptions {
   readonly parse?: ParseOptions;
 }
 
-export type SuspensionTraceEvent = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+type SuspensionTraceEvent = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 interface ReplayEventBase {
   readonly siteId: string;
@@ -47,57 +47,57 @@ interface ReplayEventBase {
   readonly providerConfigurationId: string;
 }
 
-export interface RuntimePollReplayEvent extends ReplayEventBase {
+interface RuntimePollReplayEvent extends ReplayEventBase {
   readonly providerKey: "$runtime";
   readonly operation: "poll";
   readonly encodedArguments: readonly [number];
 }
 
-export interface HostPollReplayEvent extends ReplayEventBase {
+interface HostPollReplayEvent extends ReplayEventBase {
   readonly providerKey: string;
   readonly operation: "provider-poll";
   readonly encodedArguments: readonly EncodedHostValue[];
   readonly encodedValue?: EncodedHostValue;
 }
 
-export interface EncodedHostInteger {
+interface EncodedHostInteger {
   readonly kind: "bool" | "char" | "i32";
   readonly value: number;
 }
 
-export interface EncodedHostFloat {
+interface EncodedHostFloat {
   readonly bits: string;
   readonly kind: "f64";
 }
 
-export interface EncodedHostString {
+interface EncodedHostString {
   readonly kind: "string";
   readonly utf8: string;
 }
 
 /** A `Result[T, E]` boundary result: its tag, and the active side's payload unless `void`. */
-export interface EncodedHostResult {
+interface EncodedHostResult {
   readonly kind: "ok" | "err";
   readonly value?: EncodedHostScalar;
 }
 
-export type EncodedHostScalar = EncodedHostFloat | EncodedHostInteger | EncodedHostString;
+type EncodedHostScalar = EncodedHostFloat | EncodedHostInteger | EncodedHostString;
 
-export type EncodedHostValue = EncodedHostScalar | EncodedHostResult;
+type EncodedHostValue = EncodedHostScalar | EncodedHostResult;
 
-export type HostSuspensionValue = number | string;
+type HostSuspensionValue = number | string;
 
 /** A host's `Result[T, E]` answer; `value` is absent for a `void` side. */
-export interface HostResultValue {
+interface HostResultValue {
   readonly tag: "ok" | "err";
   readonly value?: HostSuspensionValue;
 }
 
-export type HostSuspensionResult = HostSuspensionValue | HostResultValue;
+type HostSuspensionResult = HostSuspensionValue | HostResultValue;
 
 export type ReplayEvent = HostPollReplayEvent | RuntimePollReplayEvent;
 
-export interface ReplaySession {
+interface ReplaySession {
   readonly consumed: number;
   assertComplete(): void;
 }
@@ -157,7 +157,7 @@ export interface InstantiateOptions {
   readonly compilation?: Compilation;
 }
 
-export interface Instantiation {
+interface Instantiation {
   readonly compilation: Compilation;
   readonly instance: WebAssembly.Instance;
   readonly replay: ReplaySession;

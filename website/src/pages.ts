@@ -18,7 +18,7 @@ export interface PageSource {
   readonly generated?: "glossary";
 }
 
-export interface NavSection {
+interface NavSection {
   readonly title: string;
   readonly pages: readonly PageSource[];
 }

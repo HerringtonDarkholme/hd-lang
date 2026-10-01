@@ -68,7 +68,7 @@ const NOT_A_LIST = new Set([
  * type is a list. Anything else, such as `name = 5`, is `invalid-member-line`
  * (annot.line.right.error, annot.line.right.not-list).
  */
-export function listValued(
+function listValued(
   value: Expression,
   knownType: (value: Expression) => string | undefined,
 ): boolean {
@@ -78,7 +78,7 @@ export function listValued(
   return type === undefined || readonlyType(type).startsWith("List[");
 }
 
-export function directMembers(target: Target): string[] {
+function directMembers(target: Target): string[] {
   return target.kind === "data"
     ? target.declaration.fields.map((field) => field.name)
     : target.declaration.variants.map((variant) => variant.name);

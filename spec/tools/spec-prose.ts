@@ -17,7 +17,7 @@ export interface Block {
 }
 
 /** A rule ID marker found in the prose. */
-export interface RuleMarker {
+interface RuleMarker {
   readonly id: string;
   readonly line: number;
   /** The rule text after the marker, as written. */
@@ -164,7 +164,7 @@ export function cells(row: string): string[] {
 const INLINE_CODE = /(`+)(?:(?!\1).)+?\1/g;
 
 /** Replaces inline code spans with a one-word placeholder. */
-export function withoutInlineCode(text: string): string {
+function withoutInlineCode(text: string): string {
   return text.replaceAll(INLINE_CODE, "CODE");
 }
 
@@ -224,7 +224,7 @@ export function paragraphs(all: readonly Block[]): Block[] {
   );
 }
 
-export interface MarkerScan {
+interface MarkerScan {
   readonly markers: RuleMarker[];
   /** Problems with marker syntax or placement, as `line: message`. */
   readonly problems: string[];

@@ -19,7 +19,7 @@ export type EbnfKind =
   | "special"
   | "plain";
 
-export interface EbnfSpan {
+interface EbnfSpan {
   readonly text: string;
   readonly kind: EbnfKind;
 }
@@ -31,7 +31,7 @@ const NAME = /[A-Za-z_][A-Za-z0-9_]*/y;
 const TOKEN_NAME = /^[A-Z][A-Z0-9_]*$/;
 
 /** Whether `name` is an all-caps layout or abstract token name such as NEWLINE. */
-export const isTokenName = (name: string): boolean => TOKEN_NAME.test(name);
+const isTokenName = (name: string): boolean => TOKEN_NAME.test(name);
 
 /** The element id a rule definition carries. */
 export const ruleAnchor = (name: string): string => `rule-${name}`;
@@ -120,19 +120,19 @@ export function tokenizeEbnf(code: string): EbnfSpan[] {
 }
 
 /** One ```ebnf block of a page, as `fencedBlocks` reports it. */
-export interface EbnfBlock {
+interface EbnfBlock {
   readonly code: string;
   /** Line of the opening fence in the page source. */
   readonly line: number;
 }
 
-export interface GrammarPage {
+interface GrammarPage {
   /** Repository-relative Markdown path. */
   readonly source: string;
   readonly blocks: readonly EbnfBlock[];
 }
 
-export interface UnresolvedReference {
+interface UnresolvedReference {
   readonly name: string;
   readonly source: string;
   readonly line: number;

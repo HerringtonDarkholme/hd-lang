@@ -11,7 +11,7 @@ import type { HostSuspensionCall, HostSuspensionOutcome } from "./compiler.ts";
 import { propertyRun } from "./property-tests.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 
-export type HostFunctionValue = number | bigint | string;
+type HostFunctionValue = number | bigint | string;
 
 export type HostFunction = (...arguments_: HostFunctionValue[]) => HostFunctionValue | void;
 
@@ -34,7 +34,7 @@ export const HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = {
 };
 
 /** What a built-in host provider may use from the embedder. */
-export interface HostProviderContext {
+interface HostProviderContext {
   readonly console?: (text: string, provider: unknown) => void;
 }
 

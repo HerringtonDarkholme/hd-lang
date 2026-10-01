@@ -17,7 +17,7 @@ import {
 // ambiguous. A trait value type and a requirement key bind associated types
 // as `Trait[Name=type]` (09-traits.md#bound-associated-types).
 
-export interface BindingProblem {
+interface BindingProblem {
   readonly code: "unknown-associated-type" | "ambiguous-associated-type";
   readonly message: string;
 }
@@ -27,10 +27,7 @@ function traitsByIndex(traitTypes: ReadonlyMap<string, HirTrait>): Map<number, H
 }
 
 /** `trait` and its transitive supertraits, each once. */
-export function traitClosure(
-  trait: HirTrait,
-  traitTypes: ReadonlyMap<string, HirTrait>,
-): HirTrait[] {
+function traitClosure(trait: HirTrait, traitTypes: ReadonlyMap<string, HirTrait>): HirTrait[] {
   const byIndex = traitsByIndex(traitTypes);
   const seen = new Map<number, HirTrait>();
   const visit = (current: HirTrait): void => {
@@ -46,7 +43,7 @@ export function traitClosure(
 }
 
 /** The traits among `trait` and its supertraits that declare the associated type `name`. */
-export function associatedDeclarations(
+function associatedDeclarations(
   trait: HirTrait,
   name: string,
   traitTypes: ReadonlyMap<string, HirTrait>,

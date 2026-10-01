@@ -9,14 +9,14 @@ import type { RegressionStore } from "./property-tests.ts";
 // future-work/RUNTIME_AND_LIBRARY.md#snapshot-tests. A missing file fails the
 // test case, except in an update run, which writes it.
 
-export interface SnapshotRun {
+interface SnapshotRun {
   /** Starts a test case, or one `it_each` row of it. */
   readonly begin: (name: string, row: number | undefined) => void;
   readonly hostFunctions: Readonly<Record<string, HostFunction>>;
 }
 
 /** The test name, lowercased, with each run of other characters turned into `-`. */
-export function testSlug(name: string): string {
+function testSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 

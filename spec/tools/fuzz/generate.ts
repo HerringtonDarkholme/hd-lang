@@ -13,7 +13,7 @@ export type Node =
   | { readonly kind: "seq"; readonly items: readonly Node[] }
   | { readonly kind: "sym"; readonly value: string };
 
-export type Grammar = ReadonlyMap<string, Node>;
+type Grammar = ReadonlyMap<string, Node>;
 
 interface Token {
   readonly kind: string;

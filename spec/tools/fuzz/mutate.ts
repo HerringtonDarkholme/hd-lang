@@ -69,7 +69,7 @@ const interestingLiterals = [
   "false",
 ];
 
-export type MutationName =
+type MutationName =
   | "delete-line"
   | "delete-token"
   | "duplicate-line"
@@ -81,7 +81,7 @@ export type MutationName =
   | "swap-lines"
   | "swap-tokens";
 
-export const mutationNames: readonly MutationName[] = [
+const mutationNames: readonly MutationName[] = [
   "delete-token",
   "duplicate-token",
   "swap-tokens",
@@ -119,7 +119,7 @@ function cloneLine(line: Line): Line {
  * Applies one mutation in place. Returns false when the mutation had nothing to act on.
  * `vocabulary` supplies insertable tokens (EBNF literals); `donors` supplies spliced lines.
  */
-export function applyMutation(
+function applyMutation(
   lines: Line[],
   name: MutationName,
   rng: Rng,
@@ -197,7 +197,7 @@ export function applyMutation(
 }
 
 /** Strips conformance markers so a mutated seed does not carry stale expectations. */
-export function stripMarkers(lines: Line[]): void {
+function stripMarkers(lines: Line[]): void {
   for (const line of lines)
     if (
       /^#\s*(?:diagnostic|warning|panic|test|expect|expect-result|fixture-[a-z-]+):/.test(
@@ -207,7 +207,7 @@ export function stripMarkers(lines: Line[]): void {
       line.comment = "";
 }
 
-export interface Mutant {
+interface Mutant {
   readonly operators: readonly MutationName[];
   readonly source: string;
 }

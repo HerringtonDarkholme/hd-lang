@@ -3,7 +3,7 @@
 // command contract and oracles as the fuzzer, so minimization is portable.
 import { joinLines, splitLines } from "./mutate.ts";
 
-export type Predicate = (source: string) => Promise<boolean>;
+type Predicate = (source: string) => Promise<boolean>;
 
 async function ddmin<T>(
   items: readonly T[],

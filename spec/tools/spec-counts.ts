@@ -4,8 +4,8 @@ import type { Rule } from "./rule-inventory.ts";
 import { type Chapter, type Corpus, sectionAt, type Tier } from "./spec-corpus.ts";
 
 /** The four kinds of change in AGENTS.md "Design Cost Order", most costly first. */
-export const KINDS = ["syntax", "semantic", "intrinsic", "core-library"] as const;
-export type Kind = (typeof KINDS)[number];
+const KINDS = ["syntax", "semantic", "intrinsic", "core-library"] as const;
+type Kind = (typeof KINDS)[number];
 
 const SYNTAX_PREFIXES = new Set(["lex", "grammar"]);
 const SYNTAX_HEADING = /\b(?:syntax|grammar|spellings?|tokens?|layout|lexical)\b/i;
@@ -21,7 +21,7 @@ const INTRINSIC_SEGMENT = /^(?:intrinsics?|lang-items?|prelude)$/;
  *   intrinsic, a lang item, or the prelude;
  * - semantic: every other language-tier rule.
  */
-export function ruleKind(chapter: Chapter, rule: Rule): Kind {
+function ruleKind(chapter: Chapter, rule: Rule): Kind {
   if (chapter.tier === "std") return "core-library";
   const prefix = rule.id.split(".", 1)[0]!;
   const trail = (sectionAt(chapter, rule.line)?.trail ?? []).join(" ");
@@ -40,7 +40,7 @@ export function ruleKind(chapter: Chapter, rule: Rule): Kind {
   return "semantic";
 }
 
-export interface ChapterCount {
+interface ChapterCount {
   readonly chapter: string;
   readonly tier: Tier;
   readonly prefix: string;
@@ -49,7 +49,7 @@ export interface ChapterCount {
   readonly kinds: Record<Kind, number>;
 }
 
-export interface Counts {
+interface Counts {
   readonly chapters: ChapterCount[];
   /** Rules per first ID segment. */
   readonly prefixes: Record<string, number>;

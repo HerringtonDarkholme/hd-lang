@@ -77,5 +77,5 @@ export class Source_ {
   }
 }
 
-export const ZERO_POSITION = { line: 1, column: 1, offset: 0 };
+const ZERO_POSITION = { line: 1, column: 1, offset: 0 };
 export const ZERO_SPAN: SourceSpan = { start: ZERO_POSITION, end: ZERO_POSITION };

@@ -44,27 +44,6 @@ export function findDriverCall(
   return undefined;
 }
 
-export function findSuspensionCall(
-  value: unknown,
-): Extract<Expression, { kind: "suspend-call" }> | undefined {
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findSuspensionCall(item);
-      if (found) return found;
-    }
-    return undefined;
-  }
-  const node = astRecord(value);
-  if (!node) return undefined;
-  if (node.kind === "suspend-call") return node as Extract<Expression, { kind: "suspend-call" }>;
-  for (const [key, child] of Object.entries(node)) {
-    if (key === "span" || key === "doc") continue;
-    const found = findSuspensionCall(child);
-    if (found) return found;
-  }
-  return undefined;
-}
-
 export function driverStartingFunctionNames(
   program: Program,
   imports: ReadonlyMap<string, string>,

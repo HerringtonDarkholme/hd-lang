@@ -3,7 +3,7 @@
 import { type Action, outcomeLabel } from "../common.ts";
 import type { Observation, OracleInput } from "./types.ts";
 
-export const crossActions: readonly Action[] = ["parse", "check", "run", "test"];
+const crossActions: readonly Action[] = ["parse", "check", "run", "test"];
 
 export function crossImpl(input: OracleInput): Observation[] {
   const observations: Observation[] = [];

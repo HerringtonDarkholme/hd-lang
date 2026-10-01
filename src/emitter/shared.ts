@@ -54,7 +54,7 @@ export interface LinearSuspensionSite {
   readonly cleanups: readonly (readonly HirStatement[])[];
 }
 
-export function exactStatementDrive(statement: HirStatement): HirSuspendDrive | undefined {
+function exactStatementDrive(statement: HirStatement): HirSuspendDrive | undefined {
   const expression =
     statement.kind === "binding" ||
     statement.kind === "assignment" ||

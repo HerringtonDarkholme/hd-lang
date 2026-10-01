@@ -17,7 +17,7 @@ export const REPO_ROOT = resolve(SPEC_ROOT, "..");
 export type Tier = "language" | "std";
 
 /** A heading and the lines it governs, up to the next heading of any level. */
-export interface Section {
+interface Section {
   readonly title: string;
   readonly level: number;
   readonly line: number;
@@ -52,14 +52,14 @@ export interface Corpus {
 }
 
 /** How a corpus reads the spec: the names in a directory under spec/, and one file's text. */
-export interface SpecReader {
+interface SpecReader {
   /** The file names in `directory`, relative to spec/ ("." is spec/ itself); [] when it is missing. */
   readonly list: (directory: string) => string[];
   /** A file's text, by its path under spec/; "" when it is missing. */
   readonly read: (name: string) => string;
 }
 
-export function directoryReader(specRoot: string): SpecReader {
+function directoryReader(specRoot: string): SpecReader {
   return {
     list: (directory) => {
       try {
@@ -79,7 +79,7 @@ export function directoryReader(specRoot: string): SpecReader {
 }
 
 /** Reads spec/ as git revision `rev` has it. Throws when git cannot resolve `rev`. */
-export function gitReader(repoRoot: string, rev: string): SpecReader {
+function gitReader(repoRoot: string, rev: string): SpecReader {
   const git = (...args: string[]): string =>
     execFileSync("git", ["-C", repoRoot, ...args], {
       encoding: "utf8",
@@ -121,7 +121,7 @@ export function chapterNames(specRoot: string, reader = directoryReader(specRoot
 }
 
 /** The sections of a chapter, from its heading blocks. */
-export function sectionsOf(text: string, parsed: readonly Block[]): Section[] {
+function sectionsOf(text: string, parsed: readonly Block[]): Section[] {
   const lines = text.split(/\r?\n/);
   const headings = parsed.filter((block) => block.kind === "heading");
   const stack: { level: number; title: string }[] = [];
@@ -145,7 +145,7 @@ export function sectionAt(chapter: Chapter, line: number): Section | undefined {
   return chapter.sections.findLast((section) => section.line <= line);
 }
 
-export function loadChapter(
+function loadChapter(
   specRoot: string,
   name: string,
   known: ReadonlySet<string>,

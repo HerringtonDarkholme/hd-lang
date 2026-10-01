@@ -14,7 +14,7 @@ import { INSPECTABLE, STANDARD_DOWNCAST_VAL } from "./standard-traits.ts";
 // inside a type argument is kept (Inspectable decision 16). A key part
 // `{ generic }` stands for a bounded type parameter whose name the bound's
 // dictionary supplies at run time.
-export type InspectKeyPart = string | { readonly generic: string };
+type InspectKeyPart = string | { readonly generic: string };
 
 export interface InspectEnvironment {
   /** A module-level data or enum declaration. */

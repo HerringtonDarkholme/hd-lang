@@ -20,7 +20,7 @@ interface Constructor {
   readonly arguments: readonly ValueType[];
 }
 
-export interface ExhaustivenessEnvironment {
+interface ExhaustivenessEnvironment {
   readonly enums: ReadonlyMap<string, HirEnum>;
   readonly data: ReadonlyMap<string, HirData>;
 }

@@ -14,7 +14,7 @@ const K = Uint32Array.from([
 
 const rotate = (value: number, bits: number): number => (value >>> bits) | (value << (32 - bits));
 
-export function sha256(bytes: Uint8Array): Uint8Array {
+function sha256(bytes: Uint8Array): Uint8Array {
   const length = bytes.length;
   const padded = new Uint8Array(Math.ceil((length + 9) / 64) * 64);
   padded.set(bytes);

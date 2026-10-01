@@ -36,8 +36,8 @@ import { factType } from "./typed-derivation.ts";
 
 const DATA_SHAPE = "hd__DataShape_";
 const ENUM_SHAPE = "hd__EnumShape_";
-export const SHAPE_FIELDS = "hd__ShapeFields_";
-export const SHAPE_VARIANTS = "hd__ShapeVariants_";
+const SHAPE_FIELDS = "hd__ShapeFields_";
+const SHAPE_VARIANTS = "hd__ShapeVariants_";
 
 /** The concrete shape types, which implement the sealed `ShapeMetadata`. */
 export const SHAPE_METADATA_TYPES = new Set([
@@ -170,7 +170,7 @@ const PRIMITIVES: ReadonlyMap<string, string> = new Map([
 ]);
 
 /** What a `TypeShape` needs to know about a named type. */
-export interface ShapeTypes {
+interface ShapeTypes {
   /** The base type of a newtype. */
   newtypeBase(name: string): string | undefined;
   isTrait(name: string): boolean;

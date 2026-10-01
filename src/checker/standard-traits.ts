@@ -29,7 +29,7 @@ export const RACE_INTRINSIC = "task_race";
 // `std.time`, `std.ops`, and `std.process` are hd sources in `lib/std/`,
 // declared by standard-library.ts under a program's local names or hidden
 // names such as these.
-export const HIDDEN_DURATION = "__std_time_Duration";
+const HIDDEN_DURATION = "__std_time_Duration";
 
 /** The local name of `std.time.Duration`, or its hidden name. */
 export function durationName(uses: Program["uses"]): string {
@@ -46,7 +46,7 @@ export const HIDDEN_TERMINATION = "__std_process_Termination";
 // `std.format.DebugWriter` (spec/09-traits.md#debug-trait): the spec leaves
 // its builder calls to the standard library, so the prototype declares it
 // with no members, under its imported name or a hidden one.
-export const HIDDEN_DEBUG_WRITER = "__std_format_DebugWriter";
+const HIDDEN_DEBUG_WRITER = "__std_format_DebugWriter";
 
 /** The local name of `std.format.DebugWriter`, or its hidden name. */
 export function debugWriterName(uses: Program["uses"]): string {

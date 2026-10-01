@@ -9,7 +9,7 @@ import type { Target } from "./member-lines.ts";
 // `@derive(Debug)` (#debug-trait).
 
 /** What a derived field line compares or hashes, for its diagnostic. */
-export interface DerivedFieldCheck {
+interface DerivedFieldCheck {
   readonly trait: string;
   readonly owner: string;
   readonly field: string;
@@ -22,7 +22,7 @@ export interface DerivedFieldCheck {
  * error there is `derive-field-missing-trait` at the field
  * (spec/09-traits.md#r-trait.derive.field-missing-trait).
  */
-export const DERIVED_FIELD_CHECKS = new WeakMap<SourceSpan, DerivedFieldCheck>();
+const DERIVED_FIELD_CHECKS = new WeakMap<SourceSpan, DerivedFieldCheck>();
 
 /**
  * The spans of intrinsically derived implementations. An unmet bound of one
@@ -151,11 +151,11 @@ function deriveEq(target: Target, span: SourceSpan): ImplDecl {
     out.add(`        match (self, other):`);
     for (const variant of variants) {
       const names = (side: string): string[] =>
-        variant.fields.map((field, position) => `${side}${position}`);
+        variant.fields.map((_, position) => `${side}${position}`);
       const pattern = (side: string): string =>
         variant.fields.length === 0
           ? `${declaration.name}.${variant.name}`
-          : `${declaration.name}.${variant.name}(${variant.fields.map((field, position) => names(side)[position]).join(", ")})`;
+          : `${declaration.name}.${variant.name}(${variant.fields.map((_, position) => names(side)[position]).join(", ")})`;
       if (variant.fields.length === 0) {
         out.add(`            (${pattern("l")}, ${pattern("r")}) => true`);
         continue;
@@ -178,7 +178,7 @@ function deriveEq(target: Target, span: SourceSpan): ImplDecl {
 // built-in or declared implementation. An enum compares, and hashes, its
 // variant's declaration position first.
 
-export interface IntrinsicDerivation {
+interface IntrinsicDerivation {
   readonly trait: string;
   readonly target: Target;
   readonly span: SourceSpan;
@@ -279,7 +279,7 @@ function deriveHash(target: Target, span: SourceSpan): ImplDecl {
 }
 
 /** The ordinary implementation that one intrinsic `@derive` entry generates. */
-export function deriveIntrinsic(item: IntrinsicDerivation, writer: string): ImplDecl {
+function deriveIntrinsic(item: IntrinsicDerivation, writer: string): ImplDecl {
   if (item.trait === "Debug") return deriveDebug(item.target, writer, item.span);
   if (item.trait === "PartialOrd") return deriveOrdering(item.target, false, item.span);
   if (item.trait === "Ord") return deriveOrdering(item.target, true, item.span);
@@ -287,7 +287,7 @@ export function deriveIntrinsic(item: IntrinsicDerivation, writer: string): Impl
   return deriveEq(item.target, item.span);
 }
 
-export interface NewtypeDerivation {
+interface NewtypeDerivation {
   readonly trait: string;
   readonly declaration: TypeDecl;
   readonly span: SourceSpan;
@@ -297,7 +297,7 @@ export interface NewtypeDerivation {
  * An intrinsic derivation on a newtype applies the base type's method to the
  * unwrapped values (spec/09-traits.md#derived-newtypes).
  */
-export function deriveNewtypeIntrinsic(item: NewtypeDerivation, writer: string): ImplDecl {
+function deriveNewtypeIntrinsic(item: NewtypeDerivation, writer: string): ImplDecl {
   const { name, genericParameters: parameters, base } = item.declaration;
   const out = new Source_();
   const T = out.type(parameters.length > 0 ? `${name}[${parameters.join(",")}]` : name);
@@ -385,7 +385,7 @@ const REQUIRED_PARTNERS: Readonly<Record<string, readonly string[]>> = {
  * list, and a derived and a hand-written law partner never coexist; either
  * is `mixed-derived-law` on the `@derive` line.
  */
-export function checkLawPartners(
+function checkLawPartners(
   program: Program,
   error: (code: string, message: string, span: SourceSpan) => void,
 ): void {

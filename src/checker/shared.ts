@@ -56,7 +56,7 @@ export interface BindingExpressionFlow {
   readonly whenTrue: ReadonlySet<string>;
 }
 
-export interface IterableInfo {
+interface IterableInfo {
   readonly iteratorFunctionIndex?: number;
   readonly iteratorKind: "iterator" | "list" | "map" | "trait";
   readonly yieldType: ValueType;
@@ -389,7 +389,7 @@ export function statementsReferenceName(statements: readonly Statement[], name: 
   return statements.some((statement) => nodeReferencesName(statement, name));
 }
 
-export function nodeReferencesName(value: unknown, name: string): boolean {
+function nodeReferencesName(value: unknown, name: string): boolean {
   if (Array.isArray(value)) return value.some((item) => nodeReferencesName(item, name));
   if (!value || typeof value !== "object") return false;
   const node = value as Record<string, unknown>;
@@ -465,7 +465,7 @@ export function substituteGenericType(
 }
 
 /** The `Args` of a function type `Fn[Args, O, R]` whose inputs are a type parameter. */
-export function tupleInputs(callable: FunctionParts): ValueType | undefined {
+function tupleInputs(callable: FunctionParts): ValueType | undefined {
   return callable.parameters.length === 1 ? inputsInner(callable.parameters[0]!) : undefined;
 }
 
@@ -941,7 +941,7 @@ export function rowParameterName(requirement: string): string | undefined {
   return requirement.startsWith("row:") ? requirement.slice("row:".length) : undefined;
 }
 
-export function symbolicRequirement(name: string): string {
+function symbolicRequirement(name: string): string {
   return `row:${name}`;
 }
 
@@ -958,7 +958,7 @@ export function sameRequirements(left: readonly string[], right: readonly string
   );
 }
 
-export function inferRequirementRows(
+function inferRequirementRows(
   formal: readonly string[],
   actual: readonly string[],
   substitutions: Map<string, readonly string[]>,
@@ -1353,7 +1353,7 @@ function isMethodRowParameter(method: HirTrait["methods"][number], parameter: st
  * only when the value type binds it, so `bound` holds the names the value
  * type binds (trait.dyn.binding.complete).
  */
-export function traitIsDynamicallySafe(
+function traitIsDynamicallySafe(
   trait: HirTrait,
   traitTypes: ReadonlyMap<string, HirTrait>,
   bound: ReadonlySet<string> = new Set(),

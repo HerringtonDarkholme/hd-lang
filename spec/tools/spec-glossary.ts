@@ -12,9 +12,9 @@ import { posix } from "node:path";
 import { type Chapter, type Corpus, sectionAt } from "./spec-corpus.ts";
 import { cells, sentences, STD_DIRECTORY } from "./spec-prose.ts";
 
-export type TermSource = "glossary" | "chapter-bold" | "chapter-heading";
+type TermSource = "glossary" | "chapter-bold" | "chapter-heading";
 
-export interface GlossaryTerm {
+interface GlossaryTerm {
   readonly term: string;
   /** The definition as Markdown, quoted from the spec; links are relative to spec/. */
   readonly definition: string;
@@ -31,7 +31,7 @@ export interface GlossaryTerm {
   readonly at: string;
 }
 
-export interface Glossary {
+interface Glossary {
   /** Whether spec/README.md or spec/std/README.md has a hand-written glossary. */
   readonly handWritten: boolean;
   /** Every term, sorted: the hand-written entries, then the chapter terms they lack. */
@@ -41,7 +41,7 @@ export interface Glossary {
 }
 
 /** GitHub's heading anchor algorithm, as website/src/markdown.ts applies it. */
-export function githubSlug(text: string): string {
+function githubSlug(text: string): string {
   return text
     .replaceAll(/<[^>]+>/g, "")
     .trim()
@@ -74,7 +74,7 @@ const SEE = /\s*See \[([^\]]*)\]\(([^)\s]+)\)\.\s*$/;
 const LINK = /\[([^\]]*)\]\(([^)\s]+)\)/;
 
 /** The entries of the `## Glossary` table in a README at `directory` under spec/ ("" for spec/). */
-export function handWrittenGlossary(readme: string, directory: string): GlossaryTerm[] {
+function handWrittenGlossary(readme: string, directory: string): GlossaryTerm[] {
   const lines = readme.split("\n");
   const start = lines.findIndex((line) => /^## Glossary\s*$/.test(line));
   if (start < 0) return [];
@@ -143,7 +143,7 @@ const LEADING_MARKER = /^r\[([^\]]+)\]\s*/;
 const escapeCells = (text: string): string => text.replaceAll(/(?<!\\)\|/g, "\\|");
 
 /** The terms a chapter defines: bold terms in prose and rules, and defining headings. */
-export function chapterTerms(chapter: Chapter): GlossaryTerm[] {
+function chapterTerms(chapter: Chapter): GlossaryTerm[] {
   const anchors = sectionAnchors(chapter);
   const directory = posix.dirname(chapter.name);
   const out: GlossaryTerm[] = [];

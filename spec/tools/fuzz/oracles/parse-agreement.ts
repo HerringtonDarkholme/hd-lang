@@ -1,9 +1,6 @@
 // Oracle: the reference parser and each implementation agree on accept/reject
 // for `parse`, and each `parse` result obeys the command contract.
-import type { Action } from "../common.ts";
 import { type Observation, type OracleInput, who } from "./types.ts";
-
-export const parseAgreementActions: readonly Action[] = ["parse"];
 
 export function parseAgreement(input: OracleInput): Observation[] {
   const observations: Observation[] = [];

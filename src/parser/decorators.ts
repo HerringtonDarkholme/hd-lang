@@ -11,7 +11,7 @@ import type {
 import type { SourceSpan } from "../diagnostics.ts";
 import { ExpressionParser } from "./expression.ts";
 
-export interface ParsedGenericParameters {
+interface ParsedGenericParameters {
   readonly parameters: readonly string[];
   readonly bounds: readonly GenericBound[];
   /** Parameters written `reified`; the prototype erases them all. */
@@ -23,7 +23,7 @@ export interface ParsedGenericParameters {
 }
 
 /** Which generic parameter list is parsed (02-grammar.md#generic-parameters-and-bounds). */
-export interface GenericParameterForm {
+interface GenericParameterForm {
   /** A data type's or enum's `type_params` take variance markers; a trait's reject them. */
   readonly variance?: "allow" | "reject";
   /** `generic_params` of an implementation take no default (grammar.generic.default.positions). */

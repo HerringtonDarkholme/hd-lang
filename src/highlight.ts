@@ -54,7 +54,7 @@ const PROVIDER_WORDS = new Set(["use", "with", "context", "Context"]);
 // A use declaration: `use` or `pub use` followed by a use root.
 const USE_DECLARATION = /^\s*(?:pub\s+)?use\s+(?:pkg|std|dep|self|super)\b/;
 
-export interface Span {
+interface Span {
   readonly text: string;
   readonly kind: TokenClass;
 }

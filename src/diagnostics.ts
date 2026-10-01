@@ -10,7 +10,7 @@ export interface SourceSpan {
 }
 
 /** A secondary location a diagnostic points to, such as an earlier declaration. */
-export interface RelatedSpan {
+interface RelatedSpan {
   readonly message: string;
   readonly span: SourceSpan;
 }

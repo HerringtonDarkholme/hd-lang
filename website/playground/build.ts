@@ -38,7 +38,7 @@ const EMBEDDED: Readonly<
  * function sources with `node:crypto`. Binaryen imports Node modules only
  * behind a Node check, so they stay external.
  */
-export function browserShims(): esbuild.Plugin {
+function browserShims(): esbuild.Plugin {
   return {
     name: "hd-browser-shims",
     setup(build) {

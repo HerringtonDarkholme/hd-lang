@@ -41,7 +41,7 @@ export class PropertyDiscard extends Error {
   }
 }
 
-export interface PropertyOptions {
+interface PropertyOptions {
   readonly seed?: number;
   readonly cases?: number;
   readonly shrink?: number;
@@ -57,7 +57,7 @@ export interface RegressionStore {
 }
 
 /** The draws of one case before every draw returns its simplest value. */
-export const DRAW_BUDGET = 256;
+const DRAW_BUDGET = 256;
 
 /** One case's result, as the test runner reports it. */
 export type CaseResult = "pass" | "discard" | { readonly failure: string };

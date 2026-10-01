@@ -49,12 +49,12 @@ import {
 const specRoot = resolve(import.meta.dirname, "..");
 const repoRoot = resolve(specRoot, "..");
 
-export interface Sentence {
+interface Sentence {
   readonly line: number;
   readonly text: string;
 }
 
-export interface Example {
+interface Example {
   /** 1-based position among the chapter's code fences. */
   readonly index: number;
   readonly line: number;
@@ -70,7 +70,7 @@ export interface Rule {
   readonly codes: string[];
 }
 
-export interface Stats {
+interface Stats {
   readonly words: number;
   readonly paragraphs: number;
   readonly averageParagraphWords: number;
@@ -209,7 +209,7 @@ export function inventory(source: string, markdown: string, known: ReadonlySet<s
 /** unchanged: an identical new example; contained: every line in one new example that adds lines; split: lines spread over several; comment-edited: a line matches only without its trailing comment. */
 export type ExampleStatus = "unchanged" | "contained" | "split" | "comment-edited" | "lost";
 
-export interface ExampleMatch {
+interface ExampleMatch {
   readonly old: number;
   readonly status: ExampleStatus;
   /** New example indexes holding the old example's lines. */
@@ -218,13 +218,13 @@ export interface ExampleMatch {
   readonly missing: string[];
 }
 
-export interface SentenceMatch {
+interface SentenceMatch {
   readonly old: Sentence;
   readonly best: Sentence | undefined;
   readonly score: number;
 }
 
-export interface Diff {
+interface Diff {
   readonly old: Inventory;
   readonly new: Inventory;
   readonly lostCodes: string[];
@@ -397,7 +397,7 @@ const codeList = (codes: Record<string, number>): string =>
 
 const quote = (text: string): string => display(text).replaceAll("|", "\\|");
 
-export function inventoryReport(inv: Inventory): string {
+function inventoryReport(inv: Inventory): string {
   const out = [`# Rule inventory: ${inv.source}`, "", ...statsTable([["", inv.stats]]), ""];
   out.push(`## Diagnostic codes (${Object.keys(inv.codes).length})`, "", codeList(inv.codes), "");
   out.push(`## Rule IDs (${inv.rules.length})`, "");
@@ -415,7 +415,7 @@ export function inventoryReport(inv: Inventory): string {
   return `${out.join("\n")}\n`;
 }
 
-export function diffReport(result: Diff): string {
+function diffReport(result: Diff): string {
   const { old, new: next } = result;
   const out = [
     `# Rule inventory diff`,

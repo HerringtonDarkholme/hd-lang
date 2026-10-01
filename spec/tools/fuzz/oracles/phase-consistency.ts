@@ -1,9 +1,7 @@
 // Oracle: later phases never accept what an earlier phase rejects.
 //   parse rejects => check rejects;  check rejects => run and test reject.
-import type { Action, Outcome } from "../common.ts";
+import type { Outcome } from "../common.ts";
 import { type Observation, type OracleInput, who } from "./types.ts";
-
-export const phaseActions: readonly Action[] = ["parse", "check", "run", "test"];
 
 function rejects(outcome: Outcome | undefined): boolean {
   return outcome?.kind === "reject";

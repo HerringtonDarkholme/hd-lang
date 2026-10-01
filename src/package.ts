@@ -29,7 +29,7 @@ export interface PackageDiagnostic extends Diagnostic {
   readonly path: string;
 }
 
-export interface PackageModule {
+interface PackageModule {
   readonly path: string;
   /** The dotted module identity, `""` for `src/mod.hd`. */
   readonly identity: string;
@@ -45,7 +45,7 @@ interface LinkSegment {
   readonly indent: number;
 }
 
-export interface LinkOptions {
+interface LinkOptions {
   /**
    * A test build (spec/10-modules.md#r-module.test.code): every test module
    * is linked, not only those the entry module reaches.
@@ -54,7 +54,7 @@ export interface LinkOptions {
 }
 
 /** Whether a package path is a test module (spec/10-modules.md#r-module.test.module). */
-export function isTestModulePath(path: string): boolean {
+function isTestModulePath(path: string): boolean {
   return path.endsWith("_test.hd");
 }
 
@@ -554,7 +554,7 @@ interface FolderEdge {
 }
 
 /** The folder that holds a package file (spec/10-modules.md#r-module.folder.directory). */
-export function folderOf(path: string): string {
+function folderOf(path: string): string {
   return path.slice(0, path.lastIndexOf("/"));
 }
 

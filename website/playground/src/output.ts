@@ -3,7 +3,7 @@
 
 import type { RunDiagnostic, RunMode, RunResult } from "./runner.ts";
 
-export type Outcome = RunResult | "stopped" | "timeout";
+type Outcome = RunResult | "stopped" | "timeout";
 
 export function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,

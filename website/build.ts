@@ -34,7 +34,7 @@ const REPO_DIR = resolve(WEBSITE_DIR, "..");
 /** The base path GitHub Pages serves the project site under. */
 export const PAGES_BASE = "/hd-lang/";
 
-export interface BuildOptions {
+interface BuildOptions {
   /** URL path the site is served under, such as `/hd-lang/` or `/`. */
   readonly base: string;
   /** Output directory. */
@@ -47,7 +47,7 @@ export interface BuildOptions {
   readonly playgroundDist?: string;
 }
 
-export interface BuildResult {
+interface BuildResult {
   readonly pages: number;
   /** Whether the site includes the playground; it also enables the REPL panel. */
   readonly playground: boolean;

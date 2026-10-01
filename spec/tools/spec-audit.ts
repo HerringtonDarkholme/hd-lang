@@ -18,12 +18,12 @@ import {
 } from "./spec-prose.ts";
 import { allRules, type Chapter, type Corpus } from "./spec-corpus.ts";
 
-export const SENTENCE_TARGET = 25;
-export const PARAGRAPH_TARGET = 90;
+const SENTENCE_TARGET = 25;
+const PARAGRAPH_TARGET = 90;
 /** A sentence shorter than this is too generic to call a duplicate. */
 const DUPLICATE_MIN_WORDS = 6;
 
-export const AUDIT_KINDS = [
+const AUDIT_KINDS = [
   "long-sentence",
   "long-paragraph",
   "no-example",
@@ -32,9 +32,9 @@ export const AUDIT_KINDS = [
   "unknown-code",
   "unused-code",
 ] as const;
-export type AuditKind = (typeof AUDIT_KINDS)[number];
+type AuditKind = (typeof AUDIT_KINDS)[number];
 
-export interface AuditWarning {
+interface AuditWarning {
   readonly kind: AuditKind;
   /** The path under spec/. */
   readonly file: string;

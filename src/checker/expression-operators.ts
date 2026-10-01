@@ -30,7 +30,7 @@ import {
 type NameExpression = Extract<Expression, { kind: "name" }>;
 
 /** The `std.ops` trait and method of each overloadable binary operator (05-expressions.md#operator-traits). */
-export const BINARY_OPERATOR_TRAITS: Readonly<Record<string, readonly [string, string]>> = {
+const BINARY_OPERATOR_TRAITS: Readonly<Record<string, readonly [string, string]>> = {
   "+": ["Add", "add"],
   "-": ["Sub", "sub"],
   "*": ["Mul", "mul"],
@@ -50,7 +50,7 @@ const UNARY_OPERATOR_TRAITS: Readonly<Record<string, readonly [string, string]>>
 };
 
 /** A primitive operand type, on which an operator never searches a trait (r-expr.op.primitive). */
-export function isPrimitiveOperand(type: ValueType): boolean {
+function isPrimitiveOperand(type: ValueType): boolean {
   const readonly = readonlyType(type);
   return (
     numericType(readonly) !== undefined ||

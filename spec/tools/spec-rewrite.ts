@@ -14,24 +14,24 @@ import { buildIndex, deadCitations } from "./spec-refs.ts";
 export const FAIL_KINDS = ["lost-codes", "lost-examples", "reused-ids"] as const;
 export type FailKind = (typeof FAIL_KINDS)[number];
 
-export interface CountRow {
+interface CountRow {
   readonly before: number;
   readonly after: number;
   readonly delta: number;
 }
 
-export interface ChapterCountRow extends CountRow {
+interface ChapterCountRow extends CountRow {
   readonly chapter: string;
   readonly tier: Tier;
 }
 
-export interface PlacedId {
+interface PlacedId {
   readonly id: string;
   /** The chapter under spec/ that holds (or held) the rule. */
   readonly chapter: string;
 }
 
-export interface ChangedRule {
+interface ChangedRule {
   readonly id: string;
   readonly chapter: string;
   readonly before: string;
@@ -40,7 +40,7 @@ export interface ChangedRule {
   readonly similarity: number;
 }
 
-export interface LostExample {
+interface LostExample {
   readonly chapter: string;
   /** The example's position among the chapter's code fences at the base. */
   readonly index: number;
@@ -49,9 +49,9 @@ export interface LostExample {
   readonly missing: string[];
 }
 
-export type RewriteExampleStatus = ExampleStatus | "moved";
+type RewriteExampleStatus = ExampleStatus | "moved";
 
-export interface CitedRetired {
+interface CitedRetired {
   readonly id: string;
   readonly file: string;
   readonly line: number;
@@ -59,7 +59,7 @@ export interface CitedRetired {
   readonly severity: "error" | "warning" | "history";
 }
 
-export interface Rewrite {
+interface Rewrite {
   readonly base: string;
   readonly head: string;
   readonly chapters: ChapterCountRow[];
@@ -110,7 +110,7 @@ function namedCodes(corpus: Corpus): Set<string> {
 
 const minus = <T>(a: Iterable<T>, b: ReadonlySet<T>): T[] => [...a].filter((x) => !b.has(x));
 
-export interface RewriteOptions {
+interface RewriteOptions {
   readonly base: Corpus;
   readonly head: Corpus;
   readonly baseLabel: string;

@@ -15,7 +15,7 @@ import type { Browser, Page } from "playwright-core";
 import { classify } from "../../src/highlight.ts";
 import { encodeBase64Url } from "./src/share.ts";
 
-export interface PlaygroundE2e {
+interface PlaygroundE2e {
   readonly browser: Browser;
   /** The origin serving the site, such as `http://127.0.0.1:4173`. */
   readonly origin: string;

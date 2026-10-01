@@ -33,7 +33,7 @@ export interface HirData {
   readonly span: SourceSpan;
 }
 
-export interface HirEnumVariant {
+interface HirEnumVariant {
   readonly name: string;
   readonly tag: number;
   readonly fields: readonly HirDataField[];
@@ -84,7 +84,7 @@ export interface HirTraitMethod {
   readonly span: SourceSpan;
 }
 
-export interface HirAssociatedType {
+interface HirAssociatedType {
   readonly name: string;
   readonly index: number;
   readonly span: SourceSpan;
@@ -359,13 +359,13 @@ export type HirProviderContextEntry =
       readonly providers: readonly HirProviderSpreadBinding[];
     };
 
-export interface HirProviderSpreadBinding {
+interface HirProviderSpreadBinding {
   readonly key: string;
   readonly local: HirLocal;
   readonly fieldIndex: number;
 }
 
-export interface HirMapEntry {
+interface HirMapEntry {
   readonly key: HirExpression;
   readonly value: HirExpression;
 }
@@ -395,16 +395,16 @@ export type HirEqualityDispatch =
       readonly via?: { readonly traitIndex: number; readonly path: readonly number[] };
     };
 
-export interface HirBuiltinEqualityStrategy {
+interface HirBuiltinEqualityStrategy {
   readonly kind: "builtin";
 }
 
-export interface HirDispatchEqualityStrategy {
+interface HirDispatchEqualityStrategy {
   readonly kind: "dispatch";
   readonly dispatch: HirEqualityDispatch;
 }
 
-export interface HirTupleEqualityStrategy {
+interface HirTupleEqualityStrategy {
   readonly kind: "tuple";
   readonly elements: readonly HirEqualityStrategy[];
 }
@@ -414,18 +414,18 @@ export type HirEqualityStrategy =
   | HirDispatchEqualityStrategy
   | HirTupleEqualityStrategy;
 
-export type HirOrderingOperator = "<" | "<=" | ">" | ">=";
+type HirOrderingOperator = "<" | "<=" | ">" | ">=";
 
-export interface HirBuiltinOrderingStrategy {
+interface HirBuiltinOrderingStrategy {
   readonly kind: "builtin";
 }
 
-export interface HirDispatchOrderingStrategy {
+interface HirDispatchOrderingStrategy {
   readonly kind: "dispatch";
   readonly dispatch: HirEqualityDispatch;
 }
 
-export interface HirTupleOrderingStrategy {
+interface HirTupleOrderingStrategy {
   readonly kind: "tuple";
   readonly elements: readonly HirOrderingStrategy[];
 }
@@ -483,7 +483,7 @@ export interface HirComprehensionForClause {
   readonly span: SourceSpan;
 }
 
-export interface HirComprehensionIfClause {
+interface HirComprehensionIfClause {
   readonly kind: "if";
   readonly condition: HirExpression;
   readonly span: SourceSpan;

@@ -10,7 +10,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { hd } from "./hd-language.ts";
 import type { RunDiagnostic } from "./runner.ts";
 
-export interface EditorCallbacks {
+interface EditorCallbacks {
   readonly run: () => void;
   readonly check: () => void;
   readonly changed: () => void;
@@ -68,10 +68,7 @@ export function offsetOf(doc: Text, line: number, column: number): number {
   return target.from + Math.min(Math.max(0, column - 1), target.length);
 }
 
-export function lintDiagnostics(
-  doc: Text,
-  diagnostics: readonly RunDiagnostic[],
-): LintDiagnostic[] {
+function lintDiagnostics(doc: Text, diagnostics: readonly RunDiagnostic[]): LintDiagnostic[] {
   return diagnostics.map((diagnostic) => {
     const from = offsetOf(doc, diagnostic.line, diagnostic.column);
     let to = offsetOf(doc, diagnostic.endLine, diagnostic.endColumn);

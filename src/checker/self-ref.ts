@@ -118,14 +118,14 @@ function needs(type: string, name: string, scope: SelfRefScope, visiting: Set<st
 }
 
 /** A member's `self_ref` (r-annot.self-ref.member). */
-export function memberSelfRef(type: string, enclosing: string, scope: SelfRefScope): SelfRef {
+function memberSelfRef(type: string, enclosing: string, scope: SelfRefScope): SelfRef {
   if (needs(type, enclosing, scope, new Set())) return "Required";
   if (refers(type, enclosing, scope, new Set())) return "Optional";
   return "Absent";
 }
 
 /** A variant's `self_ref`: its members' strongest (r-annot.self-ref.variant, .variant.empty). */
-export function variantSelfRef(members: readonly SelfRef[]): SelfRef {
+function variantSelfRef(members: readonly SelfRef[]): SelfRef {
   return members.reduce<SelfRef>(
     (strongest, member) => (STRENGTH[member] > STRENGTH[strongest] ? member : strongest),
     "Absent",

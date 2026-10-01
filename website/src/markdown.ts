@@ -34,7 +34,7 @@ export type RenderEnv = {
  * GitHub's heading anchor algorithm, as `spec/check-spec-anchors.ts` applies
  * it to the raw heading text: the specification's cross-links depend on it.
  */
-export function githubSlug(text: string): string {
+function githubSlug(text: string): string {
   return text
     .replaceAll(/<[^>]+>/g, "")
     .trim()
@@ -55,7 +55,7 @@ export function escapeHtml(text: string): string {
 const parsesCache = new Map<string, boolean>();
 
 /** Whether the reference parser accepts `code` as a complete source file. */
-export function parsesAsHd(code: string): boolean {
+function parsesAsHd(code: string): boolean {
   let parses = parsesCache.get(code);
   if (parses === undefined) {
     try {
@@ -77,7 +77,7 @@ const HD_MARKERS =
  * Whether a fenced block holds hd source. ```hd always does; a ```text block
  * does when the reference parser accepts it or it contains an hd construct.
  */
-export function isHdBlock(info: string, code: string): boolean {
+function isHdBlock(info: string, code: string): boolean {
   if (info === "hd") return true;
   if (info !== "text") return false;
   return parsesAsHd(code) || HD_MARKERS.test(code) || isErrorExample(code);
@@ -91,7 +91,7 @@ const ERROR_LINE = /#\s*error(?::\s*[a-z0-9-]+)?\s*$/;
  * classes. A line that an error example marks as rejected is wrapped in a
  * `line-error` span, and its marker comment gets `hl-error-marker`.
  */
-export function highlightHd(code: string): string {
+function highlightHd(code: string): string {
   return code
     .split("\n")
     .map((line) => {
@@ -123,7 +123,7 @@ function ruleUrl(env: RenderEnv, target: string, name: string): string {
  * definition (itself, on the page that owns the rule). A name in a rule body
  * links to its definition on this page, else to the canonical one.
  */
-export function highlightEbnf(code: string, env: RenderEnv): string {
+function highlightEbnf(code: string, env: RenderEnv): string {
   return tokenizeEbnf(code)
     .map(({ text, kind }) => {
       const html = escapeHtml(text);
@@ -242,7 +242,7 @@ function markRulesAndCallouts(tokens: Token[], env: RenderEnv, TokenClass: typeo
 }
 
 /** Whether `code` declares `main`, which makes it a whole program rather than REPL input. */
-export function isWholeProgram(code: string): boolean {
+function isWholeProgram(code: string): boolean {
   return /^(?:pub\s+)?fn\s+main!?\s*\(/m.test(code);
 }
 

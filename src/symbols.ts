@@ -24,7 +24,7 @@ import { jsonSpan, type JsonSpan } from "./diagnostic-report.ts";
 // `Enum.Variant.field`; `Type::function` is accepted for `Type.function`.
 // Without a module path, every module is searched.
 
-export type SymbolKind =
+type SymbolKind =
   | "function"
   | "data"
   | "enum"
@@ -36,14 +36,14 @@ export type SymbolKind =
   | "associated-function"
   | "associated-type";
 
-export interface SymbolParameter {
+interface SymbolParameter {
   readonly name: string;
   readonly type: string;
   readonly variadic: boolean;
   readonly default: string | null;
 }
 
-export interface SymbolTrait {
+interface SymbolTrait {
   readonly trait: string;
   /** The implementation's target as written, such as `Box[T]`. */
   readonly target: string;
@@ -108,7 +108,7 @@ export interface InferredTypes {
   readonly globals: ReadonlyMap<string, string>;
 }
 
-export interface LookupResult {
+interface LookupResult {
   readonly symbols: readonly SymbolInfo[];
   /** Qualified names that share the query's last segment, when nothing matched. */
   readonly suggestions: readonly string[];

@@ -179,7 +179,7 @@ trait Source[S]:
     fn missing[F](mut self, h: Field[S, F]) -> Result[F, Self::Error]
 `;
 
-export interface DerivationResult {
+interface DerivationResult {
   readonly program: Program;
   readonly diagnostics: readonly Diagnostic[];
   /** Opt-in spans whose generated member calls report `member-not-derivable`. */
@@ -192,7 +192,7 @@ export interface DerivationResult {
   readonly arbitraryOptIns: readonly ArbitraryOptIn[];
 }
 
-export interface ArbitraryOptIn {
+interface ArbitraryOptIn {
   readonly span: SourceSpan;
   readonly members: readonly { readonly name: string; readonly type: string }[];
 }

@@ -15,7 +15,7 @@ import {
   type ReplReply,
 } from "./repl.ts";
 
-export interface ReplIo {
+interface ReplIo {
   readonly input: NodeJS.ReadableStream;
   readonly output: NodeJS.WritableStream;
   readonly terminal?: boolean;

@@ -11,7 +11,7 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
 import { type CommandResult, invoke, messageLabel, repoRoot } from "../common.ts";
 
-export interface WasmVerdict {
+interface WasmVerdict {
   /** "valid", "build-failed", "no-module", or "invalid:<tool>". */
   readonly status: string;
   readonly detail: string;

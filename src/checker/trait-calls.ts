@@ -15,7 +15,7 @@ export interface QualifiedCallExpression extends Extract<Expression, { kind: "ca
   readonly callee: Extract<Expression, { kind: "qualified-name" }>;
 }
 
-export interface ResolvedTraitMethod {
+interface ResolvedTraitMethod {
   readonly method: HirTraitMethod;
   readonly path: readonly number[];
   readonly trait: HirTrait;

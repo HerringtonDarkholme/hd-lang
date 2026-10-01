@@ -1,4 +1,4 @@
-export const RUNTIME_PANIC_NAMES = [
+const RUNTIME_PANIC_NAMES = [
   "explicit-panic",
   "integer-division-by-zero",
   "integer-overflow",

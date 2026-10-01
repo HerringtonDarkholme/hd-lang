@@ -11,7 +11,7 @@ export function scalarWasm(type: ValueType): "i32" | "i64" | "f32" | "f64" {
   return numericType(type)?.wasm ?? "i32";
 }
 
-export function isScalar(type: ValueType): boolean {
+function isScalar(type: ValueType): boolean {
   return numericType(type) !== undefined || type === "bool" || type === "char";
 }
 

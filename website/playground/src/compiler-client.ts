@@ -9,7 +9,7 @@ import type { Project } from "./project.ts";
 import type { RunMode, RunResult, WatResult } from "./runner.ts";
 import type { WorkerMessage, WorkerRequest } from "./worker.ts";
 
-export const TIME_LIMIT_MS = 15_000;
+const TIME_LIMIT_MS = 15_000;
 
 export type Interrupted = "stopped" | "timeout";
 
@@ -22,7 +22,7 @@ interface Pending {
   readonly timer: ReturnType<typeof setTimeout>;
 }
 
-export interface CompilerClientOptions {
+interface CompilerClientOptions {
   /** The worker script; defaults to `worker.js` beside this bundle. */
   readonly workerUrl?: string | URL;
   /** Called each time a worker has loaded the compiler. */

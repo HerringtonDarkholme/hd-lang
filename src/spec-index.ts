@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 // with "Error: `code`." (or "Warning: `code`."), or with "is a `code` error".
 
 /** A rule ID marker and the rule text that follows it. */
-export interface SpecRule {
+interface SpecRule {
   readonly id: string;
   /** Chapter file name, such as `08-data-and-enums.md`. */
   readonly file: string;
@@ -38,21 +38,16 @@ export interface SpecMention {
 }
 
 /** A conformance fixture row whose expectation names a code. */
-export interface SpecFixture {
+interface SpecFixture {
   readonly path: string;
   readonly phase: string;
   readonly expectation: string;
   readonly specification: string;
 }
 
-export type CodeCategory =
-  | "error"
-  | "error (general)"
-  | "warning"
-  | "runtime panic"
-  | "boundary failure";
+type CodeCategory = "error" | "error (general)" | "warning" | "runtime panic" | "boundary failure";
 
-export interface CodeEntry {
+interface CodeEntry {
   readonly code: string;
   readonly category: CodeCategory;
   /** The normative meaning from the spec/README.md table, when it has a row. */
@@ -163,7 +158,7 @@ function cells(row: string): string[] {
 }
 
 /** The anchor GitHub and the website give a heading (spec/check-spec-anchors.ts). */
-export function headingSlug(text: string): string {
+function headingSlug(text: string): string {
   return text
     .replaceAll(/<[^>]+>/g, "")
     .trim()
@@ -298,7 +293,7 @@ export function indexSpec(files: Readonly<Record<string, string>>): SpecIndex {
 }
 
 /** The repository's `spec/` directory, or `HD_SPEC_DIR` when it is set. */
-export function specDirectory(): string {
+function specDirectory(): string {
   return process.env.HD_SPEC_DIR ?? fileURLToPath(new URL("../spec/", import.meta.url));
 }
 
@@ -325,7 +320,7 @@ export async function loadSpecIndex(directory = specDirectory()): Promise<SpecIn
   return indexSpec(files);
 }
 
-export interface CodeExplanation {
+interface CodeExplanation {
   readonly code: string;
   readonly category?: CodeCategory;
   readonly meaning?: string;

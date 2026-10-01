@@ -13,7 +13,7 @@ export interface WasmArtifact {
   readonly bytes: Uint8Array<ArrayBuffer>;
 }
 
-export class WasmValidationError extends Error {
+class WasmValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "WasmValidationError";

@@ -151,7 +151,7 @@ function leastTypeCandidates(type: ValueType): readonly ValueType[] {
   return [type];
 }
 
-export type LeastCommonType =
+type LeastCommonType =
   | { readonly type: ValueType }
   | { readonly code: "no-common-type" | "no-least-common-type" };
 

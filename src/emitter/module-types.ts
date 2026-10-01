@@ -27,7 +27,7 @@ interface CollectedModuleTypes {
  * erased at run time, so a parameter's or the result's outer `mut` does not
  * select a different closure struct.
  */
-export function signatureKey(type: ValueType): ValueType {
+function signatureKey(type: ValueType): ValueType {
   const callable = functionParts(type);
   if (!callable) return type;
   const { parameters, result, requirements, variadic, suspending } = callable;

@@ -14,7 +14,7 @@ import {
 // exported `__hd_each_index` global and stops at the row count the function
 // reports through `__hd_each_count` (spec/std/testing.md#table-test-rows).
 
-export type RunOutcome =
+type RunOutcome =
   | { readonly kind: "passed"; readonly count: number; readonly result?: unknown }
   | { readonly kind: "exit"; readonly code: number }
   | { readonly kind: "failed"; readonly subject: string; readonly outcome?: string };
