@@ -15,6 +15,7 @@ import {
   type Citation,
   citationsIn,
   deadCitations,
+  isArchived,
   type RefIndex,
   retirements,
 } from "../spec/tools/spec-refs.ts";
@@ -233,6 +234,12 @@ test("refs --dead fails only gated areas and allows history", () => {
   assert.match(dead[0]!.reason, /rule is in spec\/01-lexical-structure.md/);
   assert.match(dead[1]!.reason, /retired in batch 7/);
   assert.match(dead[4]!.reason, /retired in batch 7/);
+});
+
+test("refs treats archived records as history", () => {
+  assert.equal(areaOf("future-work/archive/X.md"), "records");
+  assert.ok(isArchived("future-work/archive/X.md"));
+  assert.ok(!isArchived("future-work/X.md"));
 });
 
 test("the spec CLI reports usage errors and the real language tier", () => {

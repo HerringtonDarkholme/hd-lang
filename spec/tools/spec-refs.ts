@@ -48,6 +48,11 @@ const RELATIVE_ID = new RegExp(`^(?:\\.${SEGMENT})+$`);
 export const HISTORY =
   /\b(?:retired|retires|retiring|since (?:moved|removed|replaced|renamed|revised)|withdrawn|formerly|former|previously|was removed|were removed|replaced by|renamed|reverses|reversed|becomes|became)\b/i;
 
+/** Whether a repository-relative path is an archived record, which is history throughout. */
+export function isArchived(file: string): boolean {
+  return file.startsWith("future-work/archive/");
+}
+
 /** The area of a repository-relative path, or undefined when refs does not scan it. */
 export function areaOf(file: string): Area | undefined {
   if (file.startsWith("spec/conformance/"))
@@ -278,7 +283,9 @@ export function buildIndex(corpus: Corpus, repoRoot: string): RefIndex {
     const notes =
       file === "spec/README.md"
         ? (line: number) => line >= notesStart && line <= notesEnd
-        : undefined;
+        : isArchived(file)
+          ? () => true
+          : undefined;
     return citationsIn(file, readFileSync(resolve(repoRoot, file), "utf8"), area, isRuleId, notes);
   });
   return { live, historical, retired, citations };
