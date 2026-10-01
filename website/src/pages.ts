@@ -11,6 +11,11 @@ export interface PageSource {
   readonly navTitle: string;
   /** Sidebar section. */
   readonly section: string;
+  /**
+   * Set for a page that no Markdown file holds: the build generates its
+   * Markdown, and renders it as if it were `source`.
+   */
+  readonly generated?: "glossary";
 }
 
 export interface NavSection {
@@ -69,6 +74,10 @@ export const PAGES: readonly PageSource[] = [
   ...SPEC_CHAPTERS.map(([file, title], index) =>
     page(`spec/${file}.md`, `spec/${file}.html`, `${index + 1}. ${title}`, "Reference"),
   ),
+  {
+    ...page("spec/GLOSSARY.md", "spec/glossary.html", "Glossary", "Reference"),
+    generated: "glossary",
+  },
   page("spec/STYLE.md", "spec/style.html", "Specification Style Guide", "Reference"),
   page("spec/std/README.md", "spec/std/index.html", "Standard Library", "Standard Library"),
   ...STD_CHAPTERS.map(([module, title]) =>

@@ -88,6 +88,18 @@ describe("website build", () => {
     assert.match(readme, /<code>r\[data\.field\.unique\]<\/code>/);
   });
 
+  test("generates the glossary page, links it from the sidebar, and links terms to rules", async () => {
+    const page = await readFile(join(scratch, "pages", "spec/glossary.html"), "utf8");
+    assert.match(
+      page,
+      /<a href="\/hd-lang\/spec\/03-names-and-scopes\.html#r-names\.part\.depth"><strong>depth<\/strong><\/a>/,
+    );
+    assert.match(page, /href="\/hd-lang\/spec\/std\/iter\.html#iterator-adapters"/);
+    assert.doesNotMatch(page, /View source on GitHub/, "the page has no Markdown source");
+    const types = await readFile(join(scratch, "pages", "spec/04-type-system.html"), "utf8");
+    assert.match(types, /<li><a href="\/hd-lang\/spec\/glossary\.html">Glossary<\/a><\/li>/);
+  });
+
   test("renders footnotes as small references and a notes section at the page end", async () => {
     const data = await readFile(join(scratch, "pages", "spec/08-data-and-enums.html"), "utf8");
     assert.doesNotMatch(data, /\[\^miku\]/, "no footnote syntax is left as text");

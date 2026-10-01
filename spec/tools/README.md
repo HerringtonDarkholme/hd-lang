@@ -6,7 +6,10 @@ implementation.
 
 | File | Purpose |
 | --- | --- |
-| `spec.ts` | the `npm run spec` entry point: `counts`, `audit`, and `refs` |
+| `spec.ts` | the `npm run spec` entry point: `counts`, `audit`, `refs`, `rewrite`, and `glossary` |
+| `spec-corpus.ts` | every chapter with its rule inventory, read from a directory or a git revision |
+| `spec-rewrite.ts` | the before/after report of `rewrite` |
+| `spec-glossary.ts` | the terms, the Markdown page, and the missing-term report of `glossary` |
 | `spec-prose.ts` | the Markdown block scanner, rule ID markers, and the prefix table |
 | `rule-inventory.ts` | one chapter's inventory, and the restyle diff ([STYLE.md](../STYLE.md#restyling-a-chapter)) |
 | `run-conformance.ts` | the conformance runner for any implementation |
@@ -77,3 +80,58 @@ For a retired ID it names the Revision Notes entry that retired it, such as
 
 A bare ID counts only when it is a rule ID now or was one in the chapters'
 git history. A field access in a comment is therefore not a citation.
+
+## Checking A Rewrite
+
+`rewrite BASE` is the check a batch runs after a spec pass. It reads the
+spec at git revision `BASE` through `git show` and compares it with the
+working tree, or with a second revision `HEAD` when one is given.
+
+```sh
+npm run spec -- rewrite origin/main                  # before/after report
+npm run spec -- rewrite 42090f42 5125d42b            # two revisions
+npm run spec -- rewrite origin/main --json
+npm run spec -- rewrite origin/main --fail-on lost-codes,lost-examples,reused-ids
+```
+
+| Part | Reports |
+| --- | --- |
+| Rules | counts per chapter and tier: before, after, and delta |
+| Retired, added, moved IDs | IDs only the base has, IDs only the new spec has, and IDs that changed chapters |
+| Reused IDs | added IDs that the chapters' history used before the base |
+| IDs kept with changed text | the before and after text, least similar first; STYLE.md gives a rule whose meaning changes a new ID |
+| Diagnostic codes | codes the rules stop or start naming, and codes that leave or join the Diagnostics table |
+| Examples | each base example's status from `rule-inventory.ts` `diff()`, plus `moved` for one found in another chapter, and the lines of each lost one |
+| Retired IDs still cited | `refs --dead` citations of a retired ID in the working tree |
+
+The report ends with a `Summary:` line; a batch report quotes it. Without
+`--fail-on` the command exits 0. With it, the command exits 1 only when one
+of the listed kinds is found:
+
+| Kind | Trips on |
+| --- | --- |
+| `lost-codes` | a lost code, from the rules or the Diagnostics table |
+| `lost-examples` | an example line found in no example after the rewrite |
+| `reused-ids` | an ID kept with changed text, or a reused retired ID |
+
+## Generating The Glossary
+
+`glossary` collects the defined terms. The hand-written glossaries in
+[spec/README.md](../README.md#glossary) and
+[spec/std/README.md](../std/README.md#glossary) are the primary source. The
+chapters add a bold term in prose, a rule, or a table row, and a heading
+whose section opens "A term is a ..." or "The terms are ...". Each term
+carries its chapter, its defining rule ID or section anchor, and a
+definition quoted from the spec; the tool writes no definition.
+
+```sh
+npm run spec -- glossary              # counts, and chapter terms the glossaries lack
+npm run spec -- glossary --markdown   # the page the website renders as spec/glossary.html
+npm run spec -- glossary --json       # every term, and the missing ones
+```
+
+`npm run website:build` generates the Glossary page from the same data and
+links it from the Reference section of the sidebar. A term missing from the
+hand-written glossaries still appears on the page, marked "not in a
+hand-written glossary". Add it to the README glossary to give it a reviewed
+definition.

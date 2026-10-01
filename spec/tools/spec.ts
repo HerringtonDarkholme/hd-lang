@@ -4,26 +4,32 @@
 //   npm run spec -- audit [--strict] [--list] [--json]
 //   npm run spec -- refs RULE-ID [--json]
 //   npm run spec -- refs --dead [--brief] [--all] [--json]
+//   npm run spec -- rewrite BASE [HEAD] [--json] [--fail-on KINDS]
+//   npm run spec -- glossary [--markdown] [--json]
 //
 // The tools read spec text, fixtures, and records; they import only Node
 // built-ins and spec/, never src/. Usage is documented in spec/tools/README.md.
 //
 // Exit status: 0 on success; 1 when `audit --strict` finds a warning or
 // `refs --dead` finds a failing citation (a dead citation in spec/, a
-// fixture, guide/, or lib/std that does not record history); 2 on a usage
-// error.
+// fixture, guide/, or lib/std that does not record history), or when
+// `rewrite --fail-on` names a kind the rewrite trips; 2 on a usage error.
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { audit, auditReport, auditTotals } from "./spec-audit.ts";
-import { loadCorpus, REPO_ROOT, SPEC_ROOT } from "./spec-corpus.ts";
+import { loadCorpus, loadCorpusAt, REPO_ROOT, SPEC_ROOT } from "./spec-corpus.ts";
 import { counts, countsReport, type CountsView } from "./spec-counts.ts";
-import { buildIndex, deadCitations, deadReport, refsReport } from "./spec-refs.ts";
+import { glossary, glossaryMarkdown, glossaryReport } from "./spec-glossary.ts";
+import { buildIndex, deadCitations, deadReport, historicalIds, refsReport } from "./spec-refs.ts";
+import { FAIL_KINDS, failures, type FailKind, rewrite, rewriteReport } from "./spec-rewrite.ts";
 
 const USAGE = `usage: spec.ts counts [--by chapter|prefix|topic|kind] [--json]
        spec.ts audit [--strict] [--list] [--json]
        spec.ts refs RULE-ID [--json]
-       spec.ts refs --dead [--brief] [--all] [--json]`;
+       spec.ts refs --dead [--brief] [--all] [--json]
+       spec.ts rewrite BASE [HEAD] [--json] [--fail-on lost-codes,lost-examples,reused-ids]
+       spec.ts glossary [--markdown] [--json]`;
 
 const VIEWS: readonly CountsView[] = ["chapter", "prefix", "topic", "kind"];
 
@@ -107,6 +113,47 @@ export function run(
           citations: index.citations.filter((c) => c.id === id),
         })
       : refsReport(index, id);
+    return { status: 0, stdout };
+  }
+  if (command === "rewrite") {
+    const options = parse(rest, ["--json"], ["--fail-on"]);
+    if (options.positional.length < 1 || options.positional.length > 2)
+      throw new UsageError("rewrite needs a base revision and at most one head revision");
+    const failOn = (options.values.get("--fail-on") ?? "").split(",").filter((kind) => kind !== "");
+    for (const kind of failOn)
+      if (!(FAIL_KINDS as readonly string[]).includes(kind))
+        throw new UsageError(`unknown --fail-on kind ${kind}`);
+    const [baseRev, headRev] = options.positional as [string, string | undefined];
+    const at = (rev: string) => {
+      try {
+        return loadCorpusAt(roots.repo, rev);
+      } catch {
+        throw new UsageError(`git cannot read revision ${rev}`);
+      }
+    };
+    const result = rewrite({
+      base: at(baseRev),
+      head: headRev === undefined ? loadCorpus(roots.spec) : at(headRev),
+      baseLabel: baseRev,
+      headLabel: headRev ?? "working tree",
+      repoRoot: roots.repo,
+      earlierIds: historicalIds(roots.repo, baseRev),
+    });
+    const tripped = failures(result, failOn as FailKind[]);
+    const stdout = options.flags.has("--json")
+      ? json({ ...result, failed: tripped })
+      : rewriteReport(result) + (tripped.length > 0 ? `Failed: ${tripped.join(", ")}\n` : "");
+    return { status: tripped.length > 0 ? 1 : 0, stdout };
+  }
+  if (command === "glossary") {
+    const options = parse(rest, ["--markdown", "--json"], []);
+    if (options.positional.length > 0) throw new UsageError("glossary takes no arguments");
+    const result = glossary(loadCorpus(roots.spec));
+    const stdout = options.flags.has("--json")
+      ? json(result)
+      : options.flags.has("--markdown")
+        ? glossaryMarkdown(result)
+        : glossaryReport(result);
     return { status: 0, stdout };
   }
   throw new UsageError(command ? `unknown command ${command}` : "missing command");

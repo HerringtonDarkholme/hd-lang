@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -17,7 +18,27 @@ import {
   type RefIndex,
   retirements,
 } from "../spec/tools/spec-refs.ts";
+import {
+  glossary,
+  glossaryMarkdown,
+  glossaryReport,
+  rebaseLinks,
+  termKeys,
+} from "../spec/tools/spec-glossary.ts";
+import { failures, rewrite, rewriteSummary } from "../spec/tools/spec-rewrite.ts";
 import { run } from "../spec/tools/spec.ts";
+
+/** Whether this checkout's history holds `rev`; a shallow clone may not. */
+function hasCommit(rev: string): boolean {
+  try {
+    execFileSync("git", ["-C", REPO_ROOT, "cat-file", "-e", `${rev}^{commit}`], {
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // A miniature specification: one language chapter, one stdlib chapter, and
 // the README tables the tools read.
@@ -223,6 +244,234 @@ test("the spec CLI reports usage errors and the real language tier", () => {
   assert.ok(parsed.tiers.language > 0 && parsed.total >= parsed.tiers.language);
   const refs = run(["refs", "#r-data.embed.width"], { spec: SPEC_ROOT, repo: REPO_ROOT });
   assert.match(refs.stdout, /^data\.embed\.width: defined at spec\/08-data-and-enums\.md:\d+/);
+});
+
+// A rewrite of LEXICAL: one rule retired, one added, one reworded, a code
+// dropped, one example moved to the stdlib chapter, and one lost.
+const LEXICAL_AFTER = `# Lexical Structure
+
+## Widgets
+
+1. r[lex.widget.one] A widget must be blue.
+2. r[lex.widget.two] A widget may be round and must sit on the right of the gadget line.
+3. r[lex.widget.four] A widget has four corners.
+
+\`\`\`text
+widget
+\`\`\`
+
+## Gadgets
+
+1. r[lex.gadget.one] A widget may be round and must sit on the left of the gadget line.
+2. r[lex.gadget.two] A gadget is bad. Error: \`unlisted-code\`.
+
+\`\`\`text
+gadget
+\`\`\`
+`;
+
+const LEXICAL_BASE = `${LEXICAL}
+\`\`\`text
+gadget
+\`\`\`
+
+\`\`\`text
+moved to iter
+\`\`\`
+
+\`\`\`text
+dropped for good
+\`\`\`
+`;
+
+const STD_ITER_AFTER = `${STD_ITER}
+\`\`\`text
+moved to iter
+\`\`\`
+`;
+
+async function withSpecs(
+  files: Record<string, string>,
+  run: (spec: string) => Promise<void> | void,
+): Promise<void> {
+  const root = await mkdtemp(join(tmpdir(), "hd-spec-tools-"));
+  try {
+    const spec = join(root, "spec");
+    await mkdir(join(spec, "std"), { recursive: true });
+    for (const [name, text] of Object.entries(files)) await writeFile(join(spec, name), text);
+    await run(spec);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+test("rewrite reports counts, IDs, codes, and examples between two versions", async () => {
+  const shared = { "README.md": README, "std/README.md": "# Std\n" };
+  await withSpecs(
+    {
+      ...shared,
+      "01-lexical-structure.md": LEXICAL_BASE,
+      "std/iter.md": STD_ITER,
+    },
+    async (baseSpec) =>
+      withSpecs(
+        {
+          ...shared,
+          "01-lexical-structure.md": LEXICAL_AFTER,
+          "std/iter.md": STD_ITER_AFTER,
+        },
+        (headSpec) => {
+          const result = rewrite({
+            base: loadCorpus(baseSpec),
+            head: loadCorpus(headSpec),
+            baseLabel: "base",
+            headLabel: "head",
+            earlierIds: new Set(["lex.widget.four"]),
+          });
+          assert.deepEqual(result.tiers.language, {
+            before: 5,
+            after: 5,
+            delta: 0,
+          });
+          assert.deepEqual(result.retired, [
+            { id: "lex.widget.three", chapter: "01-lexical-structure.md" },
+          ]);
+          assert.deepEqual(
+            result.added.map((entry) => entry.id),
+            ["lex.widget.four"],
+          );
+          assert.deepEqual(result.revived, ["lex.widget.four"]);
+          assert.deepEqual(
+            result.changed.map((entry) => entry.id),
+            ["lex.widget.one", "lex.widget.two"],
+          );
+          assert.deepEqual(result.lostCodes, ["bad-thing"]);
+          assert.equal(result.examples.statuses.unchanged, 3, "widget, gadget, and xs.map(f)");
+          assert.equal(result.examples.statuses.moved, 1);
+          assert.deepEqual(
+            result.examples.lost.map((entry) => [entry.chapter, entry.index, entry.missing]),
+            [["01-lexical-structure.md", 4, ["dropped for good"]]],
+          );
+          assert.deepEqual(failures(result, ["lost-codes", "lost-examples", "reused-ids"]), [
+            "lost-codes",
+            "lost-examples",
+            "reused-ids",
+          ]);
+          assert.match(
+            rewriteSummary(result),
+            /^rules: language 5 -> 5 \(0\), stdlib 1 -> 1 \(0\); IDs: 1 retired, 1 added, 0 moved, 2 changed text, 1 reused; codes: 1 lost/,
+          );
+        },
+      ),
+  );
+});
+
+test("rewrite reads batch 34 from git history", { skip: !hasCommit("42090f42") }, () => {
+  const { status, stdout } = run([
+    "rewrite",
+    "42090f42",
+    "5125d42b",
+    "--fail-on",
+    "lost-codes,reused-ids",
+  ]);
+  assert.equal(status, 0);
+  assert.match(stdout, /Language tier: 3,614 -> 3,624 \(\+10\)/);
+  assert.match(
+    stdout,
+    /Retired IDs \(2\): `fn\.vararg\.collect\.tuple`, `fn\.vararg\.collect\.tuple\.rest`/,
+  );
+  assert.match(stdout, /Added IDs \(12\): /);
+  assert.match(stdout, /lost: 02-grammar\.md example \d+/);
+  const failing = run(["rewrite", "42090f42", "5125d42b", "--fail-on", "lost-examples", "--json"]);
+  assert.equal(failing.status, 1);
+  assert.deepEqual((JSON.parse(failing.stdout) as { failed: string[] }).failed, ["lost-examples"]);
+  assert.throws(() => run(["rewrite", "42090f42", "--fail-on", "nope"]), /unknown --fail-on kind/);
+});
+
+const GLOSSARY_README = `# Spec
+
+## Glossary
+
+| Term | Definition |
+| --- | --- |
+| **widget** | A blue thing. See [\`lex.widget.one\`](01-lexical-structure.md#r-lex.widget.one). |
+| **map adapter** | A stdlib term, in the [Standard Library glossary](std/README.md#glossary). |
+
+## Revision Notes
+`;
+
+const GLOSSARY_STD_README = `# Std
+
+## Glossary
+
+| Term | Definition |
+| --- | --- |
+| **map adapter** | A lazy \`map\`. See [Adapters](iter.md#adapters). |
+`;
+
+const GLOSSARY_LEXICAL = `# Lexical Structure
+
+## Widgets
+
+1. r[lex.widget.one] A **widget** must be blue.
+
+A **gadget** sits beside a widget. It **must** be green.
+
+> **Note.** A **callout term** is not a definition.
+
+## Sprockets
+
+A sprocket is a small gear.
+`;
+
+test("glossary uses the hand-written glossaries and reports chapter terms they lack", async () => {
+  await withSpecs(
+    {
+      "README.md": GLOSSARY_README,
+      "std/README.md": GLOSSARY_STD_README,
+      "01-lexical-structure.md": GLOSSARY_LEXICAL,
+      "std/iter.md": STD_ITER,
+    },
+    (spec) => {
+      const result = glossary(loadCorpus(spec));
+      assert.ok(result.handWritten);
+      assert.deepEqual(
+        result.terms.map((entry) => [entry.term, entry.source, entry.chapter, entry.anchor]),
+        [
+          ["gadget", "chapter-bold", "01-lexical-structure.md", "widgets"],
+          ["map adapter", "glossary", "std/iter.md", "adapters"],
+          ["sprockets", "chapter-heading", "01-lexical-structure.md", "sprockets"],
+          ["widget", "glossary", "01-lexical-structure.md", "r-lex.widget.one"],
+        ],
+      );
+      assert.deepEqual(
+        result.missing.map((entry) => entry.term),
+        ["gadget", "sprockets"],
+      );
+      const widget = result.terms.find((entry) => entry.term === "widget")!;
+      assert.equal(widget.definition, "A blue thing.");
+      assert.equal(widget.rule, "lex.widget.one");
+      const gadget = result.terms.find((entry) => entry.term === "gadget")!;
+      assert.equal(gadget.definition, "A **gadget** sits beside a widget.");
+      const page = glossaryMarkdown(result);
+      assert.match(
+        page,
+        /\| \[\*\*widget\*\*\]\(01-lexical-structure\.md#r-lex\.widget\.one\) \| A blue thing\. \|/,
+      );
+      assert.match(page, /^## M$/m);
+      assert.match(glossaryReport(result), /missing from the hand-written glossaries: 2/);
+    },
+  );
+});
+
+test("glossary helpers rebase links and match plurals", () => {
+  assert.equal(
+    rebaseLinks("[a](iter.md#x) [b](../README.md#y)", "std"),
+    "[a](std/iter.md#x) [b](README.md#y)",
+  );
+  assert.equal(rebaseLinks("[a](https://e.com/x.md)", "std"), "[a](https://e.com/x.md)");
+  assert.ok(termKeys("trait candidates").includes("trait candidate"));
+  assert.ok(termKeys("mutable edges").includes("mutable edge"));
 });
 
 test("the spec tools import only Node built-ins and spec/", async () => {

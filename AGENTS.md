@@ -73,6 +73,8 @@ Batch agents take rule counts from `npm run spec -- counts`, not from a
 hand-written script. `npm run spec -- audit` reports STYLE.md warnings, and
 `npm run spec -- refs ID` lists every citation of a rule. See
 [spec/tools/README.md](spec/tools/README.md).
+After a spec pass, a batch agent runs `npm run spec -- rewrite <base>` and
+quotes its `Summary:` line in its report.
 
 ## Writing hd Code: Model Choice And A Feedback Log
 

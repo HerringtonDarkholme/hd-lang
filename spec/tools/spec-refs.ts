@@ -164,8 +164,11 @@ export function scannedFiles(repoRoot: string): string[] {
   return files.sort();
 }
 
-/** Every rule ID the chapters ever carried, from git history; empty when git is unavailable. */
-export function historicalIds(repoRoot: string): Set<string> {
+/**
+ * Every rule ID the chapters carried in the history of `rev` (HEAD by
+ * default), from git; empty when git is unavailable.
+ */
+export function historicalIds(repoRoot: string, rev = "HEAD"): Set<string> {
   try {
     const log = execFileSync(
       "git",
@@ -173,6 +176,7 @@ export function historicalIds(repoRoot: string): Set<string> {
         "-C",
         repoRoot,
         "log",
+        rev,
         "--format=",
         "-p",
         "--no-ext-diff",

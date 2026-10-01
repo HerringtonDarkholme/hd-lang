@@ -6,6 +6,8 @@ import { parseArgs } from "node:util";
 
 import * as esbuild from "esbuild";
 
+import { loadCorpus } from "../spec/tools/spec-corpus.ts";
+import { glossary, glossaryMarkdown } from "../spec/tools/spec-glossary.ts";
 import { buildOptions, buildPlayground } from "./playground/build.ts";
 import { renderLayout, REPL_SCRIPT } from "./src/layout.ts";
 import { checkHdBlocksParse, LEARN_PAGE } from "./src/learn-check.ts";
@@ -200,7 +202,10 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
   const sources = await Promise.all(
     PAGES.map(async (entry) => ({
       entry,
-      markdown: await readFile(join(REPO_DIR, entry.source), "utf8"),
+      markdown:
+        entry.generated === "glossary"
+          ? glossaryMarkdown(glossary(loadCorpus(join(REPO_DIR, "spec"))))
+          : await readFile(join(REPO_DIR, entry.source), "utf8"),
     })),
   );
   const grammar = buildGrammarIndex(
@@ -233,7 +238,7 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
         description: firstParagraph(markdown),
         body,
         headings: env.headings,
-        source: entry.source,
+        source: entry.generated ? undefined : entry.source,
         repl: playground,
       }),
     );

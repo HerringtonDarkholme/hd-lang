@@ -293,6 +293,11 @@ function tokens(text: string): Set<string> {
   );
 }
 
+/** How alike two sentences are, from 0 to 1, by the words they share. */
+export function textSimilarity(a: string, b: string): number {
+  return similarity(tokens(a), tokens(b));
+}
+
 function similarity(a: Set<string>, b: Set<string>): number {
   if (a.size === 0 || b.size === 0) return 0;
   let shared = 0;

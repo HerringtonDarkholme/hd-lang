@@ -2,7 +2,9 @@
 // chapter, numbered or stdlib, with its rule inventory and its sections.
 //
 // It builds on rule-inventory.ts and spec-prose.ts and adds no Markdown
-// parsing of its own. It imports only Node built-ins and spec/.
+// parsing of its own. It imports only Node built-ins and spec/. A corpus is
+// read from a directory, or from a git revision through `git show`.
+import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -38,23 +40,78 @@ export interface Chapter {
 }
 
 export interface Corpus {
+  /** The spec directory, or `REV:spec` for a corpus read from git. */
   readonly specRoot: string;
   readonly readme: string;
+  /** spec/std/README.md, which holds the stdlib glossary. */
+  readonly stdReadme: string;
   readonly controlFlow: string;
   /** README Diagnostics codes and the panic categories, as rule-inventory.ts reads them. */
   readonly known: ReadonlySet<string>;
   readonly chapters: readonly Chapter[];
 }
 
-/** The chapter paths under `specRoot`: the numbered language chapters, then spec/std/ without its README. */
-export function chapterNames(specRoot: string): string[] {
-  const list = (directory: string): string[] => {
-    try {
-      return readdirSync(resolve(specRoot, directory)).sort();
-    } catch {
-      return [];
-    }
+/** How a corpus reads the spec: the names in a directory under spec/, and one file's text. */
+export interface SpecReader {
+  /** The file names in `directory`, relative to spec/ ("." is spec/ itself); [] when it is missing. */
+  readonly list: (directory: string) => string[];
+  /** A file's text, by its path under spec/; "" when it is missing. */
+  readonly read: (name: string) => string;
+}
+
+export function directoryReader(specRoot: string): SpecReader {
+  return {
+    list: (directory) => {
+      try {
+        return readdirSync(resolve(specRoot, directory));
+      } catch {
+        return [];
+      }
+    },
+    read: (name) => {
+      try {
+        return readFileSync(resolve(specRoot, name), "utf8");
+      } catch {
+        return "";
+      }
+    },
   };
+}
+
+/** Reads spec/ as git revision `rev` has it. Throws when git cannot resolve `rev`. */
+export function gitReader(repoRoot: string, rev: string): SpecReader {
+  const git = (...args: string[]): string =>
+    execFileSync("git", ["-C", repoRoot, ...args], {
+      encoding: "utf8",
+      maxBuffer: 1 << 28,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  git("rev-parse", "--verify", "--quiet", `${rev}^{commit}`);
+  return {
+    list: (directory) => {
+      const path = directory === "." ? "spec/" : `spec/${directory}/`;
+      try {
+        return git("ls-tree", "--name-only", rev, path)
+          .split("\n")
+          .filter((line) => line !== "")
+          .map((line) => line.slice(path.length));
+      } catch {
+        return [];
+      }
+    },
+    read: (name) => {
+      try {
+        return git("show", `${rev}:spec/${name}`);
+      } catch {
+        return "";
+      }
+    },
+  };
+}
+
+/** The chapter paths under `specRoot`: the numbered language chapters, then spec/std/ without its README. */
+export function chapterNames(specRoot: string, reader = directoryReader(specRoot)): string[] {
+  const list = (directory: string): string[] => reader.list(directory).sort();
   return [
     ...list(".").filter((name) => /^\d\d-.*\.md$/.test(name)),
     ...list(STD_DIRECTORY)
@@ -106,24 +163,26 @@ export function loadChapter(
   };
 }
 
-export function loadCorpus(specRoot = SPEC_ROOT): Corpus {
-  const read = (name: string): string => {
-    try {
-      return readFileSync(resolve(specRoot, name), "utf8");
-    } catch {
-      return "";
-    }
-  };
-  const readme = read("README.md");
-  const controlFlow = read("06-control-flow.md");
+/** Loads the corpus from `specRoot`, or through `reader`, such as a gitReader. */
+export function loadCorpus(specRoot = SPEC_ROOT, reader = directoryReader(specRoot)): Corpus {
+  const readme = reader.read("README.md");
+  const controlFlow = reader.read("06-control-flow.md");
   const known = knownCodes(readme, controlFlow);
   return {
     specRoot,
     readme,
+    stdReadme: reader.read(`${STD_DIRECTORY}/README.md`),
     controlFlow,
     known,
-    chapters: chapterNames(specRoot).map((name) => loadChapter(specRoot, name, known)),
+    chapters: chapterNames(specRoot, reader).map((name) =>
+      loadChapter(specRoot, name, known, reader.read(name)),
+    ),
   };
+}
+
+/** The corpus at git revision `rev`, labeled `REV:spec`. */
+export function loadCorpusAt(repoRoot: string, rev: string): Corpus {
+  return loadCorpus(`${rev}:spec`, gitReader(repoRoot, rev));
 }
 
 /** Every rule in the corpus with the chapter that holds it. */
