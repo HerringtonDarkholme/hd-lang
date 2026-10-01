@@ -188,3 +188,17 @@ typing/invalid/for-refutable-pattern.hd	the prototype's `for` takes only a name 
 typing/invalid/comprehension-refutable-pattern.hd	the prototype's comprehension `for` takes only a name or a bare name list, so `[for .Some(value) in found => value]` is a syntax-error (`expected a comprehension binding name`), not refutable-let-pattern (flow.for.pattern.irrefutable)	LP-for
 typing/invalid/let-else-irrefutable.hd	the prototype's `let` has no else block, so `let (low, high) = pair else: return 0` is a syntax-error (`expected a line ending, found 'else'`), not unreachable-match-arm (flow.let.else.unreachable)	LP-irrefutable-else
 typing/valid/let-underscore-discard.hd	the prototype's `let` takes only a name or a parenthesized name list, so `let _ = save()` is a syntax-error (`expected a binding name`), not a discard (flow.unused.discard-forms)	LP-discard
+runtime/valid/final-vararg.hd	the prototype keeps the vararg in a function value's type, so `scaled` is fn(i32,i32...)->i32 and does not fit fn(i32, List[i32]) -> i32 (fn.vararg.value)	VARARG-SPELL
+runtime/valid/spelled-function-type-values.hd	the prototype keeps the vararg in a function value's type, so `count` does not fit Fn[(string, List[i32]), i32, $()] (fn.vararg.value)	VARARG-SPELL
+runtime/valid/vararg-function-values.hd	the prototype keeps the vararg in a function value's type, so `f := count` does not fit fn(List[i32]) -> i32 (fn.vararg.value)	VARARG-SPELL
+typing/invalid/function-type-ellipsis.hd	the prototype still accepts a vararg function type such as fn(i32...) -> i32, which fn.type.no-ellipsis makes syntax-error	VARARG-SPELL
+runtime/valid/tuple-bound-vararg-call.hd	the prototype supports only a List[T] vararg, so args...: Args is unsupported-tuple-vararg (fn.vararg.infer-tuple)	VARARG-TYPE
+runtime/valid/tuple-vararg.hd	the prototype supports only a List[T] vararg, so a tuple-typed vararg is unsupported-tuple-vararg (fn.vararg.collect.tuple)	VARARG-TYPE
+typing/invalid/tuple-vararg-arity.hd	the prototype supports only a List[T] vararg, so it reports unsupported-tuple-vararg on the declaration, not type-mismatch on the call (fn.vararg.collect.tuple)	VARARG-TYPE
+typing/invalid/tuple-vararg-no-auto-spread.hd	the prototype supports only a List[T] vararg, so it reports unsupported-tuple-vararg on the declaration, not type-mismatch on the call (fn.vararg.no-auto-spread)	VARARG-TYPE
+typing/invalid/tuple-bound-non-tuple.hd	the prototype has no std.function.Tuple, so the bound is unknown-trait, not unsatisfied-trait-bound (fn.type.ctor.tuple-trait)	Q5
+typing/invalid/tuple-trait-user-impl.hd	the prototype has no std.function.Tuple, so the impl is unknown-trait, not sealed-trait-implementation (trait.sealed.tuple)	Q5
+typing/valid/tuple-trait-bound.hd	the prototype treats a type parameter as Fn inputs only by use and rejects Args < Tuple as generic-kind-mismatch (fn.type.ctor.inputs-tuple)	Q5
+runtime/valid/tuple-spread-fixed.hd	the prototype has no tuple spread: a spread needs a vararg, and Fn[Args, O, $()] with Args < Tuple is generic-kind-mismatch (expr.call.spread.tuple)	Q8
+typing/invalid/tuple-spread-arity.hd	the prototype has no tuple spread, so a tuple spread into fixed parameters is positional-spread-needs-vararg, not type-mismatch (expr.call.spread.mismatch)	Q8
+typing/valid/race-plain-signature.hd	the prototype reports every race! call as unsupported-task-combinator, so the plain signature is not checked (req.combinator.race-signature)	Q7

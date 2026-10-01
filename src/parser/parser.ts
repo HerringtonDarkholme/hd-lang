@@ -255,6 +255,50 @@ class Parser extends DecoratorParser {
     return new Parser(lexed.tokens).parseExpressionFragment();
   }
 
+  /**
+   * Parses a value parameter's `: Type`, or `...: Type` for a vararg
+   * (07-functions.md#varargs). The prototype keeps its element-typed vararg,
+   * so it supports a `List[T]` vararg only; a tuple-typed vararg is not
+   * implemented. An ellipsis after the type is a value pack, and without a
+   * pack it is the old vararg spelling (07-functions.md#r-fn.type.no-ellipsis).
+   */
+  protected parseParameterType(packs: readonly string[]): { type: TypeRef; variadic: boolean } {
+    const nameVararg = this.matchText("...");
+    this.expectText(":");
+    const type = this.parseType();
+    if (nameVararg) {
+      const match = /^List\[(.*)\]$/.exec(type.name);
+      if (!match && !type.name.startsWith("(") && !this.activeGenericParameters.has(type.name))
+        this.fail(
+          "type-mismatch",
+          `a vararg's type must be List[T], a tuple type, or a type parameter bounded by Tuple, not '${type.name}'`,
+          type.span,
+        );
+      if (!match)
+        this.fail(
+          "unsupported-tuple-vararg",
+          "the prototype supports only a List[T] vararg; a tuple-typed vararg is not implemented",
+          type.span,
+        );
+      return { type: { name: match[1]!, span: type.span }, variadic: true };
+    }
+    if (this.atText("...")) {
+      const ellipsis = this.advance();
+      if (
+        !packs.some((pack) =>
+          new RegExp(`(^|[^A-Za-z0-9_])${pack}([^A-Za-z0-9_]|$)`).test(type.name),
+        )
+      )
+        this.fail(
+          "syntax-error",
+          "an ellipsis after a type needs a type pack; write a vararg as 'name...: List[T]'",
+          ellipsis.span,
+        );
+      return { type, variadic: true };
+    }
+    return { type, variadic: false };
+  }
+
   protected parseFunction(doc?: string, public_ = false): FunctionDecl {
     const start = this.expectText("fn").span.start;
     const name = this.expectKind("identifier", "expected a function name");
@@ -278,9 +322,7 @@ class Parser extends DecoratorParser {
           );
         }
         const parameterName = this.expectKind("identifier", "expected a parameter name");
-        this.expectText(":");
-        const type = this.parseType();
-        const variadic = this.matchText("...");
+        const { type, variadic } = this.parseParameterType(parsedGenerics.packs ?? []);
         const defaultValue = this.matchText("=") ? this.parseExpression() : undefined;
         if (variadic && defaultValue)
           this.fail(
@@ -593,9 +635,7 @@ class Parser extends DecoratorParser {
             span,
           });
         } else {
-          this.expectText(":");
-          const type = this.parseType();
-          const variadic = this.matchText("...");
+          const { type, variadic } = this.parseParameterType(parsedGenerics.packs ?? []);
           parameters.push({
             name: parameterName.text,
             type,

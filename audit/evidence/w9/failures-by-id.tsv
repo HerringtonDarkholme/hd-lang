@@ -29,3 +29,8 @@ LP-for	4	Patterns in for (batch 30, LP-for): the prototype's for and comprehensi
 LP-irrefutable-else	1	An else after an irrefutable let pattern (batch 30, LP-irrefutable-else): the prototype's let has no else block, so it is syntax-error, not unreachable-match-arm
 LP-discard	1	let _ discards a must-use value (batch 30, LP-discard): the prototype's let takes no _ pattern, so let _ = save() is syntax-error
 Q5-tuple	1	Tuple elements may be bindings (batch 30, Q5-tuple): the prototype still rejects (a, b := value) as the withdrawn grouped binding
+VARARG-SPELL	4	Varargs belong to the declaration (batch 31, VARARG-SPELL): the prototype keeps the vararg in a function value's type and accepts fn(i32...) -> i32
+VARARG-TYPE	4	Tuple-typed varargs (batch 31, VARARG-TYPE): the prototype supports only a List[T] vararg, so a tuple or Tuple-bounded vararg is unsupported-tuple-vararg
+Q5	3	The Tuple marker trait (batch 31, Q5): the prototype has no std.function.Tuple and makes Fn inputs tuple-kinded only by use
+Q8	2	Tuple spread (batch 31, Q8): a spread still needs a vararg, so a tuple spread into fixed parameters is positional-spread-needs-vararg
+Q7	1	The plain race! signature (batch 31, Q7): the prototype reports every race! call as unsupported-task-combinator

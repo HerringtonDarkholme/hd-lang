@@ -96,14 +96,9 @@ test("homogeneous varargs lower through the existing list ABI", async () => {
   assert.equal(variadic?.parameters[0]?.type, "List[i32]");
 });
 
-test("first-class vararg functions retain their calling convention", async () => {
-  const source = conformance("runtime/valid/vararg-function-values");
-  const { instance, compilation } = await instantiate(source);
-  assert.deepEqual(compilation.diagnostics, []);
-  assert.equal((instance.exports.main as CallableFunction)(), 23);
+test("a vararg function value does not fit a fixed-arity function type", () => {
   assert.equal(
-    analyze(conformance("typing/invalid/list-function-to-vararg-function-type")).diagnostics[0]
-      ?.code,
+    analyze(conformance("typing/invalid/vararg-function-value-arity")).diagnostics[0]?.code,
     "type-mismatch",
   );
 });
@@ -890,20 +885,17 @@ test("function types are implementation targets owned by the standard library", 
 
 test("spelled std.function constructors are the function type sugar", async () => {
   const source = [
-    "use std.function.{Fn, Rest}",
+    "use std.function.Fn",
     "",
-    "fn count(label: string, values: i32...) -> i32: values.len()",
+    "fn count(label: string, values...: List[i32]) -> i32: values.len()",
     "fn inc(value: i32) -> i32: value + 1",
     "",
     "fn keep(callback: Fn[(i32,), i32, $()]) -> fn(i32) -> i32:",
     "    callback",
     "",
-    "fn spread(callback: Fn[(string, Rest[i32]), i32, $()]) -> i32:",
-    '    callback("n", 1, 2, 3)',
-    "",
     "fn main() -> i32:",
     "    kept := keep(inc)",
-    "    kept(1) * 10 + spread(count)",
+    '    kept(1) * 10 + count("n", 1, 2, 3)',
     "",
   ].join("\n");
   const { instance, compilation } = await instantiate(source);
@@ -911,7 +903,7 @@ test("spelled std.function constructors are the function type sugar", async () =
   assert.equal((instance.exports.main as CallableFunction)(), 23);
   for (const [name, code] of [
     ["function-type-non-tuple-inputs", "generic-kind-mismatch"],
-    ["function-type-rest-nonfinal", "nonfinal-vararg"],
+    ["vararg-ellipsis-after-type", "syntax-error"],
   ])
     assert.deepEqual(
       analyze(conformance(`typing/invalid/${name}`)).diagnostics.map(

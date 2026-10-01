@@ -228,8 +228,6 @@ typing/valid/inferred-mutable-from-mutable.hd	type
 typing/valid/supertrait-chain.hd	type
 runtime/valid/parameter-default-earlier-parameter.hd	runtime
 typing/invalid/nonfinal-vararg-declaration.hd	type
-typing/invalid/nonfinal-vararg-function-type.hd	type
-runtime/valid/final-vararg.hd	runtime
 typing/invalid/method-without-requirement-clause.hd	type
 typing/valid/declaration-owns-requirement-clause.hd	type
 typing/invalid/declaration-requirement-not-on-result.hd	type
@@ -310,8 +308,6 @@ typing/invalid/function-result-type-mismatch.hd	type
 typing/invalid/nonfinal-vararg-then-parameter.hd	type
 typing/invalid/unknown-value-name.hd	type
 runtime/valid/homogeneous-varargs.hd	runtime
-typing/invalid/list-function-to-vararg-function-type.hd	type
-runtime/valid/vararg-function-values.hd	runtime
 runtime/valid/parameter-defaults-after-explicit-arguments.hd	runtime
 typing/invalid/parameter-default-type-mismatch.hd	type
 runtime/valid/varargs-in-trait-and-suspending-methods.hd	runtime
@@ -928,9 +924,7 @@ runtime/valid/closure-captures-per-iteration.hd	runtime
 parse/invalid/mut-function-type.hd	parse
 parse/invalid/mut-closure-literal.hd	parse
 typing/valid/function-type-constructors.hd	type
-runtime/valid/spelled-function-type-values.hd	runtime
 typing/invalid/function-type-non-tuple-inputs.hd	type
-typing/invalid/function-type-rest-nonfinal.hd	type
 typing/valid/function-type-variance.hd	type
 typing/invalid/function-result-representation-change.hd	type
 typing/invalid/closure-identity.hd	type
@@ -1492,3 +1486,7 @@ runtime/valid/iterator-single-pass.hd	runtime
 parse/invalid/match-arm-mut-pattern.hd	parse
 runtime/valid/tuple-element-permission.hd	runtime
 parse/invalid/for-pattern-mut.hd	parse
+typing/invalid/vararg-ellipsis-after-type.hd	type
+typing/invalid/vararg-function-value-arity.hd	type
+typing/invalid/vararg-type-not-collection.hd	type
+typing/invalid/function-type-unbounded-inputs.hd	type

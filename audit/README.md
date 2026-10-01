@@ -9,15 +9,15 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,493 of the 1,682 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 189 are listed in
+On 2026-09-30 the prototype passes 1,491 of the 1,694 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 203 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 189 still fail. By
+decision below, and all 203 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,623 | 1,441 | 182 |
+| language | 1,635 | 1,439 | 196 |
 | stdlib | 59 | 52 | 7 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -55,6 +55,11 @@ them by tag:
 | LP-irrefutable-else | 1 | batch 30: `let` has no `else`, so an `else` after an irrefutable pattern is `syntax-error`, not `unreachable-match-arm` |
 | LP-discard | 1 | batch 30: `let _ = save()` is `syntax-error` |
 | Q5-tuple | 1 | batch 30: `(a, b := value)` still reports the withdrawn grouped binding |
+| VARARG-SPELL | 4 | batch 31: a function value keeps its vararg, so `f := count` is not `fn(List[i32]) -> i32`, and `fn(i32...) -> i32` is still accepted |
+| VARARG-TYPE | 4 | batch 31: only a `List[T]` vararg is supported; a tuple or `Tuple`-bounded one is `unsupported-tuple-vararg` |
+| Q5 | 3 | batch 31: no `std.function.Tuple`, and `Fn` inputs are tuple-kinded only by use |
+| Q8 | 2 | batch 31: a spread still needs a vararg, so a tuple spread is `positional-spread-needs-vararg` |
+| Q7 | 1 | batch 31: every `race!` call is `unsupported-task-combinator` |
 
 ## What Remains
 
