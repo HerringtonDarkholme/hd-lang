@@ -22,3 +22,6 @@ SSC-Q8	3	Map index reads V (batch 26, Q8): the prototype still types m[k] as V?
 AT-gen	2	Generic derived Arbitrary (batch 26, AT-gen): the prototype's checker-generated Arbitrary gives a member's type parameter no Inspectable bound
 LP	17	Patterns in let (batch 26, LP1 and LP1-one): the prototype's let takes only a name or a parenthesized name list and has no let-else, so data, variant, and nested patterns are syntax-error; it still accepts a multi-name := and reports other patterns before := as syntax-error, not missing-let
 Q5-list	1	List items may be bindings (batch 26, Q5-list): the prototype reports the withdrawn multi-binding-needs-parentheses for [a, b := value]
+TU2	3	Tuples have no mut form (batch 27, TU2): the prototype accepts a mut tuple parameter type and reports mutable-upgrade, not mut-on-tuple, for a mut tuple annotation and for let mut on a tuple
+ST8-own	1	A template's call qualified by the derived trait (batch 28, ST8-own): the prototype reports Named::name() as associated-function-needs-target
+RETRY	1	The retry! library loop (batch 29, RETRY): the prototype has no std.task.retry

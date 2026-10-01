@@ -176,3 +176,8 @@ parse/invalid/short-binding-variant-pattern.hd	the prototype reports `.Some(v) :
 parse/invalid/short-binding-tuple-pattern.hd	the prototype still accepts the multi-name `(low, high) := pair()`, which grammar.stmt.short-binding.let-only makes missing-let	LP
 parse/invalid/short-binding-tuple-same-line.hd	the prototype still accepts the multi-name `if flag: (a, b) := pair()`, which grammar.stmt.short-binding.let-only makes missing-let	LP
 parse/valid/list-item-binding-expression.hd	the prototype still reports the withdrawn multi-binding-needs-parentheses for `[a, b := pair()]`, a list whose last item is the binding `b := pair()` (grammar.expr.multi-binding.list-item)	Q5-list
+typing/invalid/mut-tuple-parameter.hd	the prototype accepts a tuple type written with mut, as in `pair: mut (User, i32)`, which types.tuple.no-mut makes mut-on-tuple	TU2
+typing/invalid/mut-tuple-annotation.hd	the prototype reports mutable-upgrade for `let p: mut (i32, i32) = (1, 2)`, which types.tuple.no-mut makes mut-on-tuple	TU2
+typing/invalid/let-mut-tuple.hd	the prototype reports mutable-upgrade for `let mut pair = (1, 2)`, which types.bind.let-mut-tuple makes mut-on-tuple	TU2
+runtime/valid/template-derived-trait-self.hd	the prototype resolves a receiverless template call only as `T::name()`, so `Structure::name()` is unknown-type and `Named::name()` is associated-function-needs-target (annot.template.qualified-self)	ST8-own
+runtime/valid/task-retry.hd	the prototype has no `std.task.retry`, so `retry!` is unknown-name (std-task.combinator.retry)	RETRY

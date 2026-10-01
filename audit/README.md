@@ -9,16 +9,16 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,492 of the 1,669 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 177 are listed in
+On 2026-09-30 the prototype passes 1,493 of the 1,675 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 182 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 177 still fail. By
+decision below, and all 182 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,616 | 1,445 | 171 |
-| stdlib | 53 | 47 | 6 |
+| language | 1,616 | 1,441 | 175 |
+| stdlib | 59 | 52 | 7 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
@@ -48,6 +48,9 @@ them by tag:
 | AT-gen | 2 | batch 26: derived `Arbitrary` gives a member's type parameter no `Inspectable` bound |
 | LP | 17 | batch 26, LP1 and LP1-one: `let` takes only a name or a name list, with no let-else, and `(a, b) :=` is still accepted |
 | Q5-list | 1 | batch 26: `[a, b := value]` still reports the withdrawn `multi-binding-needs-parentheses` |
+| TU2 | 3 | batch 27: `mut (A, B)` is accepted or `mutable-upgrade`, and `let mut` on a tuple is `mutable-upgrade`, not `mut-on-tuple` |
+| ST8-own | 1 | batch 28: `Named::name()` in `Named`'s template is `associated-function-needs-target` |
+| RETRY | 1 | batch 29: the prototype has no `std.task.retry` |
 
 ## What Remains
 
