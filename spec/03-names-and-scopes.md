@@ -45,13 +45,15 @@ fn make() -> void:
 
 1. r[names.prelude.source] Every built-in core type is supplied by the prelude described in [Modules and Packages](10-modules.md#prelude).
 2. r[names.prelude.not-reserved] Prelude names remain ordinary identifier tokens rather than reserved words.
-3. r[names.prelude.no-shadow] A module declaration, use, type parameter, parameter, or local binding must not shadow a prelude name. Every such conflict is an error. Error: `prelude-name-shadow`.
-4. r[names.prelude.one-namespace] There is no separate predeclared-name namespace or shadowing rule.
+3. r[names.prelude.one-namespace] There is no separate predeclared-name namespace or shadowing rule.
 
 ```text
 data i32:  # error: prelude-name-shadow
     value: string
 ```
+
+See also: [`module.prelude.no-shadow`](10-modules.md#r-module.prelude.no-shadow), which makes
+shadowing a prelude name an error.
 
 ### Type Parameters
 
@@ -655,8 +657,8 @@ data Record:
 > `AuditDraft.CreatedBySystem.id`.
 
 > **Note.** A package that adds a `pub` member to a type used as a part can
-> therefore break the declarations of types that embed it, in their own
-> packages, but never a use.
+> therefore break the declarations of types that embed it. They break in
+> their own packages, and a use never breaks.
 
 > **Note.** An implementation may compute one table of resolved members for
 > each data type. It holds the type's own members at depth 0 and the `pub`
@@ -690,7 +692,7 @@ method, then the candidates, and reports an error when neither applies.
 4. r[names.method-lookup.unavailable] A trait method whose trait is not available is not a candidate and has no effect on the lookup.
 5. r[names.method-lookup.one] Exactly one candidate is selected; a single candidate with the wrong signature is still selected, and the call is then checked against it.
 6. r[names.method-lookup.generic-trait] When the only candidates come from several instantiations of one generic trait, the call chooses among them as in [Method Resolution](09-traits.md#method-resolution).
-7. r[names.method-lookup.ambiguous] A promoted candidate beside a trait candidate, or trait candidates of two or more traits, are an error, whatever the signatures and wherever the implementation is declared, including a delegating one: neither silently wins. Error: `ambiguous-method`.
+7. r[names.method-lookup.ambiguous] A promoted candidate beside a trait candidate is an error, and so are trait candidates of two or more traits. This holds whatever the signatures, and wherever the implementation is declared, a delegating one included. Neither silently wins. Error: `ambiguous-method`.
 
 > **Note.** For the error revamp: the `ambiguous-method` message suggests
 > the trait-qualified form `Trait::name(x, ...)` or the explicit path

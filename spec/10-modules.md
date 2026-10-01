@@ -60,8 +60,8 @@ pdf = "github.com/acme/pdf@0.4.1-0.20260912081500-3f2c9e1a7b6d"
 8. r[module.dep.no-major-suffix] A host path carries no major-version suffix such as `/v2`.
 
 > **Why.** Go puts `/v2` in the path because its imports repeat the path.
-> hd source says `dep.json`, so a second key tells two lines apart, and a
-> major upgrade edits one manifest line.
+> In hd, source says `dep.json`, so a second key tells two lines apart, and
+> a major upgrade edits one manifest line.
 
 ### Host Paths
 
@@ -592,10 +592,10 @@ See also: [Driving A Stored Suspension](11-requirements-and-suspension.md#drivin
 3. r[module.prelude.anyref-not] `AnyRef` is not implemented by primitives or tuples.
 4. r[module.prelude.anyval-types] `AnyVal` is implemented by exactly the primitives, `void`, tuples, and newtypes whose base type implements `AnyVal`.
 5. r[module.prelude.newtype-category] A newtype implements `AnyRef` exactly when its base type does.
-6. r[module.prelude.never-exempt] `never` implements neither, because it has no values.
-7. r[module.prelude.any-sealed] User code cannot implement either.
+6. r[module.prelude.any-sealed] User code cannot implement either.
 
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any),
+[`types.sealed.never`](04-type-system.md#r-types.sealed.never) for `never`,
 [Sealed Traits](09-traits.md#sealed-traits).
 
 ### Built-In Methods

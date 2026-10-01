@@ -702,11 +702,11 @@ impl[T = i32] Box[T]:  # error: syntax-error
 ### Generic Parameter Modifiers
 
 1. r[grammar.generic.reified-modifier] An unbackticked `reified` at the start of a `generic_parameter` is always the modifier, never the parameter name, so `[reified]` is an error. Error: `syntax-error`.
-2. r[grammar.generic.reified-name] A parameter named reified is written `` [`reified`] ``.
-3. r[grammar.generic.variance] Variance markers are valid on generic type declarations, not function generic parameters.
-4. r[grammar.generic.reified-positions] `reified` is valid on function, method, variant, and generic-implementation parameters, not generic type declarations.
+2. r[grammar.generic.variance] Variance markers are valid on generic type declarations, not function generic parameters.
+3. r[grammar.generic.reified-positions] `reified` is valid on function, method, variant, and generic-implementation parameters, not generic type declarations.
 
-See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words).
+See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words),
+and [`lex.contextual.reified.raw`](01-lexical-structure.md#r-lex.contextual.reified.raw) for a parameter named reified.
 
 ## Types
 
@@ -1347,15 +1347,15 @@ See also: [Positional Spreads](05-expressions.md#positional-spreads), for what a
 #### Trailing Blocks
 
 A call whose final parameter is a zero-argument function may use an indented
-trailing block as a complete statement or as the complete right-hand side of
-`:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`:
+trailing block. The call may stand as a complete statement, or as the complete
+right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`:
 
 ```ebnf
 trailing_block_call = postfix_expression, ":", indented_suite_body ;
 indented_suite_body = NEWLINE, INDENT, statement, { statement }, DEDENT ;
 ```
 
-1. r[grammar.call.trailing-block] A call whose final parameter is a zero-argument function may use an indented trailing block as a complete statement or as the complete right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`.
+1. r[grammar.call.trailing-block] A call whose final parameter is a zero-argument function may use an indented trailing block. The call may stand as a complete statement, or as the complete right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`.
 2. r[grammar.call.trailing-block.no-arguments] When there are no ordinary arguments, the call omits `()`, as in `transaction:`.
 3. r[grammar.call.trailing-block.accepted] This production is accepted only at delimiter depth zero when the call is the complete statement or one of those complete right-hand sides.
 4. r[grammar.call.trailing-block.eligible] It is also accepted only when name and type resolution identify a callable with an eligible final parameter.
@@ -1416,8 +1416,9 @@ closure_parameter = identifier, [ ":", type ] ;
 ```
 
 1. r[grammar.closure.parameter-types] Omitted closure parameter types require an expected function type.
-2. r[grammar.closure.result-type] A nonrecursive closure may infer its result type from its body.
-3. r[grammar.closure.annotations] A standalone or otherwise ambiguous closure must provide enough annotations to determine its complete function type.
+2. r[grammar.closure.annotations] A standalone or otherwise ambiguous closure must provide enough annotations to determine its complete function type.
+
+See also: [Closure Annotations](07-functions.md#closure-annotations), which says when a closure may infer its result type.
 
 ## Control-Flow Expressions
 
@@ -1493,10 +1494,9 @@ arm_body = suite_expression
 
 1. r[grammar.flow.for-in-brackets] A `for` loop is an expression, so it may also appear inside brackets, as in `[for x in xs: body]` or `(for (k, v) in m: body)`.
 2. r[grammar.flow.if-else] An `if` used where a value is required must have an `else`; statement-position `if` may omit it.
-3. r[grammar.flow.loop-void] A loop without `else` has type `void`.
-4. r[grammar.flow.semantic] The `if` and loop rules above are semantic rules, not separate grammar productions.
-5. r[grammar.flow.for-pattern] A `for` loop or a comprehension `for` clause takes a pattern before `in`, as `let` does. So `for (key, value) in entries` uses a tuple pattern, and `for Point { x, y } in points` a data pattern.
-6. r[grammar.flow.for-list.bare] A bare list, as in `for key, value in entries`, is an error whose fix-it adds the parentheses. Error: `syntax-error`.
+3. r[grammar.flow.semantic] The `if` and loop rules above are semantic rules, not separate grammar productions.
+4. r[grammar.flow.for-pattern] A `for` loop or a comprehension `for` clause takes a pattern before `in`, as `let` does. So `for (key, value) in entries` uses a tuple pattern, and `for Point { x, y } in points` a data pattern.
+5. r[grammar.flow.for-list.bare] A bare list, as in `for key, value in entries`, is an error whose fix-it adds the parentheses. Error: `syntax-error`.
 
 ```text
 fn names(scores: Map[string, i32]) -> List[string]:
@@ -1511,8 +1511,9 @@ fn names(scores: Map[string, i32]) -> List[string]:
 > reads the same in both. The commas of a pattern stand inside brackets,
 > so a same-line suite may hold the loop.
 
-See also: [Let Statements](#let-statements), and
-[For Loops](06-control-flow.md#for-loops) for which patterns a loop accepts.
+See also: [Let Statements](#let-statements),
+[For Loops](06-control-flow.md#for-loops) for which patterns a loop accepts, and
+[Loop Values](06-control-flow.md#loop-values) for a loop's type.
 
 ## Patterns
 

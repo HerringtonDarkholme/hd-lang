@@ -1117,8 +1117,8 @@ fn size(counts: Map[string]) -> i32:  # error: partial-generic-arguments
     0
 ```
 
-> **Why.** Defaults apply only after inference, as in C++ and TypeScript,
-> so adding a default never changes a program that compiled without it: it
+> **Why.** Defaults apply only after inference, as in C++ and TypeScript.
+> So adding a default never changes a program that compiled without it; it
 > only fills a parameter that used to be an error. Rust's inference
 > fallback could not keep that property. A default is written at the
 > declaration, so declarations stay fully written; only use sites apply it.

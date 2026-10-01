@@ -540,18 +540,16 @@ user := User {
 ```
 
 1. r[expr.data.required] A data expression names its type and provides every required field.
-2. r[expr.data.any-order] Fields may appear in any order.
-3. r[expr.data.once] Every field may appear at most once.
-4. r[expr.data.unknown] An unknown field is a compile-time error.
-5. r[expr.data.eval] Field initializers evaluate in source order, not declaration order.
+2. r[expr.data.once] Every field may appear at most once.
+3. r[expr.data.eval] Field initializers evaluate in source order, not declaration order.
 
 > **Note.** An embedded field is filled with a copy marker, as in
 > `Timestamps: ...stamps`, which stores the copy-update
 > `Timestamps { ...stamps }`, as
 > [`data.part.construct`](08-data-and-enums.md#r-data.part.construct) states.
 
-See also: [Data Literals](08-data-and-enums.md#data-literals),
-[Data Embedding](08-data-and-enums.md#data-embedding).
+See also: [Data Literals](08-data-and-enums.md#data-literals) for field order and
+unknown fields, and [Data Embedding](08-data-and-enums.md#data-embedding).
 
 #### Copy-Update Expressions
 
@@ -823,10 +821,9 @@ resize(640, height=480)
 #### Named Arguments
 
 1. r[expr.call.named] Each named argument identifies a parameter by its declared name.
-2. r[expr.call.named.unknown] A named argument that names no parameter is an error. Error: `unknown-named-argument`.
-3. r[expr.call.exactly-once] A parameter must receive exactly one argument after defaults are applied.
-4. r[expr.call.duplicate] Supplying one parameter more than once, such as positionally and again by name, is an error. Error: `duplicate-argument`.
-5. r[expr.call.source-order] Evaluation order follows source argument order, not parameter declaration order.
+2. r[expr.call.exactly-once] A parameter must receive exactly one argument after defaults are applied.
+3. r[expr.call.duplicate] Supplying one parameter more than once, such as positionally and again by name, is an error. Error: `duplicate-argument`.
+4. r[expr.call.source-order] Evaluation order follows source argument order, not parameter declaration order.
 
 ```text
 fn resize(width: i32, height: i32) -> i32: width * height
@@ -836,6 +833,9 @@ fn area() -> i32:
     twice := resize(640, width=480)    # error: duplicate-argument
     unknown + twice
 ```
+
+See also: [`fn.arg.unknown-name`](07-functions.md#r-fn.arg.unknown-name), which makes an unknown
+named argument an error.
 
 #### Positional Spreads
 
@@ -907,9 +907,10 @@ first::[string](names)
 1. r[expr.call.generic.position] Generic arguments, when explicit, occur before the call argument list.
 2. r[expr.call.generic.trailing] An explicit list may omit trailing arguments, which are inferred or defaulted as [Explicit Type Arguments](07-functions.md#explicit-type-arguments) states.
 3. r[expr.call.generic.targets] In hd-lang, explicit arguments may specialize a named module function or qualified function introduced by a use declaration.
-4. r[expr.call.generic.methods] The same explicit-list rules apply to generic methods.
 
-See also: [Functions](07-functions.md).
+See also: [Functions](07-functions.md), and
+[Generic Methods And Qualified Calls](07-functions.md#generic-methods-and-qualified-calls)
+for generic methods.
 
 #### Callable Values
 

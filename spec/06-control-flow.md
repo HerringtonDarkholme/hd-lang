@@ -559,8 +559,8 @@ fn short(t: (i32, i32, List[i32]...)) -> i32:
 ```
 
 > **Note.** A spread pattern stands wherever a tuple pattern does: in a
-> `let`, a `for` loop or comprehension clause, and a `match` arm. hd has
-> no list patterns, so it has no `[a, rest...]` form.
+> `let`, a `for` loop or comprehension clause, and a `match` arm. There
+> are no list patterns, so there is no `[a, rest...]` form.
 
 > **Why.** The pattern mirrors the type `(i32, i32, List[i32]...)` and
 > the expression `(a, b, xs...)`, so a rest tuple is built and taken apart

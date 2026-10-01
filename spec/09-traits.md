@@ -1917,7 +1917,7 @@ impl Named for Service by Logger  # error: missing-trait-method
 A type that implements two traits with same-named default methods makes a
 dot call of that name ambiguous where both traits are available.
 
-1. r[trait.conflict.ambiguous-available] If a type implements two traits that provide default methods with the same name, a dot call of that name is an error when both traits are available, even though both implementations are individually valid. Error: `ambiguous-method`.
+1. r[trait.conflict.ambiguous-available] When a type implements two traits whose default methods share a name, a dot call of that name is an error if both traits are available. Each implementation is still valid alone. Error: `ambiguous-method`.
 2. r[trait.conflict.inherent] The type may define an inherent method to provide its ordinary dot-call behavior.
 3. r[trait.conflict.qualified] The caller may instead use `Trait::method(value, ...)` to select one implementation.
 

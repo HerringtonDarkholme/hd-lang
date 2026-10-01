@@ -248,7 +248,7 @@ sum(items...)
 
 1. r[fn.vararg.collect.list] For `List[T]`, each argument is checked against `T`, and the list holds the arguments in order.
 2. r[fn.vararg.collect.tuple-expr] For a tuple type, the arguments are collected exactly as the tuple expression of them, against that type, by [Tuple Expressions](05-expressions.md#parenthesized-and-tuple-expressions) and [Tuple Rest Elements](05-expressions.md#tuple-rest-elements). So `call(g, 1, 2, xs...)` collects `(1, 2, xs...)`. Error: `type-mismatch`.
-3. r[fn.vararg.tuple-param.expected] When the vararg's type is a type parameter bounded by `Tuple` that another argument solves, as `f` solves `Args` below, the vararg's arguments are checked against that solved tuple as an expected type.
+3. r[fn.vararg.tuple-param.expected] When another argument solves the vararg's `Tuple`-bounded type parameter, as `f` solves `Args` below, the vararg's arguments are checked against that solved tuple as an expected type.
 4. r[fn.vararg.tuple-param.infer] When no other argument solves it, inference solves it as the tuple of the argument types, one element per argument, with no join.
 5. r[fn.vararg.no-auto-spread] A tuple argument is never spread automatically: it is one element of the collected tuple.
 

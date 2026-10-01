@@ -64,7 +64,7 @@ result := choice(
 1. r[lex.line.logical] A logical line consists of one or more physical lines.
 2. r[lex.continue.delimiters] A physical line is continued implicitly while the lexer is inside an unmatched `(`, `[`, or `{`.
 3. r[lex.continue.no-suffix] A continued line still cannot extend the previous line's last operand with a bracketed suffix.
-4. r[lex.continue.suffix-line] A call `(`, an index `[`, the `::` of a type-argument list, a data-literal `{`, and the `!` of a suspension call must start on the same physical line as the end of their operand.
+4. r[lex.continue.suffix-line] Five tokens must start on the same physical line as the end of their operand. They are a call `(`, an index `[`, the `::` of a type-argument list, a data-literal `{`, and the `!` of a suspension call.
 5. r[lex.continue.new-operand] Inside delimiters, a line whose first token is `(`, `[`, `{`, or `!` therefore begins a new operand, and the separator before it is required.
 6. r[lex.continue.missing-separator] A list written as `first` on one line and `[1]` on the next, without a comma between them, is not `first[1]`. It is an error. Error: `syntax-error`.
 

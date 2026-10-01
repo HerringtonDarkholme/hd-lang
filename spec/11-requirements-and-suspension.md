@@ -277,7 +277,7 @@ fn serve_one(admin: bool) -> string $ Db + Clock:
 9. r[req.row.union.literal.invariant] The inferred collection keeps the union row, and it converts to no list or map with a wider row, as the Note above states.
 10. r[req.row.union.literal.diagnostics] A diagnostic prints an inferred union row as the elements' rows are written, in element order, with each key or alias once.
 11. r[req.row.union.literal.diagnostics.expanded] A `missing-requirement` or `type-mismatch` diagnostic on that row also lists its expanded keys and names the missing key, as [`req.row.alias.diagnostics.expanded`](#r-req.row.alias.diagnostics.expanded) states.
-12. r[req.row.union.sites] The other least-common-type sites take the union the same way: the branches of a value-producing `if`, the arms of a value-producing `match`, and the final value and `return` operands of a closure or non-public function whose result type is inferred.
+12. r[req.row.union.sites] The other least-common-type sites take the union the same way. They are the branches of a value-producing `if` and the arms of a value-producing `match`. They also include the final value and `return` operands of a closure or non-public function whose result type is inferred.
 13. r[req.row.union.sites.type] At each such site, the inferred type is the least common type of the values' types after each function type's row is widened to the union of their rows. Each value then fits that type by row subsumption.
 14. r[req.row.union.sites.direct] At every site, only function values take the union. A value that holds function values keeps its own type, so `if admin: [orders] else: [health]` has no common type. Error: `no-common-type`.
 
@@ -813,7 +813,7 @@ fn tick() -> void $ mut Counter:  # error: syntax-error
 > the provider can change.
 
 > **Note.** Adding a `mut self` method, even one with a default, to a
-> published requirement trait that had none is a breaking change: `$.use`
+> published requirement trait that had none is a breaking change. `$.use`
 > then yields `mut K`, and installing a readonly value becomes
 > `mutable-upgrade`.
 

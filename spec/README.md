@@ -3116,3 +3116,15 @@ existing source. Each entry names the decision that made the change.
   stdlib tier
   ([`std-format.debug.builder.tuple.unnamed`](std/format.md#r-std-format.debug.builder.tuple.unnamed)):
   `debug((1,))` is `(1,)`, and `debug(())` is `()`.
+- Cross-chapter duplicate rules merged (audit cleanup, batch 35,
+  2026-10-01): language tier, no program changes. Each deleted rule
+  repeated a rule of another chapter word for word; that rule stays, and
+  the deleted rule's section links to it. Retired, with the rule kept:
+  grammar.generic.reified-name (lex.contextual.reified.raw),
+  grammar.closure.result-type (fn.closure.result-inferred),
+  grammar.flow.loop-void (flow.loop.void), names.prelude.no-shadow
+  (module.prelude.no-shadow), module.prelude.never-exempt
+  (types.sealed.never), expr.data.any-order (data.literal.any-order),
+  expr.data.unknown (data.literal.unknown), expr.call.named.unknown
+  (fn.arg.unknown-name), and expr.call.generic.methods
+  (fn.generic.methods).
