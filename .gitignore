@@ -39,7 +39,6 @@ build/
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-ppnpm-debug.log*
 .next/
 .nuxt/
 .svelte-kit/
