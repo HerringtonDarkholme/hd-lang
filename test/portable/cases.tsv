@@ -1498,3 +1498,4 @@ parse/invalid/reserved-word-suffix.hd	parse
 parse/invalid/reserved-word-prefix.hd	parse
 typing/invalid/display-tuple-element-without-display.hd	type
 typing/invalid/display-tuple-thirteen-elements.hd	type
+parse/invalid/spread-pattern-not-last.hd	parse

@@ -179,6 +179,10 @@ pub fn debug[T < Debug](value: T) -> string:
     out.text
 
 # Tuples of at most 12 elements (spec/09-traits.md#r-trait.debug.std-types).
+# Rest tuples (trait.debug.std-types.rest, expr.interp.std.tuple.rest) get
+# impls such as `impl[A < Debug, T < Debug] Debug for (A, List[T]...)`,
+# writing `self._1`'s items as fields, once the prototype has tuple rest
+# elements; until then their fixtures are TUPLE-REST known failures.
 impl Debug for ():
     fn debug(self, out: mut DebugWriter) -> void:
         out.debug_tuple("").finish()
