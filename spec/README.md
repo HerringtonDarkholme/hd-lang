@@ -291,8 +291,9 @@ The stdlib chapters' terms are in the
 | **type-argument default** | A type written with `=` after a generic parameter's bound, used when a use site leaves the parameter unsolved or a written type omits it. See [Type-Argument Defaults](04-type-system.md#type-argument-defaults). |
 | **type-argument marker** | The `::` before an explicit type-argument list in an expression, as in `first::[string](names)`. See [`grammar.expr.type-arguments.marker`](02-grammar.md#r-grammar.expr.type-arguments.marker). |
 | **typed derivation** | Implementing a trait for a data type or enum from its members through the trait's template. See [Typed Derivation](14-annotations.md#typed-derivation). |
-| **typed fact type** | A fact type whose `@annotate` decorator has a type argument, as in `@annotate::[T](.Field)`, so a value on a target checks against the fact type at the target's type. See [`annot.typed-fact.declare`](14-annotations.md#r-annot.typed-fact.declare). |
+| **typed fact type** | A fact type whose `@annotate` decorator writes a type argument, as in `@annotate::[T](.Field)`, so a value on a target checks against the fact type at the target's type. See [`annot.typed-fact.declare`](14-annotations.md#r-annot.typed-fact.declare). |
 | **unbound method reference** | `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter. See [`fn.ref.unbound`](07-functions.md#r-fn.ref.unbound). |
+| **untyped fact type** | A fact type whose `annotate` type argument is the default `Any`, as in `@annotate(.Field)`, so its values stay unchecked. See [`annot.typed-fact.untyped`](14-annotations.md#r-annot.typed-fact.untyped). |
 | **value expression** | An expression that produces a value. See [`expr.category.value`](05-expressions.md#r-expr.category.value). |
 | **value names** | The name category of top-level executable bindings, parameters, local bindings, local named functions, loop bindings, pattern bindings, and captured values. See [`names.category.value`](03-names-and-scopes.md#r-names.category.value). |
 | **vararg** | A final parameter written `name...: T`, which collects the call's remaining positional arguments into `T`. See [`fn.vararg.form`](07-functions.md#r-fn.vararg.form). |
@@ -3211,7 +3212,7 @@ existing source. Each entry names the decision that made the change.
   [stands for its target's type](14-annotations.md#r-annot.typed-fact.target-param):
   a field's declared type, or a function's signature type with its `!`
   and row. The type argument is optional
-  ([`annot.typed-fact.opt-in`](14-annotations.md#r-annot.typed-fact.opt-in)),
+  (annot.typed-fact.opt-in, since retired),
   since `annotate`'s new type parameter is never inferred. Rule 1
   ([`annot.typed-fact.check`](14-annotations.md#r-annot.typed-fact.check)):
   a value on `a: i32` checks like `let f: Fact[i32] = value`, so its type
@@ -3287,3 +3288,22 @@ existing source. Each entry names the decision that made the change.
   type argument as written or omitted and never inferred, and typed-fact
   targets limited to fields and module-level functions. No rule ID
   retired.
+- `annotate` type-argument default (owner decision ANNOTATE-DEFAULT,
+  batch 41, 2026-10-01; recorded in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions)):
+  language tier. The spec now declares
+  `pub fn annotate[T = Any](kinds...: List[Target]) -> Annotate`, as
+  `lib/std` already did. So a plain `@annotate(.Field)` gets `T = Any` by
+  the ordinary rule
+  [`types.generic.default.fill`](04-type-system.md#r-types.generic.default.fill),
+  and the batch 40 exception that `annotate`'s type argument is written or
+  omitted, never inferred, is gone. An
+  [untyped fact type](14-annotations.md#r-annot.typed-fact.untyped) is one
+  whose `T` is the default `Any`, and its values stay unchecked. Retired:
+  `annot.typed-fact.opt-in` (annot.typed-fact.untyped, and
+  annot.typed-fact.untyped.no-annotate for a type without an `Annotate`
+  fact). annot.typed-fact.declare is reworded, "writes a type argument"
+  for "has a type argument", with the same meaning. For existing programs:
+  nothing changes. A written argument that is not one of the fact type's
+  own parameters, `@annotate::[Any](.Field)` included, stays
+  `type-mismatch`.

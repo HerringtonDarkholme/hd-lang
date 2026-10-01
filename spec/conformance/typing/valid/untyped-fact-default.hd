@@ -1,0 +1,16 @@
+# test: a plain @annotate(.Field) takes the default T = Any, so the fact type is untyped and its values stay unchecked
+# Spec 14 Member-Typed Facts: annot.typed-fact.untyped; `@note("x")` on `count: i32` is not checked against the field (owner decision ANNOTATE-DEFAULT, batch 41, 2026-10-01).
+use std.annotation.annotate
+
+@annotate(.Field)
+data Note[T]:
+    value: T
+
+fn note[T](value: T) -> Note[T]:
+    Note::[T] { value: value }
+
+data Counter:
+    @note("x")
+    count: i32
+    @note(3)
+    label: string

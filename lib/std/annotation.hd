@@ -142,8 +142,7 @@ pub data Annotate:
 # `T`, when written as in `@annotate::[F](.Field)`, names the fact type's
 # parameter that stands for its target's type, which makes it a typed fact
 # type (r-annot.typed-fact.declare). The compiler reads it and checks each
-# value (src/checker/typed-facts.ts). It is never inferred
-# (r-annot.typed-fact.opt-in); the prototype writes that as the default
-# `Any`, so an omitted one needs no inference.
+# value (src/checker/typed-facts.ts). When omitted, it takes the default
+# `Any`, and the fact type is untyped (r-annot.typed-fact.untyped).
 pub fn annotate[T = Any](kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }

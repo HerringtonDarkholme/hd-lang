@@ -60,6 +60,8 @@ name, and git history keeps the decision tables this file used to hold.
   monomorphic check (Rule 2), and LITERAL-MARKERS.
 - **Batch 40:** SUFFIX-ROWS, inferred other parameters, a bad target
   parameter, and three confirmations.
+- **Batch 41:** ANNOTATE-DEFAULT, `annotate[T = Any]`
+  ([untyped fact types](../spec/14-annotations.md#r-annot.typed-fact.untyped)).
 
 ### Readings Waiting For Confirmation
 

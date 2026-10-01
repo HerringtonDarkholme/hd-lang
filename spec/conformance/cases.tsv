@@ -1765,4 +1765,5 @@ typing/invalid/typed-fact-value-mismatch.hd	type	reject:type-mismatch	14-annotat
 typing/valid/typed-fact-generic-owner.hd	type	accept	14-annotations.md#r-annot.typed-fact.monomorphic
 typing/valid/typed-fact-other-params.hd	type	accept	14-annotations.md#r-annot.typed-fact.check.other-params
 typing/invalid/typed-fact-target-not-param.hd	type	reject:type-mismatch	14-annotations.md#r-annot.typed-fact.target-param.invalid
+typing/valid/untyped-fact-default.hd	type	accept	14-annotations.md#r-annot.typed-fact.untyped
 typing/valid/arbitrary-with-generic-generator.hd	type	accept	std/testing.md#r-std-testing.arbitrary.with.checked
