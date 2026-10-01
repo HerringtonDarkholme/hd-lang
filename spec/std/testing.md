@@ -224,6 +224,12 @@ pub data With[F]:
 pub fn with[F](gen: fn(mut Choices) -> F) -> With[F]
 ```
 
+> **Note.** The member's declared type is the expected type of `F`, by
+> [`annot.typed-fact.expected`](../14-annotations.md#r-annot.typed-fact.expected).
+> So a generic generator such as `fn any_text[T](c: mut Choices) -> T`
+> needs no type argument: `@arbitrary.with(any_text)` on `name: string`
+> solves `T = string`.
+
 ```text
 use std.testing.{Arbitrary, Choices, assert, it_prop}
 use std.testing.arbitrary

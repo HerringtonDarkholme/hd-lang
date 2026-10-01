@@ -9,16 +9,17 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-10-01 the prototype passes 1,582 of the 1,756 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 174 are listed in
-`test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 174 still fail. By
-[tier](../spec/conformance/README.md#tiers):
+On 2026-10-01 the conformance suite has 1,759 cases, and
+`test/portable/cases.tsv` selects the 1,613 that the prototype passes. 135
+are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
+finding or with a decision below. The other 11, map-key and
+`std.task.retry` fixtures, are in neither file: their known-failure rows
+were dropped, but they were never selected. By [tier](../spec/conformance/README.md#tiers):
 
-| Tier | Cases | Pass | Known failures |
-| --- | ---: | ---: | ---: |
-| language | 1,683 | 1,522 | 161 |
-| stdlib | 73 | 60 | 13 |
+| Tier | Cases | Selected | Known failures | Neither |
+| --- | ---: | ---: | ---: | ---: |
+| language | 1,686 | 1,551 | 128 | 7 |
+| stdlib | 73 | 62 | 7 | 4 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
@@ -41,32 +42,31 @@ them by tag:
 | SSC-Q3 | 3 | batch 26: a plain-string `$` that begins no interpolation is still a `syntax-error` |
 | SSC-Q4 | 21 | batch 26: `for (key, value) in m` does not parse, and the bare form is accepted |
 | SSC-Q5 | 2 | batch 26: `((a, b) := value)` is accepted, and `[(a, b) := value]` reports the withdrawn `multi-binding-needs-parentheses` |
-| SSC-Q7 | 7 | batch 26: a key without `Eq` or `Hash` is `invalid-map-key`, and a `mut` key type is accepted |
 | SSC-Q8 | 3 | batch 26: `m[k]` is still typed `V?` |
 | AT-gen | 2 | batch 26: derived `Arbitrary` gives a member's type parameter no `Inspectable` bound |
 | LP | 17 | batch 26, LP1 and LP1-one: `let` takes only a name or a name list, with no let-else, and `(a, b) :=` is still accepted |
 | Q5-list | 1 | batch 26: `[a, b := value]` still reports the withdrawn `multi-binding-needs-parentheses` |
 | TU2 | 3 | batch 27: `mut (A, B)` is accepted or `mutable-upgrade`, and `let mut` on a tuple is `mutable-upgrade`, not `mut-on-tuple` |
 | ST8-own | 1 | batch 28: `Named::name()` in `Named`'s template is `associated-function-needs-target` |
-| RETRY | 4 | batch 29 and 33: the prototype has no `std.task.retry` |
 | LP-for | 4 | batch 30: `for` takes only a name or a bare name list, so `for Point { x, y } in points` and `for .Some(v) in found` are `syntax-error` |
 | LP-irrefutable-else | 1 | batch 30: `let` has no `else`, so an `else` after an irrefutable pattern is `syntax-error`, not `unreachable-match-arm` |
 | LP-discard | 1 | batch 30: `let _ = save()` is `syntax-error` |
 | Q5-tuple | 1 | batch 30: `(a, b := value)` still reports the withdrawn grouped binding |
-| VARARG-TYPE | 4 | batch 31: only a `List[T]` vararg is supported; a tuple or `Tuple`-bounded one is `unsupported-tuple-vararg` |
-| Q5 | 3 | batch 31: no `std.function.Tuple`, and `Fn` inputs are tuple-kinded only by use |
+| VARARG-TYPE | 2 | batch 31: only a `List[T]` vararg is supported; a tuple or `Tuple`-bounded one is `unsupported-tuple-vararg` |
+| Q5 | 1 | batch 31: no `std.function.Tuple`, and `Fn` inputs are tuple-kinded only by use |
 | Q8 | 2 | batch 31: a spread still needs a vararg, so a tuple spread is `positional-spread-needs-vararg` |
 | Q7 | 1 | batch 31: every `race!` call is `unsupported-task-combinator` |
-| Q9 | 7 | batch 31: the prototype still parses type packs, pack expansion, and `pack.map(`, and has no `std.function.Tuple` for a rewritten `Fn[Args, O, R]` |
+| Q9 | 3 | batch 31: the prototype still parses type packs, pack expansion, and `pack.map(`, and has no `std.function.Tuple` for a rewritten `Fn[Args, O, R]` |
 | ALL-INTRINSIC | 6 | batch 31: every `all!` call is `unsupported-task-combinator` |
 | Q6 | 2 | batch 31: tuples have no `Eq` or `Hash`, so a tuple map key is `invalid-map-key` |
 | Q3 | 3 | batch 31: the minus still folds into a suffixed literal, so `-12px` is `px(-12)`, with no `Neg` call and a negated range check |
-| TUPLE-REST | 22 | batch 33: no tuple rest element and no tuple spread; a vararg's type is read as its element type, so `List[i32]...` in a type is a vararg of lists |
+| TUPLE-REST | 4 | batch 33: no tuple rest element and no tuple spread; a vararg's type is read as its element type, so `List[i32]...` in a type is a vararg of lists |
 | Q6-others | 1 | batch 33: interpolation finds `Display` only for an exact target type, so `lib/std`'s generic tuple `Display` is unused |
 | TR-mixed-tail | 1 | batch 34: only a `List[T]` vararg is supported, so a list spread cannot end a tuple vararg's arguments |
-| TR-traits | 4 | batch 34: no tuple rest element, so a rest tuple is `unknown-type` and `lib/std` cannot declare its `Debug` and `Display` |
-| TR-pattern | 5 | batch 34: no spread pattern, so `let (a, xs...) = t` is `syntax-error` |
+| TR-traits | 3 | batch 34: no tuple rest element, so a rest tuple is `unknown-type` and `lib/std` cannot declare its `Debug` and `Display` |
+| TR-pattern | 1 | batch 34: no spread pattern, so `let (a, xs...) = t` is `syntax-error` |
 | O7 | 5 | batch 36: no member-typed facts, so `member_typed` is `unknown-name`, `Field` has no `fact`, and `arbitrary.with` still erases its generator |
+| FACT-EXPECTED | 3 | batch 38: no member-typed facts, so a generic function value in such a fact gets no expected type and is `unresolved-generic-placeholder` |
 | O3b | 5 | batch 36: no tuple `Structure` or tuple templates, so tuple traits stop at 12 elements and a tuple template derives nothing |
 
 ## What Remains

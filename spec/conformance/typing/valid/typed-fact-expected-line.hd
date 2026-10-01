@@ -1,0 +1,24 @@
+# test: a member line's member-typed fact gets the field's declared type as its expected type, so a generic function value needs no type argument
+# Spec 14 Member-Typed Facts: annot.typed-fact.expected; Member Lines: annot.line.typed
+# (owner decision FACT-EXPECTED, batch 38, 2026-10-01).
+use std.annotation.{annotate, member_typed}
+use std.structure.Structure
+
+@annotate(.Field)
+@member_typed
+data Fallback[F]:
+    make: fn() -> F?
+
+fn fallback[F](make: fn() -> F?) -> Fallback[F]:
+    Fallback::[F] { make: make }
+
+fn missing[T]() -> T?:
+    .None
+
+data Profile:
+    name: string
+    age: i32
+
+impl Profile by Structure:
+    name = [fallback(missing)]
+    age += [fallback(missing)]

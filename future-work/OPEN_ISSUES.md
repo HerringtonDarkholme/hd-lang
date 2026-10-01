@@ -433,6 +433,16 @@ remember". No program changes.
 The prototype keeps boxing for now, for correctness first. The
 performance tasks #86, #95, #96, and #122 implement this model later.
 
+**Batch 38, typed-fact follow-ups (owner decisions, 2026-10-01).**
+Applied in pass 38; the [Revision Notes](../spec/README.md#revision-notes)
+list FACT-EXPECTED. The prototype has no member-typed facts yet, so its
+fixtures are known failures.
+
+| # | Decision | Where |
+| --- | --- | --- |
+| FACT-EXPECTED | Yes: a member-typed fact, attached by decorator or member line, gets the field's declared type as its member type argument's expected type. `@arbitrary.with(any_text)` with a generic `fn any_text[T](c: mut Choices) -> T` on `name: string` infers `T = string`. A mismatch stays `type-mismatch`; untyped fact types are unaffected. | [`annot.typed-fact.expected`](../spec/14-annotations.md#r-annot.typed-fact.expected) |
+| FACT-WARN | No: a generic fact type that is not `@member_typed` gets no warning. | no change; [`annot.typed-fact.opt-in`](../spec/14-annotations.md#r-annot.typed-fact.opt-in) stands |
+
 ### Bound And Row Operators
 
 The owner's decisions (2026-09-28) are applied: bounds join with `&`, rows

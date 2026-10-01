@@ -1,0 +1,20 @@
+# test: a member-typed fact gets the field's declared type as its expected type, so a generic function value needs no type argument
+# Spec 14 Member-Typed Facts: annot.typed-fact.expected (owner decision FACT-EXPECTED, batch 38, 2026-10-01).
+use std.annotation.{annotate, member_typed}
+
+@annotate(.Field)
+@member_typed
+data Fallback[F]:
+    make: fn() -> F?
+
+fn fallback[F](make: fn() -> F?) -> Fallback[F]:
+    Fallback::[F] { make: make }
+
+fn missing[T]() -> T?:
+    .None
+
+data Profile:
+    @fallback(missing)
+    name: string
+    @fallback(missing)
+    age: i32

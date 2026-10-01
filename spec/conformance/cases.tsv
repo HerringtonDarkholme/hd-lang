@@ -1749,6 +1749,9 @@ typing/invalid/typed-fact-mismatch.hd	type	reject:type-mismatch	14-annotations.m
 typing/invalid/typed-fact-not-field.hd	type	reject:decorator-target-kind	14-annotations.md#r-annot.typed-fact.field-only
 typing/invalid/typed-fact-no-parameter.hd	type	reject:decorator-target-kind	14-annotations.md#r-annot.typed-fact.needs-param
 typing/valid/typed-fact.hd	type	accept	14-annotations.md#r-annot.handle.fact
+typing/valid/typed-fact-expected.hd	type	accept	14-annotations.md#r-annot.typed-fact.expected
+typing/valid/typed-fact-expected-line.hd	type	accept	14-annotations.md#r-annot.typed-fact.expected
+typing/invalid/typed-fact-expected-mismatch.hd	type	reject:type-mismatch	14-annotations.md#r-annot.typed-fact.expected
 typing/valid/tuple-template.hd	type	accept	14-annotations.md#r-annot.template.tuple.form
 typing/invalid/tuple-template-overlap.hd	type	reject:overlapping-impl	14-annotations.md#r-annot.template.tuple.overlap
 runtime/valid/tuple-thirteen-elements.hd	runtime	accept	09-traits.md#r-trait.target.tuple.no-limit

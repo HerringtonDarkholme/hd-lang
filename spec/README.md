@@ -3186,3 +3186,17 @@ existing source. Each entry names the decision that made the change.
   with a value layout stay unboxed in generic code and containers, so
   boxing remains only for trait values and the polymorphic-recursion
   fallback. The model still states no tuple layout. No rule ID changed.
+- Expected type from a member-typed fact (owner decision FACT-EXPECTED,
+  batch 38, 2026-10-01; recorded in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions)):
+  language tier.
+  [`annot.typed-fact.expected`](14-annotations.md#r-annot.typed-fact.expected):
+  a decorator or member-line element of a member-typed fact type gets an
+  expected type, whose member type argument is the field's declared
+  type. [`annot.line.typed`](14-annotations.md#r-annot.line.typed) now
+  cites it. So `@arbitrary.with(any_text)`, with a generic
+  `fn any_text[T](c: mut Choices) -> T`, on `name: string` solves
+  `T = string`. It was `unresolved-generic-placeholder` before, and needed
+  `with::[string]`. A value that still does not fit stays `type-mismatch`
+  at the decorator or line. Untyped fact types are unchanged. No rule ID
+  retired.

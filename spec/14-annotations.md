@@ -587,9 +587,10 @@ pub fn member_typed() -> MemberTyped:
 4. r[annot.typed-fact.needs-param] A `MemberTyped` value on a type with no type parameter is an error, reported on its decorator. Error: `decorator-target-kind`.
 5. r[annot.typed-fact.field-only] A value of a member-typed fact type may be attached only to a field: a named or embedded data field, or a payload member. Error: `decorator-target-kind`.
 6. r[annot.typed-fact.bind] At attachment, the value's member type argument must be the field's declared type. Any other type is an error, reported on the decorator or member line. Error: `type-mismatch`.
-7. r[annot.typed-fact.declared-type] The declared type is the type written on the field, so the argument for `hits: mut Counter` is `mut Counter`.
-8. r[annot.typed-fact.read] A template reads such a fact typed, through the field's handle, as [`annot.handle.fact`](#r-annot.handle.fact) states.
-9. r[annot.typed-fact.opt-in] A fact type without a `MemberTyped` value stays unchecked, as [Member Metadata](#member-metadata) states.
+7. r[annot.typed-fact.expected] A decorator or member-line element whose type constructor is a member-typed fact type `M` gets an expected type. That type is `M` with the field's declared type as its member type argument. The [expected-type rules](07-functions.md#r-fn.type.generic.argument.sources) then infer the rest, so `@example(.None)` on `nickname: string?` needs no `::[string?]`.
+8. r[annot.typed-fact.declared-type] The declared type is the type written on the field, so the argument for `hits: mut Counter` is `mut Counter`.
+9. r[annot.typed-fact.read] A template reads such a fact typed, through the field's handle, as [`annot.handle.fact`](#r-annot.handle.fact) states.
+10. r[annot.typed-fact.opt-in] A fact type without a `MemberTyped` value stays unchecked, as [Member Metadata](#member-metadata) states.
 
 > **Why.** A fact that holds a function of the member's type, such as a
 > test generator, can then be checked where it is written, not when a
@@ -984,7 +985,7 @@ to write shared metadata, as
 3. r[annot.line.right-typed] The right side must be an expression of a list type, or `pass` after a member name and `=`. A named list, as in `name = shared_list`, needs no spread.
 4. r[annot.line.right.error] Any other line is an error. That includes `f += pass`, `Self = pass`, and `pass` for a whole variant, such as `Busy = pass`. Error: `invalid-member-line`.
 5. r[annot.line.right.not-list] A right side whose type is not a list type, such as `name = 5`, is this error rather than a type mismatch. Error: `invalid-member-line`.
-6. r[annot.line.typed] A member line's list is contextually typed as that member's metadata list, as in [Member Metadata](#member-metadata). A `Self` line's list is contextually typed as `List[Any]`.
+6. r[annot.line.typed] A member line's list is contextually typed as that member's metadata list, as in [Member Metadata](#member-metadata). An element of a member-typed fact type gets its expected type by [`annot.typed-fact.expected`](#r-annot.typed-fact.expected). A `Self` line's list is contextually typed as `List[Any]`.
 7. r[annot.line.duplicate] After a line applies, one member, variant, or type must not hold two facts of the same concrete type. `+=` with a type already present is an error; `=` changes it instead. Error: `duplicate-fact`.
 8. r[annot.line.unchanged] A member without a line keeps its declaration facts.
 9. r[annot.line.placement-blocks] A member line anywhere other than a derivation block or a trait-less derivation block, including in a template or an ordinary implementation, is an error. Error: `misplaced-derivation`.

@@ -1,0 +1,21 @@
+# test: a generic function value that no type argument fits to the field's declared type is still a type mismatch
+# Spec 14 Member-Typed Facts: annot.typed-fact.expected and annot.typed-fact.bind
+# (owner decision FACT-EXPECTED, batch 38, 2026-10-01).
+use std.annotation.{annotate, member_typed}
+
+@annotate(.Field)
+@member_typed
+data Fallback[F]:
+    make: fn() -> F?
+
+fn fallback[F](make: fn() -> F?) -> Fallback[F]:
+    Fallback::[F] { make: make }
+
+fn missing_list[T]() -> List[T]?:
+    .None
+
+data Profile:
+    @fallback(missing_list)
+    tags: List[string]
+    @fallback(missing_list)  # diagnostic: type-mismatch
+    name: string
