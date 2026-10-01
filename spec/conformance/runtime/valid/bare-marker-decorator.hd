@@ -1,5 +1,6 @@
 # test: a bare decorator name of a function with no parameters is called
-# Spec 14 Prefix Decorators: `@hidden` means `@hidden()`, read through the function's shape.
+# Spec 14 Prefix Decorators: `@hidden` means `@hidden()`, read through facts_of.
+use std.annotation.facts_of
 use std.testing.assert_equal
 
 data Hidden: pass
@@ -14,7 +15,9 @@ fn internal_check() -> bool:
 fn plain() -> bool:
     false
 
+marked := facts_of(internal_check).find::[Hidden]()
+
 tests:
     it("attaches the marker's result"):
-        assert_equal(shape_of(internal_check).metadata::[Hidden]().is_some(), true, reason="the marker was called")
-        assert_equal(shape_of(plain).metadata::[Hidden]().is_some(), false, reason="an undecorated function holds none")
+        assert_equal(marked.is_some(), true, reason="the marker was called")
+        assert_equal(facts_of(plain).find::[Hidden]().is_some(), false, reason="an undecorated function holds none")

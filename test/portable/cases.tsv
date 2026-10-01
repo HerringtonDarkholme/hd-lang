@@ -89,7 +89,6 @@ typing/invalid/nonexhaustive-bool-match.hd	type
 typing/invalid/overload.hd	type
 typing/invalid/redeclare-core-type.hd	type
 typing/invalid/prelude-shadow.hd	type
-typing/invalid/prelude-shadow-shape-parameter.hd	type
 typing/invalid/function-equality.hd	type
 typing/invalid/unsaturated-enum-constructor.hd	type
 typing/invalid/contextual-variant-without-type.hd	type
@@ -1089,8 +1088,6 @@ typing/valid/debug-writer-builders.hd	type
 runtime/panic/duration-suffix-overflow.hd	runtime
 runtime/valid/duration-api.hd	runtime
 runtime/valid/duration-negation.hd	runtime
-typing/invalid/shape-of-local-binding.hd	type
-typing/invalid/shape-of-closure.hd	type
 typing/valid/parameter-decorator.hd	type
 runtime/valid/i64-u64-precision-through-generics.hd	runtime
 runtime/valid/f32-display-width-through-generics.hd	runtime
@@ -1175,7 +1172,6 @@ runtime/valid/narrowing-cast-wraps.hd	runtime
 typing/invalid/property-input-not-debug.hd	type
 runtime/valid/property-assume-discards.hd	runtime
 typing/invalid/type-name-as-value.hd	type
-typing/invalid/metadata-type-as-value.hd	type
 typing/invalid/derived-hash-field-not-hash.hd	type
 typing/invalid/derived-total-order-float.hd	type
 typing/invalid/derived-generic-bound.hd	type
@@ -1486,7 +1482,6 @@ typing/valid/default-trait.hd	type
 runtime/valid/default-standard-types.hd	runtime
 typing/invalid/default-tuple-element-without-default.hd	type
 typing/valid/generic-data-embedding.hd	type
-parse/valid/shape-intrinsic-calls.hd	parse
 typing/valid/functions.hd	type
 typing/valid/associated-type-bindings.hd	type
 runtime/valid/associated-type-bindings.hd	runtime
@@ -1497,10 +1492,7 @@ typing/valid/generic-argument-placeholder.hd	type
 typing/invalid/unresolved-generic-placeholder.hd	type
 typing/valid/explicit-generic-method.hd	type
 typing/valid/retention-metadata.hd	type
-typing/invalid/retention-missing-field.hd	type
 typing/valid/impl-distinct-trait-arguments.hd	type
-typing/valid/shape-api.hd	type
-typing/invalid/unknown-shape-variant.hd	type
 runtime/valid/generic-data-embedding.hd	runtime
 runtime/valid/generic-methods.hd	runtime
 runtime/valid/generic-trait-qualified-calls.hd	runtime
@@ -1537,7 +1529,6 @@ typing/invalid/downcast-target-not-inspectable.hd	type
 typing/invalid/downcast-value-type-target.hd	type
 typing/valid/inner-mut-trait-instantiations.hd	type
 runtime/valid/associated-function-calls.hd	runtime
-typing/valid/type-shape-mutable-field.hd	type
 typing/valid/typed-derivation.hd	type
 runtime/valid/typed-derivation-walk.hd	runtime
 runtime/valid/data-variant-facts-empty.hd	runtime
@@ -1545,8 +1536,6 @@ typing/valid/trait-less-derivation-block.hd	type
 runtime/valid/trait-less-block-facts.hd	runtime
 runtime/valid/member-line-list-expression.hd	runtime
 typing/valid/choices-arbitrary.hd	type
-runtime/valid/bare-marker-decorator.hd	runtime
-runtime/valid/function-fact-read.hd	runtime
 typing/valid/row-alias-bare-slots.hd	type
 typing/invalid/row-alias-explicit-type-argument.hd	type
 runtime/valid/row-forced-overlap-nearest.hd	runtime
@@ -1738,3 +1727,5 @@ typing/invalid/literal-suffix-generic-unbounded.hd	type
 typing/valid/arbitrary-with-generic-generator.hd	type
 typing/valid/typed-fact-other-params.hd	type
 typing/invalid/typed-fact-target-not-param.hd	type
+typing/invalid/facts-of-without-import.hd	type
+typing/valid/untyped-fact-default.hd	type

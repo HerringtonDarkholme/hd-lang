@@ -1,9 +1,0 @@
-# test: a shape encodes a mutable field type with TypeShape.Mut
-
-data Cell:
-    value: i32
-
-data Holder:
-    cell: mut Cell
-
-holder_shape := shape::[Holder]()

@@ -640,11 +640,9 @@ r[types.assign] An expression of type `S` is assignable to a location of type `T
 6. r[types.assign.trait-value] `S` explicitly implements trait `T`, or `T` is `Inspectable` and `S` is an inspectable type, allowing construction of a dynamic trait value.
 7. r[types.assign.supertrait] `S` is a dynamic child-trait value whose trait has `T` as a direct or transitive supertrait.
 8. r[types.assign.optional] A value of `T` is injected into `T?`. The injection adds one layer only, so a `T` is not injected into `T??`.
-9. r[types.assign.shape] `S` is a specialized shape type returned by `shape::[D]()` and `T` is its generic shape type, `DataShape` or `EnumShape`.
-10. r[types.assign.row-subsumption] `S` and `T` are function types, `T`'s row entails every key of `S`'s row, and `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
+9. r[types.assign.row-subsumption] `S` and `T` are function types, `T`'s row entails every key of `S`'s row, and `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
 
-See also: [Inspectable Types](09-traits.md#inspectable-types),
-[Shape Intrinsics](14-annotations.md#shape-intrinsics).
+See also: [Inspectable Types](09-traits.md#inspectable-types).
 
 ### Assignment And Binding Types
 
@@ -1142,7 +1140,7 @@ describes the reference strategy.
 
 ### Reified Parameters
 
-1. r[types.reified.metadata] A parameter marked `reified` carries runtime type metadata. It may be used by operations such as `shape::[T]()` or passed to another reified operation.
+1. r[types.reified.metadata] A parameter marked `reified` carries runtime type metadata. It may be passed to another reified operation.
 2. r[types.reified.erased] An erased parameter must not be used where runtime type identity is required.
 3. r[types.reified.inspectable] Runtime type identity for `Inspectable` comes from a bound instead: the evidence for `T < Inspectable` carries the runtime identity of `T`.
 4. r[types.reified.inspectable.uses] Erasing a value of a type parameter to `Inspectable`, `TypeId::of::[T]()`, and the `downcast` target need that bound, and `reified` alone permits none of them.
@@ -1150,16 +1148,6 @@ describes the reference strategy.
 6. r[types.reified.specialize] A backend may specialize a reified call only when doing so preserves observable reflection behavior.
 
 See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
-
-### Shape Descriptors
-
-1. r[types.shape.consumes] The prelude intrinsic `shape::[T]()` consumes the reification descriptor.
-2. r[types.shape.result] For a data type or enum, `shape::[T]()` returns the corresponding specialized shape type.
-3. r[types.shape.other] For any other type, including a reified type parameter, `shape::[T]()` returns `TypeShape`.
-4. r[types.shape.erased] An erased generic parameter cannot be passed as its type argument.
-5. r[types.shape.members] Field and variant shapes are selected from the specialized result, and `shape_of(f)` reflects a function declaration.
-
-See also: [Shape Intrinsics](14-annotations.md#shape-intrinsics).
 
 ### Identity On Type Parameters
 

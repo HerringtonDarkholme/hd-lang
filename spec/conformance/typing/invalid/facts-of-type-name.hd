@@ -1,0 +1,8 @@
+# test: facts_of rejects a name that resolves to a type
+use std.annotation.facts_of
+
+@"user"
+data User:
+    name: string
+
+user_facts := facts_of(User)  # diagnostic: invalid-facts-of-target

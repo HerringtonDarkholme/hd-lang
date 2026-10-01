@@ -1,0 +1,23 @@
+# test: user code reads a function's decorator value through facts_of
+# Spec 14 Function Facts: annot.decorator.facts-of and annot.facts-of.result.
+use std.annotation.facts_of
+use std.testing.assert_equal
+
+data Route:
+    path: string
+
+fn route(path: string) -> Route:
+    Route { path: path }
+
+@route("/users")
+fn list_users() -> string:
+    "[]"
+
+fn users_path() -> string:
+    match facts_of(list_users).find::[Route]():
+        .Some(found) => found.path
+        .None => ""
+
+tests:
+    it("reads the attached route"):
+        assert_equal(users_path(), "/users", reason="the decorator value is one of the function's facts")

@@ -75,7 +75,7 @@ specification	block	classification	fixture
 02-grammar.md	44	mixed	typing/invalid/bare-some-call-pattern.hd|parse/invalid/named-pattern-before-positional.hd|parse/invalid/match-arm-mut-pattern.hd
 02-grammar.md	45	mixed	parse/invalid/data-pattern-equals-label.hd
 03-names-and-scopes.md	1	mixed	typing/invalid/overload.hd
-03-names-and-scopes.md	2	mixed	typing/invalid/type-name-as-value.hd|typing/invalid/metadata-type-as-value.hd
+03-names-and-scopes.md	2	mixed	typing/invalid/type-name-as-value.hd
 03-names-and-scopes.md	3	mixed	typing/invalid/redeclare-core-type.hd
 03-names-and-scopes.md	4	accept	typing/valid/names-and-scopes.hd
 03-names-and-scopes.md	5	mixed	typing/invalid/forward-module-binding.hd
@@ -515,12 +515,12 @@ specification	block	classification	fixture
 13-gadts.md	5	accept	typing/valid/gadts.hd
 13-gadts.md	6	mixed	typing/invalid/impossible-gadt-pattern.hd
 13-gadts.md	7	accept	typing/valid/gadts.hd
-14-annotations.md	1	accept	typing/valid/shape-api.hd
-14-annotations.md	2	type-fragment	-
-14-annotations.md	3	accept	typing/valid/decorator-targets.hd
-14-annotations.md	4	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
-14-annotations.md	5	accept	runtime/valid/bare-marker-decorator.hd
-14-annotations.md	6	accept	typing/valid/parameter-decorator.hd
+14-annotations.md	1	accept	typing/valid/decorator-targets.hd
+14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
+14-annotations.md	3	accept	runtime/valid/bare-marker-decorator.hd
+14-annotations.md	4	accept	typing/valid/parameter-decorator.hd
+14-annotations.md	5	accept	runtime/valid/facts-of-read.hd
+14-annotations.md	6	mixed	typing/invalid/facts-of-local-binding.hd|typing/invalid/facts-of-closure.hd
 14-annotations.md	7	accept	typing/valid/annotations.hd
 14-annotations.md	8	accept	typing/valid/annotations.hd
 14-annotations.md	9	accept	typing/valid/annotations.hd

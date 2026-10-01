@@ -1,4 +1,4 @@
-# test: a trait-less derivation block attaches member metadata of any type, read through the shape
+# test: a trait-less derivation block attaches member metadata of any type
 use std.structure.Structure
 
 data MinLen:
@@ -24,6 +24,3 @@ data User:
 
 impl User by Structure:
     name = [min_len(1), max_len(80)]
-
-user_shape := shape::[User]()
-limit := user_shape.fields.name.metadata::[MaxLen]()

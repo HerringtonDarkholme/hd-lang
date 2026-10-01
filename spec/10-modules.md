@@ -434,7 +434,6 @@ every module has:
 | `std.console` | `Console`, `ConsoleError`, `println` |
 | `std.testing` | `it` |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` |
-| `std.annotation` | `ShapeMetadata`, `DeclarationId`, `DeclarationKind`, `PrimitiveKind`, `SourcePosition`, `TypeShape`, `DataShape`, `FieldShape`, `EnumShape`, `VariantShape`, `FnShape`, `ParamShape`, `shape`, `shape_of` |
 
 1. r[module.prelude.names] Every module implicitly has the public standard-library names in the table in scope.
 2. r[module.prelude.fixed-uses] The prelude is equivalent to fixed `use` declarations.
@@ -500,12 +499,8 @@ fn count() -> i32:
 
 1. r[module.prelude.panic] The prelude function `panic` has the signature `panic(message: string) -> never`.
 2. r[module.prelude.println] The prelude function `println` has the signature `println[T < Display](value: T) -> void $ Console`.
-3. r[module.prelude.shape] `shape` and `shape_of` are compiler intrinsics whose result types depend on their arguments.
-4. r[module.prelude.it-function] The prelude function `it` is the test-case function that [Test Cases](#test-cases) specifies.
-5. r[module.prelude.debug] The prelude function `debug` has the signature `debug[T < Debug](value: T) -> string`, as [Debug Trait](09-traits.md#debug-trait) specifies.
-
-See also: [Shape Intrinsics](14-annotations.md#shape-intrinsics), which
-specifies `shape` and `shape_of`.
+3. r[module.prelude.it-function] The prelude function `it` is the test-case function that [Test Cases](#test-cases) specifies.
+4. r[module.prelude.debug] The prelude function `debug` has the signature `debug[T < Debug](value: T) -> string`, as [Debug Trait](09-traits.md#debug-trait) specifies.
 
 ### Console
 

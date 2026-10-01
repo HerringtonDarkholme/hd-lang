@@ -6,13 +6,10 @@ Status: language specification draft.
 
 - **Member metadata** is the ordered list of values attached to a data
   field, an enum variant, or a parameter.
-- A **shape** is a compiler-provided runtime value that describes the
-  structure of a declaration or type.
 - A **coherence slot** is one `(trait, concrete target)` pair over the
   resolved package graph.
 
-Annotations attach typed values to declarations and expose declaration
-structure as shape values. They do not alter a declaration's name, type,
+Annotations attach typed values to declarations. They do not alter a declaration's name, type,
 behavior, or visibility, and they do not discover or register runtime
 objects automatically.
 
@@ -22,16 +19,16 @@ The design principles are:
 2. derived behavior is requested explicitly, with `@derive`, `@error`, or a
    derivation block;
 3. runtime information is produced explicitly when requested;
-4. the semantic foundation is ordinary traits, implementations, values, and
-   compiler-provided shape values.
+4. the semantic foundation is ordinary traits, implementations, and
+   values.
 
 An ordinary decorator attaches a value to the item or member it precedes:
 a type-level fact before a data type or enum, or member metadata before a
 field, variant, or parameter. A trait-less derivation block attaches the
 same values away from the declaration.
 
-The compiler lowers attached values to shape metadata
-construction. This is not runtime wrapper execution. `@derive(Trait, ...)` generates
+The compiler lowers attached values to fact construction. This is not
+runtime wrapper execution. `@derive(Trait, ...)` generates
 ordinary trait implementations, either through a compiler intrinsic or
 through a trait's template, as [Typed Derivation](#typed-derivation)
 defines. An ordinary decorator must not silently change a declaration's
@@ -46,222 +43,6 @@ name, type, behavior, or visibility.
 > Building such a value once per type, with deferred `Ref[T]` references for
 > recursive types, is the standard library's
 > derived-function cache.
-
-## Common Shape Representation
-
-The compiler exposes declaration structure as ordinary runtime shape values
-through two intrinsic functions in the prelude, `shape` and `shape_of`:
-
-```text
-shape::[User]()                        # DataShape specialized for User
-shape::[User]().fields.email           # FieldShape
-shape::[JobStatus]()                   # EnumShape specialized for JobStatus
-shape::[JobStatus]().variants.Active   # VariantShape
-shape_of(get_user)                   # FnShape
-```
-
-The common representation includes at least:
-
-- `TypeShape` for a concrete type;
-- `DataShape` and ordered `FieldShape` values;
-- `EnumShape`, ordered `VariantShape` values, and payload `FieldShape` values;
-- `FnShape` and ordered `ParamShape` values;
-- names, positions, declared runtime type descriptors, documentation, and
-  attached member metadata.
-
-The shape types below are not parameterized by the reflected declaration: the
-type is `DataShape`, not `DataShape[S]`. Only a direct `shape::[T]()` request
-adds the typed member access described in
-[Shape Intrinsics](#shape-intrinsics).
-
-Shapes expose structure for generic handling but do not permit mutation of the
-source declaration. Every shape provides a stable declaration identity, source
-name, qualified name, source position, documentation string, and declaration
-kind. `FieldShape`, `VariantShape`, and `ParamShape` additionally provide their
-zero-based declaration position and declared `TypeShape`. Fields, variants,
-and parameters expose their [member metadata](#member-metadata), and a
-function exposes the values that its [decorators](#prefix-decorators)
-attach.
-
-`DataShape`, `EnumShape`, and `FnShape` contain their ordered direct
-members. `FnShape` additionally exposes its result type, whether it is
-suspending, and its normalized unordered requirement row; each `ParamShape`
-records whether a default is declared. Promoted embedded members are not
-duplicated as direct fields.
-
-The following declarations are the normative shape surface. `DeclarationId`
-is an opaque, equality-comparable identity allocated by the compiler. A
-`SourcePosition` identifies the beginning of the reflected declaration or
-member. `position` on a member shape is its zero-based declaration ordinal;
-source coordinates are kept separately in `source`.
-
-```text
-data SourcePosition:
-    file: string
-    line: i32
-    column: i32
-
-enum DeclarationKind:
-    Data
-    Enum
-    Function
-    Field
-    Variant
-    Parameter
-
-enum PrimitiveKind:
-    Bool
-    Signed(bits: i32)
-    Unsigned(bits: i32)
-    Float(bits: i32)
-    Char
-    String
-    Void
-    Never
-
-enum TypeShape:
-    Primitive(kind: PrimitiveKind)
-    Optional(inner: TypeShape)
-    List(element: TypeShape)
-    Map(key: TypeShape, value: TypeShape)
-    Tuple(elements: List[TypeShape])
-    Named(decl: DeclarationId, args: List[TypeShape])
-    Newtype(decl: DeclarationId, base: TypeShape)
-    Mut(inner: TypeShape)
-    Trait(decl: DeclarationId, args: List[TypeShape])
-    Any
-    Suspend(result: TypeShape)
-    Fn(
-        params: List[TypeShape],
-        result: TypeShape,
-        suspending: bool,
-        requirements: List[TypeShape],
-    )
-
-data FieldShape:
-    id: DeclarationId
-    name: string
-    qualified_name: string
-    source: SourcePosition
-    position: i32
-    doc: string?
-    field_type: TypeShape
-
-data DataShape:
-    id: DeclarationId
-    name: string
-    qualified_name: string
-    source: SourcePosition
-    doc: string?
-    field_list: List[FieldShape]
-
-data VariantShape:
-    id: DeclarationId
-    name: string
-    qualified_name: string
-    source: SourcePosition
-    position: i32
-    doc: string?
-    payload: List[FieldShape]
-
-data EnumShape:
-    id: DeclarationId
-    name: string
-    qualified_name: string
-    source: SourcePosition
-    doc: string?
-    variant_list: List[VariantShape]
-
-data ParamShape:
-    id: DeclarationId
-    name: string
-    qualified_name: string
-    source: SourcePosition
-    position: i32
-    doc: string?
-    param_type: TypeShape
-    has_default: bool
-
-data FnShape:
-    id: DeclarationId
-    name: string
-    qualified_name: string
-    source: SourcePosition
-    doc: string?
-    params: List[ParamShape]
-    result: TypeShape
-    suspending: bool
-    requirements: List[TypeShape]
-
-trait ShapeMetadata:
-    fn metadata[reified M](self) -> M?
-```
-
-Every concrete shape type implements sealed `ShapeMetadata`; user code cannot
-add implementations. `metadata::[M]()` performs the one narrow runtime type
-lookup supported for heterogeneous member metadata and preserves the
-attached value's declared permission. It does not add a general `Any`
-downcast; recovering the concrete type of an erased value is the separate
-facility in [Runtime Type Identity](09-traits.md#runtime-type-identity), and
-a `TypeId` exposes no shape. `TypeShape.is_optional() -> bool` is also a compiler-provided readonly
-method and is true exactly for `TypeShape.Optional`.
-
-`TypeShape.Mut` encodes mutable access, `TypeShape.Trait` a dynamic trait
-value type with its trait declaration and arguments, `TypeShape.Any` the
-`Any` type, and `TypeShape.Suspend` a `Suspend[T]` type with its result.
-`TypeShape.Newtype` carries the newtype's own declaration identity beside its
-base type.
-
-Shape values are readonly runtime values and may be passed, stored, and
-inspected like other composite values.
-
-### Shape Intrinsics
-
-`shape` and `shape_of` are compiler intrinsics declared by `std.annotation`
-and re-exported by the prelude. They are ordinary names, not reserved words:
-they are called with ordinary call syntax, and the prelude shadowing rule
-applies to them. Each use must be the callee of a direct call; using either
-name as a function value is an `unknown-shape-target` error. Missing or extra
-arguments follow the ordinary call rules.
-
-`shape::[T]()` takes exactly one explicit type argument and no value arguments.
-`T` is a reified type argument under the rules of
-[Generics](04-type-system.md#generics): inside a generic declaration, a type
-parameter passed as `T` must itself be `reified`. The result depends on `T`:
-
-- For a data type `D`, the result has the **specialized data shape type** of
-  `D`.
-- For an enum `E`, the result has the **specialized enum shape type** of `E`.
-- For any other type, including a type parameter, a primitive, a collection, a
-  tuple, an optional, and an applied generic nominal type such as
-  `Box[i32]`, the result is a `TypeShape`.
-
-A specialized shape type is generated by the compiler and cannot be named in
-source. The specialized data shape type of `D` has every member of `DataShape`
-with the same name and type. It adds `fields`, a readonly record with exactly
-one member for each direct field of `D`. Each member is named after its field
-and has type `FieldShape`.
-
-`shape::[D]().fields.email` is therefore statically checked, and
-equals the element of `field_list` at the position of `email`. The
-specialized enum shape type of `E` likewise adds `variants`, with one
-`VariantShape` member per variant of `E`, equal to the corresponding element
-of `variant_list`. Selecting a member the declaration does not have, such as
-`shape::[User]().fields.deleted`, is an `unknown-shape-target` error. The
-`fields` and `variants` records are not collections: they support only member
-selection, and iteration uses `field_list` or `variant_list`.
-
-A specialized shape value is assignable to its generic shape type, so
-`shape::[User]()` can be passed where `DataShape` is expected; the conversion
-does not change the value. No other specialized member survives that
-conversion.
-
-`shape_of(f)` takes exactly one argument, which must directly name a
-module-level function declaration, optionally through a module qualifier or
-a `use` import. It returns that function's `FnShape`. The argument is not
-evaluated. A closure, a local binding, a parameter, a method, a field access,
-a call, or any other function-valued expression is an `unknown-shape-target`
-error. So is a name that resolves to a type or a non-function binding.
 
 ## Two `annotate` Forms
 
@@ -317,7 +98,7 @@ type ToolId(i64)
 6. r[annot.decorator.function-derive] A `@derive(...)` line before a module-level function declaration is an error, reported on the decorator. Error: `decorator-not-annotator`.
 7. r[annot.decorator.derive-targets] A `@derive(...)` line before a trait, an implementation, or a method is the same error. Error: `decorator-not-annotator`.
 8. r[annot.decorator.duplicate] Two values of one concrete type before one function, trait, implementation, newtype, or method are an error, reported on the later value. Error: `duplicate-fact`.
-9. r[annot.decorator.fn-read] Code reads a value attached to a module-level function `f` through `shape_of(f).metadata::[M]()`.
+9. r[annot.decorator.facts-of] Code reads a value attached to a module-level function `f` through `facts_of(f).find::[M]()`, as [Function Facts](#function-facts) defines.
 10. r[annot.decorator.no-listing] No operation lists the declarations that carry a value, so code cannot enumerate every function with a given decorator.
 
 ```text
@@ -339,6 +120,8 @@ A decorator that names a function with no parameters calls it, so a marker
 is written without parentheses:
 
 ```text
+use std.annotation.facts_of
+
 data Hidden: pass
 
 fn hidden() -> Hidden:
@@ -348,7 +131,7 @@ fn hidden() -> Hidden:
 fn internal_check() -> bool:
     true
 
-marked := shape_of(internal_check).metadata::[Hidden]()
+marked := facts_of(internal_check).find::[Hidden]()
 ```
 
 11. r[annot.decorator.bare-call] In a decorator, a bare name that resolves to a function with no parameters is called, so `@hidden` means `@hidden()`.
@@ -357,7 +140,7 @@ marked := shape_of(internal_check).metadata::[Hidden]()
 > **Why.** A decorator is a plain value, as in Java, C#, Kotlin, and Dart,
 > so one rule covers every place it may go. Whatever reads a value checks
 > that it suits its target, so the compiler knows no signatures. Reading
-> by one function's shape, never by listing, keeps discovery with tools.
+> one function's facts, never a listing, keeps discovery with tools.
 
 An `@value` line immediately before a named or embedded data field or an enum
 variant attaches its value to that member's metadata. For a field
@@ -367,8 +150,8 @@ metadata is also the member's or variant's declaration facts for
 
 For an embedded `Timestamps` field in `Post`, `@flatten()` attaches
 `flatten()` to the member `Timestamps`. A generic embedded `Box[T]` keeps
-the member name `Box`. Metadata is attached only to the embedded field's own
-`FieldShape`; it is not propagated to promoted fields or methods.
+the member name `Box`. Metadata is attached only to the embedded field
+itself; it is not propagated to promoted fields or methods.
 
 Multiple lines retain source order and obey the duplicate rule of
 [Member Metadata](#member-metadata). A trait-less derivation block may then
@@ -388,9 +171,8 @@ fn get_user(
     ...
 ```
 
-This attaches `description("User identifier")` to the parameter `id`, and
-it is visible through that parameter's `ParamShape`. Parameter decorators
-are also accepted on the value parameters of methods, including trait
+This attaches `description("User identifier")` to the parameter `id`.
+Parameter decorators are also accepted on the value parameters of methods, including trait
 requirements. They are not accepted on closures, receiver parameters, or
 local functions.
 
@@ -400,6 +182,52 @@ It stays a compiler intrinsic, as `@error` does
 Its arguments are trait names rather than metadata values. The compiler
 checks and generates each requested implementation.
 [Opting In](#opting-in) defines which traits it accepts.
+
+### Function Facts
+
+`facts_of(f)` returns the values that decorators attach to the
+module-level function `f`, as a [`Facts`](#r-annot.structure.facts-type)
+value:
+
+```text
+use std.annotation.facts_of
+
+data Route:
+    path: string
+
+fn route(path: string) -> Route:
+    Route { path: path }
+
+@route("/users")
+fn list_users() -> string:
+    "[]"
+
+fn users_path() -> string:
+    match facts_of(list_users).find::[Route]():
+        .Some(found) => found.path
+        .None => ""
+```
+
+1. r[annot.facts-of.declared] `std.annotation` declares the compiler intrinsic `facts_of`. It is not a prelude name, so code imports it, as in `use std.annotation.facts_of`.
+2. r[annot.facts-of.target] A use of `facts_of` must be a direct call whose one argument names a module-level function declaration, optionally through a module qualifier or a `use` import. The argument is not evaluated.
+3. r[annot.facts-of.result] The call returns a `Facts` that holds the values attached to that function, in source order. Missing or extra arguments follow the ordinary call rules.
+4. r[annot.facts-of.target.error] Any other argument is an error: a closure, a local binding, a parameter, a method, a field access, a call, a type, or a non-function binding. So is `facts_of` used as a value. Error: `invalid-facts-of-target`.
+
+```text
+use std.annotation.facts_of
+
+fn get_user(id: string) -> string: id
+
+handler := get_user
+handler_facts := facts_of(handler)  # error: invalid-facts-of-target
+closure_facts := facts_of(fn(id: string) -> string: id)  # error: invalid-facts-of-target
+```
+
+> **Why.** A function has no `Structure`, so its values need a read of
+> their own. Typing it as `Facts` reuses the lookup that templates use for
+> types, members, and variants.
+
+See also: [Prefix Decorators](#prefix-decorators), [Facts](#facts).
 
 ### Member Metadata
 
@@ -535,7 +363,7 @@ Each target has one kind:
 7. r[annot.target.kind-only.untyped] For an untyped fact type, one that is not [typed](#member-typed-facts), the compiler checks only the kind. Whether its value suits its target's type or signature is checked by the code that reads the value.
 
 > **Note.** Only some targets have a reader in the language. User code
-> reads a function's values through `shape_of`, and the values on a data
+> reads a function's values through `facts_of`, and the values on a data
 > type or enum, its fields, and its variants through typed derivation. The
 > values on the other targets, such as traits, implementations, methods,
 > newtypes, and parameters, are for tools.
@@ -855,7 +683,7 @@ pub trait Source[S]:
 1. r[annot.structure.module] The standard module `std.structure` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `Variant`, `Members`, `Key`, `Walker`, `Describer`, and `Source`.
 2. r[annot.structure.bodies] The compiler supplies every body written `pass` in the declarations above, and the `Facts` type.
 3. r[annot.structure.facts-type] `Facts` holds the facts attached to one type, member, or variant, in source order. `facts.find::[F]()` returns the fact whose concrete type is `F`, or `.None`.
-4. r[annot.structure.find-lookup] `find` performs the same narrow runtime type lookup as `metadata[M]` in [Common Shape Representation](#common-shape-representation), and nothing more.
+4. r[annot.structure.find-lookup] `find` performs one narrow runtime type lookup and nothing more: it compares each fact's concrete type with `F`, and keeps the found fact's declared permission. It is not a general `Any` downcast.
 5. r[annot.structure.members-api] `members.end()` is the end key, `members.at(position)` is the key of the member at that position, and `members.find(matches)` is the key of the first member that `matches` accepts. Each returns the end key when no member fits.
 6. r[annot.structure.no-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
 7. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
@@ -1163,7 +991,7 @@ impl User by Structure:
     email = [max_len(320)]
 ```
 
-Every derivation of `User`, and its shape, then sees `max_len(80)` and
+Every derivation of `User` then sees `max_len(80)` and
 `min_len(1)` on `name`, and `max_len(320)` on `email`.
 
 Each line names an existing direct member, as any member line does. An
@@ -1177,7 +1005,7 @@ change the type of a member.
 4. r[annot.traitless.no-omit] It writes only metadata, so an omit line `f = pass` in it is an error. Error: `invalid-member-line`.
 5. r[annot.traitless.after-decorators] Its lines apply to the values that a member's decorators attach: a `+=` line appends after them, and a `=` line replaces them.
 6. r[annot.traitless.self] Its `Self` lines apply the same way to the type-level facts that decorators before `X` attach.
-7. r[annot.traitless.declaration-facts] The result is the declaration facts of `X` and its members: every derivation of `X` sees it, and so do the field and variant shapes of `X`.
+7. r[annot.traitless.declaration-facts] The result is the declaration facts of `X` and its members: every derivation of `X` sees it.
 8. r[annot.traitless.then-blocks] A derivation block's member lines then edit those declaration facts, for that block only.
 9. r[annot.traitless.module] A trait-less block must be declared in the module that declares `X`, as an inherent implementation must. One declared elsewhere is an error, reported on the block. Error: `misplaced-derivation`.
 10. r[annot.traitless.local] A trait-less block in a local scope is an error, reported on the block: local declarations carry no metadata. Error: `misplaced-derivation`.

@@ -1,0 +1,4 @@
+# test: facts_of rejects a closure argument
+use std.annotation.facts_of
+
+closure_facts := facts_of(fn(id: string) -> string: id)  # diagnostic: invalid-facts-of-target

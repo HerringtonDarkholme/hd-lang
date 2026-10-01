@@ -1,4 +1,0 @@
-fn get_user(id: string) -> string: id
-
-handler := get_user
-handler_shape := shape_of(handler)  # diagnostic: unknown-shape-target

@@ -1,0 +1,6 @@
+# test: facts_of is not a prelude name, so it must be imported
+@"ping"
+fn ping() -> string:
+    "pong"
+
+ping_facts := facts_of(ping)  # diagnostic: unknown-name

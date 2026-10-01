@@ -12,5 +12,3 @@ fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
 data User:
     @max_len(80)
     name: string
-
-user_shape := shape::[User]()

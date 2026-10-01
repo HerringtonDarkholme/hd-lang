@@ -1,8 +1,0 @@
-data User:
-    email: string
-
-fn get_user(id: string) -> string: id
-
-user_shape := shape::[User]()
-email_shape := shape::[User]().fields.email
-function_shape := shape_of(get_user)

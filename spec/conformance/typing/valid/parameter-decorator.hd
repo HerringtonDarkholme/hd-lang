@@ -1,4 +1,4 @@
-# test: a parameter decorator attaches parameter metadata visible through the parameter's shape
+# test: a parameter decorator attaches parameter metadata
 data User: pass
 type UserId(i64)
 
@@ -13,5 +13,3 @@ fn get_user(
     id: UserId,
 ) -> User:
     User {}
-
-params := shape_of(get_user).params

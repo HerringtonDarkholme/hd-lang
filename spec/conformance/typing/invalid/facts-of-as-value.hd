@@ -1,0 +1,4 @@
+# test: facts_of may be used only as the callee of a direct call
+use std.annotation.facts_of
+
+reader := facts_of  # diagnostic: invalid-facts-of-target

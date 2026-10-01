@@ -1,4 +1,4 @@
-# test: a trait-less block extends and replaces decorator metadata, and the shape sees the result
+# test: a trait-less block extends and replaces decorator metadata
 use std.structure.Structure
 
 data MinLen:
@@ -19,6 +19,3 @@ data User:
 impl User by Structure:
     name += [min_len(1)]
     email = [max_len(320)]
-
-name_floor := shape::[User]().fields.name.metadata::[MinLen]()
-email_limit := shape::[User]().fields.email.metadata::[MaxLen]()

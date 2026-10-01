@@ -322,7 +322,7 @@ name := "Ada"  # A comment after code.
 2. r[lex.doc.attach] One or more consecutive documentation-comment lines attach to the next declaration or member at the same indentation, when no blank line or non-documentation token intervenes.
 3. r[lex.doc.members] Members include data fields, embedded fields, enum variants and payload fields, trait and implementation methods, and function parameters.
 4. r[lex.doc.text] The lexer removes `##` and one following space when present, then joins lines with `\n`.
-5. r[lex.doc.field] The resulting string is exposed as the target shape's `doc` field. Without an attached documentation comment, `doc` is `.None`.
+5. r[lex.doc.field] For a field or variant, the resulting string is the `doc` field of its `Member` or `VariantInfo`; for any other target it is for tools. Without an attached documentation comment, `doc` is `.None`.
 6. r[lex.doc.trailing] A trailing `##` comment after source code is ordinary commentary and does not attach.
 7. r[lex.doc.unattached] An otherwise unattached documentation-comment line is a lexical error. Error: `doc-comment-without-target`.
 

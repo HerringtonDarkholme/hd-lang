@@ -6,10 +6,10 @@ type PostId(string)
 data RetentionRule: pass
 data DeleteWhen: pass
 
-fn retention_owner(target: DataShape) -> RetentionRule:
+fn retention_owner(owner: string) -> RetentionRule:
     RetentionRule {}
 
-fn delete_when(target: FieldShape) -> DeleteWhen:
+fn delete_when(deleted: fn(User) -> bool) -> DeleteWhen:
     DeleteWhen {}
 
 data User:
@@ -20,5 +20,8 @@ data Post:
     id: PostId
     userId: UserId
 
+fn user_deleted(user: User) -> bool:
+    user.deleted
+
 impl Post by Structure:
-    userId = [retention_owner(shape::[User]()), delete_when(shape::[User]().fields.deleted)]
+    userId = [retention_owner("User"), delete_when(user_deleted)]

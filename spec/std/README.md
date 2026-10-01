@@ -16,7 +16,7 @@ The language tier names a std item only when the compiler must know it:
 
 - a lang item, such as `Iterable` for `for`, `std.process.Termination`, or
   a `std.ops` operator trait;
-- an intrinsic, such as `List.append`, `string.len`, or `shape::[T]()`;
+- an intrinsic, such as `List.append`, `string.len`, or `facts_of(f)`;
 - a prelude name and its signature;
 - the test-position rules that the compiler checks;
 - the conformance harness: `it`, `assert`, `assert_equal`, and `println`.

@@ -1,4 +1,0 @@
-data User:
-    id: string
-
-missing := shape::[User]().fields.deleted  # diagnostic: unknown-shape-target

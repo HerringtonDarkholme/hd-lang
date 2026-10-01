@@ -1391,7 +1391,6 @@ compiler and the standard library supply.
 | r[trait.sealed.anyval-types] AnyVal | `AnyVal` | the primitive types, `string`, `void`, tuples, and newtypes over them ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
 | r[trait.sealed.anyref] AnyRef | `AnyRef` | the reference values ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
 | r[trait.sealed.suspend] Suspend | `Suspend[T]` | compiler-generated suspension frames and `std.task` types ([`Suspend[T]` Protocol](11-requirements-and-suspension.md#suspendt-protocol)) |
-| r[trait.sealed.shape-metadata] ShapeMetadata | `ShapeMetadata` | the concrete shape types ([Common Shape Representation](14-annotations.md#common-shape-representation)) |
 | r[trait.sealed.inspectable] Inspectable | `Inspectable` | the inspectable types ([Inspectable Types](#inspectable-types)) |
 | r[trait.sealed.structure] Structure | `Structure` | each derivation's target, while its template is instantiated ([The Structure Trait](14-annotations.md#the-structure-trait)) |
 | r[trait.sealed.num] Num | `Num` | every integer and floating-point type ([Numeric Traits](#numeric-traits)) |

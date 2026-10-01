@@ -1257,7 +1257,6 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 #### Reflection
 
 1. r[grammar.primary.no-reflection-syntax] Declaration reflection has no dedicated syntax.
-2. r[grammar.primary.shape-intrinsics] `shape::[User]()` and `shape_of(get_user)` are ordinary calls to prelude intrinsics specified in [Shape Intrinsics](14-annotations.md#shape-intrinsics).
 
 #### Suffixed Literals
 

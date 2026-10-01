@@ -36,7 +36,6 @@ parse/invalid/old-struct-declaration.hd	parse	reject:old-struct-declaration	08-d
 parse/valid/test-block.hd	parse	accept	02-grammar.md#test-blocks
 parse/invalid/declaration-without-let.hd	parse	reject:missing-let	02-grammar.md#statements
 parse/invalid/trailing-block-in-brackets.hd	parse	reject:trailing-block-position	02-grammar.md#calls-and-arguments
-parse/valid/shape-intrinsic-calls.hd	parse	accept	14-annotations.md#shape-intrinsics
 parse/invalid/direct-variant-use.hd	parse	reject:direct-variant-use	10-modules.md#use-forms
 parse/invalid/old-import-declaration.hd	parse	reject:old-import-declaration	02-grammar.md#use-declarations
 parse/invalid/old-export-declaration.hd	parse	reject:old-export-declaration	02-grammar.md#use-declarations
@@ -190,7 +189,6 @@ typing/valid/explicit-generic-method.hd	type	accept	07-functions.md#generic-func
 typing/invalid/reassign-parameter.hd	type	reject:non-reassignable-parameter-binding	07-functions.md#parameters
 typing/valid/parameter-decorator.hd	type	accept	14-annotations.md#prefix-decorators
 typing/valid/retention-metadata.hd	type	accept	14-annotations.md#member-metadata
-typing/invalid/retention-missing-field.hd	type	reject:unknown-shape-target	14-annotations.md#common-shape-representation
 parse/invalid/local-decorator.hd	parse	reject:decorator-not-top-level	14-annotations.md#r-annot.decorator.no-locals
 typing/invalid/covariant-gadt-result.hd	type	reject:invalid-variance	04-type-system.md#variance
 typing/valid/invariant-gadt-result.hd	type	accept	04-type-system.md#variance
@@ -243,8 +241,6 @@ typing/valid/reference-generic-identity.hd	type	accept	04-type-system.md#generic
 typing/invalid/tuple-identity.hd	type	reject:identity-requires-references	05-expressions.md#unary-and-binary-operators
 typing/invalid/private-requirement-row.hd	type	reject:private-type-leak	10-modules.md#public-uses-and-visibility
 typing/valid/public-requirement-row.hd	type	accept	10-modules.md#public-uses-and-visibility
-typing/valid/shape-api.hd	type	accept	14-annotations.md#common-shape-representation
-typing/invalid/metadata-type-as-value.hd	type	reject:type-used-as-value	14-annotations.md#common-shape-representation
 parse/invalid/doc-comment-without-target.hd	parse	reject:doc-comment-without-target	01-lexical-structure.md#comments
 parse/valid/doc-comments.hd	parse	accept	01-lexical-structure.md#comments
 parse/valid/consecutive-trailing-block-calls.hd	parse	accept	07-functions.md#trailing-callback-blocks
@@ -261,10 +257,6 @@ typing/invalid/duplicate-inherent-member.hd	type	reject:duplicate-inherent-membe
 typing/invalid/variant-result-owner.hd	type	reject:variant-result-owner	13-gadts.md
 typing/invalid/duplicate-trait-member.hd	type	reject:duplicate-trait-member	09-traits.md#trait-declarations
 typing/valid/resource-disposed-result.hd	type	accept	10-modules.md#wasm-boundary
-typing/invalid/prelude-shadow-shape-parameter.hd	type	reject:prelude-name-shadow	14-annotations.md#shape-intrinsics
-typing/invalid/shape-of-local-binding.hd	type	reject:unknown-shape-target	14-annotations.md#shape-intrinsics
-typing/invalid/shape-of-closure.hd	type	reject:unknown-shape-target	14-annotations.md#shape-intrinsics
-typing/invalid/unknown-shape-variant.hd	type	reject:unknown-shape-target	14-annotations.md#shape-intrinsics
 typing/invalid/suspension-forbidden-context.hd	type	reject:suspension-forbidden-context	11-requirements-and-suspension.md#suspending-functions
 typing/invalid/reimport-prelude-name.hd	type	reject:prelude-name-shadow	10-modules.md#prelude
 typing/invalid/mixed-numeric-power.hd	type	reject:mixed-numeric-types	05-expressions.md#unary-and-binary-operators
@@ -1071,7 +1063,6 @@ typing/invalid/partial-eq-removed.hd	type	reject:unknown-trait	09-traits.md#r-tr
 typing/invalid/float-ord-bound.hd	type	reject:unsatisfied-trait-bound	09-traits.md#r-trait.cmp.float-ord
 typing/invalid/partial-ord-requires-eq.hd	type	reject:missing-supertrait-implementation	09-traits.md#r-trait.cmp.partial-ordering
 runtime/valid/float-eq-bound.hd	runtime	accept	09-traits.md#r-trait.cmp.float-eq
-typing/valid/type-shape-mutable-field.hd	type	accept	14-annotations.md#common-shape-representation
 typing/invalid/enum-shared-field-assignment.hd	type	reject:invalid-assignment-target	08-data-and-enums.md#r-data.shared.read-only
 typing/invalid/enum-shared-constructor-payload.hd	type	reject:unknown-name	08-data-and-enums.md#r-data.shared.no-payload
 typing/invalid/payload-free-enum-equality.hd	type	reject:missing-eq	09-traits.md#r-trait.hash.not-inferred
@@ -1259,7 +1250,13 @@ typing/valid/derive-debug-shapes.hd	type	accept	std/format.md#r-std-format.debug
 typing/invalid/derive-before-trait.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.decorator.derive-targets
 typing/invalid/duplicate-function-fact.hd	type	reject:duplicate-fact	14-annotations.md#r-annot.decorator.duplicate
 runtime/valid/bare-marker-decorator.hd	runtime	accept	14-annotations.md#r-annot.decorator.bare-call
-runtime/valid/function-fact-read.hd	runtime	accept	14-annotations.md#r-annot.decorator.fn-read
+runtime/valid/facts-of-read.hd	runtime	accept	14-annotations.md#r-annot.decorator.facts-of
+typing/invalid/facts-of-closure.hd	type	reject:invalid-facts-of-target	14-annotations.md#r-annot.facts-of.target.error
+typing/invalid/facts-of-local-binding.hd	type	reject:invalid-facts-of-target	14-annotations.md#r-annot.facts-of.target.error
+typing/invalid/facts-of-method.hd	type	reject:invalid-facts-of-target	14-annotations.md#r-annot.facts-of.target.error
+typing/invalid/facts-of-type-name.hd	type	reject:invalid-facts-of-target	14-annotations.md#r-annot.facts-of.target.error
+typing/invalid/facts-of-as-value.hd	type	reject:invalid-facts-of-target	14-annotations.md#r-annot.facts-of.target.error
+typing/invalid/facts-of-without-import.hd	type	reject:unknown-name	14-annotations.md#r-annot.facts-of.declared
 typing/valid/decorator-target-kinds.hd	type	accept	14-annotations.md#r-annot.target.limit
 typing/invalid/decorator-target-kind.hd	type	reject:decorator-target-kind	14-annotations.md#r-annot.target.limit.kind-error
 typing/invalid/decorator-target-newtype.hd	type	reject:decorator-target-kind	14-annotations.md#r-annot.target.kind.newtype-kind

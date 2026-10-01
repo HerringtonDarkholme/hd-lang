@@ -1,0 +1,12 @@
+# test: facts_of rejects a method, which is not a module-level function
+use std.annotation.facts_of
+
+data User:
+    name: string
+
+impl User:
+    @"label"
+    fn label(self) -> string:
+        self.name
+
+label_facts := facts_of(User::label)  # diagnostic: invalid-facts-of-target

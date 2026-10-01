@@ -9,5 +9,3 @@ fn flatten() -> Flatten:
 data Post:
     @flatten()
     Timestamps
-
-post_shape := shape::[Post]()
