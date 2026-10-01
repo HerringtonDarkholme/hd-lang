@@ -16,8 +16,8 @@ Planning and backlog:
   what is parked or on hold.
 - [Open Issues](OPEN_ISSUES.md) is the single backlog for unresolved language,
   runtime, library, ABI, product, and tooling work, including undecided
-  standard-library design. It also lists the applied decision batches, each
-  linked to the Revision Notes.
+  standard-library design. It holds only open questions; the commit message
+  records what a pass applied.
 
 Open questions for the owner:
 

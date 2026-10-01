@@ -6,8 +6,7 @@ Scope: [Lexical Structure](../../spec/01-lexical-structure.md),
 [roadmap](../../future-work/ROADMAP.md) item before the roadmap was cut to one page.
 
 Every owner question (Q1 to Q17) and follow-up (B1 to B9) is decided and
-applied; the record is the spec's Revision Notes GQ1 to GQ17 in
-`spec/README.md`. The prototype's remaining gap on those decisions, GQ4, is
+applied; the commit messages are the record. The prototype's remaining gap on those decisions, GQ4, is
 in [`../README.md`](../README.md).
 
 Severity:

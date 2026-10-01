@@ -145,8 +145,9 @@ together.
    retired and gets an ID with the new chapter's prefix.
 4. A retired ID is never reused, and IDs are never renumbered.
 5. A retired ID is deleted from the specification, not listed. The
-   Revision Notes entry for the change names it in plain text, with its
-   replacement when there is one.
+   commit message for the change names it, with its replacement when there
+   is one. The commit message records what a pass applied; OPEN_ISSUES
+   holds only open questions.
 
 ### Citing A Rule
 

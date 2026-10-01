@@ -16,7 +16,7 @@ import {
   citationsIn,
   deadCitations,
   type RefIndex,
-  retirements,
+  ruleHistory,
 } from "../spec/tools/spec-refs.ts";
 import {
   glossary,
@@ -49,12 +49,6 @@ const README = `# Spec
 | Severity | Stable diagnostic codes |
 | --- | --- |
 | Error | \`bad-thing\`, \`never-named\`, \`syntax-error\` |
-
-## Revision Notes
-
-- Widgets (owner decision W1, batch 7 in Records, 2026-09-30):
-  \`lex.widget.old\` and \`.older\` are retired. All \`lex.gone.*\` rules
-  are retired. \`std.widget\` is a module, not a rule.
 `;
 
 const LEXICAL = `# Lexical Structure
@@ -187,12 +181,30 @@ test("refs finds anchors and bare IDs in prose and comments, not code", () => {
   assert.equal(citationsIn("lib/std/x.hd", hd, "lib-std", isRuleId).length, 1);
 });
 
-test("refs reads retirements from Revision Notes, with relative IDs and wildcards", () => {
-  const { exact, wildcards } = retirements(README, new Set(["lex"]));
-  assert.match(exact.get("lex.widget.old")!, /^batch 7 /);
-  assert.ok(exact.has("lex.widget.older"));
-  assert.ok(wildcards.has("lex.gone"));
-  assert.ok(!exact.has("std.widget"), "a module path is not a rule ID");
+test("refs reads retired IDs and the commit that removed each from git history", async () => {
+  const repo = await mkdtemp(join(tmpdir(), "spec-refs-"));
+  try {
+    const config = ["user.name=t", "user.email=t@example.com", "commit.gpgsign=false"];
+    const git = (...args: string[]): string =>
+      execFileSync("git", ["-C", repo, ...config.flatMap((c) => ["-c", c]), ...args], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+    const chapter = join(repo, "spec", "01-lexical-structure.md");
+    await mkdir(join(repo, "spec"), { recursive: true });
+    git("init", "-q");
+    await writeFile(chapter, "1. r[lex.widget.old] Old.\n2. r[lex.widget.kept] Kept.\n");
+    git("add", ".");
+    git("commit", "-q", "-m", "Add widgets");
+    await writeFile(chapter, "1. r[lex.widget.kept] Kept, reworded.\n");
+    git("commit", "-q", "-am", "Retire the old widget");
+    const history = ruleHistory(repo);
+    assert.deepEqual([...history.ids].sort(), ["lex.widget.kept", "lex.widget.old"]);
+    assert.match(history.removedIn.get("lex.widget.old")!, /^[0-9a-f]+ "Retire the old widget"$/);
+    assert.ok(!history.removedIn.has("lex.widget.kept"), "a reworded rule is not removed");
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
 });
 
 test("refs --dead fails only gated areas and allows history", () => {
@@ -208,8 +220,10 @@ test("refs --dead fails only gated areas and allows history", () => {
   });
   const index: RefIndex = {
     live: new Map([["lex.widget.one", "spec/01-lexical-structure.md:5"]]),
-    historical: new Set(["lex.widget.old"]),
-    retired: retirements(README, new Set(["lex"])),
+    history: {
+      ids: new Set(["lex.widget.old", "lex.gone.away"]),
+      removedIn: new Map([["lex.widget.old", 'abc1234 "Retire widgets"']]),
+    },
     citations: [
       cite("spec/02-grammar.md", "lex.widget.one", false, "01-lexical-structure.md"),
       cite("spec/02-grammar.md", "lex.widget.one", false, "02-grammar.md"),
@@ -231,8 +245,8 @@ test("refs --dead fails only gated areas and allows history", () => {
     ],
   );
   assert.match(dead[0]!.reason, /rule is in spec\/01-lexical-structure.md/);
-  assert.match(dead[1]!.reason, /retired in batch 7/);
-  assert.match(dead[4]!.reason, /retired in batch 7/);
+  assert.match(dead[1]!.reason, /retired in commit abc1234 "Retire widgets"/);
+  assert.equal(dead[4]!.reason, "retired (in git history)");
 });
 
 test("the spec CLI reports usage errors and the real language tier", () => {
@@ -396,8 +410,6 @@ const GLOSSARY_README = `# Spec
 | --- | --- |
 | **widget** | A blue thing. See [\`lex.widget.one\`](01-lexical-structure.md#r-lex.widget.one). |
 | **map adapter** | A stdlib term, in the [Standard Library glossary](std/README.md#glossary). |
-
-## Revision Notes
 `;
 
 const GLOSSARY_STD_README = `# Std

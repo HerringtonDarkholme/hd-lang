@@ -156,8 +156,7 @@ Rules that mention `reified` but keep a job without it:
 Unnumbered text: the two EBNF alternatives `[ "reified" ]` in
 `generic_parameter` and `function_generic_parameter`; the chapter 01 error
 example; the `Lookup` example and one Why sentence under Dynamic Safety;
-one sentence in chapter 04's Implementation Model; the revision notes for
-GQ17, B8, and TQ-10, which stay as history. The section
+and one sentence in chapter 04's Implementation Model. The section
 [Shapes and Generic Code](../spec/04-type-system.md#shapes-and-generic-code)
 uses "shape" for value layout, an unrelated sense, and stays.
 
@@ -372,7 +371,6 @@ fn named[reified](value: reified) -> reified:
 | `generic-erasure-reified-without-bound.hd` | rewritten: `fn erase[T](value: T)`, same `type-mismatch` |
 | `type-argument-defaults.hd` | rewritten: `widen[T = i64]` |
 | `contextual-words-as-names.hd`, `inspectable-generic-target-helper.hd` | rewritten: comments only |
-| Revision Notes for GQ17, B8, TQ-10 | unchanged; one new entry |
 
 Net: 19 numbered rules deleted, 11 reworded, none added. The language
 tier loses 19 rules beyond whatever pass 42 removes (`pnpm run spec counts`

@@ -1,6 +1,6 @@
 ---
 name: spec-update
-description: Apply owner decisions that are decided but not yet applied, end to end - spec text in the spec/STYLE.md format with rule IDs, in the language tier or the stdlib tier (spec/std/), README diagnostics and Revision Notes, conformance fixtures and indexes, a rule inventory diff, the toy prototype in src/ or a KNOWN_FAILURES.tsv entry, audit cleanup, guide and website examples, the full check suite, and a fast-forward push. Use when the owner says a decision is final and should go into the specification. Anything ambiguous goes back to the owner as a question.
+description: Apply owner decisions that are decided but not yet applied, end to end - spec text in the spec/STYLE.md format with rule IDs, in the language tier or the stdlib tier (spec/std/), README diagnostics, conformance fixtures and indexes, a rule inventory diff, the toy prototype in src/ or a KNOWN_FAILURES.tsv entry, audit cleanup, guide and website examples, the full check suite, and a fast-forward push. Use when the owner says a decision is final and should go into the specification. Anything ambiguous goes back to the owner as a question.
 ---
 
 # Spec Update
@@ -29,8 +29,9 @@ the spec, and it adds exactly what the decision says, no more.
 2. Where each is recorded. Look in:
    - `audit/types/QUESTIONS.md`, section "Decided, Not Yet Applied";
    - the **Owner Decisions** section of a `future-work/*.md` record;
-   - `spec/README.md` Revision Notes, the record of what is already
-     applied. A decision listed there is done; do not apply it twice.
+   - the commit messages, the record of what is already applied
+     (`git log --grep '<decision ID>'`). A decision a commit applied is
+     done; do not apply it twice. OPEN_ISSUES holds only open questions.
 
 ## Method
 
@@ -65,7 +66,7 @@ the spec, and it adds exactly what the decision says, no more.
    - a stdlib chapter may cite any language rule;
    - a rule whose meaning changes gets a new ID, and the old ID is retired:
      delete it, and do not list it anywhere, not in `spec/STYLE.md` either;
-     the Revision Note names it in plain text with its replacement;
+     the commit message names it with its replacement;
    - never rename a heading or anchor; only a Spec Tiers move task deletes
      a moved heading, and it fixes every link to it in the same commit;
    - an error example for each new diagnostic, and a Why callout for the
@@ -80,9 +81,10 @@ the spec, and it adds exactly what the decision says, no more.
      `spec/tools/spec-prose.ts`.
 5. **Update `spec/README.md`.** Add any new diagnostic code to the
    Diagnostics table and remove one the decision withdraws. A diagnostic
-   stays in this table even when its rule is stdlib-tier. Add one
-   Revision Notes entry per decision: "Name (owner decision, YYYY-MM-DD):",
-   its tier, and what changed for existing source.
+   stays in this table even when its rule is stdlib-tier. Add no history:
+   the commit message records what a pass applied, per decision with its
+   tier and what changed for existing source; OPEN_ISSUES holds only open
+   questions.
 6. **Update conformance.** Add or change fixtures under
    `spec/conformance/` in the format its README defines. Keep
    `cases.tsv` and `examples.tsv` consistent: one `cases.tsv` row per
@@ -161,7 +163,7 @@ the spec, and it adds exactly what the decision says, no more.
 ## Done When
 
 - The decision is in the spec, in the tier the tier test gives, with rule
-  IDs; in the README Revision Notes; and out of "Decided, Not Yet Applied".
+  IDs; named in the commit message; and out of "Decided, Not Yet Applied".
 - Fixtures cover each new rule and diagnostic, and both indexes agree.
 - The prototype implements it, or `KNOWN_FAILURES.tsv` records the gap and
   `failures-by-id.tsv` is recounted.

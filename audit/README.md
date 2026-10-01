@@ -3,22 +3,21 @@
 The 2026-09-25 audit of the prototype compiler, and the grammar and type
 audits that followed, are finished. Everything they found that has since been
 fixed, applied to the specification, superseded, or dropped has been removed
-from this folder. The spec's Revision Notes in
-[`spec/README.md`](../spec/README.md#revision-notes) record the applied
-decisions, and the repository history keeps the removed evidence.
+from this folder. The commit messages record the applied decisions, and the
+repository history keeps the removed evidence.
 
 ## Conformance
 
 On 2026-10-01 the conformance suite has 1,765 cases, and
-`test/portable/cases.tsv` selects the 1,730 that the prototype passes. The
-other 35 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
+`test/portable/cases.tsv` selects the 1,737 that the prototype passes. The
+other 28 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
 finding or with a decision below. Every case is in one of the two files. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Selected | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,691 | 1,659 | 32 |
-| stdlib | 74 | 71 | 3 |
+| language | 1,691 | 1,664 | 27 |
+| stdlib | 74 | 73 | 1 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
@@ -33,9 +32,7 @@ them by tag:
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | DC7 | 1 | group statements are not interleaved across modules |
 | MHP-1 | 1 | no inferred script entry requirement row |
-| Q6 | 2 | batch 31: tuples have no `Hash`, so a tuple map key fails `Map`'s `K < Eq & Hash` bound (task #142) |
 | ANNOTATE-TYPED | 2 | batches 39 and 40: the prototype's facts hold `Inspectable` values, so a typed fact over a type that is not inspectable cannot be held or read |
-| O3b | 5 | batch 36: no tuple `Structure` or tuple templates, so tuple traits stop at 12 elements and a tuple template derives nothing |
 | SHAPE-REVIEW | 7 | batch 42: the prototype has no `facts_of` and still implements `shape` and `shape_of`, so every `facts_of` call is `unknown-name` |
 
 ## What Remains
@@ -59,8 +56,8 @@ finding cites is kept.
 
 ## Applied Decisions the Prototype Does Not Follow Yet
 
-Every other applied decision is implemented in the prototype; the spec's
-Revision Notes in `spec/README.md` are the record.
+Every other applied decision is implemented in the prototype; the commit
+messages are the record.
 
 | #  | Decision |
 | -- | -------- |

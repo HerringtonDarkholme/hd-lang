@@ -1,7 +1,7 @@
 # Type-Checking Rules: Questions For The Owner
 
-Applied decisions have been removed from this file; the spec's Revision Notes
-in `spec/README.md` are their record (TQ-1 to TQ-6, TQ-4 and its follow-ups,
+Applied decisions have been removed from this file; the commit messages are
+their record (TQ-1 to TQ-6, TQ-4 and its follow-ups,
 TQ-9, TQ-11, TQ-12, TQ-15 to TQ-17, TQ-19, TQ-20, TQ-23, TQ-27 to TQ-31,
 TQ-36, TY-13, EQ-1, E1 to E5, M2, O1 to O3, P2, P6, VE and VE-S, Cut 2,
 trait delegation, the embedding limits, the single view, A2, A3, C1 to C3,

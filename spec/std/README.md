@@ -98,4 +98,3 @@ the [language glossary](../README.md#glossary).
 - Every diagnostic code stays in the [Diagnostics](../README.md#diagnostics)
   table, and every panic category stays in
   [Control Flow](../06-control-flow.md). Each is a compiler check.
-- One [Revision Notes](../README.md#revision-notes) log covers both tiers.

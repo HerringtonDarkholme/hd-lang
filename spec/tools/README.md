@@ -69,14 +69,15 @@ pnpm run spec refs --dead --all     # also list citations allowed as history
 ```
 
 `refs --dead` also reports an anchor whose file is not the rule's chapter.
-For a retired ID it names the Revision Notes entry that retired it, such as
-"retired in batch 24".
+For a retired ID it reads the chapters' git history in one `git log -p`
+pass and names the newest commit that removed the rule's `r[...]` marker,
+such as `retired in commit 35a38958 "Spec pass 42: remove shapes; ..."`.
 
 | Where | A dead citation |
 | --- | --- |
 | `spec/`, fixtures, `guide/`, `lib/std` | fails, and `spec/check.sh` fails |
 | `future-work/`, `KNOWN_FAILURES.tsv`, `src/` | warns |
-| a line that records history, such as "(since retired)" or a Revision Notes entry | is allowed |
+| a line that records history, such as "(since retired)" | is allowed |
 
 A bare ID counts only when it is a rule ID now or was one in the chapters'
 git history. A field access in a comment is therefore not a citation.

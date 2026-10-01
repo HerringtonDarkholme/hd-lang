@@ -10,8 +10,7 @@ TQ-11, TQ-12, TQ-15 to TQ-17, TQ-19, TQ-20, TQ-22, TY-13, EQ-1, the row,
 decisions, K2's removal of `where`, the sealed-trait definition, and
 derivation rules R10.2, R10.4, and R10.5, which typed derivation and
 `trait.derive.field-missing-trait` and `trait.derive.bound-unmet` settled) have
-been removed; the spec's Revision Notes in
-`spec/README.md` are their record. Remaining rules keep their numbers, so the
+been removed; the commit messages are their record. Remaining rules keep their numbers, so the
 [findings](FINDINGS.md) can cite them.
 
 ## R0. Terms

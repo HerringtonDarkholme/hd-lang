@@ -463,7 +463,7 @@ function diffReport(result: Diff): string {
     "",
     `Old: ${old.rules.length}. New: ${next.rules.length}.`,
     "",
-    `- Lost (retired; explain each in the commit and the Revision Note): ${result.lostRules.map((id) => `\`${id}\``).join(", ") || "none"}`,
+    `- Lost (retired; explain each in the commit message): ${result.lostRules.map((id) => `\`${id}\``).join(", ") || "none"}`,
     `- Added: ${result.addedRules.length}`,
     `- Reused (added, but an earlier version used it): ${
       result.reusedRules === undefined

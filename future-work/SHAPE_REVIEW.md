@@ -141,7 +141,6 @@ Rules that mention shapes but stay meaningful without them:
 | Terminology bullet "shape", and intro sentences | chapter 14, lines 9 and 14 to 37 | about 6 sentences |
 | Target Kinds Note: "User code reads a function's values through `shape_of`" | chapter 14 | 1 sentence |
 | Glossary: specialized data and enum shape types | spec/README.md | 2 entries |
-| Revision Notes: K1, TQ-23, Decorators D1-D9 | spec/README.md | history, unchanged |
 | Prelude row `std.annotation` | spec/10-modules.md | 14 names |
 
 ### Diagnostics

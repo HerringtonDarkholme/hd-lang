@@ -28,5 +28,4 @@ fn three() -> i32: call(add, 1, 2)
 ```
 
 > **Note.** Packs were removed by owner decision Q9 of batch 31, on
-> 2026-09-30. The [Revision Notes](README.md#revision-notes) list the
-> retired rules and diagnostics.
+> 2026-09-30.

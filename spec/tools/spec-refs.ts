@@ -11,7 +11,6 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, relative, resolve } from "node:path";
 
 import { allRules, type Corpus } from "./spec-corpus.ts";
-import { CHAPTER_PREFIXES } from "./spec-prose.ts";
 
 /** Where a citation lives; the first four are gated by spec/check.sh. */
 type Area = "spec" | "fixtures" | "guide" | "lib-std" | "records" | "src";
@@ -38,11 +37,6 @@ const ID = String.raw`[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-
 const ANCHOR = new RegExp(String.raw`(?:([\w./-]*\.md)?#|(?<![\w#-]))r-(${ID})`, "g");
 /** A bare ID: not part of a path, an anchor, a member chain, or a call, and not a `.*` wildcard. */
 const BARE = new RegExp(String.raw`(?<![\w#./@$-])(${ID})(?![\w(-]|\.[\w*])`, "g");
-
-const SEGMENT = String.raw`[a-z][a-z0-9]*(?:-[a-z0-9]+)*`;
-const FULL_ID = new RegExp(`^${ID}$`);
-const WILDCARD = new RegExp(`^${SEGMENT}(?:\\.${SEGMENT})*\\.\\*$`);
-const RELATIVE_ID = new RegExp(`^(?:\\.${SEGMENT})+$`);
 
 /** Words that mark a line as a record of history rather than a live citation. */
 const HISTORY =
@@ -105,7 +99,6 @@ export function citationsIn(
   text: string,
   area: Area,
   isRuleId: (id: string) => boolean,
-  historyLines: (line: number) => boolean = () => false,
 ): Citation[] {
   const out: Citation[] = [];
   const lines = citableLines(file, text);
@@ -114,7 +107,7 @@ export function citationsIn(
     const line = index + 1;
     // Prose wraps, so the history words may sit on a neighboring line.
     const nearby = lines.slice(Math.max(0, index - 1), index + 2).join(" ");
-    const history = HISTORY.test(nearby) || historyLines(line);
+    const history = HISTORY.test(nearby);
     const text = content.trim();
     const taken: [number, number][] = [];
     for (const match of content.matchAll(ANCHOR)) {
@@ -164,20 +157,32 @@ function scannedFiles(repoRoot: string): string[] {
   return files.sort();
 }
 
+/** Rule IDs the chapters carried in git history, and the commit that removed each. */
+export interface RuleHistory {
+  /** Every rule ID the chapters defined at some commit. */
+  readonly ids: ReadonlySet<string>;
+  /**
+   * For each ID, the newest commit that removed its definition without
+   * adding it back, as `<short hash> "<subject>"`.
+   */
+  readonly removedIn: ReadonlyMap<string, string>;
+}
+
 /**
- * Every rule ID the chapters carried in the history of `rev` (HEAD by
- * default), from git; empty when git is unavailable.
+ * The rule IDs of the chapters in the history of `rev` (HEAD by default),
+ * read in one `git log -p` pass; empty when git is unavailable.
  */
-export function historicalIds(repoRoot: string, rev = "HEAD"): Set<string> {
+export function ruleHistory(repoRoot: string, rev = "HEAD"): RuleHistory {
+  let log: string;
   try {
-    const log = execFileSync(
+    log = execFileSync(
       "git",
       [
         "-C",
         repoRoot,
         "log",
         rev,
-        "--format=",
+        "--format=%x00%h %s",
         "-p",
         "--no-ext-diff",
         "-U0",
@@ -187,76 +192,43 @@ export function historicalIds(repoRoot: string, rev = "HEAD"): Set<string> {
       ],
       { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "ignore"] },
     );
-    return new Set([...log.matchAll(new RegExp(String.raw`r\[(${ID})\]`, "g"))].map((m) => m[1]!));
   } catch {
-    return new Set();
+    return { ids: new Set(), removedIn: new Map() };
   }
-}
-
-/** The line range of spec/README.md's Revision Notes, whose citations are history by design. */
-function revisionNotesRange(readme: string): [number, number] {
-  const lines = readme.split("\n");
-  const start = lines.findIndex((line) => /^## Revision Notes\s*$/.test(line));
-  if (start < 0) return [0, -1];
-  const next = lines.findIndex((line, index) => index > start && line.startsWith("## "));
-  return [start + 1, next < 0 ? lines.length : next];
-}
-
-/**
- * For each rule ID a Revision Notes entry retires, a label for that entry:
- * "batch N" when the entry names one, else its opening words. Relative IDs
- * such as `.pack.always` after `lex.contextual.pack` and wildcards such as
- * `pack.*` are resolved best-effort; the last retiring entry wins.
- */
-export function retirements(
-  readme: string,
-  prefixes: ReadonlySet<string>,
-): { exact: Map<string, string>; wildcards: Map<string, string> } {
-  const [start, end] = revisionNotesRange(readme);
-  const lines = readme.split("\n").slice(start, end);
-  const entries: { line: number; text: string }[] = [];
-  lines.forEach((line, index) => {
-    if (line.startsWith("- ")) entries.push({ line: start + index + 1, text: line.slice(2) });
-    else if (entries.length > 0 && line.trim() !== "") entries.at(-1)!.text += ` ${line.trim()}`;
-  });
-  const exact = new Map<string, string>();
-  const wildcards = new Map<string, string>();
-  for (const entry of entries) {
-    if (!/\bretire/i.test(entry.text)) continue;
-    const batch = /\bbatch (\d+[a-z]?)/i.exec(entry.text)?.[1];
-    const opening = entry.text
-      .split(/ \(|: /, 1)[0]!
-      .replaceAll("`", "")
-      .split(/\s+/)
-      .slice(0, 8)
-      .join(" ");
-    const label = batch ? `batch ${batch}` : `"${opening}"`;
-    const where = `${label} (spec/README.md:${entry.line})`;
-    let base: string[] | undefined;
-    for (const match of entry.text.matchAll(/`([a-z.][a-z0-9.*-]*)`/g)) {
-      const token = match[1]!;
-      if (!token.startsWith(".") && !prefixes.has(token.split(".", 1)[0]!)) continue;
-      if (WILDCARD.test(token)) wildcards.set(token.slice(0, -2), where);
-      else if (FULL_ID.test(token)) {
-        base = token.split(".");
-        exact.set(token, where);
-      } else if (base && RELATIVE_ID.test(token)) {
-        const tail = token.slice(1).split(".");
-        const at = base.indexOf(tail[0]!);
-        const head =
-          at > 0 ? base.slice(0, at) : base.slice(0, Math.max(1, base.length - tail.length));
-        exact.set([...head, ...tail].join("."), where);
+  const ids = new Set<string>();
+  const removedIn = new Map<string, string>();
+  const definition = new RegExp(String.raw`r\[(${ID})\]`, "g");
+  // git log lists the newest commit first, so the first removal seen is the last one.
+  for (const commit of log.split("\0").slice(1)) {
+    const newline = commit.indexOf("\n");
+    const header = newline < 0 ? commit : commit.slice(0, newline);
+    const space = header.indexOf(" ");
+    const label = `${header.slice(0, space)} "${header.slice(space + 1)}"`;
+    const removed = new Set<string>();
+    const added = new Set<string>();
+    for (const line of commit.split("\n")) {
+      const sign = line[0];
+      if ((sign !== "-" && sign !== "+") || line.startsWith("---") || line.startsWith("+++"))
+        continue;
+      for (const match of line.matchAll(definition)) {
+        ids.add(match[1]!);
+        (sign === "-" ? removed : added).add(match[1]!);
       }
     }
+    for (const id of removed) if (!added.has(id) && !removedIn.has(id)) removedIn.set(id, label);
   }
-  return { exact, wildcards };
+  return { ids, removedIn };
+}
+
+/** Every rule ID the chapters carried in the history of `rev`, from git. */
+export function historicalIds(repoRoot: string, rev = "HEAD"): Set<string> {
+  return new Set(ruleHistory(repoRoot, rev).ids);
 }
 
 export interface RefIndex {
   /** Live rule IDs and where each is defined, as `spec/<chapter>:<line>`. */
   readonly live: ReadonlyMap<string, string>;
-  readonly historical: ReadonlySet<string>;
-  readonly retired: ReturnType<typeof retirements>;
+  readonly history: RuleHistory;
   readonly citations: readonly Citation[];
 }
 
@@ -264,24 +236,12 @@ export function buildIndex(corpus: Corpus, repoRoot: string): RefIndex {
   const live = new Map<string, string>();
   for (const { chapter, rule } of allRules(corpus))
     live.set(rule.id, `spec/${chapter.name}:${rule.line}`);
-  const historical = historicalIds(repoRoot);
-  const prefixes = new Set([
-    ...Object.values(CHAPTER_PREFIXES),
-    ...[...historical].map((id) => id.split(".", 1)[0]!),
-  ]);
-  const retired = retirements(corpus.readme, prefixes);
-  const isRuleId = (id: string): boolean =>
-    live.has(id) || historical.has(id) || retired.exact.has(id);
-  const [notesStart, notesEnd] = revisionNotesRange(corpus.readme);
-  const citations = scannedFiles(repoRoot).flatMap((file) => {
-    const area = areaOf(file)!;
-    const notes =
-      file === "spec/README.md"
-        ? (line: number) => line >= notesStart && line <= notesEnd
-        : undefined;
-    return citationsIn(file, readFileSync(resolve(repoRoot, file), "utf8"), area, isRuleId, notes);
-  });
-  return { live, historical, retired, citations };
+  const history = ruleHistory(repoRoot);
+  const isRuleId = (id: string): boolean => live.has(id) || history.ids.has(id);
+  const citations = scannedFiles(repoRoot).flatMap((file) =>
+    citationsIn(file, readFileSync(resolve(repoRoot, file), "utf8"), areaOf(file)!, isRuleId),
+  );
+  return { live, history, citations };
 }
 
 /** Why a citation is dead, or undefined when it resolves. */
@@ -296,13 +256,11 @@ function deadReason(index: RefIndex, citation: Citation): string | undefined {
   return retiredLabel(index, citation.id);
 }
 
-/** How a missing rule ID left the specification. */
+/** How a missing rule ID left the specification, from git history. */
 function retiredLabel(index: RefIndex, id: string): string {
-  const exact = index.retired.exact.get(id);
-  if (exact) return `retired in ${exact}`;
-  for (const [prefix, where] of index.retired.wildcards)
-    if (id === prefix || id.startsWith(`${prefix}.`)) return `retired in ${where}`;
-  if (index.historical.has(id)) return "retired (in git history; no Revision Notes entry names it)";
+  const commit = index.history.removedIn.get(id);
+  if (commit) return `retired in commit ${commit}`;
+  if (index.history.ids.has(id)) return "retired (in git history)";
   return "never a rule ID in the chapters' history";
 }
 

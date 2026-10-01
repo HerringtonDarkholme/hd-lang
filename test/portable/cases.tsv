@@ -1602,6 +1602,8 @@ typing/invalid/all-bang-child.hd	type
 typing/invalid/all-spread-argument.hd	type
 typing/invalid/all-function-value.hd	type
 typing/invalid/all-explicit-type-arguments.hd	type
+typing/valid/tuple-derived-traits.hd	type
+runtime/valid/tuple-derived-order.hd	runtime
 runtime/valid/tuple-spread-rest.hd	runtime
 typing/invalid/tuple-spread-plain-into-vararg.hd	type
 typing/invalid/tuple-spread-rest-into-plain.hd	type
@@ -1710,6 +1712,11 @@ typing/invalid/typed-fact-not-field.hd	type
 typing/valid/typed-fact-expected.hd	type
 typing/valid/typed-fact-expected-line.hd	type
 typing/invalid/typed-fact-expected-mismatch.hd	type
+typing/valid/tuple-template.hd	type
+typing/invalid/tuple-template-overlap.hd	type
+runtime/valid/tuple-thirteen-elements.hd	runtime
+runtime/valid/display-tuple-thirteen-elements.hd	runtime
+runtime/valid/default-tuple-thirteen-elements.hd	runtime
 typing/invalid/arbitrary-with-wrong-generator.hd	type
 typing/valid/typed-fact-function.hd	type
 typing/invalid/typed-fact-function-suspending.hd	type

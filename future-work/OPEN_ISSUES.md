@@ -11,7 +11,7 @@ git history holds its decision table.
 
 ### Readings Waiting For Confirmation
 
-Applying the batches above left these points. The specification applies
+Applying earlier batches left these points. The specification applies
 the reading in the third column, and each point asks the owner to confirm
 it.
 
@@ -23,7 +23,7 @@ it.
 | Q7-code | batch 26 | The decision says a `mut` key "stays an error" but names no code. | It keeps `invalid-map-key` ([`types.map-key.no-mut`](../spec/04-type-system.md#r-types.map-key.no-mut)), as variant B of Special Cases C8 proposed. **Recommendation:** keep it; the code names a rule no bound states. |
 | VA-unbounded-code | batch 31a | An unbounded `Args` used as `Fn`'s inputs needs a code. | `generic-kind-mismatch`, as a non-tuple there already is, rather than `unsatisfied-trait-bound`. **Recommendation:** keep it; one rule covers both. |
 | Q5-cycle-site | batch 32a | "Not just `embedding-too-deep`" leaves open whether a cycle also reports the depth code, and on which types. | `embedding-cycle` replaces `embedding-too-deep` for every type in the cycle, reported once per cycle on its first declared type, as `alias-cycle` is. A type outside the cycle that embeds into it still gets `embedding-too-deep`. **Recommendation:** keep it. |
-| Q5-self-id | batch 32a | STYLE says a rule whose meaning changes gets a new ID, but the owner said to keep `data.embed.depth.self` while its code changes. | The ID is kept, as directed. **Recommendation:** keep it; the Revision Note records the code change. |
+| Q5-self-id | batch 32a | STYLE says a rule whose meaning changes gets a new ID, but the owner said to keep `data.embed.depth.self` while its code changes. | The ID is kept, as directed. **Recommendation:** keep it; the commit message records the code change. |
 | Q5-hash | batch 34 | Lists have no `Hash` ([`types.map-key.no-hash`](../spec/04-type-system.md#r-types.map-key.no-hash)), so hashing the rest as its list gives a rest tuple no `Hash`. | Applied as stated: a rest tuple is not a map key; a Note says so. **Recommendation:** keep it until lists get `Hash`. |
 | Q6-plain | batch 34 | The owner chose a spread pattern over a plain subpattern for the rest. Whether `let (a, b, xs) = t` on a rest tuple is then an error is not stated. | `type-mismatch` ([`flow.match.spread.required`](../spec/06-control-flow.md#r-flow.match.spread.required)), mirroring a spread pattern against a fixed tuple. **Recommendation:** keep it; the pattern then always shows the type's shape. |
 | Q6-count | batch 34 | Whether a spread pattern may also take trailing fixed elements, as in `let (a, xs...) = t` with two fixed elements, is not stated. | No: the subpatterns before it must match the fixed elements one each, or `type-mismatch` ([`flow.match.spread.arity`](../spec/06-control-flow.md#r-flow.match.spread.arity)). **Recommendation:** keep it; collecting would build a new list in a pattern. |

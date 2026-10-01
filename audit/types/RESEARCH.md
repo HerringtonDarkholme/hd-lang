@@ -9,7 +9,7 @@ Kotlin docs (interfaces, extensions, delegation, data classes) and spec.
 Items marked (unverified) were not confirmed in official text.
 The sections on coherence and on method resolution were removed: the
 decisions they informed (TQ-1 to TQ-4, the member-lookup decisions) are
-applied and recorded in the spec's Revision Notes.
+applied, and the commit messages record them.
 
 ## 1. Impl Selection
 

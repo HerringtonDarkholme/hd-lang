@@ -54,7 +54,7 @@ it each mean no.
 | a test-position rule the compiler checks, or a literal `snapshot` argument | [Standard Testing](spec/10-modules.md#standard-testing) |
 | a std API that passes the tier test, such as an iterator adapter or `trim` | `spec/std/<module>.md`, rule IDs `std-<module>.*` |
 | every diagnostic code, and every panic category | the language tier: README Diagnostics, and Control Flow |
-| a Revision Notes entry, naming its tier | the one log in [spec/README.md](spec/README.md#revision-notes) |
+| what a spec pass applied | the commit message records it; OPEN_ISSUES holds only open questions |
 | a fixture | `spec/conformance/`; its tier is the tier of its `specification` column |
 | undecided std design, such as `Set` or a default hasher | future-work/OPEN_ISSUES.md only |
 
