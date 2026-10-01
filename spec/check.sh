@@ -209,7 +209,6 @@ if grep -R -n -E '(^|[^[:alnum:]_])(v1|MVP|provisional)([^[:alnum:]_]|$)' \
     "$repo_dir/guide/OVERVIEW.md" \
     "$repo_dir/guide/LANGUAGE_TOUR.md" \
     "$repo_dir/guide/LEARN_IN_10_MINUTES.md" \
-    "$repo_dir/future-work/archive/RUNTIME_AND_LIBRARY.md" \
     "$repo_dir/SYNTAX_NOTES.md" \
     --include='*.md'; then
     fail "versioned or provisional language labels found"
@@ -248,7 +247,6 @@ if grep -R -n -E 'fn [A-Za-z_][A-Za-z0-9_!]*\([^)]*mut [a-z_][A-Za-z0-9_]*:' \
     "$repo_dir/guide/OVERVIEW.md" \
     "$repo_dir/guide/LANGUAGE_TOUR.md" \
     "$repo_dir/guide/LEARN_IN_10_MINUTES.md" \
-    "$repo_dir/future-work/archive/RUNTIME_AND_LIBRARY.md" \
     --include='*.md' --include='*.hd'; then
     fail "obsolete mutability syntax found"
 fi

@@ -1,5 +1,4 @@
-# std.num: the numeric traits, integer arithmetic variants, and parsing
-# (future-work/archive/STDLIB.md#stdnum).
+# std.num: the numeric traits, integer arithmetic variants, and parsing.
 # Overflow is checked by default; the arithmetic methods make the other
 # behaviors explicit. They are declared for `i32` and `i64` only.
 use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}

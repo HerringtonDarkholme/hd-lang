@@ -77,7 +77,6 @@ For a retired ID it names the Revision Notes entry that retired it, such as
 | `spec/`, fixtures, `guide/`, `lib/std` | fails, and `spec/check.sh` fails |
 | `future-work/`, `KNOWN_FAILURES.tsv`, `src/` | warns |
 | a line that records history, such as "(since retired)" or a Revision Notes entry | is allowed |
-| a record in `future-work/archive/` | is allowed: the whole record is history |
 
 A bare ID counts only when it is a rule ID now or was one in the chapters'
 git history. A field access in a comment is therefore not a citation.

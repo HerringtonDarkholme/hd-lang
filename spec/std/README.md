@@ -44,7 +44,7 @@ That alone does not make a method language-tier.
 ## Chapters
 
 Each chapter is one unnumbered file named after its std module. The
-[Spec Tiers migration plan](../../future-work/archive/SPEC_TIERS.md#migration-plan)
+Spec Tiers migration plan
 added the files below, and it is complete. A new decided std module gets a
 file of its own.
 

@@ -1,4 +1,4 @@
-# std.option: inherent methods on `T?` (future-work/archive/STDLIB.md#stdoption-and-stdresult).
+# std.option: inherent methods on `T?`.
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
 
 impl[T] T?:

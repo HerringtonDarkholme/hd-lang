@@ -2728,7 +2728,7 @@ Integration tests live under `tests/`, see the package as a dependent does,
 and get real providers from the test profile. There, `pkg.billing` names the
 library's public API, and `use tests.common` reaches `tests/common.hd`; the
 `tests` root is an error anywhere else. See [Test Modules](../spec/10-modules.md#test-modules)
-and the [test runner notes](../future-work/archive/RUNTIME_AND_LIBRARY.md#testing).
+and the test runner notes.
 
 ## Requirements and Suspension
 
@@ -3132,4 +3132,4 @@ The template reads each member's metadata as facts. See
 
 ## Runtime and Library Features
 
-Testing, sandbox enforcement, persistence, replay, and observability build on the language features introduced above but are primarily standard-library, tooling, or runtime concerns. They are documented separately in [Runtime and Library Design](../future-work/archive/RUNTIME_AND_LIBRARY.md).
+Testing, sandbox enforcement, persistence, replay, and observability build on the language features introduced above but are primarily standard-library, tooling, or runtime concerns. They are documented separately in Runtime and Library Design.

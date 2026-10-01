@@ -39,7 +39,7 @@ lang item, an intrinsic, a prelude name, or the conformance harness (`it`,
 `assert`, `assert_equal`, `println`). Any other std API that the owner
 decides lives in `spec/std/`. Undecided std design goes to
 [future-work/OPEN_ISSUES.md](future-work/OPEN_ISSUES.md); the archived
-[STDLIB draft](future-work/archive/STDLIB.md) keeps its background.
+STDLIB draft keeps its background.
 
 **The tier test.** Could `lib/std` implement the item in ordinary hd, over
 language-tier items only, with no compiler knowledge of its name, and keep
@@ -64,7 +64,7 @@ language-tier fixture or example uses only language-tier std items.
 Undecided std items appear in no spec example.
 
 Owner direction, 2026-09-28; tiers from
-[Spec Tiers](future-work/archive/SPEC_TIERS.md#owner-decisions), 2026-09-30,
+Spec Tiers, 2026-09-30,
 whose migration is complete.
 
 ## Spec Text Tools

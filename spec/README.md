@@ -35,7 +35,7 @@ backlog are tracked in [Open Issues](../future-work/OPEN_ISSUES.md).
 
 Runtime and standard-library behavior that is not language semantics is
 sketched in the archived
-[`RUNTIME_AND_LIBRARY.md`](../future-work/archive/RUNTIME_AND_LIBRARY.md). The language tour remains
+`RUNTIME_AND_LIBRARY.md`. The language tour remains
 the readable introduction; this directory is the formalization target.
 
 Chapters are written to the [Specification Style](STYLE.md) guide.
@@ -1003,7 +1003,7 @@ existing source. Each entry names the decision that made the change.
   derivation block on a newtype, previously unspecified, is
   `misplaced-derivation`: a newtype derives only through its base with
   `@derive`. `Clone` is a standard-library trait, listed in
-  [STDLIB](../future-work/archive/STDLIB.md#clone).
+  STDLIB.
 - Typed derivation M24 (owner decision in
   Typed Derivation,
   2026-09-27): a `Source` implementation may strengthen only the bound on
@@ -1785,7 +1785,7 @@ existing source. Each entry names the decision that made the change.
   `grammar.stmt.let-mut`, `expr.assign.compound.map-read`, and
   `types.trait.safe.convert` are retired.
 - Typed derivation M30 (owner decisions in
-  [Typed Derivation](../future-work/archive/TYPED_DERIVATION.md#owner-decisions-m30-2026-09-29),
+  Typed Derivation,
   2026-09-29): no source changes. A fact type has no compile-time check
   hook, and derivation between two types is out of scope. On a name
   clash, `Structure::walk(self, w)` calls the generated `walk`. Template
@@ -1956,7 +1956,7 @@ existing source. Each entry names the decision that made the change.
   undecided before. The two readings of batch 9 stay as applied. No rule
   ID is retired.
 - Property-test API batch 12 (Testing PT1-PT9, owner decisions in
-  [Testing](../future-work/archive/TESTING.md#owner-decisions), 2026-09-29):
+  Testing, 2026-09-29):
   `Choices.int` and `Choices.float` are generic, as
   `int[N < Integer](lo: N, hi: N) -> N` and
   `float[F < Float](lo: F, hi: F) -> F`, so a draw takes its type from its
@@ -1997,7 +1997,7 @@ existing source. Each entry names the decision that made the change.
   target is a trait value type is `trait-value-impl-target`. Both were
   invalid without a code. No rule ID is retired.
 - Property-test batch 13 (Testing Q5-Q10, owner decisions in
-  [Testing](../future-work/archive/TESTING.md#owner-decisions), 2026-09-30):
+  Testing, 2026-09-30):
   `arbitrary.with` is generic,
   `with[T < Inspectable](gen: fn(mut Choices) -> T) -> Generator`, so a
   generator whose values are not inspectable is `unsatisfied-trait-bound`,
@@ -2095,7 +2095,7 @@ existing source. Each entry names the decision that made the change.
   `Self`. In an impl for `i32`, `self + 1` is valid, and a call such as
   `start.next()` needs no mutable access. No rule ID is retired.
 - Self references (owner decision SR1 in
-  [Typed Derivation](../future-work/archive/TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30),
+  Typed Derivation,
   batch 17, 2026-09-30): `std.structure` declares `enum SelfRef` with
   `Absent`, `Optional`, and `Required`, and `Member` and `VariantInfo`
   gain a compiler-computed `self_ref` field. A `Member` or `VariantInfo`
@@ -2112,7 +2112,7 @@ existing source. Each entry names the decision that made the change.
   `Display` is `no-common-type`; write `cmp[Display](user, label)`. This
   applies to `assert_equal` too. No rule ID is retired.
 - Property tests move to the stdlib tier (owner decisions ST2, ST3, and ST6
-  in [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
+  in Spec Tiers, migration
   step 4, 2026-09-30): stdlib tier. The Property Tests and Draw Budget
   sections of Modules move to [Testing](std/testing.md), with their text
   unchanged. Source is unaffected. `module.testing.choices.*` becomes
@@ -2127,7 +2127,7 @@ existing source. Each entry names the decision that made the change.
   [Registration Functions](std/testing.md#registration-functions)).
 - Test timeouts, table-test rows, and snapshot files move to the stdlib
   tier (owner decisions ST2, ST3, and ST6 in
-  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
+  Spec Tiers, migration
   step 6, 2026-09-30): stdlib tier. Rules move from Modules' Test Cases,
   Table Tests, and Snapshots to the new sections
   [Test Timeout](std/testing.md#test-timeout),
@@ -2151,7 +2151,7 @@ existing source. Each entry names the decision that made the change.
   now names the three options itself, since the option table no longer
   lists `timeout`; its meaning is unchanged.
 - Derived `Arbitrary` moves to the stdlib tier (owner decisions ST2, ST3,
-  and ST7 in [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions),
+  and ST7 in Spec Tiers,
   migration step 5, 2026-09-30): stdlib tier. Modules' Derived Arbitrary
   section moves to [Derived Arbitrary](std/testing.md#derived-arbitrary)
   in Testing, and its heading is deleted. Source is unaffected.
@@ -2166,7 +2166,7 @@ existing source. Each entry names the decision that made the change.
   runner generates and shrinks inputs becomes
   [`std-testing.it-prop`](std/testing.md#r-std-testing.it-prop).
 - Derived `Arbitrary` member bounds (owner decision AT-with in
-  [Testing](../future-work/archive/TESTING.md#owner-decisions), batch 20,
+  Testing, batch 20,
   2026-09-30): stdlib tier. The derived template requires every member to
   implement `Arbitrary` and to be inspectable, whether or not
   `arbitrary.with` tunes it. A tuned member whose type has no `Arbitrary`,
@@ -2179,7 +2179,7 @@ existing source. Each entry names the decision that made the change.
   `std-testing.arbitrary.derive.member-bounds`, `.derive.not-derivable`,
   and `.derive.manual`.
 - Self references, restated (owner decision SIMPLE in
-  [Typed Derivation](../future-work/archive/TYPED_DERIVATION.md#owner-decision-simple-2026-09-30),
+  Typed Derivation,
   batch 20, 2026-09-30): language tier. `self_ref` follows from a member's
   type alone, with no simplest value. A member whose type is another enum,
   every variant of which needs the enclosing type, was `.Optional` and is
@@ -2190,7 +2190,7 @@ existing source. Each entry names the decision that made the change.
   by `annot.self-ref.enclosing.arguments`, `.needs.self`, `.needs.compound`,
   `.needs.result`, `.needs.enum`, `.needs.stop`, and `.needs.only`.
 - Structure names (owner decision ST8, revised, in
-  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions),
+  Spec Tiers,
   2026-09-30): language tier. `Structure` gains the receiverless,
   compiler-supplied `fn name() -> string`: the target's declared name, with
   no module path and no type arguments, a compile-time constant callable
@@ -2201,7 +2201,7 @@ existing source. Each entry names the decision that made the change.
   Source is unaffected. No rule ID is retired.
 - Iterator adapters and collect targets move to the stdlib tier (owner
   decisions ST2 and ST3 in
-  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
+  Spec Tiers, migration
   step 7, 2026-09-30): stdlib tier. Control Flow's Iterator Adapters and
   Collect Targets sections move to [Iterators](std/iter.md), with their
   text unchanged, and their headings are deleted. `map` on a list or an
@@ -2216,7 +2216,7 @@ existing source. Each entry names the decision that made the change.
   depends on them. No language rule names an adapter or `collect`.
 - String methods and the `r` prefix move to the stdlib tier (owner
   decisions ST2 and ST3 in
-  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
+  Spec Tiers, migration
   step 8, 2026-09-30): stdlib tier. The rules for `lower`, `trim`, `split`,
   `replace`, and `starts_with` leave Modules' String Methods, and their
   signatures leave the Built-In Methods table, for
@@ -2235,7 +2235,7 @@ existing source. Each entry names the decision that made the change.
   names `chars` and `char_indices`, so the tier test keeps them.
 - Debug text and builders move to the stdlib tier (owner decisions ST2
   and ST3 in
-  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
+  Spec Tiers, migration
   step 9, 2026-09-30): stdlib tier. `trait.debug.render` and Traits'
   Debug Builders section, with the derived builder mapping, move to
   [Format](std/format.md), with their text unchanged, and the Debug
@@ -2250,7 +2250,7 @@ existing source. Each entry names the decision that made the change.
   `DebugWriter`.
 - `Duration` and its suffixes move to the stdlib tier (owner decisions
   ST2 and ST3 in
-  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
+  Spec Tiers, migration
   step 9, 2026-09-30): stdlib tier. The `std.time` suffix rules leave
   Expressions' Literal Suffixes, and `module.prelude.time-suffixes`
   leaves Standard Names Outside The Prelude, for [Time](std/time.md),
@@ -2276,7 +2276,7 @@ existing source. Each entry names the decision that made the change.
   qualifying the call.
 - Language-chapter examples and the raw-string rule leave the stdlib tier
   (owner decisions ST2 and ST3 in
-  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
+  Spec Tiers, migration
   step 11, 2026-09-30): language tier. `lex.raw-string.none-text`, which
   named `std.text.r` as the prefix of `r"..."`, is retired for
   `lex.raw-string.prefix`, itself since retired for a Note:
@@ -2289,7 +2289,7 @@ existing source. Each entry names the decision that made the change.
   own.
 - Type arguments in expressions take `::` (owner decisions D1, its
   type-argument part, and D3 in
-  [Call Indexing](../future-work/archive/CALL_INDEXING.md#owner-decisions),
+  Call Indexing,
   2026-09-30): language tier. `[` after an expression always indexes, and
   an explicit type-argument list in an expression follows `::`:
   `first[string](names)` becomes `first::[string](names)`,
@@ -2307,7 +2307,7 @@ existing source. Each entry names the decision that made the change.
   The pipe rule still needs `_` after a bare step with an index or type
   arguments.
 - Callable values (owner decisions D1, its callable-value part, D2, and
-  D4 in [Call Indexing](../future-work/archive/CALL_INDEXING.md#owner-decisions),
+  D4 in Call Indexing,
   2026-09-30): language tier, since call syntax uses the traits.
   `std.ops` declares `Apply`, with `type Out` and `fn apply(self)`, and
   `Update[V]`, with `fn update(mut self, value: V)`. Neither takes a key.
@@ -2351,7 +2351,7 @@ existing source. Each entry names the decision that made the change.
   [`flow.for.iterator-not-iterable`](06-control-flow.md#r-flow.for.iterator-not-iterable)
   is new.
 - Redundant built-in rule for callable values (owner decision BFF2,
-  batch 25 in [Call Indexing](../future-work/archive/CALL_INDEXING.md#owner-decisions),
+  batch 25 in Call Indexing,
   2026-09-30): language tier. `expr.call.apply.builtin-none`, which said
   `List`, `Map`, and `string` implement neither `Apply` nor `Update`, is
   retired with no replacement. Those types implement neither trait, so
@@ -2546,7 +2546,7 @@ existing source. Each entry names the decision that made the change.
   now `type-mismatch`; write `item.encode()`.
 - Test registration functions move to the stdlib tier (owner decisions
   ST6, revised, and DUR, batch 29 in
-  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#still-open), 2026-09-30):
+  Spec Tiers, 2026-09-30):
   stdlib tier. Modules' Table Tests section moves to
   [Registration Functions](std/testing.md#registration-functions) in
   Testing, and its heading is deleted. Source is unaffected.
@@ -2568,7 +2568,7 @@ existing source. Each entry names the decision that made the change.
   meaning. Under DUR, option A, the language tier's Note names
   `std.time.Duration` for the `timeout` of `it` alone.
 - `retry!` is a library loop (owner decision RETRY, batch 29 in
-  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#still-open), 2026-09-30):
+  Spec Tiers, 2026-09-30):
   stdlib tier. `std.task` declares
   `retry![T, E](times: i32, attempt: fn!() -> Result[T, E]) -> Result[T, E]`,
   an ordinary `fn!` function, in the new chapter [Task](std/task.md#retry).
@@ -3135,7 +3135,7 @@ existing source. Each entry names the decision that made the change.
   (fn.generic.methods).
 - Comparison derives and tuples through templates, typed member facts
   (owner decisions O3, O3b, and O7, batch 36, 2026-10-01; recorded in
-  [COMPTIME_UNIFICATION](../future-work/archive/COMPTIME_UNIFICATION.md#owner-decisions)).
+  COMPTIME_UNIFICATION).
   Language and stdlib tiers.
   O3: `@derive(Eq, PartialOrd, Ord, Hash)` derive through templates
   ([`trait.derive.cmp-templates`](09-traits.md#r-trait.derive.cmp-templates)),

@@ -64,7 +64,7 @@ recommendation is advice, labeled as such.
 ## Output
 
 File: `future-work/<TOPIC>.md` (a survey and design options record, like
-`future-work/archive/FN_TYPE.md`), linked from
+the deleted FN_TYPE record), linked from
 `future-work/README.md`. Sections, in order:
 
 1. Title and a status line ("design exploration, YYYY-MM-DD; nothing here

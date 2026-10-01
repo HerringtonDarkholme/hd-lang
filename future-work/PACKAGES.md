@@ -13,7 +13,7 @@ their text is in git history. What stays open here is the final
 `hd.toml` schema ([`module.tooling.package-schema`](../spec/10-modules.md#r-module.tooling.package-schema)),
 the checked compatibility rule behind `hd api diff`, and the agent-first
 CLI; the tooling plan is in
-[Package Tooling](archive/RUNTIME_AND_LIBRARY.md#package-tooling).
+Package Tooling.
 
 Inputs:
 
@@ -158,7 +158,7 @@ the open schema draft.
   key order, so an agent's edit produces a minimal diff.
 - Nothing in the manifest duplicates what source already states. Provider
   bindings are derived from entry points
-  ([Runtime and Library Design](archive/RUNTIME_AND_LIBRARY.md)), and public API is
+  (Runtime and Library Design), and public API is
   derived from `pub` declarations.
 
 ### 2.2 Full Example: Application
@@ -480,7 +480,7 @@ Owner decision 1 chose this rule.
 Superseded by DEP1 and DEP4: there is no lockfile, and `hd.sum` is the only
 integrity source ([Package Manifest](../spec/10-modules.md#package-manifest)).
 Its line format is tooling work in
-[Package Tooling](archive/RUNTIME_AND_LIBRARY.md#package-tooling).
+Package Tooling.
 
 ## 6. Standard Library
 

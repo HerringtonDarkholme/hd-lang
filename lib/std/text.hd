@@ -1,6 +1,6 @@
 # std.text: the `string` methods, `join`, and `StringBuilder`
 # (spec/10-modules.md#string-methods for the intrinsics, spec/std/text.md for
-# the methods above them, future-work/archive/STDLIB.md#stdtext).
+# the methods above them).
 # Positions and lengths are byte offsets (Strings STR1-STR6, STR10). The
 # built-in methods (`len`, `chars`, `char_indices`, `bytes`, `slice`, `trim`,
 # `lower`, `split`, `replace`, `starts_with`) are ordinary hd code here too. Every method is built on the byte primitives at the end of this
@@ -17,7 +17,7 @@ pub fn r(t: Template[Display]) -> string:
     interpolate(t)
 
 # The raw pieces joined with the values' `Display` text, in order
-# (future-work/archive/STDLIB.md#stdtext; the specification names only `r`).
+# (the specification names only `r`).
 pub fn interpolate[T < Display](t: Template[T]) -> string:
     let joined = t.raw_parts[0]
     let index = 0
@@ -32,8 +32,7 @@ pub data EscapeError:
     pub offset: i32
 
 # The text with each escape sequence replaced by its meaning, or an
-# `EscapeError` at the first invalid one (future-work/archive/STDLIB.md#stdtext,
-# spec/01-lexical-structure.md#escape-sequences). Every escape is ASCII, so
+# `EscapeError` at the first invalid one (spec/01-lexical-structure.md#escape-sequences). Every escape is ASCII, so
 # the walk reads bytes and copies each run of plain text whole.
 pub fn process_escapes(text: string) -> Result[string, EscapeError]:
     size := byte_len(text)
@@ -120,8 +119,7 @@ fn hex_digit(byte: i32) -> i32:
 fn scalar_value(point: i32) -> bool:
     point >= 0 && point <= 1114111 && (point < 55296 || point > 57343)
 
-# A malformed byte sequence given to `string::from_utf8`
-# (future-work/archive/STDLIB.md#stdtext).
+# A malformed byte sequence given to `string::from_utf8`.
 pub enum Utf8Error:
     # The byte offset where the first invalid sequence starts.
     InvalidSequence(position: i32)

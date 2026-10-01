@@ -1,5 +1,5 @@
-# std.time: `Duration` and its literal suffixes (spec/std/time.md,
-# future-work/archive/STDLIB.md#stdtime). A `Duration` is a whole number of
+# std.time: `Duration` and its literal suffixes (spec/std/time.md).
+# A `Duration` is a whole number of
 # milliseconds in an `i64` (r-std-time.suffix.std.duration), and its public API is
 # `milliseconds`, `seconds`, and `as_milliseconds` (r-std-time.suffix.std.duration-api);
 # the `millis` field is the prototype's own. Each suffix scales its literal by

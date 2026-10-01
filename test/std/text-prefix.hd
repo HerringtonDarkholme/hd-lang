@@ -1,5 +1,5 @@
-# std.text: the string-prefix helpers `interpolate` and `process_escapes`
-# (future-work/archive/STDLIB.md#stdtext), which the specification does not name.
+# std.text: the string-prefix helpers `interpolate` and `process_escapes`,
+# which the specification does not name.
 # `process_escapes` returns `Result[string, EscapeError]` (Literal Suffixes
 # L21), and both live in `std.text` beside `r` (L22).
 use std.ops.{Template, str_prefix}

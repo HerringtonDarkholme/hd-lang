@@ -45,7 +45,7 @@ name, type, behavior, or visibility.
 > was removed by Typed Derivation decision 10 (2026-09-27).
 > Building such a value once per type, with deferred `Ref[T]` references for
 > recursive types, is the standard library's
-> [derived-function cache](../future-work/archive/STDLIB.md#derived-function-cache).
+> derived-function cache.
 
 ## Common Shape Representation
 
@@ -863,7 +863,7 @@ pub trait Source[S]:
 
 > **Note.** Standard walkers, describers, and sources, such as the ones a
 > `std.json` would use, are library design.
-> The archived [STDLIB draft](../future-work/archive/STDLIB.md) sketches the standard modules.
+> The archived STDLIB draft sketches the standard modules.
 
 ### The Structure Trait
 
@@ -1458,7 +1458,7 @@ data Node:
 > same way. When any `self_ref` is not `.Absent`, a codec may add a
 > nesting-depth limit, and a schema generator may emit a named definition
 > with a `$ref`. `Debug` may truncate deep output.
-> The archived [STDLIB draft](../future-work/archive/STDLIB.md) sketches these.
+> The archived STDLIB draft sketches these.
 
 ### Handles
 
@@ -1500,7 +1500,7 @@ impl[S] Source[S] for CopySource[S]:  # variant, next, and member elided
 > **Note.** A walker that holds a second value, such as a diff, checks
 > `v.holds(other)` in `variant` before any `h.get(other)`. The
 > standard-library `Clone` trait, listed in
-> [STDLIB](../future-work/archive/STDLIB.md#clone), declares `clone(self)`, which
+> STDLIB, declares `clone(self)`, which
 > reads the readonly views, and `clone_mut(mut self) -> mut Self`, whose
 > source reads the declared types from a `mut` value, as `CopySource` does.
 

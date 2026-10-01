@@ -14,7 +14,7 @@ audit of 2026-09-28, which moved the string methods, `println`, and
 `debug` into hd.
 
 Inputs: the tier table in [AGENTS.md](../AGENTS.md#spec-scope-for-the-standard-library),
-[Spec Tiers](archive/SPEC_TIERS.md), [spec/std/](../spec/std/README.md),
+Spec Tiers, [spec/std/](../spec/std/README.md),
 `pnpm run spec counts` (3,616 language rules, 180 stdlib rules, 111
 rules the heuristic calls intrinsic), `src/README.md`, `ast-grep outline`
 of `src/checker` and `src/emitter`, and the 246 rows of
@@ -104,7 +104,7 @@ defined in [Classification](#classification).
 | Primitive `Display`: integer, `char`, `bool` text | `display` HIR node, `emitPrimitiveDisplay`, `runtime.wat` `i32_to_string`, `i64_to_string`, `u64_to_string`, `char_to_string` | 160 | [`expr.interp.std`](../spec/05-expressions.md#r-expr.interp.std): "the standard library provides" | B |
 | Float text, `**`, float `%` | `runtime/float.wat`, host `format_f64` | 50 | operators and interpolation | A |
 | `FromIterator` for `Map` | `checker/assignability.ts` (`mapCollectionPlan`), `value-comparison.ts` (`emitMapCollection`), HIR `map-collection` | 69 | [Collect Targets](../spec/std/iter.md#collect-targets) | B |
-| `Map` storage, key equality, key kinds | `runtime/map.wat`, `shared.ts` (`mapKeyKind`, `setHashableKeyTypes`) | 233 + 30 | representation intrinsic ([Tier Criteria](archive/SPEC_TIERS.md#tier-criteria)); [`types.map-key.declared-bound`](../spec/04-type-system.md#r-types.map-key.declared-bound) | A; key kinds D |
+| `Map` storage, key equality, key kinds | `runtime/map.wat`, `shared.ts` (`mapKeyKind`, `setHashableKeyTypes`) | 233 + 30 | representation intrinsic (Tier Criteria); [`types.map-key.declared-bound`](../spec/04-type-system.md#r-types.map-key.declared-bound) | A; key kinds D |
 | `List` storage, cursors, invalidation | `runtime.wat` vectors, `emitter/iterator.ts`, `checker/iteration.ts` | 439 + 152 | Built-In Collection Iteration (06) | A and D |
 | Checked arithmetic, sized integers, string primitives | `runtime.wat` rest, `emitter/sized-numeric.ts`, `numeric.ts` | 414 + 305 | 04, 05 | D |
 
@@ -379,7 +379,7 @@ known-failure row changed.
   by the target's declaration name, which made checking quadratic in the
   number of derivations before.
 - Cost per member, from the 1x20 to the 20x20 benchmark of
-  [Compiler Performance](archive/COMPTIME_UNIFICATION.md#compiler-performance):
+  Compiler Performance:
   a user walk template went from 0.34 ms and 3.1 KB of WAT to 0.19 ms and
   1.3 KB. Derived `Eq` went from 0.035 ms and 0.33 KB (TS generator) to
   0.19 ms and 1.4 KB (template); all four comparison traits from 0.25 ms
@@ -489,7 +489,7 @@ cheapest kind of change in the [Design Cost Order](../AGENTS.md#design-cost-orde
 It changes three rules and deletes the tuple strategies.
 **Superseded (owner, batch 36, 2026-10-01):** neither A nor B. Tuples get a
 `Structure`, and every tuple trait derives through a tuple template at
-every size ([COMPTIME_UNIFICATION O3b](archive/COMPTIME_UNIFICATION.md#owner-decisions)).
+every size (COMPTIME_UNIFICATION O3b).
 
 **Q4. `@derive(Eq, PartialOrd, Ord, Hash)` as std templates?**
 `trait.derive.intrinsic-set` (since retired; now `trait.derive.cmp-templates`)

@@ -1,4 +1,4 @@
-# std.result: inherent methods on `Result[T, E]` (future-work/archive/STDLIB.md#stdoption-and-stdresult).
+# std.result: inherent methods on `Result[T, E]`.
 
 impl[T, E] Result[T, E]:
     pub fn map_ok[U](self, transform: fn(T) -> U) -> Result[U, E]:

@@ -23,34 +23,34 @@ name, and git history keeps the decision tables this file used to hold.
 - **Batch 15:** Q1a, Q1b, LM-a, LM-b, CLO1, Q-?, and Q-map.
 - **Batch 16:** TB1, LM-c, and AUD, which deleted four audit inputs.
 - **Batch 17:** INF-mut and SR1; SR1 is recorded in
-  [Testing](archive/TESTING.md#owner-decisions) and
-  [Typed Derivation](archive/TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30).
+  Testing and
+  Typed Derivation.
 - **Batches 20 and 21:** AT-with, SIMPLE, and ST8, then AT-any,
   ST8-newtype, and ST8-clash.
 - **Batch 24, iterator consumption:** IT1-IT3. `Iterator[T]` is not
   `Iterable`, and an iterator is single-pass.
 - **Batch 25:** ST8-self and r-merge, and the Call Indexing follow-ups BF
-  and BFF ([Call Indexing](archive/CALL_INDEXING.md#owner-decisions)).
+  and BFF (Call Indexing).
 - **Batch 26:** AT-gen, the cost review's Q2-Q8
-  ([Syntax And Semantics Cost](archive/SYNTAX_SEMANTICS_COST.md#questions-for-the-owner)),
+  (Syntax And Semantics Cost),
   patterns in `let` (LP1 to LP1-one), and Q5-list.
 - **Batches 27 and 28, tuples:** TU1, TU2, TU-spec, and ST8-own. Tuple
   representation is implementation work, task #122.
 - **Batch 29:** DUR, ST6 revised, and RETRY
-  ([Spec Tiers](archive/SPEC_TIERS.md#still-open)).
+  (Spec Tiers).
 - **Batch 30:** the LP1 follow-ups LP-irrefutable-else, LP-inline,
   LP-discard, LP-bare, LP-for, and Q5-tuple.
 - **Batch 31, packs and literals:** passes 31a, 31b, and 31c
-  ([Reopen: Packs And Literal Sugar](archive/REOPEN_PACKS_LITERALS.md)).
+  (Reopen: Packs And Literal Sugar).
   Packs are gone, and literal suffixes and prefixes are one rule set.
 - **Batch 32, simplify embedding:** passes 32a and 32b
-  ([Simplify Embedding](archive/SIMPLIFY_EMBEDDING.md#owner-decisions)).
+  (Simplify Embedding).
 - **Batch 33:** TUPLE-REST in 33a; PRIVATE-SHADOW, ALL-type-args,
   Q6-others, RETRY-row, RETRY-zero, C3-valid, and LIVE-CELL in 33b.
 - **Batch 34:** the 33a follow-ups Q1-Q7.
 - **Batch 35:** Q6-default and Q6-display-text.
 - **Batch 36:** O3, O3b, and O7
-  ([One Compile-Time Intrinsic](archive/COMPTIME_UNIFICATION.md#owner-decisions)).
+  (One Compile-Time Intrinsic).
 - **Batch 37:** VALUE-SPEC, a value-layout specialization model for the
   non-normative [Shapes and Generic Code](../spec/04-type-system.md#shapes-and-generic-code).
   The prototype keeps boxing for now; tasks #86, #95, #96, and #122
@@ -74,7 +74,7 @@ it.
 | INF-lit | batch 17 | Does an integer literal argument take the type solved from the other arguments in any position? Without that, `pick(1, large)` with an `i64` `large` is a `type-mismatch`, since the literal alone is `i32`, while `pick(large, 1)` checks. | **Recommendation:** yes: a literal is not a conversion, so it takes the solved type as its expected type in any position, as Rust's integer literals do. |
 | INF-code | batch 17 | Which code does any other conflict get, such as a `List[mut User]` and a `List[User]` (variance), a `T` and a `T?`, or two child-trait values? The decision names `type-mismatch` for numbers and `no-common-type` for trait values. | **Recommendation:** `no-common-type` where the least common type also fails (trait values, supertrait widening); `type-mismatch` otherwise, as `choose(1, true)` already is. |
 | SR-omit | batch 17 | Does a variant's `self_ref` count a member that the derivation block omits (`cache = pass`)? | **Recommendation:** no: count only the members the derivation sees, since an omitted member takes its default and is never walked or built. |
-| Q7-code | batch 26 | The decision says a `mut` key "stays an error" but names no code. | It keeps `invalid-map-key` ([`types.map-key.no-mut`](../spec/04-type-system.md#r-types.map-key.no-mut)), as variant B of [Special Cases C8](archive/SPECIAL_CASES.md#c8-map-keys-through-the-ordinary-bound) proposed. **Recommendation:** keep it; the code names a rule no bound states. |
+| Q7-code | batch 26 | The decision says a `mut` key "stays an error" but names no code. | It keeps `invalid-map-key` ([`types.map-key.no-mut`](../spec/04-type-system.md#r-types.map-key.no-mut)), as variant B of Special Cases C8 proposed. **Recommendation:** keep it; the code names a rule no bound states. |
 | VA-unbounded-code | batch 31a | An unbounded `Args` used as `Fn`'s inputs needs a code. | `generic-kind-mismatch`, as a non-tuple there already is, rather than `unsatisfied-trait-bound`. **Recommendation:** keep it; one rule covers both. |
 | Q5-cycle-site | batch 32a | "Not just `embedding-too-deep`" leaves open whether a cycle also reports the depth code, and on which types. | `embedding-cycle` replaces `embedding-too-deep` for every type in the cycle, reported once per cycle on its first declared type, as `alias-cycle` is. A type outside the cycle that embeds into it still gets `embedding-too-deep`. **Recommendation:** keep it. |
 | Q5-self-id | batch 32a | STYLE says a rule whose meaning changes gets a new ID, but the owner said to keep `data.embed.depth.self` while its code changes. | The ID is kept, as directed. **Recommendation:** keep it; the Revision Note records the code change. |
@@ -106,8 +106,8 @@ for the error-code revamp, task #101, which may merge codes.
 | VA-type-code | batch 31a | The decisions name no code for a vararg of another type, as in `values...: i32`. | `type-mismatch` ([`fn.vararg.type.kinds`](../spec/07-functions.md#r-fn.vararg.type.kinds)). |
 | Q3-codes | batch 32b | The record lists `data.embed.unique` and `trait.by.invalid` as error detail, but each is the only rule that names its code. | Both stay numbered; the other seven error-detail rules became Notes. |
 | TR-code | batch 33a | A rest element that is not a `List`, as in `(i32, i32...)`, needs a code. | `type-mismatch` ([`types.tuple.rest.list`](../spec/04-type-system.md#r-types.tuple.rest.list)), as for a vararg of another type. Deferred to #101 by the owner (batch 34 Q7). |
-| SC-Q2 | [Special Cases Q2](archive/SPECIAL_CASES.md#q2-diagnostic-twins) | Four codes duplicate a partner: `suspending-defer`, `identity-needs-reference-bound`, `recursive-closure-needs-result-type`, and `mutable-embedded-field`. | All eight codes kept. **Recommendation:** merge all four into their partners; messages keep the context word. |
-| SC-Q3 | [Special Cases Q3](archive/SPECIAL_CASES.md#q3-operator-operand-codes) | Six codes report an operator with no meaning for its operands: `missing-eq`, `missing-partial-ord`, `unsupported-equality`, `nonnumeric-unary-plus`, `unsigned-negation`, and `mixed-numeric-types`. Every other operator reports `type-mismatch`. | All six kept. **Recommendation:** all six become `type-mismatch`, and `assert_equal`'s missing `Eq` becomes `unsatisfied-trait-bound`. |
+| SC-Q2 | Special Cases Q2 | Four codes duplicate a partner: `suspending-defer`, `identity-needs-reference-bound`, `recursive-closure-needs-result-type`, and `mutable-embedded-field`. | All eight codes kept. **Recommendation:** merge all four into their partners; messages keep the context word. |
+| SC-Q3 | Special Cases Q3 | Six codes report an operator with no meaning for its operands: `missing-eq`, `missing-partial-ord`, `unsupported-equality`, `nonnumeric-unary-plus`, `unsigned-negation`, and `mixed-numeric-types`. Every other operator reports `type-mismatch`. | All six kept. **Recommendation:** all six become `type-mismatch`, and `assert_equal`'s missing `Eq` becomes `unsatisfied-trait-bound`. |
 
 ### Ideas Noted For Later
 
@@ -174,14 +174,14 @@ below.
 
 **Waiting on other areas.** The spec lists these as
 [undecided parts](../spec/14-annotations.md#undecided-parts); each waits
-for the owner, and [Typed Derivation](archive/TYPED_DERIVATION.md#remaining-open)
+for the owner, and Typed Derivation
 gives their background:
 
 | Question | What is undecided |
 | --- | --- |
 | Non-escaping handles (M18 R5) | Whether the parked NonEscapable design (TQ-24 to TQ-26) makes handles non-escaping. |
-| `Clone`'s module (M24) | Which standard module declares `Clone`; chosen with the standard library ([STDLIB](archive/STDLIB.md#clone)). |
-| Derived-function cache (M24) | The cache's API and module; chosen with the standard library ([STDLIB](archive/STDLIB.md#derived-function-cache)). |
+| `Clone`'s module (M24) | Which standard module declares `Clone`; chosen with the standard library (STDLIB). |
+| Derived-function cache (M24) | The cache's API and module; chosen with the standard library (STDLIB). |
 | Function targets | Deriving for functions, as tool adapters need ([parked](#parked-tool-adapters)). A decorator before a function attaches a plain value that `shape_of(f).metadata[M]()` reads ([Prefix Decorators](../spec/14-annotations.md#prefix-decorators)). |
 
 M30 deferred template constants, typed shared constants, and composing
@@ -191,7 +191,7 @@ templates until a real template needs them; they are not in the spec.
 
 Parked with typed derivation (FN_TYPE decision 10); tools register
 functions by hand for now. Background is in the archived
-[Nominal Function Types](archive/FN_TYPE.md#questions-for-the-owner).
+Nominal Function Types.
 
 | Question | Options | **Recommendation** |
 | --- | --- | --- |
@@ -205,7 +205,7 @@ typed member facts, and batch 39 gave them their final form,
 
 **Secret values (removed for now).** `Secret[T]` and `Redact` were removed
 from the standard-library design as too early
-([STDLIB decision 12](archive/STDLIB.md#owner-decisions), 2026-09-26). Revisit them
+(STDLIB decision 12, 2026-09-26). Revisit them
 together with typed derivation. Options already discussed: whether standard
 capability traits may take `Secret[T]` parameters so the host receives the
 real value without an `expose()` in hd code; whether exported functions may
@@ -238,7 +238,7 @@ and bounded graph lifetimes.
 **Decided 2026-09-27, not yet applied: option 1 now.** A serializable
 closure's code identity is a content hash. Its captures must be
 boundary-safe values (Durable Replay decision 11, in
-[Replay Rules](archive/RUNTIME_AND_LIBRARY.md#replay-rules), replaces the `Durable` bound), and capturing a provider or mutable state is
+Replay Rules, replaces the `Durable` bound), and capturing a provider or mutable state is
 rejected. The design still needs a record: the hash input, how a closure
 opts in, and graph lifetimes.
 
@@ -251,7 +251,7 @@ rewriting user code.
 **Decided.** Observability and replay use separate hooks, and both derive
 their IDs from the execution ID and the event index
 (Durable Replay decision 14, in
-[Replay Rules](archive/RUNTIME_AND_LIBRARY.md#replay-rules)).
+Replay Rules).
 
 **Options.** (1) Carry task-local storage in `PollContext`, with hooks at
 compiler-generated adapters for registered boundaries plus host-boundary
@@ -348,11 +348,11 @@ shows demand from cheap-model agents; adding `fn: _` then breaks no code.
 ### Iterator Performance
 
 The flat-stage iterator design waits for a specializing compiler, task
-#86 ([Iterator Performance Study](archive/ITERATOR_PERF.md)).
+#86 (Iterator Performance Study).
 
 ### Testing Open Points
 
-From the archived [Testing Redesign](archive/TESTING.md#still-open).
+From the archived Testing Redesign.
 
 - **Generator parameter style.** Generators take `mut Choices` today. The
   owner is comparing a requirement-row style, `fn() -> T $ Choices`. It
@@ -370,8 +370,8 @@ These items remain required but do not currently require new core syntax:
   references and finalizers are never user-visible
   ([`data.repr.runtime-only`](../spec/08-data-and-enums.md#r-data.repr.runtime-only));
 - the prototype's replay experiments in the
-  [Wasm GC compiler plan](archive/MVP_IMPLEMENTATION_PLAN.md) predate the
-  decided [Replay Rules](archive/RUNTIME_AND_LIBRARY.md#replay-rules): their
+  Wasm GC compiler plan predate the
+  decided Replay Rules: their
   identity is per function rather than per program, their site IDs contain
   byte offsets, and they stop at the end of a history instead of resuming;
 - the mandatory default algorithm, canonical field encoding, and evolution
@@ -388,17 +388,17 @@ These items remain required but do not currently require new core syntax:
   wait for the manifest schema (DEP14,
   [`module.tooling.package-schema`](../spec/10-modules.md#r-module.tooling.package-schema)),
   and the tooling work is in
-  [Package Tooling](archive/RUNTIME_AND_LIBRARY.md#package-tooling);
+  Package Tooling;
 - a `package-cycle` conformance fixture, which waits until the manifest
   schema exists (Dependency Cycles DC12,
   [`module.cycle.package`](../spec/10-modules.md#r-module.cycle.package));
 - the Wasm component ABI, exact export registration API, adapter wire format,
   and runtime-profile panic status codes (histories record a panic by its
-  diagnostic name, as [Replay Rules](archive/RUNTIME_AND_LIBRARY.md#replay-rules)
+  diagnostic name, as Replay Rules
   state);
 - stateful property testing in `std.testing`, which waits for the event
   log. The property-test API is decided and applied
-  ([Testing PT1-PT9](archive/TESTING.md#owner-decisions),
+  (Testing PT1-PT9,
   [Property Tests](../spec/std/testing.md#property-tests));
 - doc tests and benchmarks, which no decision covers yet. The testing
   stress test (TS-15) found a direction: doc tests as fenced `hd` blocks in
@@ -411,7 +411,7 @@ These items remain required but do not currently require new core syntax:
   batch 29: [Task](../spec/std/task.md#retry));
 - the final `std.task` structured-scope API: `Task[T]` is decided as
   structured scopes only, with `scope!`, `start`, and `join!`
-  ([STDLIB decision 11](archive/STDLIB.md#owner-decisions)), and must not weaken
+  (STDLIB decision 11), and must not weaken
   one-shot `Suspend[T]` semantics;
 - the complete standard host capability-trait catalog and provider
   configuration format;
