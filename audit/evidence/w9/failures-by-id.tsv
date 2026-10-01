@@ -25,3 +25,7 @@ Q5-list	1	List items may be bindings (batch 26, Q5-list): the prototype reports 
 TU2	3	Tuples have no mut form (batch 27, TU2): the prototype accepts a mut tuple parameter type and reports mutable-upgrade, not mut-on-tuple, for a mut tuple annotation and for let mut on a tuple
 ST8-own	1	A template's call qualified by the derived trait (batch 28, ST8-own): the prototype reports Named::name() as associated-function-needs-target
 RETRY	1	The retry! library loop (batch 29, RETRY): the prototype has no std.task.retry
+LP-for	4	Patterns in for (batch 30, LP-for): the prototype's for and comprehension for take only a name or a bare name list, so a data pattern and a refutable pattern are syntax-error
+LP-irrefutable-else	1	An else after an irrefutable let pattern (batch 30, LP-irrefutable-else): the prototype's let has no else block, so it is syntax-error, not unreachable-match-arm
+LP-discard	1	let _ discards a must-use value (batch 30, LP-discard): the prototype's let takes no _ pattern, so let _ = save() is syntax-error
+Q5-tuple	1	Tuple elements may be bindings (batch 30, Q5-tuple): the prototype still rejects (a, b := value) as the withdrawn grouped binding

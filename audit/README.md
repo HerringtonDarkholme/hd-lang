@@ -9,15 +9,15 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,493 of the 1,675 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 182 are listed in
+On 2026-09-30 the prototype passes 1,493 of the 1,682 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 189 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 182 still fail. By
+decision below, and all 189 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,616 | 1,441 | 175 |
+| language | 1,623 | 1,441 | 182 |
 | stdlib | 59 | 52 | 7 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -51,6 +51,10 @@ them by tag:
 | TU2 | 3 | batch 27: `mut (A, B)` is accepted or `mutable-upgrade`, and `let mut` on a tuple is `mutable-upgrade`, not `mut-on-tuple` |
 | ST8-own | 1 | batch 28: `Named::name()` in `Named`'s template is `associated-function-needs-target` |
 | RETRY | 1 | batch 29: the prototype has no `std.task.retry` |
+| LP-for | 4 | batch 30: `for` takes only a name or a bare name list, so `for Point { x, y } in points` and `for .Some(v) in found` are `syntax-error` |
+| LP-irrefutable-else | 1 | batch 30: `let` has no `else`, so an `else` after an irrefutable pattern is `syntax-error`, not `unreachable-match-arm` |
+| LP-discard | 1 | batch 30: `let _ = save()` is `syntax-error` |
+| Q5-tuple | 1 | batch 30: `(a, b := value)` still reports the withdrawn grouped binding |
 
 ## What Remains
 
