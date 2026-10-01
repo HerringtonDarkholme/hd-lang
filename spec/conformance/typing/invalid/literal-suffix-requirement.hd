@@ -1,5 +1,5 @@
 # test: a suffix function's requirement row joins the caller's row, as any call's does
-# Spec 05 Literal Suffixes: expr.suffix.ordinary-rules; `12px` needs Console where the row is empty.
+# Spec 05 Literal Suffixes: expr.literal-fn.ordinary-call; `12px` needs Console where the row is empty.
 use std.ops.num_suffix
 
 pub data Pixels:

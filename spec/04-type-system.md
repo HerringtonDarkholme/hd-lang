@@ -219,11 +219,8 @@ fn delay() -> Millis:
     250ms  # ms(250): Millis
 ```
 
-1. r[types.literal.suffixed] A suffixed literal has the result type of its suffix function.
+1. r[types.literal.call-result] A suffixed literal or prefixed string has the result type of its literal function.
 2. r[types.literal.suffixed.in] The numeric literal is checked with the suffix function's parameter type as its expected type, by the rules above. So a suffix whose parameter is `i8` range-checks `300b`.
-3. r[types.literal.suffixed.kind] A literal of the wrong kind for that parameter is an error, so `1.5s` is invalid when `s` takes an `i64`; write `1500ms`. Error: `type-mismatch`.
-4. r[types.literal.suffixed.negation] Unary `-` applied directly to a suffixed literal negates the numeric literal before the call, so `-5s` means `s(-5)`.
-5. r[types.literal.suffixed.negation.check] The negated literal is checked against the parameter type as a unit, as [Negated Integer Literals](#negated-integer-literals) are, so an `i8` parameter accepts `-128b`.
 
 ```text
 use std.ops.num_suffix
@@ -235,6 +232,14 @@ fn wait() -> void:
     half := 1.5s  # error: type-mismatch
     pass
 ```
+
+> **Note.** Argument checking rejects a literal of the wrong kind, so
+> `1.5s` is invalid when `s` takes an `i64`; write `1500ms`.
+
+> **Note.** `-5s` is the ordinary negation `-(5s)`: unary `-` applies to
+> the result of `s(5)`, so a non-primitive result type needs `Neg`. The
+> minus is not part of the literal, so `-128b` checks `128` against an
+> `i8` parameter and is out of range; write `b(-128)`.
 
 See also: [Literal Suffixes](05-expressions.md#literal-suffixes).
 
@@ -255,10 +260,13 @@ fn find(name: string, big: i64) -> string:
     ids"id = $big"  # error: implicit-narrowing
 ```
 
-1. r[types.literal.prefixed] A prefixed string has the result type of its prefix function.
-2. r[types.literal.prefixed.values] Each interpolated expression is checked with the `T` of the prefix function's `Template[T]` parameter as its expected type, as an argument is, and converts to `T` by the same rules.
-3. r[types.literal.prefixed.value-errors] An interpolated expression that cannot convert to `T` is an error at that expression: `type-mismatch` for a `string` where `T` is `i32`, and `implicit-narrowing` for an `i64` there.
-4. r[types.literal.prefixed.display] When `T` is the trait value type `Display`, every value whose type implements `Display` converts, as [Dynamic Trait Values](09-traits.md#dynamic-trait-values) specifies.
+1. r[types.literal.prefixed.values] Each interpolated expression is checked with the `T` of the prefix function's `Template[T]` parameter as its expected type, as an argument is, and converts to `T` by the same rules.
+
+> **Note.** So the argument errors apply at each value: a `string` where
+> `T` is `i32` is `type-mismatch`, and an `i64` there is
+> `implicit-narrowing`. When `T` is the trait value type `Display`, every
+> value whose type implements `Display` converts, as
+> [Dynamic Trait Values](09-traits.md#dynamic-trait-values) specifies.
 
 See also: [Prefixed Strings](05-expressions.md#prefixed-strings).
 

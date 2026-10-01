@@ -9,9 +9,12 @@ prototype code.
 > applied: varargs as in VARARG-SPELL, the `Tuple` bound (Q5), tuple
 > spread (Q8, close to A3), and `race!` (Q7). Pass 31b is applied: packs
 > are gone (Q9), `all!` has one typing rule (ALL-INTRINSIC), and tuples
-> derive their comparison traits (Q6). The literal rules (Q1 to Q4) are
-> not applied yet. Examples below that use packs show the language before
-> 31b.
+> derive their comparison traits (Q6). Pass 31c is applied: one rule set
+> for literal functions (Q1, with C3), both markers kept (Q2), `-5s` as
+> `-(5s)` (Q3), and a suffix parameter's default kept (Q4, reversing C2);
+> see [B1 As Applied In 31c](#b1-as-applied-in-31c). Examples below that
+> use packs show the language before 31b, and the B1 corners show it
+> before 31c.
 
 The owner reopened two features on 2026-09-30, after the
 [Syntax And Semantics Cost Review](SYNTAX_SEMANTICS_COST.md) marked them
@@ -121,12 +124,12 @@ either: tuples of each arity are a separate constructor
 | --- | --- | ---: |
 | [01 Literal Suffixes](../spec/01-lexical-structure.md#literal-suffixes) | `lex.suffix.*` | 13 |
 | [01 Raw Strings](../spec/01-lexical-structure.md#raw-strings), [Prefixed Strings](../spec/01-lexical-structure.md#prefixed-strings) | `lex.raw-string.prefix`, `lex.prefix.*` | 14 |
-| [02 Grammar](../spec/02-grammar.md#r-grammar.primary.suffixed-literal) | `grammar.primary.suffixed-literal`, `.prefixed-string`, `grammar.pattern.no-suffixed-literal`, `.no-prefixed-string` | 4 |
+| [02 Grammar](../spec/02-grammar.md#suffixed-literals) | `grammar.primary.suffixed-literal`, `.prefixed-string`, `grammar.pattern.no-suffixed-literal`, `.no-prefixed-string` | 4 |
 | [03 Names](../spec/03-names-and-scopes.md#literal-suffix-names) | `names.suffix.*`, `names.prefix.*` | 10 |
 | [04 Types](../spec/04-type-system.md#suffixed-literals) | `types.literal.suffixed*`, `types.literal.prefixed*` | 9 |
 | [05 Expressions](../spec/05-expressions.md#literal-suffixes) | `expr.literal.suffixed`, `.prefixed`, `expr.interp.prefixed`, `expr.suffix.*` (15), `expr.prefix.*` (15), `expr.op.suffix-negation` | 34 |
-| [09 Traits](../spec/09-traits.md#r-trait.num.suffix) | `trait.num.suffix` | 1 |
-| [10 Prelude](../spec/10-modules.md#r-module.prelude.ops-num-suffix) | `module.prelude.ops-num-suffix`, `.no-suffix`, `.ops-str-prefix-markers`, `.no-prefix` | 4 |
+| [09 Traits](../spec/09-traits.md#numeric-traits) | `trait.num.suffix` | 1 |
+| [10 Prelude](../spec/10-modules.md#standard-names-outside-the-prelude) | `module.prelude.ops-num-suffix`, `.no-suffix`, `.ops-str-prefix-markers`, `.no-prefix` | 4 |
 
 By [Design Cost Order](../AGENTS.md#design-cost-order) kind: 31 syntax
 rules (chapters 01 and 02), 20 intrinsic rules (the markers, function
@@ -621,6 +624,33 @@ Fixtures that change under B1: `literal-suffix-negative-minimum` and
 (C2), and `reserved-word-suffix` (C3, code `syntax-error`). The rest only
 change their specification column.
 
+### B1 As Applied In 31c
+
+Pass 31c applied B1 with the owner's two changes. Q4 keeps a suffix
+parameter's default, so cut C2 does not apply. `expr.suffix.fn-shape.default`
+is still deleted, as a restatement of the ordinary parameter rule, so the
+count matches the record: 89 rules became 38, with 70 retired and 19 added.
+
+| Chapter | Before | After | Retired | Added |
+| --- | ---: | ---: | --- | --- |
+| 01 Lexical Structure | 27 | 12 | 18: `lex.suffix.*` (9), `lex.prefix.*` (8), `lex.raw-string.prefix` | `lex.literal-fn.reserved`, `.meaning`, `lex.prefix.lines` |
+| 02 Grammar | 4 | 2 | 4 | `grammar.primary.literal-call`, `grammar.pattern.no-literal-call` |
+| 03 Names | 10 | 3 | 10 | `names.literal-fn.module-name`, `.no-local`, `.unknown-name` |
+| 04 Types | 9 | 3 | 7 | `types.literal.call-result` |
+| 05 Expressions | 34 | 16 | 26 | `expr.literal.call`, `expr.literal-fn.*` (7) |
+| 09 Traits | 1 | 0 | `trait.num.suffix` | none |
+| 10 Prelude | 4 | 2 | 4 | `module.prelude.ops-literal-markers`, `.no-literal-fn` |
+| **Literal rules** | **89** | **38** | **70** | **19** |
+
+The language tier went from 3,810 to 3,759 rule IDs. The stdlib tier adds
+one rule, [`std-time.suffix.std.duration-neg`](../spec/std/time.md#r-std-time.suffix.std.duration-neg).
+The record's table holds with three differences of naming: the merged
+rules take new `literal-fn` IDs, the line rules become `lex.prefix.lines`,
+and the deleted consequences survive as Notes. Fixtures: one deleted
+(`literal-suffix-negative-minimum`), four rewritten, three new, and
+`reserved-word-suffix` now expects `syntax-error`. One consequence of C3
+is new: `if flag: 5else: 3` is now a valid `if` expression.
+
 ## What Users Lose
 
 | Option | Loss |
@@ -666,6 +696,8 @@ Fewest and smallest first. Each has a recommendation.
 
 ### Q1. Merge The Literal Rule Sets
 
+**Decided: A, applied in 31c.** See [B1 As Applied In 31c](#b1-as-applied-in-31c).
+
 Suffix and prefix rules are written twice. Merging them removes 47 rules.
 No valid program changes; `5else` reports `syntax-error` instead of
 `invalid-token` (C3).
@@ -681,6 +713,8 @@ fn kg(count: f64) -> Mass:
 
 ### Q2. One Marker Or Two
 
+**Decided: A, applied in 31c.**
+
 With merged rules, the markers could also become one name.
 
 - **A.** Keep `@num_suffix` and `@str_prefix`. *Recommended:* no source
@@ -695,6 +729,8 @@ fn sql(t: Template[i64]) -> Query:
 
 ### Q3. Negated Suffixed Literals
 
+**Decided: A, applied in 31c.**
+
 `-5s` means `s(-5)` through three special rules. Without them it means
 `-(5s)`, and `-128b` no longer fits an `i8` suffix.
 
@@ -708,6 +744,8 @@ fn back() -> Duration:
 ```
 
 ### Q4. Default On A Suffix Parameter
+
+**Decided: B, applied in 31c.** The default stays; `expr.suffix.fn-shape.default` is deleted as a restatement.
 
 A suffix function's one parameter may have a default today, and no real
 code uses it.

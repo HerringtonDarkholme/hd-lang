@@ -114,7 +114,7 @@ section.
 | 6 | Closures inside delimiters, several inline closures | 24 | 105 | every inline closure | many | none: layout needs them | Kotlin, Swift braces; Python has no multi-line lambda | keep |
 | 7 | Pipe `\|>`, `_`, bare steps, restrictions | 37 | 179 | 4, one guide block | 49 | nested calls or `:=` steps | MoonBit `\|>`; none of Go, Rust, Swift, Kotlin, Python | reopen?: [R4](#r4-the-pipe) |
 | 8 | Comprehensions, beside adapters | 20 | 93 | 11 (adapters 16) | 30 | a `for` loop or `map`/`filter` | Python only | keep the form; merge limits: [K4](#k4-a-comprehension-follows-its-loop) |
-| 9 | `@num_suffix` and `@str_prefix` literal sugar | 81 | 461 | about 11 suffixes, 5 prefixes | about 54 / 34 | `ms(250)`, `sql(...)`, a raw-string form | C++ user literals; Scala, JS prefixes; none of the six | reopen?: [R2](#r2-literal-suffixes-and-string-prefixes) |
+| 9 | `@num_suffix` and `@str_prefix` literal sugar | 81 | 461 | about 11 suffixes, 5 prefixes | about 54 / 34 | `ms(250)`, `sql(...)`, a raw-string form | C++ user literals; Scala, JS prefixes; none of the six | merged (batch 31c, 2026-09-30): one rule set for literal functions, 89 counted rules to 38, `-5s` is `-(5s)`; see [R2](#r2-literal-suffixes-and-string-prefixes) |
 | 10 | `"""` strings and `$` interpolation | 21 | 62 | 2 multiline, 49 interpolated | about 5 / 140 | concatenation | Kotlin `"""` and `$`; Swift `"""`, `\(x)`; Python f-strings; MoonBit `\{x}` | keep; cut half a rule: [K5](#k5-one-dollar-rule-for-every-string) |
 | 11 | `!` bang calls, cold calls | 33 | 122 | 58 calls, 31 `fn name!` | 500 | `await`-style keyword | Rust `.await`, Swift and Python `await`; Kotlin `suspend` unmarked at calls | keep |
 | 12 | `$` requirement rows | 100 | 591 | 69 rows, 33 `$.use`/`$.with` | 417 / 292 | parameters or globals | Koka effect rows; none of the six | keep |
@@ -532,6 +532,13 @@ Rust's `Deref` is the closest, and its docs discourage it for this use
 delegation decision; see [Special Cases R54-R56](SPECIAL_CASES.md#rule-exceptions).
 
 ### R2. Literal Suffixes And String Prefixes
+
+**Status.** Decided and applied: batch 31 kept the feature and merged its
+rules (Q1 to Q4), and pass 31c applied them on 2026-09-30
+([B1 As Applied In 31c](REOPEN_PACKS_LITERALS.md#b1-as-applied-in-31c)).
+The record counted 89 rules, including cross-references this review left
+out, and 38 remain. The evidence below shows the language before that
+change.
 
 **Evidence.** 81 rules and 461 spec lines across five chapters. Real code
 writes about 11 suffixed literals (`5s`, `250ms`, and a playground `px`)

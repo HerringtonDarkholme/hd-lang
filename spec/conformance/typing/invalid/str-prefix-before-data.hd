@@ -1,5 +1,5 @@
 # test: StrPrefix carries @annotate(.Fn), so @str_prefix before a data type is rejected
-# Spec 05 Prefixed Strings: expr.prefix.marker.fn-only.
+# Spec 05 Literal Suffixes: expr.literal-fn.fn-only.
 use std.ops.str_prefix
 
 @str_prefix  # diagnostic: decorator-target-kind

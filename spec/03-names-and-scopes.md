@@ -226,11 +226,9 @@ fn retry_after(s: i32) -> i32:
     s
 ```
 
-1. r[names.suffix.module-name] A literal suffix is resolved as a module name: a declaration at module scope, or a name that a use declaration or the prelude introduces.
-2. r[names.suffix.ordinary] It follows the ordinary rules for module names, so a suffix is brought in, renamed with `as`, or found in conflict exactly as other used names are.
-3. r[names.suffix.no-local] Parameters, local bindings, and local type declarations never take part, so a local named `s` does not change what `5s` calls.
-4. r[names.suffix.unknown-name] A suffix that names nothing in module scope is an error. Error: `unknown-name`.
-5. r[names.suffix.function] The name must resolve to a suffix function, as [Literal Suffixes](05-expressions.md#literal-suffixes) defines.
+1. r[names.literal-fn.module-name] A literal suffix or string prefix is resolved as a module name: a module-scope declaration, or a name that a use declaration or the prelude introduces. Ordinary rules apply, so it is brought in, renamed with `as`, or found in conflict as other used names are.
+2. r[names.literal-fn.no-local] Parameters, local bindings, and local type declarations never take part, so a local named `s` or `r` does not change what `5s` or `r"..."` calls.
+3. r[names.literal-fn.unknown-name] A suffix or prefix that names nothing in module scope is an error. Error: `unknown-name`.
 
 ```text
 fn margin() -> i32:
@@ -260,11 +258,8 @@ fn escape(r: i32) -> string:
     r"\d+"  # the module's prefix function r, not the parameter
 ```
 
-1. r[names.prefix.module-name] A string prefix is resolved as a module name: a declaration at module scope, or a name that a use declaration or the prelude introduces.
-2. r[names.prefix.ordinary] It follows the ordinary rules for module names, so a prefix is brought in, renamed with `as`, or found in conflict exactly as other used names are.
-3. r[names.prefix.no-local] Parameters, local bindings, and local type declarations never take part, so a local named `r` does not change what `r"..."` calls.
-4. r[names.prefix.unknown-name] A prefix that names nothing in module scope is an error. Error: `unknown-name`.
-5. r[names.prefix.function] The name must resolve to a prefix function, as [Prefixed Strings](05-expressions.md#prefixed-strings) defines.
+The rules of [Literal Suffix Names](#literal-suffix-names) cover a
+prefix too, and so an unknown prefix is an error:
 
 ```text
 fn query(id: i32) -> string:

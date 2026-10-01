@@ -560,6 +560,7 @@ std/testing.md	13	accept	typing/valid/test-timeout-duration.hd|typing/valid/test
 std/testing.md	14	accept	runtime/valid/it-each-rows.hd
 std/testing.md	15	type-fragment	-
 std/text.md	1	accept	typing/valid/string-prefix-std-r.hd
-std/time.md	1	accept	typing/valid/literal-suffix-duration.hd
+std/time.md	1	accept	runtime/valid/duration-negation.hd|typing/valid/literal-suffix-duration.hd
+std/time.md	2	accept	typing/valid/literal-suffix-duration.hd
 std/task.md	1	type-fragment	-
 std/task.md	2	accept	runtime/valid/task-retry.hd

@@ -12,8 +12,5 @@ fn ms(count: i64) -> Millis:
 fn delay() -> Millis:
     250ms  # ms(250): Millis
 
-fn rewind() -> Millis:
-    -5ms
-
 fn both() -> List[Millis]:
     [5ms, 250ms]

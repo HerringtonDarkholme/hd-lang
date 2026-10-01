@@ -1,5 +1,5 @@
 # test: a suffix function may be generic; its type arguments are inferred at the literal
-# Spec 05 Literal Suffixes: expr.suffix.ordinary-rules (Literal Suffixes L20).
+# Spec 05 Literal Suffixes: expr.literal-fn.ordinary-call (Literal Suffixes L20).
 use std.ops.num_suffix
 
 data Count[T]:

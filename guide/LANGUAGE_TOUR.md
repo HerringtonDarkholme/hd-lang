@@ -175,9 +175,10 @@ mask := 0x_FF_FF_00
 A numeric literal may end in a suffix that a library declares, such as
 `250ms`. The suffix is a function brought in with `use`, and the literal
 calls it: `250ms` means `ms(250)`, a `std.time.Duration`. Only decimal and
-floating-point literals take a suffix, and `-5s` negates the literal before
-the call. A `Duration` is a whole number of milliseconds, and the standard
-library declares only `ms`, `s`, `min`, and `h`:
+floating-point literals take a suffix. A minus is ordinary negation, so
+`-5s` is `-(5s)`, and `Duration` implements `Neg`. A `Duration` is a whole
+number of milliseconds, and the standard library declares only `ms`, `s`,
+`min`, and `h`:
 
 ```text
 use std.time.{Duration, ms, s}
@@ -188,13 +189,15 @@ let backoff: Duration = 1_500ms
 
 A library declares its own suffix by marking a function `@num_suffix`, as
 in `@num_suffix fn px(count: i32) -> Pixels` after `use std.ops.num_suffix`;
-see [Literal Suffixes](../spec/05-expressions.md#literal-suffixes). The
-literal is an ordinary call, so the function may be generic or need
-providers, but it must not suspend: `12px` has no place for `!`. The
-compiler checks the marked function's shape where it is declared.
+see [Literal Suffixes](../spec/05-expressions.md#literal-suffixes). Such a
+**literal function** takes exactly one parameter. The literal is an
+ordinary call, so the function may be generic or need providers, but it
+must not suspend: `12px` has no place for `!`. The compiler checks the
+marked function's shape where it is declared.
 
 A name written directly before a string's quote is a string prefix, and
-the string is a call of that function. The standard prefix `r` keeps
+the string is a call of that function, a literal function marked
+`@str_prefix`. Suffixes and prefixes follow the same rules. The standard prefix `r` keeps
 backslashes and escape-looking text as written. The multiline form uses
 three double quotes:
 

@@ -595,26 +595,24 @@ literal_suffix = XID_START, { identifier_continue } ;
 ```
 
 1. r[lex.suffix.form] A **suffixed literal** is a numeric literal followed directly by a literal suffix, with nothing between them.
-2. r[lex.suffix.name] A literal suffix begins with a Unicode `XID_Start` character and continues with `identifier_continue` characters.
-3. r[lex.suffix.decimal] A decimal integer or floating-point literal takes its suffix directly, as in `5s`, `1.5kb`, and `5_000ms`.
-4. r[lex.suffix.no-radix] A binary, octal, or hexadecimal literal takes no suffix.
-5. r[lex.suffix.radix-letters] A letter after a radix literal follows the integer rules: `0xffB` is the literal `0xffb`, and `0x1fs` is an error. Error: `syntax-error`.
-6. r[lex.suffix.exponent] An `e` or `E` after the digits begins an exponent when digits follow it, after an optional sign; otherwise it begins a suffix.
-7. r[lex.suffix.exponent.examples] So `1e3` is a floating-point literal, `1e3ms` is `1e3` with the suffix `ms`, and `5em` is `5` with the suffix `em`.
-8. r[lex.suffix.longest-match] A suffix takes every following `identifier_continue` character.
-9. r[lex.suffix.reserved] A suffix that is a reserved word, as in `5else` or `1.5true`, makes the literal form no token. Error: `invalid-token`.
-10. r[lex.suffix.separator] A suffix cannot begin with `_`, and the digits before it cannot end in a separator. So `5_ms` forms no token. Error: `invalid-token`.
-11. r[lex.suffix.no-string] String and character literals take no suffix, so `"abc"u` is an error. Error: `syntax-error`.
-12. r[lex.suffix.no-quote] A `'` after digits never begins a suffix. It begins a character literal, so `0xff'B` and `5'ms` are unterminated. Error: `unterminated-string`.
-13. r[lex.suffix.meaning] The suffix is resolved as a name and applied as a call, as [Literal Suffixes](05-expressions.md#literal-suffixes) specifies.
+2. r[lex.suffix.name] A literal suffix begins with a Unicode `XID_Start` character and takes every following `identifier_continue` character.
+3. r[lex.suffix.decimal] Only a decimal integer or floating-point literal takes a suffix, as in `5s`, `1.5kb`, and `5_000ms`. A letter after a radix literal follows the integer rules, so `0xffB` is `0xffb` and `0x1fs` is an error. Error: `syntax-error`.
+4. r[lex.suffix.exponent] An `e` or `E` after the digits begins an exponent when digits follow it, after an optional sign, and otherwise a suffix. So `1e3ms` is `1e3` with the suffix `ms`, and `5em` is `5` with the suffix `em`.
+5. r[lex.literal-fn.reserved] A reserved word is never a literal suffix or a string prefix: it is its own token. So `5else` is `5` followed by `else`, and `return"done"` is `return` followed by a string.
+6. r[lex.literal-fn.meaning] A literal suffix or string prefix is resolved as a name, and the literal is a call, as [Literal Suffixes](05-expressions.md#literal-suffixes) specifies.
 
 ```text
 wait := 5_ms   # error: invalid-token
 mask := 0b101s  # error: syntax-error
-flag := 5else   # error: invalid-token
+flag := 5else   # error: syntax-error
 name := "abc"u  # error: syntax-error
 mask := 0xff'B  # error: unterminated-string
 ```
+
+> **Note.** The other near misses need no rule of their own. `5_ms` ends
+> its digits in a separator ([`lex.sep.misplaced`](#r-lex.sep.misplaced)),
+> `"abc"u` is a string followed by a name, and a `'` after digits begins a
+> character literal, so `5'ms` is unterminated.
 
 > **Why.** Hexadecimal digits include letters such as `B`, so a letter
 > after a radix literal cannot begin a suffix. Only decimal and
@@ -732,7 +730,9 @@ price := "costs $5"  # valid: `$5` is text
 
 #### Raw Strings
 
-1. r[lex.raw-string.prefix] hd has no built-in raw string literal. `r"..."` is an ordinary [prefixed string](#prefixed-strings), and its prefix `r` resolves as any prefix name does.
+> **Note.** hd has no built-in raw string literal. `r"..."` is an
+> ordinary [prefixed string](#prefixed-strings), and its prefix `r`
+> resolves as any prefix name does.
 
 See also: [Raw Text Prefix](std/text.md#raw-text-prefix) for the standard
 library's `r`.
@@ -751,19 +751,15 @@ anchored := r"^\d+$"
 quoted := r"say \"hi\""
 ```
 
-1. r[lex.prefix.form] A **prefixed string** is an identifier followed directly by `"` or `"""`, with nothing between them, as in `sql"..."` and `r"""..."""`.
-2. r[lex.prefix.name] The prefix is an identifier that is not a reserved word. A contextual word may be a prefix.
-3. r[lex.prefix.reserved] A reserved word directly before a quote is its own token, so `return"done"` is `return` followed by an interpreted string.
-4. r[lex.prefix.separate] With a space between them, as in `sql "..."`, the name and the string are separate tokens.
-5. r[lex.prefix.double-quote] Only double-quoted forms take a prefix, so `x'a'` is the name `x` followed by a character literal.
-6. r[lex.prefix.raw-text] The text is raw: backslashes and escape-looking text stay as written, and no escape sequence is processed.
-7. r[lex.prefix.backslash] A backslash keeps the following quote from ending the literal, and keeps a following `$` from beginning an interpolation. The backslash stays in the text.
-8. r[lex.prefix.odd-backslashes] Consequently, a prefixed string cannot end with an odd number of backslashes immediately before its closing delimiter.
-9. r[lex.prefix.single-line] A single-line prefixed string cannot contain a physical line ending.
-10. r[lex.prefix.multiline] A multiline prefixed string may contain line endings, keeps them and its indentation as written, and continues until an unescaped `"""` delimiter.
-11. r[lex.prefix.no-hash] Hash-delimited prefixed strings are not part of the language.
-12. r[lex.prefix.interpolation] A prefixed string interpolates with the forms of [Interpolation](#interpolation): `$name`, `$self`, and `${expression}`.
-13. r[lex.prefix.meaning] The prefix is resolved as a name and the string is applied as a call, as [Prefixed Strings](05-expressions.md#prefixed-strings) specifies.
+1. r[lex.prefix.form] A **prefixed string** is an identifier followed directly by `"` or `"""`, as in `sql"..."` and `r"""..."""`. A space, as in `sql "..."`, or a single quote, as in `x'a'`, leaves the name a separate token.
+2. r[lex.prefix.name] The prefix is an identifier, and a contextual word may be a prefix.
+3. r[lex.prefix.raw-text] The text is raw: backslashes and escape-looking text stay as written, and no escape sequence is processed.
+4. r[lex.prefix.backslash] A backslash keeps the following quote from ending the literal, and keeps a following `$` from beginning an interpolation. The backslash stays in the text, so a prefixed string cannot end in an odd number of backslashes.
+5. r[lex.prefix.lines] A prefixed string follows the line rules of an unprefixed one: a single-line form holds no line ending, and a multiline form keeps its line endings and indentation as written.
+6. r[lex.prefix.interpolation] A prefixed string interpolates with the forms of [Interpolation](#interpolation): `$name`, `$self`, and `${expression}`.
+
+The reserved-word and meaning rules of [Literal Suffixes](#literal-suffixes)
+cover a prefix too.
 
 A `$` that begins no interpolation follows the rules of
 [Interpolation](#interpolation), as in every string. So `r"^\d+$"` ends

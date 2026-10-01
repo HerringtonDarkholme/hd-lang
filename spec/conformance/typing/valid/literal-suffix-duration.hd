@@ -6,7 +6,7 @@ fn delay() -> Duration:
     250ms  # ms(250): Duration
 
 fn rewind() -> Duration:
-    -5s
+    -5s  # -(s(5)), through Neg for Duration
 
 fn both() -> List[Duration]:
     [5s, 250ms]

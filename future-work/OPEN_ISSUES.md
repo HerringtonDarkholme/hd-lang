@@ -237,8 +237,8 @@ follow the recommendation; the other three do not.
 **Batch 31, packs and literals (owner decisions, 2026-09-30).** Answers
 the questions of [Reopen: Packs And Literal Sugar](REOPEN_PACKS_LITERALS.md#questions-for-the-owner).
 It is applied in three passes: 31a (varargs, `Tuple`, and tuple spread),
-31b (removing packs, Q9), and 31c (the literal rules, Q1 to Q4). Passes
-31a and 31b are applied; the [Revision Notes](../spec/README.md#revision-notes)
+31b (removing packs, Q9), and 31c (the literal rules, Q1 to Q4). All
+three passes are applied; the [Revision Notes](../spec/README.md#revision-notes)
 list each. Later entries supersede earlier ones: VARARG-SPELL over
 VARARG-TYPE over SPREAD-SITE over Q5 and Q8.
 
@@ -252,6 +252,10 @@ VARARG-TYPE over SPREAD-SITE over Q5 and Q8.
 | Q9 | As recommended (A1): packs are gone. Type and value packs, pack expansion, `pack.map`, lockstep, and the four pack diagnostics are removed; chapter 12 keeps its number with no rules. Applied in 31b. | [Variadic Generics](../spec/12-variadic-generics.md) |
 | ALL-INTRINSIC | `all!` stays an intrinsic with one written typing rule: children `mut Suspend[X_i]` give `(X_1, ..., X_n)`. A type-level tuple map is rejected for now. `call` is an ordinary hd function. Applied in 31b. | [`req.combinator.all-typing`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-typing) |
 | Q6 | As recommended: the compiler derives `Eq`, `PartialOrd`, `Ord`, and `Hash` for every tuple arity; `lib/std` writes `Debug` up to 12 elements. Applied in 31b. | [`trait.target.tuple.derived`](../spec/09-traits.md#r-trait.target.tuple.derived), [`trait.debug.std-types`](../spec/09-traits.md#r-trait.debug.std-types) |
+| Q1 | As recommended (B1's merges): one rule set for a **literal function**, marked `@num_suffix` or `@str_prefix`. Only the lexing, the parameter type per form, and the template stay separate. Cut C3: a reserved word is never a suffix or prefix, so `5else` is `5` then `else`. Applied in 31c. | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [`lex.literal-fn.reserved`](../spec/01-lexical-structure.md#r-lex.literal-fn.reserved) |
+| Q2 | As recommended: both markers stay; no declaration changes. Applied in 31c. | [`expr.literal-fn.marker`](../spec/05-expressions.md#r-expr.literal-fn.marker) |
+| Q3 | As recommended: `-5s` is the ordinary negation `-(5s)`, and `std.time` implements `Neg` for `Duration`. `-128b` no longer fits an `i8` suffix parameter. Applied in 31c. | [Suffixed Literals](../spec/04-type-system.md#suffixed-literals), [`std-time.suffix.std.duration-neg`](../spec/std/time.md#r-std-time.suffix.std.duration-neg) |
+| Q4 | Not as recommended: a suffix parameter's default stays allowed, reversing cut C2. `expr.suffix.fn-shape.default` is deleted as a restatement of the ordinary rule; a second parameter, with or without a default, is still rejected. Applied in 31c. | [`expr.literal-fn.shape`](../spec/05-expressions.md#r-expr.literal-fn.shape) |
 
 **Still open from applying batch 31a.** The specification applies the
 reading in the middle column; each point asks the owner to confirm it.
@@ -272,6 +276,14 @@ reading in the middle column; each point asks the owner to confirm it.
 | ALL-plain | A plain `all(a, b)` without `!`, by the ordinary `fn!` rule, builds a cold `mut Suspend[(A, B)]`. | Applied, since [`req.combinator.all-direct`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-direct) allows any direct call. **Recommendation:** keep it; `race(a, b)` behaves the same. |
 | Q6-tier | The decision puts tuple `Debug` in `lib/std`, and the tier test says stdlib. But `assert_equal`, a language-tier harness item, needs `Debug` on tuples. | Kept in the language tier as [`trait.debug.std-types`](../spec/09-traits.md#r-trait.debug.std-types), capped at 12 elements; `lib/std/format.hd` implements 0 to 12. **Recommendation:** keep it until the Debug section moves to `spec/std/`. |
 | Q6-others | "Debug and the other traits up to size 12" names no other trait. | Only `Debug` is promised. **Recommendation:** add `Display` or `Default` only when a use needs one. |
+
+**Still open from applying batch 31c.** The specification applies the
+reading in the middle column; each point asks the owner to confirm it.
+
+| # | Question | Applied reading and **Recommendation** |
+| --- | --- | --- |
+| C3-valid | With `5else` split into `5` and `else`, the line `if flag: 5else: 3` is now a valid `if` expression, not an error. | Applied, as [`lex.literal-fn.reserved`](../spec/01-lexical-structure.md#r-lex.literal-fn.reserved) gives it; `return"done"` already worked this way. **Recommendation:** keep it, and let a formatter insert the space. |
+| Q3-neg-std | `Neg for Duration` negates the milliseconds, so negating the minimum `i64` duration overflows. | Not stated; checked `i64` negation panics `integer-overflow`, as the suffix overflow rule already says for scaling. **Recommendation:** keep it implicit. |
 
 ### Bound And Row Operators
 

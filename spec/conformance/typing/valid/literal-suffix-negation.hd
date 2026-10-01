@@ -1,0 +1,18 @@
+# test: a minus before a suffixed literal is ordinary negation of the call's result
+# Spec 05 Operator Traits: `-5off` is -(off(5)), which calls Neg for Offset.
+use std.ops.{Neg, num_suffix}
+
+data Offset:
+    value: i32
+
+impl Neg for Offset:
+    type Out = Offset
+    fn neg(self) -> Offset:
+        Offset { value: -self.value }
+
+@num_suffix
+fn off(value: i32) -> Offset:
+    Offset { value: value }
+
+fn back() -> Offset:
+    -5off

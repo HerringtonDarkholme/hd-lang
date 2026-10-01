@@ -1,13 +1,10 @@
-# test: a negated suffixed literal below the minimum of the parameter type
-# Spec 04 Suffixed Literals: the negated literal is checked against the parameter type as a unit.
+# test: a minus before a suffixed literal is not part of the literal
+# Spec 04 Suffixed Literals: `-2147483648off` is -(off(2147483648)), and 2147483648 does not fit i32.
 use std.ops.num_suffix
 
-data Offset:
-    value: i32
-
 @num_suffix
-fn off(value: i32) -> Offset:
-    Offset { value: value }
+fn off(value: i32) -> i32:
+    value
 
-fn too_low() -> Offset:
-    -2147483649off  # diagnostic: integer-literal-range
+fn lowest() -> i32:
+    -2147483648off  # diagnostic: integer-literal-range

@@ -64,7 +64,7 @@ undecided design.
 | `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; the twelve operator traits `Add` to `Shr`, and `Index` and `IndexSet` | language | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings), [Operator Traits](../spec/05-expressions.md#operator-traits), [Compound Assignment](../spec/05-expressions.md#compound-assignment), [Index Traits](../spec/05-expressions.md#index-traits) |
 | `std.num` | the sealed traits `Num`, `Integer`, and `Float`, with `zero`, `one`, and `from_i64` on `Num` | language | [Numeric Traits](../spec/09-traits.md#numeric-traits) |
 | `std.text` | the string prefix `r`; the `string` methods `trim`, `lower`, `split`, `replace`, and `starts_with` | std | [Text](../spec/std/text.md) |
-| `std.time` | `Duration`; the literal suffixes `ms`, `s`, `min`, `h` | std | [Time](../spec/std/time.md) |
+| `std.time` | `Duration`, which implements `Neg`; the literal suffixes `ms`, `s`, `min`, `h` | std | [Time](../spec/std/time.md) |
 | `std.host` | `Args` | not in the spec | [Program Entry Points](../guide/LANGUAGE_TOUR.md#program-entry-points) (example) |
 | `std.fingerprint` | the persisted-identity digest | not in the spec | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
 | `std.incremental` | incremental graph library | not in the spec | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |

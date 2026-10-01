@@ -1,5 +1,5 @@
 # test: a suffix function needs exactly one parameter, checked at its definition
-# Spec 05 Literal Suffixes: expr.suffix.fn-shape-num and expr.suffix.fn-shape.definition.
+# Spec 05 Literal Suffixes: expr.literal-fn.shape and expr.literal-fn.definition.
 use std.ops.num_suffix
 
 @num_suffix

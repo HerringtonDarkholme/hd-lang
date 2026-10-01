@@ -1,5 +1,5 @@
 # test: a suffix function whose required parameter is not numeric is an error at its definition
-# Spec 05 Literal Suffixes: expr.suffix.fn-shape.definition; `@num_suffix` on `fn em(label: string)`.
+# Spec 05 Literal Suffixes: expr.literal-fn.definition; `@num_suffix` on `fn em(label: string)`.
 use std.ops.num_suffix
 
 data Pixels:

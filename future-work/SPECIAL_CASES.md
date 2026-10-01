@@ -86,7 +86,7 @@ Things the compiler supplies, generates, or recognizes by a qualified name.
 | I13 | `shape[T]()` and `shape_of(f)` | [Shape Intrinsics](../spec/14-annotations.md#shape-intrinsics) | Reflection with unnameable specialized shape types. | K1: no `shape` keyword. |
 | I14 | `ShapeMetadata.metadata[M]()`, `TypeShape.is_optional()` | [Common Shape Representation](../spec/14-annotations.md#common-shape-representation) | The one narrow runtime type lookup for metadata. | Typed Derivation decision 10. |
 | I15 | `std.structure` bodies | [`annot.structure.bodies`](../spec/14-annotations.md#r-annot.structure.bodies), [`annot.derive.supplied`](../spec/14-annotations.md#r-annot.derive.supplied) | `Structure`, handles, `Facts`, and generated `walk`, `describe`, `build`. | M1-M30: one typed traversal per type, no macros. |
-| I16 | Marker names for literal sugar | [`expr.suffix.marker`](../spec/05-expressions.md#r-expr.suffix.marker), [`expr.prefix.marker`](../spec/05-expressions.md#r-expr.prefix.marker) | `std.ops.NumSuffix`, `StrPrefix`, and `Template` recognized by name. | L11, L19-L22. |
+| I16 | Marker names for literal sugar | [`expr.literal-fn.marker`](../spec/05-expressions.md#r-expr.literal-fn.marker) | `std.ops.NumSuffix`, `StrPrefix`, and `Template` recognized by name. | L11, L19-L22; one literal-function rule set since batch 31c. |
 | I17 | `std.annotation.Annotate` | [`annot.target.recognized`](../spec/14-annotations.md#r-annot.target.recognized) | Limits a fact type's target kinds. | Decorators D1-D10. |
 | I18 | `Display` for interpolation | [`expr.interp.display`](../spec/05-expressions.md#r-expr.interp.display) | `"$x"` calls `std.format.Display`. | No fallback to `Any` or debug text. |
 | I19 | `From` for `?` | [`expr.try.convert.from`](../spec/05-expressions.md#r-expr.try.convert.from), [`trait.from.propagation`](../spec/09-traits.md#r-trait.from.propagation) | `?` calls `From[E]` once, with no import. | Error Conversion 1-11. |
@@ -118,7 +118,7 @@ A rule that applies to one type, one name, or one context. Grouped by area.
 | R8 | `Map` index read differs by form | `expr.index.map.read`, `expr.assign.compound.map-present`, `expr.index.std.map-read` | `m[k]` is `V?`; `m[k] += v` and `Index::index` read `V` and panic. | Follow-up 5, Map 6. |
 | R9 | Primitive operands skip traits | [`expr.op.primitive`](../spec/05-expressions.md#r-expr.op.primitive) | Built-in rules decide; no trait search. | OP2: no cross-type search cost. |
 | R10 | Left literal takes its default type | [`expr.op.left-literal`](../spec/05-expressions.md#r-expr.op.left-literal) | `3 * price` needs `Mul[Money] for i32`. | OP4. |
-| R11 | `-5s` is `s(-5)` | [`expr.op.suffix-negation`](../spec/05-expressions.md#r-expr.op.suffix-negation) | The minus joins the suffixed literal; `Neg` is not called. | L4. |
+| R11 | `-5s` is `s(-5)` | `expr.op.suffix-negation` (since retired) | The minus joins the suffixed literal; `Neg` is not called. | L4; removed in batch 31c (Q3): `-5s` is `-(5s)`. |
 | R12 | Exponent literal is `u32` | [`expr.power.int.literal`](../spec/05-expressions.md#r-expr.power.int.literal) | An unsuffixed literal after `**` is not `i32`. | C2: a signed exponent is a type error. |
 | R13 | Shifts do not unify operands | [`expr.shift.unification`](../spec/05-expressions.md#r-expr.shift.unification) | Count and value types are independent. | As in Rust and Go. |
 | R14 | `string + string` | [`expr.arith.string-primitive`](../spec/05-expressions.md#r-expr.arith.string-primitive) | The only arithmetic on a non-numeric primitive. | Concatenation. |
@@ -141,7 +141,7 @@ A rule that applies to one type, one name, or one context. Grouped by area.
 | R31 | Unit tests get no host providers | [`module.testing.unit-row`](../spec/10-modules.md#r-module.testing.unit-row) | Their row must be empty. | T18-T21: fakes only. |
 | R32 | `println` under a driver | [`module.console.println-block-on.nested`](../spec/10-modules.md#r-module.console.println-block-on.nested) | Panics inside `main!` or a test body. | MHP-1: `println` is `block_on` of its write. |
 | R33 | Redundant prelude `use` | [`module.prelude.no-reimport`](../spec/10-modules.md#r-module.prelude.no-reimport) | `use std.format.Display` is `prelude-name-shadow`. | One spelling per prelude name. |
-| R34 | Suffix and prefix lookup | [`names.suffix.no-local`](../spec/03-names-and-scopes.md#r-names.suffix.no-local), [`names.prefix.no-local`](../spec/03-names-and-scopes.md#r-names.prefix.no-local) | Module scope only; a local `s` never changes `5s`. | L8, L10. |
+| R34 | Suffix and prefix lookup | [`names.literal-fn.no-local`](../spec/03-names-and-scopes.md#r-names.literal-fn.no-local) | Module scope only; a local `s` never changes `5s`. | L8, L10; one rule since batch 31c. |
 | R35 | `pack.map(` token sequence | `lex.contextual.pack.always` (since retired) | Wins over a local named `pack`. | GQ4; removed with packs in batch 31b. |
 | R36 | `reified` position | [`lex.contextual.reified.modifier`](../spec/01-lexical-structure.md#r-lex.contextual.reified.modifier) | Always the modifier there; `[reified]` is an error. | B8. |
 | R37 | `@error` and its markers | [`annot.error.name`](../spec/14-annotations.md#r-annot.error.name), [`annot.error.marker.outside`](../spec/14-annotations.md#r-annot.error.marker.outside) | Always the intrinsic; `@from` and `@source` are markers only inside an error type. | Error Conversion 10, batch 9. |
@@ -244,7 +244,7 @@ Names that the compiler, the toolchain, or the prelude gives a meaning.
 | N12 | `src`, `hd.toml`, `hd.sum` | [`module.manifest.file`](../spec/10-modules.md#r-module.manifest.file), [`module.sum.file`](../spec/10-modules.md#r-module.sum.file) | Source root, manifest, integrity file. |
 | N13 | `__snapshots__`, `__regressions__` | [`std-testing.snapshot-file.path`](../spec/std/testing.md#r-std-testing.snapshot-file.path), [`std-testing.prop.regression-file`](../spec/std/testing.md#r-std-testing.prop.regression-file) | Runner-owned folders. |
 | N14 | `github.com` | [`module.repo.github`](../spec/10-modules.md#r-module.repo.github) | The one known host. |
-| N15 | `std.ops.NumSuffix`, `StrPrefix`, `Template` | [`expr.suffix.marker`](../spec/05-expressions.md#r-expr.suffix.marker) | Literal-sugar markers. |
+| N15 | `std.ops.NumSuffix`, `StrPrefix`, `Template` | [`expr.literal-fn.marker`](../spec/05-expressions.md#r-expr.literal-fn.marker) | Literal-sugar markers. |
 | N16 | `std.annotation.Annotate` | [`annot.target.recognized`](../spec/14-annotations.md#r-annot.target.recognized) | Target-kind limiter. |
 | N17 | `std.structure.Structure` | [`annot.structure.sealed`](../spec/14-annotations.md#r-annot.structure.sealed) | Derivation view. |
 | N18 | `std.convert.From`, `std.error.Error`, `std.process.Termination`, `std.format.Display` | [`trait.from.propagation`](../spec/09-traits.md#r-trait.from.propagation), [`module.entry.termination`](../spec/10-modules.md#r-module.entry.termination) | Traits the language calls without an import. |

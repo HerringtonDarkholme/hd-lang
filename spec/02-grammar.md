@@ -1238,8 +1238,8 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
 #### Suffixed Literals
 
-1. r[grammar.primary.suffixed-literal] A `suffixed_literal` token is a primary expression, which stands for a call as [Literal Suffixes](05-expressions.md#literal-suffixes) specifies.
-2. r[grammar.pattern.no-suffixed-literal] `literal_pattern` does not admit a suffixed literal, so `5s` in a pattern is an error. Error: `syntax-error`.
+1. r[grammar.primary.literal-call] A `suffixed_literal` token and a `prefixed_string_expression` are primary expressions, each standing for a call as [Literal Suffixes](05-expressions.md#literal-suffixes) specifies.
+2. r[grammar.pattern.no-literal-call] `literal_pattern` admits neither a suffixed literal nor a prefixed string, so `5s` or `r"a"` in a pattern is an error. Error: `syntax-error`.
 
 ```text
 fn describe(count: i32) -> string:
@@ -1252,8 +1252,8 @@ See also: [Literal Suffixes](01-lexical-structure.md#literal-suffixes).
 
 #### Prefixed Strings
 
-1. r[grammar.primary.prefixed-string] A `prefixed_string_expression` is a primary expression, which stands for a call as [Prefixed Strings](05-expressions.md#prefixed-strings) specifies.
-2. r[grammar.pattern.no-prefixed-string] `literal_pattern` does not admit a prefixed string, so `r"a"` in a pattern is an error. Error: `syntax-error`.
+The rules of [Suffixed Literals](#suffixed-literals) cover a prefixed
+string too:
 
 ```text
 fn describe(text: string) -> string:

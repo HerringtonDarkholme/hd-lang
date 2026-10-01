@@ -340,6 +340,8 @@ function validNumber(text: string): boolean {
 // are identifiers such as `_0`.
 // Chapter 01 literal suffixes: a letter directly after decimal or float
 // digits starts a suffix of identifier characters; radix literals take none.
+// A reserved word is never a suffix (`lex.literal-fn.reserved`), so `5else`
+// is `5` followed by `else`.
 function suffixEnd(source: string, start: number): number {
   let end = start;
   while (end < source.length && /^[\p{XID_Continue}_]$/u.test(source[end]!)) end += 1;
@@ -353,8 +355,10 @@ function startsSuffix(character: string | undefined): boolean {
 function numberEnd(source: string, start: number): NumberScan {
   const scan = unsuffixedNumberEnd(source, start);
   const radix = /^0[xXbBoO]/.test(source.slice(start, start + 2));
-  if (!radix && startsSuffix(source[scan.end]))
-    return { ...scan, end: suffixEnd(source, scan.end), suffix: scan.end };
+  if (!radix && startsSuffix(source[scan.end])) {
+    const end = suffixEnd(source, scan.end);
+    if (!reserved.has(source.slice(scan.end, end))) return { ...scan, end, suffix: scan.end };
+  }
   return scan;
 }
 
@@ -739,10 +743,7 @@ export function lexSource(source: string): LexResult {
     if (isDigit(character)) {
       const found = numberEnd(source, index);
       const text = source.slice(index, found.end);
-      // A reserved word as a suffix, as in `5else`, forms no token
-      // (chapter 01 `lex.suffix.reserved`).
-      const suffix = found.suffix === undefined ? "" : source.slice(found.suffix, found.end);
-      if (!validNumber(source.slice(index, found.suffix ?? found.end)) || reserved.has(suffix))
+      if (!validNumber(source.slice(index, found.suffix ?? found.end)))
         diagnostics.push(diagnostic("invalid-token", line));
       tokens.push(token(numberKind(found), line, text));
       index = found.end;

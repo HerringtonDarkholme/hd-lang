@@ -7,9 +7,8 @@
 # A suffix function is one marked `@num_suffix`, and a prefix function one
 # marked `@str_prefix`; the compiler recognizes `std.ops.NumSuffix`,
 # `std.ops.StrPrefix`, and `std.ops.Template` by their qualified names
-# (r-expr.suffix.marker, r-expr.prefix.marker), and `@annotate(.Fn)` limits
-# each marker to functions (r-expr.suffix.marker.fn-only,
-# r-expr.prefix.marker.fn-only).
+# (r-expr.literal-fn.marker), and `@annotate(.Fn)` limits
+# each marker to functions (r-expr.literal-fn.fn-only).
 use std.annotation.annotate
 use std.hash.Hash
 

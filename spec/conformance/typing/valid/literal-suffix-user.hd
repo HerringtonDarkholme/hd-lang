@@ -1,5 +1,5 @@
 # test: a library declares a suffix by marking a function @num_suffix
-# Spec 05 Literal Suffixes: `-12px` calls px(-12).
+# Spec 05 Literal Suffixes: `12px` calls px(12).
 use std.ops.num_suffix
 
 data Pixels:
@@ -10,7 +10,7 @@ fn px(count: i32) -> Pixels:
     Pixels { count: count }
 
 fn indent() -> Pixels:
-    -12px  # px(-12)
+    24px  # px(24)
 
 fn margin() -> Pixels:
     12px

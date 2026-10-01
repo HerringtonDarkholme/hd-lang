@@ -163,8 +163,7 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
 ### Literals
 
 1. r[expr.literal.defined] Boolean, integer, floating-point, string, and character literals are defined lexically in [Lexical Structure](01-lexical-structure.md) and typed in [Type System](04-type-system.md).
-2. r[expr.literal.suffixed] A suffixed literal is a call, as [Literal Suffixes](#literal-suffixes) specifies.
-3. r[expr.literal.prefixed] A prefixed string is a call, as [Prefixed Strings](#prefixed-strings) specifies.
+2. r[expr.literal.call] A suffixed literal or prefixed string is a call, as [Literal Suffixes](#literal-suffixes) specifies.
 4. r[expr.literal.pass] `pass` is the no-op expression. It has type `void` and performs no operation.
 
 #### String Interpolation
@@ -199,8 +198,12 @@ fn render(value: Secret) -> string:
 
 #### Literal Suffixes
 
-A [suffixed literal](01-lexical-structure.md#literal-suffixes) is a call of
-its suffix function, a function marked `@num_suffix`:
+A [suffixed literal](01-lexical-structure.md#literal-suffixes) or a
+[prefixed string](01-lexical-structure.md#prefixed-strings) is a call of a
+**literal function**: a function marked `@num_suffix` for a suffix, or
+`@str_prefix` for a prefix. This section gives the rules both forms share,
+then the suffix rules; [Prefixed Strings](#prefixed-strings) adds the
+template.
 
 ```text
 use std.ops.num_suffix
@@ -213,7 +216,7 @@ fn px(count: i32) -> Pixels:
     Pixels { count: count }
 
 fn indent() -> Pixels:
-    -12px  # px(-12)
+    12px  # px(12)
 ```
 
 `std.ops` declares the marker:
@@ -228,21 +231,20 @@ pub fn num_suffix() -> NumSuffix:
     NumSuffix {}
 ```
 
-1. r[expr.suffix.fn-call] A suffixed literal `Nx` is the call `x(N)` of the suffix function `x`, with the literal `N` as its one argument.
-2. r[expr.suffix.fn-call.example] So `250ms` means `ms(250)`, and `-5s` means `s(-5)`.
-3. r[expr.suffix.marker] A **suffix function** is a function that carries a `std.ops.NumSuffix` value, written `@num_suffix`. The compiler recognizes `std.ops.NumSuffix` by its qualified name.
-4. r[expr.suffix.marker.fn-only] `std.ops` declares `NumSuffix` and `num_suffix`. `NumSuffix` carries `@annotate(.Fn)`, so `@num_suffix` before anything but a function is an error. Error: `decorator-target-kind`.
-5. r[expr.suffix.not-marked] A suffix that resolves to anything other than a suffix function is an error, reported at the literal. Error: `invalid-literal-suffix`.
-6. r[expr.suffix.no-marker-import] The call needs no import of `num_suffix` or `NumSuffix`: a `use` of the suffix function alone makes the literal valid.
-7. r[expr.suffix.call-errors] The call is checked as an ordinary call. An argument that the function cannot accept is the ordinary call error at the literal, such as `type-mismatch` or `argument-count`.
-8. r[expr.suffix.fn-shape-num] A suffix function declares exactly one parameter and never suspends. A second parameter breaks this shape even when it has a default.
-9. r[expr.suffix.fn-shape.default] The one parameter may have a default. In `@num_suffix fn unit(count: i64 = 1)`, `5unit` passes `5`, and the ordinary call `unit()` uses the default.
-10. r[expr.suffix.fn-shape-param] The parameter's type is a primitive integer or floating-point type, or a type parameter of the function bounded by `std.num.Num`, `Integer`, or `Float`.
-11. r[expr.suffix.generic-num] So `@num_suffix fn k[N < Num](n: N) -> N` is valid. As in any generic call, `5k` takes `N` from the literal, or from the expected type, as in `let limit: i64 = 5k`.
-12. r[expr.suffix.fn-shape.definition] The compiler checks this shape at the definition that carries `@num_suffix`, not at each literal. A marked function that breaks it is an error at that definition. Error: `type-mismatch`.
-13. r[expr.suffix.ordinary-rules] Otherwise the call follows the ordinary rules. A generic suffix function's type arguments are inferred at the literal, and its requirement row joins the row of the code that contains the literal, as any call's does.
-14. r[expr.suffix.exact-call] A suffixed literal is exactly that call wherever it appears, and it has no evaluation rule of its own.
-15. r[expr.suffix.position-rules] In a [fact](14-annotations.md#r-annot.fact.eval), in [shared enum data](08-data-and-enums.md#r-data.shared.compile-time), or in any other position, the call follows the rules for any call there, including what a panic in the suffix function does. So a compile-time position that must be requirement-free rejects a suffix function that needs providers, as it rejects any such call.
+Rules for every literal function:
+
+1. r[expr.literal-fn.marker] A **suffix function** carries a `std.ops.NumSuffix` value, written `@num_suffix`, and a **prefix function** carries a `std.ops.StrPrefix` value, written `@str_prefix`. The compiler recognizes both types, and `std.ops.Template`, by their qualified names.
+2. r[expr.literal-fn.fn-only] `std.ops` declares `NumSuffix`, `num_suffix`, `StrPrefix`, `str_prefix`, and `Template`. Both marker types carry `@annotate(.Fn)`, so either marker before anything but a function is an error. Error: `decorator-target-kind`.
+3. r[expr.literal-fn.not-marked] A suffix or prefix that resolves to anything but a literal function of its form is an error at the literal. Error: `invalid-literal-suffix` for a suffix, `invalid-string-prefix` for a prefix.
+4. r[expr.literal-fn.no-marker-import] The call needs no import of the marker, its type, or `Template`: a `use` of the literal function alone makes the literal valid.
+5. r[expr.literal-fn.shape] A literal function declares exactly one parameter and never suspends. A second parameter breaks this shape even when it has a default. The parameter's type is numeric for a suffix function, as [`expr.suffix.fn-shape-param`](#r-expr.suffix.fn-shape-param) defines, and `std.ops.Template[T]` for some `T` for a prefix function.
+6. r[expr.literal-fn.definition] The compiler checks this shape at the definition that carries the marker, not at each literal. A marked function that breaks it is an error at that definition. Error: `type-mismatch`.
+7. r[expr.literal-fn.ordinary-call] A literal is exactly the call of its literal function wherever it appears, and it is checked and evaluated as an ordinary call there. So argument errors, inferred type arguments, the requirement row, and the rules of a [fact](14-annotations.md#r-annot.fact.eval) or [shared enum data](08-data-and-enums.md#r-data.shared.compile-time) position all apply as for any call.
+
+Rules for suffixes:
+
+8. r[expr.suffix.fn-call] A suffixed literal `Nx` is the call `x(N)` of the suffix function `x`, with the literal `N` as its one argument, so `250ms` means `ms(250)`.
+9. r[expr.suffix.fn-shape-param] A suffix function's parameter type is a primitive integer or floating-point type, or a type parameter of the function bounded by `std.num.Num`, `Integer`, or `Float`, as in `@num_suffix fn k[N < Num](n: N) -> N`.
 
 ```text
 use std.ops.num_suffix
@@ -273,6 +275,16 @@ pub fn layout() -> Pixels:
     size := 12pt  # error: invalid-literal-suffix
     12px  # error: missing-requirement
 ```
+
+> **Note.** The one parameter may have a default, as any parameter may. A
+> literal always passes its own value, so in
+> `@num_suffix fn unit(count: i64 = 1)`, `5unit` passes `5`, and the
+> ordinary call `unit()` uses the default.
+
+> **Note.** A generic suffix function infers its type argument as any
+> generic call does: `5k` takes `N` from the literal, or from the expected
+> type, as in `let limit: i64 = 5k`. A unary minus is not part of the
+> literal, so `-5s` is `-(5s)`.
 
 A suffixed literal in shared enum data is a call there, as the position
 rules say:
@@ -348,21 +360,14 @@ pub data Template[T]:
     pub values: List[T]
 ```
 
-1. r[expr.prefix.fn-call] A prefixed string `x"..."` is the call `x(t)` of the prefix function `x`, with a `std.ops.Template` value `t` as its one argument.
+The [rules for every literal function](#literal-suffixes) apply to a
+prefix function. The rules for prefixes:
+
+1. r[expr.prefix.fn-call] A prefixed string `x"..."` is the call `x(t)` of the prefix function `x`, with a `std.ops.Template` value `t` as its one argument. The compiler never joins the pieces and never calls `Display`.
 2. r[expr.prefix.template] `t.values` holds the `n` interpolated values in source order, and `t.raw_parts` holds the `n + 1` pieces of text around them.
-3. r[expr.prefix.parts] The first piece is the text before the first interpolation, and the last piece is the text after the last one. A piece is `""` where two interpolations touch, or where one begins or ends the string.
-4. r[expr.prefix.parts.example] So `x"a $b c"` passes the pieces `["a ", " c"]` and the values `[b]`, and `x"text"` passes `["text"]` and `[]`.
-5. r[expr.prefix.raw-parts] Each piece is the text exactly as written, with every backslash kept, as [`lex.prefix.raw-text`](01-lexical-structure.md#r-lex.prefix.raw-text) says.
-6. r[expr.prefix.no-join] The compiler never joins the pieces and never calls `Display`. The prefix function decides what the string means.
-7. r[expr.prefix.order] The interpolated expressions are evaluated from left to right before the call, as arguments are.
-8. r[expr.prefix.marker] A **prefix function** is a function that carries a `std.ops.StrPrefix` value, written `@str_prefix`. The compiler recognizes `std.ops.StrPrefix` and `std.ops.Template` by their qualified names.
-9. r[expr.prefix.marker.fn-only] `std.ops` declares `StrPrefix`, `str_prefix`, and `Template`. `StrPrefix` carries `@annotate(.Fn)`, so `@str_prefix` before anything but a function is an error. Error: `decorator-target-kind`.
-10. r[expr.prefix.not-marked] A prefix that resolves to anything other than a prefix function is an error, reported at the string. Error: `invalid-string-prefix`.
-11. r[expr.prefix.no-marker-import] The call needs no import of `str_prefix`, `StrPrefix`, or `Template`: a `use` of the prefix function alone makes the string valid.
-12. r[expr.prefix.fn-shape-one] A prefix function declares exactly one parameter, of type `std.ops.Template[T]` for some type `T`, and never suspends. A second parameter breaks this shape even when it has a default.
-13. r[expr.prefix.fn-shape.definition] The compiler checks this shape at the definition that carries `@str_prefix`, not at each string. A marked function that breaks it is an error at that definition. Error: `type-mismatch`.
-14. r[expr.prefix.ordinary-rules] Otherwise the call is checked as an ordinary call. A generic prefix function's type arguments are inferred at the string, and its requirement row joins the row of the code that contains the string, as any call's does.
-15. r[expr.prefix.exact-call] A prefixed string is exactly that call wherever it appears, and it has no evaluation rule of its own. In a fact or any other compile-time position, it follows the rules for any call there.
+3. r[expr.prefix.parts] The first piece is the text before the first interpolation, and the last piece is the text after the last one. A piece is `""` where two interpolations touch, or where one begins or ends the string. So `x"a $b c"` passes the pieces `["a ", " c"]` and the values `[b]`, and `x"text"` passes `["text"]` and `[]`.
+4. r[expr.prefix.raw-parts] Each piece is the text exactly as written, with every backslash kept, as [`lex.prefix.raw-text`](01-lexical-structure.md#r-lex.prefix.raw-text) says.
+5. r[expr.prefix.order] The interpolated expressions are evaluated from left to right before the call, as arguments are.
 
 ```text
 use std.ops.{Template, str_prefix}
@@ -1422,7 +1427,6 @@ pub trait Neg:
 22. r[expr.op.fixed] Operator traits never change precedence or associativity, and they add no operator symbols.
 23. r[expr.op.not-overloaded] `&&`, `||`, prefix `!`, unary `+`, `**`, `is`, `=`, `:=`, and postfix `?` have no trait and keep their built-in meaning.
 24. r[expr.op.comparison] `==`, `!=`, and the relational operators call `Eq` and `PartialOrd`, as [Equality](#equality) and [Ordering](#ordering) define. `std.ops` declares no comparison trait.
-25. r[expr.op.suffix-negation] `-5s` stays the call `s(-5)`: the minus belongs to the suffixed literal, so `Neg` is not called.
 
 ```text
 use std.ops.Mul

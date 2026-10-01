@@ -1474,7 +1474,6 @@ pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self
 7. r[trait.num.from-i64-cast] A [numeric cast](04-type-system.md#numeric-casts) `T(n)` stays the way to wrap.
 8. r[trait.num.division] `/` and `%` keep each type's own meaning under `Num`. Integer division truncates and panics on a zero divisor, and floating-point division follows IEEE 754.
 9. r[trait.num.std-operators] The standard library's operator implementations behave as the built-in operators do.
-10. r[trait.num.suffix] A suffix function may be generic over `N < Num`, as [`expr.suffix.fn-shape-param`](05-expressions.md#r-expr.suffix.fn-shape-param) allows.
 
 ```text
 use std.num.Num

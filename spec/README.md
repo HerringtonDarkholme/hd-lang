@@ -221,6 +221,7 @@ The stdlib chapters' terms are in the
 | **law partners** | Comparison and hash traits whose laws relate them, such as `Hash` and `Eq`. See [Law Partners](09-traits.md#law-partners). |
 | **let-else** | A `let` statement with a refutable pattern and an `else` block, which runs when the pattern does not match and must diverge. See [Let-Else Statements](02-grammar.md#let-else-statements). |
 | **lexical provider** | A provider a closure fixes where it is written, by capturing the value of `$.use`. See [Lexical And Dynamic Providers](11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
+| **literal function** | A function marked `@num_suffix` or `@str_prefix`, which a suffixed literal or prefixed string calls. See [Literal Suffixes](05-expressions.md#literal-suffixes). |
 | **literal suffix** | A name written directly after a numeric literal's digits, which names a suffix function. See [Literal Suffixes](01-lexical-structure.md#literal-suffixes). |
 | **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. See [Member Lines](14-annotations.md#member-lines). |
 | **member metadata** | The ordered list of values attached to a data field, an enum variant, or a parameter. See [Terminology](14-annotations.md#terminology). |
@@ -238,7 +239,7 @@ The stdlib chapters' terms are in the
 | **pipe expression** | `value |> step`, which passes a value to a step. See [Pipe Expressions](05-expressions.md#pipe-expressions). |
 | **place expression** | An expression that identifies a storage location, which may be read or, when permissions allow, assigned. See [`expr.category.place`](05-expressions.md#r-expr.category.place). |
 | **positional spread** | An argument `x...` that passes the value `x` in place of separate arguments: a tuple fills fixed parameters, and a vararg takes a value of its own type. See [Positional Spreads](05-expressions.md#positional-spreads). |
-| **prefix function** | A function marked `@str_prefix`, which a prefixed string calls. See [`expr.prefix.marker`](05-expressions.md#r-expr.prefix.marker). |
+| **prefix function** | A literal function marked `@str_prefix`, which a prefixed string calls. See [`expr.literal-fn.marker`](05-expressions.md#r-expr.literal-fn.marker). |
 | **prefixed string** | An identifier followed directly by `"` or `"""`, as in `sql"..."`. See [`lex.prefix.form`](01-lexical-structure.md#r-lex.prefix.form). |
 | **prelude** | The implicit scope of public standard-library names that every module has. See [Prelude](10-modules.md#prelude). |
 | **program instance** | One instantiated Wasm module graph with its module storage, provider bindings, and execution state. See [`module.init.program-instance`](10-modules.md#r-module.init.program-instance). |
@@ -263,7 +264,7 @@ The stdlib chapters' terms are in the
 | **specialized data shape type** | The type of `shape::[D]()` for a data type `D`: the members of `DataShape`, plus a `fields` record with one member per direct field. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
 | **specialized enum shape type** | The type of `shape::[E]()` for an enum `E`, which adds a `variants` record with one member per variant. See [Shape Intrinsics](14-annotations.md#shape-intrinsics). |
 | **substitution step** | A pipe step that contains `_`. See [`expr.pipe.step-kinds`](05-expressions.md#r-expr.pipe.step-kinds). |
-| **suffix function** | A function marked `@num_suffix`, which a suffixed literal calls. See [`expr.suffix.marker`](05-expressions.md#r-expr.suffix.marker). |
+| **suffix function** | A literal function marked `@num_suffix`, which a suffixed literal calls. See [`expr.literal-fn.marker`](05-expressions.md#r-expr.literal-fn.marker). |
 | **suffixed literal** | A numeric literal with a literal suffix, such as `250ms`, which calls the suffix function, as `ms(250)`. See [Literal Suffixes](05-expressions.md#literal-suffixes). |
 | **take part** | The members of a type that lookup considers: its own fields and inherent methods, whatever their visibility, and its promoted members. See [`names.take-part.definition`](03-names-and-scopes.md#r-names.take-part.definition). |
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](14-annotations.md#templates). |
@@ -2263,7 +2264,7 @@ existing source. Each entry names the decision that made the change.
   [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
   step 11, 2026-09-30): language tier. `lex.raw-string.none-text`, which
   named `std.text.r` as the prefix of `r"..."`, is retired for
-  [`lex.raw-string.prefix`](01-lexical-structure.md#r-lex.raw-string.prefix):
+  `lex.raw-string.prefix`, itself since retired for a Note:
   `r` resolves as any prefix name does, and a See also points to
   [Raw Text Prefix](std/text.md#raw-text-prefix). Examples in Lexical
   Structure, Expressions, Functions, and Traits that called `trim`,
@@ -2713,3 +2714,97 @@ existing source. Each entry names the decision that made the change.
   `std` promises `Debug` for tuples of at most 12 elements;
   `trait.debug.std`, which promised every arity, is retired for
   [`trait.debug.std-types`](09-traits.md#r-trait.debug.std-types).
+- One rule set for literal functions (owner decisions Q1 and Q2, batch 31
+  in [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
+  2026-09-30): language tier. A **literal function** is a function marked
+  `@num_suffix` or `@str_prefix`; both markers stay, and only the rules
+  behind them merge. Lookup, markers, shape, and the call rules are written
+  once ([Literal Suffixes](05-expressions.md#literal-suffixes)); only the
+  lexing, the parameter type per form, and the template stay separate.
+  No valid program changes meaning, and both diagnostic codes stay.
+  Retired for a merged rule: `names.suffix.module-name`, `.ordinary`,
+  `names.prefix.module-name`, and `.ordinary` for
+  [`names.literal-fn.module-name`](03-names-and-scopes.md#r-names.literal-fn.module-name);
+  `names.suffix.no-local` and `names.prefix.no-local` for
+  [`names.literal-fn.no-local`](03-names-and-scopes.md#r-names.literal-fn.no-local);
+  `names.suffix.unknown-name` and `names.prefix.unknown-name` for
+  [`names.literal-fn.unknown-name`](03-names-and-scopes.md#r-names.literal-fn.unknown-name);
+  `names.suffix.function` and `names.prefix.function`, `expr.suffix.not-marked`,
+  and `expr.prefix.not-marked` for
+  [`expr.literal-fn.not-marked`](05-expressions.md#r-expr.literal-fn.not-marked);
+  `expr.suffix.marker` and `expr.prefix.marker` for
+  [`expr.literal-fn.marker`](05-expressions.md#r-expr.literal-fn.marker);
+  `expr.suffix.marker.fn-only` and `expr.prefix.marker.fn-only` for
+  [`expr.literal-fn.fn-only`](05-expressions.md#r-expr.literal-fn.fn-only);
+  `expr.suffix.no-marker-import` and `expr.prefix.no-marker-import` for
+  [`expr.literal-fn.no-marker-import`](05-expressions.md#r-expr.literal-fn.no-marker-import);
+  `expr.suffix.fn-shape-num` and `expr.prefix.fn-shape-one` for
+  [`expr.literal-fn.shape`](05-expressions.md#r-expr.literal-fn.shape);
+  `expr.suffix.fn-shape.definition` and `expr.prefix.fn-shape.definition`
+  for [`expr.literal-fn.definition`](05-expressions.md#r-expr.literal-fn.definition);
+  `expr.suffix.call-errors`, `.ordinary-rules`, `.exact-call`, and
+  `.position-rules`, and `expr.prefix.ordinary-rules` and `.exact-call`, for
+  [`expr.literal-fn.ordinary-call`](05-expressions.md#r-expr.literal-fn.ordinary-call);
+  `expr.literal.suffixed` and `expr.literal.prefixed` for
+  [`expr.literal.call`](05-expressions.md#r-expr.literal.call);
+  `types.literal.suffixed` and `types.literal.prefixed` for
+  [`types.literal.call-result`](04-type-system.md#r-types.literal.call-result);
+  `grammar.primary.suffixed-literal` and `.prefixed-string` for
+  [`grammar.primary.literal-call`](02-grammar.md#r-grammar.primary.literal-call);
+  `grammar.pattern.no-suffixed-literal` and `.no-prefixed-string` for
+  [`grammar.pattern.no-literal-call`](02-grammar.md#r-grammar.pattern.no-literal-call);
+  `lex.suffix.meaning` and `lex.prefix.meaning` for
+  [`lex.literal-fn.meaning`](01-lexical-structure.md#r-lex.literal-fn.meaning);
+  `lex.prefix.single-line` and `.multiline` for
+  [`lex.prefix.lines`](01-lexical-structure.md#r-lex.prefix.lines); and
+  `module.prelude.ops-num-suffix`, `.ops-str-prefix-markers`, `.no-suffix`,
+  and `.no-prefix` for
+  [`module.prelude.ops-literal-markers`](10-modules.md#r-module.prelude.ops-literal-markers)
+  and [`module.prelude.no-literal-fn`](10-modules.md#r-module.prelude.no-literal-fn).
+  Folded into a kept rule: `lex.suffix.longest-match` into
+  [`lex.suffix.name`](01-lexical-structure.md#r-lex.suffix.name);
+  `lex.suffix.no-radix` and `.radix-letters` into
+  [`lex.suffix.decimal`](01-lexical-structure.md#r-lex.suffix.decimal);
+  `lex.suffix.exponent.examples` into
+  [`lex.suffix.exponent`](01-lexical-structure.md#r-lex.suffix.exponent);
+  `lex.prefix.double-quote` and `.separate` into
+  [`lex.prefix.form`](01-lexical-structure.md#r-lex.prefix.form);
+  `lex.prefix.odd-backslashes` into
+  [`lex.prefix.backslash`](01-lexical-structure.md#r-lex.prefix.backslash);
+  `expr.suffix.fn-call.example` into
+  [`expr.suffix.fn-call`](05-expressions.md#r-expr.suffix.fn-call);
+  `expr.suffix.generic-num` into
+  [`expr.suffix.fn-shape-param`](05-expressions.md#r-expr.suffix.fn-shape-param);
+  `expr.prefix.no-join` into
+  [`expr.prefix.fn-call`](05-expressions.md#r-expr.prefix.fn-call); and
+  `expr.prefix.parts.example` into
+  [`expr.prefix.parts`](05-expressions.md#r-expr.prefix.parts).
+  Retired as consequences of other rules, some kept as a Note:
+  `lex.suffix.separator`, `.no-string`, and `.no-quote`, whose programs keep
+  their codes through `lex.sep.misplaced`, the grammar, and character
+  literals; `lex.raw-string.prefix` and `lex.prefix.no-hash`;
+  `types.literal.suffixed.kind`, `types.literal.prefixed.value-errors`, and
+  `.display`, which restate argument checking; and `trait.num.suffix`.
+- Negated suffixed literals (owner decision Q3, batch 31, 2026-09-30):
+  language tier, with a stdlib-tier part. `-5s` is the ordinary negation
+  `-(5s)`, so it needs `Neg` on the suffix function's result type
+  ([Operator Traits](05-expressions.md#operator-traits)). `-5s` was `s(-5)`.
+  `-128b`, valid before for an `i8` suffix parameter, is now
+  `integer-literal-range`; write `b(-128)`. `-12px` for a result type
+  without `Neg`, valid before, is now `type-mismatch`. Retired with no
+  replacement: `types.literal.suffixed.negation`, `.negation.check`, and
+  `expr.op.suffix-negation`. `std.time` adds `Neg for Duration`
+  ([`std-time.suffix.std.duration-neg`](std/time.md#r-std-time.suffix.std.duration-neg)),
+  so `-5s` stays valid and still means minus five seconds.
+- A suffix parameter's default stays allowed (owner decision Q4, batch 31,
+  2026-09-30): language tier. `expr.suffix.fn-shape.default` is retired
+  with no replacement, as a restatement of the ordinary parameter rules.
+  `@num_suffix fn unit(count: i64 = 1)` stays valid; a second parameter,
+  with or without a default, stays `type-mismatch`.
+- A reserved word is never a suffix or prefix (owner decision Q1, cut C3,
+  batch 31, 2026-09-30): language tier. `lex.suffix.reserved` and
+  `lex.prefix.reserved` are retired for
+  [`lex.literal-fn.reserved`](01-lexical-structure.md#r-lex.literal-fn.reserved).
+  `5else`, previously `invalid-token`, is now `5` followed by `else`, so
+  in expression position it is `syntax-error`. `return"done"` stays two
+  tokens.

@@ -1,5 +1,5 @@
 # test: a string prefix must name a function marked @str_prefix
-# Spec 05 Prefixed Strings: expr.prefix.not-marked is reported at the string.
+# Spec 05 Literal Suffixes: expr.literal-fn.not-marked is reported at the string.
 use std.ops.Template
 
 fn plain(t: Template[string]) -> string:

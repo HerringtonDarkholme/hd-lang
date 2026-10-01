@@ -1,5 +1,5 @@
 # test: a prefix function may be generic; its type arguments are inferred at the string
-# Spec 05 Prefixed Strings: expr.prefix.ordinary-rules (Literal Suffixes L20).
+# Spec 05 Literal Suffixes: expr.literal-fn.ordinary-call (Literal Suffixes L20).
 use std.ops.{Template, str_prefix}
 
 @str_prefix

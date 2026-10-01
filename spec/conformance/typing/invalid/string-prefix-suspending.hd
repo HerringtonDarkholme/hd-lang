@@ -1,5 +1,5 @@
 # test: a prefix function never suspends, checked at its definition
-# Spec 05 Prefixed Strings: expr.prefix.fn-shape.definition.
+# Spec 05 Literal Suffixes: expr.literal-fn.definition.
 use std.ops.{Template, str_prefix}
 
 @str_prefix

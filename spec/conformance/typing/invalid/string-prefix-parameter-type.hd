@@ -1,5 +1,5 @@
 # test: a prefix function whose required parameter is not a Template is an error at its definition
-# Spec 05 Prefixed Strings: expr.prefix.fn-shape.definition; `@str_prefix` on `fn count(n: i32)`.
+# Spec 05 Literal Suffixes: expr.literal-fn.definition; `@str_prefix` on `fn count(n: i32)`.
 use std.ops.str_prefix
 
 @str_prefix

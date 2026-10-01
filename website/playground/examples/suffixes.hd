@@ -26,7 +26,7 @@ fn add(a: Pixels, b: Pixels) -> Pixels: Pixels { count: a.count + b.count }
 fn backoff() -> List[Duration]: [250ms, 1s, 5s]
 
 pub fn main() -> void $ Console:
-    width := add(12px, -4px)
+    width := add(12px, 4px)
     println("width ${width.count}px")
     println("${backoff().len()} retry delays")
     println(r"C:\tmp\new ${width.count}px")

@@ -1,5 +1,5 @@
 # test: a suffix function never suspends, checked at its definition
-# Spec 05 Literal Suffixes: expr.suffix.fn-shape.definition.
+# Spec 05 Literal Suffixes: expr.literal-fn.definition.
 use std.ops.num_suffix
 
 @num_suffix

@@ -5,7 +5,9 @@
 # the `millis` field is the prototype's own. Each suffix scales its literal by
 # checked `i64` multiplication, so an overflow panics (r-std-time.suffix.std.overflow).
 # Each suffix is a function marked `@num_suffix` (r-std-time.suffix.std.fn).
-use std.ops.num_suffix
+# `-5s` is the ordinary negation `-(5s)`, so `Duration` implements `Neg`
+# (r-std-time.suffix.std.duration-neg).
+use std.ops.{Neg, num_suffix}
 
 pub data Duration:
     millis: i64
@@ -19,6 +21,11 @@ impl Duration:
 
     pub fn as_milliseconds(self) -> i64:
         self.millis
+
+impl Neg for Duration:
+    type Out = Duration
+    fn neg(self) -> Duration:
+        Duration { millis: -self.millis }
 
 @num_suffix
 pub fn ms(count: i64) -> Duration:

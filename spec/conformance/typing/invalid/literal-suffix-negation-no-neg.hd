@@ -1,0 +1,13 @@
+# test: negating a suffixed literal needs Neg on the suffix function's result
+# Spec 05 Operator Traits: `-12px` is -(px(12)), and Pixels implements no Neg.
+use std.ops.num_suffix
+
+data Pixels:
+    count: i32
+
+@num_suffix
+fn px(count: i32) -> Pixels:
+    Pixels { count: count }
+
+fn indent() -> Pixels:
+    -12px  # diagnostic: type-mismatch
