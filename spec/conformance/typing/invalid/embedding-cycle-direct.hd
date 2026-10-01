@@ -1,0 +1,4 @@
+# test: a data type that embeds itself directly is an embedding cycle
+data Loop:
+    Loop  # diagnostic: embedding-cycle
+    id: string

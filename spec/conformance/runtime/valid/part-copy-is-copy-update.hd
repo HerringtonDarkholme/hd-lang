@@ -1,0 +1,31 @@
+# test: filling or storing an embedded part stores the copy-update of the supplied value
+use std.testing.assert_equal
+
+data Timestamps:
+    pub created_at: i64
+    pub updated_at: i64
+
+data Post:
+    Timestamps
+    id: string
+    title: string
+
+fn build(ts: Timestamps) -> Post:
+    let mut post = Post { Timestamps: ...ts, id: "p", title: "t" }
+    post.Timestamps ...= ts
+    post
+
+fn build_written(ts: Timestamps) -> Post:
+    let mut post = Post { Timestamps: ...Timestamps { ...ts }, id: "p", title: "t" }
+    post.Timestamps ...= Timestamps { ...ts }
+    post
+
+tests:
+    it("a part copy is a copy-update"):
+        let mut ts = Timestamps { created_at: 1, updated_at: 2 }
+        post := build(ts)
+        written := build_written(ts)
+        ts.updated_at = 9
+        assert_equal(post.updated_at, 2, reason="the part is a copy")
+        assert_equal(post.created_at, written.created_at, reason="same as the written copy-update")
+        assert_equal(post.updated_at, written.updated_at, reason="same as the written copy-update")

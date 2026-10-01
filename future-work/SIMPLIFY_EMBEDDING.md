@@ -1,8 +1,9 @@
 # Simplify Embedding, Promotion, And Delegation
 
-Status: simplification review, 2026-09-30. Nothing here is decided,
-accepted behavior, or in the specification. It changes no spec text,
-fixture, or prototype code.
+Status: simplification review, 2026-09-30. The owner answered its
+questions in batch 32; see [Owner Decisions](#owner-decisions). Q1, Q2,
+Q5, and Q6 are applied (pass 32a). Q3 and Q4 wait for pass 32b. The rest
+of this record is the review as written, not accepted behavior.
 
 The owner asked for a round of simplification over embedding, `by`
 delegation, and the features tied to them. The owner decided to keep
@@ -33,6 +34,7 @@ embedding limits, the single view, and trait delegation, all logged in
 - [What Users Lose](#what-users-lose)
 - [Recommendation](#recommendation)
 - [Questions For The Owner](#questions-for-the-owner)
+- [Owner Decisions](#owner-decisions)
 - [Sources](#sources)
 - [Parse Log](#parse-log)
 
@@ -713,6 +715,19 @@ field with promotion, as Go's `*T`.
 let mut post = Post { Timestamps: ...stamps, id: "p" }
 post.Timestamps ...= stamps
 ```
+
+## Owner Decisions
+
+Batch 32, 2026-09-30. Net: O1 plus O2b, with the limits kept.
+
+| # | Decision | Status |
+| --- | --- | --- |
+| Q1 | A: delegation is written forwarding, `Trait::m(self.E, ...)`, checked as if written. | Applied in 32a: [`trait.by.generated`](../spec/09-traits.md#r-trait.by.generated). `trait.by.generated.variadic` stays while varargs are under discussion. |
+| Q2 | A: a part copy is a copy-update, `E { ...e }`. | Applied in 32a: [`data.part.construct`](../spec/08-data-and-enums.md#r-data.part.construct), and a Note in [Mutable Edges](../spec/08-data-and-enums.md#mutable-edges). |
+| Q3 | A: state each rule once (O1c and the rest of O1). | Pass 32b. |
+| Q4 | A: a private own member hides a promoted one. | Pass 32b. |
+| Q5 | B, not the recommended A: keep `data.embed.width` and `data.embed.depth`. `depth.chain` becomes an example; `depth.every-type` and `depth.message` become a diagnostics Note; `depth.generic` and `names.part.depth.levels` are deleted. `data.embed.depth.self` stays, with its own code `embedding-cycle`. | Applied in 32a: [Embedding Limits](../spec/08-data-and-enums.md#embedding-limits). |
+| Q6 | A: value parts stay. | Nothing to apply. |
 
 ## Sources
 

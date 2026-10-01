@@ -80,7 +80,7 @@ maps each exercised code to its fixture.
 
 | Severity | Stable diagnostic codes |
 | --- | --- |
-| Error | `alias-cycle`, `ambiguous-associated-type`, `ambiguous-method`, `ambiguous-promoted-member`, `ambiguous-row-pattern`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `cyclic-test-dependency`, `decorator-not-annotator`, `decorator-not-top-level`, `decorator-target-kind`, `default-order`, `derive-field-missing-trait`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-fact`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-pipe-placeholder`, `duplicate-test-name`, `duplicate-tests-block`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-too-deep`, `float-literal-range`, `folder-cycle`, `gadt-derivation`, `generic-kind-mismatch`, `generic-member-call`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-error-marker`, `invalid-escape`, `invalid-impl-target`, `invalid-literal-suffix`, `invalid-map-key`, `invalid-member-line`, `invalid-result-propagation`, `invalid-string-prefix`, `invalid-test-statement`, `invalid-variance`, `let-else-falls-through`, `let-mut-readonly-type`, `local-impl-nonlocal-pair`, `marker-template`, `member-not-derivable`, `misplaced-derivation`, `misplaced-test-case`, `misplaced-tests-block`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-eq`, `missing-let`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-derived-law`, `mixed-numeric-types`, `mixed-signedness`, `multi-line-pipe-step`, `mut-on-primitive`, `mut-on-tuple`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `newtype-derivation-self`, `no-common-type`, `no-least-common-type`, `non-literal-test-argument`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonlocal-impl`, `nonnumeric-unary-plus`, `not-suspending`, `old-bound-operator`, `old-export-declaration`, `old-import-declaration`, `old-row-separator`, `old-struct-declaration`, `omitted-member-without-default`, `orphan-impl`, `overlapping-impl`, `package-cycle`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `pipe-placeholder-in-closure`, `pipe-step-needs-placeholder`, `placeholder-outside-pipe`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `public-test-item`, `re-export-loop`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `refutable-let-pattern`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `row-parameter-in-context`, `sealed-trait-implementation`, `structure-outside-template`, `supertrait-cycle`, `suspending-pipe-step`, `suspension-forbidden-context`, `tab-whitespace`, `test-only-use`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-resolution-depth`, `trait-value-impl-target`, `type-used-as-value`, `underivable-trait`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-panic-category`, `unknown-shape-target`, `unreachable-match-arm`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-function-identity`, `variance-representation-change`, `variant-result-owner` |
+| Error | `alias-cycle`, `ambiguous-associated-type`, `ambiguous-method`, `ambiguous-promoted-member`, `ambiguous-row-pattern`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `cyclic-test-dependency`, `decorator-not-annotator`, `decorator-not-top-level`, `decorator-target-kind`, `default-order`, `derive-field-missing-trait`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-fact`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-pipe-placeholder`, `duplicate-test-name`, `duplicate-tests-block`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-cycle`, `embedding-too-deep`, `float-literal-range`, `folder-cycle`, `gadt-derivation`, `generic-kind-mismatch`, `generic-member-call`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-error-marker`, `invalid-escape`, `invalid-impl-target`, `invalid-literal-suffix`, `invalid-map-key`, `invalid-member-line`, `invalid-result-propagation`, `invalid-string-prefix`, `invalid-test-statement`, `invalid-variance`, `let-else-falls-through`, `let-mut-readonly-type`, `local-impl-nonlocal-pair`, `marker-template`, `member-not-derivable`, `misplaced-derivation`, `misplaced-test-case`, `misplaced-tests-block`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-eq`, `missing-let`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-derived-law`, `mixed-numeric-types`, `mixed-signedness`, `multi-line-pipe-step`, `mut-on-primitive`, `mut-on-tuple`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `newtype-derivation-self`, `no-common-type`, `no-least-common-type`, `non-literal-test-argument`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonlocal-impl`, `nonnumeric-unary-plus`, `not-suspending`, `old-bound-operator`, `old-export-declaration`, `old-import-declaration`, `old-row-separator`, `old-struct-declaration`, `omitted-member-without-default`, `orphan-impl`, `overlapping-impl`, `package-cycle`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `pipe-placeholder-in-closure`, `pipe-step-needs-placeholder`, `placeholder-outside-pipe`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `public-test-item`, `re-export-loop`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `refutable-let-pattern`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `row-parameter-in-context`, `sealed-trait-implementation`, `structure-outside-template`, `supertrait-cycle`, `suspending-pipe-step`, `suspension-forbidden-context`, `tab-whitespace`, `test-only-use`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-resolution-depth`, `trait-value-impl-target`, `type-used-as-value`, `underivable-trait`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-panic-category`, `unknown-shape-target`, `unreachable-match-arm`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-function-identity`, `variance-representation-change`, `variant-result-owner` |
 | Error | `defer-control-flow`, `defer-outside-cleanup-scope`, `suspending-defer` |
 | Error (general) | `argument-count`, `break-outside-loop`, `duplicate-binding`, `duplicate-type`, `duplicate-variant`, `invalid-dedent`, `invalid-token`, `not-callable`, `syntax-error`, `type-mismatch`, `unclosed-delimiter`, `unexpected-indentation`, `unknown-data-field`, `unknown-method`, `unknown-name`, `unknown-trait`, `unknown-type`, `unknown-variant`, `unmatched-delimiter`, `unterminated-string` |
 | Warning | `confusable-identifier`, `derivation-line-drift`, `mixed-script-identifier`, `redundant-let-mut`, `unreachable-code`, `unused-derivation-fact`, `unused-local-binding`, `variant-binding-name-mismatch` |
@@ -229,7 +229,7 @@ The stdlib chapters' terms are in the
 | **method reference** | A method or associated function named as a function value, written `Owner::name` or `value::name` without arguments. See [Method References](07-functions.md#method-references). |
 | **minimal version selection** | Choosing, for each host path and compatibility line, the largest minimum that any reached manifest states. See [Version Selection](10-modules.md#version-selection). |
 | **mutable edge** | A direct field declared `field: mut U`; a readonly container removes its `mut`. See [`types.path.field.mutable-edge`](04-type-system.md#r-types.path.field.mutable-edge). |
-| **mutable edges** | What a data type has when it declares a direct `field: mut U`, or embeds a type that has mutable edges. See [`data.edge.definition`](08-data-and-enums.md#r-data.edge.definition). |
+| **mutable edges** | What a data type has when it, or a type it embeds at any depth, declares a direct `field: mut U`. See [Mutable Edges](08-data-and-enums.md#mutable-edges). |
 | **mutable requirement trait** | A trait that declares or inherits a `mut self` method; its providers always have mutable access. See [`req.mut.trait`](11-requirements-and-suspension.md#r-req.mut.trait). |
 | **non-reassignable** | A binding whose name cannot be rebound. See [`types.view.non-reassignable`](04-type-system.md#r-types.view.non-reassignable). |
 | **one-key row slot** | A place where one bare key may stand for a row: `$.Context[...]` or a row-kinded type argument written without `$`. See [`req.row.alias.one-key-slot`](11-requirements-and-suspension.md#r-req.row.alias.one-key-slot). |
@@ -2808,3 +2808,61 @@ existing source. Each entry names the decision that made the change.
   `5else`, previously `invalid-token`, is now `5` followed by `else`, so
   in expression position it is `syntax-error`. `return"done"` stays two
   tokens.
+- A part copy is a copy-update (owner decision Q2, O1a, batch 32,
+  2026-09-30): language tier. `E: ...e` and `x.E ...= e` store the
+  copy-update `T { ...e }`
+  ([`data.part.construct`](08-data-and-enums.md#r-data.part.construct)), so
+  the copy-update rules decide a part copy's access. No program changes.
+  Merged into `data.part.construct`: `data.part.marker`, `.marker-scope`,
+  `.copy`, `.readonly-source`, `.store`, `data.embed.key`,
+  `data.access.embedded-copy`, `types.fresh.embedded-copy`,
+  `expr.assign.embedded`, `expr.data.embedded`, `expr.data.embedded.copy`,
+  and `expr.update.embedded.readonly`. Merged into
+  [`data.part.copy-update`](08-data-and-enums.md#r-data.part.copy-update):
+  `data.update.embedded`, `expr.update.embedded`, and
+  `expr.update.shallow.embedded`. The mutable-edge rules merge into the
+  copy-update and fresh-literal rules: `data.edge.principle` into
+  [`data.update.readonly-source`](08-data-and-enums.md#r-data.update.readonly-source)
+  (kept as a Why), `data.edge.copy-type` into
+  [`data.update.mutable-result`](08-data-and-enums.md#r-data.update.mutable-result),
+  `data.edge.generic` into
+  [`data.update.generic`](08-data-and-enums.md#r-data.update.generic),
+  `data.edge.readonly-literal` into
+  [`types.fresh.mut-literal`](04-type-system.md#r-types.fresh.mut-literal),
+  `data.edge.upgrade-literal` into
+  [`types.fresh.expected-mut`](04-type-system.md#r-types.fresh.expected-mut),
+  and `data.edge.upgrade-store` into
+  [`types.path.store-embedded`](04-type-system.md#r-types.path.store-embedded).
+  `data.edge.definition` is retired; a Note in
+  [Mutable Edges](08-data-and-enums.md#mutable-edges) says a mutable edge
+  counts at any depth. `data.part.not-shared` and `data.part.shallow` are
+  retired as consequences, kept as a Note. `data.embed.variance` and
+  `types.polarity.embedded` merge into
+  [`types.polarity.mut`](04-type-system.md#r-types.polarity.mut): an
+  embedded field's type counts as beneath `mut`.
+- Delegation is written forwarding (owner decision Q1, O1b, batch 32,
+  2026-09-30): language tier. Each method that `by E` supplies is the
+  forwarding method `Trait::m(self.E, arguments...)`, checked as if written
+  ([`trait.by.generated`](09-traits.md#r-trait.by.generated)). No program
+  changes. Merged into `trait.by.generated`: `trait.by.generated.signature`,
+  `.mut`, and `trait.by.part-receiver`, the last two kept as a Note.
+  Merged into [`trait.by.ordinary`](09-traits.md#r-trait.by.ordinary):
+  `trait.by.ordinary.rules`, `.candidates`, and `trait.by.dot-call`, kept
+  as a Note. `trait.by.assoc-fn.written` merges into
+  [`trait.by.assoc-fn`](09-traits.md#r-trait.by.assoc-fn).
+  `data.embed.delegation` and `trait.embed.delegate` merge into
+  [`trait.by.form`](09-traits.md#r-trait.by.form), and `trait.by.direct`
+  is retired as a consequence of naming a field.
+  `trait.by.generated.variadic` stays while varargs are under discussion.
+- Embedding limits kept, with a cycle code (owner decision Q5, option B,
+  batch 32, 2026-09-30): language tier. A data type that embeds itself,
+  directly or through other types, was `embedding-too-deep` and is now
+  `embedding-cycle`, reported once per cycle
+  ([`data.embed.depth.self`](08-data-and-enums.md#r-data.embed.depth.self)).
+  The width and depth limits are unchanged. `data.embed.depth.chain` is
+  folded into [`data.embed.depth`](08-data-and-enums.md#r-data.embed.depth)
+  and an example. `data.embed.depth.every-type` and `.message` become a
+  diagnostics Note for the error revamp. `data.embed.depth.generic` is
+  retired; [`types.path.field.substituted`](04-type-system.md#r-types.path.field.substituted)
+  covers it. `names.part.depth.levels` is retired as a restatement of
+  `data.embed.depth`.

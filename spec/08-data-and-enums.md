@@ -178,8 +178,13 @@ renamed := User {
 7. r[data.update.access-view] Each copied field is checked through the spread source's access view.
 8. r[data.update.readonly-source] A readonly source can supply its effective `U` value for a direct `mut U` field when the result is also readonly `T`.
 9. r[data.update.mutable-result] From such a readonly source, producing `mut T` requires a `mut U` replacement.
-10. r[data.update.embedded] Embedded parts are copied rather than shared.
-11. r[data.update.generic] Generic fields retain their substituted type in both views.
+10. r[data.update.generic] Generic fields retain their substituted type in both views.
+
+> **Why.** A copy of a readonly value has mutable access only when nothing
+> mutable is read through a readonly view to make it.
+
+> **Note.** Embedded parts are copied, not shared, as
+> [`data.part.copy-update`](#r-data.part.copy-update) states.
 
 See also: [Data Embedding](#data-embedding),
 [Data Expressions](05-expressions.md#data-expressions).
@@ -192,11 +197,10 @@ See also: [Data Embedding](#data-embedding),
 4. r[data.access.nested] Nested mutation or a `mut self` call through a field requires the field read to have a `mut` access type.
 5. r[data.access.readonly-mut-field] Reading a `field: mut U` through a readonly value yields only `U`.
 6. r[data.access.construct-mut-field] A readonly data value may be constructed with `U` in that direct field, while a mutable data value requires `mut U`.
-7. r[data.access.embedded-copy] An embedded field instead receives a copy.
-8. r[data.access.generic] A generic field declared `field: P` retains its substituted type: `P = mut U` requires and exposes `mut U` even in a readonly outer value.
-9. r[data.access.assignment] Direct assignment to a visible field enforces its declared type, not arbitrary validation or cross-field invariants.
-10. r[data.access.graph] The language permits shared mutable children and does not guarantee invariants over the entire reachable object graph.
-11. r[data.access.other-module] In another module, field access reaches only public fields; member lookup skips the others.
+7. r[data.access.generic] A generic field declared `field: P` retains its substituted type: `P = mut U` requires and exposes `mut U` even in a readonly outer value.
+8. r[data.access.assignment] Direct assignment to a visible field enforces its declared type, not arbitrary validation or cross-field invariants.
+9. r[data.access.graph] The language permits shared mutable children and does not guarantee invariants over the entire reachable object graph.
+10. r[data.access.other-module] In another module, field access reaches only public fields; member lookup skips the others.
 
 > **Note.** Keep fields private and expose controlled methods when writes to
 > those fields must preserve such invariants. This does not control other
@@ -243,12 +247,11 @@ post := Post {
 
 1. r[data.embed.member] A bare type-name member embeds another data type.
 2. r[data.embed.name] The embedded field's name is the embedded type name.
-3. r[data.embed.key] Construction uses that name as its key, followed by `...`, because the field receives a copy of the value.
-4. r[data.embed.named-type] Embedded shorthand accepts a named data type, including one with generic arguments.
-5. r[data.embed.data-only] An embedded field must name a data type, a generic data type such as `Box[T]`, or a transparent alias that resolves to one. Embedding any other type is an error. Error: `embedded-non-data`.
-6. r[data.embed.non-data] Such other types include enums, newtypes, trait value types, `Any`, builtin and collection types, function types, and type parameters.
-7. r[data.embed.generic-name] For `Box[T]`, the embedded field's name and construction key are `Box`; type arguments are not part of the key.
-8. r[data.embed.unique] The name must be unique among the outer data type's fields. A duplicate name that involves an embedded field is an error. Error: `duplicate-embedded-field`.
+3. r[data.embed.named-type] Embedded shorthand accepts a named data type, including one with generic arguments.
+4. r[data.embed.data-only] An embedded field must name a data type, a generic data type such as `Box[T]`, or a transparent alias that resolves to one. Embedding any other type is an error. Error: `embedded-non-data`.
+5. r[data.embed.non-data] Such other types include enums, newtypes, trait value types, `Any`, builtin and collection types, function types, and type parameters.
+6. r[data.embed.generic-name] For `Box[T]`, the embedded field's name and construction key are `Box`; type arguments are not part of the key.
+7. r[data.embed.unique] The name must be unique among the outer data type's fields. A duplicate name that involves an embedded field is an error. Error: `duplicate-embedded-field`.
 
 ```text
 data Storage:
@@ -265,18 +268,14 @@ data Holder[T]:
 
 ### Embedding Limits
 
-Embedding is limited in width and depth.
+Embedding is limited in width and depth, and a data type never embeds
+itself.
 
 | Rule | Limit | Error | Reported on |
 | --- | --- | --- | --- |
 | r[data.embed.width] Width | A data type may declare at most three embedded fields. | `too-many-embedded-fields` | the fourth embedded field |
-| r[data.embed.depth] Depth | Embedding chains may be at most three levels deep. | `embedding-too-deep` | the embedded field that begins the first chain that reaches depth 4 |
-
-1. r[data.embed.depth.chain] `C` may embed `P1`, which embeds `P2`, which embeds `P3`. A part at depth 4, as when `P3` embeds `P4`, is an error.
-2. r[data.embed.depth.every-type] The `embedding-too-deep` error occurs at the declaration of every data type that reaches such a part.
-3. r[data.embed.depth.message] Its message shows the chain, as in `C > P1 > P2 > P3 > P4`.
-4. r[data.embed.depth.generic] Depth counts embedded fields of generic data types like any other, with their type arguments substituted.
-5. r[data.embed.depth.self] A type that embeds itself, directly or through other types, always exceeds the limit.
+| r[data.embed.depth] Depth | Embedding chains may be at most three levels deep: `C` may embed `P1`, which embeds `P2`, which embeds `P3`. | `embedding-too-deep` | the embedded field that begins the first chain that reaches depth 4 |
+| r[data.embed.depth.self] Cycle | A data type that embeds itself, directly or through other types, is an error, in place of `embedding-too-deep`. | `embedding-cycle` | the embedded field that begins the cycle, in the cycle's first declared type |
 
 ```text
 data Post:
@@ -286,6 +285,8 @@ data Post:
     Tagged  # error: too-many-embedded-fields
     title: string
 ```
+
+Here `Site` reaches `Stamp` at depth 4, one level too deep:
 
 ```text
 data Audit:
@@ -305,6 +306,21 @@ data Site:
     host: string
 ```
 
+```text
+data Node:
+    Edge  # error: embedding-cycle
+    id: string
+
+data Edge:
+    Node
+    weight: i32
+```
+
+> **Note.** For the error revamp: `embedding-too-deep` is reported at the
+> declaration of every data type that reaches a part at depth 4, and its
+> message shows the chain, as in `C > P1 > P2 > P3 > P4`. The
+> `embedding-cycle` message shows the cycle path, as in `Node > Edge > Node`.
+
 > **Note.** Together the two limits bound a data type's embedding tree to at
 > most 3 + 9 + 27 = 39 parts.[^miku]
 
@@ -315,16 +331,22 @@ data Site:
 An embedded field holds a **part** of the outer value: a value of the
 embedded type that the outer value receives as its own copy.
 
-1. r[data.part.construct] Filling an embedded field stores a copy of the supplied value, never the value itself.
-2. r[data.part.marker] The copy is written: the field label is followed by `...`, as in `Post { Timestamps: ...ts, id: "p" }`.
-3. r[data.part.marker-scope] The `...` applies to the whole field expression.
-4. r[data.part.marker-fresh] The `...` is required even for a fresh literal, as in `Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }`.
-5. r[data.part.copy] The copy of a value `e` of type `E` is a new `E`. Its ordinary fields hold the values of `e`'s fields, copied shallowly as copy-update copies them. Its embedded fields hold copies of `e`'s parts, made by the same rule.
-6. r[data.part.not-shared] `Post { Timestamps: ...ts }` therefore never shares a part with `ts`. A later change to `post`'s part is not seen through `ts`, and a change through `ts` is not seen in `post`.
-7. r[data.part.shallow] Composite values that the part's ordinary fields reference are still shared.
-8. r[data.part.readonly-source] The supplied value may be readonly.
-9. r[data.part.copy-update] A copy-update literal, as in `Post { ...post, title: "t" }`, copies each embedded part of its spread source that it does not replace, by the same rule. A copy therefore never shares a part with its original.
-10. r[data.part.store] An embedded field of a `mut` value is assigned with the copy assignment `...=`, as in `post.Timestamps ...= stamps`. It stores a copy of `stamps` by the same rule.
+1. r[data.part.construct] A part copy is a copy-update: `E: ...e` in a data literal, and `x.E ...= e` on a `mut` value, store the copy-update `T { ...e }`, where `E` is the embedded field's name and `T` its type. The `...` applies to the whole field expression.
+2. r[data.part.marker-fresh] The `...` is required even for a fresh literal, as in `Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }`.
+3. r[data.part.copy-update] A copy-update literal, as in `Post { ...post, title: "t" }`, copies each embedded part `p` of its spread source that it does not replace, as `T { ...p }`. This is the one exception to a shallow copy-update: a copy never shares a part with its original.
+
+```text
+fn build(ts: Timestamps) -> Post:
+    let mut post = Post { Timestamps: ...ts, id: "p", title: "t" }  # stores Timestamps { ...ts }
+    post.Timestamps ...= ts                                          # stores Timestamps { ...ts }
+    post
+```
+
+> **Note.** A part copy is therefore a new value: a later change to `post`'s
+> part is not seen through `ts`. Composite values that the part's ordinary
+> fields reference are still shared, as in any copy-update.
+
+See also: [Copy-Update Literals](#copy-update-literals).
 
 #### Copy Markers
 
@@ -409,15 +431,8 @@ fn invalid(post: Post) -> void:
 
 ### Mutable Edges
 
-This section defines when a copy of a readonly value has mutable access.
-
-1. r[data.edge.principle] A copy of a readonly value has mutable access only when nothing mutable is read through a readonly view to make it.
-2. r[data.edge.definition] A data type has **mutable edges** when it declares a direct `field: mut U`, or embeds a type that has mutable edges.
-3. r[data.edge.copy-type] The copy of `e` has type `mut E` when `e` has type `mut E`, or when `E` has no mutable edges; otherwise it has readonly type `E`.
-4. r[data.edge.readonly-literal] A literal with a readonly copy is readonly, and so is the stored value.
-5. r[data.edge.upgrade-literal] Where `mut Post` is required, such a literal is an error. Error: `mutable-upgrade`.
-6. r[data.edge.upgrade-store] Storing a readonly copy is an error only where the store's target requires a mutable part: a `mut` field, parameter, or binding. Error: `mutable-upgrade`.
-7. r[data.edge.generic] A copy's generic fields keep their substituted types, as generic fields always do.
+A part copy from a readonly value is readonly when a mutable edge lies
+anywhere beneath it, because it is a copy-update.
 
 ```text
 data Stamp:
@@ -433,20 +448,27 @@ fn invalid(stamp: Stamp) -> void:
     kept := Post { Stamp: ...stamp, id: "q" }         # valid: the binding is readonly
 ```
 
-> **Why.** The copy reads each direct `mut U` field of the readonly `e` as
-> `U`, as a readonly copy-update does.
+Here `Stamp { ...stamp }` is readonly by
+[`data.update.mutable-result`](#r-data.update.mutable-result), so the
+literal is readonly by
+[`types.fresh.mut-literal`](04-type-system.md#r-types.fresh.mut-literal),
+and `let mut` rejects it by
+[`types.fresh.expected-mut`](04-type-system.md#r-types.fresh.expected-mut).
 
-> **Note.** Adding a direct `mut U` field to a data type is therefore a
-> breaking change for every type that embeds it, at any depth. The embedded
-> type gains a mutable edge, and a copy of a readonly value of it becomes
-> readonly. A literal elsewhere that fills the part from a readonly value
-> and is used as `mut` then becomes a `mutable-upgrade` error.
+> **Note.** A data type has **mutable edges** when it, or a type it embeds,
+> declares a direct `field: mut U`: a mutable edge counts at any depth. A
+> part copy of a readonly value of such a type is readonly. Adding a direct
+> `mut U` field to a data type is therefore a breaking change for every type
+> that embeds it, at any depth. A literal elsewhere that fills the part from
+> a readonly value and is used as `mut` becomes a `mutable-upgrade` error.
 
 See also: [Bindings And Fresh Values](04-type-system.md#bindings-and-fresh-values).
 
 ### Embedded Field Variance
 
-1. r[data.embed.variance] For variance, an embedded field is an invariant position: a covariant or contravariant parameter used in an embedded field's type is an error. Error: `invalid-variance`.
+For variance, an embedded field's type counts as beneath `mut`, so it is an
+invariant position, as [`types.polarity.mut`](04-type-system.md#r-types.polarity.mut)
+states.
 
 ```text
 data Box[+T]:
@@ -507,7 +529,10 @@ which defines which field `x.name` or method `x.name(args)` selects.
 2. r[data.embed.no-override] Embedding has no overriding: a promoted method runs as the embedded type's own method, with the embedded value as its receiver.
 3. r[data.embed.self-call] Inside `Base`'s methods, `self.m()` is always `Base`'s `m`, even when a type that embeds `Base` declares its own `m`.
 4. r[data.embed.no-conformance] Embedding never grants trait conformance, and a promoted method never fills a method of a trait implementation.
-5. r[data.embed.delegation] Conformance through a part is written explicitly: `impl Describe for Service by Logger` implements `Describe` for `Service` by forwarding every method to its embedded `Logger`.
+
+> **Note.** Conformance through a part is written explicitly, with
+> [`by`](09-traits.md#trait-delegation), as in
+> `impl Describe for Service by Logger`.
 
 See also: [Embedding And Trait Satisfaction](09-traits.md#embedding-and-trait-satisfaction),
 [Trait Delegation](09-traits.md#trait-delegation).

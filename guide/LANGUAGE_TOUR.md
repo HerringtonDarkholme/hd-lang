@@ -902,12 +902,12 @@ post := Post {
 println(post.created_at)
 ```
 
-An embedded field holds the outer value's own copy of the part. Construction
-copies the supplied value: its ordinary fields are copied shallowly and its
-embedded parts recursively, so the outer value never shares a part with the
-value it was built from. Copy-update and assignment to an embedded field copy
-the same way; the assignment is written `post.Timestamps ...= stamps`, and
-plain `Timestamps: stamps` or `post.Timestamps = stamps` is an error that
+An embedded field holds the outer value's own copy of the part. A part copy
+is a copy-update: `Timestamps: ...stamps` stores `Timestamps { ...stamps }`,
+so its ordinary fields are copied shallowly and its embedded parts in turn,
+and the outer value never shares a part with the value it was built from.
+Copy-update and assignment to an embedded field copy the same way; the
+assignment is written `post.Timestamps ...= stamps`, and plain `Timestamps: stamps` or `post.Timestamps = stamps` is an error that
 suggests the `...` form. A prefix `...` always means "copy the named members
 of this value", while a suffix `...`, as in `f(xs...)` or `$.with(ctx...)`,
 always spreads. Access to the part follows the container: through a `mut` outer
@@ -925,9 +925,10 @@ draft.touch(1700000100)          # changes draft's own copy, never post
 let mut stamps = draft.Timestamps  # mut Timestamps: the same part as draft's
 ```
 
-A readonly value may fill an embedded field. Its copy is mutable unless the
-part's type has a direct `mut` field somewhere in it; then the copy, and the
-value built from it, is readonly.
+A readonly value may fill an embedded field. Its copy follows the
+copy-update rules: it is mutable unless the part's type has a direct `mut`
+field somewhere in it; then the copy, and the value built from it, is
+readonly.
 
 Generic data types can be embedded with type arguments. The construction key
 is the type's final name, without arguments:
@@ -2213,7 +2214,7 @@ An optional is an ordinary enum value, so `T?` erases to `Any` and `is` compares
 
 Data embedding is composition, not inheritance. It promotes fields and methods for convenience, but it does not make the outer data a subtype of the embedded data.
 
-An explicit impl delegates to the embedded value when it wants that behavior. `by` names the embedded field, and every trait method, defaults included, forwards to it; the body may replace individual methods:
+An explicit impl delegates to the embedded value when it wants that behavior. `by` names the embedded field, and every trait method with a receiver, defaults included, becomes the forwarding method you would write by hand, such as `fn describe(self) -> string: Describe::describe(self.Logger)`; the body may replace individual methods:
 
 ```text
 data Logger:

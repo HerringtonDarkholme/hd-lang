@@ -1726,11 +1726,10 @@ implementation.
 2. r[trait.embed.explicit] The outer type must declare an explicit `impl`, and that implementation must write every required method that has no default.
 3. r[trait.embed.no-fill] A method promoted from an embedded field never fills a trait method, whether required or defaulted, and whatever its receiver.
 4. r[trait.embed.forward] An implementation that reuses an embedded type's behavior forwards to it explicitly, for example `fn label(self) -> string: self.Base.label()`.
-5. r[trait.embed.delegate] When the embedded type implements the trait, the implementation may instead delegate the whole trait with `impl Trait for C by E`.
-6. r[trait.embed.forward-mut] A forwarding `mut self` method may call a `mut self` method of the embedded part, as in `fn reset(mut self) -> void: self.Base.reset()`. This works because `self.Base` has `mut` access through `mut self`.
-7. r[trait.embed.bodyless] A bodyless implementation of a trait with a required method is therefore an error even when an embedded type has a matching method. Error: `missing-trait-method`.
-8. r[trait.embed.ambiguous] Where the trait is available, a dot call with the forwarded name meets both the implementation's method and the promoted method, and is an error. Error: `ambiguous-method`.
-9. r[trait.embed.call-forms] The forwarding implementation is called as `Trait::method(x)`, as in `Describe::describe(service)`. The embedded type's method is called through its path, as in `service.Logger.describe()`.
+5. r[trait.embed.forward-mut] A forwarding `mut self` method may call a `mut self` method of the embedded part, as in `fn reset(mut self) -> void: self.Base.reset()`. This works because `self.Base` has `mut` access through `mut self`.
+6. r[trait.embed.bodyless] A bodyless implementation of a trait with a required method is therefore an error even when an embedded type has a matching method. Error: `missing-trait-method`.
+7. r[trait.embed.ambiguous] Where the trait is available, a dot call with the forwarded name meets both the implementation's method and the promoted method, and is an error. Error: `ambiguous-method`.
+8. r[trait.embed.call-forms] The forwarding implementation is called as `Trait::method(x)`, as in `Describe::describe(service)`. The embedded type's method is called through its path, as in `service.Logger.describe()`.
 
 ```text
 trait Describe:
@@ -1813,14 +1812,13 @@ impl Describe for Worker by Logger:
         "worker " + self.Logger.headline()
 ```
 
-1. r[trait.by.form] A trait implementation may delegate the trait to an embedded field of its target by naming the field after `by`.
+1. r[trait.by.form] A trait implementation may delegate the whole trait to an embedded field of its target by naming the field after `by`, as in `impl Trait for C by E`.
 2. r[trait.by.valid-part] In `impl Trait for C by E`, where `E` is not `Structure`, `C` must be a data type, and `E` must name one of its embedded fields.
 3. r[trait.by.part-impl] The type of that field, with `C`'s type arguments substituted, must implement the same instantiation of `Trait`.
 4. r[trait.by.invalid] Otherwise the implementation is an error, reported on the line of `by`. Error: `invalid-delegation`.
-5. r[trait.by.direct] `E` names a direct embedded field; a deeper part is reached by delegating to the field that contains it.
-6. r[trait.by.structure] `impl Trait for C by Structure` is never a delegation. It declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
-7. r[trait.by.trait-less] A header without a trait never delegates: `impl C by Structure` declares a [trait-less derivation block](14-annotations.md#trait-less-derivation-blocks).
-8. r[trait.by.trait-less.error] `impl C by E` without a trait, where `E` is not `Structure`, is an error, reported on the line of `by`. Error: `invalid-delegation`.
+5. r[trait.by.structure] `impl Trait for C by Structure` is never a delegation. It declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
+6. r[trait.by.trait-less] A header without a trait never delegates: `impl C by Structure` declares a [trait-less derivation block](14-annotations.md#trait-less-derivation-blocks).
+7. r[trait.by.trait-less.error] `impl C by E` without a trait, where `E` is not `Structure`, is an error, reported on the line of `by`. Error: `invalid-delegation`.
 
 ```text
 trait Describe:
@@ -1843,12 +1841,26 @@ impl Service by Logger  # error: invalid-delegation
 
 ### Generated Methods
 
-1. r[trait.by.generated] For every method of `Trait` with a receiver, including methods that have a default body, the implementation has a generated method unless its body writes one with that name.
-2. r[trait.by.generated.signature] The generated method has the trait method's signature. It calls the part's implementation of the same method with the same arguments, as `Trait::method(self.E, arguments...)` would.
-3. r[trait.by.generated.variadic] A variadic parameter is passed on as a spread.
-4. r[trait.by.generated.mut] A `mut self` method forwards through `self.E`, which has `mut` access through `mut self`.
-5. r[trait.by.written] A method written in the body replaces the generated one and follows the rules of [Implementation Declarations](#implementation-declarations), as does any other member of the body.
-6. r[trait.by.part-receiver] The part's implementation runs with the part as its receiver. A default body there calls the part's methods, never the delegating implementation's; there is no overriding.
+1. r[trait.by.generated] For each method `m` of `Trait` with a receiver, defaults included, that the body does not write, the implementation has a forwarding method. It has `m`'s signature, its body is `Trait::m(self.E, arguments...)`, and it is checked as if written.
+2. r[trait.by.generated.variadic] A variadic parameter is passed on as a spread.
+3. r[trait.by.written] A method written in the body replaces the generated one and follows the rules of [Implementation Declarations](#implementation-declarations), as does any other member of the body.
+
+`impl Describe for Service by Logger` above therefore means:
+
+```text
+impl Describe for Service:
+    fn describe(self) -> string:
+        Describe::describe(self.Logger)
+
+    fn headline(self) -> string:
+        Describe::headline(self.Logger)
+```
+
+> **Note.** The forwarding call runs the part's implementation with the
+> part as its receiver, so a default body there calls the part's methods,
+> never the delegating implementation's: there is no overriding. A
+> `mut self` method forwards through `self.E`, which has `mut` access
+> through `mut self`.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 [Member Resolution](03-names-and-scopes.md#member-resolution).
@@ -1857,8 +1869,7 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 
 1. r[trait.by.assoc-types] Associated types take the part's bindings: each associated type of the delegating implementation is bound to the type that the part's implementation binds.
 2. r[trait.by.assoc-binding] An associated type binding in the body is an error. Error: `invalid-delegation`.
-3. r[trait.by.assoc-fn] Associated functions have no receiver to forward through and are never generated.
-4. r[trait.by.assoc-fn.written] The body writes each associated function unless the trait gives it a default. A missing one is an error. Error: `missing-trait-method`.
+3. r[trait.by.assoc-fn] Associated functions have no receiver to forward through and are never generated: the body writes each one, as in any implementation, unless the trait gives it a default. A missing one is an error. Error: `missing-trait-method`.
 
 ```text
 trait Named:
@@ -1883,10 +1894,12 @@ impl Named for Service by Logger  # error: missing-trait-method
 
 ### Delegation Is An Ordinary Implementation
 
-1. r[trait.by.ordinary] Otherwise a delegating implementation is an ordinary trait implementation.
-2. r[trait.by.ordinary.rules] It obeys [Implementation Ownership](#implementation-ownership), [Overlap](#overlap), and trait visibility, satisfies bounds, and supports dynamic trait values.
-3. r[trait.by.ordinary.candidates] Its methods are candidates in [Method Resolution](#method-resolution) where the trait is available.
-4. r[trait.by.dot-call] A dot call such as `service.describe()` therefore has one candidate unless an embedded type also has a `pub` inherent method of that name, which is promoted. In that case the call is an error, as for any implementation. Error: `ambiguous-method`.
+1. r[trait.by.ordinary] Otherwise a delegating implementation is an ordinary trait implementation, under every rule for one: [Implementation Ownership](#implementation-ownership), [Overlap](#overlap), trait visibility, bounds, dynamic trait values, and [Method Resolution](#method-resolution).
+
+> **Note.** A dot call such as `service.describe()` therefore has one
+> candidate where `Describe` is available, unless an embedded type also
+> promotes a `pub` inherent `describe`. Then the call is `ambiguous-method`,
+> as for any implementation.
 
 ## Default-Method Conflicts
 

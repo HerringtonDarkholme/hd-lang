@@ -695,16 +695,15 @@ See also: [Mutable Paths](#mutable-paths).
 #### Fresh Literals With Readonly Parts
 
 1. r[types.fresh.readonly-field] A data literal with a direct `field: mut U` may produce readonly `T` when that field is supplied only `U`.
-2. r[types.fresh.embedded-copy] Each embedded field receives a copy, which has readonly access when it is made from a readonly value whose type has mutable edges.
-3. r[types.fresh.mut-literal] A literal produces `mut T` only when every direct mutable field is supplied mutable access and every embedded copy has mutable access.
-4. r[types.fresh.spread] A value copied from a spread counts as supplied through the spread source's view.
-5. r[types.fresh.expected-readonly] An expected readonly `T`, including a `:=` binding, permits the weaker field value.
-6. r[types.fresh.expected-mut] An expected `mut T` rejects the weaker field value. Error: `mutable-upgrade`.
-7. r[types.fresh.expected-mut.sites] The expected type is `mut T` wherever the literal is used as `mut T`:
+2. r[types.fresh.mut-literal] A literal produces `mut T` only when every direct mutable field is supplied mutable access and every embedded copy has mutable access.
+3. r[types.fresh.spread] A value copied from a spread counts as supplied through the spread source's view.
+4. r[types.fresh.expected-readonly] An expected readonly `T`, including a `:=` binding, permits the weaker field value.
+5. r[types.fresh.expected-mut] An expected `mut T` rejects the weaker field value or a readonly part copy. Error: `mutable-upgrade`.
+6. r[types.fresh.expected-mut.sites] The expected type is `mut T` wherever the literal is used as `mut T`:
    - an annotated `mut T` binding;
    - a `mut T` argument or result;
    - a store into a `mut T` field or element.
-8. r[types.fresh.generic-field] A generic field declared `field: P` still requires its substituted type, including `mut U` when `P = mut U`.
+7. r[types.fresh.generic-field] A generic field declared `field: P` still requires its substituted type, including `mut U` when `P = mut U`.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
@@ -906,7 +905,7 @@ fn invalid(parent: mut Parent, child: Child) -> void:
 2. r[types.path.reassign.old-value] Replacing a field does not mutate the old referenced value.
 3. r[types.path.store-mut-edge] Storing into a direct `field: mut U` of a mutable value requires `mut U`.
 4. r[types.path.store-readonly] A readonly value may store `U` there and cannot later be upgraded to `mut T`.
-5. r[types.path.store-embedded] Storing into an embedded field, written `e.E ...= value`, stores a copy, which must have mutable access. Otherwise the store is an error. Error: `mutable-upgrade`.
+5. r[types.path.store-embedded] Storing into an embedded field, written `e.E ...= value`, stores the copy-update `T { ...value }` of the field's type `T`, which must have mutable access. Otherwise the store is an error. Error: `mutable-upgrade`.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
@@ -1179,9 +1178,8 @@ r[types.polarity] Polarity is computed as follows:
 2. r[types.polarity.negative] A function or method parameter is a negative position.
 3. r[types.polarity.function] Entering a function parameter reverses polarity, while entering a function result preserves it.
 4. r[types.polarity.generic] Applying a covariant generic argument preserves polarity, a contravariant argument reverses it, and an invariant argument makes the occurrence invariant.
-5. r[types.polarity.mut] Occurrence beneath `mut` is invariant.
-6. r[types.polarity.embedded] Occurrence in an embedded field's type is invariant.
-7. r[types.polarity.both] A parameter used in both positive and negative positions must be invariant.
+5. r[types.polarity.mut] Occurrence beneath `mut` is invariant, and an embedded field's type counts as beneath `mut`.
+6. r[types.polarity.both] A parameter used in both positive and negative positions must be invariant.
 
 > **Why.** The referenced storage beneath `mut` can be both read and
 > written. Access through an embedded field follows its container.

@@ -162,7 +162,7 @@ A rule that applies to one type, one name, or one context. Grouped by area.
 | R52 | Template and block modules | [`annot.template.module`](../spec/14-annotations.md#r-annot.template.module), [`annot.block.module`](../spec/14-annotations.md#r-annot.block.module) | A template in its trait's module; a block in its type's module. | One template per trait. |
 | R53 | Trait-less block header | [`annot.traitless.generic`](../spec/14-annotations.md#r-annot.traitless.generic) | Only the type's own parameters, without bounds. | M28, M29. |
 | R54 | Embedded fields | [`data.vis.embedded-public`](../spec/08-data-and-enums.md#r-data.vis.embedded-public), [`data.part.marker-required`](../spec/08-data-and-enums.md#r-data.part.marker-required) | Always public; filled only with a `...` copy. | VE1-VE4, VE-S. |
-| R55 | Embedding limits | [`data.embed.width`](../spec/08-data-and-enums.md#r-data.embed.width), [`data.embed.depth`](../spec/08-data-and-enums.md#r-data.embed.depth) | At most three fields, three levels. | Embedding limits decision. |
+| R55 | Embedding limits | [`data.embed.width`](../spec/08-data-and-enums.md#r-data.embed.width), [`data.embed.depth`](../spec/08-data-and-enums.md#r-data.embed.depth) | At most three fields, three levels; a type never embeds itself (`embedding-cycle`, batch 32). | Embedding limits decision. |
 | R56 | Promotion | [`names.promote.private`](../spec/03-names-and-scopes.md#r-names.promote.private), [`names.promote.no-trait`](../spec/03-names-and-scopes.md#r-names.promote.no-trait) | Only `pub` inherent members promote; trait methods never do. | Single view of members. |
 | R57 | Closure suspension inferred once | [`req.suspend.closure.trailing-only`](../spec/11-requirements-and-suspension.md#r-req.suspend.closure.trailing-only) | Only a trailing block for an `fn!` parameter. | T14. |
 | R58 | Row alias read by name | [`req.row.alias.bare.by-name`](../spec/11-requirements-and-suspension.md#r-req.row.alias.bare.by-name), [`req.row.alias.one-key`](../spec/11-requirements-and-suspension.md#r-req.row.alias.one-key) | A bare alias in a one-key slot is a row; a one-key alias is a type. | RU2, RU10. |
@@ -268,7 +268,7 @@ Codes that serve one construct. General codes, such as `type-mismatch`,
 | Comparison derivations | `derive-field-missing-trait`, `missing-derived-bound`, `mixed-derived-law` | 3 |
 | Error derivation | `invalid-error-marker` | 1 |
 | Decorators | `decorator-not-annotator`, `decorator-not-top-level`, `decorator-target-kind` | 3 |
-| Embedding | `embedded-copy-required`, `copy-into-ordinary-field`, `too-many-embedded-fields`, `embedding-too-deep`, `embedded-non-data`, `duplicate-embedded-field`, `mutable-embedded-field`, `invalid-delegation` | 8 |
+| Embedding | `embedded-copy-required`, `copy-into-ordinary-field`, `too-many-embedded-fields`, `embedding-too-deep`, `embedding-cycle` (batch 32), `embedded-non-data`, `duplicate-embedded-field`, `mutable-embedded-field`, `invalid-delegation` | 9 |
 | Literal sugar | `invalid-literal-suffix`, `invalid-string-prefix` | 2 |
 | Shapes | `unknown-shape-target` | 1 |
 | Requirements | `row-parameter-in-context`, `inspectable-requirement`, `ambiguous-row-pattern`, `generic-requirement-key-collision`, `nonhost-entry-requirement`, `requirement-in-default` | 6 |

@@ -47,7 +47,6 @@ calls through a callable value that accepts a store:
 6. r[expr.assign.order.index] An indexed assignment evaluates the receiver, the index, and the right-hand expression in that order.
 7. r[expr.assign.order.call] An assignment through a call evaluates the callee, then the right-hand expression.
 8. r[expr.assign.abrupt] If any step completes abruptly, no store occurs.
-9. r[expr.assign.embedded] An embedded field is assigned with the copy assignment `place ...= value`, which stores a copy of the value.
 
 ```text
 fn invalid() -> (i32, i32):
@@ -55,6 +54,10 @@ fn invalid() -> (i32, i32):
     pair._0 = 1  # error: invalid-assignment-target
     pair
 ```
+
+> **Note.** An embedded field is stored with the copy assignment
+> `place ...= value`, as [`data.part.construct`](08-data-and-enums.md#r-data.part.construct)
+> states.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
@@ -505,8 +508,11 @@ user := User {
 3. r[expr.data.once] Every field may appear at most once.
 4. r[expr.data.unknown] An unknown field is a compile-time error.
 5. r[expr.data.eval] Field initializers evaluate in source order, not declaration order.
-6. r[expr.data.embedded] Embedded fields are initialized with their embedded type name as the field key and a copy marker, as in `Timestamps: ...stamps`.
-7. r[expr.data.embedded.copy] Each embedded field receives a copy of its value.
+
+> **Note.** An embedded field is filled with a copy marker, as in
+> `Timestamps: ...stamps`, which stores the copy-update
+> `Timestamps { ...stamps }`, as
+> [`data.part.construct`](08-data-and-enums.md#r-data.part.construct) states.
 
 See also: [Data Literals](08-data-and-enums.md#data-literals),
 [Data Embedding](08-data-and-enums.md#data-embedding).
@@ -531,11 +537,13 @@ renamed := User {
 7. r[expr.update.readonly-fill] That `U` value can fill the same field in a readonly result, but not in a `mut` result without an explicit `mut U` replacement.
 8. r[expr.update.generic] Generic fields retain their substituted type, even when it is `mut U`.
 9. r[expr.update.mutable-source] A mutable source retains direct fields' declared permissions.
-10. r[expr.update.embedded] Each embedded part that is not replaced is copied, as construction copies it.
-11. r[expr.update.embedded.readonly] The copy of a part read through a readonly source has mutable access only when the part's type has no mutable edges.
-12. r[expr.update.shallow] Copy-update is shallow: primitive fields are copied by value, while composite field references continue to refer to the same underlying objects.
-13. r[expr.update.shallow.embedded] Embedded parts are the exception: the copy receives copies of them and never shares a part with its source.
-14. r[expr.update.no-upgrade] A fresh mutable outer result does not upgrade copied child references.
+10. r[expr.update.shallow] Copy-update is shallow: primitive fields are copied by value, while composite field references continue to refer to the same underlying objects.
+11. r[expr.update.no-upgrade] A fresh mutable outer result does not upgrade copied child references.
+
+> **Note.** Embedded parts are the exception to a shallow copy: each part
+> that is not replaced is copied as a copy-update of its own, as
+> [`data.part.copy-update`](08-data-and-enums.md#r-data.part.copy-update)
+> states.
 
 See also: [Copy-Update Literals](08-data-and-enums.md#copy-update-literals),
 [Mutable Edges](08-data-and-enums.md#mutable-edges).

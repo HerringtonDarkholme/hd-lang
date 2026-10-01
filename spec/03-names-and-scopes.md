@@ -581,12 +581,11 @@ See also: [Data Declarations](08-data-and-enums.md#data-declarations),
 
 1. r[names.part.definition] A **part** of `S` is a value reached from `S` through one or more embedded fields.
 2. r[names.part.depth] A part's **depth** is the number of embedded fields on its path.
-3. r[names.part.depth.levels] An embedded field of `S` holds a part at depth 1. An embedded field of that part's type holds a part at depth 2, and so on, up to depth 3, the deepest that [Data Embedding](08-data-and-enums.md#data-embedding) allows.
-4. r[names.part.depth.own] The own fields and inherent methods of `S` are at depth 0.
-5. r[names.promote.member] Each `pub` field and `pub` inherent method of a part's type is a **promoted member** of `S` at the part's depth, reached through the part's path.
-6. r[names.promote.private] A private field or inherent method of a part's type is never promoted, even when the part's type is declared in the same module as `S`.
-7. r[names.promote.private.path] Such a member is reached only through an explicit path, as in `x.Part.secret`, where lookup starts at the part's type and the member's own visibility applies.
-8. r[names.promote.no-trait] Trait methods of a part's type are never promoted members, and they have no effect on lookup through `S`.
+3. r[names.part.depth.own] The own fields and inherent methods of `S` are at depth 0.
+4. r[names.promote.member] Each `pub` field and `pub` inherent method of a part's type is a **promoted member** of `S` at the part's depth, reached through the part's path.
+5. r[names.promote.private] A private field or inherent method of a part's type is never promoted, even when the part's type is declared in the same module as `S`.
+6. r[names.promote.private.path] Such a member is reached only through an explicit path, as in `x.Part.secret`, where lookup starts at the part's type and the member's own visibility applies.
+7. r[names.promote.no-trait] Trait methods of a part's type are never promoted members, and they have no effect on lookup through `S`.
 
 ```text
 data Base:

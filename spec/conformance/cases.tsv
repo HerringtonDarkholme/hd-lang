@@ -941,6 +941,11 @@ typing/invalid/embedding-depth-four.hd	type	reject:embedding-too-deep	08-data-an
 typing/invalid/embedding-depth-four-generic.hd	type	reject:embedding-too-deep	08-data-and-enums.md#data-embedding
 typing/valid/three-embedded-fields.hd	type	accept	08-data-and-enums.md#data-embedding
 typing/invalid/four-embedded-fields.hd	type	reject:too-many-embedded-fields	08-data-and-enums.md#data-embedding
+typing/invalid/embedding-cycle-direct.hd	type	reject:embedding-cycle	08-data-and-enums.md#r-data.embed.depth.self
+typing/invalid/embedding-cycle-indirect.hd	type	reject:embedding-cycle	08-data-and-enums.md#r-data.embed.depth.self
+typing/invalid/embedding-cycle-generic.hd	type	reject:embedding-cycle	08-data-and-enums.md#r-data.embed.depth.self
+runtime/valid/part-copy-is-copy-update.hd	runtime	accept	08-data-and-enums.md#r-data.part.construct
+runtime/valid/trait-delegation-as-written.hd	runtime	accept	09-traits.md#r-trait.by.generated
 typing/invalid/private-own-field-beside-promoted.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
 typing/invalid/private-own-field-beside-conflicting-promoted.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
 typing/invalid/private-own-method-beside-promoted.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution

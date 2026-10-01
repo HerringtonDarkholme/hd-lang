@@ -285,6 +285,31 @@ reading in the middle column; each point asks the owner to confirm it.
 | C3-valid | With `5else` split into `5` and `else`, the line `if flag: 5else: 3` is now a valid `if` expression, not an error. | Applied, as [`lex.literal-fn.reserved`](../spec/01-lexical-structure.md#r-lex.literal-fn.reserved) gives it; `return"done"` already worked this way. **Recommendation:** keep it, and let a formatter insert the space. |
 | Q3-neg-std | `Neg for Duration` negates the milliseconds, so negating the minimum `i64` duration overflows. | Not stated; checked `i64` negation panics `integer-overflow`, as the suffix overflow rule already says for scaling. **Recommendation:** keep it implicit. |
 
+**Batch 32, simplify embedding (owner decisions, 2026-09-30).** Answers
+the questions of [Simplify Embedding](SIMPLIFY_EMBEDDING.md#questions-for-the-owner).
+It is applied in two passes: 32a (Q1, Q2, Q5, Q6) and 32b (Q3, Q4). Pass
+32a is applied; the [Revision Notes](../spec/README.md#revision-notes) list
+each.
+
+| # | Decision | Where |
+| --- | --- | --- |
+| Q1 | As recommended (O1b): each delegated method is the forwarding method `Trait::m(self.E, ...)`, checked as if written. Applied in 32a. | [`trait.by.generated`](../spec/09-traits.md#r-trait.by.generated) |
+| Q2 | As recommended (O1a): `E: ...e` and `x.E ...= e` store the copy-update `E { ...e }`; the mutable-edge rules and the chapter 04 and 05 copy rules merge into it. Applied in 32a. | [`data.part.construct`](../spec/08-data-and-enums.md#r-data.part.construct), [Mutable Edges](../spec/08-data-and-enums.md#mutable-edges) |
+| Q3 | As recommended (O1c and the rest of O1): each fact is stated once; chapter 08 keeps a short linking summary. Pass 32b. | pending |
+| Q4 | As recommended (O2b): a private own member hides a promoted one; another module gets `private-member`. Pass 32b. | pending |
+| Q5 | Not as recommended (option B): both limits stay, as width and depth, and a self-embedding type gets its own code, `embedding-cycle`, whose message shows the cycle path. `depth.generic` and `names.part.depth.levels` are deleted. Applied in 32a. | [Embedding Limits](../spec/08-data-and-enums.md#embedding-limits) |
+| Q6 | As recommended: value parts stay (VE1-VE4, VE-S); no O3. Nothing to apply. | [Parts And Copies](../spec/08-data-and-enums.md#parts-and-copies), unchanged |
+
+**Still open from applying batch 32a.** The specification applies the
+reading in the middle column; each point asks the owner to confirm it.
+
+| # | Question | Applied reading and **Recommendation** |
+| --- | --- | --- |
+| Q5-cycle-site | "Not just `embedding-too-deep`" leaves open whether a cycle also reports the depth code, and on which types. | `embedding-cycle` replaces `embedding-too-deep` for every type in the cycle, reported once per cycle on its first declared type, as `alias-cycle` is. A type outside the cycle that embeds into it still gets `embedding-too-deep`. **Recommendation:** keep it. |
+| Q5-self-id | STYLE says a rule whose meaning changes gets a new ID, but the owner said to keep `data.embed.depth.self` while its code changes. | The ID is kept, as directed. **Recommendation:** keep it; the Revision Note records the code change. |
+| Q1-variadic | O1b merges `trait.by.generated.variadic` into `trait.by.generated`, but varargs are under discussion. | Kept as its own rule for now. **Recommendation:** merge it once the vararg spelling settles; a written forwarding method already passes a vararg on. |
+| Q1-dot-call | The O1b table merges `trait.by.dot-call` into `trait.by.ordinary`; the rule-by-rule table merges it into `names.method-lookup.ambiguous`. | Retired into `trait.by.ordinary`, with a Note keeping the example. **Recommendation:** let pass 32b drop the Note once `names.method-lookup.ambiguous` states the case once. |
+
 ### Bound And Row Operators
 
 The owner's decisions (2026-09-28) are applied: bounds join with `&`, rows

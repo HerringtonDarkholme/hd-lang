@@ -1,0 +1,8 @@
+# test: a data type that embeds itself through another type is one embedding cycle, reported in its first declared type
+data Node:
+    Edge  # diagnostic: embedding-cycle
+    id: string
+
+data Edge:
+    Node
+    weight: i32
