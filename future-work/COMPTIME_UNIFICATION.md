@@ -127,6 +127,12 @@ Four facts about today's design matter below:
    Code that unrolls per member must be specialized per target, as
    `reified` code is ([`types.generic.specialized`](../spec/04-type-system.md#r-types.generic.specialized)).
 
+> **Since batch 37 (2026-10-01).** The implementation model changed: each
+> value layout, including each tuple type, now gets its own specialized body,
+> and only reference types share one. See
+> [Shapes and Generic Code](../spec/04-type-system.md#shapes-and-generic-code).
+> This record keeps its original reasoning as history.
+
 ### Compiler Code In Scope
 
 Lines of TypeScript in the prototype, `src/`, on 2026-10-01. The

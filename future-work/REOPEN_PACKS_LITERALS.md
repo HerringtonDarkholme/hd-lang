@@ -242,6 +242,12 @@ specialized. This is an implementation choice, not observable
 A shared body also keeps a `Tool[R]` trait value over function types
 dynamically safe, which a pack method is not.
 
+> **Since batch 37 (2026-10-01).** The implementation model changed: each
+> value layout, including each tuple type, now gets its own specialized body,
+> and only reference types share one. See
+> [Shapes and Generic Code](../spec/04-type-system.md#shapes-and-generic-code).
+> This record keeps its original reasoning as history.
+
 **Soundness.** The kind rule already rejects `Fn[i32, O, R]`. A
 `call_with` whose `args` type is not `f`'s inputs is `type-mismatch`.
 `all!` children keep the `mut Suspend[T]` requirement. No pack-length
