@@ -1,0 +1,10 @@
+# test: a tuple-typed vararg whose type ends in a rest element collects the trailing arguments into it
+# expect: test
+use std.testing.assert_equal
+
+fn label(parts...: (string, List[i32]...)) -> string: "${parts._0}${parts._1.len()}"
+
+tests:
+    it("the arguments after the fixed elements form the rest"):
+        assert_equal(label("a", 1, 2, 3), "a3", reason="three trailing arguments")
+        assert_equal(label("b"), "b0", reason="no trailing arguments")

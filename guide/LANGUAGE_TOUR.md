@@ -1359,7 +1359,21 @@ pair := (1, 2)
 add(pair...)           # a tuple spread fills a and b
 ```
 
-Being a vararg belongs to the declaration, not to the function's type: `f := sum` has type `fn(List[i32]) -> i32`, and is called as `f([1, 2, 3])`.
+A function value keeps a `List` vararg. Its inputs tuple ends in the rest element `List[i32]...`, so `f := sum` has type `fn(List[i32]...) -> i32` and is called as `f(1, 2, 3)`. That type differs from `fn(List[i32]) -> i32`, and a tuple spread must match the callee's inputs exactly:
+
+```text
+fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
+fn h(a: i32, b: i32, xs: List[i32]) -> i32: a + b + xs.len()
+
+let t: (i32, i32, List[i32]...) = (1, 2, 3, 4)  # the tail is collected
+u := (1, 2, [3, 4])
+g(t...)                # ok
+h(u...)                # ok
+g(u...)                # invalid: u has no rest element
+call(g, 1, 2, 3, 4)    # Args is (i32, i32, List[i32]...), from g
+```
+
+A tuple expression may also end in a list spread, as in `(1, 2, xs...)`.
 
 Function types use `fn(...) -> ...`:
 

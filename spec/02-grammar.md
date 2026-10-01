@@ -734,14 +734,18 @@ type_argument = type
 row_type_argument = "$", requirement_row ;
 
 tuple_type = "(", ")"
-           | "(", type, ",", [ type, { ",", type }, [ "," ] ], ")"
+           | "(", type, ",", [ type_list ], ")"
+           | "(", rest_type, ",", ")"
            ;
+rest_type = type, "..." ;
 
 grouped_type = "(", type, ")" ;
 
 function_type = "fn", [ "!" ], "(", [ type_list ], ")",
                 "->", type, [ requirement_clause ] ;
-type_list = type, { ",", type }, [ "," ] ;
+type_list = type, { ",", type }, [ ",", rest_type ], [ "," ]
+          | rest_type, [ "," ]
+          ;
 
 result_type = reference_access_type, { "?" }
             | result_function_type
@@ -828,6 +832,26 @@ fn invalid(value: Box[$()]) -> void: pass  # error: generic-kind-mismatch
 6. r[grammar.type.group] Parentheses group types; unlike a one-element tuple type, grouping has no trailing comma.
 7. r[grammar.type.row-owner] Inside a type, such as a parameter type, a field type, or a type argument, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type.
 8. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
+
+### Tuple Rest Types
+
+A `rest_type` is a type followed by `...`. It may end a tuple type or a
+function type's parameter list:
+
+```text
+fn total(pair: (i32, List[i32]...), callback: fn(i32, List[i32]...) -> i32) -> i32:
+    callback(pair...)
+
+fn only(values: (List[i32]...,)) -> i32: values._0.len()
+```
+
+1. r[grammar.type.rest] A [rest element](04-type-system.md#rest-elements) may be the last element of a tuple type or of a function type's parameter list. Alone in a tuple type, it keeps the one-element trailing comma, as in `(List[i32]...,)`.
+2. r[grammar.type.rest.elsewhere] `...` anywhere else in a type is an error. This covers `values: i32...`, `List[i32...]`, `(List[i32]...)`, and a rest element before another element. Error: `syntax-error`.
+
+```text
+fn early(values: (List[i32]..., i32)) -> i32: 0  # error: syntax-error
+fn sum(values: i32...) -> i32: 0                 # error: syntax-error
+```
 
 ### Header Requirement Clauses
 
@@ -1186,10 +1210,15 @@ prefixed_multiline_segment = prefixed_multiline_character
 
 tuple_or_group_expression = "(", ")"
                           | "(", expression, ")"
-                          | "(", tuple_element, ",",
-                            [ tuple_element, { ",", tuple_element }, [ "," ] ], ")"
+                          | "(", tuple_element, ",", [ tuple_elements ], ")"
+                          | "(", tuple_spread, ",", ")"
                           ;
+tuple_elements = tuple_element, { ",", tuple_element },
+                 [ ",", tuple_spread ], [ "," ]
+               | tuple_spread, [ "," ]
+               ;
 tuple_element = expression ;
+tuple_spread = continued_expression, "..." ;
 
 list_expression = "[", [ list_items ], "]"
                 | list_comprehension
@@ -1273,7 +1302,8 @@ See also: [Prefixed Strings](01-lexical-structure.md#prefixed-strings).
 2. r[grammar.primary.ellipsis-positions] The two positions of `...` never overlap.
 3. r[grammar.primary.prefix-copies] A prefix `...` always copies: it copies the named members of a value in a copy-update spread and after an embedded field label, and `...=` stores a copy into an embedded field.
 4. r[grammar.primary.suffix-spreads] A suffix `...` always spreads: it expands the elements or entries of its operand in arguments, list elements, and provider-context entries, as in `$.with(ctx...)`.
-5. r[grammar.primary.prefix-elsewhere] A prefix `...` anywhere else, including before a provider-context entry, is an error. Error: `syntax-error`.
+5. r[grammar.primary.tuple-spread] The last element of a tuple expression may also be a suffix spread, as in `(1, 2, xs...)`. A spread alone keeps the one-element trailing comma, `(xs...,)`, so `(xs...)` and a spread before another element are errors. Error: `syntax-error`.
+6. r[grammar.primary.prefix-elsewhere] A prefix `...` anywhere else, including before a provider-context entry, is an error. Error: `syntax-error`.
 
 ```text
 trait Tag:

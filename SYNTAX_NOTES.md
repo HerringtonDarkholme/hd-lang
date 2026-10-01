@@ -1352,6 +1352,19 @@ tagged_sum(tag="score", values=nums)
 tagged_sum(tag="score", nums...)      # invalid: positional spread after named arg
 ```
 
+A `List` vararg is part of the function's type as a tuple rest element:
+`tagged_sum` has type `fn(string, List[i32]...) -> i32`, which differs from
+`fn(string, List[i32]) -> i32`. A function value keeps the vararg, and a
+tuple type or expression may end in a rest element:
+
+```text
+f := tagged_sum
+f("score", 1, 2, 3)
+let t: (string, List[i32]...) = ("score", 1, 2, 3)
+tagged_sum(t...)
+with_rest := ("score", nums...)
+```
+
 Generic functions put generic arguments after the function name:
 
 ```text

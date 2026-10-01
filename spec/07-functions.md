@@ -248,8 +248,10 @@ sum(items...)
 
 1. r[fn.vararg.collect.list] For `List[T]`, each argument is checked against `T`, and the list holds the arguments in order.
 2. r[fn.vararg.collect.tuple] For a tuple type, the arguments fill its elements one each, in order, and must match them in number and type. Error: `type-mismatch`.
-3. r[fn.vararg.infer-tuple] When the vararg's type is a type parameter bounded by `Tuple`, inference solves it as the tuple of the argument types, one element per argument, with no join.
-4. r[fn.vararg.no-auto-spread] A tuple argument is never spread automatically: it is one element of the collected tuple.
+3. r[fn.vararg.collect.tuple.rest] When that tuple type ends in a [rest element](04-type-system.md#rest-elements) `List[T]...`, the arguments after its fixed elements are collected into the rest element, each checked against `T`.
+4. r[fn.vararg.tuple-param.expected] When the vararg's type is a type parameter bounded by `Tuple` that another argument solves, as `f` solves `Args` below, the vararg's arguments are checked against that solved tuple as an expected type.
+5. r[fn.vararg.tuple-param.infer] When no other argument solves it, inference solves it as the tuple of the argument types, one element per argument, with no join.
+6. r[fn.vararg.no-auto-spread] A tuple argument is never spread automatically: it is one element of the collected tuple.
 
 ```text
 use std.function.{Fn, Tuple}
@@ -257,43 +259,50 @@ use std.function.{Fn, Tuple}
 fn add2(a: i32, b: i32) -> i32: a + b
 fn neg(a: i32) -> i32: -a
 fn zero() -> i32: 0
+fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
 
 fn call[Args < Tuple, O, R](f: Fn[Args, O, R], args...: Args) -> O $ R:
     f(args...)
 
+fn pack[Args < Tuple](args...: Args) -> Args: args
+
 fn run(pair: (i32, i32)) -> i32:
-    call(add2, 1, 2) + call(neg, 5) + call(zero) + call(add2, pair...)
+    call(add2, 1, 2) + call(neg, 5) + call(zero) + call(add2, pair...) + call(g, 1, 2, 3, 4)
 ```
 
 | Call | `Args` |
 | --- | --- |
-| `call(add2, 1, 2)` | `(i32, i32)` |
+| `call(add2, 1, 2)` | `(i32, i32)`, from `add2` |
 | `call(neg, 5)` | `(i32,)` |
 | `call(zero)` | `()` |
-| `call(add2, pair...)` | `(i32, i32)`, the spread's own type |
-| `call(add2, (1, 2))` | `((i32, i32),)`, which `add2` does not accept |
+| `call(add2, pair...)` | `(i32, i32)`, which the spread matches |
+| `call(g, 1, 2, 3, 4)` | `(i32, i32, List[i32]...)`, from `g`; `3` and `4` form the rest |
+| `call(add2, (1, 2))` | `(i32, i32)`, which the one argument `(1, 2)` does not fill |
+| `pack(1, "a")` | `(i32, string)`, from the arguments |
 
 1. r[fn.vararg.final] A vararg that is not the last positional parameter is an error. Error: `nonfinal-vararg`.
 2. r[fn.vararg.no-default] A vararg has no default expression.
 3. r[fn.vararg.named] Passing a vararg by name passes its collected value without spread syntax, as in `sum(values=[1, 2])` or `call(add2, args=(1, 2))`.
-4. r[fn.vararg.value] Being a vararg belongs to the declaration, not to its type: as a function value, the function takes the collected value as one ordinary parameter.
+
+A function value keeps a `List[T]` vararg, as [Vararg Inputs](#vararg-inputs)
+states:
 
 ```text
 fn count(values...: List[i32]) -> i32: values.len()
 
 fn main() -> i32:
     f := count
-    f([3, 4, 5])
+    f(3, 4, 5)
 ```
 
-Here `f` has type `fn(List[i32]) -> i32`.
+Here `f` has type `fn(List[i32]...) -> i32`.
 
 ```text
 use std.function.{Fn, Tuple}
 
 fn scaled(values...: List[i32], factor: i32) -> i32: factor  # error: nonfinal-vararg
 fn count(values...: i32) -> i32: values                       # error: type-mismatch
-fn apply(callback: fn(i32...) -> i32) -> i32: 0               # error: syntax-error
+fn apply(callback: fn(i32...) -> i32) -> i32: 0               # error: type-mismatch
 
 fn add2(a: i32, b: i32) -> i32: a + b
 fn call[Args < Tuple, O, R](f: Fn[Args, O, R], args...: Args) -> O $ R: f(args...)
@@ -301,8 +310,9 @@ fn nested() -> i32: call(add2, (1, 2))                         # error: type-mis
 ```
 
 > **Why.** Declaring `args...` mirrors spreading `args...`. The type after
-> `:` is the type the body sees, so a vararg needs no type rule of its own,
-> and a function type needs no vararg form.
+> `:` is the type the body sees, so a vararg needs no type rule of its own.
+> A `List[T]` vararg shows in the function's type as a rest element, so a
+> function value keeps its varargs.
 
 See also: [Positional Spreads](05-expressions.md#positional-spreads).
 
@@ -358,12 +368,13 @@ fn suspending() -> SuspendFn[(i32,), string, Database]:
 4. r[fn.type.ctor.row] The row argument is row-kinded. A function type without a requirement clause has the empty row `$()`, and several keys are joined with `+`, as in `$ Db + Cache`.
 5. r[fn.type.ctor.row.alias] A bare row alias as the row argument stands for its row, so `Fn[(), O, AppRow]` is `Fn[(), O, $ AppRow]` ([`req.row.alias.bare`](11-requirements-and-suspension.md#r-req.row.alias.bare)).
 6. r[fn.type.ctor.tuple-trait] `std.function` also declares `Tuple`, an empty sealed marker trait that every tuple type implements, `()` and `(A,)` included.
-7. r[fn.type.ctor.inputs-tuple] An inputs argument that is not a tuple type or a type parameter bounded by `Tuple`, as in `Fn[i32, i32, $()]` or `Fn[Args, O, R]` with an unbounded `Args`, is an error. Error: `generic-kind-mismatch`.
-8. r[fn.type.ctor.sugar] `fn(A) -> O $ R` and `Fn[(A,), O, R]` denote the same type, and so do `fn!(A) -> O $ R` and `SuspendFn[(A,), O, R]`.
-9. r[fn.type.ctor.anywhere] Either spelling is valid anywhere a type may appear, including implementation targets.
-10. r[fn.type.ctor.diagnostics] Diagnostics print a function type in its sugar form, as they print `T?` for `Option[T]`.
-11. r[fn.type.ctor.imports] The sugar needs no import. The names `Fn`, `SuspendFn`, and `Tuple` are imported where they are written, as in `use std.function.Fn`.
-12. r[fn.type.ctor.opaque-sources] The constructors have no fields and no construction syntax. Function values come only from function names, closures, one-payload variant constructors, instantiated generic functions, and [method references](#method-references).
+7. r[fn.type.ctor.tuple-trait.rest] A tuple type with a [rest element](04-type-system.md#rest-elements) is a tuple type and implements `Tuple`, so `Args` may be `(i32, List[i32]...)`.
+8. r[fn.type.ctor.inputs-tuple] An inputs argument that is not a tuple type or a type parameter bounded by `Tuple`, as in `Fn[i32, i32, $()]` or `Fn[Args, O, R]` with an unbounded `Args`, is an error. Error: `generic-kind-mismatch`.
+9. r[fn.type.ctor.sugar] `fn(A) -> O $ R` and `Fn[(A,), O, R]` denote the same type, and so do `fn!(A) -> O $ R` and `SuspendFn[(A,), O, R]`.
+10. r[fn.type.ctor.anywhere] Either spelling is valid anywhere a type may appear, including implementation targets.
+11. r[fn.type.ctor.diagnostics] Diagnostics print a function type in its sugar form, as they print `T?` for `Option[T]`.
+12. r[fn.type.ctor.imports] The sugar needs no import. The names `Fn`, `SuspendFn`, and `Tuple` are imported where they are written, as in `use std.function.Fn`.
+13. r[fn.type.ctor.opaque-sources] The constructors have no fields and no construction syntax. Function values come only from function names, closures, one-payload variant constructors, instantiated generic functions, and [method references](#method-references).
 
 ```text
 use std.function.{Fn, Tuple}
@@ -380,10 +391,36 @@ fn unbounded[Args, O](callback: Fn[Args, O, $()]) -> void: pass  # error: generi
 
 #### Vararg Inputs
 
-A function type has no vararg form, because being a vararg belongs to the
-declaration ([`fn.vararg.value`](#r-fn.vararg.value)).
+A function with a `List[T]` vararg has inputs that end in the
+[rest element](04-type-system.md#rest-elements) `List[T]...`, and its
+function value keeps the vararg:
 
-1. r[fn.type.no-ellipsis] The grammar has no ellipsis after a type, so `fn(i32...) -> i32` and the parameter `values: i32...` are each an error. Error: `syntax-error`.
+```text
+fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
+fn h(a: i32, b: i32, xs: List[i32]) -> i32: a + b + xs.len()
+
+fn apply(callback: fn(i32, i32, List[i32]...) -> i32) -> i32:
+    f := g
+    f(1, 2, 3, 4) + callback(1, 2) + h(1, 2, [3, 4])
+```
+
+| Function | Type | Constructor form |
+| --- | --- | --- |
+| `g` | `fn(i32, i32, List[i32]...) -> i32` | `Fn[(i32, i32, List[i32]...), i32, $()]` |
+| `h` | `fn(i32, i32, List[i32]) -> i32` | `Fn[(i32, i32, List[i32]), i32, $()]` |
+
+1. r[fn.type.vararg-rest] A `List[T]` vararg is the rest element `List[T]...` of its function's inputs tuple. So `g` above has type `fn(i32, i32, List[i32]...) -> i32`, which differs from `h`'s type.
+2. r[fn.type.rest-call] Calling a function value whose inputs end in a rest element `List[T]...` treats that element as a `List[T]` vararg, as in `f(1, 2, 3, 4)` above.
+3. r[fn.type.tuple-vararg-input] A vararg whose type is a tuple type or a `Tuple`-bounded type parameter is one ordinary input of its function's type, which takes the collected tuple. `call` has type `fn(Fn[Args, O, R], Args) -> O $ R`.
+
+```text
+fn sum(values...: List[i32]) -> i32: values.len()
+fn apply_pair(callback: fn(i32, i32) -> i32) -> i32: callback(1, 2)
+fn apply_list(callback: fn(List[i32]) -> i32) -> i32: callback([1, 2])
+
+fn first() -> i32: apply_pair(sum)  # error: type-mismatch
+fn second() -> i32: apply_list(sum)  # error: type-mismatch
+```
 
 #### No Access Permission
 

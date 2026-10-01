@@ -19,7 +19,7 @@ r[types.forms.set] The type forms are:
 | --- | --- |
 | Primitive types | |
 | Nominal data types and enums | |
-| Tuples | |
+| Tuples | `(A, B)`, or ending in a rest element, `(A, List[T]...)` |
 | Lists and maps | `List[T]`, `Map[K, V]` |
 | Optional types | `T?` |
 | Function types | `fn(...) -> T`, sugar for `Fn[(...), T, $()]` |
@@ -323,6 +323,38 @@ fn invalid(pair: mut (User, i32)) -> void:  # error: mut-on-tuple
 > **Why.** A tuple has no identity and no assignable element, so a mutable
 > view of one would permit nothing. Its elements carry their own
 > permissions.
+
+#### Rest Elements
+
+A tuple type may end in a **rest element** `List[T]...`, which stands for
+any number of trailing `T` values:
+
+```text
+fn tail(values: (string, List[i32]...)) -> i32:
+    values._1.len()
+
+fn main() -> i32:
+    tail(("a", 1, 2, 3))
+```
+
+1. r[types.tuple.rest.form] A tuple type may end in one rest element, a type followed by `...`, as in `(i32, i32, List[i32]...)`. Its other elements are its **fixed elements**.
+2. r[types.tuple.rest.list] A rest element whose type is not `List[T]`, as in `(i32, i32...)`, is an error. Error: `type-mismatch`.
+3. r[types.tuple.rest.value] A value of such a tuple holds its fixed elements, then one `List[T]` that holds the trailing values in order. Selection reads that list like any other element, so `values._1` above is a `List[i32]`.
+4. r[types.tuple.rest.same] Two tuple types are the same type only when both or neither end in a rest element, so `(i32, List[i32]...)` and `(i32, List[i32])` differ. With rest elements, the fixed elements and the rest elements must each be pairwise equal.
+5. r[types.tuple.rest.assign] No conversion adds, removes, or changes a rest element: a tuple type with a rest element converts only to an identical one. Error: `type-mismatch`.
+
+```text
+fn plain(values: (i32, List[i32]...)) -> (i32, List[i32]):
+    values  # error: type-mismatch
+```
+
+> **Why.** The rest element lets a function's inputs tuple say that it
+> takes varargs, so `fn(i32, List[i32]...)` and `fn(i32, List[i32])` are
+> different types. Only a `List` tail is allowed: there is no tuple
+> concatenation in types.
+
+See also: [Vararg Inputs](07-functions.md#vararg-inputs),
+[Tuple Rest Elements](05-expressions.md#tuple-rest-elements).
 
 ### Function Type Identity
 

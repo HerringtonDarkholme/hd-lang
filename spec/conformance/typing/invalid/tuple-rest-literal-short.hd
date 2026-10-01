@@ -1,0 +1,4 @@
+# test: a tuple expression needs one element per fixed element of the expected rest tuple
+
+fn short() -> (i32, i32, List[i32]...):
+    (1,)  # diagnostic: type-mismatch

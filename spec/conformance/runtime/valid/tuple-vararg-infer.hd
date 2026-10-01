@@ -1,0 +1,12 @@
+# test: a Tuple-bounded vararg type that no other argument solves is the tuple of the argument types
+# expect: test
+use std.function.Tuple
+use std.testing.assert_equal
+
+fn pack[Args < Tuple](args...: Args) -> Args: args
+
+tests:
+    it("the arguments give Args"):
+        t := pack(1, "a")
+        assert_equal(t._0, 1, reason="the first element is an i32")
+        assert_equal(t._1, "a", reason="the second element is a string")

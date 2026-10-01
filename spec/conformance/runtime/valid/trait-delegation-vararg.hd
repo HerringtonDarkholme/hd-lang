@@ -1,0 +1,24 @@
+# test: a delegated method's inputs follow the trait method's inputs tuple, a rest element included
+# expect: test
+use std.testing.assert_equal
+
+trait Tally:
+    fn tally(self, values...: List[i32]) -> i32
+
+data Counter:
+    base: i32
+
+impl Tally for Counter:
+    fn tally(self, values...: List[i32]) -> i32:
+        self.base + values.len()
+
+data Service:
+    Counter
+
+impl Tally for Service by Counter
+
+tests:
+    it("the forwarding method passes the vararg on"):
+        service := Service { Counter: ...Counter { base: 10 } }
+        assert_equal(Tally::tally(service, 1, 2, 3), 13, reason="three collected arguments")
+        assert_equal(Tally::tally(service), 10, reason="an empty vararg")

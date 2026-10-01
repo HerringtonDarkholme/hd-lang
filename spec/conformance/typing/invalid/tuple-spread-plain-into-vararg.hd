@@ -1,0 +1,6 @@
+# test: a tuple without a rest element does not spread into a function whose inputs end in one
+
+fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
+
+fn crossed(u: (i32, i32, List[i32])) -> i32:
+    g(u...)  # diagnostic: type-mismatch

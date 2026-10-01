@@ -1,0 +1,4 @@
+# test: a spread in a tuple expression takes a list, never a tuple: there is no tuple concatenation
+
+fn joined(pair: (i32, i32)) -> (i32, i32, i32):
+    (1, pair...)  # diagnostic: type-mismatch

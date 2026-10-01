@@ -1,0 +1,7 @@
+# test: a function with a List vararg and one with a plain List parameter have different types
+
+fn h(a: i32, b: i32, xs: List[i32]) -> i32: a + b + xs.len()
+
+fn apply(callback: fn(i32, i32, List[i32]...) -> i32) -> i32: callback(1, 2, 3)
+
+fn wrong() -> i32: apply(h)  # diagnostic: type-mismatch

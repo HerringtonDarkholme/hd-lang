@@ -1846,9 +1846,8 @@ impl Service by Logger  # error: invalid-delegation
 
 ### Generated Methods
 
-1. r[trait.by.generated] For each method `m` of `Trait` with a receiver, defaults included, that the body does not write, the implementation has a forwarding method. It has `m`'s signature, its body is `Trait::m(self.E, arguments...)`, and it is checked as if written.
-2. r[trait.by.generated.variadic] A variadic parameter is passed on as a spread.
-3. r[trait.by.written] A method written in the body replaces the generated one and follows the rules of [Implementation Declarations](#implementation-declarations), as does any other member of the body.
+1. r[trait.by.generated] For each method `m` of `Trait` with a receiver, defaults included, that the body does not write, the implementation has a forwarding method. It has `m`'s signature, so its inputs follow `m`'s inputs tuple, a rest element included. Its body is `Trait::m(self.E, arguments...)`, which passes a vararg on as a spread, and it is checked as if written.
+2. r[trait.by.written] A method written in the body replaces the generated one and follows the rules of [Implementation Declarations](#implementation-declarations), as does any other member of the body.
 
 `impl Describe for Service by Logger` above therefore means:
 

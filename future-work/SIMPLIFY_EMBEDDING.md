@@ -722,7 +722,7 @@ Batch 32, 2026-09-30. Net: O1 plus O2b, with the limits kept.
 
 | # | Decision | Status |
 | --- | --- | --- |
-| Q1 | A: delegation is written forwarding, `Trait::m(self.E, ...)`, checked as if written. | Applied in 32a: [`trait.by.generated`](../spec/09-traits.md#r-trait.by.generated). `trait.by.generated.variadic` stays while varargs are under discussion. |
+| Q1 | A: delegation is written forwarding, `Trait::m(self.E, ...)`, checked as if written. | Applied in 32a: [`trait.by.generated`](../spec/09-traits.md#r-trait.by.generated). `trait.by.generated.variadic` stayed while varargs were under discussion, and merged into it in 33a (TUPLE-REST). |
 | Q2 | A: a part copy is a copy-update, `E { ...e }`. | Applied in 32a: [`data.part.construct`](../spec/08-data-and-enums.md#r-data.part.construct), and a Note in [Mutable Edges](../spec/08-data-and-enums.md#mutable-edges). |
 | Q3 | A: state each rule once (O1c and the rest of O1). | Applied in 32b: [`names.promoted.path`](../spec/03-names-and-scopes.md#r-names.promoted.path), [`names.promote.member`](../spec/03-names-and-scopes.md#r-names.promote.member), [`names.method-lookup.ambiguous`](../spec/03-names-and-scopes.md#r-names.method-lookup.ambiguous), [`trait.impl.fill.never`](../spec/09-traits.md#r-trait.impl.fill.never), and a linking summary in [Member Promotion](../spec/08-data-and-enums.md#member-promotion). |
 | Q4 | A: a private own member hides a promoted one. | Applied in 32b: [`names.hide.depth`](../spec/03-names-and-scopes.md#r-names.hide.depth) and [`names.method-lookup.promoted-candidate`](../spec/03-names-and-scopes.md#r-names.method-lookup.promoted-candidate). |
@@ -731,8 +731,8 @@ Batch 32, 2026-09-30. Net: O1 plus O2b, with the limits kept.
 
 **As applied.** Of the 219 rules, 57 remain numbered, against the 61 of
 O1 and O2. The owner's limits add `data.embed.width` and
-`data.embed.depth.self`. `trait.by.generated.variadic` stays while varargs
-are under discussion. `data.embed.unique` and `trait.by.invalid` stay,
+`data.embed.depth.self`. `trait.by.generated.variadic` stayed while
+varargs were under discussion; 33a merged it into `trait.by.generated`. `data.embed.unique` and `trait.by.invalid` stay,
 because no other rule names their codes. The other error-detail rules
 became diagnostics Notes for the error revamp, so they are not counted.
 

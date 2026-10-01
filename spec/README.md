@@ -202,6 +202,7 @@ The stdlib chapters' terms are in the
 | **exhausted iterator** | An iterator whose `next` has returned `.None`. What a later `next` returns is unspecified. See [`flow.for.iterator-exhausted`](06-control-flow.md#r-flow.for.iterator-exhausted). |
 | **fact** | An ordinary value attached to a type, member, or variant for derivations to read. See [Facts](14-annotations.md#facts). |
 | **field lookup** | The steps that resolve `x.name` to one field from a module. See [Field Lookup](03-names-and-scopes.md#field-lookup). |
+| **fixed elements** | The elements of a tuple type other than its rest element. See [`types.tuple.rest.form`](04-type-system.md#r-types.tuple.rest.form). |
 | **fits** | A candidate implementation fits a call when the call's arguments check against its method's parameter types. See [`trait.resolve.fits`](09-traits.md#r-trait.resolve.fits). |
 | **folder** | The directory that holds a source file; `mod.hd` included, and nested directories are separate folders. See [`module.folder.directory`](10-modules.md#r-module.folder.directory). |
 | **folder graph** | A package's folders, with an edge where a file in one folder uses a module in another. It must be acyclic. See [`module.cycle.folder-edge`](10-modules.md#r-module.cycle.folder-edge). |
@@ -238,7 +239,7 @@ The stdlib chapters' terms are in the
 | **path requirement** | A manifest value `{ path = "DIR" }` through which a workspace member depends on another member. See [`module.workspace.path-requirement`](10-modules.md#r-module.workspace.path-requirement). |
 | **pipe expression** | `value |> step`, which passes a value to a step. See [Pipe Expressions](05-expressions.md#pipe-expressions). |
 | **place expression** | An expression that identifies a storage location, which may be read or, when permissions allow, assigned. See [`expr.category.place`](05-expressions.md#r-expr.category.place). |
-| **positional spread** | An argument `x...` that passes the value `x` in place of separate arguments: a tuple fills fixed parameters, and a vararg takes a value of its own type. See [Positional Spreads](05-expressions.md#positional-spreads). |
+| **positional spread** | An argument `x...` that passes the value `x` in place of separate arguments: a tuple fills the callee's remaining inputs, and a vararg takes a value of its own type. See [Positional Spreads](05-expressions.md#positional-spreads). |
 | **prefix function** | A literal function marked `@str_prefix`, which a prefixed string calls. See [`expr.literal-fn.marker`](05-expressions.md#r-expr.literal-fn.marker). |
 | **prefixed string** | An identifier followed directly by `"` or `"""`, as in `sql"..."`. See [`lex.prefix.form`](01-lexical-structure.md#r-lex.prefix.form). |
 | **prelude** | The implicit scope of public standard-library names that every module has. See [Prelude](10-modules.md#prelude). |
@@ -251,6 +252,7 @@ The stdlib chapters' terms are in the
 | **refutable** | A pattern that may fail to match its initializer, such as `.Some(v)`; a `let` with one needs an `else` block. See [`flow.let.irrefutable`](06-control-flow.md#r-flow.let.irrefutable). |
 | **requirement row** | The normalized unordered set of requirement keys on a callable signature. See [`req.row.definition`](11-requirements-and-suspension.md#r-req.row.definition). |
 | **requirement-free** | A default expression that uses no provider and does not suspend. See [`fn.default.requirement-free`](07-functions.md#r-fn.default.requirement-free). |
+| **rest element** | A last tuple element `List[T]...`, which stands for any number of trailing `T` values. See [Rest Elements](04-type-system.md#rest-elements). |
 | **row alias** | A transparent alias that names a set of requirement keys. See [Row Aliases](11-requirements-and-suspension.md#row-aliases). |
 | **row parameter** | A generic parameter whose values are requirement rows. See [`req.row.parameter`](11-requirements-and-suspension.md#r-req.row.parameter). |
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
@@ -2612,7 +2614,7 @@ existing source. Each entry names the decision that made the change.
   `Tuple`; any other is `type-mismatch`
   ([`fn.vararg.type.kinds`](07-functions.md#r-fn.vararg.type.kinds)).
   A `Tuple`-bounded vararg type is solved as the tuple of the argument
-  types ([`fn.vararg.infer-tuple`](07-functions.md#r-fn.vararg.infer-tuple)).
+  types (`fn.vararg.infer-tuple`, since retired by TUPLE-REST).
   Passing a vararg by name passes its collected value. Retired:
   `fn.vararg.declare`, `fn.vararg.list`, and `fn.vararg.call` for
   [`fn.vararg.form`](07-functions.md#r-fn.vararg.form),
@@ -2628,10 +2630,10 @@ existing source. Each entry names the decision that made the change.
 - Function types have no vararg form (owner decision VARARG-SPELL, batch
   31, 2026-09-30): language tier. Being a vararg belongs to the
   declaration, so `f := sum` has type `fn(List[i32]) -> i32`, and
-  `f([1, 2])` calls it ([`fn.vararg.value`](07-functions.md#r-fn.vararg.value)).
+  `f([1, 2])` calls it (`fn.vararg.value`, since reversed by TUPLE-REST).
   `fn(i32...) -> i32`, valid before, is now `syntax-error`, as is any
   ellipsis after a type that expands no pack
-  ([`fn.type.no-ellipsis`](07-functions.md#r-fn.type.no-ellipsis)).
+  (`fn.type.no-ellipsis`, since retired by TUPLE-REST).
   `std.function.Rest` is gone. Retired: `fn.type.vararg`, `fn.type.rest`,
   `fn.type.rest.final`, `fn.type.rest.nonfinal`, and `fn.type.rest.elsewhere`;
   `fn.type.signature-parts` for [`fn.type.parts`](07-functions.md#r-fn.type.parts);
@@ -2664,7 +2666,7 @@ existing source. Each entry names the decision that made the change.
   `expr.call.spread.type` for
   [`expr.call.spread.fills`](05-expressions.md#r-expr.call.spread.fills),
   [`expr.call.spread.at-vararg`](05-expressions.md#r-expr.call.spread.at-vararg),
-  [`expr.call.spread.tuple`](05-expressions.md#r-expr.call.spread.tuple), and
+  `expr.call.spread.tuple` (since retired by TUPLE-REST), and
   [`expr.call.spread.mismatch`](05-expressions.md#r-expr.call.spread.mismatch);
   and `fn.vararg.spread-needs-vararg` and `expr.call.spread.needs-vararg`
   for [`expr.call.spread.list-needs-vararg`](05-expressions.md#r-expr.call.spread.list-needs-vararg).
@@ -2684,7 +2686,7 @@ existing source. Each entry names the decision that made the change.
   diagnostics `multiple-positional-value-packs`,
   `nonfinal-positional-value-pack`, `pack-length-mismatch`, and
   `pack-map-mapper-mismatch` are removed. An ellipsis after a type is a
-  plain grammar error ([`fn.type.no-ellipsis`](07-functions.md#r-fn.type.no-ellipsis)).
+  plain grammar error (`fn.type.no-ellipsis`, since retired by TUPLE-REST).
   [Variadic Generics](12-variadic-generics.md) keeps its number with no
   rules. Retired with no replacement: all 63 `pack.*` rules;
   `lex.contextual.pack`, `.pack.always`, and `.pack.ordinary`;
@@ -2973,3 +2975,38 @@ existing source. Each entry names the decision that made the change.
   `names.conflict.private-own`, `.private-site`, `.private-message`,
   `data.promote.private-own`, `names.field-lookup.private.alone`, and
   `names.method-lookup.inherent.skip`.
+- Tuple rest elements (owner decision TUPLE-REST, batch 33, 2026-10-01):
+  language tier. A tuple type may end in one rest element `List[T]...`
+  ([Rest Elements](04-type-system.md#rest-elements)). A `List[T]` vararg
+  is the rest element of its function's inputs, so
+  `fn g(a: i32, xs...: List[i32])` has type `fn(i32, List[i32]...)`, a
+  different type from `fn(i32, List[i32])`
+  ([`fn.type.vararg-rest`](07-functions.md#r-fn.type.vararg-rest)). This
+  reverses VARARG-SPELL for a `List[T]` vararg: `f := count` keeps the
+  vararg and is called `f(3, 4, 5)`, and `f([3, 4, 5])`, valid before, is
+  now `type-mismatch`. A tuple-typed or `Tuple`-bounded vararg is still
+  one ordinary input. `fn(i32...) -> i32`, `syntax-error` before, now
+  parses and is `type-mismatch`, since a rest element must be a `List`.
+  A tuple spread must have the callee's remaining inputs tuple, rest
+  element included
+  ([`expr.call.spread.inputs`](05-expressions.md#r-expr.call.spread.inputs)):
+  `g(t...)` takes `t: (i32, List[i32]...)`, and `(i32, List[i32])`, valid
+  before, is now `type-mismatch`. A tuple expression collects or spreads
+  into a rest element, so `(1, 2, xs...)`, `syntax-error` before, is a
+  tuple ([Tuple Rest Elements](05-expressions.md#tuple-rest-elements)).
+  When another argument solves a `Tuple`-bounded vararg type, the vararg's
+  arguments are checked against it, so `call(g, 1, 2, 3, 4)` is valid
+  ([`fn.vararg.tuple-param.expected`](07-functions.md#r-fn.vararg.tuple-param.expected)).
+  Retired: `fn.vararg.value` for
+  [`fn.type.vararg-rest`](07-functions.md#r-fn.type.vararg-rest) and
+  [`fn.type.tuple-vararg-input`](07-functions.md#r-fn.type.tuple-vararg-input);
+  `fn.type.no-ellipsis` for
+  [`grammar.type.rest.elsewhere`](02-grammar.md#r-grammar.type.rest.elsewhere)
+  and [`types.tuple.rest.list`](04-type-system.md#r-types.tuple.rest.list);
+  `expr.call.spread.tuple` for
+  [`expr.call.spread.inputs`](05-expressions.md#r-expr.call.spread.inputs);
+  `fn.vararg.infer-tuple` for
+  [`fn.vararg.tuple-param.expected`](07-functions.md#r-fn.vararg.tuple-param.expected)
+  and [`fn.vararg.tuple-param.infer`](07-functions.md#r-fn.vararg.tuple-param.infer);
+  and `trait.by.generated.variadic`, merged into
+  [`trait.by.generated`](09-traits.md#r-trait.by.generated).

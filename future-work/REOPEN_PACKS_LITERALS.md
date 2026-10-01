@@ -14,7 +14,11 @@ prototype code.
 > `-(5s)` (Q3), and a suffix parameter's default kept (Q4, reversing C2);
 > see [B1 As Applied In 31c](#b1-as-applied-in-31c). Examples below that
 > use packs show the language before 31b, and the B1 corners show it
-> before 31c.
+> before 31c. Batch 33 answered 31a's open vararg question with
+> TUPLE-REST, applied in 33a: a tuple type may end in a rest element
+> `List[T]...`, and function values keep a `List[T]` vararg
+> ([Rest Elements](../spec/04-type-system.md#rest-elements),
+> [Vararg Inputs](../spec/07-functions.md#vararg-inputs)).
 
 The owner reopened two features on 2026-09-30, after the
 [Syntax And Semantics Cost Review](SYNTAX_SEMANTICS_COST.md) marked them

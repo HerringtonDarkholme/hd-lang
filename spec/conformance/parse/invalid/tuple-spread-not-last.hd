@@ -1,0 +1,4 @@
+# test: a spread in a tuple expression must be its last element
+
+fn early(xs: List[i32]) -> void:
+    _ := (xs..., 1)  # diagnostic: syntax-error

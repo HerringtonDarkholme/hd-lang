@@ -1,0 +1,17 @@
+# test: a function value keeps a List vararg, so it collects separate arguments or takes a list spread
+# expect: test
+use std.testing.assert_equal
+
+fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
+
+fn apply(callback: fn(i32, i32, List[i32]...) -> i32) -> i32:
+    callback(1, 2, 3, 4)
+
+tests:
+    it("a function value is called with varargs"):
+        f := g
+        xs := [5, 6, 7]
+        assert_equal(f(1, 2, 3, 4), 5, reason="separate arguments are collected")
+        assert_equal(f(1, 2), 3, reason="an empty vararg")
+        assert_equal(f(1, 2, xs...), 6, reason="a list spread at the vararg")
+        assert_equal(apply(g), 5, reason="the vararg function fits a rest function type")

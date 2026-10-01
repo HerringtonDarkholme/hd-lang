@@ -1,0 +1,13 @@
+# test: a rest element may end a tuple type or a function type's parameter list, and a list spread may end a tuple expression
+# expect: parse
+
+fn total(pair: (i32, List[i32]...), callback: fn(i32, List[i32]...) -> i32) -> i32:
+    callback(pair...)
+
+fn only(values: (List[i32]...,)) -> i32: values._0.len()
+
+fn build(xs: List[i32]) -> (i32, List[i32]...):
+    (1, xs...)
+
+fn lone(xs: List[i32]) -> (List[i32]...,):
+    (xs...,)

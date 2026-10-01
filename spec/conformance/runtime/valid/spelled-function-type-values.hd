@@ -24,12 +24,12 @@ fn apply(callback: Fn[(i32,), i32, $()], value: i32) -> i32:
 fn apply_row(callback: Fn[(i32,), i32, Scale], value: i32) -> i32 $ Scale:
     callback(value)
 
-fn spread(callback: Fn[(string, List[i32]), i32, $()]) -> i32:
-    callback("n", [1, 2, 3])
+fn spread(callback: Fn[(string, List[i32]...), i32, $()]) -> i32:
+    callback("n", 1, 2, 3)
 
 tests:
     it("spelled function types call like the sugar"):
         assert_equal(apply(inc, 1), 2, reason="the spelled type is the sugar type")
-        assert_equal(spread(count), 3, reason="a vararg function value takes its collected list")
+        assert_equal(spread(count), 3, reason="a vararg function value keeps its rest element")
         $.with(Scale=Triple { value: 0 }):
             assert_equal(apply_row(scaled, 2), 6, reason="the row argument is the requirement row")

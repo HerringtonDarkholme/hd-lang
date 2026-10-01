@@ -1,4 +1,4 @@
-# test: a tuple type takes no ellipsis after an element
+# test: a tuple type whose only element is a rest element keeps the trailing comma
 
 fn first(values: (i32...)) -> i32:  # diagnostic: syntax-error
     0

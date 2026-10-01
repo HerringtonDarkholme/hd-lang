@@ -439,6 +439,39 @@ point := (10, 20)
 See also: [Bang And Dot Tokens](02-grammar.md#bang-and-dot-tokens), which
 rejects the former spelling `point.0`.
 
+#### Tuple Rest Elements
+
+A tuple expression fills a [rest element](04-type-system.md#rest-elements)
+as a call fills a vararg: it collects separate elements, or it spreads a
+list:
+
+```text
+fn total(values: (i32, i32, List[i32]...)) -> i32:
+    values._0 + values._1 + values._2.len()
+
+fn run(xs: List[i32]) -> i32:
+    let t: (i32, i32, List[i32]...) = (1, 2, 3, 4)
+    total(t) + total((1, 2)) + total((1, 2, xs...))
+```
+
+1. r[expr.tuple.rest.collect] Against an expected tuple type with a rest element `List[T]...`, a tuple expression's elements fill the fixed elements one each, in order. The elements after them are collected into the rest element, each checked against `T`. Too few elements is an error. Error: `type-mismatch`.
+2. r[expr.tuple.rest.spread] A spread `xs...` that ends a tuple expression supplies the rest element: the elements before it are the fixed elements, and `xs` is the rest element's list. Against an expected type, both must match it. Error: `type-mismatch`.
+3. r[expr.tuple.rest.spread.list] The spread operand must be a `List[T]`, which gives the rest element `List[T]...`. A tuple or any other operand is an error. Error: `type-mismatch`.
+4. r[expr.tuple.rest.value] The resulting tuple's rest element is a `List[T]` that holds the collected elements in order, or the spread operand's list.
+
+```text
+fn short() -> (i32, i32, List[i32]...):
+    (1,)  # error: type-mismatch
+
+fn joined(pair: (i32, i32)) -> (i32, i32, i32):
+    (1, pair...)  # error: type-mismatch
+```
+
+> **Why.** One collection rule serves calls and tuple expressions, so a
+> value of a function's inputs tuple is written as its call's arguments
+> are. A tuple is never spread into another: there is no tuple
+> concatenation.
+
 ### List And Map Expressions
 
 A list literal produces a list, and a map literal produces a map:
@@ -804,27 +837,28 @@ fn area() -> i32:
 #### Positional Spreads
 
 A **positional spread** `x...` passes the value `x` in place of separate
-arguments. A tuple fills fixed parameters, and a vararg takes a value of its
-own type:
+arguments. A tuple fills the callee's remaining inputs, and a vararg takes a
+value of its own type:
 
 ```text
 fn add(a: i32, b: i32) -> i32: a + b
 fn sum(values...: List[i32]) -> i32: values.len()
+fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
 
-fn spreads(pair: (i32, i32), items: List[i32]) -> i32:
-    add(pair...) + sum(items...) + sum(1, 2)
+fn spreads(pair: (i32, i32), items: List[i32], t: (i32, i32, List[i32]...)) -> i32:
+    add(pair...) + sum(items...) + sum(1, 2) + g(t...)
 ```
 
 1. r[expr.call.spread] An argument ending in `...` is a positional spread.
 2. r[expr.call.spread.one] A call has at most one positional spread; it must be the final positional argument and therefore precedes every named argument. Error: `nonfinal-positional-spread`.
 3. r[expr.call.spread.fills] A spread operand of type `X` is evaluated once and fills what `X` describes, as the table below states.
 
-| Rule | Where the spread stands | `X` must be assignable to | It fills |
+| Rule | Where the spread stands | `X` must be | It fills |
 | --- | --- | --- | --- |
-| r[expr.call.spread.at-vararg] At a vararg | the next positional parameter is a [vararg](07-functions.md#varargs) | the vararg's type | the vararg, as its collected value |
-| r[expr.call.spread.tuple] Before fixed parameters | any other position | the tuple of the remaining positional parameter types | each remaining parameter with one element, in order |
+| r[expr.call.spread.at-vararg] At a vararg | the next positional parameter is a [vararg](07-functions.md#varargs) | assignable to the vararg's type | the vararg, as its collected value |
+| r[expr.call.spread.inputs] Before fixed parameters | any other position | the same type as the tuple of the callee's remaining inputs, which keeps a [rest element](04-type-system.md#rest-elements) | each remaining parameter with one element, in order, and a `List[T]` vararg with the rest element's list |
 
-4. r[expr.call.spread.mismatch] An operand that is not assignable to the type the table requires is an error. Error: `type-mismatch`.
+4. r[expr.call.spread.mismatch] An operand that does not meet the table's requirement is an error. Error: `type-mismatch`.
 5. r[expr.call.spread.list-needs-vararg] A `List[T]` operand where the next positional parameter is not a vararg is an error. Error: `positional-spread-needs-vararg`.
 6. r[expr.call.vararg-by-name.exclusive] A call that passes a vararg by name must not also supply positional values for that vararg.
 
@@ -834,6 +868,22 @@ fn fixed(value: i32) -> i32: value
 
 fn triple(values: (i32, i32, i32)) -> i32: add(values...)  # error: type-mismatch
 fn total(values: List[i32]) -> i32: fixed(values...)       # error: positional-spread-needs-vararg
+```
+
+A function with a `List[T]` vararg takes a tuple whose rest element stands
+for it, and a function with a plain `List[T]` parameter takes a tuple
+without one:
+
+```text
+fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
+fn h(a: i32, b: i32, xs: List[i32]) -> i32: a + b + xs.len()
+
+fn valid(t: (i32, i32, List[i32]...), u: (i32, i32, List[i32])) -> i32:
+    g(t...) + h(u...)
+
+fn crossed(t: (i32, i32, List[i32]...), u: (i32, i32, List[i32])) -> i32:
+    g(u...)  # error: type-mismatch
+    h(t...)  # error: type-mismatch
 ```
 
 > **Note.** For a function value of type `Fn[Args, O, R]`, the remaining

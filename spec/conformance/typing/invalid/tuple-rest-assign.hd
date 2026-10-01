@@ -1,0 +1,4 @@
+# test: no conversion removes a rest element, so a rest tuple does not convert to a tuple without one
+
+fn plain(values: (i32, List[i32]...)) -> (i32, List[i32]):
+    values  # diagnostic: type-mismatch

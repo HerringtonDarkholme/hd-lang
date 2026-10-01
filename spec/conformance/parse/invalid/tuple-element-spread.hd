@@ -1,4 +1,4 @@
-# test: a tuple element takes no spread
+# test: a spread alone in a tuple expression keeps the trailing comma, so (values...) is an error
 
 fn wrap(values: List[i32]) -> void:
     _ := (values...)  # diagnostic: syntax-error

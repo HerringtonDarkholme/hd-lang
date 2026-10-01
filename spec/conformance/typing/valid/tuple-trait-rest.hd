@@ -1,0 +1,8 @@
+# test: a tuple type with a rest element implements Tuple
+# expect: accept
+use std.function.Tuple
+
+fn arity[T < Tuple](value: T) -> i32: 0
+
+fn check(t: (i32, List[i32]...), only: (List[string]...,)) -> i32:
+    arity(t) + arity(only)
