@@ -134,6 +134,11 @@ done
 
 node --experimental-strip-types "$spec_dir/reference-parser/index.ts" "$manifest" "$spec_dir/conformance"
 node --experimental-strip-types "$spec_dir/check-spec-anchors.ts" "$spec_dir" "$manifest"
+# Dead rule citations (tools/README.md): citing a rule ID the chapters no
+# longer define fails in spec/, fixtures, guide/, and lib/std, unless the line
+# records history; records and src/ comments only warn.
+node --experimental-strip-types "$spec_dir/tools/spec.ts" refs --dead --brief ||
+    fail "a dead rule citation in spec/, a fixture, guide/, or lib/std (npm run spec -- refs --dead)"
 # Tiers (conformance/README.md): a language-tier fixture imports no item that
 # conformance/stdlib-items.tsv lists, except as conformance/tier-crossings.tsv
 # records; each crossing row must still hold.

@@ -92,8 +92,8 @@ pub trait IndexSet[K, V]:
 
 # The built-in implementations (spec/05-expressions.md#built-in-implementations).
 # Each body is the built-in indexing of its type, with its checks and
-# panics, except that `Map`'s `index` returns `V` and panics on a missing
-# key (r-expr.index.std.map-read).
+# panics: `Map`'s `index` returns `V` and panics on a missing key
+# (spec/05-expressions.md#r-expr.index.map.read-value).
 impl[T] Index[i32] for List[T]:
     type Out = T
     fn index(self, key: i32) -> T: self[key]

@@ -67,6 +67,13 @@ Owner direction, 2026-09-28; tiers from
 Until a migration task moves a section, its rules and fixtures stay where
 they are, even when the tier test says stdlib.
 
+## Spec Text Tools
+
+Batch agents take rule counts from `npm run spec -- counts`, not from a
+hand-written script. `npm run spec -- audit` reports STYLE.md warnings, and
+`npm run spec -- refs ID` lists every citation of a rule. See
+[spec/tools/README.md](spec/tools/README.md).
+
 ## Writing hd Code: Model Choice And A Feedback Log
 
 When a task is **writing hd programs**, pick the model by what the code is

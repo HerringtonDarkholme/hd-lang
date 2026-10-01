@@ -17,6 +17,7 @@
     "test:portable": "node --experimental-strip-types test/run-portable.ts",
     "toolchain:gate": "node --experimental-strip-types src/toolchain-gate.ts",
     "hd": "node --experimental-strip-types src/cli.ts",
+    "spec": "node --experimental-strip-types spec/tools/spec.ts",
     "website:build": "node --experimental-strip-types website/build.ts",
     "website:dev": "node --experimental-strip-types website/serve.ts",
     "website:e2e": "node --experimental-strip-types website/e2e.ts"

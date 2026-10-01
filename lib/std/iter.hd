@@ -134,7 +134,7 @@ impl[T, C < FromIterator[T]] FromIterator[T?] for C?:
         if missing: .None else: .Some(collected)
 
 # A loop over an iterator continues its traversal
-# (spec/06-control-flow.md#r-flow.for.iterator-self).
+# (spec/06-control-flow.md#r-flow.for.iterator-direct).
 impl[T] Iterable[T] for Iterator[T]:
     fn iter(self) -> mut Iterator[T]:
         Iterator::from_fn(self.step)

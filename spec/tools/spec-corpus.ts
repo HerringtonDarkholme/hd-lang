@@ -1,0 +1,134 @@
+// The specification as the spec text tools (spec/tools/spec.ts) see it: every
+// chapter, numbered or stdlib, with its rule inventory and its sections.
+//
+// It builds on rule-inventory.ts and spec-prose.ts and adds no Markdown
+// parsing of its own. It imports only Node built-ins and spec/.
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { inventory, type Inventory, type Rule } from "./rule-inventory.ts";
+import { blocks, type Block, CHAPTER_PREFIXES, knownCodes, STD_DIRECTORY } from "./spec-prose.ts";
+
+export const SPEC_ROOT = resolve(import.meta.dirname, "..");
+export const REPO_ROOT = resolve(SPEC_ROOT, "..");
+
+export type Tier = "language" | "std";
+
+/** A heading and the lines it governs, up to the next heading of any level. */
+export interface Section {
+  readonly title: string;
+  readonly level: number;
+  readonly line: number;
+  /** The last line of the section, inclusive. */
+  readonly end: number;
+  /** The titles of the enclosing headings, outermost first, ending with this one. */
+  readonly trail: readonly string[];
+}
+
+export interface Chapter {
+  /** The path under spec/, as in `08-data-and-enums.md` or `std/iter.md`. */
+  readonly name: string;
+  readonly tier: Tier;
+  /** The rule-ID prefix from CHAPTER_PREFIXES; undefined for a chapter the table lacks. */
+  readonly prefix: string | undefined;
+  readonly text: string;
+  readonly blocks: readonly Block[];
+  readonly inventory: Inventory;
+  readonly sections: readonly Section[];
+}
+
+export interface Corpus {
+  readonly specRoot: string;
+  readonly readme: string;
+  readonly controlFlow: string;
+  /** README Diagnostics codes and the panic categories, as rule-inventory.ts reads them. */
+  readonly known: ReadonlySet<string>;
+  readonly chapters: readonly Chapter[];
+}
+
+/** The chapter paths under `specRoot`: the numbered language chapters, then spec/std/ without its README. */
+export function chapterNames(specRoot: string): string[] {
+  const list = (directory: string): string[] => {
+    try {
+      return readdirSync(resolve(specRoot, directory)).sort();
+    } catch {
+      return [];
+    }
+  };
+  return [
+    ...list(".").filter((name) => /^\d\d-.*\.md$/.test(name)),
+    ...list(STD_DIRECTORY)
+      .filter((name) => name.endsWith(".md") && name !== "README.md")
+      .map((name) => `${STD_DIRECTORY}/${name}`),
+  ];
+}
+
+/** The sections of a chapter, from its heading blocks. */
+export function sectionsOf(text: string, parsed: readonly Block[]): Section[] {
+  const lines = text.split(/\r?\n/);
+  const headings = parsed.filter((block) => block.kind === "heading");
+  const stack: { level: number; title: string }[] = [];
+  return headings.map((heading, index) => {
+    const level = /^#+/.exec(lines[heading.line - 1] ?? "")?.[0].length ?? 1;
+    while (stack.length > 0 && stack.at(-1)!.level >= level) stack.pop();
+    stack.push({ level, title: heading.text.trim() });
+    const next = headings[index + 1];
+    return {
+      title: heading.text.trim(),
+      level,
+      line: heading.line,
+      end: next ? next.line - 1 : lines.length,
+      trail: stack.map((entry) => entry.title),
+    };
+  });
+}
+
+/** The innermost section holding `line`. */
+export function sectionAt(chapter: Chapter, line: number): Section | undefined {
+  return chapter.sections.findLast((section) => section.line <= line);
+}
+
+export function loadChapter(
+  specRoot: string,
+  name: string,
+  known: ReadonlySet<string>,
+  text = readFileSync(resolve(specRoot, name), "utf8"),
+): Chapter {
+  const parsed = blocks(text);
+  return {
+    name,
+    tier: name.startsWith(`${STD_DIRECTORY}/`) ? "std" : "language",
+    prefix: CHAPTER_PREFIXES[name],
+    text,
+    blocks: parsed,
+    inventory: inventory(name, text, known),
+    sections: sectionsOf(text, parsed),
+  };
+}
+
+export function loadCorpus(specRoot = SPEC_ROOT): Corpus {
+  const read = (name: string): string => {
+    try {
+      return readFileSync(resolve(specRoot, name), "utf8");
+    } catch {
+      return "";
+    }
+  };
+  const readme = read("README.md");
+  const controlFlow = read("06-control-flow.md");
+  const known = knownCodes(readme, controlFlow);
+  return {
+    specRoot,
+    readme,
+    controlFlow,
+    known,
+    chapters: chapterNames(specRoot).map((name) => loadChapter(specRoot, name, known)),
+  };
+}
+
+/** Every rule in the corpus with the chapter that holds it. */
+export function allRules(corpus: Corpus): { chapter: Chapter; rule: Rule }[] {
+  return corpus.chapters.flatMap((chapter) =>
+    chapter.inventory.rules.map((rule) => ({ chapter, rule })),
+  );
+}
