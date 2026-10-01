@@ -1,26 +1,32 @@
 # Typed Derivation: Open Points
 
+> **Archived 2026-10-01.** Decisions M1-M30, SR1, and SIMPLE are applied,
+> and the [specification](../../spec/README.md) is authoritative. The four
+> open points moved to
+> [Open Issues](../OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets). The record is kept as
+> history, so its examples and rule IDs may describe retired rules.
+
 Status: open. Nothing here is accepted behavior. Owner decisions M1-M30
 (2026-09-26 to 2026-09-29) decide typed derivation, and all of them
-are applied in [Typed Derivation](../spec/14-annotations.md#typed-derivation),
-with grammar in [02](../spec/02-grammar.md#traits-and-implementations) and
-rules in [08](../spec/08-data-and-enums.md#typed-derivation-of-data-and-enums)
-and [09](../spec/09-traits.md#derived-implementations). The specification is
+are applied in [Typed Derivation](../../spec/14-annotations.md#typed-derivation),
+with grammar in [02](../../spec/02-grammar.md#traits-and-implementations) and
+rules in [08](../../spec/08-data-and-enums.md#typed-derivation-of-data-and-enums)
+and [09](../../spec/09-traits.md#derived-implementations). The specification is
 authoritative. The survey, the design options, the worked examples, and
 the three stress tests behind the decisions are in git history.
 
 Error derivation is the separate `@error` intrinsic, applied in
-[Error Derivation](../spec/14-annotations.md#error-derivation).
+[Error Derivation](../../spec/14-annotations.md#error-derivation).
 
-The prototype implements M1-M29 by lowering ([src/README.md](../src/README.md)).
-Its gaps are rows of [KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv),
+The prototype implements M1-M29 by lowering ([src/README.md](../../src/README.md)).
+Its gaps are rows of [KNOWN_FAILURES.tsv](../../test/portable/KNOWN_FAILURES.tsv),
 mostly `K1` (the shape intrinsics) and `F-250`, plus one `M29` fixture that
 needs package roles.
 
 ## Owner Decisions M30 (2026-09-29)
 
 The owner answered the leftover points; all are applied (2026-09-29) in
-[Typed Derivation](../spec/14-annotations.md#typed-derivation). There is
+[Typed Derivation](../../spec/14-annotations.md#typed-derivation). There is
 no fact check hook (readers validate); `T -> U` mapping is out of scope;
 generated `walk`, `describe`, and `build` keep their names; the derived
 bound needs no rule change; plan constants, typed shared constants, and
@@ -35,13 +41,13 @@ and the derived-function cache (std).
 ## Owner Decision SR1 (2026-09-30)
 
 Batch 17, applied (2026-09-30) in
-[`annot.structure.self-ref-field`](../spec/14-annotations.md#r-annot.structure.self-ref-field),
-[Self References](../spec/14-annotations.md#self-references), and
-[Derived Arbitrary](../spec/std/testing.md#derived-arbitrary). The owner
+[`annot.structure.self-ref-field`](../../spec/14-annotations.md#r-annot.structure.self-ref-field),
+[Self References](../../spec/14-annotations.md#self-references), and
+[Derived Arbitrary](../../spec/std/testing.md#derived-arbitrary). The owner
 chose compiler-supplied information over an intrinsic `Arbitrary` (testing
 point PT-d), then generalized it for every template. Points left open by
 applying it are in
-[Open Issues](OPEN_ISSUES.md#readings-waiting-for-confirmation).
+[Open Issues](../OPEN_ISSUES.md#readings-waiting-for-confirmation).
 
 | Part | Decision |
 | --- | --- |
@@ -66,7 +72,7 @@ Uses the owner listed:
 
 Batch 20. The owner accepted the recommendation to restate `self_ref`
 structurally in chapter 14, with no "simplest value" concept. The
-[Draw Budget](../spec/std/testing.md#draw-budget)'s simplest values then
+[Draw Budget](../../spec/std/testing.md#draw-budget)'s simplest values then
 agree with it by construction. It answers SR-enum and SR-args, which
 applying SR1 left open.
 
@@ -74,12 +80,12 @@ applying SR1 left open.
 | --- | --- |
 | `.Required` | The member's type is the enclosing type, with any type arguments, or it is a tuple, a data type, `Result`'s `.Ok`, or an enum all of whose variants need it, whose members include a `.Required` one. |
 | Stops | A `List`, `Map`, or `T?` member stops it: at most `.Optional`. |
-| Applied | In [Self References](../spec/14-annotations.md#self-references), with [Spec Tiers](archive/SPEC_TIERS.md#migration-plan) migration step 5. Points left open are in [Open Issues](OPEN_ISSUES.md#readings-waiting-for-confirmation). |
+| Applied | In [Self References](../../spec/14-annotations.md#self-references), with [Spec Tiers](SPEC_TIERS.md#migration-plan) migration step 5. Points left open are in [Open Issues](../OPEN_ISSUES.md#readings-waiting-for-confirmation). |
 
 ## Remaining Open
 
 Nothing below is decided. Each item waits for the owner. The specification
-lists them as [Undecided Parts](../spec/14-annotations.md#undecided-parts).
+lists them as [Undecided Parts](../../spec/14-annotations.md#undecided-parts).
 
 - **Non-escaping handles** (M18 R5). Whether the NonEscapable design (TQ-24
   to TQ-26) makes handles non-escaping once it is ready.
@@ -90,11 +96,11 @@ lists them as [Undecided Parts](../spec/14-annotations.md#undecided-parts).
 - **Function targets.** Deriving for functions waits for
   [FN_TYPE](FN_TYPE.md) questions 9 and 10. An ordinary decorator before a
   function already attaches a value
-  ([Prefix Decorators](../spec/14-annotations.md#prefix-decorators)).
+  ([Prefix Decorators](../../spec/14-annotations.md#prefix-decorators)).
 
 ## Readings Awaiting Confirmation
 
 None. M30 confirmed every reading of the M26 apply pass, and the
 specification states each under
-[Trait-Less Derivation Blocks](../spec/14-annotations.md#trait-less-derivation-blocks)
-and in [`trait.by.trait-less.error`](../spec/09-traits.md#r-trait.by.trait-less.error).
+[Trait-Less Derivation Blocks](../../spec/14-annotations.md#trait-less-derivation-blocks)
+and in [`trait.by.trait-less.error`](../../spec/09-traits.md#r-trait.by.trait-less.error).

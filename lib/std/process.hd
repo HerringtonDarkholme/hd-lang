@@ -1,5 +1,5 @@
 # std.process: exit status (spec/10-modules.md#exit-status) and subprocesses
-# (future-work/STDLIB.md#stdprocess). WASI has no subprocess interface, so no
+# (future-work/archive/STDLIB.md#stdprocess). WASI has no subprocess interface, so no
 # prototype runtime profile binds a host `Process`; `ScriptedProcess` is the
 # deterministic provider.
 

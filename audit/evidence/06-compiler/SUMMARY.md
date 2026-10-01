@@ -262,7 +262,7 @@ Two questions from this phase are answered. Module initialization counts a
 trait call through a bound or a dynamic value as reaching every
 implementation of the method in the module (chapter 10). Replay code
 identity is a hash of the module's semantic content, per the Replay Rules in
-`future-work/RUNTIME_AND_LIBRARY.md`; F-401 tracks the prototype.
+`future-work/archive/RUNTIME_AND_LIBRARY.md`; F-401 tracks the prototype.
 
 ## Not Done
 

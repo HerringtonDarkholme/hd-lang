@@ -1,4 +1,4 @@
-# std.cmp (future-work/STDLIB.md#stdcmp-stdhash-stdformat). `Eq`,
+# std.cmp (future-work/archive/STDLIB.md#stdcmp-stdhash-stdformat). `Eq`,
 # `PartialOrd`, `Ord`, and `Ordering` are prelude names, declared here
 # (spec/09-traits.md#comparison-traits).
 use std.structure.{Structure, Walker, Variant, Field}

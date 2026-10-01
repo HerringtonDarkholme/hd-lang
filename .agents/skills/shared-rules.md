@@ -31,7 +31,7 @@ before relying on one, because they change.
 
 - hd is written mostly by coding agents and read by humans: explicitness
   over inference where it adds a guarantee, and no action at a distance
-  ([Roadmap, area 8](../../future-work/ROADMAP.md#8-tooling-for-agents)).
+  ([Roadmap](../../future-work/ROADMAP.md#direction)).
 - Fewer mechanisms beat more: reuse an existing rule before adding one. Past
   cuts: `mut fn` removed (closures mutate captures freely), errors derived by
   the one `@error` intrinsic instead of derivation machinery, no marker templates,
@@ -60,7 +60,7 @@ Library" states the tier test and where each kind of rule goes.
   Order", is a stdlib-tier item.
 - A language-tier rule, example, or fixture never depends on a
   stdlib-tier item. Undecided std design stays in
-  [future-work/STDLIB.md](../../future-work/STDLIB.md).
+  [future-work/OPEN_ISSUES.md](../../future-work/OPEN_ISSUES.md).
 
 ## Writing
 

@@ -963,7 +963,7 @@ fn first_name() -> string:
 ### Program Instances
 
 1. r[module.init.per-instance] This initialization rule governs one program instance.
-2. r[module.init.histories] Interactive cell re-execution and durable replay have separate runtime histories described in [`RUNTIME_AND_LIBRARY.md`](../future-work/RUNTIME_AND_LIBRARY.md).
+2. r[module.init.histories] Interactive cell re-execution and durable replay have separate runtime histories described in [`RUNTIME_AND_LIBRARY.md`](../future-work/archive/RUNTIME_AND_LIBRARY.md).
 
 ## Public Uses And Visibility
 

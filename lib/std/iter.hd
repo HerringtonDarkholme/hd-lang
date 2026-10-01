@@ -1,7 +1,7 @@
 # std.iter: the prelude `Iterator[T]` with its adapters, `FromIterator` and
 # its implementations, the `Iterable` implementations of `List` and `Map`,
 # and `range`
-# (future-work/STDLIB.md#stditer). `Iterator` and `Iterable` are prelude
+# (future-work/archive/STDLIB.md#stditer). `Iterator` and `Iterable` are prelude
 # names.
 #
 # `Iterator[T]` is a data type whose private `step` closure yields the next

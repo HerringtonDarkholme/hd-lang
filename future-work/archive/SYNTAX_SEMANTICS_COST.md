@@ -10,7 +10,7 @@ text, or prototype code, and nothing in it is accepted behavior. It covers
 the special syntax forms and semantic rule exceptions of the language tier,
 chapters [01](../../spec/01-lexical-structure.md) to
 [14](../../spec/14-annotations.md). It builds on the inventory in
-[Special Cases](../SPECIAL_CASES.md) and the open map-read question in
+[Special Cases](SPECIAL_CASES.md) and the open map-read question in
 [Call Indexing](CALL_INDEXING.md#q4-map-read-type).
 
 The owner wrote: "i don't think error code is the most important
@@ -473,7 +473,7 @@ so the rule guarded nothing that `source.iter()` does not already allow.
 | Merge `:=` into `let` | Both forms are used about 210 times each in real code, and each carries one permission. Swift and Kotlin also spend two keywords. |
 | Allow `if` inside a same-line suite | Needs a new dangling-`else` rule, so it is a design option, not a cut. Python also bans it. |
 | Drop the test-body result rule chosen by `?` | Needs an implicit `.Ok()`, a new rule. Decided in T15. |
-| Replace comprehensions with adapters | Nested `for` clauses need a `flat_map` the prelude lacks, as [Special Cases](../SPECIAL_CASES.md#cuts-considered-and-not-proposed) found. |
+| Replace comprehensions with adapters | Nested `for` clauses need a `flat_map` the prelude lacks, as [Special Cases](SPECIAL_CASES.md#cuts-considered-and-not-proposed) found. |
 | Drop `*_test.hd` test modules for `tests:` blocks | One tree fixture uses them, and a long suite needs its own file. |
 
 ## Reopen Candidates
@@ -542,7 +542,7 @@ Rust's `Deref` is the closest, and its docs discourage it for this use
 ([Rust][rust-deref]).
 
 **Decided by.** VE1-VE4, VE-S, the embedding limits, and the trait
-delegation decision; see [Special Cases R54-R56](../SPECIAL_CASES.md#rule-exceptions).
+delegation decision; see [Special Cases R54-R56](SPECIAL_CASES.md#rule-exceptions).
 
 ### R2. Literal Suffixes And String Prefixes
 

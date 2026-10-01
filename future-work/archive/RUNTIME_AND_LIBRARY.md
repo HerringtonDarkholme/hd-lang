@@ -1,6 +1,11 @@
 # hd-lang Runtime and Library Design
 
-This document covers standard-library, tooling, and runtime facilities built on hd-lang's core language semantics. The normative syntax and language-level model live in the [formal specification](../spec/README.md); the [language tour](../guide/LANGUAGE_TOUR.md) is the readable introduction.
+> **Archived 2026-10-01.** The [specification](../../spec/README.md) is
+> authoritative, and open runtime, library, and tooling work is listed in
+> [Open Issues](../OPEN_ISSUES.md#runtime-library-abi-and-tooling-work). The record is kept as
+> history, so its examples and rule IDs may describe retired rules.
+
+This document covers standard-library, tooling, and runtime facilities built on hd-lang's core language semantics. The normative syntax and language-level model live in the [formal specification](../../spec/README.md); the [language tour](../../guide/LANGUAGE_TOUR.md) is the readable introduction.
 
 ## Testing
 
@@ -27,14 +32,14 @@ describes the runner, the command line, and the testing library around them.
 
 | Topic | Specification |
 | --- | --- |
-| The `tests:` block and its items | [Test Blocks](../spec/02-grammar.md#test-blocks) |
-| `_test.hd` test modules, integration tests under `tests/`, test dependencies | [Test Modules](../spec/10-modules.md#test-modules) |
-| `assert` and `assert_equal` | [Standard Testing](../spec/10-modules.md#standard-testing) |
-| `it`, its options, `it_each`, and test position | [Test Cases](../spec/10-modules.md#test-cases), [Test Timeout](../spec/std/testing.md#test-timeout), [Table-Test Rows](../spec/std/testing.md#table-test-rows) |
-| `snapshot` and `snapshot_file` | [Snapshots](../spec/10-modules.md#snapshots), [Snapshot Files](../spec/std/testing.md#snapshot-files) |
-| `Debug` and `debug` | [Debug Trait](../spec/09-traits.md#debug-trait) |
-| Instances, fakes, providers, pass and fail | [Test Outcomes](../spec/10-modules.md#test-outcomes) |
-| A test body's result and `?` | [Propagation In Test Blocks](../spec/05-expressions.md#propagation-in-test-blocks) |
+| The `tests:` block and its items | [Test Blocks](../../spec/02-grammar.md#test-blocks) |
+| `_test.hd` test modules, integration tests under `tests/`, test dependencies | [Test Modules](../../spec/10-modules.md#test-modules) |
+| `assert` and `assert_equal` | [Standard Testing](../../spec/10-modules.md#standard-testing) |
+| `it`, its options, `it_each`, and test position | [Test Cases](../../spec/10-modules.md#test-cases), [Test Timeout](../../spec/std/testing.md#test-timeout), [Table-Test Rows](../../spec/std/testing.md#table-test-rows) |
+| `snapshot` and `snapshot_file` | [Snapshots](../../spec/10-modules.md#snapshots), [Snapshot Files](../../spec/std/testing.md#snapshot-files) |
+| `Debug` and `debug` | [Debug Trait](../../spec/09-traits.md#debug-trait) |
+| Instances, fakes, providers, pass and fail | [Test Outcomes](../../spec/10-modules.md#test-outcomes) |
+| A test body's result and `?` | [Propagation In Test Blocks](../../spec/05-expressions.md#propagation-in-test-blocks) |
 
 Assertions are ordinary functions from `std.testing`, not language syntax. Assertion functions require an explicit reason:
 
@@ -50,7 +55,7 @@ Specialized functions such as `assert_equal` receive the actual and expected val
 `hd test` makes a test build, which compiles the package's test code, and
 runs every test case. `hd check` checks test code only with `--tests`, as
 `cargo check` does (T42). The runner behaves as the
-[testing redesign](../spec/10-modules.md#test-modules) decided:
+[testing redesign](../../spec/10-modules.md#test-modules) decided:
 
 | Behavior | Rule | Decision |
 | --- | --- | --- |
@@ -123,7 +128,7 @@ Renaming a test, or reordering its `snapshot_file` calls, changes the file
 names; the owner accepted that cost. A mismatch, or a missing file outside
 an update run, fails with `assertion-failed`, as `assert_equal` does
 ([T54](TESTING.md),
-[`std-testing.snapshot.mismatch`](../spec/std/testing.md#r-std-testing.snapshot.mismatch)).
+[`std-testing.snapshot.mismatch`](../../spec/std/testing.md#r-std-testing.snapshot.mismatch)).
 
 | Command | Effect |
 | --- | --- |
@@ -134,7 +139,7 @@ an update run, fails with `assertion-failed`, as `assert_equal` does
 
 Property testing is a library in `std.testing`, not language syntax (T12).
 A property registers with `it_prop` or `it_prop_with`, which a `tests:` block
-admits beside `it` ([Registration Functions](../spec/std/testing.md#registration-functions)):
+admits beside `it` ([Registration Functions](../../spec/std/testing.md#registration-functions)):
 
 ```text
 use std.testing.{assert, it_prop}
@@ -177,7 +182,7 @@ pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choice
 
 `examples` lists inputs that run first on every run, before the saved
 regressions and the generated cases (Testing PT7). The `Choices` API and
-derived `Arbitrary` are in [Property Tests](../spec/std/testing.md#property-tests)
+derived `Arbitrary` are in [Property Tests](../../spec/std/testing.md#property-tests)
 and the [Testing Layer](STDLIB.md#testing-layer) proposal; stateful testing
 waits for the event log.
 
@@ -224,7 +229,7 @@ pub fn main!() -> Result[void, AppError] $ FileRead + Network:
     .Ok()
 ```
 
-The compiler derives and verifies that provider set from the entry point and everything it calls. Package and deployment manifests do not repeat a separate provider-binding list. Host configuration binds concrete providers and their scopes to the derived requirement keys. The official hd runtime implements every standard capability, but injects only the providers granted to a particular invocation. An alternate host may implement a subset. Running or deploying an entry point fails before execution when the selected host cannot bind every required provider. A host provider is used mutably exactly when its trait declares or inherits a `mut self` method, as the stateful services `Clock`, `Random`, `FsWrite`, and `Console` do; profiles mark nothing, and rows never write `mut` ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)). Because provider values are ordinary values, this list is not a complete audit of authority that has escaped through value flow.
+The compiler derives and verifies that provider set from the entry point and everything it calls. Package and deployment manifests do not repeat a separate provider-binding list. Host configuration binds concrete providers and their scopes to the derived requirement keys. The official hd runtime implements every standard capability, but injects only the providers granted to a particular invocation. An alternate host may implement a subset. Running or deploying an entry point fails before execution when the selected host cannot bind every required provider. A host provider is used mutably exactly when its trait declares or inherits a `mut self` method, as the stateful services `Clock`, `Random`, `FsWrite`, and `Console` do; profiles mark nothing, and rows never write `mut` ([Mutable Providers](../../spec/11-requirements-and-suspension.md#mutable-providers)). Because provider values are ordinary values, this list is not a complete audit of authority that has escaped through value flow.
 
 Every host-backed standard-library service is exposed as a trait requirement rather than a global API. `$`, `$.use`, `$.with`, and `$.Context[...]` are therefore the single mechanism for standard filesystem, network, clock, randomness, observability, workflow, and similar runtime services. Pure operations such as collection transforms, arithmetic, and in-memory parsing remain ordinary functions and require no context.
 
@@ -236,7 +241,7 @@ Decided 2026-09-27 (owner answers to this section's questions):
    authority, for example `FsRead`, `FsWrite`, `Net`, `Clock`, `Random`,
    `Env`, `Console`, and `Process`, so a read-only tool asks only for
    `$ FsRead`. Access follows from each trait's methods
-   ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)).
+   ([Mutable Providers](../../spec/11-requirements-and-suspension.md#mutable-providers)).
    The exact list and method sets are still to be written.
 2. **Grants: CLI flags and a manifest run profile, binding only.** Both bind
    each derived requirement key to a compatible host implementation, for
@@ -273,7 +278,7 @@ lives below hd, such as Unicode case mapping or a byte access on
 `string`. The toy prototype in `src/` needed one to move string methods
 out of the compiler, so it uses a prototype-internal line that only
 `lib/std` may write
-([src/README.md](../src/README.md#compilerlibrary-boundary)):
+([src/README.md](../../src/README.md#compilerlibrary-boundary)):
 
 ```text
 @intrinsic("string_lower")
@@ -302,7 +307,7 @@ primitive is an ordinary declaration with a placeholder body.
 ## Package Tooling
 
 Owner decisions DEP1-DEP19 (Go modules in hd spelling) fix the package
-model in [Package Manifest](../spec/10-modules.md#package-manifest). The
+model in [Package Manifest](../../spec/10-modules.md#package-manifest). The
 commands and file formats below are tooling work, not specification.
 Nothing here is decided beyond those decisions; the names follow Go's.
 
@@ -310,15 +315,15 @@ Nothing here is decided beyond those decisions; the names follow Go's.
 | --- | --- | --- |
 | `hd.sum` line format | first | One line per tree and per manifest, as `go.sum` has: path, version, and an `algorithm:hex` tree hash. |
 | Adding and upgrading | first | `hd get PATH@VERSION` adds or raises a requirement and writes `hd.sum`; `hd get -u` moves to the newest tag in the line. |
-| Workspaces | first | A committed workspace manifest with one selection and one `hd.sum`; members require each other with path requirements ([Workspaces](../spec/10-modules.md#workspaces)). |
+| Workspaces | first | A committed workspace manifest with one selection and one `hd.sum`; members require each other with path requirements ([Workspaces](../../spec/10-modules.md#workspaces)). |
 | Pseudo-versions | first | `hd get PATH@COMMIT` writes the pseudo-version of that commit. |
 | Private paths | first | Where the private-path pattern is set, such as an environment variable like Go's `GOPRIVATE`. Fetches go through `git` and its credential helpers. |
-| Compatibility check | later | `hd api diff` compares interface files; `hd release` runs it before tagging, and `hd get -u` before upgrading ([Packages §3.3](PACKAGES.md#33-the-checked-compatibility-rule)). |
+| Compatibility check | later | `hd api diff` compares interface files; `hd release` runs it before tagging, and `hd get -u` before upgrading ([Packages §3.3](../PACKAGES.md#33-the-checked-compatibility-rule)). |
 | Vendoring | later | `hd vendor` writes `vendor/`, which builds use when present. |
 | Local-path patches | later | A root-only `[patch]` that replaces a host path with a local tree, hashed into the durable replay code identity. |
 
 Every command stays non-interactive and accepts `--format json`, as
-[Packages §8](PACKAGES.md#8-agent-first-cli) drafts.
+[Packages §8](../PACKAGES.md#8-agent-first-cli) drafts.
 
 ## Persistence and Resumption
 
@@ -341,7 +346,7 @@ On replay, the runtime re-executes the entry function from the start:
 2. A host call whose event was started but has no recorded result is handled by the in-flight policy in Replay Rules.
 3. When execution reaches the end of the history, the instance switches to live execution and continues. Reaching the end of the history is not an exit.
 
-The language guarantees that code between host calls is deterministic ([Runtime Boundary](../spec/11-requirements-and-suspension.md#runtime-boundary)): an instance's behavior depends only on its code identity, runtime profile, entry arguments, and the ordered host-call results and wake and cancellation events it receives, apart from the exceptions listed there. Time, randomness, and external reads are host calls, so their results enter the history like any other input. Which host calls the history holds, and how events are matched to calls, are decided in Replay Rules below.
+The language guarantees that code between host calls is deterministic ([Runtime Boundary](../../spec/11-requirements-and-suspension.md#runtime-boundary)): an instance's behavior depends only on its code identity, runtime profile, entry arguments, and the ordered host-call results and wake and cancellation events it receives, apart from the exceptions listed there. Time, randomness, and external reads are host calls, so their results enter the history like any other input. Which host calls the history holds, and how events are matched to calls, are decided in Replay Rules below.
 
 ### Replay Rules
 
@@ -351,12 +356,12 @@ These rules are decided (Durable Replay decisions 1-17, 2026-09-26 and 2026-09-2
 - **Interception at the host boundary only.** The runtime intercepts calls where they cross into the host. It does not intercept calls to providers written in hd; those re-execute on replay.
 - **Recording is opt-in.** A run records nothing unless its host or command line asks for recording. A REPL session and an ordinary `hd run` record no history. The recording level is chosen per run, never in source: none (the default), provider calls only, or everything. The levels differ only in output detail: at the provider-calls level an output records a fingerprint, and at the everything level it also records its full arguments; replay behaves the same at both (Durable Replay decision 16). A run that records keeps every event, including in a run that panics and a run that never finishes: the history holds every event up to the panic, or up to the point where the host stops the run.
 - **Code identity.** A history records one code identity: a hash of the semantic content of the entry module and all its transitive dependencies, together with the compiler's semantic version. It is not the hash of the Wasm binary. Any semantic change anywhere in that set, or a new compiler semantic version, invalidates every history recorded against it, and replay rejects such a history. Formatting and comment changes never change the code identity.
-- **Runtime profile.** The runtime profile is part of the provider configuration identity. Replay under a different runtime profile is rejected. The host's stack and memory limits are part of the runtime profile, so a history never replays on a host with different limits ([`req.determinism.limits-profile`](../spec/11-requirements-and-suspension.md#r-req.determinism.limits-profile)). A limit failure itself is outside the replay guarantee: if replay hits a limit the recording did not, or misses one it did, replay reports a limit-divergence error (Durable Replay decision 17).
+- **Runtime profile.** The runtime profile is part of the provider configuration identity. Replay under a different runtime profile is rejected. The host's stack and memory limits are part of the runtime profile, so a history never replays on a host with different limits ([`req.determinism.limits-profile`](../../spec/11-requirements-and-suspension.md#r-req.determinism.limits-profile)). A limit failure itself is outside the replay guarantee: if replay hits a limit the recording did not, or misses one it did, replay reports a limit-divergence error (Durable Replay decision 17).
 - **Inputs and outputs.** The runtime profile marks each host method, suspending or not, as an input or an output. An input's result is recorded, and replay supplies it without the live call. An output records only a fingerprint, and replay suppresses the live call.
 - **Event matching.** Replay matches each event to a call by its order, its provider and method key, and an argument fingerprint. Source site IDs from the compiler's site table appear only in diagnostic messages.
-- **History values.** There is no `Durable` bound. Entry arguments and results, host payloads, and continue-as-new state are boundary-safe values ([Boundary-Safe Values](../spec/10-modules.md#boundary-safe-values)).
-- **Hashing.** The standard `Hasher` is deterministic, seeded per code identity and runtime profile. Hash-flooding defense uses a keyed hasher that the program chooses explicitly ([`req.determinism.hash-seeded`](../spec/11-requirements-and-suspension.md#r-req.determinism.hash-seeded)).
-- **Weak references and finalizers.** They exist only inside the standard runtime, and there are no user-visible finalizers ([`data.repr.runtime-only`](../spec/08-data-and-enums.md#r-data.repr.runtime-only)).
+- **History values.** There is no `Durable` bound. Entry arguments and results, host payloads, and continue-as-new state are boundary-safe values ([Boundary-Safe Values](../../spec/10-modules.md#boundary-safe-values)).
+- **Hashing.** The standard `Hasher` is deterministic, seeded per code identity and runtime profile. Hash-flooding defense uses a keyed hasher that the program chooses explicitly ([`req.determinism.hash-seeded`](../../spec/11-requirements-and-suspension.md#r-req.determinism.hash-seeded)).
+- **Weak references and finalizers.** They exist only inside the standard runtime, and there are no user-visible finalizers ([`data.repr.runtime-only`](../../spec/08-data-and-enums.md#r-data.repr.runtime-only)).
 - **Observability hooks.** Observability and replay use separate hooks. Replay intercepts at the host boundary; observability uses compiler-generated adapters at registered boundaries plus host-boundary events. Both derive their IDs from the execution ID and the event index.
 - **Panics.** A history records a panic by its specification diagnostic name, such as `suspension-invalid-state`, not by an exit status. The exit status stays a runtime-profile mapping.
 - **Pinning and continue-as-new.** A run stays on the code artifact it started with. A long-running workflow reaches new code only through a library `continue_as_new`, which ends the run and hands boundary-safe state to a new run on the new artifact. There are no patch markers.
@@ -561,7 +566,7 @@ Fan-out, filtering, redaction, and sampling are provider composition strategies 
 
 Automatic observations receive stable identities derived from execution ID, boundary ID, attempt, and event kind. Deterministic replay does not re-emit observations for already completed history events. New workflow activations use new attempt identities, exporters may deduplicate by observation ID, and replay diagnostics use separate runtime events.
 
-This provider API is an initial draft. Decided 2026-09-27: custom spans, metric instruments, sampling, and exporter configuration are library API with no syntax (for example `obs.span("load users"):` with a trailing block, and `obs.counter("users.loaded").add(n)`), designed with the standard library. Trace context is carried task-locally by the runtime ([Observability Hooks](OPEN_ISSUES.md#observability-hooks)). Privacy and redaction wait for `Secret[T]`.
+This provider API is an initial draft. Decided 2026-09-27: custom spans, metric instruments, sampling, and exporter configuration are library API with no syntax (for example `obs.span("load users"):` with a trailing block, and `obs.counter("users.loaded").add(n)`), designed with the standard library. Trace context is carried task-locally by the runtime ([Observability Hooks](../OPEN_ISSUES.md#observability-hooks)). Privacy and redaction wait for `Secret[T]`.
 
 ## Resource Lifetime Backlog
 

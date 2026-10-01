@@ -1,6 +1,6 @@
 # Type-Checking Rules: Findings
 
-Roadmap area 2. Scope: Type System (04), Traits (09), Variadic Generics (12),
+Former roadmap area 2. Scope: Type System (04), Traits (09), Variadic Generics (12),
 GADTs (13), and the trait-related parts of 03, 05, 06, 07, 08, 10, 11, 14.
 Audited at commit 158a430; re-checked against the specification on 2026-09-26.
 Resolved findings are removed (TY-01, TY-02, TY-03, TY-06, TY-09, TY-10,

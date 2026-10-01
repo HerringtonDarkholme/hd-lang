@@ -6,7 +6,7 @@ import type { RegressionStore } from "./property-tests.ts";
 // The runner side of `std.testing.snapshot_file` (spec/std/testing.md#snapshot-files,
 // Testing T53). The file is `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`;
 // the slug, counter, and table-row rules are in
-// future-work/RUNTIME_AND_LIBRARY.md#snapshot-tests. A missing file fails the
+// future-work/archive/RUNTIME_AND_LIBRARY.md#snapshot-tests. A missing file fails the
 // test case, except in an update run, which writes it.
 
 interface SnapshotRun {

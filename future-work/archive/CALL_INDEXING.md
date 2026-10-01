@@ -194,7 +194,7 @@ expression, "]"`, and a member suffix may take `function_type_arguments`.
 | [Compound Assignment](../../spec/05-expressions.md#compound-assignment) | `expr.assign.compound.place`, `.once`, `.index-read-write`, `.map-present`, `.map-missing` | `m[k] += 1` reads `V` and panics on a missing key. |
 
 That is 34 `expr.index.*` rules, plus about 10 place and assignment rules
-that name indexing. [Special Cases](../SPECIAL_CASES.md#c9-one-meaning-for-map-indexing)
+that name indexing. [Special Cases](SPECIAL_CASES.md#c9-one-meaning-for-map-indexing)
 already lists the split `Map` read as cut C9, question Q9, still open.
 
 ### Fields, Methods, And Calls
@@ -482,7 +482,7 @@ fn demo() -> void:
 
 `Cell` here is plain data. A signal that tracks readers is library design
 on top, and it waits, as the [Problem](#problem) says.
-[Standard Library Design](../STDLIB.md#module-tree) records that `std.cell` was
+[Standard Library Design](STDLIB.md#module-tree) records that `std.cell` was
 removed, so a cell type is a new std item in any case.
 
 A map, where `m(k)` reads `V` and panics on a missing key, and `get` gives
@@ -798,14 +798,14 @@ numbers.
 | Three calls in a row, `list_of(log, xs)(note(log, "i", 1))` | cannot happen: it would be `list_of(log, xs)[note(log, "i", 1)]` | legal, and only types say which call is the store |
 | Type-name expressions, `Box[i32]::get` and `Shipment[i32] { ... }` | ambiguous again: `values[0]::describe` has the same shape, so they need `::[` too, or a rule by name; see [Q2](#q2-type-name-expressions-under-b) | unchanged: `[` after an operand is always type arguments |
 | Grids and cells, U5 and U6 | not given; a multi-key `Index` would be a separate change | given by the keys tuple |
-| `Map` read type, [Special Cases Q9](../SPECIAL_CASES.md#q9-map-indexing) | stays a separate question | must be decided now: `Apply` has one `Out` ([Q4](#q4-map-read-type)) |
+| `Map` read type, [Special Cases Q9](SPECIAL_CASES.md#q9-map-indexing) | stays a separate question | must be decided now: `Apply` has one `Out` ([Q4](#q4-map-read-type)) |
 | Pipes, `x \|> f[0]` | `f[0]` is always an index, so the placeholder exception can go | `f[0]` is always type arguments, so the exception can go too |
 | Change to std and the tour | small: 3 method sites in std | 39 std index sites and the tour's indexing section |
 
 ### Agent-Writability
 
 hd is written mostly by agents
-([Roadmap, area 8](../ROADMAP.md#8-tooling-for-agents)). Each option breaks
+([Roadmap, area 8](../ROADMAP.md#direction)). Each option breaks
 one habit, and the habits differ in strength.
 
 | Habit an agent brings | B | C1 |
@@ -1062,7 +1062,7 @@ fn head[C < Apply[(i32,)]](items: C) -> C::Out:
 
 1. **`m(k)` reads `V` and panics; `m.get(k)` gives `V?`** (recommended), as
    Scala's `Map.apply` does. This is Special Cases question
-   [Q9](../SPECIAL_CASES.md#q9-map-indexing).
+   [Q9](SPECIAL_CASES.md#q9-map-indexing).
 2. `m(k)` reads `V?`, and compound assignment keeps its own `V` read.
 
 ```text

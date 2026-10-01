@@ -26,7 +26,7 @@ spec. The output is evidence and questions for the owner, never a decision.
 ## Inputs
 
 1. The design record and the exact decisions under test, for example
-   "`future-work/FN_TYPE.md`, questions 9 and 10". Ask the caller if
+   "`future-work/archive/FN_TYPE.md`, questions 9 and 10". Ask the caller if
    the scope is unclear.
 2. Optional: variants to compare (V1, V2a, ...), libraries to translate, or
    an earlier stress test whose problem IDs to reuse.

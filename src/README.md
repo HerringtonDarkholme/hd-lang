@@ -1,7 +1,7 @@
 # hd-lang MVP Compiler
 
-This directory contains the executable Wasm GC MVP described in
-[MVP_IMPLEMENTATION_PLAN.md](MVP_IMPLEMENTATION_PLAN.md). The implementation is
+This directory contains the executable Wasm GC MVP described in the archived
+[MVP_IMPLEMENTATION_PLAN.md](../future-work/archive/MVP_IMPLEMENTATION_PLAN.md). The implementation is
 deliberately incremental: accepted programs compile to validated Wasm GC, and
 features outside the current slice receive stable diagnostics.
 
@@ -68,7 +68,7 @@ linked with `pnpm link`.
 
 hd is written mostly by coding agents, so the CLI answers questions about a
 program by name and in JSON, not by file position
-([roadmap area 8](../future-work/ROADMAP.md#8-tooling-for-agents)).
+([roadmap](../future-work/ROADMAP.md#direction)).
 Every command below also has the default `--format text`, which is the only
 format a person needs.
 
@@ -1046,9 +1046,9 @@ The toy standard library is hd source in the top-level
 module: `std.annotation`, `std.cmp`, `std.collections`, `std.hash`, `std.console`, `std.format`, `std.function`, `std.iter`, `std.num`, `std.ops`,
 `std.option`, `std.process`, `std.resource`, `std.result`, `std.testing`, `std.text`, and `std.time`. It
 follows the draft in
-[future-work/STDLIB.md](../future-work/STDLIB.md#core-layer) where the
+[future-work/archive/STDLIB.md](../future-work/archive/STDLIB.md#core-layer) where the
 specification allows; the open points are listed there under
-[Questions For The Owner](../future-work/STDLIB.md#questions-for-the-owner).
+[Questions For The Owner](../future-work/archive/STDLIB.md#questions-for-the-owner).
 `checker/standard-sources.ts` reads the files, and
 `checker/standard-library.ts` joins what a program uses into the one module
 the prototype compiles:
@@ -1130,7 +1130,7 @@ section lists where the prototype still breaks that rule, and the plan.
 There are two ways for `lib/std` to reach below hd code. Both are
 prototype-internal: the specification has no syntax for a library to
 declare a host function (a question in
-[RUNTIME_AND_LIBRARY.md](../future-work/RUNTIME_AND_LIBRARY.md#prototype-host-function-declarations)).
+[RUNTIME_AND_LIBRARY.md](../future-work/archive/RUNTIME_AND_LIBRARY.md#prototype-host-function-declarations)).
 
 1. **Intrinsic functions.** A `lib/std` function preceded by
    `@intrinsic("name")` is an ordinary declaration whose body the compiler
@@ -1151,7 +1151,7 @@ declare a host function (a question in
      in the runner's `hostFunctions` (`snapshot_file_check`, `src/snapshots.ts`).
 2. **Host capability traits.** A capability is a trait with suspending
    methods (spec/11 and
-   [RUNTIME_AND_LIBRARY.md](../future-work/RUNTIME_AND_LIBRARY.md#capabilities-and-sandbox)).
+   [RUNTIME_AND_LIBRARY.md](../future-work/archive/RUNTIME_AND_LIBRARY.md#capabilities-and-sandbox)).
    A host-bound trait gets a provider value built by
    `emitter/host-providers.ts`: each method's call goes out through
    generic per-method `host_<trait>_<method>_*` imports with the same

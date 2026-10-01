@@ -37,8 +37,9 @@ The specification has two tiers, one style, and one conformance suite:
 The language tier names a std item only when the compiler must know it: a
 lang item, an intrinsic, a prelude name, or the conformance harness (`it`,
 `assert`, `assert_equal`, `println`). Any other std API that the owner
-decides lives in `spec/std/`. Undecided std design lives in
-[future-work/STDLIB.md](future-work/STDLIB.md).
+decides lives in `spec/std/`. Undecided std design goes to
+[future-work/OPEN_ISSUES.md](future-work/OPEN_ISSUES.md); the archived
+[STDLIB draft](future-work/archive/STDLIB.md) keeps its background.
 
 **The tier test.** Could `lib/std` implement the item in ordinary hd, over
 language-tier items only, with no compiler knowledge of its name, and keep
@@ -55,7 +56,7 @@ it each mean no.
 | every diagnostic code, and every panic category | the language tier: README Diagnostics, and Control Flow |
 | a Revision Notes entry, naming its tier | the one log in [spec/README.md](spec/README.md#revision-notes) |
 | a fixture | `spec/conformance/`; its tier is the tier of its `specification` column |
-| undecided std design, such as `Set` or a default hasher | future-work/STDLIB.md only |
+| undecided std design, such as `Set` or a default hasher | future-work/OPEN_ISSUES.md only |
 
 A stdlib chapter may cite any language rule. A language chapter links to
 `spec/std/` only from a Note or See also, never from a numbered rule. A

@@ -2,8 +2,8 @@
 
 Scope: [Lexical Structure](../../spec/01-lexical-structure.md),
 [Grammar](../../spec/02-grammar.md), the grammar fragments in chapters 11 to
-14, and the [reference parser](../../spec/reference-parser/). Roadmap item:
-[Grammar Audit](../../future-work/ROADMAP.md#1-grammar-audit).
+14, and the [reference parser](../../spec/reference-parser/). It was a
+[roadmap](../../future-work/ROADMAP.md) item before the roadmap was cut to one page.
 
 Every owner question (Q1 to Q17) and follow-up (B1 to B9) is decided and
 applied; the record is the spec's Revision Notes GQ1 to GQ17 in

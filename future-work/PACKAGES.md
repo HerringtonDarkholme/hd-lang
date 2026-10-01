@@ -1,6 +1,6 @@
 # Packages: Survey And Manifest Draft
 
-Status: research and design draft for [Roadmap area 5](ROADMAP.md#5-packages).
+Status: research and design draft for [Roadmap](ROADMAP.md#order) item 3.
 Nothing here is accepted language behavior. The owner decided questions
 1 to 14 on 2026-09-26 ([Owner Decisions](#owner-decisions)). Dependencies
 decisions DEP1-DEP19 (2026-09-29) then removed the registry: versions are
@@ -13,7 +13,7 @@ their text is in git history. What stays open here is the final
 `hd.toml` schema ([`module.tooling.package-schema`](../spec/10-modules.md#r-module.tooling.package-schema)),
 the checked compatibility rule behind `hd api diff`, and the agent-first
 CLI; the tooling plan is in
-[Package Tooling](RUNTIME_AND_LIBRARY.md#package-tooling).
+[Package Tooling](archive/RUNTIME_AND_LIBRARY.md#package-tooling).
 
 Inputs:
 
@@ -158,7 +158,7 @@ the open schema draft.
   key order, so an agent's edit produces a minimal diff.
 - Nothing in the manifest duplicates what source already states. Provider
   bindings are derived from entry points
-  ([Runtime and Library Design](RUNTIME_AND_LIBRARY.md)), and public API is
+  ([Runtime and Library Design](archive/RUNTIME_AND_LIBRARY.md)), and public API is
   derived from `pub` declarations.
 
 ### 2.2 Full Example: Application
@@ -480,7 +480,7 @@ Owner decision 1 chose this rule.
 Superseded by DEP1 and DEP4: there is no lockfile, and `hd.sum` is the only
 integrity source ([Package Manifest](../spec/10-modules.md#package-manifest)).
 Its line format is tooling work in
-[Package Tooling](RUNTIME_AND_LIBRARY.md#package-tooling).
+[Package Tooling](archive/RUNTIME_AND_LIBRARY.md#package-tooling).
 
 ## 6. Standard Library
 
@@ -535,8 +535,8 @@ Output rules:
   edits as JSON and changes nothing.
 - `hd add`, `hd remove`, and `hd update` rewrite `hd.toml` in canonical form.
   Comments are kept.
-- Package metadata is exposed to the program database from
-  [Roadmap area 8](ROADMAP.md#8-tooling-for-agents): packages, versions,
+- Package metadata is exposed to the program database, which is
+  [on hold](ROADMAP.md#on-hold): packages, versions,
   lines, dependency edges, implementation heads, and annotation slots per
   package. Then "which package provides the `(Validation, User)` slot" is a
   query.

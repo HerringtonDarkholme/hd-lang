@@ -4,41 +4,29 @@ These documents cover deferred, undecided, or not yet applied work outside
 the accepted language specification. Accepted language behavior belongs in
 the [formal specification](../spec/README.md), which is authoritative.
 
-Once everything a design record decided is applied or superseded, the
-record moves to [archive/](archive/) with an "Archived" note at its top.
-Archived records are history: they keep the reasoning behind decisions,
-and `pnpm run spec refs --dead` treats every citation in them as history.
+Once everything a design record decided is applied, superseded, or moved
+to [Open Issues](OPEN_ISSUES.md), the record moves to [archive/](archive/)
+with an "Archived" note at its top. Archived records are history: they
+keep the reasoning behind decisions, and `pnpm run spec refs --dead`
+treats every citation in them as history.
 
 ## Active Records
 
 Planning and backlog:
 
-- [Roadmap](ROADMAP.md) orders the remaining work into grammar, type
-  checking, runtime, standard library, packages, prototype, audit cleanup, and
-  agent tooling areas.
+- [Roadmap](ROADMAP.md) is one page: the order of the remaining work, and
+  what is parked or on hold.
 - [Open Issues](OPEN_ISSUES.md) is the single backlog for unresolved language,
-  runtime, library, ABI, product, and tooling work. It also lists the
-  applied decision batches, each linked to the Revision Notes.
+  runtime, library, ABI, product, and tooling work, including undecided
+  standard-library design. It also lists the applied decision batches, each
+  linked to the Revision Notes.
 
 Open questions for the owner:
 
-- [Typed Derivation: Open Points](TYPED_DERIVATION.md) lists the four
-  points that M1-M30 leave to other areas.
-- [Nominal Function Types: Per-Declaration Data For Tools](FN_TYPE.md)
-  keeps questions 9 and 10, how tool adapters get per-declaration data.
-- [Testing Redesign: Open Points](TESTING.md) summarizes the applied
-  property-test decisions PT1-PT9 and Q5-Q10, and the two apply-pass
-  readings the owner confirmed. The generator parameter style and two
-  deferred fixtures wait for the owner.
 - [Shape Review](SHAPE_REVIEW.md) traces where `shape`, `shape_of`, and
   the shape types came from, finds no owner decision that approved them,
   and compares removing them, keeping only a function-fact read, and
   keeping them, against `Structure` templates.
-- [Special Cases: Inventory And Simplification](SPECIAL_CASES.md) lists
-  hd's compiler intrinsics, rule exceptions, special syntax, magic names,
-  and single-construct diagnostics, and ranks nine cuts. Batches 24, 26,
-  and 31b answered seven of its questions; Q2 and Q3, which merge
-  diagnostic codes, wait for the code revamp.
 
 Prototype plan:
 
@@ -48,34 +36,49 @@ Prototype plan:
   semantics. It plans eleven one-hour chunks that delete about 1,900
   lines of TS. The owner answered its four questions in batch 36.
 
-Deferred:
-
-- [Iterator Performance Study](ITERATOR_PERF.md) compares closure, nested,
-  and flat-stage iterator designs. The closure design stands (CS8); the
-  flat-stage design and a rerun of the stage 2 benchmarks wait for a
-  specializing compiler.
-
 Research and direction outside the specification:
 
-- [Runtime and Library Design](RUNTIME_AND_LIBRARY.md) describes the
-  standard-library, tooling, and runtime direction, including the decided
-  [Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules), the test runner, and
-  package tooling.
-- [Standard Library Design](STDLIB.md) drafts hd's module tree, effect
-  traits with deterministic providers, and the owner's decisions on them.
-  The standard library stays outside the specification by design.
 - [Packages: Survey And Manifest Draft](PACKAGES.md) surveys package
   managers and drafts the `hd.toml` schema, the checked compatibility
   rule, and the agent-first CLI. The registry-free model of DEP1-DEP19 is
   in [Package Manifest](../spec/10-modules.md#package-manifest).
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.
-- [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
-  chosen fast-iteration compiler plan and its deliberately limited slices.
 
 ## Archived Records
 
-Every decision in these records is applied or superseded.
+Each archived record's note says where its open points went.
+
+Archived 2026-10-01 with their open points moved to
+[Open Issues](OPEN_ISSUES.md):
+
+- [Typed Derivation: Open Points](archive/TYPED_DERIVATION.md) recorded
+  M30, SR1, and SIMPLE. Its four open points are in
+  [Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
+- [Nominal Function Types](archive/FN_TYPE.md) applied decisions 1-9.
+  Questions 9 and 10 are under
+  [parked tool adapters](OPEN_ISSUES.md#parked-tool-adapters).
+- [Testing Redesign: Open Points](archive/TESTING.md) summarized PT1-PT9,
+  Q5-Q10, and the AT decisions. The generator parameter style and two
+  deferred fixtures are in
+  [Testing Open Points](OPEN_ISSUES.md#testing-open-points).
+- [Special Cases: Inventory And Simplification](archive/SPECIAL_CASES.md)
+  listed hd's intrinsics, rule exceptions, special syntax, and magic names,
+  and ranked nine cuts. Q2 and Q3 wait for
+  [the code revamp](OPEN_ISSUES.md#codes-waiting-for-the-code-revamp).
+- [Iterator Performance Study](archive/ITERATOR_PERF.md) compared closure,
+  nested, and flat-stage iterators. The closure design stands (CS8); the
+  flat-stage design waits for a specializing compiler, task #86.
+- [Standard Library Design](archive/STDLIB.md) drafted the module tree and
+  effect traits. Decided std APIs are in [spec/std/](../spec/std/README.md).
+- [Runtime and Library Design](archive/RUNTIME_AND_LIBRARY.md) described
+  the runtime, test runner, and package tooling direction, including the
+  decided [Replay Rules](archive/RUNTIME_AND_LIBRARY.md#replay-rules).
+- [Wasm GC MVP Implementation Plan](archive/MVP_IMPLEMENTATION_PLAN.md),
+  moved from `src/`, recorded the fast-iteration compiler plan and its
+  slices.
+
+Archived with every decision applied or superseded:
 
 - [Syntax And Semantics Cost Review](archive/SYNTAX_SEMANTICS_COST.md)
   weighed each language-tier syntax form by its rule count against its use

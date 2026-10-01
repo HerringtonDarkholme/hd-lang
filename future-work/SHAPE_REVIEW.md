@@ -41,7 +41,7 @@ Under review:
 | Was the shape design approved? | No owner decision approved the shape types or `shape::[T]()`. Four later decisions assumed they existed; only one, Decorators D7, gave them a job. |
 | What uses it? | Fixtures, one std test file, and guide examples. No `lib/std` code, no std design, no tool, and no compiler rule calls `shape` or `shape_of`. |
 | What does Structure cover? | Every data and enum read: member names, docs, positions, facts, defaults, and typed values. It does not cover functions. |
-| Is a function fact read needed? | The compiler reads its markers by qualified name, and tools read the package interface. Only user code that registers routes or tools by decorator needs it. Tool registration is by hand for now ([FN_TYPE decision 10](FN_TYPE.md#owner-decisions)). |
+| Is a function fact read needed? | The compiler reads its markers by qualified name, and tools read the package interface. Only user code that registers routes or tools by decorator needs it. Tool registration is by hand for now ([FN_TYPE decision 10](archive/FN_TYPE.md#owner-decisions)). |
 | Recommendation | Option A, remove all of it: 10 numbered rules, about 215 lines of unnumbered chapter 14 text, 14 prelude names, one diagnostic code, and about 600 lines of prototype TypeScript. |
 
 The shape surface is also the least reviewed text in chapter 14. Its 215
@@ -82,7 +82,7 @@ The record proposed it as "one small extension" of a `shape_of` that
 already existed. The same record's owner direction D5 said "No full
 compile-time reflection, and few compiler special cases".
 
-Typed derivation decision 7 (2026-09-26, `future-work/TYPED_DERIVATION.md`
+Typed derivation decision 7 (2026-09-26, `future-work/archive/TYPED_DERIVATION.md`
 at `e6549dcc`) ends: "Kept: shapes, member metadata,
 `Annotation`/`Annotate`/`Info`, ...". Decision 10 then removed `Annotation`
 and `Annotate` from that list.
@@ -189,9 +189,9 @@ the typed-derivation code do not share code with `shapes.ts`.
 | --- | --- |
 | guide/LANGUAGE_TOUR.md | the `reified` section (`shape::[T]()` is the only observable use), the decorator section (route read), the shape listing |
 | guide/USE_SCENARIOS.md | the tool scenario sentence, and the retention example |
-| future-work/FN_TYPE.md | option A1, `mcp.tool(get_user, shape_of(get_user))`, and decision 10's note |
-| future-work/SPECIAL_CASES.md | rows I13, I14, I30, S20, N2, and the `unknown-shape-target` count |
-| future-work/STDLIB.md | `std.annotation` row; the `std.json` needs list (written before typed derivation) |
+| future-work/archive/FN_TYPE.md | option A1, `mcp.tool(get_user, shape_of(get_user))`, and decision 10's note |
+| future-work/archive/SPECIAL_CASES.md | rows I13, I14, I30, S20, N2, and the `unknown-shape-target` count |
+| future-work/archive/STDLIB.md | `std.annotation` row; the `std.json` needs list (written before typed derivation) |
 | future-work/COMPILER_LIBRARY_AUDIT.md, ROADMAP.md, OPEN_ISSUES.md | one row or line each |
 
 ## 3. Uses
@@ -201,8 +201,8 @@ the typed-derivation code do not share code with `shapes.ts`.
 | U1 | Read a module-level function's fact, `shape_of(f).metadata::[M]()` | 2 fixtures, the guide's route example | Yes: the only reader |
 | U2 | The compiler reads `@num_suffix`, `@str_prefix`, `Template` | [`expr.literal-fn.marker`](../spec/05-expressions.md#r-expr.literal-fn.marker): recognized by qualified name | No |
 | U3 | Tools and the test runner read decorators | the [package interface](../spec/10-modules.md#r-module.interface.fact-values) records each fact's value | No |
-| U4 | Parked tool adapters | [FN_TYPE](FN_TYPE.md) option A1 passes `shape_of(f)`. Its recommended option B adds `FnStructure`, a `Structure` for functions. Decision 10 parks both. | No: A1 was not chosen |
-| U5 | Derived-function cache | [STDLIB](STDLIB.md#derived-function-cache): one value per (trait, type) | No |
+| U4 | Parked tool adapters | [FN_TYPE](archive/FN_TYPE.md) option A1 passes `shape_of(f)`. Its recommended option B adds `FnStructure`, a `Structure` for functions. Decision 10 parks both. | No: A1 was not chosen |
+| U5 | Derived-function cache | [STDLIB](archive/STDLIB.md#derived-function-cache): one value per (trait, type) | No |
 | U6 | Read a field's or variant's metadata | fixtures, `test/std/annotation.hd` | No: templates read `h.info.facts` |
 | U7 | Pass a field's shape as a fact argument | `retention-metadata.hd`, USE_SCENARIOS retention | Replaceable |
 | U8 | Runtime descriptor of any type, `shape::[List[i32]]()` or `shape::[T]()` | the guide's `reified` section | No user beyond the guide |

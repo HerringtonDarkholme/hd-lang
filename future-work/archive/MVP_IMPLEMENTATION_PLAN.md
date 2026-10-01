@@ -1,5 +1,10 @@
 # Wasm GC MVP Implementation Plan
 
+> **Archived 2026-10-01.** This plan moved here from `src/`. The prototype
+> it planned is described in [src/README.md](../../src/README.md), and the
+> [specification](../../spec/README.md) is authoritative. The record is
+> kept as history, so its slices and status lines may be out of date.
+
 **Status:** chosen MVP implementation direction, 2026-09-24
 
 **Implementation status:** the S-1 toolchain gate is complete. The executable
@@ -98,7 +103,7 @@ former comma lists report `old-row-separator`, and `+` between bounds reports `o
 canonical instantiated keys, substitute through generic calls, accept distinct
 concrete keys, and reject key expressions that can collide under substitution.
 Trait-backed provider examples with methods remain coupled to S4. The current surface and commands are tracked in
-[README.md](README.md).
+[README.md](../../src/README.md).
 The runtime-profile bridge admits fixture-defined host capability traits and
 wraps opaque host providers in Wasm GC dynamic-trait values. Suspending methods
 can pass `i32`, `f64`, `bool`, `char`, and UTF-8 `string` arguments and return

@@ -8,8 +8,8 @@ Start with the [newcomer guide](guide/README.md) and
 [formal specification](spec/README.md) for normative syntax and semantics.
 [Use Scenarios](guide/USE_SCENARIOS.md) records the product requirements the design
 is intended to satisfy. Forward-looking material is grouped under
-[Future Work](future-work/README.md), including the broader
-[Runtime and Library Design](future-work/RUNTIME_AND_LIBRARY.md) and the single
+[Future Work](future-work/README.md), including the
+[Roadmap](future-work/ROADMAP.md) and the single
 [Open Issues](future-work/OPEN_ISSUES.md) backlog.
 
 The executable compiler is under [src](src/README.md), and its toy standard

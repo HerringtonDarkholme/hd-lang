@@ -15,7 +15,7 @@ Effect: Two symptoms of one cause.
   recording. Site IDs also embed source offsets (for example
   `child:provider:Counter.add:44`).
 Recommendation: implementation change. Decided rule
-(future-work/RUNTIME_AND_LIBRARY.md, Replay Rules): code identity is a hash of
+(future-work/archive/RUNTIME_AND_LIBRARY.md, Replay Rules): code identity is a hash of
 the whole module's semantic content, so any semantic change anywhere in the
 module invalidates the history, and formatting and comment edits never do.
 Hash a normalized form such as typed HIR, not raw source text, and drop source

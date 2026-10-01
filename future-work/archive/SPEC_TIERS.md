@@ -281,7 +281,7 @@ spec/
 | `spec/conformance/README.md` | a Tiers section; the split self-containment list |
 | `.agents/skills/spec-update/SKILL.md` | step 3 picks the tier by the test, then the chapter prefix; step 5 checks the fixture's tier |
 | AGENTS.md "Spec Scope" | rewritten as the two tiers and the test |
-| future-work/STDLIB.md | "What The Specification Already Names" gains a tier column; STDLIB keeps only undecided std design |
+| future-work/archive/STDLIB.md | "What The Specification Already Names" gains a tier column; STDLIB keeps only undecided std design |
 | `website/src/pages.ts` | the stdlib nav section |
 | `test/run-portable.ts`, `test/portable/README.md` | `--tier` |
 
@@ -290,7 +290,7 @@ The new AGENTS.md rule, in full:
 > The language spec names a std item only when the compiler must know it: a
 > lang item, an intrinsic, a prelude name, or the conformance harness. Any
 > other std API that the owner decides lives in `spec/std/`. Undecided std
-> design lives in future-work/STDLIB.md.
+> design lives in future-work/archive/STDLIB.md.
 
 ## Migration Plan
 
@@ -417,7 +417,7 @@ stayed in the language tier at step 10, since the tier test did not clearly move
 | Point | Effect |
 | --- | --- |
 | Signature | None is decided. [`req.combinator.library-rest`](../../spec/11-requirements-and-suspension.md#r-req.combinator.library-rest) leaves it, and the complete intrinsic set, to std design. |
-| Candidate | [STDLIB's draft](../STDLIB.md) `retry!` takes `attempt: fn() -> mut Suspend[Result[T, E]]`, so it drives `Suspend` values, as `all!` and `race!` do. |
+| Candidate | [STDLIB's draft](STDLIB.md) `retry!` takes `attempt: fn() -> mut Suspend[Result[T, E]]`, so it drives `Suspend` values, as `all!` and `race!` do. |
 | Intrinsic? | [`req.combinator.intrinsic`](../../spec/11-requirements-and-suspension.md#r-req.combinator.intrinsic) makes the polling combinators intrinsics, and [Open Issues](../OPEN_ISSUES.md) lists retry among the compiler-intrinsic `std.task` combinators. |
 | A `fn!` loop | A retry whose attempt is a `fn!` body is a loop of bang calls. Its cancellation rule then follows from [Cancellation](../../spec/11-requirements-and-suspension.md#cancellation) alone. |
 

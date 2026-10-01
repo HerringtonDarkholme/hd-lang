@@ -33,8 +33,9 @@ ordinary hd can implement, is specified in the
 Deferred language design and the runtime, library, ABI, product, and tooling
 backlog are tracked in [Open Issues](../future-work/OPEN_ISSUES.md).
 
-Runtime and standard-library behavior that is not language semantics remains in
-[`RUNTIME_AND_LIBRARY.md`](../future-work/RUNTIME_AND_LIBRARY.md). The language tour remains
+Runtime and standard-library behavior that is not language semantics is
+sketched in the archived
+[`RUNTIME_AND_LIBRARY.md`](../future-work/archive/RUNTIME_AND_LIBRARY.md). The language tour remains
 the readable introduction; this directory is the formalization target.
 
 Chapters are written to the [Specification Style](STYLE.md) guide.
@@ -1002,7 +1003,7 @@ existing source. Each entry names the decision that made the change.
   derivation block on a newtype, previously unspecified, is
   `misplaced-derivation`: a newtype derives only through its base with
   `@derive`. `Clone` is a standard-library trait, listed in
-  [STDLIB](../future-work/STDLIB.md#clone).
+  [STDLIB](../future-work/archive/STDLIB.md#clone).
 - Typed derivation M24 (owner decision in
   Typed Derivation,
   2026-09-27): a `Source` implementation may strengthen only the bound on
@@ -1784,7 +1785,7 @@ existing source. Each entry names the decision that made the change.
   `grammar.stmt.let-mut`, `expr.assign.compound.map-read`, and
   `types.trait.safe.convert` are retired.
 - Typed derivation M30 (owner decisions in
-  [Typed Derivation](../future-work/TYPED_DERIVATION.md#owner-decisions-m30-2026-09-29),
+  [Typed Derivation](../future-work/archive/TYPED_DERIVATION.md#owner-decisions-m30-2026-09-29),
   2026-09-29): no source changes. A fact type has no compile-time check
   hook, and derivation between two types is out of scope. On a name
   clash, `Structure::walk(self, w)` calls the generated `walk`. Template
@@ -1955,7 +1956,7 @@ existing source. Each entry names the decision that made the change.
   undecided before. The two readings of batch 9 stay as applied. No rule
   ID is retired.
 - Property-test API batch 12 (Testing PT1-PT9, owner decisions in
-  [Testing](../future-work/TESTING.md#owner-decisions), 2026-09-29):
+  [Testing](../future-work/archive/TESTING.md#owner-decisions), 2026-09-29):
   `Choices.int` and `Choices.float` are generic, as
   `int[N < Integer](lo: N, hi: N) -> N` and
   `float[F < Float](lo: F, hi: F) -> F`, so a draw takes its type from its
@@ -1996,7 +1997,7 @@ existing source. Each entry names the decision that made the change.
   target is a trait value type is `trait-value-impl-target`. Both were
   invalid without a code. No rule ID is retired.
 - Property-test batch 13 (Testing Q5-Q10, owner decisions in
-  [Testing](../future-work/TESTING.md#owner-decisions), 2026-09-30):
+  [Testing](../future-work/archive/TESTING.md#owner-decisions), 2026-09-30):
   `arbitrary.with` is generic,
   `with[T < Inspectable](gen: fn(mut Choices) -> T) -> Generator`, so a
   generator whose values are not inspectable is `unsatisfied-trait-bound`,
@@ -2094,7 +2095,7 @@ existing source. Each entry names the decision that made the change.
   `Self`. In an impl for `i32`, `self + 1` is valid, and a call such as
   `start.next()` needs no mutable access. No rule ID is retired.
 - Self references (owner decision SR1 in
-  [Typed Derivation](../future-work/TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30),
+  [Typed Derivation](../future-work/archive/TYPED_DERIVATION.md#owner-decision-sr1-2026-09-30),
   batch 17, 2026-09-30): `std.structure` declares `enum SelfRef` with
   `Absent`, `Optional`, and `Required`, and `Member` and `VariantInfo`
   gain a compiler-computed `self_ref` field. A `Member` or `VariantInfo`
@@ -2165,7 +2166,7 @@ existing source. Each entry names the decision that made the change.
   runner generates and shrinks inputs becomes
   [`std-testing.it-prop`](std/testing.md#r-std-testing.it-prop).
 - Derived `Arbitrary` member bounds (owner decision AT-with in
-  [Testing](../future-work/TESTING.md#owner-decisions), batch 20,
+  [Testing](../future-work/archive/TESTING.md#owner-decisions), batch 20,
   2026-09-30): stdlib tier. The derived template requires every member to
   implement `Arbitrary` and to be inspectable, whether or not
   `arbitrary.with` tunes it. A tuned member whose type has no `Arbitrary`,
@@ -2178,7 +2179,7 @@ existing source. Each entry names the decision that made the change.
   `std-testing.arbitrary.derive.member-bounds`, `.derive.not-derivable`,
   and `.derive.manual`.
 - Self references, restated (owner decision SIMPLE in
-  [Typed Derivation](../future-work/TYPED_DERIVATION.md#owner-decision-simple-2026-09-30),
+  [Typed Derivation](../future-work/archive/TYPED_DERIVATION.md#owner-decision-simple-2026-09-30),
   batch 20, 2026-09-30): language tier. `self_ref` follows from a member's
   type alone, with no simplest value. A member whose type is another enum,
   every variant of which needs the enclosing type, was `.Optional` and is

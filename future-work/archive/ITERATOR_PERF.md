@@ -1,9 +1,15 @@
 # Iterator Performance Study: Closure, Nested, And Flat-Stage Designs
 
+> **Archived 2026-10-01.** The closure-backed iterator stands (CS8), and
+> the [specification](../../spec/README.md) is authoritative. The
+> flat-stage design waits for a specializing compiler, task #86, as
+> [Open Issues](../OPEN_ISSUES.md#iterator-performance) notes. The record is kept as history, so
+> its examples and rule IDs may describe retired rules.
+
 Status: deferred. Nothing here is accepted behavior. The owner decided
 from this stage 1 analysis (Chaining Study CS8, 2026-09-29): the
 closure-backed data `Iterator[T]` is the one public iterator type
-([Iteration Protocols](../spec/06-control-flow.md#iteration-protocols)).
+([Iteration Protocols](../../spec/06-control-flow.md#iteration-protocols)).
 The flat composed-stage design C stays a later option, to revisit once
 the compiler specializes and inlines closures. This record keeps the
 analysis and the stage 2 benchmarks for that revisit; see
@@ -17,15 +23,15 @@ reviews:
 
 - Chaining Study CS1 and CS7: adapters are methods,
   and `Iterator[T]` holds a `step: fn() -> T?` closure;
-- [Iterator Adapters](../spec/std/iter.md#iterator-adapters) and
-  [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols);
+- [Iterator Adapters](../../spec/std/iter.md#iterator-adapters) and
+  [Iteration Protocols](../../spec/06-control-flow.md#iteration-protocols);
 - the prototype's lowering in
-  [src/README.md](../src/README.md#compilerlibrary-boundary) and
+  [src/README.md](../../src/README.md#compilerlibrary-boundary) and
   `lib/std/iter.hd`;
 - audit findings
-  [F-502](../audit/findings/F-502-bounded-calls-allocate-dictionaries.md),
-  [F-504](../audit/findings/F-504-optional-carrier-allocations.md), and
-  [F-505](../audit/findings/F-505-concrete-lists-rebox-elements.md).
+  [F-502](../../audit/findings/F-502-bounded-calls-allocate-dictionaries.md),
+  [F-504](../../audit/findings/F-504-optional-carrier-allocations.md), and
+  [F-505](../../audit/findings/F-505-concrete-lists-rebox-elements.md).
 
 Stage 2, run by a cheap-model agent, writes and times the programs that
 [Stage 2 Benchmark Specification](#stage-2-benchmark-specification)
@@ -156,7 +162,7 @@ way. Haskell's stream fusion uses the same three-way step type
 ## What The Prototype Emits
 
 The prototype erases generics and passes trait dictionaries at run time; it
-does not specialize ([src/README.md](../src/README.md)). A probe of the
+does not specialize ([src/README.md](../../src/README.md)). A probe of the
 three shapes, compiled with `hd build --wat`, shows these lowerings. Each
 row was read from the probe's WAT.
 
@@ -166,13 +172,13 @@ row was read from the probe's WAT.
 | Captured `let`, even when never reassigned | `struct.new $hd.cell` | 1 allocation |
 | Closure call | `call_ref $sigN` with the env as first argument | 1 indirect call |
 | A concrete closure stored in a generic field, such as `keep: fn(T) -> bool` | wrapped in `$adaptN`, which unboxes the argument and `call_ref`s the original | 1 allocation once; 2 indirect calls per call |
-| `.Some(v)` with `v: i32` | `struct.new $hd.variant` plus `struct.new $hd.box-i32` | 2 allocations ([F-504](../audit/findings/F-504-optional-carrier-allocations.md)) |
+| `.Some(v)` with `v: i32` | `struct.new $hd.variant` plus `struct.new $hd.box-i32` | 2 allocations ([F-504](../../audit/findings/F-504-optional-carrier-allocations.md)) |
 | `.Some(v)` with `v` already erased | `struct.new $hd.variant` reusing the box | 1 allocation |
 | `.None` | `struct.new $hd.variant (i32.const 0) (ref.null any)` | 1 allocation |
 | User enum `Yield(v)` with a generic payload | `struct.new $eN` plus a box if `v` is a scalar | 1 or 2 allocations |
 | Payload-free variant (`Skip`, `Stop`) | `global.get` | none |
 | `self.source.next()` on `source: S`, `S < Source[T]` | `struct.new $traitN` wrapping the receiver, then `call_ref` through the dictionary, then a `$tadapt` that calls the concrete `next` directly | 1 allocation, 1 indirect and 1 direct call |
-| A call from concrete code to a bounded impl's `next` | the caller builds the bound dictionary fresh on each call ([F-502](../audit/findings/F-502-bounded-calls-allocate-dictionaries.md)) | 1 allocation per call for `Count`; more for a nested blanket dictionary |
+| A call from concrete code to a bounded impl's `next` | the caller builds the bound dictionary fresh on each call ([F-502](../../audit/findings/F-502-bounded-calls-allocate-dictionaries.md)) | 1 allocation per call for `Count`; more for a nested blanket dictionary |
 | Tuple `(i32, T)` | `array.new_fixed $hd.list 2` with boxed elements | 2 or 3 allocations |
 
 Two consequences matter. First, in the prototype B and C do not get direct
@@ -436,7 +442,7 @@ Three lessons stand out:
 ## Ranking By Design Cost Order
 
 All three are core library code (kind 4 of the
-[Design Cost Order](../AGENTS.md#design-cost-order)). Specialization and
+[Design Cost Order](../../AGENTS.md#design-cost-order)). Specialization and
 fusion are compiler implementation work that changes no language rule.
 
 | Design | Changes | Costliest kind |
@@ -448,8 +454,8 @@ fusion are compiler implementation work that changes no language rule.
 ## Stage 2 Benchmark Specification
 
 Stage 2 is run by a cheap-model agent under
-[Writing hd Code](../AGENTS.md#writing-hd-code-model-choice-and-a-feedback-log).
-It logs every hd mistake in [audit/hd-writing-log.md](../audit/hd-writing-log.md).
+[Writing hd Code](../../AGENTS.md#writing-hd-code-model-choice-and-a-feedback-log).
+It logs every hd mistake in [audit/hd-writing-log.md](../../audit/hd-writing-log.md).
 It must not change `src/` or `lib/std/`.
 
 ### Files
@@ -559,7 +565,7 @@ Min is the primary estimator, as in the audit's earlier benchmarks.
 | --- | --- |
 | In `dev`, B and C allocate more per element than A, through trait wraps and per-call dictionaries | [Allocation](#allocation) |
 | In `dev`, C makes as many indirect calls as A or more | [Call Counts](#call-counts-for-a-three-stage-chain) |
-| `o2` keeps the ratios between designs, as the audit found for erasure | [audit REPORT](../audit/REPORT.md) |
+| `o2` keeps the ratios between designs, as the audit found for erasure | [audit REPORT](../../audit/REPORT.md) |
 | `o3cw` helps C and `c-fused` more than A, since their stages are loop-free | [Fusion Potential](#fusion-potential) |
 | `c-fused` is well faster than `c-flat` at every tier | [Fusion Potential](#fusion-potential) |
 | Every design stays far from `loop` while `T?` and `Step` are boxed | [The Step Carrier](#the-step-carrier) |
@@ -632,14 +638,14 @@ fn pairs(xs: List[i32], ys: List[i32]) -> mut Iterator[(i32, i32)]:
 
 ## Sources
 
-- hd: [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols),
-  [src/README.md](../src/README.md#compilerlibrary-boundary),
+- hd: [Iteration Protocols](../../spec/06-control-flow.md#iteration-protocols),
+  [src/README.md](../../src/README.md#compilerlibrary-boundary),
   `lib/std/iter.hd`, `src/emitter/function-body.ts` (`closure`,
   `closure-call`, `trait-bound`, `trait-call`, `enum`),
   `src/emitter/context.ts` (`adaptCallable`, `storeErased`),
   `src/emitter/scalars.ts` (`boxScalar`), `src/emitter/iterator.ts`,
   `src/wasm.ts`, `audit/scripts/arch/bench-lib.ts`,
-  [audit REPORT](../audit/REPORT.md)
+  [audit REPORT](../../audit/REPORT.md)
 - Rust: [Book 13.4](https://doc.rust-lang.org/book/ch13-04-performance.html),
   [`Iterator`](https://doc.rust-lang.org/std/iter/trait.Iterator.html)
 - Swift: [`LazyFilterSequence`](https://developer.apple.com/documentation/swift/lazyfiltersequence),
@@ -668,7 +674,7 @@ fn pairs(xs: List[i32], ys: List[i32]) -> mut Iterator[(i32, i32)]:
 ## Parse Log
 
 Every `text` block was parsed with the reference parser (`parseSource` in
-[spec/reference-parser/parser.ts](../spec/reference-parser/parser.ts)) on
+[spec/reference-parser/parser.ts](../../spec/reference-parser/parser.ts)) on
 2026-09-29. Parsing checks syntax only; no block is claimed to type-check
 here. Separately, one probe file with the design shapes of blocks 1 to 3
 type-checked and ran in the prototype at commit `b85cd43`. It printed the

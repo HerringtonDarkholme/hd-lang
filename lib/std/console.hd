@@ -1,5 +1,5 @@
 # std.console: `println`, console input, and the recording `BufferConsole`
-# (future-work/STDLIB.md#stdconsole). `Console`, `ConsoleError`, and `println`
+# (future-work/archive/STDLIB.md#stdconsole). `Console`, `ConsoleError`, and `println`
 # are prelude names (spec/10-modules.md#console); `Console` and `println` are
 # declared here and `ConsoleError` by the checker. No prototype runtime
 # profile binds a host `ConsoleInput`. `println` drives the covering

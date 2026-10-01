@@ -1,11 +1,17 @@
 # Standard Library Design
 
+> **Archived 2026-10-01.** Decided std APIs live in the stdlib tier,
+> [spec/std/](../../spec/std/README.md), and the
+> [specification](../../spec/README.md) is authoritative. Undecided std
+> design goes to [Open Issues](../OPEN_ISSUES.md). The draft is kept as history, so its examples
+> and rule IDs may describe retired rules.
+
 Status: design draft for
-[Roadmap area 4](ROADMAP.md#4-standard-library), revised to the
+[Roadmap area 4](../ROADMAP.md), revised to the
 [owner decisions](#owner-decisions) of 2026-09-26 and 2026-09-29. Nothing
 here is in the specification unless it links there. Accepted parts move into the
-[specification](../spec/README.md); unresolved language questions stay in
-[Open Issues](OPEN_ISSUES.md).
+[specification](../../spec/README.md); unresolved language questions stay in
+[Open Issues](../OPEN_ISSUES.md).
 
 The roadmap orders this work after areas 2 and 3 settle traits, derivation,
 and requirements. This draft therefore fixes the parts that do not wait on
@@ -13,9 +19,9 @@ them: module layout, naming, the effect-trait pattern, and the list of
 language features each module needs. The owner's decisions, and the questions
 they answered, are collected at the end.
 
-Code sketches use only syntax that [the grammar](../spec/02-grammar.md)
+Code sketches use only syntax that [the grammar](../../spec/02-grammar.md)
 accepts, and each block parses with the
-[reference parser](../spec/reference-parser/index.ts). Elided bodies are
+[reference parser](../../spec/reference-parser/index.ts). Elided bodies are
 written `pass`; they are syntax placeholders, not type-correct bodies.
 
 ## Contents
@@ -41,31 +47,31 @@ The design must keep every name below. The prelude list is normative, and the
 `prelude-name-shadow` rule means any name added to the prelude later breaks
 every user module that already declares it.
 
-The Tier column follows the [Spec Tiers inventory](archive/SPEC_TIERS.md#inventory).
+The Tier column follows the [Spec Tiers inventory](SPEC_TIERS.md#inventory).
 A language item stays in the numbered chapters. A std item moves to
-[spec/std/](../spec/std/README.md) in its migration task, and until then its
+[spec/std/](../../spec/std/README.md) in its migration task, and until then its
 rules stay where the Source column links. "Not in the spec" marks
 undecided design.
 
 | Module | Names fixed today | Tier | Source |
 | --- | --- | --- | --- |
-| `std.core` | primitives, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` | language | [Prelude](../spec/10-modules.md#prelude) |
-| `std.format` | `Display`, `Debug`, `DebugWriter`, `debug` | language; `debug`'s text, `DebugWriter` builders and layout, derived builder calls: std | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md), [Debug Trait](../spec/09-traits.md#debug-trait), [Format](../spec/std/format.md) |
-| `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | language | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
-| `std.hash` | `Hash`, `Hasher` | language | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
-| `std.iter` | `Iterator` (a data type), `Iterable`, `FromIterator`; the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as `Iterator` methods | language: `Iterator`, `Iterable`; std: `FromIterator` and the adapters | [For Loops](../spec/06-control-flow.md), [Iterator Adapters](../spec/std/iter.md#iterator-adapters) |
-| `std.console` | `Console`, `ConsoleError`, `println` | language | [Prelude](../spec/10-modules.md#prelude) |
-| `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, `retry!` | language; std: `retry!`, a library loop (RETRY, batch 29) | [Requirements and Suspension](../spec/11-requirements-and-suspension.md), [Task](../spec/std/task.md) |
-| `std.annotation` | shape names and `shape`, `shape_of`; `Target`, `Annotate`, `annotate` | language | [Annotations](../spec/14-annotations.md) |
-| `std.testing` | `assert`, `assert_equal`, `it`, `it_each`, `it_prop`, `it_prop_with`, `snapshot`, `snapshot_file` | language: `assert`, `assert_equal`, `it`, the test-position rules, `snapshot`'s literal check; std: `it_each`, `it_prop`, and `it_prop_with` (ST6, revised), rows, generation, shrinking, draw budget, snapshot files, `timeout` | [Standard Testing](../spec/10-modules.md#standard-testing), [Testing](../spec/std/testing.md) |
-| `std.resource` | `ResourceError[E]` | language | [Wasm Boundary](../spec/10-modules.md#wasm-boundary) |
-| `std.convert` | `From[T]` | language | [Conversion Trait](../spec/09-traits.md#conversion-trait) |
-| `std.error` | `Error` (a `Display` subtrait whose members all have defaults) | language | [Error Trait](../spec/09-traits.md#error-trait) |
-| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; the twelve operator traits `Add` to `Shr`, and `Index` and `IndexSet` | language | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../spec/05-expressions.md#prefixed-strings), [Operator Traits](../spec/05-expressions.md#operator-traits), [Compound Assignment](../spec/05-expressions.md#compound-assignment), [Index Traits](../spec/05-expressions.md#index-traits) |
-| `std.num` | the sealed traits `Num`, `Integer`, and `Float`, with `zero`, `one`, and `from_i64` on `Num` | language | [Numeric Traits](../spec/09-traits.md#numeric-traits) |
-| `std.text` | the string prefix `r`; the `string` methods `trim`, `lower`, `split`, `replace`, and `starts_with` | std | [Text](../spec/std/text.md) |
-| `std.time` | `Duration`, which implements `Neg`; the literal suffixes `ms`, `s`, `min`, `h` | std | [Time](../spec/std/time.md) |
-| `std.host` | `Args` | not in the spec | [Program Entry Points](../guide/LANGUAGE_TOUR.md#program-entry-points) (example) |
+| `std.core` | primitives, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` | language | [Prelude](../../spec/10-modules.md#prelude) |
+| `std.format` | `Display`, `Debug`, `DebugWriter`, `debug` | language; `debug`'s text, `DebugWriter` builders and layout, derived builder calls: std | [Prelude](../../spec/10-modules.md#prelude), [string interpolation](../../spec/05-expressions.md), [Debug Trait](../../spec/09-traits.md#debug-trait), [Format](../../spec/std/format.md) |
+| `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | language | [Comparison Traits](../../spec/09-traits.md#comparison-traits) |
+| `std.hash` | `Hash`, `Hasher` | language | [Comparison Traits](../../spec/09-traits.md#comparison-traits) |
+| `std.iter` | `Iterator` (a data type), `Iterable`, `FromIterator`; the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` as `Iterator` methods | language: `Iterator`, `Iterable`; std: `FromIterator` and the adapters | [For Loops](../../spec/06-control-flow.md), [Iterator Adapters](../../spec/std/iter.md#iterator-adapters) |
+| `std.console` | `Console`, `ConsoleError`, `println` | language | [Prelude](../../spec/10-modules.md#prelude) |
+| `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, `retry!` | language; std: `retry!`, a library loop (RETRY, batch 29) | [Requirements and Suspension](../../spec/11-requirements-and-suspension.md), [Task](../../spec/std/task.md) |
+| `std.annotation` | shape names and `shape`, `shape_of`; `Target`, `Annotate`, `annotate` | language | [Annotations](../../spec/14-annotations.md) |
+| `std.testing` | `assert`, `assert_equal`, `it`, `it_each`, `it_prop`, `it_prop_with`, `snapshot`, `snapshot_file` | language: `assert`, `assert_equal`, `it`, the test-position rules, `snapshot`'s literal check; std: `it_each`, `it_prop`, and `it_prop_with` (ST6, revised), rows, generation, shrinking, draw budget, snapshot files, `timeout` | [Standard Testing](../../spec/10-modules.md#standard-testing), [Testing](../../spec/std/testing.md) |
+| `std.resource` | `ResourceError[E]` | language | [Wasm Boundary](../../spec/10-modules.md#wasm-boundary) |
+| `std.convert` | `From[T]` | language | [Conversion Trait](../../spec/09-traits.md#conversion-trait) |
+| `std.error` | `Error` (a `Display` subtrait whose members all have defaults) | language | [Error Trait](../../spec/09-traits.md#error-trait) |
+| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; the twelve operator traits `Add` to `Shr`, and `Index` and `IndexSet` | language | [Literal Suffixes](../../spec/05-expressions.md#literal-suffixes), [Prefixed Strings](../../spec/05-expressions.md#prefixed-strings), [Operator Traits](../../spec/05-expressions.md#operator-traits), [Compound Assignment](../../spec/05-expressions.md#compound-assignment), [Index Traits](../../spec/05-expressions.md#index-traits) |
+| `std.num` | the sealed traits `Num`, `Integer`, and `Float`, with `zero`, `one`, and `from_i64` on `Num` | language | [Numeric Traits](../../spec/09-traits.md#numeric-traits) |
+| `std.text` | the string prefix `r`; the `string` methods `trim`, `lower`, `split`, `replace`, and `starts_with` | std | [Text](../../spec/std/text.md) |
+| `std.time` | `Duration`, which implements `Neg`; the literal suffixes `ms`, `s`, `min`, `h` | std | [Time](../../spec/std/time.md) |
+| `std.host` | `Args` | not in the spec | [Program Entry Points](../../guide/LANGUAGE_TOUR.md#program-entry-points) (example) |
 | `std.fingerprint` | the persisted-identity digest | not in the spec | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
 | `std.incremental` | incremental graph library | not in the spec | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
 | `Observability`, `log.info` | provider draft and logging helper | not in the spec | [Observability](RUNTIME_AND_LIBRARY.md#observability) |
@@ -76,7 +82,7 @@ Other facts the library must respect:
 - User code cannot write an inherent `impl` for a primitive or another
   built-in type. By decision 8, `std` owns the built-in types and declares
   their extra methods as inherent methods, available without a `use`
-  ([`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std),
+  ([`trait.own.inherent.std`](../../spec/09-traits.md#r-trait.own.inherent.std),
   applied 2026-09-27).
 - A trait's methods are callable with dot syntax only in modules that name the
   trait with `use` (or get it from the prelude).
@@ -88,7 +94,7 @@ Other facts the library must respect:
 - `$.use(K)` returns `mut K` when the trait `K` declares or inherits a
   `mut self` method, and a readonly `K` otherwise; rows and provider
   bindings never write `mut`
-  ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)).
+  ([Mutable Providers](../../spec/11-requirements-and-suspension.md#mutable-providers)).
   A runtime profile binds each host provider with that same access.
 
 ## Survey
@@ -132,7 +138,7 @@ Other facts the library must respect:
 6. **Serialization is always derivation.** Swift `Codable`, Kotlin
    serialization, serde, and MoonBit `derive(ToJson)` all rely on compiler
    generation. Go relies on reflection. hd has neither in a library-usable
-   form yet (see [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets)).
+   form yet (see [Typed Derivation](../OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets)).
    An untyped JSON value type needs neither and can ship first.
 7. **Structured concurrency beat detached tasks.** Swift task groups, Kotlin
    coroutine scopes, and Trio nurseries all bound child lifetime to a scope.
@@ -318,7 +324,7 @@ Arbitrary-precision integers are not in `std`; `BigInt` is an ordinary
 package (decision 9). `std.cell` is gone: a provider changes its own state
 through `mut self` methods, which `$.use(K)` can call (decision 1). `std.secret`,
 `Secret[T]`, and `Redact` are parked with typed derivation in
-[Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets)
+[Open Issues](../OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets)
 (decision 12).
 
 ## Core Layer
@@ -332,7 +338,7 @@ APIs". `std` declares the arithmetic variants as inherent methods on every
 integer type (decision 8), so `count.checked_add(1)` needs no `use`.
 
 The specification fixes three sealed traits
-([Numeric Traits](../spec/09-traits.md#numeric-traits), Operator Traits
+([Numeric Traits](../../spec/09-traits.md#numeric-traits), Operator Traits
 OP9). Only std implements them, for the primitive number types, and each
 implementation's body is an intrinsic. `Num` carries `+ - * / %` through
 its supertraits, and generic code builds constants with `zero`, `one`, and
@@ -354,7 +360,7 @@ lists, and collect the inherent methods for generic code. The earlier draft
 had `Integer < Ord & Hash & Display`; the specification's list has no
 `Hash`, which every primitive number implements anyway, and `Display`
 comes through `Num`
-([Numeric Traits](../spec/09-traits.md#numeric-traits)):
+([Numeric Traits](../../spec/09-traits.md#numeric-traits)):
 
 ```text
 use std.ops.{BitAnd, BitOr, BitXor, Neg, Not, Shl, Shr}
@@ -430,17 +436,17 @@ Parsing user input accepts no literal syntax: `"1_000"` and `"0x10"` are
 `InvalidDigit`.
 
 One `parse_*` function per type stands in for a generic
-`parse[T < FromText](text)`. This draft was written while calling `T::parse`
+`parse[T < FromText](../text)`. This draft was written while calling `T::parse`
 through a bound was open; it is now specified in
-[Associated Function Calls](../spec/09-traits.md#associated-function-calls).
+[Associated Function Calls](../../spec/09-traits.md#associated-function-calls).
 
 ### `std.text`
 
 The specified `string` methods are ten: `len`, `chars`, `char_indices`,
 `bytes`, and `slice` in the language tier's
-[normative table](../spec/10-modules.md#built-in-methods), four of them from
+[normative table](../../spec/10-modules.md#built-in-methods), four of them from
 Strings STR4 and STR5, and `trim`, `lower`, `split`, `replace`, and
-`starts_with` in [Text](../spec/std/text.md#string-methods). The rest are inherent
+`starts_with` in [Text](../../spec/std/text.md#string-methods). The rest are inherent
 methods that `std` declares on `string` (decision 8). They are available in
 every module without a `use`:
 
@@ -507,7 +513,7 @@ impl StringBuilder:
 ```
 
 `std.text` also holds the raw-text prefix `r` and the prefix helpers
-([Literal Suffixes](../spec/05-expressions.md#literal-suffixes) L20 to L22), which
+([Literal Suffixes](../../spec/05-expressions.md#literal-suffixes) L20 to L22), which
 a prefix function imports with `use std.text.{interpolate, process_escapes}`:
 
 ```text
@@ -542,7 +548,7 @@ std counts bytes, as string positions do
 (Strings STR10).
 
 `string::from_utf8` is the one checked conversion from bytes that
-[`types.string.from-bytes`](../spec/04-type-system.md#r-types.string.from-bytes)
+[`types.string.from-bytes`](../../spec/04-type-system.md#r-types.string.from-bytes)
 requires (Strings STR1). `Utf8Error.InvalidSequence` gives the byte offset
 of the first invalid sequence. `to_utf8` copies a string's bytes out.
 
@@ -618,7 +624,7 @@ passes `.None` or `.Err` through unchanged.
 Callbacks take no row parameter here, so `map_err(fn(e): ...)` cannot use a
 requirement. A row-polymorphic version, `fn map_err[F, R](self, transform:
 fn(E) -> F $ R) -> Result[T, F] $ R`, is possible and matches
-[Requirement Polymorphism](../spec/11-requirements-and-suspension.md#requirement-polymorphism);
+[Requirement Polymorphism](../../spec/11-requirements-and-suspension.md#requirement-polymorphism);
 it is the recommended final form.
 
 ### `std.error`
@@ -630,7 +636,7 @@ pub trait Error < Display & Inspectable:
     fn cause(self) -> Error?:
         .None
 
-    fn find[T < AnyRef & Inspectable](self) -> T?:
+    fn find[T < AnyRef & Inspectable](../self) -> T?:
         for part in chain(self):
             match part.downcast::[T]():
                 .Some(found) => return .Some(found)
@@ -708,10 +714,10 @@ cyclic chain cannot loop (`find` and `root_cause` walk `chain`), and
 2026-09-27).
 
 `Error` extends the sealed `Inspectable`
-([Runtime Type Identity](../spec/09-traits.md#runtime-type-identity)), so it
+([Runtime Type Identity](../../spec/09-traits.md#runtime-type-identity)), so it
 inherits `downcast` and `downcast_mut`, and a chain can be searched for a
 concrete type. `error.find[T]()` is Go's `errors.As`: a default method,
-bounded like `downcast` ([Inspectable decisions 11 and 15](../spec/09-traits.md#runtime-type-identity)),
+bounded like `downcast` ([Inspectable decisions 11 and 15](../../spec/09-traits.md#runtime-type-identity)),
 that walks `chain` and returns the first part whose recorded type is exactly
 `T`. A value-type error payload is found with `chain` and
 `std.inspect.downcast_val`. `root_cause` returns the last part. Domain errors
@@ -721,16 +727,16 @@ that walks `chain` and returns the first part whose recorded type is exactly
 The specification fixes the trait's module, its `Display` and `Inspectable`
 supertraits, the rule that every member has a default, and that an erased
 `Error` never crosses a registered boundary
-([Error Trait](../spec/09-traits.md#error-trait)). It also fixes `cause`'s
+([Error Trait](../../spec/09-traits.md#error-trait)). It also fixes `cause`'s
 signature, because the `@error` intrinsic generates `cause`
-([Error Derivation](../spec/14-annotations.md#error-derivation)).
+([Error Derivation](../../spec/14-annotations.md#error-derivation)).
 `Context`, `.context(...)`, `chain`, `find`, and `root_cause` are library
 API. How `?`
 combines errors from several domains is specified in
-[Propagation](../spec/05-expressions.md#propagation), with the conversion
+[Propagation](../../spec/05-expressions.md#propagation), with the conversion
 trait `std.convert.From` in
-[Conversion Trait](../spec/09-traits.md#conversion-trait), and error
-derivation in [Error Derivation](../spec/14-annotations.md#error-derivation).
+[Conversion Trait](../../spec/09-traits.md#conversion-trait), and error
+derivation in [Error Derivation](../../spec/14-annotations.md#error-derivation).
 
 ### `std.collections`
 
@@ -812,8 +818,8 @@ the adapters are its ordinary methods
 (Chaining Study CS7, CS8). This
 replaces the `Iterator` trait of question 14. The specification fixes
 `next`, `filter`, `take`, `enumerate`, `map`, `fold`, and `collect` in
-[Iteration Protocols](../spec/06-control-flow.md#iteration-protocols) and
-[Iterator Adapters](../spec/std/iter.md#iterator-adapters). `step`
+[Iteration Protocols](../../spec/06-control-flow.md#iteration-protocols) and
+[Iterator Adapters](../../spec/std/iter.md#iterator-adapters). `step`
 is private, and user code builds an iterator with `Iterator::from_fn`
 (Chaining Study CS9):
 
@@ -855,7 +861,7 @@ pub fn range(start: i32, end: i32) -> mut Iterator[i32]:
 
 `collect` builds the target that the expected type names, or its declared
 default `List[T]` when nothing does (Collect CO1 and CO5,
-[Collect Targets](../spec/std/iter.md#collect-targets)). `std`
+[Collect Targets](../../spec/std/iter.md#collect-targets)). `std`
 implements `FromIterator` for `List`, `Map` (the last value of an equal key
 wins), all-or-nothing `Result[C, E]` and `C?`, and `Set`. Convenience
 names such as `to_map` or `try_collect`, if `std` adds any, are std-only
@@ -887,13 +893,13 @@ advances `self` only from its own `next`. `collect` and `fold` drain
 `Iterable[T]`, which `List` and `Map` implement, and takes a mutable
 `Iterator` directly (batch 24, IT2). User code
 builds an `Iterator` from its own closure with `Iterator::from_fn`
-([Iteration Protocols](../spec/06-control-flow.md#iteration-protocols)).
+([Iteration Protocols](../../spec/06-control-flow.md#iteration-protocols)).
 
 A lazy adapter calls its callback from `next`, whose row is empty, so the
 callback takes no requirement; one that needs a provider captures the value
 from `$.use` explicitly, since an enclosing `$.with` never satisfies it
 ([Owner Decisions](#owner-decisions),
-[Lexical And Dynamic Providers](../spec/11-requirements-and-suspension.md#lexical-and-dynamic-providers)). `fold` calls its callback
+[Lexical And Dynamic Providers](../../spec/11-requirements-and-suspension.md#lexical-and-dynamic-providers)). `fold` calls its callback
 before it returns, so it carries the row `R`. Iterator adapters that call
 suspending code are not provided: a lazy adapter's `next` is not a driver
 context. A comprehension in a suspending body may make bang calls, since it
@@ -913,14 +919,14 @@ blocked; none needs a question.
 
 `std.ops` holds what gives library types literal and, later, operator
 syntax. Its first member is the literal-suffix marker
-([Literal Suffixes](../spec/05-expressions.md#literal-suffixes) L11,
-[Decorators](../spec/14-annotations.md#prefix-decorators) D9):
+([Literal Suffixes](../../spec/05-expressions.md#literal-suffixes) L11,
+[Decorators](../../spec/14-annotations.md#prefix-decorators) D9):
 
 ```text
 use std.annotation.annotate
 use std.num.Num
 
-@annotate::[F](.Fn)
+@annotate::[F](../.Fn)
 pub data NumSuffix[F]: pass
 
 pub fn num_suffix[N < Num, R, Q]() -> NumSuffix[fn(N) -> R $ Q]:
@@ -928,28 +934,28 @@ pub fn num_suffix[N < Num, R, Q]() -> NumSuffix[fn(N) -> R $ Q]:
 ```
 
 Since batch 39 the marker is a
-[typed fact type](../spec/14-annotations.md#member-typed-facts): a marked
+[typed fact type](../../spec/14-annotations.md#member-typed-facts): a marked
 function's type must match `fn(N) -> R $ Q`. Since batch 40 the row
 parameter `Q` lets a suffix function have a requirement row.
 
 A library declares a suffix by marking a function `@num_suffix`; `250ms`
 then means `ms(250)`. String prefixes work the same way with `@str_prefix`
-([Literal Suffixes](../spec/05-expressions.md#literal-suffixes) L19): `sql"a $x"`
+([Literal Suffixes](../../spec/05-expressions.md#literal-suffixes) L19): `sql"a $x"`
 calls `sql` with a `Template[T]` of the raw text pieces and the values.
 `std.ops` declares `StrPrefix`, `str_prefix`, and `Template`. The
 raw-text prefix `r` lives in `std.text`
-(L20, [Prefixed Strings](../spec/05-expressions.md#prefixed-strings)), so
+(L20, [Prefixed Strings](../../spec/05-expressions.md#prefixed-strings)), so
 code writes `use std.text.r`. The helpers `interpolate`, `process_escapes`,
 and `EscapeError` moved there too (L22; see [`std.text`](#stdtext)).
 
 `std.ops` also declares the operator traits
-([Operator Traits](../spec/05-expressions.md#operator-traits) OP1-OP9, OP11): `Add`,
+([Operator Traits](../../spec/05-expressions.md#operator-traits) OP1-OP9, OP11): `Add`,
 `Sub`, `Mul`, `Div`, `Rem`, `Neg`, `BitAnd`, `BitOr`, `BitXor`, `Not`,
 `Shl`, and `Shr`, each with an associated `Out`, and `Index` and
 `IndexSet`; OP13 removed the assign traits. `List`, `Map`, and `string`
 implement `Index`, and `List` and `Map` implement `IndexSet`, with
 intrinsic bodies
-([Built-In Implementations](../spec/05-expressions.md#built-in-implementations),
+([Built-In Implementations](../../spec/05-expressions.md#built-in-implementations),
 Strings STR8). Neither `lib/std` nor the
 prototype provides them yet. Std implements the operator
 traits for the primitive numbers with intrinsic bodies and `Add` for
@@ -957,7 +963,7 @@ traits for the primitive numbers with intrinsic bodies and `Add` for
 them; that is library work, not a language question. Each binary
 operator trait defaults `Rhs = Self`
 (Type-Argument Defaults TD10,
-[`expr.op.trait.shape-default`](../spec/05-expressions.md#r-expr.op.trait.shape-default)), so
+[`expr.op.trait.shape-default`](../../spec/05-expressions.md#r-expr.op.trait.shape-default)), so
 `impl Add for Money` means `Add[Money]`. `lib/std/ops.hd` and
 `lib/std/num.hd` still spell the argument out; that is library work too.
 
@@ -977,13 +983,13 @@ pub trait IndexSet[K, V]:
 ### `Clone`
 
 `Clone` is a standard-library trait
-([Typed Derivation M22 and M23](../spec/14-annotations.md#typed-derivation)). It
+([Typed Derivation M22 and M23](../../spec/14-annotations.md#typed-derivation)). It
 has two methods: `clone(self)` copies from a readonly value through the
 readonly views, and `clone_mut(mut self) -> mut Self` reads the declared
 member types, so a derived `clone_mut` clones `mut` members as `mut`. It is
 derived through its `by Structure` template with a source that reads the old
 value, as the specification's
-[`CopySource`](../spec/14-annotations.md#handles) example shows. Its module
+[`CopySource`](../../spec/14-annotations.md#handles) example shows. Its module
 is not yet chosen; Typed Derivation M24 chooses it together with the rest of
 the standard library.
 
@@ -991,7 +997,7 @@ the standard library.
 
 A facet is an ordinary trait with an associated function, such as
 `trait Validate: fn validator() -> Validator`, derived through a template
-([Typed Derivation decision 10](../spec/14-annotations.md#typed-derivation)). One
+([Typed Derivation decision 10](../../spec/14-annotations.md#typed-derivation)). One
 standard-library cache memoizes derived associated functions: each value is
 built lazily, once per (trait, type) per program instance. A `Ref[T]`
 deferred reference, with cycle detection, lets a recursive type's value refer
@@ -1043,12 +1049,12 @@ ordinary `mut self` methods. A trait method that changes provider state takes
 `$ K` and get `mut K` from `$.use(K)`; a test installs a mutable value with
 `$.with(K=value)` and may keep its own `mut` alias to inspect the state
 afterwards
-([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)).
+([Mutable Providers](../../spec/11-requirements-and-suspension.md#mutable-providers)).
 
 A host provider for a trait whose methods take `mut self` (`Clock.sleep!`,
 `Random`, `FsWrite` below) is bound with mutable access because of those
 methods, and an entry point requires it as a plain `$ K`
-([Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers)).
+([Mutable Host Providers](../OPEN_ISSUES.md#mutable-host-providers)).
 
 ### `std.time`
 
@@ -1128,11 +1134,11 @@ impl Clock for ManualClock:
 
 The suffix newtypes let code write `250ms` or `5s` for a `Duration`, each
 imported by name, as in `use std.time.{ms, s}`
-([Duration Suffixes](../spec/std/time.md#duration-suffixes)). There is no
+([Duration Suffixes](../../spec/std/time.md#duration-suffixes)). There is no
 `m`, which could mean meters, and no `d`, since a day is not always 24
 hours (L9). A `Duration` is a whole number of milliseconds in an `i64`, so
 there is no `ns` or `us` until a finer representation exists (L17,
-[`std-time.suffix.std.duration`](../spec/std/time.md#r-std-time.suffix.std.duration)).
+[`std-time.suffix.std.duration`](../../spec/std/time.md#r-std-time.suffix.std.duration)).
 
 Reading the clock is a plain call (decision 2); only `sleep!` suspends. A
 test installs a manual clock with mutable access, so `sleep!` can advance it:
@@ -1261,16 +1267,16 @@ impl Console for BufferConsole:
 
 A test installs the buffer with `$.with(Console=console)` and reads
 `console.output()` through its own `mut` alias. The prelude
-[`Console.write_line!`](../spec/10-modules.md#console) takes `mut self`, so
+[`Console.write_line!`](../../spec/10-modules.md#console) takes `mut self`, so
 the buffer appends through it, and printing code still writes only
-`$ Console` ([Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers)).
+`$ Console` ([Mutable Host Providers](../OPEN_ISSUES.md#mutable-host-providers)).
 
 ### `std.fs`
 
 The traits are a read/write split (decision 3). Writes take `mut self`, so
 `$.use(FsWrite)` is mutable and `MemoryFs` stores what it is given.
 Whole-file operations come first; streaming handles wait for
-[Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy):
+[Resource Non-Escape](../OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy):
 
 ```text
 use std.path.Path
@@ -1445,8 +1451,8 @@ fn fake_run() -> ScriptedProcess:
 
 `std.process` also declares `ExitCode` and `Termination`, which turn the
 result of `main` or a test into an exit code
-([Exit Status](../spec/10-modules.md#exit-status),
-[Testing T8](../spec/10-modules.md#exit-status)). Unlike `Process`, neither needs
+([Exit Status](../../spec/10-modules.md#exit-status),
+[Testing T8](../../spec/10-modules.md#exit-status)). Unlike `Process`, neither needs
 a host binding:
 
 ```text
@@ -1464,7 +1470,7 @@ impl[T < Termination, E < Display] Termination for Result[T, E]
 its cause chain and reports `ExitCode(1)`. A tool that wants another code
 returns `ExitCode` or `Result[ExitCode, E]`. This replaces the earlier
 `ExitStatus` trait and its never-zero `StatusCode`
-([Exit Status](../spec/10-modules.md#exit-status)).
+([Exit Status](../../spec/10-modules.md#exit-status)).
 
 ### `std.observe` and `std.log`
 
@@ -1525,7 +1531,7 @@ list; a heterogeneous race returns an enum the caller defines.
 **Superseded for `retry!` (owner decision RETRY, batch 29, 2026-09-30).**
 `retry!` is a plain library loop over a `fn!` attempt, with no policy and
 no clock: `retry![T, E](times: i32, attempt: fn!() -> Result[T, E])`. The
-stdlib tier specifies it in [Task](../spec/std/task.md#retry). The
+stdlib tier specifies it in [Task](../../spec/std/task.md#retry). The
 `RetryPolicy` draft above is not decided.
 
 `Task[T]` exists only inside a structured scope (decision 11). There is no
@@ -1645,7 +1651,7 @@ sketch shows two). `from_f64` returns `.None` for NaN and infinity, so a
 `Hash` compare the representation, and `Display` prints the JSON text.
 
 Typed encoding and decoding (`User` to `Json` and back) is blocked on
-[Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
+[Typed Derivation](../OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
 This draft does not invent that protocol. The library needs, from the
 language:
 
@@ -1656,11 +1662,11 @@ language:
    to be `pub`).
 3. **Target-indexed output.** Produce a `Decoder[T]` or `Encoder[T]` per type,
    so the result is typed rather than `Any`.
-4. **Static calls through a bound.** A generic `decode[T < Decode](json)` must
+4. **Static calls through a bound.** A generic `decode[T < Decode](../json)` must
    call `T::decode`; this is specified in
-   [Associated Function Calls](../spec/09-traits.md#associated-function-calls).
+   [Associated Function Calls](../../spec/09-traits.md#associated-function-calls).
 5. **Complete shape coverage** for every legal field type, now specified in
-   [Common Shape Representation](../spec/14-annotations.md#common-shape-representation).
+   [Common Shape Representation](../../spec/14-annotations.md#common-shape-representation).
 6. **Field metadata** for renames, defaults, and skipping; member metadata
    and typed-derivation facts already provide this.
 7. **Enum encoding policy**: tagged, adjacent, or untagged, chosen per type.
@@ -1674,7 +1680,7 @@ the open issue groups them.
 
 Persisted identity for incremental computation and replay. The algorithm and
 canonical encoding are research in
-[Roadmap area 3](ROADMAP.md#3-runtime-durable-replay); the surface can be
+[Roadmap area 3](../ROADMAP.md); the surface can be
 fixed now:
 
 ```text
@@ -1713,8 +1719,8 @@ derivation rule, which falls under the same typed-derivation issue.
 declares the test-case functions, and adds four groups.
 
 The test-case functions are specified in
-[Test Cases](../spec/10-modules.md#test-cases), from
-[Testing](../spec/10-modules.md#test-modules) T16, T31, T40, T41, and T47. All four
+[Test Cases](../../spec/10-modules.md#test-cases), from
+[Testing](../../spec/10-modules.md#test-modules) T16, T31, T40, T41, and T47. All four
 are ordinary functions; only their registration is special. Each is called
 only directly in test position, with a literal name and `it`'s literal
 options.
@@ -1740,7 +1746,7 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], ignore: strin
 
 `timeout` takes any `Duration` value, usually a suffixed literal, as in
 `timeout=5s` with `use std.time.s`
-([`std-testing.option.timeout-any-duration`](../spec/std/testing.md#r-std-testing.option.timeout-any-duration)).
+([`std-testing.option.timeout-any-duration`](../../spec/std/testing.md#r-std-testing.option.timeout-any-duration)).
 
 Assertion helpers, same shape:
 
@@ -1793,8 +1799,8 @@ stateful providers enter the context with `mut` access, so code under test
 can advance the clock, step the generator, and write files.
 
 Snapshot functions compare a string with expected text (T30, T32). Their
-signatures are specified in [Snapshots](../spec/10-modules.md#snapshots)
-and [Snapshot Files](../spec/std/testing.md#snapshot-files) (T49), and `expect` must be a string literal:
+signatures are specified in [Snapshots](../../spec/10-modules.md#snapshots)
+and [Snapshot Files](../../spec/std/testing.md#snapshot-files) (T49), and `expect` must be a string literal:
 
 ```text
 pub fn snapshot(text: string, expect: string = "") -> void:
@@ -1811,7 +1817,7 @@ file from the running test, under the package's one `__snapshots__/` folder
 (T34), as [Snapshot Tests](RUNTIME_AND_LIBRARY.md#snapshot-tests) lays out.
 
 `debug(x)` renders the derivable `Debug` trait (T33, T39, T48), specified in
-[Debug Trait](../spec/09-traits.md#debug-trait). `std.format` declares it
+[Debug Trait](../../spec/09-traits.md#debug-trait). `std.format` declares it
 beside `Display`, and both `Debug` and `debug` are prelude names:
 
 ```text
@@ -1820,7 +1826,7 @@ pub trait Debug:
 ```
 
 `DebugWriter` is a structured writer with builder calls, like Rust's
-`debug_struct` and `field`, as [Debug Builders](../spec/std/format.md#debug-builders) specifies (Testing T53). The
+`debug_struct` and `field`, as [Debug Builders](../../spec/std/format.md#debug-builders) specifies (Testing T53). The
 derived implementation is a walker over the members, and `debug(x) -> string`
 prints stable, multi-line, consistently indented output. `std` implements
 `Debug` for primitives, collections, `T?`, `Result`, and tuples.
@@ -1862,7 +1868,7 @@ pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choice
 Draft, 2026-09-28 (owner: "choices, Hypothesis first, then Arbitrary to
 give sensible defaults"), revised by Testing PT1-PT9 (2026-09-29). The
 specification states the language-facing parts in
-[Property Tests](../spec/std/testing.md#property-tests); names below that it
+[Property Tests](../../spec/std/testing.md#property-tests); names below that it
 does not list may change when the library is built.
 
 **`Choices`** is the only source of randomness a generator sees. Every draw
@@ -1946,7 +1952,7 @@ value of the enum; `List`, `Map`, and optional members are at most
 `.Optional` (Q7). When every variant is `.Required`, or a data type has a
 `.Required` member, the derived generator panics on the first case, naming
 the type (Q6, SR1). See
-[Self References](../spec/14-annotations.md#self-references).
+[Self References](../../spec/14-annotations.md#self-references).
 
 > **Note.** Other templates can read `self_ref` too (SR1). A derived
 > `Default` picks its simplest variant the same way. When any `self_ref`
@@ -1990,7 +1996,7 @@ code panics on the first case instead, naming the member and both types;
 it never ignores the fact. A generic `With[T]` fact was rejected, because
 looking up `With[i32]` would miss a `With[string]` and silently use the
 default. See
-[Derived Arbitrary](../spec/std/testing.md#derived-arbitrary).
+[Derived Arbitrary](../../spec/std/testing.md#derived-arbitrary).
 
 **A generator** for anything a type cannot express is a plain function
 over `Choices`, passed to `it_prop_with`. Dependent draws need nothing
@@ -2087,30 +2093,30 @@ model, the facts, and the draw API above. The generators keep the
 
 | Module | Depends on | Open item |
 | --- | --- | --- |
-| host providers for `Clock.sleep!`, `Random`, `FsWrite`; a recording `Console` | `write_line!` taking `mut self`: applied, [Console](../spec/10-modules.md#console) | none |
+| host providers for `Clock.sleep!`, `Random`, `FsWrite`; a recording `Console` | `write_line!` taking `mut self`: applied, [Console](../../spec/10-modules.md#console) | none |
 | `std.time`, `std.random`, `std.host` | replay recording of non-suspending host calls (decision 2): answered, every host method is marked input or output by its runtime profile, suspending or not ([Durable Replay decision 7](RUNTIME_AND_LIBRARY.md#replay-rules)) | none |
-| inherent methods on `string`, `T?`, `List`, `Map`, integers (decision 8) | a `std` exception to the inherent-target rule: applied, [`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std) | none |
-| `std.json` typed codecs, `std.fingerprint` derive, property generators | typed derivation protocol | [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets) |
-| `std.fs` handles, `std.net`, `std.process` streaming | non-escaping handles and fallible cleanup | [Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy) |
-| `std.observe`, `std.log` | task-local trace context | [Observability Hooks](OPEN_ISSUES.md#observability-hooks) |
-| `std.incremental` | closure identity, weak references | [Serializable Closures](OPEN_ISSUES.md#serializable-closures-and-incremental-computation) |
+| inherent methods on `string`, `T?`, `List`, `Map`, integers (decision 8) | a `std` exception to the inherent-target rule: applied, [`trait.own.inherent.std`](../../spec/09-traits.md#r-trait.own.inherent.std) | none |
+| `std.json` typed codecs, `std.fingerprint` derive, property generators | typed derivation protocol | [Typed Derivation](../OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets) |
+| `std.fs` handles, `std.net`, `std.process` streaming | non-escaping handles and fallible cleanup | [Resource Non-Escape](../OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy) |
+| `std.observe`, `std.log` | task-local trace context | [Observability Hooks](../OPEN_ISSUES.md#observability-hooks) |
+| `std.incremental` | closure identity, weak references | [Serializable Closures](../OPEN_ISSUES.md#serializable-closures-and-incremental-computation) |
 | `std.task.all!` | none: an intrinsic with one typing rule since batch 31b removed packs | none |
 | idle-driven virtual time (after decision 10) | a driver idle signal | no open issue yet |
-| attenuated providers (`for_tenant`) | principal and tenancy patterns | [Access Control](OPEN_ISSUES.md#access-control-and-tenancy-expressibility) |
-| capability catalog, provider configuration, combinator set | library and runtime work | [Runtime, Library, ABI, And Tooling Work](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work) |
-| how `std` versions with the compiler | package tooling | [Roadmap area 5](ROADMAP.md#5-packages) |
+| attenuated providers (`for_tenant`) | principal and tenancy patterns | [Access Control](../OPEN_ISSUES.md#access-control-and-tenancy-expressibility) |
+| capability catalog, provider configuration, combinator set | library and runtime work | [Runtime, Library, ABI, And Tooling Work](../OPEN_ISSUES.md#runtime-library-abi-and-tooling-work) |
+| how `std` versions with the compiler | package tooling | [Roadmap area 5](../ROADMAP.md) |
 
 ## Owner Decisions
 
 **STDLIB Still Open after the question 14-22 pass (decided 2026-09-29).**
 - `map[U]` and `fold[A]` on `Iterator`: closed by Chaining Study CS7,
   which makes `Iterator` a data type, so both are ordinary methods
-  ([Iterator Adapters](../spec/std/iter.md#iterator-adapters)).
+  ([Iterator Adapters](../../spec/std/iter.md#iterator-adapters)).
 - A callback passed to a lazy adapter (`filter`) runs inside `next`, whose
   row is empty. It needs no providers; one that uses a provider captures
   the value from `$.use` explicitly, since a closure never captures a
   provider from an enclosing `$.with` (provider scope batch 14, PS3,
-  [`std-iter.adapter.callback-row.capture`](../spec/std/iter.md#r-std-iter.adapter.callback-row.capture)). When the
+  [`std-iter.adapter.callback-row.capture`](../../spec/std/iter.md#r-std-iter.adapter.callback-row.capture)). When the
   eager `fold` lands, it carries a row parameter:
   `fold[A, R](init: A, step: fn(A, T) -> A $ R) -> A $ R`.
 - Kept as applied:
@@ -2145,7 +2151,7 @@ text names no `fold`, so the row parameter is in the draft signature under
 - `ScriptedProcess::new(outputs)` is the constructor.
 
 Applied 2026-09-29. The prelude `Iterator` part is in the specification:
-[Iterator Adapters](../spec/std/iter.md#iterator-adapters) gives
+[Iterator Adapters](../../spec/std/iter.md#iterator-adapters) gives
 `filter`, `take`, `enumerate`, and `collect`. Superseded 2026-09-29 by
 Chaining Study CS7 and CS8:
 `Iterator` is a data type, so `map` and `fold` are ordinary methods and
@@ -2161,11 +2167,11 @@ Decided 2026-09-26:
    `mut` access may be used as `$.use(mut Clock)`, so a deterministic
    provider such as `ManualClock` changes its own state through ordinary
    `mut self` methods. Applied 2026-09-26: the access rules are in
-   [Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers).
+   [Mutable Providers](../../spec/11-requirements-and-suspension.md#mutable-providers).
    A provider is installed with `$.with(mut Clock=clock)`, requested in rows
    as `$ mut Clock`, and retrieved with `$.use(mut Clock)`. Superseded
    2026-09-27: access now follows from the trait, and no `mut` is written
-   ([Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers)).
+   ([Mutable Host Providers](../OPEN_ISSUES.md#mutable-host-providers)).
 
 2. **Question 2: I/O suspends; clock, random, and environment reads do not.**
    Filesystem and network reads are `!` calls; `clock.now()`,
@@ -2184,11 +2190,11 @@ Decided 2026-09-26:
    traits. `std` owns the built-in types, so it may declare inherent impls
    for them, and those methods are available without a `use`. Applied
    2026-09-27:
-   [`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std).
+   [`trait.own.inherent.std`](../../spec/09-traits.md#r-trait.own.inherent.std).
    Detail decided 2026-09-27: the list includes `Result` as well as
    `Option`. Tuples get no helper methods at all, only trait
    implementations; a tuple that needs methods should be a named `data`
-   ([`trait.own.inherent.std.no-tuple`](../spec/09-traits.md#r-trait.own.inherent.std.no-tuple)).
+   ([`trait.own.inherent.std.no-tuple`](../../spec/09-traits.md#r-trait.own.inherent.std.no-tuple)).
 9. **Question 9: `decimal` only** beyond the primitives; `BigInt` is a
    package.
 10. **Question 10: virtual time auto-advances now** (`sleep!` on a manual
@@ -2199,7 +2205,7 @@ Decided 2026-09-26:
     siblings.
 12. **Question 12: `Secret[T]` is removed from the design for now.** It is
     too early; it is parked with typed derivation in
-    [Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
+    [Open Issues](../OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
     This document no longer sketches `std.secret`, `Secret[T]`, or
     `Redact`.
 13. **Question 13: ship untyped `std.json.Json` now, with a unified
@@ -2215,10 +2221,10 @@ Decided 2026-09-26:
     `FsWrite`, `Console`); an entry row may then contain `$ mut K`. Tests
     keep installing deterministic providers with `$.with(mut K=...)`.
     Applied 2026-09-26: the rules are in
-    [Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)
-    and [Wasm Boundary](../spec/10-modules.md#wasm-boundary). Which traits
+    [Mutable Providers](../../spec/11-requirements-and-suspension.md#mutable-providers)
+    and [Wasm Boundary](../../spec/10-modules.md#wasm-boundary). Which traits
     each toolchain profile marks mutable stays open in
-    [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers).
+    [Mutable Host Providers](../OPEN_ISSUES.md#mutable-host-providers).
     Superseded 2026-09-27: profiles no longer mark traits; a trait with a
     `mut self` method is always bound mutable.
 

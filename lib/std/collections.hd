@@ -1,4 +1,4 @@
-# std.collections: inherent `List` methods (future-work/STDLIB.md#stdcollections).
+# std.collections: inherent `List` methods (future-work/archive/STDLIB.md#stdcollections).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
 # Each method returns a new list and leaves its receiver unchanged.
 

@@ -1,19 +1,25 @@
 # Nominal Function Types: Per-Declaration Data For Tools
 
+> **Archived 2026-10-01.** Decisions 1-9 are applied, and the
+> [specification](../../spec/README.md) is authoritative. Questions 9 and
+> 10 are parked with the tool adapters in
+> [Open Issues](../OPEN_ISSUES.md#parked-tool-adapters). The record is kept as history, so its
+> examples and rule IDs may describe retired rules.
+
 Status: open. Nothing here is accepted behavior. Owner decisions 1-9 of
 this record (2026-09-27) are applied, and the specification is
 authoritative for them:
-[Function Type Constructors](../spec/07-functions.md#function-type-constructors),
-[Captures](../spec/07-functions.md#captures),
-[Variance](../spec/04-type-system.md#variance),
-[Identity](../spec/05-expressions.md#identity),
-[Implementation Targets](../spec/09-traits.md#implementation-targets), and
-[Inspectable Types](../spec/09-traits.md#inspectable-types). The survey and
+[Function Type Constructors](../../spec/07-functions.md#function-type-constructors),
+[Captures](../../spec/07-functions.md#captures),
+[Variance](../../spec/04-type-system.md#variance),
+[Identity](../../spec/05-expressions.md#identity),
+[Implementation Targets](../../spec/09-traits.md#implementation-targets), and
+[Inspectable Types](../../spec/09-traits.md#inspectable-types). The survey and
 design options behind them are in this file's git history.
 
 What remains is questions 9 and 10: how a tool adapter gets per-declaration
 data about a function. They are listed as
-[Function targets](../spec/14-annotations.md#undecided-parts) in the
+[Function targets](../../spec/14-annotations.md#undecided-parts) in the
 specification.
 
 ## Owner Decisions
@@ -22,7 +28,7 @@ Not yet applied:
 
 10. **Q9 and Q10 (per-declaration data for tools, item types) are parked
     with typed derivation;** tools register functions by hand for now.
-    Since then, [Prefix Decorators](../spec/14-annotations.md#prefix-decorators)
+    Since then, [Prefix Decorators](../../spec/14-annotations.md#prefix-decorators)
     let a decorator attach a value to a function, and
     `shape_of(f).metadata[M]()` reads it. Deriving for functions still
     waits.
@@ -71,7 +77,7 @@ only `has_default`.
 **A2, a typed view.** A `fn_view(f)` intrinsic, as in Typed Derivation
 question 8, returns one value holding the callable, the `FnShape`, and typed
 default thunks (defaults are requirement-free by
-[Default Values](../spec/07-functions.md#default-values), so a thunk can run
+[Default Values](../../spec/07-functions.md#default-values), so a thunk can run
 anywhere). With nominal types it can be typed by the function type:
 `FnView[SuspendFn[(Ps...), O, Rq]]`.
 

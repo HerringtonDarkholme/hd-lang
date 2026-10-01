@@ -31,7 +31,7 @@ Under review: [Typed Derivation](../../spec/14-annotations.md#typed-derivation),
 decisions behind them are typed derivation M1-M30, SR1, SIMPLE, ST8,
 ALL-INTRINSIC, batch 31 Q6, and batch 32 Q1, logged in
 [Revision Notes](../../spec/README.md#revision-notes) and
-[Typed Derivation](../TYPED_DERIVATION.md).
+[Typed Derivation](TYPED_DERIVATION.md).
 
 ## Contents
 

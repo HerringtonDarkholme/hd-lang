@@ -75,7 +75,7 @@ decorator before the function attaches a plain value, which an adapter reads
 with `shape_of(get_user).metadata::[M]()`
 ([Prefix Decorators](../spec/14-annotations.md#prefix-decorators)).
 Deriving an adapter for a function is still undecided
-([FN_TYPE questions 9 and 10](../future-work/FN_TYPE.md#9-how-do-tool-adapters-get-per-declaration-data)),
+([parked tool adapters](../future-work/OPEN_ISSUES.md#parked-tool-adapters)),
 so tools are registered by hand for now. The same registration
 model should extend to service endpoints, jobs, workflows, and host-callable
 Wasm functions.
