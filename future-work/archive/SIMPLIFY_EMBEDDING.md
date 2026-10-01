@@ -1,5 +1,10 @@
 # Simplify Embedding, Promotion, And Delegation
 
+> **Archived 2026-10-01.** Every decision in this record is applied or
+> superseded, and the [specification](../../spec/README.md) is
+> authoritative. The record is kept as history, so its examples and rule
+> IDs may describe retired rules.
+
 Status: simplification review, 2026-09-30. The owner answered its
 questions in batch 32; see [Owner Decisions](#owner-decisions). All six
 are applied: Q1, Q2, Q5, and Q6 in pass 32a, and Q3 and Q4 in pass 32b.
@@ -12,16 +17,16 @@ contrast row. It follows
 [R1](SYNTAX_SEMANTICS_COST.md#r1-embedding-promotion-and-delegation) and
 rows 20-21 of the [cost table](SYNTAX_SEMANTICS_COST.md#cost-table).
 
-Under review: [Data Embedding](../spec/08-data-and-enums.md#data-embedding)
-and its subsections, [Copy-Update Literals](../spec/08-data-and-enums.md#copy-update-literals),
-[Member Resolution](../spec/03-names-and-scopes.md#member-resolution),
-[Embedding And Trait Satisfaction](../spec/09-traits.md#embedding-and-trait-satisfaction),
-[Trait Delegation](../spec/09-traits.md#trait-delegation),
-[Mutable Paths](../spec/04-type-system.md#mutable-paths), and the
-embedded-member rules of [chapter 14](../spec/14-annotations.md). The
+Under review: [Data Embedding](../../spec/08-data-and-enums.md#data-embedding)
+and its subsections, [Copy-Update Literals](../../spec/08-data-and-enums.md#copy-update-literals),
+[Member Resolution](../../spec/03-names-and-scopes.md#member-resolution),
+[Embedding And Trait Satisfaction](../../spec/09-traits.md#embedding-and-trait-satisfaction),
+[Trait Delegation](../../spec/09-traits.md#trait-delegation),
+[Mutable Paths](../../spec/04-type-system.md#mutable-paths), and the
+embedded-member rules of [chapter 14](../../spec/14-annotations.md). The
 decisions behind them are VE1-VE4, VE-S, the second embedding review, the
 embedding limits, the single view, and trait delegation, all logged in
-[Revision Notes](../spec/README.md#revision-notes).
+[Revision Notes](../../spec/README.md#revision-notes).
 
 ## Contents
 
@@ -86,10 +91,10 @@ finds 219.
 
 | Where | Rules | Spec lines | Anchors |
 | --- | ---: | ---: | --- |
-| 08 Data Embedding, all subsections | 80 | 304 | [names](../spec/08-data-and-enums.md#embedded-field-names) 8, [limits](../spec/08-data-and-enums.md#embedding-limits) 7, [parts and copies](../spec/08-data-and-enums.md#parts-and-copies) 39, [mutable edges](../spec/08-data-and-enums.md#mutable-edges) 7, [variance](../spec/08-data-and-enums.md#embedded-field-variance) 1, [promotion](../spec/08-data-and-enums.md#member-promotion) 10, [composition](../spec/08-data-and-enums.md#composition-not-subtyping) 5, [metadata](../spec/08-data-and-enums.md#embedded-field-metadata) 3 |
+| 08 Data Embedding, all subsections | 80 | 304 | [names](../../spec/08-data-and-enums.md#embedded-field-names) 8, [limits](../../spec/08-data-and-enums.md#embedding-limits) 7, [parts and copies](../../spec/08-data-and-enums.md#parts-and-copies) 39, [mutable edges](../../spec/08-data-and-enums.md#mutable-edges) 7, [variance](../../spec/08-data-and-enums.md#embedded-field-variance) 1, [promotion](../../spec/08-data-and-enums.md#member-promotion) 10, [composition](../../spec/08-data-and-enums.md#composition-not-subtyping) 5, [metadata](../../spec/08-data-and-enums.md#embedded-field-metadata) 3 |
 | 08 elsewhere | 9 | about 10 | `data.field.embedded-no-mut`, `data.default.embedded`, `data.vis.*` (3), `data.update.embedded`, `data.access.embedded-copy`, `data.derive.embedded`, `data.unsupported.mut-embedded` |
-| 03 Member Resolution, promotion parts | 57 | 140 | [depths](../spec/03-names-and-scopes.md#depths-and-promoted-members) 8, [take part](../spec/03-names-and-scopes.md#members-that-take-part) 7, [hiding and conflicts](../spec/03-names-and-scopes.md#hiding-and-conflicts) 13, lookup refinements 10, [examples](../spec/03-names-and-scopes.md#method-lookup-example) 5, [promoted access](../spec/03-names-and-scopes.md#promoted-member-access) 6, [dependency changes](../spec/03-names-and-scopes.md#dependency-changes) 4, [no overriding](../spec/03-names-and-scopes.md#no-overriding) 3, visibility 1 |
-| 09 Traits | 43 | 171 | [`trait.embed.*`](../spec/09-traits.md#embedding-and-trait-satisfaction) 16, [`trait.by.*`](../spec/09-traits.md#trait-delegation) 22, five rules in other sections |
+| 03 Member Resolution, promotion parts | 57 | 140 | [depths](../../spec/03-names-and-scopes.md#depths-and-promoted-members) 8, [take part](../../spec/03-names-and-scopes.md#members-that-take-part) 7, [hiding and conflicts](../../spec/03-names-and-scopes.md#hiding-and-conflicts) 13, lookup refinements 10, [examples](../../spec/03-names-and-scopes.md#method-lookup-example) 5, [promoted access](../../spec/03-names-and-scopes.md#promoted-member-access) 6, [dependency changes](../../spec/03-names-and-scopes.md#dependency-changes) 4, [no overriding](../../spec/03-names-and-scopes.md#no-overriding) 3, visibility 1 |
+| 09 Traits | 43 | 171 | [`trait.embed.*`](../../spec/09-traits.md#embedding-and-trait-satisfaction) 16, [`trait.by.*`](../../spec/09-traits.md#trait-delegation) 22, five rules in other sections |
 | 02 Grammar | 12 | about 20 | `grammar.data.embedded*` 5, `grammar.stmt.copy-assign*` 2, `grammar.primary.field-copy*` 2, `grammar.primary.prefix-copies`, `grammar.impl.delegation-field`, `grammar.impl.promoted` |
 | 04 Types | 7 | about 10 | `types.mut.embedded`, `types.fresh.embedded-copy`, `types.path.field.embedded` (2), `types.path.promoted`, `types.path.store-embedded`, `types.polarity.embedded` |
 | 05 Expressions | 7 | about 8 | `expr.assign.embedded`, `expr.data.embedded*` 2, `expr.update.*embedded*` 3, `expr.member.embedded-trait` |
@@ -99,7 +104,7 @@ finds 219.
 
 ### By Kind
 
-Kinds follow the [Design Cost Order](../AGENTS.md#design-cost-order).
+Kinds follow the [Design Cost Order](../../AGENTS.md#design-cost-order).
 
 | Kind | Rules | Examples |
 | --- | ---: | --- |
@@ -122,13 +127,13 @@ members, and a search for `...` labels, `...=`, and `by` headers.
 
 | Corpus | Embedded fields | Copies `E: ...e` and `...=` | `impl Tr for C by E` |
 | --- | ---: | ---: | ---: |
-| [Language Tour](../guide/LANGUAGE_TOUR.md) | 10, of which 5 show a conflict | 5 | 3 |
-| [Learn In 10 Minutes](../guide/LEARN_IN_10_MINUTES.md) | 2 | 1 | 1 |
+| [Language Tour](../../guide/LANGUAGE_TOUR.md) | 10, of which 5 show a conflict | 5 | 3 |
+| [Learn In 10 Minutes](../../guide/LEARN_IN_10_MINUTES.md) | 2 | 1 | 1 |
 | `lib/std` | 0 | 0 | 0 |
 | `examples/` and playground | 0 | 0 | 0 |
 | Fixtures | 83 files | many | 9 headers in 7 files |
 
-The 81 fixture rows in [cases.tsv](../spec/conformance/cases.tsv) that use
+The 81 fixture rows in [cases.tsv](../../spec/conformance/cases.tsv) that use
 embedding are 43 accepts and 38 rejects over 17 codes. The largest reject
 groups are `ambiguous-promoted-member` (7), `invalid-delegation` (4),
 `embedded-copy-required` (3), `embedded-non-data` (3), and
@@ -216,10 +221,10 @@ readonly source already give the result's access, so the seven
 
 | Before | After | Absorbed by |
 | --- | --- | --- |
-| `data.part.construct`, `.copy`, `.not-shared`, `.shallow`, `.readonly-source`, `.store`, `data.embed.key`, `expr.data.embedded*`, `expr.assign.embedded`, `types.fresh.embedded-copy`, `expr.update.embedded.readonly` | `data.part.construct`: `E: ...e` and `x.E ...= e` store `E { ...e }` | [Copy-Update Literals](../spec/08-data-and-enums.md#copy-update-literals) |
-| `data.edge.principle`, `.copy-type`, `.readonly-literal`, `.upgrade-literal`, `.generic`, `.definition` | none; a Note says a mutable edge counts at any depth | [`data.update.readonly-source`](../spec/08-data-and-enums.md#r-data.update.readonly-source), [`data.update.mutable-result`](../spec/08-data-and-enums.md#r-data.update.mutable-result), [`types.fresh.mut-literal`](../spec/04-type-system.md#r-types.fresh.mut-literal) |
+| `data.part.construct`, `.copy`, `.not-shared`, `.shallow`, `.readonly-source`, `.store`, `data.embed.key`, `expr.data.embedded*`, `expr.assign.embedded`, `types.fresh.embedded-copy`, `expr.update.embedded.readonly` | `data.part.construct`: `E: ...e` and `x.E ...= e` store `E { ...e }` | [Copy-Update Literals](../../spec/08-data-and-enums.md#copy-update-literals) |
+| `data.edge.principle`, `.copy-type`, `.readonly-literal`, `.upgrade-literal`, `.generic`, `.definition` | none; a Note says a mutable edge counts at any depth | [`data.update.readonly-source`](../../spec/08-data-and-enums.md#r-data.update.readonly-source), [`data.update.mutable-result`](../../spec/08-data-and-enums.md#r-data.update.mutable-result), [`types.fresh.mut-literal`](../../spec/04-type-system.md#r-types.fresh.mut-literal) |
 | `data.update.embedded`, `expr.update.embedded`, `expr.update.shallow.embedded` | `data.part.copy-update` | one statement |
-| `data.embed.variance`, `types.polarity.embedded` | one clause of `types.polarity.mut`: an embedded field counts as beneath `mut` | [`types.polarity.mut`](../spec/04-type-system.md#r-types.polarity.mut) |
+| `data.embed.variance`, `types.polarity.embedded` | one clause of `types.polarity.mut`: an embedded field counts as beneath `mut` | [`types.polarity.mut`](../../spec/04-type-system.md#r-types.polarity.mut) |
 
 The same program is rejected for the same reason before and after; only
 the rule that explains it moves:
@@ -254,8 +259,8 @@ that forwards to `Trait::m(self.E, ...)`, checked as if written.
 | Before | After | Absorbed by |
 | --- | --- | --- |
 | `trait.by.generated`, `.signature`, `.variadic`, `.mut`, `.part-receiver` | `trait.by.generated` | ordinary checking of the written method |
-| `trait.by.ordinary`, `.rules`, `.candidates`, `.dot-call` | `trait.by.ordinary` | [Method Candidates](../spec/03-names-and-scopes.md#method-candidates) |
-| `trait.by.assoc-fn`, `.assoc-fn.written` | `trait.by.assoc-fn`: written as in any implementation | [Implementation Declarations](../spec/09-traits.md#implementation-declarations) |
+| `trait.by.ordinary`, `.rules`, `.candidates`, `.dot-call` | `trait.by.ordinary` | [Method Candidates](../../spec/03-names-and-scopes.md#method-candidates) |
+| `trait.by.assoc-fn`, `.assoc-fn.written` | `trait.by.assoc-fn`: written as in any implementation | [Implementation Declarations](../../spec/09-traits.md#implementation-declarations) |
 | `trait.by.direct`, `data.embed.delegation`, `trait.embed.delegate` | deleted or merged into `trait.by.form` | a field name names a direct field |
 
 ```text
@@ -354,7 +359,7 @@ member wins, private or not. Outside its module, the use is
 
 | Before | After | Absorbed by |
 | --- | --- | --- |
-| `names.conflict.private-own`, `.private-site`, `.private-message`, `data.promote.private-own` | none | [`names.hide.depth`](../spec/03-names-and-scopes.md#r-names.hide.depth), [`names.field-lookup.private`](../spec/03-names-and-scopes.md#r-names.field-lookup.private) |
+| `names.conflict.private-own`, `.private-site`, `.private-message`, `data.promote.private-own` | none | [`names.hide.depth`](../../spec/03-names-and-scopes.md#r-names.hide.depth), [`names.field-lookup.private`](../../spec/03-names-and-scopes.md#r-names.field-lookup.private) |
 
 ```text
 data CreatedBySystem:
@@ -383,7 +388,7 @@ field named by its type, with promotion. It is filled `E: e`, stored
 | --- | --- | --- |
 | `data.part.construct`, `.copy-update`, `.marker-required`, `.copy-time`, `.unobservable`, `data.part.suggestion` | none | ordinary field rules |
 | `grammar.stmt.copy-assign`, `grammar.primary.field-copy`, the `...=` token | none | plain assignment |
-| `types.path.field.embedded`, `types.path.store-embedded`, `data.part.access` | none | the readonly-edge and mutable-edge rows of [Mutable Paths](../spec/04-type-system.md#mutable-paths) |
+| `types.path.field.embedded`, `types.path.store-embedded`, `data.part.access` | none | the readonly-edge and mutable-edge rows of [Mutable Paths](../../spec/04-type-system.md#mutable-paths) |
 | `data.field.embedded-no-mut`, `data.embed.unique` | none | `mut E` is a mutable edge; `duplicate-field` |
 | `data.embed.member`, `grammar.primary.prefix-copies` | reworded | prefix `...` is copy-update only |
 
@@ -722,11 +727,11 @@ Batch 32, 2026-09-30. Net: O1 plus O2b, with the limits kept.
 
 | # | Decision | Status |
 | --- | --- | --- |
-| Q1 | A: delegation is written forwarding, `Trait::m(self.E, ...)`, checked as if written. | Applied in 32a: [`trait.by.generated`](../spec/09-traits.md#r-trait.by.generated). `trait.by.generated.variadic` stayed while varargs were under discussion, and merged into it in 33a (TUPLE-REST). |
-| Q2 | A: a part copy is a copy-update, `E { ...e }`. | Applied in 32a: [`data.part.construct`](../spec/08-data-and-enums.md#r-data.part.construct), and a Note in [Mutable Edges](../spec/08-data-and-enums.md#mutable-edges). |
-| Q3 | A: state each rule once (O1c and the rest of O1). | Applied in 32b: [`names.promoted.path`](../spec/03-names-and-scopes.md#r-names.promoted.path), [`names.promote.member`](../spec/03-names-and-scopes.md#r-names.promote.member), [`names.method-lookup.ambiguous`](../spec/03-names-and-scopes.md#r-names.method-lookup.ambiguous), [`trait.impl.fill.never`](../spec/09-traits.md#r-trait.impl.fill.never), and a linking summary in [Member Promotion](../spec/08-data-and-enums.md#member-promotion). |
-| Q4 | A: a private own member hides a promoted one. | Applied in 32b, then reversed by PRIVATE-SHADOW (batch 33, 2026-10-01): a private own member with a promoted member's name is `ambiguous-promoted-member` again, [`names.conflict.private-shadow`](../spec/03-names-and-scopes.md#r-names.conflict.private-shadow). |
-| Q5 | B, not the recommended A: keep `data.embed.width` and `data.embed.depth`. `depth.chain` becomes an example; `depth.every-type` and `depth.message` become a diagnostics Note; `depth.generic` and `names.part.depth.levels` are deleted. `data.embed.depth.self` stays, with its own code `embedding-cycle`. | Applied in 32a: [Embedding Limits](../spec/08-data-and-enums.md#embedding-limits). |
+| Q1 | A: delegation is written forwarding, `Trait::m(self.E, ...)`, checked as if written. | Applied in 32a: [`trait.by.generated`](../../spec/09-traits.md#r-trait.by.generated). `trait.by.generated.variadic` stayed while varargs were under discussion, and merged into it in 33a (TUPLE-REST). |
+| Q2 | A: a part copy is a copy-update, `E { ...e }`. | Applied in 32a: [`data.part.construct`](../../spec/08-data-and-enums.md#r-data.part.construct), and a Note in [Mutable Edges](../../spec/08-data-and-enums.md#mutable-edges). |
+| Q3 | A: state each rule once (O1c and the rest of O1). | Applied in 32b: [`names.promoted.path`](../../spec/03-names-and-scopes.md#r-names.promoted.path), [`names.promote.member`](../../spec/03-names-and-scopes.md#r-names.promote.member), [`names.method-lookup.ambiguous`](../../spec/03-names-and-scopes.md#r-names.method-lookup.ambiguous), [`trait.impl.fill.never`](../../spec/09-traits.md#r-trait.impl.fill.never), and a linking summary in [Member Promotion](../../spec/08-data-and-enums.md#member-promotion). |
+| Q4 | A: a private own member hides a promoted one. | Applied in 32b, then reversed by PRIVATE-SHADOW (batch 33, 2026-10-01): a private own member with a promoted member's name is `ambiguous-promoted-member` again, [`names.conflict.private-shadow`](../../spec/03-names-and-scopes.md#r-names.conflict.private-shadow). |
+| Q5 | B, not the recommended A: keep `data.embed.width` and `data.embed.depth`. `depth.chain` becomes an example; `depth.every-type` and `depth.message` become a diagnostics Note; `depth.generic` and `names.part.depth.levels` are deleted. `data.embed.depth.self` stays, with its own code `embedding-cycle`. | Applied in 32a: [Embedding Limits](../../spec/08-data-and-enums.md#embedding-limits). |
 | Q6 | A: value parts stay. | Nothing to apply. |
 
 **As applied.** Of the 219 rules, 57 remain numbered, against the 61 of
@@ -756,13 +761,13 @@ became diagnostics Notes for the error revamp, so they are not counted.
 | Kotlin interface delegation and overrides | [Delegation][kotlin-delegation] |
 | Rust `Deref` guidance, and that it grants methods but no traits | [`Deref`][rust-deref] |
 | Rust method probing through deref steps | [Method-call expressions][rust-method-call] |
-| hd decisions VE1-VE4, VE-S, limits, single view, delegation | [Revision Notes](../spec/README.md#revision-notes) |
+| hd decisions VE1-VE4, VE-S, limits, single view, delegation | [Revision Notes](../../spec/README.md#revision-notes) |
 | hd cost evidence | [Syntax And Semantics Cost Review](SYNTAX_SEMANTICS_COST.md#r1-embedding-promotion-and-delegation) |
 
 ## Parse Log
 
 Every `text` block was parsed with `parseSource` from
-[spec/reference-parser/parser.ts](../spec/reference-parser/parser.ts) on
+[spec/reference-parser/parser.ts](../../spec/reference-parser/parser.ts) on
 2026-09-30. Parsing checks syntax only; no block is claimed to
 type-check. Codes in comments are checker results the parser does not
 report. Blocks that use a type without declaring it rely on the

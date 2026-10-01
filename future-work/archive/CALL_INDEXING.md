@@ -1,22 +1,27 @@
 # Call Indexing: `list(0)` Instead Of `list[0]`
 
+> **Archived 2026-10-01.** Every decision in this record is applied or
+> superseded, and the [specification](../../spec/README.md) is
+> authoritative. The record is kept as history, so its examples and rule
+> IDs may describe retired rules.
+
 Status: design exploration, 2026-09-30, with the owner's decisions in
 [Owner Decisions](#owner-decisions). All four are in the specification:
 D1's `::[` type arguments and D3 in
-[Type Arguments In Expressions](../spec/02-grammar.md#type-arguments-in-expressions),
+[Type Arguments In Expressions](../../spec/02-grammar.md#type-arguments-in-expressions),
 and D1's callable values, D2, and D4 in
-[Callable Values](../spec/05-expressions.md#callable-values).
+[Callable Values](../../spec/05-expressions.md#callable-values).
 Under review:
-[Indexing](../spec/05-expressions.md#indexing),
-[Index Traits](../spec/05-expressions.md#index-traits),
-[Places](../spec/05-expressions.md#places),
-[Compound Assignment](../spec/05-expressions.md#compound-assignment),
-[Calls](../spec/05-expressions.md#calls),
-[Member Resolution](../spec/03-names-and-scopes.md#member-resolution),
-[Method Calls](../spec/05-expressions.md#method-calls),
-[Method Resolution](../spec/09-traits.md#method-resolution),
-[Primary Expressions](../spec/02-grammar.md#primary-expressions), and
-[Explicit Type Arguments](../spec/07-functions.md#explicit-type-arguments).
+[Indexing](../../spec/05-expressions.md#indexing),
+[Index Traits](../../spec/05-expressions.md#index-traits),
+[Places](../../spec/05-expressions.md#places),
+[Compound Assignment](../../spec/05-expressions.md#compound-assignment),
+[Calls](../../spec/05-expressions.md#calls),
+[Member Resolution](../../spec/03-names-and-scopes.md#member-resolution),
+[Method Calls](../../spec/05-expressions.md#method-calls),
+[Method Resolution](../../spec/09-traits.md#method-resolution),
+[Primary Expressions](../../spec/02-grammar.md#primary-expressions), and
+[Explicit Type Arguments](../../spec/07-functions.md#explicit-type-arguments).
 
 **Revision, 2026-09-30 (third pass).** The owner rejected D, C2, C3, and
 then C3′, an ordered one-namespace lookup. Only B and C1 remain. This pass
@@ -42,10 +47,10 @@ applied; see the Applied note below the table.
 | D4 | [Q7](#q7-does-a-live-variable-need-mut): does a live variable need `mut` | **Yes.** `update` takes `mut self`, so `var() = 1` needs a `mut` cell and a write shows in the holder's type. The owner writes `let mut var = live(0)`, and passes a readonly view to a child, as a UI component does. |
 
 D4 needs no new permission rule. `var := live(0)` is always a readonly
-view ([`types.bind.short`](../spec/04-type-system.md#r-types.bind.short)),
+view ([`types.bind.short`](../../spec/04-type-system.md#r-types.bind.short)),
 so it can read `var()` but not store. `let mut var = live(0)` keeps
 `live`'s `mut Cell[i32]`
-([`types.bind.let-mut-infer`](../spec/04-type-system.md#r-types.bind.let-mut-infer)).
+([`types.bind.let-mut-infer`](../../spec/04-type-system.md#r-types.bind.let-mut-infer)).
 A parameter typed `Cell[i32]` is a readonly view: the child reads, and a
 store is `readonly-root`.
 
@@ -65,9 +70,9 @@ fn badge(count: Cell[i32]) -> string:
 | [Q4](#q4-map-read-type), map read type under C1 | Moot: C1 is not chosen. The `m[k]` read type was carried by [Syntax And Semantics Cost Q8](SYNTAX_SEMANTICS_COST.md#q8-map-read-type), which batch 26 answered: `m[k]` reads `V` and panics, and `m.get(k)` reads `V?`. |
 
 **Applied, 2026-09-30.** D1's type-argument part and D3 are in
-[Type Arguments In Expressions](../spec/02-grammar.md#type-arguments-in-expressions)
+[Type Arguments In Expressions](../../spec/02-grammar.md#type-arguments-in-expressions)
 (batch 22 CI1 and CI3). The callable values, `Apply` and `Update`, and D2
-and D4 are in [Callable Values](../spec/05-expressions.md#callable-values),
+and D4 are in [Callable Values](../../spec/05-expressions.md#callable-values),
 language tier, since call syntax uses the traits. Examples there declare
 a local `Cell` and `live`; no std cell type is planned, since a live cell
 is a user-land library built on `Apply` and `Update` (BFF1, closed
@@ -76,16 +81,16 @@ is a user-land library built on `Apply` and `Update` (BFF1, closed
 **Follow-ups, batch 25 (owner decision, 2026-09-30).** Final and
 applied. Applying D1 to D4 raised six points; the owner answered each.
 Only BF(c) and BFF2 change any text: BF(c) in
-[SYNTAX_NOTES](../SYNTAX_NOTES.md#built-in-collections) and its
+[SYNTAX_NOTES](../../SYNTAX_NOTES.md#built-in-collections) and its
 permission sections, and BFF2 in
-[Callable Values](../spec/05-expressions.md#callable-values), where
-`xs(0)` is [`expr.call.apply.not-callable`](../spec/05-expressions.md#r-expr.call.apply.not-callable).
+[Callable Values](../../spec/05-expressions.md#callable-values), where
+`xs(0)` is [`expr.call.apply.not-callable`](../../spec/05-expressions.md#r-expr.call.apply.not-callable).
 
 | # | Point | Decision |
 | --- | --- | --- |
 | BF(a) | May a method reference take any receiver, as in `xs[0]::describe`? | **No change.** A method reference keeps a name or path receiver only; `xs[0]::describe` stays invalid, so bind the element first. |
 | BF(b) | May a bare pipe step with type arguments drop `_`? | **No change.** It still needs `_`: `x \|> parse::[i32](_)`. |
-| BF(c) | [SYNTAX_NOTES](../SYNTAX_NOTES.md) blocks 60, 62, and 83 are bare type fragments, which no longer parse as expressions. | **Fix them** so they parse: wrap each fragment in a declaration or a typed binding. Do not leave or demote them. |
+| BF(c) | [SYNTAX_NOTES](../../SYNTAX_NOTES.md) blocks 60, 62, and 83 are bare type fragments, which no longer parse as expressions. | **Fix them** so they parse: wrap each fragment in a declaration or a typed binding. Do not leave or demote them. |
 | BFF1 | Should std ship a cell type for live variables? | **Not yet** ("no live var now, park"). Apply and Update stay in the spec as applied; spec examples keep their local `Cell` and `live`. **Closed (owner, 2026-10-01, batch 33 LIVE-CELL):** "remove live cell from todo, it can be user land lib". A live cell is a user-land library built on `Apply` and `Update`, not a std or spec item. |
 | BFF2 | Is `expr.call.apply.builtin-none` needed? | **Drop it** as redundant. The owner: "Apply/Update is special std.ops trait. List/Map/string do not impl it. type check should already rejects, no new rule needed." `xs(0)` on a list is rejected by the general `not-callable` rule. |
 | BFF3 | Should chapter 04's list of mutation forms name call stores? | **No change.** Leave the list; chapter 05's rule covers call stores. |
@@ -93,7 +98,7 @@ permission sections, and BFF2 in
 **Still open.**
 - A separate idea, not part of this record: the owner wants "an escape
   hatch to get mut from readonly" (2026-09-30). It is a core question
-  about [Access Permission](../spec/04-type-system.md#access-permission)
+  about [Access Permission](../../spec/04-type-system.md#access-permission)
   and needs its own brainstorm. D4 does not depend on it.
 
 ## Owner Direction So Far
@@ -171,9 +176,9 @@ zero-argument form are library design, and they wait for the core answer.
 | `grammar.primary.generic-reference` (retired by D1) | Name resolution tells `first[string](names)` from indexing. |
 | `grammar.primary.preserve-ambiguity` (retired by D1) | A parser may keep the ambiguity until name resolution. |
 | `grammar.expr.method-type-arguments` (retired by D1) | After member resolution, brackets after a generic method name are type arguments. |
-| [`grammar.primary.member-type-arguments.rules`](../spec/02-grammar.md#r-grammar.primary.member-type-arguments.rules) | Such a bracket is valid only when the selected member is generic. |
+| [`grammar.primary.member-type-arguments.rules`](../../spec/02-grammar.md#r-grammar.primary.member-type-arguments.rules) | Such a bracket is valid only when the selected member is generic. |
 | `fn.generic.brackets` (retired by D1) | Name resolution tells the brackets from an indexing operation. |
-| [`expr.pipe.bare.needs-placeholder.forms`](../spec/05-expressions.md#r-expr.pipe.bare.needs-placeholder.forms) | `x \|> f[0]` needs `_`, because brackets could index or instantiate. |
+| [`expr.pipe.bare.needs-placeholder.forms`](../../spec/05-expressions.md#r-expr.pipe.bare.needs-placeholder.forms) | `x \|> f[0]` needs `_`, because brackets could index or instantiate. |
 
 The postfix grammar holds both readings: `postfix_suffix` has `"[",
 expression, "]"`, and a member suffix may take `function_type_arguments`.
@@ -182,36 +187,36 @@ expression, "]"`, and a member suffix may take `function_type_arguments`.
 
 | Area | Rules | Summary |
 | --- | --- | --- |
-| [Indexing](../spec/05-expressions.md#indexing) | `expr.index.order`, 5 list rules, 5 map rules, 6 string rules | Built-in `List`, `Map`, and `string` indexing. `m[k]` reads `V?`. |
-| [Index Traits](../spec/05-expressions.md#index-traits) | 10 `expr.index.trait.*` rules | `Index[K]` with `Out`, and `IndexSet[K, V]` with a `mut self` store. |
-| [Built-In Implementations](../spec/05-expressions.md#built-in-implementations) | 7 `expr.index.std.*` rules | Intrinsic bodies; `Map`'s `index` returns `V` and panics. |
-| [Places](../spec/05-expressions.md#places) | `expr.place.index`, `expr.place.receiver` | An index is a place; its receiver may be a call. |
-| [Compound Assignment](../spec/05-expressions.md#compound-assignment) | `expr.assign.compound.place`, `.once`, `.index-read-write`, `.map-present`, `.map-missing` | `m[k] += 1` reads `V` and panics on a missing key. |
+| [Indexing](../../spec/05-expressions.md#indexing) | `expr.index.order`, 5 list rules, 5 map rules, 6 string rules | Built-in `List`, `Map`, and `string` indexing. `m[k]` reads `V?`. |
+| [Index Traits](../../spec/05-expressions.md#index-traits) | 10 `expr.index.trait.*` rules | `Index[K]` with `Out`, and `IndexSet[K, V]` with a `mut self` store. |
+| [Built-In Implementations](../../spec/05-expressions.md#built-in-implementations) | 7 `expr.index.std.*` rules | Intrinsic bodies; `Map`'s `index` returns `V` and panics. |
+| [Places](../../spec/05-expressions.md#places) | `expr.place.index`, `expr.place.receiver` | An index is a place; its receiver may be a call. |
+| [Compound Assignment](../../spec/05-expressions.md#compound-assignment) | `expr.assign.compound.place`, `.once`, `.index-read-write`, `.map-present`, `.map-missing` | `m[k] += 1` reads `V` and panics on a missing key. |
 
 That is 34 `expr.index.*` rules, plus about 10 place and assignment rules
-that name indexing. [Special Cases](SPECIAL_CASES.md#c9-one-meaning-for-map-indexing)
+that name indexing. [Special Cases](../SPECIAL_CASES.md#c9-one-meaning-for-map-indexing)
 already lists the split `Map` read as cut C9, question Q9, still open.
 
 ### Fields, Methods, And Calls
 
 | Rule | Text, shortened |
 | --- | --- |
-| [`names.member.namespaces`](../spec/03-names-and-scopes.md#r-names.member.namespaces) | Each nominal type has a field namespace and a method namespace. |
-| [`names.member.shared-name`](../spec/03-names-and-scopes.md#r-names.member.shared-name) | A field and a method may share a name. |
-| [`names.lookup.method-form`](../spec/03-names-and-scopes.md#r-names.lookup.method-form) | `x.name(args)` uses method lookup only. It never selects a field. |
-| [`names.lookup.stored-fn`](../spec/03-names-and-scopes.md#r-names.lookup.stored-fn) | A function in a field is called as `(x.name)(args)`. |
-| [`expr.call.callable`](../spec/05-expressions.md#r-expr.call.callable) | A callee may be any expression of function type. |
-| [`fn.type.ctor.inputs`](../spec/07-functions.md#r-fn.type.ctor.inputs) | `Fn[(A, B), O, R]` takes its inputs as one tuple type. |
-| [`names.method-lookup.inherent`](../spec/03-names-and-scopes.md#r-names.method-lookup.inherent) | A visible own inherent method wins over every trait method. |
-| [`names.method-lookup.ambiguous`](../spec/03-names-and-scopes.md#r-names.method-lookup.ambiguous) | A promoted candidate beside a trait candidate is `ambiguous-method`: neither silently wins. |
-| [`names.member.no-hiding`](../spec/03-names-and-scopes.md#r-names.member.no-hiding) | A field and a method never hide each other, because no use looks in both namespaces. |
-| [Dependency Changes](../spec/03-names-and-scopes.md#dependency-changes) | A new impl, use, or promoted method can make a call ambiguous, never switch it (a Note since batch 32). |
+| [`names.member.namespaces`](../../spec/03-names-and-scopes.md#r-names.member.namespaces) | Each nominal type has a field namespace and a method namespace. |
+| [`names.member.shared-name`](../../spec/03-names-and-scopes.md#r-names.member.shared-name) | A field and a method may share a name. |
+| [`names.lookup.method-form`](../../spec/03-names-and-scopes.md#r-names.lookup.method-form) | `x.name(args)` uses method lookup only. It never selects a field. |
+| [`names.lookup.stored-fn`](../../spec/03-names-and-scopes.md#r-names.lookup.stored-fn) | A function in a field is called as `(x.name)(args)`. |
+| [`expr.call.callable`](../../spec/05-expressions.md#r-expr.call.callable) | A callee may be any expression of function type. |
+| [`fn.type.ctor.inputs`](../../spec/07-functions.md#r-fn.type.ctor.inputs) | `Fn[(A, B), O, R]` takes its inputs as one tuple type. |
+| [`names.method-lookup.inherent`](../../spec/03-names-and-scopes.md#r-names.method-lookup.inherent) | A visible own inherent method wins over every trait method. |
+| [`names.method-lookup.ambiguous`](../../spec/03-names-and-scopes.md#r-names.method-lookup.ambiguous) | A promoted candidate beside a trait candidate is `ambiguous-method`: neither silently wins. |
+| [`names.member.no-hiding`](../../spec/03-names-and-scopes.md#r-names.member.no-hiding) | A field and a method never hide each other, because no use looks in both namespaces. |
+| [Dependency Changes](../../spec/03-names-and-scopes.md#dependency-changes) | A new impl, use, or promoted method can make a call ambiguous, never switch it (a Note since batch 32). |
 
 **History.** hd had one namespace until 2026-09-26. Under that rule, M1, a
 field and an inherent method of one name were `duplicate-inherent-member`,
 and a field beside a usable trait method made `x.name(args)`
 `ambiguous-method`. M2 split the namespaces
-([spec Revision Notes](../spec/README.md#revision-notes)). Its reason: a
+([spec Revision Notes](../../spec/README.md#revision-notes)). Its reason: a
 trait author who adds a method named like a type's field breaks that
 type's package without seeing it.
 
@@ -313,7 +318,7 @@ run locally; "unverified" means no source was found.
 ## Options
 
 Two options remain, ranked later by the
-[Design Cost Order](../AGENTS.md#design-cost-order): B, and option C with
+[Design Cost Order](../../AGENTS.md#design-cost-order): B, and option C with
 its field variant C1. A is the baseline.
 
 ### Option A: Keep Today's Rule
@@ -401,16 +406,16 @@ A call `c(args)` is resolved by what `c` is. The cases are disjoint.
 - **Unambiguous:** a function type is a `std.function` constructor, which
   implements no `Apply`, so no value is both.
 - **Several `Apply` impls:** they are chosen by the argument types, as
-  [`expr.index.trait.choice`](../spec/05-expressions.md#r-expr.index.trait.choice)
+  [`expr.index.trait.choice`](../../spec/05-expressions.md#r-expr.index.trait.choice)
   chooses today.
 - **Named arguments and spreads:** `m(key=k)` and `m(ks...)` are errors,
   as for function values
-  ([`fn.type.positional`](../spec/07-functions.md#r-fn.type.positional)).
+  ([`fn.type.positional`](../../spec/07-functions.md#r-fn.type.positional)).
 
 #### Traits At Any Arity
 
 The keys argument is tuple-kinded, like `Fn`'s inputs
-(`fn.type.ctor.input-kind`, since retired for [`fn.type.ctor.inputs-tuple`](../spec/07-functions.md#r-fn.type.ctor.inputs-tuple)).
+(`fn.type.ctor.input-kind`, since retired for [`fn.type.ctor.inputs-tuple`](../../spec/07-functions.md#r-fn.type.ctor.inputs-tuple)).
 `r(a, b)` passes the tuple `(a, b)`, `r(a)` passes `(a,)`, and `r()`
 passes `()`. A tuple is never flattened, so a map keyed by pairs is read
 as `m((a, b))`.
@@ -477,7 +482,7 @@ fn demo() -> void:
 
 `Cell` here is plain data. A signal that tracks readers is library design
 on top, and it waits, as the [Problem](#problem) says.
-[Standard Library Design](STDLIB.md#module-tree) records that `std.cell` was
+[Standard Library Design](../STDLIB.md#module-tree) records that `std.cell` was
 removed, so a cell type is a new std item in any case.
 
 A map, where `m(k)` reads `V` and panics on a missing key, and `get` gives
@@ -499,7 +504,7 @@ fn tally(counts: mut Map[string, i32], word: string) -> i32:
 
 **Compound assignment.** `r(ks) op= v` evaluates `r` and the keys once,
 then reads `r(ks)`, applies `op`, and stores with `update`. It is today's
-[`expr.assign.compound.index-read-write`](../spec/05-expressions.md#r-expr.assign.compound.index-read-write)
+[`expr.assign.compound.index-read-write`](../../spec/05-expressions.md#r-expr.assign.compound.index-read-write)
 with `()` for `[]`.
 
 ```text
@@ -510,7 +515,7 @@ fn bump(counts: mut Map[string, i32], word: string) -> void:
 ```
 
 **Permissions.** `update` takes `mut self`, so `r(ks) = v` needs mutable
-access to `r`, as [`expr.index.trait.mut`](../spec/05-expressions.md#r-expr.index.trait.mut)
+access to `r`, as [`expr.index.trait.mut`](../../spec/05-expressions.md#r-expr.index.trait.mut)
 says today. A read needs none. `Out` carries the element permission, as
 today's `Index` note says.
 
@@ -582,7 +587,7 @@ fn first_tag(user: User) -> string:
 ```
 
 The `unknown-method` hint of
-[`expr.member.stored-fn.hint`](../spec/05-expressions.md#r-expr.member.stored-fn.hint)
+[`expr.member.stored-fn.hint`](../../spec/05-expressions.md#r-expr.member.stored-fn.hint)
 widens from function fields to applicable fields.
 
 **C2: fall back to the field.** Rejected by owner, 2026-09-30.
@@ -615,7 +620,7 @@ The corpus is every valid hd program on `main`, 4173ea46:
 
 | Corpus | Files | Lines |
 | --- | --- | --- |
-| `text` blocks of [guide/LANGUAGE_TOUR.md](../guide/LANGUAGE_TOUR.md) | 193 blocks | 1,415 |
+| `text` blocks of [guide/LANGUAGE_TOUR.md](../../guide/LANGUAGE_TOUR.md) | 193 blocks | 1,415 |
 | `lib/std/*.hd` | 16 | 3,129 |
 | fixtures in `runtime/valid`, `runtime/panic`, `typing/valid`, `parse/valid` | 830 | 17,764 |
 | `examples/*.hd` | 2 | 33 |
@@ -667,7 +672,7 @@ Findings:
 
 ### Rewrites
 
-`interpolate` in [lib/std/text.hd](../lib/std/text.hd), three field-then-index
+`interpolate` in [lib/std/text.hd](../../lib/std/text.hd), three field-then-index
 sites, under C1:
 
 ```text
@@ -680,7 +685,7 @@ pub fn interpolate[T < Display](t: Template[T]) -> string:
     joined
 ```
 
-`Choices.map` in [lib/std/testing.hd](../lib/std/testing.hd): one line
+`Choices.map` in [lib/std/testing.hd](../../lib/std/testing.hd): one line
 holds a map store and a function call of the same shape.
 
 ```text
@@ -688,7 +693,7 @@ fn fill[K < Eq & Hash, V](entries: mut Map[K, V], drawn: K, value: fn() -> V) ->
     entries(drawn) = value()
 ```
 
-`List.first` and `last` in [lib/std/collections.hd](../lib/std/collections.hd),
+`List.first` and `last` in [lib/std/collections.hd](../../lib/std/collections.hd),
 where the receiver is `self`:
 
 ```text
@@ -793,14 +798,14 @@ numbers.
 | Three calls in a row, `list_of(log, xs)(note(log, "i", 1))` | cannot happen: it would be `list_of(log, xs)[note(log, "i", 1)]` | legal, and only types say which call is the store |
 | Type-name expressions, `Box[i32]::get` and `Shipment[i32] { ... }` | ambiguous again: `values[0]::describe` has the same shape, so they need `::[` too, or a rule by name; see [Q2](#q2-type-name-expressions-under-b) | unchanged: `[` after an operand is always type arguments |
 | Grids and cells, U5 and U6 | not given; a multi-key `Index` would be a separate change | given by the keys tuple |
-| `Map` read type, [Special Cases Q9](SPECIAL_CASES.md#q9-map-indexing) | stays a separate question | must be decided now: `Apply` has one `Out` ([Q4](#q4-map-read-type)) |
+| `Map` read type, [Special Cases Q9](../SPECIAL_CASES.md#q9-map-indexing) | stays a separate question | must be decided now: `Apply` has one `Out` ([Q4](#q4-map-read-type)) |
 | Pipes, `x \|> f[0]` | `f[0]` is always an index, so the placeholder exception can go | `f[0]` is always type arguments, so the exception can go too |
 | Change to std and the tour | small: 3 method sites in std | 39 std index sites and the tour's indexing section |
 
 ### Agent-Writability
 
 hd is written mostly by agents
-([Roadmap, area 8](ROADMAP.md#8-tooling-for-agents)). Each option breaks
+([Roadmap, area 8](../ROADMAP.md#8-tooling-for-agents)). Each option breaks
 one habit, and the habits differ in strength.
 
 | Habit an agent brings | B | C1 |
@@ -1057,7 +1062,7 @@ fn head[C < Apply[(i32,)]](items: C) -> C::Out:
 
 1. **`m(k)` reads `V` and panics; `m.get(k)` gives `V?`** (recommended), as
    Scala's `Map.apply` does. This is Special Cases question
-   [Q9](SPECIAL_CASES.md#q9-map-indexing).
+   [Q9](../SPECIAL_CASES.md#q9-map-indexing).
 2. `m(k)` reads `V?`, and compound assignment keeps its own `V` read.
 
 ```text
@@ -1113,13 +1118,13 @@ its own brainstorm.
 and wrote: "i'm pretty sure i want one thing, an escape hatch to get mut
 from readonly."
 
-This is a core question about [Access Permission](../spec/04-type-system.md#access-permission),
+This is a core question about [Access Permission](../../spec/04-type-system.md#access-permission),
 wider than call syntax, and it needs its own brainstorm. Candidate
 answers:
 
 1. **Keep `mut`.** `update(mut self, ...)`; a write shows in the holder's
    type, which is what `mut` is for
-   ([`types.path.mutation.forms`](../spec/04-type-system.md#r-types.path.mutation.forms)).
+   ([`types.path.mutation.forms`](../../spec/04-type-system.md#r-types.path.mutation.forms)).
    No escape hatch.
 2. **One interior-mutable std type, as Rust's `Cell`.** A lang item whose
    `update` takes a readonly `self`, so a readonly holder may write. Rust:
@@ -1245,7 +1250,7 @@ fetched 2026-09-30:
 ## Parse Log
 
 Parsed with `parseSource` from
-[spec/reference-parser/parser.ts](../spec/reference-parser/parser.ts).
+[spec/reference-parser/parser.ts](../../spec/reference-parser/parser.ts).
 Parsing checks syntax only; no block is claimed to type-check. Option C's
 blocks parse because today's grammar already accepts a call before `=`;
 their meaning is the proposal.

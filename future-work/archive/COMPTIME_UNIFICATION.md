@@ -1,5 +1,10 @@
 # One Compile-Time Intrinsic For Derivation, Delegation, And Facts?
 
+> **Archived 2026-10-01.** Every decision in this record is applied or
+> superseded, and the [specification](../../spec/README.md) is
+> authoritative. The record is kept as history, so its examples and rule
+> IDs may describe retired rules.
+
 Status: design exploration, 2026-10-01. The owner answered its questions
 in batch 36; [Owner Decisions](#owner-decisions) records the answers, and
 spec pass 36 applied O3, O3b, and O7. The rest of this record is the
@@ -11,22 +16,22 @@ derivation/trait delegation/field facts". The owner later added two
 requests: weigh compiler performance (compile time and memory), and be
 creative about new syntax, semantics, and concepts.
 
-Under review: [Typed Derivation](../spec/14-annotations.md#typed-derivation),
-[Member Metadata](../spec/14-annotations.md#member-metadata),
-[Common Shape Representation](../spec/14-annotations.md#common-shape-representation),
-[Error Derivation](../spec/14-annotations.md#error-derivation),
-[Derived Implementations](../spec/09-traits.md#derived-implementations),
-[Derived Tuple Implementations](../spec/09-traits.md#derived-tuple-implementations),
-[Trait Delegation](../spec/09-traits.md#trait-delegation),
-[Debug Trait](../spec/09-traits.md#debug-trait),
-[Standard Combinators](../spec/11-requirements-and-suspension.md#standard-combinators),
-[Shape Descriptors](../spec/04-type-system.md#shape-descriptors),
-[Literal Suffixes](../spec/05-expressions.md#literal-suffixes), and
-[Derived Arbitrary](../spec/std/testing.md#derived-arbitrary). The
+Under review: [Typed Derivation](../../spec/14-annotations.md#typed-derivation),
+[Member Metadata](../../spec/14-annotations.md#member-metadata),
+[Common Shape Representation](../../spec/14-annotations.md#common-shape-representation),
+[Error Derivation](../../spec/14-annotations.md#error-derivation),
+[Derived Implementations](../../spec/09-traits.md#derived-implementations),
+[Derived Tuple Implementations](../../spec/09-traits.md#derived-tuple-implementations),
+[Trait Delegation](../../spec/09-traits.md#trait-delegation),
+[Debug Trait](../../spec/09-traits.md#debug-trait),
+[Standard Combinators](../../spec/11-requirements-and-suspension.md#standard-combinators),
+[Shape Descriptors](../../spec/04-type-system.md#shape-descriptors),
+[Literal Suffixes](../../spec/05-expressions.md#literal-suffixes), and
+[Derived Arbitrary](../../spec/std/testing.md#derived-arbitrary). The
 decisions behind them are typed derivation M1-M30, SR1, SIMPLE, ST8,
 ALL-INTRINSIC, batch 31 Q6, and batch 32 Q1, logged in
-[Revision Notes](../spec/README.md#revision-notes) and
-[Typed Derivation](TYPED_DERIVATION.md).
+[Revision Notes](../../spec/README.md#revision-notes) and
+[Typed Derivation](../TYPED_DERIVATION.md).
 
 ## Contents
 
@@ -99,12 +104,12 @@ specification has 3,616 language-tier and 180 stdlib-tier rules.
 
 Other compile-time rules that no option here changes: fact and metadata
 expressions are evaluated once at compile time
-([`annot.fact.eval`](../spec/14-annotations.md#r-annot.fact.eval)), as is
+([`annot.fact.eval`](../../spec/14-annotations.md#r-annot.fact.eval)), as is
 shared constructor data
-([`data.shared.compile-time`](../spec/08-data-and-enums.md#r-data.shared.compile-time)).
+([`data.shared.compile-time`](../../spec/08-data-and-enums.md#r-data.shared.compile-time)).
 So hd already has a small compile-time evaluator, limited to
 requirement-free expressions without `block_on`. Suspension lowering
-([`req.lowering.sugar`](../spec/11-requirements-and-suspension.md#r-req.lowering.sugar))
+([`req.lowering.sugar`](../../spec/11-requirements-and-suspension.md#r-req.lowering.sugar))
 also generates code, but it is a calling convention, not metaprogramming.
 
 Four facts about today's design matter below:
@@ -112,25 +117,25 @@ Four facts about today's design matter below:
 1. **Library code is checked once.** A template's walker is an ordinary
    generic impl. Only the member obligation is checked per opt-in, and it
    names the member
-   ([`annot.walker.obligation.error`](../spec/14-annotations.md#r-annot.walker.obligation.error)).
+   ([`annot.walker.obligation.error`](../../spec/14-annotations.md#r-annot.walker.obligation.error)).
 2. **The template body is checked at the opt-in**
-   ([`annot.template.checked`](../spec/14-annotations.md#r-annot.template.checked)),
+   ([`annot.template.checked`](../../spec/14-annotations.md#r-annot.template.checked)),
    and package interfaces carry template bodies
-   ([`annot.limit.interfaces`](../spec/14-annotations.md#r-annot.limit.interfaces)).
+   ([`annot.limit.interfaces`](../../spec/14-annotations.md#r-annot.limit.interfaces)).
    So the 2026-09-26 objection to Design B, per-target checking, already
    applies in part to templates.
 3. **The Walker trait is hd's polymorphic closure.** Closures are
    monomorphic, so a per-member callback must be a trait with a generic
    method, `member[F]`. Every "map over members" design meets this.
 4. **Generic code is compiled once per shape**, at most five bodies
-   ([Shapes and Generic Code](../spec/04-type-system.md#shapes-and-generic-code)).
+   ([Shapes and Generic Code](../../spec/04-type-system.md#shapes-and-generic-code)).
    Code that unrolls per member must be specialized per target, as
-   `reified` code is ([`types.generic.specialized`](../spec/04-type-system.md#r-types.generic.specialized)).
+   `reified` code is ([`types.generic.specialized`](../../spec/04-type-system.md#r-types.generic.specialized)).
 
 > **Since batch 37 (2026-10-01).** The implementation model changed: each
 > value layout, including each tuple type, now gets its own specialized body,
 > and only reference types share one. See
-> [Shapes and Generic Code](../spec/04-type-system.md#shapes-and-generic-code).
+> [Shapes and Generic Code](../../spec/04-type-system.md#shapes-and-generic-code).
 > This record keeps its original reasoning as history.
 
 ### Compiler Code In Scope
@@ -159,8 +164,8 @@ compiler needs.
 Two incidental findings, not proposals:
 - The prototype derives `Debug` in TypeScript (`deriveDebug`), but the
   spec says `Debug` derives through a template
-  ([`trait.debug.derive`](../spec/09-traits.md#r-trait.debug.derive)).
-- The [Package Interfaces](../spec/10-modules.md#package-interfaces) table
+  ([`trait.debug.derive`](../../spec/09-traits.md#r-trait.debug.derive)).
+- The [Package Interfaces](../../spec/10-modules.md#package-interfaces) table
   still lists "the bodies of pack and reified code", though packs were
   removed in batch 31.
 
@@ -365,7 +370,7 @@ fact is checked where it is written. A handle reads it typed:
 It deletes the erase-and-downcast path of `arbitrary.with` and its
 runtime panic. It changes one recorded stance, for opted-in fact types
 only: "the language does not check that a metadata value suits its
-member's type" ([Member Metadata](../spec/14-annotations.md#member-metadata)).
+member's type" ([Member Metadata](../../spec/14-annotations.md#member-metadata)).
 
 ### Contrast: A Closed Derive List
 
@@ -518,7 +523,7 @@ intrinsic, as `tokio::join!` does.
 
 U1, `Eq` as an ordinary `std` template. It needs no new syntax: the
 walker holds the second value, as the
-[Handles](../spec/14-annotations.md#handles) Note describes for a diff.
+[Handles](../../spec/14-annotations.md#handles) Note describes for a diff.
 
 ```text
 use std.structure.{Structure, Field, Variant, Walker}
@@ -718,8 +723,8 @@ prototype's lowering, not the design: it writes hd source for each
 member's facts, handles, and traversal, then re-checks it. That is
 macro-style expansion. The spec's model is one specialization per target
 and walker, with constant handles
-([`annot.limit.specialize`](../spec/14-annotations.md#r-annot.limit.specialize),
-[Handles](../spec/14-annotations.md#handles)).
+([`annot.limit.specialize`](../../spec/14-annotations.md#r-annot.limit.specialize),
+[Handles](../../spec/14-annotations.md#handles)).
 
 ### Per Option
 
@@ -762,7 +767,7 @@ and walker, with constant handles
 | Facts become checked | O1, O7 | Both change "the language does not check that a metadata value suits its member". O7 does it only for fact types that opt in. |
 | Slower compiles | O1, O2; O3 in the prototype | Measured: the prototype's template path is about 18 times slower per member than an intrinsic derive. |
 | Shape specialization | O1 | Unrolled bodies cannot share the five shape bodies; each target needs its own, as `reified` code does. |
-| Signatures inferred from bodies | O1 with types as values | A result type such as `results_of(Args)` is computed, not written, against [Fully Annotated Declarations](../spec/10-modules.md#fully-annotated-declarations). |
+| Signatures inferred from bodies | O1 with types as values | A result type such as `results_of(Args)` is computed, not written, against [Fully Annotated Declarations](../../spec/10-modules.md#fully-annotated-declarations). |
 | Enum encoding | O5 | An enum as an index and optional payload tuples gives correct `Eq` and `Ord`, but `Default` and `Arbitrary` can build invalid combinations. |
 | Reopens Design G | O1, O2 | The owner chose compiler-generated visitors over Design B on 2026-09-26. The new evidence since then is that packs, Design D's base, are gone. That evidence argues for O3 and O6, not for O1. |
 
@@ -784,7 +789,7 @@ then O7 and O6.**
 - **O2 removes the most rules but adds the most compiler.** It needs a
   macro runner, a syntax-tree API, a new sigil, and an expansion server
   for the LSP. It reverses the "no macro system" basis of
-  [Typed Derivation](../spec/14-annotations.md#typed-derivation).
+  [Typed Derivation](../../spec/14-annotations.md#typed-derivation).
 - **O7 is the creative piece worth taking.** Typed facts catch a wrong
   `arbitrary.with` at the decorator instead of at the first test case.
 - **O6 removes the one intrinsic with no signature.** Its cost is one
@@ -807,10 +812,10 @@ a separate task.
 
 | Question | Option | Answer | Applied as |
 | --- | --- | --- | --- |
-| Q1 | O7 typed member facts | **Accepted**, as recommended, opt-in | [Member-Typed Facts](../spec/14-annotations.md#member-typed-facts): `@member_typed` marks a fact type, whose first type parameter binds to the field's declared type. `arbitrary.with` returns `With[F]`, so its runtime downcast panic is gone. Superseded in batch 39: `@annotate::[F](.Field)` declares a typed fact type. |
+| Q1 | O7 typed member facts | **Accepted**, as recommended, opt-in | [Member-Typed Facts](../../spec/14-annotations.md#member-typed-facts): `@member_typed` marks a fact type, whose first type parameter binds to the field's declared type. `arbitrary.with` returns `With[F]`, so its runtime downcast panic is gone. Superseded in batch 39: `@annotate::[F](.Field)` declares a typed fact type. |
 | Q2 | O6 `Join` | **Rejected** | `all!` stays a compiler intrinsic with its written typing rules. |
-| Q3 | O3 comparison derives | **Accepted**, as recommended | [`trait.derive.cmp-templates`](../spec/09-traits.md#r-trait.derive.cmp-templates); meaning in [Cmp](../spec/std/cmp.md) and [Hash](../spec/std/hash.md). The prototype moves after its template lowering is fixed. |
-| Q4 | O3b tuple `Structure` | **Accepted**, as recommended | [Tuple Structure](../spec/14-annotations.md#tuple-structure) and [Tuple Templates](../spec/14-annotations.md#tuple-templates); the 12-element limit is gone. |
+| Q3 | O3 comparison derives | **Accepted**, as recommended | [`trait.derive.cmp-templates`](../../spec/09-traits.md#r-trait.derive.cmp-templates); meaning in [Cmp](../../spec/std/cmp.md) and [Hash](../../spec/std/hash.md). The prototype moves after its template lowering is fixed. |
+| Q4 | O3b tuple `Structure` | **Accepted**, as recommended | [Tuple Structure](../../spec/14-annotations.md#tuple-structure) and [Tuple Templates](../../spec/14-annotations.md#tuple-templates); the 12-element limit is gone. |
 | Q5 | O5 members tuple | **Rejected for now**, as recommended | none |
 | Q6 | O1 `inline for` | **Rejected for now**, as recommended | none |
 | Q7 | O2 macros | **Rejected for now**, as recommended | none |
@@ -834,7 +839,7 @@ Reasons for the rejections:
 The spelling of O7's marker: the record's `data With[member F]` is a
 `syntax-error` in the reference parser. A `@member_typed` decorator from
 `std.annotation` parses today and needs no grammar change, so it is the
-cheaper kind in the [Design Cost Order](../AGENTS.md#design-cost-order).
+cheaper kind in the [Design Cost Order](../../AGENTS.md#design-cost-order).
 It marks the first type parameter.
 
 A rest tuple's `Structure` exposes its rest element as one member of type
@@ -1057,7 +1062,7 @@ data Service:
 ## Parse Log
 
 Every `text` block was parsed with `parseSource` from
-[spec/reference-parser/parser.ts](../spec/reference-parser/parser.ts) on
+[spec/reference-parser/parser.ts](../../spec/reference-parser/parser.ts) on
 2026-10-01. Parsing checks syntax only; no block is claimed to
 type-check. Blocks that use a name without declaring it, such as
 `load_user`, `Encode`, or `DebugWalker`, rely on declarations elsewhere.

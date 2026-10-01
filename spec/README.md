@@ -1759,7 +1759,7 @@ existing source. Each entry names the decision that made the change.
   trait-qualified call, and a method reference still reject bindings with
   `syntax-error`. Eight rule IDs are retired.
 - `let mut` follow-ups (owner decisions 1-4 of
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   2026-09-29): a multi-name `let` with `mut` puts its names in
   parentheses, as `let (mut log, db) = pair`. The former
   `let mut log, db = pair` is now a `syntax-error`, and so is a
@@ -1823,7 +1823,7 @@ existing source. Each entry names the decision that made the change.
   bound trait value type. Row aliases may list bound keys. Four rule IDs
   are retired.
 - `let` apply-pass answers (owner decisions Let 1-5 and Map 6 in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   2026-09-29): a multi-name `let` always puts its names in parentheses.
   `let (a, b) = pair`, previously a `syntax-error`, is valid, and its
   names are reassignable with readonly types. `let a, b = pair`,
@@ -1880,7 +1880,7 @@ existing source. Each entry names the decision that made the change.
   specified. `trait.error.api` is retired. No code is added; the codes for
   the other invalid forms are undecided.
 - `let` batch 7 (owner decision Let 7 in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   2026-09-29): a parenthesized `let` list may be a same-line suite body,
   so `if ok: let (a, b) = pair`, previously a `syntax-error`, is valid.
   Its names are never read, so each gets the existing
@@ -1974,7 +1974,7 @@ existing source. Each entry names the decision that made the change.
   replaced by `module.testing.choices.int-generic`, `.float-generic`, and
   `.string-chars`.
 - Short binding lists (owner decision Q1 in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   batch 13, 2026-09-30): a multi-name `:=` binding always puts its names
   in parentheses, as a multi-name `let` does. `(a, b) := pair`,
   previously a `syntax-error`, is valid, and `a, b := pair`, previously
@@ -2010,7 +2010,7 @@ existing source. Each entry names the decision that made the change.
   `module.testing.arbitrary.with.mismatch`, replaced by
   `module.testing.arbitrary.with.downcast-failure`.
 - Provider scope batch 14 (PS1-PS3, owner decision in
-  [Open Issues](../future-work/OPEN_ISSUES.md#provider-scope-overlap),
+  [Open Issues](../future-work/OPEN_ISSUES.md#applied-decisions),
   2026-09-30): a closure or local `fn` no longer captures providers from an
   enclosing `$.with` block. Each key its body uses goes into its declared
   or inferred row and is resolved at each call, so a callee's `$.with` may
@@ -2026,14 +2026,14 @@ existing source. Each entry names the decision that made the change.
   `fn.capture.providers.bound`, replaced by `fn.capture.no-providers` and
   `fn.capture.provider-value`.
 - Same-line `:=` lists (owner decision Q1a in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   batch 15, 2026-09-30): `if ok: (a, b) := pair`, previously a
   `syntax-error`, is valid, as `if ok: let (a, b) = pair` is.
   `unused-local-binding` reports the names it binds. Retired:
   `grammar.inline.multi-name-binding`, replaced by
   `grammar.inline.bind-list`.
 - Grouped bindings dropped (owner decision Q1b in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   batch 15, 2026-09-30): the grouped expression `(a, b := value)`,
   previously valid, is now a `syntax-error` whose fix-it writes
   `(a, b) := value`. A nested multi-name binding is written
@@ -2045,49 +2045,49 @@ existing source. Each entry names the decision that made the change.
   `grammar.expr.multi-binding.no-grouped`, and
   `grammar.expr.multi-binding.no-grouped.fix`.
 - Redundant `mut` in a `let` list (owner decision LM-a in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   batch 15, 2026-09-30): in `let (mut a, b): (mut User, User) = pair`,
   the `mut` before `a` now warns `redundant-let-mut`, as
   `let mut a: mut User` does. In both forms the fix-it removes the `mut`
   before the name and keeps the annotation. No rule ID is retired.
 - `mut self` on a primitive (owner decision LM-b in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   batch 15, 2026-09-30): a `mut self` receiver in an impl whose `Self` is
   primitive is valid; it is not `mut-on-primitive`. No rule ID is
   retired.
 - Monomorphic closures (owner decision CLO1 in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   batch 15, 2026-09-30): a closure declares no type parameters, and
   `fn[T](x: T): x` is a `syntax-error`. The grammar already rejected it;
   the rule is now stated. No rule ID is retired.
 - `?` operand hint (owner decision Q-? in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   batch 15, 2026-09-30): the operand of `x?` gets an expected type as an
   inference hint, never a coercion: `Result[T, E]` with the enclosing
   function's error type, or `T?`. So `let ports: List[i32] = it.collect()?`
   builds a `Result` or optional target instead of the default `List`. No
   rule ID is retired.
 - `Map` trait implementations (owner decision Q-map in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   batch 15, 2026-09-30): the standard library writes `Iterable` and
   `FromIterator` for `Map[K, V]` with `K < Eq & Hash`, with no std-only
   exception. Source is unaffected. No rule ID is retired.
 - Collision check in closures (owner decision PS3a in
-  [Open Issues](../future-work/OPEN_ISSUES.md#provider-scope-overlap),
+  [Open Issues](../future-work/OPEN_ISSUES.md#applied-decisions),
   batch 15, 2026-09-30): inside a closure, a `$.with` compares its keys
   with the closure's declared or inferred row and the `$.with` blocks
   inside the closure only. A key bound by a `$.with` around the closure no
   longer collides, and a key of the closure's declared row now can. No
   rule ID is retired.
 - Trailing block on the same line (owner decision TB1 in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   batch 16, 2026-09-30): editorial.
   `grammar.call.trailing-block.next-line` now names its code,
   `syntax-error`, and examples show that `if close: trailing(): pass` and
   `if close: trailing:` with an indented body are both errors. Source is
   unaffected. No rule ID is retired.
 - `self` in a primitive `mut self` method (owner decision LM-c in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   batch 16, 2026-09-30): in an impl whose `Self` is primitive, the `mut`
   of a `mut self` receiver is dropped, so `self` has the plain type
   `Self`. In an impl for `i32`, `self + 1` is valid, and a call such as
@@ -2102,7 +2102,7 @@ existing source. Each entry names the decision that made the change.
   `.Required` member, such as `data Ring: next: Ring`, now panics on the
   first case as an enum with no finite value does. No rule ID is retired.
 - Generic inference from several arguments (owner decision INF-mut in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
   batch 17, 2026-09-30): when one type parameter is solved from several
   arguments, only permission weakening joins their types. `max(small,
   large)` with an `i32` and an `i64` is now a `type-mismatch`; write
@@ -2110,7 +2110,7 @@ existing source. Each entry names the decision that made the change.
   `Display` is `no-common-type`; write `cmp[Display](user, label)`. This
   applies to `assert_equal` too. No rule ID is retired.
 - Property tests move to the stdlib tier (owner decisions ST2, ST3, and ST6
-  in [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  in [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
   step 4, 2026-09-30): stdlib tier. The Property Tests and Draw Budget
   sections of Modules move to [Testing](std/testing.md), with their text
   unchanged. Source is unaffected. `module.testing.choices.*` becomes
@@ -2125,7 +2125,7 @@ existing source. Each entry names the decision that made the change.
   [Registration Functions](std/testing.md#registration-functions)).
 - Test timeouts, table-test rows, and snapshot files move to the stdlib
   tier (owner decisions ST2, ST3, and ST6 in
-  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
   step 6, 2026-09-30): stdlib tier. Rules move from Modules' Test Cases,
   Table Tests, and Snapshots to the new sections
   [Test Timeout](std/testing.md#test-timeout),
@@ -2149,7 +2149,7 @@ existing source. Each entry names the decision that made the change.
   now names the three options itself, since the option table no longer
   lists `timeout`; its meaning is unchanged.
 - Derived `Arbitrary` moves to the stdlib tier (owner decisions ST2, ST3,
-  and ST7 in [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions),
+  and ST7 in [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions),
   migration step 5, 2026-09-30): stdlib tier. Modules' Derived Arbitrary
   section moves to [Derived Arbitrary](std/testing.md#derived-arbitrary)
   in Testing, and its heading is deleted. Source is unaffected.
@@ -2188,7 +2188,7 @@ existing source. Each entry names the decision that made the change.
   by `annot.self-ref.enclosing.arguments`, `.needs.self`, `.needs.compound`,
   `.needs.result`, `.needs.enum`, `.needs.stop`, and `.needs.only`.
 - Structure names (owner decision ST8, revised, in
-  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions),
+  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions),
   2026-09-30): language tier. `Structure` gains the receiverless,
   compiler-supplied `fn name() -> string`: the target's declared name, with
   no module path and no type arguments, a compile-time constant callable
@@ -2199,7 +2199,7 @@ existing source. Each entry names the decision that made the change.
   Source is unaffected. No rule ID is retired.
 - Iterator adapters and collect targets move to the stdlib tier (owner
   decisions ST2 and ST3 in
-  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
   step 7, 2026-09-30): stdlib tier. Control Flow's Iterator Adapters and
   Collect Targets sections move to [Iterators](std/iter.md), with their
   text unchanged, and their headings are deleted. `map` on a list or an
@@ -2214,7 +2214,7 @@ existing source. Each entry names the decision that made the change.
   depends on them. No language rule names an adapter or `collect`.
 - String methods and the `r` prefix move to the stdlib tier (owner
   decisions ST2 and ST3 in
-  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
   step 8, 2026-09-30): stdlib tier. The rules for `lower`, `trim`, `split`,
   `replace`, and `starts_with` leave Modules' String Methods, and their
   signatures leave the Built-In Methods table, for
@@ -2233,7 +2233,7 @@ existing source. Each entry names the decision that made the change.
   names `chars` and `char_indices`, so the tier test keeps them.
 - Debug text and builders move to the stdlib tier (owner decisions ST2
   and ST3 in
-  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
   step 9, 2026-09-30): stdlib tier. `trait.debug.render` and Traits'
   Debug Builders section, with the derived builder mapping, move to
   [Format](std/format.md), with their text unchanged, and the Debug
@@ -2248,7 +2248,7 @@ existing source. Each entry names the decision that made the change.
   `DebugWriter`.
 - `Duration` and its suffixes move to the stdlib tier (owner decisions
   ST2 and ST3 in
-  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
   step 9, 2026-09-30): stdlib tier. The `std.time` suffix rules leave
   Expressions' Literal Suffixes, and `module.prelude.time-suffixes`
   leaves Standard Names Outside The Prelude, for [Time](std/time.md),
@@ -2261,7 +2261,7 @@ existing source. Each entry names the decision that made the change.
   [Test Cases](10-modules.md#test-cases) says `Duration` is the
   stdlib-tier `std.time.Duration`, named there only.
 - Batch 21 follow-ups to batch 20 (owner decisions AT-any, ST8-newtype,
-  and ST8-clash in [Open Issues](../future-work/OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening),
+  and ST8-clash in [Open Issues](../future-work/OPEN_ISSUES.md#applied-decisions),
   2026-09-30): both tiers, Notes only. Source is unaffected, and no rule
   ID changes. AT-any confirms that `arbitrary.with` returns an opaque
   `Generator`, not a raw `Any`
@@ -2274,7 +2274,7 @@ existing source. Each entry names the decision that made the change.
   qualifying the call.
 - Language-chapter examples and the raw-string rule leave the stdlib tier
   (owner decisions ST2 and ST3 in
-  [Spec Tiers](../future-work/SPEC_TIERS.md#owner-decisions), migration
+  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#owner-decisions), migration
   step 11, 2026-09-30): language tier. `lex.raw-string.none-text`, which
   named `std.text.r` as the prefix of `r"..."`, is retired for
   `lex.raw-string.prefix`, itself since retired for a Note:
@@ -2287,7 +2287,7 @@ existing source. Each entry names the decision that made the change.
   own.
 - Type arguments in expressions take `::` (owner decisions D1, its
   type-argument part, and D3 in
-  [Call Indexing](../future-work/CALL_INDEXING.md#owner-decisions),
+  [Call Indexing](../future-work/archive/CALL_INDEXING.md#owner-decisions),
   2026-09-30): language tier. `[` after an expression always indexes, and
   an explicit type-argument list in an expression follows `::`:
   `first[string](names)` becomes `first::[string](names)`,
@@ -2305,7 +2305,7 @@ existing source. Each entry names the decision that made the change.
   The pipe rule still needs `_` after a bare step with an index or type
   arguments.
 - Callable values (owner decisions D1, its callable-value part, D2, and
-  D4 in [Call Indexing](../future-work/CALL_INDEXING.md#owner-decisions),
+  D4 in [Call Indexing](../future-work/archive/CALL_INDEXING.md#owner-decisions),
   2026-09-30): language tier, since call syntax uses the traits.
   `std.ops` declares `Apply`, with `type Out` and `fn apply(self)`, and
   `Update[V]`, with `fn update(mut self, value: V)`. Neither takes a key.
@@ -2349,7 +2349,7 @@ existing source. Each entry names the decision that made the change.
   [`flow.for.iterator-not-iterable`](06-control-flow.md#r-flow.for.iterator-not-iterable)
   is new.
 - Redundant built-in rule for callable values (owner decision BFF2,
-  batch 25 in [Call Indexing](../future-work/CALL_INDEXING.md#owner-decisions),
+  batch 25 in [Call Indexing](../future-work/archive/CALL_INDEXING.md#owner-decisions),
   2026-09-30): language tier. `expr.call.apply.builtin-none`, which said
   `List`, `Map`, and `string` implement neither `Apply` nor `Update`, is
   retired with no replacement. Those types implement neither trait, so
@@ -2544,7 +2544,7 @@ existing source. Each entry names the decision that made the change.
   now `type-mismatch`; write `item.encode()`.
 - Test registration functions move to the stdlib tier (owner decisions
   ST6, revised, and DUR, batch 29 in
-  [Spec Tiers](../future-work/SPEC_TIERS.md#still-open), 2026-09-30):
+  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#still-open), 2026-09-30):
   stdlib tier. Modules' Table Tests section moves to
   [Registration Functions](std/testing.md#registration-functions) in
   Testing, and its heading is deleted. Source is unaffected.
@@ -2566,7 +2566,7 @@ existing source. Each entry names the decision that made the change.
   meaning. Under DUR, option A, the language tier's Note names
   `std.time.Duration` for the `timeout` of `it` alone.
 - `retry!` is a library loop (owner decision RETRY, batch 29 in
-  [Spec Tiers](../future-work/SPEC_TIERS.md#still-open), 2026-09-30):
+  [Spec Tiers](../future-work/archive/SPEC_TIERS.md#still-open), 2026-09-30):
   stdlib tier. `std.task` declares
   `retry![T, E](times: i32, attempt: fn!() -> Result[T, E]) -> Result[T, E]`,
   an ordinary `fn!` function, in the new chapter [Task](std/task.md#retry).
@@ -3133,7 +3133,7 @@ existing source. Each entry names the decision that made the change.
   (fn.generic.methods).
 - Comparison derives and tuples through templates, typed member facts
   (owner decisions O3, O3b, and O7, batch 36, 2026-10-01; recorded in
-  [COMPTIME_UNIFICATION](../future-work/COMPTIME_UNIFICATION.md#owner-decisions)).
+  [COMPTIME_UNIFICATION](../future-work/archive/COMPTIME_UNIFICATION.md#owner-decisions)).
   Language and stdlib tiers.
   O3: `@derive(Eq, PartialOrd, Ord, Hash)` derive through templates
   ([`trait.derive.cmp-templates`](09-traits.md#r-trait.derive.cmp-templates)),

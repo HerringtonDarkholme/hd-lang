@@ -41,7 +41,7 @@ Batch 17, applied (2026-09-30) in
 chose compiler-supplied information over an intrinsic `Arbitrary` (testing
 point PT-d), then generalized it for every template. Points left open by
 applying it are in
-[Open Issues](OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening).
+[Open Issues](OPEN_ISSUES.md#readings-waiting-for-confirmation).
 
 | Part | Decision |
 | --- | --- |
@@ -74,7 +74,7 @@ applying SR1 left open.
 | --- | --- |
 | `.Required` | The member's type is the enclosing type, with any type arguments, or it is a tuple, a data type, `Result`'s `.Ok`, or an enum all of whose variants need it, whose members include a `.Required` one. |
 | Stops | A `List`, `Map`, or `T?` member stops it: at most `.Optional`. |
-| Applied | In [Self References](../spec/14-annotations.md#self-references), with [Spec Tiers](SPEC_TIERS.md#migration-plan) migration step 5. Points left open are in [Open Issues](OPEN_ISSUES.md#follow-ups-decided-2026-09-29-evening). |
+| Applied | In [Self References](../spec/14-annotations.md#self-references), with [Spec Tiers](archive/SPEC_TIERS.md#migration-plan) migration step 5. Points left open are in [Open Issues](OPEN_ISSUES.md#readings-waiting-for-confirmation). |
 
 ## Remaining Open
 

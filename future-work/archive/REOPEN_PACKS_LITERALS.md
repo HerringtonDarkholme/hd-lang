@@ -1,11 +1,16 @@
 # Reopen: Packs And Literal Sugar
 
+> **Archived 2026-10-01.** Every decision in this record is applied or
+> superseded, and the [specification](../../spec/README.md) is
+> authoritative. The record is kept as history, so its examples and rule
+> IDs may describe retired rules.
+
 Status: design exploration, 2026-09-30. Nothing here is decided, accepted
 behavior, or in the specification. It changes no spec text, fixture, or
 prototype code.
 
 > **Note.** The owner answered the questions as batch 31 in
-> [Open Issues](OPEN_ISSUES.md#language-design-decisions). Pass 31a is
+> [Open Issues](../OPEN_ISSUES.md#language-design-decisions). Pass 31a is
 > applied: varargs as in VARARG-SPELL, the `Tuple` bound (Q5), tuple
 > spread (Q8, close to A3), and `race!` (Q7). Pass 31b is applied: packs
 > are gone (Q9), `all!` has one typing rule (ALL-INTRINSIC), and tuples
@@ -17,8 +22,8 @@ prototype code.
 > before 31c. Batch 33 answered 31a's open vararg question with
 > TUPLE-REST, applied in 33a: a tuple type may end in a rest element
 > `List[T]...`, and function values keep a `List[T]` vararg
-> ([Rest Elements](../spec/04-type-system.md#rest-elements),
-> [Vararg Inputs](../spec/07-functions.md#vararg-inputs)).
+> ([Rest Elements](../../spec/04-type-system.md#rest-elements),
+> [Vararg Inputs](../../spec/07-functions.md#vararg-inputs)).
 
 The owner reopened two features on 2026-09-30, after the
 [Syntax And Semantics Cost Review](SYNTAX_SEMANTICS_COST.md) marked them
@@ -33,18 +38,18 @@ as possible reopens ([Q10](SYNTAX_SEMANTICS_COST.md#q10-reopen-literal-sugar),
   `sql"..."` with `Template[T]`, and user unit suffixes such as `5kg` all
   stay. The aim is to trim the mechanism.
 
-Under review: [Variadic Generics](../spec/12-variadic-generics.md),
-[Function Type Constructors](../spec/07-functions.md#function-type-constructors),
-[Implementation Targets](../spec/09-traits.md#implementation-targets),
-[Standard Combinators](../spec/11-requirements-and-suspension.md#standard-combinators),
-[Literal Suffixes](../spec/01-lexical-structure.md#literal-suffixes) and
-[Prefixed Strings](../spec/01-lexical-structure.md#prefixed-strings) in
-chapter 01, [Literal Suffix Names](../spec/03-names-and-scopes.md#literal-suffix-names),
-[Suffixed Literals](../spec/04-type-system.md#suffixed-literals),
-[Literal Suffixes](../spec/05-expressions.md#literal-suffixes) and
-[Prefixed Strings](../spec/05-expressions.md#prefixed-strings) in
-chapter 05, and the stdlib pages [Time](../spec/std/time.md) and
-[Text](../spec/std/text.md#raw-text-prefix).
+Under review: [Variadic Generics](../../spec/12-variadic-generics.md),
+[Function Type Constructors](../../spec/07-functions.md#function-type-constructors),
+[Implementation Targets](../../spec/09-traits.md#implementation-targets),
+[Standard Combinators](../../spec/11-requirements-and-suspension.md#standard-combinators),
+[Literal Suffixes](../../spec/01-lexical-structure.md#literal-suffixes) and
+[Prefixed Strings](../../spec/01-lexical-structure.md#prefixed-strings) in
+chapter 01, [Literal Suffix Names](../../spec/03-names-and-scopes.md#literal-suffix-names),
+[Suffixed Literals](../../spec/04-type-system.md#suffixed-literals),
+[Literal Suffixes](../../spec/05-expressions.md#literal-suffixes) and
+[Prefixed Strings](../../spec/05-expressions.md#prefixed-strings) in
+chapter 05, and the stdlib pages [Time](../../spec/std/time.md) and
+[Text](../../spec/std/text.md#raw-text-prefix).
 
 ## Contents
 
@@ -68,9 +73,9 @@ Packs cost 75 language rules and four diagnostics. Real code has two
 pack signatures, both in one guide section, and `lib/std` has none. The
 two real needs are a typed `all!` and arity-generic adapters. `all!` is
 already a compiler intrinsic
-([`req.combinator.intrinsic`](../spec/11-requirements-and-suspension.md#r-req.combinator.intrinsic)),
+([`req.combinator.intrinsic`](../../spec/11-requirements-and-suspension.md#r-req.combinator.intrinsic)),
 and `Fn` already takes its inputs as one tuple
-([`fn.type.ctor.inputs`](../spec/07-functions.md#r-fn.type.ctor.inputs)).
+([`fn.type.ctor.inputs`](../../spec/07-functions.md#r-fn.type.ctor.inputs)).
 
 Literal sugar costs 89 language rules over seven chapters. Every use must
 stay, so the question is how few rules can carry it. Suffixes and prefixes
@@ -86,17 +91,17 @@ counts every rule a removal or trim would touch.
 
 | Where | Rules | Count |
 | --- | --- | ---: |
-| [Chapter 12](../spec/12-variadic-generics.md) | `pack.kind`, `pack.param`, `pack.expand`, `pack.value`, `pack.ellipsis`, `pack.lockstep`, `pack.map` (24), `pack.tuple`, `pack.all` (8), `pack.infer`, `pack.runtime`, `pack.limit`, `pack.validate` | 63 |
-| [Contextual Words](../spec/01-lexical-structure.md#contextual-words) | `lex.contextual.pack` (since retired), `.always`, `.ordinary` | 3 |
-| [Grammar](../spec/02-grammar.md) | `grammar.pack.*` (since retired) (4), `grammar.fn.vararg.value-pack`, `grammar.primary.pack-map` | 6 |
-| [Type System](../spec/04-type-system.md) | `types.pack.declare` (since retired), `types.pack.compile-time` | 2 |
-| [Varargs](../spec/07-functions.md#varargs) | `fn.vararg.ellipsis` (since retired) | 1 |
+| [Chapter 12](../../spec/12-variadic-generics.md) | `pack.kind`, `pack.param`, `pack.expand`, `pack.value`, `pack.ellipsis`, `pack.lockstep`, `pack.map` (24), `pack.tuple`, `pack.all` (8), `pack.infer`, `pack.runtime`, `pack.limit`, `pack.validate` | 63 |
+| [Contextual Words](../../spec/01-lexical-structure.md#contextual-words) | `lex.contextual.pack` (since retired), `.always`, `.ordinary` | 3 |
+| [Grammar](../../spec/02-grammar.md) | `grammar.pack.*` (since retired) (4), `grammar.fn.vararg.value-pack`, `grammar.primary.pack-map` | 6 |
+| [Type System](../../spec/04-type-system.md) | `types.pack.declare` (since retired), `types.pack.compile-time` | 2 |
+| [Varargs](../../spec/07-functions.md#varargs) | `fn.vararg.ellipsis` (since retired) | 1 |
 | Rules that name packs beside other things | `grammar.generic.reified-and-packs`, `grammar.generic.default.positions`, `grammar.primary.function-type-argument`, `grammar.primary.suffix-spreads`, `lex.raw.not-reserved`, `types.generic.specialized`, `types.generic.interfaces`, `types.trait.safe.no-reified-or-pack`, `trait.dyn.safe.reified-or-pack`, `trait.impl.generics.markers`, `trait.target.function-type`, `fn.type.ctor.inputs`, `fn.generic.bang.examples`, `grammar.expr.method-type-arguments.bang` | 14, reworded only |
 
 Diagnostics: `multiple-positional-value-packs`,
 `nonfinal-positional-value-pack`, `pack-length-mismatch`, and
 `pack-map-mapper-mismatch`. Fixtures: 14 rows of
-[cases.tsv](../spec/conformance/cases.tsv) cite chapter 12 or a pack rule.
+[cases.tsv](../../spec/conformance/cases.tsv) cite chapter 12 or a pack rule.
 
 What already works without packs:
 
@@ -104,38 +109,38 @@ What already works without packs:
 | --- | --- |
 | A type parameter used as `Fn`'s inputs is tuple-kinded | `fn.type.ctor.input-kind` (since retired) |
 | A non-tuple there is `generic-kind-mismatch` | `fn.type.ctor.kind-mismatch` (since retired) |
-| A function type is an ordinary impl target | [`trait.target.function-type.valid`](../spec/09-traits.md#r-trait.target.function-type.valid) |
-| A row parameter may stand in an impl head | [`trait.target.row-argument`](../spec/09-traits.md#r-trait.target.row-argument) |
-| `all!` and `race!` are intrinsics with compiler-supplied frames | [`req.combinator.intrinsic`](../spec/11-requirements-and-suspension.md#r-req.combinator.intrinsic), `req.combinator.ordinary-call` (since retired) |
+| A function type is an ordinary impl target | [`trait.target.function-type.valid`](../../spec/09-traits.md#r-trait.target.function-type.valid) |
+| A row parameter may stand in an impl head | [`trait.target.row-argument`](../../spec/09-traits.md#r-trait.target.row-argument) |
+| `all!` and `race!` are intrinsics with compiler-supplied frames | [`req.combinator.intrinsic`](../../spec/11-requirements-and-suspension.md#r-req.combinator.intrinsic), `req.combinator.ordinary-call` (since retired) |
 | Their concrete signatures are still library design | `req.combinator.library` (since retired) |
-| Tuples are reference-shaped, so one generic body serves every tuple | [Implementation Model](../spec/04-type-system.md#implementation-model-non-normative) |
+| Tuples are reference-shaped, so one generic body serves every tuple | [Implementation Model](../../spec/04-type-system.md#implementation-model-non-normative) |
 
 So `impl[Args, O, R] Describe for Fn[Args, O, R]` is valid today. What is
 missing is a way to call `f` with an `Args` value.
 
 Two promises in the spec already cover every tuple arity, with no stated
 mechanism: tuple equality
-([`expr.eq.std`](../spec/05-expressions.md#r-expr.eq.std)) and hashable
+([`expr.eq.std`](../../spec/05-expressions.md#r-expr.eq.std)) and hashable
 tuple map keys
-([`types.map-key.builtin-types`](../spec/04-type-system.md#r-types.map-key.builtin-types)).
+([`types.map-key.builtin-types`](../../spec/04-type-system.md#r-types.map-key.builtin-types)).
 `lib/std` implements `Debug` only for pairs. Packs do not fill this gap
 either: tuples of each arity are a separate constructor
-([`trait.target.tuple.arity`](../spec/09-traits.md#r-trait.target.tuple.arity)).
+([`trait.target.tuple.arity`](../../spec/09-traits.md#r-trait.target.tuple.arity)).
 
 ### Literal Sugar: 89 Rules
 
 | Chapter | Rules | Count |
 | --- | --- | ---: |
-| [01 Literal Suffixes](../spec/01-lexical-structure.md#literal-suffixes) | `lex.suffix.*` | 13 |
-| [01 Raw Strings](../spec/01-lexical-structure.md#raw-strings), [Prefixed Strings](../spec/01-lexical-structure.md#prefixed-strings) | `lex.raw-string.prefix`, `lex.prefix.*` | 14 |
-| [02 Grammar](../spec/02-grammar.md#suffixed-literals) | `grammar.primary.suffixed-literal`, `.prefixed-string`, `grammar.pattern.no-suffixed-literal`, `.no-prefixed-string` | 4 |
-| [03 Names](../spec/03-names-and-scopes.md#literal-suffix-names) | `names.suffix.*`, `names.prefix.*` | 10 |
-| [04 Types](../spec/04-type-system.md#suffixed-literals) | `types.literal.suffixed*`, `types.literal.prefixed*` | 9 |
-| [05 Expressions](../spec/05-expressions.md#literal-suffixes) | `expr.literal.suffixed`, `.prefixed`, `expr.interp.prefixed`, `expr.suffix.*` (15), `expr.prefix.*` (15), `expr.op.suffix-negation` | 34 |
-| [09 Traits](../spec/09-traits.md#numeric-traits) | `trait.num.suffix` | 1 |
-| [10 Prelude](../spec/10-modules.md#standard-names-outside-the-prelude) | `module.prelude.ops-num-suffix`, `.no-suffix`, `.ops-str-prefix-markers`, `.no-prefix` | 4 |
+| [01 Literal Suffixes](../../spec/01-lexical-structure.md#literal-suffixes) | `lex.suffix.*` | 13 |
+| [01 Raw Strings](../../spec/01-lexical-structure.md#raw-strings), [Prefixed Strings](../../spec/01-lexical-structure.md#prefixed-strings) | `lex.raw-string.prefix`, `lex.prefix.*` | 14 |
+| [02 Grammar](../../spec/02-grammar.md#suffixed-literals) | `grammar.primary.suffixed-literal`, `.prefixed-string`, `grammar.pattern.no-suffixed-literal`, `.no-prefixed-string` | 4 |
+| [03 Names](../../spec/03-names-and-scopes.md#literal-suffix-names) | `names.suffix.*`, `names.prefix.*` | 10 |
+| [04 Types](../../spec/04-type-system.md#suffixed-literals) | `types.literal.suffixed*`, `types.literal.prefixed*` | 9 |
+| [05 Expressions](../../spec/05-expressions.md#literal-suffixes) | `expr.literal.suffixed`, `.prefixed`, `expr.interp.prefixed`, `expr.suffix.*` (15), `expr.prefix.*` (15), `expr.op.suffix-negation` | 34 |
+| [09 Traits](../../spec/09-traits.md#numeric-traits) | `trait.num.suffix` | 1 |
+| [10 Prelude](../../spec/10-modules.md#standard-names-outside-the-prelude) | `module.prelude.ops-num-suffix`, `.no-suffix`, `.ops-str-prefix-markers`, `.no-prefix` | 4 |
 
-By [Design Cost Order](../AGENTS.md#design-cost-order) kind: 31 syntax
+By [Design Cost Order](../../AGENTS.md#design-cost-order) kind: 31 syntax
 rules (chapters 01 and 02), 20 intrinsic rules (the markers, function
 shapes, and `std.ops` names the compiler knows), and 38 semantic rules
 (lookup, typing, and call meaning). Diagnostics: `invalid-literal-suffix`
@@ -215,7 +220,7 @@ as a type parameter, as it may today, and calls through one intrinsic.
 
 **Suspension and rows.** `call_with(f, args)` follows `f`'s calling
 convention: plain on a `SuspendFn`, it builds the cold `mut Suspend[O]`
-([`req.suspend.type.plain-call`](../spec/11-requirements-and-suspension.md#r-req.suspend.type.plain-call)).
+([`req.suspend.type.plain-call`](../../spec/11-requirements-and-suspension.md#r-req.suspend.type.plain-call)).
 `call_with!(f, args)` is the bang call and needs a driver context. Its row
 `R` joins the caller's row as any call's does.
 
@@ -223,29 +228,29 @@ convention: plain on a `SuspendFn`, it builds the cold `mut Suspend[O]`
 `fn.type.ctor.kind-mismatch` are unchanged; they are the mechanism. The
 example `(Is...)` in `fn.type.ctor.inputs` becomes `Args`.
 `fn.vararg.ellipsis` is deleted. The new value-type rule and the two
-`call_with` rules join [Function Type Constructors](../spec/07-functions.md#function-type-constructors).
+`call_with` rules join [Function Type Constructors](../../spec/07-functions.md#function-type-constructors).
 
 **Sugar.** `fn(Args) -> O` keeps meaning one parameter of type `Args`,
-by [`fn.type.ctor.no-flatten`](../spec/07-functions.md#r-fn.type.ctor.no-flatten).
+by [`fn.type.ctor.no-flatten`](../../spec/07-functions.md#r-fn.type.ctor.no-flatten).
 Arity-generic code therefore spells `Fn[Args, O, R]` or
 `SuspendFn[Args, O, R]`.
 
 **Name.** `apply` is taken: `std.ops.Apply` declares a method `apply`
-([Callable Values](../spec/05-expressions.md#callable-values)). This record
+([Callable Values](../../spec/05-expressions.md#callable-values)). This record
 uses `std.function.call_with`, the name chapter 12's example uses today.
 
 **Representation.** Tuples are reference-shaped, so a generic body over
 `Args` is shared. `call_with` then calls a function value of unknown
 arity, so each function value needs a tupled entry, or the caller is
 specialized. This is an implementation choice, not observable
-([`types.generic.unobservable`](../spec/04-type-system.md#r-types.generic.unobservable)).
+([`types.generic.unobservable`](../../spec/04-type-system.md#r-types.generic.unobservable)).
 A shared body also keeps a `Tool[R]` trait value over function types
 dynamically safe, which a pack method is not.
 
 > **Since batch 37 (2026-10-01).** The implementation model changed: each
 > value layout, including each tuple type, now gets its own specialized body,
 > and only reference types share one. See
-> [Shapes and Generic Code](../spec/04-type-system.md#shapes-and-generic-code).
+> [Shapes and Generic Code](../../spec/04-type-system.md#shapes-and-generic-code).
 > This record keeps its original reasoning as history.
 
 **Soundness.** The kind rule already rejects `Fn[i32, O, R]`. A
@@ -321,7 +326,7 @@ programs, and C3 changes one error code.
 
 | Cut | Before | After | Absorbed by |
 | --- | --- | --- | --- |
-| C1 negation | `-5s` is `s(-5)`; `-128b` fits an `i8` parameter | `-5s` is `-(5s)`, which needs `Neg` on the result | the ordinary unary `-` ([Operators](../spec/05-expressions.md#unary-and-binary-operators)); `std.time` adds `Neg for Duration` |
+| C1 negation | `-5s` is `s(-5)`; `-128b` fits an `i8` parameter | `-5s` is `-(5s)`, which needs `Neg` on the result | the ordinary unary `-` ([Operators](../../spec/05-expressions.md#unary-and-binary-operators)); `std.time` adds `Neg for Duration` |
 | C2 default parameter | `@num_suffix fn unit(count: i64 = 1)` is valid | the one parameter takes no default: `type-mismatch` at the definition | the shape rule |
 | C3 reserved word | `5else` is `invalid-token`; `return"x"` is two tokens | both are two tokens: `5else` is `syntax-error` | one shared rule: a reserved word is never a suffix or prefix |
 
@@ -653,7 +658,7 @@ count matches the record: 89 rules became 38, with 70 retired and 19 added.
 | **Literal rules** | **89** | **38** | **70** | **19** |
 
 The language tier went from 3,810 to 3,759 rule IDs. The stdlib tier adds
-one rule, [`std-time.suffix.std.duration-neg`](../spec/std/time.md#r-std-time.suffix.std.duration-neg).
+one rule, [`std-time.suffix.std.duration-neg`](../../spec/std/time.md#r-std-time.suffix.std.duration-neg).
 The record's table holds with three differences of naming: the merged
 rules take new `literal-fn` IDs, the line rules become `lex.prefix.lines`,
 and the deleted consequences survive as Notes. Fixtures: one deleted
@@ -894,7 +899,7 @@ let (user, orders) = all!(load_user(id), load_orders(id))
 ## Parse Log
 
 Every `text` block was parsed with `parseSource` from
-[spec/reference-parser/parser.ts](../spec/reference-parser/parser.ts) on
+[spec/reference-parser/parser.ts](../../spec/reference-parser/parser.ts) on
 2026-09-30. Parsing checks syntax only; no block is claimed to
 type-check. Codes in comments are checker results the parser does not
 report. `call_with`, `Decode`, `Encode`, and the `race!` signature are

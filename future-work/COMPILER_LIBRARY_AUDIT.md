@@ -14,7 +14,7 @@ audit of 2026-09-28, which moved the string methods, `println`, and
 `debug` into hd.
 
 Inputs: the tier table in [AGENTS.md](../AGENTS.md#spec-scope-for-the-standard-library),
-[Spec Tiers](SPEC_TIERS.md), [spec/std/](../spec/std/README.md),
+[Spec Tiers](archive/SPEC_TIERS.md), [spec/std/](../spec/std/README.md),
 `pnpm run spec counts` (3,616 language rules, 180 stdlib rules, 111
 rules the heuristic calls intrinsic), `src/README.md`, `ast-grep outline`
 of `src/checker` and `src/emitter`, and the 246 rows of
@@ -81,13 +81,13 @@ defined in [Classification](#classification).
 | Feature | TS files | Lines | Spec | Class |
 | --- | --- | --- | --- | --- |
 | `@derive(Debug)` generator | `checker/derive-intrinsics.ts` (`deriveDebug`, Debug in `deriveNewtypeIntrinsic`), `checker/typed-derivation.ts` (`INTRINSIC_DERIVES`) | 55 | [`trait.debug.derive`](../spec/09-traits.md#r-trait.debug.derive) says template; [Format](../spec/std/format.md) | B |
-| `@derive(Eq, PartialOrd, Ord, Hash)` generator, law partners | `checker/derive-intrinsics.ts` less Debug | 385 | `trait.derive.intrinsic-set`, Law Partners | A by spec; C after Q4 |
+| `@derive(Eq, PartialOrd, Ord, Hash)` generator, law partners | `checker/derive-intrinsics.ts` less Debug | 385 | `trait.derive.intrinsic-set` (since retired; now `trait.derive.cmp-templates`), Law Partners | A by spec; C after Q4 |
 | `@error` derivation | `checker/error-derivation.ts`, `checker/error-generation.ts` | 663 | [`annot.error.intrinsic`](../spec/14-annotations.md#r-annot.error.intrinsic) | A |
 | Typed derivation: `Structure`, handles, `walk`/`describe`/`build` | `checker/typed-derivation.ts` less the source string, `self-ref.ts`, `derivation-models.ts`, `member-lines.ts`, `declaration-facts.ts` | 2,013 | [`annot.derive.supplied`](../spec/14-annotations.md#r-annot.derive.supplied) | A |
 | `std.structure` declarations as a TS string | `checker/typed-derivation.ts` (`STRUCTURE_SOURCE`) | 100 | [`annot.structure.bodies`](../spec/14-annotations.md#r-annot.structure.bodies) | B |
 | `Inspectable`, `TypeId` declarations as a TS string | `checker/standard-traits.ts` (`INSPECT_SOURCE`) | 15 | [Runtime Type Identity](../spec/09-traits.md#runtime-type-identity) | B |
 | `std.testing.arbitrary` submodule shim | `checker/arbitrary-module.ts` | 59 | [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary) | C |
-| Builtin `Debug` dictionary for primitives and composites ("writes nothing") | `checker/debug.ts`, `context.ts` plan, emitter `debug` branch, HIR | 78 | `trait.debug.std-types`: `std` implements it | C |
+| Builtin `Debug` dictionary for primitives and composites ("writes nothing") | `checker/debug.ts`, `context.ts` plan, emitter `debug` branch, HIR | 78 | `trait.debug.std-types` (since retired): `std` implements it | C |
 | Prelude traits declared in TS: `Display`, `Eq`, `PartialOrd`, `Ord`, `Ordering`, `Debug`, `Iterable`, `Any`, `Waker`, `Console`, `ResourceError` | `checker/program-types.ts` (`declareProgramTypes` tail, `declareComparisonTraits`) | 230 | [Prelude](../spec/10-modules.md#prelude), [Comparison Traits](../spec/09-traits.md#comparison-traits) | C |
 | Std-name shims: hidden `Duration`, `ExitCode`, `Termination`, `DebugWriter`, `STANDARD_TRAITS` | `checker/standard-traits.ts` less `INSPECT_SOURCE` | 115 | lang items; [Time](../spec/std/time.md) | C |
 | Runtime type identity: `downcast`, `downcast_val`, `TypeId::of`, keys | `checker/expression-inspect.ts`, `checker/inspectable.ts` | 508 | [`trait.inspect.supplied`](../spec/09-traits.md#r-trait.inspect.supplied) | A |
@@ -100,11 +100,11 @@ defined in [Classification](#classification).
 | Feature | TS files | Lines | Spec | Class |
 | --- | --- | --- | --- | --- |
 | `==` and `<` on `List`, `T?`, `Result`, `Map` as emitter strategies | `emitter/value-comparison.ts` (option, list, map, variant emitters), `checker/context.ts` (`equalityStrategy`, `orderingStrategy`, builtin Eq/Ord plan, `renumberBoundDispatches`), HIR strategy types | 400 | [`expr.eq.std`](../spec/05-expressions.md#r-expr.eq.std), [`expr.ord.std`](../spec/05-expressions.md#r-expr.ord.std): "standard-library implementations" | C |
-| Tuple `==` and `<` strategies | `emitter/value-comparison.ts` (`emitTupleEquality`, `emitTupleOrdering`), checker tuple branches | 82 | `trait.target.tuple.derived`: intrinsic, every arity | C (no hook if Q3 is B) |
+| Tuple `==` and `<` strategies | `emitter/value-comparison.ts` (`emitTupleEquality`, `emitTupleOrdering`), checker tuple branches | 82 | `trait.target.tuple.derived` (since retired; now `trait.target.tuple.templates`): intrinsic, every arity | C (no hook if Q3 is B) |
 | Primitive `Display`: integer, `char`, `bool` text | `display` HIR node, `emitPrimitiveDisplay`, `runtime.wat` `i32_to_string`, `i64_to_string`, `u64_to_string`, `char_to_string` | 160 | [`expr.interp.std`](../spec/05-expressions.md#r-expr.interp.std): "the standard library provides" | B |
 | Float text, `**`, float `%` | `runtime/float.wat`, host `format_f64` | 50 | operators and interpolation | A |
 | `FromIterator` for `Map` | `checker/assignability.ts` (`mapCollectionPlan`), `value-comparison.ts` (`emitMapCollection`), HIR `map-collection` | 69 | [Collect Targets](../spec/std/iter.md#collect-targets) | B |
-| `Map` storage, key equality, key kinds | `runtime/map.wat`, `shared.ts` (`mapKeyKind`, `setHashableKeyTypes`) | 233 + 30 | representation intrinsic ([Tier Criteria](SPEC_TIERS.md#tier-criteria)); [`types.map-key.declared-bound`](../spec/04-type-system.md#r-types.map-key.declared-bound) | A; key kinds D |
+| `Map` storage, key equality, key kinds | `runtime/map.wat`, `shared.ts` (`mapKeyKind`, `setHashableKeyTypes`) | 233 + 30 | representation intrinsic ([Tier Criteria](archive/SPEC_TIERS.md#tier-criteria)); [`types.map-key.declared-bound`](../spec/04-type-system.md#r-types.map-key.declared-bound) | A; key kinds D |
 | `List` storage, cursors, invalidation | `runtime.wat` vectors, `emitter/iterator.ts`, `checker/iteration.ts` | 439 + 152 | Built-In Collection Iteration (06) | A and D |
 | Checked arithmetic, sized integers, string primitives | `runtime.wat` rest, `emitter/sized-numeric.ts`, `numeric.ts` | 414 + 305 | 04, 05 | D |
 
@@ -211,7 +211,7 @@ and the agent tooling. Not audited.
 6. **Primitive `Display`.** [`expr.interp.std`](../spec/05-expressions.md#r-expr.interp.std)
    says the standard library provides it. The checker emits a `display`
    node and WAT digit loops.
-7. **`Debug` for built-in types.** `trait.debug.std-types`
+7. **`Debug` for built-in types.** `trait.debug.std-types` (since retired)
    says `std` implements it, and `lib/std/format.hd` does. The checker
    still plans a builtin `debug` dictionary for primitives and composites
    whose `debug` "writes nothing" (`hir.ts`). This is reachable through a
@@ -232,7 +232,7 @@ and the agent tooling. Not audited.
 
 ### Intrinsic Rules The TS Implements More Broadly
 
-10. **Tuple arity.** `trait.target.tuple.derived`
+10. **Tuple arity.** `trait.target.tuple.derived` (since retired; now `trait.target.tuple.templates`)
     makes tuple `Eq`, `PartialOrd`, `Ord`, and `Hash` an intrinsic over
     every arity. Tuple `Debug`, `Display`, and `Default` are std code up
     to 12 elements. The same family has two mechanisms; see Q3.
@@ -438,7 +438,7 @@ primitives.
 **Q3. Tuple traits up to 12 elements?** Tuple `Debug`, `Display`, and
 `Default` are std impls up to 12 elements. Tuple `Eq`, `PartialOrd`,
 `Ord`, and `Hash` are an intrinsic over every arity
-(`trait.target.tuple.derived`).
+(`trait.target.tuple.derived` (since retired; now `trait.target.tuple.templates`)).
 
 - A: keep the intrinsic over every arity.
 - B: make all four std impls up to 12 elements plus the rest tuple, as
@@ -449,10 +449,10 @@ cheapest kind of change in the [Design Cost Order](../AGENTS.md#design-cost-orde
 It changes three rules and deletes the tuple strategies.
 **Superseded (owner, batch 36, 2026-10-01):** neither A nor B. Tuples get a
 `Structure`, and every tuple trait derives through a tuple template at
-every size ([COMPTIME_UNIFICATION O3b](COMPTIME_UNIFICATION.md#owner-decisions)).
+every size ([COMPTIME_UNIFICATION O3b](archive/COMPTIME_UNIFICATION.md#owner-decisions)).
 
 **Q4. `@derive(Eq, PartialOrd, Ord, Hash)` as std templates?**
-`trait.derive.intrinsic-set`
+`trait.derive.intrinsic-set` (since retired; now `trait.derive.cmp-templates`)
 makes these four intrinsic. `Debug` and `Arbitrary` already derive through
 templates over `Structure`, and the Why note under [`annot.derive.supplied`](../spec/14-annotations.md#r-annot.derive.supplied)
 says "every format, comparison, or schema is library code".

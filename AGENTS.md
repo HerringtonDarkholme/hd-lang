@@ -63,9 +63,8 @@ language-tier fixture or example uses only language-tier std items.
 Undecided std items appear in no spec example.
 
 Owner direction, 2026-09-28; tiers from
-[Spec Tiers](future-work/SPEC_TIERS.md#owner-decisions), 2026-09-30.
-Until a migration task moves a section, its rules and fixtures stay where
-they are, even when the tier test says stdlib.
+[Spec Tiers](future-work/archive/SPEC_TIERS.md#owner-decisions), 2026-09-30,
+whose migration is complete.
 
 ## Spec Text Tools
 

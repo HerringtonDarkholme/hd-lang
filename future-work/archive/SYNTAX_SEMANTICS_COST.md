@@ -1,19 +1,24 @@
 # Syntax And Semantics Cost Review
 
+> **Archived 2026-10-01.** Every decision in this record is applied or
+> superseded, and the [specification](../../spec/README.md) is
+> authoritative. The record is kept as history, so its examples and rule
+> IDs may describe retired rules.
+
 Status: simplification review, 2026-09-30. It changes no decision, spec
 text, or prototype code, and nothing in it is accepted behavior. It covers
 the special syntax forms and semantic rule exceptions of the language tier,
-chapters [01](../spec/01-lexical-structure.md) to
-[14](../spec/14-annotations.md). It builds on the inventory in
-[Special Cases](SPECIAL_CASES.md) and the open map-read question in
+chapters [01](../../spec/01-lexical-structure.md) to
+[14](../../spec/14-annotations.md). It builds on the inventory in
+[Special Cases](../SPECIAL_CASES.md) and the open map-read question in
 [Call Indexing](CALL_INDEXING.md#q4-map-read-type).
 
 The owner wrote: "i don't think error code is the most important
 complexity. i wonder if syntax/semantics are more important". So this
 record ignores diagnostic-code cuts. It asks what a user must learn: each
 form's rules, how often real code uses it, and what users would write
-without it. The stdlib tier in [spec/std/](../spec/std/README.md) is not
-counted, following the [tier split](../AGENTS.md#spec-scope-for-the-standard-library).
+without it. The stdlib tier in [spec/std/](../../spec/std/README.md) is not
+counted, following the [tier split](../../AGENTS.md#spec-scope-for-the-standard-library).
 
 ## Contents
 
@@ -46,10 +51,10 @@ production-like hd code, is the harder test.
 
 | Rank | Cut | Absorbed by | Rules removed | Changes valid source | Soundness |
 | ---: | --- | --- | ---: | --- | --- |
-| 1 | [K1](#k1-one-name-list-shape-in-for) `for (k, v) in m`, as in `let (a, b)` and `(a, b) :=` (SPECIAL_CASES C4) | `grammar.stmt.bind-list` (now [`grammar.stmt.short-binding.one-name`](../spec/02-grammar.md#r-grammar.stmt.short-binding.one-name)), `grammar.inline.bind-list` | 1 exception, 1 of 3 list spellings | yes, with a fix-it | holds |
-| 2 | [K2](#k2-let-mut-takes-no-annotation) `let mut` takes no type annotation | [`types.bind.let-mut`](../spec/04-type-system.md#r-types.bind.let-mut): the annotation states access | 7 rules become 2; 1 warning | yes: a warned form becomes an error | holds |
+| 1 | [K1](#k1-one-name-list-shape-in-for) `for (k, v) in m`, as in `let (a, b)` and `(a, b) :=` (SPECIAL_CASES C4) | `grammar.stmt.bind-list` (now [`grammar.stmt.short-binding.one-name`](../../spec/02-grammar.md#r-grammar.stmt.short-binding.one-name)), `grammar.inline.bind-list` | 1 exception, 1 of 3 list spellings | yes, with a fix-it | holds |
+| 2 | [K2](#k2-let-mut-takes-no-annotation) `let mut` takes no type annotation | [`types.bind.let-mut`](../../spec/04-type-system.md#r-types.bind.let-mut): the annotation states access | 7 rules become 2; 1 warning | yes: a warned form becomes an error | holds |
 | 3 | [K3](#k3-a-multi-name-binding-is-a-statement) A multi-name `:=` is a statement only | `grammar.expr.multi-binding` | 1 rule, 1 nested form | yes: `((a, b) := p)` becomes an error | holds |
-| 4 | [K4](#k4-a-comprehension-follows-its-loop) A comprehension follows the loop it abbreviates (SPECIAL_CASES C7) | [`expr.comp.shape`](../spec/05-expressions.md#r-expr.comp.shape), [`req.bang.driver-contexts`](../spec/11-requirements-and-suspension.md#r-req.bang.driver-contexts) | 3 rules | invalid becomes valid | holds |
+| 4 | [K4](#k4-a-comprehension-follows-its-loop) A comprehension follows the loop it abbreviates (SPECIAL_CASES C7) | [`expr.comp.shape`](../../spec/05-expressions.md#r-expr.comp.shape), [`req.bang.driver-contexts`](../../spec/11-requirements-and-suspension.md#r-req.bang.driver-contexts) | 3 rules | invalid becomes valid | holds |
 | 5 | [K5](#k5-one-dollar-rule-for-every-string) One `$` rule for every string (SPECIAL_CASES C5) | `lex.prefix.plain-dollar-start` | half of 1 rule | invalid becomes valid | holds |
 
 A sixth, [K6](#k6-readonly-iterators-in-loops) (SPECIAL_CASES C6),
@@ -179,7 +184,7 @@ fn names(scores: Map[string, i32], ready: bool) -> List[string] $ Console:
 ```
 
 **Absorbed by.** The `binding_list` production of
-`grammar.stmt.bind-list` (now [`grammar.stmt.short-binding.one-name`](../spec/02-grammar.md#r-grammar.stmt.short-binding.one-name)),
+`grammar.stmt.bind-list` (now [`grammar.stmt.short-binding.one-name`](../../spec/02-grammar.md#r-grammar.stmt.short-binding.one-name)),
 and `grammar.inline.bind-list`
 for the same-line body.
 
@@ -195,7 +200,7 @@ it; the fix-it is mechanical.
 | --- | --- |
 | `binding_pattern` production | deleted; loops and comprehension `for` clauses take `binding_target` |
 | `grammar.inline.multi-name-for` | deleted: absorbed by `grammar.inline.bind-list` |
-| [`grammar.inline.loops`](../spec/02-grammar.md#r-grammar.inline.loops) | reworded: a same-line `for` takes one name or a list |
+| [`grammar.inline.loops`](../../spec/02-grammar.md#r-grammar.inline.loops) | reworded: a same-line `for` takes one name or a list |
 | `flow.for.tuple-binding` (since retired) | reworded: `for (key, value) in entries` |
 | New rule beside `grammar.stmt.bind-list.bare` | added: `for a, b in m` is `syntax-error` with a fix-it |
 | About 23 fixtures with a multi-name loop | rewritten; rows unchanged |
@@ -238,7 +243,7 @@ fn build() -> List[string]:
     names
 ```
 
-**Absorbed by.** [`types.bind.let-mut`](../spec/04-type-system.md#r-types.bind.let-mut):
+**Absorbed by.** [`types.bind.let-mut`](../../spec/04-type-system.md#r-types.bind.let-mut):
 "a `let` annotation may state mutable access explicitly". A tuple writes
 `let (first, second): (mut User, User) = pair()`.
 
@@ -252,13 +257,13 @@ write `let mut x: T` and get the fix-it.
 
 | Item | Change |
 | --- | --- |
-| `grammar.stmt.let-mut-single`, `grammar.stmt.let-mut-list` (now [`grammar.stmt.let-pattern.mut`](../spec/02-grammar.md#r-grammar.stmt.let-pattern.mut)) | reworded: `mut` before a name only when the `let` has no annotation |
-| [`types.bind.let-mut-annotated`](../spec/04-type-system.md#r-types.bind.let-mut-annotated) | reworded: `let mut` with an annotation is `syntax-error` |
-| [`types.bind.let-mut-annotated.fix`](../spec/04-type-system.md#r-types.bind.let-mut-annotated.fix) | reworded: the fix-it moves `mut` into the type |
-| [`types.bind.let-mut-annotated.warning`](../spec/04-type-system.md#r-types.bind.let-mut-annotated.warning) | deleted; `redundant-let-mut` retires |
-| [`types.bind.let-mut-annotation`](../spec/04-type-system.md#r-types.bind.let-mut-annotation), [`.fix`](../spec/04-type-system.md#r-types.bind.let-mut-annotation.fix) | merged into `let-mut-annotated`; `let-mut-readonly-type` retires |
-| [`types.bind.let-mut-pattern.annotated`](../spec/04-type-system.md#r-types.bind.let-mut-pattern.annotated), [`.redundant`](../spec/04-type-system.md#r-types.bind.let-mut-pattern.redundant) | merged into `let-mut-annotated` |
-| [`types.bind.let-mut-primitive`](../spec/04-type-system.md#r-types.bind.let-mut-primitive) and the other `let-mut` rules | unchanged |
+| `grammar.stmt.let-mut-single`, `grammar.stmt.let-mut-list` (now [`grammar.stmt.let-pattern.mut`](../../spec/02-grammar.md#r-grammar.stmt.let-pattern.mut)) | reworded: `mut` before a name only when the `let` has no annotation |
+| [`types.bind.let-mut-annotated`](../../spec/04-type-system.md#r-types.bind.let-mut-annotated) | reworded: `let mut` with an annotation is `syntax-error` |
+| [`types.bind.let-mut-annotated.fix`](../../spec/04-type-system.md#r-types.bind.let-mut-annotated.fix) | reworded: the fix-it moves `mut` into the type |
+| [`types.bind.let-mut-annotated.warning`](../../spec/04-type-system.md#r-types.bind.let-mut-annotated.warning) | deleted; `redundant-let-mut` retires |
+| [`types.bind.let-mut-annotation`](../../spec/04-type-system.md#r-types.bind.let-mut-annotation), [`.fix`](../../spec/04-type-system.md#r-types.bind.let-mut-annotation.fix) | merged into `let-mut-annotated`; `let-mut-readonly-type` retires |
+| [`types.bind.let-mut-pattern.annotated`](../../spec/04-type-system.md#r-types.bind.let-mut-pattern.annotated), [`.redundant`](../../spec/04-type-system.md#r-types.bind.let-mut-pattern.redundant) | merged into `let-mut-annotated` |
+| [`types.bind.let-mut-primitive`](../../spec/04-type-system.md#r-types.bind.let-mut-primitive) and the other `let-mut` rules | unchanged |
 | 5 fixtures with `redundant-let-mut` or `let-mut-readonly-type` | marker becomes `syntax-error` |
 
 **Other languages.** Rust's `let mut x: T` exists because Rust has no
@@ -326,7 +331,7 @@ out unpacking ([PEP 572][pep-572]). Go's `:=` is a statement
 ### K4. A Comprehension Follows Its Loop
 
 A comprehension "is equivalent in iteration shape to nested loops"
-([`expr.comp.shape`](../spec/05-expressions.md#r-expr.comp.shape)), but
+([`expr.comp.shape`](../../spec/05-expressions.md#r-expr.comp.shape)), but
 three more rules restate or break that. A `for` loop in a suspending body
 may make bang calls; a comprehension there may not.
 
@@ -350,13 +355,13 @@ fn names!(ids: List[i32]) -> List[string]:
     [for id in ids => fetch!(id)]
 ```
 
-**Absorbed by.** [`expr.comp.shape`](../spec/05-expressions.md#r-expr.comp.shape)
-for evaluation, and [`req.bang.driver-contexts`](../spec/11-requirements-and-suspension.md#r-req.bang.driver-contexts)
+**Absorbed by.** [`expr.comp.shape`](../../spec/05-expressions.md#r-expr.comp.shape)
+for evaluation, and [`req.bang.driver-contexts`](../../spec/11-requirements-and-suspension.md#r-req.bang.driver-contexts)
 for where a bang call is valid. `?` then needs no rule of its own: it
 returns as it would from the loop.
 
 **Soundness.** The frame already holds every local live across a
-suspension point ([`req.lowering.frame`](../spec/11-requirements-and-suspension.md#r-req.lowering.frame)),
+suspension point ([`req.lowering.frame`](../../spec/11-requirements-and-suspension.md#r-req.lowering.frame)),
 so a partial list is safe. Outside a suspending body the call is still
 `bang-call-outside-suspension`. The jump and `let` bans stay.
 
@@ -366,7 +371,7 @@ so a partial list is safe. Outside a suspending body the call is still
 | --- | --- |
 | `expr.comp.no-suspension` | deleted |
 | `expr.comp.propagation`, `.propagation.stop` | merged into `expr.comp.shape` as a Note |
-| [`expr.comp.eager`](../spec/05-expressions.md#r-expr.comp.eager), [`expr.comp.no-jumps`](../spec/05-expressions.md#r-expr.comp.no-jumps), [`expr.comp.no-let`](../spec/05-expressions.md#r-expr.comp.no-let) | unchanged |
+| [`expr.comp.eager`](../../spec/05-expressions.md#r-expr.comp.eager), [`expr.comp.no-jumps`](../../spec/05-expressions.md#r-expr.comp.no-jumps), [`expr.comp.no-let`](../../spec/05-expressions.md#r-expr.comp.no-let) | unchanged |
 | Fixture `typing/invalid/bang-call-in-comprehension.hd` | moves to valid, or keeps an error in a non-suspending body |
 
 **Other languages.** Python allows `await` in a comprehension inside an
@@ -443,16 +448,16 @@ fn drain_direct(source: Iterator[i32]) -> List[i32]:
     [for value in source => value]
 ```
 
-**Absorbed by.** [`flow.for.iterable`](../spec/06-control-flow.md#r-flow.for.iterable)
+**Absorbed by.** [`flow.for.iterable`](../../spec/06-control-flow.md#r-flow.for.iterable)
 and `flow.for.iterator-self`, retired by batch 24.
 
 **Soundness.** Readonly views are shallow
-([`types.readonly.not-deep`](../spec/04-type-system.md#r-types.readonly.not-deep)),
+([`types.readonly.not-deep`](../../spec/04-type-system.md#r-types.readonly.not-deep)),
 so the rule guarded nothing that `source.iter()` does not already allow.
 
 | Item | Change |
 | --- | --- |
-| [`flow.for.iterator-mut`](../spec/06-control-flow.md#r-flow.for.iterator-mut) | deleted |
+| [`flow.for.iterator-mut`](../../spec/06-control-flow.md#r-flow.for.iterator-mut) | deleted |
 | Fixture `typing/invalid/readonly-iterator-in-comprehension.hd` | moves to valid |
 
 **Other languages.** Rust's `for` accepts `&mut I` for any iterator `I`
@@ -468,7 +473,7 @@ so the rule guarded nothing that `source.iter()` does not already allow.
 | Merge `:=` into `let` | Both forms are used about 210 times each in real code, and each carries one permission. Swift and Kotlin also spend two keywords. |
 | Allow `if` inside a same-line suite | Needs a new dangling-`else` rule, so it is a design option, not a cut. Python also bans it. |
 | Drop the test-body result rule chosen by `?` | Needs an implicit `.Ok()`, a new rule. Decided in T15. |
-| Replace comprehensions with adapters | Nested `for` clauses need a `flat_map` the prelude lacks, as [Special Cases](SPECIAL_CASES.md#cuts-considered-and-not-proposed) found. |
+| Replace comprehensions with adapters | Nested `for` clauses need a `flat_map` the prelude lacks, as [Special Cases](../SPECIAL_CASES.md#cuts-considered-and-not-proposed) found. |
 | Drop `*_test.hd` test modules for `tests:` blocks | One tree fixture uses them, and a long suite needs its own file. |
 
 ## Reopen Candidates
@@ -537,7 +542,7 @@ Rust's `Deref` is the closest, and its docs discourage it for this use
 ([Rust][rust-deref]).
 
 **Decided by.** VE1-VE4, VE-S, the embedding limits, and the trait
-delegation decision; see [Special Cases R54-R56](SPECIAL_CASES.md#rule-exceptions).
+delegation decision; see [Special Cases R54-R56](../SPECIAL_CASES.md#rule-exceptions).
 
 ### R2. Literal Suffixes And String Prefixes
 
@@ -555,7 +560,7 @@ and 5 prefixed strings: four `r"..."` and one playground `total"..."`.
 
 **Without it.** Suffixes become calls; prefixes become calls on a
 template. A raw string then needs its own lexical form, because `"""`
-processes escapes ([`lex.multiline.escapes`](../spec/01-lexical-structure.md#r-lex.multiline.escapes)).
+processes escapes ([`lex.multiline.escapes`](../../spec/01-lexical-structure.md#r-lex.multiline.escapes)).
 
 ```text
 use std.time.ms
@@ -618,7 +623,7 @@ fn call_with[A, R](f: fn(A) -> R, arg: A) -> R:
 ([Kotlin][kotlin-awaitall]). Go and MoonBit have no variadic generics.
 
 **Design cost order.** An intrinsic signature for two combinators ranks
-cheaper than a syntax change ([AGENTS.md](../AGENTS.md#design-cost-order)).
+cheaper than a syntax change ([AGENTS.md](../../AGENTS.md#design-cost-order)).
 Whether tuple-kinded function inputs (FN_TYPE) could carry `call_with`
 needs a brainstorm, not a cut.
 
@@ -680,7 +685,7 @@ exceptions. Real code has no leading-dot line. `lib/std` writes adapter
 chains on one line.
 
 **Without it.** One line, or parentheses, inside which every line already
-continues ([`lex.dot.where`](../spec/01-lexical-structure.md#r-lex.dot.where)):
+continues ([`lex.dot.where`](../../spec/01-lexical-structure.md#r-lex.dot.where)):
 
 ```text
 fn short(line: string) -> string:
@@ -763,7 +768,7 @@ fn drain(source: Iterator[i32]) -> List[i32]:
 **Owner decision (batch 24, IT1-IT3, 2026-09-30): B, keep.** `Iterator[T]`
 no longer implements `Iterable[T]`, which reverses CS10, so a readonly
 iterator cannot be advanced by any path. See
-[Open Issues](OPEN_ISSUES.md#language-design-decisions).
+[Open Issues](../OPEN_ISSUES.md#language-design-decisions).
 
 ### Q2. Bang Calls In Comprehensions
 
@@ -787,7 +792,7 @@ fn names!(ids: List[i32]) -> List[string]:
 
 **Owner decision (batch 26, 2026-09-30): A.** A bang call is valid in a
 comprehension in a suspending body, and the calls run in order; the `?`
-rules become a Note. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
+rules become a Note. See [Open Issues](../OPEN_ISSUES.md#language-design-decisions).
 
 ### Q3. Dollar As Text
 
@@ -805,7 +810,7 @@ fn label() -> string:
 ```
 
 **Owner decision (batch 26, 2026-09-30): A.** A `$` that starts no
-interpolation is text in every string. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
+interpolation is text in every string. See [Open Issues](../OPEN_ISSUES.md#language-design-decisions).
 
 ### Q4. Parentheses In `for`
 
@@ -826,7 +831,7 @@ fn names(scores: Map[string, i32]) -> List[string]:
 
 **Owner decision (batch 26, 2026-09-30): A.** `for (k, v) in m`, in
 loops and comprehension clauses; the bare form is `syntax-error` with a
-fix-it. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
+fix-it. See [Open Issues](../OPEN_ISSUES.md#language-design-decisions).
 
 ### Q5. Nested Multi-Name Bindings
 
@@ -847,7 +852,7 @@ fn sum() -> i32:
 ```
 
 **Owner decision (batch 26, 2026-09-30): A.** A multi-name `:=` is a
-statement only; this supersedes Q1b's nested form. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
+statement only; this supersedes Q1b's nested form. See [Open Issues](../OPEN_ISSUES.md#language-design-decisions).
 
 ### Q6. `let mut` With An Annotation
 
@@ -869,7 +874,7 @@ fn build() -> List[string]:
 ```
 
 **Owner decision (batch 26, 2026-09-30): B, keep.** The warning and the
-error stay as they are. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
+error stay as they are. See [Open Issues](../OPEN_ISSUES.md#language-design-decisions).
 
 ### Q7. Map Key Bound
 
@@ -895,7 +900,7 @@ fn setup() -> void:
 
 **Owner decision (batch 26, 2026-09-30): B.** `Map[K < Eq & Hash, V]`
 reports `unsatisfied-trait-bound`; a `mut` key type stays an error. See
-[Open Issues](OPEN_ISSUES.md#language-design-decisions).
+[Open Issues](../OPEN_ISSUES.md#language-design-decisions).
 
 ### Q8. Map Read Type
 
@@ -919,7 +924,7 @@ fn score(scores: Map[string, i32], name: string) -> i32:
 
 **Owner decision (batch 26, 2026-09-30): A.** `m[k]` reads `V` and
 panics with `index-out-of-bounds`; `m.get(k)` reads `V?`. This reverses
-the 2026-09-29 split. See [Open Issues](OPEN_ISSUES.md#language-design-decisions).
+the 2026-09-29 split. See [Open Issues](../OPEN_ISSUES.md#language-design-decisions).
 
 ### Q9. Reopen Embedding?
 
@@ -1041,7 +1046,7 @@ fn call_with[A, R](f: fn(A) -> R, arg: A) -> R:
 ## Parse Log
 
 Every `text` block was parsed with `parseSource` from
-[spec/reference-parser/parser.ts](../spec/reference-parser/parser.ts) on
+[spec/reference-parser/parser.ts](../../spec/reference-parser/parser.ts) on
 2026-09-30. Parsing checks syntax only. Codes such as `type-mismatch` in
 comments are checker results the parser does not report.
 

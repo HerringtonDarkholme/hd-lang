@@ -41,7 +41,7 @@ The design must keep every name below. The prelude list is normative, and the
 `prelude-name-shadow` rule means any name added to the prelude later breaks
 every user module that already declares it.
 
-The Tier column follows the [Spec Tiers inventory](SPEC_TIERS.md#inventory).
+The Tier column follows the [Spec Tiers inventory](archive/SPEC_TIERS.md#inventory).
 A language item stays in the numbered chapters. A std item moves to
 [spec/std/](../spec/std/README.md) in its migration task, and until then its
 rules stay where the Source column links. "Not in the spec" marks
