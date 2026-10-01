@@ -1,5 +1,21 @@
-# std.cmp helpers (future-work/STDLIB.md#stdcmp-stdhash-stdformat). `Eq`,
-# `PartialOrd`, `Ord`, and `Ordering` are prelude names.
+# std.cmp (future-work/STDLIB.md#stdcmp-stdhash-stdformat). `Eq`,
+# `PartialOrd`, `Ord`, and `Ordering` are prelude names, declared here
+# (spec/09-traits.md#comparison-traits).
+
+pub enum Ordering:
+    Less
+    Equal
+    Greater
+
+pub trait Eq:
+    fn eq(self, other: Self) -> bool
+
+# `.None` means unordered.
+pub trait PartialOrd < Eq:
+    fn partial_cmp(self, other: Self) -> Ordering?
+
+pub trait Ord < PartialOrd:
+    fn cmp(self, other: Self) -> Ordering
 
 # The smaller of two values; `a` when they are equal.
 pub fn min[T < Ord](a: T, b: T) -> T:

@@ -1,10 +1,16 @@
 # std.console: `println`, console input, and the recording `BufferConsole`
 # (future-work/STDLIB.md#stdconsole). `Console`, `ConsoleError`, and `println`
-# are prelude names (spec/10-modules.md#console); `println` is declared here
-# and the other two by the checker. No prototype runtime profile binds a host
-# `ConsoleInput`. `println` drives the covering provider's `write_line!`
-# with `block_on` (MHP-1), so a `BufferConsole` records `println` lines too.
+# are prelude names (spec/10-modules.md#console); `Console` and `println` are
+# declared here and `ConsoleError` by the checker. No prototype runtime
+# profile binds a host `ConsoleInput`. `println` drives the covering
+# provider's `write_line!` with `block_on` (MHP-1), so a `BufferConsole`
+# records `println` lines too.
 use std.task.block_on
+
+# The host console capability; `write_line!` takes `mut self`, so it is a
+# mutable requirement trait.
+pub trait Console:
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]
 
 pub trait ConsoleInput:
     fn read_line!(self) -> Result[string?, ConsoleError]

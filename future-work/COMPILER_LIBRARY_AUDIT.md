@@ -287,6 +287,34 @@ composite strategies, their HIR kinds, and `genericEqualityCall` are gone
   repeated comparison in one frame, as in a loop, read stale elements.
   `test/std/cmp-iter.hd` now covers it.
 
+**M2 status, 2026-10-01: done.** `Eq`, `PartialOrd`, `Ord`, and
+`Ordering` are hd in `std.cmp`, `Display` and `Debug` in `std.format`,
+`Iterable` in `std.iter`, `Console` in `std.console`, and `ResourceError`
+in a new `lib/std/resource.hd`. TS 271 lines deleted, 48 added; hd 51
+added. Differences from the plan:
+
+- No index hook was needed. The loader adds each trait as a prelude
+  declaration when code mentions it, so it gets an ordinary index. The
+  checker already found these traits by name, and no program may shadow a
+  prelude name. `lowerRunTimeGaps`, which dropped an unused `Console`, is
+  deleted: `Console` is now declared only when something mentions it.
+- The hook is the loader's mention rule, plus three checker lookups that
+  now accept a missing trait: `Display` in interpolation and in entry
+  results, and trait-method dispatch, as for a generic map key's `Eq`. The `DebugWriter` stub and the
+  M1 `comparisons` rule are gone, because the prelude rule covers them.
+- `Any` (`std.core`) and `Waker` (`std.task`) stay in TS. Neither module
+  has a `lib/std` file, and `Any` is implemented by every type through a
+  compiler rule. `Waker` can move with M10's `lib/std/task.hd`.
+- One addition for compile time: a std impl on a tuple target is declared
+  only for code that mentions a tuple. Without it, every `println` program
+  compiled `std.format`'s 13 tuple `Display` impls (cold check of
+  `examples/core.hd` 305 ms to 408 ms). As a side effect, `println` of a
+  tuple now works. With the rule, in-process check time equals M1's for
+  `examples/core.hd`, `test/std/cmp-iter.hd`, and `test/std/derive.hd`.
+- The record's 345 lines counted the `standard-traits.ts` shims. Most of
+  them (`Duration`, `ExitCode`, `INSPECT_SOURCE`, `From`, `Error`) are lang
+  items or M5 work, so they stay.
+
 Rules for every chunk:
 
 - Write the hd first, then delete the TS path it replaces. Never keep both.

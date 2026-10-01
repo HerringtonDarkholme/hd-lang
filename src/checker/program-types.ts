@@ -1,6 +1,6 @@
 import type { TraitDecl } from "../ast.ts";
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
-import { debugWriterName, INSPECTABLE_MEMBERS } from "./standard-traits.ts";
+import { INSPECTABLE_MEMBERS } from "./standard-traits.ts";
 import type { HirAssociatedBinding, HirData, HirTrait } from "../hir.ts";
 import { mutableInner, nominalGenericParts, nominalGenericType } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
@@ -14,7 +14,7 @@ import {
 import type { ProgramCheckContext } from "./program-context.ts";
 
 export function declareProgramTypes(context: ProgramCheckContext): void {
-  const { program, diagnostics, imports, dataTypes, enumTypes, traitTypes } = context;
+  const { program, diagnostics, dataTypes, enumTypes, traitTypes } = context;
   program.data.forEach((declaration, index) => {
     if (PRELUDE_NAMES.has(declaration.name) && !declaration.standard) {
       diagnostics.push({
@@ -112,34 +112,10 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
       span: declaration.span,
     });
   });
-  traitTypes.set("Display", {
-    name: "Display",
-    index: program.traits.length,
-    genericParameters: [],
-    supertraits: [],
-    associatedTypes: [],
-    methods: [
-      {
-        name: "to_string",
-        index: 0,
-        associated: false,
-        genericParameters: [],
-        suspending: false,
-        receiverMutable: false,
-        parameters: [],
-        parameterNames: [],
-        variadic: false,
-        result: "string",
-        requirements: [],
-        span: program.span,
-      },
-    ],
-    span: program.span,
-  });
-  declareComparisonTraits(context);
+  // `std.task.Waker`, a prelude name whose module has no `lib/std` file.
   traitTypes.set("Waker", {
     name: "Waker",
-    index: program.traits.length + 3,
+    index: program.traits.length,
     genericParameters: [],
     supertraits: [],
     associatedTypes: [],
@@ -161,184 +137,16 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     ],
     span: program.span,
   });
-  // `Iterable[T]`: `for` and comprehension clauses call `iter` on a value
-  // whose type implements it (06-control-flow.md#for-loops). Its `iter`
-  // returns the std `Iterator`, which a program that names `Iterable` gets.
-  if (dataTypes.has("Iterator"))
-    traitTypes.set("Iterable", {
-      name: "Iterable",
-      index: program.traits.length + 5,
-      genericParameters: ["T"],
-      supertraits: [],
-      associatedTypes: [],
-      methods: [
-        {
-          name: "iter",
-          index: 0,
-          associated: false,
-          genericParameters: [],
-          suspending: false,
-          receiverMutable: false,
-          parameters: [],
-          parameterNames: [],
-          variadic: false,
-          result: "mut:Iterator[generic:T]",
-          requirements: [],
-          span: program.span,
-        },
-      ],
-      span: program.span,
-    });
-  // `Any`, the built-in universal empty trait: every value type implements it
-  // (04-type-system.md#trait-values-and-any).
+  // `Any`, the built-in universal empty trait of `std.core`: every value type
+  // implements it (04-type-system.md#trait-values-and-any).
   traitTypes.set("Any", {
     name: "Any",
-    index: program.traits.length + 6,
+    index: program.traits.length + 1,
     genericParameters: [],
     supertraits: [],
     associatedTypes: [],
     methods: [],
     span: program.span,
-  });
-  // The prelude host capability trait `Console` (10-modules.md#console):
-  // `write_line!` takes `mut self`, so it is a mutable requirement trait.
-  traitTypes.set("Console", {
-    name: "Console",
-    index: program.traits.length + 9,
-    genericParameters: [],
-    supertraits: [],
-    associatedTypes: [],
-    methods: [
-      {
-        name: "write_line",
-        index: 0,
-        associated: false,
-        genericParameters: [],
-        suspending: true,
-        receiverMutable: true,
-        parameters: ["string"],
-        parameterNames: ["text"],
-        variadic: false,
-        result: "Result[void,ConsoleError]",
-        requirements: [],
-        span: program.span,
-      },
-    ],
-    span: program.span,
-  });
-  // `std.format.Debug` (09-traits.md#debug-trait), a prelude trait.
-  traitTypes.set("Debug", {
-    name: "Debug",
-    index: program.traits.length + 8,
-    genericParameters: [],
-    supertraits: [],
-    associatedTypes: [],
-    methods: [
-      {
-        name: "debug",
-        index: 0,
-        associated: false,
-        genericParameters: [],
-        suspending: false,
-        receiverMutable: false,
-        parameters: [`mut:${debugWriterName(program.uses)}`],
-        parameterNames: ["out"],
-        variadic: false,
-        result: "void",
-        requirements: [],
-        span: program.span,
-      },
-    ],
-    span: program.span,
-  });
-  let nextEnumIndex = program.enums.length;
-  enumTypes.set("Ordering", {
-    name: "Ordering",
-    index: nextEnumIndex++,
-    genericParameters: [],
-    sharedFields: [],
-    variants: ["Less", "Equal", "Greater"].map((name, tag) => ({
-      name,
-      tag,
-      fields: [],
-      span: program.span,
-    })),
-    fields: [],
-    span: program.span,
-  });
-  for (const [localName, importedName] of imports) {
-    if (importedName !== "std.resource.ResourceError") continue;
-    const declaration = program.uses.find((useDeclaration) =>
-      useDeclaration.names.some((name) => (name.alias ?? name.name) === localName),
-    );
-    const span = declaration?.span ?? program.span;
-    if (dataTypes.has(localName) || enumTypes.has(localName) || traitTypes.has(localName)) {
-      diagnostics.push({
-        code: "duplicate-module-name",
-        message: `imported type '${localName}' conflicts with a local type`,
-        span,
-      });
-      continue;
-    }
-    const operationField = { name: "error", type: "generic:E", index: 0, span };
-    enumTypes.set(localName, {
-      name: localName,
-      index: nextEnumIndex++,
-      genericParameters: ["E"],
-      sharedFields: [],
-      variants: [
-        { name: "Operation", tag: 0, fields: [operationField], span },
-        { name: "Disposed", tag: 1, fields: [], span },
-      ],
-      fields: [operationField],
-      span,
-    });
-  }
-}
-
-// `Eq`, `PartialOrd < Eq`, and `Ord < PartialOrd`, each with one comparison
-// method taking `other: Self` (09-traits.md#comparison-traits).
-function declareComparisonTraits(context: ProgramCheckContext): void {
-  const { program, traitTypes } = context;
-  const traits = [
-    { name: "Eq", offset: 1, method: "eq", result: "bool" },
-    { name: "PartialOrd", offset: 2, method: "partial_cmp", result: "Ordering?" },
-    { name: "Ord", offset: 7, method: "cmp", result: "Ordering" },
-  ];
-  traits.forEach((trait, position) => {
-    const parent = traits[position - 1];
-    traitTypes.set(trait.name, {
-      name: trait.name,
-      index: program.traits.length + trait.offset,
-      genericParameters: [],
-      supertraits: parent
-        ? [
-            {
-              traitIndex: program.traits.length + parent.offset,
-              traitName: parent.name,
-              traitArguments: [],
-            },
-          ]
-        : [],
-      associatedTypes: [],
-      methods: [
-        {
-          name: trait.method,
-          index: 0,
-          associated: false,
-          genericParameters: [],
-          suspending: false,
-          receiverMutable: false,
-          parameters: ["generic:Self"],
-          parameterNames: ["other"],
-          variadic: false,
-          result: trait.result,
-          requirements: [],
-          span: program.span,
-        },
-      ],
-      span: program.span,
-    });
   });
 }
 

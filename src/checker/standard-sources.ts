@@ -22,6 +22,7 @@ export const STANDARD_MODULES = [
   "ops",
   "option",
   "process",
+  "resource",
   "result",
   "testing",
   "text",

@@ -1,8 +1,8 @@
 # std.iter: the prelude `Iterator[T]` with its adapters, `FromIterator` and
 # its implementations, the `Iterable` implementations of `List`, `Map`, and
 # `Iterator`, and `range`
-# (future-work/STDLIB.md#stditer). `Iterator` is a prelude name; `Iterable`
-# is still declared by the compiler.
+# (future-work/STDLIB.md#stditer). `Iterator` and `Iterable` are prelude
+# names.
 #
 # `Iterator[T]` is a data type whose private `step` closure yields the next
 # item (spec/06-control-flow.md#iteration-protocols), and the adapters are
@@ -132,6 +132,11 @@ impl[T, C < FromIterator[T]] FromIterator[T?] for C?:
         )
         collected := C::from_iter(payloads)
         if missing: .None else: .Some(collected)
+
+# A value that a `for` loop or a comprehension clause iterates
+# (spec/06-control-flow.md#iteration-protocols).
+pub trait Iterable[T]:
+    fn iter(self) -> mut Iterator[T]
 
 # A loop over an iterator continues its traversal
 # (spec/06-control-flow.md#r-flow.for.iterator-direct).

@@ -46,7 +46,6 @@ import { FunctionBodyEmitter } from "./function-body.ts";
 import { closureBoundLoads, environmentType } from "./context.ts";
 import { emitHostProviders } from "./host-providers.ts";
 import { emitHostFunctionImports, emitIntrinsicBody } from "./intrinsics.ts";
-import { lowerRunTimeGaps } from "./run-time-gaps.ts";
 import {
   emitStoredSuspensionAdapters,
   STORED_SUSPENSION_RUNTIME,
@@ -1171,8 +1170,7 @@ import {
   RUNTIME_WAT,
 } from "./runtime/index.ts";
 
-export function emitWat(source: HirProgram): string {
-  const program = lowerRunTimeGaps(source);
+export function emitWat(program: HirProgram): string {
   const { signatureNames, contextNames } = collectModuleTypes(program);
   const traitsByName = new Map(program.traits.map((trait) => [trait.name, trait]));
   const suspensionPlans = new Map(

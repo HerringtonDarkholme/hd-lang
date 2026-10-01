@@ -73,11 +73,19 @@ const renamedModules = new Map<string, Program>();
 
 /** The prelude names that a std module declares in hd, by module. */
 const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
+  ["cmp", "Eq"],
+  ["cmp", "PartialOrd"],
+  ["cmp", "Ord"],
+  ["cmp", "Ordering"],
+  ["console", "Console"],
   ["console", "println"],
+  ["format", "Display"],
+  ["format", "Debug"],
   ["format", "debug"],
   ["hash", "Hash"],
   ["hash", "Hasher"],
   ["iter", "Iterator"],
+  ["iter", "Iterable"],
   // The shape surface (spec/14-annotations.md#common-shape-representation).
   ...[
     "DeclarationId",
@@ -102,13 +110,6 @@ const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
  */
 const PRELUDE_TYPE_METHODS: readonly (readonly [StandardModule, string, readonly string[]])[] = [
   ["iter", "Iterator", ["iter", "take", "enumerate", "fold", "collect"]],
-];
-
-/** std declarations that a prelude trait names, declared when a program mentions the trait. */
-const TRAIT_DECLARATIONS: readonly (readonly [StandardModule, string, string])[] = [
-  ["format", "DebugWriter", "Debug"],
-  // `Iterable.iter` returns an `Iterator` (spec/06-control-flow.md#iteration-protocols).
-  ["iter", "Iterator", "Iterable"],
 ];
 
 function isStandardModule(name: string): name is StandardModule {
@@ -162,7 +163,18 @@ function imports(program: Program, module: string, name: string, local: string):
 function builtInBase(implementation: ImplDecl): boolean {
   const target = implementation.targetName;
   const base = target.endsWith("?") ? "?" : (target.split("[")[0] ?? target);
-  return base === "?" || base === "Result" || BUILT_IN_TARGETS.has(base);
+  return (
+    base === "?" || base === "Result" || tupleTarget(implementation) || BUILT_IN_TARGETS.has(base)
+  );
+}
+
+/**
+ * A tuple type, such as `(A, B)`. Its std implementations, up to 12
+ * elements, are declared only for code that mentions a tuple
+ * (`mentionedNames`), so a program without tuples does not compile them.
+ */
+function tupleTarget(implementation: ImplDecl): boolean {
+  return implementation.targetName.startsWith("(");
 }
 
 function builtInTarget(implementation: ImplDecl): boolean {
@@ -333,11 +345,11 @@ const OPERATOR_TRAITS = new Map<string, readonly string[]>([
   ...["<", "<=", ">", ">="].map((name): [string, string[]] => [name, ["Eq", "PartialOrd"]]),
 ]);
 
-const COMPARISON_TRAITS = ["Eq", "PartialOrd", "Ord"];
-
 /**
  * Every identifier-like string in the node, a superset of the names it
- * mentions. A comparison operator mentions the trait it calls.
+ * mentions. A comparison operator mentions the trait it calls, and a tuple
+ * type, such as `(i32, string)` or `List[(K, V)]`, mentions `tuple`, as a
+ * tuple expression or pattern (`kind: "tuple"`) does.
  */
 function mentionedNames(node: unknown, names: Set<string>): void {
   if (Array.isArray(node)) {
@@ -347,6 +359,7 @@ function mentionedNames(node: unknown, names: Set<string>): void {
   if (typeof node === "string") {
     for (const word of node.match(/\w+/g) ?? []) names.add(word);
     for (const trait of OPERATOR_TRAITS.get(node) ?? []) names.add(trait);
+    if (/(^|\W)\(/.test(node)) names.add("tuple");
     return;
   }
   if (!node || typeof node !== "object") return;
@@ -618,13 +631,6 @@ export function withStandardLibrary(source: Program): Program {
   // unless it declares that name itself, which is a prelude-name-shadow error.
   const mentionedByProgram = new Set<string>();
   mentionedNames(program, mentionedByProgram);
-  // The prelude `Debug` names `DebugWriter`, so a program that mentions
-  // `Debug` declares it, with the builders and implementations it reaches.
-  for (const [module, name, trait] of TRAIT_DECLARATIONS) {
-    if (included.has(module) || !mentionedByProgram.has(trait)) continue;
-    reached.add(nameOf(module, name));
-    if (!spans.has(module)) spans.set(module, program.span);
-  }
   // Compiler-generated code, such as a lowered `it_prop`, names a std
   // declaration by its hidden name.
   for (const name of mentionedByProgram) {
@@ -648,16 +654,6 @@ export function withStandardLibrary(source: Program): Program {
     reached.add(name);
     if (!spans.has(module)) spans.set(module, program.span);
   }
-
-  // `std.cmp` implements the comparison traits for the built-in composites
-  // (05-expressions.md#r-expr.eq.std), so code that mentions one gets them.
-  const comparisons = (node: unknown): void => {
-    if (spans.has("cmp")) return;
-    const mentioned = new Set<string>();
-    mentionedNames(node, mentioned);
-    if (COMPARISON_TRAITS.some((trait) => mentioned.has(trait))) spans.set("cmp", program.span);
-  };
-  comparisons(program);
 
   // Built-in methods: the methods of `impl` blocks on built-in types whose
   // names are selected, to a fixed point. A selected method reaches the std
@@ -699,7 +695,6 @@ export function withStandardLibrary(source: Program): Program {
         changed = true;
         memberNames(node, selected);
         reach(node, whole);
-        comparisons(node);
       }
     }
     for (const module of STANDARD_MODULES) {
@@ -713,7 +708,6 @@ export function withStandardLibrary(source: Program): Program {
           changed = true;
           memberNames(method, selected);
           reach(method);
-          comparisons(method);
         }
       }
     }
@@ -745,7 +739,8 @@ export function withStandardLibrary(source: Program): Program {
     !builtInTarget(implementation) &&
     (whole || implementationDeclared(implementation)) &&
     (!builtInTraitImplementation(implementation) ||
-      traitMentions.has(baseName(implementation.traitName!)));
+      (traitMentions.has(baseName(implementation.traitName!)) &&
+        (!tupleTarget(implementation) || traitMentions.has("tuple"))));
 
   // Module declarations, each respanned to the use that included the module.
   const types = [...(program.types ?? [])];

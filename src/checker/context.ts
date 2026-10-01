@@ -1085,7 +1085,10 @@ export abstract class CheckerContext {
     if (numericType(type) || type === "bool" || type === "char") {
       return { kind: "display", operand: value, type: "string", span };
     }
-    const trait = this.traitTypes.get("Display")!;
+    const missing = `type '${value.type}' does not implement Display, required by ${origin}`;
+    // A program that mentions no `Display` has none declared (spec/10-modules.md#prelude).
+    const trait = this.traitTypes.get("Display");
+    if (!trait) return this.fail("unsatisfied-trait-bound", missing, span);
     const generic = genericTypeName(type);
     // A bound on `Display`, or one whose trait extends it, as `T < Num` does
     // (09-traits.md#r-trait.num.num-ordered).
@@ -1147,11 +1150,7 @@ export abstract class CheckerContext {
         span,
       };
     }
-    return this.fail(
-      "unsatisfied-trait-bound",
-      `type '${value.type}' does not implement Display, required by ${origin}`,
-      span,
-    );
+    return this.fail("unsatisfied-trait-bound", missing, span);
   }
 
   protected equalityDispatch(type: ValueType): HirEqualityDispatch | undefined {
@@ -1180,7 +1179,8 @@ export abstract class CheckerContext {
     span?: SourceSpan,
   ): HirEqualityDispatch | undefined {
     const comparedType = readonlyType(type);
-    const trait = this.traitTypes.get(traitName)!;
+    const trait = this.traitTypes.get(traitName);
+    if (!trait) return undefined;
     const generic = genericTypeName(comparedType);
     const bound = generic && this.parameterBound(generic, trait.index, []);
     if (bound) {

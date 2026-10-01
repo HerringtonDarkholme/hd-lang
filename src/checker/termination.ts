@@ -98,7 +98,8 @@ function implementsDisplay(
   const target = readonlyType(type);
   if (numericType(target) || ["bool", "char", "string", "ConsoleError"].includes(target))
     return true;
-  const display = traitTypes.get("Display")!;
+  const display = traitTypes.get("Display");
+  if (!display) return false;
   if (
     implementations.some((implementation) =>
       Boolean(matchTraitImplementation(implementation, display.index, target, [])),

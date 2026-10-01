@@ -1,8 +1,15 @@
 # std.format, the part written in hd (spec/09-traits.md#debug-trait,
 # spec/std/format.md).
-# `Display` and `Debug` are prelude traits that the checker declares;
-# `DebugWriter`, its builders, `debug`, and the standard `Debug`
-# implementations are declared here (Testing T48, T53).
+# The prelude traits `Display` and `Debug`, `DebugWriter`, its builders,
+# `debug`, and the standard `Debug` implementations (Testing T48, T53).
+
+# A value's text in string interpolation
+# (spec/05-expressions.md#string-interpolation).
+pub trait Display:
+    fn to_string(self) -> string
+
+pub trait Debug:
+    fn debug(self, out: mut DebugWriter) -> void
 
 # The structured writer that `Debug.debug` writes through. An implementation
 # describes the value with builder calls, like Rust's `Formatter`; the

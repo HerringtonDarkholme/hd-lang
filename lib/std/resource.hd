@@ -1,0 +1,6 @@
+# std.resource: the error of a closable runtime handle
+# (spec/10-modules.md#closable-handles). An operation whose ordinary error
+# type is `E` returns `Result[T, ResourceError[E]]`.
+pub enum ResourceError[E]:
+    Operation(error: E)
+    Disposed

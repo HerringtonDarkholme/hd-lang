@@ -948,7 +948,7 @@ does not implement the canonical prelude trait.
 The toy standard library is hd source in the top-level
 [`lib/std/`](../lib/std/) directory, next to `src/` as in Zig, one file per
 module: `std.annotation`, `std.cmp`, `std.collections`, `std.hash`, `std.console`, `std.format`, `std.iter`, `std.num`, `std.ops`,
-`std.option`, `std.process`, `std.result`, `std.testing`, `std.text`, and `std.time`. It
+`std.option`, `std.process`, `std.resource`, `std.result`, `std.testing`, `std.text`, and `std.time`. It
 follows the draft in
 [future-work/STDLIB.md](../future-work/STDLIB.md#core-layer) where the
 specification allows; the open points are listed there under
@@ -976,7 +976,13 @@ the prototype compiles:
   `impl Add[i32] for i32` of `std.ops` or `impl Num for i32` of `std.num`,
   is added only when the program, or a std declaration it gets, names the
   trait, so that `use std.ops.num_suffix` does not add every operator
-  implementation;
+  implementation. One on a tuple, such as `Display` for `(A, B)`, also
+  needs code that mentions a tuple type, expression, or pattern;
+- a prelude name that std declares, such as `Eq`, `Display`, or `Console`,
+  is added when the program, or a std declaration it gets, mentions it. A
+  comparison operator or `assert_equal` mentions `Eq`, and `<` also
+  `PartialOrd`. The checker finds them by name, which no program may
+  shadow;
 - every added declaration's span is the `use` that brought it in, or the
   program's span.
 
@@ -990,14 +996,15 @@ What it provides:
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
 | `std.text` | on `string`: `chars`, `char_indices`, `bytes`, `slice`, `to_utf8`, `string::from_utf8` with `Utf8Error`, `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
-| `std.iter` | the prelude `Iterator[T]` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Result`, and `T?` (the compiler supplies `Map`); `Iterable` for `List`, `Map`, and `Iterator`; `range` |
-| `std.cmp` | `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?` |
+| `std.iter` | the prelude `Iterator[T]` and `Iterable[T]`; `Iterator` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Result`, and `T?` (the compiler supplies `Map`); `Iterable` for `List`, `Map`, and `Iterator`; `range` |
+| `std.cmp` | the prelude `Eq`, `PartialOrd`, `Ord`, and `Ordering`; `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?` |
 | `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
-| `std.console` | `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
+| `std.console` | the prelude `Console` and `println`; `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
+| `std.resource` | `ResourceError[E]` |
 | `std.ops` | the twelve operator traits, `Index`, and `IndexSet`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations (spec/std/ops.md) |
-| `std.format` | `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and tuples up to 12 elements |
+| `std.format` | the prelude `Display` and `Debug`; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and tuples up to 12 elements |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
 | `std.testing.arbitrary` | `with` and `Generator`, in `lib/std/arbitrary.hd`, since the prototype has no std submodules |
 
@@ -1080,7 +1087,7 @@ marks what this refactor removed.
 | Checker | `println` by name | capability | Done: an ordinary std function; std may declare a prelude name (`FunctionDecl.standard`) |
 | Emitter | `emitPrintln` (`$hd.println`) | capability | Done: `println` drives `write_line!` with `block_on` |
 | Host glue | `println_pending`, `println_error` imports | capability | Done: removed; the panics are ordinary `std` panics |
-| Checker | `Console` trait declared in TypeScript (`program-types.ts`); `ConsoleError` as a primitive type name (`shared.ts`, `context.ts`, `termination.ts`) | std declarations | Remains: see Console below |
+| Checker | `Console` trait declared in TypeScript (`program-types.ts`); `ConsoleError` as a primitive type name (`shared.ts`, `context.ts`, `termination.ts`) | std declarations | Done for `Console`, declared in `lib/std/console.hd`; `ConsoleError` remains, see Console below |
 | Emitter | `emitConsole` (a hand-written host `Console` provider), `console.wat` (`$hd.console_print`) | capability | Done: the generic capability bridge, with `Result` results |
 | Host glue | `console_byte` import | capability | Done: `Console.write_line` in `HOST_PROVIDERS`, left out of record and replay |
 | Checker | `validateHostCapabilities` skipped `Console` | capability | Done: `Console` passes the same boundary check as any host capability |
@@ -1092,7 +1099,7 @@ marks what this refactor removed.
 | HIR | `inspect-type-id`, `inspect-downcast` | `std.inspect` | Remains: runtime type identity is a compiler service |
 | Checker | `block_on`, `all!`, `race!`, `shape`, `shape_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `shape` and `shape_of` lower to calls of generated hd builders over `lib/std/annotation.hd`, with no HIR node |
 | Checker | `Duration` for test `timeout`, `ExitCode` and `Termination` for entry results (`standard-traits.ts`, `termination.ts`) | `std.time`, `std.process` | Remains: language hooks that name a std type; the declarations are already hd |
-| Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Remains: operators, `for`, and interpolation are wired to them. `Hash` and `Iterator` are declared in `lib/std`, and so are the `Iterable` implementations |
+| Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Done, except `Any` (`std.core`) and `Waker` (`std.task`), which have no `lib/std` file: the rest are hd in `std.cmp`, `std.format`, and `std.iter`, declared when a program mentions them (migration M2) |
 | Emitter | `float.wat` and the `format_f64`, `format_f32`, `pow_f64`, and `rem_f64` imports | float display, `**`, and floating `%` | Remains: operator and interpolation support |
 
 Counts: the HIR expression union had 92 kinds, of which 15 were library-
@@ -1132,10 +1139,7 @@ Whether a replay should capture them is an owner question in
 
 What remains:
 
-1. Declare the `Console` trait in `lib/std/console.hd` instead of
-   `program-types.ts`. Its trait index is fixed today (the last built-in
-   trait), which `lowerRunTimeGaps` relies on to drop an unused `Console`.
-2. `ConsoleError` stays a TypeScript type name until its variants and
+1. `ConsoleError` stays a TypeScript type name until its variants and
    constructor are settled with the other std error types.
 
 ## Layout

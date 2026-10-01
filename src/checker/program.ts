@@ -101,9 +101,11 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
 }
 
 function checkProgram(source: Program, options: CheckOptions): CheckResult {
-  const joined = withStandardLibrary(source);
+  // The traits that `withStandardTraits` declares mention std names, such as
+  // `Display`, which the standard library then declares.
+  const joined = withStandardLibrary(withStandardTraits(source));
   const marked = withSuffixMarkers(withBareMarkerCalls(joined, markerFunctions(joined.functions)));
-  const hoisted = hoistLocalDeclarations(withStandardTraits(marked));
+  const hoisted = hoistLocalDeclarations(marked);
   // Target kinds are checked before newtypes are lowered to data types
   // (spec/14-annotations.md#target-kinds).
   const targetDiagnostics = checkDecoratorTargets(hoisted.program);
