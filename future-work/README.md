@@ -32,6 +32,11 @@ Open questions for the owner:
   against its use in real hd code. It ranks six cuts, including C4-C7,
   and marks seven owner decisions, led by embedding, literal sugar, and
   packs, as possible reopens.
+- [Reopen: Packs And Literal Sugar](REOPEN_PACKS_LITERALS.md) follows the
+  owner's reopening of packs and literal sugar on 2026-09-30. It shows how
+  `all!` and arity-generic impls work with no packs, through tuple-kinded
+  `Fn` inputs and one call intrinsic. It also trims literal suffixes and
+  prefixes from 89 rules to 38, and asks nine questions.
 - [Spec Tiers](SPEC_TIERS.md) splits the spec into a language tier and a
   stdlib tier under `spec/std/`, with an inventory, a conformance split,
   and a migration plan. The owner decided ST1-ST8 on 2026-09-30; step 1,
