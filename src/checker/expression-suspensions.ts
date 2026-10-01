@@ -6,11 +6,56 @@ import {
   suspensionParts,
   suspensionType,
   traitSuspensionParts,
+  tupleType,
 } from "../types.ts";
+import { ALL_COMBINATOR, RACE_INTRINSIC } from "./standard-traits.ts";
 import { substituteGenericType } from "./shared.ts";
 
 import { OperatorCallChecker } from "./operator-calls.ts";
 export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
+  /**
+   * `all!(e_1, ..., e_n)`, where each `e_i` is a `mut Suspend[X_i]`, has type
+   * `(X_1, ..., X_n)` (11-requirements-and-suspension.md#typing-all). Its
+   * polling body is a compiler intrinsic that the prototype does not emit.
+   */
+  private checkAllCombinator(
+    expression: Extract<Expression, { kind: "suspend-call" }>,
+  ): HirExpression {
+    if (expression.typeArguments)
+      this.fail("type-mismatch", "all! has no type parameters", expression.span);
+    if (expression.argumentNames?.some((name) => name !== undefined))
+      this.fail("type-mismatch", "all! takes positional arguments only", expression.span);
+    if (expression.argumentSpreads?.some(Boolean))
+      this.fail(
+        "type-mismatch",
+        "all! takes direct positional arguments, not a spread",
+        expression.span,
+      );
+    const results = expression.arguments.map((argument) => {
+      const child = this.checkExpression(argument);
+      const stored = storedSuspensionParts(child.type);
+      const result =
+        suspensionParts(child.type)?.result ??
+        traitSuspensionParts(child.type)?.result ??
+        (stored?.mutable ? stored.result : undefined);
+      if (result === undefined)
+        this.fail(
+          "type-mismatch",
+          `an argument of all! must be a mut Suspend[T], such as a cold call, found '${child.type}'`,
+          argument.span,
+        );
+      return result;
+    });
+    const message = "std.task.all! has no run time in the prototype yet";
+    return {
+      kind: "panic",
+      message: this.checkExpression({ kind: "string", value: message, span: expression.span }),
+      unsupported: { code: "unsupported-task-combinator", message },
+      type: tupleType(results),
+      span: expression.span,
+    };
+  }
+
   protected checkSuspendingCallExpression(
     expression: Expression,
     expected?: ValueType,
@@ -85,16 +130,8 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
             );
           }
           const signature = this.visibleSignature(expression.callee.name);
-          if (
-            !signature &&
-            (expression.callee.name === "all" || expression.callee.name === "race")
-          ) {
-            this.fail(
-              "unsupported-task-combinator",
-              `std.task.${expression.callee.name}! remains unavailable until its standard signature is resolved`,
-              expression.callee.span,
-            );
-          }
+          if (!signature && this.imports.get(expression.callee.name) === ALL_COMBINATOR)
+            return this.checkAllCombinator(expression);
           if (!signature)
             this.failUnknownName(
               expression.callee.name,
@@ -169,6 +206,22 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
             type: suspensionType(signature.index, resultType),
             span: expression.span,
           };
+          // `race!`'s declaration types the call; its polling body is a
+          // compiler intrinsic that the prototype does not emit yet.
+          if (signature.intrinsic === RACE_INTRINSIC) {
+            const message = "std.task.race! has no run time in the prototype yet";
+            return {
+              kind: "panic",
+              message: this.checkExpression({
+                kind: "string",
+                value: message,
+                span: expression.span,
+              }),
+              unsupported: { code: "unsupported-task-combinator", message },
+              type: resultType,
+              span: expression.span,
+            };
+          }
           return {
             kind: "suspend-drive",
             functionIndex: signature.index,

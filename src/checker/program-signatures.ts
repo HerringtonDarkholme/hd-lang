@@ -27,9 +27,10 @@ import type { ProgramCheckContext } from "./program-context.ts";
 /** A declaration's `tests:`-block, suffix, and prefix markers, as signature fields. */
 function signatureMarkers(
   declaration: FunctionDecl,
-): Pick<Signature, "testOnly" | "numSuffix" | "strPrefix"> {
+): Pick<Signature, "testOnly" | "numSuffix" | "strPrefix" | "intrinsic"> {
   return {
     ...(declaration.testOnly ? { testOnly: true } : {}),
+    ...(declaration.intrinsic ? { intrinsic: declaration.intrinsic } : {}),
     ...(declaration.numSuffix ? { numSuffix: true } : {}),
     ...(declaration.strPrefix ? { strPrefix: declaration.strPrefix } : {}),
   };

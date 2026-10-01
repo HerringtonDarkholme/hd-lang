@@ -509,10 +509,8 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           ...(expression.bounds ?? []).map((bound) => this.emitExpression(bound)),
           ...expression.providers.map((provider) => this.emitExpression(provider)),
         ].join(" ")})`;
-        const rawResultType =
-          expression.erasedResultType && isGenericValueType(expression.erasedResultType)
-            ? expression.erasedResultType
-            : expression.type;
+        const erasedResult = this.erasedResultType(expression.erasedResultType, expression.type);
+        const rawResultType = erasedResult ?? expression.type;
         const call =
           ordered.setup.length === 0
             ? invocation
@@ -522,9 +520,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
                 `  ${invocation}`,
                 `)`,
               ].join("\n");
-        return expression.erasedResultType && isGenericValueType(expression.erasedResultType)
-          ? this.unboxValue(call, expression.type)
-          : call;
+        return erasedResult ? this.restoreErasedResult(call, erasedResult, expression.type) : call;
       }
       case "suspend-construct": {
         const ordered = this.emitOrderedArguments(
@@ -893,6 +889,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           expression.valueType,
         );
       case "panic":
+        this.rejectUnsupported(expression);
         return `(block (drop ${this.emitExpression(expression.message)}) ${this.emitRuntimePanic(expression.category ?? "explicit-panic")})`;
       default:
         return undefined;
@@ -1099,15 +1096,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
             ? ""
             : ` (result ${this.watType(formal.result)})`;
         const closure = `(ref.cast (ref $closure${actualSignature}) (local.get $env))`;
-        const arguments_ = formal.parameters.map((parameter, index) => {
-          const value = `(local.get $a${index})`;
-          const actualParameter = actual.parameters[index]!;
-          if (isGenericValueType(parameter) && !isGenericValueType(actualParameter))
-            return this.unboxValue(value, actualParameter);
-          if (isGenericValueType(actualParameter) && !isGenericValueType(parameter))
-            return this.boxWatValue(value, parameter);
-          return value;
-        });
+        const arguments_ = this.adaptedArguments(formal, actual);
         const concreteFormal = new Map(
           formal.requirements
             .map((requirement, index) => [requirement, index] as const)

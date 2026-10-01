@@ -30,9 +30,16 @@ const RUNTIME_PRIMITIVES: Readonly<
     `(call $hd.panic (global.get $hd.panic-index-out-of-bounds))\nunreachable`,
 };
 
+/**
+ * Polling combinators whose `lib/std` declaration types their calls; their
+ * bodies are compiler intrinsics the prototype does not emit yet
+ * (11-requirements-and-suspension.md#r-req.combinator.intrinsic).
+ */
+const UNEMITTED_COMBINATORS: ReadonlySet<string> = new Set(["task_race"]);
+
 /** Whether `name` is a runtime primitive rather than a host function. */
 export function isRuntimePrimitive(name: string): boolean {
-  return Object.hasOwn(RUNTIME_PRIMITIVES, name);
+  return Object.hasOwn(RUNTIME_PRIMITIVES, name) || UNEMITTED_COMBINATORS.has(name);
 }
 
 /** The Wasm type a boundary value crosses as. */
@@ -81,6 +88,8 @@ function hostSignature(declaration: HirFunction): string {
 /** The body of a `lib/std` primitive. */
 export function emitIntrinsicBody(declaration: HirFunction, unbox: Unbox): string {
   const name = declaration.intrinsic!;
+  // The checker rejects every call of one when emitting, so the body never runs.
+  if (UNEMITTED_COMBINATORS.has(name)) return "unreachable";
   const arguments_ = declaration.parameters.map(
     (parameter) => `(local.get ${localName(parameter.index)})`,
   );

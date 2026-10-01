@@ -32,6 +32,12 @@ import {
   splitTypeBindings,
   nonListRestElement,
   restInner,
+  inputsInner,
+  storedSuspensionParts,
+  suspensionParts,
+  traitSuspensionParts,
+  functionInputsTuple,
+  type FunctionParts,
 } from "../types.ts";
 
 interface NamedParameter {
@@ -278,7 +284,7 @@ export function isKnownType(
 ): boolean {
   const binding = bindingParts(type);
   if (binding) return isKnownType(binding.type, dataTypes, enumTypes, traitTypes);
-  const rest = restInner(type);
+  const rest = restInner(type) ?? inputsInner(type);
   if (rest !== undefined) return isKnownType(rest, dataTypes, enumTypes, traitTypes);
   const mutable = mutableInner(type);
   if (mutable !== undefined)
@@ -408,6 +414,12 @@ export function substituteGenericType(
       binding,
       substituteGenericType(binding.type, substitutions, rowSubstitutions),
     );
+  const inputs = inputsInner(type);
+  if (inputs !== undefined)
+    return `*${substituteGenericType(inputs, substitutions, rowSubstitutions)}`;
+  const rest = restInner(type);
+  if (rest !== undefined)
+    return `${substituteGenericType(rest, substitutions, rowSubstitutions)}...`;
   const mutable = mutableInner(type);
   if (mutable !== undefined)
     return mutableType(substituteGenericType(mutable, substitutions, rowSubstitutions));
@@ -452,6 +464,11 @@ export function substituteGenericType(
   return type;
 }
 
+/** The `Args` of a function type `Fn[Args, O, R]` whose inputs are a type parameter. */
+export function tupleInputs(callable: FunctionParts): ValueType | undefined {
+  return callable.parameters.length === 1 ? inputsInner(callable.parameters[0]!) : undefined;
+}
+
 export function genericTypeName(type: ValueType): string | undefined {
   const match = /^generic:([^?[\](),]+)$/.exec(type);
   return match?.[1];
@@ -491,11 +508,19 @@ export function requirementKeysMayCollide(left: string, right: string): boolean 
     const nominal = nominalGenericParts(type);
     if (nominal) return { head: `nominal:${nominal.name}`, values: nominal.arguments };
     const callable = functionParts(type);
-    if (callable)
+    // The inputs take part as one tuple, so `Fn[Args, O, R]` unifies with
+    // any arity; a lone row parameter unifies with any row.
+    if (callable) {
+      const row = callable.requirements.length === 1 && rowParameterName(callable.requirements[0]!);
       return {
-        head: `function:${callable.variadic}:${callable.requirements.join("+")}`,
-        values: [...callable.parameters, callable.result],
+        head: `function:${callable.suspending}`,
+        values: [
+          functionInputsTuple(callable),
+          callable.result,
+          row ? `generic:${row}` : rowArgumentType(callable.requirements),
+        ],
       };
+    }
     return { head: `plain:${type}`, values: [] };
   };
   const occurs = (name: string, type: ValueType): boolean => {
@@ -534,6 +559,8 @@ export function requirementKeysMayCollide(left: string, right: string): boolean 
 
 export function containsGenericType(type: ValueType): boolean {
   if (genericTypeName(type)) return true;
+  const inputs = inputsInner(type) ?? restInner(type);
+  if (inputs !== undefined) return containsGenericType(inputs);
   const binding = bindingParts(type);
   if (binding) return containsGenericType(binding.type);
   const mutable = mutableInner(type);
@@ -581,6 +608,17 @@ export function inferGenericType(
     substitutions.set(generic, actual);
     return undefined;
   }
+  // A cold call converts to the stored `mut Suspend[T]` of its result
+  // (11-requirements-and-suspension.md#r-req.combinator.race-signature).
+  const formalStored = storedSuspensionParts(formal);
+  const actualCold = suspensionParts(actual) ?? traitSuspensionParts(actual);
+  if (formalStored && actualCold)
+    return inferGenericType(
+      formalStored.result,
+      actualCold.result,
+      substitutions,
+      rowSubstitutions,
+    );
   const formalMutable = mutableInner(formal);
   const actualMutable = mutableInner(actual);
   if (formalMutable !== undefined && actualMutable !== undefined) {
@@ -637,6 +675,32 @@ export function inferGenericType(
   }
   const formalCallable = functionParts(formal);
   const actualCallable = functionParts(actual);
+  // `Fn[Args, O, R]` solves `Args` as the tuple of the actual inputs
+  // (07-functions.md#r-fn.type.ctor.inputs).
+  const formalInputs = formalCallable && tupleInputs(formalCallable);
+  if (formalCallable && actualCallable && formalInputs !== undefined) {
+    if (formalCallable.suspending !== actualCallable.suspending) return undefined;
+    const conflict = inferGenericType(
+      formalInputs,
+      functionInputsTuple(actualCallable),
+      substitutions,
+      rowSubstitutions,
+    );
+    if (conflict) return conflict;
+    return (
+      inferGenericType(
+        formalCallable.result,
+        actualCallable.result,
+        substitutions,
+        rowSubstitutions,
+      ) ??
+      inferRequirementRows(
+        formalCallable.requirements,
+        actualCallable.requirements,
+        rowSubstitutions,
+      )
+    );
+  }
   if (
     formalCallable &&
     actualCallable &&
@@ -730,6 +794,33 @@ export function matchGenericTypePattern(
         matchGenericTypePattern(element, actualTuple[index]!, substitutions),
       ),
     );
+  const patternCallable = functionParts(pattern);
+  const actualCallable = functionParts(actual);
+  if (patternCallable || actualCallable) {
+    if (
+      !patternCallable ||
+      !actualCallable ||
+      patternCallable.suspending !== actualCallable.suspending ||
+      !matchGenericTypePattern(patternCallable.result, actualCallable.result, substitutions)
+    )
+      return false;
+    const rows = patternCallable.requirements.map(rowParameterName);
+    if (rows.length === 1 && rows[0] !== undefined) {
+      const row = rowArgumentType(actualCallable.requirements);
+      const existing = substitutions.get(rows[0]);
+      if (existing !== undefined && existing !== row) return false;
+      substitutions.set(rows[0], row);
+    } else if (!sameRequirements(patternCallable.requirements, actualCallable.requirements))
+      return false;
+    const inputs = tupleInputs(patternCallable);
+    if (inputs !== undefined)
+      return matchGenericTypePattern(inputs, functionInputsTuple(actualCallable), substitutions);
+    return matchGenericTypePattern(
+      functionInputsTuple(patternCallable),
+      functionInputsTuple(actualCallable),
+      substitutions,
+    );
+  }
   const patternNominal = nominalGenericParts(pattern);
   const actualNominal = nominalGenericParts(actual);
   return Boolean(
@@ -922,6 +1013,9 @@ export function resolveGenericType(
     return bindingType(binding, resolveGenericType(binding.type, genericParameters, rowParameters));
   const rest = restInner(type);
   if (rest !== undefined) return `${resolveGenericType(rest, genericParameters, rowParameters)}...`;
+  const inputs = inputsInner(type);
+  if (inputs !== undefined)
+    return `*${resolveGenericType(inputs, genericParameters, rowParameters)}`;
   const projection = /^([^:]+)::([A-Za-z_][A-Za-z0-9_]*)$/.exec(type);
   if (projection && genericParameters.has(projection[1]!)) return `generic:${type}`;
   const mutable = mutableInner(type);

@@ -246,9 +246,19 @@ listed yet.
 - tuple-typed and `Tuple`-bounded varargs (`args...: (i32, string)`,
   `args...: Args`), which take one tuple input: a call passes its trailing
   arguments as the tuple expression of them, and a `Tuple`-bounded type
-  parameter is solved from that tuple. `Fn[Args, O, R]` with a type
-  parameter `Args`, and a tuple spread into fixed parameters such as
-  `add(pair...)`, are not implemented;
+  parameter is solved from that tuple;
+- `Fn[Args, O, R]` and `SuspendFn[Args, O, R]` with `Args < Tuple`, whose
+  type text is `fn(*Args)->O$R`: one erased input that holds the inputs
+  tuple. Substituting a tuple for `Args` gives the plain function type,
+  inference solves `Args` as the tuple of a function value's inputs, and a
+  closure adapter unpacks the tuple into the actual parameters or packs
+  them into it. Implementations over such a target match any arity, and
+  their row parameter is solved from the receiver;
+- a tuple spread into fixed parameters, as `add(pair...)` or `g(t...)`:
+  the operand is evaluated once into hidden locals, must have the same type
+  as the tuple of the remaining inputs (rest element included), and passes
+  each fixed element, and its rest element's list at the vararg. Into
+  `*Args` it passes the operand whole;
 - a recursive-descent declaration/statement parser and Pratt expression parser;
 - named functions, forward calls, typed parameters, typed results, and locals;
 - source-ordered module bindings backed by typed Wasm globals, including
@@ -950,10 +960,12 @@ failures. Portable panic fixtures verify the declared code rather than
 accepting an arbitrary Wasm trap.
 
 The active boundary is intentionally narrower than the language specification.
-Task combinator intrinsics, and strings and structural values in the
-host-provider ABI, remain in later MVP slices. The compiler rejects syntax it
-recognizes from those slices rather than assigning placeholder semantics;
-unresolved `all!` and `race!` calls report `unsupported-task-combinator`.
+Task combinator bodies, and strings and structural values in the
+host-provider ABI, remain in later MVP slices. `all!` calls are typed by
+their rule (each child a `mut Suspend[X_i]`, the result `(X_1, ..., X_n)`),
+and `race!` calls by the plain signature in `lib/std/task.hd`, but
+emitting either reports `unsupported-task-combinator`, because the
+prototype has no polling body for them.
 There are no type packs: `...` in a type is only a rest element, and
 `[Ts...]` is a `syntax-error`. GADT variant results are not implemented.
 Interpolation and `println` report `unsatisfied-trait-bound` when the displayed type
@@ -1008,7 +1020,7 @@ What it provides:
 | --- | --- |
 | `std.annotation` | the shape types (`DataShape`, `FieldShape`, `TypeShape`, ...), `ShapeMetadata`, and `TypeShape.is_optional`; `checker/shapes.ts` generates the builders that `shape::[T]()` and `shape_of(f)` call. `Target`, `Annotate`, and `annotate`, which limit a fact type's target kinds |
 | `std.hash` | `Hash` and `Hasher` (prelude names), and `Hash` for `string`, `bool`, `char`, and every integer type; no standard hasher, which the specification does not name |
-| `std.task` | `retry!`; `block_on`, `all!`, `race!`, and `Waker` stay compiler-provided names of the module |
+| `std.task` | `retry!`, and the plain signature of `race!` with an `@intrinsic("task_race")` body; `block_on`, `all!` (which has no written signature), and `Waker` stay compiler-provided names of the module |
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
@@ -1116,7 +1128,7 @@ marks what this refactor removed.
 | HIR | `debug-render` | `std.format` | Done: `debug`, `DebugWriter`, and its builders are hd code in `lib/std/format.hd` |
 | HIR | `list-*`, `map-*`, `iterator-next` | built-in `List` and `Map` | Remains: the collection types are built into the runtime layout |
 | HIR | `inspect-type-id`, `inspect-downcast` | `std.inspect` | Remains: runtime type identity is a compiler service |
-| Checker | `block_on`, `all!`, `race!`, `shape`, `shape_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `shape` and `shape_of` lower to calls of generated hd builders over `lib/std/annotation.hd`, with no HIR node |
+| Checker | `block_on`, `all!`, `race!`, `shape`, `shape_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `race!` is declared in `lib/std/task.hd`, so only its `@intrinsic` name is known; `all!` has no written signature, so the checker types it by name. `shape` and `shape_of` lower to calls of generated hd builders over `lib/std/annotation.hd`, with no HIR node |
 | Checker | `Duration` for test `timeout`, `ExitCode` and `Termination` for entry results (`standard-traits.ts`, `termination.ts`) | `std.time`, `std.process` | Remains: language hooks that name a std type; the declarations are already hd |
 | Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Done, except `Any` (`std.core`) and `Waker` (`std.task`), which have no `lib/std` file: the rest are hd in `std.cmp`, `std.format`, and `std.iter`, declared when a program mentions them (migration M2) |
 | Emitter | `float.wat` and the `format_f64`, `format_f32`, `pow_f64`, and `rem_f64` imports | float display, `**`, and floating `%` | Remains: operator and interpolation support |

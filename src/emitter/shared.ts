@@ -37,7 +37,7 @@ export const testExportName = (name: string): string | undefined => {
   return match ? `__hd_test_${match[1]}` : undefined;
 };
 export const isGenericValueType = (type: ValueType): boolean =>
-  /^generic:([^?[\](),]+)$/.test(type);
+  /^\*?generic:([^?[\](),]+)$/.test(type);
 export const containsGenericValueType = (type: ValueType): boolean => type.includes("generic:");
 export const isRowRequirement = (requirement: string): boolean => requirement.startsWith("row:");
 

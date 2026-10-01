@@ -940,6 +940,11 @@ export type HirExpression =
       readonly message: HirExpression;
       /** A panic category other than `explicit-panic`, raised by generated code. */
       readonly category?: "structure-variant-mismatch";
+      /**
+       * A typed call whose run time the prototype lacks, such as an `all!`
+       * call: checking accepts it, and emitting reports this diagnostic.
+       */
+      readonly unsupported?: { readonly code: string; readonly message: string };
     })
   | (HirExpressionBase & {
       readonly kind: "if";

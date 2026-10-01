@@ -17,6 +17,15 @@ export const STANDARD_FROM = "std.convert.From";
 /** The sealed marker trait that every tuple type implements (07-functions.md#r-fn.type.ctor.tuple-trait). */
 export const TUPLE_TRAIT = "std.function.Tuple";
 
+/**
+ * `all!`, the one combinator with no written signature, so `lib/std` cannot
+ * declare it (11-requirements-and-suspension.md#r-req.combinator.all-typing).
+ */
+export const ALL_COMBINATOR = "std.task.all";
+
+/** The `@intrinsic` name of `race!` in `lib/std/task.hd`, whose body the prototype lacks. */
+export const RACE_INTRINSIC = "task_race";
+
 // `std.time`, `std.ops`, and `std.process` are hd sources in `lib/std/`,
 // declared by standard-library.ts under a program's local names or hidden
 // names such as these.

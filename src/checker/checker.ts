@@ -25,6 +25,8 @@ export class FunctionChecker extends ExpressionControlChecker {
   }
 
   protected checkExpressionRaw(expression: Expression, expected?: ValueType): HirExpression {
+    const prechecked = this.prechecked.get(expression);
+    if (prechecked) return prechecked;
     const checked =
       this.checkLiteralExpression(expression, expected) ??
       this.checkOperatorExpression(expression, expected) ??

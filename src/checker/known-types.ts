@@ -13,6 +13,7 @@ import {
   splitTypeBindings,
   tupleParts,
   restInner,
+  inputsInner,
 } from "../types.ts";
 import { genericTypeName } from "./shared.ts";
 
@@ -36,7 +37,7 @@ export function isKnownType(
 ): boolean {
   const binding = bindingParts(type);
   if (binding) return isKnownType(binding.type, dataTypes, enumTypes, traitTypes);
-  const rest = restInner(type);
+  const rest = restInner(type) ?? inputsInner(type);
   if (rest !== undefined) return isKnownType(rest, dataTypes, enumTypes, traitTypes);
   const mutable = mutableInner(type);
   if (mutable !== undefined)

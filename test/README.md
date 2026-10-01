@@ -70,9 +70,9 @@ TypeScript tests read promoted fixtures from `spec/conformance/` through
 
 - `compiler-types/enums/generic/unsaturated-type.hd`: marks partial-generic-arguments for a generic enum written without arguments (types.generic.default.bare); it waits for a conformance fixture of that case.
 - `frontend/00-core-program.hd`: implementation detail: lexer and AST snapshot input.
-- `suspension/05-unresolved-race-task-combinator.hd`: marks unsupported-task-combinator; unsupported-* codes stay out of the inventory (the spec has no portable unsupported result).
+- `suspension/05-unresolved-race-task-combinator.hd`: the call type-checks, and `test/compiler-suspension.test.ts` checks that emitting it reports unsupported-task-combinator; unsupported-* codes stay out of the inventory (the spec has no portable unsupported result).
 - `suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti-userdefined.hd`: declares its own all!; whether that is allowed next to the all! intrinsic (L12) is not specified.
-- `suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti.hd`: marks unsupported-task-combinator; unsupported-* codes stay out of the inventory (the spec has no portable unsupported result).
+- `suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti.hd`: the call type-checks, and `test/compiler-suspension.test.ts` checks that emitting it reports unsupported-task-combinator; unsupported-* codes stay out of the inventory (the spec has no portable unsupported result).
 - `suspension/10-suspension-state-transitions-are-observable-through-the-trace-abi.hd`: implementation detail: trace ABI event order.
 - `suspension/11-deterministic-host-pending.hd`: implementation detail: host pending across polls, driven from TypeScript.
 - `suspension/12-development-drivers-reject-competing-and-reentrant-suspension-control.hd`: implementation detail: driver misuse through __hd_* exports.

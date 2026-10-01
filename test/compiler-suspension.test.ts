@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { analyze, instantiate, type ReplayEvent } from "../src/compiler.ts";
+import { analyze, compile, instantiate, type ReplayEvent } from "../src/compiler.ts";
+import { DiagnosticError } from "../src/diagnostics.ts";
 import { conformance, fixture } from "./fixture.ts";
 
 test("suspending functions construct GC frames and bang calls drive them", async () => {
@@ -60,9 +61,19 @@ test("unresolved standard task combinators have a dedicated boundary diagnostic"
   const source = fixture(
     "suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti",
   );
-  assert.equal(analyze(source).diagnostics[0]?.code, "unsupported-task-combinator");
+  // `all!` and `race!` type-check; only emitting them reports the boundary.
+  const emitted = (text: string): string | undefined => {
+    assert.deepEqual(analyze(text).diagnostics, []);
+    try {
+      compile(text);
+    } catch (error) {
+      return error instanceof DiagnosticError ? error.diagnostics[0]?.code : undefined;
+    }
+    return undefined;
+  };
+  assert.equal(emitted(source), "unsupported-task-combinator");
   assert.equal(
-    analyze(fixture("suspension/05-unresolved-race-task-combinator")).diagnostics[0]?.code,
+    emitted(fixture("suspension/05-unresolved-race-task-combinator")),
     "unsupported-task-combinator",
   );
 

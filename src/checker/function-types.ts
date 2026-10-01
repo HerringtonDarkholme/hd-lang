@@ -1,4 +1,5 @@
-import type { Program } from "../ast.ts";
+import type { GenericBound, Program } from "../ast.ts";
+import { TUPLE_TRAIT } from "./standard-traits.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { functionResultText, rowArgumentKeys, tupleParts } from "../types.ts";
 
@@ -45,7 +46,11 @@ function closingBracket(text: string, open: number): number {
   return -1;
 }
 
-function rewriteType(text: string, names: ReadonlyMap<string, Constructor>): Rewrite {
+function rewriteType(
+  text: string,
+  names: ReadonlyMap<string, Constructor>,
+  tupleBounded: ReadonlySet<string>,
+): Rewrite {
   let error: Rewrite["error"];
   let result = "";
   let index = 0;
@@ -63,10 +68,10 @@ function rewriteType(text: string, names: ReadonlyMap<string, Constructor>): Rew
     const open = index + name!.length;
     const close = closingBracket(text, open);
     if (close < 0) return { type: text };
-    const inner = rewriteType(text.slice(open + 1, close), names);
+    const inner = rewriteType(text.slice(open + 1, close), names, tupleBounded);
     error ??= inner.error;
     const arguments_ = splitArguments(inner.type);
-    const lowered = lowerConstructor(constructor, arguments_);
+    const lowered = lowerConstructor(constructor, arguments_, tupleBounded);
     error ??= lowered.error;
     result += lowered.type;
     index = close + 1;
@@ -74,7 +79,11 @@ function rewriteType(text: string, names: ReadonlyMap<string, Constructor>): Rew
   return error ? { type: result, error } : { type: result };
 }
 
-function lowerConstructor(constructor: Constructor, arguments_: readonly string[]): Rewrite {
+function lowerConstructor(
+  constructor: Constructor,
+  arguments_: readonly string[],
+  tupleBounded: ReadonlySet<string>,
+): Rewrite {
   const spelled = `${constructor}[${arguments_.join(",")}]`;
   if (arguments_.length !== 3)
     return {
@@ -85,13 +94,17 @@ function lowerConstructor(constructor: Constructor, arguments_: readonly string[
       },
     };
   const [inputs, output, row] = arguments_ as [string, string, string];
-  const elements = tupleParts(inputs) ?? (inputs === "()" ? [] : undefined);
+  // A `Tuple`-bounded type parameter is the one input `*Args`, which
+  // substitution turns into the parameters of the tuple it is solved as.
+  const elements =
+    tupleParts(inputs) ??
+    (inputs === "()" ? [] : tupleBounded.has(inputs) ? [`*${inputs}`] : undefined);
   if (!elements)
     return {
       type: spelled,
       error: {
         code: "generic-kind-mismatch",
-        message: `the inputs of '${constructor}' must be a tuple type, not '${inputs}'`,
+        message: `the inputs of '${constructor}' must be a tuple type or a type parameter bounded by Tuple, not '${inputs}'`,
       },
     };
   const parameters = elements;
@@ -108,34 +121,46 @@ export function withFunctionTypeConstructors(program: Program): {
   readonly diagnostics: readonly Diagnostic[];
 } {
   const names = new Map<string, Constructor>();
+  const tupleNames = new Set<string>();
   for (const declaration of program.uses)
     for (const imported of declaration.names) {
-      const constructor = CONSTRUCTORS.get(`${declaration.module}.${imported.name}`);
+      const path = `${declaration.module}.${imported.name}`;
+      const constructor = CONSTRUCTORS.get(path);
       if (constructor) names.set(imported.alias ?? imported.name, constructor);
+      if (path === TUPLE_TRAIT) tupleNames.add(imported.alias ?? imported.name);
     }
   if (names.size === 0) return { program, diagnostics: [] };
   const diagnostics: Diagnostic[] = [];
-  const rewriteText = (text: string, span: SourceSpan): string => {
+  const rewriteText = (text: string, span: SourceSpan, bounded: ReadonlySet<string>): string => {
     if (!text.includes("[")) return text;
-    const rewritten = rewriteType(text, names);
+    const rewritten = rewriteType(text, names, bounded);
     if (rewritten.error) diagnostics.push({ ...rewritten.error, span });
     return rewritten.type;
   };
-  const visit = (value: unknown): unknown => {
+  // The type parameters bounded by `Tuple` in scope at a node.
+  const visit = (value: unknown, outer: ReadonlySet<string> = new Set()): unknown => {
     if (Array.isArray(value)) {
-      const items = value.map(visit);
+      const items = value.map((item) => visit(item, outer));
       return items.every((item, index) => item === value[index]) ? value : items;
     }
     if (!value || typeof value !== "object") return value;
     const node = value as Record<string, unknown>;
     const span = node.span as SourceSpan | undefined;
+    const bounds = Array.isArray(node.genericBounds) ? (node.genericBounds as GenericBound[]) : [];
+    const tupleBounds = bounds.filter((bound) =>
+      bound.traits.some((trait) => tupleNames.has(trait)),
+    );
+    const bounded =
+      tupleBounds.length > 0
+        ? new Set([...outer, ...tupleBounds.map((bound) => bound.parameter)])
+        : outer;
     let changed = false;
     const result: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(node)) {
       let next: unknown;
       if (span && (key === "name" || key === "targetName") && typeof child === "string")
-        next = rewriteText(child, span);
-      else next = key === "span" ? child : visit(child);
+        next = rewriteText(child, span, bounded);
+      else next = key === "span" ? child : visit(child, bounded);
       if (next !== child) changed = true;
       result[key] = next;
     }

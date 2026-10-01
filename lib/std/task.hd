@@ -1,7 +1,15 @@
 # std.task, the part written in hd (spec/std/task.md). The `Suspend`
 # protocol, `block_on`, `all!`, and `race!` are compiler intrinsics
-# (spec/11-requirements-and-suspension.md#standard-combinators), which the
-# compiler provides by name, as it does `Waker`.
+# (spec/11-requirements-and-suspension.md#standard-combinators). The
+# compiler provides `block_on`, `all!`, and `Waker` by name; `all!` has no
+# written signature (r-req.combinator.all-typing).
+
+# The first child to complete wins, and the others are cancelled. Its plain
+# signature types every call (r-req.combinator.race-signature); the polling
+# body is the compiler's, which the prototype does not have yet.
+@intrinsic("task_race")
+pub fn race![T](tasks...: List[mut Suspend[T]]) -> T:
+    panic("intrinsic")
 
 # Calls `attempt` one call after another until it returns `.Ok`, at most
 # `times` times, and returns the last result. A `times` below 1 counts as 1

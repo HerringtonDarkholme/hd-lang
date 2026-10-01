@@ -22,6 +22,10 @@ import {
   suspensionType,
   splitTypeBindings,
   tupleParts,
+  tupleLayout,
+  tupleRest,
+  tupleType,
+  inputsInner,
 } from "../types.ts";
 import {
   isKnownType,
@@ -69,6 +73,9 @@ interface CheckedProviderEntries {
 }
 
 export abstract class CallChecker extends StatementChecker {
+  /** Arguments a call rewrite has already checked, such as a spread tuple's elements. */
+  protected readonly prechecked = new WeakMap<Expression, HirExpression>();
+
   protected implementsDebug(type: ValueType): boolean {
     const bounds = this.signature.genericBounds;
     return implementsDebug(type, this.traitTypes, this.implementations, bounds);
@@ -480,12 +487,15 @@ export abstract class CallChecker extends StatementChecker {
   }
 
   protected checkConcreteArguments(
-    expression: Extract<Expression, { kind: "call" | "suspend-call" }>,
-    parameterTypes: readonly ValueType[],
+    written: Extract<Expression, { kind: "call" | "suspend-call" }>,
+    inputTypes: readonly ValueType[],
     parameterNames: readonly string[],
     variadic: boolean,
     callable: string,
   ): CheckedArguments {
+    const expression = this.spreadIntoInputs(written, inputTypes, parameterNames, variadic);
+    // `*Args` takes the inputs tuple as one value of type `Args`.
+    const parameterTypes = inputTypes.map((type) => inputsInner(type) ?? type);
     if (expression.typeArguments)
       this.fail("unexpected-type-arguments", `${callable} is not generic`, expression.span);
     const plan = this.planArguments(expression, parameterNames, variadic, callable);
@@ -615,6 +625,129 @@ export abstract class CallChecker extends StatementChecker {
     };
   }
 
+  /**
+   * A positional spread before fixed parameters (05-expressions.md#r-expr.call.spread.inputs):
+   * its operand is evaluated once and must have the same type as the tuple of
+   * the remaining inputs, rest element included. Each fixed element becomes
+   * one argument, and a rest element's list a spread at the vararg. A spread
+   * into the one input `*Args` of `Fn[Args, O, R]` passes its operand whole.
+   */
+  protected spreadIntoInputs<T extends Extract<Expression, { kind: "call" | "suspend-call" }>>(
+    expression: T,
+    allTypes: readonly ValueType[],
+    parameterNames: readonly string[],
+    variadic: boolean,
+  ): T {
+    const spreads = expression.argumentSpreads;
+    const at = spreads?.findIndex(Boolean) ?? -1;
+    const names = expression.argumentNames ?? expression.arguments.map(() => undefined);
+    if (at < 0 || names[at] !== undefined) return expression;
+    // The parameters left for positional arguments, after the named ones.
+    const free = allTypes.flatMap((_, index) =>
+      names.includes(parameterNames[index]) ? [] : [index],
+    );
+    const slots = free.slice(names.slice(0, at).filter((name) => name === undefined).length);
+    const last = allTypes.length - 1;
+    if (slots.length === 0 || (variadic && slots[0] === last)) return expression;
+    const parameterTypes = slots.map((index) => allTypes[index]!);
+    const operandSource = expression.arguments[at]!;
+    const inputs = parameterTypes.length === 1 ? inputsInner(parameterTypes[0]!) : undefined;
+    const remaining =
+      inputs ??
+      tupleType(
+        parameterTypes.map((type, index) =>
+          variadic && slots[index] === last ? `${readonlyType(type)}...` : readonlyType(type),
+        ),
+      );
+    const operand = this.checkExpression(operandSource);
+    const actual = readonlyType(operand.type);
+    if (nominalGenericParts(actual)?.name === "List")
+      this.fail(
+        "positional-spread-needs-vararg",
+        `a List spread needs a vararg as the next positional parameter, which takes '${readonlyType(parameterTypes[0]!)}'`,
+        operandSource.span,
+      );
+    const expectedTuple = tupleRest(remaining);
+    const actualTuple = tupleRest(actual);
+    const same =
+      actual === remaining ||
+      (actualTuple !== undefined &&
+        expectedTuple !== undefined &&
+        (containsGenericType(remaining)
+          ? actualTuple.fixed.length === expectedTuple.fixed.length &&
+            (actualTuple.rest === undefined) === (expectedTuple.rest === undefined)
+          : tupleType(tupleParts(actual)!.map(readonlyType)) === remaining));
+    if (!same)
+      this.fail(
+        "type-mismatch",
+        `a spread before fixed parameters needs the tuple of the remaining inputs '${remaining}', found '${operand.type}'`,
+        operandSource.span,
+      );
+    if (inputs !== undefined) {
+      this.prechecked.set(operandSource, operand);
+      return { ...expression, argumentSpreads: spreads!.map(() => false) };
+    }
+    const layout = tupleLayout(actual)!;
+    const bindings = layout.map((type, index): HirLocal => ({
+      name: `$spread${index}`,
+      type: readonlyType(type),
+      index: this.locals.length + index,
+      mutable: false,
+      parameter: false,
+      span: operandSource.span,
+    }));
+    this.locals.push(...bindings);
+    const span = operandSource.span;
+    const bound: HirExpression = {
+      kind: "binding-expression",
+      bindings,
+      value: operand,
+      elementTypes: layout,
+      type: operand.type,
+      span,
+    };
+    const elements = bindings.map((local, index): Expression => {
+      const placeholder: Expression = { kind: "name", name: local.name, span };
+      this.prechecked.set(
+        placeholder,
+        index === 0
+          ? {
+              kind: "tuple-index",
+              receiver: bound,
+              index: 0,
+              elementType: layout[0]!,
+              type: local.type,
+              span,
+            }
+          : { kind: "local", local, type: local.type, span },
+      );
+      return placeholder;
+    });
+    const restSpread = actualTuple!.rest !== undefined;
+    return {
+      ...expression,
+      arguments: [
+        ...expression.arguments.slice(0, at),
+        ...elements,
+        ...expression.arguments.slice(at + 1),
+      ],
+      ...(expression.argumentNames
+        ? {
+            argumentNames: [
+              ...names.slice(0, at),
+              ...elements.map(() => undefined),
+              ...names.slice(at + 1),
+            ],
+          }
+        : {}),
+      argumentSpreads: [
+        ...spreads!.slice(0, at),
+        ...elements.map((_, index) => restSpread && index === elements.length - 1),
+        ...spreads!.slice(at + 1),
+      ],
+    };
+  }
+
   protected checkSignatureArguments(
     written: Extract<Expression, { kind: "call" | "suspend-call" }>,
     signature: Signature,
@@ -622,9 +755,20 @@ export abstract class CallChecker extends StatementChecker {
     callable = `function '${signature.name}'`,
     initialSubstitutions: ReadonlyMap<string, ValueType> = new Map(),
   ): CheckedSignatureArguments {
-    const expression = this.collectTupleVararg(written, signature);
+    const expression = this.spreadIntoInputs(
+      this.collectTupleVararg(written, signature),
+      signature.parameters,
+      signature.parameterNames,
+      signature.variadic,
+    );
     const substitutions = new Map(initialSubstitutions);
     const rowSubstitutions = new Map<string, readonly string[]>();
+    // A row parameter that a function-type target matched, as `R` of
+    // `impl[...] T for Fn[Args, O, R]`, is solved already.
+    for (const parameter of signature.rowParameters) {
+      const keys = rowArgumentKeys(initialSubstitutions.get(parameter));
+      if (keys) rowSubstitutions.set(parameter, keys);
+    }
     if (expression.typeArguments) {
       const slots = signature.typeArgumentOrder ?? signature.genericParameters;
       // A short list leaves its omitted trailing slots to inference and

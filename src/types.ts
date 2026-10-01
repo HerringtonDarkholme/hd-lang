@@ -102,6 +102,27 @@ export function restInner(element: ValueType): ValueType | undefined {
   return element.endsWith("...") ? element.slice(0, -3) : undefined;
 }
 
+/**
+ * The type parameter `Args` in the one parameter `*Args` that encodes
+ * `Fn[Args, O, R]` with `Args < Tuple` (07-functions.md#r-fn.type.ctor.inputs).
+ * Its value at run time is the inputs tuple, so it is one erased input.
+ */
+export function inputsInner(parameter: ValueType): ValueType | undefined {
+  return parameter.startsWith("*") ? parameter.slice(1) : undefined;
+}
+
+/** A function type's inputs as the tuple type of them, keeping a rest element. */
+export function functionInputsTuple(callable: FunctionParts): ValueType {
+  const inputs =
+    callable.parameters.length === 1 ? inputsInner(callable.parameters[0]!) : undefined;
+  if (inputs !== undefined) return inputs;
+  return tupleType(
+    callable.parameters.map((parameter, index) =>
+      callable.variadic && index === callable.parameters.length - 1 ? `${parameter}...` : parameter,
+    ),
+  );
+}
+
 /** A tuple type's fixed elements, and its rest element's `List[T]` if it ends in one. */
 export function tupleRest(
   type: ValueType,
@@ -295,6 +316,20 @@ export function functionType(
   suspending = false,
 ): ValueType {
   const row = [...new Set(requirements)].sort();
+  // `*Args` solved as a tuple type is that tuple's elements, its rest
+  // element the vararg (07-functions.md#r-fn.type.ctor.sugar).
+  const inputs = parameters.length === 1 ? inputsInner(parameters[0]!) : undefined;
+  const solved = inputs !== undefined ? tupleParts(inputs) : undefined;
+  if (solved) {
+    const rest = solved.length > 0 && restInner(solved.at(-1)!) !== undefined;
+    return functionType(
+      solved.map((element) => restInner(element) ?? element),
+      result,
+      requirements,
+      rest,
+      suspending,
+    );
+  }
   // A `List[T]` vararg is the rest element `List[T]...` of the inputs
   // (07-functions.md#r-fn.type.vararg-rest).
   const rendered = parameters.map((parameter, index) =>
@@ -309,6 +344,8 @@ export function substituteTypeParameters(
 ): ValueType {
   const binding = bindingParts(type);
   if (binding) return bindingType(binding, substituteTypeParameters(binding.type, substitutions));
+  const inputs = inputsInner(type);
+  if (inputs !== undefined) return `*${substituteTypeParameters(inputs, substitutions)}`;
   const rest = restInner(type);
   if (rest !== undefined) return `${substituteTypeParameters(rest, substitutions)}...`;
   const mutable = mutableInner(type);

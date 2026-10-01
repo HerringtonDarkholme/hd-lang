@@ -1,6 +1,8 @@
 import { cellInner } from "../checker/captured-cells.ts";
+import { DiagnosticError } from "../diagnostics.ts";
 import type {
   HirBuiltinTraitImplementation,
+  HirExpression,
   HirData,
   HirEnum,
   HirFunction,
@@ -21,7 +23,9 @@ import {
   suspensionParts,
   traitSuspensionParts,
   tupleParts,
+  inputsInner,
   CURSOR_TYPE,
+  type FunctionParts,
 } from "../types.ts";
 import type { SuspensionPlan } from "./suspension.ts";
 
@@ -353,6 +357,72 @@ export class EmitterContext {
       type === "f64" ||
       type === "void"
     );
+  }
+
+  /** A panic node that stands for a call the prototype cannot emit, as `all!`. */
+  protected rejectUnsupported(expression: Extract<HirExpression, { kind: "panic" }>): void {
+    if (expression.unsupported)
+      throw new DiagnosticError([{ ...expression.unsupported, span: expression.span }]);
+  }
+
+  /**
+   * A call's erased result type when its value needs restoring: a boxed
+   * generic, or a function type such as `Fn[Args, O, R]` that is adapted
+   * back to the instantiated function type.
+   */
+  protected erasedResultType(
+    erased: ValueType | undefined,
+    type: ValueType,
+  ): ValueType | undefined {
+    if (erased === undefined) return undefined;
+    if (isGenericValueType(erased)) return erased;
+    const readonly = readonlyType(type);
+    return erased !== readonly && functionParts(erased) && functionParts(readonly)
+      ? erased
+      : undefined;
+  }
+
+  protected restoreErasedResult(value: string, erased: ValueType, type: ValueType): string {
+    return isGenericValueType(erased)
+      ? this.unboxValue(value, type)
+      : this.adaptCallable(value, readonlyType(type), erased);
+  }
+
+  /**
+   * The arguments a callable adapter passes on: boxed or unboxed per
+   * parameter, and for `Fn[Args, O, R]`'s one input `*Args` the inputs tuple
+   * unpacked into the actual parameters, or packed from the formal ones
+   * (07-functions.md#r-fn.type.ctor.inputs).
+   */
+  protected adaptedArguments(formal: FunctionParts, actual: FunctionParts): string[] {
+    const formalPacked = formal.parameters.length === 1 && inputsInner(formal.parameters[0]!);
+    const actualPacked = actual.parameters.length === 1 && inputsInner(actual.parameters[0]!);
+    if (formalPacked && !actualPacked)
+      return actual.parameters.map((parameter, index) =>
+        this.unboxValue(
+          `(array.get $hd.list (ref.cast (ref $hd.list) (local.get $a0)) (i32.const ${index}))`,
+          parameter,
+        ),
+      );
+    if (actualPacked && !formalPacked) {
+      const boxed = formal.parameters.map((parameter, index) =>
+        this.boxWatValue(`(local.get $a${index})`, parameter),
+      );
+      return [
+        boxed.length === 0
+          ? `(array.new_default $hd.list (i32.const 0))`
+          : `(array.new_fixed $hd.list ${boxed.length} ${boxed.join(" ")})`,
+      ];
+    }
+    return formal.parameters.map((parameter, index) => {
+      const value = `(local.get $a${index})`;
+      const actualParameter = actual.parameters[index]!;
+      if (isGenericValueType(parameter) && !isGenericValueType(actualParameter))
+        return this.unboxValue(value, actualParameter);
+      if (isGenericValueType(actualParameter) && !isGenericValueType(parameter))
+        return this.boxWatValue(value, parameter);
+      return value;
+    });
   }
 
   /** Wraps the closure `value` of type `actualType` as a closure of `formalType`. */

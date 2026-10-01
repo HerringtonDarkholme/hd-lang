@@ -25,6 +25,7 @@ import {
   tupleType,
 } from "../types.ts";
 import {
+  collectRowParameterReferences,
   genericTypeName,
   isKnownType,
   matchTraitImplementation,
@@ -67,9 +68,10 @@ function implementationHeadsMayUnify(
   right: readonly string[],
   rightGenerics: readonly string[],
 ): boolean {
-  // Rename the other implementation's parameters apart before unifying.
+  // Rename the other implementation's parameters apart before unifying, with
+  // no `$`, which would start a function type's row.
   const renamed = new Map(
-    rightGenerics.map((parameter) => [parameter, `generic:$other.${parameter}`] as const),
+    rightGenerics.map((parameter) => [parameter, `generic:%other.${parameter}`] as const),
   );
   const leftKey = tupleType(left);
   const rightKey = tupleType(right.map((argument) => substituteGenericType(argument, renamed)));
@@ -490,6 +492,14 @@ function resolveImplementationTarget(
   context: ProgramCheckContext,
 ): string | undefined {
   const { diagnostics, dataTypes, enumTypes, traitTypes } = context;
+  // A parameter in a function type's row position, as `R` in
+  // `Fn[Args, O, R]`, is a row parameter (07-functions.md#r-fn.type.ctor.row).
+  const rowParameters = new Set<string>();
+  collectRowParameterReferences(
+    implementation.targetName,
+    new Set(implementation.genericParameters),
+    rowParameters,
+  );
   const targetType =
     typeName(
       { name: implementation.targetName, span: implementation.span },
@@ -498,7 +508,7 @@ function resolveImplementationTarget(
       traitTypes,
       diagnostics,
       new Set(implementation.genericParameters),
-      new Set(),
+      rowParameters,
       // A std target may be a map over an unbounded key (lib/std/iter.hd).
       implementation.standard
         ? new Set(implementation.genericParameters)

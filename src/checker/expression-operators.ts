@@ -12,6 +12,7 @@ import {
 import { isIntegerType, numericType, widerNumeric } from "../numeric.ts";
 import { isKnownType, PRELUDE_NAMES } from "./context.ts";
 import type { Signature } from "./context.ts";
+import { ALL_COMBINATOR } from "./standard-traits.ts";
 import {
   genericTypeName,
   inferGenericType,
@@ -240,6 +241,12 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             expression.span,
           );
         this.rejectTypeAsValue(expression.name, expression.span);
+        if (this.imports.get(expression.name) === ALL_COMBINATOR)
+          this.fail(
+            "type-mismatch",
+            "all is not a function value: it must be the callee of a direct all!(...) call",
+            expression.span,
+          );
         this.failUnknownName(expression.name, `unknown name '${expression.name}'`, expression.span);
       }
       case "unary":
