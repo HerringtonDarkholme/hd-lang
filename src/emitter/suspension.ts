@@ -732,7 +732,9 @@ class SuspensionPlanBuilder {
         return this.lowerIf(expression, continuation, context);
       case "list-comprehension":
       case "map-comprehension":
-        return continuation(expression);
+        return containsDrive(expression)
+          ? this.lowerComprehensionLoops(expression, continuation, context)
+          : continuation(expression);
       case "for":
         return this.lowerFor(expression, continuation, context);
       case "while":
@@ -741,6 +743,98 @@ class SuspensionPlanBuilder {
         return this.lowerMatch(expression, continuation, context);
     }
     throw new Error(`unhandled aggregate expression '${expression.kind}'`);
+  }
+
+  /**
+   * A comprehension with bang calls runs as the loops it abbreviates, so each
+   * call completes before the next clause, guard, key, or element
+   * (05-expressions.md#r-expr.comp.suspension.sequential).
+   */
+  private lowerComprehensionLoops(
+    expression: Extract<HirExpression, { kind: "list-comprehension" | "map-comprehension" }>,
+    continuation: ValueContinuation,
+    context: LoweringContext,
+  ): number {
+    const { span } = expression;
+    const result = this.temporary(expression.type, span, "comprehension");
+    const target = this.local(result, span);
+    const initial: HirExpression =
+      expression.kind === "list-comprehension"
+        ? {
+            kind: "list",
+            elements: [],
+            elementType: expression.elementType,
+            type: expression.type,
+            span,
+          }
+        : {
+            kind: "map",
+            entries: [],
+            keyType: expression.keyType,
+            valueType: expression.valueType,
+            keyKind: expression.keyKind,
+            ...(expression.keyDispatch ? { keyDispatch: expression.keyDispatch } : {}),
+            type: expression.type,
+            span,
+          };
+    const store: HirExpression =
+      expression.kind === "list-comprehension"
+        ? {
+            kind: "list-append",
+            receiver: target,
+            value: expression.value,
+            elementType: expression.elementType,
+            type: "void",
+            span,
+          }
+        : {
+            kind: "map-set",
+            receiver: target,
+            key: expression.key,
+            value: expression.value,
+            keyType: expression.keyType,
+            valueType: expression.valueType,
+            type: "void",
+            span,
+          };
+    let body: HirStatement[] = [{ kind: "expression", expression: store, span }];
+    for (const clause of [...expression.clauses].reverse()) {
+      const loop: HirExpression =
+        clause.kind === "for"
+          ? {
+              kind: "for",
+              iterable: clause.iterable,
+              iteratorKind: clause.iteratorKind,
+              ...(clause.iteratorFunctionIndex === undefined
+                ? {}
+                : { iteratorFunctionIndex: clause.iteratorFunctionIndex }),
+              yieldType: clause.yieldType,
+              bindings: clause.bindings,
+              body,
+              elseBody: [],
+              type: "void",
+              span: clause.span,
+            }
+          : {
+              kind: "if",
+              condition: clause.condition,
+              thenBody: body,
+              elseBody: [],
+              type: "void",
+              span: clause.span,
+            };
+      body = [{ kind: "expression", expression: loop, span: clause.span }];
+    }
+    return this.lowerSuite(
+      [
+        { kind: "binding", local: result, value: initial, span },
+        ...body,
+        { kind: "expression", expression: target, span },
+      ],
+      expression.type,
+      continuation,
+      context,
+    );
   }
 
   private lowerPropagation(

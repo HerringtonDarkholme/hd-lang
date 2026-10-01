@@ -104,12 +104,7 @@ impl[T] IndexSet[i32, T] for List[T]:
 
 impl[K < Eq & Hash, V] Index[K] for Map[K, V]:
     type Out = V
-    fn index(self, key: K) -> V:
-        match self[key]:
-            .Some(value) => value
-            .None =>
-                index_out_of_bounds()
-                panic("unreachable")
+    fn index(self, key: K) -> V: self[key]
 
 impl[K < Eq & Hash, V] IndexSet[K, V] for Map[K, V]:
     fn index_set(mut self, key: K, value: V) -> void:
@@ -118,11 +113,6 @@ impl[K < Eq & Hash, V] IndexSet[K, V] for Map[K, V]:
 impl Index[i32] for string:
     type Out = u8
     fn index(self, key: i32) -> u8: self[key]
-
-# The checked runtime panic `index-out-of-bounds`; it does not return.
-@intrinsic("index_out_of_bounds")
-fn index_out_of_bounds() -> void:
-    panic("intrinsic")
 
 # The primitive implementations (spec/05-expressions.md#primitive-implementations).
 # Each body is the built-in operator on primitive operands, so it behaves as

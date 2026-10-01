@@ -1,5 +1,11 @@
-import type { BindingName, ComprehensionClause, Expression, Pattern } from "../ast.ts";
-import type { HirComprehensionClause, HirExpression, HirLocal, ValueType } from "../hir.ts";
+import type { BindingName, ComprehensionClause, Expression, Pattern, Statement } from "../ast.ts";
+import type {
+  HirComprehensionClause,
+  HirExpression,
+  HirLocal,
+  HirStatement,
+  ValueType,
+} from "../hir.ts";
 import {
   mutableInner,
   mutableType,
@@ -11,7 +17,6 @@ import {
 import { PRELUDE_NAMES } from "./context.ts";
 import { patternsExhaustive } from "./exhaustiveness.ts";
 import { ExpressionDataChecker } from "./expression-data.ts";
-import { findSuspensionCall } from "./program-effects.ts";
 import { iterableInfo } from "./shared.ts";
 
 /**
@@ -21,11 +26,20 @@ import { iterableInfo } from "./shared.ts";
  */
 export const FOR_PATTERN_ITEM = "__for_pattern_item";
 
-/** The names a pattern binds, in source order. */
+/** The hidden name that holds the value of a `let` pattern (06-control-flow.md#r-flow.let.match). */
+const LET_PATTERN_ITEM = "__let_pattern_item";
+
+/** The names a pattern binds, in source order, with a `let` pattern's `mut`. */
 function patternNames(pattern: Pattern): BindingName[] {
   switch (pattern.kind) {
     case "binding":
-      return [{ name: pattern.name, span: pattern.span }];
+      return [
+        {
+          name: pattern.name,
+          ...(pattern.mutableAccess ? { mutableAccess: true, mutSpan: pattern.mutSpan } : {}),
+          span: pattern.span,
+        },
+      ];
     case "tuple":
       return pattern.elements.flatMap(patternNames);
     case "data":
@@ -56,13 +70,8 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
   ): HirExpression | undefined {
     if (expression.kind !== "list-comprehension" && expression.kind !== "map-comprehension")
       return undefined;
-    const suspensionCall = findSuspensionCall(expression);
-    if (suspensionCall)
-      this.fail(
-        "suspension-forbidden-context",
-        "a comprehension cannot contain a suspension call",
-        suspensionCall.span,
-      );
+    // A bang call in a comprehension is valid where it is valid in the loops
+    // the comprehension abbreviates (05-expressions.md#r-expr.comp.suspension).
     this.scopes.push(new Map());
     try {
       const clauses = expression.clauses.flatMap((clause) => this.checkClause(clause));
@@ -151,6 +160,122 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
         `a for pattern must match every value of '${type}'; this one may fail`,
         pattern.span,
       );
+  }
+
+  /**
+   * `let P = value else: E` checks as a hidden item and a match that hands
+   * the names of P to an ordinary `let`, so each name follows the `let` and
+   * `let mut` rules (06-control-flow.md#r-flow.let.match):
+   *
+   *     item := value
+   *     let (a, mut b) = match item: P => (a, b); _ => E
+   *
+   * Without an else block P must be irrefutable; with one, P must be
+   * refutable and E must diverge. E runs without the names of P
+   * (03-names-and-scopes.md#r-names.let-else.not-in-else).
+   */
+  protected checkPatternBinding(
+    statement: Extract<Statement, { kind: "pattern-binding" }>,
+  ): HirStatement[] {
+    const { pattern, span } = statement;
+    const annotation = statement.annotation ? this.resolveType(statement.annotation) : undefined;
+    let value = this.checkExpression(statement.value, annotation);
+    if (annotation) value = this.requireCoercion(value, annotation, statement.value.span);
+    const type = annotation ?? value.type;
+    if (type === "void")
+      this.fail("void-binding", "a binding cannot store a void value", statement.value.span);
+    const exhaustive = patternsExhaustive([pattern], type, {
+      enums: this.enumTypes,
+      data: this.dataTypes,
+    });
+    if (!statement.elseBody && !exhaustive)
+      this.fail(
+        "refutable-let-pattern",
+        `this let pattern may not match every value of '${type}'; add an else block that leaves the enclosing block`,
+        pattern.span,
+      );
+    // (06-control-flow.md#r-flow.let.else.unreachable)
+    if (statement.elseBody && exhaustive)
+      this.fail(
+        "unreachable-match-arm",
+        `this let pattern matches every value of '${type}', so its else block could never run; remove it`,
+        span,
+      );
+    const item: HirLocal = {
+      name: `${LET_PATTERN_ITEM}_${this.locals.length}`,
+      type,
+      index: this.locals.length,
+      mutable: false,
+      parameter: false,
+      span: statement.value.span,
+    };
+    this.locals.push(item);
+    this.currentScope().set(item.name, item);
+    const names = patternNames(pattern);
+    const result: Statement =
+      names.length === 0
+        ? { kind: "pass", span: pattern.span }
+        : {
+            kind: "expression",
+            expression:
+              names.length === 1
+                ? { kind: "name", name: names[0]!.name, span: names[0]!.span }
+                : {
+                    kind: "tuple",
+                    elements: names.map((name) => ({
+                      kind: "name",
+                      name: name.name,
+                      span: name.span,
+                    })),
+                    span: pattern.span,
+                  },
+            span: pattern.span,
+          };
+    // The else arm spans the statement, so its diagnostics point at the `let`.
+    const elseSpan = statement.elseBody && span;
+    const matched: Expression = {
+      kind: "match",
+      subject: { kind: "name", name: item.name, span: statement.value.span },
+      arms: [
+        { pattern, body: [result], span: pattern.span },
+        ...(statement.elseBody && elseSpan
+          ? [
+              {
+                pattern: { kind: "wildcard" as const, span: elseSpan },
+                body: statement.elseBody,
+                letElse: true,
+                span: elseSpan,
+              },
+            ]
+          : []),
+      ],
+      span,
+    };
+    const output: HirStatement[] = [{ kind: "binding", local: item, value, span }];
+    if (names.length === 0)
+      output.push(this.checkStatement({ kind: "expression", expression: matched, span }));
+    else if (names.length === 1)
+      output.push(
+        this.checkStatement({
+          kind: "binding",
+          name: names[0]!.name,
+          mutable: true,
+          ...(names[0]!.mutableAccess ? { mutableAccess: true, mutSpan: names[0]!.mutSpan } : {}),
+          value: matched,
+          span,
+        }),
+      );
+    else
+      output.push(
+        ...this.checkTupleBinding({
+          kind: "tuple-binding",
+          bindings: names,
+          mutable: true,
+          value: matched,
+          span,
+        }),
+      );
+    return output;
   }
 
   private checkClause(clause: ComprehensionClause): HirComprehensionClause[] {

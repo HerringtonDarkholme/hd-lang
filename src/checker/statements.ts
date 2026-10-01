@@ -70,6 +70,8 @@ export abstract class StatementChecker extends CheckerContext {
         return this.checkBindingStatement(statement);
       case "tuple-binding":
         throw new Error("tuple bindings are expanded by checkStatements");
+      case "pattern-binding":
+        throw new Error("pattern bindings are expanded by checkStatements");
       case "assignment": {
         if (statement.copy) this.failCopyIntoOrdinaryPlace(statement.span);
         const local = this.resolveLocal(statement.name);
@@ -328,6 +330,19 @@ export abstract class StatementChecker extends CheckerContext {
         `'${type}' has ${tuple.fixed.length} fixed element${tuple.fixed.length === 1 ? "" : "s"}, but the spread pattern follows ${spreads.length - 1}`,
         span,
       );
+  }
+
+  /** A `let` pattern; see `expression-comprehensions.ts`. */
+  protected abstract checkPatternBinding(
+    statement: Extract<Statement, { kind: "pattern-binding" }>,
+  ): HirStatement[];
+
+  protected checkDestructuring(
+    statement: Extract<Statement, { kind: "tuple-binding" | "pattern-binding" }>,
+  ): HirStatement[] {
+    return statement.kind === "tuple-binding"
+      ? this.checkTupleBinding(statement)
+      : this.checkPatternBinding(statement);
   }
 
   protected checkTupleBinding(

@@ -15,7 +15,7 @@ fn recorded[T < Hash](value: T) -> List[u8]:
     recorder.bytes
 
 fn lookup[K < Eq & Hash](items: Map[K, i32], key: K) -> i32?:
-    items[key]
+    items.get(key)
 
 tests:
     it("a string hashes its UTF-8 bytes"):

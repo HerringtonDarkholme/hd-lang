@@ -182,8 +182,8 @@ export abstract class CheckerContext {
     expected?: ValueType,
     valueContext?: boolean,
   ): HirStatement;
-  protected abstract checkTupleBinding(
-    statement: Extract<Statement, { kind: "tuple-binding" }>,
+  protected abstract checkDestructuring(
+    statement: Extract<Statement, { kind: "tuple-binding" | "pattern-binding" }>,
   ): HirStatement[];
   protected abstract checkCompoundAssignment(
     statement: Extract<Statement, { kind: "assignment" | "field-assignment" | "index-assignment" }>,
@@ -408,8 +408,8 @@ export abstract class CheckerContext {
             severity: "warning",
           });
         }
-        if (statement.kind === "tuple-binding") {
-          checked.push(...this.checkTupleBinding(statement));
+        if (statement.kind === "tuple-binding" || statement.kind === "pattern-binding") {
+          checked.push(...this.checkDestructuring(statement));
           continue;
         }
         if (

@@ -488,60 +488,6 @@ export abstract class ParserBase {
   }
 
   /**
-   * The names after `let`: one name, or a parenthesized list of two or more,
-   * each optionally written `mut name` (02-grammar.md#let-statements).
-   */
-  protected parseLetNames(): {
-    token: Token;
-    mutableAccess: boolean;
-    mutSpan?: SourceSpan;
-    spread?: boolean;
-  }[] {
-    const letName = (message: string, list = false) => {
-      const mut = this.atText("mut") ? this.advance() : undefined;
-      // A parenthesized list may discard an element with `_`, and its last
-      // name may be a spread pattern `xs...` (06-control-flow.md#spread-patterns).
-      const token =
-        list && !mut && this.atText("_") ? this.advance() : this.expectKind("identifier", message);
-      const spread = list && this.atText("...");
-      if (spread) {
-        const ellipsis = this.advance();
-        if (!this.atText(")") && !(this.atText(",") && this.peek(1).text === ")"))
-          this.fail("syntax-error", "a spread pattern must end the let list", ellipsis.span);
-      }
-      return {
-        token,
-        mutableAccess: mut !== undefined,
-        ...(mut ? { mutSpan: { start: mut.span.start, end: token.span.start } } : {}),
-        ...(spread ? { spread } : {}),
-      };
-    };
-    const names: ReturnType<typeof letName>[] = [];
-    if (this.atText("(")) {
-      const open = this.advance();
-      names.push(letName("expected a binding name", true));
-      while (this.matchText(",") && !(names.at(-1)!.spread && this.atText(")")))
-        names.push(letName("expected a binding name after ','", true));
-      const close = this.expectText(")");
-      if (names.length < 2 && !names[0]!.spread)
-        this.fail(
-          "syntax-error",
-          "a parenthesized let list needs at least two names; write 'let name = ...' for one",
-          { start: open.span.start, end: close.span.end },
-        );
-    } else {
-      const first = this.current();
-      names.push(letName("expected a binding name"));
-      this.rejectCommaClosingInlineSuite();
-      if (this.atText(",")) {
-        while (this.matchText(",")) names.push(letName("expected a binding name after ','"));
-        this.failBareNameList("let", first, this.peek(-1));
-      }
-    }
-    return names;
-  }
-
-  /**
    * At the start of a statement, `(`, names separated by commas, `)`, and
    * `:=` always form a binding list, never a tuple expression
    * (02-grammar.md#r-grammar.stmt.bind-list.not-tuple). Returns the number of

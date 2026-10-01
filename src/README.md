@@ -366,11 +366,14 @@ else`, `break`, `break value`, and `continue`;
   comprehension, through a one-element list per item), so a refutable one is
   `refutable-let-pattern` and the bare `for a, b in` is `syntax-error`;
 - eager list and map comprehensions with ordered nested clauses, conditional
-  filters, lexical clause bindings, duplicate map-key replacement, and a
-  compile-time ban on suspension calls;
-- right-associative single and tuple binding expressions with enclosing-scope
+  filters, lexical clause bindings, and duplicate map-key replacement. A bang
+  call in one is valid where it is valid in the loops the comprehension
+  abbreviates; in a suspending body such a comprehension lowers to those
+  loops, so each call completes before the next clause;
+- right-associative single-name binding expressions with enclosing-scope
   visibility, readonly inferred bindings, and flow-sensitive initialization
-  across short-circuit conditions;
+  across short-circuit conditions. `[a, b := v]` and `(a, b := v)` end in a
+  binding; a name list before `:=` inside an expression is `syntax-error`;
 - pipe expressions `value |> step` with leading-`|>` continuation lines. The
   parser checks each step's own `_` placeholders, bare steps, and one-line
   steps; the checker binds the value to `_` and lowers the pipe to a one-arm
@@ -382,9 +385,20 @@ else`, `break`, `break value`, and `continue`;
   (`let-mut-readonly-type`), or a primitive (`mut-on-primitive`), warn on
   a redundant `mut` before a name, alone or in a list, whose annotated type
   is already `mut` (`redundant-let-mut`, with a fix-it that deletes it), and use a
-  non-generic data literal as `mut T`; multi-name `:=` bindings are written
-  `(a, b) := pair`, and the bare `let a, b` and `a, b :=` lists are
-  `syntax-error`s whose fix-it adds the parentheses. A primitive type
+  non-generic data literal as `mut T`. `:=` binds one name: a pattern before
+  it, such as `(a, b) := pair`, is `missing-let` with a fix-it that writes
+  `let` and `=`, and the bare `let a, b` and `a, b :=` lists are
+  `syntax-error`s whose fix-it adds the parentheses. A `let` takes any
+  `match` pattern, with `mut` before each name it binds, and an optional
+  `else:` block. A name or a tuple of names binds directly and `let _ = v`
+  discards; any other pattern, or any `let` with an else block, binds a
+  hidden item and hands the pattern's names to an ordinary `let` through a
+  match, `let (a, b) = match item: P => (a, b); _ => else-block`. So a
+  refutable pattern without else is `refutable-let-pattern`, an else block
+  after an irrefutable one is `unreachable-match-arm`, and an else block
+  that may complete is `let-else-falls-through`. A `mut` data subject
+  matches as its data type, and a direct `mut U` field of a readonly
+  subject binds as `U`. A primitive type
   written `mut`, as in `mut i32`, is `mut-on-primitive`. In a `mut self`
   method of an implementation for a primitive, `self` has the plain type,
   and a call, `Type::method` reference, or qualified call of it needs no
@@ -905,13 +919,12 @@ else`, `break`, `break value`, and `continue`;
   `Add[Self, Out = Self]`, and the sealed `std.num` traits `Num`, `Integer`,
   and `Float` follow the same path. The primitive implementations are hd
   code whose bodies are the built-in operators, and so are the index
-  traits of `List`, `Map`, and `string`, whose bodies index directly; a
-  `Map` read of a missing key panics through the runtime primitive
-  `index_out_of_bounds`. Floating `%` calls the
+  traits of `List`, `Map`, and `string`, whose bodies index directly.
+  `m[k]` on a `Map` has type `V`, and a missing key panics with
+  `index-out-of-bounds`; `m.get(k)` reads `V?`. Floating `%` calls the
   host's `rem_f64`, JavaScript's truncated remainder. Compound assignment
   `place op= value` stores `place op value` for every type, and an index
-  place reads and stores its element; on a `Map` that read has type `V` and
-  a missing key panics with `index-out-of-bounds`. A newtype construction
+  place reads and stores its element. A newtype construction
   over an `AnyVal` base is readonly, and one over an `AnyRef` base carries
   its argument's permission, as unwrapping one does. `Num::from_i64` checks
   its range in `lib/std/num.hd`, and `"$x"` on `T < Num` reaches `Display`

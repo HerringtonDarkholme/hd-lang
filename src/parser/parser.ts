@@ -26,7 +26,7 @@ import {
   splitTypeBindings,
   tupleParts,
 } from "../types.ts";
-import { DecoratorParser } from "./decorators.ts";
+import { LetParser } from "./let.ts";
 import { ParseFailure, type ExpressionParseResult, type ParseOptions } from "./base.ts";
 import {
   emptyModuleItems,
@@ -60,7 +60,7 @@ interface FunctionTypeParameter {
   readonly variadic: boolean;
 }
 
-class Parser extends DecoratorParser {
+class Parser extends LetParser {
   parse(): ParseResult {
     const items = emptyModuleItems();
     this.localDeclarations = false;
@@ -1210,36 +1210,7 @@ class Parser extends DecoratorParser {
         "only 'let' takes 'mut' before a name; write 'let mut name = ...'",
         this.current().span,
       );
-    if (this.matchText("let")) {
-      const names = this.parseLetNames();
-      const annotation = this.matchText(":") ? this.parseType() : undefined;
-      this.expectText("=");
-      const value = this.parseRightSide();
-      const end = this.finishExpressionStatement(value, topOrInline);
-      return names.length === 1 && !names[0]!.spread
-        ? {
-            kind: "binding",
-            name: names[0]!.token.text,
-            annotation,
-            mutable: true,
-            ...(names[0]!.mutSpan ? { mutableAccess: true, mutSpan: names[0]!.mutSpan } : {}),
-            value,
-            span: { start, end },
-          }
-        : {
-            kind: "tuple-binding",
-            bindings: names.map((name) => ({
-              name: name.token.text,
-              ...(name.mutSpan ? { mutableAccess: true, mutSpan: name.mutSpan } : {}),
-              ...(name.spread ? { spread: true } : {}),
-              span: name.token.span,
-            })),
-            annotation,
-            mutable: true,
-            value,
-            span: { start, end },
-          };
-    }
+    if (this.matchText("let")) return this.parseLetStatement(start, topOrInline);
     // A trailing block may complete each right-hand side that accepts a suite
     // expression (02-grammar.md#statements).
     if (this.matchText("return")) {
@@ -1295,32 +1266,13 @@ class Parser extends DecoratorParser {
       this.failBareNameList(":=", first, last);
     }
     const bindingList = this.bindingListLength();
-    if (bindingList !== undefined) {
-      const open = this.current();
-      if (bindingList < 2)
-        this.fail(
-          "syntax-error",
-          "a parenthesized binding list needs at least two names; write 'name := ...' for one",
-          { start: open.span.start, end: this.peek(bindingList * 2).span.end },
-        );
-      // Its commas are inside parentheses, so a same-line suite may hold it
-      // (02-grammar.md#r-grammar.inline.bind-list).
-      this.advance();
-      const names: Token[] = [];
-      do names.push(this.advance());
-      while (this.matchText(","));
-      this.expectText(")");
-      this.expectText(":=");
-      const value = this.parseTrailingBlockCall(this.parseExpression());
-      const end = this.finishExpressionStatement(value, topOrInline);
-      return {
-        kind: "tuple-binding",
-        bindings: names.map((name) => ({ name: name.text, span: name.span })),
-        mutable: false,
-        value,
-        span: { start, end },
-      };
-    }
+    if (bindingList !== undefined && bindingList < 2)
+      this.fail(
+        "syntax-error",
+        "a parenthesized binding list needs at least two names; write 'name := ...' for one",
+        { start: this.current().span.start, end: this.peek(bindingList * 2).span.end },
+      );
+    this.rejectPatternBeforeShortBinding();
     if (
       this.atKind("identifier") &&
       (this.peek(1).text === "=" ||
@@ -1381,7 +1333,7 @@ class Parser extends DecoratorParser {
   // The right side of `let ... =`, `=`, `_ :=`, `return`, and `break`: an
   // expression or trailing block call. A nested binding there cannot end in a
   // suite unless parenthesized (02-grammar.md#statements).
-  private parseRightSide(): Expression {
+  protected parseRightSide(): Expression {
     const value = this.parseTrailingBlockCall(this.parseExpression());
     if (value.kind !== "binding-expression") return value;
     let inner: Expression = value;

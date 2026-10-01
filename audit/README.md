@@ -10,14 +10,14 @@ decisions, and the repository history keeps the removed evidence.
 ## Conformance
 
 On 2026-10-01 the conformance suite has 1,759 cases, and
-`test/portable/cases.tsv` selects the 1,677 that the prototype passes. The
-other 82 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
+`test/portable/cases.tsv` selects the 1,702 that the prototype passes. The
+other 57 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
 finding or with a decision below. Every case is in one of the two files. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Selected | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,686 | 1,610 | 76 |
+| language | 1,686 | 1,635 | 51 |
 | stdlib | 73 | 67 | 6 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -37,23 +37,18 @@ them by tag:
 | BFF | 5 | D1's callable values, D2, and D4: the prototype does not know `Apply` or `Update`, so `v() = x` is `invalid-assignment-target` and `impl Apply` is `unknown-trait` |
 | IT | 2 | batch 24, IT2: `lib/std/iter.hd` still implements `Iterable` for `Iterator`, so an iterator satisfies an `Iterable` bound |
 | ST8-self | 1 | batch 25: the prototype resolves a receiverless template call only as `T::name()`, so `Structure::name()` is `unknown-type` |
-| SSC-Q2 | 2 | batch 26: a bang call in a comprehension is still `suspension-forbidden-context` |
-| SSC-Q5 | 2 | batch 26: `((a, b) := value)` is accepted, and `[(a, b) := value]` reports the withdrawn `multi-binding-needs-parentheses` |
-| SSC-Q8 | 4 | batch 26: `m[k]` is still typed `V?` |
 | AT-gen | 2 | batch 26: derived `Arbitrary` gives a member's type parameter no `Inspectable` bound |
-| LP | 17 | batch 26, LP1 and LP1-one: `let` takes only a name or a name list, with no let-else, and `(a, b) :=` is still accepted |
-| Q5-list | 1 | batch 26: `[a, b := value]` still reports the withdrawn `multi-binding-needs-parentheses` |
 | ST8-own | 1 | batch 28: `Named::name()` in `Named`'s template is `associated-function-needs-target` |
-| LP-irrefutable-else | 1 | batch 30: `let` has no `else`, so an `else` after an irrefutable pattern is `syntax-error`, not `unreachable-match-arm` |
-| LP-discard | 1 | batch 30: `let _ = save()` is `syntax-error` |
-| Q5-tuple | 1 | batch 30: `(a, b := value)` still reports the withdrawn grouped binding |
 | Q6 | 2 | batch 31: tuples have no `Hash`, so a tuple map key fails `Map`'s `K < Eq & Hash` bound (task #142) |
 | Q6-others | 1 | batch 33: interpolation finds `Display` only for an exact target type, so `lib/std`'s generic tuple `Display` is unused |
 | TR-traits | 3 | batch 34: rest tuples have no `Eq` or `PartialOrd`, and `lib/std` declares no rest tuple `Debug` or `Display` |
 | O7 | 5 | batch 36: no member-typed facts, so `member_typed` is `unknown-name`, `Field` has no `fact`, and `arbitrary.with` still erases its generator |
 | FACT-EXPECTED | 3 | batch 38: no member-typed facts, so a generic function value in such a fact gets no expected type and is `unresolved-generic-placeholder` |
 | O3b | 5 | batch 36: no tuple `Structure` or tuple templates, so tuple traits stop at 12 elements and a tuple template derives nothing |
-| FX-reason | 1 | a fixture defect: `runtime/valid/for-patterns.hd` calls `assert_equal` without its required `reason`; its `for` patterns pass once reasons are added |
+| FX-let-mut | 1 | a fixture defect: `typing/valid/let-data-pattern.hd` writes `let mut` on an `i32`, which is `mut-on-primitive`; its `let` patterns pass without the `mut` |
+| FX-shape | 1 | a fixture defect: `typing/valid/let-else-diverging-forms.hd` names a loop binding `shape`, a prelude intrinsic, so it is `prelude-name-shadow` |
+| FX-push | 2 | a fixture defect: the `let` pattern `mut` fixtures call `List.push`, which neither `spec/std` nor `lib/std` declares; with `append` they pass |
+| FX-map-index | 1 | a fixture defect: `runtime/valid/derived-newtype.hd` compares `m[k]` with `.Some(...)`, but `m[k]` now reads `V`; it should call `m.get(k)` |
 
 ## What Remains
 

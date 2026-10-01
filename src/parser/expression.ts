@@ -556,20 +556,10 @@ export abstract class ExpressionParser extends ParserBase {
       const spreads: boolean[] = [];
       if (!this.atText("]")) {
         do {
-          const multiBinding = this.unparenthesizedMultiBindingOperator();
-          if (multiBinding)
-            this.fail(
-              "multi-binding-needs-parentheses",
-              "a multi-name binding inside delimiters must be parenthesized",
-              multiBinding.span,
-            );
+          // `[a, b := v]` holds `a` and the binding `b := v`
+          // (02-grammar.md#r-grammar.expr.multi-binding.element).
           const element = this.parseExpression();
-          if (this.atText(":="))
-            this.fail(
-              "multi-binding-needs-parentheses",
-              "a multi-name binding inside delimiters must be parenthesized",
-              this.current().span,
-            );
+          this.rejectNameListBinding(element);
           if (this.atText(":"))
             this.fail(
               "trailing-block-position",
@@ -624,9 +614,8 @@ export abstract class ExpressionParser extends ParserBase {
           span: { start: token.span.start, end: close.span.end },
         };
       }
-      const groupedBinding = this.parseGroupedBindingExpression(token);
-      if (groupedBinding) return groupedBinding;
       const first = this.parseExpression();
+      this.rejectNameListBinding(first);
       // The last element of a tuple expression may be a suffix spread
       // `xs...`; alone it keeps the trailing comma (02-grammar.md#r-grammar.primary.tuple-spread).
       const spreadAt = (): boolean => {
@@ -653,6 +642,7 @@ export abstract class ExpressionParser extends ParserBase {
       const elements = [first];
       while (!spread && !this.atText(")")) {
         elements.push(this.parseExpression());
+        this.rejectNameListBinding(elements.at(-1)!);
         spread = spreadAt();
         if (!this.matchText(",")) break;
       }
@@ -679,58 +669,18 @@ export abstract class ExpressionParser extends ParserBase {
   }
 
   /**
-   * `((a, b) := value)` nests a multi-name binding
-   * (02-grammar.md#r-grammar.expr.multi-binding.wrapped). The former grouped
-   * form `(a, b := value)` is an error whose fix-it parenthesizes the names
-   * (02-grammar.md#r-grammar.expr.multi-binding.no-grouped).
+   * A binding expression binds one name, so `:=` after any other operand,
+   * as in `((a, b) := value)` or `[(a, b) := value]`, is an error; a `let`
+   * statement destructures (02-grammar.md#r-grammar.expr.multi-binding.let-only).
    */
-  private parseGroupedBindingExpression(open: Token): Expression | undefined {
-    if (this.bindingListLength() !== undefined) {
-      this.advance();
-      const names = [this.advance()];
-      while (this.matchText(",")) names.push(this.advance());
-      this.expectText(")");
-      this.expectText(":=");
-      const value = this.parseExpression();
-      const close = this.expectText(")");
-      return {
-        kind: "binding-expression",
-        bindings: names.map((name) => ({ name: name.text, span: name.span })),
-        value,
-        span: { start: open.span.start, end: close.span.end },
-      };
-    }
-    if (this.current().kind !== "identifier" || this.peek(1).text !== ",") return undefined;
-    let distance = 2;
-    while (this.peek(distance).kind === "identifier" && this.peek(distance + 1).text === ",")
-      distance += 2;
-    if (this.peek(distance).kind !== "identifier" || this.peek(distance + 1).text !== ":=")
-      return undefined;
-    const first = this.current().span;
-    const last = this.peek(distance).span;
+  private rejectNameListBinding(operand: Expression): void {
+    if (!this.atText(":=")) return;
+    const names = operand.kind === "tuple" ? "(a, b)" : "a pattern";
     this.fail(
       "syntax-error",
-      "the grouped binding '(a, b := value)' was replaced by '((a, b) := value)'",
-      { start: first.start, end: this.peek(distance + 1).span.end },
-      {
-        message: "put the names in their own parentheses",
-        edits: [
-          { span: { start: first.start, end: first.start }, replacement: "(" },
-          { span: { start: last.end, end: last.end }, replacement: ")" },
-        ],
-      },
+      `a binding expression binds one name; to destructure, write 'let ${names} = value' as a statement before this expression`,
+      { start: operand.span.start, end: this.current().span.end },
     );
-  }
-
-  private unparenthesizedMultiBindingOperator(): Token | undefined {
-    if (this.current().kind !== "identifier" || this.peek(1).text !== ",") return undefined;
-    let distance = 2;
-    while (this.peek(distance).kind === "identifier") {
-      if (this.peek(distance + 1).text === ":=") return this.peek(distance + 1);
-      if (this.peek(distance + 1).text !== ",") return undefined;
-      distance += 2;
-    }
-    return undefined;
   }
 
   protected parseDataExpression(name: NameExpression): Expression {
@@ -1319,8 +1269,39 @@ export abstract class ExpressionParser extends ParserBase {
     return true;
   }
 
+  /**
+   * True while a `let` pattern is parsed: `mut` may then precede each name
+   * the pattern binds (02-grammar.md#r-grammar.stmt.let-pattern.mut).
+   */
+  protected letPattern = false;
+
+  /** `mut name` in a `let` pattern, or undefined when `mut` does not follow. */
+  private parseMutBindingPattern(): Pattern | undefined {
+    if (!this.letPattern || !this.atText("mut")) return undefined;
+    const mut = this.advance();
+    const name = this.expectKind(
+      "identifier",
+      "'mut' in a let pattern precedes a name the pattern binds, as in 'let (mut log, db) = ...'",
+    );
+    if (["{", "(", "."].includes(this.current().text))
+      this.fail(
+        "syntax-error",
+        "'mut' precedes a name the pattern binds, not a whole pattern",
+        mut.span,
+      );
+    return {
+      kind: "binding",
+      name: name.text,
+      mutableAccess: true,
+      mutSpan: { start: mut.span.start, end: name.span.start },
+      span: name.span,
+    };
+  }
+
   protected parsePattern(): Pattern {
     const start = this.current().span.start;
+    const mutBinding = this.parseMutBindingPattern();
+    if (mutBinding) return mutBinding;
     if (this.matchText("_"))
       return { kind: "wildcard", span: { start, end: this.peek(-1).span.end } };
     if (this.matchText("true"))
@@ -1411,7 +1392,15 @@ export abstract class ExpressionParser extends ParserBase {
       const fields: DataPatternField[] = [];
       if (!this.atText("}")) {
         do {
+          // `Point { mut tags }` binds the field mutably in a `let` pattern.
+          const mut = this.letPattern && this.atText("mut") ? this.advance() : undefined;
           const field = this.expectKind("identifier", "expected a data pattern field");
+          if (mut && this.atText(":"))
+            this.fail(
+              "syntax-error",
+              "'mut' precedes the name a field binds, as in 'Point { x: mut name }'",
+              mut.span,
+            );
           if (this.atText("="))
             this.fail(
               "syntax-error",
@@ -1420,7 +1409,17 @@ export abstract class ExpressionParser extends ParserBase {
             );
           const pattern = this.matchText(":")
             ? this.parsePattern()
-            : { kind: "binding" as const, name: field.text, span: field.span };
+            : {
+                kind: "binding" as const,
+                name: field.text,
+                ...(mut
+                  ? {
+                      mutableAccess: true,
+                      mutSpan: { start: mut.span.start, end: field.span.start },
+                    }
+                  : {}),
+                span: field.span,
+              };
           fields.push({
             name: field.text,
             pattern,

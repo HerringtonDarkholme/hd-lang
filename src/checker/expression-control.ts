@@ -54,6 +54,8 @@ interface MatchContext {
   readonly expected?: ValueType;
   readonly covered: Set<number | string>;
   readonly arms: HirMatchArm[];
+  /** Let-else arms already reported as falling through; their value is not coerced. */
+  readonly fallsThrough: Set<HirMatchArm>;
   catchAll: boolean;
   resultType?: ValueType;
 }
@@ -68,15 +70,18 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         const condition = this.checkExpression(expression.condition);
         this.requireType(condition.type, "bool", condition.span);
         const bindingFlow = this.applyConditionBindingFlow(expression.condition);
+        // With an else suite each branch's final statement is the `if`'s
+        // value, so the must-use check applies to the `if` instead.
+        const valued = expression.elseBody.length > 0;
         const thenBody = this.checkConditionalSuite(
           expression.thenBody,
           bindingFlow.whenTrue,
           expected,
+          valued,
         );
-        const elseBody =
-          expression.elseBody.length > 0
-            ? this.checkConditionalSuite(expression.elseBody, bindingFlow.whenFalse, expected)
-            : [];
+        const elseBody = valued
+          ? this.checkConditionalSuite(expression.elseBody, bindingFlow.whenFalse, expected, true)
+          : [];
         if (elseBody.length === 0) {
           return { kind: "if", condition, thenBody, elseBody, type: "void", span: expression.span };
         }
@@ -258,6 +263,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     statements: readonly Statement[],
     availableNames: ReadonlySet<string>,
     expected?: ValueType,
+    valued = false,
   ): HirStatement[] {
     const previous = new Set(this.allowedConditionalBindingLocals);
     for (const name of availableNames) {
@@ -265,7 +271,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       if (local) this.allowedConditionalBindingLocals.add(local.index);
     }
     try {
-      return this.checkStatements(statements, true, expected);
+      return this.checkStatements(statements, true, expected, valued);
     } finally {
       this.allowedConditionalBindingLocals.clear();
       previous.forEach((index) => this.allowedConditionalBindingLocals.add(index));
@@ -346,7 +352,9 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     const subject = this.checkExpression(expression.subject);
     const subjectNominal = nominalGenericParts(subject.type);
     const declaration = this.enumTypes.get(subjectNominal?.name ?? subject.type);
-    const dataDeclaration = this.dataTypes.get(subject.type);
+    // A `mut` data subject matches as its data type; its fields keep their
+    // own access (06-control-flow.md#r-flow.match.data.readonly-mut).
+    const dataDeclaration = this.dataTypes.get(readonlyType(subject.type));
     const optional = optionalInner(subject.type);
     const result = resultParts(subject.type);
     const tuple = tupleParts(subject.type) !== undefined;
@@ -381,9 +389,16 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       expected,
       covered: new Set(),
       arms: [],
+      fallsThrough: new Set(),
       catchAll: false,
     };
-    for (const arm of expression.arms) this.checkMatchArm(arm, context);
+    const previousReadonly = this.matchSubjectReadonly;
+    this.matchSubjectReadonly = mutableInner(subject.type) === undefined;
+    try {
+      for (const arm of expression.arms) this.checkMatchArm(arm, context);
+    } finally {
+      this.matchSubjectReadonly = previousReadonly;
+    }
     const requiredCases = context.declaration?.variants.length ?? 2;
     const finiteCoverage = Boolean(
       context.declaration || context.optional !== undefined || context.result || context.boolean,
@@ -434,7 +449,9 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       enumIndex: context.declaration?.index,
       // Each arm's value fits a union-row result by row subsumption.
       arms: context.arms.map((arm) =>
-        context.resultType === undefined || context.resultType === "never"
+        context.resultType === undefined ||
+        context.resultType === "never" ||
+        context.fallsThrough.has(arm)
           ? arm
           : { ...arm, body: this.coerceBlockResult(arm.body, context.resultType) },
       ),
@@ -829,15 +846,39 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       const guard = arm.guard && this.checkExpression(arm.guard);
       if (guard) this.requireType(guard.type, "bool", arm.guard!.span);
       const body = this.checkStatements(arm.body, false, context.expected);
-      const armType = this.blockType(body);
+      const checkedArm = { tag, literal, guard, tests, bindings, body, span: arm.span };
+      const armType = this.letElseArmType(arm, checkedArm, context);
       if (context.resultType === undefined || context.resultType === "never")
         context.resultType = armType;
       else if (armType !== "never" && context.resultType !== armType)
         context.resultType = this.joinArmTypes(context.resultType, armType, arm.span);
-      context.arms.push({ tag, literal, guard, tests, bindings, body, span: arm.span });
+      context.arms.push(checkedArm);
     } finally {
       this.scopes.pop();
     }
+  }
+
+  /**
+   * An arm's type. A let-else block must diverge; one that may complete is
+   * reported without stopping, so the row inference of the enclosing
+   * function still sees the whole body, and then counts as `never`
+   * (06-control-flow.md#r-flow.let.else.falls-through).
+   */
+  private letElseArmType(
+    arm: MatchSourceArm,
+    checked: HirMatchArm,
+    context: MatchContext,
+  ): ValueType {
+    const type = this.blockType(checked.body);
+    if (!arm.letElse || type === "never") return type;
+    context.fallsThrough.add(checked);
+    this.diagnostics.push({
+      code: "let-else-falls-through",
+      message:
+        "a let-else block must leave the enclosing block, with return, break, continue, or a call that never returns",
+      span: arm.span,
+    });
+    return "never";
   }
 
   /**

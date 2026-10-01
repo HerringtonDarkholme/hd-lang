@@ -8,7 +8,6 @@ import {
   nominalGenericParts,
   nominalGenericType,
   optionalInner,
-  optionalType,
   readonlyType,
   tupleLayout,
   tupleParts,
@@ -807,14 +806,16 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         if (nominal?.name === "Map" && nominal.arguments.length === 2) {
           const key = this.checkExpression(expression.index, nominal.arguments[0]);
           this.requireAssignable(key.type, nominal.arguments[0]!, expression.index.span);
+          // `m[k]` reads `V` and panics on a missing key; `m.get(k)` reads `V?`
+          // (05-expressions.md#r-expr.index.map.read-value).
           return {
             kind: "map-index",
             receiver,
             key,
             keyType: nominal.arguments[0]!,
             valueType: nominal.arguments[1]!,
-            ...(expression.required ? { required: true } : {}),
-            type: expression.required ? nominal.arguments[1]! : optionalType(nominal.arguments[1]!),
+            required: true,
+            type: nominal.arguments[1]!,
             span: expression.span,
           };
         }

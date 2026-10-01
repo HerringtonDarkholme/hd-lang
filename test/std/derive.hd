@@ -89,10 +89,10 @@ tests:
     it("a type with Eq and Hash keys a map"):
         let prices: mut Map[Key, i32] = {Key { first: 1, second: "a" }: 10}
         prices[Key { first: 2, second: "b" }] = 20
-        assert_equal(prices[Key { first: 1, second: "a" }], .Some(10), reason="an equal key")
-        assert_equal(prices[Key { first: 1, second: "b" }], .None, reason="a different key")
+        assert_equal(prices.get(Key { first: 1, second: "a" }), .Some(10), reason="an equal key")
+        assert_equal(prices.get(Key { first: 1, second: "b" }), .None, reason="a different key")
         assert_equal(prices.len(), 2, reason="two keys")
         tags := {Tag { name: "Red" }: 1}
-        assert_equal(tags[Tag { name: "RED" }], .Some(1), reason="the key type's own Eq")
+        assert_equal(tags.get(Tag { name: "RED" }), .Some(1), reason="the key type's own Eq")
         ranks := {Priority.High(1): "high", Priority.Urgent: "urgent"}
-        assert_equal(ranks[Priority.Urgent], .Some("urgent"), reason="an enum key")
+        assert_equal(ranks.get(Priority.Urgent), .Some("urgent"), reason="an enum key")

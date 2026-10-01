@@ -15,6 +15,7 @@ import type {
 import {
   contextKeys,
   functionParts,
+  mutableInner,
   nominalGenericParts,
   nominalGenericType,
   optionalInner,
@@ -685,8 +686,14 @@ export abstract class PatternChecker extends CallChecker {
       const nested = entry.pattern;
       if (nested.kind === "wildcard") continue;
       if (nested.kind === "binding") {
+        // A direct `mut U` field of a readonly subject binds as `U`
+        // (06-control-flow.md#r-flow.match.data.readonly-mut).
+        const view =
+          this.matchSubjectReadonly && mutableInner(field.type) !== undefined
+            ? readonlyType(field.type)
+            : field.type;
         bindings.push({
-          local: this.addPatternLocal(nested.name, field.type, nested.span),
+          local: this.addPatternLocal(nested.name, view, nested.span),
           fieldIndex: -1,
           type: field.type,
           path: fieldPath,
@@ -726,6 +733,9 @@ export abstract class PatternChecker extends CallChecker {
     }
     return irrefutable;
   }
+
+  /** True while the arms of a match on a readonly subject are checked. */
+  protected matchSubjectReadonly = false;
 
   protected addPatternLocal(name: string, type: ValueType, span: SourceSpan): HirLocal {
     if (PRELUDE_NAMES.has(name))

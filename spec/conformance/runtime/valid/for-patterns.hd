@@ -28,13 +28,13 @@ fn nested(pairs: List[(Point, i32)]) -> i32:
 
 tests:
     it("a data pattern binds each element's fields"):
-        assert_equal(total([Point { x: 2, y: 3 }, Point { x: 4, y: 5 }]), 26)
+        assert_equal(total([Point { x: 2, y: 3 }, Point { x: 4, y: 5 }]), 26, reason="2 * 3 + 4 * 5")
 
     it("a map entry is a tuple, bound whole or by a tuple pattern"):
-        assert_equal(weights({"a": 1, "b": 2}), 6)
+        assert_equal(weights({"a": 1, "b": 2}), 6, reason="each score counts once per loop")
 
     it("a nested pattern destructures an iterator's tuples"):
-        assert_equal(nested([(Point { x: 3, y: 0 }, 2), (Point { x: 1, y: 9 }, 5)]), 11)
+        assert_equal(nested([(Point { x: 3, y: 0 }, 2), (Point { x: 1, y: 9 }, 5)]), 11, reason="3 * 2 + 1 * 5")
 
     it("a comprehension clause takes the same pattern"):
-        assert_equal([for Point { x, y } in [Point { x: 1, y: 2 }] => x + y], [3])
+        assert_equal([for Point { x, y } in [Point { x: 1, y: 2 }] => x + y], [3], reason="one element, 1 + 2")

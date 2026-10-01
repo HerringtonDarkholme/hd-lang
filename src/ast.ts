@@ -335,7 +335,15 @@ export type Pattern =
   | { readonly kind: "float"; readonly value: number; readonly span: SourceSpan }
   | { readonly kind: "string"; readonly value: string; readonly span: SourceSpan }
   | { readonly kind: "character"; readonly value: string; readonly span: SourceSpan }
-  | { readonly kind: "binding"; readonly name: string; readonly span: SourceSpan }
+  | {
+      readonly kind: "binding";
+      readonly name: string;
+      /** Written `mut name` in a `let` pattern (02-grammar.md#r-grammar.stmt.let-pattern.mut). */
+      readonly mutableAccess?: boolean;
+      /** From `mut` to the name, which the `redundant-let-mut` fix-it deletes. */
+      readonly mutSpan?: SourceSpan;
+      readonly span: SourceSpan;
+    }
   | {
       readonly kind: "tuple";
       readonly elements: readonly Pattern[];
@@ -372,6 +380,8 @@ export interface MatchArm {
   readonly pattern: Pattern;
   readonly guard?: Expression;
   readonly body: readonly Statement[];
+  /** The else block of a lowered let-else, which must diverge (06-control-flow.md#r-flow.let.else.falls-through). */
+  readonly letElse?: boolean;
   readonly span: SourceSpan;
 }
 
@@ -482,6 +492,19 @@ export type Statement =
       readonly annotation?: TypeRef;
       readonly mutable: boolean;
       readonly value: Expression;
+      readonly span: SourceSpan;
+    }
+  | {
+      /**
+       * A `let` whose pattern is neither a name nor a tuple of names, or any
+       * `let` with an else block (02-grammar.md#let-statements,
+       * 02-grammar.md#let-else-statements).
+       */
+      readonly kind: "pattern-binding";
+      readonly pattern: Pattern;
+      readonly annotation?: TypeRef;
+      readonly value: Expression;
+      readonly elseBody?: readonly Statement[];
       readonly span: SourceSpan;
     }
   | {

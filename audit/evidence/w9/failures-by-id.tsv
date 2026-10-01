@@ -11,20 +11,15 @@ INF-mut	3	Generic call inference from several arguments (batch 17, INF-mut) is n
 BFF	5	Callable values (D1 callable-value part, D2, D4): the prototype does not know `Apply` or `Update`, so `v() = x` is invalid-assignment-target and `impl Apply` is unknown-trait
 IT	2	Iterator is not Iterable (batch 24, IT2): lib/std/iter.hd still implements Iterable for Iterator, so the prototype accepts an iterator for an Iterable bound
 ST8-self	1	A template's qualified Structure:: call (batch 25, ST8-self): the prototype resolves a receiverless template call only as T::name() or T::facts(), so Structure::name() is unknown-type
-SSC-Q2	2	Bang calls in comprehensions (batch 26, Syntax And Semantics Cost Q2): the prototype still rejects every bang call in a comprehension as suspension-forbidden-context
-SSC-Q5	2	Multi-name bindings are statements (batch 26, Q5): the prototype accepts ((a, b) := value) and reports the withdrawn multi-binding-needs-parentheses for [(a, b) := value]
-SSC-Q8	4	Map index reads V (batch 26, Q8): the prototype still types m[k] as V?, and lib/std/ops.hd still matches on self[key] in Map's Index
 AT-gen	2	Generic derived Arbitrary (batch 26, AT-gen): the prototype's checker-generated Arbitrary gives a member's type parameter no Inspectable bound
-LP	17	Patterns in let (batch 26, LP1 and LP1-one): the prototype's let takes only a name or a parenthesized name list and has no let-else, so data, variant, and nested patterns are syntax-error; it still accepts a multi-name := and reports other patterns before := as syntax-error, not missing-let
-Q5-list	1	List items may be bindings (batch 26, Q5-list): the prototype reports the withdrawn multi-binding-needs-parentheses for [a, b := value]
 ST8-own	1	A template's call qualified by the derived trait (batch 28, ST8-own): the prototype reports Named::name() as associated-function-needs-target
-LP-irrefutable-else	1	An else after an irrefutable let pattern (batch 30, LP-irrefutable-else): the prototype's let has no else block, so it is syntax-error, not unreachable-match-arm
-LP-discard	1	let _ discards a must-use value (batch 30, LP-discard): the prototype's let takes no _ pattern, so let _ = save() is syntax-error
-Q5-tuple	1	Tuple elements may be bindings (batch 30, Q5-tuple): the prototype still rejects (a, b := value) as the withdrawn grouped binding
 Q6	2	Tuples derive Eq, PartialOrd, Ord, and Hash, but the prototype has no Hash for tuples, so a tuple map key fails the bound Map[K < Eq & Hash, V] (task #142)
 Q6-others	1	Tuple Display (batch 33, Q6-others): the prototype's interpolation finds a Display implementation only for an exact target type, so lib/std's generic tuple implementations are unused
 TR-traits	3	Rest tuples derive the tuple traits (batch 34, Q5): the prototype has tuple rest elements, but no Eq or PartialOrd for a rest tuple and no rest tuple Debug or Display impl in lib/std
 O7	5	Member-typed facts (batch 36, O7): the prototype has no std.annotation.member_typed, no Field.fact, and keeps the erased arbitrary.with Generator, so a mismatched generator panics at run time instead of type-mismatch
 FACT-EXPECTED	3	Expected type from a member-typed fact (batch 38, FACT-EXPECTED): the prototype has no member-typed facts, so a generic function value in such a fact gets no expected type and is unresolved-generic-placeholder
 O3b	5	Tuple Structure and tuple templates (batch 36, O3b): the prototype has neither, so tuple Debug, Display, and Default stop at 12 elements and impl[T < Tuple] ... by Structure derives nothing
-FX-reason	1	Fixture defect: the fixture calls assert_equal without its required reason argument (module.testing.exports), so its tests are argument-count; the spec owner fixes the fixture
+FX-let-mut	1	Fixture defect: typing/valid/let-data-pattern.hd writes let mut on an i32, which types.bind.let-mut-primitive makes mut-on-primitive; its let patterns pass without the mut
+FX-shape	1	Fixture defect: typing/valid/let-else-diverging-forms.hd names a loop binding shape, a prelude intrinsic (module.prelude.shape), so it is prelude-name-shadow; its let-else forms pass once it is renamed
+FX-push	2	Fixture defect: typing/valid/let-pattern-mut.hd and typing/invalid/let-pattern-mut-readonly-field.hd call List.push, which neither spec/std nor lib/std declares; with append they pass
+FX-map-index	1	Fixture defect: runtime/valid/derived-newtype.hd compares m[k] with .Some(...), but expr.index.map.read-value types m[k] as V; the read should be m.get(k)
