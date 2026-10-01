@@ -390,8 +390,8 @@ of a package in the named role. That package depends on every package under
   private field `serial`, public inherent methods `tag` and `code`, and a
   private inherent method `audit`. It also declares the public data types
   `CreatedBySystem`, with a public field `id` and a public inherent method
-  `label`, and `AuditDraft`, which embeds `CreatedBySystem` and hides both
-  members with a private field `id` and a private inherent method `label`,
+  `label`, and `ReviewDraft`, which embeds `CreatedBySystem` and hides both
+  members with a public field `id` and a public inherent method `label`,
   and the public function `make_draft`.
 
 Package files are not cases. They have no row in `cases.tsv`, carry no

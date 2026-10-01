@@ -2806,7 +2806,7 @@ existing source. Each entry names the decision that made the change.
 - A reserved word is never a suffix or prefix (owner decision Q1, cut C3,
   batch 31, 2026-09-30): language tier. `lex.suffix.reserved` and
   `lex.prefix.reserved` are retired for
-  [`lex.literal-fn.reserved`](01-lexical-structure.md#r-lex.literal-fn.reserved).
+  `lex.literal-fn.reserved` (retired in batch 33 for [`lex.literal-fn.reserved-glued`](01-lexical-structure.md#r-lex.literal-fn.reserved-glued)).
   `5else`, previously `invalid-token`, is now `5` followed by `else`, so
   in expression position it is `syntax-error`. `return"done"` stays two
   tokens.
@@ -3010,3 +3010,44 @@ existing source. Each entry names the decision that made the change.
   and [`fn.vararg.tuple-param.infer`](07-functions.md#r-fn.vararg.tuple-param.infer);
   and `trait.by.generated.variadic`, merged into
   [`trait.by.generated`](09-traits.md#r-trait.by.generated).
+- A private own member may not take a promoted member's name (owner
+  decision PRIVATE-SHADOW, batch 33, 2026-10-01): language tier. This
+  reverses batch 32's Q4. A field or inherent method of `S` that is not
+  `pub` and has the name of a promoted member in its namespace, at any
+  depth, is `ambiguous-promoted-member` again
+  ([`names.conflict.private-shadow`](03-names-and-scopes.md#r-names.conflict.private-shadow)),
+  and its author picks another name. A `pub` own member still hides a
+  promoted one, and a part's private member is never promoted, so it never
+  clashes. `names.hide.depth` drops "whatever its visibility", and
+  `names.method-lookup.promoted-candidate` drops "unless an own inherent
+  method of `S` hides it"; each ID is kept, since the private case they
+  covered is now an error. A private own member that hid a promoted one,
+  valid since 32b, is now an error, so another module's `private-member`
+  at a use of it no longer arises.
+- `all!` takes no explicit type arguments (owner decision ALL-type-args,
+  batch 33, 2026-10-01): language tier.
+  [`req.combinator.all-direct`](11-requirements-and-suspension.md#r-req.combinator.all-direct)
+  names `all!::[i32, string](a, b)` as `type-mismatch`. No program
+  changes, since a type argument list on a callee with no generic
+  parameters was already invalid.
+- Tuples implement `Display` up to 12 elements (owner decision Q6-others,
+  batch 33, 2026-10-01): language tier, beside the other standard
+  `Display` implementations, as tuple `Debug` is (Q6-tier).
+  [`expr.interp.std.tuple`](05-expressions.md#r-expr.interp.std.tuple):
+  a tuple whose elements implement `Display` displays as `(1, one)`, so
+  `"$pair"`, `unsatisfied-trait-bound` before, is now valid. Tuple
+  `Default` waits for a `Default` trait, which std does not declare.
+- `retry!` takes a requirement row and makes at least one attempt (owner
+  decisions RETRY-row and RETRY-zero, batch 33, 2026-10-01): stdlib tier.
+  Its signature is
+  `retry![T, E, R](times: i32, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R`
+  ([Retry](std/task.md#retry)), so an attempt may require providers, and
+  the call then requires them. A `times` below 1 counts as 1
+  ([`std-task.combinator.retry.at-least-once`](std/task.md#r-std-task.combinator.retry.at-least-once)).
+- A reserved word glued to a literal is an error (owner decision C3-valid,
+  batch 33, 2026-10-01): language tier. `lex.literal-fn.reserved` is
+  retired for
+  [`lex.literal-fn.reserved-glued`](01-lexical-structure.md#r-lex.literal-fn.reserved-glued):
+  a reserved word directly after a number's digits or directly before a
+  string's opening quote is `syntax-error`. `if flag: 5else: 3` and
+  `return"done"`, valid before, are now errors; a space fixes each.

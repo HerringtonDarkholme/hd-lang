@@ -1202,7 +1202,7 @@ fn page!(id: i64) -> string:
 
 1. r[req.combinator.all-typing] `all!` has no written signature. A call `all!(e_1, ..., e_n)` in which each `e_i` has type `mut Suspend[X_i]` has type `(X_1, ..., X_n)`.
 2. r[req.combinator.all-argument] An argument of any other type is an error. Error: `type-mismatch`.
-3. r[req.combinator.all-direct] `all` must be the callee of a direct call with positional arguments. A spread, a named argument, or a use as a function value is an error. Error: `type-mismatch`.
+3. r[req.combinator.all-direct] `all` must be the callee of a direct call with positional arguments. A spread, a named argument, an explicit type argument list such as `all!::[i32, string]`, or a use as a function value is an error. Error: `type-mismatch`.
 4. r[req.combinator.all-bang-child] A child written as a bang call, as in `all!(load_user!(id))`, is an ordinary bang call. The caller awaits it before `all!` starts, so its value is not a `Suspend`.
 
 ```text
@@ -1215,6 +1215,9 @@ fn eager!() -> (i32, i32):
 
 fn spread!(tasks: List[mut Suspend[i32]]) -> void:
     _ := all!(tasks...)  # error: type-mismatch
+
+fn explicit!() -> (i32, i32):
+    all!::[i32, i32](ready(), ready())  # error: type-mismatch
 ```
 
 > **Note.** A plain call of a suspending function, such as

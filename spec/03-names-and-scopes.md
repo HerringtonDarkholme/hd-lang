@@ -603,12 +603,12 @@ fn invalid(record: Record) -> string:
 
 ### Hiding And Conflicts
 
-1. r[names.hide.depth] In each namespace, a member **hides** every member with the same name at a greater depth, whatever its visibility.
+1. r[names.hide.depth] In each namespace, a member **hides** every member with the same name at a greater depth.
 2. r[names.conflict.definition] A **conflict** is two or more members with one name at the smallest depth where that name occurs, including one member reached through two different paths. An example is the embedded field name of a type embedded twice at one depth.
+3. r[names.conflict.private-shadow] An own field or inherent method of `S` that is not `pub` and has the name of a promoted member in its namespace is also a conflict.
 
-An own member hides a promoted one even when it is private. In another
-module, a use of the name selects the private own member and is
-`private-member`, and the promoted member is reached by its path:
+Only a `pub` own member hides a promoted one. A private own member with
+that name is an error, and its author picks another name:
 
 ```text
 data CreatedBySystem:
@@ -616,10 +616,11 @@ data CreatedBySystem:
 
 data AuditDraft:
     CreatedBySystem
-    id: string  # valid: hides CreatedBySystem's id
+    id: string  # error: ambiguous-promoted-member
 
-fn read(draft: AuditDraft) -> string:
-    draft.id + draft.CreatedBySystem.id
+data ReviewDraft:
+    CreatedBySystem
+    pub id: string  # valid: hides CreatedBySystem's id
 ```
 
 #### Conflicts Are Declaration Errors
@@ -649,7 +650,9 @@ data Record:
 > reached. When both are reached through one embedded field `E`, it is
 > reported at `S` only when it is not also a conflict of `E`'s type. The
 > message names both paths, as in `Record.LeftBox.Left.id` and
-> `Record.RightBox.Right.id`.
+> `Record.RightBox.Right.id`. A private own member's conflict is reported
+> on that member, and its message names the promoted member's path, as in
+> `AuditDraft.CreatedBySystem.id`.
 
 > **Note.** A package that adds a `pub` member to a type used as a part can
 > therefore break the declarations of types that embed it, in their own
@@ -682,7 +685,7 @@ method, then the candidates, and reports an error when neither applies.
 #### Method Candidates
 
 1. r[names.method-lookup.candidates] Otherwise the candidates are the promoted candidate and the trait candidates.
-2. r[names.method-lookup.promoted-candidate] The **promoted candidate** is, among the promoted inherent methods that take part, the one named `name` at the smallest depth, if any, unless an own inherent method of `S` hides it.
+2. r[names.method-lookup.promoted-candidate] The **promoted candidate** is, among the promoted inherent methods that take part, the one named `name` at the smallest depth, if any.
 3. r[names.method-lookup.trait-candidates] The **trait candidates** are the trait methods of `S` named `name` whose trait is available at the call, wherever their implementations are declared.
 4. r[names.method-lookup.unavailable] A trait method whose trait is not available is not a candidate and has no effect on the lookup.
 5. r[names.method-lookup.one] Exactly one candidate is selected; a single candidate with the wrong signature is still selected, and the call is then checked against it.

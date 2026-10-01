@@ -69,7 +69,9 @@ fn badge(count: Cell[i32]) -> string:
 (batch 22 CI1 and CI3). The callable values, `Apply` and `Update`, and D2
 and D4 are in [Callable Values](../spec/05-expressions.md#callable-values),
 language tier, since call syntax uses the traits. Examples there declare
-a local `Cell` and `live`; no std cell type is decided.
+a local `Cell` and `live`; no std cell type is planned, since a live cell
+is a user-land library built on `Apply` and `Update` (BFF1, closed
+2026-10-01).
 
 **Follow-ups, batch 25 (owner decision, 2026-09-30).** Final and
 applied. Applying D1 to D4 raised six points; the owner answered each.
@@ -84,7 +86,7 @@ permission sections, and BFF2 in
 | BF(a) | May a method reference take any receiver, as in `xs[0]::describe`? | **No change.** A method reference keeps a name or path receiver only; `xs[0]::describe` stays invalid, so bind the element first. |
 | BF(b) | May a bare pipe step with type arguments drop `_`? | **No change.** It still needs `_`: `x \|> parse::[i32](_)`. |
 | BF(c) | [SYNTAX_NOTES](../SYNTAX_NOTES.md) blocks 60, 62, and 83 are bare type fragments, which no longer parse as expressions. | **Fix them** so they parse: wrap each fragment in a declaration or a typed binding. Do not leave or demote them. |
-| BFF1 | Should std ship a cell type for live variables? | **Not yet** ("no live var now, park"). Apply and Update stay in the spec as applied; spec examples keep their local `Cell` and `live`. |
+| BFF1 | Should std ship a cell type for live variables? | **Not yet** ("no live var now, park"). Apply and Update stay in the spec as applied; spec examples keep their local `Cell` and `live`. **Closed (owner, 2026-10-01, batch 33 LIVE-CELL):** "remove live cell from todo, it can be user land lib". A live cell is a user-land library built on `Apply` and `Update`, not a std or spec item. |
 | BFF2 | Is `expr.call.apply.builtin-none` needed? | **Drop it** as redundant. The owner: "Apply/Update is special std.ops trait. List/Map/string do not impl it. type check should already rejects, no new rule needed." `xs(0)` on a list is rejected by the general `not-callable` rule. |
 | BFF3 | Should chapter 04's list of mutation forms name call stores? | **No change.** Leave the list; chapter 05's rule covers call stores. |
 

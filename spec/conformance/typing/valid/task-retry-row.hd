@@ -1,0 +1,11 @@
+# test: retry! passes its attempt's requirement row on to the caller, so an attempt may require Console
+# Spec std/task Retry: std-task.combinator.retry (owner decision RETRY-row, batch 33, 2026-10-01).
+use std.task.retry
+
+fn ask!() -> Result[string, string] $ Console:
+    println("asking")
+    .Ok("ready")
+
+fn connect!() -> Result[string, string] $ Console:
+    retry!(2):
+        ask!()

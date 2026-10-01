@@ -946,13 +946,13 @@ typing/invalid/embedding-cycle-indirect.hd	type	reject:embedding-cycle	08-data-a
 typing/invalid/embedding-cycle-generic.hd	type	reject:embedding-cycle	08-data-and-enums.md#r-data.embed.depth.self
 runtime/valid/part-copy-is-copy-update.hd	runtime	accept	08-data-and-enums.md#r-data.part.construct
 runtime/valid/trait-delegation-as-written.hd	runtime	accept	09-traits.md#r-trait.by.generated
-typing/valid/private-own-field-hides-promoted.hd	type	accept	03-names-and-scopes.md#r-names.hide.depth
-typing/valid/private-own-field-hides-conflicting-promoted.hd	type	accept	03-names-and-scopes.md#r-names.hide.depth
-typing/valid/private-own-method-hides-promoted.hd	type	accept	03-names-and-scopes.md#r-names.method-lookup.promoted-candidate
-typing/invalid/private-own-field-hides-promoted-other-module.hd	type	reject:private-member	03-names-and-scopes.md#r-names.field-lookup.private
-typing/invalid/private-own-method-hides-promoted-other-module.hd	type	reject:private-member	03-names-and-scopes.md#r-names.method-lookup.private
-runtime/valid/private-own-member-hides-promoted.hd	runtime	accept	03-names-and-scopes.md#r-names.hide.depth
-runtime/valid/private-own-member-hides-promoted-by-path.hd	runtime	accept	03-names-and-scopes.md#r-names.promoted.explicit
+typing/invalid/private-own-field-beside-promoted.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#r-names.conflict.private-shadow
+typing/invalid/private-own-field-beside-conflicting-promoted.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#r-names.conflict.private-shadow
+typing/invalid/private-own-method-beside-promoted.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#r-names.conflict.private-shadow
+typing/invalid/private-own-field-needs-another-name.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#r-names.conflict.private-shadow
+typing/invalid/private-own-field-beside-deep-promoted.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#r-names.conflict.private-shadow
+runtime/valid/pub-own-member-hides-promoted.hd	runtime	accept	03-names-and-scopes.md#r-names.hide.depth
+runtime/valid/pub-own-member-hides-promoted-other-module.hd	runtime	accept	03-names-and-scopes.md#r-names.hide.depth
 typing/invalid/same-module-private-field-not-promoted.hd	type	reject:unknown-data-field	03-names-and-scopes.md#member-resolution
 typing/invalid/same-module-private-method-not-promoted.hd	type	reject:unknown-method	03-names-and-scopes.md#member-resolution
 typing/valid/same-module-private-member-explicit-path.hd	type	accept	03-names-and-scopes.md#member-resolution
@@ -1189,7 +1189,8 @@ parse/valid/suffixed-literals.hd	parse	accept	01-lexical-structure.md#literal-su
 parse/invalid/suffix-after-separator.hd	parse	reject:invalid-token	01-lexical-structure.md#r-lex.sep.misplaced
 parse/invalid/radix-literal-suffix-without-separator.hd	parse	reject:syntax-error	01-lexical-structure.md#r-lex.suffix.decimal
 parse/invalid/radix-literal-quote-suffix.hd	parse	reject:unterminated-string	01-lexical-structure.md#literal-suffixes
-parse/invalid/reserved-word-suffix.hd	parse	reject:syntax-error	01-lexical-structure.md#r-lex.literal-fn.reserved
+parse/invalid/reserved-word-suffix.hd	parse	reject:syntax-error	01-lexical-structure.md#r-lex.literal-fn.reserved-glued
+parse/invalid/reserved-word-prefix.hd	parse	reject:syntax-error	01-lexical-structure.md#r-lex.literal-fn.reserved-glued
 parse/invalid/string-literal-suffix.hd	parse	reject:syntax-error	01-lexical-structure.md#literal-suffixes
 parse/invalid/suffixed-literal-pattern.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.pattern.no-literal-call
 typing/valid/literal-suffix-duration.hd	type	accept	std/time.md#r-std-time.suffix.std.fn
@@ -1671,6 +1672,9 @@ typing/invalid/mut-tuple-annotation.hd	type	reject:mut-on-tuple	04-type-system.m
 typing/invalid/let-mut-tuple.hd	type	reject:mut-on-tuple	04-type-system.md#r-types.bind.let-mut-tuple
 runtime/valid/template-derived-trait-self.hd	runtime	accept	14-annotations.md#r-annot.template.qualified-self.receiverless
 runtime/valid/task-retry.hd	runtime	accept	std/task.md#r-std-task.combinator.retry.loop
+runtime/valid/task-retry-at-least-once.hd	runtime	accept	std/task.md#r-std-task.combinator.retry.at-least-once
+typing/valid/task-retry-row.hd	type	accept	std/task.md#r-std-task.combinator.retry
+typing/invalid/task-retry-row-missing.hd	type	reject:missing-requirement	std/task.md#r-std-task.combinator.retry
 parse/valid/tuple-element-binding-expression.hd	parse	accept	02-grammar.md#r-grammar.expr.multi-binding.element
 parse/valid/for-data-pattern.hd	parse	accept	02-grammar.md#r-grammar.flow.for-pattern
 parse/invalid/for-pattern-mut.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.pattern.mut-let-only
@@ -1699,6 +1703,7 @@ typing/invalid/all-non-suspend-argument.hd	type	reject:type-mismatch	11-requirem
 typing/invalid/all-bang-child.hd	type	reject:type-mismatch	11-requirements-and-suspension.md#r-req.combinator.all-bang-child
 typing/invalid/all-spread-argument.hd	type	reject:type-mismatch	11-requirements-and-suspension.md#r-req.combinator.all-direct
 typing/invalid/all-function-value.hd	type	reject:type-mismatch	11-requirements-and-suspension.md#r-req.combinator.all-direct
+typing/invalid/all-explicit-type-arguments.hd	type	reject:type-mismatch	11-requirements-and-suspension.md#r-req.combinator.all-direct
 typing/valid/tuple-derived-traits.hd	type	accept	09-traits.md#r-trait.target.tuple.derived
 runtime/valid/tuple-derived-order.hd	runtime	accept	09-traits.md#r-trait.target.tuple.derived.elementwise
 parse/invalid/generic-parameter-ellipsis.hd	parse	reject:syntax-error	02-grammar.md#generic-parameters-and-bounds
@@ -1725,3 +1730,6 @@ typing/valid/tuple-trait-rest.hd	type	accept	07-functions.md#r-fn.type.ctor.tupl
 runtime/valid/function-value-vararg-call.hd	runtime	accept	07-functions.md#r-fn.type.rest-call
 runtime/valid/trait-delegation-vararg.hd	runtime	accept	09-traits.md#r-trait.by.generated
 typing/invalid/vararg-function-value-list.hd	type	reject:type-mismatch	07-functions.md#r-fn.type.vararg-rest
+runtime/valid/display-tuples.hd	runtime	accept	05-expressions.md#r-expr.interp.std.tuple
+typing/invalid/display-tuple-element-without-display.hd	type	reject:unsatisfied-trait-bound	05-expressions.md#r-expr.interp.std.tuple
+typing/invalid/display-tuple-thirteen-elements.hd	type	reject:unsatisfied-trait-bound	05-expressions.md#r-expr.interp.std.tuple

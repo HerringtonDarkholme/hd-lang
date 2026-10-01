@@ -1,0 +1,7 @@
+# test: a tuple implements Display only when every element does, so interpolating one with a non-Display element is an error
+# Spec 05 Interpolated Strings: expr.interp.std.tuple (owner decision Q6-others, batch 33, 2026-10-01).
+data Secret:
+    value: i32
+
+fn show(pair: (i32, Secret)) -> string:
+    "$pair"  # diagnostic: unsatisfied-trait-bound

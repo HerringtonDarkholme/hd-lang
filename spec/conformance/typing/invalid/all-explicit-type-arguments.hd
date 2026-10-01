@@ -1,0 +1,7 @@
+# test: all! has no type parameters, so an explicit type argument list is an error
+use std.task.all
+
+fn ready!() -> i32: 1
+
+fn explicit!() -> (i32, i32):
+    all!::[i32, i32](ready(), ready())  # diagnostic: type-mismatch

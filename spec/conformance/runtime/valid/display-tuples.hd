@@ -1,0 +1,11 @@
+# test: std implements Display for tuples up to 12 elements, writing each element's text inside parentheses
+# Spec 05 Interpolated Strings: expr.interp.std.tuple (owner decision Q6-others, batch 33, 2026-10-01).
+use std.testing.assert_equal
+
+tests:
+    it("displays tuples element by element"):
+        pair := (1, "one")
+        assert_equal("$pair", "(1, one)", reason="each element's Display text, separated by a comma and a space")
+        assert_equal((true, 'c', 2.5).to_string(), "(true, c, 2.5)", reason="to_string gives the same text")
+        twelve := (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+        assert_equal("$twelve", "(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)", reason="twelve elements are covered")

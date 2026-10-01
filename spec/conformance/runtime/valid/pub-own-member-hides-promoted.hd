@@ -1,0 +1,25 @@
+# test: a pub own field and a pub own inherent method hide the promoted members of their names, and the part's members stay reachable by their path
+use std.testing.assert_equal
+
+data CreatedBySystem:
+    pub id: string
+
+impl CreatedBySystem:
+    pub fn label(self) -> string:
+        "created by system"
+
+data ReviewDraft:
+    CreatedBySystem
+    pub id: string
+
+impl ReviewDraft:
+    pub fn label(self) -> string:
+        "draft"
+
+tests:
+    it("the pub own member wins"):
+        draft := ReviewDraft { CreatedBySystem: ...CreatedBySystem { id: "system" }, id: "draft" }
+        assert_equal(draft.id, "draft", reason="the pub own field hides the promoted one")
+        assert_equal(draft.label(), "draft", reason="the pub own method hides the promoted one")
+        assert_equal(draft.CreatedBySystem.id, "system", reason="the part's field, by its path")
+        assert_equal(draft.CreatedBySystem.label(), "created by system", reason="the part's method, by its path")

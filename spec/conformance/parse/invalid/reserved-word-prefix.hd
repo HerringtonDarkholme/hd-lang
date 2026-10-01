@@ -1,0 +1,4 @@
+# test: a reserved word glued to a string's opening quote is an error, even where the split tokens would parse
+# Spec 01 Literal Suffixes: lex.literal-fn.reserved-glued (owner decision C3-valid, batch 33, 2026-10-01).
+fn done() -> string:
+    return"done"  # diagnostic: syntax-error

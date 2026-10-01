@@ -20,7 +20,7 @@ specification	block	classification	fixture
 01-lexical-structure.md	19	mixed	parse/invalid/repeated-numeric-separator.hd|parse/invalid/bare-hex-prefix.hd|parse/invalid/binary-literal-letter-suffix.hd
 01-lexical-structure.md	20	mixed	parse/invalid/float-separator-before-point.hd|parse/invalid/float-trailing-separator.hd|parse/invalid/float-separator-after-exponent-marker.hd
 01-lexical-structure.md	21	accept	parse/valid/suffixed-literals.hd
-01-lexical-structure.md	22	mixed	parse/invalid/suffix-after-separator.hd|parse/invalid/radix-literal-suffix-without-separator.hd|parse/invalid/reserved-word-suffix.hd|parse/invalid/string-literal-suffix.hd|parse/invalid/radix-literal-quote-suffix.hd
+01-lexical-structure.md	22	mixed	parse/invalid/suffix-after-separator.hd|parse/invalid/radix-literal-suffix-without-separator.hd|parse/invalid/reserved-word-suffix.hd|parse/invalid/reserved-word-prefix.hd|parse/invalid/string-literal-suffix.hd|parse/invalid/radix-literal-quote-suffix.hd
 01-lexical-structure.md	23	accept	parse/valid/layout.hd
 01-lexical-structure.md	24	mixed	parse/invalid/reserved-word-interpolation.hd|parse/valid/stray-dollar.hd
 01-lexical-structure.md	25	accept	parse/valid/prefixed-strings.hd
@@ -104,7 +104,7 @@ specification	block	classification	fixture
 03-names-and-scopes.md	28	mixed	typing/invalid/comprehension-binding-does-not-leak.hd
 03-names-and-scopes.md	29	mixed	typing/invalid/embedded-field-not-called.hd
 03-names-and-scopes.md	30	mixed	typing/invalid/same-module-private-field-not-promoted.hd
-03-names-and-scopes.md	31	accept	typing/valid/private-own-field-hides-promoted.hd|runtime/valid/private-own-member-hides-promoted.hd
+03-names-and-scopes.md	31	mixed	typing/invalid/private-own-field-needs-another-name.hd|runtime/valid/pub-own-member-hides-promoted.hd
 03-names-and-scopes.md	32	mixed	typing/invalid/same-depth-promotion-conflict.hd
 03-names-and-scopes.md	33	mixed	typing/invalid/trait-method-beside-promoted-method.hd
 03-names-and-scopes.md	34	mixed	typing/invalid/part-trait-method-beside-method-promoted-into-part.hd|typing/valid/part-trait-method-ignored-by-lookup.hd
@@ -332,7 +332,7 @@ specification	block	classification	fixture
 08-data-and-enums.md	19	mixed	typing/invalid/promoted-mut-method-on-readonly-receiver.hd
 08-data-and-enums.md	20	mixed	typing/invalid/readonly-embedded-source-with-mutable-edge.hd
 08-data-and-enums.md	21	mixed	typing/invalid/covariant-embedded-field.hd
-08-data-and-enums.md	22	mixed	typing/invalid/same-depth-promotion-conflict.hd|typing/valid/private-own-field-hides-promoted.hd
+08-data-and-enums.md	22	mixed	typing/invalid/same-depth-promotion-conflict.hd|typing/invalid/private-own-field-beside-promoted.hd
 08-data-and-enums.md	23	accept	typing/valid/contextual-variants.hd
 08-data-and-enums.md	24	accept	typing/valid/enums.hd
 08-data-and-enums.md	25	accept	typing/valid/enums.hd
@@ -501,7 +501,7 @@ specification	block	classification	fixture
 11-requirements-and-suspension.md	43	accept	typing/valid/requirements-and-suspension.hd
 11-requirements-and-suspension.md	44	mixed	typing/invalid/missing-requirement-cold-construction.hd
 11-requirements-and-suspension.md	45	accept	typing/valid/all-tuple-result.hd
-11-requirements-and-suspension.md	46	mixed	typing/invalid/all-bang-child.hd|typing/invalid/all-spread-argument.hd
+11-requirements-and-suspension.md	46	mixed	typing/invalid/all-bang-child.hd|typing/invalid/all-spread-argument.hd|typing/invalid/all-explicit-type-arguments.hd
 11-requirements-and-suspension.md	47	accept	typing/valid/requirements-and-suspension.hd
 11-requirements-and-suspension.md	48	accept	typing/valid/row-extension-entailment.hd
 11-requirements-and-suspension.md	49	accept	typing/valid/row-extension-absent-key.hd

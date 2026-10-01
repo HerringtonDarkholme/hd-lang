@@ -1,6 +1,0 @@
-# fixture-package-role: root-application
-# test: another module selects the private own field that hides a promoted one, so the use is private-member, never the promoted field
-use dep.members.{AuditDraft}
-
-fn invalid(draft: AuditDraft) -> string:
-    draft.id  # diagnostic: private-member

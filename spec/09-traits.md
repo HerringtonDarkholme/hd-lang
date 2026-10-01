@@ -664,9 +664,10 @@ fn index(counts: Map[(i32, string), i32]) -> i32:
 > [`expr.ord.std.sequences`](05-expressions.md#r-expr.ord.std.sequences),
 > and the hashable tuple keys of
 > [`types.map-key.builtin-types`](04-type-system.md#r-types.map-key.builtin-types).
-> Other traits for tuples, such as `Debug`, are ordinary standard-library
-> implementations up to 12 elements
-> ([`trait.debug.std-types`](#r-trait.debug.std-types)).
+> Other traits for tuples, `Debug` and `Display`, are ordinary
+> standard-library implementations up to 12 elements
+> ([`trait.debug.std-types`](#r-trait.debug.std-types),
+> [`expr.interp.std.tuple`](05-expressions.md#r-expr.interp.std.tuple)).
 
 ### Implementation Ownership
 

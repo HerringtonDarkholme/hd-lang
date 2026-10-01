@@ -45,13 +45,13 @@ impl CreatedBySystem:
     pub fn label(self) -> string:
         "created by system"
 
-pub data AuditDraft:
+pub data ReviewDraft:
     CreatedBySystem
-    id: string
+    pub id: string
 
-impl AuditDraft:
-    fn label(self) -> string:
+impl ReviewDraft:
+    pub fn label(self) -> string:
         "draft"
 
-pub fn make_draft() -> AuditDraft:
-    AuditDraft { CreatedBySystem: ...CreatedBySystem { id: "system" }, id: "draft" }
+pub fn make_draft() -> ReviewDraft:
+    ReviewDraft { CreatedBySystem: ...CreatedBySystem { id: "system" }, id: "draft" }

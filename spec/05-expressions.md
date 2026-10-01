@@ -187,9 +187,10 @@ trait Display:
 6. r[expr.interp.no-display] An embedded expression whose type does not implement `Display` is an error. Error: `unsatisfied-trait-bound`.
 7. r[expr.interp.no-fallback] There is no fallback conversion through `Any`, runtime reflection, or debug output.
 8. r[expr.interp.std] The standard library provides `Display` implementations for ordinary printable primitive types and `string`.
-9. r[expr.interp.user] Optional and user-defined values are displayable only when the corresponding type implements `Display`.
-10. r[expr.interp.prefixed] A prefixed string does not append its values: they become the values of a template, as [Prefixed Strings](#prefixed-strings) specifies.
-11. r[expr.interp.constant] A string with no interpolation segments is an ordinary constant value and performs no `Display` calls.
+9. r[expr.interp.std.tuple] It also implements `Display` for tuples of at most 12 elements whose elements implement `Display`, writing the elements' texts inside parentheses, separated by `, `, as in `(1, a)`.
+10. r[expr.interp.user] Optional and user-defined values are displayable only when the corresponding type implements `Display`.
+11. r[expr.interp.prefixed] A prefixed string does not append its values: they become the values of a template, as [Prefixed Strings](#prefixed-strings) specifies.
+12. r[expr.interp.constant] A string with no interpolation segments is an ordinary constant value and performs no `Display` calls.
 
 ```text
 data Secret:

@@ -1,0 +1,11 @@
+# test: a private own field cannot take the name of a promoted pub field, so its author picks another name; a pub own field hides it
+data CreatedBySystem:
+    pub id: string
+
+data AuditDraft:
+    CreatedBySystem
+    id: string  # diagnostic: ambiguous-promoted-member
+
+data ReviewDraft:
+    CreatedBySystem
+    pub id: string

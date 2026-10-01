@@ -481,7 +481,8 @@ Each fact about promotion is stated once, in chapter 03 or chapter 09:
 | Fact | Rule |
 | --- | --- |
 | Only the `pub` fields and `pub` inherent methods of a part, at any depth, are promoted; trait methods never are. | [`names.promote.member`](03-names-and-scopes.md#r-names.promote.member) |
-| For each name, the shallowest member hides deeper ones; an own member hides a promoted one, private or not. | [`names.hide.depth`](03-names-and-scopes.md#r-names.hide.depth) |
+| For each name, the shallowest member hides deeper ones, so a `pub` own member hides a promoted one. | [`names.hide.depth`](03-names-and-scopes.md#r-names.hide.depth) |
+| A private own member with a promoted member's name is `ambiguous-promoted-member`. | [`names.conflict.private-shadow`](03-names-and-scopes.md#r-names.conflict.private-shadow) |
 | Two members with one name at the smallest depth are `ambiguous-promoted-member` at the declaration. | [`names.conflict.error`](03-names-and-scopes.md#r-names.conflict.error) |
 | A promoted member means its explicit path, with the part as receiver: there is no overriding. | [`names.promoted.path`](03-names-and-scopes.md#r-names.promoted.path) |
 | A trait method of the receiver beside a promoted method is `ambiguous-method`. | [`names.method-lookup.ambiguous`](03-names-and-scopes.md#r-names.method-lookup.ambiguous) |
@@ -510,7 +511,7 @@ data Base:
 
 data Entry:
     Base
-    id: string  # valid: the own field hides the promoted one
+    id: string  # error: ambiguous-promoted-member
 ```
 
 See also: [Member Resolution](03-names-and-scopes.md#member-resolution),

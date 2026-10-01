@@ -951,9 +951,9 @@ shipment.value
 Two embedded types with the same final name are rejected, even when their
 type arguments differ.
 
-Fields and methods are separate namespaces: `x.name` finds a field and `x.name(args)` finds a method, so a field and a method may share a name, and a function stored in a field is called as `(x.callback)(args)`. Embedding promotes the `pub` fields and `pub` inherent methods of every embedded part, at any depth, and for each name the shallowest member wins: the outer type's own members come first, and each embedded type decides its own names before its members are promoted further. As in Rust, a trait method counts only where its trait is in scope, wherever the impl is written; a trait that is not imported is invisible, and a call that finds nothing suggests the import. A trait method of the outer type never silently wins over a promoted method, or the reverse: when both exist, the call is ambiguous and is written `Trait::method(x)` or through the embedded field. An embedded type contributes its `pub` fields and inherent methods, never its trait methods, which are called through the embedded field, as in `page.Label.to_string()`. A private member of an embedded type is never promoted, even in its own module; reach it through the path, as in `post.Timestamps.secret`. A type has one view of its members, so a name means the same member in every module: a private member of the outer type is reported as `private-member` outside its module. An own member hides a promoted member of its name even when it is private, so outside the module the promoted member is reached by its path.
+Fields and methods are separate namespaces: `x.name` finds a field and `x.name(args)` finds a method, so a field and a method may share a name, and a function stored in a field is called as `(x.callback)(args)`. Embedding promotes the `pub` fields and `pub` inherent methods of every embedded part, at any depth, and for each name the shallowest member wins: the outer type's own members come first, and each embedded type decides its own names before its members are promoted further. As in Rust, a trait method counts only where its trait is in scope, wherever the impl is written; a trait that is not imported is invisible, and a call that finds nothing suggests the import. A trait method of the outer type never silently wins over a promoted method, or the reverse: when both exist, the call is ambiguous and is written `Trait::method(x)` or through the embedded field. An embedded type contributes its `pub` fields and inherent methods, never its trait methods, which are called through the embedded field, as in `page.Label.to_string()`. A private member of an embedded type is never promoted, even in its own module; reach it through the path, as in `post.Timestamps.secret`. A type has one view of its members, so a name means the same member in every module: a private member of the outer type is reported as `private-member` outside its module, and it may not share a name with a promoted member, because a private member never shadows one.
 
-If two embedded data types promote the same name at the same depth, the outer declaration is rejected, even before anything uses the name. The same holds for one type embedded twice at the same depth, whose embedded field name itself clashes. An own member of that name, `pub` or private, hides both, and each part stays reachable through its embedded field:
+If two embedded data types promote the same name at the same depth, the outer declaration is rejected, even before anything uses the name. The same holds for one type embedded twice at the same depth, whose embedded field name itself clashes. A `pub` own member of that name hides both, and each part stays reachable through its embedded field. A private own member of that name is rejected instead:
 
 ```text
 data CreatedBySystem:
@@ -973,11 +973,10 @@ data AuditEntry:
 
 data AuditDraft:
     CreatedBySystem
-    id: string                   # ok: the private own field hides the promoted one
+    id: string                   # invalid: a private field cannot shadow a promoted one; pick another name
 
 entry.id                         # the own field
 entry.CreatedByUser.id           # the part's field
-draft.CreatedBySystem.id         # the part's field; draft.id is private-member in another module
 ```
 
 ## Enums

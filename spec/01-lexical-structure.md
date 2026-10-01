@@ -598,7 +598,7 @@ literal_suffix = XID_START, { identifier_continue } ;
 2. r[lex.suffix.name] A literal suffix begins with a Unicode `XID_Start` character and takes every following `identifier_continue` character.
 3. r[lex.suffix.decimal] Only a decimal integer or floating-point literal takes a suffix, as in `5s`, `1.5kb`, and `5_000ms`. A letter after a radix literal follows the integer rules, so `0xffB` is `0xffb` and `0x1fs` is an error. Error: `syntax-error`.
 4. r[lex.suffix.exponent] An `e` or `E` after the digits begins an exponent when digits follow it, after an optional sign, and otherwise a suffix. So `1e3ms` is `1e3` with the suffix `ms`, and `5em` is `5` with the suffix `em`.
-5. r[lex.literal-fn.reserved] A reserved word is never a literal suffix or a string prefix: it is its own token. So `5else` is `5` followed by `else`, and `return"done"` is `return` followed by a string.
+5. r[lex.literal-fn.reserved-glued] A reserved word written directly after a numeric literal or directly before a string literal, where a suffix or prefix would go, is an error, as in `5else` and `return"done"`. Error: `syntax-error`.
 6. r[lex.literal-fn.meaning] A literal suffix or string prefix is resolved as a name, and the literal is a call, as [Literal Suffixes](05-expressions.md#literal-suffixes) specifies.
 
 ```text
@@ -606,6 +606,7 @@ wait := 5_ms   # error: invalid-token
 mask := 0b101s  # error: syntax-error
 flag := 5else   # error: syntax-error
 name := "abc"u  # error: syntax-error
+fn done() -> string: return"done"  # error: syntax-error
 mask := 0xff'B  # error: unterminated-string
 ```
 
@@ -617,7 +618,8 @@ mask := 0xff'B  # error: unterminated-string
 > **Why.** Hexadecimal digits include letters such as `B`, so a letter
 > after a radix literal cannot begin a suffix. Only decimal and
 > floating-point literals take one, so radix literals need no separate
-> spelling.
+> spelling. A reserved word glued to a literal reads like a suffix or a
+> prefix, so it is rejected, and a space fixes it.
 
 See also: [Suffixed Literals](04-type-system.md#suffixed-literals),
 [Literal Suffix Names](03-names-and-scopes.md#literal-suffix-names).

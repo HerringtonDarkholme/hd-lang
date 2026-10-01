@@ -217,8 +217,8 @@ confirm it.
 | # | Question | Applied reading and **Recommendation** |
 | --- | --- | --- |
 | TU2-code | TU2 names no code for `mut (A, B)`. | A new code, `mut-on-tuple`; `mut-on-primitive` would misname a tuple. **Recommendation:** keep it until the code revamp (#101), which may merge the two. |
-| TU2-let | `let mut pair = (1, 2)` was valid, since a fresh tuple had mutable access. With no `mut` form, it needs a code. | `mut-on-tuple`, in place of `mutable-upgrade`, as `let mut n = 0` is `mut-on-primitive` ([`types.bind.let-mut-tuple`](../spec/04-type-system.md#r-types.bind.let-mut-tuple)). **Recommendation:** keep it. |
-| ST8-own-args | The one rule also fixes `Self` for a derived-trait call with an argument. In `Encode`'s template, `Encode::encode(item)` for an `item` that is not `T` was valid and is now `type-mismatch`. | Applied, since ST8-self already did this for `Structure::`. **Recommendation:** keep it; write `item.encode()` for another type. |
+| TU2-let | `let mut pair = (1, 2)` was valid, since a fresh tuple had mutable access. With no `mut` form, it needs a code. | `mut-on-tuple`, in place of `mutable-upgrade`, as `let mut n = 0` is `mut-on-primitive` ([`types.bind.let-mut-tuple`](../spec/04-type-system.md#r-types.bind.let-mut-tuple)). **Recommendation:** keep it. **Confirmed (owner, batch 33, 2026-10-01).** |
+| ST8-own-args | The one rule also fixes `Self` for a derived-trait call with an argument. In `Encode`'s template, `Encode::encode(item)` for an `item` that is not `T` was valid and is now `type-mismatch`. | Applied, since ST8-self already did this for `Structure::`. **Recommendation:** keep it; write `item.encode()` for another type. **Confirmed (owner, batch 33, 2026-10-01).** |
 
 **Batch 30 (owner decision, 2026-09-30).** Applied; the
 [Revision Notes](../spec/README.md#revision-notes) list each. The owner
@@ -252,7 +252,7 @@ VARARG-TYPE over SPREAD-SITE over Q5 and Q8.
 | Q9 | As recommended (A1): packs are gone. Type and value packs, pack expansion, `pack.map`, lockstep, and the four pack diagnostics are removed; chapter 12 keeps its number with no rules. Applied in 31b. | [Variadic Generics](../spec/12-variadic-generics.md) |
 | ALL-INTRINSIC | `all!` stays an intrinsic with one written typing rule: children `mut Suspend[X_i]` give `(X_1, ..., X_n)`. A type-level tuple map is rejected for now. `call` is an ordinary hd function. Applied in 31b. | [`req.combinator.all-typing`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-typing) |
 | Q6 | As recommended: the compiler derives `Eq`, `PartialOrd`, `Ord`, and `Hash` for every tuple arity; `lib/std` writes `Debug` up to 12 elements. Applied in 31b. | [`trait.target.tuple.derived`](../spec/09-traits.md#r-trait.target.tuple.derived), [`trait.debug.std-types`](../spec/09-traits.md#r-trait.debug.std-types) |
-| Q1 | As recommended (B1's merges): one rule set for a **literal function**, marked `@num_suffix` or `@str_prefix`. Only the lexing, the parameter type per form, and the template stay separate. Cut C3: a reserved word is never a suffix or prefix, so `5else` is `5` then `else`. Applied in 31c. | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), [`lex.literal-fn.reserved`](../spec/01-lexical-structure.md#r-lex.literal-fn.reserved) |
+| Q1 | As recommended (B1's merges): one rule set for a **literal function**, marked `@num_suffix` or `@str_prefix`. Only the lexing, the parameter type per form, and the template stay separate. Cut C3: a reserved word is never a suffix or prefix, so `5else` is `5` then `else`. Applied in 31c. | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), `lex.literal-fn.reserved`, since retired for [`lex.literal-fn.reserved-glued`](../spec/01-lexical-structure.md#r-lex.literal-fn.reserved-glued) |
 | Q2 | As recommended: both markers stay; no declaration changes. Applied in 31c. | [`expr.literal-fn.marker`](../spec/05-expressions.md#r-expr.literal-fn.marker) |
 | Q3 | As recommended: `-5s` is the ordinary negation `-(5s)`, and `std.time` implements `Neg` for `Duration`. `-128b` no longer fits an `i8` suffix parameter. Applied in 31c. | [Suffixed Literals](../spec/04-type-system.md#suffixed-literals), [`std-time.suffix.std.duration-neg`](../spec/std/time.md#r-std-time.suffix.std.duration-neg) |
 | Q4 | Not as recommended: a suffix parameter's default stays allowed, reversing cut C2. `expr.suffix.fn-shape.default` is deleted as a restatement of the ordinary rule; a second parameter, with or without a default, is still rejected. Applied in 31c. | [`expr.literal-fn.shape`](../spec/05-expressions.md#r-expr.literal-fn.shape) |
@@ -272,18 +272,18 @@ reading in the middle column; each point asks the owner to confirm it.
 
 | # | Question | Applied reading and **Recommendation** |
 | --- | --- | --- |
-| ALL-type-args | `all!::[i32, string](a, b)` was valid with the pack signature. `all!` now has no type parameters to fill. | Not stated; an explicit list on a callee with no generic parameters is already invalid. **Recommendation:** add it to [`req.combinator.all-direct`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-direct) as `type-mismatch`. |
-| ALL-plain | A plain `all(a, b)` without `!`, by the ordinary `fn!` rule, builds a cold `mut Suspend[(A, B)]`. | Applied, since [`req.combinator.all-direct`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-direct) allows any direct call. **Recommendation:** keep it; `race(a, b)` behaves the same. |
-| Q6-tier | The decision puts tuple `Debug` in `lib/std`, and the tier test says stdlib. But `assert_equal`, a language-tier harness item, needs `Debug` on tuples. | Kept in the language tier as [`trait.debug.std-types`](../spec/09-traits.md#r-trait.debug.std-types), capped at 12 elements; `lib/std/format.hd` implements 0 to 12. **Recommendation:** keep it until the Debug section moves to `spec/std/`. |
-| Q6-others | "Debug and the other traits up to size 12" names no other trait. | Only `Debug` is promised. **Recommendation:** add `Display` or `Default` only when a use needs one. |
+| ALL-type-args | `all!::[i32, string](a, b)` was valid with the pack signature. `all!` now has no type parameters to fill. | Not stated; an explicit list on a callee with no generic parameters is already invalid. **Recommendation:** add it to [`req.combinator.all-direct`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-direct) as `type-mismatch`. **Applied (owner, batch 33, 2026-10-01)** in 33b, as recommended. |
+| ALL-plain | A plain `all(a, b)` without `!`, by the ordinary `fn!` rule, builds a cold `mut Suspend[(A, B)]`. | Applied, since [`req.combinator.all-direct`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-direct) allows any direct call. **Recommendation:** keep it; `race(a, b)` behaves the same. **Confirmed (owner, batch 33, 2026-10-01).** |
+| Q6-tier | The decision puts tuple `Debug` in `lib/std`, and the tier test says stdlib. But `assert_equal`, a language-tier harness item, needs `Debug` on tuples. | Kept in the language tier as [`trait.debug.std-types`](../spec/09-traits.md#r-trait.debug.std-types), capped at 12 elements; `lib/std/format.hd` implements 0 to 12. **Recommendation:** keep it until the Debug section moves to `spec/std/`. **Confirmed (owner, batch 33, 2026-10-01).** |
+| Q6-others | "Debug and the other traits up to size 12" names no other trait. | Only `Debug` is promised. **Recommendation:** add `Display` or `Default` only when a use needs one. **Answered (owner, batch 33, 2026-10-01), not as recommended:** `Debug`, `Display`, and `Default` up to 12 elements. 33b adds tuple `Display` ([`expr.interp.std.tuple`](../spec/05-expressions.md#r-expr.interp.std.tuple)), language tier as Q6-tier keeps `Debug`. `Default` waits: std has no `Default` trait (see Q6-default below). |
 
 **Still open from applying batch 31c.** The specification applies the
 reading in the middle column; each point asks the owner to confirm it.
 
 | # | Question | Applied reading and **Recommendation** |
 | --- | --- | --- |
-| C3-valid | With `5else` split into `5` and `else`, the line `if flag: 5else: 3` is now a valid `if` expression, not an error. | Applied, as [`lex.literal-fn.reserved`](../spec/01-lexical-structure.md#r-lex.literal-fn.reserved) gives it; `return"done"` already worked this way. **Recommendation:** keep it, and let a formatter insert the space. |
-| Q3-neg-std | `Neg for Duration` negates the milliseconds, so negating the minimum `i64` duration overflows. | Not stated; checked `i64` negation panics `integer-overflow`, as the suffix overflow rule already says for scaling. **Recommendation:** keep it implicit. |
+| C3-valid | With `5else` split into `5` and `else`, the line `if flag: 5else: 3` is now a valid `if` expression, not an error. | Applied then, as `lex.literal-fn.reserved` (since retired) gave it; `return"done"` already worked this way. **Recommendation:** keep it, and let a formatter insert the space. **Answered (owner, batch 33, 2026-10-01), not as recommended:** a reserved word glued to a number or a string is `syntax-error`, one rule, [`lex.literal-fn.reserved-glued`](../spec/01-lexical-structure.md#r-lex.literal-fn.reserved-glued). Applied in 33b. |
+| Q3-neg-std | `Neg for Duration` negates the milliseconds, so negating the minimum `i64` duration overflows. | Not stated; checked `i64` negation panics `integer-overflow`, as the suffix overflow rule already says for scaling. **Recommendation:** keep it implicit. **Confirmed (owner, batch 33, 2026-10-01).** |
 
 **Batch 32, simplify embedding (owner decisions, 2026-09-30).** Answers
 the questions of [Simplify Embedding](SIMPLIFY_EMBEDDING.md#questions-for-the-owner).
@@ -296,7 +296,7 @@ each.
 | Q1 | As recommended (O1b): each delegated method is the forwarding method `Trait::m(self.E, ...)`, checked as if written. Applied in 32a. | [`trait.by.generated`](../spec/09-traits.md#r-trait.by.generated) |
 | Q2 | As recommended (O1a): `E: ...e` and `x.E ...= e` store the copy-update `E { ...e }`; the mutable-edge rules and the chapter 04 and 05 copy rules merge into it. Applied in 32a. | [`data.part.construct`](../spec/08-data-and-enums.md#r-data.part.construct), [Mutable Edges](../spec/08-data-and-enums.md#mutable-edges) |
 | Q3 | As recommended (O1c and the rest of O1): each fact is stated once; chapter 08 keeps a short linking summary. Applied in 32b: 219 rules became 57. | [Member Promotion](../spec/08-data-and-enums.md#member-promotion), [Member Resolution](../spec/03-names-and-scopes.md#member-resolution) |
-| Q4 | As recommended (O2b): a private own member hides a promoted one; another module gets `private-member`. Applied in 32b. | [`names.hide.depth`](../spec/03-names-and-scopes.md#r-names.hide.depth) |
+| Q4 | As recommended (O2b): a private own member hides a promoted one; another module gets `private-member`. Applied in 32b. Reversed by PRIVATE-SHADOW (batch 33). | [`names.hide.depth`](../spec/03-names-and-scopes.md#r-names.hide.depth) |
 | Q5 | Not as recommended (option B): both limits stay, as width and depth, and a self-embedding type gets its own code, `embedding-cycle`, whose message shows the cycle path. `depth.generic` and `names.part.depth.levels` are deleted. Applied in 32a. | [Embedding Limits](../spec/08-data-and-enums.md#embedding-limits) |
 | Q6 | As recommended: value parts stay (VE1-VE4, VE-S); no O3. Nothing to apply. | [Parts And Copies](../spec/08-data-and-enums.md#parts-and-copies), unchanged |
 
@@ -315,8 +315,8 @@ reading in the middle column; each point asks the owner to confirm it.
 
 | # | Question | Applied reading and **Recommendation** |
 | --- | --- | --- |
-| Q4-part-private | A part `P` may now hide a deeper `pub id` with its own private `id`. Does that private `id` also hide the deeper one in a type `S` that embeds `P`? | No: a part's private member is not promoted, so `s.id` is the deeper `id` and `s.P.id` is `P`'s own. **Recommendation:** keep it; adding a private member to a part then never changes a use of `S`. |
-| Q4-method | Without the conflict rule, a private own method beside a promoted one left lookup in another module free to select the promoted method silently. | [`names.method-lookup.promoted-candidate`](../spec/03-names-and-scopes.md#r-names.method-lookup.promoted-candidate) excludes a candidate that an own inherent method hides, so the call is `private-member`. The ID is kept, since hiding already applied. **Recommendation:** keep it. |
+| Q4-part-private | A part `P` may now hide a deeper `pub id` with its own private `id`. Does that private `id` also hide the deeper one in a type `S` that embeds `P`? | No: a part's private member is not promoted, so `s.id` is the deeper `id` and `s.P.id` is `P`'s own. **Recommendation:** keep it; adding a private member to a part then never changes a use of `S`. **Moot (owner, batch 33, 2026-10-01):** PRIVATE-SHADOW makes `P`'s private `id` an error at `P`'s declaration. |
+| Q4-method | Without the conflict rule, a private own method beside a promoted one left lookup in another module free to select the promoted method silently. | [`names.method-lookup.promoted-candidate`](../spec/03-names-and-scopes.md#r-names.method-lookup.promoted-candidate) excludes a candidate that an own inherent method hides, so the call is `private-member`. The ID is kept, since hiding already applied. **Recommendation:** keep it. **Moot (owner, batch 33, 2026-10-01):** PRIVATE-SHADOW makes the private own method an error, so the clause is dropped from `names.method-lookup.promoted-candidate`. |
 | Q3-codes | The record lists `data.embed.unique` and `trait.by.invalid` as error detail, but each is the only rule that names its code. | Both stay numbered; the other seven error-detail rules became Notes. **Recommendation:** keep them until the error revamp decides the codes. |
 
 **Batch 33, tuple rest elements (owner decision, 2026-10-01).** Answers
@@ -339,6 +339,28 @@ reading in the middle column; each point asks the owner to confirm it.
 | TR-traits | Tuples derive `Eq`, `PartialOrd`, `Ord`, and `Hash`, and implement `Debug` up to 12 elements. Whether a rest tuple does, or may be an implementation target, is not stated. | Not stated; only `Tuple` is promised ([`fn.type.ctor.tuple-trait.rest`](../spec/07-functions.md#r-fn.type.ctor.tuple-trait.rest)). **Recommendation:** derive them with the rest compared as its list once a use needs it. |
 | TR-pattern | A tuple pattern over a rest tuple, as in `let (a, b, xs) = t`, is not stated. Selection `t._2` gives the `List[i32]`. | Not stated. **Recommendation:** allow one subpattern for the rest element, bound to its list. |
 | TR-code | A rest element that is not a `List`, as in `(i32, i32...)`, needs a code. | `type-mismatch` ([`types.tuple.rest.list`](../spec/04-type-system.md#r-types.tuple.rest.list)), as for a vararg of another type. **Recommendation:** keep it until the code revamp (#101). |
+
+**Batch 33, follow-ups (owner decisions, 2026-10-01).** Applied in 33b;
+the [Revision Notes](../spec/README.md#revision-notes) list each. The
+confirmations are marked in the tables above and in
+[Spec Tiers](SPEC_TIERS.md#still-open).
+
+| # | Decision | Where |
+| --- | --- | --- |
+| PRIVATE-SHADOW | Owner: "private member overriding a public embed member should trigger error. the embedder author pick another private name". Reverses 32b's Q4: a private own field or inherent method with a promoted member's name is `ambiguous-promoted-member`. A `pub` own member still hides a promoted one. | [`names.conflict.private-shadow`](../spec/03-names-and-scopes.md#r-names.conflict.private-shadow) |
+| ALL-type-args | As recommended: `all!::[...]` is `type-mismatch`. | [`req.combinator.all-direct`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-direct) |
+| Q6-others | Not as recommended: tuple `Debug`, `Display`, and `Default` up to 12 elements. `Display` is applied; `Default` waits for Q6-default. | [`expr.interp.std.tuple`](../spec/05-expressions.md#r-expr.interp.std.tuple) |
+| RETRY-row, RETRY-zero | As recommended: `retry!` takes a row parameter `R`, and a `times` below 1 makes one attempt. | [Retry](../spec/std/task.md#retry), [`std-task.combinator.retry.at-least-once`](../spec/std/task.md#r-std-task.combinator.retry.at-least-once) |
+| C3-valid | Not as recommended: a reserved word glued to a number or a string, as in `5else` and `return"done"`, is `syntax-error`, in one rule. | [`lex.literal-fn.reserved-glued`](../spec/01-lexical-structure.md#r-lex.literal-fn.reserved-glued) |
+| LIVE-CELL | Owner: "remove live cell from todo, it can be user land lib". Not a std or spec item. | [Call Indexing BFF1](CALL_INDEXING.md#owner-decisions) |
+
+**Still open from applying batch 33b.** The specification applies the
+reading in the middle column; each point asks the owner to confirm it.
+
+| # | Question | Applied reading and **Recommendation** |
+| --- | --- | --- |
+| Q6-default | Tuple `Default` needs a `Default` trait, and std declares none: no chapter, `lib/std` file, or design record defines one. | Not applied. **Recommendation:** decide a `Default` trait first, as a stdlib-tier item, such as `trait Default: fn default() -> Self` in `std.ops`, with impls for the primitives, `string`, `List`, `Map`, and `T?`. Tuple impls up to 12 elements then follow in `lib/std`. |
+| Q6-display-text | The decision names no text for a displayed tuple. | Each element's `Display` text, separated by `, `, inside parentheses: `(1, one)`, as tuple `Debug` writes them; `()` for the empty tuple and `(1)` for one element. **Recommendation:** keep it. |
 
 ### Bound And Row Operators
 

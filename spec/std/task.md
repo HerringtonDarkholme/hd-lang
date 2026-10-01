@@ -17,13 +17,14 @@ polling combinators `all!` and `race!`, which are compiler intrinsics
 tries:
 
 ```text
-pub fn retry![T, E](times: i32, attempt: fn!() -> Result[T, E]) -> Result[T, E]
+pub fn retry![T, E, R](times: i32, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R
 ```
 
 1. r[std-task.combinator.retry] `std.task` declares `retry!` with the signature above, as an ordinary `fn!` function, not an intrinsic. Code imports it with `use std.task.retry`.
 2. r[std-task.combinator.retry.loop] `retry!` calls `attempt` at most `times` times, one call after another, and returns the first `.Ok` result without another call.
 3. r[std-task.combinator.retry.last-error] When every one of the `times` calls returns `.Err`, `retry!` returns the last `.Err`.
-4. r[std-task.combinator.retry.cancel] Cancellation follows the ordinary rules of [Cancellation](../11-requirements-and-suspension.md#cancellation), since `retry!` is a loop of bang calls. Cancelling it cancels the active attempt, and no further attempt starts.
+4. r[std-task.combinator.retry.at-least-once] A `times` below 1 counts as 1, so `retry!` calls `attempt` once and returns its result.
+5. r[std-task.combinator.retry.cancel] Cancellation follows the ordinary rules of [Cancellation](../11-requirements-and-suspension.md#cancellation), since `retry!` is a loop of bang calls. Cancelling it cancels the active attempt, and no further attempt starts.
 
 ```text
 use std.task.retry
@@ -44,10 +45,16 @@ fn connect!(server: mut Server) -> Result[string, string]:
 
 With `busy_for` at 2, `connect!` returns `.Ok("ready")` on the third call.
 With `busy_for` at 3, it returns `.Err("busy")` after three calls.
+With `times` at 0, `retry!` would make one call.
+
+The row parameter `R` lets an attempt require providers. An attempt that
+calls `println` has the row `Console`, and that `retry!` call then
+requires `Console` too.
 
 > **Why.** A retry over a `fn!` attempt is a loop that `lib/std` can write
 > in plain hd, so it needs no compiler support. It has no delay between
-> attempts, so it needs no clock.
+> attempts, so it needs no clock. A `times` below 1 still makes one attempt,
+> because with no attempt there is no `Result` to return.
 
 See also: [Standard Combinators](../11-requirements-and-suspension.md#standard-combinators),
 [Suspending Closures And Clauses](../07-functions.md#suspending-closures-and-clauses).

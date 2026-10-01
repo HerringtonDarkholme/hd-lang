@@ -340,12 +340,22 @@ function validNumber(text: string): boolean {
 // are identifiers such as `_0`.
 // Chapter 01 literal suffixes: a letter directly after decimal or float
 // digits starts a suffix of identifier characters; radix literals take none.
-// A reserved word is never a suffix (`lex.literal-fn.reserved`), so `5else`
-// is `5` followed by `else`.
+// A reserved word is never a suffix: `5else` lexes `5` then `else`, and the
+// main loop reports it (`lex.literal-fn.reserved-glued`).
 function suffixEnd(source: string, start: number): number {
   let end = start;
   while (end < source.length && /^[\p{XID_Continue}_]$/u.test(source[end]!)) end += 1;
   return end;
+}
+
+/**
+ * Chapter 01 `lex.literal-fn.reserved-glued`: a reserved word directly after
+ * a number's digits, as in `5else`, or directly before a string's opening
+ * quote, as in `return"done"`, is an error. With no `next`, `word` follows
+ * digits; otherwise `next` is the character after `word`.
+ */
+function gluedReserved(word: string, next?: string): boolean {
+  return reserved.has(word) && (next === undefined || next === '"');
 }
 
 function startsSuffix(character: string | undefined): boolean {
@@ -360,6 +370,13 @@ function numberEnd(source: string, start: number): NumberScan {
     if (!reserved.has(source.slice(scan.end, end))) return { ...scan, end, suffix: scan.end };
   }
   return scan;
+}
+
+/** The diagnostic code for a number token, if any: a malformed number, or a glued reserved word. */
+function numberDiagnostic(source: string, start: number, found: NumberScan): string | undefined {
+  if (!validNumber(source.slice(start, found.suffix ?? found.end))) return "invalid-token";
+  const after = source.slice(found.end, suffixEnd(source, found.end));
+  return gluedReserved(after) ? "syntax-error" : undefined;
 }
 
 function numberKind(found: NumberScan): string {
@@ -712,6 +729,7 @@ export function lexSource(source: string): LexResult {
       const word = source.slice(index, end);
       // Chapter 01 prefixed strings: an identifier directly before `"` and
       // the string form one token, as in `sql"..."`.
+      if (gluedReserved(word, source[end])) diagnostics.push(diagnostic("syntax-error", line));
       const depth = delimiters.length;
       if (word === "else" && inlineSuites.at(-1) === depth) {
         inlineSuites.pop();
@@ -743,8 +761,8 @@ export function lexSource(source: string): LexResult {
     if (isDigit(character)) {
       const found = numberEnd(source, index);
       const text = source.slice(index, found.end);
-      if (!validNumber(source.slice(index, found.suffix ?? found.end)))
-        diagnostics.push(diagnostic("invalid-token", line));
+      const numberError = numberDiagnostic(source, index, found);
+      if (numberError) diagnostics.push(diagnostic(numberError, line));
       tokens.push(token(numberKind(found), line, text));
       index = found.end;
       lineHasToken = true;

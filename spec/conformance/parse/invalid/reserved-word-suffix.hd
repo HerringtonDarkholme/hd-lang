@@ -1,4 +1,4 @@
-# test: a reserved word directly after digits is its own token
-# Spec 01 Literal Suffixes: `5else` is `5` followed by `else`, not a suffixed literal.
+# test: a reserved word glued to a number's digits is an error, even where the split tokens would parse
+# Spec 01 Literal Suffixes: lex.literal-fn.reserved-glued (owner decision C3-valid, batch 33, 2026-10-01).
 fn pick(flag: bool) -> i32:
-    if flag: 1 else: 5else  # diagnostic: syntax-error
+    if flag: 5else: 3  # diagnostic: syntax-error

@@ -306,3 +306,58 @@ impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug
             .field(self._10)
             .field(self._11)
             .finish()
+
+# `Display` for tuples of at most 12 elements
+# (spec/05-expressions.md#r-expr.interp.std.tuple): each element's text,
+# separated by ", ", inside parentheses.
+impl Display for ():
+    fn to_string(self) -> string:
+        "()"
+
+impl[A < Display] Display for (A,):
+    fn to_string(self) -> string:
+        "(${self._0})"
+
+impl[A < Display, B < Display] Display for (A, B):
+    fn to_string(self) -> string:
+        "(${self._0}, ${self._1})"
+
+impl[A < Display, B < Display, C < Display] Display for (A, B, C):
+    fn to_string(self) -> string:
+        "(${self._0}, ${self._1}, ${self._2})"
+
+impl[A < Display, B < Display, C < Display, D < Display] Display for (A, B, C, D):
+    fn to_string(self) -> string:
+        "(${self._0}, ${self._1}, ${self._2}, ${self._3})"
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display] Display for (A, B, C, D, E):
+    fn to_string(self) -> string:
+        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4})"
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display] Display for (A, B, C, D, E, F):
+    fn to_string(self) -> string:
+        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5})"
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display] Display for (A, B, C, D, E, F, G):
+    fn to_string(self) -> string:
+        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5}, ${self._6})"
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display] Display for (A, B, C, D, E, F, G, H):
+    fn to_string(self) -> string:
+        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5}, ${self._6}, ${self._7})"
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display] Display for (A, B, C, D, E, F, G, H, I):
+    fn to_string(self) -> string:
+        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5}, ${self._6}, ${self._7}, ${self._8})"
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display, J < Display] Display for (A, B, C, D, E, F, G, H, I, J):
+    fn to_string(self) -> string:
+        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5}, ${self._6}, ${self._7}, ${self._8}, ${self._9})"
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display, J < Display, K < Display] Display for (A, B, C, D, E, F, G, H, I, J, K):
+    fn to_string(self) -> string:
+        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5}, ${self._6}, ${self._7}, ${self._8}, ${self._9}, ${self._10})"
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display, J < Display, K < Display, L < Display] Display for (A, B, C, D, E, F, G, H, I, J, K, L):
+    fn to_string(self) -> string:
+        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5}, ${self._6}, ${self._7}, ${self._8}, ${self._9}, ${self._10}, ${self._11})"

@@ -1,0 +1,10 @@
+# test: a private own field clashes with a promoted pub field at any depth, not only depth 1
+data Base:
+    pub id: string
+
+data Middle:
+    Base
+
+data Record:
+    Middle
+    id: string  # diagnostic: ambiguous-promoted-member
