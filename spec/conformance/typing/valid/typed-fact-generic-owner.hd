@@ -1,0 +1,17 @@
+# test: a field of a generic owner checks its typed fact with the owner's parameter written as its bound, one fixed Integer type
+# Spec 14 Member-Typed Facts: annot.typed-fact.monomorphic and annot.typed-fact.check.bounds (owner decision ANNOTATE-TYPED, batch 39, 2026-10-01).
+use std.annotation.annotate
+use std.num.Integer
+
+@annotate::[F](.Field)
+data Positive[F < Integer]: pass
+
+fn positive[F < Integer]() -> Positive[F]:
+    Positive::[F] {}
+
+data Tally[T < Integer]:
+    @positive
+    hits: T
+
+fn start() -> Tally[i64]:
+    Tally { hits: 0 }

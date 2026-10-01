@@ -807,7 +807,7 @@ a separate task.
 
 | Question | Option | Answer | Applied as |
 | --- | --- | --- | --- |
-| Q1 | O7 typed member facts | **Accepted**, as recommended, opt-in | [Member-Typed Facts](../spec/14-annotations.md#member-typed-facts): `@member_typed` marks a fact type, whose first type parameter binds to the field's declared type. `arbitrary.with` returns `With[F]`, so its runtime downcast panic is gone. |
+| Q1 | O7 typed member facts | **Accepted**, as recommended, opt-in | [Member-Typed Facts](../spec/14-annotations.md#member-typed-facts): `@member_typed` marks a fact type, whose first type parameter binds to the field's declared type. `arbitrary.with` returns `With[F]`, so its runtime downcast panic is gone. Superseded in batch 39: `@annotate::[F](.Field)` declares a typed fact type. |
 | Q2 | O6 `Join` | **Rejected** | `all!` stays a compiler intrinsic with its written typing rules. |
 | Q3 | O3 comparison derives | **Accepted**, as recommended | [`trait.derive.cmp-templates`](../spec/09-traits.md#r-trait.derive.cmp-templates); meaning in [Cmp](../spec/std/cmp.md) and [Hash](../spec/std/hash.md). The prototype moves after its template lowering is fixed. |
 | Q4 | O3b tuple `Structure` | **Accepted**, as recommended | [Tuple Structure](../spec/14-annotations.md#tuple-structure) and [Tuple Templates](../spec/14-annotations.md#tuple-templates); the 12-element limit is gone. |

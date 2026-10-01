@@ -1,5 +1,5 @@
 # test: an arbitrary.with generator must draw the member's declared type
-# std Testing, Derived Arbitrary: std-testing.arbitrary.with.checked, by annot.typed-fact.bind
+# std Testing, Derived Arbitrary: std-testing.arbitrary.with.checked, by annot.typed-fact.check
 # (owner decision O7, batch 36, 2026-10-01).
 use std.testing.{Arbitrary, Choices}
 use std.testing.arbitrary

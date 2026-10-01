@@ -1,7 +1,7 @@
-# test: a prefix function never suspends, checked at its definition
-# Spec 05 Literal Suffixes: expr.literal-fn.definition.
+# test: a suspending prefix function does not fit fn(Template[T]) -> R, reported at the decorator
+# Spec 14 Member-Typed Facts: annot.typed-fact.check (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
 use std.ops.{Template, str_prefix}
 
-@str_prefix
-fn later!(t: Template[string]) -> string:  # diagnostic: type-mismatch
+@str_prefix  # diagnostic: type-mismatch
+fn later!(t: Template[string]) -> string:
     "later"

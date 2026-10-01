@@ -918,13 +918,18 @@ syntax. Its first member is the literal-suffix marker
 
 ```text
 use std.annotation.annotate
+use std.num.Num
 
-@annotate(.Fn)
-pub data NumSuffix: pass
+@annotate::[fn(N) -> R](.Fn)
+pub data NumSuffix[N < Num, R]: pass
 
-pub fn num_suffix() -> NumSuffix:
-    NumSuffix {}
+pub fn num_suffix[N < Num, R]() -> NumSuffix[N, R]:
+    NumSuffix::[N, R] {}
 ```
+
+Since batch 39 the marker is a
+[typed fact type](../spec/14-annotations.md#member-typed-facts): a marked
+function's type must match `fn(N) -> R`.
 
 A library declares a suffix by marking a function `@num_suffix`; `250ms`
 then means `ms(250)`. String prefixes work the same way with `@str_prefix`

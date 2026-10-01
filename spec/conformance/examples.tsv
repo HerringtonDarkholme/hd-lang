@@ -171,7 +171,7 @@ specification	block	classification	fixture
 05-expressions.md	7	mixed	typing/invalid/interpolation-without-display.hd
 05-expressions.md	8	accept	typing/valid/literal-suffix-user.hd|runtime/valid/literal-suffix-call.hd
 05-expressions.md	9	type-fragment	-
-05-expressions.md	10	mixed	typing/invalid/literal-suffix-unmarked.hd|typing/invalid/literal-suffix-parameter-type.hd|typing/invalid/literal-suffix-suspending.hd|typing/invalid/literal-suffix-extra-parameter.hd|typing/invalid/literal-suffix-requirement.hd
+05-expressions.md	10	mixed	typing/invalid/literal-suffix-unmarked.hd|typing/invalid/literal-suffix-parameter-type.hd|typing/invalid/literal-suffix-suspending.hd|typing/invalid/literal-suffix-extra-parameter.hd|typing/invalid/literal-suffix-requirement.hd|typing/invalid/literal-suffix-generic-unbounded.hd
 05-expressions.md	11	accept	typing/valid/literal-suffix-compile-time.hd
 05-expressions.md	12	accept	typing/valid/string-prefix-user.hd
 05-expressions.md	13	type-fragment	-
@@ -526,8 +526,8 @@ specification	block	classification	fixture
 14-annotations.md	9	accept	typing/valid/annotations.hd
 14-annotations.md	10	mixed	typing/invalid/decorator-target-kind.hd
 14-annotations.md	11	type-fragment	-
-14-annotations.md	12	mixed	typing/invalid/typed-fact-mismatch.hd
-14-annotations.md	13	type-fragment	-
+14-annotations.md	12	mixed	typing/invalid/typed-fact-bound.hd|typing/invalid/typed-fact-value-mismatch.hd|typing/valid/typed-fact-generic-owner.hd
+14-annotations.md	13	mixed	typing/valid/typed-fact-function.hd|typing/invalid/typed-fact-function-suspending.hd
 14-annotations.md	14	accept	typing/valid/typed-derivation.hd
 14-annotations.md	15	mixed	typing/invalid/derive-error-trait.hd|typing/invalid/derive-and-block-overlap.hd
 14-annotations.md	16	type-fragment	-

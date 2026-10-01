@@ -1,7 +1,7 @@
-# test: a suffix function never suspends, checked at its definition
-# Spec 05 Literal Suffixes: expr.literal-fn.definition.
+# test: a suspending suffix function does not fit fn(N) -> R, reported at the decorator
+# Spec 14 Member-Typed Facts: annot.typed-fact.check (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
 use std.ops.num_suffix
 
-@num_suffix
-fn later!(count: i64) -> i64:  # diagnostic: type-mismatch
+@num_suffix  # diagnostic: type-mismatch
+fn later!(count: i64) -> i64:
     count

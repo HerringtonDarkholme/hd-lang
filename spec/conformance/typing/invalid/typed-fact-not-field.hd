@@ -1,15 +1,15 @@
-# test: a member-typed fact attaches only to a field, even when its target kinds allow more
-# Spec 14 Member-Typed Facts: annot.typed-fact.field-only (owner decision O7, batch 36, 2026-10-01).
-use std.annotation.{annotate, member_typed}
+# test: a typed fact attaches only to a field or a function, even when its target kinds allow more
+# Spec 14 Member-Typed Facts: annot.typed-fact.targets (owner decisions O7, batch 36, and ANNOTATE-TYPED, batch 39, 2026-10-01).
+use std.annotation.annotate
 
-@annotate(.Field, .Fn)
-@member_typed
+@annotate::[F](.Field, .Variant)
 data Example[F]:
     value: F
 
 fn example[F](value: F) -> Example[F]:
     Example::[F] { value: value }
 
-@example(1)  # diagnostic: decorator-target-kind
-fn answer() -> i32:
-    42
+enum Answer:
+    @example(1)  # diagnostic: decorator-target-kind
+    Yes
+    No

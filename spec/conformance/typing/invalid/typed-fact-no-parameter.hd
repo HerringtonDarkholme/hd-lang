@@ -1,8 +1,0 @@
-# test: a member-typed fact type needs a type parameter for the member's type
-# Spec 14 Member-Typed Facts: annot.typed-fact.needs-param (owner decision O7, batch 36, 2026-10-01).
-use std.annotation.{annotate, member_typed}
-
-@annotate(.Field)
-@member_typed  # diagnostic: decorator-target-kind
-data Plain:
-    value: i32

@@ -1,0 +1,16 @@
+# test: a field type that makes the expected fact type break its bound is an error at the decorator
+# Spec 14 Member-Typed Facts: annot.typed-fact.check.bounds (owner decision ANNOTATE-TYPED, batch 39, 2026-10-01).
+use std.annotation.annotate
+use std.num.Integer
+
+@annotate::[F](.Field)
+data Positive[F < Integer]: pass
+
+fn positive[F < Integer]() -> Positive[F]:
+    Positive::[F] {}
+
+data Account:
+    @positive
+    id: i64
+    @positive  # diagnostic: unsatisfied-trait-bound
+    name: string

@@ -1,7 +1,7 @@
-# test: a prefix function whose required parameter is not a Template is an error at its definition
-# Spec 05 Literal Suffixes: expr.literal-fn.definition; `@str_prefix` on `fn count(n: i32)`.
+# test: a prefix function whose parameter is not a Template does not fit fn(Template[T]) -> R
+# Spec 14 Member-Typed Facts: annot.typed-fact.check; `@str_prefix` on `fn count(n: i32)` (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
 use std.ops.str_prefix
 
-@str_prefix
-fn count(n: i32) -> i32:  # diagnostic: type-mismatch
+@str_prefix  # diagnostic: type-mismatch
+fn count(n: i32) -> i32:
     n

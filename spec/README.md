@@ -228,8 +228,6 @@ The stdlib chapters' terms are in the
 | **local type names** | The name category of data types, enums, traits, aliases, and newtypes declared inside an executable suite. See [`names.category.local-type`](03-names-and-scopes.md#r-names.category.local-type). |
 | **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. See [Member Lines](14-annotations.md#member-lines). |
 | **member metadata** | The ordered list of values attached to a data field, an enum variant, or a parameter. See [Terminology](14-annotations.md#terminology). |
-| **member type parameter** | The first type parameter of a member-typed fact type, bound to the field's declared type where a value attaches. See [`annot.typed-fact.marker`](14-annotations.md#r-annot.typed-fact.marker). |
-| **member-typed fact type** | A fact type whose type-level facts include a `std.annotation.MemberTyped` value, so its values are checked against their field's type. See [Member-Typed Facts](14-annotations.md#member-typed-facts). |
 | **member names** | The name category of data fields, embedded fields, methods, enum variants, and tuple fields, within the namespace of their owning type. See [`names.category.member`](03-names-and-scopes.md#r-names.category.member). |
 | **method lookup** | The steps that resolve `x.name(args)` to an own inherent method or a candidate. See [Method Lookup](03-names-and-scopes.md#method-lookup). |
 | **method reference** | A method or associated function named as a function value, written `Owner::name` or `value::name` without arguments. See [Method References](07-functions.md#method-references). |
@@ -293,6 +291,7 @@ The stdlib chapters' terms are in the
 | **type-argument default** | A type written with `=` after a generic parameter's bound, used when a use site leaves the parameter unsolved or a written type omits it. See [Type-Argument Defaults](04-type-system.md#type-argument-defaults). |
 | **type-argument marker** | The `::` before an explicit type-argument list in an expression, as in `first::[string](names)`. See [`grammar.expr.type-arguments.marker`](02-grammar.md#r-grammar.expr.type-arguments.marker). |
 | **typed derivation** | Implementing a trait for a data type or enum from its members through the trait's template. See [Typed Derivation](14-annotations.md#typed-derivation). |
+| **typed fact type** | A fact type whose `@annotate` decorator has a type argument, as in `@annotate::[T](.Field)`, so a value on a target checks against the fact type at the target's type. See [`annot.typed-fact.declare`](14-annotations.md#r-annot.typed-fact.declare). |
 | **unbound method reference** | `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter. See [`fn.ref.unbound`](07-functions.md#r-fn.ref.unbound). |
 | **value expression** | An expression that produces a value. See [`expr.category.value`](05-expressions.md#r-expr.category.value). |
 | **value names** | The name category of top-level executable bindings, parameters, local bindings, local named functions, loop bindings, pattern bindings, and captured values. See [`names.category.value`](03-names-and-scopes.md#r-names.category.value). |
@@ -2753,9 +2752,9 @@ existing source. Each entry names the decision that made the change.
   `expr.suffix.no-marker-import` and `expr.prefix.no-marker-import` for
   [`expr.literal-fn.no-marker-import`](05-expressions.md#r-expr.literal-fn.no-marker-import);
   `expr.suffix.fn-shape-num` and `expr.prefix.fn-shape-one` for
-  [`expr.literal-fn.shape`](05-expressions.md#r-expr.literal-fn.shape);
+  `expr.literal-fn.shape` (itself retired in batch 39);
   `expr.suffix.fn-shape.definition` and `expr.prefix.fn-shape.definition`
-  for [`expr.literal-fn.definition`](05-expressions.md#r-expr.literal-fn.definition);
+  for `expr.literal-fn.definition` (itself retired in batch 39);
   `expr.suffix.call-errors`, `.ordinary-rules`, `.exact-call`, and
   `.position-rules`, and `expr.prefix.ordinary-rules` and `.exact-call`, for
   [`expr.literal-fn.ordinary-call`](05-expressions.md#r-expr.literal-fn.ordinary-call);
@@ -2787,8 +2786,8 @@ existing source. Each entry names the decision that made the change.
   [`lex.prefix.backslash`](01-lexical-structure.md#r-lex.prefix.backslash);
   `expr.suffix.fn-call.example` into
   [`expr.suffix.fn-call`](05-expressions.md#r-expr.suffix.fn-call);
-  `expr.suffix.generic-num` into
-  [`expr.suffix.fn-shape-param`](05-expressions.md#r-expr.suffix.fn-shape-param);
+  `expr.suffix.generic-num` into `expr.suffix.fn-shape-param` (itself
+  retired in batch 39);
   `expr.prefix.no-join` into
   [`expr.prefix.fn-call`](05-expressions.md#r-expr.prefix.fn-call); and
   `expr.prefix.parts.example` into
@@ -3190,7 +3189,7 @@ existing source. Each entry names the decision that made the change.
   batch 38, 2026-10-01; recorded in
   [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions)):
   language tier.
-  [`annot.typed-fact.expected`](14-annotations.md#r-annot.typed-fact.expected):
+  `annot.typed-fact.expected` (retired in batch 39):
   a decorator or member-line element of a member-typed fact type gets an
   expected type, whose member type argument is the field's declared
   type. [`annot.line.typed`](14-annotations.md#r-annot.line.typed) now
@@ -3200,3 +3199,62 @@ existing source. Each entry names the decision that made the change.
   `with::[string]`. A value that still does not fit stays `type-mismatch`
   at the decorator or line. Untyped fact types are unchanged. No rule ID
   retired.
+- Typed facts (owner decisions ANNOTATE-TYPED and the final batch 39
+  rules, 2026-10-01; recorded in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions)):
+  language tier, with stdlib-tier text in
+  [Derived Arbitrary](std/testing.md#derived-arbitrary). The final form
+  replaced CHECK-AS-CALL, GENERIC-TARGET, and TARGET-PATTERN before any of
+  them was applied. `@annotate::[T](.Kind)` declares a
+  [typed fact type](14-annotations.md#r-annot.typed-fact.declare), and `T`
+  is the fact type's parameter that
+  [stands for its target's type](14-annotations.md#r-annot.typed-fact.target-param):
+  a field's declared type, or a function's signature type with its `!`
+  and row. The type argument is optional
+  ([`annot.typed-fact.opt-in`](14-annotations.md#r-annot.typed-fact.opt-in)),
+  since `annotate`'s new type parameter is never inferred. Rule 1
+  ([`annot.typed-fact.check`](14-annotations.md#r-annot.typed-fact.check)):
+  a value on `a: i32` checks like `let f: Fact[i32] = value`, so its type
+  arguments are inferred from that expected type, and a bound that
+  `Fact[X]` breaks is `unsatisfied-trait-bound`, all at the decorator or
+  member line. Rule 2
+  ([`annot.typed-fact.monomorphic`](14-annotations.md#r-annot.typed-fact.monomorphic)):
+  a generic target's type is made monomorphic by writing each type
+  parameter as its bound, meaning one fixed type that satisfies it, not a
+  trait value. So `fn ms[M < Integer, R](n: M) -> R` checks as
+  `fn(Integer) -> Any`. A typed fact attaches only to a
+  field or a module-level function
+  ([`annot.typed-fact.targets`](14-annotations.md#r-annot.typed-fact.targets)).
+  `MemberTyped`, `member_typed`, and the member type parameter are removed:
+  `@annotate(.Field) @member_typed data With[F]` is now
+  `@annotate::[F](.Field) data With[F]`, and `@member_typed` is
+  `unknown-name`. Retired: annot.typed-fact.declarations, .marker, and
+  .recognized (annot.typed-fact.declare, .target-param);
+  annot.typed-fact.needs-param (none); annot.typed-fact.bind and
+  annot.typed-fact.expected (annot.typed-fact.check, .check.inferred,
+  .check.bounds, .check.reported); and annot.typed-fact.field-only
+  (annot.typed-fact.targets). Also added: annot.typed-fact.monomorphic
+  and .monomorphic.bound. annot.typed-fact.opt-in, .declared-type,
+  .read, annot.handle.fact, annot.target.kind-only.untyped, and
+  annot.line.typed are reworded for the new terms. Field programs keep
+  their verdicts.
+- Literal markers as typed facts (owner decision LITERAL-MARKERS, batch
+  39, 2026-10-01): language tier. `std.ops` declares
+  `@annotate::[F](.Fn) data NumSuffix[F]` with
+  `fn num_suffix[N < Num, R]() -> NumSuffix[fn(N) -> R]`, and
+  `@annotate::[F](.Fn) data StrPrefix[F]` with
+  `fn str_prefix[T, R]() -> StrPrefix[fn(Template[T]) -> R]`. So
+  `@num_suffix` on `fn ms(n: i64) -> Millis` checks like
+  `let f: NumSuffix[fn(i64) -> Millis] = num_suffix()`, and the
+  signature of `num_suffix` holds every shape constraint. `@num_suffix`
+  and `@str_prefix` are unchanged, and a default on the one parameter
+  stays allowed, since defaults are not part of `fn` types. Retired:
+  expr.literal-fn.shape, expr.literal-fn.definition, and
+  expr.suffix.fn-shape-param (annot.typed-fact.check). For existing
+  programs: a second parameter, no parameter, or a `fn!` is still
+  `type-mismatch`, now at the decorator rather than the `fn` line. A
+  suffix parameter outside `Num`, such as `string` or an unbounded `N`,
+  was `type-mismatch` and is now `unsatisfied-trait-bound`. A literal
+  function with a requirement row, valid before, is now `type-mismatch`
+  at the decorator, because `fn(N) -> R` has the empty row. A generic
+  suffix function such as `fn k[N < Num](n: N) -> N` stays valid.

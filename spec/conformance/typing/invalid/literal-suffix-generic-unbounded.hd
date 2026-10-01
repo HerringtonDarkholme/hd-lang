@@ -1,7 +1,7 @@
-# test: a generic suffix parameter must be bounded by Num, Integer, or Float
-# Spec 05 Literal Suffixes: expr.suffix.fn-shape-param, checked at the definition (Operator Traits OP9).
+# test: a generic suffix function without a Num bound is fn(Any) -> Any for the check, and Any breaks num_suffix's bound
+# Spec 14 Member-Typed Facts: annot.typed-fact.check, with annot.typed-fact.monomorphic; reported at the decorator (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
 use std.ops.num_suffix
 
-@num_suffix
-fn same[N](n: N) -> N:  # diagnostic: type-mismatch
+@num_suffix  # diagnostic: unsatisfied-trait-bound
+fn same[N](n: N) -> N:
     n

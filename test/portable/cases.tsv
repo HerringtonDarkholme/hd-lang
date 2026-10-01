@@ -1004,7 +1004,6 @@ typing/valid/literal-suffix-negation.hd	type
 typing/valid/test-timeout-duration.hd	type
 typing/invalid/unknown-literal-suffix.hd	type
 typing/invalid/literal-suffix-unmarked.hd	type
-typing/invalid/literal-suffix-requirement.hd	type
 typing/invalid/test-timeout-string.hd	type
 typing/invalid/tests-root-outside-tests.hd	type
 parse/valid/decorators.hd	parse
@@ -1121,10 +1120,7 @@ typing/invalid/decorator-target-kind.hd	type
 typing/invalid/decorator-target-newtype.hd	type
 typing/invalid/annotate-before-function.hd	type
 typing/invalid/decorator-target-member-line.hd	type
-typing/invalid/literal-suffix-parameter-type.hd	type
 typing/valid/literal-suffix-generic.hd	type
-typing/invalid/literal-suffix-extra-parameter.hd	type
-typing/invalid/literal-suffix-suspending.hd	type
 typing/invalid/num-suffix-before-data.hd	type
 parse/invalid/old-row-separator-callback.hd	parse
 parse/invalid/parenthesized-row.hd	parse
@@ -1142,11 +1138,7 @@ typing/valid/string-prefix-std-r.hd	type
 typing/invalid/unknown-string-prefix.hd	type
 typing/invalid/bytes-prefix-unknown.hd	type
 typing/invalid/string-prefix-unmarked.hd	type
-typing/invalid/string-prefix-parameter-type.hd	type
-typing/invalid/string-prefix-requirement.hd	type
 typing/valid/string-prefix-generic.hd	type
-typing/invalid/string-prefix-extra-parameter.hd	type
-typing/invalid/string-prefix-suspending.hd	type
 typing/invalid/str-prefix-before-data.hd	type
 typing/invalid/string-prefix-value-mismatch.hd	type
 typing/invalid/string-prefix-value-narrowing.hd	type
@@ -1187,9 +1179,6 @@ typing/invalid/metadata-type-as-value.hd	type
 typing/invalid/derived-hash-field-not-hash.hd	type
 typing/invalid/derived-total-order-float.hd	type
 typing/invalid/derived-generic-bound.hd	type
-typing/valid/literal-suffix-requirement.hd	type
-typing/invalid/literal-suffix-no-parameter.hd	type
-typing/valid/string-prefix-requirement.hd	type
 typing/valid/row-union-list.hd	type
 typing/invalid/row-union-list-no-convert.hd	type
 typing/invalid/row-union-other-parts.hd	type
@@ -1212,7 +1201,6 @@ typing/invalid/row-union-if-nested-lists.hd	type
 runtime/valid/row-union-branches-run.hd	runtime
 typing/valid/decorator-target-newtype-kind.hd	type
 typing/invalid/operator-newtype-no-inherit.hd	type
-typing/invalid/literal-suffix-generic-unbounded.hd	type
 runtime/panic/operator-generic-overflow.hd	runtime
 typing/valid/operator-bitwise-user.hd	type
 typing/invalid/operator-power-user.hd	type
@@ -1701,3 +1689,4 @@ runtime/valid/map-index-reads-value.hd	runtime
 typing/valid/map-indexing.hd	type
 typing/valid/readonly-map-mutable-values.hd	type
 runtime/valid/for-patterns.hd	runtime
+typing/valid/literal-suffix-generic-target.hd	type

@@ -1,5 +1,5 @@
 # test: a suffix function may be generic over N < Num
-# Spec 05 Literal Suffixes: expr.suffix.fn-shape-param (Operator Traits OP9).
+# Spec 14 Member-Typed Facts: annot.typed-fact.monomorphic and annot.typed-fact.check (Operator Traits OP9) (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
 use std.num.Num
 use std.ops.num_suffix
 

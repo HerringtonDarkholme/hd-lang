@@ -1,9 +1,8 @@
-# test: a member-typed fact gets the field's declared type as its expected type, so a generic function value needs no type argument
-# Spec 14 Member-Typed Facts: annot.typed-fact.expected (owner decision FACT-EXPECTED, batch 38, 2026-10-01).
-use std.annotation.{annotate, member_typed}
+# test: a typed fact at the field's declared type is the decorator's expected type, so a generic function value needs no type argument
+# Spec 14 Member-Typed Facts: annot.typed-fact.check (owner decisions FACT-EXPECTED, batch 38, and ANNOTATE-TYPED, batch 39, 2026-10-01).
+use std.annotation.annotate
 
-@annotate(.Field)
-@member_typed
+@annotate::[F](.Field)
 data Fallback[F]:
     make: fn() -> F?
 

@@ -257,7 +257,7 @@ VARARG-TYPE over SPREAD-SITE over Q5 and Q8.
 | Q1 | As recommended (B1's merges): one rule set for a **literal function**, marked `@num_suffix` or `@str_prefix`. Only the lexing, the parameter type per form, and the template stay separate. Cut C3: a reserved word is never a suffix or prefix, so `5else` is `5` then `else`. Applied in 31c. | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes), `lex.literal-fn.reserved`, since retired for [`lex.literal-fn.reserved-glued`](../spec/01-lexical-structure.md#r-lex.literal-fn.reserved-glued) |
 | Q2 | As recommended: both markers stay; no declaration changes. Applied in 31c. | [`expr.literal-fn.marker`](../spec/05-expressions.md#r-expr.literal-fn.marker) |
 | Q3 | As recommended: `-5s` is the ordinary negation `-(5s)`, and `std.time` implements `Neg` for `Duration`. `-128b` no longer fits an `i8` suffix parameter. Applied in 31c. | [Suffixed Literals](../spec/04-type-system.md#suffixed-literals), [`std-time.suffix.std.duration-neg`](../spec/std/time.md#r-std-time.suffix.std.duration-neg) |
-| Q4 | Not as recommended: a suffix parameter's default stays allowed, reversing cut C2. `expr.suffix.fn-shape.default` is deleted as a restatement of the ordinary rule; a second parameter, with or without a default, is still rejected. Applied in 31c. | [`expr.literal-fn.shape`](../spec/05-expressions.md#r-expr.literal-fn.shape) |
+| Q4 | Not as recommended: a suffix parameter's default stays allowed, reversing cut C2. `expr.suffix.fn-shape.default` is deleted as a restatement of the ordinary rule; a second parameter, with or without a default, is still rejected. Applied in 31c. | `expr.literal-fn.shape`, since retired in batch 39 for [`annot.typed-fact.check`](../spec/14-annotations.md#r-annot.typed-fact.check) |
 
 **Still open from applying batch 31a.** The specification applies the
 reading in the middle column; each point asks the owner to confirm it.
@@ -412,7 +412,7 @@ reading in the middle column; each point asks the owner to confirm it.
 
 | # | Question | Applied reading and **Recommendation** |
 | --- | --- | --- |
-| O7-spelling | The record's `data With[member F]` is a `syntax-error`. | `@member_typed` from `std.annotation` marks the first type parameter ([Member-Typed Facts](../spec/14-annotations.md#member-typed-facts)); no grammar change. **Recommendation:** keep it. |
+| O7-spelling | The record's `data With[member F]` is a `syntax-error`. | `@member_typed` from `std.annotation` marks the first type parameter ([Member-Typed Facts](../spec/14-annotations.md#member-typed-facts)); no grammar change. **Recommendation:** keep it. Superseded in batch 39: `@annotate::[F](.Field)` declares a [typed fact type](../spec/14-annotations.md#member-typed-facts), and `@member_typed` is gone. |
 | O7-mut | A walk or describe handle of a `hits: mut Counter` member has `F = Counter`, but the fact binds to `mut Counter`. | `h.fact` finds only an exact type, so that read misses ([`annot.handle.fact.exact`](../spec/14-annotations.md#r-annot.handle.fact.exact)). **Recommendation:** keep it; `Arbitrary` reads through `build`'s declared-type handles. |
 | O7-inspectable | Derived `Arbitrary` still requires every member to be `Inspectable`, a bound that existed only for the downcast. | Kept ([`std-testing.arbitrary.derive.member-bounds`](../spec/std/testing.md#r-std-testing.arbitrary.derive.member-bounds)); `with` itself dropped it. **Recommendation:** drop the member bound too. |
 | O3-blocks | Templates allow derivation blocks, but comparison derivations were never configurable. | Still unconfigurable ([`trait.derive.cmp-every-member`](../spec/09-traits.md#r-trait.derive.cmp-every-member)), so law partners stay consistent. **Recommendation:** keep it. |
@@ -440,8 +440,21 @@ fixtures are known failures.
 
 | # | Decision | Where |
 | --- | --- | --- |
-| FACT-EXPECTED | Yes: a member-typed fact, attached by decorator or member line, gets the field's declared type as its member type argument's expected type. `@arbitrary.with(any_text)` with a generic `fn any_text[T](c: mut Choices) -> T` on `name: string` infers `T = string`. A mismatch stays `type-mismatch`; untyped fact types are unaffected. | [`annot.typed-fact.expected`](../spec/14-annotations.md#r-annot.typed-fact.expected) |
-| FACT-WARN | No: a generic fact type that is not `@member_typed` gets no warning. | no change; [`annot.typed-fact.opt-in`](../spec/14-annotations.md#r-annot.typed-fact.opt-in) stands |
+| FACT-EXPECTED | Yes: a member-typed fact, attached by decorator or member line, gets the field's declared type as its member type argument's expected type. `@arbitrary.with(any_text)` with a generic `fn any_text[T](c: mut Choices) -> T` on `name: string` infers `T = string`. A mismatch stays `type-mismatch`; untyped fact types are unaffected. | `annot.typed-fact.expected`, since retired in batch 39 for [`annot.typed-fact.check`](../spec/14-annotations.md#r-annot.typed-fact.check) |
+| FACT-WARN | No: a generic fact type that is not `@member_typed` (since batch 39, not typed) gets no warning. | no change; [`annot.typed-fact.opt-in`](../spec/14-annotations.md#r-annot.typed-fact.opt-in) stands |
+
+**Batch 39, typed facts (owner decisions, 2026-10-01).** Applied in
+pass 39; the [Revision Notes](../spec/README.md#revision-notes) list them.
+The final form replaced CHECK-AS-CALL, GENERIC-TARGET, and TARGET-PATTERN
+before any of them was applied. The prototype has no typed facts yet, so
+their fixtures are known failures.
+
+| # | Decision | Where |
+| --- | --- | --- |
+| ANNOTATE-TYPED | `@annotate::[T](.Kind)` names the fact type's parameter `T` as its target's type: a field's declared type, or a function's signature type with its `!` and row. The type argument is optional. `MemberTyped` and `@member_typed` are removed, and `With[F]` is `@annotate::[F](.Field) data With[F]`. | [`annot.typed-fact.target-param`](../spec/14-annotations.md#r-annot.typed-fact.target-param) |
+| Rule 1 | A typed fact's value checks like `let f: Fact[X] = value`, where `X` is the target's type. Bounds hold through type validity, and type arguments are inferred from the expected type. It replaces batch 38's expected-type rule. | [`annot.typed-fact.check`](../spec/14-annotations.md#r-annot.typed-fact.check) |
+| Rule 2 | An annotated generic target's type is monomorphized for the check by writing each type parameter as its bound, one fixed type that satisfies it (not a trait value); an unbounded one is `Any`. `fn ms[M < Integer, R](n: M) -> R` checks as `fn(Integer) -> Any`. | [`annot.typed-fact.monomorphic`](../spec/14-annotations.md#r-annot.typed-fact.monomorphic) |
+| LITERAL-MARKERS | `NumSuffix[F]` and `StrPrefix[F]` are typed facts, and `num_suffix` returns `NumSuffix[fn(N) -> R]` with `N < Num`, so shape constraints live in its signature. The literal-function shape rules are deleted. | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
 
 ### Bound And Row Operators
 

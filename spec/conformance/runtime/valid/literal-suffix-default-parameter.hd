@@ -1,5 +1,5 @@
 # test: a suffix function's one parameter may have a default; the literal always passes its value
-# Spec 05 Literal Suffixes: expr.literal-fn.shape; the default is an ordinary parameter default (Literal Suffixes Still Open 28, batch 31 Q4).
+# Spec 07 Function Types: fn.type.no-names, so the default is not part of fn(N) -> R (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
 use std.ops.num_suffix
 use std.testing.assert_equal
 

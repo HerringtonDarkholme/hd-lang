@@ -1,0 +1,20 @@
+# test: a function's typed fact checks against its signature type, and a generic function's with its parameters written as their bounds
+# Spec 14 Member-Typed Facts: annot.typed-fact.declared-type and annot.typed-fact.check and annot.typed-fact.monomorphic (owner decision ANNOTATE-TYPED, batch 39, 2026-10-01).
+use std.annotation.annotate
+
+@annotate::[F](.Fn)
+data Handler[F]: pass
+
+fn handler[R]() -> Handler[fn(i64) -> R]:
+    Handler::[fn(i64) -> R] {}
+
+@handler
+fn count(id: i64) -> i64:
+    id
+
+@handler
+fn wrap[T](id: i64) -> List[T]:
+    []
+
+fn total() -> i64:
+    count(2)

@@ -1,7 +1,7 @@
-# test: a suffix function needs exactly one parameter, checked at its definition
-# Spec 05 Literal Suffixes: expr.literal-fn.shape and expr.literal-fn.definition.
+# test: a suffix function with no parameter does not fit fn(N) -> R, reported at the decorator
+# Spec 14 Member-Typed Facts: annot.typed-fact.check (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
 use std.ops.num_suffix
 
-@num_suffix
-fn unit() -> i64:  # diagnostic: type-mismatch
+@num_suffix  # diagnostic: type-mismatch
+fn unit() -> i64:
     1

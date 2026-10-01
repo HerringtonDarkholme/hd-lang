@@ -1,0 +1,16 @@
+# test: a value of the fact type at another type argument does not check against the fact type at the target's type
+# Spec 14 Member-Typed Facts: annot.typed-fact.check (owner decision ANNOTATE-TYPED, batch 39, 2026-10-01).
+use std.annotation.annotate
+use std.num.Integer
+
+@annotate::[F](.Field)
+data Positive[F < Integer]: pass
+
+fn positive[F < Integer]() -> Positive[F]:
+    Positive::[F] {}
+
+data Account:
+    @positive::[i64]()
+    id: i64
+    @positive::[i32]()  # diagnostic: type-mismatch
+    count: i64

@@ -1,0 +1,14 @@
+# test: a generic suffix function checks as fn(Integer) -> Any, and a fixed Integer type meets Num
+# Spec 14 Member-Typed Facts: annot.typed-fact.monomorphic and annot.typed-fact.check (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
+use std.num.Integer
+use std.ops.num_suffix
+
+data Millis:
+    count: i64
+
+@num_suffix
+fn ms[N < Integer, R](n: N) -> R:
+    panic("not called")
+
+fn timeout() -> Millis:
+    250ms

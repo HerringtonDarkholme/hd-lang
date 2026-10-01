@@ -1,7 +1,7 @@
-# test: a suffix function declares exactly one parameter, even when the others have defaults
-# Spec 05 Literal Suffixes: expr.literal-fn.shape, checked at the definition (Literal Suffixes L22).
+# test: a suffix function with a second parameter does not fit fn(N) -> R, even when that parameter has a default
+# Spec 14 Member-Typed Facts: annot.typed-fact.check, reported at the decorator (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
 use std.ops.num_suffix
 
-@num_suffix
-fn kb(count: i64, unit: i64 = 1024) -> i64:  # diagnostic: type-mismatch
+@num_suffix  # diagnostic: type-mismatch
+fn kb(count: i64, unit: i64 = 1024) -> i64:
     count * unit

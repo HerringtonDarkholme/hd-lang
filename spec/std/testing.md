@@ -210,14 +210,13 @@ through the template of `Arbitrary`.
 12. r[std-testing.arbitrary.derive.no-finite.data] When a member of a derived data type has `self_ref` `.Required`, its derived `arbitrary` panics the same way, and the compiler does not reject the type either. Panic: `explicit-panic`.
 13. r[std-testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
 14. r[std-testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
-15. r[std-testing.arbitrary.with.module-typed] The module `std.testing.arbitrary` declares `with` and its result type `With[F]`, a [member-typed fact type](../14-annotations.md#member-typed-facts), as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
-16. r[std-testing.arbitrary.with.checked] `gen` must draw the member's declared type. A generator of another type is an error, reported on its decorator, by [`annot.typed-fact.bind`](../14-annotations.md#r-annot.typed-fact.bind). Error: `type-mismatch`.
+15. r[std-testing.arbitrary.with.module-typed] The module `std.testing.arbitrary` declares `with` and its result type `With[F]`, a [typed fact type](../14-annotations.md#member-typed-facts), as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
+16. r[std-testing.arbitrary.with.checked] `gen` must draw the member's declared type. A generator of another type is an error, reported on its decorator, by [`annot.typed-fact.check`](../14-annotations.md#r-annot.typed-fact.check). Error: `type-mismatch`.
 17. r[std-testing.arbitrary.with.typed-read] The derived `arbitrary` reads the member's `With[F]` through its handle, with [`h.fact`](../14-annotations.md#r-annot.handle.fact), and draws the member by its `gen`.
 18. r[std-testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
 
 ```text
-@annotate(.Field)
-@member_typed
+@annotate::[F](.Field)
 pub data With[F]:
     pub gen: fn(mut Choices) -> F
 
@@ -225,7 +224,7 @@ pub fn with[F](gen: fn(mut Choices) -> F) -> With[F]
 ```
 
 > **Note.** The member's declared type is the expected type of `F`, by
-> [`annot.typed-fact.expected`](../14-annotations.md#r-annot.typed-fact.expected).
+> [`annot.typed-fact.check.inferred`](../14-annotations.md#r-annot.typed-fact.check.inferred).
 > So a generic generator such as `fn any_text[T](c: mut Choices) -> T`
 > needs no type argument: `@arbitrary.with(any_text)` on `name: string`
 > solves `T = string`.
@@ -320,7 +319,7 @@ message `Loop has no finite value`. So does `Ring`'s, because its member
 
 > **Why.** One fact that holds a whole generator covers every range,
 > length, and shape, so derived `Arbitrary` needs no range or length facts.
-> `With[F]` is member-typed, so a generator of the wrong type is caught
+> `With[F]` is a typed fact type, so a generator of the wrong type is caught
 > where it is written, and the derived code reads it at the member's type.
 
 > **Why.** A template states one bound for all of a type's members, and no

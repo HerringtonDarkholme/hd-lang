@@ -442,7 +442,7 @@ fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
 ```
 
 The language does not check that a metadata value suits its member's type,
-unless its type opts in as a [member-typed fact type](#member-typed-facts).
+unless its type opts in as a [typed fact type](#member-typed-facts).
 Otherwise the code that reads the value checks it.
 
 > **Note.** `arbitrary.with` opts in, so a generator of the wrong type is
@@ -507,7 +507,7 @@ pub enum Target:
 pub data Annotate:
     pub kinds: List[Target]
 
-pub fn annotate(kinds...: List[Target]) -> Annotate:
+pub fn annotate[T](kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }
 ```
 
@@ -532,7 +532,7 @@ Each target has one kind:
 4. r[annot.target.unlimited] A type without an `Annotate` fact is not limited: its values may be attached to any target, as `@"note"` may.
 5. r[annot.target.recognized] The compiler recognizes `std.annotation.Annotate` by its qualified name. A type of another package named `Annotate` limits nothing.
 6. r[annot.target.bootstrap] `Annotate` itself carries `@annotate(.Data, .Enum)`, so an `Annotate` value may be attached only to a data type or an enum.
-7. r[annot.target.kind-only.untyped] For a fact type that is not [member-typed](#member-typed-facts), the compiler checks only the kind. Whether its value suits its target's type or signature is checked by the code that reads the value.
+7. r[annot.target.kind-only.untyped] For an untyped fact type, one that is not [typed](#member-typed-facts), the compiler checks only the kind. Whether its value suits its target's type or signature is checked by the code that reads the value.
 
 > **Note.** Only some targets have a reader in the language. User code
 > reads a function's values through `shape_of`, and the values on a data
@@ -541,64 +541,124 @@ Each target has one kind:
 > newtypes, and parameters, are for tools.
 
 > **Why.** Java, C#, Kotlin, and Dart check declared target kinds the
-> same way. A signature check belongs to the reader, which knows what it
-> needs, so the compiler knows one standard type rather than a pattern
-> language for targets.
+> same way. For an untyped fact, a signature check belongs to the reader,
+> which knows what it needs. A [typed fact](#member-typed-facts) writes
+> its check as an ordinary expected type, not in a separate pattern
+> language.
 
 See also: [Prefix Decorators](#prefix-decorators),
 [Literal Suffixes](05-expressions.md#literal-suffixes).
 
 ### Member-Typed Facts
 
-A fact type may opt in to a check against its member's type. The standard
-`@member_typed` decorator makes its first type parameter the member's type:
+A fact type may name one of its type parameters as the type of its target.
+Each value is then checked against the fact type at that target's type:
 
 ```text
-use std.annotation.{annotate, member_typed}
+use std.annotation.annotate
+use std.num.Integer
 
-@annotate(.Field)
-@member_typed
-data Example[F]:
-    value: F
+@annotate::[T](.Field)
+data Fact[T]:
+    value: T
 
-fn example[F](value: F) -> Example[F]:
-    Example::[F] { value: value }
+fn fact[T](value: T) -> Fact[T]:
+    Fact::[T] { value: value }
 
-data Profile:
-    @example(30)
-    age: i32
-    @example(30)  # error: type-mismatch
+@annotate::[F](.Field)
+data Positive[F < Integer]: pass
+
+fn positive[F < Integer]() -> Positive[F]:
+    Positive::[F] {}
+
+data Account:
+    @fact(5)
+    a: i32
+    @fact("x")  # error: type-mismatch
+    b: i32
+    @positive
+    id: i64
+    @positive  # error: unsatisfied-trait-bound
     name: string
+
+data Tally[T < Integer]:
+    @positive
+    hits: T
 ```
 
-`std.annotation` declares the marker:
+> **Note.** This heading keeps its earlier name so that links to it stay
+> valid. The `MemberTyped` marker and `@member_typed` were removed in
+> batch 39 (2026-10-01).
+
+Each attachment checks like a `let` binding of the value at the fact type
+for its target:
+
+| Target | Decorator | Checks like |
+| --- | --- | --- |
+| `a: i32` | `@fact(5)` | `let f: Fact[i32] = fact(5)` |
+| `b: i32` | `@fact("x")` | `let f: Fact[i32] = fact("x")`, a `type-mismatch` |
+| `name: string` | `@positive` | `let f: Positive[string] = positive()`, where `Positive[string]` breaks `F < Integer` |
+| `hits: T` in `Tally[T < Integer]` | `@positive` | `let f: Positive[Integer] = positive()`, where `Integer` is one fixed type that implements `Integer` |
+
+1. r[annot.typed-fact.declare] A data type or enum whose `@annotate` decorator has a type argument, as in `@annotate::[T](.Field)`, is a **typed fact type**. The compiler recognizes `std.annotation.annotate` by its qualified name and reads that argument.
+2. r[annot.typed-fact.target-param] That type argument must be one of the fact type's own type parameters. It stands for the type of the target that each value attaches to.
+3. r[annot.typed-fact.opt-in] The type argument is optional, since `annotate`'s type parameter is never inferred. A fact type declared with `@annotate(.Field)`, or without an `Annotate` fact, is untyped, and its values stay unchecked, as [Member Metadata](#member-metadata) states.
+4. r[annot.typed-fact.targets] A value of a typed fact type may be attached only to a field or a module-level function. A field is a named or embedded data field, or a payload member. Error: `decorator-target-kind`.
+5. r[annot.typed-fact.declared-type] A target's type is the type written on the field, so for `hits: mut Counter` it is `mut Counter`. A function's type is its signature as a function type, with its `!` and requirement row, as in `fn(i32) -> string`.
+6. r[annot.typed-fact.check] A decorator or member-line element `v` whose type constructor is a typed fact type `D` checks like `let f: D[X] = v`. `D[X]` is `D` with the target's type `X` for its target parameter. Error: `type-mismatch`.
+7. r[annot.typed-fact.check.inferred] Type arguments in `v` are inferred from that expected type, by [`fn.type.generic.argument.sources`](07-functions.md#r-fn.type.generic.argument.sources), as in any such binding.
+8. r[annot.typed-fact.check.bounds] An expected type `D[X]` that breaks a bound of `D`, as `Positive[string]` does, is an error, by [`trait.bound.unsatisfied`](09-traits.md#r-trait.bound.unsatisfied). Error: `unsatisfied-trait-bound`.
+9. r[annot.typed-fact.check.reported] Every error of the check is reported on the decorator or member line.
+10. r[annot.typed-fact.monomorphic] For the check, a target's type is made monomorphic. Each type parameter it mentions, of a generic function or of a field's owner, is written as its bound, and an unbounded one as `Any`.
+11. r[annot.typed-fact.monomorphic.bound] There, a bound such as `Integer` or `Integer & Display` stands for one fixed type that satisfies it, the same at each mention. It is not a trait-value type, so a bound that is not dynamically safe is valid there.
+12. r[annot.typed-fact.read] A template reads such a fact typed, through the field's handle, as [`annot.handle.fact`](#r-annot.handle.fact) states.
+
+A function target checks against its signature's function type. In this
+example, `@handler` on `count` checks like
+`let f: Handler[fn(i64) -> i64] = handler()`:
 
 ```text
-@annotate(.Data, .Enum)
-pub data MemberTyped: pass
+use std.annotation.annotate
 
-pub fn member_typed() -> MemberTyped:
-    MemberTyped {}
+@annotate::[F](.Fn)
+data Handler[F]: pass
+
+fn handler[R]() -> Handler[fn(i64) -> R]:
+    Handler::[fn(i64) -> R] {}
+
+@handler
+fn count(id: i64) -> i64:
+    id
+
+@handler
+fn wrap[T](id: i64) -> List[T]:
+    []
+
+@handler  # error: type-mismatch
+fn later!(id: i64) -> i64:
+    id
 ```
 
-1. r[annot.typed-fact.declarations] `std.annotation` declares `MemberTyped` and `member_typed`. Neither is a prelude name.
-2. r[annot.typed-fact.marker] A data type or enum whose type-level facts include a `MemberTyped` value is a **member-typed fact type**. Its first type parameter is its **member type parameter**.
-3. r[annot.typed-fact.recognized] The compiler recognizes `std.annotation.MemberTyped` by its qualified name, as it does `Annotate`.
-4. r[annot.typed-fact.needs-param] A `MemberTyped` value on a type with no type parameter is an error, reported on its decorator. Error: `decorator-target-kind`.
-5. r[annot.typed-fact.field-only] A value of a member-typed fact type may be attached only to a field: a named or embedded data field, or a payload member. Error: `decorator-target-kind`.
-6. r[annot.typed-fact.bind] At attachment, the value's member type argument must be the field's declared type. Any other type is an error, reported on the decorator or member line. Error: `type-mismatch`.
-7. r[annot.typed-fact.expected] A decorator or member-line element whose type constructor is a member-typed fact type `M` gets an expected type. That type is `M` with the field's declared type as its member type argument. The [expected-type rules](07-functions.md#r-fn.type.generic.argument.sources) then infer the rest, so `@example(.None)` on `nickname: string?` needs no `::[string?]`.
-8. r[annot.typed-fact.declared-type] The declared type is the type written on the field, so the argument for `hits: mut Counter` is `mut Counter`.
-9. r[annot.typed-fact.read] A template reads such a fact typed, through the field's handle, as [`annot.handle.fact`](#r-annot.handle.fact) states.
-10. r[annot.typed-fact.opt-in] A fact type without a `MemberTyped` value stays unchecked, as [Member Metadata](#member-metadata) states.
+The generic `wrap` has the monomorphic type `fn(i64) -> List[Any]`, where
+`Any` is one fixed type, so its line is
+`let f: Handler[fn(i64) -> List[Any]] = handler()`. Likewise
+`fn ms[M < Integer, R](n: M) -> R` has the type `fn(Integer) -> Any`.
+`later` is a `fn!`, so `Handler[fn!(i64) -> i64]` does not match
+`handler`'s result.
+
+> **Note.** Writing each parameter as a fixed type that meets its bounds
+> is the same as checking the line inside the declaration's own generic
+> scope. There, too, each parameter is an abstract type with its bounds.
 
 > **Why.** A fact that holds a function of the member's type, such as a
 > test generator, can then be checked where it is written, not when a
 > test first runs. Facts that hold plain settings need no check, so the
-> check is opt-in.
+> check is opt-in. The check is an ordinary binding with an expected type,
+> so a fact's own signature, such as `num_suffix`'s, states every shape
+> constraint.
 
-> **Note.** The marker is a decorator rather than a keyword on the type
-> parameter, so the grammar does not change.
+> **Note.** The target parameter is a decorator's type argument rather
+> than a keyword on a type parameter, so the grammar does not change.
 
 ## Grammar
 
@@ -985,7 +1045,7 @@ to write shared metadata, as
 3. r[annot.line.right-typed] The right side must be an expression of a list type, or `pass` after a member name and `=`. A named list, as in `name = shared_list`, needs no spread.
 4. r[annot.line.right.error] Any other line is an error. That includes `f += pass`, `Self = pass`, and `pass` for a whole variant, such as `Busy = pass`. Error: `invalid-member-line`.
 5. r[annot.line.right.not-list] A right side whose type is not a list type, such as `name = 5`, is this error rather than a type mismatch. Error: `invalid-member-line`.
-6. r[annot.line.typed] A member line's list is contextually typed as that member's metadata list, as in [Member Metadata](#member-metadata). An element of a member-typed fact type gets its expected type by [`annot.typed-fact.expected`](#r-annot.typed-fact.expected). A `Self` line's list is contextually typed as `List[Any]`.
+6. r[annot.line.typed] A member line's list is contextually typed as that member's metadata list, as in [Member Metadata](#member-metadata). An element of a typed fact type gets its expected type by [`annot.typed-fact.check`](#r-annot.typed-fact.check). A `Self` line's list is contextually typed as `List[Any]`.
 7. r[annot.line.duplicate] After a line applies, one member, variant, or type must not hold two facts of the same concrete type. `+=` with a type already present is an error; `=` changes it instead. Error: `duplicate-fact`.
 8. r[annot.line.unchanged] A member without a line keeps its declaration facts.
 9. r[annot.line.placement-blocks] A member line anywhere other than a derivation block or a trait-less derivation block, including in a template or an ordinary implementation, is an error. Error: `misplaced-derivation`.
@@ -1383,7 +1443,7 @@ variant of a derivation's target.
 8. r[annot.handle.holds] `v.holds(x)` is true exactly when `x` holds the variant `v`.
 9. r[annot.handle.default] `h.has_default()` is true when the member declares a default. `h.default()` evaluates that default, or returns `.None` when there is none.
 10. r[annot.handle.escape] Handles are ordinary values and may escape the traversal that passed them.
-11. r[annot.handle.fact] `h.fact::[M]()` reads the member's fact of type `M`, or `.None`. `M` must be a [member-typed fact type](#member-typed-facts) whose member type argument is `F`. Error: `type-mismatch`.
+11. r[annot.handle.fact] `h.fact::[M]()` reads the member's fact of type `M`, or `.None`. `M` must be a [typed fact type](#member-typed-facts) whose argument for its target parameter is `F`. Error: `type-mismatch`.
 12. r[annot.handle.fact.exact] It finds only a fact whose type is exactly `M`. On a read-type handle of a member declared `mut T`, `F` is `T`, so a fact bound to `mut T` is not found.
 
 ```text

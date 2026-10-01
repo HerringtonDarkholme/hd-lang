@@ -1,0 +1,14 @@
+# test: a generic generator in arbitrary.with infers its type argument from the expected fact type With[string]
+# std Testing, Derived Arbitrary: std-testing.arbitrary.with.checked; spec 14 annot.typed-fact.check.inferred
+# (owner decision ANNOTATE-TYPED, batch 39, 2026-10-01).
+use std.testing.{Arbitrary, Choices}
+use std.testing.arbitrary
+
+fn any_value[T < Arbitrary](c: mut Choices) -> T:
+    c.draw()
+
+@derive(Arbitrary, Debug)
+data Item:
+    @arbitrary.with(any_value)
+    name: string
+    price: i32

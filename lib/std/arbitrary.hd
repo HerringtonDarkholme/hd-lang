@@ -10,9 +10,9 @@ use std.inspect.Inspectable
 
 # A generator whose drawn values are erased to `Inspectable`, so the derived
 # code can downcast each one to its member's type. It is opaque: only
-# `draw_with` reads it. Batch 36 replaces it with the member-typed fact
+# `draw_with` reads it. Batch 36 replaces it with the typed fact
 # `With[F]` (r-std-testing.arbitrary.with.module-typed); the prototype
-# keeps this erased form until it implements member-typed facts.
+# keeps this erased form until it implements typed facts (batch 39).
 pub data Generator:
     drawer: Draw
 

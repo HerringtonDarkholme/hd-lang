@@ -1,10 +1,7 @@
-# test: a prefix function's requirement row joins the caller's row, as any call's does
-# Spec 05 Literal Suffixes: expr.literal-fn.ordinary-call; `logged"x"` needs Console where the row is empty.
+# test: a prefix function with a requirement row does not fit fn(Template[T]) -> R, whose row is empty
+# Spec 14 Member-Typed Facts: annot.typed-fact.check, reported at the decorator (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
 use std.ops.{Template, str_prefix}
 
-@str_prefix
+@str_prefix  # diagnostic: type-mismatch
 fn logged(t: Template[string]) -> string $ Console:
     "logged"
-
-pub fn render() -> string:
-    logged"x"  # diagnostic: missing-requirement

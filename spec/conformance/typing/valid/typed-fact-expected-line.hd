@@ -1,11 +1,10 @@
-# test: a member line's member-typed fact gets the field's declared type as its expected type, so a generic function value needs no type argument
-# Spec 14 Member-Typed Facts: annot.typed-fact.expected; Member Lines: annot.line.typed
-# (owner decision FACT-EXPECTED, batch 38, 2026-10-01).
-use std.annotation.{annotate, member_typed}
+# test: a member line's typed fact gets the fact type at the field's declared type as its expected type, so a generic function value needs no type argument
+# Spec 14 Member-Typed Facts: annot.typed-fact.check; Member Lines: annot.line.typed
+# (owner decisions FACT-EXPECTED, batch 38, and ANNOTATE-TYPED, batch 39, 2026-10-01).
+use std.annotation.annotate
 use std.structure.Structure
 
-@annotate(.Field)
-@member_typed
+@annotate::[F](.Field)
 data Fallback[F]:
     make: fn() -> F?
 

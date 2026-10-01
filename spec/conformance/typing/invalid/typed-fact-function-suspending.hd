@@ -1,0 +1,17 @@
+# test: a suspending function's signature type is fn!, so its typed fact does not check against the fact's fn type
+# Spec 14 Member-Typed Facts: annot.typed-fact.declared-type and annot.typed-fact.check (owner decision ANNOTATE-TYPED, batch 39, 2026-10-01).
+use std.annotation.annotate
+
+@annotate::[F](.Fn)
+data Handler[F]: pass
+
+fn handler[R]() -> Handler[fn(i64) -> R]:
+    Handler::[fn(i64) -> R] {}
+
+@handler
+fn count(id: i64) -> i64:
+    id
+
+@handler  # diagnostic: type-mismatch
+fn later!(id: i64) -> i64:
+    id

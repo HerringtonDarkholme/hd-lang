@@ -1,11 +1,10 @@
-# test: a member-typed fact binds to the field's declared type, and a template reads it typed through the handle
-# Spec 14 Member-Typed Facts: annot.typed-fact.bind and annot.typed-fact.read; Handles: annot.handle.fact
-# (owner decision O7, batch 36, 2026-10-01).
-use std.annotation.{annotate, member_typed}
+# test: a typed fact's pattern checks against the field's declared type, and a template reads it typed through the handle
+# Spec 14 Member-Typed Facts: annot.typed-fact.check and annot.typed-fact.read; Handles: annot.handle.fact
+# (owner decisions O7, batch 36, and ANNOTATE-TYPED, batch 39, 2026-10-01).
+use std.annotation.annotate
 use std.structure.{Structure, Field, Variant, Walker}
 
-@annotate(.Field)
-@member_typed
+@annotate::[F](.Field)
 data Fallback[F]:
     value: F
 

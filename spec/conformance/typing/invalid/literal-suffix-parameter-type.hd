@@ -1,10 +1,10 @@
-# test: a suffix function whose required parameter is not numeric is an error at its definition
-# Spec 05 Literal Suffixes: expr.literal-fn.definition; `@num_suffix` on `fn em(label: string)`.
+# test: a suffix function whose parameter type does not implement Num fails NumSuffix's bound at the decorator
+# Spec 14 Member-Typed Facts: annot.typed-fact.check; `@num_suffix` on `fn em(label: string)` (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
 use std.ops.num_suffix
 
 data Pixels:
     count: i32
 
-@num_suffix
-fn em(label: string) -> Pixels:  # diagnostic: type-mismatch
+@num_suffix  # diagnostic: unsatisfied-trait-bound
+fn em(label: string) -> Pixels:
     Pixels { count: 0 }
