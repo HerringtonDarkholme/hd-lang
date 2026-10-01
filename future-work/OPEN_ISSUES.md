@@ -4,64 +4,10 @@ The language specification is implementable for the behavior it accepts, but
 the decisions below remain deliberately open and some block the broader product
 claims. Implementations must not guess an extension: unsupported forms remain
 errors until an issue is resolved in the specification. Runtime, ABI, library,
-and tooling work is listed separately at the end. A resolved entry shrinks to
-one line under [Applied Decisions](#applied-decisions); the specification
-holds what it decided, and git history holds its decision table.
+and tooling work is listed separately at the end. A resolved entry is removed: the specification holds what it decided, and
+git history holds its decision table.
 
 ## Language Design Decisions
-
-### Applied Decisions
-
-These owner decisions are in the specification. The
-[Revision Notes](../spec/README.md#revision-notes) list each one by its
-name, and git history keeps the decision tables this file used to hold.
-
-- **2026-09-29 evening:** the ten evening follow-ups, the apply-pass
-  answers Let 1-5 and Map 6, batch 7 (Let 7), and batch 13 (Q1).
-- **Batches 14 and 15, provider scope overlap:** PS1-PS3 and PS3a, in
-  [Lexical And Dynamic Providers](../spec/11-requirements-and-suspension.md#lexical-and-dynamic-providers).
-- **Batch 15:** Q1a, Q1b, LM-a, LM-b, CLO1, Q-?, and Q-map.
-- **Batch 16:** TB1, LM-c, and AUD, which deleted four audit inputs.
-- **Batch 17:** INF-mut and SR1; SR1 is recorded in
-  Testing and
-  Typed Derivation.
-- **Batches 20 and 21:** AT-with, SIMPLE, and ST8, then AT-any,
-  ST8-newtype, and ST8-clash.
-- **Batch 24, iterator consumption:** IT1-IT3. `Iterator[T]` is not
-  `Iterable`, and an iterator is single-pass.
-- **Batch 25:** ST8-self and r-merge, and the Call Indexing follow-ups BF
-  and BFF (Call Indexing).
-- **Batch 26:** AT-gen, the cost review's Q2-Q8
-  (Syntax And Semantics Cost),
-  patterns in `let` (LP1 to LP1-one), and Q5-list.
-- **Batches 27 and 28, tuples:** TU1, TU2, TU-spec, and ST8-own. Tuple
-  representation is implementation work, task #122.
-- **Batch 29:** DUR, ST6 revised, and RETRY
-  (Spec Tiers).
-- **Batch 30:** the LP1 follow-ups LP-irrefutable-else, LP-inline,
-  LP-discard, LP-bare, LP-for, and Q5-tuple.
-- **Batch 31, packs and literals:** passes 31a, 31b, and 31c
-  (Reopen: Packs And Literal Sugar).
-  Packs are gone, and literal suffixes and prefixes are one rule set.
-- **Batch 32, simplify embedding:** passes 32a and 32b
-  (Simplify Embedding).
-- **Batch 33:** TUPLE-REST in 33a; PRIVATE-SHADOW, ALL-type-args,
-  Q6-others, RETRY-row, RETRY-zero, C3-valid, and LIVE-CELL in 33b.
-- **Batch 34:** the 33a follow-ups Q1-Q7.
-- **Batch 35:** Q6-default and Q6-display-text.
-- **Batch 36:** O3, O3b, and O7
-  (One Compile-Time Intrinsic).
-- **Batch 37:** VALUE-SPEC, a value-layout specialization model for the
-  non-normative [Shapes and Generic Code](../spec/04-type-system.md#shapes-and-generic-code).
-  The prototype keeps boxing for now; tasks #86, #95, #96, and #122
-  implement the model.
-- **Batch 38:** FACT-EXPECTED and FACT-WARN.
-- **Batch 39, typed facts:** ANNOTATE-TYPED, the let-check (Rule 1), the
-  monomorphic check (Rule 2), and LITERAL-MARKERS.
-- **Batch 40:** SUFFIX-ROWS, inferred other parameters, a bad target
-  parameter, and three confirmations.
-- **Batch 41:** ANNOTATE-DEFAULT, `annotate[T = Any]`
-  ([untyped fact types](../spec/14-annotations.md#r-annot.typed-fact.untyped)).
 
 ### Readings Waiting For Confirmation
 
@@ -121,13 +67,6 @@ None of these is decided.
 
 ### Bound And Row Operators
 
-The owner's decisions (2026-09-28) are applied: bounds join with `&`, rows
-join with `+`, and the old spellings are `old-row-separator` and
-`old-bound-operator` ([Multiple Bounds](../spec/02-grammar.md#multiple-bounds),
-[Requirement Clauses](../spec/02-grammar.md#requirement-clauses),
-[Row Operators](../spec/02-grammar.md#row-operators),
-[Least Row Solutions](../spec/11-requirements-and-suspension.md#least-row-solutions)).
-
 **Questions from applying them.** Each needs an owner answer; the spec
 states the current behavior.
 
@@ -138,16 +77,6 @@ states the current behavior.
 | `$.Context[$ A + B]` keeps its inner `$`, while one key is `$.Context[A]` | Kept: the context type takes a key or a row type argument | Keep it. It matches row type arguments such as `Job[$ A + B]`. |
 
 ### Mutable Host Providers
-
-The owner's decisions (2026-09-27 and 2026-09-28) are applied: a
-requirement trait with a `mut self` method is a mutable requirement trait
-([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)),
-`Console.write_line!` takes `mut self`, and `println` is an ordinary std
-function that drives `write_line!` with `block_on`
-([`module.console.println-write`](../spec/10-modules.md#r-module.console.println-write)
-through
-[`module.console.println-script`](../spec/10-modules.md#r-module.console.println-script)).
-Console calls stay out of replay recording.
 
 **Still open (raised 2026-09-28).** Nothing here is decided:
 
@@ -164,13 +93,6 @@ fn report!() -> void $ Console:
 ```
 
 ### Typed Derivation, Tool Adapters, And Secrets
-
-**Decided.** Owner decisions M1-M30 are applied in
-[Typed Derivation](../spec/14-annotations.md#typed-derivation), and M30
-confirms the readings of the M26 apply pass. Error derivation is the
-separate `@error` intrinsic, applied in
-[Error Derivation](../spec/14-annotations.md#error-derivation) and listed
-below.
 
 **Waiting on other areas.** The spec lists these as
 [undecided parts](../spec/14-annotations.md#undecided-parts); each waits

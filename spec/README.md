@@ -1761,7 +1761,7 @@ existing source. Each entry names the decision that made the change.
   trait-qualified call, and a method reference still reject bindings with
   `syntax-error`. Eight rule IDs are retired.
 - `let mut` follow-ups (owner decisions 1-4 of
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   2026-09-29): a multi-name `let` with `mut` puts its names in
   parentheses, as `let (mut log, db) = pair`. The former
   `let mut log, db = pair` is now a `syntax-error`, and so is a
@@ -1825,7 +1825,7 @@ existing source. Each entry names the decision that made the change.
   bound trait value type. Row aliases may list bound keys. Four rule IDs
   are retired.
 - `let` apply-pass answers (owner decisions Let 1-5 and Map 6 in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   2026-09-29): a multi-name `let` always puts its names in parentheses.
   `let (a, b) = pair`, previously a `syntax-error`, is valid, and its
   names are reassignable with readonly types. `let a, b = pair`,
@@ -1882,7 +1882,7 @@ existing source. Each entry names the decision that made the change.
   specified. `trait.error.api` is retired. No code is added; the codes for
   the other invalid forms are undecided.
 - `let` batch 7 (owner decision Let 7 in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   2026-09-29): a parenthesized `let` list may be a same-line suite body,
   so `if ok: let (a, b) = pair`, previously a `syntax-error`, is valid.
   Its names are never read, so each gets the existing
@@ -1976,7 +1976,7 @@ existing source. Each entry names the decision that made the change.
   replaced by `module.testing.choices.int-generic`, `.float-generic`, and
   `.string-chars`.
 - Short binding lists (owner decision Q1 in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   batch 13, 2026-09-30): a multi-name `:=` binding always puts its names
   in parentheses, as a multi-name `let` does. `(a, b) := pair`,
   previously a `syntax-error`, is valid, and `a, b := pair`, previously
@@ -2012,7 +2012,7 @@ existing source. Each entry names the decision that made the change.
   `module.testing.arbitrary.with.mismatch`, replaced by
   `module.testing.arbitrary.with.downcast-failure`.
 - Provider scope batch 14 (PS1-PS3, owner decision in
-  [Open Issues](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Open Issues,
   2026-09-30): a closure or local `fn` no longer captures providers from an
   enclosing `$.with` block. Each key its body uses goes into its declared
   or inferred row and is resolved at each call, so a callee's `$.with` may
@@ -2028,14 +2028,14 @@ existing source. Each entry names the decision that made the change.
   `fn.capture.providers.bound`, replaced by `fn.capture.no-providers` and
   `fn.capture.provider-value`.
 - Same-line `:=` lists (owner decision Q1a in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   batch 15, 2026-09-30): `if ok: (a, b) := pair`, previously a
   `syntax-error`, is valid, as `if ok: let (a, b) = pair` is.
   `unused-local-binding` reports the names it binds. Retired:
   `grammar.inline.multi-name-binding`, replaced by
   `grammar.inline.bind-list`.
 - Grouped bindings dropped (owner decision Q1b in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   batch 15, 2026-09-30): the grouped expression `(a, b := value)`,
   previously valid, is now a `syntax-error` whose fix-it writes
   `(a, b) := value`. A nested multi-name binding is written
@@ -2047,49 +2047,49 @@ existing source. Each entry names the decision that made the change.
   `grammar.expr.multi-binding.no-grouped`, and
   `grammar.expr.multi-binding.no-grouped.fix`.
 - Redundant `mut` in a `let` list (owner decision LM-a in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   batch 15, 2026-09-30): in `let (mut a, b): (mut User, User) = pair`,
   the `mut` before `a` now warns `redundant-let-mut`, as
   `let mut a: mut User` does. In both forms the fix-it removes the `mut`
   before the name and keeps the annotation. No rule ID is retired.
 - `mut self` on a primitive (owner decision LM-b in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   batch 15, 2026-09-30): a `mut self` receiver in an impl whose `Self` is
   primitive is valid; it is not `mut-on-primitive`. No rule ID is
   retired.
 - Monomorphic closures (owner decision CLO1 in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   batch 15, 2026-09-30): a closure declares no type parameters, and
   `fn[T](x: T): x` is a `syntax-error`. The grammar already rejected it;
   the rule is now stated. No rule ID is retired.
 - `?` operand hint (owner decision Q-? in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   batch 15, 2026-09-30): the operand of `x?` gets an expected type as an
   inference hint, never a coercion: `Result[T, E]` with the enclosing
   function's error type, or `T?`. So `let ports: List[i32] = it.collect()?`
   builds a `Result` or optional target instead of the default `List`. No
   rule ID is retired.
 - `Map` trait implementations (owner decision Q-map in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   batch 15, 2026-09-30): the standard library writes `Iterable` and
   `FromIterator` for `Map[K, V]` with `K < Eq & Hash`, with no std-only
   exception. Source is unaffected. No rule ID is retired.
 - Collision check in closures (owner decision PS3a in
-  [Open Issues](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Open Issues,
   batch 15, 2026-09-30): inside a closure, a `$.with` compares its keys
   with the closure's declared or inferred row and the `$.with` blocks
   inside the closure only. A key bound by a `$.with` around the closure no
   longer collides, and a key of the closure's declared row now can. No
   rule ID is retired.
 - Trailing block on the same line (owner decision TB1 in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   batch 16, 2026-09-30): editorial.
   `grammar.call.trailing-block.next-line` now names its code,
   `syntax-error`, and examples show that `if close: trailing(): pass` and
   `if close: trailing:` with an indented body are both errors. Source is
   unaffected. No rule ID is retired.
 - `self` in a primitive `mut self` method (owner decision LM-c in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   batch 16, 2026-09-30): in an impl whose `Self` is primitive, the `mut`
   of a `mut self` receiver is dropped, so `self` has the plain type
   `Self`. In an impl for `i32`, `self + 1` is valid, and a call such as
@@ -2104,7 +2104,7 @@ existing source. Each entry names the decision that made the change.
   `.Required` member, such as `data Ring: next: Ring`, now panics on the
   first case as an enum with no finite value does. No rule ID is retired.
 - Generic inference from several arguments (owner decision INF-mut in
-  [Follow-Ups Decided 2026-09-29 (Evening)](../future-work/OPEN_ISSUES.md#applied-decisions),
+  Follow-Ups Decided 2026-09-29 (Evening),
   batch 17, 2026-09-30): when one type parameter is solved from several
   arguments, only permission weakening joins their types. `max(small,
   large)` with an `i32` and an `i64` is now a `type-mismatch`; write
@@ -2263,7 +2263,7 @@ existing source. Each entry names the decision that made the change.
   [Test Cases](10-modules.md#test-cases) says `Duration` is the
   stdlib-tier `std.time.Duration`, named there only.
 - Batch 21 follow-ups to batch 20 (owner decisions AT-any, ST8-newtype,
-  and ST8-clash in [Open Issues](../future-work/OPEN_ISSUES.md#applied-decisions),
+  and ST8-clash in Open Issues,
   2026-09-30): both tiers, Notes only. Source is unaffected, and no rule
   ID changes. AT-any confirms that `arbitrary.with` returns an opaque
   `Generator`, not a raw `Any`
