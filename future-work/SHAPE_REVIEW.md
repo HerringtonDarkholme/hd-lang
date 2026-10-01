@@ -547,8 +547,7 @@ fn runtime_type[T < Inspectable]() -> TypeId:
 
 ## Owner Decisions
 
-Batch 42, 2026-10-01. Applied in batch 42; see the
-[Revision Notes](../spec/README.md#revision-notes).
+Batch 42, 2026-10-01. Applied in batch 42.
 
 1. **Q1: B.** User code reads a function's decorator values through
    `facts_of(f).find::[M]()`, which returns the existing `Facts` type. `f`

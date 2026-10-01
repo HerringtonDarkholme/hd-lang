@@ -3306,32 +3306,3 @@ existing source. Each entry names the decision that made the change.
   nothing changes. A written argument that is not one of the fact type's
   own parameters, `@annotate::[Any](.Field)` included, stays
   `type-mismatch`.
-- Shapes removed, and function facts through `facts_of` (owner decision
-  SHAPE_REVIEW Q1 and Q2, batch 42, 2026-10-01; recorded in
-  [Shape Review](../future-work/SHAPE_REVIEW.md#owner-decisions)):
-  language tier. `shape::[T]()`, `shape_of(f)`, and every shape type are
-  removed: `TypeShape`, `DataShape`, `FieldShape`, `EnumShape`,
-  `VariantShape`, `FnShape`, `ParamShape`, `ShapeMetadata`,
-  `DeclarationId`, `DeclarationKind`, `PrimitiveKind`, and
-  `SourcePosition`, with the Common Shape Representation, Shape
-  Intrinsics, and Shape Descriptors headings, the prelude's
-  `std.annotation` row, and two glossary entries. A function's
-  decorator values are read through
-  [`facts_of(f).find::[M]()`](14-annotations.md#function-facts), which
-  `std.annotation` declares and code imports; it returns the existing
-  `Facts` type. Its argument must directly name a module-level function,
-  and any other argument is `invalid-facts-of-target`, which replaces
-  `unknown-shape-target`. Retired: `types.shape.consumes`,
-  `types.shape.result`, `types.shape.other`, `types.shape.erased`,
-  `types.shape.members`, `types.assign.shape`,
-  `grammar.primary.shape-intrinsics`, `module.prelude.shape`, and
-  `trait.sealed.shape-metadata` (none); `annot.decorator.fn-read`
-  (annot.decorator.facts-of). Added: annot.facts-of.declared,
-  annot.facts-of.target, annot.facts-of.result, and
-  annot.facts-of.target.error. types.reified.metadata, lex.doc.field,
-  annot.structure.find-lookup, and annot.traitless.declaration-facts are
-  reworded to drop their shape references. For existing programs:
-  `shape_of(f).metadata::[M]()` becomes `facts_of(f).find::[M]()` after
-  `use std.annotation.facts_of`. Any other use of `shape` or `shape_of`
-  is `unknown-name`, and a shape type name is `unknown-type`. A
-  data or enum metadata read moves into a template over `Structure`.
