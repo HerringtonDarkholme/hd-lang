@@ -43,6 +43,12 @@ Open questions for the owner:
   code movable to `lib/std` now or after a small hook, and language
   semantics. It plans eleven one-hour chunks that delete about 1,900
   lines of TS, and asks four questions.
+- [One Compile-Time Intrinsic](COMPTIME_UNIFICATION.md) asks whether one
+  comptime or macro intrinsic could replace derivation, `by` delegation,
+  field facts, tuple traits, and `all!`. It inventories 438 rules and
+  about 5,090 prototype lines, surveys comptime and macro systems, small
+  languages, and research, measures the prototype's derive paths, and
+  asks seven questions.
 - [Spec Tiers](SPEC_TIERS.md) splits the spec into a language tier and a
   stdlib tier under `spec/std/`, with an inventory, a conformance split,
   and a migration plan. The owner decided ST1-ST8 on 2026-09-30; step 1,
