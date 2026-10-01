@@ -36,6 +36,7 @@ import {
 } from "./context.ts";
 import {
   containsGenericType,
+  mentionsUnsolved,
   genericTypeName,
   inferGenericType,
   lacksOnlyPatternKeys,
@@ -831,7 +832,9 @@ export abstract class CallChecker extends StatementChecker {
         const source = expression.arguments[entry.argumentIndices[0]!]!;
         const inferredFormal = substituteGenericType(formal, substitutions, rowSubstitutions);
         let checked: HirExpression;
-        if (!containsGenericType(inferredFormal)) {
+        // A formal that mentions only the caller's own type parameters is a
+        // known expected type; only the callee's unsolved ones leave it open.
+        if (!mentionsUnsolved(inferredFormal, signature, substitutions, rowSubstitutions)) {
           checked = this.checkExpression(source, inferredFormal);
         } else if (source.kind === "closure" || this.isGenericFunctionValue(source)) {
           this.pendingCallGenerics = new Set(

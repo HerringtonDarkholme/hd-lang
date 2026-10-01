@@ -111,7 +111,7 @@ export interface Signature {
   /** A suffix function, marked `@num_suffix` (spec/05-expressions.md#r-expr.literal-fn.marker). */
   readonly numSuffix?: boolean;
   /** A prefix function, marked `@str_prefix` (spec/05-expressions.md#r-expr.literal-fn.marker). */
-  readonly strPrefix?: { readonly templateParameter: boolean };
+  readonly strPrefix?: boolean;
   /** Type-argument defaults, applied to what a use site leaves unsolved (04 Type-Argument Defaults). */
   readonly genericDefaults?: ReadonlyMap<string, ValueType>;
   readonly span: SourceSpan;

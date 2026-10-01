@@ -652,10 +652,10 @@ else`, `break`, `break value`, and `continue`;
   `@num_suffix` (`FunctionDecl.numSuffix`, set after the std join by
   `checker/decorators.ts` from a value of `std.ops.NumSuffix`), and checks
   the ordinary call, so a generic or provider-needing suffix function
-  follows the ordinary rules (L20). The marked function's shape, exactly
-  one parameter of a primitive number type or of a type parameter bounded
-  by `std.num.Num`, `Integer`, or `Float`, and no suspension, is checked at its definition as
-  `type-mismatch` on the `fn` line (L21, L22, `checker/literal-suffixes.ts`); an
+  follows the ordinary rules (`expr.literal-fn.ordinary-call`). The marker
+  is a typed fact (see typed facts below), so the marked function's shape
+  is checked at the decorator, by `num_suffix`'s signature in
+  `lib/std/ops.hd`; an
   unmarked function at the literal is `invalid-literal-suffix`. `std.ops` and
   `std.time` (`Duration`, an `i64` count of milliseconds in the
   prototype's own `millis` field, and the suffix functions `ms`, `s`,
@@ -672,10 +672,9 @@ else`, `break`, `break value`, and `continue`;
   only, requires `@str_prefix` (`FunctionDecl.strPrefix`, set with the
   suffix marker in `checker/decorators.ts` from a value of
   `std.ops.StrPrefix`), and checks the ordinary call, so each value
-  converts to the template's `T` like an argument. The prefix shape,
-  exactly one parameter, of type `Template[T]`, and no suspension, is
-  checked at the definition as `type-mismatch` on the `fn` line
-  (`checker/literal-suffixes.ts`); an unmarked function at the string is
+  converts to the template's `T` like an argument. The prefix shape is
+  checked at the decorator, by `str_prefix`'s signature, as for suffixes;
+  an unmarked function at the string is
   `invalid-string-prefix`. `std.text` declares `r`, `interpolate`, and
   `process_escapes` (which returns `Result[string, EscapeError]` with the byte offset of
   the bad escape) in hd; a `\u{...}` escape uses the host function
@@ -784,6 +783,31 @@ else`, `break`, `break value`, and `continue`;
   that a member line attaches is checked on that line. A newtype is a
   `.Newtype` target, and a value on a kind its limit omits is
   `decorator-target-kind` (D10);
+- typed facts (spec/14-annotations.md#member-typed-facts), in
+  `checker/typed-facts.ts`, after trait-less blocks are folded in and
+  before derivations read the facts: `@annotate::[F](...)` on a data type
+  or enum makes it a typed fact type, its argument must be one of the
+  type's parameters (`type-mismatch` at the decorator), and the pass then
+  drops the argument, which `lib/std`'s `annotate[T = Any]` never infers.
+  A typed fact on any target but a field or a module-level function is
+  `decorator-target-kind`. Each value `v` on a field, or on a derivation
+  block's member line for one, or on a module-level function becomes
+  `hd__typed_fact_N::[X, _](v)`, the call of a generated identity
+  function over the fact type's parameters and bounds, so ordinary call
+  checking does the `let f: D[X] = v` check: `X` is the expected type,
+  the other slots are inferred, and `D`'s bounds are checked, all at the
+  decorator or line. `X` is the field's written type or the function's
+  signature type with its `!` and row. A generic target's bounded
+  parameters become parameters of the fact's check function, with their
+  bounds and the bounds' supertraits, and unbounded ones become `Any`; a
+  derivation's facts function holds such a fact as its value alone, since
+  it has no generic scope. A fact type of `std`, such as `NumSuffix` or
+  `With`, is found from the `std` function that the value calls.
+  `h.fact::[M]()` on a handle is `std.structure`'s `Field.fact`, which
+  finds the member's fact of exactly type `M`; it does not check that
+  `M`'s target argument is the handle's `F`, and `M` must be inspectable,
+  so a fact whose target argument is a generic `F` without `Inspectable`
+  cannot be read;
 - runtime type identity: importing a `std.inspect` name or `std.error.Error`
   declares the sealed `Inspectable` (`std.error.Error` extends it) and
   `TypeId`, a data type holding the canonical printable name (an inner
@@ -873,8 +897,8 @@ else`, `break`, `break value`, and `continue`;
   `lib/std/testing.hd`, so `Box[T]` gets `T < Arbitrary & Inspectable`
   (`std-testing.arbitrary.derive.params`). Its
   `member[F < Arbitrary & Inspectable]` draws a member with
-  the `Generator` among its facts, downcast to `F` (`explicit-panic` on a
-  mismatch), or else with `F::arbitrary`. A member that fails either bound
+  the generator of its typed `With[F]` fact, read with `h.fact`, or else
+  with `F::arbitrary`. A member that fails either bound
   is `unsatisfied-trait-bound` at the opt-in, naming the member, rather
   than the `member-not-derivable` of other templates
   (`std-testing.arbitrary.derive.not-derivable`). `use
@@ -1069,7 +1093,7 @@ What it provides:
 | `std.function` | the sealed marker trait `Tuple`, which the compiler implements for every tuple type; a `Tuple` bound passes no dictionary. `Fn` and `SuspendFn` have no declaration: the checker rewrites them to the `fn(...)` sugar |
 | `std.format` | the prelude `Display` and `Debug`; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and tuples up to 12 elements; `Debug` and `Display` for rest tuples of at most 11 fixed elements |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
-| `std.testing.arbitrary` | `with` and `Generator`, in `lib/std/arbitrary.hd`, since the prototype has no std submodules |
+| `std.testing.arbitrary` | `with` and the typed fact type `With[F]`, in `lib/std/arbitrary.hd`, since the prototype has no std submodules |
 
 The prelude `string` methods live in `std.text` too, and `lower` and
 `upper` are backed by the host. Positions and lengths are byte offsets. A string index is the

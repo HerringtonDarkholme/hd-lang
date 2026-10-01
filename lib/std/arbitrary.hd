@@ -3,35 +3,17 @@
 # submodules, so this is `std.arbitrary`, which code does not import by that
 # name: `use std.testing.arbitrary` makes each `arbitrary.with(gen)` a call of
 # `with` under its hidden name (checker/arbitrary-module.ts). The template of
-# `Arbitrary` in `std.testing` reads a member's `Generator` fact and draws
-# with `draw_with`.
+# `Arbitrary` in `std.testing` reads a member's `With[F]` through its handle.
+use std.annotation.annotate
 use std.testing.Choices
-use std.inspect.Inspectable
 
-# A generator whose drawn values are erased to `Inspectable`, so the derived
-# code can downcast each one to its member's type. It is opaque: only
-# `draw_with` reads it. Batch 36 replaces it with the typed fact
-# `With[F]` (r-std-testing.arbitrary.with.module-typed); the prototype
-# keeps this erased form until it implements typed facts (batch 39).
-pub data Generator:
-    drawer: Draw
+# A typed fact type (r-std-testing.arbitrary.with.module-typed): on a member
+# of type `X`, `arbitrary.with(gen)` checks like
+# `let f: With[X] = with(gen)`, so `gen` must draw `X`
+# (r-std-testing.arbitrary.with.checked).
+@annotate::[F](.Field)
+pub data With[F]:
+    pub gen: fn(mut Choices) -> F
 
-pub fn with[T < Inspectable](gen: fn(mut Choices) -> T) -> Generator:
-    Generator { drawer: Drawer::[T] { gen: gen } }
-
-# One value drawn by the generator, as the derived code reads it. Only
-# `std.testing` calls it.
-fn draw_with(generator: Generator, c: mut Choices) -> Inspectable:
-    generator.drawer.draw(c)
-
-# The erasing wrapper. A trait implementation holds `T`'s `Inspectable`
-# dictionary, which a closure in `with` could not capture in the prototype.
-trait Draw:
-    fn draw(self, c: mut Choices) -> Inspectable
-
-data Drawer[T]:
-    gen: fn(mut Choices) -> T
-
-impl[T < Inspectable] Draw for Drawer[T]:
-    fn draw(self, c: mut Choices) -> Inspectable:
-        (self.gen)(c)
+pub fn with[F](gen: fn(mut Choices) -> F) -> With[F]:
+    With::[F] { gen: gen }

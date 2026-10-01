@@ -8,7 +8,5 @@ F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md 
 DC7	1	An initialization group's statements are not interleaved: the package linker joins the group's modules by identity, so a read of a later-joined module's binding fails
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer
 Q6	2	Tuples derive Eq, PartialOrd, Ord, and Hash, but the prototype has no Hash for tuples, so a tuple map key fails the bound Map[K < Eq & Hash, V] (task #142)
-O7	1	Member-typed facts (batch 36, O7): the prototype keeps the erased arbitrary.with Generator, so a mismatched generator panics at run time instead of type-mismatch
-ANNOTATE-TYPED	14	Typed facts (batches 39 and 40, ANNOTATE-TYPED): the prototype's annotate takes no type argument, so @annotate::[F] is argument-count; Field has no fact method, a bare generic decorator gets no expected type, and a fn! target is not type-mismatch
-LITERAL-MARKERS	8	Literal markers as typed facts (batch 39, LITERAL-MARKERS): the prototype still checks the literal-function shape at the fn line, and reports a parameter outside Num as type-mismatch
+ANNOTATE-TYPED	2	Typed facts (batches 39 and 40, ANNOTATE-TYPED): the prototype's facts hold Inspectable values, so h.fact::[M]() needs M inspectable, and a typed fact over a type that is not inspectable, such as With[fn() -> i32], cannot be held or read
 O3b	5	Tuple Structure and tuple templates (batch 36, O3b): the prototype has neither, so tuple Debug, Display, and Default stop at 12 elements and impl[T < Tuple] ... by Structure derives nothing

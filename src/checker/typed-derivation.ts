@@ -29,6 +29,7 @@ import {
   type VariantModel,
 } from "./derivation-models.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
+import { withTypedFacts } from "./typed-facts.ts";
 import { debugWriterName } from "./standard-traits.ts";
 import { checkDuplicateDeclarationFacts, isLiteralFact } from "./declaration-facts.ts";
 import {
@@ -123,6 +124,9 @@ impl[HdS, HdF] Field[HdS, HdF]:
 
     pub fn default(self) -> HdF?:
         (self.hd_default)()
+
+    pub fn fact[HdM < Inspectable](self) -> HdM?:
+        self.info.facts.find::[HdM]()
 
 data Variant[HdS]:
     pub info: VariantInfo
@@ -430,13 +434,14 @@ export function withTypedDerivation(source: Program): DerivationResult {
     }
     return undefined;
   };
-  const program = withTraitLessBlocks(
-    withInlinedListLines(source),
-    structureVisible,
-    fact,
-    knownType,
+  // Typed facts get their expected types once trait-less lines are folded in
+  // (annot.typed-fact.check).
+  const program = withTypedFacts(
+    withTraitLessBlocks(withInlinedListLines(source), structureVisible, fact, knownType, error),
     error,
   );
+  for (const declaration of program.functions)
+    if (!functions.has(declaration.name)) functions.set(declaration.name, declaration);
   const localTraits = new Map(program.traits.map((item) => [item.name, item] as const));
   const newtypes = new Map(
     (program.types ?? [])
@@ -976,6 +981,14 @@ function checkUnderivableTargets(
   }
 }
 
+/**
+ * A typed fact whose check needs a generic scope is held as its value
+ * alone, since the facts functions have none.
+ */
+function unscoped(fact: Expression): Expression {
+  return fact.kind === "call" && fact.typedFactScope ? fact.arguments[0]! : fact;
+}
+
 function nonLiteral(fact: Expression): boolean {
   return !isLiteralFact(fact);
 }
@@ -989,7 +1002,10 @@ function factCheckFunctions(program: Program): FunctionDecl[] {
   let factCount = 0;
   const checkFacts = (expressions: readonly Expression[] | undefined): void => {
     for (const expression of expressions ?? []) {
-      factChecks.add(`fn hd__fact_check_${factCount}() -> void:`);
+      // A typed fact on a generic target checks in its monomorphic scope
+      // (annot.typed-fact.monomorphic).
+      const scope = expression.kind === "call" ? (expression.typedFactScope ?? "") : "";
+      factChecks.add(`fn hd__fact_check_${factCount}${scope}() -> void:`);
       factChecks.add(`    _ := ${factChecks.expression(expression)}`);
       factCount += 1;
     }
@@ -1083,7 +1099,7 @@ function generateDerivation(
   const factsCall = (name: string, facts: readonly Expression[]): string => {
     out.define(name, () => [
       `fn ${name}() -> Facts:`,
-      `    Facts { items: [${facts.map((fact) => `${out.expression(fact)}${isSpreadFact(fact) ? "..." : ""}`).join(", ")}] }`,
+      `    Facts { items: [${facts.map((fact) => `${out.expression(unscoped(fact))}${isSpreadFact(fact) ? "..." : ""}`).join(", ")}] }`,
     ]);
     return `${name}()`;
   };

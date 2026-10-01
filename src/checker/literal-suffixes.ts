@@ -1,5 +1,3 @@
-import type { FunctionDecl } from "../ast.ts";
-import type { Diagnostic } from "../diagnostics.ts";
 import type { HirExpression } from "../hir.ts";
 import type { Signature } from "./context.ts";
 
@@ -7,89 +5,10 @@ import type { Signature } from "./context.ts";
 // `@num_suffix` (spec/05-expressions.md#literal-suffixes), and a prefixed
 // string `x"..."` the call `x(t)` of a function marked `@str_prefix`, with a
 // `std.ops.Template` value `t` (#prefixed-strings). Both are plain call sugar
-// (Literal Suffixes L20): the call is an ordinary call, so generic functions
-// and requirement rows follow the ordinary rules. The compiler, as the
-// markers' reader, checks the marked function's shape once, at its
-// definition (L21 and L22, #r-expr.literal-fn.definition).
-
-const SUFFIX_PARAMETER_TYPES: ReadonlySet<string> = new Set([
-  "i8",
-  "i16",
-  "i32",
-  "i64",
-  "u8",
-  "u16",
-  "u32",
-  "u64",
-  "f32",
-  "f64",
-]);
-
-/**
- * What makes a marked function unusable as a suffix or prefix: exactly one
- * parameter of the right type, even when others have defaults (L22), and no
- * suspension. `fits` says whether the parameter's written type is right; a
- * vararg's type is a list, so it never fits.
- */
-function markerShapeProblem(
-  declaration: FunctionDecl,
-  what: string,
-  fits: (type: string) => boolean,
-): string | undefined {
-  const parameters = declaration.parameters;
-  if (parameters.length !== 1) return `must take exactly one parameter, of ${what}`;
-  const [parameter] = parameters;
-  if (parameter!.variadic || !fits(parameter!.type.name))
-    return `must take its parameter as ${what}`;
-  if (declaration.suspending) return "must not suspend";
-  return undefined;
-}
-
-/**
- * The definition-site shape errors of marked functions, as `type-mismatch`
- * at each marked definition. `templates` are the local names of
- * `std.ops.Template`.
- */
-export function markerShapeDiagnostics(
-  functions: readonly FunctionDecl[],
-  templates: ReadonlySet<string>,
-  numericTraits: ReadonlySet<string> = new Set(),
-): Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
-  for (const declaration of functions) {
-    // A type parameter of the function bounded by `std.num.Num`, `Integer`,
-    // or `Float` also fits (r-expr.suffix.fn-shape-param).
-    const numericParameter = (type: string): boolean =>
-      declaration.genericParameters.includes(type) &&
-      declaration.genericBounds.some(
-        (bound) =>
-          bound.parameter === type && bound.traits.some((trait) => numericTraits.has(trait)),
-      );
-    const problems = [
-      declaration.numSuffix
-        ? markerShapeProblem(
-            declaration,
-            "a primitive integer or floating-point type, or a type parameter bounded by Num, Integer, or Float",
-            (type) => SUFFIX_PARAMETER_TYPES.has(type) || numericParameter(type),
-          )
-        : undefined,
-      declaration.strPrefix
-        ? markerShapeProblem(declaration, "type std.ops.Template[T]", (type) =>
-            templates.has(type.split("[")[0] ?? type),
-          )
-        : undefined,
-    ];
-    const marker = declaration.numSuffix ? "@num_suffix" : "@str_prefix";
-    for (const problem of problems)
-      if (problem)
-        diagnostics.push({
-          code: "type-mismatch",
-          message: `${marker} function '${declaration.name}' ${problem}`,
-          span: declaration.span,
-        });
-  }
-  return diagnostics;
-}
+// (r-expr.literal-fn.ordinary-call): the call is an ordinary call, so generic
+// functions and requirement rows follow the ordinary rules. The markers are
+// typed facts, so a marked function's shape is checked at its decorator
+// (r-annot.typed-fact.check, checker/typed-facts.ts).
 
 /**
  * Checks the literal suffix `name`: `signature` is the module-scope function

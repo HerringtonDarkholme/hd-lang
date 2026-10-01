@@ -1,5 +1,7 @@
 import {
   TEMPLATE_PLACEHOLDER,
+  type DataDecl,
+  type EnumDecl,
   type FunctionDecl,
   type ImplDecl,
   type MethodDecl,
@@ -456,6 +458,76 @@ export function importedMarkerFunctions(program: Program): Set<string> {
         markers.add(imported.alias ?? imported.name);
   }
   return markers;
+}
+
+/** The `std` module and declared name of a name the program uses, local or hidden. */
+function standardOrigin(
+  program: Program,
+  local: string,
+): { readonly module: StandardModule; readonly name: string } | undefined {
+  for (const declaration of program.uses) {
+    const module = declaration.module.replace(/^std\./, "");
+    if (!declaration.module.startsWith("std.") || !isStandardModule(module)) continue;
+    const imported = declaration.names.find((item) => (item.alias ?? item.name) === local);
+    if (imported) return { module, name: imported.name };
+  }
+  for (const module of STANDARD_MODULES)
+    if (local.startsWith(hiddenStandardName(module, "")))
+      return { module, name: local.slice(hiddenStandardName(module, "").length) };
+  return undefined;
+}
+
+/** Renames a std module's text into the program's names. */
+function programNames(program: Program, module: StandardModule): (text: string) => string {
+  const localNames = standardLocalNames(program);
+  const nameOf = (owner: StandardModule, name: string): string =>
+    localNames.get(`${owner}.${name}`) ?? hiddenStandardName(owner, name);
+  const renames = moduleRenames(standardModule(module), nameOf);
+  return (text) => renameSource(text, renames);
+}
+
+/**
+ * The result type's declaration of the `std` function that the program
+ * calls by `callee`, its local or hidden name, with that declaration's name
+ * and bound texts in the program's names. Typed facts read it
+ * (spec/14-annotations.md#member-typed-facts).
+ */
+export function standardResultDeclaration(
+  program: Program,
+  callee: string,
+): { readonly declaration: DataDecl | EnumDecl; readonly name: string } | undefined {
+  const found = standardOrigin(program, callee);
+  if (!found) return undefined;
+  const parsed = standardModule(found.module);
+  const fn = parsed.program.functions.find((item) => item.name === found.name);
+  if (!fn) return undefined;
+  const base = baseName(fn.result.name);
+  const declaration = [...parsed.program.data, ...parsed.program.enums].find(
+    (item) => item.name === base,
+  );
+  if (!declaration) return undefined;
+  const rename = programNames(program, found.module);
+  const bounds = (declaration.genericBounds ?? []).map((bound) => ({
+    ...bound,
+    traits: bound.traits.map(rename),
+  }));
+  return { declaration: { ...declaration, genericBounds: bounds }, name: rename(base) };
+}
+
+/**
+ * The supertraits without arguments of the `std` trait that the program
+ * names `local`, in the program's names, as `Num` for `std.num.Integer`.
+ */
+export function standardSupertraits(program: Program, local: string): readonly string[] {
+  const found = standardOrigin(program, local);
+  if (!found) return [];
+  const trait = standardModule(found.module).program.traits.find(
+    (item) => item.name === found.name,
+  );
+  const rename = programNames(program, found.module);
+  return (trait?.supertraits ?? [])
+    .filter((supertrait) => !supertrait.name.includes("["))
+    .map((supertrait) => rename(supertrait.name));
 }
 
 /** How a module's source is renamed into the program: its names and the names it uses. */

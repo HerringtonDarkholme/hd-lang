@@ -14,6 +14,7 @@ import { isKnownType, PRELUDE_NAMES } from "./context.ts";
 import type { Signature } from "./context.ts";
 import { ALL_COMBINATOR } from "./standard-traits.ts";
 import {
+  containsGenericType,
   genericTypeName,
   inferGenericType,
   substituteGenericType,
@@ -213,6 +214,17 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           if (signature.genericParameters.length > 0 || signature.rowParameters.length > 0) {
             const instantiated = this.instantiateFunctionValue(expression, signature, _expected);
             if (instantiated) return instantiated;
+            // A known function type that no type arguments fit is a mismatch.
+            if (
+              _expected !== undefined &&
+              functionParts(_expected) &&
+              !containsGenericType(_expected)
+            )
+              this.fail(
+                "type-mismatch",
+                `generic function '${signature.name}' does not fit the expected type '${_expected}'`,
+                expression.span,
+              );
             this.fail(
               "unresolved-generic-placeholder",
               `generic function '${signature.name}' needs inferred or explicit type arguments before it can be used as a value`,

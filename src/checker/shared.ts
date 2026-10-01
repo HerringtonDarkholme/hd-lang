@@ -573,6 +573,46 @@ export function requirementKeysMayCollide(left: string, right: string): boolean 
   return unifyTypes(left, right);
 }
 
+/**
+ * Why a generic call's result, whose type arguments the expected type could
+ * not solve, does not fit that expected type: it has the same constructor,
+ * so its arguments differ, as `NumSuffix[fn(N) -> R]` and
+ * `NumSuffix[fn(i64, i64) -> i64]` do.
+ */
+export function resultMisfit(
+  result: ValueType,
+  expected: ValueType | undefined,
+): string | undefined {
+  const head = nominalGenericParts(readonlyType(result))?.name;
+  if (expected === undefined || head === undefined) return undefined;
+  if (head !== nominalGenericParts(readonlyType(expected))?.name) return undefined;
+  return `expected '${expected}', but the call returns '${result.replace(/\b(generic|row):/g, "")}'`;
+}
+
+/**
+ * Whether `type` still names one of a callee's unsolved type or row
+ * parameters. A `generic:` or `row:` name of the caller is a known type.
+ */
+export function mentionsUnsolved(
+  type: ValueType,
+  callee: {
+    readonly genericParameters: readonly string[];
+    readonly rowParameters: readonly string[];
+  },
+  substitutions: ReadonlyMap<string, ValueType>,
+  rowSubstitutions: ReadonlyMap<string, readonly string[]>,
+): boolean {
+  for (const match of type.matchAll(/\b(generic|row):([A-Za-z_]\w*)/g)) {
+    const name = match[2]!;
+    const unsolved =
+      match[1] === "generic"
+        ? callee.genericParameters.includes(name) && !substitutions.has(name)
+        : callee.rowParameters.includes(name) && !rowSubstitutions.has(name);
+    if (unsolved) return true;
+  }
+  return false;
+}
+
 export function containsGenericType(type: ValueType): boolean {
   if (genericTypeName(type)) return true;
   const inputs = inputsInner(type) ?? restInner(type);
@@ -1105,7 +1145,11 @@ export function collectRowParameterReferences(
   if (result) {
     collectRowParameterReferences(result.ok, genericParameters, output);
     collectRowParameterReferences(result.error, genericParameters, output);
+    return;
   }
+  // A row used inside a type argument, as `Q` of `NumSuffix[fn(N) -> R $ Q]`.
+  for (const argument of nominalGenericParts(type)?.arguments ?? [])
+    collectRowParameterReferences(argument, genericParameters, output);
 }
 
 export function resolveGenericRequirement(

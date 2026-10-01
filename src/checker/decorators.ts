@@ -10,7 +10,6 @@ import type {
 } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
 import { factType } from "./typed-derivation.ts";
-import { markerShapeDiagnostics } from "./literal-suffixes.ts";
 
 // Decorators as plain values (spec/14-annotations.md#prefix-decorators and
 // #target-kinds). Two passes over the attached values:
@@ -31,13 +30,6 @@ import { markerShapeDiagnostics } from "./literal-suffixes.ts";
 export const STANDARD_ANNOTATE = "std.annotation.Annotate";
 export const STANDARD_NUM_SUFFIX = "std.ops.NumSuffix";
 export const STANDARD_STR_PREFIX = "std.ops.StrPrefix";
-export const STANDARD_TEMPLATE = "std.ops.Template";
-/** The numeric traits that may bound a generic suffix parameter (r-expr.suffix.fn-shape-param). */
-const STANDARD_NUMERIC_TRAITS: ReadonlySet<string> = new Set([
-  "std.num.Num",
-  "std.num.Integer",
-  "std.num.Float",
-]);
 
 /** A target kind: a variant of `std.annotation.Target`. */
 type TargetKind =
@@ -193,8 +185,10 @@ export function markerFunctions(functions: readonly FunctionDecl[]): Set<string>
 
 /**
  * Marks each function that carries a `std.ops.NumSuffix` or `std.ops.StrPrefix`
- * value as a suffix or prefix function (spec/05-expressions.md#r-expr.literal-fn.marker). It runs after the standard library is joined, so
- * the markers' and `std.ops.Template`'s declarations are known.
+ * value as a suffix or prefix function (spec/05-expressions.md#r-expr.literal-fn.marker).
+ * It runs after the standard library is joined, so the markers' declarations
+ * are known. Their shape is checked where they are attached, as typed facts
+ * (annot.typed-fact.check, checker/typed-facts.ts).
  */
 export function withSuffixMarkers(program: Program): Program {
   const functions = new Map(program.functions.map((item) => [item.name, item] as const));
@@ -204,7 +198,6 @@ export function withSuffixMarkers(program: Program): Program {
     );
   const suffixMarkers = localNames(STANDARD_NUM_SUFFIX);
   const prefixMarkers = localNames(STANDARD_STR_PREFIX);
-  const templates = localNames(STANDARD_TEMPLATE);
   if (suffixMarkers.size === 0 && prefixMarkers.size === 0) return program;
   const marked = (declaration: FunctionDecl, markers: ReadonlySet<string>): boolean =>
     (declaration.decorators?.facts ?? []).some((fact) =>
@@ -215,33 +208,10 @@ export function withSuffixMarkers(program: Program): Program {
     functions: program.functions.map((declaration) => {
       let result = declaration;
       if (marked(declaration, suffixMarkers)) result = { ...result, numSuffix: true };
-      // Prefix functions (spec/05-expressions.md#r-expr.literal-fn.marker).
-      if (marked(declaration, prefixMarkers)) {
-        const first = declaration.parameters[0]?.type.name;
-        const templateParameter = first !== undefined && templates.has(baseTypeName(first));
-        result = { ...result, strPrefix: { templateParameter } };
-      }
+      if (marked(declaration, prefixMarkers)) result = { ...result, strPrefix: true };
       return result;
     }),
   };
-}
-
-/**
- * The definition-site shape errors of functions marked `@num_suffix` or
- * `@str_prefix` (spec/05-expressions.md#r-expr.literal-fn.definition), after `withSuffixMarkers`.
- */
-export function suffixMarkerDiagnostics(program: Program): Diagnostic[] {
-  const templates = new Set(
-    program.data.filter((item) => item.standardName === STANDARD_TEMPLATE).map((item) => item.name),
-  );
-  const numericTraits = new Set(
-    program.traits
-      .filter(
-        (item) => item.standardName !== undefined && STANDARD_NUMERIC_TRAITS.has(item.standardName),
-      )
-      .map((item) => item.name),
-  );
-  return markerShapeDiagnostics(program.functions, templates, numericTraits);
 }
 
 // ---------------------------------------------------------------------------

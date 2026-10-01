@@ -103,12 +103,8 @@ export interface FunctionDecl {
   readonly standard?: boolean;
   /** Carries a `std.ops.NumSuffix` value: a suffix function (05-expressions.md#r-expr.literal-fn.marker). */
   readonly numSuffix?: boolean;
-  /**
-   * Carries a `std.ops.StrPrefix` value: a prefix function
-   * (05-expressions.md#r-expr.literal-fn.marker). `templateParameter` says
-   * whether its first parameter is a `std.ops.Template[T]`.
-   */
-  readonly strPrefix?: { readonly templateParameter: boolean };
+  /** Carries a `std.ops.StrPrefix` value: a prefix function (05-expressions.md#r-expr.literal-fn.marker). */
+  readonly strPrefix?: boolean;
 }
 
 export interface MethodDecl {
@@ -653,6 +649,10 @@ export type Expression =
       // `sql(Template { ... })` of its prefix function
       // (05-expressions.md#prefixed-strings).
       readonly stringPrefix?: string;
+      // Set on the call that checks a typed fact against its target's type
+      // (14-annotations.md#r-annot.typed-fact.check): the generic parameter
+      // list, such as `[HdFactT < Integer]`, that its type arguments need.
+      readonly typedFactScope?: string;
       readonly span: SourceSpan;
     }
   | {

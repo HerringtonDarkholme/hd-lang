@@ -29,6 +29,7 @@ import {
   genericTypeName,
   matchGenericTypePattern,
   matchTraitImplementation,
+  resultMisfit,
   substituteGenericType,
   traitTypeName,
 } from "./shared.ts";
@@ -1227,6 +1228,8 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     const unresolved = signature.genericParameters.filter(
       (parameter) => !substitutions.has(parameter),
     );
+    const misfit = unresolved.length > 0 ? resultMisfit(signature.result, expected) : undefined;
+    if (misfit) this.fail("type-mismatch", misfit, expression.span);
     if (unresolved.length > 0)
       this.fail(
         "unresolved-generic-placeholder",

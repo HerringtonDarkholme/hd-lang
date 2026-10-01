@@ -9,8 +9,8 @@ use std.format.debug
 use std.hash.Hash
 use std.num.{Float, Integer, parse_i64}
 use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
-use std.inspect.{Inspectable, TypeId, downcast_val}
-use std.arbitrary.{Generator, draw_with}
+use std.inspect.Inspectable
+use std.arbitrary.With
 
 # The only source of randomness a generator sees
 # (spec/std/testing.md#property-tests). The runner creates each one and
@@ -212,19 +212,12 @@ impl[S] Source[S] for ArbitrarySource[S]:
 
     # Every member implements `Arbitrary` and is inspectable, tuned or not
     # (r-std-testing.arbitrary.derive.member-bounds). A tuned member draws
-    # with its generator, and the drawn value is downcast to the member's
-    # type, never falling back to its `Arbitrary`. Batch 36 reads a typed
-    # `With[F]` through the handle instead
-    # (r-std-testing.arbitrary.with.typed-read), once the prototype has
-    # typed facts.
+    # with the generator of its typed `With[F]` fact, read through the
+    # handle (r-std-testing.arbitrary.with.typed-read).
     fn member[F < Arbitrary & Inspectable](mut self, h: Field[S, F], previous: F?) -> Result[F, NoFiniteValue]:
-        match h.info.facts.find::[Generator]():
+        match h.fact::[With[F]]():
             .None => .Ok(F::arbitrary(self.c))
-            .Some(generator) =>
-                drawn := draw_with(generator, self.c)
-                match downcast_val::[F](drawn):
-                    .Some(value) => .Ok(value)
-                    .None => panic("arbitrary.with on member ${h.info.name} of type ${TypeId::of::[F]()} drew a value of type ${drawn.runtime_type()}")
+            .Some(tuned) => .Ok((tuned.gen)(self.c))
 
     fn missing[F](mut self, h: Field[S, F]) -> Result[F, NoFiniteValue]:
         panic("an arbitrary source names every member")

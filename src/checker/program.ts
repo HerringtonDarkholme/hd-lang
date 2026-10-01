@@ -19,7 +19,6 @@ import {
   checkDecoratorTargets,
   markerFunctions,
   withBareMarkerCalls,
-  suffixMarkerDiagnostics,
   withSuffixMarkers,
 } from "./decorators.ts";
 import { withStandardTraits } from "./standard-traits.ts";
@@ -123,7 +122,6 @@ function checkProgram(source: Program, options: CheckOptions): CheckResult {
     program,
     diagnostics: [
       ...hoisted.diagnostics,
-      ...suffixMarkerDiagnostics(marked),
       ...targetDiagnostics,
       ...declared.diagnostics,
       ...rowRuleDiagnostics(program),

@@ -7,22 +7,28 @@
 # A suffix function is one marked `@num_suffix`, and a prefix function one
 # marked `@str_prefix`; the compiler recognizes `std.ops.NumSuffix`,
 # `std.ops.StrPrefix`, and `std.ops.Template` by their qualified names
-# (r-expr.literal-fn.marker), and `@annotate(.Fn)` limits
+# (r-expr.literal-fn.marker), and `@annotate::[F](.Fn)` limits
 # each marker to functions (r-expr.literal-fn.fn-only).
 use std.annotation.annotate
 use std.hash.Hash
+use std.num.Num
 
-@annotate(.Fn)
-pub data NumSuffix: pass
+# Both markers are typed fact types (r-annot.typed-fact.declare), so a
+# marker on `fn ms(n: i64) -> Millis` checks like
+# `let f: NumSuffix[fn(i64) -> Millis] = num_suffix()`: the signatures below
+# hold every shape constraint, and `Q` takes any requirement row
+# (r-expr.literal-fn.row).
+@annotate::[F](.Fn)
+pub data NumSuffix[F]: pass
 
-pub fn num_suffix() -> NumSuffix:
-    NumSuffix {}
+pub fn num_suffix[N < Num, R, Q]() -> NumSuffix[fn(N) -> R $ Q]:
+    NumSuffix::[fn(N) -> R $ Q] {}
 
-@annotate(.Fn)
-pub data StrPrefix: pass
+@annotate::[F](.Fn)
+pub data StrPrefix[F]: pass
 
-pub fn str_prefix() -> StrPrefix:
-    StrPrefix {}
+pub fn str_prefix[T, R, Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
+    StrPrefix::[fn(Template[T]) -> R $ Q] {}
 
 # The argument of a prefix function: the `n + 1` raw text pieces around the
 # `n` interpolated values (r-expr.prefix.template).
