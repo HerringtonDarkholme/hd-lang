@@ -80,9 +80,28 @@ const MAX_PART_DEPTH = 3;
 /**
  * 08 Data Embedding, embedding limits: a fourth embedded field is
  * `too-many-embedded-fields`, and a part at depth 4 is `embedding-too-deep`,
- * reported on the embedded field that begins the first such chain.
+ * reported on the embedded field that begins the first such chain. A data type
+ * that embeds itself is `embedding-cycle` instead, reported once per cycle on
+ * the cycle's first declared type, with the cycle path in the message.
  */
 export function checkEmbeddingLimits(context: ProgramCheckContext): void {
+  const cyclic = new Set<HirData>();
+  for (const declaration of context.dataTypes.values()) {
+    if (cyclic.has(declaration)) continue;
+    const cycle = embeddingCycle(declaration, context);
+    if (!cycle) continue;
+    for (const member of context.dataTypes.values())
+      if (
+        pathTo(declaration, member, new Set(), context) &&
+        pathTo(member, declaration, new Set(), context)
+      )
+        cyclic.add(member);
+    context.diagnostics.push({
+      code: "embedding-cycle",
+      message: `data '${declaration.name}' embeds itself through ${cycle.path.map((data) => data.name).join(" > ")}; an embedding cycle never ends`,
+      span: cycle.field.span,
+    });
+  }
   for (const declaration of context.dataTypes.values()) {
     const embedded = declaration.fields.filter((field) => field.embedded);
     const extra = embedded[MAX_EMBEDDED_FIELDS];
@@ -92,6 +111,7 @@ export function checkEmbeddingLimits(context: ProgramCheckContext): void {
         message: `data '${declaration.name}' embeds ${embedded.length} types; at most ${MAX_EMBEDDED_FIELDS} embedded fields are allowed`,
         span: extra.span,
       });
+    if (cyclic.has(declaration)) continue;
     for (const field of embedded) {
       const chain = tooDeepChain(field, [declaration.name], context);
       if (!chain) continue;
@@ -103,6 +123,48 @@ export function checkEmbeddingLimits(context: ProgramCheckContext): void {
       break;
     }
   }
+}
+
+/** The data declaration that an embedded field's type names, if any. */
+function embeddedDeclaration(
+  field: HirDataField,
+  context: ProgramCheckContext,
+): HirData | undefined {
+  const type = readonlyType(field.type);
+  return context.dataTypes.get(nominalGenericParts(type)?.name ?? type);
+}
+
+/** A path of data types from `declaration` back to itself, and the field that begins it. */
+function embeddingCycle(
+  declaration: HirData,
+  context: ProgramCheckContext,
+): { readonly field: HirDataField; readonly path: readonly HirData[] } | undefined {
+  for (const field of declaration.fields) {
+    if (!field.embedded) continue;
+    const target = embeddedDeclaration(field, context);
+    const path = target && pathTo(target, declaration, new Set(), context);
+    if (path) return { field, path: [declaration, ...path] };
+  }
+  return undefined;
+}
+
+/** The data types on a path from `from` to `goal` through embedded fields, both included, if any. */
+function pathTo(
+  from: HirData,
+  goal: HirData,
+  seen: Set<HirData>,
+  context: ProgramCheckContext,
+): readonly HirData[] | undefined {
+  if (from === goal) return [goal];
+  if (seen.has(from)) return undefined;
+  seen.add(from);
+  for (const field of from.fields) {
+    if (!field.embedded) continue;
+    const target = embeddedDeclaration(field, context);
+    const rest = target && pathTo(target, goal, seen, context);
+    if (rest) return [from, ...rest];
+  }
+  return undefined;
 }
 
 /** The type names of a chain from `field` that reaches depth 4, if any. */
