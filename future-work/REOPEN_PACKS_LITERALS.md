@@ -557,7 +557,7 @@ in; `fn.vararg.ellipsis`, the 75th, was already retired by 31a.
 | 01 Lexical Structure | 235 | 232 | `lex.contextual.pack`, `.pack.always`, `.pack.ordinary` | none |
 | 02 Grammar | 262 | 256 | `grammar.pack.*` (4), `grammar.fn.vararg.value-pack`, `grammar.primary.pack-map`, `grammar.generic.reified-and-packs` | `grammar.generic.reified-positions` |
 | 04 Type System | 466 | 464 | `types.pack.declare`, `.compile-time`, `types.trait.safe.no-reified-or-pack` | `types.trait.safe.no-reified` |
-| 09 Traits | 547 | 549 | `trait.dyn.safe.reified-or-pack`, `trait.debug.std` | `trait.dyn.safe.reified`, `trait.debug.std-types`, `trait.target.tuple.derived`, `.derived.elementwise` |
+| 09 Traits | 547 | 549 | `trait.dyn.safe.reified-or-pack`, `trait.debug.std` | `trait.dyn.safe.reified`, `trait.debug.std-types` (since retired), `trait.target.tuple.derived` (since retired), `.derived.elementwise` |
 | 11 Requirements | 301 | 305 | `req.combinator.ordinary-call` | `req.combinator.bang-called`, `.all-typing`, `.all-argument`, `.all-direct`, `.all-bang-child` |
 | 12 Variadic Generics | 63 | 0 | every `pack.*` rule | none |
 | **Language tier** | **3,907** | **3,839** | **79** | **11** |
