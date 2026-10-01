@@ -533,6 +533,15 @@ export type Statement =
       readonly compound?: string;
       readonly span: SourceSpan;
     }
+  | {
+      /** `v() = x`, a store through a callable value (05-expressions.md#callable-values). */
+      readonly kind: "call-assignment";
+      readonly target: Extract<Expression, { kind: "call" }>;
+      readonly value: Expression;
+      readonly copy?: boolean;
+      readonly compound?: string;
+      readonly span: SourceSpan;
+    }
   | { readonly kind: "discard"; readonly value: Expression; readonly span: SourceSpan }
   | { readonly kind: "return"; readonly value?: Expression; readonly span: SourceSpan }
   | { readonly kind: "break"; readonly value?: Expression; readonly span: SourceSpan }
@@ -763,3 +772,9 @@ export function listVararg(parameter: Parameter | undefined): boolean {
 export function tupleVararg(parameter: Parameter | undefined): boolean {
   return parameter?.variadic === true && !listVararg(parameter);
 }
+
+/** A statement that stores into a place, plainly or as `place op= value`. */
+export type AssignmentStatement = Extract<
+  Statement,
+  { kind: "assignment" | "field-assignment" | "index-assignment" | "call-assignment" }
+>;

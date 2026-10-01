@@ -341,6 +341,36 @@ function localType(statements: readonly Statement[], name: string): string | und
   return type;
 }
 
+/**
+ * The strengthened bound of `member[F]` in a std template's `Source`
+ * implementation (14-annotations.md#r-annot.walker.strengthen-member), read
+ * from lib/std, as `Arbitrary & Inspectable` for derived `Arbitrary`.
+ */
+function sourceMemberBound(support: readonly ImplDecl[]): readonly string[] {
+  for (const implementation of support) {
+    if (headName(implementation.traitName ?? "") !== "Source") continue;
+    const member = implementation.methods.find((method) => method.name === "member");
+    const parameter = member?.genericParameters[0];
+    const bound = member?.genericBounds.find((item) => item.parameter === parameter);
+    if (bound) return bound.traits;
+  }
+  return [];
+}
+
+/**
+ * Inside a template, a call qualified by the derived trait has the
+ * template's `T` as its `Self`, so it calls the target's own implementation
+ * (14-annotations.md#r-annot.template.qualified-self, .receiverless).
+ */
+function qualifiedByTarget(
+  callee: Extract<Expression, { kind: "qualified-name" }>,
+  target: string,
+  parameters: readonly string[],
+): Expression {
+  const ownerTypeArguments = parameters.map((name) => ({ name, span: callee.span }));
+  return { ...callee, owner: target, ...(parameters.length > 0 ? { ownerTypeArguments } : {}) };
+}
+
 /** The `Error` type an implementation of `protocol` for `type` declares. */
 function protocolError(
   implementations: readonly ImplDecl[],
@@ -564,6 +594,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
       index,
       templates.get(derivation.trait)!,
       [...program.implementations, ...templateSupport],
+      derivation.trait === arbitrary ? sourceMemberBound(templateSupport) : [],
       scope,
       error,
     );
@@ -1016,6 +1047,7 @@ function generateDerivation(
   index: number,
   template: ImplDecl,
   implementations: readonly ImplDecl[],
+  memberBound: readonly string[],
   scope: SelfRefScope,
   error: (code: string, message: string, span: SourceSpan) => void,
 ): Generated | undefined {
@@ -1036,9 +1068,13 @@ function generateDerivation(
       ),
     ),
   );
+  // A std template's own `Source` may ask more of each member, as derived
+  // `Arbitrary` asks `Arbitrary & Inspectable`; a parameter bound gets the
+  // same traits (std-testing.arbitrary.derive.params).
+  const traits = [derivation.trait, ...memberBound.filter((trait) => trait !== derivation.trait)];
   const generics =
     parameters.length > 0
-      ? `[${parameters.map((parameter) => (bounded.includes(parameter) ? `${parameter} < ${derivation.trait}` : parameter)).join(", ")}]`
+      ? `[${parameters.map((parameter) => (bounded.includes(parameter) ? `${parameter} < ${traits.join(" & ")}` : parameter)).join(", ")}]`
       : "";
   // Helpers take the target's parameters unbounded, and every use names them.
   const plain = parameters.length > 0 ? `[${parameters.join(", ")}]` : "";
@@ -1132,15 +1168,19 @@ function generateDerivation(
         const callee = value.callee as Expression;
         if (callee.kind !== "qualified-name") return value;
         const args = value.arguments as Expression[];
+        if (callee.owner === headName(template.traitName ?? ""))
+          return { ...value, callee: qualifiedByTarget(callee, declaration.name, parameters) };
+        // `Structure::f(args)` is `T::f(args)`; `Structure::walk` takes its value.
+        const owner =
+          callee.owner === STRUCTURE && callee.name !== "walk" ? templateParameter : callee.owner;
         const traversal =
-          callee.owner === STRUCTURE && callee.name === "walk"
+          owner === STRUCTURE && callee.name === "walk"
             ? "walk"
-            : callee.owner === templateParameter &&
-                (callee.name === "describe" || callee.name === "build")
+            : owner === templateParameter && (callee.name === "describe" || callee.name === "build")
               ? callee.name
-              : callee.owner === templateParameter && callee.name === "facts"
+              : owner === templateParameter && callee.name === "facts"
                 ? "facts"
-                : callee.owner === templateParameter && callee.name === "name" && args.length === 0
+                : owner === templateParameter && callee.name === "name" && args.length === 0
                   ? "name"
                   : undefined;
         if (!traversal) return value;
@@ -1311,11 +1351,7 @@ function generateDerivation(
       : parameters,
     genericBounds: derivation.block?.genericParameters.length
       ? derivation.block.genericBounds
-      : bounded.map((parameter) => ({
-          parameter,
-          traits: [derivation.trait],
-          span: derivation.span,
-        })),
+      : bounded.map((parameter) => ({ parameter, traits, span: derivation.span })),
     traitName: renameWords(template.traitName!, templateRenames),
     targetName: targetType,
     associatedTypes: renameTypes(template.associatedTypes, templateRenames),

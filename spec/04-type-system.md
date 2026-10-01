@@ -831,7 +831,7 @@ data Profile:
 
 fn tag(profile: mut Profile, readonly: Profile) -> void:
     let Profile { mut tags, name } = profile  # mut List[string], string
-    tags.push(name)
+    tags.append(name)
     let Profile { tags: mut others } = readonly  # error: mutable-upgrade
 ```
 

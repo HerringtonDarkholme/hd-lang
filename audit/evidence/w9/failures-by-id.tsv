@@ -7,20 +7,8 @@ M29	1	Typed derivation M29's per-trait Self-line warning needs a second package,
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 DC7	1	An initialization group's statements are not interleaved: the package linker joins the group's modules by identity, so a read of a later-joined module's binding fails
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer
-INF-mut	3	Generic call inference from several arguments (batch 17, INF-mut) is not implemented: an i32 and an i64 argument widen instead of type-mismatch, a User and a Display argument are type-mismatch instead of no-common-type, and assert_equal still coerces expected to the type of actual
-BFF	5	Callable values (D1 callable-value part, D2, D4): the prototype does not know `Apply` or `Update`, so `v() = x` is invalid-assignment-target and `impl Apply` is unknown-trait
-IT	2	Iterator is not Iterable (batch 24, IT2): lib/std/iter.hd still implements Iterable for Iterator, so the prototype accepts an iterator for an Iterable bound
-ST8-self	1	A template's qualified Structure:: call (batch 25, ST8-self): the prototype resolves a receiverless template call only as T::name() or T::facts(), so Structure::name() is unknown-type
-AT-gen	2	Generic derived Arbitrary (batch 26, AT-gen): the prototype's checker-generated Arbitrary gives a member's type parameter no Inspectable bound
-ST8-own	1	A template's call qualified by the derived trait (batch 28, ST8-own): the prototype reports Named::name() as associated-function-needs-target
 Q6	2	Tuples derive Eq, PartialOrd, Ord, and Hash, but the prototype has no Hash for tuples, so a tuple map key fails the bound Map[K < Eq & Hash, V] (task #142)
-Q6-others	1	Tuple Display (batch 33, Q6-others): the prototype's interpolation finds a Display implementation only for an exact target type, so lib/std's generic tuple implementations are unused
-TR-traits	3	Rest tuples derive the tuple traits (batch 34, Q5): the prototype has tuple rest elements, but no Eq or PartialOrd for a rest tuple and no rest tuple Debug or Display impl in lib/std
 O7	1	Member-typed facts (batch 36, O7): the prototype keeps the erased arbitrary.with Generator, so a mismatched generator panics at run time instead of type-mismatch
 ANNOTATE-TYPED	14	Typed facts (batches 39 and 40, ANNOTATE-TYPED): the prototype's annotate takes no type argument, so @annotate::[F] is argument-count; Field has no fact method, a bare generic decorator gets no expected type, and a fn! target is not type-mismatch
 LITERAL-MARKERS	8	Literal markers as typed facts (batch 39, LITERAL-MARKERS): the prototype still checks the literal-function shape at the fn line, and reports a parameter outside Num as type-mismatch
 O3b	5	Tuple Structure and tuple templates (batch 36, O3b): the prototype has neither, so tuple Debug, Display, and Default stop at 12 elements and impl[T < Tuple] ... by Structure derives nothing
-FX-let-mut	1	Fixture defect: typing/valid/let-data-pattern.hd writes let mut on an i32, which types.bind.let-mut-primitive makes mut-on-primitive; its let patterns pass without the mut
-FX-shape	1	Fixture defect: typing/valid/let-else-diverging-forms.hd names a loop binding shape, a prelude intrinsic (module.prelude.shape), so it is prelude-name-shadow; its let-else forms pass once it is renamed
-FX-push	2	Fixture defect: typing/valid/let-pattern-mut.hd and typing/invalid/let-pattern-mut-readonly-field.hd call List.push, which neither spec/std nor lib/std declares; with append they pass
-FX-map-index	1	Fixture defect: runtime/valid/derived-newtype.hd compares m[k] with .Some(...), but expr.index.map.read-value types m[k] as V; the read should be m.get(k)

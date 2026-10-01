@@ -10,15 +10,15 @@ decisions, and the repository history keeps the removed evidence.
 ## Conformance
 
 On 2026-10-01 the conformance suite has 1,767 cases, and
-`test/portable/cases.tsv` selects the 1,695 that the prototype passes. The
-other 72 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
+`test/portable/cases.tsv` selects the 1,718 that the prototype passes. The
+other 49 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
 finding or with a decision below. Every case is in one of the two files. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Selected | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,693 | 1,628 | 65 |
-| stdlib | 74 | 67 | 7 |
+| language | 1,693 | 1,648 | 45 |
+| stdlib | 74 | 70 | 4 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
@@ -33,23 +33,11 @@ them by tag:
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | DC7 | 1 | group statements are not interleaved across modules |
 | MHP-1 | 1 | no inferred script entry requirement row |
-| INF-mut | 3 | batch 17: generic inference widens numbers, reports a trait-value conflict as `type-mismatch`, and `assert_equal` keeps its special case |
-| BFF | 5 | D1's callable values, D2, and D4: the prototype does not know `Apply` or `Update`, so `v() = x` is `invalid-assignment-target` and `impl Apply` is `unknown-trait` |
-| IT | 2 | batch 24, IT2: `lib/std/iter.hd` still implements `Iterable` for `Iterator`, so an iterator satisfies an `Iterable` bound |
-| ST8-self | 1 | batch 25: the prototype resolves a receiverless template call only as `T::name()`, so `Structure::name()` is `unknown-type` |
-| AT-gen | 2 | batch 26: derived `Arbitrary` gives a member's type parameter no `Inspectable` bound |
-| ST8-own | 1 | batch 28: `Named::name()` in `Named`'s template is `associated-function-needs-target` |
 | Q6 | 2 | batch 31: tuples have no `Hash`, so a tuple map key fails `Map`'s `K < Eq & Hash` bound (task #142) |
-| Q6-others | 1 | batch 33: interpolation finds `Display` only for an exact target type, so `lib/std`'s generic tuple `Display` is unused |
-| TR-traits | 3 | batch 34: rest tuples have no `Eq` or `PartialOrd`, and `lib/std` declares no rest tuple `Debug` or `Display` |
 | O7 | 1 | batch 36: `arbitrary.with` still erases its generator, so a mismatched generator panics at run time |
 | ANNOTATE-TYPED | 14 | batches 39 and 40: no typed facts: `annotate` takes no type argument, so `@annotate::[F]` is `argument-count`, `Field` has no `fact`, a bare generic decorator gets no expected type, and a `fn!` target is not `type-mismatch` |
 | LITERAL-MARKERS | 8 | batch 39: the literal-function shape is still checked at the `fn` line, and a parameter outside `Num` is `type-mismatch` |
 | O3b | 5 | batch 36: no tuple `Structure` or tuple templates, so tuple traits stop at 12 elements and a tuple template derives nothing |
-| FX-let-mut | 1 | a fixture defect: `typing/valid/let-data-pattern.hd` writes `let mut` on an `i32`, which is `mut-on-primitive`; its `let` patterns pass without the `mut` |
-| FX-shape | 1 | a fixture defect: `typing/valid/let-else-diverging-forms.hd` names a loop binding `shape`, a prelude intrinsic, so it is `prelude-name-shadow` |
-| FX-push | 2 | a fixture defect: the `let` pattern `mut` fixtures call `List.push`, which neither `spec/std` nor `lib/std` declares; with `append` they pass |
-| FX-map-index | 1 | a fixture defect: `runtime/valid/derived-newtype.hd` compares `m[k]` with `.Some(...)`, but `m[k]` now reads `V`; it should call `m.get(k)` |
 
 ## What Remains
 
@@ -83,9 +71,6 @@ Revision Notes in `spec/README.md` are the record.
 | MHP-1 | A `println` call at the top level of a script is valid (the second round). The prototype infers no script entry requirement row (`module.init.script-row`), so `println-top-level-script.hd` reports `missing-requirement`. |
 | DC7 | The top-level statements of an initialization group run in dependency order, then by module identity and source position. The package linker joins a group's modules by identity and cannot interleave their statements, so a read that needs a later-joined module's binding is `top-level-read-before-initialization`, which `init-group-order.hd`, a package-tree fixture, shows. |
 | M29 | A `Self` line in a per-trait derivation block warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package, and the prototype CLI has no package roles. The other M29 rules, and M27 and M28, are implemented. |
-| BFF | D1 (its callable-value part), D2, and D4: `v()` on a value whose type implements `std.ops.Apply` calls `apply`, and with `Update`, `v() = x` and `v() op= x` store through `update`. The prototype and `lib/std/ops.hd` declare neither trait, and every call target is `invalid-assignment-target`, so `callable-value-no-update.hd` passes without the traits. |
-| IT | Batch 24, IT2: `Iterator[T]` does not implement `Iterable[T]`, so an `I < Iterable` bound rejects an iterator, readonly or mutable, and `for` takes a mutable iterator directly. `lib/std/iter.hd` still declares `impl[T] Iterable[T] for Iterator[T]`, so the prototype accepts both bound fixtures. Its `for` over a mutable iterator already works, through that impl. |
-| ST8-self | Batch 25: inside a template, a `Structure::` call has the template's `T` as its `Self`, so `Structure::name()` and `Structure::facts()` are valid. The prototype resolves only `T::name()` and `T::facts()`, and reports `Structure::name()` as `unknown-type`. |
 
 ## Prototype Gaps No Fixture Reaches
 

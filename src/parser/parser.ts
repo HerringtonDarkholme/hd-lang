@@ -1320,9 +1320,19 @@ class Parser extends LetParser {
           ...marker,
           span: { start, end },
         };
+      // The checker decides whether the call is a place: its callee's type
+      // must implement `Update` (05-expressions.md#r-expr.call.apply.place).
+      if (expression.kind === "call")
+        return {
+          kind: "call-assignment",
+          target: expression,
+          value,
+          ...marker,
+          span: { start, end },
+        };
       this.fail(
         "invalid-assignment-target",
-        "assignment requires a binding, data member, list element, or map entry",
+        "assignment requires a binding, data member, list element, map entry, or callable value",
         expression.span,
       );
     }

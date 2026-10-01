@@ -6,8 +6,8 @@ enum Shape:
 
 fn first_dots(shapes: List[Shape], strict: bool) -> i32:
     let total = 0
-    for shape in shapes:
-        let Shape.Dot(x) = shape else: continue
+    for item in shapes:
+        let Shape.Dot(x) = item else: continue
         let 0 = x else:
             if strict: panic("nonzero") else: break
         total = total + 1

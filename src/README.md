@@ -242,7 +242,10 @@ listed yet.
   fixed elements and then one `List[T]`; tuple expressions collect trailing
   elements into an expected rest element, or end in a list spread
   `(a, xs...)`; spread patterns `(a, xs...)` in `let` lists and `match`
-  arms (not yet in `for` headers, which take bare names);
+  arms (not yet in `for` headers, which take bare names). A rest tuple
+  compares with `==` and `<` element by element, its rest element as its
+  list, and `lib/std/format.hd` declares its `Debug` and `Display`, with the
+  rest element's items written inline, for at most 11 fixed elements;
 - tuple-typed and `Tuple`-bounded varargs (`args...: (i32, string)`,
   `args...: Args`), which take one tuple input: a call passes its trailing
   arguments as the tuple expression of them, and a `Tuple`-bounded type
@@ -327,7 +330,8 @@ listed yet.
   concatenation, scalar and string comparisons, Wasm GC reference identity,
   boolean short-circuiting, and explicit panics;
 - interpreted `$name` and `${expression}` string segments with left-to-right
-  canonical `Display` dispatch for concrete implementations, generic bounds,
+  canonical `Display` dispatch for concrete and generic implementations
+  (such as `lib/std`'s tuple `Display`, with its bounds' dictionaries), generic bounds,
   dynamic trait values, and the standard `string`, numeric, `bool`, and
   `char` implementations; an `f32` shows its own shortest round-trip digits
   through the host's `format_f32`;
@@ -512,6 +516,10 @@ else`, `break`, `break value`, and `continue`;
 - erased generic functions with call-site type inference, Wasm GC boxing for
   primitive values, inference through optional and `Result` types, and
   higher-order callable adapters for erased type and requirement-row ABIs.
+  Arguments that solve one type parameter, `assert_equal`'s two values
+  included, must have one type up to `mut`: a numeric widening between
+  them is `type-mismatch`, and a trait-value conversion `no-common-type`
+  (`types.generic.infer.join`); a numeric literal takes the solved type.
   Boxing is a toy shortcut: the
   [implementation model](../spec/04-type-system.md#shapes-and-generic-code)
   gives each value layout its own body and keeps values unboxed in generic
@@ -709,10 +717,10 @@ else`, `break`, `break value`, and `continue`;
   parameters explicitly; the template must hold that
   value in a local declared with its type (`unsupported-derivation`
   otherwise). `T::name()` becomes the target's declared name as a string
-  constant (`annot.structure.name`). The qualified `Structure::name()` and
-  `Structure::facts()` are `unknown-type`, since the prototype declares no
-  `Structure` trait and the spec does not yet say how their `Self` is
-  found. A walker's `member` may strengthen its bound; its dictionary
+  constant (`annot.structure.name`). Inside a template, `Structure::f(...)`
+  is `T::f(...)`, and a call qualified by the derived trait, as
+  `Named::name()`, calls the target's own implementation
+  (`annot.template.qualified-self`). A walker's `member` may strengthen its bound; its dictionary
   entry traps, since only generated code calls it, concretely. The checks
   of the chapter's diagnostics (`underivable-trait`, `misplaced-derivation`,
   `marker-template`, `invalid-member-line`, `duplicate-fact`,
@@ -860,7 +868,11 @@ else`, `break`, `break value`, and `continue`;
   first variant whose `self_ref` is not `.Required` as the simplest, at
   drawn index 0, and fails with `NoFiniteValue` when no variant is finite,
   which the template reports as the panic `"${T::name()} has no finite
-  value"`. Its `member[F < Arbitrary & Inspectable]` draws a member with
+  value"`. For a generic target, each type parameter a member uses gets
+  the template's trait and its source's `member` bound, read from
+  `lib/std/testing.hd`, so `Box[T]` gets `T < Arbitrary & Inspectable`
+  (`std-testing.arbitrary.derive.params`). Its
+  `member[F < Arbitrary & Inspectable]` draws a member with
   the `Generator` among its facts, downcast to `F` (`explicit-panic` on a
   mismatch), or else with `F::arbitrary`. A member that fails either bound
   is `unsatisfied-trait-bound` at the opt-in, naming the member, rather
@@ -915,7 +927,10 @@ else`, `break`, `break value`, and `continue`;
   on primitive operands keeps its built-in code, and any other operand calls
   the left operand's implementation, found by the trait's qualified name
   (`HirTrait.standardName`), or its bound's through a supertrait. Compound
-  assignment, `Index` and `IndexSet`, supertrait bindings such as
+  assignment, `Index` and `IndexSet`, the callable-value traits `Apply`
+  and `Update` (`v()` on a value that is not a function calls `apply`,
+  with no argument, and `v() = x` calls `update` on a `mut` callee, a call
+  of a declared function never being a place), supertrait bindings such as
   `Add[Self, Out = Self]`, and the sealed `std.num` traits `Num`, `Integer`,
   and `Float` follow the same path. The primitive implementations are hd
   code whose bodies are the built-in operators, and so are the index
@@ -1026,7 +1041,8 @@ the prototype compiles:
 - a prelude name that std declares, such as `Eq`, `Display`, or `Console`,
   is added when the program, or a std declaration it gets, mentions it. A
   comparison operator or `assert_equal` mentions `Eq`, and `<` also
-  `PartialOrd`. The checker finds them by name, which no program may
+  `PartialOrd`; an interpolated string or a `to_string` call mentions
+  `Display`. The checker finds them by name, which no program may
   shadow;
 - every added declaration's span is the `use` that brought it in, or the
   program's span.
@@ -1042,16 +1058,16 @@ What it provides:
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
 | `std.text` | on `string`: `chars`, `char_indices`, `bytes`, `slice`, `to_utf8`, `string::from_utf8` with `Utf8Error`, `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
-| `std.iter` | the prelude `Iterator[T]` and `Iterable[T]`; `Iterator` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Map`, `Result`, and `T?`; `Iterable` for `List`, `Map`, and `Iterator`; `range` |
+| `std.iter` | the prelude `Iterator[T]` and `Iterable[T]`; `Iterator` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Map`, `Result`, and `T?`; `Iterable` for `List` and `Map` (not `Iterator`, which a loop advances directly); `range` |
 | `std.cmp` | the prelude `Eq`, `PartialOrd`, `Ord`, and `Ordering`; `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?` |
 | `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | the prelude `Console` and `println`; `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
 | `std.resource` | `ResourceError[E]` |
-| `std.ops` | the twelve operator traits, `Index`, and `IndexSet`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations (spec/std/ops.md) |
+| `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations (spec/std/ops.md) |
 | `std.function` | the sealed marker trait `Tuple`, which the compiler implements for every tuple type; a `Tuple` bound passes no dictionary. `Fn` and `SuspendFn` have no declaration: the checker rewrites them to the `fn(...)` sugar |
-| `std.format` | the prelude `Display` and `Debug`; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and tuples up to 12 elements |
+| `std.format` | the prelude `Display` and `Debug`; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and tuples up to 12 elements; `Debug` and `Display` for rest tuples of at most 11 fixed elements |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
 | `std.testing.arbitrary` | `with` and `Generator`, in `lib/std/arbitrary.hd`, since the prototype has no std submodules |
 

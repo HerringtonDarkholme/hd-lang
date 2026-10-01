@@ -119,7 +119,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       this.availableCaptures.has(expression.callee.name) ||
       this.resolveGlobal(expression.callee.name)
     ) {
-      return this.checkFunctionValueCall(expression);
+      return this.checkFunctionValueCall(expression, expected);
     }
     const namedExpression = expression as NamedCallExpression;
     const intrinsic =
@@ -842,7 +842,14 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     );
   }
 
-  private checkFunctionValueCall(expression: CallExpression): HirExpression {
+  private checkFunctionValueCall(
+    expression: CallExpression,
+    expected: ValueType | undefined,
+  ): HirExpression {
+    const callee = this.checkExpression(expression.callee);
+    const callable = functionParts(readonlyType(callee.type));
+    // Any other type is called through `Apply` (05-expressions.md#callable-values).
+    if (!callable) return this.applyCall(expression, callee, expected);
     if (expression.argumentNames?.some((name) => name !== undefined)) {
       this.fail(
         "named-argument-needs-declaration",
@@ -850,10 +857,6 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         expression.span,
       );
     }
-    const callee = this.checkExpression(expression.callee);
-    const callable = functionParts(readonlyType(callee.type));
-    if (!callable)
-      this.fail("not-callable", `type '${callee.type}' is not callable`, expression.callee.span);
     const parameterNames = callable.parameters.map((_, index) => `$${index}`);
     const checkedArguments = this.checkConcreteArguments(
       expression,
@@ -1049,11 +1052,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         );
       const checkedByParameter = [
         actual,
-        this.requireCoercion(
-          this.checkExpression(expression.arguments[expectedIndex]!, actual.type),
-          actual.type,
-          expression.arguments[expectedIndex]!.span,
-        ),
+        this.checkJoinedArgument("assert_equal", expression.arguments[expectedIndex]!, actual.type),
         this.requireCoercion(
           this.checkExpression(expression.arguments[reasonIndex]!, "string"),
           "string",

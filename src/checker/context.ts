@@ -5,7 +5,7 @@ import {
   writtenBindingProblem,
 } from "./associated-bindings.ts";
 import { PRELUDE_NAMES } from "./prelude-names.ts";
-import type { Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
+import type { AssignmentStatement, Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import type {
   HirExpression,
@@ -72,7 +72,7 @@ import {
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
-  tupleParts,
+  tupleLayout,
 } from "../types.ts";
 import { narrowsTo, numericType } from "../numeric.ts";
 import { DERIVED_IMPLEMENTATION_SPANS, derivedFieldDiagnostic } from "./derive-intrinsics.ts";
@@ -185,9 +185,7 @@ export abstract class CheckerContext {
   protected abstract checkDestructuring(
     statement: Extract<Statement, { kind: "tuple-binding" | "pattern-binding" }>,
   ): HirStatement[];
-  protected abstract checkCompoundAssignment(
-    statement: Extract<Statement, { kind: "assignment" | "field-assignment" | "index-assignment" }>,
-  ): HirStatement[];
+  protected abstract checkCompoundAssignment(statement: AssignmentStatement): HirStatement[];
   protected abstract checkExpression(expression: Expression, expected?: ValueType): HirExpression;
   protected abstract isIdentityType(type: ValueType): boolean;
 
@@ -412,12 +410,7 @@ export abstract class CheckerContext {
           checked.push(...this.checkDestructuring(statement));
           continue;
         }
-        if (
-          (statement.kind === "assignment" ||
-            statement.kind === "field-assignment" ||
-            statement.kind === "index-assignment") &&
-          statement.compound
-        ) {
+        if ("compound" in statement && statement.compound) {
           checked.push(...this.checkCompoundAssignment(statement));
           continue;
         }
@@ -1130,20 +1123,23 @@ export abstract class CheckerContext {
         span,
       };
     }
-    const implementation = this.implementations.find(
-      (candidate) => candidate.traitIndex === trait.index && candidate.targetType === type,
-    );
-    const mapping = implementation?.methodFunctions.find(({ methodIndex }) => methodIndex === 0);
-    const signature = mapping
-      ? [...this.signatures.values()].find(({ index }) => index === mapping.functionIndex)
-      : undefined;
-    if (signature) {
+    // An implementation, generic ones too, such as lib/std's tuple `Display`,
+    // with its bounds' dictionaries (05-expressions.md#r-expr.interp.std.tuple.template).
+    const dispatch = this.traitMethodDispatch(type, "Display", span);
+    const signature =
+      dispatch?.kind === "function"
+        ? [...this.signatures.values()].find(({ index }) => index === dispatch.functionIndex)
+        : undefined;
+    if (dispatch?.kind === "function" && signature) {
       return {
         kind: "call",
         functionIndex: signature.index,
         functionName: signature.name,
         arguments: [this.coerce(value, type, span)],
         providers: [],
+        bounds: dispatch.bounds,
+        erasedParameterTypes: signature.parameters,
+        erasedResultType: signature.result,
         type: "string",
         span,
       };
@@ -1184,7 +1180,7 @@ export abstract class CheckerContext {
     const comparedType = readonlyType(type);
     if (numericType(comparedType) || ["bool", "char", "string"].includes(comparedType))
       return { kind: "builtin" };
-    const tuple = tupleParts(comparedType);
+    const tuple = tupleLayout(comparedType); // a rest element as its list (std-cmp.tuple.rest)
     if (tuple !== undefined) {
       const elements = tuple.map((element) => this.equalityStrategy(element, span));
       return elements.every((element) => element !== undefined)
@@ -1238,7 +1234,7 @@ export abstract class CheckerContext {
     const comparedType = readonlyType(type);
     if (numericType(comparedType) || ["char", "string"].includes(comparedType))
       return { kind: "builtin" };
-    const tuple = tupleParts(comparedType);
+    const tuple = tupleLayout(comparedType);
     if (tuple !== undefined) {
       const elements = tuple.map((element) => this.orderingStrategy(element, span));
       return elements.every((element) => element !== undefined)

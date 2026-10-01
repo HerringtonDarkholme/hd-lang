@@ -1,6 +1,6 @@
 # std.iter: the prelude `Iterator[T]` with its adapters, `FromIterator` and
-# its implementations, the `Iterable` implementations of `List`, `Map`, and
-# `Iterator`, and `range`
+# its implementations, the `Iterable` implementations of `List` and `Map`,
+# and `range`
 # (future-work/STDLIB.md#stditer). `Iterator` and `Iterable` are prelude
 # names.
 #
@@ -147,11 +147,9 @@ impl[T, C < FromIterator[T]] FromIterator[T?] for C?:
 pub trait Iterable[T]:
     fn iter(self) -> mut Iterator[T]
 
-# A loop over an iterator continues its traversal
-# (spec/06-control-flow.md#r-flow.for.iterator-direct).
-impl[T] Iterable[T] for Iterator[T]:
-    fn iter(self) -> mut Iterator[T]:
-        Iterator::from_fn(self.step)
+# `Iterator[T]` is not `Iterable[T]`: a loop over a mutable iterator
+# advances it directly (spec/06-control-flow.md#r-flow.for.iterator-not-iterable,
+# spec/06-control-flow.md#r-flow.for.iterator-direct).
 
 impl[T] Iterable[T] for List[T]:
     fn iter(self) -> mut Iterator[T]:

@@ -46,7 +46,9 @@ import {
   resolveGenericType,
   rowParameterName,
   substituteGenericType,
+  argumentOwnType,
   traitKeyName,
+  traitTypeName,
 } from "./shared.ts";
 
 import { StatementChecker } from "./statements.ts";
@@ -805,6 +807,10 @@ export abstract class CallChecker extends StatementChecker {
       });
     }
     const inferredBeforeExpected = new Set(substitutions.keys());
+    // The own type of the first argument that solved each parameter; a
+    // later argument of that parameter must have the same type, up to `mut`
+    // (04-type-system.md#inference-from-several-arguments).
+    const joined = new Map<string, ValueType>();
     if (expected) inferGenericType(signature.result, expected, substitutions, rowSubstitutions);
     const inferredFromExpected = new Set(
       [...substitutions.keys()].filter((name) => !inferredBeforeExpected.has(name)),
@@ -840,6 +846,14 @@ export abstract class CallChecker extends StatementChecker {
           checked = this.checkExpression(source);
         }
         const formalGeneric = genericTypeName(formal);
+        const own = argumentOwnType(source, checked);
+        if (formalGeneric && own !== undefined && !inferredBeforeExpected.has(formalGeneric)) {
+          const earlier = joined.get(formalGeneric);
+          const current = readonlyType(own);
+          if (earlier === undefined) joined.set(formalGeneric, current);
+          else if (earlier !== current)
+            this.failArgumentJoin(signature.name, formalGeneric, earlier, current, source.span);
+        }
         if (
           formalGeneric &&
           signature.genericBounds.some(
@@ -935,6 +949,55 @@ export abstract class CallChecker extends StatementChecker {
       substitutions,
       rowSubstitutions,
     };
+  }
+
+  /** `v()` on a callable value, through `Apply`; see `operator-calls.ts`. */
+  protected abstract applyCall(
+    expression: Extract<Expression, { kind: "call" }>,
+    callee: HirExpression,
+    expected: ValueType | undefined,
+  ): HirExpression;
+
+  /**
+   * A later argument of a type parameter that an earlier one solved as
+   * `solved`, as `assert_equal`'s `expected` after `actual`: it converts to
+   * `solved` only by permission weakening (types.generic.infer.join).
+   */
+  protected checkJoinedArgument(
+    name: string,
+    source: Expression,
+    solved: ValueType,
+  ): HirExpression {
+    const checked = this.checkExpression(source, solved);
+    const own = argumentOwnType(source, checked);
+    if (own !== undefined && readonlyType(own) !== readonlyType(solved))
+      this.failArgumentJoin(name, "T", readonlyType(solved), readonlyType(own), source.span);
+    return this.requireCoercion(checked, solved, source.span);
+  }
+
+  /**
+   * Two arguments that solve one type parameter have different types. The
+   * join converts only `mut X` to `X`: never by numeric widening, and never
+   * to a trait value (types.generic.infer.join.no-widen, .no-trait-value).
+   */
+  protected failArgumentJoin(
+    name: string,
+    parameter: string,
+    earlier: ValueType,
+    current: ValueType,
+    span: SourceSpan,
+  ): never {
+    if (traitTypeName(earlier) !== undefined || traitTypeName(current) !== undefined)
+      this.fail(
+        "no-common-type",
+        `arguments of types '${earlier}' and '${current}' both solve '${parameter}' of '${name}', and inference never converts to a trait value; write the type argument, as in '${name}::[${traitTypeName(earlier) ?? traitTypeName(current)}](...)'`,
+        span,
+      );
+    this.fail(
+      "type-mismatch",
+      `arguments of types '${earlier}' and '${current}' both solve '${parameter}' of '${name}', and inference never widens a number; convert one argument to the other's type`,
+      span,
+    );
   }
 
   /**

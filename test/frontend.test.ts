@@ -188,6 +188,28 @@ test("parser represents mut self as a mutable Self receiver", () => {
   );
 });
 
+test("a pattern before := is missing-let whose fix-it writes the let statement", () => {
+  // 02-grammar.md#r-grammar.stmt.short-binding.let-only
+  for (const [pattern, written] of [
+    ["(a, b) := pair", "let (a, b) = pair"],
+    ["Point { x, y } := p", "let Point { x, y } = p"],
+    [".Some(v) := found", "let .Some(v) = found"],
+  ] as const) {
+    const source = `fn f() -> void:\n    ${pattern}\n`;
+    const [diagnostic] = parse(source).diagnostics;
+    assert.equal(diagnostic?.code, "missing-let");
+    const edits = [...(diagnostic?.fix?.edits ?? [])].sort(
+      (left, right) => right.span.start.offset - left.span.start.offset,
+    );
+    const fixed = edits.reduce(
+      (text, edit) =>
+        text.slice(0, edit.span.start.offset) + edit.replacement + text.slice(edit.span.end.offset),
+      source,
+    );
+    assert.equal(fixed, `fn f() -> void:\n    ${written}\n`);
+  }
+});
+
 test("parser distinguishes inherent and trait implementation blocks", () => {
   const result = parse(conformanceBody("parse/valid/inherent-and-trait-impls"));
   assert.deepEqual(result.diagnostics, []);

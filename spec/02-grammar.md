@@ -178,7 +178,7 @@ data Point:
 fn total(point: Point, pair: (i32, i32)) -> i32:
     let Point { x, y: py } = point
     let (low, _) = pair
-    let mut sum = x + py
+    let sum = x + py
     sum = sum + low
     sum
 ```

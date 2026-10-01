@@ -110,6 +110,8 @@ const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
  */
 const PRELUDE_TYPE_METHODS: readonly (readonly [StandardModule, string, readonly string[]])[] = [
   ["iter", "Iterator", ["iter", "take", "enumerate", "fold", "collect"]],
+  // A std type's text, as `(1, "a").to_string()` (05-expressions.md#r-expr.interp.std.tuple.template).
+  ["format", "Display", ["to_string"]],
 ];
 
 function isStandardModule(name: string): name is StandardModule {
@@ -395,6 +397,9 @@ function mentionedNames(node: unknown, names: Set<string>): void {
   const kind = (node as { readonly kind?: unknown }).kind;
   if (kind === "map" || kind === "map-comprehension")
     for (const name of MAP_MENTIONS) names.add(name);
+  // An interpolated value is written through `Display`
+  // (05-expressions.md#string-interpolation).
+  if (kind === "interpolated-string") names.add("Display");
   for (const [key, child] of Object.entries(node)) if (key !== "span") mentionedNames(child, names);
 }
 

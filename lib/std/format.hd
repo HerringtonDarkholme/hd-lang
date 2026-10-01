@@ -72,6 +72,15 @@ impl DebugTuple:
         self.count = self.count + 1
         self
 
+    # A rest tuple's rest element: each item is a field of the tuple
+    # (spec/09-traits.md#r-trait.debug.tuples.rest).
+    fn rest[T < Debug](mut self, items: List[T]) -> mut DebugTuple:
+        for item in items:
+            self.out.write(if self.count == 0: "(" else: ", ")
+            item.debug(self.out)
+            self.count = self.count + 1
+        self
+
     pub fn finish(mut self) -> void:
         if self.count == 1 && self.unnamed:
             self.out.write(",")
@@ -192,9 +201,8 @@ pub fn debug[T < Debug](value: T) -> string:
 # Tuples of at most 12 elements. The spec derives tuple `Debug` through a
 # tuple template at every size (spec/09-traits.md#r-trait.debug.tuples,
 # batch 36); these per-size impls stay until the prototype has tuple
-# templates. Rest tuples (trait.debug.tuples.rest,
-# expr.interp.std.tuple.rest-inline) wait for tuple rest elements; until
-# then their fixtures are TUPLE-REST known failures.
+# templates. Rest tuples of at most 11 fixed elements follow the
+# fixed-size ones.
 impl Debug for ():
     fn debug(self, out: mut DebugWriter) -> void:
         out.write("()")
@@ -379,3 +387,126 @@ impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Displa
 impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display, J < Display, K < Display, L < Display] Display for (A, B, C, D, E, F, G, H, I, J, K, L):
     fn to_string(self) -> string:
         "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5}, ${self._6}, ${self._7}, ${self._8}, ${self._9}, ${self._10}, ${self._11})"
+
+# Tuples with a rest element and at most 11 fixed elements, until the
+# prototype has tuple templates. The rest element's items are written
+# inline after the fixed elements, as fields of the tuple
+# (spec/09-traits.md#r-trait.debug.tuples.rest,
+# spec/05-expressions.md#r-expr.interp.std.tuple.rest-inline).
+impl[R < Debug] Debug for (List[R]...,):
+    fn debug(self, out: mut DebugWriter) -> void:
+        if self._0.len() == 0:
+            out.write("()")
+        else:
+            out.debug_tuple("").rest(self._0).finish()
+
+impl[A < Debug, R < Debug] Debug for (A, List[R]...):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).rest(self._1).finish()
+
+impl[A < Debug, B < Debug, R < Debug] Debug for (A, B, List[R]...):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).field(self._1).rest(self._2).finish()
+
+impl[A < Debug, B < Debug, C < Debug, R < Debug] Debug for (A, B, C, List[R]...):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).field(self._1).field(self._2).rest(self._3).finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, R < Debug] Debug for (A, B, C, D, List[R]...):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).rest(self._4).finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, R < Debug] Debug for (A, B, C, D, E, List[R]...):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).rest(self._5).finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, R < Debug] Debug for (A, B, C, D, E, F, List[R]...):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).field(self._5).rest(self._6).finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, R < Debug] Debug for (A, B, C, D, E, F, G, List[R]...):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).field(self._5).field(self._6).rest(self._7).finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, R < Debug] Debug for (A, B, C, D, E, F, G, H, List[R]...):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).field(self._5).field(self._6).field(self._7).rest(self._8).finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug, R < Debug] Debug for (A, B, C, D, E, F, G, H, I, List[R]...):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).field(self._5).field(self._6).field(self._7).field(self._8).rest(self._9).finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug, J < Debug, R < Debug] Debug for (A, B, C, D, E, F, G, H, I, J, List[R]...):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).field(self._5).field(self._6).field(self._7).field(self._8).field(self._9).rest(self._10).finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug, J < Debug, K < Debug, R < Debug] Debug for (A, B, C, D, E, F, G, H, I, J, K, List[R]...):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).field(self._5).field(self._6).field(self._7).field(self._8).field(self._9).field(self._10).rest(self._11).finish()
+
+# The text of a tuple from its elements' texts: separated by ", " inside
+# parentheses, and one element ends with a comma (r-expr.interp.std.tuple.one).
+fn tuple_text[R < Display](fixed: List[string], rest: List[R]) -> string:
+    let parts: mut List[string] = []
+    for part in fixed:
+        parts.append(part)
+    for item in rest:
+        parts.append("$item")
+    if parts.len() == 1:
+        return "(${parts[0]},)"
+    let text = "("
+    let index = 0
+    for part in parts:
+        if index > 0:
+            text = text + ", "
+        text = text + part
+        index = index + 1
+    text + ")"
+
+impl[R < Display] Display for (List[R]...,):
+    fn to_string(self) -> string:
+        tuple_text([], self._0)
+
+impl[A < Display, R < Display] Display for (A, List[R]...):
+    fn to_string(self) -> string:
+        tuple_text(["${self._0}"], self._1)
+
+impl[A < Display, B < Display, R < Display] Display for (A, B, List[R]...):
+    fn to_string(self) -> string:
+        tuple_text(["${self._0}", "${self._1}"], self._2)
+
+impl[A < Display, B < Display, C < Display, R < Display] Display for (A, B, C, List[R]...):
+    fn to_string(self) -> string:
+        tuple_text(["${self._0}", "${self._1}", "${self._2}"], self._3)
+
+impl[A < Display, B < Display, C < Display, D < Display, R < Display] Display for (A, B, C, D, List[R]...):
+    fn to_string(self) -> string:
+        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}"], self._4)
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, R < Display] Display for (A, B, C, D, E, List[R]...):
+    fn to_string(self) -> string:
+        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}"], self._5)
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, R < Display] Display for (A, B, C, D, E, F, List[R]...):
+    fn to_string(self) -> string:
+        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}", "${self._5}"], self._6)
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, R < Display] Display for (A, B, C, D, E, F, G, List[R]...):
+    fn to_string(self) -> string:
+        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}", "${self._5}", "${self._6}"], self._7)
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, R < Display] Display for (A, B, C, D, E, F, G, H, List[R]...):
+    fn to_string(self) -> string:
+        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}", "${self._5}", "${self._6}", "${self._7}"], self._8)
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display, R < Display] Display for (A, B, C, D, E, F, G, H, I, List[R]...):
+    fn to_string(self) -> string:
+        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}", "${self._5}", "${self._6}", "${self._7}", "${self._8}"], self._9)
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display, J < Display, R < Display] Display for (A, B, C, D, E, F, G, H, I, J, List[R]...):
+    fn to_string(self) -> string:
+        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}", "${self._5}", "${self._6}", "${self._7}", "${self._8}", "${self._9}"], self._10)
+
+impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display, J < Display, K < Display, R < Display] Display for (A, B, C, D, E, F, G, H, I, J, K, List[R]...):
+    fn to_string(self) -> string:
+        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}", "${self._5}", "${self._6}", "${self._7}", "${self._8}", "${self._9}", "${self._10}"], self._11)

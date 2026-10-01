@@ -6,7 +6,7 @@ import type {
   HirOrderingStrategy,
   ValueType,
 } from "../hir.ts";
-import { readonlyType, tupleParts } from "../types.ts";
+import { readonlyType, tupleLayout } from "../types.ts";
 import { EmitterContext } from "./context.ts";
 import { numericType } from "../numeric.ts";
 import { scalarWasm } from "./scalars.ts";
@@ -505,7 +505,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     if (readonly === "string") return `(i32.eqz (call $hd.string_compare ${left} ${right}))`;
     if (numericType(readonly) || readonly === "bool" || readonly === "char")
       return `(${scalarWasm(readonly)}.eq ${left} ${right})`;
-    const tuple = tupleParts(readonly);
+    const tuple = tupleLayout(readonly);
     if (tuple !== undefined)
       return this.emitTupleEquality(
         left,
@@ -549,7 +549,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
           : `(i32.const 0)`;
       return `(block (result i32) (local.set ${leftTemporary} ${left}) (local.set ${rightTemporary} ${right}) (if (result i32) (${wasm}.${less} ${a} ${b}) (then (i32.const -1)) (else (if (result i32) (${wasm}.${greater} ${a} ${b}) (then (i32.const 1)) (else ${equal})))))`;
     }
-    const tuple = tupleParts(readonly);
+    const tuple = tupleLayout(readonly);
     if (tuple !== undefined)
       return this.emitTupleOrdering(
         left,

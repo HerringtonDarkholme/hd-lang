@@ -29,6 +29,11 @@ export abstract class StatementChecker extends CheckerContext {
     receiver: HirExpression,
   ): HirExpression;
 
+  /** `v() = x` through `Update`; see `operator-calls.ts`. */
+  protected abstract updateCall(
+    statement: Extract<Statement, { kind: "call-assignment" }>,
+  ): HirExpression;
+
   /** `place.field = value` and `place.Part ...= value`; see `expression-data.ts`. */
   protected abstract checkFieldAssignment(
     statement: Extract<Statement, { kind: "field-assignment" }>,
@@ -217,6 +222,12 @@ export abstract class StatementChecker extends CheckerContext {
           span: statement.span,
         };
       }
+      case "call-assignment":
+        return {
+          kind: "expression",
+          expression: this.updateCall(statement),
+          span: statement.span,
+        };
       case "discard":
         return {
           kind: "discard",

@@ -474,6 +474,22 @@ export function genericTypeName(type: ValueType): string | undefined {
   return match?.[1];
 }
 
+/**
+ * The type an argument has before its expected type converted it: the
+ * operand of a numeric widening or of a trait-value conversion. A numeric
+ * literal takes its expected type directly, so it has no type of its own
+ * here (04-type-system.md#inference-from-several-arguments).
+ */
+export function argumentOwnType(source: Expression, checked: HirExpression): ValueType | undefined {
+  let literal = source;
+  while (literal.kind === "unary" && literal.operator === "-") literal = literal.operand;
+  if (literal.kind === "integer" || literal.kind === "float") return undefined;
+  if (checked.type === "never") return undefined;
+  if (checked.kind === "unary" && checked.operator === "widen") return checked.operand.type;
+  if (checked.kind === "trait-wrap" || checked.kind === "trait-bound") return checked.value.type;
+  return checked.type;
+}
+
 export function traitTypeName(type: ValueType): string | undefined {
   const readonly = readonlyType(type);
   if (!readonly.startsWith("trait:") || readonly.endsWith("?")) return undefined;
