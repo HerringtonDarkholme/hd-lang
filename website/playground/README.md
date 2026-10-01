@@ -39,7 +39,7 @@ Chromium; `CHROME_PATH` selects one. The playground steps are in
     see top-level bindings. The other modules of a multi-file project become
     the session's first declarations;
   - a file without `main` whose top level holds only declarations runs its
-    test cases, as before.
+    test cases.
 
   Console output streams into the output panel. Runtime panics are reported
   with their panic code. A run longer than 15 seconds is stopped, and
@@ -217,8 +217,8 @@ The playground runs what the prototype compiler supports; see
 [`../../src/README.md`](../../src/README.md). Beyond that:
 
 - Only the default runtime profile is provided, which binds `Console`. The
-  CLI's test profiles (`--profile`), scenarios, trace, record, and replay are
-  not exposed. A program that needs another host capability, such as
+  CLI's test profiles (`--profile`) and scenarios (`--scenario`) are not
+  exposed. A program that needs another host capability, such as
   `std.host.Args`, is `nonhost-entry-requirement`.
 - `println` and a direct `console.write_line!(...)` call run on the host
   console and on a program-defined provider such as
@@ -227,9 +227,7 @@ The playground runs what the prototype compiler supports; see
   or a test body; there, write with `$.use(Console).write_line!`. A
   pending `write_line!` is driven until it finishes, as `block_on` does,
   and one that returns `.Err` makes `println` panic with `explicit-panic`.
-- Test modules (`src/billing_test.hd`) are not supported: a test case must
-  sit in a `tests:` block.
 - A suspending `main!` that returns a `Result` is not judged: its `.Err` is
   reported as a normal exit.
-- Triple-quoted multi-line strings are neither lexed by the prototype nor
-  highlighted.
+- Triple-quoted multi-line strings compile, but the highlighter works line
+  by line, so it does not color their later lines as string text.

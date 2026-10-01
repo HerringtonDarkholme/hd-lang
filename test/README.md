@@ -42,20 +42,9 @@ reserved for backend traps that do not yet have a structured code.
 public test command. A `# fixture-runtime-profile: NAME` directive supplies the
 same named host profile to check and execution.
 
-Run the portable behavior suite with:
-
-```sh
-pnpm run test:portable
-```
-
-To exercise a different implementation with the same command contract:
-
-```sh
-HD_TEST_COMMAND="other-hd" node --experimental-strip-types test/run-portable.ts
-```
-
-The runner uses up to eight cores by default. Override that with
-`HD_TEST_JOBS=4` or `--jobs 4`.
+Run the portable behavior suite with `pnpm run test:portable`.
+[`portable/README.md`](portable/README.md) covers running it against
+another implementation, selecting a tier, and the `HD_TEST_JOBS` setting.
 
 The specification grammar oracle is also TypeScript and parses fixtures in a
 worker-thread pool. It shares `HD_TEST_JOBS` by default; set `HD_SPEC_JOBS` to

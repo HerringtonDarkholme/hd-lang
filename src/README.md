@@ -241,8 +241,8 @@ listed yet.
 - tuple types with a rest element `(A, List[T]...)`, whose value holds the
   fixed elements and then one `List[T]`; tuple expressions collect trailing
   elements into an expected rest element, or end in a list spread
-  `(a, xs...)`; spread patterns `(a, xs...)` in `let` lists and `match`
-  arms (not yet in `for` headers, which take bare names). A rest tuple
+  `(a, xs...)`; spread patterns `(a, xs...)` in `let`, `for` headers, and
+  `match` arms. A rest tuple
   compares with `==` and `<` element by element, its rest element as its
   list, and `lib/std/format.hd` declares its `Debug` and `Display`, with the
   rest element's items written inline, for at most 11 fixed elements;
@@ -446,8 +446,8 @@ else`, `break`, `break value`, and `continue`;
   instantiated from explicit type arguments or the expected function type;
   function types convert by declared variance (permission changes only),
   are implementation targets owned by the standard library, reject a direct
-  `is`, and may be spelled `Fn[...]`, `SuspendFn[...]`, and `Rest[T]` when
-  imported from `std.function`;
+  `is`, and may be spelled `Fn[...]` and `SuspendFn[...]` when imported
+  from `std.function`;
 - a data, enum, trait, primitive, or type parameter name where a value is
   required is `type-used-as-value`; a type alias name there still reports
   `unknown-name`, because aliases are expanded before checking;
@@ -1099,8 +1099,7 @@ The prelude `string` methods live in `std.text` too, and `lower` and
 `upper` are backed by the host. Positions and lengths are byte offsets. A string index is the
 `string-index` HIR node, a bounds-checked byte read (`$hd.string_get`).
 Prototype limits: `slice` copies its bytes instead of sharing them (the
-runtime `string` is a bare `$hd.bytes` array, with no offset to share), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no
-`Integer` or `Float` trait, no `Set` (the specification does not define it,
+runtime `string` is a bare `$hd.bytes` array, with no offset to share), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no `Set` (the specification does not define it,
 and a map built in generic code has no key equality for a type-parameter
 key, so a generic `Set.new()` could not create its map), and no host `ConsoleInput`; a `BufferConsole` records both direct
 `write_line!` calls and, outside a driver, `println` (MHP-1). `test/std/*.hd` tests each module through `hd test`, and
@@ -1219,11 +1218,10 @@ one namespace, so the prototype cannot reject a driver in another
 module's initialization.
 
 The host console is a built-in entry of the generic capability bridge.
-Its calls stay out of record and replay (`UNRECORDED_PROVIDERS`), so a
-replay through the compiler API prints console lines again rather than
-reading them back.
-Whether a replay should capture them is an owner question in
-[OPEN_ISSUES.md](../future-work/OPEN_ISSUES.md#mutable-host-providers).
+Its calls stay out of record and replay (`UNRECORDED_PROVIDERS`), as the
+[Mutable Host Providers](../future-work/OPEN_ISSUES.md#mutable-host-providers)
+decisions say, so a replay through the compiler API prints console lines
+again rather than reading them back.
 
 What remains:
 
