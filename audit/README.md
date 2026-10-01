@@ -9,16 +9,16 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-10-01 the prototype passes 1,493 of the 1,726 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 233 are listed in
+On 2026-10-01 the prototype passes 1,499 of the 1,734 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 235 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 233 still fail. By
+decision below, and all 235 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,666 | 1,440 | 226 |
-| stdlib | 60 | 53 | 7 |
+| language | 1,671 | 1,446 | 225 |
+| stdlib | 63 | 53 | 10 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
@@ -27,7 +27,7 @@ them by tag:
 | --- | ----- | ------------- |
 | F-250 | 5 | GADT variant results and package roles give generic diagnostics |
 | EMB-S | 4 | trait availability needs package roles |
-| P2 | 7 | member visibility needs package roles |
+| P2 | 5 | member visibility needs package roles |
 | TQ-2 | 1 | package roles |
 | M29 | 1 | the unused-fact warning needs a second package |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
@@ -49,7 +49,7 @@ them by tag:
 | Q5-list | 1 | batch 26: `[a, b := value]` still reports the withdrawn `multi-binding-needs-parentheses` |
 | TU2 | 3 | batch 27: `mut (A, B)` is accepted or `mutable-upgrade`, and `let mut` on a tuple is `mutable-upgrade`, not `mut-on-tuple` |
 | ST8-own | 1 | batch 28: `Named::name()` in `Named`'s template is `associated-function-needs-target` |
-| RETRY | 1 | batch 29: the prototype has no `std.task.retry` |
+| RETRY | 4 | batch 29 and 33: the prototype has no `std.task.retry` |
 | LP-for | 4 | batch 30: `for` takes only a name or a bare name list, so `for Point { x, y } in points` and `for .Some(v) in found` are `syntax-error` |
 | LP-irrefutable-else | 1 | batch 30: `let` has no `else`, so an `else` after an irrefutable pattern is `syntax-error`, not `unreachable-match-arm` |
 | LP-discard | 1 | batch 30: `let _ = save()` is `syntax-error` |
@@ -59,11 +59,11 @@ them by tag:
 | Q8 | 2 | batch 31: a spread still needs a vararg, so a tuple spread is `positional-spread-needs-vararg` |
 | Q7 | 1 | batch 31: every `race!` call is `unsupported-task-combinator` |
 | Q9 | 7 | batch 31: the prototype still parses type packs, pack expansion, and `pack.map(`, and has no `std.function.Tuple` for a rewritten `Fn[Args, O, R]` |
-| ALL-INTRINSIC | 5 | batch 31: every `all!` call is `unsupported-task-combinator` |
+| ALL-INTRINSIC | 6 | batch 31: every `all!` call is `unsupported-task-combinator` |
 | Q6 | 2 | batch 31: tuples have no `Eq` or `Hash`, so a tuple map key is `invalid-map-key` |
-| Q1-C3 | 1 | batch 31: `5else` still lexes as a suffixed literal, `invalid-token` |
 | Q3 | 3 | batch 31: the minus still folds into a suffixed literal, so `-12px` is `px(-12)`, with no `Neg` call and a negated range check |
 | TUPLE-REST | 21 | batch 33: no tuple rest element and no tuple spread; a vararg's type is read as its element type, so `List[i32]...` in a type is a vararg of lists |
+| Q6-others | 1 | batch 33: interpolation finds `Display` only for an exact target type, so `lib/std`'s generic tuple `Display` is unused |
 
 ## What Remains
 
@@ -93,7 +93,7 @@ Revision Notes in `spec/README.md` are the record.
 | -- | -------- |
 | TQ-2 | The owner of a trait argument's outer constructor may write the impl. The check and `Iterable` are implemented; one fixture needs package roles (`--package-role`, `--dependency`), which the prototype CLI lacks. |
 | EMB-S | Rust-style trait lookup: a trait method is a candidate only where its trait is available, wherever the impl is declared; an unavailable trait is invisible, so a promoted method of that name is selected and a call that finds nothing is `unknown-method` suggesting the import. `member-lookup.ts` and `program-embedding.ts` implement the rest, but the prototype checks one module without trait imports (a multi-file package is linked into one namespace), so every trait is available, and the fixtures need package roles. |
-| P2 | Member lookup skips own fields and inherent methods not visible from the calling module; a private member of an embedded type is never promoted, and `private-member` is reported only for an invisible own member when nothing visible matches. An invisible own member still hides promoted ones (batch 32, Q4). `member-lookup.ts` follows the algorithm, but the prototype checks one module (a linked package shares one namespace), so every own member is visible, and the fixtures need package roles. |
+| P2 | Member lookup skips own fields and inherent methods not visible from the calling module; a private member of an embedded type is never promoted, and `private-member` is reported only for an invisible own member when nothing visible matches. `member-lookup.ts` follows the algorithm, but the prototype checks one module (a linked package shares one namespace), so every own member is visible, and the fixtures need package roles. |
 | MHP-1 | A `println` call at the top level of a script is valid (the second round). The prototype infers no script entry requirement row (`module.init.script-row`), so `println-top-level-script.hd` reports `missing-requirement`. |
 | DC7 | The top-level statements of an initialization group run in dependency order, then by module identity and source position. The package linker joins a group's modules by identity and cannot interleave their statements, so a read that needs a later-joined module's binding is `top-level-read-before-initialization`, which `init-group-order.hd`, a package-tree fixture, shows. |
 | M29 | A `Self` line in a per-trait derivation block warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package, and the prototype CLI has no package roles. The other M29 rules, and M27 and M28, are implemented. |

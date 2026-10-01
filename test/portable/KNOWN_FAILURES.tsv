@@ -13,9 +13,7 @@ typing/invalid/private-field-nothing-visible.hd	check exits 2 with usage text: t
 typing/invalid/private-promoted-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-own-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-embedded-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
-typing/invalid/private-own-field-hides-promoted-other-module.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
-typing/invalid/private-own-method-hides-promoted-other-module.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
-runtime/valid/private-own-member-hides-promoted-by-path.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	P2
+runtime/valid/pub-own-member-hides-promoted-other-module.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	P2
 typing/invalid/root-orphan-impl.hd	the prototype CLI has no --package-role or --dependency option, so package roles cannot be checked	F-250
 typing/warnings/per-trait-self-line-unused-fact.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one package, so a fact never comes from a package without the block trait	M29
 typing/valid/println-top-level-script.hd	MVP reports missing-requirement at line 6: the prototype infers no script entry requirement row (module.init.script-row), so a script top level has no Console	MHP-1
@@ -176,6 +174,9 @@ typing/invalid/mut-tuple-annotation.hd	the prototype reports mutable-upgrade for
 typing/invalid/let-mut-tuple.hd	the prototype reports mutable-upgrade for `let mut pair = (1, 2)`, which types.bind.let-mut-tuple makes mut-on-tuple	TU2
 runtime/valid/template-derived-trait-self.hd	the prototype resolves a receiverless template call only as `T::name()`, so `Structure::name()` is unknown-type and `Named::name()` is associated-function-needs-target (annot.template.qualified-self)	ST8-own
 runtime/valid/task-retry.hd	the prototype has no `std.task.retry`, so `retry!` is unknown-name (std-task.combinator.retry)	RETRY
+runtime/valid/task-retry-at-least-once.hd	the prototype has no `std.task.retry`, so `retry!` is unknown-name (std-task.combinator.retry.at-least-once)	RETRY
+typing/valid/task-retry-row.hd	the prototype has no `std.task.retry`, so `retry!` is unknown-name (std-task.combinator.retry)	RETRY
+typing/invalid/task-retry-row-missing.hd	the prototype has no `std.task.retry`, so `retry!` is unknown-name, not missing-requirement (std-task.combinator.retry)	RETRY
 parse/valid/tuple-element-binding-expression.hd	the prototype still rejects the grouped binding (`the grouped binding '(a, b := value)' was replaced`), so the tuple `(a, b := pair())` whose last element is a binding is a syntax-error (grammar.expr.multi-binding.element)	Q5-tuple
 parse/valid/for-data-pattern.hd	the prototype's `for` takes only a name or a bare name list, so `for Point { x, y: _ } in points` is a syntax-error (`expected 'in', found '{'`), not a data pattern (grammar.flow.for-pattern)	LP-for
 runtime/valid/for-patterns.hd	the prototype's `for` takes only a name or a bare name list, so `for Point { x, y } in points` is a syntax-error (`expected 'in', found '{'`), not a data pattern (flow.for.pattern)	LP-for
@@ -210,7 +211,6 @@ typing/invalid/all-spread-argument.hd	the prototype reports every all! call as u
 typing/invalid/all-function-value.hd	the prototype does not import all from std.task, so all as a value is unknown-name, not type-mismatch (req.combinator.all-direct)	ALL-INTRINSIC
 typing/valid/tuple-derived-traits.hd	the prototype has no Eq and Hash for tuples, so a tuple map key is invalid-map-key (trait.target.tuple.derived)	Q6
 runtime/valid/tuple-derived-order.hd	the prototype has no Eq and Hash for tuples, so a tuple map key is invalid-map-key (trait.target.tuple.derived.elementwise)	Q6
-parse/invalid/reserved-word-suffix.hd	the prototype lexes a reserved word after digits as a suffix and reports invalid-token, not 5 followed by else, which is syntax-error (lex.literal-fn.reserved)	Q1-C3
 typing/invalid/literal-suffix-negative-range.hd	the prototype folds the minus into a suffixed literal, so -2147483648off is off(-2147483648) and fits i32 instead of integer-literal-range (types.literal.suffixed.in)	Q3
 typing/invalid/literal-suffix-negation-no-neg.hd	the prototype folds the minus into a suffixed literal, so -12px is px(-12) and needs no Neg, instead of type-mismatch (expr.op.no-impl)	Q3
 runtime/valid/literal-suffix-call.hd	the prototype folds the minus into a suffixed literal, so -12px runs px(-12) instead of Neg on px(12), and the assertion fails (expr.op.desugar)	Q3
@@ -232,3 +232,5 @@ runtime/valid/tuple-vararg-rest.hd	the prototype supports only a List[T] vararg,
 runtime/valid/tuple-vararg-function-value.hd	the prototype supports only a List[T] vararg, so a tuple-typed vararg is unsupported-tuple-vararg (fn.type.tuple-vararg-input)	TUPLE-REST
 typing/valid/tuple-trait-rest.hd	the prototype has no std.function.Tuple and no tuple rest element, so it reports unknown-trait and unknown-type (fn.type.ctor.tuple-trait.rest)	TUPLE-REST
 runtime/valid/function-value-vararg-call.hd	the prototype reads a vararg's type as its element type, so it spells a List[i32] vararg i32... and reads List[i32]... in a type as a vararg of List[i32] elements: `g` is fn(i32,i32,i32...)->i32 and does not fit fn(i32, i32, List[i32]...) -> i32 (fn.type.rest-call)	TUPLE-REST
+typing/invalid/all-explicit-type-arguments.hd	the prototype does not parse `all!::[`, so it is syntax-error, and it reports every all! call as unsupported-task-combinator, not type-mismatch (req.combinator.all-direct)	ALL-INTRINSIC
+runtime/valid/display-tuples.hd	the prototype's interpolation finds a Display implementation only for an exact target type, so lib/std's generic tuple implementations are unused and a tuple is unsatisfied-trait-bound (expr.interp.std.tuple)	Q6-others

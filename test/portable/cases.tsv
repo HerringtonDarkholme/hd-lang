@@ -739,10 +739,12 @@ typing/invalid/embedding-depth-four.hd	type
 typing/invalid/embedding-depth-four-generic.hd	type
 typing/valid/three-embedded-fields.hd	type
 typing/invalid/four-embedded-fields.hd	type
-typing/valid/private-own-field-hides-promoted.hd	type
-typing/valid/private-own-field-hides-conflicting-promoted.hd	type
-typing/valid/private-own-method-hides-promoted.hd	type
-runtime/valid/private-own-member-hides-promoted.hd	runtime
+typing/invalid/private-own-field-beside-promoted.hd	type
+typing/invalid/private-own-field-beside-conflicting-promoted.hd	type
+typing/invalid/private-own-method-beside-promoted.hd	type
+typing/invalid/private-own-field-needs-another-name.hd	type
+typing/invalid/private-own-field-beside-deep-promoted.hd	type
+runtime/valid/pub-own-member-hides-promoted.hd	runtime
 typing/invalid/embedding-cycle-direct.hd	type
 typing/invalid/embedding-cycle-indirect.hd	type
 typing/invalid/embedding-cycle-generic.hd	type
@@ -1492,3 +1494,7 @@ parse/invalid/vararg-ellipsis-after-type.hd	parse
 parse/valid/tuple-rest-syntax.hd	parse
 runtime/valid/trait-delegation-vararg.hd	runtime
 typing/invalid/vararg-function-value-list.hd	type
+parse/invalid/reserved-word-suffix.hd	parse
+parse/invalid/reserved-word-prefix.hd	parse
+typing/invalid/display-tuple-element-without-display.hd	type
+typing/invalid/display-tuple-thirteen-elements.hd	type

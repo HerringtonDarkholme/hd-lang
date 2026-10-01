@@ -40,7 +40,7 @@ test("lexer keeps literal suffixes on decimal and float numbers only", () => {
   );
   assert.deepEqual(
     lex("g := 5else\n").diagnostics.map((diagnostic) => diagnostic.code),
-    ["invalid-token"],
+    ["syntax-error"],
   );
   assert.deepEqual(
     lex("h := 0xff'B\n").diagnostics.map((diagnostic) => diagnostic.code),
@@ -58,7 +58,7 @@ test("parser desugars a suffixed literal to a call of its suffix function, foldi
   assert.equal(call.arguments[0]?.kind, "unary");
 });
 
-test("lexer keeps a prefixed string raw and a reserved word before a quote separate", () => {
+test("lexer keeps a prefixed string raw and rejects a reserved word glued to a quote", () => {
   const [prefixed] = lex('sql"a\\n $x $5"\n').tokens;
   assert.equal(prefixed?.prefix?.name, "sql");
   const value = prefixed?.value;
@@ -67,11 +67,14 @@ test("lexer keeps a prefixed string raw and a reserved word before a quote separ
     value.segments.map((segment) => (segment.kind === "text" ? segment.value : segment.source)),
     ["a\\n ", "x", " $5"],
   );
+  const glued = lex('return"x"\n');
   assert.deepEqual(
-    lex('return"x"\n')
-      .tokens.slice(0, 2)
-      .map((token) => token.kind),
+    glued.tokens.slice(0, 2).map((token) => token.kind),
     ["keyword", "string"],
+  );
+  assert.deepEqual(
+    glued.diagnostics.map((diagnostic) => diagnostic.code),
+    ["syntax-error"],
   );
 });
 

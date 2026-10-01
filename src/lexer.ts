@@ -339,7 +339,14 @@ class Scanner {
     }
     const kind: TokenKind = text === "_" ? "symbol" : KEYWORDS.has(text) ? "keyword" : "identifier";
     // An identifier directly before `"` is a string prefix
-    // (01-lexical-structure.md#prefixed-strings); a reserved word is not.
+    // (01-lexical-structure.md#prefixed-strings). A reserved word there, as
+    // in `return"done"`, is an error (lex.literal-fn.reserved-glued).
+    if (kind === "keyword" && this.peek() === '"')
+      this.report(
+        "syntax-error",
+        `'${text}' is a reserved word, so it cannot prefix a string: write '${text} "...'`,
+        start,
+      );
     if (kind === "identifier" && this.peek() === '"') {
       this.scanQuoted({ name: text, span: { start, end: this.position() } });
       return;
@@ -461,13 +468,12 @@ class Scanner {
     }
     const clean = text.replaceAll("_", "");
     const suffix = isSuffixStart(this.peek()) ? this.scanSuffix() : undefined;
-    // A reserved word as a suffix, as in `5else`, forms no token
-    // (the retired lex.suffix.reserved; the spec now lexes `5` then `else`,
-    // lex.literal-fn.reserved, a known failure tagged Q1-C3).
+    // A reserved word glued to the digits, as in `5else`, is an error
+    // (01-lexical-structure.md#r-lex.literal-fn.reserved-glued).
     if (suffix && KEYWORDS.has(suffix.name)) {
       this.report(
-        "invalid-token",
-        `'${suffix.name}' is a reserved word, so '${text}${suffix.name}' is not a suffixed literal`,
+        "syntax-error",
+        `'${suffix.name}' is a reserved word, so '${text}${suffix.name}' needs a space: write '${text} ${suffix.name}'`,
         start,
       );
       return;

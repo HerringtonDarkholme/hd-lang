@@ -1,7 +1,7 @@
 id	count	title
 F-250	5	GADT variant results and package roles are not implemented: GADT results and package roles get generic diagnostics
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
-P2	7	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
+P2	5	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
 TQ-2	1	The trait-argument ownership fixture for a foreign trait argument needs package roles, which the prototype lacks
 M29	1	Typed derivation M29's per-trait Self-line warning needs a second package, and the prototype CLI has no package roles
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
@@ -23,7 +23,7 @@ LP	17	Patterns in let (batch 26, LP1 and LP1-one): the prototype's let takes onl
 Q5-list	1	List items may be bindings (batch 26, Q5-list): the prototype reports the withdrawn multi-binding-needs-parentheses for [a, b := value]
 TU2	3	Tuples have no mut form (batch 27, TU2): the prototype accepts a mut tuple parameter type and reports mutable-upgrade, not mut-on-tuple, for a mut tuple annotation and for let mut on a tuple
 ST8-own	1	A template's call qualified by the derived trait (batch 28, ST8-own): the prototype reports Named::name() as associated-function-needs-target
-RETRY	1	The retry! library loop (batch 29, RETRY): the prototype has no std.task.retry
+RETRY	4	The retry! library loop (batch 29, RETRY; batch 33, RETRY-row and RETRY-zero): the prototype has no std.task.retry
 LP-for	4	Patterns in for (batch 30, LP-for): the prototype's for and comprehension for take only a name or a bare name list, so a data pattern and a refutable pattern are syntax-error
 LP-irrefutable-else	1	An else after an irrefutable let pattern (batch 30, LP-irrefutable-else): the prototype's let has no else block, so it is syntax-error, not unreachable-match-arm
 LP-discard	1	let _ discards a must-use value (batch 30, LP-discard): the prototype's let takes no _ pattern, so let _ = save() is syntax-error
@@ -33,8 +33,8 @@ Q5	3	The Tuple marker trait (batch 31, Q5): the prototype has no std.function.Tu
 Q8	2	Tuple spread (batch 31, Q8): a spread still needs a vararg, so a tuple spread into fixed parameters is positional-spread-needs-vararg
 Q7	1	The plain race! signature (batch 31, Q7): the prototype reports every race! call as unsupported-task-combinator
 Q9	7	Packs are removed in the specification, but the prototype still parses type packs, pack expansion, and pack.map(, and has no std.function.Tuple
-ALL-INTRINSIC	5	all! has one typing rule, but the prototype reports every all! call as unsupported-task-combinator
+ALL-INTRINSIC	6	all! has one typing rule, but the prototype reports every all! call as unsupported-task-combinator
 Q6	2	Tuples derive Eq, PartialOrd, Ord, and Hash, but the prototype has no Eq or Hash for tuples, so a tuple map key is invalid-map-key
-Q1-C3	1	A reserved word is never a suffix (batch 31, Q1 cut C3): the prototype still lexes 5else as a suffixed literal and reports invalid-token, not syntax-error
 Q3	3	-5s is the ordinary negation -(5s) (batch 31, Q3): the prototype folds the minus into the literal, as s(-5), so it needs no Neg and range-checks the negated value
 TUPLE-REST	21	Tuple rest elements (batch 33, TUPLE-REST): the prototype has no tuple rest element, no tuple spread, and reads a vararg's type as its element type, so List[i32]... in a type is a vararg of List[i32] elements
+Q6-others	1	Tuple Display (batch 33, Q6-others): the prototype's interpolation finds a Display implementation only for an exact target type, so lib/std's generic tuple implementations are unused

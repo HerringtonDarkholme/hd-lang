@@ -302,14 +302,13 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
    * inherent methods are at depth 0 and each part's `pub` fields and inherent
    * methods at its depth; the shallowest member with a name hides deeper ones.
    * Every module sees the same members (single view). Two members at the
-   * smallest depth are rejected at the declaration (`program-embedding.ts`),
-   * so lookup meets at most one. An own member hides promoted ones, private
-   * or not (batch 32 Q4). Parts' trait methods are ignored. The receiver's
-   * available trait methods are candidates beside the promoted method: both
-   * at once are `ambiguous-method` (Rust-style trait lookup, TQ-36). An
-   * unavailable trait is invisible. An own member that is not visible is
-   * skipped, still hides promoted ones, and is reported as `private-member`
-   * only when no trait method matches.
+   * smallest depth, or a private own member beside a promoted one, are
+   * rejected at the declaration (`program-embedding.ts`), so lookup meets at
+   * most one. Parts' trait methods are ignored. The receiver's available
+   * trait methods are candidates beside the promoted method: both at once are
+   * `ambiguous-method` (Rust-style trait lookup, TQ-36). An unavailable trait
+   * is invisible. An own member that is not visible is skipped and reported
+   * as `private-member` only when nothing matches.
    */
   protected selectField(receiverType: ValueType, name: string, span: SourceSpan): MemberSelection {
     return this.selectMember(receiverType, name, span, false);
@@ -396,11 +395,9 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         return { kind: "field", steps: [], final: { declaration, field, substitutions } };
       if (field) ownInvisible = true;
     }
-    // An own member that is not visible still hides every promoted one.
-    const promoted =
-      declaration && !ownInvisible
-        ? this.promotedMember(declaration, substitutions, name, method)
-        : [];
+    const promoted = declaration
+      ? this.promotedMember(declaration, substitutions, name, method)
+      : [];
     if (promoted.length > 1)
       // Unreachable after the declaration check; kept so lookup never guesses.
       this.fail(
