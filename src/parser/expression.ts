@@ -1335,7 +1335,7 @@ export abstract class ExpressionParser extends ParserBase {
     const negative = this.matchText("-");
     const literal = this.current();
     // A suffixed literal is a call, not a pattern
-    // (02-grammar.md#r-grammar.pattern.no-suffixed-literal).
+    // (02-grammar.md#r-grammar.pattern.no-literal-call).
     if (literal.suffix)
       this.fail("syntax-error", "a suffixed literal cannot be a pattern", literal.span);
     if (literal.kind === "integer") {
@@ -1363,7 +1363,7 @@ export abstract class ExpressionParser extends ParserBase {
         literal.span,
       );
     // A prefixed string is a call, never a pattern
-    // (02-grammar.md#r-grammar.pattern.no-prefixed-string).
+    // (02-grammar.md#r-grammar.pattern.no-literal-call).
     if (literal.kind === "string" && literal.prefix)
       this.fail("syntax-error", "a prefixed string cannot be a pattern", literal.span);
     if (literal.kind === "string") {

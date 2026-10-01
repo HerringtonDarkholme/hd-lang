@@ -9,16 +9,16 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-30 the prototype passes 1,486 of the 1,695 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 209 are listed in
+On 2026-09-30 the prototype passes 1,484 of the 1,697 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 213 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 209 still fail. By
+decision below, and all 213 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,636 | 1,434 | 202 |
-| stdlib | 59 | 52 | 7 |
+| language | 1,637 | 1,431 | 206 |
+| stdlib | 60 | 53 | 7 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
@@ -62,6 +62,8 @@ them by tag:
 | Q9 | 7 | batch 31: the prototype still parses type packs, pack expansion, and `pack.map(`, and has no `std.function.Tuple` for a rewritten `Fn[Args, O, R]` |
 | ALL-INTRINSIC | 5 | batch 31: every `all!` call is `unsupported-task-combinator` |
 | Q6 | 2 | batch 31: tuples have no `Eq` or `Hash`, so a tuple map key is `invalid-map-key` |
+| Q1-C3 | 1 | batch 31: `5else` still lexes as a suffixed literal, `invalid-token` |
+| Q3 | 3 | batch 31: the minus still folds into a suffixed literal, so `-12px` is `px(-12)`, with no `Neg` call and a negated range check |
 
 ## What Remains
 

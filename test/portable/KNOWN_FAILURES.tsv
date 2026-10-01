@@ -208,3 +208,7 @@ typing/invalid/all-spread-argument.hd	the prototype reports every all! call as u
 typing/invalid/all-function-value.hd	the prototype does not import all from std.task, so all as a value is unknown-name, not type-mismatch (req.combinator.all-direct)	ALL-INTRINSIC
 typing/valid/tuple-derived-traits.hd	the prototype has no Eq and Hash for tuples, so a tuple map key is invalid-map-key (trait.target.tuple.derived)	Q6
 runtime/valid/tuple-derived-order.hd	the prototype has no Eq and Hash for tuples, so a tuple map key is invalid-map-key (trait.target.tuple.derived.elementwise)	Q6
+parse/invalid/reserved-word-suffix.hd	the prototype lexes a reserved word after digits as a suffix and reports invalid-token, not 5 followed by else, which is syntax-error (lex.literal-fn.reserved)	Q1-C3
+typing/invalid/literal-suffix-negative-range.hd	the prototype folds the minus into a suffixed literal, so -2147483648off is off(-2147483648) and fits i32 instead of integer-literal-range (types.literal.suffixed.in)	Q3
+typing/invalid/literal-suffix-negation-no-neg.hd	the prototype folds the minus into a suffixed literal, so -12px is px(-12) and needs no Neg, instead of type-mismatch (expr.op.no-impl)	Q3
+runtime/valid/literal-suffix-call.hd	the prototype folds the minus into a suffixed literal, so -12px runs px(-12) instead of Neg on px(12), and the assertion fails (expr.op.desugar)	Q3

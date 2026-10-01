@@ -26,7 +26,7 @@ import { markerShapeDiagnostics } from "./literal-suffixes.ts";
 
 /**
  * The qualified names the compiler recognizes (annot.target.recognized,
- * expr.suffix.marker, expr.prefix.marker).
+ * expr.literal-fn.marker).
  */
 export const STANDARD_ANNOTATE = "std.annotation.Annotate";
 export const STANDARD_NUM_SUFFIX = "std.ops.NumSuffix";
@@ -193,8 +193,7 @@ export function markerFunctions(functions: readonly FunctionDecl[]): Set<string>
 
 /**
  * Marks each function that carries a `std.ops.NumSuffix` or `std.ops.StrPrefix`
- * value as a suffix or prefix function (spec/05-expressions.md#r-expr.suffix.marker,
- * #r-expr.prefix.marker). It runs after the standard library is joined, so
+ * value as a suffix or prefix function (spec/05-expressions.md#r-expr.literal-fn.marker). It runs after the standard library is joined, so
  * the markers' and `std.ops.Template`'s declarations are known.
  */
 export function withSuffixMarkers(program: Program): Program {
@@ -216,7 +215,7 @@ export function withSuffixMarkers(program: Program): Program {
     functions: program.functions.map((declaration) => {
       let result = declaration;
       if (marked(declaration, suffixMarkers)) result = { ...result, numSuffix: true };
-      // Prefix functions (spec/05-expressions.md#r-expr.prefix.marker).
+      // Prefix functions (spec/05-expressions.md#r-expr.literal-fn.marker).
       if (marked(declaration, prefixMarkers)) {
         const first = declaration.parameters[0]?.type.name;
         const templateParameter = first !== undefined && templates.has(baseTypeName(first));
@@ -229,8 +228,7 @@ export function withSuffixMarkers(program: Program): Program {
 
 /**
  * The definition-site shape errors of functions marked `@num_suffix` or
- * `@str_prefix` (spec/05-expressions.md#r-expr.suffix.fn-shape.definition,
- * #r-expr.prefix.fn-shape.definition), after `withSuffixMarkers`.
+ * `@str_prefix` (spec/05-expressions.md#r-expr.literal-fn.definition), after `withSuffixMarkers`.
  */
 export function suffixMarkerDiagnostics(program: Program): Diagnostic[] {
   const templates = new Set(

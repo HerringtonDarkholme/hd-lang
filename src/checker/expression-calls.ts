@@ -97,7 +97,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       return this.checkQualifiedCall(expression as QualifiedCallExpression, expected);
     }
     // A suffixed literal or prefixed string calls a function found in module
-    // scope only (03-names-and-scopes.md#r-names.suffix.no-local, #r-names.prefix.no-local).
+    // scope only (03-names-and-scopes.md#r-names.literal-fn.no-local).
     if (
       (expression.literalSuffix || expression.stringPrefix) &&
       expression.callee.kind === "name"

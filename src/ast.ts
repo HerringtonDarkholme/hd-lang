@@ -103,11 +103,11 @@ export interface FunctionDecl {
   readonly intrinsic?: string;
   /** Declared by the standard library (`lib/std/`), which declares prelude names such as `println`. */
   readonly standard?: boolean;
-  /** Carries a `std.ops.NumSuffix` value: a suffix function (05-expressions.md#r-expr.suffix.marker). */
+  /** Carries a `std.ops.NumSuffix` value: a suffix function (05-expressions.md#r-expr.literal-fn.marker). */
   readonly numSuffix?: boolean;
   /**
    * Carries a `std.ops.StrPrefix` value: a prefix function
-   * (05-expressions.md#r-expr.prefix.marker). `templateParameter` says
+   * (05-expressions.md#r-expr.literal-fn.marker). `templateParameter` says
    * whether its first parameter is a `std.ops.Template[T]`.
    */
   readonly strPrefix?: { readonly templateParameter: boolean };

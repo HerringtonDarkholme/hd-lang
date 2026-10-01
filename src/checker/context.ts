@@ -105,9 +105,9 @@ export interface Signature {
   readonly requirements: readonly string[];
   /** Declared in a `tests:` block (spec/03-names-and-scopes.md#tests-blocks). */
   readonly testOnly?: boolean;
-  /** A suffix function, marked `@num_suffix` (spec/05-expressions.md#r-expr.suffix.marker). */
+  /** A suffix function, marked `@num_suffix` (spec/05-expressions.md#r-expr.literal-fn.marker). */
   readonly numSuffix?: boolean;
-  /** A prefix function, marked `@str_prefix` (spec/05-expressions.md#r-expr.prefix.marker). */
+  /** A prefix function, marked `@str_prefix` (spec/05-expressions.md#r-expr.literal-fn.marker). */
   readonly strPrefix?: { readonly templateParameter: boolean };
   /** Type-argument defaults, applied to what a use site leaves unsolved (04 Type-Argument Defaults). */
   readonly genericDefaults?: ReadonlyMap<string, ValueType>;

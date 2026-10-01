@@ -10,8 +10,7 @@ import type { Signature } from "./context.ts";
 // (Literal Suffixes L20): the call is an ordinary call, so generic functions
 // and requirement rows follow the ordinary rules. The compiler, as the
 // markers' reader, checks the marked function's shape once, at its
-// definition (L21 and L22, #r-expr.suffix.fn-shape.definition,
-// #r-expr.prefix.fn-shape.definition).
+// definition (L21 and L22, #r-expr.literal-fn.definition).
 
 const SUFFIX_PARAMETER_TYPES: ReadonlySet<string> = new Set([
   "i8",
@@ -95,7 +94,7 @@ export function markerShapeDiagnostics(
 /**
  * Checks the literal suffix `name`: `signature` is the module-scope function
  * of that name, if any, and `otherDeclaration` says whether the name is
- * something else in module scope (05-expressions.md#r-expr.suffix.not-marked).
+ * something else in module scope (05-expressions.md#r-expr.literal-fn.not-marked).
  */
 export function checkLiteralSuffixCall(
   name: string,
@@ -123,7 +122,7 @@ export function checkLiteralSuffixCall(
 /**
  * Checks the string prefix `name`: `signature` is the module-scope function
  * of that name, if any, and `otherDeclaration` says whether the name is
- * something else in module scope (05-expressions.md#r-expr.prefix.not-marked).
+ * something else in module scope (05-expressions.md#r-expr.literal-fn.not-marked).
  */
 export function checkStringPrefixCall(
   name: string,

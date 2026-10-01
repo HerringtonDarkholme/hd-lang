@@ -421,7 +421,7 @@ class Scanner {
         this.report("syntax-error", `invalid integer literal '${text}'`, start);
         return;
       }
-      // A radix literal takes no suffix (01-lexical-structure.md#r-lex.suffix.no-radix),
+      // A radix literal takes no suffix (01-lexical-structure.md#r-lex.suffix.decimal),
       // so a following `'` begins a character literal.
       this.emitNumber("integer", text, start, value, undefined);
       return;
@@ -462,7 +462,8 @@ class Scanner {
     const clean = text.replaceAll("_", "");
     const suffix = isSuffixStart(this.peek()) ? this.scanSuffix() : undefined;
     // A reserved word as a suffix, as in `5else`, forms no token
-    // (01-lexical-structure.md#r-lex.suffix.reserved).
+    // (the retired lex.suffix.reserved; the spec now lexes `5` then `else`,
+    // lex.literal-fn.reserved, a known failure tagged Q1-C3).
     if (suffix && KEYWORDS.has(suffix.name)) {
       this.report(
         "invalid-token",

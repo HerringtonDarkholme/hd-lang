@@ -420,7 +420,7 @@ function renamed<T>(node: T, from: string, to: string): T {
  * A desugared prefixed string names `std.ops.Template` by its hidden name
  * (`TEMPLATE_PLACEHOLDER`), which is declared only when the program does not
  * import `Template`; an import renames it to the local name
- * (spec/05-expressions.md#r-expr.prefix.no-marker-import).
+ * (spec/05-expressions.md#r-expr.literal-fn.no-marker-import).
  */
 function withTemplateName(program: Program): Program {
   for (const declaration of program.uses)

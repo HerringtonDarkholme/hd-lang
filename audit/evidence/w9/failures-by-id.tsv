@@ -36,3 +36,5 @@ Q7	1	The plain race! signature (batch 31, Q7): the prototype reports every race!
 Q9	7	Packs are removed in the specification, but the prototype still parses type packs, pack expansion, and pack.map(, and has no std.function.Tuple
 ALL-INTRINSIC	5	all! has one typing rule, but the prototype reports every all! call as unsupported-task-combinator
 Q6	2	Tuples derive Eq, PartialOrd, Ord, and Hash, but the prototype has no Eq or Hash for tuples, so a tuple map key is invalid-map-key
+Q1-C3	1	A reserved word is never a suffix (batch 31, Q1 cut C3): the prototype still lexes 5else as a suffixed literal and reports invalid-token, not syntax-error
+Q3	3	-5s is the ordinary negation -(5s) (batch 31, Q3): the prototype folds the minus into the literal, as s(-5), so it needs no Neg and range-checks the negated value
