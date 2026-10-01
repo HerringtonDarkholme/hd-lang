@@ -404,15 +404,7 @@ interface HirDispatchEqualityStrategy {
   readonly dispatch: HirEqualityDispatch;
 }
 
-interface HirTupleEqualityStrategy {
-  readonly kind: "tuple";
-  readonly elements: readonly HirEqualityStrategy[];
-}
-
-export type HirEqualityStrategy =
-  | HirBuiltinEqualityStrategy
-  | HirDispatchEqualityStrategy
-  | HirTupleEqualityStrategy;
+export type HirEqualityStrategy = HirBuiltinEqualityStrategy | HirDispatchEqualityStrategy;
 
 type HirOrderingOperator = "<" | "<=" | ">" | ">=";
 
@@ -425,15 +417,7 @@ interface HirDispatchOrderingStrategy {
   readonly dispatch: HirEqualityDispatch;
 }
 
-interface HirTupleOrderingStrategy {
-  readonly kind: "tuple";
-  readonly elements: readonly HirOrderingStrategy[];
-}
-
-export type HirOrderingStrategy =
-  | HirBuiltinOrderingStrategy
-  | HirDispatchOrderingStrategy
-  | HirTupleOrderingStrategy;
+export type HirOrderingStrategy = HirBuiltinOrderingStrategy | HirDispatchOrderingStrategy;
 
 export type HirStatement =
   | { readonly kind: "defer"; readonly body: readonly HirStatement[]; readonly span: SourceSpan }
@@ -572,6 +556,8 @@ export type HirExpression =
       /** Kind 3 is a type-parameter key, compared through `keyDispatch`'s dictionary. */
       readonly keyKind: 0 | 1 | 2 | 3;
       readonly keyDispatch?: HirEqualityDispatch;
+      /** For kind 3 with a concrete key type: the key type's `Eq` dictionary. */
+      readonly keyDictionary?: HirExpression;
     })
   | (HirExpressionBase & {
       readonly kind: "map-comprehension";
@@ -582,6 +568,8 @@ export type HirExpression =
       readonly valueType: ValueType;
       readonly keyKind: 0 | 1 | 2 | 3;
       readonly keyDispatch?: HirEqualityDispatch;
+      /** For kind 3 with a concrete key type: the key type's `Eq` dictionary. */
+      readonly keyDictionary?: HirExpression;
     })
   | (HirExpressionBase & {
       readonly kind: "variant-wrap";

@@ -132,7 +132,7 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
     const checkedValue = this.checkExpression(expression.value, contextualValue);
     const valueType = contextualValue ?? checkedValue.type;
     const value = this.requireCoercion(checkedValue, valueType, expression.value.span);
-    const { keyKind, keyDispatch } = this.mapKey(keyType, expression.key.span);
+    const { keyKind, keyDispatch, keyDictionary } = this.mapKey(keyType, expression.key.span);
     const readonlyMap = nominalGenericType("Map", [keyType, valueType]);
     const type =
       (expected && mutableInner(expected) !== undefined) || expected === undefined
@@ -147,6 +147,7 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
       valueType,
       keyKind,
       ...(keyDispatch ? { keyDispatch } : {}),
+      ...(keyDictionary ? { keyDictionary } : {}),
       type,
       span: expression.span,
     };

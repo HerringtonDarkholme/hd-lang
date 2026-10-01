@@ -17,8 +17,6 @@ const PRIMITIVES = new Set("i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 bool char stri
 export function builtinDebug(type: ValueType): boolean {
   const target = readonlyType(type);
   if (PRIMITIVES.has(target)) return true;
-  const tuple = tupleParts(target);
-  if (tuple !== undefined) return true;
   if (optionalInner(target) !== undefined || resultParts(target)) return true;
   const name = nominalGenericParts(target)?.name;
   return name === "List" || name === "Map";

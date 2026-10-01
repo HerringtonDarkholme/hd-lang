@@ -1,3 +1,4 @@
+import { mapKeyKind, mapKeyProblem } from "./map-keys.ts";
 import {
   ambiguousProjection,
   traitKeyParts,
@@ -55,8 +56,6 @@ import {
   traitTypeName,
   builtinTotallyOrdered,
   MAX_BOUND_DEPTH,
-  mapKeyKind,
-  mapKeyProblem,
   numericWidening,
   restElementProblem,
 } from "./shared.ts";
@@ -72,7 +71,6 @@ import {
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
-  tupleLayout,
 } from "../types.ts";
 import { narrowsTo, numericType } from "../numeric.ts";
 import { DERIVED_IMPLEMENTATION_SPANS, derivedFieldDiagnostic } from "./derive-intrinsics.ts";
@@ -1155,7 +1153,11 @@ export abstract class CheckerContext {
   protected mapKey(
     keyType: ValueType,
     span: SourceSpan,
-  ): { readonly keyKind: 0 | 1 | 2 | 3; readonly keyDispatch?: HirEqualityDispatch } {
+  ): {
+    readonly keyKind: 0 | 1 | 2 | 3;
+    readonly keyDispatch?: HirEqualityDispatch;
+    readonly keyDictionary?: HirExpression;
+  } {
     const generic = genericTypeName(keyType);
     const bounded = (name: string): boolean => {
       const trait = this.traitTypes.get(name);
@@ -1166,9 +1168,23 @@ export abstract class CheckerContext {
       new Set(generic && bounded("Eq") && bounded("Hash") ? [generic] : []),
     );
     if (problem) this.fail(problem.code, problem.message, span);
-    return generic
-      ? { keyKind: 3, keyDispatch: this.equalityDispatch(keyType) }
-      : { keyKind: mapKeyKind(keyType) };
+    if (generic) return { keyKind: 3, keyDispatch: this.equalityDispatch(keyType) };
+    // A key type whose `Eq` is a generic implementation, as a tuple's
+    // template instance is, compares through its dictionary, as kind 3.
+    const keyKind = mapKeyKind(keyType);
+    const eq = keyKind === 2 ? this.traitTypes.get("Eq") : undefined;
+    const found = eq && findImpl(this.implementations, eq.index, readonlyType(keyType), []);
+    if (!found || found.impl.targetType === found.type) return { keyKind };
+    return {
+      keyKind: 3,
+      keyDictionary: {
+        kind: "trait-dictionary",
+        traitIndex: eq.index,
+        dictionary: this.traitDictionaryPlan(found.impl, found.type, [], span),
+        type: "trait:Eq",
+        span,
+      },
+    };
   }
 
   protected equalityDispatch(type: ValueType): HirEqualityDispatch | undefined {
@@ -1180,13 +1196,6 @@ export abstract class CheckerContext {
     const comparedType = readonlyType(type);
     if (numericType(comparedType) || ["bool", "char", "string"].includes(comparedType))
       return { kind: "builtin" };
-    const tuple = tupleLayout(comparedType); // a rest element as its list (std-cmp.tuple.rest)
-    if (tuple !== undefined) {
-      const elements = tuple.map((element) => this.equalityStrategy(element, span));
-      return elements.every((element) => element !== undefined)
-        ? { kind: "tuple", elements: elements as HirEqualityStrategy[] }
-        : undefined;
-    }
     const dispatch = this.traitMethodDispatch(comparedType, "Eq", span);
     return dispatch ? { kind: "dispatch", dispatch } : undefined;
   }
@@ -1234,13 +1243,6 @@ export abstract class CheckerContext {
     const comparedType = readonlyType(type);
     if (numericType(comparedType) || ["char", "string"].includes(comparedType))
       return { kind: "builtin" };
-    const tuple = tupleLayout(comparedType);
-    if (tuple !== undefined) {
-      const elements = tuple.map((element) => this.orderingStrategy(element, span));
-      return elements.every((element) => element !== undefined)
-        ? { kind: "tuple", elements: elements as HirOrderingStrategy[] }
-        : undefined;
-    }
     const dispatch = this.traitMethodDispatch(comparedType, "PartialOrd", span);
     return dispatch ? { kind: "dispatch", dispatch } : undefined;
   }

@@ -32,7 +32,7 @@ import { withTypedDerivation } from "./typed-derivation.ts";
 import { withArbitraryModule } from "./arbitrary-module.ts";
 import { withErrorDerivation } from "./error-derivation.ts";
 import { withShapes } from "./shapes.ts";
-import { setHashableKeyTypes } from "./shared.ts";
+import { setHashableKeyTypes } from "./map-keys.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 
 export interface CheckOptions {

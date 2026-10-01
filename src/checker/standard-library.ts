@@ -383,7 +383,7 @@ const OPERATOR_TRAITS = new Map<string, readonly string[]>([
  */
 const MAP_MENTIONS = ["Hash", "tuple"];
 
-function mentionedNames(node: unknown, names: Set<string>): void {
+export function mentionedNames(node: unknown, names: Set<string>): void {
   if (Array.isArray(node)) {
     for (const item of node) mentionedNames(item, names);
     return;
@@ -634,19 +634,23 @@ function standardLocalNames(program: Program): Map<string, string> {
  * name by its hidden name, and `std.structure` names as the typed-derivation
  * pass declares them (spec/14-annotations.md#templates).
  */
+export interface StandardTemplate {
+  readonly template: ImplDecl;
+  readonly support: readonly ImplDecl[];
+  /** The compiler-provided names that only the template parts use. */
+  readonly uses: readonly UseDecl[];
+  /** Every implementation of the trait's module, in the program's names. */
+  readonly implementations: readonly ImplDecl[];
+}
+
 export function standardTemplate(
   program: Program,
   trait: string,
   /** The names of `std.structure` items the program renames (typed-derivation.ts). */
   structureNames: ReadonlyMap<string, string>,
-):
-  | {
-      readonly template: ImplDecl;
-      readonly support: readonly ImplDecl[];
-      /** The compiler-provided names that only the template parts use. */
-      readonly uses: readonly UseDecl[];
-    }
-  | undefined {
+  /** The trait's tuple template, `impl[T < Tuple] Trait for T by Structure`, rather than its template. */
+  tuple = false,
+): StandardTemplate | undefined {
   // The trait's module: one the program imports it from, or, for a prelude
   // trait such as `Eq` or `Hash`, the module that declares it.
   const candidates: { readonly module: StandardModule; readonly span: SourceSpan }[] = [];
@@ -674,12 +678,12 @@ export function standardTemplate(
       implementations = parseModule(module, source).implementations;
       templateModules.set(source, implementations);
     }
-    // The template, not a tuple template, whose parameter is bounded by
+    // The template, or the tuple template, whose parameter is bounded by
     // `Tuple` (annot.template.tuple.separate).
     const template = implementations.find(
       (implementation) =>
         implementation.byStructure !== undefined &&
-        implementation.genericBounds.length === 0 &&
+        implementation.genericBounds.length === (tuple ? 1 : 0) &&
         baseName(implementation.traitName ?? "") === trait,
     );
     if (!template) return undefined;
@@ -693,9 +697,27 @@ export function standardTemplate(
         const imported = use.names[0]!;
         return !imports(program, use.module, imported.name, imported.alias ?? imported.name);
       });
-    return { template, support, uses };
+    return { template, support, uses, implementations };
   }
   return undefined;
+}
+
+/**
+ * The local names of the `std` traits with a tuple template that the
+ * program sees: prelude traits, such as `Eq`, and imported ones, such as
+ * `std.ops.Default` (spec/14-annotations.md#tuple-templates).
+ */
+export function standardTupleTraits(program: Program): readonly string[] {
+  const localNames = standardLocalNames(program);
+  const traits: string[] = [];
+  for (const module of STANDARD_MODULES)
+    for (const implementation of declaredModule(module).program.implementations) {
+      if (implementation.byStructure === undefined || implementation.genericBounds.length !== 1)
+        continue;
+      const local = localNames.get(`${module}.${baseName(implementation.traitName ?? "")}`);
+      if (local !== undefined && !traits.includes(local)) traits.push(local);
+    }
+  return traits;
 }
 
 /** Declares the `std` modules and built-in methods that the program uses. */

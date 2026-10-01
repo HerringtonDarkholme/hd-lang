@@ -774,6 +774,7 @@ class SuspensionPlanBuilder {
             valueType: expression.valueType,
             keyKind: expression.keyKind,
             ...(expression.keyDispatch ? { keyDispatch: expression.keyDispatch } : {}),
+            ...(expression.keyDictionary ? { keyDictionary: expression.keyDictionary } : {}),
             type: expression.type,
             span,
           };

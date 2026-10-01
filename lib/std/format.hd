@@ -3,6 +3,9 @@
 # The prelude traits `Display` and `Debug`, `DebugWriter`, its builders,
 # `debug`, and the standard `Debug` implementations (Testing T48, T53).
 
+use std.function.Tuple
+use std.structure.{Structure, Walker, Variant, Field}
+
 # A value's text in string interpolation
 # (spec/05-expressions.md#string-interpolation).
 pub trait Display:
@@ -72,16 +75,10 @@ impl DebugTuple:
         self.count = self.count + 1
         self
 
-    # A rest tuple's rest element: each item is a field of the tuple
-    # (spec/09-traits.md#r-trait.debug.tuples.rest).
-    fn rest[T < Debug](mut self, items: List[T]) -> mut DebugTuple:
-        for item in items:
-            self.out.write(if self.count == 0: "(" else: ", ")
-            item.debug(self.out)
-            self.count = self.count + 1
-        self
-
+    # An unnamed one with no fields is the empty tuple, `()`.
     pub fn finish(mut self) -> void:
+        if self.count == 0 && self.unnamed:
+            self.out.write("()")
         if self.count == 1 && self.unnamed:
             self.out.write(",")
         if self.count > 0:
@@ -198,315 +195,68 @@ pub fn debug[T < Debug](value: T) -> string:
     value.debug(out)
     out.text
 
-# Tuples of at most 12 elements. The spec derives tuple `Debug` through a
-# tuple template at every size (spec/09-traits.md#r-trait.debug.tuples,
-# batch 36); these per-size impls stay until the prototype has tuple
-# templates. Rest tuples of at most 11 fixed elements follow the
-# fixed-size ones.
-impl Debug for ():
+# Tuple `Debug` (spec/std/format.md#r-std-format.debug.tuple-template):
+# `debug_tuple("")`, a field per element, then `finish`, at every size. The
+# walker implements `rest`, so a rest element's items are fields too
+# (spec/09-traits.md#r-trait.debug.tuples.rest).
+impl[T < Tuple] Debug for T by Structure:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.write("()")
+        let w: mut DebugFields[T] = DebugFields::[T] { tuple: out.debug_tuple("") }
+        _ := Structure::walk(self, w)
+        w.tuple.finish()
 
-impl[A < Debug] Debug for (A,):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).finish()
+# The field is public because the prototype checks the instantiated walker
+# in the program that uses it.
+data DebugFields[S]:
+    pub tuple: mut DebugTuple
 
-impl[A < Debug, B < Debug] Debug for (A, B):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).field(self._1).finish()
+impl[S] Walker[S] for DebugFields[S]:
+    type Error = never
 
-impl[A < Debug, B < Debug, C < Debug] Debug for (A, B, C):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).field(self._1).field(self._2).finish()
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
 
-impl[A < Debug, B < Debug, C < Debug, D < Debug] Debug for (A, B, C, D):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).finish()
+    fn member[F < Debug](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        _ := self.tuple.field(value)
+        .Ok()
 
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug] Debug for (A, B, C, D, E):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("")
-            .field(self._0)
-            .field(self._1)
-            .field(self._2)
-            .field(self._3)
-            .field(self._4)
-            .finish()
+    fn rest[I < Debug](mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
+        for item in items:
+            _ := self.tuple.field(item)
+        .Ok()
 
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug] Debug for (A, B, C, D, E, F):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("")
-            .field(self._0)
-            .field(self._1)
-            .field(self._2)
-            .field(self._3)
-            .field(self._4)
-            .field(self._5)
-            .finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug] Debug for (A, B, C, D, E, F, G):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("")
-            .field(self._0)
-            .field(self._1)
-            .field(self._2)
-            .field(self._3)
-            .field(self._4)
-            .field(self._5)
-            .field(self._6)
-            .finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug] Debug for (A, B, C, D, E, F, G, H):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("")
-            .field(self._0)
-            .field(self._1)
-            .field(self._2)
-            .field(self._3)
-            .field(self._4)
-            .field(self._5)
-            .field(self._6)
-            .field(self._7)
-            .finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug] Debug for (A, B, C, D, E, F, G, H, I):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("")
-            .field(self._0)
-            .field(self._1)
-            .field(self._2)
-            .field(self._3)
-            .field(self._4)
-            .field(self._5)
-            .field(self._6)
-            .field(self._7)
-            .field(self._8)
-            .finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug, J < Debug] Debug for (A, B, C, D, E, F, G, H, I, J):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("")
-            .field(self._0)
-            .field(self._1)
-            .field(self._2)
-            .field(self._3)
-            .field(self._4)
-            .field(self._5)
-            .field(self._6)
-            .field(self._7)
-            .field(self._8)
-            .field(self._9)
-            .finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug, J < Debug, K < Debug] Debug for (A, B, C, D, E, F, G, H, I, J, K):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("")
-            .field(self._0)
-            .field(self._1)
-            .field(self._2)
-            .field(self._3)
-            .field(self._4)
-            .field(self._5)
-            .field(self._6)
-            .field(self._7)
-            .field(self._8)
-            .field(self._9)
-            .field(self._10)
-            .finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug, J < Debug, K < Debug, L < Debug] Debug for (A, B, C, D, E, F, G, H, I, J, K, L):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("")
-            .field(self._0)
-            .field(self._1)
-            .field(self._2)
-            .field(self._3)
-            .field(self._4)
-            .field(self._5)
-            .field(self._6)
-            .field(self._7)
-            .field(self._8)
-            .field(self._9)
-            .field(self._10)
-            .field(self._11)
-            .finish()
-
-# `Display` for tuples of at most 12 elements, until the prototype has the
-# tuple template of spec/05-expressions.md#r-expr.interp.std.tuple.template
-# (batch 36): each element's text,
-# separated by ", ", inside parentheses. One element ends with a comma, as
-# in `(1,)` (r-expr.interp.std.tuple.one).
-impl Display for ():
+# Tuple `Display` (spec/05-expressions.md#r-expr.interp.std.tuple.template):
+# each element's text, separated by ", ", inside parentheses, at every
+# size. One element ends with a comma, as in `(1,)`
+# (r-expr.interp.std.tuple.one), and a rest element's items are written
+# inline (r-expr.interp.std.tuple.rest-inline).
+impl[T < Tuple] Display for T by Structure:
     fn to_string(self) -> string:
-        "()"
+        let w: mut TupleText[T] = TupleText::[T] { text: "", count: 0 }
+        _ := Structure::walk(self, w)
+        if w.count == 1:
+            return "(${w.text},)"
+        "(${w.text})"
 
-impl[A < Display] Display for (A,):
-    fn to_string(self) -> string:
-        "(${self._0},)"
+# The fields are public because the prototype checks the instantiated
+# walker in the program that uses it.
+data TupleText[S]:
+    pub text: string
+    pub count: i32
 
-impl[A < Display, B < Display] Display for (A, B):
-    fn to_string(self) -> string:
-        "(${self._0}, ${self._1})"
+impl[S] Walker[S] for TupleText[S]:
+    type Error = never
 
-impl[A < Display, B < Display, C < Display] Display for (A, B, C):
-    fn to_string(self) -> string:
-        "(${self._0}, ${self._1}, ${self._2})"
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
 
-impl[A < Display, B < Display, C < Display, D < Display] Display for (A, B, C, D):
-    fn to_string(self) -> string:
-        "(${self._0}, ${self._1}, ${self._2}, ${self._3})"
+    fn member[F < Display](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.text = if self.count == 0: "$value" else: "${self.text}, $value"
+        self.count = self.count + 1
+        .Ok()
 
-impl[A < Display, B < Display, C < Display, D < Display, E < Display] Display for (A, B, C, D, E):
-    fn to_string(self) -> string:
-        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4})"
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display] Display for (A, B, C, D, E, F):
-    fn to_string(self) -> string:
-        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5})"
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display] Display for (A, B, C, D, E, F, G):
-    fn to_string(self) -> string:
-        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5}, ${self._6})"
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display] Display for (A, B, C, D, E, F, G, H):
-    fn to_string(self) -> string:
-        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5}, ${self._6}, ${self._7})"
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display] Display for (A, B, C, D, E, F, G, H, I):
-    fn to_string(self) -> string:
-        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5}, ${self._6}, ${self._7}, ${self._8})"
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display, J < Display] Display for (A, B, C, D, E, F, G, H, I, J):
-    fn to_string(self) -> string:
-        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5}, ${self._6}, ${self._7}, ${self._8}, ${self._9})"
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display, J < Display, K < Display] Display for (A, B, C, D, E, F, G, H, I, J, K):
-    fn to_string(self) -> string:
-        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5}, ${self._6}, ${self._7}, ${self._8}, ${self._9}, ${self._10})"
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display, J < Display, K < Display, L < Display] Display for (A, B, C, D, E, F, G, H, I, J, K, L):
-    fn to_string(self) -> string:
-        "(${self._0}, ${self._1}, ${self._2}, ${self._3}, ${self._4}, ${self._5}, ${self._6}, ${self._7}, ${self._8}, ${self._9}, ${self._10}, ${self._11})"
-
-# Tuples with a rest element and at most 11 fixed elements, until the
-# prototype has tuple templates. The rest element's items are written
-# inline after the fixed elements, as fields of the tuple
-# (spec/09-traits.md#r-trait.debug.tuples.rest,
-# spec/05-expressions.md#r-expr.interp.std.tuple.rest-inline).
-impl[R < Debug] Debug for (List[R]...,):
-    fn debug(self, out: mut DebugWriter) -> void:
-        if self._0.len() == 0:
-            out.write("()")
-        else:
-            out.debug_tuple("").rest(self._0).finish()
-
-impl[A < Debug, R < Debug] Debug for (A, List[R]...):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).rest(self._1).finish()
-
-impl[A < Debug, B < Debug, R < Debug] Debug for (A, B, List[R]...):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).field(self._1).rest(self._2).finish()
-
-impl[A < Debug, B < Debug, C < Debug, R < Debug] Debug for (A, B, C, List[R]...):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).field(self._1).field(self._2).rest(self._3).finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, R < Debug] Debug for (A, B, C, D, List[R]...):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).rest(self._4).finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, R < Debug] Debug for (A, B, C, D, E, List[R]...):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).rest(self._5).finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, R < Debug] Debug for (A, B, C, D, E, F, List[R]...):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).field(self._5).rest(self._6).finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, R < Debug] Debug for (A, B, C, D, E, F, G, List[R]...):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).field(self._5).field(self._6).rest(self._7).finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, R < Debug] Debug for (A, B, C, D, E, F, G, H, List[R]...):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).field(self._5).field(self._6).field(self._7).rest(self._8).finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug, R < Debug] Debug for (A, B, C, D, E, F, G, H, I, List[R]...):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).field(self._5).field(self._6).field(self._7).field(self._8).rest(self._9).finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug, J < Debug, R < Debug] Debug for (A, B, C, D, E, F, G, H, I, J, List[R]...):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).field(self._5).field(self._6).field(self._7).field(self._8).field(self._9).rest(self._10).finish()
-
-impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug, J < Debug, K < Debug, R < Debug] Debug for (A, B, C, D, E, F, G, H, I, J, K, List[R]...):
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).field(self._4).field(self._5).field(self._6).field(self._7).field(self._8).field(self._9).field(self._10).rest(self._11).finish()
-
-# The text of a tuple from its elements' texts: separated by ", " inside
-# parentheses, and one element ends with a comma (r-expr.interp.std.tuple.one).
-fn tuple_text[R < Display](fixed: List[string], rest: List[R]) -> string:
-    let parts: mut List[string] = []
-    for part in fixed:
-        parts.append(part)
-    for item in rest:
-        parts.append("$item")
-    if parts.len() == 1:
-        return "(${parts[0]},)"
-    let text = "("
-    let index = 0
-    for part in parts:
-        if index > 0:
-            text = text + ", "
-        text = text + part
-        index = index + 1
-    text + ")"
-
-impl[R < Display] Display for (List[R]...,):
-    fn to_string(self) -> string:
-        tuple_text([], self._0)
-
-impl[A < Display, R < Display] Display for (A, List[R]...):
-    fn to_string(self) -> string:
-        tuple_text(["${self._0}"], self._1)
-
-impl[A < Display, B < Display, R < Display] Display for (A, B, List[R]...):
-    fn to_string(self) -> string:
-        tuple_text(["${self._0}", "${self._1}"], self._2)
-
-impl[A < Display, B < Display, C < Display, R < Display] Display for (A, B, C, List[R]...):
-    fn to_string(self) -> string:
-        tuple_text(["${self._0}", "${self._1}", "${self._2}"], self._3)
-
-impl[A < Display, B < Display, C < Display, D < Display, R < Display] Display for (A, B, C, D, List[R]...):
-    fn to_string(self) -> string:
-        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}"], self._4)
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, R < Display] Display for (A, B, C, D, E, List[R]...):
-    fn to_string(self) -> string:
-        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}"], self._5)
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, R < Display] Display for (A, B, C, D, E, F, List[R]...):
-    fn to_string(self) -> string:
-        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}", "${self._5}"], self._6)
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, R < Display] Display for (A, B, C, D, E, F, G, List[R]...):
-    fn to_string(self) -> string:
-        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}", "${self._5}", "${self._6}"], self._7)
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, R < Display] Display for (A, B, C, D, E, F, G, H, List[R]...):
-    fn to_string(self) -> string:
-        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}", "${self._5}", "${self._6}", "${self._7}"], self._8)
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display, R < Display] Display for (A, B, C, D, E, F, G, H, I, List[R]...):
-    fn to_string(self) -> string:
-        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}", "${self._5}", "${self._6}", "${self._7}", "${self._8}"], self._9)
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display, J < Display, R < Display] Display for (A, B, C, D, E, F, G, H, I, J, List[R]...):
-    fn to_string(self) -> string:
-        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}", "${self._5}", "${self._6}", "${self._7}", "${self._8}", "${self._9}"], self._10)
-
-impl[A < Display, B < Display, C < Display, D < Display, E < Display, F < Display, G < Display, H < Display, I < Display, J < Display, K < Display, R < Display] Display for (A, B, C, D, E, F, G, H, I, J, K, List[R]...):
-    fn to_string(self) -> string:
-        tuple_text(["${self._0}", "${self._1}", "${self._2}", "${self._3}", "${self._4}", "${self._5}", "${self._6}", "${self._7}", "${self._8}", "${self._9}", "${self._10}"], self._11)
+    fn rest[I < Display](mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
+        for item in items:
+            self.text = if self.count == 0: "$item" else: "${self.text}, $item"
+            self.count = self.count + 1
+        .Ok()

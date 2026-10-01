@@ -587,13 +587,13 @@ else`, `break`, `break value`, and `continue`;
   inside generic bodies, and concrete call-site recovery for returned `T`
   values;
 - concrete and bounded generic `Eq` and `PartialOrd` dispatch: the compiler
-  compares primitives and tuples (lexicographic order), and calls every
-  other type's implementation, generic ones too, passing the dictionaries
-  of the implementation's bounds. `std.cmp` implements `Eq` for lists,
-  optionals, `Result`, and maps, and `PartialOrd` and `Ord` for lists and
-  optionals (`.None` first), in hd; the loader adds them when a program,
-  or std code it gets, mentions a comparison trait, a comparison operator,
-  or `assert_equal`. Primitives and tuples of them also satisfy `Eq` and
+  compares primitives, and calls every other type's implementation,
+  generic ones too, passing the dictionaries of the implementation's
+  bounds. `std.cmp` implements `Eq` for lists, optionals, `Result`, and
+  maps, and `PartialOrd` and `Ord` for lists and optionals (`.None` first),
+  in hd, and tuples through its tuple templates; the loader adds them when
+  a program, or std code it gets, mentions a comparison trait, a comparison
+  operator, or `assert_equal`. Primitives also satisfy `Eq` and
   `PartialOrd` bounds (floats included, with IEEE equality), and the ones
   without floats satisfy `Ord`; `PartialOrd < Eq` and `Ord < PartialOrd`, so
   each generated dictionary carries its supertrait's; primitives satisfy
@@ -727,8 +727,30 @@ else`, `break`, `break value`, and `continue`;
   target's declared name (`annot.structure.name`). Inside a template,
   `Structure::f(...)` is `T::f(...)`, and a call qualified by the derived trait, as
   `Named::name()`, calls the target's own implementation
-  (`annot.template.qualified-self`). A walker's `member` may strengthen its bound; its dictionary
-  entry traps, since only generated code calls it, concretely. The checks
+  (`annot.template.qualified-self`). A walker's `member` and `rest` may strengthen their bounds; their dictionary
+  entries trap, since only generated code calls them, concretely.
+  A tuple template, `impl[T < Tuple] Trait for T by Structure`
+  (`annot.template.tuple.*`), is compiled the same way and instantiated
+  once per tuple shape, its number of fixed elements and whether it has a
+  rest element, as a generic implementation over the element types, such
+  as `impl[hd_E0 < Eq, hd_E1 < Eq] Eq for (hd_E0, hd_E1)`
+  (`checker/tuple-templates.ts`). Shapes need no inferred types: the pass
+  reads them, and the names a program mentions, from the program as the
+  std join will declare it, without std implementation bodies. It
+  instantiates the program's own tuple templates for every shape, and
+  std's (`Eq`, `PartialOrd`, `Ord`, `Hash`, `Debug`, `Display`, `Default`)
+  for the traits mentioned, with their supertraits. A rest member is one
+  `List[T]` member; its item type takes the bound of the walker's `rest`,
+  or of the trait's `List[T]` implementation, and a shape with neither,
+  as `Hash` has, gets no instance. Generated `walk` calls `rest` only on a
+  walker that implements it, and `member` otherwise, as `Walker.rest`'s
+  default does; the prototype's default body itself panics. A tuple's
+  `build` returns `Self`, since a tuple takes no `mut`. A hand-written
+  implementation of such a trait for a tuple type is `overlapping-impl`.
+  A map key whose `Eq` is a generic implementation, as a tuple's is,
+  compares through that implementation's dictionary, and the key bound
+  `Map[K < Eq & Hash, V]` is checked through generic implementations and
+  their bounds (`checker/map-keys.ts`). The checks
   of the chapter's diagnostics (`underivable-trait`, `misplaced-derivation`,
   `marker-template`, `invalid-member-line`, `duplicate-fact`,
   `omitted-member-without-default`, `member-not-derivable`,
@@ -758,9 +780,9 @@ else`, `break`, `break value`, and `continue`;
   `derive-field-missing-trait` at the field (at the base type for a newtype), and a use whose added bound
   fails is `missing-derived-bound`. `Debug` is a prelude trait; `DebugWriter`, its
   builders, the prelude `debug`, and `std`'s `Debug` implementations for
-  the primitives, `List`, `T?`, `Result`, and pairs are hd code in
+  the primitives, `List`, `T?`, `Result`, and tuples are hd code in
   `lib/std/format.hd`, whose writer is always compact. The checker still
-  accepts `Debug` for `Map` and longer tuples, which render no text; the drift and unused-fact warnings treat
+  accepts `Debug` for `Map`, which renders no text; the drift and unused-fact warnings treat
   the module as one package, and the unused-fact warning skips a literal
   fact such as `@"note"` and a fact built by a name imported from `std`,
   such as `@annotate(.Field)` (M25). `@derive` before a function, trait,
@@ -1070,7 +1092,7 @@ the prototype compiles:
   `impl Add[i32] for i32` of `std.ops` or `impl Num for i32` of `std.num`,
   is added only when the program, or a std declaration it gets, names the
   trait, so that `use std.ops.num_suffix` does not add every operator
-  implementation. One on a tuple, such as `Display` for `(A, B)`, also
+  implementation. One on a tuple, such as `Arbitrary` for `(A, B)`, also
   needs code that mentions a tuple type, expression, or pattern;
 - a prelude name that std declares, such as `Eq`, `Display`, or `Console`,
   is added when the program, or a std declaration it gets, mentions it. A
@@ -1086,22 +1108,22 @@ What it provides:
 | Module | Contents |
 | --- | --- |
 | `std.annotation` | the shape types (`DataShape`, `FieldShape`, `TypeShape`, ...), `ShapeMetadata`, and `TypeShape.is_optional`; `checker/shapes.ts` generates the builders that `shape::[T]()` and `shape_of(f)` call. `Target`, `Annotate`, and `annotate`, which limit a fact type's target kinds |
-| `std.hash` | `Hash` and `Hasher` (prelude names), and `Hash` for `string`, `bool`, `char`, and every integer type; no standard hasher, which the specification does not name |
+| `std.hash` | `Hash` and `Hasher` (prelude names), and `Hash` for `string`, `bool`, `char`, and every integer type, and its tuple template; no standard hasher, which the specification does not name |
 | `std.task` | `retry!`, and the plain signature of `race!` with an `@intrinsic("task_race")` body; `block_on`, `all!` (which has no written signature), and `Waker` stay compiler-provided names of the module |
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
 | `std.text` | on `string`: `chars`, `char_indices`, `bytes`, `slice`, `to_utf8`, `string::from_utf8` with `Utf8Error`, `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
 | `std.iter` | the prelude `Iterator[T]` and `Iterable[T]`; `Iterator` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Map`, `Result`, and `T?`; `Iterable` for `List` and `Map` (not `Iterator`, which a loop advances directly); `range` |
-| `std.cmp` | the prelude `Eq`, `PartialOrd`, `Ord`, and `Ordering`; `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?` |
+| `std.cmp` | the prelude `Eq`, `PartialOrd`, `Ord`, and `Ordering`; `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?`; the tuple templates of `Eq`, `PartialOrd`, and `Ord` |
 | `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | the prelude `Console` and `println`; `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
 | `std.resource` | `ResourceError[E]` |
-| `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations (spec/std/ops.md) |
+| `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations, and its tuple template (spec/std/ops.md) |
 | `std.function` | the sealed marker trait `Tuple`, which the compiler implements for every tuple type; a `Tuple` bound passes no dictionary. `Fn` and `SuspendFn` have no declaration: the checker rewrites them to the `fn(...)` sugar |
-| `std.format` | the prelude `Display` and `Debug`; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and tuples up to 12 elements; `Debug` and `Display` for rest tuples of at most 11 fixed elements |
+| `std.format` | the prelude `Display` and `Debug`; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`; the tuple templates of `Debug` and `Display` |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
 | `std.testing.arbitrary` | `with` and the typed fact type `With[F]`, in `lib/std/arbitrary.hd`, since the prototype has no std submodules |
 

@@ -398,7 +398,56 @@ known-failure row changed.
   deleting the per-size tuple impls and the tuple comparison strategies.
   The pass runs before the std join, so it must learn the tuple shapes a
   program uses, including inferred ones, and the traits it needs, which
-  the join computes today.
+  the join computes today. Done in step 3, below.
+
+**#142 step 3, 2026-10-01: tuple templates (M8 by O3b) done.** The
+seven Q6 and O3b known-failure rows pass and are removed (28 rows to 21).
+hd 423 lines deleted and 133 added; TS 283 deleted and 807 added, about 60
+of them moved from `shared.ts` to `checker/map-keys.ts`.
+
+- Instances per shape, not per type. A tuple template is instantiated
+  once per tuple shape, its number of fixed elements and whether it has a
+  rest element, as a generic implementation over the element types:
+  `impl[hd_E0 < Eq, hd_E1 < Eq] Eq for (hd_E0, hd_E1)`. That covers every
+  tuple type of the shape, inferred ones included, so the pass needs only
+  shapes, which are syntactic: a tuple type, expression, or pattern, in
+  the program or in a std declaration it uses. To see the std ones and the
+  traits the join will need, the pass runs the join once on the
+  pre-derivation program (`tupleDemand`), skipping std implementation
+  bodies, and instantiates the std tuple templates of the traits mentioned
+  there, with their supertraits. Lazy instantiation inside the checker was
+  rejected: implementations and function indexes are fixed before bodies
+  are checked, and a per-type pre-pass would need inference.
+- Each element type is bounded by the strengthened `member` bounds of the
+  template's walkers and sources. A rest member is one `List[T]` member:
+  `T` takes the bound of the walker's `rest`, or of the element trait's
+  `List[T]` implementation; with neither, as for `Hash`, the rest shape
+  gets no instance. Generated `walk` calls `rest` only on a walker that
+  implements it, and `member` otherwise; the prototype's default `rest`
+  body panics, since nothing else calls it.
+- Map keys. A key type whose `Eq` is a generic implementation, as every
+  tuple instance is, compares through that implementation's dictionary as
+  map key kind 3, and the bound `Map[K < Eq & Hash, V]` is checked through
+  generic implementations and their bounds. A derived `Box[i32]` keys a
+  map now too.
+- Deleted: the per-size tuple `Debug`, `Display`, and `Default` impls; the
+  checker's tuple `Eq` and `PartialOrd` strategies, the tuple clause of the
+  built-in `Ord` and `Debug`, the HIR tuple strategy kinds, and the
+  emitter's tuple equality and ordering. Fixed on the way: a generic
+  target with two or more parameters generated `f[A, B]()`, a syntax
+  error; it is now `f::[A, B]()`.
+- Cost, in-process medians after warm-up. A tuple-heavy program (shapes
+  2 to 6 with `==`, `<`, interpolation, and `debug`): check 17.9 to 47.4
+  ms, check and emit 77 to 142 ms, WAT 339 to 486 KB. The demand join is
+  about 10 to 20 ms of it, and each instance costs about 1.8 KB of WAT
+  per element. A program without tuples got cheaper, since the per-size
+  impls joined whenever its code mentioned a parenthesis: a 7-line
+  `println` program went from 227 to 54 KB of WAT, and
+  `examples/core.hd` from 224 to 91 KB.
+- Left: `@derive(Debug)` through a template (M7) and deleting the TS
+  `Debug` generator. Its walker cannot choose `debug_struct` or
+  `debug_tuple` for a mixed variant before it sees every member, so it
+  needs `describe` first or a buffered builder.
 
 Rules for every chunk:
 

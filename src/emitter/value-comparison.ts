@@ -6,7 +6,7 @@ import type {
   HirOrderingStrategy,
   ValueType,
 } from "../hir.ts";
-import { readonlyType, tupleLayout } from "../types.ts";
+import { readonlyType } from "../types.ts";
 import { EmitterContext } from "./context.ts";
 import { numericType } from "../numeric.ts";
 import { scalarWasm } from "./scalars.ts";
@@ -134,7 +134,12 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     keyType: ValueType,
     keyKind: number,
     dispatch?: HirEqualityDispatch,
+    dictionary?: HirExpression,
   ): string {
+    if (keyKind === 3 && dictionary?.kind === "trait-dictionary") {
+      this.boundKeyTraits.add(dictionary.traitIndex);
+      return `(ref.func $hd.keqb${dictionary.traitIndex}) ${this.emitExpression(dictionary)}`;
+    }
     if (keyKind === 3 && dispatch?.kind === "bound") {
       this.boundKeyTraits.add(dispatch.traitIndex);
       return `(ref.func $hd.keqb${dispatch.traitIndex}) ${this.boundDispatchDictionary(dispatch)}`;
@@ -505,15 +510,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     if (readonly === "string") return `(i32.eqz (call $hd.string_compare ${left} ${right}))`;
     if (numericType(readonly) || readonly === "bool" || readonly === "char")
       return `(${scalarWasm(readonly)}.eq ${left} ${right})`;
-    const tuple = tupleLayout(readonly);
-    if (tuple !== undefined)
-      return this.emitTupleEquality(
-        left,
-        right,
-        readonly,
-        tuple,
-        strategy?.kind === "tuple" ? strategy.elements : undefined,
-      );
     throw new Error(`cannot emit Eq for '${type}'`);
   }
 
@@ -549,15 +545,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
           : `(i32.const 0)`;
       return `(block (result i32) (local.set ${leftTemporary} ${left}) (local.set ${rightTemporary} ${right}) (if (result i32) (${wasm}.${less} ${a} ${b}) (then (i32.const -1)) (else (if (result i32) (${wasm}.${greater} ${a} ${b}) (then (i32.const 1)) (else ${equal})))))`;
     }
-    const tuple = tupleLayout(readonly);
-    if (tuple !== undefined)
-      return this.emitTupleOrdering(
-        left,
-        right,
-        readonly,
-        tuple,
-        strategy?.kind === "tuple" ? strategy.elements : undefined,
-      );
     throw new Error(`cannot emit PartialOrd for '${type}'`);
   }
 
@@ -578,72 +565,5 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     const ordering = `(ref.cast (ref $e${orderingIndex}) (struct.get $hd.variant $hd.variant-payload ${value}))`;
     const tag = `(struct.get $e${orderingIndex} $e${orderingIndex}tag ${ordering})`;
     return `(block (result i32) (local.set ${temporary} ${called}) (if (result i32) ${present} (then (i32.sub ${tag} (i32.const 1))) (else (i32.const 2))))`;
-  }
-
-  private emitTupleEquality(
-    left: string,
-    right: string,
-    type: ValueType,
-    elements: readonly ValueType[],
-    strategies?: readonly HirEqualityStrategy[],
-  ): string {
-    if (elements.length === 0) return `(i32.const 1)`;
-    const leftTemporary = this.allocateTemporary(type);
-    const rightTemporary = this.allocateTemporary(type);
-    const comparisons = elements.map((elementType, index) =>
-      this.emitValueEquality(
-        this.unboxValue(
-          `(array.get $hd.list (ref.as_non_null (local.get ${leftTemporary})) (i32.const ${index}))`,
-          elementType,
-        ),
-        this.unboxValue(
-          `(array.get $hd.list (ref.as_non_null (local.get ${rightTemporary})) (i32.const ${index}))`,
-          elementType,
-        ),
-        elementType,
-        strategies?.[index],
-      ),
-    );
-    const comparison = comparisons
-      .slice(1)
-      .reduce((combined, next) => `(i32.and ${combined} ${next})`, comparisons[0]!);
-    return `(block (result i32) (local.set ${leftTemporary} ${left}) (local.set ${rightTemporary} ${right}) ${comparison})`;
-  }
-
-  private emitTupleOrdering(
-    left: string,
-    right: string,
-    type: ValueType,
-    elements: readonly ValueType[],
-    strategies?: readonly HirOrderingStrategy[],
-  ): string {
-    if (elements.length === 0) return `(i32.const 0)`;
-    const leftTemporary = this.allocateTemporary(type);
-    const rightTemporary = this.allocateTemporary(type);
-    const comparisonTemporary = this.allocateTemporary("i32");
-    const label = `$ordering${this.loopCounter++}`;
-    const comparisons = elements.flatMap((elementType, index) => {
-      const leftElement = this.unboxValue(
-        `(array.get $hd.list (ref.as_non_null (local.get ${leftTemporary})) (i32.const ${index}))`,
-        elementType,
-      );
-      const rightElement = this.unboxValue(
-        `(array.get $hd.list (ref.as_non_null (local.get ${rightTemporary})) (i32.const ${index}))`,
-        elementType,
-      );
-      return [
-        `  (local.set ${comparisonTemporary} ${this.emitValueOrdering(leftElement, rightElement, elementType, strategies?.[index])})`,
-        `  (if (i32.ne (local.get ${comparisonTemporary}) (i32.const 0))`,
-        `    (then (br ${label} (local.get ${comparisonTemporary}))))`,
-      ];
-    });
-    return [
-      `(block ${label} (result i32)`,
-      `  (local.set ${leftTemporary} ${left})`,
-      `  (local.set ${rightTemporary} ${right})`,
-      ...comparisons,
-      `  (i32.const 0)`,
-      `)`,
-    ].join("\n");
   }
 }

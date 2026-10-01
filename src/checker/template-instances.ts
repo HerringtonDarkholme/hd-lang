@@ -19,6 +19,9 @@ import { NEWTYPE_FIELD } from "./type-declarations.ts";
 
 export const STRUCTURE = "Structure";
 
+/** A tuple instance's parameter for the item type of its rest element `List[hd_R]...`. */
+export const TUPLE_REST = "hd_R";
+
 // ---------------------------------------------------------------------------
 // Generic AST helpers.
 
@@ -177,6 +180,8 @@ export interface CompiledTemplate {
   /** The function of each template method, by method name. */
   readonly functions: ReadonlyMap<string, string>;
   readonly declarations: { readonly trait: TraitDecl; readonly functions: FunctionDecl[] };
+  /** A tuple template (annot.template.tuple.form): its `build` returns `Self`, since a tuple takes no `mut`. */
+  readonly tuple: boolean;
 }
 
 /** The receiver of a template method, as a parameter of its function. */
@@ -187,10 +192,11 @@ export function compileTemplate(
   implementations: readonly ImplDecl[],
   renames: ReadonlyMap<string, string>,
   error: (code: string, message: string, span: SourceSpan) => void,
+  tuple = false,
 ): CompiledTemplate {
   const parameter = template.genericParameters[0]!;
   const traitHead = headName(template.traitName!);
-  const key = traitHead.replace(/[^\p{ID_Continue}]/gu, "_");
+  const key = `${tuple ? "tuple_" : ""}${traitHead.replace(/[^\p{ID_Continue}]/gu, "_")}`;
   const structureTrait = `hd__Structure_${key}`;
   const sites: TemplateSite[] = [];
   const functionNames = new Map<string, string>();
@@ -346,7 +352,7 @@ export function compileTemplate(
           );
         if (site.traversal === "describe")
           return signature(name, [["d", visitor]], `Result[void,${errorType}]`);
-        return signature(name, [["s", visitor]], `Result[mut:Self,${errorType}]`);
+        return signature(name, [["s", visitor]], `Result[${tuple ? "" : "mut:"}Self,${errorType}]`);
       }),
     ],
     span: at,
@@ -358,6 +364,7 @@ export function compileTemplate(
     sites,
     functions: functionNames,
     declarations: { trait, functions: bounded },
+    tuple,
   };
 }
 
@@ -372,6 +379,8 @@ export interface InstanceInput {
   /** The derived bounds: each bounded parameter gets `traits`. */
   readonly bounded: readonly string[];
   readonly traits: readonly string[];
+  /** A tuple instance's bound on its rest item type, `TUPLE_REST`. */
+  readonly restBound?: readonly string[];
   /** The names of the derivation's traversals and of its facts function. */
   readonly prefix: string;
   readonly part: string;
@@ -399,7 +408,11 @@ export function instanceImplementations(input: InstanceInput): {
     : parameters;
   const genericBounds = derivation.block?.genericParameters.length
     ? derivation.block.genericBounds
-    : bounded.map((parameter) => ({ parameter, traits, span: derivation.span }));
+    : bounded.map((parameter) => ({
+        parameter,
+        traits: parameter === TUPLE_REST && input.restBound ? input.restBound : traits,
+        span: derivation.span,
+      }));
   const at = derivation.span;
   const typeArguments = parameters.map((parameter) => ({ name: parameter, span: at }));
   const name = (text: string): Expression => ({ kind: "name", name: text, span: at });
@@ -464,7 +477,7 @@ export function instanceImplementations(input: InstanceInput): {
           [[argument, visitor]],
           site.traversal === "describe"
             ? `Result[void,${errorType}]`
-            : `Result[mut:${targetType},${errorType}]`,
+            : `Result[${compiled.tuple ? "" : "mut:"}${targetType},${errorType}]`,
           call(traversal, [name(argument)], typeArguments),
         );
       }),

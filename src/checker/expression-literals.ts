@@ -399,7 +399,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             expression.entries[index]!.value.span,
           ),
         }));
-        const { keyKind, keyDispatch } = this.mapKey(keyType, expression.span);
+        const { keyKind, keyDispatch, keyDictionary } = this.mapKey(keyType, expression.span);
         const readonlyMap = nominalGenericType("Map", [keyType, valueType]);
         const type =
           (expected && mutableInner(expected) !== undefined) || expected === undefined
@@ -412,6 +412,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           valueType,
           keyKind,
           ...(keyDispatch ? { keyDispatch } : {}),
+          ...(keyDictionary ? { keyDictionary } : {}),
           type,
           span: expression.span,
         };

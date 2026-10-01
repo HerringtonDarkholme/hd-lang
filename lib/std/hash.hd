@@ -4,6 +4,7 @@
 # width, and a `bool` one byte. The specification names no standard hasher
 # yet, so none is declared here.
 use std.text.{byte_at, byte_len}
+use std.function.Tuple
 use std.structure.{Structure, Walker, Variant, Field}
 
 pub trait Hasher:
@@ -109,3 +110,11 @@ impl[S] Walker[S] for HashWalker[S]:
     fn member[F < Hash](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         value.hash(self.state)
         .Ok()
+
+# Tuple hashing (spec/std/hash.md#tuple-hashing): each element in order, at
+# every size. A rest element is a `List`, which has no `Hash`, so a rest
+# tuple has none (r-std-hash.tuple.rest).
+impl[T < Tuple] Hash for T by Structure:
+    fn hash(self, state: mut Hasher) -> void:
+        let w: mut HashWalker[T] = HashWalker::[T] { state: state }
+        _ := Structure::walk(self, w)

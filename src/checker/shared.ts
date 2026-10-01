@@ -1,7 +1,8 @@
+import { mapKeyProblem } from "./map-keys.ts";
 import { traitValueBindings, writtenBindingProblem } from "./associated-bindings.ts";
 import type { Expression, Program, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
-import { isIntegerType, isNarrowInteger, numericType, widensTo } from "../numeric.ts";
+import { isIntegerType, numericType, widensTo } from "../numeric.ts";
 import type {
   HirData,
   HirEnum,
@@ -216,66 +217,6 @@ const TYPE_NAMES = new Set<ValueType>([
   "never",
   "ConsoleError",
 ]);
-
-/**
- * How a map stores and compares its keys at run time: 0 for an `i32`-like
- * scalar, 1 for a string, and 2 for any other key type, which the map
- * compares with its `Eq`. Which types may key a map is `mapKeyProblem`'s.
- */
-export function mapKeyKind(type: ValueType): 0 | 1 | 2 {
-  if (isNarrowInteger(type) || type === "bool" || type === "char") return 0;
-  if (type === "string") return 1;
-  return 2;
-}
-
-/**
- * Why `type` may not key a map, if it may not: a `mut` key type, or a key
- * type that fails the declared bound `Map[K < Eq & Hash, V]`
- * (spec/04-type-system.md#map-key-types). A type parameter meets it
- * through its own bounds, `hashableParameters`; any other type through a
- * non-generic `Eq` and `Hash` implementation, std's included, or the
- * primitive `Eq` of the language.
- */
-export function mapKeyProblem(
-  type: ValueType,
-  hashableParameters: ReadonlySet<string> = new Set(),
-): { readonly code: string; readonly message: string } | undefined {
-  if (mutableInner(type) !== undefined)
-    return {
-      code: "invalid-map-key",
-      message: `a map key type must not be mut, found 'mut ${readonlyType(type)}'`,
-    };
-  const generic = genericTypeName(type);
-  const missing = generic
-    ? hashableParameters.has(generic)
-      ? undefined
-      : "Eq and Hash"
-    : ["Hash", "Eq"].find(
-        (trait) =>
-          !(implementedTraits.get(trait)?.has(type) ?? false) &&
-          !(trait === "Eq" && (numericType(type) || ["bool", "char", "string"].includes(type))),
-      );
-  return missing
-    ? {
-        code: "unsatisfied-trait-bound",
-        message: `type '${type}' does not implement ${missing}, required by the bound on 'K' of 'Map'`,
-      }
-    : undefined;
-}
-
-// The types with a non-generic `Eq` or `Hash` implementation, by trait, set
-// for each checked program before its types resolve (checker/program.ts).
-let implementedTraits: ReadonlyMap<string, ReadonlySet<string>> = new Map();
-
-export function setHashableKeyTypes(program: Program): void {
-  const implemented = (trait: string): Set<string> =>
-    new Set(
-      program.implementations
-        .filter((item) => item.traitName === trait && item.genericParameters.length === 0)
-        .map((item) => item.targetName),
-    );
-  implementedTraits = new Map(["Eq", "Hash"].map((trait) => [trait, implemented(trait)]));
-}
 
 export function isKnownType(
   type: ValueType,
@@ -1452,8 +1393,6 @@ export const MAX_BOUND_DEPTH = 64;
 export function builtinTotallyOrdered(type: ValueType): boolean {
   const compared = readonlyType(type);
   if (isIntegerType(compared) || ["char", "string"].includes(compared)) return true;
-  const tuple = tupleParts(compared);
-  if (tuple !== undefined) return tuple.every(builtinTotallyOrdered);
   const optional = optionalInner(compared);
   if (optional !== undefined) return builtinTotallyOrdered(optional);
   const nominal = nominalGenericParts(compared);

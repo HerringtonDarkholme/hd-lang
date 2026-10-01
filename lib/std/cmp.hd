@@ -1,6 +1,7 @@
 # std.cmp. `Eq`,
 # `PartialOrd`, `Ord`, and `Ordering` are prelude names, declared here
 # (spec/09-traits.md#comparison-traits).
+use std.function.Tuple
 use std.structure.{Structure, Walker, Variant, Field}
 
 pub enum Ordering:
@@ -63,9 +64,8 @@ impl[T < Ord] Ord for Reverse[T]:
 # Equality and order of the built-in composites
 # (spec/05-expressions.md#r-expr.eq.std, #r-expr.ord.std). `==`, `<`, and
 # the other comparison operators call these through `Eq.eq` and
-# `PartialOrd.partial_cmp`. Tuples are compiler-derived in the prototype;
-# the spec derives them through tuple templates
-# (spec/09-traits.md#r-trait.target.tuple.templates, batch 36).
+# `PartialOrd.partial_cmp`. Tuples compare through the tuple templates
+# at the end of this module.
 
 # Lists are equal when they have the same length and equal elements in order.
 impl[T < Eq] Eq for List[T]:
@@ -289,3 +289,26 @@ impl[S] Walker[S] for OrderWalker[S]:
             _ => pass
         self.result = order
         .Err(true)
+
+# Tuple comparison (spec/std/cmp.md#tuple-comparison): the derived walkers,
+# element by element, in order, at every size. A tuple has one variant, so
+# no walk reads `other`'s variant index. A rest element compares as its
+# list (r-std-cmp.tuple.rest).
+impl[T < Tuple] Eq for T by Structure:
+    fn eq(self, other: T) -> bool:
+        let w: mut EqualWalker[T] = EqualWalker::[T] { other: other }
+        match Structure::walk(self, w):
+            .Ok(_) => true
+            .Err(_) => false
+
+impl[T < Tuple] PartialOrd for T by Structure:
+    fn partial_cmp(self, other: T) -> Ordering?:
+        let w: mut PartialOrderWalker[T] = PartialOrderWalker::[T] { other: other, other_index: 0, result: .Some(.Equal) }
+        _ := Structure::walk(self, w)
+        w.result
+
+impl[T < Tuple] Ord for T by Structure:
+    fn cmp(self, other: T) -> Ordering:
+        let w: mut OrderWalker[T] = OrderWalker::[T] { other: other, other_index: 0, result: .Equal }
+        _ := Structure::walk(self, w)
+        w.result
