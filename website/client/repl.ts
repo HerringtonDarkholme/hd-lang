@@ -9,12 +9,17 @@
 
 import { CompilerClient, type Interrupted } from "../playground/src/compiler-client.ts";
 import { classify } from "../../src/highlight.ts";
-import { needsMoreInput, splitInputs } from "../../src/repl-input.ts";
+import {
+  backspaceWidth,
+  continuationIndent,
+  INDENT_UNIT,
+  needsMoreInput,
+  splitInputs,
+} from "../../src/repl-input.ts";
 import type { ReplEntry, ReplReply } from "../../src/repl.ts";
 
 const HISTORY_KEY = "hd-repl-history";
 const HISTORY_LIMIT = 200;
-const INDENT = "    ";
 const WELCOME =
   "hd REPL. Enter evaluates; a line ending in ':' or an open bracket continues, and an empty line ends a block. Shift+Enter adds a line, Up and Down recall history, Ctrl+` toggles this panel. Type :help for commands.";
 
@@ -226,8 +231,7 @@ class ReplPanel {
       const editing = !atEnd && lines.length > 1;
       if (event.shiftKey || (!command && (editing || needsMoreInput(lines)))) {
         const line = value.slice(0, selectionStart).split("\n").at(-1) ?? "";
-        const indent = /^\s*/.exec(line)![0];
-        this.insert(`\n${indent}${/:\s*$/.test(line) ? INDENT : ""}`);
+        this.insert(`\n${continuationIndent(line)}`);
         return;
       }
       this.setInput("");
@@ -236,15 +240,15 @@ class ReplPanel {
     }
     if (event.key === "Tab" && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
       event.preventDefault();
-      this.insert(INDENT);
+      this.insert(INDENT_UNIT);
       return;
     }
     if (event.key === "Backspace" && selectionStart === selectionEnd) {
       // In leading spaces, delete back to the previous indentation stop.
       const before = value.slice(0, selectionStart).split("\n").at(-1) ?? "";
-      if (before.length > 0 && /^ +$/.test(before)) {
+      const remove = backspaceWidth(before);
+      if (remove > 1) {
         event.preventDefault();
-        const remove = before.length % INDENT.length || INDENT.length;
         input.setSelectionRange(selectionStart - remove, selectionStart);
         this.insert("");
       }

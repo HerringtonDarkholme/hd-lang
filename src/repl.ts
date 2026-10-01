@@ -5,7 +5,10 @@ import { RuntimePanicError } from "./runtime-panic.ts";
 import { classifyInput } from "./repl-input.ts";
 
 export {
+  backspaceWidth,
   classifyInput,
+  continuationIndent,
+  INDENT_UNIT,
   needsMoreInput,
   splitInputs,
   type InputKind,

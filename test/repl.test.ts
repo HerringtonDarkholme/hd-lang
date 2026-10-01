@@ -6,7 +6,10 @@ import test from "node:test";
 
 import { classify, highlight } from "../src/highlight.ts";
 import {
+  backspaceWidth,
   classifyInput,
+  continuationIndent,
+  INDENT_UNIT,
   needsMoreInput,
   parseReplMessage,
   ReplSession,
@@ -45,6 +48,62 @@ test("REPL blocks continue until an empty line and brackets until closed", () =>
   assert.equal(needsMoreInput(["[1,"]), true);
   assert.equal(needsMoreInput(["[1,", "2]"]), false);
   assert.equal(needsMoreInput(['"a:"']), false);
+});
+
+test("REPL continuation lines indent one level after a suite opener", () => {
+  assert.equal(continuationIndent("if x:"), INDENT_UNIT);
+  assert.equal(continuationIndent("fn f() -> i32:  # comment"), INDENT_UNIT);
+  assert.equal(continuationIndent("    match x:"), "        ");
+  assert.equal(continuationIndent("        Some(v) =>"), "            ");
+  assert.equal(continuationIndent("xs.map(fn(x):"), INDENT_UNIT);
+  assert.equal(continuationIndent("        x += 1"), "        ");
+  assert.equal(continuationIndent("    [1,"), "    ");
+  assert.equal(continuationIndent('    s := "a:"'), "    ");
+  assert.equal(continuationIndent("fn f() -> i32: 1"), "");
+  assert.equal(continuationIndent(""), "");
+});
+
+test("REPL Backspace in leading spaces removes one indentation level", () => {
+  assert.equal(backspaceWidth(""), 0);
+  assert.equal(backspaceWidth("        "), 4);
+  assert.equal(backspaceWidth("    "), 4);
+  assert.equal(backspaceWidth("      "), 2);
+  assert.equal(backspaceWidth("    x"), 1);
+  assert.equal(backspaceWidth("x    "), 1);
+});
+
+test("hd repl in a terminal indents continuation lines but not pasted ones", async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let text = "";
+  output.on("data", (chunk: Buffer) => (text += chunk.toString()));
+  const done = runRepl({ input, output, terminal: true, color: false });
+  const type = async (keys: string): Promise<void> => {
+    input.write(keys);
+    await new Promise((resolve) => setImmediate(resolve));
+  };
+  // Typed: each line is indented for us; Backspace dedents to `else`.
+  for (const keys of ["fn f(b: bool) -> i32:\r", "if b:\r", "1\r", "\x7f", "else:\r", "2\r", "\r"])
+    await type(keys);
+  const shown = async (value: string): Promise<void> => {
+    const deadline = Date.now() + 10_000;
+    while (!stripColor(text).includes(value)) {
+      assert.ok(Date.now() < deadline, `no "${value}" in ${JSON.stringify(stripColor(text))}`);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  };
+  await type("[f(true), f(false)]\r");
+  await shown("[1, 2] : List[i32]");
+  // Pasted, in chunks of several lines: the lines keep their own indentation,
+  // so `else` stays in column 1. A plain paste, then a bracketed paste.
+  await type("if true:\r    3\r");
+  await type("else:\r    0\r\r");
+  await shown("3 : i32");
+  await type("\u001b[200~if false:\r    0\r");
+  await type("else:\r    4\r\u001b[201~\r");
+  await shown("4 : i32");
+  input.end();
+  await done;
 });
 
 test("files and snippets split into the inputs a REPL would read", () => {

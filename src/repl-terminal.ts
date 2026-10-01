@@ -7,6 +7,8 @@ import { clearLine, createInterface, cursorTo } from "node:readline";
 import type { CompileOptions } from "./compiler.ts";
 import { highlight, highlightLines } from "./highlight.ts";
 import {
+  backspaceWidth,
+  continuationIndent,
   isReplCommand,
   needsMoreInput,
   ReplSession,
@@ -27,6 +29,9 @@ const RED = "\u001b[31m";
 const YELLOW = "\u001b[33m";
 const DIM = "\u001b[2m";
 const RESET = "\u001b[0m";
+/** Ask the terminal to mark pasted text, so pasted lines are not indented again. */
+const BRACKETED_PASTE_ON = "\u001b[?2004h";
+const BRACKETED_PASTE_OFF = "\u001b[?2004l";
 
 function colorEnabled(terminal: boolean): boolean {
   return terminal && process.env.NO_COLOR === undefined && process.env.TERM !== "dumb";
@@ -52,7 +57,38 @@ export async function runRepl(
   const prompt = (): void => {
     if (!terminal || closed) return;
     reader.setPrompt(promptText());
-    reader.prompt();
+    // Keep the cursor where it is in any text typed or pasted ahead.
+    reader.prompt(true);
+  };
+  // Auto-indent: a continuation line starts with the indentation
+  // `continuationIndent` gives, and Backspace in leading spaces removes a
+  // whole level. Pasted lines carry their own indentation, so a line that
+  // arrived in a paste gets none: inside a bracketed paste, or in an input
+  // chunk that holds more text after a line break.
+  let pasting = false;
+  let chunkPaste = false;
+  /** For each line readline has emitted and the loop has not read: pasted? */
+  const pastedLines: boolean[] = [];
+  if (terminal) {
+    io.output.write(BRACKETED_PASTE_ON);
+    io.input.prependListener("data", (chunk: Buffer | string) => {
+      chunkPaste = /[\r\n][^]/.test(chunk.toString().replace(/\r\n/g, "\n"));
+    });
+    reader.on("line", () => pastedLines.push(pasting || chunkPaste));
+    io.input.prependListener("keypress", (_text: string, key?: { name?: string }) => {
+      if (key?.name === "paste-start") pasting = true;
+      else if (key?.name === "paste-end") pasting = false;
+      else if (key?.name === "backspace" && !pasting && !closed) {
+        // Readline deletes one space itself after this listener.
+        const width = backspaceWidth(reader.line.slice(0, reader.cursor));
+        for (let count = 1; count < width; count += 1) reader.write(null, { name: "backspace" });
+      }
+    });
+  }
+  const indent = (pasted: boolean): void => {
+    if (!terminal || closed || pasted || pasting || reader.line !== "") return;
+    const text = continuationIndent(pending.at(-1) ?? "");
+    if (text !== "") reader.write(text);
   };
   const color = io.color ?? colorEnabled(terminal);
   const paint = (code: string, text: string): string => (color ? `${code}${text}${RESET}` : text);
@@ -96,6 +132,7 @@ export async function runRepl(
   if (terminal) write("hd repl. Type :help for commands, :quit to leave.");
   prompt();
   for await (const line of reader) {
+    const pasted = pastedLines.shift() ?? false;
     if (pending.length === 0 && isReplCommand(line)) {
       const reply = await respond(session, line);
       if (reply.command === "quit") break;
@@ -106,6 +143,7 @@ export async function runRepl(
     pending.push(line);
     if (needsMoreInput(pending)) {
       prompt();
+      indent(pasted);
       continue;
     }
     const input = pending.join("\n");
@@ -115,6 +153,7 @@ export async function runRepl(
   }
   if (pending.length > 0) report(await respond(session, pending.join("\n")));
   reader.close();
+  if (terminal) io.output.write(BRACKETED_PASTE_OFF);
   if (terminal) write("");
   return 0;
 }

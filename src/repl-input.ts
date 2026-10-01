@@ -92,6 +92,18 @@ function scanLine(line: string, depth: number): { readonly depth: number; readon
   return { depth, code };
 }
 
+/** One indentation level, as the formatter and the guide write it. */
+export const INDENT_UNIT = "    ";
+
+/**
+ * True when a line's code (from `scanLine`) ends where the parser expects an
+ * indented suite on the next line: after `:`, or after a match arm's `=>`.
+ * The lexer emits an indent for any deeper line, so the opener is this token.
+ */
+function opensSuite(code: string): boolean {
+  return /(?::|=>)\s*$/.test(code);
+}
+
 /** True when more lines are needed before the input can be evaluated. */
 export function needsMoreInput(lines: readonly string[]): boolean {
   let depth = 0;
@@ -99,11 +111,32 @@ export function needsMoreInput(lines: readonly string[]): boolean {
   for (const line of lines) {
     const scanned = scanLine(line, depth);
     depth = scanned.depth;
-    if (depth === 0 && /:\s*$/.test(scanned.code)) block = true;
+    if (depth === 0 && opensSuite(scanned.code)) block = true;
   }
   if (depth > 0) return true;
   // A block ends with an empty line, as in Python's interactive mode.
   return block && lines.at(-1)?.trim() !== "";
+}
+
+/**
+ * The indentation a new line after `line` starts with: the line's leading
+ * spaces, plus one level when the line opens an indented suite. A suite can
+ * open inside brackets too, as a closure body does.
+ */
+export function continuationIndent(line: string): string {
+  const indent = /^ */.exec(line)![0];
+  return opensSuite(scanLine(line, 0).code) ? indent + INDENT_UNIT : indent;
+}
+
+/**
+ * The spaces Backspace deletes when the text before the cursor is
+ * `before`: back to the previous indentation level inside the leading
+ * indentation, otherwise one character.
+ */
+export function backspaceWidth(before: string): number {
+  if (before.length === 0) return 0;
+  if (!/^ +$/.test(before)) return 1;
+  return before.length % INDENT_UNIT.length || INDENT_UNIT.length;
 }
 
 /** One input of a file or snippet, with the 1-based line it starts on. */
