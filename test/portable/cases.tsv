@@ -1489,3 +1489,6 @@ typing/invalid/vararg-function-value-arity.hd	type
 typing/invalid/vararg-type-not-collection.hd	type
 typing/invalid/function-type-unbounded-inputs.hd	type
 parse/invalid/vararg-ellipsis-after-type.hd	parse
+parse/valid/tuple-rest-syntax.hd	parse
+runtime/valid/trait-delegation-vararg.hd	runtime
+typing/invalid/vararg-function-value-list.hd	type

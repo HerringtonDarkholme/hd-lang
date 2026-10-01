@@ -9,15 +9,15 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-10-01 the prototype passes 1,490 of the 1,706 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 216 are listed in
+On 2026-10-01 the prototype passes 1,493 of the 1,726 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 233 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 216 still fail. By
+decision below, and all 233 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,646 | 1,437 | 209 |
+| language | 1,666 | 1,440 | 226 |
 | stdlib | 60 | 53 | 7 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -54,7 +54,6 @@ them by tag:
 | LP-irrefutable-else | 1 | batch 30: `let` has no `else`, so an `else` after an irrefutable pattern is `syntax-error`, not `unreachable-match-arm` |
 | LP-discard | 1 | batch 30: `let _ = save()` is `syntax-error` |
 | Q5-tuple | 1 | batch 30: `(a, b := value)` still reports the withdrawn grouped binding |
-| VARARG-SPELL | 4 | batch 31: a function value keeps its vararg, so `f := count` is not `fn(List[i32]) -> i32`, and `fn(i32...) -> i32` is still accepted |
 | VARARG-TYPE | 4 | batch 31: only a `List[T]` vararg is supported; a tuple or `Tuple`-bounded one is `unsupported-tuple-vararg` |
 | Q5 | 3 | batch 31: no `std.function.Tuple`, and `Fn` inputs are tuple-kinded only by use |
 | Q8 | 2 | batch 31: a spread still needs a vararg, so a tuple spread is `positional-spread-needs-vararg` |
@@ -64,6 +63,7 @@ them by tag:
 | Q6 | 2 | batch 31: tuples have no `Eq` or `Hash`, so a tuple map key is `invalid-map-key` |
 | Q1-C3 | 1 | batch 31: `5else` still lexes as a suffixed literal, `invalid-token` |
 | Q3 | 3 | batch 31: the minus still folds into a suffixed literal, so `-12px` is `px(-12)`, with no `Neg` call and a negated range check |
+| TUPLE-REST | 21 | batch 33: no tuple rest element and no tuple spread; a vararg's type is read as its element type, so `List[i32]...` in a type is a vararg of lists |
 
 ## What Remains
 

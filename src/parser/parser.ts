@@ -260,7 +260,7 @@ class Parser extends DecoratorParser {
    * (07-functions.md#varargs). The prototype keeps its element-typed vararg,
    * so it supports a `List[T]` vararg only; a tuple-typed vararg is not
    * implemented. An ellipsis after the type is a value pack, and without a
-   * pack it is the old vararg spelling (07-functions.md#r-fn.type.no-ellipsis).
+   * pack it is the old vararg spelling (02-grammar.md#r-grammar.type.rest.elsewhere).
    */
   protected parseParameterType(packs: readonly string[]): { type: TypeRef; variadic: boolean } {
     const nameVararg = this.matchText("...");
