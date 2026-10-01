@@ -1,8 +1,9 @@
 # One Compile-Time Intrinsic For Derivation, Delegation, And Facts?
 
-Status: design exploration, 2026-10-01. Nothing here is decided, accepted
-behavior, or in the specification. It changes no spec text, fixture,
-library code, or prototype code.
+Status: design exploration, 2026-10-01. The owner answered its questions
+in batch 36; [Owner Decisions](#owner-decisions) records the answers, and
+spec pass 36 applied O3, O3b, and O7. The rest of this record is the
+exploration as written, not accepted behavior.
 
 The owner asked: "can you evaluate if i can use one powerful compiler
 intrinsic to cover multiple areas? say comptime or macro esp.
@@ -39,6 +40,8 @@ ALL-INTRINSIC, batch 31 Q6, and batch 32 Q1, logged in
 - [Comparison](#comparison)
 - [Risks](#risks)
 - [Recommendation](#recommendation)
+- [Owner Decisions](#owner-decisions)
+- [Deferred: Code Generation Plus Compile-Time Reflection](#deferred-code-generation-plus-compile-time-reflection)
 - [Questions For The Owner](#questions-for-the-owner)
 - [Sources](#sources)
 - [Parse Log](#parse-log)
@@ -787,8 +790,76 @@ then O7 and O6.**
 What this gives up: `by` and `@error` stay separate mechanisms, as Kotlin
 and Scala keep `by` and `export`. The next best option is O3 alone.
 
+After batch 36: macros and comptime are deferred. Code generation plus
+compile-time reflection is logged as the direction to revisit; see
+[Deferred: Code Generation Plus Compile-Time Reflection](#deferred-code-generation-plus-compile-time-reflection).
+
+## Owner Decisions
+
+Batch 36, 2026-10-01. Applied in spec pass 36; the prototype follows in
+a separate task.
+
+| Question | Option | Answer | Applied as |
+| --- | --- | --- | --- |
+| Q1 | O7 typed member facts | **Accepted**, as recommended, opt-in | [Member-Typed Facts](../spec/14-annotations.md#member-typed-facts): `@member_typed` marks a fact type, whose first type parameter binds to the field's declared type. `arbitrary.with` returns `With[F]`, so its runtime downcast panic is gone. |
+| Q2 | O6 `Join` | **Rejected** | `all!` stays a compiler intrinsic with its written typing rules. |
+| Q3 | O3 comparison derives | **Accepted**, as recommended | [`trait.derive.cmp-templates`](../spec/09-traits.md#r-trait.derive.cmp-templates); meaning in [Cmp](../spec/std/cmp.md) and [Hash](../spec/std/hash.md). The prototype moves after its template lowering is fixed. |
+| Q4 | O3b tuple `Structure` | **Accepted**, as recommended | [Tuple Structure](../spec/14-annotations.md#tuple-structure) and [Tuple Templates](../spec/14-annotations.md#tuple-templates); the 12-element limit is gone. |
+| Q5 | O5 members tuple | **Rejected for now**, as recommended | none |
+| Q6 | O1 `inline for` | **Rejected for now**, as recommended | none |
+| Q7 | O2 macros | **Rejected for now**, as recommended | none |
+
+Reasons for the rejections:
+
+- **O6.** The owner's reason: `impl Join for Suspend[T]` does not make a
+  tuple `Args` implement `Join`. That needs per-arity impls or a hidden
+  compiler rule for tuples, which is the rejected `Each` in disguise. So
+  O6 adds a named intrinsic without removing one.
+- **O1.** O3 gets most of its gain without a new syntax tier. A loop
+  still leaves `by`, `all!`, and `@error` as they are, and checking per
+  target slows compiles.
+- **O2.** It trades about 3,500 prototype lines for a larger macro
+  engine, a syntax-tree API, and a new sigil. Errors would move into
+  expanded code, and it reverses the "no macro system" basis of typed
+  derivation.
+- **O5.** O3 covers the same derives for data and enums alike, while a
+  members tuple is awkward for enums.
+
+The spelling of O7's marker: the record's `data With[member F]` is a
+`syntax-error` in the reference parser. A `@member_typed` decorator from
+`std.annotation` parses today and needs no grammar change, so it is the
+cheaper kind in the [Design Cost Order](../AGENTS.md#design-cost-order).
+It marks the first type parameter.
+
+A rest tuple's `Structure` exposes its rest element as one member of type
+`List[T]`. Comparison and hashing then treat it as its list. Text needs
+the items one by one, so `Walker` gains `rest`, whose default body calls
+`member`.
+
+## Deferred: Code Generation Plus Compile-Time Reflection
+
+A deferred direction, not a decision. The owner, batch 36: "defer the
+idea of macro/comptime now, but i think probably we can do code gen +
+comptime reflection to achieve some thing similar ... we want something
+between golang and macro".
+
+| Model | How | Cost |
+| --- | --- | --- |
+| Go | `go generate` runs external generators (stringer, mockgen, protoc-gen-go, sqlc, easyjson) that write ordinary checked-in `.go` files; runtime `reflect` and struct tags; no macros | stale generated files, one tool per generator, no "derive for every type" |
+| Rust and Swift macros | expansion inside the compiler | an engine, the syntax tree as an API, errors in expanded code |
+| Middle ground, later | the compiler or `hd` tooling gives generators typed, read-only compile-time reflection: types, fields, and facts, the data `Structure` exposes. Generators emit ordinary hd source, type-checked like hand-written code | open, below |
+
+Open points: in-build or checked-in output; caching and incremental
+builds; whether generators are hd programs that the toolchain runs; and
+how errors map back to the generator's input.
+
+`Structure` templates stay the derivation mechanism. This direction aims
+at what templates cannot do: `by`, `@error`, and external schemas such
+as protobuf and SQL.
+
 ## Questions For The Owner
 
+The owner answered these in batch 36; see [Owner Decisions](#owner-decisions).
 Smallest first. Each question is one idea.
 
 ### Q1. Typed Member Facts

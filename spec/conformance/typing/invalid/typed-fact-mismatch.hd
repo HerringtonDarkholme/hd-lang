@@ -1,0 +1,17 @@
+# test: a member-typed fact whose member type argument is not the field's declared type is an error
+# Spec 14 Member-Typed Facts: annot.typed-fact.bind (owner decision O7, batch 36, 2026-10-01).
+use std.annotation.{annotate, member_typed}
+
+@annotate(.Field)
+@member_typed
+data Example[F]:
+    value: F
+
+fn example[F](value: F) -> Example[F]:
+    Example::[F] { value: value }
+
+data Profile:
+    @example(30)
+    age: i32
+    @example(30)  # diagnostic: type-mismatch
+    name: string

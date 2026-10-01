@@ -40,3 +40,5 @@ Q6-others	1	Tuple Display (batch 33, Q6-others): the prototype's interpolation f
 TR-mixed-tail	1	A list spread ending a tuple vararg's arguments (batch 34, Q4): the prototype supports only a List[T] vararg, so a tuple or Tuple-bounded vararg is unsupported-tuple-vararg
 TR-traits	4	Rest tuples derive the tuple traits (batch 34, Q5): the prototype has no tuple rest element, so a rest tuple is unknown-type and lib/std cannot declare its Debug and Display
 TR-pattern	5	Spread patterns (batch 34, Q6): the prototype has no spread pattern, so (a, xs...) in a pattern is syntax-error
+O7	5	Member-typed facts (batch 36, O7): the prototype has no std.annotation.member_typed, no Field.fact, and keeps the erased arbitrary.with Generator, so a mismatched generator panics at run time instead of type-mismatch
+O3b	5	Tuple Structure and tuple templates (batch 36, O3b): the prototype has neither, so tuple Debug, Display, and Default stop at 12 elements and impl[T < Tuple] ... by Structure derives nothing

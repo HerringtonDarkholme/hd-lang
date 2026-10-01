@@ -9,16 +9,16 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-10-01 the prototype passes 1,586 of the 1,750 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 164 are listed in
+On 2026-10-01 the prototype passes 1,582 of the 1,756 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 174 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 164 still fail. By
+decision below, and all 174 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,682 | 1,526 | 156 |
-| stdlib | 68 | 60 | 8 |
+| language | 1,683 | 1,522 | 161 |
+| stdlib | 73 | 60 | 13 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
@@ -66,6 +66,8 @@ them by tag:
 | TR-mixed-tail | 1 | batch 34: only a `List[T]` vararg is supported, so a list spread cannot end a tuple vararg's arguments |
 | TR-traits | 4 | batch 34: no tuple rest element, so a rest tuple is `unknown-type` and `lib/std` cannot declare its `Debug` and `Display` |
 | TR-pattern | 5 | batch 34: no spread pattern, so `let (a, xs...) = t` is `syntax-error` |
+| O7 | 5 | batch 36: no member-typed facts, so `member_typed` is `unknown-name`, `Field` has no `fact`, and `arbitrary.with` still erases its generator |
+| O3b | 5 | batch 36: no tuple `Structure` or tuple templates, so tuple traits stop at 12 elements and a tuple template derives nothing |
 
 ## What Remains
 

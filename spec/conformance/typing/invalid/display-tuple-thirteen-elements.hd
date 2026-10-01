@@ -1,4 +1,0 @@
-# test: std implements Display only for tuples of at most 12 elements, so a 13-element tuple has none
-# Spec 05 Interpolated Strings: expr.interp.std.tuple (owner decision Q6-others, batch 33, 2026-10-01).
-fn show(values: (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32)) -> string:
-    "$values"  # diagnostic: unsatisfied-trait-bound

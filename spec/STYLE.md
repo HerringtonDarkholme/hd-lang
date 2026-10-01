@@ -118,7 +118,9 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | [Variadic Generics](12-variadic-generics.md) | `pack` |
 | [GADTs](13-gadts.md) | `gadt` |
 | [Annotations](14-annotations.md) | `annot` |
+| `std/cmp.md` | `std-cmp` |
 | `std/format.md` | `std-format` |
+| `std/hash.md` | `std-hash` |
 | `std/iter.md` | `std-iter` |
 | `std/ops.md` | `std-ops` |
 | `std/testing.md` | `std-testing` |

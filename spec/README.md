@@ -228,6 +228,8 @@ The stdlib chapters' terms are in the
 | **local type names** | The name category of data types, enums, traits, aliases, and newtypes declared inside an executable suite. See [`names.category.local-type`](03-names-and-scopes.md#r-names.category.local-type). |
 | **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. See [Member Lines](14-annotations.md#member-lines). |
 | **member metadata** | The ordered list of values attached to a data field, an enum variant, or a parameter. See [Terminology](14-annotations.md#terminology). |
+| **member type parameter** | The first type parameter of a member-typed fact type, bound to the field's declared type where a value attaches. See [`annot.typed-fact.marker`](14-annotations.md#r-annot.typed-fact.marker). |
+| **member-typed fact type** | A fact type whose type-level facts include a `std.annotation.MemberTyped` value, so its values are checked against their field's type. See [Member-Typed Facts](14-annotations.md#member-typed-facts). |
 | **member names** | The name category of data fields, embedded fields, methods, enum variants, and tuple fields, within the namespace of their owning type. See [`names.category.member`](03-names-and-scopes.md#r-names.category.member). |
 | **method lookup** | The steps that resolve `x.name(args)` to an own inherent method or a candidate. See [Method Lookup](03-names-and-scopes.md#method-lookup). |
 | **method reference** | A method or associated function named as a function value, written `Owner::name` or `value::name` without arguments. See [Method References](07-functions.md#method-references). |
@@ -258,6 +260,7 @@ The stdlib chapters' terms are in the
 | **requirement row** | The normalized unordered set of requirement keys on a callable signature. See [`req.row.definition`](11-requirements-and-suspension.md#r-req.row.definition). |
 | **requirement-free** | A default expression that uses no provider and does not suspend. See [`fn.default.requirement-free`](07-functions.md#r-fn.default.requirement-free). |
 | **rest element** | A last tuple element `List[T]...`, which stands for any number of trailing `T` values. See [Rest Elements](04-type-system.md#rest-elements). |
+| **rest member** | The one `List[T]` member that a rest tuple's `Structure` has for its rest element. See [`annot.tuple.rest`](14-annotations.md#r-annot.tuple.rest). |
 | **row alias** | A transparent alias that names a set of requirement keys. See [Row Aliases](11-requirements-and-suspension.md#row-aliases). |
 | **row parameter** | A generic parameter whose values are requirement rows. See [`req.row.parameter`](11-requirements-and-suspension.md#r-req.row.parameter). |
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
@@ -276,6 +279,7 @@ The stdlib chapters' terms are in the
 | **suffixed literal** | A numeric literal with a literal suffix, such as `250ms`, which calls the suffix function, as `ms(250)`. See [Literal Suffixes](05-expressions.md#literal-suffixes). |
 | **take part** | The members of a type that lookup considers: its own fields and inherent methods, whatever their visibility, and its promoted members. See [`names.take-part.definition`](03-names-and-scopes.md#r-names.take-part.definition). |
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](14-annotations.md#templates). |
+| **tuple template** | A trait's derivation for every tuple type, written `impl[T < Tuple] Trait for T by Structure:` in the trait's module. See [Tuple Templates](14-annotations.md#tuple-templates). |
 | **test case** | One test, registered by a call of the prelude function `it`, or one row of `it_each`, in test position. See [Test Cases](10-modules.md#test-cases). |
 | **test code** | A package's `tests:` blocks, test modules, and integration test modules, compiled only by a test build. See [`module.test.code`](10-modules.md#r-module.test.code). |
 | **test dependency** | A dependency that the manifest declares for test builds only. See [`module.test.dependency`](10-modules.md#r-module.test.dependency). |
@@ -2720,10 +2724,10 @@ existing source. Each entry names the decision that made the change.
   2026-09-30): language tier. Every tuple arity implements `Eq`,
   `PartialOrd`, `Ord`, and `Hash` when its elements do, as an intrinsic
   derivation
-  ([`trait.target.tuple.derived`](09-traits.md#r-trait.target.tuple.derived)).
+  (`trait.target.tuple.derived`).
   `std` promises `Debug` for tuples of at most 12 elements;
   `trait.debug.std`, which promised every arity, is retired for
-  [`trait.debug.std-types`](09-traits.md#r-trait.debug.std-types).
+  `trait.debug.std-types`.
 - One rule set for literal functions (owner decisions Q1 and Q2, batch 31
   in [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions),
   2026-09-30): language tier. A **literal function** is a function marked
@@ -3041,7 +3045,7 @@ existing source. Each entry names the decision that made the change.
 - Tuples implement `Display` up to 12 elements (owner decision Q6-others,
   batch 33, 2026-10-01): language tier, beside the other standard
   `Display` implementations, as tuple `Debug` is (Q6-tier).
-  [`expr.interp.std.tuple`](05-expressions.md#r-expr.interp.std.tuple):
+  `expr.interp.std.tuple`:
   a tuple whose elements implement `Display` displays as `(1, one)`, so
   `"$pair"`, `unsatisfied-trait-bound` before, is now valid. Tuple
   `Default` waits for a `Default` trait, which std does not declare.
@@ -3072,13 +3076,13 @@ existing source. Each entry names the decision that made the change.
   changes.
 - Rest tuples derive the tuple traits (owner decision Q5, batch 34,
   2026-10-01): language tier.
-  [`trait.target.tuple.derived.rest`](09-traits.md#r-trait.target.tuple.derived.rest):
+  `trait.target.tuple.derived.rest`:
   a tuple with a rest element derives `Eq`, `PartialOrd`, `Ord`, and
   `Hash`, its rest element compared and hashed as its `List[T]`. Lists
   have no `Hash`, so a rest tuple is still not a map key.
-  [`trait.debug.std-types.rest`](09-traits.md#r-trait.debug.std-types.rest)
+  `trait.debug.std-types.rest`
   and
-  [`expr.interp.std.tuple.rest`](05-expressions.md#r-expr.interp.std.tuple.rest):
+  `expr.interp.std.tuple.rest`:
   tuple `Debug` and `Display` cover rest tuples, the rest element counted
   as one of the 12 elements, and write the rest's items inline, as in
   `(1, 2, 3, 4)`. `a == b`, `a < b`, `debug(t)`, and `"$t"` on a rest
@@ -3128,3 +3132,46 @@ existing source. Each entry names the decision that made the change.
   expr.data.unknown (data.literal.unknown), expr.call.named.unknown
   (fn.arg.unknown-name), and expr.call.generic.methods
   (fn.generic.methods).
+- Comparison derives and tuples through templates, typed member facts
+  (owner decisions O3, O3b, and O7, batch 36, 2026-10-01; recorded in
+  [COMPTIME_UNIFICATION](../future-work/COMPTIME_UNIFICATION.md#owner-decisions)).
+  Language and stdlib tiers.
+  O3: `@derive(Eq, PartialOrd, Ord, Hash)` derive through templates
+  ([`trait.derive.cmp-templates`](09-traits.md#r-trait.derive.cmp-templates)),
+  and what they compare or hash moves to the new stdlib chapters
+  [Cmp](std/cmp.md) and [Hash](std/hash.md). The checks
+  `derive-field-missing-trait`, `missing-derived-bound`, and
+  `mixed-derived-law` stay. Retired: trait.derive.intrinsic-set
+  (trait.derive.cmp-templates and trait.derive.cmp-every-member), and
+  trait.derive.eq.*, trait.derive.ord.*, and trait.derive.hash.* except
+  trait.derive.hash.seeded, which move to std-cmp.derive.* and
+  std-hash.derive.*. No program changes.
+  O3b: a tuple type has a `Structure`
+  ([Tuple Structure](14-annotations.md#tuple-structure)), and a trait may
+  declare a tuple template, `impl[T < Tuple] Trait for T by Structure`
+  ([Tuple Templates](14-annotations.md#tuple-templates)). Tuple `Eq`,
+  `PartialOrd`, `Ord`, `Hash`, `Debug`, `Display`, and `Default` derive
+  through tuple templates at every size, so the 12-element limit goes.
+  A rest tuple's rest element is one `List[T]` member, and `Walker` gains
+  `rest`, whose default calls `member`, so text can write the items
+  inline. Retired: trait.target.tuple.derived, .elementwise, and .rest
+  (trait.target.tuple.templates, std-cmp.tuple.*, std-hash.tuple.*),
+  trait.debug.std-types and .rest (trait.debug.std-impls,
+  trait.debug.tuples, trait.debug.tuples.rest), expr.interp.std.tuple
+  and .rest (expr.interp.std.tuple.template, .rest-inline),
+  std-ops.default.std.tuple, .tuple.rest, and .missing
+  (std-ops.default.std.tuple.any-size, .tuple.rest-empty,
+  .missing-element). `debug`, `"$t"`, and `Default` on a 13-element
+  tuple, `unsatisfied-trait-bound` before, are now valid.
+  O7: a fact type marked `@member_typed` is a member-typed fact type
+  ([Member-Typed Facts](14-annotations.md#member-typed-facts)). Its first
+  type parameter binds to the field's declared type, a mismatch is
+  `type-mismatch` at the decorator, and a template reads it typed with
+  `h.fact::[M]()`. `arbitrary.with` returns the member-typed `With[F]`
+  ([`std-testing.arbitrary.with.checked`](std/testing.md#r-std-testing.arbitrary.with.checked)),
+  so a generator of the wrong type, a runtime `explicit-panic` before, is
+  now `type-mismatch`, and `with` no longer requires `Inspectable`.
+  Retired: annot.target.kind-only (annot.target.kind-only.untyped), and
+  std-testing.arbitrary.with.module, .wrap, .downcast, .unchecked,
+  .downcast-failure, and .no-fallback
+  (std-testing.arbitrary.with.module-typed, .checked, .typed-read).

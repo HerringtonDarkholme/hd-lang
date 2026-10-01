@@ -1,0 +1,16 @@
+# test: a 13-element tuple derives Debug and Eq through tuple templates, with no size limit
+# expect: test
+# Spec 09 Derived Tuple Implementations: trait.target.tuple.templates and trait.target.tuple.no-limit;
+# Debug Trait: trait.debug.tuples (owner decision O3b, batch 36, 2026-10-01).
+use std.testing.assert_equal
+
+tests:
+    it("compares and shows thirteen elements"):
+        a := (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13)
+        b := (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13)
+        c := (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14)
+        assert_equal(a == b, true, reason="equal elements")
+        assert_equal(a == c, false, reason="the last element differs")
+        assert_equal(a < c, true, reason="ordering is lexicographic")
+        assert_equal(a, b, reason="assert_equal shows a 13-element tuple through Debug")
+        assert_equal(debug(a) == debug(c), false, reason="Debug writes every element")

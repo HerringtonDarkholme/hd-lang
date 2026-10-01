@@ -1,0 +1,51 @@
+# test: a member-typed fact binds to the field's declared type, and a template reads it typed through the handle
+# Spec 14 Member-Typed Facts: annot.typed-fact.bind and annot.typed-fact.read; Handles: annot.handle.fact
+# (owner decision O7, batch 36, 2026-10-01).
+use std.annotation.{annotate, member_typed}
+use std.structure.{Structure, Field, Variant, Walker}
+
+@annotate(.Field)
+@member_typed
+data Fallback[F]:
+    value: F
+
+fn fallback[F](value: F) -> Fallback[F]:
+    Fallback::[F] { value: value }
+
+trait Summary:
+    fn summary(self) -> string
+
+fn note[S, F < Display](h: Field[S, F]) -> string:
+    match h.fact::[Fallback[F]]():
+        .Some(found) => "/${found.value}"
+        .None => ""
+
+data Summarizer:
+    out: string
+
+impl[S] Walker[S] for Summarizer:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F < Display](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + h.info.name + "=" + "$value" + note(h) + ";"
+        .Ok()
+
+impl[T] Summary for T by Structure:
+    fn summary(self) -> string:
+        let mut w = Summarizer { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+@derive(Summary)
+data Profile:
+    @fallback(30)
+    age: i32
+    @fallback("anonymous")
+    name: string
+    nickname: string
+
+fn describe(profile: Profile) -> string:
+    profile.summary()

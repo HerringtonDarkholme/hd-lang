@@ -187,8 +187,8 @@ trait Display:
 6. r[expr.interp.no-display] An embedded expression whose type does not implement `Display` is an error. Error: `unsatisfied-trait-bound`.
 7. r[expr.interp.no-fallback] There is no fallback conversion through `Any`, runtime reflection, or debug output.
 8. r[expr.interp.std] The standard library provides `Display` implementations for ordinary printable primitive types and `string`.
-9. r[expr.interp.std.tuple] It also implements `Display` for tuples of at most 12 elements whose elements implement `Display`, writing the elements' texts inside parentheses, separated by `, `, as in `(1, a)`.
-10. r[expr.interp.std.tuple.rest] That tuple `Display` also covers a tuple with a rest element `List[T]...` whose `T` implements `Display`, the rest element counted as one element. It writes the rest's items inline after the fixed elements, as in `(1, 2, 3, 4)`.
+9. r[expr.interp.std.tuple.template] It also declares a tuple template for `Display`, so every tuple whose elements implement `Display` implements it, at every size. It writes the elements' texts inside parentheses, separated by `, `, as in `(1, a)`.
+10. r[expr.interp.std.tuple.rest-inline] For a tuple with a rest element `List[T]...`, `T` must implement `Display`. The rest's items are written inline after the fixed elements, as in `(1, 2, 3, 4)`.
 11. r[expr.interp.std.tuple.one] A tuple of one element writes a comma after it, as its source syntax does: `(1,)`. A rest tuple counts each of its rest's items as an element.
 12. r[expr.interp.user] Optional and user-defined values are displayable only when the corresponding type implements `Display`.
 13. r[expr.interp.prefixed] A prefixed string does not append its values: they become the values of a template, as [Prefixed Strings](#prefixed-strings) specifies.

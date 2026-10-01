@@ -237,17 +237,19 @@ trait Hash:
 
 1. r[trait.derive.no-automatic] There is no automatic conformance for user-defined data or enum types.
 2. r[trait.derive.explicit-impl] An explicit implementation may choose domain-specific equality or ordering.
-3. r[trait.derive.intrinsic-decl] `@derive(Eq, Hash)` is an explicit compiler intrinsic on a data, enum, or newtype declaration.
+3. r[trait.derive.intrinsic-decl] `@derive(...)`, as in `@derive(Eq, Hash)`, is an explicit compiler intrinsic on a data, enum, or newtype declaration.
 4. r[trait.derive.arguments] Its arguments name traits, not metadata values.
 5. r[trait.derive.generate] The compiler generates ordinary implementations of the named traits from the declaration's shape.
 6. r[trait.derive.check] The compiler checks trait requirements and coherence, and rejects traits for which it has no derivation rule.
 7. r[trait.derive.bounds] For each derived trait, the generated implementation adds a `T < Trait` bound for every declaration type parameter `T` that occurs in a field compared, ordered, or hashed by that derivation.
 8. r[trait.derive.bounds.example] Thus `@derive(Eq) data Box[T]` produces conformance only when `T < Eq`.
 9. r[trait.derive.supertraits] The target must also satisfy each derived trait's supertraits, whether through an existing implementation or another derivation.
-10. r[trait.derive.intrinsic-set] The intrinsic derivations are exactly `Eq`, `PartialOrd`, `Ord`, and `Hash`. Each covers every member, and no member line or derivation block configures it.
-11. r[trait.derive.templated] `@derive` also accepts a trait that has a derivation template, as [Typed Derivation](14-annotations.md#typed-derivation) defines. Any other trait is an error. Error: `underivable-trait`.
-12. r[trait.derive.field-missing-trait] A field that an intrinsic derivation compares, orders, or hashes must implement the derived trait. A field that does not is an error at the field, whose message names the trait and the field. Error: `derive-field-missing-trait`.
-13. r[trait.derive.bound-unmet] A use of a derived implementation whose type argument does not meet a bound that `trait.derive.bounds` added is an error at the use, as `==` on two `Box[fn() -> void]` values is. Error: `missing-derived-bound`.
+10. r[trait.derive.cmp-templates] `Eq`, `PartialOrd`, `Ord`, and `Hash` derive through their templates, as every derivable trait does. The compiler writes none of their bodies.
+11. r[trait.derive.cmp-every-member] A derivation of `Eq`, `PartialOrd`, `Ord`, or `Hash` covers every member, and no member line or derivation block configures it.
+12. r[trait.derive.templated] `@derive` accepts a trait that has a derivation template, as [Typed Derivation](14-annotations.md#typed-derivation) defines. Any other trait is an error. Error: `underivable-trait`.
+13. r[trait.derive.field-missing-trait] A field that a derived `Eq`, `PartialOrd`, `Ord`, or `Hash` compares, orders, or hashes must implement the derived trait. A field that does not is an error at the field, whose message names the trait and the field. Error: `derive-field-missing-trait`.
+14. r[trait.derive.field-missing-trait.template] For these four traits, this error replaces the template's `member-not-derivable` of [`annot.walker.obligation.error`](14-annotations.md#r-annot.walker.obligation.error).
+15. r[trait.derive.bound-unmet] A use of a derived implementation whose type argument does not meet a bound that `trait.derive.bounds` added is an error at the use, as `==` on two `Box[fn() -> void]` values is. Error: `missing-derived-bound`.
 
 ```text
 data Opaque: pass
@@ -263,6 +265,14 @@ data Box[T]:
 fn same(left: Box[fn() -> void], right: Box[fn() -> void]) -> bool:
     left == right  # error: missing-derived-bound
 ```
+
+> **Note.** What each derived implementation compares, orders, or hashes
+> is stdlib tier: [Cmp](std/cmp.md) and [Hash](std/hash.md). The checks
+> above stay in the language tier.
+
+> **Note.** The reference prototype still writes these four bodies in the
+> compiler. It moves them to the templates once its template lowering no
+> longer re-checks generated source. Programs see no difference.
 
 #### Law Partners
 
@@ -330,32 +340,23 @@ See also: [Newtypes](04-type-system.md#newtypes).
 
 #### Derived Equality
 
-1. r[trait.derive.eq.compare-fields] Derived `Eq` compares every declared data field, including embedded fields, by its `Eq` implementation.
-2. r[trait.derive.eq.no-exclusion] No field is implicitly excluded.
-3. r[trait.derive.eq.enum] Derived enum equality first compares the variant, then every payload field of that variant, including common enum fields.
-4. r[trait.derive.eq.variants] Different variants are unequal.
-5. r[trait.derive.eq.eq] Derived `Eq` requires every compared field to satisfy `Eq`.
-6. r[trait.derive.eq.cycles] Derived equality does not detect cycles or track previously compared objects: it recursively invokes each field's `Eq` implementation.
-7. r[trait.derive.eq.stack] A comparison that repeatedly traverses a cycle may exhaust the execution stack.
+> **Note.** This heading keeps its name so that links to it stay valid.
+> What a derived `Eq` compares is stdlib tier since batch 36:
+> [Derived Equality](std/cmp.md#derived-equality) in `std.cmp`.
 
 #### Derived Ordering
 
-1. r[trait.derive.ord.support] `@derive(PartialOrd, Ord)` also supports data and enums.
-2. r[trait.derive.ord.data] Derived ordering is lexicographic in declared data-field order, including embedded fields.
-3. r[trait.derive.ord.variants] For enums, distinct variants compare by variant declaration order.
-4. r[trait.derive.ord.same-variant] Values of the same variant compare shared enum data in declaration order, followed by that variant's payload parameters in declaration order.
-5. r[trait.derive.ord.argument-order] Constructor argument order does not affect comparison.
-6. r[trait.derive.ord.partial] Derived `PartialOrd` requires every compared field to satisfy `PartialOrd`. It returns `.None` if a field comparison is unordered before a comparison result is determined.
-7. r[trait.derive.ord.ord] Derived `Ord` requires every compared field to satisfy `Ord`.
+> **Note.** This heading keeps its name so that links to it stay valid.
+> What a derived `PartialOrd` or `Ord` compares is stdlib tier since
+> batch 36: [Derived Ordering](std/cmp.md#derived-ordering) in `std.cmp`.
 
 #### Derived Hashing
 
-1. r[trait.derive.hash.support] `@derive(Hash)` supports data and enums.
-2. r[trait.derive.hash.data] It generates an ordinary `Hash` implementation that hashes every declared data field in declaration order, including embedded fields.
-3. r[trait.derive.hash.enum] For an enum, it hashes the variant identity, then shared enum data in declaration order, then that variant's payload fields in declaration order.
-4. r[trait.derive.hash.fields] Every hashed field must implement `Hash`; no field is implicitly excluded.
-5. r[trait.derive.hash.cycles] Like derived equality, derived hashing does not detect cycles, so hashing a cyclic graph may exhaust the execution stack.
-6. r[trait.derive.hash.seeded] Hash values computed from a hash seed that the runtime provides are stable within one code identity and runtime profile, and may change when either changes.
+1. r[trait.derive.hash.seeded] Hash values computed from a hash seed that the runtime provides are stable within one code identity and runtime profile, and may change when either changes.
+
+> **Note.** This heading keeps its name so that links to it stay valid.
+> What a derived `Hash` hashes is stdlib tier since batch 36:
+> [Derived Hashing](std/hash.md#derived-hashing) in `std.hash`.
 
 ### Conversion Trait
 
@@ -495,11 +496,12 @@ fn describe(point: Point) -> string:
 1. r[trait.debug.module] `std.format` declares `Debug` and `DebugWriter`. `Debug` is a prelude name.
 2. r[trait.debug.method] `Debug` declares `fn debug(self, out: mut DebugWriter) -> void`, which writes the value's structure through `out`.
 3. r[trait.debug.writer] `DebugWriter` is the standard structured writer. An implementation describes the value through its builder calls, such as one call per field, rather than raw text.
-4. r[trait.debug.std-types] `std` implements `Debug` for the primitives, collections, `T?`, `Result`, and tuples of at most 12 elements, each when its type arguments implement `Debug`.
-5. r[trait.debug.std-types.rest] That tuple `Debug` also covers a tuple with a rest element, counted as one element. It writes the rest element's items inline after the fixed elements, so a value `(1, 2, 3, 4)` of type `(i32, i32, List[i32]...)` writes as the tuple `(1, 2, 3, 4)` of four `i32` does.
-6. r[trait.debug.derive] `@derive(Debug)` derives `Debug` through its [template](14-annotations.md#templates). The derived implementation walks the declaration's members and writes each one.
-7. r[trait.debug.not-display] `Debug` is separate from `Display`, which stays user-facing text.
-8. r[trait.debug.writer-import] `DebugWriter` is not a prelude name, so a hand-written implementation imports it, as in `use std.format.DebugWriter`.
+4. r[trait.debug.std-impls] `std` implements `Debug` for the primitives, collections, `T?`, and `Result`, each when its type arguments implement `Debug`.
+5. r[trait.debug.tuples] `std.format` declares a tuple template for `Debug`, so every tuple whose elements implement `Debug` implements it, at every size.
+6. r[trait.debug.tuples.rest] For a tuple with a rest element, `T` must implement `Debug`. Its rest element's items are written inline after the fixed elements, so a value `(1, 2, 3, 4)` of type `(i32, i32, List[i32]...)` writes as the tuple `(1, 2, 3, 4)` of four `i32` does.
+7. r[trait.debug.derive] `@derive(Debug)` derives `Debug` through its [template](14-annotations.md#templates). The derived implementation walks the declaration's members and writes each one.
+8. r[trait.debug.not-display] `Debug` is separate from `Display`, which stays user-facing text.
+9. r[trait.debug.writer-import] `DebugWriter` is not a prelude name, so a hand-written implementation imports it, as in `use std.format.DebugWriter`.
 
 > **Note.** The text that `debug` returns, the `DebugWriter` builders,
 > and the builder calls that `@derive(Debug)` generates are stdlib tier:
@@ -646,8 +648,8 @@ impl[Args < Tuple, O, R] Describe for Fn[Args, O, R]:
 
 #### Derived Tuple Implementations
 
-The compiler derives the comparison and hashing traits for every tuple
-arity:
+Tuples derive traits through [tuple templates](14-annotations.md#tuple-templates),
+at every size:
 
 ```text
 fn compare(a: (i32, string), b: (i32, string)) -> bool:
@@ -657,28 +659,21 @@ fn index(counts: Map[(i32, string), i32]) -> i32:
     counts[(1, "a")]
 ```
 
-1. r[trait.target.tuple.derived] Every tuple type implements `Eq`, `PartialOrd`, `Ord`, and `Hash` when each of its elements implements that trait, as an intrinsic derivation over every arity.
-2. r[trait.target.tuple.derived.elementwise] The derived methods work element by element, in order: equality compares every element, ordering is lexicographic, and hashing combines the elements' hashes.
-3. r[trait.target.tuple.derived.rest] A tuple type with a [rest element](04-type-system.md#rest-elements) `List[T]...` derives them too. Its rest element is its last element, of type `List[T]`, so it compares and hashes as that list.
+1. r[trait.target.tuple.templates] Every tuple type, with or without a rest element, derives each trait that has a tuple template. It does so when its elements meet that template's obligation.
+2. r[trait.target.tuple.no-limit] No tuple trait stops at a fixed number of elements.
 
-> **Note.** These derivations are the tuple equality of
-> [`expr.eq.std`](05-expressions.md#r-expr.eq.std), the tuple order of
-> [`expr.ord.std.sequences`](05-expressions.md#r-expr.ord.std.sequences),
+> **Note.** `std` declares tuple templates for `Eq`,
+> `PartialOrd`, `Ord`, and `Hash` ([Tuple Comparison](std/cmp.md#tuple-comparison),
+> [Tuple Hashing](std/hash.md#tuple-hashing)), for `Debug` and `Display`,
+> and for `Default` ([Standard Implementations](std/ops.md#standard-implementations)).
+> These are the tuple equality of [`expr.eq.std`](05-expressions.md#r-expr.eq.std),
+> the tuple order of [`expr.ord.std.sequences`](05-expressions.md#r-expr.ord.std.sequences),
 > and the hashable tuple keys of
 > [`types.map-key.builtin-types`](04-type-system.md#r-types.map-key.builtin-types).
-> Other traits for tuples, `Debug` and `Display`, are ordinary
-> standard-library implementations up to 12 elements
-> ([`trait.debug.std-types`](#r-trait.debug.std-types),
-> [`expr.interp.std.tuple`](05-expressions.md#r-expr.interp.std.tuple)).
 
 > **Note.** Lists have no built-in `Hash`
 > ([`types.map-key.no-hash`](04-type-system.md#r-types.map-key.no-hash)),
 > so a tuple with a rest element has no `Hash` and is not a map key.
-
-> **Note.** Tuples of at most 12 elements implement the stdlib `Default`
-> trait when their elements do. A rest tuple takes its fixed elements'
-> defaults and an empty rest
-> ([Standard Implementations](std/ops.md#standard-implementations)).
 
 ### Implementation Ownership
 

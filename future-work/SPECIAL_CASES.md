@@ -72,7 +72,7 @@ Things the compiler supplies, generates, or recognizes by a qualified name.
 | # | Name | Anchor | What it does | Why |
 | ---: | --- | --- | --- | --- |
 | I1 | `@derive(...)` | [`trait.derive.intrinsic-decl`](../spec/09-traits.md#r-trait.derive.intrinsic-decl), [`annot.derive.opt-in`](../spec/14-annotations.md#r-annot.derive.opt-in) | The only form that creates a derived implementation; its arguments are trait names. | M18 P13: one opt-in; Decorators D6: stays intrinsic. |
-| I2 | Comparison derivations | [`trait.derive.intrinsic-set`](../spec/09-traits.md#r-trait.derive.intrinsic-set) | `Eq`, `PartialOrd`, `Ord`, and `Hash` derive over every member, with no member lines. | M12, M18 R3 ("permanently"). |
+| I2 | Comparison derivations | `trait.derive.intrinsic-set` | `Eq`, `PartialOrd`, `Ord`, and `Hash` derive over every member, with no member lines. | M12, M18 R3 ("permanently"). |
 | I3 | `@error` with `@from`, `@source`, `transparent` | [`annot.error.intrinsic`](../spec/14-annotations.md#r-annot.error.intrinsic) | Generates `Display`, `Error`, and one `From` per `@from` member. | Error Conversion 10: one intrinsic for three traits from the same markers. |
 | I4 | Primitive operator bodies | [`expr.op.std.intrinsic`](../spec/05-expressions.md#r-expr.op.std.intrinsic) | `impl Add for i32` and the rest have compiler bodies that match the built-in operators. | OP2: generic code accepts primitives. |
 | I5 | Built-in index bodies | [`expr.index.std.intrinsic`](../spec/05-expressions.md#r-expr.index.std.intrinsic) | `Index`/`IndexSet` bodies for `List`, `Map`, and `string`. | STR7-STR10. |

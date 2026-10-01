@@ -441,13 +441,13 @@ data MaxLen:
 fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
 ```
 
-The language does not check that a metadata value suits its member's type.
-The code that reads the value checks it, and a fact type has no
-compile-time check hook.
+The language does not check that a metadata value suits its member's type,
+unless its type opts in as a [member-typed fact type](#member-typed-facts).
+Otherwise the code that reads the value checks it.
 
-> **Note.** So a derived `Arbitrary` finds an `arbitrary.with` generator of
-> the wrong type only when a test runs, as
-> [`std-testing.arbitrary.with.downcast-failure`](std/testing.md#r-std-testing.arbitrary.with.downcast-failure)
+> **Note.** `arbitrary.with` opts in, so a generator of the wrong type is
+> an error at its decorator, as
+> [`std-testing.arbitrary.with.checked`](std/testing.md#r-std-testing.arbitrary.with.checked)
 > states in the stdlib tier.
 
 Reusable compositions are ordinary values or lists, not new language syntax:
@@ -532,7 +532,7 @@ Each target has one kind:
 4. r[annot.target.unlimited] A type without an `Annotate` fact is not limited: its values may be attached to any target, as `@"note"` may.
 5. r[annot.target.recognized] The compiler recognizes `std.annotation.Annotate` by its qualified name. A type of another package named `Annotate` limits nothing.
 6. r[annot.target.bootstrap] `Annotate` itself carries `@annotate(.Data, .Enum)`, so an `Annotate` value may be attached only to a data type or an enum.
-7. r[annot.target.kind-only] The compiler checks only the kind. Whether a value suits its target's type or signature is checked by the code that reads the value.
+7. r[annot.target.kind-only.untyped] For a fact type that is not [member-typed](#member-typed-facts), the compiler checks only the kind. Whether its value suits its target's type or signature is checked by the code that reads the value.
 
 > **Note.** Only some targets have a reader in the language. User code
 > reads a function's values through `shape_of`, and the values on a data
@@ -547,6 +547,57 @@ Each target has one kind:
 
 See also: [Prefix Decorators](#prefix-decorators),
 [Literal Suffixes](05-expressions.md#literal-suffixes).
+
+### Member-Typed Facts
+
+A fact type may opt in to a check against its member's type. The standard
+`@member_typed` decorator makes its first type parameter the member's type:
+
+```text
+use std.annotation.{annotate, member_typed}
+
+@annotate(.Field)
+@member_typed
+data Example[F]:
+    value: F
+
+fn example[F](value: F) -> Example[F]:
+    Example::[F] { value: value }
+
+data Profile:
+    @example(30)
+    age: i32
+    @example(30)  # error: type-mismatch
+    name: string
+```
+
+`std.annotation` declares the marker:
+
+```text
+@annotate(.Data, .Enum)
+pub data MemberTyped: pass
+
+pub fn member_typed() -> MemberTyped:
+    MemberTyped {}
+```
+
+1. r[annot.typed-fact.declarations] `std.annotation` declares `MemberTyped` and `member_typed`. Neither is a prelude name.
+2. r[annot.typed-fact.marker] A data type or enum whose type-level facts include a `MemberTyped` value is a **member-typed fact type**. Its first type parameter is its **member type parameter**.
+3. r[annot.typed-fact.recognized] The compiler recognizes `std.annotation.MemberTyped` by its qualified name, as it does `Annotate`.
+4. r[annot.typed-fact.needs-param] A `MemberTyped` value on a type with no type parameter is an error, reported on its decorator. Error: `decorator-target-kind`.
+5. r[annot.typed-fact.field-only] A value of a member-typed fact type may be attached only to a field: a named or embedded data field, or a payload member. Error: `decorator-target-kind`.
+6. r[annot.typed-fact.bind] At attachment, the value's member type argument must be the field's declared type. Any other type is an error, reported on the decorator or member line. Error: `type-mismatch`.
+7. r[annot.typed-fact.declared-type] The declared type is the type written on the field, so the argument for `hits: mut Counter` is `mut Counter`.
+8. r[annot.typed-fact.read] A template reads such a fact typed, through the field's handle, as [`annot.handle.fact`](#r-annot.handle.fact) states.
+9. r[annot.typed-fact.opt-in] A fact type without a `MemberTyped` value stays unchecked, as [Member Metadata](#member-metadata) states.
+
+> **Why.** A fact that holds a function of the member's type, such as a
+> test generator, can then be checked where it is written, not when a
+> test first runs. Facts that hold plain settings need no check, so the
+> check is opt-in.
+
+> **Note.** The marker is a decorator rather than a keyword on the type
+> parameter, so the grammar does not change.
 
 ## Grammar
 
@@ -599,11 +650,11 @@ See also: [Derived Implementations](09-traits.md#derived-implementations),
 `@derive(...)` lists the traits a declaration derives.
 
 1. r[annot.derive.opt-in] `@derive(...)` is the only form that creates a derived implementation from a declaration.
-2. r[annot.derive.accepted] It accepts the intrinsic comparison traits of [Derived Implementations](09-traits.md#derived-implementations) and any trait that has a [template](#templates).
+2. r[annot.derive.accepted] It accepts any trait that has a [template](#templates), the comparison traits of [Derived Implementations](09-traits.md#derived-implementations) included.
 3. r[annot.derive.means] For a trait `X` with a template, `@derive(X)` before a data type or enum `T` means exactly the derivation block `impl X for T by Structure` with an empty body. A newtype derives through its base type instead, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
 4. r[annot.derive.no-use] `@derive(X)` needs no `use` of `Structure`. The import is needed only where code writes `by Structure`, as [`annot.block.structure-use`](#r-annot.block.structure-use) states.
 5. r[annot.derive.other] Any other trait in a `@derive` list is an error, reported on the `@derive` line. Error: `underivable-trait`.
-6. r[annot.derive.error-trait] `Error` has neither a template nor an intrinsic derivation, so `@derive(Error)` is an error. Error: `underivable-trait`.
+6. r[annot.derive.error-trait] `Error` has no template, so `@derive(Error)` is an error. Error: `underivable-trait`.
 7. r[annot.derive.facts-only] Every other decorator only attaches information: a configuration decorator such as `@style(prefix="user_")` attaches a fact and creates no implementation.
 8. r[annot.derive.overlap] Listing a trait in `@derive` and also writing a derivation block for it on the same type is an error, reported on the block. Error: `overlapping-impl`.
 
@@ -669,6 +720,7 @@ impl[S, F] Field[S, F]:
     pub fn get(self, s: S) -> F: pass
     pub fn has_default(self) -> bool: pass
     pub fn default(self) -> F?: pass
+    pub fn fact[M](self) -> M?: pass
 
 pub data Variant[S]:
     pub info: VariantInfo
@@ -692,6 +744,7 @@ pub trait Walker[S]:
     type Error
     fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
     fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
+    fn rest[T](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, Self::Error]: pass
 
 pub trait Describer[S]:
     type Error
@@ -724,7 +777,7 @@ pub trait Source[S]:
 `Structure` is the compiler-generated view of one type's members.
 
 1. r[annot.structure.sealed] `Structure` is a sealed trait: an `impl Structure for T` outside the standard library is an error. Error: `sealed-trait-implementation`.
-2. r[annot.structure.generated] The compiler generates `Structure` for a target only while it instantiates a template for that target. No type has it otherwise.
+2. r[annot.structure.generated] The compiler generates `Structure` for a declared target only while it instantiates a template for that target. No declared type has it otherwise. A tuple type has it as [Tuple Structure](#tuple-structure) states.
 3. r[annot.structure.per-derivation] Each derivation sees its own `Structure` for the target, which reflects that derivation's facts and omitted members.
 4. r[annot.structure.named-positions] `Structure` may be named, as a bound or in a call such as `T::facts()`, only inside a template. Outside one, it may appear only in the `use` declaration that imports it and after `by` in a derivation block's header.
 5. r[annot.structure.named-positions.error] Any other use of `Structure`, such as the bound in `fn fields[X < Structure]`, is an error. Error: `structure-outside-template`.
@@ -829,6 +882,35 @@ impl[T] Tagged for T by Structure  # error: marker-template
 > declares its own `name`, `Structure::name()` is the generated one, and
 > `Encode::name()` is `Encode`'s. Both have `T` as their `Self`, by
 > [`annot.template.qualified-self`](#r-annot.template.qualified-self).
+
+#### Tuple Templates
+
+A **tuple template** derives a trait for every tuple type, at every size,
+through the tuple's [Structure](#tuple-structure):
+
+```text
+use std.function.Tuple
+use std.structure.Structure
+
+impl[T < Tuple] Encode for T by Structure:
+    fn encode(self) -> string:
+        let mut w = Encoder { style: style_of(T::facts()), out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+```
+
+1. r[annot.template.tuple.form] `impl[T < Tuple] Trait for T by Structure:` declares the tuple template of `Trait`, where `Tuple` is `std.function.Tuple`.
+2. r[annot.template.tuple.rules] The template rules for its module, its uniqueness, its body, its `Structure` calls, and its qualified calls apply to a tuple template as well.
+3. r[annot.template.tuple.separate] A trait may have both a template and a tuple template. `@derive` uses only the template, so a trait with only a tuple template is not derivable.
+4. r[annot.template.tuple.implements] A tuple type implements `Trait` through its tuple template exactly when each of its members meets the obligation of [`annot.walker.obligation`](#r-annot.walker.obligation).
+5. r[annot.template.tuple.unmet] A tuple type that fails the obligation does not implement `Trait`. This is not an error until a use requires the implementation.
+6. r[annot.template.tuple.overlap] A tuple template is an implementation for every tuple type. A hand-written implementation of the same trait for a tuple type is an error. Error: `overlapping-impl`.
+7. r[annot.template.tuple.instance] Each tuple type that a program uses with `Trait` instantiates the tuple template once, as an ordinary implementation.
+
+> **Why.** A tuple has no declaration to write `@derive` on, so the trait
+> opts every tuple in. A separate form keeps `@derive` meaning one thing,
+> so a trait that suits only tuples, such as a tuple `Display`, does not
+> become derivable for data types.
 
 ### Derivation Blocks
 
@@ -1157,6 +1239,8 @@ traversed as an enum with one variant.
 3. r[annot.walk.value] Each member value is read through the readonly `self`, so it has the member's read type.
 4. r[annot.walk.error] The first `.Err` that `variant` or `member` returns ends the walk, and `walk` returns it. Otherwise `walk` returns `.Ok()`.
 5. r[annot.walk.nested] A member is passed as one value. Its own members are reached only through its own type's implementations.
+6. r[annot.walk.rest] For a [rest member](#r-annot.tuple.rest), generated `walk` calls `w.rest(h, items)` in place of `w.member`, with the rest element's list as `items`.
+7. r[annot.walk.rest.default] `Walker`'s default `rest` calls `self.member(h, items)`. So a walker that does not implement `rest` sees the rest member as one `List[T]` member.
 
 #### Describe
 
@@ -1193,6 +1277,35 @@ traversed as an enum with one variant.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 [Shared Enum Constructor Data](08-data-and-enums.md#shared-enum-constructor-data).
+
+### Tuple Structure
+
+A tuple type has a `Structure` for its [tuple templates](#tuple-templates).
+It is traversed as a data type whose members are its elements:
+
+```text
+fn show(t: (i32, i32, List[i32]...)) -> string:
+    debug(t)
+```
+
+| Part | For `(i32, i32, List[i32]...)` |
+| --- | --- |
+| `T::name()` | `""` |
+| the one variant | `of_data` true, named `""` |
+| members | `_0: i32`, `_1: i32`, and the rest member `_2: List[i32]` |
+
+1. r[annot.tuple.structure] The compiler generates `Structure` for a tuple type only while it instantiates a tuple template for that type.
+2. r[annot.tuple.variant] A tuple's one variant has index `0`, `of_data` true, the name `""`, no facts, no doc comment, and no shared data.
+3. r[annot.tuple.members] Its members are its elements in order, named `_0`, `_1`, and so on, with `positional` true, `embedded` false, no facts, and no doc comment.
+4. r[annot.tuple.name] For a tuple type, `T::name()` is `""` and `T::facts()` is empty.
+5. r[annot.tuple.rest] A tuple with a rest element `List[T]...` has one **rest member** for it: its last member, of type `List[T]`.
+6. r[annot.tuple.self-ref] Every member of a tuple and its variant have `self_ref` `.Absent`, since a tuple type has no declaration to refer to.
+7. r[annot.tuple.no-default] No member of a tuple has a default.
+8. r[annot.tuple.build] Generated `build` constructs the tuple from one value per member. The rest member's list becomes the rest element's items.
+
+> **Why.** One `List` member keeps a rest tuple's `Structure` the same
+> size for every value, as its type is. A walker that needs the items one
+> by one, as text does, implements `rest`.
 
 ### Self References
 
@@ -1269,6 +1382,8 @@ variant of a derivation's target.
 8. r[annot.handle.holds] `v.holds(x)` is true exactly when `x` holds the variant `v`.
 9. r[annot.handle.default] `h.has_default()` is true when the member declares a default. `h.default()` evaluates that default, or returns `.None` when there is none.
 10. r[annot.handle.escape] Handles are ordinary values and may escape the traversal that passed them.
+11. r[annot.handle.fact] `h.fact::[M]()` reads the member's fact of type `M`, or `.None`. `M` must be a [member-typed fact type](#member-typed-facts) whose member type argument is `F`. Error: `type-mismatch`.
+12. r[annot.handle.fact.exact] It finds only a fact whose type is exactly `M`. On a read-type handle of a member declared `mut T`, `F` is `T`, so a fact bound to `mut T` is not found.
 
 ```text
 data Counter:
@@ -1319,14 +1434,17 @@ impl[S] Walker[S] for Encoder:
 ```
 
 1. r[annot.walker.strengthen-member] An implementation of `Walker`, `Describer`, or `Source` may strengthen the bound on `member[F]`, as `F < Encode` above.
-2. r[annot.walker.missing-fixed] A `Source` implementation must not strengthen the bound on `missing[F]`: it keeps the trait's unbounded `F`.
-3. r[annot.walker.missing-fixed.error] A strengthened bound on `missing[F]` is an error, reported at the implementation method. Error: `trait-method-signature`.
-4. r[annot.walker.not-sealed] `Walker`, `Describer`, and `Source` are not sealed. Any package may implement them.
-5. r[annot.walker.obligation] Every member that a derivation walks, describes, or builds must satisfy the strengthened bounds of the walker, describer, or source that the template passes.
-6. r[annot.walker.obligation.error] The obligation is checked at the opt-in. A member that fails it is an error, reported at the opt-in and naming the member. Error: `member-not-derivable`.
-7. r[annot.walker.generic-member-call] `member` may be called through a generic walker, describer, or source type only by generated code. Such a call written in source is an error. Error: `generic-member-call`.
-8. r[annot.walker.generic-missing] Code outside generated code may call `missing` through a generic source type.
-9. r[annot.walker.concrete-call] A call on a concrete walker, describer, or source type applies that type's own bounds.
+2. r[annot.walker.strengthen-rest] An implementation of `Walker` may implement `rest` and strengthen the bound on its `T`, as `rest[T < Display]` does.
+3. r[annot.walker.missing-fixed] A `Source` implementation must not strengthen the bound on `missing[F]`: it keeps the trait's unbounded `F`.
+4. r[annot.walker.missing-fixed.error] A strengthened bound on `missing[F]` is an error, reported at the implementation method. Error: `trait-method-signature`.
+5. r[annot.walker.not-sealed] `Walker`, `Describer`, and `Source` are not sealed. Any package may implement them.
+6. r[annot.walker.obligation] Every member that a derivation walks, describes, or builds must satisfy the strengthened bounds of the walker, describer, or source that the template passes.
+7. r[annot.walker.obligation.rest] For a rest member, a walker that implements `rest` puts the obligation on the item type `T`, by `rest`'s bound. Otherwise the obligation is on `List[T]`, by `member`'s bound.
+8. r[annot.walker.obligation.error] The obligation is checked at the opt-in. A member that fails it is an error, reported at the opt-in and naming the member. Error: `member-not-derivable`.
+9. r[annot.walker.generic-member-call] `member` may be called through a generic walker, describer, or source type only by generated code. Such a call written in source is an error. Error: `generic-member-call`.
+10. r[annot.walker.generic-rest-call] `rest` may likewise be called through a generic walker type only by generated code and by its own default body. Any other such call is an error. Error: `generic-member-call`.
+11. r[annot.walker.generic-missing] Code outside generated code may call `missing` through a generic source type.
+12. r[annot.walker.concrete-call] A call on a concrete walker, describer, or source type applies that type's own bounds.
 
 ```text
 @derive(Show)  # error: member-not-derivable

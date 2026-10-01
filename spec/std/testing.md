@@ -210,16 +210,18 @@ through the template of `Arbitrary`.
 12. r[std-testing.arbitrary.derive.no-finite.data] When a member of a derived data type has `self_ref` `.Required`, its derived `arbitrary` panics the same way, and the compiler does not reject the type either. Panic: `explicit-panic`.
 13. r[std-testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
 14. r[std-testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
-15. r[std-testing.arbitrary.with.module] The module `std.testing.arbitrary` declares `with` and its result type `Generator`, as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
-16. r[std-testing.arbitrary.with.wrap] `with` wraps `gen` so that each drawn value is erased to `Inspectable`, and returns the wrapped generator as a `Generator`.
-17. r[std-testing.arbitrary.with.downcast] The derived `arbitrary` draws the member with the wrapped generator, and downcasts the first drawn value to the member's type.
+15. r[std-testing.arbitrary.with.module-typed] The module `std.testing.arbitrary` declares `with` and its result type `With[F]`, a [member-typed fact type](../14-annotations.md#member-typed-facts), as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
+16. r[std-testing.arbitrary.with.checked] `gen` must draw the member's declared type. A generator of another type is an error, reported on its decorator, by [`annot.typed-fact.bind`](../14-annotations.md#r-annot.typed-fact.bind). Error: `type-mismatch`.
+17. r[std-testing.arbitrary.with.typed-read] The derived `arbitrary` reads the member's `With[F]` through its handle, with [`h.fact`](../14-annotations.md#r-annot.handle.fact), and draws the member by its `gen`.
 18. r[std-testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
-19. r[std-testing.arbitrary.with.unchecked] The compiler does not check `gen` against the member's type, as for any [metadata value](../14-annotations.md#member-metadata).
-20. r[std-testing.arbitrary.with.downcast-failure] When the downcast fails, the derived `arbitrary` panics on the property's first case. The message names the member, the member's type, and the type that `gen` drew. Panic: `explicit-panic`.
-21. r[std-testing.arbitrary.with.no-fallback] The derived `arbitrary` never ignores a mismatched generator, and never falls back to the member type's own `Arbitrary`.
 
 ```text
-pub fn with[T < Inspectable](gen: fn(mut Choices) -> T) -> Generator
+@annotate(.Field)
+@member_typed
+pub data With[F]:
+    pub gen: fn(mut Choices) -> F
+
+pub fn with[F](gen: fn(mut Choices) -> F) -> With[F]
 ```
 
 ```text
@@ -312,20 +314,12 @@ message `Loop has no finite value`. So does `Ring`'s, because its member
 
 > **Why.** One fact that holds a whole generator covers every range,
 > length, and shape, so derived `Arbitrary` needs no range or length facts.
-> A fact generic in its member's type, such as `With[T]`, is not used:
-> looking up `With[i32]` would miss a `With[string]` and silently use the
-> default generator. The function `with` is generic instead: it erases each
-> drawn value to `Inspectable`, so the derived code can check the value's
-> type when the test runs.
+> `With[F]` is member-typed, so a generator of the wrong type is caught
+> where it is written, and the derived code reads it at the member's type.
 
 > **Why.** A template states one bound for all of a type's members, and no
 > fact can lift it from one member. So every member meets both bounds, and
 > a type whose members cannot is written by hand.
-
-> **Note.** A `Generator` is opaque: it holds the wrapped
-> `fn(mut Choices) -> Inspectable`. It is not a raw `Any` value, which has
-> no type test ([`types.unsupported.no-assertions`](../04-type-system.md#r-types.unsupported.no-assertions)),
-> so the template can downcast each drawn value to the member's type.
 
 > **Note.** A newtype gets no `Structure`
 > ([`trait.derive.newtype.templated`](../09-traits.md#r-trait.derive.newtype.templated)).

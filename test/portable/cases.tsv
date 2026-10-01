@@ -1435,11 +1435,9 @@ runtime/valid/index-traits-builtin-run.hd	runtime
 runtime/panic/index-trait-map-missing.hd	runtime
 runtime/valid/property-draw-budget.hd	runtime
 runtime/valid/derived-arbitrary-with.hd	runtime
-runtime/valid/derived-arbitrary-with-mismatch.hd	runtime
 typing/invalid/property-examples-wrong-type.hd	type
 runtime/valid/derived-arbitrary-recursive-members.hd	runtime
 runtime/valid/derived-arbitrary-no-finite-value.hd	runtime
-typing/invalid/arbitrary-with-non-inspectable-generator.hd	type
 parse/invalid/trailing-block-same-line-body.hd	parse
 parse/valid/trailing-block-under-if.hd	parse
 typing/valid/error-derivation.hd	type
@@ -1497,12 +1495,10 @@ typing/invalid/vararg-function-value-list.hd	type
 parse/invalid/reserved-word-suffix.hd	parse
 parse/invalid/reserved-word-prefix.hd	parse
 typing/invalid/display-tuple-element-without-display.hd	type
-typing/invalid/display-tuple-thirteen-elements.hd	type
 parse/invalid/spread-pattern-not-last.hd	parse
 typing/valid/default-trait.hd	type
 runtime/valid/default-standard-types.hd	runtime
 typing/invalid/default-tuple-element-without-default.hd	type
-typing/invalid/default-tuple-thirteen-elements.hd	type
 typing/valid/generic-data-embedding.hd	type
 parse/valid/shape-intrinsic-calls.hd	parse
 typing/valid/functions.hd	type

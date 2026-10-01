@@ -57,6 +57,8 @@ file of its own.
 | [`time.md`](time.md) | `std.time` | `std-time` | `Duration` and its suffixes |
 | [`task.md`](task.md) | `std.task` | `std-task` | the `retry!` combinator |
 | [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
+| [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison |
+| [`hash.md`](hash.md) | `std.hash` | `std-hash` | what derived `Hash` hashes; tuple hashing |
 
 ## Glossary
 

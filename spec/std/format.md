@@ -63,6 +63,8 @@ impl Debug for Point:
 | r[std-format.debug.derive-builders.unit] Unit variant | a variant without a payload | `out.write(variant_name)` only |
 | r[std-format.debug.derive-builders.mixed] Mixed variant | a variant with both positional and named payload fields, such as `Mixed(i32, label: string)` | `out.debug_struct(variant_name)`, then `.field(field_name, value)` per payload field in order, where a positional field is named `_0`, `_1`, and so on by its position, then `.finish()`, printing `Mixed { _0: 1, label: "x" }` |
 
+1. r[std-format.debug.tuple-template] `Debug`'s [tuple template](../14-annotations.md#tuple-templates) calls `out.debug_tuple("")`, then `.field(value)` per element, then `.finish()`. Its walker implements `rest`, so a rest element's items are fields too.
+
 > **Why.** `assert_equal` and property tests show failing values through
 > `Debug`, so any type a test compares can show itself without a
 > user-facing `Display`. Builders keep the layout in the writer: plain

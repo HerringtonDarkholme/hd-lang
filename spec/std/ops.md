@@ -6,7 +6,7 @@ This chapter defines the part of `std.ops` that `lib/std` writes in
 ordinary hd over the language tier:
 
 - the `Default` trait;
-- the standard `Default` implementations.
+- the standard `Default` implementations, including its tuple template.
 
 The language tier keeps the rest of `std.ops`, since the compiler knows
 those items by name:
@@ -47,11 +47,12 @@ fn start() -> (i32, string, bool):
 | r[std-ops.default.std.list] List | `List[T]`, for any `T` | the empty list `[]` |
 | r[std-ops.default.std.map] Map | `Map[K, V]`, for any valid key type `K` and any `V` | the empty map `{}` |
 | r[std-ops.default.std.optional] Optional | `T?`, for any `T` | `.None` |
-| r[std-ops.default.std.tuple] Tuple | a tuple of at most 12 elements, each of which implements `Default`; `()` is included | each element's default, as in `(0, "", false)` |
-| r[std-ops.default.std.tuple.rest] Rest tuple | a tuple with a [rest element](../04-type-system.md#rest-elements) `List[T]...`, counted as one of the 12 elements, whose fixed elements implement `Default` | each fixed element's default, then an empty rest |
+| r[std-ops.default.std.tuple.any-size] Tuple | a tuple of any size, each of whose elements implements `Default`; `()` is included | each element's default, as in `(0, "", false)` |
+| r[std-ops.default.std.tuple.rest-empty] Rest tuple | a tuple with a [rest element](../04-type-system.md#rest-elements) `List[T]...` whose fixed elements implement `Default` | each fixed element's default, then an empty rest |
 
-1. r[std-ops.default.std.rest-any] A rest tuple's `T` need not implement `Default`, since its default rest holds no items.
-2. r[std-ops.default.std.missing] A tuple with an element that does not implement `Default`, or with more than 12 elements, does not implement `Default`. Using it where `Default` is required is an error. Error: `unsatisfied-trait-bound`.
+1. r[std-ops.default.std.tuple-template] `std.ops` declares a [tuple template](../14-annotations.md#tuple-templates) for `Default`, which builds each element's default through the tuple's `Structure`.
+2. r[std-ops.default.std.rest-any] A rest tuple's `T` need not implement `Default`, since its default rest holds no items.
+3. r[std-ops.default.std.missing-element] A tuple with an element that does not implement `Default` does not implement `Default`. Using it where `Default` is required is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 use std.ops.Default

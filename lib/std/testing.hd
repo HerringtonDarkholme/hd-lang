@@ -213,8 +213,10 @@ impl[S] Source[S] for ArbitrarySource[S]:
     # Every member implements `Arbitrary` and is inspectable, tuned or not
     # (r-std-testing.arbitrary.derive.member-bounds). A tuned member draws
     # with its generator, and the drawn value is downcast to the member's
-    # type, never falling back to its `Arbitrary`
-    # (r-std-testing.arbitrary.with.downcast, .with.no-fallback).
+    # type, never falling back to its `Arbitrary`. Batch 36 reads a typed
+    # `With[F]` through the handle instead
+    # (r-std-testing.arbitrary.with.typed-read), once the prototype has
+    # member-typed facts.
     fn member[F < Arbitrary & Inspectable](mut self, h: Field[S, F], previous: F?) -> Result[F, NoFiniteValue]:
         match h.info.facts.find::[Generator]():
             .None => .Ok(F::arbitrary(self.c))

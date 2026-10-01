@@ -1,6 +1,6 @@
 # test: a rest tuple's default gives each fixed element its default and an empty rest
 # expect: test
-# Spec std/ops Standard Implementations: std-ops.default.std.tuple.rest (owner decision Q6-default, batch 35, 2026-10-01).
+# Spec std/ops Standard Implementations: std-ops.default.std.tuple.rest-empty (owner decision Q6-default, batch 35; tuple templates, batch 36).
 use std.ops.Default
 use std.testing.assert_equal
 

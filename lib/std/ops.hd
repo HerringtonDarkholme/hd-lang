@@ -1051,8 +1051,9 @@ impl[K < Eq & Hash, V] Default for Map[K, V]:
 impl[T] Default for T?:
     fn default() -> T?: .None
 
-# Tuples of at most 12 elements (r-std-ops.default.std.tuple). Rest tuples
-# (r-std-ops.default.std.tuple.rest) get impls such as
+# Tuples of at most 12 elements, until the prototype has the tuple template
+# of r-std-ops.default.std.tuple.any-size (batch 36). Rest tuples
+# (r-std-ops.default.std.tuple.rest-empty) get impls such as
 # `impl[A < Default, T] Default for (A, List[T]...)`, returning
 # `(A::default(),)` with an empty rest, once the prototype has tuple rest
 # elements; until then their fixture is a TUPLE-REST known failure.

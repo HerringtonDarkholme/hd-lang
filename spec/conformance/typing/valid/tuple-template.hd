@@ -1,0 +1,50 @@
+# test: a tuple template derives a trait for every tuple type whose elements meet its walker's bound
+# Spec 14 Tuple Templates: annot.template.tuple.form and annot.template.tuple.implements; Tuple Structure:
+# annot.tuple.members (owner decision O3b, batch 36, 2026-10-01).
+use std.function.Tuple
+use std.structure.{Structure, Facts, Field, Variant, Walker}
+
+trait Encode:
+    fn encode(self) -> string
+
+impl Encode for i64:
+    fn encode(self) -> string:
+        "$self"
+
+impl Encode for string:
+    fn encode(self) -> string:
+        "'$self'"
+
+data Style:
+    prefix: string = ""
+
+fn style_of(facts: Facts) -> Style:
+    match facts.find::[Style]():
+        .Some(found) => found
+        .None => Style {}
+
+data Encoder:
+    style: Style
+    out: string
+
+impl[S] Walker[S] for Encoder:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + self.style.prefix + h.info.name + "=" + value.encode() + ";"
+        .Ok()
+
+impl[T < Tuple] Encode for T by Structure:
+    fn encode(self) -> string:
+        let mut w = Encoder { style: style_of(T::facts()), out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+fn pair(id: i64, name: string) -> string:
+    (id, name).encode()
+
+fn wide(t: (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)) -> string:
+    t.encode()

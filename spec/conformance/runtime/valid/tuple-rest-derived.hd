@@ -1,6 +1,6 @@
 # test: a tuple with a rest element derives Eq, PartialOrd, and Ord, comparing the rest element as its list
 # expect: test
-# Spec 09 Derived Tuple Implementations: trait.target.tuple.derived.rest (owner decision Q5, batch 34, 2026-10-01).
+# std Cmp and Hash, tuple templates: std-cmp.tuple.rest and std-hash.tuple.rest (owner decision Q5, batch 34, 2026-10-01).
 use std.testing.assert_equal
 
 tests:

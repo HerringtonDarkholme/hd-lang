@@ -1,0 +1,14 @@
+# test: tuple Default has no size limit, so a 13-element tuple has a default
+# expect: test
+# Spec std/ops Standard Implementations: std-ops.default.std.tuple.any-size (owner decision O3b, batch 36, 2026-10-01).
+use std.ops.Default
+use std.testing.assert_equal
+
+fn fresh[T < Default]() -> T:
+    T::default()
+
+tests:
+    it("defaults thirteen elements"):
+        let t: (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, string) = fresh()
+        assert_equal(t._0, 0, reason="each element takes its default")
+        assert_equal(t._12, "", reason="the thirteenth element takes its default too")

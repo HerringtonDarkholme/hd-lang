@@ -1,0 +1,34 @@
+# test: a tuple template is an implementation for every tuple type, so a hand-written tuple implementation overlaps it
+# Spec 14 Tuple Templates: annot.template.tuple.overlap (owner decision O3b, batch 36, 2026-10-01).
+use std.function.Tuple
+use std.structure.{Structure, Field, Variant, Walker}
+
+trait Encode:
+    fn encode(self) -> string
+
+impl Encode for i64:
+    fn encode(self) -> string:
+        "$self"
+
+data Encoder:
+    out: string
+
+impl[S] Walker[S] for Encoder:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + value.encode() + ";"
+        .Ok()
+
+impl[T < Tuple] Encode for T by Structure:
+    fn encode(self) -> string:
+        let mut w = Encoder { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+impl Encode for (i64, i64):  # diagnostic: overlapping-impl
+    fn encode(self) -> string:
+        "pair"

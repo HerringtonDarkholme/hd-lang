@@ -1,5 +1,5 @@
-# test: std implements Display for tuples up to 12 elements, writing each element's text inside parentheses
-# Spec 05 Interpolated Strings: expr.interp.std.tuple (owner decision Q6-others, batch 33, 2026-10-01) and expr.interp.std.tuple.one (Q6-display-text, batch 35).
+# test: std implements Display for tuples through a tuple template, writing each element's text inside parentheses
+# Spec 05 Interpolated Strings: expr.interp.std.tuple.template (owner decision Q6-others, batch 33; tuple templates, batch 36) and expr.interp.std.tuple.one (Q6-display-text, batch 35).
 use std.testing.assert_equal
 
 tests:

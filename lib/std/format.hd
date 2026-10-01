@@ -103,7 +103,7 @@ impl DebugMap:
     pub fn finish(mut self) -> void:
         self.out.write("}")
 
-# The standard `Debug` implementations (spec/09-traits.md#r-trait.debug.std-types).
+# The standard `Debug` implementations (spec/09-traits.md#r-trait.debug.std-impls).
 impl Debug for i32:
     fn debug(self, out: mut DebugWriter) -> void:
         out.write("$self")
@@ -182,11 +182,12 @@ pub fn debug[T < Debug](value: T) -> string:
     value.debug(out)
     out.text
 
-# Tuples of at most 12 elements (spec/09-traits.md#r-trait.debug.std-types).
-# Rest tuples (trait.debug.std-types.rest, expr.interp.std.tuple.rest) get
-# impls such as `impl[A < Debug, T < Debug] Debug for (A, List[T]...)`,
-# writing `self._1`'s items as fields, once the prototype has tuple rest
-# elements; until then their fixtures are TUPLE-REST known failures.
+# Tuples of at most 12 elements. The spec derives tuple `Debug` through a
+# tuple template at every size (spec/09-traits.md#r-trait.debug.tuples,
+# batch 36); these per-size impls stay until the prototype has tuple
+# templates. Rest tuples (trait.debug.tuples.rest,
+# expr.interp.std.tuple.rest-inline) wait for tuple rest elements; until
+# then their fixtures are TUPLE-REST known failures.
 impl Debug for ():
     fn debug(self, out: mut DebugWriter) -> void:
         out.write("()")
@@ -315,8 +316,9 @@ impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug
             .field(self._11)
             .finish()
 
-# `Display` for tuples of at most 12 elements
-# (spec/05-expressions.md#r-expr.interp.std.tuple): each element's text,
+# `Display` for tuples of at most 12 elements, until the prototype has the
+# tuple template of spec/05-expressions.md#r-expr.interp.std.tuple.template
+# (batch 36): each element's text,
 # separated by ", ", inside parentheses. One element ends with a comma, as
 # in `(1,)` (r-expr.interp.std.tuple.one).
 impl Display for ():
