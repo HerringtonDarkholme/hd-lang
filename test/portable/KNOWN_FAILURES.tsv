@@ -91,12 +91,8 @@ typing/invalid/for-refutable-pattern.hd	the prototype's `for` takes only a name 
 typing/invalid/comprehension-refutable-pattern.hd	the prototype's comprehension `for` takes only a name or a bare name list, so `[for .Some(value) in found => value]` is a syntax-error (`expected a comprehension binding name`), not refutable-let-pattern (flow.for.pattern.irrefutable)	LP-for
 typing/invalid/let-else-irrefutable.hd	the prototype's `let` has no else block, so `let (low, high) = pair else: return 0` is a syntax-error (`expected a line ending, found 'else'`), not unreachable-match-arm (flow.let.else.unreachable)	LP-irrefutable-else
 typing/valid/let-underscore-discard.hd	the prototype's `let` takes only a name or a parenthesized name list, so `let _ = save()` is a syntax-error (`expected a binding name`), not a discard (flow.unused.discard-forms)	LP-discard
-runtime/valid/final-vararg.hd	the prototype reads a vararg's type as its element type, so it spells a List[i32] vararg i32... and reads List[i32]... in a type as a vararg of List[i32] elements: `scaled` is fn(i32,i32...)->i32 and does not fit fn(i32, List[i32]...) -> i32 (fn.type.vararg-rest)	TUPLE-REST
-runtime/valid/spelled-function-type-values.hd	the prototype reads a vararg's type as its element type, so it spells a List[i32] vararg i32... and reads List[i32]... in a type as a vararg of List[i32] elements: `count` is fn(string,i32...)->i32 and does not fit Fn[(string, List[i32]...), i32, $()] (fn.type.vararg-rest)	TUPLE-REST
-runtime/valid/vararg-function-values.hd	the prototype reads a vararg's type as its element type, so it spells a List[i32] vararg i32... and reads List[i32]... in a type as a vararg of List[i32] elements: `f := count` is fn(i32...)->i32 and does not fit fn(List[i32]...) -> i32 (fn.type.vararg-rest)	TUPLE-REST
 runtime/valid/tuple-bound-vararg-call.hd	the prototype supports only a List[T] vararg, so args...: Args is unsupported-tuple-vararg (fn.vararg.tuple-param.expected)	VARARG-TYPE
 runtime/valid/tuple-vararg.hd	the prototype supports only a List[T] vararg, so a tuple-typed vararg is unsupported-tuple-vararg (fn.vararg.collect.tuple-expr)	VARARG-TYPE
-typing/invalid/tuple-vararg-arity.hd	the prototype supports only a List[T] vararg, so it reports unsupported-tuple-vararg on the declaration, not type-mismatch on the call (fn.vararg.collect.tuple-expr)	VARARG-TYPE
 typing/invalid/tuple-vararg-no-auto-spread.hd	the prototype supports only a List[T] vararg, so it reports unsupported-tuple-vararg on the declaration, not type-mismatch on the call (fn.vararg.no-auto-spread)	VARARG-TYPE
 typing/invalid/tuple-bound-non-tuple.hd	the prototype has no std.function.Tuple, so the bound is unknown-trait, not unsatisfied-trait-bound (fn.type.ctor.tuple-trait)	Q5
 typing/invalid/tuple-trait-user-impl.hd	the prototype has no std.function.Tuple, so the impl is unknown-trait, not sealed-trait-implementation (trait.sealed.tuple)	Q5
@@ -107,10 +103,6 @@ typing/valid/race-plain-signature.hd	the prototype reports every race! call as u
 typing/valid/mutable-suspension.hd	a cold call does not unify with a List[mut Suspend[T]] vararg element: the prototype reports type-mismatch, expected mut:Suspend[generic:T], found suspend(0):i32	Q9
 typing/invalid/function-type-overlapping-impl.hd	the prototype has no std.function.Tuple, so Fn[Args, O, R] with Args < Tuple is generic-kind-mismatch before the overlap is checked	Q9
 typing/valid/function-type-tuple-impl.hd	the prototype has no std.function.Tuple, so Fn[Args, O, R] with Args < Tuple is generic-kind-mismatch (trait.target.function-type)	Q9
-parse/invalid/generic-parameter-ellipsis.hd	the prototype still parses a type pack [Ts...], so it reports unsupported-tuple-vararg instead of syntax-error	Q9
-parse/invalid/tuple-type-ellipsis.hd	the prototype still parses a pack expansion (i32...) in a tuple type	Q9
-parse/invalid/tuple-element-spread.hd	the prototype still parses a tuple expansion (values...)	Q9
-typing/valid/pack-ordinary-name.hd	the prototype still treats pack.map( as the pack operation, so a method call on a local named pack is syntax-error (lex.contextual.elsewhere)	Q9
 typing/valid/all-tuple-result.hd	the prototype reports every all! call as unsupported-task-combinator, so the typing rule is not checked (req.combinator.all-typing)	ALL-INTRINSIC
 typing/invalid/all-non-suspend-argument.hd	the prototype reports every all! call as unsupported-task-combinator, not type-mismatch (req.combinator.all-argument)	ALL-INTRINSIC
 typing/invalid/all-bang-child.hd	the prototype reports every all! call as unsupported-task-combinator, not type-mismatch (req.combinator.all-bang-child)	ALL-INTRINSIC
@@ -121,29 +113,18 @@ runtime/valid/tuple-derived-order.hd	the prototype has no Eq and Hash for tuples
 typing/invalid/literal-suffix-negative-range.hd	the prototype folds the minus into a suffixed literal, so -2147483648off is off(-2147483648) and fits i32 instead of integer-literal-range (types.literal.suffixed.in)	Q3
 typing/invalid/literal-suffix-negation-no-neg.hd	the prototype folds the minus into a suffixed literal, so -12px is px(-12) and needs no Neg, instead of type-mismatch (expr.op.no-impl)	Q3
 runtime/valid/literal-suffix-call.hd	the prototype folds the minus into a suffixed literal, so -12px runs px(-12) instead of Neg on px(12), and the assertion fails (expr.op.desugar)	Q3
-parse/invalid/tuple-rest-not-last.hd	the prototype has no tuple rest element: it parses (List[i32]..., i32) as a pack expansion, not syntax-error (grammar.type.rest.elsewhere)	TUPLE-REST
-parse/invalid/tuple-spread-not-last.hd	the prototype has no tuple rest element: it parses (xs..., 1) as a tuple expansion, not syntax-error (grammar.primary.tuple-spread)	TUPLE-REST
-typing/invalid/tuple-rest-not-list.hd	the prototype has no tuple rest element, so (i32, i32...) is unknown-type, not type-mismatch (types.tuple.rest.list)	TUPLE-REST
-typing/invalid/function-type-rest-not-list.hd	the prototype reads a vararg's type as its element type, so it spells a List[i32] vararg i32... and reads List[i32]... in a type as a vararg of List[i32] elements, so it accepts fn(i32...) -> i32 instead of type-mismatch (types.tuple.rest.list)	TUPLE-REST
-typing/invalid/tuple-rest-assign.hd	the prototype has no tuple rest element, so (i32, List[i32]...) is unknown-type, not type-mismatch (types.tuple.rest.assign)	TUPLE-REST
-runtime/valid/tuple-rest-literal.hd	the prototype has no tuple rest element, so (i32, i32, List[i32]...) is unknown-type (expr.tuple.rest.collect)	TUPLE-REST
-typing/invalid/tuple-rest-literal-short.hd	the prototype has no tuple rest element, so the result type is unknown-type, not type-mismatch (expr.tuple.rest.collect)	TUPLE-REST
-typing/invalid/tuple-spread-tuple-operand.hd	the prototype has no tuple rest element: (1, pair...) is unsupported-generic-parameter as a pack expansion, not type-mismatch (expr.tuple.rest.spread.list)	TUPLE-REST
 runtime/valid/tuple-spread-rest.hd	the prototype has no tuple rest element, so (i32, i32, List[i32]...) is unknown-type (expr.call.spread.inputs)	TUPLE-REST
 typing/invalid/tuple-spread-plain-into-vararg.hd	the prototype has no tuple spread, so g(u...) is argument-count, not type-mismatch (expr.call.spread.inputs)	TUPLE-REST
 typing/invalid/tuple-spread-rest-into-plain.hd	the prototype has no tuple rest element, so the parameter type is unknown-type, not type-mismatch at the spread (expr.call.spread.inputs)	TUPLE-REST
-typing/invalid/vararg-rest-distinct.hd	the prototype reads a vararg's type as its element type, so it spells a List[i32] vararg i32... and reads List[i32]... in a type as a vararg of List[i32] elements, so callback(1, 2, 3) is a second type-mismatch on another line (fn.type.vararg-rest)	TUPLE-REST
 runtime/valid/call-rest-inference.hd	the prototype supports only a List[T] vararg, so args...: Args is unsupported-tuple-vararg (fn.vararg.tuple-param.expected)	TUPLE-REST
 runtime/valid/tuple-vararg-infer.hd	the prototype supports only a List[T] vararg, so args...: Args is unsupported-tuple-vararg (fn.vararg.tuple-param.infer)	TUPLE-REST
 runtime/valid/tuple-vararg-rest.hd	the prototype supports only a List[T] vararg, so a tuple-typed vararg is unsupported-tuple-vararg (fn.vararg.collect.tuple-expr)	TUPLE-REST
 runtime/valid/tuple-vararg-function-value.hd	the prototype supports only a List[T] vararg, so a tuple-typed vararg is unsupported-tuple-vararg (fn.type.tuple-vararg-input)	TUPLE-REST
 typing/valid/tuple-trait-rest.hd	the prototype has no std.function.Tuple and no tuple rest element, so it reports unknown-trait and unknown-type (fn.type.ctor.tuple-trait.rest)	TUPLE-REST
-runtime/valid/function-value-vararg-call.hd	the prototype reads a vararg's type as its element type, so it spells a List[i32] vararg i32... and reads List[i32]... in a type as a vararg of List[i32] elements: `g` is fn(i32,i32,i32...)->i32 and does not fit fn(i32, i32, List[i32]...) -> i32 (fn.type.rest-call)	TUPLE-REST
 typing/invalid/all-explicit-type-arguments.hd	the prototype reports every all! call as unsupported-task-combinator, not type-mismatch (req.combinator.all-direct)	ALL-INTRINSIC
 runtime/valid/display-tuples.hd	the prototype's interpolation finds a Display implementation only for an exact target type, so lib/std's generic tuple implementations are unused and a tuple is unsatisfied-trait-bound (expr.interp.std.tuple.template)	Q6-others
 runtime/valid/tuple-vararg-spread-tail.hd	the prototype supports only a List[T] vararg, so a tuple-typed or Tuple-bounded vararg is unsupported-tuple-vararg and a list spread cannot end its arguments (fn.vararg.collect.tuple-expr)	TR-mixed-tail
 runtime/valid/tuple-rest-derived.hd	the prototype has no tuple rest element, so (i32, List[i32]...) is unknown-type and has no derived Eq or PartialOrd (std-cmp.tuple.rest)	TR-traits
-typing/invalid/tuple-rest-map-key.hd	the prototype has no tuple rest element, so the key type is unknown-type, not unsatisfied-trait-bound (std-hash.tuple.rest)	TR-traits
 runtime/valid/debug-tuple-rest.hd	the prototype has no tuple rest element, so (i32, i32, List[i32]...) is unknown-type, and lib/std cannot declare a rest tuple Debug impl (trait.debug.tuples.rest)	TR-traits
 runtime/valid/display-tuple-rest.hd	the prototype has no tuple rest element: (1, 2, xs...) is unsupported-generic-parameter as a pack expansion, and lib/std cannot declare a rest tuple Display impl (expr.interp.std.tuple.rest-inline)	TR-traits
 parse/valid/spread-pattern-syntax.hd	the prototype has no spread pattern, so (a, xs...) in a pattern is syntax-error (grammar.pattern.tuple-spread)	TR-pattern

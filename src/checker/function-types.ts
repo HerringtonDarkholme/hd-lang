@@ -4,16 +4,15 @@ import { functionResultText, rowArgumentKeys, tupleParts } from "../types.ts";
 
 // The spelled function type constructors of `std.function`
 // (07-functions.md#function-type-constructors). `Fn[(A, B), O, R]` is exactly
-// `fn(A, B) -> O $ R`, `SuspendFn[...]` is the `fn!` form, and `Rest[T]` as the
-// final inputs element is a vararg. Imported names are rewritten to the sugar
-// before checking, so both spellings are one type.
+// `fn(A, B) -> O $ R`, and `SuspendFn[...]` is the `fn!` form; a rest element
+// `List[T]...` ending the inputs is a vararg. Imported names are rewritten to
+// the sugar before checking, so both spellings are one type.
 
-type Constructor = "Fn" | "SuspendFn" | "Rest";
+type Constructor = "Fn" | "SuspendFn";
 
 const CONSTRUCTORS: ReadonlyMap<string, Constructor> = new Map([
   ["std.function.Fn", "Fn"],
   ["std.function.SuspendFn", "SuspendFn"],
-  ["std.function.Rest", "Rest"],
 ]);
 
 interface Rewrite {
@@ -56,7 +55,7 @@ function rewriteType(text: string, names: ReadonlyMap<string, Constructor>): Rew
     const found = (index === 0 || !/[A-Za-z0-9_.:]/.test(text[index - 1]!)) && match.exec(text);
     const name = found ? found[0].slice(0, -1) : undefined;
     const constructor = name ? names.get(name) : undefined;
-    if (!found || !constructor || constructor === "Rest") {
+    if (!found || !constructor) {
       result += text[index];
       index += 1;
       continue;
@@ -67,7 +66,7 @@ function rewriteType(text: string, names: ReadonlyMap<string, Constructor>): Rew
     const inner = rewriteType(text.slice(open + 1, close), names);
     error ??= inner.error;
     const arguments_ = splitArguments(inner.type);
-    const lowered = lowerConstructor(constructor, arguments_, names);
+    const lowered = lowerConstructor(constructor, arguments_);
     error ??= lowered.error;
     result += lowered.type;
     index = close + 1;
@@ -78,7 +77,6 @@ function rewriteType(text: string, names: ReadonlyMap<string, Constructor>): Rew
 function lowerConstructor(
   constructor: Constructor,
   arguments_: readonly string[],
-  names: ReadonlyMap<string, Constructor>,
 ): Rewrite {
   const spelled = `${constructor}[${arguments_.join(",")}]`;
   if (arguments_.length !== 3)
@@ -90,9 +88,7 @@ function lowerConstructor(
       },
     };
   const [inputs, output, row] = arguments_ as [string, string, string];
-  // `(Is...)` is a tuple type too: one pack expansion needs no comma.
-  const pack = /^\((.+\.\.\.)\)$/.exec(inputs)?.[1];
-  const elements = tupleParts(inputs) ?? (inputs === "()" ? [] : pack ? [pack] : undefined);
+  const elements = tupleParts(inputs) ?? (inputs === "()" ? [] : undefined);
   if (!elements)
     return {
       type: spelled,
@@ -101,26 +97,7 @@ function lowerConstructor(
         message: `the inputs of '${constructor}' must be a tuple type, not '${inputs}'`,
       },
     };
-  const restNames = new Set([...names].filter(([, kind]) => kind === "Rest").map(([name]) => name));
-  const parameters: string[] = [];
-  for (const [position, element] of elements.entries()) {
-    const rest = [...restNames].find(
-      (name) => element.startsWith(`${name}[`) && element.endsWith("]"),
-    );
-    if (!rest) {
-      parameters.push(element);
-      continue;
-    }
-    if (position !== elements.length - 1)
-      return {
-        type: spelled,
-        error: {
-          code: "nonfinal-vararg",
-          message: "'Rest[T]' must be the final element of a function type's inputs",
-        },
-      };
-    parameters.push(`${element.slice(rest.length + 1, -1)}...`);
-  }
+  const parameters = elements;
   const keys = rowArgumentKeys(row) ?? [row];
   const clause = keys.length > 0 ? `$${keys.join("+")}` : "";
   return {

@@ -30,6 +30,8 @@ import {
   bindingParts,
   bindingType,
   splitTypeBindings,
+  nonListRestElement,
+  restInner,
 } from "../types.ts";
 
 interface NamedParameter {
@@ -276,6 +278,8 @@ export function isKnownType(
 ): boolean {
   const binding = bindingParts(type);
   if (binding) return isKnownType(binding.type, dataTypes, enumTypes, traitTypes);
+  const rest = restInner(type);
+  if (rest !== undefined) return isKnownType(rest, dataTypes, enumTypes, traitTypes);
   const mutable = mutableInner(type);
   if (mutable !== undefined)
     return mutable !== "void" && isKnownType(mutable, dataTypes, enumTypes, traitTypes);
@@ -557,6 +561,12 @@ export function inferGenericType(
     return formalBinding && actualBinding && formalBinding.name === actualBinding.name
       ? inferGenericType(formalBinding.type, actualBinding.type, substitutions, rowSubstitutions)
       : undefined;
+  const formalRest = restInner(formal);
+  const actualRest = restInner(actual);
+  if (formalRest !== undefined || actualRest !== undefined)
+    return formalRest !== undefined && actualRest !== undefined
+      ? inferGenericType(formalRest, actualRest, substitutions, rowSubstitutions)
+      : undefined;
   const generic = genericTypeName(formal);
   if (generic) {
     const existing = substitutions.get(generic);
@@ -670,6 +680,14 @@ export function matchGenericTypePattern(
       actualBinding &&
       patternBinding.name === actualBinding.name &&
       matchGenericTypePattern(patternBinding.type, actualBinding.type, substitutions),
+    );
+  const patternRest = restInner(pattern);
+  const actualRest = restInner(actual);
+  if (patternRest !== undefined || actualRest !== undefined)
+    return Boolean(
+      patternRest !== undefined &&
+      actualRest !== undefined &&
+      matchGenericTypePattern(patternRest, actualRest, substitutions),
     );
   const generic = genericTypeName(pattern);
   if (generic) {
@@ -898,6 +916,8 @@ export function resolveGenericType(
   const binding = bindingParts(type);
   if (binding)
     return bindingType(binding, resolveGenericType(binding.type, genericParameters, rowParameters));
+  const rest = restInner(type);
+  if (rest !== undefined) return `${resolveGenericType(rest, genericParameters, rowParameters)}...`;
   const projection = /^([^:]+)::([A-Za-z_][A-Za-z0-9_]*)$/.exec(type);
   if (projection && genericParameters.has(projection[1]!)) return `generic:${type}`;
   const mutable = mutableInner(type);
@@ -1082,6 +1102,19 @@ export function normalizeRowArguments(
   return mismatch ? { mismatch } : normalized;
 }
 
+/** A rest element that is not a `List[T]` (04-type-system.md#r-types.tuple.rest.list). */
+export function restElementProblem(
+  type: ValueType,
+): { readonly code: string; readonly message: string } | undefined {
+  const rest = nonListRestElement(type);
+  return rest === undefined
+    ? undefined
+    : {
+        code: "type-mismatch",
+        message: `a rest element must be a List[T], as in 'List[${rest}]...', not '${rest}...'`,
+      };
+}
+
 export function typeName(
   type: TypeRef,
   dataTypes: ReadonlyMap<string, HirData>,
@@ -1140,6 +1173,11 @@ export function typeName(
     });
     return undefined;
   }
+  const restProblem = restElementProblem(resolved);
+  if (restProblem) {
+    diagnostics.push({ ...restProblem, span: type.span });
+    return undefined;
+  }
   return resolved;
 }
 
@@ -1170,7 +1208,6 @@ export function traitIsDynamicallySafe(
       (method) =>
         method.associated ||
         (method.reifiedParameters ?? []).length > 0 ||
-        (method.packParameters ?? []).length > 0 ||
         method.genericParameters.some(
           (parameter) =>
             !(method.referenceParameters ?? []).includes(parameter) &&

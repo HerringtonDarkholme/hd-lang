@@ -11,7 +11,7 @@ import {
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
-  tupleParts,
+  tupleLayout,
 } from "../types.ts";
 import { cellInner } from "../checker/captured-cells.ts";
 
@@ -65,7 +65,7 @@ export function collectModuleTypes(program: HirProgram): CollectedModuleTypes {
     if (cell !== undefined) return collectType(cell);
     const mutable = mutableInner(type);
     if (mutable !== undefined) return collectType(mutable);
-    const tuple = tupleParts(type);
+    const tuple = tupleLayout(type);
     if (tuple !== undefined) {
       tuple.forEach(collectType);
       return;

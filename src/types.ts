@@ -93,6 +93,30 @@ export function tupleType(elements: readonly ValueType[]): ValueType {
   return `(${elements.join(",")}${elements.length === 1 ? "," : ""})`;
 }
 
+/**
+ * The type inside a rest element `List[T]...` of a tuple type or a function
+ * type's inputs (04-type-system.md#rest-elements), or undefined for any other
+ * element. A tuple's element list keeps the rest element's `...`.
+ */
+export function restInner(element: ValueType): ValueType | undefined {
+  return element.endsWith("...") ? element.slice(0, -3) : undefined;
+}
+
+/** A tuple type's fixed elements, and its rest element's `List[T]` if it ends in one. */
+export function tupleRest(
+  type: ValueType,
+): { readonly fixed: readonly ValueType[]; readonly rest?: ValueType } | undefined {
+  const parts = tupleParts(type);
+  if (!parts) return undefined;
+  const rest = parts.length > 0 ? restInner(parts.at(-1)!) : undefined;
+  return rest === undefined ? { fixed: parts } : { fixed: parts.slice(0, -1), rest };
+}
+
+/** A tuple's runtime elements: its fixed elements, then its rest element's list. */
+export function tupleLayout(type: ValueType): readonly ValueType[] | undefined {
+  return tupleParts(type)?.map((element) => restInner(element) ?? element);
+}
+
 export function nominalGenericParts(type: ValueType): NominalGenericParts | undefined {
   if (type.startsWith("fn(") || type.startsWith("fn!(")) return undefined;
   const open = type.indexOf("[");
@@ -257,10 +281,9 @@ export function functionParts(type: ValueType): FunctionParts | undefined {
       : written;
   const requirements = requirementStart < 0 ? [] : splitRowKeys(tail.slice(requirementStart + 1));
   const variadic = renderedParameters.at(-1)?.endsWith("...") === true;
-  const parameters = renderedParameters.map((parameter, index) => {
-    if (!variadic || index !== renderedParameters.length - 1) return parameter;
-    return nominalGenericType("List", [parameter.slice(0, -3)]);
-  });
+  const parameters = renderedParameters.map((parameter, index) =>
+    variadic && index === renderedParameters.length - 1 ? parameter.slice(0, -3) : parameter,
+  );
   return { parameters, suspending, variadic, result, requirements };
 }
 
@@ -272,11 +295,11 @@ export function functionType(
   suspending = false,
 ): ValueType {
   const row = [...new Set(requirements)].sort();
-  const rendered = parameters.map((parameter, index) => {
-    if (!variadic || index !== parameters.length - 1) return parameter;
-    const nominal = nominalGenericParts(parameter);
-    return `${nominal?.name === "List" && nominal.arguments.length === 1 ? nominal.arguments[0] : parameter}...`;
-  });
+  // A `List[T]` vararg is the rest element `List[T]...` of the inputs
+  // (07-functions.md#r-fn.type.vararg-rest).
+  const rendered = parameters.map((parameter, index) =>
+    variadic && index === parameters.length - 1 ? `${parameter}...` : parameter,
+  );
   return `fn${suspending ? "!" : ""}(${rendered.join(",")})->${functionResultText(result)}${row.length ? `$${row.join("+")}` : ""}`;
 }
 
@@ -286,6 +309,8 @@ export function substituteTypeParameters(
 ): ValueType {
   const binding = bindingParts(type);
   if (binding) return bindingType(binding, substituteTypeParameters(binding.type, substitutions));
+  const rest = restInner(type);
+  if (rest !== undefined) return `${substituteTypeParameters(rest, substitutions)}...`;
   const mutable = mutableInner(type);
   if (mutable !== undefined) return mutableType(substituteTypeParameters(mutable, substitutions));
   const tuple = tupleParts(type);
@@ -389,4 +414,26 @@ export function rowArgumentKeys(type: ValueType | undefined): readonly string[] 
 
 export function rowArgumentType(keys: readonly string[]): ValueType {
   return `$(${[...new Set(keys)].sort().join("+")})`;
+}
+
+/**
+ * The first rest element in a type whose type is not `List[T]`, as `i32` in
+ * `(i32, i32...)` or `fn(i32...) -> i32` (04-type-system.md#r-types.tuple.rest.list).
+ */
+export function nonListRestElement(type: ValueType): ValueType | undefined {
+  for (let index = type.indexOf("..."); index >= 0; index = type.indexOf("...", index + 3)) {
+    let depth = 0;
+    let start = index;
+    for (; start > 0; start -= 1) {
+      const character = type[start - 1];
+      if (character === "]" || character === ")") depth += 1;
+      else if (character === "[" || character === "(") {
+        if (depth === 0) break;
+        depth -= 1;
+      } else if (character === "," && depth === 0) break;
+    }
+    const element = type.slice(start, index);
+    if (nominalGenericParts(readonlyType(element))?.name !== "List") return element;
+  }
+  return undefined;
 }

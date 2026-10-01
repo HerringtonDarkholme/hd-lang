@@ -257,45 +257,34 @@ class Parser extends DecoratorParser {
 
   /**
    * Parses a value parameter's `: Type`, or `...: Type` for a vararg
-   * (07-functions.md#varargs). The prototype keeps its element-typed vararg,
-   * so it supports a `List[T]` vararg only; a tuple-typed vararg is not
-   * implemented. An ellipsis after the type is a value pack, and without a
-   * pack it is the old vararg spelling (02-grammar.md#r-grammar.type.rest.elsewhere).
+   * (07-functions.md#varargs). A vararg's type is its collected type: a
+   * `List[T]`, a tuple type, or a type parameter (which the checker requires
+   * to be bounded by `Tuple`). An ellipsis after the type is the old vararg
+   * spelling (02-grammar.md#r-grammar.type.rest.elsewhere).
    */
-  protected parseParameterType(packs: readonly string[]): { type: TypeRef; variadic: boolean } {
+  protected parseParameterType(): { type: TypeRef; variadic: boolean } {
     const nameVararg = this.matchText("...");
     this.expectText(":");
     const type = this.parseType();
     if (nameVararg) {
-      const match = /^List\[(.*)\]$/.exec(type.name);
-      if (!match && !type.name.startsWith("(") && !this.activeGenericParameters.has(type.name))
+      if (
+        !/^List\[.*\]$/.test(type.name) &&
+        !type.name.startsWith("(") &&
+        !this.activeGenericParameters.has(type.name)
+      )
         this.fail(
           "type-mismatch",
           `a vararg's type must be List[T], a tuple type, or a type parameter bounded by Tuple, not '${type.name}'`,
           type.span,
         );
-      if (!match)
-        this.fail(
-          "unsupported-tuple-vararg",
-          "the prototype supports only a List[T] vararg; a tuple-typed vararg is not implemented",
-          type.span,
-        );
-      return { type: { name: match[1]!, span: type.span }, variadic: true };
-    }
-    if (this.atText("...")) {
-      const ellipsis = this.advance();
-      if (
-        !packs.some((pack) =>
-          new RegExp(`(^|[^A-Za-z0-9_])${pack}([^A-Za-z0-9_]|$)`).test(type.name),
-        )
-      )
-        this.fail(
-          "syntax-error",
-          "an ellipsis after a type needs a type pack; write a vararg as 'name...: List[T]'",
-          ellipsis.span,
-        );
       return { type, variadic: true };
     }
+    if (this.atText("..."))
+      this.fail(
+        "syntax-error",
+        "an ellipsis after a parameter's type is not a vararg; write a vararg as 'name...: List[T]'",
+        this.current().span,
+      );
     return { type, variadic: false };
   }
 
@@ -322,7 +311,7 @@ class Parser extends DecoratorParser {
           );
         }
         const parameterName = this.expectKind("identifier", "expected a parameter name");
-        const { type, variadic } = this.parseParameterType(parsedGenerics.packs ?? []);
+        const { type, variadic } = this.parseParameterType();
         const defaultValue = this.matchText("=") ? this.parseExpression() : undefined;
         if (variadic && defaultValue)
           this.fail(
@@ -355,7 +344,6 @@ class Parser extends DecoratorParser {
       genericParameters,
       ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
       genericBounds,
-      ...(parsedGenerics.packs ? { packParameters: parsedGenerics.packs } : {}),
       parameters,
       result,
       requirements,
@@ -476,7 +464,7 @@ class Parser extends DecoratorParser {
 
   protected parseImpl(doc?: string): ImplDecl {
     const start = this.expectText("impl").span.start;
-    const parsedGenerics = this.parseGenericParameters({ defaults: false, packs: "unsupported" });
+    const parsedGenerics = this.parseGenericParameters({ defaults: false });
     const genericParameters = [...parsedGenerics.parameters];
     const genericBounds = [...parsedGenerics.bounds];
     const enclosingGenericParameters = this.activeGenericParameters;
@@ -601,7 +589,6 @@ class Parser extends DecoratorParser {
     const generics = {
       ...(parsedGenerics.reified ? { reifiedParameters: parsedGenerics.reified } : {}),
       ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
-      ...(parsedGenerics.packs ? { packParameters: parsedGenerics.packs } : {}),
     };
     const enclosingGenericParameters = this.activeGenericParameters;
     this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
@@ -635,7 +622,7 @@ class Parser extends DecoratorParser {
             span,
           });
         } else {
-          const { type, variadic } = this.parseParameterType(parsedGenerics.packs ?? []);
+          const { type, variadic } = this.parseParameterType();
           parameters.push({
             name: parameterName.text,
             type,
@@ -982,12 +969,21 @@ class Parser extends DecoratorParser {
       const start = this.peek(-1).span.start;
       const elements: TypeRef[] = [];
       let tuple = false;
-      // A tuple element may expand a type pack, as in `(Ts...)`
-      // (12-variadic-generics.md#pattern-expansion).
+      // The last element of a tuple type may be a rest element `List[T]...`;
+      // alone it keeps the trailing comma (02-grammar.md#tuple-rest-types).
       const element = (): TypeRef => {
         const type = this.parseType();
-        if (!this.matchText("...")) return type;
-        tuple = true;
+        if (!this.atText("...")) return type;
+        const ellipsis = this.advance();
+        const last =
+          (this.atText(",") && this.peek(1).text === ")") ||
+          (this.atText(")") && elements.length > 0);
+        if (!last)
+          this.fail(
+            "syntax-error",
+            "a rest element must be the last element of a tuple type; alone it keeps the trailing comma, as in '(List[T]...,)'",
+            ellipsis.span,
+          );
         return { ...type, name: `${type.name}...` };
       };
       if (!this.atText(")")) {

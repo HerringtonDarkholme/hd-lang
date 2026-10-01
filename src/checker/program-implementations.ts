@@ -1,14 +1,15 @@
 import { extendsInspectable, inspectKey, usesStandardInspect } from "./inspectable.ts";
 import { INSPECTABLE, INSPECTABLE_MEMBERS } from "./standard-traits.ts";
 import type { Diagnostic } from "../diagnostics.ts";
-import type {
-  Expression,
-  FunctionDecl,
-  GenericBound,
-  ImplDecl,
-  MethodDecl,
-  Parameter,
-  TypeRef,
+import {
+  listVararg,
+  type Expression,
+  type FunctionDecl,
+  type GenericBound,
+  type ImplDecl,
+  type MethodDecl,
+  type Parameter,
+  type TypeRef,
 } from "../ast.ts";
 import { traitDefaultDeclarations } from "./member-lookup.ts";
 import type { HirSupertrait, HirTrait, ValueType } from "../hir.ts";
@@ -368,7 +369,7 @@ function prepareInherentImplementation(
           new Set(),
           hashableParameters(implementation, method),
         ) ?? "void";
-      return parameter.variadic ? nominalGenericType("List", [resolved]) : resolved;
+      return resolved;
     });
     const result =
       typeName(
@@ -396,7 +397,7 @@ function prepareInherentImplementation(
         !primitiveMutSelf(method.parameters[0], implementation.targetName),
       parameters,
       parameterNames: sourceParameters.map((parameter) => parameter.name),
-      variadic: sourceParameters.at(-1)?.variadic === true,
+      variadic: listVararg(sourceParameters.at(-1)),
       suspending: method.suspending,
       result,
       requirements: method.requirements,
@@ -420,7 +421,6 @@ function prepareInherentImplementation(
       ...(method.requirementsOmitted && !method.public ? { requirementsOmitted: true } : {}),
       ...(implementation.standard ? { standard: true } : {}),
       ...selfDefaults(method, implementation.targetName),
-      ...(method.packParameters ? { packParameters: method.packParameters } : {}),
       body: method.body ?? [],
       span: method.span,
     });
@@ -797,7 +797,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
               new Set(),
               hashableParameters(implementation, method),
             ) ?? "void";
-          return parameter.variadic ? nominalGenericType("List", [type]) : type;
+          return type;
         });
         const expectedParameters = [
           ...(required.associated
@@ -827,7 +827,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
           !sameMethodDefaults(defaultMethod, method, renaming, traitGenerics, methodGenerics) ||
           parameterTypes.length !== expectedParameters.length ||
           parameterTypes.some((parameter, index) => parameter !== expectedParameters[index]) ||
-          (method.parameters.at(-1)?.variadic === true) !== required.variadic ||
+          listVararg(method.parameters.at(-1)) !== required.variadic ||
           result !== substituteGenericType(renamedResult, new Map([["Self", targetType]])) ||
           method.suspending !== required.suspending ||
           !sameRequirements(method.requirements, required.requirements)
@@ -852,7 +852,6 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         requirements: method.requirements,
         ...(implementation.standard ? { standard: true } : {}),
         ...selfDefaults(method, implementation.targetName),
-        ...(method.packParameters ? { packParameters: method.packParameters } : {}),
         body: method.body ?? [],
         span: method.span,
       };

@@ -11,6 +11,7 @@ import {
   optionalInner,
   readonlyType,
   tupleParts,
+  tupleRest,
   tupleType,
 } from "../types.ts";
 import { leastCommonType, rowUnionType } from "./assignability.ts";
@@ -118,6 +119,65 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         }
       : part;
     return this.requireCoercion(this.checkExpression(source, type), type, span);
+  }
+
+  /**
+   * A tuple expression that fills a rest element: against an expected rest
+   * tuple it collects its trailing elements into the rest's list, and a final
+   * spread `xs...` supplies that list (05-expressions.md#tuple-rest-elements).
+   */
+  protected checkRestTuple(
+    expression: Extract<Expression, { kind: "tuple" }>,
+    expectedTuple: { readonly fixed: readonly ValueType[]; readonly rest?: ValueType } | undefined,
+  ): HirExpression {
+    const rest = expectedTuple?.rest;
+    const written = expression.spread ? expression.elements.slice(0, -1) : expression.elements;
+    const fixedCount = rest !== undefined ? expectedTuple!.fixed.length : written.length;
+    if (
+      rest !== undefined &&
+      (expression.spread ? written.length !== fixedCount : written.length < fixedCount)
+    )
+      this.fail(
+        "type-mismatch",
+        `expected a tuple of type '${tupleType([...expectedTuple!.fixed, `${rest}...`])}' with ${fixedCount} fixed element${fixedCount === 1 ? "" : "s"}, found ${written.length}`,
+        expression.span,
+      );
+    const fixed = written.slice(0, fixedCount).map((element, index) => {
+      const expectedElement = rest !== undefined ? expectedTuple!.fixed[index] : undefined;
+      const checked = this.checkExpression(element, expectedElement);
+      return expectedElement
+        ? this.requireCoercion(checked, expectedElement, element.span)
+        : checked;
+    });
+    let list: HirExpression;
+    if (expression.spread) {
+      const operand = expression.elements.at(-1)!;
+      const checked = this.checkExpression(operand, rest);
+      if (nominalGenericParts(readonlyType(checked.type))?.name !== "List")
+        this.fail(
+          "type-mismatch",
+          `a tuple spread supplies the rest element and needs a List[T], found '${checked.type}'`,
+          operand.span,
+        );
+      list = rest !== undefined ? this.requireCoercion(checked, rest, operand.span) : checked;
+    } else {
+      const trailing = written.slice(fixedCount);
+      const span = trailing.length > 0 ? trailing[0]!.span : expression.span;
+      list = this.requireCoercion(
+        this.checkExpression({ kind: "list", elements: trailing, span }, rest),
+        rest!,
+        span,
+      );
+    }
+    const listType = rest ?? readonlyType(list.type);
+    const elementTypes = [...fixed.map((element) => element.type), listType];
+    return {
+      kind: "tuple",
+      elements: [...fixed, list],
+      elementTypes,
+      type: tupleType([...elementTypes.slice(0, -1), `${listType}...`]),
+      span: expression.span,
+    };
   }
 
   /**
@@ -267,14 +327,9 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         return { kind: "list", elements, elementType, type, span: expression.span };
       }
       case "tuple": {
-        // `(values...)` expands a value pack, which only a pack function,
-        // outside the prototype's slice, has (12-variadic-generics.md#tuple-expansion).
-        if (expression.expansions?.some(Boolean))
-          this.fail(
-            "unsupported-generic-parameter",
-            "a tuple expansion needs a value pack, and packs are outside the current erased-generic slice",
-            expression.span,
-          );
+        const expectedTuple = expected ? tupleRest(readonlyType(expected)) : undefined;
+        if (expression.spread || expectedTuple?.rest !== undefined)
+          return this.checkRestTuple(expression, expectedTuple);
         const contextual = expected ? tupleParts(expected) : undefined;
         if (contextual && contextual.length !== expression.elements.length) {
           this.fail(

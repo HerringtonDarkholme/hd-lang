@@ -69,8 +69,6 @@ export interface FunctionDecl {
   /** Type-argument defaults (04-type-system.md#type-argument-defaults). */
   readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   readonly genericBounds: readonly GenericBound[];
-  /** Type packs among the generic parameters (12-variadic-generics.md#pack-parameters). */
-  readonly packParameters?: readonly string[];
   readonly parameters: readonly Parameter[];
   readonly result: TypeRef;
   readonly requirements: readonly string[];
@@ -124,8 +122,6 @@ export interface MethodDecl {
   readonly genericBounds: readonly GenericBound[];
   /** Generic parameters written `reified`. */
   readonly reifiedParameters?: readonly string[];
-  /** Type packs among the generic parameters (12-variadic-generics.md#pack-parameters). */
-  readonly packParameters?: readonly string[];
   readonly parameters: readonly Parameter[];
   readonly result: TypeRef;
   readonly requirements: readonly string[];
@@ -552,8 +548,8 @@ export type Expression =
   | {
       readonly kind: "tuple";
       readonly elements: readonly Expression[];
-      /** Elements written `values...`, a value-pack expansion (12-variadic-generics.md#tuple-expansion). */
-      readonly expansions?: readonly boolean[];
+      /** The last element is a spread `xs...` that supplies a rest element (05-expressions.md#tuple-rest-elements). */
+      readonly spread?: boolean;
       readonly span: SourceSpan;
     }
   | {
@@ -713,3 +709,17 @@ export type Expression =
       readonly arms: readonly MatchArm[];
       readonly span: SourceSpan;
     };
+
+/**
+ * A final `List[T]` vararg, which is its function's rest element
+ * (07-functions.md#r-fn.type.vararg-rest). A tuple-typed or `Tuple`-bounded
+ * vararg is one ordinary input (07-functions.md#r-fn.type.tuple-vararg-input).
+ */
+export function listVararg(parameter: Parameter | undefined): boolean {
+  return parameter?.variadic === true && /^List\[.*\]$/.test(parameter.type.name);
+}
+
+/** A final tuple-typed or `Tuple`-bounded vararg (07-functions.md#varargs). */
+export function tupleVararg(parameter: Parameter | undefined): boolean {
+  return parameter?.variadic === true && !listVararg(parameter);
+}

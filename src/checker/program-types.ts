@@ -1,8 +1,8 @@
-import type { TraitDecl } from "../ast.ts";
+import { listVararg, type TraitDecl } from "../ast.ts";
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import { INSPECTABLE_MEMBERS } from "./standard-traits.ts";
 import type { HirAssociatedBinding, HirData, HirTrait } from "../hir.ts";
-import { mutableInner, nominalGenericParts, nominalGenericType } from "../types.ts";
+import { mutableInner, nominalGenericParts } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
   collectRowParameterReferences,
@@ -511,7 +511,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
           diagnostics,
           memberGenerics,
         );
-        return type && parameter.variadic ? nominalGenericType("List", [type]) : type;
+        return type;
       });
       const result =
         typeName(method.result, dataTypes, enumTypes, traitTypes, diagnostics, memberGenerics) ??
@@ -565,12 +565,11 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         referenceParameters,
         valueParameters,
         ...(method.reifiedParameters ? { reifiedParameters: method.reifiedParameters } : {}),
-        ...(method.packParameters ? { packParameters: method.packParameters } : {}),
         suspending: method.suspending,
         receiverMutable: method.parameters[0]?.type.name === "mut:Self",
         parameters: parameters.map((parameter) => parameter ?? "void"),
         parameterNames: sourceParameters.map((parameter) => parameter.name),
-        variadic: sourceParameters.at(-1)?.variadic === true,
+        variadic: listVararg(sourceParameters.at(-1)),
         result,
         requirements: method.requirements,
         span: method.span,

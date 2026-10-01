@@ -323,7 +323,7 @@ test("parser retains named call labels and enforces argument ordering", () => {
 test("parser retains vararg and positional spread markers", () => {
   const result = parse(conformanceBody("parse/valid/vararg-and-spread"));
   assert.deepEqual(result.diagnostics, []);
-  assert.equal(result.program?.functions[0]?.parameters[0]?.type.name, "i32");
+  assert.equal(result.program?.functions[0]?.parameters[0]?.type.name, "List[i32]");
   assert.equal(result.program?.functions[0]?.parameters[0]?.variadic, true);
   const statement = result.program?.statements[0];
   if (statement?.kind === "binding" && statement.value.kind === "call") {

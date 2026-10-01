@@ -58,6 +58,7 @@ import {
   mapKeyKind,
   mapKeyProblem,
   numericWidening,
+  restElementProblem,
 } from "./shared.ts";
 import { generalizedShape } from "./shapes.ts";
 import { findSupertraitPath, resolveTraitPath } from "./trait-paths.ts";
@@ -100,6 +101,7 @@ export interface Signature {
   readonly parameterNames: readonly string[];
   readonly defaultFunctionNames: readonly (string | undefined)[];
   readonly variadic: boolean;
+  readonly tupleVararg?: boolean; // a final tuple or `Tuple`-bounded vararg (07 Varargs)
   readonly result: ValueType;
   readonly requirements: readonly string[];
   /** Declared in a `tests:` block (spec/03-names-and-scopes.md#tests-blocks). */
@@ -1316,6 +1318,7 @@ export abstract class CheckerContext {
     );
     if (typeof kinded !== "string") this.fail("generic-kind-mismatch", kinded.mismatch, type.span);
     const problem =
+      restElementProblem(kinded) ??
       writtenBindingProblem(kinded, this.traitTypes) ??
       ambiguousProjection(kinded, this.signature.genericBounds, this.traitTypes);
     if (problem) this.fail(problem.code, problem.message, type.span);
@@ -1379,9 +1382,8 @@ export abstract class CheckerContext {
     return { kind: "local", local, type: local.type, span };
   }
 
-  // A read of a captured binding inside a closure. A closure uses each capture
-  // with the access the binding has in its enclosing scope
-  // (07-functions.md#r-fn.capture.access).
+  // A read of a captured binding inside a closure, with the access the binding
+  // has in its enclosing scope (07-functions.md#r-fn.capture.access).
   protected captureReference(name: string, source: HirLocal, span: SourceSpan): HirExpression {
     const fieldIndex = this.captureField(name, source);
     return {

@@ -10,6 +10,7 @@ import {
   optionalInner,
   optionalType,
   readonlyType,
+  tupleLayout,
   tupleParts,
 } from "../types.ts";
 import {
@@ -655,7 +656,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         }
         const receiver = this.checkExpression(expression.receiver);
         const receiverReadonly = readonlyType(receiver.type);
-        const tuple = tupleParts(receiverReadonly);
+        const tuple = tupleLayout(receiverReadonly);
         if (tuple) {
           const position = underscorePosition(expression.name);
           if (position === undefined) {

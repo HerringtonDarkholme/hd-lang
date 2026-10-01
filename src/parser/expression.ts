@@ -618,7 +618,6 @@ export abstract class ExpressionParser extends ParserBase {
       return { kind: "name", name: "_", span: token.span };
     }
     if (token.kind === "identifier" || token.text === "self") {
-      if (this.atPackOperation()) this.checkPackOperationArguments();
       this.advance();
       const name: NameExpression = { kind: "name", name: token.text, span: token.span };
       if (this.atText("{") && this.onPreviousLine()) return this.parseDataExpression(name);
@@ -636,25 +635,40 @@ export abstract class ExpressionParser extends ParserBase {
       const groupedBinding = this.parseGroupedBindingExpression(token);
       if (groupedBinding) return groupedBinding;
       const first = this.parseExpression();
-      // `(values...)` expands a value pack into tuple elements
-      // (12-variadic-generics.md#tuple-expansion).
-      const expansions = [this.matchText("...")];
-      if (!expansions[0] && !this.matchText(",")) {
+      // The last element of a tuple expression may be a suffix spread
+      // `xs...`; alone it keeps the trailing comma (02-grammar.md#r-grammar.primary.tuple-spread).
+      const spreadAt = (): boolean => {
+        if (!this.atText("...")) return false;
+        const ellipsis = this.advance();
+        const last =
+          (this.atText(",") && this.peek(1).text === ")") || (this.atText(")") && !alone);
+        if (!last)
+          this.fail(
+            "syntax-error",
+            "a spread must be the last element of a tuple expression; alone it keeps the trailing comma, as in '(xs...,)'",
+            ellipsis.span,
+          );
+        return true;
+      };
+      let alone = true;
+      let spread = spreadAt();
+      if (!spread && !this.matchText(",")) {
         this.expectText(")");
         return first.kind === "member" ? { ...first, parenthesized: true } : first;
       }
-      if (expansions[0]) this.matchText(",");
+      if (spread) this.matchText(",");
+      alone = false;
       const elements = [first];
-      while (!this.atText(")")) {
+      while (!spread && !this.atText(")")) {
         elements.push(this.parseExpression());
-        expansions.push(this.matchText("..."));
+        spread = spreadAt();
         if (!this.matchText(",")) break;
       }
       const close = this.expectText(")");
       return {
         kind: "tuple",
         elements,
-        ...(expansions.some(Boolean) ? { expansions } : {}),
+        ...(spread ? { spread: true } : {}),
         span: { start: token.span.start, end: close.span.end },
       };
     }
@@ -670,42 +684,6 @@ export abstract class ExpressionParser extends ParserBase {
         token.span,
       );
     this.fail("expected-expression", `expected an expression, found '${token.text}'`, token.span);
-  }
-
-  /** `pack.map(` and `pack.map_list(` always form the pack operation (01-lexical-structure.md). */
-  private atPackOperation(): boolean {
-    const token = this.current();
-    return (
-      token.text === "pack" &&
-      !token.raw &&
-      this.peek(1).text === "." &&
-      ["map", "map_list"].includes(this.peek(2).text) &&
-      !this.peek(2).raw &&
-      this.peek(3).text === "("
-    );
-  }
-
-  /** The pack operation takes an expression, then a mapper name (02-grammar.md#primary-expressions). */
-  private checkPackOperationArguments(): void {
-    let distance = 4;
-    let depth = 0;
-    while (this.peek(distance).kind !== "eof") {
-      const text = this.peek(distance).text;
-      if (["(", "[", "{"].includes(text)) depth += 1;
-      else if ([")", "]", "}"].includes(text)) {
-        if (depth === 0) break;
-        depth -= 1;
-      } else if (text === "," && depth === 0) {
-        if (this.peek(distance + 1).kind === "identifier") return;
-        break;
-      }
-      distance += 1;
-    }
-    this.fail(
-      "syntax-error",
-      "pack.map( takes a tuple expression and a mapper name",
-      this.peek(distance).span,
-    );
   }
 
   /**

@@ -231,11 +231,17 @@ listed yet.
 - requirement-free function-parameter defaults evaluated per call after all explicit
   arguments, including earlier-parameter references, erased generics, and
   suspending function construction;
-- homogeneous `T...` parameters lowered as `List[T]`, with positional values,
-  positional list spread, and named-list supply across ordinary, generic,
-  suspending, static-trait, and dynamic-trait calls;
-- first-class homogeneous-vararg function types and indirect calls using the
-  same `List[T]` ABI;
+- `List[T]` varargs (`values...: List[T]`), whose type is the collected
+  list, with positional values, positional list spread, and named-list
+  supply across ordinary, generic, suspending, static-trait, and
+  dynamic-trait calls;
+- function types whose inputs end in the rest element `List[T]...`, as
+  `fn(i32, List[i32]...) -> i32`, so a function value keeps its vararg, and
+  indirect calls using the same `List[T]` ABI;
+- tuple types with a rest element `(A, List[T]...)`, whose value holds the
+  fixed elements and then one `List[T]`; tuple expressions collect trailing
+  elements into an expected rest element, or end in a list spread
+  `(a, xs...)`;
 - a recursive-descent declaration/statement parser and Pratt expression parser;
 - named functions, forward calls, typed parameters, typed results, and locals;
 - source-ordered module bindings backed by typed Wasm globals, including
@@ -259,7 +265,7 @@ listed yet.
   always indexes, and `Box[i32] { ... }` or `Add[i32]::add` is `syntax-error`;
 - type-argument defaults (`[T < Bound = Default]`) on functions, methods,
   data types, enums, traits, and `type` declarations, never on an
-  implementation header or a type pack (`syntax-error`). `type-defaults.ts`
+  implementation header (`syntax-error`). `type-defaults.ts`
   fills the slots a written type omits, with the earlier arguments and
   `Self` substituted (`Self` is the bounded parameter, the implementation's
   target, or the trait's own `Self`), before aliases expand; a written type
@@ -941,15 +947,8 @@ Task combinator intrinsics, and strings and structural values in the
 host-provider ABI, remain in later MVP slices. The compiler rejects syntax it
 recognizes from those slices rather than assigning placeholder semantics;
 unresolved `all!` and `race!` calls report `unsupported-task-combinator`.
-Variadic generics parse: a function's or method's type packs (`Ts...`),
-pack expansions in tuple types and tuple expressions (`(Ts...)`,
-`(values...)`), and value-pack parameters. The checker reports
-`multiple-positional-value-packs` and `nonfinal-positional-value-pack`, and
-a method with a type pack makes its trait not dynamically safe; a pack
-function is otherwise `unsupported-generic-parameter`, because erased
-generics cannot specialize one, and so is a pack in an implementation
-header. `pack.map`, `pack.map_list`, and GADT variant results are not
-implemented.
+There are no type packs: `...` in a type is only a rest element, and
+`[Ts...]` is a `syntax-error`. GADT variant results are not implemented.
 Interpolation and `println` report `unsatisfied-trait-bound` when the displayed type
 does not implement the canonical prelude trait.
 
