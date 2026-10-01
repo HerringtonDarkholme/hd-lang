@@ -2866,3 +2866,110 @@ existing source. Each entry names the decision that made the change.
   retired; [`types.path.field.substituted`](04-type-system.md#r-types.path.field.substituted)
   covers it. `names.part.depth.levels` is retired as a restatement of
   `data.embed.depth`.
+- Each embedding fact is stated once (owner decision Q3, O1c and the rest
+  of O1, batch 32, 2026-09-30): language tier. No program changes. Chapter
+  08 keeps a linking summary in
+  [Member Promotion](08-data-and-enums.md#member-promotion). Merged into
+  [`names.promoted.path`](03-names-and-scopes.md#r-names.promoted.path):
+  `names.promoted.access`, `.mut`, `names.no-override`, `.no-override.self`,
+  `data.embed.no-override`, `.self-call`, `data.part.access.promoted`, and
+  `types.path.promoted`. Merged into
+  [`trait.impl.fill.never`](09-traits.md#r-trait.impl.fill.never):
+  `trait.embed.explicit`, `.no-fill`, `trait.marker.no-promotion`, and
+  `grammar.impl.promoted`. Merged into
+  [`trait.embed.no-conformance`](09-traits.md#r-trait.embed.no-conformance):
+  `data.embed.no-conformance`, `names.no-conformance`, and
+  `trait.embed.no-bound`. Merged into
+  [`names.promote.member`](03-names-and-scopes.md#r-names.promote.member):
+  `names.promote.private`, `.no-trait`, `data.vis.promotion`,
+  `data.promote.depth`, `.private`, `.no-trait-methods`,
+  `trait.embed.no-promotion`, and `expr.member.embedded-trait`. Merged into
+  [`names.method-lookup.ambiguous`](03-names-and-scopes.md#r-names.method-lookup.ambiguous):
+  `names.method-lookup.no-silent`, `trait.embed.ambiguous`,
+  `trait.resolve.ambiguous.promoted`, and `data.promote.receiver-trait`;
+  the Note under `trait.by.ordinary` is dropped.
+- Other merges of Q3: `data.embed.name`, `.generic-name`,
+  `grammar.data.embedded.generic`, and `.embedded.name` into
+  [`data.embed.member`](08-data-and-enums.md#r-data.embed.member);
+  `data.embed.named-type` and `.non-data` into
+  [`data.embed.data-only`](08-data-and-enums.md#r-data.embed.data-only);
+  `grammar.data.embedded.unique` into
+  [`data.embed.unique`](08-data-and-enums.md#r-data.embed.unique);
+  `data.unsupported.mut-embedded` into
+  [`data.field.embedded-no-mut`](08-data-and-enums.md#r-data.field.embedded-no-mut);
+  `data.part.marker-fresh`, `.missing-marker`, `.plain-assignment`,
+  `.ordinary-label`, `.ordinary-store`, `grammar.stmt.copy-assign.embedded`,
+  and `grammar.primary.field-copy.required` into
+  [`data.part.marker-required`](08-data-and-enums.md#r-data.part.marker-required);
+  `data.part.copy-time.field` and `.spread` into
+  [`data.part.copy-time`](08-data-and-enums.md#r-data.part.copy-time);
+  `data.part.access.step`, `data.part.alias`, and
+  `annot.member.embedded.part` into
+  [`data.part.access`](08-data-and-enums.md#r-data.part.access);
+  `data.part.owned` and `.kept-references` into
+  [`data.part.aliases-untracked`](08-data-and-enums.md#r-data.part.aliases-untracked);
+  `data.part.layout` and `.elided-copy` into
+  [`data.part.unobservable`](08-data-and-enums.md#r-data.part.unobservable);
+  `data.part.prefix` and `.suffix` into
+  [`grammar.primary.prefix-copies`](02-grammar.md#r-grammar.primary.prefix-copies);
+  `data.vis.private-embed` into
+  [`module.vis.signature.coverage`](10-modules.md#r-module.vis.signature.coverage);
+  `module.vis.embedded` into
+  [`data.vis.embedded-public`](08-data-and-enums.md#r-data.vis.embedded-public);
+  `data.derive.embedded` into
+  [`annot.member.embedded`](14-annotations.md#r-annot.member.embedded);
+  `data.embed.metadata` into
+  [`annot.target.kind.field`](14-annotations.md#r-annot.target.kind.field);
+  `types.mut.embedded` into
+  [`types.path.field.embedded`](04-type-system.md#r-types.path.field.embedded);
+  `data.promote.same-depth` into
+  [`names.conflict.definition`](03-names-and-scopes.md#r-names.conflict.definition);
+  `data.promote.at-declaration` into
+  [`names.conflict.error`](03-names-and-scopes.md#r-names.conflict.error);
+  `data.promote.shallowest` into
+  [`names.hide.depth`](03-names-and-scopes.md#r-names.hide.depth);
+  `names.part.depth.own` into
+  [`names.part.depth`](03-names-and-scopes.md#r-names.part.depth);
+  `names.promote.private.path` into
+  [`names.promoted.explicit`](03-names-and-scopes.md#r-names.promoted.explicit);
+  `data.part.access.readonly-promoted` into
+  [`names.promoted.readonly`](03-names-and-scopes.md#r-names.promoted.readonly);
+  and `data.promote.uniform` and `names.take-part.visibility` into
+  [`names.take-part.uniform`](03-names-and-scopes.md#r-names.take-part.uniform).
+- Retired by Q3 as an example or Note: `names.method-example.promoted`,
+  `.part`, `.explicit`, `.outer-trait`, and `.no-base` (one example in
+  [Method Lookup Example](03-names-and-scopes.md#method-lookup-example));
+  `names.change.shallower` and `.no-other`; `trait.embed.forward`,
+  `.bodyless`, `.call-forms`, and `.no-promotion.example`;
+  `data.part.copy-sites` and `.no-implicit-copy`; and
+  `annot.member.no-flatten`. Retired as consequences or restatements:
+  `data.embed.not-subtype`, `trait.embed.not-subtype`, `.not-assignable`
+  (nominal typing); `data.embed.metadata.target` and `.not-promoted`;
+  `data.part.alias.let-mut`, `.readonly`, `.binding`, and `.plain-let`
+  (the binding rules); `data.part.copy-time.effects`;
+  `names.visible.promoted`, `names.take-part.private-part`, `.caller`,
+  `.private-member`, `.trait-caller`, `names.field-lookup.part-private`,
+  and `names.method-lookup.part-private`; `names.hide.own-names`;
+  `names.conflict.namespace`, `.diamond`, and `.one-check`;
+  `names.change.conflict` and `.candidate`; `names.promoted.trait-qualified`;
+  `trait.inherent.vs-promoted`; `trait.embed.forward-mut` and `.no-hiding`;
+  and `types.path.field.embedded.not-readonly-edge`.
+- Error detail of Q3 becomes diagnostics Notes for the error revamp:
+  `data.part.suggestion`, `names.conflict.promoted-site`, `.same-field`,
+  `.paths-message`, `names.method-lookup.ambiguous.hint`,
+  `.hint.part-trait`, and `trait.embed.unknown`. `data.embed.unique` and
+  `trait.by.invalid` stay numbered, because no other rule names their
+  codes.
+- A private own member hides a promoted one (owner decision Q4, O2b, batch
+  32, 2026-09-30): language tier. The shallowest member wins, private or
+  not ([`names.hide.depth`](03-names-and-scopes.md#r-names.hide.depth)), and
+  an own inherent method hides the promoted candidate too
+  ([`names.method-lookup.promoted-candidate`](03-names-and-scopes.md#r-names.method-lookup.promoted-candidate)).
+  A private own field or inherent method with a promoted member's name,
+  previously `ambiguous-promoted-member` at its declaration, is now valid.
+  In another module a use of it is `private-member`, as for any private
+  own member, and the promoted member is reached by its path, as in
+  `draft.CreatedBySystem.id`. Retired with no replacement:
+  `names.conflict.private-own`, `.private-site`, `.private-message`,
+  `data.promote.private-own`, `names.field-lookup.private.alone`, and
+  `names.method-lookup.inherent.skip`.

@@ -363,8 +363,7 @@ See also: [Physical And Logical Lines](01-lexical-structure.md#physical-and-logi
 2. r[grammar.stmt.break] In particular, `break` is valid only inside a loop, and `break` with a value is valid only in a loop with an `else` suite.
 3. r[grammar.stmt.assign-place] The left side of an assignment must resolve to a reassignable local, a mutable field, a mutable indexed place, or a [call place](05-expressions.md#callable-values); other postfix expressions are rejected semantically.
 4. r[grammar.stmt.copy-assign] The copy assignment `place ...= value` is valid only when the place is an embedded field.
-5. r[grammar.stmt.copy-assign.embedded] An embedded field is assigned only with `...=`.
-6. r[grammar.stmt.compound-assign] A compound assignment `place op= value` takes the same left side as an assignment, and its right side follows the same forms as `=`. [Compound Assignment](05-expressions.md#compound-assignment) defines it.
+5. r[grammar.stmt.compound-assign] A compound assignment `place op= value` takes the same left side as an assignment, and its right side follows the same forms as `=`. [Compound Assignment](05-expressions.md#compound-assignment) defines it.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
@@ -449,10 +448,7 @@ embedded_field = named_type ;
 2. r[grammar.data.mut-type] A named field may instead declare a mutable type, as in `friend: mut User`.
 3. r[grammar.data.embedded] An embedded field must denote a data type and must not include `mut`.
 4. r[grammar.data.embedded.no-pub] An embedded field takes no `pub` marker, so `pub Base` in a data body is an error. Error: `syntax-error`.
-5. r[grammar.data.embedded.generic] An embedded field may instantiate a generic data type.
-6. r[grammar.data.embedded.name] The type's final name, without its type arguments, is the embedded field name.
-7. r[grammar.data.embedded.unique] Duplicate embedded names are rejected.
-8. r[grammar.data.default] Data-field default expressions have the requirement-free constraint specified in [Data Types and Enums](08-data-and-enums.md#data-declarations).
+5. r[grammar.data.default] Data-field default expressions have the requirement-free constraint specified in [Data Types and Enums](08-data-and-enums.md#data-declarations).
 
 ```text
 pub data Base:
@@ -543,13 +539,12 @@ associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 3. r[grammar.impl.delegation-field] Except when `E` is `Structure`, `impl Trait for T by E` delegates the trait to the embedded field `E` of `T` and may omit its body.
 4. r[grammar.trait.marker] A trait declaration without a body is a marker trait.
 5. r[grammar.impl.bodyless] A trait implementation may omit its body when the trait is a marker or when every trait method has a default.
-6. r[grammar.impl.promoted] A method promoted from an embedded field never fills a trait method.
-7. r[grammar.impl.pub-method] A `pub` method is permitted only in an inherent implementation; trait method visibility follows the trait. A `pub` trait method or trait implementation method is an error. Error: `trait-method-visibility`.
-8. r[grammar.trait.method-end] A bodyless trait method ends at `NEWLINE`; a default method has `:` followed by a suite.
-9. r[grammar.trait.supertrait] `trait Child < Parent:` declares `Parent` as a supertrait and opens the body with `:`.
-10. r[grammar.decl.bound-vs-colon] In declarations, `<` introduces a bound (a supertrait or a generic parameter bound), while `:` means "has type" or opens a suite.
-11. r[grammar.trait.method-kind] A function member whose first parameter is `self` or `mut self` is a method; a receiverless member is an associated function.
-12. r[grammar.trait.associated-type] Associated type declarations omit `=` in a trait requirement and provide `= type` in an implementation.
+6. r[grammar.impl.pub-method] A `pub` method is permitted only in an inherent implementation; trait method visibility follows the trait. A `pub` trait method or trait implementation method is an error. Error: `trait-method-visibility`.
+7. r[grammar.trait.method-end] A bodyless trait method ends at `NEWLINE`; a default method has `:` followed by a suite.
+8. r[grammar.trait.supertrait] `trait Child < Parent:` declares `Parent` as a supertrait and opens the body with `:`.
+9. r[grammar.decl.bound-vs-colon] In declarations, `<` introduces a bound (a supertrait or a generic parameter bound), while `:` means "has type" or opens a suite.
+10. r[grammar.trait.method-kind] A function member whose first parameter is `self` or `mut self` is a method; a receiverless member is an associated function.
+11. r[grammar.trait.associated-type] Associated type declarations omit `=` in a trait requirement and provide `= type` in an implementation.
 13. r[grammar.impl.inline-bounds] Generic implementations state every bound inline in their generic parameter list; the language has no separate bound clause.
 14. r[grammar.impl.by-structure] `impl Trait for T by Structure` declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
 15. r[grammar.impl.traitless-by] `impl T by Structure`, without a trait, declares a trait-less derivation block, as [Trait-Less Derivation Blocks](14-annotations.md#trait-less-derivation-blocks) defines.
@@ -1226,8 +1221,7 @@ data_field_item = identifier, ":", [ "..." ], expression ;
 #### Copies In Data Expressions
 
 1. r[grammar.primary.field-copy] A `...` after a field label copies the value into an embedded field.
-2. r[grammar.primary.field-copy.required] A field-label `...` is required for an embedded field and invalid for any other field, which the checker diagnoses.
-3. r[grammar.primary.prefix-copy-meaning] A prefix `...` in a data expression, whether it begins a copy-update spread or follows a field label, always means "copy the named members of this value".
+2. r[grammar.primary.prefix-copy-meaning] A prefix `...` in a data expression, whether it begins a copy-update spread or follows a field label, always means "copy the named members of this value".
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 

@@ -102,10 +102,12 @@ specification	block	classification	fixture
 03-names-and-scopes.md	28	mixed	typing/invalid/comprehension-binding-does-not-leak.hd
 03-names-and-scopes.md	29	mixed	typing/invalid/embedded-field-not-called.hd
 03-names-and-scopes.md	30	mixed	typing/invalid/same-module-private-field-not-promoted.hd
-03-names-and-scopes.md	31	mixed	typing/invalid/same-depth-promotion-conflict.hd
-03-names-and-scopes.md	32	mixed	typing/invalid/trait-method-beside-promoted-method.hd
-03-names-and-scopes.md	33	mixed	typing/invalid/promoted-mut-self-method.hd
-03-names-and-scopes.md	34	accept	typing/valid/enums.hd
+03-names-and-scopes.md	31	accept	typing/valid/private-own-field-hides-promoted.hd|runtime/valid/private-own-member-hides-promoted.hd
+03-names-and-scopes.md	32	mixed	typing/invalid/same-depth-promotion-conflict.hd
+03-names-and-scopes.md	33	mixed	typing/invalid/trait-method-beside-promoted-method.hd
+03-names-and-scopes.md	34	mixed	typing/invalid/part-trait-method-beside-method-promoted-into-part.hd|typing/valid/part-trait-method-ignored-by-lookup.hd
+03-names-and-scopes.md	35	mixed	typing/invalid/promoted-mut-self-method.hd
+03-names-and-scopes.md	36	accept	typing/valid/enums.hd
 04-type-system.md	1	accept	runtime/valid/never-break-continue.hd
 04-type-system.md	2	mixed	typing/invalid/mut-on-primitive-parameter.hd|typing/invalid/mut-on-primitive-annotation.hd
 04-type-system.md	3	accept	typing/valid/mut-self-primitive-impl.hd
@@ -321,7 +323,7 @@ specification	block	classification	fixture
 08-data-and-enums.md	19	mixed	typing/invalid/promoted-mut-method-on-readonly-receiver.hd
 08-data-and-enums.md	20	mixed	typing/invalid/readonly-embedded-source-with-mutable-edge.hd
 08-data-and-enums.md	21	mixed	typing/invalid/covariant-embedded-field.hd
-08-data-and-enums.md	22	mixed	typing/invalid/same-depth-promotion-conflict.hd|typing/invalid/private-own-field-beside-promoted.hd
+08-data-and-enums.md	22	mixed	typing/invalid/same-depth-promotion-conflict.hd|typing/valid/private-own-field-hides-promoted.hd
 08-data-and-enums.md	23	accept	typing/valid/contextual-variants.hd
 08-data-and-enums.md	24	accept	typing/valid/enums.hd
 08-data-and-enums.md	25	accept	typing/valid/enums.hd

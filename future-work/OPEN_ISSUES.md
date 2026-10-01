@@ -287,16 +287,16 @@ reading in the middle column; each point asks the owner to confirm it.
 
 **Batch 32, simplify embedding (owner decisions, 2026-09-30).** Answers
 the questions of [Simplify Embedding](SIMPLIFY_EMBEDDING.md#questions-for-the-owner).
-It is applied in two passes: 32a (Q1, Q2, Q5, Q6) and 32b (Q3, Q4). Pass
-32a is applied; the [Revision Notes](../spec/README.md#revision-notes) list
+It is applied in two passes: 32a (Q1, Q2, Q5, Q6) and 32b (Q3, Q4). Both
+are applied; the [Revision Notes](../spec/README.md#revision-notes) list
 each.
 
 | # | Decision | Where |
 | --- | --- | --- |
 | Q1 | As recommended (O1b): each delegated method is the forwarding method `Trait::m(self.E, ...)`, checked as if written. Applied in 32a. | [`trait.by.generated`](../spec/09-traits.md#r-trait.by.generated) |
 | Q2 | As recommended (O1a): `E: ...e` and `x.E ...= e` store the copy-update `E { ...e }`; the mutable-edge rules and the chapter 04 and 05 copy rules merge into it. Applied in 32a. | [`data.part.construct`](../spec/08-data-and-enums.md#r-data.part.construct), [Mutable Edges](../spec/08-data-and-enums.md#mutable-edges) |
-| Q3 | As recommended (O1c and the rest of O1): each fact is stated once; chapter 08 keeps a short linking summary. Pass 32b. | pending |
-| Q4 | As recommended (O2b): a private own member hides a promoted one; another module gets `private-member`. Pass 32b. | pending |
+| Q3 | As recommended (O1c and the rest of O1): each fact is stated once; chapter 08 keeps a short linking summary. Applied in 32b: 219 rules became 57. | [Member Promotion](../spec/08-data-and-enums.md#member-promotion), [Member Resolution](../spec/03-names-and-scopes.md#member-resolution) |
+| Q4 | As recommended (O2b): a private own member hides a promoted one; another module gets `private-member`. Applied in 32b. | [`names.hide.depth`](../spec/03-names-and-scopes.md#r-names.hide.depth) |
 | Q5 | Not as recommended (option B): both limits stay, as width and depth, and a self-embedding type gets its own code, `embedding-cycle`, whose message shows the cycle path. `depth.generic` and `names.part.depth.levels` are deleted. Applied in 32a. | [Embedding Limits](../spec/08-data-and-enums.md#embedding-limits) |
 | Q6 | As recommended: value parts stay (VE1-VE4, VE-S); no O3. Nothing to apply. | [Parts And Copies](../spec/08-data-and-enums.md#parts-and-copies), unchanged |
 
@@ -308,7 +308,16 @@ reading in the middle column; each point asks the owner to confirm it.
 | Q5-cycle-site | "Not just `embedding-too-deep`" leaves open whether a cycle also reports the depth code, and on which types. | `embedding-cycle` replaces `embedding-too-deep` for every type in the cycle, reported once per cycle on its first declared type, as `alias-cycle` is. A type outside the cycle that embeds into it still gets `embedding-too-deep`. **Recommendation:** keep it. |
 | Q5-self-id | STYLE says a rule whose meaning changes gets a new ID, but the owner said to keep `data.embed.depth.self` while its code changes. | The ID is kept, as directed. **Recommendation:** keep it; the Revision Note records the code change. |
 | Q1-variadic | O1b merges `trait.by.generated.variadic` into `trait.by.generated`, but varargs are under discussion. | Kept as its own rule for now. **Recommendation:** merge it once the vararg spelling settles; a written forwarding method already passes a vararg on. |
-| Q1-dot-call | The O1b table merges `trait.by.dot-call` into `trait.by.ordinary`; the rule-by-rule table merges it into `names.method-lookup.ambiguous`. | Retired into `trait.by.ordinary`, with a Note keeping the example. **Recommendation:** let pass 32b drop the Note once `names.method-lookup.ambiguous` states the case once. |
+| Q1-dot-call | The O1b table merges `trait.by.dot-call` into `trait.by.ordinary`; the rule-by-rule table merges it into `names.method-lookup.ambiguous`. | Resolved in 32b: [`names.method-lookup.ambiguous`](../spec/03-names-and-scopes.md#r-names.method-lookup.ambiguous) states the case, and the Note is dropped. |
+
+**Still open from applying batch 32b.** The specification applies the
+reading in the middle column; each point asks the owner to confirm it.
+
+| # | Question | Applied reading and **Recommendation** |
+| --- | --- | --- |
+| Q4-part-private | A part `P` may now hide a deeper `pub id` with its own private `id`. Does that private `id` also hide the deeper one in a type `S` that embeds `P`? | No: a part's private member is not promoted, so `s.id` is the deeper `id` and `s.P.id` is `P`'s own. **Recommendation:** keep it; adding a private member to a part then never changes a use of `S`. |
+| Q4-method | Without the conflict rule, a private own method beside a promoted one left lookup in another module free to select the promoted method silently. | [`names.method-lookup.promoted-candidate`](../spec/03-names-and-scopes.md#r-names.method-lookup.promoted-candidate) excludes a candidate that an own inherent method hides, so the call is `private-member`. The ID is kept, since hiding already applied. **Recommendation:** keep it. |
+| Q3-codes | The record lists `data.embed.unique` and `trait.by.invalid` as error detail, but each is the only rule that names its code. | Both stay numbered; the other seven error-detail rules became Notes. **Recommendation:** keep them until the error revamp decides the codes. |
 
 ### Bound And Row Operators
 

@@ -37,3 +37,21 @@ impl Stamped for Outer:
 
 pub fn make_outer() -> Outer:
     Outer { Inner: ...Inner { note: "note", serial: 7 }, code: "private", revision: 1 }
+
+pub data CreatedBySystem:
+    pub id: string
+
+impl CreatedBySystem:
+    pub fn label(self) -> string:
+        "created by system"
+
+pub data AuditDraft:
+    CreatedBySystem
+    id: string
+
+impl AuditDraft:
+    fn label(self) -> string:
+        "draft"
+
+pub fn make_draft() -> AuditDraft:
+    AuditDraft { CreatedBySystem: ...CreatedBySystem { id: "system" }, id: "draft" }

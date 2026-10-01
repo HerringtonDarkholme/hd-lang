@@ -201,10 +201,9 @@ already lists the split `Map` read as cut C9, question Q9, still open.
 | [`expr.call.callable`](../spec/05-expressions.md#r-expr.call.callable) | A callee may be any expression of function type. |
 | [`fn.type.ctor.inputs`](../spec/07-functions.md#r-fn.type.ctor.inputs) | `Fn[(A, B), O, R]` takes its inputs as one tuple type. |
 | [`names.method-lookup.inherent`](../spec/03-names-and-scopes.md#r-names.method-lookup.inherent) | A visible own inherent method wins over every trait method. |
-| [`names.method-lookup.ambiguous`](../spec/03-names-and-scopes.md#r-names.method-lookup.ambiguous) | A promoted candidate beside a trait candidate is `ambiguous-method`. |
-| [`names.method-lookup.no-silent`](../spec/03-names-and-scopes.md#r-names.method-lookup.no-silent) | Neither a trait method nor a promoted method silently wins over the other. |
-| [`names.conflict.namespace`](../spec/03-names-and-scopes.md#r-names.conflict.namespace) | Fields and methods conflict only within their own namespace. |
-| [`names.change.candidate`](../spec/03-names-and-scopes.md#r-names.change.candidate) | A new impl, use, or promoted method can make a call ambiguous, never switch it. |
+| [`names.method-lookup.ambiguous`](../spec/03-names-and-scopes.md#r-names.method-lookup.ambiguous) | A promoted candidate beside a trait candidate is `ambiguous-method`: neither silently wins. |
+| [`names.member.no-hiding`](../spec/03-names-and-scopes.md#r-names.member.no-hiding) | A field and a method never hide each other, because no use looks in both namespaces. |
+| [Dependency Changes](../spec/03-names-and-scopes.md#dependency-changes) | A new impl, use, or promoted method can make a call ambiguous, never switch it (a Note since batch 32). |
 
 **History.** hd had one namespace until 2026-09-26. Under that rule, M1, a
 field and an inherent method of one name were `duplicate-inherent-member`,

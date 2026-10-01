@@ -643,12 +643,11 @@ For a composite type `T`:
 1. r[types.mut.permission] `mut` expresses access permission, not ownership, uniqueness, or a deep freeze of the object.
 2. r[types.mut.no-field-reassign] A readonly `T` reference cannot reassign its fields.
 3. r[types.mut.mut-field] A direct data field declared `field: mut U` is read as `U` through readonly `T`.
-4. r[types.mut.embedded] An embedded field follows its container's access.
-5. r[types.mut.generic-field] A generic data field declared `field: P` retains its substituted type even when `P` is instantiated as `mut U`.
-6. r[types.mut.other-forms] Other extraction forms state their own permission rules below.
-7. r[types.mut.weaken] A `mut T` may be viewed as `T`.
-8. r[types.mut.no-upgrade] A `T` must never be upgraded to `mut T`. An upgrade is an error. Error: `mutable-upgrade`.
-9. r[types.mut.no-upgrade.inference] The error includes an upgrade that generic inference would produce. Given `keep[T](value: T) -> T`, binding `keep(readonly_value)` to a `mut T` declaration is rejected rather than inferring `T` as a mutable type.
+4. r[types.mut.generic-field] A generic data field declared `field: P` retains its substituted type even when `P` is instantiated as `mut U`.
+5. r[types.mut.other-forms] Other extraction forms state their own permission rules below.
+6. r[types.mut.weaken] A `mut T` may be viewed as `T`.
+7. r[types.mut.no-upgrade] A `T` must never be upgraded to `mut T`. An upgrade is an error. Error: `mutable-upgrade`.
+8. r[types.mut.no-upgrade.inference] The error includes an upgrade that generic inference would produce. Given `keep[T](value: T) -> T`, binding `keep(readonly_value)` to a `mut T` declaration is rejected rather than inferring `T` as a mutable type.
 
 ```text
 fn keep[T](value: T) -> T:
@@ -848,14 +847,12 @@ and the mutations that access type permits.
 | r[types.path.field.generic] **generic field** | `field: P`, with a generic parameter `P` | the substituted type, unchanged | the substituted type, unchanged |
 
 5. r[types.path.field.mutable-edge.removed] The `mut` written directly in a mutable edge's declaration is removed by a readonly container.
-6. r[types.path.field.embedded.not-readonly-edge] An embedded field yields the container's access and is never a readonly edge.
-7. r[types.path.field.generic.example] Reading `value: P` from readonly `Box[mut User]` therefore yields `mut User`.
-8. r[types.path.field.substituted] Every type is read after substitution of the container's type arguments.
-9. r[types.path.promoted] A promoted field or method is reached through its embedded fields step by step.
-10. r[types.path.collection] Indexing, iteration, and lookup on a built-in collection yield its declared element or value type, whatever the collection's own permission.
-11. r[types.path.collection.example] Indexing readonly `List[mut User]` yields `mut User`, and a successful lookup in a readonly `Map[K, mut User]` yields `mut User` after unwrapping.
-12. r[types.path.contents] Optional and `Result` unwrapping, tuple element extraction, and generic enum payloads likewise yield their declared contents.
-13. r[types.path.enum-payload] A non-generic enum payload declared `mut U` follows the field rule above.
+6. r[types.path.field.generic.example] Reading `value: P` from readonly `Box[mut User]` therefore yields `mut User`.
+7. r[types.path.field.substituted] Every type is read after substitution of the container's type arguments.
+8. r[types.path.collection] Indexing, iteration, and lookup on a built-in collection yield its declared element or value type, whatever the collection's own permission.
+9. r[types.path.collection.example] Indexing readonly `List[mut User]` yields `mut User`, and a successful lookup in a readonly `Map[K, mut User]` yields `mut User` after unwrapping.
+10. r[types.path.contents] Optional and `Result` unwrapping, tuple element extraction, and generic enum payloads likewise yield their declared contents.
+11. r[types.path.enum-payload] A non-generic enum payload declared `mut U` follows the field rule above.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 [Member Resolution](03-names-and-scopes.md#member-resolution).

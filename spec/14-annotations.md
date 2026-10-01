@@ -1177,14 +1177,17 @@ traversed as an enum with one variant.
 
 1. r[annot.member.info] Each member has a `Member` value: its name, its zero-based position within its variant, its facts, its doc comment, and the `embedded` and `positional` flags.
 2. r[annot.member.embedded] An embedded field is one member, named by its embedded type's final name, with `embedded` true.
-3. r[annot.member.embedded.part] Its value is the part itself, not a copy, as [`data.part.alias`](08-data-and-enums.md#r-data.part.alias) states.
-4. r[annot.member.no-flatten] The language never flattens an embedded part. Flattening is library policy, read from the `embedded` flag.
-5. r[annot.member.positional] An unnamed payload parameter is a member named `_0`, `_1`, and so on, by position, with `positional` true.
-6. r[annot.variant.info] Each variant has a `VariantInfo` value: its name, its zero-based index, its facts, its doc comment, `of_data`, and `shared`.
-7. r[annot.variant.data] A data type's one variant has `of_data` true, and its name and doc comment are the type's.
-8. r[annot.variant.data-facts] That variant's `facts` is empty: a template reads the type-level facts once, through `T::facts()`.
-9. r[annot.variant.shared] `shared` holds the variant's shared constructor data as `(name, value)` pairs, built once at compile time. An unnamed shared parameter is named `_0`, `_1`, and so on.
-10. r[annot.variant.shared.no-handle] Shared constructor data is never a member: it is never passed as a handle.
+3. r[annot.member.positional] An unnamed payload parameter is a member named `_0`, `_1`, and so on, by position, with `positional` true.
+4. r[annot.variant.info] Each variant has a `VariantInfo` value: its name, its zero-based index, its facts, its doc comment, `of_data`, and `shared`.
+5. r[annot.variant.data] A data type's one variant has `of_data` true, and its name and doc comment are the type's.
+6. r[annot.variant.data-facts] That variant's `facts` is empty: a template reads the type-level facts once, through `T::facts()`.
+7. r[annot.variant.shared] `shared` holds the variant's shared constructor data as `(name, value)` pairs, built once at compile time. An unnamed shared parameter is named `_0`, `_1`, and so on.
+8. r[annot.variant.shared.no-handle] Shared constructor data is never a member: it is never passed as a handle.
+
+> **Note.** An embedded member's value is the part itself, not a copy, as
+> [`data.part.access`](08-data-and-enums.md#r-data.part.access) states.
+> The language never flattens a part; a library that flattens reads the
+> `embedded` flag.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 [Shared Enum Constructor Data](08-data-and-enums.md#shared-enum-constructor-data).

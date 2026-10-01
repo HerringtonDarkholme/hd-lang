@@ -125,8 +125,8 @@ section.
 | 17 | Packs `Ts...`, `pack.map` | 72 | 221 | 2 | 15 / 6 | fixed arities; an intrinsic signature for `all!` | Swift parameter packs, Python PEP 646; not Go, Rust, Kotlin, MoonBit | removed (batch 31b, 2026-09-30): `Tuple`-bounded varargs, tuple spread, and an `all!` typing rule; see [R3](#r3-type-and-value-packs) |
 | 18 | Varargs and suffix spread `xs...` | 22 | 70 | 13 | 97 | a list argument | Go `xs...`, Kotlin `*xs`, Python `*xs`, Swift variadics | keep |
 | 19 | `?` propagation | 38 | 190 | about 11 | about 55 | `match` on every call | Rust `?`; Swift `try`; MoonBit checked errors | keep |
-| 20 | Embedding, promotion, `...` copies | 115 | 427 | 12 embedded lines, 9 copies | 127 / 79 | a named field | Go embedding; not Rust, Swift, Kotlin, Python | reopen?: [R1](#r1-embedding-promotion-and-delegation) |
-| 21 | `impl Tr for C by E` delegation | 22 | 107 | 4 | 11 | written forwarding methods | Kotlin `by` | reopen?, with row 20 |
+| 20 | Embedding, promotion, `...` copies | 115 | 427 | 12 embedded lines, 9 copies | 127 / 79 | a named field | Go embedding; not Rust, Swift, Kotlin, Python | kept and simplified (batch 32, 2026-09-30): each fact stated once, a private own member hides; see [R1](#r1-embedding-promotion-and-delegation) |
+| 21 | `impl Tr for C by E` delegation | 22 | 107 | 4 | 11 | written forwarding methods | Kotlin `by` | kept as written forwarding (batch 32, 2026-09-30), with row 20 |
 | 22 | `tests:` blocks | 26 | 128 | 7 | 475 | test modules only | Rust `mod tests`, MoonBit `test` blocks; Go `_test.go` | keep |
 | 23 | Decorators and facts | 48 | 410 | 32 | 57 | none: metadata has no other home | Python decorators, Rust attributes, Kotlin annotations | keep |
 | 24 | Newtypes `type X(T)` | 21 | 85 | 4 | 33 | one-field `data` | Rust tuple structs, Go defined types, Kotlin value classes | keep |
@@ -489,6 +489,14 @@ code uses the form.
 | 7 | Derivation member lines | 55 | 5 | 1 | syntax |
 
 ### R1. Embedding, Promotion, And Delegation
+
+**Status.** Decided and applied: batch 32 kept embedding, value parts, and
+both limits, and merged the rules
+([Simplify Embedding](SIMPLIFY_EMBEDDING.md#owner-decisions)). Passes 32a
+and 32b applied it on 2026-09-30 and 2026-10-01. The record counted 219
+rules, including the restatements outside row 20's prefixes, and 57
+remain. A private own member now hides a promoted one. The evidence below
+shows the language before batch 32.
 
 **Evidence.** 115 rules and 427 spec lines for embedding, parts, `...`
 copies, mutable edges, and promotion; 22 more for `by` delegation. Real

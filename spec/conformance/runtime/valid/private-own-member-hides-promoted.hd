@@ -1,0 +1,24 @@
+# test: in its own module, a private own member hides a promoted member of the same name
+use std.testing.assert_equal
+
+data CreatedBySystem:
+    pub id: string
+
+impl CreatedBySystem:
+    pub fn label(self) -> string:
+        "created by system"
+
+data AuditDraft:
+    CreatedBySystem
+    id: string
+
+impl AuditDraft:
+    fn label(self) -> string:
+        "draft"
+
+tests:
+    it("the own member wins"):
+        draft := AuditDraft { CreatedBySystem: ...CreatedBySystem { id: "system" }, id: "draft" }
+        assert_equal(draft.id, "draft", reason="the private own field hides the promoted one")
+        assert_equal(draft.label(), "draft", reason="the private own method hides the promoted one")
+        assert_equal(draft.CreatedBySystem.id, "system", reason="the part's field, by its path")

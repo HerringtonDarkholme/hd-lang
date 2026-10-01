@@ -58,11 +58,14 @@ See also: [Default Values](07-functions.md#default-values).
 1. r[data.vis.private] Named fields are module-private unless individually marked `pub`.
 2. r[data.vis.type-not-fields] A public data type does not make its unmarked fields public.
 3. r[data.vis.embedded-public] An embedded field takes no marker and is always public: it is visible wherever its outer type is.
-4. r[data.vis.promotion] Only `pub` fields and `pub` inherent methods of an embedded type are promoted.
-5. r[data.vis.private-embed] Embedding a module-private data type in a public data type is an error. Error: `private-type-leak`.
-6. r[data.vis.literal] In another module, a data literal may construct the type only when all its fields are public.
-7. r[data.vis.private-fields] In another module, private fields cannot be named, initialized, or carried through a copy-update literal.
-8. r[data.vis.factory] A public factory function can construct a value with private fields inside the defining module.
+4. r[data.vis.literal] In another module, a data literal may construct the type only when all its fields are public.
+5. r[data.vis.private-fields] In another module, private fields cannot be named, initialized, or carried through a copy-update literal.
+6. r[data.vis.factory] A public factory function can construct a value with private fields inside the defining module.
+
+Because an embedded field is public, embedding a module-private data type in
+a public data type leaks it, as
+[`module.vis.signature.coverage`](10-modules.md#r-module.vis.signature.coverage)
+states:
 
 ```text
 data Timestamps:
@@ -245,13 +248,9 @@ post := Post {
 
 ### Embedded Field Names
 
-1. r[data.embed.member] A bare type-name member embeds another data type.
-2. r[data.embed.name] The embedded field's name is the embedded type name.
-3. r[data.embed.named-type] Embedded shorthand accepts a named data type, including one with generic arguments.
-4. r[data.embed.data-only] An embedded field must name a data type, a generic data type such as `Box[T]`, or a transparent alias that resolves to one. Embedding any other type is an error. Error: `embedded-non-data`.
-5. r[data.embed.non-data] Such other types include enums, newtypes, trait value types, `Any`, builtin and collection types, function types, and type parameters.
-6. r[data.embed.generic-name] For `Box[T]`, the embedded field's name and construction key are `Box`; type arguments are not part of the key.
-7. r[data.embed.unique] The name must be unique among the outer data type's fields. A duplicate name that involves an embedded field is an error. Error: `duplicate-embedded-field`.
+1. r[data.embed.member] A bare type-name member embeds another data type, possibly with type arguments. The embedded field's name, and its key in a data literal, is the type's final name without type arguments: `Box[T]` is the field `Box`.
+2. r[data.embed.data-only] An embedded field must name a data type, a generic data type such as `Box[T]`, or a transparent alias that resolves to one. Embedding any other type is an error: an enum, a newtype, a trait value type, `Any`, a builtin or collection type, a function type, or a type parameter. Error: `embedded-non-data`.
+3. r[data.embed.unique] The name must be unique among the outer data type's fields. A duplicate name that involves an embedded field is an error. Error: `duplicate-embedded-field`.
 
 ```text
 data Storage:
@@ -332,8 +331,7 @@ An embedded field holds a **part** of the outer value: a value of the
 embedded type that the outer value receives as its own copy.
 
 1. r[data.part.construct] A part copy is a copy-update: `E: ...e` in a data literal, and `x.E ...= e` on a `mut` value, store the copy-update `T { ...e }`, where `E` is the embedded field's name and `T` its type. The `...` applies to the whole field expression.
-2. r[data.part.marker-fresh] The `...` is required even for a fresh literal, as in `Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }`.
-3. r[data.part.copy-update] A copy-update literal, as in `Post { ...post, title: "t" }`, copies each embedded part `p` of its spread source that it does not replace, as `T { ...p }`. This is the one exception to a shallow copy-update: a copy never shares a part with its original.
+2. r[data.part.copy-update] A copy-update literal, as in `Post { ...post, title: "t" }`, copies each embedded part `p` of its spread source that it does not replace, as `T { ...p }`. This is the one exception to a shallow copy-update: a copy never shares a part with its original.
 
 ```text
 fn build(ts: Timestamps) -> Post:
@@ -350,12 +348,7 @@ See also: [Copy-Update Literals](#copy-update-literals).
 
 #### Copy Markers
 
-1. r[data.part.marker-required] The copy marker is required exactly where a copy is made.
-2. r[data.part.missing-marker] An embedded field initialized without it, as in `Post { Timestamps: ts }`, is an error. Error: `embedded-copy-required`.
-3. r[data.part.plain-assignment] An embedded field assigned with plain `=`, as in `post.Timestamps = ts`, is an error. Error: `embedded-copy-required`.
-4. r[data.part.suggestion] The `embedded-copy-required` message suggests the `...` form.
-5. r[data.part.ordinary-label] A `...` after the label of any other field is an error. Error: `copy-into-ordinary-field`.
-6. r[data.part.ordinary-store] `...=` on any other place is an error. Error: `copy-into-ordinary-field`.
+1. r[data.part.marker-required] The copy marker is required exactly where a part is filled or stored, even from a fresh literal, as in `Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }`. An embedded field filled as `Post { Timestamps: ts }` or assigned as `post.Timestamps = ts` is an error. Error: `embedded-copy-required`. A `...` after any other field's label, or `...=` on any other place, is an error. Error: `copy-into-ordinary-field`.
 
 ```text
 fn invalid(post: mut Post, ts: Timestamps, account: mut Account, user: User) -> void:
@@ -365,8 +358,12 @@ fn invalid(post: mut Post, ts: Timestamps, account: mut Account, user: User) -> 
     account.owner ...= user                    # error: copy-into-ordinary-field
 ```
 
-1. r[data.part.prefix] A prefix `...` therefore always means "copy the named members of this value".
-2. r[data.part.suffix] A suffix `...` always spreads elements or entries, and never copies.
+> **Note.** For the error revamp: the `embedded-copy-required` message
+> suggests the `...` form.
+
+A prefix `...` always copies, and a suffix `...` always spreads, as
+[`grammar.primary.prefix-copies`](02-grammar.md#r-grammar.primary.prefix-copies)
+states:
 
 | Form | Example | Meaning |
 | --- | --- | --- |
@@ -378,24 +375,21 @@ See also: [Primary Expressions](02-grammar.md#primary-expressions).
 
 #### When Copies Are Made
 
-1. r[data.part.copy-sites] Copies are made only by construction, copy-update, and stores into an embedded field.
-2. r[data.part.no-implicit-copy] Passing, returning, binding, or matching the outer value, or reading its part, never copies.
-3. r[data.part.copy-time] A part is copied as soon as the value that fills it is evaluated.
-4. r[data.part.copy-time.field] In a literal, that is at the position of its field expression, before any later field expression runs.
-5. r[data.part.copy-time.spread] For parts supplied by a spread, that is when the spread is evaluated, before every explicit field expression.
-6. r[data.part.copy-time.effects] A side effect of a later field expression on the source is therefore not seen in the copy.
+1. r[data.part.copy-time] A part is copied as soon as the value that fills it is evaluated. In a literal, that is at its field expression, before any later field expression runs. For parts that a spread supplies, it is when the spread is evaluated, before every explicit field expression.
+
+> **Note.** Only a `...` copies: passing, returning, binding, or matching
+> the outer value, or reading its part, never copies.
 
 ### Access Through Parts
 
-1. r[data.part.access] Reading an embedded field through a `mut` outer value yields `mut` access to the part. Reading it through a readonly outer value yields readonly access. For example, if `post` has type `mut Post`, `post.Timestamps` has type `mut Timestamps`; if `post` has type `Post`, it has type `Timestamps`.
-2. r[data.part.access.step] This is the embedded-field step of [Mutable Paths](04-type-system.md#mutable-paths).
-3. r[data.part.access.promoted] Promoted members are reached through the same step. Through a `mut Post`, a promoted field may be assigned and a promoted `mut self` method called.
-4. r[data.part.access.readonly-promoted] Through a readonly `Post`, the promoted field is readonly and the promoted `mut self` call is an error. Error: `mutable-receiver-required`.
-5. r[data.part.alias] A read of an embedded field yields the part itself, not a copy.
-6. r[data.part.alias.let-mut] `let mut stamps = post.Timestamps` on a `mut Post` binds a `mut Timestamps` alias, and a mutation through either name is observed through the other.
-7. r[data.part.alias.readonly] On a readonly `Post` the alias is readonly.
-8. r[data.part.alias.binding] A `:=` binding exposes a readonly view, as it does for every composite value.
-9. r[data.part.alias.plain-let] So does a `let` without `mut`: `let stamps = post.Timestamps` binds a readonly `Timestamps` alias.
+1. r[data.part.access] A read of an embedded field, including a derivation's member value for it, yields the part itself, not a copy. It has its container's access: if `post` has type `mut Post`, `post.Timestamps` has type `mut Timestamps`; if `post` has type `Post`, it has type `Timestamps`. This is the embedded-field step of [Mutable Paths](04-type-system.md#mutable-paths).
+
+> **Note.** A promoted member is its explicit path, as
+> [`names.promoted.path`](03-names-and-scopes.md#r-names.promoted.path)
+> states, so it has the access the receiver grants. A binding of the part
+> is an alias whose view follows the binding rules: `let mut stamps =
+> post.Timestamps` on a `mut Post` binds a `mut Timestamps`, and a mutation
+> through either name is observed through the other.
 
 The following example assumes the `Post` and `Timestamps` declarations
 above:
@@ -422,12 +416,8 @@ fn invalid(post: Post) -> void:
 
 #### Part Ownership
 
-1. r[data.part.owned] The part is owned by the outer value only in this sense: the language copies it whenever a part is filled. No two outer values therefore receive the same part.
-2. r[data.part.aliases-untracked] The language does not track or prevent later aliases.
-3. r[data.part.kept-references] A read of the part and a `mut self` method of the embedded type that stores `self` elsewhere both keep a reference to the part. Changes through that reference are observed through the outer value.
-4. r[data.part.layout] An implementation may lay a part out inline or as a separate object referenced only by its outer value.
-5. r[data.part.elided-copy] An implementation may omit the copy of a value that nothing else can reference, such as a fresh literal.
-6. r[data.part.unobservable] Neither choice is observable.
+1. r[data.part.aliases-untracked] A part is owned by its outer value only in that a part is copied whenever it is filled, so no two outer values receive the same part. The language does not track or prevent later aliases. A read of the part, or a `mut self` method of the embedded type that stores `self` elsewhere, keeps a reference, and changes through it are observed in the outer value.
+2. r[data.part.unobservable] An implementation may lay a part out inline or as a separate object referenced only by its outer value. It may also omit the copy of a value that nothing else can reference, such as a fresh literal. Neither choice is observable.
 
 ### Mutable Edges
 
@@ -484,16 +474,19 @@ See also: [Variance](04-type-system.md#variance).
 
 ### Member Promotion
 
-1. r[data.promote.members] Embedding promotes the embedded type's `pub` fields and `pub` inherent methods for convenient access.
-2. r[data.promote.depth] The `pub` fields and `pub` inherent methods of every part, at any depth, are promoted.
-3. r[data.promote.shallowest] For each name the shallowest member hides deeper ones, so the receiver's `pub` own members come first and each embedded type decides its own names.
-4. r[data.promote.private] A private member of a part is never promoted, even in the module that declares it. It is reached through the explicit path, as in `post.Timestamps.secret`.
-5. r[data.promote.same-depth] Two members with one name at the same smallest depth are an error. An example is the embedded field name of a type embedded twice at one depth. Error: `ambiguous-promoted-member`.
-6. r[data.promote.private-own] A private own member with the name of a promoted member is also an error: a private member never shadows a promoted one. Error: `ambiguous-promoted-member`.
-7. r[data.promote.at-declaration] An `ambiguous-promoted-member` error is reported at the outer type's declaration, never at a use.
-8. r[data.promote.uniform] Every module therefore sees the same members of a type.
-9. r[data.promote.no-trait-methods] An embedded type's trait methods are never promoted and have no effect on lookup. Such a method is called through the embedded field, as in `x.Label.to_string()`.
-10. r[data.promote.receiver-trait] A trait method of the receiver's type counts only where its trait is available, and a promoted method beside it is an error. Error: `ambiguous-method`.
+1. r[data.promote.members] Embedding promotes the `pub` fields and `pub` inherent methods of an embedded type for convenient access, as [Member Resolution](03-names-and-scopes.md#member-resolution) defines.
+
+Each fact about promotion is stated once, in chapter 03 or chapter 09:
+
+| Fact | Rule |
+| --- | --- |
+| Only the `pub` fields and `pub` inherent methods of a part, at any depth, are promoted; trait methods never are. | [`names.promote.member`](03-names-and-scopes.md#r-names.promote.member) |
+| For each name, the shallowest member hides deeper ones; an own member hides a promoted one, private or not. | [`names.hide.depth`](03-names-and-scopes.md#r-names.hide.depth) |
+| Two members with one name at the smallest depth are `ambiguous-promoted-member` at the declaration. | [`names.conflict.error`](03-names-and-scopes.md#r-names.conflict.error) |
+| A promoted member means its explicit path, with the part as receiver: there is no overriding. | [`names.promoted.path`](03-names-and-scopes.md#r-names.promoted.path) |
+| A trait method of the receiver beside a promoted method is `ambiguous-method`. | [`names.method-lookup.ambiguous`](03-names-and-scopes.md#r-names.method-lookup.ambiguous) |
+| Embedding grants no trait conformance. | [`trait.embed.no-conformance`](09-traits.md#r-trait.embed.no-conformance) |
+| A promoted method never fills a trait method. | [`trait.impl.fill.never`](09-traits.md#r-trait.impl.fill.never) |
 
 ```text
 data Left:
@@ -517,7 +510,7 @@ data Base:
 
 data Entry:
     Base
-    id: string  # error: ambiguous-promoted-member
+    id: string  # valid: the own field hides the promoted one
 ```
 
 See also: [Member Resolution](03-names-and-scopes.md#member-resolution),
@@ -525,10 +518,10 @@ which defines which field `x.name` or method `x.name(args)` selects.
 
 ### Composition, Not Subtyping
 
-1. r[data.embed.not-subtype] Embedding is composition, not subtyping: the outer data type is not assignable to the embedded type.
-2. r[data.embed.no-override] Embedding has no overriding: a promoted method runs as the embedded type's own method, with the embedded value as its receiver.
-3. r[data.embed.self-call] Inside `Base`'s methods, `self.m()` is always `Base`'s `m`, even when a type that embeds `Base` declares its own `m`.
-4. r[data.embed.no-conformance] Embedding never grants trait conformance, and a promoted method never fills a method of a trait implementation.
+Embedding is composition, not subtyping. The outer data type is a different
+nominal type, so it is not assignable to the embedded type. A promoted
+method runs as the embedded type's own method, and embedding grants no
+trait conformance.
 
 > **Note.** Conformance through a part is written explicitly, with
 > [`by`](09-traits.md#trait-delegation), as in
@@ -539,9 +532,11 @@ See also: [Embedding And Trait Satisfaction](09-traits.md#embedding-and-trait-sa
 
 ### Embedded Field Metadata
 
-1. r[data.embed.metadata] An embedded field accepts the same prefix metadata decorators as a named field.
-2. r[data.embed.metadata.target] The metadata is attached to the embedded field itself, whose name is the final type name and whose declared type includes any generic arguments.
-3. r[data.embed.metadata.not-promoted] The metadata is not copied to fields or methods promoted from the embedded value.
+An embedded field is a field, so it accepts the same prefix metadata
+decorators as a named field, as
+[`annot.target.kind.field`](14-annotations.md#r-annot.target.kind.field)
+states. Its name is the final type name, and the metadata stays on the
+field: promoted members do not carry it.
 
 ## Enum Declarations
 
@@ -867,19 +862,17 @@ Data types and enums derive library traits with `@derive` or a derivation
 block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
 
 1. r[data.derive.members] For typed derivation, a data type's members are its fields in declaration order, embedded fields included. An enum's members are each variant's payload parameters.
-2. r[data.derive.embedded] An embedded field is one member, and its value is the part itself, per `data.part.alias`. The language never flattens it.
-3. r[data.derive.payload-names] An unnamed payload parameter is the member `_0`, `_1`, and so on, by position.
-4. r[data.derive.shared] Shared constructor data is not a member. A derivation reads it from the variant's information, and `build` never reads it.
-5. r[data.derive.gadt] A GADT enum cannot be derived through a template. Error: `gadt-derivation`.
-6. r[data.derive.newtype] A newtype derives through its base type, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
+2. r[data.derive.payload-names] An unnamed payload parameter is the member `_0`, `_1`, and so on, by position.
+3. r[data.derive.shared] Shared constructor data is not a member. A derivation reads it from the variant's information, and `build` never reads it.
+4. r[data.derive.gadt] A GADT enum cannot be derived through a template. Error: `gadt-derivation`.
+5. r[data.derive.newtype] A newtype derives through its base type, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
 
 See also: [Members And Variants](14-annotations.md#members-and-variants).
 
 ## Unsupported Aggregate Extensions
 
-1. r[data.unsupported.mut-embedded] hd-lang has no `mut` embedded-field shorthand, because access to an embedded part already follows its container.
-2. r[data.unsupported.layout] Stable object layout and component-model representation are ABI concerns and are not observable core-language semantics.
-3. r[data.unsupported.non-exhaustive] Enums have no non-exhaustive form, so adding a variant to a public enum is a breaking change for its users.
+1. r[data.unsupported.layout] Stable object layout and component-model representation are ABI concerns and are not observable core-language semantics.
+2. r[data.unsupported.non-exhaustive] Enums have no non-exhaustive form, so adding a variant to a public enum is a breaking change for its users.
 
 > **Note.** A library that needs to grow a set of error kinds can wrap a
 > private enum in a data type with a private field and expose accessor

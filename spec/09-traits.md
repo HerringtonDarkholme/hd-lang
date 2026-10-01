@@ -98,7 +98,6 @@ impl Serializable for User
 1. r[trait.marker.decl] A trait with no methods may be declared as a marker without a body.
 2. r[trait.marker.impl] The marker's implementation likewise has no body.
 3. r[trait.marker.all-defaults] A bodyless implementation is also permitted when every method of the trait has a default.
-4. r[trait.marker.no-promotion] A method promoted from an embedded field never fills a trait method, so it never makes a body optional.
 
 See also: [Embedding And Trait Satisfaction](#embedding-and-trait-satisfaction).
 
@@ -530,7 +529,7 @@ impl Display for User:
 1. r[trait.impl.explicit] An explicit implementation names the trait and target type.
 2. r[trait.impl.required] The implementation must write every required method not supplied by a default. Omitting one is an error. Error: `missing-trait-method`.
 3. r[trait.impl.fill] Only a method written in the implementation or a trait default fills a trait method.
-4. r[trait.impl.fill.never] An inherent method of the target and a method promoted from an embedded field never fill a trait method.
+4. r[trait.impl.fill.never] An inherent method of the target and a method promoted from an embedded field never fill a trait method, required or defaulted, whatever its receiver, so neither makes a body optional.
 5. r[trait.impl.override] The implementation may override a default with the exact instantiated signature.
 6. r[trait.impl.signature] A mismatched method is an error. Error: `trait-method-signature`.
 7. r[trait.impl.extra-methods] Additional methods do not become part of that trait implementation; place them in an inherent `impl` instead.
@@ -810,7 +809,6 @@ impl User:
 2. r[trait.inherent.members] Its members are the type's inherent members, which the table below defines.
 3. r[trait.inherent.owner] Only the package that owns `T` may declare them.
 4. r[trait.inherent.vs-trait] An inherent method differs from a trait method, which a trait declares and a trait implementation supplies for `T`.
-5. r[trait.inherent.vs-promoted] An inherent method also differs from a promoted method, which belongs to the type of an embedded field and is reached through the outer type.
 
 | Member | Receiver | Called |
 | --- | --- | --- |
@@ -907,10 +905,9 @@ name is one of these:
 ### Ambiguous Methods
 
 1. r[trait.resolve.ambiguous] Suppose more than one available trait that the receiver implements supplies a method with that name, and no inherent method of that name is usable. The call is then an error. Error: `ambiguous-method`.
-2. r[trait.resolve.ambiguous.promoted] A call where an available trait method of the receiver's type meets a promoted method of the same name is also an error: neither silently wins over the other. Error: `ambiguous-method`.
-3. r[trait.resolve.ambiguous.defaults] This holds whether each method is written in its implementation or comes from a default.
-4. r[trait.resolve.no-ranking] The compiler does not select by conversion ranking or declaration order.
-5. r[trait.resolve.qualified-fix] A trait-qualified call resolves the ambiguity.
+2. r[trait.resolve.ambiguous.defaults] This holds whether each method is written in its implementation or comes from a default.
+3. r[trait.resolve.no-ranking] The compiler does not select by conversion ranking or declaration order.
+4. r[trait.resolve.qualified-fix] A trait-qualified call resolves the ambiguity.
 
 ```text
 trait Left:
@@ -1722,14 +1719,13 @@ See also: [Requirement Rows](11-requirements-and-suspension.md#requirement-rows)
 Embedding never grants trait conformance: the outer type must declare its own
 implementation.
 
-1. r[trait.embed.no-conformance] Embedding never grants trait conformance.
-2. r[trait.embed.explicit] The outer type must declare an explicit `impl`, and that implementation must write every required method that has no default.
-3. r[trait.embed.no-fill] A method promoted from an embedded field never fills a trait method, whether required or defaulted, and whatever its receiver.
-4. r[trait.embed.forward] An implementation that reuses an embedded type's behavior forwards to it explicitly, for example `fn label(self) -> string: self.Base.label()`.
-5. r[trait.embed.forward-mut] A forwarding `mut self` method may call a `mut self` method of the embedded part, as in `fn reset(mut self) -> void: self.Base.reset()`. This works because `self.Base` has `mut` access through `mut self`.
-6. r[trait.embed.bodyless] A bodyless implementation of a trait with a required method is therefore an error even when an embedded type has a matching method. Error: `missing-trait-method`.
-7. r[trait.embed.ambiguous] Where the trait is available, a dot call with the forwarded name meets both the implementation's method and the promoted method, and is an error. Error: `ambiguous-method`.
-8. r[trait.embed.call-forms] The forwarding implementation is called as `Trait::method(x)`, as in `Describe::describe(service)`. The embedded type's method is called through its path, as in `service.Logger.describe()`.
+1. r[trait.embed.no-conformance] Embedding never grants trait conformance: an outer type implements a trait, and satisfies its bound, only through its own implementation.
+
+An implementation that reuses an embedded type's behavior forwards to it
+explicitly, as in `fn label(self) -> string: self.Base.label()`, or with
+[`by`](#trait-delegation). A bodyless implementation of a trait with a
+required method is therefore `missing-trait-method`, even when an embedded
+type has a matching method:
 
 ```text
 trait Describe:
@@ -1747,18 +1743,23 @@ data Page:
 impl Describe for Page  # error: missing-trait-method
 ```
 
+> **Note.** A forwarding implementation is called as `Trait::method(x)`,
+> as in `Describe::describe(service)`, and the embedded type's method
+> through its path, as in `service.Logger.describe()`. Where the trait is
+> available, a dot call meets both methods and is `ambiguous-method`, as
+> [`names.method-lookup.ambiguous`](03-names-and-scopes.md#r-names.method-lookup.ambiguous)
+> states.
+
 See also: [Trait Delegation](#trait-delegation),
 [Data Embedding](08-data-and-enums.md#data-embedding).
 
 ### Trait Methods Of Embedded Types
 
-1. r[trait.embed.no-promotion] An embedded type's trait methods are not promoted either.
-2. r[trait.embed.no-promotion.example] If `Label` implements `Display` and `Page` embeds `Label`, `page.to_string()` never calls `Label`'s implementation.
-3. r[trait.embed.no-hiding] `Label`'s method does not hide a `to_string` promoted from a type that `Label` embeds.
-4. r[trait.embed.unknown] Suppose `Page` has no `to_string` of its own, no promoted one, and no available trait method with that name. The call is then an error whose message should suggest `page.Label.to_string()`. Error: `unknown-method`.
-5. r[trait.embed.no-bound] `Page` satisfies no `Display` bound unless `Page` itself implements `Display`.
-6. r[trait.embed.not-subtype] Embedding is composition, not subtype inheritance.
-7. r[trait.embed.not-assignable] An outer data type is not assignable to an embedded type merely because it promotes that type's methods.
+An embedded type's trait methods are not promoted, as
+[`names.promote.member`](03-names-and-scopes.md#r-names.promote.member)
+states. If `Label` implements `Describe` and `Page` embeds `Label`,
+`page.describe()` never calls `Label`'s implementation, and `Page`
+satisfies no `Describe` bound unless `Page` itself implements `Describe`:
 
 ```text
 trait Describe:
@@ -1777,6 +1778,10 @@ data Page:
 fn invalid(page: Page) -> string:
     page.describe()  # error: unknown-method
 ```
+
+> **Note.** For the error revamp: when `Page` has no `describe` of its own,
+> no promoted one, and no available trait method with that name, the
+> `unknown-method` message should suggest `page.Label.describe()`.
 
 See also: [Member Resolution](03-names-and-scopes.md#member-resolution).
 
@@ -1895,11 +1900,6 @@ impl Named for Service by Logger  # error: missing-trait-method
 ### Delegation Is An Ordinary Implementation
 
 1. r[trait.by.ordinary] Otherwise a delegating implementation is an ordinary trait implementation, under every rule for one: [Implementation Ownership](#implementation-ownership), [Overlap](#overlap), trait visibility, bounds, dynamic trait values, and [Method Resolution](#method-resolution).
-
-> **Note.** A dot call such as `service.describe()` therefore has one
-> candidate where `Describe` is available, unless an embedded type also
-> promotes a `pub` inherent `describe`. Then the call is `ambiguous-method`,
-> as for any implementation.
 
 ## Default-Method Conflicts
 

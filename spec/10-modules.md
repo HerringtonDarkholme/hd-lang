@@ -1022,10 +1022,9 @@ use pkg.shop.a.{Token}  # error: re-export-loop
 
 1. r[module.vis.no-package-private] There is no package-private visibility modifier: another module in the same package can use only `pub` declarations.
 2. r[module.vis.members] Named fields and inherent methods are module-private unless individually marked `pub`.
-3. r[module.vis.embedded] Embedded fields take no marker and are always public.
-4. r[module.vis.variants] Enum variants inherit their enum's visibility.
-5. r[module.vis.trait-methods] Trait methods follow their trait's visibility.
-6. r[module.vis.impl-target] A usable implementation additionally requires its target type to be visible.
+3. r[module.vis.variants] Enum variants inherit their enum's visibility.
+4. r[module.vis.trait-methods] Trait methods follow their trait's visibility.
+5. r[module.vis.impl-target] A usable implementation additionally requires its target type to be visible.
 
 ### Public Signatures
 

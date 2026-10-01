@@ -573,10 +573,9 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
 5. r[expr.member.stored-fn.hint] When a field named `callback` exists, the `unknown-method` message should suggest `(handler.callback)(event)`.
 6. r[expr.member.trait-available] A method call never finds a method of a trait that is not available at the call, even when the receiver's type implements it.
 7. r[expr.member.trait-hint] When such a method is the only one with the name, the `unknown-method` message should suggest a use declaration for its trait.
-8. r[expr.member.embedded-trait] A trait method of an embedded type is never found through the outer value; it is called through the embedded field, as in `page.Label.to_string()`.
-9. r[expr.member.method-not-value] A method is not a value: `value.method` without an argument clause is a field read.
-10. r[expr.member.method-references] A method is used as a value through a `::` [method reference](07-functions.md#method-references), `Type::name` or `value::name`.
-11. r[expr.member.closure-adapt] Explicit closures can adapt method calls where a function value is needed.
+8. r[expr.member.method-not-value] A method is not a value: `value.method` without an argument clause is a field read.
+9. r[expr.member.method-references] A method is used as a value through a `::` [method reference](07-functions.md#method-references), `Type::name` or `value::name`.
+10. r[expr.member.closure-adapt] Explicit closures can adapt method calls where a function value is needed.
 
 ```text
 data Button:

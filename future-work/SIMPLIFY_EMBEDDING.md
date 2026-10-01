@@ -1,9 +1,9 @@
 # Simplify Embedding, Promotion, And Delegation
 
 Status: simplification review, 2026-09-30. The owner answered its
-questions in batch 32; see [Owner Decisions](#owner-decisions). Q1, Q2,
-Q5, and Q6 are applied (pass 32a). Q3 and Q4 wait for pass 32b. The rest
-of this record is the review as written, not accepted behavior.
+questions in batch 32; see [Owner Decisions](#owner-decisions). All six
+are applied: Q1, Q2, Q5, and Q6 in pass 32a, and Q3 and Q4 in pass 32b.
+The rest of this record is the review as written, not accepted behavior.
 
 The owner asked for a round of simplification over embedding, `by`
 delegation, and the features tied to them. The owner decided to keep
@@ -724,10 +724,17 @@ Batch 32, 2026-09-30. Net: O1 plus O2b, with the limits kept.
 | --- | --- | --- |
 | Q1 | A: delegation is written forwarding, `Trait::m(self.E, ...)`, checked as if written. | Applied in 32a: [`trait.by.generated`](../spec/09-traits.md#r-trait.by.generated). `trait.by.generated.variadic` stays while varargs are under discussion. |
 | Q2 | A: a part copy is a copy-update, `E { ...e }`. | Applied in 32a: [`data.part.construct`](../spec/08-data-and-enums.md#r-data.part.construct), and a Note in [Mutable Edges](../spec/08-data-and-enums.md#mutable-edges). |
-| Q3 | A: state each rule once (O1c and the rest of O1). | Pass 32b. |
-| Q4 | A: a private own member hides a promoted one. | Pass 32b. |
+| Q3 | A: state each rule once (O1c and the rest of O1). | Applied in 32b: [`names.promoted.path`](../spec/03-names-and-scopes.md#r-names.promoted.path), [`names.promote.member`](../spec/03-names-and-scopes.md#r-names.promote.member), [`names.method-lookup.ambiguous`](../spec/03-names-and-scopes.md#r-names.method-lookup.ambiguous), [`trait.impl.fill.never`](../spec/09-traits.md#r-trait.impl.fill.never), and a linking summary in [Member Promotion](../spec/08-data-and-enums.md#member-promotion). |
+| Q4 | A: a private own member hides a promoted one. | Applied in 32b: [`names.hide.depth`](../spec/03-names-and-scopes.md#r-names.hide.depth) and [`names.method-lookup.promoted-candidate`](../spec/03-names-and-scopes.md#r-names.method-lookup.promoted-candidate). |
 | Q5 | B, not the recommended A: keep `data.embed.width` and `data.embed.depth`. `depth.chain` becomes an example; `depth.every-type` and `depth.message` become a diagnostics Note; `depth.generic` and `names.part.depth.levels` are deleted. `data.embed.depth.self` stays, with its own code `embedding-cycle`. | Applied in 32a: [Embedding Limits](../spec/08-data-and-enums.md#embedding-limits). |
 | Q6 | A: value parts stay. | Nothing to apply. |
+
+**As applied.** Of the 219 rules, 57 remain numbered, against the 61 of
+O1 and O2. The owner's limits add `data.embed.width` and
+`data.embed.depth.self`. `trait.by.generated.variadic` stays while varargs
+are under discussion. `data.embed.unique` and `trait.by.invalid` stay,
+because no other rule names their codes. The other error-detail rules
+became diagnostics Notes for the error revamp, so they are not counted.
 
 ## Sources
 

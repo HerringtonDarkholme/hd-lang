@@ -1,7 +1,0 @@
-# test: a private own field cannot shadow a promoted pub field of the same name, so the declaration conflicts
-data Base:
-    pub id: string
-
-data Record:
-    Base
-    id: string  # diagnostic: ambiguous-promoted-member

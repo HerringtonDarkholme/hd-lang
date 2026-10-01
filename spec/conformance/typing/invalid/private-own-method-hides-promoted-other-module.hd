@@ -1,0 +1,6 @@
+# fixture-package-role: root-application
+# test: another module meets the private own method that hides a promoted one, so the call is private-member, never the promoted method
+use dep.members.{AuditDraft}
+
+fn invalid(draft: AuditDraft) -> string:
+    draft.label()  # diagnostic: private-member

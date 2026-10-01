@@ -97,7 +97,7 @@ kebab-case: a letter, then letters, digits, and single hyphens.
 2. The second segment names the topic, usually the section, as in
    `data.embed` or `data.enum`.
 3. Further segments name the rule. A rule that refines another extends its
-   ID, as in `data.part.copy-time` and `data.part.copy-time.field`.
+   ID, as in `data.embed.depth` and `data.embed.depth.self`.
 
 Segments describe content, never position. An ID contains no section number
 or list index, so reordering a list or a chapter renumbers nothing.
