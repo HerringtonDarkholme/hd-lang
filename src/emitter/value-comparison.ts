@@ -9,10 +9,8 @@ import type {
 import {
   mutableType,
   nominalGenericParts,
-  optionalInner,
   optionalType,
   readonlyType,
-  resultParts,
   tupleParts,
   tupleType,
 } from "../types.ts";
@@ -111,6 +109,16 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       trait = this.traitsByIndex.get(trait.supertraits[fieldIndex]!.traitIndex)!;
     }
     return dictionary;
+  }
+
+  /** A call of an implementation's method, with its bounds' dictionaries after the operands. */
+  private emitFunctionDispatch(
+    dispatch: Extract<HirEqualityDispatch, { kind: "function" }>,
+    left: string,
+    right: string,
+  ): string {
+    const bounds = (dispatch.bounds ?? []).map((bound) => ` ${this.emitExpression(bound)}`);
+    return `(call ${functionName(dispatch.functionIndex)} ${left} ${right}${bounds.join("")})`;
   }
 
   /** The `Eq` function of each declared map key type, by function index. */
@@ -508,8 +516,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
   ): string {
     if (strategy?.kind === "dispatch") {
       const dispatch = strategy.dispatch;
-      if (dispatch.kind === "function")
-        return `(call ${functionName(dispatch.functionIndex)} ${left} ${right})`;
+      if (dispatch.kind === "function") return this.emitFunctionDispatch(dispatch, left, right);
       const dictionary = this.boundDispatchDictionary(dispatch);
       return `(call_ref $tsig${dispatch.traitIndex}_${dispatch.methodIndex} ${left} ${dictionary} ${right} (struct.get $trait${dispatch.traitIndex} $trait${dispatch.traitIndex}m${dispatch.methodIndex} ${dictionary}))`;
     }
@@ -525,43 +532,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         readonly,
         tuple,
         strategy?.kind === "tuple" ? strategy.elements : undefined,
-      );
-    const optional = optionalInner(readonly);
-    if (optional !== undefined)
-      return this.emitOptionalEquality(
-        left,
-        right,
-        readonly,
-        optional,
-        strategy?.kind === "optional" ? strategy.value : undefined,
-      );
-    const result = resultParts(readonly);
-    if (result)
-      return this.emitVariantEquality(
-        left,
-        right,
-        readonly,
-        result.ok,
-        result.error,
-        strategy?.kind === "result" ? strategy.ok : undefined,
-        strategy?.kind === "result" ? strategy.error : undefined,
-      );
-    const nominal = nominalGenericParts(readonly);
-    if (nominal?.name === "List" && nominal.arguments.length === 1)
-      return this.emitListEquality(
-        left,
-        right,
-        readonly,
-        nominal.arguments[0]!,
-        strategy?.kind === "list" ? strategy.element : undefined,
-      );
-    if (nominal?.name === "Map" && nominal.arguments.length === 2)
-      return this.emitMapEquality(
-        left,
-        right,
-        readonly,
-        nominal.arguments[1]!,
-        strategy?.kind === "map" ? strategy.value : undefined,
       );
     throw new Error(`cannot emit Eq for '${type}'`);
   }
@@ -607,24 +577,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         tuple,
         strategy?.kind === "tuple" ? strategy.elements : undefined,
       );
-    const optional = optionalInner(readonly);
-    if (optional !== undefined)
-      return this.emitOptionalOrdering(
-        left,
-        right,
-        readonly,
-        optional,
-        strategy?.kind === "optional" ? strategy.value : undefined,
-      );
-    const nominal = nominalGenericParts(readonly);
-    if (nominal?.name === "List" && nominal.arguments.length === 1)
-      return this.emitListOrdering(
-        left,
-        right,
-        readonly,
-        nominal.arguments[0]!,
-        strategy?.kind === "list" ? strategy.element : undefined,
-      );
     throw new Error(`cannot emit PartialOrd for '${type}'`);
   }
 
@@ -636,7 +588,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     const dispatch = strategy.dispatch;
     const called =
       dispatch.kind === "function"
-        ? `(call ${functionName(dispatch.functionIndex)} ${left} ${right})`
+        ? this.emitFunctionDispatch(dispatch, left, right)
         : `(call_ref $tsig${dispatch.traitIndex}_${dispatch.methodIndex} ${left} ${this.boundDispatchDictionary(dispatch)} ${right} (struct.get $trait${dispatch.traitIndex} $trait${dispatch.traitIndex}m${dispatch.methodIndex} ${this.boundDispatchDictionary(dispatch)}))`;
     const temporary = this.allocateTemporary("Ordering?");
     const value = `(local.get ${temporary})`;
@@ -710,241 +662,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       `  (local.set ${rightTemporary} ${right})`,
       ...comparisons,
       `  (i32.const 0)`,
-      `)`,
-    ].join("\n");
-  }
-
-  private emitVariantEquality(
-    left: string,
-    right: string,
-    type: ValueType,
-    zeroType: ValueType,
-    oneType: ValueType,
-    zeroStrategy?: HirEqualityStrategy,
-    oneStrategy?: HirEqualityStrategy,
-  ): string {
-    const leftTemporary = this.allocateTemporary(type);
-    const rightTemporary = this.allocateTemporary(type);
-    const leftValue = `(local.get ${leftTemporary})`;
-    const rightValue = `(local.get ${rightTemporary})`;
-    const leftTag = `(struct.get $hd.variant $hd.variant-tag ${leftValue})`;
-    const rightTag = `(struct.get $hd.variant $hd.variant-tag ${rightValue})`;
-    const payload = (value: string, payloadType: ValueType): string =>
-      this.unboxValue(`(struct.get $hd.variant $hd.variant-payload ${value})`, payloadType);
-    const zeroEquality = this.emitValueEquality(
-      payload(leftValue, zeroType),
-      payload(rightValue, zeroType),
-      zeroType,
-      zeroStrategy,
-    );
-    const oneEquality = this.emitValueEquality(
-      payload(leftValue, oneType),
-      payload(rightValue, oneType),
-      oneType,
-      oneStrategy,
-    );
-    return [
-      `(block (result i32)`,
-      `  (local.set ${leftTemporary} ${left})`,
-      `  (local.set ${rightTemporary} ${right})`,
-      `  (if (result i32) (i32.eq ${leftTag} ${rightTag})`,
-      `    (then (if (result i32) (i32.eqz ${leftTag}) (then ${zeroEquality}) (else ${oneEquality})))`,
-      `    (else (i32.const 0))))`,
-    ].join("\n");
-  }
-
-  private emitOptionalEquality(
-    left: string,
-    right: string,
-    type: ValueType,
-    payloadType: ValueType,
-    strategy?: HirEqualityStrategy,
-  ): string {
-    const leftTemporary = this.allocateTemporary(type);
-    const rightTemporary = this.allocateTemporary(type);
-    const leftValue = `(local.get ${leftTemporary})`;
-    const rightValue = `(local.get ${rightTemporary})`;
-    const leftTag = `(struct.get $hd.variant $hd.variant-tag ${leftValue})`;
-    const rightTag = `(struct.get $hd.variant $hd.variant-tag ${rightValue})`;
-    const leftPayload = this.unboxValue(
-      `(struct.get $hd.variant $hd.variant-payload ${leftValue})`,
-      payloadType,
-    );
-    const rightPayload = this.unboxValue(
-      `(struct.get $hd.variant $hd.variant-payload ${rightValue})`,
-      payloadType,
-    );
-    const payloadEquality = this.emitValueEquality(
-      leftPayload,
-      rightPayload,
-      payloadType,
-      strategy,
-    );
-    return [
-      `(block (result i32)`,
-      `  (local.set ${leftTemporary} ${left})`,
-      `  (local.set ${rightTemporary} ${right})`,
-      `  (if (result i32) (i32.eq ${leftTag} ${rightTag})`,
-      `    (then (if (result i32) (i32.eqz ${leftTag}) (then (i32.const 1)) (else ${payloadEquality})))`,
-      `    (else (i32.const 0))))`,
-    ].join("\n");
-  }
-
-  private emitListEquality(
-    left: string,
-    right: string,
-    type: ValueType,
-    elementType: ValueType,
-    strategy?: HirEqualityStrategy,
-  ): string {
-    const leftTemporary = this.allocateTemporary(type);
-    const rightTemporary = this.allocateTemporary(type);
-    const indexTemporary = this.allocateTemporary("i32");
-    const label = `$equality${this.loopCounter++}`;
-    const leftElement = this.unboxValue(
-      `(call $hd.vector_get (ref.as_non_null (local.get ${leftTemporary})) (local.get ${indexTemporary}))`,
-      elementType,
-    );
-    const rightElement = this.unboxValue(
-      `(call $hd.vector_get (ref.as_non_null (local.get ${rightTemporary})) (local.get ${indexTemporary}))`,
-      elementType,
-    );
-    return [
-      `(block ${label} (result i32)`,
-      `  (local.set ${leftTemporary} ${left})`,
-      `  (local.set ${rightTemporary} ${right})`,
-      `  (if (i32.ne`,
-      `      (struct.get $hd.vector $hd.vector-size (ref.as_non_null (local.get ${leftTemporary})))`,
-      `      (struct.get $hd.vector $hd.vector-size (ref.as_non_null (local.get ${rightTemporary}))))`,
-      `    (then (br ${label} (i32.const 0))))`,
-      `  (loop $${label.slice(1)}loop`,
-      `    (br_if ${label} (i32.const 1)`,
-      `      (i32.ge_u (local.get ${indexTemporary}) (struct.get $hd.vector $hd.vector-size (ref.as_non_null (local.get ${leftTemporary})))))`,
-      `    (if (i32.eqz ${this.emitValueEquality(leftElement, rightElement, elementType, strategy)})`,
-      `      (then (br ${label} (i32.const 0))))`,
-      `    (local.set ${indexTemporary} (i32.add (local.get ${indexTemporary}) (i32.const 1)))`,
-      `    (br $${label.slice(1)}loop))`,
-      `  (i32.const 1)`,
-      `)`,
-    ].join("\n");
-  }
-
-  private emitOptionalOrdering(
-    left: string,
-    right: string,
-    type: ValueType,
-    payloadType: ValueType,
-    strategy?: HirOrderingStrategy,
-  ): string {
-    const leftTemporary = this.allocateTemporary(type);
-    const rightTemporary = this.allocateTemporary(type);
-    const leftValue = `(local.get ${leftTemporary})`;
-    const rightValue = `(local.get ${rightTemporary})`;
-    const leftTag = `(struct.get $hd.variant $hd.variant-tag ${leftValue})`;
-    const rightTag = `(struct.get $hd.variant $hd.variant-tag ${rightValue})`;
-    const leftPayload = this.unboxValue(
-      `(struct.get $hd.variant $hd.variant-payload ${leftValue})`,
-      payloadType,
-    );
-    const rightPayload = this.unboxValue(
-      `(struct.get $hd.variant $hd.variant-payload ${rightValue})`,
-      payloadType,
-    );
-    return [
-      `(block (result i32)`,
-      `  (local.set ${leftTemporary} ${left})`,
-      `  (local.set ${rightTemporary} ${right})`,
-      `  (if (result i32) (i32.ne ${leftTag} ${rightTag})`,
-      `    (then (if (result i32) (i32.lt_u ${leftTag} ${rightTag}) (then (i32.const -1)) (else (i32.const 1))))`,
-      `    (else (if (result i32) (i32.eqz ${leftTag}) (then (i32.const 0))`,
-      `      (else ${this.emitValueOrdering(leftPayload, rightPayload, payloadType, strategy)}))))`,
-      `)`,
-    ].join("\n");
-  }
-
-  private emitListOrdering(
-    left: string,
-    right: string,
-    type: ValueType,
-    elementType: ValueType,
-    strategy?: HirOrderingStrategy,
-  ): string {
-    const leftTemporary = this.allocateTemporary(type);
-    const rightTemporary = this.allocateTemporary(type);
-    const indexTemporary = this.allocateTemporary("i32");
-    const comparisonTemporary = this.allocateTemporary("i32");
-    const label = `$ordering${this.loopCounter++}`;
-    const loop = `$${label.slice(1)}loop`;
-    const leftList = `(ref.as_non_null (local.get ${leftTemporary}))`;
-    const rightList = `(ref.as_non_null (local.get ${rightTemporary}))`;
-    const leftSize = `(struct.get $hd.vector $hd.vector-size ${leftList})`;
-    const rightSize = `(struct.get $hd.vector $hd.vector-size ${rightList})`;
-    const leftElement = this.unboxValue(
-      `(call $hd.vector_get ${leftList} (local.get ${indexTemporary}))`,
-      elementType,
-    );
-    const rightElement = this.unboxValue(
-      `(call $hd.vector_get ${rightList} (local.get ${indexTemporary}))`,
-      elementType,
-    );
-    const sizeOrdering = `(if (result i32) (i32.lt_u ${leftSize} ${rightSize}) (then (i32.const -1)) (else (if (result i32) (i32.gt_u ${leftSize} ${rightSize}) (then (i32.const 1)) (else (i32.const 0)))))`;
-    return [
-      `(block ${label} (result i32)`,
-      `  (local.set ${leftTemporary} ${left})`,
-      `  (local.set ${rightTemporary} ${right})`,
-      `  (loop ${loop}`,
-      `    (if (i32.or (i32.ge_u (local.get ${indexTemporary}) ${leftSize}) (i32.ge_u (local.get ${indexTemporary}) ${rightSize}))`,
-      `      (then (br ${label} ${sizeOrdering})))`,
-      `    (local.set ${comparisonTemporary} ${this.emitValueOrdering(leftElement, rightElement, elementType, strategy)})`,
-      `    (if (i32.ne (local.get ${comparisonTemporary}) (i32.const 0))`,
-      `      (then (br ${label} (local.get ${comparisonTemporary}))))`,
-      `    (local.set ${indexTemporary} (i32.add (local.get ${indexTemporary}) (i32.const 1)))`,
-      `    (br ${loop}))`,
-      `  (i32.const 0)`,
-      `)`,
-    ].join("\n");
-  }
-
-  private emitMapEquality(
-    left: string,
-    right: string,
-    type: ValueType,
-    valueType: ValueType,
-    strategy?: HirEqualityStrategy,
-  ): string {
-    const leftTemporary = this.allocateTemporary(type);
-    const rightTemporary = this.allocateTemporary(type);
-    const indexTemporary = this.allocateTemporary("i32");
-    const foundTemporary = this.allocateTemporary(optionalType(valueType));
-    const label = `$equality${this.loopCounter++}`;
-    const leftMap = `(ref.as_non_null (local.get ${leftTemporary}))`;
-    const rightMap = `(ref.as_non_null (local.get ${rightTemporary}))`;
-    const key = `(array.get $hd.list (struct.get $hd.map $hd.map-keys ${leftMap}) (local.get ${indexTemporary}))`;
-    const leftValue = this.unboxValue(
-      `(array.get $hd.list (struct.get $hd.map $hd.map-values ${leftMap}) (local.get ${indexTemporary}))`,
-      valueType,
-    );
-    const rightValue = this.unboxValue(
-      `(struct.get $hd.variant $hd.variant-payload (local.get ${foundTemporary}))`,
-      valueType,
-    );
-    return [
-      `(block ${label} (result i32)`,
-      `  (local.set ${leftTemporary} ${left})`,
-      `  (local.set ${rightTemporary} ${right})`,
-      `  (if (i32.ne (struct.get $hd.map $hd.map-size ${leftMap}) (struct.get $hd.map $hd.map-size ${rightMap}))`,
-      `    (then (br ${label} (i32.const 0))))`,
-      `  (loop $${label.slice(1)}loop`,
-      `    (br_if ${label} (i32.const 1)`,
-      `      (i32.ge_u (local.get ${indexTemporary}) (struct.get $hd.map $hd.map-size ${leftMap})))`,
-      `    (local.set ${foundTemporary} (call $hd.map_get ${rightMap} ${key}))`,
-      `    (if (i32.eqz (struct.get $hd.variant $hd.variant-tag (local.get ${foundTemporary})))`,
-      `      (then (br ${label} (i32.const 0))))`,
-      `    (if (i32.eqz ${this.emitValueEquality(leftValue, rightValue, valueType, strategy)})`,
-      `      (then (br ${label} (i32.const 0))))`,
-      `    (local.set ${indexTemporary} (i32.add (local.get ${indexTemporary}) (i32.const 1)))`,
-      `    (br $${label.slice(1)}loop))`,
-      `  (i32.const 1)`,
       `)`,
     ].join("\n");
   }

@@ -271,6 +271,22 @@ requires.
 Totals: M1 to M10 delete about 1,900 lines of TS and add about 1,000
 lines of hd and 200 lines of hooks. M11 adds about 325 more after Q4.
 
+**M1 status, 2026-10-01: done.** `lib/std/cmp.hd` holds the impls; the
+composite strategies, their HIR kinds, and `genericEqualityCall` are gone
+(TS 493 lines deleted, 156 added). Differences from the plan:
+
+- `Ord` for `List[T]` and `T?` is hd too: the prototype gave them `Ord`
+  before (audit item 11), and dropping it broke `min` on lists.
+- Two hooks beyond the dispatch lookup: an implementation bound met
+  through a supertrait (`T < Ord` for `T < PartialOrd`), and a loader rule
+  that a comparison operator or `assert_equal` mentions `Eq` or
+  `PartialOrd`, which brings in `std.cmp`.
+- `displayValue` is unchanged, so `display-tuples` still fails: the tuple
+  `Display` impls in `std.format` are not loaded for an interpolation.
+- The old list and map strategies never reset their loop index, so a
+  repeated comparison in one frame, as in a loop, read stale elements.
+  `test/std/cmp-iter.hd` now covers it.
+
 Rules for every chunk:
 
 - Write the hd first, then delete the TS path it replaces. Never keep both.

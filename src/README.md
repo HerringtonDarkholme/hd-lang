@@ -533,11 +533,14 @@ else`, `break`, `break value`, and `continue`;
   trait bounds, dictionary forwarding, method dispatch on values produced
   inside generic bodies, and concrete call-site recovery for returned `T`
   values;
-- concrete and bounded generic `Eq` and `PartialOrd` dispatch, with
-  structural equality for tuples, lists, optionals, `Result`, and maps and
-  lexicographic tuple/list plus `.None`-first optional ordering, recursively using
-  explicit implementations and erased bound dictionaries for nested values;
-  primitives and those built-in composites also satisfy `Eq` and
+- concrete and bounded generic `Eq` and `PartialOrd` dispatch: the compiler
+  compares primitives and tuples (lexicographic order), and calls every
+  other type's implementation, generic ones too, passing the dictionaries
+  of the implementation's bounds. `std.cmp` implements `Eq` for lists,
+  optionals, `Result`, and maps, and `PartialOrd` and `Ord` for lists and
+  optionals (`.None` first), in hd; the loader adds them when a program,
+  or std code it gets, mentions a comparison trait, a comparison operator,
+  or `assert_equal`. Primitives and tuples of them also satisfy `Eq` and
   `PartialOrd` bounds (floats included, with IEEE equality), and the ones
   without floats satisfy `Ord`; `PartialOrd < Eq` and `Ord < PartialOrd`, so
   each generated dictionary carries its supertrait's; primitives satisfy
@@ -681,8 +684,8 @@ else`, `break`, `break value`, and `continue`;
   and plain `Self`; `@derive(Eq)`, `PartialOrd`, `Ord`, and `Hash` are
   generated as ordinary hd implementations (`checker/derive-intrinsics.ts`),
   on a newtype through its base type, and `mixed-derived-law` checks the
-  law partners; `==` uses a generic implementation such as a derived
-  `impl[T < Eq] Eq for Box[T]`, while `<` does not yet. `@derive(Debug)` generates
+  law partners; `==` and `<` use a generic implementation such as a derived
+  `impl[T < Eq] Eq for Box[T]`. `@derive(Debug)` generates
   builder calls in Rust's mapping (Testing T53, T54): `debug_struct` for a
   data type, even a fieldless one, and a variant with named payload fields,
   `debug_tuple` for a variant with positional ones, and `write` of a
@@ -988,7 +991,7 @@ What it provides:
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
 | `std.text` | on `string`: `chars`, `char_indices`, `bytes`, `slice`, `to_utf8`, `string::from_utf8` with `Utf8Error`, `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
 | `std.iter` | the prelude `Iterator[T]` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Result`, and `T?` (the compiler supplies `Map`); `Iterable` for `List`, `Map`, and `Iterator`; `range` |
-| `std.cmp` | `min`, `max`, `clamp`, `Reverse[T]` |
+| `std.cmp` | `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?` |
 | `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
@@ -1081,7 +1084,7 @@ marks what this refactor removed.
 | Emitter | `emitConsole` (a hand-written host `Console` provider), `console.wat` (`$hd.console_print`) | capability | Done: the generic capability bridge, with `Result` results |
 | Host glue | `console_byte` import | capability | Done: `Console.write_line` in `HOST_PROVIDERS`, left out of record and replay |
 | Checker | `validateHostCapabilities` skipped `Console` | capability | Done: `Console` passes the same boundary check as any host capability |
-| HIR | `assert`, `assert-equal` | `std.testing` | Remains: `assert_equal` needs the compiler's equality strategies; see below |
+| HIR | `assert`, `assert-equal` | `std.testing` | Remains: `assert_equal` is checked by the compiler; its equality calls `std.cmp` for composites |
 | HIR | `snapshot-file` | `std.testing` | Done: `snapshot_file` is hd code in `lib/std/testing.hd` with a host function |
 | HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Remains: runner protocol, not library code |
 | HIR | `debug-render` | `std.format` | Done: `debug`, `DebugWriter`, and its builders are hd code in `lib/std/format.hd` |

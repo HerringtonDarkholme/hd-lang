@@ -387,7 +387,12 @@ export interface HirDefaultArgument {
 }
 
 export type HirEqualityDispatch =
-  | { readonly kind: "function"; readonly functionIndex: number }
+  | {
+      readonly kind: "function";
+      readonly functionIndex: number;
+      /** The dictionaries of a generic implementation's bounds, passed after the operands. */
+      readonly bounds?: readonly HirExpression[];
+    }
   | {
       readonly kind: "bound";
       readonly traitIndex: number;
@@ -415,35 +420,10 @@ export interface HirTupleEqualityStrategy {
   readonly elements: readonly HirEqualityStrategy[];
 }
 
-export interface HirOptionalEqualityStrategy {
-  readonly kind: "optional";
-  readonly value: HirEqualityStrategy;
-}
-
-export interface HirResultEqualityStrategy {
-  readonly kind: "result";
-  readonly ok: HirEqualityStrategy;
-  readonly error: HirEqualityStrategy;
-}
-
-export interface HirListEqualityStrategy {
-  readonly kind: "list";
-  readonly element: HirEqualityStrategy;
-}
-
-export interface HirMapEqualityStrategy {
-  readonly kind: "map";
-  readonly value: HirEqualityStrategy;
-}
-
 export type HirEqualityStrategy =
   | HirBuiltinEqualityStrategy
   | HirDispatchEqualityStrategy
-  | HirTupleEqualityStrategy
-  | HirOptionalEqualityStrategy
-  | HirResultEqualityStrategy
-  | HirListEqualityStrategy
-  | HirMapEqualityStrategy;
+  | HirTupleEqualityStrategy;
 
 export type HirOrderingOperator = "<" | "<=" | ">" | ">=";
 
@@ -461,22 +441,10 @@ export interface HirTupleOrderingStrategy {
   readonly elements: readonly HirOrderingStrategy[];
 }
 
-export interface HirOptionalOrderingStrategy {
-  readonly kind: "optional";
-  readonly value: HirOrderingStrategy;
-}
-
-export interface HirListOrderingStrategy {
-  readonly kind: "list";
-  readonly element: HirOrderingStrategy;
-}
-
 export type HirOrderingStrategy =
   | HirBuiltinOrderingStrategy
   | HirDispatchOrderingStrategy
-  | HirTupleOrderingStrategy
-  | HirOptionalOrderingStrategy
-  | HirListOrderingStrategy;
+  | HirTupleOrderingStrategy;
 
 export type HirStatement =
   | { readonly kind: "defer"; readonly body: readonly HirStatement[]; readonly span: SourceSpan }

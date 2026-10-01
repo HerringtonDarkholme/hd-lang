@@ -42,3 +42,114 @@ impl[T < Ord] PartialOrd for Reverse[T]:
 impl[T < Ord] Ord for Reverse[T]:
     fn cmp(self, other: Reverse[T]) -> Ordering:
         other.value.cmp(self.value)
+
+# Equality and order of the built-in composites
+# (spec/05-expressions.md#r-expr.eq.std, #r-expr.ord.std). `==`, `<`, and
+# the other comparison operators call these through `Eq.eq` and
+# `PartialOrd.partial_cmp`. Tuples are compiler-derived
+# (spec/09-traits.md#r-trait.target.tuple.derived).
+
+# Lists are equal when they have the same length and equal elements in order.
+impl[T < Eq] Eq for List[T]:
+    fn eq(self, other: List[T]) -> bool:
+        if self.len() != other.len():
+            return false
+        let index = 0
+        while index < self.len():
+            if self[index] != other[index]:
+                return false
+            index = index + 1
+        true
+
+# Lexicographic: the first unequal element decides, and an unordered one,
+# such as NaN, makes the lists unordered; otherwise the shorter list is less
+# (spec/05-expressions.md#r-expr.ord.std.sequences, #r-expr.ord.composite).
+impl[T < PartialOrd] PartialOrd for List[T]:
+    fn partial_cmp(self, other: List[T]) -> Ordering?:
+        let index = 0
+        while index < self.len() && index < other.len():
+            if self[index] != other[index]:
+                return self[index].partial_cmp(other[index])
+            index = index + 1
+        if self.len() < other.len():
+            return .Some(.Less)
+        if self.len() > other.len():
+            return .Some(.Greater)
+        .Some(.Equal)
+
+impl[T < Eq] Eq for T?:
+    fn eq(self, other: T?) -> bool:
+        match self:
+            .Some(left) =>
+                match other:
+                    .Some(right) => left == right
+                    .None => false
+            .None =>
+                match other:
+                    .Some(_) => false
+                    .None => true
+
+# `.None` is less than every present value
+# (spec/05-expressions.md#r-expr.ord.std.optional).
+impl[T < PartialOrd] PartialOrd for T?:
+    fn partial_cmp(self, other: T?) -> Ordering?:
+        match self:
+            .Some(left) =>
+                match other:
+                    .Some(right) => left.partial_cmp(right)
+                    .None => .Some(.Greater)
+            .None =>
+                match other:
+                    .Some(_) => .Some(.Less)
+                    .None => .Some(.Equal)
+
+impl[T < Eq, E < Eq] Eq for Result[T, E]:
+    fn eq(self, other: Result[T, E]) -> bool:
+        match self:
+            .Ok(left) =>
+                match other:
+                    .Ok(right) => left == right
+                    .Err(_) => false
+            .Err(left) =>
+                match other:
+                    .Err(right) => left == right
+                    .Ok(_) => false
+
+# Maps are equal when they have the same keys, each with an equal value, in
+# any order (spec/05-expressions.md#r-expr.eq.map-order).
+impl[K < Eq & Hash, V < Eq] Eq for Map[K, V]:
+    fn eq(self, other: Map[K, V]) -> bool:
+        if self.len() != other.len():
+            return false
+        for key, value in self:
+            match other.get(key):
+                .Some(found) =>
+                    if found != value:
+                        return false
+                .None => return false
+        true
+
+impl[T < Ord] Ord for List[T]:
+    fn cmp(self, other: List[T]) -> Ordering:
+        let index = 0
+        while index < self.len() && index < other.len():
+            if self[index] != other[index]:
+                return self[index].cmp(other[index])
+            index = index + 1
+        if self.len() < other.len():
+            return .Less
+        if self.len() > other.len():
+            return .Greater
+        .Equal
+
+impl[T < Ord] Ord for T?:
+    fn cmp(self, other: T?) -> Ordering:
+        match self:
+            .Some(left) =>
+                match other:
+                    .Some(right) => left.cmp(right)
+                    .None => .Greater
+            .None =>
+                match other:
+                    .Some(_) => .Less
+                    .None => .Equal

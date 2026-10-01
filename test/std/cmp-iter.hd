@@ -41,3 +41,22 @@ tests:
         let source: mut Iterator[i32] = [1, 2, 3].iter()
         assert_equal(source.take(1).collect(), [1], reason="the first item")
         assert_equal(source.collect(), [2, 3], reason="the rest stays in the source")
+
+    it("composites compare through std.cmp"):
+        assert([1, 2] < [1, 3] && [1] < [1, 0] && !([2] < [1, 9]), reason="lists order lexicographically")
+        let missing: i32? = .None
+        let present: i32? = 0
+        assert(missing < present && missing != present, reason=".None comes first")
+        assert(!([1.0, 0.0 / 0.0] < [1.0, 2.0]), reason="an unordered element makes the lists unordered")
+        let failed: Result[i32, string] = .Err("e")
+        let succeeded: Result[i32, string] = .Ok(1)
+        assert(failed != succeeded && failed == failed, reason="Result compares its variants")
+        assert({"a": 1, "b": 2} == {"b": 2, "a": 1}, reason="map equality ignores order")
+        assert_equal(min([2, 1], [1, 9]), [1, 9], reason="Ord for lists")
+
+    it("repeated comparisons start each time from the first element"):
+        let unequal = 0
+        for pair in [([1, 2], [1, 2]), ([1, 2], [1, 3]), ([1, 2], [1, 3])]:
+            if pair._0 != pair._1:
+                unequal = unequal + 1
+        assert_equal(unequal, 2, reason="each comparison reads its own lists")

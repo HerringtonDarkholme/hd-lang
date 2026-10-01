@@ -323,7 +323,22 @@ function memberNames(node: unknown, names: Set<string>): void {
   for (const [key, child] of Object.entries(record)) if (key !== "span") memberNames(child, names);
 }
 
-/** Every identifier-like string in the node, a superset of the names it mentions. */
+/**
+ * The traits a comparison operator calls (05-expressions.md#r-expr.eq.calls-eq,
+ * #r-expr.ord.partial-cmp), and `assert_equal`'s `Eq` bound. `PartialOrd`
+ * extends `Eq`.
+ */
+const OPERATOR_TRAITS = new Map<string, readonly string[]>([
+  ...["==", "!=", "assert_equal"].map((name): [string, string[]] => [name, ["Eq"]]),
+  ...["<", "<=", ">", ">="].map((name): [string, string[]] => [name, ["Eq", "PartialOrd"]]),
+]);
+
+const COMPARISON_TRAITS = ["Eq", "PartialOrd", "Ord"];
+
+/**
+ * Every identifier-like string in the node, a superset of the names it
+ * mentions. A comparison operator mentions the trait it calls.
+ */
 function mentionedNames(node: unknown, names: Set<string>): void {
   if (Array.isArray(node)) {
     for (const item of node) mentionedNames(item, names);
@@ -331,6 +346,7 @@ function mentionedNames(node: unknown, names: Set<string>): void {
   }
   if (typeof node === "string") {
     for (const word of node.match(/\w+/g) ?? []) names.add(word);
+    for (const trait of OPERATOR_TRAITS.get(node) ?? []) names.add(trait);
     return;
   }
   if (!node || typeof node !== "object") return;
@@ -633,6 +649,16 @@ export function withStandardLibrary(source: Program): Program {
     if (!spans.has(module)) spans.set(module, program.span);
   }
 
+  // `std.cmp` implements the comparison traits for the built-in composites
+  // (05-expressions.md#r-expr.eq.std), so code that mentions one gets them.
+  const comparisons = (node: unknown): void => {
+    if (spans.has("cmp")) return;
+    const mentioned = new Set<string>();
+    mentionedNames(node, mentioned);
+    if (COMPARISON_TRAITS.some((trait) => mentioned.has(trait))) spans.set("cmp", program.span);
+  };
+  comparisons(program);
+
   // Built-in methods: the methods of `impl` blocks on built-in types whose
   // names are selected, to a fixed point. A selected method reaches the std
   // declarations it mentions, and each reached declaration reaches those it
@@ -641,12 +667,15 @@ export function withStandardLibrary(source: Program): Program {
   memberNames(program, selected);
   const chosen = new Map<ImplDecl, MethodDecl[]>();
   const scanned = new Set<unknown>();
-  const reach = (node: unknown): void => {
+  // A whole module reaches only the prelude names it mentions; it `use`s the rest.
+  const prelude = new Set(PRELUDE_DECLARATIONS.map(([, name]) => name));
+  const reach = (node: unknown, preludeOnly = false): void => {
     const mentioned = new Set<string>();
     mentionedNames(node, mentioned);
     for (const name of mentioned) {
       const module = owners.get(name);
       if (module === undefined || included.has(module) || reached.has(name)) continue;
+      if (preludeOnly && !prelude.has(name)) continue;
       reached.add(name);
       if (!spans.has(module)) spans.set(module, program.span);
     }
@@ -669,7 +698,8 @@ export function withStandardLibrary(source: Program): Program {
         scanned.add(node);
         changed = true;
         memberNames(node, selected);
-        if (!whole) reach(node);
+        reach(node, whole);
+        comparisons(node);
       }
     }
     for (const module of STANDARD_MODULES) {
@@ -683,6 +713,7 @@ export function withStandardLibrary(source: Program): Program {
           changed = true;
           memberNames(method, selected);
           reach(method);
+          comparisons(method);
         }
       }
     }

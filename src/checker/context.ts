@@ -68,14 +68,13 @@ import {
   nominalGenericType,
   optionalInner,
   readonlyType,
-  resultParts,
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
   tupleParts,
 } from "../types.ts";
 import { narrowsTo, numericType } from "../numeric.ts";
-import { derivedFieldDiagnostic } from "./derive-intrinsics.ts";
+import { DERIVED_IMPLEMENTATION_SPANS, derivedFieldDiagnostic } from "./derive-intrinsics.ts";
 
 export interface CheckResult {
   readonly program?: HirProgram;
@@ -795,6 +794,7 @@ export abstract class CheckerContext {
     substitutions: ReadonlyMap<string, ValueType>,
     span: SourceSpan,
     seen: ReadonlySet<string>,
+    code = "unsatisfied-trait-bound",
   ): HirExpression {
     const actual = substitutions.get(bound.parameter);
     if (!actual)
@@ -812,24 +812,21 @@ export abstract class CheckerContext {
         : bound.traitName;
     const forwarded = genericTypeName(actual);
     if (forwarded) {
-      const boundIndex = this.signature.genericBounds.findIndex(
-        (candidate) =>
-          candidate.parameter === forwarded &&
-          candidate.traitIndex === bound.traitIndex &&
-          candidate.traitArguments.length === traitArguments.length &&
-          candidate.traitArguments.every((argument, index) => argument === traitArguments[index]),
-      );
-      if (boundIndex < 0)
+      const found = this.parameterBound(forwarded, bound.traitIndex, traitArguments);
+      if (!found)
         this.fail(
-          "unsatisfied-trait-bound",
+          code,
           `generic parameter '${forwarded}' does not implement ${bound.traitName}, required by the implementation bound on '${bound.parameter}'`,
           span,
         );
+      const { boundIndex, supertrait } = found;
+      const type = `trait:${traitKey}`;
       return {
         kind: "trait-bound-dictionary",
         traitIndex: bound.traitIndex,
         boundIndex,
-        type: `trait:${traitKey}`,
+        supertrait,
+        type,
         span,
       };
     }
@@ -850,7 +847,7 @@ export abstract class CheckerContext {
           span,
         };
       this.fail(
-        "unsatisfied-trait-bound",
+        code,
         `type '${actual}' does not implement ${bound.traitName}, required by the implementation bound on '${bound.parameter}'`,
         span,
       );
@@ -862,6 +859,35 @@ export abstract class CheckerContext {
       type: `trait:${traitKey}`,
       span,
     };
+  }
+
+  /**
+   * The bound of type parameter `parameter` on trait `traitIndex`, or on a
+   * trait that extends it, as `T < Integer` extends `Ord` and so `PartialOrd`
+   * and `Eq` (09-traits.md#supertraits), with the supertrait path to it.
+   */
+  private parameterBound(
+    parameter: string,
+    traitIndex: number,
+    traitArguments: readonly ValueType[],
+  ): { boundIndex: number; supertrait?: { sourceTraitIndex: number; path: number[] } } | undefined {
+    const bounds = this.signature.genericBounds;
+    const boundIndex = bounds.findIndex(
+      (bound) =>
+        bound.parameter === parameter &&
+        bound.traitIndex === traitIndex &&
+        bound.traitArguments.length === traitArguments.length &&
+        bound.traitArguments.every((argument, index) => argument === traitArguments[index]),
+    );
+    if (boundIndex >= 0) return { boundIndex };
+    for (const [boundIndex, bound] of bounds.entries()) {
+      const trait = bound.parameter === parameter && this.traitTypes.get(bound.traitName);
+      const path =
+        trait && this.findSupertraitPath(trait, bound.traitArguments, traitIndex, traitArguments);
+      if (trait && path)
+        return { boundIndex, supertrait: { sourceTraitIndex: trait.index, path: [...path] } };
+    }
+    return undefined;
   }
 
   /** The standard `Inspectable`, declared by a `std.inspect` or `std.error` import. */
@@ -1018,27 +1044,32 @@ export abstract class CheckerContext {
     positions: Map<number, number>,
     span: SourceSpan,
   ): HirEqualityStrategy | HirOrderingStrategy {
+    const position = (boundIndex: number): number => {
+      let found = positions.get(boundIndex);
+      if (found === undefined) {
+        found = bounds.length;
+        positions.set(boundIndex, found);
+        const bound = this.signature.genericBounds[boundIndex]!;
+        bounds.push({
+          kind: "trait-bound-dictionary",
+          traitIndex: bound.traitIndex,
+          boundIndex,
+          type: `trait:${bound.traitName}`,
+          span,
+        });
+      }
+      return found;
+    };
     const visit = (value: unknown): unknown => {
       if (Array.isArray(value)) return value.map(visit);
       if (typeof value !== "object" || value === null) return value;
       const node = value as Record<string, unknown>;
       const dispatch = node.dispatch as HirEqualityDispatch | undefined;
-      if (node.kind === "dispatch" && dispatch?.kind === "bound") {
-        let position = positions.get(dispatch.boundIndex);
-        if (position === undefined) {
-          position = bounds.length;
-          positions.set(dispatch.boundIndex, position);
-          const bound = this.signature.genericBounds[dispatch.boundIndex]!;
-          bounds.push({
-            kind: "trait-bound-dictionary",
-            traitIndex: dispatch.via?.traitIndex ?? dispatch.traitIndex,
-            boundIndex: dispatch.boundIndex,
-            type: `trait:${bound.traitName}`,
-            span,
-          });
-        }
-        return { ...node, dispatch: { ...dispatch, boundIndex: position } };
-      }
+      if (node.kind === "dispatch" && dispatch?.kind === "bound")
+        return { ...node, dispatch: { ...dispatch, boundIndex: position(dispatch.boundIndex) } };
+      // A generic implementation's bound dictionary forwarded from the caller's bound.
+      if (node.kind === "trait-bound-dictionary")
+        return { ...node, boundIndex: position(node.boundIndex as number) };
       return Object.fromEntries(Object.entries(node).map(([key, entry]) => [key, visit(entry)]));
     };
     return visit(strategy) as HirEqualityStrategy | HirOrderingStrategy;
@@ -1127,103 +1158,72 @@ export abstract class CheckerContext {
     return this.traitMethodDispatch(type, "Eq");
   }
 
-  protected equalityStrategy(type: ValueType): HirEqualityStrategy | undefined {
+  /** With a `span`, an implementation whose bounds `type` does not meet is an error there. */
+  protected equalityStrategy(type: ValueType, span?: SourceSpan): HirEqualityStrategy | undefined {
     const comparedType = readonlyType(type);
     if (numericType(comparedType) || ["bool", "char", "string"].includes(comparedType))
       return { kind: "builtin" };
     const tuple = tupleParts(comparedType);
     if (tuple !== undefined) {
-      const elements = tuple.map((element) => this.equalityStrategy(element));
+      const elements = tuple.map((element) => this.equalityStrategy(element, span));
       return elements.every((element) => element !== undefined)
         ? { kind: "tuple", elements: elements as HirEqualityStrategy[] }
         : undefined;
     }
-    const optional = optionalInner(comparedType);
-    if (optional !== undefined) {
-      const value = this.equalityStrategy(optional);
-      return value ? { kind: "optional", value } : undefined;
-    }
-    const result = resultParts(comparedType);
-    if (result) {
-      const ok = this.equalityStrategy(result.ok);
-      const error = this.equalityStrategy(result.error);
-      return ok && error ? { kind: "result", ok, error } : undefined;
-    }
-    const nominal = nominalGenericParts(comparedType);
-    if (nominal?.name === "List" && nominal.arguments.length === 1) {
-      const element = this.equalityStrategy(nominal.arguments[0]!);
-      return element ? { kind: "list", element } : undefined;
-    }
-    if (
-      nominal?.name === "Map" &&
-      nominal.arguments.length === 2 &&
-      mapKeyKind(nominal.arguments[0]!) !== undefined
-    ) {
-      const value = this.equalityStrategy(nominal.arguments[1]!);
-      return value ? { kind: "map", value } : undefined;
-    }
-    const dispatch = this.equalityDispatch(comparedType);
+    const dispatch = this.traitMethodDispatch(comparedType, "Eq", span);
     return dispatch ? { kind: "dispatch", dispatch } : undefined;
   }
 
-  private traitMethodDispatch(type: ValueType, traitName: string): HirEqualityDispatch | undefined {
+  private traitMethodDispatch(
+    type: ValueType,
+    traitName: string,
+    span?: SourceSpan,
+  ): HirEqualityDispatch | undefined {
     const comparedType = readonlyType(type);
     const trait = this.traitTypes.get(traitName)!;
     const generic = genericTypeName(comparedType);
-    const boundIndex = generic
-      ? this.signature.genericBounds.findIndex(
-          (bound) => bound.parameter === generic && bound.traitName === trait.name,
-        )
-      : -1;
-    if (boundIndex >= 0) {
-      return { kind: "bound", traitIndex: trait.index, methodIndex: 0, boundIndex };
+    const bound = generic && this.parameterBound(generic, trait.index, []);
+    if (bound) {
+      const { boundIndex, supertrait } = bound;
+      const via = supertrait && { traitIndex: supertrait.sourceTraitIndex, path: supertrait.path };
+      return { kind: "bound", traitIndex: trait.index, methodIndex: 0, boundIndex, via };
     }
-    // A bound whose trait extends the compared one, as `T < Integer` extends
-    // `Ord` and so `PartialOrd` and `Eq` (09-traits.md#supertraits).
-    if (generic)
-      for (const [index, bound] of this.signature.genericBounds.entries()) {
-        if (bound.parameter !== generic) continue;
-        const boundTrait = this.traitTypes.get(bound.traitName);
-        const path =
-          boundTrait && this.findSupertraitPath(boundTrait, bound.traitArguments, trait.index, []);
-        if (path)
-          return {
-            kind: "bound",
-            traitIndex: trait.index,
-            methodIndex: 0,
-            boundIndex: index,
-            via: { traitIndex: boundTrait.index, path },
-          };
-      }
-    const implementation = this.implementations.find(
-      (candidate) => candidate.traitIndex === trait.index && candidate.targetType === comparedType,
-    );
-    const mapping = implementation?.methodFunctions.find(({ methodIndex }) => methodIndex === 0);
-    return mapping ? { kind: "function", functionIndex: mapping.functionIndex } : undefined;
+    // An implementation, generic ones too, such as std's `impl[T < Eq] Eq for
+    // List[T]` (05-expressions.md#r-expr.eq.std). The call passes its bounds'
+    // dictionaries. Without a use `span`, an unmet bound means no implementation.
+    const found = findImpl(this.implementations, trait.index, comparedType, []);
+    const mapping = found?.impl.methodFunctions.find(({ methodIndex }) => methodIndex === 0);
+    if (!found || !mapping) return undefined;
+    const substitutions = matchTraitImplementation(found.impl, trait.index, found.type, [])!;
+    // spec/09-traits.md#r-trait.derive.bound-unmet
+    const code = DERIVED_IMPLEMENTATION_SPANS.has(found.impl.span)
+      ? "missing-derived-bound"
+      : "unsatisfied-trait-bound";
+    const diagnosticCount = this.diagnostics.length;
+    try {
+      const bounds = found.impl.genericBounds.map((bound) =>
+        this.boundDictionaryExpression(bound, substitutions, span ?? ZERO_SPAN, new Set(), code),
+      );
+      return { kind: "function", functionIndex: mapping.functionIndex, bounds };
+    } catch (error) {
+      if (!(error instanceof CheckFailure) || span) throw error;
+      this.diagnostics.length = diagnosticCount;
+      return undefined;
+    }
   }
 
-  protected orderingStrategy(type: ValueType): HirOrderingStrategy | undefined {
+  protected orderingStrategy(type: ValueType, span?: SourceSpan): HirOrderingStrategy | undefined {
     const comparedType = readonlyType(type);
     if (numericType(comparedType) || ["char", "string"].includes(comparedType))
       return { kind: "builtin" };
     const tuple = tupleParts(comparedType);
     if (tuple !== undefined) {
-      const elements = tuple.map((element) => this.orderingStrategy(element));
+      const elements = tuple.map((element) => this.orderingStrategy(element, span));
       return elements.every((element) => element !== undefined)
         ? { kind: "tuple", elements: elements as HirOrderingStrategy[] }
         : undefined;
     }
-    const optional = optionalInner(comparedType);
-    if (optional !== undefined) {
-      const value = this.orderingStrategy(optional);
-      return value ? { kind: "optional", value } : undefined;
-    }
-    const nominal = nominalGenericParts(comparedType);
-    if (nominal?.name === "List" && nominal.arguments.length === 1) {
-      const element = this.orderingStrategy(nominal.arguments[0]!);
-      return element ? { kind: "list", element } : undefined;
-    }
-    const dispatch = this.traitMethodDispatch(comparedType, "PartialOrd");
+    const dispatch = this.traitMethodDispatch(comparedType, "PartialOrd", span);
     return dispatch ? { kind: "dispatch", dispatch } : undefined;
   }
 
@@ -1232,7 +1232,7 @@ export abstract class CheckerContext {
     right: HirExpression,
     span: SourceSpan,
   ): HirExpression | undefined {
-    const strategy = this.equalityStrategy(left.type);
+    const strategy = this.equalityStrategy(left.type, span);
     if (!strategy) return undefined;
     return {
       kind: "value-equality",
