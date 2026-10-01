@@ -454,7 +454,22 @@ their fixtures are known failures.
 | ANNOTATE-TYPED | `@annotate::[T](.Kind)` names the fact type's parameter `T` as its target's type: a field's declared type, or a function's signature type with its `!` and row. The type argument is optional. `MemberTyped` and `@member_typed` are removed, and `With[F]` is `@annotate::[F](.Field) data With[F]`. | [`annot.typed-fact.target-param`](../spec/14-annotations.md#r-annot.typed-fact.target-param) |
 | Rule 1 | A typed fact's value checks like `let f: Fact[X] = value`, where `X` is the target's type. Bounds hold through type validity, and type arguments are inferred from the expected type. It replaces batch 38's expected-type rule. | [`annot.typed-fact.check`](../spec/14-annotations.md#r-annot.typed-fact.check) |
 | Rule 2 | An annotated generic target's type is monomorphized for the check by writing each type parameter as its bound, one fixed type that satisfies it (not a trait value); an unbounded one is `Any`. `fn ms[M < Integer, R](n: M) -> R` checks as `fn(Integer) -> Any`. | [`annot.typed-fact.monomorphic`](../spec/14-annotations.md#r-annot.typed-fact.monomorphic) |
-| LITERAL-MARKERS | `NumSuffix[F]` and `StrPrefix[F]` are typed facts, and `num_suffix` returns `NumSuffix[fn(N) -> R]` with `N < Num`, so shape constraints live in its signature. The literal-function shape rules are deleted. | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
+| LITERAL-MARKERS | `NumSuffix[F]` and `StrPrefix[F]` are typed facts, and `num_suffix` returns `NumSuffix[fn(N) -> R]` with `N < Num`, so shape constraints live in its signature. The literal-function shape rules are deleted. Revised in batch 40 by SUFFIX-ROWS: the result is `NumSuffix[fn(N) -> R $ Q]`. | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
+
+**Batch 40, batch 39 follow-ups (owner decisions, 2026-10-01).** Applied
+in pass 40; the [Revision Notes](../spec/README.md#revision-notes) list
+the three that change the spec. The prototype has no typed facts yet, so
+the new typed-fact fixtures are known failures. SUFFIX-ROWS was chosen
+against the recommendation.
+
+| # | Decision | Where |
+| --- | --- | --- |
+| SUFFIX-ROWS | A literal function may have a requirement row. The markers are `num_suffix[N < Num, R, Q]() -> NumSuffix[fn(N) -> R $ Q]` and `str_prefix[T, R, Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]`. A literal of a rowed function needs that row at the use site, like any call. | [`expr.literal-fn.row`](../spec/05-expressions.md#r-expr.literal-fn.row) |
+| Other parameters | The other type parameters of a multi-parameter typed fact, such as `G` in `@annotate::[F](.Field) data Range[F, G]`, are inferred from the value, like a `_` slot. | [`annot.typed-fact.check.other-params`](../spec/14-annotations.md#r-annot.typed-fact.check.other-params) |
+| Bad target parameter | An `annotate::[T]` whose `T` is not one of the fact type's own parameters is `type-mismatch` at the `@annotate` decorator. | [`annot.typed-fact.target-param.invalid`](../spec/14-annotations.md#r-annot.typed-fact.target-param.invalid) |
+| Target names | Confirmed: keep `.Fn` and `.Field`. | no change; [Target Kinds](../spec/14-annotations.md#target-kinds) |
+| `annotate[T]` | Confirmed: `annotate`'s type argument is written or omitted, never inferred, an accepted exception to inference. | no change; [`annot.typed-fact.opt-in`](../spec/14-annotations.md#r-annot.typed-fact.opt-in) |
+| Typed-fact targets | Confirmed: a typed fact attaches only to a field or a module-level function. | no change; [`annot.typed-fact.targets`](../spec/14-annotations.md#r-annot.typed-fact.targets) |
 
 ### Bound And Row Operators
 

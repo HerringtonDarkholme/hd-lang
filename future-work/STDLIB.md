@@ -920,16 +920,17 @@ syntax. Its first member is the literal-suffix marker
 use std.annotation.annotate
 use std.num.Num
 
-@annotate::[fn(N) -> R](.Fn)
-pub data NumSuffix[N < Num, R]: pass
+@annotate::[F](.Fn)
+pub data NumSuffix[F]: pass
 
-pub fn num_suffix[N < Num, R]() -> NumSuffix[N, R]:
-    NumSuffix::[N, R] {}
+pub fn num_suffix[N < Num, R, Q]() -> NumSuffix[fn(N) -> R $ Q]:
+    NumSuffix::[fn(N) -> R $ Q] {}
 ```
 
 Since batch 39 the marker is a
 [typed fact type](../spec/14-annotations.md#member-typed-facts): a marked
-function's type must match `fn(N) -> R`.
+function's type must match `fn(N) -> R $ Q`. Since batch 40 the row
+parameter `Q` lets a suffix function have a requirement row.
 
 A library declares a suffix by marking a function `@num_suffix`; `250ms`
 then means `ms(250)`. String prefixes work the same way with `@str_prefix`

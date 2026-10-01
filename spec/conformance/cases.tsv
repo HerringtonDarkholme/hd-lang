@@ -1206,7 +1206,7 @@ typing/invalid/unknown-literal-suffix.hd	type	reject:unknown-name	03-names-and-s
 typing/invalid/literal-suffix-float-into-integer.hd	type	reject:type-mismatch	04-type-system.md#r-types.literal.suffixed.in
 typing/invalid/literal-suffix-unmarked.hd	type	reject:invalid-literal-suffix	05-expressions.md#r-expr.literal-fn.not-marked
 typing/invalid/literal-suffix-negative-range.hd	type	reject:integer-literal-range	04-type-system.md#r-types.literal.suffixed.in
-typing/invalid/literal-suffix-requirement.hd	type	reject:type-mismatch	14-annotations.md#r-annot.typed-fact.check
+typing/invalid/literal-suffix-requirement.hd	type	reject:missing-requirement	05-expressions.md#r-expr.literal-fn.row
 typing/invalid/test-timeout-string.hd	type	reject:type-mismatch	10-modules.md#r-module.testing.it-function
 typing/invalid/tests-root-outside-tests.hd	type	reject:test-only-use	10-modules.md#r-module.test.tests-root-elsewhere
 runtime/valid/literal-suffix-call.hd	runtime	accept	05-expressions.md#r-expr.suffix.fn-call
@@ -1287,7 +1287,7 @@ typing/invalid/unknown-string-prefix.hd	type	reject:unknown-name	03-names-and-sc
 typing/invalid/bytes-prefix-unknown.hd	type	reject:unknown-name	std/text.md#r-std-text.prefix.std.only-r
 typing/invalid/string-prefix-unmarked.hd	type	reject:invalid-string-prefix	05-expressions.md#r-expr.literal-fn.not-marked
 typing/invalid/string-prefix-parameter-type.hd	type	reject:type-mismatch	14-annotations.md#r-annot.typed-fact.check
-typing/invalid/string-prefix-requirement.hd	type	reject:type-mismatch	14-annotations.md#r-annot.typed-fact.check
+typing/invalid/string-prefix-requirement.hd	type	reject:missing-requirement	05-expressions.md#r-expr.literal-fn.row
 typing/valid/string-prefix-generic.hd	type	accept	05-expressions.md#r-expr.literal-fn.ordinary-call
 typing/invalid/string-prefix-extra-parameter.hd	type	reject:type-mismatch	14-annotations.md#r-annot.typed-fact.check
 typing/invalid/string-prefix-suspending.hd	type	reject:type-mismatch	14-annotations.md#r-annot.typed-fact.check
@@ -1328,6 +1328,8 @@ typing/invalid/property-input-not-debug.hd	type	reject:unsatisfied-trait-bound	s
 runtime/valid/property-assume-discards.hd	runtime	accept	std/testing.md#r-std-testing.prop.discard
 typing/invalid/type-name-as-value.hd	type	reject:type-used-as-value	03-names-and-scopes.md#r-names.type-as-value
 typing/invalid/literal-suffix-no-parameter.hd	type	reject:type-mismatch	14-annotations.md#r-annot.typed-fact.check
+typing/valid/literal-suffix-requirement.hd	type	accept	05-expressions.md#r-expr.literal-fn.row
+typing/valid/string-prefix-requirement.hd	type	accept	05-expressions.md#r-expr.literal-fn.row
 typing/valid/row-union-list.hd	type	accept	11-requirements-and-suspension.md#r-req.row.union.literal
 typing/valid/row-union-map.hd	type	accept	11-requirements-and-suspension.md#r-req.row.union.literal.map
 typing/invalid/row-union-list-no-convert.hd	type	reject:type-mismatch	11-requirements-and-suspension.md#r-req.row.union.literal.invariant
@@ -1761,4 +1763,6 @@ typing/valid/literal-suffix-generic-target.hd	type	accept	14-annotations.md#r-an
 typing/invalid/typed-fact-bound.hd	type	reject:unsatisfied-trait-bound	14-annotations.md#r-annot.typed-fact.check.bounds
 typing/invalid/typed-fact-value-mismatch.hd	type	reject:type-mismatch	14-annotations.md#r-annot.typed-fact.check
 typing/valid/typed-fact-generic-owner.hd	type	accept	14-annotations.md#r-annot.typed-fact.monomorphic
+typing/valid/typed-fact-other-params.hd	type	accept	14-annotations.md#r-annot.typed-fact.check.other-params
+typing/invalid/typed-fact-target-not-param.hd	type	reject:type-mismatch	14-annotations.md#r-annot.typed-fact.target-param.invalid
 typing/valid/arbitrary-with-generic-generator.hd	type	accept	std/testing.md#r-std-testing.arbitrary.with.checked

@@ -1,0 +1,7 @@
+# test: annotate's type argument must be one of the fact type's own type parameters
+# Spec 14 Member-Typed Facts: annot.typed-fact.target-param.invalid, reported at the @annotate decorator (batch 40, 2026-10-01).
+use std.annotation.annotate
+
+@annotate::[i32](.Field)  # diagnostic: type-mismatch
+data Wrapped[T]:
+    value: T

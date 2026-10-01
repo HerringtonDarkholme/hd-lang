@@ -1,0 +1,13 @@
+# test: a suffix function may need providers; the literal's caller provides them
+# Spec 05 Literal Suffixes: expr.literal-fn.row; `Q` in num_suffix takes `$ Console` from the expected type (owner decision SUFFIX-ROWS, batch 40, 2026-10-01).
+use std.ops.num_suffix
+
+data Pixels:
+    count: i32
+
+@num_suffix
+fn px(count: i32) -> Pixels $ Console:
+    Pixels { count: count }
+
+fn layout() -> Pixels $ Console:
+    12px

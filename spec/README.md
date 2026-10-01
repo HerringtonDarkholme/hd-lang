@@ -3258,3 +3258,32 @@ existing source. Each entry names the decision that made the change.
   function with a requirement row, valid before, is now `type-mismatch`
   at the decorator, because `fn(N) -> R` has the empty row. A generic
   suffix function such as `fn k[N < Num](n: N) -> N` stays valid.
+- Literal functions with requirement rows (owner decision SUFFIX-ROWS,
+  batch 40, 2026-10-01; recorded in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions)):
+  language tier. `num_suffix` is now
+  `fn num_suffix[N < Num, R, Q]() -> NumSuffix[fn(N) -> R $ Q]`, and
+  `str_prefix` is `fn str_prefix[T, R, Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]`.
+  `Q` is a row parameter, inferred from the expected type like `N` and
+  `R`. So a literal function may have a requirement row again, and
+  [`expr.literal-fn.row`](05-expressions.md#r-expr.literal-fn.row) makes
+  a literal of it need that row where it appears. Error:
+  `missing-requirement`. For existing programs: a suffix or prefix
+  function with a requirement row, `type-mismatch` at the decorator since
+  batch 39, is valid again. No rule ID retired.
+- Typed facts with more parameters, and a bad target parameter (batch 40,
+  2026-10-01; recorded in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions)):
+  language tier.
+  [`annot.typed-fact.check.other-params`](14-annotations.md#r-annot.typed-fact.check.other-params):
+  in `@annotate::[F](.Field) data Range[F, G]`, `G` is inferred from the
+  value as a `_` slot is, so an unsolved one is
+  `unresolved-generic-placeholder`.
+  [`annot.typed-fact.target-param.invalid`](14-annotations.md#r-annot.typed-fact.target-param.invalid):
+  an `annotate` type argument that is not one of the fact type's own
+  parameters, as in `@annotate::[i32](.Field)`, is `type-mismatch` at the
+  `@annotate` decorator; batch 39 named no code. The owner confirmed the
+  rest of batch 39 unchanged: the `.Fn` and `.Field` kinds, `annotate`'s
+  type argument as written or omitted and never inferred, and typed-fact
+  targets limited to fields and module-level functions. No rule ID
+  retired.

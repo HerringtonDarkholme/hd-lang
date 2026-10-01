@@ -1690,3 +1690,7 @@ typing/valid/map-indexing.hd	type
 typing/valid/readonly-map-mutable-values.hd	type
 runtime/valid/for-patterns.hd	runtime
 typing/valid/literal-suffix-generic-target.hd	type
+typing/valid/literal-suffix-requirement.hd	type
+typing/valid/string-prefix-requirement.hd	type
+typing/invalid/literal-suffix-requirement.hd	type
+typing/invalid/string-prefix-requirement.hd	type

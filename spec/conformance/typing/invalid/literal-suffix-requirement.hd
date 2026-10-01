@@ -1,10 +1,13 @@
-# test: a suffix function with a requirement row does not fit fn(N) -> R, whose row is empty
-# Spec 14 Member-Typed Facts: annot.typed-fact.check, reported at the decorator (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
+# test: a suffix function's requirement row joins the caller's row, as any call's does
+# Spec 05 Literal Suffixes: expr.literal-fn.row; `12px` needs Console where the row is empty (owner decision SUFFIX-ROWS, batch 40, 2026-10-01).
 use std.ops.num_suffix
 
 pub data Pixels:
     count: i32
 
-@num_suffix  # diagnostic: type-mismatch
+@num_suffix
 fn px(count: i32) -> Pixels $ Console:
     Pixels { count: count }
+
+pub fn layout() -> Pixels:
+    12px  # diagnostic: missing-requirement

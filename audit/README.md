@@ -9,15 +9,15 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-10-01 the conformance suite has 1,763 cases, and
-`test/portable/cases.tsv` selects the 1,691 that the prototype passes. The
+On 2026-10-01 the conformance suite has 1,767 cases, and
+`test/portable/cases.tsv` selects the 1,695 that the prototype passes. The
 other 72 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
 finding or with a decision below. Every case is in one of the two files. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Selected | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,689 | 1,624 | 65 |
+| language | 1,693 | 1,628 | 65 |
 | stdlib | 74 | 67 | 7 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -43,8 +43,8 @@ them by tag:
 | Q6-others | 1 | batch 33: interpolation finds `Display` only for an exact target type, so `lib/std`'s generic tuple `Display` is unused |
 | TR-traits | 3 | batch 34: rest tuples have no `Eq` or `PartialOrd`, and `lib/std` declares no rest tuple `Debug` or `Display` |
 | O7 | 1 | batch 36: `arbitrary.with` still erases its generator, so a mismatched generator panics at run time |
-| ANNOTATE-TYPED | 12 | batch 39: no typed facts: `annotate` takes no type argument, so `@annotate::[F]` is `argument-count`, `Field` has no `fact`, a bare generic decorator gets no expected type, and a `fn!` target is not `type-mismatch` |
-| LITERAL-MARKERS | 10 | batch 39: the literal-function shape is still checked at the `fn` line, a requirement row is allowed, and a parameter outside `Num` is `type-mismatch` |
+| ANNOTATE-TYPED | 14 | batches 39 and 40: no typed facts: `annotate` takes no type argument, so `@annotate::[F]` is `argument-count`, `Field` has no `fact`, a bare generic decorator gets no expected type, and a `fn!` target is not `type-mismatch` |
+| LITERAL-MARKERS | 8 | batch 39: the literal-function shape is still checked at the `fn` line, and a parameter outside `Num` is `type-mismatch` |
 | O3b | 5 | batch 36: no tuple `Structure` or tuple templates, so tuple traits stop at 12 elements and a tuple template derives nothing |
 | FX-let-mut | 1 | a fixture defect: `typing/valid/let-data-pattern.hd` writes `let mut` on an `i32`, which is `mut-on-primitive`; its `let` patterns pass without the `mut` |
 | FX-shape | 1 | a fixture defect: `typing/valid/let-else-diverging-forms.hd` names a loop binding `shape`, a prelude intrinsic, so it is `prelude-name-shadow` |

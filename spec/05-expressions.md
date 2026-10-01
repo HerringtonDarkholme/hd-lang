@@ -235,8 +235,8 @@ use std.num.Num
 @annotate::[F](.Fn)
 pub data NumSuffix[F]: pass
 
-pub fn num_suffix[N < Num, R]() -> NumSuffix[fn(N) -> R]:
-    NumSuffix::[fn(N) -> R] {}
+pub fn num_suffix[N < Num, R, Q]() -> NumSuffix[fn(N) -> R $ Q]:
+    NumSuffix::[fn(N) -> R $ Q] {}
 ```
 
 Rules for every literal function:
@@ -246,6 +246,7 @@ Rules for every literal function:
 3. r[expr.literal-fn.not-marked] A suffix or prefix that resolves to anything but a literal function of its form is an error at the literal. Error: `invalid-literal-suffix` for a suffix, `invalid-string-prefix` for a prefix.
 4. r[expr.literal-fn.no-marker-import] The call needs no import of the marker, its type, or `Template`: a `use` of the literal function alone makes the literal valid.
 5. r[expr.literal-fn.ordinary-call] A literal is exactly the call of its literal function wherever it appears, and it is checked and evaluated as an ordinary call there. So argument errors, inferred type arguments, and the rules of a [fact](14-annotations.md#r-annot.fact.eval) or [shared enum data](08-data-and-enums.md#r-data.shared.compile-time) position all apply as for any call.
+6. r[expr.literal-fn.row] A literal function may have a requirement row, and a literal of it needs that row where it appears, as any call does, by [`req.row.set.call`](11-requirements-and-suspension.md#r-req.row.set.call). Error: `missing-requirement`.
 
 Each marker is a typed fact, checked by
 [`annot.typed-fact.check`](14-annotations.md#r-annot.typed-fact.check):
@@ -253,17 +254,26 @@ Each marker is a typed fact, checked by
 | Function | `@num_suffix` checks like |
 | --- | --- |
 | `fn ms(n: i64) -> Millis` | `let f: NumSuffix[fn(i64) -> Millis] = num_suffix()` |
+| `fn px(count: i32) -> Pixels $ Console` | `let f: NumSuffix[fn(i32) -> Pixels $ Console] = num_suffix()` |
 | `fn k[N < Num](n: N) -> N` | `let f: NumSuffix[fn(Num) -> Num] = num_suffix()`, with one fixed `Num` type |
 
 `num_suffix`'s signature then holds every shape constraint. A suffix
-function takes one parameter of a `Num` type, never suspends, and has an
-empty requirement row. One that does not fit is an error at its
-decorator. A generic one has its type made monomorphic first, by
+function takes one parameter of a `Num` type and never suspends. One that
+does not fit is an error at its decorator. A generic one has its type
+made monomorphic first, by
 [`annot.typed-fact.monomorphic`](14-annotations.md#r-annot.typed-fact.monomorphic).
+
+Its requirement row may be any row. `Q` is a
+[row parameter](11-requirements-and-suspension.md#r-req.row.param.callables),
+since it is used after `$`, and so a generic parameter
+([`req.row.parameter`](11-requirements-and-suspension.md#r-req.row.parameter)).
+The check infers it from the expected type, as it infers `N` and `R`, by
+[`annot.typed-fact.check.inferred`](14-annotations.md#r-annot.typed-fact.check.inferred).
+So for `fn px(count: i32) -> Pixels $ Console`, `Q` is `$ Console`.
 
 Rules for suffixes:
 
-6. r[expr.suffix.fn-call] A suffixed literal `Nx` is the call `x(N)` of the suffix function `x`, with the literal `N` as its one argument, so `250ms` means `ms(250)`.
+7. r[expr.suffix.fn-call] A suffixed literal `Nx` is the call `x(N)` of the suffix function `x`, with the literal `N` as its one argument, so `250ms` means `ms(250)`.
 
 ```text
 use std.ops.num_suffix
@@ -286,7 +296,7 @@ fn later!(count: i64) -> i64:
 fn kb(count: i64, unit: i64 = 1024) -> i64:
     count * unit
 
-@num_suffix  # error: type-mismatch
+@num_suffix
 fn px(count: i32) -> Pixels $ Console:
     Pixels { count: count }
 
@@ -295,7 +305,8 @@ fn same[N](n: N) -> N:
     n
 
 pub fn layout() -> Pixels:
-    12pt  # error: invalid-literal-suffix
+    size := 12pt  # error: invalid-literal-suffix
+    12px  # error: missing-requirement
 ```
 
 > **Note.** The one parameter may have a default, since a default is not
@@ -332,9 +343,11 @@ enum Tier(limit: Millis):
 > **Why.** A suffix is an ordinary function found through `use`, so
 > libraries can add `12px` without new syntax. The literal's type is the
 > function's result, so `12px` is a `Pixels`. A suspending function does
-> not fit `num_suffix`'s result `NumSuffix[fn(N) -> R]`. hd marks every
-> suspending call with `!`, and `5s` has no place to show it. The marker
-> is checked once, at the decorator, not at each literal.
+> not fit `num_suffix`'s result `NumSuffix[fn(N) -> R $ Q]`. hd marks
+> every suspending call with `!`, and `5s` has no place to show it. A
+> requirement row needs no mark at the call, so a literal function may
+> have one. The marker is checked once, at the decorator, not at each
+> literal.
 
 > **Note.** A compiler may warn when a suffixed literal always overflows,
 > as Rust's `unconditional_panic` lint does, but none is required.
@@ -376,8 +389,8 @@ use std.annotation.annotate
 @annotate::[F](.Fn)
 pub data StrPrefix[F]: pass
 
-pub fn str_prefix[T, R]() -> StrPrefix[fn(Template[T]) -> R]:
-    StrPrefix::[fn(Template[T]) -> R] {}
+pub fn str_prefix[T, R, Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
+    StrPrefix::[fn(Template[T]) -> R $ Q] {}
 
 pub data Template[T]:
     pub raw_parts: List[string]
@@ -386,8 +399,8 @@ pub data Template[T]:
 
 The [rules for every literal function](#literal-suffixes) apply to a
 prefix function. `@str_prefix` before `fn sql(t: Template[i64]) -> Query`
-checks like `let f: StrPrefix[fn(Template[i64]) -> Query] = str_prefix()`.
-The rules for prefixes:
+checks like `let f: StrPrefix[fn(Template[i64]) -> Query] = str_prefix()`,
+and its row parameter `Q` takes the empty row. The rules for prefixes:
 
 1. r[expr.prefix.fn-call] A prefixed string `x"..."` is the call `x(t)` of the prefix function `x`, with a `std.ops.Template` value `t` as its one argument. The compiler never joins the pieces and never calls `Display`.
 2. r[expr.prefix.template] `t.values` holds the `n` interpolated values in source order, and `t.raw_parts` holds the `n + 1` pieces of text around them.
@@ -413,12 +426,13 @@ fn later!(t: Template[string]) -> string:
 fn tagged(t: Template[string], tag: string = "x") -> string:
     tag
 
-@str_prefix  # error: type-mismatch
+@str_prefix
 fn logged(t: Template[string]) -> string $ Console:
     "logged"
 
 pub fn render() -> string:
-    plain"x"  # error: invalid-string-prefix
+    first := plain"x"  # error: invalid-string-prefix
+    logged"x"  # error: missing-requirement
 ```
 
 > **Why.** A prefix is an ordinary function found through `use`, so a
