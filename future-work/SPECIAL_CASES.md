@@ -142,7 +142,7 @@ A rule that applies to one type, one name, or one context. Grouped by area.
 | R32 | `println` under a driver | [`module.console.println-block-on.nested`](../spec/10-modules.md#r-module.console.println-block-on.nested) | Panics inside `main!` or a test body. | MHP-1: `println` is `block_on` of its write. |
 | R33 | Redundant prelude `use` | [`module.prelude.no-reimport`](../spec/10-modules.md#r-module.prelude.no-reimport) | `use std.format.Display` is `prelude-name-shadow`. | One spelling per prelude name. |
 | R34 | Suffix and prefix lookup | [`names.suffix.no-local`](../spec/03-names-and-scopes.md#r-names.suffix.no-local), [`names.prefix.no-local`](../spec/03-names-and-scopes.md#r-names.prefix.no-local) | Module scope only; a local `s` never changes `5s`. | L8, L10. |
-| R35 | `pack.map(` token sequence | [`lex.contextual.pack.always`](../spec/01-lexical-structure.md#r-lex.contextual.pack.always) | Wins over a local named `pack`. | GQ4. |
+| R35 | `pack.map(` token sequence | `lex.contextual.pack.always` (since retired) | Wins over a local named `pack`. | GQ4; removed with packs in batch 31b. |
 | R36 | `reified` position | [`lex.contextual.reified.modifier`](../spec/01-lexical-structure.md#r-lex.contextual.reified.modifier) | Always the modifier there; `[reified]` is an error. | B8. |
 | R37 | `@error` and its markers | [`annot.error.name`](../spec/14-annotations.md#r-annot.error.name), [`annot.error.marker.outside`](../spec/14-annotations.md#r-annot.error.marker.outside) | Always the intrinsic; `@from` and `@source` are markers only inside an error type. | Error Conversion 10, batch 9. |
 | R38 | Decorator bare call | [`annot.decorator.bare-call`](../spec/14-annotations.md#r-annot.decorator.bare-call) | `@hidden` means `@hidden()`, in decorators only. | D5. |
@@ -201,7 +201,7 @@ Forms that exist for one feature.
 | S18 | Template `impl[T] Tr for T by Structure` | [`annot.template.form`](../spec/14-annotations.md#r-annot.template.form) | A trait's one derived implementation. | M8, M12. |
 | S19 | `impl Tr for C by E` | [`trait.by.form`](../spec/09-traits.md#r-trait.by.form) | Delegation to an embedded field. | Trait delegation decision. |
 | S20 | `reified T` | [`types.reified.metadata`](../spec/04-type-system.md#r-types.reified.metadata) | Runtime type metadata for a parameter. | `shape[T]()`. |
-| S21 | Packs `Ts...`, `pack.map`, `pack.map_list` | [`pack.param.type-pack`](../spec/12-variadic-generics.md#r-pack.param.type-pack), [`pack.map.intrinsic`](../spec/12-variadic-generics.md#r-pack.map.intrinsic) | Heterogeneous packs for `all!`-style APIs. | Why callout: no general metaprogramming. |
+| S21 | Packs `Ts...`, `pack.map`, `pack.map_list` | `pack.param.type-pack` (since retired), `pack.map.intrinsic` (since retired) | Heterogeneous packs for `all!`-style APIs. Removed in batch 31b; `all!` has one typing rule. | Why callout: no general metaprogramming. |
 | S22 | Suffix `...` spread, prefix `...` copy, `...=` | [`grammar.primary.suffix-spreads`](../spec/02-grammar.md#r-grammar.primary.suffix-spreads), [`grammar.primary.prefix-copies`](../spec/02-grammar.md#r-grammar.primary.prefix-copies) | Spreads elements; copies members into a part. | VE-S; second embedding review. |
 | S23 | Postfix `?` | [`expr.try.option`](../spec/05-expressions.md#r-expr.try.option) | Propagates `.None` or `.Err`. | Error Conversion. |
 | S24 | `T?` | [`types.option.sugar`](../spec/04-type-system.md#r-types.option.sugar) | Sugar for `Option[T]`. | O1. |
@@ -274,7 +274,7 @@ Codes that serve one construct. General codes, such as `type-mismatch`,
 | Requirements | `row-parameter-in-context`, `inspectable-requirement`, `ambiguous-row-pattern`, `generic-requirement-key-collision`, `nonhost-entry-requirement`, `requirement-in-default` | 6 |
 | Suspension | `bang-call-outside-suspension`, `not-suspending`, `suspending-defer` | 3 |
 | `defer` | `defer-control-flow`, `defer-outside-cleanup-scope` | 2 |
-| Packs | `pack-length-mismatch`, `pack-map-mapper-mismatch`, `multiple-positional-value-packs`, `nonfinal-positional-value-pack` | 4 |
+| Packs (removed in batch 31b) | `pack-length-mismatch`, `pack-map-mapper-mismatch`, `multiple-positional-value-packs`, `nonfinal-positional-value-pack` | 4 |
 | Varargs and spreads | `nonfinal-vararg`, `nonfinal-positional-spread`, `positional-spread-needs-vararg` | 3 |
 | `is` | `identity-needs-reference-bound`, `identity-requires-references`, `incompatible-identity-operands`, `unsupported-function-identity` | 4 |
 | `==` and `<` | `missing-eq`, `missing-partial-ord`, `unsupported-equality` | 3 |
@@ -516,6 +516,9 @@ one `SyntaxError`, in a comprehension or not
 
 ### C3. Value Packs Follow The Vararg Rule
 
+**Superseded.** Batch 31b removed packs and both codes on 2026-09-30, so
+this cut no longer applies.
+
 A value pack is the heterogeneous form of a vararg. Its own two codes
 restate the vararg finality rule.
 
@@ -547,14 +550,14 @@ fn scaled(values...: List[i32], factor: i32) -> i32:  # error: nonfinal-vararg
 ```
 
 **Absorbed by.** [`fn.vararg.final`](../spec/07-functions.md#r-fn.vararg.final),
-which [`grammar.fn.vararg.value-pack`](../spec/02-grammar.md#r-grammar.fn.vararg.value-pack)
+which `grammar.fn.vararg.value-pack` (since retired)
 already extends to value packs.
 
 **Cost.** The two-pack message loses its own name; it can still say "only
 one pack may be positional".
 
 **Soundness.** Holds while hd has no named-only parameters.
-[`pack.value.at-most-one`](../spec/12-variadic-generics.md#r-pack.value.at-most-one)
+`pack.value.at-most-one` (since retired)
 says so itself. If named-only parameters arrive, a second pack could follow
 a separator and be final, and the at-most-one rule would have to return.
 
@@ -562,10 +565,10 @@ a separator and be final, and the at-most-one rule would have to return.
 
 | Item | Change |
 | --- | --- |
-| [`pack.value.positional`](../spec/12-variadic-generics.md#r-pack.value.positional) | deleted; a Note states the consequence |
-| [`pack.value.at-most-one`](../spec/12-variadic-generics.md#r-pack.value.at-most-one) | deleted; merged into that Note |
-| [`pack.value.final`](../spec/12-variadic-generics.md#r-pack.value.final) | reworded: Error `nonfinal-vararg` |
-| [`grammar.fn.vararg.value-pack`](../spec/02-grammar.md#r-grammar.fn.vararg.value-pack) | reworded: Error `nonfinal-vararg` |
+| `pack.value.positional` (since retired) | deleted; a Note states the consequence |
+| `pack.value.at-most-one` (since retired) | deleted; merged into that Note |
+| `pack.value.final` (since retired) | reworded: Error `nonfinal-vararg` |
+| `grammar.fn.vararg.value-pack` (since retired) | reworded: Error `nonfinal-vararg` |
 | `multiple-positional-value-packs` | deleted; the same program reports `nonfinal-vararg` |
 | `nonfinal-positional-value-pack` | merged into `nonfinal-vararg` |
 | Fixtures `multiple-positional-value-packs.hd`, `nonfinal-positional-value-pack.hd` | marker becomes `nonfinal-vararg`; 2 rows |
@@ -1035,6 +1038,8 @@ Smallest first. Each states the effect, the choices, a recommendation, and
 hd code.
 
 ### Q1. Value-Pack Codes
+
+Superseded: batch 31b removed packs and both codes.
 
 Two codes restate the vararg finality rule for value packs
 ([C3](#c3-value-packs-follow-the-vararg-rule)).

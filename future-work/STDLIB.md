@@ -2088,7 +2088,7 @@ model, the facts, and the draw API above. The generators keep the
 | `std.fs` handles, `std.net`, `std.process` streaming | non-escaping handles and fallible cleanup | [Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy) |
 | `std.observe`, `std.log` | task-local trace context | [Observability Hooks](OPEN_ISSUES.md#observability-hooks) |
 | `std.incremental` | closure identity, weak references | [Serializable Closures](OPEN_ISSUES.md#serializable-closures-and-incremental-computation) |
-| `std.task.all!` | variadic packs (kept: scope reduction closed 2026-09-27) | none |
+| `std.task.all!` | none: an intrinsic with one typing rule since batch 31b removed packs | none |
 | idle-driven virtual time (after decision 10) | a driver idle signal | no open issue yet |
 | attenuated providers (`for_tenant`) | principal and tenancy patterns | [Access Control](OPEN_ISSUES.md#access-control-and-tenancy-expressibility) |
 | capability catalog, provider configuration, combinator set | library and runtime work | [Runtime, Library, ABI, And Tooling Work](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work) |

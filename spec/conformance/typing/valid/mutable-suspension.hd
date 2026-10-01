@@ -1,7 +1,7 @@
 fn ready!() -> i32:
     1
 
-fn accept_all[Ts...](tasks: mut Suspend[Ts]...) -> void:
+fn accept_all[T](tasks...: List[mut Suspend[T]]) -> void:
     pass
 
 fn keep_mutable() -> void:

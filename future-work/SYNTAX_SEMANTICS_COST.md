@@ -122,7 +122,7 @@ section.
 | 14 | `::` references and qualified calls | 38 | 141 | 66 | 209 | a closure; no static call form | Rust, MoonBit `T::f`; Kotlin `::f`; Go `T.M` | keep |
 | 15 | Derivation blocks and member lines `=`, `+=`, `= pass` | 55 | 268 | 6 blocks, 5 member lines | 70 / 50 | a hand-written impl | Rust derive attributes, serde field attributes | reopen?: [R7](#r7-derivation-member-lines) |
 | 16 | `reified` | 9 | 11 | 5 | 15 | pass a `TypeShape` argument | Kotlin `reified` | keep |
-| 17 | Packs `Ts...`, `pack.map` | 72 | 221 | 2 | 15 / 6 | fixed arities; an intrinsic signature for `all!` | Swift parameter packs, Python PEP 646; not Go, Rust, Kotlin, MoonBit | reopen?: [R3](#r3-type-and-value-packs) |
+| 17 | Packs `Ts...`, `pack.map` | 72 | 221 | 2 | 15 / 6 | fixed arities; an intrinsic signature for `all!` | Swift parameter packs, Python PEP 646; not Go, Rust, Kotlin, MoonBit | removed (batch 31b, 2026-09-30): `Tuple`-bounded varargs, tuple spread, and an `all!` typing rule; see [R3](#r3-type-and-value-packs) |
 | 18 | Varargs and suffix spread `xs...` | 22 | 70 | 13 | 97 | a list argument | Go `xs...`, Kotlin `*xs`, Python `*xs`, Swift variadics | keep |
 | 19 | `?` propagation | 38 | 190 | about 11 | about 55 | `match` on every call | Rust `?`; Swift `try`; MoonBit checked errors | keep |
 | 20 | Embedding, promotion, `...` copies | 115 | 427 | 12 embedded lines, 9 copies | 127 / 79 | a named field | Go embedding; not Rust, Swift, Kotlin, Python | reopen?: [R1](#r1-embedding-promotion-and-delegation) |
@@ -573,10 +573,15 @@ the net saving without user prefixes would be about 75 rules.
 
 ### R3. Type And Value Packs
 
+**Status.** Decided and applied: batch 31 (Q9) removed packs, and pass
+31b took them out of the specification on 2026-09-30
+([Reopen: Packs And Literal Sugar](REOPEN_PACKS_LITERALS.md)). The
+examples below show the language before that change.
+
 **Evidence.** 72 rules and 221 spec lines, most of chapter 12. Real code
 has two pack signatures, `call_with` and `all!`, both in one guide
 section; `pack.map` has no real use. `std.task.all!` is already a compiler
-intrinsic ([`pack.all.intrinsic`](../spec/12-variadic-generics.md#r-pack.all.intrinsic)).
+intrinsic (`pack.all.intrinsic` (since retired)).
 
 **Without it.** The compiler types `all!` and `race!` as intrinsics, and
 user code forwards a fixed arity:

@@ -1,3 +1,0 @@
-# test: a function type has no vararg form, so an ellipsis after a type that expands no pack is an error
-
-fn apply(callback: fn(i32...) -> i32) -> i32: 0  # diagnostic: syntax-error

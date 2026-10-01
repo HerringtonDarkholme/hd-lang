@@ -237,8 +237,8 @@ follow the recommendation; the other three do not.
 **Batch 31, packs and literals (owner decisions, 2026-09-30).** Answers
 the questions of [Reopen: Packs And Literal Sugar](REOPEN_PACKS_LITERALS.md#questions-for-the-owner).
 It is applied in three passes: 31a (varargs, `Tuple`, and tuple spread),
-31b (removing packs, Q9), and 31c (the literal rules, Q1 to Q4). Pass
-31a is applied; the [Revision Notes](../spec/README.md#revision-notes)
+31b (removing packs, Q9), and 31c (the literal rules, Q1 to Q4). Passes
+31a and 31b are applied; the [Revision Notes](../spec/README.md#revision-notes)
 list each. Later entries supersede earlier ones: VARARG-SPELL over
 VARARG-TYPE over SPREAD-SITE over Q5 and Q8.
 
@@ -249,6 +249,9 @@ VARARG-TYPE over SPREAD-SITE over Q5 and Q8.
 | Q8, SPREAD-SITE | Not as recommended: no `call_with`; a call spreads a tuple, `f(args...)`, into fixed parameters, and `f!(args...)` for a suspending callee. `...` never marks a tuple in a type. | [Positional Spreads](../spec/05-expressions.md#positional-spreads) |
 | VARARG-TYPE | Following TypeScript, the type of a vararg is the type the body sees: `List[T]`, a tuple type, or a `Tuple`-bounded parameter, solved as the tuple of the argument types. A tuple is never spread automatically. The chapter 05 and 07 spread rules merge. | [Varargs](../spec/07-functions.md#varargs) |
 | VARARG-SPELL | `...` goes after the parameter name, `args...: Args`, and never in a type. Being a vararg belongs to the declaration: `f := sum` has type `fn(List[i32]) -> i32`. Every existing vararg is respelled. | [`fn.vararg.form`](../spec/07-functions.md#r-fn.vararg.form), [`fn.vararg.value`](../spec/07-functions.md#r-fn.vararg.value) |
+| Q9 | As recommended (A1): packs are gone. Type and value packs, pack expansion, `pack.map`, lockstep, and the four pack diagnostics are removed; chapter 12 keeps its number with no rules. Applied in 31b. | [Variadic Generics](../spec/12-variadic-generics.md) |
+| ALL-INTRINSIC | `all!` stays an intrinsic with one written typing rule: children `mut Suspend[X_i]` give `(X_1, ..., X_n)`. A type-level tuple map is rejected for now. `call` is an ordinary hd function. Applied in 31b. | [`req.combinator.all-typing`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-typing) |
+| Q6 | As recommended: the compiler derives `Eq`, `PartialOrd`, `Ord`, and `Hash` for every tuple arity; `lib/std` writes `Debug` up to 12 elements. Applied in 31b. | [`trait.target.tuple.derived`](../spec/09-traits.md#r-trait.target.tuple.derived), [`trait.debug.std-types`](../spec/09-traits.md#r-trait.debug.std-types) |
 
 **Still open from applying batch 31a.** The specification applies the
 reading in the middle column; each point asks the owner to confirm it.
@@ -256,9 +259,19 @@ reading in the middle column; each point asks the owner to confirm it.
 | # | Question | Applied reading and **Recommendation** |
 | --- | --- | --- |
 | VA-type-code | The decisions name no code for a vararg of another type, as in `values...: i32`. | `type-mismatch` ([`fn.vararg.type.kinds`](../spec/07-functions.md#r-fn.vararg.type.kinds)). **Recommendation:** keep it until the code revamp (#101). |
-| VA-ellipsis-code | `...` in a type, as in `fn(i32...) -> i32` or the old `values: i32...`, needs a code while packs still make some such ellipses valid. | `syntax-error` ([`fn.type.no-ellipsis`](../spec/07-functions.md#r-fn.type.no-ellipsis)), checked once pack names are known. After 31b removes packs it is a plain grammar error. **Recommendation:** keep it. |
+| VA-ellipsis-code | `...` in a type, as in `fn(i32...) -> i32` or the old `values: i32...`, needs a code. | `syntax-error` ([`fn.type.no-ellipsis`](../spec/07-functions.md#r-fn.type.no-ellipsis)). Since 31b removed packs it is a plain grammar error. **Recommendation:** keep it. |
 | VA-unbounded-code | An unbounded `Args` used as `Fn`'s inputs needs a code. | `generic-kind-mismatch`, as a non-tuple there already is, rather than `unsatisfied-trait-bound`. **Recommendation:** keep it; one rule covers both. |
 | VA-tuple-then-vararg | A tuple spread before a vararg, as in `g(t...)` for `fn g(a: i32, xs...: List[i32])`, fills the vararg with one element as its collected value, so `t` must be `(i32, List[i32])`. | Applied, by [`expr.call.spread.tuple`](../spec/05-expressions.md#r-expr.call.spread.tuple): the remaining parameters, the vararg included, form one tuple. **Recommendation:** keep it; it matches the function value's type. |
+
+**Still open from applying batch 31b.** The specification applies the
+reading in the middle column; each point asks the owner to confirm it.
+
+| # | Question | Applied reading and **Recommendation** |
+| --- | --- | --- |
+| ALL-type-args | `all!::[i32, string](a, b)` was valid with the pack signature. `all!` now has no type parameters to fill. | Not stated; an explicit list on a callee with no generic parameters is already invalid. **Recommendation:** add it to [`req.combinator.all-direct`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-direct) as `type-mismatch`. |
+| ALL-plain | A plain `all(a, b)` without `!`, by the ordinary `fn!` rule, builds a cold `mut Suspend[(A, B)]`. | Applied, since [`req.combinator.all-direct`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-direct) allows any direct call. **Recommendation:** keep it; `race(a, b)` behaves the same. |
+| Q6-tier | The decision puts tuple `Debug` in `lib/std`, and the tier test says stdlib. But `assert_equal`, a language-tier harness item, needs `Debug` on tuples. | Kept in the language tier as [`trait.debug.std-types`](../spec/09-traits.md#r-trait.debug.std-types), capped at 12 elements; `lib/std/format.hd` implements 0 to 12. **Recommendation:** keep it until the Debug section moves to `spec/std/`. |
+| Q6-others | "Debug and the other traits up to size 12" names no other trait. | Only `Debug` is promised. **Recommendation:** add `Display` or `Default` only when a use needs one. |
 
 ### Bound And Row Operators
 

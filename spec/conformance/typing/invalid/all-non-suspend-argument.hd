@@ -1,0 +1,7 @@
+# test: every argument of all! must be a mut Suspend
+use std.task.all
+
+fn ready!() -> i32: 1
+
+fn mixed!() -> (i32, i32):
+    all!(ready(), 2)  # diagnostic: type-mismatch

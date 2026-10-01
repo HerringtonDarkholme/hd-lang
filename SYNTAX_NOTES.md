@@ -323,23 +323,21 @@ In hd-lang, `reified` applies to function generic parameters. Reified parameters
 hd-lang does not support partial explicit generic argument lists. An explicit
 list remains complete even when individual slots use `_` for inference.
 
-Variadic generics use ordered type and value packs. The language supports pack expansion in function types, vararg parameters, tuple types, call arguments, and type or expression patterns:
+hd-lang has no variadic generics (batch 31, Q9). Arity-generic code uses an
+ordinary tuple: a vararg bounded by `Tuple` collects the arguments, and a
+spread passes a tuple as separate arguments.
 
 ```text
-fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
+fn call[Args < Tuple, O, R](f: Fn[Args, O, R], args...: Args) -> O $ R:
     f(args...)
 ```
 
-A pattern containing a pack can be repeated once for every pack element by placing `...` at its expansion position. This lets an ordinary library function preserve a pointwise relationship between heterogeneous inputs and outputs:
-
-```text
-fn all![Ts...](tasks: mut Suspend[Ts]...) -> (Ts...):
-    ...
-```
-
-For `Ts... = User, i32, bool`, the parameter pattern expands to `mut Suspend[User], mut Suspend[i32], mut Suspend[bool]`, and the result type expands to `(User, i32, bool)`. The same rule applies to expression patterns in argument-list positions, such as `start(tasks)...`: the compiler repeats `start(task)` for each value in the `tasks` pack. Expansion is compile-time and does not turn the values into a runtime list.
-
-If one repeated pattern references multiple packs, they expand positionally in lockstep and must have equal lengths. `pack.map((tasks...), make_slot)` maps a heterogeneous tuple through a named generic function and returns another tuple, preserving each result type. `pack.map_list(slots, poll_slot, context)` uses the same per-element instantiation but collects a homogeneous `List[bool]` for readiness checks. Both are compiler-recognized expressions, not ordinary function calls or first-class generic function values; each mapped call executes left to right. Filtering, indexing, splitting, and pack arithmetic remain unsupported. The scheduling and cancellation semantics of `all!` belong to the concurrency library.
+`all!` is a compiler intrinsic with one typing rule: children of types
+`mut Suspend[X_1]`, ..., `mut Suspend[X_n]` give the tuple `(X_1, ..., X_n)`,
+as in `let (user, orders) = all!(load_user(id), load_orders(id))`. A child
+written `load_user!(id)` is an ordinary bang call, awaited before `all!`
+starts. The scheduling and cancellation semantics of `all!` belong to the
+concurrency library.
 
 `all!` treats a child's `.Err` result as an ordinary completed value: it does not short-circuit or cancel siblings. It waits for every child to complete and returns their values, including any `.Err` values. Runtime panics and cancellation are separate from this result-value rule.
 

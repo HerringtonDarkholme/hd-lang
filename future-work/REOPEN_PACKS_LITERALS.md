@@ -7,8 +7,11 @@ prototype code.
 > **Note.** The owner answered the questions as batch 31 in
 > [Open Issues](OPEN_ISSUES.md#language-design-decisions). Pass 31a is
 > applied: varargs as in VARARG-SPELL, the `Tuple` bound (Q5), tuple
-> spread (Q8, close to A3), and `race!` (Q7). Packs (Q9) and the literal
-> rules (Q1 to Q4) are not applied yet.
+> spread (Q8, close to A3), and `race!` (Q7). Pass 31b is applied: packs
+> are gone (Q9), `all!` has one typing rule (ALL-INTRINSIC), and tuples
+> derive their comparison traits (Q6). The literal rules (Q1 to Q4) are
+> not applied yet. Examples below that use packs show the language before
+> 31b.
 
 The owner reopened two features on 2026-09-30, after the
 [Syntax And Semantics Cost Review](SYNTAX_SEMANTICS_COST.md) marked them
@@ -77,9 +80,9 @@ counts every rule a removal or trim would touch.
 | Where | Rules | Count |
 | --- | --- | ---: |
 | [Chapter 12](../spec/12-variadic-generics.md) | `pack.kind`, `pack.param`, `pack.expand`, `pack.value`, `pack.ellipsis`, `pack.lockstep`, `pack.map` (24), `pack.tuple`, `pack.all` (8), `pack.infer`, `pack.runtime`, `pack.limit`, `pack.validate` | 63 |
-| [Contextual Words](../spec/01-lexical-structure.md#contextual-words) | [`lex.contextual.pack`](../spec/01-lexical-structure.md#r-lex.contextual.pack), `.always`, `.ordinary` | 3 |
-| [Grammar](../spec/02-grammar.md) | [`grammar.pack.*`](../spec/02-grammar.md#r-grammar.pack.declare) (4), `grammar.fn.vararg.value-pack`, `grammar.primary.pack-map` | 6 |
-| [Type System](../spec/04-type-system.md) | [`types.pack.declare`](../spec/04-type-system.md#r-types.pack.declare), `types.pack.compile-time` | 2 |
+| [Contextual Words](../spec/01-lexical-structure.md#contextual-words) | `lex.contextual.pack` (since retired), `.always`, `.ordinary` | 3 |
+| [Grammar](../spec/02-grammar.md) | `grammar.pack.*` (since retired) (4), `grammar.fn.vararg.value-pack`, `grammar.primary.pack-map` | 6 |
+| [Type System](../spec/04-type-system.md) | `types.pack.declare` (since retired), `types.pack.compile-time` | 2 |
 | [Varargs](../spec/07-functions.md#varargs) | `fn.vararg.ellipsis` (since retired) | 1 |
 | Rules that name packs beside other things | `grammar.generic.reified-and-packs`, `grammar.generic.default.positions`, `grammar.primary.function-type-argument`, `grammar.primary.suffix-spreads`, `lex.raw.not-reserved`, `types.generic.specialized`, `types.generic.interfaces`, `types.trait.safe.no-reified-or-pack`, `trait.dyn.safe.reified-or-pack`, `trait.impl.generics.markers`, `trait.target.function-type`, `fn.type.ctor.inputs`, `fn.generic.bang.examples`, `grammar.expr.method-type-arguments.bang` | 14, reworded only |
 
@@ -96,7 +99,7 @@ What already works without packs:
 | A non-tuple there is `generic-kind-mismatch` | `fn.type.ctor.kind-mismatch` (since retired) |
 | A function type is an ordinary impl target | [`trait.target.function-type.valid`](../spec/09-traits.md#r-trait.target.function-type.valid) |
 | A row parameter may stand in an impl head | [`trait.target.row-argument`](../spec/09-traits.md#r-trait.target.row-argument) |
-| `all!` and `race!` are intrinsics with compiler-supplied frames | [`req.combinator.intrinsic`](../spec/11-requirements-and-suspension.md#r-req.combinator.intrinsic), [`req.combinator.ordinary-call`](../spec/11-requirements-and-suspension.md#r-req.combinator.ordinary-call) |
+| `all!` and `race!` are intrinsics with compiler-supplied frames | [`req.combinator.intrinsic`](../spec/11-requirements-and-suspension.md#r-req.combinator.intrinsic), `req.combinator.ordinary-call` (since retired) |
 | Their concrete signatures are still library design | `req.combinator.library` (since retired) |
 | Tuples are reference-shaped, so one generic body serves every tuple | [Implementation Model](../spec/04-type-system.md#implementation-model-non-normative) |
 
@@ -147,7 +150,7 @@ Every option is shown against the same six uses.
 | U6 | Literal corners: `-5s`, a suffix with a default parameter, `5else` | 7 rules |
 
 Note on U1: the children are cold calls, `load_user(id)`, with no `!`
-([`pack.all.cold-call`](../spec/12-variadic-generics.md#r-pack.all.cold-call)).
+(`pack.all.cold-call` (since retired)).
 `all!(load_user!(id), ...)` would await each child in turn, then pass
 plain values.
 
@@ -282,6 +285,16 @@ floor.
 | Language rules removed / added | 75 / 6 | about 36 / 0 | 75 / 5 and 2 reversed | 75 / 4 |
 | Costliest change | intrinsic | syntax kept | semantic exception | intrinsic |
 | Diagnostics removed | 4 | 2 | 4 | 4 |
+
+### Future Option: A Type-Level Tuple Map
+
+A type-level map over a tuple, such as `Each[Args, F]` or a TypeScript-style
+mapped tuple type, would make `all!`, `zip`, `map_n`, and parser `seq`
+writable: `fn all![Args < Tuple](sus...: Each[Args, Suspend]) -> Args`. The
+owner rejected it for now (ALL-INTRINSIC, 2026-09-30). `F` is a
+higher-kinded argument, which hd does not have, and inference would run
+backwards from `Suspend[X_i]` to `X_i`. The body of `all!` would still be an
+intrinsic. Revisit it if hd gains higher-kinded type parameters.
 
 ## Options For B: Literal Sugar
 
@@ -518,6 +531,35 @@ Reworded, not removed: the 14 rules in the last row of
 in their place, because no program can reach them. Fixtures: the 14 rows
 citing chapter 12 or a pack rule are deleted or rewritten. Chapter 12
 keeps its heading so links survive, as a short Note that hd has no packs.
+
+### A1 As Applied In 31b
+
+Pass 31b removed 79 rule IDs and added 11, a net change of 68. Five of
+the added IDs replace a rule that named packs beside other things, so 74
+rules left outright and 6 are new. The record's estimate was 75 out and 6
+in; `fn.vararg.ellipsis`, the 75th, was already retired by 31a.
+
+| Chapter | Before | After | Retired | Added |
+| --- | ---: | ---: | --- | --- |
+| 01 Lexical Structure | 235 | 232 | `lex.contextual.pack`, `.pack.always`, `.pack.ordinary` | none |
+| 02 Grammar | 262 | 256 | `grammar.pack.*` (4), `grammar.fn.vararg.value-pack`, `grammar.primary.pack-map`, `grammar.generic.reified-and-packs` | `grammar.generic.reified-positions` |
+| 04 Type System | 466 | 464 | `types.pack.declare`, `.compile-time`, `types.trait.safe.no-reified-or-pack` | `types.trait.safe.no-reified` |
+| 09 Traits | 547 | 549 | `trait.dyn.safe.reified-or-pack`, `trait.debug.std` | `trait.dyn.safe.reified`, `trait.debug.std-types`, `trait.target.tuple.derived`, `.derived.elementwise` |
+| 11 Requirements | 301 | 305 | `req.combinator.ordinary-call` | `req.combinator.bang-called`, `.all-typing`, `.all-argument`, `.all-direct`, `.all-bang-child` |
+| 12 Variadic Generics | 63 | 0 | every `pack.*` rule | none |
+| **Language tier** | **3,907** | **3,839** | **79** | **11** |
+
+The new rules differ from the A1 table in two ways. `call_with` and the
+tuple-kinded value type are gone, since 31a's tuple spread and `Tuple`
+bound took their place. `all!` gains a fourth rule for a bang-call child,
+and the tuple derivation takes two rules, one for the impls and one for
+their element-wise meaning. Other rules reworded in place:
+`lex.raw.not-reserved`, `lex.contextual.elsewhere`,
+`grammar.generic.default.positions`, `grammar.primary.function-type-argument`,
+`grammar.primary.suffix-spreads`, `grammar.expr.method-type-arguments.bang`,
+`types.generic.specialized`, `types.generic.interfaces`,
+`fn.type.ctor.inputs`, `fn.type.no-ellipsis`, `fn.generic.bang.examples`,
+`trait.impl.generics.markers`, and `trait.target.function-type`.
 
 ### B1, By Design Cost Order Kind
 

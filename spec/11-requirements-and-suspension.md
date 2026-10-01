@@ -1171,12 +1171,61 @@ combinators cancel their children.
 1. r[req.combinator.cancel-children] The `std.task` combinators `all!` and `race!` cancel their children when the parent is cancelled.
 2. r[req.combinator.race-losers] `race!` also synchronously cancels losing children before returning the first completed value.
 3. r[req.combinator.intrinsic] The standard polling combinators in `std.task`, including `all!` and `race!`, are compiler intrinsics.
-4. r[req.combinator.ordinary-call] Each is imported and bang-called like an ordinary `fn!` function and has an ordinary `fn!` signature, but the compiler supplies its frame and polling behavior.
+4. r[req.combinator.bang-called] Each is imported and bang-called like an ordinary `fn!` function, but the compiler supplies its frame and polling behavior.
 5. r[req.combinator.not-syntax] They are not first-class control-flow syntax.
 6. r[req.combinator.user] Because `Suspend[T]` is sealed, user code cannot define an equivalent polling combinator; it composes the standard intrinsics instead.
 7. r[req.combinator.race-signature] `race!` has the plain vararg signature `fn race![T](tasks...: List[mut Suspend[T]]) -> T`, with no typing rule of its own.
 8. r[req.combinator.race-join] Its children's result types therefore meet only by permission weakening, as [`types.generic.infer.join`](04-type-system.md#r-types.generic.infer.join) states, so children of unrelated types are an inference error.
 9. r[req.combinator.library-rest] The other concrete signatures, and the complete intrinsic set, remain standard-library API design.
+
+#### Typing `all!`
+
+`all!` awaits children of different result types and returns their results
+as one tuple:
+
+```text
+use std.task.all
+
+data User:
+    name: string
+
+fn load_user!(id: i64) -> User:
+    User { name: "Ada" }
+
+fn load_orders!(id: i64) -> List[i64]:
+    [id]
+
+fn page!(id: i64) -> string:
+    let (user, orders) = all!(load_user(id), load_orders(id))
+    "${user.name}: ${orders.len()}"
+```
+
+1. r[req.combinator.all-typing] `all!` has no written signature. A call `all!(e_1, ..., e_n)` in which each `e_i` has type `mut Suspend[X_i]` has type `(X_1, ..., X_n)`.
+2. r[req.combinator.all-argument] An argument of any other type is an error. Error: `type-mismatch`.
+3. r[req.combinator.all-direct] `all` must be the callee of a direct call with positional arguments. A spread, a named argument, or a use as a function value is an error. Error: `type-mismatch`.
+4. r[req.combinator.all-bang-child] A child written as a bang call, as in `all!(load_user!(id))`, is an ordinary bang call. The caller awaits it before `all!` starts, so its value is not a `Suspend`.
+
+```text
+use std.task.all
+
+fn ready!() -> i32: 1
+
+fn eager!() -> (i32, i32):
+    all!(ready!(), ready())  # error: type-mismatch
+
+fn spread!(tasks: List[mut Suspend[i32]]) -> void:
+    _ := all!(tasks...)  # error: type-mismatch
+```
+
+> **Note.** A plain call of a suspending function, such as
+> `load_user(id)`, builds the cold `mut Suspend[User]` that `all!` polls
+> ([`req.suspend.type.plain-call`](#r-req.suspend.type.plain-call)).
+> Scheduling, cancellation, and failure follow the rules above and
+> [Cooperative Scheduling](#cooperative-scheduling).
+
+> **Why.** A written signature for `all!` would need a type-level map over
+> a tuple, from `Suspend[X_i]` to `X_i`. hd has no higher-kinded types, so
+> one written typing rule replaces the signature.
 
 > **Note.** The `retry!` combinator of `std.task` is a plain library loop
 > over a `fn!` attempt, not an intrinsic, so the stdlib tier specifies it

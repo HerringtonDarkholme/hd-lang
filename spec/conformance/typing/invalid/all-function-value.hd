@@ -1,0 +1,5 @@
+# test: all is not a function value
+use std.task.all
+
+fn keep() -> void:
+    f := all  # diagnostic: type-mismatch

@@ -496,7 +496,7 @@ fn describe(point: Point) -> string:
 1. r[trait.debug.module] `std.format` declares `Debug` and `DebugWriter`. `Debug` is a prelude name.
 2. r[trait.debug.method] `Debug` declares `fn debug(self, out: mut DebugWriter) -> void`, which writes the value's structure through `out`.
 3. r[trait.debug.writer] `DebugWriter` is the standard structured writer. An implementation describes the value through its builder calls, such as one call per field, rather than raw text.
-4. r[trait.debug.std] `std` implements `Debug` for the primitives, collections, `T?`, `Result`, and tuples, each when its type arguments implement `Debug`.
+4. r[trait.debug.std-types] `std` implements `Debug` for the primitives, collections, `T?`, `Result`, and tuples of at most 12 elements, each when its type arguments implement `Debug`.
 5. r[trait.debug.derive] `@derive(Debug)` derives `Debug` through its [template](14-annotations.md#templates). The derived implementation walks the declaration's members and writes each one.
 6. r[trait.debug.not-display] `Debug` is separate from `Display`, which stays user-facing text.
 7. r[trait.debug.writer-import] `DebugWriter` is not a prelude name, so a hand-written implementation imports it, as in `use std.format.DebugWriter`.
@@ -548,7 +548,7 @@ impl Named for User  # error: missing-trait-method
 
 1. r[trait.impl.generics] The exact signature includes the method-level generic parameters.
 2. r[trait.impl.generics.count] An implementation method declares as many generic parameters as the trait method, and they correspond by position; names may differ.
-3. r[trait.impl.generics.markers] Each parameter keeps the trait method's `reified` and pack markers and the same bounds.
+3. r[trait.impl.generics.markers] Each parameter keeps the trait method's `reified` marker and the same bounds.
 4. r[trait.impl.generics.bounds] The same bounds are the same traits, with `mut` and the same instantiated arguments and associated type bindings, written in the same order.
 5. r[trait.impl.generics.default] Each parameter also repeats the trait method's [default](04-type-system.md#type-argument-defaults), instantiated as the bounds are, or has none when the trait method's has none. A missing, extra, or different default is a mismatch.
 6. r[trait.impl.generics.fixed-bounds] An implementation method therefore cannot add, drop, reorder, weaken, or strengthen a bound. The one exception is the strengthened member bound of a walker, describer, or source, which [`annot.walker.strengthen-member`](14-annotations.md#r-annot.walker.strengthen-member) allows.
@@ -588,7 +588,7 @@ constructor.
 | r[trait.target.declaration] Declared | a data, enum, or newtype declaration | `User`, `Box` |
 | r[trait.target.builtin] Built-in | a built-in type constructor | `i32`, `string`, `List`, `Map` |
 | r[trait.target.tuple] Tuple | a tuple constructor, one per arity | `(A, B)`, the two-element tuple constructor applied to `A` and `B` |
-| r[trait.target.function-type] Function | a function type constructor, `Fn` or `SuspendFn` | `fn(i32) -> i32`, which is `Fn[(i32,), i32, $()]`, and `SuspendFn[(Is...), O, R]` |
+| r[trait.target.function-type] Function | a function type constructor, `Fn` or `SuspendFn` | `fn(i32) -> i32`, which is `Fn[(i32,), i32, $()]`, and `SuspendFn[Args, O, R]` |
 
 1. r[trait.target.constructor] The target of every implementation, trait or inherent, starts with a type constructor from the table above.
 2. r[trait.target.tuple.valid] `impl Display for (i32, string)` is a valid target.
@@ -631,18 +631,43 @@ impl Marker for mut Counter  # error: mutable-impl-target
 A function type is a target like any other:
 
 ```text
-use std.function.Fn
+use std.function.{Fn, Tuple}
 
 trait Describe:
     fn describe(self) -> string
 
-impl[Is..., O, R] Describe for Fn[(Is...), O, R]:
+impl[Args < Tuple, O, R] Describe for Fn[Args, O, R]:
     fn describe(self) -> string:
         "function"
 ```
 
 > **Note.** A later revision may add blanket implementations as a compatible
 > extension.
+
+#### Derived Tuple Implementations
+
+The compiler derives the comparison and hashing traits for every tuple
+arity:
+
+```text
+fn compare(a: (i32, string), b: (i32, string)) -> bool:
+    a == b || a < b
+
+fn index(counts: Map[(i32, string), i32]) -> i32:
+    counts[(1, "a")]
+```
+
+1. r[trait.target.tuple.derived] Every tuple type implements `Eq`, `PartialOrd`, `Ord`, and `Hash` when each of its elements implements that trait, as an intrinsic derivation over every arity.
+2. r[trait.target.tuple.derived.elementwise] The derived methods work element by element, in order: equality compares every element, ordering is lexicographic, and hashing combines the elements' hashes.
+
+> **Note.** These derivations are the tuple equality of
+> [`expr.eq.std`](05-expressions.md#r-expr.eq.std), the tuple order of
+> [`expr.ord.std.sequences`](05-expressions.md#r-expr.ord.std.sequences),
+> and the hashable tuple keys of
+> [`types.map-key.builtin-types`](04-type-system.md#r-types.map-key.builtin-types).
+> Other traits for tuples, such as `Debug`, are ordinary standard-library
+> implementations up to 12 elements
+> ([`trait.debug.std-types`](#r-trait.debug.std-types)).
 
 ### Implementation Ownership
 
@@ -747,7 +772,7 @@ impl[T < Display] Printable for Box[T]:
 | `impl[T] Marker for Box[T]` | `impl Marker for Box[i32]` | yes |
 | `impl Marker for Box[i32]` | `impl Marker for Box[string]` | no |
 | `impl Add[i32] for Money` | `impl Add[Money] for Money` | no |
-| `impl[Is..., O, R] Marker for Fn[(Is...), O, R]` | `impl Marker for fn(i32) -> i32` | yes |
+| `impl[Args < Tuple, O, R] Marker for Fn[Args, O, R]` | `impl Marker for fn(i32) -> i32` | yes |
 | `impl Marker for fn(i32) -> i32` | `impl Marker for fn(string) -> i32` | no |
 
 ```text
@@ -764,9 +789,9 @@ impl Marker for Box[Plain]  # error: overlapping-impl
 ```
 
 > **Note.** Because bounds are ignored, an implementation added later in a
-> dependency cannot make two existing implementations overlap. A pack
-> parameter is substituted by a sequence of types, so `(Is...)` unifies with
-> every tuple type, and a row parameter unifies with every row.
+> dependency cannot make two existing implementations overlap. A type
+> parameter such as `Args` unifies with every tuple type, and a row
+> parameter unifies with every row.
 
 ## Inherent Implementations
 
@@ -1202,7 +1227,7 @@ The one-copy rule has these consequences:
 | r[trait.dyn.safe.assoc-function] Associated functions | an associated function in the trait or a supertrait | no |
 | r[trait.dyn.safe.anyref-type-param] Method type parameters | a method-level type parameter bounded by `AnyRef`, with any further bounds | yes; any other method-level type parameter is not |
 | r[trait.dyn.safe.self] `Self` | `Self` as a method receiver | yes; `Self` anywhere else is not |
-| r[trait.dyn.safe.reified-or-pack] Specialized parameters | a `reified` parameter, or a type or value pack | no |
+| r[trait.dyn.safe.reified] Specialized parameters | a `reified` parameter | no |
 | r[trait.dyn.safe.suspending] Suspending methods | a suspending method, as the prelude `Console`'s `write_line!` is | yes |
 | r[trait.dyn.safe.row-parameter] Row parameters | a method-level row parameter, which needs no `AnyRef` bound | yes |
 
@@ -1214,13 +1239,13 @@ The one-copy rule has these consequences:
 trait Runner:
     fn run[R](self, job: fn() -> void $ R) -> void $ R
 
-trait Logger:
-    fn log[Ts... < AnyRef](self, values: Ts...) -> void
+trait Lookup:
+    fn find[reified M < AnyRef](self) -> M?
 
 fn valid(runner: Runner) -> void:
     pass
 
-fn invalid(logger: Logger) -> void:  # error: trait-not-dynamically-safe
+fn invalid(lookup: Lookup) -> void:  # error: trait-not-dynamically-safe
     pass
 ```
 
@@ -1229,7 +1254,7 @@ fn invalid(logger: Logger) -> void:  # error: trait-not-dynamically-safe
 > concrete. An `AnyRef`-bounded parameter shares the reference shape, a
 > suspending method's frame is a reference-shaped heap value, and a row
 > parameter's providers arrive as one bundle, so each keeps one body. A
-> `reified` parameter and a pack are specialized per call, and an associated
+> `reified` parameter is specialized per call, and an associated
 > function has no receiver to dispatch on.
 
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).

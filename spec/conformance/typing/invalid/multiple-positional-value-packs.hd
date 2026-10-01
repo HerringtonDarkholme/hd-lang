@@ -1,2 +1,0 @@
-fn split[As..., Bs...](left: As..., right: Bs...) -> ((As...), (Bs...)):  # diagnostic: multiple-positional-value-packs
-    ((left...), (right...))

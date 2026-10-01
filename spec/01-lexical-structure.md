@@ -412,7 +412,7 @@ raw_identifier = "`", identifier_start, { identifier_continue }, "`" ;
 4. r[lex.raw.name] Its name is the enclosed text without the backticks. The field above is named `type`, and `` `name` `` denotes the same identifier as `name`.
 5. r[lex.raw.text] The enclosed text follows the identifier rules, including NFC and the rule for a leading `_`.
 6. r[lex.raw.invalid] An empty pair of backticks, an unclosed backtick, a backtick around any other text, and a backtick anywhere else are each an error. Error: `invalid-token`.
-7. r[lex.raw.not-reserved] A raw identifier is never a reserved word or a contextual word: `` `use` `` never begins a use declaration, and `` `pack`.map(xs, f) `` is an ordinary method call.
+7. r[lex.raw.not-reserved] A raw identifier is never a reserved word or a contextual word: `` `use` `` never begins a use declaration, and `` `reified` `` in a generic parameter list is a parameter name, never the modifier.
 8. r[lex.raw.interpolation] `$name` interpolation takes a plain identifier; `` ${`type`} `` interpolates a raw one.
 
 ```text
@@ -453,17 +453,14 @@ only in fixed positions:
 | r[lex.contextual.use] Use | `use` | at the start of a module-level item, alone or after `pub`, when a use root (`pkg`, `std`, `dep`, `self`, or `super`) follows it; and as the operation name in the dedicated `$.use(...)` provider expression |
 | r[lex.contextual.reified] Reified | `reified` | first in a generic parameter, directly before the parameter name, as in `fn pick[reified T]() -> T` |
 | r[lex.contextual.context] Context | `context`, `with`, `Context` | after `$.` |
-| r[lex.contextual.pack] Pack | `pack`, `map`, `map_list` | in the `pack.map(...)` and `pack.map_list(...)` forms |
 | r[lex.contextual.derive] Derive | `derive` | immediately after `@` |
 | r[lex.contextual.by-header] Delegation and derivation | `by` | after the target type of an implementation header, as in `impl Describe for Service by Logger` or the trait-less `impl User by Structure` |
 
 1. r[lex.contextual.reified.modifier] In the position the table gives for it, an unbackticked `reified` is always the modifier.
 2. r[lex.contextual.reified.lone] A lone `reified`, as in `fn f[reified]()` or `[T, reified < Show]`, is therefore an error. Error: `syntax-error`.
 3. r[lex.contextual.reified.raw] A parameter named reified is written `` [`reified`] ``.
-4. r[lex.contextual.pack.always] The token sequences `pack . map (` and `pack . map_list (` always form the pack operation, even when a local or parameter named `pack` is in scope.
-5. r[lex.contextual.pack.ordinary] Every other use of such a `pack`, as in `pack.size()`, is ordinary.
-6. r[lex.contextual.elsewhere] These contextual words remain ordinary identifiers elsewhere. Declarations such as `fn map_list() -> void`, `fn derive() -> void`, and `fn use() -> void` are lexically valid. So are expressions such as `resource.use(f)` and `super := parent`.
-7. r[lex.contextual.shadowing] The separate prelude shadowing rule still applies.
+4. r[lex.contextual.elsewhere] These contextual words remain ordinary identifiers elsewhere. Declarations such as `fn with() -> void`, `fn derive() -> void`, and `fn use() -> void` are lexically valid. So are expressions such as `resource.use(f)` and `super := parent`.
+5. r[lex.contextual.shadowing] The separate prelude shadowing rule still applies.
 
 ```text
 trait Show:

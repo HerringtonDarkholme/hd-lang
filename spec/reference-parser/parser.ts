@@ -60,6 +60,11 @@ export function parserSelfTest(): string[] {
     ["fn call[Args < Tuple, O](f: Fn[Args, O, $()], args...: Args) -> O: f(args...)\n", true],
     ["fn sum(values...: List[i32] = []) -> i32: 0\n", false],
     ["fn sum(values...) -> i32: 0\n", false],
+    ["fn sum(values: i32...) -> i32: 0\n", false],
+    ["fn apply(f: fn(i32...) -> i32) -> i32: 0\n", false],
+    ["fn count[Ts...]() -> i32: 0\n", false],
+    ["fn wrap(xs: List[i32]) -> void:\n    _ := (xs...)\n", false],
+    ["fn f() -> i32:\n    pack := p\n    pack.map(5)\n", true],
   ]);
   const failures: string[] = [];
   for (const [source, expected] of probes) {

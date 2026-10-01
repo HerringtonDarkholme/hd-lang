@@ -41,7 +41,7 @@ expected.
 ## 2. Type-Checking Rules
 
 Scope: [Type System](../spec/04-type-system.md), [Traits](../spec/09-traits.md),
-[Variadic Generics](../spec/12-variadic-generics.md), and
+[Variadic Generics](../spec/12-variadic-generics.md) (no rules since batch 31b), and
 [GADTs](../spec/13-gadts.md).
 
 Goal: state trait behavior as normative rules rather than prose.
@@ -70,8 +70,8 @@ Goal: state trait behavior as normative rules rather than prose.
   Typed derivation (owner decisions M1-M30) is applied in
   [Typed Derivation](../spec/14-annotations.md#typed-derivation). Annotation
   locality was superseded: derivation blocks live in the type's module.
-  GADTs, declared variance, and variadic packs stay (scope reduction was
-  closed on 2026-09-27).
+  GADTs and declared variance stay (scope reduction was closed on
+  2026-09-27). Variadic packs were removed by batch 31b (2026-09-30).
 - Moved here:
   - the open parts of
     [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets),

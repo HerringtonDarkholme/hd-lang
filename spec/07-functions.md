@@ -304,8 +304,7 @@ fn nested() -> i32: call(add2, (1, 2))                         # error: type-mis
 > `:` is the type the body sees, so a vararg needs no type rule of its own,
 > and a function type needs no vararg form.
 
-See also: [Positional Spreads](05-expressions.md#positional-spreads),
-[Variadic Generics](12-variadic-generics.md).
+See also: [Positional Spreads](05-expressions.md#positional-spreads).
 
 ## Function Types And Values
 
@@ -354,7 +353,7 @@ fn suspending() -> SuspendFn[(i32,), string, Database]:
 ```
 
 1. r[fn.type.ctor.decl] `std.function` declares the function type constructors `Fn` and `SuspendFn`. Each takes three arguments: the inputs, the output, and the requirement row.
-2. r[fn.type.ctor.inputs] The inputs argument is one tuple type whose elements are the parameter types, such as `()`, `(A,)`, `(A, B)`, or `(Is...)`.
+2. r[fn.type.ctor.inputs] The inputs argument is one tuple type whose elements are the parameter types, such as `()`, `(A,)`, or `(A, B)`, or a type parameter bounded by `Tuple`.
 3. r[fn.type.ctor.no-flatten] A tuple is never flattened into parameters: `Fn[((A, B),), O, R]` takes one pair, and `Fn[(A, B), O, R]` takes two values.
 4. r[fn.type.ctor.row] The row argument is row-kinded. A function type without a requirement clause has the empty row `$()`, and several keys are joined with `+`, as in `$ Db + Cache`.
 5. r[fn.type.ctor.row.alias] A bare row alias as the row argument stands for its row, so `Fn[(), O, AppRow]` is `Fn[(), O, $ AppRow]` ([`req.row.alias.bare`](11-requirements-and-suspension.md#r-req.row.alias.bare)).
@@ -384,7 +383,7 @@ fn unbounded[Args, O](callback: Fn[Args, O, $()]) -> void: pass  # error: generi
 A function type has no vararg form, because being a vararg belongs to the
 declaration ([`fn.vararg.value`](#r-fn.vararg.value)).
 
-1. r[fn.type.no-ellipsis] An ellipsis after a type that expands no type pack, as in `fn(i32...) -> i32` or the parameter `values: i32...`, is an error. Error: `syntax-error`.
+1. r[fn.type.no-ellipsis] The grammar has no ellipsis after a type, so `fn(i32...) -> i32` and the parameter `values: i32...` are each an error. Error: `syntax-error`.
 
 #### No Access Permission
 
@@ -898,7 +897,7 @@ parser.convert::[_, User](payload)
 3. r[fn.generic.qualified.member-list] The method-level list follows the member name, as in `Type::name::[T](...)` and `Trait::name::[T](receiver, ...)`.
 4. r[fn.generic.qualified.owner-list] Type arguments of the qualifying type or trait stay before the member's `::`, as in `Add::[Money]::add(left, right)`.
 5. r[fn.generic.bang] A bang call keeps the `!` on the name, as the declaration does, and writes the list after it.
-6. r[fn.generic.bang.examples] `fn all![Ts...](...)` is called as `all!::[i32, string](a, b)`, and suspending methods as `parser.load!::[User](text)` and `Store::load!::[User](key)`.
+6. r[fn.generic.bang.examples] `fn fetch![T](...)` is called as `fetch!::[User](key)`, and suspending methods as `parser.load!::[User](text)` and `Store::load!::[User](key)`.
 7. r[fn.generic.method-inference] A generic method may still rely entirely on inference by omitting the list.
 8. r[fn.generic.dot-member-value] A dot member with type arguments and no call, as in `parser.parse::[User]`, is not a function value; the reference form is `parser::parse::[User]`.
 

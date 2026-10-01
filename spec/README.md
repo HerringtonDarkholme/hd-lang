@@ -22,7 +22,7 @@ versioned subsets.
 | [Traits](09-traits.md) | conformance, methods, static and dynamic dispatch |
 | [Modules](10-modules.md) | packages, use declarations, visibility, entry points, Wasm boundary |
 | [Requirements and Suspension](11-requirements-and-suspension.md) | requirement rows, providers, `fn!`, `Suspend[T]` |
-| [Variadic Generics](12-variadic-generics.md) | type/value packs and pattern expansion |
+| [Variadic Generics](12-variadic-generics.md) | none: hd has no packs; where arity-generic code lives instead |
 | [GADTs](13-gadts.md) | variant result refinement and match typing |
 | [Annotations](14-annotations.md) | shapes, decorators, member metadata, typed derivation, error derivation |
 
@@ -80,7 +80,7 @@ maps each exercised code to its fixture.
 
 | Severity | Stable diagnostic codes |
 | --- | --- |
-| Error | `alias-cycle`, `ambiguous-associated-type`, `ambiguous-method`, `ambiguous-promoted-member`, `ambiguous-row-pattern`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `cyclic-test-dependency`, `decorator-not-annotator`, `decorator-not-top-level`, `decorator-target-kind`, `default-order`, `derive-field-missing-trait`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-fact`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-pipe-placeholder`, `duplicate-test-name`, `duplicate-tests-block`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-too-deep`, `float-literal-range`, `folder-cycle`, `gadt-derivation`, `generic-kind-mismatch`, `generic-member-call`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-error-marker`, `invalid-escape`, `invalid-impl-target`, `invalid-literal-suffix`, `invalid-map-key`, `invalid-member-line`, `invalid-result-propagation`, `invalid-string-prefix`, `invalid-test-statement`, `invalid-variance`, `let-else-falls-through`, `let-mut-readonly-type`, `local-impl-nonlocal-pair`, `marker-template`, `member-not-derivable`, `misplaced-derivation`, `misplaced-test-case`, `misplaced-tests-block`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-eq`, `missing-let`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-derived-law`, `mixed-numeric-types`, `mixed-signedness`, `multi-line-pipe-step`, `multiple-positional-value-packs`, `mut-on-primitive`, `mut-on-tuple`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `newtype-derivation-self`, `no-common-type`, `no-least-common-type`, `non-literal-test-argument`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-positional-value-pack`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonlocal-impl`, `nonnumeric-unary-plus`, `not-suspending`, `old-bound-operator`, `old-export-declaration`, `old-import-declaration`, `old-row-separator`, `old-struct-declaration`, `omitted-member-without-default`, `orphan-impl`, `overlapping-impl`, `pack-length-mismatch`, `pack-map-mapper-mismatch`, `package-cycle`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `pipe-placeholder-in-closure`, `pipe-step-needs-placeholder`, `placeholder-outside-pipe`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `public-test-item`, `re-export-loop`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `refutable-let-pattern`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `row-parameter-in-context`, `sealed-trait-implementation`, `structure-outside-template`, `supertrait-cycle`, `suspending-pipe-step`, `suspension-forbidden-context`, `tab-whitespace`, `test-only-use`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-resolution-depth`, `trait-value-impl-target`, `type-used-as-value`, `underivable-trait`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-panic-category`, `unknown-shape-target`, `unreachable-match-arm`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-function-identity`, `variance-representation-change`, `variant-result-owner` |
+| Error | `alias-cycle`, `ambiguous-associated-type`, `ambiguous-method`, `ambiguous-promoted-member`, `ambiguous-row-pattern`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `cyclic-test-dependency`, `decorator-not-annotator`, `decorator-not-top-level`, `decorator-target-kind`, `default-order`, `derive-field-missing-trait`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-fact`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-pipe-placeholder`, `duplicate-test-name`, `duplicate-tests-block`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-too-deep`, `float-literal-range`, `folder-cycle`, `gadt-derivation`, `generic-kind-mismatch`, `generic-member-call`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-error-marker`, `invalid-escape`, `invalid-impl-target`, `invalid-literal-suffix`, `invalid-map-key`, `invalid-member-line`, `invalid-result-propagation`, `invalid-string-prefix`, `invalid-test-statement`, `invalid-variance`, `let-else-falls-through`, `let-mut-readonly-type`, `local-impl-nonlocal-pair`, `marker-template`, `member-not-derivable`, `misplaced-derivation`, `misplaced-test-case`, `misplaced-tests-block`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-eq`, `missing-let`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-derived-law`, `mixed-numeric-types`, `mixed-signedness`, `multi-line-pipe-step`, `mut-on-primitive`, `mut-on-tuple`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `newtype-derivation-self`, `no-common-type`, `no-least-common-type`, `non-literal-test-argument`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonlocal-impl`, `nonnumeric-unary-plus`, `not-suspending`, `old-bound-operator`, `old-export-declaration`, `old-import-declaration`, `old-row-separator`, `old-struct-declaration`, `omitted-member-without-default`, `orphan-impl`, `overlapping-impl`, `package-cycle`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `pipe-placeholder-in-closure`, `pipe-step-needs-placeholder`, `placeholder-outside-pipe`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `public-test-item`, `re-export-loop`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `refutable-let-pattern`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `row-parameter-in-context`, `sealed-trait-implementation`, `structure-outside-template`, `supertrait-cycle`, `suspending-pipe-step`, `suspension-forbidden-context`, `tab-whitespace`, `test-only-use`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-resolution-depth`, `trait-value-impl-target`, `type-used-as-value`, `underivable-trait`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-panic-category`, `unknown-shape-target`, `unreachable-match-arm`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-function-identity`, `variance-representation-change`, `variant-result-owner` |
 | Error | `defer-control-flow`, `defer-outside-cleanup-scope`, `suspending-defer` |
 | Error (general) | `argument-count`, `break-outside-loop`, `duplicate-binding`, `duplicate-type`, `duplicate-variant`, `invalid-dedent`, `invalid-token`, `not-callable`, `syntax-error`, `type-mismatch`, `unclosed-delimiter`, `unexpected-indentation`, `unknown-data-field`, `unknown-method`, `unknown-name`, `unknown-trait`, `unknown-type`, `unknown-variant`, `unmatched-delimiter`, `unterminated-string` |
 | Warning | `confusable-identifier`, `derivation-line-drift`, `mixed-script-identifier`, `redundant-let-mut`, `unreachable-code`, `unused-derivation-fact`, `unused-local-binding`, `variant-binding-name-mismatch` |
@@ -276,7 +276,6 @@ The stdlib chapters' terms are in the
 | **trait candidates** | The trait methods of the receiver's type with the called name whose trait is available at the call. See [`names.method-lookup.trait-candidates`](03-names-and-scopes.md#r-names.method-lookup.trait-candidates). |
 | **trait methods** | The methods of every trait that a known implementation implements for a type. See [`names.member.trait-methods`](03-names-and-scopes.md#r-names.member.trait-methods). |
 | **trait-less derivation block** | An `impl X by Structure:` without a trait, whose member lines write shared metadata of `X` for every derivation and its shape. See [Trait-Less Derivation Blocks](14-annotations.md#trait-less-derivation-blocks). |
-| **type pack** | A generic parameter ending in `...`, which stands for a list of types. See [Pack Parameters](12-variadic-generics.md#pack-parameters). |
 | **type-argument default** | A type written with `=` after a generic parameter's bound, used when a use site leaves the parameter unsolved or a written type omits it. See [Type-Argument Defaults](04-type-system.md#type-argument-defaults). |
 | **type-argument marker** | The `::` before an explicit type-argument list in an expression, as in `first::[string](names)`. See [`grammar.expr.type-arguments.marker`](02-grammar.md#r-grammar.expr.type-arguments.marker). |
 | **typed derivation** | Implementing a trait for a data type or enum from its members through the trait's template. See [Typed Derivation](14-annotations.md#typed-derivation). |
@@ -2638,9 +2637,9 @@ existing source. Each entry names the decision that made the change.
   `fn.type.ctor.import` for [`fn.type.ctor.imports`](07-functions.md#r-fn.type.ctor.imports);
   `module.prelude.function` for
   [`module.prelude.function-items`](10-modules.md#r-module.prelude.function-items);
-  `grammar.pack.vararg` for [`grammar.pack.no-pack`](02-grammar.md#r-grammar.pack.no-pack);
-  and `pack.ellipsis.ordinary` for
-  [`pack.ellipsis.no-pack`](12-variadic-generics.md#r-pack.ellipsis.no-pack).
+  `grammar.pack.vararg` for `grammar.pack.no-pack`;
+  and `pack.ellipsis.ordinary` for `pack.ellipsis.no-pack`, both since
+  retired with packs.
 - The `Tuple` marker trait (owner decision Q5, batch 31, 2026-09-30):
   language tier. `std.function` declares the sealed marker trait `Tuple`,
   which every tuple type implements
@@ -2675,3 +2674,42 @@ existing source. Each entry names the decision that made the change.
   ([`req.combinator.race-signature`](11-requirements-and-suspension.md#r-req.combinator.race-signature)).
   `req.combinator.library` is retired for
   [`req.combinator.library-rest`](11-requirements-and-suspension.md#r-req.combinator.library-rest).
+- Packs are removed (owner decision Q9, batch 31, 2026-09-30): language
+  tier. Type packs `[Ts...]`, value packs, pack expansion in types and
+  expressions, `(values...)` tuple expansion, lockstep expansion,
+  `pack.map`, and `pack.map_list` are gone, and each is now
+  `syntax-error`. `pack`, `map`, and `map_list` are ordinary names, so
+  `pack.map(5)` on a local is a method call again, reversing GQ4. The
+  diagnostics `multiple-positional-value-packs`,
+  `nonfinal-positional-value-pack`, `pack-length-mismatch`, and
+  `pack-map-mapper-mismatch` are removed. An ellipsis after a type is a
+  plain grammar error ([`fn.type.no-ellipsis`](07-functions.md#r-fn.type.no-ellipsis)).
+  [Variadic Generics](12-variadic-generics.md) keeps its number with no
+  rules. Retired with no replacement: all 63 `pack.*` rules;
+  `lex.contextual.pack`, `.pack.always`, and `.pack.ordinary`;
+  `grammar.pack.declare`, `.expand`, `.no-pack`, and `.resolution`;
+  `grammar.fn.vararg.value-pack`; `grammar.primary.pack-map`; and
+  `types.pack.declare` and `.compile-time`. Retired for a rule without
+  packs: `grammar.generic.reified-and-packs` for
+  [`grammar.generic.reified-positions`](02-grammar.md#r-grammar.generic.reified-positions),
+  `types.trait.safe.no-reified-or-pack` for
+  [`types.trait.safe.no-reified`](04-type-system.md#r-types.trait.safe.no-reified),
+  and `trait.dyn.safe.reified-or-pack` for
+  [`trait.dyn.safe.reified`](09-traits.md#r-trait.dyn.safe.reified).
+- `all!` has one typing rule (owner decision ALL-INTRINSIC, batch 31,
+  2026-09-30): language tier. It has no written signature; children of
+  types `mut Suspend[X_i]` give the tuple `(X_1, ..., X_n)`
+  ([`req.combinator.all-typing`](11-requirements-and-suspension.md#r-req.combinator.all-typing)).
+  Any other argument, a spread, a named argument, or `all` as a function
+  value is `type-mismatch`. A child written as a bang call is awaited
+  before `all!` starts. `req.combinator.ordinary-call` is retired for
+  [`req.combinator.bang-called`](11-requirements-and-suspension.md#r-req.combinator.bang-called),
+  which no longer promises a written signature.
+- Tuples derive their comparison traits (owner decision Q6, batch 31,
+  2026-09-30): language tier. Every tuple arity implements `Eq`,
+  `PartialOrd`, `Ord`, and `Hash` when its elements do, as an intrinsic
+  derivation
+  ([`trait.target.tuple.derived`](09-traits.md#r-trait.target.tuple.derived)).
+  `std` promises `Debug` for tuples of at most 12 elements;
+  `trait.debug.std`, which promised every arity, is retired for
+  [`trait.debug.std-types`](09-traits.md#r-trait.debug.std-types).

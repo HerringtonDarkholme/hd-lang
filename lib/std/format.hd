@@ -99,7 +99,7 @@ impl DebugMap:
     pub fn finish(mut self) -> void:
         self.out.write("}")
 
-# The standard `Debug` implementations (spec/09-traits.md#r-trait.debug.std).
+# The standard `Debug` implementations (spec/09-traits.md#r-trait.debug.std-types).
 impl Debug for i32:
     fn debug(self, out: mut DebugWriter) -> void:
         out.write("$self")
@@ -178,6 +178,131 @@ pub fn debug[T < Debug](value: T) -> string:
     value.debug(out)
     out.text
 
+# Tuples of at most 12 elements (spec/09-traits.md#r-trait.debug.std-types).
+impl Debug for ():
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").finish()
+
+impl[A < Debug] Debug for (A,):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).finish()
+
 impl[A < Debug, B < Debug] Debug for (A, B):
     fn debug(self, out: mut DebugWriter) -> void:
         out.debug_tuple("").field(self._0).field(self._1).finish()
+
+impl[A < Debug, B < Debug, C < Debug] Debug for (A, B, C):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).field(self._1).field(self._2).finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug] Debug for (A, B, C, D):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).field(self._1).field(self._2).field(self._3).finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug] Debug for (A, B, C, D, E):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("")
+            .field(self._0)
+            .field(self._1)
+            .field(self._2)
+            .field(self._3)
+            .field(self._4)
+            .finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug] Debug for (A, B, C, D, E, F):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("")
+            .field(self._0)
+            .field(self._1)
+            .field(self._2)
+            .field(self._3)
+            .field(self._4)
+            .field(self._5)
+            .finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug] Debug for (A, B, C, D, E, F, G):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("")
+            .field(self._0)
+            .field(self._1)
+            .field(self._2)
+            .field(self._3)
+            .field(self._4)
+            .field(self._5)
+            .field(self._6)
+            .finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug] Debug for (A, B, C, D, E, F, G, H):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("")
+            .field(self._0)
+            .field(self._1)
+            .field(self._2)
+            .field(self._3)
+            .field(self._4)
+            .field(self._5)
+            .field(self._6)
+            .field(self._7)
+            .finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug] Debug for (A, B, C, D, E, F, G, H, I):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("")
+            .field(self._0)
+            .field(self._1)
+            .field(self._2)
+            .field(self._3)
+            .field(self._4)
+            .field(self._5)
+            .field(self._6)
+            .field(self._7)
+            .field(self._8)
+            .finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug, J < Debug] Debug for (A, B, C, D, E, F, G, H, I, J):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("")
+            .field(self._0)
+            .field(self._1)
+            .field(self._2)
+            .field(self._3)
+            .field(self._4)
+            .field(self._5)
+            .field(self._6)
+            .field(self._7)
+            .field(self._8)
+            .field(self._9)
+            .finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug, J < Debug, K < Debug] Debug for (A, B, C, D, E, F, G, H, I, J, K):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("")
+            .field(self._0)
+            .field(self._1)
+            .field(self._2)
+            .field(self._3)
+            .field(self._4)
+            .field(self._5)
+            .field(self._6)
+            .field(self._7)
+            .field(self._8)
+            .field(self._9)
+            .field(self._10)
+            .finish()
+
+impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug, H < Debug, I < Debug, J < Debug, K < Debug, L < Debug] Debug for (A, B, C, D, E, F, G, H, I, J, K, L):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("")
+            .field(self._0)
+            .field(self._1)
+            .field(self._2)
+            .field(self._3)
+            .field(self._4)
+            .field(self._5)
+            .field(self._6)
+            .field(self._7)
+            .field(self._8)
+            .field(self._9)
+            .field(self._10)
+            .field(self._11)
+            .finish()

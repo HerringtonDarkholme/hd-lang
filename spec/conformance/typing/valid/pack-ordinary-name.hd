@@ -1,0 +1,16 @@
+# test: pack and map are ordinary names, so pack.map(5) on a local is a method call
+# expect: accept
+
+data Packer:
+    count: i32
+
+impl Packer:
+    fn map(self, value: i32) -> i32:
+        value + self.count
+
+    fn map_list(self) -> List[i32]:
+        [self.count]
+
+fn main() -> i32:
+    pack := Packer { count: 1 }
+    pack.map(5) + pack.map_list().len()

@@ -1,0 +1,4 @@
+# test: a tuple element takes no spread
+
+fn wrap(values: List[i32]) -> void:
+    _ := (values...)  # diagnostic: syntax-error

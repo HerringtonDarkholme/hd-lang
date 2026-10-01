@@ -515,13 +515,9 @@ const loopExpressionFollows = new Set([
   "match",
 ]);
 
-function wordKinds(word: string, source: string, end: number): ReadonlySet<string> {
+function wordKinds(word: string): ReadonlySet<string> {
   if (word === "true" || word === "false") return new Set([word, "boolean_literal"]);
   if (reserved.has(word)) return new Set([word]);
-  // `pack.map(` and `pack.map_list(` always form the pack operation, even when
-  // a local named `pack` is in scope.
-  if (word === "pack" && /^\s*\.\s*(?:map|map_list)\s*\(/u.test(source.slice(end, end + 64)))
-    return new Set([word]);
   return new Set([word, "identifier"]);
 }
 
@@ -717,7 +713,7 @@ export function lexSource(source: string): LexResult {
         inlineSuites.pop();
         tokens.push(token("SUITE_END", line, "<suite-end>"));
       }
-      tokens.push(token(wordKinds(word, source, end), line, word));
+      tokens.push(token(wordKinds(word), line, word));
       let suiteWord = suiteWords.has(word);
       // A function type in a closure's result position never takes a `:`.
       if (word === "fn" && typeResultStart(tokens)) suiteWord = false;

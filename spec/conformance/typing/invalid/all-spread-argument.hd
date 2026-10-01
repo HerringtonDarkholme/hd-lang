@@ -1,0 +1,5 @@
+# test: all! takes direct positional arguments, so a spread is an error
+use std.task.all
+
+fn spread!(tasks: List[mut Suspend[i32]]) -> void:
+    _ := all!(tasks...)  # diagnostic: type-mismatch

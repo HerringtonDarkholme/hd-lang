@@ -1,0 +1,13 @@
+# test: derived tuple equality, order, and hashing work element by element
+# expect: test
+use std.testing.assert_equal
+
+tests:
+    it("tuples compare element by element"):
+        assert_equal((1, "a") == (1, "a"), true, reason="equal elements")
+        assert_equal((1, "b") < (2, "a"), true, reason="the first element decides")
+        assert_equal((1, "a") < (1, "b"), true, reason="then the second")
+
+    it("tuples are map keys"):
+        counts := {(1, "a"): 10, (2, "b"): 20}
+        assert_equal(counts[(2, "b")], 20, reason="hashing is by value")

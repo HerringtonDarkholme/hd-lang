@@ -2072,28 +2072,71 @@ type descriptor, observable only as `shape::[T]()`, a `TypeShape`. This descript
 not an ordinary source-level argument and cannot be supplied with a named
 argument. Reification is part of a function's public type and ABI.
 
-Variadic generics use ordered type and value packs. Pack expansion is supported in function types, vararg parameters, tuple types, call arguments, and type or expression patterns:
+hd has no variadic generics. Code that works over any number of arguments of
+any types uses an ordinary tuple: a vararg whose type is bounded by `Tuple`
+collects the arguments into one tuple, and a spread passes a tuple back as
+separate arguments. `call` is an ordinary hd function:
 
 ```text
-fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
+use std.function.{Fn, Tuple}
+
+fn call[Args < Tuple, O, R](f: Fn[Args, O, R], args...: Args) -> O $ R:
     f(args...)
+
+fn add(a: i32, b: i32) -> i32: a + b
+
+fn three() -> i32: call(add, 1, 2)
 ```
 
-The value-pack parameter must be the final positional parameter; calls never
-guess how to split positional arguments between a pack and a later parameter.
-
-This lets the compiler preserve the exact argument types of higher-order functions instead of collapsing them into `List[Any]` or a weak tuple type.
-
-A pattern containing a pack can be expanded once per pack element. This is especially useful for a heterogeneous concurrency combinator:
+Here `Args` is solved as `(i32, i32)`, the tuple of the argument types. The
+same shape serves arity-generic adapters, such as a memoizing wrapper. Every
+tuple whose elements implement `Eq` and `Hash` implements them too, so `Args`
+can key a map:
 
 ```text
-fn all![Ts...](tasks: mut Suspend[Ts]...) -> (Ts...):
-    ...
+use std.function.{Fn, Tuple}
+
+data Memo[Args, O, R]:
+    f: Fn[Args, O, R]
+    cache: mut Map[Args, O]
+
+impl[Args < Tuple & Eq & Hash, O, R] Memo[Args, O, R]:
+    pub fn call(mut self, args...: Args) -> O $ R:
+        match self.cache.get(args):
+            .Some(hit) => hit
+            .None => self.fill(args)
+
+    fn fill(mut self, args: Args) -> O $ R:
+        out := (self.f)(args...)
+        self.cache[args] = out
+        out
 ```
 
-For `Ts... = User, i32, bool`, `mut Suspend[Ts]...` expands to three parameter types, `mut Suspend[User], mut Suspend[i32], mut Suspend[bool]`, while `(Ts...)` becomes the result tuple `(User, i32, bool)`. Expression patterns can expand in argument-list positions too: a value pattern such as `start(tasks)...` expands to `start(tasks_0), start(tasks_1), ...`. Pattern expansion happens at compile time and does not allocate a runtime collection.
+The standard `std.task.all!` awaits children of different result types and
+returns their results as one tuple. It is a compiler intrinsic with one typing
+rule: children of types `mut Suspend[X_1]`, ..., `mut Suspend[X_n]` give
+`(X_1, ..., X_n)`.
 
-The standard `std.task.all!` has this shape, but it is a compiler intrinsic: the compiler supplies its polling and cancellation behavior, because user code cannot implement the sealed `Suspend[T]` protocol. Multiple packs in one repeated pattern expand positionally in lockstep and must have equal lengths. `pack.map(values, mapper)` applies a named generic function to each tuple element and returns the mapped tuple; `pack.map_list(values, mapper, arg)` gathers homogeneous mapper results into a list. Each mapper is instantiated for each tuple element. Filtering, indexing, splitting, and pack arithmetic remain unsupported.
+```text
+use std.task.all
+
+data User:
+    name: string
+
+fn load_user!(id: i64) -> User:
+    User { name: "Ada" }
+
+fn load_orders!(id: i64) -> List[i64]:
+    [id]
+
+fn page!(id: i64) -> string:
+    let (user, orders) = all!(load_user(id), load_orders(id))
+    "${user.name}: ${orders.len()}"
+```
+
+Pass each child as a plain call, which builds a cold suspension. Writing
+`load_user!(id)` inside `all!` awaits it first, as any bang call does, so its
+value is a `User`, not a suspension, and the call does not type-check.
 
 Traits describe behavior, but trait implementation is explicit. A type does not satisfy a trait just because it has matching methods:
 

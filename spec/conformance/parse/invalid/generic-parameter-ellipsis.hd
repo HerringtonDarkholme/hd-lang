@@ -1,0 +1,4 @@
+# test: a generic parameter takes no ellipsis, since hd has no type packs
+
+fn count[Ts...](values...: Ts) -> i32:  # diagnostic: syntax-error
+    0

@@ -1,0 +1,14 @@
+# test: every tuple arity derives Eq, PartialOrd, Ord, and Hash from its elements
+# expect: accept
+
+fn compare(a: (i32, string), b: (i32, string)) -> bool:
+    a == b || a < b
+
+fn index(counts: Map[(i32, string), i32]) -> i32:
+    counts[(1, "a")]
+
+fn wide(a: (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32), b: (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32)) -> bool:
+    a <= b
+
+fn keyed(seen: Map[(bool, char, i64), string]) -> string:
+    seen[(true, 'x', 3)]

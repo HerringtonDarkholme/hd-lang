@@ -27,7 +27,6 @@ r[types.forms.set] The type forms are:
 | Requirement-bearing function types | ending in `$ Row` |
 | Generic instantiations | |
 | Associated type projections | such as `T::Item` |
-| Variadic type packs and pack expansions | |
 | Trait value types | |
 | Transparent aliases and nominal newtypes | |
 | Mutable-access types | `mut T` |
@@ -36,7 +35,6 @@ r[types.forms.set] The type forms are:
 2. r[types.gadt-equalities] GADT refinements are arm-local type equalities rather than additional runtime type forms.
 
 See also: [Requirements and Suspension](11-requirements-and-suspension.md),
-[Variadic Generics](12-variadic-generics.md),
 [Generalized Algebraic Data Types](13-gadts.md).
 
 ### The `never` Type
@@ -1100,8 +1098,8 @@ See also: [Type-Argument Default Syntax](02-grammar.md#type-argument-default-syn
    - an erased generic parameter has no runtime type identity;
    - `is` on a type parameter requires `T < AnyRef`;
    - variance conversions must be representation-preserving.
-3. r[types.generic.specialized] Pack functions and calls with `reified` parameters are specialized.
-4. r[types.generic.interfaces] Package interfaces therefore carry the bodies of generic and pack functions needed by downstream compilation.
+3. r[types.generic.specialized] Calls with `reified` parameters are specialized.
+4. r[types.generic.interfaces] Package interfaces therefore carry the bodies of generic functions needed by downstream compilation.
 
 See also: [Implementation Model](#implementation-model-non-normative), which
 describes the reference strategy.
@@ -1131,14 +1129,6 @@ See also: [Shape Intrinsics](14-annotations.md#shape-intrinsics).
 
 1. r[types.generic.identity] Identity comparison `is` on a type parameter is permitted only with the sealed `T < AnyRef` bound. Without it, the comparison is an error. Error: `identity-needs-reference-bound`.
 2. r[types.generic.identity.primitive] An unconstrained type parameter may be primitive after substitution and therefore cannot be used with `is`.
-
-### Type Packs
-
-1. r[types.pack.declare] An identifier followed by `...` in a generic parameter list declares a type pack.
-2. r[types.pack.compile-time] Packs have a compile-time length and ordered element types; they are not runtime collection values.
-
-See also: [Variadic Generics](12-variadic-generics.md), which specifies
-expansion and inference.
 
 ## Variance
 
@@ -1251,7 +1241,7 @@ gives the rule.
 3. r[types.trait.safe.members-bound] A dynamically safe trait and every supertrait must have no associated functions, and `Self` may appear only as the receiver type.
 4. r[types.trait.safe.assoc-bound] The trait value type must bind each associated type of the trait and its supertraits, as in `Supplier[Item = i32]`.
 5. r[types.trait.safe.method-type-param] A method-level type parameter is permitted only when it is bounded by `AnyRef`; further bounds such as `T < AnyRef & Display` are allowed.
-6. r[types.trait.safe.no-reified-or-pack] A method must not declare a `reified` parameter or a type or value pack. Row parameters and suspending methods are allowed.
+6. r[types.trait.safe.no-reified] A method must not declare a `reified` parameter. Row parameters and suspending methods are allowed.
 7. r[types.trait.safe.one-body] Every argument for such a parameter is a reference, so one method body serves every instantiation, and the further bounds are supplied with each call.
 8. r[types.trait.safe.convert-value] A caller converts a primitive or tuple value explicitly before passing it.
 9. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
@@ -1490,7 +1480,7 @@ This model leaves tuples to the implementation.
 
 A generic function is compiled in its defining package once for each shape,
 at most five bodies. Packages ship their sources, and package interfaces
-carry generic and pack function bodies, as
+carry generic function bodies, as
 [`types.generic.interfaces`](#r-types.generic.interfaces) requires, so a
 downstream package may also use a carried body to specialize an
 instantiation. All reference-shaped instantiations share one body. Scalar-shaped instantiations
@@ -1512,7 +1502,7 @@ the one-copy rule of [Dynamic Safety](09-traits.md#dynamic-safety) requires.
 The dynamic-safety rule in [Trait Values And `Any`](#trait-values-and-any)
 therefore limits method-level type parameters of dynamically safe traits to
 reference types, which all share the reference shape, and excludes `reified`
-parameters and packs. A row parameter passes its providers as one bundle, so
+parameters. A row parameter passes its providers as one bundle, so
 it keeps one body.
 
 See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across-packages).

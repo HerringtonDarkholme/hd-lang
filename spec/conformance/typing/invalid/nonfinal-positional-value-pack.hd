@@ -1,2 +1,0 @@
-fn invalid[Ts...](values: Ts..., tail: i32) -> void:  # diagnostic: nonfinal-positional-value-pack
-    pass

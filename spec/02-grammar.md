@@ -412,7 +412,6 @@ parameter = receiver_parameter
 parameter_decorator = "@", continued_expression ;
 value_parameter = identifier, ":", type, [ "=", expression ]
                 | identifier, "...", ":", type
-                | identifier, ":", type, "..."
                 ;
 
 receiver_parameter = "self" | "mut", "self" ;
@@ -422,12 +421,10 @@ receiver_parameter = "self" | "mut", "self" ;
 2. r[grammar.fn.decorator-param-targets] Among function parameters, parameter decorators are valid only on value parameters of module-level named functions and of methods. Variant payload parameters also accept them, as [Enums](#enums) states.
 3. r[grammar.fn.decorator.lines] Within a multiline parameter clause, each decorator may occupy its own prefix line; delimiter line breaks do not terminate the parameter.
 4. r[grammar.fn.vararg-name] A [vararg](07-functions.md#varargs) parameter writes `...` after its name, as in `values...: List[i32]`; it takes no default and must be the final positional parameter.
-5. r[grammar.fn.vararg.value-pack] The final-parameter rule includes a value-pack parameter, the form with `...` after its type, whose nonfinal use is an error. Error: `nonfinal-positional-value-pack`.
-6. r[grammar.fn.semantic] Default-argument ordering and the requirement-free rule are semantic constraints defined in [Functions](07-functions.md).
+5. r[grammar.fn.semantic] Default-argument ordering and the requirement-free rule are semantic constraints defined in [Functions](07-functions.md).
 
 ```text
-fn invalid[Ts...](values: Ts..., tail: i32) -> void:  # error: nonfinal-positional-value-pack
-    pass
+fn scaled(values...: List[i32], factor: i32) -> i32: factor  # error: nonfinal-vararg
 ```
 
 ### Data Types
@@ -611,8 +608,7 @@ function_generic_params = "[", function_generic_parameter,
 
 type_parameter = [ variance ], identifier, [ "<", trait_bounds ],
                  [ type_default ] ;
-generic_parameter = [ "reified" ], identifier, [ "..." ],
-                    [ "<", trait_bounds ] ;
+generic_parameter = [ "reified" ], identifier, [ "<", trait_bounds ] ;
 function_generic_parameter = generic_parameter
                            | [ "reified" ], identifier, [ "<", trait_bounds ],
                              type_default ;
@@ -697,7 +693,7 @@ fn pick[T, I < Supplier[Item = T] = Constant](source: I) -> T:
 
 1. r[grammar.generic.default] A `type_default` may end a generic parameter of a data type, enum, trait, `type` declaration, function, or method, after any bound.
 2. r[grammar.generic.default.binding] A binding sits inside a bound trait's brackets, while a default follows them at the level of the parameter list. `I < Supplier[Item = T] = Constant` has both.
-3. r[grammar.generic.default.positions] The generic parameters of an implementation and of an enum variant use `generic_params`, which has no default, and a type pack takes none. A default there is an error. Error: `syntax-error`.
+3. r[grammar.generic.default.positions] The generic parameters of an implementation and of an enum variant use `generic_params`, which has no default. A default there is an error. Error: `syntax-error`.
 4. r[grammar.generic.default.semantic] Default order, the names a default may use, and when it applies are semantic rules of [Type-Argument Defaults](04-type-system.md#type-argument-defaults).
 
 ```text
@@ -713,7 +709,7 @@ impl[T = i32] Box[T]:  # error: syntax-error
 1. r[grammar.generic.reified-modifier] An unbackticked `reified` at the start of a `generic_parameter` is always the modifier, never the parameter name, so `[reified]` is an error. Error: `syntax-error`.
 2. r[grammar.generic.reified-name] A parameter named reified is written `` [`reified`] ``.
 3. r[grammar.generic.variance] Variance markers are valid on generic type declarations, not function generic parameters.
-4. r[grammar.generic.reified-and-packs] `reified` and type packs are valid on function, method, variant, and generic-implementation parameters, not generic type declarations.
+4. r[grammar.generic.reified-positions] `reified` is valid on function, method, variant, and generic-implementation parameters, not generic type declarations.
 
 See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words).
 
@@ -737,23 +733,20 @@ reference_type = named_type
 named_type = qualified_name, [ bound_type_arguments ] ;
 type_arguments = "[", type_argument,
                  { ",", type_argument }, [ "," ], "]" ;
-type_argument = type, [ "..." ]
+type_argument = type
               | row_type_argument
               ;
 row_type_argument = "$", requirement_row ;
 
 tuple_type = "(", ")"
-           | "(", type_element, ",",
-             [ type_element, { ",", type_element }, [ "," ] ], ")"
-           | "(", type, "...", ")"
+           | "(", type, ",", [ type, { ",", type }, [ "," ] ], ")"
            ;
-type_element = type, [ "..." ] ;
 
 grouped_type = "(", type, ")" ;
 
 function_type = "fn", [ "!" ], "(", [ type_list ], ")",
                 "->", type, [ requirement_clause ] ;
-type_list = type_element, { ",", type_element }, [ "," ] ;
+type_list = type, { ",", type }, [ "," ] ;
 
 result_type = reference_access_type, { "?" }
             | result_function_type
@@ -1102,7 +1095,7 @@ fn boxed() -> Box[i32]:
 ### Method Type Arguments
 
 1. r[grammar.expr.method-type-arguments.valid] An explicit method type-argument list is valid only when the selected member is generic and the expression proceeds to an ordinary call.
-2. r[grammar.expr.method-type-arguments.bang] A bang call writes the `!` on the name and the list after it, as the declaration `fn all![Ts...](...)` does: the calls are `all!::[i32, string](a, b)`, `parser.load!::[User](text)`, and `Store::load!::[User](key)`.
+2. r[grammar.expr.method-type-arguments.bang] A bang call writes the `!` on the name and the list after it, as the declaration `fn fetch![T](...)` does: the calls are `fetch!::[User](key)`, `parser.load!::[User](text)`, and `Store::load!::[User](key)`.
 
 ```text
 data Identity: pass
@@ -1128,7 +1121,6 @@ primary_expression = literal
                    | method_reference
                    | context_use
                    | context_create
-                   | pack_map_expression
                    | tuple_or_group_expression
                    | list_expression
                    | map_expression
@@ -1153,10 +1145,6 @@ method_reference = expression_trait_type, "::", identifier,
 
 expression_trait_type = qualified_name, [ "::", type_arguments ] ;
 expression_named_type = qualified_name, [ "::", bound_type_arguments ] ;
-
-pack_map_expression = "pack", ".", ( "map" | "map_list" ), "(",
-                      expression, ",", qualified_name,
-                      { ",", expression }, [ "," ], ")" ;
 
 literal = boolean_literal
         | suffixed_literal
@@ -1205,11 +1193,8 @@ tuple_or_group_expression = "(", ")"
                           | "(", expression, ")"
                           | "(", tuple_element, ",",
                             [ tuple_element, { ",", tuple_element }, [ "," ] ], ")"
-                          | "(", continued_expression, "...", ")"
                           ;
-tuple_element = expression
-              | continued_conditional_expression, "..."
-              ;
+tuple_element = expression ;
 
 list_expression = "[", [ list_items ], "]"
                 | list_comprehension
@@ -1282,19 +1267,18 @@ See also: [Prefixed Strings](01-lexical-structure.md#prefixed-strings).
 #### Forms Resolved By Name
 
 1. r[grammar.primary.resolution] Name resolution distinguishes a data expression from a map expression and an enum variant selection from ordinary field access.
-2. r[grammar.primary.function-type-argument] Each function type argument is a type, a type-pack expansion, or the inference placeholder `_`.
+2. r[grammar.primary.function-type-argument] Each function type argument is a type or the inference placeholder `_`.
 3. r[grammar.primary.placeholder] The placeholder is not part of ordinary `type_arguments` and therefore cannot occur in a type such as `List[_]`.
 4. r[grammar.primary.qualified-type-arguments] In a qualified call such as `Type::name::[T](...)`, `Trait::name::[T](...)`, or `Type::name!::[T](...)`, type arguments of the qualifying type or trait stay before the member's `::`, as in `Add::[Money]::add`.
 5. r[grammar.primary.member-type-arguments] Method-level type arguments follow the member name, as in the dot call `parser.parse::[User](text)`.
 6. r[grammar.primary.member-type-arguments.rules] That list is valid only when the selected member is generic, and it follows the explicit-list rules of [Generic Functions](07-functions.md#generic-functions).
-7. r[grammar.primary.pack-map] The token sequences `pack . map (` and `pack . map_list (` always select `pack_map_expression`, even when a local or parameter named `pack` is in scope; a raw identifier `` `pack` `` never does.
 
 #### Prefix And Suffix `...`
 
 1. r[grammar.primary.list-spread] A list element ending in `...` is a spread that expands a list's elements in place.
 2. r[grammar.primary.ellipsis-positions] The two positions of `...` never overlap.
 3. r[grammar.primary.prefix-copies] A prefix `...` always copies: it copies the named members of a value in a copy-update spread and after an embedded field label, and `...=` stores a copy into an embedded field.
-4. r[grammar.primary.suffix-spreads] A suffix `...` always spreads: it expands the elements or entries of its operand in arguments, list elements, tuple elements, pack expansions, and provider-context entries, as in `$.with(ctx...)`.
+4. r[grammar.primary.suffix-spreads] A suffix `...` always spreads: it expands the elements or entries of its operand in arguments, list elements, and provider-context entries, as in `$.with(ctx...)`.
 5. r[grammar.primary.prefix-elsewhere] A prefix `...` anywhere else, including before a provider-context entry, is an error. Error: `syntax-error`.
 
 ```text
@@ -1667,10 +1651,3 @@ derivation block, an `impl_decl`, as [`grammar.impl.traitless-by`](#r-grammar.im
 states.
 
 See also: [Typed Derivation](14-annotations.md#typed-derivation).
-
-## Pack Expansion
-
-1. r[grammar.pack.declare] An ellipsis following a generic parameter declares a type pack.
-2. r[grammar.pack.expand] In a type, parameter, tuple, or argument position, an ellipsis following a subtree that contains a pack reference expands that subtree once per pack element.
-3. r[grammar.pack.no-pack] Where no pack is referenced, an argument ellipsis is a positional spread, and an ellipsis after a type is an error, as [`fn.type.no-ellipsis`](07-functions.md#r-fn.type.no-ellipsis) states.
-4. r[grammar.pack.resolution] Name and type resolution make the distinction; unresolved or mixed uses are compile-time errors.
