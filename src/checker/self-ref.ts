@@ -94,7 +94,7 @@ function refers(type: string, name: string, scope: SelfRefScope, visiting: Set<s
   return members.some((types) => types.some((member) => refers(member, name, scope, visiting)));
 }
 
-/** r-annot.self-ref.needs, .needs.forms, and .needs.containers. */
+/** r-annot.self-ref.needs.self through r-annot.self-ref.needs.only. */
 function needs(type: string, name: string, scope: SelfRefScope, visiting: Set<string>): boolean {
   const inner = readonlyType(type);
   if (optionalInner(inner) !== undefined) return false;

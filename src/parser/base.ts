@@ -489,9 +489,10 @@ export abstract class ParserBase {
 
   /**
    * At the start of a statement, `(`, names separated by commas, `)`, and
-   * `:=` always form a binding list, never a tuple expression
-   * (02-grammar.md#r-grammar.stmt.bind-list.not-tuple). Returns the number of
-   * names, or undefined when the tokens do not have that shape.
+   * `:=` form the multi-name binding list, never a tuple expression. That
+   * form is since retired: a pattern before `:=` is `missing-let`
+   * (02-grammar.md#r-grammar.stmt.short-binding.let-only). Returns the number
+   * of names, or undefined when the tokens do not have that shape.
    */
   protected bindingListLength(): number | undefined {
     if (!this.atText("(")) return undefined;
@@ -512,7 +513,7 @@ export abstract class ParserBase {
   /**
    * A multi-name `let` or `:=` without parentheses is an error whose fix-it
    * adds them (02-grammar.md#r-grammar.stmt.let-list.bare,
-   * 02-grammar.md#r-grammar.stmt.bind-list.bare).
+   * 02-grammar.md#r-grammar.stmt.short-binding.bare-list).
    */
   protected failBareNameList(
     form: "let" | ":=" | "for" | "comprehension",

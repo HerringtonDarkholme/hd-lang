@@ -429,7 +429,7 @@ export abstract class StatementChecker extends CheckerContext {
       { kind: "binding", local: tupleLocal, value, span: statement.span },
     ];
     // Each name of a multi-name binding infers its own element's access
-    // (04-type-system.md#r-types.bind.let-mut-pattern).
+    // (04-type-system.md#r-types.bind.let-pattern-mut).
     const bindingTypes = statement.bindings.map((binding, index) => {
       const element = elements[index]!;
       if (binding.mutableAccess) {

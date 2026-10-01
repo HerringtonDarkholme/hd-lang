@@ -252,7 +252,7 @@ export function testCase(statement: Statement, fail: Fail): TestDecl {
 // `rows`, reports their count, and runs the body with the selected row. With
 // no rows, row 0 panics with `index-out-of-bounds` after reporting count 0.
 // A body without a written result that uses `?` returns `Result[void, Error]`
-// (spec/05-expressions.md#r-expr.try.test.row-body).
+// (spec/std/testing.md#r-std-testing.try.test.row-body).
 function tableTest(
   statement: Statement,
   aliases: ReadonlySet<string>,
@@ -532,7 +532,7 @@ export function finishTestCases(items: ModuleItems, fail: Fail): void {
     seen.set(test.name, test);
   }
   // An `it_each` case is named `name[i]`, so no other test case may use
-  // such a name (spec/10-modules.md#r-module.testing.it-each.name-clash).
+  // such a name (spec/std/testing.md#r-std-testing.it-each.name-clash).
   for (const table of tables)
     for (const test of items.tests)
       if (test !== table && isRowName(test.name, table.name))

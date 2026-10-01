@@ -383,7 +383,7 @@ export interface MatchArm {
 
 export interface BindingName {
   readonly name: string;
-  /** Written `mut name` in a multi-name `let` (04-type-system.md#r-types.bind.let-mut-pattern). */
+  /** Written `mut name` in a multi-name `let` (04-type-system.md#r-types.bind.let-pattern-mut). */
   readonly mutableAccess?: boolean;
   /** From `mut` to the name, which the `redundant-let-mut` fix-it deletes. */
   readonly mutSpan?: SourceSpan;
@@ -687,7 +687,7 @@ export type Expression =
       readonly index: Expression;
       /**
        * The read of `m[k] op= v`: on a `Map` it has type `V` and panics when
-       * the key is missing (05-expressions.md#r-expr.assign.compound.map-present).
+       * the key is missing (05-expressions.md#r-expr.index.map.read-value).
        */
       readonly required?: boolean;
       readonly span: SourceSpan;
