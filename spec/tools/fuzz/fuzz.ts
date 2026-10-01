@@ -18,6 +18,7 @@ import {
   type Action,
   classify,
   hash,
+  hasEntryPoint,
   type Inventory,
   invoke,
   loadInventory,
@@ -263,8 +264,14 @@ class Executor {
     const executions: Execution[] = [];
     for (let compiler = 0; compiler < this.options.compilers.length; compiler += 1) {
       const execution: Execution = {};
-      for (const action of actions)
+      for (const action of actions) {
+        // A module that checks clean but has no entry point gives `run` nothing
+        // to execute, and how `run` treats it is open (audit F-265), so only
+        // `test` runs it. A rejected module still goes to `run`.
+        if (action === "run" && execution.check?.kind === "accept" && !hasEntryPoint(source))
+          continue;
         execution[action] = await this.outcome(compiler, action, source);
+      }
       executions.push(execution);
     }
     return executions;

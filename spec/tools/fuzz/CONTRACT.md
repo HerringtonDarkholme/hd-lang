@@ -19,6 +19,10 @@ contract.
 - The fuzzer uses `parse`, `check`, and `test` as the contract defines them.
   It also uses `run`, which the contract does not list: `run` is judged like
   `test`. The optional Wasm adapter also uses `build`.
+- The fuzzer skips `run` on an input that `check` accepts and that has no
+  entry point: no `pub fn main` or `main!` line and no top-level statement.
+  `run` has nothing to execute there, and how it should treat such a module
+  is open (audit F-265). An input that `check` rejects still goes to `run`.
 
 ## Outcomes
 
@@ -32,8 +36,8 @@ contract.
 
 The **spec inventory** is the union of:
 
-1. the Error, Warning, and Boundary-failure rows of the normative table in
-   `spec/README.md#diagnostics`;
+1. the Error, Error (general), Warning, and Boundary-failure rows of the
+   normative table in `spec/README.md#diagnostics`;
 2. the codes the reference parser in `spec/reference-parser/` can emit. Some
    of these are missing from table 1. The fuzzer counts them separately
    (`reference-only-codes.tsv`).

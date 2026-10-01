@@ -32,6 +32,24 @@ export interface Outcome {
   readonly unknownCode?: string;
 }
 
+// Column-0 lines that start a top-level item other than a statement
+// (spec/02-grammar.md: a use, the tests block, a decorator, a declaration).
+const NON_STATEMENT = /^(?:$|#|@|use\b|tests\s*:|pub\b|fn\b|data\b|enum\b|trait\b|type\b|impl\b)/;
+
+/**
+ * Whether `run` has something to execute: a `pub fn main` or `main!`, or a
+ * script's top-level statements (spec/10-modules.md#module-initialization).
+ * A line-based approximation, used only to choose which commands to run.
+ */
+export function hasEntryPoint(source: string): boolean {
+  return source
+    .split("\n")
+    .some(
+      (line) =>
+        /^pub\s+fn\s+main!?\s*[([]/.test(line) || (!/^\s/.test(line) && !NON_STATEMENT.test(line)),
+    );
+}
+
 export function splitCommand(value: string): string[] {
   const parts: string[] = [];
   const pattern = /"([^"]*)"|'([^']*)'|([^\s]+)/g;
@@ -155,7 +173,7 @@ export function loadInventory(): Inventory {
   const diagnostics = new Set<string>();
   const warnings = new Set<string>();
   for (const line of readme.split("\n")) {
-    const row = /^\| (Error|Warning|Boundary failure) \| (.*) \|$/.exec(line);
+    const row = /^\| (Error[^|]*|Warning|Boundary failure) \| (.*) \|$/.exec(line);
     if (!row) continue;
     for (const code of backticked(row[2]!)) {
       diagnostics.add(code);
