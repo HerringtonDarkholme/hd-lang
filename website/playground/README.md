@@ -7,9 +7,9 @@ build emits it as static files at `playground/`, and the site's
 **Playground** page (`playground.html`) frames it.
 
 ```sh
-npm run website:build   # writes website/dist/, with the playground at playground/
-npm run website:dev     # serves http://localhost:4173/playground/, rebuilt on change
-npm run website:e2e     # after a build: drives the site, then the playground
+pnpm run website:build   # writes website/dist/, with the playground at playground/
+pnpm run website:dev     # serves http://localhost:4173/playground/, rebuilt on change
+pnpm run website:e2e     # after a build: drives the site, then the playground
 ```
 
 Every URL in the playground build is relative, so it works at `/` and under
@@ -155,8 +155,8 @@ REPL as `hd repl`, with the same commands (`:type EXPR`, `:source`,
   is a whole program, which the REPL cannot take because it supplies its own
   `main`. Such a block gets a smaller **Open in playground** link instead.
 
-`npm run website:build` builds the playground and bundles the panel together.
-`npm run website:e2e` drives the panel in a headless Chromium after the
+`pnpm run website:build` builds the playground and bundles the panel together.
+`pnpm run website:e2e` drives the panel in a headless Chromium after the
 build.
 
 ## Packages and Modules

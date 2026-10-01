@@ -1,11 +1,11 @@
 // Spec text tools: one entry point for counting, auditing, and citing rules.
 //
-//   npm run spec -- counts [--by chapter|prefix|topic|kind] [--json]
-//   npm run spec -- audit [--strict] [--list] [--json]
-//   npm run spec -- refs RULE-ID [--json]
-//   npm run spec -- refs --dead [--brief] [--all] [--json]
-//   npm run spec -- rewrite BASE [HEAD] [--json] [--fail-on KINDS]
-//   npm run spec -- glossary [--markdown] [--json]
+//   pnpm run spec -- counts [--by chapter|prefix|topic|kind] [--json]
+//   pnpm run spec -- audit [--strict] [--list] [--json]
+//   pnpm run spec -- refs RULE-ID [--json]
+//   pnpm run spec -- refs --dead [--brief] [--all] [--json]
+//   pnpm run spec -- rewrite BASE [HEAD] [--json] [--fail-on KINDS]
+//   pnpm run spec -- glossary [--markdown] [--json]
 //
 // The tools read spec text, fixtures, and records; they import only Node
 // built-ins and spec/, never src/. Usage is documented in spec/tools/README.md.

@@ -113,6 +113,6 @@ File: `future-work/<AREA>_SIMPLIFICATION.md`, linked from
   cost, a soundness verdict, and a complete accounting table.
 - The summary ranks all cuts, and each cut ends with one question.
 - `future-work/README.md` links the report, and `bash spec/check.sh` and
-  `npm run website:build` pass.
+  `pnpm run website:build` pass.
 - The final message to the caller gives the report path and the top cuts
   with their soundness verdicts.

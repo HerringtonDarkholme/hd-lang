@@ -22,17 +22,20 @@ jobs:
       - name: Check out
         uses: actions/checkout@v5
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Set up Node
         uses: actions/setup-node@v5
         with:
           node-version-file: package.json
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Run checks
-        run: npm run check
+        run: pnpm run check
 
   e2e:
     name: End-to-end (playground and website)
@@ -42,21 +45,24 @@ jobs:
       - name: Check out
         uses: actions/checkout@v5
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Set up Node
         uses: actions/setup-node@v5
         with:
           node-version-file: package.json
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # Builds the site together with the playground it serves.
       - name: Build website
-        run: npm run website:build
+        run: pnpm run website:build
 
       # ubuntu runners ship Google Chrome at /usr/bin/google-chrome, which
       # website/playground/test/chrome.ts finds. The run covers the site and
       # then the playground.
       - name: Website and playground end-to-end
-        run: npm run website:e2e
+        run: pnpm run website:e2e

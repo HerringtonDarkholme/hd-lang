@@ -45,7 +45,7 @@ same named host profile to check and execution.
 Run the portable behavior suite with:
 
 ```sh
-npm run test:portable
+pnpm run test:portable
 ```
 
 To exercise a different implementation with the same command contract:

@@ -16,22 +16,22 @@ The repository pins Node 24.19.0 and npm dependencies through
 `package-lock.json`.
 
 ```sh
-npm install
-npm run toolchain:gate
-npm run lint
-npm run format:check
-npm run test:portable
-npm test
-npm run hd -- parse spec/conformance/parse/valid/layout.hd
-npm run hd -- check examples/core.hd
-npm run hd -- test spec/conformance/runtime/valid/defer-order.hd
-npm run hd -- build --wat examples/core.hd
-npm run hd -- run examples/core.hd
-npm run hd -- repl
-npm run hd -- check --format json examples/core.hd
-npm run hd -- explain unknown-data-field
-npm run hd -- doc main examples/core.hd
-npm run check
+pnpm install
+pnpm run toolchain:gate
+pnpm run lint
+pnpm run format:check
+pnpm run test:portable
+pnpm test
+pnpm run hd -- parse spec/conformance/parse/valid/layout.hd
+pnpm run hd -- check examples/core.hd
+pnpm run hd -- test spec/conformance/runtime/valid/defer-order.hd
+pnpm run hd -- build --wat examples/core.hd
+pnpm run hd -- run examples/core.hd
+pnpm run hd -- repl
+pnpm run hd -- check --format json examples/core.hd
+pnpm run hd -- explain unknown-data-field
+pnpm run hd -- doc main examples/core.hd
+pnpm run check
 ```
 
 `hd check` skips the test cases and test-only functions of a `tests:` block

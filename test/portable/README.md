@@ -8,7 +8,7 @@ normative entry in `spec/conformance/cases.tsv`.
 Run the suite against the repository compiler:
 
 ```sh
-npm run test:portable
+pnpm run test:portable
 ```
 
 Run it against another implementation that provides compatible `parse`,
@@ -30,7 +30,7 @@ is stdlib tier, and every other case is language tier. Like `--phase`,
 tiers run. The summary line counts passes per tier.
 
 ```sh
-npm run test:portable -- --tier language
+pnpm run test:portable -- --tier language
 ```
 
 Independent cases run concurrently. Set `HD_TEST_JOBS` or pass `--jobs` to

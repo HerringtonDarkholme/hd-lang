@@ -15,7 +15,7 @@ audit of 2026-09-28, which moved the string methods, `println`, and
 
 Inputs: the tier table in [AGENTS.md](../AGENTS.md#spec-scope-for-the-standard-library),
 [Spec Tiers](SPEC_TIERS.md), [spec/std/](../spec/std/README.md),
-`npm run spec -- counts` (3,616 language rules, 180 stdlib rules, 111
+`pnpm run spec -- counts` (3,616 language rules, 180 stdlib rules, 111
 rules the heuristic calls intrinsic), `src/README.md`, `ast-grep outline`
 of `src/checker` and `src/emitter`, and the 246 rows of
 `test/portable/KNOWN_FAILURES.tsv`.
@@ -248,7 +248,7 @@ No rule that names an intrinsic is implemented more narrowly, except
 ## Migration Plan
 
 Each chunk is about one hour of agent work, with its own fixtures run
-through `npm run test:portable`. The order is TS deleted per hour, best
+through `pnpm run test:portable`. The order is TS deleted per hour, best
 first, with dependencies first. Every chunk keeps `lib/std` code on
 Sonnet and logs hd-writing mistakes in
 [audit/hd-writing-log.md](../audit/hd-writing-log.md), as AGENTS.md

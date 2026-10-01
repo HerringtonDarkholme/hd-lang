@@ -6,7 +6,7 @@ implementation.
 
 | File | Purpose |
 | --- | --- |
-| `spec.ts` | the `npm run spec` entry point: `counts`, `audit`, `refs`, `rewrite`, and `glossary` |
+| `spec.ts` | the `pnpm run spec` entry point: `counts`, `audit`, `refs`, `rewrite`, and `glossary` |
 | `spec-corpus.ts` | every chapter with its rule inventory, read from a directory or a git revision |
 | `spec-rewrite.ts` | the before/after report of `rewrite` |
 | `spec-glossary.ts` | the terms, the Markdown page, and the missing-term report of `glossary` |
@@ -21,11 +21,11 @@ implementation.
 finds. Use it for every rule count in a batch report.
 
 ```sh
-npm run spec -- counts                # per chapter, with tier totals and a total
-npm run spec -- counts --by prefix    # per first ID segment
-npm run spec -- counts --by topic     # per first two ID segments, as data.embed
-npm run spec -- counts --by kind      # per Design Cost Order kind (heuristic)
-npm run spec -- counts --json         # every view as JSON
+pnpm run spec -- counts                # per chapter, with tier totals and a total
+pnpm run spec -- counts --by prefix    # per first ID segment
+pnpm run spec -- counts --by topic     # per first two ID segments, as data.embed
+pnpm run spec -- counts --by kind      # per Design Cost Order kind (heuristic)
+pnpm run spec -- counts --json         # every view as JSON
 ```
 
 The language tier is the numbered chapters; the stdlib tier is `spec/std/`.
@@ -63,9 +63,9 @@ files, `test/portable/KNOWN_FAILURES.tsv`, `lib/std` comments, and `src/`
 comments. A citation is a `#r-<id>` anchor or a bare rule ID.
 
 ```sh
-npm run spec -- refs data.embed.width
-npm run spec -- refs --dead           # every citation of a rule the spec lacks
-npm run spec -- refs --dead --all     # also list citations allowed as history
+pnpm run spec -- refs data.embed.width
+pnpm run spec -- refs --dead           # every citation of a rule the spec lacks
+pnpm run spec -- refs --dead --all     # also list citations allowed as history
 ```
 
 `refs --dead` also reports an anchor whose file is not the rule's chapter.
@@ -88,10 +88,10 @@ spec at git revision `BASE` through `git show` and compares it with the
 working tree, or with a second revision `HEAD` when one is given.
 
 ```sh
-npm run spec -- rewrite origin/main                  # before/after report
-npm run spec -- rewrite 42090f42 5125d42b            # two revisions
-npm run spec -- rewrite origin/main --json
-npm run spec -- rewrite origin/main --fail-on lost-codes,lost-examples,reused-ids
+pnpm run spec -- rewrite origin/main                  # before/after report
+pnpm run spec -- rewrite 42090f42 5125d42b            # two revisions
+pnpm run spec -- rewrite origin/main --json
+pnpm run spec -- rewrite origin/main --fail-on lost-codes,lost-examples,reused-ids
 ```
 
 | Part | Reports |
@@ -125,12 +125,12 @@ carries its chapter, its defining rule ID or section anchor, and a
 definition quoted from the spec; the tool writes no definition.
 
 ```sh
-npm run spec -- glossary              # counts, and chapter terms the glossaries lack
-npm run spec -- glossary --markdown   # the page the website renders as spec/glossary.html
-npm run spec -- glossary --json       # every term, and the missing ones
+pnpm run spec -- glossary              # counts, and chapter terms the glossaries lack
+pnpm run spec -- glossary --markdown   # the page the website renders as spec/glossary.html
+pnpm run spec -- glossary --json       # every term, and the missing ones
 ```
 
-`npm run website:build` generates the Glossary page from the same data and
+`pnpm run website:build` generates the Glossary page from the same data and
 links it from the Reference section of the sidebar. A term missing from the
 hand-written glossaries still appears on the page, marked "not in a
 hand-written glossary". Add it to the README glossary to give it a reviewed

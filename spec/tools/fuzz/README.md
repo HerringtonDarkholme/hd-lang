@@ -117,7 +117,7 @@ under `spec/conformance/`, so adding a fixture can change the inputs.
   `grammar-check.ts` fails only if the reference parser throws; its
   `syntax-error` count is a triage list, not a gate. Set `HD_SPEC_JOBS` to
   limit concurrency.
-- `npm run fuzz:smoke`, part of `npm run check`, runs the `contract` and
+- `pnpm run fuzz:smoke`, part of `pnpm run check`, runs the `contract` and
   `phase` fuzzers with 100 cases each against
   `node --experimental-strip-types bin/hd.js`. It takes about 30 s. Only
   `phase` can fail it (`--fail-on phase`). The `contract` signatures are known

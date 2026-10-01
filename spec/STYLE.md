@@ -239,7 +239,7 @@ marker, and the website renders the table as a rule table:
    pairs.
 6. Preserve meaning exactly. Add, drop, or change no rule. Record a genuine
    ambiguity or contradiction for the owner instead of resolving it.
-7. Run `bash spec/check.sh` and `npm run website:build`.
+7. Run `bash spec/check.sh` and `pnpm run website:build`.
 
 Without `--diff`, the tool prints one chapter's inventory: its codes,
 normative sentences, examples, rule IDs, and prose statistics.

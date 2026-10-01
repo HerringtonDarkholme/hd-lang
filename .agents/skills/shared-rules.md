@@ -121,7 +121,7 @@ blocks.forEach((m, i) => {
 - Commit only when the task or the skill asks for it. End the message with
   the `Co-Authored-By:` line the session gives you.
 - Before a push that touches Markdown, run `bash spec/check.sh` and
-  `npm run website:build`.
+  `pnpm run website:build`.
 - Never read, print, or copy credential files: `~/.npmrc`, `~/.netrc`,
   `~/.git-credentials`, `~/.ssh/*`, `.env` files, `~/.config/gh/*`, or any
   token store.

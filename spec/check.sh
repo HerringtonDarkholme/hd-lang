@@ -138,7 +138,7 @@ node --experimental-strip-types "$spec_dir/check-spec-anchors.ts" "$spec_dir" "$
 # longer define fails in spec/, fixtures, guide/, and lib/std, unless the line
 # records history; records and src/ comments only warn.
 node --experimental-strip-types "$spec_dir/tools/spec.ts" refs --dead --brief ||
-    fail "a dead rule citation in spec/, a fixture, guide/, or lib/std (npm run spec -- refs --dead)"
+    fail "a dead rule citation in spec/, a fixture, guide/, or lib/std (pnpm run spec -- refs --dead)"
 # Tiers (conformance/README.md): a language-tier fixture imports no item that
 # conformance/stdlib-items.tsv lists, except as conformance/tier-crossings.tsv
 # records; each crossing row must still hold.
@@ -150,7 +150,7 @@ node --experimental-strip-types "$spec_dir/check-spec-style.ts" "$spec_dir"
 
 # Fuzzer (spec/tools/fuzz): the import gate, then a seeded smoke run whose only
 # oracles are the reference parser and the spec inventory. No implementation
-# is invoked here; implementation smoke runs live in `npm run fuzz:smoke`.
+# is invoked here; implementation smoke runs live in `pnpm run fuzz:smoke`.
 fuzz_dir="$spec_dir/tools/fuzz"
 node --experimental-strip-types "$fuzz_dir/check-imports.ts" ||
     fail "spec/tools/fuzz imports something outside Node built-ins and spec/"

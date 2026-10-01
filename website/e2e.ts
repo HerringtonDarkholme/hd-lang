@@ -2,7 +2,7 @@
 // panel, the spec page layout, the playground page, and then the playground
 // itself (website/playground/e2e.ts):
 //
-//   npm run website:build && npm run website:e2e
+//   pnpm run website:build && pnpm run website:e2e
 //
 // website/dist/ is served under /hd-lang/, the GitHub Pages base it is built
 // for. The panel's worker is the playground's compiler worker. Set

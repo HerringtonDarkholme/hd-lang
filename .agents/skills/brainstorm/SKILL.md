@@ -99,6 +99,6 @@ section.
   the questions are present, and every hd block parses or is marked
   `# hypothetical syntax`.
 - `future-work/README.md` links the record, and `bash spec/check.sh` and
-  `npm run website:build` pass.
+  `pnpm run website:build` pass.
 - The final message to the caller gives the file path, the options in one
   line each, and the recommendation.

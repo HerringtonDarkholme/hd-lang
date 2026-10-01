@@ -1,7 +1,7 @@
-// The playground's end-to-end steps, which `npm run website:e2e` runs in a
+// The playground's end-to-end steps, which `pnpm run website:e2e` runs in a
 // headless Chromium after the website's own steps:
 //
-//   npm run website:build && npm run website:e2e
+//   pnpm run website:build && pnpm run website:e2e
 //
 // The site is served under /hd-lang/, the GitHub Pages base, so the
 // playground runs under /hd-lang/playground/. That proves its build only uses

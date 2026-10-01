@@ -128,9 +128,9 @@ the spec, and it adds exactly what the decision says, no more.
 
     ```sh
     bash spec/check.sh
-    HD_TEST_JOBS=4 HD_SPEC_JOBS=4 npm run check
-    npm run website:build
-    npm run website:e2e
+    HD_TEST_JOBS=4 HD_SPEC_JOBS=4 pnpm run check
+    pnpm run website:build
+    pnpm run website:e2e
     ```
 
 12. **Integrate.** Make logical commits (spec and fixtures, prototype,

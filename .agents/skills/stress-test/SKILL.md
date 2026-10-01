@@ -109,6 +109,6 @@ report is removed once its decisions are in the specification.
 - Every problem has an effect, the cases it hits, and one to three
   candidate questions.
 - `future-work/README.md` links the report, and `bash spec/check.sh` and
-  `npm run website:build` pass.
+  `pnpm run website:build` pass.
 - The final message to the caller gives the report path, the verdict
   summary, and the top three problems.

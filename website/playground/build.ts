@@ -1,6 +1,6 @@
-// Builds the browser playground with esbuild. `npm run website:build` calls
+// Builds the browser playground with esbuild. `pnpm run website:build` calls
 // `buildPlayground` to emit it as the site's playground/ directory, and
-// `npm run website:dev` keeps a `watchPlayground` build up to date.
+// `pnpm run website:dev` keeps a `watchPlayground` build up to date.
 //
 // Every URL in the output is relative, so it works at any base path.
 

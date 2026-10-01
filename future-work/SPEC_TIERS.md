@@ -290,7 +290,7 @@ The new AGENTS.md rule, in full:
 ## Migration Plan
 
 Each task is about an hour, and each ends with `bash spec/check.sh`,
-`npm run website:build`, and a push. Spec comes first; `src/` and
+`pnpm run website:build`, and a push. Spec comes first; `src/` and
 `lib/std` comments change only to fix links.
 
 | # | Task | Moves |
