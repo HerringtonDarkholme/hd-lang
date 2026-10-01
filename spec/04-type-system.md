@@ -1501,36 +1501,45 @@ See also: [Trait Values And `Any`](#trait-values-and-any).
 ### Shapes and Generic Code
 
 A **shape** is the machine representation a value occupies in generic code.
-The reference strategy uses five shapes:
+The reference strategy has one shape for each distinct value layout, plus
+one shared reference shape:
 
-| Shape | Types |
+| Shape | Types | Generic bodies |
+| --- | --- | --- |
+| a value layout | each scalar type, such as `bool`, `i32`, or `f64`, and each tuple type | one specialized body per distinct layout |
+| reference | every other type, including strings, optionals, data, enums, collections, closures, and trait values | one body, shared |
+
+This model states no tuple layout. A tuple has a value layout, and the
+implementation chooses it.
+
+Generic code over reference types shares one body. Each distinct value
+layout that a generic function is instantiated with gets its own
+specialized body. Packages ship their sources, and package interfaces carry
+generic function bodies, as
+[`types.generic.interfaces`](#r-types.generic.interfaces) requires, so the
+package that instantiates a value layout may compile its body.
+
+A value with a value layout stays unboxed everywhere: in locals, fields,
+parameters, generic code, and containers. A `List[i32]` is a packed `i32`
+array, and a generic function over it reads and writes unboxed `i32`
+elements. A list of tuples stores each element in its tuple's value layout.
+
+Boxing remains in two places only:
+
+| Case | Why it boxes |
 | --- | --- |
-| `i32` | `bool`, `char`, `i8`, `i16`, `i32`, `u8`, `u16`, `u32` |
-| `i64` | `i64`, `u64` |
-| `f32` | `f32` |
-| `f64` | `f64` |
-| reference | every other type except tuples, including strings, optionals, data, enums, collections, closures, and trait values |
+| conversion to a trait value or `Any` | the result has its own identity, as [Value Categories](#value-categories) says |
+| an unbounded set of value layouts | the fallback below |
 
-This model leaves tuples to the implementation.
-
-A generic function is compiled in its defining package once for each shape,
-at most five bodies. Packages ship their sources, and package interfaces
-carry generic function bodies, as
-[`types.generic.interfaces`](#r-types.generic.interfaces) requires, so a
-downstream package may also use a carried body to specialize an
-instantiation. All reference-shaped instantiations share one body. Scalar-shaped instantiations
-get a specialized body, so a generic function over `List[i32]` reads and
-writes unboxed `i32` elements.
+When the set of value layouts reachable from one generic function is
+unbounded, the implementation falls back to the reference shape with boxed
+values. An example is polymorphic recursion such as `f[T]` calling
+`f[(T, T)]`. This fallback is unobservable, because values without identity
+cannot be distinguished by storage.
 
 Trait bounds are passed as dictionaries of the selected operations;
 associated types are represented through those dictionaries. A dictionary for
 a statically known implementation is a constant, not a per-call allocation.
-
-When the set of shapes reachable from one generic function is unbounded, the
-implementation falls back to the reference shape with boxed scalars. An
-example is polymorphic recursion such as `f[T]` calling `f[(T, T)]`. This is
-unobservable, because values without identity cannot be distinguished by
-storage.
 
 A method called through a trait value has exactly one body at run time, as
 the one-copy rule of [Dynamic Safety](09-traits.md#dynamic-safety) requires.
@@ -1540,11 +1549,16 @@ reference types, which all share the reference shape, and excludes `reified`
 parameters. A row parameter passes its providers as one bundle, so
 it keeps one body.
 
+> **Why.** One rule is easy to remember: reference types share code, and a
+> value keeps its layout everywhere. .NET generics over value types and Go's
+> GC-shape stenciling work the same way.
+
 See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across-packages).
 
 ### Composite Representation
 
-- A data type is a record of its fields. Scalar fields are stored unboxed.
+- A data type is a record of its fields. A field whose type has a value
+  layout is stored unboxed.
 - Every enum uses the reference shape, with one representation. A
   payload-free variant, in any enum, is an `i31ref` holding its tag: it
   allocates nothing, and `ref.eq` on it is its canonical identity. A variant
@@ -1556,10 +1570,11 @@ See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across
   therefore stays an `i31ref` tag even when its enum declares shared data.
 - `T?` is an enum like any other: `.None` is a canonical constant, which
   the `i31ref` tag or a null reference may represent. `.Some(value)` is a
-  tagged record holding the value, unboxed for a scalar `T`. Because each `.Some` construction has
+  tagged record holding the value, unboxed when `T` has a value layout. Because each `.Some` construction has
   its own identity, a present value cannot be represented by the payload
   itself.
-- A list is a growable array of its element shape. A map is expected to use
+- A list is a growable array of its element shape, with value-layout
+  elements unboxed. A map is expected to use
   hashing, with insertion order kept separately.
 - A closure is a function reference plus an environment record. A closure
   without captures needs no environment. Because function identity is

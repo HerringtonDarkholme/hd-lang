@@ -201,7 +201,9 @@ batch 30 below; LP-codes was not asked and waits for the code revamp
 wrote of tuples: "change tuple to be value type, immutable", and then
 "tuple is impl, spec does not know". So the spec states only tuple
 semantics; the representation (TU3) is implementation work, task #122.
-Batch 29 is in [Spec Tiers](SPEC_TIERS.md#still-open).
+Batch 29 is in [Spec Tiers](SPEC_TIERS.md#still-open). Batch 37
+(VALUE-SPEC, below) replaced TU3's boxing at generic and container
+boundaries.
 
 | # | Decision | Where |
 | --- | --- | --- |
@@ -416,6 +418,20 @@ reading in the middle column; each point asks the owner to confirm it.
 | O3-blocks | Templates allow derivation blocks, but comparison derivations were never configurable. | Still unconfigurable ([`trait.derive.cmp-every-member`](../spec/09-traits.md#r-trait.derive.cmp-every-member)), so law partners stay consistent. **Recommendation:** keep it. |
 | O3b-rest | A rest member typed `List[T]` cannot meet a `Display` walker's bound, and text writes its items inline. | `Walker` gains `rest`, whose default calls `member` ([`annot.walk.rest`](../spec/14-annotations.md#r-annot.walk.rest)). **Recommendation:** keep it; the alternative is `Display` for `List`. |
 | O3b-user | Whether a trait outside `std` may declare a tuple template is not stated. | Yes, under the template rules ([`annot.template.tuple.form`](../spec/14-annotations.md#r-annot.template.tuple.form)). **Recommendation:** keep it; it adds no `std` special case. |
+
+**Batch 37, value-layout specialization (owner decision, 2026-10-01).**
+Applied in pass 37 to the non-normative
+[Shapes and Generic Code](../spec/04-type-system.md#shapes-and-generic-code);
+the [Revision Notes](../spec/README.md#revision-notes) list it. The owner
+chose the .NET and Go model, "so that compiler impl is easier to
+remember". No program changes.
+
+| # | Decision | Where |
+| --- | --- | --- |
+| VALUE-SPEC | Generic code over reference types shares one body. Each distinct value layout, each primitive and each tuple's layout, gets its own specialized body. Values with a value layout stay unboxed everywhere, including generic code and containers. Boxing remains only for trait values and the polymorphic-recursion fallback; constant dictionaries still apply. It supersedes TU3's boxing at generic and container boundaries and the five-shape table. The spec still states no tuple layout. | [Shapes and Generic Code](../spec/04-type-system.md#shapes-and-generic-code) |
+
+The prototype keeps boxing for now, for correctness first. The
+performance tasks #86, #95, #96, and #122 implement this model later.
 
 ### Bound And Row Operators
 

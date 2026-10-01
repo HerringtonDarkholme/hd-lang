@@ -3175,3 +3175,14 @@ existing source. Each entry names the decision that made the change.
   std-testing.arbitrary.with.module, .wrap, .downcast, .unchecked,
   .downcast-failure, and .no-fallback
   (std-testing.arbitrary.with.module-typed, .checked, .typed-read).
+- Value-layout specialization in the implementation model (owner
+  decision VALUE-SPEC, batch 37, 2026-10-01; recorded in
+  [Open Issues](../future-work/OPEN_ISSUES.md#language-design-decisions)):
+  language tier, non-normative, no program changes.
+  [Shapes and Generic Code](04-type-system.md#shapes-and-generic-code)
+  now has one shape per value layout plus one shared reference shape, in
+  place of five shapes. Generic code over reference types shares one
+  body, and each distinct value layout gets a specialized body. Values
+  with a value layout stay unboxed in generic code and containers, so
+  boxing remains only for trait values and the polymorphic-recursion
+  fallback. The model still states no tuple layout. No rule ID changed.

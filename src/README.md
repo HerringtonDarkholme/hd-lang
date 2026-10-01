@@ -470,7 +470,11 @@ else`, `break`, `break value`, and `continue`;
   and pre-erasure collision checking;
 - erased generic functions with call-site type inference, Wasm GC boxing for
   primitive values, inference through optional and `Result` types, and
-  higher-order callable adapters for erased type and requirement-row ABIs;
+  higher-order callable adapters for erased type and requirement-row ABIs.
+  Boxing is a toy shortcut: the
+  [implementation model](../spec/04-type-system.md#shapes-and-generic-code)
+  gives each value layout its own body and keeps values unboxed in generic
+  code and containers;
 - erased generic suspending functions whose GC frames retain boxed values,
   trait dictionaries, and providers across polls;
 - simple traits and explicit implementations with signature validation,

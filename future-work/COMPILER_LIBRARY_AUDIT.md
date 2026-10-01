@@ -346,7 +346,9 @@ the seven SSC-Q7 rows and three of the four RETRY rows.
   `task-retry-row-missing` stays a known failure: `connect!` is private
   with no `$` clause, so `req.row.omitted.inferred-private` gives it the
   row `Console`, and the prototype accepts the call. The fixture seems to
-  contradict that rule; the owner should check it.
+  contradict that rule; the owner should check it. Pass 37 fixed the
+  fixture instead: `connect!` now writes `$ Clock`, which lacks `Console`,
+  and the prototype passes it.
 - `FromIterator` for `Map` (item 3, M9) is hd in `lib/std/iter.hd`;
   `mapCollectionPlan`, the `map-collection` builtin, and its emitter path
   are gone.
@@ -375,7 +377,7 @@ for these groups:
 
 | Group | Rows | The hd way |
 | --- | --- | --- |
-| RETRY | 4, now 1 | M10, not a checker case; done in #144, except `task-retry-row-missing`, an owner check |
+| RETRY | 4, now 0 | M10, not a checker case; done in #144, and pass 37 fixed the `task-retry-row-missing` fixture |
 | Q6, TR-traits, Q6-others | 7 | M8 and M1: std impls, not new strategies |
 | SSC-Q7 | 7, now 0 | delete `mapKeyKind`'s private rule; check `Map[K < Eq & Hash, V]` as an ordinary bound. Done in #144 |
 | SSC-Q8 | 2 | `m[k]` typed `V`; then fix `Map`'s `Index` in `lib/std/ops.hd` |
