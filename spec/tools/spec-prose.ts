@@ -51,6 +51,7 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/text.md": "std-text",
   "std/time.md": "std-time",
   "std/task.md": "std-task",
+  "std/ops.md": "std-ops",
 };
 
 /** The subdirectory of spec/ that holds the stdlib chapters. */

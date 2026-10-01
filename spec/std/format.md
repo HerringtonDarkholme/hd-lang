@@ -50,9 +50,10 @@ impl Debug for Point:
 1. r[std-format.debug.builder.types] `std.format` declares the builder types `DebugStruct`, `DebugTuple`, `DebugList`, and `DebugMap`, which the calls above return. None is a prelude name.
 2. r[std-format.debug.builder.values] Each `field` and `entry` value, and each `entry` key, must implement `Debug`. The builder writes it through its own `debug`.
 3. r[std-format.debug.builder.chain] `field` and `entry` return their builder, so calls chain, and `finish` ends the value.
-4. r[std-format.debug.layout] The writer chooses a compact or a pretty layout. An implementation's builder calls are the same for both.
-5. r[std-format.debug.derive-builders] `@derive(Debug)` generates builder calls, as a hand-written implementation writes them, so derived and hand-written text share one layout.
-6. r[std-format.debug.derive-builders.mapping] The derived calls follow Rust's `#[derive(Debug)]`, by the shape of each value, as the table below states.
+4. r[std-format.debug.builder.tuple.unnamed] `debug_tuple("")` describes a tuple, so it writes no name. One field gets a comma after it, as in `(1,)`, as a tuple's `Display` text does.
+5. r[std-format.debug.layout] The writer chooses a compact or a pretty layout. An implementation's builder calls are the same for both.
+6. r[std-format.debug.derive-builders] `@derive(Debug)` generates builder calls, as a hand-written implementation writes them, so derived and hand-written text share one layout.
+7. r[std-format.debug.derive-builders.mapping] The derived calls follow Rust's `#[derive(Debug)]`, by the shape of each value, as the table below states.
 
 | Rule | Value | Derived calls |
 | --- | --- | --- |

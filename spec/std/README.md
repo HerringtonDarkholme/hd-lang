@@ -56,6 +56,7 @@ file of its own.
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls |
 | [`time.md`](time.md) | `std.time` | `std-time` | `Duration` and its suffixes |
 | [`task.md`](task.md) | `std.task` | `std-task` | the `retry!` combinator |
+| [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
 
 ## Glossary
 

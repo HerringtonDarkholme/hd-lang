@@ -36,7 +36,7 @@ Q9	7	Packs are removed in the specification, but the prototype still parses type
 ALL-INTRINSIC	6	all! has one typing rule, but the prototype reports every all! call as unsupported-task-combinator
 Q6	2	Tuples derive Eq, PartialOrd, Ord, and Hash, but the prototype has no Eq or Hash for tuples, so a tuple map key is invalid-map-key
 Q3	3	-5s is the ordinary negation -(5s) (batch 31, Q3): the prototype folds the minus into the literal, as s(-5), so it needs no Neg and range-checks the negated value
-TUPLE-REST	21	Tuple rest elements (batch 33, TUPLE-REST): the prototype has no tuple rest element, no tuple spread, and reads a vararg's type as its element type, so List[i32]... in a type is a vararg of List[i32] elements
+TUPLE-REST	22	Tuple rest elements (batch 33, TUPLE-REST): the prototype has no tuple rest element, no tuple spread, and reads a vararg's type as its element type, so List[i32]... in a type is a vararg of List[i32] elements
 Q6-others	1	Tuple Display (batch 33, Q6-others): the prototype's interpolation finds a Display implementation only for an exact target type, so lib/std's generic tuple implementations are unused
 TR-mixed-tail	1	A list spread ending a tuple vararg's arguments (batch 34, Q4): the prototype supports only a List[T] vararg, so a tuple or Tuple-bounded vararg is unsupported-tuple-vararg
 TR-traits	4	Rest tuples derive the tuple traits (batch 34, Q5): the prototype has no tuple rest element, so a rest tuple is unknown-type and lib/std cannot declare its Debug and Display

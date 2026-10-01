@@ -22,9 +22,10 @@ impl DebugWriter:
         DebugStruct { out: self, count: 0 }
 
     # A named value with positional fields: `.field(value)`, then `.finish()`.
+    # An empty name describes a tuple, so one field ends with a comma: `(1,)`.
     pub fn debug_tuple(mut self, name: string) -> mut DebugTuple:
         self.write(name)
-        DebugTuple { out: self, count: 0 }
+        DebugTuple { out: self, count: 0, unnamed: name == "" }
 
     # A sequence: `.entry(value)` per item, then `.finish()`.
     pub fn debug_list(mut self) -> mut DebugList:
@@ -55,6 +56,7 @@ impl DebugStruct:
 pub data DebugTuple:
     out: mut DebugWriter
     count: i32
+    unnamed: bool
 
 impl DebugTuple:
     pub fn field[T < Debug](mut self, value: T) -> mut DebugTuple:
@@ -64,6 +66,8 @@ impl DebugTuple:
         self
 
     pub fn finish(mut self) -> void:
+        if self.count == 1 && self.unnamed:
+            self.out.write(",")
         if self.count > 0:
             self.out.write(")")
 
@@ -185,7 +189,7 @@ pub fn debug[T < Debug](value: T) -> string:
 # elements; until then their fixtures are TUPLE-REST known failures.
 impl Debug for ():
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_tuple("").finish()
+        out.write("()")
 
 impl[A < Debug] Debug for (A,):
     fn debug(self, out: mut DebugWriter) -> void:
@@ -313,14 +317,15 @@ impl[A < Debug, B < Debug, C < Debug, D < Debug, E < Debug, F < Debug, G < Debug
 
 # `Display` for tuples of at most 12 elements
 # (spec/05-expressions.md#r-expr.interp.std.tuple): each element's text,
-# separated by ", ", inside parentheses.
+# separated by ", ", inside parentheses. One element ends with a comma, as
+# in `(1,)` (r-expr.interp.std.tuple.one).
 impl Display for ():
     fn to_string(self) -> string:
         "()"
 
 impl[A < Display] Display for (A,):
     fn to_string(self) -> string:
-        "(${self._0})"
+        "(${self._0},)"
 
 impl[A < Display, B < Display] Display for (A, B):
     fn to_string(self) -> string:

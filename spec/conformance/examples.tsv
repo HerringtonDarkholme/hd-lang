@@ -560,6 +560,8 @@ std/iter.md	3	accept	typing/valid/adapter-callback-captured-provider.hd
 std/iter.md	4	accept	typing/valid/collect-targets.hd
 std/iter.md	5	type-fragment	-
 std/iter.md	6	mixed	typing/invalid/collect-target-not-fromiterator.hd
+std/ops.md	1	accept	typing/valid/default-trait.hd
+std/ops.md	2	mixed	typing/invalid/default-tuple-element-without-default.hd
 std/testing.md	1	type-fragment	-
 std/testing.md	2	type-fragment	-
 std/testing.md	3	mixed	typing/invalid/it-each-name-clash.hd|typing/invalid/it-each-non-literal-name.hd

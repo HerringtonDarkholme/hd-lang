@@ -1499,3 +1499,7 @@ parse/invalid/reserved-word-prefix.hd	parse
 typing/invalid/display-tuple-element-without-display.hd	type
 typing/invalid/display-tuple-thirteen-elements.hd	type
 parse/invalid/spread-pattern-not-last.hd	parse
+typing/valid/default-trait.hd	type
+runtime/valid/default-standard-types.hd	runtime
+typing/invalid/default-tuple-element-without-default.hd	type
+typing/invalid/default-tuple-thirteen-elements.hd	type

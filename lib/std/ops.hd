@@ -1,5 +1,5 @@
-# std.ops: the operator and index traits, and the literal-suffix
-# and string-prefix markers
+# std.ops: the operator and index traits, the stdlib `Default` trait
+# (spec/std/ops.md), and the literal-suffix and string-prefix markers
 # (spec/05-expressions.md#literal-suffixes, #prefixed-strings) and
 # `Template`. The raw-text prefix `r` and the prefix helpers `interpolate`,
 # `process_escapes`, and `EscapeError` are in `std.text` (Literal Suffixes
@@ -998,3 +998,111 @@ impl Shl[u64] for u64:
 impl Shr[u64] for u64:
     type Out = u64
     fn shr(self, rhs: u64) -> u64: self >> rhs
+
+# `Default`: a type's default value (spec/std/ops.md#default-trait). It is
+# not a prelude name; code imports it as `use std.ops.Default`.
+pub trait Default:
+    fn default() -> Self
+
+# The standard implementations (spec/std/ops.md#standard-implementations).
+
+impl Default for i8:
+    fn default() -> i8: 0
+
+impl Default for i16:
+    fn default() -> i16: 0
+
+impl Default for i32:
+    fn default() -> i32: 0
+
+impl Default for i64:
+    fn default() -> i64: 0
+
+impl Default for u8:
+    fn default() -> u8: 0
+
+impl Default for u16:
+    fn default() -> u16: 0
+
+impl Default for u32:
+    fn default() -> u32: 0
+
+impl Default for u64:
+    fn default() -> u64: 0
+
+impl Default for f32:
+    fn default() -> f32: 0.0
+
+impl Default for f64:
+    fn default() -> f64: 0.0
+
+impl Default for bool:
+    fn default() -> bool: false
+
+impl Default for string:
+    fn default() -> string: ""
+
+impl[T] Default for List[T]:
+    fn default() -> List[T]: []
+
+impl[K < Eq & Hash, V] Default for Map[K, V]:
+    fn default() -> Map[K, V]: {}
+
+impl[T] Default for T?:
+    fn default() -> T?: .None
+
+# Tuples of at most 12 elements (r-std-ops.default.std.tuple). Rest tuples
+# (r-std-ops.default.std.tuple.rest) get impls such as
+# `impl[A < Default, T] Default for (A, List[T]...)`, returning
+# `(A::default(),)` with an empty rest, once the prototype has tuple rest
+# elements; until then their fixture is a TUPLE-REST known failure.
+impl Default for ():
+    fn default() -> (): ()
+
+impl[A < Default] Default for (A,):
+    fn default() -> (A,):
+        (A::default(),)
+
+impl[A < Default, B < Default] Default for (A, B):
+    fn default() -> (A, B):
+        (A::default(), B::default())
+
+impl[A < Default, B < Default, C < Default] Default for (A, B, C):
+    fn default() -> (A, B, C):
+        (A::default(), B::default(), C::default())
+
+impl[A < Default, B < Default, C < Default, D < Default] Default for (A, B, C, D):
+    fn default() -> (A, B, C, D):
+        (A::default(), B::default(), C::default(), D::default())
+
+impl[A < Default, B < Default, C < Default, D < Default, E < Default] Default for (A, B, C, D, E):
+    fn default() -> (A, B, C, D, E):
+        (A::default(), B::default(), C::default(), D::default(), E::default())
+
+impl[A < Default, B < Default, C < Default, D < Default, E < Default, F < Default] Default for (A, B, C, D, E, F):
+    fn default() -> (A, B, C, D, E, F):
+        (A::default(), B::default(), C::default(), D::default(), E::default(), F::default())
+
+impl[A < Default, B < Default, C < Default, D < Default, E < Default, F < Default, G < Default] Default for (A, B, C, D, E, F, G):
+    fn default() -> (A, B, C, D, E, F, G):
+        (A::default(), B::default(), C::default(), D::default(), E::default(), F::default(), G::default())
+
+impl[A < Default, B < Default, C < Default, D < Default, E < Default, F < Default, G < Default, H < Default] Default for (A, B, C, D, E, F, G, H):
+    fn default() -> (A, B, C, D, E, F, G, H):
+        (A::default(), B::default(), C::default(), D::default(), E::default(), F::default(), G::default(), H::default())
+
+impl[A < Default, B < Default, C < Default, D < Default, E < Default, F < Default, G < Default, H < Default, I < Default] Default for (A, B, C, D, E, F, G, H, I):
+    fn default() -> (A, B, C, D, E, F, G, H, I):
+        (A::default(), B::default(), C::default(), D::default(), E::default(), F::default(), G::default(), H::default(), I::default())
+
+impl[A < Default, B < Default, C < Default, D < Default, E < Default, F < Default, G < Default, H < Default, I < Default, J < Default] Default for (A, B, C, D, E, F, G, H, I, J):
+    fn default() -> (A, B, C, D, E, F, G, H, I, J):
+        (A::default(), B::default(), C::default(), D::default(), E::default(), F::default(), G::default(), H::default(), I::default(), J::default())
+
+impl[A < Default, B < Default, C < Default, D < Default, E < Default, F < Default, G < Default, H < Default, I < Default, J < Default, K < Default] Default for (A, B, C, D, E, F, G, H, I, J, K):
+    fn default() -> (A, B, C, D, E, F, G, H, I, J, K):
+        (A::default(), B::default(), C::default(), D::default(), E::default(), F::default(), G::default(), H::default(), I::default(), J::default(), K::default())
+
+impl[A < Default, B < Default, C < Default, D < Default, E < Default, F < Default, G < Default, H < Default, I < Default, J < Default, K < Default, L < Default] Default for (A, B, C, D, E, F, G, H, I, J, K, L):
+    fn default() -> (A, B, C, D, E, F, G, H, I, J, K, L):
+        (A::default(), B::default(), C::default(), D::default(), E::default(), F::default(), G::default(), H::default(), I::default(), J::default(), K::default(), L::default())

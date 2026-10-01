@@ -675,8 +675,10 @@ fn index(counts: Map[(i32, string), i32]) -> i32:
 > ([`types.map-key.no-hash`](04-type-system.md#r-types.map-key.no-hash)),
 > so a tuple with a rest element has no `Hash` and is not a map key.
 
-> **Note.** Tuples have no `Default` yet, since std declares no `Default`
-> trait. Rest tuples will follow tuple `Default` when it exists.
+> **Note.** Tuples of at most 12 elements implement the stdlib `Default`
+> trait when their elements do. A rest tuple takes its fixed elements'
+> defaults and an empty rest
+> ([Standard Implementations](std/ops.md#standard-implementations)).
 
 ### Implementation Ownership
 

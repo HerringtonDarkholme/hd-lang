@@ -9,16 +9,16 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-10-01 the prototype passes 1,500 of the 1,745 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 245 are listed in
+On 2026-10-01 the prototype passes 1,504 of the 1,750 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 246 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 245 still fail. By
+decision below, and all 246 still fail. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Pass | Known failures |
 | --- | ---: | ---: | ---: |
 | language | 1,682 | 1,447 | 235 |
-| stdlib | 63 | 53 | 10 |
+| stdlib | 68 | 57 | 11 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
@@ -62,7 +62,7 @@ them by tag:
 | ALL-INTRINSIC | 6 | batch 31: every `all!` call is `unsupported-task-combinator` |
 | Q6 | 2 | batch 31: tuples have no `Eq` or `Hash`, so a tuple map key is `invalid-map-key` |
 | Q3 | 3 | batch 31: the minus still folds into a suffixed literal, so `-12px` is `px(-12)`, with no `Neg` call and a negated range check |
-| TUPLE-REST | 21 | batch 33: no tuple rest element and no tuple spread; a vararg's type is read as its element type, so `List[i32]...` in a type is a vararg of lists |
+| TUPLE-REST | 22 | batch 33: no tuple rest element and no tuple spread; a vararg's type is read as its element type, so `List[i32]...` in a type is a vararg of lists |
 | Q6-others | 1 | batch 33: interpolation finds `Display` only for an exact target type, so `lib/std`'s generic tuple `Display` is unused |
 | TR-mixed-tail | 1 | batch 34: only a `List[T]` vararg is supported, so a list spread cannot end a tuple vararg's arguments |
 | TR-traits | 4 | batch 34: no tuple rest element, so a rest tuple is `unknown-type` and `lib/std` cannot declare its `Debug` and `Display` |

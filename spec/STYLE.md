@@ -120,6 +120,7 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | [Annotations](14-annotations.md) | `annot` |
 | `std/format.md` | `std-format` |
 | `std/iter.md` | `std-iter` |
+| `std/ops.md` | `std-ops` |
 | `std/testing.md` | `std-testing` |
 | `std/text.md` | `std-text` |
 | `std/time.md` | `std-time` |

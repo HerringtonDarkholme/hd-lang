@@ -1,0 +1,12 @@
+# test: a tuple implements Default only when every element does
+# Spec std/ops Standard Implementations: std-ops.default.std.missing (owner decision Q6-default, batch 35, 2026-10-01).
+use std.ops.Default
+
+data Secret:
+    value: i32
+
+fn fresh[T < Default]() -> T:
+    T::default()
+
+fn start() -> (i32, Secret):
+    fresh()  # diagnostic: unsatisfied-trait-bound

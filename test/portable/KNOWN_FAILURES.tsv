@@ -244,3 +244,4 @@ runtime/valid/spread-pattern.hd	the prototype has no spread pattern, so (a, b, x
 typing/invalid/spread-pattern-fixed-tuple.hd	the prototype has no spread pattern, so (first, rest...) is syntax-error, not type-mismatch (flow.match.spread.fixed-tuple)	TR-pattern
 typing/invalid/spread-pattern-required.hd	the prototype has no tuple rest element, so (i32, List[i32]...) is unknown-type, not type-mismatch at the pattern (flow.match.spread.required)	TR-pattern
 typing/invalid/spread-pattern-arity.hd	the prototype has no spread pattern, so (first, rest...) is syntax-error, not type-mismatch (flow.match.spread.arity)	TR-pattern
+runtime/valid/default-tuple-rest.hd	the prototype has no tuple rest element or spread pattern, so (a, b, xs...) in a pattern is syntax-error, and lib/std cannot declare a rest tuple Default impl (std-ops.default.std.tuple.rest)	TUPLE-REST

@@ -199,6 +199,7 @@ The stdlib chapters' terms are in the
 | **error derivation** | Implementing `Display`, `Error`, and `From` for an error type from its `@error` lines. See [Error Derivation](14-annotations.md#error-derivation). |
 | **error type** | An enum with a bare `@error` line, or a data type with an `@error("...")` or `@error(transparent)` line. See [`annot.error.type`](14-annotations.md#r-annot.error.type). |
 | **executable entry point** | A public top-level function named `main` or `main!` with no parameters. See [`module.entry.definition`](10-modules.md#r-module.entry.definition). |
+| **exhausted** | An iterator whose `next` has returned `.None`. See [`flow.for.iterator-exhausted`](06-control-flow.md#r-flow.for.iterator-exhausted). |
 | **exhausted iterator** | An iterator whose `next` has returned `.None`. What a later `next` returns is unspecified. See [`flow.for.iterator-exhausted`](06-control-flow.md#r-flow.for.iterator-exhausted). |
 | **fact** | An ordinary value attached to a type, member, or variant for derivations to read. See [Facts](14-annotations.md#facts). |
 | **field lookup** | The steps that resolve `x.name` to one field from a module. See [Field Lookup](03-names-and-scopes.md#field-lookup). |
@@ -224,11 +225,14 @@ The stdlib chapters' terms are in the
 | **lexical provider** | A provider a closure fixes where it is written, by capturing the value of `$.use`. See [Lexical And Dynamic Providers](11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
 | **literal function** | A function marked `@num_suffix` or `@str_prefix`, which a suffixed literal or prefixed string calls. See [Literal Suffixes](05-expressions.md#literal-suffixes). |
 | **literal suffix** | A name written directly after a numeric literal's digits, which names a suffix function. See [Literal Suffixes](01-lexical-structure.md#literal-suffixes). |
+| **local type names** | The name category of data types, enums, traits, aliases, and newtypes declared inside an executable suite. See [`names.category.local-type`](03-names-and-scopes.md#r-names.category.local-type). |
 | **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. See [Member Lines](14-annotations.md#member-lines). |
 | **member metadata** | The ordered list of values attached to a data field, an enum variant, or a parameter. See [Terminology](14-annotations.md#terminology). |
+| **member names** | The name category of data fields, embedded fields, methods, enum variants, and tuple fields, within the namespace of their owning type. See [`names.category.member`](03-names-and-scopes.md#r-names.category.member). |
 | **method lookup** | The steps that resolve `x.name(args)` to an own inherent method or a candidate. See [Method Lookup](03-names-and-scopes.md#method-lookup). |
 | **method reference** | A method or associated function named as a function value, written `Owner::name` or `value::name` without arguments. See [Method References](07-functions.md#method-references). |
 | **minimal version selection** | Choosing, for each host path and compatibility line, the largest minimum that any reached manifest states. See [Version Selection](10-modules.md#version-selection). |
+| **module names** | The name category of top-level types, traits, functions, and names introduced by use declarations. See [`names.category.module`](03-names-and-scopes.md#r-names.category.module). |
 | **mutable edge** | A direct field declared `field: mut U`; a readonly container removes its `mut`. See [`types.path.field.mutable-edge`](04-type-system.md#r-types.path.field.mutable-edge). |
 | **mutable edges** | What a data type has when it, or a type it embeds at any depth, declares a direct `field: mut U`. See [Mutable Edges](08-data-and-enums.md#mutable-edges). |
 | **mutable requirement trait** | A trait that declares or inherits a `mut self` method; its providers always have mutable access. See [`req.mut.trait`](11-requirements-and-suspension.md#r-req.mut.trait). |
@@ -237,12 +241,13 @@ The stdlib chapters' terms are in the
 | **operator trait** | A `std.ops` trait, such as `Add[Rhs = Self]`, whose implementation gives a type one operator. See [Operator Traits](05-expressions.md#operator-traits). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](08-data-and-enums.md#parts-and-copies). |
 | **path requirement** | A manifest value `{ path = "DIR" }` through which a workspace member depends on another member. See [`module.workspace.path-requirement`](10-modules.md#r-module.workspace.path-requirement). |
-| **pipe expression** | `value |> step`, which passes a value to a step. See [Pipe Expressions](05-expressions.md#pipe-expressions). |
+| **pipe expression** | `value \|> step`, which passes a value to a step. See [Pipe Expressions](05-expressions.md#pipe-expressions). |
 | **place expression** | An expression that identifies a storage location, which may be read or, when permissions allow, assigned. See [`expr.category.place`](05-expressions.md#r-expr.category.place). |
 | **positional spread** | An argument `x...` that passes the value `x` in place of separate arguments: a tuple fills the callee's remaining inputs, and a vararg takes a value of its own type. See [Positional Spreads](05-expressions.md#positional-spreads). |
 | **prefix function** | A literal function marked `@str_prefix`, which a prefixed string calls. See [`expr.literal-fn.marker`](05-expressions.md#r-expr.literal-fn.marker). |
 | **prefixed string** | An identifier followed directly by `"` or `"""`, as in `sql"..."`. See [`lex.prefix.form`](01-lexical-structure.md#r-lex.prefix.form). |
 | **prelude** | The implicit scope of public standard-library names that every module has. See [Prelude](10-modules.md#prelude). |
+| **primitive types** | `bool`, the integer types `i8` to `i64` and `u8` to `u64`, `f32`, `f64`, `char`, and `string`. See [Primitive Types](04-type-system.md#primitive-types). |
 | **program instance** | One instantiated Wasm module graph with its module storage, provider bindings, and execution state. See [`module.init.program-instance`](10-modules.md#r-module.init.program-instance). |
 | **promoted candidate** | Among the promoted inherent methods that take part, the one with the called name at the smallest depth. See [`names.method-lookup.promoted-candidate`](03-names-and-scopes.md#r-names.method-lookup.promoted-candidate). |
 | **promoted member** | A `pub` field or `pub` inherent method of a part's type, reached from the outer type through the part's path. See [`names.promote.member`](03-names-and-scopes.md#r-names.promote.member). |
@@ -280,11 +285,13 @@ The stdlib chapters' terms are in the
 | **trait candidates** | The trait methods of the receiver's type with the called name whose trait is available at the call. See [`names.method-lookup.trait-candidates`](03-names-and-scopes.md#r-names.method-lookup.trait-candidates). |
 | **trait methods** | The methods of every trait that a known implementation implements for a type. See [`names.member.trait-methods`](03-names-and-scopes.md#r-names.member.trait-methods). |
 | **trait-less derivation block** | An `impl X by Structure:` without a trait, whose member lines write shared metadata of `X` for every derivation and its shape. See [Trait-Less Derivation Blocks](14-annotations.md#trait-less-derivation-blocks). |
+| **type forms** | The kinds of type that hd-lang has, such as primitive types, tuples, optional types, and function types. See [Type Forms](04-type-system.md#type-forms). |
 | **type-argument default** | A type written with `=` after a generic parameter's bound, used when a use site leaves the parameter unsolved or a written type omits it. See [Type-Argument Defaults](04-type-system.md#type-argument-defaults). |
 | **type-argument marker** | The `::` before an explicit type-argument list in an expression, as in `first::[string](names)`. See [`grammar.expr.type-arguments.marker`](02-grammar.md#r-grammar.expr.type-arguments.marker). |
 | **typed derivation** | Implementing a trait for a data type or enum from its members through the trait's template. See [Typed Derivation](14-annotations.md#typed-derivation). |
 | **unbound method reference** | `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter. See [`fn.ref.unbound`](07-functions.md#r-fn.ref.unbound). |
 | **value expression** | An expression that produces a value. See [`expr.category.value`](05-expressions.md#r-expr.category.value). |
+| **value names** | The name category of top-level executable bindings, parameters, local bindings, local named functions, loop bindings, pattern bindings, and captured values. See [`names.category.value`](03-names-and-scopes.md#r-names.category.value). |
 | **vararg** | A final parameter written `name...: T`, which collects the call's remaining positional arguments into `T`. See [`fn.vararg.form`](07-functions.md#r-fn.vararg.form). |
 | **visible** | A field or inherent method is visible from a module that declares it, and from every module when it is `pub`. See [`names.visible.field-method`](03-names-and-scopes.md#r-names.visible.field-method). |
 | **workspace** | A set of packages that one committed workspace manifest lists, selected as one graph. See [Workspaces](10-modules.md#workspaces). |
@@ -3090,3 +3097,22 @@ existing source. Each entry names the decision that made the change.
   `type-mismatch`. `let (a, b, xs) = t` on a rest tuple, unspecified
   before, is an error. hd has no list patterns, so there is no
   `[a, rest...]` rule to share.
+- A std `Default` trait (owner decision Q6-default, batch 35,
+  2026-10-01): stdlib tier, in the new chapter [Ops](std/ops.md).
+  `std.ops` declares `trait Default` with `fn default() -> Self`
+  ([`std-ops.default.trait`](std/ops.md#r-std-ops.default.trait)). `std`
+  implements it for the integers (`0`), the floats (`0.0`), `bool`
+  (`false`), `string` (`""`), `List[T]` (`[]`), `Map[K, V]` (`{}`), `T?`
+  (`.None`), and tuples of at most 12 elements whose elements implement
+  it ([Standard Implementations](std/ops.md#standard-implementations)). A
+  rest tuple takes its fixed elements' defaults and an empty rest.
+  `use std.ops.Default`, an unknown import before, is now valid.
+- A one-element tuple displays as `(1,)` (owner decision
+  Q6-display-text, batch 35, 2026-10-01): language tier.
+  [`expr.interp.std.tuple.one`](05-expressions.md#r-expr.interp.std.tuple.one):
+  one element is followed by a comma, as its source syntax is, so
+  `"$single"` for `single := (1,)` is now `(1,)`, not `(1)`. A rest tuple
+  counts its rest's items as elements. Debug text matches it in the
+  stdlib tier
+  ([`std-format.debug.builder.tuple.unnamed`](std/format.md#r-std-format.debug.builder.tuple.unnamed)):
+  `debug((1,))` is `(1,)`, and `debug(())` is `()`.

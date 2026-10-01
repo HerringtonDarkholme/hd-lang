@@ -1,0 +1,36 @@
+# test: std implements Default for the numbers, bool, string, List, Map, optionals, and tuples up to 12 elements
+# expect: test
+# Spec std/ops Standard Implementations: std-ops.default.std.integer and the other rows (owner decision Q6-default, batch 35, 2026-10-01).
+use std.ops.Default
+use std.testing.assert_equal
+
+fn fresh[T < Default]() -> T:
+    T::default()
+
+tests:
+    it("gives each standard type its default"):
+        let n: i32 = fresh()
+        assert_equal(n, 0, reason="integers default to 0")
+        let byte: u8 = fresh()
+        assert_equal(byte, 0, reason="unsigned integers default to 0")
+        let x: f64 = fresh()
+        assert_equal(x, 0.0, reason="floats default to 0.0")
+        let flag: bool = fresh()
+        assert_equal(flag, false, reason="bool defaults to false")
+        let text: string = fresh()
+        assert_equal(text, "", reason="string defaults to the empty string")
+        let items: List[i32] = fresh()
+        assert_equal(items.len(), 0, reason="a list defaults to the empty list")
+        let table: Map[string, i32] = fresh()
+        assert_equal(table.len(), 0, reason="a map defaults to the empty map")
+        let maybe: i32? = fresh()
+        let none: i32? = .None
+        assert_equal(maybe, none, reason="an optional defaults to .None")
+
+    it("gives a tuple each element's default"):
+        let triple: (i32, string, bool) = fresh()
+        assert_equal(triple, (0, "", false), reason="element by element")
+        let single: (i32,) = fresh()
+        assert_equal(single, (0,), reason="a one-element tuple")
+        let twelve: (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, string) = fresh()
+        assert_equal(twelve, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ""), reason="twelve elements are covered")

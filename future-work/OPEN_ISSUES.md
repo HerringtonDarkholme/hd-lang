@@ -359,8 +359,8 @@ reading in the middle column; each point asks the owner to confirm it.
 
 | # | Question | Applied reading and **Recommendation** |
 | --- | --- | --- |
-| Q6-default | Tuple `Default` needs a `Default` trait, and std declares none: no chapter, `lib/std` file, or design record defines one. | Not applied. **Recommendation:** decide a `Default` trait first, as a stdlib-tier item, such as `trait Default: fn default() -> Self` in `std.ops`, with impls for the primitives, `string`, `List`, `Map`, and `T?`. Tuple impls up to 12 elements then follow in `lib/std`. |
-| Q6-display-text | The decision names no text for a displayed tuple. | Each element's `Display` text, separated by `, `, inside parentheses: `(1, one)`, as tuple `Debug` writes them; `()` for the empty tuple and `(1)` for one element. **Recommendation:** keep it. |
+| Q6-default | Tuple `Default` needs a `Default` trait, and std declares none: no chapter, `lib/std` file, or design record defines one. | Not applied. **Recommendation:** decide a `Default` trait first, as a stdlib-tier item, such as `trait Default: fn default() -> Self` in `std.ops`, with impls for the primitives, `string`, `List`, `Map`, and `T?`. Tuple impls up to 12 elements then follow in `lib/std`. **Answered (owner, batch 35, 2026-10-01), as recommended:** applied in 35, [Ops](../spec/std/ops.md#default-trait). |
+| Q6-display-text | The decision names no text for a displayed tuple. | Each element's `Display` text, separated by `, `, inside parentheses: `(1, one)`, as tuple `Debug` writes them; `()` for the empty tuple and `(1)` for one element. **Recommendation:** keep it. **Answered (owner, batch 35, 2026-10-01), not as recommended:** one element displays as `(1,)`, mirroring the source syntax; applied in 35, [`expr.interp.std.tuple.one`](../spec/05-expressions.md#r-expr.interp.std.tuple.one). |
 
 **Batch 34, 33a follow-ups (owner decisions, 2026-10-01).** Answers
 the questions of "Still open from applying batch 33a" above, where each
@@ -387,6 +387,23 @@ reading in the middle column; each point asks the owner to confirm it.
 | Q6-form | The decision shows `xs...` only. | A spread pattern is a name or `_` before `...` ([`grammar.pattern.tuple-spread`](../spec/02-grammar.md#r-grammar.pattern.tuple-spread)); `_...` binds nothing, and `mut xs...` works in `let`. hd has no list patterns, so no other pattern could match the list. **Recommendation:** keep it. |
 | Q4-lone | A lone list spread into a rest-only `Args`, as in `call(k, xs...)` with `k(xs...: List[i32])`, is a positional spread of the whole vararg, so `xs` must be `Args`. | Kept: a lone spread passes the whole collected value ([`expr.call.spread.at-vararg`](../spec/05-expressions.md#r-expr.call.spread.at-vararg)), so this is `type-mismatch`, and `call(k, (xs...,)...)` passes it. **Recommendation:** keep it; one spread meaning per position. |
 | Q4-infer | With no other argument solving `Args`, [`fn.vararg.tuple-param.infer`](../spec/07-functions.md#r-fn.vararg.tuple-param.infer) says one element per argument, but `pack(1, xs...)` ends in a list spread. | The tuple expression decides, as Q4 says: `Args` is `(i32, List[i32]...)`. **Recommendation:** keep it; reword `.infer` only if a reader finds it unclear. |
+
+**Batch 35, 33b follow-ups (owner decisions, 2026-10-01).** Applied in
+35; the [Revision Notes](../spec/README.md#revision-notes) list each.
+
+| # | Decision | Where |
+| --- | --- | --- |
+| Q6-default | As recommended: a stdlib `Default` trait in `std.ops`, with impls for the integers, floats, `bool`, `string`, `List`, `Map`, `T?`, and tuples up to 12; a rest tuple takes its fixed elements' defaults and an empty rest. | [Ops](../spec/std/ops.md#default-trait) |
+| Q6-display-text | Not as recommended: one element displays as `(1,)`, and `Debug` matches it. | [`expr.interp.std.tuple.one`](../spec/05-expressions.md#r-expr.interp.std.tuple.one), [`std-format.debug.builder.tuple.unnamed`](../spec/std/format.md#r-std-format.debug.builder.tuple.unnamed) |
+
+**Still open from applying batch 35.** The specification applies the
+reading in the middle column; each point asks the owner to confirm it.
+
+| # | Question | Applied reading and **Recommendation** |
+| --- | --- | --- |
+| Q6-default-char | The decision lists `char` with "(decide)". | `char` has no `Default`. **Recommendation:** give it `'\u{0}'`, as Rust does, only when a use needs one; no other char is more neutral. |
+| Q6-default-derive | Whether `@derive(Default)` exists is not stated. | Not added: a data type implements `Default` by hand. **Recommendation:** wait; a template would need a rule for which enum variant is the default. |
+| Q6-one-rest | Whether a rest tuple counts its rest's items when it decides on `(1,)` is not stated. | Yes: a rest tuple holding one value in all writes `(7,)`, as `debug` already wrote it the same as `(7,)` ([`expr.interp.std.tuple.one`](../spec/05-expressions.md#r-expr.interp.std.tuple.one)). **Recommendation:** keep it; the text then mirrors the value's literal. |
 
 ### Bound And Row Operators
 

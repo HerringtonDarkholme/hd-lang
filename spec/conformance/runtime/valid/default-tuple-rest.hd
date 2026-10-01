@@ -1,0 +1,21 @@
+# test: a rest tuple's default gives each fixed element its default and an empty rest
+# expect: test
+# Spec std/ops Standard Implementations: std-ops.default.std.tuple.rest (owner decision Q6-default, batch 35, 2026-10-01).
+use std.ops.Default
+use std.testing.assert_equal
+
+data Secret:
+    value: i32
+
+fn fresh[T < Default]() -> T:
+    T::default()
+
+tests:
+    it("defaults the fixed elements and empties the rest"):
+        let t: (i32, string, List[i32]...) = fresh()
+        let (n, s, xs...) = t
+        assert_equal(n, 0, reason="the fixed elements take their defaults")
+        assert_equal(s, "", reason="the fixed elements take their defaults")
+        assert_equal(xs.len(), 0, reason="the rest is empty")
+        let hidden: (i32, List[Secret]...) = fresh()
+        assert_equal(hidden._0, 0, reason="the rest's item type needs no Default")

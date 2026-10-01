@@ -1,0 +1,15 @@
+# The Debug and Display text of tuples (r-std-format.debug.builder.tuple.unnamed,
+# r-expr.interp.std.tuple.one): one element ends with a comma, as in `(1,)`.
+use std.testing.assert_equal
+
+tests:
+    it("writes a one-element tuple with a comma"):
+        assert_equal(debug((1,)), "(1,)", reason="Debug of one element")
+        single := (1,)
+        assert_equal(single.to_string(), "(1,)", reason="Display of one element")
+
+    it("writes the empty tuple and wider tuples without one"):
+        assert_equal(debug(()), "()", reason="Debug of the empty tuple")
+        assert_equal(debug((1, 2)), "(1, 2)", reason="Debug of two elements")
+        let some: i32? = .Some(1)
+        assert_equal(debug(some), "Some(1)", reason="a named value with one field has no comma")

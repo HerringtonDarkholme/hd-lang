@@ -1744,3 +1744,8 @@ runtime/valid/spread-pattern.hd	runtime	accept	06-control-flow.md#r-flow.match.s
 typing/invalid/spread-pattern-fixed-tuple.hd	type	reject:type-mismatch	06-control-flow.md#r-flow.match.spread.fixed-tuple
 typing/invalid/spread-pattern-required.hd	type	reject:type-mismatch	06-control-flow.md#r-flow.match.spread.required
 typing/invalid/spread-pattern-arity.hd	type	reject:type-mismatch	06-control-flow.md#r-flow.match.spread.arity
+typing/valid/default-trait.hd	type	accept	std/ops.md#r-std-ops.default.trait
+runtime/valid/default-standard-types.hd	runtime	accept	std/ops.md#standard-implementations
+runtime/valid/default-tuple-rest.hd	runtime	accept	std/ops.md#r-std-ops.default.std.tuple.rest
+typing/invalid/default-tuple-element-without-default.hd	type	reject:unsatisfied-trait-bound	std/ops.md#r-std-ops.default.std.missing
+typing/invalid/default-tuple-thirteen-elements.hd	type	reject:unsatisfied-trait-bound	std/ops.md#r-std-ops.default.std.missing

@@ -44,6 +44,7 @@ const SPEC_CHAPTERS: readonly [file: string, title: string][] = [
 const STD_CHAPTERS: readonly [module: string, title: string][] = [
   ["format", "Format"],
   ["iter", "Iterators"],
+  ["ops", "Ops"],
   ["task", "Task"],
   ["testing", "Testing"],
   ["text", "Text"],
