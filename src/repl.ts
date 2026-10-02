@@ -461,6 +461,8 @@ function rendererBody(type: string, hir: HirProgram, nameFor: (type: string) => 
   }
   if (type.startsWith("(") && type.endsWith(")")) {
     const elements = splitTopLevel(type.slice(1, -1));
+    // The unit value `()` has no elements to join.
+    if (elements.length === 0) return ['"()"'];
     const parts = elements.map((element, index) => `${nameFor(element)}(value._${index})`);
     return [`"(" + ${parts.join(' + ", " + ')} + ")"`];
   }

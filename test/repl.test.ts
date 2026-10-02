@@ -240,6 +240,7 @@ test("REPL values render structurally with their types", async () => {
     ["Shape.Dot", "Shape.Dot", "Shape"],
     ["1.5", "1.5", "f64"],
     ["true", "true", "bool"],
+    ["()", "()", "()"],
   ];
   for (const [input, value, type] of cases) {
     const outcome = await session.evaluate(input);
@@ -251,6 +252,10 @@ test("REPL values render structurally with their types", async () => {
   assert.equal((await session.evaluate("present")).value, ".Some(3)");
   await session.evaluate("let nested: i32?? = .Some(.None)");
   assert.equal((await session.evaluate("nested")).value, ".Some(.None)");
+  await session.evaluate("let unitless: Result[i32, ()] = .Ok(1)");
+  assert.equal((await session.evaluate("unitless.err()")).value, ".None");
+  await session.evaluate("let done: Result[(), i32] = .Ok(())");
+  assert.equal((await session.evaluate("done")).value, ".Ok(())");
   await session.evaluate("let success: Result[i32, string] = .Ok(2)");
   assert.equal((await session.evaluate("success")).value, ".Ok(2)");
   await session.evaluate('let failure: Result[i32, string] = Result.Err("no")');
