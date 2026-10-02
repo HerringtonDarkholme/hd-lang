@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   check:
-    name: Check (types, lint, format, tests, fuzz smoke, spec)
+    name: Check (types, lint, format, tests, spec)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -36,6 +36,10 @@ jobs:
 
       - name: Run checks
         run: pnpm run check
+
+      # Not part of `pnpm run check`, which stays fast for local work.
+      - name: Fuzz smoke
+        run: pnpm run fuzz:smoke
 
   e2e:
     name: End-to-end (playground and website)

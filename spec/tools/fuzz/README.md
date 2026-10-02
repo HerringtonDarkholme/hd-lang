@@ -110,12 +110,13 @@ The smoke run uses the seed `smoke`. A case's input also depends on the seed
 files under `spec/conformance/`, so adding a fixture can change the inputs.
 
 - `spec/check.sh` runs only the import gate.
-- `pnpm run fuzz:smoke`, part of `pnpm run check`, runs the `parse`,
+- `pnpm run fuzz:smoke` runs the `parse`,
   `contract`, and `phase` fuzzers with 100 cases each against
   `node --experimental-strip-types bin/hd.js`. It takes about 45 s. Only
   `phase` can fail it (`--fail-on phase`). The `parse` and `contract`
   signatures are known implementation findings, so they are reported, not
-  gated.
+  gated. It is not part of `pnpm run check`; CI runs it as its own step,
+  and a change to the parser or the fuzzer should run it locally.
 
 ## Output
 

@@ -7,7 +7,7 @@
   },
   "type": "module",
   "scripts": {
-    "check": "pnpm run check:types && pnpm run lint && pnpm run format:check && pnpm test && pnpm run fuzz:smoke && bash spec/check.sh",
+    "check": "pnpm run check:types && pnpm run lint && pnpm run format:check && pnpm test && bash spec/check.sh",
     "check:types": "tsc --noEmit && tsc --noEmit -p website/playground",
     "format": "oxfmt --write 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
     "format:check": "oxfmt --check 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
