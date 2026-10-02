@@ -135,7 +135,7 @@ test("std use errors in a package point at the use declaration of their file", (
   assert.deepEqual(located("use std.missing"), ["src/models.hd:2:unknown-module"]);
   assert.deepEqual(located("use std.missing.{x}"), ["src/models.hd:2:unknown-module"]);
   assert.deepEqual(located("use std.text.{nope}"), ["src/models.hd:2:unknown-import"]);
-  assert.deepEqual(located("use std.text.{hex_digit}"), ["src/models.hd:2:unknown-import"]);
+  assert.deepEqual(located("use std.text.{hex_digit}"), ["src/models.hd:2:private-import"]);
 });
 
 test("files of one folder may use each other in a loop", async () => {

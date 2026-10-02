@@ -1,0 +1,7 @@
+# test: a use of a package declaration that its module does not mark pub is an error at the use
+# Spec 10 Use Forms: module.use.private-name (task #193).
+# fixture-package-tree: private-name/src/main.hd
+use pkg.models.{Secret}  # diagnostic: private-import
+
+pub fn main() -> void:
+    pass

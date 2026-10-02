@@ -1834,7 +1834,7 @@ typing/invalid/unknown-std-module.hd	type	reject:unknown-module	lang/10-modules.
 typing/invalid/unknown-std-module-grouped.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
 typing/invalid/unknown-pkg-module.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
 typing/invalid/unknown-dep-module.hd	type	reject:unknown-module	lang/10-modules.md#use-roots
-typing/invalid/unknown-std-name.hd	type	reject:unknown-import	lang/10-modules.md#r-module.use.private-or-missing
+typing/invalid/unknown-std-name.hd	type	reject:unknown-import	lang/10-modules.md#r-module.use.missing-name
 runtime/valid/generic-inference-literal-any-position.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.join.literal
 typing/invalid/generic-inference-supertrait-widening.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.generic.infer.join.no-supertrait-widening
 typing/invalid/generic-inference-variance-conflict.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.infer.join.other-conflict
@@ -1891,6 +1891,7 @@ runtime/valid/derived-default-declared-no-bound.hd	runtime	accept	std/ops.md#r-s
 runtime/valid/list-view-to-list-mut.hd	runtime	accept	std/collections.md#r-std-collections.view.to-list.mut
 typing/valid/handle-fact-pattern.hd	type	accept	lang/14-annotations.md#r-annot.handle.fact.pattern
 typing/invalid/handle-fact-pattern-mismatch.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.handle.fact.pattern.mismatch
-typing/invalid/private-std-function.hd	type	reject:unknown-import	lang/10-modules.md#r-module.use.private-or-missing
-typing/invalid/private-std-type.hd	type	reject:unknown-import	lang/10-modules.md#r-module.use.private-or-missing
-typing/invalid/private-std-name-in-group.hd	type	reject:unknown-import	lang/10-modules.md#r-module.use.private-or-missing
+typing/invalid/private-std-function.hd	type	reject:private-import	lang/10-modules.md#r-module.use.private-name
+typing/invalid/private-std-type.hd	type	reject:private-import	lang/10-modules.md#r-module.use.private-name
+typing/invalid/private-std-name-in-group.hd	type	reject:private-import	lang/10-modules.md#r-module.use.private-name
+typing/invalid/private-package-name.hd	type	reject:private-import	lang/10-modules.md#r-module.use.private-name

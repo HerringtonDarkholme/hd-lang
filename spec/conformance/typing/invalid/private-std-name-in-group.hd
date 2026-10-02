@@ -1,6 +1,6 @@
 # test: a grouped std use that names a public and a private declaration is an error at the use
-# Spec 10 Use Forms: module.use.private-or-missing (task #186).
-use std.testing.{assert_equal, check_equal}  # diagnostic: unknown-import
+# Spec 10 Use Forms: module.use.private-name (task #186).
+use std.testing.{assert_equal, check_equal}  # diagnostic: private-import
 
 pub fn same() -> void:
     assert_equal(1, 1)

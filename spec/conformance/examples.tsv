@@ -455,7 +455,7 @@ lang/10-modules.md	6	mixed	typing/invalid/integration-super-above-test-root.hd|r
 lang/10-modules.md	7	mixed	typing/invalid/single-file-self-use.hd
 lang/10-modules.md	8	accept	parse/valid/uses.hd
 lang/10-modules.md	9	accept	parse/valid/uses.hd
-lang/10-modules.md	10	mixed	parse/invalid/wildcard-use.hd|typing/invalid/unknown-std-name.hd|parse/invalid/direct-variant-use.hd|parse/invalid/pub-path-only-use.hd
+lang/10-modules.md	10	mixed	parse/invalid/wildcard-use.hd|typing/invalid/unknown-std-name.hd|typing/invalid/private-package-name.hd|parse/invalid/direct-variant-use.hd|parse/invalid/pub-path-only-use.hd
 lang/10-modules.md	11	filesystem-layout	-
 lang/10-modules.md	12	filesystem-layout	-
 lang/10-modules.md	13	mixed	typing/invalid/reimport-prelude-name.hd|typing/invalid/prelude-shadow-println-function.hd|typing/invalid/prelude-shadow-console-parameter.hd|typing/invalid/prelude-shadow-result-generic.hd|typing/invalid/prelude-shadow-hash-local.hd

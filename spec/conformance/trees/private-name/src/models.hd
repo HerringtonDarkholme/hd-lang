@@ -1,0 +1,5 @@
+data Secret:
+    code: i32
+
+pub fn open_code() -> i32:
+    1

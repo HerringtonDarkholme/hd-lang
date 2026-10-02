@@ -5,9 +5,9 @@ import { STANDARD_MODULES } from "./standard-sources.ts";
 
 // Checks a program's `std` uses before anything joins the standard library:
 // a use path must name a std module (`unknown-module`), and each name it
-// selects must be declared there and `pub` (spec/lang/10-modules.md#r-module.use.private-or-missing).
-// That rule names `unknown-import` for a missing name and no code for a
-// private one, so a private name is `unknown-import` too.
+// selects must be declared there (`unknown-import`,
+// spec/lang/10-modules.md#r-module.use.missing-name) and `pub`
+// (`private-import`, spec/lang/10-modules.md#r-module.use.private-name).
 
 /** The names that the compiler, not `lib/std`, provides in a std module. */
 const COMPILER_NAMES: ReadonlyMap<string, readonly string[]> = new Map([
@@ -90,13 +90,16 @@ export function standardUseDiagnostics(program: Program): Diagnostic[] {
     }
     for (const { name } of use.names) {
       const declared = declares(module, name);
-      if (declared !== "public")
+      if (declared === "private")
+        diagnostics.push({
+          code: "private-import",
+          message: `'${name}' is private to module 'std.${module}'`,
+          span: use.span,
+        });
+      else if (declared === undefined)
         diagnostics.push({
           code: "unknown-import",
-          message:
-            declared === "private"
-              ? `'${name}' is private to module 'std.${module}'`
-              : `module 'std.${module}' declares no '${name}'`,
+          message: `module 'std.${module}' declares no '${name}'`,
           span: use.span,
         });
     }

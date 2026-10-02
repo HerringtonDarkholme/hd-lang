@@ -425,14 +425,17 @@ use dep.billing.types.{UserId as BillingUserId}
 3. r[module.use.trailing-comma] Grouped uses may have a trailing comma.
 4. r[module.use.no-wildcard] Wildcard uses are not supported. A wildcard use is an error. Error: `syntax-error`.
 5. r[module.use.no-variant] Enum variants are members, not module declarations, and cannot be used directly. Error: `direct-variant-use`.
-6. r[module.use.private-or-missing] Using a private or missing declaration is a compile-time error. A use that names a declaration which an existing module of `std`, `pkg`, or a dependency does not declare is an `unknown-import` error.
-7. r[module.use.pub-grouped] Only the grouped form accepts a `pub` prefix. A `pub` single use is an error. Error: `syntax-error`.
-8. r[module.use.facade] Public facades expose selected declarations rather than module namespace aliases.
-9. r[module.use.whole-module] Use declarations introduce names for the whole module and are resolved before type checking.
+6. r[module.use.private-or-missing] Using a private or missing declaration is a compile-time error.
+7. r[module.use.missing-name] A use that names a declaration which an existing module of `std`, `pkg`, or a dependency does not declare is an error. Error: `unknown-import`.
+8. r[module.use.private-name] A use that names a declaration which its module declares without `pub` is an error. Error: `private-import`.
+9. r[module.use.pub-grouped] Only the grouped form accepts a `pub` prefix. A `pub` single use is an error. Error: `syntax-error`.
+10. r[module.use.facade] Public facades expose selected declarations rather than module namespace aliases.
+11. r[module.use.whole-module] Use declarations introduce names for the whole module and are resolved before type checking.
 
 ```text
 use std.testing.*                 # error: syntax-error
 use std.text.{nope}               # error: unknown-import
+use pkg.models.{Secret}           # error: private-import
 use pkg.status.{Status.Queued}    # error: direct-variant-use
 pub use std.testing.assert_equal  # error: syntax-error
 ```
