@@ -257,8 +257,14 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     if (builtin.kind === "marker")
       return `(struct.new $trait${trait.index} ${value} (ref.null $hd.list))`;
     if (builtin.kind === "forward") return this.emitForwardingDictionary(builtin, value);
+    // An Inspectable key's every bound is an Inspectable dictionary, such as
+    // a handle's witness (annot.handle.fact.key).
     const boundTraits = boundExpressions.map((bound) =>
-      bound.kind === "trait-bound-dictionary" ? bound.traitIndex : -1,
+      bound.kind === "trait-bound-dictionary"
+        ? bound.traitIndex
+        : builtin.kind === "inspectable"
+          ? builtin.traitIndex
+          : -1,
     );
     const key = JSON.stringify([builtin, boundTraits]);
     let adapter = this.builtinTraitAdapters.get(key);

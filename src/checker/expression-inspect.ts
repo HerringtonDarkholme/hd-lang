@@ -8,11 +8,12 @@ import {
   optionalType,
   readonlyType,
 } from "../types.ts";
-import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
+import { extendsInspectable, inspectKey, usesStandardInspect } from "./inspectable.ts";
 import { MemberLookupChecker } from "./member-lookup.ts";
 import { genericTypeName, traitTypeName } from "./shared.ts";
 import { INSPECTABLE, TYPE_ID } from "./standard-traits.ts";
-import { factsOfBuilderName } from "./function-facts.ts";
+import { factsOfBuilderName, STRUCTURE_FACT } from "./function-facts.ts";
+import { STRUCTURE_WITNESS, STRUCTURE_WITNESS_FIELD } from "./typed-derivation.ts";
 
 type CallExpression = Extract<Expression, { kind: "call" }>;
 interface MemberCallExpression extends CallExpression {
@@ -232,6 +233,87 @@ export abstract class InspectChecker extends MemberLookupChecker {
       type: optionalType(target),
       span: expression.span,
     };
+  }
+
+  /** Runs `check` with every type inspectable, for a fact value or a handle witness. */
+  private withAnyTypeInspectable<T>(check: () => T): T {
+    const saved = this.anyTypeInspectable;
+    this.anyTypeInspectable = true;
+    try {
+      return check();
+    } finally {
+      this.anyTypeInspectable = saved;
+    }
+  }
+
+  /**
+   * The checker intrinsics of typed derivation's facts: `hd__structure_fact(v)`
+   * erases a fact value of any type to `Inspectable`, and
+   * `hd__structure_witness::[X]()` is an `Inspectable` value, with no
+   * payload, whose dictionary names `X`, whatever `X` is.
+   */
+  protected checkStructureFactIntrinsic(expression: CallExpression): HirExpression | undefined {
+    const name = expression.callee.kind === "name" ? expression.callee.name : undefined;
+    if (name === STRUCTURE_FACT && expression.arguments.length === 1) {
+      const value = this.checkExpression(expression.arguments[0]!);
+      return this.withAnyTypeInspectable(() =>
+        this.requireCoercion(value, `trait:${INSPECTABLE}`, value.span),
+      );
+    }
+    if (name !== STRUCTURE_WITNESS || expression.typeArguments?.length !== 1) return undefined;
+    const target = this.resolveType(expression.typeArguments[0]!);
+    const trait = this.traitTypes.get(INSPECTABLE)!;
+    const plan = this.withAnyTypeInspectable(() =>
+      this.builtinTraitDictionaryPlan(trait.index, target, [], expression.span),
+    );
+    if (!plan) throw new Error(`no handle witness for '${target}'`);
+    return {
+      kind: "trait-dictionary",
+      traitIndex: trait.index,
+      dictionary: plan,
+      type: `trait:${INSPECTABLE}`,
+      span: expression.span,
+    };
+  }
+
+  /**
+   * Checks a member call with `h.fact::[M]()`'s exemption
+   * (annot.handle.fact.key): when `h` is a `std.structure` handle
+   * `Field[S, F]` whose `F` has no runtime identity of its own, the handle's
+   * witness is `F`'s Inspectable dictionary while the call is checked. The
+   * witness is read from `h` again, so `h` must be a name; any other
+   * receiver keeps the `Inspectable` bound on `F`.
+   */
+  protected withHandleWitness(
+    expression: MemberCallExpression,
+    receiver: HirExpression,
+    check: () => HirExpression,
+  ): HirExpression {
+    const handle = nominalGenericParts(readonlyType(receiver.type));
+    const type = handle?.arguments[1];
+    if (
+      expression.callee.name !== "fact" ||
+      expression.callee.receiver.kind !== "name" ||
+      type === undefined ||
+      !this.dataTypes
+        .get(handle!.name)
+        ?.fields.some((field) => field.name === STRUCTURE_WITNESS_FIELD) ||
+      inspectKey(type, this.inspectEnvironment())
+    )
+      return check();
+    const dictionary = this.checkExpression({
+      kind: "member",
+      receiver: expression.callee.receiver,
+      name: STRUCTURE_WITNESS_FIELD,
+      span: expression.callee.receiver.span,
+    });
+    const saved = this.handleWitness;
+    this.handleWitness = { type, dictionary };
+    try {
+      return check();
+    } finally {
+      this.handleWitness = saved;
+    }
   }
 
   /**

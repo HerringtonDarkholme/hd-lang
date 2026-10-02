@@ -1,9 +1,10 @@
-import type { HirTrait, ValueType } from "../hir.ts";
+import type { HirBuiltinTraitImplementation, HirExpression, HirTrait, ValueType } from "../hir.ts";
 import {
   functionParts,
   mutableInner,
   nominalGenericParts,
   optionalInner,
+  readonlyType,
   resultParts,
   tupleParts,
 } from "../types.ts";
@@ -21,7 +22,21 @@ export interface InspectEnvironment {
   readonly nominal: (name: string) => boolean;
   /** A type parameter bounded directly by `Inspectable`. */
   readonly inspectableParameter: (name: string) => boolean;
+  /**
+   * The type whose key a handle supplies at run time, as the
+   * `{ generic: HANDLE_TYPE }` part (annot.handle.fact.key).
+   */
+  readonly handleType?: ValueType;
+  /**
+   * Name any type: a function type or an unbounded type parameter by its
+   * text. Only a fact list and a handle's own type key use it, since the
+   * prototype's facts hold `Inspectable` values rather than `Any`.
+   */
+  readonly anyType?: boolean;
 }
+
+/** The key part that stands for a handle's own `F` (annot.handle.fact.key). */
+export const HANDLE_TYPE = "$handle";
 
 const PRIMITIVES = new Set([
   "bool",
@@ -84,15 +99,17 @@ export function inspectKey(
   argument = false,
   nested = false,
 ): InspectKeyPart[] | undefined {
+  if (environment.handleType !== undefined && type === environment.handleType)
+    return [{ generic: HANDLE_TYPE }];
   const mutable = mutableInner(type);
   if (mutable !== undefined) {
     const inner = inspectKey(mutable, environment, argument, nested);
     return nested && inner ? ["mut ", ...inner] : inner;
   }
   if (PRIMITIVES.has(type)) return [type];
-  if (type === "void") return argument ? ["void"] : undefined;
+  if (type === "void") return argument || environment.anyType ? ["void"] : undefined;
   if (type.startsWith("trait:") && !type.endsWith("?")) {
-    if (!argument) return undefined;
+    if (!argument && !environment.anyType) return undefined;
     const traitKey = type.slice("trait:".length);
     const application = nominalGenericParts(traitKey);
     if (!application) return [traitKey];
@@ -103,8 +120,11 @@ export function inspectKey(
     return [`${application.name}[`, ...join(arguments_ as InspectKeyPart[][], ", "), "]"];
   }
   const generic = /^generic:([^?[\](),]+)$/.exec(type)?.[1];
-  if (generic) return environment.inspectableParameter(generic) ? [{ generic }] : undefined;
-  if (functionParts(type)) return undefined;
+  if (generic) {
+    if (environment.inspectableParameter(generic)) return [{ generic }];
+    return environment.anyType ? [generic] : undefined;
+  }
+  if (functionParts(type)) return environment.anyType ? [type] : undefined;
   const tuple = tupleParts(type);
   if (tuple !== undefined) {
     const elements = tuple.map((element) => inspectKey(element, environment, false, true));
@@ -131,6 +151,38 @@ export function inspectKey(
     return [`${nominal.name}[`, ...join(arguments_ as InspectKeyPart[][], ", "), "]"];
   }
   return environment.nominal(type) ? [type] : undefined;
+}
+
+/**
+ * The builtin Inspectable dictionary of a type with key `parts`, and the
+ * bound dictionaries its `{ generic }` parts read, each from `bound`.
+ */
+export function inspectableBuiltin(
+  parts: readonly InspectKeyPart[],
+  traitIndex: number,
+  targetType: ValueType,
+  bound: (generic: string) => HirExpression,
+): { readonly builtin: HirBuiltinTraitImplementation; readonly bounds: HirExpression[] } {
+  const bounds: HirExpression[] = [];
+  const positions = new Map<string, number>();
+  const key = compactKey(parts).map((part) => {
+    if (typeof part === "string") return part;
+    let position = positions.get(part.generic);
+    if (position === undefined) {
+      position = bounds.length;
+      positions.set(part.generic, position);
+      bounds.push(bound(part.generic));
+    }
+    return { bound: position };
+  });
+  const builtin: HirBuiltinTraitImplementation = {
+    kind: "inspectable",
+    traitIndex,
+    targetType: readonlyType(targetType),
+    key,
+    ...(mutableInner(targetType) !== undefined ? { outerMut: true as const } : {}),
+  };
+  return { builtin, bounds };
 }
 
 /** Merges adjacent literal parts. */

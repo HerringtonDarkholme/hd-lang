@@ -29,7 +29,8 @@ import type {
   ValueType,
 } from "../hir.ts";
 import {
-  compactKey,
+  HANDLE_TYPE,
+  inspectableBuiltin,
   inspectKey,
   usesStandardInspect,
   type InspectEnvironment,
@@ -225,6 +226,10 @@ export abstract class CheckerContext {
    * mention them do not instantiate the value.
    */
   protected pendingCallGenerics?: ReadonlySet<string>;
+  /** In `h.fact::[M]()`, the handle's `F` and its witness (expression-inspect.ts). */
+  protected handleWitness?: { readonly type: ValueType; readonly dictionary: HirExpression };
+  /** Whether every type is inspectable, for a fact value or a handle witness. */
+  protected anyTypeInspectable = false;
 
   /** Takes the pending call generics, as a test for types that mention them. */
   protected takePendingCallGenerics(): (type: ValueType) => boolean {
@@ -897,6 +902,8 @@ export abstract class CheckerContext {
         ),
       inspectableParameter: (name) =>
         this.inspectableBound(name, inspectable?.index ?? -1, ZERO_SPAN) !== undefined,
+      ...(this.handleWitness ? { handleType: this.handleWitness.type } : {}),
+      ...(this.anyTypeInspectable ? { anyType: true } : {}),
     };
   }
 
@@ -952,32 +959,18 @@ export abstract class CheckerContext {
     // Every value type implements `Any` (04-type-system.md#trait-values-and-any).
     if (traitName === "Any" && type !== "void" && type !== "never")
       return plan({ kind: "marker", traitIndex, targetType: type });
-    if (genericTypeName(type)) return undefined;
-    if (trait && this.isStandardInspectable(trait)) {
+    const inspectable = trait !== undefined && this.isStandardInspectable(trait);
+    if (genericTypeName(type) && !(inspectable && this.anyTypeInspectable)) return undefined;
+    if (inspectable) {
       const parts = inspectKey(type, this.inspectEnvironment());
-      if (!parts) return undefined;
-      const bounds: HirExpression[] = [];
-      const positions = new Map<string, number>();
-      const key = compactKey(parts).map((part) => {
-        if (typeof part === "string") return part;
-        let position = positions.get(part.generic);
-        if (position === undefined) {
-          position = bounds.length;
-          positions.set(part.generic, position);
-          bounds.push(this.inspectableBound(part.generic, traitIndex, span)!);
-        }
-        return { bound: position };
-      });
-      return plan(
-        {
-          kind: "inspectable",
-          traitIndex,
-          targetType: type,
-          key,
-          ...(mutableInner(targetType) !== undefined ? { outerMut: true as const } : {}),
-        },
-        bounds,
-      );
+      const dictionary = parts
+        ? inspectableBuiltin(parts, traitIndex, targetType, (generic) =>
+            generic === HANDLE_TYPE
+              ? this.handleWitness!.dictionary
+              : this.inspectableBound(generic, traitIndex, span)!,
+          )
+        : undefined;
+      return dictionary && plan(dictionary.builtin, dictionary.bounds);
     }
     if (traitName === "Debug")
       return builtinDebug(type) &&

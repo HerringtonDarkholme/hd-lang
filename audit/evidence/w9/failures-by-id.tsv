@@ -7,4 +7,3 @@ M29	1	Typed derivation M29's per-trait Self-line warning needs a second package,
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 DC7	1	An initialization group's statements are not interleaved: the package linker joins the group's modules by identity, so a read of a later-joined module's binding fails
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer
-ANNOTATE-TYPED	2	Typed facts (batches 39 and 40, ANNOTATE-TYPED): the prototype's facts hold Inspectable values, so h.fact::[M]() needs M inspectable, and a typed fact over a type that is not inspectable, such as With[fn() -> i32], cannot be held or read

@@ -167,7 +167,9 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     if (builtin) return builtin;
     const dynamic = this.checkDynamicMemberCall(expression, receiver);
     if (dynamic) return dynamic;
-    return this.checkImplementedMemberCall(expression, receiver, expected);
+    return this.withHandleWitness(expression, receiver, () =>
+      this.checkImplementedMemberCall(expression, receiver, expected),
+    );
   }
 
   private checkBuiltInMemberCall(
@@ -1135,6 +1137,8 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       const value = this.checkExpression(expression.arguments[0]!);
       return { ...value, type: mutableType(readonlyType(value.type)) };
     }
+    const structure = this.checkStructureFactIntrinsic(expression);
+    if (structure) return structure;
     if (expression.callee.name === "panic") {
       if (expression.argumentSpreads?.some(Boolean))
         this.fail(

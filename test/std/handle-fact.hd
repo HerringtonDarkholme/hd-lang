@@ -1,0 +1,60 @@
+# std.structure: a template reads a member's typed fact through its handle,
+# with no Inspectable bound on the handle's own F (annot.handle.fact.key),
+# for a member of any type, and only at the handle's exact F
+# (annot.handle.fact.exact).
+use std.annotation.annotate
+use std.structure.{Structure, Field, Variant, Describer}
+use std.testing.assert_equal
+
+@annotate::[F](.Field)
+data Tag[F]:
+    label: string
+
+fn tag[F](label: string) -> Tag[F]:
+    Tag::[F] { label: label }
+
+trait Labels:
+    fn labels() -> string
+
+fn label_of[S, F](h: Field[S, F]) -> string:
+    match h.fact::[Tag[F]]():
+        .Some(found) => found.label
+        .None => "-"
+
+data Collect:
+    out: string
+
+impl[S] Describer[S] for Collect:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.out = self.out + h.info.name + ":" + label_of(h) + ";"
+        .Ok()
+
+impl[T] Labels for T by Structure:
+    fn labels() -> string:
+        let mut c = Collect { out: "" }
+        _ := T::describe(c)
+        c.out
+
+data Counter:
+    count: i64
+
+@derive(Labels)
+data Job:
+    @tag("n")
+    n: i32
+    @tag("run")
+    run: fn() -> i32
+    @tag("hits")
+    hits: mut Counter
+    plain: List[string]
+
+tests:
+    it("reads a typed fact through a handle whose F has no Inspectable bound"):
+        # `describe` passes read-type handles, so the fact on `hits`, bound to
+        # `mut Counter`, is not found at F = Counter.
+        assert_equal(Job::labels(), "n:n;run:run;hits:-;plain:-;", reason="each member's own fact")

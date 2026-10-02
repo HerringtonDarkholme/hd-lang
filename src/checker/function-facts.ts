@@ -14,6 +14,14 @@ const ANNOTATION_MODULE = "std.annotation";
 /** The `@intrinsic` name of `std.annotation.facts_of`. */
 export const FACTS_OF_INTRINSIC = "facts_of";
 
+/**
+ * The checker intrinsic `hd__structure_fact(v)`: a fact value erased to
+ * `Inspectable` whatever its type, since the prototype's `Facts` holds
+ * `Inspectable` values where the specification has `Any`. Every fact list
+ * that this pass and typed derivation generate wraps its values in it.
+ */
+export const STRUCTURE_FACT = "hd__structure_fact";
+
 export function factsOfBuilderName(functionName: string): string {
   return `hd__facts_of_${functionName}`;
 }
@@ -56,7 +64,9 @@ export function factsOfBuilders(
   const out = new Source_();
   for (const declaration of program.functions) {
     if (!targets.has(declaration.name) || declaration.name.startsWith("hd__")) continue;
-    const items = (declaration.decorators?.facts ?? []).map((item) => out.expression(fact(item)));
+    const items = (declaration.decorators?.facts ?? []).map(
+      (item) => `${STRUCTURE_FACT}(${out.expression(fact(item))})`,
+    );
     out.add(`fn ${factsOfBuilderName(declaration.name)}() -> ${facts}:`);
     out.add(`    ${facts} { items: [${items.join(", ")}] }`);
   }

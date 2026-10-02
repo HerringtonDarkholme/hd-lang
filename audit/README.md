@@ -9,15 +9,15 @@ repository history keeps the removed evidence.
 ## Conformance
 
 On 2026-10-01 the conformance suite has 1,764 cases, and
-`test/portable/cases.tsv` selects the 1,743 that the prototype passes. The
-other 21 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
+`test/portable/cases.tsv` selects the 1,745 that the prototype passes. The
+other 19 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
 finding or with a decision below. Every case is in one of the two files. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Selected | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,690 | 1,670 | 20 |
-| stdlib | 74 | 73 | 1 |
+| language | 1,690 | 1,671 | 19 |
+| stdlib | 74 | 74 | 0 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
@@ -32,7 +32,6 @@ them by tag:
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | DC7 | 1 | group statements are not interleaved across modules |
 | MHP-1 | 1 | no inferred script entry requirement row |
-| ANNOTATE-TYPED | 2 | batches 39 and 40: the prototype's facts hold `Inspectable` values, so a typed fact over a type that is not inspectable cannot be held or read |
 
 ## What Remains
 

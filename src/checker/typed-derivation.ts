@@ -54,7 +54,7 @@ import {
   type CompiledTemplate,
 } from "./template-instances.ts";
 import { withTypedFacts } from "./typed-facts.ts";
-import { factsOfBuilders, importsFactsOf } from "./function-facts.ts";
+import { factsOfBuilders, importsFactsOf, STRUCTURE_FACT } from "./function-facts.ts";
 import { debugWriterName } from "./standard-traits.ts";
 import { checkDuplicateDeclarationFacts, isLiteralFact } from "./declaration-facts.ts";
 import {
@@ -82,8 +82,9 @@ import {
 // `std.structure` declarations below, written in hd with hidden fields for
 // the compiler-supplied bodies.
 //
-// Prototype gaps: `Facts` holds `Inspectable` values rather than `Any`, so a
-// fact must be inspectable; `VariantInfo.shared` is always empty; a build
+// Prototype gaps: `Facts` holds `Inspectable` values rather than `Any`, so
+// each fact list erases its values through `hd__structure_fact`, which
+// names any type; `VariantInfo.shared` is always empty; a build
 // handle's `get` returns the member's declared type whatever the argument's
 // permission; the traversals are generated hd source, parsed and checked
 // per derivation; `Walker.rest`'s default body panics, since generated
@@ -101,6 +102,14 @@ const DOWNCAST = "hd__downcast_val";
 export const STRUCTURE_MISMATCH = "hd__structure_variant_mismatch";
 /** The checker intrinsic that gives a build handle its member's declared type. */
 export const STRUCTURE_AS_DECLARED = "hd__structure_as_declared";
+/**
+ * The checker intrinsic `hd__structure_witness::[X]()`: an `Inspectable`
+ * value whose dictionary names `X`, held by a handle so that `h.fact`
+ * needs no `Inspectable` bound on the handle's `F` (annot.handle.fact.key).
+ */
+export const STRUCTURE_WITNESS = "hd__structure_witness";
+/** The handle field that holds the witness, which `h.fact` reads. */
+export const STRUCTURE_WITNESS_FIELD = "hd_witness";
 
 // The handle declarations name their parameters `HdS` and `HdF`: the
 // prototype cannot infer an inherent method's parameters from a receiver
@@ -144,6 +153,7 @@ data Field[HdS, HdF]:
     hd_get: fn(HdS) -> HdF
     hd_has_default: bool
     hd_default: fn() -> HdF?
+    ${STRUCTURE_WITNESS_FIELD}: Inspectable
 
 impl[HdS, HdF] Field[HdS, HdF]:
     pub fn get(self, s: HdS) -> HdF:
@@ -159,8 +169,8 @@ impl[HdS, HdF] Field[HdS, HdF]:
         self.info.facts.find::[HdM]()
 
 # The handle of a member with no facts, doc comment, or default.
-fn hd__plain_field[HdS, HdF](name: string, position: i32, positional: bool, self_ref: SelfRef, get: fn(HdS) -> HdF) -> Field[HdS, HdF]:
-    Field::[HdS, HdF] { info: Member { name: name, position: position, facts: Facts { items: [] }, doc: .None, embedded: false, positional: positional, self_ref: self_ref }, hd_get: get, hd_has_default: false, hd_default: hd__no_default::[HdF] }
+fn hd__plain_field[HdS, HdF](name: string, position: i32, positional: bool, self_ref: SelfRef, get: fn(HdS) -> HdF, witness: Inspectable) -> Field[HdS, HdF]:
+    Field::[HdS, HdF] { info: Member { name: name, position: position, facts: Facts { items: [] }, doc: .None, embedded: false, positional: positional, self_ref: self_ref }, hd_get: get, hd_has_default: false, hd_default: hd__no_default::[HdF], ${STRUCTURE_WITNESS_FIELD}: witness }
 
 fn hd__no_default[HdF]() -> HdF?:
     .None
@@ -1189,7 +1199,7 @@ function generateDerivation(
     if (facts.length === 0 && name !== `${part}_facts`) return "Facts { items: [] }";
     out.define(name, () => [
       `fn ${name}() -> Facts:`,
-      `    Facts { items: [${facts.map((fact) => `${out.expression(unscoped(fact))}${isSpreadFact(fact) ? "..." : ""}`).join(", ")}] }`,
+      `    Facts { items: [${facts.map((fact) => (isSpreadFact(fact) ? `${out.expression(unscoped(fact))}...` : `${STRUCTURE_FACT}(${out.expression(unscoped(fact))})`)).join(", ")}] }`,
     ]);
     return `${name}()`;
   };
@@ -1271,9 +1281,10 @@ function generateDerivation(
       member.doc === undefined &&
       !member.embedded &&
       member.default === undefined;
+    const witness = `${STRUCTURE_WITNESS}::[${F}]()`;
     const literal = plainHandle
-      ? `hd__plain_field::[${T}, ${F}](${out.string(member.name)}, ${member.position}, ${member.positional}, SelfRef.${member.selfRef}, ${name}_get${typeArgs})`
-      : `Field::[${T}, ${F}] { info: ${infos.get(`${variant.index}_${member.position}`)}, hd_get: ${name}_get${typeArgs}, hd_has_default: ${member.default !== undefined}, hd_default: ${fallback} }`;
+      ? `hd__plain_field::[${T}, ${F}](${out.string(member.name)}, ${member.position}, ${member.positional}, SelfRef.${member.selfRef}, ${name}_get${typeArgs}, ${witness})`
+      : `Field::[${T}, ${F}] { info: ${infos.get(`${variant.index}_${member.position}`)}, hd_get: ${name}_get${typeArgs}, hd_has_default: ${member.default !== undefined}, hd_default: ${fallback}, ${STRUCTURE_WITNESS_FIELD}: ${witness} }`;
     // A plain handle of a non-generic target is a module constant, built
     // once (annot.handle.constants). One with facts or a default is built
     // at its use, since evaluating them may call the derived code.

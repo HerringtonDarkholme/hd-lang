@@ -1742,3 +1742,5 @@ typing/invalid/facts-of-method.hd	type
 typing/invalid/facts-of-type-name.hd	type
 typing/invalid/facts-of-as-value.hd	type
 parse/invalid/reified-generic-parameter.hd	parse
+typing/invalid/arbitrary-with-non-inspectable-member.hd	type
+typing/valid/typed-fact.hd	type
