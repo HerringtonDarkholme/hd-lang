@@ -13,7 +13,7 @@ import {
 import { nominalGenericParts } from "./types.ts";
 import type { HirProgram, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
-import { assembleWat, type WasmArtifact } from "./wasm.ts";
+import type { WasmArtifact } from "./wasm.ts";
 import { RuntimePanicError, runtimePanicName } from "./runtime-panic.ts";
 
 interface Compilation extends WasmArtifact {
@@ -321,7 +321,16 @@ export function analyze(source: string, options: CompileOptions = {}): Analysis 
   return { hir: checked.program, diagnostics: checked.diagnostics };
 }
 
+let assembleWat: ((wat: string) => WasmArtifact) | undefined;
+
+// Binaryen takes about 200 ms to load, so only commands that emit Wasm load
+// it: `instantiate` does, and a direct `compile` caller awaits this first.
+export async function loadWasmAssembler(): Promise<void> {
+  assembleWat ??= (await import("./wasm.ts")).assembleWat;
+}
+
 export function compile(source: string, options: CompileOptions = {}): Compilation {
+  if (!assembleWat) throw new Error("internal: await loadWasmAssembler() before compile()");
   const analysis = analyze(source, options);
   if (!analysis.hir) throw new DiagnosticError(analysis.diagnostics);
   const artifact = assembleWat(emitWat(analysis.hir));
@@ -369,6 +378,7 @@ export async function instantiate(
   source: string,
   options: InstantiateOptions = {},
 ): Promise<Instantiation> {
+  await loadWasmAssembler();
   const compilation = options.compilation ?? compile(source, options);
   const functionIdentities: FunctionIdentity[] = [
     ...compilation.hir.functions,

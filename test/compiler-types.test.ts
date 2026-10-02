@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 
-import { analyze, compile, instantiate } from "../src/compiler.ts";
+import { analyze, compile, instantiate, loadWasmAssembler } from "../src/compiler.ts";
 import { conformance } from "./fixture.ts";
+
+await loadWasmAssembler();
 
 test("named functions reify as monomorphic function values", () => {
   const source = conformance("runtime/valid/function-value-argument");

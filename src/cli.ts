@@ -7,6 +7,7 @@ import {
   analyze,
   compile,
   instantiate,
+  loadWasmAssembler,
   type CompileOptions,
   type HostSuspensionCall,
   type HostSuspensionOutcome,
@@ -233,6 +234,7 @@ async function runFile(
       return 0;
     }
     if (command === "build") {
+      await loadWasmAssembler();
       const result = compile(source, compileOptions);
       if (options.wat) {
         console.log(result.wat);

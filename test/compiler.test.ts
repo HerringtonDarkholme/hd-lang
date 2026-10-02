@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { analyze, compile, instantiate } from "../src/compiler.ts";
+import { analyze, compile, instantiate, loadWasmAssembler } from "../src/compiler.ts";
 import { RUNTIME_WAT } from "../src/emitter/runtime/index.ts";
 import { type RuntimePanicName, runtimePanicCode } from "../src/runtime-panic.ts";
 import { conformance } from "./fixture.ts";
+
+await loadWasmAssembler();
 
 const PROGRAM = conformance("runtime/valid/conditional-call-program");
 
