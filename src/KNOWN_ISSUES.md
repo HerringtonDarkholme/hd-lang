@@ -11,8 +11,8 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-02 the suite has
-1,820 cases: 1,747 selected in `test/portable/cases.tsv` and 73 known
-failures, 67 language tier and 6 stdlib tier.
+1,827 cases: 1,746 selected in `test/portable/cases.tsv` and 81 known
+failures, 75 language tier and 6 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -31,6 +31,7 @@ failures, 67 language tier and 6 stdlib tier.
 | TASK-PROGRAMS | 1 | integration test modules are linked as one program |
 | RANGES | 34 | no `..` or `..=` tokens, range types, range iteration, slicing, or range patterns; no `List.view` or `ListView` |
 | FOLDER-SELF | 1 | `x.hd` is not in folder `x` with its child modules |
+| FACT-PATTERN | 8 | a typed fact's `@annotate` argument must be one of its type parameters |
 
 ## Findings
 
@@ -116,6 +117,7 @@ Compiler structure:
 | M29 | A `Self` line warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package. |
 | MHP-1 | A top-level `println` in a script is valid. The prototype infers no script entry row (`module.init.script-row`), so it reports `missing-requirement`. |
 | DC7 | An initialization group runs statements in dependency order across modules. The linker joins modules whole, so `init-group-order.hd` reports `top-level-read-before-initialization`. |
+| FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are. The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
 
 ## Gaps No Fixture Reaches
 

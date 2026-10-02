@@ -1715,7 +1715,6 @@ typing/invalid/literal-suffix-parameter-type.hd	type
 typing/invalid/literal-suffix-generic-unbounded.hd	type
 typing/valid/arbitrary-with-generic-generator.hd	type
 typing/valid/typed-fact-other-params.hd	type
-typing/invalid/typed-fact-target-not-param.hd	type
 typing/invalid/facts-of-without-import.hd	type
 typing/valid/untyped-fact-default.hd	type
 typing/valid/facts-find-generic-key.hd	type

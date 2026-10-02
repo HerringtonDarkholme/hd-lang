@@ -1757,7 +1757,14 @@ typing/invalid/typed-fact-bound.hd	type	reject:unsatisfied-trait-bound	lang/14-a
 typing/invalid/typed-fact-value-mismatch.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.check
 typing/valid/typed-fact-generic-owner.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.monomorphic
 typing/valid/typed-fact-other-params.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.check.other-params
-typing/invalid/typed-fact-target-not-param.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.target-param.invalid
+typing/valid/typed-fact-fn-pattern.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.infer
+typing/invalid/typed-fact-fn-pattern-arity.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.infer.mismatch
+typing/invalid/typed-fact-fn-pattern-field.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.infer.mismatch
+typing/invalid/typed-fact-fn-pattern-bound.hd	type	reject:unsatisfied-trait-bound	lang/14-annotations.md#r-annot.typed-fact.check.bounds
+typing/invalid/typed-fact-fn-pattern-suspending.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.infer.suspending
+typing/valid/typed-fact-concrete-pattern.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.pattern.concrete
+typing/invalid/typed-fact-concrete-pattern-mismatch.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.pattern.concrete
+typing/valid/typed-fact-pattern-other-params.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.check.other-params
 typing/valid/untyped-fact-default.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.untyped
 typing/valid/arbitrary-with-generic-generator.hd	type	accept	std/testing.md#r-std-testing.arbitrary.with.checked
 typing/valid/facts-find-generic-key.hd	type	accept	lang/14-annotations.md#r-annot.structure.find-key

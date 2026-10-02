@@ -1,0 +1,21 @@
+# test: a two-parameter function does not fit the pattern fn(T) -> R
+# Spec 14 Member-Typed Facts: annot.typed-fact.infer.mismatch, reported at the decorator (batch 50, 2026-10-02).
+use std.annotation.annotate
+use std.num.Num
+
+@annotate::[fn(T) -> R](.Fn, .Field)
+data FnFact[T < Num, R]: pass
+
+fn fn_fact[T < Num, R]() -> FnFact[T, R]:
+    FnFact::[T, R] {}
+
+data Duration:
+    millis: i32
+
+@fn_fact
+fn ms(n: i32) -> Duration:
+    Duration { millis: n }
+
+@fn_fact  # diagnostic: type-mismatch
+fn span(low: i32, high: i32) -> Duration:
+    Duration { millis: high - low }

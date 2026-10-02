@@ -1,0 +1,16 @@
+# test: a value of a fact type with the concrete pattern i32 on an i64 field is an error at the decorator
+# Spec 14 Member-Typed Facts: annot.typed-fact.pattern.concrete (batch 50, 2026-10-02).
+use std.annotation.annotate
+
+@annotate::[i32](.Field)
+data Port:
+    number: i32
+
+fn port(number: i32) -> Port:
+    Port { number: number }
+
+data Server:
+    @port(8080)
+    listen: i32
+    @port(9090)  # diagnostic: type-mismatch
+    admin: i64

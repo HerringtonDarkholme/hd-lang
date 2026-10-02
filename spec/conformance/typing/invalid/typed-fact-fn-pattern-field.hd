@@ -1,0 +1,16 @@
+# test: an i32 field does not fit the pattern fn(T) -> R
+# Spec 14 Member-Typed Facts: annot.typed-fact.infer.mismatch, reported on the decorator line (batch 50, 2026-10-02).
+use std.annotation.annotate
+use std.num.Num
+
+@annotate::[fn(T) -> R](.Fn, .Field)
+data FnFact[T < Num, R]: pass
+
+fn fn_fact[T < Num, R]() -> FnFact[T, R]:
+    FnFact::[T, R] {}
+
+data Meter:
+    @fn_fact
+    convert: fn(i32) -> i64
+    @fn_fact  # diagnostic: type-mismatch
+    count: i32

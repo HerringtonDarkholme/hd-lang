@@ -35,10 +35,12 @@ pub enum Target:
 pub data Annotate:
     pub kinds: List[Target]
 
-# `T`, when written as in `@annotate::[F](.Field)`, names the fact type's
-# parameter that stands for its target's type, which makes it a typed fact
-# type (r-annot.typed-fact.declare). The compiler reads it and checks each
-# value (src/checker/typed-facts.ts). When omitted, it takes the default
-# `Any`, and the fact type is untyped (r-annot.typed-fact.untyped).
+# `T`, when written as in `@annotate::[F](.Field)` or
+# `@annotate::[fn(T) -> R](.Fn)`, is a pattern over the fact type's own
+# parameters that describes its target's type, which makes it a typed fact
+# type (r-annot.typed-fact.declare, r-annot.typed-fact.pattern). The compiler
+# reads it and checks each value (src/checker/typed-facts.ts). When omitted,
+# it takes the default `Any`, and the fact type is untyped
+# (r-annot.typed-fact.untyped).
 pub fn annotate[T = Any](kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }

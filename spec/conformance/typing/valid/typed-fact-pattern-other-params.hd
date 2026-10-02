@@ -1,0 +1,16 @@
+# test: a fact type parameter the pattern does not mention is inferred from the value
+# Spec 14 Member-Typed Facts: annot.typed-fact.check.other-params; `@sample("ids")` on `ids: List[i64]` infers `T = i64` from the pattern `List[T]` and `U = string` from the value (batch 50, 2026-10-02).
+use std.annotation.annotate
+
+@annotate::[List[T]](.Field)
+data Sample[T, U]:
+    label: U
+
+fn sample[T, U](label: U) -> Sample[T, U]:
+    Sample::[T, U] { label: label }
+
+data Batch:
+    @sample("ids")
+    ids: List[i64]
+    @sample(3)
+    names: List[string]

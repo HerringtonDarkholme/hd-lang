@@ -1,0 +1,32 @@
+# test: a function pattern's parameters are inferred from the target's type as a call's are, then the value checks at those arguments
+# Spec 14 Member-Typed Facts: annot.typed-fact.infer and annot.typed-fact.check; `@fn_fact` on `fn ms(n: i32) -> Duration` checks like `let f: FnFact[i32, Duration] = fn_fact()` (batch 50, 2026-10-02).
+use std.annotation.annotate
+use std.num.Num
+
+@annotate::[fn(T) -> R](.Fn, .Field)
+data FnFact[T < Num, R]: pass
+
+fn fn_fact[T < Num, R]() -> FnFact[T, R]:
+    FnFact::[T, R] {}
+
+fn to_ms[T < Num]() -> FnFact[T, Duration]:
+    FnFact::[T, Duration] {}
+
+data Duration:
+    millis: i32
+
+@fn_fact
+fn ms(n: i32) -> Duration:
+    Duration { millis: n }
+
+@to_ms
+fn seconds(n: i64) -> Duration:
+    Duration { millis: 0 }
+
+@fn_fact
+fn half[N < Num](n: N) -> f64:
+    0.5
+
+data Timer:
+    @fn_fact
+    tick: fn(i32) -> Duration

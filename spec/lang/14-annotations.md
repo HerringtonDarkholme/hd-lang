@@ -371,16 +371,18 @@ Each target has one kind:
 > **Why.** Java, C#, Kotlin, and Dart check declared target kinds the
 > same way. For an untyped fact, a signature check belongs to the reader,
 > which knows what it needs. A [typed fact](#member-typed-facts) writes
-> its check as an ordinary expected type, not in a separate pattern
-> language.
+> its check as an ordinary type, solved as a call's argument is, not in a
+> separate pattern language.
 
 See also: [Prefix Decorators](#prefix-decorators),
 [Literal Suffixes](05-expressions.md#literal-suffixes).
 
 ### Member-Typed Facts
 
-A fact type may name one of its type parameters as the type of its target.
-Each value is then checked against the fact type at that target's type:
+A fact type may describe the type of its target with a pattern over its
+own type parameters. The simplest pattern is one parameter alone, which
+stands for the whole target type. Each value is then checked against the
+fact type at that target's type:
 
 ```text
 use std.annotation.annotate
@@ -428,29 +430,46 @@ for its target:
 | `name: string` | `@positive` | `let f: Positive[string] = positive()`, where `Positive[string]` breaks `F < Integer` |
 | `hits: T` in `Tally[T < Integer]` | `@positive` | `let f: Positive[Integer] = positive()`, where `Integer` is one fixed type that implements `Integer` |
 
+The check has three steps:
+
+| Step | What it does | Rules |
+| --- | --- | --- |
+| 1 | Makes the target's type monomorphic | [`annot.typed-fact.monomorphic`](#r-annot.typed-fact.monomorphic) |
+| 2 | Infers the pattern's parameters from that type, as a call infers them from its one argument | [`annot.typed-fact.infer`](#r-annot.typed-fact.infer) |
+| 3 | Checks the value at the fact type with the inferred arguments | [`annot.typed-fact.check`](#r-annot.typed-fact.check) |
+
 1. r[annot.typed-fact.declare] A data type or enum whose `@annotate` decorator writes a type argument, as in `@annotate::[T](.Field)`, is a **typed fact type**. The compiler recognizes `std.annotation.annotate` by its qualified name and reads that argument.
-2. r[annot.typed-fact.target-param] That type argument must be one of the fact type's own type parameters. It stands for the type of the target that each value attaches to.
-3. r[annot.typed-fact.target-param.invalid] Any other type argument, as in `@annotate::[i32](.Field)` before `data Wrapped[T]`, is an error at that `@annotate` decorator. Error: `type-mismatch`.
-4. r[annot.typed-fact.untyped] A fact type whose `annotate` type argument is the default `Any`, as in `@annotate(.Field)`, is an **untyped fact type**. Its values stay unchecked, as [Member Metadata](#member-metadata) states.
-5. r[annot.typed-fact.untyped.no-annotate] A fact type without an `Annotate` fact is untyped too.
-6. r[annot.typed-fact.targets] A value of a typed fact type may be attached only to a field or a module-level function. A field is a named or embedded data field, or a payload member. Error: `decorator-target-kind`.
-7. r[annot.typed-fact.declared-type] A target's type is the type written on the field, so for `hits: mut Counter` it is `mut Counter`. A function's type is its signature as a function type, with its `!` and requirement row, as in `fn(i32) -> string`.
-8. r[annot.typed-fact.check] A decorator or member-line element `v` whose type constructor is a typed fact type `D` checks like `let f: D[X] = v`. `D[X]` is `D` with the target's type `X` for its target parameter. Error: `type-mismatch`.
-9. r[annot.typed-fact.check.other-params] Each other type parameter of `D` is inferred from `v` as a `_` slot is, by [`fn.generic.placeholder.solve`](07-functions.md#r-fn.generic.placeholder.solve), [`.default`](07-functions.md#r-fn.generic.placeholder.default), and [`.unsolved`](07-functions.md#r-fn.generic.placeholder.unsolved). Error: `unresolved-generic-placeholder`.
-10. r[annot.typed-fact.check.inferred] Type arguments in `v` are inferred from that expected type, by [`fn.type.generic.argument.sources`](07-functions.md#r-fn.type.generic.argument.sources), as in any such binding.
-11. r[annot.typed-fact.check.bounds] An expected type `D[X]` that breaks a bound of `D`, as `Positive[string]` does, is an error, by [`trait.bound.unsatisfied`](09-traits.md#r-trait.bound.unsatisfied). Error: `unsatisfied-trait-bound`.
-12. r[annot.typed-fact.check.reported] Every error of the check is reported on the decorator or member line.
-13. r[annot.typed-fact.monomorphic] For the check, a target's type is made monomorphic. Each type parameter it mentions, of a generic function or of a field's owner, is written as its bound, and an unbounded one as `Any`.
-14. r[annot.typed-fact.monomorphic.bound] There, a bound such as `Integer` or `Integer & Display` stands for one fixed type that satisfies it, the same at each mention. It is not a trait-value type, so a bound that is not dynamically safe is valid there.
-15. r[annot.typed-fact.read] A template reads such a fact typed, through the field's handle, as [`annot.handle.fact`](#r-annot.handle.fact) states.
+2. r[annot.typed-fact.pattern] That type argument is the fact type's **pattern**, a type over the fact type's own type parameters, such as `T`, `List[T]`, or `fn(T) -> R`. It describes the type of each target that the fact type's values attach to.
+3. r[annot.typed-fact.pattern.scope] Names in the pattern see the fact type's type parameters, as the fact type's own fields do.
+4. r[annot.typed-fact.pattern.trivial] A pattern that is one of those parameters alone, as `T` in `@annotate::[T](.Field)`, is a **trivial pattern**. That parameter is the fact type's **target parameter**, and it is inferred as the target's whole type.
+5. r[annot.typed-fact.pattern.concrete] A pattern that mentions none of the fact type's parameters, as `i32` in `@annotate::[i32](.Field)`, is valid. A value of that fact type attaches only to a target of exactly that type, and any other target is an error. Error: `type-mismatch`.
+6. r[annot.typed-fact.untyped] A fact type whose `annotate` type argument is the default `Any`, as in `@annotate(.Field)`, is an **untyped fact type**. Its values stay unchecked, as [Member Metadata](#member-metadata) states.
+7. r[annot.typed-fact.untyped.no-annotate] A fact type without an `Annotate` fact is untyped too.
+8. r[annot.typed-fact.targets] A value of a typed fact type may be attached only to a field or a module-level function. A field is a named or embedded data field, or a payload member. Error: `decorator-target-kind`.
+9. r[annot.typed-fact.declared-type] A target's type is the type written on the field, so for `hits: mut Counter` it is `mut Counter`. A function's type is its signature as a function type, with its `!` and requirement row, as in `fn(i32) -> string`.
+10. r[annot.typed-fact.monomorphic] For the check, a target's type is made monomorphic. Each type parameter it mentions, of a generic function or of a field's owner, is written as its bound, and an unbounded one as `Any`.
+11. r[annot.typed-fact.monomorphic.bound] There, a bound such as `Integer` or `Integer & Display` stands for one fixed type that satisfies it, the same at each mention. It is not a trait-value type, so a bound that is not dynamically safe is valid there.
+12. r[annot.typed-fact.infer] The fact type's parameters that the pattern mentions are inferred as if the monomorphic target type were the one argument of a call to `infer[P](annotatee: Q)`. Here `P` is the fact type's type-parameter list with its bounds, and `Q` is the pattern.
+13. r[annot.typed-fact.infer.call] That call follows the ordinary rules for a call that infers its type arguments, by [`fn.generic.call-list`](07-functions.md#r-fn.generic.call-list) and [`types.generic.infer`](04-type-system.md#r-types.generic.infer). A function target passes as a function value does, by [`fn.type.named-value`](07-functions.md#r-fn.type.named-value) and [`fn.type.declared-variance`](07-functions.md#r-fn.type.declared-variance).
+14. r[annot.typed-fact.infer.suspending] So a suspending function does not match a pattern written with `fn`, such as `fn(T) -> R`. It could not be passed to a parameter of that type either: its `fn!` type is a `SuspendFn`, and the pattern is an `Fn`, by [`fn.type.ctor.sugar`](07-functions.md#r-fn.type.ctor.sugar).
+15. r[annot.typed-fact.infer.row] Likewise, a function with a requirement row does not match a pattern whose row is empty, such as `fn(T) -> R`, by [`req.row.subsume.missing`](11-requirements-and-suspension.md#r-req.row.subsume.missing).
+16. r[annot.typed-fact.infer.mismatch] A target whose type does not fit the pattern is an error, as an `i32` field or a two-parameter function is under `fn(T) -> R`. Error: `type-mismatch`.
+17. r[annot.typed-fact.check.bounds] An inferred argument that breaks the bound of its parameter, as `string` breaks `F < Integer` in `Positive[F < Integer]`, is an error, by [`trait.bound.unsatisfied`](09-traits.md#r-trait.bound.unsatisfied). Error: `unsatisfied-trait-bound`.
+18. r[annot.typed-fact.check] A decorator or member-line element `v` whose type constructor is a typed fact type `D` then checks like `let f: D[A] = v`. `A` holds, in the order of `D`'s type parameters, the inferred arguments and a `_` for each parameter the pattern does not mention. Error: `type-mismatch`.
+19. r[annot.typed-fact.check.other-params] Each type parameter of `D` that the pattern does not mention is inferred from `v` as a `_` slot is, by [`fn.generic.placeholder.solve`](07-functions.md#r-fn.generic.placeholder.solve), [`.default`](07-functions.md#r-fn.generic.placeholder.default), and [`.unsolved`](07-functions.md#r-fn.generic.placeholder.unsolved). Error: `unresolved-generic-placeholder`.
+20. r[annot.typed-fact.check.inferred] Type arguments in `v` are inferred from that expected type, by [`fn.type.generic.argument.sources`](07-functions.md#r-fn.type.generic.argument.sources), as in any such binding.
+21. r[annot.typed-fact.check.reported] Every error of the inference and the check is reported on the decorator or member line.
+22. r[annot.typed-fact.read] A template reads such a fact typed, through the field's handle, as [`annot.handle.fact`](#r-annot.handle.fact) states.
 
 > **Note.** In `@annotate(.Field)`, nothing solves `T`, since neither
 > `kinds` nor `Annotate` mentions it. So `T` takes its default `Any`, by
 > the ordinary rule [`types.generic.default.fill`](04-type-system.md#r-types.generic.default.fill).
 
-A fact type may have more type parameters than its target parameter. In
+A fact type may have type parameters that its pattern does not mention. In
 this example, `@range(0, 100, "percent")` on `level: i32` checks like a
-binding at `Range[i32, G]`, with `G` solved from the value as `string`:
+binding at `Range[i32, G]`, with `G` solved from the value as `string`.
+`Port`'s pattern `i32` mentions no parameter, so a `Port` value attaches
+only to an `i32` target:
 
 ```text
 use std.annotation.annotate
@@ -468,9 +487,18 @@ data Reading:
     @range(0, 100, "percent")
     level: i32
 
-@annotate::[i32](.Field)  # error: type-mismatch
-data Wrapped[T]:
-    value: T
+@annotate::[i32](.Field)
+data Port:
+    number: i32
+
+fn port(number: i32) -> Port:
+    Port { number: number }
+
+data Server:
+    @port(8080)
+    listen: i32
+    @port(9090)  # error: type-mismatch
+    admin: i64
 ```
 
 A function target checks against its signature's function type. In this
@@ -510,15 +538,66 @@ The generic `wrap` has the monomorphic type `fn(i64) -> List[Any]`, where
 > is the same as checking the line inside the declaration's own generic
 > scope. There, too, each parameter is an abstract type with its bounds.
 
+A pattern may take the target's type apart. In this example, `@fn_fact`
+on `ms` infers `T = i32` and `R = Duration`, as a call
+`infer(ms)` would for `fn infer[T < Num, R](annotatee: fn(T) -> R)`. The
+value then checks like `let f: FnFact[i32, Duration] = fn_fact()`:
+
+```text
+use std.annotation.annotate
+use std.num.Num
+
+@annotate::[fn(T) -> R](.Fn, .Field)
+data FnFact[T < Num, R]: pass
+
+fn fn_fact[T < Num, R]() -> FnFact[T, R]:
+    FnFact::[T, R] {}
+
+data Duration:
+    millis: i32
+
+@fn_fact
+fn ms(n: i32) -> Duration:
+    Duration { millis: n }
+
+@fn_fact  # error: type-mismatch
+fn span(low: i32, high: i32) -> Duration:
+    Duration { millis: high - low }
+
+@fn_fact  # error: unsatisfied-trait-bound
+fn named(label: string) -> Duration:
+    Duration { millis: 0 }
+
+@fn_fact  # error: type-mismatch
+fn later!(n: i32) -> Duration:
+    Duration { millis: n }
+
+data Meter:
+    @fn_fact  # error: type-mismatch
+    count: i32
+```
+
+| Target | Its type | Step 2 |
+| --- | --- | --- |
+| `ms` | `fn(i32) -> Duration` | `T = i32` and `R = Duration`, so the value checks at `FnFact[i32, Duration]` |
+| `span` | `fn(i32, i32) -> Duration` | no match, since `fn(T)` takes one parameter: `type-mismatch` |
+| `named` | `fn(string) -> Duration` | `T = string`, which breaks `T < Num`: `unsatisfied-trait-bound` |
+| `later` | `fn!(i32) -> Duration` | no match, since a `SuspendFn` is not an `Fn`: `type-mismatch` |
+| `count` | `i32` | no match, since `i32` is not a function type: `type-mismatch` |
+
+> **Why.** A fact type then accepts exactly what a function with the
+> pattern as its parameter type would accept. The reader needs no rule
+> beyond the ordinary call.
+
 > **Why.** A fact that holds a function of the member's type, such as a
 > test generator, can then be checked where it is written, not when a
 > test first runs. Facts that hold plain settings need no check, so the
-> check is opt-in. The check is an ordinary binding with an expected type,
-> so a fact's own signature, such as `num_suffix`'s, states every shape
-> constraint.
+> check is opt-in. The check is an ordinary call and an ordinary binding,
+> so a fact's pattern and its own signature, such as `num_suffix`'s, state
+> every shape constraint.
 
-> **Note.** The target parameter is a decorator's type argument rather
-> than a keyword on a type parameter, so the grammar does not change.
+> **Note.** The pattern is a decorator's type argument rather than a
+> keyword on a type parameter, so the grammar does not change.
 
 ## Grammar
 

@@ -1,0 +1,21 @@
+# test: an argument inferred from the pattern that breaks its parameter's bound is an error at the decorator
+# Spec 14 Member-Typed Facts: annot.typed-fact.check.bounds; `@fn_fact` on `fn named(label: string)` infers `T = string`, which breaks `T < Num` (batch 50, 2026-10-02).
+use std.annotation.annotate
+use std.num.Num
+
+@annotate::[fn(T) -> R](.Fn)
+data FnFact[T < Num, R]: pass
+
+fn fn_fact[T < Num, R]() -> FnFact[T, R]:
+    FnFact::[T, R] {}
+
+data Duration:
+    millis: i32
+
+@fn_fact
+fn ms(n: i32) -> Duration:
+    Duration { millis: n }
+
+@fn_fact  # diagnostic: unsatisfied-trait-bound
+fn named(label: string) -> Duration:
+    Duration { millis: 0 }

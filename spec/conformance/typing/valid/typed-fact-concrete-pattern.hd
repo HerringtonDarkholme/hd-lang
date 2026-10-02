@@ -1,0 +1,16 @@
+# test: a pattern with no type parameters is valid, and its values attach to targets of exactly that type
+# Spec 14 Member-Typed Facts: annot.typed-fact.pattern.concrete; `@annotate::[i32](.Field)` before `data Port` (batch 50, 2026-10-02).
+use std.annotation.annotate
+
+@annotate::[i32](.Field)
+data Port:
+    number: i32
+
+fn port(number: i32) -> Port:
+    Port { number: number }
+
+data Server:
+    @port(8080)
+    listen: i32
+    @port(9090)
+    admin: i32
