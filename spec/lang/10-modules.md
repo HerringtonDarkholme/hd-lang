@@ -716,8 +716,8 @@ fn first_word(text: string) -> string:
 9. r[module.string.slice.reversed] A `start` greater than `end` is a checked runtime panic, even when both are scalar boundaries. Panic: `index-out-of-bounds`.
 
 > **Note.** `char_indices` gives the offsets that Go's `range` over a
-> string gives. There is no slice syntax: a substring is always a
-> `slice` call.
+> string gives. `text[start..end]` gives the same substring as
+> `text.slice(start, end)`, through [Slicing](05-expressions.md#slicing).
 
 ## Standard Testing
 

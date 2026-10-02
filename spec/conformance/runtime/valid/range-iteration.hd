@@ -1,0 +1,45 @@
+# test: for iterates a..b, a..=b, and a.., and each loop over a range starts from its start bound
+# Spec 06 Range Iteration: flow.for.range.iterable, flow.for.range.half-open, flow.for.range.inclusive, flow.for.range.from, flow.for.range.fresh (batch 48).
+use std.ops.Range
+use std.testing.assert_equal
+
+fn total(n: i32) -> i32:
+    let sum = 0
+    for i in 0..n:
+        sum = sum + i
+    for i in 1..=3:
+        sum = sum + i
+    sum
+
+fn first_square_over(limit: i32) -> i32:
+    let found = 0
+    for i in 1..:
+        if i * i > limit:
+            found = i
+            break
+    found
+
+fn count(r: Range[i32]) -> i32:
+    let seen = 0
+    for _ in r:
+        seen = seen + 1
+    seen
+
+fn top_bytes() -> i32:
+    let top: u8 = 255
+    let seen = 0
+    for _ in 250..=top:
+        seen = seen + 1
+    seen
+
+tests:
+    it("half-open, inclusive, and open ranges"):
+        assert_equal(total(4), 12, reason="0 + 1 + 2 + 3, then 1 + 2 + 3")
+        assert_equal(first_square_over(10), 4, reason="4 * 4 is the first square over 10")
+        assert_equal(count(5..2), 0, reason="an empty range")
+        assert_equal(top_bytes(), 6, reason="250 through 255, with no overflow")
+
+    it("a range value is not used up"):
+        r := 0..3
+        assert_equal(count(r) + count(r), 6, reason="each loop starts from the start bound")
+        assert_equal([for i in 2..5 => i * i], [4, 9, 16], reason="a comprehension clause")

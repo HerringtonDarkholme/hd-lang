@@ -1,0 +1,6 @@
+# test: a string slice past the string's length panics
+# Spec 05 Slicing: expr.index.slice.string.range (batch 48).
+fn panics(text: string) -> string:
+    text[1..9]  # panic: index-out-of-bounds
+
+result := panics("hello")

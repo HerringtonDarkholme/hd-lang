@@ -1742,3 +1742,7 @@ typing/valid/relative-self-mod-file.hd	type
 typing/invalid/root-file-super.hd	type
 typing/valid/relative-self-main.hd	type
 typing/valid/relative-self-lib.hd	type
+parse/invalid/range-chained.hd	parse
+parse/invalid/range-bare.hd	parse
+parse/invalid/range-inclusive-to.hd	parse
+parse/invalid/range-inclusive-no-end.hd	parse

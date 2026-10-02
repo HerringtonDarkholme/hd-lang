@@ -1,0 +1,4 @@
+# test: a range bound must have an integer type
+# Spec 05 Range Expressions: expr.range.bound.integer (batch 48).
+fn invalid(x: f64, count: u32, limit: i32) -> void:
+    a := 0.5..x  # diagnostic: type-mismatch

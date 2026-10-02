@@ -935,7 +935,7 @@ conditional_expression = if_expression
                        | match_expression
                        | closure_expression
                        | context_scope
-                       | logical_or_expression
+                       | range_expression
                        ;
 
 suite_expression = statement_if_expression
@@ -947,12 +947,12 @@ suite_expression = statement_if_expression
                  ;
 
 closed_expression = identifier, ":=", closed_expression
-                  | logical_or_expression
+                  | range_expression
                   ;
 
 inline_expression = identifier, ":=", inline_expression
                   | inline_suite_expression
-                  | logical_or_expression
+                  | range_expression
                   ;
 
 continued_expression = identifier, ":=", continued_expression
@@ -960,7 +960,7 @@ continued_expression = identifier, ":=", continued_expression
                      ;
 
 continued_conditional_expression = indented_suite_expression
-                                 | logical_or_expression
+                                 | range_expression
                                  ;
 
 indented_suite_expression = indented_if_expression
@@ -976,6 +976,12 @@ inline_suite_expression = inline_for_expression
                         | inline_closure_expression
                         | inline_context_scope
                         ;
+
+range_expression = logical_or_expression,
+                   [ "..", [ logical_or_expression ]
+                   | "..=", logical_or_expression ]
+                 | "..", logical_or_expression
+                 ;
 
 logical_or_expression = logical_and_expression,
                         { "||", logical_and_expression } ;
@@ -1030,6 +1036,41 @@ suspension_call_suffix = "!", [ "::", function_type_arguments ],
 ```text
 inside := 0 < value < 10  # error: comparison-chaining
 ```
+
+### Range Syntax
+
+A range expression joins two bounds with `..` or `..=`, and `..` may leave
+out either bound:
+
+```text
+fn parts(text: string, n: i32) -> (string, string, string, i32):
+    let total = 0
+    for i in 0..n + 1:
+        total = total + i
+    (text[1..], text[..2], text[0..=1], total)
+```
+
+1. r[grammar.expr.range.precedence] `..` and `..=` bind more loosely than `||` and more tightly than control-flow expressions and `:=`, as in Rust. So `0..n + 1` is `0..(n + 1)`.
+2. r[grammar.expr.range.non-assoc] A range expression is non-associative: a range bound is never itself an unparenthesized range, so `a..b..c` is an error. Error: `syntax-error`.
+3. r[grammar.expr.range.open-end] After `..`, an end bound is present exactly when the next token can begin an operand. So `text[1..]`, `for i in 0..:`, and `f(1.., x)` have no end bound.
+4. r[grammar.expr.range.open-start] A `..` at the start of an operand begins a range with no start bound, as in `text[..2]`.
+5. r[grammar.expr.range.inclusive-end] `..=` must have both bounds. A `..=` with no end bound, as in `1..=`, is an error. Error: `syntax-error`.
+6. r[grammar.expr.range.no-inclusive-to] A `..=` with no start bound, as in `..=2`, is an error. Error: `syntax-error`.
+7. r[grammar.expr.range.no-bare] A `..` with neither bound, as in `text[..]`, is an error. Error: `syntax-error`.
+8. r[grammar.expr.range.pipe-step] A pipe step is a `bitwise_or_expression`, so a range in a pipe step needs parentheses.
+
+```text
+fn invalid(text: string) -> void:
+    a := 0..1..2       # error: syntax-error
+    b := text[..]      # error: syntax-error
+    c := text[..=2]    # error: syntax-error
+    d := 1..=          # error: syntax-error
+```
+
+> **Why.** A range sits below `||`, as in Rust, so arithmetic and
+> comparisons in a bound need no parentheses. Leaving out a bound always
+> means "from the start" or "to the end", so `text[1..]` reads the same in
+> any position.
 
 ### Multi-Name Bindings
 

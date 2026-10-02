@@ -1,0 +1,24 @@
+# test: range expressions have the std.ops range types, with bounds typed as the operands of a binary numeric operator
+# Spec 05 Range Expressions: expr.range.form.half-open, expr.range.form.from, expr.range.form.to, expr.range.form.inclusive, expr.range.bound.binary, expr.range.expected, expr.range.default (batch 48).
+use std.ops.{Range, RangeFrom, RangeTo, RangeInclusive}
+
+fn halves(n: i32) -> (Range[i32], RangeFrom[i32]):
+    middle := n / 2
+    (0..middle, middle..)
+
+fn wide(limit: i64) -> Range[i64]:
+    0..limit
+
+fn widened(small: i32, large: i64) -> Range[i64]:
+    small..large
+
+fn others(n: u8) -> (RangeTo[u8], RangeInclusive[u8]):
+    (..n, 1..=n)
+
+fn expected() -> i64:
+    let r: Range[i64] = 0..10
+    r.end - r.start
+
+fn defaulted() -> Range[i32]:
+    whole := 0..3
+    whole

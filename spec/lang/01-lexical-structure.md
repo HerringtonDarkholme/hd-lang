@@ -822,6 +822,7 @@ punctuation tokens:
 =  ==  !=  <  <=  >  >=
 :=  ->  =>  ?  !  $  @  ...  ...=  ::  +=
 -=  *=  /=  %=  &=  |=  ^=  <<=  >>=
+..  ..=
 ```
 
 1. r[lex.op.longest] When two tokens share a prefix, the lexer uses the longest valid token.
@@ -832,6 +833,11 @@ punctuation tokens:
 6. r[lex.op.compound-assign] `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=` are single tokens. A statement uses them for [compound assignment](05-expressions.md#compound-assignment), and a member line also uses `+=`, as [Member Lines](14-annotations.md#member-lines) defines.
 7. r[lex.op.compound-assign.examples] By longest match, `a-=b` lexes as `a`, `-=`, `b`, and `x<<=1` as `x`, `<<=`, `1`.
 8. r[lex.op.no-power-assign] `**=` is not a token: it lexes as `**` and `=`, which no grammar rule accepts.
+9. r[lex.op.range] `..` and `..=` are single tokens, the [range operators](05-expressions.md#range-expressions).
+10. r[lex.op.range.longest] By longest match, `...` and `...=` win over `..` and `..=`, so `a...b` lexes as `a`, `...`, `b` and is never a range.
+11. r[lex.op.range.integer] A number directly before `..` ends at the first `.`, since a decimal point needs a digit after it, by [`lex.float.point`](#r-lex.float.point).
+12. r[lex.op.range.examples] So `0..3` lexes as `0`, `..`, `3`, and `1.5..2` as `1.5`, `..`, `2`.
+13. r[lex.op.range.not-dot] `..` is not the member-access `.`, so a line that starts with `..` is no [leading-dot continuation](#leading-dot-continuation).
 
 See also: [Expressions](05-expressions.md), which defines operator
 precedence and semantics, including prefix `!` as logical not;
@@ -870,6 +876,7 @@ operator = "+" | "-" | "*" | "/" | "%" | "**"
          | "=" | "==" | "!=" | "<" | "<=" | ">" | ">="
          | ":=" | "->" | "=>" | "?" | "!" | "$" | "@"
          | "..." | "...=" | "::"
+         | ".." | "..="
          | "+=" | "-=" | "*=" | "/=" | "%="
          | "&=" | "|=" | "^=" | "<<=" | ">>="
          ;

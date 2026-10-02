@@ -8,15 +8,15 @@ repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-10-02 the conformance suite has 1,779 cases, and
-`test/portable/cases.tsv` selects the 1,743 that the prototype passes. The
-other 36 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
+On 2026-10-02 the conformance suite has 1,798 cases, and
+`test/portable/cases.tsv` selects the 1,747 that the prototype passes. The
+other 51 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
 finding or with a decision below. Every case is in one of the two files. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Selected | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,705 | 1,669 | 36 |
+| language | 1,724 | 1,673 | 51 |
 | stdlib | 74 | 74 | 0 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -38,6 +38,7 @@ them by tag:
 | ROOTS | 2 | `src/lib.hd` is not the root module, and `src/main.hd` can be used |
 | TASK-PROGRAMS | 1 | integration test modules are linked as one program |
 | F-310 | 1 | a line that starts with `:` attaches a trailing block to the statement before it |
+| RANGES | 15 | no `..` or `..=` tokens, range types, range iteration, or slicing |
 
 ## What Remains
 

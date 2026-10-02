@@ -277,6 +277,12 @@ fn first_word(text: string) -> string:
 size := "héllo".len()  # 6: é is two bytes
 ```
 
+A range index slices: `text[0..3]` is the first three bytes, `text[2..]`
+the rest from offset 2, `text[..2]` the first two, and `text[1..=2]` the
+bytes at 1 and 2. It shares bytes as `slice` does and panics on the same
+offsets. On a list, `items[1..3]` is a new list, not a view. A map has no
+slicing. See [Slicing](../spec/lang/05-expressions.md#slicing).
+
 A `for` loop takes the same patterns as `let`, so a loop over pairs uses
 a tuple pattern, `for (offset, letter) in ...`, and a loop over points
 may write `for Point { x, y } in points`. The bare
@@ -572,6 +578,21 @@ fn find_name(names: List[string], prefix: string) -> string?:
         if name.starts_with(prefix):
             return name
     .None
+```
+
+A range is a value: `0..n` holds `0` up to, not including, `n`; `1..=3`
+holds `1` through `3`; and `5..` has no end. `for` iterates them, so
+`for i in 0..` loops until a `break`. Bounds must be integers. The types
+are `Range`, `RangeInclusive`, `RangeFrom`, and `RangeTo` (`..n`, which
+`for` rejects) in `std.ops`. See
+[Range Expressions](../spec/lang/05-expressions.md#range-expressions):
+
+```text
+fn sum_below(n: i32) -> i32:
+    let total = 0
+    for i in 0..n:
+        total = total + i
+    total
 ```
 
 Loops can be used for control flow. `break` exits a loop, and `continue` skips to the next iteration:

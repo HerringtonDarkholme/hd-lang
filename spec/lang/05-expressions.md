@@ -719,6 +719,54 @@ fn invalid(text: string) -> void:
 
 See also: [Strings](04-type-system.md#strings).
 
+#### Slicing
+
+An index of a range type selects a slice of a string or a list:
+
+```text
+fn parts(text: string, items: List[i32]) -> (string, string, List[i32], List[i32]):
+    (text[0..3], text[2..], items[..2], items[1..=2])
+```
+
+| Rule | Index | Selects the offsets |
+| --- | --- | --- |
+| r[expr.index.slice.half-open] Half-open | `a..b` | from `a` up to, not including, `b` |
+| r[expr.index.slice.from] From | `a..` | from `a` up to the length |
+| r[expr.index.slice.to] To | `..b` | from `0` up to, not including, `b` |
+| r[expr.index.slice.inclusive] Inclusive | `a..=b` | from `a` through `b`, the same as `a..b + 1` computed without overflow |
+
+1. r[expr.index.slice.call] For a `List` or `string` receiver, an index of a range type is the call `Index::[K]::index(r, k)` of an implementation that [Built-In Implementations](#built-in-implementations) lists.
+2. r[expr.index.slice.string] A string slice is the string of the bytes at the selected byte offsets.
+3. r[expr.index.slice.string.shared] A string slice shares the original string's bytes rather than copying them, as [`module.string.slice.shared`](10-modules.md#r-module.string.slice.shared) states for `slice`.
+4. r[expr.index.slice.string.range] A string slice whose start or end offset is negative or greater than the length is a checked runtime panic. Panic: `index-out-of-bounds`.
+5. r[expr.index.slice.string.reversed] A string slice whose start is greater than its end is a checked runtime panic. Panic: `index-out-of-bounds`.
+6. r[expr.index.slice.string.boundary] A string slice whose start or end offset is not a [scalar boundary](04-type-system.md#r-types.string.boundary) is a checked runtime panic. Panic: `index-out-of-bounds`.
+7. r[expr.index.slice.list] A list slice is a new list that holds the selected elements in order. It is not a view: later changes to either list do not change the other.
+8. r[expr.index.slice.list.type] A list slice of a `List[T]` has type `List[T]`, including `mut U` elements when `T = mut U`.
+9. r[expr.index.slice.list.range] A list slice whose start or end offset is negative or greater than the length is a checked runtime panic. Panic: `index-out-of-bounds`.
+10. r[expr.index.slice.list.reversed] A list slice whose start is greater than its end is a checked runtime panic. Panic: `index-out-of-bounds`.
+11. r[expr.index.slice.no-store] No range type has an `IndexSet` implementation for `List` or `string`, so assigning to a slice is an error. Error: `invalid-assignment-target`.
+12. r[expr.index.slice.no-map] `Map` has no slicing: an index on a map is a key of type `K`, whatever its type.
+
+```text
+fn invalid(items: mut List[i32]) -> void:
+    items[0..2] = [7, 8]  # error: invalid-assignment-target
+```
+
+```text
+fn panics(text: string, items: List[i32]) -> void:
+    a := "héllo"[0..2]  # panics with index-out-of-bounds: offset 2 is inside é
+    b := text[3..1]     # panics with index-out-of-bounds: start after end
+    c := items[0..9]    # panics with index-out-of-bounds when items has fewer than 9
+```
+
+> **Why.** A slice goes through `std.ops.Index`, as Rust's does, so generic
+> code bounded by `Index[Range[i32]]` accepts strings and lists. A list
+> slice is a copy because hd has no slice view type, and a string slice
+> shares its bytes because strings are immutable.
+
+See also: [String Methods](10-modules.md#string-methods), [Range Expressions](#range-expressions).
+
 #### Index Traits
 
 Other types get `[]` by implementing the `std.ops` traits `Index` and
@@ -814,6 +862,8 @@ fn lead(counts: mut List[i32], text: string) -> u8:
 | r[expr.index.std.list] List | `List[T]` | `Index[i32]` with `Out = T`, and `IndexSet[i32, T]` |
 | r[expr.index.std.map] Map | `Map[K, V]` | `Index[K]` with `Out = V`, and `IndexSet[K, V]` |
 | r[expr.index.std.string] String | `string` | `Index[i32]` with `Out = u8`, and no `IndexSet` |
+| r[expr.index.std.string.range] String slice | `string` | `Index[R[I]]` with `Out = string`, for each range type `R` and each integer type `I` |
+| r[expr.index.std.list.range] List slice | `List[T]` | `Index[R[I]]` with `Out = List[T]`, for each range type `R` and each integer type `I` |
 
 1. r[expr.index.std.intrinsic] The body of each implementation in the table is a compiler intrinsic. It behaves as the built-in indexing of its type, including the checks and their panics, so `Map`'s `index` panics when no equal key exists.
 2. r[expr.index.std.map-store] `Map`'s `index_set` inserts or replaces the entry, as `entries[key] = value` does.
@@ -1266,6 +1316,7 @@ This section defines operator precedence and the meaning of each operator.
 | Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=`, `is` | non-associative |
 | Logical AND | `&&` | left, short-circuiting |
 | Logical OR | `\|\|` | left, short-circuiting |
+| Range | `..`, `..=` | non-associative |
 | Control and closure | `if`, `match`, `for`, `while`, `fn` | structural |
 | Binding | `:=` | right |
 
@@ -1730,6 +1781,76 @@ fn run() -> string:
 
 See also: [Precedence](#precedence),
 [Leading-Pipe Continuation](01-lexical-structure.md#leading-pipe-continuation).
+
+## Range Expressions
+
+A range expression builds a range value from its bounds:
+
+```text
+use std.ops.{Range, RangeFrom}
+
+fn halves(n: i32) -> (Range[i32], RangeFrom[i32]):
+    middle := n / 2
+    (0..middle, middle..)
+
+fn wide(limit: i64) -> Range[i64]:
+    0..limit
+```
+
+| Rule | Form | Type | Holds |
+| --- | --- | --- | --- |
+| r[expr.range.form.half-open] Half-open | `a..b` | `Range[T]` | the integers from `a` up to, not including, `b` |
+| r[expr.range.form.from] From | `a..` | `RangeFrom[T]` | the integers from `a` up, with no end |
+| r[expr.range.form.to] To | `..b` | `RangeTo[T]` | the integers below `b`, with no start |
+| r[expr.range.form.inclusive] Inclusive | `a..=b` | `RangeInclusive[T]` | the integers from `a` through `b` |
+
+`std.ops` declares the range types in this shape:
+
+```text
+pub data Range[T]:
+    pub start: T
+    pub end: T
+
+pub data RangeFrom[T]:
+    pub start: T
+
+pub data RangeTo[T]:
+    pub end: T
+
+pub data RangeInclusive[T]:
+    pub start: T
+    pub end: T
+```
+
+1. r[expr.range.std] `std.ops` declares the four range types as data types with public fields, as shown above.
+2. r[expr.range.value] A range expression builds the range type of its form, with its bounds as the fields: `a..b` is `Range { start: a, end: b }`.
+3. r[expr.range.not-prelude] The range types are not prelude names. Code that names one in a type imports it, as in `use std.ops.Range`, but a range expression needs no use.
+4. r[expr.range.order] A range expression evaluates its start bound, then its end bound.
+5. r[expr.range.no-check] Building a range never compares its bounds, so `5..2` is a valid, empty range.
+6. r[expr.range.bound.integer] Each bound must have an integer type. A bound of any other type is an error. Error: `type-mismatch`.
+7. r[expr.range.bound.binary] The two bounds of `a..b` or `a..=b` are typed as the operands of a [binary numeric operator](04-type-system.md#binary-numeric-operators): a literal takes the other bound's type, and bounds of one signedness widen to the wider type.
+8. r[expr.range.bound.signedness] A signed and an unsigned bound are an error, as for a binary numeric operator. Error: `mixed-signedness`.
+9. r[expr.range.element] The range's element type `T` is the bounds' common type, or the one bound's type for `a..` and `..b`.
+10. r[expr.range.expected] An expected range type gives each bound its element type as the bound's expected type, so `let r: Range[i64] = 0..10` has `i64` bounds.
+11. r[expr.range.default] With no expected type, literal bounds default to `i32`, so `0..3` is a `Range[i32]`.
+
+```text
+fn invalid(x: f64, count: u32, limit: i32) -> void:
+    a := 0.5..x        # error: type-mismatch
+    b := count..limit  # error: mixed-signedness
+```
+
+> **Note.** `for` iterates `a..b`, `a..`, and `a..=b`, as
+> [Range Iteration](06-control-flow.md#range-iteration) states, and an index
+> of a range type slices a string or a list, as [Slicing](#slicing)
+> states.
+
+> **Why.** As in Rust, a range is an ordinary `std.ops` value. One syntax
+> then serves loops, slicing, and any function that takes a range, with no
+> separate `range` function.
+
+See also: [Range Syntax](02-grammar.md#range-syntax),
+[Binary Numeric Operators](04-type-system.md#binary-numeric-operators).
 
 ## Binding Expressions
 

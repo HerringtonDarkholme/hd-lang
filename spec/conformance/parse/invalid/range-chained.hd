@@ -1,0 +1,4 @@
+# test: a range is non-associative, so a range bound cannot itself be a range
+# Spec 02 Range Syntax: grammar.expr.range.non-assoc (batch 48).
+fn invalid(text: string) -> void:
+    a := 0..1..2  # diagnostic: syntax-error

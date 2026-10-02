@@ -1,0 +1,25 @@
+# test: range expressions with both bounds, an open start or end, and ..=, in loops, indexes, arguments, and bindings
+# Spec 02 Range Syntax: grammar.expr.range.precedence, grammar.expr.range.open-end, grammar.expr.range.open-start; Spec 01: lex.op.range, lex.op.range.examples (batch 48).
+use std.ops.{Range, RangeFrom}
+
+fn parts(text: string, n: i32) -> (string, string, string, i32):
+    let total = 0
+    for i in 0..n + 1:
+        total = total + i
+    (text[1..], text[..2], text[0..=1], total)
+
+fn take(r: Range[i32], tail: RangeFrom[i32]) -> i32:
+    r.start + tail.start
+
+fn more(xs: List[i32]) -> i32:
+    whole := 0..10
+    pair := (1.5..2, xs[1 .. 3])
+    take(whole, 3..)
+
+fn forever() -> i32:
+    let found = 0
+    for i in 1..:
+        if i > 9 || found > 0:
+            found = i
+            break
+    found

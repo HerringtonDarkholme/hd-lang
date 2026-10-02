@@ -1,0 +1,4 @@
+# test: no range type has IndexSet on a list, so a slice is not a place
+# Spec 05 Slicing: expr.index.slice.no-store (batch 48).
+fn invalid(items: mut List[i32]) -> void:
+    items[0..2] = [7, 8]  # diagnostic: invalid-assignment-target

@@ -1,0 +1,4 @@
+# test: a signed and an unsigned bound do not mix, as for a binary numeric operator
+# Spec 05 Range Expressions: expr.range.bound.signedness (batch 48).
+fn invalid(x: f64, count: u32, limit: i32) -> void:
+    b := count..limit  # diagnostic: mixed-signedness

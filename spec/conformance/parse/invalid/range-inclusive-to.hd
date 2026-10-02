@@ -1,0 +1,4 @@
+# test: ..= needs a start bound
+# Spec 02 Range Syntax: grammar.expr.range.no-inclusive-to (batch 48).
+fn invalid(text: string) -> string:
+    text[..=2]  # diagnostic: syntax-error

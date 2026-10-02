@@ -53,6 +53,13 @@ it.
 | WS-FILE | batch 47 | A FILE under a workspace root but in no member, such as `ws/scripts/x.hd`, starts `hd check FILE` in workspace mode, which says nothing about a FILE. | Not specified. **Recommendation:** treat it as outside any package, so it is checked as a single-file program. |
 | MOD-ROOT | batch 47 | `src/lib.hd` is now the package root module, but `src/mod.hd` also named the root, as the folder-cycle example and the conformance `packages/NAME/mod.hd` roots use. | Unchanged; both files would name one module, which [`module.path.unique`](../spec/lang/10-modules.md#r-module.path.unique) rejects. **Recommendation:** retire `src/mod.hd` as a root in favor of `src/lib.hd`, and move the examples and package roots. |
 | LIB-TARGET | batch 47 | Whether `src/lib.hd` is what gives a package a library, so a package without it has none a dependent can use, is not stated. | Not specified ([`module.path.lib-file`](../spec/lang/10-modules.md#r-module.path.lib-file)). **Recommendation:** yes, as Cargo's `src/lib.rs` does. |
+| RANGE-PRELUDE | batch 48 | Whether the range types are prelude names is not stated. | No: code imports them, as in `use std.ops.Range` ([`expr.range.not-prelude`](../spec/lang/05-expressions.md#r-expr.range.not-prelude)); a range expression needs no use. **Recommendation:** keep it, as Rust keeps `std::ops::Range` out of its prelude. |
+| RANGE-EXPECTED | batch 48 | Whether an expected range type types the bounds is not stated. | Yes: `let r: Range[i64] = 0..10` has `i64` bounds ([`expr.range.expected`](../spec/lang/05-expressions.md#r-expr.range.expected)), as an expected type types any literal. **Recommendation:** keep it. |
+| RANGE-INDEX-INT | batch 48 | The decision gives `string` and `List[T]` an `Index` for "the range types" but not for which element types. | One for each integer element type ([`expr.index.std.string.range`](../spec/lang/05-expressions.md#r-expr.index.std.string.range)), since a built-in index takes any integer type. **Recommendation:** keep it; `text[0..n]` with an `i64` `n` then works. |
+| RANGE-LIST-REVERSED | batch 48 | The decision lists "start > end" as a panic for a string slice but says only "out-of-range" for a list. | A list slice whose start is after its end also panics with `index-out-of-bounds` ([`expr.index.slice.list.reversed`](../spec/lang/05-expressions.md#r-expr.index.slice.list.reversed)), as Rust's does. **Recommendation:** keep it. |
+| RANGE-ASSIGN | batch 48 | Whether `items[0..2] = other` is allowed is not stated. | No range type has `IndexSet`, so it is `invalid-assignment-target` ([`expr.index.slice.no-store`](../spec/lang/05-expressions.md#r-expr.index.slice.no-store)). **Recommendation:** keep it; a copy-out slice cannot be a place. |
+| RANGE-FROM-END | batch 48 | `for i in 0..` loops forever, but what happens at the type's largest value is not stated. | Asking for the next item panics with `integer-overflow` ([`flow.for.range.from-overflow`](../spec/lang/06-control-flow.md#r-flow.for.range.from-overflow)), as checked `+` does. **Recommendation:** keep it. |
+| RANGE-INCL-MAX | batch 48 | Whether `a..=b` with `b` the type's largest value yields `b` or overflows is not stated. | It yields `b` and stops ([`flow.for.range.inclusive`](../spec/lang/06-control-flow.md#r-flow.for.range.inclusive)), as Rust's `RangeInclusive` does. **Recommendation:** keep it. |
 
 ### Codes Waiting For The Code Revamp
 
@@ -73,6 +80,25 @@ for the error-code revamp, task #101, which may merge codes.
 | CLI-CODES | batch 46 | These CLI errors have no code: `hd run` or `hd build` outside a package, `hd check` or `hd test` without a FILE outside a package, `hd run FILE`, `hd run` with no or several executables, an unknown `NAME`, a workspace `NAME` that no member or several members have, a task and an executable with one name, and `hd new` where `hd.toml` exists. | None named ([Command Line](../spec/cli/command-line.md)). **Recommendation:** name them with the manifest diagnostics. |
 | PROGRAM-USE-CODE | batch 47 | The decisions name no code for a use of `src/main.hd`, an integration test program, or a task from another module, or for a `super` in a root file. | `unknown-module` ([`module.path.main-no-use`](../spec/lang/10-modules.md#r-module.path.main-no-use), [`module.test.integration.program-use`](../spec/lang/10-modules.md#r-module.test.integration.program-use), [`cli.task.program-use`](../spec/cli/command-line.md#r-cli.task.program-use)), as a `super` above the test root is. **Recommendation:** keep it; the message says that the file is a separate program or a root. |
 | DEV-CODE | batch 47 | `[test-dependencies]` became `[dev-dependencies]`, but the code `cyclic-test-dependency` kept its name. | Kept ([`module.test.cyclic-dev-dependency`](../spec/lang/10-modules.md#r-module.test.cyclic-dev-dependency)). **Recommendation:** rename it `cyclic-dev-dependency` in the code revamp. |
+
+### Ranges And Slicing
+
+Applying batch 48 left these open. Each form below is an error until the
+owner decides it.
+
+| # | Question | Today | **Recommendation** |
+| --- | --- | --- | --- |
+| RANGE-FULL | Does a bare `..`, Rust's `RangeFull`, exist, so `items[..]` copies a whole list? | `syntax-error` ([`grammar.expr.range.no-bare`](../spec/lang/02-grammar.md#r-grammar.expr.range.no-bare)) | Leave it out: `items[0..]` already says it. |
+| RANGE-TO-INCL | Does `..=b`, Rust's `RangeToInclusive`, exist? | `syntax-error` ([`grammar.expr.range.no-inclusive-to`](../spec/lang/02-grammar.md#r-grammar.expr.range.no-inclusive-to)) | Leave it out: `..b + 1` covers it. |
+| RANGE-NONINT | May a range hold non-integers, such as `0.5..1.5` or `'a'..='z'`? Rust allows any type and iterates characters. | `type-mismatch` ([`expr.range.bound.integer`](../spec/lang/05-expressions.md#r-expr.range.bound.integer)) | Wait for a use, then allow `char` first. |
+| RANGE-PATTERN | Do match patterns take ranges, as in `1..=5 => "small"`? | `syntax-error`: patterns admit no range | Wait; a guard `if 1 <= n && n <= 5` works today. |
+| SLICE-METHOD | Should `text.slice(start, end)` go, now that `text[start..end]` selects the same bytes? | Kept ([`module.string.slice`](../spec/lang/10-modules.md#r-module.string.slice)) | Remove it, so a substring has one spelling. |
+
+```text
+fn first(text: string) -> string:
+    text[0..1]           # the slice form
+    # text.slice(0, 1)   # the method form SLICE-METHOD asks about
+```
 
 ### Ideas Noted For Later
 

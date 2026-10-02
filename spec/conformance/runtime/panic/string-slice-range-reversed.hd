@@ -1,0 +1,6 @@
+# test: a string slice whose start is after its end panics
+# Spec 05 Slicing: expr.index.slice.string.reversed (batch 48).
+fn panics(text: string) -> string:
+    text[3..1]  # panic: index-out-of-bounds
+
+result := panics("hello")

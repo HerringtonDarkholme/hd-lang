@@ -1,0 +1,6 @@
+# test: a string slice offset inside a scalar's encoding panics
+# Spec 05 Slicing: expr.index.slice.string.boundary (batch 48).
+fn panics(text: string) -> string:
+    text[0..2]  # panic: index-out-of-bounds
+
+result := panics("héllo")

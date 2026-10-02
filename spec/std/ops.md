@@ -15,6 +15,7 @@ those items by name:
 | --- | --- |
 | the operator traits, such as `Add` and `Neg` | lang items that operators call ([Operator Traits](../lang/05-expressions.md#operator-traits)) |
 | `NumSuffix`, `StrPrefix`, `Template` | the compiler recognizes them by their qualified names ([Literal Suffixes](../lang/05-expressions.md#literal-suffixes)) |
+| `Range`, `RangeFrom`, `RangeTo`, `RangeInclusive` | lang items that range expressions build ([Range Expressions](../lang/05-expressions.md#range-expressions)) |
 
 ## Default Trait
 

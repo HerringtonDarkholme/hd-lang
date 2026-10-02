@@ -223,7 +223,7 @@ The stdlib chapters' terms are in the
 | **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](lang/10-modules.md#r-module.test.integration). |
 | **integration test program** | A file directly under the test root, compiled as its own program. See [`module.test.integration.program`](lang/10-modules.md#r-module.test.integration.program). |
 | **irrefutable** | A pattern that alone covers its initializer's type, so a `let` with it needs no `else`. Any other pattern is refutable. See [`flow.let.irrefutable`](lang/06-control-flow.md#r-flow.let.irrefutable). |
-| **iterable** | A value whose type implements `Iterable[T]`, such as a `List` or a `Map`. An `Iterator` is not iterable, though `for` takes a mutable one directly. See [`flow.for.accepts`](lang/06-control-flow.md#r-flow.for.accepts). |
+| **iterable** | A value whose type implements `Iterable[T]`, such as a `List`, a `Map`, or a range `a..b`. An `Iterator` is not iterable, though `for` takes a mutable one directly. See [`flow.for.accepts`](lang/06-control-flow.md#r-flow.for.accepts). |
 | **iterator** | A value of the prelude type `Iterator[T]`. It stores one traversal's progress and is single-pass: a second traversal calls `iter()` on the source again. See [`flow.for.iterator-type`](lang/06-control-flow.md#r-flow.for.iterator-type). |
 | **iterator adapters** | A stdlib term, in the [Standard Library glossary](std/README.md#glossary). |
 | **known implementation** | An implementation in the program's dependency graph whose target matches a type; a local one counts only where its methods are available. See [`names.member.known-impl`](lang/03-names-and-scopes.md#r-names.member.known-impl). |

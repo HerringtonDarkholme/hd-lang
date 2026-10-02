@@ -1,0 +1,15 @@
+# test: a range index slices a string to a string and a list to a list, through std.ops.Index
+# Spec 05 Slicing: expr.index.slice.call, expr.index.slice.list.type, expr.index.std.string.range, expr.index.std.list.range (batch 48).
+use std.ops.{Index, Range}
+
+fn parts(text: string, items: List[i32]) -> (string, string, List[i32], List[i32]):
+    (text[0..3], text[2..], items[..2], items[1..=2])
+
+fn wide(text: string, n: i64) -> string:
+    text[0..n]
+
+fn head[C < Index[Range[i32]]](items: C) -> C::Out:
+    items[0..1]
+
+fn both(text: string, items: List[i32]) -> (string, List[i32]):
+    (head(text), head(items))

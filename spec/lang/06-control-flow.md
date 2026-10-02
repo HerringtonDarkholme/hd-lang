@@ -254,6 +254,45 @@ the iterator adapters, `collect`, and `FromIterator`.
 4. r[flow.for.no-root-grant] Iteration does not grant mutable element access merely because the list root is mutable. The declared list or map value type determines that permission, and mutating a readonly element is an error. Error: `readonly-root`.
 5. r[flow.for.library] Libraries may provide additional mutable-iteration APIs with separate aliasing rules.
 
+### Range Iteration
+
+A `for` loop iterates the integers of a [range](05-expressions.md#range-expressions):
+
+```text
+fn total(n: i32) -> i32:
+    let sum = 0
+    for i in 0..n:
+        sum = sum + i
+    for i in 1..=3:
+        sum = sum + i
+    sum
+
+fn first_square_over(limit: i32) -> i32:
+    let found = 0
+    for i in 1..:
+        if i * i > limit:
+            found = i
+            break
+    found
+```
+
+1. r[flow.for.range.iterable] For each integer type `T`, `Range[T]`, `RangeFrom[T]`, and `RangeInclusive[T]` implement `Iterable[T]`.
+2. r[flow.for.range.half-open] Iterating `a..b` yields `a`, `a + 1`, and so on, up to but not including `b`. It yields nothing when `a >= b`.
+3. r[flow.for.range.inclusive] Iterating `a..=b` yields `a` through `b`, and yields `b` even when it is the type's largest value. It yields nothing when `a > b`.
+4. r[flow.for.range.from] Iterating `a..` yields `a`, `a + 1`, and so on, with no end, so `for i in 0..:` runs until the loop exits another way.
+5. r[flow.for.range.from-overflow] Asking an iterator over `a..` for the item after the type's largest value is a checked runtime panic. Panic: `integer-overflow`.
+6. r[flow.for.range.fresh] Each `iter()` call on a range starts from its start bound, and iterating never changes the range value.
+7. r[flow.for.range.to] `RangeTo[T]` does not implement `Iterable`, since it has no start, so a loop over `..b` is an error. Error: `unsatisfied-trait-bound`.
+
+```text
+fn invalid(n: i32) -> void:
+    for i in ..n:  # error: unsatisfied-trait-bound
+        pass
+```
+
+> **Note.** `std` writes one implementation per integer type, so no
+> stepping trait is needed.
+
 ### Iterator Invalidation
 
 1. r[flow.for.version] Built-in list and map iterators capture a structural-version counter.

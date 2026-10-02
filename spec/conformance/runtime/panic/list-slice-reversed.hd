@@ -1,0 +1,6 @@
+# test: a list slice whose start is after its end panics
+# Spec 05 Slicing: expr.index.slice.list.reversed (batch 48).
+fn panics(items: List[i32]) -> List[i32]:
+    items[2..1]  # panic: index-out-of-bounds
+
+result := panics([1, 2, 3])
