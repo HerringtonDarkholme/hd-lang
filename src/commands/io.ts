@@ -41,3 +41,21 @@ export function bufferedIo(): CommandIo & { output(): CommandOutput } {
     output: () => ({ stdout, stderr }),
   };
 }
+
+/**
+ * What a command reads from its process apart from its arguments. Each field
+ * defaults to the process's own value, so `hd` leaves them unset; a caller
+ * that runs several commands in one process sets them per call instead of
+ * changing the process.
+ */
+export interface CommandEnvironment {
+  /** The directory relative paths resolve against: the current directory. */
+  readonly cwd?: string;
+  /** The specification directory: `HD_SPEC_DIR`, else the repository's `spec/`. */
+  readonly specDir?: string;
+}
+
+/** The directory `environment`'s relative paths resolve against. */
+export function workingDirectory(environment: CommandEnvironment): string {
+  return environment.cwd ?? process.cwd();
+}

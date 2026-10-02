@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -9,6 +8,7 @@ import { diagnosticFix, type JsonDiagnostic } from "../src/diagnostic-report.ts"
 import type { Diagnostic } from "../src/diagnostics.ts";
 import { explainCode, indexSpec, loadSpecIndex, namedCodes } from "../src/spec-index.ts";
 import { headerAt, type SymbolInfo } from "../src/symbols.ts";
+import { runHd } from "./hd-in-process.ts";
 
 interface CommandResult {
   readonly code: number;
@@ -17,21 +17,14 @@ interface CommandResult {
 }
 
 const root = resolve(import.meta.dirname, "..");
-const entrypoint = resolve(root, "bin/hd.js");
 
-/** Runs the packaged CLI and resolves with its exit code instead of rejecting. */
-function hd(args: readonly string[], env: NodeJS.ProcessEnv = {}): Promise<CommandResult> {
-  return new Promise((done) => {
-    execFile(
-      process.execPath,
-      [entrypoint, ...args],
-      { cwd: root, encoding: "utf8", env: { ...process.env, ...env } },
-      (error, stdout, stderr) => {
-        const code = error ? (typeof error.code === "number" ? error.code : 1) : 0;
-        done({ code, stdout, stderr });
-      },
-    );
-  });
+/**
+ * Runs `hd ARGS...` in this process from the repository root, and resolves
+ * with its exit code instead of rejecting. `specDir` stands in for `HD_SPEC_DIR`.
+ */
+async function hd(args: readonly string[], specDir?: string): Promise<CommandResult> {
+  const { status, stdout, stderr } = await runHd(args, { cwd: root, specDir });
+  return { code: status, stdout, stderr };
 }
 
 function jsonLines(text: string): JsonDiagnostic[] {
@@ -239,7 +232,7 @@ test("check --format json writes one JSON diagnostic per stderr line", async () 
       `${file}:1:1: old-struct-declaration: 'struct' was replaced by 'data'`,
     );
 
-    const json = await hd(["check", "--format", "json", file], { HD_SPEC_DIR: spec });
+    const json = await hd(["check", "--format", "json", file], spec);
     assert.equal(json.code, 1);
     assert.equal(json.stdout, "");
     const [diagnostic, ...rest] = jsonLines(json.stderr);
@@ -297,7 +290,7 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
     const spec = await writeSpec(directory);
     const warned = join(directory, "warned.hd");
     await writeFile(warned, "pub fn main() -> void:\n    unused := 1\n");
-    const check = await hd(["check", "--format", "json", warned], { HD_SPEC_DIR: spec });
+    const check = await hd(["check", "--format", "json", warned], spec);
     assert.equal(check.code, 0);
     const [warning] = jsonLines(check.stderr);
     assert.equal(warning?.code, "unused-local-binding");
@@ -311,9 +304,7 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
       ambiguous,
       "data P:\n    x: i32\n\npub fn main() -> void:\n    _ := P { x: 1, y: 2 }\n",
     );
-    const unknown = jsonLines(
-      (await hd(["check", "--format", "json", ambiguous], { HD_SPEC_DIR: spec })).stderr,
-    );
+    const unknown = jsonLines((await hd(["check", "--format", "json", ambiguous], spec)).stderr);
     assert.equal(unknown[0]?.code, "unknown-data-field");
     // Two rules name the code, so no single rule is chosen.
     assert.equal(unknown[0]?.rule, null);
@@ -356,7 +347,7 @@ test("JSON diagnostics cover warnings, several codes, and runtime panics", async
 test("hd explain prints a code's meaning, rules, mentions, and fixtures", async () => {
   await withDirectory(async (directory) => {
     const spec = await writeSpec(directory);
-    const text = await hd(["explain", "unknown-data-field"], { HD_SPEC_DIR: spec });
+    const text = await hd(["explain", "unknown-data-field"], spec);
     assert.equal(text.code, 0);
     assert.equal(
       text.stdout,
@@ -379,9 +370,7 @@ test("hd explain prints a code's meaning, rules, mentions, and fixtures", async 
       ].join("\n"),
     );
 
-    const json = await hd(["explain", "--format", "json", "duplicate-field"], {
-      HD_SPEC_DIR: spec,
-    });
+    const json = await hd(["explain", "--format", "json", "duplicate-field"], spec);
     assert.equal(json.code, 0);
     assert.deepEqual(JSON.parse(json.stdout), {
       code: "duplicate-field",
@@ -417,7 +406,7 @@ test("hd explain prints a code's meaning, rules, mentions, and fixtures", async 
       ],
     });
 
-    const unknown = await hd(["explain", "no-such-code"], { HD_SPEC_DIR: spec });
+    const unknown = await hd(["explain", "no-such-code"], spec);
     assert.equal(unknown.code, 1);
     assert.match(unknown.stderr, /names no diagnostic code 'no-such-code'/);
     const unknownJson = await hd(["explain", "--format", "json", "no-such-code"]);

@@ -4,7 +4,13 @@
 // call, and the in-process conformance adapter (test/hd-adapter.ts) calls
 // the same functions without starting a process.
 
-export { bufferedIo, processIo, type CommandIo, type CommandOutput } from "./io.ts";
+export {
+  bufferedIo,
+  processIo,
+  type CommandEnvironment,
+  type CommandIo,
+  type CommandOutput,
+} from "./io.ts";
 export {
   buildCommand,
   checkCommand,

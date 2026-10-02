@@ -8,7 +8,7 @@ import type { HirFunction } from "../hir.ts";
 import { propertyRun } from "../property-tests.ts";
 import { regressionStore, snapshotModule, snapshotRun } from "../snapshots.ts";
 import { runSelected } from "../test-runner.ts";
-import type { CommandIo } from "./io.ts";
+import { workingDirectory, type CommandEnvironment, type CommandIo } from "./io.ts";
 import {
   exportedFunction,
   RUNTIME_PROFILES,
@@ -39,13 +39,13 @@ export interface RunArgs extends SourceArgs {
 
 /** `hd run FILE`: runs FILE's entry point, the public `main` or `main!`. */
 export async function runCommand(args: RunArgs, io: CommandIo): Promise<number> {
-  const placement = await placementOf(args.file, undefined, undefined);
+  const placement = await placementOf(args.file, undefined, undefined, args);
   const loaded = await loadSource(args, io, { profile: args.profile, linkTests: false }, placement);
   if (typeof loaded === "number") return loaded;
   return execute(loaded, io, { kind: "run", entry: args.entry, profile: args.profile });
 }
 
-export interface TestArgs {
+export interface TestArgs extends CommandEnvironment {
   /** FILE or DIR; the default is the package that holds the current directory. */
   readonly path?: string;
   readonly format: SourceArgs["format"];
@@ -65,12 +65,13 @@ export interface TestArgs {
 
 /** `hd test [FILE|DIR]`: runs the test cases of FILE, of DIR, or of the current package. */
 export async function testCommand(args: TestArgs, io: CommandIo): Promise<number> {
+  const cwd = workingDirectory(args);
   if (args.path === undefined) {
-    const root = enclosingPackageRoot(process.cwd()) ?? process.cwd();
-    return testDirectory(args, relative(process.cwd(), root) || ".", io);
+    const root = enclosingPackageRoot(cwd) ?? cwd;
+    return testDirectory(args, relative(cwd, root) || ".", io);
   }
-  if (await isDirectory(args.path)) return testDirectory(args, args.path, io);
-  const placement = await placementOf(args.path, args.packageTree, args.testLayout);
+  if (await isDirectory(resolve(cwd, args.path))) return testDirectory(args, args.path, io);
+  const placement = await placementOf(args.path, args.packageTree, args.testLayout, args);
   return testFile(args, args.path, io, placement, false);
 }
 
@@ -82,7 +83,7 @@ async function testFile(
   quietWhenEmpty: boolean,
 ): Promise<number> {
   const loaded = await loadSource(
-    { file, format: args.format },
+    { file, format: args.format, cwd: args.cwd, specDir: args.specDir },
     io,
     { profile: args.profile, testLayout: args.testLayout, linkTests: true },
     placement,
@@ -97,7 +98,7 @@ async function testFile(
  * directory tests each `.hd` file directly in it.
  */
 async function testDirectory(args: TestArgs, directory: string, io: CommandIo): Promise<number> {
-  const root = resolve(directory);
+  const root = resolve(workingDirectory(args), directory);
   let status = 0;
   let ran = 0;
   if (isPackageRoot(root)) {

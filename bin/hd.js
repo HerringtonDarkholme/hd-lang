@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-// Cache compiled modules (including stripped TypeScript) across runs: the
-// test suites start one process per case, and compilation was a third of
-// each start-up.
+// Cache compiled modules (including stripped TypeScript) across runs:
+// compilation was a third of each start-up.
 import { enableCompileCache } from "node:module";
 
 enableCompileCache?.();

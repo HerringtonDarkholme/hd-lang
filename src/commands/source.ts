@@ -15,7 +15,7 @@ import type { ParseOptions } from "../parser/index.ts";
 import { RuntimePanicError, UnsupportedAtRunTimeError } from "../runtime-panic.ts";
 import { loadSpecIndex } from "../spec-index.ts";
 import { RUNTIME_PROFILES } from "./profiles.ts";
-import type { CommandIo } from "./io.ts";
+import { workingDirectory, type CommandEnvironment, type CommandIo } from "./io.ts";
 
 export type RuntimeProfileName = (typeof RUNTIME_PROFILE_NAMES)[number];
 export type TestLayout = "test-module" | "integration";
@@ -27,7 +27,7 @@ export interface PackageTree {
 }
 
 /** The arguments every command that compiles a FILE takes. */
-export interface SourceArgs {
+export interface SourceArgs extends CommandEnvironment {
   readonly file: string;
   readonly format: OutputFormat;
 }
@@ -81,7 +81,7 @@ export async function loadSource(
   placement?: PackagePlacement,
 ): Promise<LoadedSource | number> {
   const { file, format } = args;
-  const path = resolve(file);
+  const path = resolve(workingDirectory(args), file);
   const fileSource = await readFile(path, "utf8");
   // In a package, FILE joins the package's files; the linker joins the
   // modules into one program (src/package.ts).
@@ -104,7 +104,7 @@ export async function loadSource(
     hostCapabilities: profile?.hostCapabilities,
     parse: parseOptions,
   };
-  const specIndex = format === "json" ? await loadSpecIndex() : undefined;
+  const specIndex = format === "json" ? await loadSpecIndex(args.specDir) : undefined;
   const reporter = new DiagnosticReporter(format, file, fileSource, specIndex, io.err);
   // A diagnostic in a package names the file it points into.
   const treeReporters = new Map<string, DiagnosticReporter>();
@@ -229,31 +229,37 @@ export async function packageFiles(root: string): Promise<Record<string, string>
  * FILE's place in its enclosing package, when FILE is a package file under
  * `src/` or `tests/`; undefined for a lone file, which compiles on its own.
  */
-async function enclosingPlacement(file: string): Promise<PackagePlacement | undefined> {
-  const path = resolve(file);
+async function enclosingPlacement(
+  file: string,
+  cwd: string,
+): Promise<PackagePlacement | undefined> {
+  const path = resolve(cwd, file);
   const root = enclosingPackageRoot(dirname(path));
   if (root === undefined) return undefined;
   const packagePath = relative(root, path).split(sep).join("/");
   if (!packagePath.startsWith(SOURCE_ROOT) && !packagePath.startsWith(TEST_ROOT)) return undefined;
   // Diagnostics name the package's other files the way FILE was named.
-  const shown = isAbsolute(file) ? root : relative(process.cwd(), root) || ".";
+  const shown = isAbsolute(file) ? root : relative(cwd, root) || ".";
   return { root: shown, path: packagePath, files: await packageFiles(root) };
 }
 
 /**
  * FILE's package for a command that links one: the tree `--package-tree`
  * names, else the package that holds FILE. `--test-layout` turns linking off.
+ * Relative paths resolve against `environment`'s directory.
  */
 export async function placementOf(
   file: string,
   packageTree: PackageTree | undefined,
   testLayout: TestLayout | undefined,
+  environment: CommandEnvironment,
 ): Promise<PackagePlacement | undefined> {
+  const cwd = workingDirectory(environment);
   if (packageTree)
     return {
-      root: resolve(packageTree.tree),
+      root: resolve(cwd, packageTree.tree),
       path: packageTree.path,
-      files: await packageTreeFiles(resolve(packageTree.tree)),
+      files: await packageTreeFiles(resolve(cwd, packageTree.tree)),
     };
-  return testLayout === undefined ? enclosingPlacement(file) : undefined;
+  return testLayout === undefined ? enclosingPlacement(file, cwd) : undefined;
 }

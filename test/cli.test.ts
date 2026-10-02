@@ -6,6 +6,8 @@ import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
 
+import { hd as hdInProcess } from "./hd-in-process.ts";
+
 interface CommandResult {
   readonly stdout: string;
   readonly stderr: string;
@@ -23,13 +25,50 @@ const execute = promisify(execFile);
 const root = resolve(import.meta.dirname, "..");
 const entrypoint = resolve(root, "bin/hd.js");
 
-async function hd(args: readonly string[], cwd = root): Promise<CommandResult> {
-  return execute(process.execPath, [entrypoint, ...args], {
-    cwd,
-    encoding: "utf8",
-    maxBuffer: 4 * 1024 * 1024,
-  });
+/** Runs `hd ARGS...` in this process, as if started in `cwd`. */
+function hd(args: readonly string[], cwd = root): Promise<CommandResult> {
+  return hdInProcess(args, { cwd });
 }
+
+// The other tests run `hd` in this process; this one starts bin/hd.js to
+// check the executable itself: its arguments, the process's current
+// directory, and the exit status it sets.
+test("the hd executable passes its arguments and sets the exit status", async () => {
+  const spawned = (args: readonly string[], cwd = root) =>
+    execute(process.execPath, [entrypoint, ...args], { cwd, encoding: "utf8" });
+  const failed = async (args: readonly string[], cwd = root) => {
+    let caught: (CommandResult & { code?: number }) | undefined;
+    await assert.rejects(spawned(args, cwd), (error: CommandResult & { code?: number }) => {
+      caught = error;
+      return true;
+    });
+    return caught!;
+  };
+  assert.equal((await spawned(["--format", "json", "run", "examples/core.hd"])).stdout, "7\n");
+
+  const unknown = await failed(["bogus"]);
+  assert.equal(unknown.code, 2);
+  assert.equal(
+    unknown.stderr,
+    "hd: unknown command 'bogus'\nRun 'hd help' for the command list.\n",
+  );
+
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    await writeFile(
+      join(directory, "code.hd"),
+      "use std.process.ExitCode\n\npub fn main!() -> Result[ExitCode, string]:\n    .Ok(ExitCode(3))\n",
+    );
+    assert.equal((await failed(["run", "code.hd"], directory)).code, 3);
+    // An internal error that escapes `main` ends the process with status 1.
+    await writeFile(join(directory, "library.hd"), "fn helper() -> i32:\n    1\n");
+    const escaped = await failed(["run", "--entry", "main", "library.hd"], directory);
+    assert.equal(escaped.code, 1);
+    assert.match(escaped.stderr, /no exported main function/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("documented CLI commands work end to end", async () => {
   const core = resolve(root, "examples/core.hd");

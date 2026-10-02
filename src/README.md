@@ -1402,7 +1402,11 @@ What remains:
   `../test/run-portable.ts` runs them through the `hd parse`, `hd check`,
   and `hd test` command lines. By default `../test/hd-adapter.ts` runs those
   in-process on worker threads; `--compiler` spawns a command instead.
-- `../test/cli.test.ts` exercises the packaged CLI surface end to end,
-  `../test/cli-commands.test.ts` its help output and flag errors, and
+- `../test/cli.test.ts` exercises the CLI commands end to end,
+  `../test/cli-commands.test.ts` their help output and flag errors, and
   `../test/agent-tooling.test.ts` the JSON diagnostics, `explain`, `def`, and
-  `doc`.
+  `doc`. They call `main` in-process through `../test/hd-in-process.ts`;
+  one test in `cli.test.ts` starts `bin/hd.js` itself.
+- `main` and the command functions take an optional `cwd` and `specDir`
+  (`CommandEnvironment` in `commands/io.ts`). Unset, they are the process's
+  current directory and `HD_SPEC_DIR`; a test sets them per call.

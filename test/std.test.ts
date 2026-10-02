@@ -1,33 +1,23 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { promisify } from "node:util";
 import test from "node:test";
 
 import { analyze } from "../src/compiler.ts";
 import { withStandardLibrary } from "../src/checker/standard-library.ts";
 import { parse } from "../src/parser/index.ts";
 import { STANDARD_MODULES, standardSource } from "../src/checker/standard-sources.ts";
+import { hd } from "./hd-in-process.ts";
 
 // The toy standard library in lib/std/: each test/std/*.hd file exercises
 // one or two modules through `hd test`.
 
-const execute = promisify(execFile);
 const root = resolve(import.meta.dirname, "..");
-const entrypoint = resolve(root, "bin/hd.js");
 const directory = resolve(root, "test/std");
 
 for (const file of readdirSync(directory).filter((name) => name.endsWith(".hd"))) {
   test(`std tests pass: ${file}`, async () => {
-    const { stdout } = await execute(
-      process.execPath,
-      [entrypoint, "test", resolve(directory, file)],
-      {
-        cwd: root,
-        encoding: "utf8",
-      },
-    );
+    const { stdout } = await hd(["test", resolve(directory, file)], { cwd: root });
     assert.match(stdout, /: \d+ passed/);
   });
 }

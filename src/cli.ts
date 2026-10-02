@@ -18,6 +18,7 @@ import {
   replCommand,
   runCommand,
   testCommand,
+  type CommandEnvironment,
   type CommandIo,
   type PackageTree,
   type RuntimeProfileName,
@@ -75,10 +76,15 @@ function checkFlags(parsed: Command): void {
     throw new UsageError(`${where}: --package-tree needs a FILE`);
 }
 
-/** Runs one `hd` command line, writing to `io`, and returns its exit status. */
+/**
+ * Runs one `hd` command line, writing to `io`, and returns its exit status.
+ * `environment` replaces the process's current directory and `HD_SPEC_DIR`
+ * for this call only.
+ */
 export async function main(
   args = process.argv.slice(2),
   io: CommandIo = processIo,
+  environment: CommandEnvironment = {},
 ): Promise<number> {
   let parsed: ParsedCommand;
   try {
@@ -92,16 +98,16 @@ export async function main(
   if (parsed.kind === "help") return helpCommand({ topic: parsed.topic }, io);
   const [first, second] = parsed.operands;
   const { format } = parsed;
-  const options = flags(parsed);
+  const options = { ...flags(parsed), ...environment };
   switch (parsed.command.name) {
     case "repl":
       return replCommand({ input: process.stdin, output: process.stdout });
     case "explain":
-      return explainCommand({ code: first!, format }, io);
+      return explainCommand({ code: first!, format, ...environment }, io);
     case "doc":
-      return docCommand({ name: first!, target: second ?? ".", format }, io);
+      return docCommand({ name: first!, target: second ?? ".", format, ...environment }, io);
     case "def":
-      return defCommand({ name: first!, target: second ?? ".", format }, io);
+      return defCommand({ name: first!, target: second ?? ".", format, ...environment }, io);
     case "parse":
     case "debug parse":
       return parseCommand(options, io);

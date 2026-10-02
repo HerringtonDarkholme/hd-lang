@@ -7,7 +7,7 @@ import { basename, extname, resolve } from "node:path";
 import { analyze, compileToWasm, compileToWat } from "../compiler.ts";
 import { DiagnosticError } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
-import type { CommandIo } from "./io.ts";
+import { workingDirectory, type CommandIo } from "./io.ts";
 import {
   loadSource,
   placementOf,
@@ -42,7 +42,7 @@ export interface CheckArgs extends SourceArgs {
 
 /** `hd check FILE`: type-checks FILE and prints its warnings, then `FILE: ok`. */
 export async function checkCommand(args: CheckArgs, io: CommandIo): Promise<number> {
-  const placement = await placementOf(args.file, args.packageTree, args.testLayout);
+  const placement = await placementOf(args.file, args.packageTree, args.testLayout, args);
   const loaded = await loadSource(
     args,
     io,
@@ -94,7 +94,7 @@ export interface BuildArgs extends SourceArgs {
  * path, or with `--wat` prints the WAT without assembling it.
  */
 export async function buildCommand(args: BuildArgs, io: CommandIo): Promise<number> {
-  const placement = await placementOf(args.file, undefined, undefined);
+  const placement = await placementOf(args.file, undefined, undefined, args);
   const loaded = await loadSource(args, io, { profile: args.profile, linkTests: false }, placement);
   if (typeof loaded === "number") return loaded;
   try {
@@ -103,7 +103,8 @@ export async function buildCommand(args: BuildArgs, io: CommandIo): Promise<numb
       return 0;
     }
     const result = await compileToWasm(loaded.source, loaded.compileOptions);
-    const output = resolve(`${basename(loaded.path, extname(loaded.path))}.wasm`);
+    const name = `${basename(loaded.path, extname(loaded.path))}.wasm`;
+    const output = resolve(workingDirectory(args), name);
     await writeFile(output, result.bytes);
     io.out(output);
     return 0;

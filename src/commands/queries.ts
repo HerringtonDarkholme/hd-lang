@@ -1,12 +1,12 @@
 import { readFile, readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { analyze } from "../compiler.ts";
 import { DiagnosticReporter, type OutputFormat } from "../diagnostic-report.ts";
 import { moduleIdentity, SOURCE_ROOT } from "../package.ts";
 import { parse } from "../parser/index.ts";
 import { explainCode, loadSpecIndex, type SpecMention } from "../spec-index.ts";
-import type { CommandIo } from "./io.ts";
+import { workingDirectory, type CommandEnvironment, type CommandIo } from "./io.ts";
 import {
   formatDefinition,
   formatDocumentation,
@@ -28,7 +28,7 @@ function uniqueMentions(mentions: readonly SpecMention[]): SpecMention[] {
   });
 }
 
-export interface ExplainArgs {
+export interface ExplainArgs extends CommandEnvironment {
   readonly code: string;
   readonly format: OutputFormat;
 }
@@ -36,7 +36,7 @@ export interface ExplainArgs {
 /** `hd explain CODE`: what the specification says about a diagnostic code. */
 export async function explainCommand(args: ExplainArgs, io: CommandIo): Promise<number> {
   const { code, format } = args;
-  const index = await loadSpecIndex();
+  const index = await loadSpecIndex(args.specDir);
   const explanation = explainCode(index, code);
   if (format === "json") {
     io.out(
@@ -121,14 +121,13 @@ interface Project {
   readonly failed: boolean;
 }
 
-async function loadProject(
-  target: string,
-  format: OutputFormat,
-  io: CommandIo,
-): Promise<Project | undefined> {
+/** Parses the FILE or package `args.target` names; messages name it as given. */
+async function loadProject(args: LookupArgs, io: CommandIo): Promise<Project | undefined> {
+  const { target, format } = args;
+  const location = resolve(workingDirectory(args), target);
   let info;
   try {
-    info = await stat(target);
+    info = await stat(location);
   } catch {
     io.err(`hd: cannot read ${target}`);
     return undefined;
@@ -137,7 +136,7 @@ async function loadProject(
     const source = await readFile(path, "utf8");
     const result = parse(source);
     if (!result.program) {
-      const index = format === "json" ? await loadSpecIndex() : undefined;
+      const index = format === "json" ? await loadSpecIndex(args.specDir) : undefined;
       const reporter = new DiagnosticReporter(format, display, source, index, io.err);
       for (const diagnostic of result.diagnostics) reporter.diagnostic(diagnostic);
       return { source, module: undefined };
@@ -145,7 +144,7 @@ async function loadProject(
     return { source, module: { path: display, identity, source, program: result.program } };
   };
   if (info.isFile()) {
-    const { source, module } = await load(target, "", target);
+    const { source, module } = await load(location, "", target);
     if (!module) return { modules: [], packageMode: false, failed: true };
     return {
       modules: [module],
@@ -154,7 +153,7 @@ async function loadProject(
       failed: false,
     };
   }
-  const root = join(target, SOURCE_ROOT);
+  const root = join(location, SOURCE_ROOT);
   let entries: string[];
   try {
     entries = (await readdir(root, { recursive: true })).map(String);
@@ -169,14 +168,14 @@ async function loadProject(
     const path = `${SOURCE_ROOT}${entry}`;
     const identity = moduleIdentity(path);
     if (identity === undefined) continue;
-    const { module } = await load(join(target, path), identity, join(target, path));
+    const { module } = await load(join(location, path), identity, join(target, path));
     if (module) modules.push(module);
     else failed = true;
   }
   return { modules, packageMode: true, failed };
 }
 
-export interface LookupArgs {
+export interface LookupArgs extends CommandEnvironment {
   /** The symbol, such as `main` or `Shape.area`. */
   readonly name: string;
   /** A FILE or a package directory. */
@@ -195,8 +194,8 @@ export function docCommand(args: LookupArgs, io: CommandIo): Promise<number> {
 }
 
 async function lookup(command: "def" | "doc", args: LookupArgs, io: CommandIo): Promise<number> {
-  const { name, target, format } = args;
-  const project = await loadProject(target, format, io);
+  const { name, format } = args;
+  const project = await loadProject(args, io);
   if (!project) return 1;
   const index = new SymbolIndex(project.modules, project.packageMode, project.inferred);
   const { symbols, suggestions } = index.lookup(name);

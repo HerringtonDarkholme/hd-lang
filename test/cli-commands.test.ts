@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { promisify } from "node:util";
 import test from "node:test";
+
+import { hd as hdInProcess } from "./hd-in-process.ts";
 
 // The shape of the `hd` command line (src/cli-args.ts): help output, the
 // flags each command owns, `hd debug`, and `hd test` on a directory.
@@ -15,13 +15,12 @@ interface CommandResult {
   readonly code?: number;
 }
 
-const execute = promisify(execFile);
 const root = resolve(import.meta.dirname, "..");
-const entrypoint = resolve(root, "bin/hd.js");
 const core = resolve(root, "examples/core.hd");
 
-async function hd(args: readonly string[], cwd = root): Promise<CommandResult> {
-  return execute(process.execPath, [entrypoint, ...args], { cwd, encoding: "utf8" });
+/** Runs `hd ARGS...` in this process, as if started in `cwd`. */
+function hd(args: readonly string[], cwd = root): Promise<CommandResult> {
+  return hdInProcess(args, { cwd });
 }
 
 /** Runs `hd` expecting exit status 2, and returns its output. */
