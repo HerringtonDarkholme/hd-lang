@@ -1,5 +1,6 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
-import { basename, extname, join, relative, resolve, sep } from "node:path";
+import { existsSync } from "node:fs";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -10,10 +11,20 @@ import {
   type HostSuspensionCall,
   type HostSuspensionOutcome,
 } from "./compiler.ts";
+import {
+  commandHelp,
+  overviewHelp,
+  parseCommandLine,
+  UsageError,
+  type ParsedCommand,
+  type RUNTIME_PROFILE_NAMES,
+  type RUNTIME_SCENARIO_NAMES,
+} from "./cli-args.ts";
 import { explainCommand, lookupCommand } from "./cli-queries.ts";
 import { DiagnosticReporter, type OutputFormat } from "./diagnostic-report.ts";
 import { DiagnosticError, type Diagnostic } from "./diagnostics.ts";
-import { linkPackage, type PackageDiagnostic } from "./package.ts";
+import type { HirFunction } from "./hir.ts";
+import { linkPackage, SOURCE_ROOT, type PackageDiagnostic } from "./package.ts";
 import { RuntimePanicError, UnsupportedAtRunTimeError } from "./runtime-panic.ts";
 import { parse } from "./parser/index.ts";
 import { runRepl } from "./repl-terminal.ts";
@@ -22,13 +33,8 @@ import { regressionStore, snapshotModule, snapshotRun } from "./snapshots.ts";
 import { runSelected } from "./test-runner.ts";
 import { propertyRun } from "./property-tests.ts";
 
-type RuntimeScenario = "cancellation-cleanup" | "competing-drivers" | "reentrant-poll";
-type RuntimeProfileName =
-  | "pending-gate"
-  | "ready-counter"
-  | "ready-float"
-  | "ready-gate"
-  | "ready-text";
+type RuntimeScenario = (typeof RUNTIME_SCENARIO_NAMES)[number];
+type RuntimeProfileName = (typeof RUNTIME_PROFILE_NAMES)[number];
 
 interface RuntimeProfile {
   readonly hostCapabilities: readonly string[];
@@ -65,28 +71,6 @@ const RUNTIME_PROFILES: Readonly<Record<RuntimeProfileName, RuntimeProfile>> = {
   "ready-gate": { hostCapabilities: ["Gate"] },
   "ready-text": { hostCapabilities: ["TextBridge"], invoke: invokeText },
 };
-
-function runtimeScenario(value: string | undefined): RuntimeScenario {
-  if (
-    value === "cancellation-cleanup" ||
-    value === "competing-drivers" ||
-    value === "reentrant-poll"
-  )
-    return value;
-  return usage();
-}
-
-function runtimeProfile(value: string | undefined): RuntimeProfileName {
-  if (
-    value === "pending-gate" ||
-    value === "ready-counter" ||
-    value === "ready-float" ||
-    value === "ready-gate" ||
-    value === "ready-text"
-  )
-    return value;
-  return usage();
-}
 
 function exportedFunction(instance: WebAssembly.Instance, name: string): CallableFunction {
   const value = instance.exports[name];
@@ -129,104 +113,56 @@ async function packageTreeFiles(root: string): Promise<Record<string, string>> {
   return files;
 }
 
-function usage(): never {
-  console.error(
-    [
-      "usage: hd <parse|check|test|run|build|dump-hir> [--format text|json] [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] [--tests] [--update] [--seed N] [--cases N] [--shrink N] [--test-layout test-module|integration] [--package-tree DIR --package-path PATH] FILE",
-      "       hd explain [--format text|json] CODE",
-      "       hd <def|doc> [--format text|json] NAME [FILE|PACKAGE-DIR]",
-      "       hd repl",
-    ].join("\n"),
-  );
-  process.exit(2);
+/** The flags of a command that compiles a file, after parsing. */
+interface FileOptions {
+  readonly command: "build" | "check" | "hir" | "parse" | "run" | "test";
+  readonly format: OutputFormat;
+  readonly wat: boolean;
+  /** `hd run --entry NAME`. */
+  readonly entryName?: string;
+  readonly profileName?: RuntimeProfileName;
+  readonly scenario?: RuntimeScenario;
+  readonly pendingFunctionName?: string;
+  /** `hd check --tests` (Testing T42). */
+  readonly checkTests: boolean;
+  readonly testLayout?: string;
+  /** `hd test --update` records snapshot files. */
+  readonly update: boolean;
+  /** `hd test --seed N`, `--cases N`, and `--shrink N` (Testing T36, T38, T51). */
+  readonly propertyOptions: { seed?: number; cases?: number; shrink?: number };
 }
 
-function outputFormat(value: string | undefined): OutputFormat {
-  if (value === "text" || value === "json") return value;
-  return usage();
+/**
+ * FILE's place in a package (spec/conformance/README.md, Package Trees): the
+ * package root, the package path FILE takes, and the package's files.
+ */
+interface PackagePlacement {
+  readonly root: string;
+  readonly path: string;
+  readonly files: Readonly<Record<string, string>>;
 }
 
-export async function main(args = process.argv.slice(2)): Promise<number> {
-  if (args[0] === "repl") {
-    if (args.length > 1) usage();
-    return runRepl();
-  }
-  const command = args.shift();
-  let wat = false;
-  let entryName = "main";
-  let explicitEntry = false;
-  let scenario: RuntimeScenario | undefined;
-  let pendingFunctionName: string | undefined;
-  let profileName: RuntimeProfileName | undefined;
-  let format: OutputFormat = "text";
-  let runOptions = false;
-  let checkTests = false;
-  let testLayout: string | undefined;
-  // A package tree (spec/conformance/README.md, Package Trees): the other
-  // files of the package, and the package path FILE takes among them.
-  let packageTree: string | undefined;
-  let packagePath: string | undefined;
-  let update = false;
-  // `hd test --seed N`, `--cases N`, and `--shrink N` (Testing T36, T38, T51).
-  const propertyOptions: { seed?: number; cases?: number; shrink?: number } = {};
-  while (args[0]?.startsWith("--")) {
-    const option = args.shift();
-    if (option !== "--format") runOptions = true;
-    if (option === "--format") format = outputFormat(args.shift());
-    else if (option === "--wat") wat = true;
-    else if (option === "--entry") {
-      entryName = args.shift() ?? usage();
-      explicitEntry = true;
-    } else if (option === "--scenario") scenario = runtimeScenario(args.shift());
-    else if (option === "--pending-function") pendingFunctionName = args.shift() ?? usage();
-    else if (option === "--profile") profileName = runtimeProfile(args.shift());
-    else if (option === "--tests") checkTests = true;
-    else if (option === "--update") update = true;
-    else if (option === "--seed" || option === "--cases" || option === "--shrink") {
-      const value = Number(args.shift());
-      if (!Number.isSafeInteger(value) || value < 0) usage();
-      propertyOptions[option.slice(2) as "seed" | "cases" | "shrink"] = value;
-    } else if (option === "--test-layout") {
-      testLayout = args.shift();
-      if (testLayout !== "test-module" && testLayout !== "integration") usage();
-    } else if (option === "--package-tree") packageTree = args.shift() ?? usage();
-    else if (option === "--package-path") packagePath = args.shift() ?? usage();
-    else usage();
-  }
-  if (command === "explain") {
-    const code = args.shift();
-    if (!code || args.length > 0 || runOptions) usage();
-    return explainCommand(code, format);
-  }
-  if (command === "def" || command === "doc") {
-    const name = args.shift();
-    const target = args.shift() ?? ".";
-    if (!name || args.length > 0 || runOptions) usage();
-    return lookupCommand(command, name, target, format);
-  }
-  const file = args.shift();
-  if (!command || !file || args.length > 0) usage();
-  if (entryName !== "main" && command !== "run") usage();
-  if (checkTests && command !== "check") usage();
-  if (update && command !== "test") usage();
-  if (Object.keys(propertyOptions).length > 0 && command !== "test") usage();
-  if (scenario && command !== "test") usage();
-  if (pendingFunctionName && scenario !== "cancellation-cleanup") usage();
-  if ((packageTree === undefined) !== (packagePath === undefined)) usage();
-  if (packageTree !== undefined && ((command !== "check" && command !== "test") || testLayout))
-    usage();
+/** Compiles FILE and does what `options.command` asks with it. */
+async function runFile(
+  options: FileOptions,
+  file: string,
+  placement?: PackagePlacement,
+  quietWhenEmpty = false,
+): Promise<number> {
+  const { command, format, profileName, scenario, pendingFunctionName } = options;
+  const entryName = options.entryName ?? "main";
+  const explicitEntry = options.entryName !== undefined;
   const path = resolve(file);
   const fileSource = await readFile(path, "utf8");
-  // In a package tree, FILE joins the tree's files; the linker joins the
+  // In a package, FILE joins the package's files; the linker joins the
   // modules into one program (src/package.ts).
-  const treeRoot = packageTree === undefined ? undefined : resolve(packageTree);
-  const treeFiles =
-    treeRoot === undefined
-      ? undefined
-      : { ...(await packageTreeFiles(treeRoot)), [packagePath!]: fileSource };
-  const linked = treeFiles
-    ? linkPackage(treeFiles, packagePath!, { tests: checkTests || command === "test" })
-    : undefined;
+  const treeFiles = placement && { ...placement.files, [placement.path]: fileSource };
+  const linked =
+    placement && treeFiles
+      ? linkPackage(treeFiles, placement.path, {
+          tests: options.checkTests || command === "test",
+        })
+      : undefined;
   const source = linked?.source ?? fileSource;
   const profile = profileName ? RUNTIME_PROFILES[profileName] : undefined;
   // A `*_test.hd` file is a test module (spec/10-modules.md#test-modules), as
@@ -234,7 +170,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   // Layouts); the prototype has no separate integration test view.
   const parseOptions = linked
     ? { joinedModules: true }
-    : path.endsWith("_test.hd") || testLayout !== undefined
+    : path.endsWith("_test.hd") || options.testLayout !== undefined
       ? { testModule: true }
       : {};
   const compileOptions: CompileOptions = {
@@ -243,17 +179,17 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   };
   const specIndex = format === "json" ? await loadSpecIndex() : undefined;
   const reporter = new DiagnosticReporter(format, file, fileSource, specIndex);
-  // A diagnostic in a package tree names the file it points into.
+  // A diagnostic in a package names the file it points into.
   const treeReporters = new Map<string, DiagnosticReporter>();
   const report = (diagnostic: Diagnostic | PackageDiagnostic): void => {
-    if (!linked || !treeFiles) return reporter.diagnostic(diagnostic);
+    if (!linked || !placement || !treeFiles) return reporter.diagnostic(diagnostic);
     const located = "path" in diagnostic ? diagnostic : linked.locate(diagnostic);
-    if (located.path === packagePath) return reporter.diagnostic(located);
+    if (located.path === placement.path) return reporter.diagnostic(located);
     let treeReporter = treeReporters.get(located.path);
     if (!treeReporter) {
       treeReporter = new DiagnosticReporter(
         format,
-        join(treeRoot!, located.path),
+        join(placement.root, located.path),
         treeFiles[located.path] ?? "",
         specIndex,
       );
@@ -274,13 +210,13 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     }
     if (command === "check") {
       // `hd check` checks test code only with `--tests` (Testing T42).
-      const result = analyze(source, { ...compileOptions, skipTestCode: !checkTests });
+      const result = analyze(source, { ...compileOptions, skipTestCode: !options.checkTests });
       if (!result.hir) throw new DiagnosticError(result.diagnostics);
       for (const diagnostic of result.diagnostics) report(diagnostic);
       console.log(`${file}: ok`);
       return 0;
     }
-    if (command === "dump-hir") {
+    if (command === "hir") {
       const result = analyze(source, compileOptions);
       if (!result.hir) throw new DiagnosticError(result.diagnostics);
       console.log(JSON.stringify(result.hir, null, 2));
@@ -288,7 +224,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     }
     if (command === "build") {
       const result = compile(source, compileOptions);
-      if (wat) {
+      if (options.wat) {
         console.log(result.wat);
       } else {
         const output = resolve(`${basename(path, extname(path))}.wasm`);
@@ -297,100 +233,101 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       }
       return 0;
     }
-    if (command === "test" || command === "run") {
-      let scenarioInstance: WebAssembly.Instance | undefined;
-      let pendingFunctionIndex: number | undefined;
-      // `snapshot_file` files (spec/std/testing.md#snapshot-files); `--update` records them.
-      const snapshots = snapshotRun(path, update);
-      // Property-test regression files (spec/std/testing.md#r-std-testing.prop.regression-file).
-      const { root: packageRoot, module: testModule } = snapshotModule(path);
-      const properties = propertyRun({
-        ...propertyOptions,
-        regressions: regressionStore(packageRoot, testModule),
-      });
-      const instantiateOptions: Parameters<typeof instantiate>[1] = {
-        hostFunctions: { ...snapshots.hostFunctions, ...properties.hostFunctions },
-        console: (text) => console.log(text),
-        pending:
-          scenario === "cancellation-cleanup"
-            ? (functionIndex) => functionIndex === pendingFunctionIndex
-            : scenario === "competing-drivers"
-              ? () => true
-              : scenario === "reentrant-poll"
-                ? () => {
-                    if (!scenarioInstance)
-                      throw new Error("runtime scenario instance is not ready");
-                    exportedFunction(scenarioInstance, "__hd_poll")();
-                    return false;
-                  }
-                : undefined,
-        hostCapabilities: profile?.hostCapabilities,
-        parse: parseOptions,
-        hostSuspensionInvoke: profile?.invoke,
-        hostSuspensionPending: profile?.pending,
-      };
-      const { instance, compilation } = await instantiate(source, instantiateOptions);
-      scenarioInstance = instance;
-      if (pendingFunctionName) {
-        pendingFunctionIndex = compilation.hir.functions.find(
-          ({ name, suspending }) => name === pendingFunctionName && suspending,
-        )?.index;
-        if (pendingFunctionIndex === undefined)
-          throw new Error(`program has no suspending ${pendingFunctionName} function`);
-      }
-      const mainDeclaration = compilation.hir.functions.find(({ entry }) => entry);
-      const scenarioProviders =
-        mainDeclaration?.requirements.map((requirement) => ({ requirement })) ?? [];
-      if (scenario) {
-        runRuntimeScenario(scenario, instance, scenarioProviders);
-        console.log(`${file}: 1 passed`);
-        return 0;
-      }
-      // Only the entry point and test cases execute
-      // (spec/conformance/README.md#runtime-execution); `--entry` names any
-      // exported function for `run`.
-      // A test case with the `ignore` option does not run
-      // (spec/10-modules.md#r-module.testing.option.ignore).
-      const selected = compilation.hir.functions.filter((declaration) => {
-        if (command === "test")
-          return (
-            declaration.entry === true ||
-            (/^\$test\.\d+$/.test(declaration.name) &&
-              declaration.testOptions?.ignore === undefined)
-          );
-        if (entryName !== "main") return declaration.name === entryName;
-        // A non-`pub` `main` is not an entry point; implementation tests may
-        // still run it by naming it explicitly.
-        return (
-          declaration.entry === true || (explicitEntry && declaration.developmentEntry === true)
-        );
-      });
-      if (selected.length === 0 && command === "test") {
-        console.log(`${file}: 0 passed`);
-        return 0;
-      }
-      // A module without an entry point runs its initialization and exits 0
-      // (owner decision, batch 42); `--entry` must name a function.
-      if (selected.length === 0 && !explicitEntry) return 0;
-      if (selected.length === 0) throw new Error(`program has no exported ${entryName} function`);
-      const outcome = await runSelected(
-        selected,
-        instance.exports,
-        async () =>
-          (await instantiate(source, { ...instantiateOptions, compilation })).instance.exports,
-        snapshots.begin,
-        properties,
-      );
-      if (outcome.kind === "exit") return outcome.code;
-      if (outcome.kind === "failed") {
-        reporter.entryError(outcome.subject, outcome.outcome);
-        return 1;
-      }
-      if (command === "test") console.log(`${file}: ${outcome.count} passed`);
-      else if (outcome.result !== undefined) console.log(outcome.result);
+    let scenarioInstance: WebAssembly.Instance | undefined;
+    let pendingFunctionIndex: number | undefined;
+    // `snapshot_file` files (spec/std/testing.md#snapshot-files); `--update` records them.
+    const snapshots = snapshotRun(path, options.update);
+    // Property-test regression files (spec/std/testing.md#r-std-testing.prop.regression-file).
+    const { root: packageRoot, module: testModule } = snapshotModule(path);
+    const properties = propertyRun({
+      ...options.propertyOptions,
+      regressions: regressionStore(packageRoot, testModule),
+    });
+    const instantiateOptions: Parameters<typeof instantiate>[1] = {
+      hostFunctions: { ...snapshots.hostFunctions, ...properties.hostFunctions },
+      console: (text) => console.log(text),
+      pending:
+        scenario === "cancellation-cleanup"
+          ? (functionIndex) => functionIndex === pendingFunctionIndex
+          : scenario === "competing-drivers"
+            ? () => true
+            : scenario === "reentrant-poll"
+              ? () => {
+                  if (!scenarioInstance) throw new Error("runtime scenario instance is not ready");
+                  exportedFunction(scenarioInstance, "__hd_poll")();
+                  return false;
+                }
+              : undefined,
+      hostCapabilities: profile?.hostCapabilities,
+      parse: parseOptions,
+      hostSuspensionInvoke: profile?.invoke,
+      hostSuspensionPending: profile?.pending,
+    };
+    const { instance, compilation } = await instantiate(source, instantiateOptions);
+    scenarioInstance = instance;
+    if (pendingFunctionName) {
+      pendingFunctionIndex = compilation.hir.functions.find(
+        ({ name, suspending }) => name === pendingFunctionName && suspending,
+      )?.index;
+      if (pendingFunctionIndex === undefined)
+        throw new Error(`program has no suspending ${pendingFunctionName} function`);
+    }
+    const mainDeclaration = compilation.hir.functions.find(({ entry }) => entry);
+    const scenarioProviders =
+      mainDeclaration?.requirements.map((requirement) => ({ requirement })) ?? [];
+    if (scenario) {
+      runRuntimeScenario(scenario, instance, scenarioProviders);
+      console.log(`${file}: 1 passed`);
       return 0;
     }
-    usage();
+    // In a package, `hd test` runs the test cases of FILE's module only
+    // (spec/conformance/README.md, Package Trees).
+    const inFileModule = (declaration: HirFunction): boolean =>
+      !linked ||
+      !placement ||
+      linked.locate({ code: "", message: "", span: declaration.span }).path === placement.path;
+    // Only the entry point and test cases execute
+    // (spec/conformance/README.md#runtime-execution); `--entry` names any
+    // exported function for `run`.
+    // A test case with the `ignore` option does not run
+    // (spec/10-modules.md#r-module.testing.option.ignore).
+    const selected = compilation.hir.functions.filter((declaration) => {
+      if (command === "test")
+        return (
+          declaration.entry === true ||
+          (/^\$test\.\d+$/.test(declaration.name) &&
+            declaration.testOptions?.ignore === undefined &&
+            inFileModule(declaration))
+        );
+      if (explicitEntry) return declaration.name === entryName;
+      // A non-`pub` `main` is not an entry point; implementation tests may
+      // still run it by naming it explicitly.
+      return declaration.entry === true;
+    });
+    if (selected.length === 0 && command === "test") {
+      if (!quietWhenEmpty) console.log(`${file}: 0 passed`);
+      return 0;
+    }
+    // A module without an entry point runs its initialization and exits 0
+    // (owner decision, batch 42); `--entry` must name a function.
+    if (selected.length === 0 && !explicitEntry) return 0;
+    if (selected.length === 0) throw new Error(`program has no exported ${entryName} function`);
+    const outcome = await runSelected(
+      selected,
+      instance.exports,
+      async () =>
+        (await instantiate(source, { ...instantiateOptions, compilation })).instance.exports,
+      snapshots.begin,
+      properties,
+    );
+    if (outcome.kind === "exit") return outcome.code;
+    if (outcome.kind === "failed") {
+      reporter.entryError(outcome.subject, outcome.outcome);
+      return 1;
+    }
+    if (command === "test") console.log(`${file}: ${outcome.count} passed`);
+    else if (outcome.result !== undefined) console.log(outcome.result);
+    return 0;
   } catch (error) {
     if (error instanceof DiagnosticError) {
       for (const diagnostic of error.diagnostics) report(diagnostic);
@@ -406,6 +343,140 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     }
     throw error;
   }
+}
+
+async function isDirectory(path: string): Promise<boolean> {
+  return (await stat(path).catch(() => undefined))?.isDirectory() ?? false;
+}
+
+/** The nearest directory at or above `start` that holds `hd.toml`, else `start`. */
+function packageRootFrom(start: string): string {
+  for (let directory = start; ;) {
+    if (existsSync(join(directory, "hd.toml"))) return directory;
+    const parent = dirname(directory);
+    if (parent === directory) return start;
+    directory = parent;
+  }
+}
+
+/**
+ * `hd test DIR`: a package (a directory with `hd.toml` or `src/`) tests each
+ * module under `src/` with the other modules linked; any other directory
+ * tests each `.hd` file directly in it.
+ */
+async function testDirectory(options: FileOptions, directory: string): Promise<number> {
+  const root = resolve(directory);
+  const sourceRoot = join(root, SOURCE_ROOT);
+  const hasSources = await isDirectory(sourceRoot);
+  let status = 0;
+  let ran = 0;
+  if (hasSources || existsSync(join(root, "hd.toml"))) {
+    const sources = hasSources ? await packageTreeFiles(sourceRoot) : {};
+    const files = Object.fromEntries(
+      Object.entries(sources).map(([path, text]) => [`${SOURCE_ROOT}${path}`, text]),
+    );
+    for (const path of Object.keys(files).sort()) {
+      ran += 1;
+      const code = await runFile(options, join(directory, path), { root, path, files }, true);
+      status = Math.max(status, code);
+    }
+  } else {
+    const names = (await readdir(root, { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".hd"))
+      .map((entry) => entry.name)
+      .sort();
+    for (const name of names) {
+      ran += 1;
+      status = Math.max(status, await runFile(options, join(directory, name), undefined, true));
+    }
+  }
+  if (ran === 0) console.log(`${directory}: no .hd files to test`);
+  return status;
+}
+
+type CompilingCommand = ParsedCommand & { kind: "command" };
+
+function fileOptions(parsed: CompilingCommand): FileOptions {
+  const flag = (name: string): string | undefined => {
+    const value = parsed.flags.get(name);
+    return typeof value === "string" ? value : undefined;
+  };
+  const name = parsed.command.name;
+  const propertyOptions: { seed?: number; cases?: number; shrink?: number } = {};
+  for (const key of ["seed", "cases", "shrink"] as const) {
+    const value = flag(`--${key}`);
+    if (value !== undefined) propertyOptions[key] = Number(value);
+  }
+  const options: FileOptions = {
+    command: (name === "debug parse"
+      ? "parse"
+      : name === "debug hir"
+        ? "hir"
+        : name) as FileOptions["command"],
+    format: parsed.format,
+    wat: parsed.flags.has("--wat"),
+    entryName: flag("--entry"),
+    profileName: flag("--profile") as RuntimeProfileName | undefined,
+    scenario: flag("--scenario") as RuntimeScenario | undefined,
+    pendingFunctionName: flag("--pending-function"),
+    checkTests: parsed.flags.has("--tests"),
+    testLayout: flag("--test-layout"),
+    update: parsed.flags.has("--update"),
+    propertyOptions,
+  };
+  const where = `hd ${name}`;
+  if (options.pendingFunctionName && options.scenario !== "cancellation-cleanup")
+    throw new UsageError(`${where}: --pending-function needs --scenario cancellation-cleanup`);
+  if (parsed.flags.has("--package-tree") !== parsed.flags.has("--package-path"))
+    throw new UsageError(`${where}: --package-tree and --package-path go together`);
+  if (parsed.flags.has("--package-tree") && options.testLayout)
+    throw new UsageError(`${where}: --package-tree and --test-layout exclude each other`);
+  if (parsed.flags.has("--package-tree") && parsed.operands.length === 0)
+    throw new UsageError(`${where}: --package-tree needs a FILE`);
+  return options;
+}
+
+const QUERY_COMMANDS = new Set(["explain", "doc", "def", "repl"]);
+
+export async function main(args = process.argv.slice(2)): Promise<number> {
+  let parsed: ParsedCommand;
+  let options: FileOptions | undefined;
+  try {
+    parsed = parseCommandLine(args);
+    if (parsed.kind === "command" && !QUERY_COMMANDS.has(parsed.command.name))
+      options = fileOptions(parsed);
+  } catch (error) {
+    if (!(error instanceof UsageError)) throw error;
+    console.error(error.message);
+    return 2;
+  }
+  if (parsed.kind === "help") {
+    console.log(parsed.topic ? commandHelp(parsed.topic) : overviewHelp());
+    return 0;
+  }
+  const [first, second] = parsed.operands;
+  const name = parsed.command.name;
+  if (name === "repl") return runRepl();
+  if (name === "explain") return explainCommand(first!, parsed.format);
+  if (name === "doc" || name === "def")
+    return lookupCommand(name, first!, second ?? ".", parsed.format);
+  if (!options) throw new Error(`hd ${name} has no file options`);
+  if (options.command === "test" && first === undefined) {
+    const root = packageRootFrom(process.cwd());
+    return testDirectory(options, relative(process.cwd(), root) || ".");
+  }
+  if (options.command === "test" && (await isDirectory(first!)))
+    return testDirectory(options, first!);
+  const tree = parsed.flags.get("--package-tree");
+  const placement =
+    typeof tree === "string"
+      ? {
+          root: resolve(tree),
+          path: String(parsed.flags.get("--package-path")),
+          files: await packageTreeFiles(resolve(tree)),
+        }
+      : undefined;
+  return runFile(options, first!, placement);
 }
 
 const invokedPath = process.argv[1] && pathToFileURL(process.argv[1]).href;

@@ -52,7 +52,7 @@ test("documented CLI commands work end to end", async () => {
   assert.match(wat.stdout, /^\(module/m);
   assert.match(wat.stdout, /\(type \$d0 \(struct/);
 
-  const hir = await hd(["dump-hir", core]);
+  const hir = await hd(["debug", "hir", core]);
   const parsedHir = JSON.parse(hir.stdout) as SerializedHir;
   assert.ok(parsedHir.functions?.some((declaration) => declaration.name === "main"));
 
@@ -70,15 +70,19 @@ test("documented CLI commands work end to end", async () => {
   }
 });
 
-// trace, record, replay, and explain-requirements were removed from the CLI;
-// each is now an unknown command, which prints usage and exits 2.
+// trace, record, replay, and explain-requirements were removed from the CLI,
+// and dump-hir moved to `hd debug hir`; each is now an unknown command,
+// which exits 2.
 test("removed CLI commands fail as unknown commands", async () => {
   const suspension = resolve(root, "examples/suspension.hd");
-  for (const command of ["trace", "record", "replay", "explain-requirements"]) {
+  for (const command of ["trace", "record", "replay", "explain-requirements", "dump-hir"]) {
     await assert.rejects(hd([command, suspension]), (error: CommandResult & { code?: number }) => {
       assert.equal(error.code, 2);
       assert.equal(error.stdout, "");
-      assert.match(error.stderr, /^usage: hd <parse\|check\|test\|run\|build\|dump-hir>/);
+      assert.equal(
+        error.stderr,
+        `hd: unknown command '${command}'\nRun 'hd help' for the command list.\n`,
+      );
       return true;
     });
   }

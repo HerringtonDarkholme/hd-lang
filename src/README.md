@@ -22,17 +22,58 @@ pnpm run lint
 pnpm run format:check
 pnpm run test:portable
 pnpm test
-pnpm run hd parse spec/conformance/parse/valid/layout.hd
+pnpm run hd help
+pnpm run hd help test
 pnpm run hd check examples/core.hd
 pnpm run hd test spec/conformance/runtime/valid/defer-order.hd
+pnpm run hd test test/std
 pnpm run hd build --wat examples/core.hd
 pnpm run hd run examples/core.hd
 pnpm run hd repl
 pnpm run hd check --format json examples/core.hd
 pnpm run hd explain unknown-data-field
 pnpm run hd doc main examples/core.hd
+pnpm run hd debug parse spec/conformance/parse/valid/layout.hd
+pnpm run hd debug hir examples/core.hd
 pnpm run check
 ```
+
+### Commands
+
+`hd`, `hd --help`, and `hd help` list the commands; `hd help COMMAND` (or
+`hd COMMAND --help`) prints one command's usage and flags. `cli-args.ts`
+holds the command table.
+
+```text
+hd build [--wat] FILE
+hd run   [--entry NAME] FILE
+hd test  [--update] [--seed N] [--cases N] [--shrink N] [FILE|DIR]
+hd check [--tests] FILE
+hd explain CODE      hd doc NAME [FILE|PKG]      hd def NAME [FILE|PKG]
+hd repl              hd help [COMMAND]           hd debug parse|hir FILE
+```
+
+- Each command owns its flags. `--format text|json` is the only global flag,
+  and it may come before or after the command. A flag given to a command
+  that does not own it exits 2 and names the commands that do.
+- Flags may come before or after the operands; `--` ends the flags.
+- A usage error prints to stderr and exits 2.
+- `hd debug parse` and `hd debug hir` print internal compiler output.
+  `hd parse FILE` stays as a hidden spelling of `hd debug parse`, because
+  the conformance command contract names it
+  ([Command Contract](../spec/conformance/README.md#command-contract)).
+- Help lists the conformance fixture flags apart from the others:
+  `--profile NAME` (on `build`, `run`, `test`, `check`, and `debug hir`),
+  `--scenario NAME` and `--pending-function NAME` (on `test`), and
+  `--test-layout`, `--package-tree`, and `--package-path` (on `test` and
+  `check`). The last three are temporary: a package's layout should come
+  from its `hd.toml`, which the prototype does not read yet.
+- `hd test DIR` tests a package (a directory with `hd.toml` or `src/`) one
+  module at a time: each file under `src/` is linked with the rest of the
+  package and runs only its own test cases. Any other directory has each
+  `.hd` file in it tested on its own. `hd test` with no path tests the
+  package that holds the current directory (the nearest `hd.toml`), or else
+  the current directory. The prototype links no `tests/` integration modules.
 
 `hd run` runs the public `main` or `main!`; a module without one runs its
 initialization and exits 0, while `--entry NAME` must name a function.
@@ -76,8 +117,8 @@ format a person needs.
 
 ### Machine-Readable Diagnostics
 
-`--format json` is accepted by every command that compiles a file: `parse`,
-`check`, `test`, `run`, `build`, and `dump-hir`. It changes only the diagnostic stream: each
+`--format json` is the one global flag. It matters for every command that
+compiles a file: `check`, `test`, `run`, `build`, and `debug`. It changes only the diagnostic stream: each
 diagnostic the text format would print goes to stderr as one JSON object per
 line (JSON Lines), in the same order. Stdout keeps what the command prints,
 such as the `ok` line or program output, and exit codes do not change.
@@ -1284,7 +1325,8 @@ What remains:
 - `wasm.ts` parses, validates, and emits Wasm with pinned Binaryen.
 - `compiler.ts` exposes the in-process compiler API.
 - `package.ts` links the modules of a multi-file package into one program.
-- `cli.ts` implements the current command-line interface; `cli-queries.ts`
+- `cli.ts` implements the current command-line interface; `cli-args.ts`
+  holds its command table, flag parsing, and help text; `cli-queries.ts`
   implements `explain`, `def`, and `doc`.
 - `diagnostic-report.ts` writes diagnostics as text or JSON Lines and derives
   suggested fixes.
@@ -1296,6 +1338,7 @@ What remains:
 - `../test/portable/cases.tsv` selects portable `.hd` conformance fixtures;
   `../test/run-portable.ts` runs them through `hd parse`, `hd check`, and
   `hd test` without importing compiler internals.
-- `../test/cli.test.ts` exercises the packaged CLI surface end to end, and
+- `../test/cli.test.ts` exercises the packaged CLI surface end to end,
+  `../test/cli-commands.test.ts` its help output and flag errors, and
   `../test/agent-tooling.test.ts` the JSON diagnostics, `explain`, `def`, and
   `doc`.

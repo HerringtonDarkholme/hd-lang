@@ -3,8 +3,10 @@
 Language behavior is tested through the implementation-neutral fixtures in
 `../spec/conformance/`. `portable/cases.tsv` selects the part implemented by
 the MVP, and `run-portable.ts` executes those cases only through the public
-`hd parse`, `hd check`, and `hd test` commands. The same fixtures can therefore
-be used by another compiler without importing TypeScript modules.
+`hd parse`, `hd check`, and `hd test` commands of the conformance command
+contract (`hd parse` is that contract's spelling of `hd debug parse`). The
+same fixtures can therefore be used by another compiler without importing
+TypeScript modules.
 
 The conformance fixture format and the command contract are defined in
 [`../spec/conformance/README.md`](../spec/conformance/README.md); that file is

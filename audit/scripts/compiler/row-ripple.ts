@@ -1,6 +1,6 @@
 // Row-change ripple measurement over a 31-function binary call tree.
 // Writes three programs (base, edited, edited-fixed), runs `hd check` and
-// `hd dump-hir` on each, and reports which functions' and closures' rows change.
+// `hd debug hir` on each, and reports which functions' and closures' rows change.
 // Usage: node --experimental-strip-types row-ripple.ts OUT_DIR
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -66,7 +66,8 @@ interface HirRows {
 }
 
 function run(command: string, file: string): { status: number; stdout: string; stderr: string } {
-  const result = spawnSync("node", ["--experimental-strip-types", "bin/hd.js", command, file], {
+  const words = command.split(" ");
+  const result = spawnSync("node", ["--experimental-strip-types", "bin/hd.js", ...words, file], {
     encoding: "utf8",
     maxBuffer: 1 << 28,
   });
@@ -74,7 +75,7 @@ function run(command: string, file: string): { status: number; stdout: string; s
 }
 
 function rows(file: string): HirRows | undefined {
-  const dumped = run("dump-hir", file);
+  const dumped = run("debug hir", file);
   if (dumped.status !== 0) return undefined;
   const hir = JSON.parse(dumped.stdout) as {
     functions: { name: string; requirements: string[] }[];

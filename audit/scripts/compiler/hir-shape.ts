@@ -1,4 +1,4 @@
-// Prints a compact kind-tree of HIR functions from `hd dump-hir` JSON.
+// Prints a compact kind-tree of HIR functions from `hd debug hir` JSON.
 // Usage: node --experimental-strip-types hir-shape.ts HIR.json [functionName...]
 import { readFileSync } from "node:fs";
 
