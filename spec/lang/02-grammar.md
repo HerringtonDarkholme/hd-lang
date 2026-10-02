@@ -569,25 +569,24 @@ See also: [Trait Delegation](09-traits.md#trait-delegation).
 ```ebnf
 type_decl = "type", identifier, [ type_params ],
             ( "=", ( type | row_alias_target ) | "(", type, ")" ), NEWLINE ;
-row_alias_target = requirement_key, "+", requirement_list
-                 | "$", "(", ")"
-                 ;
+row_alias_target = "$", requirement_row ;
 ```
 
 1. r[grammar.type-decl.alias] The `=` form declares a transparent alias.
 2. r[grammar.type-decl.newtype] The parenthesized form declares a nominal single-field newtype.
-3. r[grammar.type-decl.row-alias] An `=` form whose right side joins requirement keys with `+`, as in `type AppRow = Db + Cache`, or is `$()`, declares a row alias.
-4. r[grammar.type-decl.row-alias.one-key] A right side of one key, as in `type Store = Db`, is an ordinary `type`, and its use site gives its meaning.
-5. r[grammar.type-decl.row-alias.no-and] `&` joins bounds only, so `type Both = Db & Cache` is an error. Error: `syntax-error`.
+3. r[grammar.type-decl.row-alias.dollar] An `=` form whose right side is a row after `$`, as in `type AppRow = $ Db + Cache` or `type NoRow = $()`, declares a row alias.
+4. r[grammar.type-decl.row-alias.bare] A right side that joins keys with `+` but has no `$`, as in `type AppRow = Db + Cache`, parses, and [`req.row.alias.dollar.missing`](11-requirements-and-suspension.md#r-req.row.alias.dollar.missing) rejects it.
+5. r[grammar.type-decl.row-alias.one-key] A right side of one key without `$`, as in `type Store = Db`, is an ordinary `type`, and its use site gives its meaning.
+6. r[grammar.type-decl.row-alias.no-and] `&` joins bounds only, so `type Both = $ Db & Cache` is an error. Error: `syntax-error`.
 
 ```text
 trait Db
 
 trait Cache
 
-type AppRow = Db + Cache
+type AppRow = $ Db + Cache
 
-type Both = Db & Cache  # error: syntax-error
+type Both = $ Db & Cache  # error: syntax-error
 ```
 
 See also: [Row Aliases](11-requirements-and-suspension.md#row-aliases).

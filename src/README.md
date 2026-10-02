@@ -524,11 +524,12 @@ else`, `break`, `break value`, and `continue`;
   required is `type-used-as-value`; a type alias name there still reports
   `unknown-name`, because aliases are expanded before checking;
 - `type` aliases, generic ones included, expanded before checking, with
-  `alias-cycle` for a cycle; row aliases (`type AppRow = Db + Cache`,
+  `alias-cycle` for a cycle; row aliases (`type AppRow = $ Db + Cache`,
   generic and nested) expanded in every row, written after `$` in a row slot
   (`$.Context[$ AppRow]`, `Fn[(), void, $ AppRow]`, an explicit row type
   argument), and `generic-kind-mismatch` for one used as a type or single
-  key, and for a bare key or alias in a row slot; row parameters declared
+  key, for a bare key or alias in a row slot, and (with a fix-it adding `$`)
+  for a right side without `$`, as in `type AppRow = Db + Cache`; row parameters declared
   `$R` on functions, methods, implementations, and aliases, with
   `generic-kind-mismatch` (and a fix-it adding `$`) for an unmarked
   parameter in a row, a `$R` used as a type, or a `$` on a data, enum,

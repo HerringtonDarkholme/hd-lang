@@ -1339,6 +1339,8 @@ runtime/valid/row-alias-bare-runs.hd	runtime	accept	lang/11-requirements-and-sus
 typing/valid/row-alias-bare-impl-head.hd	type	accept	lang/07-functions.md#r-fn.type.ctor.row.dollar
 typing/invalid/row-alias-type-argument.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.alias.type-or-key
 typing/invalid/row-alias-explicit-type-argument.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.alias.type-or-key
+typing/invalid/row-alias-bare-target.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.alias.dollar.missing
+typing/invalid/row-alias-bare-alias.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.alias.dollar.missing
 runtime/valid/row-forced-overlap-nearest.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.with.nearest.row-parameter
 typing/invalid/public-method-missing-result-type.hd	type	reject:missing-result-type	lang/07-functions.md#r-fn.decl.result-required-pub
 typing/valid/private-method-infers-result-and-row.hd	type	accept	lang/07-functions.md#r-fn.decl.result-omitted-private

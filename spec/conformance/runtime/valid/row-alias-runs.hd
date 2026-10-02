@@ -27,7 +27,7 @@ data FixedClock: pass
 impl Clock for FixedClock:
     fn now(self) -> i32: 3
 
-type AppRow = Db + Log
+type AppRow = $ Db + Log
 
 fn describe() -> string $ AppRow + Clock:
     "${$.use(Db).name()} ${$.use(Log).tag()} ${$.use(Clock).now()}"

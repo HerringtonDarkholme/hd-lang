@@ -18,7 +18,7 @@ impl Counter for MemoryCounter:
 
 type Store = Counter
 
-type Tally = Store + Counter
+type Tally = $ Store + Counter
 
 fn tick() -> i32 $ Tally:
     $.use(Store).bump()

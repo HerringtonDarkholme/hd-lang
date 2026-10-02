@@ -8,7 +8,7 @@ trait Log
 
 trait Clock
 
-type AppRow = Db + Cache + Log
+type AppRow = $ Db + Cache + Log
 
 fn get_order() -> string $ AppRow + Clock:
     "order"

@@ -250,10 +250,15 @@ export interface TypeDecl {
   readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   readonly alias?: TypeRef;
   /**
-   * The keys of a row alias, `type AppRow = Db + Cache` or `type NoRow = $()`
+   * The keys of a row alias, `type AppRow = $ Db + Cache` or `type NoRow = $()`
    * (11-requirements-and-suspension.md#row-aliases).
    */
   readonly row?: readonly string[];
+  /**
+   * The right side of a row alias written without `$`, as in
+   * `type AppRow = Db + Cache` (11-requirements-and-suspension.md#r-req.row.alias.dollar.missing).
+   */
+  readonly bareRow?: SourceSpan;
   readonly base?: TypeRef;
   readonly doc?: string;
   readonly decorators?: Decorators;

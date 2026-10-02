@@ -22,7 +22,7 @@ import { PRELUDE_NAMES } from "./context.ts";
 
 // Type declarations (04-type-system.md#transparent-aliases-and-newtypes). A
 // transparent alias is expanded wherever a type is written, so the rest of
-// the checker never sees it. A row alias, `type AppRow = Db + Cache`, is
+// the checker never sees it. A row alias, `type AppRow = $ Db + Cache`, is
 // expanded wherever a row is written: headers, function types, row type
 // arguments, and contexts (11-requirements-and-suspension.md#row-aliases).
 // A newtype `type Name(Base)` becomes a data type whose one field, which
@@ -447,6 +447,19 @@ function aliasCycles(
   return cyclic;
 }
 
+/** A row alias's right side without `$`, with a fix-it that adds it. */
+function missingRowDollar(name: string, span: SourceSpan, diagnostics: Diagnostic[]): void {
+  diagnostics.push({
+    code: "generic-kind-mismatch",
+    message: `the right side of row alias '${name}' is a requirement row, written after '$'`,
+    span,
+    fix: {
+      message: "add '$' before the row",
+      edits: [{ span: { start: span.start, end: span.start }, replacement: "$ " }],
+    },
+  });
+}
+
 /** Expands aliases and lowers newtypes to data declarations. */
 export function withTypeDeclarations(program: Program): {
   readonly program: Program;
@@ -514,6 +527,17 @@ export function withTypeDeclarations(program: Program): {
     rows.delete(name);
   }
   const expander = new AliasExpander(aliases, rows, diagnostics);
+  // A row alias's right side is a row, written after `$`
+  // (11-requirements-and-suspension.md#r-req.row.alias.dollar.missing).
+  for (const declaration of accepted) {
+    const target = declaration.alias;
+    const bare =
+      declaration.bareRow ??
+      (target && expander.isRow(nominalGenericParts(target.name)?.name ?? target.name)
+        ? target.span
+        : undefined);
+    if (bare) missingRowDollar(declaration.name, bare, diagnostics);
+  }
   const { types: _types, ...rest } = program;
   const lowered: Program = {
     ...rest,

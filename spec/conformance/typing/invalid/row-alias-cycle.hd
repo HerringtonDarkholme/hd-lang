@@ -4,6 +4,6 @@ trait Db
 
 trait Cache
 
-type Front = Back + Db  # diagnostic: alias-cycle
+type Front = $ Back + Db  # diagnostic: alias-cycle
 
-type Back = Front + Cache
+type Back = $ Front + Cache

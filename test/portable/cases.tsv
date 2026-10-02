@@ -1523,6 +1523,8 @@ runtime/valid/member-line-list-expression.hd	runtime
 typing/valid/choices-arbitrary.hd	type
 typing/valid/row-alias-bare-slots.hd	type
 typing/invalid/row-alias-explicit-type-argument.hd	type
+typing/invalid/row-alias-bare-target.hd	type
+typing/invalid/row-alias-bare-alias.hd	type
 runtime/valid/row-forced-overlap-nearest.hd	runtime
 runtime/valid/num-traits-run.hd	runtime
 runtime/panic/num-from-i64-overflow.hd	runtime

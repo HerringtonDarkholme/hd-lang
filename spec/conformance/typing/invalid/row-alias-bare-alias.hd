@@ -1,0 +1,9 @@
+# test: an alias whose right side names one row alias without $ is rejected, and the fix-it adds $
+
+trait Db
+
+trait Cache
+
+type AppRow = $ Db + Cache
+
+type Web = AppRow  # diagnostic: generic-kind-mismatch

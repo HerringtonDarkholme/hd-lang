@@ -5,7 +5,7 @@ trait Db
 
 trait Cache
 
-type AppRow = Db + Cache
+type AppRow = $ Db + Cache
 
 type Job[$R] = fn() -> void $ R
 

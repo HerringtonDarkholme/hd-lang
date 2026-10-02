@@ -769,10 +769,13 @@ class Parser extends LetParser {
     this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
     let alias: TypeRef | undefined;
     let row: readonly string[] | undefined;
+    let bareRow: SourceSpan | undefined;
     let base: TypeRef | undefined;
     if (this.matchText("=")) {
       const rowStart = this.current().span.start;
-      row = this.parseRowAliasTarget();
+      const target = this.parseRowAliasTarget();
+      row = target?.keys;
+      if (target?.bare) bareRow = { start: rowStart, end: this.peek(-1).span.end };
       if (!row) alias = this.parseType();
       // An alias may declare row parameters (11-requirements-and-suspension.md#r-req.row.alias.generic.marked).
       this.checkGenericKinds(
@@ -798,6 +801,7 @@ class Parser extends LetParser {
       ...(parsedGenerics.rows.length > 0 ? { rowParameters: parsedGenerics.rows } : {}),
       ...(alias ? { alias } : {}),
       ...(row ? { row } : {}),
+      ...(bareRow ? { bareRow } : {}),
       ...(base ? { base } : {}),
       doc,
       span: { start, end },

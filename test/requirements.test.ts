@@ -24,7 +24,7 @@ test("a diagnostic under an aliased row names the missing key and the expansion"
       "trait Db",
       "trait Metrics",
       "type WebRow = Db",
-      "type AppRow = WebRow + Db",
+      "type AppRow = $ WebRow + Db",
       'fn respond() -> string $ Metrics: "ok"',
       "fn get_order() -> string $ AppRow:",
       "    respond()",
@@ -35,4 +35,29 @@ test("a diagnostic under an aliased row names the missing key and the expansion"
     analysis.diagnostics.map((diagnostic) => diagnostic.message),
     ["call to 'respond' requires Metrics; the row '$ AppRow' expands to '$ Db'"],
   );
+});
+
+test("a row alias's right side without '$' gets a fix-it that adds it", () => {
+  const source = [
+    "trait Db",
+    "trait Cache",
+    "type AppRow = Db + Cache",
+    "type Web = AppRow",
+    "",
+  ].join("\n");
+  const diagnostics = analyze(source).diagnostics;
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["generic-kind-mismatch", "generic-kind-mismatch"],
+  );
+  const fixed = diagnostics
+    .map((diagnostic) => diagnostic.fix!.edits[0]!)
+    .sort((left, right) => right.span.start.offset - left.span.start.offset)
+    .reduce(
+      (text, edit) =>
+        text.slice(0, edit.span.start.offset) + edit.replacement + text.slice(edit.span.end.offset),
+      source,
+    );
+  assert.equal(fixed, source.replace("= Db", "= $ Db").replace("= AppRow", "= $ AppRow"));
+  assert.deepEqual(analyze(fixed).diagnostics, []);
 });

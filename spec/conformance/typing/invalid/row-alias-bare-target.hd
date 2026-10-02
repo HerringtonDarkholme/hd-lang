@@ -1,0 +1,7 @@
+# test: a row alias whose right side joins keys without $ is rejected, and the fix-it adds $
+
+trait Db
+
+trait Cache
+
+type AppRow = Db + Cache  # diagnostic: generic-kind-mismatch

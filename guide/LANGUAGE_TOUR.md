@@ -2891,12 +2891,13 @@ Here `callback` requires `Logger` plus the other requirements in `R`. The local
 provider satisfies `Logger`, so callers see only `R`, the remaining row. The helper itself is
 not named `provide_logger!` because its body has no suspension point.
 
-A long row gets a name with an ordinary `type` alias, called a row alias. It
-stands for its keys wherever a row follows `$`. Inside a type's brackets every
-row is written after `$`, even one key or one alias, as in `$.Context[$ Stack]`:
+A long row gets a name with an ordinary `type` alias, called a row alias. Its
+right side is a row, so it starts with `$` too. It stands for its keys wherever
+a row follows `$`. Inside a type's brackets every row is written after `$`,
+even one key or one alias, as in `$.Context[$ Stack]`:
 
 ```text
-type Stack = Database + Cache + Logger
+type Stack = $ Database + Cache + Logger
 
 fn get_order!(id: UserId) -> Result[User?, DbError] $ Stack + Clock:
     load_user!(id)

@@ -3,7 +3,7 @@ use std.function.Fn
 
 trait Log
 
-type WithLog[$R] = R + Log
+type WithLog[$R] = $ R + Log
 
 fn map[T, U, $R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
     let result: mut List[U] = []

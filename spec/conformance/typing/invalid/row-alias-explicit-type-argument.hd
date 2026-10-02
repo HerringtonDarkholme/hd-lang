@@ -4,7 +4,7 @@ trait Db
 
 trait Cache
 
-type AppRow = Db + Cache
+type AppRow = $ Db + Cache
 
 fn first[T](items: List[T]) -> void:
     pass

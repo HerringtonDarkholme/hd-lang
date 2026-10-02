@@ -464,22 +464,24 @@ export abstract class ParserBase {
   }
 
   /**
-   * The keys after `=` of a row alias, `type AppRow = Db + Cache` or
+   * The keys after `=` of a row alias, `type AppRow = $ Db + Cache` or
    * `type NoRow = $()`, or undefined when the right side is an ordinary
-   * type, including one key (02-grammar.md#type-declarations).
+   * type, including one key without `$` (02-grammar.md#type-declarations).
+   * A right side that joins keys with `+` but has no `$` parses too, marked
+   * `bare` for the checker to reject (02-grammar.md#r-grammar.type-decl.row-alias.bare).
    */
-  protected parseRowAliasTarget(): readonly string[] | undefined {
-    if (this.atText("$") && this.peek(1).text === "(") {
-      this.advance();
-      return this.parseRequirements(false);
-    }
+  protected parseRowAliasTarget():
+    | { readonly keys: readonly string[]; readonly bare: boolean }
+    | undefined {
+    if (this.matchText("$")) return { keys: this.parseRequirements(false), bare: false };
     let depth = 0;
     for (let distance = 0; this.index + distance < this.tokens.length; distance += 1) {
       const token = this.peek(distance);
       if (token.kind === "eof" || (depth === 0 && token.kind === "newline")) return undefined;
       if (token.text === "[" || token.text === "(") depth += 1;
       else if (token.text === "]" || token.text === ")") depth -= 1;
-      else if (token.text === "+" && depth === 0) return this.parseRequirements(false);
+      else if (token.text === "+" && depth === 0)
+        return { keys: this.parseRequirements(false), bare: true };
     }
     return undefined;
   }

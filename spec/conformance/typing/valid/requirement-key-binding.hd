@@ -19,7 +19,7 @@ impl Store for UserStore:
 
 type Users = Store[Item = User]
 
-type AppRow = Store[Item = User] + Log
+type AppRow = $ Store[Item = User] + Log
 
 fn find(id: string) -> User $ Store[Item = User]:
     $.use(Store[Item = User]).load(id)

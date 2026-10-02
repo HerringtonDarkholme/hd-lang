@@ -19,7 +19,7 @@ data PlainLog: pass
 impl Log for PlainLog:
     fn tag(self) -> string: "log"
 
-type AppRow = Db + Log
+type AppRow = $ Db + Log
 
 fn describe() -> string $ AppRow:
     "${$.use(Db).name()} ${$.use(Log).tag()}"

@@ -4,7 +4,7 @@ trait Db
 
 trait Cache
 
-type AppRow = Db + Cache
+type AppRow = $ Db + Cache
 
 type Only[T] = T
 

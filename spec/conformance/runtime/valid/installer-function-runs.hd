@@ -26,7 +26,7 @@ data FixedClock: pass
 impl Clock for FixedClock:
     fn now(self) -> i32: 5
 
-type Stack = Db + Log
+type Stack = $ Db + Log
 
 fn with_stack[T, $R](body: fn() -> T $ R + Stack) -> T $ R:
     $.with(Db=MemoryDb {}, Log=PlainLog {}):

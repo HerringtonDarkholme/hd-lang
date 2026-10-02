@@ -4,6 +4,6 @@ trait Db
 
 trait Cache
 
-type AppRow = Db + Cache
+type AppRow = $ Db + Cache
 
-type Both = Db & Cache  # diagnostic: syntax-error
+type Both = $ Db & Cache  # diagnostic: syntax-error

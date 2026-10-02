@@ -8,11 +8,11 @@ trait Metrics
 
 trait Clock
 
-type AppRow = Db + Cache + Metrics
+type AppRow = $ Db + Cache + Metrics
 
-type WebRow = AppRow + Metrics + Clock
+type WebRow = $ AppRow + Metrics + Clock
 
-type Web = WebRow
+type Web = $ WebRow
 
 fn serve() -> void $ Web + Db:
     pass

@@ -505,7 +505,7 @@ lang/11-requirements-and-suspension.md	13	accept	typing/valid/row-slots.hd
 lang/11-requirements-and-suspension.md	14	mixed	typing/invalid/row-slot-bare-alias-argument.hd|typing/invalid/row-slot-bare-context.hd
 lang/11-requirements-and-suspension.md	15	accept	typing/valid/row-alias.hd
 lang/11-requirements-and-suspension.md	16	accept	typing/valid/row-alias-bare-slots.hd
-lang/11-requirements-and-suspension.md	17	mixed	typing/invalid/row-alias-as-type.hd|typing/invalid/row-alias-in-use.hd
+lang/11-requirements-and-suspension.md	17	mixed	typing/invalid/row-alias-bare-target.hd|typing/invalid/row-alias-bare-alias.hd|typing/invalid/row-alias-as-type.hd|typing/invalid/row-alias-in-use.hd
 lang/11-requirements-and-suspension.md	18	mixed	typing/invalid/row-alias-cycle.hd
 lang/11-requirements-and-suspension.md	19	mixed	typing/invalid/inspectable-requirement-key.hd|typing/invalid/requirement-key-not-dynamically-safe.hd
 lang/11-requirements-and-suspension.md	20	mixed	typing/valid/requirement-key-binding.hd|typing/invalid/requirement-key-binding-missing.hd

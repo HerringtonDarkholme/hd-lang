@@ -8,7 +8,7 @@ trait Store:
 trait Log:
     fn write(self, line: string) -> void
 
-type UserRow = Store[Item = string] + Log
+type UserRow = $ Store[Item = string] + Log
 
 fn find(id: string) -> string $ Store[Item = string] + Log:
     $.use(Store[Item = string]).load(id)
