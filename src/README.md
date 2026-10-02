@@ -996,8 +996,8 @@ else`, `break`, `break value`, and `continue`;
   type such as `Error?` is a known type, and a value of `T < Trait` erases
   to `Trait` through the bound's dictionary;
 - `std.testing.assert`, an ordinary hd function in `lib/std/testing.hd`
-  whose failure panics with `assertion-failed` through the
-  `assertion_panic` runtime primitive, without the reason; and
+  whose failure panics with `assertion-failed` and the reason through the
+  `assertion_failed` host function (module.testing.shows-reason); and
   `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
   and order-independent map values and for explicit nominal or bounded generic
   `Eq` implementations, with mandatory reasons and
@@ -1300,8 +1300,8 @@ RUNTIME_AND_LIBRARY.md).
      `string_byte_len`, `string_byte_at`, `string_byte_slice`,
      `char_from_scalar`, `char_scalar`, `index_out_of_bounds`, `iterator_invalidated`,
      `list_version`, the frames `task_race_frame` and `task_all_frame`,
-     the test runner's hooks `case_index`, `report_case_count`, and
-     `report_timeout`, and `assertion_panic`. `list_version` reads a list's structural-version
+     and the test runner's hooks `case_index`, `report_case_count`, and
+     `report_timeout`. `list_version` reads a list's structural-version
      counter, so `ListView` in `lib/std/collections.hd` fails fast as an
      iterator does; it is the one intrinsic that the open issue VIEW-TIER
      proposes.
@@ -1352,7 +1352,7 @@ marks what this refactor removed.
 | Emitter | `emitConsole` (a hand-written host `Console` provider), `console.wat` (`$hd.console_print`) | capability | Done: the generic capability bridge, with `Result` results |
 | Host glue | `console_byte` import | capability | Done: `Console.write_line` in `HOST_PROVIDERS`, left out of record and replay |
 | Checker | `validateHostCapabilities` skipped `Console` | capability | Done: `Console` passes the same boundary check as any host capability |
-| HIR | `assert` | `std.testing` | Done: `assert` is hd code in `lib/std/testing.hd` over the `assertion_panic` runtime primitive (migration M4) |
+| HIR | `assert` | `std.testing` | Done: `assert` is hd code in `lib/std/testing.hd` over the `assertion_failed` host function (migration M4) |
 | HIR | `assert-equal` | `std.testing` | Done: the compiler checks an `assert_equal` or `snapshot` call and lowers it to a call of the hd `check_equal` |
 | HIR | `snapshot-file` | `std.testing` | Done: `snapshot_file` is hd code in `lib/std/testing.hd` with a host function |
 | HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Done: `it_each`, `it_prop`, `it_prop_with`, and `timeout` run hd functions in `lib/std/testing.hd` over three runtime primitives (migration M3) |

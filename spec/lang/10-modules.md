@@ -810,9 +810,10 @@ fn assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void
 1. r[module.testing.exports] `std.testing` exports the normative assertion functions `assert` and `assert_equal` with the signatures above.
 2. r[module.testing.reason] `reason` is required and must explain the checked condition.
 3. r[module.testing.assert-panic] A failed assertion causes a runtime panic, inside a test case or not. Panic: `assertion-failed`.
-4. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
-5. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type. An argument type without `Eq` is an error. Error: `missing-eq`.
-6. r[module.testing.assert-equal-debug] `assert_equal` also requires `T < Debug`, and a failure shows both values as `debug` renders them. A type without `Debug` is an error. Error: `unsatisfied-trait-bound`.
+4. r[module.testing.shows-reason] A failed `assert` or `assert_equal` shows its `reason`.
+5. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
+6. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type. An argument type without `Eq` is an error. Error: `missing-eq`.
+7. r[module.testing.assert-equal-debug] `assert_equal` also requires `T < Debug`, and a failure shows both values as `debug` renders them. A type without `Debug` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 use std.testing.assert_equal

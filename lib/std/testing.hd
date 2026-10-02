@@ -418,16 +418,11 @@ fn prop_discard() -> void:
     panic("intrinsic")
 
 # A false `condition` is a failed assertion, a checked runtime panic
-# (spec/lang/10-modules.md#r-module.testing.assert-panic). The prototype
-# does not show `reason`.
+# (spec/lang/10-modules.md#r-module.testing.assert-panic) that shows
+# `reason` (spec/lang/10-modules.md#r-module.testing.shows-reason).
 pub fn assert(condition: bool, reason: string) -> void:
     if !condition:
-        assertion_panic()
-
-# The checked runtime panic `assertion-failed`; it does not return.
-@intrinsic("assertion_panic")
-fn assertion_panic() -> void:
-    panic("intrinsic")
+        assertion_failed(reason)
 
 # What a checked `assert_equal` or `snapshot` call runs, with `T` the
 # readonly type of `actual`; the compiler checks the call itself. A failure

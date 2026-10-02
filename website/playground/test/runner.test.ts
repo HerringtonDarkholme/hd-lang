@@ -163,7 +163,10 @@ test("test cases run when there is no entry point", async () => {
     "run",
   );
   assert.equal(result.status, "panic");
-  assert.equal(result.summary, 'assertion-failed: runtime panic in test case "fails"');
+  assert.equal(
+    result.summary,
+    'assertion-failed: wrong: actual 2, expected 3 in test case "fails"',
+  );
 });
 
 test("without main, Run evaluates top-level inputs with REPL semantics", async () => {
@@ -283,7 +286,7 @@ test("Test judges it_each rows, expected panics, and ignored cases as hd test do
       '        assert(value < 3, reason="rows are small")',
       "    )",
     ]),
-    'panic: assertion-failed: runtime panic in test case "small"',
+    'panic: assertion-failed: rows are small in test case "small"',
   );
   assert.equal(
     await test([
@@ -340,7 +343,7 @@ test("Test runs the test cases of _test.hd modules", async () => {
   );
   assert.equal(
     failing.summary,
-    'assertion-failed: runtime panic in test case "charges a fee after 30 days"',
+    'assertion-failed: one day late: actual 5, expected 4 in test case "charges a fee after 30 days"',
   );
   const misplaced = await runner.runProject(
     {

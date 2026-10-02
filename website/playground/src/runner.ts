@@ -202,7 +202,7 @@ export async function runProject(
     );
   } catch (error) {
     if (error instanceof RuntimePanicError)
-      return finish("panic", diagnostics, `${error.code}: runtime panic in ${current}`);
+      return finish("panic", diagnostics, `${error.message} in ${current}`);
     const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     return finish("failure", diagnostics, `${message} (in ${current})`);
   }

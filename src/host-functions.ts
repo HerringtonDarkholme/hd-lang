@@ -27,7 +27,7 @@ export const HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = {
   // A float's `Display` text (spec/lang/04-type-system.md#numeric-display).
   format_f64: (value) => displayF64(Number(value)),
   format_f32: (value) => displayF32(Number(value)),
-  // A failed `assert_equal` (lib/std/testing.hd) panics with its message
+  // A failed `assert` or `assert_equal` (lib/std/testing.hd) panics with its message
   // (spec/lang/10-modules.md#r-module.testing.assert-equal-debug).
   assertion_failed: (message) => {
     throw new RuntimePanicError("assertion-failed", String(message));
