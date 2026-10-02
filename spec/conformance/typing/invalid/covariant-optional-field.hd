@@ -1,0 +1,4 @@
+# test: an optional field is an invariant position, so a covariant parameter cannot appear in it
+# Spec 04 Optional Identity And Variance: types.option.invariant (batch 64, VARIANCE-UNWRAP).
+data Maybe[+T]:
+    value: T?  # diagnostic: invalid-variance

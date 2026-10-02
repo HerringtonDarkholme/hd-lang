@@ -28,4 +28,6 @@ export interface ProgramCheckContext {
   readonly inherentMethods: InherentMethod[];
   readonly inherentDeclarations: FunctionDecl[];
   readonly hostCapabilities: ReadonlySet<string>;
+  /** The program is an entry module (spec/lang/10-modules.md#r-module.entry.private-main.warn). */
+  readonly entryModule: boolean;
 }

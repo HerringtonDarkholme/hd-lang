@@ -121,6 +121,11 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | [Annotations](lang/14-annotations.md) | `annot` |
 | `std/cmp.md` | `std-cmp` |
 | `std/collections.md` | `std-collections` |
+| `std/console.md` | `std-console` |
+| `std/host.md` | `std-host` |
+| `std/fs.md` | `std-fs` |
+| `std/path.md` | `std-path` |
+| `std/random.md` | `std-random` |
 | `std/format.md` | `std-format` |
 | `std/hash.md` | `std-hash` |
 | `std/iter.md` | `std-iter` |

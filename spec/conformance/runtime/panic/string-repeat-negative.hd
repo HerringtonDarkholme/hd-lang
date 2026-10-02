@@ -1,0 +1,9 @@
+# test: repeat with a negative count panics
+# Spec std/text String Methods: std-text.string.repeat.negative (STDLIB question 18, 2026-09-29; batch 64, STD-1).
+
+fn rule(width: i32) -> string:
+    "-".repeat(width)  # panic: explicit-panic
+
+tests:
+    it("rejects a negative count"):
+        _ := rule(-1)

@@ -1,0 +1,10 @@
+# test: clamp with low above high panics
+# Spec std/cmp Clamp: std-cmp.clamp.order (STDLIB question 18, 2026-09-29; batch 64, STD-1).
+use std.cmp.clamp
+
+fn percent(value: i32) -> i32:
+    clamp(value, 100, 0)  # panic: explicit-panic
+
+tests:
+    it("rejects low above high"):
+        _ := percent(5)

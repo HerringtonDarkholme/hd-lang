@@ -7,7 +7,8 @@ ordinary hd over the language tier:
 
 - what a derived `Hash` hashes, through the trait's template;
 - how tuples hash, through the trait's tuple template;
-- how lists hash.
+- how lists hash;
+- the standard hasher `DefaultHasher`, and `hash_of`.
 
 The language tier keeps `Hash` and `Hasher`, which map keys require
 ([Hashing](../lang/09-traits.md#hashing)), the `@derive` checks, and the
@@ -63,5 +64,46 @@ fn lookup(counts: Map[List[f64], i32]) -> i32:  # error: unsatisfied-trait-bound
     0
 ```
 
+## Default Hasher
+
+`DefaultHasher` is the standard `Hasher`, with one fixed algorithm:
+
+```text
+use std.hash.{DefaultHasher, hash_of}
+
+fn digest() -> u64:
+    let hasher = DefaultHasher::new()
+    hasher.write([97])
+    hasher.finish()  # 12638187200555641996
+
+fn bucket(key: string) -> u64:
+    hash_of(key)
+```
+
+| Step | Effect on the 64-bit state |
+| --- | --- |
+| start | the FNV offset basis, `0xcbf29ce484222325` |
+| each byte `b`, in order | XOR `b` into the state, then multiply by the FNV prime `0x100000001b3`, modulo 2^64 |
+| `finish` | returns the state |
+
+1. r[std-hash.default.decl] `std.hash` declares the data type `DefaultHasher` with private fields, and the function `hash_of`. Code imports them, as in `use std.hash.{DefaultHasher, hash_of}`.
+2. r[std-hash.default.algorithm] `DefaultHasher` computes 64-bit FNV-1a over the bytes written to it, by the table above.
+3. r[std-hash.default.new] `DefaultHasher::new() -> mut DefaultHasher` returns a hasher whose state is the offset basis.
+4. r[std-hash.default.write] `DefaultHasher` implements `Hasher`. Its `write(bytes)` processes each byte in order, so two writes give the state of one write of both byte lists joined.
+5. r[std-hash.default.finish] `finish(self) -> u64` returns the state and does not change it.
+6. r[std-hash.default.fixed] The algorithm has no seed and no key, so the same bytes give the same result in every run, every program, and every implementation.
+7. r[std-hash.hash-of] `hash_of[T < Hash](value: T) -> u64` calls `value.hash` on a new `DefaultHasher` and returns its `finish()`.
+8. r[std-hash.default.map] The built-in `Map` buckets each key by its `hash_of` value, so the bucketing of a map is the same in every run.
+
+> **Why.** FNV-1a is a few lines of hd that need only XOR and one
+> wrapping multiplication. SipHash-1-3 mixes better, but its strength is
+> a secret key. With a fixed key it gives no defense against chosen keys,
+> so its larger code buys little here.
+
+> **Note.** A fixed algorithm makes hash values reproducible, so a test
+> may assert one. It also means that keys chosen to collide stay
+> colliding.
+
 See also: [Derived Tuple Implementations](../lang/09-traits.md#derived-tuple-implementations),
+[Lookup And Order](../lang/04-type-system.md#lookup-and-order),
 [Cmp](cmp.md).

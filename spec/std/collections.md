@@ -5,8 +5,9 @@ Status: standard library specification draft.
 This chapter defines the part of `std.collections` that `lib/std` writes
 in ordinary hd over the language tier:
 
-- the `List` method `view`;
-- the `ListView[T]` type that `view` returns.
+- the `List` methods `view` and `chunks`;
+- the `ListView[T]` type that `view` returns;
+- the `Map` methods `contains_key`, `keys`, and `values`.
 
 The language tier keeps what the compiler knows about a list
 ([List Indexing](../lang/05-expressions.md#list-indexing),
@@ -20,13 +21,20 @@ The language tier keeps what the compiler knows about a list
 
 ## List Methods
 
-`std` gives `List[T]` this method, beside the language-tier ones:
+`std` gives `List[T]` these methods, beside the language-tier ones:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `view(self, start: i32, end: i32) -> ListView[T]` |
+| `List[T]` | `view(self, start: i32, end: i32) -> ListView[T]`; `chunks(self, size: i32) -> List[List[T]]` |
 
 1. r[std-collections.list.no-negative] `view` never counts from the end when an argument is negative. The rules below state the panic.
+2. r[std-collections.list.chunks] `chunks(size)` returns the list's elements in order, in consecutive pieces of `size` elements. Only the last piece may be shorter.
+3. r[std-collections.list.chunks.size] A `size` below 1 panics. Panic: `explicit-panic`.
+
+```text
+fn pairs(items: List[i32]) -> List[List[i32]]:
+    items.chunks(2)  # [[1, 2], [3]] for [1, 2, 3]
+```
 
 > **Why.** With negative indices counting from the end, as in Python,
 > `items[i - 1]` with `i == 0` would read the last element instead of
@@ -99,3 +107,25 @@ fn stale(items: mut List[i32]) -> i32:
 
 See also: [List Indexing](../lang/05-expressions.md#list-indexing),
 [List And Optional Map](iter.md#list-and-optional-map).
+
+## Map Methods
+
+`std` gives `Map[K, V]` these methods, beside the language-tier ones:
+
+| Receiver | Methods |
+| --- | --- |
+| `Map[K, V]` | `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]` |
+
+```text
+fn summary(stock: Map[string, i32]) -> string:
+    if stock.contains_key("tea"):
+        return "${stock.keys().len()} items"
+    "no tea"
+```
+
+1. r[std-collections.map.contains-key] `contains_key(key)` is true exactly when the map has an entry whose key equals `key`.
+2. r[std-collections.map.keys] `keys` returns the map's keys in [insertion order](../lang/04-type-system.md#r-types.map.order).
+3. r[std-collections.map.values] `values` returns the map's values in the same order.
+4. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
+
+See also: [Map Key Types](../lang/04-type-system.md#map-key-types).

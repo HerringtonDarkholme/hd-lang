@@ -18,3 +18,15 @@ std.testing.it_prop_with	std/testing.md#registration-functions
 std.task.retry	std/task.md#retry
 std.ops.Default	std/ops.md#default-trait
 std.collections.ListView	std/collections.md#views
+std.hash.DefaultHasher	std/hash.md#default-hasher
+std.hash.hash_of	std/hash.md#default-hasher
+std.task.Backoff	std/task.md#retry-with-backoff
+std.task.retry_with	std/task.md#retry-with-backoff
+std.cmp.clamp	std/cmp.md#clamp
+std.console.eprintln	std/console.md#standard-error
+std.console.ConsoleInput	std/console.md#console-input
+std.console.read_line	std/console.md#console-input
+std.host	std/host.md#program-arguments
+std.fs	std/fs.md#reading
+std.path	std/path.md#paths
+std.random	std/random.md#random-source

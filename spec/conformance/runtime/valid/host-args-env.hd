@@ -1,0 +1,40 @@
+# test: args() and env(name) are plain calls on the covering Args and Env providers
+# Spec std/host: std-host.args.helper, std-host.env.helper, and std-host.plain-reads (batch 64, STD-2 and STD-3).
+use std.host.{Args, Env, args, env}
+use std.testing.assert_equal
+
+data FixedArgs:
+    values: List[string]
+
+impl Args for FixedArgs:
+    fn program(self) -> string:
+        "tool"
+
+    fn list(self) -> List[string]:
+        self.values
+
+data FixedEnv:
+    values: Map[string, string]
+
+impl Env for FixedEnv:
+    fn get(self, name: string) -> string?:
+        self.values.get(name)
+
+    fn names(self) -> List[string]:
+        let found: mut List[string] = []
+        for (name, _) in self.values:
+            found.append(name)
+        found
+
+fn greeting() -> string $ Args + Env:
+    match env("GREETING"):
+        .Some(word) => "${word} ${args().len()}"
+        .None => "none"
+
+tests:
+    it("the helpers read the covering providers"):
+        given := FixedArgs { values: ["a", "b"] }
+        vars := FixedEnv { values: {"GREETING": "hi"} }
+        $.with(Args=given, Env=vars):
+            assert_equal(greeting(), "hi 2", reason="one variable, two arguments")
+            assert_equal(env("MISSING"), .None, reason="an unset variable")

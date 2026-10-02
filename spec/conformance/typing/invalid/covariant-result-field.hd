@@ -1,0 +1,4 @@
+# test: a Result field is an invariant position for both parameters, so a covariant parameter cannot appear in it
+# Spec 04 Optional Identity And Variance: types.option.invariant.result (batch 64, VARIANCE-UNWRAP).
+data Outcome[+E]:
+    value: Result[i32, E]  # diagnostic: invalid-variance

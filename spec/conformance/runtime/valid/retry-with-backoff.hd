@@ -1,0 +1,49 @@
+# test: retry_with! sleeps on the Clock between attempts, growing each delay by factor up to max
+# Spec std/task Retry With Backoff: std-task.retry-with.loop, .last-error, .sleep, and .delay (batch 64, STD-5).
+use std.task.{Backoff, retry_with}
+use std.testing.assert_equal
+use std.time.{Clock, Duration, Instant, Timestamp, ms}
+
+data RecordingClock:
+    slept: mut List[i64]
+
+impl Clock for RecordingClock:
+    fn now(self) -> Timestamp:
+        Timestamp::from_unix_millis(0)
+
+    fn monotonic(self) -> Instant:
+        Instant::from_millis(0)
+
+    fn sleep!(mut self, duration: Duration) -> void:
+        self.slept.append(duration.as_milliseconds())
+
+data Server:
+    busy_for: i32
+    calls: i32
+
+fn ask!(server: mut Server) -> Result[string, string]:
+    server.calls = server.calls + 1
+    if server.busy_for > 0:
+        server.busy_for = server.busy_for - 1
+        return .Err("busy ${server.calls}")
+    .Ok("ready")
+
+fn connect!(server: mut Server) -> Result[string, string] $ Clock:
+    policy := Backoff { attempts: 5, initial: 100ms, factor: 2, max: 300ms }
+    retry_with!(policy):
+        ask!(server)
+
+tests:
+    it("sleeps between calls and returns the first .Ok"):
+        let mut clock = RecordingClock { slept: [] }
+        let mut server = Server { busy_for: 2, calls: 0 }
+        $.with(Clock=clock):
+            assert_equal(connect!(server), .Ok("ready"), reason="the third call succeeds")
+        assert_equal(clock.slept, [100, 200], reason="two delays, the second doubled")
+
+    it("caps each delay at max and does not sleep after the last call"):
+        let mut clock = RecordingClock { slept: [] }
+        let mut server = Server { busy_for: 9, calls: 0 }
+        $.with(Clock=clock):
+            assert_equal(connect!(server), .Err("busy 5"), reason="the fifth error is returned")
+        assert_equal(clock.slept, [100, 200, 300, 300], reason="four delays, capped at max")

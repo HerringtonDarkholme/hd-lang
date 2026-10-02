@@ -1,0 +1,41 @@
+# test: DefaultHasher is 64-bit FNV-1a, and hash_of hashes a value into a new DefaultHasher
+# Spec std Hash, Default Hasher: std-hash.default.algorithm, std-hash.default.write,
+# std-hash.default.finish, std-hash.hash-of (batch 64, DEFAULT-HASHER).
+use std.hash.{DefaultHasher, hash_of}
+use std.testing.assert_equal
+
+fn digest(bytes: List[u8]) -> u64:
+    let hasher = DefaultHasher::new()
+    hasher.write(bytes)
+    hasher.finish()
+
+fn by_hand(value: string) -> u64:
+    let hasher = DefaultHasher::new()
+    value.hash(hasher)
+    hasher.finish()
+
+tests:
+    it("a new hasher finishes with the FNV offset basis"):
+        let basis: u64 = 14695981039346656037
+        assert_equal(DefaultHasher::new().finish(), basis, reason="no bytes written")
+
+    it("each byte is XORed in and then multiplied by the FNV prime"):
+        let one: u64 = 12638187200555641996
+        let two: u64 = 620445648566982762
+        assert_equal(digest([97]), one, reason="the byte 97")
+        assert_equal(digest([97, 98]), two, reason="the bytes 97 and 98")
+
+    it("two writes give the state of one write of both lists"):
+        let hasher = DefaultHasher::new()
+        hasher.write([97])
+        hasher.write([98])
+        assert_equal(hasher.finish(), digest([97, 98]), reason="writes concatenate")
+
+    it("finish does not change the state"):
+        let hasher = DefaultHasher::new()
+        hasher.write([97])
+        first := hasher.finish()
+        assert_equal(hasher.finish(), first, reason="finish twice")
+
+    it("hash_of hashes into a new DefaultHasher"):
+        assert_equal(hash_of("hd"), by_hand("hd"), reason="same bytes, same algorithm")

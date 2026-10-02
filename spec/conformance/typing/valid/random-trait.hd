@@ -1,0 +1,20 @@
+# test: Random is a host capability trait whose draws are plain calls
+# Spec std/random Random Source: std-random.decl, std-random.plain, and std-random.mut (batch 64, STD-2).
+use std.random.Random
+
+data Counter:
+    state: mut List[u64]
+
+impl Random for Counter:
+    fn next_u64(mut self) -> u64:
+        self.state[0] = self.state[0] + 1
+        self.state[0]
+
+    fn fill(mut self, count: i32) -> List[u8]:
+        let bytes: mut List[u8] = []
+        while bytes.len() < count:
+            bytes.append(7)
+        bytes
+
+fn roll() -> u64 $ Random:
+    $.use(Random).next_u64() % 6 + 1

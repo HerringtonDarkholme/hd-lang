@@ -500,9 +500,28 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
 3. r[types.option.identity] `is` compares optionals as it compares other enum values.
 4. r[types.option.identity.none] `.None` is payload-free and has one canonical identity.
 5. r[types.option.identity.some] Each construction of `.Some(value)`, including an implicit wrap, has its own identity.
-6. r[types.option.variance] Optional is covariant in its contained type for a readonly outer value.
-7. r[types.option.variance.result] `Result[T, E]` is likewise covariant in both `T` and `E` for a readonly outer value.
+6. r[types.option.invariant] `Option` declares its parameter unmarked, so an optional is invariant in its contained type, as every unmarked parameter is.
+7. r[types.option.invariant.result] `Result[T, E]` likewise declares both parameters unmarked, so it is invariant in both `T` and `E`.
 8. r[types.option.variance.mutable] As with every generic composite, a mutable outer view is invariant.
+
+```text
+data User:
+    name: string
+
+fn view(user: (mut User)?) -> User?:
+    user  # error: type-mismatch
+
+fn settle(result: Result[mut User, string]) -> Result[User, string]:
+    result  # error: type-mismatch
+
+data Maybe[+T]:
+    value: T?  # error: invalid-variance
+```
+
+> **Why.** The standard methods on optionals and results take `T` as a
+> parameter, as `unwrap_or(self, fallback: T)` does. That is a negative
+> position on the readonly public surface, so a covariant `T` would fail
+> its own polarity check.
 
 See also: [Unary And Binary Operators](05-expressions.md#unary-and-binary-operators),
 [Variance](#variance).

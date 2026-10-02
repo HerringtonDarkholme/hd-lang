@@ -6,7 +6,9 @@ This chapter defines the part of `std.time` that `lib/std` writes in
 ordinary hd over the language tier:
 
 - the `Duration` type and its public API;
-- the duration suffixes `ms`, `s`, `min`, and `h`.
+- the duration suffixes `ms`, `s`, `min`, and `h`;
+- the host capability trait `Clock`, the `Timestamp` and `Instant` types
+  it returns, and the helpers `now` and `sleep!`.
 
 The language tier keeps the suffix mechanism
 ([Literal Suffixes](../lang/05-expressions.md#literal-suffixes)):
@@ -29,6 +31,7 @@ nothing in the language tier names `ms`, `s`, `min`, or `h`. What the
 2. r[std-time.suffix.std.duration-api] The public API of `Duration` is `Duration::milliseconds(n: i64)`, `Duration::seconds(n: i64)`, and `d.as_milliseconds() -> i64`.
 3. r[std-time.suffix.std.duration-neg] `Duration` implements `std.ops.Neg` with `Out = Duration`, negating its milliseconds. So `-5s` is the ordinary negation `-(5s)`, minus five seconds.
 4. r[std-time.prelude.time-suffixes] `std.time` declares `Duration` and the duration suffixes `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
+5. r[std-time.duration.eq-ord] `Duration` implements `Eq` and `Ord`, which compare its milliseconds.
 
 ```text
 use std.time.{Duration, s}
@@ -66,3 +69,51 @@ enum Tier(limit: Duration):
 
 See also: [Literal Suffixes](../lang/05-expressions.md#literal-suffixes),
 [Test Timeout](testing.md#test-timeout).
+
+## Clock
+
+`Clock` is the host capability trait that reads time and waits:
+
+```text
+pub trait Clock:
+    fn now(self) -> Timestamp
+    fn monotonic(self) -> Instant
+    fn sleep!(mut self, duration: Duration) -> void
+```
+
+1. r[std-time.clock.decl] `std.time` declares the host capability trait `Clock` with the methods above. Code imports it, as in `use std.time.Clock`.
+2. r[std-time.clock.now] `now` returns the current wall-clock time as a `Timestamp`.
+3. r[std-time.clock.monotonic] `monotonic` returns the current reading of a clock that never goes backwards, as an `Instant`.
+4. r[std-time.clock.sleep] `sleep!(duration)` completes once `duration` has passed on the clock.
+5. r[std-time.clock.plain-reads] `now` and `monotonic` are plain calls. Only `sleep!` suspends.
+6. r[std-time.clock.mut] `sleep!` takes `mut self`, so `Clock` is a mutable requirement trait and a provider may advance its own time.
+
+> **Why.** A clock read is a value from the host, as an environment read
+> is, so it needs no driver; replay records it at the boundary either
+> way. Waiting is the one operation that suspends.
+
+### Timestamps And Instants
+
+1. r[std-time.timestamp.decl] `std.time` declares `Timestamp`, a point in UTC time held as whole milliseconds since the Unix epoch in an `i64`, with private fields.
+2. r[std-time.timestamp.api] The public API of `Timestamp` is `Timestamp::from_unix_millis(millis: i64)` and `t.since(earlier: Timestamp) -> Duration`.
+3. r[std-time.timestamp.since] `t.since(earlier)` is the time from `earlier` to `t`, negative when `earlier` is the later one.
+4. r[std-time.instant.decl] `std.time` declares `Instant`, a reading of the monotonic clock as whole milliseconds since an origin that the provider chooses, with private fields.
+5. r[std-time.instant.api] The public API of `Instant` is `Instant::from_millis(millis: i64)` and `i.since(earlier: Instant) -> Duration`, the time from `earlier` to `i`.
+6. r[std-time.time.eq-ord] `Timestamp` and `Instant` implement `Eq` and `Ord`, which order them by time.
+7. r[std-time.time.import] Code imports both, as in `use std.time.{Instant, Timestamp}`.
+
+### Clock Helpers
+
+```text
+use std.time.{Clock, Duration, Timestamp, now, sleep}
+
+fn wait_and_stamp!(pause: Duration) -> Timestamp $ Clock:
+    sleep!(pause)
+    now()
+```
+
+1. r[std-time.helper.now] `std.time` declares `pub fn now() -> Timestamp $ Clock`, which returns `now()` of the `Clock` provider that covers the call.
+2. r[std-time.helper.sleep] `std.time` declares `pub fn sleep!(duration: Duration) -> void $ Clock`, which calls `sleep!(duration)` on that provider.
+
+See also: [Host Capabilities](../cli/command-line.md#host-capabilities),
+[Mutable Providers](../lang/11-requirements-and-suspension.md#mutable-providers).

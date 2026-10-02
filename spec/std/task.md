@@ -5,7 +5,8 @@ Status: standard library specification draft.
 This chapter defines the part of `std.task` that `lib/std` writes in
 ordinary hd over the language tier:
 
-- the `retry!` combinator.
+- the `retry!` combinator;
+- the `Backoff` policy and the `retry_with!` combinator.
 
 The language tier keeps the `Suspend` protocol, `block_on`, and the
 polling combinators `all!` and `race!`, which are compiler intrinsics
@@ -58,3 +59,57 @@ requires `Console` too.
 
 See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators),
 [Suspending Closures And Clauses](../lang/07-functions.md#suspending-closures-and-clauses).
+
+## Retry With Backoff
+
+`retry_with!` retries as `retry!` does, and waits on the `Clock` between
+attempts:
+
+```text
+pub data Backoff:
+    pub attempts: i32
+    pub initial: Duration
+    pub factor: i32
+    pub max: Duration
+
+pub fn retry_with![T, E, $R](backoff: Backoff, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock
+```
+
+1. r[std-task.backoff.decl] `std.task` declares the data type `Backoff` with the four public fields above. `Backoff` implements `Eq`.
+2. r[std-task.retry-with.decl] `std.task` declares `retry_with!` with the signature above, as an ordinary `fn!` function. Code imports both, as in `use std.task.{Backoff, retry_with}`.
+3. r[std-task.retry-with.loop] `retry_with!` calls `attempt` at most `backoff.attempts` times, one call after another, and returns the first `.Ok` result without another call.
+4. r[std-task.retry-with.last-error] When every call returns `.Err`, `retry_with!` returns the last `.Err`.
+5. r[std-task.retry-with.at-least-once] An `attempts` below 1 counts as 1, as for `retry!`.
+6. r[std-task.retry-with.sleep] Between two calls, `retry_with!` calls `sleep!` on the `Clock` provider that covers it. It does not sleep after the last call.
+7. r[std-task.retry-with.delay] The first delay is `initial`. Each later delay is the one before it times `factor`, and a delay above `max` is `max` instead.
+8. r[std-task.retry-with.cancel] Cancellation follows [`std-task.combinator.retry.cancel`](#r-std-task.combinator.retry.cancel): cancelling `retry_with!` cancels the active attempt or sleep, and nothing further starts.
+
+```text
+use std.task.{Backoff, retry_with}
+use std.time.{Clock, ms, s}
+
+data Server:
+    busy_for: i32
+
+fn ask!(server: mut Server) -> Result[string, string]:
+    if server.busy_for > 0:
+        server.busy_for = server.busy_for - 1
+        return .Err("busy")
+    .Ok("ready")
+
+fn connect!(server: mut Server) -> Result[string, string] $ Clock:
+    policy := Backoff { attempts: 5, initial: 100ms, factor: 2, max: 5s }
+    retry_with!(policy):
+        ask!(server)
+```
+
+With `busy_for` at 3, `connect!` sleeps 100, 200, and 400 milliseconds,
+and the fourth call returns `.Ok("ready")`. With `busy_for` at 5, it also
+sleeps 800 milliseconds and returns `.Err("busy")` after five calls.
+
+> **Why.** `Backoff` is the option set of Deno's `retry` in
+> [`@std/async`](https://jsr.io/@std/async): a count, a first delay, a
+> multiplier, and a cap. The delays go through the `Clock` requirement,
+> so a test provider makes them instant and observable.
+
+See also: [Retry](#retry), [Clock](time.md#clock).

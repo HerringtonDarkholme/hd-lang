@@ -1,0 +1,12 @@
+# test: Path is a newtype over its text that implements Eq and Display
+# Spec std/path Paths: std-path.decl, std-path.text, and std-path.traits (batch 64, STD-2).
+use std.path.Path
+
+fn notes() -> Path:
+    Path("notes/today.txt")
+
+fn same(a: Path, b: Path) -> bool:
+    a == b
+
+fn label(path: Path) -> string:
+    "file ${path}"

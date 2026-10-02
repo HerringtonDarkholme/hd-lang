@@ -1,0 +1,6 @@
+# test: an eprintln call needs a Console requirement row or provider scope
+# Spec std/console Standard Error: std-console.eprintln.row (batch 64, STD-4).
+use std.console.eprintln
+
+pub fn main() -> void:
+    eprintln("no console")  # diagnostic: missing-requirement

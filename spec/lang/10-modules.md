@@ -610,24 +610,29 @@ The standard console surface includes:
 ```text
 trait Console:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]
+
+    fn write_error_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        self.write_line!(text)
 ```
 
 1. r[module.console.host-trait] `Console` is a host capability trait.
 2. r[module.console.write-line-mut] `write_line!` takes `mut self`, so `Console` is a mutable requirement trait and a provider may record what it writes.
-3. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
-4. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
-5. r[module.console.println-write] A call `println(value)` calls `write_line!(value.to_string())` on the `Console` provider that covers the call.
-6. r[module.console.println-drive.block-on] `println` drives that `write_line!` call with [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on), exactly as `block_on` drives a stored suspension, and returns after the call completes.
-7. r[module.console.println-drive.pending] When a poll of that call returns `Pending` on a host write, `println` keeps driving the call until it finishes, as `block_on` does.
-8. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
-9. r[module.console.println-error] If that `write_line!` call returns `.Err(ConsoleError)`, `println` panics.
-10. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
-11. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
-12. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
-13. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on): its forbidden contexts, their transitive ban, and its behavior under an active driver.
-14. r[module.console.println-block-on.under-driver] So a `println` call while a driver is active, as in `main!` or a test body, writes its line and returns.
-15. r[module.console.println-block-on.contexts] A `println` call in a `defer` suite, a default expression, or a fact expression, directly or transitively, is an error. Error: `suspension-forbidden-context`.
-16. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
+3. r[module.console.write-error-line] `write_error_line!` writes one line of error output, which a host keeps apart from the output of `write_line!`.
+4. r[module.console.write-error-line.default] Its default body calls `write_line!` with the same text, so a provider that does not override it records both kinds of line together.
+5. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
+6. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
+7. r[module.console.println-write] A call `println(value)` calls `write_line!(value.to_string())` on the `Console` provider that covers the call.
+8. r[module.console.println-drive.block-on] `println` drives that `write_line!` call with [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on), exactly as `block_on` drives a stored suspension, and returns after the call completes.
+9. r[module.console.println-drive.pending] When a poll of that call returns `Pending` on a host write, `println` keeps driving the call until it finishes, as `block_on` does.
+10. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
+11. r[module.console.println-error] If that `write_line!` call returns `.Err(ConsoleError)`, `println` panics.
+12. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
+13. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
+14. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
+15. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on): its forbidden contexts, their transitive ban, and its behavior under an active driver.
+16. r[module.console.println-block-on.under-driver] So a `println` call while a driver is active, as in `main!` or a test body, writes its line and returns.
+17. r[module.console.println-block-on.contexts] A `println` call in a `defer` suite, a default expression, or a fact expression, directly or transitively, is an error. Error: `suspension-forbidden-context`.
+18. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
 
 ```text
 pub fn main() -> void:
@@ -677,6 +682,10 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
 
 > **Note.** Code that must handle a console error calls `write_line!`
 > directly.
+
+> **Note.** `eprintln`, which writes through `write_error_line!`, and the
+> input trait `ConsoleInput` are stdlib tier:
+> [Console](../std/console.md) in `std.console`.
 
 See also: [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension),
 [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
@@ -1246,6 +1255,15 @@ pub fn main() -> void:
 4. r[module.entry.row.host] Every key in that row must be a host capability trait of the selected runtime profile. Any other key is an error. Error: `nonhost-entry-requirement`.
 5. r[module.entry.private-main] A top-level `main` that is not public is an ordinary function and is not an entry point.
 6. r[module.entry.suspending] A suspending entry point is spelled `main!`.
+7. r[module.entry.private-main.warn] A top-level `main` or `main!` that is not public in an entry module gets a warning whose message is "main is not pub, so it is not the entry point". Warning: `private-main`.
+
+```text
+fn main() -> void:  # warning: private-main
+    pass
+```
+
+> **Why.** An agent that drops `pub` from `main` gets a program that does
+> nothing, with no error. The warning names the cause.
 
 See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
 

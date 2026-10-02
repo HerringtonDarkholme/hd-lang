@@ -202,21 +202,37 @@ hd notes.hd -- a b       # notes.hd gets the arguments a and b
 2. r[cli.args.pass] `hd FILE` and `hd run` pass those arguments to the program they run, in order, as Cargo's `cargo run --` does.
 3. r[cli.args.extra-word] A further positional word before `--`, as in `hd run gen x`, is an error whose message suggests `--`.
 
-> **Note.** A program reads its arguments through a host capability
+> **Note.** A program reads its arguments through the host capability
+> trait [`Args`](../std/host.md#program-arguments)
 > ([`module.entry.host-facilities`](../lang/10-modules.md#r-module.entry.host-facilities)).
-> That trait waits on the host capability trait catalog.
 
 ## Host Capabilities
 
 1. r[cli.host.entry-row] When `hd` runs an executable, a task, or a single file, it binds each host capability trait that its entry module's requirement row names. That row is the row of `main` or `main!`, or a [script's inferred row](../lang/10-modules.md#r-module.init.script-row).
 
-> **Note.** Which host capability traits exist, and how a provider is
-> bound to each, wait on the host capability trait catalog. Until then,
-> the default profile binds at least `Console`
-> ([`module.profile.default`](../lang/10-modules.md#r-module.profile.default)).
+`hd FILE`, `hd run`, and a task use the **default profile**, which binds
+these traits:
+
+| Trait | Module | What `hd` binds |
+| --- | --- | --- |
+| `Console` | `std.console` | `write_line!` writes to standard output, and `write_error_line!` to standard error |
+| `ConsoleInput` | `std.console` | reads standard input |
+| `Args` | `std.host` | the FILE or NAME the command ran, and the [program arguments](#program-arguments) |
+| `Env` | `std.host` | the environment of the `hd` process |
+| `Clock` | `std.time` | the system's wall clock and monotonic clock; `sleep!` waits in real time |
+| `Random` | `std.random` | the operating system's random source |
+| `FsRead`, `FsWrite` | `std.fs` | the file system, with relative paths from the program's [working directory](#working-directory) |
+
+2. r[cli.host.default-profile] `hd FILE`, `hd run`, and a task run their program under the default profile, which binds the host capability traits in the table above.
+3. r[cli.host.default-profile.row] The entry module's row still limits what the program gets: `hd` binds only the traits of the default profile that the row names, by [`cli.host.entry-row`](#r-cli.host.entry-row).
+4. r[cli.host.default-profile.other] A row key outside the default profile is an error, as [`module.entry.row.host`](../lang/10-modules.md#r-module.entry.row.host) states. Error: `nonhost-entry-requirement`.
+
+> **Note.** `Process` and an HTTP client are not in the default profile.
+> They come later, as host extensions.
 
 > **Why.** The row already states what the program needs, so no flag or
-> manifest table repeats it.
+> manifest table repeats it. Deno asks for `--allow-read`; in hd the row
+> is that permission.
 
 ## Building And Checking
 

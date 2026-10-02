@@ -1,0 +1,4 @@
+# test: a main! that is not pub in an entry module warns that it is not the entry point
+# Spec 10 Executable Entry Point: module.entry.private-main.warn (batch 64, PRIVATE-MAIN).
+fn main!() -> void:  # warning: private-main
+    pass

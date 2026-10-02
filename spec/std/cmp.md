@@ -7,7 +7,8 @@ ordinary hd over the language tier:
 
 - what a derived `Eq`, `PartialOrd`, or `Ord` compares, through the
   traits' templates;
-- how tuples compare, through the traits' tuple templates.
+- how tuples compare, through the traits' tuple templates;
+- the function `clamp`.
 
 The language tier keeps what the compiler knows by name
 ([Comparison Traits](../lang/09-traits.md#comparison-traits)):
@@ -84,3 +85,18 @@ fn compare(a: (i32, string), b: (i32, string)) -> bool:
 See also: [Derived Tuple Implementations](../lang/09-traits.md#derived-tuple-implementations),
 [Tuple Structure](../lang/14-annotations.md#tuple-structure),
 [Hash](hash.md).
+
+## Clamp
+
+`clamp` limits a value to a range:
+
+```text
+use std.cmp.clamp
+
+fn percent(value: i32) -> i32:
+    clamp(value, 0, 100)
+```
+
+1. r[std-cmp.clamp.decl] `std.cmp` declares `pub fn clamp[T < Ord](value: T, low: T, high: T) -> T`. Code imports it, as in `use std.cmp.clamp`.
+2. r[std-cmp.clamp.result] `clamp` returns `low` when `value` is below `low`, `high` when `value` is above `high`, and `value` otherwise.
+3. r[std-cmp.clamp.order] A `low` above `high` panics. Panic: `explicit-panic`.

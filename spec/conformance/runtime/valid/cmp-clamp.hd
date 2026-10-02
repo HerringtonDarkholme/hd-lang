@@ -1,0 +1,14 @@
+# test: clamp limits a value to low..=high
+# Spec std/cmp Clamp: std-cmp.clamp.result (STDLIB question 18, 2026-09-29; batch 64, STD-1).
+use std.cmp.clamp
+use std.testing.assert_equal
+
+fn percent(value: i32) -> i32:
+    clamp(value, 0, 100)
+
+tests:
+    it("returns the nearest bound or the value"):
+        assert_equal(clamp(-5, 0, 100), 0, reason="below low")
+        assert_equal(clamp(150, 0, 100), 100, reason="above high")
+        assert_equal(clamp(42, 0, 100), 42, reason="in range")
+        assert_equal(percent(101), 100, reason="through a helper")

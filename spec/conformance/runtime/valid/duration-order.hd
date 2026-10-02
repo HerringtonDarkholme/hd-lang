@@ -1,0 +1,13 @@
+# test: Duration implements Eq and Ord by its milliseconds
+# Spec std/time Duration: std-time.duration.eq-ord (STDLIB question 21, 2026-09-29; batch 64, STD-1).
+use std.testing.assert
+use std.time.{Duration, ms, s}
+
+tests:
+    it("equal milliseconds are equal durations"):
+        assert(1s == 1000ms, reason="one second is a thousand milliseconds")
+        assert(1s != 999ms, reason="different milliseconds")
+
+    it("durations order by milliseconds"):
+        assert(250ms < 1s, reason="shorter first")
+        assert(-1s < 0ms, reason="a negative duration is below zero")

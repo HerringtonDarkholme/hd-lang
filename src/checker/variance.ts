@@ -42,8 +42,10 @@ function occurrences(
   }
   const mutable = mutableInner(type);
   if (mutable !== undefined) return occurrences(mutable, 0, declarations, found);
+  // `Option` and `Result` declare their parameters unmarked, so they are
+  // invariant (04-type-system.md#r-types.option.invariant).
   const optional = optionalInner(type);
-  if (optional !== undefined) return occurrences(optional, polarity, declarations, found);
+  if (optional !== undefined) return occurrences(optional, 0, declarations, found);
   const tuple = tupleParts(type);
   if (tuple) {
     for (const element of tuple) occurrences(element, polarity, declarations, found);
@@ -64,7 +66,7 @@ function occurrences(
   const nominal = nominalGenericParts(type);
   if (!nominal) return;
   const markers: readonly VarianceMarker[] =
-    nominal.name === "List" || nominal.name === "Result"
+    nominal.name === "List"
       ? nominal.arguments.map(() => "+")
       : nominal.name === "Map"
         ? [undefined, "+"]

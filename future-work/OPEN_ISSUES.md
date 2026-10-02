@@ -17,6 +17,12 @@ it.
 
 | # | From | Question | Applied reading and **Recommendation** |
 | --- | --- | --- | --- |
+| FIELD-VARIANCE | batch 64 | `Field[-S, +F]` had a covariant `F`, but `default` returns `F?`, and an optional is now invariant. | `F` is invariant ([`annot.handle.field-variance`](../spec/lang/14-annotations.md#r-annot.handle.field-variance)), so a declared-type handle no longer converts to its read-type handle; no fixture or template used that. **Recommendation:** keep it. The other answer changes `default`'s signature to restore `+F`. |
+| ERROR-LINE-DEFAULT | batch 64 | The decision adds an error-line method to `Console`, but says nothing about providers written before it. | `write_error_line!` has a default body that calls `write_line!` ([`module.console.write-error-line.default`](../spec/lang/10-modules.md#r-module.console.write-error-line.default)), so every existing provider stays valid. **Recommendation:** keep the default. The other answer makes it required, which breaks every recording console. |
+| INPUT-MUT | batch 64 | `ConsoleInput.read_line!` takes `self`, as `lib/std` has it. A scripted test provider then cannot advance through its lines. | Kept `self` ([`std-console.input.decl`](../spec/std/console.md#r-std-console.input.decl)). **Recommendation:** `mut self`, as `Console.write_line!` has: `fn read_line!(mut self) -> Result[string?, ConsoleError]`. |
+| HOST-SURFACE | batch 64 | The sketches do not give every item a minimal trait needs. These are agent-chosen: `Instant::from_millis` and `Instant.since`, so a test `Clock` can build an `Instant`; `Path`'s `Eq` and `Display`; no order for `list_dir!`. | As listed, in [Time](../spec/std/time.md#timestamps-and-instants), [Path](../spec/std/path.md#paths), and [Fs](../spec/std/fs.md#reading). **Recommendation:** keep them; leave `list_dir!` unordered until a use needs an order. |
+| HASH-SEED | batch 64 | `Map` now buckets by the fixed `DefaultHasher`. Nothing in `std` uses a runtime hash seed, yet [`trait.derive.hash.seeded`](../spec/lang/09-traits.md#r-trait.derive.hash.seeded) and [`req.determinism.hash-seeded`](../spec/lang/11-requirements-and-suspension.md#r-req.determinism.hash-seeded) still describe one. | Both kept. **Recommendation:** retire both rules and the hash-flooding Note beside the second. |
+| HASH-BYTES | batch 64 | The algorithm is fixed, but which bytes each standard `Hash` implementation writes is not specified, so `hash_of(42)` may differ between implementations. | Unspecified. **Recommendation:** state `lib/std`'s encoding in [Hash](../spec/std/hash.md): UTF-8 for a string, little-endian bytes at its own width for an integer, one byte for a `bool`, and a list's length before its items. |
 
 ### Codes Waiting For The Code Revamp
 
@@ -277,7 +283,9 @@ These items remain required but do not currently require new core syntax:
   identifier;
 - the final `hd.toml` schema and the concrete host binding for capabilities
   such as `Console`. Executables and their selection are specified in
-  [Command Line](../spec/cli/command-line.md#executables);
+  [Command Line](../spec/cli/command-line.md#executables), and the traits
+  the default profile binds in
+  [Host Capabilities](../spec/cli/command-line.md#host-capabilities);
 - dependencies through version control hosts, with no registry:
   Dependencies decisions DEP1-DEP7
   are applied in [Package Manifest](../spec/lang/10-modules.md#package-manifest)
@@ -325,10 +333,9 @@ These items remain required but do not currently require new core syntax:
   structured scopes only, with `scope!`, `start`, and `join!`
   (STDLIB decision 11), and must not weaken
   one-shot `Suspend[T]` semantics;
-- the complete standard host capability-trait catalog and provider
-  configuration format, on which the host binding of a program's entry row
-  ([`cli.host.entry-row`](../spec/cli/command-line.md#r-cli.host.entry-row)) and the trait that
-  reads program arguments wait;
+- the host extensions after the default profile, `Process` and an HTTP
+  client, and the provider configuration format
+  ([Host Capabilities](../spec/cli/command-line.md#host-capabilities));
 - what `hd build` produces, and where (CLI-21): one Wasm file per
   executable, and anything for a library-only package, wait on package
   tooling and the Wasm boundary;

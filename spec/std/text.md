@@ -6,7 +6,7 @@ This chapter defines the part of `std.text` that `lib/std` writes in
 ordinary hd over the language tier:
 
 - the `string` methods above the representation intrinsics: `trim`,
-  `lower`, `split`, `replace`, and `starts_with`;
+  `lower`, `split`, `replace`, `starts_with`, `lines`, and `repeat`;
 - the raw-text string prefix `r`.
 
 The language tier keeps the representation of a string and the methods
@@ -31,7 +31,7 @@ tier too ([Prefixed Strings](../lang/05-expressions.md#prefixed-strings)).
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `trim(self) -> string`; `lower(self) -> string`; `split(self, separator: string) -> List[string]`; `replace(self, old: string, replacement: string) -> string`; `starts_with(self, prefix: string) -> bool` |
+| `string` | `trim(self) -> string`; `lower(self) -> string`; `split(self, separator: string) -> List[string]`; `replace(self, old: string, replacement: string) -> string`; `starts_with(self, prefix: string) -> bool`; `lines(self) -> List[string]`; `repeat(self, count: i32) -> string` |
 
 1. r[std-text.string.lower] `lower` uses Unicode Default Case Conversion with full mappings.
 2. r[std-text.string.trim] `trim` removes the Unicode `White_Space` property at both ends.
@@ -41,6 +41,18 @@ tier too ([Prefixed Strings](../lang/05-expressions.md#prefixed-strings)).
 6. r[std-text.string.replace] `replace` replaces non-overlapping matches from left to right.
 7. r[std-text.string.replace.empty] An empty `old` inserts the replacement at scalar boundaries.
 8. r[std-text.string.starts-with] `starts_with` compares scalar sequences exactly and performs no normalization or case folding.
+9. r[std-text.string.lines] `lines` returns the pieces between `\n` separators, and removes a `\r` directly before each `\n`.
+10. r[std-text.string.lines.final] A final `\n` ends the last line and starts no empty one, so `"a\nb\n".lines()` is `["a", "b"]` and `"".lines()` is `[]`.
+11. r[std-text.string.repeat] `repeat(count)` joins `count` copies of the string, so a `count` of 0 gives `""`.
+12. r[std-text.string.repeat.negative] A negative `count` panics. Panic: `explicit-panic`.
+
+```text
+fn rows(text: string) -> i32:
+    text.lines().len()  # 2 for "a\r\nb\n", as Rust's str::lines
+
+fn rule(width: i32) -> string:
+    "-".repeat(width)
+```
 
 ## Raw Text Prefix
 

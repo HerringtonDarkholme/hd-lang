@@ -1,0 +1,7 @@
+# test: an optional is invariant in its contained type, so (mut User)? does not convert to User?
+# Spec 04 Optional Identity And Variance: types.option.invariant (batch 64, VARIANCE-UNWRAP).
+data User:
+    name: string
+
+fn view(user: (mut User)?) -> User?:
+    user  # diagnostic: type-mismatch

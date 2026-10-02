@@ -714,7 +714,7 @@ pub enum SelfRef:
     Optional
     Required
 
-pub data Field[-S, +F]:
+pub data Field[-S, F]:
     pub info: Member
 
 impl[S, F] Field[S, F]:
@@ -1408,7 +1408,7 @@ variant of a derivation's target.
 1. r[annot.handle.constants] Each member has one constant handle of type `Field[S, F]`, and each variant one of type `Variant[S]`.
 2. r[annot.handle.read-type] `walk` and `describe` pass handles whose `F` is the member's read type: for `hits: mut Counter`, it is `Counter`.
 3. r[annot.handle.declared-type] `build` passes handles whose `F` is the member's declared type: for `hits: mut Counter`, it is `mut Counter`.
-4. r[annot.handle.variance] `Field` is contravariant in `S` and covariant in `F`, so a declared-type handle weakens to its read-type handle.
+4. r[annot.handle.field-variance] `Field` is contravariant in `S` and invariant in `F`, since `default` returns `F?` and an optional is invariant.
 5. r[annot.handle.get] `h.get(x)` accepts any `S`. Its type is the type that the field access `x.member` would have, for a member declared `F`.
 6. r[annot.handle.get.views] So `get` on a declared-type handle returns the readonly view for a readonly `x`, and `F` for a `mut S`. No member is upgraded.
 7. r[annot.handle.get.variant] `h.get(x)` on a payload member, when `x` holds another variant, is a checked runtime panic with category `structure-variant-mismatch`.
@@ -1448,6 +1448,10 @@ impl[S] Source[S] for CopySource[S]:  # variant, next, and member elided
 > STDLIB, declares `clone(self)`, which
 > reads the readonly views, and `clone_mut(mut self) -> mut Self`, whose
 > source reads the declared types from a `mut` value, as `CopySource` does.
+
+> **Note.** Since `F` is invariant, a declared-type handle such as
+> `Field[Stats, mut Counter]` does not convert to the read-type handle
+> `Field[Stats, Counter]`.
 
 > **Note.** Handles are constants, and each generated call passes a
 > constant dictionary, so a traversal allocates nothing per member.

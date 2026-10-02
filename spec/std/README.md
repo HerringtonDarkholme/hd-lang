@@ -141,14 +141,19 @@ file of its own.
 | --- | --- | --- | --- |
 | [`testing.md`](testing.md) | `std.testing` | `std-testing` | the registration functions `it_each`, `it_prop`, and `it_prop_with`, property tests, the draw budget, derived `Arbitrary`, table-test rows, snapshot files, the `timeout` option, `hd_run!` |
 | [`iter.md`](iter.md) | `std.iter` | `std-iter` | iterator adapters, collect targets, `FromIterator` and its impls, `map` on a list or an optional |
-| [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, the `r` prefix |
+| [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, including `lines` and `repeat`; the `r` prefix |
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls |
-| [`time.md`](time.md) | `std.time` | `std-time` | `Duration` and its suffixes |
-| [`task.md`](task.md) | `std.task` | `std-task` | the `retry!` combinator |
+| [`time.md`](time.md) | `std.time` | `std-time` | `Duration` and its suffixes; the host trait `Clock`, `Timestamp`, `Instant`, `now`, and `sleep!` |
+| [`task.md`](task.md) | `std.task` | `std-task` | the `retry!` combinator; `Backoff` and `retry_with!` |
 | [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
-| [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison |
-| [`hash.md`](hash.md) | `std.hash` | `std-hash` | what derived `Hash` hashes; tuple hashing |
-| [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` method `view` and the `ListView` type |
+| [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison; `clamp` |
+| [`hash.md`](hash.md) | `std.hash` | `std-hash` | what derived `Hash` hashes; tuple hashing; `DefaultHasher` and `hash_of` |
+| [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` methods `view` and `chunks`, the `ListView` type, and the `Map` methods `contains_key`, `keys`, and `values` |
+| [`console.md`](console.md) | `std.console` | `std-console` | `eprintln`, the host trait `ConsoleInput`, and `read_line!` |
+| [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Args` and `Env`, and the helpers `args` and `env` |
+| [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, and the helpers `read_text!` and `write_text!` |
+| [`path.md`](path.md) | `std.path` | `std-path` | the `Path` newtype |
+| [`random.md`](random.md) | `std.random` | `std-random` | the host trait `Random` |
 
 ## Glossary
 

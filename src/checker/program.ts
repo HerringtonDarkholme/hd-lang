@@ -41,6 +41,11 @@ import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 
 export interface CheckOptions {
   readonly hostCapabilities?: readonly string[];
+  /**
+   * The program is an entry module, so a `main` that is not pub warns
+   * (spec/lang/10-modules.md#r-module.entry.private-main.warn).
+   */
+  readonly entryModule?: boolean;
 }
 
 export function check(written: Program, options: CheckOptions = {}): CheckResult {
@@ -152,6 +157,7 @@ function checkProgram(source: Program, options: CheckOptions): CheckResult {
     inherentMethods: [],
     inherentDeclarations: [],
     hostCapabilities: new Set(["Console", ...(options.hostCapabilities ?? [])]),
+    entryModule: options.entryModule === true,
   };
   validateProgram(context);
   // A missing required result type leaves no signature to check against.
@@ -173,6 +179,7 @@ function checkProgram(source: Program, options: CheckOptions): CheckResult {
   if (!declarations) return { diagnostics: context.diagnostics };
   const signatures = createProgramSignatures(context, declarations);
   checkInspectableRequirements(context, declarations);
-  if (context.diagnostics.length > 0) return { diagnostics: context.diagnostics };
+  if (context.diagnostics.some((diagnostic) => diagnostic.severity !== "warning"))
+    return { diagnostics: context.diagnostics };
   return lowerCheckedProgram(context, declarations, signatures);
 }

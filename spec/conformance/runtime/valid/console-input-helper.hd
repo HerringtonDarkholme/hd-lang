@@ -1,0 +1,28 @@
+# test: read_line!() reads through the covering ConsoleInput provider
+# Spec std/console Console Input: std-console.input.read-line and std-console.input.helper (batch 64, STD-2 and STD-3).
+use std.console.{ConsoleInput, read_line}
+use std.testing.assert_equal
+
+data FixedInput:
+    line: string?
+
+impl ConsoleInput for FixedInput:
+    fn read_line!(self) -> Result[string?, ConsoleError]:
+        .Ok(self.line)
+
+fn first_line!() -> string $ ConsoleInput:
+    match read_line!():
+        .Ok(.Some(line)) => line
+        .Ok(.None) => "end"
+        .Err(_) => "error"
+
+tests:
+    it("reads a line from the provider"):
+        input := FixedInput { line: .Some("hi") }
+        $.with(ConsoleInput=input):
+            assert_equal(first_line!(), "hi", reason="one line")
+
+    it("passes on .None at the end of input"):
+        input := FixedInput { line: .None }
+        $.with(ConsoleInput=input):
+            assert_equal(first_line!(), "end", reason="no input")

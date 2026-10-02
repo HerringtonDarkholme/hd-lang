@@ -1,0 +1,27 @@
+# test: contains_key, keys, and values; keys and values are snapshots in insertion order
+# Spec std/collections Map Methods: std-collections.map.contains-key, .keys, .values, and .snapshot
+# (STDLIB question 16, 2026-09-29; batch 64, STD-1).
+use std.testing.{assert, assert_equal}
+
+fn summary(stock: Map[string, i32]) -> string:
+    if stock.contains_key("tea"):
+        return "${stock.keys().len()} items"
+    "no tea"
+
+tests:
+    it("contains_key finds an entry by key"):
+        stock := {"tea": 3, "milk": 1}
+        assert(stock.contains_key("tea"), reason="present key")
+        assert(!stock.contains_key("sugar"), reason="absent key")
+        assert_equal(summary(stock), "2 items", reason="through a helper")
+
+    it("keys and values follow insertion order"):
+        stock := {"tea": 3, "milk": 1}
+        assert_equal(stock.keys(), ["tea", "milk"], reason="keys in insertion order")
+        assert_equal(stock.values(), [3, 1], reason="values in the same order")
+
+    it("the returned lists do not follow later changes"):
+        let stock: mut Map[string, i32] = {"tea": 3}
+        names := stock.keys()
+        stock["milk"] = 1
+        assert_equal(names, ["tea"], reason="a snapshot")

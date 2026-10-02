@@ -1,0 +1,7 @@
+# test: Result is invariant in T and E, so Result[mut User, string] does not convert to Result[User, string]
+# Spec 04 Optional Identity And Variance: types.option.invariant.result (batch 64, VARIANCE-UNWRAP).
+data User:
+    name: string
+
+fn settle(result: Result[mut User, string]) -> Result[User, string]:
+    result  # diagnostic: type-mismatch

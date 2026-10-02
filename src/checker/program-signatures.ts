@@ -350,6 +350,15 @@ export function createProgramSignatures(
         }
       }
     }
+    // A top-level `main` that is not pub is an ordinary function, so warn
+    // that it is not the entry point (10-modules.md#r-module.entry.private-main.warn).
+    if (context.entryModule && declaration.name === "main" && !declaration.public)
+      diagnostics.push({
+        code: "private-main",
+        message: "main is not pub, so it is not the entry point",
+        span: declaration.span,
+        severity: "warning",
+      });
     signatures.set(declaration.name, {
       name: declaration.name,
       index,

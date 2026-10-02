@@ -100,9 +100,12 @@ export async function loadSource(
     : path.endsWith("_test.hd") || options.testLayout !== undefined
       ? { testModule: true }
       : {};
+  // FILE is an entry module unless it is a test module
+  // (spec/lang/10-modules.md#r-module.init.entry-module.selected).
   const compileOptions: CompileOptions = {
     hostCapabilities: profile?.hostCapabilities,
     parse: parseOptions,
+    entryModule: !("testModule" in parseOptions),
   };
   const specIndex = format === "json" ? await loadSpecIndex(args.specDir) : undefined;
   const reporter = new DiagnosticReporter(format, file, fileSource, specIndex, io.err);

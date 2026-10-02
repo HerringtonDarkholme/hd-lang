@@ -1,0 +1,60 @@
+# test: read_text! and write_text! are bang helpers over the covering FsRead and FsWrite providers
+# Spec std/fs File Helpers: std-fs.helper.read-text and std-fs.helper.write-text (batch 64, STD-2 and STD-3).
+use std.fs.{Entry, FsError, FsRead, FsWrite, read_text, write_text}
+use std.path.Path
+use std.testing.assert_equal
+
+data MapFs:
+    files: mut Map[string, string]
+
+impl FsRead for MapFs:
+    fn read_bytes!(self, path: Path) -> Result[List[u8], FsError]:
+        .Err(FsError.Other(message="bytes"))
+
+    fn read_text!(self, path: Path) -> Result[string, FsError]:
+        match self.files.get("${path}"):
+            .Some(text) => .Ok(text)
+            .None => .Err(FsError.NotFound(path=path))
+
+    fn list_dir!(self, path: Path) -> Result[List[Entry], FsError]:
+        .Ok([])
+
+    fn stat!(self, path: Path) -> Result[Entry?, FsError]:
+        .Ok(.None)
+
+impl FsWrite for MapFs:
+    fn write_bytes!(mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]:
+        .Err(FsError.Other(message="bytes"))
+
+    fn write_text!(mut self, path: Path, text: string) -> Result[void, FsError]:
+        self.files["${path}"] = text
+        .Ok(())
+
+    fn append_text!(mut self, path: Path, text: string) -> Result[void, FsError]:
+        .Err(FsError.Other(message="append"))
+
+    fn create_dir_all!(mut self, path: Path) -> Result[void, FsError]:
+        .Ok(())
+
+    fn remove!(mut self, path: Path) -> Result[void, FsError]:
+        .Ok(())
+
+    fn rename!(mut self, from: Path, to: Path) -> Result[void, FsError]:
+        .Ok(())
+
+fn copy_notes!() -> Result[void, FsError] $ FsRead + FsWrite:
+    text := read_text!(Path("notes.txt"))?
+    write_text!(Path("notes.bak"), text)
+
+tests:
+    it("copies through the helpers"):
+        reader := MapFs { files: {"notes.txt": "tea"} }
+        let mut writer = MapFs { files: {} }
+        $.with(FsRead=reader, FsWrite=writer):
+            assert_equal(copy_notes!(), .Ok(()), reason="both calls succeed")
+        assert_equal(writer.files.get("notes.bak"), .Some("tea"), reason="the copy was written")
+
+    it("reports a missing file as FsError.NotFound"):
+        reader := MapFs { files: {} }
+        $.with(FsRead=reader):
+            assert_equal(read_text!(Path("gone.txt")), .Err(FsError.NotFound(path=Path("gone.txt"))), reason="no such file")

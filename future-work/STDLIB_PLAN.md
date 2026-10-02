@@ -1,8 +1,10 @@
 # Standard Library Plan
 
-Status: research, 2026-10-02 (task #172). Nothing here is decided, accepted
-behavior, or in the specification. Every module sketch below is a proposal
-for the owner.
+Status: research, 2026-10-02 (task #172). Nothing here is accepted
+behavior except where a note links the specification. Spec pass 64
+(2026-10-02) applied the answers to [Q1 to Q6](#questions-for-the-owner)
+and part of the [Earlier Owner Decisions](#earlier-owner-decisions); every
+other module sketch below is still a proposal for the owner.
 
 Under review: the stdlib tier ([spec/std/](../spec/std/README.md)), the
 library itself ([lib/std/](../lib/std/)), the host rules of
@@ -26,14 +28,15 @@ every feature belongs in `std`.
 1. [Findings In Brief](#findings-in-brief)
 2. [What Exists Today](#what-exists-today)
 3. [Earlier Owner Decisions](#earlier-owner-decisions)
-4. [Survey Matrices](#survey-matrices)
-5. [Gap Survey By Area](#gap-survey-by-area)
-6. [A Script With The Proposed Surface](#a-script-with-the-proposed-surface)
-7. [The Effect Review](#the-effect-review)
-8. [Ranked Rollout](#ranked-rollout)
-9. [Questions For The Owner](#questions-for-the-owner)
-10. [Sources](#sources)
-11. [Parse Log](#parse-log)
+4. [Decided, Not Yet Applied](#decided-not-yet-applied)
+5. [Survey Matrices](#survey-matrices)
+6. [Gap Survey By Area](#gap-survey-by-area)
+7. [A Script With The Proposed Surface](#a-script-with-the-proposed-surface)
+8. [The Effect Review](#the-effect-review)
+9. [Ranked Rollout](#ranked-rollout)
+10. [Questions For The Owner](#questions-for-the-owner)
+11. [Sources](#sources)
+12. [Parse Log](#parse-log)
 
 ## Findings In Brief
 
@@ -112,6 +115,41 @@ them and reopens none.
 The same record drafted module names (`std.host`, `std.fs`, `std.path`,
 `std.random`, `std.json`, `std.http`) and a `RetryPolicy`. Those drafts were
 not decided; this plan reuses the names to avoid churn.
+
+Spec pass 64 applied the ones that are pure spec text and fit today's
+specification:
+
+| # | Applied in |
+| --- | --- |
+| 2 | I/O methods are bang methods, reads are plain calls: [Clock](../spec/std/time.md#clock), [Host](../spec/std/host.md#plain-reads), [Random](../spec/std/random.md#random-source), [Fs](../spec/std/fs.md#suspension), [Console Input](../spec/std/console.md#console-input) |
+| 3 | `FsRead`, `FsWrite`, and `ConsoleInput`: [Fs](../spec/std/fs.md), [Console Input](../spec/std/console.md#console-input) |
+| 6 | one `FsError` for every file system method: [File System Errors](../spec/std/fs.md#file-system-errors) |
+| 7 | every new name is imported, not a prelude name |
+| Q16 | `contains_key`, `keys`, and `values`, as insertion-order snapshots: [Map Methods](../spec/std/collections.md#map-methods) |
+| Q18 | `repeat(-1)`, `chunks(0)`, and `clamp` with `low > high` panic: [Text](../spec/std/text.md#string-methods), [Collections](../spec/std/collections.md#list-methods), [Clamp](../spec/std/cmp.md#clamp) |
+| Q21 | `Eq` on the new value types; `Ord` on `Duration`, `Timestamp`, and `Instant`; `Display` on `FsError`: [Time](../spec/std/time.md), [Fs](../spec/std/fs.md#file-system-errors) |
+| 2026-09-29 | `lines()` follows Rust: [Text](../spec/std/text.md#string-methods) |
+
+The rest are listed in [Decided, Not Yet Applied](#decided-not-yet-applied).
+
+## Decided, Not Yet Applied
+
+These owner decisions still stand. Each waits for the spec text or the
+design it names.
+
+| Decision | Decided | What it says | Waits for |
+| --- | --- | --- | --- |
+| 4 | 2026-09-26 | each host trait's deterministic provider lives beside it, as `std.time.ManualClock`; `std.testing.hermetic()` bundles them | the providers' design: `ManualClock`, `MapArgs`, `MapEnv`, `MemoryFs`, `SeededRandom` |
+| 5 | 2026-09-26 | a library `std.bytes.Bytes`, readonly and compact, convertible to and from `List[u8]` | a use that `List[u8]` serves badly |
+| 9 | 2026-09-26 | `decimal` is the only number type past the primitives; `BigInt` is a package | a `decimal` design |
+| 10 | 2026-09-26 | virtual time auto-advances: `sleep!` on a manual clock returns at once | `ManualClock` (decision 4) |
+| 11 | 2026-09-26 | tasks are structured scopes only: `scope!`, `start`, `join!`; no detached spawn | a new polling intrinsic, a language-tier item |
+| 12 | 2026-09-26 | `Secret[T]` is removed for now | nothing: it removes a draft, so no spec text follows |
+| 13 | 2026-09-26 | an untyped `std.json.Json` with one `Number` type modeled on `serde_json::Number` | a `std.json` chapter (tier 6) |
+| Q15 | 2026-09-29 | `and_then` on `T?` and `Result` | a stdlib chapter for `std.option` and `std.result`, whose other methods no chapter specifies yet |
+| Q14-22 | 2026-09-29 | `abs_diff` returns the unsigned type of the same width | a stdlib chapter for `std.num`; `lib/std` returns the signed type today |
+| Q14-22 | 2026-09-29 | integer parsing takes an optional `+` or `-`, then decimal digits only; a lone sign is `InvalidDigit(0)` | a stdlib chapter for `std.num` |
+| Q14-22 | 2026-09-29 | `ScriptedProcess::new(outputs)` is the constructor | a `std.process` provider section; `Process` itself is language tier |
 
 ## Survey Matrices
 
@@ -965,6 +1003,7 @@ host also add a prototype host binding, a minimal TypeScript hook.
 | 8 | `timeout!`, `Backoff`, `retry_with!`, `all_list!`, `map_limited!` | tier 4's `Clock`; [Q5](#q5-retry-and-backoff) | robust automation |
 | 9 | `std.random` `Rng`, `Random`, `SeededRandom`; `std.cli` `parse_args`, `usage` | tier 1's `Args`; `u64` wrapping arithmetic | real command-line tools |
 | 10 | RFC 3339 and UTC `Date`; `Deque`, `Heap` | tier 4 | dates in logs and file names |
+| 11 | `std.regex`: the RE2 subset, linear time, no backreferences, written in hd (about two hours) | tier 10 | filtering lines by pattern |
 
 Later, blocked:
 
@@ -973,7 +1012,6 @@ Later, blocked:
 | `std.process` helpers bound for `hd FILE` and tasks | a toolchain profile that binds `Process` | host profile |
 | `std.http` | `wasi:http` binding; structured values over the host bridge | runtime |
 | `std.log` | [Observability Hooks](OPEN_ISSUES.md#observability-hooks), decided, not applied | language and runtime |
-| `std.regex` | [Question 6](#q6-regular-expressions) | owner decision |
 | `scope!`, `start`, `join!` | a new polling intrinsic | language tier |
 | file handles, streaming, sockets | the parked NonEscapable design | language feature |
 | `Process` with working directory and environment | a change to the language-tier `Process` trait | language tier |
@@ -985,7 +1023,14 @@ question waits.
 
 ## Questions For The Owner
 
+Batch 64 (2026-10-02) answered all six. Each answer is under its
+question.
+
 ### Q1. The Earlier Std Decisions
+
+**Decided** (STD-1): they still stand. The pure spec text went into
+`spec/std`, and the rest is in
+[Decided, Not Yet Applied](#decided-not-yet-applied).
 
 **Effect.** The decisions in [Earlier Owner Decisions](#earlier-owner-decisions)
 exist only in git history, so the next std agent may contradict them.
@@ -1004,6 +1049,9 @@ let present = names.contains_key("a")  # Q16, decided 2026-09-29
 ```
 
 ### Q2. The First Host Catalog
+
+**Decided** (STD-2): (a), without `ErrorConsole` (see Q4). Applied in
+[Host Capabilities](../spec/cli/command-line.md#host-capabilities).
 
 **Effect.** Without a catalog, no script can read arguments, files, or the
 clock, and `cli.host.entry-row` binds only `Console`.
@@ -1026,6 +1074,9 @@ pub fn main!() -> void $ Args + FsRead + Console:
 
 ### Q3. Free Helpers Over Capability Traits
 
+**Decided** (STD-3): (a). Every I/O helper is a bang function, and no
+non-suspending wrapper exists.
+
 **Effect.** With traits only, every call is
 `$.use(FsRead).read_text!(path)`; scripts are mostly such calls.
 
@@ -1047,6 +1098,11 @@ fn load!() -> Result[string, FsError] $ FsRead:
 
 ### Q4. Standard Error
 
+**Decided** (STD-4): (b), changed. No `ErrorConsole`: the prelude
+`Console` gains `write_error_line!`, and `eprintln` sits over it
+([Standard Error](../spec/std/console.md#standard-error)). The
+`ErrorConsole` sketches in this plan are superseded.
+
 **Effect.** A script cannot report an error without mixing it into its
 output, so `hd FILE | jq` breaks on the first warning.
 
@@ -1066,6 +1122,9 @@ fn warn(message: string) -> void $ ErrorConsole:
 ```
 
 ### Q5. Retry And Backoff
+
+**Decided** (STD-5): (a). Applied in
+[Retry With Backoff](../spec/std/task.md#retry-with-backoff).
 
 **Effect.** `retry!` retries at once, so it hammers a busy service; Effect
 answers with `Schedule`, Deno with four options.
@@ -1087,6 +1146,9 @@ fn policy() -> Backoff:
 ```
 
 ### Q6. Regular Expressions
+
+**Decided** (STD-6): (a). `std.regex` is tier 11 of the
+[Ranked Rollout](#ranked-rollout), not yet specified.
 
 **Effect.** Scripts often filter lines by pattern; without regex they
 hand-write `find` loops. Fifteen of the twenty surveyed libraries ship
