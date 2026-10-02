@@ -350,6 +350,9 @@ gain equality automatically: implement the trait or request explicit
 derivation. `is` checks whether two composite references point to the same
 object, independently of their values. `!(a is b)` checks distinct identity.
 
+> **Note.** `is` is identity, as in Python, not a type test as in Kotlin or
+> Dart. To test a type, call `downcast` on an `Inspectable` value.
+
 ```text
 @derive(Eq, PartialOrd, Ord, Hash)
 data User:
@@ -505,6 +508,11 @@ fn label(name: string?) -> string?:
 ```
 
 `?` also propagates `Result` errors from a function that returns a compatible `Result[T, E]`.
+
+> **Note.** `a?.b` is propagation followed by member access: when `a` is
+> `.None`, the enclosing function returns `.None`. It is not Kotlin's or
+> Swift's optional chaining, which would yield `.None` for the expression
+> and carry on.
 
 Collections are typed:
 

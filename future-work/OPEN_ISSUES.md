@@ -80,31 +80,6 @@ The specification applies the reading in the "Today" column.
 | TY-04-bind | May an associated-type binding constrain an impl parameter, as `T` in `impl[T, I < Store[Item = T]] Summary for Feed[I]`? Rust's E0207 accepts a parameter bound that way. | No: `T` appears in neither the trait arguments nor the target, so the impl is `unconstrained-impl-parameter` ([`trait.overlap.constrained-head`](../spec/lang/09-traits.md#r-trait.overlap.constrained-head)). | Accept a parameter that an associated-type binding of a constrained parameter fixes, as Rust does. |
 | TY-17-gadt | The decision allows a derived `Hash` on an enum whose existential GADT variant has `Hash`-bounded fields. But every derivation on a GADT enum is `gadt-derivation` ([`annot.block.gadt`](../spec/lang/14-annotations.md#r-annot.block.gadt)), so the `Eq` and ordering part already holds and the `Hash` part conflicts. | Unchanged: no derivation on a GADT enum, `Hash` included. | Keep `gadt-derivation` for every trait until templates can see existential parameters; reopen `Hash` then. |
 
-### Ideas Noted For Later
-
-None of these is decided.
-
-- **A cover grammar for `:=`.** As in JavaScript, Python, Rust's
-  destructuring assignment, and Elixir, it would let `:=` take patterns
-  too. With it would come data-literal field shorthand, `Point { x, y }`
-  for `Point { x: x, y: y }`, so a pattern and a literal read the same.
-  The owner deferred both in batch 26 ("we can add in future").
-- **Teaching notes for `?.` and `is` (GR-21).** `a?.b` is propagation
-  and then member access, so `.None` returns from the enclosing function;
-  it is not Kotlin's or Swift's optional chaining. `is` is identity, as in
-  Python, not a type test. Should the guide call both out?
-
-### Bound And Row Operators
-
-**Questions from applying them.** Each needs an owner answer; the spec
-states the current behavior.
-
-| Question | Applied now | Recommendation |
-| --- | --- | --- |
-| Does `$ A + B` inside `[...]` or a parameter list need precedence rules? | A row ends at the first `,`, `)`, or `]`; nested function types keep the innermost-owner rule | None needed. No ambiguity was found in type arguments, parameters, `$.Context[...]`, or closure headers. |
-| Codes for other old row spellings | `$(A + B)`, `$(A)`, a `-` between keys, and the pre-2026-09-27 `Job[A + B]` and `$.Context[A + B]` are `syntax-error` | Keep `syntax-error`. Only the two decided codes carry fix-its. |
-| `$.Context[$ A + B]` keeps its inner `$`, while one key is `$.Context[A]` | Kept: the context type takes a key or a row type argument | Keep it. It matches row type arguments such as `Job[$ A + B]`. |
-
 ### Mutable Host Providers
 
 **Still open (raised 2026-09-28).** Nothing here is decided:
