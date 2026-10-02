@@ -56,7 +56,7 @@ interface BuildResult {
 }
 
 /** The chapter whose rule definitions are canonical when a rule is restated elsewhere. */
-const GRAMMAR_CHAPTER = "spec/02-grammar.md";
+const GRAMMAR_CHAPTER = "spec/lang/02-grammar.md";
 
 function normalizeBase(base: string): string {
   const trimmed = base.replace(/^\/+|\/+$/g, "");

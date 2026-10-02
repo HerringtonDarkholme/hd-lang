@@ -1,12 +1,12 @@
 # Specification Style
 
 This guide defines how the chapters are written: the numbered language
-chapters, the stdlib chapters in [`std/`](std/README.md), and the CLI
-chapter [`cli.md`](cli.md). The goal is a
-reference that is precise but quick to read: one rule per sentence, the
-common case first, and every rule citable by a stable ID.
+chapters in [`lang/`](README.md#contents), the stdlib chapters in
+[`std/`](std/README.md), and the CLI chapter in [`cli/`](cli/README.md).
+The goal is a reference that is precise but quick to read: one rule per
+sentence, the common case first, and every rule citable by a stable ID.
 
-[Data Types and Enums](08-data-and-enums.md) is the pilot chapter written in
+[Data Types and Enums](lang/08-data-and-enums.md) is the pilot chapter written in
 this style. The other chapters are restyled one at a time, and a restyle must
 not change what the chapter means.
 
@@ -87,7 +87,7 @@ A marker anywhere else in prose is an error, so a marker can never hide in
 the middle of a sentence. On GitHub the marker shows as plain text. The
 website renders it as a small link beside the rule, whose HTML id is `r-`
 followed by the ID, as in
-[`r-data.embed.width`](08-data-and-enums.md#r-data.embed.width).
+[`r-data.embed.width`](lang/08-data-and-enums.md#r-data.embed.width).
 
 ### Syntax And Hierarchy
 
@@ -105,20 +105,20 @@ or list index, so reordering a list or a chapter renumbers nothing.
 
 | Chapter | Prefix |
 | --- | --- |
-| [Lexical Structure](01-lexical-structure.md) | `lex` |
-| [Grammar](02-grammar.md) | `grammar` |
-| [Names and Scopes](03-names-and-scopes.md) | `names` |
-| [Type System](04-type-system.md) | `types` |
-| [Expressions](05-expressions.md) | `expr` |
-| [Control Flow](06-control-flow.md) | `flow` |
-| [Functions](07-functions.md) | `fn` |
-| [Data Types and Enums](08-data-and-enums.md) | `data` |
-| [Traits](09-traits.md) | `trait` |
-| [Modules](10-modules.md) | `module` |
-| [Requirements and Suspension](11-requirements-and-suspension.md) | `req` |
-| [Variadic Generics](12-variadic-generics.md) | `pack` |
-| [GADTs](13-gadts.md) | `gadt` |
-| [Annotations](14-annotations.md) | `annot` |
+| [Lexical Structure](lang/01-lexical-structure.md) | `lex` |
+| [Grammar](lang/02-grammar.md) | `grammar` |
+| [Names and Scopes](lang/03-names-and-scopes.md) | `names` |
+| [Type System](lang/04-type-system.md) | `types` |
+| [Expressions](lang/05-expressions.md) | `expr` |
+| [Control Flow](lang/06-control-flow.md) | `flow` |
+| [Functions](lang/07-functions.md) | `fn` |
+| [Data Types and Enums](lang/08-data-and-enums.md) | `data` |
+| [Traits](lang/09-traits.md) | `trait` |
+| [Modules](lang/10-modules.md) | `module` |
+| [Requirements and Suspension](lang/11-requirements-and-suspension.md) | `req` |
+| [Variadic Generics](lang/12-variadic-generics.md) | `pack` |
+| [GADTs](lang/13-gadts.md) | `gadt` |
+| [Annotations](lang/14-annotations.md) | `annot` |
 | `std/cmp.md` | `std-cmp` |
 | `std/format.md` | `std-format` |
 | `std/hash.md` | `std-hash` |
@@ -128,10 +128,10 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/text.md` | `std-text` |
 | `std/time.md` | `std-time` |
 | `std/task.md` | `std-task` |
-| [Command Line](cli.md) | `cli` |
+| [Command Line](cli/command-line.md) | `cli` |
 
 A stdlib chapter's prefix is `std-` and its module name. The CLI tier's
-one chapter, `cli.md`, uses `cli`. The
+one chapter, `cli/command-line.md`, uses `cli`. The
 [stdlib chapter table](std/README.md#chapters) lists each chapter; a later
 move task adds its file.
 
@@ -232,7 +232,7 @@ marker, and the website renders the table as a rule table:
 
    ```sh
    node --experimental-strip-types spec/tools/rule-inventory.ts --diff --all \
-       main:spec/08-data-and-enums.md spec/08-data-and-enums.md --out /tmp/08-diff.md
+       main:spec/lang/08-data-and-enums.md spec/lang/08-data-and-enums.md --out /tmp/08-diff.md
    ```
 
 4. The diff must report nothing lost: no diagnostic code, no example line,
@@ -250,7 +250,7 @@ normative sentences, examples, rule IDs, and prose statistics.
 
 ## Before And After
 
-This excerpt from [Data Declarations](08-data-and-enums.md#data-declarations)
+This excerpt from [Data Declarations](lang/08-data-and-enums.md#data-declarations)
 shows the change. Before, one paragraph mixed five topics and put a code in
 the middle of a sentence:
 

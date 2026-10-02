@@ -36,7 +36,7 @@ import {
   type ModuleItems,
 } from "./test-cases.ts";
 
-/** The compound assignment tokens (spec/05-expressions.md#compound-assignment). */
+/** The compound assignment tokens (spec/lang/05-expressions.md#compound-assignment). */
 const COMPOUND_ASSIGNMENTS: ReadonlySet<string> = new Set([
   "+=",
   "-=",
@@ -73,7 +73,7 @@ class Parser extends LetParser {
         if (this.matchKind("newline")) continue;
         const doc = this.parseDocComments();
         // A file holds at most one top-level `tests:` block
-        // (spec/02-grammar.md#test-blocks).
+        // (spec/lang/02-grammar.md#test-blocks).
         if (this.atText("tests") && this.peek(1).text === ":") {
           if (doc)
             this.fail(
@@ -125,7 +125,7 @@ class Parser extends LetParser {
   }
 
   // One top-level item, or one item of the `tests:` block, whose statements
-  // must all be `it(...)` calls (spec/10-modules.md#test-cases).
+  // must all be `it(...)` calls (spec/lang/10-modules.md#test-cases).
   private parseModuleItem(doc: string | undefined, items: ModuleItems, inTests: boolean): void {
     if (this.atText("struct"))
       this.fail("old-struct-declaration", "'struct' was replaced by 'data'", this.current().span);
@@ -138,7 +138,7 @@ class Parser extends LetParser {
         this.current().span,
       );
     // Nothing outside a `tests:` block sees its items, so none is `pub`
-    // (spec/03-names-and-scopes.md#r-names.tests.no-pub); a test module's may be.
+    // (spec/lang/03-names-and-scopes.md#r-names.tests.no-pub); a test module's may be.
     if (inTests && !this.options.testModule && this.atText("pub"))
       this.fail(
         "public-test-item",
@@ -158,7 +158,7 @@ class Parser extends LetParser {
       return;
     }
     // Decorator lines before a data, enum, function, trait, newtype, or
-    // implementation declaration (spec/02-grammar.md#annotations). Anything
+    // implementation declaration (spec/lang/02-grammar.md#annotations). Anything
     // else falls through to the statement parser, which rejects the decorator.
     let decorators: Decorators | undefined;
     if (this.atText("@") && this.decoratedDeclarationFollows()) {
@@ -493,7 +493,7 @@ class Parser extends LetParser {
       this.advance();
       delegateName = this.expectKind("identifier", "expected an embedded field name");
     }
-    // `by Structure` is never a delegation (spec/09-traits.md#r-trait.by.structure).
+    // `by Structure` is never a delegation (spec/lang/09-traits.md#r-trait.by.structure).
     const delegate = !delegateName
       ? {}
       : delegateName.text === "Structure"
@@ -713,7 +713,7 @@ class Parser extends LetParser {
 
   protected parseRequirementKey(): string {
     // A requirement key has no `mut` prefix: the trait's `mut self` methods
-    // decide the access (spec/11-requirements-and-suspension.md#r-req.mut.no-spelling).
+    // decide the access (spec/lang/11-requirements-and-suspension.md#r-req.mut.no-spelling).
     if (this.atText("mut"))
       this.fail(
         "syntax-error",

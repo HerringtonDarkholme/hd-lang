@@ -9,7 +9,7 @@ import {
 } from "./property-tests.ts";
 
 // Runs the entry point and the test cases that `hd run` or `hd test`
-// selected (spec/10-modules.md#test-outcomes). An `it_each` table is one test
+// selected (spec/lang/10-modules.md#test-outcomes). An `it_each` table is one test
 // function that runs once per row: the runner selects the row through the
 // exported `__hd_each_index` global and stops at the row count the function
 // reports through `__hd_each_count` (spec/std/testing.md#table-test-rows).
@@ -48,9 +48,9 @@ function caseName(declaration: HirFunction, row: number | undefined): string {
 
 // An entry point or test case with a non-void result exports the code that
 // `report()` gives for it, or -1 for an `.Err`
-// (spec/10-modules.md#r-module.entry.exit-report), whether it suspends or
+// (spec/lang/10-modules.md#r-module.entry.exit-report), whether it suspends or
 // not. A test case fails on any nonzero code
-// (spec/10-modules.md#r-module.testing.fail).
+// (spec/lang/10-modules.md#r-module.testing.fail).
 function judge(declaration: HirFunction, result: unknown, subject: string): RunOutcome | undefined {
   if (typeof result !== "number") return undefined;
   if (declaration.entry) {
@@ -110,7 +110,7 @@ function runCase(
 }
 
 // Each test case, and each `it_each` row, runs in its own fresh program
-// instance (spec/10-modules.md#r-module.testing.instance); the entry point
+// instance (spec/lang/10-modules.md#r-module.testing.instance); the entry point
 // runs in `shared`.
 export async function runSelected(
   selected: readonly HirFunction[],

@@ -36,7 +36,7 @@ The owner's past cuts show the kind of result wanted:
 ## Inputs
 
 1. The area: a spec chapter or section in either tier (for example
-   `spec/11-requirements-and-suspension.md` or `spec/std/testing.md`), a
+   `spec/lang/11-requirements-and-suspension.md` or `spec/std/testing.md`), a
    design record, or a feature
    named across several files.
 2. Optional: the owner's goal (fewer keywords, fewer diagnostics, one form
@@ -48,7 +48,8 @@ The owner's past cuts show the kind of result wanted:
    markers and annotations, rules with their IDs, diagnostic codes, and
    concepts. For a chapter, start from
    `node --experimental-strip-types spec/tools/rule-inventory.ts spec/<chapter>.md`,
-   where a stdlib chapter's `<chapter>` is `std/<module>`.
+   where `<chapter>` is `lang/<NN-name>`, `std/<module>`, or
+   `cli/command-line`.
    Note which fixtures in `spec/conformance/` and which guide pages use each
    item.
 2. **Find candidates.** Look for:

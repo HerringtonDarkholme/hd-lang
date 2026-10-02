@@ -101,7 +101,7 @@ export function lowerCheckedProgram(
       methodFunctions: implementation.methods.map((method) => {
         const signature = declaredSignatures.get(method.declaration.name)!;
         // A walker's `member` may take more dictionaries than the trait's
-        // (spec/14-annotations.md#r-annot.walker.strengthen-member).
+        // (spec/lang/14-annotations.md#r-annot.walker.strengthen-member).
         const strengthenable =
           program.traits[implementation.trait.index]?.strengthenableMembers?.includes(
             implementation.trait.methods[method.methodIndex]?.name ?? "",

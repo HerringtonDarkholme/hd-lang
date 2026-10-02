@@ -161,7 +161,7 @@ and a loop counter.
 | lex and parse         | ready                                                               |
 | signature collection  | ready as a cheap serial prepass                                     |
 | body checking         | needs refactor (closure numbering, `globals`)                       |
-| module-init check     | needs refactor (per-function read-set summaries); the whole-module graph is a language rule (`spec/10-modules.md:228-233`) |
+| module-init check     | needs refactor (per-function read-set summaries); the whole-module graph is a language rule (`spec/lang/10-modules.md:228-233`) |
 | per-function emission | needs refactor (global registries and flags)                        |
 | assembly              | blocked by design (an implementation choice): one WAT string for the module, and 85 to 90% of the time |
 

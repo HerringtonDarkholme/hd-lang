@@ -44,7 +44,7 @@ The directory is informative. A case's phase and expectation come from
 A fixture may rely only on:
 
 - primitive types and prelude names
-  ([Modules](../10-modules.md#prelude));
+  ([Modules](../lang/10-modules.md#prelude));
 - the standard items its [tier](#tiers) allows, listed below;
 - its own declarations;
 - the environment its fixture directives name (see
@@ -93,12 +93,12 @@ Runtime results are observed with `assert` and `assert_equal` from
 [Standard Output](#standard-output)).
 
 A fixture is a single ordinary module, never a
-[test module](../10-modules.md#test-modules) or an integration test module,
+[test module](../lang/10-modules.md#test-modules) or an integration test module,
 whatever its file name, unless a `# fixture-test-layout:` header places it
 as one (see [Test Layouts](#test-layouts)).
 
 A fixture with no package role, test layout, or package tree header is a
-[single-file program](../10-modules.md#single-file-programs): it is in no
+[single-file program](../lang/10-modules.md#single-file-programs): it is in no
 package, whatever directory holds the suite.
 
 ## Comment Directives
@@ -123,7 +123,7 @@ directive not listed below.
 | ------------------------------------------- | ----------- | ------- |
 | `# diagnostic: CODE`                        | line marker | The case's error category, reported on this line. `CODE` is in an Error row of [the diagnostic table](../README.md#diagnostics). |
 | `# warning: CODE`                           | line marker | The case's warning category, reported on this line. `CODE` is in the Warning row. |
-| `# panic: CODE`                             | line marker | The case's panic category, raised by this line. `CODE` is a stable category from [Runtime Panics](../06-control-flow.md#runtime-panics). |
+| `# panic: CODE`                             | line marker | The case's panic category, raised by this line. `CODE` is a stable category from [Runtime Panics](../lang/06-control-flow.md#runtime-panics). |
 | `# test: NAME`                              | header      | Optional human-readable name. Cases are identified by path, never by name. |
 | `# expect: parse`, `accept`, or `test`      | header      | Optional restatement of a `parse`, `type`, or `runtime` accept case. If present, it must agree with `cases.tsv`. |
 | `# fixture-runtime-profile: NAME`           | header      | Selects a named host profile. See [Runtime Profiles](#runtime-profiles). |
@@ -145,7 +145,7 @@ tab-separated fields:
 - `expectation`: `accept`, `reject:CODE`, `warn:CODE`, or `panic:CODE`. For a
   marked fixture, it equals the marker kind (`diagnostic` is written
   `reject`) and code;
-- `specification`: the one primary section, as `NN-chapter.md#anchor`, or
+- `specification`: the one primary section, as `lang/NN-chapter.md#anchor`, or
   as `std/MODULE.md#anchor` for a stdlib chapter. The anchor may instead
   name one rule, as `r-` followed by its [rule ID](../STYLE.md#rule-ids).
   This column sets the case's [tier](#tiers).
@@ -248,7 +248,7 @@ Rules that apply to every case:
   fails.
 - **Panics are judged by category.** The reported category must equal
   `CODE` exactly. The panic marker documents the intended line, but the line
-  is not judged, because [Runtime Panics](../06-control-flow.md#runtime-panics)
+  is not judged, because [Runtime Panics](../lang/06-control-flow.md#runtime-panics)
   requires a location only when one is available. There is no wildcard
   category.
 
@@ -257,13 +257,13 @@ Rules that apply to every case:
 `test FILE` executes the fixture as follows:
 
 1. If the module declares an entry point `main` or `main!`
-   ([Executable Entry Point](../10-modules.md#executable-entry-point)), it
+   ([Executable Entry Point](../lang/10-modules.md#executable-entry-point)), it
    runs in a fresh program instance, after module initialization, with its
    requirement row supplied by the selected runtime profile. Its return value
    is not judged.
 2. Each test case of its `tests:` block runs in its own fresh program
    instance, after module initialization, as
-   [Test Outcomes](../10-modules.md#test-outcomes) describes. `main` does not
+   [Test Outcomes](../lang/10-modules.md#test-outcomes) describes. `main` does not
    run in that instance. A test case with the `ignore` option does not run.
 3. The command succeeds when every test case that ran passed: nothing
    panicked except as a case's `expect_panic` option expects, and every
@@ -282,18 +282,18 @@ and 2 with that scenario's procedure.
 ### Runtime Profiles
 
 A runtime profile is a named set of host capability traits and the providers
-that implement them ([Wasm Boundary](../10-modules.md#wasm-boundary)). With
+that implement them ([Wasm Boundary](../lang/10-modules.md#wasm-boundary)). With
 `# fixture-runtime-profile: NAME`, the runner passes the profile to both
 `check` and `test`. The profile's traits become host capabilities that may
 appear in entry-point rows. A fixture declares every trait a profile
 implements, with the exact method signatures below, and the profile supplies
 one provider value per trait. Each provider has the access its trait gives
-([Mutable Providers](../11-requirements-and-suspension.md#mutable-providers)):
+([Mutable Providers](../lang/11-requirements-and-suspension.md#mutable-providers)):
 mutable when the trait has a `mut self` method, readonly otherwise.
 
 - `console` is the profile a fixture gets when it names no profile. The
   runner passes no `--profile` option for it. It implements the prelude
-  `Console` ([Prelude](../10-modules.md#prelude)): each
+  `Console` ([Prelude](../lang/10-modules.md#prelude)): each
   `write_line!(text)` completes on its first poll, writes the UTF-8 encoding
   of `text` followed by one U+000A to standard output, and returns `.Ok()`.
 - `disposed-file` implements the fixture's `Files` and `FileHandle` traits.
@@ -328,7 +328,7 @@ single-threaded source cannot create by itself. Each scenario starts from a
 fresh instance, with the entry `main!` and its row supplied by the selected
 profile. Its steps use only host operations on the `main!` suspension: poll
 it with a `PollContext`, and cancel it
-([`Suspend[T]` Protocol](../11-requirements-and-suspension.md#suspendt-protocol)).
+([`Suspend[T]` Protocol](../lang/11-requirements-and-suspension.md#suspendt-protocol)).
 It also uses two actions of the deterministic fixture runtime:
 
 - **Hold** a suspending call: answer every poll of that call's suspension
@@ -381,7 +381,7 @@ of a package in the named role. That package depends on every package under
 [`packages/`](packages), each in the library role:
 
 - Each directory `packages/NAME/` is the source root of one package, used as
-  `dep.NAME` ([Use Roots](../10-modules.md#use-roots)). Its `mod.hd` is the
+  `dep.NAME` ([Use Roots](../lang/10-modules.md#use-roots)). Its `mod.hd` is the
   package's root module.
 - [`dep.models`](packages/models/mod.hd) declares `data User` with one
   public `name: string` field.
@@ -413,7 +413,7 @@ package, as Package Roles does for the multi-package environment
 
 | Layout | The file is compiled as | Its module |
 | --- | --- | --- |
-| `test-module` | `src/NAME_test.hd`, a [test module](../10-modules.md#test-modules) | `NAME_test` |
+| `test-module` | `src/NAME_test.hd`, a [test module](../lang/10-modules.md#test-modules) | `NAME_test` |
 | `integration` | `tests/NAME.hd`, an integration test module | `tests.NAME` |
 
 - `NAME` is the fixture's file name without `.hd`. The package holds no
@@ -429,8 +429,8 @@ multi-package environment:
 
 - `TREE` names a directory [`trees/TREE/`](trees), which is the root of one
   package: its files are `src/...` and `tests/...` paths, as
-  [Path-Inferred Modules](../10-modules.md#path-inferred-modules) and
-  [Test Modules](../10-modules.md#test-modules) place them.
+  [Path-Inferred Modules](../lang/10-modules.md#path-inferred-modules) and
+  [Test Modules](../lang/10-modules.md#test-modules) place them.
 - `PATH` is the package path the primary file takes, such as
   `src/shop/mod.hd`. The tree holds no file at that path.
 - The package has the tree's files and the primary file, and no
@@ -475,7 +475,7 @@ it declares an entry point.
   expected.
 
 After `check` and `test` pass, the runner invokes `FILE` with no action,
-as `hd FILE` runs a single file ([Single Files](../cli.md#single-files)).
+as `hd FILE` runs a single file ([Single Files](../cli/command-line.md#single-files)).
 The case passes when that run exits 0 and its standard output, decoded as UTF-8, equals
 the expected output exactly. No carriage return, trailing newline, or
 whitespace is normalized. Standard error is not judged.

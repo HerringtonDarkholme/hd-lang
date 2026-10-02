@@ -275,7 +275,7 @@ Otherwise the code that reads the value checks it.
 
 > **Note.** `arbitrary.with` opts in, so a generator of the wrong type is
 > an error at its decorator, as
-> [`std-testing.arbitrary.with.checked`](std/testing.md#r-std-testing.arbitrary.with.checked)
+> [`std-testing.arbitrary.with.checked`](../std/testing.md#r-std-testing.arbitrary.with.checked)
 > states in the stdlib tier.
 
 Reusable compositions are ordinary values or lists, not new language syntax:
@@ -564,7 +564,7 @@ data User:
 > language needs no macro system and no per-library compiler support.
 
 See also: [Derived Implementations](09-traits.md#derived-implementations),
-[Typed Derivation open points](../future-work/OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
+[Typed Derivation open points](../../future-work/OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
 
 ### Opting In
 
@@ -1452,7 +1452,7 @@ See also: [`trait.derive.bounds`](09-traits.md#r-trait.derive.bounds),
 ### Undecided Parts
 
 These parts of typed derivation are open design questions, listed in
-[Open Issues](../future-work/OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
+[Open Issues](../../future-work/OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
 An implementation must not guess them:
 
 | Part | State |
@@ -1460,7 +1460,7 @@ An implementation must not guess them:
 | Non-escaping handles | Whether a future non-escaping trait design makes handles non-escaping. |
 | `Clone`'s module | Which standard module declares `Clone`. It is chosen with the standard library. |
 | Derived-function cache | The API of the standard cache for derived associated functions. It is chosen with the standard library. |
-| Function targets | Deriving for functions, as tool adapters need ([parked tool adapters](../future-work/OPEN_ISSUES.md#parked-tool-adapters)). A decorator before a function attaches a value, as [Prefix Decorators](#prefix-decorators) defines. |
+| Function targets | Deriving for functions, as tool adapters need ([parked tool adapters](../../future-work/OPEN_ISSUES.md#parked-tool-adapters)). A decorator before a function attaches a value, as [Prefix Decorators](#prefix-decorators) defines. |
 
 ## Error Derivation
 

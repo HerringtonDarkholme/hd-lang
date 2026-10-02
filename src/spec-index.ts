@@ -16,9 +16,9 @@ import { fileURLToPath } from "node:url";
 /** A rule ID marker and the rule text that follows it. */
 interface SpecRule {
   readonly id: string;
-  /** Chapter file name, such as `08-data-and-enums.md`. */
+  /** Chapter path under `spec/`, such as `lang/08-data-and-enums.md`. */
   readonly file: string;
-  /** Repository-relative citation, such as `spec/08-data-and-enums.md#r-data.field.unique`. */
+  /** Repository-relative citation, such as `spec/lang/08-data-and-enums.md#r-data.field.unique`. */
   readonly anchor: string;
   readonly line: number;
   readonly text: string;
@@ -30,7 +30,7 @@ interface SpecRule {
 export interface SpecMention {
   readonly file: string;
   readonly heading: string;
-  /** Repository-relative heading citation, such as `spec/05-expressions.md#data-literals`. */
+  /** Repository-relative heading citation, such as `spec/lang/05-expressions.md#data-literals`. */
   readonly anchor: string;
   readonly line: number;
   /** The rule ID the block carries, when it opens with a marker. */
@@ -232,15 +232,15 @@ function fixtureRows(cases: string): Map<string, SpecFixture[]> {
 
 /**
  * Indexes the specification. `files` maps a path under `spec/` (`README.md`,
- * `08-data-and-enums.md`, `conformance/cases.tsv`) to its text.
+ * `lang/08-data-and-enums.md`, `conformance/cases.tsv`) to its text.
  */
 export function indexSpec(files: Readonly<Record<string, string>>): SpecIndex {
-  const codes = readmeCodes(files["README.md"] ?? "", files["06-control-flow.md"] ?? "");
+  const codes = readmeCodes(files["README.md"] ?? "", files["lang/06-control-flow.md"] ?? "");
   const rules: SpecRule[] = [];
   const rulesByCode = new Map<string, SpecRule[]>();
   const mentions = new Map<string, SpecMention[]>();
   const chapters = Object.keys(files)
-    .filter((path) => /^(?:\d\d-[^/]+|std\/(?!README\.md$)[^/]+)\.md$/.test(path))
+    .filter((path) => /^(?:lang\/\d\d-[^/]+|std\/(?!README\.md$)[^/]+)\.md$/.test(path))
     .sort();
   for (const file of chapters) {
     const slugs = new Map<string, number>();
@@ -309,8 +309,9 @@ export async function loadSpecIndex(directory = specDirectory()): Promise<SpecIn
       return [];
     }
   };
-  // The numbered language chapters and the stdlib chapters in spec/std/.
-  const names = [...(await markdown(".")), ...(await markdown("std"))];
+  // spec/README.md, the numbered language chapters in spec/lang/, and the
+  // stdlib chapters in spec/std/.
+  const names = [...(await markdown(".")), ...(await markdown("lang")), ...(await markdown("std"))];
   for (const name of [...names, "conformance/cases.tsv"])
     try {
       files[name] = await readFile(join(directory, name), "utf8");

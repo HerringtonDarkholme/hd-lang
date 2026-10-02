@@ -3,7 +3,7 @@ import { declarationFacts, lineFacts, type Target } from "./member-lines.ts";
 import { fieldsSelfRef, type SelfRef, type SelfRefScope } from "./self-ref.ts";
 
 // The members and variants one typed derivation sees
-// (spec/14-annotations.md#typed-derivation), after its member lines.
+// (spec/lang/14-annotations.md#typed-derivation), after its member lines.
 
 export interface MemberModel {
   readonly name: string;

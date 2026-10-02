@@ -143,9 +143,10 @@ function parseOptions(args: readonly string[]): Options {
 }
 
 async function readPanicCategories(): Promise<Set<string>> {
-  const chapter = await readFile(resolve(specRoot, "06-control-flow.md"), "utf8");
+  const chapter = await readFile(resolve(specRoot, "lang/06-control-flow.md"), "utf8");
   const sentence = /Stable panic categories are exactly([^.]*)\./.exec(chapter);
-  if (!sentence) throw new UsageError("spec/06-control-flow.md lists no stable panic categories");
+  if (!sentence)
+    throw new UsageError("spec/lang/06-control-flow.md lists no stable panic categories");
   return new Set([...sentence[1]!.matchAll(/`([a-z0-9-]+)`/g)].map((match) => match[1]!));
 }
 
@@ -246,7 +247,7 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
       return `marker ${markers[0]!.expectation} disagrees with index expectation ${row.expectation}`;
   }
   if (row.expectation.startsWith("panic:") && !panics.has(row.expectation.slice(6)))
-    return `'${row.expectation.slice(6)}' is not a stable panic category (spec/06-control-flow.md#runtime-panics)`;
+    return `'${row.expectation.slice(6)}' is not a stable panic category (spec/lang/06-control-flow.md#runtime-panics)`;
   const expect = headers.get("expect");
   const expectPhase = { accept: "type", parse: "parse", test: "runtime" }[expect ?? ""];
   if (expect !== undefined && (row.expectation !== "accept" || expectPhase !== row.phase))

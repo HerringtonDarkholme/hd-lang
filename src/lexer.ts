@@ -89,7 +89,7 @@ export const KEYWORDS = new Set([
 
 const MULTI_SYMBOLS = [
   "...=",
-  // Compound assignment (spec/01-lexical-structure.md#r-lex.op.compound-assign);
+  // Compound assignment (spec/lang/01-lexical-structure.md#r-lex.op.compound-assign);
   // a member line of a derivation block also uses `+=`.
   "<<=",
   ">>=",

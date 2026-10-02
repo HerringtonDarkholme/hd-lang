@@ -184,7 +184,7 @@ export type HirBuiltinTraitImplementation =
       readonly targetType: ValueType;
     }
   | {
-      // The compiler-supplied `Inspectable` (spec/09-traits.md#sealed-traits).
+      // The compiler-supplied `Inspectable` (spec/lang/09-traits.md#sealed-traits).
       // `runtime_type` builds a `TypeId` from the key: literal parts, and
       // `bound` parts naming a bound-pack dictionary whose key is spliced in.
       readonly kind: "inspectable";
@@ -318,7 +318,7 @@ export interface HirFunction {
    * boundary). The checked `body` is a placeholder.
    */
   readonly intrinsic?: string;
-  /** Runner options of a test body (spec/10-modules.md#test-cases). */
+  /** Runner options of a test body (spec/lang/10-modules.md#test-cases). */
   readonly testOptions?: {
     readonly name: string;
     /** An `it_each` table: the runner calls it once per row, as `name[i]`. */

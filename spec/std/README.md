@@ -1,7 +1,7 @@
 # Standard Library Specification
 
 This directory holds the stdlib tier of the specification. The numbered
-chapters in the [parent directory](../README.md) are the language tier.
+chapters in [`lang/`](../README.md#contents) are the language tier.
 Both tiers are one specification, written to one
 [Specification Style](../STYLE.md), with one conformance suite.
 
@@ -11,7 +11,7 @@ Both tiers are one specification, written to one
 | --- | --- | --- |
 | language | syntax, static and dynamic semantics, intrinsics, and every std item the compiler must know by name | the [numbered chapters](../README.md#contents) |
 | stdlib | std APIs that `lib/std` writes in ordinary hd over the language tier | this directory |
-| CLI | how the `hd` command finds and runs a package or a single file | [Command Line](../cli.md) |
+| CLI | how the `hd` command finds and runs a package or a single file | [Command Line](../cli/command-line.md) |
 
 The language tier names a std item only when the compiler must know it:
 
@@ -39,7 +39,7 @@ language rule that names it, or a position rule that lists it each mean
 no.
 
 Only `std` may add inherent methods to built-in types
-([`trait.own.inherent.std`](../09-traits.md#r-trait.own.inherent.std)).
+([`trait.own.inherent.std`](../lang/09-traits.md#r-trait.own.inherent.std)).
 That alone does not make a method language-tier.
 
 ## Chapters
@@ -98,4 +98,4 @@ the [language glossary](../README.md#glossary).
   [`cases.tsv`](../conformance/cases.tsv). A path under `std/` is stdlib.
 - Every diagnostic code stays in the [Diagnostics](../README.md#diagnostics)
   table, and every panic category stays in
-  [Control Flow](../06-control-flow.md). Each is a compiler check.
+  [Control Flow](../lang/06-control-flow.md). Each is a compiler check.

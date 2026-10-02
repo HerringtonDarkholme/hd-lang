@@ -20,7 +20,7 @@ import {
   generateErrorType,
 } from "./error-generation.ts";
 
-// Error derivation (spec/14-annotations.md#error-derivation). `@error` is a
+// Error derivation (spec/lang/14-annotations.md#error-derivation). `@error` is a
 // compiler intrinsic, whatever a binding named `error` means
 // (annot.error.intrinsic, annot.error.name). This pass runs before any
 // decorator is resolved: it removes every `@error` form and, inside an error

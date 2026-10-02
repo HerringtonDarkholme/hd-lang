@@ -171,7 +171,7 @@ async function runFile(
       : undefined;
   const source = linked?.source ?? fileSource;
   const profile = profileName ? RUNTIME_PROFILES[profileName] : undefined;
-  // A `*_test.hd` file is a test module (spec/10-modules.md#test-modules), as
+  // A `*_test.hd` file is a test module (spec/lang/10-modules.md#test-modules), as
   // is a file that `--test-layout` places as one (spec/conformance, Test
   // Layouts); the prototype has no separate integration test view.
   const parseOptions = linked
@@ -300,7 +300,7 @@ async function runFile(
     // (spec/conformance/README.md#runtime-execution); `--entry` names any
     // exported function for `run`.
     // A test case with the `ignore` option does not run
-    // (spec/10-modules.md#r-module.testing.option.ignore).
+    // (spec/lang/10-modules.md#r-module.testing.option.ignore).
     const selected = compilation.hir.functions.filter((declaration) => {
       if (command === "test")
         return (

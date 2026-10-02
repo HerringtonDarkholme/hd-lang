@@ -2,7 +2,7 @@ import type { Expression, FunctionDecl, Program } from "../ast.ts";
 import { Source_ } from "./generated-source.ts";
 import { visit } from "./template-instances.ts";
 
-// `facts_of(f)` (spec/14-annotations.md#function-facts). `lib/std/annotation.hd`
+// `facts_of(f)` (spec/lang/14-annotations.md#function-facts). `lib/std/annotation.hd`
 // declares `facts_of` with `@intrinsic("facts_of")`. Before checking, this
 // pass gives each module-level function that a `facts_of` call names a
 // builder, `hd__facts_of_f() -> Facts`, over `std.structure`'s `Facts`; the

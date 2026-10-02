@@ -1,4 +1,4 @@
-# std.format, the part written in hd (spec/09-traits.md#debug-trait,
+# std.format, the part written in hd (spec/lang/09-traits.md#debug-trait,
 # spec/std/format.md).
 # The prelude traits `Display` and `Debug`, `DebugWriter`, its builders,
 # `debug`, and the standard `Debug` implementations (Testing T48, T53).
@@ -7,7 +7,7 @@ use std.function.Tuple
 use std.structure.{Structure, Walker, Variant, Field}
 
 # A value's text in string interpolation
-# (spec/05-expressions.md#string-interpolation).
+# (spec/lang/05-expressions.md#string-interpolation).
 pub trait Display:
     fn to_string(self) -> string
 
@@ -116,7 +116,7 @@ impl DebugMap:
     pub fn finish(mut self) -> void:
         self.out.write("}")
 
-# The standard `Debug` implementations (spec/09-traits.md#r-trait.debug.std-impls).
+# The standard `Debug` implementations (spec/lang/09-traits.md#r-trait.debug.std-impls).
 impl Debug for i32:
     fn debug(self, out: mut DebugWriter) -> void:
         out.write("$self")
@@ -188,7 +188,7 @@ impl[T < Debug, E < Debug] Debug for Result[T, E]:
             .Ok(value) => out.debug_tuple("Ok").field(value).finish()
             .Err(error) => out.debug_tuple("Err").field(error).finish()
 
-# `debug(value)` (spec/10-modules.md#r-module.prelude.debug): the text that
+# `debug(value)` (spec/lang/10-modules.md#r-module.prelude.debug): the text that
 # `Debug` writes for `value` (spec/std/format.md#r-std-format.debug.render).
 pub fn debug[T < Debug](value: T) -> string:
     let mut out = DebugWriter { text: "" }
@@ -198,7 +198,7 @@ pub fn debug[T < Debug](value: T) -> string:
 # Tuple `Debug` (spec/std/format.md#r-std-format.debug.tuple-template):
 # `debug_tuple("")`, a field per element, then `finish`, at every size. The
 # walker implements `rest`, so a rest element's items are fields too
-# (spec/09-traits.md#r-trait.debug.tuples.rest).
+# (spec/lang/09-traits.md#r-trait.debug.tuples.rest).
 impl[T < Tuple] Debug for T by Structure:
     fn debug(self, out: mut DebugWriter) -> void:
         let w: mut DebugFields[T] = DebugFields::[T] { tuple: out.debug_tuple("") }
@@ -225,7 +225,7 @@ impl[S] Walker[S] for DebugFields[S]:
             _ := self.tuple.field(item)
         .Ok()
 
-# Tuple `Display` (spec/05-expressions.md#r-expr.interp.std.tuple.template):
+# Tuple `Display` (spec/lang/05-expressions.md#r-expr.interp.std.tuple.template):
 # each element's text, separated by ", ", inside parentheses, at every
 # size. One element ends with a comma, as in `(1,)`
 # (r-expr.interp.std.tuple.one), and a rest element's items are written

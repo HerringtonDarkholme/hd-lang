@@ -80,31 +80,31 @@ defined in [Classification](#classification).
 
 | Feature | TS files | Lines | Spec | Class |
 | --- | --- | --- | --- | --- |
-| `@derive(Debug)` generator | `checker/derive-intrinsics.ts` (`deriveDebug`, Debug in `deriveNewtypeIntrinsic`), `checker/typed-derivation.ts` (`INTRINSIC_DERIVES`) | 55 | [`trait.debug.derive`](../spec/09-traits.md#r-trait.debug.derive) says template; [Format](../spec/std/format.md) | B |
+| `@derive(Debug)` generator | `checker/derive-intrinsics.ts` (`deriveDebug`, Debug in `deriveNewtypeIntrinsic`), `checker/typed-derivation.ts` (`INTRINSIC_DERIVES`) | 55 | [`trait.debug.derive`](../spec/lang/09-traits.md#r-trait.debug.derive) says template; [Format](../spec/std/format.md) | B |
 | `@derive(Eq, PartialOrd, Ord, Hash)` generator, law partners | `checker/derive-intrinsics.ts` less Debug | 385 | `trait.derive.intrinsic-set` (since retired; now `trait.derive.cmp-templates`), Law Partners | A by spec; C after Q4 |
-| `@error` derivation | `checker/error-derivation.ts`, `checker/error-generation.ts` | 663 | [`annot.error.intrinsic`](../spec/14-annotations.md#r-annot.error.intrinsic) | A |
-| Typed derivation: `Structure`, handles, `walk`/`describe`/`build` | `checker/typed-derivation.ts` less the source string, `self-ref.ts`, `derivation-models.ts`, `member-lines.ts`, `declaration-facts.ts` | 2,013 | [`annot.derive.supplied`](../spec/14-annotations.md#r-annot.derive.supplied) | A |
-| `std.structure` declarations as a TS string | `checker/typed-derivation.ts` (`STRUCTURE_SOURCE`) | 100 | [`annot.structure.bodies`](../spec/14-annotations.md#r-annot.structure.bodies) | B |
-| `Inspectable`, `TypeId` declarations as a TS string | `checker/standard-traits.ts` (`INSPECT_SOURCE`) | 15 | [Runtime Type Identity](../spec/09-traits.md#runtime-type-identity) | B |
+| `@error` derivation | `checker/error-derivation.ts`, `checker/error-generation.ts` | 663 | [`annot.error.intrinsic`](../spec/lang/14-annotations.md#r-annot.error.intrinsic) | A |
+| Typed derivation: `Structure`, handles, `walk`/`describe`/`build` | `checker/typed-derivation.ts` less the source string, `self-ref.ts`, `derivation-models.ts`, `member-lines.ts`, `declaration-facts.ts` | 2,013 | [`annot.derive.supplied`](../spec/lang/14-annotations.md#r-annot.derive.supplied) | A |
+| `std.structure` declarations as a TS string | `checker/typed-derivation.ts` (`STRUCTURE_SOURCE`) | 100 | [`annot.structure.bodies`](../spec/lang/14-annotations.md#r-annot.structure.bodies) | B |
+| `Inspectable`, `TypeId` declarations as a TS string | `checker/standard-traits.ts` (`INSPECT_SOURCE`) | 15 | [Runtime Type Identity](../spec/lang/09-traits.md#runtime-type-identity) | B |
 | `std.testing.arbitrary` submodule shim | `checker/arbitrary-module.ts` | 59 | [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary) | C |
 | Builtin `Debug` dictionary for primitives and composites ("writes nothing") | `checker/debug.ts`, `context.ts` plan, emitter `debug` branch, HIR | 78 | `trait.debug.std-types` (since retired): `std` implements it | C |
-| Prelude traits declared in TS: `Display`, `Eq`, `PartialOrd`, `Ord`, `Ordering`, `Debug`, `Iterable`, `Any`, `Waker`, `Console`, `ResourceError` | `checker/program-types.ts` (`declareProgramTypes` tail, `declareComparisonTraits`) | 230 | [Prelude](../spec/10-modules.md#prelude), [Comparison Traits](../spec/09-traits.md#comparison-traits) | C |
+| Prelude traits declared in TS: `Display`, `Eq`, `PartialOrd`, `Ord`, `Ordering`, `Debug`, `Iterable`, `Any`, `Waker`, `Console`, `ResourceError` | `checker/program-types.ts` (`declareProgramTypes` tail, `declareComparisonTraits`) | 230 | [Prelude](../spec/lang/10-modules.md#prelude), [Comparison Traits](../spec/lang/09-traits.md#comparison-traits) | C |
 | Std-name shims: hidden `Duration`, `ExitCode`, `Termination`, `DebugWriter`, `STANDARD_TRAITS` | `checker/standard-traits.ts` less `INSPECT_SOURCE` | 115 | lang items; [Time](../spec/std/time.md) | C |
-| Runtime type identity: `downcast`, `downcast_val`, `TypeId::of`, keys | `checker/expression-inspect.ts`, `checker/inspectable.ts` | 508 | [`trait.inspect.supplied`](../spec/09-traits.md#r-trait.inspect.supplied) | A |
+| Runtime type identity: `downcast`, `downcast_val`, `TypeId::of`, keys | `checker/expression-inspect.ts`, `checker/inspectable.ts` | 508 | [`trait.inspect.supplied`](../spec/lang/09-traits.md#r-trait.inspect.supplied) | A |
 | `shape`, `shape_of` builders | `checker/shapes.ts` | 461 | `module.prelude.shape`, retired in batch 42 | A |
-| Literal suffix and prefix markers | `checker/literal-suffixes.ts` | 148 | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) | A |
-| `Termination`, entry results | `checker/termination.ts` | 161 | [Executable Entry Point](../spec/10-modules.md#executable-entry-point) | A |
+| Literal suffix and prefix markers | `checker/literal-suffixes.ts` | 148 | [Literal Suffixes](../spec/lang/05-expressions.md#literal-suffixes) | A |
+| `Termination`, entry results | `checker/termination.ts` | 161 | [Executable Entry Point](../spec/lang/10-modules.md#executable-entry-point) | A |
 
 ### Comparison, Display, And Collections
 
 | Feature | TS files | Lines | Spec | Class |
 | --- | --- | --- | --- | --- |
-| `==` and `<` on `List`, `T?`, `Result`, `Map` as emitter strategies | `emitter/value-comparison.ts` (option, list, map, variant emitters), `checker/context.ts` (`equalityStrategy`, `orderingStrategy`, builtin Eq/Ord plan, `renumberBoundDispatches`), HIR strategy types | 400 | [`expr.eq.std`](../spec/05-expressions.md#r-expr.eq.std), [`expr.ord.std`](../spec/05-expressions.md#r-expr.ord.std): "standard-library implementations" | C |
+| `==` and `<` on `List`, `T?`, `Result`, `Map` as emitter strategies | `emitter/value-comparison.ts` (option, list, map, variant emitters), `checker/context.ts` (`equalityStrategy`, `orderingStrategy`, builtin Eq/Ord plan, `renumberBoundDispatches`), HIR strategy types | 400 | [`expr.eq.std`](../spec/lang/05-expressions.md#r-expr.eq.std), [`expr.ord.std`](../spec/lang/05-expressions.md#r-expr.ord.std): "standard-library implementations" | C |
 | Tuple `==` and `<` strategies | `emitter/value-comparison.ts` (`emitTupleEquality`, `emitTupleOrdering`), checker tuple branches | 82 | `trait.target.tuple.derived` (since retired; now `trait.target.tuple.templates`): intrinsic, every arity | C (no hook if Q3 is B) |
-| Primitive `Display`: integer, `char`, `bool` text | `display` HIR node, `emitPrimitiveDisplay`, `runtime.wat` `i32_to_string`, `i64_to_string`, `u64_to_string`, `char_to_string` | 160 | [`expr.interp.std`](../spec/05-expressions.md#r-expr.interp.std): "the standard library provides" | B |
+| Primitive `Display`: integer, `char`, `bool` text | `display` HIR node, `emitPrimitiveDisplay`, `runtime.wat` `i32_to_string`, `i64_to_string`, `u64_to_string`, `char_to_string` | 160 | [`expr.interp.std`](../spec/lang/05-expressions.md#r-expr.interp.std): "the standard library provides" | B |
 | Float text, `**`, float `%` | `runtime/float.wat`, host `format_f64` | 50 | operators and interpolation | A |
 | `FromIterator` for `Map` | `checker/assignability.ts` (`mapCollectionPlan`), `value-comparison.ts` (`emitMapCollection`), HIR `map-collection` | 69 | [Collect Targets](../spec/std/iter.md#collect-targets) | B |
-| `Map` storage, key equality, key kinds | `runtime/map.wat`, `shared.ts` (`mapKeyKind`, `setHashableKeyTypes`) | 233 + 30 | representation intrinsic (Tier Criteria); [`types.map-key.declared-bound`](../spec/04-type-system.md#r-types.map-key.declared-bound) | A; key kinds D |
+| `Map` storage, key equality, key kinds | `runtime/map.wat`, `shared.ts` (`mapKeyKind`, `setHashableKeyTypes`) | 233 + 30 | representation intrinsic (Tier Criteria); [`types.map-key.declared-bound`](../spec/lang/04-type-system.md#r-types.map-key.declared-bound) | A; key kinds D |
 | `List` storage, cursors, invalidation | `runtime.wat` vectors, `emitter/iterator.ts`, `checker/iteration.ts` | 439 + 152 | Built-In Collection Iteration (06) | A and D |
 | Checked arithmetic, sized integers, string primitives | `runtime.wat` rest, `emitter/sized-numeric.ts`, `numeric.ts` | 414 + 305 | 04, 05 | D |
 
@@ -112,7 +112,7 @@ defined in [Classification](#classification).
 
 | Feature | TS files | Lines | Spec | Class |
 | --- | --- | --- | --- | --- |
-| `assert`, `assert_equal`, `snapshot` as HIR nodes | `checker/expression-calls.ts` (190), `emitter/function-body.ts` (42), `suspension.ts`, HIR | 250 | [Standard Testing](../spec/10-modules.md#standard-testing): harness; `snapshot`'s literal stays language | C |
+| `assert`, `assert_equal`, `snapshot` as HIR nodes | `checker/expression-calls.ts` (190), `emitter/function-body.ts` (42), `suspension.ts`, HIR | 250 | [Standard Testing](../spec/lang/10-modules.md#standard-testing): harness; `snapshot`'s literal stays language | C |
 | `it_each` rows, `it_prop`, `it_prop_with`, `timeout` | `parser/test-cases.ts` (`tableTest`, `propertyTest`), `checker/program-declarations.ts` (timeout), `checker/calls.ts`, HIR `each-row-index`, `each-row-count`, `test-timeout`, runtime globals | 285 | [Testing](../spec/std/testing.md): stdlib tier | C |
 | Test runner: cases, rows, timeouts | `test-runner.ts` | 170 | runner | A (host tool) |
 | Property runner: PRNG, draws, shrinking, regressions | `property-tests.ts` | 303 | [Property Tests](../spec/std/testing.md#property-tests) | A (host tool) |
@@ -124,7 +124,7 @@ defined in [Classification](#classification).
 | --- | --- | --- | --- | --- |
 | `@intrinsic` runtime primitives and host functions | `emitter/intrinsics.ts`, `host-functions.ts`, `runtime/boundary.wat` | 215 | [Boundary Mechanisms](../src/README.md#boundary-mechanisms) | A |
 | Capability bridge | `emitter/host-providers.ts`, `checker/host-capabilities.ts` | 407 | 11, Console | A |
-| `block_on`, `all!`, `race!` | `checker/expression-suspensions.ts`, `emitter/suspension.ts` (parts) | in D | [`req.combinator.intrinsic`](../spec/11-requirements-and-suspension.md#r-req.combinator.intrinsic) | A |
+| `block_on`, `all!`, `race!` | `checker/expression-suspensions.ts`, `emitter/suspension.ts` (parts) | in D | [`req.combinator.intrinsic`](../spec/lang/11-requirements-and-suspension.md#r-req.combinator.intrinsic) | A |
 | `retry!` | none: missing | 0 | [Task](../spec/std/task.md) | C (hook: a `lib/std/task.hd`) |
 
 ### Not Audited Line By Line
@@ -188,7 +188,7 @@ and the agent tooling. Not audited.
 
 ### Stdlib-Tier Features That Exist Only As TypeScript
 
-1. **`@derive(Debug)`.** [`trait.debug.derive`](../spec/09-traits.md#r-trait.debug.derive)
+1. **`@derive(Debug)`.** [`trait.debug.derive`](../spec/lang/09-traits.md#r-trait.debug.derive)
    says it derives through its template, and [Format](../spec/std/format.md)
    lists it as a template. `lib/std/format.hd` has no template;
    `derive-intrinsics.ts` generates the builder calls in TS.
@@ -203,12 +203,12 @@ and the agent tooling. Not audited.
 
 ### Language Rules That Say "Standard Library" But The TS Hard-Codes
 
-5. **Composite equality and order.** [`expr.eq.std`](../spec/05-expressions.md#r-expr.eq.std)
-   and [`expr.ord.std`](../spec/05-expressions.md#r-expr.ord.std) say
+5. **Composite equality and order.** [`expr.eq.std`](../spec/lang/05-expressions.md#r-expr.eq.std)
+   and [`expr.ord.std`](../spec/lang/05-expressions.md#r-expr.ord.std) say
    standard-library implementations compare lists, optionals, results, and
    maps. The emitter inlines them as strategies, so no `impl Eq for
    List[T]` exists for a bound to find through `lib/std`.
-6. **Primitive `Display`.** [`expr.interp.std`](../spec/05-expressions.md#r-expr.interp.std)
+6. **Primitive `Display`.** [`expr.interp.std`](../spec/lang/05-expressions.md#r-expr.interp.std)
    says the standard library provides it. The checker emits a `display`
    node and WAT digit loops.
 7. **`Debug` for built-in types.** `trait.debug.std-types` (since retired)
@@ -220,13 +220,13 @@ and the agent tooling. Not audited.
 
 ### Behavior Gaps Found On The Way
 
-8. **`assert_equal` shows nothing.** [`module.testing.assert-equal-debug`](../spec/10-modules.md#r-module.testing.assert-equal-debug)
+8. **`assert_equal` shows nothing.** [`module.testing.assert-equal-debug`](../spec/lang/10-modules.md#r-module.testing.assert-equal-debug)
    says a failure shows both values as `debug` renders them. The emitter
    panics with `assertion-failed` and no text, not even `reason`. An hd
    `assert_equal` fixes this for free.
 9. **Map keys by a private rule.** `mapKeyKind` accepts a key by its own
    "MVP map-key contract", not the declared bound `Map[K < Eq & Hash, V]`
-   ([`types.map-key.declared-bound`](../spec/04-type-system.md#r-types.map-key.declared-bound)).
+   ([`types.map-key.declared-bound`](../spec/lang/04-type-system.md#r-types.map-key.declared-bound)).
    This is the SSC-Q7 group of known failures (7 rows). The runtime never
    calls `Hash`; it scans keys linearly, which no fixture can observe.
 
@@ -484,7 +484,7 @@ grammar and typing. They have no library angle.
 - **`std.function.Tuple`:** declare it in `lib/std` as a sealed marker
   trait. The compiler supplies its impls, as it does `Inspectable`; that
   part is A and small.
-- **`all!`:** A by [`req.combinator.intrinsic`](../spec/11-requirements-and-suspension.md#r-req.combinator.intrinsic).
+- **`all!`:** A by [`req.combinator.intrinsic`](../spec/lang/11-requirements-and-suspension.md#r-req.combinator.intrinsic).
   Type it by its one rule. Declare its signature in `lib/std/task.hd`
   (M10) so the checker does not spell the name.
 - **Tuple `Eq`/`Ord`/`Hash`:** the spec says compiler-derived. Do not
@@ -543,7 +543,7 @@ every size (COMPTIME_UNIFICATION O3b).
 **Q4. `@derive(Eq, PartialOrd, Ord, Hash)` as std templates?**
 `trait.derive.intrinsic-set` (since retired; now `trait.derive.cmp-templates`)
 makes these four intrinsic. `Debug` and `Arbitrary` already derive through
-templates over `Structure`, and the Why note under [`annot.derive.supplied`](../spec/14-annotations.md#r-annot.derive.supplied)
+templates over `Structure`, and the Why note under [`annot.derive.supplied`](../spec/lang/14-annotations.md#r-annot.derive.supplied)
 says "every format, comparison, or schema is library code".
 
 - A: keep them intrinsic.

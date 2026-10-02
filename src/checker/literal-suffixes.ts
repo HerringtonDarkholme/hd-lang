@@ -2,7 +2,7 @@ import type { HirExpression } from "../hir.ts";
 import type { Signature } from "./context.ts";
 
 // A suffixed literal `Nx` is the call `x(N)` of a function marked
-// `@num_suffix` (spec/05-expressions.md#literal-suffixes), and a prefixed
+// `@num_suffix` (spec/lang/05-expressions.md#literal-suffixes), and a prefixed
 // string `x"..."` the call `x(t)` of a function marked `@str_prefix`, with a
 // `std.ops.Template` value `t` (#prefixed-strings). Both are plain call sugar
 // (r-expr.literal-fn.ordinary-call): the call is an ordinary call, so generic

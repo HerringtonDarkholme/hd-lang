@@ -38,7 +38,7 @@ libraries should support:
    and documentation for external ecosystems.
 
 *Mechanism:* member metadata and typed derivation of a library trait such as
-`Validate` ([Annotations](../spec/14-annotations.md)). Validation metadata does not create
+`Validate` ([Annotations](../spec/lang/14-annotations.md)). Validation metadata does not create
 a distinct static subtype. Domain identity uses an ordinary nominal type;
 annotations attach validation or presentation information to that type.
 
@@ -73,7 +73,7 @@ tool_registry.register(get_user)
 separate declaration kind, and registration is an explicit runtime call. A
 decorator before the function attaches a plain value, which an adapter reads
 with `facts_of(get_user).find::[M]()`
-([Function Facts](../spec/14-annotations.md#function-facts)).
+([Function Facts](../spec/lang/14-annotations.md#function-facts)).
 Deriving an adapter for a function is still undecided
 ([parked tool adapters](../future-work/OPEN_ISSUES.md#parked-tool-adapters)),
 so tools are registered by hand for now. The same registration
@@ -100,7 +100,7 @@ systems. The design should support:
 8. interactive resumption without silently gaining new authority.
 
 *Mechanism:* requirement rows, `$.use`, `$.with`, row parameters, and removal
-by row extension ([Requirements and Suspension](../spec/11-requirements-and-suspension.md)).
+by row extension ([Requirements and Suspension](../spec/lang/11-requirements-and-suspension.md)).
 Normal errors use `Result`; requirements describe dependencies; `fn!` and
 `Suspend[T]` describe one-shot suspension. These mechanisms replace the older
 single “effects and handlers” model.

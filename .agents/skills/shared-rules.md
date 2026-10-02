@@ -48,13 +48,13 @@ before relying on one, because they change.
 The specification has three tiers; AGENTS.md "Spec Scope For The Standard
 Library" states the tier test and where each kind of rule goes.
 
-- The **language tier** is the numbered chapters `spec/01-*.md` to
-  `spec/14-*.md`: syntax, semantics, intrinsics, and anything the compiler
+- The **language tier** is the numbered chapters `spec/lang/01-*.md` to
+  `spec/lang/14-*.md`: syntax, semantics, intrinsics, and anything the compiler
   knows by name.
 - The **stdlib tier** is [spec/std/](../../spec/std/README.md), one file
   per std module, with rule IDs `std-<module>.*`: std APIs that `lib/std`
   can write in plain hd over the language tier.
-- The **CLI tier** is [spec/cli.md](../../spec/cli.md), with rule IDs
+- The **CLI tier** is [spec/cli/](../../spec/cli/README.md), with rule IDs
   `cli.*`: what the `hd` command does, such as package mode, `hd run`,
   tasks, and the REPL.
 - Search every tier when you list the spec text an area depends on.

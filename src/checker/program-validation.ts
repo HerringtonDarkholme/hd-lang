@@ -121,7 +121,7 @@ export function validateProgram(context: ProgramCheckContext): void {
     }
   }
   // Fact and metadata expressions are evaluated at compile time, outside any
-  // driver (spec/14-annotations.md#r-annot.fact.no-block-on).
+  // driver (spec/lang/14-annotations.md#r-annot.fact.no-block-on).
   const facts: Expression[] = [
     ...[...program.data, ...program.enums].flatMap((declaration) => [
       ...(declaration.decorators?.facts ?? []),

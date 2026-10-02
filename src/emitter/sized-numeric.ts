@@ -3,7 +3,7 @@ import { numericType, type NumericType } from "../numeric.ts";
 import type { RuntimePanicName } from "../runtime-panic.ts";
 
 // Operations on the sized numeric types beyond `i32`, `i64`, and `f64`
-// (spec/04-type-system.md#numeric-conversions), as WAT. An integer of at most
+// (spec/lang/04-type-system.md#numeric-conversions), as WAT. An integer of at most
 // 16 bits computes in `i32` and range-checks the result; `u32` computes in
 // `i64` or with unsigned instructions; `u64` uses unsigned instructions and
 // checked runtime helpers; `f32` is native.
@@ -70,7 +70,7 @@ export function emitWiden(value: string, from: ValueType, to: ValueType): string
   return asWide(value, from);
 }
 
-/** A constructor-style numeric cast (spec/04-type-system.md#numeric-casts). */
+/** A constructor-style numeric cast (spec/lang/04-type-system.md#numeric-casts). */
 export function emitCast(value: string, from: ValueType, to: ValueType): string {
   if (from === to) return value;
   const source = info(from);
@@ -206,7 +206,7 @@ export function emitSizedBinary(
 
 /**
  * A shift count of another integer type than the shifted value, in the
- * value's Wasm type (spec/05-expressions.md#shifts). An `i64` count is
+ * value's Wasm type (spec/lang/05-expressions.md#shifts). An `i64` count is
  * range-checked before it narrows, and a signed count extends with its sign,
  * so a negative or oversized count still panics.
  */

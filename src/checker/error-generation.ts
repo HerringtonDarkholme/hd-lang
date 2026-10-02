@@ -1,7 +1,7 @@
 import type { DataDecl, DataField, EnumDecl, Expression, FunctionDecl, ImplDecl } from "../ast.ts";
 import { Source_, ZERO_SPAN } from "./generated-source.ts";
 
-// The implementations that `@error` generates (spec/14-annotations.md#error-derivation),
+// The implementations that `@error` generates (spec/lang/14-annotations.md#error-derivation),
 // as ordinary hd source. A message becomes a helper function whose parameters
 // are the members it names, so it sees exactly those members and never
 // `self` (annot.error.message.scope, annot.error.message.no-self). A line that

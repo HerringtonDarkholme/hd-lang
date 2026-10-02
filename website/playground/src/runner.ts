@@ -174,7 +174,7 @@ export async function runProject(
       return finish("ok", diagnostics, "exited normally");
     }
     // A test case with the `ignore` option does not run
-    // (spec/10-modules.md#r-module.testing.option.ignore).
+    // (spec/lang/10-modules.md#r-module.testing.option.ignore).
     const cases = functions.filter(({ name }) => /^\$test\.\d+$/.test(name));
     const tests = cases.filter(({ testOptions }) => testOptions?.ignore === undefined);
     if (tests.length === 0)

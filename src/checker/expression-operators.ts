@@ -150,7 +150,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
 
   /**
    * A type, trait, or type parameter name where a value is required
-   * (spec/03-names-and-scopes.md#r-names.type-as-value).
+   * (spec/lang/03-names-and-scopes.md#r-names.type-as-value).
    */
   private rejectTypeAsValue(name: string, span: SourceSpan): void {
     if (

@@ -31,7 +31,7 @@ interface GenericParameterForm {
 }
 
 // Decorators, member lines, generic parameters, and trait bounds
-// (spec/02-grammar.md#annotations and #r-grammar.impl.derivation-line),
+// (spec/lang/02-grammar.md#annotations and #r-grammar.impl.derivation-line),
 // shared by the declaration parser.
 export abstract class DecoratorParser extends ExpressionParser {
   protected parseGenericParameters(
@@ -105,7 +105,7 @@ export abstract class DecoratorParser extends ExpressionParser {
 
   // Whether the decorator lines here precede a data, enum, function, trait,
   // newtype, alias, or implementation declaration
-  // (spec/02-grammar.md#r-grammar.annot.item-targets).
+  // (spec/lang/02-grammar.md#r-grammar.annot.item-targets).
   protected decoratedDeclarationFollows(): boolean {
     let offset = 0;
     while (this.peek(offset).text === "@") {
@@ -168,7 +168,7 @@ export abstract class DecoratorParser extends ExpressionParser {
   }
 
   // Member decorators: `@expression` lines before a field or variant, or
-  // inline before a payload parameter (spec/02-grammar.md#data-declarations).
+  // inline before a payload parameter (spec/lang/02-grammar.md#data-declarations).
   protected parseMemberDecorators(inline: boolean): Expression[] {
     const metadata: Expression[] = [];
     while (this.atText("@")) {
@@ -194,7 +194,7 @@ export abstract class DecoratorParser extends ExpressionParser {
   }
 
   // A transparent alias takes no decorator
-  // (spec/02-grammar.md#r-grammar.annot.alias-no-decorator).
+  // (spec/lang/02-grammar.md#r-grammar.annot.alias-no-decorator).
   protected checkTypeDecorators(declaration: TypeDecl, typeStart: SourceSpan): void {
     if (!declaration.decorators || !declaration.alias) return;
     this.fail(
@@ -206,7 +206,7 @@ export abstract class DecoratorParser extends ExpressionParser {
 
   // Doc comments and decorator lines before a member of a trait or
   // implementation body. Decorators precede only a method, `fn` or `pub fn`
-  // (spec/02-grammar.md#r-grammar.annot.member-targets).
+  // (spec/lang/02-grammar.md#r-grammar.annot.member-targets).
   protected parseMethodPrefix(): { doc?: string; decorators?: Decorators } {
     const before = this.parseDocComments();
     if (!this.atText("@")) return { doc: before };
@@ -222,7 +222,7 @@ export abstract class DecoratorParser extends ExpressionParser {
   }
 
   // Decorators on a method's value parameter; a receiver takes none
-  // (spec/02-grammar.md#r-grammar.fn.decorator-param-targets).
+  // (spec/lang/02-grammar.md#r-grammar.fn.decorator-param-targets).
   protected parseMethodParameterDecorators(): Expression[] {
     const metadata = this.parseMemberDecorators(true);
     const receiver = this.atText("self") || (this.atText("mut") && this.peek(1).text === "self");
@@ -232,7 +232,7 @@ export abstract class DecoratorParser extends ExpressionParser {
   }
 
   // A member line `f = [...]`, `f += [...]`, `f = pass`, or a `Self` line
-  // (spec/02-grammar.md#r-grammar.impl.derivation-line).
+  // (spec/lang/02-grammar.md#r-grammar.impl.derivation-line).
   protected parseMemberLine(): MemberLine | undefined {
     if (
       !(this.atKind("identifier") || this.atText("Self")) ||

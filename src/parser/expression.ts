@@ -320,7 +320,7 @@ export abstract class ExpressionParser extends ParserBase {
       }
       const operator = this.advance();
       // `**=` lexes as `**` and `=`, which no grammar rule accepts
-      // (spec/01-lexical-structure.md#r-lex.op.no-power-assign).
+      // (spec/lang/01-lexical-structure.md#r-lex.op.no-power-assign).
       if (operator.text === "**" && this.atText("="))
         this.fail("syntax-error", "there is no '**=' compound assignment", this.current().span);
       // An ordering comparison's right operand still takes a pipe.
@@ -658,7 +658,7 @@ export abstract class ExpressionParser extends ParserBase {
     // (01-lexical-structure.md#physical-and-logical-lines) is a syntax error.
     if (token.kind === "indent") this.fail("syntax-error", "unexpected indentation", token.span);
     // `tests` is reserved; a `tests:` block is only a top-level item
-    // (spec/02-grammar.md#r-grammar.tests.top-level).
+    // (spec/lang/02-grammar.md#r-grammar.tests.top-level).
     if (token.text === "tests")
       this.fail(
         "syntax-error",

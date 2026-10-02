@@ -23,7 +23,7 @@ import { parse } from "./parser/index.ts";
 // Test case names share the joined namespace too, so two modules must not
 // name a test case alike.
 //
-// An integration test module (spec/10-modules.md#r-module.test.integration)
+// An integration test module (spec/lang/10-modules.md#r-module.test.integration)
 // is test code too, so it links like a test module. It reaches the library
 // through `pkg` uses, which see only public declarations, and other
 // integration test modules through the `tests` root or `self`. The joined
@@ -62,20 +62,20 @@ interface LinkSegment {
 
 interface LinkOptions {
   /**
-   * A test build (spec/10-modules.md#r-module.test.code): every test module
+   * A test build (spec/lang/10-modules.md#r-module.test.code): every test module
    * is linked, not only those the entry module reaches.
    */
   readonly tests?: boolean;
 }
 
-/** Whether a package path is an integration test module (spec/10-modules.md#r-module.test.integration). */
+/** Whether a package path is an integration test module (spec/lang/10-modules.md#r-module.test.integration). */
 function isIntegrationTestPath(path: string): boolean {
   return path.startsWith(TEST_ROOT);
 }
 
 /**
  * Whether a package path is a test module or an integration test module
- * (spec/10-modules.md#r-module.test.module): its top level is test code.
+ * (spec/lang/10-modules.md#r-module.test.module): its top level is test code.
  */
 function isTestModulePath(path: string): boolean {
   return path.endsWith("_test.hd") || isIntegrationTestPath(path);
@@ -102,7 +102,7 @@ const IDENTIFIER = /^[\p{ID_Start}_][\p{ID_Continue}_]*$/u;
 /**
  * The module identity of a package path, or undefined when it names none. A
  * file under `tests/` is the integration test module `tests.<path>`
- * (spec/10-modules.md#r-module.test.integration.tests-root); `tests` is a
+ * (spec/lang/10-modules.md#r-module.test.integration.tests-root); `tests` is a
  * reserved word, so no library module identity starts with it.
  */
 export function moduleIdentity(path: string): string | undefined {
@@ -237,7 +237,7 @@ export function linkPackage(
   const resolvedUses = new Map<PackageModule, ResolvedUse[]>();
   // Follows `pub use` re-exports to the module that declares `name`; "loop"
   // when the chain returns to a module it passed
-  // (spec/10-modules.md#r-module.pub-use.chain.loop).
+  // (spec/lang/10-modules.md#r-module.pub-use.chain.loop).
   const exporter = (
     target: PackageModule,
     name: string,
@@ -285,7 +285,7 @@ export function linkPackage(
         continue;
       }
       // In an integration test module, `pkg` names only the library modules
-      // (spec/10-modules.md#r-module.test.integration.pkg-root).
+      // (spec/lang/10-modules.md#r-module.test.integration.pkg-root).
       if (root === "pkg" && isIntegrationTestPath(module.path) && isTestModulePath(target.path)) {
         report(
           module.path,
@@ -312,7 +312,7 @@ export function linkPackage(
 
   // Imported names must be public declarations of the target (or re-exported).
   const edges = new Map<PackageModule, Set<PackageModule>>();
-  // Uses outside test code, for the folder graph (spec/10-modules.md#r-module.cycle.test-code).
+  // Uses outside test code, for the folder graph (spec/lang/10-modules.md#r-module.cycle.test-code).
   const folderUses: { module: PackageModule; use: ResolvedUse }[] = [];
   for (const [module, uses] of resolvedUses) {
     const local = module.program ? topLevelNames(module.program) : new Map();
@@ -322,7 +322,7 @@ export function linkPackage(
     const testNames = new Set(module.program?.testOnlyNames ?? []);
     for (const use of uses) {
       targets.add(use.target);
-      // Only test code may use a test module (spec/10-modules.md#r-module.test.non-test-use).
+      // Only test code may use a test module (spec/lang/10-modules.md#r-module.test.non-test-use).
       const testCode =
         isTestModulePath(module.path) ||
         use.declaration.names.every(({ name, alias }) => testNames.has(alias ?? name));
@@ -337,7 +337,7 @@ export function linkPackage(
       for (const name of use.names) {
         const found = exporter(use.target, name, new Set());
         // A plain use into a pub use loop has the loop's code
-        // (spec/10-modules.md#r-module.pub-use.chain.loop-use).
+        // (spec/lang/10-modules.md#r-module.pub-use.chain.loop-use).
         if (found === "loop")
           report(
             module.path,
@@ -374,7 +374,7 @@ export function linkPackage(
     }
   }
 
-  // The folder graph must be acyclic (spec/10-modules.md#r-module.cycle.acyclic).
+  // The folder graph must be acyclic (spec/lang/10-modules.md#r-module.cycle.acyclic).
   // Files of one folder may use each other in a loop.
   for (const loop of folderLoops(folderUses)) {
     const fix = loop.find(({ use }) => !use.target.path.endsWith("/mod.hd"));
@@ -489,7 +489,7 @@ export function linkPackage(
     if (!text.endsWith("\n")) text += "\n";
     const lineCount = text.split("\n").length - 1;
     // A test module's top level is test position, so it joins the linked
-    // source as a `tests:` block (spec/10-modules.md#test-modules). Its
+    // source as a `tests:` block (spec/lang/10-modules.md#test-modules). Its
     // top-level `pub` is deleted, since a `tests:` item cannot be `pub`;
     // the linked modules share one namespace anyway. Deleting it, not
     // blanking it, keeps a `pub fn` header shallower than its body.
@@ -562,7 +562,7 @@ function joinedText(module: PackageModule, source: string, importedStd: Set<stri
   return text;
 }
 
-// Initialization order (spec/10-modules.md#initialization-order): modules
+// Initialization order (spec/lang/10-modules.md#initialization-order): modules
 // that use each other form one group; a group is ready once every group it
 // uses is done, and ready groups go by their least identity. Test modules
 // go after the others, so a standard use that a test module shares with
@@ -612,13 +612,13 @@ interface FolderEdge {
   readonly use: ResolvedUse;
 }
 
-/** The folder that holds a package file (spec/10-modules.md#r-module.folder.directory). */
+/** The folder that holds a package file (spec/lang/10-modules.md#r-module.folder.directory). */
 function folderOf(path: string): string {
   return path.slice(0, path.lastIndexOf("/"));
 }
 
 // One shortest loop per strongly connected component of the folder graph
-// (spec/10-modules.md#cycle-diagnostic). Each edge is carried by the first use
+// (spec/lang/10-modules.md#cycle-diagnostic). Each edge is carried by the first use
 // that makes it; `tangle` is the component's size.
 function folderLoops(
   uses: readonly { module: PackageModule; use: ResolvedUse }[],

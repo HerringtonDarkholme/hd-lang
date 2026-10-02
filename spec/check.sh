@@ -12,7 +12,8 @@ fail() {
     exit 1
 }
 
-for file in "$spec_dir"/*.md "$spec_dir"/std/*.md "$spec_dir"/conformance/*.md; do
+for file in "$spec_dir"/*.md "$spec_dir"/lang/*.md "$spec_dir"/std/*.md "$spec_dir"/cli/*.md \
+    "$spec_dir"/conformance/*.md; do
     fences=$(awk '/^```/{ count += 1 } END { print count + 0 }' "$file")
     [ $((fences % 2)) -eq 0 ] || fail "unbalanced code fence in $file"
 done
@@ -72,7 +73,7 @@ tail -n +2 "$manifest" | while IFS="$tab" read -r path phase expectation section
             code=${expectation#panic:}
             grep -Fq "# panic: $code" "$spec_dir/conformance/$path" ||
                 fail "fixture $path does not declare panic $code"
-            grep -Fq "\`$code\`" "$spec_dir/06-control-flow.md" ||
+            grep -Fq "\`$code\`" "$spec_dir/lang/06-control-flow.md" ||
                 fail "fixture $path uses unknown panic category $code"
             ;;
     esac
@@ -174,28 +175,28 @@ awk -F "$tab" '
     seen[$1 SUBSEP $2]++ { exit 1 }
 ' "$examples" || fail "malformed or duplicate conformance/examples.tsv entry"
 
-# Chapters: the numbered language chapters, the stdlib chapters in std/
-# (std/README.md), and the CLI chapter cli.md. Each chapter's text examples
-# are inventoried.
-for file in "$spec_dir"/[0-9][0-9]-*.md "$spec_dir"/std/*.md "$spec_dir"/cli.md; do
+# Chapters: the numbered language chapters in lang/, the stdlib chapters in
+# std/ (std/README.md), and the CLI chapters in cli/ (cli/README.md). Each
+# chapter's text examples are inventoried.
+for file in "$spec_dir"/lang/[0-9][0-9]-*.md "$spec_dir"/std/*.md "$spec_dir"/cli/*.md; do
     name=${file#"$spec_dir/"}
-    [ "$name" != std/README.md ] || continue
+    case $name in std/README.md | cli/README.md) continue ;; esac
     blocks=$(awk '/^```text/{ count += 1 } END { print count + 0 }' "$file")
     indexed=$(awk -F "$tab" -v name="$name" 'NR > 1 && $1 == name { count += 1 } END { print count + 0 }' "$examples")
     [ "$blocks" -eq "$indexed" ] ||
         fail "$name has $blocks text examples but $indexed inventory entries"
 done
 
-grep -Fq '```ebnf' "$spec_dir/02-grammar.md" ||
+grep -Fq '```ebnf' "$spec_dir/lang/02-grammar.md" ||
     fail "02-grammar.md does not contain consolidated EBNF"
 
 for production in data_decl use_decl requirement_clause context_scope \
     decorated_decl enum_variant generic_parameter; do
-    grep -Eq "^${production}[[:space:]]*=" "$spec_dir/02-grammar.md" ||
+    grep -Eq "^${production}[[:space:]]*=" "$spec_dir/lang/02-grammar.md" ||
         fail "02-grammar.md is missing $production"
 done
 
-if grep -Eq '^struct_decl[[:space:]]*=' "$spec_dir/02-grammar.md"; then
+if grep -Eq '^struct_decl[[:space:]]*=' "$spec_dir/lang/02-grammar.md"; then
     fail "02-grammar.md still defines the old struct declaration"
 fi
 
@@ -216,7 +217,7 @@ if grep -R -n -E '(^|[^[:alnum:]_])(v1|MVP|provisional)([^[:alnum:]_]|$)' \
 fi
 
 if grep -n -E '^## (Open|Unresolved)|remain(s)? (open|unresolved)|not yet specified' \
-    "$spec_dir"/[0-9][0-9]-*.md "$spec_dir"/std/*.md "$spec_dir"/cli.md; then
+    "$spec_dir"/lang/[0-9][0-9]-*.md "$spec_dir"/std/*.md "$spec_dir"/cli/*.md; then
     fail "specification chapter contains an unresolved design marker"
 fi
 

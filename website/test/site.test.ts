@@ -38,7 +38,7 @@ describe("website build", () => {
     assert.equal(result.playground, false);
     grammar = result.grammar;
     const sources = new Set(PAGES.map((entry) => entry.source));
-    for (const directory of ["spec", "spec/std", "guide"])
+    for (const directory of ["spec", "spec/lang", "spec/std", "spec/cli", "guide"])
       for (const name of await readdir(join(REPO_DIR, directory)))
         if (name.endsWith(".md"))
           assert.ok(sources.has(`${directory}/${name}`), `${directory}/${name} is rendered`);
@@ -188,7 +188,7 @@ describe("grammar blocks", () => {
     assert.ok(grammar, "the Pages-base build ran");
     for (const rule of ["source_file", "trait_decl", "requirement_clause", "identifier"])
       assert.ok(grammar.definitions.has(rule), rule);
-    assert.equal(grammar.definitions.get("requirement_clause")?.[0], "spec/02-grammar.md");
+    assert.equal(grammar.definitions.get("requirement_clause")?.[0], "spec/lang/02-grammar.md");
     assert.ok(grammar.linkedCount > 500);
     assert.ok(grammar.abstractTokens.includes("NEWLINE"));
     assert.ok(grammar.abstractTokens.includes("SUITE_END"));

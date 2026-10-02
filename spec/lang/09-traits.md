@@ -267,7 +267,7 @@ fn same(left: Box[fn() -> void], right: Box[fn() -> void]) -> bool:
 ```
 
 > **Note.** What each derived implementation compares, orders, or hashes
-> is stdlib tier: [Cmp](std/cmp.md) and [Hash](std/hash.md). The checks
+> is stdlib tier: [Cmp](../std/cmp.md) and [Hash](../std/hash.md). The checks
 > above stay in the language tier.
 
 > **Note.** The reference prototype still writes these four bodies in the
@@ -342,13 +342,13 @@ See also: [Newtypes](04-type-system.md#newtypes).
 
 > **Note.** This heading keeps its name so that links to it stay valid.
 > What a derived `Eq` compares is stdlib tier since batch 36:
-> [Derived Equality](std/cmp.md#derived-equality) in `std.cmp`.
+> [Derived Equality](../std/cmp.md#derived-equality) in `std.cmp`.
 
 #### Derived Ordering
 
 > **Note.** This heading keeps its name so that links to it stay valid.
 > What a derived `PartialOrd` or `Ord` compares is stdlib tier since
-> batch 36: [Derived Ordering](std/cmp.md#derived-ordering) in `std.cmp`.
+> batch 36: [Derived Ordering](../std/cmp.md#derived-ordering) in `std.cmp`.
 
 #### Derived Hashing
 
@@ -356,7 +356,7 @@ See also: [Newtypes](04-type-system.md#newtypes).
 
 > **Note.** This heading keeps its name so that links to it stay valid.
 > What a derived `Hash` hashes is stdlib tier since batch 36:
-> [Derived Hashing](std/hash.md#derived-hashing) in `std.hash`.
+> [Derived Hashing](../std/hash.md#derived-hashing) in `std.hash`.
 
 ### Conversion Trait
 
@@ -505,9 +505,9 @@ fn describe(point: Point) -> string:
 
 > **Note.** The text that `debug` returns, the `DebugWriter` builders,
 > and the builder calls that `@derive(Debug)` generates are stdlib tier:
-> [Format](std/format.md).
+> [Format](../std/format.md).
 
-See also: [Debug Builders](std/format.md#debug-builders) in the stdlib
+See also: [Debug Builders](../std/format.md#debug-builders) in the stdlib
 tier, [Standard Testing](10-modules.md#standard-testing),
 [Typed Derivation](14-annotations.md#typed-derivation).
 
@@ -663,9 +663,9 @@ fn index(counts: Map[(i32, string), i32]) -> i32:
 2. r[trait.target.tuple.no-limit] No tuple trait stops at a fixed number of elements.
 
 > **Note.** `std` declares tuple templates for `Eq`,
-> `PartialOrd`, `Ord`, and `Hash` ([Tuple Comparison](std/cmp.md#tuple-comparison),
-> [Tuple Hashing](std/hash.md#tuple-hashing)), for `Debug` and `Display`,
-> and for `Default` ([Standard Implementations](std/ops.md#standard-implementations)).
+> `PartialOrd`, `Ord`, and `Hash` ([Tuple Comparison](../std/cmp.md#tuple-comparison),
+> [Tuple Hashing](../std/hash.md#tuple-hashing)), for `Debug` and `Display`,
+> and for `Default` ([Standard Implementations](../std/ops.md#standard-implementations)).
 > These are the tuple equality of [`expr.eq.std`](05-expressions.md#r-expr.eq.std),
 > the tuple order of [`expr.ord.std.sequences`](05-expressions.md#r-expr.ord.std.sequences),
 > and the hashable tuple keys of

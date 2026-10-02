@@ -6,7 +6,7 @@ interface DirectReferences {
   readonly callees: Set<string>;
 }
 
-// Checks spec/10-modules.md#module-initialization. Each function's transitive
+// Checks spec/lang/10-modules.md#module-initialization. Each function's transitive
 // read set is computed once over the module call graph (Tarjan SCCs), so the
 // check is linear in the graph size rather than in the number of call paths.
 export function checkModuleInitialization(

@@ -20,34 +20,34 @@ it.
 | INF-lit | batch 17 | Does an integer literal argument take the type solved from the other arguments in any position? Without that, `pick(1, large)` with an `i64` `large` is a `type-mismatch`, since the literal alone is `i32`, while `pick(large, 1)` checks. | **Recommendation:** yes: a literal is not a conversion, so it takes the solved type as its expected type in any position, as Rust's integer literals do. |
 | INF-code | batch 17 | Which code does any other conflict get, such as a `List[mut User]` and a `List[User]` (variance), a `T` and a `T?`, or two child-trait values? The decision names `type-mismatch` for numbers and `no-common-type` for trait values. | **Recommendation:** `no-common-type` where the least common type also fails (trait values, supertrait widening); `type-mismatch` otherwise, as `choose(1, true)` already is. |
 | SR-omit | batch 17 | Does a variant's `self_ref` count a member that the derivation block omits (`cache = pass`)? | **Recommendation:** no: count only the members the derivation sees, since an omitted member takes its default and is never walked or built. |
-| Q7-code | batch 26 | The decision says a `mut` key "stays an error" but names no code. | It keeps `invalid-map-key` ([`types.map-key.no-mut`](../spec/04-type-system.md#r-types.map-key.no-mut)), as variant B of Special Cases C8 proposed. **Recommendation:** keep it; the code names a rule no bound states. |
+| Q7-code | batch 26 | The decision says a `mut` key "stays an error" but names no code. | It keeps `invalid-map-key` ([`types.map-key.no-mut`](../spec/lang/04-type-system.md#r-types.map-key.no-mut)), as variant B of Special Cases C8 proposed. **Recommendation:** keep it; the code names a rule no bound states. |
 | VA-unbounded-code | batch 31a | An unbounded `Args` used as `Fn`'s inputs needs a code. | `generic-kind-mismatch`, as a non-tuple there already is, rather than `unsatisfied-trait-bound`. **Recommendation:** keep it; one rule covers both. |
 | Q5-cycle-site | batch 32a | "Not just `embedding-too-deep`" leaves open whether a cycle also reports the depth code, and on which types. | `embedding-cycle` replaces `embedding-too-deep` for every type in the cycle, reported once per cycle on its first declared type, as `alias-cycle` is. A type outside the cycle that embeds into it still gets `embedding-too-deep`. **Recommendation:** keep it. |
 | Q5-self-id | batch 32a | STYLE says a rule whose meaning changes gets a new ID, but the owner said to keep `data.embed.depth.self` while its code changes. | The ID is kept, as directed. **Recommendation:** keep it; the commit message records the code change. |
-| Q5-hash | batch 34 | Lists have no `Hash` ([`types.map-key.no-hash`](../spec/04-type-system.md#r-types.map-key.no-hash)), so hashing the rest as its list gives a rest tuple no `Hash`. | Applied as stated: a rest tuple is not a map key; a Note says so. **Recommendation:** keep it until lists get `Hash`. |
-| Q6-plain | batch 34 | The owner chose a spread pattern over a plain subpattern for the rest. Whether `let (a, b, xs) = t` on a rest tuple is then an error is not stated. | `type-mismatch` ([`flow.match.spread.required`](../spec/06-control-flow.md#r-flow.match.spread.required)), mirroring a spread pattern against a fixed tuple. **Recommendation:** keep it; the pattern then always shows the type's shape. |
-| Q6-count | batch 34 | Whether a spread pattern may also take trailing fixed elements, as in `let (a, xs...) = t` with two fixed elements, is not stated. | No: the subpatterns before it must match the fixed elements one each, or `type-mismatch` ([`flow.match.spread.arity`](../spec/06-control-flow.md#r-flow.match.spread.arity)). **Recommendation:** keep it; collecting would build a new list in a pattern. |
-| Q6-form | batch 34 | The decision shows `xs...` only. | A spread pattern is a name or `_` before `...` ([`grammar.pattern.tuple-spread`](../spec/02-grammar.md#r-grammar.pattern.tuple-spread)); `_...` binds nothing, and `mut xs...` works in `let`. hd has no list patterns, so no other pattern could match the list. **Recommendation:** keep it. |
-| Q4-lone | batch 34 | A lone list spread into a rest-only `Args`, as in `call(k, xs...)` with `k(xs...: List[i32])`, is a positional spread of the whole vararg, so `xs` must be `Args`. | Kept: a lone spread passes the whole collected value ([`expr.call.spread.at-vararg`](../spec/05-expressions.md#r-expr.call.spread.at-vararg)), so this is `type-mismatch`, and `call(k, (xs...,)...)` passes it. **Recommendation:** keep it; one spread meaning per position. |
-| Q4-infer | batch 34 | With no other argument solving `Args`, [`fn.vararg.tuple-param.infer`](../spec/07-functions.md#r-fn.vararg.tuple-param.infer) says one element per argument, but `pack(1, xs...)` ends in a list spread. | The tuple expression decides, as Q4 says: `Args` is `(i32, List[i32]...)`. **Recommendation:** keep it; reword `.infer` only if a reader finds it unclear. |
+| Q5-hash | batch 34 | Lists have no `Hash` ([`types.map-key.no-hash`](../spec/lang/04-type-system.md#r-types.map-key.no-hash)), so hashing the rest as its list gives a rest tuple no `Hash`. | Applied as stated: a rest tuple is not a map key; a Note says so. **Recommendation:** keep it until lists get `Hash`. |
+| Q6-plain | batch 34 | The owner chose a spread pattern over a plain subpattern for the rest. Whether `let (a, b, xs) = t` on a rest tuple is then an error is not stated. | `type-mismatch` ([`flow.match.spread.required`](../spec/lang/06-control-flow.md#r-flow.match.spread.required)), mirroring a spread pattern against a fixed tuple. **Recommendation:** keep it; the pattern then always shows the type's shape. |
+| Q6-count | batch 34 | Whether a spread pattern may also take trailing fixed elements, as in `let (a, xs...) = t` with two fixed elements, is not stated. | No: the subpatterns before it must match the fixed elements one each, or `type-mismatch` ([`flow.match.spread.arity`](../spec/lang/06-control-flow.md#r-flow.match.spread.arity)). **Recommendation:** keep it; collecting would build a new list in a pattern. |
+| Q6-form | batch 34 | The decision shows `xs...` only. | A spread pattern is a name or `_` before `...` ([`grammar.pattern.tuple-spread`](../spec/lang/02-grammar.md#r-grammar.pattern.tuple-spread)); `_...` binds nothing, and `mut xs...` works in `let`. hd has no list patterns, so no other pattern could match the list. **Recommendation:** keep it. |
+| Q4-lone | batch 34 | A lone list spread into a rest-only `Args`, as in `call(k, xs...)` with `k(xs...: List[i32])`, is a positional spread of the whole vararg, so `xs` must be `Args`. | Kept: a lone spread passes the whole collected value ([`expr.call.spread.at-vararg`](../spec/lang/05-expressions.md#r-expr.call.spread.at-vararg)), so this is `type-mismatch`, and `call(k, (xs...,)...)` passes it. **Recommendation:** keep it; one spread meaning per position. |
+| Q4-infer | batch 34 | With no other argument solving `Args`, [`fn.vararg.tuple-param.infer`](../spec/lang/07-functions.md#r-fn.vararg.tuple-param.infer) says one element per argument, but `pack(1, xs...)` ends in a list spread. | The tuple expression decides, as Q4 says: `Args` is `(i32, List[i32]...)`. **Recommendation:** keep it; reword `.infer` only if a reader finds it unclear. |
 | Q6-default-char | batch 35 | The decision lists `char` with "(decide)". | `char` has no `Default`. **Recommendation:** give it `'\u{0}'`, as Rust does, only when a use needs one; no other char is more neutral. |
 | Q6-default-derive | batch 35 | Whether `@derive(Default)` exists is not stated. | Not added: a data type implements `Default` by hand. **Recommendation:** wait; a template would need a rule for which enum variant is the default. |
-| Q6-one-rest | batch 35 | Whether a rest tuple counts its rest's items when it decides on `(1,)` is not stated. | Yes: a rest tuple holding one value in all writes `(7,)`, as `debug` already wrote it the same as `(7,)` ([`expr.interp.std.tuple.one`](../spec/05-expressions.md#r-expr.interp.std.tuple.one)). **Recommendation:** keep it; the text then mirrors the value's literal. |
-| O7-mut | batch 36 | A walk or describe handle of a `hits: mut Counter` member has `F = Counter`, but the fact binds to `mut Counter`. | `h.fact` finds only an exact type, so that read misses ([`annot.handle.fact.exact`](../spec/14-annotations.md#r-annot.handle.fact.exact)). **Recommendation:** keep it; `Arbitrary` reads through `build`'s declared-type handles. |
+| Q6-one-rest | batch 35 | Whether a rest tuple counts its rest's items when it decides on `(1,)` is not stated. | Yes: a rest tuple holding one value in all writes `(7,)`, as `debug` already wrote it the same as `(7,)` ([`expr.interp.std.tuple.one`](../spec/lang/05-expressions.md#r-expr.interp.std.tuple.one)). **Recommendation:** keep it; the text then mirrors the value's literal. |
+| O7-mut | batch 36 | A walk or describe handle of a `hits: mut Counter` member has `F = Counter`, but the fact binds to `mut Counter`. | `h.fact` finds only an exact type, so that read misses ([`annot.handle.fact.exact`](../spec/lang/14-annotations.md#r-annot.handle.fact.exact)). **Recommendation:** keep it; `Arbitrary` reads through `build`'s declared-type handles. |
 | O7-inspectable | batch 36 | Derived `Arbitrary` still requires every member to be `Inspectable`, a bound that existed only for the downcast. | Kept ([`std-testing.arbitrary.derive.member-bounds`](../spec/std/testing.md#r-std-testing.arbitrary.derive.member-bounds)); `with` itself dropped it. **Recommendation:** drop the member bound too. |
-| O3-blocks | batch 36 | Templates allow derivation blocks, but comparison derivations were never configurable. | Still unconfigurable ([`trait.derive.cmp-every-member`](../spec/09-traits.md#r-trait.derive.cmp-every-member)), so law partners stay consistent. **Recommendation:** keep it. |
-| O3b-rest | batch 36 | A rest member typed `List[T]` cannot meet a `Display` walker's bound, and text writes its items inline. | `Walker` gains `rest`, whose default calls `member` ([`annot.walk.rest`](../spec/14-annotations.md#r-annot.walk.rest)). **Recommendation:** keep it; the alternative is `Display` for `List`. |
-| O3b-user | batch 36 | Whether a trait outside `std` may declare a tuple template is not stated. | Yes, under the template rules ([`annot.template.tuple.form`](../spec/14-annotations.md#r-annot.template.tuple.form)). **Recommendation:** keep it; it adds no `std` special case. |
-| K1-code | batch 43 | The decision says a generic `find::[M]()` requires `M < Inspectable`, but names no code. | `unsatisfied-trait-bound` ([`annot.structure.find-key`](../spec/14-annotations.md#r-annot.structure.find-key)), as for any type argument that fails a bound. **Recommendation:** keep it. |
+| O3-blocks | batch 36 | Templates allow derivation blocks, but comparison derivations were never configurable. | Still unconfigurable ([`trait.derive.cmp-every-member`](../spec/lang/09-traits.md#r-trait.derive.cmp-every-member)), so law partners stay consistent. **Recommendation:** keep it. |
+| O3b-rest | batch 36 | A rest member typed `List[T]` cannot meet a `Display` walker's bound, and text writes its items inline. | `Walker` gains `rest`, whose default calls `member` ([`annot.walk.rest`](../spec/lang/14-annotations.md#r-annot.walk.rest)). **Recommendation:** keep it; the alternative is `Display` for `List`. |
+| O3b-user | batch 36 | Whether a trait outside `std` may declare a tuple template is not stated. | Yes, under the template rules ([`annot.template.tuple.form`](../spec/lang/14-annotations.md#r-annot.template.tuple.form)). **Recommendation:** keep it; it adds no `std` special case. |
+| K1-code | batch 43 | The decision says a generic `find::[M]()` requires `M < Inspectable`, but names no code. | `unsatisfied-trait-bound` ([`annot.structure.find-key`](../spec/lang/14-annotations.md#r-annot.structure.find-key)), as for any type argument that fails a bound. **Recommendation:** keep it. |
 | K1-mentions | batch 43 | The decision names `find::[M]()` with `M` a type parameter. Whether `find::[Box[T]]()` also needs `T < Inspectable` is not stated. | Yes: each type parameter that the argument mentions needs the bound, as the `h.fact` exemption for the handle's own `F` implies. **Recommendation:** keep it. |
-| EMPTY-RUN-fixture | batch 43 | Every `# expect-stdout:` line expects a newline, so no fixture can expect empty output from `run`. [`module.init.script-empty`](../spec/10-modules.md#r-module.init.script-empty) therefore has no fixture. | None added. **Recommendation:** add a header that expects `run` to exit 0 with empty standard output. |
-| RACE-EMPTY-forms | batch 44 | The decision makes `race!` with no tasks a compile-time error. Whether `race!(tasks=[])`, or a spread of a list that is empty at run time, is also covered is not stated. | Only a call written with no task argument is an error ([`req.combinator.race-empty`](../spec/11-requirements-and-suspension.md#r-req.combinator.race-empty)); an empty list value is not checked. **Recommendation:** also reject an empty list literal, and state what an empty list at run time does. |
-| ALL-EMPTY | batch 44 | `race!` with no tasks is now an error, but `all!()` is not mentioned. | [`req.combinator.all-typing`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-typing) gives it type `()`. **Recommendation:** keep it; an empty tuple of results is well defined, unlike a first result. |
-| CHECK-FILE | batch 46 | The revision makes `hd run` and `hd build` package-only, and does not discuss `hd check FILE`, `hd test FILE`, or the REPL outside a package. | They work on one std-only file ([`cli.file.check-test`](../spec/cli.md#r-cli.file.check-test), [`cli.repl.outside`](../spec/cli.md#r-cli.repl.outside)). **Recommendation:** keep it; checking a lone file needs no package. |
-| FILE-IN-PKG | batch 46 | `hd FILE` for a FILE inside a package was left for confirmation. | It runs FILE alone with std only, ignoring the package; a `pkg`, `self`, or `super` use errs at the use and suggests a task ([`cli.file.run`](../spec/cli.md#r-cli.file.run), [`cli.file.in-package`](../spec/cli.md#r-cli.file.in-package)). **Recommendation:** keep it; one meaning for `hd FILE` everywhere. |
+| EMPTY-RUN-fixture | batch 43 | Every `# expect-stdout:` line expects a newline, so no fixture can expect empty output from `run`. [`module.init.script-empty`](../spec/lang/10-modules.md#r-module.init.script-empty) therefore has no fixture. | None added. **Recommendation:** add a header that expects `run` to exit 0 with empty standard output. |
+| RACE-EMPTY-forms | batch 44 | The decision makes `race!` with no tasks a compile-time error. Whether `race!(tasks=[])`, or a spread of a list that is empty at run time, is also covered is not stated. | Only a call written with no task argument is an error ([`req.combinator.race-empty`](../spec/lang/11-requirements-and-suspension.md#r-req.combinator.race-empty)); an empty list value is not checked. **Recommendation:** also reject an empty list literal, and state what an empty list at run time does. |
+| ALL-EMPTY | batch 44 | `race!` with no tasks is now an error, but `all!()` is not mentioned. | [`req.combinator.all-typing`](../spec/lang/11-requirements-and-suspension.md#r-req.combinator.all-typing) gives it type `()`. **Recommendation:** keep it; an empty tuple of results is well defined, unlike a first result. |
+| CHECK-FILE | batch 46 | The revision makes `hd run` and `hd build` package-only, and does not discuss `hd check FILE`, `hd test FILE`, or the REPL outside a package. | They work on one std-only file ([`cli.file.check-test`](../spec/cli/command-line.md#r-cli.file.check-test), [`cli.repl.outside`](../spec/cli/command-line.md#r-cli.repl.outside)). **Recommendation:** keep it; checking a lone file needs no package. |
+| FILE-IN-PKG | batch 46 | `hd FILE` for a FILE inside a package was left for confirmation. | It runs FILE alone with std only, ignoring the package; a `pkg`, `self`, or `super` use errs at the use and suggests a task ([`cli.file.run`](../spec/cli/command-line.md#r-cli.file.run), [`cli.file.in-package`](../spec/cli/command-line.md#r-cli.file.in-package)). **Recommendation:** keep it; one meaning for `hd FILE` everywhere. |
 | NO-FILE-OUTSIDE | batch 46 | What `hd check` and `hd test` without a FILE do outside any package is not stated. | Not specified. **Recommendation:** an error suggesting `hd new`, as for `hd run`. |
-| EMPTY-EXE | batch 46 | [`module.init.script-empty`](../spec/10-modules.md#r-module.init.script-empty) runs an entry module with no `main` and no statements as an empty script. PACKAGES §2.6 reported `missing-entry-point` there, naming near-misses such as a private `main`. | `missing-entry-point` covers only an executable whose `module` names no module ([`cli.exe.missing-module`](../spec/cli.md#r-cli.exe.missing-module)). **Recommendation:** also report it for an executable or task whose module has neither, naming the near-misses; a lone empty file still exits 0. |
-| TASK-DEPS | batch 46 | The decision lets a task use "dev dependencies", but a manifest has only `[dependencies]` and `[test-dependencies]`, and only test code may use a test dependency. | A task may use the package through `pkg` ([`cli.task.uses`](../spec/cli.md#r-cli.task.uses)); dependencies are not stated. **Recommendation:** a task may use both tables, so `[test-dependencies]` serve test code and tasks. |
+| EMPTY-EXE | batch 46 | [`module.init.script-empty`](../spec/lang/10-modules.md#r-module.init.script-empty) runs an entry module with no `main` and no statements as an empty script. PACKAGES §2.6 reported `missing-entry-point` there, naming near-misses such as a private `main`. | `missing-entry-point` covers only an executable whose `module` names no module ([`cli.exe.missing-module`](../spec/cli/command-line.md#r-cli.exe.missing-module)). **Recommendation:** also report it for an executable or task whose module has neither, naming the near-misses; a lone empty file still exits 0. |
+| TASK-DEPS | batch 46 | The decision lets a task use "dev dependencies", but a manifest has only `[dependencies]` and `[test-dependencies]`, and only test code may use a test dependency. | A task may use the package through `pkg` ([`cli.task.uses`](../spec/cli/command-line.md#r-cli.task.uses)); dependencies are not stated. **Recommendation:** a task may use both tables, so `[test-dependencies]` serve test code and tasks. |
 | TASK-MODULE | batch 46 | A task's module name, and what `self` and `super` mean in `tasks/seed.hd`, are not stated, so tasks cannot share a helper file. | Not specified. **Recommendation:** as integration tests: a `tasks` root names `tasks/`, and `self` is rooted there. |
 | NEW-EXE | batch 46 | `hd new hello` writes `src/main.hd`, but an executable comes only from `[[executable]]`, so `hd run` fails right after `hd new` unless the generated `hd.toml` declares one. | The generated manifest's content is not specified. **Recommendation:** it declares `[[executable]]` with `name = "hello"` and `module = "main"`, rather than an implicit executable. |
 | WORKSPACE-MODE | batch 46 | At a workspace root, the nearest `hd.toml` is the workspace manifest, which has no package. | Not specified. **Recommendation:** commands there act on every member, as Cargo's do. |
@@ -59,16 +59,16 @@ for the error-code revamp, task #101, which may merge codes.
 
 | # | From | Question | Applied reading |
 | --- | --- | --- | --- |
-| AT-code | batch 20 | [`annot.walker.obligation.error`](../spec/14-annotations.md#r-annot.walker.obligation.error) gives `member-not-derivable` for a member that fails a source's bound. AT-with names `unsatisfied-trait-bound`, which [`std-testing.arbitrary.derive.not-derivable`](../spec/std/testing.md#r-std-testing.arbitrary.derive.not-derivable) states. So two rules name different codes for one check. | **Recommendation:** `member-not-derivable`, the code every other template reports at the opt-in, naming the member. |
-| LP-codes | LP1 | The decisions name no codes for a refutable pattern without `else`, an `else` block that falls through, or a pattern before `:=`. | Two new codes, `refutable-let-pattern` and `let-else-falls-through` ([Let Patterns](../spec/06-control-flow.md#let-patterns)); a pattern before `:=` reuses `missing-let`. |
+| AT-code | batch 20 | [`annot.walker.obligation.error`](../spec/lang/14-annotations.md#r-annot.walker.obligation.error) gives `member-not-derivable` for a member that fails a source's bound. AT-with names `unsatisfied-trait-bound`, which [`std-testing.arbitrary.derive.not-derivable`](../spec/std/testing.md#r-std-testing.arbitrary.derive.not-derivable) states. So two rules name different codes for one check. | **Recommendation:** `member-not-derivable`, the code every other template reports at the opt-in, naming the member. |
+| LP-codes | LP1 | The decisions name no codes for a refutable pattern without `else`, an `else` block that falls through, or a pattern before `:=`. | Two new codes, `refutable-let-pattern` and `let-else-falls-through` ([Let Patterns](../spec/lang/06-control-flow.md#let-patterns)); a pattern before `:=` reuses `missing-let`. |
 | TU2-code | batch 27 | TU2 names no code for `mut (A, B)`. | A new code, `mut-on-tuple`; `mut-on-primitive` would misname a tuple. |
-| VA-type-code | batch 31a | The decisions name no code for a vararg of another type, as in `values...: i32`. | `type-mismatch` ([`fn.vararg.type.kinds`](../spec/07-functions.md#r-fn.vararg.type.kinds)). |
+| VA-type-code | batch 31a | The decisions name no code for a vararg of another type, as in `values...: i32`. | `type-mismatch` ([`fn.vararg.type.kinds`](../spec/lang/07-functions.md#r-fn.vararg.type.kinds)). |
 | Q3-codes | batch 32b | The record lists `data.embed.unique` and `trait.by.invalid` as error detail, but each is the only rule that names its code. | Both stay numbered; the other seven error-detail rules became Notes. |
-| TR-code | batch 33a | A rest element that is not a `List`, as in `(i32, i32...)`, needs a code. | `type-mismatch` ([`types.tuple.rest.list`](../spec/04-type-system.md#r-types.tuple.rest.list)), as for a vararg of another type. Deferred to #101 by the owner (batch 34 Q7). |
+| TR-code | batch 33a | A rest element that is not a `List`, as in `(i32, i32...)`, needs a code. | `type-mismatch` ([`types.tuple.rest.list`](../spec/lang/04-type-system.md#r-types.tuple.rest.list)), as for a vararg of another type. Deferred to #101 by the owner (batch 34 Q7). |
 | SC-Q2 | Special Cases Q2 | Four codes duplicate a partner: `suspending-defer`, `identity-needs-reference-bound`, `recursive-closure-needs-result-type`, and `mutable-embedded-field`. | All eight codes kept. **Recommendation:** merge all four into their partners; messages keep the context word. |
 | SC-Q3 | Special Cases Q3 | Six codes report an operator with no meaning for its operands: `missing-eq`, `missing-partial-ord`, `unsupported-equality`, `nonnumeric-unary-plus`, `unsigned-negation`, and `mixed-numeric-types`. Every other operator reports `type-mismatch`. | All six kept. **Recommendation:** all six become `type-mismatch`, and `assert_equal`'s missing `Eq` becomes `unsatisfied-trait-bound`. |
-| SINGLE-CODE | batch 46 | The decision names no code for a `pkg`, `dep`, `self`, or `super` use in a single-file program. | `unknown-module` ([`module.single-file.roots`](../spec/10-modules.md#r-module.single-file.roots)), as a `super` above the test root is. |
-| CLI-CODES | batch 46 | These CLI errors have no code: `hd run` or `hd build` outside a package, `hd run FILE`, `hd run` with no or several executables, an unknown `NAME`, a task and an executable with one name, and `hd new` where `hd.toml` exists. | None named ([Command Line](../spec/cli.md)). **Recommendation:** name them with the manifest diagnostics. |
+| SINGLE-CODE | batch 46 | The decision names no code for a `pkg`, `dep`, `self`, or `super` use in a single-file program. | `unknown-module` ([`module.single-file.roots`](../spec/lang/10-modules.md#r-module.single-file.roots)), as a `super` above the test root is. |
+| CLI-CODES | batch 46 | These CLI errors have no code: `hd run` or `hd build` outside a package, `hd run FILE`, `hd run` with no or several executables, an unknown `NAME`, a task and an executable with one name, and `hd new` where `hd.toml` exists. | None named ([Command Line](../spec/cli/command-line.md)). **Recommendation:** name them with the manifest diagnostics. |
 
 ### Ideas Noted For Later
 
@@ -110,7 +110,7 @@ fn report!() -> void $ Console:
 ### Typed Derivation, Tool Adapters, And Secrets
 
 **Waiting on other areas.** The spec lists these as
-[undecided parts](../spec/14-annotations.md#undecided-parts); each waits
+[undecided parts](../spec/lang/14-annotations.md#undecided-parts); each waits
 for the owner, and Typed Derivation
 gives their background:
 
@@ -119,7 +119,7 @@ gives their background:
 | Non-escaping handles (M18 R5) | Whether the parked NonEscapable design (TQ-24 to TQ-26) makes handles non-escaping. |
 | `Clone`'s module (M24) | Which standard module declares `Clone`; chosen with the standard library (STDLIB). |
 | Derived-function cache (M24) | The cache's API and module; chosen with the standard library (STDLIB). |
-| Function targets | Deriving for functions, as tool adapters need ([parked](#parked-tool-adapters)). A decorator before a function attaches a plain value that `facts_of(f).find::[M]()` reads ([Function Facts](../spec/14-annotations.md#function-facts)). |
+| Function targets | Deriving for functions, as tool adapters need ([parked](#parked-tool-adapters)). A decorator before a function attaches a plain value that `facts_of(f).find::[M]()` reads ([Function Facts](../spec/lang/14-annotations.md#function-facts)). |
 
 M30 deferred template constants, typed shared constants, and composing
 templates until a real template needs them; they are not in the spec.
@@ -138,7 +138,7 @@ Nominal Function Types.
 **Member-typed facts.** Testing AT-with (batch 20) chose option B, and
 option D, member-typed facts, stayed open. Batch 36 (O7) then accepted
 typed member facts, and batch 39 gave them their final form,
-[Member-Typed Facts](../spec/14-annotations.md#member-typed-facts).
+[Member-Typed Facts](../spec/lang/14-annotations.md#member-typed-facts).
 
 **Secret values (removed for now).** `Secret[T]` and `Redact` were removed
 from the standard-library design as too early
@@ -152,7 +152,7 @@ outputs.
 ### Serializable Closures And Incremental Computation
 
 **Problem.** Closures have unspecified identity
-([Identity](../spec/05-expressions.md#identity)) and no stable code
+([Identity](../spec/lang/05-expressions.md#identity)) and no stable code
 identity, serializable capture contract, cache invalidation rule, or
 graph-lifetime mechanism. Since `mut fn` was removed, a function type also
 does not say whether a callback mutates its captures, so an incremental
@@ -167,7 +167,7 @@ process-local and expose only named registered computations.
 adopt option 1 when durable replay identity is settled. Provide weak references
 inside the standard runtime, or explicit disposal, for incremental graph
 nodes; user-visible finalizers are ruled out
-([`data.repr.runtime-only`](../spec/08-data-and-enums.md#r-data.repr.runtime-only)).
+([`data.repr.runtime-only`](../spec/lang/08-data-and-enums.md#r-data.repr.runtime-only)).
 
 **Unblocks.** Persisted callbacks, safe incremental caches, distributed work,
 and bounded graph lifetimes.
@@ -233,9 +233,9 @@ redacted-output part also waits for `Secret[T]`.
 **Problem.** One surface remains intentionally unsupported and must be
 diagnosed: direct permission weakening combined with generic variance.
 Bound methods are now `value::name` references
-([Method References](../spec/07-functions.md#method-references), MR1). Runtime type tests beyond exact-type recovery from
+([Method References](../spec/lang/07-functions.md#method-references), MR1). Runtime type tests beyond exact-type recovery from
 `Inspectable` values stay unsupported
-([Runtime Type Identity](../spec/09-traits.md#runtime-type-identity)).
+([Runtime Type Identity](../spec/lang/09-traits.md#runtime-type-identity)).
 
 **Direction.** Keep weakening with variance deferred, and design it only
 with a motivating requirement; it must preserve representation.
@@ -276,7 +276,7 @@ reports: provider values are ordinary values that may escape today, and a
 **Deferred (Pipe Operator PL10, 2026-09-29).** Closures stay
 `fn(v): v * 2`; there is no `_` lambda shorthand, and no `f(_, a)` capture
 (PL13). The pipe owns `_` inside a step
-([Pipe Expressions](../spec/05-expressions.md#pipe-expressions)), `it` is
+([Pipe Expressions](../spec/lang/05-expressions.md#pipe-expressions)), `it` is
 the prelude test function, and `$0` collides with requirements and
 interpolation. `fn: _ * 2` would parse but needs a "not inside a pipe
 step" exception. Revisit if [the hd writing log](../audit/hd-writing-log.md)
@@ -305,7 +305,7 @@ These items remain required but do not currently require new core syntax:
 
 - weak-reference runtime representation inside the standard runtime; weak
   references and finalizers are never user-visible
-  ([`data.repr.runtime-only`](../spec/08-data-and-enums.md#r-data.repr.runtime-only));
+  ([`data.repr.runtime-only`](../spec/lang/08-data-and-enums.md#r-data.repr.runtime-only));
 - the prototype's replay experiments in the
   Wasm GC compiler plan predate the
   decided Replay Rules: their
@@ -316,25 +316,25 @@ These items remain required but do not currently require new core syntax:
   identifier;
 - the final `hd.toml` schema and the concrete host binding for capabilities
   such as `Console`. Executables and their selection are specified in
-  [Command Line](../spec/cli.md#executables);
+  [Command Line](../spec/cli/command-line.md#executables);
 - dependencies through version control hosts, with no registry:
   Dependencies decisions DEP1-DEP7
-  are applied in [Package Manifest](../spec/10-modules.md#package-manifest)
+  are applied in [Package Manifest](../spec/lang/10-modules.md#package-manifest)
   (version tags, minimal version selection, `hd.sum`, workspaces,
   pseudo-versions), with DEP8-DEP19 after them. The manifest diagnostics
   wait for the manifest schema (DEP14,
-  [`cli.tooling.package-schema`](../spec/cli.md#r-cli.tooling.package-schema)),
+  [`cli.tooling.package-schema`](../spec/cli/command-line.md#r-cli.tooling.package-schema)),
   and the tooling work is in
   Package Tooling;
 - conformance fixtures for `missing-entry-point` and `unselected-main`,
   which need manifest input in the fixture format, so they wait for the
   manifest schema like the other manifest diagnostics;
 - the fuzzer ([spec/tools/fuzz](../spec/tools/fuzz/CONTRACT.md)) still runs
-  `run FILE` and `build FILE`, which [Command Line](../spec/cli.md) makes
+  `run FILE` and `build FILE`, which [Command Line](../spec/cli/command-line.md) makes
   package-only; the CLI update should move it to `hd FILE`;
 - a `package-cycle` conformance fixture, which waits until the manifest
   schema exists (Dependency Cycles DC12,
-  [`module.cycle.package`](../spec/10-modules.md#r-module.cycle.package));
+  [`module.cycle.package`](../spec/lang/10-modules.md#r-module.cycle.package));
 - the Wasm component ABI, exact export registration API, adapter wire format,
   and runtime-profile panic status codes (histories record a panic by its
   diagnostic name, as Replay Rules

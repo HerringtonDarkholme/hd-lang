@@ -2,7 +2,7 @@ import type { Expression, Program } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 
 // Declaration facts: the decorators on items, members, variants, and
-// parameters (spec/14-annotations.md#member-metadata), and the literal facts that the
+// parameters (spec/lang/14-annotations.md#member-metadata), and the literal facts that the
 // unused-fact warning skips (#r-annot.fact.unused-std).
 
 /**

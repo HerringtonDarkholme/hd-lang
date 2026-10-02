@@ -1248,7 +1248,7 @@ export abstract class CallChecker extends StatementChecker {
         );
     }
     // An unmet bound of an intrinsically derived implementation's method
-    // (spec/09-traits.md#r-trait.derive.bound-unmet).
+    // (spec/lang/09-traits.md#r-trait.derive.bound-unmet).
     const boundCode = DERIVED_IMPLEMENTATION_SPANS.has(signature.span)
       ? "missing-derived-bound"
       : "unsatisfied-trait-bound";

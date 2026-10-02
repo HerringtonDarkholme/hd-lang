@@ -2,7 +2,7 @@
 // 02 EBNF instead of only recognizing it, and reports the smallest ambiguous
 // node of every input with more than one parse.
 //
-// It reads the ```ebnf fences of spec/02-grammar.md (the same source as the
+// It reads the ```ebnf fences of spec/lang/02-grammar.md (the same source as the
 // reference parser) and reuses the reference lexer for source text. Imports:
 // Node built-ins and spec/ only.
 //

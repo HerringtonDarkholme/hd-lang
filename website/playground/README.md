@@ -168,7 +168,7 @@ from the entry into one program in initialization order. It maps each
 diagnostic back to its file and line. The same linker serves single-file
 projects.
 
-What works, relative to [10-modules.md](../../spec/10-modules.md):
+What works, relative to [10-modules.md](../../spec/lang/10-modules.md):
 
 - path-inferred modules under `src/`. `src/a/b.hd` is module `a.b`, and
   `src/a/mod.hd` is module `a`. Paths must be identifiers, and two paths may

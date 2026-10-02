@@ -39,7 +39,7 @@ hd hello.hd
 
 A program with several files or dependencies is a package: `hd new`
 creates one, and `hd run` runs it
-([Command Line](../spec/cli.md)).
+([Command Line](../spec/cli/command-line.md)).
 
 The language uses indentation for structure, so blocks are introduced by a header ending in `:` followed by either an indented body or a same-line body:
 
@@ -195,7 +195,7 @@ let backoff: Duration = 1_500ms
 
 A library declares its own suffix by marking a function `@num_suffix`, as
 in `@num_suffix fn px(count: i32) -> Pixels` after `use std.ops.num_suffix`;
-see [Literal Suffixes](../spec/05-expressions.md#literal-suffixes). Such a
+see [Literal Suffixes](../spec/lang/05-expressions.md#literal-suffixes). Such a
 **literal function** takes exactly one parameter. The literal is an
 ordinary call, so the function may be generic or need providers, but it
 must not suspend: `12px` has no place for `!`. The compiler checks the
@@ -241,13 +241,13 @@ string also interpolates `$name` and `${...}`, but a `$` before anything
 else is plain text. Its prefix function receives a `std.ops.Template` of the
 raw text pieces and the values, so a library prefix such as `sql"..."` can
 keep values apart from the text; see
-[Prefixed Strings](../spec/05-expressions.md#prefixed-strings).
+[Prefixed Strings](../spec/lang/05-expressions.md#prefixed-strings).
 
 Core types, traits, and functions such as `List`, `Map`, `Result`, `Display`,
 `Ordering`, and `println` come from the prelude. A declaration, type parameter,
 parameter, local binding, or explicit `use` cannot reuse a prelude name; use
 the names directly without importing them again. The complete list is in the
-[prelude specification](../spec/10-modules.md#prelude).
+[prelude specification](../spec/lang/10-modules.md#prelude).
 
 There are no convenience aliases such as `int`, `uint`, or `float`. Use explicit-width numeric types. `decimal` is a standard-library type, not a primitive.
 
@@ -398,7 +398,7 @@ Facts and member metadata are `List[Any]` values evaluated once at compile
 time, so they must be requirement-free and may not reach `block_on`.
 `@derive` before a function, trait, or implementation is an error. A
 newtype has no derivation block: it derives only through its base type.
-See [Typed Derivation](../spec/14-annotations.md#typed-derivation).
+See [Typed Derivation](../spec/lang/14-annotations.md#typed-derivation).
 
 `Error` is not in `@derive`'s list. An error type uses the separate
 `@error` intrinsic, Rust's `thiserror` in hd. It generates `Display`,
@@ -428,7 +428,7 @@ uses, and `@error(transparent)` forwards both to the one payload. Writing
 form before the wrong target, such as `@error` before a function, is
 `decorator-target-kind`. `@error` needs no `use std.error.Error`; only
 code that names `Error` imports it. See
-[Error Derivation](../spec/14-annotations.md#error-derivation).
+[Error Derivation](../spec/lang/14-annotations.md#error-derivation).
 
 Use parentheses when a binding expression appears inside a larger expression.
 `:=` binds exactly one name; destructuring is a `let` statement, so
@@ -2413,7 +2413,7 @@ and the child files it re-exports. Folders must not: when a file in
 `src -> src/shop -> src` is `folder-cycle`. The fix moves the shared file into
 a leaf folder, `src/error/mod.hd`, which keeps the module name `error`. Uses
 in test code do not count, and a `pub use` chain must end at a declaration
-([Dependency Cycles](../spec/10-modules.md#dependency-cycles)).
+([Dependency Cycles](../spec/lang/10-modules.md#dependency-cycles)).
 
 Declarations are module-private by default, and `pub` makes them public. Enum variants inherit the enum's visibility. Data fields and inherent methods remain private unless individually marked `pub`, even on a public data. Embedded fields take no marker and are always public, so a public data type may embed only public types. A public signature, including its `$` requirement row, cannot leak a module-private type or trait. A `pub` function or `pub` method writes its whole signature: it must declare its result type, and without a `$` clause its row is empty. Only a private function or method may leave its result type and row to inference, so a caller in another file never waits for a body. There is no package-private visibility modifier.
 
@@ -2699,7 +2699,7 @@ public names and holds `it` calls at its top level, with no `tests:` block.
 Integration tests live under `tests/`, see the package as a dependent does,
 and get real providers from the test profile. There, `pkg.billing` names the
 library's public API, and `use tests.common` reaches `tests/common.hd`; the
-`tests` root is an error anywhere else. See [Test Modules](../spec/10-modules.md#test-modules)
+`tests` root is an error anywhere else. See [Test Modules](../spec/lang/10-modules.md#test-modules)
 and the test runner notes.
 
 ## Requirements and Suspension
@@ -3010,7 +3010,7 @@ A lookup whose type argument mentions a type parameter, as in a generic
 runtime identity. A handle's `h.fact::[M]()` exempts the handle's own `F`.
 A `Route` value before anything but a function is `decorator-target-kind`.
 A newtype is a kind too, `.Newtype`. The compiler checks only that kind; whatever reads a value checks that it suits its
-target. See [Target Kinds](../spec/14-annotations.md#target-kinds).
+target. See [Target Kinds](../spec/lang/14-annotations.md#target-kinds).
 
 To write shared metadata away from a long declaration, use a trait-less
 derivation block. It names no trait, derives nothing, and holds only member
@@ -3081,7 +3081,7 @@ signup_validator := Signup::validator()
 ```
 
 The template reads each member's metadata as facts. See
-[Typed Derivation](../spec/14-annotations.md#typed-derivation).
+[Typed Derivation](../spec/lang/14-annotations.md#typed-derivation).
 
 ## Runtime and Library Features
 

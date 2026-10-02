@@ -12,15 +12,15 @@ export interface ExpressionParseResult {
 
 export interface ParseOptions {
   /**
-   * The file is a test module, a `*_test.hd` file (spec/10-modules.md#test-modules):
+   * The file is a test module, a `*_test.hd` file (spec/lang/10-modules.md#test-modules):
    * its top level is in test position, its items are test code, and it holds
    * no `tests:` block.
    */
   readonly testModule?: boolean;
   /**
    * The file is an integration test module under `tests/`
-   * (spec/10-modules.md#r-module.test.integration), so it may use the
-   * `tests` root (spec/10-modules.md#r-module.test.integration.tests-root).
+   * (spec/lang/10-modules.md#r-module.test.integration), so it may use the
+   * `tests` root (spec/lang/10-modules.md#r-module.test.integration.tests-root).
    */
   readonly integrationTest?: boolean;
   /**

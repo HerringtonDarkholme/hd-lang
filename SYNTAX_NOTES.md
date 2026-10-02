@@ -647,7 +647,7 @@ User-defined data and enums do not receive implicit equality or ordering.
 Explicit trait implementation and `@derive(Trait, ...)` are available.
 `@derive` covers the intrinsic comparison traits and any trait whose library
 declares a typed-derivation template (`impl[T] Trait for T by Structure:`);
-see [Typed Derivation](spec/14-annotations.md#typed-derivation). Derived equality compares every declared data field, including
+see [Typed Derivation](spec/lang/14-annotations.md#typed-derivation). Derived equality compares every declared data field, including
 embedded fields, and every enum payload field; different variants are unequal.
 Derived ordering compares data fields lexicographically and enum variants by
 declaration order, then shared data and payload fields. No field is implicitly
@@ -1172,7 +1172,7 @@ Comprehensions cannot contain suspension points. Use an explicit loop when the b
 
 ### Iteration Protocol Direction
 
-> Not maintained; see `spec/06-control-flow.md` for current iterator rules.
+> Not maintained; see `spec/lang/06-control-flow.md` for current iterator rules.
 
 Iteration has two distinct trait roles:
 
@@ -1995,12 +1995,12 @@ not propagate implicitly from function-typed parameters.
 > Superseded: the facet protocol (`Annotation`, `Annotate`, the annotator
 > traits, `FieldMetadata`, `AnnotationRef`, and `annotate Facet for Target`)
 > was removed by
-> Typed Derivation decision 10 ([Typed Derivation](spec/14-annotations.md#typed-derivation)).
-> See [Annotations](spec/14-annotations.md) and
-> [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
+> Typed Derivation decision 10 ([Typed Derivation](spec/lang/14-annotations.md#typed-derivation)).
+> See [Annotations](spec/lang/14-annotations.md) and
+> [Typed Derivation](spec/lang/14-annotations.md#typed-derivation) for the
 > current design.
 > The `annotate Target:` member block was removed later by
-> Typed Derivation M26 ([Trait-Less Derivation Blocks](spec/14-annotations.md#trait-less-derivation-blocks)):
+> Typed Derivation M26 ([Trait-Less Derivation Blocks](spec/lang/14-annotations.md#trait-less-derivation-blocks)):
 > shared metadata goes in a trait-less derivation block,
 > `impl User by Structure:`, and `annotate` is not a reserved word.
 
@@ -2035,12 +2035,12 @@ question; the core annotation mechanism does not silently change construction.
 > Superseded: the facet protocol (`Annotation`, `Annotate`, the annotator
 > traits, `FieldMetadata`, `AnnotationRef`, and `annotate Facet for Target`)
 > was removed by
-> Typed Derivation decision 10 ([Typed Derivation](spec/14-annotations.md#typed-derivation)).
-> See [Annotations](spec/14-annotations.md) and
-> [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
+> Typed Derivation decision 10 ([Typed Derivation](spec/lang/14-annotations.md#typed-derivation)).
+> See [Annotations](spec/lang/14-annotations.md) and
+> [Typed Derivation](spec/lang/14-annotations.md#typed-derivation) for the
 > current design.
 > The `annotate Target:` member block was removed later by
-> Typed Derivation M26 ([Trait-Less Derivation Blocks](spec/14-annotations.md#trait-less-derivation-blocks)):
+> Typed Derivation M26 ([Trait-Less Derivation Blocks](spec/lang/14-annotations.md#trait-less-derivation-blocks)):
 > shared metadata goes in a trait-less derivation block,
 > `impl User by Structure:`, and `annotate` is not a reserved word.
 
@@ -2051,12 +2051,12 @@ Validation should not create distinct static subtypes by default. A field like `
 > Superseded: the facet protocol (`Annotation`, `Annotate`, the annotator
 > traits, `FieldMetadata`, `AnnotationRef`, and `annotate Facet for Target`)
 > was removed by
-> Typed Derivation decision 10 ([Typed Derivation](spec/14-annotations.md#typed-derivation)).
-> See [Annotations](spec/14-annotations.md) and
-> [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
+> Typed Derivation decision 10 ([Typed Derivation](spec/lang/14-annotations.md#typed-derivation)).
+> See [Annotations](spec/lang/14-annotations.md) and
+> [Typed Derivation](spec/lang/14-annotations.md#typed-derivation) for the
 > current design.
 > The `annotate Target:` member block was removed later by
-> Typed Derivation M26 ([Trait-Less Derivation Blocks](spec/14-annotations.md#trait-less-derivation-blocks)):
+> Typed Derivation M26 ([Trait-Less Derivation Blocks](spec/lang/14-annotations.md#trait-less-derivation-blocks)):
 > shared metadata goes in a trait-less derivation block,
 > `impl User by Structure:`, and `annotate` is not a reserved word.
 
@@ -3256,12 +3256,12 @@ Open syntax issues:
 > Superseded: the facet protocol (`Annotation`, `Annotate`, the annotator
 > traits, `FieldMetadata`, `AnnotationRef`, and `annotate Facet for Target`)
 > was removed by
-> Typed Derivation decision 10 ([Typed Derivation](spec/14-annotations.md#typed-derivation)).
-> See [Annotations](spec/14-annotations.md) and
-> [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
+> Typed Derivation decision 10 ([Typed Derivation](spec/lang/14-annotations.md#typed-derivation)).
+> See [Annotations](spec/lang/14-annotations.md) and
+> [Typed Derivation](spec/lang/14-annotations.md#typed-derivation) for the
 > current design.
 > The `annotate Target:` member block was removed later by
-> Typed Derivation M26 ([Trait-Less Derivation Blocks](spec/14-annotations.md#trait-less-derivation-blocks)):
+> Typed Derivation M26 ([Trait-Less Derivation Blocks](spec/lang/14-annotations.md#trait-less-derivation-blocks)):
 > shared metadata goes in a trait-less derivation block,
 > `impl User by Structure:`, and `annotate` is not a reserved word.
 
@@ -3304,12 +3304,12 @@ Open syntax issues:
 > Superseded: the facet protocol (`Annotation`, `Annotate`, the annotator
 > traits, `FieldMetadata`, `AnnotationRef`, and `annotate Facet for Target`)
 > was removed by
-> Typed Derivation decision 10 ([Typed Derivation](spec/14-annotations.md#typed-derivation)).
-> See [Annotations](spec/14-annotations.md) and
-> [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
+> Typed Derivation decision 10 ([Typed Derivation](spec/lang/14-annotations.md#typed-derivation)).
+> See [Annotations](spec/lang/14-annotations.md) and
+> [Typed Derivation](spec/lang/14-annotations.md#typed-derivation) for the
 > current design.
 > The `annotate Target:` member block was removed later by
-> Typed Derivation M26 ([Trait-Less Derivation Blocks](spec/14-annotations.md#trait-less-derivation-blocks)):
+> Typed Derivation M26 ([Trait-Less Derivation Blocks](spec/lang/14-annotations.md#trait-less-derivation-blocks)):
 > shared metadata goes in a trait-less derivation block,
 > `impl User by Structure:`, and `annotate` is not a reserved word.
 

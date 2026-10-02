@@ -11,19 +11,19 @@ ordinary hd over the language tier:
 
 The language tier keeps the representation of a string and the methods
 that expose it
-([Strings](../04-type-system.md#strings),
-[String Indexing](../05-expressions.md#string-indexing),
-[String Methods](../10-modules.md#string-methods)):
+([Strings](../lang/04-type-system.md#strings),
+[String Indexing](../lang/05-expressions.md#string-indexing),
+[String Methods](../lang/10-modules.md#string-methods)):
 
 | Item | Why it stays in the language tier |
 | --- | --- |
 | `len`, `s[i]` | they read the byte representation that the compiler lays out |
 | `bytes`, `slice` | intrinsics over that representation; `slice` shares bytes in constant time |
-| `chars`, `char_indices` | [`flow.for.string-explicit`](../06-control-flow.md#r-flow.for.string-explicit), a language rule, names them as the way to loop over a string |
-| UTF-8 and byte offsets | [`module.string.utf8`](../10-modules.md#r-module.string.utf8) and [`module.string.byte-offsets`](../10-modules.md#r-module.string.byte-offsets) hold for every string method, in both tiers |
+| `chars`, `char_indices` | [`flow.for.string-explicit`](../lang/06-control-flow.md#r-flow.for.string-explicit), a language rule, names them as the way to loop over a string |
+| UTF-8 and byte offsets | [`module.string.utf8`](../lang/10-modules.md#r-module.string.utf8) and [`module.string.byte-offsets`](../lang/10-modules.md#r-module.string.byte-offsets) hold for every string method, in both tiers |
 
 The prefix mechanism, `@str_prefix` and `std.ops.Template`, is language
-tier too ([Prefixed Strings](../05-expressions.md#prefixed-strings)).
+tier too ([Prefixed Strings](../lang/05-expressions.md#prefixed-strings)).
 
 ## String Methods
 
@@ -61,5 +61,5 @@ fn digits(count: i32) -> string:
     r"\d{$count}"  # the text \d{ then count, then }
 ```
 
-See also: [Prefixed Strings](../05-expressions.md#prefixed-strings), which
+See also: [Prefixed Strings](../lang/05-expressions.md#prefixed-strings), which
 specifies how a prefixed string calls its prefix function.

@@ -10,14 +10,14 @@ ordinary hd over the language tier:
 - the builder calls that `@derive(Debug)` generates.
 
 The language tier keeps what the compiler knows by name
-([Debug Trait](../09-traits.md#debug-trait)):
+([Debug Trait](../lang/09-traits.md#debug-trait)):
 
 | Item | Why it stays in the language tier |
 | --- | --- |
-| `Display`, `Debug` | prelude traits; `assert_equal` requires `Debug` ([`module.testing.assert-equal-debug`](../10-modules.md#r-module.testing.assert-equal-debug)) |
-| `debug`'s signature | a prelude function ([`module.prelude.debug`](../10-modules.md#r-module.prelude.debug)) |
+| `Display`, `Debug` | prelude traits; `assert_equal` requires `Debug` ([`module.testing.assert-equal-debug`](../lang/10-modules.md#r-module.testing.assert-equal-debug)) |
+| `debug`'s signature | a prelude function ([`module.prelude.debug`](../lang/10-modules.md#r-module.prelude.debug)) |
 | `DebugWriter` | `Debug`'s one method names it in its signature |
-| `@derive(Debug)` | a derivation through a [template](../14-annotations.md#templates) |
+| `@derive(Debug)` | a derivation through a [template](../lang/14-annotations.md#templates) |
 
 ## Debug Text
 
@@ -63,7 +63,7 @@ impl Debug for Point:
 | r[std-format.debug.derive-builders.unit] Unit variant | a variant without a payload | `out.write(variant_name)` only |
 | r[std-format.debug.derive-builders.mixed] Mixed variant | a variant with both positional and named payload fields, such as `Mixed(i32, label: string)` | `out.debug_struct(variant_name)`, then `.field(field_name, value)` per payload field in order, where a positional field is named `_0`, `_1`, and so on by its position, then `.finish()`, printing `Mixed { _0: 1, label: "x" }` |
 
-1. r[std-format.debug.tuple-template] `Debug`'s [tuple template](../14-annotations.md#tuple-templates) calls `out.debug_tuple("")`, then `.field(value)` per element, then `.finish()`. Its walker implements `rest`, so a rest element's items are fields too.
+1. r[std-format.debug.tuple-template] `Debug`'s [tuple template](../lang/14-annotations.md#tuple-templates) calls `out.debug_tuple("")`, then `.field(value)` per element, then `.finish()`. Its walker implements `rest`, so a rest element's items are fields too.
 
 > **Why.** `assert_equal` and property tests show failing values through
 > `Debug`, so any type a test compares can show itself without a
@@ -74,6 +74,6 @@ impl Debug for Point:
 > **Note.** The exact layout of `debug` text is standard-library API.
 > Portable code and conformance fixtures do not depend on that text.
 
-See also: [Debug Trait](../09-traits.md#debug-trait),
-[Standard Testing](../10-modules.md#standard-testing),
-[Typed Derivation](../14-annotations.md#typed-derivation).
+See also: [Debug Trait](../lang/09-traits.md#debug-trait),
+[Standard Testing](../lang/10-modules.md#standard-testing),
+[Typed Derivation](../lang/14-annotations.md#typed-derivation).

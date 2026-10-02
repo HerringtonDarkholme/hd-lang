@@ -89,7 +89,7 @@ test("removed CLI commands fail as unknown commands", async () => {
 });
 
 // A test body's `.Err` result fails the test
-// (spec/10-modules.md#r-module.testing.fail).
+// (spec/lang/10-modules.md#r-module.testing.fail).
 test("hd test fails a test whose result is .Err", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
@@ -119,7 +119,7 @@ test("hd test fails a test whose result is .Err", async () => {
 });
 
 // A suspending `main!` exits with the code `report()` gives for its result,
-// and a test case fails on any nonzero code (spec/10-modules.md#exit-status,
+// and a test case fails on any nonzero code (spec/lang/10-modules.md#exit-status,
 // #r-module.testing.fail).
 test("hd run and hd test judge suspending results by Termination", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
@@ -190,7 +190,7 @@ test("hd run on a module without main exits 0 and prints nothing", async () => {
 
 // `write_line!` runs on the host console and on a program-defined provider,
 // and `println` drives the covering provider's `write_line!`
-// (spec/10-modules.md#console, MHP-1).
+// (spec/lang/10-modules.md#console, MHP-1).
 test("hd run runs Console.write_line! on host and program providers", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
@@ -246,7 +246,7 @@ test("hd run runs Console.write_line! on host and program providers", async () =
 });
 
 // A failed `assert_equal` shows its reason and both values' `debug` text
-// (spec/10-modules.md#r-module.testing.assert-equal-debug).
+// (spec/lang/10-modules.md#r-module.testing.assert-equal-debug).
 test("a failed assert_equal shows the reason and both values", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
@@ -307,7 +307,7 @@ test("hd test compares snapshot_file text with its snapshot file", async () => {
 });
 
 // A `*_test.hd` file is a test module whose top level holds its test cases
-// (spec/10-modules.md#test-modules).
+// (spec/lang/10-modules.md#test-modules).
 test("hd test runs a _test.hd test module", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
@@ -340,7 +340,7 @@ test("hd test runs a _test.hd test module", async () => {
 });
 
 // Each it_each row is its own test case in a fresh program instance
-// (spec/std/testing.md#table-test-rows and spec/10-modules.md#r-module.testing.instance).
+// (spec/std/testing.md#table-test-rows and spec/lang/10-modules.md#r-module.testing.instance).
 test("hd test runs each it_each row in a fresh instance", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {

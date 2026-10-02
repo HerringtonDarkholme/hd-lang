@@ -1,5 +1,5 @@
 # std.function: the function type constructors and the `Tuple` marker trait
-# (spec/07-functions.md#function-type-constructors).
+# (spec/lang/07-functions.md#function-type-constructors).
 #
 # `Fn` and `SuspendFn` are the constructors that `fn(...) -> O $ R` and
 # `fn!(...) -> O $ R` stand for. They have no fields and no construction

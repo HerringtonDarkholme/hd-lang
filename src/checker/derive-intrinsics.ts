@@ -6,7 +6,7 @@ import type { Target } from "./member-lines.ts";
 
 // ---------------------------------------------------------------------------
 // The derive checks of the comparison traits, whose implementations come from
-// the std templates (spec/09-traits.md#derived-implementations), and the
+// the std templates (spec/lang/09-traits.md#derived-implementations), and the
 // intrinsic `@derive(Debug)` (#debug-trait).
 
 /** What a derived field line compares or hashes, for its diagnostic. */
@@ -14,21 +14,21 @@ interface DerivedFieldCheck {
   readonly trait: string;
   readonly owner: string;
   readonly field: string;
-  /** The field is a newtype's base type (spec/09-traits.md#r-trait.derive.newtype.requires.error). */
+  /** The field is a newtype's base type (spec/lang/09-traits.md#r-trait.derive.newtype.requires.error). */
   readonly base?: boolean;
 }
 
 /**
  * The spans of generated lines that compare or hash one field. A trait
  * error there is `derive-field-missing-trait` at the field
- * (spec/09-traits.md#r-trait.derive.field-missing-trait).
+ * (spec/lang/09-traits.md#r-trait.derive.field-missing-trait).
  */
 const DERIVED_FIELD_CHECKS = new WeakMap<SourceSpan, DerivedFieldCheck>();
 
 /**
  * The spans of derived implementations of the comparison traits. An unmet
  * bound of one of their methods is `missing-derived-bound` at the use
- * (spec/09-traits.md#r-trait.derive.bound-unmet).
+ * (spec/lang/09-traits.md#r-trait.derive.bound-unmet).
  */
 export const DERIVED_IMPLEMENTATION_SPANS = new WeakSet<SourceSpan>();
 
@@ -51,7 +51,7 @@ const DERIVED_FIELD_CODES: ReadonlySet<string> = new Set([
 /**
  * A trait error on a generated line that compares or hashes one field is
  * `derive-field-missing-trait`, naming the trait and the field
- * (spec/09-traits.md#r-trait.derive.field-missing-trait); any other
+ * (spec/lang/09-traits.md#r-trait.derive.field-missing-trait); any other
  * diagnostic is unchanged.
  */
 export function derivedFieldDiagnostic(
@@ -163,7 +163,7 @@ interface NewtypeDerivation {
 
 /**
  * `@derive(Debug)` on a newtype applies the base type's method to the
- * unwrapped value (spec/09-traits.md#derived-newtypes).
+ * unwrapped value (spec/lang/09-traits.md#derived-newtypes).
  */
 function deriveNewtypeDebug(item: NewtypeDerivation, writer: string): ImplDecl {
   const { name, genericParameters: parameters, base } = item.declaration;
@@ -173,7 +173,7 @@ function deriveNewtypeDebug(item: NewtypeDerivation, writer: string): ImplDecl {
   out.add(`impl${parameters.length > 0 ? `[${bounds}]` : ""} ${item.trait} for ${T}:`);
   const self = `${readonlyType(base!.name).split("[")[0]}(self)`;
   // A base type without the trait is `derive-field-missing-trait` at the
-  // base type (spec/09-traits.md#r-trait.derive.newtype.requires.error).
+  // base type (spec/lang/09-traits.md#r-trait.derive.newtype.requires.error).
   out.add(
     `    fn debug(self, out: mut ${writer}) -> void: ${DEBUG}(${self}, out)`,
     derivedBaseSpan(item.declaration, item.trait),
@@ -194,7 +194,7 @@ export function intrinsicHelpers(
 }
 
 // ---------------------------------------------------------------------------
-// Law partners (spec/09-traits.md#law-partners).
+// Law partners (spec/lang/09-traits.md#law-partners).
 
 const LAW_PARTNERS: Readonly<Record<string, readonly string[]>> = {
   Eq: ["Hash", "PartialOrd", "Ord"],

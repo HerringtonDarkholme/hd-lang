@@ -40,12 +40,12 @@ export interface CheckOptions {
 
 export function check(written: Program, options: CheckOptions = {}): CheckResult {
   // `@error` is an intrinsic, lowered before any decorator is resolved
-  // (spec/14-annotations.md#error-derivation).
+  // (spec/lang/14-annotations.md#error-derivation).
   const errors = withErrorDerivation(written);
   if (errors.diagnostics.length > 0) return { diagnostics: [...errors.diagnostics] };
   const source = errors.program;
   // A bare decorator name of a function with no parameters is a call
-  // (spec/14-annotations.md#r-annot.decorator.bare-call).
+  // (spec/lang/14-annotations.md#r-annot.decorator.bare-call).
   const markers = new Set([
     ...markerFunctions(source.functions),
     ...importedMarkerFunctions(source),
@@ -56,13 +56,13 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
   // A malformed spelled function type leaves no type to check against.
   if (spelled.diagnostics.length > 0) return { diagnostics: [...spelled.diagnostics] };
   // Typed derivation is lowered to ordinary implementations first
-  // (spec/14-annotations.md#typed-derivation).
+  // (spec/lang/14-annotations.md#typed-derivation).
   const derived = withTypedDerivation(spelled.program);
   if (derived.diagnostics.some((diagnostic) => diagnostic.severity !== "warning"))
     return { diagnostics: [...derived.diagnostics] };
   const result = checkProgram(derived.program, options);
   // A member that fails the walker's bound is reported at the opt-in
-  // (spec/14-annotations.md#r-annot.walker.obligation.error).
+  // (spec/lang/14-annotations.md#r-annot.walker.obligation.error).
   const sameSpan = (span: SourceSpan, diagnostic: Diagnostic): boolean =>
     span.start.offset === diagnostic.span.start.offset &&
     span.end.offset === diagnostic.span.end.offset;
@@ -104,7 +104,7 @@ function checkProgram(source: Program, options: CheckOptions): CheckResult {
   const marked = withSuffixMarkers(withBareMarkerCalls(joined, markerFunctions(joined.functions)));
   const hoisted = hoistLocalDeclarations(marked);
   // Target kinds are checked before newtypes are lowered to data types
-  // (spec/14-annotations.md#target-kinds).
+  // (spec/lang/14-annotations.md#target-kinds).
   const targetDiagnostics = checkDecoratorTargets(hoisted.program);
   // Written types take their omitted defaults before aliases expand
   // (04-type-system.md#type-argument-defaults).

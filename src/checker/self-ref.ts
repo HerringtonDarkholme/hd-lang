@@ -7,7 +7,7 @@ import {
   tupleParts,
 } from "../types.ts";
 
-// Self references (spec/14-annotations.md#self-references): whether a
+// Self references (spec/lang/14-annotations.md#self-references): whether a
 // member's type refers to the enclosing data type or enum, and whether its
 // simplest value needs one. The compiler computes them for the `self_ref`
 // field of `std.structure`'s `Member` and `VariantInfo`

@@ -11,11 +11,11 @@ command finds a package and what each command runs:
 - `hd new`, and the REPL.
 
 The language tier defines what a program means: its
-[entry module](10-modules.md#module-initialization) and
-[entry point](10-modules.md#executable-entry-point), and
-[single-file programs](10-modules.md#single-file-programs). This tier
+[entry module](../lang/10-modules.md#module-initialization) and
+[entry point](../lang/10-modules.md#executable-entry-point), and
+[single-file programs](../lang/10-modules.md#single-file-programs). This tier
 says which program a command starts. Its diagnostic codes are in the
-[Diagnostics](README.md#diagnostics) table with the language tier's.
+[Diagnostics](../README.md#diagnostics) table with the language tier's.
 
 ## Commands
 
@@ -53,7 +53,7 @@ A command works on a package when it finds that package's `hd.toml`:
 hd notes.hd
 ```
 
-1. r[cli.file.run] `hd FILE` runs FILE as a [single-file program](10-modules.md#single-file-programs), whether or not FILE lies in a package.
+1. r[cli.file.run] `hd FILE` runs FILE as a [single-file program](../lang/10-modules.md#single-file-programs), whether or not FILE lies in a package.
 2. r[cli.file.in-package] When FILE lies in a package, the error for a use of `pkg`, `self`, or `super` in it suggests a task and `hd run NAME`.
 3. r[cli.file.check-test] Outside any package, `hd check FILE` and `hd test FILE` check or test FILE as a single-file program.
 
@@ -87,8 +87,8 @@ module = "tools.migrate"
 
 > **Note.** The entry module's `main`, `main!`, or top-level statements
 > decide what the executable does, by
-> [Module Initialization](10-modules.md#module-initialization) and
-> [Executable Entry Point](10-modules.md#executable-entry-point).
+> [Module Initialization](../lang/10-modules.md#module-initialization) and
+> [Executable Entry Point](../lang/10-modules.md#executable-entry-point).
 
 > **Why.** The manifest names the module, never the function. An agent
 > that renames `main` then sees an error in source, not a stale manifest.
@@ -158,5 +158,5 @@ hd                # use self.util names shop/src/util.hd
 1. r[cli.tooling.package-schema] The complete `hd.toml` schema, the `hd.sum` format, and the commands that fetch, add, and upgrade dependencies belong to package tooling.
 2. r[cli.tooling.package-later] Compatibility checks at release and upgrade, vendoring, and local-path patches are package tooling that this chapter does not define.
 
-See also: [Package Manifest](10-modules.md#package-manifest),
-[Test Modules](10-modules.md#test-modules).
+See also: [Package Manifest](../lang/10-modules.md#package-manifest),
+[Test Modules](../lang/10-modules.md#test-modules).

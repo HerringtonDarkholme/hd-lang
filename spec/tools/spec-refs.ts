@@ -11,6 +11,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, relative, resolve } from "node:path";
 
 import { allRules, type Corpus } from "./spec-corpus.ts";
+import { CHAPTER_HISTORY_PATHS } from "./spec-prose.ts";
 
 /** Where a citation lives; the first four are gated by spec/check.sh. */
 type Area = "spec" | "fixtures" | "guide" | "lib-std" | "records" | "src";
@@ -187,9 +188,7 @@ export function ruleHistory(repoRoot: string, rev = "HEAD"): RuleHistory {
         "--no-ext-diff",
         "-U0",
         "--",
-        "spec/[0-9][0-9]-*.md",
-        "spec/std/*.md",
-        "spec/cli.md",
+        ...CHAPTER_HISTORY_PATHS,
       ],
       { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "ignore"] },
     );

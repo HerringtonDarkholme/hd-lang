@@ -1,4 +1,4 @@
-# std.process: exit status (spec/10-modules.md#exit-status) and subprocesses.
+# std.process: exit status (spec/lang/10-modules.md#exit-status) and subprocesses.
 # WASI has no subprocess interface, so no
 # prototype runtime profile binds a host `Process`; `ScriptedProcess` is the
 # deterministic provider.

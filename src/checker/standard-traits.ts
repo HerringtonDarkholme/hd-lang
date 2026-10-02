@@ -3,7 +3,7 @@ import type { SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 
 // Standard traits that a module imports rather than receiving from the
-// prelude (spec/09-traits.md#conversion-trait and #error-trait). The prototype
+// prelude (spec/lang/09-traits.md#conversion-trait and #error-trait). The prototype
 // compiles one module, so an imported standard trait is declared in it under
 // its local name, with every span pointing at the use declaration.
 const STANDARD_TRAITS: Readonly<Record<string, (name: string) => string>> = {
@@ -49,7 +49,7 @@ export function durationName(uses: Program["uses"]): string {
 export const HIDDEN_EXIT_CODE = "__std_process_ExitCode";
 export const HIDDEN_TERMINATION = "__std_process_Termination";
 
-// `std.format.DebugWriter` (spec/09-traits.md#debug-trait): the spec leaves
+// `std.format.DebugWriter` (spec/lang/09-traits.md#debug-trait): the spec leaves
 // its builder calls to the standard library, so the prototype declares it
 // with no members, under its imported name or a hidden one.
 const HIDDEN_DEBUG_WRITER = "__std_format_DebugWriter";
@@ -63,7 +63,7 @@ export function debugWriterName(uses: Program["uses"]): string {
   return HIDDEN_DEBUG_WRITER;
 }
 
-// Runtime type identity (spec/09-traits.md#runtime-type-identity). Importing
+// Runtime type identity (spec/lang/09-traits.md#runtime-type-identity). Importing
 // any `std.inspect` name, or `std.error.Error`, declares the sealed trait and
 // `TypeId` under their standard names; aliases are not supported. `TypeId` is
 // a data type holding the canonical printable name, which identifies the type

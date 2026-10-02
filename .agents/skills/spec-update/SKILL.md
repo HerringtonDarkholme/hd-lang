@@ -51,7 +51,7 @@ the spec, and it adds exactly what the decision says, no more.
      conformance harness, and anything a diagnostic code names.
    - **Stdlib tier**, `spec/std/<module>.md`: a std API that `lib/std` can
      write in ordinary hd over language-tier items only.
-   - **CLI tier**, `spec/cli.md`: what an `hd` command does, the
+   - **CLI tier**, `spec/cli/command-line.md`: what an `hd` command does, the
      `hd.toml` executables, and package tasks.
    - A rule in a section that no migration task has moved yet goes next to
      its neighbors in the numbered chapter. Moving a section is a
@@ -107,8 +107,10 @@ the spec, and it adds exactly what the decision says, no more.
        main:spec/<chapter>.md spec/<chapter>.md --out /tmp/<chapter>-diff.md
    ```
 
-   For a stdlib chapter, `<chapter>` is `std/<module>`. A new chapter has
-   no `main` version to diff; list its rule IDs in the commit message.
+   `<chapter>` is `lang/<NN-name>` for a language chapter, `std/<module>`
+   for a stdlib chapter, and `cli/command-line` for the CLI chapter. A new
+   chapter has no `main` version to diff; list its rule IDs in the commit
+   message.
 
    Nothing may be lost except what the decision removes. Explain every
    lost code, example, or rule ID in the commit message. A retired ID shows

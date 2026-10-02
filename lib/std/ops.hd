@@ -1,6 +1,6 @@
 # std.ops: the operator and index traits, the stdlib `Default` trait
 # (spec/std/ops.md), and the literal-suffix and string-prefix markers
-# (spec/05-expressions.md#literal-suffixes, #prefixed-strings) and
+# (spec/lang/05-expressions.md#literal-suffixes, #prefixed-strings) and
 # `Template`. The raw-text prefix `r` and the prefix helpers `interpolate`,
 # `process_escapes`, and `EscapeError` are in `std.text` (Literal Suffixes
 # L20, L22).
@@ -38,7 +38,7 @@ pub data Template[T]:
     pub raw_parts: List[string]
     pub values: List[T]
 
-# The operator traits (spec/05-expressions.md#operator-traits). An operator
+# The operator traits (spec/lang/05-expressions.md#operator-traits). An operator
 # on a primitive operand never searches them; any other operand calls the
 # left operand's implementation (r-expr.op.desugar).
 pub trait Add[Rhs = Self]:
@@ -90,7 +90,7 @@ pub trait Shr[Rhs = Self]:
     fn shr(self, rhs: Rhs) -> Self::Out
 
 # `r[k]` and `r[k] = v` on a type other than `List`, `Map`, and `string`
-# (spec/05-expressions.md#index-traits).
+# (spec/lang/05-expressions.md#index-traits).
 pub trait Index[K]:
     type Out
     fn index(self, key: K) -> Self::Out
@@ -100,7 +100,7 @@ pub trait IndexSet[K, V]:
 
 # `v()` and `v() = x` on a value that is not a function: a callable value
 # reads through `Apply` and, when it also implements `Update`, stores
-# through it (spec/05-expressions.md#callable-values). Neither takes a key.
+# through it (spec/lang/05-expressions.md#callable-values). Neither takes a key.
 pub trait Apply:
     type Out
     fn apply(self) -> Self::Out
@@ -108,10 +108,10 @@ pub trait Apply:
 pub trait Update[V]:
     fn update(mut self, value: V) -> void
 
-# The built-in implementations (spec/05-expressions.md#built-in-implementations).
+# The built-in implementations (spec/lang/05-expressions.md#built-in-implementations).
 # Each body is the built-in indexing of its type, with its checks and
 # panics: `Map`'s `index` returns `V` and panics on a missing key
-# (spec/05-expressions.md#r-expr.index.map.read-value).
+# (spec/lang/05-expressions.md#r-expr.index.map.read-value).
 impl[T] Index[i32] for List[T]:
     type Out = T
     fn index(self, key: i32) -> T: self[key]
@@ -132,7 +132,7 @@ impl Index[i32] for string:
     type Out = u8
     fn index(self, key: i32) -> u8: self[key]
 
-# The primitive implementations (spec/05-expressions.md#primitive-implementations).
+# The primitive implementations (spec/lang/05-expressions.md#primitive-implementations).
 # Each body is the built-in operator on primitive operands, so it behaves as
 # that operator does, including checked overflow and its panics
 # (r-expr.op.std.intrinsic). The loader declares a trait's primitive

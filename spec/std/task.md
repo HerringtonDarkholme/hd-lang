@@ -9,7 +9,7 @@ ordinary hd over the language tier:
 
 The language tier keeps the `Suspend` protocol, `block_on`, and the
 polling combinators `all!` and `race!`, which are compiler intrinsics
-([Standard Combinators](../11-requirements-and-suspension.md#standard-combinators)).
+([Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators)).
 
 ## Retry
 
@@ -24,7 +24,7 @@ pub fn retry![T, E, R](times: i32, attempt: fn!() -> Result[T, E] $ R) -> Result
 2. r[std-task.combinator.retry.loop] `retry!` calls `attempt` at most `times` times, one call after another, and returns the first `.Ok` result without another call.
 3. r[std-task.combinator.retry.last-error] When every one of the `times` calls returns `.Err`, `retry!` returns the last `.Err`.
 4. r[std-task.combinator.retry.at-least-once] A `times` below 1 counts as 1, so `retry!` calls `attempt` once and returns its result.
-5. r[std-task.combinator.retry.cancel] Cancellation follows the ordinary rules of [Cancellation](../11-requirements-and-suspension.md#cancellation), since `retry!` is a loop of bang calls. Cancelling it cancels the active attempt, and no further attempt starts.
+5. r[std-task.combinator.retry.cancel] Cancellation follows the ordinary rules of [Cancellation](../lang/11-requirements-and-suspension.md#cancellation), since `retry!` is a loop of bang calls. Cancelling it cancels the active attempt, and no further attempt starts.
 
 ```text
 use std.task.retry
@@ -56,5 +56,5 @@ requires `Console` too.
 > attempts, so it needs no clock. A `times` below 1 still makes one attempt,
 > because with no attempt there is no `Result` to return.
 
-See also: [Standard Combinators](../11-requirements-and-suspension.md#standard-combinators),
-[Suspending Closures And Clauses](../07-functions.md#suspending-closures-and-clauses).
+See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators),
+[Suspending Closures And Clauses](../lang/07-functions.md#suspending-closures-and-clauses).

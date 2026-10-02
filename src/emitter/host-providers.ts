@@ -335,7 +335,7 @@ function emitFrameType({ trait, method }: HostMethod): string {
 
 /**
  * Host-bound capability traits, the prelude `Console` among them
- * (spec/10-modules.md#console): each method call goes out through its own
+ * (spec/lang/10-modules.md#console): each method call goes out through its own
  * generic imports, and the host answers through one callback keyed by trait
  * and method name (src/compiler.ts, src/host-functions.ts).
  */

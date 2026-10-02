@@ -43,7 +43,7 @@ The **spec inventory** is the union of:
    (`reference-only-codes.tsv`).
 
 Panic codes are the stable categories in
-`spec/06-control-flow.md#runtime-panics`. Only `run` and `test` may report
+`spec/lang/06-control-flow.md#runtime-panics`. Only `run` and `test` may report
 one.
 
 ## Violation kinds

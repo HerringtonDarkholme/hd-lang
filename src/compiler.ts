@@ -165,7 +165,7 @@ interface Instantiation {
 
 /**
  * An f32 (passed widened) shows the shortest decimal that rounds back to the
- * same f32, in the f64 notation (spec/04-type-system.md#numeric-display).
+ * same f32, in the f64 notation (spec/lang/04-type-system.md#numeric-display).
  */
 function displayF32(value: number): string {
   if (!Number.isFinite(value)) return displayF64(value);

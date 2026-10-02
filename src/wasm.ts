@@ -1,6 +1,6 @@
 import binaryen from "binaryen";
 
-// Saturating float-to-integer casts (spec/04-type-system.md#r-types.cast.saturate)
+// Saturating float-to-integer casts (spec/lang/04-type-system.md#r-types.cast.saturate)
 // use the non-trapping `trunc_sat` instructions.
 export const WASM_FEATURES =
   binaryen.Features.MutableGlobals |

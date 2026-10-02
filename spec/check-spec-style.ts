@@ -21,6 +21,8 @@ import {
   blocks,
   CHAPTER_PREFIXES,
   errorMarkerCodes,
+  CLI_DIRECTORY,
+  LANG_DIRECTORY,
   STD_DIRECTORY,
   knownCodes,
   paragraphs,
@@ -75,13 +77,21 @@ async function main(args: readonly string[]): Promise<number> {
   const all = args.includes("--all");
   const specDirectory = resolve(positional[0]!);
   const read = (name: string): Promise<string> => readFile(resolve(specDirectory, name), "utf8");
-  const codes = knownCodes(await read("README.md"), await read("06-control-flow.md"));
+  const codes = knownCodes(
+    await read("README.md"),
+    await read(`${LANG_DIRECTORY}/06-control-flow.md`),
+  );
   const markdown = async (directory: string): Promise<string[]> =>
     (await readdir(resolve(specDirectory, directory)).catch(() => []))
       .filter((name) => name.endsWith(".md"))
       .sort()
       .map((name) => (directory === "." ? name : `${directory}/${name}`));
-  const names = [...(await markdown(".")), ...(await markdown(STD_DIRECTORY))];
+  const names = [
+    ...(await markdown(".")),
+    ...(await markdown(LANG_DIRECTORY)),
+    ...(await markdown(STD_DIRECTORY)),
+    ...(await markdown(CLI_DIRECTORY)),
+  ];
   const failures: string[] = selfCheck();
   const seen = new Map<string, string>();
   const summaries: string[] = [];

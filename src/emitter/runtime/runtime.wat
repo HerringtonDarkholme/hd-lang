@@ -372,7 +372,7 @@
     (i32.shr_s (local.get $value) (local.get $count)))
 
   ;; `text[index]`: the byte at a byte offset, or an index-out-of-bounds panic
-  ;; (spec/05-expressions.md#string-indexing). A narrow index is read as
+  ;; (spec/lang/05-expressions.md#string-indexing). A narrow index is read as
   ;; unsigned, so a negative one is out of range too.
   (func $hd.string_get (param $text (ref $hd.bytes)) (param $index i32) (result i32)
     (if (i32.ge_u (local.get $index) (array.len (local.get $text)))

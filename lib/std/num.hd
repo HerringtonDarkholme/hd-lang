@@ -3,7 +3,7 @@
 # behaviors explicit. They are declared for `i32` and `i64` only.
 use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
 
-# The numeric traits (spec/09-traits.md#numeric-traits). They are sealed:
+# The numeric traits (spec/lang/09-traits.md#numeric-traits). They are sealed:
 # only these implementations exist, one per primitive number type
 # (r-trait.num.sealed). `from_i64` is checked (r-trait.num.from-i64-checked):
 # a value the integer type cannot hold panics with integer overflow.

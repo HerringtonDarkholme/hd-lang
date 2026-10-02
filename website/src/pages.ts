@@ -23,6 +23,7 @@ interface NavSection {
   readonly pages: readonly PageSource[];
 }
 
+/** The numbered language chapters in spec/lang/; each keeps its spec/NN-name.html URL. */
 const SPEC_CHAPTERS: readonly [file: string, title: string][] = [
   ["01-lexical-structure", "Lexical Structure"],
   ["02-grammar", "Grammar"],
@@ -75,7 +76,7 @@ export const PAGES: readonly PageSource[] = [
   page("guide/USE_SCENARIOS.md", "guide/use-scenarios.html", "Use Scenarios", "Guide"),
   page("spec/README.md", "spec/index.html", "Specification", "Reference"),
   ...SPEC_CHAPTERS.map(([file, title], index) =>
-    page(`spec/${file}.md`, `spec/${file}.html`, `${index + 1}. ${title}`, "Reference"),
+    page(`spec/lang/${file}.md`, `spec/${file}.html`, `${index + 1}. ${title}`, "Reference"),
   ),
   {
     ...page("spec/GLOSSARY.md", "spec/glossary.html", "Glossary", "Reference"),
@@ -86,7 +87,8 @@ export const PAGES: readonly PageSource[] = [
   ...STD_CHAPTERS.map(([module, title]) =>
     page(`spec/std/${module}.md`, `spec/std/${module}.html`, title, "Standard Library"),
   ),
-  page("spec/cli.md", "spec/cli.html", "Command Line", "Command Line"),
+  page("spec/cli/README.md", "spec/cli/index.html", "Command Line", "Command Line"),
+  page("spec/cli/command-line.md", "spec/cli.html", "Commands", "Command Line"),
   page("future-work/ROADMAP.md", "roadmap.html", "Roadmap", "Project"),
 ];
 

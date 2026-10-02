@@ -1,5 +1,5 @@
 // Every prelude name, which no declaration or binding may shadow
-// (spec/10-modules.md#prelude).
+// (spec/lang/10-modules.md#prelude).
 export const PRELUDE_NAMES = new Set([
   "never",
   "bool",
@@ -42,6 +42,6 @@ export const PRELUDE_NAMES = new Set([
   "Poll",
   "PollContext",
   "Waker",
-  // std.testing's test-case function (spec/10-modules.md#r-module.prelude.it-function).
+  // std.testing's test-case function (spec/lang/10-modules.md#r-module.prelude.it-function).
   "it",
 ]);

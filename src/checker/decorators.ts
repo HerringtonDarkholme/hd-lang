@@ -11,7 +11,7 @@ import type {
 import type { Diagnostic } from "../diagnostics.ts";
 import { factType } from "./typed-derivation.ts";
 
-// Decorators as plain values (spec/14-annotations.md#prefix-decorators and
+// Decorators as plain values (spec/lang/14-annotations.md#prefix-decorators and
 // #target-kinds). Two passes over the attached values:
 //
 // - `withBareMarkerCalls`: a bare decorator name that resolves to a function
@@ -185,7 +185,7 @@ export function markerFunctions(functions: readonly FunctionDecl[]): Set<string>
 
 /**
  * Marks each function that carries a `std.ops.NumSuffix` or `std.ops.StrPrefix`
- * value as a suffix or prefix function (spec/05-expressions.md#r-expr.literal-fn.marker).
+ * value as a suffix or prefix function (spec/lang/05-expressions.md#r-expr.literal-fn.marker).
  * It runs after the standard library is joined, so the markers' declarations
  * are known. Their shape is checked where they are attached, as typed facts
  * (annot.typed-fact.check, checker/typed-facts.ts).

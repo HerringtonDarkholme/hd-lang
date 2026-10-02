@@ -5,7 +5,7 @@
 # names.
 #
 # `Iterator[T]` is a data type whose private `step` closure yields the next
-# item (spec/06-control-flow.md#iteration-protocols), and the adapters are
+# item (spec/lang/06-control-flow.md#iteration-protocols), and the adapters are
 # its ordinary methods (spec/std/iter.md#iterator-adapters). `filter`,
 # `take`, `enumerate`, and `map` return a lazy iterator that pulls from
 # `self` only when its own `next` is called; `fold` and `collect` drain
@@ -143,13 +143,13 @@ impl[T, C < FromIterator[T]] FromIterator[T?] for C?:
         if missing: .None else: .Some(collected)
 
 # A value that a `for` loop or a comprehension clause iterates
-# (spec/06-control-flow.md#iteration-protocols).
+# (spec/lang/06-control-flow.md#iteration-protocols).
 pub trait Iterable[T]:
     fn iter(self) -> mut Iterator[T]
 
 # `Iterator[T]` is not `Iterable[T]`: a loop over a mutable iterator
-# advances it directly (spec/06-control-flow.md#r-flow.for.iterator-not-iterable,
-# spec/06-control-flow.md#r-flow.for.iterator-direct).
+# advances it directly (spec/lang/06-control-flow.md#r-flow.for.iterator-not-iterable,
+# spec/lang/06-control-flow.md#r-flow.for.iterator-direct).
 
 impl[T] Iterable[T] for List[T]:
     fn iter(self) -> mut Iterator[T]:

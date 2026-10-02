@@ -104,11 +104,11 @@ export interface Signature {
   readonly intrinsic?: string; // a `lib/std` declaration's `@intrinsic("name")`
   readonly result: ValueType;
   readonly requirements: readonly string[];
-  /** Declared in a `tests:` block (spec/03-names-and-scopes.md#tests-blocks). */
+  /** Declared in a `tests:` block (spec/lang/03-names-and-scopes.md#tests-blocks). */
   readonly testOnly?: boolean;
-  /** A suffix function, marked `@num_suffix` (spec/05-expressions.md#r-expr.literal-fn.marker). */
+  /** A suffix function, marked `@num_suffix` (spec/lang/05-expressions.md#r-expr.literal-fn.marker). */
   readonly numSuffix?: boolean;
-  /** A prefix function, marked `@str_prefix` (spec/05-expressions.md#r-expr.literal-fn.marker). */
+  /** A prefix function, marked `@str_prefix` (spec/lang/05-expressions.md#r-expr.literal-fn.marker). */
   readonly strPrefix?: boolean;
   /** Type-argument defaults, applied to what a use site leaves unsolved (04 Type-Argument Defaults). */
   readonly genericDefaults?: ReadonlyMap<string, ValueType>;
@@ -523,7 +523,7 @@ export abstract class CheckerContext {
         inspectTarget || !mutableTrait ? genericTypeName(implementationType) : undefined;
       if (erasedParameter) {
         // Erasing `x: T` needs `T < Inspectable`; the bound's dictionary
-        // records the instantiated type (spec/09-traits.md#erasure-to-inspectable).
+        // records the instantiated type (spec/lang/09-traits.md#erasure-to-inspectable).
         // A value of `T < Trait` erases to `Trait` through the same dictionary.
         const boundIndex = this.signature.genericBounds.findIndex(
           (bound) => bound.parameter === erasedParameter && bound.traitIndex === trait.index,
@@ -1065,7 +1065,7 @@ export abstract class CheckerContext {
       return { kind: "display", operand: value, type: "string", span };
     }
     const missing = `type '${value.type}' does not implement Display, required by ${origin}`;
-    // A program that mentions no `Display` has none declared (spec/10-modules.md#prelude).
+    // A program that mentions no `Display` has none declared (spec/lang/10-modules.md#prelude).
     const trait = this.traitTypes.get("Display");
     if (!trait) return this.fail("unsatisfied-trait-bound", missing, span);
     const generic = genericTypeName(type);
@@ -1212,7 +1212,7 @@ export abstract class CheckerContext {
     const mapping = found?.impl.methodFunctions.find(({ methodIndex }) => methodIndex === 0);
     if (!found || !mapping) return undefined;
     const substitutions = matchTraitImplementation(found.impl, trait.index, found.type, [])!;
-    // spec/09-traits.md#r-trait.derive.bound-unmet
+    // spec/lang/09-traits.md#r-trait.derive.bound-unmet
     const code = DERIVED_IMPLEMENTATION_SPANS.has(found.impl.span)
       ? "missing-derived-bound"
       : "unsatisfied-trait-bound";
@@ -1258,7 +1258,7 @@ export abstract class CheckerContext {
   protected blockType(statements: readonly HirStatement[]): ValueType {
     const last = statements.at(-1);
     // A suite that ends by leaving it (`return`, `break`, `continue`) has type
-    // `never`, so it joins any other branch type (spec/06-control-flow.md).
+    // `never`, so it joins any other branch type (spec/lang/06-control-flow.md).
     if (last?.kind === "return" || last?.kind === "break" || last?.kind === "continue")
       return "never";
     return last?.kind === "expression" ? last.expression.type : "void";
@@ -1453,9 +1453,9 @@ export abstract class CheckerContext {
   }
 
   // The test-case functions are used only as direct calls in test position, so
-  // any other use of their names is misplaced (spec/10-modules.md#r-module.testing.direct-call).
+  // any other use of their names is misplaced (spec/lang/10-modules.md#r-module.testing.direct-call).
   // An item of a `tests:` block is visible only inside the block
-  // (spec/03-names-and-scopes.md#r-names.tests.inside-only).
+  // (spec/lang/03-names-and-scopes.md#r-names.tests.inside-only).
   protected visibleSignature(name: string): Signature | undefined {
     const signature = this.signatures.get(name);
     return signature?.testOnly && !this.declaration.testOnly ? undefined : signature;
@@ -1480,7 +1480,7 @@ export abstract class CheckerContext {
 }
 
 // The imported test-case functions besides the prelude's `it`
-// (spec/10-modules.md#r-module.testing.position-statements).
+// (spec/lang/10-modules.md#r-module.testing.position-statements).
 const TEST_CASE_FUNCTIONS: ReadonlySet<string> = new Set([
   "std.testing.it_each",
   "std.testing.it_prop",

@@ -12,7 +12,7 @@ ordinary hd over the language tier:
 - `map` on `List[T]` and on `T?`.
 
 The language tier keeps what the compiler knows by name
-([Iteration Protocols](../06-control-flow.md#iteration-protocols)):
+([Iteration Protocols](../lang/06-control-flow.md#iteration-protocols)):
 
 | Item | Why it stays in the language tier |
 | --- | --- |
@@ -22,7 +22,7 @@ The language tier keeps what the compiler knows by name
 
 Nothing in the language tier names an adapter, `collect`, or
 `FromIterator`. `collect`'s default target, `List[T]`, is an ordinary
-[type-argument default](../04-type-system.md#type-argument-defaults),
+[type-argument default](../lang/04-type-system.md#type-argument-defaults),
 which needs no compiler knowledge of `collect`.
 
 ## Iterator Adapters
@@ -121,7 +121,7 @@ trait FromIterator[T]:
 2. r[std-iter.prelude.from-iterator] `std.iter` also declares `FromIterator`, which is not a prelude name. Code imports it to implement or name it, as in `use std.iter.FromIterator`, and a `collect` call needs no import.
 3. r[std-iter.collect.call] `collect` returns `C::from_iter(self)`.
 4. r[std-iter.collect.target] `C` is solved like any call-site type argument: from the expected type, or from an explicit list such as `collect::[Map[string, i32]]()`.
-5. r[std-iter.collect.target-default] When nothing determines `C`, its declared [default](../04-type-system.md#type-argument-defaults) `List[T]` applies.
+5. r[std-iter.collect.target-default] When nothing determines `C`, its declared [default](../lang/04-type-system.md#type-argument-defaults) `List[T]` applies.
 6. r[std-iter.collect.bound] A target that does not implement `FromIterator[T]` is an error. Error: `unsatisfied-trait-bound`.
 
 The standard library implements `FromIterator` for these prelude types:
@@ -163,5 +163,5 @@ fn total(values: List[i32]) -> i32:
 
 1. r[std-iter.method.map] `List.map` and optional `map` are non-suspending and evaluate the transform in source order.
 
-See also: [Built-In Methods](../10-modules.md#built-in-methods), which
+See also: [Built-In Methods](../lang/10-modules.md#built-in-methods), which
 lists the methods of the built-in types that stay in the language tier.

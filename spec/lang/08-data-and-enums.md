@@ -848,7 +848,7 @@ See also: [Optional Types](04-type-system.md#optional-types),
 
 Ownership, alias-escape prevention, automatic finalization, and asynchronous
 or fallible cleanup policy remain deferred in
-[Open Issues](../future-work/OPEN_ISSUES.md).
+[Open Issues](../../future-work/OPEN_ISSUES.md).
 
 ## Generalized Algebraic Data Types
 

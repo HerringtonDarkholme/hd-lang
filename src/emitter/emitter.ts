@@ -912,10 +912,10 @@ class FunctionEmitter extends FunctionBodyEmitter {
   }
 
   // A suspending `main!` or test case with a non-void result exports the code
-  // that `report()` gives for it (spec/10-modules.md#exit-status), or -1 for
+  // that `report()` gives for it (spec/lang/10-modules.md#exit-status), or -1 for
   // an `.Err`, as the non-suspending entry wrapper does. The runner exits with
   // that code or fails the test case on a nonzero one
-  // (spec/10-modules.md#r-module.testing.fail).
+  // (spec/lang/10-modules.md#r-module.testing.fail).
   private emitSuspensionEntryExport(
     declaration: HirFunction,
     entryExport: string,

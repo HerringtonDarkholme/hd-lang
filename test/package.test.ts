@@ -204,7 +204,7 @@ test("uses in test code make no folder edge", () => {
 });
 
 test("a pub use chain must end at a declaration", () => {
-  // spec/10-modules.md#r-module.pub-use.chain.loop: `re-export-loop` on each
+  // spec/lang/10-modules.md#r-module.pub-use.chain.loop: `re-export-loop` on each
   // pub use of the loop, and on a plain use into it (#r-module.pub-use.chain.loop-use).
   assert.deepEqual(
     codes({

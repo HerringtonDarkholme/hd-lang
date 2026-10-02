@@ -215,7 +215,7 @@ function parseModule(name: StandardModule, source: string): Program {
     const { decorators: _decorators, ...rest } = declaration;
     return { ...rest, intrinsic, standard: true };
   });
-  // A std declaration may be a prelude name (spec/10-modules.md#prelude).
+  // A std declaration may be a prelude name (spec/lang/10-modules.md#prelude).
   const standard = <T>(items: readonly T[]): T[] =>
     items.map((item) => ({ ...item, standard: true }));
   return {
@@ -412,7 +412,7 @@ function baseName(type: string): string {
 /**
  * Records each data type's qualified name, such as `std.annotation.Annotate`,
  * which the compiler recognizes whatever local name it has
- * (spec/14-annotations.md#r-annot.target.recognized). A rename keeps the
+ * (spec/lang/14-annotations.md#r-annot.target.recognized). A rename keeps the
  * declaration order.
  */
 function withStandardNames(renamed: Program, original: ParsedModule): Program {
@@ -432,7 +432,7 @@ function withStandardNames(renamed: Program, original: ParsedModule): Program {
 /**
  * The local names of the program's `std` imports that name a function with
  * no parameters, which a bare decorator calls
- * (spec/14-annotations.md#r-annot.decorator.bare-call).
+ * (spec/lang/14-annotations.md#r-annot.decorator.bare-call).
  */
 export function importedMarkerFunctions(program: Program): Set<string> {
   const markers = new Set<string>();
@@ -477,7 +477,7 @@ function programNames(program: Program, module: StandardModule): (text: string) 
  * The result type's declaration of the `std` function that the program
  * calls by `callee`, its local or hidden name, with that declaration's name
  * and bound texts in the program's names. Typed facts read it
- * (spec/14-annotations.md#member-typed-facts).
+ * (spec/lang/14-annotations.md#member-typed-facts).
  */
 export function standardResultDeclaration(
   program: Program,
@@ -547,7 +547,7 @@ function renamed<T>(node: T, from: string, to: string): T {
  * A desugared prefixed string names `std.ops.Template` by its hidden name
  * (`TEMPLATE_PLACEHOLDER`), which is declared only when the program does not
  * import `Template`; an import renames it to the local name
- * (spec/05-expressions.md#r-expr.literal-fn.no-marker-import).
+ * (spec/lang/05-expressions.md#r-expr.literal-fn.no-marker-import).
  */
 function withTemplateName(program: Program): Program {
   for (const declaration of program.uses)
@@ -570,7 +570,7 @@ function structureNamesOf(module: ParsedModule): Set<string> {
 /**
  * A module's templates, and its implementations of the `std.structure`
  * protocol traits, which only a derivation instantiates
- * (spec/14-annotations.md#templates).
+ * (spec/lang/14-annotations.md#templates).
  */
 function isTemplatePart(implementation: ImplDecl, structure: ReadonlySet<string>): boolean {
   return (
@@ -617,7 +617,7 @@ function standardLocalNames(program: Program): Map<string, string> {
  * with the module's `std.structure` protocol implementations, written with
  * the program's names: a name it imports by its local name, any other `std`
  * name by its hidden name, and `std.structure` names as the typed-derivation
- * pass declares them (spec/14-annotations.md#templates).
+ * pass declares them (spec/lang/14-annotations.md#templates).
  */
 export interface StandardTemplate {
   readonly template: ImplDecl;
@@ -690,7 +690,7 @@ export function standardTemplate(
 /**
  * The local names of the `std` traits with a tuple template that the
  * program sees: prelude traits, such as `Eq`, and imported ones, such as
- * `std.ops.Default` (spec/14-annotations.md#tuple-templates).
+ * `std.ops.Default` (spec/lang/14-annotations.md#tuple-templates).
  */
 export function standardTupleTraits(program: Program): readonly string[] {
   const localNames = standardLocalNames(program);
@@ -732,7 +732,7 @@ export function withStandardLibrary(source: Program): Program {
     }
   }
   // A test `timeout` is checked against `Duration`, so it declares `std.time`
-  // (spec/10-modules.md#test-cases).
+  // (spec/lang/10-modules.md#test-cases).
   const timed = program.tests.find((test) => test.timeout);
   if (timed) include("time", timed.span);
   // A checked `assert_equal` or `snapshot` call runs `check_equal`.
@@ -757,7 +757,7 @@ export function withStandardLibrary(source: Program): Program {
   }
 
   // Prelude names that std declares keep their names
-  // (spec/10-modules.md#prelude).
+  // (spec/lang/10-modules.md#prelude).
   for (const [module, name] of PRELUDE_DECLARATIONS) localNames.set(`${module}.${name}`, name);
   const nameOf = (module: StandardModule, name: string): string =>
     localNames.get(`${module}.${name}`) ?? hiddenStandardName(module, name);

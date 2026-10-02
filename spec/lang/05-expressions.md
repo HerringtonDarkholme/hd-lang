@@ -354,7 +354,7 @@ enum Tier(limit: Millis):
 
 > **Note.** The standard library's duration suffixes `ms`, `s`, `min`, and
 > `h` of `std.time`, and its `Duration` type, are stdlib tier:
-> [Time](std/time.md).
+> [Time](../std/time.md).
 
 See also: [Suffixed Literals](04-type-system.md#suffixed-literals),
 [Literal Suffix Names](03-names-and-scopes.md#literal-suffix-names),
@@ -442,7 +442,7 @@ pub fn render() -> string:
 > sugar and never suspends, because `sql"..."` has no place for `!`.
 
 > **Note.** The standard library's one prefix, the raw-text `r` of
-> `std.text`, is stdlib tier: [Raw Text Prefix](std/text.md#raw-text-prefix).
+> `std.text`, is stdlib tier: [Raw Text Prefix](../std/text.md#raw-text-prefix).
 
 See also: [Prefixed Strings](04-type-system.md#prefixed-strings),
 [String Prefix Names](03-names-and-scopes.md#string-prefix-names),
@@ -1238,7 +1238,7 @@ tests:
 
 > **Note.** The stdlib tier gives the body closures of `it_each`,
 > `it_prop`, and `it_prop_with` their result types by rules 2 and 3
-> ([Registration Functions](std/testing.md#registration-functions)).
+> ([Registration Functions](../std/testing.md#registration-functions)).
 
 See also: [Error Trait](09-traits.md#error-trait),
 [Standard Testing](10-modules.md#standard-testing).

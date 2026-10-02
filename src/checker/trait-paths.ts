@@ -3,7 +3,7 @@ import type { ResolvedTraitPath } from "./context.ts";
 import { substituteGenericType } from "./shared.ts";
 
 // Paths from a trait to one of its transitive supertraits, as field indices
-// of the supertrait lists (spec/09-traits.md#supertraits).
+// of the supertrait lists (spec/lang/09-traits.md#supertraits).
 
 export function findSupertraitPath(
   traitTypes: ReadonlyMap<string, HirTrait>,

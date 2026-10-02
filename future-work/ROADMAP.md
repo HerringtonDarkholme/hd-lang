@@ -17,17 +17,17 @@ action at a distance.
 1. **Correctness.** Close the
    [known failures](../test/portable/KNOWN_FAILURES.tsv), and lower
    templates and derives as the
-   [specification](../spec/14-annotations.md#typed-derivation) states.
+   [specification](../spec/lang/14-annotations.md#typed-derivation) states.
 2. **Library moves.** Move library code the prototype writes in
    TypeScript into `lib/std`, as the
    [Compiler/Library Audit](COMPILER_LIBRARY_AUDIT.md#migration-plan)
    plans.
 3. **Packages.** Workspaces, version tags, minimal version selection, and
-   `hd.sum` ([Package Manifest](../spec/10-modules.md#package-manifest),
+   `hd.sum` ([Package Manifest](../spec/lang/10-modules.md#package-manifest),
    [Packages](PACKAGES.md)).
 4. **CLI and Wasm size.** Redesign the CLI, and shrink the Wasm it emits.
 5. **Performance.** Value-layout specialization (batch 37,
-   [Shapes and Generic Code](../spec/04-type-system.md#shapes-and-generic-code)),
+   [Shapes and Generic Code](../spec/lang/04-type-system.md#shapes-and-generic-code)),
    measured by a microbenchmark suite.
 6. **Error messages.** A Haiku probe of the messages
    ([hd writing log](../audit/hd-writing-log.md)), then the error-code

@@ -1,6 +1,6 @@
 import type { ValueType } from "./hir.ts";
 
-// The sized numeric types (spec/04-type-system.md#primitive-types) and how
+// The sized numeric types (spec/lang/04-type-system.md#primitive-types) and how
 // the prototype represents them: every integer of at most 32 bits is a Wasm
 // `i32`, `i64` and `u64` are a Wasm `i64`, and `f32` and `f64` are native.
 
@@ -50,7 +50,7 @@ export function isNarrowInteger(type: ValueType | undefined): boolean {
 }
 
 /**
- * Whether `from` widens implicitly to `to` (spec/04-type-system.md#numeric-conversions):
+ * Whether `from` widens implicitly to `to` (spec/lang/04-type-system.md#numeric-conversions):
  * within one integer family to at least as many bits, or `f32` to `f64`.
  */
 export function widensTo(from: ValueType, to: ValueType): boolean {

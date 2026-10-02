@@ -22,7 +22,7 @@ None. TQ-18 was superseded on 2026-09-27: typed derivation removed
 `Annotate` and the root-application orphan exception, so there is no marker
 to spell. The `@message` part of TUP-1 (`_0`, `_1`, ... in a variant's
 message) was applied on 2026-09-29 with the `@error` intrinsic, in
-[`annot.error.message.scope`](../../spec/14-annotations.md#r-annot.error.message.scope).
+[`annot.error.message.scope`](../../spec/lang/14-annotations.md#r-annot.error.message.scope).
 
 ## Decided, No Specification Change
 

@@ -95,16 +95,17 @@ Unknown fields report \`unknown-data-field\` here too.
 
 const SPEC_FILES = {
   "README.md": SPEC_README,
-  "08-data-and-enums.md": SPEC_CHAPTER,
+  "lang/08-data-and-enums.md": SPEC_CHAPTER,
   "conformance/cases.tsv":
     "path\tphase\texpectation\tspecification\n" +
-    "typing/invalid/duplicate-field.hd\ttype\treject:duplicate-field\t08-data-and-enums.md#r-data.field.unique\n" +
-    "typing/valid/ok.hd\ttype\taccept\t08-data-and-enums.md#data-declarations\n",
+    "typing/invalid/duplicate-field.hd\ttype\treject:duplicate-field\tlang/08-data-and-enums.md#r-data.field.unique\n" +
+    "typing/valid/ok.hd\ttype\taccept\tlang/08-data-and-enums.md#data-declarations\n",
 };
 
 async function writeSpec(directory: string): Promise<string> {
   const spec = join(directory, "spec");
   await mkdir(join(spec, "conformance"), { recursive: true });
+  await mkdir(join(spec, "lang"), { recursive: true });
   for (const [path, text] of Object.entries(SPEC_FILES)) await writeFile(join(spec, path), text);
   return spec;
 }
@@ -124,8 +125,8 @@ test("the spec index maps rule ID markers to the codes they name", () => {
   assert.deepEqual(
     index.rulesByCode.get("unknown-data-field")?.map((rule) => rule.anchor),
     [
-      "spec/08-data-and-enums.md#r-data.literal.unknown",
-      "spec/08-data-and-enums.md#r-data.enum.construct.unknown",
+      "spec/lang/08-data-and-enums.md#r-data.literal.unknown",
+      "spec/lang/08-data-and-enums.md#r-data.enum.construct.unknown",
     ],
   );
   // `mut` in inline code is not a diagnostic the rule names.
@@ -142,9 +143,9 @@ test("the spec index maps rule ID markers to the codes they name", () => {
   assert.deepEqual(
     mentions.map((mention) => [mention.anchor, mention.rule ?? null]),
     [
-      ["spec/08-data-and-enums.md#construction", "data.literal.unknown"],
-      ["spec/08-data-and-enums.md#construction", "data.enum.construct.unknown"],
-      ["spec/08-data-and-enums.md#construction-1", null],
+      ["spec/lang/08-data-and-enums.md#construction", "data.literal.unknown"],
+      ["spec/lang/08-data-and-enums.md#construction", "data.enum.construct.unknown"],
+      ["spec/lang/08-data-and-enums.md#construction-1", null],
     ],
   );
   // Error examples in code fences are not prose mentions.
@@ -157,7 +158,7 @@ test("the spec index maps rule ID markers to the codes they name", () => {
       path: "spec/conformance/typing/invalid/duplicate-field.hd",
       phase: "type",
       expectation: "reject:duplicate-field",
-      specification: "spec/08-data-and-enums.md#r-data.field.unique",
+      specification: "spec/lang/08-data-and-enums.md#r-data.field.unique",
     },
   ]);
   assert.equal(explainCode(index, "no-such-code"), undefined);
@@ -185,7 +186,7 @@ test("the real specification indexes every stable code", async () => {
   assert.equal(index.codes.get("integer-overflow")?.category, "runtime panic");
   assert.ok(explainCode(index, "type-mismatch")?.meaning);
   for (const rule of index.rules)
-    assert.match(rule.anchor, /^spec\/(?:\d\d-|std\/)[^#]+\.md#r-[a-z]/);
+    assert.match(rule.anchor, /^spec\/(?:lang\/\d\d-|std\/)[^#]+\.md#r-[a-z]/);
   // Restyled chapters carry rule IDs; the scanner must keep finding the codes they name.
   if (index.rules.length > 0) assert.ok(index.rulesByCode.size > 0);
 });
@@ -269,7 +270,10 @@ test("check --format json writes one JSON diagnostic per stderr line", async () 
       },
       rule: "data.decl.no-struct",
       rules: [
-        { id: "data.decl.no-struct", anchor: "spec/08-data-and-enums.md#r-data.decl.no-struct" },
+        {
+          id: "data.decl.no-struct",
+          anchor: "spec/lang/08-data-and-enums.md#r-data.decl.no-struct",
+        },
       ],
     });
 
@@ -362,15 +366,15 @@ test("hd explain prints a code's meaning, rules, mentions, and fixtures", async 
         "  (spec/README.md#diagnostics)",
         "",
         "rules:",
-        "  spec/08-data-and-enums.md#r-data.literal.unknown",
+        "  spec/lang/08-data-and-enums.md#r-data.literal.unknown",
         "    An unknown field is a compile-time error. Error: `unknown-data-field`.",
-        "  spec/08-data-and-enums.md#r-data.enum.construct.unknown",
+        "  spec/lang/08-data-and-enums.md#r-data.enum.construct.unknown",
         "    A named argument naming no payload field is a `unknown-data-field` error.",
         "",
         "mentioned in:",
-        "  spec/08-data-and-enums.md#construction (data.literal.unknown)  line 15",
-        "  spec/08-data-and-enums.md#construction (data.enum.construct.unknown)  line 19",
-        "  spec/08-data-and-enums.md#construction-1  line 23",
+        "  spec/lang/08-data-and-enums.md#construction (data.literal.unknown)  line 15",
+        "  spec/lang/08-data-and-enums.md#construction (data.enum.construct.unknown)  line 19",
+        "  spec/lang/08-data-and-enums.md#construction-1  line 23",
         "",
       ].join("\n"),
     );
@@ -388,17 +392,17 @@ test("hd explain prints a code's meaning, rules, mentions, and fixtures", async 
       rules: [
         {
           id: "data.field.unique",
-          anchor: "spec/08-data-and-enums.md#r-data.field.unique",
-          file: "spec/08-data-and-enums.md",
+          anchor: "spec/lang/08-data-and-enums.md#r-data.field.unique",
+          file: "spec/lang/08-data-and-enums.md",
           line: 5,
           text: "Field names must be unique within the data type. Error: `duplicate-field`.",
         },
       ],
       mentions: [
         {
-          anchor: "spec/08-data-and-enums.md#data-declarations",
+          anchor: "spec/lang/08-data-and-enums.md#data-declarations",
           heading: "Data Declarations",
-          file: "spec/08-data-and-enums.md",
+          file: "spec/lang/08-data-and-enums.md",
           line: 5,
           rule: "data.field.unique",
         },
@@ -408,7 +412,7 @@ test("hd explain prints a code's meaning, rules, mentions, and fixtures", async 
           path: "spec/conformance/typing/invalid/duplicate-field.hd",
           phase: "type",
           expectation: "reject:duplicate-field",
-          specification: "spec/08-data-and-enums.md#r-data.field.unique",
+          specification: "spec/lang/08-data-and-enums.md#r-data.field.unique",
         },
       ],
     });

@@ -1235,7 +1235,7 @@ fn explicit!() -> (i32, i32):
 
 > **Note.** The `retry!` combinator of `std.task` is a plain library loop
 > over a `fn!` attempt, not an intrinsic, so the stdlib tier specifies it
-> ([Retry](std/task.md#retry)). Its cancellation follows the rules above.
+> ([Retry](../std/task.md#retry)). Its cancellation follows the rules above.
 
 ## Requirement Polymorphism
 

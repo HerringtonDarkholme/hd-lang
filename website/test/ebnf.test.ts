@@ -92,17 +92,23 @@ describe("EBNF tokenizer", () => {
 describe("grammar index", () => {
   const index = buildGrammarIndex(
     [
-      { source: "spec/01-lexical.md", blocks: [{ code: "identifier = LETTER ;", line: 3 }] },
+      { source: "spec/lang/01-lexical.md", blocks: [{ code: "identifier = LETTER ;", line: 3 }] },
       {
-        source: "spec/02-grammar.md",
+        source: "spec/lang/02-grammar.md",
         blocks: [
           { code: "trait_decl = identifier, trait_member ;\ntrait_member = missing ;", line: 10 },
         ],
       },
-      { source: "spec/09-traits.md", blocks: [{ code: "trait_decl = identifier ;", line: 1 }] },
-      { source: "spec/11-chapter.md", blocks: [{ code: "uses = trait_decl, NEWLINE ;", line: 5 }] },
+      {
+        source: "spec/lang/09-traits.md",
+        blocks: [{ code: "trait_decl = identifier ;", line: 1 }],
+      },
+      {
+        source: "spec/lang/11-chapter.md",
+        blocks: [{ code: "uses = trait_decl, NEWLINE ;", line: 5 }],
+      },
     ],
-    "spec/02-grammar.md",
+    "spec/lang/02-grammar.md",
   );
 
   test("indexes definitions and reports names no rule defines", () => {
@@ -111,22 +117,28 @@ describe("grammar index", () => {
       ["identifier", "trait_decl", "trait_member", "uses"],
     );
     assert.deepEqual(index.definitions.get("trait_decl"), [
-      "spec/02-grammar.md",
-      "spec/09-traits.md",
+      "spec/lang/02-grammar.md",
+      "spec/lang/09-traits.md",
     ]);
     assert.equal(index.definitionCount, 5);
     assert.equal(index.referenceCount, 7);
     assert.equal(index.linkedCount, 4);
     assert.deepEqual(index.unresolved, [
-      { name: "missing", source: "spec/02-grammar.md", line: 12 },
+      { name: "missing", source: "spec/lang/02-grammar.md", line: 12 },
     ]);
     assert.deepEqual(index.abstractTokens, ["LETTER", "NEWLINE"]);
   });
 
   test("links a use to its own page's definition, else the canonical one", () => {
-    assert.equal(ruleTarget(index, "trait_decl", "spec/09-traits.md"), "spec/09-traits.md");
-    assert.equal(ruleTarget(index, "trait_decl", "spec/11-chapter.md"), "spec/02-grammar.md");
-    assert.equal(ruleTarget(index, "missing", "spec/02-grammar.md"), undefined);
+    assert.equal(
+      ruleTarget(index, "trait_decl", "spec/lang/09-traits.md"),
+      "spec/lang/09-traits.md",
+    );
+    assert.equal(
+      ruleTarget(index, "trait_decl", "spec/lang/11-chapter.md"),
+      "spec/lang/02-grammar.md",
+    );
+    assert.equal(ruleTarget(index, "missing", "spec/lang/02-grammar.md"), undefined);
   });
 
   test("renders anchors on definitions and links on references", () => {
@@ -142,7 +154,7 @@ describe("grammar index", () => {
       return createMarkdown().render(`\`\`\`ebnf\n${code}\n\`\`\`\n`, env);
     };
     const grammar = render(
-      "spec/02-grammar.md",
+      "spec/lang/02-grammar.md",
       "trait_decl = identifier, trait_member ;\ntrait_member = missing ;",
     );
     assert.match(grammar, /<pre class="code ebnf"><code class="language-ebnf">/);
@@ -153,22 +165,22 @@ describe("grammar index", () => {
     assert.match(grammar, /<a class="eb-reference" href="#rule-trait_member">trait_member<\/a>/);
     assert.match(
       grammar,
-      /<a class="eb-reference" href="\/site\/spec\/02-grammar.md\|01-lexical.md#rule-identifier">identifier<\/a>/,
+      /<a class="eb-reference" href="\/site\/spec\/lang\/02-grammar.md\|01-lexical.md#rule-identifier">identifier<\/a>/,
     );
     assert.match(grammar, /<span class="eb-reference">missing<\/span>/);
     assert.match(grammar, /<span class="eb-operator">=<\/span>/);
 
-    const chapter = render("spec/11-chapter.md", "uses = trait_decl, NEWLINE ;");
+    const chapter = render("spec/lang/11-chapter.md", "uses = trait_decl, NEWLINE ;");
     assert.match(
       chapter,
-      /href="\/site\/spec\/11-chapter.md\|02-grammar.md#rule-trait_decl">trait_decl</,
+      /href="\/site\/spec\/lang\/11-chapter.md\|02-grammar.md#rule-trait_decl">trait_decl</,
     );
     assert.match(chapter, /<span class="eb-token">NEWLINE<\/span>/);
 
-    const restated = render("spec/09-traits.md", "trait_decl = identifier ;");
+    const restated = render("spec/lang/09-traits.md", "trait_decl = identifier ;");
     assert.match(
       restated,
-      /<a class="eb-definition" href="\/site\/spec\/09-traits.md\|02-grammar.md#rule-trait_decl" id="rule-trait_decl"/,
+      /<a class="eb-definition" href="\/site\/spec\/lang\/09-traits.md\|02-grammar.md#rule-trait_decl" id="rule-trait_decl"/,
     );
   });
 });

@@ -1,4 +1,4 @@
-# std.hash: `Hash` and `Hasher` (spec/09-traits.md#hashing), both prelude
+# std.hash: `Hash` and `Hasher` (spec/lang/09-traits.md#hashing), both prelude
 # names. The standard implementations feed a value's bytes to the hasher:
 # a string its UTF-8 bytes, an integer its little-endian bytes at its own
 # width, and a `bool` one byte. The specification names no standard hasher

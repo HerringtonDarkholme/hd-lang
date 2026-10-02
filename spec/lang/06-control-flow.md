@@ -231,7 +231,7 @@ fn from_iterator(source: Iterator[i32]) -> i32:
 > **Note.** An iterator is single-pass, and there is no `clone` or `tee`
 > of an iterator. To traverse the items twice, call `iter()` on the
 > collection again, as `twice` does, or collect the iterator into a list
-> first ([Collect Targets](std/iter.md#collect-targets)).
+> first ([Collect Targets](../std/iter.md#collect-targets)).
 
 > **Why.** `next` takes `mut self` and `step` is private, so no readonly
 > path advances an iterator. A readonly `Iterator[T]` parameter therefore
@@ -243,7 +243,7 @@ fn from_iterator(source: Iterator[i32]) -> i32:
 > generic ones such as `map[U]` included, with no dynamic-safety question.
 > The cost is one closure call per item.
 
-See also: [Iterators](std/iter.md), the stdlib-tier chapter that specifies
+See also: [Iterators](../std/iter.md), the stdlib-tier chapter that specifies
 the iterator adapters, `collect`, and `FromIterator`.
 
 ### Built-In Collection Iteration
@@ -712,7 +712,7 @@ See also: [Suspending Functions](11-requirements-and-suspension.md#suspending-fu
 > **Why.** Core hd-lang has no panic unwinding.
 
 > **Note.** Ownership and alias-escape prevention remain
-> [open design work](../future-work/OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy).
+> [open design work](../../future-work/OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy).
 
 ## Unreachable Code
 

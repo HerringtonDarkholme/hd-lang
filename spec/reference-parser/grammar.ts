@@ -184,7 +184,7 @@ class GrammarCompiler {
 }
 
 function chapterGrammar(): Grammar {
-  const chapter = readFileSync(resolve(import.meta.dirname, "..", "02-grammar.md"), "utf8");
+  const chapter = readFileSync(resolve(import.meta.dirname, "..", "lang", "02-grammar.md"), "utf8");
   const blocks = [...chapter.matchAll(/^```ebnf\s*\n(.*?)^```/gms)].map((match) => match[1]!);
   return new GrammarCompiler().compile(new EbnfReader(blocks.join("\n")).productions());
 }

@@ -4,7 +4,7 @@
 //   node --experimental-strip-types spec/tools/rule-inventory.ts --diff OLD NEW
 //
 // CHAPTER, OLD, and NEW are Markdown paths, or REV:PATH to read a committed
-// version through `git show`, as in main:spec/08-data-and-enums.md.
+// version through `git show`, as in main:spec/lang/08-data-and-enums.md.
 //
 // The inventory lists every diagnostic code, every normative sentence, every
 // code example, and every rule ID, with prose statistics. The diff is the
@@ -35,6 +35,7 @@ import {
   blocks,
   type Block,
   cells,
+  CHAPTER_HISTORY_PATHS,
   errorMarkerCodes,
   isErrorExample,
   knownCodes,
@@ -110,8 +111,9 @@ function load(spec: string): string {
 
 /**
  * For OLD given as REV:PATH, a test of whether a rule ID's marker appears
- * anywhere in REV's history of the chapters: the numbered language chapters,
- * the stdlib chapters in spec/std/, and the CLI chapter spec/cli.md.
+ * anywhere in REV's history of the chapters, CHAPTER_HISTORY_PATHS: the
+ * numbered language chapters, the stdlib chapters, and the CLI chapters, at
+ * their current paths and at their paths before task #175.
  */
 function historySearch(spec: string): ((id: string) => boolean) | undefined {
   const colon = spec.indexOf(":");
@@ -127,9 +129,7 @@ function historySearch(spec: string): ((id: string) => boolean) | undefined {
     `r[${id}]`,
     revision,
     "--",
-    "spec/[0-9][0-9]-*.md",
-    "spec/std/*.md",
-    "spec/cli.md",
+    ...CHAPTER_HISTORY_PATHS,
   ];
   return (id) => execFileSync("git", pickaxe(id), { encoding: "utf8" }).trim() !== "";
 }
@@ -517,7 +517,7 @@ function main(args: readonly string[]): number {
   }
   const known = knownCodes(
     readFileSync(resolve(specRoot, "README.md"), "utf8"),
-    readFileSync(resolve(specRoot, "06-control-flow.md"), "utf8"),
+    readFileSync(resolve(specRoot, "lang/06-control-flow.md"), "utf8"),
   );
   let text: string;
   let ok = true;

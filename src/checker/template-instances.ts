@@ -14,7 +14,7 @@ import { derivedBaseSpan, derivedImplementationSpan } from "./derive-intrinsics.
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
 
 // A typed-derivation template checked once, and the implementations that
-// instantiate it for one target (spec/14-annotations.md#templates), with
+// instantiate it for one target (spec/lang/14-annotations.md#templates), with
 // the AST helpers they share with checker/typed-derivation.ts.
 
 export const STRUCTURE = "Structure";

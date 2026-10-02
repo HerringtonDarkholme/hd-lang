@@ -729,7 +729,7 @@ price := "costs $5"  # valid: `$5` is text
 > ordinary [prefixed string](#prefixed-strings), and its prefix `r`
 > resolves as any prefix name does.
 
-See also: [Raw Text Prefix](std/text.md#raw-text-prefix) for the standard
+See also: [Raw Text Prefix](../std/text.md#raw-text-prefix) for the standard
 library's `r`.
 
 #### Prefixed Strings

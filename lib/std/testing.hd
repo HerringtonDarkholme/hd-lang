@@ -1,4 +1,4 @@
-# std.testing, the part written in hd (spec/10-modules.md#standard-testing).
+# std.testing, the part written in hd (spec/lang/10-modules.md#standard-testing).
 # `assert`, `assert_equal`, `snapshot`, `it_each`, `it_prop`, and
 # `it_prop_with` are checked by the compiler; `Choices`, `Arbitrary`, and
 # `snapshot_file` are declared here (Testing T53), with the property-test
@@ -368,7 +368,7 @@ fn prop_discard() -> void:
 # What a checked `assert_equal` or `snapshot` call runs, with `T` the
 # readonly type of `actual`; the compiler checks the call itself. A failure
 # shows the reason and both values as `debug` renders them
-# (spec/10-modules.md#r-module.testing.assert-equal-debug).
+# (spec/lang/10-modules.md#r-module.testing.assert-equal-debug).
 fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
     if actual != expected:
         assertion_failed("${reason}: actual ${debug(actual)}, expected ${debug(expected)}")

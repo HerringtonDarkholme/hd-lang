@@ -32,6 +32,6 @@ Research and direction outside the specification:
 - [Packages: Survey And Manifest Draft](PACKAGES.md) surveys package
   managers and drafts the `hd.toml` schema, the checked compatibility
   rule, and the agent-first CLI. The registry-free model of DEP1-DEP19 is
-  in [Package Manifest](../spec/10-modules.md#package-manifest).
+  in [Package Manifest](../spec/lang/10-modules.md#package-manifest).
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.

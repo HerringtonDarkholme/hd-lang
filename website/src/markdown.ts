@@ -18,7 +18,7 @@ export interface Heading {
 /** Per-render state: the source being rendered and what rendering found. */
 // A type alias, not an interface, so it satisfies markdown-it's indexable `Env`.
 export type RenderEnv = {
-  /** Repository-relative path of the Markdown source, such as `spec/04-type-system.md`. */
+  /** Repository-relative path of the Markdown source, such as `spec/lang/04-type-system.md`. */
   readonly source: string;
   /** Rewrites one link destination written in `source` to a site URL. */
   readonly resolveLink: (href: string, source: string) => string;

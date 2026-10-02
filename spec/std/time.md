@@ -9,14 +9,14 @@ ordinary hd over the language tier:
 - the duration suffixes `ms`, `s`, `min`, and `h`.
 
 The language tier keeps the suffix mechanism
-([Literal Suffixes](../05-expressions.md#literal-suffixes)):
+([Literal Suffixes](../lang/05-expressions.md#literal-suffixes)):
 
 | Item | Why it stays in the language tier |
 | --- | --- |
 | `@num_suffix`, `std.ops.NumSuffix` | the compiler recognizes the marker by its qualified name |
-| a suffixed literal as a call | [`expr.suffix.fn-call`](../05-expressions.md#r-expr.suffix.fn-call), a language rule, turns `250ms` into `ms(250)` |
-| suffix name lookup and typing | [Literal Suffix Names](../03-names-and-scopes.md#literal-suffix-names) and [Suffixed Literals](../04-type-system.md#suffixed-literals) hold for every suffix |
-| `Duration?` in the test signature | `it` names it as its `timeout` type ([Test Cases](../10-modules.md#test-cases)); the stdlib-tier `it_each`, `it_prop`, and `it_prop_with` name it too |
+| a suffixed literal as a call | [`expr.suffix.fn-call`](../lang/05-expressions.md#r-expr.suffix.fn-call), a language rule, turns `250ms` into `ms(250)` |
+| suffix name lookup and typing | [Literal Suffix Names](../lang/03-names-and-scopes.md#literal-suffix-names) and [Suffixed Literals](../lang/04-type-system.md#suffixed-literals) hold for every suffix |
+| `Duration?` in the test signature | `it` names it as its `timeout` type ([Test Cases](../lang/10-modules.md#test-cases)); the stdlib-tier `it_each`, `it_prop`, and `it_prop_with` name it too |
 
 The duration suffixes are ordinary functions marked `@num_suffix`, so
 nothing in the language tier names `ms`, `s`, `min`, or `h`. What the
@@ -64,5 +64,5 @@ enum Tier(limit: Duration):
 > **Why.** Every duration suffix returns `Duration`, so `5s` and `250ms`
 > have one type and mix freely.
 
-See also: [Literal Suffixes](../05-expressions.md#literal-suffixes),
+See also: [Literal Suffixes](../lang/05-expressions.md#literal-suffixes),
 [Test Timeout](testing.md#test-timeout).

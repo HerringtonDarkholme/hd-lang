@@ -1,6 +1,6 @@
 # std.console: `println`, console input, and the recording `BufferConsole`.
 # `Console`, `ConsoleError`, and `println`
-# are prelude names (spec/10-modules.md#console); `Console` and `println` are
+# are prelude names (spec/lang/10-modules.md#console); `Console` and `println` are
 # declared here and `ConsoleError` by the checker. No prototype runtime
 # profile binds a host `ConsoleInput`. `println` drives the covering
 # provider's `write_line!` with `block_on` (MHP-1), so a `BufferConsole`
@@ -30,7 +30,7 @@ impl Console for BufferConsole:
         self.lines.append(text)
         .Ok()
 
-# `println` (spec/10-modules.md#console) is ordinary std code: it drives the
+# `println` (spec/lang/10-modules.md#console) is ordinary std code: it drives the
 # covering provider's `write_line!` with `block_on`, so it inherits all of
 # `block_on`'s rules. Under an active driver, such as `main!` or a test
 # body, it drives only its own write, and it is rejected in a `defer` suite

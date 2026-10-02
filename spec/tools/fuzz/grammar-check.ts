@@ -1,4 +1,4 @@
-// Generator cross-check: small EBNF derivations from spec/02-grammar.md fed to
+// Generator cross-check: small EBNF derivations from spec/lang/02-grammar.md fed to
 // the spec reference parser. No implementation is involved. A `syntax-error`
 // on a derivation means the grammar, the layout rules, the reference parser,
 // or this generator's layout rendering disagree. Every sample needs triage.

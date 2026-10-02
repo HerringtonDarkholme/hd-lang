@@ -1,7 +1,7 @@
 # Grammar Audit Findings
 
-Scope: [Lexical Structure](../../spec/01-lexical-structure.md),
-[Grammar](../../spec/02-grammar.md), the grammar fragments in chapters 11 to
+Scope: [Lexical Structure](../../spec/lang/01-lexical-structure.md),
+[Grammar](../../spec/lang/02-grammar.md), the grammar fragments in chapters 11 to
 14, and the [reference parser](../../spec/reference-parser/). It was a
 [roadmap](../../future-work/ROADMAP.md) item before the roadmap was cut to one page.
 

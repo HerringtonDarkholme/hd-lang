@@ -1,6 +1,6 @@
 # std.task, the part written in hd (spec/std/task.md). The `Suspend`
 # protocol, `block_on`, `all!`, and `race!` are compiler intrinsics
-# (spec/11-requirements-and-suspension.md#standard-combinators). The
+# (spec/lang/11-requirements-and-suspension.md#standard-combinators). The
 # compiler provides `block_on`, `all!`, and `Waker` by name; `all!` has no
 # written signature (r-req.combinator.all-typing).
 

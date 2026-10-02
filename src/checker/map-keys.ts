@@ -9,7 +9,7 @@ import {
   resolveGenericType,
 } from "./shared.ts";
 
-// Map key types (spec/04-type-system.md#map-key-types): how a map stores its
+// Map key types (spec/lang/04-type-system.md#map-key-types): how a map stores its
 // keys, and whether a type meets the bound `Map[K < Eq & Hash, V]`.
 
 /**
@@ -26,7 +26,7 @@ export function mapKeyKind(type: ValueType): 0 | 1 | 2 {
 /**
  * Why `type` may not key a map, if it may not: a `mut` key type, or a key
  * type that fails the declared bound `Map[K < Eq & Hash, V]`
- * (spec/04-type-system.md#map-key-types). A type parameter meets it
+ * (spec/lang/04-type-system.md#map-key-types). A type parameter meets it
  * through its own bounds, `hashableParameters`; any other type through a
  * non-generic `Eq` and `Hash` implementation, std's included, or the
  * primitive `Eq` of the language.

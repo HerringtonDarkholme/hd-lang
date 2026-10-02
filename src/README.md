@@ -161,7 +161,7 @@ hd check --format json app.hd 2> diagnostics.jsonl
   },
   "rule": "data.decl.no-struct",
   "rules": [
-    { "id": "data.decl.no-struct", "anchor": "spec/08-data-and-enums.md#r-data.decl.no-struct" }
+    { "id": "data.decl.no-struct", "anchor": "spec/lang/08-data-and-enums.md#r-data.decl.no-struct" }
   ]
 }
 ```
@@ -211,7 +211,7 @@ unknown-data-field: error (general)
   (spec/README.md#diagnostics)
 
 mentioned in:
-  spec/03-names-and-scopes.md#member-resolution  line 457
+  spec/lang/03-names-and-scopes.md#member-resolution  line 457
   ...
 
 fixtures:
@@ -573,7 +573,7 @@ else`, `break`, `break value`, and `continue`;
   them is `type-mismatch`, and a trait-value conversion `no-common-type`
   (`types.generic.infer.join`); a numeric literal takes the solved type.
   Boxing is a toy shortcut: the
-  [implementation model](../spec/04-type-system.md#shapes-and-generic-code)
+  [implementation model](../spec/lang/04-type-system.md#shapes-and-generic-code)
   gives each value layout its own body and keeps values unboxed in generic
   code and containers;
 - erased generic suspending functions whose GC frames retain boxed values,
@@ -757,7 +757,7 @@ else`, `break`, `break value`, and `continue`;
   `hd run` exits with the code, reporting an `.Err` as `main returned Err`
   with code 1. Printing the error's `Display` text and cause chain is not
   implemented;
-- typed derivation (spec/14-annotations.md#typed-derivation, Typed
+- typed derivation (spec/lang/14-annotations.md#typed-derivation, Typed
   Derivation M1-M29), lowered before checking by `checker/typed-derivation.ts`:
   decorators on data, enum, newtype, field, variant, payload, and function
   parameter declarations; the `+=` token; `@derive` of a trait with a
@@ -859,12 +859,12 @@ else`, `break`, `break value`, and `continue`;
   line warning needs a second package, which the prototype CLI cannot
   load. The prototype cannot check `annot.traitless.module` across the
   modules of a linked package, which share one namespace;
-- decorators as plain values (spec/14-annotations.md#prefix-decorators,
+- decorators as plain values (spec/lang/14-annotations.md#prefix-decorators,
   Decorators D1-D10), in `checker/decorators.ts`: a decorator before a
   function, trait, implementation, newtype, method, or method parameter
   attaches its value, which is checked as a compile-time expression like
   any fact, counted by `duplicate-fact`, and, on a module-level function,
-  read by `facts_of(f).find::[M]()` (spec/14-annotations.md#function-facts).
+  read by `facts_of(f).find::[M]()` (spec/lang/14-annotations.md#function-facts).
   `checker/function-facts.ts` gives each function that a `facts_of` call
   names a generated `Facts` builder; the checker lowers a call whose
   argument names that function, not a local, to the builder's call, and any
@@ -884,7 +884,7 @@ else`, `break`, `break value`, and `continue`;
   that a member line attaches is checked on that line. A newtype is a
   `.Newtype` target, and a value on a kind its limit omits is
   `decorator-target-kind` (D10);
-- typed facts (spec/14-annotations.md#member-typed-facts), in
+- typed facts (spec/lang/14-annotations.md#member-typed-facts), in
   `checker/typed-facts.ts`, after trait-less blocks are folded in and
   before derivations read the facts: `@annotate::[F](...)` on a data type
   or enum makes it a typed fact type, its argument must be one of the
@@ -934,7 +934,7 @@ else`, `break`, `break value`, and `continue`;
   constructible). A type parameter instantiated with `mut U` looks up
   implementations for `U`, and its Inspectable dictionary adds the inner
   `mut` when a composite key is built from it;
-- error derivation (spec/14-annotations.md#error-derivation), lowered before
+- error derivation (spec/lang/14-annotations.md#error-derivation), lowered before
   any decorator is resolved by `checker/error-derivation.ts`: it removes each
   `@error` form, and each `@from` and `@source` marker inside an error type,
   whatever a binding named `error`, `from`, or `source` means, and reports
@@ -949,7 +949,7 @@ else`, `break`, `break value`, and `continue`;
   `unsatisfied-trait-bound` there. Without `use std.error.Error` or
   `use std.convert.From`, the pass imports them under hidden names. The
   declared `std.error.Error` has `fn cause(self) -> Error?` with a `.None`
-  default (spec/09-traits.md#r-trait.error.cause); an optional trait value
+  default (spec/lang/09-traits.md#r-trait.error.cause); an optional trait value
   type such as `Error?` is a known type, and a value of `T < Trait` erases
   to `Trait` through the bound's dictionary;
 - executable `std.testing.assert` with source-order argument evaluation, plus
@@ -1055,7 +1055,7 @@ else`, `break`, `break value`, and `continue`;
   host-boundary decoder keeps a leading U+FEFF;
 - non-suspending `defer` on normal completion, return, break, and continue;
 - the `std.ops` operator traits
-  ([Operator Traits](../spec/05-expressions.md#operator-traits)): an operator
+  ([Operator Traits](../spec/lang/05-expressions.md#operator-traits)): an operator
   on primitive operands keeps its built-in code, and any other operand calls
   the left operand's implementation, found by the trait's qualified name
   (`HirTrait.standardName`), or its bound's through a supertrait. Compound
@@ -1158,7 +1158,7 @@ the prototype compiles:
 - an inherent implementation on a built-in type (`impl string:`,
   `impl[T] T?:`, `impl[T, E] Result[T, E]:`, `impl[T] List[T]:`,
   `impl i32:`) needs no `use`
-  ([`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std)).
+  ([`trait.own.inherent.std`](../spec/lang/09-traits.md#r-trait.own.inherent.std)).
   Only the methods whose names the program selects with `.name` are added,
   to a fixed point over the added bodies; only `std` sources may declare
   them (`ImplDecl.standard`). The normative `List.map` and `T?.map` are
@@ -1307,7 +1307,7 @@ and `std.inspect` rows above. No capability has a HIR node now.
 ### Console
 
 `println` is hd code in `lib/std/console.hd`
-([`module.prelude.println`](../spec/10-modules.md#r-module.prelude.println)).
+([`module.prelude.println`](../spec/lang/10-modules.md#r-module.prelude.println)).
 It calls `write_line` without `!`, which makes a stored suspension, and
 drives it with `std.task.block_on`, so it inherits all of `block_on`'s
 rules with no checker case of its own
@@ -1321,7 +1321,7 @@ a hidden name, so the call is an ordinary `block_on` call. The loader adds
 
 The compiled module is the entry module, so its top-level statements may
 call `block_on` and `println`
-([`req.drive.block-on.forbidden-contexts`](../spec/11-requirements-and-suspension.md#r-req.drive.block-on.forbidden-contexts)
+([`req.drive.block-on.forbidden-contexts`](../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.forbidden-contexts)
 forbids only non-entry module initialization). A linked package shares
 one namespace, so the prototype cannot reject a driver in another
 module's initialization.

@@ -16,7 +16,7 @@ export interface InferredPropagation {
 }
 
 // With no written result, `?` converts nothing, so each operand must join the
-// inferred result (spec/05-expressions.md#r-expr.try.convert.inferred-closure).
+// inferred result (spec/lang/05-expressions.md#r-expr.try.convert.inferred-closure).
 export function mismatchedPropagation(
   result: ValueType,
   propagations: readonly InferredPropagation[],
@@ -64,7 +64,7 @@ export function runnableEntryResult(
 }
 
 // Whether a test body's or entry point's result implements
-// std.process.Termination (spec/10-modules.md#exit-status): `void`,
+// std.process.Termination (spec/lang/10-modules.md#exit-status): `void`,
 // `Result[T, E]` with a terminating `T` and a `Display` error, or a type with
 // a `Termination` implementation, such as `ExitCode`.
 export function terminates(

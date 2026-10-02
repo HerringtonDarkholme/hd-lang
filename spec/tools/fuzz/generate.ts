@@ -1,5 +1,5 @@
 // EBNF-driven program generator. Reads the ```ebnf fences of
-// spec/02-grammar.md directly; it shares no tables with any parser.
+// spec/lang/02-grammar.md directly; it shares no tables with any parser.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -107,7 +107,7 @@ class Reader {
 }
 
 export function loadGrammar(): Grammar {
-  const chapter = readFileSync(resolve(specRoot, "02-grammar.md"), "utf8");
+  const chapter = readFileSync(resolve(specRoot, "lang/02-grammar.md"), "utf8");
   const blocks = [...chapter.matchAll(/^```ebnf\s*\n(.*?)^```/gms)].map((match) => match[1]!);
   return new Reader(lexEbnf(blocks.join("\n"))).rules();
 }

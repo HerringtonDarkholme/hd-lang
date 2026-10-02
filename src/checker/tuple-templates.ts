@@ -22,7 +22,7 @@ import {
 } from "./template-instances.ts";
 import type { Generated } from "./typed-derivation.ts";
 
-// Tuple templates (spec/14-annotations.md#tuple-templates) are instantiated
+// Tuple templates (spec/lang/14-annotations.md#tuple-templates) are instantiated
 // once per tuple shape, its number of fixed elements and whether it has a
 // rest element, as a generic implementation over the element types:
 // `impl[hd_E0 < Eq, hd_E1 < Eq] Eq for (hd_E0, hd_E1)`. That is one

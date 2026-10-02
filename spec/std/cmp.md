@@ -10,13 +10,13 @@ ordinary hd over the language tier:
 - how tuples compare, through the traits' tuple templates.
 
 The language tier keeps what the compiler knows by name
-([Comparison Traits](../09-traits.md#comparison-traits)):
+([Comparison Traits](../lang/09-traits.md#comparison-traits)):
 
 | Item | Why it stays in the language tier |
 | --- | --- |
 | `Eq`, `PartialOrd`, `Ord`, `Ordering` | lang items that `==` and the relational operators call |
-| `@derive` and its checks | `derive-field-missing-trait`, `missing-derived-bound`, and `mixed-derived-law` are compiler diagnostics ([Derived Implementations](../09-traits.md#derived-implementations), [Law Partners](../09-traits.md#law-partners)) |
-| templates and tuple templates | [Typed Derivation](../14-annotations.md#typed-derivation) |
+| `@derive` and its checks | `derive-field-missing-trait`, `missing-derived-bound`, and `mixed-derived-law` are compiler diagnostics ([Derived Implementations](../lang/09-traits.md#derived-implementations), [Law Partners](../lang/09-traits.md#law-partners)) |
+| templates and tuple templates | [Typed Derivation](../lang/14-annotations.md#typed-derivation) |
 
 ## Derived Equality
 
@@ -32,7 +32,7 @@ fn same(a: State, b: State) -> bool:
     a == b
 ```
 
-1. r[std-cmp.derive.eq.template] `std.cmp` declares the [template](../14-annotations.md#templates) of `Eq`, which `@derive(Eq)` instantiates.
+1. r[std-cmp.derive.eq.template] `std.cmp` declares the [template](../lang/14-annotations.md#templates) of `Eq`, which `@derive(Eq)` instantiates.
 2. r[std-cmp.derive.eq.compare-fields] Derived `Eq` compares every declared data field, including embedded fields, by its `Eq` implementation.
 3. r[std-cmp.derive.eq.no-exclusion] No field is implicitly excluded.
 4. r[std-cmp.derive.eq.enum] Derived enum equality first compares the variant, then every payload field of that variant, including common enum fields.
@@ -73,14 +73,14 @@ fn compare(a: (i32, string), b: (i32, string)) -> bool:
     a == b || a < b
 ```
 
-1. r[std-cmp.tuple.templates] `std.cmp` declares [tuple templates](../14-annotations.md#tuple-templates) for `Eq`, `PartialOrd`, and `Ord`. A tuple implements each when every element does.
+1. r[std-cmp.tuple.templates] `std.cmp` declares [tuple templates](../lang/14-annotations.md#tuple-templates) for `Eq`, `PartialOrd`, and `Ord`. A tuple implements each when every element does.
 2. r[std-cmp.tuple.elementwise] Equality compares every element, in order. Ordering is lexicographic.
 3. r[std-cmp.tuple.partial] Tuple `PartialOrd` returns `.None` when an element comparison is unordered before a result is determined.
-4. r[std-cmp.tuple.rest] A tuple's [rest element](../04-type-system.md#rest-elements) `List[T]...` is its last element, of type `List[T]`, so it compares as that list.
+4. r[std-cmp.tuple.rest] A tuple's [rest element](../lang/04-type-system.md#rest-elements) `List[T]...` is its last element, of type `List[T]`, so it compares as that list.
 
 > **Note.** A 13-element tuple compares as a 2-element one does: no
 > tuple template stops at a size.
 
-See also: [Derived Tuple Implementations](../09-traits.md#derived-tuple-implementations),
-[Tuple Structure](../14-annotations.md#tuple-structure),
+See also: [Derived Tuple Implementations](../lang/09-traits.md#derived-tuple-implementations),
+[Tuple Structure](../lang/14-annotations.md#tuple-structure),
 [Hash](hash.md).

@@ -15,9 +15,9 @@ runner implement over the language tier:
 
 The language tier keeps the assertion functions, `it` and its options, the
 test-position rules, and the literal `expect` of `snapshot`
-([Standard Testing](../10-modules.md#standard-testing),
-[Test Cases](../10-modules.md#test-cases),
-[Snapshots](../10-modules.md#snapshots)).
+([Standard Testing](../lang/10-modules.md#standard-testing),
+[Test Cases](../lang/10-modules.md#test-cases),
+[Snapshots](../lang/10-modules.md#snapshots)).
 
 ## Registration Functions
 
@@ -43,7 +43,7 @@ pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choice
                                                 prop: fn!(T) -> R) -> void
 ```
 
-1. r[std-testing.registration] `it_each`, `it_prop`, and `it_prop_with` are [test registration functions](../10-modules.md#r-module.testing.position-statements), so the test-position rules of `it` apply to them.
+1. r[std-testing.registration] `it_each`, `it_prop`, and `it_prop_with` are [test registration functions](../lang/10-modules.md#r-module.testing.position-statements), so the test-position rules of `it` apply to them.
 2. r[std-testing.it-each.import] `it_each` is not a prelude name; code imports it with `use std.testing.it_each`.
 3. r[std-testing.it-each.body-closure] Its body has a parameter, so it is an explicit `fn!` closure, not a trailing block. After omitted options, a call passes it by name, as in `body=fn!(value: i32): ...`.
 4. r[std-testing.it-each.name-clash] Another test case of the module must not be named `name[i]` for any index `i`. Error: `duplicate-test-name`.
@@ -51,8 +51,8 @@ pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choice
 6. r[std-testing.it-prop.import] Neither is a prelude name; code imports them from `std.testing`.
 7. r[std-testing.variants.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
 8. r[std-testing.variants.options] Each takes the options of `it`, `ignore`, `expect_panic`, and `timeout`, under the same rules.
-9. r[std-testing.variants.body] The body's result follows [Propagation In Test Blocks](../05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, Error]` when it uses `?`.
-10. r[std-testing.try.test.row-body] The body closure of an `it_each`, `it_prop`, or `it_prop_with` call that writes no result type gets its result type by [`expr.try.test.with-try`](../05-expressions.md#r-expr.try.test.with-try) and [`expr.try.test.without-try`](../05-expressions.md#r-expr.try.test.without-try), as a trailing block given to `it` does.
+9. r[std-testing.variants.body] The body's result follows [Propagation In Test Blocks](../lang/05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, Error]` when it uses `?`.
+10. r[std-testing.try.test.row-body] The body closure of an `it_each`, `it_prop`, or `it_prop_with` call that writes no result type gets its result type by [`expr.try.test.with-try`](../lang/05-expressions.md#r-expr.try.test.with-try) and [`expr.try.test.without-try`](../lang/05-expressions.md#r-expr.try.test.without-try), as a trailing block given to `it` does.
 
 ```text
 use std.testing.it_each
@@ -196,23 +196,23 @@ Once the budget is spent, `c.int(0, 2)` returns `0`, so `tree` returns
 `@derive(Arbitrary)` gives a data type or enum its default generator
 through the template of `Arbitrary`.
 
-1. r[std-testing.arbitrary.derive] `@derive(Arbitrary)` derives `Arbitrary` through its [template](../14-annotations.md#templates). The derived `arbitrary` draws each member with its type's `Arbitrary`. For an enum, it draws a variant, then that variant's payload.
-2. r[std-testing.arbitrary.derive.template] That template is ordinary `std.testing` code over `std.structure`: it reads each variant's and member's [`self_ref`](../14-annotations.md#self-references), and the compiler supplies nothing for `Arbitrary` itself.
-3. r[std-testing.arbitrary.derive.member-bounds] The template requires the type of every member to implement `Arbitrary` and to be [inspectable](../09-traits.md#inspectable-types), whether or not `arbitrary.with` tunes the member.
-4. r[std-testing.arbitrary.derive.params] For a generic type, the derived implementation gets `T < Arbitrary & Inspectable` for each type parameter `T` that a member's type uses, in place of the `T < Arbitrary` of [`annot.bound.params`](../14-annotations.md#r-annot.bound.params). So `@derive(Arbitrary)` on `data Box[T]` with a member `value: T` needs no hand-written block.
+1. r[std-testing.arbitrary.derive] `@derive(Arbitrary)` derives `Arbitrary` through its [template](../lang/14-annotations.md#templates). The derived `arbitrary` draws each member with its type's `Arbitrary`. For an enum, it draws a variant, then that variant's payload.
+2. r[std-testing.arbitrary.derive.template] That template is ordinary `std.testing` code over `std.structure`: it reads each variant's and member's [`self_ref`](../lang/14-annotations.md#self-references), and the compiler supplies nothing for `Arbitrary` itself.
+3. r[std-testing.arbitrary.derive.member-bounds] The template requires the type of every member to implement `Arbitrary` and to be [inspectable](../lang/09-traits.md#inspectable-types), whether or not `arbitrary.with` tunes the member.
+4. r[std-testing.arbitrary.derive.params] For a generic type, the derived implementation gets `T < Arbitrary & Inspectable` for each type parameter `T` that a member's type uses, in place of the `T < Arbitrary` of [`annot.bound.params`](../lang/14-annotations.md#r-annot.bound.params). So `@derive(Arbitrary)` on `data Box[T]` with a member `value: T` needs no hand-written block.
 5. r[std-testing.arbitrary.derive.not-derivable] A type with a member whose type fails either bound, such as a function-typed member, is not derivable. `@derive(Arbitrary)` on it is an error, reported at the opt-in and naming the member. Error: `unsatisfied-trait-bound`.
 6. r[std-testing.arbitrary.derive.manual] Such a type gets its default generator only from a hand-written `impl Arbitrary`.
 7. r[std-testing.arbitrary.derive.simplest] A derived enum's simplest choice is its first non-recursive variant, whatever the declaration order.
-8. r[std-testing.arbitrary.derive.recursive] A variant is recursive when its `self_ref` is `.Required`, as [Self References](../14-annotations.md#self-references) computes it from the member types.
+8. r[std-testing.arbitrary.derive.recursive] A variant is recursive when its `self_ref` is `.Required`, as [Self References](../lang/14-annotations.md#self-references) computes it from the member types.
 9. r[std-testing.arbitrary.derive.recursive.containers] A `List`, `Map`, or optional member does not make its variant recursive, because its `self_ref` is at most `.Optional`: its simplest value is empty or `.None`.
 10. r[std-testing.arbitrary.derive.no-finite] When every variant of a derived enum is recursive, the derived `arbitrary` panics on the property's first case, with a message that names the type. Panic: `explicit-panic`.
-11. r[std-testing.arbitrary.derive.no-finite.message] The message is `"${T::name()} has no finite value"`, where [`T::name()`](../14-annotations.md#r-annot.structure.name) is the type's declared name.
+11. r[std-testing.arbitrary.derive.no-finite.message] The message is `"${T::name()} has no finite value"`, where [`T::name()`](../lang/14-annotations.md#r-annot.structure.name) is the type's declared name.
 12. r[std-testing.arbitrary.derive.no-finite.data] When a member of a derived data type has `self_ref` `.Required`, its derived `arbitrary` panics the same way, and the compiler does not reject the type either. Panic: `explicit-panic`.
 13. r[std-testing.arbitrary.derive.no-finite.unchecked] The compiler does not reject such an enum, because no derivation check reports it.
 14. r[std-testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
-15. r[std-testing.arbitrary.with.module-typed] The module `std.testing.arbitrary` declares `with` and its result type `With[F]`, a [typed fact type](../14-annotations.md#member-typed-facts), as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
-16. r[std-testing.arbitrary.with.checked] `gen` must draw the member's declared type. A generator of another type is an error, reported on its decorator, by [`annot.typed-fact.check`](../14-annotations.md#r-annot.typed-fact.check). Error: `type-mismatch`.
-17. r[std-testing.arbitrary.with.typed-read] The derived `arbitrary` reads the member's `With[F]` through its handle, with [`h.fact`](../14-annotations.md#r-annot.handle.fact), and draws the member by its `gen`.
+15. r[std-testing.arbitrary.with.module-typed] The module `std.testing.arbitrary` declares `with` and its result type `With[F]`, a [typed fact type](../lang/14-annotations.md#member-typed-facts), as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
+16. r[std-testing.arbitrary.with.checked] `gen` must draw the member's declared type. A generator of another type is an error, reported on its decorator, by [`annot.typed-fact.check`](../lang/14-annotations.md#r-annot.typed-fact.check). Error: `type-mismatch`.
+17. r[std-testing.arbitrary.with.typed-read] The derived `arbitrary` reads the member's `With[F]` through its handle, with [`h.fact`](../lang/14-annotations.md#r-annot.handle.fact), and draws the member by its `gen`.
 18. r[std-testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
 
 ```text
@@ -224,7 +224,7 @@ pub fn with[F](gen: fn(mut Choices) -> F) -> With[F]
 ```
 
 > **Note.** The member's declared type is the expected type of `F`, by
-> [`annot.typed-fact.check.inferred`](../14-annotations.md#r-annot.typed-fact.check.inferred).
+> [`annot.typed-fact.check.inferred`](../lang/14-annotations.md#r-annot.typed-fact.check.inferred).
 > So a generic generator such as `fn any_text[T](c: mut Choices) -> T`
 > needs no type argument: `@arbitrary.with(any_text)` on `name: string`
 > solves `T = string`.
@@ -327,7 +327,7 @@ message `Loop has no finite value`. So does `Ring`'s, because its member
 > a type whose members cannot is written by hand.
 
 > **Note.** A newtype gets no `Structure`
-> ([`trait.derive.newtype.templated`](../09-traits.md#r-trait.derive.newtype.templated)).
+> ([`trait.derive.newtype.templated`](../lang/09-traits.md#r-trait.derive.newtype.templated)).
 > A newtype that derives `Arbitrary` through a base with no finite value
 > panics with the base type's name.
 
@@ -340,7 +340,7 @@ message `Loop has no finite value`. So does `Ring`'s, because its member
 
 `it`, `it_each`, `it_prop`, and `it_prop_with` each take a `timeout`
 option of type [`Duration?`](time.md#duration)
-([Test Cases](../10-modules.md#test-cases)).
+([Test Cases](../lang/10-modules.md#test-cases)).
 
 | Rule | Option | Value | Effect |
 | --- | --- | --- | --- |
@@ -387,7 +387,7 @@ The call runs the test cases `doubles[0]`, `doubles[1]`, and `doubles[2]`.
 ## Snapshot Files
 
 `std.testing` declares a second snapshot function, beside `snapshot`
-([Snapshots](../10-modules.md#snapshots)):
+([Snapshots](../lang/10-modules.md#snapshots)):
 
 ```text
 pub fn snapshot_file(text: string) -> void
@@ -413,4 +413,4 @@ pub fn snapshot_file(text: string) -> void
 > snapshot file fails outside an update run, so a test that was never
 > recorded cannot pass by accident.
 
-See also: [Debug Trait](../09-traits.md#debug-trait).
+See also: [Debug Trait](../lang/09-traits.md#debug-trait).

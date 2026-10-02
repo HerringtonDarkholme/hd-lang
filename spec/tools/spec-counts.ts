@@ -15,7 +15,7 @@ const INTRINSIC_SEGMENT = /^(?:intrinsics?|lang-items?|prelude)$/;
 /**
  * A heuristic guess at the Design Cost Order kind a rule belongs to:
  * - core-library: a stdlib-tier rule (spec/std/);
- * - tooling: a CLI-tier rule (spec/cli.md), outside the Design Cost Order;
+ * - tooling: a CLI-tier rule (spec/cli/), outside the Design Cost Order;
  * - syntax: prefix `lex` or `grammar`, a rule that names `syntax-error`, or a
  *   section heading about syntax, grammar, spellings, tokens, or layout;
  * - intrinsic: an ID segment, a heading, or the rule text names an

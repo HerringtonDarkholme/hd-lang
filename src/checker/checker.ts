@@ -161,7 +161,7 @@ export class FunctionChecker extends ExpressionControlChecker {
     return coerced.type === target;
   }
 
-  /** Whether `target` implements the standard `From[source]` (spec/09-traits.md#conversion-trait). */
+  /** Whether `target` implements the standard `From[source]` (spec/lang/09-traits.md#conversion-trait). */
   private hasStandardFrom(source: ValueType, target: ValueType): boolean {
     const localName = [...this.imports].find(([, imported]) => imported === STANDARD_FROM)?.[0];
     const trait = localName === undefined ? undefined : this.traitTypes.get(localName);
@@ -309,7 +309,7 @@ export class FunctionChecker extends ExpressionControlChecker {
         // Only solved positions of an argument's expected type type the closure.
         const solved = this.takeSolvedPositions();
         // A trailing block passed for an `fn!` parameter is a suspending
-        // closure (spec/07-functions.md#r-fn.trailing.suspending).
+        // closure (spec/lang/07-functions.md#r-fn.trailing.suspending).
         const suspending =
           expression.suspending === true ||
           (expression.trailing === true && expectedCallable?.suspending === true);

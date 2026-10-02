@@ -1,7 +1,7 @@
 " Vim syntax file
 " Language:    hd (hd-lang)
 " Maintainer:  hd-lang
-" Reference:   spec/01-lexical-structure.md; src/highlight.ts is the
+" Reference:   spec/lang/01-lexical-structure.md; src/highlight.ts is the
 "              website's highlighter and makes the same choices.
 
 if exists("b:current_syntax")
@@ -40,7 +40,7 @@ syn match hdFunction     "\%(\<fn\s\+\)\@<=\h\w*"
 " The suspension-call suffix `!` in `name!(...)`.
 syn match hdBang "\w\@1<=![(\[]\@="
 
-" Contextual words (spec/01-lexical-structure.md#contextual-words).
+" Contextual words (spec/lang/01-lexical-structure.md#contextual-words).
 syn match hdInclude "\%(^\s*\%(pub\s\+\)\=\)\@<=use\ze\s\+\%(pkg\|std\|dep\|self\|super\)\>"
 syn match hdInclude "\%(^\s*\%(pub\s\+\)\=use\s.*\)\@<=\<\%(as\|super\)\>"
 syn match hdKeyword "\%(^\s*impl\>.*\s\)\@<=by\ze\s\+\S"

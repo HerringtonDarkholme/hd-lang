@@ -85,8 +85,9 @@ async function withSpec(run: (spec: string) => Promise<void>): Promise<void> {
   try {
     const spec = join(root, "spec");
     await mkdir(join(spec, "std"), { recursive: true });
+    await mkdir(join(spec, "lang"), { recursive: true });
     await writeFile(join(spec, "README.md"), README);
-    await writeFile(join(spec, "01-lexical-structure.md"), LEXICAL);
+    await writeFile(join(spec, "lang", "01-lexical-structure.md"), LEXICAL);
     await writeFile(join(spec, "std", "README.md"), "# Std\n");
     await writeFile(join(spec, "std", "iter.md"), STD_ITER);
     await run(spec);
@@ -97,7 +98,7 @@ async function withSpec(run: (spec: string) => Promise<void>): Promise<void> {
 
 test("counts rules per chapter, prefix, tier, and heuristic kind", async () => {
   await withSpec(async (spec) => {
-    assert.deepEqual(chapterNames(spec), ["01-lexical-structure.md", "std/iter.md"]);
+    assert.deepEqual(chapterNames(spec), ["lang/01-lexical-structure.md", "std/iter.md"]);
     const result = counts(loadCorpus(spec));
     assert.deepEqual(result.tiers, { language: 5, std: 1, cli: 0 });
     assert.equal(result.total, 6);
@@ -111,9 +112,11 @@ test("counts rules per chapter, prefix, tier, and heuristic kind", async () => {
 test("counts matches rule-inventory over the real chapters", async () => {
   const known = knownCodes(
     await readFile(resolve(SPEC_ROOT, "README.md"), "utf8"),
-    await readFile(resolve(SPEC_ROOT, "06-control-flow.md"), "utf8"),
+    await readFile(resolve(SPEC_ROOT, "lang", "06-control-flow.md"), "utf8"),
   );
-  const numbered = (await readdir(SPEC_ROOT)).filter((name) => /^\d\d-.*\.md$/.test(name));
+  const numbered = (await readdir(resolve(SPEC_ROOT, "lang")))
+    .filter((name) => /^\d\d-.*\.md$/.test(name))
+    .map((name) => `lang/${name}`);
   let language = 0;
   for (const name of numbered)
     language += inventory(name, await readFile(resolve(SPEC_ROOT, name), "utf8"), known).rules
@@ -167,7 +170,7 @@ test("refs finds anchors and bare IDs in prose and comments, not code", () => {
   );
   const source = [
     "const x = data.embed.width; // see data.embed.width",
-    "/* spec/08-data-and-enums.md#r-data.embed.width */",
+    "/* spec/lang/08-data-and-enums.md#r-data.embed.width */",
     'const url = "#r-data.embed.width";',
   ].join("\n");
   assert.deepEqual(
@@ -177,7 +180,7 @@ test("refs finds anchors and bare IDs in prose and comments, not code", () => {
       [2, "anchor"],
     ],
   );
-  const hd = "# (spec/08-data-and-enums.md#r-data.embed.width)\nx := data.embed.width\n";
+  const hd = "# (spec/lang/08-data-and-enums.md#r-data.embed.width)\nx := data.embed.width\n";
   assert.equal(citationsIn("lib/std/x.hd", hd, "lib-std", isRuleId).length, 1);
 });
 
@@ -190,8 +193,8 @@ test("refs reads retired IDs and the commit that removed each from git history",
         encoding: "utf8",
         stdio: ["ignore", "pipe", "ignore"],
       });
-    const chapter = join(repo, "spec", "01-lexical-structure.md");
-    await mkdir(join(repo, "spec"), { recursive: true });
+    const chapter = join(repo, "spec", "lang", "01-lexical-structure.md");
+    await mkdir(join(repo, "spec", "lang"), { recursive: true });
     git("init", "-q");
     await writeFile(chapter, "1. r[lex.widget.old] Old.\n2. r[lex.widget.kept] Kept.\n");
     git("add", ".");
@@ -219,14 +222,14 @@ test("refs --dead fails only gated areas and allows history", () => {
     text: "",
   });
   const index: RefIndex = {
-    live: new Map([["lex.widget.one", "spec/01-lexical-structure.md:5"]]),
+    live: new Map([["lex.widget.one", "spec/lang/01-lexical-structure.md:5"]]),
     history: {
       ids: new Set(["lex.widget.old", "lex.gone.away"]),
       removedIn: new Map([["lex.widget.old", 'abc1234 "Retire widgets"']]),
     },
     citations: [
-      cite("spec/02-grammar.md", "lex.widget.one", false, "01-lexical-structure.md"),
-      cite("spec/02-grammar.md", "lex.widget.one", false, "02-grammar.md"),
+      cite("spec/lang/02-grammar.md", "lex.widget.one", false, "01-lexical-structure.md"),
+      cite("spec/lang/02-grammar.md", "lex.widget.one", false, "02-grammar.md"),
       cite("guide/TOUR.md", "lex.widget.old"),
       cite("spec/README.md", "lex.widget.old", true),
       cite("src/x.ts", "lex.widget.old"),
@@ -237,14 +240,14 @@ test("refs --dead fails only gated areas and allows history", () => {
   assert.deepEqual(
     dead.map((c) => [c.file, c.failing, c.history]),
     [
-      ["spec/02-grammar.md", true, false],
+      ["spec/lang/02-grammar.md", true, false],
       ["guide/TOUR.md", true, false],
       ["spec/README.md", false, true],
       ["src/x.ts", false, false],
       ["future-work/X.md", false, false],
     ],
   );
-  assert.match(dead[0]!.reason, /rule is in spec\/01-lexical-structure.md/);
+  assert.match(dead[0]!.reason, /rule is in spec\/lang\/01-lexical-structure.md/);
   assert.match(dead[1]!.reason, /retired in commit abc1234 "Retire widgets"/);
   assert.equal(dead[4]!.reason, "retired (in git history)");
 });
@@ -257,7 +260,10 @@ test("the spec CLI reports usage errors and the real language tier", () => {
   const parsed = JSON.parse(stdout) as { tiers: { language: number }; total: number };
   assert.ok(parsed.tiers.language > 0 && parsed.total >= parsed.tiers.language);
   const refs = run(["refs", "#r-data.embed.width"], { spec: SPEC_ROOT, repo: REPO_ROOT });
-  assert.match(refs.stdout, /^data\.embed\.width: defined at spec\/08-data-and-enums\.md:\d+/);
+  assert.match(
+    refs.stdout,
+    /^data\.embed\.width: defined at spec\/lang\/08-data-and-enums\.md:\d+/,
+  );
 });
 
 // A rewrite of LEXICAL: one rule retired, one added, one reworded, a code
@@ -312,6 +318,7 @@ async function withSpecs(
   try {
     const spec = join(root, "spec");
     await mkdir(join(spec, "std"), { recursive: true });
+    await mkdir(join(spec, "lang"), { recursive: true });
     for (const [name, text] of Object.entries(files)) await writeFile(join(spec, name), text);
     await run(spec);
   } finally {
@@ -324,14 +331,14 @@ test("rewrite reports counts, IDs, codes, and examples between two versions", as
   await withSpecs(
     {
       ...shared,
-      "01-lexical-structure.md": LEXICAL_BASE,
+      "lang/01-lexical-structure.md": LEXICAL_BASE,
       "std/iter.md": STD_ITER,
     },
     async (baseSpec) =>
       withSpecs(
         {
           ...shared,
-          "01-lexical-structure.md": LEXICAL_AFTER,
+          "lang/01-lexical-structure.md": LEXICAL_AFTER,
           "std/iter.md": STD_ITER_AFTER,
         },
         (headSpec) => {
@@ -348,7 +355,7 @@ test("rewrite reports counts, IDs, codes, and examples between two versions", as
             delta: 0,
           });
           assert.deepEqual(result.retired, [
-            { id: "lex.widget.three", chapter: "01-lexical-structure.md" },
+            { id: "lex.widget.three", chapter: "lang/01-lexical-structure.md" },
           ]);
           assert.deepEqual(
             result.added.map((entry) => entry.id),
@@ -364,7 +371,7 @@ test("rewrite reports counts, IDs, codes, and examples between two versions", as
           assert.equal(result.examples.statuses.moved, 1);
           assert.deepEqual(
             result.examples.lost.map((entry) => [entry.chapter, entry.index, entry.missing]),
-            [["01-lexical-structure.md", 4, ["dropped for good"]]],
+            [["lang/01-lexical-structure.md", 4, ["dropped for good"]]],
           );
           assert.deepEqual(failures(result, ["lost-codes", "lost-examples", "reused-ids"]), [
             "lost-codes",
@@ -395,7 +402,7 @@ test("rewrite reads batch 34 from git history", { skip: !hasCommit("42090f42") }
     /Retired IDs \(2\): `fn\.vararg\.collect\.tuple`, `fn\.vararg\.collect\.tuple\.rest`/,
   );
   assert.match(stdout, /Added IDs \(12\): /);
-  assert.match(stdout, /lost: 02-grammar\.md example \d+/);
+  assert.match(stdout, /lost: lang\/02-grammar\.md example \d+/);
   const failing = run(["rewrite", "42090f42", "5125d42b", "--fail-on", "lost-examples", "--json"]);
   assert.equal(failing.status, 1);
   assert.deepEqual((JSON.parse(failing.stdout) as { failed: string[] }).failed, ["lost-examples"]);
@@ -408,7 +415,7 @@ const GLOSSARY_README = `# Spec
 
 | Term | Definition |
 | --- | --- |
-| **widget** | A blue thing. See [\`lex.widget.one\`](01-lexical-structure.md#r-lex.widget.one). |
+| **widget** | A blue thing. See [\`lex.widget.one\`](lang/01-lexical-structure.md#r-lex.widget.one). |
 | **map adapter** | A stdlib term, in the [Standard Library glossary](std/README.md#glossary). |
 `;
 
@@ -441,7 +448,7 @@ test("glossary uses the hand-written glossaries and reports chapter terms they l
     {
       "README.md": GLOSSARY_README,
       "std/README.md": GLOSSARY_STD_README,
-      "01-lexical-structure.md": GLOSSARY_LEXICAL,
+      "lang/01-lexical-structure.md": GLOSSARY_LEXICAL,
       "std/iter.md": STD_ITER,
     },
     (spec) => {
@@ -450,10 +457,10 @@ test("glossary uses the hand-written glossaries and reports chapter terms they l
       assert.deepEqual(
         result.terms.map((entry) => [entry.term, entry.source, entry.chapter, entry.anchor]),
         [
-          ["gadget", "chapter-bold", "01-lexical-structure.md", "widgets"],
+          ["gadget", "chapter-bold", "lang/01-lexical-structure.md", "widgets"],
           ["map adapter", "glossary", "std/iter.md", "adapters"],
-          ["sprockets", "chapter-heading", "01-lexical-structure.md", "sprockets"],
-          ["widget", "glossary", "01-lexical-structure.md", "r-lex.widget.one"],
+          ["sprockets", "chapter-heading", "lang/01-lexical-structure.md", "sprockets"],
+          ["widget", "glossary", "lang/01-lexical-structure.md", "r-lex.widget.one"],
         ],
       );
       assert.deepEqual(
@@ -468,7 +475,7 @@ test("glossary uses the hand-written glossaries and reports chapter terms they l
       const page = glossaryMarkdown(result);
       assert.match(
         page,
-        /\| \[\*\*widget\*\*\]\(01-lexical-structure\.md#r-lex\.widget\.one\) \| A blue thing\. \|/,
+        /\| \[\*\*widget\*\*\]\(lang\/01-lexical-structure\.md#r-lex\.widget\.one\) \| A blue thing\. \|/,
       );
       assert.match(page, /^## M$/m);
       assert.match(glossaryReport(result), /missing from the hand-written glossaries: 2/);

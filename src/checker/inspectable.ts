@@ -10,7 +10,7 @@ import {
 } from "../types.ts";
 import { INSPECTABLE, STANDARD_DOWNCAST_VAL } from "./standard-traits.ts";
 
-// Runtime type identity (spec/09-traits.md#runtime-type-identity). A type's
+// Runtime type identity (spec/lang/09-traits.md#runtime-type-identity). A type's
 // key is its canonical printable name with the outer `mut` removed; a `mut`
 // inside a type argument is kept (Inspectable decision 16). A key part
 // `{ generic }` stands for a bounded type parameter whose name the bound's

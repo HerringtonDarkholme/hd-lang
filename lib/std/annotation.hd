@@ -1,4 +1,4 @@
-# std.annotation: function facts (spec/14-annotations.md#function-facts) and
+# std.annotation: function facts (spec/lang/14-annotations.md#function-facts) and
 # the target kinds (#target-kinds). `facts_of`, `Target`, `Annotate`, and
 # `annotate` are imported, not prelude names (r-annot.facts-of.declared,
 # r-annot.target.declarations).

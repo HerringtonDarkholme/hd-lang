@@ -20,7 +20,7 @@ interface MemberCallExpression extends CallExpression {
   readonly callee: Extract<Expression, { kind: "member" }>;
 }
 
-// Runtime type identity intrinsics (spec/09-traits.md#runtime-type-identity):
+// Runtime type identity intrinsics (spec/lang/09-traits.md#runtime-type-identity):
 // the `downcast` default methods, `downcast_val`, `TypeId::of`, and
 // `runtime_type` on a concrete receiver.
 export abstract class InspectChecker extends MemberLookupChecker {
@@ -33,7 +33,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
   /**
    * The Inspectable dictionary of a downcast or TypeId target. A trait value
    * type that extends Inspectable satisfies the bound by its supertrait
-   * (spec/09-traits.md#dynamic-trait-values); its TypeId never equals a
+   * (spec/lang/09-traits.md#dynamic-trait-values); its TypeId never equals a
    * recorded type, so such a downcast yields `.None`.
    */
   protected inspectTargetDictionary(
@@ -107,7 +107,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
   }
 
   // `value.downcast::[T]()`, `value.downcast_mut::[T]()`, and `value.runtime_type()`
-  // on a concrete receiver (spec/09-traits.md#recovering-a-concrete-type). The
+  // on a concrete receiver (spec/lang/09-traits.md#recovering-a-concrete-type). The
   // prototype lowers the default methods as intrinsics.
   protected checkInspectMemberCall(
     expression: MemberCallExpression,
@@ -123,7 +123,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
     const generic = genericTypeName(receiverType);
     if (traitValue && !extendsInspectable(this.traitTypes, traitValue)) return undefined;
     // An inherent method of the same name wins ordinary lookup on the concrete
-    // type (spec/09-traits.md#sealed-traits).
+    // type (spec/lang/09-traits.md#sealed-traits).
     const nominal = nominalGenericParts(receiverType)?.name ?? receiverType;
     if (
       this.inherentMethods.some(
@@ -317,7 +317,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
   }
 
   /**
-   * `facts_of(f)` (spec/14-annotations.md#function-facts): the call of the
+   * `facts_of(f)` (spec/lang/14-annotations.md#function-facts): the call of the
    * `Facts` builder that `function-facts.ts` generated for the module-level
    * function `f`. The argument names `f` and is never evaluated.
    */

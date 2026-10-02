@@ -6,26 +6,26 @@ Nothing here is accepted language behavior. The owner decided questions
 decisions DEP1-DEP19 (2026-09-29) then removed the registry: versions are
 git tags, resolution is minimal version selection, and `hd.sum` gives
 integrity. They are applied in
-[Package Manifest](../spec/10-modules.md#package-manifest), which is
+[Package Manifest](../spec/lang/10-modules.md#package-manifest), which is
 authoritative. So the registry names, caret ranges, solver, lockfile,
 and distribution that this draft first proposed are superseded, and
 their text is in git history. What stays open here is the final
-`hd.toml` schema ([`cli.tooling.package-schema`](../spec/cli.md#r-cli.tooling.package-schema)),
+`hd.toml` schema ([`cli.tooling.package-schema`](../spec/cli/command-line.md#r-cli.tooling.package-schema)),
 the checked compatibility rule behind `hd api diff`, and the agent-first
 CLI; the tooling plan is in
 Package Tooling. Executables, tasks, package mode, and `hd new` are
-specified in [Command Line](../spec/cli.md).
+specified in [Command Line](../spec/cli/command-line.md).
 
 Inputs:
 
-- [Package Manifest](../spec/10-modules.md#package-manifest),
-  [Use Roots](../spec/10-modules.md#use-roots),
-  [Name Resolution Across Packages](../spec/10-modules.md#name-resolution-across-packages)
+- [Package Manifest](../spec/lang/10-modules.md#package-manifest),
+  [Use Roots](../spec/lang/10-modules.md#use-roots),
+  [Name Resolution Across Packages](../spec/lang/10-modules.md#name-resolution-across-packages)
   (interface files, link-time coherence), and
-  [Executable Entry Point](../spec/10-modules.md#executable-entry-point).
-- The orphan and overlap rules in [Traits](../spec/09-traits.md). The
+  [Executable Entry Point](../spec/lang/10-modules.md#executable-entry-point).
+- The orphan and overlap rules in [Traits](../spec/lang/09-traits.md). The
   annotation coherence rules were removed with the facet protocol
-  ([Typed Derivation decision 10](../spec/14-annotations.md#typed-derivation)), and
+  ([Typed Derivation decision 10](../spec/lang/14-annotations.md#typed-derivation)), and
   the root-application orphan exception is dropped (decision 4).
 - The package bullet in
   [Runtime, Library, ABI, And Tooling Work](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work).
@@ -137,16 +137,16 @@ added `/vN` module paths so majors can coexist, following Go.
 8. **Separate dependency groups for tests.** hd's use declarations are
    module-wide, so test-only dependencies need a boundary, like MoonBit's
    `test-import` and Go's `_test.go` files. The testing redesign gives
-   three: a file's [`tests:` block](../spec/02-grammar.md#test-blocks), a
+   three: a file's [`tests:` block](../spec/lang/02-grammar.md#test-blocks), a
    `_test.hd` test module, and the separate `tests/` root
-   ([Test Modules](../spec/10-modules.md#test-modules)).
+   ([Test Modules](../spec/lang/10-modules.md#test-modules)).
 
 ## 2. Draft: `hd.toml`
 
 The examples and schema below predate DEP1. Their registry forms
 (`owner/name@X.Y.Z`, `id`, `registry`), `git` sources, the `version`
 field, and `hd.lock` are superseded by
-[Package Manifest](../spec/10-modules.md#package-manifest); the rest is
+[Package Manifest](../spec/lang/10-modules.md#package-manifest); the rest is
 the open schema draft.
 
 ### 2.1 Design Goals
@@ -265,19 +265,19 @@ root. A member depends on another member with `{ path = "..." }`.
 
 | Key | Default | Rule |
 | --- | --- | --- |
-| `root` | `"src"` | Source root for path-inferred modules ([Path-Inferred Modules](../spec/10-modules.md#path-inferred-modules)). `root/mod.hd`, when present, is the package root module and public index, and its presence gives the package a library. |
-| `tests` | `"tests"` if the directory exists | Test source root of integration test modules ([Test Modules](../spec/10-modules.md#test-modules)). Only a test build compiles them. They may use dependencies, test dependencies, and one another, and they see only the package's public surface, built without its test code, as a dependent would. |
+| `root` | `"src"` | Source root for path-inferred modules ([Path-Inferred Modules](../spec/lang/10-modules.md#path-inferred-modules)). `root/mod.hd`, when present, is the package root module and public index, and its presence gives the package a library. |
+| `tests` | `"tests"` if the directory exists | Test source root of integration test modules ([Test Modules](../spec/lang/10-modules.md#test-modules)). Only a test build compiles them. They may use dependencies, test dependencies, and one another, and they see only the package's public surface, built without its test code, as a dependent would. |
 
 The two roots must not overlap. Within `root`, a test dependency may be
 named only by test code: a `use` inside a file's
-[`tests:` block](../spec/02-grammar.md#test-blocks), or any `use` of a
+[`tests:` block](../spec/lang/02-grammar.md#test-blocks), or any `use` of a
 `_test.hd` test module. Other uses in `root` may name only `[dependencies]`,
 because those modules are also part of the normal build. Test builds include
 the test dependencies.
 
 A test dependency that itself depends on this package may be used only from
 `tests/`. From a `tests:` block or a test module it is an error, since it
-would bring in a second copy of the package ([Testing T24](../spec/10-modules.md#test-modules)).
+would bring in a second copy of the package ([Testing T24](../spec/lang/10-modules.md#test-modules)).
 
 A package must have a library, at least one executable, or both. Only a
 package with a library can be a dependency; a dependent sees its library and
@@ -290,11 +290,11 @@ never builds its executables. No target has an orphan exception
 | --- | --- | --- |
 | `name` | package `name` | Output artifact name. Unique within the package. |
 | `module` | `"main"` | Entry module, as a module path relative to the source root. |
-| `profile` | `"console"` | Runtime profile ([Wasm Boundary](../spec/10-modules.md#wasm-boundary)). Only toolchain-defined profile names are allowed (decision 13). |
+| `profile` | `"console"` | Runtime profile ([Wasm Boundary](../spec/lang/10-modules.md#wasm-boundary)). Only toolchain-defined profile names are allowed (decision 13). |
 
 If a package has no library and declares no `[[executable]]`, it has one
 implicit entry with all defaults, so `src/main.hd` is the entry module.
-[Executables](../spec/cli.md#executables) specifies the `name` and `module`
+[Executables](../spec/cli/command-line.md#executables) specifies the `name` and `module`
 keys and how `hd run` selects an executable.
 
 `[dependencies]` and `[test-dependencies]`: each key is an identifier and
@@ -337,7 +337,7 @@ using SemVer 2.0.0 ordering. All three numeric parts are required in the
 manifest, the lockfile, and CLI output. Build metadata is rejected.
 
 A dependency requirement names one tag. The decided requirement forms
-are in [Dependency Requirements](../spec/10-modules.md#dependency-requirements);
+are in [Dependency Requirements](../spec/lang/10-modules.md#dependency-requirements);
 the caret ranges of decision 2 are superseded.
 
 ### 3.2 Compatibility Lines
@@ -381,7 +381,7 @@ coherence rules:
 | Add an enum variant | breaking | `match` is exhaustive and hd has no marker for open enums (decision 7). |
 | Add a trait method with a default | compatible | Subject to area 2's default-method conflict rules. |
 | Add a trait method without a default | breaking | Existing implementations fail. |
-| Add a `mut self` method, even with a default, to a requirement trait that had none, directly or through a supertrait | breaking | `$.use` then yields `mut K`, so installing a readonly provider becomes `mutable-upgrade` ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)). |
+| Add a `mut self` method, even with a default, to a requirement trait that had none, directly or through a supertrait | breaking | `$.use` then yields `mut K`, so installing a readonly provider becomes `mutable-upgrade` ([Mutable Providers](../spec/lang/11-requirements-and-suspension.md#mutable-providers)). |
 | Add an inherent method | compatible, pending area 2 | Safe only if inherent lookup cannot change which method an existing call selects. |
 | Add an implementation whose trait and target the package both own | compatible | No other package can hold that slot. |
 | Add a generic (blanket) implementation | breaking | It can overlap an implementation in a downstream package. |
@@ -401,15 +401,15 @@ declaration of that name becomes a `prelude-name-shadow` error.
 ### 4.1 Algorithm
 
 Superseded by DEP1: resolution is minimal version selection
-([Version Selection](../spec/10-modules.md#version-selection)).
+([Version Selection](../spec/lang/10-modules.md#version-selection)).
 
 ### 4.2 Coherence Across Packages
 
 The link-time check runs over the complete set of resolved interface files
-([Name Resolution Across Packages](../spec/10-modules.md#name-resolution-across-packages)):
+([Name Resolution Across Packages](../spec/lang/10-modules.md#name-resolution-across-packages)):
 
 - At most one implementation per instantiated trait and target, with overlap
-  checked across packages ([Traits](../spec/09-traits.md)).
+  checked across packages ([Traits](../spec/lang/09-traits.md)).
 - No orphan implementations or derivations in any package; a foreign type
   is derived through a local mirror type or newtype (decision 4).
 
@@ -441,7 +441,7 @@ Consequences under hd's rules:
    that impossible.
 3. The semver trick works without extra machinery. `json@1.9.0` can depend on
    `json@2` and `pub use` its types, because `pub use` keeps declaration
-   identity ([Public Uses And Visibility](../spec/10-modules.md#public-uses-and-visibility)).
+   identity ([Public Uses And Visibility](../spec/lang/10-modules.md#public-uses-and-visibility)).
    Downstream code on either line then sees one type.
 4. A package can name two lines only through two dependency keys, as
    `billing` and `billing_legacy` do in the example. The source then shows
@@ -456,7 +456,7 @@ Owner decision 1 chose this rule.
 ## 5. Lockfile
 
 Superseded by DEP1 and DEP4: there is no lockfile, and `hd.sum` is the only
-integrity source ([Package Manifest](../spec/10-modules.md#package-manifest)).
+integrity source ([Package Manifest](../spec/lang/10-modules.md#package-manifest)).
 Its line format is tooling work in
 Package Tooling.
 
@@ -483,7 +483,7 @@ version is the tagged tree.
 
 Every package operation is a non-interactive command. No command prompts.
 `hd new`, `hd run`, `hd build`, `hd check`, and `hd test` are specified in
-[Command Line](../spec/cli.md).
+[Command Line](../spec/cli/command-line.md).
 Anything that would need confirmation fails with a diagnostic that names the
 flag to pass.
 
@@ -525,19 +525,19 @@ Decided 2026-09-26. The options weighed for each are in git history.
 
 | # | Decision | Status |
 | --- | --- | --- |
-| 1 | One version per compatibility line; two majors coexist as distinct packages | Applied in [Package Manifest](../spec/10-modules.md#package-manifest) |
+| 1 | One version per compatibility line; two majors coexist as distinct packages | Applied in [Package Manifest](../spec/lang/10-modules.md#package-manifest) |
 | 2 | Caret ranges with a solver | Superseded by DEP1: minimal version selection |
 | 3 | Registry names are `owner/name` | Superseded by DEP1: no registry; a dependency is named by its host path |
 | 4 | Cargo style: a library, executables, or both; no package holds an orphan | Applied |
-| 5 | `use` inside `test` blocks | Superseded by the testing redesign ([Test Modules](../spec/10-modules.md#test-modules)) |
+| 5 | `use` inside `test` blocks | Superseded by the testing redesign ([Test Modules](../spec/lang/10-modules.md#test-modules)) |
 | 6 | Adding an implementation for a foreign trait is a minor change | For `hd api diff`, which DEP7 schedules later ([3.3](#33-the-checked-compatibility-rule)) |
 | 7 | Adding an enum variant is breaking, for now | For `hd api diff`, as 6 |
 | 8 | Each `0.MINOR` is its own compatibility line | Applied |
-| 9 | No git or path dependencies in released versions | Kept by DEP15 ([`module.version.no-path-release`](../spec/10-modules.md#r-module.version.no-path-release)) |
-| 10 | A toolchain minimum plus an optional root pin; no editions | Applied ([Toolchain Version](../spec/10-modules.md#toolchain-version)) |
+| 9 | No git or path dependencies in released versions | Kept by DEP15 ([`module.version.no-path-release`](../spec/lang/10-modules.md#r-module.version.no-path-release)) |
+| 10 | A toolchain minimum plus an optional root pin; no editions | Applied ([Toolchain Version](../spec/lang/10-modules.md#toolchain-version)) |
 | 11 | Published packages hold sources and the interface file | Superseded by DEP1: no publish step |
 | 12 | No optional features or conditional compilation | Applied |
-| 13 | Only toolchain-defined runtime profile names | Applied ([Runtime Profiles](../spec/10-modules.md#runtime-profiles)) |
+| 13 | Only toolchain-defined runtime profile names | Applied ([Runtime Profiles](../spec/lang/10-modules.md#runtime-profiles)) |
 | 14 | A public checksum log once a registry exists | Moot under DEP1 and DEP4 |
 
 ## 10. Questions For The Owner

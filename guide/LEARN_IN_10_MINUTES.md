@@ -481,5 +481,5 @@ validator := Signup::validator()
 - The [Language Overview](OVERVIEW.md) covers the purpose and priorities of
   the design.
 - The [specification](../spec/README.md) is the precise reference, starting
-  with the [Type System](../spec/04-type-system.md) and
-  [Requirements and Suspension](../spec/11-requirements-and-suspension.md).
+  with the [Type System](../spec/lang/04-type-system.md) and
+  [Requirements and Suspension](../spec/lang/11-requirements-and-suspension.md).

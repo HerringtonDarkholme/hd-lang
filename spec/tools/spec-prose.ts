@@ -26,26 +26,26 @@ interface RuleMarker {
 
 /**
  * The first dotted segment each chapter's rule IDs start with, keyed by the
- * path under spec/: the numbered language chapters, the stdlib chapters in
- * spec/std/ (spec/std/README.md), and the CLI chapter spec/cli.md.
- * spec/STYLE.md documents the same table; keep the two in step. A stdlib key
- * may name a file that a later move adds.
+ * path under spec/: the numbered language chapters in spec/lang/, the stdlib
+ * chapters in spec/std/ (spec/std/README.md), and the CLI chapters in
+ * spec/cli/ (spec/cli/README.md). spec/STYLE.md documents the same table;
+ * keep the two in step. A stdlib key may name a file that a later move adds.
  */
 export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
-  "01-lexical-structure.md": "lex",
-  "02-grammar.md": "grammar",
-  "03-names-and-scopes.md": "names",
-  "04-type-system.md": "types",
-  "05-expressions.md": "expr",
-  "06-control-flow.md": "flow",
-  "07-functions.md": "fn",
-  "08-data-and-enums.md": "data",
-  "09-traits.md": "trait",
-  "10-modules.md": "module",
-  "11-requirements-and-suspension.md": "req",
-  "12-variadic-generics.md": "pack",
-  "13-gadts.md": "gadt",
-  "14-annotations.md": "annot",
+  "lang/01-lexical-structure.md": "lex",
+  "lang/02-grammar.md": "grammar",
+  "lang/03-names-and-scopes.md": "names",
+  "lang/04-type-system.md": "types",
+  "lang/05-expressions.md": "expr",
+  "lang/06-control-flow.md": "flow",
+  "lang/07-functions.md": "fn",
+  "lang/08-data-and-enums.md": "data",
+  "lang/09-traits.md": "trait",
+  "lang/10-modules.md": "module",
+  "lang/11-requirements-and-suspension.md": "req",
+  "lang/12-variadic-generics.md": "pack",
+  "lang/13-gadts.md": "gadt",
+  "lang/14-annotations.md": "annot",
   "std/format.md": "std-format",
   "std/iter.md": "std-iter",
   "std/testing.md": "std-testing",
@@ -55,14 +55,40 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/ops.md": "std-ops",
   "std/cmp.md": "std-cmp",
   "std/hash.md": "std-hash",
-  "cli.md": "cli",
+  "cli/command-line.md": "cli",
 };
+
+/** The subdirectory of spec/ that holds the numbered language chapters. */
+export const LANG_DIRECTORY = "lang";
 
 /** The subdirectory of spec/ that holds the stdlib chapters. */
 export const STD_DIRECTORY = "std";
 
-/** The CLI tier's one chapter, a file directly under spec/. */
-export const CLI_CHAPTER = "cli.md";
+/** The subdirectory of spec/ that holds the CLI chapters. */
+export const CLI_DIRECTORY = "cli";
+
+/**
+ * The path under spec/ that a chapter had before task #175 moved the
+ * language chapters to spec/lang/ and the CLI chapter to spec/cli/. The rule
+ * history tools read older revisions through it; other paths map to themselves.
+ */
+export function legacyChapterPath(name: string): string {
+  if (name.startsWith(`${LANG_DIRECTORY}/`)) return name.slice(LANG_DIRECTORY.length + 1);
+  if (name === `${CLI_DIRECTORY}/command-line.md`) return "cli.md";
+  return name;
+}
+
+/**
+ * The git pathspecs of every chapter, repository-relative, for the tools that
+ * read rule history: the current layout, then the paths before task #175.
+ */
+export const CHAPTER_HISTORY_PATHS: readonly string[] = [
+  `spec/${LANG_DIRECTORY}/[0-9][0-9]-*.md`,
+  `spec/${STD_DIRECTORY}/*.md`,
+  `spec/${CLI_DIRECTORY}/*.md`,
+  "spec/[0-9][0-9]-*.md",
+  "spec/cli.md",
+];
 
 /** Rule ID syntax: two or more dot-separated lowercase kebab-case segments. */
 export const RULE_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*)+$/;

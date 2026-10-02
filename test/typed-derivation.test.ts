@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { analyze, instantiate } from "../src/compiler.ts";
 
-// Typed derivation (spec/14-annotations.md#typed-derivation) with i32 members,
+// Typed derivation (spec/lang/14-annotations.md#typed-derivation) with i32 members,
 // so the prototype's lowering runs end to end.
 
 const LIBRARY = `use std.structure.{Structure, Field, Variant, Members, Key, Walker, Describer, Source}

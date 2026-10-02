@@ -13,7 +13,7 @@ import { parse } from "../parser/index.ts";
 import { functionResultText, readonlyType } from "../types.ts";
 import { standardResultDeclaration, standardSupertraits } from "./standard-library.ts";
 
-// Typed facts (spec/14-annotations.md#member-typed-facts). A data type or
+// Typed facts (spec/lang/14-annotations.md#member-typed-facts). A data type or
 // enum declared with `@annotate::[F](...)` is a typed fact type `D`, and `F`
 // stands for its target's type. Each of its values on a field or a
 // module-level function checks like `let f: D[X] = v`, with `X` the target's

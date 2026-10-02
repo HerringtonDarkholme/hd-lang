@@ -67,7 +67,7 @@ function usesPropagation(value: unknown): boolean {
 }
 
 // The stable panic categories an `expect_panic` option may name
-// (spec/06-control-flow.md#r-flow.panic.category-names).
+// (spec/lang/06-control-flow.md#r-flow.panic.category-names).
 const PANIC_CATEGORIES: ReadonlySet<string> = new Set([
   "assertion-failed",
   "explicit-panic",
@@ -112,7 +112,7 @@ interface TestSignature {
 const IT_SIGNATURE: TestSignature = { bodyName: "body", named: [] };
 
 // Reads a test-case call as an ordinary call of `it` or `it_each`
-// (spec/10-modules.md#test-cases): the name and any other leading
+// (spec/lang/10-modules.md#test-cases): the name and any other leading
 // positional arguments, then literal named options, then the body as a
 // trailing block or `body=` (07-functions.md#r-fn.default.final-function).
 function testArguments(
@@ -218,7 +218,7 @@ function optionFields(
 
 // A top-level statement of a `tests:` block must be a call of the prelude
 // function `it` with a literal name, its options, and a body
-// (spec/10-modules.md#test-cases).
+// (spec/lang/10-modules.md#test-cases).
 export function testCase(statement: Statement, fail: Fail): TestDecl {
   const call = statement.kind === "expression" ? statement.expression : undefined;
   if (!call || call.kind !== "call" || call.callee.kind !== "name" || call.callee.name !== "it")
@@ -484,7 +484,7 @@ export function finishTestCases(items: ModuleItems, fail: Fail): void {
       .map((name) => name.alias ?? name.name),
   );
   // A test body that uses `?` returns `Result[void, Error]`
-  // (spec/05-expressions.md#r-expr.try.test.with-try). The prototype declares
+  // (spec/lang/05-expressions.md#r-expr.try.test.with-try). The prototype declares
   // the erased `Error` through an implicit `use std.error.Error` when the
   // module does not import it.
   const imported = items.uses

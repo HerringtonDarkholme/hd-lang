@@ -35,7 +35,7 @@ billing = "github.com/acme/billing@1.2.0"
 > version keeps one interface per version.
 
 See also: [Tooling, ABI, And Unsupported Extensions](#tooling-abi-and-unsupported-extensions),
-[Command Line](cli.md) for executables, tasks, and package mode.
+[Command Line](../cli/command-line.md) for executables, tasks, and package mode.
 
 ### Dependency Requirements
 
@@ -122,7 +122,7 @@ Pseudo-versions take Go's three forms:
 > the same case as `unknown revision`, and rejects a pseudo-version that
 > does not match its commit. The error's code is named with the
 > other manifest diagnostics, once the manifest schema is written
-> ([`cli.tooling.package-schema`](cli.md#r-cli.tooling.package-schema)).
+> ([`cli.tooling.package-schema`](../cli/command-line.md#r-cli.tooling.package-schema)).
 
 ### Version Selection
 
@@ -338,7 +338,7 @@ use self.util.{helper}    # error: unknown-module
 > **Note.** The diagnostic says that the file is in no package, rather
 > than that a name is unknown.
 
-See also: [Single Files](cli.md#single-files) for when `hd` compiles a
+See also: [Single Files](../cli/command-line.md#single-files) for when `hd` compiles a
 file as a single-file program.
 
 ## Use Forms
@@ -499,9 +499,9 @@ fn main() -> i32:
 14. r[module.prelude.num] `std.num` declares the [numeric traits](09-traits.md#numeric-traits) `Num`, `Integer`, and `Float`, which code imports, as in `use std.num.Num`.
 
 > **Note.** More standard names outside the prelude are stdlib tier:
-> the string prefix [`r`](std/text.md#raw-text-prefix) of `std.text`,
-> [`FromIterator`](std/iter.md#collect-targets) of `std.iter`, and
-> [`Duration`](std/time.md#duration) and its suffixes of `std.time`.
+> the string prefix [`r`](../std/text.md#raw-text-prefix) of `std.text`,
+> [`FromIterator`](../std/iter.md#collect-targets) of `std.iter`, and
+> [`Duration`](../std/time.md#duration) and its suffixes of `std.time`.
 
 See also: [Conversion Trait](09-traits.md#conversion-trait),
 [Function Type Constructors](07-functions.md#function-type-constructors),
@@ -638,8 +638,8 @@ The following built-in methods are normative:
 2. r[module.method.i32-bytes] Lengths and byte offsets use `i32`.
 3. r[module.method.no-set] No `set` type is part of the core prelude.
 
-See also: [Text](std/text.md#string-methods) for the string methods above
-these, such as `trim` and `split`, and [Iterators](std/iter.md#list-and-optional-map)
+See also: [Text](../std/text.md#string-methods) for the string methods above
+these, such as `trim` and `split`, and [Iterators](../std/iter.md#list-and-optional-map)
 for `map` on a list or an optional.
 
 #### Map Complexity
@@ -788,16 +788,16 @@ fn register() -> void:
 > statically listable.
 
 > **Note.** The `timeout` parameter of `it` has type `std.time.Duration?`.
-> `Duration` is a stdlib-tier type ([Time](std/time.md#duration)): the
+> `Duration` is a stdlib-tier type ([Time](../std/time.md#duration)): the
 > language tier names it in this signature only and specifies none of its
 > values.
 
 > **Note.** The stdlib tier's test registration functions are `it_each`,
 > which registers one test case per row, and `it_prop` and
 > `it_prop_with`, which register property tests
-> ([Registration Functions](std/testing.md#registration-functions)).
+> ([Registration Functions](../std/testing.md#registration-functions)).
 
-See also: [Test Timeout](std/testing.md#test-timeout) in the stdlib tier,
+See also: [Test Timeout](../std/testing.md#test-timeout) in the stdlib tier,
 for what the `timeout` option does.
 
 ### Test Outcomes
@@ -882,7 +882,7 @@ tests:
 > run records a new or changed expectation, and an empty `expect` is filled
 > on the first update.
 
-See also: [Snapshot Files](std/testing.md#snapshot-files) in the stdlib
+See also: [Snapshot Files](../std/testing.md#snapshot-files) in the stdlib
 tier, for how `snapshot` and `snapshot_file` compare text, update runs, and
 where snapshot files live.
 
@@ -1295,5 +1295,5 @@ enum ResourceError[E]:
 1. r[module.tooling.abi] The exact Wasm component boundary and registration mechanism belong to the runtime ABI.
 2. r[module.unsupported.visibility] hd-lang has no package-private visibility or independent visibility for enum variants and trait methods.
 
-See also: [Command Line](cli.md), which defines package tooling: package
+See also: [Command Line](../cli/command-line.md), which defines package tooling: package
 mode, executables, tasks, and the `hd` commands.

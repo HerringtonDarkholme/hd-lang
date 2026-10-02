@@ -6,7 +6,7 @@ import { ExpressionCallChecker, type MemberCallExpression } from "./expression-c
 import { genericTypeName, matchGenericTypePattern } from "./shared.ts";
 
 // Operators and indexing on operands that are not primitive call the
-// `std.ops` traits (spec/05-expressions.md#operator-traits,
+// `std.ops` traits (spec/lang/05-expressions.md#operator-traits,
 // #index-traits, #compound-assignment). The traits are found by their
 // qualified names, so the calls need no `use`.
 export abstract class OperatorCallChecker extends ExpressionCallChecker {

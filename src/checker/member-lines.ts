@@ -2,7 +2,7 @@ import type { DataDecl, EnumDecl, Expression, ImplDecl, MemberLine, Program } fr
 import type { SourceSpan } from "../diagnostics.ts";
 import { nominalGenericParts, readonlyType } from "../types.ts";
 
-// Member lines (spec/14-annotations.md#member-lines) and trait-less
+// Member lines (spec/lang/14-annotations.md#member-lines) and trait-less
 // derivation blocks (#trait-less-derivation-blocks). A trait-less block
 // `impl X by Structure:` writes shared metadata of `X`; this pass checks it,
 // folds its lines into the declaration facts of `X`, and removes it, so every

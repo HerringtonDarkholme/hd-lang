@@ -124,9 +124,9 @@ interface RewriteOptions {
   readonly earlierIds?: ReadonlySet<string>;
 }
 
-/** Chapter order in a report: numbered chapters, then spec/std/, then spec/cli.md. */
+/** Chapter order in a report: spec/lang/, then spec/std/, then spec/cli/. */
 function tierOrder(chapter: string): number {
-  return chapter.startsWith("std/") ? 1 : chapter === "cli.md" ? 2 : 0;
+  return chapter.startsWith("std/") ? 1 : chapter.startsWith("cli/") ? 2 : 0;
 }
 
 export function rewrite(options: RewriteOptions): Rewrite {

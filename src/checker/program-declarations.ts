@@ -47,9 +47,9 @@ function timeoutStatements(value: Expression, duration: string): Statement[] {
 }
 
 // Each `it(...)` call becomes a suspending synthetic function
-// (spec/10-modules.md#r-module.testing.it.body). A trailing body's result is
+// (spec/lang/10-modules.md#r-module.testing.it.body). A trailing body's result is
 // fixed: `Result[void, Error]` when it uses `?`, else `void`
-// (spec/05-expressions.md#propagation-in-test-blocks). An explicit closure
+// (spec/lang/05-expressions.md#propagation-in-test-blocks). An explicit closure
 // keeps its written result, or infers one.
 function createTestDeclarations(program: ProgramCheckContext["program"]): FunctionDecl[] {
   const duration = durationName(program.uses);

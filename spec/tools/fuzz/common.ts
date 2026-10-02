@@ -33,12 +33,12 @@ export interface Outcome {
 }
 
 // Column-0 lines that start a top-level item other than a statement
-// (spec/02-grammar.md: a use, the tests block, a decorator, a declaration).
+// (spec/lang/02-grammar.md: a use, the tests block, a decorator, a declaration).
 const NON_STATEMENT = /^(?:$|#|@|use\b|tests\s*:|pub\b|fn\b|data\b|enum\b|trait\b|type\b|impl\b)/;
 
 /**
  * Whether `run` has something to execute: a `pub fn main` or `main!`, or a
- * script's top-level statements (spec/10-modules.md#module-initialization).
+ * script's top-level statements (spec/lang/10-modules.md#module-initialization).
  * A line-based approximation, used only to choose which commands to run.
  */
 export function hasEntryPoint(source: string): boolean {
@@ -157,7 +157,7 @@ export function hash(text: string): string {
 export interface Inventory {
   /** Error, warning, and boundary codes from the normative table in spec/README.md. */
   readonly diagnostics: ReadonlySet<string>;
-  /** Stable panic categories from spec/06-control-flow.md. */
+  /** Stable panic categories from spec/lang/06-control-flow.md. */
   readonly panics: ReadonlySet<string>;
   /** Codes the reference parser can emit (read from its source text, not imported). */
   readonly referenceParser: ReadonlySet<string>;
@@ -180,9 +180,9 @@ export function loadInventory(): Inventory {
       if (row[1] === "Warning") warnings.add(code);
     }
   }
-  const control = readFileSync(resolve(specRoot, "06-control-flow.md"), "utf8");
+  const control = readFileSync(resolve(specRoot, "lang/06-control-flow.md"), "utf8");
   const sentence = /Stable panic categories are exactly([\s\S]*?)\.\s/.exec(control);
-  if (!sentence) throw new Error("spec/06-control-flow.md: panic category sentence not found");
+  if (!sentence) throw new Error("spec/lang/06-control-flow.md: panic category sentence not found");
   const panics = new Set(backticked(sentence[1]!));
   const referenceParser = new Set<string>();
   const parserDirectory = resolve(specRoot, "reference-parser");

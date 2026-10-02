@@ -4,7 +4,7 @@ import type { HirFunction } from "./hir.ts";
 /**
  * The type name a desugared prefixed string's template literal uses: the
  * hidden name of `std.ops.Template`, replaced by the program's local name
- * when it imports `Template` (spec/05-expressions.md#prefixed-strings).
+ * when it imports `Template` (spec/lang/05-expressions.md#prefixed-strings).
  */
 export const TEMPLATE_PLACEHOLDER = "__std_ops_Template";
 
@@ -87,9 +87,9 @@ export interface FunctionDecl {
   // (07-functions.md#default-values); `laterNames` are the parameters declared
   // after the defaulted one, which are not yet visible.
   readonly defaultContext?: { readonly laterNames: readonly string[] };
-  /** Declared in a `tests:` block, or a test body: test code (spec/10-modules.md#test-modules). */
+  /** Declared in a `tests:` block, or a test body: test code (spec/lang/10-modules.md#test-modules). */
   readonly testOnly?: boolean;
-  /** Runner options of a test body (spec/10-modules.md#test-cases). */
+  /** Runner options of a test body (spec/lang/10-modules.md#test-cases). */
   readonly testOptions?: HirFunction["testOptions"];
   /** Decorator lines before the declaration (14 Prefix Decorators). */
   readonly decorators?: Decorators;
@@ -281,14 +281,14 @@ export interface EnumDecl {
   readonly span: SourceSpan;
 }
 
-// One `it("name", ...)` call of a `tests:` block (spec/10-modules.md#test-cases).
+// One `it("name", ...)` call of a `tests:` block (spec/lang/10-modules.md#test-cases).
 export interface TestDecl {
   readonly kind: "test";
   readonly name: string;
   readonly body: readonly Statement[];
   /** The body was an explicit closure rather than a trailing block. */
   readonly explicit?: boolean;
-  /** A trailing body that uses `?` (spec/05-expressions.md#r-expr.try.test.with-try). */
+  /** A trailing body that uses `?` (spec/lang/05-expressions.md#r-expr.try.test.with-try). */
   readonly propagates?: boolean;
   /** An `it_each` table, whose rows the runner runs as separate test cases. */
   readonly table?: boolean;
@@ -459,7 +459,7 @@ export interface Program {
   readonly functions: readonly FunctionDecl[];
   readonly tests: readonly TestDecl[];
   readonly statements: readonly Statement[];
-  /** Names that the `tests:` block declares or uses (spec/03-names-and-scopes.md#tests-blocks). */
+  /** Names that the `tests:` block declares or uses (spec/lang/03-names-and-scopes.md#tests-blocks). */
   readonly testOnlyNames?: readonly string[];
   readonly span: SourceSpan;
 }
@@ -706,7 +706,7 @@ export type Expression =
   | {
       readonly kind: "closure";
       readonly suspending?: boolean;
-      /** A trailing callback block (spec/07-functions.md#trailing-callback-blocks). */
+      /** A trailing callback block (spec/lang/07-functions.md#trailing-callback-blocks). */
       readonly trailing?: boolean;
       readonly parameters: readonly ClosureParameter[];
       readonly result?: TypeRef;

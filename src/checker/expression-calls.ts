@@ -1040,7 +1040,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       if (!this.equalityStrategy(actual.type)) {
         this.fail("missing-eq", `type '${actual.type}' does not implement Eq`, actual.span);
       }
-      // spec/10-modules.md#r-module.testing.assert-equal-debug
+      // spec/lang/10-modules.md#r-module.testing.assert-equal-debug
       if (!this.implementsDebug(actual.type))
         this.fail(
           "unsatisfied-trait-bound",
@@ -1064,7 +1064,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       );
     }
     // `std.testing.snapshot(text, expect="")` compares text with a literal
-    // expectation (spec/10-modules.md#snapshots). The prototype checks it as an
+    // expectation (spec/lang/10-modules.md#snapshots). The prototype checks it as an
     // `assert_equal` of two strings; it has no update run to rewrite `expect`.
     if (this.imports.get(expression.callee.name) === "std.testing.snapshot") {
       if (expression.typeArguments?.length)
@@ -1093,7 +1093,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           ? { kind: "string", value: "", span: expression.span }
           : expression.arguments[expectIndex]!;
       // `expect` must be a literal a tool can rewrite
-      // (spec/10-modules.md#r-module.testing.snapshot.literal).
+      // (spec/lang/10-modules.md#r-module.testing.snapshot.literal).
       if (expect.kind !== "string")
         this.fail(
           "non-literal-test-argument",
@@ -1120,7 +1120,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       );
     }
     // Checker intrinsics that only typed derivation generates
-    // (spec/14-annotations.md#handles).
+    // (spec/lang/14-annotations.md#handles).
     if (expression.callee.name === STRUCTURE_MISMATCH)
       return {
         kind: "panic",

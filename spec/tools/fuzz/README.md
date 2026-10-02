@@ -12,8 +12,8 @@ current TypeScript compiler is only its first target.
 - Oracles come from `spec/` only:
   - `parseSource` from `spec/reference-parser/parser.ts`;
   - the diagnostic inventory in `spec/README.md`;
-  - the panic categories in `spec/06-control-flow.md`;
-  - the EBNF fences in `spec/02-grammar.md`, which `generate.ts` parses itself.
+  - the panic categories in `spec/lang/06-control-flow.md`;
+  - the EBNF fences in `spec/lang/02-grammar.md`, which `generate.ts` parses itself.
 - Seeds come from `spec/conformance/**/*.hd`.
 - Imports are limited to Node built-ins, this folder, and `spec/`. This
   command enforces the rule and exits 1 on any other import, or on any string
@@ -160,7 +160,7 @@ bug, spec ambiguity, or correct handling (discarded).
 fuzz.ts            entry point
 common.ts          command spawning, contract classification, inventory, PRNG
 mutate.ts          seed mutation operators
-generate.ts        EBNF reader and generator (reads spec/02-grammar.md)
+generate.ts        EBNF reader and generator (reads spec/lang/02-grammar.md)
 oracles/           parse-agreement, contract, phase-consistency, cross-impl
 adapters/wasm.ts   optional Wasm backend adapter
 minimize.ts        contract-preserving delta minimizer

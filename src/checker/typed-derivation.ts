@@ -67,7 +67,7 @@ import {
   withTraitLessBlocks,
 } from "./member-lines.ts";
 
-// Typed derivation (spec/14-annotations.md#typed-derivation), lowered before
+// Typed derivation (spec/lang/14-annotations.md#typed-derivation), lowered before
 // checking. Each template is checked once (`compileTemplate`): its methods
 // become generic functions over the template's `T`, bounded by a hidden
 // trait that stands for `T`'s `Structure` in that template, with one method
@@ -1392,7 +1392,7 @@ function generateDerivation(
         );
         out.add(`    .Ok((${items.join(", ")}${items.length === 1 && !tuple.rest ? "," : ""}))`);
       } else if (variant.ofData) {
-        // An embedded part is filled by copy (spec/08-data-and-enums.md#data-embedding).
+        // An embedded part is filled by copy (spec/lang/08-data-and-enums.md#data-embedding).
         const fields = offered.map(
           (member) => `${member.access}: ${member.embedded ? "..." : ""}${binding(member)}_value`,
         );

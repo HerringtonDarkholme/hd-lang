@@ -21,10 +21,10 @@ export const HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = {
   string_lower: (text) => String(text).toLowerCase(),
   string_upper: (text) => String(text).toUpperCase(),
   // The one-scalar string of a Unicode scalar value, for `\u{...}` in
-  // `std.text.process_escapes` (spec/05-expressions.md#prefixed-strings).
+  // `std.text.process_escapes` (spec/lang/05-expressions.md#prefixed-strings).
   string_from_scalar: (point) => String.fromCodePoint(Number(point)),
   // A failed `assert_equal` (lib/std/testing.hd) panics with its message
-  // (spec/10-modules.md#r-module.testing.assert-equal-debug).
+  // (spec/lang/10-modules.md#r-module.testing.assert-equal-debug).
   assertion_failed: (message) => {
     throw new RuntimePanicError("assertion-failed", String(message));
   },
@@ -46,7 +46,7 @@ interface HostProviderContext {
 export const HOST_PROVIDERS: Readonly<
   Record<string, (call: HostSuspensionCall, host: HostProviderContext) => HostSuspensionOutcome>
 > = {
-  // The host console (spec/10-modules.md#console): `write_line!` writes its
+  // The host console (spec/lang/10-modules.md#console): `write_line!` writes its
   // line when first polled and is then ready with `.Ok()`. The host reports
   // no write failure, so it never builds a `ConsoleError`.
   "Console.write_line": (call, host) => {

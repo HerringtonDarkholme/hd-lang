@@ -296,7 +296,7 @@ test("Test judges it_each rows, expected panics, and ignored cases as hd test do
 });
 
 // A `*_test.hd` file is a test module: Test links it and runs its top-level
-// test cases; Run leaves it out (spec/10-modules.md#test-modules).
+// test cases; Run leaves it out (spec/lang/10-modules.md#test-modules).
 test("Test runs the test cases of _test.hd modules", async () => {
   const files = {
     "src/main.hd": [
@@ -372,7 +372,7 @@ test("Test runs the test cases of _test.hd modules", async () => {
 });
 
 // A suspending `main!` is judged by `report()` on its result, as `main` is
-// (spec/10-modules.md#exit-status).
+// (spec/lang/10-modules.md#exit-status).
 test("a suspending main! reports its Result", async () => {
   const run = async (body: string): Promise<string> => {
     const result = await runner.runProject(
