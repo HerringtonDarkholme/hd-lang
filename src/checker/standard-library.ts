@@ -373,6 +373,19 @@ const OPERATOR_TRAITS = new Map<string, readonly string[]>([
  */
 const MAP_MENTIONS = ["Hash", "tuple"];
 
+/**
+ * A range expression builds a `std.ops` range type with no `use`
+ * (05-expressions.md#r-expr.range.not-prelude); a loop iterates it through
+ * `Iterable`, and a string or list index slices through `Index`.
+ */
+const RANGE_MENTIONS = [
+  ...["Range", "RangeFrom", "RangeTo", "RangeInclusive", "RangeToInclusive", "RangeFull"].map(
+    (name) => hiddenStandardName("ops", name),
+  ),
+  hiddenStandardName("ops", "Index"),
+  "Iterable",
+];
+
 export function mentionedNames(node: unknown, names: Set<string>): void {
   if (Array.isArray(node)) {
     for (const item of node) mentionedNames(item, names);
@@ -391,6 +404,10 @@ export function mentionedNames(node: unknown, names: Set<string>): void {
   const kind = (node as { readonly kind?: unknown }).kind;
   if (kind === "map" || kind === "map-comprehension")
     for (const name of MAP_MENTIONS) names.add(name);
+  // A range pattern's bounds are integers; it builds no range value.
+  const bounds = node as { readonly start?: unknown; readonly end?: unknown };
+  if (kind === "range" && typeof bounds.start !== "bigint" && typeof bounds.end !== "bigint")
+    for (const name of RANGE_MENTIONS) names.add(name);
   // An interpolated value is written through `Display`
   // (05-expressions.md#string-interpolation).
   if (kind === "interpolated-string") names.add("Display");
@@ -859,6 +876,17 @@ export function withStandardLibrary(source: Program): Program {
         changed = true;
         memberNames(node, selected);
         reach(node, whole);
+        // A reached data type reaches the traits that its module implements
+        // for it, so `items.view(0, 2)[1]` finds `ListView`'s `Index`.
+        const data = renamed.data.find((declaration) => declaration === node);
+        if (!whole && data)
+          for (const implementation of renamed.implementations)
+            if (
+              implementation.traitName !== undefined &&
+              implementation.byStructure === undefined &&
+              baseName(implementation.targetName) === data.name
+            )
+              reach(implementation.traitName);
       }
     }
     for (const module of STANDARD_MODULES) {

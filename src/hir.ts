@@ -30,6 +30,8 @@ export interface HirData {
   readonly local?: true;
   /** Declared by `lib/std`, whose private fields other code cannot read. */
   readonly standard?: true;
+  /** The qualified name of a std data type, such as `std.ops.Range`. */
+  readonly standardName?: string;
   readonly span: SourceSpan;
 }
 

@@ -34,7 +34,11 @@ import {
   substituteGenericType,
 } from "./shared.ts";
 
-import { patternsExhaustive } from "./exhaustiveness.ts";
+import {
+  integerPatternInterval,
+  patternsExhaustive,
+  type IntegerInterval,
+} from "./exhaustiveness.ts";
 import { ExpressionComprehensionChecker, FOR_PATTERN_ITEM } from "./expression-comprehensions.ts";
 type MatchExpression = Extract<Expression, { kind: "match" }>;
 type MatchSourceArm = MatchExpression["arms"][number];
@@ -53,6 +57,8 @@ interface MatchContext {
   readonly scalar: boolean;
   readonly expected?: ValueType;
   readonly covered: Set<number | string>;
+  /** The integers that earlier unguarded literal and range arms match. */
+  readonly intervals: IntegerInterval[];
   readonly arms: HirMatchArm[];
   /** Let-else arms already reported as falling through; their value is not coerced. */
   readonly fallsThrough: Set<HirMatchArm>;
@@ -388,6 +394,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       scalar,
       expected,
       covered: new Set(),
+      intervals: [],
       arms: [],
       fallsThrough: new Set(),
       catchAll: false,
@@ -571,6 +578,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     let tag: number | undefined;
     let literal: HirExpression | undefined;
     const guarded = arm.guard !== undefined;
+    this.rangePatternConditions = [];
     try {
       this.rejectBareCallPattern(arm.pattern);
       if (context.dataDeclaration && arm.pattern.kind === "data") {
@@ -602,13 +610,17 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
             : literal.kind === "integer" && literal.wide !== undefined
               ? `${literal.type}:${literal.wide}`
               : `${literal.type}:${"value" in literal ? literal.value : ""}`;
-        if (context.covered.has(key))
+        const interval = integerPatternInterval(arm.pattern, context.subject.type);
+        if (context.covered.has(key) || (interval && this.intervalCovered(interval, context)))
           this.fail(
             "unreachable-match-arm",
             "literal pattern is already covered",
             arm.pattern.span,
           );
         if (!guarded) context.covered.add(key);
+        if (!guarded && interval) context.intervals.push(interval);
+      } else if (arm.pattern.kind === "range") {
+        this.checkRangeArm(arm.pattern, context, guarded, bindings);
       } else if (context.declaration && arm.pattern.kind === "variant") {
         const pattern = arm.pattern;
         if (pattern.enumName !== undefined && pattern.enumName !== context.declaration.name) {
@@ -843,8 +855,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
           arm.pattern.span,
         );
       }
-      const guard = arm.guard && this.checkExpression(arm.guard);
-      if (guard) this.requireType(guard.type, "bool", arm.guard!.span);
+      const guard = this.checkArmGuard(arm);
       const body = this.checkStatements(arm.body, false, context.expected);
       const checkedArm = { tag, literal, guard, tests, bindings, body, span: arm.span };
       const armType = this.letElseArmType(arm, checkedArm, context);
@@ -856,6 +867,55 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     } finally {
       this.scopes.pop();
     }
+  }
+
+  /** A top-level range arm; an empty or already covered range is unreachable (06 Range Patterns). */
+  private checkRangeArm(
+    pattern: Extract<MatchSourceArm["pattern"], { kind: "range" }>,
+    context: MatchContext,
+    guarded: boolean,
+    bindings: MatchBinding[],
+  ): void {
+    const local = this.checkRangePattern(pattern, context.subject.type);
+    bindings.push({ local, fieldIndex: -1, type: local.type });
+    const interval = integerPatternInterval(pattern, context.subject.type)!;
+    if (interval.low > interval.high)
+      this.fail("unreachable-match-arm", "range pattern matches no value", pattern.span);
+    if (this.intervalCovered(interval, context))
+      this.fail(
+        "unreachable-match-arm",
+        "earlier arms already cover every value of this range pattern",
+        pattern.span,
+      );
+    if (!guarded) context.intervals.push(interval);
+  }
+
+  /** The arm's guard, after the tests of its range patterns. */
+  private checkArmGuard(arm: MatchSourceArm): HirExpression | undefined {
+    const source = [...this.rangePatternConditions, ...(arm.guard ? [arm.guard] : [])].reduce<
+      Expression | undefined
+    >(
+      (left, right) =>
+        left ? { kind: "binary", operator: "and", left, right, span: right.span } : right,
+      undefined,
+    );
+    if (!source) return undefined;
+    const guard = this.checkExpression(source);
+    this.requireType(guard.type, "bool", source.span);
+    return guard;
+  }
+
+  /** Whether earlier unguarded literal and range arms match every integer of `interval`. */
+  private intervalCovered(interval: IntegerInterval, context: MatchContext): boolean {
+    let next = interval.low;
+    const sorted = [...context.intervals].sort((left, right) =>
+      left.low < right.low ? -1 : left.low > right.low ? 1 : 0,
+    );
+    for (const covering of sorted) {
+      if (covering.low > next) break;
+      if (covering.high >= next) next = covering.high + 1n;
+    }
+    return next > interval.high;
   }
 
   /**

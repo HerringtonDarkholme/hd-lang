@@ -7,6 +7,7 @@ import {
   resultParts,
   tupleLayout,
 } from "../types.ts";
+import { isIntegerType, numericType } from "../numeric.ts";
 import { substituteGenericType } from "./shared.ts";
 
 // Match exhaustiveness by pattern-matrix usefulness: the unguarded arms cover
@@ -106,6 +107,11 @@ function head(
     case "string":
     case "character":
       return { name: `literal:${String(pattern.value)}`, arguments: [] };
+    case "range":
+      return {
+        name: `range:${String(pattern.start)}:${String(pattern.end)}:${pattern.inclusive}`,
+        arguments: [],
+      };
     case "tuple":
       return { name: "()", arguments: pattern.elements };
     case "data": {
@@ -150,6 +156,68 @@ function head(
   }
 }
 
+/** An inclusive interval of integers; empty when `low > high`. */
+export interface IntegerInterval {
+  readonly low: bigint;
+  readonly high: bigint;
+}
+
+/**
+ * The values of an integer type that an integer literal or range pattern
+ * matches (06-control-flow.md#range-patterns), or undefined for any other
+ * pattern. A bound outside the type is clamped to it.
+ */
+export function integerPatternInterval(
+  pattern: Pattern,
+  type: ValueType,
+): IntegerInterval | undefined {
+  const numeric = numericType(readonlyType(type));
+  if (!isIntegerType(readonlyType(type)) || !numeric) return undefined;
+  const minimum = numeric.minimum!;
+  const maximum = numeric.maximum!;
+  if (pattern.kind === "integer") return { low: pattern.value, high: pattern.value };
+  if (pattern.kind !== "range") return undefined;
+  const low = pattern.start ?? minimum;
+  const high =
+    pattern.end === undefined ? maximum : pattern.inclusive ? pattern.end : pattern.end - 1n;
+  return {
+    low: low < minimum ? minimum : low,
+    high: high > maximum ? maximum : high,
+  };
+}
+
+/**
+ * Integer coverage (06-control-flow.md#r-flow.match.cover.integer): the
+ * type's values split at every literal and range bound into segments, each
+ * of which a head interval holds whole or not at all. The rows are covered
+ * when every segment is, specializing each segment as a constructor.
+ */
+function uncoveredIntegers(
+  rows: readonly (readonly Pattern[])[],
+  type: ValueType,
+  rest: readonly ValueType[],
+  environment: ExhaustivenessEnvironment,
+): boolean | undefined {
+  const intervals = rows.map((row) => integerPatternInterval(row[0]!, type));
+  const numeric = numericType(readonlyType(type));
+  if (!numeric || intervals.every((interval) => interval === undefined)) return undefined;
+  const cuts = new Set<bigint>([numeric.minimum!, numeric.maximum! + 1n]);
+  for (const interval of intervals)
+    if (interval && interval.low <= interval.high) {
+      cuts.add(interval.low);
+      cuts.add(interval.high + 1n);
+    }
+  const sorted = [...cuts].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+  const segments = sorted
+    .slice(0, -1)
+    .map((low, index): IntegerInterval => ({ low, high: sorted[index + 1]! - 1n }));
+  const holds = (interval: IntegerInterval | undefined, segment: IntegerInterval): boolean =>
+    interval === undefined || (interval.low <= segment.low && segment.high <= interval.high);
+  const specialized = (segment: IntegerInterval): (readonly Pattern[])[] =>
+    rows.flatMap((row, index) => (holds(intervals[index], segment) ? [row.slice(1)] : []));
+  return segments.some((segment) => uncovered(specialized(segment), rest, environment));
+}
+
 function uncovered(
   rows: readonly (readonly Pattern[])[],
   types: readonly ValueType[],
@@ -157,6 +225,8 @@ function uncovered(
 ): boolean {
   if (types.length === 0) return rows.length === 0;
   const [type, ...rest] = types as [ValueType, ...ValueType[]];
+  const integers = uncoveredIntegers(rows, type, rest, environment);
+  if (integers !== undefined) return integers;
   const heads = rows.map((row) => head(row[0]!, type, environment));
   const constructors = constructorsOf(type, environment);
   const named = new Set(heads.flatMap((entry) => (entry ? [entry.name] : [])));

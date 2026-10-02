@@ -15,7 +15,8 @@ import {
 } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { InterpolatedStringValue, Token } from "../lexer.ts";
-import { ParserBase } from "./base.ts";
+import { collectPipePlaceholders, isBarePipeStep } from "./pipe-steps.ts";
+import { RANGE_PRECEDENCE, RangeParser } from "./range.ts";
 
 /**
  * The node with every span inside it set to `span`. An interpolated
@@ -72,57 +73,7 @@ interface PatternBindings {
 
 type NameExpression = Extract<Expression, { kind: "name" }>;
 
-/**
- * Collects the `_` placeholders that belong to a pipe step: a nested pipe's
- * step keeps its own (05-expressions.md#r-expr.pipe.slot.nested), and one
- * inside a closure is reported (05-expressions.md#r-expr.pipe.slot.closure).
- */
-function collectPipePlaceholders(
-  value: unknown,
-  inClosure: boolean,
-  found: Expression[],
-  inClosureFound: (placeholder: Expression) => never,
-): void {
-  if (!value || typeof value !== "object") return;
-  if (Array.isArray(value)) {
-    for (const item of value) collectPipePlaceholders(item, inClosure, found, inClosureFound);
-    return;
-  }
-  const node = value as Expression;
-  if (node.kind === "name" && node.name === "_") {
-    if (inClosure) inClosureFound(node);
-    found.push(node);
-    return;
-  }
-  if (node.kind === "pipe") {
-    collectPipePlaceholders(node.value, inClosure, found, inClosureFound);
-    return;
-  }
-  const closure = node.kind === "closure";
-  for (const [key, child] of Object.entries(node))
-    if (key !== "span") collectPipePlaceholders(child, inClosure || closure, found, inClosureFound);
-}
-
-/**
- * A bare step is a name, names joined by `.`, or a method reference, with no
- * type arguments or suffix (05-expressions.md#r-expr.pipe.bare.form).
- */
-function isBarePipeStep(step: Expression): boolean {
-  if (step.kind === "name") return step.typeArguments === undefined;
-  if (step.kind === "member")
-    return (
-      step.typeArguments === undefined &&
-      step.parenthesized !== true &&
-      isBarePipeStep(step.receiver)
-    );
-  return (
-    step.kind === "qualified-name" &&
-    step.typeArguments === undefined &&
-    step.ownerTypeArguments === undefined
-  );
-}
-
-export abstract class ExpressionParser extends ParserBase {
+export abstract class ExpressionParser extends RangeParser {
   protected parseExpression(minimumPrecedence = 0): Expression {
     if (
       minimumPrecedence === 0 &&
@@ -139,6 +90,10 @@ export abstract class ExpressionParser extends ParserBase {
         span: { start: name.span.start, end: value.span.end },
       };
     }
+    // A range with no start bound: `..b`, `..=b`, or `..`
+    // (02-grammar.md#r-grammar.expr.range.open-start).
+    if (minimumPrecedence <= RANGE_PRECEDENCE && this.atRangeOperator())
+      return this.parseRange(undefined);
     let left = this.parsePrefix();
     while (true) {
       // An expression that ended by closing an indented suite (a `for`,
@@ -307,6 +262,10 @@ export abstract class ExpressionParser extends ParserBase {
         if (PIPE_PRECEDENCE < minimumPrecedence) break;
         left = this.parsePipe(left);
         continue;
+      }
+      if (this.atRangeOperator()) {
+        if (RANGE_PRECEDENCE < minimumPrecedence) break;
+        return this.parseRange(left);
       }
       const precedence = BINARY_PRECEDENCE[this.current().text];
       if (precedence === undefined || precedence < minimumPrecedence) break;
@@ -1308,6 +1267,8 @@ export abstract class ExpressionParser extends ParserBase {
       return { kind: "boolean", value: true, span: { start, end: this.peek(-1).span.end } };
     if (this.matchText("false"))
       return { kind: "boolean", value: false, span: { start, end: this.peek(-1).span.end } };
+    const range = this.parseRangePattern();
+    if (range) return range;
     const negative = this.matchText("-");
     const literal = this.current();
     // A suffixed literal is a call, not a pattern

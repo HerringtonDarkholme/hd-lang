@@ -479,7 +479,14 @@ else`, `break`, `break value`, and `continue`;
   integers, floats, characters, and strings;
 - tuple patterns, nested in any pattern, and exhaustiveness by
   pattern-matrix usefulness over bool, optionals, `Result`, enums, tuples,
-  and data;
+  and data, and over integers split at every literal and range-pattern
+  bound;
+- range expressions (`a..b`, `a..`, `..b`, `a..=b`, `..=b`, `..`), checked
+  as data literals of the `std.ops` range types; `for` over a range and
+  `text[r]` or `items[r]` slicing go through the `Iterable` and `Index`
+  implementations in `lib/std/ops.hd`. A range pattern binds the matched
+  value to a hidden local and adds its bound tests to the arm's guard;
+  coverage reads the pattern itself, so the guard does not weaken it;
 - contextual enum patterns and recursive nominal data patterns with field
   bindings and literal field constraints, plus named enum-payload bindings
   resolved independently of source order and literal, nested-data, or
@@ -1193,16 +1200,16 @@ What it provides:
 | `std.task` | `retry!`, and `race!`, which drives the frame of the `@intrinsic("task_race_frame")` builder; `all!`'s frame builder, `@intrinsic("task_all_frame")`; `block_on`, `all!` (which has no written signature), and `Waker` stay compiler-provided names of the module |
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
-| `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
+| `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip`, `view`; `ListView[T]` with `len`, `to_list`, `Index[i32]`, and `Iterable[T]`, which checks the list's structural version through the `list_version` intrinsic |
 | `std.text` | on `string`: `chars`, `char_indices`, `bytes`, `slice`, `to_utf8`, `string::from_utf8` with `Utf8Error`, `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
-| `std.iter` | the prelude `Iterator[T]` and `Iterable[T]`; `Iterator` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Map`, `Result`, and `T?`; `Iterable` for `List` and `Map` (not `Iterator`, which a loop advances directly); `range` |
+| `std.iter` | the prelude `Iterator[T]` and `Iterable[T]`; `Iterator` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Map`, `Result`, and `T?`; `Iterable` for `List` and `Map` (not `Iterator`, which a loop advances directly) |
 | `std.cmp` | the prelude `Eq`, `PartialOrd`, `Ord`, and `Ordering`; `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?`; the tuple templates of `Eq`, `PartialOrd`, and `Ord` |
 | `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | the prelude `Console` and `println`; `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
 | `std.resource` | `ResourceError[E]` |
-| `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations, and its tuple template (spec/std/ops.md) |
+| `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; the six range types, `Iterable` for `Range`, `RangeFrom`, and `RangeInclusive` of each integer type, and the slicing `Index` implementations for `string` and `List`, one per range type and integer type; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations, and its tuple template (spec/std/ops.md) |
 | `std.function` | the sealed marker trait `Tuple`, which the compiler implements for every tuple type; a `Tuple` bound passes no dictionary. `Fn` and `SuspendFn` have no declaration: the checker rewrites them to the `fn(...)` sugar |
 | `std.format` | the prelude `Display` and `Debug`; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`; the tuple templates of `Debug` and `Display` |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
@@ -1211,7 +1218,7 @@ What it provides:
 The prelude `string` methods live in `std.text` too, and `lower` and
 `upper` are backed by the host. Positions and lengths are byte offsets. A string index is the
 `string-index` HIR node, a bounds-checked byte read (`$hd.string_get`).
-Prototype limits: `slice` copies its bytes instead of sharing them (the
+Prototype limits: `slice`, and so a string slice `text[a..b]`, copies its bytes instead of sharing them (the
 runtime `string` is a bare `$hd.bytes` array, with no offset to share), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no `Set` (the specification does not define it,
 and a map built in generic code has no key equality for a type-parameter
 key, so a generic `Set.new()` could not create its map), and no host `ConsoleInput`; a `BufferConsole` records both direct
@@ -1243,7 +1250,11 @@ RUNTIME_AND_LIBRARY.md).
    - A **runtime primitive** is a few Wasm instructions over the runtime's
      own value layout, listed in `emitter/intrinsics.ts`: today
      `string_byte_len`, `string_byte_at`, `string_byte_slice`,
-     `char_from_scalar`, and `index_out_of_bounds`.
+     `char_from_scalar`, `index_out_of_bounds`, `iterator_invalidated`,
+     and `list_version`. `list_version` reads a list's structural-version
+     counter, so `ListView` in `lib/std/collections.hd` fails fast as an
+     iterator does; it is the one intrinsic that the open issue VIEW-TIER
+     proposes.
    - Every other name is a **host function**, imported as `hd`
      `host:<name>` through one generic path. Scalars cross as Wasm numbers,
      and a `string` crosses as a host handle that `emitter/runtime/boundary.wat`

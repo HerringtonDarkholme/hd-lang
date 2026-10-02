@@ -154,6 +154,14 @@ export abstract class StatementChecker extends CheckerContext {
             expression: this.indexSetCall(statement, receiver),
             span: statement.span,
           };
+        // No range type has an `IndexSet` implementation for a list, so a
+        // slice is not a place (05-expressions.md#r-expr.index.slice.no-store).
+        if (builtInReceiver === "List" && statement.target.index.kind === "range")
+          this.fail(
+            "invalid-assignment-target",
+            "a list slice is a new list, not a place; assign each element instead",
+            statement.target.span,
+          );
         if (mutableReceiver === undefined) {
           this.fail(
             "readonly-root",

@@ -1,8 +1,18 @@
-# std.collections: inherent `List` methods.
+# std.collections: inherent `List` methods, and `ListView`
+# (spec/std/collections.md).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
-# Each method returns a new list and leaves its receiver unchanged.
+# Each method but `view` returns a new list and leaves its receiver
+# unchanged.
+use std.ops.Index
 
 impl[T] List[T]:
+    # A read-only window on the elements from `start` up to `end`, with no
+    # copy (spec/std/collections.md#views).
+    pub fn view(self, start: i32, end: i32) -> ListView[T]:
+        if start < 0 || end > self.len() || start > end:
+            view_out_of_bounds()
+        ListView::[T] { items: self, start: start, end: end, version: list_version(self) }
+
     pub fn map[U](self, transform: fn(T) -> U) -> List[U]:
         let mapped: mut List[U] = []
         for item in self:
@@ -83,3 +93,71 @@ impl[T] List[T]:
             pairs.append((self[index], other[index]))
             index = index + 1
         pairs
+
+# A read-only window on a run of a list's elements
+# (spec/std/collections.md#views). It holds the list, not a copy, so an
+# element write shows through it. It records the list's structural
+# version, and any later change of shape invalidates it: its next use is
+# the checked panic `iterator-invalidated` (r-std-collections.view.invalid-use).
+pub data ListView[T]:
+    items: List[T]
+    start: i32
+    end: i32
+    version: i32
+
+impl[T] ListView[T]:
+    pub fn len(self) -> i32:
+        self.check()
+        self.end - self.start
+
+    pub fn to_list(self) -> List[T]:
+        self.check()
+        let copy: mut List[T] = []
+        let index = self.start
+        while index < self.end:
+            copy.append(self.items[index])
+            index = index + 1
+        copy
+
+    fn check(self) -> void:
+        if list_version(self.items) != self.version:
+            view_invalidated()
+
+impl[T] Index[i32] for ListView[T]:
+    type Out = T
+    fn index(self, key: i32) -> T:
+        self.check()
+        if key < 0 || key >= self.end - self.start:
+            view_out_of_bounds()
+        self.items[self.start + key]
+
+impl[T] Iterable[T] for ListView[T]:
+    fn iter(self) -> mut Iterator[T]:
+        self.check()
+        let at = self.start
+        Iterator::from_fn(fn() -> T?:
+            self.check()
+            if at >= self.end:
+                return .None
+            at = at + 1
+            .Some(self.items[at - 1])
+        )
+
+# Primitives. The compiler supplies each body (src/README.md,
+# Compiler/library boundary). `list_version` reads the structural-version
+# counter that `append` and the other shape changes advance
+# (spec/lang/06-control-flow.md#r-flow.for.version), as the open issue
+# VIEW-TIER proposes.
+@intrinsic("list_version")
+fn list_version[T](items: List[T]) -> i32:
+    panic("intrinsic")
+
+# The checked runtime panic `iterator-invalidated`; it does not return.
+@intrinsic("iterator_invalidated")
+fn view_invalidated() -> void:
+    panic("intrinsic")
+
+# The checked runtime panic `index-out-of-bounds`; it does not return.
+@intrinsic("index_out_of_bounds")
+fn view_out_of_bounds() -> void:
+    panic("intrinsic")

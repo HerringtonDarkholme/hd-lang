@@ -330,6 +330,17 @@ export type Pattern =
   | { readonly kind: "string"; readonly value: string; readonly span: SourceSpan }
   | { readonly kind: "character"; readonly value: string; readonly span: SourceSpan }
   | {
+      /**
+       * A range pattern `a..b`, `a..=b`, `a..`, or `..=b` with integer-literal
+       * bounds (02-grammar.md#r-grammar.pattern.range).
+       */
+      readonly kind: "range";
+      readonly start?: bigint;
+      readonly end?: bigint;
+      readonly inclusive: boolean;
+      readonly span: SourceSpan;
+    }
+  | {
       readonly kind: "binding";
       readonly name: string;
       /** Written `mut name` in a `let` pattern (02-grammar.md#r-grammar.stmt.let-pattern.mut). */
@@ -691,6 +702,17 @@ export type Expression =
       readonly span: SourceSpan;
     }
   | { readonly kind: "propagate"; readonly operand: Expression; readonly span: SourceSpan }
+  | {
+      /**
+       * A range expression: `a..b`, `a..`, `..b`, `a..=b`, `..=b`, or `..`
+       * (05-expressions.md#range-expressions).
+       */
+      readonly kind: "range";
+      readonly start?: Expression;
+      readonly end?: Expression;
+      readonly inclusive: boolean;
+      readonly span: SourceSpan;
+    }
   | {
       /**
        * `value |> step` (05-expressions.md#pipe-expressions). A bare step is a

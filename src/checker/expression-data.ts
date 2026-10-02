@@ -782,8 +782,31 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         if (instantiation) return this.checkExpression(instantiation, expected);
         const receiver = this.checkExpression(expression.receiver);
         const nominal = nominalGenericParts(readonlyType(receiver.type));
+        const sliced =
+          (nominal?.name === "List" && nominal.arguments.length === 1) ||
+          readonlyType(receiver.type) === "string";
+        const sliceIndex = sliced ? this.checkExpression(expression.index, "i32") : undefined;
+        // A range index slices a list or a string through `Index`
+        // (05-expressions.md#r-expr.index.slice.call).
+        if (sliceIndex && this.isRangeType(sliceIndex.type)) {
+          this.prechecked.set(expression.index, sliceIndex);
+          const slice = this.operatorTraitCall(
+            ["Index", "index"],
+            "[]",
+            expression.receiver,
+            receiver,
+            expression.index,
+            expression.span,
+            undefined,
+          );
+          // A list slice is a new list (r-expr.index.slice.list), so it has
+          // mutable access, as a list expression does (r-types.fresh.mutable-outer).
+          return nominal?.name === "List" && mutableInner(slice.type) === undefined
+            ? { ...slice, type: mutableType(slice.type) }
+            : slice;
+        }
         if (nominal?.name === "List" && nominal.arguments.length === 1) {
-          const index = this.checkExpression(expression.index, "i32");
+          const index = sliceIndex!;
           this.requireAssignable(index.type, "i32", expression.index.span);
           return {
             kind: "list-index",
@@ -813,7 +836,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         // A string index reads the byte at a byte offset of any integer
         // type (05-expressions.md#string-indexing).
         if (readonlyType(receiver.type) === "string") {
-          const index = this.checkExpression(expression.index, "i32");
+          const index = sliceIndex!;
           if (!isIntegerType(readonlyType(index.type)))
             this.fail(
               "type-mismatch",

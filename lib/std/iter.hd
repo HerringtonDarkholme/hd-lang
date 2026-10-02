@@ -1,8 +1,7 @@
 # std.iter: the prelude `Iterator[T]` with its adapters, `FromIterator` and
 # its implementations, and the `Iterable` implementations of `List` and
 # `Map`. The range types and their `Iterable` implementations
-# (spec/lang/06-control-flow.md#range-iteration) are not in this toy library
-# yet: the prototype has no range expressions.
+# (spec/lang/06-control-flow.md#range-iteration) are in `std.ops`.
 # `Iterator` and `Iterable` are prelude
 # names.
 #

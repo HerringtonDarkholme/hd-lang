@@ -1,6 +1,7 @@
 import type { HirFunction, HirProgram, ValueType } from "../hir.ts";
 import { localName } from "./shared.ts";
 import { numericType } from "../numeric.ts";
+import { runtimePanicCode } from "../runtime-panic.ts";
 
 // The compiler/library boundary (src/README.md#compilerlibrary-boundary).
 // `lib/std` declares each primitive as an ordinary function with a std-only
@@ -28,6 +29,12 @@ const RUNTIME_PRIMITIVES: Readonly<
   char_from_scalar: ([point]) => point!,
   index_out_of_bounds: () =>
     `(call $hd.panic (global.get $hd.panic-index-out-of-bounds))\nunreachable`,
+  // A list's structural-version counter, which `List.view` records and checks
+  // (spec/std/collections.md#views, open issue VIEW-TIER).
+  list_version: ([items]) =>
+    `(struct.get $hd.vector $hd.vector-version (ref.as_non_null ${items}))`,
+  iterator_invalidated: () =>
+    `(call $hd.panic (i32.const ${runtimePanicCode("iterator-invalidated")}))\nunreachable`,
   // The polling frames of `race!` and `all!`
   // (11-requirements-and-suspension.md#r-req.combinator.intrinsic), whose
   // runtime is `$hd.combinator` (stored-suspension.ts).

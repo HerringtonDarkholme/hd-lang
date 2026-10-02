@@ -182,6 +182,11 @@ function eagerExpressionChildren(expression: Expression): readonly Expression[] 
       return [expression.subject];
     case "pipe":
       return [expression.value];
+    case "range":
+      return [
+        ...(expression.start ? [expression.start] : []),
+        ...(expression.end ? [expression.end] : []),
+      ];
     case "integer":
     case "float":
     case "string":

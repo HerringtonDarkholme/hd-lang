@@ -47,6 +47,7 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
       ...(declaration.newtype ? { newtype: true as const } : {}),
       ...(declaration.local ? { local: true as const } : {}),
       ...(declaration.standard ? { standard: true as const } : {}),
+      ...(declaration.standardName ? { standardName: declaration.standardName } : {}),
       ...(declaration.variances ? { variances: declaration.variances } : {}),
       span: declaration.span,
     });

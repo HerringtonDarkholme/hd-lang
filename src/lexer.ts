@@ -102,6 +102,10 @@ const MULTI_SYMBOLS = [
   "|=",
   "^=",
   "...",
+  // Range operators (01-lexical-structure.md#r-lex.op.range), after `...`
+  // and `...=` so that the longer token wins (`lex.op.range.longest`).
+  "..=",
+  "..",
   ":=",
   "->",
   "=>",

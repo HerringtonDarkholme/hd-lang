@@ -1,11 +1,13 @@
 import type { SourceSpan } from "../diagnostics.ts";
 import type { Expression } from "../ast.ts";
-import type { HirExpression, HirLocal, ValueType } from "../hir.ts";
+import type { HirData, HirExpression, HirLocal, ValueType } from "../hir.ts";
 import {
   functionType,
   functionParts,
   mutableInner,
+  mutableType,
   nominalGenericParts,
+  nominalGenericType,
   readonlyType,
   tupleParts,
 } from "../types.ts";
@@ -168,6 +170,8 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     switch (expression.kind) {
       case "binding-expression":
         return this.checkBindingExpression(expression);
+      case "range":
+        return this.checkRangeExpression(expression, _expected);
       case "name": {
         const local = this.resolveLocal(expression.name);
         if (local) {
@@ -631,6 +635,112 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     if (wider && wider !== left.type) left = this.coerce(left, wider, left.span);
     if (wider && wider !== right.type) right = this.coerce(right, wider, right.span);
     return { left, right };
+  }
+
+  /**
+   * A range expression builds the `std.ops` range type of its form, with its
+   * bounds as the fields (05-expressions.md#range-expressions). The bounds of
+   * `a..b` and `a..=b` are typed as a binary numeric operator's operands, and
+   * an expected range type gives each bound its element type.
+   */
+  private checkRangeExpression(
+    expression: Extract<Expression, { kind: "range" }>,
+    expected: ValueType | undefined,
+  ): HirExpression {
+    const { start, end, span } = expression;
+    const form =
+      start && end
+        ? expression.inclusive
+          ? "RangeInclusive"
+          : "Range"
+        : start
+          ? "RangeFrom"
+          : end
+            ? expression.inclusive
+              ? "RangeToInclusive"
+              : "RangeTo"
+            : "RangeFull";
+    const declaration = this.standardDataType(`std.ops.${form}`);
+    if (!declaration) throw new Error(`std.ops declares ${form} for a program with a range`);
+    const resultType = (readonly: ValueType): ValueType =>
+      expected !== undefined && mutableInner(expected) === undefined
+        ? readonly
+        : mutableType(readonly);
+    if (!start && !end)
+      return {
+        kind: "data",
+        dataIndex: declaration.index,
+        fields: [],
+        fieldIndices: [],
+        type: resultType(declaration.name),
+        span,
+      };
+    const expectedRange = expected ? nominalGenericParts(readonlyType(expected)) : undefined;
+    const element =
+      expectedRange?.name === declaration.name &&
+      expectedRange.arguments.length === 1 &&
+      isIntegerType(expectedRange.arguments[0]!)
+        ? expectedRange.arguments[0]
+        : undefined;
+    let bounds: HirExpression[];
+    if (start && end) {
+      const { left, right } = this.checkNumericOperands(
+        { kind: "binary", operator: "-", left: start, right: end, span },
+        element,
+      );
+      const leftType = readonlyType(left.type);
+      const rightType = readonlyType(right.type);
+      if (
+        isIntegerType(leftType) &&
+        isIntegerType(rightType) &&
+        numericType(leftType)!.family !== numericType(rightType)!.family
+      )
+        this.fail(
+          "mixed-signedness",
+          `signed and unsigned range bounds do not mix: ${leftType} and ${rightType}; cast one explicitly`,
+          span,
+        );
+      bounds = [left, right];
+    } else bounds = [this.checkExpression((start ?? end)!, element)];
+    for (const bound of bounds)
+      if (!isIntegerType(readonlyType(bound.type)))
+        this.fail(
+          "type-mismatch",
+          `a range bound must have an integer type, found '${bound.type}'`,
+          bound.span,
+        );
+    if (bounds.length === 2 && readonlyType(bounds[0]!.type) !== readonlyType(bounds[1]!.type))
+      this.fail(
+        "type-mismatch",
+        `range bounds have types ${bounds[0]!.type} and ${bounds[1]!.type}`,
+        span,
+      );
+    const elementType = element ?? readonlyType(bounds[0]!.type);
+    const fields = bounds.map((bound) => this.requireCoercion(bound, elementType, bound.span));
+    return {
+      kind: "data",
+      dataIndex: declaration.index,
+      fields,
+      fieldIndices: fields.map((_, index) => index),
+      erasedFieldTypes: declaration.fields.map((field) => field.type),
+      type: resultType(nominalGenericType(declaration.name, [elementType])),
+      span,
+    };
+  }
+
+  /** The `std` data type of a qualified name, such as `std.ops.Range`, when the program declares it. */
+  protected standardDataType(standardName: string): HirData | undefined {
+    for (const declaration of this.dataTypes.values())
+      if (declaration.standardName === standardName) return declaration;
+    return undefined;
+  }
+
+  /** Whether `type` is one of the six `std.ops` range types (05-expressions.md#range-expressions). */
+  protected isRangeType(type: ValueType): boolean {
+    const readonly = readonlyType(type);
+    const name = nominalGenericParts(readonly)?.name ?? readonly;
+    const standardName = this.dataTypes.get(name)?.standardName;
+    return standardName !== undefined && /^std\.ops\.Range[A-Za-z]*$/.test(standardName);
   }
 
   /** The operands of `is` made comparable, or undefined when they are incompatible. */

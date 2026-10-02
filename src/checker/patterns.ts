@@ -27,6 +27,7 @@ import {
   traitSuspensionParts,
   tupleLayout,
 } from "../types.ts";
+import { isIntegerType, numericType } from "../numeric.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
   containsGenericType,
@@ -412,6 +413,11 @@ export abstract class PatternChecker extends CallChecker {
       tests.push({ accessPath, literal });
       return false;
     }
+    if (pattern.kind === "range") {
+      const local = this.checkRangePattern(pattern, type);
+      bindings.push({ local, fieldIndex: -1, type: local.type, accessPath });
+      return false;
+    }
     const optional = optionalInner(readonlyType(type));
     if (
       optional !== undefined &&
@@ -736,6 +742,68 @@ export abstract class PatternChecker extends CallChecker {
 
   /** True while the arms of a match on a readonly subject are checked. */
   protected matchSubjectReadonly = false;
+
+  /**
+   * The tests of the range patterns in the arm being checked, which the arm
+   * adds to its guard. Each reads the hidden local its pattern binds.
+   */
+  protected rangePatternConditions: Expression[] = [];
+
+  /**
+   * A range pattern (06-control-flow.md#range-patterns) binds no name and
+   * builds no range: the matched value goes to a hidden local, and the arm's
+   * guard tests it against the bounds. Coverage is checked from the pattern
+   * itself (exhaustiveness.ts), so the guard does not weaken it.
+   */
+  protected checkRangePattern(
+    pattern: Extract<Pattern, { kind: "range" }>,
+    type: ValueType,
+  ): HirLocal {
+    const view = readonlyType(type);
+    const numeric = numericType(view);
+    if (!numeric || !isIntegerType(view))
+      this.fail(
+        "type-mismatch",
+        `a range pattern needs an integer subject, found '${type}'`,
+        pattern.span,
+      );
+    for (const bound of [pattern.start, pattern.end])
+      if (bound !== undefined && (bound < numeric.minimum! || bound > numeric.maximum!))
+        this.fail(
+          "integer-literal-range",
+          `range pattern bound ${bound} is outside the range of '${view}'`,
+          pattern.span,
+        );
+    const span = pattern.span;
+    const local = this.addPatternLocal(`$range${this.locals.length}`, view, span);
+    const value: Expression = { kind: "name", name: local.name, span };
+    const literal = (bound: bigint): Expression =>
+      bound < 0n
+        ? {
+            kind: "unary",
+            operator: "-",
+            operand: { kind: "integer", value: -bound, span },
+            span,
+          }
+        : { kind: "integer", value: bound, span };
+    if (pattern.start !== undefined)
+      this.rangePatternConditions.push({
+        kind: "binary",
+        operator: ">=",
+        left: value,
+        right: literal(pattern.start),
+        span,
+      });
+    if (pattern.end !== undefined)
+      this.rangePatternConditions.push({
+        kind: "binary",
+        operator: pattern.inclusive ? "<=" : "<",
+        left: value,
+        right: literal(pattern.end),
+        span,
+      });
+    return local;
+  }
 
   protected addPatternLocal(name: string, type: ValueType, span: SourceSpan): HirLocal {
     if (PRELUDE_NAMES.has(name))
