@@ -174,8 +174,10 @@ What works, relative to [10-modules.md](../../spec/lang/10-modules.md):
   `src/a/mod.hd` is module `a`. Paths must be identifiers, and two paths may
   not name the same module after case folding;
 - `use pkg.a.b.{X, Y}` and `use pkg.a.b.X`;
-- relative uses from the containing directory module, as in
-  `use self.types.{User}` and `use super.shared.{Email}`;
+- relative uses, as in `use self.types.{User}` and
+  `use super.shared.{Email}`, but resolved from the containing directory
+  module. The spec now starts them at the file's own module, which the
+  prototype does not do yet;
 - `pub use` re-exports, typically in `mod.hd`;
 - uses of missing modules, missing declarations, and private declarations
   are rejected. Files of one folder may use each other in a loop, but

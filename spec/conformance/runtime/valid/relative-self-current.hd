@@ -1,0 +1,11 @@
+# test: self names the file's own module, so from src/user/service.hd self.types is src/user/service/types.hd and super.types is src/user/types.hd
+# Spec 10 Relative Uses: module.relative.base.current, module.relative.example.nested (Batch 47 SELF-CURRENT).
+# fixture-package-tree: self-current/src/user/service.hd
+use self.types.{origin as nested}
+use super.types.{origin as sibling}
+use std.testing.assert_equal
+
+tests:
+    it("self is the current module and super its parent"):
+        assert_equal(nested(), "user.service.types", reason="self.types is a child of user.service")
+        assert_equal(sibling(), "user.types", reason="super.types is a sibling of user.service")

@@ -1,0 +1,7 @@
+# test: src/lib.hd is the package root module, so pkg.{greet} names its public function
+# Spec 10 Root Files: module.path.lib-file (Batch 47 ROOTS).
+# fixture-package-tree: lib-root/src/user.hd
+use pkg.{greet}
+
+pub fn welcome() -> string:
+    greet()

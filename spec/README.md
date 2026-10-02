@@ -195,6 +195,7 @@ The stdlib chapters' terms are in the
 | **dependency requirement** | A manifest entry `PATH@VERSION` that maps a dependency key to a host path and a minimum version. See [Dependency Requirements](lang/10-modules.md#dependency-requirements). |
 | **depth** | The number of embedded fields on a part's path. See [`names.part.depth`](lang/03-names-and-scopes.md#r-names.part.depth). |
 | **derivation block** | An `impl Trait for X by Structure:` that applies a trait's template to one type, with optional member lines. See [Derivation Blocks](lang/14-annotations.md#derivation-blocks). |
+| **dev dependency** | A dependency that the manifest declares in `[dev-dependencies]`, which test code and tasks may use and a dependent never sees. See [`module.test.dev-dependency`](lang/10-modules.md#r-module.test.dev-dependency). |
 | **driver context** | Where a bang call is valid: a suspending function or closure body, or the host executor driving `main!`. See [`req.bang.driver-contexts`](lang/11-requirements-and-suspension.md#r-req.bang.driver-contexts). |
 | **dynamic provider** | A provider a closure gets at each call, because its row keeps the key. See [Lexical And Dynamic Providers](lang/11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
 | **embedded field** | A bare type-name member of a data declaration, which embeds another data type. See [Data Embedding](lang/08-data-and-enums.md#data-embedding). |
@@ -202,7 +203,7 @@ The stdlib chapters' terms are in the
 | **enum** | A nominal sum type. See [`data.kind.enum`](lang/08-data-and-enums.md#r-data.kind.enum). |
 | **error derivation** | Implementing `Display`, `Error`, and `From` for an error type from its `@error` lines. See [Error Derivation](lang/14-annotations.md#error-derivation). |
 | **error type** | An enum with a bare `@error` line, or a data type with an `@error("...")` or `@error(transparent)` line. See [`annot.error.type`](lang/14-annotations.md#r-annot.error.type). |
-| **executable** | A program a package ships, declared by an `[[executable]]` table of `hd.toml`. See [`cli.exe.table`](cli/command-line.md#r-cli.exe.table). |
+| **executable** | A program a package ships, declared by an `[[executable]]` table of `hd.toml`, or `src/main.hd` when the manifest declares none. See [`cli.exe.table`](cli/command-line.md#r-cli.exe.table) and [`cli.exe.default-main`](cli/command-line.md#r-cli.exe.default-main). |
 | **executable entry point** | A public top-level function named `main` or `main!` with no parameters. See [`module.entry.definition`](lang/10-modules.md#r-module.entry.definition). |
 | **exhausted** | An iterator whose `next` has returned `.None`. See [`flow.for.iterator-exhausted`](lang/06-control-flow.md#r-flow.for.iterator-exhausted). |
 | **exhausted iterator** | An iterator whose `next` has returned `.None`. What a later `next` returns is unspecified. See [`flow.for.iterator-exhausted`](lang/06-control-flow.md#r-flow.for.iterator-exhausted). |
@@ -220,6 +221,7 @@ The stdlib chapters' terms are in the
 | **initialization group** | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. See [`module.init.group`](lang/10-modules.md#r-module.init.group). |
 | **inspectable types** | The types for which the compiler supplies `Inspectable`: primitives, module-level declarations, collections and tuples of inspectable types, and matching dynamic values. See [Inspectable Types](lang/09-traits.md#inspectable-types). |
 | **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](lang/10-modules.md#r-module.test.integration). |
+| **integration test program** | A file directly under the test root, compiled as its own program. See [`module.test.integration.program`](lang/10-modules.md#r-module.test.integration.program). |
 | **irrefutable** | A pattern that alone covers its initializer's type, so a `let` with it needs no `else`. Any other pattern is refutable. See [`flow.let.irrefutable`](lang/06-control-flow.md#r-flow.let.irrefutable). |
 | **iterable** | A value whose type implements `Iterable[T]`, such as a `List` or a `Map`. An `Iterator` is not iterable, though `for` takes a mutable one directly. See [`flow.for.accepts`](lang/06-control-flow.md#r-flow.for.accepts). |
 | **iterator** | A value of the prelude type `Iterator[T]`. It stores one traversal's progress and is single-pass: a second traversal calls `iter()` on the source again. See [`flow.for.iterator-type`](lang/06-control-flow.md#r-flow.for.iterator-type). |
@@ -244,7 +246,7 @@ The stdlib chapters' terms are in the
 | **non-reassignable** | A binding whose name cannot be rebound. See [`types.view.non-reassignable`](lang/04-type-system.md#r-types.view.non-reassignable). |
 | **one-key row slot** | A place where one bare key may stand for a row: `$.Context[...]` or a row-kinded type argument written without `$`. See [`req.row.alias.one-key-slot`](lang/11-requirements-and-suspension.md#r-req.row.alias.one-key-slot). |
 | **operator trait** | A `std.ops` trait, such as `Add[Rhs = Self]`, whose implementation gives a type one operator. See [Operator Traits](lang/05-expressions.md#operator-traits). |
-| **package mode** | How a command works when an `hd.toml` lies in its start directory or above it. See [`cli.mode.package`](cli/command-line.md#r-cli.mode.package). |
+| **package mode** | How a command works when the nearest `hd.toml` at or above its start directory declares a package. See [`cli.mode.package.nearest`](cli/command-line.md#r-cli.mode.package.nearest). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](lang/08-data-and-enums.md#parts-and-copies). |
 | **path requirement** | A manifest value `{ path = "DIR" }` through which a workspace member depends on another member. See [`module.workspace.path-requirement`](lang/10-modules.md#r-module.workspace.path-requirement). |
 | **pipe expression** | `value \|> step`, which passes a value to a step. See [Pipe Expressions](lang/05-expressions.md#pipe-expressions). |
@@ -265,6 +267,7 @@ The stdlib chapters' terms are in the
 | **requirement-free** | A default expression that uses no provider and does not suspend. See [`fn.default.requirement-free`](lang/07-functions.md#r-fn.default.requirement-free). |
 | **rest element** | A last tuple element `List[T]...`, which stands for any number of trailing `T` values. See [Rest Elements](lang/04-type-system.md#rest-elements). |
 | **rest member** | The one `List[T]` member that a rest tuple's `Structure` has for its rest element. See [`annot.tuple.rest`](lang/14-annotations.md#r-annot.tuple.rest). |
+| **root file** | `src/lib.hd`, `src/main.hd`, or an integration test program, whose relative lookup starts at its root and which has no `super`. See [`module.relative.root-file`](lang/10-modules.md#r-module.relative.root-file). |
 | **row alias** | A transparent alias that names a set of requirement keys. See [Row Aliases](lang/11-requirements-and-suspension.md#row-aliases). |
 | **row parameter** | A generic parameter whose values are requirement rows. See [`req.row.parameter`](lang/11-requirements-and-suspension.md#r-req.row.parameter). |
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
@@ -274,6 +277,7 @@ The stdlib chapters' terms are in the
 | **script** | An entry module with no `main`, whose top-level executable statements are the entry behavior. See [`module.init.script`](lang/10-modules.md#r-module.init.script). |
 | **sealed trait** | A standard trait whose implementations only the compiler and the standard library supply. See [Sealed Traits](lang/09-traits.md#sealed-traits). |
 | **self reference** | A member's or variant's `self_ref`: whether its type needs the type being derived (`.Required`), only refers to it (`.Optional`), or neither (`.Absent`), computed from its type alone. See [Self References](lang/14-annotations.md#self-references). |
+| **shared test module** | A module in a subdirectory of the test root, which every integration test program may use. See [`module.test.integration.shared`](lang/10-modules.md#r-module.test.integration.shared). |
 | **shape** | In generic code, the machine representation a value occupies. See [Shapes and Generic Code](lang/04-type-system.md#shapes-and-generic-code). |
 | **single-file program** | One source file compiled with no package, which may use only `std`. See [Single-File Programs](lang/10-modules.md#single-file-programs). |
 | **spread pattern** | A last tuple-pattern element, a name or `_` followed by `...`, that matches a rest element's list, as in `let (a, xs...) = t`. See [Spread Patterns](lang/06-control-flow.md#spread-patterns). |
@@ -286,7 +290,6 @@ The stdlib chapters' terms are in the
 | **tuple template** | A trait's derivation for every tuple type, written `impl[T < Tuple] Trait for T by Structure:` in the trait's module. See [Tuple Templates](lang/14-annotations.md#tuple-templates). |
 | **test case** | One test, registered by a call of the prelude function `it`, or one row of `it_each`, in test position. See [Test Cases](lang/10-modules.md#test-cases). |
 | **test code** | A package's `tests:` blocks, test modules, and integration test modules, compiled only by a test build. See [`module.test.code`](lang/10-modules.md#r-module.test.code). |
-| **test dependency** | A dependency that the manifest declares for test builds only. See [`module.test.dependency`](lang/10-modules.md#r-module.test.dependency). |
 | **test module** | A module whose file name ends in `_test.hd`. See [Test Modules](lang/10-modules.md#test-modules). |
 | **test position** | The top level of a `tests:` block, a test module, or an integration test module, where test-case calls go. See [`module.testing.test-position`](lang/10-modules.md#r-module.testing.test-position). |
 | **test registration function** | `it`, or a registration function that `std.testing` declares in the stdlib tier; only a direct call of one may stand in test position. See [`module.testing.position-statements`](lang/10-modules.md#r-module.testing.position-statements). |
@@ -305,3 +308,4 @@ The stdlib chapters' terms are in the
 | **vararg** | A final parameter written `name...: T`, which collects the call's remaining positional arguments into `T`. See [`fn.vararg.form`](lang/07-functions.md#r-fn.vararg.form). |
 | **visible** | A field or inherent method is visible from a module that declares it, and from every module when it is `pub`. See [`names.visible.field-method`](lang/03-names-and-scopes.md#r-names.visible.field-method). |
 | **workspace** | A set of packages that one committed workspace manifest lists, selected as one graph. See [Workspaces](lang/10-modules.md#workspaces). |
+| **workspace mode** | How a command works at a workspace root, where the nearest `hd.toml` lists members and declares no package. See [Workspace Mode](cli/command-line.md#workspace-mode). |

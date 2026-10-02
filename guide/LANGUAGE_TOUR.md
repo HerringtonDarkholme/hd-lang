@@ -2378,13 +2378,14 @@ use std.time.{Duration}
 
 `pkg` means the current package root. `std` means the standard library. `dep.<name>` means an external dependency from `hd.toml`.
 
-Use `self` and `super` for relative use paths:
+Use `self` and `super` for relative use paths. `self` is the current module, as in Rust, and `super` its parent; in `mod.hd`, `self` is the directory module. A root file starts at its root and has no `super`: in `src/lib.hd` and `src/main.hd`, `self.x` is `src/x.hd`, and in `tests/checkout.hd`, `self.common` is `tests/common/`:
 
 ```text
 # src/user/service.hd
 
-use self.types.{User, UserId}
-use super.shared.{Email}
+use self.types.{Query}          # src/user/service/types.hd
+use super.types.{User, UserId}  # src/user/types.hd
+use super.super.shared.{Email}  # src/shared.hd
 ```
 
 Use `mod.hd` to define the directory module and expose a clean package-facing API:
@@ -2697,8 +2698,10 @@ Larger suites get their own files. A file whose name ends in `_test.hd`,
 such as `src/billing_test.hd`, is a test module: it sees the package's
 public names and holds `it` calls at its top level, with no `tests:` block.
 Integration tests live under `tests/`, see the package as a dependent does,
-and get real providers from the test profile. There, `pkg.billing` names the
-library's public API, and `use tests.common` reaches `tests/common.hd`; the
+and get real providers from the test profile. Each file directly under
+`tests/` is its own program, so shared helpers go in a subdirectory such as
+`tests/common/`. There, `pkg.billing` names the library's public API, and
+`use self.common` or `use tests.common` reaches `tests/common/mod.hd`; the
 `tests` root is an error anywhere else. See [Test Modules](../spec/lang/10-modules.md#test-modules)
 and the test runner notes.
 

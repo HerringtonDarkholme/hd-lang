@@ -1,0 +1,7 @@
+# test: in mod.hd, self is the directory module, so from src/shop/mod.hd self.item is src/shop/item.hd
+# Spec 10 Relative Uses: module.relative.example.mod-file (Batch 47 SELF-CURRENT).
+# fixture-package-tree: self-current/src/shop/mod.hd
+use self.item.{origin}
+
+pub fn label() -> string:
+    origin()

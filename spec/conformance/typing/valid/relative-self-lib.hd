@@ -1,0 +1,7 @@
+# test: src/lib.hd is a root file, so self is the package root and self.user.types is src/user/types.hd
+# Spec 10 Relative Uses: module.relative.root-file (Batch 47 ROOTS).
+# fixture-package-tree: self-current/src/lib.hd
+use self.user.types.{origin}
+
+pub fn label() -> string:
+    origin()

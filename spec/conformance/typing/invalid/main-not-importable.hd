@@ -1,0 +1,7 @@
+# test: src/main.hd is its own program, so no module may use it
+# Spec 10 Root Files: module.path.main-no-use (Batch 47 ROOTS).
+# fixture-package-tree: lib-root/src/user.hd
+use pkg.main.{label}  # diagnostic: unknown-module
+
+pub fn shown() -> string:
+    label()

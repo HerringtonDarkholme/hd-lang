@@ -1,0 +1,2 @@
+pub fn smoke_name() -> string:
+    "smoke"

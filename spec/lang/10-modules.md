@@ -51,7 +51,7 @@ billing = "git.example.com/shop/billing.git@0.4.2"
 pdf = "github.com/acme/pdf@0.4.1-0.20260912081500-3f2c9e1a7b6d"
 ```
 
-1. r[module.dep.key] Each key of `[dependencies]` and `[test-dependencies]` is the `NAME` that source writes as `dep.NAME`.
+1. r[module.dep.key] Each key of `[dependencies]` and `[dev-dependencies]` is the `NAME` that source writes as `dep.NAME`.
 2. r[module.dep.requirement-value] Each value is a dependency requirement `PATH@VERSION`, or a [path requirement](#r-module.workspace.path-requirement) between workspace members. A dependency requirement is a host path, `@`, and a version or pseudo-version without a leading `v`.
 3. r[module.dep.path-manifest-only] A host path appears only in the manifest. Source names a dependency only through its key.
 4. r[module.dep.identity] A resolved package's identity is its host path and its [compatibility line](#r-module.version.line).
@@ -137,7 +137,7 @@ a minimum, and the build uses the largest minimum stated for each package:
 
 1. r[module.select.minimum] A dependency requirement states a minimum. Its version, or any later version in the same compatibility line, satisfies it.
 2. r[module.select.reach] Selection starts at the root package, or at every member of a workspace, and reads the manifest of each version that a dependency requirement reaches.
-3. r[module.select.test-dependencies] Selection reads the test dependencies of the root package or workspace members only. A dependency's test dependencies are never read.
+3. r[module.select.dev-dependencies] Selection reads the dev dependencies of the root package or workspace members only. A dependency's dev dependencies are never read.
 4. r[module.select.largest] For each host path and compatibility line, the selected version is the largest minimum that any reached manifest states.
 5. r[module.select.one-per-line] A package graph therefore holds at most one version per compatibility line. Two lines of one host path may coexist as two packages.
 6. r[module.select.no-lock] The manifests alone determine the selection. There is no lockfile of versions.
@@ -222,6 +222,23 @@ src/user/types.hd    # user.types
 3. r[module.path.no-child-import] Child modules are not brought automatically into the parent.
 4. r[module.path.no-parent-scope] Parent declarations are not implicitly visible in children.
 
+### Root Files
+
+Two files directly under the source root have fixed roles:
+
+| File | Role |
+| --- | --- |
+| `src/lib.hd` | the package root module, which `pkg` names |
+| `src/main.hd` | the [default executable](../cli/command-line.md#r-cli.exe.default-main)'s entry, its own program |
+
+1. r[module.path.lib-file] `lib.hd` directly under the source root, `src/lib.hd`, is the package root module. Its public declarations are what `pkg.{X}` names, and what a dependent names through its dependency key.
+2. r[module.path.lib-index] `src/lib.hd` is the root's public index, as a directory's `mod.hd` is the directory's.
+3. r[module.path.main-file] `main.hd` directly under the source root, `src/main.hd`, is an entry module and its own program, never part of the package's library.
+4. r[module.path.main-no-use] A use of `src/main.hd` from another module is an error. Error: `unknown-module`.
+
+> **Note.** `src/main.hd` reaches the library's declarations through
+> `pkg` or `self`, as in `use self.{Config}`.
+
 ### Module Identity
 
 1. r[module.path.unique] Two files must not map to the same module identity.
@@ -243,8 +260,8 @@ holds integration tests:
 ```text
 src/billing.hd         # billing
 src/billing_test.hd    # billing_test, a test module
-tests/checkout.hd      # tests.checkout, an integration test module
-tests/common.hd        # tests.common, shared by integration test modules
+tests/checkout.hd      # tests.checkout, an integration test program
+tests/common/mod.hd    # tests.common, shared by integration test programs
 ```
 
 1. r[module.test.module] A source file whose name ends in `_test.hd` is a **test module**, such as `src/billing_test.hd`, whose module is `billing_test`.
@@ -252,24 +269,35 @@ tests/common.hd        # tests.common, shared by integration test modules
 3. r[module.test.code] **Test code** is a package's `tests:` blocks, test modules, and integration test modules. Only a test build, such as `hd test` makes, compiles it.
 4. r[module.test.module.view] A test module is otherwise an ordinary module of its package: it sees public declarations package-wide and may use other test modules.
 5. r[module.test.integration.view] An integration test module sees the package as a dependent package does: its public declarations, built without its test code.
-6. r[module.test.integration.uses] Integration test modules may use one another.
-7. r[module.test.integration.pkg-root] In an integration test module, the `pkg` root names the package's library modules, each with only its public declarations.
-8. r[module.test.integration.tests-root] The `tests` root names the integration test modules, so an integration test module uses `tests/common.hd` as `use tests.common`.
-9. r[module.test.tests-root-elsewhere] A use of the `tests` root anywhere but an integration test module, including a test module, is an error. Error: `test-only-use`.
-10. r[module.test.no-tests-block] A test module or an integration test module must not contain a `tests:` block. Error: `misplaced-tests-block`.
-11. r[module.test.dependency] A **test dependency** is a dependency that the manifest declares for test builds only. Only test code may use it.
-12. r[module.test.non-test-use] Non-test code that uses a test module or a test dependency is an error. Error: `test-only-use`.
-13. r[module.test.cyclic-dependency] A test dependency that itself depends on the package may be used only from integration test modules. Using it from a `tests:` block or a test module is an error. Error: `cyclic-test-dependency`.
+6. r[module.test.integration.program] Each file directly under the test root, such as `tests/checkout.hd`, is an **integration test program**: its own program, compiled separately from the others.
+7. r[module.test.integration.shared] A module in a subdirectory of the test root, such as `tests/common/mod.hd`, is a **shared test module**. Every integration test program of the package may use it.
+8. r[module.test.integration.program-use] A use of an integration test program from another module is an error. Error: `unknown-module`.
+9. r[module.test.integration.shared-copy] Each integration test program gets its own copy of the shared test modules it uses, so their top-level statements run once per program.
+10. r[module.test.integration.shared-unused] A warning that a declaration of a shared test module is unused is given only when no integration test program uses that declaration.
+11. r[module.test.integration.pkg-root] In an integration test module, the `pkg` root names the package's library modules, each with only its public declarations.
+12. r[module.test.integration.tests-root.shared] The `tests` root names the test root, so an integration test module uses the shared test module `tests/common/mod.hd` as `use tests.common`.
+13. r[module.test.tests-root-elsewhere] A use of the `tests` root anywhere but an integration test module, including a test module, is an error. Error: `test-only-use`.
+14. r[module.test.no-tests-block] A test module or an integration test module must not contain a `tests:` block. Error: `misplaced-tests-block`.
+15. r[module.test.dev-dependency] A **dev dependency** is a dependency that the manifest declares in `[dev-dependencies]`. Test code may use it, and a dependent package never sees it.
+16. r[module.test.non-test-use.test-module] Non-test code that uses a test module is an error. Error: `test-only-use`.
+17. r[module.test.non-test-use.dev-dependency] Code under the source root, other than test code, that uses a dev dependency is an error. Error: `test-only-use`.
+18. r[module.test.cyclic-dev-dependency] A dev dependency that itself depends on the package may be used only from integration test modules. Using it from a `tests:` block or a test module is an error. Error: `cyclic-test-dependency`.
 
 ```text
 use tests.common  # error: test-only-use
 ```
 
-> **Why.** A test dependency that depends back would give a unit test a
-> second copy of the package, whose types differ from the ones under test.
-> An integration test sees only the one normal build. A test module is
-> already test code throughout, so it holds its test cases at top level
-> rather than in a `tests:` block.
+> **Why.** Each integration test program builds on its own, as each Cargo
+> integration test is its own crate, so helpers go in a subdirectory such
+> as `tests/common/`. A dev dependency that depends back would give a unit
+> test a second copy of the package, whose types differ from the ones
+> under test. An integration test sees only the one normal build. A test
+> module is already test code throughout, so it holds its test cases at
+> top level rather than in a `tests:` block.
+
+> **Note.** A [task](../cli/command-line.md#tasks) may also use dev
+> dependencies, and the `tasks` directory shares modules as the test root
+> does.
 
 See also: [Test Blocks](02-grammar.md#test-blocks),
 [Standard Testing](#standard-testing).
@@ -283,7 +311,7 @@ Every absolute use path begins with one of these roots:
 | `pkg` | the current package |
 | `std` | the standard library |
 | `dep.<name>` | a manifest dependency |
-| `tests` | the integration test modules, from an integration test module |
+| `tests` | the test root, from an integration test module |
 
 1. r[module.root.absolute] Every absolute use path begins with one of the roots in the table.
 2. r[module.root.manifest] The package manifest distinguishes standard library, current package, and external dependency namespaces.
@@ -294,33 +322,47 @@ Every absolute use path begins with one of these roots:
 Relative use paths use `self` and `super`:
 
 ```text
-use self.types.{User, UserId}
-use super.shared.{Email}
+# src/user/service.hd
+use self.types.{Query}          # src/user/service/types.hd
+use super.types.{User, UserId}  # src/user/types.hd
 ```
 
-Relative lookup starts at a base that depends on the source file:
+Relative lookup starts at the source file's own module, which `self`
+names. A root file starts at its root instead:
 
-| Source file | Base |
-| --- | --- |
-| `src/user/service.hd`, a regular file | `user` |
-| `src/user/mod.hd` | the `user` module itself |
-| a file directly under `src` | the package root namespace |
+| Source file | `self` | `super` |
+| --- | --- | --- |
+| `src/a.hd` | `a` | the package root namespace |
+| `src/user/service.hd` | `user.service` | `user` |
+| `src/user/mod.hd` | the `user` module itself | the package root namespace |
+| `src/lib.hd`, `src/main.hd` | the package root namespace | an error |
+| `tests/checkout.hd` | the test root | an error |
 
 1. r[module.relative.keywords] Relative use paths use `self` and `super`.
-2. r[module.relative.base] Relative lookup starts at the source file's containing directory module, as the table shows.
-3. r[module.relative.self] `self` names that base.
-4. r[module.relative.super] Each leading `super` moves to its parent.
-5. r[module.relative.example] Consequently, from `src/user/service.hd`, `self.types` resolves to `pkg.user.types` and `super.shared` resolves to `pkg.shared`.
-6. r[module.relative.above-root] Moving above the package root is a compile-time error.
-7. r[module.relative.no-cross] Relative use paths cannot cross into `std` or a dependency.
-8. r[module.relative.test-root] In an integration test module, relative lookup is rooted at the test root as it is at the package root under `src`. From `tests/checkout.hd`, `self.common` resolves to `tests.common`.
-9. r[module.relative.above-test-root] In an integration test module, a `super` that moves above the test root is an error. Error: `unknown-module`.
+2. r[module.relative.base.current] Except in a root file, relative lookup starts at the source file's own module, as the table shows. In `mod.hd`, that module is the directory module.
+3. r[module.relative.root-file] A **root file** is `src/lib.hd`, `src/main.hd`, or an [integration test program](#r-module.test.integration.program). Relative lookup in a root file starts at its root: the package root for a file under `src`, and the test root for one under `tests`.
+4. r[module.relative.self.current] `self` names the module where relative lookup starts, so `self.x` names its child module `x`.
+5. r[module.relative.super] Each leading `super` moves to its parent.
+6. r[module.relative.root-file.super] A `super` in a root file is an error. Error: `unknown-module`.
+7. r[module.relative.example.nested] Consequently, from `src/user/service.hd`, `self.types` resolves to `pkg.user.service.types`, in `src/user/service/types.hd`, and `super.types` resolves to `pkg.user.types`, in `src/user/types.hd`.
+8. r[module.relative.example.top-level] From `src/a.hd`, `self.x` resolves to `pkg.a.x`, in `src/a/x.hd`. A sibling `src/b.hd` is `super.b`, since `super` from a file directly under `src`, other than a root file, is the package root.
+9. r[module.relative.example.mod-file] From `src/a/mod.hd`, `self.x` resolves to `pkg.a.x`, in `src/a/x.hd`, since `self` there is the directory module.
+10. r[module.relative.example.main] From `src/main.hd` or `src/lib.hd`, `self.x` resolves to `pkg.x`, in `src/x.hd`.
+11. r[module.relative.above-root] Moving above the package root is a compile-time error.
+12. r[module.relative.no-cross] Relative use paths cannot cross into `std` or a dependency.
+13. r[module.relative.test-root.current] In an integration test module, relative lookup works as it does under `src`, with the test root in place of the package root. From `tests/checkout.hd`, a root file, `self.common.x` resolves to `tests.common.x`, in `tests/common/x.hd`.
+14. r[module.relative.above-test-root] In an integration test module, a `super` that moves above the test root is an error. Error: `unknown-module`.
 
 ```text
 # tests/checkout.hd
-use self.common.{expected}   # valid: tests.common
+use self.common.{expected}   # valid: tests/common/mod.hd
 use super.common.{expected}  # error: unknown-module
 ```
+
+> **Why.** `self` names the current module, as Rust's `self` does. A
+> file's own child modules then live in the directory of the same name,
+> and a sibling is always `super.NAME`. A root file, like a crate root,
+> is where its tree starts, so it has no parent.
 
 ### Single-File Programs
 
@@ -913,12 +955,12 @@ order, as Go orders the variables of one package:
 
 ```text
 # src/shop/catalog.hd
-use self.prices
+use super.prices
 
 let featured = prices.price_of("tea")  # runs after prices.markup
 
 # src/shop/prices.hd
-use self.catalog
+use super.catalog
 
 let markup = 5
 

@@ -1764,6 +1764,16 @@ typing/valid/untyped-fact-default.hd	type	accept	lang/14-annotations.md#r-annot.
 typing/valid/arbitrary-with-generic-generator.hd	type	accept	std/testing.md#r-std-testing.arbitrary.with.checked
 typing/valid/facts-find-generic-key.hd	type	accept	lang/14-annotations.md#r-annot.structure.find-key
 typing/invalid/facts-find-unbounded-key.hd	type	reject:unsatisfied-trait-bound	lang/14-annotations.md#r-annot.structure.find-key
-runtime/valid/integration-self-use.hd	runtime	accept	lang/10-modules.md#r-module.relative.test-root
+runtime/valid/integration-shared-use.hd	runtime	accept	lang/10-modules.md#r-module.test.integration.shared
 typing/invalid/integration-super-above-test-root.hd	type	reject:unknown-module	lang/10-modules.md#r-module.relative.above-test-root
 typing/invalid/single-file-self-use.hd	type	reject:unknown-module	lang/10-modules.md#r-module.single-file.roots
+typing/invalid/integration-program-use.hd	type	reject:unknown-module	lang/10-modules.md#r-module.test.integration.program-use
+typing/valid/integration-tests-root-shared.hd	type	accept	lang/10-modules.md#r-module.test.integration.tests-root.shared
+runtime/valid/relative-self-current.hd	runtime	accept	lang/10-modules.md#r-module.relative.example.nested
+runtime/valid/relative-self-top-level.hd	runtime	accept	lang/10-modules.md#r-module.relative.example.top-level
+typing/valid/relative-self-mod-file.hd	type	accept	lang/10-modules.md#r-module.relative.example.mod-file
+typing/invalid/root-file-super.hd	type	reject:unknown-module	lang/10-modules.md#r-module.relative.root-file.super
+typing/valid/relative-self-main.hd	type	accept	lang/10-modules.md#r-module.relative.example.main
+typing/valid/relative-self-lib.hd	type	accept	lang/10-modules.md#r-module.relative.root-file
+typing/valid/lib-root-pkg.hd	type	accept	lang/10-modules.md#r-module.path.lib-file
+typing/invalid/main-not-importable.hd	type	reject:unknown-module	lang/10-modules.md#r-module.path.main-no-use

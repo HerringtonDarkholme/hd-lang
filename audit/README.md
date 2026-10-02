@@ -8,15 +8,15 @@ repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-10-01 the conformance suite has 1,768 cases, and
-`test/portable/cases.tsv` selects the 1,738 that the prototype passes. The
-other 30 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
+On 2026-10-02 the conformance suite has 1,778 cases, and
+`test/portable/cases.tsv` selects the 1,743 that the prototype passes. The
+other 35 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
 finding or with a decision below. Every case is in one of the two files. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Selected | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,694 | 1,664 | 30 |
+| language | 1,704 | 1,669 | 35 |
 | stdlib | 74 | 74 | 0 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -34,6 +34,9 @@ them by tag:
 | MHP-1 | 1 | no inferred script entry requirement row |
 | CLI-ENTRY | 10 | no `hd FILE` command for the runner's last step |
 | NONPKG | 1 | a `use self` in a single-file program is not reported |
+| SELF-CURRENT | 2 | relative lookup starts at the containing directory module |
+| ROOTS | 2 | `src/lib.hd` is not the root module, and `src/main.hd` can be used |
+| TASK-PROGRAMS | 1 | integration test modules are linked as one program |
 
 ## What Remains
 
@@ -78,7 +81,7 @@ its limits. These gaps are recorded only here:
   implement them, so programs that use them still check. A later
   implementation task removes them and adds `facts_of`.
 - Testing: only functions of a `tests:` block are hidden from code outside
-  it. Test dependencies are not implemented. A panic outside
+  it. Dev dependencies are not implemented. A panic outside
   `expect_panic` stops the run (F-403).
 - Testing T8: a test body's `Result` reports only its outer tag, not its
   `.Ok` value's `ExitCode`.

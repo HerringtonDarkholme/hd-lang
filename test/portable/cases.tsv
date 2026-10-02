@@ -1736,4 +1736,9 @@ typing/invalid/integration-super-above-test-root.hd	type
 runtime/valid/test-block-on.hd	runtime
 runtime/valid/println-in-test-body.hd	runtime
 typing/invalid/race-no-tasks.hd	type
-runtime/valid/integration-self-use.hd	runtime
+runtime/valid/integration-shared-use.hd	runtime
+typing/valid/integration-tests-root-shared.hd	type
+typing/valid/relative-self-mod-file.hd	type
+typing/invalid/root-file-super.hd	type
+typing/valid/relative-self-main.hd	type
+typing/valid/relative-self-lib.hd	type

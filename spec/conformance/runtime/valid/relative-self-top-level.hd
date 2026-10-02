@@ -1,0 +1,11 @@
+# test: from a file directly under src, self.x is its child in src/a/x.hd and super is the package root, so super.b is the sibling src/b.hd
+# Spec 10 Relative Uses: module.relative.self.current, module.relative.example.top-level (Batch 47 SELF-CURRENT).
+# fixture-package-tree: self-current/src/a.hd
+use self.x.{origin as child}
+use super.b.{origin as sibling}
+use std.testing.assert_equal
+
+tests:
+    it("self.x is a child and super.b a sibling"):
+        assert_equal(child(), "a.x", reason="self.x is src/a/x.hd")
+        assert_equal(sibling(), "b", reason="super.b is src/b.hd")

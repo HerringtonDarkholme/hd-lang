@@ -1,0 +1,7 @@
+# test: src/main.hd is a root file, so self is the package root and self.b is src/b.hd
+# Spec 10 Relative Uses: module.relative.example.main (Batch 47 ROOTS).
+# fixture-package-tree: self-current/src/main.hd
+use self.b.{origin}
+
+pub fn label() -> string:
+    origin()

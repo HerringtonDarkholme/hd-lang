@@ -194,7 +194,7 @@ billing_legacy = "acme/billing@0.9.3"
 shared = { path = "../shared" }
 pdf = { git = "https://github.com/acme/hd-pdf", rev = "3f2c9e1a7b6d4c58e0f1a2b3c4d5e6f708192a3b" }
 
-[test-dependencies]
+[dev-dependencies]
 fixtures = "acme/test_fixtures@0.2.0"
 
 [build.release]
@@ -230,11 +230,11 @@ tests = "tests"
 [dependencies]
 money = "acme/money@3.0.1"
 
-[test-dependencies]
+[dev-dependencies]
 fixtures = "acme/test_fixtures@0.2.0"
 ```
 
-This package has a library, because `src/mod.hd` exists, and no executables.
+This package has a library, because `src/lib.hd` exists, and no executables.
 Adding an `[[executable]]` table would give it both, as a Cargo package with
 `src/lib.rs` and `src/main.rs` has.
 
@@ -265,17 +265,17 @@ root. A member depends on another member with `{ path = "..." }`.
 
 | Key | Default | Rule |
 | --- | --- | --- |
-| `root` | `"src"` | Source root for path-inferred modules ([Path-Inferred Modules](../spec/lang/10-modules.md#path-inferred-modules)). `root/mod.hd`, when present, is the package root module and public index, and its presence gives the package a library. |
-| `tests` | `"tests"` if the directory exists | Test source root of integration test modules ([Test Modules](../spec/lang/10-modules.md#test-modules)). Only a test build compiles them. They may use dependencies, test dependencies, and one another, and they see only the package's public surface, built without its test code, as a dependent would. |
+| `root` | `"src"` | Source root for path-inferred modules ([Path-Inferred Modules](../spec/lang/10-modules.md#path-inferred-modules)). `root/lib.hd`, when present, is the package root module and public index ([`module.path.lib-file`](../spec/lang/10-modules.md#r-module.path.lib-file)). Whether its presence is what gives the package a library, and what `root/mod.hd` now is, are open (OPEN_ISSUES LIB-TARGET, MOD-ROOT). |
+| `tests` | `"tests"` if the directory exists | Test source root of integration test modules ([Test Modules](../spec/lang/10-modules.md#test-modules)). Only a test build compiles them. Each file directly under it is its own program, and its subdirectories hold modules those programs share. They may use dependencies and dev dependencies, and they see only the package's public surface, built without its test code, as a dependent would. |
 
-The two roots must not overlap. Within `root`, a test dependency may be
+The two roots must not overlap. Within `root`, a dev dependency may be
 named only by test code: a `use` inside a file's
 [`tests:` block](../spec/lang/02-grammar.md#test-blocks), or any `use` of a
 `_test.hd` test module. Other uses in `root` may name only `[dependencies]`,
-because those modules are also part of the normal build. Test builds include
-the test dependencies.
+because those modules are also part of the normal build. Test builds and
+[tasks](../spec/cli/command-line.md#tasks) include the dev dependencies.
 
-A test dependency that itself depends on this package may be used only from
+A dev dependency that itself depends on this package may be used only from
 `tests/`. From a `tests:` block or a test module it is an error, since it
 would bring in a second copy of the package ([Testing T24](../spec/lang/10-modules.md#test-modules)).
 
@@ -292,12 +292,12 @@ never builds its executables. No target has an orphan exception
 | `module` | `"main"` | Entry module, as a module path relative to the source root. |
 | `profile` | `"console"` | Runtime profile ([Wasm Boundary](../spec/lang/10-modules.md#wasm-boundary)). Only toolchain-defined profile names are allowed (decision 13). |
 
-If a package has no library and declares no `[[executable]]`, it has one
-implicit entry with all defaults, so `src/main.hd` is the entry module.
+If a package declares no `[[executable]]`, `src/main.hd` is its default
+executable ([`cli.exe.default-main`](../spec/cli/command-line.md#r-cli.exe.default-main)).
 [Executables](../spec/cli/command-line.md#executables) specifies the `name` and `module`
 keys and how `hd run` selects an executable.
 
-`[dependencies]` and `[test-dependencies]`: each key is an identifier and
+`[dependencies]` and `[dev-dependencies]`: each key is an identifier and
 becomes the `NAME` in `dep.NAME`. Each value is one of:
 
 | Form | Meaning |

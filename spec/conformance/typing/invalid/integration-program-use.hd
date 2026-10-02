@@ -1,0 +1,7 @@
+# test: each file directly under the test root is its own program, so another integration test module cannot use it
+# Spec 10 Test Modules: module.test.integration.program-use (Batch 47 TASK-MODULE).
+# fixture-package-tree: integration-shared/tests/checkout.hd
+use tests.smoke.{smoke_name}  # diagnostic: unknown-module
+
+pub fn shown() -> string:
+    smoke_name()

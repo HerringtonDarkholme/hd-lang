@@ -1,0 +1,7 @@
+# test: src/main.hd is a root file, so it has no parent and a super use names no module
+# Spec 10 Relative Uses: module.relative.root-file.super (Batch 47 ROOTS).
+# fixture-package-tree: self-current/src/main.hd
+use super.b.{origin}  # diagnostic: unknown-module
+
+pub fn label() -> string:
+    origin()
