@@ -18,10 +18,9 @@ action at a distance.
    [known failures](../test/portable/KNOWN_FAILURES.tsv), and lower
    templates and derives as the
    [specification](../spec/lang/14-annotations.md#typed-derivation) states.
-2. **Library moves.** Move library code the prototype writes in
-   TypeScript into `lib/std`, as the
-   [Compiler/Library Audit](COMPILER_LIBRARY_AUDIT.md#migration-plan)
-   plans.
+2. **Library moves.** Done: the Compiler/Library Audit's steps M1 to M11
+   moved library code from TypeScript into `lib/std`. New library code
+   goes in `lib/std` from the start.
 3. **Packages.** Workspaces, version tags, minimal version selection, and
    `hd.sum` ([Package Manifest](../spec/lang/10-modules.md#package-manifest),
    [Packages](PACKAGES.md)).

@@ -21,11 +21,9 @@ Planning and backlog:
 
 Prototype plan:
 
-- [Compiler/Library Audit](COMPILER_LIBRARY_AUDIT.md) sorts what the
-  TypeScript prototype implements by hand into true intrinsics, library
-  code movable to `lib/std` now or after a small hook, and language
-  semantics. It plans eleven one-hour chunks that delete about 1,900
-  lines of TS. The owner answered its four questions in batch 36.
+- The Compiler/Library Audit's migration is finished (M1 to M11; the
+  record is in git history). [`src/README.md`](../src/README.md) keeps the
+  compiler/library boundary.
 
 Research and direction outside the specification:
 
