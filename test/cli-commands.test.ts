@@ -233,3 +233,133 @@ test("hd test on a package prints an error in a shared module once", async () =>
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+/** Writes `files` (package path to text) under `directory`. */
+async function writeTree(
+  directory: string,
+  files: Readonly<Record<string, string>>,
+): Promise<void> {
+  for (const [path, text] of Object.entries(files)) {
+    await mkdir(join(directory, path, ".."), { recursive: true });
+    await writeFile(join(directory, path), text);
+  }
+}
+
+/** Runs `hd` expecting exit status 1, and returns its stdout and stderr together. */
+async function failure(args: readonly string[], cwd = root): Promise<string> {
+  let result: CommandResult | undefined;
+  await assert.rejects(hd(args, cwd), (error: CommandResult) => {
+    result = error;
+    return true;
+  });
+  assert.equal(result!.code, 1, `hd ${args.join(" ")} exits 1`);
+  return result!.stdout + result!.stderr;
+}
+
+test("hd run, check, and build on a package file link the package", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    await writeTree(directory, {
+      "hd.toml": "",
+      "src/util.hd": 'pub fn greet() -> string: "hi"\n',
+      "src/main.hd": "use self.util.greet\npub fn main() -> void $ Console: println(greet())\n",
+    });
+    const main = join(directory, "src/main.hd");
+    assert.equal((await hd(["run", main])).stdout, "hi\n");
+    assert.equal((await hd(["check", main])).stdout, `${main}: ok\n`);
+    assert.match((await hd(["build", "--wat", main])).stdout, /^\(module/);
+    assert.equal((await hd(["run", "src/main.hd"], directory)).stdout, "hi\n");
+    // A package without hd.toml is found by its src/ directory.
+    await rm(join(directory, "hd.toml"));
+    assert.equal((await hd(["run", main])).stdout, "hi\n");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("hd run resolves super uses, and reports a package error in its own file", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    await writeTree(directory, {
+      "hd.toml": "",
+      "src/base/util.hd": 'pub fn greet() -> string: "hi"\n',
+      "src/shop/cart.hd": "use super.base.util.{greet}\n\npub fn label() -> string:\n    greet()\n",
+      "src/app.hd":
+        "use pkg.shop.cart.{label}\npub fn main() -> void $ Console: println(label())\n",
+    });
+    assert.equal((await hd(["run", "src/app.hd"], directory)).stdout, "hi\n");
+    await writeFile(join(directory, "src/base/util.hd"), "pub fn greet() -> string: 1\n");
+    assert.match(
+      await failure(["check", "src/app.hd"], directory),
+      /^src\/base\/util\.hd:1:\d+: /m,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("hd run on a lone file outside any package compiles it on its own", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    await writeTree(directory, {
+      "one.hd": 'pub fn shout() -> string: "lone"\n',
+      "two.hd": "use self.one.{shout}\npub fn main() -> void $ Console: println(shout())\n",
+    });
+    // No package links two.hd with one.hd, so `shout` is unknown.
+    assert.match(await failure(["run", "two.hd"], directory), /two\.hd:2:\d+: unknown-name/);
+    await writeFile(
+      join(directory, "two.hd"),
+      'pub fn main() -> void $ Console: println("lone")\n',
+    );
+    assert.equal((await hd(["run", "two.hd"], directory)).stdout, "lone\n");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("hd test links integration test modules under tests/", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    await writeTree(directory, {
+      "hd.toml": "",
+      "src/util.hd": 'pub fn greet() -> string: "hi"\n',
+      "tests/common.hd": 'pub fn expected() -> string: "hi"\n',
+      "tests/greeting.hd": [
+        "use pkg.util.{greet}",
+        "use tests.common.{expected}",
+        "use std.testing.assert_equal",
+        "",
+        'it("greets"):',
+        '    assert_equal(greet(), expected(), reason="util greets")',
+        "",
+      ].join("\n"),
+    });
+    assert.equal((await hd(["test"], directory)).stdout, "tests/greeting.hd: 1 passed\n");
+    assert.equal(
+      (await hd(["test", "tests/greeting.hd"], directory)).stdout,
+      "tests/greeting.hd: 1 passed\n",
+    );
+    // `self` in an integration test module names the test root.
+    await writeFile(
+      join(directory, "tests/again.hd"),
+      'use self.common.{expected}\nuse std.testing.assert\n\nit("again"):\n    assert(expected() == "hi", reason="same root")\n',
+    );
+    assert.equal(
+      (await hd(["test", "tests/again.hd"], directory)).stdout,
+      "tests/again.hd: 1 passed\n",
+    );
+
+    // Only an integration test module may use the tests root.
+    await writeFile(join(directory, "src/bad.hd"), "use tests.common.{expected}\n");
+    assert.match(await failure(["check", "src/bad.hd"], directory), /test-only-use/);
+    await rm(join(directory, "src/bad.hd"));
+    // Relative uses stay under the test root.
+    await writeFile(join(directory, "tests/up.hd"), "use super.util.{greet}\n");
+    assert.match(
+      await failure(["test", "tests/up.hd"], directory),
+      /tests\/up\.hd:1:\d+: unknown-module: 'super' moves above the test root/,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

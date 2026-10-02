@@ -4,7 +4,8 @@ import { KEYWORDS } from "./lexer.ts";
 import { parse } from "./parser/index.ts";
 
 // Package linking for the prototype (10-modules.md). Every source file of one
-// package is a module named by its path under `src/`. The linker resolves the
+// package is a module named by its path under `src/`, and every file under
+// `tests/` is an integration test module named `tests.<path>`. The linker resolves the
 // `pkg`, `self`, and `super` uses between those modules and then joins the
 // modules reachable from the entry module into one source text, in module
 // initialization order, with the package uses removed. That text is an
@@ -21,8 +22,17 @@ import { parse } from "./parser/index.ts";
 // `joinedModules`. A test build (`LinkOptions.tests`) links every test module.
 // Test case names share the joined namespace too, so two modules must not
 // name a test case alike.
+//
+// An integration test module (spec/10-modules.md#r-module.test.integration)
+// is test code too, so it links like a test module. It reaches the library
+// through `pkg` uses, which see only public declarations, and other
+// integration test modules through the `tests` root or `self`. The joined
+// program shares one namespace, so it does not hide a library module's
+// private names or test code from an integration test module.
 
 export const SOURCE_ROOT = "src/";
+/** The default test root, which holds the integration test modules. */
+export const TEST_ROOT = "tests/";
 
 export interface PackageDiagnostic extends Diagnostic {
   /** The package file the diagnostic points into. */
@@ -53,9 +63,17 @@ interface LinkOptions {
   readonly tests?: boolean;
 }
 
-/** Whether a package path is a test module (spec/10-modules.md#r-module.test.module). */
+/** Whether a package path is an integration test module (spec/10-modules.md#r-module.test.integration). */
+function isIntegrationTestPath(path: string): boolean {
+  return path.startsWith(TEST_ROOT);
+}
+
+/**
+ * Whether a package path is a test module or an integration test module
+ * (spec/10-modules.md#r-module.test.module): its top level is test code.
+ */
 function isTestModulePath(path: string): boolean {
-  return path.endsWith("_test.hd");
+  return path.endsWith("_test.hd") || isIntegrationTestPath(path);
 }
 
 export interface LinkedPackage {
@@ -76,15 +94,22 @@ export interface LinkedPackage {
 
 const IDENTIFIER = /^[\p{ID_Start}_][\p{ID_Continue}_]*$/u;
 
-/** The module identity of a package path, or undefined when it names none. */
+/**
+ * The module identity of a package path, or undefined when it names none. A
+ * file under `tests/` is the integration test module `tests.<path>`
+ * (spec/10-modules.md#r-module.test.integration.tests-root); `tests` is a
+ * reserved word, so no library module identity starts with it.
+ */
 export function moduleIdentity(path: string): string | undefined {
-  if (!path.startsWith(SOURCE_ROOT) || !path.endsWith(".hd")) return undefined;
-  const parts = path.slice(SOURCE_ROOT.length, -".hd".length).split("/");
+  const root = [SOURCE_ROOT, TEST_ROOT].find((prefix) => path.startsWith(prefix));
+  if (root === undefined || !path.endsWith(".hd")) return undefined;
+  const parts = path.slice(root.length, -".hd".length).split("/");
   if (parts.at(-1) === "mod") parts.pop();
   const valid = parts.every(
     (part) => IDENTIFIER.test(part) && part.normalize("NFC") === part && !KEYWORDS.has(part),
   );
-  return valid ? parts.join(".") : undefined;
+  if (!valid) return undefined;
+  return root === TEST_ROOT ? ["tests", ...parts].join(".") : parts.join(".");
 }
 
 function fold(identity: string): string {
@@ -128,6 +153,32 @@ function relativeBase(module: PackageModule): string[] {
   return module.path.endsWith("/mod.hd") ? parts : parts.slice(0, -1);
 }
 
+/**
+ * The module path a package use names, as identity parts; a message when it
+ * moves above its root; undefined for a `std` or `dep` use.
+ */
+function useModulePath(module: PackageModule, declaration: UseDecl): string[] | string | undefined {
+  const [root, ...rest] = declaration.module.split(".");
+  if (root === "pkg") return rest;
+  // The parser accepts the `tests` root only in an integration test module.
+  if (root === "tests") return [root, ...rest];
+  if (root !== "self" && root !== "super") return undefined;
+  const base = relativeBase(module);
+  const path = [root, ...rest];
+  if (path[0] === "self") path.shift();
+  // Relative uses in an integration test module stay under the test root.
+  const top = isIntegrationTestPath(module.path) ? 1 : 0;
+  while (path[0] === "super") {
+    if (base.length === top)
+      return top === 0
+        ? "'super' moves above the package root"
+        : "'super' moves above the test root";
+    base.pop();
+    path.shift();
+  }
+  return [...base, ...path];
+}
+
 interface ResolvedUse {
   readonly declaration: UseDecl;
   readonly target: PackageModule;
@@ -152,7 +203,7 @@ export function linkPackage(
       report(
         path,
         "invalid-module-path",
-        `'${path}' is not a module path: files are 'src/<identifier>/.../<identifier>.hd'`,
+        `'${path}' is not a module path: files are 'src/<identifier>/.../<identifier>.hd', or under 'tests/' for integration tests`,
       );
       continue;
     }
@@ -162,7 +213,10 @@ export function linkPackage(
       continue;
     }
     folded.set(fold(identity), path);
-    const parsed = parse(files[path]!, { testModule: isTestModulePath(path) });
+    const parsed = parse(files[path]!, {
+      testModule: isTestModulePath(path),
+      integrationTest: isIntegrationTestPath(path),
+    });
     for (const diagnostic of parsed.diagnostics) diagnostics.push({ ...diagnostic, path });
     modules.set(identity, {
       path,
@@ -176,28 +230,6 @@ export function linkPackage(
     report(entry, "unknown-module", `entry module '${entry}' is not a package source file`);
 
   const resolvedUses = new Map<PackageModule, ResolvedUse[]>();
-  const resolveModulePath = (module: PackageModule, declaration: UseDecl): string[] | undefined => {
-    const [root, ...rest] = declaration.module.split(".");
-    if (root === "pkg") return rest;
-    if (root !== "self" && root !== "super") return undefined;
-    const base = relativeBase(module);
-    const path = [root, ...rest];
-    if (path[0] === "self") path.shift();
-    while (path[0] === "super") {
-      if (base.length === 0) {
-        report(
-          module.path,
-          "unknown-module",
-          "'super' moves above the package root",
-          declaration.span,
-        );
-        return undefined;
-      }
-      base.pop();
-      path.shift();
-    }
-    return [...base, ...path];
-  };
   // Follows `pub use` re-exports to the module that declares `name`; "loop"
   // when the chain returns to a module it passed
   // (spec/10-modules.md#r-module.pub-use.chain.loop).
@@ -227,8 +259,9 @@ export function linkPackage(
         report(module.path, "unknown-module", "the package has no dependencies", span);
         continue;
       }
-      const path = resolveModulePath(module, declaration);
-      if (!path) continue;
+      const path = useModulePath(module, declaration);
+      if (typeof path === "string") report(module.path, "unknown-module", path, span);
+      if (!Array.isArray(path)) continue;
       const identity = path.join(".");
       const target = modules.get(identity);
       const grouped = files[module.path]!.slice(span.start.offset, span.end.offset).includes("{");
@@ -244,6 +277,17 @@ export function linkPackage(
       }
       if (!target) {
         report(module.path, "unknown-module", `no package module '${identity}'`, span);
+        continue;
+      }
+      // In an integration test module, `pkg` names only the library modules
+      // (spec/10-modules.md#r-module.test.integration.pkg-root).
+      if (root === "pkg" && isIntegrationTestPath(module.path) && isTestModulePath(target.path)) {
+        report(
+          module.path,
+          "unknown-module",
+          `'pkg' names only library modules in an integration test module, not the test module '${identity}'`,
+          span,
+        );
         continue;
       }
       if (!target.program) continue;

@@ -18,6 +18,12 @@ export interface ParseOptions {
    */
   readonly testModule?: boolean;
   /**
+   * The file is an integration test module under `tests/`
+   * (spec/10-modules.md#r-module.test.integration), so it may use the
+   * `tests` root (spec/10-modules.md#r-module.test.integration.tests-root).
+   */
+  readonly integrationTest?: boolean;
+  /**
    * The source joins several modules of a package, each of which may hold a
    * `tests:` block (src/package.ts), so `duplicate-tests-block` does not apply.
    */
@@ -564,18 +570,20 @@ export abstract class ParserBase {
   protected parseUse(): UseDecl {
     const public_ = this.matchText("pub");
     const start = this.expectText("use").span.start;
-    // The `tests` root names integration test modules. The prototype compiles
-    // one ordinary module, never one under `tests/`, so every such use is
-    // test-only-use (10-modules.md#r-module.test.tests-root-elsewhere).
-    if (this.atText("tests"))
+    // The `tests` root names integration test modules, so only an
+    // integration test module may use it; anywhere else it is test-only-use
+    // (10-modules.md#r-module.test.tests-root-elsewhere).
+    const testsRoot = this.atText("tests");
+    if (testsRoot && !this.options.integrationTest)
       this.fail(
         "test-only-use",
         "the tests use root is available only in an integration test module under tests/",
         this.current().span,
       );
-    // A use root: `pkg`, `std`, `dep`, `super`, or the reserved word `self`.
+    // A use root: `pkg`, `std`, `dep`, `super`, or the reserved word `self`
+    // or `tests`.
     const parts = [
-      this.atText("self")
+      this.atText("self") || testsRoot
         ? this.advance().text
         : this.expectKind("identifier", "expected a module path after use").text,
     ];

@@ -82,6 +82,10 @@ const PACKAGE_PATH: FlagSpec = {
   conformance: true,
 };
 
+/** How a command finds FILE's package (src/README.md, Commands). */
+const PACKAGE_NOTE =
+  "A FILE under a package's src/ or tests/ is linked with the rest of the package.";
+
 const PARSE_SUMMARY = "parse FILE and its tests: block, and print 'FILE: ok'";
 
 export const COMMANDS: readonly CommandSpec[] = [
@@ -95,6 +99,7 @@ export const COMMANDS: readonly CommandSpec[] = [
       { name: "--wat", help: "print the WebAssembly text instead of writing a file" },
       PROFILE,
     ],
+    notes: [PACKAGE_NOTE],
   },
   {
     name: "run",
@@ -110,6 +115,7 @@ export const COMMANDS: readonly CommandSpec[] = [
       },
       PROFILE,
     ],
+    notes: [PACKAGE_NOTE],
   },
   {
     name: "test",
@@ -142,9 +148,10 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
     notes: [
       "With DIR, a package (a directory with hd.toml or src/) runs each module",
-      "under src/ with the other modules linked; any other directory runs each",
-      ".hd file in it. With no path, it tests the package that holds the current",
-      "directory (the nearest hd.toml), or else the current directory.",
+      "under src/ and tests/ with the other modules linked; any other directory",
+      "runs each .hd file in it. With no path, it tests the package that holds",
+      "the current directory, or else the current directory.",
+      PACKAGE_NOTE,
     ],
   },
   {
@@ -160,6 +167,7 @@ export const COMMANDS: readonly CommandSpec[] = [
       PACKAGE_TREE,
       PACKAGE_PATH,
     ],
+    notes: [PACKAGE_NOTE],
   },
   {
     name: "explain",

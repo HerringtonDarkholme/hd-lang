@@ -69,12 +69,18 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   `check`). The last three are temporary: a package's layout should come
   from its `hd.toml`, which the prototype does not read yet.
 - `hd test DIR` tests a package (a directory with `hd.toml` or `src/`) one
-  module at a time: each file under `src/` is linked with the rest of the
-  package and runs only its own test cases. Any other directory has each
-  `.hd` file in it tested on its own. `hd test` with no path tests the
-  package that holds the current directory (the nearest `hd.toml`), or else
-  the current directory. An error in a module that several modules link
-  prints once. The prototype links no `tests/` integration modules.
+  module at a time: each file under `src/` and `tests/` is linked with the
+  rest of the package and runs only its own test cases. Any other directory
+  has each `.hd` file in it tested on its own. `hd test` with no path tests
+  the package that holds the current directory, or else the current
+  directory. An error in a module that several modules link prints once.
+- `hd run`, `hd build`, `hd check`, and `hd test` on a FILE link FILE with
+  its package, so `pkg`, `self`, and `super` uses between modules resolve.
+  The package is the one that holds FILE: the nearest directory with
+  `hd.toml`, else the parent of the nearest `src/`, or of a `tests/` beside
+  a `src/`. A FILE outside the package's `src/` and `tests/`, or outside any
+  package, compiles on its own. `--package-tree` and `--test-layout` turn
+  this off.
 
 `hd run` runs the public `main` or `main!`; a module without one runs its
 initialization and exits 0, while `--entry NAME` must name a function.
@@ -669,7 +675,12 @@ else`, `break`, `break value`, and `continue`;
   modules reachable from the entry are joined into one program in
   initialization order. A `*_test.hd` test module joins as a `tests:`
   block, and a test build links every test module; `hd test FILE` parses a
-  `*_test.hd` file as a test module, whose top level is test position. Files
+  `*_test.hd` file as a test module, whose top level is test position. A
+  file under `tests/` is the integration test module `tests.<path>`, which
+  links like a test module: it uses the library through `pkg` (public
+  declarations, library modules only) and other integration test modules
+  through the `tests` root or `self`, whose base is the test root. The
+  shared namespace does not hide library privates from it. Files
   of one folder may use each other in a loop; a loop of folders is
   `folder-cycle`, reported once per tangle with one shortest folder loop,
   each edge's `use` line, the tangle size, and an `x.hd` to `x/mod.hd`

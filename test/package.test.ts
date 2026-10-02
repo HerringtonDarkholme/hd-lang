@@ -28,6 +28,8 @@ test("package paths map to module identities", () => {
   assert.equal(moduleIdentity("src/models/user.hd"), "models.user");
   assert.equal(moduleIdentity("src/models/mod.hd"), "models");
   assert.equal(moduleIdentity("src/mod.hd"), "");
+  assert.equal(moduleIdentity("tests/common.hd"), "tests.common");
+  assert.equal(moduleIdentity("tests/api/mod.hd"), "tests.api");
   assert.equal(moduleIdentity("lib/main.hd"), undefined);
   assert.equal(moduleIdentity("src/my-models/user.hd"), undefined);
   assert.equal(moduleIdentity("src/fn.hd"), undefined);

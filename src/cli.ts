@@ -1,6 +1,6 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -24,7 +24,7 @@ import { explainCommand, lookupCommand } from "./cli-queries.ts";
 import { DiagnosticReporter, type OutputFormat } from "./diagnostic-report.ts";
 import { DiagnosticError, type Diagnostic } from "./diagnostics.ts";
 import type { HirFunction } from "./hir.ts";
-import { linkPackage, SOURCE_ROOT, type PackageDiagnostic } from "./package.ts";
+import { linkPackage, SOURCE_ROOT, TEST_ROOT, type PackageDiagnostic } from "./package.ts";
 import { RuntimePanicError, UnsupportedAtRunTimeError } from "./runtime-panic.ts";
 import { parse } from "./parser/index.ts";
 import { runRepl } from "./repl-terminal.ts";
@@ -137,6 +137,7 @@ interface FileOptions {
  * package root, the package path FILE takes, and the package's files.
  */
 interface PackagePlacement {
+  /** The package root, as diagnostics in its other files name it. */
   readonly root: string;
   readonly path: string;
   readonly files: Readonly<Record<string, string>>;
@@ -358,39 +359,83 @@ async function isDirectory(path: string): Promise<boolean> {
   return (await stat(path).catch(() => undefined))?.isDirectory() ?? false;
 }
 
-/** The nearest directory at or above `start` that holds `hd.toml`, else `start`. */
-function packageRootFrom(start: string): string {
-  for (let directory = start; ;) {
-    if (existsSync(join(directory, "hd.toml"))) return directory;
-    const parent = dirname(directory);
-    if (parent === directory) return start;
-    directory = parent;
+function isDirectorySync(path: string): boolean {
+  return statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false;
+}
+
+/** Whether `directory` is a package root: it holds `hd.toml` or `src/`. */
+function isPackageRoot(directory: string): boolean {
+  return existsSync(join(directory, "hd.toml")) || isDirectorySync(join(directory, SOURCE_ROOT));
+}
+
+/**
+ * The root of the package that holds the directory `start`: the nearest
+ * directory at or above it with `hd.toml`, else the parent of the nearest
+ * `src/` (or of a `tests/` beside a `src/`). Undefined outside any package.
+ */
+function enclosingPackageRoot(start: string): string | undefined {
+  const ancestors: string[] = [];
+  for (let directory = resolve(start); ; directory = dirname(directory)) {
+    ancestors.push(directory);
+    if (dirname(directory) === directory) break;
   }
+  const manifest = ancestors.find((directory) => existsSync(join(directory, "hd.toml")));
+  if (manifest) return manifest;
+  const root = ancestors.find((directory) => {
+    const name = basename(directory);
+    return (
+      name === SOURCE_ROOT.slice(0, -1) ||
+      (name === TEST_ROOT.slice(0, -1) && isDirectorySync(join(dirname(directory), SOURCE_ROOT)))
+    );
+  });
+  return root && dirname(root);
+}
+
+/** A package's `.hd` files under `src/` and `tests/`, keyed by package path. */
+async function packageFiles(root: string): Promise<Record<string, string>> {
+  const files: Record<string, string> = {};
+  for (const prefix of [SOURCE_ROOT, TEST_ROOT]) {
+    const directory = join(root, prefix);
+    if (!(await isDirectory(directory))) continue;
+    for (const [path, text] of Object.entries(await packageTreeFiles(directory)))
+      files[`${prefix}${path}`] = text;
+  }
+  return files;
+}
+
+/**
+ * FILE's place in its enclosing package, when FILE is a package file under
+ * `src/` or `tests/`; undefined for a lone file, which compiles on its own.
+ */
+async function enclosingPlacement(file: string): Promise<PackagePlacement | undefined> {
+  const path = resolve(file);
+  const root = enclosingPackageRoot(dirname(path));
+  if (root === undefined) return undefined;
+  const packagePath = relative(root, path).split(sep).join("/");
+  if (!packagePath.startsWith(SOURCE_ROOT) && !packagePath.startsWith(TEST_ROOT)) return undefined;
+  // Diagnostics name the package's other files the way FILE was named.
+  const shown = isAbsolute(file) ? root : relative(process.cwd(), root) || ".";
+  return { root: shown, path: packagePath, files: await packageFiles(root) };
 }
 
 /**
  * `hd test DIR`: a package (a directory with `hd.toml` or `src/`) tests each
- * module under `src/` with the other modules linked; any other directory
- * tests each `.hd` file directly in it.
+ * module under `src/` and `tests/` with the other modules linked; any other
+ * directory tests each `.hd` file directly in it.
  */
 async function testDirectory(options: FileOptions, directory: string): Promise<number> {
   const root = resolve(directory);
-  const sourceRoot = join(root, SOURCE_ROOT);
-  const hasSources = await isDirectory(sourceRoot);
   let status = 0;
   let ran = 0;
-  if (hasSources || existsSync(join(root, "hd.toml"))) {
-    const sources = hasSources ? await packageTreeFiles(sourceRoot) : {};
-    const files = Object.fromEntries(
-      Object.entries(sources).map(([path, text]) => [`${SOURCE_ROOT}${path}`, text]),
-    );
+  if (isPackageRoot(root)) {
+    const files = await packageFiles(root);
     const reported = new Set<string>();
     for (const path of Object.keys(files).sort()) {
       ran += 1;
       const code = await runFile(
         options,
         join(directory, path),
-        { root, path, files, reported },
+        { root: directory, path, files, reported },
         true,
       );
       status = Math.max(status, code);
@@ -452,6 +497,8 @@ function fileOptions(parsed: CompilingCommand): FileOptions {
 }
 
 const QUERY_COMMANDS = new Set(["explain", "doc", "def", "repl"]);
+/** Commands that link a FILE with the rest of its enclosing package. */
+const LINKING_COMMANDS = new Set<FileOptions["command"]>(["build", "check", "run", "test"]);
 
 export async function main(args = process.argv.slice(2)): Promise<number> {
   let parsed: ParsedCommand;
@@ -477,11 +524,13 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     return lookupCommand(name, first!, second ?? ".", parsed.format);
   if (!options) throw new Error(`hd ${name} has no file options`);
   if (options.command === "test" && first === undefined) {
-    const root = packageRootFrom(process.cwd());
+    const root = enclosingPackageRoot(process.cwd()) ?? process.cwd();
     return testDirectory(options, relative(process.cwd(), root) || ".");
   }
   if (options.command === "test" && (await isDirectory(first!)))
     return testDirectory(options, first!);
+  // The conformance flags place FILE in a package tree or a test layout;
+  // otherwise a FILE in a package links with the package's other files.
   const tree = parsed.flags.get("--package-tree");
   const placement =
     typeof tree === "string"
@@ -490,7 +539,9 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
           path: String(parsed.flags.get("--package-path")),
           files: await packageTreeFiles(resolve(tree)),
         }
-      : undefined;
+      : options.testLayout === undefined && LINKING_COMMANDS.has(options.command)
+        ? await enclosingPlacement(first!)
+        : undefined;
   return runFile(options, first!, placement);
 }
 
