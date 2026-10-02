@@ -30,7 +30,7 @@ action at a distance.
    [Shapes and Generic Code](../spec/lang/04-type-system.md#shapes-and-generic-code)),
    measured by a microbenchmark suite.
 6. **Error messages.** A Haiku probe of the messages
-   ([hd writing log](hd-writing-log.md)), then the error-code
+   ([hd writing log](../audit/hd-writing-log.md)), then the error-code
    revamp, task #101
    ([codes waiting for it](OPEN_ISSUES.md#codes-waiting-for-the-code-revamp)).
 

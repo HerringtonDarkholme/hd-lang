@@ -332,7 +332,7 @@ the topic.
 ([Pipe Expressions](../spec/lang/05-expressions.md#pipe-expressions)), `it` is
 the prelude test function, and `$0` collides with requirements and
 interpolation. `fn: _ * 2` would parse but needs a "not inside a pipe
-step" exception. Revisit if [the hd writing log](hd-writing-log.md)
+step" exception. Revisit if [the hd writing log](../audit/hd-writing-log.md)
 shows demand from cheap-model agents; adding `fn: _` then breaks no code.
 
 ### Iterator Performance

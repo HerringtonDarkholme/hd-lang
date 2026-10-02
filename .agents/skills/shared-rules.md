@@ -147,5 +147,5 @@ When the task is writing hd programs, follow AGENTS.md "Writing hd Code:
 Model Choice And A Feedback Log". Examples: `lib/std`, examples,
 playground code, and hd test files. It does not apply to spec text,
 fixtures, or `src/`. Log every syntax, type, API or semantic mistake in
-`future-work/hd-writing-log.md`.
+`audit/hd-writing-log.md`.
 

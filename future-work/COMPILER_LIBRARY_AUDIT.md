@@ -251,7 +251,7 @@ Each chunk is about one hour of agent work, with its own fixtures run
 through `pnpm run test:portable`. The order is TS deleted per hour, best
 first, with dependencies first. Every chunk keeps `lib/std` code on
 Sonnet and logs hd-writing mistakes in
-[future-work/hd-writing-log.md](hd-writing-log.md), as AGENTS.md
+[audit/hd-writing-log.md](../audit/hd-writing-log.md), as AGENTS.md
 requires.
 
 | # | hd to write in `lib/std` | TS to delete | Hook | Fixtures that prove it |

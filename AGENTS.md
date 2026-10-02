@@ -97,7 +97,7 @@ and bool-returning property bodies. Both kinds of mistake are worth
 logging.
 
 Every such agent, on either model, logs each mistake it made in
-[future-work/hd-writing-log.md](future-work/hd-writing-log.md): one row per syntax
+[audit/hd-writing-log.md](audit/hd-writing-log.md): one row per syntax
 error, type error, API misuse, or semantic misunderstanding. Record:
 - what it wrote;
 - what the compiler said, word for word;
