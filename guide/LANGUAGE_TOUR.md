@@ -57,7 +57,9 @@ println("comments should feel familiar to Python users")
 
 Top-level statements make hd-lang useful as an interactive scripting language for AI agents. The same file can later grow into typed functions, tool definitions, tests, and deployable workflows without switching to a different language model.
 
-Scripts execute top-level statements. Executable packages use the explicit `main`
+Scripts execute top-level statements. A file with neither top-level
+statements nor `main` runs as an empty script: it does nothing and exits
+with status 0. Executable packages use the explicit `main`
 entry point described later in the tour. The exact CLI and standard-output API
 spellings are tooling decisions rather than language syntax.
 
@@ -1662,33 +1664,20 @@ passed as an argument takes its type arguments from the call.
 Only use sites infer: a declaration always writes its own generic parameters
 and signature.
 
-Function generic parameters are erased at runtime by default. Mark a parameter `reified` when the function needs its concrete runtime type:
+Generic parameters are erased at runtime. A function that needs a type
+parameter's runtime identity bounds it by `Inspectable`, which supplies that
+identity with each call:
 
 ```text
-fn lookup[reified T]() -> T $ TypeProvider:
-    ...
+use std.inspect.Inspectable
+
+fn first_of[T < AnyRef & Inspectable](items: List[Inspectable]) -> T?:
+    for item in items:
+        match item.downcast::[T]():
+            .Some(found) => return .Some(found)
+            .None => pass
+    .None
 ```
-
-`reified` is written on the generic parameter, not on the function. The compiler passes a hidden runtime type descriptor at each call:
-
-```text
-names := lookup::[List[string]]()
-```
-
-Reification propagates through generic calls. A function passing its own type parameter to a reified parameter must also declare that parameter as reified:
-
-```text
-fn resolve[reified T]() -> T $ TypeProvider:
-    ...
-
-fn resolved[reified T]() -> T $ TypeProvider:
-    resolve::[T]()
-
-fn invalid_resolved[T]() -> T $ TypeProvider:
-    resolve::[T]()  # compile error: resolve requires runtime type information for T
-```
-
-Unlike Kotlin's JVM implementation, hd-lang does not require a reified function to be `inline`. Backends may specialize calls and remove descriptors when doing so cannot change observable reflection behavior.
 
 An explicit list may leave out trailing arguments, which are inferred, or
 defaulted when nothing solves them.
@@ -2072,20 +2061,6 @@ they are contravariant in each parameter, covariant in the result, and
 invariant in the requirement row. Because only permission changes preserve
 representation, `fn() -> mut User` converts to `fn() -> User`, but
 `fn() -> i32` does not convert to `fn() -> Display`.
-
-Function generic parameters are erased by default. Use `reified` only when runtime behavior needs the concrete type, such as type-directed dependency injection:
-
-```text
-fn resolve[reified T]() -> T $ TypeProvider:
-    ...
-
-items := resolve::[List[i32]]()
-```
-
-At the language level, a reified call behaves as if it passes a hidden runtime
-type descriptor. This descriptor is
-not an ordinary source-level argument and cannot be supplied with a named
-argument. Reification is part of a function's public type and ABI.
 
 hd has no variadic generics. Code that works over any number of arguments of
 any types uses an ordinary tuple: a vararg whose type is bounded by `Tuple`
@@ -3026,6 +3001,9 @@ fn users_path() -> string:
         .None => ""
 ```
 
+A lookup whose type argument mentions a type parameter, as in a generic
+`find::[M]()` helper, needs `M < Inspectable`, which supplies `M`'s
+runtime identity. A handle's `h.fact::[M]()` exempts the handle's own `F`.
 A `Route` value before anything but a function is `decorator-target-kind`.
 A newtype is a kind too, `.Newtype`. The compiler checks only that kind; whatever reads a value checks that it suits its
 target. See [Target Kinds](../spec/14-annotations.md#target-kinds).

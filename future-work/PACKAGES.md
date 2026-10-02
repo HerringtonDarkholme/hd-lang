@@ -380,8 +380,8 @@ Tools cannot decide that property in general, so `hd api diff O N`
 classifies each difference between the two interface files. Any
 unclassified difference counts as breaking. The required bump is:
 
-- **patch** when the two interfaces are signature-equal. Bodies of pack and
-  reified code may differ; they are behavior, not signature.
+- **patch** when the two interfaces are signature-equal. Bodies of pack
+  code may differ; they are behavior, not signature.
 - **minor** when every difference is an addition classified as compatible.
 - **major** (a new line) otherwise.
 
