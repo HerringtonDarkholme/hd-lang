@@ -9,14 +9,14 @@ repository history keeps the removed evidence.
 ## Conformance
 
 On 2026-10-01 the conformance suite has 1,764 cases, and
-`test/portable/cases.tsv` selects the 1,735 that the prototype passes. The
-other 29 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
+`test/portable/cases.tsv` selects the 1,743 that the prototype passes. The
+other 21 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
 finding or with a decision below. Every case is in one of the two files. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Selected | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,690 | 1,662 | 28 |
+| language | 1,690 | 1,670 | 20 |
 | stdlib | 74 | 73 | 1 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -33,8 +33,6 @@ them by tag:
 | DC7 | 1 | group statements are not interleaved across modules |
 | MHP-1 | 1 | no inferred script entry requirement row |
 | ANNOTATE-TYPED | 2 | batches 39 and 40: the prototype's facts hold `Inspectable` values, so a typed fact over a type that is not inspectable cannot be held or read |
-| SHAPE-REVIEW | 7 | batch 42: the prototype has no `facts_of` and still implements `shape` and `shape_of`, so every `facts_of` call is `unknown-name` |
-| REIFIED-REVIEW | 1 | batch 43: the prototype still parses the removed `reified` modifier |
 
 ## What Remains
 
