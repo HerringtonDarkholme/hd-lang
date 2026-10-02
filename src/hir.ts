@@ -137,27 +137,14 @@ export interface HirTraitDictionaryPlan {
   readonly bounds: readonly HirExpression[];
   readonly implementationIndex: number;
   readonly supertraits: readonly HirTraitDictionaryPlan[];
-  // Set for a standard-library implementation that has no source `impl`
-  // (Eq, PartialOrd on primitives and built-in composites).
-  // `implementationIndex` is then -1, and `bounds` holds the dictionaries the
-  // strategy's bound dispatches read, renumbered from zero.
+  // Set for a compiler-supplied implementation that has no source `impl`
+  // (`Any`, `Inspectable`, and forwarding dictionaries).
+  // `implementationIndex` is then -1, and `bounds` holds the dictionaries an
+  // `Inspectable` key reads, numbered from zero.
   readonly builtin?: HirBuiltinTraitImplementation;
 }
 
 export type HirBuiltinTraitImplementation =
-  | {
-      readonly kind: "equality";
-      readonly traitIndex: number;
-      readonly targetType: ValueType;
-      readonly strategy: HirEqualityStrategy;
-    }
-  | {
-      // `partial_cmp` for PartialOrd, or `cmp` for Ord (no `.None` result).
-      readonly kind: "ordering" | "total-ordering";
-      readonly traitIndex: number;
-      readonly targetType: ValueType;
-      readonly strategy: HirOrderingStrategy;
-    }
   | {
       // A dynamic value of trait `sourceTraitIndex` used where its own trait or
       // a supertrait is bound: each method forwards through the value's own

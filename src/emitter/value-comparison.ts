@@ -117,17 +117,13 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
   /** The `Eq` function of each declared map key type, by function index. */
   private readonly keyEqualityTypes = new Map<number, ValueType>();
 
-  /** The map key types compared by the language's primitive `Eq`, such as `i64`. */
-  private readonly primitiveKeyTypes: ValueType[] = [];
-
   /** The `Eq` traits whose bound dictionaries key a map (kind 3), by trait index. */
   private readonly boundKeyTraits = new Set<number>();
 
   /**
    * A map's key equality and key context, its last two `$hd.map` operands:
    * null for a scalar or string key (kinds 0 and 1); a wrapper of the key
-   * type's `Eq` implementation, or of the primitive `Eq` of a wide integer
-   * (kind 2); or, for a type-parameter key (kind 3), a wrapper that calls
+   * type's `Eq` implementation, such as std's `Eq` for `i64` (kind 2); or, for a type-parameter key (kind 3), a wrapper that calls
    * `Eq` through the bound's dictionary, which is the context.
    */
   protected keyEquality(
@@ -151,10 +147,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       (candidate) => candidate.traitIndex === eq?.index && candidate.targetType === type,
     );
     const method = implementation?.methodFunctions.find(({ methodIndex }) => methodIndex === 0);
-    if (!method && numericType(type)) {
-      if (!this.primitiveKeyTypes.includes(type)) this.primitiveKeyTypes.push(type);
-      return `(ref.func $hd.keqp${this.primitiveKeyTypes.indexOf(type)}) (ref.null any)`;
-    }
     if (!method) throw new Error(`map key type '${type}' has no Eq implementation`);
     this.keyEqualityTypes.set(method.functionIndex, type);
     return `(ref.func $hd.keq${method.functionIndex}) (ref.null any)`;
@@ -164,7 +156,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     return [
       ...[...this.keyEqualityTypes.keys()].map((index) => `$hd.keq${index}`),
       ...[...this.boundKeyTraits].map((index) => `$hd.keqb${index}`),
-      ...this.primitiveKeyTypes.map((_, index) => `$hd.keqp${index}`),
     ];
   }
 
@@ -180,10 +171,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         const dictionary = `(ref.cast (ref null $trait${index}) (local.get $context))`;
         return `(func $hd.keqb${index} ${signature}\n  (call_ref $tsig${index}_0 (local.get $left) ${dictionary} (local.get $right) (struct.get $trait${index} $trait${index}m0 ${dictionary})))`;
       }),
-      ...this.primitiveKeyTypes.map(
-        (type, index) =>
-          `(func $hd.keqp${index} ${signature}\n  ${this.emitValueEquality(this.unboxValue("(local.get $left)", type), this.unboxValue("(local.get $right)", type), type, { kind: "builtin" })})`,
-      ),
     ].join("\n\n");
   }
 
@@ -232,11 +219,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     // An Inspectable key's every bound is an Inspectable dictionary, such as
     // a handle's witness (annot.handle.fact.key).
     const boundTraits = boundExpressions.map((bound) =>
-      bound.kind === "trait-bound-dictionary"
-        ? bound.traitIndex
-        : builtin.kind === "inspectable"
-          ? builtin.traitIndex
-          : -1,
+      bound.kind === "trait-bound-dictionary" ? bound.traitIndex : builtin.traitIndex,
     );
     const key = JSON.stringify([builtin, boundTraits]);
     let adapter = this.builtinTraitAdapters.get(key);
@@ -381,10 +364,8 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       .join("\n\n");
   }
 
-  // Dictionary methods for standard-library implementations without a source
-  // `impl`. Each unboxes its erased operands and runs the operator strategy.
-  // An adapter's body may add adapters, as a tuple's equality adds its list
-  // element's, so this runs until no new one appears.
+  // The `runtime_type` methods of compiler-supplied `Inspectable` dictionaries,
+  // which build a `TypeId` from the key. This runs until no new adapter appears.
   emitBuiltinTraitAdapters(): string {
     const savedTemporaries = [...this.temporaryTypes];
     const adapters: string[] = [];
@@ -394,49 +375,25 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       const trait = this.traitsByIndex.get(builtin.traitIndex)!;
       const method = trait.methods[0]!;
       this.temporaryTypes.length = 0;
-      const self = this.unboxValue(`(local.get $self)`, builtin.targetType);
-      const other = () => this.unboxValue(`(local.get $a0)`, builtin.targetType);
-      let body: string;
-      if (builtin.kind === "inspectable") {
-        // A nested read passes an i31 receiver, which no erased value is, so
-        // an `outerMut` dictionary can tell it apart from `runtime_type`.
-        const key = builtin.key
-          .map((part) =>
-            typeof part === "string"
-              ? this.emitStringLiteral(part)
-              : this.emitTypeIdKey(
-                  `(local.get $bound${part.bound})`,
-                  builtin.traitIndex,
-                  NESTED_TYPE_ID_RECEIVER,
-                ),
-          )
-          .reduce((left, right) => `(call $hd.string_concat ${left} ${right})`);
-        const typeId = this.dataByName.get("TypeId")!.index;
-        body = builtin.outerMut
-          ? `(struct.new $d${typeId} (if (result (ref null $hd.bytes)) (ref.test (ref i31) (local.get $self)) (then (call $hd.string_concat ${this.emitStringLiteral("mut ")} ${key})) (else ${key})))`
-          : `(struct.new $d${typeId} ${key})`;
-      } else if (builtin.kind === "equality") {
-        body = this.emitValueEquality(self, other(), builtin.targetType, builtin.strategy);
-      } else if (builtin.kind === "marker" || builtin.kind === "forward") {
+      if (builtin.kind !== "inspectable")
         throw new Error(`a ${builtin.kind} dictionary has no builtin adapter`);
-      } else {
-        const compared = this.emitValueOrdering(
-          self,
-          other(),
-          builtin.targetType,
-          builtin.strategy,
-        );
-        const code = this.allocateTemporary("i32");
-        const orderingIndex = this.enumByName.get("Ordering")!.index;
-        const orderingType = `(ref $e${orderingIndex})`;
-        const variant = (tag: number) => `(global.get $e${orderingIndex}v${tag})`;
-        const ordering = `(if (result ${orderingType}) (i32.lt_s (local.get ${code}) (i32.const 0)) (then ${variant(0)}) (else (if (result ${orderingType}) (i32.eqz (local.get ${code})) (then ${variant(1)}) (else ${variant(2)}))))`;
-        const resultType = this.watType(method.result);
-        body =
-          builtin.kind === "total-ordering"
-            ? `(block (result ${resultType}) (local.set ${code} ${compared}) ${ordering})`
-            : `(block (result ${resultType}) (local.set ${code} ${compared}) (if (result ${resultType}) (i32.eq (local.get ${code}) (i32.const 2)) (then (struct.new $hd.variant (i32.const 0) (ref.null any))) (else (struct.new $hd.variant (i32.const 1) ${ordering}))))`;
-      }
+      // A nested read passes an i31 receiver, which no erased value is, so
+      // an `outerMut` dictionary can tell it apart from `runtime_type`.
+      const key = builtin.key
+        .map((part) =>
+          typeof part === "string"
+            ? this.emitStringLiteral(part)
+            : this.emitTypeIdKey(
+                `(local.get $bound${part.bound})`,
+                builtin.traitIndex,
+                NESTED_TYPE_ID_RECEIVER,
+              ),
+        )
+        .reduce((left, right) => `(call $hd.string_concat ${left} ${right})`);
+      const typeId = this.dataByName.get("TypeId")!.index;
+      const body = builtin.outerMut
+        ? `(struct.new $d${typeId} (if (result (ref null $hd.bytes)) (ref.test (ref i31) (local.get $self)) (then (call $hd.string_concat ${this.emitStringLiteral("mut ")} ${key})) (else ${key})))`
+        : `(struct.new $d${typeId} ${key})`;
       const parameters = method.parameters.map(
         (parameter, index) => `(param $a${index} ${this.parameterWatType(parameter)})`,
       );

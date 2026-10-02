@@ -1132,12 +1132,12 @@ else`, `break`, `break value`, and `continue`;
   `remove()` through `mut Map[K, V]`, and erased Wasm GC key/value storage.
   A key type meets the declared bound `Map[K < Eq & Hash, V]`
   (types.map-key.declared-bound) through non-generic `Eq` and `Hash`
-  implementations, std's `Hash` for the primitives included, or a type
+  implementations, std's `Eq` and `Hash` for the primitives included, or a type
   parameter's own bounds; a `mut` key type is `invalid-map-key`. The loader
-  adds `Hash` for any code that mentions `Map` or writes a map literal or
+  adds `Eq` and `Hash` for any code that mentions `Map` or writes a map literal or
   comprehension. An `i32`-like scalar or a string key compares directly; any
-  other key compares through a wrapper of its type's `Eq`, or of the
-  primitive `Eq` of `i64` and `u64`; and a map over a type-parameter key
+  other key, `i64` and `u64` included, compares through a wrapper of its
+  type's `Eq`; and a map over a type-parameter key
   (key kind 3) compares its keys through the bound's `Eq` dictionary, which
   the map holds as its key context;
 - the prelude `Iterator[T]`, a `lib/std/iter.hd` data type whose private
@@ -1252,7 +1252,7 @@ What it provides:
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip`, `view`; `ListView[T]` with `len`, `to_list`, `Index[i32]`, and `Iterable[T]`, which checks the list's structural version through the `list_version` intrinsic |
 | `std.text` | on `string`: `chars`, `char_indices`, `bytes`, `slice`, `to_utf8`, `string::from_utf8` with `Utf8Error`, `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
 | `std.iter` | the prelude `Iterator[T]` and `Iterable[T]`; `Iterator` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Map`, `Result`, and `T?`; `Iterable` for `List` and `Map` (not `Iterator`, which a loop advances directly) |
-| `std.cmp` | the prelude `Eq`, `PartialOrd`, `Ord`, and `Ordering`; `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?`; the tuple templates of `Eq`, `PartialOrd`, and `Ord` |
+| `std.cmp` | the prelude `Eq`, `PartialOrd`, `Ord`, and `Ordering`; `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for every primitive, `PartialOrd` for the numbers, `char`, and `string`, and `Ord` for the integers, `char`, and `string`, each body one built-in operator on the primitive; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?`; the tuple templates of `Eq`, `PartialOrd`, and `Ord` |
 | `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | the prelude `Console` and `println`; `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
@@ -1369,6 +1369,7 @@ marks what this refactor removed.
 | Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Done, except `Any` (`std.core`) and `Waker` (`std.task`), which have no `lib/std` file: the rest are hd in `std.cmp`, `std.format`, and `std.iter`, declared when a program mentions them (migration M2) |
 | HIR | `display`, with the emitter's `emitPrimitiveDisplay`, the built-in `Display` dictionary, four `runtime.wat` digit and `char` helpers, and `float.wat` | `std.format` | Done: `Display` for `string`, `bool`, `char`, and the numbers is hd in `lib/std/format.hd`; a `char`'s and a float's text come from host functions (migration M6) |
 | Emitter | the `pow_f64` and `rem_f64` imports | `**` and floating `%` | Remains: operator support |
+| Checker, emitter | `Eq`, `PartialOrd`, and `Ord` dictionaries for the primitives built from the operator strategies (the `equality`, `ordering`, and `total-ordering` builtin kinds and their adapters), and a map key's primitive `Eq` | `std.cmp` | Done: hd in `lib/std/cmp.hd`, so `(1).cmp(2)` is an ordinary method call; `==` and `<` on a primitive still lower inline |
 
 Counts: the HIR expression union had 92 kinds, of which 15 were library-
 or capability-specific. The string step removed 5, the `println` step 1,

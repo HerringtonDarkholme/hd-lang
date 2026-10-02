@@ -1,0 +1,8 @@
+# test: .eq calls the standard Eq implementation of bool directly
+# expect: test
+# Spec 05 Equality: expr.eq.std.
+pub fn main() -> void:
+    if !true.eq(true) || !false.eq(false):
+        panic("equal")
+    if true.eq(false):
+        panic("unequal")

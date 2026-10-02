@@ -1,0 +1,12 @@
+# test: .eq, .partial_cmp, and .cmp call the standard comparison implementations of char directly, by scalar value
+# expect: test
+# Spec 05 Equality and Ordering: expr.eq.std, expr.ord.std.char-scalar.
+pub fn main() -> void:
+    if !'a'.eq('a') || 'a'.eq('b'):
+        panic("eq")
+    match 'a'.cmp('b'):
+        .Less => pass
+        _ => panic("cmp")
+    match 'é'.partial_cmp('z'):
+        .Some(.Greater) => pass
+        _ => panic("partial_cmp by scalar")

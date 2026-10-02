@@ -54,7 +54,6 @@ import {
   resolveTraitType,
   substituteGenericType,
   traitTypeName,
-  builtinTotallyOrdered,
   MAX_BOUND_DEPTH,
   numericWidening,
   restElementProblem,
@@ -945,9 +944,7 @@ export abstract class CheckerContext {
     return undefined;
   }
 
-  // The standard library implements Eq for primitives and equality-comparable built-in
-  // composites, and PartialOrd for ordered ones (05-expressions.md). With no source
-  // `impl`, the dictionary uses the operators' strategies.
+  // The compiler-supplied `Any` and `Inspectable`, which have no source `impl`.
   protected builtinTraitDictionaryPlan(
     traitIndex: number,
     targetType: ValueType,
@@ -978,76 +975,7 @@ export abstract class CheckerContext {
         : undefined;
       return dictionary && plan(dictionary.builtin, dictionary.bounds);
     }
-    if (traitName === "Eq" || traitName === "PartialOrd" || traitName === "Ord") {
-      if (traitName === "Ord" && !builtinTotallyOrdered(type)) return undefined;
-      const strategy =
-        traitName === "Eq" ? this.equalityStrategy(type) : this.orderingStrategy(type);
-      if (!strategy || strategy.kind === "dispatch") return undefined;
-      // It carries its supertrait's dictionary (09-traits.md#comparison-traits).
-      const parent =
-        traitName === "Eq"
-          ? undefined
-          : this.builtinTraitDictionaryPlan(
-              this.traitTypes.get(traitName === "Ord" ? "PartialOrd" : "Eq")!.index,
-              targetType,
-              [],
-              span,
-            );
-      if (traitName !== "Eq" && !parent) return undefined;
-      const bounds: HirExpression[] = [];
-      const renumbered = this.renumberBoundDispatches(strategy, bounds, new Map(), span);
-      const kind =
-        traitName === "Eq" ? "equality" : traitName === "Ord" ? "total-ordering" : "ordering";
-      // The strategy kind matches `kind`: equality for Eq, ordering otherwise.
-      const builtin = {
-        kind,
-        traitIndex,
-        targetType: type,
-        strategy: renumbered,
-      } as HirBuiltinTraitImplementation;
-      return { ...plan(builtin, bounds), supertraits: parent ? [parent] : [] };
-    }
     return undefined;
-  }
-
-  // Composite strategies over a bounded generic element dispatch through the
-  // caller's bound dictionaries. The built-in dictionary carries those in its
-  // bound pack, so each distinct bound gets a pack position.
-  private renumberBoundDispatches(
-    strategy: HirEqualityStrategy | HirOrderingStrategy,
-    bounds: HirExpression[],
-    positions: Map<number, number>,
-    span: SourceSpan,
-  ): HirEqualityStrategy | HirOrderingStrategy {
-    const position = (boundIndex: number): number => {
-      let found = positions.get(boundIndex);
-      if (found === undefined) {
-        found = bounds.length;
-        positions.set(boundIndex, found);
-        const bound = this.signature.genericBounds[boundIndex]!;
-        bounds.push({
-          kind: "trait-bound-dictionary",
-          traitIndex: bound.traitIndex,
-          boundIndex,
-          type: `trait:${bound.traitName}`,
-          span,
-        });
-      }
-      return found;
-    };
-    const visit = (value: unknown): unknown => {
-      if (Array.isArray(value)) return value.map(visit);
-      if (typeof value !== "object" || value === null) return value;
-      const node = value as Record<string, unknown>;
-      const dispatch = node.dispatch as HirEqualityDispatch | undefined;
-      if (node.kind === "dispatch" && dispatch?.kind === "bound")
-        return { ...node, dispatch: { ...dispatch, boundIndex: position(dispatch.boundIndex) } };
-      // A generic implementation's bound dictionary forwarded from the caller's bound.
-      if (node.kind === "trait-bound-dictionary")
-        return { ...node, boundIndex: position(node.boundIndex as number) };
-      return Object.fromEntries(Object.entries(node).map(([key, entry]) => [key, visit(entry)]));
-    };
-    return visit(strategy) as HirEqualityStrategy | HirOrderingStrategy;
   }
 
   protected displayValue(

@@ -401,11 +401,12 @@ const OPERATOR_TRAITS = new Map<string, readonly string[]>([
  * mentions. A comparison operator mentions the trait it calls, and a tuple
  * type, such as `(i32, string)` or `List[(K, V)]`, mentions `tuple`, as a
  * tuple expression or pattern (`kind: "tuple"`) does. A map type, literal,
- * or comprehension mentions `Hash`, which its key type's bound
+ * or comprehension mentions `Eq` and `Hash`, which its key type's bound
  * `Map[K < Eq & Hash, V]` checks (04-type-system.md#map-key-types), and
- * `tuple`, since iterating a map yields `(K, V)` pairs.
+ * `tuple`, since iterating a map yields `(K, V)` pairs. The map compares
+ * keys with the key type's `Eq` implementation, such as std's `Eq` for `i64`.
  */
-const MAP_MENTIONS = ["Hash", "tuple"];
+const MAP_MENTIONS = ["Eq", "Hash", "tuple"];
 
 /**
  * A range expression builds a `std.ops` range type with no `use`

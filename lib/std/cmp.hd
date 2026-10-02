@@ -61,6 +61,194 @@ impl[T < Ord] Ord for Reverse[T]:
     fn cmp(self, other: Reverse[T]) -> Ordering:
         other.value.cmp(self.value)
 
+# Equality and order of the primitives (spec/lang/05-expressions.md#r-expr.eq.std,
+# #r-expr.ord.std). A body compares with the language's own operator on a
+# primitive, which the compiler lowers inline, so no body calls itself. Floats
+# have no `Ord`, and their `Eq` and `PartialOrd` follow IEEE 754: NaN is
+# unequal to itself and unordered (#r-expr.eq.float, #r-expr.ord.total).
+# `bool` has `Eq` only. Strings order by byte (#r-expr.ord.std.string-bytes)
+# and characters by scalar value (#r-expr.ord.std.char-scalar).
+impl Eq for i8:
+    fn eq(self, other: i8) -> bool:
+        self == other
+
+impl PartialOrd for i8:
+    fn partial_cmp(self, other: i8) -> Ordering?:
+        .Some(signed_order(self, other))
+
+impl Ord for i8:
+    fn cmp(self, other: i8) -> Ordering:
+        signed_order(self, other)
+
+impl Eq for i16:
+    fn eq(self, other: i16) -> bool:
+        self == other
+
+impl PartialOrd for i16:
+    fn partial_cmp(self, other: i16) -> Ordering?:
+        .Some(signed_order(self, other))
+
+impl Ord for i16:
+    fn cmp(self, other: i16) -> Ordering:
+        signed_order(self, other)
+
+impl Eq for i32:
+    fn eq(self, other: i32) -> bool:
+        self == other
+
+impl PartialOrd for i32:
+    fn partial_cmp(self, other: i32) -> Ordering?:
+        .Some(signed_order(self, other))
+
+impl Ord for i32:
+    fn cmp(self, other: i32) -> Ordering:
+        signed_order(self, other)
+
+impl Eq for i64:
+    fn eq(self, other: i64) -> bool:
+        self == other
+
+impl PartialOrd for i64:
+    fn partial_cmp(self, other: i64) -> Ordering?:
+        .Some(signed_order(self, other))
+
+impl Ord for i64:
+    fn cmp(self, other: i64) -> Ordering:
+        signed_order(self, other)
+
+impl Eq for u8:
+    fn eq(self, other: u8) -> bool:
+        self == other
+
+impl PartialOrd for u8:
+    fn partial_cmp(self, other: u8) -> Ordering?:
+        .Some(unsigned_order(self, other))
+
+impl Ord for u8:
+    fn cmp(self, other: u8) -> Ordering:
+        unsigned_order(self, other)
+
+impl Eq for u16:
+    fn eq(self, other: u16) -> bool:
+        self == other
+
+impl PartialOrd for u16:
+    fn partial_cmp(self, other: u16) -> Ordering?:
+        .Some(unsigned_order(self, other))
+
+impl Ord for u16:
+    fn cmp(self, other: u16) -> Ordering:
+        unsigned_order(self, other)
+
+impl Eq for u32:
+    fn eq(self, other: u32) -> bool:
+        self == other
+
+impl PartialOrd for u32:
+    fn partial_cmp(self, other: u32) -> Ordering?:
+        .Some(unsigned_order(self, other))
+
+impl Ord for u32:
+    fn cmp(self, other: u32) -> Ordering:
+        unsigned_order(self, other)
+
+impl Eq for u64:
+    fn eq(self, other: u64) -> bool:
+        self == other
+
+impl PartialOrd for u64:
+    fn partial_cmp(self, other: u64) -> Ordering?:
+        .Some(unsigned_order(self, other))
+
+impl Ord for u64:
+    fn cmp(self, other: u64) -> Ordering:
+        unsigned_order(self, other)
+
+impl Eq for f32:
+    fn eq(self, other: f32) -> bool:
+        self == other
+
+impl PartialOrd for f32:
+    fn partial_cmp(self, other: f32) -> Ordering?:
+        float_order(self, other)
+
+impl Eq for f64:
+    fn eq(self, other: f64) -> bool:
+        self == other
+
+impl PartialOrd for f64:
+    fn partial_cmp(self, other: f64) -> Ordering?:
+        float_order(self, other)
+
+impl Eq for char:
+    fn eq(self, other: char) -> bool:
+        self == other
+
+impl PartialOrd for char:
+    fn partial_cmp(self, other: char) -> Ordering?:
+        .Some(char_order(self, other))
+
+impl Ord for char:
+    fn cmp(self, other: char) -> Ordering:
+        char_order(self, other)
+
+impl Eq for bool:
+    fn eq(self, other: bool) -> bool:
+        self == other
+
+impl Eq for string:
+    fn eq(self, other: string) -> bool:
+        self == other
+
+impl PartialOrd for string:
+    fn partial_cmp(self, other: string) -> Ordering?:
+        .Some(string_order(self, other))
+
+impl Ord for string:
+    fn cmp(self, other: string) -> Ordering:
+        string_order(self, other)
+
+# Every signed integer widens to `i64`, and every unsigned one to `u64`,
+# without changing its order.
+fn signed_order(left: i64, right: i64) -> Ordering:
+    if left < right:
+        return .Less
+    if left > right:
+        return .Greater
+    .Equal
+
+fn unsigned_order(left: u64, right: u64) -> Ordering:
+    if left < right:
+        return .Less
+    if left > right:
+        return .Greater
+    .Equal
+
+fn char_order(left: char, right: char) -> Ordering:
+    if left < right:
+        return .Less
+    if left > right:
+        return .Greater
+    .Equal
+
+fn string_order(left: string, right: string) -> Ordering:
+    if left < right:
+        return .Less
+    if left > right:
+        return .Greater
+    .Equal
+
+# `f32` widens to `f64` exactly, NaN included. A NaN operand fails all three
+# tests, so the pair is unordered.
+fn float_order(left: f64, right: f64) -> Ordering?:
+    if left < right:
+        return .Some(.Less)
+    if left > right:
+        return .Some(.Greater)
+    if left == right:
+        return .Some(.Equal)
+    .None
+
 # Equality and order of the built-in composites
 # (spec/lang/05-expressions.md#r-expr.eq.std, #r-expr.ord.std). `==`, `<`, and
 # the other comparison operators call these through `Eq.eq` and

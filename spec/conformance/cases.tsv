@@ -1900,3 +1900,8 @@ runtime/valid/prelude-hash-method-direct.hd	runtime	accept	lang/04-type-system.m
 runtime/valid/prelude-eq-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.eq.std
 runtime/valid/prelude-partial-cmp-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.ord.std
 runtime/valid/prelude-cmp-method-direct.hd	runtime	accept	std/cmp.md#r-std-cmp.tuple.templates
+runtime/valid/primitive-integer-cmp-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.ord.std
+runtime/valid/primitive-float-cmp-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.eq.float
+runtime/valid/primitive-char-cmp-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.ord.std.char-scalar
+runtime/valid/primitive-string-cmp-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.ord.std.string-bytes
+runtime/valid/primitive-bool-eq-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.eq.std

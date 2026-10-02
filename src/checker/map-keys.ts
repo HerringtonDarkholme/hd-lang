@@ -1,6 +1,6 @@
 import type { Program } from "../ast.ts";
 import type { ValueType } from "../hir.ts";
-import { isNarrowInteger, numericType } from "../numeric.ts";
+import { isNarrowInteger } from "../numeric.ts";
 import { mutableInner, readonlyType } from "../types.ts";
 import {
   genericTypeName,
@@ -28,8 +28,7 @@ export function mapKeyKind(type: ValueType): 0 | 1 | 2 {
  * type that fails the declared bound `Map[K < Eq & Hash, V]`
  * (spec/lang/04-type-system.md#map-key-types). A type parameter meets it
  * through its own bounds, `hashableParameters`; any other type through a
- * non-generic `Eq` and `Hash` implementation, std's included, or the
- * primitive `Eq` of the language.
+ * non-generic `Eq` and `Hash` implementation, std's included.
  */
 export function mapKeyProblem(
   type: ValueType,
@@ -57,7 +56,7 @@ export function mapKeyProblem(
 /**
  * Whether `type` implements `trait` through an implementation, std's
  * included, whose bounds its type arguments meet, as a tuple does through
- * its tuple template's instance; or through the language's primitive `Eq`.
+ * its tuple template's instance.
  */
 function implementsTrait(
   type: ValueType,
@@ -65,8 +64,6 @@ function implementsTrait(
   hashableParameters: ReadonlySet<string>,
   depth: number,
 ): boolean {
-  if (trait === "Eq" && (numericType(type) || ["bool", "char", "string"].includes(type)))
-    return true;
   const generic = genericTypeName(type);
   if (generic) return hashableParameters.has(generic) && (trait === "Eq" || trait === "Hash");
   if (depth > MAX_BOUND_DEPTH) return false;

@@ -1,0 +1,15 @@
+# test: .eq, .partial_cmp, and .cmp call the standard comparison implementations of string directly, by byte
+# expect: test
+# Spec 05 Equality and Ordering: expr.eq.std, expr.ord.std.string-bytes.
+pub fn main() -> void:
+    if !"pear".eq("pear") || "pear".eq("pea"):
+        panic("eq")
+    match "apple".cmp("banana"):
+        .Less => pass
+        _ => panic("cmp")
+    match "pear".partial_cmp("pea"):
+        .Some(.Greater) => pass
+        _ => panic("prefix is less")
+    match "Z".cmp("a"):
+        .Less => pass
+        _ => panic("by byte")

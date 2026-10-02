@@ -68,9 +68,6 @@ Correctness and diagnostics:
   test cases never run.
 - **F-605**: parsing stops at the first error, and checking reports one
   error per function; a signature error hides every body error.
-- **F-611**: a direct `.eq`, `.partial_cmp`, or `.cmp` call on a primitive,
-  such as `(1).cmp(2)`, is `unknown-method`. The compiler supplies these
-  implementations only as bound dictionaries and `==` or `<` strategies.
 
 Runtime cost:
 

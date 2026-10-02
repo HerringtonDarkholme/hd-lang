@@ -1,0 +1,32 @@
+# test: .eq, .partial_cmp, and .cmp call the standard comparison implementations of integers directly
+# expect: test
+# Spec 05 Equality and Ordering: expr.eq.std, expr.ord.std; the comparison traits are prelude traits (module.prelude.names).
+pub fn main() -> void:
+    if !(3).eq(3) || (3).eq(4):
+        panic("i32 eq")
+    match (1).cmp(2):
+        .Less => pass
+        _ => panic("i32 cmp")
+    match (2).partial_cmp(2):
+        .Some(.Equal) => pass
+        _ => panic("i32 partial_cmp")
+    let low: i64 = -9223372036854775808
+    let high: i64 = 9223372036854775807
+    match low.cmp(high):
+        .Less => pass
+        _ => panic("i64 cmp")
+    let small: i8 = -1
+    match small.cmp(0):
+        .Less => pass
+        _ => panic("i8 cmp")
+    let wide: u8 = 200
+    match wide.cmp(100):
+        .Greater => pass
+        _ => panic("u8 cmp")
+    let top: u64 = 18446744073709551615
+    match top.partial_cmp(1):
+        .Some(.Greater) => pass
+        _ => panic("u64 partial_cmp")
+    let half: u32 = 4000000000
+    if !half.eq(4000000000):
+        panic("u32 eq")
