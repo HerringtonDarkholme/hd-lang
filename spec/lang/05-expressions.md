@@ -761,7 +761,7 @@ fn whole(text: string, items: List[i32]) -> (string, List[i32], string):
 5. r[expr.index.slice.string.reversed] A string slice whose start is greater than its end is a checked runtime panic. Panic: `index-out-of-bounds`.
 6. r[expr.index.slice.string.boundary] A string slice whose start or end offset is not a [scalar boundary](04-type-system.md#r-types.string.boundary) is a checked runtime panic. Panic: `index-out-of-bounds`.
 7. r[expr.index.slice.list] A list slice is a new list that holds the selected elements in order. It is not a view: later changes to either list do not change the other.
-8. r[expr.index.slice.list.type] A list slice of a `List[T]` has type `List[T]`, including `mut U` elements when `T = mut U`.
+8. r[expr.index.slice.list.type] A list slice of a `List[T]` has type `mut List[T]`, the `Out` of its implementation, so the new list has mutable access. Its elements keep the type `T`, including `mut U` when `T = mut U`.
 9. r[expr.index.slice.list.range] A list slice whose start or end offset is negative or greater than the length is a checked runtime panic. Panic: `index-out-of-bounds`.
 10. r[expr.index.slice.list.reversed] A list slice whose start is greater than its end is a checked runtime panic. Panic: `index-out-of-bounds`.
 11. r[expr.index.slice.no-store] No range type has an `IndexSet` implementation for `List` or `string`, so assigning to a slice is an error. Error: `invalid-assignment-target`.
@@ -769,6 +769,11 @@ fn whole(text: string, items: List[i32]) -> (string, List[i32], string):
 13. r[expr.index.slice.negative] A negative slice bound never counts from the end, so `items[-2..]` and `text[..-1]` are checked runtime panics. Panic: `index-out-of-bounds`.
 
 ```text
+fn grow(items: List[i32]) -> List[i32]:
+    let mut part = items[0..2]  # valid: the slice is a mut List[i32]
+    part.append(9)
+    part
+
 fn invalid(items: mut List[i32]) -> void:
     items[0..2] = [7, 8]  # error: invalid-assignment-target
 ```
@@ -784,7 +789,9 @@ fn panics(text: string, items: List[i32]) -> void:
 > **Why.** A slice goes through `std.ops.Index`, as Rust's does, so generic
 > code bounded by `Index[Range[i32]]` accepts strings and lists. A list
 > slice is a copy, so later changes to the list never reach it, and a
-> string slice shares its bytes because strings are immutable.
+> string slice shares its bytes because strings are immutable. The copy's
+> mutable access comes from the implementation's declared `Out`, so no
+> extra freshness rule is needed.
 
 > **Note.** A read-only window on a list with no copy is the `view` method
 > of [Collections](../std/collections.md#views).
@@ -887,9 +894,9 @@ fn lead(counts: mut List[i32], text: string) -> u8:
 | r[expr.index.std.map] Map | `Map[K, V]` | `Index[K]` with `Out = V`, and `IndexSet[K, V]` |
 | r[expr.index.std.string] String | `string` | `Index[i32]` with `Out = u8`, and no `IndexSet` |
 | r[expr.index.std.string.range] String slice | `string` | `Index[R[I]]` with `Out = string`, for each range type `R` and each integer type `I` |
-| r[expr.index.std.list.range] List slice | `List[T]` | `Index[R[I]]` with `Out = List[T]`, for each range type `R` and each integer type `I` |
+| r[expr.index.std.list.range] List slice | `List[T]` | `Index[R[I]]` with `Out = mut List[T]`, for each range type `R` and each integer type `I` |
 | r[expr.index.std.string.full] Whole string | `string` | `Index[RangeFull]` with `Out = string` |
-| r[expr.index.std.list.full] Whole list | `List[T]` | `Index[RangeFull]` with `Out = List[T]` |
+| r[expr.index.std.list.full] Whole list | `List[T]` | `Index[RangeFull]` with `Out = mut List[T]` |
 
 1. r[expr.index.std.intrinsic] The body of each implementation in the table is a compiler intrinsic. It behaves as the built-in indexing of its type, including the checks and their panics, so `Map`'s `index` panics when no equal key exists.
 2. r[expr.index.std.map-store] `Map`'s `index_set` inserts or replaces the entry, as `entries[key] = value` does.

@@ -1,0 +1,25 @@
+# test: a typed-fact pattern matches a mut field through mut weakening
+# Spec 14 Member-Typed Facts: annot.typed-fact.infer.weaken (owner decision FACT-PATTERN-convert, batch 54).
+use std.annotation.annotate
+
+@annotate::[List[T]](.Field)
+data MaxItems[T]:
+    limit: i32
+
+fn max_items[T](limit: i32) -> MaxItems[T]:
+    MaxItems::[T] { limit: limit }
+
+data Counter:
+    count: i32
+
+@annotate::[Counter](.Field)
+data Tracked: pass
+
+fn tracked() -> Tracked:
+    Tracked {}
+
+data Store:
+    @max_items(10)
+    ids: mut List[i64]
+    @tracked
+    hits: mut Counter

@@ -177,7 +177,7 @@ fn slice_string(text: string, start: i64, end: i64, inclusive: bool) -> string:
     text.slice(i32(start), stop)
 
 # A list slice: a new list of the selected elements (r-expr.index.slice.list).
-fn slice_list[T](items: List[T], start: i64, end: i64, inclusive: bool) -> List[T]:
+fn slice_list[T](items: List[T], start: i64, end: i64, inclusive: bool) -> mut List[T]:
     stop := slice_stop(items.len(), start, end, inclusive)
     let copy: mut List[T] = []
     let index = i32(start)
@@ -198,328 +198,328 @@ impl Index[RangeFull] for string:
     fn index(self, key: RangeFull) -> string: self
 
 impl[T] Index[RangeFull] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeFull) -> List[T]: slice_list(self, 0, i64(self.len()), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeFull) -> mut List[T]: slice_list(self, 0, i64(self.len()), false)
 
 impl Index[Range[i8]] for string:
     type Out = string
     fn index(self, key: Range[i8]) -> string: slice_string(self, i64(key.start), i64(key.end), false)
 
 impl[T] Index[Range[i8]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: Range[i8]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: Range[i8]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), false)
 
 impl Index[RangeFrom[i8]] for string:
     type Out = string
     fn index(self, key: RangeFrom[i8]) -> string: slice_string(self, i64(key.start), i64(self.len()), false)
 
 impl[T] Index[RangeFrom[i8]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeFrom[i8]) -> List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeFrom[i8]) -> mut List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
 
 impl Index[RangeTo[i8]] for string:
     type Out = string
     fn index(self, key: RangeTo[i8]) -> string: slice_string(self, 0, i64(key.end), false)
 
 impl[T] Index[RangeTo[i8]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeTo[i8]) -> List[T]: slice_list(self, 0, i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeTo[i8]) -> mut List[T]: slice_list(self, 0, i64(key.end), false)
 
 impl Index[RangeInclusive[i8]] for string:
     type Out = string
     fn index(self, key: RangeInclusive[i8]) -> string: slice_string(self, i64(key.start), i64(key.end), true)
 
 impl[T] Index[RangeInclusive[i8]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeInclusive[i8]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeInclusive[i8]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), true)
 
 impl Index[RangeToInclusive[i8]] for string:
     type Out = string
     fn index(self, key: RangeToInclusive[i8]) -> string: slice_string(self, 0, i64(key.end), true)
 
 impl[T] Index[RangeToInclusive[i8]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeToInclusive[i8]) -> List[T]: slice_list(self, 0, i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeToInclusive[i8]) -> mut List[T]: slice_list(self, 0, i64(key.end), true)
 
 impl Index[Range[i16]] for string:
     type Out = string
     fn index(self, key: Range[i16]) -> string: slice_string(self, i64(key.start), i64(key.end), false)
 
 impl[T] Index[Range[i16]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: Range[i16]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: Range[i16]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), false)
 
 impl Index[RangeFrom[i16]] for string:
     type Out = string
     fn index(self, key: RangeFrom[i16]) -> string: slice_string(self, i64(key.start), i64(self.len()), false)
 
 impl[T] Index[RangeFrom[i16]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeFrom[i16]) -> List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeFrom[i16]) -> mut List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
 
 impl Index[RangeTo[i16]] for string:
     type Out = string
     fn index(self, key: RangeTo[i16]) -> string: slice_string(self, 0, i64(key.end), false)
 
 impl[T] Index[RangeTo[i16]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeTo[i16]) -> List[T]: slice_list(self, 0, i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeTo[i16]) -> mut List[T]: slice_list(self, 0, i64(key.end), false)
 
 impl Index[RangeInclusive[i16]] for string:
     type Out = string
     fn index(self, key: RangeInclusive[i16]) -> string: slice_string(self, i64(key.start), i64(key.end), true)
 
 impl[T] Index[RangeInclusive[i16]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeInclusive[i16]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeInclusive[i16]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), true)
 
 impl Index[RangeToInclusive[i16]] for string:
     type Out = string
     fn index(self, key: RangeToInclusive[i16]) -> string: slice_string(self, 0, i64(key.end), true)
 
 impl[T] Index[RangeToInclusive[i16]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeToInclusive[i16]) -> List[T]: slice_list(self, 0, i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeToInclusive[i16]) -> mut List[T]: slice_list(self, 0, i64(key.end), true)
 
 impl Index[Range[i32]] for string:
     type Out = string
     fn index(self, key: Range[i32]) -> string: slice_string(self, i64(key.start), i64(key.end), false)
 
 impl[T] Index[Range[i32]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: Range[i32]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: Range[i32]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), false)
 
 impl Index[RangeFrom[i32]] for string:
     type Out = string
     fn index(self, key: RangeFrom[i32]) -> string: slice_string(self, i64(key.start), i64(self.len()), false)
 
 impl[T] Index[RangeFrom[i32]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeFrom[i32]) -> List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeFrom[i32]) -> mut List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
 
 impl Index[RangeTo[i32]] for string:
     type Out = string
     fn index(self, key: RangeTo[i32]) -> string: slice_string(self, 0, i64(key.end), false)
 
 impl[T] Index[RangeTo[i32]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeTo[i32]) -> List[T]: slice_list(self, 0, i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeTo[i32]) -> mut List[T]: slice_list(self, 0, i64(key.end), false)
 
 impl Index[RangeInclusive[i32]] for string:
     type Out = string
     fn index(self, key: RangeInclusive[i32]) -> string: slice_string(self, i64(key.start), i64(key.end), true)
 
 impl[T] Index[RangeInclusive[i32]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeInclusive[i32]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeInclusive[i32]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), true)
 
 impl Index[RangeToInclusive[i32]] for string:
     type Out = string
     fn index(self, key: RangeToInclusive[i32]) -> string: slice_string(self, 0, i64(key.end), true)
 
 impl[T] Index[RangeToInclusive[i32]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeToInclusive[i32]) -> List[T]: slice_list(self, 0, i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeToInclusive[i32]) -> mut List[T]: slice_list(self, 0, i64(key.end), true)
 
 impl Index[Range[i64]] for string:
     type Out = string
     fn index(self, key: Range[i64]) -> string: slice_string(self, i64(key.start), i64(key.end), false)
 
 impl[T] Index[Range[i64]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: Range[i64]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: Range[i64]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), false)
 
 impl Index[RangeFrom[i64]] for string:
     type Out = string
     fn index(self, key: RangeFrom[i64]) -> string: slice_string(self, i64(key.start), i64(self.len()), false)
 
 impl[T] Index[RangeFrom[i64]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeFrom[i64]) -> List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeFrom[i64]) -> mut List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
 
 impl Index[RangeTo[i64]] for string:
     type Out = string
     fn index(self, key: RangeTo[i64]) -> string: slice_string(self, 0, i64(key.end), false)
 
 impl[T] Index[RangeTo[i64]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeTo[i64]) -> List[T]: slice_list(self, 0, i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeTo[i64]) -> mut List[T]: slice_list(self, 0, i64(key.end), false)
 
 impl Index[RangeInclusive[i64]] for string:
     type Out = string
     fn index(self, key: RangeInclusive[i64]) -> string: slice_string(self, i64(key.start), i64(key.end), true)
 
 impl[T] Index[RangeInclusive[i64]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeInclusive[i64]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeInclusive[i64]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), true)
 
 impl Index[RangeToInclusive[i64]] for string:
     type Out = string
     fn index(self, key: RangeToInclusive[i64]) -> string: slice_string(self, 0, i64(key.end), true)
 
 impl[T] Index[RangeToInclusive[i64]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeToInclusive[i64]) -> List[T]: slice_list(self, 0, i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeToInclusive[i64]) -> mut List[T]: slice_list(self, 0, i64(key.end), true)
 
 impl Index[Range[u8]] for string:
     type Out = string
     fn index(self, key: Range[u8]) -> string: slice_string(self, i64(key.start), i64(key.end), false)
 
 impl[T] Index[Range[u8]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: Range[u8]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: Range[u8]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), false)
 
 impl Index[RangeFrom[u8]] for string:
     type Out = string
     fn index(self, key: RangeFrom[u8]) -> string: slice_string(self, i64(key.start), i64(self.len()), false)
 
 impl[T] Index[RangeFrom[u8]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeFrom[u8]) -> List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeFrom[u8]) -> mut List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
 
 impl Index[RangeTo[u8]] for string:
     type Out = string
     fn index(self, key: RangeTo[u8]) -> string: slice_string(self, 0, i64(key.end), false)
 
 impl[T] Index[RangeTo[u8]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeTo[u8]) -> List[T]: slice_list(self, 0, i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeTo[u8]) -> mut List[T]: slice_list(self, 0, i64(key.end), false)
 
 impl Index[RangeInclusive[u8]] for string:
     type Out = string
     fn index(self, key: RangeInclusive[u8]) -> string: slice_string(self, i64(key.start), i64(key.end), true)
 
 impl[T] Index[RangeInclusive[u8]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeInclusive[u8]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeInclusive[u8]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), true)
 
 impl Index[RangeToInclusive[u8]] for string:
     type Out = string
     fn index(self, key: RangeToInclusive[u8]) -> string: slice_string(self, 0, i64(key.end), true)
 
 impl[T] Index[RangeToInclusive[u8]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeToInclusive[u8]) -> List[T]: slice_list(self, 0, i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeToInclusive[u8]) -> mut List[T]: slice_list(self, 0, i64(key.end), true)
 
 impl Index[Range[u16]] for string:
     type Out = string
     fn index(self, key: Range[u16]) -> string: slice_string(self, i64(key.start), i64(key.end), false)
 
 impl[T] Index[Range[u16]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: Range[u16]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: Range[u16]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), false)
 
 impl Index[RangeFrom[u16]] for string:
     type Out = string
     fn index(self, key: RangeFrom[u16]) -> string: slice_string(self, i64(key.start), i64(self.len()), false)
 
 impl[T] Index[RangeFrom[u16]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeFrom[u16]) -> List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeFrom[u16]) -> mut List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
 
 impl Index[RangeTo[u16]] for string:
     type Out = string
     fn index(self, key: RangeTo[u16]) -> string: slice_string(self, 0, i64(key.end), false)
 
 impl[T] Index[RangeTo[u16]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeTo[u16]) -> List[T]: slice_list(self, 0, i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeTo[u16]) -> mut List[T]: slice_list(self, 0, i64(key.end), false)
 
 impl Index[RangeInclusive[u16]] for string:
     type Out = string
     fn index(self, key: RangeInclusive[u16]) -> string: slice_string(self, i64(key.start), i64(key.end), true)
 
 impl[T] Index[RangeInclusive[u16]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeInclusive[u16]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeInclusive[u16]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), true)
 
 impl Index[RangeToInclusive[u16]] for string:
     type Out = string
     fn index(self, key: RangeToInclusive[u16]) -> string: slice_string(self, 0, i64(key.end), true)
 
 impl[T] Index[RangeToInclusive[u16]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeToInclusive[u16]) -> List[T]: slice_list(self, 0, i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeToInclusive[u16]) -> mut List[T]: slice_list(self, 0, i64(key.end), true)
 
 impl Index[Range[u32]] for string:
     type Out = string
     fn index(self, key: Range[u32]) -> string: slice_string(self, i64(key.start), i64(key.end), false)
 
 impl[T] Index[Range[u32]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: Range[u32]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: Range[u32]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), false)
 
 impl Index[RangeFrom[u32]] for string:
     type Out = string
     fn index(self, key: RangeFrom[u32]) -> string: slice_string(self, i64(key.start), i64(self.len()), false)
 
 impl[T] Index[RangeFrom[u32]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeFrom[u32]) -> List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeFrom[u32]) -> mut List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
 
 impl Index[RangeTo[u32]] for string:
     type Out = string
     fn index(self, key: RangeTo[u32]) -> string: slice_string(self, 0, i64(key.end), false)
 
 impl[T] Index[RangeTo[u32]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeTo[u32]) -> List[T]: slice_list(self, 0, i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeTo[u32]) -> mut List[T]: slice_list(self, 0, i64(key.end), false)
 
 impl Index[RangeInclusive[u32]] for string:
     type Out = string
     fn index(self, key: RangeInclusive[u32]) -> string: slice_string(self, i64(key.start), i64(key.end), true)
 
 impl[T] Index[RangeInclusive[u32]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeInclusive[u32]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeInclusive[u32]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), true)
 
 impl Index[RangeToInclusive[u32]] for string:
     type Out = string
     fn index(self, key: RangeToInclusive[u32]) -> string: slice_string(self, 0, i64(key.end), true)
 
 impl[T] Index[RangeToInclusive[u32]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeToInclusive[u32]) -> List[T]: slice_list(self, 0, i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeToInclusive[u32]) -> mut List[T]: slice_list(self, 0, i64(key.end), true)
 
 impl Index[Range[u64]] for string:
     type Out = string
     fn index(self, key: Range[u64]) -> string: slice_string(self, i64(key.start), i64(key.end), false)
 
 impl[T] Index[Range[u64]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: Range[u64]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: Range[u64]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), false)
 
 impl Index[RangeFrom[u64]] for string:
     type Out = string
     fn index(self, key: RangeFrom[u64]) -> string: slice_string(self, i64(key.start), i64(self.len()), false)
 
 impl[T] Index[RangeFrom[u64]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeFrom[u64]) -> List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeFrom[u64]) -> mut List[T]: slice_list(self, i64(key.start), i64(self.len()), false)
 
 impl Index[RangeTo[u64]] for string:
     type Out = string
     fn index(self, key: RangeTo[u64]) -> string: slice_string(self, 0, i64(key.end), false)
 
 impl[T] Index[RangeTo[u64]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeTo[u64]) -> List[T]: slice_list(self, 0, i64(key.end), false)
+    type Out = mut List[T]
+    fn index(self, key: RangeTo[u64]) -> mut List[T]: slice_list(self, 0, i64(key.end), false)
 
 impl Index[RangeInclusive[u64]] for string:
     type Out = string
     fn index(self, key: RangeInclusive[u64]) -> string: slice_string(self, i64(key.start), i64(key.end), true)
 
 impl[T] Index[RangeInclusive[u64]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeInclusive[u64]) -> List[T]: slice_list(self, i64(key.start), i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeInclusive[u64]) -> mut List[T]: slice_list(self, i64(key.start), i64(key.end), true)
 
 impl Index[RangeToInclusive[u64]] for string:
     type Out = string
     fn index(self, key: RangeToInclusive[u64]) -> string: slice_string(self, 0, i64(key.end), true)
 
 impl[T] Index[RangeToInclusive[u64]] for List[T]:
-    type Out = List[T]
-    fn index(self, key: RangeToInclusive[u64]) -> List[T]: slice_list(self, 0, i64(key.end), true)
+    type Out = mut List[T]
+    fn index(self, key: RangeToInclusive[u64]) -> mut List[T]: slice_list(self, 0, i64(key.end), true)
 
 # Range iteration (spec/lang/06-control-flow.md#range-iteration): one
 # implementation per integer type. Each `iter()` starts from the start
@@ -1777,8 +1777,10 @@ impl[T < Tuple] Default for T by Structure:
             .Ok(value) => value
             .Err(_) => panic("a tuple's default never fails")
 
-# Derived `Default` (spec/std/ops.md#derived-default): each member's own
-# type's default, and for an enum the variant marked `@default`
+# Derived `Default` (spec/std/ops.md#derived-default): each member's
+# declared default, else its own type's default
+# (r-std-ops.default.derive.data.declared), and for an enum the variant
+# marked `@default`
 # (r-std-ops.default.derive.enum). The compiler checks that a derived enum
 # marks exactly one variant (r-std-ops.default.derive.one-variant).
 impl[T] Default for T by Structure:
@@ -1795,7 +1797,8 @@ impl[T] Default for T by Structure:
 @annotate(.Variant)
 pub data DefaultVariant: pass
 
-# Names each member in order and gives it its type's default. The field is
+# Names each member in order and gives it its declared default, or its
+# type's default when it declares none. The field is
 # public because the prototype checks the instantiated source in the
 # program that uses it.
 data DefaultSource[S]:
@@ -1819,7 +1822,9 @@ impl[S] Source[S] for DefaultSource[S]:
         .Ok(key)
 
     fn member[F < Default](mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
-        .Ok(F::default())
+        match h.default():
+            .Some(value) => .Ok(value)
+            .None => .Ok(F::default())
 
     fn missing[F](mut self, h: Field[S, F]) -> Result[F, never]:
         panic("the default source names every member")

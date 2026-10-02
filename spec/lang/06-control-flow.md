@@ -636,6 +636,7 @@ fn sign(n: i8) -> i32:
 | r[flow.match.range.inclusive] Inclusive | `a..=b` | the integers from `a` through `b` |
 | r[flow.match.range.from] From | `a..` | the integers from `a` through the type's largest value |
 | r[flow.match.range.to-inclusive] To inclusive | `..=b` | the integers from the type's smallest value through `b` |
+| r[flow.match.range.to] To | `..b` | the integers from the type's smallest value up to, not including, `b` |
 
 1. r[flow.match.range.subject] A range pattern's subject must have an integer type. A range pattern against any other type is an error. Error: `type-mismatch`.
 2. r[flow.match.range.bound-type] Each bound is checked with the subject's type as its expected type, so a bound outside that type is an error. Error: `integer-literal-range`.

@@ -1,0 +1,14 @@
+# test: ..b is a range pattern that matches the integers below b, and covers with b..
+# Spec 06 Range Patterns: flow.match.range.to; Spec 02 Patterns: grammar.pattern.range (owner decision RANGE-PAT-TO, batch 54).
+use std.testing.assert_equal
+
+fn sign(n: i8) -> string:
+    match n:
+        ..0 => "negative"
+        0.. => "other"
+
+tests:
+    it("..0 excludes 0"):
+        assert_equal(sign(-128), "negative", reason="..0 includes the smallest i8")
+        assert_equal(sign(-1), "negative", reason="..0 includes -1")
+        assert_equal(sign(0), "other", reason="..0 excludes 0")

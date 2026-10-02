@@ -33,7 +33,8 @@ The language tier keeps what the compiler knows about a list
 > failing.
 
 > **Note.** A copy of a run of elements is a slice,
-> `items[start..end]` ([Slicing](../lang/05-expressions.md#slicing)).
+> `items[start..end]`, a new `mut List[T]`
+> ([Slicing](../lang/05-expressions.md#slicing)).
 
 ### Views
 

@@ -53,22 +53,16 @@ export abstract class RangeParser extends ParserBase {
   }
 
   /**
-   * A range pattern `a..=b`, `a..b`, `a..`, or `..=b` at the current token,
-   * or undefined when none starts here. Each bound is an integer literal
-   * that a `-` may precede, and `..b` is an error
-   * (02-grammar.md#r-grammar.pattern.range).
+   * A range pattern `a..=b`, `a..b`, `a..`, `..=b`, or `..b` at the current
+   * token, or undefined when none starts here. Each bound is an integer
+   * literal that a `-` may precede (02-grammar.md#r-grammar.pattern.range).
    */
   protected parseRangePattern(): Pattern | undefined {
     const start = this.current().span.start;
-    if (this.atText(".."))
-      this.fail(
-        "syntax-error",
-        "a range pattern with no start bound is written '..=b'",
-        this.current().span,
-      );
-    if (this.matchText("..=")) {
+    if (this.atText("..") || this.atText("..=")) {
+      const inclusive = this.advance().text === "..=";
       const end = this.parseRangePatternBound();
-      return { kind: "range", end, inclusive: true, span: { start, end: this.peek(-1).span.end } };
+      return { kind: "range", end, inclusive, span: { start, end: this.peek(-1).span.end } };
     }
     const offset = this.atText("-") ? 1 : 0;
     const operator = this.peek(offset + 1).text;

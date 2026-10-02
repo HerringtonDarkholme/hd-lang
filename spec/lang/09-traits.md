@@ -792,12 +792,13 @@ impl[T < Display] Printable for Box[T]:
 ```
 
 1. r[trait.overlap.generic] Implementations may be generic and state their bounds inline in the generic parameter list.
-2. r[trait.overlap.constrained-head] Every type parameter of a generic implementation must appear in the implemented trait's arguments or in the target type. A parameter that appears only in a bound, as `T` in `impl[T < Display, I < Holder[T]] Summary for Feed[I]`, is an error. Error: `unconstrained-impl-parameter`.
-3. r[trait.overlap.definition] Two implementations overlap when they implement the same trait and their full heads unify.
-4. r[trait.overlap.unify] Heads unify when, after each implementation's parameters are renamed apart, one substitution makes both their trait arguments and their complete target types equal.
-5. r[trait.overlap.heads-only] Overlap is decided from the implementation heads alone.
-6. r[trait.overlap.no-bounds] Bounds, including associated type bindings, are never used to claim that two implementations are disjoint.
-7. r[trait.overlap.error] Overlapping implementations are an error. Error: `overlapping-impl`.
+2. r[trait.overlap.constrained-head] Every type parameter of a generic implementation must be constrained: it appears in the implemented trait's arguments or in the target type, or an associated-type binding fixes it. A parameter that appears only in another bound, as `T` in `impl[T < Display, I < Holder[T]] Summary for Feed[I]`, is an error. Error: `unconstrained-impl-parameter`.
+3. r[trait.overlap.constrained-binding] An associated-type binding in the bound of a constrained parameter constrains the parameter it names, as `T` in `impl[T < Display, I < Store[Item = T]] Summary for Feed[I]`.
+4. r[trait.overlap.definition] Two implementations overlap when they implement the same trait and their full heads unify.
+5. r[trait.overlap.unify] Heads unify when, after each implementation's parameters are renamed apart, one substitution makes both their trait arguments and their complete target types equal.
+6. r[trait.overlap.heads-only] Overlap is decided from the implementation heads alone.
+7. r[trait.overlap.no-bounds] Bounds, including associated type bindings, are never used to claim that two implementations are disjoint.
+8. r[trait.overlap.error] Overlapping implementations are an error. Error: `overlapping-impl`.
 
 | First implementation | Second implementation | Overlap |
 | --- | --- | --- |
@@ -835,6 +836,25 @@ impl[T < Display, I < Holder[T]] Summary for Feed[I]:  # error: unconstrained-im
     fn summary(self) -> string:
         "items"
 ```
+
+```text
+trait Store:
+    type Item
+    fn first(self) -> Self::Item
+
+trait Summary:
+    fn summary(self) -> string
+
+data Feed[I]:
+    items: I
+
+impl[T < Display, I < Store[Item = T]] Summary for Feed[I]:  # valid: the binding fixes T
+    fn summary(self) -> string:
+        "first: ${self.items.first()}"
+```
+
+> **Why.** Once `I` is known, its `Item` is known, so `T` has one value,
+> as Rust's E0207 rule allows.
 
 > **Note.** Because bounds are ignored, an implementation added later in a
 > dependency cannot make two existing implementations overlap. A type

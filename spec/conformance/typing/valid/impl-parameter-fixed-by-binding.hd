@@ -1,0 +1,26 @@
+# test: an associated-type binding constrains an impl parameter
+# Spec 09 overlap: trait.overlap.constrained-binding (owner decision TY-04-bind, batch 54).
+
+trait Store:
+    type Item
+    fn first(self) -> Self::Item
+
+trait Summary:
+    fn summary(self) -> string
+
+data Feed[I]:
+    items: I
+
+data Names:
+    head: string
+
+impl Store for Names:
+    type Item = string
+    fn first(self) -> string: self.head
+
+impl[T < Display, I < Store[Item = T]] Summary for Feed[I]:
+    fn summary(self) -> string:
+        "first: ${self.items.first()}"
+
+fn show(feed: Feed[Names]) -> string:
+    feed.summary()

@@ -1810,7 +1810,7 @@ runtime/panic/list-index-negative.hd	runtime	panic:index-out-of-bounds	lang/05-e
 runtime/panic/string-index-negative.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.string.negative
 runtime/panic/string-slice-negative.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.string.slice.negative
 parse/valid/range-patterns.hd	parse	accept	lang/02-grammar.md#r-grammar.pattern.range
-parse/invalid/range-pattern-exclusive-to.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.pattern.range.no-to
+runtime/valid/range-pattern-exclusive-to.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.range.to
 parse/invalid/range-pattern-char-bound.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.pattern.range.bound
 typing/valid/range-pattern-coverage.hd	type	accept	lang/06-control-flow.md#range-patterns
 typing/invalid/range-pattern-non-integer.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.range.subject
@@ -1838,7 +1838,7 @@ runtime/valid/structure-self-ref-omitted.hd	runtime	accept	lang/14-annotations.m
 runtime/valid/list-map-key.hd	runtime	accept	lang/04-type-system.md#r-types.map-key.builtin-hash
 runtime/valid/tuple-rest-map-key.hd	runtime	accept	std/hash.md#r-std-hash.tuple.rest-list
 typing/invalid/list-float-map-key.hd	type	reject:unsatisfied-trait-bound	std/hash.md#r-std-hash.list.not-element
-runtime/valid/derived-default-data.hd	runtime	accept	std/ops.md#r-std-ops.default.derive.data
+runtime/valid/derived-default-data.hd	runtime	accept	std/ops.md#r-std-ops.default.derive.data.type-default
 runtime/valid/derived-default-enum.hd	runtime	accept	std/ops.md#r-std-ops.default.derive.enum
 typing/invalid/derived-default-no-variant.hd	type	reject:invalid-default-variant	std/ops.md#r-std-ops.default.derive.one-variant
 typing/invalid/derived-default-several-variants.hd	type	reject:invalid-default-variant	std/ops.md#r-std-ops.default.derive.one-variant.several
@@ -1864,3 +1864,7 @@ typing/invalid/hd-run-outside-integration.hd	type	reject:test-only-use	std/testi
 typing/valid/void-unit-alias.hd	type	accept	lang/04-type-system.md#r-types.void
 typing/invalid/result-ok-without-unit.hd	type	reject:argument-count	lang/04-type-system.md#r-types.result.no-ok-omit
 runtime/valid/result-ok-unit.hd	runtime	accept	lang/04-type-system.md#r-types.result.unit-ok
+runtime/valid/derived-default-declared.hd	runtime	accept	std/ops.md#r-std-ops.default.derive.data.declared
+typing/valid/impl-parameter-fixed-by-binding.hd	type	accept	lang/09-traits.md#r-trait.overlap.constrained-binding
+typing/valid/typed-fact-pattern-mut-field.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.infer.weaken
+runtime/valid/list-slice-mutable.hd	runtime	accept	lang/05-expressions.md#r-expr.index.slice.list.type

@@ -1600,7 +1600,7 @@ spread_pattern = ( "_" | binding_pattern_atom ), "..." ;
 
 range_pattern = range_pattern_bound, ( "..=" | ".." ), range_pattern_bound
               | range_pattern_bound, ".."
-              | "..=", range_pattern_bound
+              | ( "..=" | ".." ), range_pattern_bound
               ;
 range_pattern_bound = [ "-" ], integer_literal ;
 ```
@@ -1615,9 +1615,8 @@ range_pattern_bound = [ "-" ], integer_literal ;
 8. r[grammar.pattern.data-field.nested] `field: pattern` matches the field against a nested pattern, and `field: name` binds it to `name`.
 9. r[grammar.pattern.data-unlisted] Unlisted fields are ignored.
 10. r[grammar.pattern.tuple-spread] The last element of a tuple pattern may be a **spread pattern**, a name or `_` followed by `...`, as in `(a, b, xs...)`. Alone, it keeps the one-element trailing comma, `(xs...,)`, so `(xs...)` and a spread pattern before another element are errors. Error: `syntax-error`.
-11. r[grammar.pattern.range] A **range pattern** takes one of four forms: `a..=b`, `a..b`, `a..`, or `..=b`.
+11. r[grammar.pattern.range] A **range pattern** takes one of five forms: `a..=b`, `a..b`, `a..`, `..=b`, or `..b`.
 12. r[grammar.pattern.range.bound] Each bound of a range pattern is an integer literal, which a `-` may precede. A bound of any other kind, such as `'a'`, `1.5`, or a name, is an error. Error: `syntax-error`.
-13. r[grammar.pattern.range.no-to] A range pattern with `..` and no start bound, as in `..10`, is an error, so `..=b` is the one form with no start. Error: `syntax-error`.
 
 ```text
 enum Pair:
@@ -1646,14 +1645,15 @@ fn bucket(n: i32) -> string:
         10..=99 => "medium"
         100.. => "large"
 
-fn invalid(n: i32) -> string:
+fn sign(n: i32) -> string:
     match n:
-        ..10 => "small"  # error: syntax-error
-        _ => "large"
+        ..0 => "negative"
+        _ => "other"
 ```
 
-> **Why.** The four forms are Rust's, so the same bounds read the same in
-> both languages, and a pattern with no start always says its last value.
+> **Why.** The five forms are Rust's, as of Rust 1.80, so the same bounds
+> read the same in both languages. Every range expression form but a bare
+> `..` is also a pattern.
 
 See also: [Match Expressions](06-control-flow.md#match-expressions).
 

@@ -1376,7 +1376,9 @@ export abstract class CallChecker extends StatementChecker {
         if (resolved === undefined) continue;
         const key = `${bound.parameter}::${name}`;
         const inferred = substitutions.get(key);
-        if (inferred !== undefined && inferred !== resolved)
+        // A `mut X` projection weakens to an `X` that an expected type
+        // inferred (04-type-system.md#r-types.mut.weaken).
+        if (inferred !== undefined && inferred !== resolved && mutableInner(resolved) !== inferred)
           this.fail(
             "associated-type-mismatch",
             `projection '${bound.parameter}::${name}' resolves to '${resolved}', not '${inferred}'`,

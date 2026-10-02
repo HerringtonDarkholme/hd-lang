@@ -1,5 +1,5 @@
 # test: a derived data default sets each member to its own type's default
-# std Ops, Derived Default: std-ops.default.derive.data (owner decision Q6-default-derive, batch 51, 2026-10-02).
+# std Ops, Derived Default: std-ops.default.derive.data.type-default (owner decision Q6-default-derive, batch 51, 2026-10-02).
 use std.ops.Default
 use std.testing.assert_equal
 

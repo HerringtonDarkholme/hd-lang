@@ -1,0 +1,17 @@
+# test: a derived data default uses a member's declared default
+# std Ops, Derived Default: std-ops.default.derive.data.declared (owner decision DEFAULT-FIELD, batch 54).
+use std.ops.Default
+use std.testing.assert_equal
+
+@derive(Default)
+data Settings:
+    name: string = "main"
+    retries: i32 = 3
+    tags: List[string]
+
+tests:
+    it("declared defaults win over type defaults"):
+        s := Settings::default()
+        assert_equal(s.name, "main", reason="declared default")
+        assert_equal(s.retries, 3, reason="declared default")
+        assert_equal(s.tags.len(), 0, reason="type default")

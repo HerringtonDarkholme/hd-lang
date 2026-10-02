@@ -64,3 +64,4 @@ typing/valid/hd-run-integration.hd	check reports unknown-import at `use std.test
 typing/invalid/hd-run-outside-integration.hd	check reports unknown-import at `use std.testing.hd_run`, not test-only-use: the prototype has no hd_run! (std Testing, Running Executables)	CLI-53
 typing/valid/any-void-never.hd	a void value is not assignable to Any, though void is the tuple () (types.any.all)	TYPE-GAPS
 typing/valid/void-unit-alias.hd	the prototype keeps void apart from the empty tuple (), so a () value or (void, i32) is rejected where void is written (types.void)	VOID-UNIT
+typing/valid/typed-fact-pattern-mut-field.hd	check exits 1: the prototype accepts only a trivial pattern, one of the fact type's own type parameters, so it reports type-mismatch at the `@annotate` decorator (Member-Typed Facts, annot.typed-fact.infer.weaken)	FACT-PATTERN

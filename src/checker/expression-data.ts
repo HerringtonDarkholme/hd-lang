@@ -799,11 +799,9 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             expression.span,
             undefined,
           );
-          // A list slice is a new list (r-expr.index.slice.list), so it has
-          // mutable access, as a list expression does (r-types.fresh.mutable-outer).
-          return nominal?.name === "List" && mutableInner(slice.type) === undefined
-            ? { ...slice, type: mutableType(slice.type) }
-            : slice;
+          // A list slice's `mut List[T]` type is the `Out` of its `Index`
+          // implementation (r-expr.index.slice.list.type).
+          return slice;
         }
         if (nominal?.name === "List" && nominal.arguments.length === 1) {
           const index = sliceIndex!;

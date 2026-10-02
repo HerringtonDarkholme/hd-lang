@@ -282,7 +282,8 @@ A range index slices: `text[0..3]` is the first three bytes, `text[2..]`
 the rest from offset 2, `text[..2]` the first two, `text[..=2]` the first
 three, `text[1..=2]` the bytes at 1 and 2, and `text[..]` the whole
 string. It shares bytes as `slice` does and panics on the same offsets. On
-a list, `items[1..3]` is a new list, not a view; `items.view(1, 3)` is a
+a list, `items[1..3]` is a new `mut List`, not a view, so
+`let mut part = items[1..3]` can grow it; `items.view(1, 3)` is a
 read-only window that panics once the list grows or shrinks. A map has no
 slicing. A negative index or bound never counts from the end, so
 `items[-1]` panics. See [Slicing](../spec/lang/05-expressions.md#slicing)
@@ -599,8 +600,8 @@ holds `1` through `3`; and `5..` has no end. `for` iterates them, so
 `for i in 0..` loops until a `break`. Bounds must be integers. The types
 are `Range`, `RangeInclusive`, `RangeFrom`, `RangeTo`, `RangeToInclusive`,
 and `RangeFull` in `std.ops`; `for` rejects `..n`, `..=n`, and `..`, which
-have no start. A `match` on an integer takes `a..b`, `a..=b`, `a..`, and
-`..=b` as patterns, and arms that cover the whole type need no `_`. See
+have no start. A `match` on an integer takes `a..b`, `a..=b`, `a..`,
+`..=b`, and `..b` as patterns, and arms that cover the whole type need no `_`. See
 [Range Expressions](../spec/lang/05-expressions.md#range-expressions) and
 [Range Patterns](../spec/lang/06-control-flow.md#range-patterns):
 
