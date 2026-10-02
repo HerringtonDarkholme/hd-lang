@@ -11,8 +11,8 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-02 the suite has
-1,859 cases: 1,797 selected in `test/portable/cases.tsv` and 62 known
-failures, 58 language tier and 4 stdlib tier.
+1,862 cases: 1,798 selected in `test/portable/cases.tsv` and 64 known
+failures, 58 language tier and 6 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -34,6 +34,7 @@ failures, 58 language tier and 4 stdlib tier.
 | TYPE-GAPS | 8 | batch 51 inference codes and batch 51b type rules are not checked |
 | DERIVE-DEFAULT | 3 | no `@default` marker or count check for derived `Default` |
 | RACE-EMPTY | 2 | an empty `race!` task list is neither rejected nor a panic |
+| CLI-53 | 2 | no `hd_run!` or `RunOutput` in `std.testing` |
 
 ## Findings
 
@@ -122,14 +123,13 @@ Compiler structure:
 | TYPE-GAPS | Batches 51 and 51b: a generic call's other argument conflicts are `type-mismatch`; an impl parameter outside the head is `unconstrained-impl-parameter`; an impl's own bounds must prove its supertraits; a bound implies its supertrait bounds; a requirement key must be dynamically safe; `void` satisfies `Any`; derived `Arbitrary` needs no inspectable member. The prototype checks none of these. |
 | DERIVE-DEFAULT | Batch 51: `@derive(Default)` through the `std.ops` template, with `@default` on one enum variant. The template in `lib/std/ops.hd` works for data types, but the marker function `std.ops.default` is missing: declaring a module function named `default` beside the trait breaks every `T::default()` call in the prototype. No check counts the marked variants. |
 | RACE-EMPTY | Batch 51: `race!(tasks=[])` is `argument-count`, and an empty task list at run time panics with `explicit-panic`. The prototype accepts the first and hangs on the second. |
+| CLI-53 | Batch 53 CLI rules: the prototype's `hd` has none of `--` program arguments, exit status 101, JSON lines with a summary record, `-p`, `--filter`, `--deny-skipped`, stdin as a program, the workspace search from a member, the `hd new --app` and `--lib` templates, `hd_run!`, or the executable, task, and test-root layout errors. Most have no fixture format. |
 | FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are. The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
 
 ## Gaps No Fixture Reaches
 
-- **Missing use names**: `module.use.private-or-missing` gives no code, so
-  a use of a missing declaration, as in `use std.text.{nope}` or
-  `use pkg.m.{Nope}`, reports the prototype's own `unknown-import`. A use
-  of a private `lib/std` declaration is accepted.
+- **Private use names**: a use of a private `lib/std` declaration is
+  accepted, though `module.use.private-or-missing` makes it an error.
 - **Shapes** (batch 42): the spec removed `shape`, `shape_of`, and the
   shape types, but `src/checker/shapes.ts` and `lib/std/annotation.hd` still
   implement them.

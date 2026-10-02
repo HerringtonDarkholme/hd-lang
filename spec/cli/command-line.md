@@ -8,6 +8,7 @@ command finds a package and what each command runs:
 - package mode, workspace mode, and single files;
 - `hd`, `hd FILE`, `hd run`, `hd build`, `hd check`, and `hd test`;
 - the executables a manifest declares, and package tasks;
+- program arguments, host capabilities, machine output, and exit status;
 - `hd new`, and the REPL.
 
 The language tier defines what a program means: its
@@ -21,14 +22,15 @@ says which program a command starts. Its diagnostic codes are in the
 
 | Command | Effect |
 | --- | --- |
-| `hd` | opens the [REPL](#repl) |
+| `hd` | opens the [REPL](#repl), or runs [standard input](#r-cli.stdin.program) when it is not a terminal |
 | `hd FILE` | runs FILE as a [single file](#single-files) |
 | `hd run`, `hd run NAME` | runs an [executable or a task](#running-a-package) of the package |
 | `hd build`, `hd check`, `hd test` | work on the [package](#building-and-checking), or on one FILE |
-| `hd new [PATH]` | [creates a package](#creating-a-package) |
+| `hd new [--app \| --lib] [--vcs none] [PATH]` | [creates a package](#creating-a-package) |
 | `hd help`, `hd --help` | prints the command list |
 
 1. r[cli.command.help] `hd help` and `hd --help` print the command list.
+2. r[cli.command.positional] A positional word of a command is a NAME or a FILE. A directory is neither: `hd test libs/ui` is an error, and its message suggests [`-p`](#selecting-members).
 
 ## Package Mode
 
@@ -37,6 +39,7 @@ A command works on a package when it finds that package's `hd.toml`:
 | Start directory | Nearest `hd.toml` | Mode |
 | --- | --- | --- |
 | `shop/src/cart` | `shop/hd.toml` | package mode, package `shop` |
+| `ws/libs/ui/src` | `ws/libs/ui/hd.toml`, a member of `ws` | package mode, package `ui`, with the selection and `hd.sum` of `ws` |
 | `ws`, whose `hd.toml` lists members and declares no package | `ws/hd.toml` | workspace mode |
 | `notes`, with no `hd.toml` above it | none | outside any package |
 
@@ -45,8 +48,13 @@ A command works on a package when it finds that package's `hd.toml`:
 3. r[cli.mode.workspace] A command works in **workspace mode** when that nearest `hd.toml` is a workspace manifest, which lists members and declares no package.
 4. r[cli.mode.outside] Otherwise the command works outside any package.
 5. r[cli.mode.workspace-file] A command that names a FILE under a workspace root but in no member works outside any package, so FILE is a single-file program that may use only `std`.
+6. r[cli.mode.member] In package mode, the command also searches the directories above the package's directory for the nearest workspace manifest. When that manifest lists the package as a member, the package is still the one the command works on.
+7. r[cli.mode.member.workspace] Version selection, `hd.sum`, and path requirements then come from that workspace, by [Workspaces](../lang/10-modules.md#workspaces), as Cargo's do.
 
 > **Note.** A `src` directory without an `hd.toml` does not make a package.
+
+> **Why.** Developers and agents mostly work inside a member. A command
+> there uses the same selected versions as one at the workspace root.
 
 ## Single Files
 
@@ -58,8 +66,9 @@ hd notes.hd
 
 1. r[cli.file.run] `hd FILE` runs FILE as a [single-file program](../lang/10-modules.md#single-file-programs), whether or not FILE lies in a package.
 2. r[cli.file.in-package] When FILE lies in a package, the error for a use of `pkg`, `self`, or `super` in it suggests a task and `hd run NAME`.
-3. r[cli.file.check-test] Outside any package, `hd check FILE` and `hd test FILE` check or test FILE as a single-file program.
-4. r[cli.file.check-test.no-file] Outside any package, `hd check` or `hd test` without a FILE is an error whose message suggests passing a FILE or creating a package with `hd new`.
+3. r[cli.file.entry-hint] When FILE is the entry module of an executable or a task, that error instead names it and the exact `hd run` command. For `src/main.hd` of package `shop`, it names `hd run shop`.
+4. r[cli.file.check-test] Outside any package, `hd check FILE` and `hd test FILE` check or test FILE as a single-file program.
+5. r[cli.file.check-test.no-file] Outside any package, `hd check` or `hd test` without a FILE is an error whose message suggests passing a FILE or creating a package with `hd new`.
 
 > **Why.** One file or one run uses only `std`. A program that needs
 > several files or a dependency is a package.
@@ -89,9 +98,22 @@ module = "tools.migrate"
 3. r[cli.exe.missing-module] An executable whose `module` names no module of the package is an error. Error: `missing-entry-point`.
 4. r[cli.exe.unselected-main] A public `main` or `main!` in a module under the source root that no executable names is an ordinary function, and `hd` warns about it. Warning: `unselected-main`.
 5. r[cli.exe.default-main] With no `[[executable]]` table in `hd.toml`, `src/main.hd` is the package's **default executable**, as Cargo's `src/main.rs` is.
-6. r[cli.exe.other-module] An executable's entry module other than `src/main.hd`, such as `src/tools/migrate.hd`, resolves relative uses as an ordinary module does: `self` is its own module.
-7. r[cli.exe.default-name] The default executable is named after the package, the `name` of its `[package]` table, as Cargo names `src/main.rs`.
-8. r[cli.exe.default-name.clash] A task with the package's name therefore clashes with the default executable, by [`cli.task.name-clash`](#r-cli.task.name-clash).
+6. r[cli.exe.main-unlisted] When `hd.toml` has an `[[executable]]` table, a `src/main.hd` that no table names is an error. Its fix-it adds a table for it, with the package's name and `module = "main"`.
+7. r[cli.exe.other-module] An executable's entry module other than `src/main.hd`, such as `src/tools/migrate.hd`, resolves relative uses as an ordinary module does: `self` is its own module.
+8. r[cli.exe.entry-program] Every executable's entry module is its own program and never part of the package's library, as `src/main.hd` is by [`module.path.main-file`](../lang/10-modules.md#r-module.path.main-file).
+9. r[cli.exe.entry-no-use] A use of an executable's entry module from another module is an error. Error: `unknown-module`.
+10. r[cli.exe.default-name] The default executable is named after the package, the `name` of its `[package]` table, as Cargo names `src/main.rs`.
+11. r[cli.exe.default-name.clash] A task with the package's name therefore clashes with the default executable, by [`cli.task.name-clash`](#r-cli.task.name-clash).
+
+```toml
+[package]
+name = "shop"
+
+[[executable]]
+name = "migrate"
+module = "tools.migrate"
+# error: src/main.hd is no executable; the fix-it adds name = "shop", module = "main"
+```
 
 > **Note.** The entry module's `main`, `main!`, or top-level statements
 > decide what the executable does, by
@@ -100,6 +122,8 @@ module = "tools.migrate"
 
 > **Why.** The manifest names the module, never the function. An agent
 > that renames `main` then sees an error in source, not a stale manifest.
+> An entry module is a program, as in Go and Rust. Its top level may
+> print, and no dependent sees it.
 
 ### Tasks
 
@@ -122,22 +146,25 @@ modules that tasks share:
 1. r[cli.task.file] Each file `tasks/NAME.hd` in the package directory is a task named `NAME`, and it is an entry module.
 2. r[cli.task.program] Each task is its own program, compiled separately from the package's other tasks.
 3. r[cli.task.shared] A module in a subdirectory of `tasks`, such as `tasks/shared/zip.hd`, is a **shared task module**. Every task of the package may use it.
-4. r[cli.task.relative] In a task or a shared task module, relative lookup works as it does under `src`, with `tasks` in place of the package root.
-5. r[cli.task.root-file] A task resolves relative uses as a [root file](../lang/10-modules.md#r-module.relative.root-file) does, so its lookup starts at `tasks`. From `tasks/build.hd`, `self.shared.zip` names `tasks/shared/zip.hd`.
-6. r[cli.task.super] A `super` in a task is an error. Error: `unknown-module`.
-7. r[cli.task.above-root] In a shared task module, a `super` that moves above `tasks` is an error. Error: `unknown-module`.
-8. r[cli.task.program-use] A use of a task from another module is an error. Error: `unknown-module`.
-9. r[cli.task.shared-copy] Each task gets its own copy of the shared task modules it uses, so their top-level statements run once per task.
-10. r[cli.task.shared-unused] A warning that a declaration of a shared task module is unused is given only when no task uses that declaration.
-11. r[cli.task.uses] A task may use the package's modules through `pkg`.
-12. r[cli.task.dev-dependencies] A task may use the package's dependencies and its [dev dependencies](../lang/10-modules.md#r-module.test.dev-dependency).
-13. r[cli.task.cyclic-dev-dependency] A task may use a dev dependency that itself depends on the package, as an integration test module may.
-14. r[cli.task.not-shipped] A task is never part of the package's library or executables, and a dependent package never builds it.
-15. r[cli.task.name-clash] A task and an executable with the same name are an error when `hd` reads the manifest.
+4. r[cli.task.beside-dir] A file directly under `tasks` beside a directory of the same name, such as `tasks/shared.hd` beside `tasks/shared/`, is an error. Its fix-it moves the file to `tasks/shared/mod.hd`.
+5. r[cli.task.relative] In a task or a shared task module, relative lookup works as it does under `src`, with `tasks` in place of the package root.
+6. r[cli.task.root-file] A task resolves relative uses as a [root file](../lang/10-modules.md#r-module.relative.root-file) does, so its lookup starts at `tasks`. From `tasks/build.hd`, `self.shared.zip` names `tasks/shared/zip.hd`.
+7. r[cli.task.super] A `super` in a task is an error. Error: `unknown-module`.
+8. r[cli.task.above-root] In a shared task module, a `super` that moves above `tasks` is an error. Error: `unknown-module`.
+9. r[cli.task.program-use] A use of a task from another module is an error. Error: `unknown-module`.
+10. r[cli.task.shared-copy] Each task gets its own copy of the shared task modules it uses, so their top-level statements run once per task.
+11. r[cli.task.shared-unused] A warning that a declaration of a shared task module is unused is given only when no task uses that declaration.
+12. r[cli.task.uses] A task may use the package's modules through `pkg`.
+13. r[cli.task.dev-dependencies] A task may use the package's dependencies and its [dev dependencies](../lang/10-modules.md#r-module.test.dev-dependency).
+14. r[cli.task.cyclic-dev-dependency] A task may use a dev dependency that itself depends on the package, as an integration test module may.
+15. r[cli.task.not-shipped] A task is never part of the package's library or executables, and a dependent package never builds it.
+16. r[cli.task.name-clash] A task and an executable with the same name are an error when `hd` reads the manifest.
 
 > **Why.** Tasks follow the test root's layout
 > ([Test Modules](../lang/10-modules.md#test-modules)): a top-level file is
-> a program, and a subdirectory holds what programs share.
+> a program, and a subdirectory holds what programs share. A top-level
+> `x.hd` beside `x/` is a program under that layout, but the folder's
+> parent under `src`, so it is rejected.
 
 ### Choosing What Runs
 
@@ -152,15 +179,111 @@ hd run migrate    # the executable or task named migrate
 3. r[cli.run.file] `hd run FILE` is an error whose message suggests `hd run` or `hd run NAME`.
 4. r[cli.run.package-only] Outside any package, `hd run` and `hd build` are errors whose message suggests creating a package with `hd new`.
 
+### Working Directory
+
+1. r[cli.run.cwd.task] A task runs with its package directory, the directory of its `hd.toml`, as its working directory.
+2. r[cli.run.cwd.executable] An executable runs in the working directory of the `hd run` command.
+
+> **Why.** A task acts on its package, as an npm script does. What it
+> reads then does not depend on where the command ran. An executable is
+> the user's tool, as with `cargo run`.
+
+## Program Arguments
+
+```sh
+hd run gen -- --out x    # task gen gets the arguments --out and x
+hd notes.hd -- a b       # notes.hd gets the arguments a and b
+```
+
+1. r[cli.args.separator] The words after the first `--` of a command line are arguments of the program, and `hd` reads none of them as its own.
+2. r[cli.args.pass] `hd FILE` and `hd run` pass those arguments to the program they run, in order, as Cargo's `cargo run --` does.
+3. r[cli.args.extra-word] A further positional word before `--`, as in `hd run gen x`, is an error whose message suggests `--`.
+
+> **Note.** A program reads its arguments through a host capability
+> ([`module.entry.host-facilities`](../lang/10-modules.md#r-module.entry.host-facilities)).
+> That trait waits on the host capability trait catalog.
+
+## Host Capabilities
+
+1. r[cli.host.entry-row] When `hd` runs an executable, a task, or a single file, it binds each host capability trait that its entry module's requirement row names. That row is the row of `main` or `main!`, or a [script's inferred row](../lang/10-modules.md#r-module.init.script-row).
+
+> **Note.** Which host capability traits exist, and how a provider is
+> bound to each, wait on the host capability trait catalog. Until then,
+> the default profile binds at least `Console`
+> ([`module.profile.default`](../lang/10-modules.md#r-module.profile.default)).
+
+> **Why.** The row already states what the program needs, so no flag or
+> manifest table repeats it.
+
 ## Building And Checking
 
 ```sh
+hd check                  # the library and the executables
+hd check --tests          # also the test code
 hd test                   # every test of the package
 hd test src/billing.hd    # the tests of module billing
 ```
 
 1. r[cli.package.whole] In package mode, `hd build`, `hd check`, and `hd test` without a FILE work on the whole package.
 2. r[cli.package.file] With a FILE in the package, they work on that file's module, linked with the rest of the package.
+3. r[cli.package.no-root] In package mode, `hd check FILE` and `hd test FILE` treat a FILE under no root as a single-file program, as `hd FILE` does. The roots are the source root, the test root, and `tasks`.
+4. r[cli.check.default] A whole-package `hd check` checks what `hd build` compiles, the library and the executables, and no [test code](../lang/10-modules.md#r-module.test.code), as Cargo's `cargo check` does without `--all-targets`.
+5. r[cli.check.tests] `hd check --tests` also checks the package's test code: its `tests:` blocks, test modules, and integration test modules.
+
+### Test Runs
+
+```sh
+hd test --filter "sums prices"    # only the test cases whose name holds it
+hd test --deny-skipped            # a skipped test case fails the run
+```
+
+1. r[cli.test.file-empty] `hd test FILE` is an error when FILE registers no test case.
+2. r[cli.test.package-empty] A whole-package `hd test` that registers no test case passes.
+3. r[cli.test.filter] `hd test --filter PATTERN` runs only the test cases whose name contains PATTERN, with a FILE or without one.
+4. r[cli.test.summary.skipped] The summary of `hd test` counts [skipped](../lang/10-modules.md#r-module.testing.skipped) test cases apart from ignored ones.
+5. r[cli.test.deny-skipped] With `--deny-skipped`, a skipped test case is a failure.
+6. r[cli.test.builds-executables] `hd test` builds the package's executables before it runs any test case, so an integration test may run them with [`hd_run!`](../std/testing.md#running-executables).
+
+> **Why.** Naming a FILE asks for its tests, so none is a mistake, while a
+> new package may have none yet. A changed profile can skip a whole
+> suite, so CI can opt in to treating that as a failure.
+
+## Machine Output
+
+```sh
+hd check --format json
+# {"kind":"diagnostic","code":"type-mismatch","severity":"error","file":"src/cart.hd",...}
+# {"kind":"summary","errors":1,"warnings":0,"exit":101}
+```
+
+1. r[cli.json.lines] With `--format json`, `hd build`, `hd check`, and `hd test` write JSON lines to stdout: one JSON object per line, and no other text.
+2. r[cli.json.kind] Each object's `kind` field is `"diagnostic"`, `"test"`, or `"summary"`.
+3. r[cli.json.diagnostic] Each diagnostic is one object, with its stable code, its severity, and its file and position.
+4. r[cli.json.test] Each test case's result is one object, with the test case's name and its outcome: passed, failed, skipped, or ignored.
+5. r[cli.json.summary] The last object is a summary, with the count of errors, warnings, and each test outcome, and the command's exit status. It is written on success too.
+
+> **Why.** A stream lets an agent act on the first error. The summary
+> makes a clean run explicit, as Cargo's
+> [`build-finished` message](https://doc.rust-lang.org/cargo/reference/external-tools.html#json-messages)
+> does, and a missing summary means that `hd` did not finish.
+
+## Exit Status
+
+| Status | Meaning |
+| --- | --- |
+| 0 | the command succeeded |
+| 1 | `hd test`: a test case failed |
+| 101 | `hd` itself failed, and ran no program |
+| the program's | `hd FILE`, `hd run`: the status of the program |
+
+1. r[cli.exit.success] A command that completes with no error exits with status 0. Warnings do not change its status.
+2. r[cli.exit.hd-failure] When `hd` itself fails, it exits with status 101. It fails when it reports an error, rejects its command line or a manifest, or cannot finish for an internal reason.
+3. r[cli.exit.program] Once its program is built, `hd FILE` or `hd run` exits with the program's own status, by [Exit Status](../lang/10-modules.md#exit-status) and [`module.entry.panic`](../lang/10-modules.md#r-module.entry.panic).
+4. r[cli.exit.test-failure] `hd test` exits with status 1 when a test case fails and `hd` reports no error.
+
+> **Why.** Cargo reserves 101 for its own failures. CI and agents then
+> tell "my code did not compile" apart from "my program failed", which
+> most often exits with 1.
 
 ## Workspace Mode
 
@@ -179,32 +302,85 @@ hd run invoice    # the one member executable or task named invoice
 5. r[cli.workspace.run-bare] In workspace mode, `hd run` with no NAME is an error whose message lists each member's executables and tasks.
 6. r[cli.workspace.repl] In workspace mode, the REPL session may use only `std`.
 
+### Selecting Members
+
+```sh
+hd test -p ui -p shared    # the tests of members ui and shared
+hd run -p web serve        # serve of member web
+```
+
+1. r[cli.workspace.select] In workspace mode, `-p NAME` or `--package NAME` selects the member whose package is named `NAME`. It works on `hd run`, `hd test`, `hd check`, and `hd build`.
+2. r[cli.workspace.select.repeat] The flag may be repeated, and the command then acts on the selected members only, by the rules above.
+3. r[cli.workspace.select.unknown] A `-p NAME` that names no member of the workspace is an error.
+
+> **Why.** CI and agents usually run from the root. A directory argument
+> would read as `hd run NAME`, so a flag selects members, as Cargo's `-p`
+> does.
+
+## Names
+
+1. r[cli.name.hyphen] A package's name and an executable's name may contain `-`, as Cargo's do.
+2. r[cli.name.task] A task's name is its file name, so it is an identifier and contains no `-`.
+
+> **Note.** Where source needs an identifier for such a name, each `-`
+> becomes `_`, as the dependency key `my-app` is `dep.my_app`
+> ([`module.dep.key-name`](../lang/10-modules.md#r-module.dep.key-name)).
+
 ## Creating A Package
 
 `hd new` is the one command that creates a package:
 
 ```sh
-hd new hello    # hello/hd.toml, hello/src/main.hd, hello/tests/
-hd new          # the same, in the working directory
+hd new --app hello   # hello/hd.toml, src/main.hd, and tests/hello.hd, in a new git repository
+hd new --lib util    # util/hd.toml, src/lib.hd, and tests/util.hd
+hd new --app         # an application in the working directory
+hd new hello         # asks which kind, or fails without a terminal
 cd hello
-hd run          # runs src/main.hd
+hd run               # runs src/main.hd
+hd test              # runs tests/hello.hd, which runs the executable
 ```
 
-1. r[cli.new.path] `hd new PATH` creates the directory PATH, holding an `hd.toml`, a `src/main.hd`, and a `tests` directory.
-2. r[cli.new.here] `hd new` and `hd new .` do the same in the working directory, and are an error when it already holds an `hd.toml`.
-3. r[cli.new.no-executable-table] The `hd.toml` that `hd new` writes has no `[[executable]]` table, so `src/main.hd` is the default executable and `hd run` runs it right after `hd new`.
+1. r[cli.new.kind] `hd new` creates an application with `--app` and a library with `--lib`.
+2. r[cli.new.kind.ask] With neither flag, `hd new` asks which kind to create when standard input is a terminal.
+3. r[cli.new.kind.no-terminal] With neither flag and standard input not a terminal, `hd new` is an error whose message names `--app` and `--lib`. It never picks a kind itself.
+4. r[cli.new.app] `hd new --app PATH` creates the directory PATH, holding an `hd.toml`, a `src/main.hd` whose program prints `hello, world`, and an integration test `tests/NAME.hd`.
+5. r[cli.new.app.test] That test runs the executable with [`hd_run!`](../std/testing.md#running-executables), and checks its output and its exit status.
+6. r[cli.new.lib] `hd new --lib PATH` creates the directory PATH, holding an `hd.toml`, a `src/lib.hd` that declares one sample public function, and an integration test `tests/NAME.hd`.
+7. r[cli.new.lib.test] That test checks the sample function through the package's public interface, with `use pkg`.
+8. r[cli.new.test-name] In both, `NAME` is the package's name with each `-` replaced by `_`, so the file is a valid module path.
+9. r[cli.new.here.dir] With no PATH, or with `.`, `hd new` does the same in the working directory.
+10. r[cli.new.existing] `hd new` is an error when any file it would write already exists, and it then writes nothing.
+11. r[cli.new.no-executable-table] The `hd.toml` that `hd new` writes has no `[[executable]]` table. With `--app`, `src/main.hd` is then the default executable, and `hd run` runs it right after `hd new`.
+12. r[cli.new.workspace-member] When the new package's directory lies under a workspace root, `hd new` also adds that directory to the workspace manifest's `members`, as Cargo does.
+13. r[cli.new.vcs] Unless the new package's directory is already inside a git repository, `hd new` runs `git init` there and writes a `.gitignore`, as Cargo does.
+14. r[cli.new.vcs-none] `hd new --vcs none` runs no `git init` and writes no `.gitignore`.
+
+> **Note.** [Running Executables](../std/testing.md#running-executables)
+> shows the test that `hd new --app` writes.
+
+> **Why.** A new package starts with a passing test in `tests/`. Where
+> tests go, and how they reach the package, is then visible from the first
+> run.
+> A package left out of `members` would be skipped by every root command
+> without a word.
 
 ## REPL
 
 ```sh
 cd shop/src/billing
 hd                # use self.util names shop/src/util.hd
+echo 'println(1 + 2)' | hd    # prints 3
 ```
 
-1. r[cli.repl.open] `hd` with no arguments opens the REPL.
-2. r[cli.repl.package] In package mode, the session is linked with the package and acts as its root module, wherever in the package it starts: `use self.util` names `src/util.hd`.
-3. r[cli.repl.uses] Names reach the session only through its `use` declarations.
-4. r[cli.repl.outside] Outside any package, the session may use only `std`.
+1. r[cli.repl.open.terminal] `hd` with no arguments opens the REPL when standard input is a terminal.
+2. r[cli.stdin.program] When standard input is not a terminal, `hd` with no arguments runs all of it as a [single-file program](../lang/10-modules.md#single-file-programs), as `python` does. This holds in every mode.
+3. r[cli.repl.package.lib] In package mode, the session acts as code inside `src/lib.hd`, wherever in the package it starts. It sees the private declarations of `src/lib.hd`, and `use self.util` names `src/util.hd`.
+4. r[cli.repl.package.dependencies] In package mode, the session may use the package's dependencies and its dev dependencies.
+5. r[cli.repl.uses.other] Apart from the declarations of `src/lib.hd`, names reach the session only through its `use` declarations.
+6. r[cli.repl.outside] Outside any package, the session may use only `std`.
+
+> **Why.** An agent that pipes code into `hd` gets a run, not a prompt
+> that waits for a terminal.
 
 ## Package Tooling
 

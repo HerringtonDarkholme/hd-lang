@@ -447,7 +447,7 @@ lang/10-modules.md	6	mixed	typing/invalid/integration-super-above-test-root.hd|r
 lang/10-modules.md	7	mixed	typing/invalid/single-file-self-use.hd
 lang/10-modules.md	8	accept	parse/valid/uses.hd
 lang/10-modules.md	9	accept	parse/valid/uses.hd
-lang/10-modules.md	10	mixed	parse/invalid/wildcard-use.hd|parse/invalid/direct-variant-use.hd|parse/invalid/pub-path-only-use.hd
+lang/10-modules.md	10	mixed	parse/invalid/wildcard-use.hd|typing/invalid/unknown-std-name.hd|parse/invalid/direct-variant-use.hd|parse/invalid/pub-path-only-use.hd
 lang/10-modules.md	11	filesystem-layout	-
 lang/10-modules.md	12	filesystem-layout	-
 lang/10-modules.md	13	mixed	typing/invalid/reimport-prelude-name.hd|typing/invalid/prelude-shadow-println-function.hd|typing/invalid/prelude-shadow-console-parameter.hd|typing/invalid/prelude-shadow-result-generic.hd|typing/invalid/prelude-shadow-hash-local.hd
@@ -610,6 +610,9 @@ std/testing.md	12	accept	runtime/valid/derived-arbitrary-recursive-members.hd|ru
 std/testing.md	13	accept	typing/valid/test-timeout-duration.hd|typing/valid/test-timeout-call.hd
 std/testing.md	14	accept	runtime/valid/it-each-rows.hd
 std/testing.md	15	type-fragment	-
+std/testing.md	16	type-fragment	-
+std/testing.md	17	accept	typing/valid/hd-run-integration.hd
+std/testing.md	18	mixed	typing/invalid/hd-run-outside-integration.hd
 std/text.md	1	accept	typing/valid/string-prefix-std-r.hd
 std/time.md	1	accept	runtime/valid/duration-negation.hd|typing/valid/literal-suffix-duration.hd
 std/time.md	2	accept	typing/valid/literal-suffix-duration.hd

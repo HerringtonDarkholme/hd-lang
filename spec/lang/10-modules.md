@@ -51,14 +51,15 @@ billing = "git.example.com/shop/billing.git@0.4.2"
 pdf = "github.com/acme/pdf@0.4.1-0.20260912081500-3f2c9e1a7b6d"
 ```
 
-1. r[module.dep.key] Each key of `[dependencies]` and `[dev-dependencies]` is the `NAME` that source writes as `dep.NAME`.
-2. r[module.dep.requirement-value] Each value is a dependency requirement `PATH@VERSION`, or a [path requirement](#r-module.workspace.path-requirement) between workspace members. A dependency requirement is a host path, `@`, and a version or pseudo-version without a leading `v`.
-3. r[module.dep.path-manifest-only] A host path appears only in the manifest. Source names a dependency only through its key.
-4. r[module.dep.identity] A resolved package's identity is its host path and its [compatibility line](#r-module.version.line).
-5. r[module.dep.no-self-path] A manifest does not state its own host path. A fetched package's host path is the one that the dependency requirement which fetched it names.
-6. r[module.dep.two-lines] Two compatibility lines of one host path are two dependencies with two keys, as `json` and `json_v1` above.
-7. r[module.dep.one-key-per-line] Two keys of one manifest that name the same host path and compatibility line are invalid, since one package would then have two names.
-8. r[module.dep.no-major-suffix] A host path carries no major-version suffix such as `/v2`.
+1. r[module.dep.key-name] Each key of `[dependencies]` and `[dev-dependencies]` names one dependency, which source writes as `dep.NAME`. `NAME` is the key with each `-` replaced by `_`, so the key `my-app` is `dep.my_app`.
+2. r[module.dep.key-name.collision] Two keys of one manifest whose `NAME`s are equal, such as `my-app` and `my_app`, are invalid.
+3. r[module.dep.requirement-value] Each value is a dependency requirement `PATH@VERSION`, or a [path requirement](#r-module.workspace.path-requirement) between workspace members. A dependency requirement is a host path, `@`, and a version or pseudo-version without a leading `v`.
+4. r[module.dep.path-manifest-only] A host path appears only in the manifest. Source names a dependency only through its key.
+5. r[module.dep.identity] A resolved package's identity is its host path and its [compatibility line](#r-module.version.line).
+6. r[module.dep.no-self-path] A manifest does not state its own host path. A fetched package's host path is the one that the dependency requirement which fetched it names.
+7. r[module.dep.two-lines] Two compatibility lines of one host path are two dependencies with two keys, as `json` and `json_v1` above.
+8. r[module.dep.one-key-per-line] Two keys of one manifest that name the same host path and compatibility line are invalid, since one package would then have two names.
+9. r[module.dep.no-major-suffix] A host path carries no major-version suffix such as `/v2`.
 
 > **Why.** Go puts `/v2` in the path because its imports repeat the path.
 > In hd, source says `dep.json`, so a second key tells two lines apart, and
@@ -100,7 +101,7 @@ A package's versions are the git tags of its repository:
 6. r[module.version.order] Versions, pseudo-versions included, are ordered by SemVer 2.0.0 precedence.
 7. r[module.version.line] The **compatibility line** of a version is its major number when the major is at least 1, and `0.MINOR` when the major is 0.
 8. r[module.version.pseudo.release] A tagged version's manifest may require a pseudo-version.
-9. r[module.version.no-path-release] A tagged version's manifest must not hold a path requirement. Such a version is rejected when it is fetched, and the toolchain does not tag one.
+9. r[module.version.no-bare-path-release] A tagged version's manifest must not hold a path requirement that carries no version. Such a version is rejected when it is fetched, and the toolchain does not tag one.
 10. r[module.version.tag-missing] A dependency requirement whose version is not a pseudo-version, and whose package has no tag for that version, is invalid. So `lint = "github.com/acme/tools/lint@2.4.1"` is invalid when the repository has no tag `lint/v2.4.1`.
 11. r[module.version.no-fallback] The toolchain never falls back to an untagged commit or to a nearby version in place of a missing tag.
 12. r[module.version.pseudo-missing] A pseudo-version whose `HASH` names no commit of the package's repository, or whose `TIME` is not that commit's time, is invalid, as a missing tag is.
@@ -168,19 +169,27 @@ A workspace builds several packages of one repository as one graph.
 3. r[module.workspace.selection] Selection runs once for the whole workspace, so all members use the same selected versions.
 4. r[module.workspace.sum] A workspace has one `hd.sum`, beside its workspace manifest.
 5. r[module.workspace.path-requirement] A member depends on another member of its workspace through a **path requirement**, `{ path = "DIR" }`, where `DIR` is the other member's directory relative to the requiring manifest.
-6. r[module.workspace.no-host-path] A member does not require another member by host path.
-7. r[module.workspace.fetched-member] A fetched package may require a member's host path. Selection then treats that host path as any other and fetches the selected version, which is a package separate from the local member.
-8. r[module.workspace.fetched-member.two] The build then holds two packages, the local member and the fetched version. Neither stands in for the other.
+6. r[module.workspace.path-version] A path requirement may also carry a version, as in `{ path = "../ui", version = "0.4.2" }`.
+7. r[module.workspace.path-version.local] Inside the workspace, such a requirement names the member at its path, and its version is not used.
+8. r[module.workspace.path-version.fetched] In a fetched version of the requiring package, such a requirement is a dependency requirement on that version of the member.
+9. r[module.workspace.no-host-path] A member does not require another member by host path.
+10. r[module.workspace.fetched-member] A fetched package may require a member's host path. Selection then treats that host path as any other and fetches the selected version, which is a package separate from the local member.
+11. r[module.workspace.fetched-member.two] The build then holds two packages, the local member and the fetched version. Neither stands in for the other.
 
 ```toml
 [dependencies]
 billing = { path = "../billing" }
+ui = { path = "../ui", version = "0.4.2" }
 json = "github.com/acme/json@2.1.0"
 ```
 
-> **Note.** A member released while it requires another member through a
-> path requirement would break [`module.version.no-path-release`](#r-module.version.no-path-release),
-> so its release manifest names that member by dependency requirement.
+> **Note.** A member whose path requirements all carry a version is
+> released without a manifest edit, by
+> [`module.version.no-bare-path-release`](#r-module.version.no-bare-path-release),
+> as Cargo's
+> [multiple locations](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#multiple-locations)
+> allow. A member with a bare path requirement must name the other member
+> by dependency requirement in its release manifest.
 
 > **Why.** A member states no host path
 > ([`module.dep.no-self-path`](#r-module.dep.no-self-path)), so nothing
@@ -284,18 +293,19 @@ tests/common/mod.hd    # tests.common, shared by integration test programs
 5. r[module.test.integration.view] An integration test module sees the package as a dependent package does: its public declarations, built without its test code.
 6. r[module.test.integration.program] Each file directly under the test root, such as `tests/checkout.hd`, is an **integration test program**: its own program, compiled separately from the others.
 7. r[module.test.integration.shared] A module in a subdirectory of the test root, such as `tests/common/mod.hd`, is a **shared test module**. Every integration test program of the package may use it.
-8. r[module.test.integration.program-use] A use of an integration test program from another module is an error. Error: `unknown-module`.
-9. r[module.test.integration.shared-copy] Each integration test program gets its own copy of the shared test modules it uses, so their top-level statements run once per program.
-10. r[module.test.integration.shared-unused] A warning that a declaration of a shared test module is unused is given only when no integration test program uses that declaration.
-11. r[module.test.integration.pkg-root] In an integration test module, the `pkg` root names the package's library modules, each with only its public declarations.
-12. r[module.test.integration.self-shared] An integration test program uses a shared test module through `self`, as in `use self.common` for `tests/common/mod.hd`.
-13. r[module.test.no-tests-root] There is no `tests` use root: test code reaches the test root only through `self` and `super`.
-14. r[module.test.no-tests-block] A test module or an integration test module must not contain a `tests:` block. Error: `misplaced-tests-block`.
-15. r[module.test.dev-dependency] A **dev dependency** is a dependency that the manifest declares in `[dev-dependencies]`. Test code may use it, and a dependent package never sees it.
-16. r[module.test.non-test-use.test-module] Non-test code that uses a test module is an error. Error: `test-only-use`.
-17. r[module.test.non-test-use.dev-dependency] Code under the source root, other than test code, that uses a dev dependency is an error. Error: `test-only-use`.
-18. r[module.test.cyclic-dev-unit] A dev dependency that itself depends on the package must not be used from a `tests:` block or a test module. Error: `cyclic-test-dependency`.
-19. r[module.test.cyclic-dev-allowed] Integration test modules and [tasks](../cli/command-line.md#tasks) may use such a dev dependency.
+8. r[module.test.integration.beside-dir] A file directly under the test root beside a directory of the same name, such as `tests/common.hd` beside `tests/common/`, is invalid. Its fix-it moves the file to `tests/common/mod.hd`.
+9. r[module.test.integration.program-use] A use of an integration test program from another module is an error. Error: `unknown-module`.
+10. r[module.test.integration.shared-copy] Each integration test program gets its own copy of the shared test modules it uses, so their top-level statements run once per program.
+11. r[module.test.integration.shared-unused] A warning that a declaration of a shared test module is unused is given only when no integration test program uses that declaration.
+12. r[module.test.integration.pkg-root] In an integration test module, the `pkg` root names the package's library modules, each with only its public declarations.
+13. r[module.test.integration.self-shared] An integration test program uses a shared test module through `self`, as in `use self.common` for `tests/common/mod.hd`.
+14. r[module.test.no-tests-root] There is no `tests` use root: test code reaches the test root only through `self` and `super`.
+15. r[module.test.no-tests-block] A test module or an integration test module must not contain a `tests:` block. Error: `misplaced-tests-block`.
+16. r[module.test.dev-dependency] A **dev dependency** is a dependency that the manifest declares in `[dev-dependencies]`. Test code may use it, and a dependent package never sees it.
+17. r[module.test.non-test-use.test-module] Non-test code that uses a test module is an error. Error: `test-only-use`.
+18. r[module.test.non-test-use.dev-dependency] Code under the source root, other than test code, that uses a dev dependency is an error. Error: `test-only-use`.
+19. r[module.test.cyclic-dev-unit] A dev dependency that itself depends on the package must not be used from a `tests:` block or a test module. Error: `cyclic-test-dependency`.
+20. r[module.test.cyclic-dev-allowed] Integration test modules and [tasks](../cli/command-line.md#tasks) may use such a dev dependency.
 
 > **Why.** Each integration test program builds on its own, as each Cargo
 > integration test is its own crate, so helpers go in a subdirectory such
@@ -414,13 +424,14 @@ use dep.billing.types.{UserId as BillingUserId}
 3. r[module.use.trailing-comma] Grouped uses may have a trailing comma.
 4. r[module.use.no-wildcard] Wildcard uses are not supported. A wildcard use is an error. Error: `syntax-error`.
 5. r[module.use.no-variant] Enum variants are members, not module declarations, and cannot be used directly. Error: `direct-variant-use`.
-6. r[module.use.private-or-missing] Using a private or missing declaration is a compile-time error.
+6. r[module.use.private-or-missing] Using a private or missing declaration is a compile-time error. A use that names a declaration which an existing module of `std`, `pkg`, or a dependency does not declare is an `unknown-import` error.
 7. r[module.use.pub-grouped] Only the grouped form accepts a `pub` prefix. A `pub` single use is an error. Error: `syntax-error`.
 8. r[module.use.facade] Public facades expose selected declarations rather than module namespace aliases.
 9. r[module.use.whole-module] Use declarations introduce names for the whole module and are resolved before type checking.
 
 ```text
 use std.testing.*                 # error: syntax-error
+use std.text.{nope}               # error: unknown-import
 use pkg.status.{Status.Queued}    # error: direct-variant-use
 pub use std.testing.assert_equal  # error: syntax-error
 ```

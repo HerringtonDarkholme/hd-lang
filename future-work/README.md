@@ -33,8 +33,5 @@ Research and direction outside the specification:
   managers and drafts the `hd.toml` schema, the checked compatibility
   rule, and the agent-first CLI. The registry-free model of DEP1-DEP19 is
   in [Package Manifest](../spec/lang/10-modules.md#package-manifest).
-- [CLI Stress Test](CLI_STRESS_TEST.md) translates Cargo, Go, Deno, uv,
-  npm-workspace, CI, AI-agent, and teaching workflows into the CLI tier,
-  and ranks 25 owner questions (task #173).
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.

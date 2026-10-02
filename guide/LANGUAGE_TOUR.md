@@ -37,8 +37,9 @@ Run it as a script, a single file that may use only `std`:
 hd hello.hd
 ```
 
-A program with several files or dependencies is a package: `hd new`
-creates one, and `hd run` runs it
+A program with several files or dependencies is a package:
+`hd new --app` creates one with a first test in `tests/`, `hd run` runs
+it, and `hd test` runs that test
 ([Command Line](../spec/cli/command-line.md)).
 
 The language uses indentation for structure, so blocks are introduced by a header ending in `:` followed by either an indented body or a same-line body:
@@ -2367,8 +2368,15 @@ any other host, mark where the repository ends with `.git`, as in
 path: a package is known by the path it is fetched from.
 
 In a workspace, one member depends on another through its directory,
-`billing = { path = "../billing" }`. A tagged release cannot hold such a
-path requirement, so a member's release names the other member by version.
+`billing = { path = "../billing" }`. A tagged release cannot hold a bare
+path requirement, so a member that is released adds the version a fetched
+copy should use, as Cargo does:
+`billing = { path = "../billing", version = "0.4.2" }`.
+
+A workspace root declares no package, so it has no `tasks/`. Tasks for the
+whole repository live in a member of their own, such as `tools/`, as
+Cargo's xtask pattern does: `hd run -p tools release` runs
+`tools/tasks/release.hd` from the root, in the `tools` directory.
 
 Directories define submodule namespaces only when they contain a `mod.hd` file. `mod.hd` is required for every directory module and acts as the public index:
 

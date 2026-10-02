@@ -11,7 +11,8 @@ runner implement over the language tier:
 - the registration functions `it_each`, `it_prop`, and `it_prop_with`;
 - what the `timeout` option does;
 - how an `it_each` call expands and names its rows;
-- how snapshots compare text, and where snapshot files live.
+- how snapshots compare text, and where snapshot files live;
+- how an integration test runs one of the package's executables.
 
 The language tier keeps the assertion functions, `it` and its options, the
 test-position rules, and the literal `expect` of `snapshot`
@@ -414,3 +415,53 @@ pub fn snapshot_file(text: string) -> void
 > recorded cannot pass by accident.
 
 See also: [Debug Trait](../lang/09-traits.md#debug-trait).
+
+## Running Executables
+
+`std.testing` declares a function that runs one of the package's
+executables from an integration test, and the data type of its result:
+
+```text
+pub data RunOutput:
+    pub stdout: string
+    pub stderr: string
+    pub status: i32
+
+pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> RunOutput
+```
+
+1. r[std-testing.hd-run.import] Neither `hd_run` nor `RunOutput` is a prelude name; code imports them from `std.testing`.
+2. r[std-testing.hd-run.runs] `hd_run!(name, args, stdin)` runs the executable of the package under test whose name is `name`, as [`cli.exe.table`](../cli/command-line.md#r-cli.exe.table) names it. It passes `args` as the program's arguments and `stdin` as its standard input.
+3. r[std-testing.hd-run.default-name] The default executable is named after the package, by [`cli.exe.default-name`](../cli/command-line.md#r-cli.exe.default-name).
+4. r[std-testing.hd-run.waits] The call completes when the executable exits.
+5. r[std-testing.hd-run.output] Its result holds the text the executable wrote to standard output and to standard error, and the exit status it exited with.
+6. r[std-testing.hd-run.no-row] `hd_run!` has an empty requirement row. The test runner grants the capability it uses, so a test that calls it writes no row for it.
+7. r[std-testing.hd-run.integration-only] A call of `hd_run!` outside an [integration test module](../lang/10-modules.md#r-module.test.integration) is an error. Error: `test-only-use`.
+
+The integration test that `hd new --app` writes for a package `hello`:
+
+```text
+# tests/hello.hd
+use std.testing.{assert_equal, hd_run}
+
+it("prints a greeting"):
+    let out = hd_run!("hello")
+    assert_equal(out.stdout, "hello, world\n", reason="the greeting")
+    assert_equal(out.status, 0, reason="a clean exit")
+```
+
+```text
+# src/greeting.hd
+use std.testing.hd_run
+
+tests:
+    it("runs the binary"):
+        _ := hd_run!("hello")  # error: test-only-use
+```
+
+> **Note.** `hd test` builds the package's executables before it runs any
+> test case ([`cli.test.builds-executables`](../cli/command-line.md#r-cli.test.builds-executables)).
+
+> **Why.** An integration test checks a program as its user sees it, as
+> Cargo's integration tests do through `CARGO_BIN_EXE_<name>`. A unit test
+> runs on fakes alone, so it never starts a process.

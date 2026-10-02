@@ -51,7 +51,7 @@ file of its own.
 
 | File | Module | Rule ID prefix | Scope |
 | --- | --- | --- | --- |
-| [`testing.md`](testing.md) | `std.testing` | `std-testing` | the registration functions `it_each`, `it_prop`, and `it_prop_with`, property tests, the draw budget, derived `Arbitrary`, table-test rows, snapshot files, the `timeout` option |
+| [`testing.md`](testing.md) | `std.testing` | `std-testing` | the registration functions `it_each`, `it_prop`, and `it_prop_with`, property tests, the draw budget, derived `Arbitrary`, table-test rows, snapshot files, the `timeout` option, `hd_run!` |
 | [`iter.md`](iter.md) | `std.iter` | `std-iter` | iterator adapters, collect targets, `FromIterator` and its impls, `map` on a list or an optional |
 | [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, the `r` prefix |
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls |

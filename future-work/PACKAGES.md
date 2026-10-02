@@ -247,7 +247,8 @@ members = ["apps/invoice_cli", "libs/billing", "libs/shared"]
 
 A workspace root has no `[package]` table. Members are ordinary packages.
 There is one resolution and one `hd.lock` for the whole workspace, at its
-root. A member depends on another member with `{ path = "..." }`.
+root. A member depends on another member with `{ path = "..." }`, which
+may also carry a `version` that a fetched version of the member uses.
 
 ### 2.5 Schema
 
@@ -255,7 +256,7 @@ root. A member depends on another member with `{ path = "..." }`.
 
 | Key | Type | Rule |
 | --- | --- | --- |
-| `name` | identifier | The package's local name, used in diagnostics and as the default executable name. Source never names it: the current package is always `pkg`. |
+| `name` | identifier characters and `-` | The package's local name, used in diagnostics and as the default executable name. It may contain `-` ([`cli.name.hyphen`](../spec/cli/command-line.md#r-cli.name.hyphen)). Source never names it: the current package is always `pkg`. |
 | `id` | `owner/name` | Registry identity (decision 3). Required to publish. `name` must equal its last component. |
 | `version` | `MAJOR.MINOR.PATCH[-PRE]` | See [Versions](#3-versions). Build metadata (`+...`) is rejected. |
 | `hd` | version | Minimum toolchain version, which is also the minimum `std` version. |
@@ -288,7 +289,7 @@ never builds its executables. No target has an orphan exception
 
 | Key | Default | Rule |
 | --- | --- | --- |
-| `name` | package `name` | Output artifact name. Unique within the package. |
+| `name` | package `name` | Output artifact name. Unique within the package, and may contain `-`. |
 | `module` | `"main"` | Entry module, as a module path relative to the source root. |
 | `profile` | `"console"` | Runtime profile ([Wasm Boundary](../spec/lang/10-modules.md#wasm-boundary)). Only toolchain-defined profile names are allowed (decision 13). |
 
@@ -297,14 +298,17 @@ executable ([`cli.exe.default-main`](../spec/cli/command-line.md#r-cli.exe.defau
 [Executables](../spec/cli/command-line.md#executables) specifies the `name` and `module`
 keys and how `hd run` selects an executable.
 
-`[dependencies]` and `[dev-dependencies]`: each key is an identifier and
-becomes the `NAME` in `dep.NAME`. Each value is one of:
+`[dependencies]` and `[dev-dependencies]`: each key may contain `-`, and
+source writes it as `dep.NAME` with each `-` as `_`
+([`module.dep.key-name`](../spec/lang/10-modules.md#r-module.dep.key-name)).
+Each value is one of:
 
 | Form | Meaning |
 | --- | --- |
 | `"owner/name@X.Y.Z"` | Registry package, caret range: at least `X.Y.Z`, within its compatibility line. |
 | `{ id = "owner/name", version = "X.Y.Z", registry = "URL" }` | Registry package from a non-default registry. |
-| `{ path = "DIR" }` | Local package. Not allowed in a published package (decision 9). |
+| `{ path = "DIR" }` | Workspace member. Not allowed in a tagged version (decision 9). |
+| `{ path = "DIR", version = "X.Y.Z" }` | Workspace member, which a fetched version requires at `X.Y.Z` ([`module.workspace.path-version`](../spec/lang/10-modules.md#r-module.workspace.path-version)). Allowed in a tagged version. |
 | `{ git = "URL", rev = "SHA" }` | Git package at one full commit hash. Branches and tags are rejected. Not allowed in a published package (decision 9). |
 
 A key may not name `std`, `pkg`, or `dep`. Two keys may name the same
@@ -500,15 +504,18 @@ flag to pass.
 
 Output rules:
 
-- `--format json` is accepted by every command. JSON output is one document
-  on stdout with a `schema` field naming its shape, such as
-  `"hd.resolve/1"`. Human text is the default.
+- `--format json` writes JSON lines, as
+  [Machine Output](../spec/cli/command-line.md#machine-output) specifies
+  for `hd build`, `hd check`, and `hd test`: one object per diagnostic or
+  result, then a summary record, even on success. The tooling commands
+  below follow the same form. Human text is the default.
 - Diagnostics use stable codes, such as `missing-entry-point`,
   `coherence-conflict`, and `version-bump-required`. Each JSON diagnostic
   carries the manifest or source span and, when one exists, a suggested edit
   as a replacement span.
-- Exit codes are stable: 0 success, 1 diagnostics reported, 2 invalid
-  invocation, 3 network or registry failure.
+- Exit codes follow [Exit Status](../spec/cli/command-line.md#exit-status):
+  0 success, and 101 for any failure of `hd` itself, a network failure
+  included.
 - `--plan` on any command that writes files prints the manifest and lockfile
   edits as JSON and changes nothing.
 - `hd add`, `hd remove`, and `hd update` rewrite `hd.toml` in canonical form.
@@ -533,7 +540,7 @@ Decided 2026-09-26. The options weighed for each are in git history.
 | 6 | Adding an implementation for a foreign trait is a minor change | For `hd api diff`, which DEP7 schedules later ([3.3](#33-the-checked-compatibility-rule)) |
 | 7 | Adding an enum variant is breaking, for now | For `hd api diff`, as 6 |
 | 8 | Each `0.MINOR` is its own compatibility line | Applied |
-| 9 | No git or path dependencies in released versions | Kept by DEP15 ([`module.version.no-path-release`](../spec/lang/10-modules.md#r-module.version.no-path-release)) |
+| 9 | No git or path dependencies in released versions | Kept by DEP15, then narrowed in batch 53: a path requirement that carries a version is allowed ([`module.version.no-bare-path-release`](../spec/lang/10-modules.md#r-module.version.no-bare-path-release)) |
 | 10 | A toolchain minimum plus an optional root pin; no editions | Applied ([Toolchain Version](../spec/lang/10-modules.md#toolchain-version)) |
 | 11 | Published packages hold sources and the interface file | Superseded by DEP1: no publish step |
 | 12 | No optional features or conditional compilation | Applied |

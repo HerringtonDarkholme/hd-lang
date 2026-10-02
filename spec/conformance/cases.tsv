@@ -1829,6 +1829,7 @@ typing/invalid/unknown-std-module.hd	type	reject:unknown-module	lang/10-modules.
 typing/invalid/unknown-std-module-grouped.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
 typing/invalid/unknown-pkg-module.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
 typing/invalid/unknown-dep-module.hd	type	reject:unknown-module	lang/10-modules.md#use-roots
+typing/invalid/unknown-std-name.hd	type	reject:unknown-import	lang/10-modules.md#r-module.use.private-or-missing
 runtime/valid/generic-inference-literal-any-position.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.join.literal
 typing/invalid/generic-inference-supertrait-widening.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.generic.infer.join.no-supertrait-widening
 typing/invalid/generic-inference-variance-conflict.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.infer.join.other-conflict
@@ -1858,3 +1859,5 @@ typing/valid/any-void-never.hd	type	accept	lang/04-type-system.md#r-types.any.vo
 typing/valid/mutable-access-bound.hd	type	accept	lang/04-type-system.md#r-types.path.access.mut-bound
 typing/invalid/readonly-edge-mut-self-call.hd	type	reject:mutable-receiver-required	lang/04-type-system.md#r-types.path.mutation.receiver
 typing/valid/mut-trait-value.hd	type	accept	lang/04-type-system.md#r-types.assign.trait-value.mut
+typing/valid/hd-run-integration.hd	type	accept	std/testing.md#r-std-testing.hd-run.runs
+typing/invalid/hd-run-outside-integration.hd	type	reject:test-only-use	std/testing.md#r-std-testing.hd-run.integration-only

@@ -61,3 +61,5 @@ typing/invalid/supertrait-impl-bounds.hd	a generic impl whose bounds do not prov
 typing/valid/bound-implies-supertrait.hd	a T < Child is not accepted where T < Parent is required (trait.bound.supertraits)	TYPE-GAPS
 typing/invalid/requirement-key-not-dynamically-safe.hd	a requirement key naming a trait with an associated function is accepted (req.key.dynamically-safe)	TYPE-GAPS
 typing/valid/any-void-never.hd	a void value is not assignable to Any (types.any.void-never)	TYPE-GAPS
+typing/valid/hd-run-integration.hd	check reports unknown-import at `use std.testing.{assert_equal, hd_run}`: the prototype has no hd_run! or RunOutput (std Testing, Running Executables)	CLI-53
+typing/invalid/hd-run-outside-integration.hd	check reports unknown-import at `use std.testing.hd_run`, not test-only-use: the prototype has no hd_run! (std Testing, Running Executables)	CLI-53

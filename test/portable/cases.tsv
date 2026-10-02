@@ -1796,3 +1796,4 @@ runtime/panic/list-view-reversed.hd	runtime
 runtime/panic/list-view-index-out-of-bounds.hd	runtime
 runtime/panic/list-view-invalidated.hd	runtime
 typing/invalid/list-view-assignment.hd	type
+typing/invalid/unknown-std-name.hd	type

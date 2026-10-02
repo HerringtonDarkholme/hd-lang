@@ -1,0 +1,10 @@
+# fixture-test-layout: integration
+# test: an integration test runs an executable of its package with hd_run! and reads its output
+# Spec std Testing, Running Executables: std-testing.hd-run.runs, std-testing.hd-run.no-row (batch 55).
+use std.testing.{assert_equal, hd_run}
+
+it("prints a greeting"):
+    let out = hd_run!("hello", args=["--loud"], stdin="")
+    assert_equal(out.stdout, "hello, world\n", reason="the greeting")
+    assert_equal(out.stderr, "", reason="no errors")
+    assert_equal(out.status, 0, reason="a clean exit")
