@@ -2,21 +2,23 @@ import type { Expression } from "../ast.ts";
 import type { HirExpression, ValueType } from "../hir.ts";
 import {
   functionParts,
+  mutableType,
+  nominalGenericType,
   storedSuspensionParts,
   suspensionParts,
   suspensionType,
   traitSuspensionParts,
   tupleType,
 } from "../types.ts";
-import { ALL_COMBINATOR, RACE_INTRINSIC } from "./standard-traits.ts";
+import { ALL_COMBINATOR, ALL_FRAME_INTRINSIC } from "./standard-traits.ts";
 import { substituteGenericType } from "./shared.ts";
 
 import { OperatorCallChecker } from "./operator-calls.ts";
 export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
   /**
    * `all!(e_1, ..., e_n)`, where each `e_i` is a `mut Suspend[X_i]`, has type
-   * `(X_1, ..., X_n)` (11-requirements-and-suspension.md#typing-all). Its
-   * polling body is a compiler intrinsic that the prototype does not emit.
+   * `(X_1, ..., X_n)` (11-requirements-and-suspension.md#typing-all). It
+   * drives the polling frame of `all_frame`, a `lib/std/task.hd` intrinsic.
    */
   private checkAllCombinator(
     expression: Extract<Expression, { kind: "suspend-call" }>,
@@ -31,8 +33,10 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
         "all! takes direct positional arguments, not a spread",
         expression.span,
       );
+    const checked: HirExpression[] = [];
     const results = expression.arguments.map((argument) => {
       const child = this.checkExpression(argument);
+      checked.push(child);
       const stored = storedSuspensionParts(child.type);
       const result =
         suspensionParts(child.type)?.result ??
@@ -46,14 +50,39 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
         );
       return result;
     });
-    const message = "std.task.all! has no run time in the prototype yet";
-    return {
-      kind: "panic",
-      message: this.checkExpression({ kind: "string", value: message, span: expression.span }),
-      unsupported: { code: "unsupported-task-combinator", message },
-      type: tupleType(results),
+    // The call drives the frame that `lib/std/task.hd`'s `all_frame` builds
+    // over the children, each held as a stored suspension.
+    const frame = [...this.signatures.values()].find(
+      (signature) => signature.intrinsic === ALL_FRAME_INTRINSIC,
+    );
+    if (!frame) throw new Error("std.task's all_frame is not declared");
+    const type = tupleType(results);
+    const stored = (result: ValueType): ValueType =>
+      mutableType(nominalGenericType("Suspend", [result]));
+    const children = results.map((result, index) =>
+      this.coerce(checked[index]!, stored(result), expression.arguments[index]!.span),
+    );
+    const call: HirExpression = {
+      kind: "call",
+      functionIndex: frame.index,
+      functionName: frame.name,
+      arguments: [
+        {
+          kind: "list",
+          elements: children,
+          elementType: stored(type),
+          type: nominalGenericType("List", [stored(type)]),
+          span: expression.span,
+        },
+      ],
+      bounds: [],
+      providers: [],
+      erasedParameterTypes: frame.parameters,
+      erasedResultType: frame.result,
+      type: stored(type),
       span: expression.span,
     };
+    return { kind: "suspension-drive", suspension: call, type, span: expression.span };
   }
 
   protected checkSuspendingCallExpression(
@@ -206,22 +235,6 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
             type: suspensionType(signature.index, resultType),
             span: expression.span,
           };
-          // `race!`'s declaration types the call; its polling body is a
-          // compiler intrinsic that the prototype does not emit yet.
-          if (signature.intrinsic === RACE_INTRINSIC) {
-            const message = "std.task.race! has no run time in the prototype yet";
-            return {
-              kind: "panic",
-              message: this.checkExpression({
-                kind: "string",
-                value: message,
-                span: expression.span,
-              }),
-              unsupported: { code: "unsupported-task-combinator", message },
-              type: resultType,
-              span: expression.span,
-            };
-          }
           return {
             kind: "suspend-drive",
             functionIndex: signature.index,

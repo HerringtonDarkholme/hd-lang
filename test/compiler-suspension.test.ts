@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { analyze, compile, instantiate, type ReplayEvent } from "../src/compiler.ts";
-import { DiagnosticError } from "../src/diagnostics.ts";
+import { analyze, instantiate, type ReplayEvent } from "../src/compiler.ts";
 import { conformance, fixture } from "./fixture.ts";
 
 test("suspending functions construct GC frames and bang calls drive them", async () => {
@@ -57,30 +56,87 @@ test("ordinary suspending calls are cold values and bang calls need a driver", (
   );
 });
 
-test("unresolved standard task combinators have a dedicated boundary diagnostic", () => {
-  const source = fixture(
-    "suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti",
-  );
-  // `all!` and `race!` type-check; only emitting them reports the boundary.
-  const emitted = (text: string): string | undefined => {
-    assert.deepEqual(analyze(text).diagnostics, []);
-    try {
-      compile(text);
-    } catch (error) {
-      return error instanceof DiagnosticError ? error.diagnostics[0]?.code : undefined;
-    }
-    return undefined;
-  };
-  assert.equal(emitted(source), "unsupported-task-combinator");
-  assert.equal(
-    emitted(fixture("suspension/05-unresolved-race-task-combinator")),
-    "unsupported-task-combinator",
-  );
+// Trace events: 0 construct, 1 poll, 2 complete, 3 cancel, 6 pending. In
+// both fixtures `slow!` is function 0, `fast!` 1, and `main!` 2.
+test("all! polls every child in order, then only the unfinished ones", async () => {
+  const events: Array<[number, number]> = [];
+  const { instance } = await instantiate(fixture("suspension/05-all-task-combinator"), {
+    trace: (functionIndex, event) => events.push([functionIndex, event]),
+    pending: (functionIndex, pollCount) => functionIndex === 0 && pollCount === 1,
+  });
+  assert.equal((instance.exports.main as CallableFunction)(), 42);
+  assert.deepEqual(events, [
+    [2, 0],
+    [2, 1],
+    [0, 0],
+    [1, 0],
+    [0, 1],
+    [0, 6],
+    [1, 1],
+    [1, 2],
+    [2, 6],
+    [2, 1],
+    [0, 1],
+    [0, 2],
+    [2, 2],
+  ]);
+});
 
-  const userDefined = fixture(
-    "suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti-userdefined",
+test("cancelling all! cancels only its unfinished children", async () => {
+  const events: Array<[number, number]> = [];
+  const { instance } = await instantiate(fixture("suspension/05-all-task-combinator"), {
+    trace: (functionIndex, event) => events.push([functionIndex, event]),
+    pending: (functionIndex) => functionIndex === 0,
+  });
+  (instance.exports.__hd_start as CallableFunction)();
+  assert.equal((instance.exports.__hd_poll as CallableFunction)(), 0);
+  (instance.exports.__hd_cancel as CallableFunction)();
+  assert.deepEqual(events.slice(-2), [
+    [2, 3],
+    [0, 3],
+  ]);
+});
+
+test("race! returns the first result and cancels the losers before it completes", async () => {
+  const source = fixture("suspension/05-race-task-combinator");
+  const events: Array<[number, number]> = [];
+  const { instance } = await instantiate(source, {
+    trace: (functionIndex, event) => events.push([functionIndex, event]),
+    pending: (functionIndex) => functionIndex === 0,
+  });
+  assert.equal((instance.exports.main as CallableFunction)(), 42);
+  const children = events.filter(([functionIndex]) => functionIndex < 2);
+  assert.deepEqual(children, [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+    [0, 6],
+    [1, 1],
+    [1, 2],
+    [0, 3],
+  ]);
+  assert.deepEqual(events.at(-1), [2, 2]);
+
+  // Cancelling a pending race! cancels every child.
+  const cancelled: Array<[number, number]> = [];
+  const pending = await instantiate(source, {
+    trace: (functionIndex, event) => cancelled.push([functionIndex, event]),
+    pending: (functionIndex) => functionIndex < 2,
+  });
+  (pending.instance.exports.__hd_start as CallableFunction)();
+  assert.equal((pending.instance.exports.__hd_poll as CallableFunction)(), 0);
+  (pending.instance.exports.__hd_cancel as CallableFunction)();
+  assert.deepEqual(
+    cancelled.filter(([functionIndex, event]) => functionIndex < 2 && event === 3),
+    [
+      [0, 3],
+      [1, 3],
+    ],
   );
-  assert.deepEqual(analyze(userDefined).diagnostics, []);
+});
+
+test("a module may declare its own all! without importing std.task.all", () => {
+  assert.deepEqual(analyze(fixture("suspension/05-user-defined-all")).diagnostics, []);
 });
 
 test("explicit mutable suspension bindings are one-shot", async () => {

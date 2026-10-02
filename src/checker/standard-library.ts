@@ -745,6 +745,16 @@ export function withStandardLibrary(source: Program): Program {
     reached.add(CHECK_EQUAL);
     if (!spans.has("testing")) spans.set("testing", asserting.span);
   }
+  // An `all!` call drives the frame that `all_frame` builds
+  // (checker/expression-suspensions.ts).
+  const awaitingAll = program.uses.find(
+    (declaration) =>
+      declaration.module === "std.task" && declaration.names.some(({ name }) => name === "all"),
+  );
+  if (awaitingAll) {
+    reached.add(hiddenStandardName("task", "all_frame"));
+    if (!spans.has("task")) spans.set("task", awaitingAll.span);
+  }
 
   // Prelude names that std declares keep their names
   // (spec/10-modules.md#prelude).

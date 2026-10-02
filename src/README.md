@@ -801,8 +801,10 @@ else`, `break`, `break value`, and `continue`;
   `generic-member-call`, `newtype-derivation-self`, `gadt-derivation`, the
   two warnings, the `structure-variant-mismatch` panic, and
   `suspension-forbidden-context` in facts) are implemented. Gaps: `Facts`
-  holds `Inspectable` values rather than `Any`, so a fact must be
-  inspectable; a fact's concrete type for `duplicate-fact` is read from
+  holds `Inspectable` values rather than `Any`: each generated fact list
+  erases its values through the checker intrinsic `hd__structure_fact`,
+  which names any type, a function type by its text, so a user's
+  `facts.items` may hold such a value; a fact's concrete type for `duplicate-fact` is read from
   syntax (a data literal or a call's declared result), for member lines and
   for declaration facts alike (M25); `VariantInfo.shared`
   is always empty; a build handle's `get` returns the declared type whatever
@@ -892,9 +894,15 @@ else`, `break`, `break value`, and `continue`;
   `With`, is found from the `std` function that the value calls.
   `h.fact::[M]()` on a handle is `std.structure`'s `Field.fact`, which
   finds the member's fact of exactly type `M`; it does not check that
-  `M`'s target argument is the handle's `F`, and `M` must be inspectable,
-  so a fact whose target argument is a generic `F` without `Inspectable`
-  cannot be read;
+  `M`'s target argument is the handle's `F`. Each handle holds a hidden
+  `hd_witness: Inspectable`, built by the checker intrinsic
+  `hd__structure_witness::[F]()` from the member's type, whatever it is.
+  When `F` has no runtime identity of its own, the checker reads that
+  witness at the `h.fact` call as `F`'s Inspectable dictionary
+  (annot.handle.fact.key), so `M`'s other parameters still need one. The
+  witness is read from `h` again, so only a handle named by a local gets
+  the exemption; a handle of a generic target whose parameter has no
+  `Inspectable` bound names that parameter by its text;
 - runtime type identity: importing a `std.inspect` name or `std.error.Error`
   declares the sealed `Inspectable` (`std.error.Error` extends it) and
   `TypeId`, a data type holding the canonical printable name (an inner
@@ -1103,12 +1111,15 @@ failures. Portable panic fixtures verify the declared code rather than
 accepting an arbitrary Wasm trap.
 
 The active boundary is intentionally narrower than the language specification.
-Task combinator bodies, and strings and structural values in the
-host-provider ABI, remain in later MVP slices. `all!` calls are typed by
-their rule (each child a `mut Suspend[X_i]`, the result `(X_1, ..., X_n)`),
-and `race!` calls by the plain signature in `lib/std/task.hd`, but
-emitting either reports `unsupported-task-combinator`, because the
-prototype has no polling body for them.
+Strings and structural values in the host-provider ABI remain in later
+MVP slices. `all!` calls are typed by their rule (each child a
+`mut Suspend[X_i]`, the result `(X_1, ..., X_n)`), and `race!` calls by the
+plain signature in `lib/std/task.hd`. Both drive one polling frame, a stored
+suspension that `$hd.combinator` in `emitter/stored-suspension.ts`
+implements: `race!` is hd code that drives the frame `race_frame` builds,
+and the checker lowers each `all!` call to a drive of the frame
+`all_frame` builds. Both builders are runtime primitives in
+`lib/std/task.hd`. A `race!` with no tasks never completes.
 There are no type packs: `...` in a type is only a rest element, and
 `[Ts...]` is a `syntax-error`. GADT variant results are not implemented.
 Interpolation and `println` report `unsatisfied-trait-bound` when the displayed type
@@ -1162,7 +1173,7 @@ What it provides:
 | --- | --- |
 | `std.annotation` | `facts_of`, with an `@intrinsic("facts_of")` body that never runs: the checker lowers each call to a builder that `checker/function-facts.ts` generates. `Target`, `Annotate`, and `annotate`, which limit a fact type's target kinds |
 | `std.hash` | `Hash` and `Hasher` (prelude names), and `Hash` for `string`, `bool`, `char`, and every integer type, and its tuple template; no standard hasher, which the specification does not name |
-| `std.task` | `retry!`, and the plain signature of `race!` with an `@intrinsic("task_race")` body; `block_on`, `all!` (which has no written signature), and `Waker` stay compiler-provided names of the module |
+| `std.task` | `retry!`, and `race!`, which drives the frame of the `@intrinsic("task_race_frame")` builder; `all!`'s frame builder, `@intrinsic("task_all_frame")`; `block_on`, `all!` (which has no written signature), and `Waker` stay compiler-provided names of the module |
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
@@ -1269,7 +1280,7 @@ marks what this refactor removed.
 | HIR | `debug-render` | `std.format` | Done: `debug`, `DebugWriter`, and its builders are hd code in `lib/std/format.hd` |
 | HIR | `list-*`, `map-*`, `iterator-next` | built-in `List` and `Map` | Remains: the collection types are built into the runtime layout |
 | HIR | `inspect-type-id`, `inspect-downcast` | `std.inspect` | Remains: runtime type identity is a compiler service |
-| Checker | `block_on`, `all!`, `race!`, `facts_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `race!` and `facts_of` are declared in `lib/std`, so only their `@intrinsic` names are known; `all!` has no written signature, so the checker types it by name. `facts_of` lowers to a call of a generated hd builder over `std.structure`'s `Facts`, with no HIR node |
+| Checker | `block_on`, `all!`, `race!`, `facts_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `race!` is hd code in `lib/std` over the `task_race_frame` runtime primitive, and `facts_of` is declared there, so only its `@intrinsic` name is known; `all!` has no written signature, so the checker types it by name and lowers it to a drive of the `task_all_frame` primitive's frame. `facts_of` lowers to a call of a generated hd builder over `std.structure`'s `Facts`, with no HIR node |
 | Checker | `Duration` for test `timeout`, `ExitCode` and `Termination` for entry results (`standard-traits.ts`, `termination.ts`) | `std.time`, `std.process` | Remains: language hooks that name a std type; the declarations are already hd |
 | Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Done, except `Any` (`std.core`) and `Waker` (`std.task`), which have no `lib/std` file: the rest are hd in `std.cmp`, `std.format`, and `std.iter`, declared when a program mentions them (migration M2) |
 | Emitter | `float.wat` and the `format_f64`, `format_f32`, `pow_f64`, and `rem_f64` imports | float display, `**`, and floating `%` | Remains: operator and interpolation support |

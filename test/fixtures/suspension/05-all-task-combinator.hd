@@ -1,6 +1,9 @@
-# test: unresolved standard task combinators have a dedicated boundary diagnostic
-# expect: accept
+# test: all! polls each child and returns their results as a tuple, in argument order
+# expect-result: main = 42
 
 use std.task.all
-fn ready!() -> i32: 42
-fn both!() -> (i32, i32): all!(ready(), ready())
+fn slow!(n: i32) -> i32: n
+fn fast!(n: i32) -> i32: n
+fn main!() -> i32:
+    let (tens, ones) = all!(slow(40), fast(2))
+    tens + ones

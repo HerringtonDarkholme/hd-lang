@@ -23,8 +23,11 @@ export const TUPLE_TRAIT = "std.function.Tuple";
  */
 export const ALL_COMBINATOR = "std.task.all";
 
-/** The `@intrinsic` name of `race!` in `lib/std/task.hd`, whose body the prototype lacks. */
-export const RACE_INTRINSIC = "task_race";
+/**
+ * The `@intrinsic` name of `all_frame` in `lib/std/task.hd`, the polling
+ * frame that each `all!` call drives.
+ */
+export const ALL_FRAME_INTRINSIC = "task_all_frame";
 
 // `std.time`, `std.ops`, and `std.process` are hd sources in `lib/std/`,
 // declared by standard-library.ts under a program's local names or hidden

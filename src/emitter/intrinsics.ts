@@ -28,15 +28,18 @@ const RUNTIME_PRIMITIVES: Readonly<
   char_from_scalar: ([point]) => point!,
   index_out_of_bounds: () =>
     `(call $hd.panic (global.get $hd.panic-index-out-of-bounds))\nunreachable`,
+  // The polling frames of `race!` and `all!`
+  // (11-requirements-and-suspension.md#r-req.combinator.intrinsic), whose
+  // runtime is `$hd.combinator` (stored-suspension.ts).
+  task_race_frame: ([tasks]) => `(call $hd.combinator_new (i32.const 1) ${tasks})`,
+  task_all_frame: ([tasks]) => `(call $hd.combinator_new (i32.const 0) ${tasks})`,
 };
 
 /**
- * Intrinsics whose `lib/std` body never runs: the polling combinators, whose
- * bodies the prototype does not emit yet
- * (11-requirements-and-suspension.md#r-req.combinator.intrinsic), and
- * `facts_of`, which the checker lowers at every call (14-annotations.md#function-facts).
+ * Intrinsics whose `lib/std` body never runs: `facts_of`, which the checker
+ * lowers at every call (14-annotations.md#function-facts).
  */
-const UNEMITTED_INTRINSICS: ReadonlySet<string> = new Set(["task_race", "facts_of"]);
+const UNEMITTED_INTRINSICS: ReadonlySet<string> = new Set(["facts_of"]);
 
 /** Whether `name` is a runtime primitive rather than a host function. */
 export function isRuntimePrimitive(name: string): boolean {

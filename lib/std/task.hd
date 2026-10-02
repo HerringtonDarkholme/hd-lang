@@ -4,11 +4,33 @@
 # compiler provides `block_on`, `all!`, and `Waker` by name; `all!` has no
 # written signature (r-req.combinator.all-typing).
 
-# The first child to complete wins, and the others are cancelled. Its plain
-# signature types every call (r-req.combinator.race-signature); the polling
-# body is the compiler's, which the prototype does not have yet.
-@intrinsic("task_race")
+# The first child to complete wins, and the others are cancelled
+# (r-req.combinator.race-losers). Its plain signature types every call
+# (r-req.combinator.race-signature). The prototype writes the call in hd:
+# it drives the frame that `race_frame` builds, whose polling body is the
+# compiler's.
 pub fn race![T](tasks...: List[mut Suspend[T]]) -> T:
+    let frame: mut Suspend[T] = race_frame(tasks)
+    frame!()
+
+# The polling frame of `race!`. Each poll polls the unfinished tasks in
+# order. The first to complete is the result, and the frame then cancels
+# every other task, in order, before it completes. Cancelling the frame
+# cancels every task (r-req.combinator.cancel-children).
+@intrinsic("task_race_frame")
+fn race_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[T]:
+    panic("intrinsic")
+
+# The polling frame of `all!`, which the checker builds for each call
+# (src/checker/expression-suspensions.ts) and types as
+# `mut Suspend[(X_1, ..., X_n)]`; `T` and the written result are never
+# used. Each poll polls, in order, the tasks that have not completed and
+# keeps each result; the frame completes with the results as a tuple once
+# every task has (r-req.schedule.all-unfinished, .all-completed).
+# Cancelling the frame cancels every unfinished task
+# (r-req.combinator.cancel-children).
+@intrinsic("task_all_frame")
+fn all_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[List[T]]:
     panic("intrinsic")
 
 # Calls `attempt` one call after another until it returns `.Ok`, at most
