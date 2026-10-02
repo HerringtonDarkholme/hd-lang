@@ -19,17 +19,20 @@ Errors stay plain values: `Result[T, E]` and `?`.
 
 ## Why hd
 
-- **Readable like Python.** Indentation and one obvious way to write things.
-- **Simple like Go.** One package model with minimal version selection and
-  no macros.
-- **Safe like Rust.** Traits, generics, exhaustive `match`, `Result`, and
-  tracked `mut`.
-- **Reviewable by design.** A function's signature shows everything it can
-  touch, so a reviewer reads one line, not the body.
-- **Library, not compiler.** Typed facts and templates derive `Eq`, `Hash`,
-  `Debug`, `Default`, and your own formats in plain hd.
-- **Sandboxed by default.** Wasm GC, with host access only through
-  capabilities.
+- **Typed facts and derive.** Attach checked metadata to types and fields,
+  then derive encoders, decoders, schemas, `Eq`, `Hash`, and `Debug` in plain
+  hd. No macros, no codegen.
+- **Effects you can review.** A signature shows every capability a function
+  can touch, and tests swap providers instead of patching globals.
+- **Sandboxed.** Wasm GC, with host access only through requirements.
+
+## What hd borrows
+
+- **Rust:** traits, `Result` and `?`, exhaustive `match`, explicit `mut`.
+- **Effect:** requirements and providers, and `all!`, `race!`, `retry!`.
+- **Python:** indentation and keyword arguments.
+- **Go:** packages with minimal version selection, and `defer`.
+- **Swift and Kotlin:** `T?` optionals.
 
 ## Start
 
