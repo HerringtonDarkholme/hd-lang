@@ -578,6 +578,7 @@ user := User {
 1. r[expr.data.required] A data expression names its type and provides every required field.
 2. r[expr.data.once] Every field may appear at most once.
 3. r[expr.data.eval] Field initializers evaluate in source order, not declaration order.
+4. r[expr.data.shorthand] A field written as its bare name, as in `Point { x, y }`, is field shorthand for `name: name`; its initializer is a use of that value name, evaluated in its source position.
 
 > **Note.** An embedded field is filled with a copy marker, as in
 > `Timestamps: ...stamps`, which stores the copy-update

@@ -1,0 +1,8 @@
+# test: a shorthand field with no binding of that name in scope is an unknown name
+
+data Point:
+    x: i32
+    y: i32
+
+fn broken(x: i32) -> Point:
+    Point { x, y }  # diagnostic: unknown-name

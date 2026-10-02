@@ -1,0 +1,5 @@
+# test: a data field item may be a bare name, alone, mixed, or after a spread
+
+all := Point { x, y }
+mixed := Point { x, y: 0 }
+updated := Point { ...origin, x }

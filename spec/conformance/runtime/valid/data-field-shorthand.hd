@@ -1,0 +1,26 @@
+# test: field shorthand x means x: x in data literals and copy-update
+
+use std.testing.assert_equal
+
+data Point:
+    x: i32
+    y: i32
+
+fn build(x: i32, y: i32) -> Point:
+    Point { x, y }
+
+fn mixed(x: i32) -> Point:
+    Point { x, y: 0 }
+
+fn moved(origin: Point, x: i32) -> Point:
+    Point { ...origin, x }
+
+fn main() -> i32:
+    a := build(1, 2)
+    b := mixed(3)
+    c := moved(a, 10)
+    a.x + a.y + b.x + b.y + c.x + c.y
+
+tests:
+    it("shorthand fills fields from bindings of the same name"):
+        assert_equal(main(), 18, reason="1 + 2 + 3 + 0 + 10 + 2")

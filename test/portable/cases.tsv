@@ -346,6 +346,9 @@ runtime/valid/fieldless-data-argument.hd	runtime
 typing/invalid/data-literal-missing-field.hd	type
 typing/invalid/data-literal-unknown-field.hd	type
 typing/invalid/data-literal-field-type-mismatch.hd	type
+parse/valid/data-field-shorthand.hd	parse
+runtime/valid/data-field-shorthand.hd	runtime
+typing/invalid/data-field-shorthand-unknown-name.hd	type
 typing/invalid/data-pattern-repeated-field.hd	type
 typing/invalid/data-pattern-nonexhaustive.hd	type
 typing/invalid/data-pattern-unknown-field.hd	type

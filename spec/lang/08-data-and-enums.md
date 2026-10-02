@@ -159,6 +159,28 @@ unknown := User { id: "u", email: "e", nickname: "Ada" } # error: unknown-data-f
 twice := User { id: "u", id: "v", email: "e" }           # error: duplicate-field
 ```
 
+#### Field Shorthand
+
+1. r[data.literal.shorthand] A field may be written as its bare name when a binding of that name is in scope: `Point { x, y }` means `Point { x: x, y: y }`.
+2. r[data.literal.shorthand.mixed] Shorthand fields and `field: value` fields may be mixed in one literal, as in `Point { x, y: 0 }`.
+3. r[data.literal.shorthand.rules] A shorthand field follows every rule of the `field: value` it stands for, so it counts toward `data.literal.required` and `data.literal.duplicate`.
+4. r[data.literal.shorthand.unknown] A shorthand name that resolves to no binding in scope is an error, as for any unknown value name. Error: `unknown-name`.
+
+```text
+data Point:
+    x: i32
+    y: i32
+
+fn place(x: i32, y: i32) -> (Point, Point):
+    (Point { x, y }, Point { x, y: 0 })
+
+fn broken(x: i32) -> Point:
+    Point { x, y }  # error: unknown-name
+```
+
+> **Why.** A data pattern already binds `Point { x, y }` field by field, so
+> the literal builds with the same spelling it destructures with.
+
 See also: [Data Expressions](05-expressions.md#data-expressions).
 
 ### Copy-Update Literals
@@ -182,6 +204,7 @@ renamed := User {
 8. r[data.update.readonly-source] A readonly source can supply its effective `U` value for a direct `mut U` field when the result is also readonly `T`.
 9. r[data.update.mutable-result] From such a readonly source, producing `mut T` requires a `mut U` replacement.
 10. r[data.update.generic] Generic fields retain their substituted type in both views.
+11. r[data.update.shorthand] An explicit replacement may use field shorthand, as in `Point { ...origin, x }`, which means `Point { ...origin, x: x }`.
 
 > **Why.** A copy of a readonly value has mutable access only when nothing
 > mutable is read through a readonly view to make it.

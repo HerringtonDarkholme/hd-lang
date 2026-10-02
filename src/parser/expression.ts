@@ -660,6 +660,15 @@ export abstract class ExpressionParser extends RangeParser {
           );
         }
         const field = this.expectKind("identifier", "expected a data field name");
+        if (this.atText(",") || this.atText("}")) {
+          // Field shorthand: `x` means `x: x` (05-expressions.md#data-expressions).
+          fields.push({
+            name: field.text,
+            value: { kind: "name", name: field.text, span: field.span },
+            span: field.span,
+          });
+          continue;
+        }
         this.expectText(":");
         // `Label: ...value` copies the value into an embedded field; the checker
         // decides whether the label names one (02-grammar.md#primary-expressions).

@@ -1272,7 +1272,9 @@ data_items = [ "...", expression, "," ],
              data_field_item, { ",", data_field_item }, [ "," ]
              | "...", expression, [ "," ]
              ;
-data_field_item = identifier, ":", [ "..." ], expression ;
+data_field_item = identifier, ":", [ "..." ], expression
+                | identifier
+                ;
 ```
 
 #### Pipe Placeholder
@@ -1286,6 +1288,25 @@ data_field_item = identifier, ":", [ "..." ], expression ;
 2. r[grammar.primary.prefix-copy-meaning] A prefix `...` in a data expression, whether it begins a copy-update spread or follows a field label, always means "copy the named members of this value".
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).
+
+#### Field Shorthand In Data Expressions
+
+1. r[grammar.primary.field-shorthand] A `data_field_item` that is a bare `identifier` is **field shorthand**: `x` means `x: x`, as in `Point { x, y }`.
+2. r[grammar.primary.field-shorthand.mixed] Shorthand and labeled items may be mixed in one data expression, as in `Point { x, y: 0 }`, and may follow a copy-update spread.
+
+```text
+data Point:
+    x: i32
+    y: i32
+
+fn build(x: i32, y: i32) -> Point:
+    Point { x, y }
+```
+
+> **Why.** It mirrors the bare `field` of a
+> [data pattern](#patterns), so building and destructuring a value read alike.
+
+See also: [Data Literals](08-data-and-enums.md#data-literals).
 
 #### Reflection
 

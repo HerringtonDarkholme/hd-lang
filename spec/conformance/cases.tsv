@@ -476,6 +476,9 @@ runtime/valid/fieldless-data-argument.hd	runtime	accept	lang/08-data-and-enums.m
 typing/invalid/data-literal-missing-field.hd	type	reject:missing-required-field	lang/08-data-and-enums.md#construction-and-access
 typing/invalid/data-literal-unknown-field.hd	type	reject:unknown-data-field	lang/08-data-and-enums.md#construction-and-access
 typing/invalid/data-literal-field-type-mismatch.hd	type	reject:type-mismatch	lang/08-data-and-enums.md#construction-and-access
+parse/valid/data-field-shorthand.hd	parse	accept	lang/02-grammar.md#field-shorthand-in-data-expressions
+runtime/valid/data-field-shorthand.hd	runtime	accept	lang/08-data-and-enums.md#field-shorthand
+typing/invalid/data-field-shorthand-unknown-name.hd	type	reject:unknown-name	lang/08-data-and-enums.md#field-shorthand
 typing/invalid/data-pattern-repeated-field.hd	type	reject:duplicate-data-pattern-field	lang/06-control-flow.md#match-expressions
 typing/invalid/data-pattern-nonexhaustive.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#match-expressions
 typing/invalid/data-pattern-unknown-field.hd	type	reject:unknown-data-field	lang/06-control-flow.md#match-expressions

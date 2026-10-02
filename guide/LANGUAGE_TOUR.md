@@ -792,6 +792,11 @@ user := User {
 }
 ```
 
+A field may be written as its bare name when a binding of that name is in
+scope, as in a data pattern: `User { id, email }` means
+`User { id: id, email: email }`, and the two forms mix, as in
+`User { id, email: "ada@example.com" }`.
+
 Omitted fields use their declared defaults. Defaults must be pure and are
 evaluated for each construction after explicit field expressions; a
 copy-update spread supplies every field and skips defaults.
