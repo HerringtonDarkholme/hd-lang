@@ -8,4 +8,4 @@ fn call_with_nothing[A, B](f: fn(A) -> B) -> void:
     pass
 
 fn main() -> void:
-    call_with_nothing(identity)  # diagnostic: unresolved-generic-placeholder
+    call_with_nothing(identity)  # diagnostic: cannot-infer-type

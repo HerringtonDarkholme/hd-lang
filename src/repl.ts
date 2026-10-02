@@ -6,8 +6,10 @@ import { classifyInput } from "./repl-input.ts";
 
 export {
   backspaceWidth,
+  boundNames,
   classifyInput,
   continuationIndent,
+  FollowOnErrors,
   INDENT_UNIT,
   needsMoreInput,
   splitInputs,

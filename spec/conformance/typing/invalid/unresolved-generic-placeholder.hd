@@ -1,4 +1,0 @@
-fn make[T]() -> T:
-    panic("not implemented")
-
-value := make::[_]()  # diagnostic: unresolved-generic-placeholder

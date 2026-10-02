@@ -9,6 +9,7 @@ import { highlight, highlightLines } from "./highlight.ts";
 import {
   backspaceWidth,
   continuationIndent,
+  FollowOnErrors,
   isReplCommand,
   needsMoreInput,
   ReplSession,
@@ -126,6 +127,18 @@ export async function runRepl(io: ReplIo, options: CompileOptions = {}): Promise
   const report = (reply: ReplReply): void => {
     for (const entry of reply.entries) write(show(entry));
   };
+  // A paste of several inputs is one entry: an input rejected early in it
+  // does not make each later use of its names report `unknown-name` too.
+  const followOn = new FollowOnErrors();
+  let pendingPasted = true;
+  let lastPasted = false;
+  const evaluate = async (input: string): Promise<void> => {
+    if (!pendingPasted || !lastPasted) followOn.startEntry();
+    lastPasted = pendingPasted;
+    pendingPasted = true;
+    const reply = await respond(session, input);
+    report({ ...reply, entries: followOn.filter(input, reply.entries, reply.kept) });
+  };
   if (terminal) write("hd repl. Type :help for commands, :quit to leave.");
   prompt();
   for await (const line of reader) {
@@ -138,6 +151,7 @@ export async function runRepl(io: ReplIo, options: CompileOptions = {}): Promise
       continue;
     }
     pending.push(line);
+    pendingPasted &&= pasted;
     if (needsMoreInput(pending)) {
       prompt();
       indent(pasted);
@@ -145,10 +159,10 @@ export async function runRepl(io: ReplIo, options: CompileOptions = {}): Promise
     }
     const input = pending.join("\n");
     pending = [];
-    report(await respond(session, input));
+    await evaluate(input);
     prompt();
   }
-  if (pending.length > 0) report(await respond(session, pending.join("\n")));
+  if (pending.length > 0) await evaluate(pending.join("\n"));
   reader.close();
   if (terminal) io.output.write(BRACKETED_PASTE_OFF);
   if (terminal) write("");

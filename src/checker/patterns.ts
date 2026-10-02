@@ -96,12 +96,7 @@ export abstract class PatternChecker extends CallChecker {
     if (variantName === "None") {
       if (call && call.arguments.length > 0)
         this.fail("argument-count", "variant 'None' takes no arguments", span);
-      if (optionalType === undefined)
-        this.fail(
-          "unresolved-generic-placeholder",
-          "could not infer generic enum parameter T of 'Option.None'",
-          span,
-        );
+      if (optionalType === undefined) this.failUnresolvedType(["T"], "T?", span);
       return { kind: "variant-wrap", variant: "optional-absent", type: optionalType, span };
     }
     if (!call)
@@ -187,13 +182,18 @@ export abstract class PatternChecker extends CallChecker {
         expression.span,
       );
     const parts = expected && resultParts(expected);
-    if (!parts)
-      this.fail(
-        "unresolved-generic-placeholder",
-        `could not infer the generic parameters of 'Result.${variantName}'`,
+    const ok = variantName === "Ok";
+    if (!parts) {
+      // Name what the payload leaves unsolved: `E` for `.Ok`, `T` for `.Err`.
+      const argument = expression.arguments.length === 1 ? expression.arguments[0]! : undefined;
+      const payload = argument && this.checkExpression(argument).type;
+      const [success, error] = ok ? [payload ?? "T", "E"] : ["T", payload ?? "E"];
+      this.failUnresolvedType(
+        payload === undefined ? ["T", "E"] : [ok ? "E" : "T"],
+        nominalGenericType("Result", [success, error]),
         expression.span,
       );
-    const ok = variantName === "Ok";
+    }
     const payloadType = ok ? parts.ok : parts.error;
     const unitSuccess = ok && payloadType === "void";
     if (expression.arguments.length !== 1) {
@@ -286,13 +286,17 @@ export abstract class PatternChecker extends CallChecker {
     const unresolved = declaration.genericParameters.filter(
       (parameter) => !substitutions.has(parameter),
     );
-    if (unresolved.length > 0) {
-      this.fail(
-        "unresolved-generic-placeholder",
-        `could not infer generic enum parameter${unresolved.length === 1 ? "" : "s"} ${unresolved.join(", ")}`,
+    if (unresolved.length > 0)
+      this.failUnresolvedType(
+        unresolved,
+        nominalGenericType(
+          declaration.name,
+          declaration.genericParameters.map(
+            (parameter) => substitutions.get(parameter) ?? parameter,
+          ),
+        ),
         span,
       );
-    }
     const type =
       declaration.genericParameters.length > 0
         ? nominalGenericType(

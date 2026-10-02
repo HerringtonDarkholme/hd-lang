@@ -170,6 +170,11 @@ export { mapKeyKind };
 
 import { isKnownType } from "./known-types.ts";
 import { ZERO_SPAN } from "./generated-source.ts";
+import {
+  type InferredBinding,
+  unresolvedCallMessage,
+  unresolvedTypeMessage,
+} from "./cannot-infer.ts";
 
 export { isKnownType };
 
@@ -206,6 +211,8 @@ export abstract class CheckerContext {
   protected readonly imports: ReadonlyMap<string, string>;
   protected readonly globals: Map<string, HirGlobal>;
   protected pendingRecursiveClosure?: HirLocal;
+  /** The `name := value` binding whose initializer is being checked without an annotation. */
+  protected inferredBinding?: InferredBinding;
   protected readonly inferredRequirements: string[] = [];
   protected inferredReturnType?: ValueType;
   protected readonly inferredPropagations: termination.InferredPropagation[] = [];
@@ -795,7 +802,7 @@ export abstract class CheckerContext {
     const actual = substitutions.get(bound.parameter);
     if (!actual)
       this.fail(
-        "unresolved-generic-placeholder",
+        "cannot-infer-type",
         `could not infer implementation parameter ${bound.parameter}`,
         span,
       );
@@ -1429,6 +1436,25 @@ export abstract class CheckerContext {
 
   protected requireType(actual: ValueType, expected: ValueType, span: SourceSpan): void {
     this.requireAssignable(actual, expected, span);
+  }
+
+  /** Fails with `cannot-infer-type` for a use of `type` that leaves `unresolved` unsolved. */
+  protected failUnresolvedType(
+    unresolved: readonly string[],
+    type: ValueType,
+    span: SourceSpan,
+  ): never {
+    const message = unresolvedTypeMessage(unresolved, type, span, this.inferredBinding);
+    this.fail("cannot-infer-type", message, span);
+  }
+
+  /** Fails with `cannot-infer-type` for a call of `callee` that leaves `unresolved` unsolved. */
+  protected failUnresolvedCall(
+    unresolved: readonly string[],
+    callee: string,
+    span: SourceSpan,
+  ): never {
+    this.fail("cannot-infer-type", unresolvedCallMessage(unresolved, callee), span);
   }
 
   protected fail(code: string, message: string, span: SourceSpan): never {

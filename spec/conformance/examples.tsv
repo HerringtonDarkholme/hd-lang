@@ -330,7 +330,7 @@ lang/07-functions.md	46	accept	typing/valid/functions.hd
 lang/07-functions.md	47	accept	typing/valid/type-default-calls.hd
 lang/07-functions.md	48	mixed	typing/invalid/type-argument-list-too-long.hd
 lang/07-functions.md	49	accept	typing/valid/explicit-generic-method.hd
-lang/07-functions.md	50	mixed	typing/invalid/unresolved-generic-placeholder.hd
+lang/07-functions.md	50	mixed	typing/invalid/cannot-infer-type.hd
 lang/07-functions.md	51	accept	typing/valid/explicit-generic-method.hd
 lang/07-functions.md	52	accept	typing/valid/explicit-generic-method.hd
 lang/07-functions.md	53	mixed	typing/invalid/self-receiver-is-readonly.hd

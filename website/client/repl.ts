@@ -12,6 +12,7 @@ import { classify } from "../../src/highlight.ts";
 import {
   backspaceWidth,
   continuationIndent,
+  FollowOnErrors,
   INDENT_UNIT,
   needsMoreInput,
   splitInputs,
@@ -319,8 +320,12 @@ class ReplPanel {
     this.log.scrollTop = this.log.scrollHeight;
   }
 
-  /** Echoes and evaluates one input or command; inputs run in submission order. */
-  async submit(text: string): Promise<void> {
+  /**
+   * Echoes and evaluates one input or command; inputs run in submission
+   * order. `followOn` drops errors that repeat an earlier rejection of the
+   * same entry, when an entry is several inputs.
+   */
+  async submit(text: string, followOn?: FollowOnErrors): Promise<void> {
     this.remember(text);
     this.echo(text);
     this.scroll();
@@ -347,7 +352,8 @@ class ReplPanel {
             : "stopped: the input ran longer than 15 seconds. Is there an endless loop?",
       });
     else {
-      for (const entry of reply.entries) this.show(entry);
+      const entries = followOn ? followOn.filter(text, reply.entries, reply.kept) : reply.entries;
+      for (const entry of entries) this.show(entry);
       if (reply.command === "quit") this.setOpen(false);
     }
     this.scroll();
@@ -360,7 +366,8 @@ class ReplPanel {
   /** Opens the panel and evaluates a code block's inputs in order. */
   async trySnippet(code: string): Promise<void> {
     this.setOpen(true);
-    for (const input of splitInputs(code)) await this.submit(input.text);
+    const followOn = new FollowOnErrors();
+    for (const input of splitInputs(code)) await this.submit(input.text, followOn);
   }
 }
 

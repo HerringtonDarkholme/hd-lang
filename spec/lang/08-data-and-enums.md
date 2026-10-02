@@ -645,7 +645,7 @@ retry := fn(error: FsError) -> SyncError: SyncError.Retry(1, error)
 4. r[data.enum.fn-value.positional] The payload's field name and positional or named declaration do not matter, because function values take positional arguments only.
 5. r[data.enum.fn-value.generic-rule] For a generic enum, or a variant with its own generic parameters, the value follows the rule for [generic function values](07-functions.md#generic-function-values).
 6. r[data.enum.fn-value.generic-argument] Passed as a call argument, it takes its type arguments from the call. So `result.map_err(TaskError.Failed)` on a `Result[T, FsError]` gives `TaskError[FsError]`.
-7. r[data.enum.fn-value.generic-unsolved] A generic parameter that remains unsolved is an error. Error: `unresolved-generic-placeholder`.
+7. r[data.enum.fn-value.generic-unsolved] A generic parameter that remains unsolved is an error. Error: `cannot-infer-type`.
 8. r[data.enum.fn-value.shorthand] The contextual shorthand `.Variant` still needs an expected enum type, so it is never a function value.
 9. r[data.enum.fn-value.call] Calling the value constructs the variant, exactly as calling the constructor does.
 10. r[data.enum.fn-value.multiple] A variant constructor with two or more payload fields is not a function value and must be called.
@@ -691,7 +691,7 @@ fn wrap_all[T, F](values: List[T], wrap: fn(T) -> F) -> List[F]:
     [for value in values => wrap(value)]
 
 fn main() -> void:
-    lefts := wrap_all([1, 2], Either.Left)  # error: unresolved-generic-placeholder
+    lefts := wrap_all([1, 2], Either.Left)  # error: cannot-infer-type
 ```
 
 In the second example, nothing determines `R`. An expected type such as

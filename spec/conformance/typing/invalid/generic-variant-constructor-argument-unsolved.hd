@@ -8,4 +8,4 @@ fn wrap_all[T, F](values: List[T], wrap: fn(T) -> F) -> List[F]:
     [for value in values => wrap(value)]
 
 fn main() -> void:
-    lefts := wrap_all([1, 2], Either.Left)  # diagnostic: unresolved-generic-placeholder
+    lefts := wrap_all([1, 2], Either.Left)  # diagnostic: cannot-infer-type

@@ -238,7 +238,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
                 expression.span,
               );
             this.fail(
-              "unresolved-generic-placeholder",
+              "cannot-infer-type",
               `generic function '${signature.name}' needs inferred or explicit type arguments before it can be used as a value`,
               expression.span,
             );

@@ -98,11 +98,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
     if (typeArguments) return this.resolveType(typeArguments[0]!);
     const inferred = expected === undefined ? undefined : optionalInner(expected);
     if (inferred === undefined)
-      this.fail(
-        "unresolved-generic-placeholder",
-        `could not infer the target type of ${name}`,
-        span,
-      );
+      this.fail("cannot-infer-type", `could not infer the target type of ${name}`, span);
     return inferred;
   }
 

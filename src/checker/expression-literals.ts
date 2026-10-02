@@ -270,11 +270,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             ? expectedNominal.arguments[0]
             : undefined;
         if (expression.elements.length === 0 && !contextualElement) {
-          this.fail(
-            "unresolved-generic-placeholder",
-            "an empty list requires an expected list type",
-            expression.span,
-          );
+          this.failUnresolvedType(["T"], "List[T]", expression.span);
         }
         const partTypes: ValueType[] = [];
         const checkedElements = expression.elements.map((element, index) => {
@@ -365,11 +361,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             ? expectedNominal.arguments[1]
             : undefined;
         if (expression.entries.length === 0 && (!contextualKey || !contextualValue)) {
-          this.fail(
-            "unresolved-generic-placeholder",
-            "an empty map requires an expected map type",
-            expression.span,
-          );
+          this.failUnresolvedType(["K", "V"], "Map[K,V]", expression.span);
         }
         const keyTypes: ValueType[] = [];
         const valueTypes: ValueType[] = [];

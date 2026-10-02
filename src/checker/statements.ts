@@ -684,7 +684,9 @@ export abstract class StatementChecker extends CheckerContext {
       }
     }
     const previousRecursiveClosure = this.pendingRecursiveClosure;
+    const previousInferredBinding = this.inferredBinding;
     this.pendingRecursiveClosure = recursiveLocal;
+    this.inferredBinding = annotation ? undefined : statement;
     let value: HirExpression;
     try {
       value = this.checkExpression(
@@ -697,6 +699,7 @@ export abstract class StatementChecker extends CheckerContext {
       );
     } finally {
       this.pendingRecursiveClosure = previousRecursiveClosure;
+      this.inferredBinding = previousInferredBinding;
     }
     // `:=` and a plain `let` infer the readonly view, even of a fresh value;
     // `let mut` infers `mut T` and never upgrades a readonly value

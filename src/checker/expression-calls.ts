@@ -526,11 +526,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
           (parameter) => !checkedSignature.substitutions.has(parameter),
         );
         if (unresolved.length > 0)
-          this.fail(
-            "unresolved-generic-placeholder",
-            `could not infer generic parameter${unresolved.length === 1 ? "" : "s"} ${unresolved.join(", ")}`,
-            expression.span,
-          );
+          this.failUnresolvedCall(unresolved, `.${method.name}`, expression.span);
         methodResult = substituteGenericType(methodResult, checkedSignature.substitutions);
         bounds = this.resolveBoundDictionaries(
           methodSignature,
@@ -691,17 +687,13 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         (parameter) => !substitutions.has(parameter),
       );
       if (unresolved.length > 0)
-        this.fail(
-          "unresolved-generic-placeholder",
-          `could not infer generic parameter${unresolved.length === 1 ? "" : "s"} ${unresolved.join(", ")}`,
-          expression.span,
-        );
+        this.failUnresolvedCall(unresolved, `.${candidate.method.name}`, expression.span);
       const unresolvedRows = signature.rowParameters.filter(
         (parameter) => !rowSubstitutions.has(parameter),
       );
       if (unresolvedRows.length > 0)
         this.fail(
-          "unresolved-generic-placeholder",
+          "cannot-infer-type",
           `could not infer requirement-row parameter${unresolvedRows.length === 1 ? "" : "s"} ${unresolvedRows.join(", ")}`,
           expression.span,
         );
@@ -1185,17 +1177,13 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     const misfit = unresolved.length > 0 ? resultMisfit(signature.result, expected) : undefined;
     if (misfit) this.fail("type-mismatch", misfit, expression.span);
     if (unresolved.length > 0)
-      this.fail(
-        "unresolved-generic-placeholder",
-        `could not infer generic parameter${unresolved.length === 1 ? "" : "s"} ${unresolved.join(", ")}`,
-        expression.span,
-      );
+      this.failUnresolvedCall(unresolved, expression.callee.name, expression.span);
     const unresolvedRows = signature.rowParameters.filter(
       (parameter) => !rowSubstitutions.has(parameter),
     );
     if (unresolvedRows.length > 0)
       this.fail(
-        "unresolved-generic-placeholder",
+        "cannot-infer-type",
         `could not infer requirement-row parameter${unresolvedRows.length === 1 ? "" : "s"} ${unresolvedRows.join(", ")}`,
         expression.span,
       );

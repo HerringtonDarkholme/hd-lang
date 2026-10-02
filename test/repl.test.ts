@@ -7,8 +7,10 @@ import test from "node:test";
 import { classify, highlight } from "../src/highlight.ts";
 import {
   backspaceWidth,
+  boundNames,
   classifyInput,
   continuationIndent,
+  FollowOnErrors,
   INDENT_UNIT,
   needsMoreInput,
   parseReplMessage,
@@ -102,6 +104,60 @@ test("hd repl in a terminal indents continuation lines but not pasted ones", asy
   await type("\u001b[200~if false:\r    0\r");
   await type("else:\r    4\r\u001b[201~\r");
   await shown("4 : i32");
+  input.end();
+  await done;
+});
+
+test("REPL binding inputs name what they bind", () => {
+  assert.deepEqual(boundNames("a := Result.Ok(1)"), ["a"]);
+  assert.deepEqual(boundNames("let mut items: List[i32] = []"), ["items"]);
+  assert.deepEqual(boundNames("(left, _) := pair"), ["left"]);
+  assert.deepEqual(boundNames("point.x = 3"), []);
+  assert.deepEqual(boundNames("count += 1"), []);
+  assert.deepEqual(boundNames("for item in items:\n    pass"), []);
+  assert.deepEqual(boundNames("println(a)"), []);
+});
+
+test("a rejected binding drops follow-on unknown-name errors in its entry only", async () => {
+  const session = new ReplSession();
+  const followOn = new FollowOnErrors();
+  const run = async (input: string): Promise<string[]> => {
+    const reply = await respond(session, input);
+    return followOn.filter(input, reply.entries, reply.kept).map(({ text }) => text);
+  };
+  followOn.startEntry();
+  assert.deepEqual(await run('a := Result.Err("x")'), [
+    "1:6: cannot-infer-type: cannot infer `T` in `Result[T, string]`; annotate the binding: `let a: Result[T, string] = ...`",
+  ]);
+  assert.deepEqual(await run('println("${a}")'), []);
+  assert.deepEqual(await run("missing"), ["1:1: unknown-name: unknown name 'missing'"]);
+  followOn.startEntry();
+  assert.deepEqual(await run('println("${a}")'), ["1:12: unknown-name: unknown name 'a'"]);
+});
+
+test("hd repl in a terminal treats a pasted block as one entry", async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let text = "";
+  output.on("data", (chunk: Buffer) => (text += chunk.toString()));
+  const done = runRepl({ input, output, terminal: true, color: false });
+  const type = async (keys: string): Promise<void> => {
+    input.write(keys);
+    await new Promise((resolve) => setImmediate(resolve));
+  };
+  const shown = async (value: string): Promise<void> => {
+    const deadline = Date.now() + 10_000;
+    while (!stripColor(text).includes(value)) {
+      assert.ok(Date.now() < deadline, `no "${value}" in ${JSON.stringify(stripColor(text))}`);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  };
+  await type('\u001b[200~a := Result.Ok(123)\rb := a\r"after"\r\u001b[201~');
+  await shown('"after" : string');
+  assert.ok(stripColor(text).includes("cannot-infer-type: cannot infer `E`"), text);
+  assert.ok(!stripColor(text).includes("unknown-name"), text);
+  await type("a\r");
+  await shown("1:1: unknown-name: unknown name 'a'");
   input.end();
   await done;
 });

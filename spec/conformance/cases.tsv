@@ -184,7 +184,7 @@ typing/invalid/impossible-gadt-pattern.hd	type	reject:impossible-gadt-pattern	la
 typing/invalid/unknown-annotation-member.hd	type	reject:unknown-annotation-member	lang/14-annotations.md#member-metadata
 typing/invalid/partial-generic-arguments.hd	type	reject:partial-generic-arguments	lang/04-type-system.md#type-argument-defaults
 typing/valid/generic-argument-placeholder.hd	type	accept	lang/07-functions.md#generic-functions
-typing/invalid/unresolved-generic-placeholder.hd	type	reject:unresolved-generic-placeholder	lang/07-functions.md#generic-functions
+typing/invalid/cannot-infer-type.hd	type	reject:cannot-infer-type	lang/07-functions.md#generic-functions
 typing/valid/explicit-generic-method.hd	type	accept	lang/07-functions.md#generic-functions
 typing/invalid/reassign-parameter.hd	type	reject:non-reassignable-parameter-binding	lang/07-functions.md#parameters
 typing/valid/parameter-decorator.hd	type	accept	lang/14-annotations.md#prefix-decorators
@@ -369,7 +369,7 @@ runtime/valid/generic-enum-payloads.hd	runtime	accept	lang/08-data-and-enums.md#
 runtime/valid/generic-callable-adapter.hd	runtime	accept	lang/07-functions.md#generic-functions
 typing/invalid/generic-inference-conflict.hd	type	reject:type-mismatch	lang/07-functions.md#generic-functions
 runtime/valid/generic-inference-scalars-and-data.hd	runtime	accept	lang/07-functions.md#generic-functions
-typing/invalid/unresolved-generic-return-placeholder.hd	type	reject:unresolved-generic-placeholder	lang/07-functions.md#generic-functions
+typing/invalid/unresolved-generic-return-placeholder.hd	type	reject:cannot-infer-type	lang/07-functions.md#generic-functions
 runtime/valid/generic-optional-and-result.hd	runtime	accept	lang/07-functions.md#generic-functions
 runtime/valid/reference-identity.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/requirement-row-forwarded-through-calls.hd	runtime	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
@@ -752,9 +752,9 @@ typing/valid/inferred-row-through-private-callers.hd	type	accept	lang/11-require
 runtime/valid/private-function-inferred-result.hd	runtime	accept	lang/07-functions.md#declarations
 runtime/valid/private-function-inferred-row.hd	runtime	accept	lang/11-requirements-and-suspension.md#requirement-rows
 runtime/valid/recursive-private-functions-least-row.hd	runtime	accept	lang/11-requirements-and-suspension.md#requirement-rows
-typing/invalid/generic-enum-variant-without-context.hd	type	reject:unresolved-generic-placeholder	lang/04-type-system.md#type-inference-boundaries
-typing/invalid/generic-function-value-without-arguments.hd	type	reject:unresolved-generic-placeholder	lang/07-functions.md#function-types-and-values
-typing/invalid/result-constructor-without-context.hd	type	reject:unresolved-generic-placeholder	lang/04-type-system.md#type-inference-boundaries
+typing/invalid/generic-enum-variant-without-context.hd	type	reject:cannot-infer-type	lang/04-type-system.md#type-inference-boundaries
+typing/invalid/generic-function-value-without-arguments.hd	type	reject:cannot-infer-type	lang/07-functions.md#function-types-and-values
+typing/invalid/result-constructor-without-context.hd	type	reject:cannot-infer-type	lang/04-type-system.md#type-inference-boundaries
 typing/invalid/none-without-expected-type.hd	type	reject:missing-contextual-enum-type	lang/04-type-system.md#optional-types
 typing/invalid/nil-is-unknown-name.hd	type	reject:unknown-name	lang/01-lexical-structure.md#boolean-literals
 typing/invalid/bool-ordering.hd	type	reject:missing-partial-ord	lang/05-expressions.md#unary-and-binary-operators
@@ -768,8 +768,8 @@ runtime/valid/generic-associated-function-qualified-call.hd	runtime	accept	lang/
 runtime/valid/generic-trait-method-qualified-call.hd	runtime	accept	lang/09-traits.md#method-resolution
 runtime/valid/generic-suspending-associated-function-qualified-call.hd	runtime	accept	lang/07-functions.md#generic-functions
 runtime/valid/readonly-root-generic-mutable-path.hd	runtime	accept	lang/04-type-system.md#mutable-paths
-typing/invalid/empty-list-without-context.hd	type	reject:unresolved-generic-placeholder	lang/05-expressions.md#list-and-map-expressions
-typing/invalid/empty-map-without-context.hd	type	reject:unresolved-generic-placeholder	lang/05-expressions.md#list-and-map-expressions
+typing/invalid/empty-list-without-context.hd	type	reject:cannot-infer-type	lang/05-expressions.md#list-and-map-expressions
+typing/invalid/empty-map-without-context.hd	type	reject:cannot-infer-type	lang/05-expressions.md#list-and-map-expressions
 typing/invalid/reference-bound-unsatisfied.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#generic-bounds-and-static-dispatch
 typing/invalid/generic-bound-unsatisfied.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#generic-bounds-and-static-dispatch
 typing/valid/duplicate-trait-bound.hd	type	accept	lang/09-traits.md#generic-bounds-and-static-dispatch
@@ -1099,9 +1099,9 @@ typing/valid/entry-exit-code.hd	type	accept	lang/10-modules.md#exit-status
 typing/invalid/entry-result-not-termination.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.entry.result-termination
 runtime/valid/termination-report.hd	runtime	accept	lang/10-modules.md#r-module.entry.termination
 runtime/valid/generic-function-value-argument-inference.hd	runtime	accept	lang/07-functions.md#generic-function-values
-typing/invalid/generic-function-value-argument-unsolved.hd	type	reject:unresolved-generic-placeholder	lang/07-functions.md#generic-function-values
+typing/invalid/generic-function-value-argument-unsolved.hd	type	reject:cannot-infer-type	lang/07-functions.md#generic-function-values
 runtime/valid/generic-variant-constructor-argument.hd	runtime	accept	lang/08-data-and-enums.md#variant-constructors-as-function-values
-typing/invalid/generic-variant-constructor-argument-unsolved.hd	type	reject:unresolved-generic-placeholder	lang/08-data-and-enums.md#variant-constructors-as-function-values
+typing/invalid/generic-variant-constructor-argument-unsolved.hd	type	reject:cannot-infer-type	lang/08-data-and-enums.md#variant-constructors-as-function-values
 typing/valid/typed-derivation.hd	type	accept	lang/14-annotations.md#typed-derivation
 typing/valid/typed-derivation-build.hd	type	accept	lang/14-annotations.md#handles
 runtime/valid/typed-derivation-walk.hd	runtime	accept	lang/14-annotations.md#walk-describe-and-build
@@ -1470,7 +1470,7 @@ runtime/valid/method-references-run.hd	runtime	accept	lang/07-functions.md#r-fn.
 runtime/valid/pipe-method-reference-step.hd	runtime	accept	lang/05-expressions.md#r-expr.pipe.bare.method-reference
 typing/invalid/field-reference.hd	type	reject:unknown-method	lang/07-functions.md#r-fn.ref.no-fields
 typing/invalid/bound-reference-readonly-receiver.hd	type	reject:mutable-receiver-required	lang/07-functions.md#r-fn.ref.bound.mut
-typing/invalid/trait-reference-unsolved-self.hd	type	reject:unresolved-generic-placeholder	lang/07-functions.md#r-fn.ref.trait-self.unsolved
+typing/invalid/trait-reference-unsolved-self.hd	type	reject:cannot-infer-type	lang/07-functions.md#r-fn.ref.trait-self.unsolved
 typing/invalid/mut-self-reference-readonly-callback.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.ref.unbound.mut-self
 typing/invalid/pipe-suspending-method-reference.hd	type	reject:suspending-pipe-step	lang/05-expressions.md#r-expr.pipe.bare.no-suspend
 typing/valid/collect-targets.hd	type	accept	std/iter.md#collect-targets

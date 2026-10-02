@@ -139,6 +139,55 @@ export function backspaceWidth(before: string): number {
   return before.length % INDENT_UNIT.length || INDENT_UNIT.length;
 }
 
+/**
+ * The names a binding input binds: `a` in `a := ...` or `let mut a = ...`,
+ * and each name of a tuple pattern such as `(a, b) := ...`. Empty for any
+ * other input.
+ */
+export function boundNames(text: string): string[] {
+  const word = /^\s*([A-Za-z_]\w*)/.exec(text)?.[1] ?? "";
+  if (classifyInput(text) !== "statement" || (STATEMENT_WORDS.has(word) && word !== "let"))
+    return [];
+  const code = scanLine(text.split("\n")[0]!, 0).code;
+  const pattern = /^\s*(?:let\s+)?([^:=]*?)\s*(?::=|=|:)/.exec(code)?.[1];
+  if (pattern === undefined || !/^[\s(),\w]*$/.test(pattern)) return [];
+  return (pattern.match(/[A-Za-z_]\w*/g) ?? []).filter((name) => name !== "mut" && name !== "_");
+}
+
+/**
+ * Drops follow-on errors within one entry that the REPL evaluates as several
+ * inputs, such as a pasted block. A rejected binding input binds nothing, so
+ * a later input of the same entry that uses its name would report
+ * `unknown-name` for it. That error repeats the first one, so it is dropped;
+ * a later entry still reports it.
+ */
+export class FollowOnErrors {
+  private readonly unbound = new Set<string>();
+
+  /** Starts a new entry. */
+  startEntry(): void {
+    this.unbound.clear();
+  }
+
+  /** The reply entries to show for `input`, which the session kept or rejected. */
+  filter<Entry extends { readonly kind: string; readonly text: string }>(
+    input: string,
+    entries: readonly Entry[],
+    kept: boolean,
+  ): Entry[] {
+    const shown = entries.filter((entry) => {
+      if (entry.kind !== "error") return true;
+      const name = /\bunknown-name: unknown name '([^']+)'/.exec(entry.text)?.[1];
+      return name === undefined || !this.unbound.has(name);
+    });
+    for (const name of boundNames(input)) {
+      if (kept) this.unbound.delete(name);
+      else this.unbound.add(name);
+    }
+    return shown;
+  }
+}
+
 /** One input of a file or snippet, with the 1-based line it starts on. */
 export interface SourceInput {
   readonly text: string;

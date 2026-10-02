@@ -300,7 +300,7 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
     const unresolved = member.generics.filter((parameter) => !substitutions.has(parameter));
     if (unresolved.length > 0)
       this.fail(
-        "unresolved-generic-placeholder",
+        "cannot-infer-type",
         `'${expression.owner}::${expression.name}' needs ${unresolved.map((parameter) => `'${parameter}'`).join(", ")} from type arguments or an expected function type`,
         expression.span,
       );

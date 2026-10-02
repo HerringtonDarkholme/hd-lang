@@ -1150,7 +1150,7 @@ How a use site treats a defaulted parameter:
 8. r[types.generic.default.after-inference] At a use site that infers, such as a call, a function value, or a data literal, the use site first solves its parameters as it would without defaults.
 9. r[types.generic.default.fill] Then each parameter left unsolved that has a default takes it, in declaration order, with the earlier arguments substituted. The bounds are checked last.
 10. r[types.generic.default.argument-wins] A default never replaces a solution, so an argument or expected type that solves the parameter wins: `widen(3)` above has `T = i32`.
-11. r[types.generic.default.unsolved] A parameter left unsolved that has no default stays an error. Error: `unresolved-generic-placeholder`.
+11. r[types.generic.default.unsolved] A parameter left unsolved that has no default stays an error. Error: `cannot-infer-type`.
 12. r[types.generic.default.written] A written type, such as an annotation, a signature, a field, a bound, or an implementation header, infers nothing. An omitted trailing slot there takes its default.
 13. r[types.generic.default.bare] A name written in a type without a list, or with bindings only, omits every positional slot. So `impl Same for Money` is valid for `trait Same[Other = Self]`.
 14. r[types.generic.default.written-missing] A written type that omits a slot without a default is an error. Error: `partial-generic-arguments`.

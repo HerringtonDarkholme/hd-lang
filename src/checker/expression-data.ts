@@ -257,9 +257,14 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
           (parameter) => !substitutions.has(parameter),
         );
         if (unresolved.length > 0)
-          this.fail(
-            "unresolved-generic-placeholder",
-            `could not infer data parameter${unresolved.length === 1 ? "" : "s"} ${unresolved.join(", ")}`,
+          this.failUnresolvedType(
+            unresolved,
+            nominalGenericType(
+              declaration.name,
+              declaration.genericParameters.map(
+                (parameter) => substitutions.get(parameter) ?? parameter,
+              ),
+            ),
             expression.span,
           );
         const explicitFieldIndices = expression.fields.map(
@@ -560,7 +565,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
       const parameter = callable.parameters.length === 1 ? callable.parameters[0]! : undefined;
       if (parameter === undefined || pending(parameter)) {
         this.fail(
-          "unresolved-generic-placeholder",
+          "cannot-infer-type",
           `generic variant constructor '${enumType.name}.${expression.name}' needs its payload type from the call`,
           span,
         );

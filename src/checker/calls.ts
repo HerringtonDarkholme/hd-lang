@@ -436,17 +436,13 @@ export abstract class CallChecker extends StatementChecker {
       (parameter) => !substitutions.has(parameter),
     );
     if (unresolved.length > 0)
-      this.fail(
-        "unresolved-generic-placeholder",
-        `could not infer generic parameter${unresolved.length === 1 ? "" : "s"} ${unresolved.join(", ")}`,
-        expression.span,
-      );
+      this.failUnresolvedCall(unresolved, `.${method.name}`, expression.span);
     const unresolvedRows = signature.rowParameters.filter(
       (parameter) => !rowSubstitutions.has(parameter),
     );
     if (unresolvedRows.length > 0)
       this.fail(
-        "unresolved-generic-placeholder",
+        "cannot-infer-type",
         `could not infer requirement-row parameter${unresolvedRows.length === 1 ? "" : "s"} ${unresolvedRows.join(", ")}`,
         expression.span,
       );
@@ -1200,11 +1196,7 @@ export abstract class CallChecker extends StatementChecker {
     for (const parameter of signature.referenceParameters ?? []) {
       const actual = substitutions.get(parameter);
       if (!actual)
-        this.fail(
-          "unresolved-generic-placeholder",
-          `could not infer generic parameter ${parameter}`,
-          span,
-        );
+        this.fail("cannot-infer-type", `could not infer generic parameter ${parameter}`, span);
       const forwarded = genericTypeName(actual);
       if (forwarded) {
         if (!(this.signature.referenceParameters ?? []).includes(forwarded)) {
@@ -1227,11 +1219,7 @@ export abstract class CallChecker extends StatementChecker {
     for (const parameter of signature.valueParameters ?? []) {
       const actual = substitutions.get(parameter);
       if (!actual)
-        this.fail(
-          "unresolved-generic-placeholder",
-          `could not infer generic parameter ${parameter}`,
-          span,
-        );
+        this.fail("cannot-infer-type", `could not infer generic parameter ${parameter}`, span);
       const forwarded = genericTypeName(actual);
       if (forwarded) {
         if (!(this.signature.valueParameters ?? []).includes(forwarded)) {
@@ -1274,7 +1262,7 @@ export abstract class CallChecker extends StatementChecker {
       const actual = substitutions.get(bound.parameter);
       if (!actual)
         this.fail(
-          "unresolved-generic-placeholder",
+          "cannot-infer-type",
           `could not infer generic parameter ${bound.parameter}`,
           span,
         );

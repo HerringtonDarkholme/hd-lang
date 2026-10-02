@@ -496,7 +496,7 @@ count := apply(3, identity)
 5. r[fn.type.generic.argument] When the value is an argument of a call, its type arguments are solved together with the call's other type variables.
 6. r[fn.type.generic.argument.sources] Those variables are solved from the other arguments, the expected result type, and the called function's constraints, as for the call itself.
 7. r[fn.type.generic.default] A parameter that those sources leave unsolved takes its [default](04-type-system.md#type-argument-defaults), as at a call. For `fn empty[C = List[i32]]() -> C`, `make := empty` has type `fn() -> List[i32]`.
-8. r[fn.type.generic.unsolved] A generic parameter of the value that remains unsolved is an error. Error: `unresolved-generic-placeholder`.
+8. r[fn.type.generic.unsolved] A generic parameter of the value that remains unsolved is an error. Error: `cannot-infer-type`.
 9. r[fn.type.generic.monomorphic] The resulting value has an ordinary monomorphic function type.
 
 In `count := apply(3, identity)`, `A` is `i32` from the first argument, and
@@ -510,7 +510,7 @@ fn call_with_nothing[A, B](f: fn(A) -> B) -> void:
     pass
 
 fn main() -> void:
-    call_with_nothing(identity)  # error: unresolved-generic-placeholder
+    call_with_nothing(identity)  # error: cannot-infer-type
 ```
 
 > **Why.** Only use sites infer. A function declaration's own generic
@@ -564,7 +564,7 @@ fn bumper(counter: mut Counter) -> fn(i32) -> void:
 5. r[fn.ref.lookup] A reference resolves `name` as the qualified call `Owner::name(...)` does: inherent members of a type first, then its available traits, and a type parameter through its bounds.
 6. r[fn.ref.lookup.ambiguous] Two trait candidates for one name are an error. Error: `ambiguous-method`.
 7. r[fn.ref.trait-self] For `Trait::name`, `Self` is inferred from the expected function type, as a generic function value's parameters are.
-8. r[fn.ref.trait-self.unsolved] A trait reference whose `Self` nothing determines is an error. Error: `unresolved-generic-placeholder`.
+8. r[fn.ref.trait-self.unsolved] A trait reference whose `Self` nothing determines is an error. Error: `cannot-infer-type`.
 9. r[fn.ref.generic] A generic member's reference writes its type arguments after the name, as in `Json::decode::[User]`, and the owner's before the member's `::`, as in `Box::[i32]::get`.
 10. r[fn.ref.generic.instantiate] Every type parameter of the member is instantiated as for a [generic function value](#generic-function-values).
 11. r[fn.ref.bound] `value::name`, where `value` names a value rather than a type or trait, is a **bound method reference**.
@@ -910,14 +910,14 @@ user := convert::[_, User](payload)
 1. r[fn.generic.placeholder] An explicit list may write `_` in any slot to infer that argument.
 2. r[fn.generic.placeholder.solve] A placeholder is solved from call arguments, the expected result type, and the function's generic constraints.
 3. r[fn.generic.placeholder.default] When those constraints do not determine one type, the parameter's default applies.
-4. r[fn.generic.placeholder.unsolved] A placeholder that neither the constraints nor a default determine is an error. Error: `unresolved-generic-placeholder`.
+4. r[fn.generic.placeholder.unsolved] A placeholder that neither the constraints nor a default determine is an error. Error: `cannot-infer-type`.
 5. r[fn.generic.placeholder.not-type] `_` is a call-site inference instruction, not a type, and cannot appear in an ordinary type argument list such as `List[_]`.
 
 ```text
 fn make[T]() -> T:
     panic("not implemented")
 
-value := make::[_]()  # error: unresolved-generic-placeholder
+value := make::[_]()  # error: cannot-infer-type
 ```
 
 ### Generic Methods And Qualified Calls

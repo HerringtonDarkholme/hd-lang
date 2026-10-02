@@ -1475,7 +1475,7 @@ typing/valid/annotations.hd	type
 typing/valid/data-decorator.hd	type
 typing/valid/embedded-field-decorator.hd	type
 typing/valid/generic-argument-placeholder.hd	type
-typing/invalid/unresolved-generic-placeholder.hd	type
+typing/invalid/cannot-infer-type.hd	type
 typing/valid/explicit-generic-method.hd	type
 typing/valid/retention-metadata.hd	type
 typing/valid/impl-distinct-trait-arguments.hd	type
