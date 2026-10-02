@@ -219,8 +219,8 @@ test("hd run runs Console.write_line! on host and program providers", async () =
     const ran = await hd(["run", source]);
     assert.equal(ran.stdout, "hi\nrecorded 1\n");
 
-    // `println` drives with `block_on`: it runs outside a driver, and
-    // panics under `main!`'s driver.
+    // `println` drives with `block_on`: it runs outside a driver, and under
+    // `main!`'s driver it drives only its own write.
     const printing = [
       ...lines.slice(0, 7),
       "pub fn main() -> void $ Console:",
@@ -238,11 +238,8 @@ test("hd run runs Console.write_line! on host and program providers", async () =
       source,
       [...lines, '    println("under a driver")', "    .Ok()", ""].join("\n"),
     );
-    const nested = await hd(["run", source]).then(
-      () => assert.fail("println under main! must panic"),
-      (error: { stderr: string }) => error,
-    );
-    assert.match(nested.stderr, /suspension-nested-driver/);
+    const nested = await hd(["run", source]);
+    assert.equal(nested.stdout, "hi\nrecorded 1\nunder a driver\n");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

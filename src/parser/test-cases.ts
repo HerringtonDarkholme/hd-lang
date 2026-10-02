@@ -78,7 +78,6 @@ const PANIC_CATEGORIES: ReadonlySet<string> = new Set([
   "iterator-invalidated",
   "structure-variant-mismatch",
   "suspension-competing-driver",
-  "suspension-nested-driver",
   "suspension-reentrant-poll",
   "suspension-invalid-state",
   "stack-exhausted",

@@ -1740,3 +1740,10 @@ parse/invalid/reified-generic-parameter.hd	parse
 typing/invalid/arbitrary-with-non-inspectable-member.hd	type
 typing/valid/typed-fact.hd	type
 typing/invalid/integration-super-above-test-root.hd	type
+runtime/valid/nested-block-on.hd	runtime
+runtime/valid/test-block-on.hd	runtime
+runtime/valid/block-on-inside-driver.hd	runtime
+runtime/valid/println-under-main-driver.hd	runtime
+runtime/valid/println-in-test-body.hd	runtime
+typing/invalid/race-no-tasks.hd	type
+runtime/valid/integration-self-use.hd	runtime

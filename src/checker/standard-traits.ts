@@ -23,6 +23,9 @@ export const TUPLE_TRAIT = "std.function.Tuple";
  */
 export const ALL_COMBINATOR = "std.task.all";
 
+/** `race!`, declared in `lib/std/task.hd`; a call needs a task argument. */
+export const RACE_COMBINATOR = "std.task.race";
+
 /**
  * The `@intrinsic` name of `all_frame` in `lib/std/task.hd`, the polling
  * frame that each `all!` call drives.

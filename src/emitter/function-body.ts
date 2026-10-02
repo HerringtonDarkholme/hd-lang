@@ -579,7 +579,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
             ? expression.erasedResultType
             : expression.type;
         const guarded = expression.blockOn
-          ? `(block${rawType === "void" ? "" : ` (result ${this.watType(rawType)})`} (if (global.get $hd.driver-active) (then ${this.emitRuntimePanic("suspension-nested-driver")})) ${call})`
+          ? this.emitBlockOnCall(call, rawType === "void" ? undefined : this.watType(rawType))
           : call;
         return expression.erasedResultType && isGenericValueType(expression.erasedResultType)
           ? this.unboxValue(guarded, expression.type)
@@ -591,7 +591,14 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         const erased = this.traitMethodErasesResult(expression.traitIndex, expression.methodIndex);
         const call = `(call ${traitSuspensionDriveName(expression.traitIndex, expression.methodIndex)} ${this.emitExpression(expression.suspension)})`;
         const guarded = expression.blockOn
-          ? `(block${expression.type === "void" ? "" : ` (result ${erased ? "anyref" : this.watType(expression.type)})`} (if (global.get $hd.driver-active) (then ${this.emitRuntimePanic("suspension-nested-driver")})) ${call})`
+          ? this.emitBlockOnCall(
+              call,
+              expression.type === "void"
+                ? undefined
+                : erased
+                  ? "anyref"
+                  : this.watType(expression.type),
+            )
           : call;
         return erased ? this.unboxValue(guarded, expression.type) : guarded;
       }
@@ -599,9 +606,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         return `(call ${traitSuspensionCancelName(expression.traitIndex, expression.methodIndex)} ${this.emitExpression(expression.suspension)})`;
       case "suspension-drive": {
         const call = `(call $hd.suspension_drive ${this.emitExpression(expression.suspension)})`;
-        const guarded = expression.blockOn
-          ? `(block (result anyref) (if (global.get $hd.driver-active) (then ${this.emitRuntimePanic("suspension-nested-driver")})) ${call})`
-          : call;
+        const guarded = expression.blockOn ? this.emitBlockOnCall(call, "anyref") : call;
         return expression.type === "void"
           ? `(drop ${guarded})`
           : this.unboxValue(guarded, expression.type);
@@ -786,6 +791,24 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       default:
         return undefined;
     }
+  }
+
+  /**
+   * A `block_on` call may run while another driver is active
+   * (req.drive.block-on.under-driver). It clears the active flag so its own
+   * drive loop starts, drives only its argument (req.drive.block-on.inner-only),
+   * and then restores the outer driver's flag. The restore leaves the call's
+   * result on the stack beneath it.
+   */
+  private emitBlockOnCall(call: string, resultWat: string | undefined): string {
+    const saved = this.allocateTemporary("bool");
+    return [
+      `(block${resultWat === undefined ? "" : ` (result ${resultWat})`}`,
+      `(local.set ${saved} (global.get $hd.driver-active))`,
+      `(global.set $hd.driver-active (i32.const 0))`,
+      call,
+      `(global.set $hd.driver-active (local.get ${saved})))`,
+    ].join(" ");
   }
 
   private emitContainerExpression(expression: HirExpression): string | undefined {

@@ -15,11 +15,12 @@ tests:
             assert_equal(result.is_ok(), true, reason="the buffer never fails")
         assert_equal(console.output(), ["hello, ada", "bye"], reason="both lines")
 
-    # A test body runs under a driver, and println drives with block_on (MHP-1).
-    it("println panics inside a test body", expect_panic="suspension-nested-driver"):
+    # A test body runs under a driver; println's block_on drives only its own write.
+    it("println records inside a test body"):
         let console: mut BufferConsole = BufferConsole::new()
         $.with(Console=console):
             println("hi")
+        assert_equal(console.output(), ["hi"], reason="println wrote one line")
 
     it("a new BufferConsole is empty"):
         assert_equal(BufferConsole::new().output().len(), 0, reason="no lines yet")

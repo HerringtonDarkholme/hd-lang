@@ -7,8 +7,8 @@
 
   ;; Stable numeric tags for runtime-panic.ts. The host reports their names.
   (global $hd.panic-integer-overflow i32 (i32.const 2))
-  (global $hd.panic-invalid-shift i32 (i32.const 9))
-  (global $hd.panic-index-out-of-bounds i32 (i32.const 10))
+  (global $hd.panic-invalid-shift i32 (i32.const 8))
+  (global $hd.panic-index-out-of-bounds i32 (i32.const 9))
 
   (func $hd.provider_get
     (param $providers (ref null $hd.providers))

@@ -53,6 +53,11 @@ interface LinkSegment {
   readonly lineCount: number;
   /** Columns the linker indented the module by: 4 for a test module. */
   readonly indent: number;
+  /**
+   * The columns the linker deleted at the start of a module line, keyed by
+   * its 0-based line within the module: a test module's top-level `pub `.
+   */
+  readonly deleted: ReadonlyMap<number, number>;
 }
 
 interface LinkOptions {
@@ -456,11 +461,15 @@ export function linkPackage(
     const segment =
       segments.findLast(({ firstLine }) => firstLine <= diagnostic.span.start.line) ?? segments[0];
     if (!segment) return { ...diagnostic, path: entry };
-    const move = (position: SourcePosition): SourcePosition => ({
-      ...position,
-      line: Math.min(Math.max(1, position.line - segment.firstLine + 1), segment.lineCount),
-      column: Math.max(1, position.column - segment.indent),
-    });
+    const move = (position: SourcePosition): SourcePosition => {
+      const line = Math.min(Math.max(1, position.line - segment.firstLine + 1), segment.lineCount);
+      const deleted = segment.deleted.get(line - 1) ?? 0;
+      return {
+        ...position,
+        line,
+        column: Math.max(1, position.column - segment.indent + deleted),
+      };
+    };
     return {
       ...diagnostic,
       path: segment.path,
@@ -481,16 +490,22 @@ export function linkPackage(
     const lineCount = text.split("\n").length - 1;
     // A test module's top level is test position, so it joins the linked
     // source as a `tests:` block (spec/10-modules.md#test-modules). Its
-    // top-level `pub` is dropped, since a `tests:` item cannot be `pub`;
-    // the linked modules share one namespace anyway.
+    // top-level `pub` is deleted, since a `tests:` item cannot be `pub`;
+    // the linked modules share one namespace anyway. Deleting it, not
+    // blanking it, keeps a `pub fn` header shallower than its body.
+    const deleted = new Map<number, number>();
     if (isTestModulePath(module.path)) {
-      text = `tests:\n${text
-        .replace(/^pub(?=\s+(?:fn|data|enum|trait|type|use)\b)/gm, "   ")
-        .replace(/^(?=.)/gm, "    ")}`;
+      const lines = text.split("\n").map((lineText, index) => {
+        const pub = /^pub\s+(?=(?:fn|data|enum|trait|type|use)\b)/.exec(lineText);
+        if (!pub) return lineText;
+        deleted.set(index, pub[0].length);
+        return lineText.slice(pub[0].length);
+      });
+      text = `tests:\n${lines.join("\n").replace(/^(?=.)/gm, "    ")}`;
       line += 1;
     }
     const indent = isTestModulePath(module.path) ? 4 : 0;
-    segments.push({ path: module.path, firstLine: line, lineCount, indent });
+    segments.push({ path: module.path, firstLine: line, lineCount, indent, deleted });
     source += text;
     line += lineCount;
   }

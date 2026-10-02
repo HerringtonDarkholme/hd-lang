@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { analyze, compile, instantiate } from "../src/compiler.ts";
+import { RUNTIME_WAT } from "../src/emitter/runtime/index.ts";
+import { type RuntimePanicName, runtimePanicCode } from "../src/runtime-panic.ts";
 import { conformance } from "./fixture.ts";
 
 const PROGRAM = conformance("runtime/valid/conditional-call-program");
@@ -19,6 +21,15 @@ test("compiler emits genuine Wasm GC and executes the entry point", async () => 
   assert.ok(WebAssembly.validate(compilation.bytes));
   const { instance } = await instantiate(PROGRAM);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
+});
+
+test("runtime.wat panic tags match runtime-panic.ts", () => {
+  const tags = [
+    ...RUNTIME_WAT.matchAll(/\(global \$hd\.panic-([a-z-]+) i32 \(i32\.const (\d+)\)\)/g),
+  ];
+  assert.ok(tags.length > 0);
+  for (const [, name, code] of tags)
+    assert.equal(Number(code), runtimePanicCode(name as RuntimePanicName), name);
 });
 
 test("checked i32 arithmetic traps on overflow", async () => {

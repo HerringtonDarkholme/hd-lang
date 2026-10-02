@@ -223,9 +223,8 @@ The playground runs what the prototype compiler supports; see
 - `println` and a direct `console.write_line!(...)` call run on the host
   console and on a program-defined provider such as
   `std.console.BufferConsole`. `println` drives its `write_line!` with
-  `block_on`, and the prototype still panics with `suspension-nested-driver`
-  inside `main!` or a test body, which the specification allows; there,
-  write with `$.use(Console).write_line!`. A
+  `block_on`, which also works inside `main!` or a test body: there it
+  drives only its own write. A
   pending `write_line!` is driven until it finishes, as `block_on` does,
   and one that returns `.Err` makes `println` panic with `explicit-panic`.
 - A suspending `main!` that returns a `Result` is not judged: its `.Err` is

@@ -2,7 +2,6 @@ const RUNTIME_PANIC_NAMES = [
   "explicit-panic",
   "integer-division-by-zero",
   "integer-overflow",
-  "suspension-nested-driver",
   "suspension-invalid-state",
   "suspension-reentrant-poll",
   "suspension-competing-driver",

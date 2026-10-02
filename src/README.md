@@ -395,9 +395,10 @@ listed yet.
   ready with `.Ok()` on its first poll, so direct calls run on it and on a
   program-defined provider. `println` calls `write_line!` on the covering
   provider, the host console or a program-defined one, and drives the call
-  with `block_on` (MHP-1). It still panics with `suspension-nested-driver`
-  under `main!` or a test body, which the specification now allows
-  (NESTED-BLOCK-ON, a known failure), and is `suspension-forbidden-context` in a
+  with `block_on` (MHP-1). Under `main!` or a test body, `block_on`
+  clears the outer driver's active flag, drives only its own suspension,
+  and restores the flag (req.drive.block-on.inner-only), so `println`
+  writes there. It is `suspension-forbidden-context` in a
   `defer` suite or a default expression. A call that returns `.Err` is an
   `explicit-panic` from `std`'s `panic`. A write pending on a host
   operation is polled again until it finishes, as the entry driver polls

@@ -10,7 +10,7 @@ import {
   traitSuspensionParts,
   tupleType,
 } from "../types.ts";
-import { ALL_COMBINATOR, ALL_FRAME_INTRINSIC } from "./standard-traits.ts";
+import { ALL_COMBINATOR, ALL_FRAME_INTRINSIC, RACE_COMBINATOR } from "./standard-traits.ts";
 import { substituteGenericType } from "./shared.ts";
 
 import { OperatorCallChecker } from "./operator-calls.ts";
@@ -173,6 +173,13 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
               `function '${signature.name}' is not suspending`,
               expression.span,
             );
+          // `race!` has no first result without a task
+          // (11-requirements-and-suspension.md#r-req.combinator.race-empty).
+          if (
+            this.imports.get(expression.callee.name) === RACE_COMBINATOR &&
+            expression.arguments.length === 0
+          )
+            this.fail("argument-count", "race! expects at least one task", expression.span);
           const checkedArguments = this.checkSignatureArguments(expression, signature, expected);
           const { substitutions, rowSubstitutions } = checkedArguments;
           const unresolved = signature.genericParameters.filter(

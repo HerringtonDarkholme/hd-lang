@@ -286,6 +286,38 @@ test("checker diagnostics on the linked source map back to their file and line",
   );
 });
 
+// A test module joins as a `tests:` block with its top-level `pub` deleted,
+// so a `pub fn` helper's header stays shallower than its body, and its
+// diagnostics keep their columns.
+test("pub fn helpers in a test module link, and their diagnostics keep their columns", () => {
+  const files = (helper: string): Record<string, string> => ({
+    "src/main.hd": "pub fn main() -> void: pass\n",
+    "src/cart.hd": "pub fn total() -> i32: 2\n",
+    "src/cart_test.hd": [
+      "use pkg.cart.{total}",
+      "use std.testing.assert_equal",
+      "",
+      helper,
+      "    total() * 2",
+      "",
+      'it("totals"):',
+      '    assert_equal(doubled(), 4, reason="twice the total")',
+    ].join("\n"),
+  });
+  const located = (helper: string): string[] => {
+    const linked = linkPackage(files(helper), "src/cart_test.hd", { tests: true });
+    assert.deepEqual(linked.diagnostics, []);
+    return analyze(linked.source!)
+      .diagnostics.filter(({ severity }) => severity !== "warning")
+      .map(linked.locate)
+      .map(({ path, code, span }) => `${path}:${span.start.line}:${span.start.column}:${code}`);
+  };
+  assert.deepEqual(located("pub fn doubled() -> i32:"), []);
+  assert.deepEqual(located("pub  fn doubled() -> NoSuchType:"), [
+    "src/cart_test.hd:4:22:unknown-type",
+  ]);
+});
+
 test("single-declaration uses and the package root module resolve", async () => {
   const lines = await runPackage({
     "src/main.hd": [
