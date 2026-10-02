@@ -164,7 +164,10 @@ export abstract class PatternChecker extends CallChecker {
 
   /**
    * Checks `.Ok(value)`, `.Err(error)`, and their `Result.`-qualified forms
-   * (04-type-system.md#result-types). A `void` success takes no argument.
+   * (04-type-system.md#result-types). A `void` success takes the one
+   * argument `()` (04-type-system.md#r-types.result.unit-ok); the prototype
+   * accepts only the literal `()` there, since it still keeps `void` apart
+   * from the empty tuple.
    */
   protected checkResultVariant(
     variantName: string,
@@ -192,27 +195,27 @@ export abstract class PatternChecker extends CallChecker {
       );
     const ok = variantName === "Ok";
     const payloadType = ok ? parts.ok : parts.error;
-    const expectedCount = ok && payloadType === "void" ? 0 : 1;
-    if (expression.arguments.length !== expectedCount) {
+    const unitSuccess = ok && payloadType === "void";
+    if (expression.arguments.length !== 1) {
       this.fail(
         "argument-count",
-        `variant '${variantName}' takes ${expectedCount} argument${expectedCount === 1 ? "" : "s"}, found ${expression.arguments.length}`,
+        `variant '${variantName}' takes 1 argument, found ${expression.arguments.length}`,
         expression.span,
       );
     }
-    this.resolveArgumentMapping(
-      expression,
-      expectedCount === 0 ? [] : [ok ? "value" : "error"],
-      `Result.${variantName}`,
-    );
-    const payload =
-      expectedCount === 1
-        ? this.requireCoercion(
-            this.checkExpression(expression.arguments[0]!, payloadType),
-            payloadType,
-            expression.arguments[0]!.span,
-          )
-        : undefined;
+    this.resolveArgumentMapping(expression, [ok ? "value" : "error"], `Result.${variantName}`);
+    if (unitSuccess) {
+      const argument = expression.arguments[0]!;
+      if (argument.kind !== "tuple" || argument.elements.length > 0)
+        this.fail("type-mismatch", "a void success takes the value '()'", argument.span);
+    }
+    const payload = !unitSuccess
+      ? this.requireCoercion(
+          this.checkExpression(expression.arguments[0]!, payloadType),
+          payloadType,
+          expression.arguments[0]!.span,
+        )
+      : undefined;
     return {
       kind: "variant-wrap",
       variant: ok ? "result-ok" : "result-error",

@@ -437,7 +437,7 @@ use pkg.user.types.{User, UserId}
 pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
     console.write_line!("starting")?
-    .Ok()
+    .Ok(())
 ```
 
 A file's tests live in one `tests:` block, compiled only by `hd test`. Each

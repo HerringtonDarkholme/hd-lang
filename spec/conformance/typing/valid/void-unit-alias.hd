@@ -1,0 +1,14 @@
+# test: void is an alias for the empty tuple type ()
+# Spec 04 void and the empty tuple: types.void (owner decision VOID-ALIAS, batch 52).
+
+fn log_start() -> void:
+    pass
+
+fn same() -> ():
+    log_start()
+
+fn unit() -> void:
+    ()
+
+fn pair() -> (void, i32):
+    (log_start(), 1)

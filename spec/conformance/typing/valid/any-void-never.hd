@@ -1,5 +1,5 @@
 # test: void and never satisfy Any
-# Spec 04 Any: types.any.void-never (owner decision TY-31, batch 51b, 2026-10-02).
+# Spec 04 Any: types.any.all for void, which is (), and types.any.never (TY-31, batch 51b; VOID-ALIAS, batch 52).
 
 fn log() -> void:
     pass

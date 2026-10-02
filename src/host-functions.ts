@@ -47,7 +47,7 @@ export const HOST_PROVIDERS: Readonly<
   Record<string, (call: HostSuspensionCall, host: HostProviderContext) => HostSuspensionOutcome>
 > = {
   // The host console (spec/lang/10-modules.md#console): `write_line!` writes its
-  // line when first polled and is then ready with `.Ok()`. The host reports
+  // line when first polled and is then ready with `.Ok(())`. The host reports
   // no write failure, so it never builds a `ConsoleError`.
   "Console.write_line": (call, host) => {
     host.console?.(String(call.arguments[0]), call.provider);

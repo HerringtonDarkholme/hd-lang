@@ -194,6 +194,9 @@ trait Display:
 13. r[expr.interp.prefixed] A prefixed string does not append its values: they become the values of a template, as [Prefixed Strings](#prefixed-strings) specifies.
 14. r[expr.interp.constant] A string with no interpolation segments is an ordinary constant value and performs no `Display` calls.
 
+> **Note.** The empty tuple writes `()`. A `void` value is that tuple, so
+> `"${log()}"` writes `()` too.
+
 ```text
 data Secret:
     value: i32
@@ -1266,7 +1269,7 @@ tests:
     it("parses a digit"):
         digit := parse_digit("7")?
         assert_equal(digit, 7, reason="the digit parses")
-        .Ok()
+        .Ok(())
 
     it("a body without ? is void"):
         match parse_digit("x"):
@@ -1278,7 +1281,7 @@ tests:
 2. r[expr.try.test.with-try] If the block contains a `?` outside any nested closure, its result type is `Result[void, Error]`, where `Error` is the erased `std.error.Error`.
 3. r[expr.try.test.without-try] Otherwise its result type is `void`.
 4. r[expr.try.test.converts] `?` in such a block converts by the ordinary rules, so an error type that implements `Error` propagates into the erased `Error`. An error type that does not is an error. Error: `invalid-result-propagation`.
-5. r[expr.try.test.final-value] The block's final value must be assignable to its result type, as for a function body, so a block that uses `?` usually ends in `.Ok()`.
+5. r[expr.try.test.final-value] The block's final value must be assignable to its result type, as for a function body, so a block that uses `?` usually ends in `.Ok(())`.
 6. r[expr.try.test.explicit-closure] A body passed as an explicit closure keeps its written or inferred result type. That type must implement `std.process.Termination`, the bound on `it`. Error: `unsatisfied-trait-bound`.
 7. r[expr.try.test.closure] Inside a closure nested in a test body, that closure is the nearest function, and these rules do not apply to it.
 
@@ -1303,7 +1306,7 @@ tests:
     it("a string error does not convert"):
         value := lookup("port")?  # error: invalid-result-propagation
         assert(value > 0, reason="a positive port")
-        .Ok()
+        .Ok(())
 ```
 
 > **Why.** A fixed `Result[void, Error]` lets one test body use `?` on

@@ -18,5 +18,5 @@ tests:
     it_each("parses", ["7"], body=fn!(text: string):
         digit := parse_digit(text)?
         assert_equal(digit, 7, reason="the digit parses")
-        .Ok()
+        .Ok(())
     )

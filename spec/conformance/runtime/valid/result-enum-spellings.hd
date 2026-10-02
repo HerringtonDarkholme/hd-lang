@@ -14,7 +14,7 @@ fn qualified_err(message: string) -> Result[i32, string]:
     Result.Err(message)
 
 fn finish() -> Result[void, string]:
-    .Ok()
+    .Ok(())
 
 fn describe(result: Result[i32, string]) -> string:
     match result:
@@ -39,4 +39,4 @@ tests:
         assert_equal(describe(qualified_err("y")), "error y", reason="Result.Err matches a failure")
         assert_equal(describe_qualified(qualified_ok(3)), "ok 3", reason="Result.Ok matches a success")
         assert_equal(describe_qualified(contextual_err("z")), "error z", reason=".Err matches a failure")
-        assert_equal(finished(finish()), true, reason=".Ok() builds a void success")
+        assert_equal(finished(finish()), true, reason=".Ok(()) builds a void success")

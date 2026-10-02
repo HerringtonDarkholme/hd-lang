@@ -11,8 +11,8 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-02 the suite has
-1,862 cases: 1,798 selected in `test/portable/cases.tsv` and 64 known
-failures, 58 language tier and 6 stdlib tier.
+1,865 cases: 1,800 selected in `test/portable/cases.tsv` and 65 known
+failures, 59 language tier and 6 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -35,6 +35,7 @@ failures, 58 language tier and 6 stdlib tier.
 | DERIVE-DEFAULT | 3 | no `@default` marker or count check for derived `Default` |
 | RACE-EMPTY | 2 | an empty `race!` task list is neither rejected nor a panic |
 | CLI-53 | 2 | no `hd_run!` or `RunOutput` in `std.testing` |
+| VOID-UNIT | 1 | `void` is kept apart from the empty tuple `()` |
 
 ## Findings
 
@@ -124,6 +125,7 @@ Compiler structure:
 | DERIVE-DEFAULT | Batch 51: `@derive(Default)` through the `std.ops` template, with `@default` on one enum variant. The template in `lib/std/ops.hd` works for data types, but the marker function `std.ops.default` is missing: declaring a module function named `default` beside the trait breaks every `T::default()` call in the prototype. No check counts the marked variants. |
 | RACE-EMPTY | Batch 51: `race!(tasks=[])` is `argument-count`, and an empty task list at run time panics with `explicit-panic`. The prototype accepts the first and hangs on the second. |
 | CLI-53 | Batch 53 CLI rules: the prototype's `hd` has none of `--` program arguments, exit status 101, JSON lines with a summary record, `-p`, `--filter`, `--deny-skipped`, stdin as a program, the workspace search from a member, the `hd new --app` and `--lib` templates, `hd_run!`, or the executable, task, and test-root layout errors. Most have no fixture format. |
+| VOID-UNIT | Batch 52: `void` is an alias for `()`. The prototype keeps a separate `void` type, so `let u: void = ()`, a `()` result for `-> void`, and `(void, i32)` are rejected. A void success takes only the literal `()`, as in `.Ok(())`, not another `void` expression such as `.Ok(log())`. |
 | FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are. The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
 
 ## Gaps No Fixture Reaches

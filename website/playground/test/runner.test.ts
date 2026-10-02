@@ -381,7 +381,7 @@ test("a suspending main! reports its Result", async () => {
     );
     return `${result.status}: ${result.summary}`;
   };
-  assert.equal(await run(".Ok()"), "ok: exited normally");
+  assert.equal(await run(".Ok(())"), "ok: exited normally");
   assert.equal(await run('.Err("boom")'), "failure: main returned Err");
 });
 

@@ -25,7 +25,7 @@ impl[S] Walker[S] for Prober:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok()
+        .Ok(())
 
     fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         tagged := match h.info.facts.find::[Tag]():
@@ -35,7 +35,7 @@ impl[S] Walker[S] for Prober:
             .Some(found) => found.text
             .None => "-"
         self.out = self.out + h.info.name + "=" + tagged + "/" + noted + ";"
-        .Ok()
+        .Ok(())
 
 impl[T] Probe for T by Structure:
     fn probe(self) -> string:

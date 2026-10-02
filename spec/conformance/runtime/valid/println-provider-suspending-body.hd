@@ -16,7 +16,7 @@ impl Console for NumberedConsole:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
         number := self.next_number!()
         self.lines.append("[${number}] ${text}")
-        .Ok()
+        .Ok(())
 
 fn report(values: List[string]) -> void $ Console:
     for value in values:

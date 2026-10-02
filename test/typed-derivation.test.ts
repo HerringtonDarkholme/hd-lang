@@ -39,14 +39,14 @@ impl[S] Walker[S] for Shower:
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
         self.out = self.out + v.info.name + "("
-        .Ok()
+        .Ok(())
 
     fn member[F < Show](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         name := match h.info.facts.find::[Rename]():
             .Some(found) => found.name
             .None => h.info.name
         self.out = self.out + name + "=" + value.show() + ";"
-        .Ok()
+        .Ok(())
 
 data Counter:
     total: i32
@@ -55,11 +55,11 @@ impl[S] Describer[S] for Counter:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok()
+        .Ok(())
 
     fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
         self.total = self.total + 1
-        .Ok()
+        .Ok(())
 
 data Filler:
     count: i32

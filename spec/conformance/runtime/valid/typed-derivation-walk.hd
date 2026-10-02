@@ -50,11 +50,11 @@ impl[S] Walker[S] for Encoder:
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
         if !v.info.of_data:
             self.out = self.out + self.style.tag + "=" + v.info.name + ";"
-        .Ok()
+        .Ok(())
 
     fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + key_for(self.style, h.info) + "=" + value.encode() + ";"
-        .Ok()
+        .Ok(())
 
 data KeyLister:
     style: Style
@@ -64,11 +64,11 @@ impl[S] Describer[S] for KeyLister:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok()
+        .Ok(())
 
     fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
         self.keys.append(key_for(self.style, h.info))
-        .Ok()
+        .Ok(())
 
 impl[T] Encode for T by Structure:
     fn encode(self) -> string:

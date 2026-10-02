@@ -1,0 +1,7 @@
+# test: a void success needs the () argument
+# Spec 04 void results: types.result.no-ok-omit (owner decision OK-UNIT, batch 52).
+
+fn save(ready: bool) -> Result[void, string]:
+    if ready:
+        return .Ok(())
+    .Ok()  # diagnostic: argument-count

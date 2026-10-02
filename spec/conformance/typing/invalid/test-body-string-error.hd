@@ -10,4 +10,4 @@ tests:
     it("a string error does not convert"):
         value := lookup("port")?  # diagnostic: invalid-result-propagation
         assert(value > 0, reason="a positive port")
-        .Ok()
+        .Ok(())

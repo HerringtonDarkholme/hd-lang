@@ -1265,7 +1265,7 @@ traversed as an enum with one variant.
 1. r[annot.walk.match] Generated `walk` matches the value once and calls `w.variant(v)` for the value's variant.
 2. r[annot.walk.members] It then calls `w.member(h, value)` for each member of that variant, in declaration order.
 3. r[annot.walk.value] Each member value is read through the readonly `self`, so it has the member's read type.
-4. r[annot.walk.error] The first `.Err` that `variant` or `member` returns ends the walk, and `walk` returns it. Otherwise `walk` returns `.Ok()`.
+4. r[annot.walk.error] The first `.Err` that `variant` or `member` returns ends the walk, and `walk` returns it. Otherwise `walk` returns `.Ok(())`.
 5. r[annot.walk.nested] A member is passed as one value. Its own members are reached only through its own type's implementations.
 6. r[annot.walk.rest] For a [rest member](#r-annot.tuple.rest), generated `walk` calls `w.rest(h, items)` in place of `w.member`, with the rest element's list as `items`.
 7. r[annot.walk.rest.default] `Walker`'s default `rest` calls `self.member(h, items)`. So a walker that does not implement `rest` sees the rest member as one `List[T]` member.
@@ -1463,11 +1463,11 @@ impl[S] Walker[S] for Encoder:
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
         if !v.info.of_data:
             self.out = self.out + self.style.tag + "=" + v.info.name + ";"
-        .Ok()
+        .Ok(())
 
     fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + key_for(self.style, h.info) + "=" + value.encode() + ";"
-        .Ok()
+        .Ok(())
 ```
 
 1. r[annot.walker.strengthen-member] An implementation of `Walker`, `Describer`, or `Source` may strengthen the bound on `member[F]`, as `F < Encode` above.

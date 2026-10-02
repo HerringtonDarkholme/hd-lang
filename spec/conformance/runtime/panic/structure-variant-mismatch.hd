@@ -16,12 +16,12 @@ impl[S] Walker[S] for SameWalker[S]:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok()
+        .Ok(())
 
     fn member[F < Same](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         other := h.get(self.other)  # panic: structure-variant-mismatch
         self.equal = self.equal && value.same(other)
-        .Ok()
+        .Ok(())
 
 impl[T] Same for T by Structure:
     fn same(self, other: T) -> bool:

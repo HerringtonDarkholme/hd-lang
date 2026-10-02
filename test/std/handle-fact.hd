@@ -28,11 +28,11 @@ impl[S] Describer[S] for Collect:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok()
+        .Ok(())
 
     fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
         self.out = self.out + h.info.name + ":" + label_of(h) + ";"
-        .Ok()
+        .Ok(())
 
 impl[T] Labels for T by Structure:
     fn labels() -> string:

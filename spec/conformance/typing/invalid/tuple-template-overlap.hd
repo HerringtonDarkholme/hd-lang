@@ -17,11 +17,11 @@ impl[S] Walker[S] for Encoder:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok()
+        .Ok(())
 
     fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + value.encode() + ";"
-        .Ok()
+        .Ok(())
 
 impl[T < Tuple] Encode for T by Structure:
     fn encode(self) -> string:

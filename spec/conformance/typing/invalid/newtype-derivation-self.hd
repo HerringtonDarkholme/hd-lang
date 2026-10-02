@@ -15,11 +15,11 @@ impl[S] Describer[S] for Count:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok()
+        .Ok(())
 
     fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
         self.total = self.total + 1
-        .Ok()
+        .Ok(())
 
 impl[T] Pairing for T by Structure:
     fn pair(self) -> (T, i32):

@@ -14,7 +14,7 @@ fn ignore_in_discarding_suites(values: List[i32], ready: bool) -> void:
         _ := save()
 
 fn complete() -> Result[void, SaveError]:
-    .Ok()
+    .Ok(())
 
 tests:
     it("explicitly discards the final result"):

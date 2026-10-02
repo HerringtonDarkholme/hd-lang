@@ -317,7 +317,13 @@ function tableTest(
       statementOf(invoke(local("$each-row-count"), [count])),
       statementOf(propagates ? { kind: "propagate", operand: bangCall, span } : bangCall),
       ...(propagates
-        ? [statementOf(invoke({ kind: "contextual-variant", name: "Ok", span }))]
+        ? [
+            statementOf(
+              invoke({ kind: "contextual-variant", name: "Ok", span }, [
+                { kind: "tuple", elements: [], span },
+              ]),
+            ),
+          ]
         : []),
     ],
     ...(body.result ? { explicit: true, result: body.result } : {}),
@@ -453,7 +459,13 @@ function propertyTest(
       statementOf(invoke(local(PROPERTY_INPUT), [local("$prop.value")])),
       statementOf(propagates ? { kind: "propagate", operand: bangCall, span } : bangCall),
       ...(propagates
-        ? [statementOf(invoke({ kind: "contextual-variant", name: "Ok", span }))]
+        ? [
+            statementOf(
+              invoke({ kind: "contextual-variant", name: "Ok", span }, [
+                { kind: "tuple", elements: [], span },
+              ]),
+            ),
+          ]
         : []),
     ],
     ...(body.result ? { explicit: true, result: body.result } : {}),

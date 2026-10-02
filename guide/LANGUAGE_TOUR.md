@@ -450,7 +450,8 @@ Use parentheses when a binding expression appears inside a larger expression.
 error. A list item or a tuple element may be a binding, so
 `[a, b := value]` and `(a, b := value)` each hold `a` and `b := value`.
 
-`void` is used for functions that return no useful value:
+`void` is used for functions that return no useful value. It is another
+name for the empty tuple type `()`, whose one value is `()`:
 
 ```text
 fn log_start() -> void $ Console:
@@ -2476,11 +2477,11 @@ Declarations are module-private by default, and `pub` makes them public. Enum va
 pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
     console.write_line!("starting")?
-    .Ok()
+    .Ok(())
 ```
 
-`.Ok()` is the success constructor for `Result[void, E]`; it is distinct from
-both the `void` expression `pass` and the unit tuple `()`.
+`.Ok(())` is the success value of `Result[void, E]`: `void` is another name
+for the empty tuple type `()`, whose one value is `()`.
 `ConsoleError` implements `Display`, as required for an entry-point error type.
 
 `Console.write_line!` takes `mut self`, so `$.use(Console)` gives mutable
@@ -2567,7 +2568,7 @@ show both values; derive both, as `DbError` does.
 
 A test body has a fixed result. Without `?` it is `void`. With `?` it is
 `Result[void, Error]`, where `Error` is the erased `std.error.Error`, so the
-body ends in `.Ok()`. `?` converts any error type that implements `Error`,
+body ends in `.Ok(())`. `?` converts any error type that implements `Error`,
 but not a plain `string`. An `.Err` fails the test, and the runner prints it
 with its cause chain:
 
@@ -2590,7 +2591,7 @@ tests:
     it("parses a digit"):
         digit := parse_digit("7")?
         assert_equal(digit, 7, reason="the digit parses")
-        .Ok()
+        .Ok(())
 ```
 
 `it` is an ordinary function whose defaulted options come before its final

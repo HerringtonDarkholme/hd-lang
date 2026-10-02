@@ -8,7 +8,7 @@ data BufferConsole:
 impl Console for BufferConsole:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.append(text)
-        .Ok()
+        .Ok(())
 
 fn greet() -> void $ Console:
     println("hello")

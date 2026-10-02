@@ -103,7 +103,7 @@ test("hd test fails a test whose result is .Err", async () => {
         "tests:",
         '    it("propagates an error", body=fn!() -> Result[void, string]:',
         '        value := digit("x")?',
-        "        .Ok()",
+        "        .Ok(())",
         "    )",
         "",
       ].join("\n"),
@@ -137,7 +137,7 @@ test("hd run and hd test judge suspending results by Termination", async () => {
     return caught!;
   };
   try {
-    const ok = await program("ok.hd", ["pub fn main!() -> Result[void, string]:", "    .Ok()"]);
+    const ok = await program("ok.hd", ["pub fn main!() -> Result[void, string]:", "    .Ok(())"]);
     const passed = await hd(["run", ok]);
     assert.equal(passed.stdout, "");
 
@@ -202,7 +202,7 @@ test("hd run runs Console.write_line! on host and program providers", async () =
       "impl Console for Buffer:",
       "    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:",
       "        self.lines.append(text)",
-      "        .Ok()",
+      "        .Ok(())",
       "",
       "fn greet!() -> Result[void, ConsoleError] $ Console:",
       "    let console: mut Console = $.use(Console)",
@@ -215,7 +215,7 @@ test("hd run runs Console.write_line! on host and program providers", async () =
       "        greet!()?",
       '    $.use(Console).write_line!("recorded ${buffer.lines.len()}")?',
     ];
-    await writeFile(source, [...lines, "    .Ok()", ""].join("\n"));
+    await writeFile(source, [...lines, "    .Ok(())", ""].join("\n"));
     const ran = await hd(["run", source]);
     assert.equal(ran.stdout, "hi\nrecorded 1\n");
 
@@ -236,7 +236,7 @@ test("hd run runs Console.write_line! on host and program providers", async () =
 
     await writeFile(
       source,
-      [...lines, '    println("under a driver")', "    .Ok()", ""].join("\n"),
+      [...lines, '    println("under a driver")', "    .Ok(())", ""].join("\n"),
     );
     const nested = await hd(["run", source]);
     assert.equal(nested.stdout, "hi\nrecorded 1\nunder a driver\n");
@@ -360,7 +360,7 @@ test("hd test runs each it_each row in a fresh instance", async () => {
       "    )",
       "",
       '    it_each("fails on two", [1, 2, 3], body=fn!(value: i32) -> Result[void, string]:',
-      '        if value == 2: .Err("two") else: .Ok()',
+      '        if value == 2: .Err("two") else: .Ok(())',
       "    )",
       "",
     ];

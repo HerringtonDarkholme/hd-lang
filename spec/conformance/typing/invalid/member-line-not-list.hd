@@ -12,11 +12,11 @@ impl[S] Walker[S] for Shower:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok()
+        .Ok(())
 
     fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + h.info.name + ";"
-        .Ok()
+        .Ok(())
 
 impl[T] Show for T by Structure:
     fn show(self) -> string:

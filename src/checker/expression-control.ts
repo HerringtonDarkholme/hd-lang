@@ -763,14 +763,16 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
               ? { kind: "binding" as const, name, span: arm.pattern.span }
               : { kind: "wildcard" as const, span: arm.pattern.span },
           );
+        // A `void` success has one payload, `()`, which the prototype
+        // matches only with `_` (04-type-system.md#r-types.result.unit-ok).
         const voidSuccess = ok && payloadType === "void";
         if (
-          payloadPatterns.length !== (voidSuccess ? 0 : 1) &&
-          !(voidSuccess && payloadPatterns.length === 1 && payloadPatterns[0]?.kind === "wildcard")
+          payloadPatterns.length !== 1 ||
+          (voidSuccess && payloadPatterns[0]?.kind !== "wildcard")
         ) {
           this.fail(
             "pattern-arity",
-            `${arm.pattern.variantName} expects ${voidSuccess ? 0 : 1} payload patterns`,
+            `${arm.pattern.variantName} expects 1 payload pattern${voidSuccess ? ", '_'" : ""}`,
             arm.pattern.span,
           );
         }

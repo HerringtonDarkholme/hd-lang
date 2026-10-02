@@ -192,12 +192,12 @@ impl[S] Walker[S] for EqualWalker[S]:
 
     fn variant(mut self, v: Variant[S]) -> Result[void, bool]:
         if v.holds(self.other):
-            return .Ok()
+            return .Ok(())
         .Err(false)
 
     fn member[F < Eq](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
         if value == h.get(self.other):
-            return .Ok()
+            return .Ok(())
         .Err(false)
 
 # Derived `PartialOrd` and `Ord` (spec/std/cmp.md#derived-ordering):
@@ -232,7 +232,7 @@ impl[S] Walker[S] for VariantIndex[S]:
         .Err(true)
 
     fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
-        .Ok()
+        .Ok(())
 
 # Holds the order once it is decided, and stops the walk.
 data PartialOrderWalker[S]:
@@ -245,7 +245,7 @@ impl[S] Walker[S] for PartialOrderWalker[S]:
 
     fn variant(mut self, v: Variant[S]) -> Result[void, bool]:
         if v.holds(self.other):
-            return .Ok()
+            return .Ok(())
         if v.info.index < self.other_index:
             self.result = .Some(.Less)
         else:
@@ -259,7 +259,7 @@ impl[S] Walker[S] for PartialOrderWalker[S]:
         match order:
             .Some(decided) =>
                 match decided:
-                    .Equal => return .Ok()
+                    .Equal => return .Ok(())
                     _ => pass
             .None => pass
         self.result = order
@@ -275,7 +275,7 @@ impl[S] Walker[S] for OrderWalker[S]:
 
     fn variant(mut self, v: Variant[S]) -> Result[void, bool]:
         if v.holds(self.other):
-            return .Ok()
+            return .Ok(())
         if v.info.index < self.other_index:
             self.result = .Less
         else:
@@ -285,7 +285,7 @@ impl[S] Walker[S] for OrderWalker[S]:
     fn member[F < Ord](mut self, h: Field[S, F], value: F) -> Result[void, bool]:
         let order = value.cmp(h.get(self.other))
         match order:
-            .Equal => return .Ok()
+            .Equal => return .Ok(())
             _ => pass
         self.result = order
         .Err(true)

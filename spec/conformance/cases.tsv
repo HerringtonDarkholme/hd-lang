@@ -1855,9 +1855,12 @@ typing/invalid/requirement-key-not-dynamically-safe.hd	type	reject:trait-not-dyn
 typing/invalid/derive-beside-written-impl.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.derive.beside-written
 runtime/valid/mut-trait-value-from-mut.hd	runtime	accept	lang/04-type-system.md#r-types.assign.trait-value.mut
 typing/valid/lct-drops-never.hd	type	accept	lang/04-type-system.md#r-types.lct.never.dropped
-typing/valid/any-void-never.hd	type	accept	lang/04-type-system.md#r-types.any.void-never
+typing/valid/any-void-never.hd	type	accept	lang/04-type-system.md#r-types.any.never
 typing/valid/mutable-access-bound.hd	type	accept	lang/04-type-system.md#r-types.path.access.mut-bound
 typing/invalid/readonly-edge-mut-self-call.hd	type	reject:mutable-receiver-required	lang/04-type-system.md#r-types.path.mutation.receiver
 typing/valid/mut-trait-value.hd	type	accept	lang/04-type-system.md#r-types.assign.trait-value.mut
 typing/valid/hd-run-integration.hd	type	accept	std/testing.md#r-std-testing.hd-run.runs
 typing/invalid/hd-run-outside-integration.hd	type	reject:test-only-use	std/testing.md#r-std-testing.hd-run.integration-only
+typing/valid/void-unit-alias.hd	type	accept	lang/04-type-system.md#r-types.void
+typing/invalid/result-ok-without-unit.hd	type	reject:argument-count	lang/04-type-system.md#r-types.result.no-ok-omit
+runtime/valid/result-ok-unit.hd	runtime	accept	lang/04-type-system.md#r-types.result.unit-ok

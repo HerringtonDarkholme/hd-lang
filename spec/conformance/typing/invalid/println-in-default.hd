@@ -5,7 +5,7 @@ data QuietConsole: pass
 
 impl Console for QuietConsole:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
-        .Ok()
+        .Ok(())
 
 fn announce() -> i32:
     let console: mut QuietConsole = QuietConsole {}

@@ -214,16 +214,16 @@ impl[S] Walker[S] for DebugFields[S]:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok()
+        .Ok(())
 
     fn member[F < Debug](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         _ := self.tuple.field(value)
-        .Ok()
+        .Ok(())
 
     fn rest[I < Debug](mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
         for item in items:
             _ := self.tuple.field(item)
-        .Ok()
+        .Ok(())
 
 # Tuple `Display` (spec/lang/05-expressions.md#r-expr.interp.std.tuple.template):
 # each element's text, separated by ", ", inside parentheses, at every
@@ -248,15 +248,15 @@ impl[S] Walker[S] for TupleText[S]:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok()
+        .Ok(())
 
     fn member[F < Display](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.text = if self.count == 0: "$value" else: "${self.text}, $value"
         self.count = self.count + 1
-        .Ok()
+        .Ok(())
 
     fn rest[I < Display](mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
         for item in items:
             self.text = if self.count == 0: "$item" else: "${self.text}, $item"
             self.count = self.count + 1
-        .Ok()
+        .Ok(())

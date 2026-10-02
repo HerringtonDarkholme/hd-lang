@@ -26,11 +26,11 @@ impl[S] Walker[S] for Summarizer:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok()
+        .Ok(())
 
     fn member[F < Display](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         self.out = self.out + h.info.name + "=" + "$value" + note(h) + ";"
-        .Ok()
+        .Ok(())
 
 impl[T] Summary for T by Structure:
     fn summary(self) -> string:

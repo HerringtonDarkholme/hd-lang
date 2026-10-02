@@ -28,7 +28,7 @@ impl BufferConsole:
 impl Console for BufferConsole:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.append(text)
-        .Ok()
+        .Ok(())
 
 # `println` (spec/lang/10-modules.md#console) is ordinary std code: it drives the
 # covering provider's `write_line!` with `block_on`, so it inherits all of
@@ -39,5 +39,5 @@ pub fn println[T < Display](value: T) -> void $ Console:
     let mut console = $.use(Console)
     let call: mut Suspend[Result[void, ConsoleError]] = console.write_line("$value")
     match block_on(call):
-        .Ok() => pass
+        .Ok(_) => pass
         .Err(_) => panic("println: write_line! returned .Err(ConsoleError)")

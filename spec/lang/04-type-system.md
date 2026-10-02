@@ -116,14 +116,21 @@ fn advance(start: i32) -> i32: start.next()  # valid
 
 ### `void` And The Empty Tuple
 
-1. r[types.void] `void` is the return type of a function that produces no useful value.
+1. r[types.void] `void` is an alias for the empty tuple type `()`, so the two spellings name one type and are interchangeable.
 2. r[types.unit] The empty tuple value is `()`.
-3. r[types.void.role] `void` describes the absence of a useful function or statement result.
+3. r[types.void.role] A function that produces no useful value returns `()`, and its result type is usually spelled `-> void`.
 4. r[types.unit.role] `()` is a tuple value and tuple type.
-5. r[types.void.distinct] `void` and `()` are distinct types, and there is no implicit conversion between them.
 
-> **Note.** Both carry no information, but they serve different source-level
-> roles.
+```text
+fn log_start() -> void:
+    pass
+
+fn same() -> ():
+    log_start()  # valid: void and () are one type
+```
+
+> **Note.** The type has one value, `()`. A `void` result, a statement
+> result, and `pass` all produce it, as Swift's `typealias Void = ()` does.
 
 ### Strings
 
@@ -521,8 +528,16 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
 
 ### Void Results
 
-1. r[types.result.void-ok] When `T` is `void`, the success constructor is written `.Ok()` or `Result.Ok()` and has type `Result[void, E]` under an expected result type.
-2. r[types.result.no-ok-pass] `.Ok(pass)` is not the source spelling for this case.
+1. r[types.result.unit-ok] When `T` is `void`, the success value is `()`, so the constructor is written `.Ok(())` or `Result.Ok(())`.
+2. r[types.result.no-ok-omit] No shorthand omits that `()`, so `.Ok()` passes no argument for `value`. Error: `argument-count`.
+3. r[types.result.no-ok-pass] `.Ok(pass)` is not the source spelling for this case.
+
+```text
+fn save(ready: bool) -> Result[void, string]:
+    if ready:
+        return .Ok(())
+    .Ok()  # error: argument-count
+```
 
 ### Result Propagation
 
@@ -1308,7 +1323,7 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
 1. r[types.any] `Any` is the built-in universal empty trait.
 2. r[types.any.all] Every value type, including an optional type, satisfies `Any` automatically.
-3. r[types.any.void-never] `void` and `never` satisfy `Any` too. So `let x: Any = log()` is valid when `log` returns `void`.
+3. r[types.any.never] `never` satisfies `Any` too. A `void` value needs no rule of its own, because it is the tuple `()`.
 4. r[types.any.erase] As a value type, `Any` erases the concrete type.
 5. r[types.any.mut] `mut Trait` and `mut Any` preserve mutable access to an erased composite root.
 6. r[types.any.one-way] `Any` erasure is one-way.
@@ -1325,7 +1340,7 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
 | Trait | Types | Identity |
 | --- | --- | --- |
-| r[types.sealed.anyval-types] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, `void`, and tuples | These values have no identity. |
+| r[types.sealed.anyval-types] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, and tuples, `void` included | These values have no identity. |
 | r[types.sealed.anyref] `AnyRef` | data types, enums (including optionals and `Result`), `List`, `Map`, function types, dynamic trait value types, `Any`, suspensions, and runtime handles | These values have identity. |
 
 5. r[types.sealed.newtype] A newtype has its base type's category: `type Mile(i32)` implements `AnyVal`, and `type Owner(User)` implements `AnyRef`.

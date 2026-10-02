@@ -135,6 +135,8 @@ function head(
         );
       const names = (pattern.kind === "variant" ? pattern.bindingNames : undefined) ?? [];
       const view = readonlyType(type);
+      if (pattern.variantName === "Ok" && resultParts(view)?.ok === "void")
+        return { name: "Ok", arguments: [] };
       const declaration = environment.enums.get(nominalGenericParts(view)?.name ?? view);
       const variant = declaration?.variants.find(
         (candidate) => candidate.name === pattern.variantName,

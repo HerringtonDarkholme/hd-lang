@@ -14,11 +14,11 @@ impl[S] Describer[S] for MemberCount:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok()
+        .Ok(())
 
     fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
         self.count = self.count + 1
-        .Ok()
+        .Ok(())
 
 impl[T] Named for T by Structure:
     fn type_name() -> string:

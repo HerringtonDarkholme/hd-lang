@@ -1420,7 +1420,7 @@ See also: [Runtime Type Identity](#runtime-type-identity).
 
 1. r[trait.any.universal] `Any` is the universal empty trait.
 2. r[trait.any.all] Every value type, including an optional type, implements `Any` automatically.
-3. r[trait.any.void-never] `void` and `never` implement `Any` as well, by [`types.any.void-never`](04-type-system.md#r-types.any.void-never).
+3. r[trait.any.never] `never` implements `Any` as well, by [`types.any.never`](04-type-system.md#r-types.any.never).
 4. r[trait.any.erases] As a value type, `Any` erases the concrete type and exposes no type-specific methods.
 5. r[trait.any.optional] An optional value erases to `Any` like any other enum value.
 6. r[trait.any.none] A bare `.None` still needs an expected optional type. `let value: Any = .None` is an error, while `let value: Any? = .None` is valid. Error: `missing-contextual-enum-type`.
@@ -1438,7 +1438,7 @@ compiler and the standard library supply.
 | Rule | Trait | Implemented for |
 | --- | --- | --- |
 | r[trait.sealed.any] Any | `Any` | every value type ([`Any`](#any)) |
-| r[trait.sealed.anyval-types] AnyVal | `AnyVal` | the primitive types, `string`, `void`, tuples, and newtypes over them ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
+| r[trait.sealed.anyval-types] AnyVal | `AnyVal` | the primitive types, `string`, tuples (`void` included), and newtypes over them ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
 | r[trait.sealed.anyref] AnyRef | `AnyRef` | the reference values ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
 | r[trait.sealed.suspend] Suspend | `Suspend[T]` | compiler-generated suspension frames and `std.task` types ([`Suspend[T]` Protocol](11-requirements-and-suspension.md#suspendt-protocol)) |
 | r[trait.sealed.inspectable] Inspectable | `Inspectable` | the inspectable types ([Inspectable Types](#inspectable-types)) |
@@ -1598,7 +1598,7 @@ See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 1. r[trait.identity.definition] Two types have the same **runtime identity** when they are the same declaration applied to type arguments that have the same runtime identity.
 2. r[trait.identity.normalize] Runtime identity is compared after transparent aliases are expanded and the outer `mut` is removed.
 3. r[trait.identity.inner-mut] A `mut` inside a type argument stays, so the type arguments `mut U` and `U` differ.
-4. r[trait.identity.declarations] For this rule the primitive types, `string`, `void`, `List`, `Map`, each tuple arity, and `Any` count as declarations.
+4. r[trait.identity.declarations] For this rule the primitive types, `string`, `List`, `Map`, each tuple arity, and `Any` count as declarations, and `void` is the tuple of arity zero.
 5. r[trait.identity.trait-value] A trait value type is its trait declaration applied to its arguments.
 
 The rules have these consequences:
@@ -1655,7 +1655,7 @@ The compiler supplies `Inspectable` for exactly the **inspectable types**:
 1. r[trait.inspectable.exact] The compiler supplies `Inspectable` for exactly the types in the table above.
 2. r[trait.inspectable.option] The declared case includes `Option` and `Result`, so `T?` is inspectable when `T` is.
 3. r[trait.inspectable.fields] What the fields hold does not matter. A data type with a function-typed field, and a newtype over a function type, are inspectable, because identity is the declaration.
-4. r[trait.inspectable.argument-only] As a type argument only, `void`, any trait value type, and `Any` also count as inspectable, and they match exactly.
+4. r[trait.inspectable.argument-only] As a type argument only, any trait value type and `Any` also count as inspectable, and they match exactly.
 5. r[trait.inspectable.argument-examples] `List[Display]`, `Result[void, FsError]`, and `Map[string, Any]` are inspectable.
 
 #### Types That Are Not Inspectable

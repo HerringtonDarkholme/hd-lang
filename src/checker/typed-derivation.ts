@@ -1328,7 +1328,7 @@ function generateDerivation(
             );
         }
       }
-      out.add(`    .Ok()`);
+      out.add(`    .Ok(())`);
       return;
     }
     if (traversal === "describe") {
@@ -1338,7 +1338,7 @@ function generateDerivation(
         for (const member of variant.members)
           if (!member.omitted) out.add(`    d.member(${handle(variant, member, "r")})?`);
       }
-      out.add(`    .Ok()`);
+      out.add(`    .Ok(())`);
       return;
     }
     // build (annot.build.*); a tuple takes no `mut` (annot.tuple.build).

@@ -113,11 +113,11 @@ impl[S] Walker[S] for HashWalker[S]:
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
         if !v.info.of_data:
             v.info.index.hash(self.state)
-        .Ok()
+        .Ok(())
 
     fn member[F < Hash](mut self, h: Field[S, F], value: F) -> Result[void, never]:
         value.hash(self.state)
-        .Ok()
+        .Ok(())
 
 # Tuple hashing (spec/std/hash.md#tuple-hashing): each element in order, at
 # every size. A rest element hashes as its `List`, so a rest tuple is

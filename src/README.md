@@ -396,7 +396,7 @@ listed yet.
   host console is a `Console` trait value that boxes the host's `externref`
   and goes through the generic host capability bridge
   (`emitter/host-providers.ts`); its `write_line!` writes the line and is
-  ready with `.Ok()` on its first poll, so direct calls run on it and on a
+  ready with `.Ok(())` on its first poll, so direct calls run on it and on a
   program-defined provider. `println` calls `write_line!` on the covering
   provider, the host console or a program-defined one, and drives the call
   with `block_on` (MHP-1). Under `main!` or a test body, `block_on`

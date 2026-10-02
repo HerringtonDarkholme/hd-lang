@@ -1,0 +1,12 @@
+# test: a void success is written .Ok(())
+# Spec 04 void results: types.result.unit-ok (owner decision OK-UNIT, batch 52).
+
+fn save(ready: bool) -> Result[void, string]:
+    if ready:
+        return Result.Ok(())
+    .Err("not ready")
+
+fn main() -> void:
+    match save(true):
+        .Ok(_) => pass
+        .Err(message) => panic(message)

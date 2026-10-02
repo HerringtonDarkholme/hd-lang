@@ -297,7 +297,7 @@ mutable when the trait has a `mut self` method, readonly otherwise.
   runner passes no `--profile` option for it. It implements the prelude
   `Console` ([Prelude](../lang/10-modules.md#prelude)): each
   `write_line!(text)` completes on its first poll, writes the UTF-8 encoding
-  of `text` followed by one U+000A to standard output, and returns `.Ok()`.
+  of `text` followed by one U+000A to standard output, and returns `.Ok(())`.
 - `disposed-file` implements the fixture's `Files` and `FileHandle` traits.
   The fixture declares exactly these three methods, where `E` is the
   fixture's own error type:
@@ -314,7 +314,7 @@ mutable when the trait has a `mut self` method, readonly otherwise.
   - `open!` completes on its first poll with a fresh open handle.
   - Before the handle is closed, `read!` completes on its first poll with
     `.Ok("")`.
-  - The first `close` returns `.Ok()`.
+  - The first `close` returns `.Ok(())`.
   - After a successful close, every operation on that handle, including a
     second `close`, returns `.Err(ResourceError.Disposed)` and must not trap.
 - `pending-gate` implements the fixture's

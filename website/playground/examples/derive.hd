@@ -12,11 +12,11 @@ impl[S] Describer[S] for NameLister:
     type Error = never
 
     fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok()
+        .Ok(())
 
     fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
         self.names.append(h.info.name)
-        .Ok()
+        .Ok(())
 
 impl[T] FieldNames for T by Structure:
     fn field_names() -> List[string]:

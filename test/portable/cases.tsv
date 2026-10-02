@@ -1797,3 +1797,5 @@ runtime/panic/list-view-index-out-of-bounds.hd	runtime
 runtime/panic/list-view-invalidated.hd	runtime
 typing/invalid/list-view-assignment.hd	type
 typing/invalid/unknown-std-name.hd	type
+typing/invalid/result-ok-without-unit.hd	type
+runtime/valid/result-ok-unit.hd	runtime

@@ -1,2 +1,2 @@
 pub fn main() -> Result[void, ConsoleError] $ Console:
-    .Ok()
+    .Ok(())
