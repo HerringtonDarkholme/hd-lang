@@ -433,12 +433,10 @@ directory. Declarations are private unless marked `pub`. `use` roots are
 
 ```hd
 use pkg.user.types.{User, UserId}
-use std.host.Args
 
-pub fn main!() -> Result[void, ConsoleError] $ Args + Console:
-    args := $.use(Args)
+pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
-    console.write_line!("starting " + args.program_name())?
+    console.write_line!("starting")?
     .Ok()
 ```
 

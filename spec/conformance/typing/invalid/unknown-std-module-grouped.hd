@@ -1,0 +1,6 @@
+# test: a grouped std use whose module path names no std module is an error at the use
+# Spec 10 Use Forms: module.use.grouped (task #179).
+use std.non_existing.{helper}  # diagnostic: unknown-module
+
+pub fn label() -> string:
+    "label"

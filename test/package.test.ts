@@ -117,6 +117,26 @@ test("package use errors point at the use declaration of their file", () => {
   assert.deepEqual(codes(main("use dep.billing.{User}")), ["src/main.hd:2:unknown-module"]);
 });
 
+test("std use errors in a package point at the use declaration of their file", () => {
+  const located = (use: string): string[] => {
+    const linked = linkPackage(
+      {
+        "src/main.hd": "use pkg.models.{label}\npub fn main() -> void: pass\n",
+        "src/models.hd": `# header\n${use}\npub fn label() -> string: "x"\n`,
+      },
+      "src/main.hd",
+    );
+    assert.deepEqual(linked.diagnostics, []);
+    return analyze(linked.source!).diagnostics.map((diagnostic) => {
+      const { path, code, span } = linked.locate(diagnostic);
+      return `${path}:${span.start.line}:${code}`;
+    });
+  };
+  assert.deepEqual(located("use std.missing"), ["src/models.hd:2:unknown-module"]);
+  assert.deepEqual(located("use std.missing.{x}"), ["src/models.hd:2:unknown-module"]);
+  assert.deepEqual(located("use std.text.{nope}"), ["src/models.hd:2:unknown-import"]);
+});
+
 test("files of one folder may use each other in a loop", async () => {
   const lines = await runPackage({
     "src/main.hd": [

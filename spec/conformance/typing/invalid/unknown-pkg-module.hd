@@ -1,0 +1,7 @@
+# test: a pkg use path that names no module of the package is an error at the use
+# Spec 10 Use Forms: module.use.grouped (task #179).
+# fixture-package-tree: self-current/src/c.hd
+use pkg.missing.{origin}  # diagnostic: unknown-module
+
+pub fn label() -> string:
+    origin()

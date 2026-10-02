@@ -1826,3 +1826,7 @@ runtime/panic/list-view-reversed.hd	runtime	panic:index-out-of-bounds	std/collec
 runtime/panic/list-view-index-out-of-bounds.hd	runtime	panic:index-out-of-bounds	std/collections.md#r-std-collections.view.index.range
 runtime/panic/list-view-invalidated.hd	runtime	panic:iterator-invalidated	std/collections.md#r-std-collections.view.invalid-use
 typing/invalid/list-view-assignment.hd	type	reject:invalid-assignment-target	std/collections.md#r-std-collections.view.read-only
+typing/invalid/unknown-std-module.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
+typing/invalid/unknown-std-module-grouped.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
+typing/invalid/unknown-pkg-module.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
+typing/invalid/unknown-dep-module.hd	type	reject:unknown-module	lang/10-modules.md#use-roots

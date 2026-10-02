@@ -1,0 +1,6 @@
+# test: a std use path that names no std module is an error at the use
+# Spec 10 Use Forms: module.use.single (task #179).
+use std.non_existing  # diagnostic: unknown-module
+
+pub fn label() -> string:
+    "label"

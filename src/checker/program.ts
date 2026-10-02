@@ -22,6 +22,7 @@ import {
   withSuffixMarkers,
 } from "./decorators.ts";
 import { withStandardTraits } from "./standard-traits.ts";
+import { standardUseDiagnostics } from "./standard-uses.ts";
 import { withFunctionTypeConstructors } from "./function-types.ts";
 import { hoistLocalDeclarations } from "./local-declarations.ts";
 import { varianceDiagnostics } from "./variance.ts";
@@ -39,6 +40,10 @@ export interface CheckOptions {
 }
 
 export function check(written: Program, options: CheckOptions = {}): CheckResult {
+  // A `std` use must name a std module and its declarations
+  // (spec/lang/10-modules.md#use-forms); nothing else is checked without them.
+  const uses = standardUseDiagnostics(written);
+  if (uses.length > 0) return { diagnostics: uses };
   // `@error` is an intrinsic, lowered before any decorator is resolved
   // (spec/lang/14-annotations.md#error-derivation).
   const errors = withErrorDerivation(written);

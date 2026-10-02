@@ -74,9 +74,9 @@ typing/invalid/range-pattern-nonexhaustive.hd	parse reports syntax-error at the 
 typing/invalid/range-pattern-covered.hd	parse reports syntax-error at the first `..`: the prototype has no `..` or `..=` tokens, range expressions, range types, slicing, or range patterns (Range Expressions, Slicing, Range Iteration, Range Patterns)	RANGES
 typing/invalid/range-pattern-empty.hd	parse reports syntax-error at the first `..`: the prototype has no `..` or `..=` tokens, range expressions, range types, slicing, or range patterns (Range Expressions, Slicing, Range Iteration, Range Patterns)	RANGES
 runtime/valid/range-pattern-run.hd	parse reports syntax-error at the first `..`: the prototype has no `..` or `..=` tokens, range expressions, range types, slicing, or range patterns (Range Expressions, Slicing, Range Iteration, Range Patterns)	RANGES
-runtime/valid/list-view-run.hd	check reports unknown-method or unknown-type: the prototype has no List.view or ListView (std Collections, Views)	RANGES
+runtime/valid/list-view-run.hd	check reports unknown-import at `use std.collections.ListView`: the prototype has no List.view or ListView (std Collections, Views)	RANGES
 runtime/panic/list-view-negative.hd	check reports unknown-method or unknown-type: the prototype has no List.view or ListView (std Collections, Views)	RANGES
 runtime/panic/list-view-reversed.hd	check reports unknown-method or unknown-type: the prototype has no List.view or ListView (std Collections, Views)	RANGES
 runtime/panic/list-view-index-out-of-bounds.hd	check reports unknown-method or unknown-type: the prototype has no List.view or ListView (std Collections, Views)	RANGES
 runtime/panic/list-view-invalidated.hd	check reports unknown-method or unknown-type: the prototype has no List.view or ListView (std Collections, Views)	RANGES
-typing/invalid/list-view-assignment.hd	check reports unknown-method or unknown-type: the prototype has no List.view or ListView (std Collections, Views)	RANGES
+typing/invalid/list-view-assignment.hd	check reports unknown-import at `use std.collections.ListView`: the prototype has no List.view or ListView (std Collections, Views)	RANGES

@@ -2457,13 +2457,9 @@ Declarations are module-private by default, and `pub` makes them public. Enum va
 `pub fn main` is the conventional default entry point for an executable package. It takes no source-level parameters. Process arguments, environment, console I/O, and other host services selected by the runtime profile are explicit requirement-row entries:
 
 ```text
-# This example's runtime profile supplies Args and Console.
-use std.host.Args
-
-pub fn main!() -> Result[void, ConsoleError] $ Args + Console:
-    args := $.use(Args)
+pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
-    console.write_line!("starting " + args.program_name())?
+    console.write_line!("starting")?
     .Ok()
 ```
 
@@ -2482,7 +2478,7 @@ rejected in a `defer` suite. Suspending code may also write with
 `$.use(Console).write_line!`, as `main!` does above.
 
 An entry-point row may contain only host capability traits supplied by its
-selected runtime profile, such as `Args` and `Console` above. Application
+selected runtime profile, such as `Console` above. Application
 traits such as `Database` are not injected merely because they appear on
 `main`; bind them with `$.with` inside the entry point.
 

@@ -121,6 +121,10 @@ Compiler structure:
 
 ## Gaps No Fixture Reaches
 
+- **Missing use names**: `module.use.private-or-missing` gives no code, so
+  a use of a missing declaration, as in `use std.text.{nope}` or
+  `use pkg.m.{Nope}`, reports the prototype's own `unknown-import`. A use
+  of a private `lib/std` declaration is accepted.
 - **Shapes** (batch 42): the spec removed `shape`, `shape_of`, and the
   shape types, but `src/checker/shapes.ts` and `lib/std/annotation.hd` still
   implement them.

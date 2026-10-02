@@ -252,6 +252,11 @@ function declaredModule(name: StandardModule): {
   return declared;
 }
 
+/** The names that `lib/std/<module>.hd` declares, or undefined when there is no such file. */
+export function standardDeclarationNames(module: string): readonly string[] | undefined {
+  return isStandardModule(module) ? declaredModule(module).names : undefined;
+}
+
 function standardModule(name: StandardModule): ParsedModule {
   const cached = parsedModules.get(name);
   if (cached) return cached;

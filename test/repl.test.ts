@@ -272,6 +272,21 @@ test("REPL rejects invalid inputs without changing the session", async () => {
   assert.equal((await session.evaluate("x + 1")).value, "2");
 });
 
+test("REPL rejects a use of an unknown std module or name", async () => {
+  const session = new ReplSession();
+  for (const [input, error] of [
+    ["use std.non_existing", "1:1: unknown-module: no std module 'std.non_existing'"],
+    ["use std.non_existing.{x}", "1:1: unknown-module: no std module 'std.non_existing'"],
+    ["use std.text.{nope}", "1:1: unknown-import: module 'std.text' declares no 'nope'"],
+  ]) {
+    const outcome = await session.evaluate(input!);
+    assert.equal(outcome.accepted, false);
+    assert.deepEqual(outcome.errors, [error]);
+  }
+  assert.equal(session.source().includes("use std"), false);
+  assert.equal((await session.evaluate("use std.testing.assert")).accepted, true);
+});
+
 test("REPL value types keep mut access", async () => {
   const session = new ReplSession();
   await session.evaluate("let b: mut List[i32] = [1, 2]");

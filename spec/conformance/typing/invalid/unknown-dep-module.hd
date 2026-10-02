@@ -1,0 +1,7 @@
+# test: a dep use path that names no manifest dependency is an error at the use
+# Spec 10 Use Roots: module.root.dep-prefix (task #179).
+# fixture-package-tree: self-current/src/c.hd
+use dep.missing.{origin}  # diagnostic: unknown-module
+
+pub fn label() -> string:
+    origin()
