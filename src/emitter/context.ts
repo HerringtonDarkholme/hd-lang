@@ -92,7 +92,6 @@ export class EmitterContext {
   protected readonly temporaryTypes: ValueType[] = [];
   protected floatPower = false;
   protected floatRemainder = false;
-  protected floatDisplay = false;
   protected currentRequirements: readonly string[] = [];
   protected readonly callableAdapters = new Map<string, CallableAdapter>();
   protected readonly builtinTraitAdapters = new Map<string, BuiltinTraitAdapter>();
@@ -254,10 +253,6 @@ export class EmitterContext {
 
   get requiresFloatRemainder(): boolean {
     return this.floatRemainder;
-  }
-
-  get requiresFloatDisplay(): boolean {
-    return this.floatDisplay;
   }
 
   protected emitRuntimePanic(name: RuntimePanicName): string {

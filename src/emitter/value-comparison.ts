@@ -218,24 +218,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     ].join("\n");
   }
 
-  protected emitPrimitiveDisplay(operand: string, type: ValueType): string {
-    if (type === "string") return operand;
-    if (["i8", "i16", "i32", "u8", "u16"].includes(type))
-      return `(call $hd.i32_to_string ${operand})`;
-    if (type === "u32") return `(call $hd.i64_to_string (i64.extend_i32_u ${operand}))`;
-    if (type === "i64") return `(call $hd.i64_to_string ${operand})`;
-    if (type === "u64") return `(call $hd.u64_to_string ${operand})`;
-    if (type === "f64" || type === "f32") {
-      this.floatDisplay = true;
-      return `(call $hd.${type}_to_string ${operand})`;
-    }
-    if (type === "char") return `(call $hd.char_to_string ${operand})`;
-    if (type === "bool") {
-      return `(if (result (ref null $hd.bytes)) ${operand} (then (array.new_fixed $hd.bytes 4 (i32.const 116) (i32.const 114) (i32.const 117) (i32.const 101))) (else (array.new_fixed $hd.bytes 5 (i32.const 102) (i32.const 97) (i32.const 108) (i32.const 115) (i32.const 101))))`;
-    }
-    throw new Error(`unsupported Display operand ${type}`);
-  }
-
   protected emitBuiltinTraitDictionary(
     builtin: HirBuiltinTraitImplementation,
     boundExpressions: readonly HirExpression[],
@@ -415,9 +397,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       const self = this.unboxValue(`(local.get $self)`, builtin.targetType);
       const other = () => this.unboxValue(`(local.get $a0)`, builtin.targetType);
       let body: string;
-      if (builtin.kind === "display") {
-        body = this.emitPrimitiveDisplay(self, builtin.targetType);
-      } else if (builtin.kind === "inspectable") {
+      if (builtin.kind === "inspectable") {
         // A nested read passes an i31 receiver, which no erased value is, so
         // an `outerMut` dictionary can tell it apart from `runtime_type`.
         const key = builtin.key

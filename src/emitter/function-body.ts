@@ -212,11 +212,6 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
             this.emitExpression(expression.segments[0]!),
           );
       }
-      case "display":
-        return this.emitPrimitiveDisplay(
-          this.emitExpression(expression.operand),
-          expression.operand.type,
-        );
       case "value-equality":
         return this.emitValueEquality(
           this.emitExpression(expression.left),

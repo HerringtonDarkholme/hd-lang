@@ -529,8 +529,10 @@ test("string interpolation displays built-ins from left to right", async () => {
   const source = conformance("runtime/valid/string-interpolation-built-ins");
   const { instance, compilation } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
-  assert.match(compilation.wat, /call \$hd\.i32_to_string/);
-  assert.match(compilation.wat, /call \$hd\.char_to_string/);
+  // The primitives' `Display` is std hd code (lib/std/format.hd); a `char`'s
+  // text comes from the host.
+  assert.doesNotMatch(compilation.wat, /\$hd\.\w+_to_string/);
+  assert.match(compilation.wat, /import "hd" "host:string_from_scalar"/);
 });
 
 test("strings compare by UTF-8 value order", async () => {

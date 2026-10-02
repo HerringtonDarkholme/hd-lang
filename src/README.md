@@ -401,8 +401,10 @@ listed yet.
   canonical `Display` dispatch for concrete and generic implementations
   (such as `lib/std`'s tuple `Display`, with its bounds' dictionaries), generic bounds,
   dynamic trait values, and the standard `string`, numeric, `bool`, and
-  `char` implementations; an `f32` shows its own shortest round-trip digits
-  through the host's `format_f32`;
+  `char` implementations, which are hd code in `lib/std/format.hd`: an
+  integer's digits come from an hd loop, and a `char`'s and a float's
+  text from the host functions `string_from_scalar`, `format_f64`, and
+  `format_f32`; an `f32` shows its own shortest round-trip digits;
 - `println` with the same display surface, statically requiring a
   lexical `Console` provider. `Console` is a prelude trait with
   `write_line!(mut self, text: string) -> Result[void, ConsoleError]`, so
@@ -634,7 +636,7 @@ else`, `break`, `break value`, and `continue`;
   included). `value::method` evaluates the receiver once and closes over it.
   A called reference is an ordinary call: `value::name(...)` is a method
   call, and `Type::method(receiver, ...)` calls the method on its first
-  argument. `to_string` on a primitive calls its built-in `Display`. A
+  argument. `to_string` on a primitive calls its std `Display`. A
   non-suspending closure shares its enclosing function's generic parameters
   and bounds, and its environment keeps the bound dictionaries after its
   captures, so a `T::method` reference calls through the bound; a
@@ -1243,7 +1245,7 @@ What it provides:
 | `std.resource` | `ResourceError[E]` |
 | `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; the six range types, `Iterable` for `Range`, `RangeFrom`, and `RangeInclusive` of each integer type, and the slicing `Index` implementations for `string` and `List`, one per range type and integer type; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations, and its tuple template (spec/std/ops.md) |
 | `std.function` | the sealed marker trait `Tuple`, which the compiler implements for every tuple type; a `Tuple` bound passes no dictionary. `Fn` and `SuspendFn` have no declaration: the checker rewrites them to the `fn(...)` sugar |
-| `std.format` | the prelude `Display` and `Debug`; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `Map`, `T?`, `Result`; the template of `Debug`; the tuple templates of `Debug` and `Display` |
+| `std.format` | the prelude `Display` and `Debug`; `Display` for `string`, `bool`, `char`, and every number type; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `Map`, `T?`, `Result`; the template of `Debug`; the tuple templates of `Debug` and `Display` |
 | `std.testing` | `assert`, `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`, `RunOutput` and `hd_run!` over `Process`; the case bodies of `it_each`, `it_prop`, and `it_prop_with`; the rest of `std.testing` is checked by the compiler |
 | `std.testing.arbitrary` | `with` and the typed fact type `With[F]`, in `lib/std/arbitrary.hd`, since the prototype has no std submodules |
 
@@ -1282,7 +1284,7 @@ RUNTIME_AND_LIBRARY.md).
    - A **runtime primitive** is a few Wasm instructions over the runtime's
      own value layout, listed in `emitter/intrinsics.ts`: today
      `string_byte_len`, `string_byte_at`, `string_byte_slice`,
-     `char_from_scalar`, `index_out_of_bounds`, `iterator_invalidated`,
+     `char_from_scalar`, `char_scalar`, `index_out_of_bounds`, `iterator_invalidated`,
      `list_version`, the frames `task_race_frame` and `task_all_frame`,
      the test runner's hooks `case_index`, `report_case_count`, and
      `report_timeout`, and `assertion_panic`. `list_version` reads a list's structural-version
@@ -1293,7 +1295,8 @@ RUNTIME_AND_LIBRARY.md).
      `host:<name>` through one generic path. Scalars cross as Wasm numbers,
      and a `string` crosses as a host handle that `emitter/runtime/boundary.wat`
      copies byte by byte. The host looks the name up in
-     `src/host-functions.ts` (today `string_lower`, `string_upper`, and `string_from_scalar`), or
+     `src/host-functions.ts` (today `string_lower`, `string_upper`, `string_from_scalar`,
+     `format_f64`, and `format_f32`), or
      in the runner's `hostFunctions` (`snapshot_file_check`, `src/snapshots.ts`).
 2. **Host capability traits.** A capability is a trait with suspending
    methods (spec/11 and
@@ -1347,12 +1350,14 @@ marks what this refactor removed.
 | Checker | `Duration` for test `timeout` | `std.time` | Done: `case_timeout` in `lib/std/testing.hd` takes the `Duration` (migration M3) |
 | Checker | `ExitCode` and `Termination` for entry results (`standard-traits.ts`, `termination.ts`) | `std.process` | Remains: language hooks that name a std type; the declarations are already hd |
 | Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Done, except `Any` (`std.core`) and `Waker` (`std.task`), which have no `lib/std` file: the rest are hd in `std.cmp`, `std.format`, and `std.iter`, declared when a program mentions them (migration M2) |
-| Emitter | `float.wat` and the `format_f64`, `format_f32`, `pow_f64`, and `rem_f64` imports | float display, `**`, and floating `%` | Remains: operator and interpolation support |
+| HIR | `display`, with the emitter's `emitPrimitiveDisplay`, the built-in `Display` dictionary, four `runtime.wat` digit and `char` helpers, and `float.wat` | `std.format` | Done: `Display` for `string`, `bool`, `char`, and the numbers is hd in `lib/std/format.hd`; a `char`'s and a float's text come from host functions (migration M6) |
+| Emitter | the `pow_f64` and `rem_f64` imports | `**` and floating `%` | Remains: operator support |
 
 Counts: the HIR expression union had 92 kinds, of which 15 were library-
 or capability-specific. The string step removed 5, the `println` step 1,
 the `debug` and `snapshot_file` step 2, the `assert_equal` step 1, and the
-test-runner hooks 3, and `assert` 1, leaving 79 kinds, 2 of them
+test-runner hooks 3, `assert` 1, and the primitive `Display` step 1
+(`display`, not counted among the 15), leaving 78 kinds, 2 of them
 specific: the `std.inspect` row above. No capability has a HIR node now.
 
 ### Console

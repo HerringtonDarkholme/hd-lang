@@ -22,7 +22,11 @@ export const HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = {
   string_upper: (text) => String(text).toUpperCase(),
   // The one-scalar string of a Unicode scalar value, for `\u{...}` in
   // `std.text.process_escapes` (spec/lang/05-expressions.md#prefixed-strings).
+  // A `char`'s `Display` text too (lib/std/format.hd).
   string_from_scalar: (point) => String.fromCodePoint(Number(point)),
+  // A float's `Display` text (spec/lang/04-type-system.md#numeric-display).
+  format_f64: (value) => displayF64(Number(value)),
+  format_f32: (value) => displayF32(Number(value)),
   // A failed `assert_equal` (lib/std/testing.hd) panics with its message
   // (spec/lang/10-modules.md#r-module.testing.assert-equal-debug).
   assertion_failed: (message) => {
@@ -32,6 +36,28 @@ export const HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = {
   // these with its recording draws (src/property-tests.ts).
   ...propertyRun().hostFunctions,
 };
+
+/**
+ * An f32 shows the shortest decimal that rounds back to the same f32, in the
+ * f64 notation (spec/lang/04-type-system.md#numeric-display).
+ */
+function displayF32(value: number): string {
+  if (!Number.isFinite(value)) return displayF64(value);
+  for (let digits = 1; digits <= 9; digits += 1) {
+    const shortest = Number(value.toPrecision(digits));
+    if (Math.fround(shortest) === value) return displayF64(Object.is(value, -0) ? -0 : shortest);
+  }
+  return displayF64(value);
+}
+
+function displayF64(value: number): string {
+  if (Number.isNaN(value)) return "NaN";
+  if (value === Infinity) return "inf";
+  if (value === -Infinity) return "-inf";
+  if (Object.is(value, -0)) return "-0.0";
+  const rendered = value.toString();
+  return !rendered.includes(".") && !rendered.includes("e") ? `${rendered}.0` : rendered;
+}
 
 /** What a built-in host provider may use from the embedder. */
 interface HostProviderContext {

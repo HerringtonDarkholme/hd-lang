@@ -138,18 +138,13 @@ export interface HirTraitDictionaryPlan {
   readonly implementationIndex: number;
   readonly supertraits: readonly HirTraitDictionaryPlan[];
   // Set for a standard-library implementation that has no source `impl`
-  // (Display, Eq, PartialOrd on primitives and built-in composites).
+  // (Eq, PartialOrd on primitives and built-in composites).
   // `implementationIndex` is then -1, and `bounds` holds the dictionaries the
   // strategy's bound dispatches read, renumbered from zero.
   readonly builtin?: HirBuiltinTraitImplementation;
 }
 
 export type HirBuiltinTraitImplementation =
-  | {
-      readonly kind: "display";
-      readonly traitIndex: number;
-      readonly targetType: ValueType;
-    }
   | {
       readonly kind: "equality";
       readonly traitIndex: number;
@@ -481,7 +476,6 @@ export type HirExpression =
       readonly kind: "string-build";
       readonly segments: readonly HirExpression[];
     })
-  | (HirExpressionBase & { readonly kind: "display"; readonly operand: HirExpression })
   | (HirExpressionBase & {
       readonly kind: "value-equality";
       readonly left: HirExpression;

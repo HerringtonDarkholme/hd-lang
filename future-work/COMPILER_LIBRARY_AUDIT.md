@@ -95,8 +95,7 @@ defined in [Classification](#classification).
 | --- | --- | --- | --- | --- |
 | `==` and `<` on `List`, `T?`, `Result`, `Map` as emitter strategies | `emitter/value-comparison.ts` (option, list, map, variant emitters), `checker/context.ts` (`equalityStrategy`, `orderingStrategy`, builtin Eq/Ord plan, `renumberBoundDispatches`), HIR strategy types | 400 | [`expr.eq.std`](../spec/lang/05-expressions.md#r-expr.eq.std), [`expr.ord.std`](../spec/lang/05-expressions.md#r-expr.ord.std): "standard-library implementations" | C |
 | Tuple `==` and `<` strategies | `emitter/value-comparison.ts` (`emitTupleEquality`, `emitTupleOrdering`), checker tuple branches | 82 | `trait.target.tuple.derived` (since retired; now `trait.target.tuple.templates`): intrinsic, every arity | C (no hook if Q3 is B) |
-| Primitive `Display`: integer, `char`, `bool` text | `display` HIR node, `emitPrimitiveDisplay`, `runtime.wat` `i32_to_string`, `i64_to_string`, `u64_to_string`, `char_to_string` | 160 | [`expr.interp.std`](../spec/lang/05-expressions.md#r-expr.interp.std): "the standard library provides" | B |
-| Float text, `**`, float `%` | `runtime/float.wat`, host `format_f64` | 50 | operators and interpolation | A |
+| Float text, `**`, float `%` | host functions `format_f64`, `format_f32`, `pow_f64`, `rem_f64` | 30 | operators and interpolation | A |
 | `FromIterator` for `Map` | `checker/assignability.ts` (`mapCollectionPlan`), `value-comparison.ts` (`emitMapCollection`), HIR `map-collection` | 69 | [Collect Targets](../spec/std/iter.md#collect-targets) | B |
 | `Map` storage, key equality, key kinds | `runtime/map.wat`, `shared.ts` (`mapKeyKind`, `setHashableKeyTypes`) | 233 + 30 | representation intrinsic (Tier Criteria); [`types.map-key.declared-bound`](../spec/lang/04-type-system.md#r-types.map-key.declared-bound) | A; key kinds D |
 | `List` storage, cursors, invalidation | `runtime.wat` vectors, `emitter/iterator.ts`, `checker/iteration.ts` | 439 + 152 | Built-In Collection Iteration (06) | A and D |
@@ -151,7 +150,6 @@ std items by spelling, such as `Some`/`None`/`Ok`/`Err` in patterns and
 
 | Feature | hd to write | Notes |
 | --- | --- | --- |
-| Primitive `Display` | `impl Display for i32` and the other integers, `char`, `bool` in `lib/std/format.hd`, a digit loop over `StringBuilder` | floats keep the host `format_f64` as an `@intrinsic` |
 | `FromIterator` for `Map` | `impl[K < Eq & Hash, V] FromIterator[(K, V)] for Map[K, V]` in `lib/std/iter.hd` | a map literal with a bounded key already uses key kind 3 |
 | `std.structure`, `std.inspect` sources | `lib/std/structure.hd`, `lib/std/inspect.hd` | the loader already joins modules by use; the hidden fields stay |
 
@@ -192,9 +190,8 @@ and the agent tooling. Not audited.
    standard-library implementations compare lists, optionals, results, and
    maps. The emitter inlines them as strategies, so no `impl Eq for
    List[T]` exists for a bound to find through `lib/std`.
-6. **Primitive `Display`.** [`expr.interp.std`](../spec/lang/05-expressions.md#r-expr.interp.std)
-   says the standard library provides it. The checker emits a `display`
-   node and WAT digit loops.
+6. **Primitive `Display`.** Done in M6: `lib/std/format.hd` implements it
+   for `string`, `bool`, `char`, and the numbers.
 7. **`Debug` for built-in types.** Done in M7: the builtin `debug`
    dictionary is gone, and `Map`'s `Debug` is hd.
 
@@ -237,9 +234,8 @@ requires.
 | # | hd to write in `lib/std` | TS to delete | Hook | Fixtures that prove it |
 | --- | --- | --- | --- | --- |
 | M5 | `lib/std/structure.hd`, `lib/std/inspect.hd`, `lib/std/testing/arbitrary.hd` | about 175: `STRUCTURE_SOURCE`, `INSPECT_SOURCE`, `arbitrary-module.ts` | std submodules (20) | `typed-derivation*`, `derive-without-structure-use`, `arbitrary-with-*`, `typeid-*` |
-| M6 | `std.format`: `Display` for the integers, `char`, `bool` | about 160: `display` node, `emitPrimitiveDisplay`, four WAT `*_to_string` | none | `string-interpolation-built-ins`, `interpolation-display-order`, `expression-interpolation` |
 
-Left: M5 and M6 delete about 335 lines of TS. The rows of the done steps
+Left: M5 deletes about 175 lines of TS. The rows of the done steps
 are deleted; the status notes below record how they differed from the
 plan.
 

@@ -1163,12 +1163,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
   }
 }
 
-import {
-  BOUNDARY_RUNTIME_WAT,
-  FLOAT_RUNTIME_WAT,
-  MAP_RUNTIME_WAT,
-  RUNTIME_WAT,
-} from "./runtime/index.ts";
+import { BOUNDARY_RUNTIME_WAT, MAP_RUNTIME_WAT, RUNTIME_WAT } from "./runtime/index.ts";
 
 export function emitWat(program: HirProgram): string {
   const { signatureNames, contextNames } = collectModuleTypes(program);
@@ -1451,19 +1446,13 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
     emitter.requiresFloatRemainder
       ? `  (import "hd" "rem_f64" (func $hd.rem_f64 (param f64 f64) (result f64)))`
       : "",
-    emitter.requiresFloatDisplay
-      ? `  (import "hd" "format_f64" (func $hd.format_f64 (param f64 i32) (result i32)))\n  (import "hd" "format_f32" (func $hd.format_f32 (param f64 i32) (result i32)))`
-      : "",
     hostFunctions.imports,
     `  (import "hd" "panic" (func $hd.panic (param i32)))`,
   ]
     .filter(Boolean)
     .join("\n");
   const start = program.initializer === undefined ? "" : `\n  (start $f${program.initializer})`;
-  const optionalRuntime = [
-    emitter.requiresFloatDisplay ? FLOAT_RUNTIME_WAT : "",
-    hostFunctions.boundary ? BOUNDARY_RUNTIME_WAT : "",
-  ]
+  const optionalRuntime = [hostFunctions.boundary ? BOUNDARY_RUNTIME_WAT : ""]
     .filter(Boolean)
     .map((runtime) => `\n\n${runtime}`)
     .join("");

@@ -234,46 +234,6 @@
       (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
     (i64.sub (i64.const 0) (local.get $value)))
 
-  ;; Base-ten digits of an i64. The magnitude is read as unsigned, so the
-  ;; minimum value's magnitude 2^63 is exact.
-  (func $hd.i64_to_string (param $value i64) (result (ref null $hd.bytes))
-    (local $magnitude i64)
-    (local $remaining i64)
-    (local $negative i32)
-    (local $digits i32)
-    (local $length i32)
-    (local $index i32)
-    (local $result (ref $hd.bytes))
-    (local.set $magnitude (local.get $value))
-    (if (i64.lt_s (local.get $value) (i64.const 0))
-      (then
-        (local.set $negative (i32.const 1))
-        (local.set $magnitude (i64.sub (i64.const 0) (local.get $value)))))
-    (local.set $remaining (local.get $magnitude))
-    (local.set $digits (i32.const 1))
-    (block $counted
-      (loop $count
-        (br_if $counted (i64.lt_u (local.get $remaining) (i64.const 10)))
-        (local.set $remaining (i64.div_u (local.get $remaining) (i64.const 10)))
-        (local.set $digits (i32.add (local.get $digits) (i32.const 1)))
-        (br $count)))
-    (local.set $length (i32.add (local.get $digits) (local.get $negative)))
-    (local.set $index (local.get $length))
-    (local.set $result (array.new_default $hd.bytes (local.get $length)))
-    (local.set $remaining (local.get $magnitude))
-    (block $written
-      (loop $write
-        (local.set $index (i32.sub (local.get $index) (i32.const 1)))
-        (array.set $hd.bytes
-          (local.get $result)
-          (local.get $index)
-          (i32.add (i32.wrap_i64 (i64.rem_u (local.get $remaining) (i64.const 10))) (i32.const 48)))
-        (local.set $remaining (i64.div_u (local.get $remaining) (i64.const 10)))
-        (br_if $write (i32.gt_u (local.get $index) (local.get $negative)))))
-    (if (local.get $negative)
-      (then (array.set $hd.bytes (local.get $result) (i32.const 0) (i32.const 45))))
-    (local.get $result))
-
   ;; Sized integers (src/numeric.ts). An integer of at most 16 bits is an
   ;; i32 whose result is range-checked; u32 is an i32 and u64 an i64, both
   ;; read as unsigned.
@@ -339,26 +299,6 @@
         (if (local.get $exponent)
           (then (local.set $base (call $hd.mul_u64 (local.get $base) (local.get $base)))))
         (br $next)))
-    (local.get $result))
-
-  ;; Base-ten digits of a u64: the high part is its value divided by ten.
-  (func $hd.u64_to_string (param $value i64) (result (ref null $hd.bytes))
-    (local $high (ref null $hd.bytes))
-    (local $result (ref $hd.bytes))
-    (local $length i32)
-    (if (i64.ge_s (local.get $value) (i64.const 0))
-      (then (return (call $hd.i64_to_string (local.get $value)))))
-    (local.set $high (call $hd.i64_to_string (i64.div_u (local.get $value) (i64.const 10))))
-    (local.set $length (array.len (ref.as_non_null (local.get $high))))
-    (local.set $result (array.new_default $hd.bytes (i32.add (local.get $length) (i32.const 1))))
-    (array.copy $hd.bytes $hd.bytes
-      (local.get $result) (i32.const 0)
-      (ref.as_non_null (local.get $high)) (i32.const 0)
-      (local.get $length))
-    (array.set $hd.bytes
-      (local.get $result)
-      (local.get $length)
-      (i32.add (i32.wrap_i64 (i64.rem_u (local.get $value) (i64.const 10))) (i32.const 48)))
     (local.get $result))
 
   (func $hd.shl_i32 (param $value i32) (param $count i32) (result i32)
@@ -445,68 +385,6 @@
         (local.set $index (i32.add (local.get $index) (i32.const 1)))
         (br $copy-right)))
     (local.get $result))
-
-  (func $hd.i32_to_string (param $value i32) (result (ref null $hd.bytes))
-    (local $magnitude i64)
-    (local $remaining i64)
-    (local $negative i32)
-    (local $digits i32)
-    (local $length i32)
-    (local $index i32)
-    (local $result (ref $hd.bytes))
-    (local.set $magnitude (i64.extend_i32_s (local.get $value)))
-    (if (i64.lt_s (local.get $magnitude) (i64.const 0))
-      (then
-        (local.set $negative (i32.const 1))
-        (local.set $magnitude (i64.sub (i64.const 0) (local.get $magnitude)))))
-    (local.set $remaining (local.get $magnitude))
-    (local.set $digits (i32.const 1))
-    (block $counted
-      (loop $count
-        (br_if $counted (i64.lt_u (local.get $remaining) (i64.const 10)))
-        (local.set $remaining (i64.div_u (local.get $remaining) (i64.const 10)))
-        (local.set $digits (i32.add (local.get $digits) (i32.const 1)))
-        (br $count)))
-    (local.set $length (i32.add (local.get $digits) (local.get $negative)))
-    (local.set $index (local.get $length))
-    (local.set $result (array.new_default $hd.bytes (local.get $length)))
-    (local.set $remaining (local.get $magnitude))
-    (block $written
-      (loop $write
-        (local.set $index (i32.sub (local.get $index) (i32.const 1)))
-        (array.set $hd.bytes
-          (local.get $result)
-          (local.get $index)
-          (i32.add (i32.wrap_i64 (i64.rem_u (local.get $remaining) (i64.const 10))) (i32.const 48)))
-        (local.set $remaining (i64.div_u (local.get $remaining) (i64.const 10)))
-        (br_if $write (i32.gt_u (local.get $index) (local.get $negative)))))
-    (if (local.get $negative)
-      (then (array.set $hd.bytes (local.get $result) (i32.const 0) (i32.const 45))))
-    (local.get $result))
-
-  (func $hd.char_to_string (param $value i32) (result (ref null $hd.bytes))
-    (local $result (ref $hd.bytes))
-    (if (result (ref null $hd.bytes)) (i32.le_u (local.get $value) (i32.const 127))
-      (then (array.new_fixed $hd.bytes 1 (local.get $value)))
-      (else
-        (if (result (ref null $hd.bytes)) (i32.le_u (local.get $value) (i32.const 2047))
-          (then
-            (array.new_fixed $hd.bytes 2
-              (i32.or (i32.const 192) (i32.shr_u (local.get $value) (i32.const 6)))
-              (i32.or (i32.const 128) (i32.and (local.get $value) (i32.const 63)))))
-          (else
-            (if (result (ref null $hd.bytes)) (i32.le_u (local.get $value) (i32.const 65535))
-              (then
-                (array.new_fixed $hd.bytes 3
-                  (i32.or (i32.const 224) (i32.shr_u (local.get $value) (i32.const 12)))
-                  (i32.or (i32.const 128) (i32.and (i32.shr_u (local.get $value) (i32.const 6)) (i32.const 63)))
-                  (i32.or (i32.const 128) (i32.and (local.get $value) (i32.const 63)))))
-              (else
-                (array.new_fixed $hd.bytes 4
-                  (i32.or (i32.const 240) (i32.shr_u (local.get $value) (i32.const 18)))
-                  (i32.or (i32.const 128) (i32.and (i32.shr_u (local.get $value) (i32.const 12)) (i32.const 63)))
-                  (i32.or (i32.const 128) (i32.and (i32.shr_u (local.get $value) (i32.const 6)) (i32.const 63)))
-                  (i32.or (i32.const 128) (i32.and (local.get $value) (i32.const 63)))))))))))
 
   (func $hd.string_compare
     (param $left-value (ref null $hd.bytes))

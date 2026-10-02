@@ -117,6 +117,116 @@ impl DebugMap:
     pub fn finish(mut self) -> void:
         self.out.write("}")
 
+# The standard `Display` implementations for `string` and the printable
+# primitives (spec/lang/05-expressions.md#r-expr.interp.std): an integer's
+# decimal digits, with `-` when negative; `true` or `false`; a `char`'s
+# one-scalar string; a float's canonical text, which the host writes
+# (spec/lang/04-type-system.md#numeric-display).
+impl Display for string:
+    fn to_string(self) -> string:
+        self
+
+impl Display for bool:
+    fn to_string(self) -> string:
+        if self: "true" else: "false"
+
+impl Display for char:
+    fn to_string(self) -> string:
+        scalar_text(char_scalar(self))
+
+impl Display for i8:
+    fn to_string(self) -> string:
+        signed_text(self)
+
+impl Display for i16:
+    fn to_string(self) -> string:
+        signed_text(self)
+
+impl Display for i32:
+    fn to_string(self) -> string:
+        signed_text(self)
+
+impl Display for i64:
+    fn to_string(self) -> string:
+        signed_text(self)
+
+impl Display for u8:
+    fn to_string(self) -> string:
+        unsigned_text(self)
+
+impl Display for u16:
+    fn to_string(self) -> string:
+        unsigned_text(self)
+
+impl Display for u32:
+    fn to_string(self) -> string:
+        unsigned_text(self)
+
+impl Display for u64:
+    fn to_string(self) -> string:
+        unsigned_text(self)
+
+impl Display for f32:
+    fn to_string(self) -> string:
+        f32_text(self)
+
+impl Display for f64:
+    fn to_string(self) -> string:
+        f64_text(self)
+
+# A negative value's digits come from negative remainders, so the minimum
+# value is never negated.
+fn signed_text(value: i64) -> string:
+    if value >= 0:
+        return unsigned_text(u64(value))
+    let text = ""
+    let rest = value
+    while rest != 0:
+        text = digit_text(i32(0 - rest % 10)) + text
+        rest = rest / 10
+    "-" + text
+
+fn unsigned_text(value: u64) -> string:
+    let text = digit_text(i32(value % 10))
+    let rest = value / 10
+    while rest != 0:
+        text = digit_text(i32(rest % 10)) + text
+        rest = rest / 10
+    text
+
+fn digit_text(digit: i32) -> string:
+    match digit:
+        0 => "0"
+        1 => "1"
+        2 => "2"
+        3 => "3"
+        4 => "4"
+        5 => "5"
+        6 => "6"
+        7 => "7"
+        8 => "8"
+        _ => "9"
+
+# Primitives. A `char` is its scalar value at run time; the host writes a
+# scalar's UTF-8 text and a float's text. `@intrinsic` is prototype-internal
+# and accepted only in lib/std.
+
+@intrinsic("char_scalar")
+fn char_scalar(value: char) -> i32:
+    panic("intrinsic")
+
+@intrinsic("string_from_scalar")
+fn scalar_text(point: i32) -> string:
+    panic("intrinsic")
+
+@intrinsic("format_f64")
+fn f64_text(value: f64) -> string:
+    panic("intrinsic")
+
+@intrinsic("format_f32")
+fn f32_text(value: f32) -> string:
+    panic("intrinsic")
+
 # The standard `Debug` implementations (spec/lang/09-traits.md#r-trait.debug.std-impls).
 impl Debug for i32:
     fn debug(self, out: mut DebugWriter) -> void:

@@ -11,7 +11,6 @@ import {
   PRIMITIVE_TYPES,
   readonlyType,
 } from "../types.ts";
-import { numericType } from "../numeric.ts";
 import type { MemberCallExpression } from "./expression-calls.ts";
 import {
   genericTypeName,
@@ -101,18 +100,6 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
       receiver,
       expected,
     );
-  }
-
-  /** `to_string` on a primitive, whose `Display` has no source `impl`. */
-  protected primitiveToString(
-    receiver: HirExpression,
-    name: string,
-    span: SourceSpan,
-  ): HirExpression | undefined {
-    const type = readonlyType(receiver.type);
-    if (name !== "to_string") return undefined;
-    if (!numericType(type) && !["bool", "char", "string"].includes(type)) return undefined;
-    return this.displayValue(receiver, span);
   }
 
   protected checkMethodReference(

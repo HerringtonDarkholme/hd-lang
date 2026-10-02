@@ -216,10 +216,6 @@ export abstract class ExpressionCallChecker extends IterationChecker {
             span: expression.span,
           };
     }
-    if (expression.arguments.length === 0) {
-      const display = this.primitiveToString(receiver, methodName, expression.span);
-      if (display) return display;
-    }
     const receiverNominal = nominalGenericParts(readonlyType(receiver.type));
     if (receiverNominal?.name === "List" && expression.callee.name === "len") {
       if (expression.arguments.length !== 0)
@@ -1310,10 +1306,6 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         );
       const receiverSource = expression.arguments[0]!;
       const receiver = this.checkExpression(receiverSource);
-      if (trait.name === "Display" && expression.arguments.length === 1) {
-        const display = this.primitiveToString(receiver, expression.callee.name, expression.span);
-        if (display) return display;
-      }
       const memberExpression: MemberCallExpression = {
         ...expression,
         callee: {

@@ -401,7 +401,6 @@ class SuspensionPlanBuilder {
           cell: cell!,
           value: value!,
         }));
-      case "display":
       case "permission-weaken":
         return this.lowerExpression(
           expression.operand,

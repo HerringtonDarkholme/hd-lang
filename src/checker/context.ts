@@ -938,9 +938,9 @@ export abstract class CheckerContext {
     return undefined;
   }
 
-  // The standard library implements Display for the printable primitives and string, Eq
-  // for primitives and equality-comparable built-in composites, and PartialOrd for ordered
-  // ones (05-expressions.md). With no source `impl`, the dictionary uses the operators' strategies.
+  // The standard library implements Eq for primitives and equality-comparable built-in
+  // composites, and PartialOrd for ordered ones (05-expressions.md). With no source
+  // `impl`, the dictionary uses the operators' strategies.
   protected builtinTraitDictionaryPlan(
     traitIndex: number,
     targetType: ValueType,
@@ -970,11 +970,6 @@ export abstract class CheckerContext {
           )
         : undefined;
       return dictionary && plan(dictionary.builtin, dictionary.bounds);
-    }
-    if (traitName === "Display") {
-      return numericType(type) || ["bool", "char", "string"].includes(type)
-        ? plan({ kind: "display", traitIndex, targetType: type })
-        : undefined;
     }
     if (traitName === "Eq" || traitName === "PartialOrd" || traitName === "Ord") {
       if (traitName === "Ord" && !builtinTotallyOrdered(type)) return undefined;
@@ -1055,9 +1050,6 @@ export abstract class CheckerContext {
   ): HirExpression {
     const type = readonlyType(value.type);
     if (type === "string") return value;
-    if (numericType(type) || type === "bool" || type === "char") {
-      return { kind: "display", operand: value, type: "string", span };
-    }
     const missing = `type '${value.type}' does not implement Display, required by ${origin}`;
     // A program that mentions no `Display` has none declared (spec/lang/10-modules.md#prelude).
     const trait = this.traitTypes.get("Display");
