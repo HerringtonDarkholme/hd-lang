@@ -229,25 +229,34 @@ function parseModule(name: StandardModule, source: string): Program {
 
 const declaredModules = new Map<
   StandardModule,
-  { readonly program: Program; readonly names: readonly string[] }
+  {
+    readonly program: Program;
+    readonly names: readonly string[];
+    readonly publicNames: readonly string[];
+  }
 >();
 
-/** A module's parsed source and the names it declares. */
+/** A module's parsed source, the names it declares, and the ones it declares `pub`. */
 function declaredModule(name: StandardModule): {
   readonly program: Program;
   readonly names: readonly string[];
+  readonly publicNames: readonly string[];
 } {
   const cached = declaredModules.get(name);
   if (cached) return cached;
   const program = parseModule(name, standardSource(name));
-  const names = [
-    ...program.data.map((declaration) => declaration.name),
-    ...program.enums.map((declaration) => declaration.name),
-    ...program.traits.map((declaration) => declaration.name),
-    ...(program.types ?? []).map((declaration) => declaration.name),
-    ...program.functions.map((declaration) => declaration.name),
+  const declarations = [
+    ...program.data,
+    ...program.enums,
+    ...program.traits,
+    ...(program.types ?? []),
+    ...program.functions,
   ];
-  const declared = { program, names };
+  const names = declarations.map((declaration) => declaration.name);
+  const publicNames = declarations
+    .filter((declaration) => declaration.public === true)
+    .map((declaration) => declaration.name);
+  const declared = { program, names, publicNames };
   declaredModules.set(name, declared);
   return declared;
 }
@@ -255,6 +264,11 @@ function declaredModule(name: StandardModule): {
 /** The names that `lib/std/<module>.hd` declares, or undefined when there is no such file. */
 export function standardDeclarationNames(module: string): readonly string[] | undefined {
   return isStandardModule(module) ? declaredModule(module).names : undefined;
+}
+
+/** The names that `lib/std/<module>.hd` declares `pub`, or undefined when there is no such file. */
+export function standardPublicNames(module: string): readonly string[] | undefined {
+  return isStandardModule(module) ? declaredModule(module).publicNames : undefined;
 }
 
 function standardModule(name: StandardModule): ParsedModule {

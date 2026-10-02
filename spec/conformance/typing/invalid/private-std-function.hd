@@ -1,0 +1,6 @@
+# test: a use of a std function that its module does not mark pub is an error at the use
+# Spec 10 Use Forms: module.use.private-or-missing (task #186).
+use std.text.{hex_digit}  # diagnostic: unknown-import
+
+pub fn label() -> string:
+    "label"

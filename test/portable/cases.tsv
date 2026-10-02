@@ -1822,3 +1822,6 @@ typing/invalid/hd-run-requires-process.hd	type
 runtime/valid/unit-pattern-void-success.hd	runtime
 typing/invalid/unit-pattern-non-void.hd	type
 runtime/valid/list-view-to-list-mut.hd	runtime
+typing/invalid/private-std-function.hd	type
+typing/invalid/private-std-type.hd	type
+typing/invalid/private-std-name-in-group.hd	type

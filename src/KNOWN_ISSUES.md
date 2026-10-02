@@ -132,8 +132,6 @@ Compiler structure:
 
 ## Gaps No Fixture Reaches
 
-- **Private use names**: a use of a private `lib/std` declaration is
-  accepted, though `module.use.private-or-missing` makes it an error.
 - **Shapes** (batch 42): the spec removed `shape`, `shape_of`, and the
   shape types, but `src/checker/shapes.ts` and `lib/std/annotation.hd` still
   implement them.

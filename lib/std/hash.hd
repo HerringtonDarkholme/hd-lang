@@ -3,7 +3,6 @@
 # a string its UTF-8 bytes, an integer its little-endian bytes at its own
 # width, and a `bool` one byte. The specification names no standard hasher
 # yet, so none is declared here.
-use std.text.{byte_at, byte_len}
 use std.function.Tuple
 use std.structure.{Structure, Walker, Variant, Field}
 
@@ -15,12 +14,7 @@ pub trait Hash:
 
 impl Hash for string:
     fn hash(self, state: mut Hasher) -> void:
-        let bytes: mut List[u8] = []
-        let index = 0
-        while index < byte_len(self):
-            bytes.append(u8(byte_at(self, index)))
-            index = index + 1
-        state.write(bytes)
+        state.write(self.to_utf8())
 
 # A `char` hashes as the one-scalar string of its UTF-8 bytes.
 impl Hash for char:

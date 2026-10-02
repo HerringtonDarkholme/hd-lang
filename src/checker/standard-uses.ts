@@ -1,13 +1,13 @@
 import type { Program } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
-import { standardDeclarationNames } from "./standard-library.ts";
+import { standardDeclarationNames, standardPublicNames } from "./standard-library.ts";
 import { STANDARD_MODULES } from "./standard-sources.ts";
 
 // Checks a program's `std` uses before anything joins the standard library:
 // a use path must name a std module (`unknown-module`), and each name it
-// selects must be declared there (spec/lang/10-modules.md#r-module.use.private-or-missing).
-// The specification gives no code for a missing name; the prototype uses
-// `unknown-import`, as the package linker does for `pkg` uses (package.ts).
+// selects must be declared there and `pub` (spec/lang/10-modules.md#r-module.use.private-or-missing).
+// That rule names `unknown-import` for a missing name and no code for a
+// private one, so a private name is `unknown-import` too.
 
 /** The names that the compiler, not `lib/std`, provides in a std module. */
 const COMPILER_NAMES: ReadonlyMap<string, readonly string[]> = new Map([
@@ -52,16 +52,17 @@ const MODULE_FILES: ReadonlyMap<string, string | undefined> = new Map<string, st
   ["testing.arbitrary", "arbitrary"],
 ]);
 
-function declares(module: string, name: string): boolean {
-  if (MODULE_FILES.has(`${module}.${name}`)) return true;
+/** Whether a std module declares `name` publicly, privately, or not at all. */
+function declares(module: string, name: string): "public" | "private" | undefined {
+  if (MODULE_FILES.has(`${module}.${name}`)) return "public";
+  if ((COMPILER_NAMES.get(module) ?? []).includes(name)) return "public";
   const file = MODULE_FILES.get(module);
-  return (
-    (file !== undefined && (standardDeclarationNames(file) ?? []).includes(name)) ||
-    (COMPILER_NAMES.get(module) ?? []).includes(name)
-  );
+  if (file === undefined) return undefined;
+  if ((standardPublicNames(file) ?? []).includes(name)) return "public";
+  return (standardDeclarationNames(file) ?? []).includes(name) ? "private" : undefined;
 }
 
-/** Diagnostics for `std` uses that name no std module or no declaration of one. */
+/** Diagnostics for `std` uses that name no std module, or no public declaration of one. */
 export function standardUseDiagnostics(program: Program): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   for (const use of program.uses) {
@@ -87,13 +88,18 @@ export function standardUseDiagnostics(program: Program): Diagnostic[] {
       });
       continue;
     }
-    for (const { name } of use.names)
-      if (!declares(module, name))
+    for (const { name } of use.names) {
+      const declared = declares(module, name);
+      if (declared !== "public")
         diagnostics.push({
           code: "unknown-import",
-          message: `module 'std.${module}' declares no '${name}'`,
+          message:
+            declared === "private"
+              ? `'${name}' is private to module 'std.${module}'`
+              : `module 'std.${module}' declares no '${name}'`,
           span: use.span,
         });
+    }
   }
   return diagnostics;
 }
