@@ -140,7 +140,10 @@ the spec, and it adds exactly what the decision says, no more.
     | the website or playground code | also `pnpm run website:e2e` |
 
     `--changed` runs only the conformance cases whose fixture differs from
-    `origin/main`, so a spec-only pass never reruns the whole suite. While
+    `origin/main`, so a spec-only pass never reruns the whole suite. Run
+    `git fetch origin` and rebase on `origin/main` first: against a stale
+    `origin/main`, `--changed` also selects every fixture other agents
+    changed since. While
     iterating on prototype code, run one phase
     (`test/run-portable.ts --phase parse|type|runtime`); run the full
     `pnpm run check` once before the push, not after every edit or rebase

@@ -142,6 +142,9 @@ blocks.forEach((m, i) => {
   test/run-portable.ts --changed`, and `pnpm run website:build`, not the full
   `pnpm run check`. The full check is for changes to `src/`, `lib/std/`,
   `test/`, or `bin/`, and runs once before the push.
+- Before any check, run `git fetch origin` and rebase on `origin/main`. A
+  stale `origin/main` makes `--changed` select other agents' fixtures too,
+  and the push would be rejected anyway.
 - Never read, print, or copy credential files: `~/.npmrc`, `~/.netrc`,
   `~/.git-credentials`, `~/.ssh/*`, `.env` files, `~/.config/gh/*`, or any
   token store.

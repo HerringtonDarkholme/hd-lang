@@ -46,7 +46,8 @@ same named host profile to check and execution.
 
 Run the portable behavior suite with `pnpm run test:portable`. Add `--changed [REVISION]` to run only the conformance cases whose
 fixture differs from that revision (default `origin/main`), or `--phase
-parse|type|runtime` to run one phase.
+parse|type|runtime` to run one phase. Fetch first (`git fetch origin`):
+`--changed` compares with the local `origin/main` ref.
 [`portable/README.md`](portable/README.md) covers running it against
 another implementation, selecting a tier, and the `HD_TEST_JOBS` setting.
 
