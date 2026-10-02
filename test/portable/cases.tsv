@@ -1836,3 +1836,4 @@ runtime/valid/prelude-hash-method-direct.hd	runtime
 runtime/valid/prelude-eq-method-direct.hd	runtime
 runtime/valid/prelude-partial-cmp-method-direct.hd	runtime
 runtime/valid/prelude-cmp-method-direct.hd	runtime
+runtime/valid/multiply-by-zero-64.hd	runtime

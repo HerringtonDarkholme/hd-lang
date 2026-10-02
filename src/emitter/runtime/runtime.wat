@@ -208,10 +208,12 @@
         (i64.eq (local.get $left) (i64.const -9223372036854775808))))
       (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
     (local.set $product (i64.mul (local.get $left) (local.get $right)))
-    (if (i32.and
-      (i64.ne (local.get $left) (i64.const 0))
-      (i64.ne (i64.div_s (local.get $product) (local.get $left)) (local.get $right)))
-      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    ;; `i32.and` evaluates both operands, so a zero `left` must not reach the
+    ;; division: test it in its own `if`.
+    (if (i64.ne (local.get $left) (i64.const 0))
+      (then
+        (if (i64.ne (i64.div_s (local.get $product) (local.get $left)) (local.get $right))
+          (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))))
     (local.get $product))
 
   (func $hd.pow_i64 (param $base i64) (param $exponent i32) (result i64)
@@ -281,10 +283,12 @@
   (func $hd.mul_u64 (param $left i64) (param $right i64) (result i64)
     (local $product i64)
     (local.set $product (i64.mul (local.get $left) (local.get $right)))
-    (if (i32.and
-      (i64.ne (local.get $left) (i64.const 0))
-      (i64.ne (i64.div_u (local.get $product) (local.get $left)) (local.get $right)))
-      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    ;; `i32.and` evaluates both operands, so a zero `left` must not reach the
+    ;; division: test it in its own `if`.
+    (if (i64.ne (local.get $left) (i64.const 0))
+      (then
+        (if (i64.ne (i64.div_u (local.get $product) (local.get $left)) (local.get $right))
+          (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))))
     (local.get $product))
 
   (func $hd.pow_u64 (param $base i64) (param $exponent i32) (result i64)

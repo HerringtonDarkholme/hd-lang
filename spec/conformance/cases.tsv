@@ -1910,3 +1910,4 @@ runtime/valid/primitive-float-cmp-method-direct.hd	runtime	accept	lang/05-expres
 runtime/valid/primitive-char-cmp-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.ord.std.char-scalar
 runtime/valid/primitive-string-cmp-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.ord.std.string-bytes
 runtime/valid/primitive-bool-eq-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.eq.std
+runtime/valid/multiply-by-zero-64.hd	runtime	accept	lang/05-expressions.md#r-expr.arith.int.checked

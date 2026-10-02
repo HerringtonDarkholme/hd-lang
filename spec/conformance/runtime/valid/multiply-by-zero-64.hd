@@ -1,0 +1,12 @@
+# test: a 64-bit product with a zero operand is zero, not an overflow or a trap
+# expect: test
+use std.testing.assert_equal
+
+tests:
+    it("zero times anything is zero"):
+        let a: u64 = 0
+        let b: i64 = 0
+        assert_equal(a * u64(5), u64(0), reason="u64 zero on the left")
+        assert_equal(u64(5) * a, u64(0), reason="u64 zero on the right")
+        assert_equal(b * i64(-7), i64(0), reason="i64 zero on the left")
+        assert_equal(i64(-7) * b, i64(0), reason="i64 zero on the right")
