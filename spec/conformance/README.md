@@ -506,6 +506,9 @@ IMPL FILE
   `hd check` does not check test code, while `hd test` always compiles it.
 - The working directory is not part of the contract.
 - stdin is closed. stdout and stderr are both read.
+- A runner may run the command lines in its own process through an adapter
+  ([Adapters](../tools/README.md#adapters)). The adapter reports the exit
+  status and output that the spawned command would.
 
 | Action  | Options the runner may pass                                     | Used for |
 | ------- | --------------------------------------------------------------- | -------- |

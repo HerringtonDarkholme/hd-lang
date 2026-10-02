@@ -97,7 +97,6 @@ Runtime cost:
   pending.
 - **F-557**: every module embeds the whole runtime library, used or not.
 - **F-558**: strings cross the host boundary one byte per import call.
-- **F-560**: every CLI command loads binaryen, about 60% of a `parse`.
 - **F-604**: checking nested unannotated closures doubles in time per
   nesting level.
 

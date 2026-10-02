@@ -2,10 +2,13 @@
 
 Language behavior is tested through the implementation-neutral fixtures in
 `../spec/conformance/`. `portable/cases.tsv` selects the part implemented by
-the MVP, and `run-portable.ts` executes those cases only through the public
-`hd parse`, `hd check`, and `hd test` commands of the conformance command
-contract (`hd parse` is that contract's spelling of `hd debug parse`). The
-same fixtures can therefore be used by another compiler without importing
+the MVP, and `run-portable.ts` executes those cases only through the
+`hd parse`, `hd check`, and `hd test` command lines of the conformance
+command contract (`hd parse` is that contract's spelling of `hd debug parse`).
+By default it runs them in-process: `hd-adapter.ts` hands each command line
+to a pool of worker threads that import `src/cli.ts` once, so no case starts
+a process. `--compiler` or `HD_TEST_COMMAND` spawns another implementation
+instead, so the same fixtures serve another compiler without importing
 TypeScript modules.
 
 The conformance fixture format and the command contract are defined in
@@ -19,7 +22,9 @@ fixtures. Every promotable language fixture has moved into
 
 The TypeScript tests cover implementation details that are intentionally not
 part of the language contract: AST and HIR shape, emitted WAT, Wasm host calls,
-trace and replay plumbing, and the packaged CLI adapter. When a TypeScript test
+trace and replay plumbing, the packaged CLI, and the in-process adapter
+(`hd-adapter.test.ts` checks that it reports what a spawned `hd` reports, and
+that a hung case times out). When a TypeScript test
 finds a language-level regression, add or extend a `.hd` conformance fixture;
 keep a TS assertion only when it verifies one of those implementation details.
 
@@ -48,8 +53,9 @@ Run the portable behavior suite with `pnpm run test:portable`. Add `--changed [R
 fixture differs from that revision (default `origin/main`), or `--phase
 parse|type|runtime` to run one phase. Fetch first (`git fetch origin`):
 `--changed` compares with the local `origin/main` ref.
-[`portable/README.md`](portable/README.md) covers running it against
-another implementation, selecting a tier, and the `HD_TEST_JOBS` setting.
+[`portable/README.md`](portable/README.md) covers the in-process adapter,
+running it against another implementation, selecting a tier, and the
+`HD_TEST_JOBS` setting.
 
 The specification grammar oracle is also TypeScript and parses fixtures in a
 worker-thread pool. It shares `HD_TEST_JOBS` by default; set `HD_SPEC_JOBS` to

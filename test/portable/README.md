@@ -11,11 +11,20 @@ Run the suite against the repository compiler:
 pnpm run test:portable
 ```
 
+This runs the repository compiler in-process. The conformance runner loads
+[`../hd-adapter.ts`](../hd-adapter.ts) through its `--adapter` option
+([Adapters](../../spec/tools/README.md#adapters)). The adapter passes each
+command line to `main` in `src/cli.ts` on a pool of worker threads, and
+captures the exit status, stdout, and stderr that a spawned `hd` would
+report. A case that runs past the 10-second limit has its worker terminated
+and replaced. The `test/fixtures` cases use the same adapter.
+
 Run it against another implementation that provides compatible `parse`,
-`check`, and `test` commands:
+`check`, and `test` commands; it is spawned once per command:
 
 ```sh
 HD_TEST_COMMAND="other-hd" node --experimental-strip-types test/run-portable.ts
+node --experimental-strip-types test/run-portable.ts --compiler "node --experimental-strip-types bin/hd.js"
 ```
 
 The commands use exit status for success, rejection, and runtime panic.
@@ -34,4 +43,5 @@ pnpm run test:portable --tier language
 ```
 
 Independent cases run concurrently. Set `HD_TEST_JOBS` or pass `--jobs` to
-change the default of up to eight compiler processes.
+change the default of min(8, CPUs) workers, or compiler processes when
+spawning.

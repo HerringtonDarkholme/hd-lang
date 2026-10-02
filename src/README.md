@@ -48,6 +48,15 @@ pnpm run check
 `hd COMMAND --help`) prints one command's usage and flags. `cli-args.ts`
 holds the command table.
 
+Each command is one function in `commands/`, such as `checkCommand` or
+`testCommand`. It takes typed arguments and a `CommandIo` sink for its
+stdout and stderr lines, and returns the exit status. No command writes to
+the process's streams or sets its exit code. `cli.ts` is the thin wrapper:
+it parses the arguments, calls the one function they name with the
+process's streams, and returns the status for `bin/hd.js` to set. The
+in-process conformance adapter calls the same `main` with a buffering sink
+([`../test/portable/README.md`](../test/portable/README.md)).
+
 ```text
 hd build [--wat] FILE
 hd run   [--entry NAME] FILE
@@ -1367,12 +1376,20 @@ What remains:
   sources from the top-level `lib/std/`; `checker/standard-library.ts` joins
   them into a program.
 - `suspension.ts` lowers suspending HIR into explicit resumable control flow.
-- `wasm.ts` parses, validates, and emits Wasm with pinned Binaryen.
-- `compiler.ts` exposes the in-process compiler API.
+- `wasm.ts` parses, validates, and emits Wasm with pinned Binaryen. It
+  imports Binaryen on the first assembly, which costs about 200 ms.
+- `compiler.ts` exposes the in-process compiler API. `compileToWat` is
+  synchronous and stops at WAT: it parses, checks, lowers to HIR, and emits
+  WAT, and never loads Binaryen. `compileToWasm` is asynchronous and adds
+  the Wasm assembly; `instantiate` builds on it. No setup call comes first.
 - `package.ts` links the modules of a multi-file package into one program.
-- `cli.ts` implements the current command-line interface; `cli-args.ts`
-  holds its command table, flag parsing, and help text; `cli-queries.ts`
-  implements `explain`, `def`, and `doc`.
+- `cli.ts` turns a command line into one call to a command function;
+  `cli-args.ts` holds the command table, flag parsing, and help text.
+- `commands/` holds the command functions, one per command, and exposes
+  them from `commands/index.ts`: `compile.ts` has `parse`, `check`,
+  `debug hir`, and `build`; `execute.ts` has `run` and `test`;
+  `queries.ts` has `explain`, `def`, and `doc`; `help.ts` has `help` and
+  `repl`. `source.ts` finds and links a FILE's package for them.
 - `diagnostic-report.ts` writes diagnostics as text or JSON Lines and derives
   suggested fixes.
 - `spec-index.ts` indexes rule IDs, diagnostic codes, and fixtures from the
@@ -1381,8 +1398,9 @@ What remains:
 - `toolchain-gate.ts` proves the required Wasm GC operations independently of
   the language frontend.
 - `../test/portable/cases.tsv` selects portable `.hd` conformance fixtures;
-  `../test/run-portable.ts` runs them through `hd parse`, `hd check`, and
-  `hd test` without importing compiler internals.
+  `../test/run-portable.ts` runs them through the `hd parse`, `hd check`,
+  and `hd test` command lines. By default `../test/hd-adapter.ts` runs those
+  in-process on worker threads; `--compiler` spawns a command instead.
 - `../test/cli.test.ts` exercises the packaged CLI surface end to end,
   `../test/cli-commands.test.ts` its help output and flag errors, and
   `../test/agent-tooling.test.ts` the JSON diagnostics, `explain`, `def`, and
