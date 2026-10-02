@@ -89,3 +89,9 @@ typing/valid/derived-arbitrary-non-inspectable-member.hd	the derived source's `p
 typing/invalid/race-empty-list-literal.hd	race! accepts `tasks=[]`; only a call with no task argument is argument-count (req.combinator.race-empty-literal)	RACE-EMPTY
 runtime/panic/race-empty-at-run-time.hd	race! over an empty task list never completes, so the test hangs instead of panicking (req.combinator.race-empty-run)	RACE-EMPTY
 runtime/valid/script-empty-run.hd	the runner's last step is `IMPL FILE`, which the prototype rejects with usage text and exit 2: it has no `hd FILE` command yet, only `hd run FILE` (cli.file.run)	CLI-ENTRY
+typing/invalid/unconstrained-impl-parameter.hd	an impl parameter that appears only in a bound is accepted (trait.overlap.constrained-head)	TYPE-GAPS
+runtime/valid/gadt-existential-evidence.hd	GADT variant results (13-gadts.md) are not implemented: a variant with its own generic parameters is a syntax error	F-250
+typing/invalid/supertrait-impl-bounds.hd	a generic impl whose bounds do not prove its supertrait is accepted (trait.super.impl-bounds)	TYPE-GAPS
+typing/valid/bound-implies-supertrait.hd	a T < Child is not accepted where T < Parent is required (trait.bound.supertraits)	TYPE-GAPS
+typing/invalid/requirement-key-not-dynamically-safe.hd	a requirement key naming a trait with an associated function is accepted (req.key.dynamically-safe)	TYPE-GAPS
+typing/valid/any-void-never.hd	a void value is not assignable to Any (types.any.void-never)	TYPE-GAPS

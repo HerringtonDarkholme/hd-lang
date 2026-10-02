@@ -1,0 +1,15 @@
+# test: a mut self call through a readonly edge is mutable-receiver-required
+# Spec 04 Mutation Checks: types.path.mutation.receiver (owner decision TY-28, batch 51b, 2026-10-02).
+
+data Child:
+    name: string
+
+impl Child:
+    fn rename(mut self, name: string) -> void:
+        self.name = name
+
+data Parent:
+    child: Child
+
+fn invalid(parent: mut Parent) -> void:
+    parent.child.rename("new")  # diagnostic: mutable-receiver-required

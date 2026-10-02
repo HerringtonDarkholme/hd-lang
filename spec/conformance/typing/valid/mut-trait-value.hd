@@ -1,0 +1,13 @@
+# test: a mut trait value is built from a mut value whose type implements the trait
+# Spec 04 Assignability And Coercion: types.assign.trait-value.mut (owner decision TY-20b, batch 51b, 2026-10-02).
+
+data User:
+    name: string
+
+impl Display for User:
+    fn to_string(self) -> string:
+        self.name
+
+fn edit(mutable_user: mut User) -> void:
+    let edit: mut Display = mutable_user
+    let shown: Display = edit

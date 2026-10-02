@@ -1,0 +1,15 @@
+# test: void and never satisfy Any
+# Spec 04 Any: types.any.void-never (owner decision TY-31, batch 51b, 2026-10-02).
+
+fn log() -> void:
+    pass
+
+fn keep[T < Any](value: T) -> i32:
+    0
+
+fn erase() -> void:
+    let x: Any = log()
+    _ := keep(log())
+
+fn stop() -> i32:
+    keep(panic("stop"))

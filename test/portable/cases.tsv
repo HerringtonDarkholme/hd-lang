@@ -1752,6 +1752,12 @@ runtime/valid/tuple-rest-map-key.hd	runtime
 typing/invalid/list-float-map-key.hd	type
 runtime/valid/derived-default-data.hd	runtime
 typing/invalid/derived-default-member-not-default.hd	type
+typing/invalid/derive-beside-written-impl.hd	type
+runtime/valid/mut-trait-value-from-mut.hd	runtime
+typing/valid/mut-trait-value.hd	type
+typing/valid/lct-drops-never.hd	type
+typing/valid/mutable-access-bound.hd	type
+typing/invalid/readonly-edge-mut-self-call.hd	type
 typing/invalid/unknown-std-module.hd	type
 typing/invalid/unknown-std-module-grouped.hd	type
 typing/invalid/unknown-pkg-module.hd	type

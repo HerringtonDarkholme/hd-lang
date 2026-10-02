@@ -641,6 +641,21 @@ r[types.assign] An expression of type `S` is assignable to a location of type `T
 7. r[types.assign.supertrait] `S` is a dynamic child-trait value whose trait has `T` as a direct or transitive supertrait.
 8. r[types.assign.optional] A value of `T` is injected into `T?`. The injection adds one layer only, so a `T` is not injected into `T??`.
 9. r[types.assign.row-subsumption] `S` and `T` are function types, `T`'s row entails every key of `S`'s row, and `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
+10. r[types.assign.never] `S` is `never`, as [`types.never.assignable`](#r-types.never.assignable) states.
+11. r[types.assign.trait-value.mut] `S` is `mut U`, `T` is `mut Trait`, and `U` meets `types.assign.trait-value` for `Trait`. This builds a mutable dynamic trait value, as in `let edit: mut Display = mutable_user`.
+
+```text
+data User:
+    name: string
+
+impl Display for User:
+    fn to_string(self) -> string:
+        self.name
+
+fn edit(mutable_user: mut User) -> void:
+    let edit: mut Display = mutable_user
+    let shown: Display = edit
+```
 
 See also: [Inspectable Types](09-traits.md#inspectable-types).
 
@@ -889,13 +904,21 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 
 #### Mutation Checks
 
+An expression has **mutable access** when one of these holds:
+
+| Rule | The expression | Example |
+| --- | --- | --- |
+| r[types.path.access.mut-type] Mutable type | has a type `mut U` | `account.profile` below |
+| r[types.path.access.mut-bound] Mutable bound | has a type parameter's type, and the parameter is bounded by `mut Trait` or `mut Any` | `value` in `clear_value[T < mut Clear](value: T)` |
+| r[types.path.access.mut-self] Mutable receiver | is `self` inside a `mut self` method | `self` in `fn clear(mut self)` |
+
 1. r[types.path.mutation] A mutation needs mutable access on exactly one expression: the one it acts on.
-2. r[types.path.mutation.forms] Each of these requires `e` to have type `mut T`:
+2. r[types.path.mutation.requires-access] Each of these requires mutable access to `e`:
    - reassigning `e.field`;
    - replacing an element with `e[i] = value`;
-   - calling a container-mutating method on `e`;
-   - calling a `mut self` method on `e`.
+   - calling a `mut self` method on `e`, including a container-mutating method such as `append`, and a method promoted from an embedded field.
 3. r[types.path.mutation.only] Nothing else in the path is checked: the access type of `e` already records every permission removed on the way to it.
+4. r[types.path.mutation.receiver] A `mut self` call on an `e` without mutable access is an error, whatever the path to `e`, including a promoted call. Error: `mutable-receiver-required`.
 
 ```text
 data Account:
@@ -905,11 +928,12 @@ let mut account = Account { profile: profile }
 account.profile.display_name = "Ada"   # account.profile has type mut Profile
 ```
 
-When `e` is readonly, the diagnostic names why:
+When the `e` of a field store or an element replacement lacks mutable
+access, the diagnostic names why:
 
-4. r[types.path.readonly-edge] A mutation through an `e` that is a field read through a readonly edge, `field: U`, is an error. Error: `readonly-edge`.
-5. r[types.path.readonly-root] A mutation through any other readonly `e` is an error. Error: `readonly-root`.
-6. r[types.path.readonly-root.cases] The `readonly-root` cases are these:
+5. r[types.path.store.readonly-edge] A store through an `e` that is a field read through a readonly edge, `field: U`, is an error. Error: `readonly-edge`.
+6. r[types.path.store.readonly-root] A store through any other `e` without mutable access is an error. Error: `readonly-root`.
+7. r[types.path.readonly-root.cases] The `readonly-root` cases are these:
    - a readonly binding, parameter, `self`, call result, element, or unwrapped value;
    - a mutable edge or embedded field read through a readonly value;
    - a generic field whose type argument is readonly.
@@ -918,12 +942,17 @@ When `e` is readonly, the diagnostic names why:
 data Child:
     name: string
 
+impl Child:
+    fn rename(mut self, name: string) -> void:
+        self.name = name
+
 data Parent:
     child: Child
 
 fn invalid(parent: mut Parent, child: Child) -> void:
-    parent.child.name = "new"  # error: readonly-edge
-    child.name = "new"         # error: readonly-root
+    parent.child.name = "new"      # error: readonly-edge
+    child.name = "new"             # error: readonly-root
+    parent.child.rename("new")     # error: mutable-receiver-required
 ```
 
 #### Field Stores
@@ -1279,10 +1308,11 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
 1. r[types.any] `Any` is the built-in universal empty trait.
 2. r[types.any.all] Every value type, including an optional type, satisfies `Any` automatically.
-3. r[types.any.erase] As a value type, `Any` erases the concrete type.
-4. r[types.any.mut] `mut Trait` and `mut Any` preserve mutable access to an erased composite root.
-5. r[types.any.one-way] `Any` erasure is one-way.
-6. r[types.any.inspectable] A value erased to the sealed trait `std.inspect.Inspectable` instead keeps a runtime record of its concrete type, which `downcast` compares exactly.
+3. r[types.any.void-never] `void` and `never` satisfy `Any` too. So `let x: Any = log()` is valid when `log` returns `void`.
+4. r[types.any.erase] As a value type, `Any` erases the concrete type.
+5. r[types.any.mut] `mut Trait` and `mut Any` preserve mutable access to an erased composite root.
+6. r[types.any.one-way] `Any` erasure is one-way.
+7. r[types.any.inspectable] A value erased to the sealed trait `std.inspect.Inspectable` instead keeps a runtime record of its concrete type, which `downcast` compares exactly.
 
 See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
@@ -1383,6 +1413,19 @@ r[types.lct.sites] Several constructs infer one type from several values when no
 3. r[types.lct.contributors] Numeric widening, permission weakening, and declared readonly variance may contribute.
 4. r[types.lct.no-combine] Least-common-type inference never combines permission weakening with a variance step for the same candidate conversion.
 5. r[types.lct.row-union-every-site] At every construct in the table, function values with different rows are first widened to the union of their rows ([Row Union In Literals](11-requirements-and-suspension.md#row-union-in-literals)).
+6. r[types.lct.never.dropped] The least common type first drops every value of type `never`, then joins the rest. So `if ok: 1 else: return .None` has type `i32`.
+7. r[types.lct.never.all] When every value has type `never`, the least common type is `never`.
+
+```text
+fn first(values: List[i32]) -> i32?:
+    let ok = values.len() > 0
+    value := if ok: values[0] else: return .None
+    let found: i32? = value
+    found
+
+fn fail(message: string) -> i32:
+    if message == "": panic("empty") else: panic(message)
+```
 
 See also: a generic call that solves one type parameter from several
 arguments uses a narrower join, permission weakening only

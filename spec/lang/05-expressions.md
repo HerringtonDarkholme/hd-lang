@@ -1120,7 +1120,7 @@ fn invalid(count: Cell[i32]) -> void:
 > [`types.bind.short`](04-type-system.md#r-types.bind.short): it reads
 > `view()` but does not store. A cell reached through a readonly edge,
 > `field: Cell[i32]`, gives `readonly-edge` instead, as
-> [`types.path.readonly-edge`](04-type-system.md#r-types.path.readonly-edge) states.
+> [`types.path.store.readonly-edge`](04-type-system.md#r-types.path.store.readonly-edge) states.
 
 > **Why.** Keyed reads have one syntax, `[]`, so `Apply` and `Update` take
 > no keys, and a grid keeps `g[(0, 1)]`. `update` takes `mut self`, so a

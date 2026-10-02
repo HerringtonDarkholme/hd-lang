@@ -459,6 +459,7 @@ See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-alias
 3. r[req.key.inspectable] A trait that is `std.inspect.Inspectable` or has it as a direct or transitive supertrait is never a requirement key.
 4. r[req.key.inspectable.error] Writing one as a key, in a requirement clause, a provider scope, or any other place a key is named, is an error reported on the key. Error: `inspectable-requirement`.
 5. r[req.key.inspectable.bound] Such a trait remains valid as a bound and as a value type.
+6. r[req.key.dynamically-safe] A requirement key must name a [dynamically safe](09-traits.md#dynamic-safety) trait, since its provider is a trait value. A key that names any other trait is an error, reported on the requirement row. Error: `trait-not-dynamically-safe`.
 
 ```text
 use std.inspect.Inspectable
@@ -467,6 +468,12 @@ trait Storage < Inspectable:
     fn get(self, key: string) -> string?
 
 fn load() -> void $ Storage:  # error: inspectable-requirement
+    pass
+
+trait Factory:
+    fn create() -> Self
+
+fn build() -> void $ Factory:  # error: trait-not-dynamically-safe
     pass
 ```
 

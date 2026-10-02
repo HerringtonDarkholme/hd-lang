@@ -1,0 +1,21 @@
+# test: a value of a parameter bounded by mut Trait, and self in a mut self method, have mutable access
+# Spec 04 Mutation Checks: types.path.access.mut-bound and .access.mut-self (owner decision TY-22, batch 51b, 2026-10-02).
+
+trait Clear:
+    fn clear(mut self) -> void
+
+    fn reset(mut self) -> void:
+        self.clear()
+
+data Counter:
+    value: i32
+
+impl Clear for Counter:
+    fn clear(mut self) -> void:
+        self.value = 0
+
+fn clear_value[T < mut Clear](value: T) -> void:
+    value.clear()
+
+fn clear_any[T < mut Clear](value: T) -> void:
+    value.reset()

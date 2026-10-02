@@ -113,8 +113,9 @@ trait Formattable < Display:
 1. r[trait.super.bound] A trait may require another trait using a supertrait bound.
 2. r[trait.super.satisfy] An implementation of `Formattable` must also satisfy `Display`.
 3. r[trait.super.missing] An `impl Child for X` for which `X` has no implementation of a supertrait of `Child` is an error. Error: `missing-supertrait-implementation`.
-4. r[trait.super.acyclic] The supertrait graph must be acyclic: a direct or indirect cycle is a compile-time error. Error: `supertrait-cycle`.
-5. r[trait.super.cycle-report] An indirect cycle is reported once, on the member of the cycle that appears first. Members are ordered first by module identity, then by source position within the module.
+4. r[trait.super.impl-bounds] The check is made at the implementation, under its own bounds: they must prove every supertrait for its target. With `impl[T < Eq] Parent for Box[T]`, an `impl[T] Child for Box[T]` is an error. Error: `missing-supertrait-implementation`.
+5. r[trait.super.acyclic] The supertrait graph must be acyclic: a direct or indirect cycle is a compile-time error. Error: `supertrait-cycle`.
+6. r[trait.super.cycle-report] An indirect cycle is reported once, on the member of the cycle that appears first. Members are ordered first by module identity, then by source position within the module.
 
 ```text
 trait Parent
@@ -126,6 +127,14 @@ data Item: pass
 
 impl Child for Item:  # error: missing-supertrait-implementation
     fn value(self) -> i32: 42
+
+data Box[T]:
+    value: T
+
+impl[T < Eq] Parent for Box[T]
+
+impl[T] Child for Box[T]:  # error: missing-supertrait-implementation
+    fn value(self) -> i32: 0
 
 trait Loop < Loop:  # error: supertrait-cycle
     fn step(self) -> void
@@ -250,6 +259,8 @@ trait Hash:
 13. r[trait.derive.field-missing-trait] A field that a derived `Eq`, `PartialOrd`, `Ord`, or `Hash` compares, orders, or hashes must implement the derived trait. A field that does not is an error at the field, whose message names the trait and the field. Error: `derive-field-missing-trait`.
 14. r[trait.derive.field-missing-trait.template] For these four traits, this error replaces the template's `member-not-derivable` of [`annot.walker.obligation.error`](14-annotations.md#r-annot.walker.obligation.error).
 15. r[trait.derive.bound-unmet] A use of a derived implementation whose type argument does not meet a bound that `trait.derive.bounds` added is an error at the use, as `==` on two `Box[fn() -> void]` values is. Error: `missing-derived-bound`.
+16. r[trait.derive.owner] A derived implementation is owned by the module that declares its target, whichever module declares the trait.
+17. r[trait.derive.beside-written] Deriving a trait for a type that also has a hand-written implementation of that trait is an error, reported on the `@derive` line. Error: `overlapping-impl`.
 
 ```text
 data Opaque: pass
@@ -264,6 +275,16 @@ data Box[T]:
 
 fn same(left: Box[fn() -> void], right: Box[fn() -> void]) -> bool:
     left == right  # error: missing-derived-bound
+```
+
+```text
+@derive(Eq)  # error: overlapping-impl
+data Badge:
+    text: string
+
+impl Eq for Badge:
+    fn eq(self, other: Badge) -> bool:
+        self.text == other.text
 ```
 
 > **Note.** What each derived implementation compares, orders, or hashes
@@ -771,7 +792,7 @@ impl[T < Display] Printable for Box[T]:
 ```
 
 1. r[trait.overlap.generic] Implementations may be generic and state their bounds inline in the generic parameter list.
-2. r[trait.overlap.constrained] All generic implementation parameters must be constrained by the implemented trait, target type, or a bound reachable from them.
+2. r[trait.overlap.constrained-head] Every type parameter of a generic implementation must appear in the implemented trait's arguments or in the target type. A parameter that appears only in a bound, as `T` in `impl[T < Display, I < Holder[T]] Summary for Feed[I]`, is an error. Error: `unconstrained-impl-parameter`.
 3. r[trait.overlap.definition] Two implementations overlap when they implement the same trait and their full heads unify.
 4. r[trait.overlap.unify] Heads unify when, after each implementation's parameters are renamed apart, one substitution makes both their trait arguments and their complete target types equal.
 5. r[trait.overlap.heads-only] Overlap is decided from the implementation heads alone.
@@ -798,6 +819,21 @@ trait Marker
 
 impl[T < Display] Marker for Box[T]
 impl Marker for Box[Plain]  # error: overlapping-impl
+```
+
+```text
+trait Holder[T]:
+    fn get(self) -> T
+
+trait Summary:
+    fn summary(self) -> string
+
+data Feed[I]:
+    items: I
+
+impl[T < Display, I < Holder[T]] Summary for Feed[I]:  # error: unconstrained-impl-parameter
+    fn summary(self) -> string:
+        "items"
 ```
 
 > **Note.** Because bounds are ignored, an implementation added later in a
@@ -1050,13 +1086,14 @@ fn audit[T < Display & Named](value: T) -> string:
 3. r[trait.bound.repeat] A bound may list the same trait more than once, as in `T < Display & Display`. The repetition adds no requirement and is not diagnosed.
 4. r[trait.bound.mut] `T < mut Trait` additionally requires `T` to be a mutable-root type.
 5. r[trait.bound.mut-any] `T < mut Any` requires mutable-root access without a type-specific behavior requirement.
-6. r[trait.bound.unsatisfied] A type argument, explicit or inferred, that does not implement a trait its parameter's bound requires is an error. Error: `unsatisfied-trait-bound`.
-7. r[trait.bound.unsatisfied.cases] This includes a non-reference type for `T < AnyRef`, a reference type for `T < AnyVal`, and a readonly argument for `T < mut Trait`.
-8. r[trait.bound.depth] A bound required directly by a use has depth 1. A bound of the implementation that proves a bound of depth `n` has depth `n + 1`.
-9. r[trait.bound.depth.limit] A proof that needs a bound of depth greater than 64 is an error, whether or not a deeper proof would succeed. Error: `trait-resolution-depth`.
-10. r[trait.bound.depth.fixed] The limit is fixed by this specification; no package, module, or compiler option changes it.
-11. r[trait.bound.representation] The compiler may monomorphize static calls, share one body among instantiations, or use another representation.
-12. r[trait.bound.representation.semantics] The chosen representation must preserve the observable semantics.
+6. r[trait.bound.supertraits] A bound implies a bound on each of its trait's transitive supertraits. Inside `fn has_child[T < Child]`, a `T` value may be passed where `T < Parent` is required.
+7. r[trait.bound.unsatisfied] A type argument, explicit or inferred, that does not implement a trait its parameter's bound requires is an error. Error: `unsatisfied-trait-bound`.
+8. r[trait.bound.unsatisfied.cases] This includes a non-reference type for `T < AnyRef`, a reference type for `T < AnyVal`, and a readonly argument for `T < mut Trait`.
+9. r[trait.bound.depth] A bound required directly by a use has depth 1. A bound of the implementation that proves a bound of depth `n` has depth `n + 1`.
+10. r[trait.bound.depth.limit] A proof that needs a bound of depth greater than 64 is an error, whether or not a deeper proof would succeed. Error: `trait-resolution-depth`.
+11. r[trait.bound.depth.fixed] The limit is fixed by this specification; no package, module, or compiler option changes it.
+12. r[trait.bound.representation] The compiler may monomorphize static calls, share one body among instantiations, or use another representation.
+13. r[trait.bound.representation.semantics] The chosen representation must preserve the observable semantics.
 
 ```text
 trait Clear:
@@ -1075,6 +1112,20 @@ fn clear_value[T < mut Clear](value: T) -> void:
 fn reject_readonly() -> void:
     counter := Counter { value: 42 }
     clear_value(counter)  # error: unsatisfied-trait-bound
+```
+
+```text
+trait Parent:
+    fn parent(self) -> i32
+
+trait Child < Parent:
+    fn child(self) -> i32
+
+fn has_parent[T < Parent](value: T) -> i32:
+    value.parent()
+
+fn has_child[T < Child](value: T) -> i32:
+    has_parent(value) + value.child()
 ```
 
 > **Why.** A fixed limit makes every implementation accept the same programs,
@@ -1369,10 +1420,11 @@ See also: [Runtime Type Identity](#runtime-type-identity).
 
 1. r[trait.any.universal] `Any` is the universal empty trait.
 2. r[trait.any.all] Every value type, including an optional type, implements `Any` automatically.
-3. r[trait.any.erases] As a value type, `Any` erases the concrete type and exposes no type-specific methods.
-4. r[trait.any.optional] An optional value erases to `Any` like any other enum value.
-5. r[trait.any.none] A bare `.None` still needs an expected optional type. `let value: Any = .None` is an error, while `let value: Any? = .None` is valid. Error: `missing-contextual-enum-type`.
-6. r[trait.any.mut] `mut Any` preserves mutable access to an erased composite value.
+3. r[trait.any.void-never] `void` and `never` implement `Any` as well, by [`types.any.void-never`](04-type-system.md#r-types.any.void-never).
+4. r[trait.any.erases] As a value type, `Any` erases the concrete type and exposes no type-specific methods.
+5. r[trait.any.optional] An optional value erases to `Any` like any other enum value.
+6. r[trait.any.none] A bare `.None` still needs an expected optional type. `let value: Any = .None` is an error, while `let value: Any? = .None` is valid. Error: `missing-contextual-enum-type`.
+7. r[trait.any.mut] `mut Any` preserves mutable access to an erased composite value.
 
 ```text
 let invalid: Any = .None  # error: missing-contextual-enum-type

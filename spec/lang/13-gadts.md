@@ -162,6 +162,20 @@ For each variant, the compiler must verify each of these requirements:
 1. r[gadt.runtime.compile-time] Refinements are compile-time facts.
 2. r[gadt.runtime.tag] Runtime enum values still carry their ordinary variant tag and payload.
 3. r[gadt.runtime.erased] The backend need not preserve erased type arguments.
+4. r[gadt.runtime.evidence] Constructing a variant whose existential parameter has bounds stores the evidence for those bounds in the value, as a trait value stores its dispatch metadata.
+5. r[gadt.runtime.evidence.match] An arm that matches the variant uses that stored evidence for every call through the existential parameter's bounds.
+
+```text
+enum Shown:
+    Item[U < Display](value: U) -> Shown
+
+fn show(shown: Shown) -> string:
+    match shown:
+        Shown.Item(value) => value.to_string()
+
+fn make() -> string:
+    show(Shown.Item(42))
+```
 
 ## Refinement Algorithm
 

@@ -49,6 +49,7 @@ for the error-code revamp, task #101, which may merge codes.
 | VIEW-CODE | batch 49 | The decision names no panic code for using an invalidated `ListView`. | `iterator-invalidated` ([`std-collections.view.invalid-use`](../spec/std/collections.md#r-std-collections.view.invalid-use)): the view checks the same structural-version counter as a list iterator, as Java's `subList` throws the same exception as its iterator. **Recommendation:** keep it, or rename the category `collection-invalidated` in the revamp. |
 | VA-unbounded-code | batch 31a | An unbounded `Args` used as `Fn`'s inputs needs a code. | `generic-kind-mismatch`, as a non-tuple there already is, rather than `unsatisfied-trait-bound`. **Recommendation:** keep it; one rule covers both. |
 | K1-code | batch 43 | The decision says a generic `find::[M]()` requires `M < Inspectable`, but names no code. | `unsatisfied-trait-bound` ([`annot.structure.find-key`](../spec/lang/14-annotations.md#r-annot.structure.find-key)), as for any type argument that fails a bound. **Recommendation:** keep it. |
+| TY-29 | type audit | `trait-method-visibility`, `local-impl-nonlocal-pair`, `missing-partial-eq`, `missing-partial-ord`, `duplicate-annotation-impl`, and `overlapping-annotation-impl` appear in no chapter. | Settle each in the error-code revamp, task #101: give it a rule or merge it. |
 | DEFAULT-CODE | batch 51 | The decision names no code for zero or several `@default` variants. | A new code, `invalid-default-variant` ([`std-ops.default.derive.one-variant`](../spec/std/ops.md#r-std-ops.default.derive.one-variant)), reported on the `@derive` line or the second `@default`. |
 | RACE-PANIC | batch 51 | The decision leaves the panic code of a `race!` over a list that is empty at run time to the agent. | `explicit-panic` ([`req.combinator.race-empty-run`](../spec/lang/11-requirements-and-suspension.md#r-req.combinator.race-empty-run)), as for `take` with a negative count ([`std-iter.adapter.take.negative`](../spec/std/iter.md#r-std-iter.adapter.take.negative)). |
 
@@ -71,28 +72,13 @@ fn sign(n: i32) -> string:
 
 ### Type-Rule Gaps
 
-The type audit left these points open. Each is a gap in chapters 04, 09,
-11, 12, or 13; nothing below is decided. TQ-14 is decided and needs no
-change, and is listed so the owner can close it.
+Applying the type audit's answers in batch 51b left these points open.
+The specification applies the reading in the "Today" column.
 
-| # | Question | **Recommendation** |
-| --- | --- | --- |
-| TQ-14 | Decided: assignability stays single-step, so `let wide: i64? = small_i8` and passing a `User` to a `Display?` parameter need explicit conversions. [`types.assign`](../spec/lang/04-type-system.md#r-types.assign) applies one rule at a time. Is that wording enough? | Yes; close it with no change. |
-| TY-04 | An impl parameter that occurs in neither the trait arguments nor the target, as `T` in `impl[T < Display, I < mut Iterator[T]] Summary for I`, lets one impl apply twice to one type. Is that an error? | Yes, a new `unconstrained-impl-parameter`, as Rust's E0207. |
-| TY-05 | A match arm of a GADT variant with a bounded existential, `Item[U < Display](value: U) -> Shown`, calls `Display` on `U`, but chapter 13 says a value carries only its tag and payload. Where does the evidence come from? | Construction stores the evidence for the variant's bounds in the value. |
-| TY-07 | `impl[T < Eq] Parent for Box[T]` and `impl[T] Child for Box[T]` make `Box[fn() -> void]` a `Child` but not a `Parent`. Is that checked at the impl or at a use? | At the impl: its own bounds must prove every supertrait (`missing-supertrait-implementation`). |
-| TY-08 | Inside `fn has_child[T < Child]`, may `T` be passed where `T < Parent` is required? Chapter 09 only says the supertrait's methods are found. | Yes: a bound implies each transitive supertrait bound. |
-| TY-15 | May a requirement key name a trait that is not dynamically safe, such as one whose method returns `Self::Item`? | No: `trait-not-dynamically-safe`, reported at the row. |
-| TY-17 | May an enum derive `Eq` or an ordering when a GADT variant has an existential parameter, as `Wrapped[U < Eq](value: U) -> Cell`? Two values may hold different `U`. | No for `Eq` and ordering; `Hash` only when every existential field is `Hash`-bounded. |
-| TY-18 | Which module owns a derived impl, and what does a derivation beside a written impl of the same trait report? | The declaration's module; the pair is `overlapping-impl`. |
-| TY-20a | The assignability list in chapter 04 omits `never`, though [`types.never.assignable`](../spec/lang/04-type-system.md#r-types.never.assignable) makes it assignable to every type. Should the list name it? | Yes, as one more rule. |
-| TY-20b | May a `mut` trait value be built, as in `let edit: mut Display = mutable_user`? [`types.assign.trait-value`](../spec/lang/04-type-system.md#r-types.assign.trait-value) is silent. | Yes: the same rule, applied to the mutable view. |
-| TY-21 | What is the least common type of `if ok: 1 else: return .None`, where one operand is `never`? | Drop `never` operands first; if all are `never`, the result is `never`. |
-| TY-22 | Is `value.clear()` allowed on `value: T` with `T < mut Clear`, or on `Self` inside a `mut self` method? Mutable Paths covers only `mut U` types. | Yes: define "mutable access" once, covering both. |
-| TY-23 | What do a bound on a pack, `Ts... < Display`, and an impl over a pack tuple, `impl[Ts... < Display] Display for (Ts...)`, mean? Packs are deferred, so this waits for them. | One obligation and one dictionary per element; a pack tuple head matches every arity. |
-| TY-28 | The Mutable Paths prose gives `parent.child.rename("new")` on a readonly root `readonly-root`, while nine fixtures expect `mutable-receiver-required`. Which is right, and which code does a promoted `mut self` call get? | `mutable-receiver-required` for any `mut self` call without mutable access, including through promotion; align the prose. |
-| TY-29 | `trait-method-visibility`, `local-impl-nonlocal-pair`, `missing-partial-eq`, `missing-partial-ord`, `duplicate-annotation-impl`, and `overlapping-annotation-impl` appear in no chapter. | Settle each in the error-code revamp, task #101: give it a rule or merge it. |
-| TY-31 | Do `void` and `never` satisfy `Any`? Chapter 04 says every value type does. | No: neither is a value type. |
+| # | Question | Today | **Recommendation** |
+| --- | --- | --- | --- |
+| TY-04-bind | May an associated-type binding constrain an impl parameter, as `T` in `impl[T, I < Store[Item = T]] Summary for Feed[I]`? Rust's E0207 accepts a parameter bound that way. | No: `T` appears in neither the trait arguments nor the target, so the impl is `unconstrained-impl-parameter` ([`trait.overlap.constrained-head`](../spec/lang/09-traits.md#r-trait.overlap.constrained-head)). | Accept a parameter that an associated-type binding of a constrained parameter fixes, as Rust does. |
+| TY-17-gadt | The decision allows a derived `Hash` on an enum whose existential GADT variant has `Hash`-bounded fields. But every derivation on a GADT enum is `gadt-derivation` ([`annot.block.gadt`](../spec/lang/14-annotations.md#r-annot.block.gadt)), so the `Eq` and ordering part already holds and the `Hash` part conflicts. | Unchanged: no derivation on a GADT enum, `Hash` included. | Keep `gadt-derivation` for every trait until templates can see existential parameters; reopen `Hash` then. |
 
 ### Ideas Noted For Later
 

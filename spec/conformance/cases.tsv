@@ -1846,3 +1846,15 @@ typing/valid/derived-arbitrary-non-inspectable-member.hd	type	accept	std/testing
 typing/invalid/race-empty-list-literal.hd	type	reject:argument-count	lang/11-requirements-and-suspension.md#r-req.combinator.race-empty-literal
 runtime/panic/race-empty-at-run-time.hd	runtime	panic:explicit-panic	lang/11-requirements-and-suspension.md#r-req.combinator.race-empty-run
 runtime/valid/script-empty-run.hd	runtime	accept	lang/10-modules.md#r-module.init.script-empty
+typing/invalid/unconstrained-impl-parameter.hd	type	reject:unconstrained-impl-parameter	lang/09-traits.md#r-trait.overlap.constrained-head
+runtime/valid/gadt-existential-evidence.hd	runtime	accept	lang/13-gadts.md#r-gadt.runtime.evidence
+typing/invalid/supertrait-impl-bounds.hd	type	reject:missing-supertrait-implementation	lang/09-traits.md#r-trait.super.impl-bounds
+typing/valid/bound-implies-supertrait.hd	type	accept	lang/09-traits.md#r-trait.bound.supertraits
+typing/invalid/requirement-key-not-dynamically-safe.hd	type	reject:trait-not-dynamically-safe	lang/11-requirements-and-suspension.md#r-req.key.dynamically-safe
+typing/invalid/derive-beside-written-impl.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.derive.beside-written
+runtime/valid/mut-trait-value-from-mut.hd	runtime	accept	lang/04-type-system.md#r-types.assign.trait-value.mut
+typing/valid/lct-drops-never.hd	type	accept	lang/04-type-system.md#r-types.lct.never.dropped
+typing/valid/any-void-never.hd	type	accept	lang/04-type-system.md#r-types.any.void-never
+typing/valid/mutable-access-bound.hd	type	accept	lang/04-type-system.md#r-types.path.access.mut-bound
+typing/invalid/readonly-edge-mut-self-call.hd	type	reject:mutable-receiver-required	lang/04-type-system.md#r-types.path.mutation.receiver
+typing/valid/mut-trait-value.hd	type	accept	lang/04-type-system.md#r-types.assign.trait-value.mut

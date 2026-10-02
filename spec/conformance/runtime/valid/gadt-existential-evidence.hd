@@ -1,0 +1,15 @@
+# test: a GADT variant with a bounded existential stores the bound's evidence, and its arm uses it
+# Spec 13 Runtime Representation: gadt.runtime.evidence and .evidence.match (owner decision TY-05, batch 51b, 2026-10-02).
+use std.testing.assert_equal
+
+enum Shown:
+    Item[U < Display](value: U) -> Shown
+
+fn show(shown: Shown) -> string:
+    match shown:
+        Shown.Item(value) => value.to_string()
+
+tests:
+    it("each value keeps its own Display"):
+        assert_equal(show(Shown.Item(42)), "42", reason="an i32 payload")
+        assert_equal(show(Shown.Item("hi")), "hi", reason="a string payload")

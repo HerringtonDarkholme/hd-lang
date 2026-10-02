@@ -1,0 +1,15 @@
+# test: an impl type parameter in neither the trait arguments nor the target is an error
+# Spec 09 Overlap: trait.overlap.constrained-head (owner decision TY-04, batch 51b, 2026-10-02).
+
+trait Holder[T]:
+    fn get(self) -> T
+
+trait Summary:
+    fn summary(self) -> string
+
+data Feed[I]:
+    items: I
+
+impl[T < Display, I < Holder[T]] Summary for Feed[I]:  # diagnostic: unconstrained-impl-parameter
+    fn summary(self) -> string:
+        "items"

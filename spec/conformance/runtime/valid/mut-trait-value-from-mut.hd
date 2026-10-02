@@ -1,0 +1,28 @@
+# test: a mutable trait value is built from a mutable value of a type that implements the trait
+# Spec 04 Assignability And Coercion: types.assign.trait-value.mut (owner decision TY-20b, batch 51b, 2026-10-02).
+use std.testing.assert_equal
+
+trait Counter:
+    fn count(self) -> i32
+    fn bump(mut self) -> void
+
+data Clicks:
+    value: i32
+
+impl Counter for Clicks:
+    fn count(self) -> i32:
+        self.value
+
+    fn bump(mut self) -> void:
+        self.value = self.value + 1
+
+fn bump_twice(counter: mut Counter) -> void:
+    counter.bump()
+    counter.bump()
+
+tests:
+    it("the trait value mutates the shared value"):
+        let mut clicks = Clicks { value: 0 }
+        let edit: mut Counter = clicks
+        bump_twice(edit)
+        assert_equal(clicks.value, 2, reason="mutation through the trait value")

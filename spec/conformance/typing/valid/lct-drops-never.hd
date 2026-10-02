@@ -1,0 +1,11 @@
+# test: the least common type drops never operands, and is never when every operand is never
+# Spec 04 Least Common Type: types.lct.never.dropped and .never.all (owner decision TY-21, batch 51b, 2026-10-02).
+
+fn first(values: List[i32]) -> i32?:
+    let ok = values.len() > 0
+    value := if ok: values[0] else: return .None
+    let found: i32? = value
+    found
+
+fn fail(message: string) -> i32:
+    if message == "": panic("empty") else: panic(message)

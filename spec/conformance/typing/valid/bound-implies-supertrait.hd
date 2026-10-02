@@ -1,0 +1,20 @@
+# test: a bound implies a bound on each transitive supertrait
+# Spec 09 Generic Bounds And Static Dispatch: trait.bound.supertraits (owner decision TY-08, batch 51b, 2026-10-02).
+
+trait Root:
+    fn root(self) -> i32
+
+trait Parent < Root:
+    fn parent(self) -> i32
+
+trait Child < Parent:
+    fn child(self) -> i32
+
+fn has_root[T < Root](value: T) -> i32:
+    value.root()
+
+fn has_parent[T < Parent](value: T) -> i32:
+    value.parent()
+
+fn has_child[T < Child](value: T) -> i32:
+    has_parent(value) + has_root(value) + value.child()

@@ -1,0 +1,15 @@
+# test: an implementation's own bounds must prove each supertrait for its target
+# Spec 09 Supertraits: trait.super.impl-bounds (owner decision TY-07, batch 51b, 2026-10-02).
+
+trait Parent
+
+trait Child < Parent:
+    fn value(self) -> i32
+
+data Box[T]:
+    value: T
+
+impl[T < Eq] Parent for Box[T]
+
+impl[T] Child for Box[T]:  # diagnostic: missing-supertrait-implementation
+    fn value(self) -> i32: 0
