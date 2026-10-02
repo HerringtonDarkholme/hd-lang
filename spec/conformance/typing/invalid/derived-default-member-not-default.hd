@@ -1,5 +1,5 @@
 # test: a member whose type has no Default makes the type not derivable
-# std Ops, Derived Default: std-ops.default.derive.member-bound (owner decision Q6-default-derive, batch 51, 2026-10-02).
+# std Ops, Derived Default: std-ops.default.derive.member-bound.undeclared (owner decisions Q6-default-derive, batch 51, and DEFAULT-FIELD-bound, batch 59).
 use std.ops.Default
 
 data Secret:

@@ -65,3 +65,6 @@ typing/invalid/hd-run-outside-integration.hd	check reports missing-requirement f
 typing/valid/any-void-never.hd	a void value is not assignable to Any, though void is the tuple () (types.any.all)	TYPE-GAPS
 typing/valid/void-unit-alias.hd	the prototype keeps void apart from the empty tuple (), so a () value or (void, i32) is rejected where void is written (types.void)	VOID-UNIT
 typing/valid/typed-fact-pattern-mut-field.hd	check exits 1: the prototype accepts only a trivial pattern, one of the fact type's own type parameters, so it reports type-mismatch at the `@annotate` decorator (Member-Typed Facts, annot.typed-fact.infer.weaken)	FACT-PATTERN
+runtime/valid/derived-default-declared-no-bound.hd	check reports member-not-derivable: the std.ops template's member[F < Default] bound covers a member that declares a default (std Ops, Derived Default)	DEFAULT-FIELD
+typing/valid/handle-fact-pattern.hd	check exits 1: the prototype accepts only a trivial pattern, so it reports type-mismatch at the @annotate decorator, and h.fact::[D]() with a bare D is not inferred (Handles, annot.handle.fact.pattern)	FACT-PATTERN
+typing/invalid/handle-fact-pattern-mismatch.hd	check reports type-mismatch on the wrong line: the prototype accepts only a trivial pattern, so it reports type-mismatch at the @annotate decorator (Handles, annot.handle.fact.pattern.mismatch)	FACT-PATTERN

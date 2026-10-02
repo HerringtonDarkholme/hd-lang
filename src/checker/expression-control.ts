@@ -763,9 +763,10 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
               ? { kind: "binding" as const, name, span: arm.pattern.span }
               : { kind: "wildcard" as const, span: arm.pattern.span },
           );
-        // A `void` success has one payload, `()`, which the prototype
-        // matches only with `_` (04-type-system.md#r-types.result.unit-ok).
+        // A `void` success has one payload, `()`, which `_` or the unit
+        // pattern `()` matches (04-type-system.md#r-types.result.unit-pattern).
         const voidSuccess = ok && payloadType === "void";
+        this.requireUnitPayload(payloadPatterns[0], payloadType);
         if (
           payloadPatterns.length !== 1 ||
           (voidSuccess && payloadPatterns[0]?.kind !== "wildcard")
@@ -805,6 +806,8 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         }
         if (!guarded && !payloadRefutable) context.covered.add(tag);
       } else if (arm.pattern.kind === "wildcard" || arm.pattern.kind === "binding") {
+        // A top-level `()` arm needs a `void` subject, which this prototype
+        // cannot match (`unsupported-match-subject`), so it needs no check here.
         const bindingName = arm.pattern.kind === "binding" ? arm.pattern.name : undefined;
         if (context.optional !== undefined && (bindingName === "Some" || bindingName === "None")) {
           this.fail(

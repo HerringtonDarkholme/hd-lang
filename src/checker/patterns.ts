@@ -386,6 +386,18 @@ export abstract class PatternChecker extends CallChecker {
       );
   }
 
+  /** The unit pattern `()` matches only `void`, the type of `()` (06-control-flow.md#r-flow.match.unit.type). */
+  protected requireUnitPattern(type: ValueType, span: SourceSpan): void {
+    const plain = readonlyType(type);
+    if (plain !== "void" && plain !== "()")
+      this.fail("type-mismatch", `the pattern '()' matches only void, not '${type}'`, span);
+  }
+
+  /** A void success's payload `()` matches `_` or `()` (04-type-system.md#r-types.result.unit-pattern); any other pattern passes. */
+  protected requireUnitPayload(pattern: Pattern | undefined, type: ValueType): void {
+    if (pattern?.kind === "wildcard" && pattern.unit) this.requireUnitPattern(type, pattern.span);
+  }
+
   protected checkNestedPattern(
     pattern: Pattern,
     type: ValueType,
@@ -394,7 +406,10 @@ export abstract class PatternChecker extends CallChecker {
     tests: Array<NonNullable<HirMatchArm["tests"]>[number]>,
   ): boolean {
     this.rejectBareCallPattern(pattern);
-    if (pattern.kind === "wildcard") return true;
+    if (pattern.kind === "wildcard") {
+      if (pattern.unit) this.requireUnitPattern(type, pattern.span);
+      return true;
+    }
     if (pattern.kind === "binding") {
       bindings.push({
         local: this.addPatternLocal(pattern.name, type, pattern.span),

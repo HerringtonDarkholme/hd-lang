@@ -1327,6 +1327,9 @@ export abstract class ExpressionParser extends RangeParser {
       return { kind: "character", value: literal.value as string, span: literal.span };
     }
     if (this.matchText("(")) {
+      // `()` is the unit pattern, irrefutable for `void` (02-grammar.md#r-grammar.pattern.unit).
+      if (this.matchText(")"))
+        return { kind: "wildcard", unit: true, span: { start, end: this.peek(-1).span.end } };
       // `tuple_pattern` needs a comma: `(p,)` or `(p, q)`; its last element
       // may be a spread pattern `xs...` or `_...` (02-grammar.md#patterns).
       const elements = [this.parsePattern()];

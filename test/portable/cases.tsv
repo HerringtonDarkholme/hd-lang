@@ -1817,3 +1817,6 @@ typing/invalid/row-slot-bare-function-type.hd	type
 typing/invalid/row-slot-bare-explicit-argument.hd	type
 runtime/valid/process-scripted-provider.hd	runtime
 typing/invalid/hd-run-requires-process.hd	type
+runtime/valid/unit-pattern-void-success.hd	runtime
+typing/invalid/unit-pattern-non-void.hd	type
+runtime/valid/list-view-to-list-mut.hd	runtime

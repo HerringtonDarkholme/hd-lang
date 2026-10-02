@@ -1,0 +1,12 @@
+# test: h.fact::[D]() on a handle whose F does not fit D's pattern is an error
+use std.annotation.annotate
+use std.structure.Field
+
+@annotate::[List[T]](.Field)
+data MaxLen[T]:
+    limit: i32
+
+fn limit_of[S](h: Field[S, i32]) -> i32:
+    match h.fact::[MaxLen]():  # diagnostic: type-mismatch
+        .Some(fact) => fact.limit
+        .None => -1

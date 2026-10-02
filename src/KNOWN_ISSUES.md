@@ -11,8 +11,8 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-02 the suite has
-1,884 cases: 1,818 selected in `test/portable/cases.tsv` and 66 known
-failures, 60 language tier and 6 stdlib tier.
+1,890 cases: 1,821 selected in `test/portable/cases.tsv` and 69 known
+failures, 62 language tier and 7 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -30,9 +30,10 @@ failures, 60 language tier and 6 stdlib tier.
 | ROOTS | 2 | `src/lib.hd` is not the root module, and `src/main.hd` can be used |
 | TASK-PROGRAMS | 1 | integration test modules are linked as one program |
 | FOLDER-SELF | 1 | `x.hd` is not in folder `x` with its child modules |
-| FACT-PATTERN | 9 | a typed fact's `@annotate` argument must be one of its type parameters |
+| FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
 | TYPE-GAPS | 8 | batch 51 inference codes and batch 51b type rules are not checked |
 | DERIVE-DEFAULT | 3 | no `@default` marker or count check for derived `Default` |
+| DEFAULT-FIELD | 1 | derived `Default` requires `Default` of a member that declares a default |
 | RACE-EMPTY | 2 | an empty `race!` task list is neither rejected nor a panic |
 | CLI-57 | 2 | the test runner binds no `Process`, and `hd_run!` has no integration-only check |
 | VOID-UNIT | 1 | `void` is kept apart from the empty tuple `()` |
@@ -127,7 +128,8 @@ Compiler structure:
 | CLI-53 | Batch 53 CLI rules: the prototype's `hd` has none of `--` program arguments, exit status 101, JSON lines with a summary record, `-p`, `--filter`, `--deny-skipped`, stdin as a program, the workspace search from a member, the `hd new --app` and `--lib` templates, or the executable, task, and test-root layout errors. Most have no fixture format. |
 | CLI-57 | Batch 57 CLI rules: the prototype has none of `hd check --all`, the unlisted-member error, `exclude`, `-p` inside a member, a failing `--filter` on a FILE, the package REPL without `src/lib.hd`, `--format json` with its named fields on any command, or the `.gitignore` of `hd new`. `hd_run!` is plain hd over `Process` in `lib/std/testing.hd`, but `hd test` binds no `Process` for an integration test, and no check rejects `hd_run!` outside one. |
 | VOID-UNIT | Batch 52: `void` is an alias for `()`. The prototype keeps a separate `void` type, so `let u: void = ()`, a `()` result for `-> void`, and `(void, i32)` are rejected. A void success takes only the literal `()`, as in `.Ok(())`, not another `void` expression such as `.Ok(log())`. |
-| FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are. The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
+| FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are, and `h.fact::[D]()` infers `D`'s arguments from the handle's `F` the same way (batch 59). The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
+| DEFAULT-FIELD | Batch 59: a member that declares a default needs no `Default` on its type. The `std.ops` template's `member[F < Default]` bound still covers it, so the prototype reports `member-not-derivable`. |
 
 ## Gaps No Fixture Reaches
 

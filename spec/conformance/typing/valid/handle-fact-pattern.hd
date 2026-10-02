@@ -1,0 +1,20 @@
+# test: h.fact::[D]() matches D's pattern against the handle's F and returns D[inferred]?
+use std.annotation.annotate
+use std.structure.{Structure, Field, Variant, Walker}
+
+@annotate::[List[T]](.Field)
+data MaxLen[T]:
+    limit: i32
+
+fn max_len[T](limit: i32) -> MaxLen[T]:
+    MaxLen::[T] { limit: limit }
+
+fn limit_of[S](h: Field[S, List[string]]) -> i32:
+    let found: MaxLen[string]? = h.fact::[MaxLen]()
+    match found:
+        .Some(fact) => fact.limit
+        .None => -1
+
+data Post:
+    @max_len(3)
+    tags: List[string]

@@ -399,6 +399,7 @@ message := match status:
 | r[flow.match.cover.enum] Enum | A nominal enum, including `Option[T]` (written `T?`), requires every inhabitable variant, accounting for payload constraints, or a catch-all pattern. |
 | r[flow.match.cover.bool] Bool | `bool` is covered by both `true` and `false`, or by a catch-all pattern. |
 | r[flow.match.cover.tuple] Tuple | A tuple pattern covers the tuple values covered recursively by its element patterns. |
+| r[flow.match.cover.unit] Unit | `void` is covered by the [unit pattern](#unit-pattern) `()`, or by a catch-all pattern. |
 | r[flow.match.cover.data] Data | A data pattern covers its nominal data type when every listed field pattern is irrefutable, while unlisted fields are unconstrained. |
 | r[flow.match.cover.integer] Integer | An integer type is covered when its literal and [range patterns](#range-patterns) together hold every value of the type, or by a catch-all pattern. |
 | r[flow.match.cover.other-values] Other values | Floating-point, `char`, `string`, and other value spaces require an irrefutable catch-all after any literal cases. |
@@ -609,6 +610,41 @@ fn short(t: (i32, i32, List[i32]...)) -> i32:
 > **Why.** The pattern mirrors the type `(i32, i32, List[i32]...)` and
 > the expression `(a, b, xs...)`, so a rest tuple is built and taken apart
 > in one shape.
+
+### Unit Pattern
+
+The unit pattern `()` matches the unit value, so a void success is matched
+as it is built:
+
+```text
+fn save(ready: bool) -> Result[void, string]:
+    if ready:
+        return .Ok(())
+    .Err("not ready")
+
+fn report(ready: bool) -> string:
+    match save(ready):
+        .Ok(()) => "saved"
+        .Err(message) => message
+```
+
+1. r[flow.match.unit] The [unit pattern](02-grammar.md#r-grammar.pattern.unit) `()` matches the unit value `()`, the one value of `void`.
+2. r[flow.match.unit.irrefutable] It is irrefutable for `void`, so `.Ok(())` covers every success of a `Result[void, E]`.
+3. r[flow.match.unit.binds] It binds no name.
+4. r[flow.match.unit.type] A unit pattern against a value whose type is not `void` is an error. Error: `type-mismatch`.
+
+```text
+fn read() -> Result[i32, string]:
+    .Ok(1)
+
+fn report() -> i32:
+    match read():
+        .Ok(()) => 0  # error: type-mismatch
+        .Err(_) => 1
+```
+
+> **Why.** Rust and Swift match `()` with `()`. Construction and matching
+> then read alike, and `.Ok(())` needs no `_` that hides what it matches.
 
 ### Range Patterns
 

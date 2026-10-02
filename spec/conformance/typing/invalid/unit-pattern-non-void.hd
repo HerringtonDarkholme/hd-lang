@@ -1,0 +1,8 @@
+# test: the unit pattern () against a value that is not void is an error
+fn read() -> Result[i32, string]:
+    .Ok(1)
+
+fn report() -> i32:
+    match read():
+        .Ok(()) => 0  # diagnostic: type-mismatch
+        .Err(_) => 1

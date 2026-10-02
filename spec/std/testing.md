@@ -213,7 +213,7 @@ through the template of `Arbitrary`.
 14. r[std-testing.arbitrary.with] A member whose facts hold an `arbitrary.with(gen)` value is drawn by `gen` instead of its type's `Arbitrary`.
 15. r[std-testing.arbitrary.with.module-typed] The module `std.testing.arbitrary` declares `with` and its result type `With[F]`, a [typed fact type](../lang/14-annotations.md#member-typed-facts), as shown below. Code imports the module, as in `use std.testing.arbitrary`, and writes `@arbitrary.with(gen)`.
 16. r[std-testing.arbitrary.with.checked] `gen` must draw the member's declared type. A generator of another type is an error, reported on its decorator, by [`annot.typed-fact.check`](../lang/14-annotations.md#r-annot.typed-fact.check). Error: `type-mismatch`.
-17. r[std-testing.arbitrary.with.typed-read] The derived `arbitrary` reads the member's `With[F]` through its handle, with [`h.fact`](../lang/14-annotations.md#r-annot.handle.fact), and draws the member by its `gen`.
+17. r[std-testing.arbitrary.with.typed-read] The derived `arbitrary` reads the member's `With[F]` through its handle, with [`h.fact`](../lang/14-annotations.md#r-annot.handle.fact.typed), and draws the member by its `gen`.
 18. r[std-testing.arbitrary.with.only] `arbitrary.with` is the only fact that derived `Arbitrary` reads.
 
 ```text

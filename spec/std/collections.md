@@ -58,7 +58,7 @@ fn total(view: ListView[i32]) -> i32:
 | Item | Signature |
 | --- | --- |
 | `len` | `len(self) -> i32` |
-| `to_list` | `to_list(self) -> List[T]` |
+| `to_list` | `to_list(self) -> mut List[T]` |
 | index read | `Index[i32]` with `Out = T` |
 | iteration | `Iterable[T]` |
 
@@ -72,7 +72,7 @@ fn total(view: ListView[i32]) -> i32:
 8. r[std-collections.view.index] `view[i]` reads the list's element at index `start + i`.
 9. r[std-collections.view.index.range] A view index that is negative or not less than the view's `len` is a checked runtime panic, even when the list has an element there. Panic: `index-out-of-bounds`.
 10. r[std-collections.view.iter] Iterating a view yields its elements in order, each as `T`.
-11. r[std-collections.view.to-list] `to_list` returns a new list that holds the view's elements in order, as the slice `items[start..end]` would.
+11. r[std-collections.view.to-list.mut] `to_list` returns a new `mut List[T]` that holds the view's elements in order, as the slice `items[start..end]` does, so `let mut copy = view.to_list()` may grow the copy.
 12. r[std-collections.view.read-only] A view has no `IndexSet` implementation, so assigning to `view[i]` is an error. Error: `invalid-assignment-target`.
 13. r[std-collections.view.writes] An element write to the list, as `items[i] = v`, shows through every view of it, so a later read of the view gives the new value.
 14. r[std-collections.view.invalidate] Inserting, removing, appending, clearing, or otherwise changing the list's shape invalidates every view of it, as [`flow.for.invalidate`](../lang/06-control-flow.md#r-flow.for.invalidate) does for an iterator.

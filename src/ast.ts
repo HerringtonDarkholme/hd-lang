@@ -331,7 +331,12 @@ export interface DataPatternField {
 }
 
 export type Pattern =
-  | { readonly kind: "wildcard"; readonly span: SourceSpan }
+  | {
+      readonly kind: "wildcard";
+      /** The unit pattern `()`, which matches only the unit value (06-control-flow.md#r-flow.match.unit). */
+      readonly unit?: boolean;
+      readonly span: SourceSpan;
+    }
   | { readonly kind: "boolean"; readonly value: boolean; readonly span: SourceSpan }
   | { readonly kind: "integer"; readonly value: bigint; readonly span: SourceSpan }
   | { readonly kind: "float"; readonly value: number; readonly span: SourceSpan }

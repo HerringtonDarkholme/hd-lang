@@ -120,12 +120,13 @@ pub fn default() -> DefaultVariant
 1. r[std-ops.default.derive.template] `std.ops` declares the [template](../lang/14-annotations.md#templates) of `Default`, which `@derive(Default)` instantiates. It is ordinary `std.ops` code over `std.structure`, as the templates of `Eq` and `Hash` are.
 2. r[std-ops.default.derive.data.declared] A derived data type's default sets a member that declares a default, as `retries: i32 = 3`, to that default.
 3. r[std-ops.default.derive.data.type-default] It sets every other member to its own type's default, `F::default()`.
-4. r[std-ops.default.derive.member-bound] The template requires the type of every member it builds to implement `Default`. A member whose type does not makes the type not derivable, reported at the opt-in and naming the member. Error: `member-not-derivable`.
-5. r[std-ops.default.derive.marker] `std.ops` declares the fact type `DefaultVariant` and the function `default`. Code imports `default`, as in `use std.ops.default`, and writes `@default` on a variant, which attaches `default()`.
-6. r[std-ops.default.derive.enum] A derived enum's default is its variant marked `@default`.
-7. r[std-ops.default.derive.payload] The default of a marked payload variant fills each payload member with its own type's default.
-8. r[std-ops.default.derive.one-variant] A derived enum must mark exactly one variant `@default`. An enum with no marked variant is an error, reported on the `@derive` line. Error: `invalid-default-variant`.
-9. r[std-ops.default.derive.one-variant.several] An enum with several marked variants is the same error, reported on the second `@default`. Error: `invalid-default-variant`.
+4. r[std-ops.default.derive.member-bound.undeclared] The template requires `Default` only of the type of a member that declares no default. Such a member whose type does not implement it makes the type not derivable, reported at the opt-in and naming the member. Error: `member-not-derivable`.
+5. r[std-ops.default.derive.member-bound.declared] A member that declares a default needs no `Default` on its type, as `secret: Secret = Secret { value: 7 }` shows below.
+6. r[std-ops.default.derive.marker] `std.ops` declares the fact type `DefaultVariant` and the function `default`. Code imports `default`, as in `use std.ops.default`, and writes `@default` on a variant, which attaches `default()`.
+7. r[std-ops.default.derive.enum] A derived enum's default is its variant marked `@default`.
+8. r[std-ops.default.derive.payload] The default of a marked payload variant fills each payload member with its own type's default.
+9. r[std-ops.default.derive.one-variant] A derived enum must mark exactly one variant `@default`. An enum with no marked variant is an error, reported on the `@derive` line. Error: `invalid-default-variant`.
+10. r[std-ops.default.derive.one-variant.several] An enum with several marked variants is the same error, reported on the second `@default`. Error: `invalid-default-variant`.
 
 ```text
 use std.ops.{Default, default}
@@ -152,6 +153,21 @@ data Secret:
 @derive(Default)  # error: member-not-derivable
 data Vault:
     secret: Secret
+```
+
+```text
+use std.ops.Default
+
+data Secret:
+    value: i32
+
+@derive(Default)
+data Safe:
+    secret: Secret = Secret { value: 7 }
+    count: i32
+
+fn opened() -> i32:
+    Safe::default().secret.value
 ```
 
 > **Note.** A generic type gets `T < Default` for each type parameter that

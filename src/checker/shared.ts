@@ -1167,7 +1167,7 @@ export function firstPrivateSignatureType(type: ValueType, program: Program): st
 export function normalizeRowArguments(
   type: ValueType,
   dataTypes: ReadonlyMap<string, HirData>,
-  rowParameters: ReadonlySet<string>,
+  _rowParameters: ReadonlySet<string>,
 ): ValueType | { readonly mismatch: string } {
   let mismatch: string | undefined;
   const visit = (current: ValueType): ValueType => {

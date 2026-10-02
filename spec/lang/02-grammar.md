@@ -1590,6 +1590,7 @@ pattern = "_"
         | variant_pattern
         | data_pattern
         | tuple_pattern
+        | unit_pattern
         | range_pattern
         ;
 
@@ -1632,6 +1633,8 @@ tuple_pattern_elements = pattern, { ",", pattern },
                        ;
 spread_pattern = ( "_" | binding_pattern_atom ), "..." ;
 
+unit_pattern = "(", ")" ;
+
 range_pattern = range_pattern_bound, ( "..=" | ".." ), range_pattern_bound
               | range_pattern_bound, ".."
               | ( "..=" | ".." ), range_pattern_bound
@@ -1649,8 +1652,9 @@ range_pattern_bound = [ "-" ], integer_literal ;
 8. r[grammar.pattern.data-field.nested] `field: pattern` matches the field against a nested pattern, and `field: name` binds it to `name`.
 9. r[grammar.pattern.data-unlisted] Unlisted fields are ignored.
 10. r[grammar.pattern.tuple-spread] The last element of a tuple pattern may be a **spread pattern**, a name or `_` followed by `...`, as in `(a, b, xs...)`. Alone, it keeps the one-element trailing comma, `(xs...,)`, so `(xs...)` and a spread pattern before another element are errors. Error: `syntax-error`.
-11. r[grammar.pattern.range] A **range pattern** takes one of five forms: `a..=b`, `a..b`, `a..`, `..=b`, or `..b`.
-12. r[grammar.pattern.range.bound] Each bound of a range pattern is an integer literal, which a `-` may precede. A bound of any other kind, such as `'a'`, `1.5`, or a name, is an error. Error: `syntax-error`.
+11. r[grammar.pattern.unit] `()` is the **unit pattern**. A tuple pattern needs a comma, so `()` is never a tuple pattern.
+12. r[grammar.pattern.range] A **range pattern** takes one of five forms: `a..=b`, `a..b`, `a..`, `..=b`, or `..b`.
+13. r[grammar.pattern.range.bound] Each bound of a range pattern is an integer literal, which a `-` may precede. A bound of any other kind, such as `'a'`, `1.5`, or a name, is an error. Error: `syntax-error`.
 
 ```text
 enum Pair:

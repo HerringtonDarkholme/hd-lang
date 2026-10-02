@@ -39,5 +39,5 @@ pub fn println[T < Display](value: T) -> void $ Console:
     let mut console = $.use(Console)
     let call: mut Suspend[Result[void, ConsoleError]] = console.write_line("$value")
     match block_on(call):
-        .Ok(_) => pass
+        .Ok(()) => pass
         .Err(_) => panic("println: write_line! returned .Err(ConsoleError)")

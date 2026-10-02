@@ -460,7 +460,7 @@ The check has three steps:
 20. r[annot.typed-fact.check.other-params] Each type parameter of `D` that the pattern does not mention is inferred from `v` as a `_` slot is, by [`fn.generic.placeholder.solve`](07-functions.md#r-fn.generic.placeholder.solve), [`.default`](07-functions.md#r-fn.generic.placeholder.default), and [`.unsolved`](07-functions.md#r-fn.generic.placeholder.unsolved). Error: `unresolved-generic-placeholder`.
 21. r[annot.typed-fact.check.inferred] Type arguments in `v` are inferred from that expected type, by [`fn.type.generic.argument.sources`](07-functions.md#r-fn.type.generic.argument.sources), as in any such binding.
 22. r[annot.typed-fact.check.reported] Every error of the inference and the check is reported on the decorator or member line.
-23. r[annot.typed-fact.read] A template reads such a fact typed, through the field's handle, as [`annot.handle.fact`](#r-annot.handle.fact) states.
+23. r[annot.typed-fact.read] A template reads such a fact typed, through the field's handle, as [`annot.handle.fact.pattern`](#r-annot.handle.fact.pattern) states.
 
 > **Note.** In `@annotate(.Field)`, nothing solves `T`, since neither
 > `kinds` nor `Annotate` mentions it. So `T` takes its default `Any`, by
@@ -1415,9 +1415,13 @@ variant of a derivation's target.
 8. r[annot.handle.holds] `v.holds(x)` is true exactly when `x` holds the variant `v`.
 9. r[annot.handle.default] `h.has_default()` is true when the member declares a default. `h.default()` evaluates that default, or returns `.None` when there is none.
 10. r[annot.handle.escape] Handles are ordinary values and may escape the traversal that passed them.
-11. r[annot.handle.fact] `h.fact::[M]()` reads the member's fact of type `M`, or `.None`. `M` must be a [typed fact type](#member-typed-facts) whose argument for its target parameter is `F`. Error: `type-mismatch`.
-12. r[annot.handle.fact.exact] It finds only a fact whose type is exactly `M`. On a read-type handle of a member declared `mut T`, `F` is `T`, so a fact bound to `mut T` is not found.
-13. r[annot.handle.fact.key] The type parameters that `M` mentions follow [`annot.structure.find-key`](#r-annot.structure.find-key), except the handle's own `F`, which needs no runtime identity. Error: `unsatisfied-trait-bound`.
+11. r[annot.handle.fact.typed] `h.fact::[D]()` reads the member's fact of the [typed fact type](#member-typed-facts) `D`, or `.None`.
+12. r[annot.handle.fact.pattern] It matches `D`'s pattern against the handle's `F` exactly as the attach-time check does, by [`annot.typed-fact.infer`](#r-annot.typed-fact.infer), and its type is `D[A]?`, where `A` holds the inferred arguments.
+13. r[annot.handle.fact.pattern.example] So under `@annotate::[List[T]](.Field) data MaxLen[T]`, `h.fact::[MaxLen]()` on the handle of `tags: List[string]` has type `MaxLen[string]?`.
+14. r[annot.handle.fact.pattern.mismatch] An `F` that does not fit `D`'s pattern is an error, as it is at attach time. Error: `type-mismatch`.
+15. r[annot.handle.fact.pattern.written] `D` may be written with its type arguments, as in `h.fact::[Fallback[F]]()`. They must be the arguments that the match infers. Error: `type-mismatch`.
+16. r[annot.handle.fact.exact] It finds only a fact whose type is exactly `D[A]`. On a read-type handle of a member declared `mut T`, `F` is `T`, so a fact bound to `mut T` is not found.
+17. r[annot.handle.fact.key] The type parameters that `D[A]` mentions follow [`annot.structure.find-key`](#r-annot.structure.find-key), except the handle's own `F`, which needs no runtime identity. Error: `unsatisfied-trait-bound`.
 
 ```text
 data Counter:

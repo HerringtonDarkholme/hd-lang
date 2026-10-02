@@ -1,5 +1,5 @@
 # test: a ListView reads a window of the list with no copy, and element writes to the list show through it
-# std Collections, Views: std-collections.view, std-collections.view.len, std-collections.view.index, std-collections.view.iter, std-collections.view.to-list, std-collections.view.writes (batch 49).
+# std Collections, Views: std-collections.view, std-collections.view.len, std-collections.view.index, std-collections.view.iter, std-collections.view.to-list.mut, std-collections.view.writes (batches 49, 59).
 use std.collections.ListView
 use std.testing.assert_equal
 

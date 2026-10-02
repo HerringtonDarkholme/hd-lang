@@ -531,6 +531,7 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
 1. r[types.result.unit-ok] When `T` is `void`, the success value is `()`, so the constructor is written `.Ok(())` or `Result.Ok(())`.
 2. r[types.result.no-ok-omit] No shorthand omits that `()`, so `.Ok()` passes no argument for `value`. Error: `argument-count`.
 3. r[types.result.no-ok-pass] `.Ok(pass)` is not the source spelling for this case.
+4. r[types.result.unit-pattern] A match names that success with the [unit pattern](06-control-flow.md#unit-pattern), as in `.Ok(()) => ...`, so construction and matching read alike.
 
 ```text
 fn save(ready: bool) -> Result[void, string]:

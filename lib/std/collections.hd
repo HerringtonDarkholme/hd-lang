@@ -110,7 +110,7 @@ impl[T] ListView[T]:
         self.check()
         self.end - self.start
 
-    pub fn to_list(self) -> List[T]:
+    pub fn to_list(self) -> mut List[T]:
         self.check()
         let copy: mut List[T] = []
         let index = self.start

@@ -1,0 +1,17 @@
+# test: a member that declares a default needs no Default on its type
+# expect: test
+use std.ops.Default
+use std.testing.assert_equal
+
+data Secret:
+    value: i32
+
+@derive(Default)
+data Safe:
+    secret: Secret = Secret { value: 7 }
+    count: i32
+
+tests:
+    it("takes the declared default"):
+        assert_equal(Safe::default().secret.value, 7, reason="the declared default")
+        assert_equal(Safe::default().count, 0, reason="i32's default")

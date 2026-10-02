@@ -1,5 +1,5 @@
 # test: a typed fact's pattern checks against the field's declared type, and a template reads it typed through the handle
-# Spec 14 Member-Typed Facts: annot.typed-fact.check and annot.typed-fact.read; Handles: annot.handle.fact
+# Spec 14 Member-Typed Facts: annot.typed-fact.check and annot.typed-fact.read; Handles: annot.handle.fact.pattern.written
 # (owner decisions O7, batch 36, and ANNOTATE-TYPED, batch 39, 2026-10-01).
 use std.annotation.annotate
 use std.structure.{Structure, Field, Variant, Walker}
