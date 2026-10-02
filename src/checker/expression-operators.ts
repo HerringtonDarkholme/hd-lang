@@ -52,7 +52,7 @@ const UNARY_OPERATOR_TRAITS: Readonly<Record<string, readonly [string, string]>>
   "~": ["Not", "not"],
 };
 
-/** A primitive operand type, on which an operator never searches a trait (r-expr.op.primitive). */
+/** A primitive operand type, on which an operator never searches a trait (r-expr.op.primitive.typing). */
 function isPrimitiveOperand(type: ValueType): boolean {
   const readonly = readonlyType(type);
   return (

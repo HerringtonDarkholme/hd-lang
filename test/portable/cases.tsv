@@ -1186,6 +1186,10 @@ runtime/valid/row-union-branches-run.hd	runtime
 typing/valid/decorator-target-newtype-kind.hd	type
 typing/invalid/operator-newtype-no-inherit.hd	type
 runtime/panic/operator-generic-overflow.hd	runtime
+runtime/valid/intrinsic-method-calls.hd	runtime
+runtime/panic/intrinsic-method-overflow.hd	runtime
+runtime/valid/primitive-operator-calls-method.hd	runtime
+typing/invalid/intrinsic-method-user.hd	type
 typing/valid/operator-bitwise-user.hd	type
 typing/invalid/operator-power-user.hd	type
 typing/invalid/operator-left-literal.hd	type
@@ -1212,6 +1216,7 @@ typing/valid/num-traits.hd	type
 typing/valid/num-families.hd	type
 typing/invalid/num-bound-newtype.hd	type
 typing/invalid/num-sealed-impl.hd	type
+typing/invalid/num-sealed-user-number.hd	type
 typing/valid/row-union-spread.hd	type
 runtime/valid/row-union-closure-result-runs.hd	runtime
 runtime/panic/iterator-take-negative.hd	runtime

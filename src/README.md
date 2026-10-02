@@ -1114,9 +1114,11 @@ else`, `break`, `break value`, and `continue`;
   with no argument, and `v() = x` calls `update` on a `mut` callee, a call
   of a declared function never being a place), supertrait bindings such as
   `Add[Self, Out = Self]`, and the sealed `std.num` traits `Num`, `Integer`,
-  and `Float` follow the same path. The primitive implementations are hd
-  code whose bodies are the built-in operators, and so are the index
-  traits of `List`, `Map`, and `string`, whose bodies index directly.
+  and `Float` follow the same path. The primitive implementations are
+  bodiless `@intrinsic` methods, whose bodies the loader supplies as the
+  inline operator on primitive operands ([Boundary Mechanisms](#boundary-mechanisms));
+  the index traits of `List`, `Map`, and `string` are hd code whose
+  bodies index directly.
   `m[k]` on a `Map` has type `V`, and a missing key panics with
   `index-out-of-bounds`; `m.get(k)` reads `V?`. Floating `%` calls the
   host's `rem_f64`, JavaScript's truncated remainder. Compound assignment
@@ -1254,13 +1256,13 @@ What it provides:
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip`, `view`; `ListView[T]` with `len`, `to_list`, `Index[i32]`, and `Iterable[T]`, which checks the list's structural version through the `list_version` intrinsic |
 | `std.text` | on `string`: `chars`, `char_indices`, `bytes`, `slice`, `to_utf8`, `string::from_utf8` with `Utf8Error`, `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
 | `std.iter` | the prelude `Iterator[T]` and `Iterable[T]`; `Iterator` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Map`, `Result`, and `T?`; `Iterable` for `List` and `Map` (not `Iterator`, which a loop advances directly) |
-| `std.cmp` | the prelude `Eq`, `PartialOrd`, `Ord`, and `Ordering`; `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for every primitive, `PartialOrd` for the numbers, `char`, and `string`, and `Ord` for the integers, `char`, and `string`, each body one built-in operator on the primitive; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?`; the tuple templates of `Eq`, `PartialOrd`, and `Ord` |
+| `std.cmp` | the prelude `Eq`, `PartialOrd`, `Ord`, and `Ordering`; `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for every primitive, `PartialOrd` for the numbers, `char`, and `string`, and `Ord` for the integers, `char`, and `string`: bodiless `@intrinsic` methods, the numbers' in `impl[N < Num]` and `impl[N < Integer]` blocks, except `string`'s, which compare bytes in hd; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?`; the tuple templates of `Eq`, `PartialOrd`, and `Ord` |
 | `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | the prelude `Console` and `println`; `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; the host trait `Process` with `ProcessOutput`, and the deterministic `ScriptedProcess` |
 | `std.resource` | `ResourceError[E]` |
-| `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; the six range types, `Iterable` for `Range`, `RangeFrom`, and `RangeInclusive` of each integer type, and the slicing `Index` implementations for `string` and `List`, one per range type and integer type; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations, and its tuple template (spec/std/ops.md) |
+| `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits, bodiless `@intrinsic` methods in numeric-family blocks such as `impl[N < Num] Add for N` (`string`'s `Add` is hd), and the index traits' implementations for `List`, `Map`, and `string`; the six range types, `Iterable` for `Range`, `RangeFrom`, and `RangeInclusive` of each integer type, and the slicing `Index` implementations for `string` and `List`, one per range type and integer type; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations, and its tuple template (spec/std/ops.md) |
 | `std.function` | the sealed marker trait `Tuple`, which the compiler implements for every tuple type; a `Tuple` bound passes no dictionary. `Fn` and `SuspendFn` have no declaration: the checker rewrites them to the `fn(...)` sugar |
 | `std.format` | the prelude `Display` and `Debug`; `Display` for `string`, `bool`, `char`, and every number type; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `Map`, `T?`, `Result`; the template of `Debug`; the tuple templates of `Debug` and `Display` |
 | `std.testing` | `assert`, `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`, `RunOutput` and `hd_run!` over `Process`; the case bodies of `it_each`, `it_prop`, and `it_prop_with`; the rest of `std.testing` is checked by the compiler |
@@ -1331,6 +1333,18 @@ RUNTIME_AND_LIBRARY.md).
      `format_f64`, `format_f32`, and `panic`, which raises a checked runtime
      panic of a named category, such as `index-out-of-bounds`), or
      in the runner's `hostFunctions` (`snapshot_file_check`, `src/snapshots.ts`).
+   - An **operation intrinsic** is a bodiless `@intrinsic` trait method,
+     one per primitive operation, such as `Add.add` or `Eq.eq`
+     (spec/lang/09-traits.md#intrinsic-methods). Before parsing a std
+     module, `checker/intrinsic-methods.ts` rewrites its text: a
+     numeric-family implementation such as `impl[N < Num] Add for N`
+     becomes one implementation per type listed by `lib/std/num.hd`'s
+     `impl Num for T` lines, and each `@intrinsic` method gets the
+     operator on its primitive operands as its body, such as
+     `self + rhs`. An operator on primitive operands compiles inline, so
+     no body calls itself. In user code, `@intrinsic` stays an
+     `unknown-name` decorator, and the method's missing body is not
+     checked further (`FunctionDecl.bodiless`).
 2. **Host capability traits.** A capability is a trait with suspending
    methods (spec/11 and
    RUNTIME_AND_LIBRARY.md).
@@ -1386,7 +1400,7 @@ marks what this refactor removed.
 | Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Done, except `Any` (`std.core`) and `Waker` (`std.task`), which have no `lib/std` file: the rest are hd in `std.cmp`, `std.format`, and `std.iter`, declared when a program mentions them (migration M2) |
 | HIR | `display`, with the emitter's `emitPrimitiveDisplay`, the built-in `Display` dictionary, four `runtime.wat` digit and `char` helpers, and `float.wat` | `std.format` | Done: `Display` for `string`, `bool`, `char`, and the numbers is hd in `lib/std/format.hd`; a `char`'s and a float's text come from host functions (migration M6) |
 | Emitter | the `pow_f64` and `rem_f64` imports | `**` and floating `%` | Remains: operator support |
-| Checker, emitter | `Eq`, `PartialOrd`, and `Ord` dictionaries for the primitives built from the operator strategies (the `equality`, `ordering`, and `total-ordering` builtin kinds and their adapters), and a map key's primitive `Eq` | `std.cmp` | Done: hd in `lib/std/cmp.hd`, so `(1).cmp(2)` is an ordinary method call; `==` and `<` on a primitive still lower inline |
+| Checker, emitter | `Eq`, `PartialOrd`, and `Ord` dictionaries for the primitives built from the operator strategies (the `equality`, `ordering`, and `total-ordering` builtin kinds and their adapters), and a map key's primitive `Eq` | `std.cmp` | Done: `@intrinsic` methods in `lib/std/cmp.hd`, so `(1).cmp(2)` is an ordinary method call; `==` and `<` on a primitive still lower inline |
 
 Counts: the HIR expression union had 92 kinds, of which 15 were library-
 or capability-specific. The string step removed 5, the `println` step 1,

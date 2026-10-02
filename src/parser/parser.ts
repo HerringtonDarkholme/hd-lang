@@ -574,7 +574,7 @@ class Parser extends LetParser {
           this.current().span,
         );
       const publicMethod = this.matchText("pub");
-      const parsed = this.parseMethod(true, methodDoc);
+      const parsed = this.parseMethod(!Parser.intrinsic(methodDecorators), methodDoc);
       const method = methodDecorators ? { ...parsed, decorators: methodDecorators } : parsed;
       methods.push(publicMethod ? { public: true, ...method } : method);
     }

@@ -101,6 +101,13 @@ export interface FunctionDecl {
    * Compiler/library boundary). User code cannot set it.
    */
   readonly intrinsic?: string;
+  /**
+   * A bodiless `@intrinsic` implementation method outside `lib/std`, which
+   * the loader gave no body: `@intrinsic` there is already `unknown-name`
+   * (09-traits.md#r-trait.impl.intrinsic.std-only), so its empty body is
+   * not checked for a missing result.
+   */
+  readonly bodiless?: boolean;
   /** Declared by the standard library (`lib/std/`), which declares prelude names such as `println`. */
   readonly standard?: boolean;
   /** Carries a `std.ops.NumSuffix` value: a suffix function (05-expressions.md#r-expr.literal-fn.marker). */

@@ -874,6 +874,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         ...(implementation.standard ? { standard: true } : {}),
         ...selfDefaults(method, implementation.targetName),
         body: method.body ?? [],
+        ...(suppliedMethod && !method.body ? { bodiless: true } : {}),
         span: method.span,
       };
       if (!suppliedMethod) traitDefaultDeclarations.set(declaration, trait.index);

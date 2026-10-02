@@ -38,6 +38,11 @@ interface GenericParameterForm {
 // (spec/lang/02-grammar.md#annotations and #r-grammar.impl.derivation-line),
 // shared by the declaration parser.
 export abstract class DecoratorParser extends ExpressionParser {
+  /** Whether the decorators mark an intrinsic method, which has no body (09-traits.md#intrinsic-methods). */
+  protected static intrinsic(decorators: Decorators | undefined): boolean {
+    return !!decorators?.facts.some((fact) => fact.kind === "name" && fact.name === "intrinsic");
+  }
+
   protected parseGenericParameters(
     form: GenericParameterForm = { defaults: true },
   ): ParsedGenericParameters {

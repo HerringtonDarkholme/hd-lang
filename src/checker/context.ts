@@ -1201,7 +1201,7 @@ export abstract class CheckerContext {
   }
 
   protected checkFallthrough(body: readonly HirStatement[]): void {
-    if (this.signature.result === "void") return;
+    if (this.signature.result === "void" || this.declaration.bodiless) return;
     const last = body.at(-1);
     if (last?.kind === "return") return;
     const actual = last?.kind === "expression" ? last.expression.type : "void";
