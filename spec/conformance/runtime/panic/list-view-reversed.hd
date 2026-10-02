@@ -1,0 +1,4 @@
+# test: List.view with a start after its end panics
+# std Collections, Views: std-collections.view.reversed (batch 49).
+items := [1, 2, 3]
+part := items.view(2, 1)  # panic: index-out-of-bounds

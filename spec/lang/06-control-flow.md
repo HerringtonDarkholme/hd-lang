@@ -283,10 +283,14 @@ fn first_square_over(limit: i32) -> i32:
 5. r[flow.for.range.from-overflow] Asking an iterator over `a..` for the item after the type's largest value is a checked runtime panic. Panic: `integer-overflow`.
 6. r[flow.for.range.fresh] Each `iter()` call on a range starts from its start bound, and iterating never changes the range value.
 7. r[flow.for.range.to] `RangeTo[T]` does not implement `Iterable`, since it has no start, so a loop over `..b` is an error. Error: `unsatisfied-trait-bound`.
+8. r[flow.for.range.to-inclusive] `RangeToInclusive[T]` does not implement `Iterable` either, so a loop over `..=b` is an error. Error: `unsatisfied-trait-bound`.
+9. r[flow.for.range.full] `RangeFull` does not implement `Iterable` either, so a loop over `..` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 fn invalid(n: i32) -> void:
     for i in ..n:  # error: unsatisfied-trait-bound
+        pass
+    for i in ..:   # error: unsatisfied-trait-bound
         pass
 ```
 
@@ -396,7 +400,8 @@ message := match status:
 | r[flow.match.cover.bool] Bool | `bool` is covered by both `true` and `false`, or by a catch-all pattern. |
 | r[flow.match.cover.tuple] Tuple | A tuple pattern covers the tuple values covered recursively by its element patterns. |
 | r[flow.match.cover.data] Data | A data pattern covers its nominal data type when every listed field pattern is irrefutable, while unlisted fields are unconstrained. |
-| r[flow.match.cover.values] Other values | Integer, floating-point, `char`, `string`, and other value spaces require an irrefutable catch-all after any literal cases. |
+| r[flow.match.cover.integer] Integer | An integer type is covered when its literal and [range patterns](#range-patterns) together hold every value of the type, or by a catch-all pattern. |
+| r[flow.match.cover.other-values] Other values | Floating-point, `char`, `string`, and other value spaces require an irrefutable catch-all after any literal cases. |
 
 1. r[flow.match.guard.coverage] A guarded arm contributes no coverage to exhaustiveness, even when its pattern would be irrefutable without the guard.
 2. r[flow.match.guard.later-arm] A later unguarded arm must cover its values.
@@ -604,6 +609,68 @@ fn short(t: (i32, i32, List[i32]...)) -> i32:
 > **Why.** The pattern mirrors the type `(i32, i32, List[i32]...)` and
 > the expression `(a, b, xs...)`, so a rest tuple is built and taken apart
 > in one shape.
+
+### Range Patterns
+
+A [range pattern](02-grammar.md#r-grammar.pattern.range) matches the
+integers that the range of the same form holds:
+
+```text
+fn bucket(n: u8) -> string:
+    match n:
+        0 => "zero"
+        1..10 => "small"
+        10..=99 => "medium"
+        100.. => "large"
+
+fn sign(n: i8) -> i32:
+    match n:
+        ..=-1 => -1
+        0 => 0
+        1.. => 1
+```
+
+| Rule | Pattern | Matches |
+| --- | --- | --- |
+| r[flow.match.range.half-open] Half-open | `a..b` | the integers from `a` up to, not including, `b` |
+| r[flow.match.range.inclusive] Inclusive | `a..=b` | the integers from `a` through `b` |
+| r[flow.match.range.from] From | `a..` | the integers from `a` through the type's largest value |
+| r[flow.match.range.to-inclusive] To inclusive | `..=b` | the integers from the type's smallest value through `b` |
+
+1. r[flow.match.range.subject] A range pattern's subject must have an integer type. A range pattern against any other type is an error. Error: `type-mismatch`.
+2. r[flow.match.range.bound-type] Each bound is checked with the subject's type as its expected type, so a bound outside that type is an error. Error: `integer-literal-range`.
+3. r[flow.match.range.no-bind] A range pattern binds no name and builds no range value.
+4. r[flow.match.range.cover] A range pattern covers exactly the values it matches, by [`flow.match.cover.integer`](#r-flow.match.cover.integer), so `..=-1`, `0`, and `1..` cover `i8`.
+5. r[flow.match.range.empty] A range pattern that matches no value, as `5..5` or `3..=1`, is an unreachable arm. Error: `unreachable-match-arm`.
+6. r[flow.match.range.covered] An arm whose every value earlier unguarded arms cover is unreachable, by [`flow.match.duplicate.covered`](#r-flow.match.duplicate.covered). Error: `unreachable-match-arm`.
+7. r[flow.match.range.overlap] Arms that overlap only in part are not an error, and the first matching arm is selected.
+
+```text
+fn invalid(name: string) -> string:
+    match name:
+        0..=9 => "digit"  # error: type-mismatch
+        _ => "other"
+
+fn too_wide(n: u8) -> string:
+    match n:
+        0..=300 => "byte"  # error: integer-literal-range
+
+fn missing(n: u8) -> string:
+    match n:  # error: nonexhaustive-match
+        0..=127 => "low"
+        129.. => "high"
+
+fn covered(n: i32) -> string:
+    match n:
+        0..=9 => "digit"
+        3..5 => "never"  # error: unreachable-match-arm
+        _ => "other"
+```
+
+> **Note.** A pattern names no constant, so each bound is a literal.
+
+> **Why.** An integer type is a finite range of values, so ranges can
+> cover it without a catch-all, as Rust's checker does.
 
 ## Let Patterns
 

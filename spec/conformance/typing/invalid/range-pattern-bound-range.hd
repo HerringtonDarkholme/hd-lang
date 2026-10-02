@@ -1,0 +1,5 @@
+# test: a range pattern bound is checked against the subject's type
+# Spec 06 Range Patterns: flow.match.range.bound-type (batch 49).
+fn too_wide(n: u8) -> string:
+    match n:
+        0..=300 => "byte"  # diagnostic: integer-literal-range

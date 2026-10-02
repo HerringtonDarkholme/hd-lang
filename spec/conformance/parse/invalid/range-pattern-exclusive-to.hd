@@ -1,0 +1,6 @@
+# test: a range pattern with .. and no start bound is not a pattern
+# Spec 02 Patterns: grammar.pattern.range.no-to (batch 49).
+fn invalid(n: i32) -> string:
+    match n:
+        ..10 => "small"  # diagnostic: syntax-error
+        _ => "large"

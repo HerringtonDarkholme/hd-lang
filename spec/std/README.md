@@ -60,6 +60,7 @@ file of its own.
 | [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
 | [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison |
 | [`hash.md`](hash.md) | `std.hash` | `std-hash` | what derived `Hash` hashes; tuple hashing |
+| [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` method `view` and the `ListView` type |
 
 ## Glossary
 

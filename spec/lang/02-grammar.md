@@ -978,7 +978,8 @@ inline_suite_expression = inline_for_expression
 range_expression = logical_or_expression,
                    [ "..", [ logical_or_expression ]
                    | "..=", logical_or_expression ]
-                 | "..", logical_or_expression
+                 | "..", [ logical_or_expression ]
+                 | "..=", logical_or_expression
                  ;
 
 logical_or_expression = logical_and_expression,
@@ -1037,38 +1038,36 @@ inside := 0 < value < 10  # error: comparison-chaining
 
 ### Range Syntax
 
-A range expression joins two bounds with `..` or `..=`, and `..` may leave
-out either bound:
+A range expression joins two bounds with `..` or `..=`. A `..` may leave
+out either bound or both, and a `..=` may leave out its start:
 
 ```text
-fn parts(text: string, n: i32) -> (string, string, string, i32):
+fn parts(text: string, n: i32) -> (string, string, string, string, string, i32):
     let total = 0
     for i in 0..n + 1:
         total = total + i
-    (text[1..], text[..2], text[0..=1], total)
+    (text[1..], text[..2], text[0..=1], text[..=1], text[..], total)
 ```
 
 1. r[grammar.expr.range.precedence] `..` and `..=` bind more loosely than `||` and more tightly than control-flow expressions and `:=`, as in Rust. So `0..n + 1` is `0..(n + 1)`.
 2. r[grammar.expr.range.non-assoc] A range expression is non-associative: a range bound is never itself an unparenthesized range, so `a..b..c` is an error. Error: `syntax-error`.
 3. r[grammar.expr.range.open-end] After `..`, an end bound is present exactly when the next token can begin an operand. So `text[1..]`, `for i in 0..:`, and `f(1.., x)` have no end bound.
 4. r[grammar.expr.range.open-start] A `..` at the start of an operand begins a range with no start bound, as in `text[..2]`.
-5. r[grammar.expr.range.inclusive-end] `..=` must have both bounds. A `..=` with no end bound, as in `1..=`, is an error. Error: `syntax-error`.
-6. r[grammar.expr.range.no-inclusive-to] A `..=` with no start bound, as in `..=2`, is an error. Error: `syntax-error`.
-7. r[grammar.expr.range.no-bare] A `..` with neither bound, as in `text[..]`, is an error. Error: `syntax-error`.
+5. r[grammar.expr.range.full] A `..` with neither bound, as in `text[..]`, is a range expression, the full range.
+6. r[grammar.expr.range.inclusive-to] A `..=` at the start of an operand begins a range with no start bound, as in `text[..=2]`.
+7. r[grammar.expr.range.inclusive-needs-end] A `..=` must have an end bound. A `..=` with no end bound, as in `1..=` or a bare `..=`, is an error. Error: `syntax-error`.
 8. r[grammar.expr.range.pipe-step] A pipe step is a `bitwise_or_expression`, so a range in a pipe step needs parentheses.
 
 ```text
-fn invalid(text: string) -> void:
+fn invalid() -> void:
     a := 0..1..2       # error: syntax-error
-    b := text[..]      # error: syntax-error
-    c := text[..=2]    # error: syntax-error
-    d := 1..=          # error: syntax-error
+    b := 1..=          # error: syntax-error
 ```
 
 > **Why.** A range sits below `||`, as in Rust, so arithmetic and
 > comparisons in a bound need no parentheses. Leaving out a bound always
 > means "from the start" or "to the end", so `text[1..]` reads the same in
-> any position.
+> any position, and `text[..]` is the whole string.
 
 ### Multi-Name Bindings
 
@@ -1557,6 +1556,7 @@ pattern = "_"
         | variant_pattern
         | data_pattern
         | tuple_pattern
+        | range_pattern
         ;
 
 literal_pattern = boolean_literal
@@ -1597,6 +1597,12 @@ tuple_pattern_elements = pattern, { ",", pattern },
                        | spread_pattern, [ "," ]
                        ;
 spread_pattern = ( "_" | binding_pattern_atom ), "..." ;
+
+range_pattern = range_pattern_bound, ( "..=" | ".." ), range_pattern_bound
+              | range_pattern_bound, ".."
+              | "..=", range_pattern_bound
+              ;
+range_pattern_bound = [ "-" ], integer_literal ;
 ```
 
 1. r[grammar.pattern.variant] Variant patterns may use a qualified enum variant name or `.Variant` when the matched value's type supplies one enum.
@@ -1609,6 +1615,9 @@ spread_pattern = ( "_" | binding_pattern_atom ), "..." ;
 8. r[grammar.pattern.data-field.nested] `field: pattern` matches the field against a nested pattern, and `field: name` binds it to `name`.
 9. r[grammar.pattern.data-unlisted] Unlisted fields are ignored.
 10. r[grammar.pattern.tuple-spread] The last element of a tuple pattern may be a **spread pattern**, a name or `_` followed by `...`, as in `(a, b, xs...)`. Alone, it keeps the one-element trailing comma, `(xs...,)`, so `(xs...)` and a spread pattern before another element are errors. Error: `syntax-error`.
+11. r[grammar.pattern.range] A **range pattern** takes one of four forms: `a..=b`, `a..b`, `a..`, or `..=b`.
+12. r[grammar.pattern.range.bound] Each bound of a range pattern is an integer literal, which a `-` may precede. A bound of any other kind, such as `'a'`, `1.5`, or a name, is an error. Error: `syntax-error`.
+13. r[grammar.pattern.range.no-to] A range pattern with `..` and no start bound, as in `..10`, is an error, so `..=b` is the one form with no start. Error: `syntax-error`.
 
 ```text
 enum Pair:
@@ -1627,6 +1636,24 @@ fn rebind(value: Pair) -> i32:
     match value:
         Pair.Values(mut l, r) => l + r  # error: syntax-error
 ```
+
+```text
+fn bucket(n: i32) -> string:
+    match n:
+        ..=-1 => "negative"
+        0 => "zero"
+        1..10 => "small"
+        10..=99 => "medium"
+        100.. => "large"
+
+fn invalid(n: i32) -> string:
+    match n:
+        ..10 => "small"  # error: syntax-error
+        _ => "large"
+```
+
+> **Why.** The four forms are Rust's, so the same bounds read the same in
+> both languages, and a pattern with no start always says its last value.
 
 See also: [Match Expressions](06-control-flow.md#match-expressions).
 

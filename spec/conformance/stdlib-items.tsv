@@ -15,3 +15,4 @@ std.testing.it_prop	std/testing.md#registration-functions
 std.testing.it_prop_with	std/testing.md#registration-functions
 std.task.retry	std/task.md#retry
 std.ops.Default	std/ops.md#default-trait
+std.collections.ListView	std/collections.md#views

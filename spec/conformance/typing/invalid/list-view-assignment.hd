@@ -1,0 +1,6 @@
+# test: a ListView is read-only, so its index is not a place
+# std Collections, Views: std-collections.view.read-only (batch 49).
+use std.collections.ListView
+
+fn invalid(view: mut ListView[i32]) -> void:
+    view[0] = 7  # diagnostic: invalid-assignment-target

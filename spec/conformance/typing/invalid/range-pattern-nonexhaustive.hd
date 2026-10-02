@@ -1,0 +1,6 @@
+# test: range patterns that miss a value of the type are not exhaustive
+# Spec 06 Exhaustiveness: flow.match.cover.integer (batch 49).
+fn missing(n: u8) -> string:
+    match n:  # diagnostic: nonexhaustive-match
+        0..=127 => "low"
+        129.. => "high"

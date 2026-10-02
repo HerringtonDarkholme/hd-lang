@@ -1,4 +1,4 @@
 # test: ..= needs an end bound
-# Spec 02 Range Syntax: grammar.expr.range.inclusive-end (batch 48).
-fn invalid(text: string) -> void:
+# Spec 02 Range Syntax: grammar.expr.range.inclusive-needs-end (batch 49).
+fn invalid() -> void:
     d := 1..=  # diagnostic: syntax-error

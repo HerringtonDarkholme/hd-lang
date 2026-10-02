@@ -55,6 +55,7 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/ops.md": "std-ops",
   "std/cmp.md": "std-cmp",
   "std/hash.md": "std-hash",
+  "std/collections.md": "std-collections",
   "cli/command-line.md": "cli",
 };
 

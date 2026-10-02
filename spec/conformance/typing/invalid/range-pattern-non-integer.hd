@@ -1,0 +1,6 @@
+# test: a range pattern needs an integer subject
+# Spec 06 Range Patterns: flow.match.range.subject (batch 49).
+fn invalid(name: string) -> string:
+    match name:
+        0..=9 => "digit"  # diagnostic: type-mismatch
+        _ => "other"

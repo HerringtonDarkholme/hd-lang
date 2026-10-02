@@ -120,6 +120,7 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | [GADTs](lang/13-gadts.md) | `gadt` |
 | [Annotations](lang/14-annotations.md) | `annot` |
 | `std/cmp.md` | `std-cmp` |
+| `std/collections.md` | `std-collections` |
 | `std/format.md` | `std-format` |
 | `std/hash.md` | `std-hash` |
 | `std/iter.md` | `std-iter` |

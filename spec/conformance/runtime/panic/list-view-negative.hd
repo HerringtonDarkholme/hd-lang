@@ -1,0 +1,4 @@
+# test: a negative List.view argument never counts from the end
+# std Collections, Views: std-collections.view.range (batch 49).
+items := [1, 2, 3]
+part := items.view(-2, 1)  # panic: index-out-of-bounds

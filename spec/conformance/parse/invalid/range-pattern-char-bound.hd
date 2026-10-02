@@ -1,0 +1,6 @@
+# test: a range pattern bound must be an integer literal
+# Spec 02 Patterns: grammar.pattern.range.bound (batch 49).
+fn invalid(c: char) -> bool:
+    match c:
+        'a'..='z' => true  # diagnostic: syntax-error
+        _ => false

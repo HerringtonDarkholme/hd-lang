@@ -1,0 +1,5 @@
+# test: a bare .. range has no start bound, so it is not iterable
+# Spec 06 Range Iteration: flow.for.range.full (batch 49).
+fn invalid() -> void:
+    for i in ..:  # diagnostic: unsatisfied-trait-bound
+        pass

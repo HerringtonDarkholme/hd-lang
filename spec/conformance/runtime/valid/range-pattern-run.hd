@@ -1,0 +1,29 @@
+# test: each range pattern form matches the integers of its range, and the first matching arm wins
+# Spec 06 Range Patterns: flow.match.range.half-open, flow.match.range.inclusive, flow.match.range.from, flow.match.range.to-inclusive, flow.match.range.overlap (batch 49).
+use std.testing.assert_equal
+
+fn bucket(n: i32) -> string:
+    match n:
+        ..=-1 => "negative"
+        0 => "zero"
+        1..10 => "small"
+        10..=99 => "medium"
+        100.. => "large"
+
+fn first(n: u8) -> string:
+    match n:
+        0..=200 => "low"
+        100..=255 => "high"
+
+tests:
+    it("matches each form at its edges"):
+        assert_equal(bucket(-1), "negative", reason="..=-1 includes -1")
+        assert_equal(bucket(0), "zero", reason="a literal arm")
+        assert_equal(bucket(9), "small", reason="1..10 includes 9")
+        assert_equal(bucket(10), "medium", reason="1..10 excludes 10")
+        assert_equal(bucket(99), "medium", reason="10..=99 includes 99")
+        assert_equal(bucket(100), "large", reason="100.. starts at 100")
+
+    it("selects the first of overlapping arms"):
+        assert_equal(first(150), "low", reason="both arms hold 150")
+        assert_equal(first(201), "high", reason="only the second holds 201")

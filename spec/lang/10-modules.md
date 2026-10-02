@@ -696,8 +696,9 @@ The following built-in methods are normative:
 3. r[module.method.no-set] No `set` type is part of the core prelude.
 
 See also: [Text](../std/text.md#string-methods) for the string methods above
-these, such as `trim` and `split`, and [Iterators](../std/iter.md#list-and-optional-map)
-for `map` on a list or an optional.
+these, such as `trim` and `split`, [Iterators](../std/iter.md#list-and-optional-map)
+for `map` on a list or an optional, and [Collections](../std/collections.md)
+for the list method `view`.
 
 #### Map Complexity
 
@@ -729,6 +730,7 @@ fn first_word(text: string) -> string:
 7. r[module.string.slice.shared] The result shares the original string's bytes rather than copying them.
 8. r[module.string.slice.bad-offset] An offset that is not a [scalar boundary](04-type-system.md#r-types.string.boundary), inside a scalar's encoding or past the end, is a checked runtime panic. Panic: `index-out-of-bounds`.
 9. r[module.string.slice.reversed] A `start` greater than `end` is a checked runtime panic, even when both are scalar boundaries. Panic: `index-out-of-bounds`.
+10. r[module.string.slice.negative] A negative offset never counts from the end: it is not a scalar boundary, so it is a checked runtime panic. Panic: `index-out-of-bounds`.
 
 > **Note.** `char_indices` gives the offsets that Go's `range` over a
 > string gives. `text[start..end]` gives the same substring as

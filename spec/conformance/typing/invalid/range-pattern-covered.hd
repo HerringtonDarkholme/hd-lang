@@ -1,0 +1,7 @@
+# test: a range arm whose values earlier unguarded arms cover is unreachable
+# Spec 06 Range Patterns: flow.match.range.covered (batch 49).
+fn covered(n: i32) -> string:
+    match n:
+        0..=9 => "digit"
+        3..5 => "never"  # diagnostic: unreachable-match-arm
+        _ => "other"

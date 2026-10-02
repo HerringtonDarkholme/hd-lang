@@ -1,4 +1,0 @@
-# test: a .. with neither bound is not a range
-# Spec 02 Range Syntax: grammar.expr.range.no-bare (batch 48).
-fn invalid(text: string) -> string:
-    text[..]  # diagnostic: syntax-error

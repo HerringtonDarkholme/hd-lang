@@ -278,10 +278,14 @@ size := "héllo".len()  # 6: é is two bytes
 ```
 
 A range index slices: `text[0..3]` is the first three bytes, `text[2..]`
-the rest from offset 2, `text[..2]` the first two, and `text[1..=2]` the
-bytes at 1 and 2. It shares bytes as `slice` does and panics on the same
-offsets. On a list, `items[1..3]` is a new list, not a view. A map has no
-slicing. See [Slicing](../spec/lang/05-expressions.md#slicing).
+the rest from offset 2, `text[..2]` the first two, `text[..=2]` the first
+three, `text[1..=2]` the bytes at 1 and 2, and `text[..]` the whole
+string. It shares bytes as `slice` does and panics on the same offsets. On
+a list, `items[1..3]` is a new list, not a view; `items.view(1, 3)` is a
+read-only window that panics once the list grows or shrinks. A map has no
+slicing. A negative index or bound never counts from the end, so
+`items[-1]` panics. See [Slicing](../spec/lang/05-expressions.md#slicing)
+and [Collections](../spec/std/collections.md).
 
 A `for` loop takes the same patterns as `let`, so a loop over pairs uses
 a tuple pattern, `for (offset, letter) in ...`, and a loop over points
@@ -583,9 +587,12 @@ fn find_name(names: List[string], prefix: string) -> string?:
 A range is a value: `0..n` holds `0` up to, not including, `n`; `1..=3`
 holds `1` through `3`; and `5..` has no end. `for` iterates them, so
 `for i in 0..` loops until a `break`. Bounds must be integers. The types
-are `Range`, `RangeInclusive`, `RangeFrom`, and `RangeTo` (`..n`, which
-`for` rejects) in `std.ops`. See
-[Range Expressions](../spec/lang/05-expressions.md#range-expressions):
+are `Range`, `RangeInclusive`, `RangeFrom`, `RangeTo`, `RangeToInclusive`,
+and `RangeFull` in `std.ops`; `for` rejects `..n`, `..=n`, and `..`, which
+have no start. A `match` on an integer takes `a..b`, `a..=b`, `a..`, and
+`..=b` as patterns, and arms that cover the whole type need no `_`. See
+[Range Expressions](../spec/lang/05-expressions.md#range-expressions) and
+[Range Patterns](../spec/lang/06-control-flow.md#range-patterns):
 
 ```text
 fn sum_below(n: i32) -> i32:
@@ -593,6 +600,12 @@ fn sum_below(n: i32) -> i32:
     for i in 0..n:
         total = total + i
     total
+
+fn sign(n: i8) -> i32:
+    match n:
+        ..=-1 => -1
+        0 => 0
+        1.. => 1
 ```
 
 Loops can be used for control flow. `break` exits a loop, and `continue` skips to the next iteration:

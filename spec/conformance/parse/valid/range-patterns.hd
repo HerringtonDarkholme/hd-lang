@@ -1,0 +1,14 @@
+# test: range patterns in the four forms, with negative bounds, in arms and nested positions
+# Spec 02 Patterns: grammar.pattern.range, grammar.pattern.range.bound (batch 49).
+fn bucket(n: i32) -> string:
+    match n:
+        ..=-1 => "negative"
+        0 => "zero"
+        1..10 => "small"
+        10..=99 => "medium"
+        100.. => "large"
+
+fn pair(p: (i32, i32)) -> bool:
+    match p:
+        (0..=9, -5..5) => true
+        _ => false

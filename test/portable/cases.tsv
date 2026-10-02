@@ -1740,6 +1740,9 @@ typing/invalid/root-file-super.hd	type
 typing/valid/relative-self-main.hd	type
 typing/valid/relative-self-lib.hd	type
 parse/invalid/range-chained.hd	parse
-parse/invalid/range-bare.hd	parse
-parse/invalid/range-inclusive-to.hd	parse
 parse/invalid/range-inclusive-no-end.hd	parse
+runtime/panic/list-index-negative.hd	runtime
+runtime/panic/string-index-negative.hd	runtime
+runtime/panic/string-slice-negative.hd	runtime
+parse/invalid/range-pattern-exclusive-to.hd	parse
+parse/invalid/range-pattern-char-bound.hd	parse

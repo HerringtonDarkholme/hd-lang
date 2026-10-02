@@ -11,8 +11,8 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-02 the suite has
-1,798 cases: 1,744 selected in `test/portable/cases.tsv` and 54 known
-failures, all language tier.
+1,820 cases: 1,747 selected in `test/portable/cases.tsv` and 73 known
+failures, 67 language tier and 6 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -29,7 +29,7 @@ failures, all language tier.
 | SELF-CURRENT | 2 | relative lookup starts at the containing directory module |
 | ROOTS | 2 | `src/lib.hd` is not the root module, and `src/main.hd` can be used |
 | TASK-PROGRAMS | 1 | integration test modules are linked as one program |
-| RANGES | 15 | no `..` or `..=` tokens, range types, range iteration, or slicing |
+| RANGES | 34 | no `..` or `..=` tokens, range types, range iteration, slicing, or range patterns; no `List.view` or `ListView` |
 | FOLDER-SELF | 1 | `x.hd` is not in folder `x` with its child modules |
 
 ## Findings

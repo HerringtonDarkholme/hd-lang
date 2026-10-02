@@ -1,0 +1,6 @@
+# test: a range pattern that matches no value is an unreachable arm
+# Spec 06 Range Patterns: flow.match.range.empty (batch 49).
+fn empty(n: i32) -> string:
+    match n:
+        5..5 => "never"  # diagnostic: unreachable-match-arm
+        _ => "other"

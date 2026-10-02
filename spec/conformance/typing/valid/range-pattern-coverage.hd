@@ -1,0 +1,24 @@
+# test: integer literal and range patterns that hold every value of the type are exhaustive, and partial overlap is allowed
+# Spec 06 Range Patterns: flow.match.range.cover, flow.match.range.overlap; Exhaustiveness: flow.match.cover.integer (batch 49).
+fn sign(n: i8) -> i32:
+    match n:
+        ..=-1 => -1
+        0 => 0
+        1.. => 1
+
+fn bucket(n: u8) -> string:
+    match n:
+        0 => "zero"
+        1..10 => "small"
+        10..=99 => "medium"
+        100.. => "large"
+
+fn overlap(n: u8) -> string:
+    match n:
+        0..=200 => "low"
+        100..=255 => "high"
+
+fn guarded(n: u8, wide: bool) -> string:
+    match n:
+        0..=9 if wide => "digit"
+        _ => "other"
