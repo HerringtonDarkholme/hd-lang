@@ -1,0 +1,19 @@
+# test: every row in a row slot is written after $, including one key and a row alias
+use std.function.Fn
+
+trait Db
+
+trait Cache
+
+type AppRow = Db + Cache
+
+type Job[$R] = fn() -> void $ R
+
+fn schedule(first: Job[$ Db], second: Job[$ Db + Cache], ctx: $.Context[$ Db]) -> void:
+    pass
+
+fn wrap(callback: Fn[(), void, $ Db]) -> Job[$ Db]:
+    callback
+
+fn install(ctx: $.Context[$ AppRow], job: Job[$ AppRow], empty: Job[$()]) -> void:
+    pass

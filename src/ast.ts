@@ -66,6 +66,8 @@ export interface FunctionDecl {
   readonly name: string;
   readonly suspending: boolean;
   readonly genericParameters: readonly string[];
+  /** The parameters declared `$R`, which are row parameters (11-requirements-and-suspension.md#r-req.row.param.marked). */
+  readonly rowParameters?: readonly string[];
   /** Type-argument defaults (04-type-system.md#type-argument-defaults). */
   readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   readonly genericBounds: readonly GenericBound[];
@@ -113,6 +115,8 @@ export interface MethodDecl {
   readonly name: string;
   readonly suspending: boolean;
   readonly genericParameters: readonly string[];
+  /** The parameters declared `$R`, which are row parameters (11-requirements-and-suspension.md#r-req.row.param.marked). */
+  readonly rowParameters?: readonly string[];
   /** Type-argument defaults (04-type-system.md#type-argument-defaults). */
   readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   readonly genericBounds: readonly GenericBound[];
@@ -165,6 +169,8 @@ export interface TraitDecl {
 export interface ImplDecl {
   readonly kind: "impl";
   readonly genericParameters: readonly string[];
+  /** The parameters declared `$R`, which are row parameters (11-requirements-and-suspension.md#r-req.row.param.marked). */
+  readonly rowParameters?: readonly string[];
   readonly genericBounds: readonly GenericBound[];
   readonly traitName?: string;
   readonly targetName: string;
@@ -238,6 +244,8 @@ export interface TypeDecl {
   readonly public?: boolean;
   readonly name: string;
   readonly genericParameters: readonly string[];
+  /** The parameters declared `$R`, which are row parameters (11-requirements-and-suspension.md#r-req.row.param.marked). */
+  readonly rowParameters?: readonly string[];
   readonly genericBounds?: readonly GenericBound[];
   readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   readonly alias?: TypeRef;

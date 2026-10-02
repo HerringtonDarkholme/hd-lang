@@ -24,13 +24,13 @@ use std.structure.{Structure, Source, Variant, Field, Members, Key}
 @annotate::[F](.Fn)
 pub data NumSuffix[F]: pass
 
-pub fn num_suffix[N < Num, R, Q]() -> NumSuffix[fn(N) -> R $ Q]:
+pub fn num_suffix[N < Num, R, $Q]() -> NumSuffix[fn(N) -> R $ Q]:
     NumSuffix::[fn(N) -> R $ Q] {}
 
 @annotate::[F](.Fn)
 pub data StrPrefix[F]: pass
 
-pub fn str_prefix[T, R, Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
+pub fn str_prefix[T, R, $Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
     StrPrefix::[fn(Template[T]) -> R $ Q] {}
 
 # The argument of a prefix function: the `n + 1` raw text pieces around the

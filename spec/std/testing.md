@@ -25,7 +25,7 @@ test-position rules, and the literal `expect` of `snapshot`
 `std.testing` declares `it_each`, which registers one test case per row:
 
 ```text
-pub fn it_each[A, T < Termination, R](name: string, rows: List[A], ignore: string? = .None,
+pub fn it_each[A, T < Termination, $R](name: string, rows: List[A], ignore: string? = .None,
                                       expect_panic: string? = .None, timeout: Duration? = .None,
                                       body: fn!(A) -> T $ R) -> void $ R
 ```

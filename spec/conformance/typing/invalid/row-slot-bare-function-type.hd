@@ -1,0 +1,11 @@
+# test: a bare row alias as the row argument of Fn is an error
+use std.function.Fn
+
+trait Db
+
+trait Cache
+
+type AppRow = Db + Cache
+
+fn install(job: Fn[(), void, AppRow]) -> void:  # diagnostic: generic-kind-mismatch
+    pass

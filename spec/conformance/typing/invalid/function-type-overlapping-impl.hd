@@ -1,7 +1,7 @@
-# test: an implementation over Fn[Args, O, R] overlaps one for a concrete function type
+# test: an implementation over Fn[Args, O, $ R] overlaps one for a concrete function type
 use std.function.{Fn, Tuple}
 
 trait Marker
 
-impl[Args < Tuple, O, R] Marker for Fn[Args, O, R]
+impl[Args < Tuple, O, $R] Marker for Fn[Args, O, $ R]
 impl Marker for fn(i32) -> i32  # diagnostic: overlapping-impl

@@ -19,7 +19,7 @@ data FixedTag:
 impl Tag for FixedTag:
     fn name(self) -> string: self.value
 
-fn provide_logger[R](callback: fn() -> string $ R + Logger) -> string $ R:
+fn provide_logger[$R](callback: fn() -> string $ R + Logger) -> string $ R:
     $.with(Logger=FixedLogger {}):
         callback()
 

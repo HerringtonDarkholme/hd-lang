@@ -14,17 +14,17 @@ impl Tag for Named:
 fn read_tag() -> string $ Tag:
     $.use(Tag).name()
 
-fn with_tag[R](callback: fn() -> string $ R + Tag) -> string $ R:
+fn with_tag[$R](callback: fn() -> string $ R + Tag) -> string $ R:
     $.with(Tag=Named { label: "inner" }):
         callback()
 
-fn fixed_by_first[R](first: fn() -> string $ R, callback: fn() -> string $ R + Tag) -> string $ R:
+fn fixed_by_first[$R](first: fn() -> string $ R, callback: fn() -> string $ R + Tag) -> string $ R:
     $.with(Tag=Named { label: "inner" }):
         callback()
 
 fn run() -> string:
     $.with(Tag=Named { label: "outer" }):
-        with_tag::[Tag](read_tag)
+        with_tag::[$ Tag](read_tag)
 
 tests:
     it("an explicit type argument forces R to list Tag"):

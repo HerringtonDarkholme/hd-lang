@@ -1,0 +1,30 @@
+# test: a generic parameter written $R is a row parameter of a function, a method, an implementation, and an alias
+use std.function.Fn
+
+trait Log
+
+type WithLog[$R] = R + Log
+
+fn map[T, U, $R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
+    let result: mut List[U] = []
+    for item in items:
+        result.append(f(item))
+    result
+
+fn run[$R = $()](job: fn() -> void $ R) -> void $ R:
+    job()
+
+fn logged[$R](job: fn() -> void $ WithLog[$ R]) -> void $ WithLog[$ R]:
+    job()
+
+data Runner: pass
+
+impl Runner:
+    fn call[$R](self, job: fn() -> i32 $ R) -> i32 $ R:
+        job()
+
+trait Describe:
+    fn describe(self) -> string
+
+impl[$R] Describe for Fn[(), i32, $ R]:
+    fn describe(self) -> string: "job"

@@ -1,0 +1,3 @@
+# test: a row parameter used as a type is an error
+fn keep[$R](value: R) -> void:  # diagnostic: generic-kind-mismatch
+    pass

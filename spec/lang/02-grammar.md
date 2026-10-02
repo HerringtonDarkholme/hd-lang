@@ -602,8 +602,11 @@ function_generic_params = "[", function_generic_parameter,
                           { ",", function_generic_parameter }, [ "," ], "]" ;
 
 type_parameter = [ variance ], identifier, [ "<", trait_bounds ],
-                 [ type_default ] ;
-generic_parameter = identifier, [ "<", trait_bounds ] ;
+                 [ type_default ]
+               | row_parameter_decl, [ type_default ] ;
+generic_parameter = identifier, [ "<", trait_bounds ]
+                  | row_parameter_decl ;
+row_parameter_decl = "$", identifier ;
 function_generic_parameter = generic_parameter, [ type_default ] ;
 type_default = "=", type_argument ;
 variance = "+" | "-" ;
@@ -700,6 +703,16 @@ impl[T = i32] Box[T]:  # error: syntax-error
 ### Generic Parameter Modifiers
 
 1. r[grammar.generic.variance] Variance markers are valid on generic type declarations, not function generic parameters.
+2. r[grammar.generic.row-marker] A `$` before a generic parameter's name, as in `fn map[T, U, $R]`, declares a row parameter, as [Row Parameters](11-requirements-and-suspension.md#row-parameters) specifies.
+3. r[grammar.generic.row-marker.no-bound] A row parameter takes no bound, so `$R < Log` is an error. Error: `syntax-error`.
+4. r[grammar.generic.row-marker.default] A row parameter's default is a row type argument, as in `$R = $()`.
+
+```text
+trait Log
+
+fn run[$R < Log](job: fn() -> void $ R) -> void $ R:  # error: syntax-error
+    job()
+```
 
 See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words).
 
@@ -806,8 +819,8 @@ fn drop_logger[R](callback: fn() -> void $ R) -> void $ R - Logger: callback()  
 ### Row Type Arguments
 
 1. r[grammar.type.row-argument] For a row-kinded generic parameter, a type argument may be a row after `$`, as in `Fn[(), void, $ Logger + Clock]`, or `$()` for the empty row.
-2. r[grammar.type.row-argument.key] A single requirement key is syntactically also a type; the parameter kind selects its interpretation.
-3. r[grammar.type.row-argument.alias] A bare name there that names a row alias is that alias's row, as [`req.row.alias.bare`](11-requirements-and-suspension.md#r-req.row.alias.bare) states.
+2. r[grammar.type.row-argument.dollar] A row argument always starts with `$`, even for one key or a row alias, as in `Fn[(), void, $ Db]`.
+3. r[grammar.type.row-argument.bare] A bare name for a row-kinded parameter parses as a type, which [`req.row.slot.bare`](11-requirements-and-suspension.md#r-req.row.slot.bare) rejects.
 4. r[grammar.type.row-argument.kind] Using a row argument for a type-kinded parameter, or a type for a row-kinded one, is an error. Error: `generic-kind-mismatch`.
 
 ```text
@@ -1362,7 +1375,7 @@ See also: [Prefixed Strings](01-lexical-structure.md#prefixed-strings).
 trait Tag:
     fn name(self) -> string
 
-fn widen(base: $.Context[Tag]) -> $.Context[Tag]:
+fn widen(base: $.Context[$ Tag]) -> $.Context[$ Tag]:
     $.context(...base)  # error: syntax-error
 ```
 
@@ -1721,8 +1734,7 @@ context_use = "$", ".", "use", "(", requirement_key,
               { ",", requirement_key }, [ "," ], ")" ;
 
 context_create = "$", ".", "context", "(", context_entries, ")" ;
-context_type = "$", ".", "Context", "[",
-               ( requirement_key | row_type_argument ), "]" ;
+context_type = "$", ".", "Context", "[", type_argument, "]" ;
 context_scope = "$", ".", "with", "(", context_entries, ")",
                 ":", suite_body ;
 inline_context_scope = "$", ".", "with", "(", context_entries, ")",
@@ -1735,7 +1747,7 @@ context_entry = requirement_key, "=", expression
 ```
 
 1. r[grammar.row.sets] Requirement rows denote unordered sets of keys after name resolution.
-2. r[grammar.row.parameter] A generic identifier used as a complete requirement key is a row parameter.
+2. r[grammar.row.parameter.marked] A generic parameter declared `$R` is a row parameter, and a row writes it by name as a complete requirement key.
 3. r[grammar.row.parameter.extension] Listing a row parameter beside other keys extends that row with them.
 
 ## Annotations

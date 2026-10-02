@@ -238,7 +238,7 @@ use std.num.Num
 @annotate::[F](.Fn)
 pub data NumSuffix[F]: pass
 
-pub fn num_suffix[N < Num, R, Q]() -> NumSuffix[fn(N) -> R $ Q]:
+pub fn num_suffix[N < Num, R, $Q]() -> NumSuffix[fn(N) -> R $ Q]:
     NumSuffix::[fn(N) -> R $ Q] {}
 ```
 
@@ -267,8 +267,8 @@ made monomorphic first, by
 [`annot.typed-fact.monomorphic`](14-annotations.md#r-annot.typed-fact.monomorphic).
 
 Its requirement row may be any row. `Q` is a
-[row parameter](11-requirements-and-suspension.md#r-req.row.param.callables),
-since it is used after `$`, and so a generic parameter
+[row parameter](11-requirements-and-suspension.md#r-req.row.param.marked),
+since it is declared `$Q`, and so a generic parameter
 ([`req.row.parameter`](11-requirements-and-suspension.md#r-req.row.parameter)).
 The check infers it from the expected type, as it infers `N` and `R`, by
 [`annot.typed-fact.check.inferred`](14-annotations.md#r-annot.typed-fact.check.inferred).
@@ -392,7 +392,7 @@ use std.annotation.annotate
 @annotate::[F](.Fn)
 pub data StrPrefix[F]: pass
 
-pub fn str_prefix[T, R, Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
+pub fn str_prefix[T, R, $Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
     StrPrefix::[fn(Template[T]) -> R $ Q] {}
 
 pub data Template[T]:
@@ -1007,7 +1007,7 @@ fn crossed(t: (i32, i32, List[i32]...), u: (i32, i32, List[i32])) -> i32:
     h(t...)  # error: type-mismatch
 ```
 
-> **Note.** For a function value of type `Fn[Args, O, R]`, the remaining
+> **Note.** For a function value of type `Fn[Args, O, $ R]`, the remaining
 > parameters are `Args`, so `f(args...)` with `args: Args` calls it. A
 > suspending callee is written `f!(args...)`.
 

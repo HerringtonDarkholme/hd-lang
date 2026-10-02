@@ -1,0 +1,5 @@
+# test: a row parameter takes no bound
+trait Log
+
+fn run[$R < Log](job: fn() -> void $ R) -> void $ R:  # diagnostic: syntax-error
+    job()

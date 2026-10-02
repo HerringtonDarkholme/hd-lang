@@ -17,7 +17,7 @@ fn both(id: string) -> string $ UserRow:
     let (store, log) = $.use(Store[Item = string], Log)
     store.load(id)
 
-fn keep(handler: fn(string) -> string $ Store[Item = string]) -> $.Context[Store[Item = string]]:
+fn keep(handler: fn(string) -> string $ Store[Item = string]) -> $.Context[$ Store[Item = string]]:
     panic("unreachable")
 
 fn install(store: Store[Item = string], id: string) -> string $ Log:

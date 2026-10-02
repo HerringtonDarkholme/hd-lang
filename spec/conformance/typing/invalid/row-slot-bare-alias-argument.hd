@@ -1,0 +1,7 @@
+# test: a bare key as the argument for an alias's row parameter is an error
+trait Db
+
+type Job[$R] = fn() -> void $ R
+
+fn schedule(job: Job[Db]) -> void:  # diagnostic: generic-kind-mismatch
+    pass

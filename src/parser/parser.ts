@@ -336,8 +336,13 @@ class Parser extends LetParser {
     const close = this.expectText(")");
     const { result, resultOmitted } = this.parseOptionalResult(close.span);
     const requirementsOmitted = !this.atText("$");
+    const clauseStart = this.current().span.start;
     const requirements = this.matchText("$") ? this.parseRequirements() : [];
+    this.checkSignatureKinds(parsedGenerics, parameters, result, requirements, clauseStart);
+    const enclosingKinds = this.enclosingKinds;
+    this.enclosingKinds = { types: new Set(), rows: new Set(), spans: new Map() };
     const body = this.parseSuite();
+    this.enclosingKinds = enclosingKinds;
     this.activeGenericParameters = new Set();
     return {
       kind: "function",
@@ -345,6 +350,7 @@ class Parser extends LetParser {
       name: name.text,
       suspending,
       genericParameters,
+      ...(parsedGenerics.rows.length > 0 ? { rowParameters: parsedGenerics.rows } : {}),
       ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
       genericBounds,
       parameters,
@@ -378,6 +384,7 @@ class Parser extends LetParser {
       defaults: true,
       owner: "a trait's generic parameters",
     });
+    this.rejectRowParameters(parsedGenerics.rows, parsedGenerics.spans, "a trait");
     const genericParameters = [...parsedGenerics.parameters];
     const generics = {
       ...(parsedGenerics.bounds.length > 0 ? { genericBounds: parsedGenerics.bounds } : {}),
@@ -486,6 +493,10 @@ class Parser extends LetParser {
         trait.span,
       );
     const target = trait ? this.parseType() : first;
+    const implKinds = this.genericKinds(parsedGenerics);
+    this.checkGenericKinds(implKinds, trait ? [trait, target] : [target]);
+    const enclosingKinds = this.enclosingKinds;
+    this.enclosingKinds = implKinds;
     // `by` is contextual: it delegates to an embedded field, or, without a
     // trait, declares a trait-less derivation block (02 grammar.impl.traitless-by).
     let delegateName: Token | undefined;
@@ -506,9 +517,11 @@ class Parser extends LetParser {
       const end = this.expectKind("newline", "expected a line ending after an implementation").span
         .end;
       this.activeGenericParameters = enclosingGenericParameters;
+      this.enclosingKinds = enclosingKinds;
       return {
         kind: "impl",
         genericParameters,
+        ...(parsedGenerics.rows.length > 0 ? { rowParameters: parsedGenerics.rows } : {}),
         genericBounds,
         ...(trait ? { traitName: trait.name } : {}),
         targetName: target.name,
@@ -567,9 +580,11 @@ class Parser extends LetParser {
     }
     const close = this.expectKind("dedent", "expected the end of the implementation body");
     this.activeGenericParameters = enclosingGenericParameters;
+    this.enclosingKinds = enclosingKinds;
     return {
       kind: "impl",
       genericParameters,
+      ...(parsedGenerics.rows.length > 0 ? { rowParameters: parsedGenerics.rows } : {}),
       genericBounds,
       ...(trait ? { traitName: trait.name } : {}),
       targetName: target.name,
@@ -589,7 +604,10 @@ class Parser extends LetParser {
     const parsedGenerics = this.parseGenericParameters();
     const genericParameters = [...parsedGenerics.parameters];
     const genericBounds = [...parsedGenerics.bounds];
-    const generics = parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {};
+    const generics = {
+      ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
+      ...(parsedGenerics.rows.length > 0 ? { rowParameters: parsedGenerics.rows } : {}),
+    };
     const enclosingGenericParameters = this.activeGenericParameters;
     this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
     this.expectText("(");
@@ -637,7 +655,9 @@ class Parser extends LetParser {
     const close = this.expectText(")");
     const { result, resultOmitted } = this.parseOptionalResult(close.span);
     const requirementsOmitted = !this.atText("$");
+    const clauseStart = this.current().span.start;
     const requirements = this.matchText("$") ? this.parseRequirements() : [];
+    this.checkSignatureKinds(parsedGenerics, parameters, result, requirements, clauseStart);
     if (!this.atText(":")) {
       if (requireBody)
         this.fail(
@@ -662,7 +682,10 @@ class Parser extends LetParser {
         span: { start, end },
       };
     }
+    const enclosingKinds = this.enclosingKinds;
+    this.enclosingKinds = { types: new Set(), rows: new Set(), spans: new Map() };
     const body = this.parseSuite();
+    this.enclosingKinds = enclosingKinds;
     this.activeGenericParameters = enclosingGenericParameters;
     return {
       name: name.text,
@@ -723,7 +746,7 @@ class Parser extends LetParser {
     const name = this.expectKind("identifier", "expected a concrete requirement name");
     if (!this.matchText("[")) return name.text;
     // A generic row alias takes a row argument, as in `WithLog[$ Db + Clock]`
-    // (11-requirements-and-suspension.md#r-req.row.alias.generic), and a key
+    // (11-requirements-and-suspension.md#r-req.row.alias.generic.use), and a key
     // may bind associated types, as in `Store[Item = User]` (req.key.binding).
     const arguments_ = this.parseNamedTypeArguments();
     this.expectText("]");
@@ -748,9 +771,17 @@ class Parser extends LetParser {
     let row: readonly string[] | undefined;
     let base: TypeRef | undefined;
     if (this.matchText("=")) {
+      const rowStart = this.current().span.start;
       row = this.parseRowAliasTarget();
       if (!row) alias = this.parseType();
+      // An alias may declare row parameters (11-requirements-and-suspension.md#r-req.row.alias.generic.marked).
+      this.checkGenericKinds(
+        this.genericKinds(parsedGenerics),
+        alias ? [alias] : [],
+        row ? [{ keys: row, span: { start: rowStart, end: this.peek(-1).span.end } }] : [],
+      );
     } else {
+      this.rejectRowParameters(parsedGenerics.rows, parsedGenerics.spans, "a newtype");
       this.expectText("(");
       base = this.parseType();
       this.expectText(")");
@@ -764,6 +795,7 @@ class Parser extends LetParser {
       genericParameters,
       ...(parsedGenerics.bounds.length > 0 ? { genericBounds: parsedGenerics.bounds } : {}),
       ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
+      ...(parsedGenerics.rows.length > 0 ? { rowParameters: parsedGenerics.rows } : {}),
       ...(alias ? { alias } : {}),
       ...(row ? { row } : {}),
       ...(base ? { base } : {}),
@@ -776,6 +808,7 @@ class Parser extends LetParser {
     const start = this.expectText("data").span.start;
     const name = this.expectKind("identifier", "expected a data type name");
     const parsedGenerics = this.parseGenericParameters({ variance: "allow", defaults: true });
+    this.rejectRowParameters(parsedGenerics.rows, parsedGenerics.spans, "a data type");
     const genericParameters = parsedGenerics.parameters;
     const variances = parsedGenerics.variances ?? [];
     const generics = {
@@ -869,6 +902,7 @@ class Parser extends LetParser {
     const start = this.expectText("enum").span.start;
     const name = this.expectKind("identifier", "expected an enum type name");
     const parsedGenerics = this.parseGenericParameters({ variance: "allow", defaults: true });
+    this.rejectRowParameters(parsedGenerics.rows, parsedGenerics.spans, "an enum");
     const genericParameters = parsedGenerics.parameters;
     const variances = parsedGenerics.variances ?? [];
     const generics = {
@@ -1043,11 +1077,22 @@ class Parser extends LetParser {
       if (context.text !== "Context")
         this.fail("syntax-error", "expected Context after '$.'", context.span);
       this.expectText("[");
-      // `$.Context[Key]` or `$.Context[$ A + B]`; `$()` is the empty context.
-      // A bare row alias there stands for its row
-      // (11-requirements-and-suspension.md#r-req.row.alias.bare).
-      const row = this.matchText("$");
-      const requirements = row ? this.parseRequirements(false) : [this.parseRowKey()];
+      // `$.Context[$ A + B]`, `$.Context[$ Key]`, or `$.Context[$()]`: a row
+      // slot writes its row after `$` (11-requirements-and-suspension.md#r-req.context.dollar).
+      if (!this.atText("$")) {
+        const at = this.current().span.start;
+        this.fail(
+          "generic-kind-mismatch",
+          `'$.Context[...]' takes a requirement row, written after '$', as in '$.Context[$ ${this.current().text}]'`,
+          this.current().span,
+          {
+            message: "write the row after '$'",
+            edits: [{ span: { start: at, end: at }, replacement: "$ " }],
+          },
+        );
+      }
+      this.expectText("$");
+      const requirements = this.parseRequirements(false);
       const close = this.expectText("]");
       return { name: `context:${requirements.join("+")}`, span: { start, end: close.span.end } };
     }

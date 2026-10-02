@@ -633,7 +633,7 @@ export abstract class CallChecker extends StatementChecker {
    * its operand is evaluated once and must have the same type as the tuple of
    * the remaining inputs, rest element included. Each fixed element becomes
    * one argument, and a rest element's list a spread at the vararg. A spread
-   * into the one input `*Args` of `Fn[Args, O, R]` passes its operand whole.
+   * into the one input `*Args` of `Fn[Args, O, $ R]` passes its operand whole.
    */
   protected spreadIntoInputs<T extends Extract<Expression, { kind: "call" | "suspend-call" }>>(
     expression: T,
@@ -767,7 +767,7 @@ export abstract class CallChecker extends StatementChecker {
     const substitutions = new Map(initialSubstitutions);
     const rowSubstitutions = new Map<string, readonly string[]>();
     // A row parameter that a function-type target matched, as `R` of
-    // `impl[...] T for Fn[Args, O, R]`, is solved already.
+    // `impl[...] T for Fn[Args, O, $ R]`, is solved already.
     for (const parameter of signature.rowParameters) {
       const keys = rowArgumentKeys(initialSubstitutions.get(parameter));
       if (keys) rowSubstitutions.set(parameter, keys);
@@ -787,12 +787,18 @@ export abstract class CallChecker extends StatementChecker {
         if (argument.name === "_") return;
         const parameter = slots[index]!;
         const row = rowArgumentKeys(argument.name);
-        // A row parameter takes a row, or one bare key or row alias
-        // (11-requirements-and-suspension.md#r-req.row.alias.one-key-slot).
+        // A row parameter takes a row written after `$`
+        // (07-functions.md#r-fn.generic.explicit.row-dollar).
         if (signature.rowParameters.includes(parameter)) {
+          if (!row)
+            this.fail(
+              "generic-kind-mismatch",
+              `${callable} takes a requirement row for '${parameter}', written after '$', as in '$ ${argument.name.replace(/^trait:/, "")}'`,
+              argument.span,
+            );
           rowSubstitutions.set(
             parameter,
-            (row ?? [argument.name]).map((key) =>
+            row.map((key) =>
               key.startsWith("row:") ? key : this.canonicalProviderKey(key, argument.span),
             ),
           );

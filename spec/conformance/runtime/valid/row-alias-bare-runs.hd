@@ -1,4 +1,4 @@
-# test: a context and a function type written with a bare row alias run with the alias's providers
+# test: a context and a function type written with a row alias after $ run with the alias's providers
 # expect: test
 use std.function.Fn
 use std.testing.assert_equal
@@ -24,10 +24,10 @@ type AppRow = Db + Log
 fn describe() -> string $ AppRow:
     "${$.use(Db).name()} ${$.use(Log).tag()}"
 
-fn app_context() -> $.Context[AppRow]:
+fn app_context() -> $.Context[$ AppRow]:
     $.context(Db=MemoryDb {}, Log=PlainLog {})
 
-fn run(ctx: $.Context[AppRow], handler: Fn[(), string, AppRow]) -> string:
+fn run(ctx: $.Context[$ AppRow], handler: Fn[(), string, $ AppRow]) -> string:
     $.with(ctx...):
         handler()
 

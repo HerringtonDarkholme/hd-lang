@@ -163,11 +163,11 @@ trait Db
 
 trait Clock
 
-fn both[R1, R2](first: fn() -> void $ R1, second: fn() -> void $ R1 + R2) -> void $ R1 + R2:
+fn both[$R1, $R2](first: fn() -> void $ R1, second: fn() -> void $ R1 + R2) -> void $ R1 + R2:
     first()
     second()
 
-fn split[R1, R2](f: fn() -> void $ R1 + R2) -> void $ R1:  # error: ambiguous-row-pattern
+fn split[$R1, $R2](f: fn() -> void $ R1 + R2) -> void $ R1:  # error: ambiguous-row-pattern
     pass
 ```
 
@@ -312,12 +312,36 @@ fn group(admin: bool) -> void:
 
 ### Row Parameters
 
-1. r[req.row.param.callables] A generic parameter of a function, a method, an implementation, or a row alias that is used in requirement position is inferred to be a row parameter.
-2. r[req.row.param.one-kind] One parameter cannot be used as both an ordinary type and a requirement row.
-3. r[req.row.param.no-data] A data type, an enum, or a trait declares no row parameter: each of its own generic parameters is type-kinded.
-4. r[req.row.param.no-data.error] Using such a parameter in requirement position, as in a field of type `fn() -> void $ R`, is an error. Error: `generic-kind-mismatch`.
-5. r[req.row.param.no-newtype] A newtype declares no row parameter either, as a data type does not. So `type Job[R](fn() -> void $ R)` is an error. Error: `generic-kind-mismatch`.
-6. r[req.row.param.context] `$.Context[...]` takes only a concrete row, so a row parameter in its row is an error. Error: `row-parameter-in-context`.
+A row parameter is marked with `$` where it is declared:
+
+```text
+fn map[T, U, $R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
+    let result: mut List[U] = []
+    for item in items:
+        result.append(f(item))
+    result
+```
+
+1. r[req.row.param.marked] A generic parameter written with `$` before its name, as `$R` in `fn map[T, U, $R]`, is a row parameter.
+2. r[req.row.param.marked.owners] A function, a method, an implementation, and a row alias may declare row parameters.
+3. r[req.row.param.marked.use] Inside a row, a row parameter is written by its name, as in `$ R` or `$ R + Log`.
+4. r[req.row.param.no-inference] A parameter's kind comes only from its declaration. A parameter written without `$` is type-kinded, whatever its uses.
+5. r[req.row.param.unmarked] A parameter written without `$` and used in a row is an error whose fix-it adds `$` to its declaration. Error: `generic-kind-mismatch`.
+6. r[req.row.param.as-type] A row parameter used as a type, as in `value: R` after `$R`, is an error. Error: `generic-kind-mismatch`.
+7. r[req.row.param.one-kind] One parameter cannot be used as both an ordinary type and a requirement row.
+8. r[req.row.param.no-data] A data type, an enum, or a trait declares no row parameter: each of its own generic parameters is type-kinded.
+9. r[req.row.param.no-data.marked] A `$` on a generic parameter of a data type, an enum, a trait, or a newtype, as in `data Job[$R]`, is an error. Error: `generic-kind-mismatch`.
+10. r[req.row.param.no-data.error] Using such a parameter in requirement position, as in a field of type `fn() -> void $ R`, is an error. Error: `generic-kind-mismatch`.
+11. r[req.row.param.no-newtype] A newtype declares no row parameter either, as a data type does not. So `type Job[R](fn() -> void $ R)` is an error. Error: `generic-kind-mismatch`.
+12. r[req.row.param.context] `$.Context[...]` takes only a concrete row, so a row parameter in its row is an error. Error: `row-parameter-in-context`.
+
+```text
+fn run[R](job: fn() -> void $ R) -> void $ R:  # error: generic-kind-mismatch
+    job()
+
+fn keep[$R](value: R) -> void:  # error: generic-kind-mismatch
+    pass
+```
 
 ```text
 data Job[R]:
@@ -325,14 +349,60 @@ data Job[R]:
 
 type Task[R](fn() -> void $ R)  # error: generic-kind-mismatch
 
-fn run_job[R](providers: $.Context[R], job: fn() -> void $ R) -> void:  # error: row-parameter-in-context
+fn run_job[$R](providers: $.Context[$ R], job: fn() -> void $ R) -> void:  # error: row-parameter-in-context
     $.with(providers...):
         job()
 ```
 
+> **Why.** In `Job[Db]`, nothing shows whether `Db` is a requirement row or
+> an ordinary type argument. The marker answers that at the declaration, and
+> no use of the parameter changes its kind.
+
 > **Note.** Handlers stored in one table share a concrete row, often a
 > [row alias](#row-aliases), as in `List[fn(Request) -> Response $ AppRow]`.
 > [Row Subsumption](#row-subsumption) lets each handler keep a narrower row.
+
+### Row Slots
+
+A row written inside a type's brackets starts with `$`, even for one key:
+
+```text
+use std.function.Fn
+
+trait Db
+
+trait Cache
+
+type Job[$R] = fn() -> void $ R
+
+fn schedule(first: Job[$ Db], second: Job[$ Db + Cache], ctx: $.Context[$ Db]) -> void:
+    pass
+
+fn wrap(callback: Fn[(), void, $ Db]) -> Job[$ Db]:
+    callback
+```
+
+1. r[req.row.slot] A **row slot** is a place in a type or a type argument list that takes a requirement row.
+2. r[req.row.slot.list] The row slots are the brackets of `$.Context[...]` and the row argument of `Fn` and `SuspendFn`. They also include an argument for a row parameter of an alias, and an explicit type argument for a row parameter of a function or method.
+3. r[req.row.slot.dollar] Every row in a row slot is written after `$`, including one key and a row alias, as in `Job[$ Db]`, `$.Context[$ AppRow]`, and `Fn[(), void, $ AppRow]`.
+4. r[req.row.slot.empty] The empty row in a row slot is `$()`.
+5. r[req.row.slot.bare] A bare key or a bare row alias in a row slot is an error whose fix-it adds `$`. Error: `generic-kind-mismatch`.
+
+```text
+trait Db
+
+type Job[$R] = fn() -> void $ R
+
+fn schedule(job: Job[Db]) -> void:  # error: generic-kind-mismatch
+    pass
+
+fn install(ctx: $.Context[Db]) -> void:  # error: generic-kind-mismatch
+    pass
+```
+
+> **Why.** A bare name in brackets reads as a type argument. With `$` on
+> every row, a reader tells a row from a type at each use, without looking
+> up the parameter's kind.
 
 ### Row Aliases
 
@@ -361,21 +431,16 @@ fn get_order() -> string $ AppRow + Clock:
 5. r[req.row.alias.nested] A row alias may name another row alias, and expansion flattens every level into one set.
 6. r[req.row.alias.named-alias] An alias whose right side names one row alias, as in `type Web = AppRow`, is also a row alias.
 7. r[req.row.alias.duplicate] A key reached twice, directly or through aliases, occurs once in the row, as [`req.row.set.duplicate`](#r-req.row.set.duplicate) states, and is not diagnosed.
-8. r[req.row.alias.slots] A row alias is written where a row is: in a row that follows `$`, or bare in a one-key row slot.
-9. r[req.row.alias.one-key-slot] A **one-key row slot** is a place where one bare key may stand for a row: `$.Context[...]` or a row-kinded type argument, written without `$`.
-10. r[req.row.alias.one-key-slot.list] Those type arguments are the row argument of `Fn` and `SuspendFn`, and an argument for a row alias's row parameter.
-11. r[req.row.alias.one-key-slot.explicit] An explicit type argument for a row parameter of a function or method is one too.
-12. r[req.row.alias.bare] A bare row alias in a one-key row slot stands for its row: `$.Context[AppRow]` is `$.Context[$ AppRow]`, and `Fn[(), void, AppRow]` is `Fn[(), void, $ AppRow]`.
-13. r[req.row.alias.bare.by-name] The slot's syntax is that of one key; the checker reads the name as a row because it names a row alias.
-14. r[req.row.alias.type-or-key] A row alias is row-kinded. Using one as a value type, a bound, a type-kinded argument, or a single key, as in `$.use(AppRow)` or `AppRow=value`, is an error. Error: `generic-kind-mismatch`.
-15. r[req.row.alias.one-key] An ordinary alias of one trait, such as `type Store = Db`, names that trait wherever it is used: `x: Store` is a `Db` trait value, and `$ Store` is the key `Db`.
-16. r[req.row.alias.bound-key] A row alias may list a [bound key](#bound-requirement-keys), as in `type UserRow = Store[Item = User] + Log`. An ordinary alias of one bound trait, as in `type UserStore = Store[Item = User]`, is that bound key in a row.
-17. r[req.row.alias.access] A key reached through an alias is its trait, so its provider's access follows [`req.mut.trait-access`](#r-req.mut.trait-access).
-18. r[req.row.alias.no-mut] An alias whose target is written with `mut`, as in `type Store = mut Db`, is an error where it is used as a key. Error: `syntax-error`.
-19. r[req.row.alias.generic] A row alias may declare generic parameters. One written as a key on its right side is a row parameter, as in `type WithLog[R] = R + Log`.
-20. r[req.row.alias.generic.use] `$ WithLog[Clock]` is the row `$ Clock + Log`, and in a function with row parameter `R`, `$ WithLog[R]` extends `R` with `Log`.
-21. r[req.row.alias.generic.kind] A row argument for a type-kinded alias parameter, as in `$ Only[AppRow]` after `type Only[T] = T`, is an error. Error: `generic-kind-mismatch`.
-22. r[req.row.alias.cycle] A row alias that expands to itself is an [alias cycle](04-type-system.md#r-types.alias.cycle). Error: `alias-cycle`.
+8. r[req.row.alias.in-rows] A row alias is written only in a row after `$`: in a requirement clause, or in a [row slot](#row-slots), as in `$.Context[$ AppRow]`.
+9. r[req.row.alias.type-or-key] A row alias is row-kinded. Using one as a value type, a bound, a type-kinded argument, or a single key, as in `$.use(AppRow)` or `AppRow=value`, is an error. Error: `generic-kind-mismatch`.
+10. r[req.row.alias.one-key] An ordinary alias of one trait, such as `type Store = Db`, names that trait wherever it is used: `x: Store` is a `Db` trait value, and `$ Store` is the key `Db`.
+11. r[req.row.alias.bound-key] A row alias may list a [bound key](#bound-requirement-keys), as in `type UserRow = Store[Item = User] + Log`. An ordinary alias of one bound trait, as in `type UserStore = Store[Item = User]`, is that bound key in a row.
+12. r[req.row.alias.access] A key reached through an alias is its trait, so its provider's access follows [`req.mut.trait-access`](#r-req.mut.trait-access).
+13. r[req.row.alias.no-mut] An alias whose target is written with `mut`, as in `type Store = mut Db`, is an error where it is used as a key. Error: `syntax-error`.
+14. r[req.row.alias.generic.marked] A row alias may declare generic parameters, and a row parameter among them is marked `$`, as in `type WithLog[$R] = R + Log`.
+15. r[req.row.alias.generic.use] `$ WithLog[$ Clock]` is the row `$ Clock + Log`, and in a function with row parameter `R`, `$ WithLog[$ R]` extends `R` with `Log`.
+16. r[req.row.alias.generic.kind] A row argument for a type-kinded alias parameter, as in `$ Only[$ AppRow]` after `type Only[T] = T`, is an error. Error: `generic-kind-mismatch`.
+17. r[req.row.alias.cycle] A row alias that expands to itself is an [alias cycle](04-type-system.md#r-types.alias.cycle). Error: `alias-cycle`.
 
 ```text
 use std.function.Fn
@@ -388,20 +453,20 @@ trait Log
 
 type AppRow = Db + Cache
 
-type WithLog[R] = R + Log
+type WithLog[$R] = R + Log
 
-fn install(ctx: $.Context[AppRow], job: Fn[(), void, AppRow]) -> void:
+fn install(ctx: $.Context[$ AppRow], job: Fn[(), void, $ AppRow]) -> void:
     $.with(ctx...):
         job()
 
-fn logged() -> void $ WithLog[AppRow]:
+fn logged() -> void $ WithLog[$ AppRow]:
     pass
 
-fn provide_log[R](callback: fn() -> void $ R + Log) -> void $ R:
+fn provide_log[$R](callback: fn() -> void $ R + Log) -> void $ R:
     pass
 
 fn run() -> void $ AppRow:
-    provide_log::[AppRow](logged)
+    provide_log::[$ AppRow](logged)
 ```
 
 ```text
@@ -606,13 +671,13 @@ impl Tag for Named:
 fn read_tag() -> string $ Tag:
     $.use(Tag).name()
 
-fn with_tag[R](callback: fn() -> string $ R + Tag) -> string $ R:
+fn with_tag[$R](callback: fn() -> string $ R + Tag) -> string $ R:
     $.with(Tag=Named { label: "inner" }):
         callback()
 
 fn run() -> string:
     $.with(Tag=Named { label: "outer" }):
-        with_tag::[Tag](read_tag)  # "inner": the callee installs the nearer Tag
+        with_tag::[$ Tag](read_tag)  # "inner": the callee installs the nearer Tag
 ```
 
 > **Why.** One rule finds every provider: the nearest scope that binds the
@@ -642,7 +707,7 @@ data Fixed:
 impl Clock for Fixed:
     fn now(self) -> i32: self.hour
 
-fn at_noon[R](callback: fn() -> i32 $ R + Clock) -> i32 $ R:
+fn at_noon[$R](callback: fn() -> i32 $ R + Clock) -> i32 $ R:
     $.with(Clock=Fixed { hour: 12 }):
         callback()
 
@@ -729,7 +794,7 @@ fn declared[T](local: Repo[User]) -> void:
 
 ### Reusable Contexts
 
-Reusable provider maps use `$.Context[Row]`:
+Reusable provider maps use `$.Context[$ Row]`:
 
 ```text
 fn prod_context() -> $.Context[$ Metrics + Cache]:
@@ -740,20 +805,19 @@ $.with(Database=db, Logger=logger, prod_context()...):
 ```
 
 1. r[req.context.row] `$.Context[$ A + B]` is indexed by one unordered, duplicate-free requirement row; it is not a variadic generic.
-2. r[req.context.single-bare] A context with a single key may write it bare, as in `$.Context[Clock]`.
-3. r[req.context.bare-alias] A bare [row alias](#row-aliases) there stands for its row, so `$.Context[AppRow]` is `$.Context[$ AppRow]` ([`req.row.alias.bare`](#r-req.row.alias.bare)).
-4. r[req.context.empty] `$.Context[$()]` is the empty context.
-5. r[req.context.create] `$.context` creates a context value.
-6. r[req.context.spread] An entry `ctx...` spreads the providers of the context value `ctx`.
-7. r[req.context.spread.suffix] Like every spread, a context spread is written with a suffix `...`, and a prefix `...ctx` is a syntax error. Error: `syntax-error`.
-8. r[req.context.order] Context spreads and explicit bindings are applied left to right, and the later binding wins when the same key appears more than once.
-9. r[req.context.one-per-key] The resulting context still has one provider per key.
+2. r[req.context.dollar] Its brackets are a [row slot](#row-slots), so one key or a row alias is written after `$` too, as in `$.Context[$ Clock]` and `$.Context[$ AppRow]`.
+3. r[req.context.empty] `$.Context[$()]` is the empty context.
+4. r[req.context.create] `$.context` creates a context value.
+5. r[req.context.spread] An entry `ctx...` spreads the providers of the context value `ctx`.
+6. r[req.context.spread.suffix] Like every spread, a context spread is written with a suffix `...`, and a prefix `...ctx` is a syntax error. Error: `syntax-error`.
+7. r[req.context.order] Context spreads and explicit bindings are applied left to right, and the later binding wins when the same key appears more than once.
+8. r[req.context.one-per-key] The resulting context still has one provider per key.
 
 ```text
 trait Tag:
     fn name(self) -> string
 
-fn run(ctx: $.Context[Tag]) -> void:
+fn run(ctx: $.Context[$ Tag]) -> void:
     $.with(...ctx):  # error: syntax-error
         pass
 ```
@@ -864,7 +928,7 @@ fn tick() -> void $ Counter:
 ### Access In Rows
 
 1. r[req.mut.row.plain] A row entry is always the plain key `K`, and it requires the provider for `K` with its trait's access.
-2. r[req.mut.row.no-access-rules] Rows, `$.Context[Row]` rows, and removal by extension therefore compare and remove keys by trait alone.
+2. r[req.mut.row.no-access-rules] Rows, `$.Context[$ Row]` rows, and removal by extension therefore compare and remove keys by trait alone.
 3. r[req.mut.row.missing-key] A required key with no available provider is an error, whatever its trait's access. Error: `missing-requirement`.
 
 ### Entry-Point Access
@@ -1251,14 +1315,14 @@ fn explicit!() -> (i32, i32):
 Higher-order code preserves callback requirements with a row parameter:
 
 ```text
-fn transform[T, U, R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
+fn transform[T, U, $R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
     ...
 ```
 
 A local provider removes one key from a callback row by extension:
 
 ```text
-fn provide_logger[R](callback: fn(string) -> void $ R + Logger) -> void $ R:
+fn provide_logger[$R](callback: fn(string) -> void $ R + Logger) -> void $ R:
     $.with(Logger=logger):
         callback("message")
 ```
@@ -1266,7 +1330,7 @@ fn provide_logger[R](callback: fn(string) -> void $ R + Logger) -> void $ R:
 1. r[req.poly.row-parameter] Higher-order code preserves callback requirements with a row parameter.
 2. r[req.poly.extension] A local provider removes one key from a callback row by extension.
 3. r[req.poly.extension.form] The parameter row lists the row parameter beside the removed key, and the callee's own row is the plain row parameter.
-4. r[req.poly.kind] The compiler infers `R` as a row parameter from its use after `$`, not from the case of its name.
+4. r[req.poly.kind.marked] `R` is a row parameter because its declaration writes `$R`, not because of its use after `$` or the case of its name.
 5. r[req.poly.naming] Row parameters follow the ordinary uppercase convention for generic parameters.
 6. r[req.poly.least] At a call, the compiler infers `R` as the least row solution of the callback pattern.
 7. r[req.poly.least.example] Passing a callback with row `$ Logger + Clock` infers `R` as `$ Clock`, so the call requires only `Clock`.
@@ -1287,7 +1351,7 @@ data SilentLogger: pass
 impl Logger for SilentLogger:
     fn write(self, message: string) -> void: pass
 
-fn provide_logger[R](callback: fn() -> void $ R + Logger) -> void $ R:
+fn provide_logger[$R](callback: fn() -> void $ R + Logger) -> void $ R:
     $.with(Logger=SilentLogger {}):
         callback()
 

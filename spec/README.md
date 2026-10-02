@@ -245,7 +245,6 @@ The stdlib chapters' terms are in the
 | **mutable edges** | What a data type has when it, or a type it embeds at any depth, declares a direct `field: mut U`. See [Mutable Edges](lang/08-data-and-enums.md#mutable-edges). |
 | **mutable requirement trait** | A trait that declares or inherits a `mut self` method; its providers always have mutable access. See [`req.mut.trait`](lang/11-requirements-and-suspension.md#r-req.mut.trait). |
 | **non-reassignable** | A binding whose name cannot be rebound. See [`types.view.non-reassignable`](lang/04-type-system.md#r-types.view.non-reassignable). |
-| **one-key row slot** | A place where one bare key may stand for a row: `$.Context[...]` or a row-kinded type argument written without `$`. See [`req.row.alias.one-key-slot`](lang/11-requirements-and-suspension.md#r-req.row.alias.one-key-slot). |
 | **operator trait** | A `std.ops` trait, such as `Add[Rhs = Self]`, whose implementation gives a type one operator. See [Operator Traits](lang/05-expressions.md#operator-traits). |
 | **package mode** | How a command works when the nearest `hd.toml` at or above its start directory declares a package. See [`cli.mode.package.nearest`](cli/command-line.md#r-cli.mode.package.nearest). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](lang/08-data-and-enums.md#parts-and-copies). |
@@ -271,6 +270,7 @@ The stdlib chapters' terms are in the
 | **root file** | `src/lib.hd`, `src/main.hd`, or an integration test program, whose relative lookup starts at its root and which has no `super`. See [`module.relative.root-file`](lang/10-modules.md#r-module.relative.root-file). |
 | **row alias** | A transparent alias that names a set of requirement keys. See [Row Aliases](lang/11-requirements-and-suspension.md#row-aliases). |
 | **row parameter** | A generic parameter whose values are requirement rows. See [`req.row.parameter`](lang/11-requirements-and-suspension.md#r-req.row.parameter). |
+| **row slot** | A place in a type that takes a requirement row, written after `$`: `$.Context[...]`, the row argument of `Fn`, and a type argument for a row parameter. See [`req.row.slot`](lang/11-requirements-and-suspension.md#r-req.row.slot). |
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
 | **runtime identity** | Two types share it when they are the same declaration applied to type arguments with the same runtime identity. See [`trait.identity.definition`](lang/09-traits.md#r-trait.identity.definition). |
 | **runtime profile** | A named compile-time set of host capability traits, their boundary adapters, and runtime choices such as panic exit statuses. See [`module.profile.definition`](lang/10-modules.md#r-module.profile.definition). |

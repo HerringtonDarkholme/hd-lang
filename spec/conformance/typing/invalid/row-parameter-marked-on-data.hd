@@ -1,0 +1,3 @@
+# test: a data type cannot mark a generic parameter as a row parameter
+data Job[$R]:  # diagnostic: generic-kind-mismatch
+    name: string

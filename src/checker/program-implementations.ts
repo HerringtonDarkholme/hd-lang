@@ -411,6 +411,7 @@ function prepareInherentImplementation(
       name: functionName,
       suspending: method.suspending,
       genericParameters: [...implementation.genericParameters, ...method.genericParameters],
+      rowParameters: [...(implementation.rowParameters ?? []), ...(method.rowParameters ?? [])],
       genericBounds: [...implementation.genericBounds, ...method.genericBounds],
       parameters: method.parameters.map((parameter) =>
         substituteSelfParameter(parameter, implementation.targetName),
@@ -493,7 +494,7 @@ function resolveImplementationTarget(
 ): string | undefined {
   const { diagnostics, dataTypes, enumTypes, traitTypes } = context;
   // A parameter in a function type's row position, as `R` in
-  // `Fn[Args, O, R]`, is a row parameter (07-functions.md#r-fn.type.ctor.row).
+  // `Fn[Args, O, $ R]`, is a row parameter (07-functions.md#r-fn.type.ctor.row).
   const rowParameters = new Set<string>();
   collectRowParameterReferences(
     implementation.targetName,
@@ -863,6 +864,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         name: `$impl${implementationIndex}.${method.name}`,
         suspending: method.suspending,
         genericParameters: [...implementation.genericParameters, ...method.genericParameters],
+        rowParameters: [...(implementation.rowParameters ?? []), ...(method.rowParameters ?? [])],
         genericBounds: [...implementation.genericBounds, ...method.genericBounds],
         parameters: method.parameters.map((parameter) =>
           substituteSelfParameter(parameter, implementation.targetName),

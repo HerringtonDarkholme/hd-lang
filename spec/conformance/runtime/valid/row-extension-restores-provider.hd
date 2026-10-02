@@ -15,7 +15,7 @@ impl Tag for FixedTag:
 fn current() -> string $ Tag:
     $.use(Tag).name()
 
-fn provide_inner[R](callback: fn() -> string $ R + Tag) -> string $ R:
+fn provide_inner[$R](callback: fn() -> string $ R + Tag) -> string $ R:
     $.with(Tag=FixedTag { value: "inner" }):
         callback()
 

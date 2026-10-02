@@ -12,7 +12,7 @@ fn spelled() -> Fn[(i32, string), bool, $()]:
 fn sugared(callback: Fn[(i32, string), bool, $()]) -> fn(i32, string) -> bool:
     callback
 
-fn suspending() -> SuspendFn[(i32,), string, Database]:
+fn suspending() -> SuspendFn[(i32,), string, $ Database]:
     load
 
 fn back(callback: fn!(i32) -> string $ Database) -> SuspendFn[(i32,), string, $ Database]:

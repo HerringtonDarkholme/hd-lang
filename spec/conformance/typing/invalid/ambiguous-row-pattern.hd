@@ -4,5 +4,5 @@ trait Db
 
 trait Clock
 
-fn split[R1, R2](f: fn() -> void $ R1 + R2) -> void $ R1:  # diagnostic: ambiguous-row-pattern
+fn split[$R1, $R2](f: fn() -> void $ R1 + R2) -> void $ R1:  # diagnostic: ambiguous-row-pattern
     pass

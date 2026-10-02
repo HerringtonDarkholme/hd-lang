@@ -10,13 +10,13 @@ data SilentLog: pass
 impl Log for SilentLog:
     fn write(self, message: string) -> void: pass
 
-type WithLog[R] = R + Log
+type WithLog[$R] = R + Log
 
-fn provide_log[R](callback: fn() -> void $ WithLog[R]) -> void $ R:
+fn provide_log[$R](callback: fn() -> void $ WithLog[$ R]) -> void $ R:
     $.with(Log=SilentLog {}):
         callback()
 
-fn tick() -> void $ WithLog[Clock]:
+fn tick() -> void $ WithLog[$ Clock]:
     $.use(Log).write("tick")
 
 fn run() -> void $ Clock:

@@ -260,7 +260,7 @@ fn neg(a: i32) -> i32: -a
 fn zero() -> i32: 0
 fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
 
-fn call[Args < Tuple, O, R](f: Fn[Args, O, R], args...: Args) -> O $ R:
+fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)
 
 fn pack[Args < Tuple](args...: Args) -> Args: args
@@ -307,7 +307,7 @@ fn count(values...: i32) -> i32: values                       # error: type-mism
 fn apply(callback: fn(i32...) -> i32) -> i32: 0               # error: type-mismatch
 
 fn add2(a: i32, b: i32) -> i32: a + b
-fn call[Args < Tuple, O, R](f: Fn[Args, O, R], args...: Args) -> O $ R: f(args...)
+fn call[Args < Tuple, O, R](f: Fn[Args, O, $ R], args...: Args) -> O $ R: f(args...)
 fn nested() -> i32: call(add2, (1, 2))                         # error: type-mismatch
 ```
 
@@ -341,8 +341,8 @@ Every function type is exact sugar for one of two standard constructors that
 
 | Sugar | Constructor form |
 | --- | --- |
-| `fn(A, B) -> O $ R` | `Fn[(A, B), O, R]` |
-| `fn!(A, B) -> O $ R` | `SuspendFn[(A, B), O, R]` |
+| `fn(A, B) -> O $ R` | `Fn[(A, B), O, $ R]` |
+| `fn!(A, B) -> O $ R` | `SuspendFn[(A, B), O, $ R]` |
 | `fn(A) -> O` | `Fn[(A,), O, $()]` |
 | `fn() -> O $ Db + Cache` | `Fn[(), O, $ Db + Cache]` |
 
@@ -360,19 +360,19 @@ fn spelled() -> Fn[(i32, string), bool, $()]:
 fn sugared(callback: Fn[(i32, string), bool, $()]) -> fn(i32, string) -> bool:
     callback
 
-fn suspending() -> SuspendFn[(i32,), string, Database]:
+fn suspending() -> SuspendFn[(i32,), string, $ Database]:
     load
 ```
 
 1. r[fn.type.ctor.decl] `std.function` declares the function type constructors `Fn` and `SuspendFn`. Each takes three arguments: the inputs, the output, and the requirement row.
 2. r[fn.type.ctor.inputs] The inputs argument is one tuple type whose elements are the parameter types, such as `()`, `(A,)`, or `(A, B)`, or a type parameter bounded by `Tuple`.
-3. r[fn.type.ctor.no-flatten] A tuple is never flattened into parameters: `Fn[((A, B),), O, R]` takes one pair, and `Fn[(A, B), O, R]` takes two values.
+3. r[fn.type.ctor.no-flatten] A tuple is never flattened into parameters: `Fn[((A, B),), O, $ R]` takes one pair, and `Fn[(A, B), O, $ R]` takes two values.
 4. r[fn.type.ctor.row] The row argument is row-kinded. A function type without a requirement clause has the empty row `$()`, and several keys are joined with `+`, as in `$ Db + Cache`.
-5. r[fn.type.ctor.row.alias] A bare row alias as the row argument stands for its row, so `Fn[(), O, AppRow]` is `Fn[(), O, $ AppRow]` ([`req.row.alias.bare`](11-requirements-and-suspension.md#r-req.row.alias.bare)).
+5. r[fn.type.ctor.row.dollar] The row argument is a [row slot](11-requirements-and-suspension.md#row-slots), so one key or a row alias is written after `$` too, as in `Fn[(), O, $ Db]` and `Fn[(), O, $ AppRow]`. A bare one is an error. Error: `generic-kind-mismatch`.
 6. r[fn.type.ctor.tuple-trait] `std.function` also declares `Tuple`, an empty sealed marker trait that every tuple type implements, `()` and `(A,)` included.
 7. r[fn.type.ctor.tuple-trait.rest] A tuple type with a [rest element](04-type-system.md#rest-elements) is a tuple type and implements `Tuple`, so `Args` may be `(i32, List[i32]...)`.
-8. r[fn.type.ctor.inputs-tuple] An inputs argument that is not a tuple type or a type parameter bounded by `Tuple`, as in `Fn[i32, i32, $()]` or `Fn[Args, O, R]` with an unbounded `Args`, is an error. Error: `generic-kind-mismatch`.
-9. r[fn.type.ctor.sugar] `fn(A) -> O $ R` and `Fn[(A,), O, R]` denote the same type, and so do `fn!(A) -> O $ R` and `SuspendFn[(A,), O, R]`.
+8. r[fn.type.ctor.inputs-tuple] An inputs argument that is not a tuple type or a type parameter bounded by `Tuple`, as in `Fn[i32, i32, $()]` or `Fn[Args, O, $ R]` with an unbounded `Args`, is an error. Error: `generic-kind-mismatch`.
+9. r[fn.type.ctor.sugar] `fn(A) -> O $ R` and `Fn[(A,), O, $ R]` denote the same type, and so do `fn!(A) -> O $ R` and `SuspendFn[(A,), O, $ R]`.
 10. r[fn.type.ctor.anywhere] Either spelling is valid anywhere a type may appear, including implementation targets.
 11. r[fn.type.ctor.diagnostics] Diagnostics print a function type in its sugar form, as they print `T?` for `Option[T]`.
 12. r[fn.type.ctor.imports] The sugar needs no import. The names `Fn`, `SuspendFn`, and `Tuple` are imported where they are written, as in `use std.function.Fn`.
@@ -384,7 +384,7 @@ use std.function.{Fn, Tuple}
 trait Describe:
     fn describe(self) -> string
 
-impl[Args < Tuple, O, R] Describe for Fn[Args, O, R]:
+impl[Args < Tuple, O, $R] Describe for Fn[Args, O, $ R]:
     fn describe(self) -> string: "function"
 
 fn invalid(callback: Fn[i32, i32, $()]) -> void: pass             # error: generic-kind-mismatch
@@ -413,7 +413,7 @@ fn apply(callback: fn(i32, i32, List[i32]...) -> i32) -> i32:
 
 1. r[fn.type.vararg-rest] A `List[T]` vararg is the rest element `List[T]...` of its function's inputs tuple. So `g` above has type `fn(i32, i32, List[i32]...) -> i32`, which differs from `h`'s type.
 2. r[fn.type.rest-call] Calling a function value whose inputs end in a rest element `List[T]...` treats that element as a `List[T]` vararg, as in `f(1, 2, 3, 4)` above.
-3. r[fn.type.tuple-vararg-input] A vararg whose type is a tuple type or a `Tuple`-bounded type parameter is one ordinary input of its function's type, which takes the collected tuple. `call` has type `fn(Fn[Args, O, R], Args) -> O $ R`.
+3. r[fn.type.tuple-vararg-input] A vararg whose type is a tuple type or a `Tuple`-bounded type parameter is one ordinary input of its function's type, which takes the collected tuple. `call` has type `fn(Fn[Args, O, $ R], Args) -> O $ R`.
 
 ```text
 fn sum(values...: List[i32]) -> i32: values.len()
@@ -526,7 +526,7 @@ See also: [Type Inference Boundaries](04-type-system.md#type-inference-boundarie
 2. r[fn.type.suspend.bang] It may be bang-called inside a suspending body.
 3. r[fn.type.suspend.weaken] It may be weakened to the lowered constructor type `fn(A) -> mut Suspend[T] $ R`.
 4. r[fn.type.suspend.no-reverse] The reverse conversion is not implicit.
-5. r[fn.type.suspend.ctor] In constructor form, the weakening converts `SuspendFn[I, O, R]` to `Fn[I, mut Suspend[O], R]`.
+5. r[fn.type.suspend.ctor] In constructor form, the weakening converts `SuspendFn[I, O, $ R]` to `Fn[I, mut Suspend[O], $ R]`.
 
 ### Method References
 
@@ -877,7 +877,7 @@ first::[string](names)
 
 1. r[fn.generic.explicit.trailing] An explicit type-argument list may omit trailing slots. Each omitted slot is inferred as a `_` slot is, then takes its default if inference leaves it unsolved.
 2. r[fn.generic.explicit.too-long-count] A list with more slots than the function has generic parameters is an error. Error: `argument-count`.
-3. r[fn.generic.explicit.row] The slot of a row parameter takes a [row type argument](02-grammar.md#row-type-arguments): a row after `$`, one bare key, or a bare row alias ([`req.row.alias.bare`](11-requirements-and-suspension.md#r-req.row.alias.bare)).
+3. r[fn.generic.explicit.row-dollar] The slot of a row parameter takes a [row type argument](02-grammar.md#row-type-arguments), written after `$` even for one key or a row alias, as in `::[$ Log]`, `::[$ AppRow]`, or `::[$()]`. A bare key or row alias there is an error. Error: `generic-kind-mismatch`.
 
 ```text
 fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):

@@ -3,7 +3,7 @@ use std.function.{Fn, Tuple}
 
 fn add2(a: i32, b: i32) -> i32: a + b
 
-fn call[Args < Tuple, O, R](f: Fn[Args, O, R], args...: Args) -> O $ R:
+fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)
 
 fn nested() -> i32: call(add2, (1, 2))  # diagnostic: type-mismatch

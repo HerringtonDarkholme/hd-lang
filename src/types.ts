@@ -104,7 +104,7 @@ export function restInner(element: ValueType): ValueType | undefined {
 
 /**
  * The type parameter `Args` in the one parameter `*Args` that encodes
- * `Fn[Args, O, R]` with `Args < Tuple` (07-functions.md#r-fn.type.ctor.inputs).
+ * `Fn[Args, O, $ R]` with `Args < Tuple` (07-functions.md#r-fn.type.ctor.inputs).
  * Its value at run time is the inputs tuple, so it is one erased input.
  */
 export function inputsInner(parameter: ValueType): ValueType | undefined {

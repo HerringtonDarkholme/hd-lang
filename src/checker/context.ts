@@ -92,7 +92,7 @@ export interface Signature {
   /**
    * Every generic parameter in declared order, type and row alike, when a
    * row parameter is among them: the slots of an explicit type-argument list
-   * (07-functions.md#r-fn.generic.explicit.row).
+   * (07-functions.md#r-fn.generic.explicit.row-dollar).
    */
   readonly typeArgumentOrder?: readonly string[];
   readonly parameters: readonly ValueType[];

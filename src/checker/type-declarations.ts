@@ -34,11 +34,14 @@ export const NEWTYPE_FIELD = "$value";
 
 interface Alias {
   readonly parameters: readonly string[];
+  /** The parameters declared `$R` (11-requirements-and-suspension.md#r-req.row.alias.generic.marked). */
+  readonly rows: ReadonlySet<string>;
   readonly target: string;
 }
 
 interface RowAlias {
   readonly parameters: readonly string[];
+  readonly rows: ReadonlySet<string>;
   readonly keys: readonly string[];
 }
 
@@ -61,7 +64,7 @@ export function words(type: string): readonly string[] {
 
 /**
  * The parameters of an ordinary alias used as requirement keys in its
- * target, which take row arguments (11-requirements-and-suspension.md#r-req.row.param.callables).
+ * target or declared `$R`, which take row arguments (11-requirements-and-suspension.md#r-req.row.param.marked).
  */
 function rowKindedParameters(alias: Alias): ReadonlySet<string> {
   const rows = new Set<string>();
@@ -83,7 +86,9 @@ function rowKindedParameters(alias: Alias): ReadonlySet<string> {
     nominalGenericParts(type)?.arguments.forEach(visit);
   };
   visit(alias.target);
-  return new Set(alias.parameters.filter((parameter) => rows.has(parameter)));
+  return new Set(
+    alias.parameters.filter((parameter) => rows.has(parameter) || alias.rows.has(parameter)),
+  );
 }
 
 /** Replaces alias parameters, written by name, with their arguments. */
@@ -163,6 +168,14 @@ class AliasExpander {
     this.diagnostics.push({ code: "generic-kind-mismatch", message, span });
   }
 
+  /** A bare key or row alias where a row parameter takes a row (r-req.row.slot.bare). */
+  private bareRow(name: string, parameter: string, argument: string, span: SourceSpan): void {
+    this.kindMismatch(
+      `'${name}' takes a requirement row for '${parameter}', written after '$', as in '$ ${argument.replace(/^trait:/, "")}'`,
+      span,
+    );
+  }
+
   /** The arguments of an ordinary alias, with a row given for a type-kinded parameter reported. */
   private aliasArguments(
     name: string,
@@ -180,6 +193,19 @@ class AliasExpander {
         );
         return undefined;
       }
+      // A row parameter's argument is a row slot, written after `$`
+      // (11-requirements-and-suspension.md#r-req.row.slot.bare).
+      // The bare key stands in as its row after the one kind error, so no
+      // unknown-type error follows.
+      if (rowKinded.has(parameter) && rowArgumentKeys(argument) === undefined) {
+        this.bareRow(name, parameter, argument, span);
+        return new Map(
+          alias.parameters.map((other, position) => [
+            other,
+            position === index ? rowArgumentType([argument]) : arguments_[position]!,
+          ]),
+        );
+      }
     }
     return new Map(alias.parameters.map((parameter, index) => [parameter, arguments_[index]!]));
   }
@@ -195,6 +221,13 @@ class AliasExpander {
       const substitutions = new Map(
         row.parameters.map((parameter, index) => [parameter, arguments_[index]!]),
       );
+      for (const [index, parameter] of row.parameters.entries()) {
+        const argument = arguments_[index]!;
+        if (row.rows.has(parameter) && rowArgumentKeys(argument) === undefined) {
+          this.bareRow(name, parameter, argument, span);
+          return [];
+        }
+      }
       return row.keys.flatMap((inner) => {
         const argument = substitutions.get(inner);
         const replaced =
@@ -254,13 +287,10 @@ class AliasExpander {
 
   /**
    * An explicit type argument with every alias expanded. A bare row alias
-   * there is a one-key row slot's row (11-requirements-and-suspension.md#r-req.row.alias.bare);
-   * the checker reports it against a type-kinded parameter.
+   * there is a type, which the kind checks reject
+   * (11-requirements-and-suspension.md#r-req.row.slot.bare).
    */
-  typeArgument(type: string, span: SourceSpan, list: string): string {
-    const name = nominalGenericParts(type)?.name ?? type;
-    if (list === "typeArguments" && this.isRow(name))
-      return rowArgumentType(this.row([type], span));
+  typeArgument(type: string, span: SourceSpan, _list: string): string {
     return this.type(type, span);
   }
 
@@ -294,7 +324,7 @@ class AliasExpander {
     const rowAlias = this.rows.get(name);
     if (rowAlias) {
       this.kindMismatch(
-        `'${name}' is a requirement row alias; write it where a row goes, not as a type`,
+        `'${name}' is a requirement row alias, not a type; where a row goes, write '$ ${name}'`,
         span,
       );
       // Its first key stands in, so the one kind error is not followed by
@@ -456,11 +486,13 @@ export function withTypeDeclarations(program: Program): {
     if (declaration.row)
       rows.set(declaration.name, {
         parameters: declaration.genericParameters,
+        rows: new Set(declaration.rowParameters ?? []),
         keys: declaration.row,
       });
     else if (declaration.alias)
       aliases.set(declaration.name, {
         parameters: declaration.genericParameters,
+        rows: new Set(declaration.rowParameters ?? []),
         target: declaration.alias.name,
       });
     else newtypes.push(declaration);

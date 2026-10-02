@@ -17,7 +17,7 @@ polling combinators `all!` and `race!`, which are compiler intrinsics
 tries:
 
 ```text
-pub fn retry![T, E, R](times: i32, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R
+pub fn retry![T, E, $R](times: i32, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R
 ```
 
 1. r[std-task.combinator.retry] `std.task` declares `retry!` with the signature above, as an ordinary `fn!` function, not an intrinsic. Code imports it with `use std.task.retry`.

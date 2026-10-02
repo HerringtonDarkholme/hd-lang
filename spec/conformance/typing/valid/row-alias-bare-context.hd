@@ -1,4 +1,4 @@
-# test: $.Context takes a bare row alias as its row
+# test: $.Context takes a row alias as its row, written after $
 
 trait Db
 
@@ -6,8 +6,8 @@ trait Cache
 
 type AppRow = Db + Cache
 
-fn spelled(ctx: $.Context[$ Db + Cache]) -> $.Context[AppRow]:
+fn spelled(ctx: $.Context[$ Db + Cache]) -> $.Context[$ AppRow]:
     ctx
 
-fn bare(ctx: $.Context[AppRow]) -> $.Context[$ AppRow]:
+fn bare(ctx: $.Context[$ AppRow]) -> $.Context[$ AppRow]:
     ctx

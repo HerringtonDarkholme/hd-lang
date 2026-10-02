@@ -26,12 +26,12 @@ fn empty() -> i32 $(): 3
 fn wrap() -> (fn() -> i32 $ Clock + Logger) $ Clock:
     fn() -> i32 $ Clock + Logger: 4
 
-fn provide[R](callback: fn() -> i32 $ R + Logger) -> i32 $ R:
+fn provide[$R](callback: fn() -> i32 $ R + Logger) -> i32 $ R:
     callback()
 
 fn contexts(
     both: $.Context[$ Clock + Logger],
-    one: $.Context[Clock],
+    one: $.Context[$ Clock],
     none: $.Context[$()],
 ) -> void: pass
 

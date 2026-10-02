@@ -367,7 +367,7 @@ export class EmitterContext {
 
   /**
    * A call's erased result type when its value needs restoring: a boxed
-   * generic, or a function type such as `Fn[Args, O, R]` that is adapted
+   * generic, or a function type such as `Fn[Args, O, $ R]` that is adapted
    * back to the instantiated function type.
    */
   protected erasedResultType(
@@ -390,7 +390,7 @@ export class EmitterContext {
 
   /**
    * The arguments a callable adapter passes on: boxed or unboxed per
-   * parameter, and for `Fn[Args, O, R]`'s one input `*Args` the inputs tuple
+   * parameter, and for `Fn[Args, O, $ R]`'s one input `*Args` the inputs tuple
    * unpacked into the actual parameters, or packed from the formal ones
    * (07-functions.md#r-fn.type.ctor.inputs).
    */

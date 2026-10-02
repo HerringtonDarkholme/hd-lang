@@ -28,7 +28,7 @@ impl Clock for FixedClock:
 
 type Stack = Db + Log
 
-fn with_stack[T, R](body: fn() -> T $ R + Stack) -> T $ R:
+fn with_stack[T, $R](body: fn() -> T $ R + Stack) -> T $ R:
     $.with(Db=MemoryDb {}, Log=PlainLog {}):
         body()
 

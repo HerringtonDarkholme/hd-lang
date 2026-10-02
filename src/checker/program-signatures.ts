@@ -125,7 +125,8 @@ export function createProgramSignatures(
           span: declaration.span,
         });
     }
-    const rowParameterSet = new Set<string>();
+    // A parameter declared `$R` is a row parameter (11-requirements-and-suspension.md#r-req.row.param.marked).
+    const rowParameterSet = new Set<string>(declaration.rowParameters ?? []);
     for (const requirement of declaration.requirements) {
       if (declaredGenerics.has(requirement)) rowParameterSet.add(requirement);
     }

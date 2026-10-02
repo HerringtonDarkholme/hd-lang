@@ -1,0 +1,5 @@
+# test: a bare key in $.Context[...] is an error
+trait Db
+
+fn install(ctx: $.Context[Db]) -> void:  # diagnostic: generic-kind-mismatch
+    pass

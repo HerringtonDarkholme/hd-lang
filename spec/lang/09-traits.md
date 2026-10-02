@@ -616,7 +616,7 @@ constructor.
 | r[trait.target.declaration] Declared | a data, enum, or newtype declaration | `User`, `Box` |
 | r[trait.target.builtin] Built-in | a built-in type constructor | `i32`, `string`, `List`, `Map` |
 | r[trait.target.tuple] Tuple | a tuple constructor, one per arity | `(A, B)`, the two-element tuple constructor applied to `A` and `B` |
-| r[trait.target.function-type] Function | a function type constructor, `Fn` or `SuspendFn` | `fn(i32) -> i32`, which is `Fn[(i32,), i32, $()]`, and `SuspendFn[Args, O, R]` |
+| r[trait.target.function-type] Function | a function type constructor, `Fn` or `SuspendFn` | `fn(i32) -> i32`, which is `Fn[(i32,), i32, $()]`, and `SuspendFn[Args, O, $ R]` |
 
 1. r[trait.target.constructor] The target of every implementation, trait or inherent, starts with a type constructor from the table above.
 2. r[trait.target.tuple.valid] `impl Display for (i32, string)` is a valid target.
@@ -664,7 +664,7 @@ use std.function.{Fn, Tuple}
 trait Describe:
     fn describe(self) -> string
 
-impl[Args < Tuple, O, R] Describe for Fn[Args, O, R]:
+impl[Args < Tuple, O, $R] Describe for Fn[Args, O, $ R]:
     fn describe(self) -> string:
         "function"
 ```
@@ -806,7 +806,7 @@ impl[T < Display] Printable for Box[T]:
 | `impl[T] Marker for Box[T]` | `impl Marker for Box[i32]` | yes |
 | `impl Marker for Box[i32]` | `impl Marker for Box[string]` | no |
 | `impl Add[i32] for Money` | `impl Add[Money] for Money` | no |
-| `impl[Args < Tuple, O, R] Marker for Fn[Args, O, R]` | `impl Marker for fn(i32) -> i32` | yes |
+| `impl[Args < Tuple, O, R] Marker for Fn[Args, O, $ R]` | `impl Marker for fn(i32) -> i32` | yes |
 | `impl Marker for fn(i32) -> i32` | `impl Marker for fn(string) -> i32` | no |
 
 ```text
@@ -1317,7 +1317,7 @@ The one-copy rule has these consequences:
 
 ```text
 trait Runner:
-    fn run[R](self, job: fn() -> void $ R) -> void $ R
+    fn run[$R](self, job: fn() -> void $ R) -> void $ R
 
 fn valid(runner: Runner) -> void:
     pass

@@ -18,6 +18,10 @@ interface ParsedGenericParameters {
   readonly defaults?: Readonly<Record<string, TypeRef>>;
   /** `+T` and `-T` markers of a declaration's type parameters, one per parameter. */
   readonly variances?: readonly VarianceMarker[];
+  /** The parameters declared `$R`, which are row parameters (11-requirements-and-suspension.md#r-req.row.param.marked). */
+  readonly rows: readonly string[];
+  /** Each parameter's name token, for a fix-it that marks it `$`. */
+  readonly spans: ReadonlyMap<string, SourceSpan>;
 }
 
 /** Which generic parameter list is parsed (02-grammar.md#generic-parameters-and-bounds). */
@@ -41,7 +45,9 @@ export abstract class DecoratorParser extends ExpressionParser {
     const bounds: GenericBound[] = [];
     const defaults: Record<string, TypeRef> = {};
     const variances: VarianceMarker[] = [];
-    if (!this.matchText("[")) return { parameters, bounds };
+    const rows: string[] = [];
+    const spans = new Map<string, SourceSpan>();
+    if (!this.matchText("[")) return { parameters, bounds, rows, spans };
     if (!this.atText("]")) {
       do {
         if (form.variance) {
@@ -55,7 +61,17 @@ export abstract class DecoratorParser extends ExpressionParser {
             );
           variances.push(variance);
         }
+        // `$R` declares a row parameter (11-requirements-and-suspension.md#r-req.row.param.marked).
+        const row = this.matchText("$");
         const parameter = this.expectKind("identifier", "expected a generic parameter name");
+        spans.set(parameter.text, parameter.span);
+        if (row) rows.push(parameter.text);
+        if (row && this.atText("<"))
+          this.fail(
+            "syntax-error",
+            `row parameter '${parameter.text}' takes no bound`,
+            this.current().span,
+          );
         if (parameters.includes(parameter.text))
           this.fail(
             "duplicate-generic-parameter",
@@ -98,6 +114,8 @@ export abstract class DecoratorParser extends ExpressionParser {
     return {
       parameters,
       bounds,
+      rows,
+      spans,
       ...(Object.keys(defaults).length > 0 ? { defaults } : {}),
       ...(variances.some(Boolean) ? { variances } : {}),
     };

@@ -796,7 +796,7 @@ tests:
 `std.testing` declares `it` as an ordinary function:
 
 ```text
-pub fn it[T < Termination, R](name: string, ignore: string? = .None, expect_panic: string? = .None,
+pub fn it[T < Termination, $R](name: string, ignore: string? = .None, expect_panic: string? = .None,
                              timeout: Duration? = .None, body: fn!() -> T $ R) -> void $ R
 ```
 

@@ -1805,3 +1805,13 @@ runtime/valid/result-ok-unit.hd	runtime
 runtime/valid/derived-default-declared.hd	runtime
 typing/valid/impl-parameter-fixed-by-binding.hd	type
 runtime/valid/list-slice-mutable.hd	runtime
+typing/valid/row-parameter-marked.hd	type
+typing/invalid/row-parameter-unmarked.hd	type
+typing/invalid/row-parameter-as-type.hd	type
+typing/invalid/row-parameter-marked-on-data.hd	type
+parse/invalid/row-parameter-bound.hd	parse
+typing/valid/row-slots.hd	type
+typing/invalid/row-slot-bare-alias-argument.hd	type
+typing/invalid/row-slot-bare-context.hd	type
+typing/invalid/row-slot-bare-function-type.hd	type
+typing/invalid/row-slot-bare-explicit-argument.hd	type

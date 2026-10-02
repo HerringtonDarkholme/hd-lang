@@ -31,7 +31,7 @@ trait Same[Other = Self]:
 fn pick[T, I < Supplier[Item = T] = Constant](source: I) -> T:
     source.get()
 
-fn run[R = $()](job: fn() -> void $ R) -> void $ R:
+fn run[$R = $()](job: fn() -> void $ R) -> void $ R:
     job()
 
 impl Constant:

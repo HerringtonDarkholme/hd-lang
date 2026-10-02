@@ -1,7 +1,26 @@
 import type { Expression, Statement, TypeRef, UseDecl, UseName, VarianceMarker } from "../ast.ts";
-import type { Diagnostic, DiagnosticFix, SourceSpan } from "../diagnostics.ts";
+import type { Diagnostic, DiagnosticFix, SourcePosition, SourceSpan } from "../diagnostics.ts";
 import type { Token, TokenKind } from "../lexer.ts";
-import { rowArgumentType } from "../types.ts";
+import {
+  contextKeys,
+  functionParts,
+  mutableInner,
+  nominalGenericParts,
+  optionalInner,
+  restInner,
+  rowArgumentKeys,
+  rowArgumentType,
+  tupleParts,
+} from "../types.ts";
+
+/** The generic parameters in scope at a declaration, by kind. */
+export interface GenericKinds {
+  readonly types: ReadonlySet<string>;
+  /** The parameters declared `$R` (11-requirements-and-suspension.md#r-req.row.param.marked). */
+  readonly rows: ReadonlySet<string>;
+  /** Each parameter's name token, for a fix-it that marks it `$`. */
+  readonly spans: ReadonlyMap<string, SourceSpan>;
+}
 
 export class ParseFailure extends Error {}
 
@@ -39,6 +58,8 @@ export abstract class ParserBase {
   protected index = 0;
   protected readonly diagnostics: Diagnostic[] = [];
   protected activeGenericParameters: ReadonlySet<string> = new Set();
+  /** The generic parameters of an enclosing implementation, which its methods see. */
+  protected enclosingKinds: GenericKinds = { types: new Set(), rows: new Set(), spans: new Map() };
 
   protected options: ParseOptions = {};
 
@@ -291,6 +312,120 @@ export abstract class ParserBase {
   protected atValuelessEnd(topOrInline: boolean): boolean {
     if (this.atKind("newline") || this.atKind("dedent") || this.atKind("eof")) return true;
     return topOrInline && [")", ",", "]", "}", "else"].some((text) => this.atText(text));
+  }
+
+  /** The kinds in scope: the enclosing ones, with `own` parameters shadowing them. */
+  protected genericKinds(
+    own: {
+      readonly parameters: readonly string[];
+      readonly rows: readonly string[];
+      readonly spans: ReadonlyMap<string, SourceSpan>;
+    },
+    enclosing: GenericKinds = this.enclosingKinds,
+  ): GenericKinds {
+    const rows = new Set([...enclosing.rows].filter((name) => !own.parameters.includes(name)));
+    const types = new Set([...enclosing.types].filter((name) => !own.parameters.includes(name)));
+    for (const name of own.parameters) (own.rows.includes(name) ? rows : types).add(name);
+    return { types, rows, spans: new Map([...enclosing.spans, ...own.spans]) };
+  }
+
+  /**
+   * A row parameter is declared `$R` and is used only in rows; any other
+   * generic parameter is used only as a type. An unmarked parameter in a row
+   * gets a fix-it that marks it (11-requirements-and-suspension.md#r-req.row.param.unmarked,
+   * #r-req.row.param.as-type).
+   */
+  protected checkGenericKinds(
+    kinds: GenericKinds,
+    types: readonly TypeRef[],
+    rows: readonly { readonly keys: readonly string[]; readonly span: SourceSpan }[] = [],
+  ): void {
+    if (kinds.types.size === 0 && kinds.rows.size === 0) return;
+    const visitRow = (keys: readonly string[], span: SourceSpan): void => {
+      for (const key of keys) {
+        const nominal = nominalGenericParts(key);
+        const name = nominal?.name ?? key;
+        if (kinds.types.has(name)) {
+          const declared = kinds.spans.get(name);
+          this.fail(
+            "generic-kind-mismatch",
+            `generic parameter '${name}' is used in a requirement row, so declare it as the row parameter '$${name}'`,
+            span,
+            declared
+              ? {
+                  message: `declare '$${name}'`,
+                  edits: [
+                    { span: { start: declared.start, end: declared.start }, replacement: "$" },
+                  ],
+                }
+              : undefined,
+          );
+        }
+        nominal?.arguments.forEach((argument) => visitType(argument, span));
+      }
+    };
+    const visitType = (type: string, span: SourceSpan): void => {
+      if (kinds.rows.has(type))
+        this.fail(
+          "generic-kind-mismatch",
+          `'${type}' is a row parameter, not a type; where a row goes, write '$ ${type}'`,
+          span,
+        );
+      const inner = mutableInner(type) ?? optionalInner(type) ?? restInner(type);
+      if (inner !== undefined) return visitType(inner, span);
+      const row = rowArgumentKeys(type) ?? contextKeys(type);
+      if (row) return visitRow(row, span);
+      const tuple = tupleParts(type);
+      if (tuple) return tuple.forEach((element) => visitType(element, span));
+      const callable = functionParts(type);
+      if (callable) {
+        callable.parameters.forEach((parameter) => visitType(parameter, span));
+        visitType(callable.result, span);
+        return visitRow(callable.requirements, span);
+      }
+      nominalGenericParts(type)?.arguments.forEach((argument) => visitType(argument, span));
+    };
+    for (const type of types) visitType(type.name, type.span);
+    for (const row of rows) visitRow(row.keys, row.span);
+  }
+
+  /**
+   * A data type, enum, trait, or newtype declares no row parameter
+   * (11-requirements-and-suspension.md#r-req.row.param.no-data.marked).
+   */
+  protected rejectRowParameters(
+    rows: readonly string[],
+    spans: ReadonlyMap<string, SourceSpan>,
+    owner: string,
+  ): void {
+    const row = rows[0];
+    if (row === undefined) return;
+    this.fail(
+      "generic-kind-mismatch",
+      `${owner} declares no row parameter, so '$${row}' is not allowed; its generic parameters are types`,
+      spans.get(row) ?? this.current().span,
+    );
+  }
+
+  /** Checks a function's or method's signature, after its requirement clause. */
+  protected checkSignatureKinds(
+    generics: {
+      readonly parameters: readonly string[];
+      readonly rows: readonly string[];
+      readonly spans: ReadonlyMap<string, SourceSpan>;
+    },
+    parameters: readonly { readonly type: TypeRef }[],
+    result: TypeRef,
+    requirements: readonly string[],
+    clauseStart: SourcePosition,
+  ): void {
+    this.checkGenericKinds(
+      this.genericKinds(generics),
+      [...parameters.map((parameter) => parameter.type), result],
+      requirements.length > 0
+        ? [{ keys: requirements, span: { start: clauseStart, end: this.peek(-1).span.end } }]
+        : [],
+    );
   }
 
   // A type argument may be a row, `$()` or `$ A + B`, for a row-kinded

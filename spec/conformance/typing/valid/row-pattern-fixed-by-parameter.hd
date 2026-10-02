@@ -4,7 +4,7 @@ trait Db
 
 trait Clock
 
-fn both[R1, R2](first: fn() -> void $ R1, second: fn() -> void $ R1 + R2) -> void $ R1 + R2:
+fn both[$R1, $R2](first: fn() -> void $ R1, second: fn() -> void $ R1 + R2) -> void $ R1 + R2:
     first()
     second()
 

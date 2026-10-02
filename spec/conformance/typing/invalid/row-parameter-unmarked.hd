@@ -1,0 +1,3 @@
+# test: a generic parameter written without $ and used in a row is an error
+fn run[R](job: fn() -> void $ R) -> void $ R:  # diagnostic: generic-kind-mismatch
+    job()

@@ -1,5 +1,5 @@
 # test: $.Context takes only a concrete row
 
-fn run_job[R](providers: $.Context[R], job: fn() -> void $ R) -> void:  # diagnostic: row-parameter-in-context
+fn run_job[$R](providers: $.Context[$ R], job: fn() -> void $ R) -> void:  # diagnostic: row-parameter-in-context
     $.with(providers...):
         job()

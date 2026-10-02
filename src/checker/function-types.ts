@@ -4,7 +4,7 @@ import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { functionResultText, rowArgumentKeys, tupleParts } from "../types.ts";
 
 // The spelled function type constructors of `std.function`
-// (07-functions.md#function-type-constructors). `Fn[(A, B), O, R]` is exactly
+// (07-functions.md#function-type-constructors). `Fn[(A, B), O, $ R]` is exactly
 // `fn(A, B) -> O $ R`, and `SuspendFn[...]` is the `fn!` form; a rest element
 // `List[T]...` ending the inputs is a vararg. Imported names are rewritten to
 // the sugar before checking, so both spellings are one type.
@@ -108,7 +108,16 @@ function lowerConstructor(
       },
     };
   const parameters = elements;
-  const keys = rowArgumentKeys(row) ?? [row];
+  // The row argument is a row slot, written after `$` (07-functions.md#r-fn.type.ctor.row.dollar).
+  const keys = rowArgumentKeys(row);
+  if (!keys)
+    return {
+      type: spelled,
+      error: {
+        code: "generic-kind-mismatch",
+        message: `the row of '${constructor}' is written after '$', as in '$ ${row}', not as the type '${row}'`,
+      },
+    };
   const clause = keys.length > 0 ? `$${keys.join("+")}` : "";
   return {
     type: `fn${constructor === "SuspendFn" ? "!" : ""}(${parameters.join(",")})->${functionResultText(output)}${clause}`,

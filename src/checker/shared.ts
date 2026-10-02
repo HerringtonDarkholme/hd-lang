@@ -411,7 +411,7 @@ export function substituteGenericType(
   return type;
 }
 
-/** The `Args` of a function type `Fn[Args, O, R]` whose inputs are a type parameter. */
+/** The `Args` of a function type `Fn[Args, O, $ R]` whose inputs are a type parameter. */
 function tupleInputs(callable: FunctionParts): ValueType | undefined {
   return callable.parameters.length === 1 ? inputsInner(callable.parameters[0]!) : undefined;
 }
@@ -471,7 +471,7 @@ export function requirementKeysMayCollide(left: string, right: string): boolean 
     const nominal = nominalGenericParts(type);
     if (nominal) return { head: `nominal:${nominal.name}`, values: nominal.arguments };
     const callable = functionParts(type);
-    // The inputs take part as one tuple, so `Fn[Args, O, R]` unifies with
+    // The inputs take part as one tuple, so `Fn[Args, O, $ R]` unifies with
     // any arity; a lone row parameter unifies with any row.
     if (callable) {
       const row = callable.requirements.length === 1 && rowParameterName(callable.requirements[0]!);
@@ -678,7 +678,7 @@ export function inferGenericType(
   }
   const formalCallable = functionParts(formal);
   const actualCallable = functionParts(actual);
-  // `Fn[Args, O, R]` solves `Args` as the tuple of the actual inputs
+  // `Fn[Args, O, $ R]` solves `Args` as the tuple of the actual inputs
   // (07-functions.md#r-fn.type.ctor.inputs).
   const formalInputs = formalCallable && tupleInputs(formalCallable);
   if (formalCallable && actualCallable && formalInputs !== undefined) {
@@ -1202,10 +1202,8 @@ export function normalizeRowArguments(
           return visit(argument);
         }
         if (row) return rowArgumentType(row);
-        if (rowParameters.has(argument)) return rowArgumentType([symbolicRequirement(argument)]);
-        if (argument.startsWith("trait:"))
-          return rowArgumentType([argument.slice("trait:".length)]);
-        mismatch ??= `'${nominal.name}' takes a requirement row, not the type '${argument}', for '${parameters[index]}'`;
+        // A row slot writes its row after `$` (11-requirements-and-suspension.md#r-req.row.slot.bare).
+        mismatch ??= `'${nominal.name}' takes a requirement row, not the type '${argument.replace(/^trait:/, "")}', for '${parameters[index]}'; write '$ ${argument.replace(/^trait:/, "")}'`;
         return argument;
       }),
     );

@@ -2,5 +2,5 @@
 trait Tag:
     fn name(self) -> string
 
-fn widen(base: $.Context[Tag]) -> $.Context[Tag]:
+fn widen(base: $.Context[$ Tag]) -> $.Context[$ Tag]:
     $.context(...base)  # diagnostic: syntax-error

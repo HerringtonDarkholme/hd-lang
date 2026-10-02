@@ -11,7 +11,7 @@ Code that works over every arity uses ordinary tuples instead:
 | Need | Mechanism |
 | --- | --- |
 | a parameter that collects any number of arguments of any types | a vararg whose type is a type parameter bounded by `Tuple`, as in `args...: Args` ([Varargs](07-functions.md#varargs)) |
-| a function of any arity | `Fn[Args, O, R]` or `SuspendFn[Args, O, R]` with `Args < Tuple` ([Function Type Constructors](07-functions.md#function-type-constructors)) |
+| a function of any arity | `Fn[Args, O, $ R]` or `SuspendFn[Args, O, $ R]` with `Args < Tuple` ([Function Type Constructors](07-functions.md#function-type-constructors)) |
 | a call with a tuple of arguments | a tuple spread, `f(args...)` ([Positional Spreads](05-expressions.md#positional-spreads)) |
 | awaiting children of different result types | the intrinsic `all!`, whose result is a tuple ([Standard Combinators](11-requirements-and-suspension.md#standard-combinators)) |
 | equality, ordering, and hashing of tuples | derived by the compiler for every arity ([Implementation Targets](09-traits.md#implementation-targets)) |
@@ -19,7 +19,7 @@ Code that works over every arity uses ordinary tuples instead:
 ```text
 use std.function.{Fn, Tuple}
 
-fn call[Args < Tuple, O, R](f: Fn[Args, O, R], args...: Args) -> O $ R:
+fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)
 
 fn add(a: i32, b: i32) -> i32: a + b

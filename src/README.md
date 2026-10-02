@@ -304,7 +304,7 @@ listed yet.
   `args...: Args`), which take one tuple input: a call passes its trailing
   arguments as the tuple expression of them, and a `Tuple`-bounded type
   parameter is solved from that tuple;
-- `Fn[Args, O, R]` and `SuspendFn[Args, O, R]` with `Args < Tuple`, whose
+- `Fn[Args, O, $ R]` and `SuspendFn[Args, O, $ R]` with `Args < Tuple`, whose
   type text is `fn(*Args)->O$R`: one erased input that holds the inputs
   tuple. Substituting a tuple for `Args` gives the plain function type,
   inference solves `Args` as the tuple of a function value's inputs, and a
@@ -516,10 +516,15 @@ else`, `break`, `break value`, and `continue`;
   `unknown-name`, because aliases are expanded before checking;
 - `type` aliases, generic ones included, expanded before checking, with
   `alias-cycle` for a cycle; row aliases (`type AppRow = Db + Cache`,
-  generic and nested) expanded in every row and bare in a one-key row slot
-  (`$.Context[AppRow]`, `Fn[(), void, AppRow]`, an explicit row type
+  generic and nested) expanded in every row, written after `$` in a row slot
+  (`$.Context[$ AppRow]`, `Fn[(), void, $ AppRow]`, an explicit row type
   argument), and `generic-kind-mismatch` for one used as a type or single
-  key; newtypes lowered to one-field
+  key, and for a bare key or alias in a row slot; row parameters declared
+  `$R` on functions, methods, implementations, and aliases, with
+  `generic-kind-mismatch` (and a fix-it adding `$`) for an unmarked
+  parameter in a row, a `$R` used as a type, or a `$` on a data, enum,
+  trait, or newtype parameter, all reported by the parser except the row
+  slot checks; newtypes lowered to one-field
   data types; `data`, `enum`, `trait`, `type`, and `impl` in a block suite,
   hoisted under a scoped name; the prelude traits `Any` and `Iterable` (user
   implementations and bounds drive `for` loops and comprehensions, and
@@ -558,7 +563,7 @@ else`, `break`, `break value`, and `continue`;
   extension (`$ R + K` in the callback row, `$ R` on the callee), keyed Wasm
   GC provider packs, and lexical restoration of removed providers;
   `ambiguous-row-pattern` for a pattern with two unfixed row parameters and
-  `row-parameter-in-context` for `$.Context[R]`; explicit row type arguments
+  `row-parameter-in-context` for `$.Context[$ R]`; explicit row type arguments
   for a function's row parameters, as in `provide::[$ Db + Log](job)`;
 - row subsumption: a function value with a narrower concrete row fits a
   wider function type through the callable adapter. A value is not widened

@@ -67,7 +67,7 @@ impl[T] Iterator[T]:
                 .None => .None
         )
 
-    pub fn fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
+    pub fn fold[A, $R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
         let total = initial
         while true:
             match self.next():

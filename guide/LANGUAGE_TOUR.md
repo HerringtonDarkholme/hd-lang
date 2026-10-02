@@ -1404,7 +1404,7 @@ A vararg may also collect a tuple. With a type parameter bounded by `Tuple`, one
 ```text
 use std.function.{Fn, Tuple}
 
-fn call[Args < Tuple, O, R](f: Fn[Args, O, R], args...: Args) -> O $ R:
+fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)
 
 fn add(a: i32, b: i32) -> i32: a + b
@@ -1443,7 +1443,7 @@ fn apply(value: string, transform: fn(string) -> string) -> string:
 
 Each function type is sugar for a standard constructor from `std.function`:
 `fn(string) -> string` is `Fn[(string,), string, $()]`, and
-`fn!(A) -> O $ R` is `SuspendFn[(A,), O, R]`. The spelled names are imported
+`fn!(A) -> O $ R` is `SuspendFn[(A,), O, $ R]`. The spelled names are imported
 where they are written. Function types are ordinary implementation targets:
 
 ```text
@@ -1638,7 +1638,7 @@ fn first[T](items: List[T]) -> T?:
         items[0]
 ```
 
-Generic parameters, including row parameters, use uppercase names such as `T`, `U`, `K`, `V`, and `R`. This is a style rule only; a parameter's kind comes from how it is declared and used.
+Generic parameters, including row parameters, use uppercase names such as `T`, `U`, `K`, `V`, and `R`. This is a style rule only; a parameter's kind comes from its declaration, where a row parameter is written `$R`.
 
 Generic arguments are inferred at call sites when the type is unambiguous. Callers can also write the generic arguments explicitly:
 
@@ -2124,7 +2124,7 @@ separate arguments. `call` is an ordinary hd function:
 ```text
 use std.function.{Fn, Tuple}
 
-fn call[Args < Tuple, O, R](f: Fn[Args, O, R], args...: Args) -> O $ R:
+fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)
 
 fn add(a: i32, b: i32) -> i32: a + b
@@ -2140,17 +2140,17 @@ can key a map:
 ```text
 use std.function.{Fn, Tuple}
 
-data Memo[Args, O, R]:
-    f: Fn[Args, O, R]
+data Memo[Args, O]:
+    f: Fn[Args, O, $()]
     cache: mut Map[Args, O]
 
-impl[Args < Tuple & Eq & Hash, O, R] Memo[Args, O, R]:
-    pub fn call(mut self, args...: Args) -> O $ R:
+impl[Args < Tuple & Eq & Hash, O] Memo[Args, O]:
+    pub fn call(mut self, args...: Args) -> O:
         match self.cache.get(args):
             .Some(hit) => hit
             .None => self.fill(args)
 
-    fn fill(mut self, args: Args) -> O $ R:
+    fn fill(mut self, args: Args) -> O:
         out := (self.f)(args...)
         self.cache[args] = out
         out
@@ -2325,7 +2325,7 @@ let total: i64 = narrow + wide
 
 let labels: List[Display] = ["Ada", "Grace"]
 
-fn invoke[R](callback: fn() -> void $ R) -> void $ R:
+fn invoke[$R](callback: fn() -> void $ R) -> void $ R:
     callback()
 
 fn report() -> void $ Console:
@@ -2869,10 +2869,11 @@ boundary. The `$` namespace is special context syntax, not an ordinary value
 namespace.
 
 Requirement polymorphism for higher-order functions preserves callback
-requirements rather than erasing them:
+requirements rather than erasing them. A row parameter is declared with `$`,
+as `$R`, so its kind shows where it is declared:
 
 ```text
-fn transform[T, U, R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
+fn transform[T, U, $R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
     ...
 ```
 
@@ -2881,7 +2882,7 @@ callback row lists `Logger` beside the row parameter, and the helper's own row
 is the plain row parameter:
 
 ```text
-fn provide_logger[R](callback: fn(string) -> void $ R + Logger) -> void $ R:
+fn provide_logger[$R](callback: fn(string) -> void $ R + Logger) -> void $ R:
     $.with(Logger=logger):
         callback("str")
 ```
@@ -2891,8 +2892,8 @@ provider satisfies `Logger`, so callers see only `R`, the remaining row. The hel
 not named `provide_logger!` because its body has no suspension point.
 
 A long row gets a name with an ordinary `type` alias, called a row alias. It
-stands for its keys wherever a row follows `$`. It may also be written bare
-where one key may stand for a row, as in `$.Context[Stack]`:
+stands for its keys wherever a row follows `$`. Inside a type's brackets every
+row is written after `$`, even one key or one alias, as in `$.Context[$ Stack]`:
 
 ```text
 type Stack = Database + Cache + Logger
@@ -2946,7 +2947,7 @@ installs the providers and extends its callback's row with the same keys.
 The trailing block is the callback, so an installer reads like a scope:
 
 ```text
-fn with_stack![T, R](config: Config, body: fn!() -> T $ R + Stack) -> T $ R:
+fn with_stack![T, $R](config: Config, body: fn!() -> T $ R + Stack) -> T $ R:
     db := SqlDatabase::connect(config.database_url)
     $.with(Database=db, Cache=MemoryCache {}, Logger=console_logger):
         body!()
@@ -2961,7 +2962,7 @@ so the caller needs only `Clock` here, not `Stack`. A block that uses only
 some of the installed keys still fits. A caller may fix `R` to a row that
 lists an installed key; the block then sees the installer's nearer
 provider, as with nested `$.with` scopes. Each call builds the providers again;
-to build them once, return a `$.Context[Stack]` value and spread it into
+to build them once, return a `$.Context[$ Stack]` value and spread it into
 each scope with `ctx...`.
 
 Providers come from an enclosing `$.with` scope or an entry point's permitted
@@ -2977,7 +2978,7 @@ callee's `$.with` can supply it. That is the dynamic form, and it costs
 nothing to write:
 
 ```text
-fn at_noon[R](callback: fn() -> i32 $ R + Clock) -> i32 $ R:
+fn at_noon[$R](callback: fn() -> i32 $ R + Clock) -> i32 $ R:
     $.with(Clock=Fixed { hour: 12 }):
         callback()
 

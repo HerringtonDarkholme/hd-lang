@@ -18,10 +18,10 @@ fn inferred() -> void:
 fn label() -> string $ Name:
     $.use(Name).text()
 
-fn counters() -> $.Context[Counter]:
+fn counters() -> $.Context[$ Counter]:
     $.context(Counter=MemoryCounter { value: 0 })
 
-fn provide[R](callback: fn() -> void $ R + Counter) -> void $ R:
+fn provide[$R](callback: fn() -> void $ R + Counter) -> void $ R:
     let mut counter = MemoryCounter { value: 0 }
     $.with(Counter=counter):
         callback()

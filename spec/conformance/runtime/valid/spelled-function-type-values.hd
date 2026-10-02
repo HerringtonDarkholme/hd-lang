@@ -21,7 +21,7 @@ fn scaled(value: i32) -> i32 $ Scale:
 fn apply(callback: Fn[(i32,), i32, $()], value: i32) -> i32:
     callback(value)
 
-fn apply_row(callback: Fn[(i32,), i32, Scale], value: i32) -> i32 $ Scale:
+fn apply_row(callback: Fn[(i32,), i32, $ Scale], value: i32) -> i32 $ Scale:
     callback(value)
 
 fn spread(callback: Fn[(string, List[i32]...), i32, $()]) -> i32:

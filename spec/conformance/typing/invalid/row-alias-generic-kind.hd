@@ -8,5 +8,5 @@ type AppRow = Db + Cache
 
 type Only[T] = T
 
-fn run() -> void $ Only[AppRow]:  # diagnostic: generic-kind-mismatch
+fn run() -> void $ Only[$ AppRow]:  # diagnostic: generic-kind-mismatch
     pass

@@ -32,15 +32,15 @@ fn both() -> string $ Tag + Clock:
 fn reordered() -> string $ Clock + Tag:
     both()
 
-fn provide_clock[R](callback: fn() -> string $ R + Clock) -> string $ R:
+fn provide_clock[$R](callback: fn() -> string $ R + Clock) -> string $ R:
     $.with(Clock=FixedClock { value: 7 }):
         callback()
 
-fn with_tag[R](callback: fn() -> string $ R + Tag) -> string $ R:
+fn with_tag[$R](callback: fn() -> string $ R + Tag) -> string $ R:
     $.with(Tag=FixedTag { value: "local" }):
         callback()
 
-fn relay[R](callback: fn() -> string $ R + Tag) -> string $ R + Tag:
+fn relay[$R](callback: fn() -> string $ R + Tag) -> string $ R + Tag:
     callback()
 
 tests:

@@ -13,7 +13,7 @@ data Fixed:
 impl Clock for Fixed:
     fn now(self) -> i32: self.hour
 
-fn at_noon[R](callback: fn() -> i32 $ R + Clock) -> i32 $ R:
+fn at_noon[$R](callback: fn() -> i32 $ R + Clock) -> i32 $ R:
     $.with(Clock=Fixed { hour: 12 }):
         callback()
 
