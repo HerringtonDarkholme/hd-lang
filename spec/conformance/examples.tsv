@@ -458,7 +458,7 @@ lang/10-modules.md	9	accept	parse/valid/uses.hd
 lang/10-modules.md	10	mixed	parse/invalid/wildcard-use.hd|typing/invalid/unknown-std-name.hd|typing/invalid/private-package-name.hd|parse/invalid/direct-variant-use.hd|parse/invalid/pub-path-only-use.hd
 lang/10-modules.md	11	filesystem-layout	-
 lang/10-modules.md	12	filesystem-layout	-
-lang/10-modules.md	13	mixed	typing/invalid/reimport-prelude-name.hd|typing/invalid/prelude-shadow-println-function.hd|typing/invalid/prelude-shadow-console-parameter.hd|typing/invalid/prelude-shadow-result-generic.hd|typing/invalid/prelude-shadow-hash-local.hd
+lang/10-modules.md	13	mixed	typing/valid/reimport-prelude-name.hd|typing/invalid/prelude-shadow-renamed-use.hd|typing/invalid/prelude-shadow-println-function.hd|typing/invalid/prelude-shadow-console-parameter.hd|typing/invalid/prelude-shadow-result-generic.hd|typing/invalid/prelude-shadow-hash-local.hd
 lang/10-modules.md	14	mixed	typing/invalid/lowercase-list-type.hd
 lang/10-modules.md	15	type-fragment	-
 lang/10-modules.md	16	mixed	typing/invalid/println-without-console.hd|typing/invalid/println-in-defer.hd

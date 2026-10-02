@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { analyze, compileToWasm, instantiate } from "../src/compiler.ts";
+import { PRELUDE_NAMES, PRELUDE_ORIGINS } from "../src/checker/prelude-names.ts";
 import { RUNTIME_WAT } from "../src/emitter/runtime/index.ts";
 import { type RuntimePanicName, runtimePanicCode } from "../src/runtime-panic.ts";
 import { conformance } from "./fixture.ts";
@@ -292,10 +293,16 @@ test("prelude names cannot be shadowed by declarations or bindings", () => {
     conformance("typing/invalid/prelude-shadow-result-generic"),
     conformance("typing/invalid/prelude-shadow-console-parameter"),
     conformance("typing/invalid/prelude-shadow-hash-local"),
+    conformance("typing/invalid/prelude-shadow-renamed-use"),
   ];
   for (const source of cases) {
     assert.equal(analyze(source).diagnostics[0]?.code, "prelude-name-shadow", source);
   }
+});
+
+test("a use of the prelude's own declaration is allowed", () => {
+  assert.deepEqual([...PRELUDE_ORIGINS.keys()].sort(), [...PRELUDE_NAMES].sort());
+  assert.deepEqual(analyze(conformance("typing/valid/reimport-prelude-name")).diagnostics, []);
 });
 
 test("branch scopes do not leak and may shadow each other", () => {

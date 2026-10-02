@@ -1,6 +1,7 @@
 import type { Expression } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { PRELUDE_NAMES } from "./context.ts";
+import { PRELUDE_ORIGINS } from "./prelude-names.ts";
 import {
   deferredDriverCalls,
   driverStartingFunctionNames,
@@ -27,6 +28,10 @@ export function validateProgram(context: ProgramCheckContext): void {
     for (const imported of declaration.names) {
       const localName = imported.alias ?? imported.name;
       if (PRELUDE_NAMES.has(localName)) {
+        // A use of the prelude's own declaration under its own name is
+        // allowed and changes nothing (10-modules.md#r-module.prelude.same-use).
+        if (imported.name === localName && PRELUDE_ORIGINS.get(localName) === declaration.module)
+          continue;
         diagnostics.push({
           code: "prelude-name-shadow",
           message: `import '${localName}' shadows a prelude name`,

@@ -1,0 +1,14 @@
+# test: a use that names the prelude's own declaration is allowed
+# Spec 10 Prelude: module.prelude.same-use (owner decision PRELUDE-REIMPORT).
+use std.hash.Hash
+use std.format.{Display}
+
+data Label:
+    value: string
+
+impl Hash for Label:
+    fn hash(self, state: mut Hasher) -> void:
+        self.value.hash(state)
+
+fn render(value: Display) -> string:
+    value.to_string()

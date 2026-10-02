@@ -45,3 +45,48 @@ export const PRELUDE_NAMES = new Set([
   // std.testing's test-case function (spec/lang/10-modules.md#r-module.prelude.it-function).
   "it",
 ]);
+
+// The module that supplies each prelude name. A `use` of that same
+// declaration under its own name is allowed and changes nothing
+// (spec/lang/10-modules.md#r-module.prelude.same-use).
+const PRELUDE_MODULES: ReadonlyArray<readonly [string, readonly string[]]> = [
+  [
+    "std.core",
+    [
+      "never",
+      "bool",
+      "i8",
+      "i16",
+      "i32",
+      "i64",
+      "u8",
+      "u16",
+      "u32",
+      "u64",
+      "f32",
+      "f64",
+      "char",
+      "string",
+      "void",
+      "List",
+      "Map",
+      "Any",
+      "AnyVal",
+      "AnyRef",
+      "Option",
+      "Result",
+      "panic",
+    ],
+  ],
+  ["std.format", ["Display", "Debug", "debug"]],
+  ["std.cmp", ["Eq", "PartialOrd", "Ord", "Ordering"]],
+  ["std.hash", ["Hash", "Hasher"]],
+  ["std.iter", ["Iterator", "Iterable"]],
+  ["std.console", ["Console", "ConsoleError", "println"]],
+  ["std.testing", ["it"]],
+  ["std.task", ["Suspend", "Poll", "PollContext", "Waker"]],
+];
+
+export const PRELUDE_ORIGINS: ReadonlyMap<string, string> = new Map(
+  PRELUDE_MODULES.flatMap(([module, names]) => names.map((name) => [name, module] as const)),
+);

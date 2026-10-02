@@ -104,7 +104,8 @@ typing/invalid/missing-requirement.hd	type
 typing/invalid/bang-call-outside-suspension.hd	type
 typing/invalid/row-extension-unsound.hd	type
 typing/invalid/break-value-without-else.hd	type
-typing/invalid/reimport-prelude-name.hd	type
+typing/valid/reimport-prelude-name.hd	type
+typing/invalid/prelude-shadow-renamed-use.hd	type
 typing/invalid/suspension-forbidden-context.hd	type
 typing/invalid/defer-block-on.hd	type
 typing/valid/row-extension-entailment.hd	type

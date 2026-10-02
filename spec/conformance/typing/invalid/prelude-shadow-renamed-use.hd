@@ -1,0 +1,6 @@
+# test: a use that binds a prelude name to a different declaration is rejected
+# Spec 10 Prelude: module.prelude.no-shadow.
+use std.cmp.{Ordering as Display}  # diagnostic: prelude-name-shadow
+
+fn main() -> i32:
+    0

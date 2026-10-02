@@ -245,9 +245,10 @@ keep values apart from the text; see
 [Prefixed Strings](../spec/lang/05-expressions.md#prefixed-strings).
 
 Core types, traits, and functions such as `List`, `Map`, `Result`, `Display`,
-`Ordering`, and `println` come from the prelude. A declaration, type parameter,
-parameter, local binding, or explicit `use` cannot reuse a prelude name; use
-the names directly without importing them again. The complete list is in the
+`Ordering`, and `println` come from the prelude, so they need no import. A
+declaration, type parameter, parameter, local binding, or `use` cannot bind a
+prelude name to anything else. A `use` of the same declaration, such as
+`use std.hash.Hash`, is allowed and changes nothing. The complete list is in the
 [prelude specification](../spec/lang/10-modules.md#prelude).
 
 There are no convenience aliases such as `int`, `uint`, or `float`. Use explicit-width numeric types. `decimal` is a standard-library type, not a primitive.

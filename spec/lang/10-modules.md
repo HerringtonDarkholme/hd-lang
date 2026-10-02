@@ -538,11 +538,12 @@ every module has:
 1. r[module.prelude.names] Every module implicitly has the public standard-library names in the table in scope.
 2. r[module.prelude.fixed-uses] The prelude is equivalent to fixed `use` declarations.
 3. r[module.prelude.no-authority] The prelude does not create ambient host authority.
-4. r[module.prelude.no-shadow] A module declaration, use, type parameter, parameter, or local binding must not shadow a prelude name. Every conflict is an error. Error: `prelude-name-shadow`.
-5. r[module.prelude.no-reimport] This includes a redundant `use` that names the same declaration already supplied by the prelude: prelude names are used directly and are not re-imported. Error: `prelude-name-shadow`.
+4. r[module.prelude.no-shadow] A module declaration, use, type parameter, parameter, or local binding must not bind a prelude name to another declaration. Every conflict is an error. Error: `prelude-name-shadow`.
+5. r[module.prelude.same-use] A `use` that names the same declaration the prelude already supplies, under the same name, is allowed and changes nothing.
 
 ```text
-use std.format.Display                               # error: prelude-name-shadow
+use std.hash.Hash                                    # ok: the prelude's Hash
+use std.cmp.{Ordering as Display}                    # error: prelude-name-shadow
 
 fn println() -> void: pass                           # error: prelude-name-shadow
 fn consume(Console: i32) -> i32: Console             # error: prelude-name-shadow
