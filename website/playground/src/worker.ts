@@ -72,7 +72,7 @@ scope.onmessage = async ({ data: request }) => {
     scope.postMessage({ kind: "result", id, result });
   } else if (request.kind === "wat") {
     const key = projectKey(request.project);
-    const result = lastRun?.key === key ? lastRun.wat : watProject(request.project);
+    const result = lastRun?.key === key ? lastRun.wat : await watProject(request.project);
     scope.postMessage({ kind: "wat", id: request.id, result });
   } else if (request.kind === "repl") {
     const reply = await respond(session, request.input);

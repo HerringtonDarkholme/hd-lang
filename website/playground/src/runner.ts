@@ -8,7 +8,7 @@
 // `watProject` gives the WebAssembly text of the module a project compiles
 // to, for the playground's WAT view.
 
-import { analyze, instantiate } from "../../../src/compiler.ts";
+import { analyze, compileToWasm, instantiate } from "../../../src/compiler.ts";
 import type { Diagnostic } from "../../../src/diagnostics.ts";
 import { emitWat } from "../../../src/emitter/index.ts";
 import { linkPackage, type LinkedPackage, type PackageDiagnostic } from "../../../src/package.ts";
@@ -23,7 +23,6 @@ import {
 } from "../../../src/repl.ts";
 import { RuntimePanicError } from "../../../src/runtime-panic.ts";
 import { runSelected } from "../../../src/test-runner.ts";
-import { assembleWat } from "../../../src/wasm.ts";
 import type { Project } from "./project.ts";
 
 /** `run` runs `main` or the top-level code, `check` type-checks, `test` runs the test cases. */
@@ -214,7 +213,7 @@ export async function runProject(
  * code without `main` has no single module (see `WatResult`); the worker
  * answers for it from the last run.
  */
-export function watProject(project: Project): WatResult {
+export async function watProject(project: Project): Promise<WatResult> {
   const linked = linkPackage(project.files, project.main);
   const linkDiagnostics = linked.diagnostics.map(toRunDiagnostic);
   if (!linked.source || hasErrors(linkDiagnostics))
@@ -233,7 +232,12 @@ export function watProject(project: Project): WatResult {
   if (!analysis.hir || hasErrors(diagnostics))
     return { status: "compile-error", diagnostics, summary: "compilation failed" };
   try {
-    const { wat } = assembleWat(emitWat(analysis.hir));
+    // Assembling validates the WAT, as a run would.
+    const { wat } = await compileToWasm({
+      wat: emitWat(analysis.hir),
+      hir: analysis.hir,
+      diagnostics: analysis.diagnostics,
+    });
     return { status: "ok", module: { wat, origin: "program", count: 1 }, diagnostics, summary: "" };
   } catch (error) {
     const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);

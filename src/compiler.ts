@@ -13,13 +13,18 @@ import {
 import { nominalGenericParts } from "./types.ts";
 import type { HirProgram, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
-import type { WasmArtifact } from "./wasm.ts";
+import { assembleWat, type WasmArtifact } from "./wasm.ts";
 import { RuntimePanicError, runtimePanicName } from "./runtime-panic.ts";
 
-interface Compilation extends WasmArtifact {
+/** A checked program and its WAT, before Wasm assembly. */
+export interface WatCompilation {
+  readonly wat: string;
   readonly hir: HirProgram;
   readonly diagnostics: readonly Diagnostic[];
 }
+
+/** A checked program, its WAT, and the assembled Wasm binary. */
+export interface Compilation extends WatCompilation, WasmArtifact {}
 
 interface Analysis {
   readonly hir?: HirProgram;
@@ -321,20 +326,30 @@ export function analyze(source: string, options: CompileOptions = {}): Analysis 
   return { hir: checked.program, diagnostics: checked.diagnostics };
 }
 
-let assembleWat: ((wat: string) => WasmArtifact) | undefined;
-
-// Binaryen takes about 200 ms to load, so only commands that emit Wasm load
-// it: `instantiate` does, and a direct `compile` caller awaits this first.
-export async function loadWasmAssembler(): Promise<void> {
-  assembleWat ??= (await import("./wasm.ts")).assembleWat;
-}
-
-export function compile(source: string, options: CompileOptions = {}): Compilation {
-  if (!assembleWat) throw new Error("internal: await loadWasmAssembler() before compile()");
+/**
+ * Parses, checks, and lowers `source`, and emits its WAT: everything short of
+ * Wasm assembly. It never loads Binaryen, so `hd check`, `hd build --wat`,
+ * and the debug commands stay fast. Throws a {@link DiagnosticError} when the
+ * program does not check.
+ */
+export function compileToWat(source: string, options: CompileOptions = {}): WatCompilation {
   const analysis = analyze(source, options);
   if (!analysis.hir) throw new DiagnosticError(analysis.diagnostics);
-  const artifact = assembleWat(emitWat(analysis.hir));
-  return { ...artifact, hir: analysis.hir, diagnostics: analysis.diagnostics };
+  return { wat: emitWat(analysis.hir), hir: analysis.hir, diagnostics: analysis.diagnostics };
+}
+
+/**
+ * `compileToWat`, then assembles the WAT into a validated Wasm binary. Pass
+ * a {@link WatCompilation} to assemble one already compiled. Binaryen loads
+ * on the first call.
+ */
+export async function compileToWasm(
+  input: string | WatCompilation,
+  options: CompileOptions = {},
+): Promise<Compilation> {
+  const compilation = typeof input === "string" ? compileToWat(input, options) : input;
+  const { bytes } = await assembleWat(compilation.wat);
+  return { ...compilation, bytes };
 }
 
 /**
@@ -378,8 +393,7 @@ export async function instantiate(
   source: string,
   options: InstantiateOptions = {},
 ): Promise<Instantiation> {
-  await loadWasmAssembler();
-  const compilation = options.compilation ?? compile(source, options);
+  const compilation = options.compilation ?? (await compileToWasm(source, options));
   const functionIdentities: FunctionIdentity[] = [
     ...compilation.hir.functions,
     ...compilation.hir.closures,

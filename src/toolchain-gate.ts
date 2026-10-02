@@ -45,12 +45,12 @@ interface GateExports extends WebAssembly.Exports {
   external_is_null(): number;
 }
 
-export function buildToolchainGate(): WasmArtifact {
+export function buildToolchainGate(): Promise<WasmArtifact> {
   return assembleWat(TOOLCHAIN_GATE_WAT);
 }
 
 export async function runToolchainGate(iterations = 10_000): Promise<void> {
-  const artifact = buildToolchainGate();
+  const artifact = await buildToolchainGate();
   const external = { source: "hd-lang-toolchain-gate" };
   const { instance } = await WebAssembly.instantiate(artifact.bytes, {
     host: { external },

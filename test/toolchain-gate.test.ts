@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { buildToolchainGate, runToolchainGate, TOOLCHAIN_GATE_WAT } from "../src/toolchain-gate.ts";
 
-test("the toolchain gate contains each required Wasm GC operation", () => {
+test("the toolchain gate contains each required Wasm GC operation", async () => {
   for (const operation of [
     "struct.new",
     "array.new_fixed",
@@ -13,7 +13,7 @@ test("the toolchain gate contains each required Wasm GC operation", () => {
   ]) {
     assert.ok(TOOLCHAIN_GATE_WAT.includes(operation));
   }
-  assert.ok(buildToolchainGate().bytes.length > 0);
+  assert.ok((await buildToolchainGate()).bytes.length > 0);
 });
 
 test("Binaryen output executes and retains a GC reference", async () => {

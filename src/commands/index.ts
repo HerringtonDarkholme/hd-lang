@@ -1,0 +1,27 @@
+// The `hd` commands, one function each. A command takes typed arguments and
+// a `CommandIo` to write to, and returns its exit status; it never touches
+// the process's streams or exit code. `cli.ts` turns a command line into one
+// call, and the in-process conformance adapter (test/hd-adapter.ts) calls
+// the same functions without starting a process.
+
+export { bufferedIo, processIo, type CommandIo, type CommandOutput } from "./io.ts";
+export {
+  buildCommand,
+  checkCommand,
+  hirCommand,
+  parseCommand,
+  type BuildArgs,
+  type CheckArgs,
+  type HirArgs,
+} from "./compile.ts";
+export { runCommand, testCommand, type RunArgs, type TestArgs } from "./execute.ts";
+export { helpCommand, replCommand, type HelpArgs } from "./help.ts";
+export {
+  defCommand,
+  docCommand,
+  explainCommand,
+  type ExplainArgs,
+  type LookupArgs,
+} from "./queries.ts";
+export type { RuntimeScenario } from "./profiles.ts";
+export type { PackageTree, RuntimeProfileName, SourceArgs, TestLayout } from "./source.ts";

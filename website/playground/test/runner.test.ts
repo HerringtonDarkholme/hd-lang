@@ -448,7 +448,7 @@ async function bundleExamples(): Promise<string> {
 
 test("the WAT of a program is the module Run instantiates", async () => {
   const project = single('pub fn main() -> void $ Console:\n    println("hi")\n');
-  const shown = runner.watProject(project);
+  const shown = await runner.watProject(project);
   assert.equal(shown.status, "ok", shown.summary);
   assert.equal(shown.module?.origin, "program");
   assert.match(shown.module!.wat, /^\(module\n/);
@@ -465,13 +465,13 @@ test("the WAT of a program is the module Run instantiates", async () => {
 
 test("the WAT view shows diagnostics when compilation fails", async () => {
   const broken = single('pub fn main() -> void:\n    let x: i32 = "no"\n');
-  const shown = runner.watProject(broken);
+  const shown = await runner.watProject(broken);
   assert.equal(shown.status, "compile-error");
   assert.equal(shown.module, undefined);
   assert.deepEqual(located(shown), ["src/main.hd:2:18:type-mismatch"]);
   const ran = await runner.runProject(broken, "run");
   assert.equal(runner.watFromRun(ran, undefined)?.status, "compile-error");
-  const unlinked = runner.watProject({
+  const unlinked = await runner.watProject({
     files: { "src/main.hd": "use pkg.gone.{X}\n" },
     main: "src/main.hd",
   });
@@ -480,7 +480,7 @@ test("the WAT view shows diagnostics when compilation fails", async () => {
 
 test("without main, the WAT is the last module Run compiled", async () => {
   const project = single('x := 20\nprintln("start")\nx + 1\nx * 2\n');
-  assert.equal(runner.watProject(project).status, "not-run");
+  assert.equal((await runner.watProject(project)).status, "not-run");
   const modules: Runner.CompiledModule[] = [];
   const ran = await runner.runProject(project, "run", undefined, (module) => modules.push(module));
   assert.equal(ran.status, "ok", ran.summary);
@@ -489,7 +489,7 @@ test("without main, the WAT is the last module Run compiled", async () => {
   assert.equal(module!.origin, "top-level");
   assert.equal(module!.count, 4, "each of the four inputs compiles a module");
   assert.match(module!.wat, /\(export "main"\)/);
-  const declarationsOnly = runner.watProject(
+  const declarationsOnly = await runner.watProject(
     single('fn f() -> i32: 1\ntests:\n    it("t"):\n        pass\n'),
   );
   assert.equal(declarationsOnly.status, "ok", "declarations with tests compile as one module");

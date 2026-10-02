@@ -1,18 +1,19 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
-import { analyze } from "./compiler.ts";
-import { DiagnosticReporter, type OutputFormat } from "./diagnostic-report.ts";
-import { moduleIdentity, SOURCE_ROOT } from "./package.ts";
-import { parse } from "./parser/index.ts";
-import { explainCode, loadSpecIndex, type SpecMention } from "./spec-index.ts";
+import { analyze } from "../compiler.ts";
+import { DiagnosticReporter, type OutputFormat } from "../diagnostic-report.ts";
+import { moduleIdentity, SOURCE_ROOT } from "../package.ts";
+import { parse } from "../parser/index.ts";
+import { explainCode, loadSpecIndex, type SpecMention } from "../spec-index.ts";
+import type { CommandIo } from "./io.ts";
 import {
   formatDefinition,
   formatDocumentation,
   SymbolIndex,
   type InferredTypes,
   type SourceModule,
-} from "./symbols.ts";
+} from "../symbols.ts";
 
 // The name-addressed query commands: `hd explain CODE`, `hd def NAME [PATH]`,
 // and `hd doc NAME [PATH]`. src/README.md documents their output.
@@ -27,12 +28,18 @@ function uniqueMentions(mentions: readonly SpecMention[]): SpecMention[] {
   });
 }
 
+export interface ExplainArgs {
+  readonly code: string;
+  readonly format: OutputFormat;
+}
+
 /** `hd explain CODE`: what the specification says about a diagnostic code. */
-export async function explainCommand(code: string, format: OutputFormat): Promise<number> {
+export async function explainCommand(args: ExplainArgs, io: CommandIo): Promise<number> {
+  const { code, format } = args;
   const index = await loadSpecIndex();
   const explanation = explainCode(index, code);
   if (format === "json") {
-    console.log(
+    io.out(
       JSON.stringify(
         explanation
           ? {
@@ -65,7 +72,7 @@ export async function explainCommand(code: string, format: OutputFormat): Promis
     return explanation ? 0 : 1;
   }
   if (!explanation) {
-    console.error(`hd explain: the specification names no diagnostic code '${code}'`);
+    io.err(`hd explain: the specification names no diagnostic code '${code}'`);
     return 1;
   }
   const lines = [`${code}: ${explanation.category ?? "code"}`];
@@ -87,7 +94,7 @@ export async function explainCommand(code: string, format: OutputFormat): Promis
     for (const fixture of explanation.fixtures)
       lines.push(`  ${fixture.path}  ${fixture.phase} ${fixture.expectation}`);
   }
-  console.log(lines.join("\n"));
+  io.out(lines.join("\n"));
   return 0;
 }
 
@@ -114,12 +121,16 @@ interface Project {
   readonly failed: boolean;
 }
 
-async function loadProject(target: string, format: OutputFormat): Promise<Project | undefined> {
+async function loadProject(
+  target: string,
+  format: OutputFormat,
+  io: CommandIo,
+): Promise<Project | undefined> {
   let info;
   try {
     info = await stat(target);
   } catch {
-    console.error(`hd: cannot read ${target}`);
+    io.err(`hd: cannot read ${target}`);
     return undefined;
   }
   const load = async (path: string, identity: string, display: string) => {
@@ -127,7 +138,7 @@ async function loadProject(target: string, format: OutputFormat): Promise<Projec
     const result = parse(source);
     if (!result.program) {
       const index = format === "json" ? await loadSpecIndex() : undefined;
-      const reporter = new DiagnosticReporter(format, display, source, index);
+      const reporter = new DiagnosticReporter(format, display, source, index, io.err);
       for (const diagnostic of result.diagnostics) reporter.diagnostic(diagnostic);
       return { source, module: undefined };
     }
@@ -148,7 +159,7 @@ async function loadProject(target: string, format: OutputFormat): Promise<Projec
   try {
     entries = (await readdir(root, { recursive: true })).map(String);
   } catch {
-    console.error(`hd: ${target} is not a package: it has no ${SOURCE_ROOT} directory`);
+    io.err(`hd: ${target} is not a package: it has no ${SOURCE_ROOT} directory`);
     return undefined;
   }
   const modules: SourceModule[] = [];
@@ -165,28 +176,41 @@ async function loadProject(target: string, format: OutputFormat): Promise<Projec
   return { modules, packageMode: true, failed };
 }
 
-/** `hd def NAME [PATH]` and `hd doc NAME [PATH]`. */
-export async function lookupCommand(
-  command: "def" | "doc",
-  name: string,
-  target: string,
-  format: OutputFormat,
-): Promise<number> {
-  const project = await loadProject(target, format);
+export interface LookupArgs {
+  /** The symbol, such as `main` or `Shape.area`. */
+  readonly name: string;
+  /** A FILE or a package directory. */
+  readonly target: string;
+  readonly format: OutputFormat;
+}
+
+/** `hd def NAME [FILE|PKG]`: where a symbol is defined, with its signature. */
+export function defCommand(args: LookupArgs, io: CommandIo): Promise<number> {
+  return lookup("def", args, io);
+}
+
+/** `hd doc NAME [FILE|PKG]`: a symbol's definition, documentation, and members. */
+export function docCommand(args: LookupArgs, io: CommandIo): Promise<number> {
+  return lookup("doc", args, io);
+}
+
+async function lookup(command: "def" | "doc", args: LookupArgs, io: CommandIo): Promise<number> {
+  const { name, target, format } = args;
+  const project = await loadProject(target, format, io);
   if (!project) return 1;
   const index = new SymbolIndex(project.modules, project.packageMode, project.inferred);
   const { symbols, suggestions } = index.lookup(name);
   if (format === "json") {
-    console.log(JSON.stringify({ query: name, symbols, suggestions }, null, 2));
+    io.out(JSON.stringify({ query: name, symbols, suggestions }, null, 2));
     return symbols.length > 0 ? 0 : 1;
   }
   if (symbols.length === 0) {
     const hint = suggestions.length > 0 ? `; candidates: ${suggestions.join(", ")}` : "";
     const partial = project.failed ? " (some modules did not parse)" : "";
-    console.error(`hd ${command}: no symbol named ${name}${partial}${hint}`);
+    io.err(`hd ${command}: no symbol named ${name}${partial}${hint}`);
     return 1;
   }
   const render = command === "def" ? formatDefinition : formatDocumentation;
-  console.log(symbols.map(render).join(command === "def" ? "\n" : "\n\n"));
+  io.out(symbols.map(render).join(command === "def" ? "\n" : "\n\n"));
   return 0;
 }

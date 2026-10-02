@@ -1,12 +1,8 @@
-import binaryen from "binaryen";
+// Assembles generated WAT into a Wasm binary with pinned Binaryen. Binaryen
+// takes about 200 ms to load, so it is imported on the first assembly, never
+// by a command that stops at WAT (compiler.ts `compileToWat`).
 
-// Saturating float-to-integer casts (spec/lang/04-type-system.md#r-types.cast.saturate)
-// use the non-trapping `trunc_sat` instructions.
-export const WASM_FEATURES =
-  binaryen.Features.MutableGlobals |
-  binaryen.Features.ReferenceTypes |
-  binaryen.Features.GC |
-  binaryen.Features.NontrappingFPToInt;
+type Binaryen = typeof import("binaryen").default;
 
 export interface WasmArtifact {
   readonly wat: string;
@@ -20,8 +16,27 @@ class WasmValidationError extends Error {
   }
 }
 
-export function assembleWat(wat: string): WasmArtifact {
-  let module: binaryen.Module;
+let binaryen: Promise<Binaryen> | undefined;
+
+function loadBinaryen(): Promise<Binaryen> {
+  binaryen ??= import("binaryen").then((module) => module.default);
+  return binaryen;
+}
+
+// Saturating float-to-integer casts (spec/lang/04-type-system.md#r-types.cast.saturate)
+// use the non-trapping `trunc_sat` instructions.
+function wasmFeatures(binaryen: Binaryen): number {
+  return (
+    binaryen.Features.MutableGlobals |
+    binaryen.Features.ReferenceTypes |
+    binaryen.Features.GC |
+    binaryen.Features.NontrappingFPToInt
+  );
+}
+
+export async function assembleWat(wat: string): Promise<WasmArtifact> {
+  const binaryen = await loadBinaryen();
+  let module: InstanceType<Binaryen["Module"]>;
   try {
     module = binaryen.parseText(wat);
   } catch (error) {
@@ -35,7 +50,7 @@ export function assembleWat(wat: string): WasmArtifact {
   }
 
   try {
-    module.setFeatures(WASM_FEATURES);
+    module.setFeatures(wasmFeatures(binaryen));
     if (!module.validate()) {
       throw new WasmValidationError("Binaryen rejected generated Wasm");
     }
