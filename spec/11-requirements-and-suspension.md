@@ -968,8 +968,8 @@ fn main() -> i32: work!()  # error: bang-call-outside-suspension
 7. r[req.drive.block-on.transitive] This ban is transitive through the statically known call graph.
 8. r[req.drive.block-on.unprovable] If a call through a function value or dynamic trait method prevents the compiler from proving that `block_on` is unreachable, the call is rejected in one of these contexts.
 9. r[req.drive.block-on.error] Every direct or transitive violation is an error. Error: `suspension-forbidden-context`.
-10. r[req.drive.block-on.nested] If any suspension driver is already active in the program instance, calling `block_on` causes a panic before polling its argument, and the panic is `suspension-nested-driver`.
-11. r[req.drive.block-on.indirect] This includes a call reached indirectly from a suspending body or during cancellation.
+10. r[req.drive.block-on.under-driver] A `block_on` call while another suspension driver is active is valid, as in `main!` or a test body, whether reached directly or through non-suspending helpers.
+11. r[req.drive.block-on.inner-only] That call drives only its own argument to completion, synchronously, and never polls or cancels a suspension of the outer driver.
 
 ```text
 use std.task.block_on
@@ -980,8 +980,10 @@ fn main() -> void:
         _ := block_on(pending)  # error: suspension-forbidden-context
 ```
 
-> **Why.** The nested-driver panic prevents nested cooperative drivers from
-> blocking one another.
+> **Note.** The outer driver makes no progress while an inner `block_on`
+> call runs. An inner suspension that can progress only when the outer
+> driver runs never completes, so that `block_on` call hangs. No panic
+> reports it.
 
 ### Entry Driver
 
@@ -1176,7 +1178,8 @@ combinators cancel their children.
 6. r[req.combinator.user] Because `Suspend[T]` is sealed, user code cannot define an equivalent polling combinator; it composes the standard intrinsics instead.
 7. r[req.combinator.race-signature] `race!` has the plain vararg signature `fn race![T](tasks...: List[mut Suspend[T]]) -> T`, with no typing rule of its own.
 8. r[req.combinator.race-join] Its children's result types therefore meet only by permission weakening, as [`types.generic.infer.join`](04-type-system.md#r-types.generic.infer.join) states, so children of unrelated types are an inference error.
-9. r[req.combinator.library-rest] The other concrete signatures, and the complete intrinsic set, remain standard-library API design.
+9. r[req.combinator.race-empty] A `race!` call written with no task argument, as `race!::[i32]()`, is an error. Error: `argument-count`.
+10. r[req.combinator.library-rest] The other concrete signatures, and the complete intrinsic set, remain standard-library API design.
 
 #### Typing `all!`
 

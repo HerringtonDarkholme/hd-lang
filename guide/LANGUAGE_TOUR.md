@@ -2438,8 +2438,8 @@ the console in a local writes `let console: mut Console`. `println` needs
 only `$ Console`. It is ordinary `std` code that drives the provider's
 `write_line!` with `block_on`, so a recording provider receives each line,
 and it panics when the write fails. It also has `block_on`'s rules: it
-panics under a running driver, such as `main!` or a test body, and it is
-rejected in a `defer` suite. Suspending code writes with
+works under a running driver, such as `main!` or a test body, and it is
+rejected in a `defer` suite. Suspending code may also write with
 `$.use(Console).write_line!`, as `main!` does above.
 
 An entry-point row may contain only host capability traits supplied by its
@@ -2752,7 +2752,7 @@ fn demo!() -> Result[User?, DbError] $ Database + Cache:
 
 `Suspend[T]` is a single-execution, pollable state machine. Its driver polls for `Pending` or `Ready(T)` and uses a waker to arrange further progress. Exclusive driving is enforced at runtime: competing drivers, reentrant polling, and driving after completion or cancellation panic. Repeated polling while pending is normal; executing again requires constructing a new suspension. Cancelling a suspension while it or a descendant is active on the current poll stack also panics and leaves its state unchanged.
 
-The caller must satisfy the function's dependency requirements when constructing the suspension. The selected providers are captured then, even though the body has not started, and are not replaced by a later driver context. Cancellation is synchronous and runs registered `defer` suites in the suspension's unfinished frames after cancelling an unfinished child. A started suspension must be cancelled before it is discarded; raw abandonment runs no cleanup. A stored suspension uses `s!()` in a suspending body. Non-suspending code first writes `use std.task.block_on`, then calls `block_on(s)`. A driver is active while its executor is evaluating or polling it on the current program-instance call stack; the test runner drives each test body as a suspension, so a driver is active for the whole test, while a host-held invocation between polls is unfinished but not active. Calling `block_on` under an active driver panics. It is transitively forbidden in defaults, `defer` suites, and non-entry module initialization.
+The caller must satisfy the function's dependency requirements when constructing the suspension. The selected providers are captured then, even though the body has not started, and are not replaced by a later driver context. Cancellation is synchronous and runs registered `defer` suites in the suspension's unfinished frames after cancelling an unfinished child. A started suspension must be cancelled before it is discarded; raw abandonment runs no cleanup. A stored suspension uses `s!()` in a suspending body. Non-suspending code first writes `use std.task.block_on`, then calls `block_on(s)`. A driver is active while its executor is evaluating or polling it on the current program-instance call stack; the test runner drives each test body as a suspension, so a driver is active for the whole test, while a host-held invocation between polls is unfinished but not active. Calling `block_on` under an active driver is valid: it drives only its own suspension to completion and never touches the outer driver's suspensions, so an inner suspension that needs the outer driver to progress hangs. It is transitively forbidden in defaults, `defer` suites, and non-entry module initialization.
 
 Here `$.use(Database, Cache)` retrieves multiple providers from the current context in order. The `!` on `db.get_user!(id)` marks a possible suspension point. It does not mean that the call raises an error or performs dependency lookup.
 

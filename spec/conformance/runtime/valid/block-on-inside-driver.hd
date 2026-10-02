@@ -1,0 +1,16 @@
+# expect-stdout: inner 1, outer 2
+# test: block_on inside main!'s driver drives only its argument, not a suspension main! holds
+use std.task.block_on
+
+fn ready!(value: i32) -> i32: value
+
+fn helper() -> i32:
+    let pending: mut Suspend[i32] = ready(1)
+    block_on(pending)
+
+pub fn main!() -> Result[void, ConsoleError] $ Console:
+    let outer: mut Suspend[i32] = ready(2)
+    inner := helper()
+    outer_value := outer!()
+    let mut console = $.use(Console)
+    console.write_line!("inner ${inner}, outer ${outer_value}")

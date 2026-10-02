@@ -145,9 +145,7 @@ typing/invalid/discarded-result.hd	type
 typing/invalid/shared-enum-default-order.hd	type
 runtime/panic/integer-divide-by-zero.hd	runtime
 runtime/panic/signed-min-division-overflow.hd	runtime
-runtime/panic/nested-block-on.hd	runtime
 runtime/panic/second-suspension-drive.hd	runtime
-runtime/panic/test-block-on.hd	runtime
 runtime/valid/construction-provider-capture.hd	runtime
 runtime/valid/defer-order.hd	runtime
 runtime/valid/partial-equality-dispatch.hd	runtime
@@ -460,7 +458,6 @@ runtime/valid/suspending-call-in-scoped-defer.hd	runtime
 runtime/valid/provider-from-suspending-call.hd	runtime
 runtime/valid/dynamic-suspending-method.hd	runtime
 typing/invalid/println-without-console.hd	type
-runtime/panic/block-on-inside-driver.hd	runtime
 typing/invalid/block-on-in-defer.hd	type
 runtime/valid/block-on-stored-suspension.hd	runtime
 runtime/panic/assert-equal-lists-in-main.hd	runtime
@@ -1072,8 +1069,6 @@ typing/invalid/trait-less-block-second.hd	type
 typing/warnings/trait-less-self-line-unused-fact.hd	type
 typing/valid/trait-less-block-generic-rename.hd	type
 typing/invalid/member-line-not-list.hd	type
-runtime/panic/println-under-main-driver.hd	runtime
-runtime/panic/println-in-test-body.hd	runtime
 typing/invalid/println-in-defer.hd	type
 typing/invalid/println-in-default.hd	type
 typing/invalid/test-module-tests-block.hd	type

@@ -861,16 +861,12 @@ test("multi-provider use preserves requested tuple order through Wasm GC", async
   assert.match(compilation.wat, /array\.new_fixed \$hd\.list 2/);
 });
 
-test("imported block_on drives stored suspensions and rejects nested drivers", async () => {
+test("imported block_on drives stored suspensions", async () => {
   const source = conformance("runtime/valid/block-on-stored-suspension");
   const { instance, compilation } = await instantiate(source);
   assert.equal((instance.exports.drive as CallableFunction)(), 42);
   assert.equal((instance.exports.main as CallableFunction)(), undefined);
   assert.match(compilation.wat, /global \$hd\.driver-active/);
-
-  const nested = conformance("runtime/panic/block-on-inside-driver");
-  const nestedExecution = await instantiate(nested);
-  assert.throws(() => (nestedExecution.instance.exports.main as CallableFunction)());
 
   const forbidden = analyze(conformance("typing/invalid/block-on-in-defer"));
   assert.ok(

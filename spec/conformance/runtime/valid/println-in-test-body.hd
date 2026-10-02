@@ -1,0 +1,22 @@
+# test: a test body runs under a driver, and println called from it writes through the covering provider
+# Spec 10 Console: module.console.println-block-on.under-driver (batch 44).
+use std.testing.assert_equal
+
+data BufferConsole:
+    lines: mut List[string]
+
+impl Console for BufferConsole:
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        self.lines.append(text)
+        .Ok()
+
+fn greet(name: string) -> void $ Console:
+    println("hello, ${name}")
+
+tests:
+    it("println writes under the test driver"):
+        let mut console = BufferConsole { lines: [] }
+        $.with(Console=console):
+            greet("Ada")
+        assert_equal(console.lines.len(), 1, reason="one line written")
+        assert_equal(console.lines[0], "hello, Ada", reason="the provider received it")

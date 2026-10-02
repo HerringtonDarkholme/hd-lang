@@ -111,7 +111,7 @@ table describes the failure:
 | `duplicate-type` | One module declares the same type name twice. |
 | `duplicate-variant` | One enum declares the same variant name twice. |
 | `type-mismatch` | A value's type is not assignable to the type its context requires. |
-| `argument-count` | A call supplies more or fewer arguments than the callee accepts, or a type-argument list has more positional arguments than its declaration has generic parameters. |
+| `argument-count` | A call supplies more or fewer arguments than the callee accepts, a `race!` call supplies no task, or a type-argument list has more positional arguments than its declaration has generic parameters. |
 | `not-callable` | A call's callee is not a function, closure, constructor, or callable value. |
 | `break-outside-loop` | `break` or `continue` appears outside a loop body. |
 

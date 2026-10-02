@@ -67,7 +67,7 @@ function usesPropagation(value: unknown): boolean {
 }
 
 // The stable panic categories an `expect_panic` option may name
-// (spec/06-control-flow.md#r-flow.panic.category-set).
+// (spec/06-control-flow.md#r-flow.panic.category-names).
 const PANIC_CATEGORIES: ReadonlySet<string> = new Set([
   "assertion-failed",
   "explicit-panic",

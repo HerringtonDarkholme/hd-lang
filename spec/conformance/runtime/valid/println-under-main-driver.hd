@@ -1,0 +1,6 @@
+# expect-stdout: inside main!
+# test: println under main!'s driver writes its line and returns
+# Spec 10 Console: module.console.println-block-on.under-driver (batch 44).
+
+pub fn main!() -> void $ Console:
+    println("inside main!")

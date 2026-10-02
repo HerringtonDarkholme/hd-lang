@@ -41,6 +41,8 @@ it.
 | K1-code | batch 43 | The decision says a generic `find::[M]()` requires `M < Inspectable`, but names no code. | `unsatisfied-trait-bound` ([`annot.structure.find-key`](../spec/14-annotations.md#r-annot.structure.find-key)), as for any type argument that fails a bound. **Recommendation:** keep it. |
 | K1-mentions | batch 43 | The decision names `find::[M]()` with `M` a type parameter. Whether `find::[Box[T]]()` also needs `T < Inspectable` is not stated. | Yes: each type parameter that the argument mentions needs the bound, as the `h.fact` exemption for the handle's own `F` implies. **Recommendation:** keep it. |
 | EMPTY-RUN-fixture | batch 43 | Every `# expect-stdout:` line expects a newline, so no fixture can expect empty output from `run`. [`module.init.script-empty`](../spec/10-modules.md#r-module.init.script-empty) therefore has no fixture. | None added. **Recommendation:** add a header that expects `run` to exit 0 with empty standard output. |
+| RACE-EMPTY-forms | batch 44 | The decision makes `race!` with no tasks a compile-time error. Whether `race!(tasks=[])`, or a spread of a list that is empty at run time, is also covered is not stated. | Only a call written with no task argument is an error ([`req.combinator.race-empty`](../spec/11-requirements-and-suspension.md#r-req.combinator.race-empty)); an empty list value is not checked. **Recommendation:** also reject an empty list literal, and state what an empty list at run time does. |
+| ALL-EMPTY | batch 44 | `race!` with no tasks is now an error, but `all!()` is not mentioned. | [`req.combinator.all-typing`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-typing) gives it type `()`. **Recommendation:** keep it; an empty tuple of results is well defined, unlike a first result. |
 
 ### Codes Waiting For The Code Revamp
 
@@ -92,7 +94,7 @@ states the current behavior.
 fn report!() -> void $ Console:
     defer:
         println("done")   # error: suspension-forbidden-context
-    println("working")    # panics: suspension-nested-driver under a driver
+    println("working")    # valid: writes under the caller's driver
 ```
 
 ### Typed Derivation, Tool Adapters, And Secrets

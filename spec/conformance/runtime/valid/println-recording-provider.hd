@@ -2,7 +2,7 @@
 # test: prelude / Console / println writes its line through a program-defined provider
 # Spec 10 Console: println calls write_line! with the value's text on the Console
 # provider that covers the call, and drives the call to completion. The entry
-# is a non-suspending main, since println panics under an active driver.
+# is a non-suspending main.
 
 data BufferConsole:
     lines: mut List[string]

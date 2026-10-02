@@ -248,7 +248,7 @@ parse/invalid/two-trailing-blocks.hd	parse	reject:trailing-block-position	07-fun
 typing/invalid/contravariant-representation-change.hd	type	reject:variance-representation-change	04-type-system.md#variance
 typing/invalid/generic-requirement-key-collision.hd	type	reject:generic-requirement-key-collision	11-requirements-and-suspension.md#provider-scopes
 typing/valid/distinct-requirement-keys.hd	type	accept	11-requirements-and-suspension.md#provider-scopes
-runtime/panic/nested-block-on.hd	runtime	panic:suspension-nested-driver	11-requirements-and-suspension.md#suspending-functions
+runtime/valid/nested-block-on.hd	runtime	accept	11-requirements-and-suspension.md#r-req.drive.block-on.under-driver
 typing/invalid/assert-equal-non-eq.hd	type	reject:missing-eq	10-modules.md#standard-testing
 typing/invalid/supertrait-cycle.hd	type	reject:supertrait-cycle	09-traits.md#trait-declarations
 typing/invalid/missing-trait-method.hd	type	reject:missing-trait-method	09-traits.md#trait-implementations
@@ -261,7 +261,7 @@ typing/invalid/suspension-forbidden-context.hd	type	reject:suspension-forbidden-
 typing/invalid/reimport-prelude-name.hd	type	reject:prelude-name-shadow	10-modules.md#prelude
 typing/invalid/mixed-numeric-power.hd	type	reject:mixed-numeric-types	05-expressions.md#unary-and-binary-operators
 runtime/panic/second-suspension-drive.hd	runtime	panic:suspension-invalid-state	11-requirements-and-suspension.md#suspendt-protocol
-runtime/panic/test-block-on.hd	runtime	panic:suspension-nested-driver	11-requirements-and-suspension.md#r-req.bang.test-driven
+runtime/valid/test-block-on.hd	runtime	accept	11-requirements-and-suspension.md#r-req.bang.test-driven
 runtime/panic/reentrant-cancel.hd	runtime	panic:suspension-reentrant-poll	11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/construction-provider-capture.hd	runtime	accept	11-requirements-and-suspension.md#construction-time-requirement-binding
 runtime/valid/resource-disposed-result.hd	runtime	accept	10-modules.md#wasm-boundary
@@ -613,7 +613,7 @@ runtime/valid/provider-from-suspending-call.hd	runtime	accept	11-requirements-an
 runtime/valid/dynamic-suspending-method.hd	runtime	accept	11-requirements-and-suspension.md#suspending-functions
 typing/invalid/println-without-console.hd	type	reject:missing-requirement	10-modules.md#prelude
 runtime/valid/multi-provider-use-order.hd	runtime	accept	11-requirements-and-suspension.md#provider-access
-runtime/panic/block-on-inside-driver.hd	runtime	panic:suspension-nested-driver	11-requirements-and-suspension.md#suspendt-protocol
+runtime/valid/block-on-inside-driver.hd	runtime	accept	11-requirements-and-suspension.md#r-req.drive.block-on.inner-only
 typing/invalid/block-on-in-defer.hd	type	reject:suspension-forbidden-context	11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/block-on-stored-suspension.hd	runtime	accept	11-requirements-and-suspension.md#suspendt-protocol
 runtime/panic/assert-equal-lists-in-main.hd	runtime	panic:assertion-failed	10-modules.md#standard-testing
@@ -1227,8 +1227,8 @@ runtime/valid/member-line-list-expression.hd	runtime	accept	14-annotations.md#r-
 typing/valid/trait-less-block-generic-rename.hd	type	accept	14-annotations.md#r-annot.traitless.generic.rename
 typing/invalid/member-line-not-list.hd	type	reject:invalid-member-line	14-annotations.md#r-annot.line.right.not-list
 typing/warnings/per-trait-self-line-unused-fact.hd	type	warn:unused-derivation-fact	14-annotations.md#r-annot.fact.unused-self-line.per-trait
-runtime/panic/println-under-main-driver.hd	runtime	panic:suspension-nested-driver	10-modules.md#r-module.console.println-block-on
-runtime/panic/println-in-test-body.hd	runtime	panic:suspension-nested-driver	10-modules.md#r-module.console.println-block-on
+runtime/valid/println-under-main-driver.hd	runtime	accept	10-modules.md#r-module.console.println-block-on.under-driver
+runtime/valid/println-in-test-body.hd	runtime	accept	10-modules.md#r-module.console.println-block-on.under-driver
 typing/invalid/println-in-defer.hd	type	reject:suspension-forbidden-context	10-modules.md#r-module.console.println-block-on
 typing/invalid/println-in-default.hd	type	reject:suspension-forbidden-context	10-modules.md#r-module.console.println-block-on
 typing/invalid/test-module-tests-block.hd	type	reject:misplaced-tests-block	10-modules.md#r-module.test.no-tests-block
@@ -1690,6 +1690,7 @@ runtime/valid/tuple-bound-vararg-call.hd	runtime	accept	07-functions.md#r-fn.var
 runtime/valid/tuple-vararg.hd	runtime	accept	07-functions.md#r-fn.vararg.collect.tuple-expr
 runtime/valid/tuple-spread-fixed.hd	runtime	accept	05-expressions.md#r-expr.call.spread.inputs
 typing/valid/race-plain-signature.hd	type	accept	11-requirements-and-suspension.md#r-req.combinator.race-signature
+typing/invalid/race-no-tasks.hd	type	reject:argument-count	11-requirements-and-suspension.md#r-req.combinator.race-empty
 typing/valid/all-tuple-result.hd	type	accept	11-requirements-and-suspension.md#r-req.combinator.all-typing
 typing/invalid/all-non-suspend-argument.hd	type	reject:type-mismatch	11-requirements-and-suspension.md#r-req.combinator.all-argument
 typing/invalid/all-bang-child.hd	type	reject:type-mismatch	11-requirements-and-suspension.md#r-req.combinator.all-bang-child

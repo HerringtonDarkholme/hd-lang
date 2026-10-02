@@ -523,10 +523,10 @@ trait Console:
 10. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
 11. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
 12. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
-13. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on): its forbidden contexts, their transitive ban, and its nested-driver panic.
-14. r[module.console.println-block-on.nested] So a `println` call while a driver is active, as in `main!` or a test body, panics before it writes. Panic: `suspension-nested-driver`.
+13. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on): its forbidden contexts, their transitive ban, and its behavior under an active driver.
+14. r[module.console.println-block-on.under-driver] So a `println` call while a driver is active, as in `main!` or a test body, writes its line and returns.
 15. r[module.console.println-block-on.contexts] A `println` call in a `defer` suite, a default expression, or a fact expression, directly or transitively, is an error. Error: `suspension-forbidden-context`.
-16. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid: no driver is active there, and only non-entry module initialization bans `block_on`.
+16. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
 
 ```text
 pub fn main() -> void:
@@ -559,8 +559,8 @@ pub fn main() -> void $ Console:
     println("recorded: ${console.lines[0]}")  # recorded: hello, Ada
 ```
 
-Suspending code, such as `main!` or a test body, writes with
-`write_line!` instead:
+Suspending code, such as `main!` or a test body, may also call
+`write_line!` directly:
 
 ```text
 pub fn main!() -> Result[void, ConsoleError] $ Console:
@@ -718,7 +718,7 @@ pub fn it[T < Termination, R](name: string, ignore: string? = .None, expect_pani
 | r[module.testing.option.ignore] Ignore | `ignore` | a reason | The runner does not run the test case and reports it as ignored, with the reason. |
 | r[module.testing.option.expect-panic] Expected panic | `expect_panic` | a [panic category](06-control-flow.md#panic-categories) | The test case passes only when its body panics with that category. |
 
-1. r[module.testing.option.expect-panic.known] An `expect_panic` value that names no [panic category](06-control-flow.md#r-flow.panic.category-set) is an error. Error: `unknown-panic-category`.
+1. r[module.testing.option.expect-panic.known] An `expect_panic` value that names no [panic category](06-control-flow.md#r-flow.panic.category-names) is an error. Error: `unknown-panic-category`.
 
 ```text
 fn name_of() -> string: "computed"

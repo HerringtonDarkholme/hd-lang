@@ -32,9 +32,9 @@ impl Console for BufferConsole:
 
 # `println` (spec/10-modules.md#console) is ordinary std code: it drives the
 # covering provider's `write_line!` with `block_on`, so it inherits all of
-# `block_on`'s rules. It panics with `suspension-nested-driver` under an
-# active driver, such as `main!` or a test body, and it is rejected in a
-# `defer` suite or a default expression. An `.Err` is an ordinary panic.
+# `block_on`'s rules. Under an active driver, such as `main!` or a test
+# body, it drives only its own write, and it is rejected in a `defer` suite
+# or a default expression. An `.Err` is an ordinary panic.
 pub fn println[T < Display](value: T) -> void $ Console:
     let mut console = $.use(Console)
     let call: mut Suspend[Result[void, ConsoleError]] = console.write_line("$value")

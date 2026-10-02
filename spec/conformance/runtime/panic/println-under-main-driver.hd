@@ -1,5 +1,0 @@
-# test: println inherits block_on's nested-driver panic, so it panics under main!'s driver
-# Spec 10 Console: module.console.println-block-on (MHP-1 follow-up).
-
-pub fn main!() -> void $ Console:
-    println("inside main!")  # panic: suspension-nested-driver
