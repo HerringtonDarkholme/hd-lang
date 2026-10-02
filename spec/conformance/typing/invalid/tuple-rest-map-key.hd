@@ -1,5 +1,0 @@
-# test: a rest element hashes as its list, and lists have no Hash, so a rest tuple is not a map key
-# std Hash, Tuple Hashing: std-hash.tuple.rest (owner decision Q5, batch 34, 2026-10-01).
-
-fn lookup(counts: Map[(i32, List[i32]...), i32]) -> i32:  # diagnostic: unsatisfied-trait-bound
-    0

@@ -1016,8 +1016,11 @@ arguments' types may differ only in `mut`:
 1. r[types.generic.infer.join] When generic call inference solves one type parameter from several arguments, the only conversion between their types is permission weakening: `mut X` and `X` meet at `X`.
 2. r[types.generic.infer.join.no-widen] Numeric widening does not apply, so `max(small, large)` with an `i32` and an `i64` argument is an error. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
 3. r[types.generic.infer.join.no-trait-value] A trait-value conversion never applies, as [`types.lct.no-trait-value`](#r-types.lct.no-trait-value) states for the least common type. So `cmp(user, label)` with a `User` and a `Display` argument is an error. Error: `no-common-type`.
-4. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp::[Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
-5. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
+4. r[types.generic.infer.join.no-supertrait-widening] A supertrait widening never applies either, so two arguments of two child traits of one supertrait are an error. Error: `no-common-type`.
+5. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error, as for `choose(1, true)`, a `List[mut User]` and a `List[User]`, or a `T` and a `T?`. Error: `type-mismatch`.
+6. r[types.generic.infer.join.literal] An integer literal argument is not a conversion: it takes the type solved from the other arguments as its expected type, in any position. So `pick(1, large)` with an `i64` `large` solves `T = i64`.
+7. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp::[Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
+8. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
 
 ```text
 fn max[T < Ord](left: T, right: T) -> T:
@@ -1044,6 +1047,9 @@ fn pick[T](left: T, right: T) -> T:
 
 fn first(owned: mut User, shared: User) -> User:
     pick(owned, shared)  # T is User
+
+fn either(large: i64) -> i64:
+    pick(1, large)  # T is i64; the literal 1 is an i64
 
 fn widest(small: i32, large: i64) -> i64:
     max(i64(small), large)
@@ -1313,8 +1319,8 @@ This section defines which types may be map keys, and how keys behave.
 2. r[types.map-key.no-mut] A `mut T` key type is an error, even when `T` implements both traits. Error: `invalid-map-key`.
 3. r[types.map-key.hash] `Hash` is a standard-library trait in `std.hash`.
 4. r[types.map-key.user] User-defined data and enum types can become keys by explicitly implementing or deriving both traits.
-5. r[types.map-key.builtin-types] Standard-library implementations cover eligible built-in scalar types and their supported compositions: `bool`, integers, `char`, `string`, tuples of hashable elements, and optionals of hashable elements.
-6. r[types.map-key.no-hash] Lists, maps, floating-point values, functions, suspensions, dynamic trait values, and `Any` do not have built-in `Hash`.
+5. r[types.map-key.builtin-hash] Standard-library implementations of `Hash` cover `bool`, integers, `char`, `string`, and tuples, optionals, and lists of hashable elements. So `List[T]` implements `Hash` when `T < Hash`.
+6. r[types.map-key.unhashable] Maps, floating-point values, functions, suspensions, dynamic trait values, and `Any` do not have built-in `Hash`.
 7. r[types.map-key.user-enums] User data and every user enum, including a payload-free one, require an explicit or derived implementation of both traits.
 8. r[types.map-key.float-no-hash] Floating-point types implement `Eq` but not `Hash`, so they are not valid map keys.
 9. r[types.map-key.no-map-hash] Consequently maps have no built-in hash and impose no order-independent map-hash obligation.
@@ -1334,6 +1340,10 @@ fn setup() -> void:
 ```
 
 > **Why.** A NaN key is unequal even to itself, so no lookup could find it.
+
+> **Note.** A list key can still change through a `mut` alias, as a data
+> key with a derived `Hash` already can. Its entry then becomes a
+> [ghost entry](#r-types.map.ghost).
 
 > **Why.** The key traits are an ordinary bound, so a missing trait reads
 > as any other unmet bound. A `mut` key stays an error: code holding it

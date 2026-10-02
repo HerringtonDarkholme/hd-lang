@@ -105,6 +105,7 @@ const headerDirectives = new Set([
   "fixture-package-role",
   "fixture-test-layout",
   "fixture-package-tree",
+  "expect-empty-stdout",
 ]);
 
 class UsageError extends Error {}
@@ -274,7 +275,12 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
   if (treeHeader !== undefined && (packageRole !== undefined || testLayout !== undefined))
     return "'# fixture-package-tree' names no package role and no test layout";
   const profile = headers.get("fixture-runtime-profile");
-  if (stdoutLines.length > 0) {
+  const emptyStdout = headers.get("expect-empty-stdout");
+  if (emptyStdout !== undefined && emptyStdout !== "true")
+    return "'# expect-empty-stdout' must have the value 'true'";
+  if (emptyStdout !== undefined && stdoutLines.length > 0)
+    return "'# expect-empty-stdout' and '# expect-stdout' exclude each other";
+  if (stdoutLines.length > 0 || emptyStdout !== undefined) {
     if (row.phase !== "runtime" || row.expectation !== "accept")
       return "'# expect-stdout' is valid only in a runtime accept case";
     if (profile !== undefined || scenario !== undefined)
@@ -284,7 +290,9 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
     expectHeader: expect,
     expectedStdout: stdoutLines.length
       ? stdoutLines.map((text) => `${text}\n`).join("")
-      : undefined,
+      : emptyStdout !== undefined
+        ? ""
+        : undefined,
     markerLine: markers[0]?.line,
     packageRole,
     testLayout,

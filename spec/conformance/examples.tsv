@@ -157,7 +157,7 @@ lang/04-type-system.md	41	accept	typing/valid/functions.hd
 lang/04-type-system.md	42	accept	typing/valid/trait-features.hd
 lang/04-type-system.md	43	mixed	typing/invalid/written-type-too-many-arguments.hd
 lang/04-type-system.md	44	mixed	typing/invalid/generic-inference-numeric-widening.hd|typing/invalid/generic-inference-trait-value.hd
-lang/04-type-system.md	45	accept	runtime/valid/generic-inference-mut-weakening.hd|runtime/valid/generic-inference-explicit-conversions.hd
+lang/04-type-system.md	45	accept	runtime/valid/generic-inference-mut-weakening.hd|runtime/valid/generic-inference-explicit-conversions.hd|runtime/valid/generic-inference-literal-any-position.hd
 lang/04-type-system.md	46	accept	typing/valid/type-default-calls.hd
 lang/04-type-system.md	47	mixed	typing/invalid/type-default-later-parameter.hd|typing/invalid/type-default-order.hd|typing/invalid/partial-generic-arguments.hd
 lang/04-type-system.md	48	accept	typing/valid/variance-permission-weakening.hd
@@ -585,6 +585,10 @@ std/iter.md	5	type-fragment	-
 std/iter.md	6	mixed	typing/invalid/collect-target-not-fromiterator.hd
 std/ops.md	1	accept	typing/valid/default-trait.hd
 std/ops.md	2	mixed	typing/invalid/default-tuple-element-without-default.hd
+std/ops.md	3	accept	runtime/valid/derived-default-data.hd|runtime/valid/derived-default-enum.hd
+std/ops.md	4	type-fragment	-
+std/ops.md	5	mixed	typing/invalid/derived-default-no-variant.hd|typing/invalid/derived-default-several-variants.hd
+std/ops.md	6	mixed	typing/invalid/derived-default-member-not-default.hd
 std/testing.md	1	type-fragment	-
 std/testing.md	2	type-fragment	-
 std/testing.md	3	mixed	typing/invalid/it-each-name-clash.hd|typing/invalid/it-each-non-literal-name.hd
@@ -610,6 +614,8 @@ std/cmp.md	2	accept	typing/valid/derived-ordering.hd
 std/cmp.md	3	accept	typing/valid/tuple-derived-traits.hd
 std/hash.md	1	accept	typing/valid/derived-hash.hd
 std/hash.md	2	accept	typing/valid/tuple-derived-traits.hd
+std/hash.md	3	accept	runtime/valid/list-map-key.hd
+std/hash.md	4	mixed	typing/invalid/list-float-map-key.hd
 std/collections.md	1	accept	runtime/valid/list-view-run.hd
 std/collections.md	2	mixed	typing/invalid/list-view-assignment.hd
 std/collections.md	3	mixed	runtime/panic/list-view-invalidated.hd

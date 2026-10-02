@@ -1,0 +1,17 @@
+# test: generic call inference never widens two child-trait values to their supertrait
+# Spec 04 Inference From Several Arguments: types.generic.infer.join.no-supertrait-widening (owner decision INF-code, batch 51, 2026-10-02).
+
+trait Named:
+    fn name(self) -> string
+
+trait Shown < Named:
+    fn show(self) -> string
+
+trait Tagged < Named:
+    fn tag(self) -> string
+
+fn same[T](left: T, right: T) -> bool:
+    true
+
+fn mix(shown: Shown, tagged: Tagged) -> bool:
+    same(shown, tagged)  # diagnostic: no-common-type

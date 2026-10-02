@@ -1,5 +1,5 @@
-# test: a generic type's derived Arbitrary needs its type argument to meet Arbitrary & Inspectable
-# Spec std/testing Derived Arbitrary: std-testing.arbitrary.derive.params (owner decision AT-gen, batch 26, 2026-09-30).
+# test: a generic type's derived Arbitrary needs its type argument to implement Arbitrary
+# Spec std/testing Derived Arbitrary: std-testing.arbitrary.derive.params-arbitrary (owner decisions AT-gen, batch 26, and O7-inspectable, batch 51).
 use std.testing.Arbitrary
 
 @derive(Arbitrary, Debug)

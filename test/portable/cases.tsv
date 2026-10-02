@@ -1551,7 +1551,6 @@ runtime/valid/vararg-function-values.hd	runtime
 typing/invalid/function-type-rest-not-list.hd	type
 typing/invalid/tuple-rest-assign.hd	type
 typing/invalid/tuple-rest-literal-short.hd	type
-typing/invalid/tuple-rest-map-key.hd	type
 typing/invalid/tuple-rest-not-list.hd	type
 typing/invalid/tuple-spread-tuple-operand.hd	type
 typing/invalid/tuple-vararg-arity.hd	type
@@ -1745,3 +1744,15 @@ runtime/panic/string-index-negative.hd	runtime
 runtime/panic/string-slice-negative.hd	runtime
 parse/invalid/range-pattern-exclusive-to.hd	parse
 parse/invalid/range-pattern-char-bound.hd	parse
+runtime/valid/generic-inference-literal-any-position.hd	runtime
+typing/invalid/generic-inference-supertrait-widening.hd	type
+runtime/valid/structure-self-ref-omitted.hd	runtime
+runtime/valid/list-map-key.hd	runtime
+runtime/valid/tuple-rest-map-key.hd	runtime
+typing/invalid/list-float-map-key.hd	type
+runtime/valid/derived-default-data.hd	runtime
+typing/invalid/derived-default-member-not-default.hd	type
+typing/invalid/unknown-std-module.hd	type
+typing/invalid/unknown-std-module-grouped.hd	type
+typing/invalid/unknown-pkg-module.hd	type
+typing/invalid/unknown-dep-module.hd	type

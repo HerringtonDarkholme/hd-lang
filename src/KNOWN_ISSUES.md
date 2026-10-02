@@ -11,8 +11,8 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-02 the suite has
-1,827 cases: 1,746 selected in `test/portable/cases.tsv` and 81 known
-failures, 75 language tier and 6 stdlib tier.
+1,847 cases: 1,757 selected in `test/portable/cases.tsv` and 90 known
+failures, 80 language tier and 10 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -24,7 +24,7 @@ failures, 75 language tier and 6 stdlib tier.
 | TQ-2, EMB-S, P2, M29 | 11 | package roles: the CLI has no `--package-role` or `--dependency` |
 | DC7 | 1 | group statements are not interleaved across modules |
 | MHP-1 | 1 | no inferred script entry requirement row |
-| CLI-ENTRY | 10 | no `hd FILE` command for the runner's last step |
+| CLI-ENTRY | 11 | no `hd FILE` command for the runner's last step |
 | NONPKG | 1 | a `use self` in a single-file program is not reported |
 | SELF-CURRENT | 2 | relative lookup starts at the containing directory module |
 | ROOTS | 2 | `src/lib.hd` is not the root module, and `src/main.hd` can be used |
@@ -32,6 +32,9 @@ failures, 75 language tier and 6 stdlib tier.
 | RANGES | 34 | no `..` or `..=` tokens, range types, range iteration, slicing, or range patterns; no `List.view` or `ListView` |
 | FOLDER-SELF | 1 | `x.hd` is not in folder `x` with its child modules |
 | FACT-PATTERN | 8 | a typed fact's `@annotate` argument must be one of its type parameters |
+| TYPE-GAPS | 3 | batch 51 inference codes and the derived `Arbitrary` member bound are not checked |
+| DERIVE-DEFAULT | 3 | no `@default` marker or count check for derived `Default` |
+| RACE-EMPTY | 2 | an empty `race!` task list is neither rejected nor a panic |
 
 ## Findings
 
@@ -117,6 +120,9 @@ Compiler structure:
 | M29 | A `Self` line warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package. |
 | MHP-1 | A top-level `println` in a script is valid. The prototype infers no script entry row (`module.init.script-row`), so it reports `missing-requirement`. |
 | DC7 | An initialization group runs statements in dependency order across modules. The linker joins modules whole, so `init-group-order.hd` reports `top-level-read-before-initialization`. |
+| TYPE-GAPS | Batch 51: a generic call's other argument conflicts are `type-mismatch`, and derived `Arbitrary` needs no inspectable member. The prototype checks neither. |
+| DERIVE-DEFAULT | Batch 51: `@derive(Default)` through the `std.ops` template, with `@default` on one enum variant. The template in `lib/std/ops.hd` works for data types, but the marker function `std.ops.default` is missing: declaring a module function named `default` beside the trait breaks every `T::default()` call in the prototype. No check counts the marked variants. |
+| RACE-EMPTY | Batch 51: `race!(tasks=[])` is `argument-count`, and an empty task list at run time panics with `explicit-panic`. The prototype accepts the first and hangs on the second. |
 | FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are. The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
 
 ## Gaps No Fixture Reaches

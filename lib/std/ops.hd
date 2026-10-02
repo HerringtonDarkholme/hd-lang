@@ -1070,6 +1070,24 @@ impl[T < Tuple] Default for T by Structure:
             .Ok(value) => value
             .Err(_) => panic("a tuple's default never fails")
 
+# Derived `Default` (spec/std/ops.md#derived-default): each member's own
+# type's default, and for an enum the variant marked `@default`
+# (r-std-ops.default.derive.enum). The compiler checks that a derived enum
+# marks exactly one variant (r-std-ops.default.derive.one-variant).
+impl[T] Default for T by Structure:
+    fn default() -> T:
+        let s: mut DefaultSource[T] = DefaultSource::[T] { at: 0 }
+        match T::build(s):
+            .Ok(value) => value
+            .Err(_) => panic("a derived default never fails")
+
+# The `@default` variant marker's fact type (r-std-ops.default.derive.marker).
+# The marker function `pub fn default() -> DefaultVariant` is not declared
+# yet: in the prototype, a module function named `default` beside the trait
+# breaks every `T::default()` call (src/KNOWN_ISSUES.md, DERIVE-DEFAULT).
+@annotate(.Variant)
+pub data DefaultVariant: pass
+
 # Names each member in order and gives it its type's default. The field is
 # public because the prototype checks the instantiated source in the
 # program that uses it.
@@ -1079,7 +1097,13 @@ data DefaultSource[S]:
 impl[S] Source[S] for DefaultSource[S]:
     type Error = never
 
+    # A tuple or a data type offers one choice. An enum's choice is the
+    # variant whose facts hold a `DefaultVariant`.
     fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+        for choice in choices:
+            match choice.info.facts.find::[DefaultVariant]():
+                .Some(_) => return .Ok(choice)
+                .None => pass
         .Ok(choices[0])
 
     fn next(mut self, members: Members[S]) -> Result[Key[S], never]:

@@ -1,0 +1,5 @@
+# test: a list of floats has no Hash, so it is not a map key
+# std Hash, List Hashing: std-hash.list.not-element (owner decision Q5-hash, batch 51, 2026-10-02).
+
+fn lookup(counts: Map[List[f64], i32]) -> i32:  # diagnostic: unsatisfied-trait-bound
+    0

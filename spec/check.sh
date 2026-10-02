@@ -53,6 +53,12 @@ tail -n +2 "$manifest" | while IFS="$tab" read -r path phase expectation section
         [ "$phase" = runtime ] && [ "$expectation" = accept ] ||
             fail "fixture $path uses # expect-stdout: outside a runtime accept case"
     fi
+    if grep -q '^# expect-empty-stdout:' "$spec_dir/conformance/$path"; then
+        [ "$phase" = runtime ] && [ "$expectation" = accept ] ||
+            fail "fixture $path uses # expect-empty-stdout: outside a runtime accept case"
+        grep -q '^# expect-empty-stdout: true$' "$spec_dir/conformance/$path" ||
+            fail "fixture $path: # expect-empty-stdout: takes the value true"
+    fi
 
     spec_file=${section%%#*}
     [ -f "$spec_dir/$spec_file" ] || fail "missing specification $spec_file for $path"
@@ -87,7 +93,7 @@ if grep -R -n -E '^# expect-(error|warning|panic):' "$spec_dir/conformance" --in
 fi
 
 if grep -R -n -E '^# [a-z][a-z-]*:' "$spec_dir/conformance" --include='*.hd' |
-    grep -v -E ':# (test|expect|fixture-runtime-profile|fixture-runtime-scenario|fixture-runtime-pending-function|fixture-package-role|fixture-test-layout|fixture-package-tree|expect-stdout): ' |
+    grep -v -E ':# (test|expect|fixture-runtime-profile|fixture-runtime-scenario|fixture-runtime-pending-function|fixture-package-role|fixture-test-layout|fixture-package-tree|expect-stdout|expect-empty-stdout): ' |
     grep -v -E ':# expect-stdout:$'; then
     fail "fixture uses a header directive not defined in conformance/README.md"
 fi

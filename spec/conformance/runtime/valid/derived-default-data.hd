@@ -1,0 +1,19 @@
+# test: a derived data default sets each member to its own type's default
+# std Ops, Derived Default: std-ops.default.derive.data (owner decision Q6-default-derive, batch 51, 2026-10-02).
+use std.ops.Default
+use std.testing.assert_equal
+
+@derive(Default)
+data Settings:
+    name: string
+    retries: i32
+    tags: List[string]
+    limit: i64?
+
+tests:
+    it("every member takes its type's default"):
+        s := Settings::default()
+        assert_equal(s.name, "", reason="string default")
+        assert_equal(s.retries, 0, reason="integer default")
+        assert_equal(s.tags.len(), 0, reason="empty list")
+        assert_equal(s.limit, .None, reason="optional default")

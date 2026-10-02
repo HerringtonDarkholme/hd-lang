@@ -1,5 +1,5 @@
-# test: a type with a member that implements neither Arbitrary nor Inspectable is not derivable
-# std Testing, Derived Arbitrary: std-testing.arbitrary.derive.member-bounds, .derive.not-derivable, and
+# test: a type with a member that does not implement Arbitrary is not derivable
+# std Testing, Derived Arbitrary: std-testing.arbitrary.derive.member-bound, .derive.not-derivable, and
 # .derive.manual (Testing AT-with, owner decision 2026-09-30). Job writes its impl Arbitrary by hand.
 use std.testing.{Arbitrary, Choices}
 

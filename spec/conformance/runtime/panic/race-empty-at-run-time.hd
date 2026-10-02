@@ -1,0 +1,15 @@
+# test: race! over a task list that is empty at run time panics when it is called
+# Spec 11 Standard Combinators: req.combinator.race-empty-run (owner decision RACE-EMPTY-forms, batch 51, 2026-10-02).
+use std.task.{block_on, race}
+
+fn first!(tasks: List[mut Suspend[i32]]) -> i32:
+    race!(tasks...)  # panic: explicit-panic
+
+fn run() -> i32:
+    let tasks: List[mut Suspend[i32]] = []
+    let pending: mut Suspend[i32] = first(tasks)
+    block_on(pending)
+
+tests:
+    it("an empty task list panics"):
+        _ := run()

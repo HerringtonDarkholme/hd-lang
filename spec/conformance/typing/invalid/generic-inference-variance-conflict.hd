@@ -1,0 +1,12 @@
+# test: generic call inference reports any other argument conflict as a type mismatch
+# Spec 04 Inference From Several Arguments: types.generic.infer.join.other-conflict (owner decision INF-code, batch 51, 2026-10-02).
+# A List[mut User] and a List[User] meet only by variance, which the join never uses.
+
+data User:
+    name: string
+
+fn pick[T](left: T, right: T) -> T:
+    left
+
+fn first(owned: List[mut User], shared: List[User]) -> List[User]:
+    pick(owned, shared)  # diagnostic: type-mismatch

@@ -1,0 +1,6 @@
+# test: race! with an empty task list literal is the same compile-time error as race!()
+# Spec 11 Standard Combinators: req.combinator.race-empty-literal (owner decision RACE-EMPTY-forms, batch 51, 2026-10-02).
+use std.task.race
+
+fn nothing!() -> i32:
+    race!::[i32](tasks=[])  # diagnostic: argument-count

@@ -1,0 +1,6 @@
+# expect-empty-stdout: true
+# test: an entry module with no main and no top-level statements runs, does nothing, and exits 0
+# Spec 10 Module Initialization: module.init.script-empty (owner decision EMPTY-RUN-fixture, batch 51, 2026-10-02).
+
+fn helper() -> i32:
+    1

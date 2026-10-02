@@ -270,6 +270,11 @@ fn same(left: Box[fn() -> void], right: Box[fn() -> void]) -> bool:
 > is stdlib tier: [Cmp](../std/cmp.md) and [Hash](../std/hash.md). The checks
 > above stay in the language tier.
 
+> **Note.** `std.ops` also declares a template for `Default`, so
+> `@derive(Default)` builds each member's default, and an enum marks its
+> default variant with `@default`
+> ([Derived Default](../std/ops.md#derived-default)).
+
 > **Note.** The reference prototype still writes these four bodies in the
 > compiler. It moves them to the templates once its template lowering no
 > longer re-checks generated source. Programs see no difference.
@@ -669,11 +674,12 @@ fn index(counts: Map[(i32, string), i32]) -> i32:
 > These are the tuple equality of [`expr.eq.std`](05-expressions.md#r-expr.eq.std),
 > the tuple order of [`expr.ord.std.sequences`](05-expressions.md#r-expr.ord.std.sequences),
 > and the hashable tuple keys of
-> [`types.map-key.builtin-types`](04-type-system.md#r-types.map-key.builtin-types).
+> [`types.map-key.builtin-hash`](04-type-system.md#r-types.map-key.builtin-hash).
 
-> **Note.** Lists have no built-in `Hash`
-> ([`types.map-key.no-hash`](04-type-system.md#r-types.map-key.no-hash)),
-> so a tuple with a rest element has no `Hash` and is not a map key.
+> **Note.** `List[T]` implements `Hash` when `T` does
+> ([`types.map-key.builtin-hash`](04-type-system.md#r-types.map-key.builtin-hash)).
+> So a tuple with a rest element is a hashable map key when its elements
+> and its rest's items are hashable.
 
 ### Implementation Ownership
 

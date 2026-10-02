@@ -6,7 +6,9 @@ This chapter defines the part of `std.ops` that `lib/std` writes in
 ordinary hd over the language tier:
 
 - the `Default` trait;
-- the standard `Default` implementations, including its tuple template.
+- the standard `Default` implementations, including its tuple template;
+- derived `Default`, through the trait's template, and the `@default`
+  variant marker.
 
 The language tier keeps the rest of `std.ops`, since the compiler knows
 those items by name:
@@ -77,3 +79,87 @@ fn start() -> (i32, Secret):
 
 See also: [Associated Function Calls](../lang/09-traits.md#associated-function-calls),
 [Derived Tuple Implementations](../lang/09-traits.md#derived-tuple-implementations).
+
+## Derived Default
+
+`@derive(Default)` builds a data type's or an enum's default from its
+members' defaults. An enum marks its default variant with `@default`:
+
+```text
+use std.ops.{Default, default}
+
+@derive(Default)
+data Settings:
+    name: string
+    retries: i32
+    tags: List[string]
+
+@derive(Default)
+enum Shape:
+    Circle(radius: f64)
+    @default
+    Square(side: f64, label: string)
+
+fn start() -> (Settings, Shape):
+    (Settings::default(), Shape::default())
+```
+
+`Settings::default()` is `Settings { name: "", retries: 0, tags: [] }`,
+and `Shape::default()` is `.Square(0.0, "")`.
+
+`std.ops` declares the marker:
+
+```text
+@annotate(.Variant)
+pub data DefaultVariant: pass
+
+pub fn default() -> DefaultVariant
+```
+
+1. r[std-ops.default.derive.template] `std.ops` declares the [template](../lang/14-annotations.md#templates) of `Default`, which `@derive(Default)` instantiates. It is ordinary `std.ops` code over `std.structure`, as the templates of `Eq` and `Hash` are.
+2. r[std-ops.default.derive.data] A derived data type's default sets each member to its own type's default, `F::default()`.
+3. r[std-ops.default.derive.member-bound] The template requires the type of every member it builds to implement `Default`. A member whose type does not makes the type not derivable, reported at the opt-in and naming the member. Error: `member-not-derivable`.
+4. r[std-ops.default.derive.marker] `std.ops` declares the fact type `DefaultVariant` and the function `default`. Code imports `default`, as in `use std.ops.default`, and writes `@default` on a variant, which attaches `default()`.
+5. r[std-ops.default.derive.enum] A derived enum's default is its variant marked `@default`.
+6. r[std-ops.default.derive.payload] The default of a marked payload variant fills each payload member with its own type's default.
+7. r[std-ops.default.derive.one-variant] A derived enum must mark exactly one variant `@default`. An enum with no marked variant is an error, reported on the `@derive` line. Error: `invalid-default-variant`.
+8. r[std-ops.default.derive.one-variant.several] An enum with several marked variants is the same error, reported on the second `@default`. Error: `invalid-default-variant`.
+
+```text
+use std.ops.{Default, default}
+
+@derive(Default)  # error: invalid-default-variant
+enum Mode:
+    Fast
+    Slow
+
+@derive(Default)
+enum Level:
+    @default
+    Low
+    @default  # error: invalid-default-variant
+    High
+```
+
+```text
+use std.ops.Default
+
+data Secret:
+    value: i32
+
+@derive(Default)  # error: member-not-derivable
+data Vault:
+    secret: Secret
+```
+
+> **Note.** A generic type gets `T < Default` for each type parameter that
+> a built member uses, by [`annot.bound.params`](../lang/14-annotations.md#r-annot.bound.params).
+> A member that a derivation block omits takes its declared default, by
+> [`annot.omit.default`](../lang/14-annotations.md#r-annot.omit.default).
+
+> **Why.** No variant is more neutral than another, so the enum names its
+> default, as Rust's `#[default]` does. A data type has one shape, so its
+> default needs no marker.
+
+See also: [Derived Implementations](../lang/09-traits.md#derived-implementations),
+[Templates](../lang/14-annotations.md#templates).

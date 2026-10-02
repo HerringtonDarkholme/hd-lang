@@ -1,0 +1,10 @@
+# test: a derived Default enum with two @default variants is an error at the second marker
+# std Ops, Derived Default: std-ops.default.derive.one-variant.several (owner decision Q6-default-derive, batch 51, 2026-10-02).
+use std.ops.{Default, default}
+
+@derive(Default)
+enum Level:
+    @default
+    Low
+    @default  # diagnostic: invalid-default-variant
+    High

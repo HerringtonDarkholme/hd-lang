@@ -198,9 +198,9 @@ through the template of `Arbitrary`.
 
 1. r[std-testing.arbitrary.derive] `@derive(Arbitrary)` derives `Arbitrary` through its [template](../lang/14-annotations.md#templates). The derived `arbitrary` draws each member with its type's `Arbitrary`. For an enum, it draws a variant, then that variant's payload.
 2. r[std-testing.arbitrary.derive.template] That template is ordinary `std.testing` code over `std.structure`: it reads each variant's and member's [`self_ref`](../lang/14-annotations.md#self-references), and the compiler supplies nothing for `Arbitrary` itself.
-3. r[std-testing.arbitrary.derive.member-bounds] The template requires the type of every member to implement `Arbitrary` and to be [inspectable](../lang/09-traits.md#inspectable-types), whether or not `arbitrary.with` tunes the member.
-4. r[std-testing.arbitrary.derive.params] For a generic type, the derived implementation gets `T < Arbitrary & Inspectable` for each type parameter `T` that a member's type uses, in place of the `T < Arbitrary` of [`annot.bound.params`](../lang/14-annotations.md#r-annot.bound.params). So `@derive(Arbitrary)` on `data Box[T]` with a member `value: T` needs no hand-written block.
-5. r[std-testing.arbitrary.derive.not-derivable] A type with a member whose type fails either bound, such as a function-typed member, is not derivable. `@derive(Arbitrary)` on it is an error, reported at the opt-in and naming the member. Error: `unsatisfied-trait-bound`.
+3. r[std-testing.arbitrary.derive.member-bound] The template requires the type of every member to implement `Arbitrary`, whether or not `arbitrary.with` tunes the member. It does not require a member to be [inspectable](../lang/09-traits.md#inspectable-types).
+4. r[std-testing.arbitrary.derive.params-arbitrary] For a generic type, the derived implementation gets `T < Arbitrary` for each type parameter `T` that a member's type uses, by [`annot.bound.params`](../lang/14-annotations.md#r-annot.bound.params). So `@derive(Arbitrary)` on `data Box[T]` with a member `value: T` needs no hand-written block.
+5. r[std-testing.arbitrary.derive.not-derivable] A type with a member whose type fails that bound, such as a function-typed member, is not derivable. `@derive(Arbitrary)` on it is an error, reported at the opt-in and naming the member. Error: `unsatisfied-trait-bound`.
 6. r[std-testing.arbitrary.derive.manual] Such a type gets its default generator only from a hand-written `impl Arbitrary`.
 7. r[std-testing.arbitrary.derive.simplest] A derived enum's simplest choice is its first non-recursive variant, whatever the declaration order.
 8. r[std-testing.arbitrary.derive.recursive] A variant is recursive when its `self_ref` is `.Required`, as [Self References](../lang/14-annotations.md#self-references) computes it from the member types.
@@ -271,8 +271,8 @@ impl Arbitrary for Job:
         Job { run: fn() -> i32: n }
 ```
 
-`Task`'s member `run` has a function type, which implements neither
-`Arbitrary` nor `Inspectable`, so `Task` is not derivable. `Job` writes
+`Task`'s member `run` has a function type, which does not implement
+`Arbitrary`, so `Task` is not derivable. `Job` writes
 its own `impl Arbitrary` instead.
 
 ```text
@@ -291,9 +291,9 @@ fn invalid(item: Box[fn() -> i32]) -> Box[fn() -> i32]:
     needs(item)  # error: unsatisfied-trait-bound
 ```
 
-The derived implementation is for `Box[T]` with `T < Arbitrary & Inspectable`.
+The derived implementation is for `Box[T]` with `T < Arbitrary`.
 `Box[i32]` meets it; `Box[fn() -> i32]` does not, since a function type
-implements neither trait.
+does not implement `Arbitrary`.
 
 ```text
 use std.testing.Arbitrary
@@ -323,7 +323,7 @@ message `Loop has no finite value`. So does `Ring`'s, because its member
 > where it is written, and the derived code reads it at the member's type.
 
 > **Why.** A template states one bound for all of a type's members, and no
-> fact can lift it from one member. So every member meets both bounds, and
+> fact can lift it from one member. So every member meets the bound, and
 > a type whose members cannot is written by hand.
 
 > **Note.** A newtype gets no `Structure`

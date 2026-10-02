@@ -1,0 +1,17 @@
+# test: derived Arbitrary needs a member to implement Arbitrary, not to be inspectable
+# std Testing, Derived Arbitrary: std-testing.arbitrary.derive.member-bound (owner decision O7-inspectable, batch 51, 2026-10-02).
+# Holder[fn() -> i32] is not inspectable, since it applies Holder to a function type.
+use std.testing.{Arbitrary, Choices}
+
+data Holder[T]:
+    value: T
+
+impl Arbitrary for Holder[fn() -> i32]:
+    fn arbitrary(c: mut Choices) -> Holder[fn() -> i32]:
+        n := c.int(0, 9)
+        Holder { value: fn() -> i32: n }
+
+@derive(Arbitrary)
+data Job:
+    label: string
+    task: Holder[fn() -> i32]

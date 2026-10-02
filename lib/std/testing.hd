@@ -9,7 +9,6 @@ use std.format.debug
 use std.hash.Hash
 use std.num.{Float, Integer, parse_i64}
 use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
-use std.inspect.Inspectable
 use std.arbitrary.With
 
 # The only source of randomness a generator sees
@@ -210,11 +209,11 @@ impl[S] Source[S] for ArbitrarySource[S]:
         self.at = self.at + 1
         .Ok(members.at(info.position))
 
-    # Every member implements `Arbitrary` and is inspectable, tuned or not
-    # (r-std-testing.arbitrary.derive.member-bounds). A tuned member draws
+    # Every member implements `Arbitrary`, tuned or not
+    # (r-std-testing.arbitrary.derive.member-bound). A tuned member draws
     # with the generator of its typed `With[F]` fact, read through the
     # handle (r-std-testing.arbitrary.with.typed-read).
-    fn member[F < Arbitrary & Inspectable](mut self, h: Field[S, F], previous: F?) -> Result[F, NoFiniteValue]:
+    fn member[F < Arbitrary](mut self, h: Field[S, F], previous: F?) -> Result[F, NoFiniteValue]:
         match h.fact::[With[F]]():
             .None => .Ok(F::arbitrary(self.c))
             .Some(tuned) => .Ok((tuned.gen)(self.c))

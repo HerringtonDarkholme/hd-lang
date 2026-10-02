@@ -1179,7 +1179,9 @@ combinators cancel their children.
 7. r[req.combinator.race-signature] `race!` has the plain vararg signature `fn race![T](tasks...: List[mut Suspend[T]]) -> T`, with no typing rule of its own.
 8. r[req.combinator.race-join] Its children's result types therefore meet only by permission weakening, as [`types.generic.infer.join`](04-type-system.md#r-types.generic.infer.join) states, so children of unrelated types are an inference error.
 9. r[req.combinator.race-empty] A `race!` call written with no task argument, as `race!::[i32]()`, is an error. Error: `argument-count`.
-10. r[req.combinator.library-rest] The other concrete signatures, and the complete intrinsic set, remain standard-library API design.
+10. r[req.combinator.race-empty-literal] A `race!` call that passes an empty list literal by name, as `race!::[i32](tasks=[])`, is the same error. Error: `argument-count`.
+11. r[req.combinator.race-empty-run] A `race!` call whose task list is empty at run time, passed by a spread or as a list value, panics when it is called. Panic: `explicit-panic`.
+12. r[req.combinator.library-rest] The other concrete signatures, and the complete intrinsic set, remain standard-library API design.
 
 #### Typing `all!`
 

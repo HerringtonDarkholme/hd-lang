@@ -890,6 +890,10 @@ impl[T] Tagged for T by Structure  # error: marker-template
 > one derivation and a reader finds it beside the trait. A marker template
 > would derive a trait without reading one member.
 
+> **Note.** Among the templates that `std` declares, the one for `Default`
+> reads a `@default` fact to choose an enum's default variant
+> ([Derived Default](../std/ops.md#derived-default)).
+
 > **Why.** A template has exactly one target, so `Structure` and the
 > derived trait each have one `Self` inside it. A receiverless call such as
 > `Structure::name()` or `Encode::name()` has no argument to infer that
@@ -1351,6 +1355,7 @@ alone, by the rules below.
 11. r[annot.self-ref.member] A member's `self_ref` is `.Required` when its type needs the enclosing type, `.Optional` when its type refers to it without needing it, and `.Absent` otherwise.
 12. r[annot.self-ref.variant] A variant's `self_ref` is the strongest of its members' values, where `.Required` is stronger than `.Optional` and `.Optional` than `.Absent`.
 13. r[annot.self-ref.variant.empty] A variant with no members has `self_ref` `.Absent`.
+14. r[annot.self-ref.variant.omitted] A variant's `self_ref` also counts every member that the derivation omits with `= pass`, so it reflects the declaration rather than one derivation's view.
 
 ```text
 enum Expr:
@@ -1384,9 +1389,12 @@ data Node:
 > also refers to it, so two independent flags would allow a state that
 > cannot occur.
 
-> **Note.** Templates other than `Arbitrary` read `self_ref` too, as
-> library design. A derived `Default` may pick its simplest variant the
-> same way. When any `self_ref` is not `.Absent`, a codec may add a
+> **Note.** In `data Node` with `parent: Node?` and a block line
+> `parent = pass`, the one variant of `Node` still has `self_ref`
+> `.Optional`, although its derivation walks only `label`.
+
+> **Note.** Templates other than `Arbitrary` may read `self_ref` too, as
+> library design. When any `self_ref` is not `.Absent`, a codec may add a
 > nesting-depth limit, and a schema generator may emit a named definition
 > with a `$ref`. `Debug` may truncate deep output.
 > The archived STDLIB draft sketches these.

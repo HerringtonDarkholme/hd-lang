@@ -80,3 +80,12 @@ runtime/panic/list-view-reversed.hd	check reports unknown-method or unknown-type
 runtime/panic/list-view-index-out-of-bounds.hd	check reports unknown-method or unknown-type: the prototype has no List.view or ListView (std Collections, Views)	RANGES
 runtime/panic/list-view-invalidated.hd	check reports unknown-method or unknown-type: the prototype has no List.view or ListView (std Collections, Views)	RANGES
 typing/invalid/list-view-assignment.hd	check reports unknown-import at `use std.collections.ListView`: the prototype has no List.view or ListView (std Collections, Views)	RANGES
+typing/invalid/generic-inference-variance-conflict.hd	a List[mut User] and a List[User] argument of one T are accepted instead of reported as type-mismatch (types.generic.infer.join.other-conflict)	TYPE-GAPS
+typing/invalid/generic-inference-optional-conflict.hd	an i32 and an i32? argument of one T are accepted instead of reported as type-mismatch (types.generic.infer.join.other-conflict)	TYPE-GAPS
+runtime/valid/derived-default-enum.hd	std.ops has no `default` marker function yet, so `use std.ops.default` and `@default` are unknown names (std-ops.default.derive.marker)	DERIVE-DEFAULT
+typing/invalid/derived-default-no-variant.hd	no compiler check counts an enum's `@default` variants, so a derived Default enum with none is accepted (std-ops.default.derive.one-variant)	DERIVE-DEFAULT
+typing/invalid/derived-default-several-variants.hd	`@default` is an unknown name, and no check reports a second marked variant (std-ops.default.derive.one-variant.several)	DERIVE-DEFAULT
+typing/valid/derived-arbitrary-non-inspectable-member.hd	the derived source's `previous: F?` cannot represent an optional of a type applied to a function type, so the member reports unknown-type (std-testing.arbitrary.derive.member-bound)	TYPE-GAPS
+typing/invalid/race-empty-list-literal.hd	race! accepts `tasks=[]`; only a call with no task argument is argument-count (req.combinator.race-empty-literal)	RACE-EMPTY
+runtime/panic/race-empty-at-run-time.hd	race! over an empty task list never completes, so the test hangs instead of panicking (req.combinator.race-empty-run)	RACE-EMPTY
+runtime/valid/script-empty-run.hd	the runner's last step is `IMPL FILE`, which the prototype rejects with usage text and exit 2: it has no `hd FILE` command yet, only `hd run FILE` (cli.file.run)	CLI-ENTRY

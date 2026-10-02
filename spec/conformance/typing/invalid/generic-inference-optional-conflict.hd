@@ -1,0 +1,8 @@
+# test: a T and a T? argument of one type parameter are a type mismatch
+# Spec 04 Inference From Several Arguments: types.generic.infer.join.other-conflict (owner decision INF-code, batch 51, 2026-10-02).
+
+fn pick[T](left: T, right: T) -> T:
+    left
+
+fn first(value: i32, maybe: i32?) -> i32?:
+    pick(value, maybe)  # diagnostic: type-mismatch

@@ -133,6 +133,7 @@ directive not listed below.
 | `# fixture-test-layout: LAYOUT`             | header      | Places the fixture as a test module or an integration test module. See [Test Layouts](#test-layouts). |
 | `# fixture-package-tree: TREE/PATH`         | header      | Places the fixture in a package of several files. See [Package Trees](#package-trees). |
 | `# expect-stdout: TEXT`                     | header      | One line of the entry point's exact standard output, in order. Valid only in a `runtime` `accept` case. See [Standard Output](#standard-output). |
+| `# expect-empty-stdout: true`               | header      | Running the fixture as a single file exits 0 and writes nothing to standard output. Valid only in a `runtime` `accept` case. See [Standard Output](#standard-output). |
 
 ## Case Index
 
@@ -228,6 +229,7 @@ judged only by the rules below.
 | `type`    | `warn:CODE`   | `check FILE`                   | exit 0, and a located warning `CODE` on the marker line |
 | `runtime` | `accept`      | `check FILE`, then `test FILE` | both exit 0 |
 | `runtime` | `accept` with `# expect-stdout:` | `check FILE`, `test FILE`, then `FILE` | all exit 0, and the stdout of the last equals the expected text |
+| `runtime` | `accept` with `# expect-empty-stdout:` | `check FILE`, `test FILE`, then `FILE` | all exit 0, and the last writes no standard output |
 | `runtime` | `panic:CODE`  | `check FILE`, then `test FILE` | `check` exits 0; `test` exits 1 and reports panic category `CODE` |
 
 Rules that apply to every case:
@@ -474,11 +476,18 @@ it declares an entry point.
   concatenated in order. Output that does not end in U+000A cannot be
   expected.
 
+A `runtime` `accept` case may instead state that running it writes no
+standard output, with the one header `# expect-empty-stdout: true`. The
+value is always `true`. Such a fixture names no runtime profile, no
+scenario, and no `# expect-stdout:` line, and it need not declare an
+entry point, so a script with no entry behavior can be run.
+
 After `check` and `test` pass, the runner invokes `FILE` with no action,
 as `hd FILE` runs a single file ([Single Files](../cli/command-line.md#single-files)).
 The case passes when that run exits 0 and its standard output, decoded as UTF-8, equals
-the expected output exactly. No carriage return, trailing newline, or
-whitespace is normalized. Standard error is not judged.
+the expected output exactly, or is empty for `# expect-empty-stdout:`. No
+carriage return, trailing newline, or whitespace is normalized. Standard
+error is not judged.
 
 ## Command Contract
 
@@ -503,7 +512,7 @@ IMPL FILE
 | `parse` | none                                                            | `parse` phase |
 | `check` | `--tests` (always), `--profile NAME`, `--package-role ROLE`, `--dependency NAME=DIR`, `--test-layout LAYOUT`, `--package-tree DIR`, `--package-path PATH` | `type` phase, and the first step of `runtime` |
 | `test`  | `--profile NAME`, `--scenario NAME`, `--pending-function NAME`, `--package-role ROLE`, `--dependency NAME=DIR`, `--test-layout LAYOUT`, `--package-tree DIR`, `--package-path PATH` | `runtime` phase |
-| none    | none                                                            | `runtime` cases with `# expect-stdout:` |
+| none    | none                                                            | `runtime` cases with `# expect-stdout:` or `# expect-empty-stdout:` |
 
 `IMPL FILE` executes only the entry point, in a fresh program instance under
 the `console` profile, as in step 1 of
