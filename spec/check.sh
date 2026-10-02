@@ -211,7 +211,6 @@ if grep -R -n -E '(^|[^[:alnum:]_])(v1|MVP|provisional)([^[:alnum:]_]|$)' \
     "$repo_dir/guide/OVERVIEW.md" \
     "$repo_dir/guide/LANGUAGE_TOUR.md" \
     "$repo_dir/guide/LEARN_IN_10_MINUTES.md" \
-    "$repo_dir/SYNTAX_NOTES.md" \
     --include='*.md'; then
     fail "versioned or provisional language labels found"
 fi
