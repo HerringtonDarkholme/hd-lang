@@ -1,3 +1,0 @@
-fn big() -> i32: 65536
-
-fn main() -> i32: big() * big()  # panic: integer-overflow

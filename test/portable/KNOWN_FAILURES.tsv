@@ -51,3 +51,5 @@ runtime/panic/list-slice-out-of-range.hd	parse reports syntax-error at the first
 runtime/panic/list-slice-reversed.hd	parse reports syntax-error at the first `..`: the prototype has no `..` or `..=` tokens, range expressions, range types, or slicing (Range Expressions, Slicing, Range Iteration)	RANGES
 runtime/panic/range-from-overflow.hd	parse reports syntax-error at the first `..`: the prototype has no `..` or `..=` tokens, range expressions, range types, or slicing (Range Expressions, Slicing, Range Iteration)	RANGES
 typing/valid/folder-parent-file.hd	check reports folder-cycle: the prototype puts src/shop.hd in folder src, the directory that holds it, not in folder src/shop with its child module, so shop and shop.item make a loop of folders (module.folder.parent-file)	FOLDER-SELF
+typing/valid/list-literal-compares-with-readonly-binding.hd	check reports type-mismatch: the prototype does not weaken a fresh list literal to the readonly type of the other operand of == or <	F-163
+typing/invalid/requirement-key-unknown-trait.hd	check exits 0: the prototype accepts an unresolved requirement key on a non-entry function	F-201

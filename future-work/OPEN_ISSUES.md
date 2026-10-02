@@ -69,6 +69,7 @@ for the error-code revamp, task #101, which may merge codes.
 | SC-Q3 | Special Cases Q3 | Six codes report an operator with no meaning for its operands: `missing-eq`, `missing-partial-ord`, `unsupported-equality`, `nonnumeric-unary-plus`, `unsigned-negation`, and `mixed-numeric-types`. Every other operator reports `type-mismatch`. | All six kept. **Recommendation:** all six become `type-mismatch`, and `assert_equal`'s missing `Eq` becomes `unsatisfied-trait-bound`. |
 | SINGLE-CODE | batch 46 | The decision names no code for a `pkg`, `dep`, `self`, or `super` use in a single-file program. | `unknown-module` ([`module.single-file.roots`](../spec/lang/10-modules.md#r-module.single-file.roots)), as a `super` above the test root is. |
 | CLI-CODES | batches 46 to 48 | These errors have no code: `hd run` or `hd build` outside a package, `hd check` or `hd test` without a FILE outside a package, `hd run FILE`, `hd run` with no or several executables, an unknown `NAME`, a workspace `NAME` that no member or several members have, a bare `hd run` at a workspace root, a task and an executable with one name, `hd new` where `hd.toml` exists, a `src/mod.hd` ([`module.path.no-root-mod`](../spec/lang/10-modules.md#r-module.path.no-root-mod)), and a dependency on a package with no library ([`module.path.no-lib-dependency`](../spec/lang/10-modules.md#r-module.path.no-lib-dependency)). Two batch 47 readings wait here too: a use of `src/main.hd`, an integration test program, or a task from another module, and a `super` in a root file, report `unknown-module` ([`module.path.main-no-use`](../spec/lang/10-modules.md#r-module.path.main-no-use), [`module.test.integration.program-use`](../spec/lang/10-modules.md#r-module.test.integration.program-use), [`cli.task.program-use`](../spec/cli/command-line.md#r-cli.task.program-use)); and `cyclic-test-dependency` kept its name when `[test-dependencies]` became `[dev-dependencies]` ([`module.test.cyclic-dev-unit`](../spec/lang/10-modules.md#r-module.test.cyclic-dev-unit)). | None named for the CLI and manifest errors ([Command Line](../spec/cli/command-line.md)); `unknown-module` and `cyclic-test-dependency` kept. **Recommendation:** name the CLI and manifest errors with the manifest diagnostics, keep `unknown-module` with a message that says the file is a separate program or a root, and rename `cyclic-test-dependency` to `cyclic-dev-dependency`. |
+| GR-24 | grammar audit | A line in a bracketed closure body that dedents to a column between the header and the body matches both [`lex.indent.unknown-column`](../spec/lang/01-lexical-structure.md#r-lex.indent.unknown-column) (`invalid-dedent`) and [`lex.closure.between`](../spec/lang/01-lexical-structure.md#r-lex.closure.between) (`syntax-error`). | The prototype reports `syntax-error`. **Recommendation:** `syntax-error`, the more specific rule; say so in a Note. |
 
 ### Ranges And Slicing
 
@@ -89,6 +90,31 @@ fn first(text: string) -> string:
     # text.slice(0, 1)   # the method form SLICE-METHOD asks about
 ```
 
+### Type-Rule Gaps
+
+The type audit left these points open. Each is a gap in chapters 04, 09,
+11, 12, or 13; nothing below is decided. TQ-14 is decided and needs no
+change, and is listed so the owner can close it.
+
+| # | Question | **Recommendation** |
+| --- | --- | --- |
+| TQ-14 | Decided: assignability stays single-step, so `let wide: i64? = small_i8` and passing a `User` to a `Display?` parameter need explicit conversions. [`types.assign`](../spec/lang/04-type-system.md#r-types.assign) applies one rule at a time. Is that wording enough? | Yes; close it with no change. |
+| TY-04 | An impl parameter that occurs in neither the trait arguments nor the target, as `T` in `impl[T < Display, I < mut Iterator[T]] Summary for I`, lets one impl apply twice to one type. Is that an error? | Yes, a new `unconstrained-impl-parameter`, as Rust's E0207. |
+| TY-05 | A match arm of a GADT variant with a bounded existential, `Item[U < Display](value: U) -> Shown`, calls `Display` on `U`, but chapter 13 says a value carries only its tag and payload. Where does the evidence come from? | Construction stores the evidence for the variant's bounds in the value. |
+| TY-07 | `impl[T < Eq] Parent for Box[T]` and `impl[T] Child for Box[T]` make `Box[fn() -> void]` a `Child` but not a `Parent`. Is that checked at the impl or at a use? | At the impl: its own bounds must prove every supertrait (`missing-supertrait-implementation`). |
+| TY-08 | Inside `fn has_child[T < Child]`, may `T` be passed where `T < Parent` is required? Chapter 09 only says the supertrait's methods are found. | Yes: a bound implies each transitive supertrait bound. |
+| TY-15 | May a requirement key name a trait that is not dynamically safe, such as one whose method returns `Self::Item`? | No: `trait-not-dynamically-safe`, reported at the row. |
+| TY-17 | May an enum derive `Eq` or an ordering when a GADT variant has an existential parameter, as `Wrapped[U < Eq](value: U) -> Cell`? Two values may hold different `U`. | No for `Eq` and ordering; `Hash` only when every existential field is `Hash`-bounded. |
+| TY-18 | Which module owns a derived impl, and what does a derivation beside a written impl of the same trait report? | The declaration's module; the pair is `overlapping-impl`. |
+| TY-20a | The assignability list in chapter 04 omits `never`, though [`types.never.assignable`](../spec/lang/04-type-system.md#r-types.never.assignable) makes it assignable to every type. Should the list name it? | Yes, as one more rule. |
+| TY-20b | May a `mut` trait value be built, as in `let edit: mut Display = mutable_user`? [`types.assign.trait-value`](../spec/lang/04-type-system.md#r-types.assign.trait-value) is silent. | Yes: the same rule, applied to the mutable view. |
+| TY-21 | What is the least common type of `if ok: 1 else: return .None`, where one operand is `never`? | Drop `never` operands first; if all are `never`, the result is `never`. |
+| TY-22 | Is `value.clear()` allowed on `value: T` with `T < mut Clear`, or on `Self` inside a `mut self` method? Mutable Paths covers only `mut U` types. | Yes: define "mutable access" once, covering both. |
+| TY-23 | What do a bound on a pack, `Ts... < Display`, and an impl over a pack tuple, `impl[Ts... < Display] Display for (Ts...)`, mean? Packs are deferred, so this waits for them. | One obligation and one dictionary per element; a pack tuple head matches every arity. |
+| TY-28 | The Mutable Paths prose gives `parent.child.rename("new")` on a readonly root `readonly-root`, while nine fixtures expect `mutable-receiver-required`. Which is right, and which code does a promoted `mut self` call get? | `mutable-receiver-required` for any `mut self` call without mutable access, including through promotion; align the prose. |
+| TY-29 | `trait-method-visibility`, `local-impl-nonlocal-pair`, `missing-partial-eq`, `missing-partial-ord`, `duplicate-annotation-impl`, and `overlapping-annotation-impl` appear in no chapter. | Settle each in the error-code revamp, task #101: give it a rule or merge it. |
+| TY-31 | Do `void` and `never` satisfy `Any`? Chapter 04 says every value type does. | No: neither is a value type. |
+
 ### Ideas Noted For Later
 
 None of these is decided.
@@ -98,6 +124,10 @@ None of these is decided.
   too. With it would come data-literal field shorthand, `Point { x, y }`
   for `Point { x: x, y: y }`, so a pattern and a literal read the same.
   The owner deferred both in batch 26 ("we can add in future").
+- **Teaching notes for `?.` and `is` (GR-21).** `a?.b` is propagation
+  and then member access, so `.None` returns from the enclosing function;
+  it is not Kotlin's or Swift's optional chaining. `is` is identity, as in
+  Python, not a type test. Should the guide call both out?
 
 ### Bound And Row Operators
 
@@ -290,6 +320,16 @@ design, stronger sandbox guarantees, and possibly complete per-tool authority
 reports: provider values are ordinary values that may escape today, and a
 `NonEscapable` provider category is the likely way to close that gap.
 
+**Parked questions.** The owner does not want to discuss NonEscapable now.
+These are the initial answers, not to be applied until the owner reopens
+the topic.
+
+| # | Question | Initial answer |
+| --- | --- | --- |
+| TQ-24 | How does NonEscapable propagate to a type holding a NonEscapable field, as `data HiddenFile` with `file: File`? Automatically, like Rust's auto traits, or declared and checked? | Declared and checked: such a type must itself be declared NonEscapable, and a generic type is NonEscapable exactly when an argument is. Erasure to `Any`, or to a trait value whose trait does not extend NonEscapable, is rejected. |
+| TQ-25 | Does a generic parameter accept a NonEscapable argument by default? | No: a parameter opts in, as Swift's `~Escapable` does, so existing generic code stays valid. |
+| TQ-26 | How does a NonEscapable result, as in `fn first_line(file: File) -> Line`, say which parameters it depends on? | No NonEscapable returns for now; later, depend on every NonEscapable parameter, and name them only when a real API needs it. |
+
 ### Closure Shorthand
 
 **Deferred (Pipe Operator PL10, 2026-09-29).** Closures stay
@@ -298,7 +338,7 @@ reports: provider values are ordinary values that may escape today, and a
 ([Pipe Expressions](../spec/lang/05-expressions.md#pipe-expressions)), `it` is
 the prelude test function, and `$0` collides with requirements and
 interpolation. `fn: _ * 2` would parse but needs a "not inside a pipe
-step" exception. Revisit if [the hd writing log](../audit/hd-writing-log.md)
+step" exception. Revisit if [the hd writing log](hd-writing-log.md)
 shows demand from cheap-model agents; adding `fn: _` then breaks no code.
 
 ### Iterator Performance
@@ -353,6 +393,14 @@ These items remain required but do not currently require new core syntax:
 - a `package-cycle` conformance fixture, which waits until the manifest
   schema exists (Dependency Cycles DC12,
   [`module.cycle.package`](../spec/lang/10-modules.md#r-module.cycle.package));
+- whether a panic's source location is "available"
+  ([`flow.panic.report`](../spec/lang/06-control-flow.md#r-flow.panic.report))
+  for a trap inside a runtime helper, which decides whether a conformance
+  runner can judge a panic marker's line (F-155 in
+  [src/KNOWN_ISSUES.md](../src/KNOWN_ISSUES.md));
+- whether the specification defines one portable "unsupported feature"
+  diagnostic category, so a conformance runner can tell "not implemented"
+  from "wrong" (F-250);
 - the Wasm component ABI, exact export registration API, adapter wire format,
   and runtime-profile panic status codes (histories record a panic by its
   diagnostic name, as Replay Rules

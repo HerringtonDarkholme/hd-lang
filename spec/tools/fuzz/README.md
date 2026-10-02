@@ -43,7 +43,7 @@ node --experimental-strip-types spec/tools/fuzz/fuzz.ts \
 node --experimental-strip-types spec/tools/fuzz/fuzz.ts --adapter wasm --seed 1
 
 # Re-check one file against every oracle (exit 1 if any signature fires).
-node --experimental-strip-types spec/tools/fuzz/fuzz.ts --replay audit/evidence/03-fuzz/findings/some.hd --fuzzer parse,contract,phase
+node --experimental-strip-types spec/tools/fuzz/fuzz.ts --replay path/to/case.hd --fuzzer parse,contract,phase
 ```
 
 The command runs from the repository root, so relative command paths resolve
@@ -141,10 +141,14 @@ contract, so it is as portable as the fuzzer.
 ## Triage
 
 Save each triaged example as a portable fixture (`# test:`, `# expect:`,
-`# diagnostic:`, or `# panic:` markers). The audit's fixtures are in
-`audit/evidence/03-fuzz/findings/`. A fixture can then be promoted to
-`spec/conformance/`. Classes: implementation bug, spec ambiguity, or correct
-handling (discarded).
+`# diagnostic:`, or `# panic:` markers) in `spec/conformance/`, and index
+it in `spec/conformance/cases.tsv`. While the prototype fails it, also list
+it in `test/portable/KNOWN_FAILURES.tsv` with its finding ID. A prototype
+bug that no fixture can show gets a line in
+[src/KNOWN_ISSUES.md](../../../src/KNOWN_ISSUES.md), and a spec ambiguity
+gets a question in
+[future-work/OPEN_ISSUES.md](../../../future-work/OPEN_ISSUES.md). Classes:
+implementation bug, spec ambiguity, or correct handling (discarded).
 
 ## Layout
 
@@ -160,5 +164,3 @@ check-imports.ts   import-boundary enforcement
 grammar-check.ts   EBNF derivations vs an implementation's parse
 forward.sh         forwarding wrapper for the cross-impl self-test
 ```
-
-The minimized fixtures from the audit are in `audit/evidence/03-fuzz/findings/`.

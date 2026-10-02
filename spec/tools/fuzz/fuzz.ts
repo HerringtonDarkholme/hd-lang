@@ -278,7 +278,7 @@ class Executor {
       const execution: Execution = {};
       for (const action of actions) {
         // A module that checks clean but has no entry point gives `run` nothing
-        // to execute, and how `run` treats it is open (audit F-265), so only
+        // to execute, and how `run` treats it is open (F-265 in src/KNOWN_ISSUES.md), so only
         // `test` runs it. A rejected module still goes to `run`.
         if (action === "run" && execution.check?.kind === "accept" && !hasEntryPoint(source))
           continue;

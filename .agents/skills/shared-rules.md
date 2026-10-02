@@ -69,8 +69,8 @@ Library" states the tier test and where each kind of rule goes.
 
 - Follow [spec/STYLE.md](../../spec/STYLE.md) for any spec text: one rule per
   sentence, rule IDs, error examples, Why callouts. Never rename an existing
-  heading or anchor in `spec/`, `future-work/`, `guide/`, or `audit/`: the
-  website, the anchor checker, audits, and fixtures link to them. The one
+  heading or anchor in `spec/`, `future-work/`, or `guide/`: the
+  website, the anchor checker, and fixtures link to them. The one
   exception is a Spec Tiers move task, which deletes a moved heading and
   fixes every link to it.
 - Design records use the same prose targets: paragraphs of at most four
@@ -147,5 +147,5 @@ When the task is writing hd programs, follow AGENTS.md "Writing hd Code:
 Model Choice And A Feedback Log". Examples: `lib/std`, examples,
 playground code, and hd test files. It does not apply to spec text,
 fixtures, or `src/`. Log every syntax, type, API or semantic mistake in
-`audit/hd-writing-log.md`.
+`future-work/hd-writing-log.md`.
 

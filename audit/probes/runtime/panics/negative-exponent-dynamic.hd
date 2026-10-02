@@ -1,3 +1,0 @@
-fn exponent() -> i32: -1
-
-fn main() -> i32: 2 ** exponent()  # panic: runtime-error

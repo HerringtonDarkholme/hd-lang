@@ -1,5 +1,0 @@
-test "first test panics":
-    panic("first test fails")
-
-test "second test would pass":
-    pass

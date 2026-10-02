@@ -1,0 +1,4 @@
+# test: a requirement key that names no trait is unknown-trait
+
+fn answer() -> i32 $ Zork:  # diagnostic: unknown-trait
+    1

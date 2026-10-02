@@ -173,7 +173,7 @@ test("hd run and hd test judge suspending results by Termination", async () => {
 
 // A module without an entry point and without top-level statements has
 // nothing to run, so `hd run` does nothing and exits 0 (owner decision,
-// batch 42; audit F-265, F-306). `--entry` still names a function.
+// batch 42; F-265 in src/KNOWN_ISSUES.md). `--entry` still names a function.
 test("hd run on a module without main exits 0 and prints nothing", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {

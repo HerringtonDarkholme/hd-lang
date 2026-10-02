@@ -10,6 +10,10 @@ Small pipeline stages remain direct modules such as `lexer.ts`, `ast.ts`,
 `checker/`, and `emitter/`). Each folder exposes its public surface only from
 `index.ts`; consumers do not import its internal files.
 
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md) lists what the prototype gets wrong today:
+its open findings, the tags of its known conformance failures, and the
+applied decisions it does not follow yet.
+
 ## Run It
 
 The repository pins Node 24.19.0 and its dependencies through

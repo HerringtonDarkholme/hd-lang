@@ -1,3 +1,0 @@
-#!/bin/sh
-# Wrapper: audit/grammar/tools/amb probe -e 'SRC' | fixtures | generate N SEED | firstfollow
-exec node --experimental-strip-types "$(dirname -- "$0")/ambiguity.ts" "$@"

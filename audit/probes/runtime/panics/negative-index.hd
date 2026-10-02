@@ -1,3 +1,0 @@
-fn main() -> i32:
-    values := [1, 2]
-    values[-1]  # panic: index-out-of-bounds

@@ -1795,3 +1795,5 @@ runtime/panic/list-slice-out-of-range.hd	runtime	panic:index-out-of-bounds	lang/
 runtime/panic/list-slice-reversed.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.slice.list.reversed
 runtime/panic/range-from-overflow.hd	runtime	panic:integer-overflow	lang/06-control-flow.md#r-flow.for.range.from-overflow
 typing/valid/folder-parent-file.hd	type	accept	lang/10-modules.md#r-module.folder.parent-child
+typing/valid/list-literal-compares-with-readonly-binding.hd	type	accept	lang/04-type-system.md#r-types.fresh.weaken
+typing/invalid/requirement-key-unknown-trait.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.traits

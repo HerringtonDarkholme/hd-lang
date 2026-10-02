@@ -1,0 +1,9 @@
+# test: a list literal compares with a readonly list binding
+
+fn equal() -> bool:
+    xs := [1, 2]
+    xs == [1, 2]
+
+fn less() -> bool:
+    xs := [1, 2]
+    xs < [2]

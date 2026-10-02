@@ -1,4 +1,0 @@
-fn main() -> i32:
-    defer:
-        panic("cleanup panics")  # panic: explicit-panic
-    41

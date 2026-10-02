@@ -608,7 +608,7 @@ async function main(): Promise<number> {
     console.log(`FAIL  ${verdict.path}: ${verdict.reason}`);
     if (verdict.output) console.log(verdict.output.replace(/^/gm, "      | "));
   }
-  // Per-tier passes, as audit/README.md reports them: "language: X of Y; stdlib: X of Y".
+  // Per-tier passes, as spec/conformance/README.md#case-selection states: "language: X of Y; stdlib: X of Y".
   const tierCount = (tier: Tier): string => {
     const ran = verdicts.filter((verdict) => verdict.tier === tier);
     return `${ran.filter((verdict) => !verdict.reason).length} of ${ran.length}`;

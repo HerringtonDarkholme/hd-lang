@@ -1,4 +1,0 @@
-fn main() -> i32:
-    x := 1
-    _ := "value ${x + true}"
-    x

@@ -24,7 +24,7 @@ contract.
 - The fuzzer skips `run` on an input that `check` accepts and that has no
   entry point: no `pub fn main` or `main!` line and no top-level statement.
   `run` has nothing to execute there, and how it should treat such a module
-  is open (audit F-265). An input that `check` rejects still goes to `run`.
+  is open (F-265 in `src/KNOWN_ISSUES.md`). An input that `check` rejects still goes to `run`.
 
 ## Outcomes
 

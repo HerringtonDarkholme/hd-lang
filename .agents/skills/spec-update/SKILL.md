@@ -1,6 +1,6 @@
 ---
 name: spec-update
-description: Apply owner decisions that are decided but not yet applied, end to end - spec text in the spec/STYLE.md format with rule IDs, in the language tier or the stdlib tier (spec/std/), README diagnostics, conformance fixtures and indexes, a rule inventory diff, the toy prototype in src/ or a KNOWN_FAILURES.tsv entry, audit cleanup, guide and website examples, the full check suite, and a fast-forward push. Use when the owner says a decision is final and should go into the specification. Anything ambiguous goes back to the owner as a question.
+description: Apply owner decisions that are decided but not yet applied, end to end - spec text in the spec/STYLE.md format with rule IDs, in the language tier or the stdlib tier (spec/std/), README diagnostics, conformance fixtures and indexes, a rule inventory diff, the toy prototype in src/ or a KNOWN_FAILURES.tsv entry, known-issues and open-issues cleanup, guide and website examples, the full check suite, and a fast-forward push. Use when the owner says a decision is final and should go into the specification. Anything ambiguous goes back to the owner as a question.
 ---
 
 # Spec Update
@@ -19,7 +19,7 @@ the spec, and it adds exactly what the decision says, no more.
 ## When To Use
 
 - The owner states that a decision is final and asks for it to be applied.
-- A decision is listed under "Decided, Not Yet Applied".
+- A decision is recorded as decided but not yet applied.
 - Not for a decision still being discussed: ask the owner, or use
   `brainstorm` or `stress-test`.
 
@@ -27,7 +27,6 @@ the spec, and it adds exactly what the decision says, no more.
 
 1. The decision IDs, for example `EQ-1` or "FN_TYPE Q2".
 2. Where each is recorded. Look in:
-   - `audit/types/QUESTIONS.md`, section "Decided, Not Yet Applied";
    - the **Owner Decisions** section of a `future-work/*.md` record;
    - the commit messages, the record of what is already applied
      (`git log --grep '<decision ID>'`). A decision a commit applied is
@@ -122,11 +121,12 @@ the spec, and it adds exactly what the decision says, no more.
    `test/portable/KNOWN_FAILURES.tsv` (`path`, `reason`, and the decision
    or finding ID), as the existing rows do. Never change the spec to match
    the prototype.
-9. **Clean up the audit.** Move the decision out of "Decided, Not Yet
-   Applied" in `audit/types/QUESTIONS.md`. Delete a finding or its evidence
+9. **Clean up the issue lists.** Remove the decision's question from
+   `future-work/OPEN_ISSUES.md`. In `src/KNOWN_ISSUES.md`, delete a finding
    only when it no longer reproduces and a `grep` of the repo shows no other
-   reference. Recount `audit/evidence/w9/failures-by-id.tsv` from
-   `KNOWN_FAILURES.tsv`, and refresh the audit index files that cite it.
+   reference. Recount its known-failure tag table from
+   `KNOWN_FAILURES.tsv`, and list an applied decision the prototype does not
+   follow yet.
 10. **Update everything that shows the behavior.** Examples and prose in
    `guide/`, the website, the playground's examples, and `future-work/`
    design records (mark the decision applied, with a spec link).
@@ -140,14 +140,14 @@ the spec, and it adds exactly what the decision says, no more.
     ```
 
 12. **Integrate.** Make logical commits (spec and fixtures, prototype,
-    audit cleanup, docs), each message naming the decision and the rule
+    issue-list cleanup, docs), each message naming the decision and the rule
     anchors. Rebase on `origin/main`, rerun the checks if anything moved,
     and push as a fast-forward. Never force-push.
 
 ## Output
 
 - Commits on `main` with the spec, README, fixtures, indexes, prototype or
-  `KNOWN_FAILURES.tsv`, audit, and docs changes.
+  `KNOWN_FAILURES.tsv`, known and open issues, and docs changes.
 - A final message to the caller: the decisions applied, the new and
   retired rule IDs, the diagnostics added or removed, the conformance
   counts (passing out of total), anything recorded as a known failure, the
@@ -167,9 +167,9 @@ the spec, and it adds exactly what the decision says, no more.
 ## Done When
 
 - The decision is in the spec, in the tier the tier test gives, with rule
-  IDs; named in the commit message; and out of "Decided, Not Yet Applied".
+  IDs; named in the commit message; and out of `OPEN_ISSUES.md`.
 - Fixtures cover each new rule and diagnostic, and both indexes agree.
 - The prototype implements it, or `KNOWN_FAILURES.tsv` records the gap and
-  `failures-by-id.tsv` is recounted.
+  the tag table in `src/KNOWN_ISSUES.md` is recounted.
 - All checks in step 11 pass, and the commits are pushed as a
   fast-forward.

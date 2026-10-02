@@ -9,7 +9,7 @@ folder, `SKILL.md` with `name` and `description` frontmatter.
 | [`stress-test`](skills/stress-test/SKILL.md) | try a recorded decision set against real library code, and rank what breaks |
 | [`complexity-reducer`](skills/complexity-reducer/SKILL.md) | find cuts and merges in a design or spec area, with soundness and rule accounting |
 | [`brainstorm`](skills/brainstorm/SKILL.md) | survey other languages and compare three to five options for an open question |
-| [`spec-update`](skills/spec-update/SKILL.md) | apply a decided owner decision end to end: spec, fixtures, prototype, audit, docs, checks, and push |
+| [`spec-update`](skills/spec-update/SKILL.md) | apply a decided owner decision end to end: spec, fixtures, prototype, known issues, docs, checks, and push |
 
 All four follow [skills/shared-rules.md](skills/shared-rules.md): the owner
 decides design, agents only ask (only `spec-update` edits the spec, and only

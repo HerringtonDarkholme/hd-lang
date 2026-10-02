@@ -42,7 +42,7 @@ yarn-error.log*
 .next/
 .nuxt/
 .svelte-kit/
-# Test-coverage output at the root only; audit/scripts/coverage/ is not output.
+# Test-coverage output at the root only.
 /coverage/
 
 # Rust
