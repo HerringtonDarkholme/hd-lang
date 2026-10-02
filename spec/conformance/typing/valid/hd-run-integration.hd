@@ -1,6 +1,6 @@
 # fixture-test-layout: integration
 # test: an integration test runs an executable of its package with hd_run! and reads its output
-# Spec std Testing, Running Executables: std-testing.hd-run.runs, std-testing.hd-run.no-row (batch 55).
+# Spec std Testing, Running Executables: std-testing.hd-run.runs, std-testing.hd-run.row (batches 55, 57).
 use std.testing.{assert_equal, hd_run}
 
 it("prints a greeting"):

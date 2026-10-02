@@ -419,15 +419,22 @@ See also: [Debug Trait](../lang/09-traits.md#debug-trait).
 ## Running Executables
 
 `std.testing` declares a function that runs one of the package's
-executables from an integration test, and the data type of its result:
+executables from an integration test, and the data type of its result.
+It is plain hd over the host trait
+[`Process`](../lang/10-modules.md#processes):
 
 ```text
+use std.process.Process
+
 pub data RunOutput:
     pub stdout: string
     pub stderr: string
     pub status: i32
 
-pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> RunOutput
+pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> RunOutput $ Process:
+    match $.use(Process).run!(name, args, stdin):
+        .Some(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
+        .None => panic("hd_run!: the package has no executable named '${name}'")
 ```
 
 1. r[std-testing.hd-run.import] Neither `hd_run` nor `RunOutput` is a prelude name; code imports them from `std.testing`.
@@ -435,8 +442,10 @@ pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> Run
 3. r[std-testing.hd-run.default-name] The default executable is named after the package, by [`cli.exe.default-name`](../cli/command-line.md#r-cli.exe.default-name).
 4. r[std-testing.hd-run.waits] The call completes when the executable exits.
 5. r[std-testing.hd-run.output] Its result holds the text the executable wrote to standard output and to standard error, and the exit status it exited with.
-6. r[std-testing.hd-run.no-row] `hd_run!` has an empty requirement row. The test runner grants the capability it uses, so a test that calls it writes no row for it.
-7. r[std-testing.hd-run.integration-only] A call of `hd_run!` outside an [integration test module](../lang/10-modules.md#r-module.test.integration) is an error. Error: `test-only-use`.
+6. r[std-testing.hd-run.row] `hd_run!` has the requirement row `$ Process`, the host capability to start a process. It calls `run!` on the `Process` provider that covers the call.
+7. r[std-testing.hd-run.binding] In an integration test, the test runner binds `Process` to the package's executables, by [`cli.test.process`](../cli/command-line.md#r-cli.test.process). A test body's row takes `Process` from the call, so a test case writes no row for it.
+8. r[std-testing.hd-run.missing-name] When `name` names no executable of the package, `hd_run!` panics at run time, whether or not `name` is a literal. Its category is that of a `panic` call. Panic: `explicit-panic`.
+9. r[std-testing.hd-run.integration-only] A call of `hd_run!` outside an [integration test module](../lang/10-modules.md#r-module.test.integration) is an error. Error: `test-only-use`.
 
 The integration test that `hd new --app` writes for a package `hello`:
 
@@ -464,4 +473,5 @@ tests:
 
 > **Why.** An integration test checks a program as its user sees it, as
 > Cargo's integration tests do through `CARGO_BIN_EXE_<name>`. A unit test
-> runs on fakes alone, so it never starts a process.
+> runs on fakes alone, so it never starts a process. A real row, not a
+> hidden grant, lets `lib/std` write `hd_run!` in plain hd.

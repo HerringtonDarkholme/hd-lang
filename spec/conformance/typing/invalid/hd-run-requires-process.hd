@@ -1,0 +1,6 @@
+# fixture-test-layout: integration
+# test: hd_run! has the row $ Process, so a function with an empty row cannot call it
+use std.testing.hd_run
+
+fn greeting!() -> string $():
+    hd_run!("hello").stdout  # diagnostic: missing-requirement

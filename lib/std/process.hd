@@ -1,7 +1,7 @@
 # std.process: exit status (spec/lang/10-modules.md#exit-status) and subprocesses.
 # WASI has no subprocess interface, so no
 # prototype runtime profile binds a host `Process`; `ScriptedProcess` is the
-# deterministic provider.
+# deterministic provider, and `hd test` binds none yet (src/KNOWN_ISSUES.md).
 
 pub type ExitCode(u8)
 
@@ -22,31 +22,19 @@ impl[T < Termination, E < Display] Termination for Result[T, E]:
             .Ok(value) => value.report()
             .Err(_) => ExitCode(1)
 
-pub data Command:
-    pub program: string
-    pub arguments: List[string]
-    pub environment: Map[string, string]
-    pub stdin: List[u8]
-
-pub data Output:
+# The host capability to start a program (spec/lang/10-modules.md#processes).
+pub data ProcessOutput:
+    pub stdout: string
+    pub stderr: string
     pub status: i32
-    pub stdout: List[u8]
-    pub stderr: List[u8]
-
-pub enum ProcessError:
-    NotFound(program: string)
-    Denied(program: string)
-    Failed(message: string)
 
 pub trait Process:
-    fn run!(self, command: Command) -> Result[Output, ProcessError]
+    fn run!(mut self, program: string, args: List[string], stdin: string) -> ProcessOutput?
 
-# Answers each command with the output scripted for its program.
+# Answers each program with the output scripted for it.
 pub data ScriptedProcess:
-    outputs: Map[string, Output]
+    outputs: Map[string, ProcessOutput]
 
 impl Process for ScriptedProcess:
-    fn run!(self, command: Command) -> Result[Output, ProcessError]:
-        match self.outputs.get(command.program):
-            .Some(output) => .Ok(output)
-            .None => .Err(ProcessError.NotFound(command.program))
+    fn run!(mut self, program: string, args: List[string], stdin: string) -> ProcessOutput?:
+        self.outputs.get(program)

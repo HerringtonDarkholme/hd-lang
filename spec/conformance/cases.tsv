@@ -1881,3 +1881,5 @@ typing/invalid/row-slot-bare-alias-argument.hd	type	reject:generic-kind-mismatch
 typing/invalid/row-slot-bare-context.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.context.dollar
 typing/invalid/row-slot-bare-function-type.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.type.ctor.row.dollar
 typing/invalid/row-slot-bare-explicit-argument.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.generic.explicit.row-dollar
+runtime/valid/process-scripted-provider.hd	runtime	accept	lang/10-modules.md#r-module.process.missing
+typing/invalid/hd-run-requires-process.hd	type	reject:missing-requirement	std/testing.md#r-std-testing.hd-run.row

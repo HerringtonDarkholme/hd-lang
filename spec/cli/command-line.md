@@ -50,6 +50,9 @@ A command works on a package when it finds that package's `hd.toml`:
 5. r[cli.mode.workspace-file] A command that names a FILE under a workspace root but in no member works outside any package, so FILE is a single-file program that may use only `std`.
 6. r[cli.mode.member] In package mode, the command also searches the directories above the package's directory for the nearest workspace manifest. When that manifest lists the package as a member, the package is still the one the command works on.
 7. r[cli.mode.member.workspace] Version selection, `hd.sum`, and path requirements then come from that workspace, by [Workspaces](../lang/10-modules.md#workspaces), as Cargo's do.
+8. r[cli.mode.member.unlisted] When that workspace manifest neither lists the package in `members` nor in `exclude`, the command is an error that names the manifest, as Cargo's is.
+9. r[cli.mode.member.unlisted.fix] The error has two fix-its: one adds the package's directory to the manifest's `members`, and the other adds it to the manifest's `exclude`.
+10. r[cli.mode.member.excluded] A package whose directory the workspace manifest's `exclude` lists is not a member, and a command in it works on it as on a package outside any workspace.
 
 > **Note.** A `src` directory without an `hd.toml` does not make a package.
 
@@ -220,6 +223,7 @@ hd notes.hd -- a b       # notes.hd gets the arguments a and b
 ```sh
 hd check                  # the library and the executables
 hd check --tests          # also the test code
+hd check --all            # also the tasks
 hd test                   # every test of the package
 hd test src/billing.hd    # the tests of module billing
 ```
@@ -229,6 +233,7 @@ hd test src/billing.hd    # the tests of module billing
 3. r[cli.package.no-root] In package mode, `hd check FILE` and `hd test FILE` treat a FILE under no root as a single-file program, as `hd FILE` does. The roots are the source root, the test root, and `tasks`.
 4. r[cli.check.default] A whole-package `hd check` checks what `hd build` compiles, the library and the executables, and no [test code](../lang/10-modules.md#r-module.test.code), as Cargo's `cargo check` does without `--all-targets`.
 5. r[cli.check.tests] `hd check --tests` also checks the package's test code: its `tests:` blocks, test modules, and integration test modules.
+6. r[cli.check.all] `hd check --all` checks the library, the executables, the test code, and the package's [tasks](#tasks).
 
 ### Test Runs
 
@@ -240,27 +245,39 @@ hd test --deny-skipped            # a skipped test case fails the run
 1. r[cli.test.file-empty] `hd test FILE` is an error when FILE registers no test case.
 2. r[cli.test.package-empty] A whole-package `hd test` that registers no test case passes.
 3. r[cli.test.filter] `hd test --filter PATTERN` runs only the test cases whose name contains PATTERN, with a FILE or without one.
-4. r[cli.test.summary.skipped] The summary of `hd test` counts [skipped](../lang/10-modules.md#r-module.testing.skipped) test cases apart from ignored ones.
-5. r[cli.test.deny-skipped] With `--deny-skipped`, a skipped test case is a failure.
-6. r[cli.test.builds-executables] `hd test` builds the package's executables before it runs any test case, so an integration test may run them with [`hd_run!`](../std/testing.md#running-executables).
+4. r[cli.test.filter.none] `hd test FILE --filter PATTERN` is an error when no test case of FILE has a name that contains PATTERN, as when FILE registers none.
+5. r[cli.test.summary.skipped] The summary of `hd test` counts [skipped](../lang/10-modules.md#r-module.testing.skipped) test cases apart from ignored ones.
+6. r[cli.test.deny-skipped] With `--deny-skipped`, a skipped test case is a failure.
+7. r[cli.test.builds-executables] `hd test` builds the package's executables before it runs any test case, so an integration test may run them with [`hd_run!`](../std/testing.md#running-executables).
+8. r[cli.test.process] For each [integration test module](../lang/10-modules.md#r-module.test.integration), `hd test` binds the host trait [`Process`](../lang/10-modules.md#processes) to a provider whose programs are the package's executables, each started by its name, as [`cli.exe.table`](#r-cli.exe.table) names it.
+9. r[cli.test.process.missing] That provider returns `.None` for a program name that names no executable of the package.
+10. r[cli.test.process.cwd] Each executable that provider starts runs with the package directory, the directory of its `hd.toml`, as its working directory.
+11. r[cli.test.process.decode] The provider decodes the executable's standard output and standard error as UTF-8, and replaces each byte sequence that is not valid UTF-8 with U+FFFD.
 
 > **Why.** Naming a FILE asks for its tests, so none is a mistake, while a
-> new package may have none yet. A changed profile can skip a whole
+> new package may have none yet. A filter that matches nothing in a named
+> FILE is most often a typo, so it does not pass silently. A changed profile can skip a whole
 > suite, so CI can opt in to treating that as a failure.
 
 ## Machine Output
 
 ```sh
 hd check --format json
-# {"kind":"diagnostic","code":"type-mismatch","severity":"error","file":"src/cart.hd",...}
-# {"kind":"summary","errors":1,"warnings":0,"exit":101}
+# {"kind":"diagnostic","code":"type-mismatch","severity":"error","message":"...","file":"src/cart.hd","line":3,"column":5}
+# {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"skipped":0,"ignored":0,"status":101}
 ```
 
-1. r[cli.json.lines] With `--format json`, `hd build`, `hd check`, and `hd test` write JSON lines to stdout: one JSON object per line, and no other text.
-2. r[cli.json.kind] Each object's `kind` field is `"diagnostic"`, `"test"`, or `"summary"`.
-3. r[cli.json.diagnostic] Each diagnostic is one object, with its stable code, its severity, and its file and position.
-4. r[cli.json.test] Each test case's result is one object, with the test case's name and its outcome: passed, failed, skipped, or ignored.
-5. r[cli.json.summary] The last object is a summary, with the count of errors, warnings, and each test outcome, and the command's exit status. It is written on success too.
+1. r[cli.json.commands] `hd build`, `hd check`, `hd test`, `hd run`, and `hd FILE` take `--format json`.
+2. r[cli.json.lines.build] With it, `hd build`, `hd check`, and `hd test` write JSON lines to stdout: one JSON object per line, and no other text.
+3. r[cli.json.run] With it, `hd run` and `hd FILE` write only `hd`'s own diagnostics and summary as JSON lines, and write them to stderr.
+4. r[cli.json.run.program] The program's standard output passes through to stdout untouched.
+5. r[cli.json.kind] Each object's `kind` field is `"diagnostic"`, `"test"`, or `"summary"`.
+6. r[cli.json.diagnostic] Each diagnostic is one object, with its stable code, its severity, and its file and position.
+7. r[cli.json.diagnostic.fields] A diagnostic object has the fields `code`, `severity`, `message`, `file`, `line`, and `column`.
+8. r[cli.json.test] Each test case's result is one object, with the test case's name and its outcome: passed, failed, skipped, or ignored.
+9. r[cli.json.test.fields] A test object has the fields `name`, `outcome`, and `message`. `outcome` is `"passed"`, `"failed"`, `"skipped"`, or `"ignored"`, and `message` holds the failure, skip, or ignore reason, or `""` when there is none.
+10. r[cli.json.summary] The last object is a summary, with the count of errors, warnings, and each test outcome, and the command's exit status. It is written on success too.
+11. r[cli.json.summary.fields] A summary object has the counts `errors`, `warnings`, `passed`, `failed`, `skipped`, and `ignored`, and `status`, the command's exit status.
 
 > **Why.** A stream lets an agent act on the first error. The summary
 > makes a clean run explicit, as Cargo's
@@ -307,9 +324,10 @@ hd run invoice    # the one member executable or task named invoice
 ```sh
 hd test -p ui -p shared    # the tests of members ui and shared
 hd run -p web serve        # serve of member web
+cd libs/ui && hd test -p shared    # from inside member ui, the tests of shared
 ```
 
-1. r[cli.workspace.select] In workspace mode, `-p NAME` or `--package NAME` selects the member whose package is named `NAME`. It works on `hd run`, `hd test`, `hd check`, and `hd build`.
+1. r[cli.workspace.select.anywhere] `-p NAME` or `--package NAME` selects the member whose package is named `NAME`, wherever a command finds a workspace: at its root, or inside a member by [`cli.mode.member`](#r-cli.mode.member). It works on `hd run`, `hd test`, `hd check`, and `hd build`.
 2. r[cli.workspace.select.repeat] The flag may be repeated, and the command then acts on the selected members only, by the rules above.
 3. r[cli.workspace.select.unknown] A `-p NAME` that names no member of the workspace is an error.
 
@@ -353,7 +371,8 @@ hd test              # runs tests/hello.hd, which runs the executable
 11. r[cli.new.no-executable-table] The `hd.toml` that `hd new` writes has no `[[executable]]` table. With `--app`, `src/main.hd` is then the default executable, and `hd run` runs it right after `hd new`.
 12. r[cli.new.workspace-member] When the new package's directory lies under a workspace root, `hd new` also adds that directory to the workspace manifest's `members`, as Cargo does.
 13. r[cli.new.vcs] Unless the new package's directory is already inside a git repository, `hd new` runs `git init` there and writes a `.gitignore`, as Cargo does.
-14. r[cli.new.vcs-none] `hd new --vcs none` runs no `git init` and writes no `.gitignore`.
+14. r[cli.new.vcs.ignore] That `.gitignore` lists only the directory where `hd` writes its build and cache output. `hd.sum` is not listed, so it is committed.
+15. r[cli.new.vcs-none] `hd new --vcs none` runs no `git init` and writes no `.gitignore`.
 
 > **Note.** [Running Executables](../std/testing.md#running-executables)
 > shows the test that `hd new --app` writes.
@@ -376,8 +395,10 @@ echo 'println(1 + 2)' | hd    # prints 3
 2. r[cli.stdin.program] When standard input is not a terminal, `hd` with no arguments runs all of it as a [single-file program](../lang/10-modules.md#single-file-programs), as `python` does. This holds in every mode.
 3. r[cli.repl.package.lib] In package mode, the session acts as code inside `src/lib.hd`, wherever in the package it starts. It sees the private declarations of `src/lib.hd`, and `use self.util` names `src/util.hd`.
 4. r[cli.repl.package.dependencies] In package mode, the session may use the package's dependencies and its dev dependencies.
-5. r[cli.repl.uses.other] Apart from the declarations of `src/lib.hd`, names reach the session only through its `use` declarations.
-6. r[cli.repl.outside] Outside any package, the session may use only `std`.
+5. r[cli.repl.package.no-lib] In a package without `src/lib.hd`, the session may still use the public declarations of the package's modules through `self`, as `src/main.hd` does, and the package's dependencies, its dev dependencies, and `std`.
+6. r[cli.repl.package.no-lib.main] `src/main.hd` itself stays unusable from the session, as it is from every module by [`module.path.main-no-use`](../lang/10-modules.md#r-module.path.main-no-use).
+7. r[cli.repl.uses.other] Apart from the declarations of `src/lib.hd`, names reach the session only through its `use` declarations.
+8. r[cli.repl.outside] Outside any package, the session may use only `std`.
 
 > **Why.** An agent that pipes code into `hd` gets a run, not a prompt
 > that waits for a terminal.

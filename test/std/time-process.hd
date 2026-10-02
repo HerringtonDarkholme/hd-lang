@@ -1,14 +1,12 @@
 # std.time Duration and std.process.
-use std.process.{Command, ExitCode, Output, Process, ProcessError, ScriptedProcess, Termination}
+use std.process.{ExitCode, Process, ProcessOutput, ScriptedProcess, Termination}
 use std.testing.assert_equal
 use std.time.{Duration, h, min, ms, s}
 
 fn status!(program: string) -> i32 $ Process:
-    command := Command { program: program, arguments: [], environment: {}, stdin: [] }
-    match $.use(Process).run!(command):
-        .Ok(output) => output.status
-        .Err(ProcessError.NotFound(_)) => -1
-        .Err(_) => -2
+    match $.use(Process).run!(program, [], ""):
+        .Some(output) => output.status
+        .None => -1
 
 fn code(value: ExitCode) -> u8:
     u8(value)
@@ -28,7 +26,7 @@ tests:
         assert_equal(code(ExitCode(3).report()), 3, reason="an ExitCode reports itself")
 
     it("ScriptedProcess answers by program"):
-        scripted := ScriptedProcess { outputs: {"git": Output { status: 0, stdout: [], stderr: [] }} }
+        let mut scripted = ScriptedProcess { outputs: {"git": ProcessOutput { stdout: "", stderr: "", status: 0 }} }
         $.with(Process=scripted):
             assert_equal(status!("git"), 0, reason="git is scripted")
             assert_equal(status!("make"), -1, reason="make is not")

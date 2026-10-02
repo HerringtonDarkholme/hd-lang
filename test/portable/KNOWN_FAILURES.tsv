@@ -60,8 +60,8 @@ runtime/valid/gadt-existential-evidence.hd	GADT variant results (13-gadts.md) ar
 typing/invalid/supertrait-impl-bounds.hd	a generic impl whose bounds do not prove its supertrait is accepted (trait.super.impl-bounds)	TYPE-GAPS
 typing/valid/bound-implies-supertrait.hd	a T < Child is not accepted where T < Parent is required (trait.bound.supertraits)	TYPE-GAPS
 typing/invalid/requirement-key-not-dynamically-safe.hd	a requirement key naming a trait with an associated function is accepted (req.key.dynamically-safe)	TYPE-GAPS
-typing/valid/hd-run-integration.hd	check reports unknown-import at `use std.testing.{assert_equal, hd_run}`: the prototype has no hd_run! or RunOutput (std Testing, Running Executables)	CLI-53
-typing/invalid/hd-run-outside-integration.hd	check reports unknown-import at `use std.testing.hd_run`, not test-only-use: the prototype has no hd_run! (std Testing, Running Executables)	CLI-53
+typing/valid/hd-run-integration.hd	check reports missing-requirement for Process at hd_run!: the prototype's test runner binds no Process for an integration test body (std Testing, Running Executables; cli.test.process)	CLI-57
+typing/invalid/hd-run-outside-integration.hd	check reports missing-requirement for Process, not test-only-use: the prototype has no integration-only check for hd_run! (std Testing, Running Executables)	CLI-57
 typing/valid/any-void-never.hd	a void value is not assignable to Any, though void is the tuple () (types.any.all)	TYPE-GAPS
 typing/valid/void-unit-alias.hd	the prototype keeps void apart from the empty tuple (), so a () value or (void, i32) is rejected where void is written (types.void)	VOID-UNIT
 typing/valid/typed-fact-pattern-mut-field.hd	check exits 1: the prototype accepts only a trivial pattern, one of the fact type's own type parameters, so it reports type-mismatch at the `@annotate` decorator (Member-Typed Facts, annot.typed-fact.infer.weaken)	FACT-PATTERN

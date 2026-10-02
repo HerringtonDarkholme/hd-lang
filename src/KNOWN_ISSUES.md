@@ -11,7 +11,7 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-02 the suite has
-1,872 cases: 1,806 selected in `test/portable/cases.tsv` and 66 known
+1,884 cases: 1,818 selected in `test/portable/cases.tsv` and 66 known
 failures, 60 language tier and 6 stdlib tier.
 
 | Tag | Cases | Why they fail |
@@ -34,7 +34,7 @@ failures, 60 language tier and 6 stdlib tier.
 | TYPE-GAPS | 8 | batch 51 inference codes and batch 51b type rules are not checked |
 | DERIVE-DEFAULT | 3 | no `@default` marker or count check for derived `Default` |
 | RACE-EMPTY | 2 | an empty `race!` task list is neither rejected nor a panic |
-| CLI-53 | 2 | no `hd_run!` or `RunOutput` in `std.testing` |
+| CLI-57 | 2 | the test runner binds no `Process`, and `hd_run!` has no integration-only check |
 | VOID-UNIT | 1 | `void` is kept apart from the empty tuple `()` |
 
 ## Findings
@@ -124,7 +124,8 @@ Compiler structure:
 | TYPE-GAPS | Batches 51 and 51b: a generic call's other argument conflicts are `type-mismatch`; an impl parameter outside the head is `unconstrained-impl-parameter`; an impl's own bounds must prove its supertraits; a bound implies its supertrait bounds; a requirement key must be dynamically safe; `void` satisfies `Any`; derived `Arbitrary` needs no inspectable member. The prototype checks none of these. |
 | DERIVE-DEFAULT | Batch 51: `@derive(Default)` through the `std.ops` template, with `@default` on one enum variant. The template in `lib/std/ops.hd` works for data types, but the marker function `std.ops.default` is missing: declaring a module function named `default` beside the trait breaks every `T::default()` call in the prototype. No check counts the marked variants. |
 | RACE-EMPTY | Batch 51: `race!(tasks=[])` is `argument-count`, and an empty task list at run time panics with `explicit-panic`. The prototype accepts the first and hangs on the second. |
-| CLI-53 | Batch 53 CLI rules: the prototype's `hd` has none of `--` program arguments, exit status 101, JSON lines with a summary record, `-p`, `--filter`, `--deny-skipped`, stdin as a program, the workspace search from a member, the `hd new --app` and `--lib` templates, `hd_run!`, or the executable, task, and test-root layout errors. Most have no fixture format. |
+| CLI-53 | Batch 53 CLI rules: the prototype's `hd` has none of `--` program arguments, exit status 101, JSON lines with a summary record, `-p`, `--filter`, `--deny-skipped`, stdin as a program, the workspace search from a member, the `hd new --app` and `--lib` templates, or the executable, task, and test-root layout errors. Most have no fixture format. |
+| CLI-57 | Batch 57 CLI rules: the prototype has none of `hd check --all`, the unlisted-member error, `exclude`, `-p` inside a member, a failing `--filter` on a FILE, the package REPL without `src/lib.hd`, `--format json` with its named fields on any command, or the `.gitignore` of `hd new`. `hd_run!` is plain hd over `Process` in `lib/std/testing.hd`, but `hd test` binds no `Process` for an integration test, and no check rejects `hd_run!` outside one. |
 | VOID-UNIT | Batch 52: `void` is an alias for `()`. The prototype keeps a separate `void` type, so `let u: void = ()`, a `()` result for `-> void`, and `(void, i32)` are rejected. A void success takes only the literal `()`, as in `.Ok(())`, not another `void` expression such as `.Ok(log())`. |
 | FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are. The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
 

@@ -1815,3 +1815,5 @@ typing/invalid/row-slot-bare-alias-argument.hd	type
 typing/invalid/row-slot-bare-context.hd	type
 typing/invalid/row-slot-bare-function-type.hd	type
 typing/invalid/row-slot-bare-explicit-argument.hd	type
+runtime/valid/process-scripted-provider.hd	runtime
+typing/invalid/hd-run-requires-process.hd	type

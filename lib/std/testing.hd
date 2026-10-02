@@ -10,6 +10,7 @@ use std.hash.Hash
 use std.num.{Float, Integer, parse_i64}
 use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
 use std.arbitrary.With
+use std.process.Process
 
 # The only source of randomness a generator sees
 # (spec/std/testing.md#property-tests). The runner creates each one and
@@ -391,3 +392,19 @@ pub fn snapshot_file(text: string) -> void:
 @intrinsic("snapshot_file_check")
 fn snapshot_file_check(text: string) -> string:
     panic("intrinsic")
+
+# What `hd_run!` returns (spec/std/testing.md#running-executables).
+pub data RunOutput:
+    pub stdout: string
+    pub stderr: string
+    pub status: i32
+
+# Runs the package's executable `name` through the `Process` provider that
+# `hd test` binds for an integration test (r-std-testing.hd-run.row). A name
+# that names no executable panics (r-std-testing.hd-run.missing-name). The
+# integration-only check (r-std-testing.hd-run.integration-only) is not
+# implemented yet (src/KNOWN_ISSUES.md).
+pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> RunOutput $ Process:
+    match $.use(Process).run!(name, args, stdin):
+        .Some(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
+        .None => panic("hd_run!: the package has no executable named '${name}'")

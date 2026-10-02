@@ -170,11 +170,12 @@ A workspace builds several packages of one repository as one graph.
 4. r[module.workspace.sum] A workspace has one `hd.sum`, beside its workspace manifest.
 5. r[module.workspace.path-requirement] A member depends on another member of its workspace through a **path requirement**, `{ path = "DIR" }`, where `DIR` is the other member's directory relative to the requiring manifest.
 6. r[module.workspace.path-version] A path requirement may also carry a version, as in `{ path = "../ui", version = "0.4.2" }`.
-7. r[module.workspace.path-version.local] Inside the workspace, such a requirement names the member at its path, and its version is not used.
-8. r[module.workspace.path-version.fetched] In a fetched version of the requiring package, such a requirement is a dependency requirement on that version of the member.
-9. r[module.workspace.no-host-path] A member does not require another member by host path.
-10. r[module.workspace.fetched-member] A fetched package may require a member's host path. Selection then treats that host path as any other and fetches the selected version, which is a package separate from the local member.
-11. r[module.workspace.fetched-member.two] The build then holds two packages, the local member and the fetched version. Neither stands in for the other.
+7. r[module.workspace.path-version.locally] When the requiring package is built from local files, in its workspace or in a checkout of its repository, such a requirement names the package at its path, and its version is not used.
+8. r[module.workspace.path-version.fetched-version] In a fetched version of the requiring package, `path` is ignored, and the requirement is a dependency requirement on `version`.
+9. r[module.workspace.path-version.fetched-host] Its host path comes from the host path by which the requiring package was fetched, as [`module.dep.no-self-path`](#r-module.dep.no-self-path) gives every fetched package its host path.
+10. r[module.workspace.no-host-path] A member does not require another member by host path.
+11. r[module.workspace.fetched-member] A fetched package may require a member's host path. Selection then treats that host path as any other and fetches the selected version, which is a package separate from the local member.
+12. r[module.workspace.fetched-member.two] The build then holds two packages, the local member and the fetched version. Neither stands in for the other.
 
 ```toml
 [dependencies]
@@ -675,6 +676,53 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
 
 See also: [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension),
 [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
+
+### Processes
+
+`std.process` declares the host capability trait that starts a program:
+
+```text
+pub data ProcessOutput:
+    pub stdout: string
+    pub stderr: string
+    pub status: i32
+
+pub trait Process:
+    fn run!(mut self, program: string, args: List[string], stdin: string) -> ProcessOutput?
+```
+
+1. r[module.process.host-trait] `Process` is a host capability trait that `std.process` declares, with the data type `ProcessOutput`.
+2. r[module.process.run] `run!(program, args, stdin)` starts the program named `program` with the arguments `args` and the standard input `stdin`, and completes when that program exits.
+3. r[module.process.output] Its result holds the text the program wrote to standard output and to standard error, and the status it exited with.
+4. r[module.process.missing] It returns `.None` when its provider has no program named `program`.
+5. r[module.process.mut] `run!` takes `mut self`, so `Process` is a mutable requirement trait, as `Console` is, and a provider may record what it runs.
+6. r[module.process.import] `Process` and `ProcessOutput` are not prelude names; code imports them from `std.process`.
+
+A scripted provider answers each program from a table:
+
+```text
+use std.process.{Process, ProcessOutput}
+
+data ScriptedProcess:
+    outputs: Map[string, ProcessOutput]
+
+impl Process for ScriptedProcess:
+    fn run!(mut self, program: string, args: List[string], stdin: string) -> ProcessOutput?:
+        self.outputs.get(program)
+
+fn version!() -> string $ Process:
+    match $.use(Process).run!("git", ["--version"], ""):
+        .Some(output) => output.stdout
+        .None => "no git"
+```
+
+> **Note.** Which programs a provider starts is the provider's choice. The
+> test runner binds one whose programs are the package's executables
+> ([`cli.test.process`](../cli/command-line.md#r-cli.test.process)).
+
+> **Why.** Starting a program is a host capability like any other, so a
+> function that starts one states it in its row, and a test can install a
+> scripted provider.
 
 ### Value-Category Traits
 
@@ -1278,6 +1326,11 @@ values that cross a boundary, and the official host boundary.
 4. r[module.profile.default] The default profile contains at least the prelude `Console` trait.
 5. r[module.profile.other] Another profile may add or omit host traits explicitly.
 6. r[module.profile.toolchain-names] Profile names are defined by the toolchain. A manifest cannot define a profile.
+7. r[module.profile.panic-status] A profile's panic exit status is never 101.
+
+> **Why.** `hd` exits with 101 when it fails itself
+> ([`cli.exit.hd-failure`](../cli/command-line.md#r-cli.exit.hd-failure)),
+> so a panicking program and a failed build never share a status.
 
 See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
 
