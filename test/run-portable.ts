@@ -3,6 +3,8 @@ import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { availableParallelism, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
+import { createAdapter, type Adapter } from "./hd-adapter.ts";
+
 interface CommandResult {
   readonly code: number;
   readonly stderr: string;
@@ -29,6 +31,10 @@ interface Options {
   readonly changed?: string;
   readonly command: readonly string[];
   readonly commandText: string;
+  // Run this repository's compiler in-process (hd-adapter.ts) instead of
+  // spawning `command`: the default, unless --compiler or HD_TEST_COMMAND
+  // names an implementation.
+  readonly inProcess: boolean;
   readonly jobs: number;
   readonly phase?: Phase;
   readonly suite: "all" | "conformance" | "fixtures";
@@ -38,6 +44,9 @@ interface Options {
 const root = resolve(import.meta.dirname, "..");
 const portableManifest = resolve(root, "test/portable/cases.tsv");
 const conformanceRunner = resolve(root, "spec/tools/run-conformance.ts");
+const adapterModule = resolve(root, "test/hd-adapter.ts");
+// The conformance runner's limit (spec/conformance/README.md#command-contract).
+const timeoutMs = 10_000;
 const fixtureRoot = resolve(root, "test/fixtures");
 
 // Fixture expectations compare plain text; a FORCE_COLOR inherited from the
@@ -53,6 +62,7 @@ function splitCommand(value: string): string[] {
 
 function parseOptions(args: readonly string[]): Options {
   let commandText = process.env.HD_TEST_COMMAND ?? "node --experimental-strip-types bin/hd.js";
+  let inProcess = process.env.HD_TEST_COMMAND === undefined;
   let jobs = Number(process.env.HD_TEST_JOBS ?? Math.min(8, availableParallelism()));
   let phase: Options["phase"];
   let suite: Options["suite"] = "all";
@@ -68,8 +78,10 @@ function parseOptions(args: readonly string[]): Options {
         changed = "origin/main";
         index -= 1;
       }
-    } else if (option === "--compiler" && value) commandText = value;
-    else if (option === "--jobs" && value) jobs = Number(value);
+    } else if (option === "--compiler" && value) {
+      commandText = value;
+      inProcess = false;
+    } else if (option === "--jobs" && value) jobs = Number(value);
     else if (option === "--phase" && /^(parse|type|runtime)$/.test(value ?? ""))
       phase = value as Phase;
     else if (option === "--suite" && /^(all|conformance|fixtures)$/.test(value ?? ""))
@@ -84,15 +96,25 @@ function parseOptions(args: readonly string[]): Options {
   if (!Number.isInteger(jobs) || jobs < 1) throw new Error("jobs must be a positive integer");
   if (phase && suite === "fixtures") throw new Error("--phase cannot use --suite fixtures");
   if (tier && suite === "fixtures") throw new Error("--tier cannot use --suite fixtures");
-  return { changed, command, commandText, jobs, phase, suite, tier };
+  return { changed, command, commandText, inProcess, jobs, phase, suite, tier };
 }
 
+/** How the fixture runner runs `IMPL ARGS...`: in-process, or a spawned command. */
+type Implementation = Adapter | readonly string[];
+
 async function invoke(
-  command: readonly string[],
+  implementation: Implementation,
   action: string,
   path: string,
   options: readonly string[] = [],
 ): Promise<CommandResult> {
+  if (!Array.isArray(implementation)) {
+    const result = await (implementation as Adapter).run([action, ...options, path], timeoutMs);
+    if (result.timedOut)
+      return { code: 1, stderr: `ran longer than ${timeoutMs / 1000} s`, stdout: "" };
+    return { code: result.status ?? 1, stderr: result.stderr, stdout: result.stdout };
+  }
+  const command = implementation as readonly string[];
   return new Promise((complete, reject) => {
     const child = spawn(command[0]!, [...command.slice(1), action, ...options, path], {
       cwd: root,
@@ -161,8 +183,7 @@ async function runConformance(options: Options): Promise<boolean> {
     conformanceRunner,
     "--manifest",
     manifest,
-    "--compiler",
-    options.commandText,
+    ...(options.inProcess ? ["--adapter", adapterModule] : ["--compiler", options.commandText]),
     "--jobs",
     String(options.jobs),
     ...(options.phase ? ["--phase", options.phase] : []),
@@ -243,7 +264,7 @@ async function readFixtureCase(path: string): Promise<FixtureCase> {
 }
 
 async function runFixtureCase(
-  command: readonly string[],
+  command: Implementation,
   testCase: FixtureCase,
 ): Promise<string | undefined> {
   const kinds = new Set(testCase.directives.map(({ kind }) => kind));
@@ -313,9 +334,13 @@ async function main(): Promise<number> {
   // test/fixtures cases have no phase or tier; --phase and --tier select conformance cases only.
   if (!options.phase && !options.tier && !options.changed && options.suite !== "conformance") {
     const cases = await Promise.all((await fixturePaths(fixtureRoot)).map(readFixtureCase));
+    const implementation = options.inProcess
+      ? createAdapter({ jobs: options.jobs })
+      : options.command;
     const problems = await mapParallel(cases, options.jobs, (testCase) =>
-      runFixtureCase(options.command, testCase),
+      runFixtureCase(implementation, testCase),
     );
+    if (options.inProcess) await (implementation as Adapter).close();
     const failures = problems.filter((problem): problem is string => Boolean(problem));
     if (failures.length) {
       console.error(failures.join("\n\n"));

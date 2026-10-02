@@ -3,7 +3,8 @@
 // It implements the rules in spec/conformance/README.md (Case Selection,
 // Judging a Case, Runtime Execution, Fixture Environments, Command Contract).
 // It imports only Node built-ins and reads only files under spec/ plus the
-// paths given on the command line. It never imports an implementation.
+// paths given on the command line. It never imports an implementation, except
+// the adapter module that `--adapter` names (spec/tools/README.md, Adapters).
 //
 // Usage:
 //   node --experimental-strip-types spec/tools/run-conformance.ts [options]
@@ -11,6 +12,8 @@
 // Options:
 //   --compiler "CMD"   implementation command prefix (default: $HD_TEST_COMMAND,
 //                      else `node --experimental-strip-types bin/hd.js`)
+//   --adapter MODULE   run each command through MODULE's `createAdapter`
+//                      in this process instead of spawning --compiler
 //   --manifest PATH    selection manifest: one case path per line. Only the
 //                      first tab-separated field of a line is read, blank lines
 //                      and `#` lines are ignored, and a first line whose first
@@ -30,11 +33,13 @@ import { spawn } from "node:child_process";
 import { readdir, readFile, realpath } from "node:fs/promises";
 import { availableParallelism } from "node:os";
 import { dirname, resolve, sep } from "node:path";
+import { pathToFileURL } from "node:url";
 
 type Phase = "parse" | "runtime" | "type";
 type Tier = "language" | "std";
 
 interface Options {
+  readonly adapter?: string;
   readonly cases: string;
   readonly command: readonly string[];
   readonly jobs: number;
@@ -71,6 +76,15 @@ interface CommandResult {
   readonly stderr: string;
   readonly stdout: string;
   readonly timedOut: boolean;
+}
+
+/**
+ * How the runner runs `IMPL ARGS...`: a spawned command, or an adapter
+ * module's in-process implementation (spec/tools/README.md, Adapters).
+ */
+interface Implementation {
+  run(args: readonly string[], timeoutMs: number): Promise<CommandResult>;
+  close(): Promise<void>;
 }
 
 interface Located {
@@ -119,6 +133,7 @@ function splitCommand(value: string): string[] {
 
 function parseOptions(args: readonly string[]): Options {
   let command = splitCommand(process.env.HD_TEST_COMMAND ?? defaultCommand);
+  let adapter: string | undefined;
   let jobs = Number(process.env.HD_TEST_JOBS ?? Math.min(8, availableParallelism()));
   let cases = defaultCases;
   let manifest: string | undefined;
@@ -130,6 +145,7 @@ function parseOptions(args: readonly string[]): Options {
     const value = args[index + 1];
     if (value === undefined) throw new UsageError(`missing value for ${option}`);
     if (option === "--compiler") command = splitCommand(value);
+    else if (option === "--adapter") adapter = resolve(value);
     else if (option === "--jobs") jobs = Number(value);
     else if (option === "--manifest") manifest = resolve(value);
     else if (option === "--cases") cases = resolve(value);
@@ -140,7 +156,7 @@ function parseOptions(args: readonly string[]): Options {
   }
   if (command.length === 0) throw new UsageError("compiler command must not be empty");
   if (!Number.isInteger(jobs) || jobs < 1) throw new UsageError("jobs must be a positive integer");
-  return { cases, command, jobs, manifest, phase, root: root ?? dirname(cases), tier };
+  return { adapter, cases, command, jobs, manifest, phase, root: root ?? dirname(cases), tier };
 }
 
 async function readPanicCategories(): Promise<Set<string>> {
@@ -303,35 +319,61 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
   };
 }
 
+/** Spawns `COMMAND ARGS...` for each run. */
+function spawnImplementation(command: readonly string[]): Implementation {
+  return {
+    run(args, limitMs) {
+      return new Promise((complete) => {
+        // No cwd: the working directory is not part of the contract.
+        const child = spawn(command[0]!, [...command.slice(1), ...args], {
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        let stdout = "";
+        let stderr = "";
+        let timedOut = false;
+        let error: string | undefined;
+        const timer = setTimeout(() => {
+          timedOut = true;
+          child.kill("SIGKILL");
+        }, limitMs);
+        child.stdout.setEncoding("utf8").on("data", (chunk: string) => (stdout += chunk));
+        child.stderr.setEncoding("utf8").on("data", (chunk: string) => (stderr += chunk));
+        child.on("error", (cause) => (error = cause.message));
+        child.on("close", (status, signal) => {
+          clearTimeout(timer);
+          complete({ error, signal: signal ?? undefined, status, stderr, stdout, timedOut });
+        });
+      });
+    },
+    async close() {},
+  };
+}
+
+/**
+ * Loads an adapter module: it exports `createAdapter({ jobs })`, whose
+ * `run(args, timeoutMs)` resolves to `{ status, stdout, stderr, timedOut }`
+ * and whose `close()` releases it.
+ */
+async function adapterImplementation(module: string, jobs: number): Promise<Implementation> {
+  const { createAdapter } = (await import(pathToFileURL(module).href)) as {
+    createAdapter?: (options: { jobs: number }) => Implementation;
+  };
+  if (typeof createAdapter !== "function")
+    throw new UsageError(`${module} exports no createAdapter function`);
+  return createAdapter({ jobs });
+}
+
 /** Runs `IMPL ACTION [OPTION VALUE]... FILE`, or `IMPL FILE` when `action` is undefined. */
 function invoke(
-  command: readonly string[],
+  implementation: Implementation,
   action: string | undefined,
   options: readonly string[],
   file: string,
 ): Promise<CommandResult> {
-  const args = [...command.slice(1), ...(action === undefined ? [] : [action]), ...options, file];
-  return new Promise((complete) => {
-    // No cwd: the working directory is not part of the contract.
-    const child = spawn(command[0]!, args, {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    let timedOut = false;
-    let error: string | undefined;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill("SIGKILL");
-    }, timeoutMs);
-    child.stdout.setEncoding("utf8").on("data", (chunk: string) => (stdout += chunk));
-    child.stderr.setEncoding("utf8").on("data", (chunk: string) => (stderr += chunk));
-    child.on("error", (cause) => (error = cause.message));
-    child.on("close", (status, signal) => {
-      clearTimeout(timer);
-      complete({ error, signal: signal ?? undefined, status, stderr, stdout, timedOut });
-    });
-  });
+  return implementation.run(
+    [...(action === undefined ? [] : [action]), ...options, file],
+    timeoutMs,
+  );
 }
 
 const realpathCache = new Map<string, Promise<string | undefined>>();
@@ -471,7 +513,12 @@ async function packageOptions(options: Options, role: string | undefined): Promi
   ];
 }
 
-async function runCase(options: Options, row: IndexRow, panics: Set<string>): Promise<Verdict> {
+async function runCase(
+  options: Options,
+  implementation: Implementation,
+  row: IndexRow,
+  panics: Set<string>,
+): Promise<Verdict> {
   const file = resolve(options.root, row.path);
   let source: string;
   try {
@@ -501,7 +548,7 @@ async function runCase(options: Options, row: IndexRow, panics: Set<string>): Pr
   if (row.phase !== "runtime") {
     const action = row.phase === "parse" ? "parse" : "check";
     const result = await invoke(
-      options.command,
+      implementation,
       action,
       action === "check" ? ["--tests", ...profile] : [],
       file,
@@ -520,7 +567,7 @@ async function runCase(options: Options, row: IndexRow, panics: Set<string>): Pr
 
   if (row.expectation.startsWith("reject:") || row.expectation.startsWith("warn:"))
     return { path: row.path, reason: `runtime case cannot expect ${row.expectation}` };
-  const checked = await invoke(options.command, "check", ["--tests", ...profile], file);
+  const checked = await invoke(implementation, "check", ["--tests", ...profile], file);
   const checkViolation = await contractViolation(checked, file, panics, tree);
   if (checkViolation) return fail(`check: ${checkViolation}`, [checked]);
   if (checked.status !== 0) return fail("check: runtime case did not type-check", [checked]);
@@ -529,14 +576,14 @@ async function runCase(options: Options, row: IndexRow, panics: Set<string>): Pr
     ...(fixture.scenario ? ["--scenario", fixture.scenario] : []),
     ...(fixture.pendingFunction ? ["--pending-function", fixture.pendingFunction] : []),
   ];
-  const tested = await invoke(options.command, "test", testOptions, file);
+  const tested = await invoke(implementation, "test", testOptions, file);
   const testViolation = await contractViolation(tested, file, panics, tree);
   if (testViolation) return fail(`test: ${testViolation}`, [checked, tested]);
   if (row.expectation === "accept") {
     if (tested.status !== 0) return fail("test: expected exit 0, got exit 1", [tested]);
     if (fixture.expectedStdout === undefined) return { path: row.path };
     // `IMPL FILE`: run the fixture as a single file (Command Contract).
-    const ran = await invoke(options.command, undefined, [], file);
+    const ran = await invoke(implementation, undefined, [], file);
     const runViolation = await contractViolation(ran, file, panics);
     if (runViolation) return fail(`run: ${runViolation}`, [ran]);
     if (ran.status !== 0) return fail("run: expected exit 0, got exit 1", [ran]);
@@ -580,11 +627,15 @@ async function main(): Promise<number> {
   let index: Map<string, IndexRow>;
   let panics: Set<string>;
   let selected: string[];
+  let implementation: Implementation;
   try {
     options = parseOptions(process.argv.slice(2));
     index = await readIndex(options.cases);
     panics = await readPanicCategories();
     selected = options.manifest ? await readManifest(options.manifest) : [...index.keys()];
+    implementation = options.adapter
+      ? await adapterImplementation(options.adapter, options.jobs)
+      : spawnImplementation(options.command);
   } catch (error) {
     console.error(`run-conformance: ${(error as Error).message}`);
     return 2;
@@ -602,10 +653,11 @@ async function main(): Promise<number> {
   }
   verdicts.push(
     ...(await mapParallel(rows, options.jobs, async (row) => ({
-      ...(await runCase(options, row, panics)),
+      ...(await runCase(options, implementation, row, panics)),
       tier: row.tier,
     }))),
   );
+  await implementation.close();
   let failed = 0;
   for (const verdict of verdicts) {
     if (!verdict.reason) {
