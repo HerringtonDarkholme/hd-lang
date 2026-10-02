@@ -1,0 +1,134 @@
+# std.structure, the part written in hd
+# (spec/lang/14-annotations.md#the-stdstructure-module): the handles, facts,
+# and member information that typed derivation passes to a template, and
+# the protocol traits `Walker`, `Describer`, and `Source`
+# (#walkers-describers-and-sources). The compiler supplies `Structure` and
+# the traversals, and fills the `hd_` fields.
+#
+# The typed-derivation pass declares this module in a program that derives
+# or calls `facts_of`, before the rest of std is joined
+# (checker/typed-derivation.ts), so it may use no other std module.
+# The handle declarations name their parameters `HdS` and `HdF`: the
+# prototype cannot infer an inherent method's parameters from a receiver
+# whose type arguments are the caller's parameters of the same names.
+use std.inspect.{Inspectable, downcast_val}
+
+# A member's or variant's facts. The prototype holds `Inspectable` values
+# rather than `Any`.
+pub data Facts:
+    pub items: List[Inspectable]
+
+impl Facts:
+    pub fn find[F < Inspectable](self) -> F?:
+        for item in self.items:
+            match downcast_val::[F](item):
+                .Some(found) => return .Some(found)
+                .None => pass
+        .None
+
+pub data Member:
+    pub name: string
+    pub position: i32
+    pub facts: Facts
+    pub doc: string?
+    pub embedded: bool
+    pub positional: bool
+    pub self_ref: SelfRef
+
+# The prototype leaves `shared` empty.
+pub data VariantInfo:
+    pub name: string
+    pub index: i32
+    pub facts: Facts
+    pub doc: string?
+    pub of_data: bool
+    pub shared: List[(string, Inspectable)]
+    pub self_ref: SelfRef
+
+pub enum SelfRef:
+    Absent
+    Optional
+    Required
+
+# A member's handle. `hd_witness` names the member's type, so that `fact`
+# needs no `Inspectable` bound on `HdF` (annot.handle.fact.key).
+pub data Field[HdS, HdF]:
+    pub info: Member
+    hd_get: fn(HdS) -> HdF
+    hd_has_default: bool
+    hd_default: fn() -> HdF?
+    hd_witness: Inspectable
+
+impl[HdS, HdF] Field[HdS, HdF]:
+    pub fn get(self, s: HdS) -> HdF:
+        (self.hd_get)(s)
+
+    pub fn has_default(self) -> bool:
+        self.hd_has_default
+
+    pub fn default(self) -> HdF?:
+        (self.hd_default)()
+
+    pub fn fact[HdM < Inspectable](self) -> HdM?:
+        self.info.facts.find::[HdM]()
+
+# The handle of a member with no facts, doc comment, or default.
+fn hd__plain_field[HdS, HdF](name: string, position: i32, positional: bool, self_ref: SelfRef, get: fn(HdS) -> HdF, witness: Inspectable) -> Field[HdS, HdF]:
+    Field::[HdS, HdF] { info: Member { name: name, position: position, facts: Facts { items: [] }, doc: .None, embedded: false, positional: positional, self_ref: self_ref }, hd_get: get, hd_has_default: false, hd_default: hd__no_default::[HdF], hd_witness: witness }
+
+fn hd__no_default[HdF]() -> HdF?:
+    .None
+
+pub data Variant[HdS]:
+    pub info: VariantInfo
+    hd_holds: fn(HdS) -> bool
+
+impl[HdS] Variant[HdS]:
+    pub fn holds(self, s: HdS) -> bool:
+        (self.hd_holds)(s)
+
+pub data Key[HdS]:
+    pub info: Member
+    pub is_end: bool
+    hd_type: fn(HdS) -> bool
+
+pub data Members[HdS]:
+    pub infos: List[Member]
+    hd_type: fn(HdS) -> bool
+
+impl[HdS] Members[HdS]:
+    pub fn end(self) -> Key[HdS]:
+        Key { info: Member { name: "", position: -1, facts: Facts { items: [] }, doc: .None, embedded: false, positional: false, self_ref: SelfRef.Absent }, is_end: true, hd_type: self.hd_type }
+
+    pub fn at(self, position: i32) -> Key[HdS]:
+        for info in self.infos:
+            if info.position == position:
+                return Key { info: info, is_end: false, hd_type: self.hd_type }
+        self.end()
+
+    pub fn find(self, matches: fn(Member) -> bool) -> Key[HdS]:
+        for info in self.infos:
+            if matches(info):
+                return Key { info: info, is_end: false, hd_type: self.hd_type }
+        self.end()
+
+# Generated `walk` calls `member` for a walker without `rest`, which is what
+# the default does (annot.walk.rest.default), so the default never runs.
+pub trait Walker[S]:
+    type Error
+    fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
+    fn rest[T](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, Self::Error]:
+        panic("Walker.rest: generated code calls member for a walker without rest")
+
+pub trait Describer[S]:
+    type Error
+    fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, Self::Error]
+
+pub trait Source[S]:
+    type Error
+    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], Self::Error]
+    fn next(mut self, members: Members[S]) -> Result[Key[S], Self::Error]
+    fn member[F](mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]
+    fn missing[F](mut self, h: Field[S, F]) -> Result[F, Self::Error]

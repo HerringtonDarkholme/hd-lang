@@ -1,6 +1,7 @@
 import type { DataDecl, ImplDecl, Program, TraitDecl } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
+import { standardSource } from "./standard-sources.ts";
 
 // Standard traits that a module imports rather than receiving from the
 // prelude (spec/lang/09-traits.md#conversion-trait and #error-trait). The prototype
@@ -39,12 +40,10 @@ export const HIDDEN_EXIT_CODE = "__std_process_ExitCode";
 export const HIDDEN_TERMINATION = "__std_process_Termination";
 
 // Runtime type identity (spec/lang/09-traits.md#runtime-type-identity). Importing
-// any `std.inspect` name, or `std.error.Error`, declares the sealed trait and
-// `TypeId` under their standard names; aliases are not supported. `TypeId` is
-// a data type holding the canonical printable name, which identifies the type
-// because the prototype compiles one module. The `downcast` methods,
-// `downcast_val`, and `TypeId::of` are checker intrinsics, so the trait's
-// dictionary holds `runtime_type` alone.
+// any `std.inspect` name, or `std.error.Error`, declares `lib/std/inspect.hd`,
+// the sealed trait and `TypeId`, under their standard names; aliases are not
+// supported. The `downcast` methods, `downcast_val`, and `TypeId::of` are
+// checker intrinsics, so the trait's dictionary holds `runtime_type` alone.
 export const INSPECTABLE = "Inspectable";
 export const TYPE_ID = "TypeId";
 export const STANDARD_DOWNCAST_VAL = "std.inspect.downcast_val";
@@ -60,18 +59,6 @@ const INSPECT_IMPORTS = new Set([
   STANDARD_DOWNCAST_VAL,
   "std.error.Error",
 ]);
-const INSPECT_SOURCE = `trait ${INSPECTABLE}:
-    fn runtime_type(self) -> ${TYPE_ID}
-
-data ${TYPE_ID}:
-    key: string
-
-impl Eq for ${TYPE_ID}:
-    fn eq(self, other: ${TYPE_ID}) -> bool: self.key == other.key
-
-impl Display for ${TYPE_ID}:
-    fn to_string(self) -> string: self.key
-`;
 
 function respan<T>(value: T, span: SourceSpan): T {
   if (Array.isArray(value)) return value.map((item) => respan(item, span)) as T;
@@ -100,7 +87,7 @@ export function withStandardTraits(program: Program): Program {
     }
   }
   if (inspect) {
-    const parsed = parse(INSPECT_SOURCE).program;
+    const parsed = parse(standardSource("inspect")).program;
     if (parsed) {
       traits.push(...respan(parsed.traits, inspect));
       data.push(...respan(parsed.data, inspect));

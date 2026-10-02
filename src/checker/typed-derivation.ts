@@ -18,8 +18,8 @@ import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { Source_, ZERO_SPAN } from "./generated-source.ts";
 import { checkLawPartners, DERIVE_CHECKED_TRAITS, derivedFieldSpan } from "./derive-intrinsics.ts";
-import { testingName } from "./arbitrary-module.ts";
 import { standardTemplate } from "./standard-library.ts";
+import { standardSource } from "./standard-sources.ts";
 import {
   loadTupleTemplates,
   localTupleName,
@@ -72,8 +72,8 @@ import {
 // the target, whose methods call the template's functions. The template
 // must hold the walker, describer, or source in a local declared with its
 // type. The handles, facts, and member information are values of the
-// `std.structure` declarations below, written in hd with hidden fields for
-// the compiler-supplied bodies.
+// `std.structure` declarations in `lib/std/structure.hd`, which the pass
+// declares itself, with hidden fields for the compiler-supplied bodies.
 //
 // Prototype gaps: `Facts` holds `Inspectable` values rather than `Any`, so
 // each fact list erases its values through `hd__structure_fact`, which
@@ -99,125 +99,18 @@ export const STRUCTURE_AS_DECLARED = "hd__structure_as_declared";
  * needs no `Inspectable` bound on the handle's `F` (annot.handle.fact.key).
  */
 export const STRUCTURE_WITNESS = "hd__structure_witness";
-/** The handle field that holds the witness, which `h.fact` reads. */
+/** The handle field that holds the witness, which `h.fact` reads (lib/std/structure.hd). */
 export const STRUCTURE_WITNESS_FIELD = "hd_witness";
 
-// The handle declarations name their parameters `HdS` and `HdF`: the
-// prototype cannot infer an inherent method's parameters from a receiver
-// whose type arguments are the caller's parameters of the same names.
-const STRUCTURE_SOURCE = `data Facts:
-    pub items: List[Inspectable]
-
-impl Facts:
-    pub fn find[F < Inspectable](self) -> F?:
-        for item in self.items:
-            match ${DOWNCAST}::[F](item):
-                .Some(found) => return .Some(found)
-                .None => pass
-        .None
-
-data Member:
-    pub name: string
-    pub position: i32
-    pub facts: Facts
-    pub doc: string?
-    pub embedded: bool
-    pub positional: bool
-    pub self_ref: SelfRef
-
-data VariantInfo:
-    pub name: string
-    pub index: i32
-    pub facts: Facts
-    pub doc: string?
-    pub of_data: bool
-    pub shared: List[(string, Inspectable)]
-    pub self_ref: SelfRef
-
-enum SelfRef:
-    Absent
-    Optional
-    Required
-
-data Field[HdS, HdF]:
-    pub info: Member
-    hd_get: fn(HdS) -> HdF
-    hd_has_default: bool
-    hd_default: fn() -> HdF?
-    ${STRUCTURE_WITNESS_FIELD}: Inspectable
-
-impl[HdS, HdF] Field[HdS, HdF]:
-    pub fn get(self, s: HdS) -> HdF:
-        (self.hd_get)(s)
-
-    pub fn has_default(self) -> bool:
-        self.hd_has_default
-
-    pub fn default(self) -> HdF?:
-        (self.hd_default)()
-
-    pub fn fact[HdM < Inspectable](self) -> HdM?:
-        self.info.facts.find::[HdM]()
-
-# The handle of a member with no facts, doc comment, or default.
-fn hd__plain_field[HdS, HdF](name: string, position: i32, positional: bool, self_ref: SelfRef, get: fn(HdS) -> HdF, witness: Inspectable) -> Field[HdS, HdF]:
-    Field::[HdS, HdF] { info: Member { name: name, position: position, facts: Facts { items: [] }, doc: .None, embedded: false, positional: positional, self_ref: self_ref }, hd_get: get, hd_has_default: false, hd_default: hd__no_default::[HdF], ${STRUCTURE_WITNESS_FIELD}: witness }
-
-fn hd__no_default[HdF]() -> HdF?:
-    .None
-
-data Variant[HdS]:
-    pub info: VariantInfo
-    hd_holds: fn(HdS) -> bool
-
-impl[HdS] Variant[HdS]:
-    pub fn holds(self, s: HdS) -> bool:
-        (self.hd_holds)(s)
-
-data Key[HdS]:
-    pub info: Member
-    pub is_end: bool
-    hd_type: fn(HdS) -> bool
-
-data Members[HdS]:
-    pub infos: List[Member]
-    hd_type: fn(HdS) -> bool
-
-impl[HdS] Members[HdS]:
-    pub fn end(self) -> Key[HdS]:
-        Key { info: Member { name: "", position: -1, facts: Facts { items: [] }, doc: .None, embedded: false, positional: false, self_ref: SelfRef.Absent }, is_end: true, hd_type: self.hd_type }
-
-    pub fn at(self, position: i32) -> Key[HdS]:
-        for info in self.infos:
-            if info.position == position:
-                return Key { info: info, is_end: false, hd_type: self.hd_type }
-        self.end()
-
-    pub fn find(self, matches: fn(Member) -> bool) -> Key[HdS]:
-        for info in self.infos:
-            if matches(info):
-                return Key { info: info, is_end: false, hd_type: self.hd_type }
-        self.end()
-
-trait Walker[S]:
-    type Error
-    fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
-    fn rest[T](mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, Self::Error]:
-        panic("Walker.rest: generated code calls member for a walker without rest")
-
-trait Describer[S]:
-    type Error
-    fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, Self::Error]
-
-trait Source[S]:
-    type Error
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], Self::Error]
-    fn next(mut self, members: Members[S]) -> Result[Key[S], Self::Error]
-    fn member[F](mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, Self::Error]
-`;
+/**
+ * `lib/std/structure.hd` in the program's names. Its `use` lines become the
+ * pass's own use of `std.inspect`, which imports `downcast_val` under a
+ * hidden name.
+ */
+function structureSource(renames: ReadonlyMap<string, string>): string {
+  const source = standardSource("structure").replace(/^use .*$/gm, "");
+  return renameWords(source, new Map([...renames, ["downcast_val", DOWNCAST]]));
+}
 
 interface DerivationResult {
   readonly program: Program;
@@ -406,7 +299,11 @@ export function withTypedDerivation(source: Program): DerivationResult {
   // derivations instantiate with the walker or source implementations of
   // its module: `std.testing.Arbitrary` (spec/std/testing.md#derived-arbitrary),
   // and the comparison traits and `Hash` (spec/std/cmp.md, spec/std/hash.md).
-  const arbitrary = testingName(program, "Arbitrary");
+  const arbitrary = program.uses
+    .filter((use) => use.module === "std.testing")
+    .flatMap((use) => use.names)
+    .find((imported) => imported.name === "Arbitrary");
+  const arbitraryName = arbitrary && (arbitrary.alias ?? arbitrary.name);
   const standardTemplates = new Map<
     string,
     { readonly support: readonly ImplDecl[]; readonly uses: readonly UseDecl[] }
@@ -553,7 +450,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
     // (trait.derive.field-missing-trait).
     const standard = standardTemplates.get(derivation.trait);
     const checked = standard !== undefined && DERIVE_CHECKED_TRAITS.has(derivation.trait);
-    if (derivation.trait === arbitrary)
+    if (derivation.trait === arbitraryName)
       arbitraryOptIns.push({ span: derivation.span, members: memberTypes(derivation.target) });
     else if (!checked) optInSpans.push(derivation.span);
     const result = generateDerivation(
@@ -609,9 +506,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
 
   // `facts_of` returns `std.structure`'s `Facts` (annot.facts-of.result).
   const needsStructure = imported.size > 0 || generated.length > 0 || importsFactsOf(program);
-  const structure = needsStructure
-    ? parse(renameWords(STRUCTURE_SOURCE, renames)).program
-    : undefined;
+  const structure = needsStructure ? parse(structureSource(renames)).program : undefined;
   if (needsStructure && !structure) throw new Error("std.structure source does not parse");
   const structureUse: UseDecl = {
     kind: "use",

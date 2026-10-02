@@ -5,7 +5,7 @@
 // Every URL in the output is relative, so it works at any base path.
 
 import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import * as esbuild from "esbuild";
@@ -58,14 +58,20 @@ function browserShims(): esbuild.Plugin {
       );
       build.onLoad({ filter: /^(runtime-wat|std-hd)$/, namespace: "hd-shim" }, async (args) => {
         const { dir, extension } = EMBEDDED[args.path]!;
+        // By path below `dir`, as `testing/arbitrary.hd` for a std submodule.
         const files: Record<string, string> = {};
-        for (const name of (await readdir(dir)).filter((file) => file.endsWith(extension)))
-          files[name] = await readFile(join(dir, name), "utf8");
+        for (const name of (await readdir(dir, { recursive: true })).filter((file) =>
+          file.endsWith(extension),
+        ))
+          files[name.split(sep).join("/")] = await readFile(join(dir, name), "utf8");
         return {
           contents: `const files = ${JSON.stringify(files)};
 export function readFileSync(url) {
-  const name = String(url).split("/").pop();
-  if (!(name in files)) throw new Error("no embedded file " + name);
+  const path = String(url);
+  const name = Object.keys(files)
+    .filter((file) => path.endsWith("/" + file))
+    .sort((a, b) => b.length - a.length)[0];
+  if (name === undefined) throw new Error("no embedded file " + path);
   return files[name];
 }`,
           loader: "js",

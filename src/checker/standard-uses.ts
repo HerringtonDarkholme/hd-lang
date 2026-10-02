@@ -36,20 +36,12 @@ const COMPILER_NAMES: ReadonlyMap<string, readonly string[]> = new Map([
   ["testing", ["it", "assert_equal", "snapshot", "it_each", "it_prop", "it_prop_with"]],
 ]);
 
-/**
- * Std modules by path below `std`, each with the file that declares its
- * names. `lib/std/arbitrary.hd` is `std.testing.arbitrary`
- * (checker/arbitrary-module.ts), so `std.arbitrary` is not a module.
- */
+/** Std modules by path below `std`, each with the file that declares its names. */
 const MODULE_FILES: ReadonlyMap<string, string | undefined> = new Map<string, string | undefined>([
-  ...STANDARD_MODULES.filter((module) => module !== "arbitrary").map((module): [string, string] => [
-    module,
-    module,
-  ]),
+  ...STANDARD_MODULES.map((module): [string, string] => [module, module]),
   ...[...COMPILER_NAMES.keys()]
     .filter((module) => !(STANDARD_MODULES as readonly string[]).includes(module))
     .map((module): [string, undefined] => [module, undefined]),
-  ["testing.arbitrary", "arbitrary"],
 ]);
 
 /** Whether a std module declares `name` publicly, privately, or not at all. */

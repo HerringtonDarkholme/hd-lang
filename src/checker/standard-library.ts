@@ -2,6 +2,7 @@ import {
   TEMPLATE_PLACEHOLDER,
   type DataDecl,
   type EnumDecl,
+  type Expression,
   type FunctionDecl,
   type ImplDecl,
   type MethodDecl,
@@ -107,9 +108,12 @@ function isStandardModule(name: string): name is StandardModule {
   return (STANDARD_MODULES as readonly string[]).includes(name);
 }
 
-/** The hidden name of a `std` declaration that the program did not import. */
+/**
+ * The hidden name of a `std` declaration that the program did not import,
+ * as `__std_testing_arbitrary_with` for `std.testing.arbitrary.with`.
+ */
 function hiddenStandardName(module: string, name: string): string {
-  return `__std_${module}_${name}`;
+  return `__std_${module.replaceAll(".", "_")}_${name}`;
 }
 
 /** What a checked `assert_equal` or `snapshot` call runs (lib/std/testing.hd). */
@@ -494,7 +498,8 @@ function standardOrigin(
     const imported = declaration.names.find((item) => (item.alias ?? item.name) === local);
     if (imported) return { module, name: imported.name };
   }
-  for (const module of STANDARD_MODULES)
+  // A submodule's prefix extends its parent's, so the longest is tried first.
+  for (const module of [...STANDARD_MODULES].sort((a, b) => b.length - a.length))
     if (local.startsWith(hiddenStandardName(module, "")))
       return { module, name: local.slice(hiddenStandardName(module, "").length) };
   return undefined;
@@ -739,6 +744,44 @@ export function standardTupleTraits(program: Program): readonly string[] {
       if (local !== undefined && !traits.includes(local)) traits.push(local);
     }
   return traits;
+}
+
+/**
+ * A `use` that names a std submodule, as `use std.testing.arbitrary`, imports
+ * the module (spec/lang/10-modules.md#use-forms). The prototype has no module
+ * values, so each call through it of a function the module declares, as
+ * `arbitrary.with(gen)`, becomes a call by the function's hidden name, which
+ * the join then declares.
+ */
+export function withStandardSubmodules(program: Program): Program {
+  const modules = new Map<string, StandardModule>();
+  const uses = program.uses.flatMap((use) => {
+    if (!use.module.startsWith("std.")) return [use];
+    const names = use.names.filter((imported) => {
+      const module = `${use.module.slice("std.".length)}.${imported.name}`;
+      if (!isStandardModule(module)) return true;
+      modules.set(imported.alias ?? imported.name, module);
+      return false;
+    });
+    if (names.length === use.names.length) return [use];
+    return names.length > 0 ? [{ ...use, names }] : [];
+  });
+  if (modules.size === 0) return program;
+  const visit = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(visit);
+    if (!node || typeof node !== "object") return node;
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(node)) result[key] = visit(value);
+    const callee = result.callee as Expression | undefined;
+    if (result.kind !== "call" || callee?.kind !== "member" || callee.receiver.kind !== "name")
+      return result;
+    const module = modules.get(callee.receiver.name);
+    if (!module || !standardModule(module).program.functions.some((f) => f.name === callee.name))
+      return result;
+    const name = hiddenStandardName(module, callee.name);
+    return { ...result, callee: { kind: "name", name, span: callee.span } };
+  };
+  return visit({ ...program, uses }) as Program;
 }
 
 /** Declares the `std` modules and built-in methods that the program uses. */

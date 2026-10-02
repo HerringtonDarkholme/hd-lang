@@ -23,7 +23,7 @@ for (const file of readdirSync(directory).filter((name) => name.endsWith(".hd"))
 }
 
 test("every std module parses on its own", () => {
-  for (const module of STANDARD_MODULES) {
+  for (const module of [...STANDARD_MODULES, "structure", "inspect"] as const) {
     const parsed = parse(standardSource(module), { standardLibrary: true });
     assert.deepEqual(
       parsed.diagnostics.map((diagnostic) => diagnostic.code),

@@ -14,7 +14,11 @@ import {
 import { validateProgram } from "./program-validation.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 import { validateHostCapabilities } from "./host-capabilities.ts";
-import { importedMarkerFunctions, withStandardLibrary } from "./standard-library.ts";
+import {
+  importedMarkerFunctions,
+  withStandardLibrary,
+  withStandardSubmodules,
+} from "./standard-library.ts";
 import {
   checkDecoratorTargets,
   markerFunctions,
@@ -30,7 +34,7 @@ import { rowRuleDiagnostics } from "./row-rules.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
 import { defaultBoundDiagnostics, withTypeDefaults } from "./type-defaults.ts";
 import { withTypedDerivation } from "./typed-derivation.ts";
-import { withArbitraryModule } from "./arbitrary-module.ts";
+
 import { withErrorDerivation } from "./error-derivation.ts";
 import { setHashableKeyTypes } from "./map-keys.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
@@ -56,7 +60,7 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
     ...importedMarkerFunctions(source),
   ]);
   const spelled = withFunctionTypeConstructors(
-    withBareMarkerCalls(withArbitraryModule(source), markers),
+    withBareMarkerCalls(withStandardSubmodules(source), markers),
   );
   // A malformed spelled function type leaves no type to check against.
   if (spelled.diagnostics.length > 0) return { diagnostics: [...spelled.diagnostics] };

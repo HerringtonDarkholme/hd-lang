@@ -3,13 +3,13 @@
 # checked by the compiler; `Choices`, `Arbitrary`, and
 # `snapshot_file` are declared here (Testing T53), with the bodies that the
 # compiler gives an `it_each`, `it_prop`, or `it_prop_with` test case and
-# the runner protocol they use. `std.testing.arbitrary` is `lib/std/arbitrary.hd`, which
-# the prototype names `std.arbitrary`, since it has no std submodules.
+# the runner protocol they use. `std.testing.arbitrary` is
+# `lib/std/testing/arbitrary.hd`.
 use std.format.debug
 use std.hash.Hash
 use std.num.{Float, Integer, parse_i64}
 use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
-use std.arbitrary.With
+use std.testing.arbitrary.With
 use std.process.Process
 use std.time.Duration
 

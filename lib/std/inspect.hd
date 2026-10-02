@@ -1,0 +1,21 @@
+# std.inspect, the part written in hd: runtime type identity
+# (spec/lang/09-traits.md#runtime-type-identity). Importing any `std.inspect`
+# name, or `std.error.Error`, declares these under their standard names
+# (checker/standard-traits.ts); aliases are not supported. The compiler
+# implements the sealed `Inspectable` for every type, and supplies the
+# `downcast` methods, `downcast_val`, and `TypeId::of`, so the trait's
+# dictionary holds `runtime_type` alone.
+
+pub trait Inspectable:
+    fn runtime_type(self) -> TypeId
+
+# A type's canonical printable name, which identifies the type because the
+# prototype compiles one module.
+pub data TypeId:
+    key: string
+
+impl Eq for TypeId:
+    fn eq(self, other: TypeId) -> bool: self.key == other.key
+
+impl Display for TypeId:
+    fn to_string(self) -> string: self.key

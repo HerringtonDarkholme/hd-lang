@@ -57,11 +57,7 @@ suspension lowering, codegen, and the CLI. The tooling alone (CLI, REPL,
 `hd explain`/`def`/`doc`, the spec index, the package linker) is about
 3,700 lines.
 
-The best chunks, by TS deleted per hour:
-
-| Chunk | Work | TS deleted |
-| --- | --- | --- |
-| M5 | `std.structure`, `std.inspect`, and `std.testing.arbitrary` as hd files | about 175 |
+Every chunk of the [Migration Plan](#migration-plan) is done.
 
 Line counts below are from `wc -l` and function boundaries. A count for
 part of a file is a range estimate, good to about 20%.
@@ -79,11 +75,8 @@ defined in [Classification](#classification).
 | `@derive(Eq, PartialOrd, Ord, Hash)` generator, law partners | `checker/derive-intrinsics.ts` less Debug | 385 | `trait.derive.intrinsic-set` (since retired; now `trait.derive.cmp-templates`), Law Partners | A by spec; C after Q4 |
 | `@error` derivation | `checker/error-derivation.ts`, `checker/error-generation.ts` | 663 | [`annot.error.intrinsic`](../spec/lang/14-annotations.md#r-annot.error.intrinsic) | A |
 | Typed derivation: `Structure`, handles, `walk`/`describe`/`build` | `checker/typed-derivation.ts` less the source string, `self-ref.ts`, `derivation-models.ts`, `member-lines.ts`, `declaration-facts.ts` | 2,013 | [`annot.derive.supplied`](../spec/lang/14-annotations.md#r-annot.derive.supplied) | A |
-| `std.structure` declarations as a TS string | `checker/typed-derivation.ts` (`STRUCTURE_SOURCE`) | 100 | [`annot.structure.bodies`](../spec/lang/14-annotations.md#r-annot.structure.bodies) | B |
-| `Inspectable`, `TypeId` declarations as a TS string | `checker/standard-traits.ts` (`INSPECT_SOURCE`) | 15 | [Runtime Type Identity](../spec/lang/09-traits.md#runtime-type-identity) | B |
-| `std.testing.arbitrary` submodule shim | `checker/arbitrary-module.ts` | 59 | [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary) | C |
 | Prelude traits declared in TS: `Display`, `Eq`, `PartialOrd`, `Ord`, `Ordering`, `Debug`, `Iterable`, `Any`, `Waker`, `Console`, `ResourceError` | `checker/program-types.ts` (`declareProgramTypes` tail, `declareComparisonTraits`) | 230 | [Prelude](../spec/lang/10-modules.md#prelude), [Comparison Traits](../spec/lang/09-traits.md#comparison-traits) | C |
-| Std-name shims: hidden `Duration`, `ExitCode`, `Termination`, `DebugWriter`, `STANDARD_TRAITS` | `checker/standard-traits.ts` less `INSPECT_SOURCE` | 115 | lang items; [Time](../spec/std/time.md) | C |
+| Std-name shims: hidden `Duration`, `ExitCode`, `Termination`, `DebugWriter`, `STANDARD_TRAITS` | `checker/standard-traits.ts` | 115 | lang items; [Time](../spec/std/time.md) | C |
 | Runtime type identity: `downcast`, `downcast_val`, `TypeId::of`, keys | `checker/expression-inspect.ts`, `checker/inspectable.ts` | 508 | [`trait.inspect.supplied`](../spec/lang/09-traits.md#r-trait.inspect.supplied) | A |
 | `shape`, `shape_of` builders | `checker/shapes.ts` | 461 | `module.prelude.shape`, retired in batch 42 | A |
 | Literal suffix and prefix markers | `checker/literal-suffixes.ts` | 148 | [Literal Suffixes](../spec/lang/05-expressions.md#literal-suffixes) | A |
@@ -151,7 +144,6 @@ std items by spelling, such as `Some`/`None`/`Ok`/`Err` in patterns and
 | Feature | hd to write | Notes |
 | --- | --- | --- |
 | `FromIterator` for `Map` | `impl[K < Eq & Hash, V] FromIterator[(K, V)] for Map[K, V]` in `lib/std/iter.hd` | a map literal with a bounded key already uses key kind 3 |
-| `std.structure`, `std.inspect` sources | `lib/std/structure.hd`, `lib/std/inspect.hd` | the loader already joins modules by use; the hidden fields stay |
 
 ### (C) Movable After A Small Hook, About 1,500 Lines
 
@@ -159,7 +151,6 @@ std items by spelling, such as `Some`/`None`/`Ok`/`Err` in patterns and
 | --- | --- | --- | --- |
 | `Eq`/`PartialOrd` for `List`, `T?`, `Result`, `Map` | **generic impl lookup**: `traitMethodDispatch` and `displayValue` match `impl[T] Eq for List[T]` by pattern (as `implementsDebug` already does), not by exact target | about 30 | about 400 |
 | Prelude traits in TS | **lang items by standard name**: look up `Eq`, `Ordering`, `Iterable`, `Console` by `standardName`, not by fixed trait index (`lowerRunTimeGaps` relies on `Console` being last) | about 40 | about 345 |
-| `std.testing.arbitrary` shim | **std submodules**: `lib/std/testing/arbitrary.hd` joins as `std.testing.arbitrary` | about 20 | 59 |
 | Tuple `==`, `<`, `Hash` | **none if Q3 is B**: hd impls up to 12 elements and a rest tuple, as `Debug` has. Otherwise **tuple `Structure`**: tuples get compiler `Structure` so std templates derive them | 0, or about 120 | 82 |
 | `retry!` | **`lib/std/task.hd`**: a std file beside the compiler-provided `block_on`, `all`, `race`, declared there as `@intrinsic` signatures | about 20 | 0; closes 4 known failures |
 
@@ -231,13 +222,8 @@ Sonnet and logs hd-writing mistakes in
 [audit/hd-writing-log.md](../audit/hd-writing-log.md), as AGENTS.md
 requires.
 
-| # | hd to write in `lib/std` | TS to delete | Hook | Fixtures that prove it |
-| --- | --- | --- | --- | --- |
-| M5 | `lib/std/structure.hd`, `lib/std/inspect.hd`, `lib/std/testing/arbitrary.hd` | about 175: `STRUCTURE_SOURCE`, `INSPECT_SOURCE`, `arbitrary-module.ts` | std submodules (20) | `typed-derivation*`, `derive-without-structure-use`, `arbitrary-with-*`, `typeid-*` |
-
-Left: M5 deletes about 175 lines of TS. The rows of the done steps
-are deleted; the status notes below record how they differed from the
-plan.
+None is left. The rows of the done steps are deleted; the status notes
+below record how they differed from the plan.
 
 **M1 status, 2026-10-01: done.** `lib/std/cmp.hd` holds the impls; the
 composite strategies, their HIR kinds, and `genericEqualityCall` are gone

@@ -800,7 +800,8 @@ else`, `break`, `break value`, and `continue`;
   (M26), which `checker/member-lines.ts` checks and folds into the
   declaration facts of `T` before any derivation reads them, then drops;
   and the `std.structure` handles, facts, walkers,
-  describers, and sources, declared in hd when imported (under hidden
+  describers, and sources of `lib/std/structure.hd`, which the pass
+  declares itself, since it runs before the std join (under hidden
   names when the program declares a type of the same name, as a `data Key`).
   A template is checked once (`annot.template.checked`): each method becomes
   a generic function over the template's `T`, bounded by a hidden trait that
@@ -958,8 +959,9 @@ else`, `break`, `break value`, and `continue`;
   the exemption; a handle of a generic target whose parameter has no
   `Inspectable` bound names that parameter by its text;
 - runtime type identity: importing a `std.inspect` name or `std.error.Error`
-  declares the sealed `Inspectable` (`std.error.Error` extends it) and
-  `TypeId`, a data type holding the canonical printable name (an inner
+  declares `lib/std/inspect.hd` under its standard names: the sealed
+  `Inspectable` (`std.error.Error` extends it) and `TypeId`, a data type
+  holding the canonical printable name (an inner
   `mut` kept, the outer `mut` dropped); every
   inspectable type erases to `Inspectable` or `mut Inspectable` through a
   generated dictionary whose `runtime_type` builds that name, splicing in the
@@ -1038,7 +1040,7 @@ else`, `break`, `break value`, and `continue`;
   the std join drops both, since they name `std.structure`, which the
   pass declares only for a program that derives. A std module's `use`
   whose names only its template parts mention, such as `std.testing`'s
-  `std.inspect` and `std.arbitrary` names, joins nothing by itself; a
+  `std.inspect` and `std.testing.arbitrary` names, joins nothing by itself; a
   derivation that instantiates the template brings it in. The source picks the
   first variant whose `self_ref` is not `.Required` as the simplest, at
   drawn index 0, and fails with `NoFiniteValue` when no variant is finite,
@@ -1053,8 +1055,8 @@ else`, `break`, `break value`, and `continue`;
   is `unsatisfied-trait-bound` at the opt-in, naming the member, rather
   than the `member-not-derivable` of other templates
   (`std-testing.arbitrary.derive.not-derivable`). `use
-  std.testing.arbitrary` makes `arbitrary.with` a call of
-  `lib/std/arbitrary.hd`'s `with` (`checker/arbitrary-module.ts`);
+  std.testing.arbitrary` imports the std submodule
+  `lib/std/testing/arbitrary.hd`, so `arbitrary.with` calls its `with`;
 - `Member.self_ref` and `VariantInfo.self_ref` (`SelfRef`) are computed in
   `checker/self-ref.ts`. It also follows owner decisions that agree with
   the spec text: any use of the enclosing declaration counts, whatever its
@@ -1186,7 +1188,12 @@ does not implement the canonical prelude trait.
 The toy standard library is hd source in the top-level
 [`lib/std/`](../lib/std/) directory, next to `src/` as in Zig, one file per
 module: `std.annotation`, `std.cmp`, `std.collections`, `std.hash`, `std.console`, `std.format`, `std.function`, `std.iter`, `std.num`, `std.ops`,
-`std.option`, `std.process`, `std.resource`, `std.result`, `std.testing`, `std.text`, and `std.time`. It
+`std.option`, `std.process`, `std.resource`, `std.result`, `std.testing`, `std.text`, and `std.time`,
+with a submodule in a subdirectory: `std.testing.arbitrary` is
+`lib/std/testing/arbitrary.hd`. Two more files are declared by a
+checker pass rather than joined: `std.structure` (`lib/std/structure.hd`)
+by typed derivation, which runs before the join, and `std.inspect`
+(`lib/std/inspect.hd`) by `checker/standard-traits.ts`. It
 follows the specification's stdlib tier (`spec/std/`); open points are
 in [Open Issues](../future-work/OPEN_ISSUES.md).
 `checker/standard-sources.ts` reads the files, and
@@ -1200,6 +1207,11 @@ the prototype compiles:
   same way. An imported function, as in `use std.cmp.{max, min}` or
   `use std.testing.assert`, is added alone under its local name, with the
   declarations its body reaches;
+- a `use` that names a std submodule, as `use std.testing.arbitrary`,
+  imports the module. The prototype has no module values, so
+  `withStandardSubmodules` makes each call through it of a function the
+  module declares, as `arbitrary.with(gen)`, a call by the function's
+  hidden name, `__std_testing_arbitrary_with`, which the join adds;
 - an inherent implementation on a built-in type (`impl string:`,
   `impl[T] T?:`, `impl[T, E] Result[T, E]:`, `impl[T] List[T]:`,
   `impl i32:`) needs no `use`
@@ -1247,7 +1259,9 @@ What it provides:
 | `std.function` | the sealed marker trait `Tuple`, which the compiler implements for every tuple type; a `Tuple` bound passes no dictionary. `Fn` and `SuspendFn` have no declaration: the checker rewrites them to the `fn(...)` sugar |
 | `std.format` | the prelude `Display` and `Debug`; `Display` for `string`, `bool`, `char`, and every number type; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `Map`, `T?`, `Result`; the template of `Debug`; the tuple templates of `Debug` and `Display` |
 | `std.testing` | `assert`, `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`, `RunOutput` and `hd_run!` over `Process`; the case bodies of `it_each`, `it_prop`, and `it_prop_with`; the rest of `std.testing` is checked by the compiler |
-| `std.testing.arbitrary` | `with` and the typed fact type `With[F]`, in `lib/std/arbitrary.hd`, since the prototype has no std submodules |
+| `std.testing.arbitrary` | `with` and the typed fact type `With[F]`, in `lib/std/testing/arbitrary.hd` |
+| `std.structure` | `Facts`, `Member`, `VariantInfo`, `SelfRef`, the handles `Field`, `Variant`, `Key`, and `Members`, and the protocol traits `Walker`, `Describer`, and `Source`, with hidden fields for the compiler-supplied bodies; `Structure` and the traversals are compiler-provided |
+| `std.inspect` | the sealed `Inspectable` and `TypeId`, with `Eq` and `Display` for `TypeId`; `downcast_val` and the `downcast` methods are compiler-provided |
 
 The prelude `string` methods live in `std.text` too, and `lower` and
 `upper` are backed by the host. Positions and lengths are byte offsets. A string index is the

@@ -1,9 +1,8 @@
 # std.testing.arbitrary: the one fact that derived `Arbitrary` reads
-# (spec/std/testing.md#derived-arbitrary). The prototype has no std
-# submodules, so this is `std.arbitrary`, which code does not import by that
-# name: `use std.testing.arbitrary` makes each `arbitrary.with(gen)` a call of
-# `with` under its hidden name (checker/arbitrary-module.ts). The template of
-# `Arbitrary` in `std.testing` reads a member's `With[F]` through its handle.
+# (spec/std/testing.md#derived-arbitrary). Code imports the module itself,
+# `use std.testing.arbitrary`, and calls `arbitrary.with(gen)`. The template
+# of `Arbitrary` in `std.testing` reads a member's `With[F]` through its
+# handle.
 use std.annotation.annotate
 use std.testing.Choices
 
