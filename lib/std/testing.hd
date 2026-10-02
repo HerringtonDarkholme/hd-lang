@@ -422,7 +422,7 @@ fn prop_discard() -> void:
 # `reason` (spec/lang/10-modules.md#r-module.testing.shows-reason).
 pub fn assert(condition: bool, reason: string) -> void:
     if !condition:
-        assertion_failed(reason)
+        panic_with("assertion-failed", reason)
 
 # What a checked `assert_equal` or `snapshot` call runs, with `T` the
 # readonly type of `actual`; the compiler checks the call itself. A failure
@@ -430,11 +430,12 @@ pub fn assert(condition: bool, reason: string) -> void:
 # (spec/lang/10-modules.md#r-module.testing.assert-equal-debug).
 fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
     if actual != expected:
-        assertion_failed("${reason}: actual ${debug(actual)}, expected ${debug(expected)}")
+        panic_with("assertion-failed", "${reason}: actual ${debug(actual)}, expected ${debug(expected)}")
 
-# Panics with `assertion-failed` and `message`; the host does not return.
-@intrinsic("assertion_failed")
-fn assertion_failed(message: string) -> void:
+# The checked runtime panic of `category`, such as `assertion-failed`,
+# showing `message`, or no message when it is empty; it does not return.
+@intrinsic("panic")
+fn panic_with(category: string, message: string) -> void:
     panic("intrinsic")
 
 # `snapshot_file(text)` (spec/std/testing.md#snapshot-files) compares `text` with

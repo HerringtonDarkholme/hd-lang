@@ -45,6 +45,13 @@ export function runtimePanicCode(name: RuntimePanicName): number {
   return RUNTIME_PANIC_NAMES.indexOf(name);
 }
 
+/** The stable panic category `name`, which `lib/std`'s panic primitive passes. */
+export function runtimePanicCategory(name: string): RuntimePanicName {
+  const category = RUNTIME_PANIC_NAMES.find((known) => known === name);
+  if (!category) throw new Error(`'${name}' is not a panic category`);
+  return category;
+}
+
 export function runtimePanicName(code: number): RuntimePanicName {
   return RUNTIME_PANIC_NAMES[code] ?? "explicit-panic";
 }

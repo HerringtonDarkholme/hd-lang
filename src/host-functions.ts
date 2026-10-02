@@ -9,7 +9,7 @@
 
 import type { HostSuspensionCall, HostSuspensionOutcome } from "./compiler.ts";
 import { propertyRun } from "./property-tests.ts";
-import { RuntimePanicError } from "./runtime-panic.ts";
+import { RuntimePanicError, runtimePanicCategory } from "./runtime-panic.ts";
 
 type HostFunctionValue = number | bigint | string;
 
@@ -27,10 +27,16 @@ export const HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = {
   // A float's `Display` text (spec/lang/04-type-system.md#numeric-display).
   format_f64: (value) => displayF64(Number(value)),
   format_f32: (value) => displayF32(Number(value)),
-  // A failed `assert` or `assert_equal` (lib/std/testing.hd) panics with its message
-  // (spec/lang/10-modules.md#r-module.testing.assert-equal-debug).
-  assertion_failed: (message) => {
-    throw new RuntimePanicError("assertion-failed", String(message));
+  // The one panic primitive of `lib/std` (spec/std/README.md#standard-library-primitives):
+  // a checked runtime panic of a stable category that shows `message`, such
+  // as a failed `assert`'s `assertion-failed`
+  // (spec/lang/10-modules.md#r-module.testing.assert-equal-debug). An empty
+  // message shows none, as for `index-out-of-bounds`.
+  panic: (category, message) => {
+    throw new RuntimePanicError(
+      runtimePanicCategory(String(category)),
+      String(message) === "" ? undefined : String(message),
+    );
   },
   // `Choices` outside `hd test` draws at random; the test runner replaces
   // these with its recording draws (src/property-tests.ts).

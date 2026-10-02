@@ -999,15 +999,16 @@ else`, `break`, `break value`, and `continue`;
   type such as `Error?` is a known type, and a value of `T < Trait` erases
   to `Trait` through the bound's dictionary;
 - `std.testing.assert`, an ordinary hd function in `lib/std/testing.hd`
-  whose failure panics with `assertion-failed` and the reason through the
-  `assertion_failed` host function (module.testing.shows-reason); and
+  whose failure panics with `assertion-failed` and the reason through
+  `std`'s one panic primitive, the `panic` host function
+  (module.testing.shows-reason); and
   `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
   and order-independent map values and for explicit nominal or bounded generic
   `Eq` implementations, with mandatory reasons and
   `missing-eq` at unsupported types. The checker checks the call and lowers
   it to a call of `check_equal`, hd code in `lib/std/testing.hd`, whose
   failure panics with `assertion-failed`, the reason, and both values'
-  `debug` text through the `assertion_failed` host function
+  `debug` text through the `panic` host function
   (module.testing.assert-equal-debug); `std.testing.snapshot` runs as
   a string `assert_equal` with a literal `expect` (no update run rewrites
   it), and `snapshot_file` is hd code in `lib/std/testing.hd` whose host
@@ -1298,10 +1299,13 @@ RUNTIME_AND_LIBRARY.md).
    user code is an ordinary decorator whose value calls an undeclared
    `intrinsic` (`unknown-name`), so only `lib/std` can use it. The written body (`panic("intrinsic")`)
    type-checks and is never emitted. Calls are ordinary calls.
+   [Standard Library Primitives](../spec/std/README.md#standard-library-primitives)
+   lists every primitive `lib/std` may declare; any other needs the
+   owner's approval.
    - A **runtime primitive** is a few Wasm instructions over the runtime's
      own value layout, listed in `emitter/intrinsics.ts`: today
      `string_byte_len`, `string_byte_at`, `string_byte_slice`,
-     `char_from_scalar`, `char_scalar`, `index_out_of_bounds`, `iterator_invalidated`,
+     `char_from_scalar`, `char_scalar`,
      `list_version`, the frames `task_race_frame` and `task_all_frame`,
      and the test runner's hooks `case_index`, `report_case_count`, and
      `report_timeout`. `list_version` reads a list's structural-version
@@ -1313,7 +1317,8 @@ RUNTIME_AND_LIBRARY.md).
      and a `string` crosses as a host handle that `emitter/runtime/boundary.wat`
      copies byte by byte. The host looks the name up in
      `src/host-functions.ts` (today `string_lower`, `string_upper`, `string_from_scalar`,
-     `format_f64`, and `format_f32`), or
+     `format_f64`, `format_f32`, and `panic`, which raises a checked runtime
+     panic of a named category, such as `index-out-of-bounds`), or
      in the runner's `hostFunctions` (`snapshot_file_check`, `src/snapshots.ts`).
 2. **Host capability traits.** A capability is a trait with suspending
    methods (spec/11 and
@@ -1355,7 +1360,7 @@ marks what this refactor removed.
 | Emitter | `emitConsole` (a hand-written host `Console` provider), `console.wat` (`$hd.console_print`) | capability | Done: the generic capability bridge, with `Result` results |
 | Host glue | `console_byte` import | capability | Done: `Console.write_line` in `HOST_PROVIDERS`, left out of record and replay |
 | Checker | `validateHostCapabilities` skipped `Console` | capability | Done: `Console` passes the same boundary check as any host capability |
-| HIR | `assert` | `std.testing` | Done: `assert` is hd code in `lib/std/testing.hd` over the `assertion_failed` host function (migration M4) |
+| HIR | `assert` | `std.testing` | Done: `assert` is hd code in `lib/std/testing.hd` over the `panic` host function (migration M4) |
 | HIR | `assert-equal` | `std.testing` | Done: the compiler checks an `assert_equal` or `snapshot` call and lowers it to a call of the hd `check_equal` |
 | HIR | `snapshot-file` | `std.testing` | Done: `snapshot_file` is hd code in `lib/std/testing.hd` with a host function |
 | HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Done: `it_each`, `it_prop`, `it_prop_with`, and `timeout` run hd functions in `lib/std/testing.hd` over three runtime primitives (migration M3) |

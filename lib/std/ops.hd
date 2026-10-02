@@ -164,10 +164,10 @@ fn slice_stop(size: i32, start: i64, end: i64, inclusive: bool) -> i32:
     let stop = end
     if inclusive:
         if end < 0 || end >= i64(size):
-            slice_out_of_bounds()
+            panic_with("index-out-of-bounds", "")
         stop = end + 1
     if start < 0 || stop < 0 || stop > i64(size) || start > stop:
-        slice_out_of_bounds()
+        panic_with("index-out-of-bounds", "")
     i32(stop)
 
 # A string slice: the bytes at the selected offsets, which must be scalar
@@ -186,9 +186,10 @@ fn slice_list[T](items: List[T], start: i64, end: i64, inclusive: bool) -> mut L
         index = index + 1
     copy
 
-# The checked runtime panic `index-out-of-bounds`; it does not return.
-@intrinsic("index_out_of_bounds")
-fn slice_out_of_bounds() -> void:
+# The checked runtime panic of `category`, such as `index-out-of-bounds`,
+# showing `message`, or no message when it is empty; it does not return.
+@intrinsic("panic")
+fn panic_with(category: string, message: string) -> void:
     panic("intrinsic")
 
 # Slicing (spec/lang/05-expressions.md#built-in-implementations): one

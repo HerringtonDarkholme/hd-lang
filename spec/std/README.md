@@ -42,6 +42,68 @@ Only `std` may add inherent methods to built-in types
 ([`trait.own.inherent.std`](../lang/09-traits.md#r-trait.own.inherent.std)).
 That alone does not make a method language-tier.
 
+## Standard Library Primitives
+
+`lib/std` is ordinary hd over the language tier, plus the primitives
+below. A primitive is a function whose body the implementation supplies.
+Each one is private to the std module that declares it, so no program
+calls it. The specification has no syntax for declaring one; the
+reference implementation writes `@intrinsic("name")` before it.
+
+Any primitive not in these tables needs the owner's approval.
+
+**Representation.** These read or build the run-time layout of a string,
+a `char`, or a list.
+
+| Primitive | Signature | Why it is a primitive |
+| --- | --- | --- |
+| `bytes_len` | `(s: string) -> i32` | reads the byte length of a string's representation |
+| `bytes_at` | `(s: string, i: i32) -> u8` | reads one byte of a string's representation |
+| `bytes_slice` | `(s: string, start: i32, end: i32) -> string` | shares the bytes in constant time, as [`module.string.slice.shared`](../lang/10-modules.md#r-module.string.slice.shared) requires |
+| `bytes_concat` | `(a: string, b: string) -> string` | allocates a string's representation; hd has no byte buffer |
+| `string_from_bytes` | `(bytes: List[u8]) -> string` | builds a string from bytes that the caller has checked are UTF-8 |
+| `char_scalar`, `char_from_scalar` | `(c: char) -> i32`, `(point: i32) -> char` | a `char` is its scalar value at run time, and hd has no unchecked conversion |
+| `list_version` | `[T](items: List[T]) -> i32` | reads the structural version that [`flow.for.version`](../lang/06-control-flow.md#r-flow.for.version) counts, which `ListView` checks |
+
+**Panic.** One primitive raises every checked runtime panic that `lib/std`
+raises with a category other than `explicit-panic`.
+
+| Primitive | Signature | Why it is a primitive |
+| --- | --- | --- |
+| `panic` | `(category: string, message: string) -> void` | the prelude `panic` always has the category `explicit-panic`; this one names a [stable category](../lang/06-control-flow.md#r-flow.panic.category-names), and an empty message shows none |
+
+**Compiler-level.** The compiler lowers these at each use.
+
+| Primitive | Why it is a primitive |
+| --- | --- |
+| `facts_of` | the compiler builds each call's facts value ([Function Facts](../lang/14-annotations.md#function-facts)) |
+| `task_race_frame`, `task_all_frame` | the polling frames of `race!` and `all!`, which are compiler intrinsics ([`req.combinator.intrinsic`](../lang/11-requirements-and-suspension.md#r-req.combinator.intrinsic)) |
+
+**Host.** The host supplies these, for now.
+
+| Primitive | Signature | Why it is a primitive |
+| --- | --- | --- |
+| `format_f64`, `format_f32` | `(value: f64) -> string`, `(value: f32) -> string` | the shortest round-trip decimal text of a float ([Numeric Display](../lang/04-type-system.md#numeric-display)) |
+| `string_lower`, `string_upper` | `(text: string) -> string` | Unicode case mapping, which needs the Unicode tables |
+
+**Test-runner hooks.** These connect `std.testing` to the test runner.
+Each one is to become a capability (task 201, chunk 2).
+
+| Primitive | Why it is a primitive |
+| --- | --- |
+| `case_index`, `report_case_count` | the table-test row that the runner selected, and the row count |
+| `report_timeout` | a test case's `timeout` |
+| `prop_config`, `prop_budget`, `prop_example`, `prop_show`, `prop_draw`, `prop_discard` | the runner's draws, examples, and shrinking for property tests |
+| `snapshot_file_check` | reads and writes snapshot files |
+
+**Reserved.** One primitive per primitive operator, such as `add`, `sub`,
+`eq`, `partial_cmp`, and `cmp`, written as bodiless `@intrinsic` trait
+methods. A follow-up task decides the exact list.
+
+> **Why.** Each primitive is a promise that every implementation must
+> keep, and code that the compiler supplies cannot be read or tested as
+> hd. A short explicit list keeps the rest of `lib/std` portable.
+
 ## Chapters
 
 Each chapter is one unnumbered file named after its std module. The
