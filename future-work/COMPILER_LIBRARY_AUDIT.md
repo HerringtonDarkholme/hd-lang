@@ -80,14 +80,12 @@ defined in [Classification](#classification).
 
 | Feature | TS files | Lines | Spec | Class |
 | --- | --- | --- | --- | --- |
-| `@derive(Debug)` generator | `checker/derive-intrinsics.ts` (`deriveDebug`, Debug in `deriveNewtypeIntrinsic`), `checker/typed-derivation.ts` (`INTRINSIC_DERIVES`) | 55 | [`trait.debug.derive`](../spec/lang/09-traits.md#r-trait.debug.derive) says template; [Format](../spec/std/format.md) | B |
 | `@derive(Eq, PartialOrd, Ord, Hash)` generator, law partners | `checker/derive-intrinsics.ts` less Debug | 385 | `trait.derive.intrinsic-set` (since retired; now `trait.derive.cmp-templates`), Law Partners | A by spec; C after Q4 |
 | `@error` derivation | `checker/error-derivation.ts`, `checker/error-generation.ts` | 663 | [`annot.error.intrinsic`](../spec/lang/14-annotations.md#r-annot.error.intrinsic) | A |
 | Typed derivation: `Structure`, handles, `walk`/`describe`/`build` | `checker/typed-derivation.ts` less the source string, `self-ref.ts`, `derivation-models.ts`, `member-lines.ts`, `declaration-facts.ts` | 2,013 | [`annot.derive.supplied`](../spec/lang/14-annotations.md#r-annot.derive.supplied) | A |
 | `std.structure` declarations as a TS string | `checker/typed-derivation.ts` (`STRUCTURE_SOURCE`) | 100 | [`annot.structure.bodies`](../spec/lang/14-annotations.md#r-annot.structure.bodies) | B |
 | `Inspectable`, `TypeId` declarations as a TS string | `checker/standard-traits.ts` (`INSPECT_SOURCE`) | 15 | [Runtime Type Identity](../spec/lang/09-traits.md#runtime-type-identity) | B |
 | `std.testing.arbitrary` submodule shim | `checker/arbitrary-module.ts` | 59 | [Derived Arbitrary](../spec/std/testing.md#derived-arbitrary) | C |
-| Builtin `Debug` dictionary for primitives and composites ("writes nothing") | `checker/debug.ts`, `context.ts` plan, emitter `debug` branch, HIR | 78 | `trait.debug.std-types` (since retired): `std` implements it | C |
 | Prelude traits declared in TS: `Display`, `Eq`, `PartialOrd`, `Ord`, `Ordering`, `Debug`, `Iterable`, `Any`, `Waker`, `Console`, `ResourceError` | `checker/program-types.ts` (`declareProgramTypes` tail, `declareComparisonTraits`) | 230 | [Prelude](../spec/lang/10-modules.md#prelude), [Comparison Traits](../spec/lang/09-traits.md#comparison-traits) | C |
 | Std-name shims: hidden `Duration`, `ExitCode`, `Termination`, `DebugWriter`, `STANDARD_TRAITS` | `checker/standard-traits.ts` less `INSPECT_SOURCE` | 115 | lang items; [Time](../spec/std/time.md) | C |
 | Runtime type identity: `downcast`, `downcast_val`, `TypeId::of`, keys | `checker/expression-inspect.ts`, `checker/inspectable.ts` | 508 | [`trait.inspect.supplied`](../spec/lang/09-traits.md#r-trait.inspect.supplied) | A |
@@ -159,7 +157,6 @@ std items by spelling, such as `Some`/`None`/`Ok`/`Err` in patterns and
 
 | Feature | hd to write | Notes |
 | --- | --- | --- |
-| `@derive(Debug)` | `impl[T] Debug for T by Structure` in `lib/std/format.hd`, a `Walker` that picks `debug_struct`, `debug_tuple`, or `write` per variant | `T::name()`, `v.info.name`, `h.info.name`, and `h.info.positional` exist today (`lib/std/testing.hd` uses the first three) |
 | Primitive `Display` | `impl Display for i32` and the other integers, `char`, `bool` in `lib/std/format.hd`, a digit loop over `StringBuilder` | floats keep the host `format_f64` as an `@intrinsic` |
 | `FromIterator` for `Map` | `impl[K < Eq & Hash, V] FromIterator[(K, V)] for Map[K, V]` in `lib/std/iter.hd` | a map literal with a bounded key already uses key kind 3 |
 | `std.structure`, `std.inspect` sources | `lib/std/structure.hd`, `lib/std/inspect.hd` | the loader already joins modules by use; the hidden fields stay |
@@ -169,7 +166,6 @@ std items by spelling, such as `Some`/`None`/`Ok`/`Err` in patterns and
 | Feature | Hook | Hook size | TS deleted |
 | --- | --- | --- | --- |
 | `Eq`/`PartialOrd` for `List`, `T?`, `Result`, `Map` | **generic impl lookup**: `traitMethodDispatch` and `displayValue` match `impl[T] Eq for List[T]` by pattern (as `implementsDebug` already does), not by exact target | about 30 | about 400 |
-| Builtin `Debug` dictionary | the same lookup | 0 more | 78 |
 | Prelude traits in TS | **lang items by standard name**: look up `Eq`, `Ordering`, `Iterable`, `Console` by `standardName`, not by fixed trait index (`lowerRunTimeGaps` relies on `Console` being last) | about 40 | about 345 |
 | `assert`, `assert_equal`, `snapshot` | **`panic_category` intrinsic**: a std-only `@intrinsic("panic_category")` that panics with a named category such as `assertion-failed`; keep the `missing-eq` remap and the literal `expect` check | about 35 | about 250 |
 | `it_each`, `it_prop`, `it_prop_with`, `timeout` | **runner hooks as `@intrinsic`**: `case_index()`, `report_case_count(n)`, `report_timeout(ms)` replace three HIR nodes; the parser keeps only the registration position check and calls the std function as the case body | about 40 | about 285 |
@@ -188,10 +184,7 @@ and the agent tooling. Not audited.
 
 ### Stdlib-Tier Features That Exist Only As TypeScript
 
-1. **`@derive(Debug)`.** [`trait.debug.derive`](../spec/lang/09-traits.md#r-trait.debug.derive)
-   says it derives through its template, and [Format](../spec/std/format.md)
-   lists it as a template. `lib/std/format.hd` has no template;
-   `derive-intrinsics.ts` generates the builder calls in TS.
+1. **`@derive(Debug)`.** Done in M7: `lib/std/format.hd` holds the template.
 2. **Table and property tests.** `it_each` rows, `it_prop`,
    `it_prop_with`, and the `timeout` option are stdlib tier
    ([Testing](../spec/std/testing.md)). The prototype lowers them in the
@@ -211,12 +204,8 @@ and the agent tooling. Not audited.
 6. **Primitive `Display`.** [`expr.interp.std`](../spec/lang/05-expressions.md#r-expr.interp.std)
    says the standard library provides it. The checker emits a `display`
    node and WAT digit loops.
-7. **`Debug` for built-in types.** `trait.debug.std-types` (since retired)
-   says `std` implements it, and `lib/std/format.hd` does. The checker
-   still plans a builtin `debug` dictionary for primitives and composites
-   whose `debug` "writes nothing" (`hir.ts`). This is reachable through a
-   `T < Debug` bound on a built-in type when the exact-target lookup
-   misses; not verified by a run.
+7. **`Debug` for built-in types.** Done in M7: the builtin `debug`
+   dictionary is gone, and `Map`'s `Debug` is hd.
 
 ### Behavior Gaps Found On The Way
 
@@ -262,7 +251,6 @@ requires.
 | M4 | `std.testing`: `assert`, `assert_equal[T < Eq & Debug]` that panics with both `debug` texts and `reason`, `snapshot` over `assert_equal` | about 250: `assert`/`assert-equal` checker and emitter cases, HIR | `panic_category` intrinsic (35) | `assert`, the 19 `assert-equal-*` fixtures, `snapshot-mismatch`, `snapshot-file-missing`; needs M1 |
 | M5 | `lib/std/structure.hd`, `lib/std/inspect.hd`, `lib/std/testing/arbitrary.hd` | about 175: `STRUCTURE_SOURCE`, `INSPECT_SOURCE`, `arbitrary-module.ts` | std submodules (20) | `typed-derivation*`, `derive-without-structure-use`, `arbitrary-with-*`, `typeid-*` |
 | M6 | `std.format`: `Display` for the integers, `char`, `bool` | about 160: `display` node, `emitPrimitiveDisplay`, four WAT `*_to_string` | none | `string-interpolation-built-ins`, `interpolation-display-order`, `expression-interpolation` |
-| M7 | `std.format`: `impl[T] Debug for T by Structure` | about 133: `deriveDebug`, the builtin `debug` plan, `debug.ts` | none; needs M1 | `derive-debug`, `derive-debug-shapes`, `debug-standard-types`, `debug-writer-builders` |
 | M8 | `std.cmp`, `std.hash`: tuple `Eq`, `PartialOrd`, `Ord`, `Hash` up to 12 elements, and the rest tuple | 82: tuple strategies | none if Q3 is B | `tuple-derived-traits`, `tuple-derived-order`, `tuple-rest-derived`, `tuple-ordering-nan-unordered`, `assert-equal-tuple` (closes Q6, TR-traits) |
 | M9 | `std.iter`: `FromIterator` for `Map` | 69 | none | `collect-targets`, `collect-targets-run`, `collect-target-from-try-hint` |
 | M10 | `lib/std/task.hd`: `retry!` in hd, with `block_on`, `all`, `race` declared `@intrinsic` | 0 | `lib/std/task.hd` beside the compiler module (20) | `task-retry`, `task-retry-at-least-once` (closes RETRY) |
@@ -390,8 +378,7 @@ known-failure row changed.
   is reported from the walk's member call at the field, and
   `missing-derived-bound` from the derived implementation; a newtype
   calls its base type's method through a bounded helper.
-  `mixed-derived-law` is unchanged. `@derive(Debug)` is still the TS
-  generator (M7).
+  `mixed-derived-law` is unchanged.
 - `std.structure` names are hidden when the program declares a type of
   the same name, since every program that derives `Eq` now declares them.
 - Left: tuple `Structure`, `Walker.rest`, the seven tuple templates, and
@@ -444,10 +431,6 @@ of them moved from `shared.ts` to `checker/map-keys.ts`.
   impls joined whenever its code mentioned a parenthesis: a 7-line
   `println` program went from 227 to 54 KB of WAT, and
   `examples/core.hd` from 224 to 91 KB.
-- Left: `@derive(Debug)` through a template (M7) and deleting the TS
-  `Debug` generator. Its walker cannot choose `debug_struct` or
-  `debug_tuple` for a mixed variant before it sees every member, so it
-  needs `describe` first or a buffered builder.
 
 Rules for every chunk:
 

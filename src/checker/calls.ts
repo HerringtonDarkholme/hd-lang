@@ -9,7 +9,6 @@ import type {
 } from "../hir.ts";
 import { forwardingPlan } from "./assignability.ts";
 import { DERIVED_IMPLEMENTATION_SPANS } from "./derive-intrinsics.ts";
-import { implementsDebug } from "./debug.ts";
 import {
   contextKeys,
   mutableInner,
@@ -42,6 +41,7 @@ import {
   lacksOnlyPatternKeys,
   matchGenericTypePattern,
   matchTraitImplementation,
+  MAX_BOUND_DEPTH,
   normalizeBoundProjections,
   requirementKeysMayCollide,
   resolveGenericType,
@@ -79,9 +79,36 @@ export abstract class CallChecker extends StatementChecker {
   /** Arguments a call rewrite has already checked, such as a spread tuple's elements. */
   protected readonly prechecked = new WeakMap<Expression, HirExpression>();
 
-  protected implementsDebug(type: ValueType): boolean {
-    const bounds = this.signature.genericBounds;
-    return implementsDebug(type, this.traitTypes, this.implementations, bounds);
+  /**
+   * Whether `type` implements the trait `traitName`: a type parameter through
+   * its bounds, any other type through an implementation, std's included,
+   * whose bounds its type arguments meet, or through the language's own
+   * dictionary, as a primitive's `Eq`.
+   */
+  protected implementsTrait(type: ValueType, traitName: string, depth = 0): boolean {
+    const trait = this.traitTypes.get(traitName);
+    if (!trait) return false;
+    const target = readonlyType(type);
+    const generic = genericTypeName(target);
+    if (generic)
+      return this.signature.genericBounds.some(
+        (bound) => bound.parameter === generic && bound.traitIndex === trait.index,
+      );
+    if (depth > MAX_BOUND_DEPTH) return true;
+    if (this.builtinTraitDictionaryPlan(trait.index, target, [], this.signature.span)) return true;
+    return this.implementations.some((implementation) => {
+      const substitutions = matchTraitImplementation(implementation, trait.index, target, []);
+      return (
+        substitutions !== undefined &&
+        implementation.genericBounds.every((bound) =>
+          this.implementsTrait(
+            substitutions.get(bound.parameter) ?? bound.parameter,
+            bound.traitName,
+            depth + 1,
+          ),
+        )
+      );
+    });
   }
 
   /** The runner hooks of a lowered `it_each` table (parser/test-cases.ts). */

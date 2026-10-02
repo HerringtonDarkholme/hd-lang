@@ -43,7 +43,6 @@ import {
 import { isRowSubsumption, mismatchMessage, rowDiagnostic } from "./row-rules.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
 import * as termination from "./termination.ts";
-import { builtinDebug, implementsDebug } from "./debug.ts";
 import { varianceConversion } from "./variance.ts";
 import {
   genericTypeName,
@@ -972,11 +971,6 @@ export abstract class CheckerContext {
         : undefined;
       return dictionary && plan(dictionary.builtin, dictionary.bounds);
     }
-    if (traitName === "Debug")
-      return builtinDebug(type) &&
-        implementsDebug(type, this.traitTypes, this.implementations, this.signature.genericBounds)
-        ? plan({ kind: "debug", traitIndex, targetType: type })
-        : undefined;
     if (traitName === "Display") {
       return numericType(type) || ["bool", "char", "string"].includes(type)
         ? plan({ kind: "display", traitIndex, targetType: type })

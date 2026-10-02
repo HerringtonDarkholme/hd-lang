@@ -57,3 +57,9 @@ tests:
 
     it("a map entry meets a Display bound"):
         assert_equal(first_entry({"a": 1}).len(), 6, reason="entry display")
+
+    it("debug writes a map's entries in order"):
+        assert_equal(debug({"a": 1, "b": 2}), "{\"a\": 1, \"b\": 2}", reason="debug_map")
+        let empty: Map[string, i32] = {}
+        assert_equal(debug(empty), "{}", reason="an empty map")
+        assert_equal(debug({Id { value: "k" }: [1]}), "{Id { value: \"k\" }: [1]}", reason="derived key")

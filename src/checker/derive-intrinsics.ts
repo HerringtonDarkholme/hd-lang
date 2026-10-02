@@ -1,13 +1,10 @@
-import type { DataField, FunctionDecl, ImplDecl, Program, TypeDecl } from "../ast.ts";
+import type { DataField, Program, TypeDecl } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { readonlyType } from "../types.ts";
-import { Source_, ZERO_SPAN } from "./generated-source.ts";
-import type { Target } from "./member-lines.ts";
 
 // ---------------------------------------------------------------------------
 // The derive checks of the comparison traits, whose implementations come from
-// the std templates (spec/lang/09-traits.md#derived-implementations), and the
-// intrinsic `@derive(Debug)` (#debug-trait).
+// the std templates (spec/lang/09-traits.md#derived-implementations).
 
 /** What a derived field line compares or hashes, for its diagnostic. */
 interface DerivedFieldCheck {
@@ -95,104 +92,6 @@ export function derivedImplementationSpan(span: SourceSpan): SourceSpan {
   return fresh;
 }
 
-/** Starts `impl[T < Trait] Trait for Target:` and returns the target's placeholder. */
-function derivedImpl(target: Target, trait: string, out: Source_): string {
-  const { name, genericParameters: parameters } = target.declaration;
-  const T = out.type(parameters.length > 0 ? `${name}[${parameters.join(",")}]` : name);
-  const bounds = parameters.map((parameter) => `${parameter} < ${trait}`).join(", ");
-  out.add(`impl${parameters.length > 0 ? `[${bounds}]` : ""} ${trait} for ${T}:`);
-  return T;
-}
-
-function deriveDebug(target: Target, writer: string, span: SourceSpan): ImplDecl {
-  const out = new Source_();
-  derivedImpl(target, "Debug", out);
-  out.add(`    fn debug(self, out: mut ${writer}) -> void:`);
-  // One builder per value, as Rust's derive does (std-format.debug.derive-builders.mapping):
-  // `debug_struct` for a data type, even a fieldless one, and for a variant
-  // with named members; `debug_tuple` for a variant with positional ones; and
-  // the bare name for a variant without a payload. A variant that mixes both
-  // uses `debug_struct`, naming a positional field `_0`, `_1`, and so on
-  // (std-format.debug.derive-builders.mixed).
-  const label = (member: DataField): string =>
-    member.positional ? `_${member.name}` : member.name;
-  const struct = (members: readonly DataField[], name: string, value: (index: number) => string) =>
-    `out.debug_struct(${out.string(name)})${members.map((member, index) => `.field(${out.string(label(member))}, ${value(index)})`).join("")}.finish()`;
-  const fields = (members: readonly DataField[], name: string, value: (index: number) => string) =>
-    members.length === 0
-      ? `out.write(${out.string(name)})`
-      : members.every((member) => member.positional)
-        ? `out.debug_tuple(${out.string(name)})${members.map((_, index) => `.field(${value(index)})`).join("")}.finish()`
-        : struct(members, name, value);
-  if (target.kind === "data") {
-    const members = target.declaration.fields;
-    out.add(
-      `        ${struct(members, target.declaration.name, (index) => `self.${members[index]!.name}`)}`,
-    );
-  } else {
-    const { name, variants } = target.declaration;
-    if (variants.length === 0) out.add("        pass");
-    else out.add("        match self:");
-    for (const variant of variants) {
-      const bound = variant.fields.map((_, index) => `hd_v${index}`);
-      const pattern =
-        bound.length === 0
-          ? `${name}.${variant.name}`
-          : `${name}.${variant.name}(${bound.join(", ")})`;
-      out.add(
-        `            ${pattern} => ${fields(variant.fields, variant.name, (index) => bound[index]!)}`,
-      );
-    }
-  }
-  return out.program(span).implementations[0]!;
-}
-
-interface IntrinsicDerivation {
-  readonly trait: string;
-  readonly target: Target;
-  readonly span: SourceSpan;
-}
-
-const DEBUG = "hd__debug";
-
-interface NewtypeDerivation {
-  readonly trait: string;
-  readonly declaration: TypeDecl;
-  readonly span: SourceSpan;
-}
-
-/**
- * `@derive(Debug)` on a newtype applies the base type's method to the
- * unwrapped value (spec/lang/09-traits.md#derived-newtypes).
- */
-function deriveNewtypeDebug(item: NewtypeDerivation, writer: string): ImplDecl {
-  const { name, genericParameters: parameters, base } = item.declaration;
-  const out = new Source_();
-  const T = out.type(parameters.length > 0 ? `${name}[${parameters.join(",")}]` : name);
-  const bounds = parameters.map((parameter) => `${parameter} < ${item.trait}`).join(", ");
-  out.add(`impl${parameters.length > 0 ? `[${bounds}]` : ""} ${item.trait} for ${T}:`);
-  const self = `${readonlyType(base!.name).split("[")[0]}(self)`;
-  // A base type without the trait is `derive-field-missing-trait` at the
-  // base type (spec/lang/09-traits.md#r-trait.derive.newtype.requires.error).
-  out.add(
-    `    fn debug(self, out: mut ${writer}) -> void: ${DEBUG}(${self}, out)`,
-    derivedBaseSpan(item.declaration, item.trait),
-  );
-  return out.program(item.span).implementations[0]!;
-}
-
-/** The generic helper that a newtype's derived `Debug` calls. */
-export function intrinsicHelpers(
-  newtypes: readonly NewtypeDerivation[],
-  writer: string,
-): FunctionDecl[] {
-  if (newtypes.length === 0) return [];
-  const out = new Source_();
-  out.add(`fn ${DEBUG}[T < Debug](value: T, out: mut ${writer}) -> void:`);
-  out.add(`    value.debug(out)`);
-  return [...out.program(ZERO_SPAN).functions];
-}
-
 // ---------------------------------------------------------------------------
 // Law partners (spec/lang/09-traits.md#law-partners).
 
@@ -251,16 +150,4 @@ export function checkLawPartners(
         );
     }
   }
-}
-
-/** Every intrinsic `@derive(Debug)` implementation. */
-export function deriveIntrinsics(
-  intrinsic: readonly IntrinsicDerivation[],
-  newtypes: readonly NewtypeDerivation[],
-  writer: string,
-): ImplDecl[] {
-  return [
-    ...intrinsic.map((item) => deriveDebug(item.target, writer, item.span)),
-    ...newtypes.map((item) => deriveNewtypeDebug(item, writer)),
-  ];
 }

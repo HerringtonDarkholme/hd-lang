@@ -99,7 +99,18 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
         }
       : diagnostic;
   });
-  return { ...result, diagnostics: [...derived.diagnostics, ...remapped] };
+  // A template with several walkers, as `Debug`'s, puts one member's
+  // obligation on each of them; the member is reported once.
+  const reported = new Set<string>();
+  const unique = remapped.filter((diagnostic) => {
+    if (diagnostic.code !== "member-not-derivable") return true;
+    const failing = /type '([^']*)'/.exec(diagnostic.message)?.[1] ?? diagnostic.message;
+    const key = `${diagnostic.span.start.offset}:${diagnostic.span.end.offset}:${failing}`;
+    if (reported.has(key)) return false;
+    reported.add(key);
+    return true;
+  });
+  return { ...result, diagnostics: [...derived.diagnostics, ...unique] };
 }
 
 function checkProgram(source: Program, options: CheckOptions): CheckResult {

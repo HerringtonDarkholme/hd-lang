@@ -49,20 +49,6 @@ export function durationName(uses: Program["uses"]): string {
 export const HIDDEN_EXIT_CODE = "__std_process_ExitCode";
 export const HIDDEN_TERMINATION = "__std_process_Termination";
 
-// `std.format.DebugWriter` (spec/lang/09-traits.md#debug-trait): the spec leaves
-// its builder calls to the standard library, so the prototype declares it
-// with no members, under its imported name or a hidden one.
-const HIDDEN_DEBUG_WRITER = "__std_format_DebugWriter";
-
-/** The local name of `std.format.DebugWriter`, or its hidden name. */
-export function debugWriterName(uses: Program["uses"]): string {
-  for (const declaration of uses)
-    for (const imported of declaration.names)
-      if (declaration.module === "std.format" && imported.name === "DebugWriter")
-        return imported.alias ?? imported.name;
-  return HIDDEN_DEBUG_WRITER;
-}
-
 // Runtime type identity (spec/lang/09-traits.md#runtime-type-identity). Importing
 // any `std.inspect` name, or `std.error.Error`, declares the sealed trait and
 // `TypeId` under their standard names; aliases are not supported. `TypeId` is

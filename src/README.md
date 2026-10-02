@@ -848,26 +848,33 @@ else`, `break`, `break value`, and `continue`;
   for declaration facts alike (M25); `VariantInfo.shared`
   is always empty; a build handle's `get` returns the declared type whatever
   its argument's permission; a newtype forwards only through the receiver
-  and plain `Self`; `@derive(Eq)`, `PartialOrd`, `Ord`, and `Hash`
-  instantiate the std templates in `lib/std/cmp.hd` and `lib/std/hash.hd`,
-  read from the std source as `Arbitrary`'s is. An enum orders by variant
+  and plain `Self`; `@derive(Eq)`, `PartialOrd`, `Ord`, `Hash`, and
+  `Debug` instantiate the std templates in `lib/std/cmp.hd`,
+  `lib/std/hash.hd`, and `lib/std/format.hd`, read from the std source as
+  `Arbitrary`'s is. An enum orders by variant
   index first, so `PartialOrd` and `Ord` first walk `other` to read its
-  index. A newtype calls its base type's method through a bounded helper,
+  index. A newtype derivation of a std trait whose methods all take
+  `self` calls its base type's method through a bounded helper,
   and `mixed-derived-law` (`checker/derive-intrinsics.ts`) checks the law
   partners; `==` and `<` use a generic implementation such as a derived
-  `impl[T < Eq] Eq for Box[T]`. `@derive(Debug)` generates
-  builder calls in Rust's mapping (Testing T53, T54): `debug_struct` for a
-  data type, even a fieldless one, and a variant with named payload fields,
+  `impl[T < Eq] Eq for Box[T]`. `Debug`'s template makes the builder
+  calls of Rust's mapping (Testing T53, T54): `debug_struct` for a data
+  type, even a fieldless one, and a variant with named payload fields,
   `debug_tuple` for a variant with positional ones, and `write` of a
   payload-free variant's name. A variant that mixes both uses
-  `debug_struct`, naming a positional field `_0`, `_1`, and so on. A field
+  `debug_struct`, naming a positional field `_0`, `_1`, and so on. A first
+  walk reads the variant and counts its positional members, so the
+  template picks the builder before it writes a field; a member without
+  `Debug` is `member-not-derivable`, reported once though both of the
+  template's writing walkers require it. A field
   a derivation compares or hashes without the trait is
   `derive-field-missing-trait` at the field (at the base type for a newtype), and a use whose added bound
   fails is `missing-derived-bound`. `Debug` is a prelude trait; `DebugWriter`, its
   builders, the prelude `debug`, and `std`'s `Debug` implementations for
-  the primitives, `List`, `T?`, `Result`, and tuples are hd code in
-  `lib/std/format.hd`, whose writer is always compact. The checker still
-  accepts `Debug` for `Map`, which renders no text; the drift and unused-fact warnings treat
+  the primitives, `List`, `Map`, `T?`, `Result`, and tuples are hd code in
+  `lib/std/format.hd`, whose writer is always compact. `assert_equal`
+  checks `Debug` through the implementations and their bounds, as a
+  call's bound is checked. The drift and unused-fact warnings treat
   the module as one package, and the unused-fact warning skips a literal
   fact such as `@"note"` and a fact built by a name imported from `std`,
   such as `@annotate(.Field)` (M25). `@derive` before a function, trait,
@@ -1226,7 +1233,7 @@ What it provides:
 | `std.resource` | `ResourceError[E]` |
 | `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; the six range types, `Iterable` for `Range`, `RangeFrom`, and `RangeInclusive` of each integer type, and the slicing `Index` implementations for `string` and `List`, one per range type and integer type; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations, and its tuple template (spec/std/ops.md) |
 | `std.function` | the sealed marker trait `Tuple`, which the compiler implements for every tuple type; a `Tuple` bound passes no dictionary. `Fn` and `SuspendFn` have no declaration: the checker rewrites them to the `fn(...)` sugar |
-| `std.format` | the prelude `Display` and `Debug`; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`; the tuple templates of `Debug` and `Display` |
+| `std.format` | the prelude `Display` and `Debug`; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `Map`, `T?`, `Result`; the template of `Debug`; the tuple templates of `Debug` and `Display` |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`, `RunOutput` and `hd_run!` over `Process`; the rest of `std.testing` is checked by the compiler |
 | `std.testing.arbitrary` | `with` and the typed fact type `With[F]`, in `lib/std/arbitrary.hd`, since the prototype has no std submodules |
 
@@ -1321,6 +1328,7 @@ marks what this refactor removed.
 | HIR | `snapshot-file` | `std.testing` | Done: `snapshot_file` is hd code in `lib/std/testing.hd` with a host function |
 | HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Remains: runner protocol, not library code |
 | HIR | `debug-render` | `std.format` | Done: `debug`, `DebugWriter`, and its builders are hd code in `lib/std/format.hd` |
+| Checker | `@derive(Debug)` generator (`deriveDebug`), builtin `debug` dictionary that wrote nothing, `implementsDebug` | `std.format` | Done: `impl[T] Debug for T by Structure` and `Debug` for `Map` are hd in `lib/std/format.hd` (migration M7) |
 | HIR | `list-*`, `map-*`, `iterator-next` | built-in `List` and `Map` | Remains: the collection types are built into the runtime layout |
 | HIR | `inspect-type-id`, `inspect-downcast` | `std.inspect` | Remains: runtime type identity is a compiler service |
 | Checker | `block_on`, `all!`, `race!`, `facts_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `race!` is hd code in `lib/std` over the `task_race_frame` runtime primitive, and `facts_of` is declared there, so only its `@intrinsic` name is known; `all!` has no written signature, so the checker types it by name and lowers it to a drive of the `task_all_frame` primitive's frame. `facts_of` lowers to a call of a generated hd builder over `std.structure`'s `Facts`, with no HIR node |

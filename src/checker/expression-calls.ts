@@ -1041,7 +1041,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         this.fail("missing-eq", `type '${actual.type}' does not implement Eq`, actual.span);
       }
       // spec/lang/10-modules.md#r-module.testing.assert-equal-debug
-      if (!this.implementsDebug(actual.type))
+      if (!this.implementsTrait(actual.type, "Debug"))
         this.fail(
           "unsatisfied-trait-bound",
           `type '${actual.type}' does not implement Debug, required by assert_equal`,

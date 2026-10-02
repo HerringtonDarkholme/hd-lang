@@ -1,7 +1,8 @@
 # std.format, the part written in hd (spec/lang/09-traits.md#debug-trait,
 # spec/std/format.md).
 # The prelude traits `Display` and `Debug`, `DebugWriter`, its builders,
-# `debug`, and the standard `Debug` implementations (Testing T48, T53).
+# `debug`, the standard `Debug` implementations, and `Debug`'s template
+# (Testing T48, T53, T54).
 
 use std.function.Tuple
 use std.structure.{Structure, Walker, Variant, Field}
@@ -188,12 +189,79 @@ impl[T < Debug, E < Debug] Debug for Result[T, E]:
             .Ok(value) => out.debug_tuple("Ok").field(value).finish()
             .Err(error) => out.debug_tuple("Err").field(error).finish()
 
+impl[K < Debug, V < Debug] Debug for Map[K, V]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        let map: mut DebugMap = out.debug_map()
+        for (key, value) in self:
+            _ := map.entry(key, value)
+        map.finish()
+
 # `debug(value)` (spec/lang/10-modules.md#r-module.prelude.debug): the text that
 # `Debug` writes for `value` (spec/std/format.md#r-std-format.debug.render).
 pub fn debug[T < Debug](value: T) -> string:
     let mut out = DebugWriter { text: "" }
     value.debug(out)
     out.text
+
+# Derived `Debug` (spec/std/format.md#r-std-format.debug.derive-builders.mapping):
+# Rust's builder per value. `debug_struct` for a data type, even a fieldless
+# one, and for a variant with a named member; `debug_tuple` for a variant
+# whose members are all positional; the bare name for a variant without
+# members. A mixed variant's positional members are named `_0`, `_1`, and
+# so on. A first walk reads the variant and counts its members, so the
+# builder is chosen before any field is written.
+impl[T] Debug for T by Structure:
+    fn debug(self, out: mut DebugWriter) -> void:
+        let shape: mut DebugShape[T] = DebugShape::[T] { name: "", of_data: false, members: 0, positional: 0 }
+        _ := Structure::walk(self, shape)
+        if !shape.of_data && shape.members == 0:
+            out.write(shape.name)
+            return
+        if !shape.of_data && shape.positional == shape.members:
+            let fields: mut DebugFields[T] = DebugFields::[T] { tuple: out.debug_tuple(shape.name) }
+            _ := Structure::walk(self, fields)
+            fields.tuple.finish()
+            return
+        let named: mut DebugNamed[T] = DebugNamed::[T] { fields: out.debug_struct(shape.name) }
+        _ := Structure::walk(self, named)
+        named.fields.finish()
+
+# The value's variant name, and how many of its members are positional.
+# The fields are public because the prototype checks the instantiated
+# walker in the program that uses it.
+data DebugShape[S]:
+    pub name: string
+    pub of_data: bool
+    pub members: i32
+    pub positional: i32
+
+impl[S] Walker[S] for DebugShape[S]:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        self.name = v.info.name
+        self.of_data = v.info.of_data
+        .Ok(())
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.members = self.members + 1
+        if h.info.positional:
+            self.positional = self.positional + 1
+        .Ok(())
+
+# Writes each member as a named field.
+data DebugNamed[S]:
+    pub fields: mut DebugStruct
+
+impl[S] Walker[S] for DebugNamed[S]:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Debug](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        _ := self.fields.field(h.info.name, value)
+        .Ok(())
 
 # Tuple `Debug` (spec/std/format.md#r-std-format.debug.tuple-template):
 # `debug_tuple("")`, a field per element, then `finish`, at every size. The
@@ -205,6 +273,7 @@ impl[T < Tuple] Debug for T by Structure:
         _ := Structure::walk(self, w)
         w.tuple.finish()
 
+# Writes each member as a positional field, for both templates.
 # The field is public because the prototype checks the instantiated walker
 # in the program that uses it.
 data DebugFields[S]:

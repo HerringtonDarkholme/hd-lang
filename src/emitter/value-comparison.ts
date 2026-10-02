@@ -447,8 +447,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
           : `(struct.new $d${typeId} ${key})`;
       } else if (builtin.kind === "equality") {
         body = this.emitValueEquality(self, other(), builtin.targetType, builtin.strategy);
-      } else if (builtin.kind === "debug") {
-        body = "(nop)";
       } else if (builtin.kind === "marker" || builtin.kind === "forward") {
         throw new Error(`a ${builtin.kind} dictionary has no builtin adapter`);
       } else {

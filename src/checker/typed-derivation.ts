@@ -17,13 +17,7 @@ import type {
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { Source_, ZERO_SPAN } from "./generated-source.ts";
-import {
-  checkLawPartners,
-  DERIVE_CHECKED_TRAITS,
-  derivedFieldSpan,
-  deriveIntrinsics,
-  intrinsicHelpers,
-} from "./derive-intrinsics.ts";
+import { checkLawPartners, DERIVE_CHECKED_TRAITS, derivedFieldSpan } from "./derive-intrinsics.ts";
 import { testingName } from "./arbitrary-module.ts";
 import { standardTemplate } from "./standard-library.ts";
 import {
@@ -55,7 +49,6 @@ import {
 } from "./template-instances.ts";
 import { withTypedFacts } from "./typed-facts.ts";
 import { factsOfBuilders, importsFactsOf, STRUCTURE_FACT } from "./function-facts.ts";
-import { debugWriterName } from "./standard-traits.ts";
 import { checkDuplicateDeclarationFacts, isLiteralFact } from "./declaration-facts.ts";
 import {
   checkMemberLines,
@@ -89,13 +82,11 @@ import {
 // permission; the traversals are generated hd source, parsed and checked
 // per derivation; `Walker.rest`'s default body panics, since generated
 // `walk` calls `member` for a walker without `rest`, which is what the
-// default does (annot.walk.rest.default); `@derive(Debug)` is still
-// intrinsic (derive-intrinsics.ts);
+// default does (annot.walk.rest.default);
 // drift and unused-fact warnings treat every local trait as one package.
 
 const STRUCTURE_MODULE = "std.structure";
 const PROTOCOL_TRAITS = new Set(["Walker", "Describer", "Source"]);
-const INTRINSIC_DERIVES = new Set(["Debug"]);
 const DOWNCAST = "hd__downcast_val";
 
 /** The checker intrinsic that panics with `structure-variant-mismatch`. */
@@ -410,9 +401,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
   // Opt-ins.
   const derivations: Derivation[] = [];
   const derivedPairs = new Map<string, SourceSpan>();
-  const intrinsic: { trait: string; target: Target; span: SourceSpan }[] = [];
   const newtypeDerivations: { trait: string; declaration: TypeDecl; span: SourceSpan }[] = [];
-  const newtypeIntrinsic: { trait: string; declaration: TypeDecl; span: SourceSpan }[] = [];
   // A std trait derives through its std template, which the program's
   // derivations instantiate with the walker or source implementations of
   // its module: `std.testing.Arbitrary` (spec/std/testing.md#derived-arbitrary),
@@ -432,14 +421,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
   const optIn = (target: Target | undefined, declaration: DataDecl | EnumDecl | TypeDecl): void => {
     for (const trait of declaration.decorators?.derives ?? []) {
       const name = trait.name;
-      if (!INTRINSIC_DERIVES.has(name)) loadStandard(name);
-      if (INTRINSIC_DERIVES.has(name)) {
-        const span = trait.span;
-        if (target) intrinsic.push({ trait: name, target, span });
-        else if (declaration.kind === "type")
-          newtypeIntrinsic.push({ trait: name, declaration, span });
-        continue;
-      }
+      loadStandard(name);
       if (!templates.has(name)) {
         error(
           "underivable-trait",
@@ -609,12 +591,16 @@ export function withTypedDerivation(source: Program): DerivationResult {
   const templateDeclarations = [...compiledTemplates.values()].map((item) => item.declarations);
   const newtypeHelpers = new Map<string, FunctionDecl>();
   for (const item of newtypeDerivations) {
-    const checked = standardTemplates.has(item.trait) && DERIVE_CHECKED_TRAITS.has(item.trait);
-    const result = forwardNewtype(item, templates.get(item.trait)!, checked, newtypeHelpers, error);
+    // A std trait whose methods all take `self` forwards through a bounded
+    // helper, so a base type without it is `derive-field-missing-trait`
+    // (trait.derive.newtype.requires.error).
+    const template = templates.get(item.trait)!;
+    const checked =
+      standardTemplates.has(item.trait) &&
+      template.methods.every((method) => method.parameters[0]?.name === "self");
+    const result = forwardNewtype(item, template, checked, newtypeHelpers, error);
     if (result) implementations.push(result);
   }
-  const writer = debugWriterName(program.uses);
-  implementations.push(...deriveIntrinsics(intrinsic, newtypeIntrinsic, writer));
   implementations.push(...templateSupport);
   if (diagnostics.some((item) => item.severity !== "warning"))
     return { program, diagnostics, optInSpans, arbitraryOptIns };
@@ -674,7 +660,6 @@ export function withTypedDerivation(source: Program): DerivationResult {
       ],
       functions: [
         ...program.functions,
-        ...intrinsicHelpers(newtypeIntrinsic, writer),
         ...newtypeHelpers.values(),
         ...factFunctions,
         ...factsOfBuilders(program, structureName("Facts"), unscoped),
