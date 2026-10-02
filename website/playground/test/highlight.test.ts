@@ -57,7 +57,7 @@ const TRICKY = [
   "    `match` := `fn` + 1",
   "use pkg.models.user.{User as Person, super_name}",
   "pub use super.shared.{Email}",
-  "fn make[reified T](value: T) -> List[Map[string, T]]: []",
+  "fn make[T](value: T) -> List[Map[string, T]]: []",
   "use_count := as_text + super_value",
   "let big: i64 = 1_000_000 + 0xFF + 3.5e10 + -250ms + 1.5kb",
   "enum Shape: Circle(radius: f64)",
@@ -89,7 +89,6 @@ test("editor token classes match classify for the tricky cases", () => {
   assert.equal(at(7, "`match`"), "");
   assert.equal(at(8, "as"), "hd-keyword");
   assert.equal(at(9, "super"), "hd-keyword");
-  assert.equal(at(10, "reified"), "hd-keyword");
   assert.equal(at(10, "List"), "hd-type");
   assert.equal(at(12, "1_000_000"), "hd-number");
   assert.equal(at(12, "250ms"), "hd-number");

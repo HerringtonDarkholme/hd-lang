@@ -148,9 +148,9 @@ function wordClass(word: string, line: string, start: number, end: number): Toke
   return "plain";
 }
 
-// `use`, `super`, and `as` in a use declaration, `reified` before a generic
-// parameter name, a provider word after `$.`, `derive` after `@`, and `by`
-// after the target of an `impl` header are keywords
+// `use`, `super`, and `as` in a use declaration, a provider word after `$.`,
+// `derive` after `@`, and `by` after the target of an `impl` header are
+// keywords
 // (01-lexical-structure.md#contextual-words).
 function contextualKeyword(word: string, line: string, start: number, end: number): boolean {
   if (PROVIDER_WORDS.has(word) && line.slice(0, start).endsWith("$.")) return true;
@@ -162,8 +162,6 @@ function contextualKeyword(word: string, line: string, start: number, end: numbe
   if (word === "use")
     return USE_DECLARATION.test(line) && /^\s*(?:pub\s+)?$/.test(line.slice(0, start));
   if (word === "super" || word === "as") return USE_DECLARATION.test(line);
-  if (word === "reified")
-    return /[[,]\s*$/.test(line.slice(0, start)) && /^\s+[\p{ID_Start}_]/u.test(line.slice(end));
   return false;
 }
 

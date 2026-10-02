@@ -76,6 +76,9 @@ export function parserSelfTest(): string[] {
     ["fn f(t: (List[i32]...,)) -> void:\n    let (xs...) = t\n", false],
     ["fn f(t: (i32, List[i32]...)) -> void:\n    let (xs..., a) = t\n", false],
     ["fn f() -> i32:\n    pack := p\n    pack.map(5)\n", true],
+    ["fn keep[reified T](value: T) -> T: value\n", false],
+    ["fn keep[reified](value: reified) -> reified: value\n", true],
+    ["fn keep[reified < Display](value: reified) -> reified: value\n", true],
   ]);
   const failures: string[] = [];
   for (const [source, expected] of probes) {

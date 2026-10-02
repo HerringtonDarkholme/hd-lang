@@ -43,7 +43,6 @@ syn match hdBang "\w\@1<=![(\[]\@="
 " Contextual words (spec/01-lexical-structure.md#contextual-words).
 syn match hdInclude "\%(^\s*\%(pub\s\+\)\=\)\@<=use\ze\s\+\%(pkg\|std\|dep\|self\|super\)\>"
 syn match hdInclude "\%(^\s*\%(pub\s\+\)\=use\s.*\)\@<=\<\%(as\|super\)\>"
-syn match hdStorage "\%([\[,]\s*\)\@<=reified\ze\s\+\h"
 syn match hdKeyword "\%(^\s*impl\>.*\s\)\@<=by\ze\s\+\S"
 
 " The requirement row `$` and the provider operations `$.use`, `$.with`,

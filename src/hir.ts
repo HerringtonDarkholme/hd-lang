@@ -69,9 +69,6 @@ export interface HirTraitMethod {
   // Method-level generic parameters bounded by AnyVal. They keep the method
   // out of dynamic dispatch (04-type-system.md#trait-values-and-any).
   readonly valueParameters?: readonly string[];
-  // Method-level generic parameters written `reified`. They keep the method
-  // out of dynamic dispatch (09-traits.md#dynamic-safety).
-  readonly reifiedParameters?: readonly string[];
   /** Type-argument defaults of the method-level parameters (09-traits.md#method-generic-parameters). */
   readonly genericDefaults?: ReadonlyMap<string, ValueType>;
   readonly suspending: boolean;

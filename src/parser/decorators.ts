@@ -14,8 +14,6 @@ import { ExpressionParser } from "./expression.ts";
 interface ParsedGenericParameters {
   readonly parameters: readonly string[];
   readonly bounds: readonly GenericBound[];
-  /** Parameters written `reified`; the prototype erases them all. */
-  readonly reified?: readonly string[];
   /** Type-argument defaults (04-type-system.md#type-argument-defaults). */
   readonly defaults?: Readonly<Record<string, TypeRef>>;
   /** `+T` and `-T` markers of a declaration's type parameters, one per parameter. */
@@ -41,7 +39,6 @@ export abstract class DecoratorParser extends ExpressionParser {
   ): ParsedGenericParameters {
     const parameters: string[] = [];
     const bounds: GenericBound[] = [];
-    const reified: string[] = [];
     const defaults: Record<string, TypeRef> = {};
     const variances: VarianceMarker[] = [];
     if (!this.matchText("[")) return { parameters, bounds };
@@ -57,20 +54,6 @@ export abstract class DecoratorParser extends ExpressionParser {
               marker.span,
             );
           variances.push(variance);
-        }
-        // `reified` modifies a parameter only directly before its name; the
-        // prototype erases every generic parameter.
-        // An unbackticked `reified` is always the modifier, so a lone one is
-        // an error; a parameter named reified is written `` `reified` ``.
-        if (this.atText("reified") && !this.current().raw) {
-          if (this.peek(1).kind !== "identifier")
-            this.fail(
-              "syntax-error",
-              "`reified` must be followed by a generic parameter name; write `reified` in backticks to name a parameter reified",
-              this.current().span,
-            );
-          this.advance();
-          reified.push(this.current().text);
         }
         const parameter = this.expectKind("identifier", "expected a generic parameter name");
         if (parameters.includes(parameter.text))
@@ -115,7 +98,6 @@ export abstract class DecoratorParser extends ExpressionParser {
     return {
       parameters,
       bounds,
-      ...(reified.length > 0 ? { reified } : {}),
       ...(Object.keys(defaults).length > 0 ? { defaults } : {}),
       ...(variances.some(Boolean) ? { variances } : {}),
     };

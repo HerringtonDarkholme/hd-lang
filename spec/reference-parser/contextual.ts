@@ -102,31 +102,6 @@ function declarationContext(clean: string): string | undefined {
   return undefined;
 }
 
-// Chapter 01: an unbackticked `reified` first in a generic parameter is always
-// the modifier, so it must be followed by the parameter name; `[reified]`
-// is a syntax error. Checks the generic parameters of a function, method,
-// implementation, or enum variant header written on one line.
-function loneReifiedParameter(clean: string, parent: string): boolean {
-  const name = String.raw`(?:[\p{L}_][\p{L}\p{N}_]*|\x60[\p{L}_][\p{L}\p{N}_]*\x60)`;
-  const header = new RegExp(
-    parent === "enum"
-      ? String.raw`^(?:@\S+\s+)*${name}\s*\[`
-      : String.raw`^(?:pub\s+)?(?:fn\s+${name}!?|impl)\s*\[`,
-    "u",
-  ).exec(clean);
-  if (!header) return false;
-  let depth = 1;
-  let end = header[0].length;
-  while (end < clean.length && depth > 0) {
-    const character = clean[end]!;
-    if (openToClose.has(character)) depth += 1;
-    else if (closeToOpen.has(character)) depth -= 1;
-    end += 1;
-  }
-  const parameters = splitTopLevel(clean.slice(header[0].length, end - 1));
-  return parameters.some((parameter) => /^reified\s*(?:\.\.\.|<|:|$)/u.test(parameter));
-}
-
 // Chapter 02: requirement keys are joined with `+`. A comma between keys is
 // the former comma-list row: `$(A, B)` anywhere, or `$ A, B` ending a
 // header. A bare `$ A, B` inside brackets is a comma of the enclosing list
@@ -157,7 +132,7 @@ function oldRowSeparator(clean: string): boolean {
 // Chapter 02: several bounds are joined with `&`; a `+` between bounds, in a
 // generic parameter or a supertrait list, is the former spelling.
 const oldBoundOperator = new RegExp(
-  String.raw`(?:[[,]\s*(?:reified\s+)?[\p{L}_][\p{L}\p{N}_]*(?:\.\.\.)?|^(?:pub\s+)?trait\s+[\p{L}_][\p{L}\p{N}_]*(?:\[[^\]]*\])?)\s*<\s*(?:mut\s+)?${capitalKey}(?:\s*&\s*${capitalKey})*\s*\+\s*${capitalKey}`,
+  String.raw`(?:[[,]\s*[\p{L}_][\p{L}\p{N}_]*(?:\.\.\.)?|^(?:pub\s+)?trait\s+[\p{L}_][\p{L}\p{N}_]*(?:\[[^\]]*\])?)\s*<\s*(?:mut\s+)?${capitalKey}(?:\s*&\s*${capitalKey})*\s*\+\s*${capitalKey}`,
   "u",
 );
 
@@ -253,7 +228,6 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
     diagnostics.push(diagnostic("mutable-field-modifier", line));
   if (parent === "trait" && /^pub\s+fn\b/.test(clean))
     diagnostics.push(diagnostic("trait-method-visibility", line));
-  if (loneReifiedParameter(clean, parent)) diagnostics.push(diagnostic("syntax-error", line));
   const firstWord = clean.split(/\s+/, 1)[0]!.replace(/:$/, "");
   if (
     !new Set(["data", "enum", "trait", "impl"]).has(parent) &&

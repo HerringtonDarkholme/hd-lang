@@ -336,7 +336,7 @@ test("syntax coloring treats raw identifiers and contextual words by position", 
   assert.equal(kind("use std.io as io", "as"), "keyword");
   assert.equal(kind("use super.shared.{Email}", "super"), "keyword");
   assert.equal(kind("x := resource.use(f)", "use"), "function");
-  assert.equal(kind("fn pick[reified T]() -> T: T()", "reified"), "keyword");
+  assert.equal(kind("fn pick[reified]() -> reified: reified()", "reified"), "plain");
   assert.equal(kind("reified := 1", "reified"), "plain");
   assert.equal(classifyInput("use(1)"), "expression");
   assert.equal(classifyInput("use std.io"), "declaration");

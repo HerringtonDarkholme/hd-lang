@@ -116,8 +116,6 @@ export interface MethodDecl {
   /** Type-argument defaults (04-type-system.md#type-argument-defaults). */
   readonly genericDefaults?: Readonly<Record<string, TypeRef>>;
   readonly genericBounds: readonly GenericBound[];
-  /** Generic parameters written `reified`. */
-  readonly reifiedParameters?: readonly string[];
   readonly parameters: readonly Parameter[];
   readonly result: TypeRef;
   readonly requirements: readonly string[];

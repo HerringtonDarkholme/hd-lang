@@ -589,10 +589,7 @@ class Parser extends LetParser {
     const parsedGenerics = this.parseGenericParameters();
     const genericParameters = [...parsedGenerics.parameters];
     const genericBounds = [...parsedGenerics.bounds];
-    const generics = {
-      ...(parsedGenerics.reified ? { reifiedParameters: parsedGenerics.reified } : {}),
-      ...(parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {}),
-    };
+    const generics = parsedGenerics.defaults ? { genericDefaults: parsedGenerics.defaults } : {};
     const enclosingGenericParameters = this.activeGenericParameters;
     this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
     this.expectText("(");

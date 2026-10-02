@@ -564,7 +564,6 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         ...(defaults.length > 0 ? { genericDefaults: new Map(defaults) } : {}),
         referenceParameters,
         valueParameters,
-        ...(method.reifiedParameters ? { reifiedParameters: method.reifiedParameters } : {}),
         suspending: method.suspending,
         receiverMutable: method.parameters[0]?.type.name === "mut:Self",
         parameters: parameters.map((parameter) => parameter ?? "void"),

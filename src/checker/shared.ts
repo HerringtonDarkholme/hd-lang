@@ -1314,7 +1314,6 @@ function traitIsDynamicallySafe(
     trait.methods.some(
       (method) =>
         method.associated ||
-        (method.reifiedParameters ?? []).length > 0 ||
         method.genericParameters.some(
           (parameter) =>
             !(method.referenceParameters ?? []).includes(parameter) &&

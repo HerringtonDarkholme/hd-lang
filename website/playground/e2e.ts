@@ -272,7 +272,7 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
       "fn read!(path: string) -> List[Map[string, i64]] $ Files:",
       "    ok := !done && (ready || `match`) != false",
       "use pkg.a.{B as C}",
-      "fn make[reified T](value: T) -> T: value",
+      "fn make[T](value: T) -> T: value",
       "big := 1_000i64 + 0xFF + 2.5e3",
     ].join("\n");
     const page = await openPage(code(source));
