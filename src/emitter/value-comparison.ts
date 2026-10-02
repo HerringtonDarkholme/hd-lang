@@ -218,16 +218,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     ].join("\n");
   }
 
-  /** The test runner hooks: exported globals the runner reads and sets. */
-  protected emitTestRunnerExpression(expression: HirExpression): string | undefined {
-    if (expression.kind === "each-row-index") return `(global.get $hd.each-index)`;
-    if (expression.kind === "each-row-count")
-      return `(global.set $hd.each-count ${this.emitExpression(expression.count)})`;
-    if (expression.kind === "test-timeout")
-      return `(global.set $hd.timeout-ms ${this.emitExpression(expression.millis)})`;
-    return undefined;
-  }
-
   protected emitPrimitiveDisplay(operand: string, type: ValueType): string {
     if (type === "string") return operand;
     if (["i8", "i16", "i32", "u8", "u16"].includes(type))

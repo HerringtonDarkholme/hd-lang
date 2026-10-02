@@ -311,8 +311,6 @@ export interface TestDecl {
   readonly result?: TypeRef;
   readonly ignore?: string;
   readonly expectPanic?: string;
-  /** The `timeout` value, any `Duration` expression (spec/std/testing.md#test-timeout). */
-  readonly timeout?: Expression;
   readonly span: SourceSpan;
 }
 

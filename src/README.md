@@ -106,7 +106,12 @@ once per row, as `name[i]`, through the exported `__hd_each_index` and
 with a `timeout` evaluates it first and reports its milliseconds through
 `__hd_timeout_ms`; the runner fails a test case whose call took longer.
 It checks after the call returns, so it cannot stop a body that never
-returns.
+returns. The parser checks an `it_each`, `it_prop`, or `it_prop_with`
+call's registration and makes its test case's body one call of an hd
+function in `lib/std/testing.hd` (`each_case!`, `prop_case!`, or
+`prop_with_case!`), and a `timeout` a call of `case_timeout`. They reach
+the globals through three runtime primitives: `case_index`,
+`report_case_count`, and `report_timeout`.
 
 `hd repl` starts an interactive session. Each input is a declaration, a
 statement, or an expression; expressions print their value and type. A line
@@ -743,7 +748,8 @@ else`, `break`, `break value`, and `continue`;
   `std.time` (`Duration`, an `i64` count of milliseconds in the
   prototype's own `millis` field, and the suffix functions `ms`, `s`,
   `min`, and `h`) come from the [standard library](#standard-library), so
-  a library suffix function works. A test `timeout` is checked as a `Duration` and enforced after the
+  a library suffix function works. A test `timeout` is passed to the
+  `Duration` parameter of `std.testing`'s `case_timeout` and enforced after the
   body returns (see `hd test` above);
 - string prefixes (Literal Suffixes L19): an identifier directly before
   `"` lexes with the string as one token (`Token.prefix`) whose text is raw
@@ -1013,7 +1019,7 @@ else`, `break`, `break value`, and `continue`;
   The shrunk stream is saved, one draw per line, under
   `__regressions__/<module>/<test-slug>` (`src/snapshots.ts`) and
   replayed before new cases on the next run. `examples` run first, one
-  case each: the lowered test asks the `prop_example` host function which
+  case each: the test case's body asks the `prop_example` host function which
   example to run, and the runner stops asking once the test reports no
   more. Each case has a draw budget of 256 draws (`prop_budget`); once
   `Choices` has spent it, every draw returns its simplest value without
@@ -1273,7 +1279,9 @@ RUNTIME_AND_LIBRARY.md).
      own value layout, listed in `emitter/intrinsics.ts`: today
      `string_byte_len`, `string_byte_at`, `string_byte_slice`,
      `char_from_scalar`, `index_out_of_bounds`, `iterator_invalidated`,
-     and `list_version`. `list_version` reads a list's structural-version
+     `list_version`, the frames `task_race_frame` and `task_all_frame`,
+     and the test runner's hooks `case_index`, `report_case_count`, and
+     `report_timeout`. `list_version` reads a list's structural-version
      counter, so `ListView` in `lib/std/collections.hd` fails fast as an
      iterator does; it is the one intrinsic that the open issue VIEW-TIER
      proposes.
@@ -1326,20 +1334,21 @@ marks what this refactor removed.
 | HIR | `assert` | `std.testing` | Remains: `assert` is checked by the compiler |
 | HIR | `assert-equal` | `std.testing` | Done: the compiler checks an `assert_equal` or `snapshot` call and lowers it to a call of the hd `check_equal` |
 | HIR | `snapshot-file` | `std.testing` | Done: `snapshot_file` is hd code in `lib/std/testing.hd` with a host function |
-| HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Remains: runner protocol, not library code |
+| HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Done: `it_each`, `it_prop`, `it_prop_with`, and `timeout` run hd functions in `lib/std/testing.hd` over three runtime primitives (migration M3) |
 | HIR | `debug-render` | `std.format` | Done: `debug`, `DebugWriter`, and its builders are hd code in `lib/std/format.hd` |
 | Checker | `@derive(Debug)` generator (`deriveDebug`), builtin `debug` dictionary that wrote nothing, `implementsDebug` | `std.format` | Done: `impl[T] Debug for T by Structure` and `Debug` for `Map` are hd in `lib/std/format.hd` (migration M7) |
 | HIR | `list-*`, `map-*`, `iterator-next` | built-in `List` and `Map` | Remains: the collection types are built into the runtime layout |
 | HIR | `inspect-type-id`, `inspect-downcast` | `std.inspect` | Remains: runtime type identity is a compiler service |
 | Checker | `block_on`, `all!`, `race!`, `facts_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `race!` is hd code in `lib/std` over the `task_race_frame` runtime primitive, and `facts_of` is declared there, so only its `@intrinsic` name is known; `all!` has no written signature, so the checker types it by name and lowers it to a drive of the `task_all_frame` primitive's frame. `facts_of` lowers to a call of a generated hd builder over `std.structure`'s `Facts`, with no HIR node |
-| Checker | `Duration` for test `timeout`, `ExitCode` and `Termination` for entry results (`standard-traits.ts`, `termination.ts`) | `std.time`, `std.process` | Remains: language hooks that name a std type; the declarations are already hd |
+| Checker | `Duration` for test `timeout` | `std.time` | Done: `case_timeout` in `lib/std/testing.hd` takes the `Duration` (migration M3) |
+| Checker | `ExitCode` and `Termination` for entry results (`standard-traits.ts`, `termination.ts`) | `std.process` | Remains: language hooks that name a std type; the declarations are already hd |
 | Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Done, except `Any` (`std.core`) and `Waker` (`std.task`), which have no `lib/std` file: the rest are hd in `std.cmp`, `std.format`, and `std.iter`, declared when a program mentions them (migration M2) |
 | Emitter | `float.wat` and the `format_f64`, `format_f32`, `pow_f64`, and `rem_f64` imports | float display, `**`, and floating `%` | Remains: operator and interpolation support |
 
 Counts: the HIR expression union had 92 kinds, of which 15 were library-
 or capability-specific. The string step removed 5, the `println` step 1,
-the `debug` and `snapshot_file` step 2, and the `assert_equal` step 1,
-leaving 83 kinds, 6 of them specific: the test-runner hooks, `assert`,
+the `debug` and `snapshot_file` step 2, the `assert_equal` step 1, and the
+test-runner hooks 3, leaving 80 kinds, 3 of them specific: the `assert`
 and `std.inspect` rows above. No capability has a HIR node now.
 
 ### Console

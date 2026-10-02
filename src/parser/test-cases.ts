@@ -172,8 +172,8 @@ function testArguments(
         argument.span,
       );
     // `timeout` takes any `Duration` value, evaluated when the test case runs
-    // (std/testing.md#r-std-testing.option.timeout-any-duration); the
-    // checker types it.
+    // (std/testing.md#r-std-testing.option.timeout-any-duration); see
+    // `withTimeout`.
     if (option === "timeout") {
       timeout = argument;
       continue;
@@ -205,15 +205,42 @@ function testArguments(
   };
 }
 
-function optionFields(
-  options: Readonly<Record<string, string>>,
-  timeout: Expression | undefined,
-): Partial<TestDecl> {
+function optionFields(options: Readonly<Record<string, string>>): Partial<TestDecl> {
   return {
     ...(options.ignore !== undefined ? { ignore: options.ignore } : {}),
     ...(options.expect_panic !== undefined ? { expectPanic: options.expect_panic } : {}),
-    ...(timeout ? { timeout } : {}),
   };
+}
+
+/** A call of a hidden `std.testing` function, `lib/std/testing.hd`. */
+function testingCall(
+  name: string,
+  arguments_: readonly Expression[],
+  span: SourceSpan,
+  named: Readonly<Record<string, Expression | undefined>> = {},
+): Expression {
+  const extra = Object.entries(named).filter(
+    (entry): entry is [string, Expression] => entry[1] !== undefined,
+  );
+  return {
+    kind: name.endsWith("_case") ? "suspend-call" : "call",
+    callee: { kind: "name", name: `__std_testing_${name}`, span },
+    arguments: [...arguments_, ...extra.map(([, value]) => value)],
+    ...(extra.length > 0
+      ? { argumentNames: [...arguments_.map(() => undefined), ...extra.map(([key]) => key)] }
+      : {}),
+    span,
+  };
+}
+
+// A `timeout` value is any `Duration`, evaluated when the test case runs
+// (spec/std/testing.md#r-std-testing.option.timeout-at-run): the test
+// function first passes it to `case_timeout`, which reports it to the
+// runner.
+function withTimeout(timeout: Expression | undefined, body: readonly Statement[]): Statement[] {
+  if (!timeout) return [...body];
+  const call = testingCall("case_timeout", [timeout], timeout.span);
+  return [{ kind: "expression", expression: call, span: timeout.span }, ...body];
 }
 
 // A top-level statement of a `tests:` block must be a call of the prelude
@@ -234,24 +261,44 @@ export function testCase(statement: Statement, fail: Fail): TestDecl {
   return {
     kind: "test",
     name,
-    body: body.body,
+    body: withTimeout(timeout, body.body),
     ...(explicit
       ? { explicit: true, ...(body.result ? { result: body.result } : {}) }
       : usesPropagation(body.body)
         ? { propagates: true }
         : {}),
-    ...optionFields(options, timeout),
+    ...optionFields(options),
     span: statement.span,
   };
 }
 
-// `std.testing.it_each(name, rows, ..., body=)` registers one case per row
-// (spec/std/testing.md#table-test-rows). The prototype compiles one test function
-// that the runner calls once per row, each in a fresh instance: it evaluates
-// `rows`, reports their count, and runs the body with the selected row. With
-// no rows, row 0 panics with `index-out-of-bounds` after reporting count 0.
-// A body without a written result that uses `?` returns `Result[void, Error]`
+// A test case whose body is one call of a `std.testing` function with the
+// written body: the `it_each`, `it_prop`, or `it_prop_with` case body in
+// lib/std/testing.hd. A body without a written result that uses `?` returns
+// `Result[void, Error]`, as the test case does
 // (spec/std/testing.md#r-std-testing.try.test.row-body).
+function libraryCase(
+  body: Closure,
+  run: (closure: Closure) => Expression,
+  timeout: Expression | undefined,
+  errorName: string,
+): Partial<TestDecl> & Pick<TestDecl, "body"> {
+  const propagates = !body.result && usesPropagation(body.body);
+  const closure: Closure = propagates
+    ? { ...body, result: { name: `Result[void,${errorName}]`, span: body.span } }
+    : body;
+  const expression = run(closure);
+  return {
+    body: withTimeout(timeout, [{ kind: "expression", expression, span: expression.span }]),
+    ...(body.result ? { explicit: true, result: body.result } : {}),
+    ...(propagates ? { propagates: true } : {}),
+  };
+}
+
+// `std.testing.it_each(name, rows, ..., body=)` registers one case per row
+// (spec/std/testing.md#table-test-rows). The prototype compiles one test
+// function that the runner calls once per row, each in a fresh instance; its
+// body is `each_case!(rows, body)`.
 function tableTest(
   statement: Statement,
   aliases: ReadonlySet<string>,
@@ -274,62 +321,14 @@ function tableTest(
   const rows = positional[0]!;
   if (body.trailing === true || body.parameters.length !== 1)
     fail("argument-count", "an it_each body is a fn! closure with one parameter", body.span);
-  const propagates = !body.result && usesPropagation(body.body);
-  const span = call.span;
-  const local = (name: string): Expression => ({ kind: "name", name, span });
-  const bind = (name: string, value: Expression): Statement => ({
-    kind: "binding",
-    name,
-    mutable: false,
-    value,
-    span,
-  });
-  const invoke = (callee: Expression, arguments_: Expression[] = []): Expression => ({
-    kind: "call",
-    callee,
-    arguments: arguments_,
-    span,
-  });
-  const count = invoke({ kind: "member", receiver: local("$each.rows"), name: "len", span });
-  const bangCall: Expression = {
-    kind: "suspend-call",
-    callee: local("$each.body"),
-    arguments: [
-      { kind: "index", receiver: local("$each.rows"), index: local("$each.index"), span },
-    ],
-    span,
-  };
-  const closure: Closure = propagates
-    ? { ...body, result: { name: `Result[void,${errorName}]`, span: body.span } }
-    : body;
-  const statementOf = (expression: Expression): Statement => ({
-    kind: "expression",
-    expression,
-    span,
-  });
+  const run = (closure: Closure): Expression =>
+    testingCall("each_case", [rows, closure], call.span);
   return {
     kind: "test",
     name,
-    body: [
-      { ...bind("$each.body", closure), span: body.span },
-      bind("$each.rows", rows),
-      bind("$each.index", invoke(local("$each-row-index"))),
-      statementOf(invoke(local("$each-row-count"), [count])),
-      statementOf(propagates ? { kind: "propagate", operand: bangCall, span } : bangCall),
-      ...(propagates
-        ? [
-            statementOf(
-              invoke({ kind: "contextual-variant", name: "Ok", span }, [
-                { kind: "tuple", elements: [], span },
-              ]),
-            ),
-          ]
-        : []),
-    ],
-    ...(body.result ? { explicit: true, result: body.result } : {}),
+    ...libraryCase(body, run, timeout, errorName),
     table: true,
-    ...(propagates ? { propagates: true } : {}),
-    ...optionFields(options, timeout),
+    ...optionFields(options),
     span: statement.span,
   };
 }
@@ -338,11 +337,8 @@ function tableTest(
 // `it_prop_with(name, gen, ...)` register one property test case
 // (spec/std/testing.md#property-tests). The prototype compiles one test
 // function that the runner calls once per generated case, each in a fresh
-// instance: it reports `cases` and `shrink` to the runner, takes a
-// runner-created `Choices`, draws the input with `gen` or the parameter
-// type's `Arbitrary`, reports the input's `Debug` text (so `T < Debug`,
-// spec/std/testing.md#r-std-testing.prop.debug), and runs `prop` with it
-// (src/property-tests.ts).
+// instance (src/property-tests.ts); its body is `prop_case!` or
+// `prop_with_case!` of lib/std/testing.hd.
 function propertyTest(
   statement: Statement,
   withGenerator: boolean,
@@ -375,116 +371,24 @@ function propertyTest(
       "an it_prop parameter needs a type, whose Arbitrary draws it",
       parameter!.span,
     );
-  const propagates = !body.result && usesPropagation(body.body);
   const span = call.span;
-  const local = (text: string): Expression => ({ kind: "name", name: text, span });
   const integer = (value: number): Expression => ({ kind: "integer", value: BigInt(value), span });
-  const invoke = (callee_: Expression, arguments_: Expression[] = []): Expression => ({
-    kind: "call",
-    callee: callee_,
-    arguments: arguments_,
-    span,
-  });
-  const bind = (text: string, value: Expression): Statement => ({
-    kind: "binding",
-    name: text,
-    mutable: false,
-    value,
-    span,
-  });
-  const statementOf = (expression: Expression): Statement => ({
-    kind: "expression",
-    expression,
-    span,
-  });
-  // With `examples`, a helper takes the example the runner selects or
-  // draws a value; without, the case still asks which example to run, so
-  // the runner learns there is none (src/property-tests.ts).
-  const examples = named.examples;
-  const draw: Expression = withGenerator
-    ? examples
-      ? invoke(local(PROPERTY_VALUE), [examples, local("$prop.gen"), local("$prop.choices")])
-      : invoke(local("$prop.gen"), [local("$prop.choices")])
-    : examples
-      ? {
-          kind: "call",
-          callee: local(PROPERTY_EXAMPLE_OR_DRAW),
-          typeArguments: [parameter!.type!],
-          arguments: [examples, local("$prop.choices")],
-          span,
-        }
-      : {
-          kind: "call",
-          callee: { kind: "member", receiver: local("$prop.choices"), name: "draw", span },
-          typeArguments: [parameter!.type!],
-          arguments: [],
-          span,
-        };
-  const bangCall: Expression = {
-    kind: "suspend-call",
-    callee: local("$prop.body"),
-    arguments: [local("$prop.value")],
-    span,
-  };
-  const closure: Closure = propagates
-    ? { ...body, result: { name: `Result[void,${errorName}]`, span: body.span } }
-    : body;
+  const caps = [named.cases ?? integer(100), named.shrink ?? integer(500)];
+  const run = (closure: Closure): Expression =>
+    generator
+      ? testingCall("prop_with_case", [...caps, generator, closure], span, {
+          examples: named.examples,
+        })
+      : testingCall("prop_case", [...caps, closure], span, { examples: named.examples });
   return {
     kind: "test",
     name,
-    body: [
-      { ...bind("$prop.body", closure), span: body.span },
-      ...(generator ? [bind("$prop.gen", generator)] : []),
-      statementOf(
-        invoke(local(PROPERTY_CONFIG), [named.cases ?? integer(100), named.shrink ?? integer(500)]),
-      ),
-      {
-        kind: "binding",
-        name: "$prop.choices",
-        mutable: true,
-        mutableAccess: true,
-        value: invoke(local(PROPERTY_CHOICES)),
-        span,
-      },
-      ...(examples
-        ? []
-        : [
-            {
-              kind: "discard",
-              value: invoke(local(PROPERTY_EXAMPLE), [integer(0)]),
-              span,
-            } as Statement,
-          ]),
-      bind("$prop.value", draw),
-      statementOf(invoke(local(PROPERTY_INPUT), [local("$prop.value")])),
-      statementOf(propagates ? { kind: "propagate", operand: bangCall, span } : bangCall),
-      ...(propagates
-        ? [
-            statementOf(
-              invoke({ kind: "contextual-variant", name: "Ok", span }, [
-                { kind: "tuple", elements: [], span },
-              ]),
-            ),
-          ]
-        : []),
-    ],
-    ...(body.result ? { explicit: true, result: body.result } : {}),
+    ...libraryCase(body, run, timeout, errorName),
     property: true,
-    ...(propagates ? { propagates: true } : {}),
-    ...optionFields(options, timeout),
+    ...optionFields(options),
     span: statement.span,
   };
 }
-
-/** The hidden `std.testing` functions a lowered property test calls. */
-const PROPERTY_CONFIG = "__std_testing_prop_config";
-const PROPERTY_CHOICES = "__std_testing_prop_choices";
-/** The example the runner selects, or -1; see `examples` in lib/std/testing.hd. */
-const PROPERTY_EXAMPLE = "__std_testing_prop_example";
-const PROPERTY_VALUE = "__std_testing_prop_value";
-const PROPERTY_EXAMPLE_OR_DRAW = "__std_testing_prop_example_or_draw";
-/** Reports the input's `Debug` text, so `T` must implement `Debug`. */
-const PROPERTY_INPUT = "__std_testing_prop_input";
 
 /** Resolves `it_each` calls, checks name uniqueness, and fixes `?` bodies' results. */
 export function finishTestCases(items: ModuleItems, fail: Fail): void {

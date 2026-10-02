@@ -61,9 +61,6 @@ The best chunks, by TS deleted per hour:
 
 | Chunk | Work | TS deleted |
 | --- | --- | --- |
-| M1 | Generic impl lookup, then `Eq` and `PartialOrd` for `List`, `T?`, `Result`, `Map` in hd | about 400 |
-| M2 | Prelude traits declared in `lib/std`, found by standard name | about 345 |
-| M3 | `it_each`, `it_prop`, `it_prop_with`, and `timeout` as hd functions | about 285 |
 | M4 | `assert`, `assert_equal`, and `snapshot` as hd functions | about 250 |
 | M5 | `std.structure`, `std.inspect`, and `std.testing.arbitrary` as hd files | about 175 |
 
@@ -111,7 +108,6 @@ defined in [Classification](#classification).
 | Feature | TS files | Lines | Spec | Class |
 | --- | --- | --- | --- | --- |
 | `assert`, `assert_equal`, `snapshot` as HIR nodes | `checker/expression-calls.ts` (190), `emitter/function-body.ts` (42), `suspension.ts`, HIR | 250 | [Standard Testing](../spec/lang/10-modules.md#standard-testing): harness; `snapshot`'s literal stays language | C |
-| `it_each` rows, `it_prop`, `it_prop_with`, `timeout` | `parser/test-cases.ts` (`tableTest`, `propertyTest`), `checker/program-declarations.ts` (timeout), `checker/calls.ts`, HIR `each-row-index`, `each-row-count`, `test-timeout`, runtime globals | 285 | [Testing](../spec/std/testing.md): stdlib tier | C |
 | Test runner: cases, rows, timeouts | `test-runner.ts` | 170 | runner | A (host tool) |
 | Property runner: PRNG, draws, shrinking, regressions | `property-tests.ts` | 303 | [Property Tests](../spec/std/testing.md#property-tests) | A (host tool) |
 | Snapshot files | `snapshots.ts` | 90 | [Snapshot Files](../spec/std/testing.md#snapshot-files) | A (host tool) |
@@ -168,7 +164,6 @@ std items by spelling, such as `Some`/`None`/`Ok`/`Err` in patterns and
 | `Eq`/`PartialOrd` for `List`, `T?`, `Result`, `Map` | **generic impl lookup**: `traitMethodDispatch` and `displayValue` match `impl[T] Eq for List[T]` by pattern (as `implementsDebug` already does), not by exact target | about 30 | about 400 |
 | Prelude traits in TS | **lang items by standard name**: look up `Eq`, `Ordering`, `Iterable`, `Console` by `standardName`, not by fixed trait index (`lowerRunTimeGaps` relies on `Console` being last) | about 40 | about 345 |
 | `assert`, `assert_equal`, `snapshot` | **`panic_category` intrinsic**: a std-only `@intrinsic("panic_category")` that panics with a named category such as `assertion-failed`; keep the `missing-eq` remap and the literal `expect` check | about 35 | about 250 |
-| `it_each`, `it_prop`, `it_prop_with`, `timeout` | **runner hooks as `@intrinsic`**: `case_index()`, `report_case_count(n)`, `report_timeout(ms)` replace three HIR nodes; the parser keeps only the registration position check and calls the std function as the case body | about 40 | about 285 |
 | `std.testing.arbitrary` shim | **std submodules**: `lib/std/testing/arbitrary.hd` joins as `std.testing.arbitrary` | about 20 | 59 |
 | Tuple `==`, `<`, `Hash` | **none if Q3 is B**: hd impls up to 12 elements and a rest tuple, as `Debug` has. Otherwise **tuple `Structure`**: tuples get compiler `Structure` so std templates derive them | 0, or about 120 | 82 |
 | `retry!` | **`lib/std/task.hd`**: a std file beside the compiler-provided `block_on`, `all`, `race`, declared there as `@intrinsic` signatures | about 20 | 0; closes 4 known failures |
@@ -185,10 +180,9 @@ and the agent tooling. Not audited.
 ### Stdlib-Tier Features That Exist Only As TypeScript
 
 1. **`@derive(Debug)`.** Done in M7: `lib/std/format.hd` holds the template.
-2. **Table and property tests.** `it_each` rows, `it_prop`,
-   `it_prop_with`, and the `timeout` option are stdlib tier
-   ([Testing](../spec/std/testing.md)). The prototype lowers them in the
-   parser (`tableTest`, `propertyTest`) and with three HIR nodes.
+2. **Table and property tests.** Done in M3: a test case's body calls
+   `each_case!`, `prop_case!`, or `prop_with_case!` in
+   `lib/std/testing.hd`.
 3. **`FromIterator` for `Map`.** [Collect Targets](../spec/std/iter.md#collect-targets)
    is stdlib tier. The checker supplies the `Map` impl (`map-collection`).
 4. **`retry!`.** [Task](../spec/std/task.md) has no prototype at all,
@@ -245,19 +239,13 @@ requires.
 
 | # | hd to write in `lib/std` | TS to delete | Hook | Fixtures that prove it |
 | --- | --- | --- | --- | --- |
-| M1 | `std.cmp`: `impl[T < Eq] Eq for List[T]`, `T?`, `Result[T, E]`, `Map[K, V]`; `PartialOrd` for `List[T]` and `T?`, lexicographic, `.None` first | about 400: composite strategies in `value-comparison.ts`, checker strategy branches, HIR strategy kinds | generic impl lookup in `traitMethodDispatch` and `displayValue` (30) | `assert-equal-list`, `-map`, `-optional`, `-result`, `composite-ordering`, `structural-ordering`, `nan-ordering-composites`, `display-tuples` (closes Q6-others) |
-| M2 | `std.cmp`: `Eq`, `PartialOrd`, `Ord`, `Ordering`; `std.format`: `Display`, `Debug`; `std.iter`: `Iterable`; `std.console`: `Console`; `Any`, `Waker`, `ResourceError` | about 345: `program-types.ts` declarations, `standard-traits.ts` shims | lang items by standard name (40) | the whole portable suite; `bool-ordering`, `display-dispatch`, `partial-ordering-dispatch` |
-| M3 | `std.testing`: `it_each`, `it_prop`, `it_prop_with` as hd functions over `case_index`, `report_case_count`, `report_timeout`, and the existing `prop_*` intrinsics | about 285: `tableTest`, `propertyTest`, timeout lowering, three HIR nodes | runner hooks as `@intrinsic` (40) | `it-each-rows`, `it-each-options`, `it-each-propagation`, `test-timeout-options`, `property-assume-discards`, `property-draw-budget`, `test/std/property.hd` |
 | M4 | `std.testing`: `assert`, `assert_equal[T < Eq & Debug]` that panics with both `debug` texts and `reason`, `snapshot` over `assert_equal` | about 250: `assert`/`assert-equal` checker and emitter cases, HIR | `panic_category` intrinsic (35) | `assert`, the 19 `assert-equal-*` fixtures, `snapshot-mismatch`, `snapshot-file-missing`; needs M1 |
 | M5 | `lib/std/structure.hd`, `lib/std/inspect.hd`, `lib/std/testing/arbitrary.hd` | about 175: `STRUCTURE_SOURCE`, `INSPECT_SOURCE`, `arbitrary-module.ts` | std submodules (20) | `typed-derivation*`, `derive-without-structure-use`, `arbitrary-with-*`, `typeid-*` |
 | M6 | `std.format`: `Display` for the integers, `char`, `bool` | about 160: `display` node, `emitPrimitiveDisplay`, four WAT `*_to_string` | none | `string-interpolation-built-ins`, `interpolation-display-order`, `expression-interpolation` |
-| M8 | `std.cmp`, `std.hash`: tuple `Eq`, `PartialOrd`, `Ord`, `Hash` up to 12 elements, and the rest tuple | 82: tuple strategies | none if Q3 is B | `tuple-derived-traits`, `tuple-derived-order`, `tuple-rest-derived`, `tuple-ordering-nan-unordered`, `assert-equal-tuple` (closes Q6, TR-traits) |
-| M9 | `std.iter`: `FromIterator` for `Map` | 69 | none | `collect-targets`, `collect-targets-run`, `collect-target-from-try-hint` |
-| M10 | `lib/std/task.hd`: `retry!` in hd, with `block_on`, `all`, `race` declared `@intrinsic` | 0 | `lib/std/task.hd` beside the compiler module (20) | `task-retry`, `task-retry-at-least-once` (closes RETRY) |
-| M11 | after Q4: `std.cmp`, `std.hash` templates for `Eq`, `PartialOrd`, `Ord`, `Hash` | about 325 of `derive-intrinsics.ts`; law partners stay as a check | map a template member-bound error to `derive-field-missing-trait` (20) | `derived-equality`, `derived-ordering`, `derived-total-order-float`, the `derive-field-missing-trait` and `mixed-derived-law` fixtures |
 
-Totals: M1 to M10 delete about 1,900 lines of TS and add about 1,000
-lines of hd and 200 lines of hooks. M11 adds about 325 more after Q4.
+Left: M4 to M6 delete about 585 lines of TS. The rows of the done steps
+are deleted; the status notes below record how they differed from the
+plan.
 
 **M1 status, 2026-10-01: done.** `lib/std/cmp.hd` holds the impls; the
 composite strategies, their HIR kinds, and `genericEqualityCall` are gone

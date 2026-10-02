@@ -111,21 +111,6 @@ export abstract class CallChecker extends StatementChecker {
     });
   }
 
-  /** The runner hooks of a lowered `it_each` table (parser/test-cases.ts). */
-  protected checkEachRowCall(expression: Extract<Expression, { kind: "call" }>): HirExpression {
-    const span = expression.span;
-    if (expression.callee.kind === "name" && expression.callee.name === "$each-row-index")
-      return { kind: "each-row-index", type: "i32", span };
-    const count = this.checkExpression(expression.arguments[0]!, "i32");
-    return { kind: "each-row-count", count, type: "void", span };
-  }
-
-  /** The runner hook of a test `timeout` (program-declarations.ts). */
-  protected checkTestTimeoutCall(expression: Extract<Expression, { kind: "call" }>): HirExpression {
-    const millis = this.checkExpression(expression.arguments[0]!, "i64");
-    return { kind: "test-timeout", millis, type: "void", span: expression.span };
-  }
-
   protected resolveProvider(key: string, span: SourceSpan): HirExpression | undefined {
     for (let index = this.providerScopes.length - 1; index >= 0; index -= 1) {
       const local = this.providerScopes[index]!.get(key);

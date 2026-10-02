@@ -483,20 +483,6 @@ export type HirExpression =
     })
   | (HirExpressionBase & { readonly kind: "display"; readonly operand: HirExpression })
   | (HirExpressionBase & {
-      // The row an `it_each` test function runs, which the runner selects.
-      readonly kind: "each-row-index";
-    })
-  | (HirExpressionBase & {
-      // Reports an `it_each` table's row count to the runner.
-      readonly kind: "each-row-count";
-      readonly count: HirExpression;
-    })
-  | (HirExpressionBase & {
-      // Reports a test case's `timeout` in milliseconds to the runner.
-      readonly kind: "test-timeout";
-      readonly millis: HirExpression;
-    })
-  | (HirExpressionBase & {
       readonly kind: "value-equality";
       readonly left: HirExpression;
       readonly right: HirExpression;

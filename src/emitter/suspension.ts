@@ -408,12 +408,6 @@ class SuspensionPlanBuilder {
           (operand) => continuation({ ...expression, operand: operand! }),
           context,
         );
-      case "each-row-index":
-        return continuation(expression);
-      case "each-row-count":
-        return lowerValues([expression.count], ([count]) => ({ ...expression, count: count! }));
-      case "test-timeout":
-        return lowerValues([expression.millis], ([millis]) => ({ ...expression, millis: millis! }));
       case "value-equality":
       case "value-ordering":
         return lowerValues([expression.left, expression.right], ([left, right]) => ({

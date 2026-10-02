@@ -2,48 +2,11 @@ import type { Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
 import { nominalGenericType } from "../types.ts";
 
-import { durationName } from "./standard-traits.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 
 interface ExplicitEnumFieldValue {
   readonly fieldIndex: number;
   readonly value: Expression;
-}
-
-// A `timeout` value is any `Duration`, evaluated when the test case runs
-// (spec/std/testing.md#r-std-testing.option.timeout-at-run). The test
-// function evaluates it first, as a `Duration` binding, and reports its
-// milliseconds to the runner, which fails a body that runs longer.
-function timeoutStatements(value: Expression, duration: string): Statement[] {
-  const span = value.span;
-  const local: Expression = { kind: "name", name: "$test.timeout", span };
-  return [
-    {
-      kind: "binding",
-      name: "$test.timeout",
-      annotation: { name: duration, span },
-      mutable: false,
-      value,
-      span,
-    },
-    {
-      kind: "expression",
-      expression: {
-        kind: "call",
-        callee: { kind: "name", name: "$test-timeout", span },
-        arguments: [
-          {
-            kind: "call",
-            callee: { kind: "member", receiver: local, name: "as_milliseconds", span },
-            arguments: [],
-            span,
-          },
-        ],
-        span,
-      },
-      span,
-    },
-  ];
 }
 
 // Each `it(...)` call becomes a suspending synthetic function
@@ -52,7 +15,6 @@ function timeoutStatements(value: Expression, duration: string): Statement[] {
 // (spec/lang/05-expressions.md#propagation-in-test-blocks). An explicit closure
 // keeps its written result, or infers one.
 function createTestDeclarations(program: ProgramCheckContext["program"]): FunctionDecl[] {
-  const duration = durationName(program.uses);
   return program.tests.map((test, index) => {
     const inferred = test.explicit === true && test.result === undefined;
     const options = {
@@ -72,7 +34,7 @@ function createTestDeclarations(program: ProgramCheckContext["program"]): Functi
       result: test.result ?? { name: "void", span: test.span },
       ...(inferred ? { resultOmitted: true } : {}),
       requirements: [],
-      body: test.timeout ? [...timeoutStatements(test.timeout, duration), ...test.body] : test.body,
+      body: test.body,
       testOnly: true,
       testOptions: options,
       span: test.span,

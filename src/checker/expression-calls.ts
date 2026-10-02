@@ -1154,8 +1154,6 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       return { kind: "panic", message, type: "never", span: expression.span };
     }
 
-    if (expression.callee.name.startsWith("$each-row-")) return this.checkEachRowCall(expression);
-    if (expression.callee.name === "$test-timeout") return this.checkTestTimeoutCall(expression);
     if (
       expression.callee.name.startsWith("$enum-literal.") ||
       expression.callee.name.startsWith("$enum-template.")

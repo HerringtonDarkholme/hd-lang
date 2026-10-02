@@ -163,7 +163,6 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
     const emitted =
       this.emitValueExpression(expression) ??
       this.emitCallExpression(expression) ??
-      this.emitTestRunnerExpression(expression) ??
       this.emitContainerExpression(expression) ??
       this.emitControlExpression(expression);
     if (emitted !== undefined) return emitted;

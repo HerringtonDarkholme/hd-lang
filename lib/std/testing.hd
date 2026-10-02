@@ -1,8 +1,9 @@
 # std.testing, the part written in hd (spec/lang/10-modules.md#standard-testing).
 # `assert`, `assert_equal`, `snapshot`, `it_each`, `it_prop`, and
 # `it_prop_with` are checked by the compiler; `Choices`, `Arbitrary`, and
-# `snapshot_file` are declared here (Testing T53), with the property-test
-# runner protocol. `std.testing.arbitrary` is `lib/std/arbitrary.hd`, which
+# `snapshot_file` are declared here (Testing T53), with the bodies that the
+# compiler gives an `it_each`, `it_prop`, or `it_prop_with` test case and
+# the runner protocol they use. `std.testing.arbitrary` is `lib/std/arbitrary.hd`, which
 # the prototype names `std.arbitrary`, since it has no std submodules.
 use std.testing.assert
 use std.format.debug
@@ -11,6 +12,7 @@ use std.num.{Float, Integer, parse_i64}
 use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
 use std.arbitrary.With
 use std.process.Process
+use std.time.Duration
 
 # The only source of randomness a generator sees
 # (spec/std/testing.md#property-tests). The runner creates each one and
@@ -313,9 +315,60 @@ impl[A < Arbitrary, B < Arbitrary, C < Arbitrary] Arbitrary for (A, B, C):
     fn arbitrary(c: mut Choices) -> (A, B, C):
         (A::arbitrary(c), B::arbitrary(c), C::arbitrary(c))
 
-# The runner protocol of a lowered `it_prop` or `it_prop_with`
-# (parser/test-cases.ts): the test function reports its case and shrink
-# caps, then draws from a fresh `Choices`.
+# The body of an `it_each` test case (spec/std/testing.md#table-test-rows).
+# The runner calls the one test function once per row, each in a fresh
+# instance: the function reads the row index the runner selected, reports
+# the row count, and runs `body` with that row. With no rows, row 0 panics
+# with `index-out-of-bounds` after reporting count 0, which the runner reads
+# as an empty table (src/test-runner.ts).
+fn each_case![T, R, $Q](rows: List[T], body: fn!(T) -> R $ Q) -> R $ Q:
+    index := case_index()
+    report_case_count(rows.len())
+    body!(rows[index])
+
+# The body of an `it_prop` test case (spec/std/testing.md#property-tests):
+# the runner calls it once per generated case, each in a fresh instance
+# (src/property-tests.ts). It reports its case and shrink caps, draws the
+# input with `T`'s `Arbitrary` from a fresh `Choices`, or takes the example
+# the runner selects, reports the input's `Debug` text, and runs `prop`.
+fn prop_case![T < Arbitrary & Debug, R, $Q](cases: i32, shrink: i32, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q:
+    prop_config(cases, shrink)
+    let c: mut Choices = prop_choices()
+    value := prop_example_or_draw(examples, c)
+    prop_input(value)
+    prop!(value)
+
+# The same for `it_prop_with`, which draws the input with `gen`.
+fn prop_with_case![T < Debug, R, $Q](cases: i32, shrink: i32, gen: fn(mut Choices) -> T, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q:
+    prop_config(cases, shrink)
+    let c: mut Choices = prop_choices()
+    value := prop_value(examples, gen, c)
+    prop_input(value)
+    prop!(value)
+
+# A test case's `timeout` option, which its test function evaluates first
+# (spec/std/testing.md#r-std-testing.option.timeout-at-run). The runner
+# fails a body that runs longer (src/test-runner.ts).
+fn case_timeout(limit: Duration) -> void:
+    report_timeout(limit.as_milliseconds())
+
+# The runner hooks, runtime primitives over the globals the runner reads
+# and writes (emitter/intrinsics.ts): the row the runner selected, the row
+# count, and the timeout in milliseconds.
+@intrinsic("case_index")
+fn case_index() -> i32:
+    panic("intrinsic")
+
+@intrinsic("report_case_count")
+fn report_case_count(count: i32) -> void:
+    panic("intrinsic")
+
+@intrinsic("report_timeout")
+fn report_timeout(millis: i64) -> void:
+    panic("intrinsic")
+
+# The runner protocol of an `it_prop` or `it_prop_with` case: the test
+# function draws from a fresh `Choices`.
 fn prop_choices() -> mut Choices:
     Choices { draws: 0, budget: prop_budget() }
 

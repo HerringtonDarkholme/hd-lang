@@ -767,10 +767,6 @@ export function withStandardLibrary(source: Program): Program {
       include(module, declaration.span);
     }
   }
-  // A test `timeout` is checked against `Duration`, so it declares `std.time`
-  // (spec/lang/10-modules.md#test-cases).
-  const timed = program.tests.find((test) => test.timeout);
-  if (timed) include("time", timed.span);
   // A checked `assert_equal` or `snapshot` call runs `check_equal`.
   const asserting = program.uses.find(
     (declaration) =>

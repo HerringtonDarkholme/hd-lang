@@ -32,20 +32,9 @@ export const RACE_COMBINATOR = "std.task.race";
  */
 export const ALL_FRAME_INTRINSIC = "task_all_frame";
 
-// `std.time`, `std.ops`, and `std.process` are hd sources in `lib/std/`,
-// declared by standard-library.ts under a program's local names or hidden
-// names such as these.
-const HIDDEN_DURATION = "__std_time_Duration";
-
-/** The local name of `std.time.Duration`, or its hidden name. */
-export function durationName(uses: Program["uses"]): string {
-  for (const declaration of uses)
-    for (const imported of declaration.names)
-      if (declaration.module === "std.time" && imported.name === "Duration")
-        return imported.alias ?? imported.name;
-  return HIDDEN_DURATION;
-}
-
+// `std.ops` and `std.process` are hd sources in `lib/std/`, declared by
+// standard-library.ts under a program's local names or hidden names such
+// as these.
 export const HIDDEN_EXIT_CODE = "__std_process_ExitCode";
 export const HIDDEN_TERMINATION = "__std_process_Termination";
 

@@ -1,8 +1,9 @@
 import type { HostFunction } from "./host-functions.ts";
 
 // The property-test runner (spec/std/testing.md#property-tests, Testing
-// T35-T38, T50, T51). A lowered `it_prop` or `it_prop_with` test function
-// (parser/test-cases.ts) reports its `cases` and `shrink` caps through
+// T35-T38, T50, T51). An `it_prop` or `it_prop_with` test function, whose
+// body is `prop_case!` or `prop_with_case!` (lib/std/testing.hd), reports
+// its `cases` and `shrink` caps through
 // `prop_config`, and every `Choices` member draws through `prop_draw`, a
 // host function that returns an integer from 0 to a bound. The runner
 // records each case's draws as its choice stream:
