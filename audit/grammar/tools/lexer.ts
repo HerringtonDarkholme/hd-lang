@@ -1,4 +1,22 @@
-import type { Diagnostic, GrammarToken, LexResult } from "./types.ts";
+// The layout lexer of the ambiguity tool: source text to the chapter 01
+// token kinds and layout tokens that the chapter 02 EBNF consumes. It came
+// from the removed spec/reference-parser, and only this tool uses it.
+
+interface Diagnostic {
+  readonly code: string;
+  readonly line: number;
+}
+
+interface GrammarToken {
+  readonly kinds: ReadonlySet<string>;
+  readonly line: number;
+  readonly text: string;
+}
+
+interface LexResult {
+  readonly diagnostics: Diagnostic[];
+  readonly tokens: GrammarToken[];
+}
 
 const reserved = new Set([
   "Self",

@@ -90,7 +90,7 @@ for:
   messages lead it to the fix. Its code is evidence, not a deliverable.
 
 Evidence: in the property-test writing trials of 2026-09-29, checked only
-with the reference parser, Sonnet wrote `not x`, `const`, a top-level
+for syntax, Sonnet wrote `not x`, `const`, a top-level
 `NAME := ...`, and `(dt, key) := case`, which was a `syntax-error` then.
 Haiku wrote `mut` before a parameter name, `{ ... }` blocks in match arms,
 and bool-returning property bodies. Both kinds of mistake are worth

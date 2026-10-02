@@ -11,7 +11,7 @@ Generated from `audit/findings/` on 2026-09-30. "Merged duplicates" lists the ID
 | [F-250](../findings/F-250-deferred-features-lack-structured-diagnostics.md) | major | coverage | Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics |  | 12 |
 | [F-259](../findings/F-259-disposed-file-profile-missing.md) | minor | test-integrity | The `disposed-file` runtime profile named in spec/conformance/README.md does not exist |  | 1 |
 | [F-265](../findings/F-265-cli-uncaught-exceptions.md) | minor | architecture | Replay rejection and several CLI errors exit through uncaught JavaScript exceptions | F-162, F-306 |  |
-| [F-310](../findings/F-310-colon-line-attaches-trailing-block.md) | minor | correctness | A line starting with `:` is parsed as a trailing block on the previous statement |  |  |
+| [F-310](../findings/F-310-colon-line-attaches-trailing-block.md) | minor | correctness | A line starting with `:` is parsed as a trailing block on the previous statement |  | 1 |
 | [F-401](../findings/F-401-replay-accepts-changed-callee.md) | minor | runtime | Replay code identity is a per-function source hash, not the decided whole-module semantic hash | F-611, F-264 |  |
 | [F-403](../findings/F-403-test-blocks-share-one-instance.md) | major | runtime | `hd test` runs `main` and every test block in one shared instance |  |  |
 | [F-501](../findings/F-501-map-is-linear-association-list.md) | major | runtime | `Map[K, V]` is an unhashed association list with O(n) get and insert |  |  |

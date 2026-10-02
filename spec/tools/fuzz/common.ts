@@ -8,6 +8,10 @@ import { join, resolve } from "node:path";
 export const repoRoot = resolve(import.meta.dirname, "../../..");
 export const specRoot = resolve(repoRoot, "spec");
 
+/**
+ * `run` is the contract's `IMPL FILE`, which runs FILE as a single file; every
+ * other action is invoked as `IMPL ACTION FILE`.
+ */
 export type Action = "build" | "check" | "parse" | "run" | "test";
 
 export interface CommandResult {
@@ -67,7 +71,8 @@ export function invoke(
 ): Promise<CommandResult> {
   const started = performance.now();
   return new Promise((complete) => {
-    const child = spawn(command[0]!, [...command.slice(1), action, ...options, path], {
+    const words = action === "run" ? [] : [action];
+    const child = spawn(command[0]!, [...command.slice(1), ...words, ...options, path], {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -159,8 +164,6 @@ export interface Inventory {
   readonly diagnostics: ReadonlySet<string>;
   /** Stable panic categories from spec/lang/06-control-flow.md. */
   readonly panics: ReadonlySet<string>;
-  /** Codes the reference parser can emit (read from its source text, not imported). */
-  readonly referenceParser: ReadonlySet<string>;
   readonly warnings: ReadonlySet<string>;
 }
 
@@ -184,17 +187,9 @@ export function loadInventory(): Inventory {
   const sentence = /Stable panic categories are exactly([\s\S]*?)\.\s/.exec(control);
   if (!sentence) throw new Error("spec/lang/06-control-flow.md: panic category sentence not found");
   const panics = new Set(backticked(sentence[1]!));
-  const referenceParser = new Set<string>();
-  const parserDirectory = resolve(specRoot, "reference-parser");
-  for (const name of readdirSync(parserDirectory)) {
-    if (!name.endsWith(".ts")) continue;
-    const text = readFileSync(resolve(parserDirectory, name), "utf8");
-    for (const match of text.matchAll(/(?:diagnostic\(|code: )"([a-z0-9-]+)"/g))
-      referenceParser.add(match[1]!);
-  }
   if (diagnostics.size < 50 || panics.size < 10)
     throw new Error("spec inventory looks truncated; check spec/README.md and chapter 06");
-  return { diagnostics, panics, referenceParser, warnings };
+  return { diagnostics, panics, warnings };
 }
 
 export function specFiles(directory: string, extension = ".hd"): string[] {
@@ -280,9 +275,7 @@ export function classify(
   const unknownCode =
     action === "parse" || action === "build"
       ? undefined
-      : errors.find(
-          (code) => !inventory.diagnostics.has(code) && !inventory.referenceParser.has(code),
-        );
+      : errors.find((code) => !inventory.diagnostics.has(code));
   return { code: errors[0]!, detail: errors.join(","), kind: "reject", ms, unknownCode };
 }
 

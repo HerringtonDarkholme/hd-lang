@@ -5,10 +5,9 @@ WebAssembly GC. It is designed for code that AI agents write and humans
 review: types sit at the boundaries, dependencies are declared in signatures,
 and suspension points are marked at every call.
 
-This page is a fast tour. Every example parses with the
-[reference parser](../spec/reference-parser/). The [Language Tour](LANGUAGE_TOUR.md)
-covers the same ground in more depth, and the
-[specification](../spec/README.md) is the normative reference.
+This page is a fast tour. Every example parses with the compiler. The
+[Language Tour](LANGUAGE_TOUR.md) covers the same ground in more depth, and
+the [specification](../spec/README.md) is the normative reference.
 
 ## Hello
 

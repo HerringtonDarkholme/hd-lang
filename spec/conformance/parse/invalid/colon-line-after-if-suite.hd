@@ -1,0 +1,8 @@
+# test: a line that starts with a colon does not attach a block to the statement before it
+
+fn f(c: bool) -> i32:
+    if c:
+        1
+    :  # diagnostic: trailing-block-position
+        2
+    return 0

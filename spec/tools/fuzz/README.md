@@ -10,11 +10,13 @@ current TypeScript compiler is only its first target.
   [`spec/conformance/README.md`, "Command Contract"](../../conformance/README.md#command-contract);
   [CONTRACT.md](CONTRACT.md) has the fuzzer-specific notes.
 - Oracles come from `spec/` only:
-  - `parseSource` from `spec/reference-parser/parser.ts`;
   - the diagnostic inventory in `spec/README.md`;
   - the panic categories in `spec/lang/06-control-flow.md`;
-  - the EBNF fences in `spec/lang/02-grammar.md`, which `generate.ts` parses itself.
+  - the EBNF fences in `spec/lang/02-grammar.md`, which `generate.ts` parses itself;
+  - `spec/conformance/cases.tsv`, which says which seeds parse.
 - Seeds come from `spec/conformance/**/*.hd`.
+- There is no reference parser. Where an input must parse, the first
+  implementation's `parse` decides.
 - Imports are limited to Node built-ins, this folder, and `spec/`. This
   command enforces the rule and exits 1 on any other import, or on any string
   that points into `src/`. `spec/check.sh` runs it:
@@ -40,9 +42,6 @@ node --experimental-strip-types spec/tools/fuzz/fuzz.ts \
 # Optional Wasm backend adapter (build + Binaryen validation).
 node --experimental-strip-types spec/tools/fuzz/fuzz.ts --adapter wasm --seed 1
 
-# Reference parser only: no implementation is invoked (see "Smoke runs").
-node --experimental-strip-types spec/tools/fuzz/fuzz.ts --reference-only --fail-on all --seed smoke --cases 200
-
 # Re-check one file against every oracle (exit 1 if any signature fires).
 node --experimental-strip-types spec/tools/fuzz/fuzz.ts --replay audit/evidence/03-fuzz/findings/some.hd --fuzzer parse,contract,phase
 ```
@@ -67,7 +66,6 @@ disagreements.
 | `--min-tests N`              | `300`                 | predicate budget per minimization                         |
 | `--adapter wasm`             | off                   | enables the `wasm` fuzzer                                 |
 | `--out DIR`, `--work DIR`    | tmp, tmp              | report directory; scratch directory for case files (the default scratch directory is deleted on exit) |
-| `--reference-only`           | off                   | run no implementation; `parse` and `contract` inputs go only to the reference parser |
 | `--fail-on a,b`              | none                  | exit 1 if a listed fuzzer (or `all`) records any signature |
 | `--replay FILE`              |                       | evaluate one file and print its outcomes and signatures   |
 
@@ -75,14 +73,15 @@ disagreements.
 
 | Fuzzer     | Input                                                              | Oracle                                                                 |
 | ---------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| `parse`    | 50% mutated seeds, 50% EBNF-generated programs                     | the reference parser and each implementation agree on `parse`          |
-| `contract` | mutated seeds the reference parser accepts                         | `parse`, `check`, `run`, `test` obey CONTRACT.md                       |
+| `parse`    | 50% mutated seeds, 50% EBNF-generated programs                     | `parse` obeys CONTRACT.md                                              |
+| `contract` | mutated seeds the first implementation's `parse` accepts           | `parse`, `check`, `run`, `test` obey CONTRACT.md                       |
 | `phase`    | the same inputs as `contract` (results are cached, not rerun)      | parse rejects, so check rejects; check rejects, so run and test reject |
 | `cross`    | alternating `parse` and `contract` inputs                          | every implementation gets the same outcome class for every command    |
 | `wasm`     | `contract` inputs that `check` accepts                             | `build` succeeds and the module validates in `wasm-opt` (and `wasm-tools` if on PATH) |
 
-A case's input depends only on `(seed, fuzzer, index)`. Parallelism and the
-implementation do not change it. Mutation operators (`mutate.ts`): token
+A case's input depends only on `(seed, fuzzer, index)` and, for the
+`contract` stream, on which mutants the first implementation's `parse`
+accepts. Parallelism does not change it. Mutation operators (`mutate.ts`): token
 delete, duplicate, swap, and insert (from the EBNF literals); reindent; line
 delete, duplicate, swap, and splice (from another seed); and literal
 replacement with boundary values. Conformance markers are stripped from
@@ -94,34 +93,29 @@ after `--max-signatures` distinct signatures.
 
 ## Generator cross-check
 
-`grammar-check.ts` sends small EBNF derivations to `parseSource` and lists the
-smallest rejected ones. The derivation acts as a third opinion alongside the
-two parsers. It finds cases where both parsers agree but the grammar disagrees
-with them. The generator's layout rendering is approximate: it renders
-`SUITE_END` followed by `NEWLINE` as one line break. Triage every sample by
-hand.
+`grammar-check.ts` sends small EBNF derivations to an implementation's
+`parse` and lists the smallest rejected ones. It finds cases where the
+implementation and the grammar disagree. The generator's layout rendering is
+approximate: it renders `SUITE_END` followed by `NEWLINE` as one line break.
+Triage every sample by hand.
 
 ```sh
 node --experimental-strip-types spec/tools/fuzz/grammar-check.ts --seed g1 --cases 4000 --show 40
+node --experimental-strip-types spec/tools/fuzz/grammar-check.ts --compiler "other-hd" --cases 500
 ```
 
 ## Smoke runs
 
-Both runs use the seed `smoke`. A case's input also depends on the seed files
-under `spec/conformance/`, so adding a fixture can change the inputs.
+The smoke run uses the seed `smoke`. A case's input also depends on the seed
+files under `spec/conformance/`, so adding a fixture can change the inputs.
 
-- `spec/check.sh` runs the import gate, `grammar-check.ts` on 200 derivations,
-  and `fuzz.ts --reference-only --fail-on all` with 200 cases per fuzzer. No
-  implementation is involved. The reference-only oracle is that the reference
-  parser never throws and emits only codes in the spec inventory.
-  `grammar-check.ts` fails only if the reference parser throws; its
-  `syntax-error` count is a triage list, not a gate. Set `HD_SPEC_JOBS` to
-  limit concurrency.
-- `pnpm run fuzz:smoke`, part of `pnpm run check`, runs the `contract` and
-  `phase` fuzzers with 100 cases each against
-  `node --experimental-strip-types bin/hd.js`. It takes about 30 s. Only
-  `phase` can fail it (`--fail-on phase`). The `contract` signatures are known
-  implementation findings, so they are reported, not gated.
+- `spec/check.sh` runs only the import gate.
+- `pnpm run fuzz:smoke`, part of `pnpm run check`, runs the `parse`,
+  `contract`, and `phase` fuzzers with 100 cases each against
+  `node --experimental-strip-types bin/hd.js`. It takes about 45 s. Only
+  `phase` can fail it (`--fail-on phase`). The `parse` and `contract`
+  signatures are known implementation findings, so they are reported, not
+  gated.
 
 ## Output
 
@@ -133,8 +127,6 @@ For each fuzzer, `--out DIR/<fuzzer>/` contains:
   also `<id>.min.hd`;
 - `outcomes.tsv`: the outcome-label distribution per compiler and command;
 - `uninventoried-codes.tsv`: located codes that are not in the spec inventory;
-- `reference-only-codes.tsv`: codes the reference parser emits that the
-  `spec/README.md` table omits;
 - `run.json`: the metadata (seed, counts, timing) and every signature record.
 
 ## Minimizer
@@ -142,8 +134,8 @@ For each fuzzer, `--out DIR/<fuzzer>/` contains:
 `minimize.ts` removes comments first. It then runs ddmin over lines, empties
 balanced bracket groups, and runs ddmin over the tokens of each line. The
 predicate reruns the same fuzzer's oracle and keeps a candidate only if the
-same signature still fires. For contract-stream fuzzers, the reference parser
-must also still accept the candidate. The minimizer uses only the command
+same signature still fires. For contract-stream fuzzers, the first
+implementation's `parse` must also still accept the candidate. The minimizer uses only the command
 contract, so it is as portable as the fuzzer.
 
 ## Triage
@@ -151,8 +143,8 @@ contract, so it is as portable as the fuzzer.
 Save each triaged example as a portable fixture (`# test:`, `# expect:`,
 `# diagnostic:`, or `# panic:` markers). The audit's fixtures are in
 `audit/evidence/03-fuzz/findings/`. A fixture can then be promoted to
-`spec/conformance/`. Classes: implementation bug, reference-parser
-bug, spec ambiguity, or correct handling (discarded).
+`spec/conformance/`. Classes: implementation bug, spec ambiguity, or correct
+handling (discarded).
 
 ## Layout
 
@@ -161,11 +153,11 @@ fuzz.ts            entry point
 common.ts          command spawning, contract classification, inventory, PRNG
 mutate.ts          seed mutation operators
 generate.ts        EBNF reader and generator (reads spec/lang/02-grammar.md)
-oracles/           parse-agreement, contract, phase-consistency, cross-impl
+oracles/           contract, phase-consistency, cross-impl
 adapters/wasm.ts   optional Wasm backend adapter
 minimize.ts        contract-preserving delta minimizer
 check-imports.ts   import-boundary enforcement
-grammar-check.ts   EBNF derivations vs the reference parser (no implementation involved)
+grammar-check.ts   EBNF derivations vs an implementation's parse
 forward.sh         forwarding wrapper for the cross-impl self-test
 ```
 

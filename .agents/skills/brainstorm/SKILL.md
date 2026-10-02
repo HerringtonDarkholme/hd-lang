@@ -47,7 +47,7 @@ recommendation is advice, labeled as such.
    the smallest design that could work, even if it drops a use case. Name
    each option by its idea, not a letter alone.
 5. **Show each option.** Give a short hd example of the same use case for
-   every option, parsed with the reference parser. State the rules the
+   every option, parsed with the compiler. State the rules the
    option adds or removes and the tier of each, by the tier test in
    AGENTS.md "Spec Scope For The Standard Library", its soundness conditions, and its interaction
    with existing features (traits, requirement rows, suspension, derivation,

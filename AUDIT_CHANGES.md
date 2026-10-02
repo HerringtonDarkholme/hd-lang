@@ -8,8 +8,9 @@ The pass:
 
 - reconciles value-pack, closure-capture, row-subtraction, runtime-shape, and
   must-use examples with their normative rules;
-- repairs suite termination and trailing-block grammar and compiles the
-  chapter-02 EBNF into an Earley parser run across every conformance fixture;
+- repairs suite termination and trailing-block grammar, and checked every
+  conformance fixture with an Earley parser built from the chapter-02 EBNF,
+  since removed (the compiler is now the reference);
 - closes soundness gaps in variance conversion, top-level initialization,
   generic provider keys, and nested suspension driving;
 - unifies built-in names under one prelude and one shadowing rule;

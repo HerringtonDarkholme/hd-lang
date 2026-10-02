@@ -1777,3 +1777,4 @@ typing/valid/relative-self-main.hd	type	accept	lang/10-modules.md#r-module.relat
 typing/valid/relative-self-lib.hd	type	accept	lang/10-modules.md#r-module.relative.root-file
 typing/valid/lib-root-pkg.hd	type	accept	lang/10-modules.md#r-module.path.lib-file
 typing/invalid/main-not-importable.hd	type	reject:unknown-module	lang/10-modules.md#r-module.path.main-no-use
+parse/invalid/colon-line-after-if-suite.hd	parse	reject:trailing-block-position	lang/07-functions.md#r-fn.trailing.one

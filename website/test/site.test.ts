@@ -232,7 +232,7 @@ describe("grammar blocks", () => {
 });
 
 describe("learn page", () => {
-  test("every hd block parses with the reference parser", async () => {
+  test("every hd block parses with the compiler", async () => {
     assert.deepEqual(await checkHdBlocksParse(REPO_DIR, LEARN_PAGE), []);
   });
 });

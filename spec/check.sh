@@ -6,6 +6,9 @@ spec_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_dir=$(CDPATH= cd -- "$spec_dir/.." && pwd)
 manifest="$spec_dir/conformance/cases.tsv"
 examples="$spec_dir/conformance/examples.tsv"
+# The compiler, called only through the command contract
+# (conformance/README.md): HD_TEST_COMMAND, else the repository compiler.
+compiler=${HD_TEST_COMMAND:-"node --experimental-strip-types \"$repo_dir/bin/hd.js\""}
 
 fail() {
     printf '%s\n' "spec check failed: $*" >&2
@@ -91,7 +94,7 @@ fi
 
 # Package sources (conformance/packages and conformance/trees) are inputs of
 # the package-role and package-tree environments, not cases: no index row, no
-# directives, and they must parse.
+# directives, and the compiler's parse must accept them.
 for packages_dir in "$spec_dir/conformance/packages" "$spec_dir/conformance/trees"; do
 if [ -d "$packages_dir" ]; then
     if grep -R -n -E '^# [a-z][a-z-]*:|# (diagnostic|warning|panic): ' "$packages_dir" --include='*.hd'; then
@@ -104,11 +107,13 @@ if [ -d "$packages_dir" ]; then
             printf '%s\tparse\taccept\t-\n' "${file#"$spec_dir/conformance/"}"
         done
     } > "$packages_manifest"
-    if ! node --experimental-strip-types "$spec_dir/reference-parser/index.ts" "$packages_manifest" "$spec_dir/conformance"; then
-        rm -f "$packages_manifest"
+    if ! node --experimental-strip-types "$spec_dir/tools/run-conformance.ts" --compiler "$compiler" \
+        --cases "$packages_manifest" --root "$spec_dir/conformance" > "$packages_manifest.log"; then
+        grep -v '^pass ' "$packages_manifest.log" >&2 || true
+        rm -f "$packages_manifest" "$packages_manifest.log"
         fail "a package source under ${packages_dir#"$spec_dir/"} does not parse"
     fi
-    rm -f "$packages_manifest"
+    rm -f "$packages_manifest" "$packages_manifest.log"
 fi
 done
 
@@ -133,7 +138,6 @@ find "$spec_dir/conformance" \( -path "$spec_dir/conformance/packages" -o -path 
     [ "$count" -eq 1 ] || fail "fixture $relative has $count manifest entries"
 done
 
-node --experimental-strip-types "$spec_dir/reference-parser/index.ts" "$manifest" "$spec_dir/conformance"
 node --experimental-strip-types "$spec_dir/check-spec-anchors.ts" "$spec_dir" "$manifest"
 # Dead rule citations (tools/README.md): citing a rule ID the chapters no
 # longer define fails in spec/, fixtures, guide/, and lib/std, unless the line
@@ -149,20 +153,10 @@ node --experimental-strip-types "$spec_dir/check-spec-tiers.ts" "$spec_dir" ||
 # syntax, placement, prefixes, and uniqueness fail.
 node --experimental-strip-types "$spec_dir/check-spec-style.ts" "$spec_dir"
 
-# Fuzzer (spec/tools/fuzz): the import gate, then a seeded smoke run whose only
-# oracles are the reference parser and the spec inventory. No implementation
-# is invoked here; implementation smoke runs live in `pnpm run fuzz:smoke`.
-fuzz_dir="$spec_dir/tools/fuzz"
-node --experimental-strip-types "$fuzz_dir/check-imports.ts" ||
+# Fuzzer (spec/tools/fuzz): the import gate. Its smoke run against the
+# compiler is `pnpm run fuzz:smoke`.
+node --experimental-strip-types "$spec_dir/tools/fuzz/check-imports.ts" ||
     fail "spec/tools/fuzz imports something outside Node built-ins and spec/"
-fuzz_tmp=$(mktemp -d "${TMPDIR:-/tmp}/hd-spec-fuzz.XXXXXX")
-trap 'rm -rf "$fuzz_tmp"' EXIT
-node --experimental-strip-types "$fuzz_dir/grammar-check.ts" --seed smoke --cases 200 --show 0 ||
-    fail "grammar-check smoke run crashed"
-node --experimental-strip-types "$fuzz_dir/fuzz.ts" --reference-only --fail-on all \
-    --seed smoke --cases 200 --out "$fuzz_tmp/out" --work "$fuzz_tmp/work" \
-    ${HD_SPEC_JOBS:+--jobs "$HD_SPEC_JOBS"} ||
-    fail "reference-only fuzz smoke run found a signature"
 
 awk -F "$tab" '
     NR == 1 {

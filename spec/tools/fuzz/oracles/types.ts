@@ -6,8 +6,6 @@ export type Execution = Partial<Record<Action, Outcome>>;
 export interface OracleInput {
   /** One entry per `--compiler`, in command-line order. */
   readonly executions: readonly Execution[];
-  /** Codes from the spec reference parser (`parseSource`); empty means accept. */
-  readonly reference: readonly string[];
 }
 
 export interface Observation {

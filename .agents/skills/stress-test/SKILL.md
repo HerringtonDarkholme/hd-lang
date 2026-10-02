@@ -1,6 +1,6 @@
 ---
 name: stress-test
-description: Stress-test an hd design record (a set of owner decisions) by translating real code from well-known libraries into it, parsing every example with the spec's reference parser, and ranking what breaks as questions for the owner. Use when a design record in future-work/ has new or revised decisions and should be tried against realistic code before it reaches the spec. Writes a report under future-work/; never decides or edits decisions, spec, or prototype.
+description: Stress-test an hd design record (a set of owner decisions) by translating real code from well-known libraries into it, parsing every example with the compiler, and ranking what breaks as questions for the owner. Use when a design record in future-work/ has new or revised decisions and should be tried against realistic code before it reaches the spec. Writes a report under future-work/; never decides or edits decisions, spec, or prototype.
 ---
 
 # Stress Test
@@ -49,7 +49,7 @@ spec. The output is evidence and questions for the owner, never a decision.
    relevant operations behave, and what breaks. Stay as close to the
    original's behavior as hd allows, and note every difference a user would
    notice.
-4. **Parse.** Check every `text` block with the reference parser (the
+4. **Parse.** Check every `text` block with the compiler's parser (the
    command is in the shared rules). Fix syntax mistakes that are yours.
    Mark syntax no chapter specifies with `# hypothetical syntax`, and record
    each result either way.
@@ -86,8 +86,8 @@ for round N. Sections, in order:
 7. Comparison with other languages, as a table when there are variants.
 8. Problems, Ranked: a table (rank, ID, problem, severity, cases), then one
    subsection per problem with Effect and Candidates.
-9. Parse Log: every `text` block and its result, plus any reference-parser
-   findings.
+9. Parse Log: every `text` block and its result, plus any block the
+   compiler rejects although a chapter specifies its syntax.
 
 Earlier stress tests, such as the chaining study and the error and
 derivation rounds, are worked examples of this format in git history: a

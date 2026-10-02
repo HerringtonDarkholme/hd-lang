@@ -3,9 +3,9 @@ import { posix } from "node:path";
 import markdownIt, { type MarkdownIt, type Token } from "markdown-it";
 import footnote from "markdown-it-footnote";
 
-import { parseSource } from "../../spec/reference-parser/parser.ts";
 import { isErrorExample, RULE_ID, ruleIdAnchor } from "../../spec/tools/spec-prose.ts";
 import { classify } from "../../src/highlight.ts";
+import { parse } from "../../src/parser/index.ts";
 import { type GrammarIndex, ruleAnchor, ruleTarget, tokenizeEbnf } from "./ebnf.ts";
 
 /** A heading found while rendering, used for the page outline and search. */
@@ -54,12 +54,16 @@ export function escapeHtml(text: string): string {
 
 const parsesCache = new Map<string, boolean>();
 
-/** Whether the reference parser accepts `code` as a complete source file. */
+/**
+ * Whether the compiler's parser accepts `code` as a complete source file. The
+ * site runs its examples on this compiler (the REPL and the playground), so it
+ * asks the same parser in process; one CLI call per block would be too slow.
+ */
 function parsesAsHd(code: string): boolean {
   let parses = parsesCache.get(code);
   if (parses === undefined) {
     try {
-      parses = parseSource(code).length === 0;
+      parses = parse(code).program !== undefined;
     } catch {
       parses = false;
     }
@@ -75,7 +79,7 @@ const HD_MARKERS =
 
 /**
  * Whether a fenced block holds hd source. ```hd always does; a ```text block
- * does when the reference parser accepts it or it contains an hd construct.
+ * does when the compiler's parser accepts it or it contains an hd construct.
  */
 function isHdBlock(info: string, code: string): boolean {
   if (info === "hd") return true;

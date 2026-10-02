@@ -173,6 +173,7 @@ Merged duplicates:
 
 The fuzzer is now [`spec/tools/fuzz/`](../spec/tools/fuzz/README.md). Its
 audit rounds are finished; the one implementation bug they found that is
-still open on its own is F-310. The minimized fixtures for open findings
-(F-306 in F-265, and F-310) are in
+still open on its own is F-310, now the conformance fixture
+`parse/invalid/colon-line-after-if-suite.hd`. The minimized fixture for
+F-306, merged into F-265, is in
 [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/).

@@ -1,13 +1,15 @@
 // Optional Wasm backend adapter. The core fuzzer never needs it.
 //
-// For an input the implementation's `check` accepts, it runs the
-// implementation's `build FILE` command, locates the emitted `.wasm` (a path
-// printed on stdout, or FILE with a `.wasm` extension), and validates it with
+// For an input the implementation's `check` accepts, it copies the input to
+// main.hd in the source root of a fresh package, since `hd build` works only in a package
+// (spec/cli/command-line.md, Running A Package). It runs the implementation's
+// `build FILE` on that file, locates the emitted `.wasm` (a path printed on
+// stdout, or FILE with a `.wasm` extension), and validates it with
 // external tools: Binaryen `wasm-opt` (default `node_modules/.bin/wasm-opt`,
 // override with HD_FUZZ_WASM_OPT) and, if on PATH, `wasm-tools validate`.
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdtempSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import { type CommandResult, invoke, messageLabel, repoRoot } from "../common.ts";
 
@@ -65,13 +67,17 @@ export async function validateBuild(
   path: string,
   timeoutMs: number,
 ): Promise<WasmVerdict> {
-  // Build a private copy in a fresh directory: identical inputs from different
+  // Build a private copy in a fresh package: identical inputs from different
   // cases share a case file, and concurrent builds must not share an output.
+  // The manifest is the minimal one of spec/lang/10-modules.md, Package Manifest.
   const directory = mkdtempSync(join(dirname(path), "build-"));
-  const copy = join(directory, basename(path));
+  writeFileSync(join(directory, "hd.toml"), '[package]\nname = "fuzz_case"\n');
+  const sources = join(directory, "src");
+  mkdirSync(sources);
+  const copy = join(sources, "main.hd");
   copyFileSync(path, copy);
   path = copy;
-  const built = await invoke(absoluteCommand(command), "build", path, [], timeoutMs, directory);
+  const built = await invoke(absoluteCommand(command), "build", path, [], timeoutMs, sources);
   if (built.timedOut || built.signal || built.code !== 0)
     return {
       detail: messageLabel(`${built.stdout}\n${built.stderr}`, path),

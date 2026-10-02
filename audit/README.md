@@ -8,15 +8,15 @@ repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-10-02 the conformance suite has 1,778 cases, and
+On 2026-10-02 the conformance suite has 1,779 cases, and
 `test/portable/cases.tsv` selects the 1,743 that the prototype passes. The
-other 35 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
+other 36 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
 finding or with a decision below. Every case is in one of the two files. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Selected | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,704 | 1,669 | 35 |
+| language | 1,705 | 1,669 | 36 |
 | stdlib | 74 | 74 | 0 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -37,6 +37,7 @@ them by tag:
 | SELF-CURRENT | 2 | relative lookup starts at the containing directory module |
 | ROOTS | 2 | `src/lib.hd` is not the root module, and `src/main.hd` can be used |
 | TASK-PROGRAMS | 1 | integration test modules are linked as one program |
+| F-310 | 1 | a line that starts with `:` attaches a trailing block to the statement before it |
 
 ## What Remains
 
@@ -45,11 +46,11 @@ them by tag:
 | [`REPORT.md`](REPORT.md) | the architecture review and the ranked open findings | the review still describes the prototype |
 | [`findings/`](findings/) | one file per open finding (33), indexed in [`evidence/findings-table.md`](evidence/findings-table.md) | still open: the tagged cases still fail, and the others were re-run or spot-checked on 2026-09-29 |
 | [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) | `KNOWN_FAILURES.tsv` grouped by tag | the prototype's fix list |
-| [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/) | minimized fuzz fixtures for F-265 and F-310 | open findings; `spec/tools/fuzz/README.md` points here |
+| [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/) | the minimized fuzz fixture for F-265; F-310's is the conformance fixture `parse/invalid/colon-line-after-if-suite.hd` | open findings; `spec/tools/fuzz/README.md` points here |
 | [`evidence/04-runtime/`](evidence/04-runtime/) | replay, edit, and panic result tables | back F-155, F-161, and F-401; `roundtrip.tsv` stays as the history of F-404, closed with F-402 on 2026-09-30 because both described only the removed `hd replay` and `hd record` commands |
 | [`evidence/05-object-model/`](evidence/05-object-model/SUMMARY.md), [`05-requirements/`](evidence/05-requirements/SUMMARY.md), [`06-compiler/`](evidence/06-compiler/SUMMARY.md) | representation, cost, and compiler-structure measurements | back the architecture review and F-501 to F-610 |
 | [`probes/`](probes/), [`scripts/`](scripts/), [`bench/`](bench/) | the inputs and scripts that reproduce those runs | needed to re-run the open findings |
-| [`grammar/FINDINGS.md`](grammar/FINDINGS.md) | GR-10 item f, GR-21, and the ambiguity tool in [`grammar/tools/`](grammar/tools/) | open reference-parser and teaching findings |
+| [`grammar/FINDINGS.md`](grammar/FINDINGS.md) | GR-21, GR-24, and the ambiguity tool in [`grammar/tools/`](grammar/tools/) | open grammar and teaching findings |
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | TQ-14 and the parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type findings |
 | [`hd-writing-log.md`](hd-writing-log.md) | mistakes agents make writing hd code | the diagnostics and docs audit (AGENTS.md) |

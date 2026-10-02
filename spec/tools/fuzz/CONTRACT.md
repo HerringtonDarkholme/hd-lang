@@ -17,8 +17,10 @@ contract.
   paths resolve there. The contract itself does not fix the working
   directory.
 - The fuzzer uses `parse`, `check`, and `test` as the contract defines them.
-  It also uses `run`, which the contract does not list: `run` is judged like
-  `test`. The optional Wasm adapter also uses `build`.
+  It also runs `FILE` with no action, the contract's run step, and reports
+  it as `run`; `run` is judged like `test`. The optional Wasm adapter also
+  uses `build FILE`, with FILE copied into a fresh package, because
+  `hd build` works only in a package.
 - The fuzzer skips `run` on an input that `check` accepts and that has no
   entry point: no `pub fn main` or `main!` line and no top-level statement.
   `run` has nothing to execute there, and how it should treat such a module
@@ -30,17 +32,13 @@ contract.
 | ------------ | ------------------------ | -------------------------------------------------------------------------------- |
 | `parse FILE` | exit 0                   | exit 1, at least one located diagnostic                                          |
 | `check FILE` | exit 0, warnings allowed | exit 1, at least one located diagnostic with a code from the spec inventory       |
-| `run FILE`   | exit 0                   | exit 1, a located diagnostic with an inventoried code, or a chapter-06 panic code |
+| `FILE` (`run`) | exit 0                 | exit 1, a located diagnostic with an inventoried code, or a chapter-06 panic code |
 | `test FILE`  | exit 0                   | same as `run`                                                                    |
 | `build FILE` | exit 0, module emitted   | exit 1, located diagnostic (Wasm adapter only)                                   |
 
-The **spec inventory** is the union of:
-
-1. the Error, Error (general), Warning, and Boundary-failure rows of the
-   normative table in `spec/README.md#diagnostics`;
-2. the codes the reference parser in `spec/reference-parser/` can emit. Some
-   of these are missing from table 1. The fuzzer counts them separately
-   (`reference-only-codes.tsv`).
+The **spec inventory** is the Error, Error (general), Warning, and
+Boundary-failure rows of the normative table in
+`spec/README.md#diagnostics`.
 
 Panic codes are the stable categories in
 `spec/lang/06-control-flow.md#runtime-panics`. Only `run` and `test` may report

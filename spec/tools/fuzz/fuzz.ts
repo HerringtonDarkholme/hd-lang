@@ -5,14 +5,12 @@
 //     [--timeout MS] [--out DIR] [--max-signatures 20] [--minimize] [--adapter wasm] \
 //     [--fail-on NAME,...]
 //   node --experimental-strip-types spec/tools/fuzz/fuzz.ts --replay FILE [--fuzzer NAME]...
-//   node --experimental-strip-types spec/tools/fuzz/fuzz.ts --reference-only --fail-on all
 //
 // It imports only Node built-ins, its own modules, and `spec/`. See README.md.
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { parseSource } from "../../reference-parser/parser.ts";
 import { validateBuild, wasmToolsAvailable } from "./adapters/wasm.ts";
 import {
   type Action,
@@ -36,7 +34,6 @@ import { minimize } from "./minimize.ts";
 import { type Line, mutate, splitLines } from "./mutate.ts";
 import { contract, contractActions } from "./oracles/contract.ts";
 import { crossImpl } from "./oracles/cross-impl.ts";
-import { parseAgreement } from "./oracles/parse-agreement.ts";
 import { phaseConsistency } from "./oracles/phase-consistency.ts";
 import type { Execution, Observation } from "./oracles/types.ts";
 
@@ -54,7 +51,6 @@ interface Options {
   readonly minTests: number;
   readonly minimize: boolean;
   readonly out: string;
-  readonly referenceOnly: boolean;
   readonly replay?: string;
   readonly seed: string;
   readonly timeoutMs: number;
@@ -81,7 +77,6 @@ function parseOptions(args: readonly string[]): Options {
   let maxSignatures = 20;
   let minTests = 300;
   let doMinimize = false;
-  let referenceOnly = false;
   const failOn = new Set<FuzzerName>();
   let replay: string | undefined;
   let work = join(tmpdir(), `hd-fuzz-${process.pid}`);
@@ -105,14 +100,11 @@ function parseOptions(args: readonly string[]): Options {
     else if (option === "--replay") replay = resolve(need());
     else if (option === "--adapter") adapters.add(need());
     else if (option === "--minimize") doMinimize = true;
-    else if (option === "--reference-only") referenceOnly = true;
     else if (option === "--fail-on") for (const name of fuzzerList(need())) failOn.add(name);
     else if (option === "--fuzzer") fuzzers.push(...fuzzerList(need()));
     else throw new Error(`unknown option ${option}`);
   }
-  if (referenceOnly && (compilers.length > 0 || adapters.size > 0))
-    throw new Error("--reference-only takes no --compiler or --adapter");
-  if (compilers.length === 0 && !referenceOnly)
+  if (compilers.length === 0)
     compilers.push(
       splitCommand(process.env.HD_FUZZ_COMMAND ?? "node --experimental-strip-types bin/hd.js"),
     );
@@ -123,8 +115,6 @@ function parseOptions(args: readonly string[]): Options {
   let selected = fuzzers.length ? [...new Set(fuzzers)] : [...allFuzzers];
   if (compilers.length < 2) selected = selected.filter((name) => name !== "cross");
   if (!adapters.has("wasm")) selected = selected.filter((name) => name !== "wasm");
-  // Without an implementation, `phase` would repeat the `contract` inputs.
-  if (referenceOnly) selected = selected.filter((name) => name === "parse" || name === "contract");
   return {
     adapters,
     cases,
@@ -136,7 +126,6 @@ function parseOptions(args: readonly string[]): Options {
     minTests,
     minimize: doMinimize,
     out,
-    referenceOnly,
     replay,
     seed,
     timeoutMs,
@@ -150,22 +139,40 @@ interface Input {
   readonly source: string;
 }
 
+/** Whether the first implementation's `parse` accepts a source. */
+type Parses = (source: string) => Promise<boolean>;
+
+/** Fixtures that `spec/conformance/cases.tsv` expects `parse` to reject. */
+function parseRejectFixtures(conformance: string): Set<string> {
+  const rows = readFileSync(resolve(conformance, "cases.tsv"), "utf8").split("\n").slice(1);
+  return new Set(
+    rows
+      .map((row) => row.split("\t"))
+      .filter(([, phase, expectation]) => phase === "parse" && expectation?.startsWith("reject:"))
+      .map(([path]) => path!),
+  );
+}
+
 class Corpus {
   readonly seeds: ReadonlyArray<{ path: string; source: string }>;
+  /** Seeds the spec says parse: every fixture but the parse-phase rejections. */
   readonly accepted: ReadonlyArray<{ path: string; source: string }>;
   readonly donors: readonly Line[];
   readonly vocabulary: readonly string[];
   readonly generator: Generator;
   private readonly seed: string;
+  private readonly parses: Parses;
 
-  constructor(seed: string) {
+  constructor(seed: string, parses: Parses) {
     this.seed = seed;
+    this.parses = parses;
     const conformance = resolve(specRoot, "conformance");
     this.seeds = specFiles(conformance).map((path) => ({
       path: path.slice(conformance.length + 1),
       source: readFileSync(path, "utf8"),
     }));
-    this.accepted = this.seeds.filter(({ source }) => parseSource(source).length === 0);
+    const rejected = parseRejectFixtures(conformance);
+    this.accepted = this.seeds.filter(({ path }) => !rejected.has(path));
     this.donors = this.seeds.flatMap(({ source }) =>
       splitLines(source).filter((line) => line.tokens.length > 0),
     );
@@ -189,12 +196,12 @@ class Corpus {
     };
   }
 
-  contractInput(index: number): Input {
+  async contractInput(index: number): Promise<Input> {
     const rng = new Rng(`${this.seed}:contract:${index}`);
     const seed = rng.pick(this.accepted);
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const mutant = mutate(seed.source, rng, this.vocabulary, this.donors);
-      if (parseSource(mutant.source).length === 0)
+      if (await this.parses(mutant.source))
         return {
           actions: contractActions,
           origin: `mutate:${seed.path}:${mutant.operators.join("+")}`,
@@ -204,7 +211,7 @@ class Corpus {
     return { actions: contractActions, origin: `seed:${seed.path}`, source: seed.source };
   }
 
-  input(fuzzer: FuzzerName, index: number): Input {
+  async input(fuzzer: FuzzerName, index: number): Promise<Input> {
     if (fuzzer === "parse") return this.parseInput(index);
     if (fuzzer === "cross")
       return index % 2 === 0 ? this.parseInput(index / 2) : this.contractInput((index - 1) / 2);
@@ -260,6 +267,11 @@ class Executor {
     return found;
   }
 
+  /** Whether the first implementation's `parse` accepts `source` (cached). */
+  async parses(source: string): Promise<boolean> {
+    return (await this.outcome(0, "parse", source)).kind === "accept";
+  }
+
   async execute(source: string, actions: readonly Action[]): Promise<Execution[]> {
     const executions: Execution[] = [];
     for (let compiler = 0; compiler < this.options.compilers.length; compiler += 1) {
@@ -281,18 +293,6 @@ class Executor {
 interface Evaluation {
   readonly executions: readonly Execution[];
   readonly observations: readonly Observation[];
-  readonly reference: readonly string[];
-}
-
-function referenceCodes(source: string): string[] | Observation {
-  try {
-    return parseSource(source).map(({ code }) => code);
-  } catch (error) {
-    return {
-      detail: String(error),
-      signature: `parse-agreement|reference-crash|${normalizeLine(String(error), "")}`,
-    };
-  }
 }
 
 async function evaluate(
@@ -301,18 +301,6 @@ async function evaluate(
   executor: Executor,
   options: Options,
 ): Promise<Evaluation> {
-  const reference = referenceCodes(input.source);
-  if (!Array.isArray(reference))
-    return { executions: [], observations: [reference], reference: [] };
-  if (options.referenceOnly) {
-    // No implementation: the only oracle is that the reference parser emits
-    // codes the spec inventory knows about.
-    const { diagnostics, referenceParser } = executor.inventory;
-    const observations = [...new Set(reference)]
-      .filter((code) => !diagnostics.has(code) && !referenceParser.has(code))
-      .map((code) => ({ detail: code, signature: `reference|unlisted-code|${code}` }));
-    return { executions: [], observations, reference };
-  }
   if (fuzzer === "wasm") {
     const observations: Observation[] = [];
     const executions = await executor.execute(input.source, ["check"]);
@@ -328,19 +316,18 @@ async function evaluate(
         });
       }
     }
-    return { executions, observations, reference };
+    return { executions, observations };
   }
   const executions = await executor.execute(input.source, input.actions);
-  const oracleInput = { executions, reference };
+  const oracleInput = { executions };
+  // The `parse` fuzzer judges its `parse` results by the command contract.
   const observations =
-    fuzzer === "parse"
-      ? parseAgreement(oracleInput)
-      : fuzzer === "contract"
-        ? contract(oracleInput)
-        : fuzzer === "phase"
-          ? phaseConsistency(oracleInput)
-          : crossImpl(oracleInput);
-  return { executions, observations, reference };
+    fuzzer === "parse" || fuzzer === "contract"
+      ? contract(oracleInput, fuzzer)
+      : fuzzer === "phase"
+        ? phaseConsistency(oracleInput)
+        : crossImpl(oracleInput);
+  return { executions, observations };
 }
 
 interface SignatureRecord {
@@ -359,8 +346,8 @@ interface FuzzerReport {
   readonly signatures: Map<string, SignatureRecord>;
   readonly labels: Map<string, number>;
   readonly unknownCodes: Map<string, number>;
-  readonly referenceOnlyCodes: Map<string, number>;
-  referenceAccepted: number;
+  /** Inputs the first implementation's `parse` accepts. */
+  parseAccepted: number;
   generated: number;
   generatedAccepted: number;
   seconds: number;
@@ -370,24 +357,17 @@ function bump(map: Map<string, number>, key: string): void {
   map.set(key, (map.get(key) ?? 0) + 1);
 }
 
-function tally(
-  report: FuzzerReport,
-  evaluation: Evaluation,
-  input: Input,
-  inventory: Inventory,
-): void {
-  if (evaluation.reference.length === 0) report.referenceAccepted += 1;
+function tally(report: FuzzerReport, evaluation: Evaluation, input: Input): void {
+  const parsed = evaluation.executions[0]?.parse?.kind === "accept";
+  if (parsed) report.parseAccepted += 1;
   if (input.origin === "generate") {
     report.generated += 1;
-    if (evaluation.reference.length === 0) report.generatedAccepted += 1;
+    if (parsed) report.generatedAccepted += 1;
   }
   for (const [index, execution] of evaluation.executions.entries())
     for (const [action, outcome] of Object.entries(execution)) {
       bump(report.labels, `c${index}\t${action}\t${outcomeLabel(outcome)}`);
       if (outcome.unknownCode) bump(report.unknownCodes, `${action}\t${outcome.unknownCode}`);
-      for (const code of outcome.kind === "reject" ? outcome.detail.split(",") : [])
-        if (inventory.referenceParser.has(code) && !inventory.diagnostics.has(code))
-          bump(report.referenceOnlyCodes, `${action}\t${code}`);
     }
 }
 
@@ -396,7 +376,6 @@ async function runFuzzer(
   corpus: Corpus,
   executor: Executor,
   options: Options,
-  inventory: Inventory,
 ): Promise<FuzzerReport> {
   const started = performance.now();
   const report: FuzzerReport = {
@@ -405,8 +384,7 @@ async function runFuzzer(
     generated: 0,
     generatedAccepted: 0,
     labels: new Map(),
-    referenceAccepted: 0,
-    referenceOnlyCodes: new Map(),
+    parseAccepted: 0,
     seconds: 0,
     signatures: new Map(),
     stoppedEarly: false,
@@ -418,10 +396,10 @@ async function runFuzzer(
       report.stoppedEarly = true;
       return;
     }
-    const input = corpus.input(fuzzer, index);
+    const input = await corpus.input(fuzzer, index);
     const evaluation = await evaluate(fuzzer, input, executor, options);
     report.cases += 1;
-    tally(report, evaluation, input, inventory);
+    tally(report, evaluation, input);
     for (const observation of evaluation.observations) {
       const record = report.signatures.get(observation.signature);
       if (record) {
@@ -456,13 +434,12 @@ async function minimizeReport(
     entries,
     Math.max(1, Math.floor(options.jobs / 2)),
     async ([signature, record]) => {
-      const template = corpus.input(report.fuzzer, record.firstIndex);
-      // Contract-stream inputs are, by construction, accepted by the reference
-      // parser; minimization keeps that precondition.
+      const template = await corpus.input(report.fuzzer, record.firstIndex);
+      // Contract-stream inputs are, by construction, accepted by the first
+      // implementation's `parse`; minimization keeps that precondition.
       const requireAccepted = report.fuzzer !== "parse" && template.actions.length > 1;
       const keeps = async (source: string): Promise<boolean> => {
-        const reference = referenceCodes(source);
-        if (requireAccepted && (!Array.isArray(reference) || reference.length > 0)) return false;
+        if (requireAccepted && !(await executor.parses(source))) return false;
         const evaluation = await evaluate(
           report.fuzzer,
           { ...template, source },
@@ -508,18 +485,14 @@ function writeReport(report: FuzzerReport, options: Options, executor: Executor)
     join(directory, "uninventoried-codes.tsv"),
     `count\taction\tcode\n${sorted(report.unknownCodes)}\n`,
   );
-  writeFileSync(
-    join(directory, "reference-only-codes.tsv"),
-    `count\taction\tcode\n${sorted(report.referenceOnlyCodes)}\n`,
-  );
   const meta = {
     cases: report.cases,
     compilers: options.compilers.map((command) => command.join(" ")),
     fuzzer: report.fuzzer,
     generated: report.generated,
-    generatedReferenceAccepted: report.generatedAccepted,
+    generatedParseAccepted: report.generatedAccepted,
     maxSignatures: options.maxSignatures,
-    referenceAccepted: report.referenceAccepted,
+    parseAccepted: report.parseAccepted,
     requestedCases: options.cases,
     seconds: Math.round(report.seconds),
     seed: options.seed,
@@ -550,7 +523,7 @@ async function replay(options: Options, executor: Executor): Promise<number> {
       executor,
       options,
     );
-    process.stdout.write(`${fuzzer}: reference=${evaluation.reference.join(",") || "accept"}\n`);
+    process.stdout.write(`${fuzzer}:\n`);
     for (const [index, execution] of evaluation.executions.entries())
       for (const [action, outcome] of Object.entries(execution))
         process.stdout.write(
@@ -570,14 +543,14 @@ async function main(): Promise<number> {
   const executor = new Executor(options, inventory);
   mkdirSync(options.work, { recursive: true });
   if (options.replay) return replay(options, executor);
-  const corpus = new Corpus(options.seed);
+  const corpus = new Corpus(options.seed, (source) => executor.parses(source));
   mkdirSync(options.out, { recursive: true });
   process.stdout.write(
-    `seed=${options.seed} cases=${options.cases} jobs=${options.jobs} fuzzers=${options.fuzzers.join(",")} compilers=${options.compilers.length} seeds=${corpus.seeds.length} (${corpus.accepted.length} reference-accepted) wasm-tools=${options.adapters.has("wasm") ? wasmToolsAvailable().join("+") || "none" : "off"}\n`,
+    `seed=${options.seed} cases=${options.cases} jobs=${options.jobs} fuzzers=${options.fuzzers.join(",")} compilers=${options.compilers.length} seeds=${corpus.seeds.length} (${corpus.accepted.length} parse-valid) wasm-tools=${options.adapters.has("wasm") ? wasmToolsAvailable().join("+") || "none" : "off"}\n`,
   );
   let failed = 0;
   for (const fuzzer of options.fuzzers) {
-    const report = await runFuzzer(fuzzer, corpus, executor, options, inventory);
+    const report = await runFuzzer(fuzzer, corpus, executor, options);
     writeReport(report, options, executor);
     if (options.minimize) {
       await minimizeReport(report, corpus, executor, options);

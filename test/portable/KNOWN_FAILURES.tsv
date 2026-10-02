@@ -34,3 +34,4 @@ runtime/valid/relative-self-current.hd	check reports unknown-module and unsuppor
 runtime/valid/relative-self-top-level.hd	check reports unknown-module: the prototype starts relative lookup at the containing directory module, so self.x from src/a.hd is src/x.hd and super moves above the package root (module.relative.example.top-level)	SELF-CURRENT
 typing/valid/lib-root-pkg.hd	check reports unknown-module at `use pkg.{greet}`: the prototype treats src/lib.hd as module lib, not as the package root module (module.path.lib-file)	ROOTS
 typing/invalid/main-not-importable.hd	check exits 0: the prototype treats src/main.hd as an ordinary module main that others may use (module.path.main-no-use)	ROOTS
+parse/invalid/colon-line-after-if-suite.hd	parse exits 0: a line that starts with a colon after an if suite is attached to the if statement as a trailing block	F-310

@@ -2,21 +2,25 @@
 // 02 EBNF instead of only recognizing it, and reports the smallest ambiguous
 // node of every input with more than one parse.
 //
-// It reads the ```ebnf fences of spec/lang/02-grammar.md (the same source as the
-// reference parser) and reuses the reference lexer for source text. Imports:
-// Node built-ins and spec/ only.
+// It reads the ```ebnf fences of spec/lang/02-grammar.md and lexes source
+// text with its own layout lexer (lexer.ts). The `fixture` and `cases` modes
+// also run the compiler's `parse` through the command contract
+// (spec/conformance/README.md): $HD_TEST_COMMAND, else
+// `node --experimental-strip-types bin/hd.js`. Imports: Node built-ins, this
+// folder, and spec/ only.
 //
 //   node --experimental-strip-types audit/grammar/tools/ambiguity.ts probe FILE|-e SRC
 //   node --experimental-strip-types audit/grammar/tools/ambiguity.ts fixtures
 //   node --experimental-strip-types audit/grammar/tools/ambiguity.ts generate [N] [SEED]
 //   node --experimental-strip-types audit/grammar/tools/ambiguity.ts firstfollow
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { lexSource } from "../../../spec/reference-parser/lexer.ts";
-import { parseSource } from "../../../spec/reference-parser/parser.ts";
-import { Rng } from "../../../spec/tools/fuzz/common.ts";
+import { repoRoot, Rng, splitCommand } from "../../../spec/tools/fuzz/common.ts";
 import { Generator, loadGrammar, type Node } from "../../../spec/tools/fuzz/generate.ts";
+import { lexSource } from "./lexer.ts";
 
 interface Tok {
   readonly kinds: ReadonlySet<string>;
@@ -41,7 +45,7 @@ function toBnf(ebnf: ReadonlyMap<string, Node>): Bnf {
     switch (node.kind) {
       case "lit":
         // Quoted, so a literal never aliases a production of the same name
-        // (the reference parser conflates "type" with the `type` rule).
+        // (a literal "type" and the `type` rule are different symbols).
         return [[`'${node.value}'`]];
       case "sym":
         return [[node.value]];
@@ -68,7 +72,7 @@ function toBnf(ebnf: ReadonlyMap<string, Node>): Bnf {
     }
   };
   for (const [name, node] of ebnf) rules.set(name, compile(name, node));
-  // Same simplification as the reference parser: string interpolation is lexical.
+  // Simplification: string interpolation is lexical.
   rules.set("string_expression", [["string_literal"], ["prefixed_string_literal"]]);
   for (const [name, alts] of rules) {
     const seen = new Map(alts.map((rhs) => [rhs.join(" "), rhs]));
@@ -355,6 +359,34 @@ function lexTokens(source: string): { tokens: Tok[]; diagnostics: string[] } {
   return { diagnostics: diagnostics.map((d) => `${d.code}:${d.line}`), tokens };
 }
 
+const compiler = splitCommand(
+  process.env.HD_TEST_COMMAND ?? "node --experimental-strip-types bin/hd.js",
+);
+
+/** The compiler's `parse` verdict on `source`: `CODE:LINE` per located error, or none. */
+function compilerParse(source: string): string[] {
+  const directory = mkdtempSync(join(tmpdir(), "hd-amb-"));
+  const file = join(directory, "case.hd");
+  try {
+    writeFileSync(file, source);
+    const result = spawnSync(compiler[0]!, [...compiler.slice(1), "parse", file], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    if (result.status === 0) return [];
+    const located = /^\S*case\.hd:(\d+):\d+: ([a-z0-9-]+):/;
+    const codes = `${result.stdout}\n${result.stderr}`
+      .split("\n")
+      .map((line) => located.exec(line))
+      .filter((match) => match !== null)
+      .map((match) => `${match[2]}:${match[1]}`);
+    return codes.length ? codes : [`exit-${result.status ?? result.signal}`];
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+}
+
 // ------------------------------------------------------------------ modes
 
 const specRoot = resolve(import.meta.dirname, "../../../spec");
@@ -538,17 +570,17 @@ if (mode === "probe") {
   const lines = report("input", tokens);
   console.log(lines.length ? lines.join("\n") : "input: exactly one parse");
 } else if (mode === "fixture") {
-  // Reference-parser diagnostics of fixture files next to their marker line.
+  // The compiler's parse diagnostics of fixture files next to their marker line.
   for (const file of rest) {
     const source = readFileSync(file, "utf8");
     const marker =
       source.split("\n").findIndex((l) => /# (diagnostic|warning|panic): /.test(l)) + 1;
-    const diags = parseSource(source).map((d) => `${d.code}:${d.line}`);
-    console.log(`${file}: marker ${marker || "-"}; reference ${diags.join(", ") || "accept"}`);
+    const diags = compilerParse(source);
+    console.log(`${file}: marker ${marker || "-"}; compiler ${diags.join(", ") || "accept"}`);
   }
 } else if (mode === "cases") {
   // A case file holds many sources, each introduced by a line `#### NAME`.
-  // For each: reference-parser diagnostics, then the derivation count.
+  // For each: the compiler's parse diagnostics, then the derivation count.
   for (const file of rest) {
     const chunks = readFileSync(file, "utf8")
       .split(/^#### /m)
@@ -556,10 +588,10 @@ if (mode === "probe") {
     for (const chunk of chunks) {
       const name = chunk.slice(0, chunk.indexOf("\n")).trim();
       const source = chunk.slice(chunk.indexOf("\n") + 1);
-      const diags = parseSource(source).map((d) => `${d.code}:${d.line}`);
+      const diags = compilerParse(source);
       const { tokens } = lexTokens(source);
       const lines = report(name, tokens);
-      const verdict = diags.length ? `reference: ${diags.join(", ")}` : "reference: accept";
+      const verdict = diags.length ? `compiler: ${diags.join(", ")}` : "compiler: accept";
       console.log(`${name}: ${verdict}`);
       for (const line of lines) if (!line.includes("REJECT")) console.log(`  ${line}`);
     }

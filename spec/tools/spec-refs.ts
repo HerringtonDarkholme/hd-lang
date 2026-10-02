@@ -47,8 +47,7 @@ const HISTORY =
 export function areaOf(file: string): Area | undefined {
   if (file.startsWith("spec/conformance/"))
     return /\.(?:hd|tsv|md)$/.test(file) ? "fixtures" : undefined;
-  if (file.startsWith("spec/tools/") || file.startsWith("spec/reference-parser/"))
-    return file.endsWith(".md") ? "spec" : undefined;
+  if (file.startsWith("spec/tools/")) return file.endsWith(".md") ? "spec" : undefined;
   if (file.startsWith("spec/")) return file.endsWith(".md") ? "spec" : undefined;
   if (file.startsWith("guide/")) return file.endsWith(".md") ? "guide" : undefined;
   if (file.startsWith("lib/std/")) return file.endsWith(".hd") ? "lib-std" : undefined;

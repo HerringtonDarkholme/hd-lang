@@ -86,11 +86,13 @@ Library" states the tier test and where each kind of rule goes.
 ## Examples
 
 - Keep examples short: the smallest code that shows the point.
-- Write hd examples in `text` fences and check each one with the reference
-  parser (`parseSource` in
-  [spec/reference-parser/parser.ts](../../spec/reference-parser/parser.ts)).
-  A line that uses syntax no chapter specifies ends in
+- Write hd examples in `text` fences and check each one with the compiler:
+  `hd debug parse FILE`, which is
+  `node --experimental-strip-types bin/hd.js debug parse FILE` from the repo
+  root. A line that uses syntax no chapter specifies ends in
   `# hypothetical syntax`. Record every result in a Parse Log.
+- The compiler is a toy and lags the spec. When it rejects syntax that a
+  chapter specifies, cite the chapter and say so in the Parse Log.
 - Code in other languages goes in its own fence (`rust`, `swift`, ...) and
   is not parsed.
 - Parsing checks syntax only. Say so; do not claim a block type-checks.
@@ -99,12 +101,22 @@ To parse every `text` block of a Markdown file, from the repo root:
 
 ```sh
 node --experimental-strip-types --input-type=module -e '
-import { readFileSync } from "node:fs";
-import { parseSource } from "./spec/reference-parser/parser.ts";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+const dir = mkdtempSync(join(tmpdir(), "hd-blocks-"));
 const blocks = [...readFileSync(process.argv[1], "utf8").matchAll(/^```text\n([\s\S]*?)^```/gm)];
 blocks.forEach((m, i) => {
-  const d = parseSource(m[1]);
-  console.log(`block ${i + 1}: ${d.length ? d.map((x) => `${x.code}@${x.line}`).join(", ") : "parse"}`);
+  const file = join(dir, `block-${i + 1}.hd`);
+  writeFileSync(file, m[1]);
+  let result = "parse";
+  try {
+    execFileSync("node", ["--experimental-strip-types", "bin/hd.js", "debug", "parse", file], { stdio: "pipe" });
+  } catch (error) {
+    result = `${error.stdout}${error.stderr}`.trim().replaceAll(`${file}:`, "line ").replaceAll("\n", "; ");
+  }
+  console.log(`block ${i + 1}: ${result}`);
 });
 ' future-work/REPORT.md
 ```

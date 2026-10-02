@@ -12,3 +12,4 @@ NONPKG	1	A `use self` in a single-file program is not reported at the use
 SELF-CURRENT	2	Relative lookup starts at the containing directory module, not at the file's own module, so self and super resolve one level too high
 ROOTS	2	src/lib.hd is linked as module lib rather than the package root module, and src/main.hd is an ordinary module that others may use
 TASK-PROGRAMS	1	The package linker joins every integration test module into one program, so a test program can use another
+F-310	1	A line starting with `:` is parsed as a trailing block on the previous statement
