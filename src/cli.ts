@@ -140,6 +140,11 @@ interface PackagePlacement {
   readonly root: string;
   readonly path: string;
   readonly files: Readonly<Record<string, string>>;
+  /**
+   * Diagnostics already printed, shared by the module runs of `hd test DIR`,
+   * so that an error in a module that several others link prints once.
+   */
+  readonly reported?: Set<string>;
 }
 
 /** Compiles FILE and does what `options.command` asks with it. */
@@ -184,6 +189,10 @@ async function runFile(
   const report = (diagnostic: Diagnostic | PackageDiagnostic): void => {
     if (!linked || !placement || !treeFiles) return reporter.diagnostic(diagnostic);
     const located = "path" in diagnostic ? diagnostic : linked.locate(diagnostic);
+    const { line, column } = located.span.start;
+    const key = `${located.path}:${line}:${column}: ${located.code}: ${located.message}`;
+    if (placement.reported?.has(key)) return;
+    placement.reported?.add(key);
     if (located.path === placement.path) return reporter.diagnostic(located);
     let treeReporter = treeReporters.get(located.path);
     if (!treeReporter) {
@@ -375,9 +384,15 @@ async function testDirectory(options: FileOptions, directory: string): Promise<n
     const files = Object.fromEntries(
       Object.entries(sources).map(([path, text]) => [`${SOURCE_ROOT}${path}`, text]),
     );
+    const reported = new Set<string>();
     for (const path of Object.keys(files).sort()) {
       ran += 1;
-      const code = await runFile(options, join(directory, path), { root, path, files }, true);
+      const code = await runFile(
+        options,
+        join(directory, path),
+        { root, path, files, reported },
+        true,
+      );
       status = Math.max(status, code);
     }
   } else {

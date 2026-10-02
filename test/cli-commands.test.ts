@@ -207,3 +207,29 @@ test("hd test on a package tests each module, and with no path the current packa
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("hd test on a package prints an error in a shared module once", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    await mkdir(join(directory, "src"), { recursive: true });
+    await writeFile(join(directory, "hd.toml"), "");
+    await writeFile(join(directory, "src/base.hd"), 'pub fn one() -> i32:\n    "one"\n');
+    for (const name of ["left", "right"])
+      await writeFile(
+        join(directory, `src/${name}.hd`),
+        `use pkg.base.{one}\n\npub fn ${name}() -> i32:\n    one()\n`,
+      );
+    let failure: CommandResult | undefined;
+    await assert.rejects(hd(["test"], directory), (error: CommandResult) => {
+      failure = error;
+      return true;
+    });
+    assert.equal(failure!.code, 1);
+    const located = (failure!.stdout + failure!.stderr)
+      .split("\n")
+      .filter((line) => /base\.hd:2:\d+: /.test(line));
+    assert.equal(located.length, 1, located.join("\n"));
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

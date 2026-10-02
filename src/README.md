@@ -73,7 +73,8 @@ hd repl              hd help [COMMAND]           hd debug parse|hir FILE
   package and runs only its own test cases. Any other directory has each
   `.hd` file in it tested on its own. `hd test` with no path tests the
   package that holds the current directory (the nearest `hd.toml`), or else
-  the current directory. The prototype links no `tests/` integration modules.
+  the current directory. An error in a module that several modules link
+  prints once. The prototype links no `tests/` integration modules.
 
 `hd run` runs the public `main` or `main!`; a module without one runs its
 initialization and exits 0, while `--entry NAME` must name a function.
