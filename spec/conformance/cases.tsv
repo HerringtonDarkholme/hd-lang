@@ -1764,3 +1764,5 @@ typing/valid/untyped-fact-default.hd	type	accept	14-annotations.md#r-annot.typed
 typing/valid/arbitrary-with-generic-generator.hd	type	accept	std/testing.md#r-std-testing.arbitrary.with.checked
 typing/valid/facts-find-generic-key.hd	type	accept	14-annotations.md#r-annot.structure.find-key
 typing/invalid/facts-find-unbounded-key.hd	type	reject:unsatisfied-trait-bound	14-annotations.md#r-annot.structure.find-key
+runtime/valid/integration-self-use.hd	runtime	accept	10-modules.md#r-module.relative.test-root
+typing/invalid/integration-super-above-test-root.hd	type	reject:unknown-module	10-modules.md#r-module.relative.above-test-root

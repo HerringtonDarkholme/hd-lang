@@ -24,3 +24,4 @@ runtime/valid/block-on-inside-driver.hd	test panics with suspension-nested-drive
 runtime/valid/println-under-main-driver.hd	test panics with suspension-nested-driver: println drives with block_on, which the prototype still rejects under main!'s driver (module.console.println-block-on.under-driver)	NESTED-BLOCK-ON
 runtime/valid/println-in-test-body.hd	test panics with suspension-nested-driver: println drives with block_on, which the prototype still rejects under a test body's driver (module.console.println-block-on.under-driver)	NESTED-BLOCK-ON
 typing/invalid/race-no-tasks.hd	check accepts race!::[i32](): the prototype does not reject a race! call with no task argument (req.combinator.race-empty)	RACE-EMPTY
+runtime/valid/integration-self-use.hd	check reports syntax-error in tests/common.hd: joining a test module as a tests: block blanks its top-level pub, which leaves a pub fn header as deep as its body (module.relative.test-root)	TEST-PUB-JOIN

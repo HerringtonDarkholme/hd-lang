@@ -312,6 +312,14 @@ Relative lookup starts at a base that depends on the source file:
 5. r[module.relative.example] Consequently, from `src/user/service.hd`, `self.types` resolves to `pkg.user.types` and `super.shared` resolves to `pkg.shared`.
 6. r[module.relative.above-root] Moving above the package root is a compile-time error.
 7. r[module.relative.no-cross] Relative use paths cannot cross into `std` or a dependency.
+8. r[module.relative.test-root] In an integration test module, relative lookup is rooted at the test root as it is at the package root under `src`. From `tests/checkout.hd`, `self.common` resolves to `tests.common`.
+9. r[module.relative.above-test-root] In an integration test module, a `super` that moves above the test root is an error. Error: `unknown-module`.
+
+```text
+# tests/checkout.hd
+use self.common.{expected}   # valid: tests.common
+use super.common.{expected}  # error: unknown-module
+```
 
 ## Use Forms
 

@@ -8,15 +8,15 @@ repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-10-01 the conformance suite has 1,765 cases, and
-`test/portable/cases.tsv` selects the 1,740 that the prototype passes. The
-other 25 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
+On 2026-10-01 the conformance suite has 1,767 cases, and
+`test/portable/cases.tsv` selects the 1,741 that the prototype passes. The
+other 26 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
 finding or with a decision below. Every case is in one of the two files. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Selected | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,691 | 1,666 | 25 |
+| language | 1,693 | 1,667 | 26 |
 | stdlib | 74 | 74 | 0 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -34,6 +34,7 @@ them by tag:
 | MHP-1 | 1 | no inferred script entry requirement row |
 | NESTED-BLOCK-ON | 5 | `block_on` under an active driver still panics |
 | RACE-EMPTY | 1 | `race!` with no task is not rejected |
+| TEST-PUB-JOIN | 1 | a test module's `pub fn` fails to parse once linked |
 
 ## What Remains
 

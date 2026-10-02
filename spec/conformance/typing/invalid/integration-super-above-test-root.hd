@@ -1,0 +1,7 @@
+# test: in an integration test module, a super that moves above the test root names no module
+# Spec 10 Relative Uses: module.relative.above-test-root (Batch 45 TESTS-SELF).
+# fixture-package-tree: integration-self/tests/checkout.hd
+use super.common.{expected}  # diagnostic: unknown-module
+
+pub fn label() -> string:
+    expected()

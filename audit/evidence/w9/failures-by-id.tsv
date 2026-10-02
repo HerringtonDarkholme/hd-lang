@@ -9,3 +9,4 @@ DC7	1	An initialization group's statements are not interleaved: the package link
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer
 NESTED-BLOCK-ON	5	block_on under an active driver still panics with suspension-nested-driver in the prototype, so nested block_on and println under main! or a test body fail
 RACE-EMPTY	1	The prototype does not reject a race! call with no task argument
+TEST-PUB-JOIN	1	The package linker joins a test module or integration test module as a tests: block and blanks its top-level pub, so a pub fn header sits as deep as its body and fails to parse
