@@ -1734,3 +1734,10 @@ typing/invalid/facts-of-without-import.hd	type
 typing/valid/untyped-fact-default.hd	type
 typing/valid/facts-find-generic-key.hd	type
 typing/invalid/facts-find-unbounded-key.hd	type
+runtime/valid/bare-marker-decorator.hd	runtime
+runtime/valid/facts-of-read.hd	runtime
+typing/invalid/facts-of-closure.hd	type
+typing/invalid/facts-of-local-binding.hd	type
+typing/invalid/facts-of-method.hd	type
+typing/invalid/facts-of-type-name.hd	type
+typing/invalid/facts-of-as-value.hd	type

@@ -54,6 +54,7 @@ import {
   type CompiledTemplate,
 } from "./template-instances.ts";
 import { withTypedFacts } from "./typed-facts.ts";
+import { factsOfBuilders, importsFactsOf } from "./function-facts.ts";
 import { debugWriterName } from "./standard-traits.ts";
 import { checkDuplicateDeclarationFacts, isLiteralFact } from "./declaration-facts.ts";
 import {
@@ -610,7 +611,8 @@ export function withTypedDerivation(source: Program): DerivationResult {
 
   const factFunctions = factCheckFunctions(program);
 
-  const needsStructure = imported.size > 0 || generated.length > 0;
+  // `facts_of` returns `std.structure`'s `Facts` (annot.facts-of.result).
+  const needsStructure = imported.size > 0 || generated.length > 0 || importsFactsOf(program);
   const structure = needsStructure
     ? parse(renameWords(STRUCTURE_SOURCE, renames)).program
     : undefined;
@@ -665,6 +667,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
         ...intrinsicHelpers(newtypeIntrinsic, writer),
         ...newtypeHelpers.values(),
         ...factFunctions,
+        ...factsOfBuilders(program, structureName("Facts"), unscoped),
         ...(structure?.functions ?? []),
         ...templateDeclarations.flatMap((item) => item.functions),
         ...generated.flatMap((item) => item.functions),

@@ -1,58 +1,45 @@
-# std.annotation: shape values built by the shape intrinsics.
+# std.annotation: a function's decorator values, read through facts_of.
+use std.annotation.{annotate, facts_of as facts}
 use std.testing.{assert, assert_equal}
 
-data MaxLen:
-    value: i32
+@annotate(.Fn)
+data Route:
+    path: string
 
-fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
+fn route(path: string) -> Route: Route { path: path }
 
-## A reflected user.
-data User:
-    ## The display name.
-    @max_len(80)
-    name: string
-    nickname: string?
+@annotate(.Fn)
+data Hidden: pass
 
-enum JobStatus:
-    Queued
-    Failed(code: i32)
+fn hidden() -> Hidden: Hidden {}
 
-fn lookup(id: i32, label: string = "") -> List[string]:
-    []
+@route("/users")
+@"lists users"
+@hidden
+fn list_users() -> string:
+    "[]"
 
-fn field_count(target: DataShape) -> i32:
-    target.field_list.len()
+@route("/items")
+fn first[T](items: List[T]) -> T?:
+    items.first()
 
-fn limit(field: FieldShape) -> i32:
-    match field.metadata::[MaxLen]():
-        .Some(found) => found.value
-        .None => 0
+fn plain() -> void:
+    pass
+
+fn path_of(found: Route?) -> string:
+    match found:
+        .Some(value) => value.path
+        .None => ""
 
 tests:
-    it("a data shape lists its fields"):
-        user := shape::[User]()
-        assert_equal(user.name, "User", reason="the name")
-        assert_equal(field_count(user), 2, reason="the specialized shape converts")
-        assert_equal(user.fields.nickname.position, 1, reason="the field position")
-        assert(user.fields.nickname.field_type.is_optional(), reason="an optional field")
-        assert_equal(user.fields.name.doc, "The display name.", reason="the field doc")
+    it("finds each attached value by its type"):
+        assert_equal(path_of(facts(list_users).find::[Route]()), "/users", reason="a data value")
+        assert_equal(facts(list_users).find::[string](), "lists users", reason="a literal value")
+        assert(facts(list_users).find::[Hidden]().is_some(), reason="a bare marker is called")
 
-    it("metadata finds the attached value by type"):
-        user := shape::[User]()
-        assert_equal(limit(user.fields.name), 80, reason="the attached value")
-        assert_equal(limit(user.fields.nickname), 0, reason="no attached value")
+    it("reads a generic function's values"):
+        assert_equal(path_of(facts(first).find::[Route]()), "/items", reason="the generic target")
 
-    it("an enum shape lists its variants"):
-        status := shape::[JobStatus]()
-        assert_equal(status.variant_list.len(), 2, reason="the variant count")
-        assert_equal(status.variants.Failed.payload.len(), 1, reason="the payload")
-
-    it("a function shape lists its parameters"):
-        target := shape_of(lookup)
-        assert_equal(target.params.len(), 2, reason="the parameter count")
-        assert(target.params[1].has_default, reason="a default")
-        assert(!target.suspending, reason="not suspending")
-
-    it("another type has a TypeShape"):
-        assert(shape::[i32?]().is_optional(), reason="an optional type")
-        assert(!shape::[List[i32]]().is_optional(), reason="a list type")
+    it("a function without decorators holds none"):
+        assert(facts(plain).find::[string]().is_none(), reason="no literal")
+        assert(facts(plain).find::[Route]().is_none(), reason="no route")

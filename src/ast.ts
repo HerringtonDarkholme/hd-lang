@@ -157,7 +157,7 @@ export interface TraitDecl {
   readonly strengthenableMembers?: readonly string[];
   /** The qualified name of a std trait, such as `std.ops.Add`, whatever its local name. */
   readonly standardName?: string;
-  /** Declared by the standard library (`lib/std/`), which declares prelude names such as `DataShape`. */
+  /** Declared by the standard library (`lib/std/`), which declares prelude names such as `Display`. */
   readonly standard?: boolean;
   /** Decorator lines before the trait (14 Prefix Decorators). */
   readonly decorators?: Decorators;
@@ -223,7 +223,7 @@ export interface DataDecl {
   /** Declared in a block suite, so not inspectable (09-traits.md#inspectable-types). */
   readonly local?: boolean;
   readonly decorators?: Decorators;
-  /** Declared by the standard library (`lib/std/`), which declares prelude names such as `DataShape`. */
+  /** Declared by the standard library (`lib/std/`), which declares prelude names such as `Display`. */
   readonly standard?: boolean;
   /**
    * The qualified name of a `lib/std` declaration, such as
@@ -278,7 +278,7 @@ export interface EnumDecl {
   /** Declared in a block suite, so not inspectable (09-traits.md#inspectable-types). */
   readonly local?: boolean;
   readonly decorators?: Decorators;
-  /** Declared by the standard library (`lib/std/`), which declares prelude names such as `DataShape`. */
+  /** Declared by the standard library (`lib/std/`), which declares prelude names such as `Display`. */
   readonly standard?: boolean;
   readonly span: SourceSpan;
 }

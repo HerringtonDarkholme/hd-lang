@@ -59,7 +59,6 @@ import {
   numericWidening,
   restElementProblem,
 } from "./shared.ts";
-import { generalizedShape } from "./shapes.ts";
 import { findSupertraitPath, resolveTraitPath } from "./trait-paths.ts";
 import {
   mutableInner,
@@ -444,8 +443,6 @@ export abstract class CheckerContext {
     if (isPermissionWeakening(value.type, expected) || isRowSubsumption(value.type, expected)) {
       return { kind: "permission-weaken", operand: value, type: expected, span };
     }
-    const shape = generalizedShape(value, expected, this.dataTypes, span);
-    if (shape) return shape;
     const variance = varianceConversion(value.type, expected, {
       data: this.dataTypes,
       enums: this.enumTypes,

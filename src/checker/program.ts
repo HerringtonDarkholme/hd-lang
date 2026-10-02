@@ -31,7 +31,6 @@ import { defaultBoundDiagnostics, withTypeDefaults } from "./type-defaults.ts";
 import { withTypedDerivation } from "./typed-derivation.ts";
 import { withArbitraryModule } from "./arbitrary-module.ts";
 import { withErrorDerivation } from "./error-derivation.ts";
-import { withShapes } from "./shapes.ts";
 import { setHashableKeyTypes } from "./map-keys.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 
@@ -61,8 +60,7 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
   const derived = withTypedDerivation(spelled.program);
   if (derived.diagnostics.some((diagnostic) => diagnostic.severity !== "warning"))
     return { diagnostics: [...derived.diagnostics] };
-  // Shape intrinsics call generated builders (the former Shape Intrinsics, removed from the spec in batch 42).
-  const result = checkProgram(withShapes(derived.program), options);
+  const result = checkProgram(derived.program, options);
   // A member that fails the walker's bound is reported at the opt-in
   // (spec/14-annotations.md#r-annot.walker.obligation.error).
   const sameSpan = (span: SourceSpan, diagnostic: Diagnostic): boolean =>

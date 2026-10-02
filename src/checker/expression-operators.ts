@@ -13,6 +13,7 @@ import { isIntegerType, numericType, widerNumeric } from "../numeric.ts";
 import { isKnownType, PRELUDE_NAMES } from "./context.ts";
 import type { Signature } from "./context.ts";
 import { ALL_COMBINATOR } from "./standard-traits.ts";
+import { FACTS_OF_INTRINSIC } from "./function-facts.ts";
 import {
   containsGenericType,
   genericTypeName,
@@ -210,6 +211,13 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           );
         }
         const signature = this.visibleSignature(expression.name);
+        // `facts_of` is only a callee (annot.facts-of.target.error).
+        if (signature?.intrinsic === FACTS_OF_INTRINSIC)
+          this.fail(
+            "invalid-facts-of-target",
+            `'${expression.name}' is a compiler intrinsic and must be called directly`,
+            expression.span,
+          );
         if (signature) {
           if (signature.genericParameters.length > 0 || signature.rowParameters.length > 0) {
             const instantiated = this.instantiateFunctionValue(expression, signature, _expected);
@@ -245,13 +253,6 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             span: expression.span,
           };
         }
-        // The shape intrinsics are only callees (the former Shape Intrinsics, removed from the spec in batch 42).
-        if (expression.name === "shape" || expression.name === "shape_of")
-          this.fail(
-            "unknown-shape-target",
-            `'${expression.name}' is a compiler intrinsic and must be called directly`,
-            expression.span,
-          );
         this.rejectTypeAsValue(expression.name, expression.span);
         if (this.imports.get(expression.name) === ALL_COMBINATOR)
           this.fail(

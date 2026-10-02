@@ -16,7 +16,7 @@ import { factType } from "./typed-derivation.ts";
 //
 // - `withBareMarkerCalls`: a bare decorator name that resolves to a function
 //   with no parameters is called (annot.decorator.bare-call). It runs before
-//   typed derivation and shapes copy the values, and again after the
+//   typed derivation and `facts_of` copy the values, and again after the
 //   standard library is joined, for `std`'s own decorators.
 // - `checkDecoratorTargets`: a value whose type carries a
 //   `std.annotation.Annotate` fact may be attached only to the target kinds

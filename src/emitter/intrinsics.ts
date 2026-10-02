@@ -31,15 +31,16 @@ const RUNTIME_PRIMITIVES: Readonly<
 };
 
 /**
- * Polling combinators whose `lib/std` declaration types their calls; their
- * bodies are compiler intrinsics the prototype does not emit yet
- * (11-requirements-and-suspension.md#r-req.combinator.intrinsic).
+ * Intrinsics whose `lib/std` body never runs: the polling combinators, whose
+ * bodies the prototype does not emit yet
+ * (11-requirements-and-suspension.md#r-req.combinator.intrinsic), and
+ * `facts_of`, which the checker lowers at every call (14-annotations.md#function-facts).
  */
-const UNEMITTED_COMBINATORS: ReadonlySet<string> = new Set(["task_race"]);
+const UNEMITTED_INTRINSICS: ReadonlySet<string> = new Set(["task_race", "facts_of"]);
 
 /** Whether `name` is a runtime primitive rather than a host function. */
 export function isRuntimePrimitive(name: string): boolean {
-  return Object.hasOwn(RUNTIME_PRIMITIVES, name) || UNEMITTED_COMBINATORS.has(name);
+  return Object.hasOwn(RUNTIME_PRIMITIVES, name) || UNEMITTED_INTRINSICS.has(name);
 }
 
 /** The Wasm type a boundary value crosses as. */
@@ -89,7 +90,7 @@ function hostSignature(declaration: HirFunction): string {
 export function emitIntrinsicBody(declaration: HirFunction, unbox: Unbox): string {
   const name = declaration.intrinsic!;
   // The checker rejects every call of one when emitting, so the body never runs.
-  if (UNEMITTED_COMBINATORS.has(name)) return "unreachable";
+  if (UNEMITTED_INTRINSICS.has(name)) return "unreachable";
   const arguments_ = declaration.parameters.map(
     (parameter) => `(local.get ${localName(parameter.index)})`,
   );

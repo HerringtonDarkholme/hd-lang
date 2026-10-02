@@ -805,7 +805,16 @@ else`, `break`, `break value`, and `continue`;
   function, trait, implementation, newtype, method, or method parameter
   attaches its value, which is checked as a compile-time expression like
   any fact, counted by `duplicate-fact`, and, on a module-level function,
-  read by `shape_of(f).metadata::[M]()`. A bare decorator name of a function
+  read by `facts_of(f).find::[M]()` (spec/14-annotations.md#function-facts).
+  `checker/function-facts.ts` gives each function that a `facts_of` call
+  names a generated `Facts` builder; the checker lowers a call whose
+  argument names that function, not a local, to the builder's call, and any
+  other argument, or `facts_of` as a value, is `invalid-facts-of-target`.
+  Importing `facts_of` declares `std.structure`, since each call returns
+  its `Facts`; the written result in `lib/std/annotation.hd` is `Any`, so
+  modules that only depend on `std.annotation`, such as `std.ops`, need not
+  declare `std.structure`. A module-qualified argument is not supported,
+  since the prototype compiles one module. A bare decorator name of a function
   with no parameters is rewritten to a call, before typed derivation for
   the program's own and imported functions and after the standard library
   is joined for `std`'s own decorators. The target-kind check runs after
@@ -1107,7 +1116,7 @@ What it provides:
 
 | Module | Contents |
 | --- | --- |
-| `std.annotation` | the shape types (`DataShape`, `FieldShape`, `TypeShape`, ...), `ShapeMetadata`, and `TypeShape.is_optional`; `checker/shapes.ts` generates the builders that `shape::[T]()` and `shape_of(f)` call. `Target`, `Annotate`, and `annotate`, which limit a fact type's target kinds |
+| `std.annotation` | `facts_of`, with an `@intrinsic("facts_of")` body that never runs: the checker lowers each call to a builder that `checker/function-facts.ts` generates. `Target`, `Annotate`, and `annotate`, which limit a fact type's target kinds |
 | `std.hash` | `Hash` and `Hasher` (prelude names), and `Hash` for `string`, `bool`, `char`, and every integer type, and its tuple template; no standard hasher, which the specification does not name |
 | `std.task` | `retry!`, and the plain signature of `race!` with an `@intrinsic("task_race")` body; `block_on`, `all!` (which has no written signature), and `Waker` stay compiler-provided names of the module |
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
@@ -1216,7 +1225,7 @@ marks what this refactor removed.
 | HIR | `debug-render` | `std.format` | Done: `debug`, `DebugWriter`, and its builders are hd code in `lib/std/format.hd` |
 | HIR | `list-*`, `map-*`, `iterator-next` | built-in `List` and `Map` | Remains: the collection types are built into the runtime layout |
 | HIR | `inspect-type-id`, `inspect-downcast` | `std.inspect` | Remains: runtime type identity is a compiler service |
-| Checker | `block_on`, `all!`, `race!`, `shape`, `shape_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `race!` is declared in `lib/std/task.hd`, so only its `@intrinsic` name is known; `all!` has no written signature, so the checker types it by name. `shape` and `shape_of` lower to calls of generated hd builders over `lib/std/annotation.hd`, with no HIR node |
+| Checker | `block_on`, `all!`, `race!`, `facts_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `race!` and `facts_of` are declared in `lib/std`, so only their `@intrinsic` names are known; `all!` has no written signature, so the checker types it by name. `facts_of` lowers to a call of a generated hd builder over `std.structure`'s `Facts`, with no HIR node |
 | Checker | `Duration` for test `timeout`, `ExitCode` and `Termination` for entry results (`standard-traits.ts`, `termination.ts`) | `std.time`, `std.process` | Remains: language hooks that name a std type; the declarations are already hd |
 | Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Done, except `Any` (`std.core`) and `Waker` (`std.task`), which have no `lib/std` file: the rest are hd in `std.cmp`, `std.format`, and `std.iter`, declared when a program mentions them (migration M2) |
 | Emitter | `float.wat` and the `format_f64`, `format_f32`, `pow_f64`, and `rem_f64` imports | float display, `**`, and floating `%` | Remains: operator and interpolation support |

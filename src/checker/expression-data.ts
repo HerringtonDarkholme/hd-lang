@@ -20,7 +20,6 @@ import {
 } from "./shared.ts";
 
 import { ExpressionSuspensionChecker } from "./expression-suspensions.ts";
-import { isShapeMemberRecord } from "./shapes.ts";
 import { isIntegerType } from "../numeric.ts";
 
 /** The decimal position a tuple-style member such as `_0` or `_12` names. */
@@ -687,14 +686,6 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         const dataDeclaration = this.dataTypes.get(typeName);
         if (dataDeclaration) {
           const selection = this.selectField(receiver.type, expression.name, expression.span);
-          // A specialized shape's `fields` or `variants` record
-          // (the former Shape Intrinsics, removed from the spec in batch 42).
-          if (selection.kind !== "field" && isShapeMemberRecord(dataDeclaration.name))
-            this.fail(
-              "unknown-shape-target",
-              `the reflected declaration has no member '${expression.name}'`,
-              expression.span,
-            );
           if (selection.kind !== "field")
             this.fail(
               "unknown-data-field",
