@@ -211,7 +211,7 @@ The stdlib chapters' terms are in the
 | **field lookup** | The steps that resolve `x.name` to one field from a module. See [Field Lookup](lang/03-names-and-scopes.md#field-lookup). |
 | **fixed elements** | The elements of a tuple type other than its rest element. See [`types.tuple.rest.form`](lang/04-type-system.md#r-types.tuple.rest.form). |
 | **fits** | A candidate implementation fits a call when the call's arguments check against its method's parameter types. See [`trait.resolve.fits`](lang/09-traits.md#r-trait.resolve.fits). |
-| **folder** | The directory that holds a source file; `mod.hd` included, and nested directories are separate folders. See [`module.folder.directory`](lang/10-modules.md#r-module.folder.directory). |
+| **folder** | The directory that holds a source file, or for a file `x.hd` with child modules, the directory `x/` that holds them; nested directories are separate folders. See [`module.folder.holder`](lang/10-modules.md#r-module.folder.holder). |
 | **folder graph** | A package's folders, with an edge where a file in one folder uses a module in another. It must be acyclic. See [`module.cycle.folder-edge`](lang/10-modules.md#r-module.cycle.folder-edge). |
 | **generic field** | A field whose declared type is a generic parameter; reading it yields the substituted type unchanged. See [`types.path.field.generic`](lang/04-type-system.md#r-types.path.field.generic). |
 | **handle** | A compiler-generated constant naming one member (`Field[S, F]`) or variant (`Variant[S]`) of a derivation's target. See [Handles](lang/14-annotations.md#handles). |

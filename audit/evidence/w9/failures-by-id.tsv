@@ -14,3 +14,4 @@ ROOTS	2	src/lib.hd is linked as module lib rather than the package root module, 
 TASK-PROGRAMS	1	The package linker joins every integration test module into one program, so a test program can use another
 F-310	1	A line starting with `:` is parsed as a trailing block on the previous statement
 RANGES	15	The prototype has no range expressions: no `..` or `..=` tokens, range types, range iteration, or slicing
+FOLDER-SELF	1	A file `x.hd` is placed in the folder of the directory that holds it, not in folder `x` beside its child modules

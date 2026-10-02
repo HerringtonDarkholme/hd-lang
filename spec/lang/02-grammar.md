@@ -896,7 +896,6 @@ use_root = "pkg"
          | "dep", ".", identifier
          | "self"
          | "super", { ".", "super" }
-         | "tests"
          ;
 
 use_group = "{", use_item, { ",", use_item }, [ "," ], "}" ;
@@ -909,7 +908,6 @@ use_item = identifier, [ "as", identifier ] ;
 4. r[grammar.use.contextual-words] `pkg`, `std`, `dep`, and `super` are contextual use-root words, and `as` is contextual before an alias.
 5. r[grammar.use.needs-root] `use` begins a use declaration only when a use root follows it.
 6. r[grammar.use.self-root] The reserved word `self` also acts as a relative use root.
-7. r[grammar.use.tests-root] The reserved word `tests` also acts as a use root, which names integration test modules, as [Use Roots](10-modules.md#use-roots) specifies.
 
 ```text
 import pkg.user.types.{User}  # error: old-import-declaration

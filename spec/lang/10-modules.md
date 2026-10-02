@@ -235,9 +235,22 @@ Two files directly under the source root have fixed roles:
 2. r[module.path.lib-index] `src/lib.hd` is the root's public index, as a directory's `mod.hd` is the directory's.
 3. r[module.path.main-file] `main.hd` directly under the source root, `src/main.hd`, is an entry module and its own program, never part of the package's library.
 4. r[module.path.main-no-use] A use of `src/main.hd` from another module is an error. Error: `unknown-module`.
+5. r[module.path.lib-only-root] `src/lib.hd` is the only root file of a package's library; the source root itself is never a directory module.
+6. r[module.path.no-root-mod] A `mod.hd` directly under the source root, `src/mod.hd`, is an error, and its message suggests renaming it `src/lib.hd`.
+7. r[module.path.lib-target] A package has a library exactly when it has `src/lib.hd`.
+8. r[module.path.executable-only] A package without `src/lib.hd` is executable-only: no dependent can use its modules.
+9. r[module.path.no-lib-dependency] Depending on a package that has no library is an error.
+
+```text
+src/lib.hd     # the package root module
+src/mod.hd     # invalid: rename it src/lib.hd
+```
 
 > **Note.** `src/main.hd` reaches the library's declarations through
 > `pkg` or `self`, as in `use self.{Config}`.
+
+> **Why.** One root file per role, as in Cargo: `src/lib.rs` makes the
+> library, and `src/main.rs` the default binary.
 
 ### Module Identity
 
@@ -275,17 +288,14 @@ tests/common/mod.hd    # tests.common, shared by integration test programs
 9. r[module.test.integration.shared-copy] Each integration test program gets its own copy of the shared test modules it uses, so their top-level statements run once per program.
 10. r[module.test.integration.shared-unused] A warning that a declaration of a shared test module is unused is given only when no integration test program uses that declaration.
 11. r[module.test.integration.pkg-root] In an integration test module, the `pkg` root names the package's library modules, each with only its public declarations.
-12. r[module.test.integration.tests-root.shared] The `tests` root names the test root, so an integration test module uses the shared test module `tests/common/mod.hd` as `use tests.common`.
-13. r[module.test.tests-root-elsewhere] A use of the `tests` root anywhere but an integration test module, including a test module, is an error. Error: `test-only-use`.
+12. r[module.test.integration.self-shared] An integration test program uses a shared test module through `self`, as in `use self.common` for `tests/common/mod.hd`.
+13. r[module.test.no-tests-root] There is no `tests` use root: test code reaches the test root only through `self` and `super`.
 14. r[module.test.no-tests-block] A test module or an integration test module must not contain a `tests:` block. Error: `misplaced-tests-block`.
 15. r[module.test.dev-dependency] A **dev dependency** is a dependency that the manifest declares in `[dev-dependencies]`. Test code may use it, and a dependent package never sees it.
 16. r[module.test.non-test-use.test-module] Non-test code that uses a test module is an error. Error: `test-only-use`.
 17. r[module.test.non-test-use.dev-dependency] Code under the source root, other than test code, that uses a dev dependency is an error. Error: `test-only-use`.
-18. r[module.test.cyclic-dev-dependency] A dev dependency that itself depends on the package may be used only from integration test modules. Using it from a `tests:` block or a test module is an error. Error: `cyclic-test-dependency`.
-
-```text
-use tests.common  # error: test-only-use
-```
+18. r[module.test.cyclic-dev-unit] A dev dependency that itself depends on the package must not be used from a `tests:` block or a test module. Error: `cyclic-test-dependency`.
+19. r[module.test.cyclic-dev-allowed] Integration test modules and [tasks](../cli/command-line.md#tasks) may use such a dev dependency.
 
 > **Why.** Each integration test program builds on its own, as each Cargo
 > integration test is its own crate, so helpers go in a subdirectory such
@@ -297,7 +307,7 @@ use tests.common  # error: test-only-use
 
 > **Note.** A [task](../cli/command-line.md#tasks) may also use dev
 > dependencies, and the `tasks` directory shares modules as the test root
-> does.
+> does, through `self`.
 
 See also: [Test Blocks](02-grammar.md#test-blocks),
 [Standard Testing](#standard-testing).
@@ -311,7 +321,6 @@ Every absolute use path begins with one of these roots:
 | `pkg` | the current package |
 | `std` | the standard library |
 | `dep.<name>` | a manifest dependency |
-| `tests` | the test root, from an integration test module |
 
 1. r[module.root.absolute] Every absolute use path begins with one of the roots in the table.
 2. r[module.root.manifest] The package manifest distinguishes standard library, current package, and external dependency namespaces.
@@ -432,18 +441,24 @@ use pkg.shop.{Item}
 
 ### Folders
 
-A source file's **folder** is the directory that holds it:
+A source file's **folder** is the directory that holds it, or the
+directory of its child modules:
 
 | Source file | Module | Folder |
 | --- | --- | --- |
 | `src/shop/mod.hd` | `shop` | `src/shop` |
+| `src/shop.hd`, when `src/shop/` holds its child modules | `shop` | `src/shop` |
 | `src/shop/cart.hd` | `shop.cart` | `src/shop` |
 | `src/shop/orders/order.hd` | `shop.orders.order` | `src/shop/orders` |
-| `src/shop.hd`, when there is no `src/shop/mod.hd` | `shop` | `src` |
+| `src/shop.hd`, with no child modules | `shop` | `src` |
+| `src/lib.hd` | the package root | `src` |
 
-1. r[module.folder.directory] A source file's folder is the directory that holds it, as the table shows.
-2. r[module.folder.mod-file] A `mod.hd` file is in the folder of its directory, like the other files there.
-3. r[module.folder.nested] Nested directories are separate folders: a file in `src/shop/orders` is not in folder `src/shop`.
+1. r[module.folder.holder] A source file's folder is the directory that holds it, except for a file with child modules.
+2. r[module.folder.parent-file] A file `x.hd` whose directory `x/` beside it holds source files, its child modules, is in folder `x/`, as `x/mod.hd` would be.
+3. r[module.folder.interchangeable] So `x.hd` and `x/mod.hd` are interchangeable: each is in the folder of its children.
+4. r[module.folder.parent-child] A parent module and its child modules share one folder, so a parent and a child that use each other make no folder edge.
+5. r[module.folder.mod-file] A `mod.hd` file is in the folder of its directory, like the other files there.
+6. r[module.folder.nested] Nested directories are separate folders: a file in `src/shop/orders` is not in folder `src/shop`.
 
 ### Folder Graph
 
@@ -459,7 +474,7 @@ A root facade that uses a child folder, beside a shared root file that the
 child uses, makes a loop of folders:
 
 ```text
-# src/mod.hd, in folder src
+# src/lib.hd, in folder src
 pub use pkg.shop.{Cart}
 
 # src/error.hd, in folder src

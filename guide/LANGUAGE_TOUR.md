@@ -2431,7 +2431,7 @@ modules both use explicit use declarations.
 
 Files in one folder may use each other in a loop, such as a `mod.hd` facade
 and the child files it re-exports. Folders must not: when a file in
-`src/shop/` uses `src/error.hd` while `src/mod.hd` uses `pkg.shop`, the loop
+`src/shop/` uses `src/error.hd` while `src/lib.hd` uses `pkg.shop`, the loop
 `src -> src/shop -> src` is `folder-cycle`. The fix moves the shared file into
 a leaf folder, `src/error/mod.hd`, which keeps the module name `error`. Uses
 in test code do not count, and a `pub use` chain must end at a declaration
@@ -2722,8 +2722,8 @@ Integration tests live under `tests/`, see the package as a dependent does,
 and get real providers from the test profile. Each file directly under
 `tests/` is its own program, so shared helpers go in a subdirectory such as
 `tests/common/`. There, `pkg.billing` names the library's public API, and
-`use self.common` or `use tests.common` reaches `tests/common/mod.hd`; the
-`tests` root is an error anywhere else. See [Test Modules](../spec/lang/10-modules.md#test-modules)
+`use self.common` reaches `tests/common/mod.hd`, as a task reaches
+`tasks/shared/`. See [Test Modules](../spec/lang/10-modules.md#test-modules)
 and the test runner notes.
 
 ## Requirements and Suspension

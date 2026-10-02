@@ -1,7 +1,0 @@
-# fixture-test-layout: test-module
-# test: only an integration test module may use the tests root, so a test module's use of it is test-only-use
-# Spec 10 Test Modules: module.test.tests-root-elsewhere (Testing T46, T52, T53).
-use tests.common  # diagnostic: test-only-use
-
-it("runs"):
-    pass

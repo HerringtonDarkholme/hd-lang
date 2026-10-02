@@ -44,6 +44,7 @@ A command works on a package when it finds that package's `hd.toml`:
 2. r[cli.mode.start] The start directory is the directory of the FILE that a command names, or the working directory when it names none.
 3. r[cli.mode.workspace] A command works in **workspace mode** when that nearest `hd.toml` is a workspace manifest, which lists members and declares no package.
 4. r[cli.mode.outside] Otherwise the command works outside any package.
+5. r[cli.mode.workspace-file] A command that names a FILE under a workspace root but in no member works outside any package, so FILE is a single-file program that may use only `std`.
 
 > **Note.** A `src` directory without an `hd.toml` does not make a package.
 
@@ -89,6 +90,8 @@ module = "tools.migrate"
 4. r[cli.exe.unselected-main] A public `main` or `main!` in a module under the source root that no executable names is an ordinary function, and `hd` warns about it. Warning: `unselected-main`.
 5. r[cli.exe.default-main] With no `[[executable]]` table in `hd.toml`, `src/main.hd` is the package's **default executable**, as Cargo's `src/main.rs` is.
 6. r[cli.exe.other-module] An executable's entry module other than `src/main.hd`, such as `src/tools/migrate.hd`, resolves relative uses as an ordinary module does: `self` is its own module.
+7. r[cli.exe.default-name] The default executable is named after the package, the `name` of its `[package]` table, as Cargo names `src/main.rs`.
+8. r[cli.exe.default-name.clash] A task with the package's name therefore clashes with the default executable, by [`cli.task.name-clash`](#r-cli.task.name-clash).
 
 > **Note.** The entry module's `main`, `main!`, or top-level statements
 > decide what the executable does, by
@@ -128,8 +131,9 @@ modules that tasks share:
 10. r[cli.task.shared-unused] A warning that a declaration of a shared task module is unused is given only when no task uses that declaration.
 11. r[cli.task.uses] A task may use the package's modules through `pkg`.
 12. r[cli.task.dev-dependencies] A task may use the package's dependencies and its [dev dependencies](../lang/10-modules.md#r-module.test.dev-dependency).
-13. r[cli.task.not-shipped] A task is never part of the package's library or executables, and a dependent package never builds it.
-14. r[cli.task.name-clash] A task and an executable with the same name are an error when `hd` reads the manifest.
+13. r[cli.task.cyclic-dev-dependency] A task may use a dev dependency that itself depends on the package, as an integration test module may.
+14. r[cli.task.not-shipped] A task is never part of the package's library or executables, and a dependent package never builds it.
+15. r[cli.task.name-clash] A task and an executable with the same name are an error when `hd` reads the manifest.
 
 > **Why.** Tasks follow the test root's layout
 > ([Test Modules](../lang/10-modules.md#test-modules)): a top-level file is
@@ -139,6 +143,7 @@ modules that tasks share:
 
 ```sh
 hd run            # the package's one executable, such as src/main.hd
+hd run shop       # src/main.hd again, by the package's name
 hd run migrate    # the executable or task named migrate
 ```
 
@@ -171,7 +176,8 @@ hd run invoice    # the one member executable or task named invoice
 2. r[cli.workspace.run-name] In workspace mode, `hd run NAME` runs the executable or task named `NAME` when exactly one member has one.
 3. r[cli.workspace.run-ambiguous] When several members have one, `hd run NAME` is an error whose message lists those members.
 4. r[cli.workspace.run-missing] When no member has one, `hd run NAME` is an error.
-5. r[cli.workspace.repl] In workspace mode, the REPL session may use only `std`.
+5. r[cli.workspace.run-bare] In workspace mode, `hd run` with no NAME is an error whose message lists each member's executables and tasks.
+6. r[cli.workspace.repl] In workspace mode, the REPL session may use only `std`.
 
 ## Creating A Package
 

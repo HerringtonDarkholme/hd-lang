@@ -381,11 +381,11 @@ of a package in the named role. That package depends on every package under
 [`packages/`](packages), each in the library role:
 
 - Each directory `packages/NAME/` is the source root of one package, used as
-  `dep.NAME` ([Use Roots](../lang/10-modules.md#use-roots)). Its `mod.hd` is the
+  `dep.NAME` ([Use Roots](../lang/10-modules.md#use-roots)). Its `lib.hd` is the
   package's root module.
-- [`dep.models`](packages/models/mod.hd) declares `data User` with one
+- [`dep.models`](packages/models/lib.hd) declares `data User` with one
   public `name: string` field.
-- [`dep.members`](packages/members/mod.hd) declares the public traits
+- [`dep.members`](packages/members/lib.hd) declares the public traits
   `Tagged` (method `tag`) and `Stamped` (method `mark`), the public data
   types `Inner` and `Outer`, and the public function `make_outer`. `Outer`
   embeds `Inner` (embedded fields are always public), has private fields

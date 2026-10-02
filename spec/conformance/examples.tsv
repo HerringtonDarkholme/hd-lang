@@ -432,7 +432,7 @@ lang/09-traits.md	67	mixed	typing/invalid/ambiguous-default-methods.hd
 lang/10-modules.md	1	filesystem-layout	-
 lang/10-modules.md	2	filesystem-layout	-
 lang/10-modules.md	3	filesystem-layout	-
-lang/10-modules.md	4	mixed	typing/invalid/tests-root-outside-tests.hd
+lang/10-modules.md	4	filesystem-layout	-
 lang/10-modules.md	5	accept	parse/valid/uses.hd|runtime/valid/relative-self-current.hd
 lang/10-modules.md	6	mixed	typing/invalid/integration-super-above-test-root.hd|runtime/valid/integration-shared-use.hd
 lang/10-modules.md	7	mixed	typing/invalid/single-file-self-use.hd

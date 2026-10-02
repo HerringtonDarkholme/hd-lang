@@ -1,0 +1,7 @@
+use pkg.shop.{Cart}
+
+pub data Item:
+    pub count: i32
+
+pub fn first(cart: Cart) -> i32:
+    cart.count

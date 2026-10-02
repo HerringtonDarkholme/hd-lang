@@ -1196,7 +1196,6 @@ typing/invalid/literal-suffix-unmarked.hd	type	reject:invalid-literal-suffix	lan
 typing/invalid/literal-suffix-negative-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.suffixed.in
 typing/invalid/literal-suffix-requirement.hd	type	reject:missing-requirement	lang/05-expressions.md#r-expr.literal-fn.row
 typing/invalid/test-timeout-string.hd	type	reject:type-mismatch	lang/10-modules.md#r-module.testing.it-function
-typing/invalid/tests-root-outside-tests.hd	type	reject:test-only-use	lang/10-modules.md#r-module.test.tests-root-elsewhere
 runtime/valid/literal-suffix-call.hd	runtime	accept	lang/05-expressions.md#r-expr.suffix.fn-call
 typing/valid/decorator-targets.hd	type	accept	lang/14-annotations.md#r-annot.decorator.targets
 typing/invalid/block-on-in-fact.hd	type	reject:suspension-forbidden-context	lang/14-annotations.md#r-annot.fact.no-block-on
@@ -1233,7 +1232,6 @@ typing/invalid/println-in-defer.hd	type	reject:suspension-forbidden-context	lang
 typing/invalid/println-in-default.hd	type	reject:suspension-forbidden-context	lang/10-modules.md#r-module.console.println-block-on
 typing/invalid/test-module-tests-block.hd	type	reject:misplaced-tests-block	lang/10-modules.md#r-module.test.no-tests-block
 typing/invalid/integration-test-tests-block.hd	type	reject:misplaced-tests-block	lang/10-modules.md#r-module.test.no-tests-block
-typing/invalid/test-module-tests-root.hd	type	reject:test-only-use	lang/10-modules.md#r-module.test.tests-root-elsewhere
 runtime/valid/test-module-top-level-cases.hd	runtime	accept	lang/10-modules.md#r-module.test.module
 typing/valid/debug-writer-builders.hd	type	accept	std/format.md#r-std-format.debug.builder.struct
 typing/valid/choices-arbitrary.hd	type	accept	std/testing.md#r-std-testing.choices.declare
@@ -1768,7 +1766,6 @@ runtime/valid/integration-shared-use.hd	runtime	accept	lang/10-modules.md#r-modu
 typing/invalid/integration-super-above-test-root.hd	type	reject:unknown-module	lang/10-modules.md#r-module.relative.above-test-root
 typing/invalid/single-file-self-use.hd	type	reject:unknown-module	lang/10-modules.md#r-module.single-file.roots
 typing/invalid/integration-program-use.hd	type	reject:unknown-module	lang/10-modules.md#r-module.test.integration.program-use
-typing/valid/integration-tests-root-shared.hd	type	accept	lang/10-modules.md#r-module.test.integration.tests-root.shared
 runtime/valid/relative-self-current.hd	runtime	accept	lang/10-modules.md#r-module.relative.example.nested
 runtime/valid/relative-self-top-level.hd	runtime	accept	lang/10-modules.md#r-module.relative.example.top-level
 typing/valid/relative-self-mod-file.hd	type	accept	lang/10-modules.md#r-module.relative.example.mod-file
@@ -1797,3 +1794,4 @@ runtime/panic/string-slice-range-out-of-range.hd	runtime	panic:index-out-of-boun
 runtime/panic/list-slice-out-of-range.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.slice.list.range
 runtime/panic/list-slice-reversed.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.slice.list.reversed
 runtime/panic/range-from-overflow.hd	runtime	panic:integer-overflow	lang/06-control-flow.md#r-flow.for.range.from-overflow
+typing/valid/folder-parent-file.hd	type	accept	lang/10-modules.md#r-module.folder.parent-child

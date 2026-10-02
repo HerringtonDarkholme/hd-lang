@@ -994,7 +994,6 @@ typing/valid/test-timeout-duration.hd	type
 typing/invalid/unknown-literal-suffix.hd	type
 typing/invalid/literal-suffix-unmarked.hd	type
 typing/invalid/test-timeout-string.hd	type
-typing/invalid/tests-root-outside-tests.hd	type
 parse/valid/decorators.hd	parse
 typing/invalid/derive-error-trait.hd	type
 typing/invalid/derive-and-block-overlap.hd	type
@@ -1068,7 +1067,6 @@ typing/invalid/println-in-defer.hd	type
 typing/invalid/println-in-default.hd	type
 typing/invalid/test-module-tests-block.hd	type
 typing/invalid/integration-test-tests-block.hd	type
-typing/invalid/test-module-tests-root.hd	type
 runtime/valid/test-module-top-level-cases.hd	runtime
 typing/valid/debug-writer-builders.hd	type
 runtime/panic/duration-suffix-overflow.hd	runtime
@@ -1737,7 +1735,6 @@ runtime/valid/test-block-on.hd	runtime
 runtime/valid/println-in-test-body.hd	runtime
 typing/invalid/race-no-tasks.hd	type
 runtime/valid/integration-shared-use.hd	runtime
-typing/valid/integration-tests-root-shared.hd	type
 typing/valid/relative-self-mod-file.hd	type
 typing/invalid/root-file-super.hd	type
 typing/valid/relative-self-main.hd	type

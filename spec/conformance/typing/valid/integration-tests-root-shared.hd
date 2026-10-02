@@ -1,7 +1,0 @@
-# test: the tests root names the test root, so an integration test program uses the shared module tests/common/mod.hd as tests.common
-# Spec 10 Test Modules: module.test.integration.tests-root.shared (Batch 47 TASK-MODULE).
-# fixture-package-tree: integration-shared/tests/checkout.hd
-use tests.common.{expected}
-
-pub fn shown() -> string:
-    expected()
