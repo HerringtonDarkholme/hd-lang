@@ -9,3 +9,4 @@ DC7	1	An initialization group's statements are not interleaved: the package link
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer
 ANNOTATE-TYPED	2	Typed facts (batches 39 and 40, ANNOTATE-TYPED): the prototype's facts hold Inspectable values, so h.fact::[M]() needs M inspectable, and a typed fact over a type that is not inspectable, such as With[fn() -> i32], cannot be held or read
 SHAPE-REVIEW	7	Shapes removed and facts_of added (batch 42, SHAPE-REVIEW): the prototype still implements shape and shape_of and has no facts_of, so every facts_of call is unknown-name
+REIFIED-REVIEW	1	reified removed (batch 43, REIFIED-REVIEW): the prototype still parses the reified modifier, so fn keep[reified T] is not a syntax-error

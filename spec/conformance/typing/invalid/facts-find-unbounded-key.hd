@@ -1,0 +1,8 @@
+# test: a fact lookup on an unbounded type parameter has no runtime key
+# Spec 14 The std.structure Module: annot.structure.find-key (owner decision batch 43, Q2).
+use std.structure.Facts
+
+fn first_or[M](facts: Facts, fallback: M) -> M:
+    match facts.find::[M]():  # diagnostic: unsatisfied-trait-bound
+        .Some(found) => found
+        .None => fallback

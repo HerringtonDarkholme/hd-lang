@@ -1,6 +1,6 @@
-# test: reified alone does not let a generic value erase to Inspectable
+# test: a value of an unbounded type parameter does not erase to Inspectable
 # Spec 09 Erasure To Inspectable: erasing a value of a type parameter requires T < Inspectable.
 use std.inspect.Inspectable
 
-fn erase[reified T](value: T) -> Inspectable:
+fn erase[T](value: T) -> Inspectable:
     value  # diagnostic: type-mismatch

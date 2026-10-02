@@ -968,7 +968,7 @@ fn new_mutable_user() -> mut User: User { name: "Ada" }
 
 ## Generics
 
-This section defines generic parameters, bounds, arguments, and reification.
+This section defines generic parameters, bounds, arguments, and their runtime representation.
 
 1. r[types.generic.complete] Generic type and function parameters denote complete types.
 2. r[types.generic.mut-argument] A type parameter `T` may therefore be instantiated with either `User` or `mut User`.
@@ -1129,25 +1129,13 @@ See also: [Type-Argument Default Syntax](02-grammar.md#type-argument-default-syn
 
 1. r[types.generic.unobservable] The runtime representation of generic code is not observable.
 2. r[types.generic.sharing] A program cannot distinguish an implementation that shares one body among instantiations from one that specializes each instantiation, except through these rules of this chapter:
-   - an erased generic parameter has no runtime type identity;
+   - a type parameter has runtime type identity only through a `T < Inspectable` bound;
    - `is` on a type parameter requires `T < AnyRef`;
    - variance conversions must be representation-preserving.
-3. r[types.generic.specialized] Calls with `reified` parameters are specialized.
-4. r[types.generic.interfaces] Package interfaces therefore carry the bodies of generic functions needed by downstream compilation.
+3. r[types.generic.interfaces] Package interfaces therefore carry the bodies of generic functions needed by downstream compilation.
 
 See also: [Implementation Model](#implementation-model-non-normative), which
 describes the reference strategy.
-
-### Reified Parameters
-
-1. r[types.reified.metadata] A parameter marked `reified` carries runtime type metadata. It may be passed to another reified operation.
-2. r[types.reified.erased] An erased parameter must not be used where runtime type identity is required.
-3. r[types.reified.inspectable] Runtime type identity for `Inspectable` comes from a bound instead: the evidence for `T < Inspectable` carries the runtime identity of `T`.
-4. r[types.reified.inspectable.uses] Erasing a value of a type parameter to `Inspectable`, `TypeId::of::[T]()`, and the `downcast` target need that bound, and `reified` alone permits none of them.
-5. r[types.reified.abi] Reification is part of the function's public type and ABI, but its descriptor is not a source-level value argument.
-6. r[types.reified.specialize] A backend may specialize a reified call only when doing so preserves observable reflection behavior.
-
-See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
 ### Identity On Type Parameters
 
@@ -1264,11 +1252,10 @@ gives the rule.
 3. r[types.trait.safe.members-bound] A dynamically safe trait and every supertrait must have no associated functions, and `Self` may appear only as the receiver type.
 4. r[types.trait.safe.assoc-bound] The trait value type must bind each associated type of the trait and its supertraits, as in `Supplier[Item = i32]`.
 5. r[types.trait.safe.method-type-param] A method-level type parameter is permitted only when it is bounded by `AnyRef`; further bounds such as `T < AnyRef & Display` are allowed.
-6. r[types.trait.safe.no-reified] A method must not declare a `reified` parameter. Row parameters and suspending methods are allowed.
-7. r[types.trait.safe.one-body] Every argument for such a parameter is a reference, so one method body serves every instantiation, and the further bounds are supplied with each call.
-8. r[types.trait.safe.convert-value] A caller converts a primitive or tuple value explicitly before passing it.
-9. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
-10. r[types.trait.safe.static] Traits that fail these rules remain valid for static generic bounds and explicit implementations.
+6. r[types.trait.safe.one-body] Every argument for such a parameter is a reference, so one method body serves every instantiation, and the further bounds are supplied with each call.
+7. r[types.trait.safe.convert-value] A caller converts a primitive or tuple value explicitly before passing it.
+8. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
+9. r[types.trait.safe.static] Traits that fail these rules remain valid for static generic bounds and explicit implementations.
 
 > **Why.** One concrete trait instantiation, such as `Repository[User]`, fixes
 > the trait declaration's generic parameters before dispatch.
@@ -1533,9 +1520,8 @@ A method called through a trait value has exactly one body at run time, as
 the one-copy rule of [Dynamic Safety](09-traits.md#dynamic-safety) requires.
 The dynamic-safety rule in [Trait Values And `Any`](#trait-values-and-any)
 therefore limits method-level type parameters of dynamically safe traits to
-reference types, which all share the reference shape, and excludes `reified`
-parameters. A row parameter passes its providers as one bundle, so
-it keeps one body.
+reference types, which all share the reference shape. A row parameter
+passes its providers as one bundle, so it keeps one body.
 
 > **Why.** One rule is easy to remember: reference types share code, and a
 > value keeps its layout everywhere. .NET generics over value types and Go's

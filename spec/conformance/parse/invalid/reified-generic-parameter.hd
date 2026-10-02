@@ -1,0 +1,4 @@
+# test: a generic parameter is one name with an optional bound, so reified before a name is two names
+
+fn keep[reified T](value: T) -> T:  # diagnostic: syntax-error
+    value

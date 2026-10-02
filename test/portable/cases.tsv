@@ -699,7 +699,6 @@ typing/invalid/list-spread-non-list.hd	type
 runtime/valid/self-interpolation.hd	runtime
 parse/invalid/reserved-word-interpolation.hd	parse
 runtime/valid/contextual-words-as-names.hd	runtime
-parse/valid/contextual-reified.hd	parse
 parse/invalid/use-declaration-needs-root.hd	parse
 parse/valid/nested-layout.hd	parse
 parse/valid/binding-same-line-if-else.hd	parse
@@ -809,8 +808,6 @@ typing/invalid/impl-method-generic-bound-added.hd	type
 typing/invalid/impl-method-generic-bound-changed.hd	type
 typing/invalid/impl-method-generic-bounds-reordered.hd	type
 typing/invalid/impl-method-generic-count.hd	type
-parse/invalid/lone-reified-generic-parameter.hd	parse
-parse/invalid/lone-reified-before-bound.hd	parse
 typing/invalid/none-beside-values-needs-expected-type.hd	type
 typing/invalid/none-branch-needs-expected-type.hd	type
 runtime/valid/none-with-expected-list-type.hd	runtime
@@ -833,7 +830,7 @@ typing/invalid/user-anyref-implementation.hd	type
 typing/invalid/user-anyval-implementation.hd	type
 typing/invalid/reference-trait-name-unknown.hd	type
 typing/invalid/erase-readonly-to-mut-inspectable.hd	type
-typing/invalid/generic-erasure-reified-without-bound.hd	type
+typing/invalid/generic-erasure-without-bound.hd	type
 typing/invalid/closure-not-inspectable.hd	type
 typing/invalid/inspectable-requirement-key.hd	type
 typing/invalid/inspectable-member-redeclared.hd	type
@@ -908,7 +905,6 @@ typing/invalid/inherent-member-unifying-targets.hd	type
 runtime/valid/inherent-members-disjoint-targets.hd	runtime
 typing/invalid/associated-function-ambiguous-traits.hd	type
 typing/valid/dynamic-safety-row-parameter.hd	type
-typing/invalid/dynamic-safety-reified-parameter.hd	type
 typing/invalid/least-common-type-supertrait-widening.hd	type
 typing/invalid/trait-resolution-depth.hd	type
 typing/valid/trait-resolution-depth-limit.hd	type
@@ -1736,3 +1732,5 @@ typing/valid/typed-fact-other-params.hd	type
 typing/invalid/typed-fact-target-not-param.hd	type
 typing/invalid/facts-of-without-import.hd	type
 typing/valid/untyped-fact-default.hd	type
+typing/valid/facts-find-generic-key.hd	type
+typing/invalid/facts-find-unbounded-key.hd	type

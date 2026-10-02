@@ -1,7 +1,0 @@
-# test: a method with a reified parameter makes a trait not dynamically safe
-
-trait Lookup:
-    fn find[reified M < AnyRef](self) -> M?
-
-fn invalid(lookup: Lookup) -> void:  # diagnostic: trait-not-dynamically-safe
-    pass

@@ -1,7 +1,0 @@
-# test: reified before a bound has no parameter name to modify
-
-trait Show:
-    fn show(self) -> string
-
-fn named[T, reified < Show](value: T) -> T:  # diagnostic: syntax-error
-    value

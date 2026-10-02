@@ -946,6 +946,7 @@ fn first_name() -> string:
 2. r[module.init.main] An executable package then invokes `main` after its entry module has initialized.
 3. r[module.init.tests] Test runners initialize the module under test and the modules it uses before running its test cases.
 4. r[module.init.test-cases] The `it` calls of a `tests:` block or a test module, and their bodies, are not part of module initialization.
+5. r[module.init.script-empty] An entry module with no `main` and no top-level executable statements is a script with no entry behavior. Running it does nothing and exits with status 0.
 
 ### Requirement-Free Initialization
 
@@ -1048,7 +1049,7 @@ See also: [Field Visibility](08-data-and-enums.md#field-visibility).
 ### Fully Annotated Declarations
 
 1. r[module.package.annotated] Every public declaration is fully annotated: its complete signature is written in source.
-2. r[module.package.annotated.parts] That signature includes parameter and result types, requirement rows, suspension, and generic parameters with their bounds, variance, and reification. It also includes the types of public fields and enum data.
+2. r[module.package.annotated.parts] That signature includes parameter and result types, requirement rows, suspension, and generic parameters with their bounds and variance. It also includes the types of public fields and enum data.
 3. r[module.package.no-inference] Nothing in a public signature is inferred from a function body.
 4. r[module.package.no-pub-binding] Top-level bindings cannot be public. A `pub` binding is an error. Error: `syntax-error`.
 
@@ -1064,11 +1065,11 @@ A package interface must contain:
 | --- |
 | exported declaration identities and complete signatures |
 | visibility |
-| generic kinds, variance, bounds, and reification |
+| generic kinds, variance, and bounds |
 | requirement rows |
 | associated types |
 | every ordinary and local implementation head needed for coherence |
-| the bodies of pack and reified code, which downstream compilation specializes |
+| the bodies of pack code, which downstream compilation specializes |
 
 1. r[module.interface.contents] A package interface must contain every item in the table.
 2. r[module.interface.generic-bodies] An interface may also carry ordinary generic bodies to enable inlining, but downstream compilation must not require them.

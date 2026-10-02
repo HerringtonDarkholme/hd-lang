@@ -161,7 +161,7 @@ For each variant, the compiler must verify each of these requirements:
 
 1. r[gadt.runtime.compile-time] Refinements are compile-time facts.
 2. r[gadt.runtime.tag] Runtime enum values still carry their ordinary variant tag and payload.
-3. r[gadt.runtime.erased] The backend need not preserve erased type arguments unless a reified operation requires them.
+3. r[gadt.runtime.erased] The backend need not preserve erased type arguments.
 
 ## Refinement Algorithm
 
@@ -185,8 +185,7 @@ This section defines how a variant result is unified with a match subject.
 ### Erasure And Reification
 
 1. r[gadt.erasure.dynamic] Dynamic trait erasure discards GADT refinements.
-2. r[gadt.erasure.reified] Reification preserves only descriptors explicitly carried by a reified operation.
-3. r[gadt.erasure.no-descriptor] Matching a GADT does not manufacture a descriptor for an erased parameter.
+2. r[gadt.erasure.no-descriptor] Matching a GADT does not supply `Inspectable` evidence for an erased parameter.
 
 See also: [Variance](04-type-system.md#variance), which states when a variant
 result makes a declaration parameter invariant.

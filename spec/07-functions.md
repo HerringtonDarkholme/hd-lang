@@ -498,7 +498,6 @@ count := apply(3, identity)
 7. r[fn.type.generic.default] A parameter that those sources leave unsolved takes its [default](04-type-system.md#type-argument-defaults), as at a call. For `fn empty[C = List[i32]]() -> C`, `make := empty` has type `fn() -> List[i32]`.
 8. r[fn.type.generic.unsolved] A generic parameter of the value that remains unsolved is an error. Error: `unresolved-generic-placeholder`.
 9. r[fn.type.generic.monomorphic] The resulting value has an ordinary monomorphic function type.
-10. r[fn.type.generic.reified] A reified instantiation captures the required runtime type descriptors in that value.
 
 In `count := apply(3, identity)`, `A` is `i32` from the first argument, and
 `identity`'s `T` and the call's `B` are solved as `i32` with it.
@@ -872,8 +871,7 @@ first::[string](names)
 2. r[fn.generic.bounds-and] Trait bounds compose with `&`.
 3. r[fn.generic.call-list] Callers may rely on inference or write an explicit type argument list, which may omit trailing slots.
 4. r[fn.generic.call-marker] In an expression, the explicit list follows `::`, as in `first::[string](names)`, while a type keeps `List[string]`.
-5. r[fn.generic.erased] Generic parameters are erased by default.
-6. r[fn.generic.reified] `reified T` requests runtime type metadata, as defined in [Type System](04-type-system.md).
+5. r[fn.generic.erased] Generic parameters are erased.
 
 ### Explicit Type Arguments
 

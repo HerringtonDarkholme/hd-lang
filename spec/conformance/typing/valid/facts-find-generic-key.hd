@@ -1,0 +1,9 @@
+# test: a generic fact lookup keys on a type parameter bounded by Inspectable
+# Spec 14 The std.structure Module: annot.structure.find-key (owner decision batch 43, Q2).
+use std.inspect.Inspectable
+use std.structure.Facts
+
+fn fact_or[M < Inspectable](facts: Facts, fallback: M) -> M:
+    match facts.find::[M]():
+        .Some(found) => found
+        .None => fallback

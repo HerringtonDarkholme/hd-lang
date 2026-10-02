@@ -603,10 +603,8 @@ function_generic_params = "[", function_generic_parameter,
 
 type_parameter = [ variance ], identifier, [ "<", trait_bounds ],
                  [ type_default ] ;
-generic_parameter = [ "reified" ], identifier, [ "<", trait_bounds ] ;
-function_generic_parameter = generic_parameter
-                           | [ "reified" ], identifier, [ "<", trait_bounds ],
-                             type_default ;
+generic_parameter = identifier, [ "<", trait_bounds ] ;
+function_generic_parameter = generic_parameter, [ type_default ] ;
 type_default = "=", type_argument ;
 variance = "+" | "-" ;
 
@@ -701,12 +699,9 @@ impl[T = i32] Box[T]:  # error: syntax-error
 
 ### Generic Parameter Modifiers
 
-1. r[grammar.generic.reified-modifier] An unbackticked `reified` at the start of a `generic_parameter` is always the modifier, never the parameter name, so `[reified]` is an error. Error: `syntax-error`.
-2. r[grammar.generic.variance] Variance markers are valid on generic type declarations, not function generic parameters.
-3. r[grammar.generic.reified-positions] `reified` is valid on function, method, variant, and generic-implementation parameters, not generic type declarations.
+1. r[grammar.generic.variance] Variance markers are valid on generic type declarations, not function generic parameters.
 
-See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words),
-and [`lex.contextual.reified.raw`](01-lexical-structure.md#r-lex.contextual.reified.raw) for a parameter named reified.
+See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words).
 
 ## Types
 

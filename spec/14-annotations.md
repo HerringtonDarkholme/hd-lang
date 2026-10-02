@@ -186,7 +186,7 @@ checks and generates each requested implementation.
 ### Function Facts
 
 `facts_of(f)` returns the values that decorators attach to the
-module-level function `f`, as a [`Facts`](#r-annot.structure.facts-type)
+module-level function `f`, as a [`Facts`](#r-annot.structure.facts-contents)
 value:
 
 ```text
@@ -682,12 +682,36 @@ pub trait Source[S]:
 
 1. r[annot.structure.module] The standard module `std.structure` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `Variant`, `Members`, `Key`, `Walker`, `Describer`, and `Source`.
 2. r[annot.structure.bodies] The compiler supplies every body written `pass` in the declarations above, and the `Facts` type.
-3. r[annot.structure.facts-type] `Facts` holds the facts attached to one type, member, or variant, in source order. `facts.find::[F]()` returns the fact whose concrete type is `F`, or `.None`.
+3. r[annot.structure.facts-contents] `Facts` holds the facts attached to one type, member, variant, or module-level function, in source order. `facts.find::[F]()` returns the fact whose concrete type is `F`, or `.None`.
 4. r[annot.structure.find-lookup] `find` performs one narrow runtime type lookup and nothing more: it compares each fact's concrete type with `F`, and keeps the found fact's declared permission. It is not a general `Any` downcast.
-5. r[annot.structure.members-api] `members.end()` is the end key, `members.at(position)` is the key of the member at that position, and `members.find(matches)` is the key of the first member that `matches` accepts. Each returns the end key when no member fits.
-6. r[annot.structure.no-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
-7. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
-8. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
+5. r[annot.structure.find-key] Each type parameter that `F` mentions must be bounded by `Inspectable`, whose evidence supplies its runtime identity to the lookup. Without that bound, the call is an error. Error: `unsatisfied-trait-bound`.
+6. r[annot.structure.members-api] `members.end()` is the end key, `members.at(position)` is the key of the member at that position, and `members.find(matches)` is the key of the first member that `matches` accepts. Each returns the end key when no member fits.
+7. r[annot.structure.no-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
+8. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
+9. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
+
+```text
+use std.inspect.Inspectable
+use std.structure.Facts
+
+fn fact_or[M < Inspectable](facts: Facts, fallback: M) -> M:
+    match facts.find::[M]():
+        .Some(found) => found
+        .None => fallback
+
+fn first_or[M](facts: Facts, fallback: M) -> M:
+    match facts.find::[M]():  # error: unsatisfied-trait-bound
+        .Some(found) => found
+        .None => fallback
+```
+
+> **Note.** A concrete `F`, as in `facts_of(list_users).find::[Route]()`,
+> mentions no type parameter and needs no bound. The key rule holds for
+> every `Facts`, including one that `facts_of` returns.
+
+> **Why.** A shared generic body cannot find a fact of type `M` without
+> knowing `M` at run time. The `Inspectable` bound already supplies that
+> identity to `downcast_val`, so the lookup reuses it.
 
 > **Note.** Standard walkers, describers, and sources, such as the ones a
 > `std.json` would use, are library design.
@@ -1305,6 +1329,7 @@ variant of a derivation's target.
 10. r[annot.handle.escape] Handles are ordinary values and may escape the traversal that passed them.
 11. r[annot.handle.fact] `h.fact::[M]()` reads the member's fact of type `M`, or `.None`. `M` must be a [typed fact type](#member-typed-facts) whose argument for its target parameter is `F`. Error: `type-mismatch`.
 12. r[annot.handle.fact.exact] It finds only a fact whose type is exactly `M`. On a read-type handle of a member declared `mut T`, `F` is `T`, so a fact bound to `mut T` is not found.
+13. r[annot.handle.fact.key] The type parameters that `M` mentions follow [`annot.structure.find-key`](#r-annot.structure.find-key), except the handle's own `F`, which needs no runtime identity. Error: `unsatisfied-trait-bound`.
 
 ```text
 data Counter:
@@ -1334,6 +1359,10 @@ impl[S] Source[S] for CopySource[S]:  # variant, next, and member elided
 
 > **Note.** Handles are constants, and each generated call passes a
 > constant dictionary, so a traversal allocates nothing per member.
+
+> **Why.** The handle already fixes `M`'s argument for its target
+> parameter to `F`, so the lookup matches that part without a runtime key.
+> A walker's `member[F]` therefore reads a typed fact with no extra bound.
 
 ### Walkers, Describers, And Sources
 

@@ -1,4 +1,4 @@
-# test: a generic helper passes its bounded target on to downcast without reified
+# test: a generic helper passes its bounded target on to downcast through its own bound
 # Spec 09 Recovering A Concrete Type: the Inspectable evidence for T carries its runtime
 # identity, so a generic function passes a target on through its own bound.
 use std.inspect.Inspectable

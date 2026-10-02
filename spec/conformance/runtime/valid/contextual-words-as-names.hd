@@ -1,4 +1,4 @@
-# test: reified, super, as, and use are ordinary names outside their fixed positions
+# test: super, as, and use are ordinary names outside their fixed positions, and reified is an ordinary name
 # expect: test
 
 use std.testing.assert_equal

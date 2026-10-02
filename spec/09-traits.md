@@ -550,7 +550,7 @@ impl Named for User  # error: missing-trait-method
 
 1. r[trait.impl.generics] The exact signature includes the method-level generic parameters.
 2. r[trait.impl.generics.count] An implementation method declares as many generic parameters as the trait method, and they correspond by position; names may differ.
-3. r[trait.impl.generics.markers] Each parameter keeps the trait method's `reified` marker and the same bounds.
+3. r[trait.impl.generics.markers] Each parameter keeps the trait method's bounds.
 4. r[trait.impl.generics.bounds] The same bounds are the same traits, with `mut` and the same instantiated arguments and associated type bindings, written in the same order.
 5. r[trait.impl.generics.default] Each parameter also repeats the trait method's [default](04-type-system.md#type-argument-defaults), instantiated as the bounds are, or has none when the trait method's has none. A missing, extra, or different default is a mismatch.
 6. r[trait.impl.generics.fixed-bounds] An implementation method therefore cannot add, drop, reorder, weaken, or strengthen a bound. The one exception is the strengthened member bound of a walker, describer, or source, which [`annot.walker.strengthen-member`](14-annotations.md#r-annot.walker.strengthen-member) allows.
@@ -1050,7 +1050,7 @@ fn audit[T < Display & Named](value: T) -> string:
 9. r[trait.bound.depth.limit] A proof that needs a bound of depth greater than 64 is an error, whether or not a deeper proof would succeed. Error: `trait-resolution-depth`.
 10. r[trait.bound.depth.fixed] The limit is fixed by this specification; no package, module, or compiler option changes it.
 11. r[trait.bound.representation] The compiler may monomorphize static calls, share one body among instantiations, or use another representation.
-12. r[trait.bound.representation.semantics] The chosen representation must preserve the observable semantics, including reflection behavior for reified parameters.
+12. r[trait.bound.representation.semantics] The chosen representation must preserve the observable semantics.
 
 ```text
 trait Clear:
@@ -1231,7 +1231,6 @@ The one-copy rule has these consequences:
 | r[trait.dyn.safe.assoc-function] Associated functions | an associated function in the trait or a supertrait | no |
 | r[trait.dyn.safe.anyref-type-param] Method type parameters | a method-level type parameter bounded by `AnyRef`, with any further bounds | yes; any other method-level type parameter is not |
 | r[trait.dyn.safe.self] `Self` | `Self` as a method receiver | yes; `Self` anywhere else is not |
-| r[trait.dyn.safe.reified] Specialized parameters | a `reified` parameter | no |
 | r[trait.dyn.safe.suspending] Suspending methods | a suspending method, as the prelude `Console`'s `write_line!` is | yes |
 | r[trait.dyn.safe.row-parameter] Row parameters | a method-level row parameter, which needs no `AnyRef` bound | yes |
 
@@ -1243,13 +1242,7 @@ The one-copy rule has these consequences:
 trait Runner:
     fn run[R](self, job: fn() -> void $ R) -> void $ R
 
-trait Lookup:
-    fn find[reified M < AnyRef](self) -> M?
-
 fn valid(runner: Runner) -> void:
-    pass
-
-fn invalid(lookup: Lookup) -> void:  # error: trait-not-dynamically-safe
     pass
 ```
 
@@ -1257,9 +1250,8 @@ fn invalid(lookup: Lookup) -> void:  # error: trait-not-dynamically-safe
 > time. A bound associated type makes every signature that uses it
 > concrete. An `AnyRef`-bounded parameter shares the reference shape, a
 > suspending method's frame is a reference-shaped heap value, and a row
-> parameter's providers arrive as one bundle, so each keeps one body. A
-> `reified` parameter is specialized per call, and an associated
-> function has no receiver to dispatch on.
+> parameter's providers arrive as one bundle, so each keeps one body. An
+> associated function has no receiver to dispatch on.
 
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 
@@ -1619,7 +1611,7 @@ These types are not inspectable, as values or as type arguments:
 | r[trait.inspectable.not.local] Local declaration | data, enum, newtype, and trait declarations local to a block suite |
 | r[trait.inspectable.not.never] Never | `never` |
 | r[trait.inspectable.not.argument] Argument | a type applied to a non-inspectable argument, such as `Box[fn() -> i32]` |
-| r[trait.inspectable.not.parameter] Unbounded parameter | a type parameter without an `Inspectable` bound, whether or not it is `reified` |
+| r[trait.inspectable.not.parameter] Unbounded parameter | a type parameter without an `Inspectable` bound |
 
 1. r[trait.inspectable.dynamic-values] A dynamic trait value whose trait does not have `Inspectable` as a supertrait, and `Any`, are not inspectable as values.
 2. r[trait.inspectable.one-way] Erasing to them stays one-way.
@@ -1636,12 +1628,11 @@ dynamic trait value.
 5. r[trait.erase.parameter] For a value of a type parameter `T < Inspectable`, the recorded type is the type `T` is instantiated with, which the bound supplies at run time.
 6. r[trait.erase.built] A value built from `T`, such as a `Box[T]`, records `Box` applied to that type. `T` instantiated with `mut User` therefore records `Box[mut User]`.
 7. r[trait.erase.weakened] A `mut List[mut User]` weakened to `List[User]` before erasure records `List[User]`.
-8. r[trait.erase.bound-required] Erasing a value of a type parameter requires an `Inspectable` bound on it.
-9. r[trait.erase.reified] `reified T` alone does not allow the erasure. A value of a type parameter without the bound is not assignable to `Inspectable`, which is an error. Error: `type-mismatch`.
-10. r[trait.erase.widen] Widening a dynamic value of a trait that extends `Inspectable` to `Inspectable` is ordinary supertrait widening (assignability rule 7).
-11. r[trait.erase.keeps] The widened value keeps its recorded concrete type. Nothing is wrapped twice, including when a type parameter is instantiated with such a trait value type.
-12. r[trait.erase.mut] `mut Inspectable` keeps mutable access to an erased composite root.
-13. r[trait.erase.mut.source] Erasing to `mut Inspectable` requires mutable access to the source. Erasing a readonly value to `mut Inspectable` is an error. Error: `mutable-upgrade`.
+8. r[trait.erase.bound-required] Erasing a value of a type parameter requires an `Inspectable` bound on it. A value of a type parameter without the bound is not assignable to `Inspectable`, which is an error. Error: `type-mismatch`.
+9. r[trait.erase.widen] Widening a dynamic value of a trait that extends `Inspectable` to `Inspectable` is ordinary supertrait widening (assignability rule 7).
+10. r[trait.erase.keeps] The widened value keeps its recorded concrete type. Nothing is wrapped twice, including when a type parameter is instantiated with such a trait value type.
+11. r[trait.erase.mut] `mut Inspectable` keeps mutable access to an erased composite root.
+12. r[trait.erase.mut.source] Erasing to `mut Inspectable` requires mutable access to the source. Erasing a readonly value to `mut Inspectable` is an error. Error: `mutable-upgrade`.
 
 ```text
 use std.inspect.{Inspectable, TypeId}
@@ -1668,7 +1659,7 @@ functions take their other branch.
 ```text
 use std.inspect.Inspectable
 
-fn erase[reified T](value: T) -> Inspectable:
+fn erase[T](value: T) -> Inspectable:
     value  # error: type-mismatch
 ```
 
@@ -1694,7 +1685,7 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 1. r[trait.downcast.ordinary] `downcast` and `downcast_mut` are ordinary default methods, inherited by every trait that extends `Inspectable`, such as `std.error.Error`.
 2. r[trait.downcast.val-ordinary] `downcast_val` is an ordinary generic function.
 3. r[trait.downcast.no-special] No rule is specific to these three; the ordinary rules give the results below.
-4. r[trait.downcast.evidence] The `Inspectable` evidence for `T`, passed with each call like the evidence for any bound, carries the runtime identity of `T`. No `reified` marker is needed.
+4. r[trait.downcast.evidence] The `Inspectable` evidence for `T`, passed with each call like the evidence for any bound, carries the runtime identity of `T`.
 5. r[trait.downcast.pass-on] A generic function passes a target on through its own bound, as in `fn get[T < AnyRef & Inspectable](value: Inspectable) -> T?`.
 6. r[trait.downcast.readonly] `downcast` yields a readonly `T`.
 7. r[trait.downcast.mut-receiver] `downcast_mut` has a `mut self` receiver, so calling it through a readonly view is an error. Error: `mutable-receiver-required`.

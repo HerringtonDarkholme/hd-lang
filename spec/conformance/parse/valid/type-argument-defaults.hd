@@ -35,5 +35,5 @@ fn run[R = $()](job: fn() -> void $ R) -> void $ R:
     job()
 
 impl Constant:
-    fn widen[reified T = i64](self, value: T) -> T:
+    fn widen[T = i64](self, value: T) -> T:
         value
