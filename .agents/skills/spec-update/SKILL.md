@@ -130,18 +130,25 @@ the spec, and it adds exactly what the decision says, no more.
 10. **Update everything that shows the behavior.** Examples and prose in
    `guide/`, the website, the playground's examples, and `future-work/`
    design records (mark the decision applied, with a spec link).
-11. **Run every check** and fix what fails:
+11. **Run the checks the change needs**, and fix what fails. Pick by what
+    the diff touches:
 
-    ```sh
-    bash spec/check.sh
-    HD_TEST_JOBS=4 HD_SPEC_JOBS=4 pnpm run check
-    pnpm run website:build
-    pnpm run website:e2e
-    ```
+    | The change touches | Run |
+    | --- | --- |
+    | only `spec/`, `guide/`, `future-work/`, fixtures, or indexes | `bash spec/check.sh`, `node --experimental-strip-types test/run-portable.ts --changed`, and `pnpm run website:build` |
+    | also `src/`, `lib/std/`, `test/`, or `bin/` | `pnpm run check` and `pnpm run website:build` |
+    | the website or playground code | also `pnpm run website:e2e` |
+
+    `--changed` runs only the conformance cases whose fixture differs from
+    `origin/main`, so a spec-only pass never reruns the whole suite. While
+    iterating on prototype code, run one phase
+    (`test/run-portable.ts --phase parse|type|runtime`); run the full
+    `pnpm run check` once before the push, not after every edit or rebase
+    of unrelated files.
 
 12. **Integrate.** Make logical commits (spec and fixtures, prototype,
     issue-list cleanup, docs), each message naming the decision and the rule
-    anchors. Rebase on `origin/main`, rerun the checks if anything moved,
+    anchors. Rebase on `origin/main`, rerun the checks if the rebase touched the same files,
     and push as a fast-forward. Never force-push.
 
 ## Output

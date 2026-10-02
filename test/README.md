@@ -44,7 +44,9 @@ reserved for backend traps that do not yet have a structured code.
 public test command. A `# fixture-runtime-profile: NAME` directive supplies the
 same named host profile to check and execution.
 
-Run the portable behavior suite with `pnpm run test:portable`.
+Run the portable behavior suite with `pnpm run test:portable`. Add `--changed [REVISION]` to run only the conformance cases whose
+fixture differs from that revision (default `origin/main`), or `--phase
+parse|type|runtime` to run one phase.
 [`portable/README.md`](portable/README.md) covers running it against
 another implementation, selecting a tier, and the `HD_TEST_JOBS` setting.
 

@@ -1,7 +1,7 @@
-import { spawn } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
-import { availableParallelism } from "node:os";
-import { resolve } from "node:path";
+import { execFileSync, spawn } from "node:child_process";
+import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { availableParallelism, tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 interface CommandResult {
   readonly code: number;
@@ -25,6 +25,8 @@ interface FixtureCase {
 type Phase = "parse" | "runtime" | "type";
 
 interface Options {
+  // Run only the conformance cases whose fixture differs from this git revision.
+  readonly changed?: string;
   readonly command: readonly string[];
   readonly commandText: string;
   readonly jobs: number;
@@ -55,10 +57,18 @@ function parseOptions(args: readonly string[]): Options {
   let phase: Options["phase"];
   let suite: Options["suite"] = "all";
   let tier: Options["tier"];
+  let changed: string | undefined;
   for (let index = 0; index < args.length; index += 1) {
     const option = args[index];
     const value = args[index + 1];
-    if (option === "--compiler" && value) commandText = value;
+    if (option === "--changed") {
+      // An optional revision follows; the default is origin/main.
+      if (value && !value.startsWith("--")) changed = value;
+      else {
+        changed = "origin/main";
+        index -= 1;
+      }
+    } else if (option === "--compiler" && value) commandText = value;
     else if (option === "--jobs" && value) jobs = Number(value);
     else if (option === "--phase" && /^(parse|type|runtime)$/.test(value ?? ""))
       phase = value as Phase;
@@ -74,7 +84,7 @@ function parseOptions(args: readonly string[]): Options {
   if (!Number.isInteger(jobs) || jobs < 1) throw new Error("jobs must be a positive integer");
   if (phase && suite === "fixtures") throw new Error("--phase cannot use --suite fixtures");
   if (tier && suite === "fixtures") throw new Error("--tier cannot use --suite fixtures");
-  return { command, commandText, jobs, phase, suite, tier };
+  return { changed, command, commandText, jobs, phase, suite, tier };
 }
 
 async function invoke(
@@ -141,11 +151,16 @@ async function mapParallel<T, U>(
 // Runs the selected conformance cases through the implementation-neutral
 // runner in spec/tools, which judges them by spec/conformance/README.md.
 async function runConformance(options: Options): Promise<boolean> {
+  const manifest = options.changed ? await changedManifest(options.changed) : portableManifest;
+  if (!manifest) {
+    console.log(`conformance: no selected fixture differs from ${options.changed}`);
+    return true;
+  }
   const args = [
     "--experimental-strip-types",
     conformanceRunner,
     "--manifest",
-    portableManifest,
+    manifest,
     "--compiler",
     options.commandText,
     "--jobs",
@@ -161,6 +176,33 @@ async function runConformance(options: Options): Promise<boolean> {
     child.on("error", reject);
     child.on("close", (code) => complete(code === 0));
   });
+}
+
+// The rows of the portable manifest whose fixture, under spec/conformance,
+// differs from `base` in the working tree (committed, staged, or not).
+async function changedManifest(base: string): Promise<string | undefined> {
+  const prefix = "spec/conformance/";
+  const changed = new Set(
+    execFileSync("git", ["diff", "--name-only", base, "--", prefix], {
+      cwd: root,
+      encoding: "utf8",
+    })
+      .split("\n")
+      .concat(
+        execFileSync("git", ["ls-files", "--others", "--exclude-standard", "--", prefix], {
+          cwd: root,
+          encoding: "utf8",
+        }).split("\n"),
+      )
+      .filter((path) => path.endsWith(".hd"))
+      .map((path) => path.slice(prefix.length)),
+  );
+  const [header, ...rows] = (await readFile(portableManifest, "utf8")).trimEnd().split("\n");
+  const selected = rows.filter((row) => changed.has(row.split("\t")[0]!));
+  if (selected.length === 0) return undefined;
+  const path = join(await mkdtemp(join(tmpdir(), "hd-changed-")), "cases.tsv");
+  await writeFile(path, `${[header, ...selected].join("\n")}\n`);
+  return path;
 }
 
 async function fixturePaths(directory: string): Promise<string[]> {
@@ -269,7 +311,7 @@ async function main(): Promise<number> {
   let passed = true;
   if (options.suite !== "fixtures") passed = await runConformance(options);
   // test/fixtures cases have no phase or tier; --phase and --tier select conformance cases only.
-  if (!options.phase && !options.tier && options.suite !== "conformance") {
+  if (!options.phase && !options.tier && !options.changed && options.suite !== "conformance") {
     const cases = await Promise.all((await fixturePaths(fixtureRoot)).map(readFixtureCase));
     const problems = await mapParallel(cases, options.jobs, (testCase) =>
       runFixtureCase(options.command, testCase),
