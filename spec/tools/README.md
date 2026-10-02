@@ -28,13 +28,15 @@ pnpm run spec counts --by kind      # per Design Cost Order kind (heuristic)
 pnpm run spec counts --json         # every view as JSON
 ```
 
-The language tier is the numbered chapters; the stdlib tier is `spec/std/`.
+The language tier is the numbered chapters, the stdlib tier is `spec/std/`,
+and the CLI tier is `spec/cli.md`.
 The kind column is a guess from the ID prefix, the section headings, and
 the rule text, so the report marks it "heuristic":
 
 | Kind | Guessed when |
 | --- | --- |
 | core-library | the rule is in `spec/std/` |
+| tooling | the rule is in `spec/cli.md`, outside the Design Cost Order |
 | syntax | the prefix is `lex` or `grammar`, the rule names `syntax-error`, or a heading names syntax, grammar, spellings, tokens, or layout |
 | intrinsic | an ID segment, a heading, or the rule text names an intrinsic, a lang item, or the prelude |
 | semantic | any other language-tier rule |

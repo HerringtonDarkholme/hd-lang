@@ -16,7 +16,7 @@ outside `spec/` to run the suite.
   expectation.
 - **Implementation under test:** a command prefix, such as `hd` or
   `node --experimental-strip-types bin/hd.js`. The runner appends an action,
-  options, and the fixture path. See [Command Contract](#command-contract).
+  if any, options, and the fixture path. See [Command Contract](#command-contract).
 - **Runner:** the tool that reads `cases.tsv`, invokes the implementation,
   and judges each case by the rules below.
 - **Selection manifest:** an optional list of case paths that an
@@ -96,6 +96,10 @@ A fixture is a single ordinary module, never a
 [test module](../10-modules.md#test-modules) or an integration test module,
 whatever its file name, unless a `# fixture-test-layout:` header places it
 as one (see [Test Layouts](#test-layouts)).
+
+A fixture with no package role, test layout, or package tree header is a
+[single-file program](../10-modules.md#single-file-programs): it is in no
+package, whatever directory holds the suite.
 
 ## Comment Directives
 
@@ -223,7 +227,7 @@ judged only by the rules below.
 | `type`    | `reject:CODE` | `check FILE`                   | exit 1, a located error `CODE` on the marker line, and no other located error |
 | `type`    | `warn:CODE`   | `check FILE`                   | exit 0, and a located warning `CODE` on the marker line |
 | `runtime` | `accept`      | `check FILE`, then `test FILE` | both exit 0 |
-| `runtime` | `accept` with `# expect-stdout:` | `check FILE`, `test FILE`, then `run FILE` | all exit 0, and the stdout of `run` equals the expected text |
+| `runtime` | `accept` with `# expect-stdout:` | `check FILE`, `test FILE`, then `FILE` | all exit 0, and the stdout of the last equals the expected text |
 | `runtime` | `panic:CODE`  | `check FILE`, then `test FILE` | `check` exits 0; `test` exits 1 and reports panic category `CODE` |
 
 Rules that apply to every case:
@@ -470,8 +474,9 @@ it declares an entry point.
   concatenated in order. Output that does not end in U+000A cannot be
   expected.
 
-After `check` and `test` pass, the runner invokes `run FILE`. The case
-passes when `run` exits 0 and its standard output, decoded as UTF-8, equals
+After `check` and `test` pass, the runner invokes `FILE` with no action,
+as `hd FILE` runs a single file ([Single Files](../cli.md#single-files)).
+The case passes when that run exits 0 and its standard output, decoded as UTF-8, equals
 the expected output exactly. No carriage return, trailing newline, or
 whitespace is normalized. Standard error is not judged.
 
@@ -481,9 +486,11 @@ The runner invokes the implementation as:
 
 ```text
 IMPL ACTION [OPTION VALUE]... FILE
+IMPL FILE
 ```
 
 - `FILE` is the path to the fixture, and is always the last argument.
+- The second form, with no action, runs the fixture as a single file.
 - `parse` also covers the fixture's `tests:` block.
 - The runner always passes `check` the `--tests` option, so `check` also
   covers the fixture's test code, as a test build does. Without `--tests`,
@@ -496,9 +503,9 @@ IMPL ACTION [OPTION VALUE]... FILE
 | `parse` | none                                                            | `parse` phase |
 | `check` | `--tests` (always), `--profile NAME`, `--package-role ROLE`, `--dependency NAME=DIR`, `--test-layout LAYOUT`, `--package-tree DIR`, `--package-path PATH` | `type` phase, and the first step of `runtime` |
 | `test`  | `--profile NAME`, `--scenario NAME`, `--pending-function NAME`, `--package-role ROLE`, `--dependency NAME=DIR`, `--test-layout LAYOUT`, `--package-tree DIR`, `--package-path PATH` | `runtime` phase |
-| `run`   | none                                                            | `runtime` cases with `# expect-stdout:` |
+| none    | none                                                            | `runtime` cases with `# expect-stdout:` |
 
-`run FILE` executes only the entry point, in a fresh program instance under
+`IMPL FILE` executes only the entry point, in a fresh program instance under
 the `console` profile, as in step 1 of
 [Runtime Execution](#runtime-execution). Its standard output is exactly the
 program's console output.

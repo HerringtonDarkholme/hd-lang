@@ -43,6 +43,14 @@ it.
 | EMPTY-RUN-fixture | batch 43 | Every `# expect-stdout:` line expects a newline, so no fixture can expect empty output from `run`. [`module.init.script-empty`](../spec/10-modules.md#r-module.init.script-empty) therefore has no fixture. | None added. **Recommendation:** add a header that expects `run` to exit 0 with empty standard output. |
 | RACE-EMPTY-forms | batch 44 | The decision makes `race!` with no tasks a compile-time error. Whether `race!(tasks=[])`, or a spread of a list that is empty at run time, is also covered is not stated. | Only a call written with no task argument is an error ([`req.combinator.race-empty`](../spec/11-requirements-and-suspension.md#r-req.combinator.race-empty)); an empty list value is not checked. **Recommendation:** also reject an empty list literal, and state what an empty list at run time does. |
 | ALL-EMPTY | batch 44 | `race!` with no tasks is now an error, but `all!()` is not mentioned. | [`req.combinator.all-typing`](../spec/11-requirements-and-suspension.md#r-req.combinator.all-typing) gives it type `()`. **Recommendation:** keep it; an empty tuple of results is well defined, unlike a first result. |
+| CHECK-FILE | batch 46 | The revision makes `hd run` and `hd build` package-only, and does not discuss `hd check FILE`, `hd test FILE`, or the REPL outside a package. | They work on one std-only file ([`cli.file.check-test`](../spec/cli.md#r-cli.file.check-test), [`cli.repl.outside`](../spec/cli.md#r-cli.repl.outside)). **Recommendation:** keep it; checking a lone file needs no package. |
+| FILE-IN-PKG | batch 46 | `hd FILE` for a FILE inside a package was left for confirmation. | It runs FILE alone with std only, ignoring the package; a `pkg`, `self`, or `super` use errs at the use and suggests a task ([`cli.file.run`](../spec/cli.md#r-cli.file.run), [`cli.file.in-package`](../spec/cli.md#r-cli.file.in-package)). **Recommendation:** keep it; one meaning for `hd FILE` everywhere. |
+| NO-FILE-OUTSIDE | batch 46 | What `hd check` and `hd test` without a FILE do outside any package is not stated. | Not specified. **Recommendation:** an error suggesting `hd new`, as for `hd run`. |
+| EMPTY-EXE | batch 46 | [`module.init.script-empty`](../spec/10-modules.md#r-module.init.script-empty) runs an entry module with no `main` and no statements as an empty script. PACKAGES §2.6 reported `missing-entry-point` there, naming near-misses such as a private `main`. | `missing-entry-point` covers only an executable whose `module` names no module ([`cli.exe.missing-module`](../spec/cli.md#r-cli.exe.missing-module)). **Recommendation:** also report it for an executable or task whose module has neither, naming the near-misses; a lone empty file still exits 0. |
+| TASK-DEPS | batch 46 | The decision lets a task use "dev dependencies", but a manifest has only `[dependencies]` and `[test-dependencies]`, and only test code may use a test dependency. | A task may use the package through `pkg` ([`cli.task.uses`](../spec/cli.md#r-cli.task.uses)); dependencies are not stated. **Recommendation:** a task may use both tables, so `[test-dependencies]` serve test code and tasks. |
+| TASK-MODULE | batch 46 | A task's module name, and what `self` and `super` mean in `tasks/seed.hd`, are not stated, so tasks cannot share a helper file. | Not specified. **Recommendation:** as integration tests: a `tasks` root names `tasks/`, and `self` is rooted there. |
+| NEW-EXE | batch 46 | `hd new hello` writes `src/main.hd`, but an executable comes only from `[[executable]]`, so `hd run` fails right after `hd new` unless the generated `hd.toml` declares one. | The generated manifest's content is not specified. **Recommendation:** it declares `[[executable]]` with `name = "hello"` and `module = "main"`, rather than an implicit executable. |
+| WORKSPACE-MODE | batch 46 | At a workspace root, the nearest `hd.toml` is the workspace manifest, which has no package. | Not specified. **Recommendation:** commands there act on every member, as Cargo's do. |
 
 ### Codes Waiting For The Code Revamp
 
@@ -59,6 +67,8 @@ for the error-code revamp, task #101, which may merge codes.
 | TR-code | batch 33a | A rest element that is not a `List`, as in `(i32, i32...)`, needs a code. | `type-mismatch` ([`types.tuple.rest.list`](../spec/04-type-system.md#r-types.tuple.rest.list)), as for a vararg of another type. Deferred to #101 by the owner (batch 34 Q7). |
 | SC-Q2 | Special Cases Q2 | Four codes duplicate a partner: `suspending-defer`, `identity-needs-reference-bound`, `recursive-closure-needs-result-type`, and `mutable-embedded-field`. | All eight codes kept. **Recommendation:** merge all four into their partners; messages keep the context word. |
 | SC-Q3 | Special Cases Q3 | Six codes report an operator with no meaning for its operands: `missing-eq`, `missing-partial-ord`, `unsupported-equality`, `nonnumeric-unary-plus`, `unsigned-negation`, and `mixed-numeric-types`. Every other operator reports `type-mismatch`. | All six kept. **Recommendation:** all six become `type-mismatch`, and `assert_equal`'s missing `Eq` becomes `unsatisfied-trait-bound`. |
+| SINGLE-CODE | batch 46 | The decision names no code for a `pkg`, `dep`, `self`, or `super` use in a single-file program. | `unknown-module` ([`module.single-file.roots`](../spec/10-modules.md#r-module.single-file.roots)), as a `super` above the test root is. |
+| CLI-CODES | batch 46 | These CLI errors have no code: `hd run` or `hd build` outside a package, `hd run FILE`, `hd run` with no or several executables, an unknown `NAME`, a task and an executable with one name, and `hd new` where `hd.toml` exists. | None named ([Command Line](../spec/cli.md)). **Recommendation:** name them with the manifest diagnostics. |
 
 ### Ideas Noted For Later
 
@@ -305,17 +315,23 @@ These items remain required but do not currently require new core syntax:
   rules for `std.fingerprint`, whose digests always carry an algorithm/version
   identifier;
 - the final `hd.toml` schema and the concrete host binding for capabilities
-  such as `Console`. Executable-main selection is drafted in
-  [Packages](PACKAGES.md#26-entry-points);
+  such as `Console`. Executables and their selection are specified in
+  [Command Line](../spec/cli.md#executables);
 - dependencies through version control hosts, with no registry:
   Dependencies decisions DEP1-DEP7
   are applied in [Package Manifest](../spec/10-modules.md#package-manifest)
   (version tags, minimal version selection, `hd.sum`, workspaces,
   pseudo-versions), with DEP8-DEP19 after them. The manifest diagnostics
   wait for the manifest schema (DEP14,
-  [`module.tooling.package-schema`](../spec/10-modules.md#r-module.tooling.package-schema)),
+  [`cli.tooling.package-schema`](../spec/cli.md#r-cli.tooling.package-schema)),
   and the tooling work is in
   Package Tooling;
+- conformance fixtures for `missing-entry-point` and `unselected-main`,
+  which need manifest input in the fixture format, so they wait for the
+  manifest schema like the other manifest diagnostics;
+- the fuzzer ([spec/tools/fuzz](../spec/tools/fuzz/CONTRACT.md)) still runs
+  `run FILE` and `build FILE`, which [Command Line](../spec/cli.md) makes
+  package-only; the CLI update should move it to `hd FILE`;
 - a `package-cycle` conformance fixture, which waits until the manifest
   schema exists (Dependency Cycles DC12,
   [`module.cycle.package`](../spec/10-modules.md#r-module.cycle.package));

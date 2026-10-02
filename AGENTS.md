@@ -27,12 +27,13 @@ counting changes. Owner direction, 2026-09-28.
 
 ## Spec Scope For The Standard Library
 
-The specification has two tiers, one style, and one conformance suite:
+The specification has three tiers, one style, and one conformance suite:
 
 | Tier | Holds | Where |
 | --- | --- | --- |
 | language | syntax, static and dynamic semantics, intrinsics, and anything the compiler knows by name | the numbered chapters `spec/01-*.md` to `spec/14-*.md` |
 | stdlib | decided std APIs that `lib/std` can implement in plain hd over the language tier | [spec/std/](spec/std/README.md), one file per module |
+| CLI | the `hd` command: package mode, single files, executables, tasks, `hd new`, the REPL, and their diagnostics | [spec/cli.md](spec/cli.md), rule IDs `cli.*` |
 
 The language tier names a std item only when the compiler must know it: a
 lang item, an intrinsic, a prelude name, or the conformance harness (`it`,
@@ -53,6 +54,7 @@ it each mean no.
 | a prelude name and its signature | [Modules, Prelude](spec/10-modules.md#prelude) |
 | a test-position rule the compiler checks, or a literal `snapshot` argument | [Standard Testing](spec/10-modules.md#standard-testing) |
 | a std API that passes the tier test, such as an iterator adapter or `trim` | `spec/std/<module>.md`, rule IDs `std-<module>.*` |
+| what an `hd` command does, the `hd.toml` executables, or package tasks | `spec/cli.md`, rule IDs `cli.*` |
 | every diagnostic code, and every panic category | the language tier: README Diagnostics, and Control Flow |
 | what a spec pass applied | the commit message records it; OPEN_ISSUES holds only open questions |
 | a fixture | `spec/conformance/`; its tier is the tier of its `specification` column |

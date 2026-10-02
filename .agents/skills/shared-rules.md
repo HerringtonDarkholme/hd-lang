@@ -45,7 +45,7 @@ before relying on one, because they change.
 
 ## Spec Tiers
 
-The specification has two tiers; AGENTS.md "Spec Scope For The Standard
+The specification has three tiers; AGENTS.md "Spec Scope For The Standard
 Library" states the tier test and where each kind of rule goes.
 
 - The **language tier** is the numbered chapters `spec/01-*.md` to
@@ -54,7 +54,10 @@ Library" states the tier test and where each kind of rule goes.
 - The **stdlib tier** is [spec/std/](../../spec/std/README.md), one file
   per std module, with rule IDs `std-<module>.*`: std APIs that `lib/std`
   can write in plain hd over the language tier.
-- Search both tiers when you list the spec text an area depends on.
+- The **CLI tier** is [spec/cli.md](../../spec/cli.md), with rule IDs
+  `cli.*`: what the `hd` command does, such as package mode, `hd run`,
+  tasks, and the REPL.
+- Search every tier when you list the spec text an area depends on.
 - When a report proposes a new rule or std item, name its tier by the test.
   A core library addition, the cheapest change in AGENTS.md "Design Cost
   Order", is a stdlib-tier item.

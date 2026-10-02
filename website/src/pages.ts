@@ -86,6 +86,7 @@ export const PAGES: readonly PageSource[] = [
   ...STD_CHAPTERS.map(([module, title]) =>
     page(`spec/std/${module}.md`, `spec/std/${module}.html`, title, "Standard Library"),
   ),
+  page("spec/cli.md", "spec/cli.html", "Command Line", "Command Line"),
   page("future-work/ROADMAP.md", "roadmap.html", "Roadmap", "Project"),
 ];
 

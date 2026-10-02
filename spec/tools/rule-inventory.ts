@@ -110,8 +110,8 @@ function load(spec: string): string {
 
 /**
  * For OLD given as REV:PATH, a test of whether a rule ID's marker appears
- * anywhere in REV's history of the chapters: the numbered language chapters
- * and the stdlib chapters in spec/std/.
+ * anywhere in REV's history of the chapters: the numbered language chapters,
+ * the stdlib chapters in spec/std/, and the CLI chapter spec/cli.md.
  */
 function historySearch(spec: string): ((id: string) => boolean) | undefined {
   const colon = spec.indexOf(":");
@@ -129,6 +129,7 @@ function historySearch(spec: string): ((id: string) => boolean) | undefined {
     "--",
     "spec/[0-9][0-9]-*.md",
     "spec/std/*.md",
+    "spec/cli.md",
   ];
   return (id) => execFileSync("git", pickaxe(id), { encoding: "utf8" }).trim() !== "";
 }

@@ -99,7 +99,7 @@ test("counts rules per chapter, prefix, tier, and heuristic kind", async () => {
   await withSpec(async (spec) => {
     assert.deepEqual(chapterNames(spec), ["01-lexical-structure.md", "std/iter.md"]);
     const result = counts(loadCorpus(spec));
-    assert.deepEqual(result.tiers, { language: 5, std: 1 });
+    assert.deepEqual(result.tiers, { language: 5, std: 1, cli: 0 });
     assert.equal(result.total, 6);
     assert.deepEqual(result.prefixes, { lex: 5, "std-iter": 1 });
     assert.equal(result.topics["lex.widget"], 3);
@@ -373,7 +373,7 @@ test("rewrite reports counts, IDs, codes, and examples between two versions", as
           ]);
           assert.match(
             rewriteSummary(result),
-            /^rules: language 5 -> 5 \(0\), stdlib 1 -> 1 \(0\); IDs: 1 retired, 1 added, 0 moved, 2 changed text, 1 reused; codes: 1 lost/,
+            /^rules: language 5 -> 5 \(0\), stdlib 1 -> 1 \(0\), cli 0 -> 0 \(0\); IDs: 1 retired, 1 added, 0 moved, 2 changed text, 1 reused; codes: 1 lost/,
           );
         },
       ),

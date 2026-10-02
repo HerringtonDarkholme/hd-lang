@@ -7,3 +7,5 @@ M29	1	Typed derivation M29's per-trait Self-line warning needs a second package,
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 DC7	1	An initialization group's statements are not interleaved: the package linker joins the group's modules by identity, so a read of a later-joined module's binding fails
 MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer
+CLI-ENTRY	10	The conformance runner runs an expect-stdout fixture as `IMPL FILE`, and the prototype has no `hd FILE` command yet
+NONPKG	1	A `use self` in a single-file program is not reported at the use

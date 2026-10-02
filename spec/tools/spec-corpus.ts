@@ -9,12 +9,19 @@ import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { inventory, type Inventory, type Rule } from "./rule-inventory.ts";
-import { blocks, type Block, CHAPTER_PREFIXES, knownCodes, STD_DIRECTORY } from "./spec-prose.ts";
+import {
+  blocks,
+  type Block,
+  CHAPTER_PREFIXES,
+  CLI_CHAPTER,
+  knownCodes,
+  STD_DIRECTORY,
+} from "./spec-prose.ts";
 
 export const SPEC_ROOT = resolve(import.meta.dirname, "..");
 export const REPO_ROOT = resolve(SPEC_ROOT, "..");
 
-export type Tier = "language" | "std";
+export type Tier = "language" | "std" | "cli";
 
 /** A heading and the lines it governs, up to the next heading of any level. */
 interface Section {
@@ -109,7 +116,10 @@ function gitReader(repoRoot: string, rev: string): SpecReader {
   };
 }
 
-/** The chapter paths under `specRoot`: the numbered language chapters, then spec/std/ without its README. */
+/**
+ * The chapter paths under `specRoot`: the numbered language chapters,
+ * spec/std/ without its README, then the CLI chapter when it exists.
+ */
 export function chapterNames(specRoot: string, reader = directoryReader(specRoot)): string[] {
   const list = (directory: string): string[] => reader.list(directory).sort();
   return [
@@ -117,6 +127,7 @@ export function chapterNames(specRoot: string, reader = directoryReader(specRoot
     ...list(STD_DIRECTORY)
       .filter((name) => name.endsWith(".md") && name !== "README.md")
       .map((name) => `${STD_DIRECTORY}/${name}`),
+    ...list(".").filter((name) => name === CLI_CHAPTER),
   ];
 }
 
@@ -154,7 +165,7 @@ function loadChapter(
   const parsed = blocks(text);
   return {
     name,
-    tier: name.startsWith(`${STD_DIRECTORY}/`) ? "std" : "language",
+    tier: name.startsWith(`${STD_DIRECTORY}/`) ? "std" : name === CLI_CHAPTER ? "cli" : "language",
     prefix: CHAPTER_PREFIXES[name],
     text,
     blocks: parsed,

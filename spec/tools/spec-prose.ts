@@ -26,9 +26,10 @@ interface RuleMarker {
 
 /**
  * The first dotted segment each chapter's rule IDs start with, keyed by the
- * path under spec/: the numbered language chapters, then the stdlib chapters
- * in spec/std/ (spec/std/README.md). spec/STYLE.md documents the same table;
- * keep the two in step. A stdlib key may name a file that a later move adds.
+ * path under spec/: the numbered language chapters, the stdlib chapters in
+ * spec/std/ (spec/std/README.md), and the CLI chapter spec/cli.md.
+ * spec/STYLE.md documents the same table; keep the two in step. A stdlib key
+ * may name a file that a later move adds.
  */
 export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "01-lexical-structure.md": "lex",
@@ -54,10 +55,14 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/ops.md": "std-ops",
   "std/cmp.md": "std-cmp",
   "std/hash.md": "std-hash",
+  "cli.md": "cli",
 };
 
 /** The subdirectory of spec/ that holds the stdlib chapters. */
 export const STD_DIRECTORY = "std";
+
+/** The CLI tier's one chapter, a file directly under spec/. */
+export const CLI_CHAPTER = "cli.md";
 
 /** Rule ID syntax: two or more dot-separated lowercase kebab-case segments. */
 export const RULE_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*)+$/;

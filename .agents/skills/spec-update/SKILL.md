@@ -51,6 +51,8 @@ the spec, and it adds exactly what the decision says, no more.
      conformance harness, and anything a diagnostic code names.
    - **Stdlib tier**, `spec/std/<module>.md`: a std API that `lib/std` can
      write in ordinary hd over language-tier items only.
+   - **CLI tier**, `spec/cli.md`: what an `hd` command does, the
+     `hd.toml` executables, and package tasks.
    - A rule in a section that no migration task has moved yet goes next to
      its neighbors in the numbered chapter. Moving a section is a
      migration task of its own, not part of a decision.

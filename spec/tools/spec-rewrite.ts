@@ -124,15 +124,18 @@ interface RewriteOptions {
   readonly earlierIds?: ReadonlySet<string>;
 }
 
+/** Chapter order in a report: numbered chapters, then spec/std/, then spec/cli.md. */
+function tierOrder(chapter: string): number {
+  return chapter.startsWith("std/") ? 1 : chapter === "cli.md" ? 2 : 0;
+}
+
 export function rewrite(options: RewriteOptions): Rewrite {
   const { base, head } = options;
   const before = counts(base);
   const after = counts(head);
   const names = [
     ...new Set([...before.chapters, ...after.chapters].map((entry) => entry.chapter)),
-  ].sort(
-    (a, b) => Number(a.startsWith("std/")) - Number(b.startsWith("std/")) || a.localeCompare(b),
-  );
+  ].sort((a, b) => tierOrder(a) - tierOrder(b) || a.localeCompare(b));
   const chapters = names.map((chapter) => {
     const old = before.chapters.find((entry) => entry.chapter === chapter);
     const next = after.chapters.find((entry) => entry.chapter === chapter);
@@ -250,6 +253,7 @@ export function rewrite(options: RewriteOptions): Rewrite {
     tiers: {
       language: row(before.tiers.language, after.tiers.language),
       std: row(before.tiers.std, after.tiers.std),
+      cli: row(before.tiers.cli, after.tiers.cli),
     },
     total: row(before.total, after.total),
     retired,
@@ -291,7 +295,7 @@ const ids = (list: readonly string[]): string =>
 export function rewriteSummary(result: Rewrite): string {
   const cited = result.citedRetired.filter((c) => c.severity !== "history").length;
   return [
-    `rules: language ${change(result.tiers.language)}, stdlib ${change(result.tiers.std)}`,
+    `rules: language ${change(result.tiers.language)}, stdlib ${change(result.tiers.std)}, cli ${change(result.tiers.cli)}`,
     `IDs: ${result.retired.length} retired, ${result.added.length} added, ${result.moved.length} moved, ${result.changed.length} changed text, ${result.revived.length} reused`,
     `codes: ${result.lostCodes.length + result.lostTableCodes.length} lost, ${result.addedCodes.length} added`,
     `examples: ${result.examples.lost.length} lost`,
@@ -313,6 +317,7 @@ export function rewriteReport(result: Rewrite): string {
     "",
     `Language tier: ${change(result.tiers.language)}`,
     `Stdlib tier: ${change(result.tiers.std)}`,
+    `CLI tier: ${change(result.tiers.cli)}`,
     `Total: ${change(result.total)}`,
     "",
     `Retired IDs (${result.retired.length}): ${ids(result.retired.map((entry) => entry.id))}`,

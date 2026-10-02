@@ -1,7 +1,8 @@
 # Specification Style
 
 This guide defines how the chapters are written: the numbered language
-chapters and the stdlib chapters in [`std/`](std/README.md). The goal is a
+chapters, the stdlib chapters in [`std/`](std/README.md), and the CLI
+chapter [`cli.md`](cli.md). The goal is a
 reference that is precise but quick to read: one rule per sentence, the
 common case first, and every rule citable by a stable ID.
 
@@ -127,8 +128,10 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/text.md` | `std-text` |
 | `std/time.md` | `std-time` |
 | `std/task.md` | `std-task` |
+| [Command Line](cli.md) | `cli` |
 
-A stdlib chapter's prefix is `std-` and its module name. The
+A stdlib chapter's prefix is `std-` and its module name. The CLI tier's
+one chapter, `cli.md`, uses `cli`. The
 [stdlib chapter table](std/README.md#chapters) lists each chapter; a later
 move task adds its file.
 

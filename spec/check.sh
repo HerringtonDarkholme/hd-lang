@@ -174,9 +174,10 @@ awk -F "$tab" '
     seen[$1 SUBSEP $2]++ { exit 1 }
 ' "$examples" || fail "malformed or duplicate conformance/examples.tsv entry"
 
-# Chapters: the numbered language chapters and the stdlib chapters in std/
-# (std/README.md). Each chapter's text examples are inventoried.
-for file in "$spec_dir"/[0-9][0-9]-*.md "$spec_dir"/std/*.md; do
+# Chapters: the numbered language chapters, the stdlib chapters in std/
+# (std/README.md), and the CLI chapter cli.md. Each chapter's text examples
+# are inventoried.
+for file in "$spec_dir"/[0-9][0-9]-*.md "$spec_dir"/std/*.md "$spec_dir"/cli.md; do
     name=${file#"$spec_dir/"}
     [ "$name" != std/README.md ] || continue
     blocks=$(awk '/^```text/{ count += 1 } END { print count + 0 }' "$file")
@@ -215,7 +216,7 @@ if grep -R -n -E '(^|[^[:alnum:]_])(v1|MVP|provisional)([^[:alnum:]_]|$)' \
 fi
 
 if grep -n -E '^## (Open|Unresolved)|remain(s)? (open|unresolved)|not yet specified' \
-    "$spec_dir"/[0-9][0-9]-*.md "$spec_dir"/std/*.md; then
+    "$spec_dir"/[0-9][0-9]-*.md "$spec_dir"/std/*.md "$spec_dir"/cli.md; then
     fail "specification chapter contains an unresolved design marker"
 fi
 

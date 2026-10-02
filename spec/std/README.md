@@ -11,6 +11,7 @@ Both tiers are one specification, written to one
 | --- | --- | --- |
 | language | syntax, static and dynamic semantics, intrinsics, and every std item the compiler must know by name | the [numbered chapters](../README.md#contents) |
 | stdlib | std APIs that `lib/std` writes in ordinary hd over the language tier | this directory |
+| CLI | how the `hd` command finds and runs a package or a single file | [Command Line](../cli.md) |
 
 The language tier names a std item only when the compiler must know it:
 

@@ -10,10 +10,11 @@ integrity. They are applied in
 authoritative. So the registry names, caret ranges, solver, lockfile,
 and distribution that this draft first proposed are superseded, and
 their text is in git history. What stays open here is the final
-`hd.toml` schema ([`module.tooling.package-schema`](../spec/10-modules.md#r-module.tooling.package-schema)),
+`hd.toml` schema ([`cli.tooling.package-schema`](../spec/cli.md#r-cli.tooling.package-schema)),
 the checked compatibility rule behind `hd api diff`, and the agent-first
 CLI; the tooling plan is in
-Package Tooling.
+Package Tooling. Executables, tasks, package mode, and `hd new` are
+specified in [Command Line](../spec/cli.md).
 
 Inputs:
 
@@ -292,8 +293,9 @@ never builds its executables. No target has an orphan exception
 | `profile` | `"console"` | Runtime profile ([Wasm Boundary](../spec/10-modules.md#wasm-boundary)). Only toolchain-defined profile names are allowed (decision 13). |
 
 If a package has no library and declares no `[[executable]]`, it has one
-implicit entry with all defaults, so `src/main.hd` is the entry module. See
-[Entry Points](#26-entry-points) below for the selection rule.
+implicit entry with all defaults, so `src/main.hd` is the entry module.
+[Executables](../spec/cli.md#executables) specifies the `name` and `module`
+keys and how `hd run` selects an executable.
 
 `[dependencies]` and `[test-dependencies]`: each key is an identifier and
 becomes the `NAME` in `dep.NAME`. Each value is one of:
@@ -325,30 +327,6 @@ downloads when it is missing (decision 10). There are no editions.
 
 There is no table for optional features or conditional compilation
 (decision 12).
-
-### 2.6 Entry Points
-
-The spec fixes which function is the entry point: a public top-level `main`
-or `main!` with no parameters in the entry module. A non-public `main` is an
-ordinary function. The manifest only selects the entry module:
-
-1. Each `[[executable]]` names one entry module by `module`.
-2. If the entry module declares a public `main` or `main!`, the executable
-   invokes it after module initialization.
-3. Otherwise, if the entry module has top-level executable statements, it is
-   a script.
-4. Otherwise the build fails with `missing-entry-point`, a tooling
-   diagnostic that names the module and the declarations that almost
-   qualified, such as a non-public `main` or a `main` with parameters.
-5. A public `main` in a module that no executable selects is an ordinary
-   public function. `hd` warns (`unselected-main`) so an agent notices a
-   missing `[[executable]]` entry.
-6. A package without executables cannot be run. `hd run` on it fails with
-   a diagnostic that says it has only a library.
-
-The manifest never names the function. That keeps one source of truth: an
-agent that renames `main` sees a checker error in source, not a stale
-manifest.
 
 ## 3. Versions
 
@@ -504,12 +482,13 @@ version is the tagged tree.
 ## 8. Agent-First CLI
 
 Every package operation is a non-interactive command. No command prompts.
+`hd new`, `hd run`, `hd build`, `hd check`, and `hd test` are specified in
+[Command Line](../spec/cli.md).
 Anything that would need confirmation fails with a diagnostic that names the
 flag to pass.
 
 | Command | Effect |
 | --- | --- |
-| `hd new [--library] [--executable] NAME` | Create a package skeleton with a library, an executable, or both. |
 | `hd add NAME ID@VERSION [--test]` | Add or raise a dependency, re-resolve, and update `hd.lock`. Without a version, use the newest non-yanked release. |
 | `hd remove NAME` | Remove a dependency. |
 | `hd update [NAME]` | Re-resolve to the newest versions the ranges allow and rewrite `hd.lock`, reporting any coherence conflict before writing. `--line` also moves the manifest requirement to a new line. |
@@ -517,7 +496,6 @@ flag to pass.
 | `hd lock --check` | Fail if `hd.lock` is stale. |
 | `hd api diff [OLD] [NEW]` | Compare interface files and report the required bump. Defaults: last published version and the working tree. |
 | `hd publish [--dry-run]` | Run every registry check locally, then upload. |
-| `hd build`, `hd run [EXECUTABLE]`, `hd test` | Build, run, or test using the manifest. |
 | `hd metadata` | Print the resolved package graph, executables, and interface hashes. |
 
 Output rules:

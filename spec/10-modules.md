@@ -34,7 +34,8 @@ billing = "github.com/acme/billing@1.2.0"
 > version control hosts changes no `use` line. One build per package
 > version keeps one interface per version.
 
-See also: [Tooling, ABI, And Unsupported Extensions](#tooling-abi-and-unsupported-extensions).
+See also: [Tooling, ABI, And Unsupported Extensions](#tooling-abi-and-unsupported-extensions),
+[Command Line](cli.md) for executables, tasks, and package mode.
 
 ### Dependency Requirements
 
@@ -121,7 +122,7 @@ Pseudo-versions take Go's three forms:
 > the same case as `unknown revision`, and rejects a pseudo-version that
 > does not match its commit. The error's code is named with the
 > other manifest diagnostics, once the manifest schema is written
-> ([`module.tooling.package-schema`](#r-module.tooling.package-schema)).
+> ([`cli.tooling.package-schema`](cli.md#r-cli.tooling.package-schema)).
 
 ### Version Selection
 
@@ -320,6 +321,25 @@ Relative lookup starts at a base that depends on the source file:
 use self.common.{expected}   # valid: tests.common
 use super.common.{expected}  # error: unknown-module
 ```
+
+### Single-File Programs
+
+A **single-file program** is one source file compiled with no package,
+such as a script run on its own:
+
+```text
+use std.process.ExitCode  # valid: std is the one root it may use
+use self.util.{helper}    # error: unknown-module
+```
+
+1. r[module.single-file.definition] A single-file program is one source file compiled with no package. It is its own entry module, and it may use only `std`.
+2. r[module.single-file.roots] In a single-file program, a use path that starts with `pkg`, `dep`, `self`, or `super` is an error, reported at the use. Error: `unknown-module`.
+
+> **Note.** The diagnostic says that the file is in no package, rather
+> than that a name is unknown.
+
+See also: [Single Files](cli.md#single-files) for when `hd` compiles a
+file as a single-file program.
 
 ## Use Forms
 
@@ -872,7 +892,7 @@ This section defines which modules initialize, in what order, and what their
 top-level code may do.
 
 1. r[module.init.script] A **script** is an entry module whose top-level executable statements are the entry behavior and which has no `main` declaration.
-2. r[module.init.entry-module] An **entry module** is the selected root module of an executable package.
+2. r[module.init.entry-module.selected] An **entry module** is the module that a program starts from: a module that the toolchain selects in a package, or the file of a single-file program.
 3. r[module.init.statements-and-main] If an entry module contains both top-level statements and `main`, its top-level statements initialize the module first and then the runtime invokes `main`. That form is an executable entry module, not a script.
 4. r[module.init.program-instance] A **program instance** is one instantiated Wasm module graph together with its module storage, provider bindings, and execution state.
 
@@ -1272,7 +1292,8 @@ enum ResourceError[E]:
 
 ## Tooling, ABI, And Unsupported Extensions
 
-1. r[module.tooling.package-schema] The complete `hd.toml` schema, the `hd.sum` format, and the commands that fetch, add, and upgrade dependencies belong to package tooling.
-2. r[module.tooling.package-later] Compatibility checks at release and upgrade, vendoring, and local-path patches are package tooling that this chapter does not define.
-3. r[module.tooling.abi] The exact Wasm component boundary and registration mechanism belong to the runtime ABI.
-4. r[module.unsupported.visibility] hd-lang has no package-private visibility or independent visibility for enum variants and trait methods.
+1. r[module.tooling.abi] The exact Wasm component boundary and registration mechanism belong to the runtime ABI.
+2. r[module.unsupported.visibility] hd-lang has no package-private visibility or independent visibility for enum variants and trait methods.
+
+See also: [Command Line](cli.md), which defines package tooling: package
+mode, executables, tasks, and the `hd` commands.

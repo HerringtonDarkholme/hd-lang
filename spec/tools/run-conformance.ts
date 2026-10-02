@@ -294,15 +294,17 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
   };
 }
 
+/** Runs `IMPL ACTION [OPTION VALUE]... FILE`, or `IMPL FILE` when `action` is undefined. */
 function invoke(
   command: readonly string[],
-  action: string,
+  action: string | undefined,
   options: readonly string[],
   file: string,
 ): Promise<CommandResult> {
+  const args = [...command.slice(1), ...(action === undefined ? [] : [action]), ...options, file];
   return new Promise((complete) => {
     // No cwd: the working directory is not part of the contract.
-    const child = spawn(command[0]!, [...command.slice(1), action, ...options, file], {
+    const child = spawn(command[0]!, args, {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -524,7 +526,8 @@ async function runCase(options: Options, row: IndexRow, panics: Set<string>): Pr
   if (row.expectation === "accept") {
     if (tested.status !== 0) return fail("test: expected exit 0, got exit 1", [tested]);
     if (fixture.expectedStdout === undefined) return { path: row.path };
-    const ran = await invoke(options.command, "run", [], file);
+    // `IMPL FILE`: run the fixture as a single file (Command Contract).
+    const ran = await invoke(options.command, undefined, [], file);
     const runViolation = await contractViolation(ran, file, panics);
     if (runViolation) return fail(`run: ${runViolation}`, [ran]);
     if (ran.status !== 0) return fail("run: expected exit 0, got exit 1", [ran]);

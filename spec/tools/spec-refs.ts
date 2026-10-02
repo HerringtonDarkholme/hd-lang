@@ -189,6 +189,7 @@ export function ruleHistory(repoRoot: string, rev = "HEAD"): RuleHistory {
         "--",
         "spec/[0-9][0-9]-*.md",
         "spec/std/*.md",
+        "spec/cli.md",
       ],
       { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "ignore"] },
     );

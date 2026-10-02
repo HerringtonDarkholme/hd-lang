@@ -4,7 +4,7 @@ import type { Rule } from "./rule-inventory.ts";
 import { type Chapter, type Corpus, sectionAt, type Tier } from "./spec-corpus.ts";
 
 /** The four kinds of change in AGENTS.md "Design Cost Order", most costly first. */
-const KINDS = ["syntax", "semantic", "intrinsic", "core-library"] as const;
+const KINDS = ["syntax", "semantic", "intrinsic", "core-library", "tooling"] as const;
 type Kind = (typeof KINDS)[number];
 
 const SYNTAX_PREFIXES = new Set(["lex", "grammar"]);
@@ -15,6 +15,7 @@ const INTRINSIC_SEGMENT = /^(?:intrinsics?|lang-items?|prelude)$/;
 /**
  * A heuristic guess at the Design Cost Order kind a rule belongs to:
  * - core-library: a stdlib-tier rule (spec/std/);
+ * - tooling: a CLI-tier rule (spec/cli.md), outside the Design Cost Order;
  * - syntax: prefix `lex` or `grammar`, a rule that names `syntax-error`, or a
  *   section heading about syntax, grammar, spellings, tokens, or layout;
  * - intrinsic: an ID segment, a heading, or the rule text names an
@@ -23,6 +24,7 @@ const INTRINSIC_SEGMENT = /^(?:intrinsics?|lang-items?|prelude)$/;
  */
 function ruleKind(chapter: Chapter, rule: Rule): Kind {
   if (chapter.tier === "std") return "core-library";
+  if (chapter.tier === "cli") return "tooling";
   const prefix = rule.id.split(".", 1)[0]!;
   const trail = (sectionAt(chapter, rule.line)?.trail ?? []).join(" ");
   if (
@@ -66,12 +68,13 @@ const emptyKinds = (): Record<Kind, number> => ({
   semantic: 0,
   intrinsic: 0,
   "core-library": 0,
+  tooling: 0,
 });
 
 export function counts(corpus: Corpus): Counts {
   const prefixes: Record<string, number> = {};
   const topics: Record<string, number> = {};
-  const tiers: Record<Tier, number> = { language: 0, std: 0 };
+  const tiers: Record<Tier, number> = { language: 0, std: 0, cli: 0 };
   const kinds = emptyKinds();
   const chapters = corpus.chapters.map((chapter) => {
     const own = emptyKinds();
@@ -93,7 +96,14 @@ export function counts(corpus: Corpus): Counts {
       kinds: own,
     };
   });
-  return { chapters, prefixes, topics, tiers, kinds, total: tiers.language + tiers.std };
+  return {
+    chapters,
+    prefixes,
+    topics,
+    tiers,
+    kinds,
+    total: tiers.language + tiers.std + tiers.cli,
+  };
 }
 
 export type CountsView = "chapter" | "prefix" | "topic" | "kind";
@@ -148,6 +158,7 @@ export function countsReport(result: Counts, view: CountsView = "chapter"): stri
     "",
     `Language tier: ${result.tiers.language}`,
     `Stdlib tier: ${result.tiers.std}`,
+    `CLI tier: ${result.tiers.cli}`,
     `Total: ${result.total}`,
   );
   return `${out.join("\n")}\n`;

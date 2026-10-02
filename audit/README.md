@@ -8,15 +8,15 @@ repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-10-01 the conformance suite has 1,767 cases, and
-`test/portable/cases.tsv` selects the 1,748 that the prototype passes. The
-other 19 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
+On 2026-10-01 the conformance suite has 1,768 cases, and
+`test/portable/cases.tsv` selects the 1,738 that the prototype passes. The
+other 30 are listed in `test/portable/KNOWN_FAILURES.tsv`, each tagged with a
 finding or with a decision below. Every case is in one of the two files. By
 [tier](../spec/conformance/README.md#tiers):
 
 | Tier | Cases | Selected | Known failures |
 | --- | ---: | ---: | ---: |
-| language | 1,693 | 1,674 | 19 |
+| language | 1,694 | 1,664 | 30 |
 | stdlib | 74 | 74 | 0 |
 
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
@@ -32,6 +32,8 @@ them by tag:
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | DC7 | 1 | group statements are not interleaved across modules |
 | MHP-1 | 1 | no inferred script entry requirement row |
+| CLI-ENTRY | 10 | no `hd FILE` command for the runner's last step |
+| NONPKG | 1 | a `use self` in a single-file program is not reported |
 
 ## What Remains
 

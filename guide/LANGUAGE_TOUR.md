@@ -31,11 +31,15 @@ An hd-lang script can be written as top-level code:
 println("hello, hd-lang")
 ```
 
-Run it as a script:
+Run it as a script, a single file that may use only `std`:
 
 ```sh
-hd run hello.hd
+hd hello.hd
 ```
+
+A program with several files or dependencies is a package: `hd new`
+creates one, and `hd run` runs it
+([Command Line](../spec/cli.md)).
 
 The language uses indentation for structure, so blocks are introduced by a header ending in `:` followed by either an indented body or a same-line body:
 
