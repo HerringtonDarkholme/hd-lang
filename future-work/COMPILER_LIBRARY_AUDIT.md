@@ -61,7 +61,6 @@ The best chunks, by TS deleted per hour:
 
 | Chunk | Work | TS deleted |
 | --- | --- | --- |
-| M4 | `assert`, `assert_equal`, and `snapshot` as hd functions | about 250 |
 | M5 | `std.structure`, `std.inspect`, and `std.testing.arbitrary` as hd files | about 175 |
 
 Line counts below are from `wc -l` and function boundaries. A count for
@@ -107,7 +106,6 @@ defined in [Classification](#classification).
 
 | Feature | TS files | Lines | Spec | Class |
 | --- | --- | --- | --- | --- |
-| `assert`, `assert_equal`, `snapshot` as HIR nodes | `checker/expression-calls.ts` (190), `emitter/function-body.ts` (42), `suspension.ts`, HIR | 250 | [Standard Testing](../spec/lang/10-modules.md#standard-testing): harness; `snapshot`'s literal stays language | C |
 | Test runner: cases, rows, timeouts | `test-runner.ts` | 170 | runner | A (host tool) |
 | Property runner: PRNG, draws, shrinking, regressions | `property-tests.ts` | 303 | [Property Tests](../spec/std/testing.md#property-tests) | A (host tool) |
 | Snapshot files | `snapshots.ts` | 90 | [Snapshot Files](../spec/std/testing.md#snapshot-files) | A (host tool) |
@@ -163,7 +161,6 @@ std items by spelling, such as `Some`/`None`/`Ok`/`Err` in patterns and
 | --- | --- | --- | --- |
 | `Eq`/`PartialOrd` for `List`, `T?`, `Result`, `Map` | **generic impl lookup**: `traitMethodDispatch` and `displayValue` match `impl[T] Eq for List[T]` by pattern (as `implementsDebug` already does), not by exact target | about 30 | about 400 |
 | Prelude traits in TS | **lang items by standard name**: look up `Eq`, `Ordering`, `Iterable`, `Console` by `standardName`, not by fixed trait index (`lowerRunTimeGaps` relies on `Console` being last) | about 40 | about 345 |
-| `assert`, `assert_equal`, `snapshot` | **`panic_category` intrinsic**: a std-only `@intrinsic("panic_category")` that panics with a named category such as `assertion-failed`; keep the `missing-eq` remap and the literal `expect` check | about 35 | about 250 |
 | `std.testing.arbitrary` shim | **std submodules**: `lib/std/testing/arbitrary.hd` joins as `std.testing.arbitrary` | about 20 | 59 |
 | Tuple `==`, `<`, `Hash` | **none if Q3 is B**: hd impls up to 12 elements and a rest tuple, as `Debug` has. Otherwise **tuple `Structure`**: tuples get compiler `Structure` so std templates derive them | 0, or about 120 | 82 |
 | `retry!` | **`lib/std/task.hd`**: a std file beside the compiler-provided `block_on`, `all`, `race`, declared there as `@intrinsic` signatures | about 20 | 0; closes 4 known failures |
@@ -239,11 +236,10 @@ requires.
 
 | # | hd to write in `lib/std` | TS to delete | Hook | Fixtures that prove it |
 | --- | --- | --- | --- | --- |
-| M4 | `std.testing`: `assert`, `assert_equal[T < Eq & Debug]` that panics with both `debug` texts and `reason`, `snapshot` over `assert_equal` | about 250: `assert`/`assert-equal` checker and emitter cases, HIR | `panic_category` intrinsic (35) | `assert`, the 19 `assert-equal-*` fixtures, `snapshot-mismatch`, `snapshot-file-missing`; needs M1 |
 | M5 | `lib/std/structure.hd`, `lib/std/inspect.hd`, `lib/std/testing/arbitrary.hd` | about 175: `STRUCTURE_SOURCE`, `INSPECT_SOURCE`, `arbitrary-module.ts` | std submodules (20) | `typed-derivation*`, `derive-without-structure-use`, `arbitrary-with-*`, `typeid-*` |
 | M6 | `std.format`: `Display` for the integers, `char`, `bool` | about 160: `display` node, `emitPrimitiveDisplay`, four WAT `*_to_string` | none | `string-interpolation-built-ins`, `interpolation-display-order`, `expression-interpolation` |
 
-Left: M4 to M6 delete about 585 lines of TS. The rows of the done steps
+Left: M5 and M6 delete about 335 lines of TS. The rows of the done steps
 are deleted; the status notes below record how they differed from the
 plan.
 

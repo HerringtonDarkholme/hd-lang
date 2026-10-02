@@ -760,11 +760,17 @@ export function withStandardLibrary(source: Program): Program {
   for (const declaration of program.uses) {
     const module = declaration.module.replace(/^std\./, "");
     if (!declaration.module.startsWith("std.") || !isStandardModule(module)) continue;
-    const declared = standardModule(module).names;
+    const parsed = standardModule(module);
     for (const imported of declaration.names) {
-      if (!declared.includes(imported.name)) continue;
-      localNames.set(`${module}.${imported.name}`, imported.alias ?? imported.name);
-      include(module, declaration.span);
+      if (!parsed.names.includes(imported.name)) continue;
+      const local = imported.alias ?? imported.name;
+      localNames.set(`${module}.${imported.name}`, local);
+      // An imported function joins alone, with the declarations its body
+      // reaches; any other imported name joins its whole module.
+      if (parsed.program.functions.some((function_) => function_.name === imported.name)) {
+        reached.add(local);
+        if (!spans.has(module)) spans.set(module, declaration.span);
+      } else include(module, declaration.span);
     }
   }
   // A checked `assert_equal` or `snapshot` call runs `check_equal`.

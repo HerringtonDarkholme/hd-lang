@@ -964,44 +964,6 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         source.span,
       );
     }
-    if (this.imports.get(expression.callee.name) === "std.testing.assert") {
-      if (expression.typeArguments?.length)
-        this.fail("unexpected-type-arguments", "assert has no type arguments", expression.span);
-      if (expression.argumentSpreads?.some(Boolean))
-        this.fail(
-          "positional-spread-needs-vararg",
-          "assert has no variadic parameter",
-          expression.span,
-        );
-      if (expression.arguments.length !== 2)
-        this.fail("argument-count", "assert expects condition and reason", expression.span);
-      const mapping = this.resolveArgumentMapping(expression, ["condition", "reason"], "assert");
-      const parameterIndex = (argumentIndex: number): number =>
-        mapping?.[argumentIndex] ?? argumentIndex;
-      const sourceIndex = (parameter: number): number =>
-        expression.arguments.findIndex((_, index) => parameterIndex(index) === parameter);
-      const checkedByParameter = [
-        this.requireCoercion(
-          this.checkExpression(expression.arguments[sourceIndex(0)]!, "bool"),
-          "bool",
-          expression.arguments[sourceIndex(0)]!.span,
-        ),
-        this.requireCoercion(
-          this.checkExpression(expression.arguments[sourceIndex(1)]!, "string"),
-          "string",
-          expression.arguments[sourceIndex(1)]!.span,
-        ),
-      ];
-      return {
-        kind: "assert",
-        arguments: expression.arguments.map(
-          (_, index) => checkedByParameter[parameterIndex(index)]!,
-        ),
-        argumentParameterIndices: mapping,
-        type: "void",
-        span: expression.span,
-      };
-    }
     if (this.imports.get(expression.callee.name) === "std.testing.assert_equal") {
       if (expression.typeArguments?.length)
         this.fail(

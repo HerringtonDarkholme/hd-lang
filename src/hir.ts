@@ -490,11 +490,6 @@ export type HirExpression =
       readonly strategy: HirEqualityStrategy;
     })
   | (HirExpressionBase & {
-      readonly kind: "assert";
-      readonly arguments: readonly HirExpression[];
-      readonly argumentParameterIndices?: readonly number[];
-    })
-  | (HirExpressionBase & {
       readonly kind: "value-ordering";
       readonly left: HirExpression;
       readonly right: HirExpression;

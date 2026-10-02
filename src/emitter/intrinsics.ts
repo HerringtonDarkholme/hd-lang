@@ -35,6 +35,9 @@ const RUNTIME_PRIMITIVES: Readonly<
     `(struct.get $hd.vector $hd.vector-version (ref.as_non_null ${items}))`,
   iterator_invalidated: () =>
     `(call $hd.panic (i32.const ${runtimePanicCode("iterator-invalidated")}))\nunreachable`,
+  // A failed `assert` (lib/std/testing.hd).
+  assertion_panic: () =>
+    `(call $hd.panic (i32.const ${runtimePanicCode("assertion-failed")}))\nunreachable`,
   // The polling frames of `race!` and `all!`
   // (11-requirements-and-suspension.md#r-req.combinator.intrinsic), whose
   // runtime is `$hd.combinator` (stored-suspension.ts).

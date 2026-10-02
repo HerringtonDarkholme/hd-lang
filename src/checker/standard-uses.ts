@@ -33,7 +33,7 @@ const COMPILER_NAMES: ReadonlyMap<string, readonly string[]> = new Map([
     ],
   ],
   ["task", ["all", "block_on", "Waker"]],
-  ["testing", ["it", "assert", "assert_equal", "snapshot", "it_each", "it_prop", "it_prop_with"]],
+  ["testing", ["it", "assert_equal", "snapshot", "it_each", "it_prop", "it_prop_with"]],
 ]);
 
 /**

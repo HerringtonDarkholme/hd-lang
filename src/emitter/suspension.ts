@@ -415,11 +415,6 @@ class SuspensionPlanBuilder {
           left: left!,
           right: right!,
         }));
-      case "assert":
-        return lowerValues(expression.arguments, (arguments_) => ({
-          ...expression,
-          arguments: arguments_,
-        }));
       case "list":
       case "tuple":
         return lowerValues(expression.elements, (elements) => ({ ...expression, elements }));

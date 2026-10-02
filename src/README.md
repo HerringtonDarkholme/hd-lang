@@ -991,7 +991,9 @@ else`, `break`, `break value`, and `continue`;
   default (spec/lang/09-traits.md#r-trait.error.cause); an optional trait value
   type such as `Error?` is a known type, and a value of `T < Trait` erases
   to `Trait` through the bound's dictionary;
-- executable `std.testing.assert` with source-order argument evaluation, plus
+- `std.testing.assert`, an ordinary hd function in `lib/std/testing.hd`
+  whose failure panics with `assertion-failed` through the
+  `assertion_panic` runtime primitive, without the reason; and
   `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
   and order-independent map values and for explicit nominal or bounded generic
   `Eq` implementations, with mandatory reasons and
@@ -1190,10 +1192,12 @@ in [Open Issues](../future-work/OPEN_ISSUES.md).
 the prototype compiles:
 
 - a module's declarations are added when the program imports one of its
-  names, as in `use std.cmp.{max, min}`, each under the local name or
-  alias, and the rest under hidden names such as `__std_cmp_clamp`. A
+  types or traits, as in `use std.cmp.Reverse`, each under the local name
+  or alias, and the rest under hidden names such as `__std_cmp_clamp`. A
   module's own `use std.<module>.<Name>` lines pull in that module the
-  same way;
+  same way. An imported function, as in `use std.cmp.{max, min}` or
+  `use std.testing.assert`, is added alone under its local name, with the
+  declarations its body reaches;
 - an inherent implementation on a built-in type (`impl string:`,
   `impl[T] T?:`, `impl[T, E] Result[T, E]:`, `impl[T] List[T]:`,
   `impl i32:`) needs no `use`
@@ -1240,7 +1244,7 @@ What it provides:
 | `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits and the index traits' implementations for `List`, `Map`, and `string`; the six range types, `Iterable` for `Range`, `RangeFrom`, and `RangeInclusive` of each integer type, and the slicing `Index` implementations for `string` and `List`, one per range type and integer type; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations, and its tuple template (spec/std/ops.md) |
 | `std.function` | the sealed marker trait `Tuple`, which the compiler implements for every tuple type; a `Tuple` bound passes no dictionary. `Fn` and `SuspendFn` have no declaration: the checker rewrites them to the `fn(...)` sugar |
 | `std.format` | the prelude `Display` and `Debug`; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `Map`, `T?`, `Result`; the template of `Debug`; the tuple templates of `Debug` and `Display` |
-| `std.testing` | `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`, `RunOutput` and `hd_run!` over `Process`; the rest of `std.testing` is checked by the compiler |
+| `std.testing` | `assert`, `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`, `RunOutput` and `hd_run!` over `Process`; the case bodies of `it_each`, `it_prop`, and `it_prop_with`; the rest of `std.testing` is checked by the compiler |
 | `std.testing.arbitrary` | `with` and the typed fact type `With[F]`, in `lib/std/arbitrary.hd`, since the prototype has no std submodules |
 
 The prelude `string` methods live in `std.text` too, and `lower` and
@@ -1280,8 +1284,8 @@ RUNTIME_AND_LIBRARY.md).
      `string_byte_len`, `string_byte_at`, `string_byte_slice`,
      `char_from_scalar`, `index_out_of_bounds`, `iterator_invalidated`,
      `list_version`, the frames `task_race_frame` and `task_all_frame`,
-     and the test runner's hooks `case_index`, `report_case_count`, and
-     `report_timeout`. `list_version` reads a list's structural-version
+     the test runner's hooks `case_index`, `report_case_count`, and
+     `report_timeout`, and `assertion_panic`. `list_version` reads a list's structural-version
      counter, so `ListView` in `lib/std/collections.hd` fails fast as an
      iterator does; it is the one intrinsic that the open issue VIEW-TIER
      proposes.
@@ -1331,7 +1335,7 @@ marks what this refactor removed.
 | Emitter | `emitConsole` (a hand-written host `Console` provider), `console.wat` (`$hd.console_print`) | capability | Done: the generic capability bridge, with `Result` results |
 | Host glue | `console_byte` import | capability | Done: `Console.write_line` in `HOST_PROVIDERS`, left out of record and replay |
 | Checker | `validateHostCapabilities` skipped `Console` | capability | Done: `Console` passes the same boundary check as any host capability |
-| HIR | `assert` | `std.testing` | Remains: `assert` is checked by the compiler |
+| HIR | `assert` | `std.testing` | Done: `assert` is hd code in `lib/std/testing.hd` over the `assertion_panic` runtime primitive (migration M4) |
 | HIR | `assert-equal` | `std.testing` | Done: the compiler checks an `assert_equal` or `snapshot` call and lowers it to a call of the hd `check_equal` |
 | HIR | `snapshot-file` | `std.testing` | Done: `snapshot_file` is hd code in `lib/std/testing.hd` with a host function |
 | HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Done: `it_each`, `it_prop`, `it_prop_with`, and `timeout` run hd functions in `lib/std/testing.hd` over three runtime primitives (migration M3) |
@@ -1348,8 +1352,8 @@ marks what this refactor removed.
 Counts: the HIR expression union had 92 kinds, of which 15 were library-
 or capability-specific. The string step removed 5, the `println` step 1,
 the `debug` and `snapshot_file` step 2, the `assert_equal` step 1, and the
-test-runner hooks 3, leaving 80 kinds, 3 of them specific: the `assert`
-and `std.inspect` rows above. No capability has a HIR node now.
+test-runner hooks 3, and `assert` 1, leaving 79 kinds, 2 of them
+specific: the `std.inspect` row above. No capability has a HIR node now.
 
 ### Console
 

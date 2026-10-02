@@ -241,22 +241,6 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         );
         return `(block (result i32) (local.set ${temporary} ${compared}) ${comparisons[expression.operator]})`;
       }
-      case "assert": {
-        const values = Array.from({ length: 2 }, () => "");
-        const setup = expression.arguments.map((argument, argumentIndex) => {
-          const parameterIndex =
-            expression.argumentParameterIndices?.[argumentIndex] ?? argumentIndex;
-          const temporary = this.allocateTemporary(parameterIndex === 0 ? "bool" : "string");
-          values[parameterIndex] = `(local.get ${temporary})`;
-          return `(local.set ${temporary} ${this.emitExpression(argument)})`;
-        });
-        return [
-          `(block`,
-          ...setup.map((line) => `  ${line}`),
-          `  (if (i32.eqz ${values[0]}) (then ${this.emitRuntimePanic("assertion-failed")}))`,
-          `)`,
-        ].join("\n");
-      }
       case "permission-weaken":
         return this.emitPermissionWeakening(expression);
       case "character":

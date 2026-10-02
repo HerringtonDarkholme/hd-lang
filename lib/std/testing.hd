@@ -1,11 +1,10 @@
 # std.testing, the part written in hd (spec/lang/10-modules.md#standard-testing).
-# `assert`, `assert_equal`, `snapshot`, `it_each`, `it_prop`, and
-# `it_prop_with` are checked by the compiler; `Choices`, `Arbitrary`, and
+# `assert_equal`, `snapshot`, `it_each`, `it_prop`, and `it_prop_with` are
+# checked by the compiler; `Choices`, `Arbitrary`, and
 # `snapshot_file` are declared here (Testing T53), with the bodies that the
 # compiler gives an `it_each`, `it_prop`, or `it_prop_with` test case and
 # the runner protocol they use. `std.testing.arbitrary` is `lib/std/arbitrary.hd`, which
 # the prototype names `std.arbitrary`, since it has no std submodules.
-use std.testing.assert
 use std.format.debug
 use std.hash.Hash
 use std.num.{Float, Integer, parse_i64}
@@ -416,6 +415,18 @@ fn prop_draw(bound: i64) -> i64:
 # Ends the running case as discarded; the host does not return.
 @intrinsic("prop_discard")
 fn prop_discard() -> void:
+    panic("intrinsic")
+
+# A false `condition` is a failed assertion, a checked runtime panic
+# (spec/lang/10-modules.md#r-module.testing.assert-panic). The prototype
+# does not show `reason`.
+pub fn assert(condition: bool, reason: string) -> void:
+    if !condition:
+        assertion_panic()
+
+# The checked runtime panic `assertion-failed`; it does not return.
+@intrinsic("assertion_panic")
+fn assertion_panic() -> void:
     panic("intrinsic")
 
 # What a checked `assert_equal` or `snapshot` call runs, with `T` the
