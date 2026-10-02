@@ -1,0 +1,11 @@
+# test: .partial_cmp calls the standard PartialOrd implementations of lists and optionals directly
+# expect: test
+# Spec 05 Ordering: expr.ord.std; PartialOrd is a prelude trait (module.prelude.names).
+pub fn main() -> void:
+    match [1, 2].partial_cmp([1, 3]):
+        .Some(.Less) => pass
+        _ => panic("lists")
+    let none: i32? = .None
+    match none.partial_cmp(.Some(0)):
+        .Some(.Less) => pass
+        _ => panic("optionals")

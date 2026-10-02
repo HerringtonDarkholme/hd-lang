@@ -11,7 +11,7 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-02 the suite has
-1,896 cases: 1,827 selected in `test/portable/cases.tsv` and 69 known
+1,901 cases: 1,832 selected in `test/portable/cases.tsv` and 69 known
 failures, 62 language tier and 7 stdlib tier.
 
 | Tag | Cases | Why they fail |
@@ -68,6 +68,9 @@ Correctness and diagnostics:
   test cases never run.
 - **F-605**: parsing stops at the first error, and checking reports one
   error per function; a signature error hides every body error.
+- **F-611**: a direct `.eq`, `.partial_cmp`, or `.cmp` call on a primitive,
+  such as `(1).cmp(2)`, is `unknown-method`. The compiler supplies these
+  implementations only as bound dictionaries and `==` or `<` strategies.
 
 Runtime cost:
 

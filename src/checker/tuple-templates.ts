@@ -7,6 +7,7 @@ import {
   mentionedNames,
   standardSupertraits,
   standardTemplate,
+  selectedPreludeTraits,
   standardTupleTraits,
   withStandardLibrary,
   type StandardTemplate,
@@ -129,6 +130,7 @@ export function tupleDemand(program: Program): {
   ];
   const mentioned = new Set<string>();
   mentionedNames(used, mentioned);
+  selectedPreludeTraits(used, mentioned);
   return { shapes: tupleShapes(used), mentioned };
 }
 

@@ -100,9 +100,25 @@ const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
  */
 const PRELUDE_TYPE_METHODS: readonly (readonly [StandardModule, string, readonly string[]])[] = [
   ["iter", "Iterator", ["iter", "take", "enumerate", "fold", "collect"]],
-  // A std type's text, as `(1, "a").to_string()` (05-expressions.md#r-expr.interp.std.tuple.template).
-  ["format", "Display", ["to_string"]],
 ];
+
+/**
+ * Adds to `names` each prelude trait that std declares and whose method the
+ * node selects, such as `Hash` for `(7).hash(state)`. A prelude trait is in
+ * scope everywhere (spec/lang/10-modules.md#r-module.prelude.names), so such
+ * a call declares the trait, its std implementations, and its tuple
+ * template, though the program never names the trait.
+ */
+export function selectedPreludeTraits(node: unknown, names: Set<string>): void {
+  const selected = new Set<string>();
+  memberNames(node, selected);
+  for (const [module, name] of PRELUDE_DECLARATIONS) {
+    const trait = standardModule(module).program.traits.find(
+      (declaration) => declaration.name === name,
+    );
+    if (trait?.methods.some((method) => selected.has(method.name))) names.add(name);
+  }
+}
 
 function isStandardModule(name: string): name is StandardModule {
   return (STANDARD_MODULES as readonly string[]).includes(name);
@@ -883,6 +899,7 @@ export function withStandardLibrary(source: Program): Program {
   memberNames(program, selectedByProgram);
   for (const [, name, methods] of PRELUDE_TYPE_METHODS)
     if (methods.some((method) => selectedByProgram.has(method))) mentionedByProgram.add(name);
+  selectedPreludeTraits(program, mentionedByProgram);
   for (const [module, name] of PRELUDE_DECLARATIONS) {
     if (!mentionedByProgram.has(name) || included.has(module)) continue;
     if (

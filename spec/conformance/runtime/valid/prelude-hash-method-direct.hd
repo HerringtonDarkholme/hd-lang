@@ -1,0 +1,35 @@
+# test: .hash calls the standard Hash implementations directly, with a user Hasher
+# expect: test
+# Spec 04 Map Key Types: types.map-key.builtin-hash; Hash is a prelude trait (module.prelude.names).
+data Bytes:
+    items: mut List[u8]
+
+impl Hasher for Bytes:
+    fn write(mut self, bytes: List[u8]) -> void:
+        for b in bytes:
+            self.items.append(b)
+
+fn fed(first: Bytes, second: Bytes) -> void:
+    if first.items != second.items:
+        panic("equal values fed different bytes")
+
+pub fn main() -> void:
+    let a: mut Bytes = Bytes { items: [] }
+    let b: mut Bytes = Bytes { items: [] }
+    (7).hash(a)
+    (7).hash(b)
+    "ab".hash(a)
+    "ab".hash(b)
+    u8(3).hash(a)
+    u8(3).hash(b)
+    i64(9).hash(a)
+    i64(9).hash(b)
+    'z'.hash(a)
+    'z'.hash(b)
+    true.hash(a)
+    true.hash(b)
+    [1, 2].hash(a)
+    [1, 2].hash(b)
+    (1, "a").hash(a)
+    (1, "a").hash(b)
+    fed(a, b)

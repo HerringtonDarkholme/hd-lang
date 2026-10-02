@@ -1896,3 +1896,7 @@ typing/invalid/private-std-function.hd	type	reject:private-import	lang/10-module
 typing/invalid/private-std-type.hd	type	reject:private-import	lang/10-modules.md#r-module.use.private-name
 typing/invalid/private-std-name-in-group.hd	type	reject:private-import	lang/10-modules.md#r-module.use.private-name
 typing/invalid/private-package-name.hd	type	reject:private-import	lang/10-modules.md#r-module.use.private-name
+runtime/valid/prelude-hash-method-direct.hd	runtime	accept	lang/04-type-system.md#r-types.map-key.builtin-hash
+runtime/valid/prelude-eq-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.eq.std
+runtime/valid/prelude-partial-cmp-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.ord.std
+runtime/valid/prelude-cmp-method-direct.hd	runtime	accept	std/cmp.md#r-std-cmp.tuple.templates

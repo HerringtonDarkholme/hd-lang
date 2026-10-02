@@ -1,0 +1,15 @@
+# test: .eq calls the standard Eq implementations of lists, optionals, and results directly
+# expect: test
+# Spec 05 Equality: expr.eq.std; Eq is a prelude trait (module.prelude.names).
+pub fn main() -> void:
+    if ![1, 2].eq([1, 2]):
+        panic("equal lists")
+    if [1, 2].eq([1, 3]):
+        panic("unequal lists")
+    let some: i32? = .Some(1)
+    let none: i32? = .None
+    if !some.eq(.Some(1)) || some.eq(none):
+        panic("optionals")
+    let ok: Result[i32, string] = .Ok(1)
+    if !ok.eq(.Ok(1)) || ok.eq(.Err("no")):
+        panic("results")

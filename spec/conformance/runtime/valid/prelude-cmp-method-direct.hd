@@ -1,0 +1,10 @@
+# test: .cmp calls the standard Ord implementations of tuples and lists directly
+# expect: test
+# Spec std/cmp Tuple Comparison: std-cmp.tuple.templates; Ord is a prelude trait (module.prelude.names).
+pub fn main() -> void:
+    match (1, "b").cmp((2, "a")):
+        .Less => pass
+        _ => panic("tuples")
+    match [1, 2].cmp([1]):
+        .Greater => pass
+        _ => panic("lists")
