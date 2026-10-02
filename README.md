@@ -19,9 +19,9 @@ Errors stay plain values: `Result[T, E]` and `?`.
 
 ## Why hd
 
-- **Typed facts and derive.** Attach checked metadata to types and fields,
-  then derive encoders, decoders, schemas, `Eq`, `Hash`, and `Debug` in plain
-  hd. No macros, no codegen.
+- **Serialization, schemas, property tests, and fake data from your types.**
+  Typed facts and structural derive generate them in plain hd. No macros, no
+  codegen.
 - **Effects you can review.** A signature shows every capability a function
   can touch, and tests swap providers instead of patching globals.
 - **Sandboxed.** Wasm GC, with host access only through requirements.
