@@ -7,8 +7,9 @@ built for code that AI writes and humans review.
 
 ## Algebraic effects, emulated by three pillars
 
-1. **Rows declare.** `fn load!(id: Id) -> User $ Db + Cache`: the `$` row
-   lists every capability a function may use, and the checker enforces it.
+1. **Requirements declare.** `fn load!(id: Id) -> User $ Db + Cache`: after
+   `$`, a function lists every capability it may use, and the checker
+   enforces it.
 2. **Providers handle.** `$.with(Db=mock_db): ...` binds a capability for a
    block, so tests, sandboxes, and production differ only in providers.
 3. **`!` suspends.** `fn!` and `f!(...)` mark one-shot suspension. `all!`,
