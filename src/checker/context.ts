@@ -70,7 +70,7 @@ import {
   suspensionParts,
   traitSuspensionParts,
 } from "../types.ts";
-import { narrowsTo, numericType } from "../numeric.ts";
+import { narrowsTo, numericType, widensTo } from "../numeric.ts";
 import { DERIVED_IMPLEMENTATION_SPANS, derivedFieldDiagnostic } from "./derive-intrinsics.ts";
 
 export interface CheckResult {
@@ -1349,7 +1349,37 @@ export abstract class CheckerContext {
         `'${actual}' does not convert implicitly to '${expected}'; write an explicit cast`,
         span,
       );
+    if (widensTo(actual, expected))
+      this.failWithConversion(
+        `'${actual}' does not widen implicitly to '${expected}'; write ${expected}(...)`,
+        expected,
+        span,
+      );
     this.fail("type-mismatch", mismatchMessage(actual, expected), span);
+  }
+
+  /**
+   * `type-mismatch` for a number of another width, with a fix-it that writes
+   * the conversion around the value at `span` (04-type-system.md#r-types.num.no-implicit.fix).
+   */
+  protected failWithConversion(message: string, target: ValueType, span: SourceSpan): never {
+    let code = "type-mismatch";
+    ({ code, message } = rowDiagnostic(code, message, this.declaration));
+    ({ code, message } = derivedFieldDiagnostic(code, message, span));
+    if (code !== "type-mismatch") this.fail(code, message, span);
+    this.diagnostics.push({
+      code,
+      message,
+      span,
+      fix: {
+        message: `write '${target}(...)'`,
+        edits: [
+          { span: { start: span.start, end: span.start }, replacement: `${target}(` },
+          { span: { start: span.end, end: span.end }, replacement: ")" },
+        ],
+      },
+    });
+    throw new CheckFailure(message);
   }
 
   protected requireCoercion(

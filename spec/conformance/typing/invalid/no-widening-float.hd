@@ -1,0 +1,4 @@
+# test: an f32 and an f64 operand do not mix
+# Spec 04 Binary Numeric Operators: types.num.binary.same-type (task #204, NO-WIDENING).
+fn scale(ratio: f32, factor: f64) -> f64:
+    ratio * factor  # diagnostic: type-mismatch

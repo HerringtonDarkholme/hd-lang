@@ -1672,8 +1672,8 @@ in `List[_]`.
 
 When several arguments solve one type parameter, their types may differ
 only in `mut`: a `mut User` and a `User` give `T = User`. A call never
-widens a number or makes a trait value to match them, as Rust and Go
-don't. Write the cast, or name the type:
+makes a trait value to match them, as Rust and Go don't, and no number ever
+widens implicitly. Write the cast, or name the type:
 
 ```text
 fn max[T < Ord](left: T, right: T) -> T:
@@ -1870,7 +1870,7 @@ The twelve operators are `+ - * / %`, unary `-`, `& | ^ ~`, `<<`, and
 so write `price * 3`: `3 * price` types `3` as `i32` and looks for an
 `impl Mul[Money] for i32`. A newtype such as `type Meters(f64)` inherits no
 operators; implement the ones it needs by hand. Two primitive operands keep
-the built-in typing and widening, then call the same trait methods, whose
+the built-in typing, which never widens, then call the same trait methods, whose
 standard implementations for numbers are compiler intrinsics. The trait of
 `~` is `Not`, and `string` implements `Add`, so generic code bounded by
 `Add` can concatenate strings.
@@ -2042,13 +2042,15 @@ drive(10)               # invalid: i32 is not Mile
 raw_distance := i32(miles)     # explicit cast back to base type
 ```
 
-Integers widen implicitly only within one signedness family (`i8` through
-`i64`, or `u8` through `u64`), and `f32` widens to `f64`. Crossing signedness
-or narrowing requires an explicit cast:
+No number changes type implicitly, as in Go, Rust, and Swift. Widening,
+narrowing, and crossing signedness are all written as casts. A literal still
+takes the type it needs, so `small + 1` and `let x: i64 = 300` are fine:
 
 ```text
 let small: i16 = 42
-let large: i64 = small          # ok: widening
+let large: i64 = small          # invalid: write i64(small)
+let wide: i64 = i64(small)      # ok: an explicit widening
+total := wide + small           # invalid: i64 + i16; write i64(small)
 
 let huge: i64 = 9000
 let smaller: i16 = huge         # invalid: narrowing

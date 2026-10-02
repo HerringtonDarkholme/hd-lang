@@ -1,0 +1,7 @@
+# test: a narrower integer argument does not widen to its parameter's type
+# Spec 04 Numeric Conversions: types.num.no-implicit.wider (task #204, NO-WIDENING).
+fn to_millis(seconds: i64) -> i64:
+    seconds * 1000
+
+fn minute(count: i32) -> i64:
+    to_millis(count)  # diagnostic: type-mismatch

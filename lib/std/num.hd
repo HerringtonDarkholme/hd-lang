@@ -291,7 +291,7 @@ pub fn parse_i64(text: string) -> Result[i64, ParseNumberError]:
     let value: i64 = 0
     while index < scalars.len():
         digit := match digit_value(scalars[index]):
-            .Some(found) => found
+            .Some(found) => i64(found)
             .None => return .Err(ParseNumberError.InvalidDigit(index))
         # Accumulate toward the sign so the minimum value parses.
         shifted := match value.checked_mul(10):

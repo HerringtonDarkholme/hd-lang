@@ -1,0 +1,4 @@
+# test: the least common type never widens a number, so two widths have no common type
+# Spec 04 Least Common Type: types.lct.conversions (task #204, NO-WIDENING).
+fn values(small: i16, large: i64) -> void:
+    both := [small, large]  # diagnostic: no-common-type

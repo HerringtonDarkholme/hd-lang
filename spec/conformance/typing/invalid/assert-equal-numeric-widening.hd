@@ -1,5 +1,5 @@
 # test: assert_equal infers T from both values and never widens a number
-# Spec 04 Inference From Several Arguments: types.generic.infer.join.no-widen, through
+# Spec 04 Inference From Several Arguments: types.generic.infer.join.other-conflict, through
 # assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string) of Spec 10 (INF-mut,
 # owner decision 2026-09-30). An i64 actual and an i32 expected value are a type-mismatch.
 use std.testing.assert_equal

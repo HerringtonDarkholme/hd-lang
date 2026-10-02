@@ -1853,3 +1853,13 @@ runtime/valid/primitive-char-cmp-method-direct.hd	runtime
 runtime/valid/primitive-float-cmp-method-direct.hd	runtime
 runtime/valid/primitive-integer-cmp-method-direct.hd	runtime
 runtime/valid/primitive-string-cmp-method-direct.hd	runtime
+typing/invalid/no-widening-operator.hd	type
+typing/invalid/no-widening-assignment.hd	type
+typing/invalid/no-widening-argument.hd	type
+typing/invalid/no-widening-return.hd	type
+typing/invalid/no-widening-float.hd	type
+typing/invalid/no-widening-list-literal.hd	type
+typing/invalid/no-widening-range-bounds.hd	type
+typing/invalid/power-float-widths.hd	type
+typing/valid/numeric-literal-adopts-width.hd	type
+runtime/valid/numeric-explicit-widening.hd	runtime

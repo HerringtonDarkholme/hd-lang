@@ -1,0 +1,20 @@
+# test: an untyped literal still takes the expected type or the other operand's type
+# Spec 04 Numeric Conversions: types.num.literal-exempt; Binary Numeric Operators:
+# types.num.binary.literal; Inference From Several Arguments: types.generic.infer.join.literal
+# (task #204, NO-WIDENING).
+use std.ops.Range
+
+fn pick[T](left: T, right: T) -> T:
+    left
+
+fn literals(small: i16, large: i64, ratio: f32) -> i64:
+    let x: i64 = 300
+    let next: i16 = small + 1
+    let halved: f32 = ratio * 0.5
+    either := pick(large, 1)
+    let bounds: Range[i64] = 0..large
+    x + either + bounds.end + i64(next) + i64(halved)
+
+fn explicit(small: i16, large: i64, ratio: f32, scale: f64) -> f64:
+    total := i64(small) + large
+    f64(ratio) * scale + f64(total)

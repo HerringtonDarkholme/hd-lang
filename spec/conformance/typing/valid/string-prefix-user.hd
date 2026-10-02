@@ -14,4 +14,4 @@ fn by_id(id: i64) -> Query:
     sql"select * from users where id = $id"
 
 fn by_small_id(id: i32) -> Query:
-    sql"select * from users where id = ${id}"
+    sql"select * from users where id = ${i64(id)}"

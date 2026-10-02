@@ -574,26 +574,51 @@ and its diagnostic, and [Conversion Trait](09-traits.md#conversion-trait).
 
 ## Numeric Conversions
 
-Implicit integer conversion widens along these chains:
+No numeric value changes type implicitly. Every change of width is a
+written [cast](#numeric-casts), and a literal takes the type it needs:
 
 ```text
-i8 -> i16 -> i32 -> i64
-u8 -> u16 -> u32 -> u64
+fn total(small: i16, large: i64) -> i64:
+    let wide: i64 = small  # error: type-mismatch
+    i64(small) + large + 1
 ```
 
-1. r[types.num.widen] Implicit integer conversion is limited to widening conversions that preserve every value of the source type. An implicit narrowing conversion is an error. Error: `implicit-narrowing`.
-2. r[types.num.chains] The signed and unsigned widening chains are the two chains above.
-3. r[types.num.no-sign-change] There is no implicit conversion between signed and unsigned integers.
-4. r[types.num.no-int-float] There is no implicit integer-to-floating or floating-to-integer conversion in the current core.
-5. r[types.num.f32-f64] `f32` widens implicitly to `f64`; `f64` to `f32` requires an explicit cast.
+The numeric types form three families, each ordered from narrower to wider:
+
+```text
+i8, i16, i32, i64
+u8, u16, u32, u64
+f32, f64
+```
+
+1. r[types.num.families] The signed integers, the unsigned integers, and the floating-point types are the three numeric families above, each ordered by width.
+2. r[types.num.no-implicit] No numeric type converts implicitly to another numeric type. Every change of numeric type is an explicit cast, as in `i64(small)` or `f64(ratio)`.
+3. r[types.num.no-implicit.wider] So a value where a wider type of its family is expected is an error, as an `i16` passed to an `i64` parameter or an `f32` assigned to an `f64`. Error: `type-mismatch`.
+4. r[types.num.no-implicit.fix] That diagnostic should offer a fix-it that writes the conversion around the value, as in `i64(small)`.
+5. r[types.num.narrowing] A value where a narrower type of its family is expected is an error. Error: `implicit-narrowing`.
+6. r[types.num.no-sign-change] There is no implicit conversion between signed and unsigned integers.
+7. r[types.num.no-int-float] There is no implicit integer-to-floating or floating-to-integer conversion in the current core.
+8. r[types.num.literal-exempt] A numeric literal is not a conversion: it takes its expected type, as [Literal Types](#literal-types) states, so `let x: i64 = 300` is valid.
+
+> **Why.** Go, Rust, and Swift have no implicit numeric conversion, and
+> Kotlin's mixed operators are one overload per pair of types. With none, an
+> operator is one trait method on one type, and every width change is
+> visible where it happens.
 
 ### Binary Numeric Operators
 
 1. r[types.num.binary.literal] For a binary numeric operator, an untyped literal first adopts the compatible type expected from the other operand.
-2. r[types.num.binary.widen] Otherwise, operands within one integer signedness family widen to the wider operand type, and the result has that type.
-3. r[types.num.binary.float] `f32 op f32` produces `f32`; when one operand is `f64`, an `f32` operand widens and the result is `f64`.
-4. r[types.num.binary.no-mix] Signed and unsigned integers do not mix implicitly, and integers do not mix implicitly with floating-point values. A signed and an unsigned operand are an error. Error: `mixed-signedness`.
-5. r[types.num.binary.cast] The user must cast one operand explicitly in those cases.
+2. r[types.num.binary.same-type] Otherwise both operands must have one type, and the result has that type, so `f32 op f32` produces `f32`. Two types of one family are an error, as `small + large` with an `i16` and an `i64`, or an `f32` and an `f64` operand. Error: `type-mismatch`.
+3. r[types.num.binary.no-mix] Signed and unsigned integers do not mix implicitly, and integers do not mix implicitly with floating-point values. A signed and an unsigned operand are an error. Error: `mixed-signedness`.
+4. r[types.num.binary.cast] The user must cast one operand explicitly in those cases.
+
+```text
+fn add(small: i16, large: i64, ratio: f32, scale: f64) -> f64:
+    let count: i64 = small + large  # error: type-mismatch
+    let mixed: f64 = ratio * scale  # error: type-mismatch
+    let next = small + 1            # the literal is an i16
+    f64(ratio) * scale
+```
 
 ### Numeric Casts
 
@@ -668,16 +693,14 @@ See also: [Runtime Panics](06-control-flow.md#runtime-panics).
 r[types.assign] An expression of type `S` is assignable to a location of type `T` when at least one of these rules applies:
 
 1. r[types.assign.identical] `S` and `T` are identical after expanding transparent aliases.
-2. r[types.assign.int-widen] `S` is an integer type with a value-preserving widening conversion to `T`.
-3. r[types.assign.float-widen] `S` is `f32` and `T` is `f64`.
-4. r[types.assign.weaken] `S` is `mut T` and the target requests the readonly view `T`.
-5. r[types.assign.variance] A declared generic variance conversion permits the readonly outer type to change its type arguments.
-6. r[types.assign.trait-value] `S` explicitly implements trait `T`, or `T` is `Inspectable` and `S` is an inspectable type, allowing construction of a dynamic trait value.
-7. r[types.assign.supertrait] `S` is a dynamic child-trait value whose trait has `T` as a direct or transitive supertrait.
-8. r[types.assign.optional] A value of `T` is injected into `T?`. The injection adds one layer only, so a `T` is not injected into `T??`.
-9. r[types.assign.row-subsumption] `S` and `T` are function types, `T`'s row entails every key of `S`'s row, and `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
-10. r[types.assign.never] `S` is `never`, as [`types.never.assignable`](#r-types.never.assignable) states.
-11. r[types.assign.trait-value.mut] `S` is `mut U`, `T` is `mut Trait`, and `U` meets `types.assign.trait-value` for `Trait`. This builds a mutable dynamic trait value, as in `let edit: mut Display = mutable_user`.
+2. r[types.assign.weaken] `S` is `mut T` and the target requests the readonly view `T`.
+3. r[types.assign.variance] A declared generic variance conversion permits the readonly outer type to change its type arguments.
+4. r[types.assign.trait-value] `S` explicitly implements trait `T`, or `T` is `Inspectable` and `S` is an inspectable type, allowing construction of a dynamic trait value.
+5. r[types.assign.supertrait] `S` is a dynamic child-trait value whose trait has `T` as a direct or transitive supertrait.
+6. r[types.assign.optional] A value of `T` is injected into `T?`. The injection adds one layer only, so a `T` is not injected into `T??`.
+7. r[types.assign.row-subsumption] `S` and `T` are function types, `T`'s row entails every key of `S`'s row, and `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
+8. r[types.assign.never] `S` is `never`, as [`types.never.assignable`](#r-types.never.assignable) states.
+9. r[types.assign.trait-value.mut] `S` is `mut U`, `T` is `mut Trait`, and `U` meets `types.assign.trait-value` for `Trait`. This builds a mutable dynamic trait value, as in `let edit: mut Display = mutable_user`.
 
 ```text
 data User:
@@ -691,6 +714,9 @@ fn edit(mutable_user: mut User) -> void:
     let edit: mut Display = mutable_user
     let shown: Display = edit
 ```
+
+No rule converts one numeric type to another, as
+[Numeric Conversions](#numeric-conversions) states.
 
 See also: [Inspectable Types](09-traits.md#inspectable-types).
 
@@ -1078,13 +1104,12 @@ When a call solves one type parameter from several arguments, the
 arguments' types may differ only in `mut`:
 
 1. r[types.generic.infer.join] When generic call inference solves one type parameter from several arguments, the only conversion between their types is permission weakening: `mut X` and `X` meet at `X`.
-2. r[types.generic.infer.join.no-widen] Numeric widening does not apply, so `max(small, large)` with an `i32` and an `i64` argument is an error. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
-3. r[types.generic.infer.join.no-trait-value] A trait-value conversion never applies, as [`types.lct.no-trait-value`](#r-types.lct.no-trait-value) states for the least common type. So `cmp(user, label)` with a `User` and a `Display` argument is an error. Error: `no-common-type`.
-4. r[types.generic.infer.join.no-supertrait-widening] A supertrait widening never applies either, so two arguments of two child traits of one supertrait are an error. Error: `no-common-type`.
-5. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error, as for `choose(1, true)`, a `List[mut User]` and a `List[User]`, or a `T` and a `T?`. Error: `type-mismatch`.
-6. r[types.generic.infer.join.literal] An integer literal argument is not a conversion: it takes the type solved from the other arguments as its expected type, in any position. So `pick(1, large)` with an `i64` `large` solves `T = i64`.
-7. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp::[Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
-8. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
+2. r[types.generic.infer.join.no-trait-value] A trait-value conversion never applies, as [`types.lct.no-trait-value`](#r-types.lct.no-trait-value) states for the least common type. So `cmp(user, label)` with a `User` and a `Display` argument is an error. Error: `no-common-type`.
+3. r[types.generic.infer.join.no-supertrait-widening] A supertrait widening never applies either, so two arguments of two child traits of one supertrait are an error. Error: `no-common-type`.
+4. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error, as for `choose(1, true)`, `max(small, large)` with an `i32` and an `i64`, a `List[mut User]` and a `List[User]`, or a `T` and a `T?`. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
+5. r[types.generic.infer.join.literal] An integer literal argument is not a conversion: it takes the type solved from the other arguments as its expected type, in any position. So `pick(1, large)` with an `i64` `large` solves `T = i64`.
+6. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp::[Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
+7. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
 
 ```text
 fn max[T < Ord](left: T, right: T) -> T:
@@ -1286,7 +1311,6 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 2. r[types.variance.repr.contravariant] A variance conversion `G[S] -> G[T]` requires a representation-preserving `T -> S` conversion for each contravariant argument.
 3. r[types.variance.repr.weakening] Permission weakening `mut U -> U` is representation-preserving.
 4. r[types.variance.repr.excluded] These conversions are not representation-preserving:
-   - numeric widening such as `i8 -> i64`;
    - construction of a trait value such as `i32 -> Display` or `User -> Display`;
    - child-dynamic-trait to supertrait widening;
    - optional injection `U -> U?`.
@@ -1445,7 +1469,7 @@ r[types.lct.sites] Several constructs infer one type from several values when no
 
 1. r[types.lct.uses] Each of these uses the least common type defined here.
 2. r[types.lct.unique] The compiler computes a unique least common type of the values' types using only the implicit conversions in [Assignability And Coercion](#assignability-and-coercion).
-3. r[types.lct.contributors] Numeric widening, permission weakening, and declared readonly variance may contribute.
+3. r[types.lct.conversions] Permission weakening and declared readonly variance may contribute. No numeric conversion does, so `[small, large]` with an `i16` and an `i64` has no common type. Error: `no-common-type`.
 4. r[types.lct.no-combine] Least-common-type inference never combines permission weakening with a variance step for the same candidate conversion.
 5. r[types.lct.row-union-every-site] At every construct in the table, function values with different rows are first widened to the union of their rows ([Row Union In Literals](11-requirements-and-suspension.md#row-union-in-literals)).
 6. r[types.lct.never.dropped] The least common type first drops every value of type `never`, then joins the rest. So `if ok: 1 else: return .None` has type `i32`.
@@ -1673,10 +1697,9 @@ A conversion is representation-preserving when the value after conversion is
 the same runtime value as before. It keeps the same identity and the same
 stored content, with no wrapper, copy, box, or re-encoding.
 
-Permission weakening `mut U -> U` preserves representation. Numeric widening,
-conversion to a trait value or `Any`, supertrait widening of a dynamic value,
-and optional injection do not, which is why [Variance](#variance) excludes
-them.
+Permission weakening `mut U -> U` preserves representation. Conversion to a
+trait value or `Any`, supertrait widening of a dynamic value, and optional
+injection do not, which is why [Variance](#variance) excludes them.
 
 ## Unsupported Type-System Extensions
 

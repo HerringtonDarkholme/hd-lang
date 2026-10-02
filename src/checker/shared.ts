@@ -1388,19 +1388,28 @@ export function normalizeBoundProjections(
 export const MAX_BOUND_DEPTH = 64;
 
 /**
- * 04 Numeric Conversions: `value` widened within its family, or `f32` to
- * `f64`; a literal takes the wider type directly.
+ * A numeric literal, alone or under unary `-` or `+`, that was typed before
+ * its expected type was known takes the wider `target` type directly
+ * (04-type-system.md#r-types.num.binary.literal). Any other value never
+ * widens implicitly (04-type-system.md#r-types.num.no-implicit).
  */
 export function numericWidening(
   value: HirExpression,
   target: ValueType,
   span: SourceSpan,
 ): HirExpression | undefined {
-  if (!widensTo(value.type, target)) return undefined;
+  if (!widensTo(value.type, target) || !isNumericLiteralValue(value)) return undefined;
   if (value.kind === "integer")
     return numericType(target)!.bits === 64
       ? { ...value, wide: value.wide ?? String(value.value), type: target }
       : { ...value, type: target };
   if (value.kind === "float") return { ...value, type: target };
   return { kind: "unary", operator: "widen", operand: value, type: target, span };
+}
+
+function isNumericLiteralValue(value: HirExpression): boolean {
+  let literal = value;
+  while (literal.kind === "unary" && (literal.operator === "-" || literal.operator === "+"))
+    literal = literal.operand;
+  return literal.kind === "integer" || literal.kind === "float";
 }

@@ -1,0 +1,4 @@
+# test: range bounds of two widths of one family are an error
+# Spec 05 Range Expressions: expr.range.bound.operands (task #204, NO-WIDENING).
+fn invalid(limit: i32, large: i64) -> void:
+    c := limit..large  # diagnostic: type-mismatch

@@ -30,15 +30,15 @@ impl Hash for bool:
 
 impl Hash for i8:
     fn hash(self, state: mut Hasher) -> void:
-        state.write(signed_bytes(self, 1))
+        state.write(signed_bytes(i64(self), 1))
 
 impl Hash for i16:
     fn hash(self, state: mut Hasher) -> void:
-        state.write(signed_bytes(self, 2))
+        state.write(signed_bytes(i64(self), 2))
 
 impl Hash for i32:
     fn hash(self, state: mut Hasher) -> void:
-        state.write(signed_bytes(self, 4))
+        state.write(signed_bytes(i64(self), 4))
 
 impl Hash for i64:
     fn hash(self, state: mut Hasher) -> void:
@@ -50,11 +50,11 @@ impl Hash for u8:
 
 impl Hash for u16:
     fn hash(self, state: mut Hasher) -> void:
-        state.write(unsigned_bytes(self, 2))
+        state.write(unsigned_bytes(u64(self), 2))
 
 impl Hash for u32:
     fn hash(self, state: mut Hasher) -> void:
-        state.write(unsigned_bytes(self, 4))
+        state.write(unsigned_bytes(u64(self), 4))
 
 impl Hash for u64:
     fn hash(self, state: mut Hasher) -> void:

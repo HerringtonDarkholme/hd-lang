@@ -11,7 +11,7 @@ import {
   readonlyType,
   tupleParts,
 } from "../types.ts";
-import { isIntegerType, numericType, widerNumeric } from "../numeric.ts";
+import { isIntegerType, numericType, widensTo, widerNumeric } from "../numeric.ts";
 import { isKnownType, PRELUDE_NAMES } from "./context.ts";
 import type { Signature } from "./context.ts";
 import { ALL_COMBINATOR } from "./standard-traits.ts";
@@ -52,7 +52,7 @@ const UNARY_OPERATOR_TRAITS: Readonly<Record<string, readonly [string, string]>>
   "~": ["Not", "not"],
 };
 
-/** A primitive operand type, on which an operator never searches a trait (r-expr.op.primitive.typing). */
+/** A primitive operand type, on which an operator never searches a trait (r-expr.op.primitive.types). */
 function isPrimitiveOperand(type: ValueType): boolean {
   const readonly = readonlyType(type);
   return (
@@ -350,12 +350,18 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             expression.span,
           );
         if (left.type !== right.type && !integerPower && !integerShift) {
-          if (expression.operator === "**" && numericType(left.type) && numericType(right.type))
+          if (
+            expression.operator === "**" &&
+            numericType(left.type) &&
+            numericType(right.type) &&
+            isIntegerType(left.type) !== isIntegerType(right.type)
+          )
             this.fail(
               "mixed-numeric-types",
               "integer and floating-point power operands cannot be mixed",
               expression.span,
             );
+          this.rejectMixedWidths(left, right, "operator operands");
           const trait = BINARY_OPERATOR_TRAITS[expression.operator];
           this.fail(
             "type-mismatch",
@@ -589,6 +595,25 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
   }
 
   /**
+   * Two widths of one numeric family never mix
+   * (04-type-system.md#r-types.num.binary.same-type): `type-mismatch`, with a
+   * fix-it that converts the narrower value.
+   */
+  private rejectMixedWidths(left: HirExpression, right: HirExpression, what: string): void {
+    const narrower = widensTo(left.type, right.type)
+      ? { value: left, to: right.type }
+      : widensTo(right.type, left.type)
+        ? { value: right, to: left.type }
+        : undefined;
+    if (narrower)
+      this.failWithConversion(
+        `${what} have types ${left.type} and ${right.type}, and numbers never widen implicitly; write ${narrower.to}(...)`,
+        narrower.to,
+        narrower.value.span,
+      );
+  }
+
+  /**
    * 04 Binary Numeric Operators: an untyped integer literal adopts `i64` or
    * `u8` from the other operand (or from an expected result of arithmetic), and
    * otherwise an `i32` operand widens to an `i64` one. An exponent keeps its
@@ -614,9 +639,12 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         expression.left,
         leftLiteral ? outer : leftFloat ? outerFloat : undefined,
       );
+    // A floating-point literal exponent takes the base's type (r-expr.power.float.same-type).
     const rightTarget =
       expression.operator === "**"
-        ? undefined
+        ? rightFloat && left.type === "f32"
+          ? "f32"
+          : undefined
         : rightLiteral
           ? (integerTarget(left.type) ?? outer)
           : rightFloat
@@ -630,7 +658,8 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       left = this.checkExpression(expression.left, right.type);
     if (leftFloat && left.type === "f64" && right.type === "f32")
       left = this.checkExpression(expression.left, "f32");
-    // Operands of one family widen to the wider type (04 Binary Numeric Operators).
+    // A literal operand typed before the other operand takes its type
+    // (04-type-system.md#r-types.num.binary.literal); no other operand widens.
     const wider = widerNumeric(left.type, right.type);
     if (wider && wider !== left.type) left = this.coerce(left, wider, left.span);
     if (wider && wider !== right.type) right = this.coerce(right, wider, right.span);
@@ -709,12 +738,14 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           `a range bound must have an integer type, found '${bound.type}'`,
           bound.span,
         );
-    if (bounds.length === 2 && readonlyType(bounds[0]!.type) !== readonlyType(bounds[1]!.type))
+    if (bounds.length === 2 && readonlyType(bounds[0]!.type) !== readonlyType(bounds[1]!.type)) {
+      this.rejectMixedWidths(bounds[0]!, bounds[1]!, "range bounds");
       this.fail(
         "type-mismatch",
         `range bounds have types ${bounds[0]!.type} and ${bounds[1]!.type}`,
         span,
       );
+    }
     const elementType = element ?? readonlyType(bounds[0]!.type);
     const fields = bounds.map((bound) => this.requireCoercion(bound, elementType, bound.span));
     return {

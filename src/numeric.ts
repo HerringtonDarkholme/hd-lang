@@ -50,7 +50,7 @@ export function isNarrowInteger(type: ValueType | undefined): boolean {
 }
 
 /**
- * Whether `from` widens implicitly to `to` (spec/lang/04-type-system.md#numeric-conversions):
+ * Whether `to` is a wider type of `from`'s family (spec/lang/04-type-system.md#r-types.num.families):
  * within one integer family to at least as many bits, or `f32` to `f64`.
  */
 export function widensTo(from: ValueType, to: ValueType): boolean {

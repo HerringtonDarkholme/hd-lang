@@ -1,0 +1,4 @@
+# test: a floating-point exponent must have the base's type
+# Spec 05 Exponentiation: expr.power.float.same-type (task #204, NO-WIDENING).
+fn power(base: f32, exponent: f64) -> f32:
+    base ** exponent  # diagnostic: type-mismatch

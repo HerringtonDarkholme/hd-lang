@@ -444,7 +444,7 @@ fn counter() -> mut fn() -> i32:  # error: syntax-error
 2. r[fn.type.variant-value] So may a variant constructor with exactly one payload field, such as `SyncError.Fs` of type `fn(FsError) -> SyncError`.
 3. r[fn.type.declared-variance] Function types follow the declared variance of `Fn` and `SuspendFn`: contravariant in each input element, covariant in the output, and invariant in the row.
 4. r[fn.type.variance-repr] Like every variance conversion, a function-type conversion must be representation-preserving, so it changes only access permissions.
-5. r[fn.type.variance-repr.excluded] Numeric widening, trait-value construction, and optional injection therefore never convert a parameter or result of a function type. Error: `variance-representation-change`.
+5. r[fn.type.variance-repr.excluded] Trait-value construction and optional injection therefore never convert a parameter or result of a function type. Error: `variance-representation-change`.
 
 ```text
 data User:

@@ -1,0 +1,4 @@
+# test: two integer widths of one family never mix in an operator
+# Spec 04 Binary Numeric Operators: types.num.binary.same-type (task #204, NO-WIDENING).
+fn add(small: i16, large: i64) -> i64:
+    small + large  # diagnostic: type-mismatch

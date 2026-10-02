@@ -1,5 +1,5 @@
 # test: generic call inference never widens a number to join two arguments
-# Spec 04 Inference From Several Arguments: types.generic.infer.join.no-widen (INF-mut, owner
+# Spec 04 Inference From Several Arguments: types.generic.infer.join.other-conflict (INF-mut, owner
 # decision 2026-09-30). An i32 and an i64 argument of one T are a type-mismatch.
 
 fn max[T < Ord](left: T, right: T) -> T:

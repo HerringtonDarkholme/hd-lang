@@ -1218,7 +1218,7 @@ fn sync(path: string) -> Result[string, SyncError]:
 
 These rules refine the steps:
 
-1. r[expr.try.convert.assignable.covers] The assignability step covers an identical type, numeric widening, permission weakening, and variance. It also covers construction of a dynamic trait value such as the erased `Error`, supertrait widening of a dynamic value, and optional injection.
+1. r[expr.try.convert.assignable.covers] The assignability step covers an identical type, permission weakening, and variance. It also covers construction of a dynamic trait value such as the erased `Error`, supertrait widening of a dynamic value, and optional injection.
 2. r[expr.try.convert.strip-mut] In the conversion step, an outer `mut` on `E` is removed before the implementation is chosen.
 3. r[expr.try.convert.no-import] The code using `?` does not need to import `From`.
 4. r[expr.try.convert.message] The message of the third step's error should name `E` and `F`, and suggest an implementation of `From[E]` for `F` or an explicit mapping of the error.
@@ -1411,7 +1411,7 @@ fn toggle(a: string, b: string) -> string: a ^ b  # error: type-mismatch
 4. r[expr.power.negated-literal] A negated literal is signed: in `2 ** -1` the literal `1` is the operand of unary `-`, not the exponent itself. So `-1` has a signed type, and the expression is a compile-time error. Error: `type-mismatch`.
 5. r[expr.power.negated-literal.not-other] That error is not `unsigned-negation` and not a runtime panic.
 6. r[expr.power.checked] Integer exponentiation uses checked multiplication in the base's result type.
-7. r[expr.power.float.exponent] For a floating-point base, the exponent must be floating point after ordinary floating widening.
+7. r[expr.power.float.same-type] For a floating-point base, the exponent must have the base's type, as for a [binary numeric operator](04-type-system.md#binary-numeric-operators). A floating-point literal exponent takes that type. Error: `type-mismatch`.
 8. r[expr.power.float.pow] Floating `**` computes IEEE 754-2019 `pow` as specified in clause 9.2, including its special cases, and rounds the result correctly to the destination format.
 9. r[expr.power.mixed] Integer and floating operands do not mix without an explicit cast; a mixed power expression is an error. Error: `mixed-numeric-types`.
 
@@ -1592,8 +1592,8 @@ pub trait Neg:
 5. r[expr.op.trait.rhs-self] So `impl Add for Money` implements `Add[Money]`, and the bound `T < Add[Out = T]` means `T < Add[T, Out = T]`.
 6. r[expr.op.trait.rhs-explicit] The explicit form, such as `impl Add[Money] for Money`, stays valid and names the same trait.
 7. r[expr.op.trait.unary-shape] `Neg` and `Not` take no argument. Each declares `Out` and one method `fn m(self) -> Self::Out`.
-8. r[expr.op.primitive.typing] When every operand is primitive after literal typing, the built-in rules of this chapter and [Type System](04-type-system.md) type the operator. They widen the operands to a common type or reject them, and no trait is searched.
-9. r[expr.op.primitive.method] The operator then calls the trait method that [`expr.op.desugar`](#r-expr.op.desugar) names for it, with the widened operands. So `small + large`, with an `i16` and an `i64`, calls `Add::[i64]::add(i64(small), large)`.
+8. r[expr.op.primitive.types] When every operand is primitive after literal typing, the built-in rules of this chapter and [Type System](04-type-system.md) type the operator. They accept operands of one type or reject them, never converting an operand, and no trait is searched.
+9. r[expr.op.primitive.call] The operator then calls the trait method that [`expr.op.desugar`](#r-expr.op.desugar) names for it, with the operands. So `a + b`, with two `i64` operands, calls `Add::[i64]::add(a, b)`.
 10. r[expr.op.desugar] Otherwise `a op b` is the trait-qualified call `Op::[R]::m(a, b)` of the operator's trait, as in `Add::[R]::add(a, b)`. Likewise `-a` is `Neg::neg(a)` and `~a` is `Not::not(a)`.
 11. r[expr.op.no-use] The call needs no `use` of the trait.
 12. r[expr.op.left-dispatch] The left operand's type selects the implementation. Its instantiations of the trait are the candidates, and [Instantiations Of One Generic Trait](09-traits.md#instantiations-of-one-generic-trait) chooses among them by the right operand.
@@ -1661,7 +1661,7 @@ fn count(items: List[i32]) -> i32:
 
 1. r[expr.op.std.intrinsic-method] Each method of the number types' implementations in the table is an [intrinsic method](09-traits.md#intrinsic-methods). It computes the operation that this chapter and [Type System](04-type-system.md) define for its type, including checked overflow and its panics.
 2. r[expr.op.std.string-not-intrinsic] `impl Add for string` is an ordinary implementation, not an intrinsic method.
-3. r[expr.op.std.same-type] The arithmetic and bitwise implementations are same-type only. Generic code therefore gets no widening; only the built-in typing of primitive operands widens, as in `i16 + i64`.
+3. r[expr.op.std.one-type] The arithmetic and bitwise implementations are same-type only, as the built-in typing of primitive operands is, so neither generic nor primitive code widens an operand.
 4. r[expr.op.std.string-generic] `impl Add for string` concatenates, as `string + string` does, so generic code such as `T < Add[Out = T]` accepts `string`.
 5. r[expr.op.std.bool-char] The standard library declares no operator trait implementation for `bool` or `char`.
 
@@ -1878,16 +1878,17 @@ pub data RangeFull: pass
 4. r[expr.range.order] A range expression evaluates its start bound, then its end bound.
 5. r[expr.range.no-check] Building a range never compares its bounds, so `5..2` is a valid, empty range.
 6. r[expr.range.bound.integer] Each bound must have an integer type. A bound of any other type is an error. Error: `type-mismatch`.
-7. r[expr.range.bound.binary] The two bounds of `a..b` or `a..=b` are typed as the operands of a [binary numeric operator](04-type-system.md#binary-numeric-operators): a literal takes the other bound's type, and bounds of one signedness widen to the wider type.
+7. r[expr.range.bound.operands] The two bounds of `a..b` or `a..=b` are typed as the operands of a [binary numeric operator](04-type-system.md#binary-numeric-operators): a literal takes the other bound's type, and bounds of two types of one family are an error. Error: `type-mismatch`.
 8. r[expr.range.bound.signedness] A signed and an unsigned bound are an error, as for a binary numeric operator. Error: `mixed-signedness`.
 9. r[expr.range.element-type] The range's element type `T` is the bounds' common type, or the one bound's type for `a..`, `..b`, and `..=b`. `RangeFull` has no bound and no element type.
 10. r[expr.range.expected] An expected range type gives each bound its element type as the bound's expected type, so `let r: Range[i64] = 0..10` has `i64` bounds.
 11. r[expr.range.default] With no expected type, literal bounds default to `i32`, so `0..3` is a `Range[i32]`.
 
 ```text
-fn invalid(x: f64, count: u32, limit: i32) -> void:
+fn invalid(x: f64, count: u32, limit: i32, large: i64) -> void:
     a := 0.5..x        # error: type-mismatch
     b := count..limit  # error: mixed-signedness
+    c := limit..large  # error: type-mismatch
 ```
 
 > **Note.** `for` iterates `a..b`, `a..`, and `a..=b`, as

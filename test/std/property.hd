@@ -8,7 +8,7 @@ fn pair(c: mut Choices) -> List[i64]:
     c.list(3, fn(inner: mut Choices) -> i64: inner.int(-5, 5))
 
 fn even(c: mut Choices) -> i64:
-    value := c.int(0, 100)
+    let value: i64 = c.int(0, 100)
     c.assume(value % 2 == 0)
     value
 

@@ -1,0 +1,5 @@
+# test: a narrower integer is not assignable to a wider one of its family
+# Spec 04 Numeric Conversions: types.num.no-implicit.wider (task #204, NO-WIDENING).
+fn total(small: i16, large: i64) -> i64:
+    let wide: i64 = small  # diagnostic: type-mismatch
+    wide + large

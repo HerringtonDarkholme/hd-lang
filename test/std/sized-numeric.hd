@@ -1,11 +1,11 @@
-# The sized numeric types: arithmetic, widening, casts, and Display.
+# The sized numeric types: arithmetic, explicit widening, casts, and Display.
 use std.testing.{assert, assert_equal}
 
 fn widen_signed(value: i8) -> i64:
-    value
+    i64(value)
 
 fn widen_unsigned(value: u16) -> u64:
-    value
+    u64(value)
 
 tests:
     it("narrow signed arithmetic stays in range"):
@@ -75,7 +75,7 @@ tests:
         let a: f32 = 0.1
         let b: f32 = 0.2
         assert_equal("${a + b}", "0.3", reason="f32 sum displays at f32 width")
-        let wide: f64 = a
+        wide := f64(a)
         assert(wide != 0.1, reason="f32 0.1 widens exactly, not to f64 0.1")
 
     it("narrow shifts keep the width"):

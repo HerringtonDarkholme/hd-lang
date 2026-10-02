@@ -385,9 +385,10 @@ listed yet.
 - the sized numeric types `i8` to `i64`, `u8` to `u64`, `f32`, and `f64`,
   `bool`, Unicode-scalar `char`, and UTF-8 `string` values
   (`src/numeric.ts`); an integer or float literal takes its type from the
-  expected type and is range-checked, integers widen implicitly within one
-  signedness family and `f32` widens to `f64`, a narrowing is
-  `implicit-narrowing`, and mixing the families is `mixed-signedness`.
+  expected type and is range-checked; no number widens implicitly, so a
+  wider type of the family is `type-mismatch` with a fix-it that writes
+  `i64(x)`, a narrowing is `implicit-narrowing`, and mixing the families is
+  `mixed-signedness`.
   Every integer of at most 32 bits is an `i32` at run time and `u64` an
   `i64` read as unsigned; arithmetic on the narrow types range-checks its
   result (`emitter/sized-numeric.ts`). Constructor-style casts such as
@@ -606,8 +607,8 @@ else`, `break`, `break value`, and `continue`;
   primitive values, inference through optional and `Result` types, and
   higher-order callable adapters for erased type and requirement-row ABIs.
   Arguments that solve one type parameter, `assert_equal`'s two values
-  included, must have one type up to `mut`: a numeric widening between
-  them is `type-mismatch`, and a trait-value conversion `no-common-type`
+  included, must have one type up to `mut`: two numeric widths
+  are `type-mismatch`, and a trait-value conversion `no-common-type`
   (`types.generic.infer.join`); a numeric literal takes the solved type.
   Boxing is a toy shortcut: the
   [implementation model](../spec/lang/04-type-system.md#shapes-and-generic-code)

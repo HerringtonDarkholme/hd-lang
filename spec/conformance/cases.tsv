@@ -1368,7 +1368,7 @@ runtime/valid/operator-generic-primitive-run.hd	runtime	accept	lang/05-expressio
 runtime/panic/operator-generic-overflow.hd	runtime	panic:integer-overflow	lang/05-expressions.md#r-expr.op.std.intrinsic-method
 runtime/valid/intrinsic-method-calls.hd	runtime	accept	lang/05-expressions.md#r-expr.op.std.intrinsic-method
 runtime/panic/intrinsic-method-overflow.hd	runtime	panic:integer-overflow	lang/09-traits.md#r-trait.impl.intrinsic.operation
-runtime/valid/primitive-operator-calls-method.hd	runtime	accept	lang/05-expressions.md#r-expr.op.primitive.method
+runtime/valid/primitive-operator-calls-method.hd	runtime	accept	lang/05-expressions.md#r-expr.op.primitive.call
 typing/invalid/intrinsic-method-user.hd	type	reject:unknown-name	lang/09-traits.md#r-trait.impl.intrinsic.std-only
 typing/valid/compound-assignment.hd	type	accept	lang/05-expressions.md#compound-assignment
 runtime/valid/compound-assignment-run.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.primitive
@@ -1618,10 +1618,10 @@ parse/invalid/trailing-block-in-same-line-suite.hd	parse	reject:syntax-error	lan
 parse/valid/trailing-block-under-if.hd	parse	accept	lang/02-grammar.md#r-grammar.call.trailing-block.next-line
 runtime/valid/mut-self-primitive-arithmetic.hd	runtime	accept	lang/04-type-system.md#r-types.prim.no-mut.self-type
 runtime/valid/generic-inference-mut-weakening.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.join
-typing/invalid/generic-inference-numeric-widening.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.infer.join.no-widen
+typing/invalid/generic-inference-numeric-widening.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.infer.join.other-conflict
 typing/invalid/generic-inference-trait-value.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.generic.infer.join.no-trait-value
 runtime/valid/generic-inference-explicit-conversions.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.join.explicit
-typing/invalid/assert-equal-numeric-widening.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.infer.join.no-widen
+typing/invalid/assert-equal-numeric-widening.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.infer.join.other-conflict
 runtime/valid/derived-arbitrary-no-finite-data.hd	runtime	accept	std/testing.md#r-std-testing.arbitrary.derive.no-finite.data
 runtime/valid/structure-self-ref.hd	runtime	accept	lang/14-annotations.md#r-annot.self-ref.member
 typing/invalid/derived-arbitrary-function-member.hd	type	reject:unsatisfied-trait-bound	std/testing.md#r-std-testing.arbitrary.derive.not-derivable
@@ -1937,3 +1937,13 @@ runtime/panic/list-chunks-zero.hd	runtime	panic:explicit-panic	std/collections.m
 runtime/valid/map-keys-values.hd	runtime	accept	std/collections.md#map-methods
 runtime/valid/cmp-clamp.hd	runtime	accept	std/cmp.md#r-std-cmp.clamp.result
 runtime/panic/cmp-clamp-reversed.hd	runtime	panic:explicit-panic	std/cmp.md#r-std-cmp.clamp.order
+typing/invalid/no-widening-operator.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.num.binary.same-type
+typing/invalid/no-widening-assignment.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.num.no-implicit.wider
+typing/invalid/no-widening-argument.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.num.no-implicit.wider
+typing/invalid/no-widening-return.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.num.no-implicit.wider
+typing/invalid/no-widening-float.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.num.binary.same-type
+typing/invalid/no-widening-list-literal.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.conversions
+typing/invalid/no-widening-range-bounds.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.range.bound.operands
+typing/invalid/power-float-widths.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.power.float.same-type
+typing/valid/numeric-literal-adopts-width.hd	type	accept	lang/04-type-system.md#r-types.num.literal-exempt
+runtime/valid/numeric-explicit-widening.hd	runtime	accept	lang/04-type-system.md#r-types.num.no-implicit

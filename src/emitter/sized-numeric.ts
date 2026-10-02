@@ -61,7 +61,7 @@ function asWide(value: string, type: ValueType): string {
   return `(i64.extend_i32_${numeric.family === "unsigned" ? "u" : "s"} ${value})`;
 }
 
-/** Implicit widening within a family, or `f32` to `f64` (always exact). */
+/** A literal's widening within a family, or `f32` to `f64` (always exact). */
 export function emitWiden(value: string, from: ValueType, to: ValueType): string {
   const source = info(from);
   const target = info(to);

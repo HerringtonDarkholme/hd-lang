@@ -481,11 +481,11 @@ test("a marker implementation's bounds are proven (TQ-20)", () => {
   );
 });
 
-test("i64 literals, widening, checked arithmetic, and narrowing (F-253)", async () => {
+test("i64 literals, explicit widening, checked arithmetic, and narrowing (F-253)", async () => {
   const source = [
     "fn wide(small: i32) -> i64:",
     "    let big: i64 = 3000000000",
-    "    big * 2 + small",
+    "    big * 2 + i64(small)",
     "",
     "fn main() -> bool: wide(1) == 6000000001",
     "",
@@ -497,6 +497,23 @@ test("i64 literals, widening, checked arithmetic, and narrowing (F-253)", async 
     analyze("fn narrow(value: i64) -> i32: value\n").diagnostics.map((item) => item.code),
     ["implicit-narrowing"],
   );
+  // No implicit widening (04-type-system.md#r-types.num.no-implicit): the
+  // fix-it writes the conversion around the narrower value.
+  const widened = "fn widen(value: i32) -> i64: value\n";
+  const [returned] = analyze(widened).diagnostics;
+  assert.equal(returned?.code, "type-mismatch");
+  assert.deepEqual(
+    returned?.fix?.edits.map((edit) => [edit.span.start.offset, edit.replacement]),
+    [
+      [widened.indexOf("value\n"), "i64("],
+      [widened.indexOf("value\n") + "value".length, ")"],
+    ],
+  );
+  const mixed = "fn add(small: i16, large: i64) -> i64: small + large\n";
+  const [operand] = analyze(mixed).diagnostics;
+  assert.equal(operand?.code, "type-mismatch");
+  assert.equal(operand?.fix?.edits[0]?.span.start.offset, mixed.indexOf("small +"));
+  assert.equal(operand?.fix?.edits[0]?.replacement, "i64(");
   assert.deepEqual(
     analyze("fn huge() -> i64: 9223372036854775808\n").diagnostics.map((item) => item.code),
     ["integer-literal-range"],

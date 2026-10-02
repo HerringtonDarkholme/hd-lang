@@ -995,7 +995,7 @@ export abstract class CallChecker extends StatementChecker {
   /**
    * Two arguments that solve one type parameter have different types. The
    * join converts only `mut X` to `X`: never by numeric widening, and never
-   * to a trait value (types.generic.infer.join.no-widen, .no-trait-value).
+   * to a trait value (types.num.no-implicit, types.generic.infer.join.no-trait-value).
    */
   protected failArgumentJoin(
     name: string,

@@ -1697,7 +1697,7 @@ The rules have these consequences:
 | r[trait.identity.arguments] Arguments | `Box[User]` and `Box[Post]` | different |
 | r[trait.identity.outer-mut] Outer `mut` | `User` and `mut User` | the same: the outer permission belongs to the view, not the type, and is carried by the signatures of `downcast` and `downcast_mut` |
 | r[trait.identity.inner-permission] Inner `mut` | `List[User]` and `List[mut User]`; `(User, i32)` and `(mut User, i32)` | different: an inner permission is part of the type, so an erased `List[User]` never downcasts to `List[mut User]`, whose elements would be mutable |
-| r[trait.identity.no-conversion] No conversion | `i32` and `i64`; `User` and `User?`; `List[FsError]` and `List[Error]` | different: no numeric widening, optional injection, or variance applies |
+| r[trait.identity.no-conversion] No conversion | `i32` and `i64`; `User` and `User?`; `List[FsError]` and `List[Error]` | different: no numeric conversion, optional injection, or variance applies |
 | r[trait.identity.modules] Modules | two declarations named `User` in different modules | different |
 
 See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-aliases-and-newtypes).
@@ -1766,7 +1766,7 @@ These types are not inspectable, as values or as type arguments:
 A value is erased to `Inspectable` by an expected type, like any other
 dynamic trait value.
 
-1. r[trait.erase.expected] A value is erased to `Inspectable` by an expected type, like any other dynamic trait value: assignability rule 6 constructs an `Inspectable` value from an inspectable type.
+1. r[trait.erase.expected] A value is erased to `Inspectable` by an expected type, like any other dynamic trait value: [`types.assign.trait-value`](04-type-system.md#r-types.assign.trait-value) constructs an `Inspectable` value from an inspectable type.
 2. r[trait.erase.no-cast] There is no cast operator.
 3. r[trait.erase.child-impl] A trait that extends `Inspectable` still needs its own explicit implementation; only its `Inspectable` part is supplied.
 4. r[trait.erase.recorded] The recorded type is the static type of the value at the erasure site, without its outer `mut`.
@@ -1774,7 +1774,7 @@ dynamic trait value.
 6. r[trait.erase.built] A value built from `T`, such as a `Box[T]`, records `Box` applied to that type. `T` instantiated with `mut User` therefore records `Box[mut User]`.
 7. r[trait.erase.weakened] A `mut List[mut User]` weakened to `List[User]` before erasure records `List[User]`.
 8. r[trait.erase.bound-required] Erasing a value of a type parameter requires an `Inspectable` bound on it. A value of a type parameter without the bound is not assignable to `Inspectable`, which is an error. Error: `type-mismatch`.
-9. r[trait.erase.widen] Widening a dynamic value of a trait that extends `Inspectable` to `Inspectable` is ordinary supertrait widening (assignability rule 7).
+9. r[trait.erase.widen] Widening a dynamic value of a trait that extends `Inspectable` to `Inspectable` is ordinary supertrait widening, by [`types.assign.supertrait`](04-type-system.md#r-types.assign.supertrait).
 10. r[trait.erase.keeps] The widened value keeps its recorded concrete type. Nothing is wrapped twice, including when a type parameter is instantiated with such a trait value type.
 11. r[trait.erase.mut] `mut Inspectable` keeps mutable access to an erased composite root.
 12. r[trait.erase.mut.source] Erasing to `mut Inspectable` requires mutable access to the source. Erasing a readonly value to `mut Inspectable` is an error. Error: `mutable-upgrade`.
@@ -1817,7 +1817,7 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 3. r[trait.downcast.val] `downcast_val::[T](value)` does the same for any inspectable `T`, including the value types that `AnyRef` excludes, such as scalars, `string`, and tuples.
 4. r[trait.downcast.val.readonly] The result of `downcast_val` is readonly.
 5. r[trait.downcast.exact] Type arguments must match exactly: an erased `Box[i32]` is not a `Box[i64]`, and an erased `List[FsError]` is not a `List[Error]`.
-6. r[trait.downcast.no-conversion] No variance, numeric widening, optional unwrapping, newtype unwrapping, or supertrait search takes place.
+6. r[trait.downcast.no-conversion] No variance, numeric conversion, optional unwrapping, newtype unwrapping, or supertrait search takes place.
 7. r[trait.downcast.optional] An erased `User?` therefore downcasts to `User?`, giving a `User??`, and never to `User`.
 8. r[trait.downcast.same-reference] A recovered reference value is the same reference that was erased, so `is` holds between them.
 9. r[trait.downcast.unboxed] A value without identity is unboxed.

@@ -3,7 +3,7 @@ type Mile(i32)
 let small: i8 = 1
 
 fn widen(value: i16) -> i64:
-    value
+    i64(value)
 
 fn unwrap(distance: Mile) -> i32:
     i32(distance)

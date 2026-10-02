@@ -1,0 +1,4 @@
+# test: a narrower integer result does not widen to the declared result type
+# Spec 04 Numeric Conversions: types.num.no-implicit.wider (task #204, NO-WIDENING).
+fn widen(value: u16) -> u64:
+    value  # diagnostic: type-mismatch
