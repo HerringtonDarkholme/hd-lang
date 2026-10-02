@@ -136,7 +136,7 @@ type Execution =
 async function execute(loaded: LoadedSource, io: CommandIo, execution: Execution): Promise<number> {
   const { file, path, source, linked, placement, reporter } = loaded;
   const command = execution.kind;
-  const entryName = (command === "run" && execution.entry) || "main";
+  const entryName = (command === "run" ? execution.entry : undefined) ?? "main";
   const explicitEntry = command === "run" && execution.entry !== undefined;
   const test = command === "test" ? execution : undefined;
   const scenario = test?.scenario;

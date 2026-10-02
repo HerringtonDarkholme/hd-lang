@@ -51,10 +51,13 @@ export async function assembleWat(wat: string): Promise<WasmArtifact> {
 
   try {
     module.setFeatures(wasmFeatures(binaryen));
+    // The two validations cost under 3% of an assembly, which parsing the
+    // WAT dominates. Binaryen's catches an emitter bug, Node's an encoder bug.
     if (!module.validate()) {
       throw new WasmValidationError("Binaryen rejected generated Wasm");
     }
-    const bytes = Uint8Array.from(module.emitBinary());
+    // `emitBinary` already returns a fresh copy of Binaryen's output.
+    const bytes = module.emitBinary() as Uint8Array<ArrayBuffer>;
     if (!WebAssembly.validate(bytes)) {
       throw new WasmValidationError("Node rejected Binaryen's Wasm binary");
     }
