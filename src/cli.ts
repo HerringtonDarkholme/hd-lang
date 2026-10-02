@@ -369,6 +369,9 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         console.log(`${file}: 0 passed`);
         return 0;
       }
+      // A module without an entry point runs its initialization and exits 0
+      // (owner decision, batch 42); `--entry` must name a function.
+      if (selected.length === 0 && !explicitEntry) return 0;
       if (selected.length === 0) throw new Error(`program has no exported ${entryName} function`);
       const outcome = await runSelected(
         selected,

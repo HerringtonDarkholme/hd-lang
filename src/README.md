@@ -34,6 +34,8 @@ pnpm run hd doc main examples/core.hd
 pnpm run check
 ```
 
+`hd run` runs the public `main` or `main!`; a module without one runs its
+initialization and exits 0, while `--entry NAME` must name a function.
 `hd check` skips the test cases and test-only functions of a `tests:` block
 unless `--tests` is given (Testing T42); `hd test` always compiles them.
 `hd test` (`test-runner.ts`) runs each test case in a fresh instance of one

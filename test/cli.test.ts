@@ -167,6 +167,23 @@ test("hd run and hd test judge suspending results by Termination", async () => {
   }
 });
 
+// A module without an entry point and without top-level statements has
+// nothing to run, so `hd run` does nothing and exits 0 (owner decision,
+// batch 42; audit F-265, F-306). `--entry` still names a function.
+test("hd run on a module without main exits 0 and prints nothing", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    const path = join(directory, "library.hd");
+    await writeFile(path, "fn helper() -> i32:\n    1\n");
+    const ran = await hd(["run", path]);
+    assert.equal(ran.stdout, "");
+    assert.equal(ran.stderr, "");
+    await assert.rejects(hd(["run", "--entry", "main", path]), /no exported main function/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 // `write_line!` runs on the host console and on a program-defined provider,
 // and `println` drives the covering provider's `write_line!`
 // (spec/10-modules.md#console, MHP-1).
