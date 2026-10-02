@@ -521,8 +521,13 @@ impl_header_types = trait_type, "for", type
 
 impl_member = associated_type_decl
             | { decorator_line }, method_decl
+            | intrinsic_method
             | derivation_line
             ;
+
+intrinsic_method = "@", "intrinsic", NEWLINE, "fn", callable_name,
+                   [ function_generic_params ], parameter_clause,
+                   "->", result_type, NEWLINE ;
 
 derivation_line = ( identifier | "Self" ), ( "=" | "+=" ), closed_expression,
                   NEWLINE ;
@@ -551,6 +556,7 @@ associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 16. r[grammar.impl.traitless-by.other] In a header without a trait, `by` followed by any other name is a semantic error, not a grammar error, as [`trait.by.trait-less`](09-traits.md#r-trait.by.trait-less) defines.
 17. r[grammar.impl.derivation-line] A `derivation_line` is a member line. Its placement and meaning are defined in [Member Lines](14-annotations.md#member-lines).
 18. r[grammar.impl.derivation-line.forms] Which right sides a member line accepts is a semantic rule of [Member Lines](14-annotations.md#member-lines), not a grammar rule.
+19. r[grammar.impl.intrinsic-method] An `intrinsic_method` is an implementation method without a body. [Intrinsic Methods](09-traits.md#intrinsic-methods) defines where one is valid.
 
 ```text
 pub trait Display:

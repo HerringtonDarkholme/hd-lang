@@ -1,0 +1,21 @@
+# test: a library number type implements the operator and comparison traits directly, never Num
+# Spec 09 Numeric Traits: trait.num.sealed, trait.num.not-newtypes; Sealed Traits: trait.sealed.user-impl.
+use std.num.Num
+use std.ops.Add
+
+data Cents:
+    value: i64
+
+impl Add for Cents:
+    type Out = Cents
+    fn add(self, rhs: Cents) -> Cents:
+        Cents { value: self.value + rhs.value }
+
+impl Eq for Cents:
+    fn eq(self, other: Cents) -> bool:
+        self.value == other.value
+
+impl Num for Cents:  # diagnostic: sealed-trait-implementation
+    fn zero() -> Cents: Cents { value: 0 }
+    fn one() -> Cents: Cents { value: 1 }
+    fn from_i64(n: i64) -> Cents: Cents { value: n }

@@ -1,5 +1,5 @@
 # test: a std operator implementation checks overflow as the built-in operator does
-# Spec 05 Primitive Implementations: expr.op.std.intrinsic (Operator Traits OP2).
+# Spec 05 Primitive Implementations: expr.op.std.intrinsic-method (Operator Traits OP2).
 use std.ops.Add
 
 fn plus[T < Add[T, Out = T]](left: T, right: T) -> T:

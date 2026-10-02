@@ -606,6 +606,44 @@ impl Describe for Describer:
 7. r[trait.impl.local.no-capture] Local methods and local-trait default methods cannot capture enclosing runtime values.
 8. r[trait.impl.local.lookup] Their methods are available for lookup from the local `impl` declaration point through its enclosing suite and child scopes, not before or outside that scope.
 
+#### Intrinsic Methods
+
+An **intrinsic method** is an implementation method whose body the compiler
+supplies. The standard library writes each primitive operation as one, such
+as the addition of every number type:
+
+```text
+impl[N < Num] Add for N:
+    type Out = N
+    @intrinsic
+    fn add(self, rhs: N) -> N
+```
+
+1. r[trait.impl.intrinsic] An implementation method written after the decorator line `@intrinsic` has no body. It is an intrinsic method, and the compiler supplies its body.
+2. r[trait.impl.intrinsic.std-only] Only the standard library sees the name `intrinsic`. In any other package, `@intrinsic` names no binding. Error: `unknown-name`.
+3. r[trait.impl.intrinsic.operation] Each intrinsic method computes one primitive operation, such as integer addition, for every type that its implementation covers.
+4. r[trait.impl.intrinsic.rules] Every other rule for implementation methods applies to an intrinsic method, including its exact signature.
+5. r[trait.impl.intrinsic.inline] An implementation may compile a call of an intrinsic method to inline code, such as the machine addition for `a + b` on two `i32` operands. This is an optimization and never changes a result.
+
+```text
+use std.ops.Add
+
+data Money:
+    cents: i64
+
+impl Add for Money:
+    type Out = Money
+    @intrinsic  # error: unknown-name
+    fn add(self, rhs: Money) -> Money
+```
+
+> **Why.** An operator always calls its trait method, so `a + b` inside
+> `Add.add` would call itself. An intrinsic method is the base case that
+> the operator traits rest on, written once per operation.
+
+See also: [Primitive Implementations](05-expressions.md#primitive-implementations),
+[Standard Library Primitives](../std/README.md#standard-library-primitives).
+
 ### Implementation Targets
 
 The target of every implementation, trait or inherent, starts with a type
@@ -624,20 +662,23 @@ constructor.
 4. r[trait.target.option] An optional target is the prelude enum `Option` applied to its contained type. `impl Validate for string?` targets `Option[string]`, and by [Overlap](#overlap) it does not overlap an implementation for `i32?`.
 5. r[trait.target.arguments] The constructor's arguments may be any types, including implementation parameters, as in `impl[T < Display] Printable for Box[T]`.
 6. r[trait.target.bare-parameter] A target that is a bare type parameter, as in `impl[T] Describe for T`, is an error. Error: `bare-parameter-impl-target`.
-7. r[trait.target.no-blanket] hd-lang has no blanket implementations over every type.
-8. r[trait.target.function-type.valid] A function type is an ordinary target under the ownership and overlap rules below, so `impl Marker for fn(i32) -> i32` is valid in the package that declares `Marker`.
-9. r[trait.target.row-argument] A row argument in an implementation head, such as a function type's row, is a row parameter or a concrete row.
-10. r[trait.target.row-argument.extension] A row argument that lists a row parameter beside other keys, as in `Fn[(), i32, $ R + Log]`, is invalid in an implementation head.
-11. r[trait.target.trait-value] A trait value type is never an implementation target either: `Display` used as a type names a dynamic trait value, not a type constructor.
-12. r[trait.target.trait-value.error] `impl Marker for Display` and `impl Marker for Any` are errors. Error: `trait-value-impl-target`.
-13. r[trait.target.trait-value.argument] A trait value type may still be a constructor's argument, as in `impl Marker for List[Display]`.
-14. r[trait.target.no-mut] A target must not be written with an outer `mut`: `impl Marker for mut Counter` is an error. Error: `mutable-impl-target`.
-15. r[trait.target.permission] Permission belongs to method receivers (`self` and `mut self`) and to bounds (`T < mut Trait`), not to implementations.
-16. r[trait.target.both-views] One implementation for `X` serves both the readonly view `X` and the mutable view `mut X`. Lookup through either view considers the same implementations.
-17. r[trait.target.mut-self] A `mut self` method still requires mutable access at each call.
-18. r[trait.target.inner-mut] Only the outer `mut` of a target is banned. A `mut` inside the target's type arguments or the trait's arguments is part of the implementation's head.
-19. r[trait.target.inner-mut.distinct] `impl Store[User] for Shelf` and `impl Store[mut User] for Shelf` therefore implement distinct trait instantiations and do not overlap.
-20. r[trait.target.template] A derivation template, written `impl[T] Trait for T by Structure`, is not an implementation, so these target rules do not apply to it. Each derivation it produces is an ordinary implementation for a declared target, as [Templates](14-annotations.md#templates) defines.
+7. r[trait.target.numeric-family] The one exception is a standard-library implementation in which every type parameter is bounded by exactly one of `Num`, `Integer`, and `Float`, as in `impl[N < Num] Add for N`.
+8. r[trait.target.numeric-family.each] Such an implementation stands for one implementation per way of replacing each parameter with a type that [Sealed Traits](#sealed-traits) lists for its bound.
+9. r[trait.target.numeric-family.example] So `impl[N < Integer, C < Integer] Shl[C] for N` stands for 64 implementations, one per pair of integer types.
+10. r[trait.target.no-blanket] hd-lang has no blanket implementations over every type.
+11. r[trait.target.function-type.valid] A function type is an ordinary target under the ownership and overlap rules below, so `impl Marker for fn(i32) -> i32` is valid in the package that declares `Marker`.
+12. r[trait.target.row-argument] A row argument in an implementation head, such as a function type's row, is a row parameter or a concrete row.
+13. r[trait.target.row-argument.extension] A row argument that lists a row parameter beside other keys, as in `Fn[(), i32, $ R + Log]`, is invalid in an implementation head.
+14. r[trait.target.trait-value] A trait value type is never an implementation target either: `Display` used as a type names a dynamic trait value, not a type constructor.
+15. r[trait.target.trait-value.error] `impl Marker for Display` and `impl Marker for Any` are errors. Error: `trait-value-impl-target`.
+16. r[trait.target.trait-value.argument] A trait value type may still be a constructor's argument, as in `impl Marker for List[Display]`.
+17. r[trait.target.no-mut] A target must not be written with an outer `mut`: `impl Marker for mut Counter` is an error. Error: `mutable-impl-target`.
+18. r[trait.target.permission] Permission belongs to method receivers (`self` and `mut self`) and to bounds (`T < mut Trait`), not to implementations.
+19. r[trait.target.both-views] One implementation for `X` serves both the readonly view `X` and the mutable view `mut X`. Lookup through either view considers the same implementations.
+20. r[trait.target.mut-self] A `mut self` method still requires mutable access at each call.
+21. r[trait.target.inner-mut] Only the outer `mut` of a target is banned. A `mut` inside the target's type arguments or the trait's arguments is part of the implementation's head.
+22. r[trait.target.inner-mut.distinct] `impl Store[User] for Shelf` and `impl Store[mut User] for Shelf` therefore implement distinct trait instantiations and do not overlap.
+23. r[trait.target.template] A derivation template, written `impl[T] Trait for T by Structure`, is not an implementation, so these target rules do not apply to it. Each derivation it produces is an ordinary implementation for a declared target, as [Templates](14-annotations.md#templates) defines.
 
 ```text
 trait Describe:
@@ -798,7 +839,8 @@ impl[T < Display] Printable for Box[T]:
 5. r[trait.overlap.unify] Heads unify when, after each implementation's parameters are renamed apart, one substitution makes both their trait arguments and their complete target types equal.
 6. r[trait.overlap.heads-only] Overlap is decided from the implementation heads alone.
 7. r[trait.overlap.no-bounds] Bounds, including associated type bindings, are never used to claim that two implementations are disjoint.
-8. r[trait.overlap.error] Overlapping implementations are an error. Error: `overlapping-impl`.
+8. r[trait.overlap.numeric-family] An implementation with a [numeric-family target](#r-trait.target.numeric-family) overlaps another implementation when one of the implementations it stands for does.
+9. r[trait.overlap.error] Overlapping implementations are an error. Error: `overlapping-impl`.
 
 | First implementation | Second implementation | Overlap |
 | --- | --- | --- |
@@ -1561,6 +1603,31 @@ fn sum[T < Num](items: List[T]) -> T:
 
 fn total(items: List[Meters]) -> Meters:
     sum(items)  # error: unsatisfied-trait-bound
+```
+
+A library number type implements the operator and comparison traits
+directly, never `Num`:
+
+```text
+use std.num.Num
+use std.ops.Add
+
+data Cents:
+    value: i64
+
+impl Add for Cents:
+    type Out = Cents
+    fn add(self, rhs: Cents) -> Cents:
+        Cents { value: self.value + rhs.value }
+
+impl Eq for Cents:
+    fn eq(self, other: Cents) -> bool:
+        self.value == other.value
+
+impl Num for Cents:  # error: sealed-trait-implementation
+    fn zero() -> Cents: Cents { value: 0 }
+    fn one() -> Cents: Cents { value: 1 }
+    fn from_i64(n: i64) -> Cents: Cents { value: n }
 ```
 
 > **Why.** Sealing keeps the families to types whose operators the compiler

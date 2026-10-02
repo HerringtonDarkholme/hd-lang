@@ -1,0 +1,12 @@
+# test: an operator on primitive operands calls its trait method on the widened operands
+# Spec 05 Operator Traits: expr.op.primitive.typing, expr.op.primitive.method.
+use std.ops.Add
+use std.testing.{assert, assert_equal}
+
+tests:
+    it("widens, then calls the method"):
+        small := i16(300)
+        large := i64(5000000000)
+        assert_equal(small + large, Add::[i64]::add(i64(small), large), reason="i16 widens to i64")
+        assert_equal(f32(1.5) + f64(2.0), Add::[f64]::add(f64(f32(1.5)), 2.0), reason="f32 widens to f64")
+        assert(small < large, reason="the comparison widens too")

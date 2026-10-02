@@ -1,0 +1,11 @@
+# test: only the standard library may write a bodiless @intrinsic method
+# Spec 09 Intrinsic Methods: trait.impl.intrinsic, trait.impl.intrinsic.std-only.
+use std.ops.Add
+
+data Money:
+    cents: i64
+
+impl Add for Money:
+    type Out = Money
+    @intrinsic  # diagnostic: unknown-name
+    fn add(self, rhs: Money) -> Money

@@ -45,10 +45,13 @@ That alone does not make a method language-tier.
 ## Standard Library Primitives
 
 `lib/std` is ordinary hd over the language tier, plus the primitives
-below. A primitive is a function whose body the implementation supplies.
-Each one is private to the std module that declares it, so no program
-calls it. The specification has no syntax for declaring one; the
-reference implementation writes `@intrinsic("name")` before it.
+below. A primitive is a function or a method whose body the
+implementation supplies. A primitive function is private to the std
+module that declares it, so no program calls it. The specification has no
+syntax for declaring one; the reference implementation writes
+`@intrinsic("name")` before it. A primitive operation is an
+[intrinsic method](../lang/09-traits.md#intrinsic-methods), which any
+program may call.
 
 Any primitive not in these tables needs the owner's approval.
 
@@ -96,9 +99,32 @@ Each one is to become a capability (task 201, chunk 2).
 | `prop_config`, `prop_budget`, `prop_example`, `prop_show`, `prop_draw`, `prop_discard` | the runner's draws, examples, and shrinking for property tests |
 | `snapshot_file_check` | reads and writes snapshot files |
 
-**Reserved.** One primitive per primitive operator, such as `add`, `sub`,
-`eq`, `partial_cmp`, and `cmp`, written as bodiless `@intrinsic` trait
-methods. A follow-up task decides the exact list.
+**Operations.** One intrinsic method per primitive operation. `lib/std`
+writes each once, mostly in a numeric-family implementation such as
+`impl[N < Num] Add for N`
+([`trait.target.numeric-family`](../lang/09-traits.md#r-trait.target.numeric-family)),
+and the compiler specializes it for each type.
+
+| Intrinsic method | Implemented for | Why it is a primitive |
+| --- | --- | --- |
+| `Add.add` | every number type | machine addition, with the checked integer overflow panic |
+| `Sub.sub` | every number type | machine subtraction, with the checked integer overflow panic |
+| `Mul.mul` | every number type | machine multiplication, with the checked integer overflow panic |
+| `Div.div` | every number type | truncating integer division with its panics, or IEEE 754 division |
+| `Rem.rem` | every number type | the truncated remainder, with its panic, or the floating remainder |
+| `Neg.neg` | the signed integer and floating-point types | machine negation; negating the minimum integer panics |
+| `BitAnd.bit_and` | every integer type | one machine instruction on the bits |
+| `BitOr.bit_or` | every integer type | one machine instruction on the bits |
+| `BitXor.bit_xor` | every integer type | one machine instruction on the bits |
+| `Not.not` | every integer type | one machine instruction on the bits |
+| `Shl.shl` | every pair of integer types | a fixed-width shift, with the shift count panic |
+| `Shr.shr` | every pair of integer types | a fixed-width shift, arithmetic for a signed value, with the shift count panic |
+| `Eq.eq` | every number type, `char`, and `bool` | compares the machine values; floats follow IEEE 754 |
+| `PartialOrd.partial_cmp` | every number type and `char` | compares the machine values; a NaN operand is unordered |
+| `Ord.cmp` | every integer type and `char` | compares the machine values |
+
+`string`'s `Add`, `Eq`, `PartialOrd`, and `Ord` are not intrinsic: `lib/std`
+writes them in hd.
 
 > **Why.** Each primitive is a promise that every implementation must
 > keep, and code that the compiler supplies cannot be read or tested as

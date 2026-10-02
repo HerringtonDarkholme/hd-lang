@@ -1,5 +1,5 @@
 # test: string implements Add, so generic code concatenates and s += "x" rebinds
-# Spec 05 Primitive Implementations: expr.op.std.string-add, expr.op.std.string-concat (Operator Traits OP11).
+# Spec 05 Primitive Implementations: expr.op.std.string-add, expr.op.std.string-generic (Operator Traits OP11).
 use std.ops.Add
 use std.testing.assert_equal
 

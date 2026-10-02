@@ -1,0 +1,34 @@
+# test: the primitive operations are trait methods that code may call directly
+# Spec 05 Primitive Implementations: expr.op.std.intrinsic-method; Equality: expr.eq.std.intrinsic; Ordering: expr.ord.std.intrinsic; 09 Intrinsic Methods: trait.impl.intrinsic.
+use std.ops.{Add, Div, Neg, Not, Shl, Shr, BitXor}
+use std.testing.{assert, assert_equal}
+
+fn is_less(order: Ordering) -> bool:
+    match order:
+        .Less => true
+        _ => false
+
+fn is_unordered(order: Ordering?) -> bool:
+    match order:
+        .None => true
+        _ => false
+
+tests:
+    it("calls the arithmetic and bit methods"):
+        assert_equal(Add::[i8]::add(i8(100), i8(27)), i8(127), reason="i8 addition")
+        assert_equal(Div::[i32]::div(-7, 2), -3, reason="integer division truncates")
+        assert_equal(Neg::neg(2.5), -2.5, reason="float negation")
+        assert_equal(Not::not(u8(0)), u8(255), reason="u8 complement")
+        assert_equal(BitXor::[u16]::bit_xor(u16(6), u16(3)), u16(5), reason="u16 exclusive or")
+        assert_equal(Shl::[u8]::shl(i64(1), u8(40)), i64(1099511627776), reason="a count of another integer type")
+        assert_equal(Shr::[u32]::shr(-16, u32(2)), -4, reason="a signed right shift extends the sign")
+        assert_equal((3).add(4), 7, reason="a method call on a literal")
+
+    it("calls the comparison methods"):
+        nan := 0.0 / 0.0
+        assert(!nan.eq(nan), reason="NaN is unequal to itself")
+        assert(is_unordered(nan.partial_cmp(1.0)), reason="NaN is unordered")
+        assert(is_less(u64(3).cmp(u64(250))), reason="u64 order")
+        assert(is_less('a'.cmp('b')), reason="char order")
+        assert(!true.eq(false), reason="bool equality")
+        assert(is_less("ab".cmp("b")), reason="string order is by byte")

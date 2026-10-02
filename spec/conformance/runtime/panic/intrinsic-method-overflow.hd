@@ -1,0 +1,7 @@
+# test: a direct call of an intrinsic method panics as the operator does
+# Spec 05 Primitive Implementations: expr.op.std.intrinsic-method; 09 Intrinsic Methods: trait.impl.intrinsic.operation.
+use std.ops.Add
+
+tests:
+    it("overflows"):
+        _ := Add::[i8]::add(i8(127), i8(1))  # panic: integer-overflow

@@ -1364,8 +1364,12 @@ typing/valid/operator-newtype-hand-written.hd	type	accept	lang/05-expressions.md
 typing/valid/operator-bitwise-user.hd	type	accept	lang/05-expressions.md#operator-traits
 typing/invalid/operator-power-user.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.not-overloaded
 typing/valid/operator-generic-primitive.hd	type	accept	lang/05-expressions.md#primitive-implementations
-runtime/valid/operator-generic-primitive-run.hd	runtime	accept	lang/05-expressions.md#r-expr.op.std.intrinsic
-runtime/panic/operator-generic-overflow.hd	runtime	panic:integer-overflow	lang/05-expressions.md#r-expr.op.std.intrinsic
+runtime/valid/operator-generic-primitive-run.hd	runtime	accept	lang/05-expressions.md#r-expr.op.std.intrinsic-method
+runtime/panic/operator-generic-overflow.hd	runtime	panic:integer-overflow	lang/05-expressions.md#r-expr.op.std.intrinsic-method
+runtime/valid/intrinsic-method-calls.hd	runtime	accept	lang/05-expressions.md#r-expr.op.std.intrinsic-method
+runtime/panic/intrinsic-method-overflow.hd	runtime	panic:integer-overflow	lang/09-traits.md#r-trait.impl.intrinsic.operation
+runtime/valid/primitive-operator-calls-method.hd	runtime	accept	lang/05-expressions.md#r-expr.op.primitive.method
+typing/invalid/intrinsic-method-user.hd	type	reject:unknown-name	lang/09-traits.md#r-trait.impl.intrinsic.std-only
 typing/valid/compound-assignment.hd	type	accept	lang/05-expressions.md#compound-assignment
 runtime/valid/compound-assignment-run.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.primitive
 runtime/valid/compound-assignment-alias.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.fresh-value
@@ -1399,6 +1403,7 @@ runtime/valid/num-traits-run.hd	runtime	accept	lang/09-traits.md#r-trait.num.fro
 typing/valid/num-families.hd	type	accept	lang/09-traits.md#r-trait.num.integer
 typing/invalid/num-bound-newtype.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.num.not-newtypes
 typing/invalid/num-sealed-impl.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#r-trait.num.sealed
+typing/invalid/num-sealed-user-number.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#r-trait.num.sealed
 typing/valid/iterator-adapters.hd	type	accept	std/iter.md#iterator-adapters
 runtime/valid/iterator-adapters-run.hd	runtime	accept	std/iter.md#r-std-iter.adapter.lazy
 runtime/panic/iterator-take-negative.hd	runtime	panic:explicit-panic	std/iter.md#r-std-iter.adapter.take.negative
@@ -1421,7 +1426,7 @@ typing/invalid/init-group-cycle.hd	type	reject:top-level-read-before-initializat
 runtime/valid/string-prefix-plain-dollar-digit.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.interp.dollar-text
 runtime/valid/literal-suffix-default-parameter.hd	runtime	accept	lang/07-functions.md#r-fn.type.no-names
 typing/valid/row-union-private-result.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.union.sites
-runtime/valid/operator-string-add.hd	runtime	accept	lang/05-expressions.md#r-expr.op.std.string-concat
+runtime/valid/operator-string-add.hd	runtime	accept	lang/05-expressions.md#r-expr.op.std.string-generic
 runtime/valid/compound-assign-index.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.index-read-write
 typing/invalid/compound-assign-index-no-read.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.assign.compound.index-read-write
 typing/invalid/newtype-over-data-permission.hd	type	reject:mutable-upgrade	lang/04-type-system.md#r-types.newtype.construct-permission

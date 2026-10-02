@@ -1870,8 +1870,10 @@ The twelve operators are `+ - * / %`, unary `-`, `& | ^ ~`, `<<`, and
 so write `price * 3`: `3 * price` types `3` as `i32` and looks for an
 `impl Mul[Money] for i32`. A newtype such as `type Meters(f64)` inherits no
 operators; implement the ones it needs by hand. Two primitive operands keep
-the built-in rules. The trait of `~` is `Not`, and `string` implements
-`Add`, so generic code bounded by `Add` can concatenate strings.
+the built-in typing and widening, then call the same trait methods, whose
+standard implementations for numbers are compiler intrinsics. The trait of
+`~` is `Not`, and `string` implements `Add`, so generic code bounded by
+`Add` can concatenate strings.
 
 Compound assignment, such as `total += x`, always means
 `total = total + x`, for every type. It needs the operator and a place
