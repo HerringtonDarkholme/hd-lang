@@ -31,7 +31,8 @@ Errors stay plain values: `Result[T, E]` and `?`.
 - **Rust:** traits, `Result` and `?`, exhaustive `match`, explicit `mut`.
 - **Effect:** requirements and providers, and `all!`, `race!`, `retry!`.
 - **Python:** indentation and keyword arguments.
-- **Go:** packages with minimal version selection, and `defer`.
+- **Go:** embedded structs, packages with minimal version selection, and
+  `defer`.
 - **Swift and Kotlin:** `T?` optionals.
 
 ## Start
