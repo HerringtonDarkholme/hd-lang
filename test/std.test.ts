@@ -33,22 +33,41 @@ test("every std module parses on its own", () => {
   }
 });
 
-test("a program that selects no std member is unchanged", () => {
+// String `+`, `==`, and order compile to calls of std.text's string kernel,
+// which every program declares with the byte primitives it calls.
+const STRING_KERNEL = [
+  "__std_text_bytes_at",
+  "__std_text_bytes_concat",
+  "__std_text_bytes_len",
+  "__std_text_string_compare",
+  "__std_text_string_concat",
+  "__std_text_string_equal",
+];
+
+test("a program that selects no std member gets only the string kernel", () => {
   const program = parse("fn first(items: List[i32]) -> i32: items[0]\n").program!;
-  assert.equal(withStandardLibrary(program), program);
+  const joined = withStandardLibrary(program);
+  assert.deepEqual(joined.functions.map((declaration) => declaration.name).sort(), [
+    ...STRING_KERNEL,
+    "first",
+  ]);
+  assert.deepEqual(
+    [joined.data, joined.enums, joined.traits, joined.implementations],
+    [program.data, program.enums, program.traits, program.implementations],
+  );
 });
 
 test("a string method declares only the std helpers it reaches", () => {
   const program = parse('fn size() -> i32: "abc".len()\n').program!;
   const joined = withStandardLibrary(program);
   assert.deepEqual(joined.functions.map((declaration) => declaration.name).sort(), [
-    "__std_text_byte_len",
+    ...STRING_KERNEL,
     "size",
   ]);
   assert.deepEqual(joined.data, []);
   assert.equal(
-    joined.functions.find((declaration) => declaration.name === "__std_text_byte_len")?.intrinsic,
-    "string_byte_len",
+    joined.functions.find((declaration) => declaration.name === "__std_text_bytes_len")?.intrinsic,
+    "bytes_len",
   );
 });
 
@@ -59,13 +78,16 @@ test("println is the std.console declaration, under its prelude name", () => {
   );
   assert.equal(println?.standard, true);
   const own = parse("fn println() -> void: pass\n").program!;
-  assert.equal(withStandardLibrary(own), own);
+  assert.deepEqual(
+    withStandardLibrary(own).functions.filter((declaration) => declaration.name === "println"),
+    own.functions,
+  );
 });
 
 test("only lib/std can declare an intrinsic", () => {
   // In user code the line is an ordinary decorator whose value calls an
   // unknown function (spec/lang/14-annotations.md#prefix-decorators).
-  const analysis = analyze('@intrinsic("string_byte_len")\nfn size(text: string) -> i32: 0\n');
+  const analysis = analyze('@intrinsic("bytes_len")\nfn size(text: string) -> i32: 0\n');
   assert.deepEqual(
     analysis.diagnostics.map((diagnostic) => diagnostic.code),
     ["unknown-name"],
@@ -80,7 +102,7 @@ test("only the selected built-in methods are declared", () => {
   );
   // Selection is by name, so `Result.unwrap_or` comes along with `T?`'s.
   assert.deepEqual(methods, ["unwrap_or", "unwrap_or"]);
-  assert.equal(joined.functions.length, program.functions.length);
+  assert.equal(joined.functions.length, program.functions.length + STRING_KERNEL.length);
 });
 
 test("an imported std name takes its local alias; the rest stay hidden", () => {

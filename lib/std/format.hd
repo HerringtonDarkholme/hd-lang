@@ -207,16 +207,37 @@ fn digit_text(digit: i32) -> string:
         8 => "8"
         _ => "9"
 
-# Primitives. A `char` is its scalar value at run time; the host writes a
-# scalar's UTF-8 text and a float's text. `@intrinsic` is prototype-internal
-# and accepted only in lib/std.
+# The one-scalar string of the Unicode scalar value `point`: its UTF-8
+# encoding in one to four bytes.
+fn scalar_text(point: i32) -> string:
+    let encoded: mut List[u8] = []
+    if point < 128:
+        encoded.append(u8(point))
+    else if point < 2048:
+        encoded.append(u8(192 + point / 64))
+        encoded.append(u8(128 + point % 64))
+    else if point < 65536:
+        encoded.append(u8(224 + point / 4096))
+        encoded.append(u8(128 + point / 64 % 64))
+        encoded.append(u8(128 + point % 64))
+    else:
+        encoded.append(u8(240 + point / 262144))
+        encoded.append(u8(128 + point / 4096 % 64))
+        encoded.append(u8(128 + point / 64 % 64))
+        encoded.append(u8(128 + point % 64))
+    string_from_bytes(encoded)
+
+# Primitives (spec/std/README.md#standard-library-primitives). A `char` is
+# its scalar value at run time; the host writes a float's text.
+# `@intrinsic` is prototype-internal and accepted only in lib/std.
 
 @intrinsic("char_scalar")
 fn char_scalar(value: char) -> i32:
     panic("intrinsic")
 
-@intrinsic("string_from_scalar")
-fn scalar_text(point: i32) -> string:
+# The string of `bytes`, which the caller has checked are UTF-8.
+@intrinsic("string_from_bytes")
+fn string_from_bytes(bytes: List[u8]) -> string:
     panic("intrinsic")
 
 @intrinsic("format_f64")

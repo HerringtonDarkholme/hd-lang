@@ -29,7 +29,7 @@ const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", "f64", "i32"]);
 
 function watType(type: ValueType): string {
   if (type === "f64") return "f64";
-  if (type === "string") return "(ref null $hd.bytes)";
+  if (type === "string") return "(ref null $hd.string)";
   if (resultSides(type)) return "(ref null $hd.variant)";
   return "i32";
 }
@@ -162,7 +162,7 @@ function emitStringResult({ trait, method }: HostMethod): string {
   const lengthImport = importName(trait, method, "result_length");
   const byteImport = importName(trait, method, "result_byte");
   return [
-    `(func ${stringResultName(trait, method)} (param $call externref) (result (ref null $hd.bytes))`,
+    `(func ${stringResultName(trait, method)} (param $call externref) (result (ref null $hd.string))`,
     `  (local $length i32)`,
     `  (local $index i32)`,
     `  (local $result (ref $hd.bytes))`,
@@ -175,7 +175,7 @@ function emitStringResult({ trait, method }: HostMethod): string {
     `        (call $hd.${byteImport} (local.get $call) (local.get $index)))`,
     `      (local.set $index (i32.add (local.get $index) (i32.const 1)))`,
     `      (br $copy)))`,
-    `  (local.get $result)`,
+    `  (struct.new $hd.string (local.get $result) (i32.const 0) (local.get $length))`,
     `)`,
   ].join("\n");
 }
@@ -220,7 +220,7 @@ function emitMethod({ trait, method }: HostMethod): string {
   );
   const beginArguments = method.parameters.map((parameter, index) =>
     parameter === "string"
-      ? `(array.len (ref.as_non_null (local.get $argument${index})))`
+      ? `(struct.get $hd.string $hd.string-length (ref.as_non_null (local.get $argument${index})))`
       : `(local.get $argument${index})`,
   );
   const strings = method.parameters
@@ -232,10 +232,10 @@ function emitMethod({ trait, method }: HostMethod): string {
     `    (loop $argument${index}-copy`,
     `      (br_if $argument${index}-done`,
     `        (i32.ge_u (local.get $byte-index)`,
-    `          (array.len (ref.as_non_null (local.get $argument${index})))))`,
+    `          (struct.get $hd.string $hd.string-length (ref.as_non_null (local.get $argument${index})))))`,
     `      (call $hd.${importName(trait, method, "argument_byte")}`,
     `        (local.get $call) (i32.const ${index}) (local.get $byte-index)`,
-    `        (array.get_u $hd.bytes (ref.as_non_null (local.get $argument${index}))`,
+    `        (call $hd.string_get (ref.as_non_null (local.get $argument${index}))`,
     `          (local.get $byte-index)))`,
     `      (local.set $byte-index (i32.add (local.get $byte-index) (i32.const 1)))`,
     `      (br $argument${index}-copy)))`,
@@ -246,7 +246,7 @@ function emitMethod({ trait, method }: HostMethod): string {
       : method.result === "f64"
         ? " (f64.const 0)"
         : method.result === "string"
-          ? " (ref.null $hd.bytes)"
+          ? " (ref.null $hd.string)"
           : resultSides(method.result)
             ? " (ref.null $hd.variant)"
             : " (i32.const 0)";

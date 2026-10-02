@@ -405,9 +405,10 @@ listed yet.
   (such as `lib/std`'s tuple `Display`, with its bounds' dictionaries), generic bounds,
   dynamic trait values, and the standard `string`, numeric, `bool`, and
   `char` implementations, which are hd code in `lib/std/format.hd`: an
-  integer's digits come from an hd loop, and a `char`'s and a float's
-  text from the host functions `string_from_scalar`, `format_f64`, and
-  `format_f32`; an `f32` shows its own shortest round-trip digits;
+  integer's digits come from an hd loop, a `char`'s UTF-8 text from an hd
+  encoder over the `string_from_bytes` primitive, and a float's text from
+  the host functions `format_f64` and `format_f32`; an `f32` shows its own
+  shortest round-trip digits;
 - `println` with the same display surface, statically requiring a
   lexical `Console` provider. `Console` is a prelude trait with
   `write_line!(mut self, text: string) -> Result[void, ConsoleError]`, so
@@ -771,8 +772,8 @@ else`, `break`, `break value`, and `continue`;
   an unmarked function at the string is
   `invalid-string-prefix`. `std.text` declares `r`, `interpolate`, and
   `process_escapes` (which returns `Result[string, EscapeError]` with the byte offset of
-  the bad escape) in hd; a `\u{...}` escape uses the host function
-  `string_from_scalar`;
+  the bad escape) in hd; a `\u{...}` escape writes its scalar through
+  `char`'s `Display`;
 - imported `std.convert.From[T]` and `std.error.Error` as trait
   declarations in the compiled module; `?` on a `Result` converts the error
   by one assignability rule or one `From` call, `Type::from(x)` selects the
@@ -1270,8 +1271,17 @@ What it provides:
 The prelude `string` methods live in `std.text` too, and `lower` and
 `upper` are backed by the host. Positions and lengths are byte offsets. A string index is the
 `string-index` HIR node, a bounds-checked byte read (`$hd.string_get`).
-Prototype limits: `slice`, and so a string slice `text[a..b]`, copies its bytes instead of sharing them (the
-runtime `string` is a bare `$hd.bytes` array, with no offset to share), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no `Set` (the specification does not define it,
+A runtime `string` is a `$hd.string`, a window (`start`, `length`) on an
+immutable `$hd.bytes` array, so `slice` and a string slice `text[a..b]`
+share their bytes in constant time.
+The string kernel is hd code in `std.text` too: string `+` and
+interpolation compile to a call of `string_concat`, `==` and `!=` (and a
+string match pattern, a string map key, and a `TypeId` comparison) to
+`string_equal`, and `<`, `<=`, `>`, `>=` to `string_compare`. Every
+program declares the three, with the byte primitives they call
+(`checker/standard-library.ts`); their bodies' byte comparisons do not
+declare `Eq` or `PartialOrd`.
+Prototype limits: no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no `Set` (the specification does not define it,
 and a map built in generic code has no key equality for a type-parameter
 key, so a generic `Set.new()` could not create its map), and no host `ConsoleInput`; a `BufferConsole` records both direct
 `write_line!` calls and, outside a driver, `println` (MHP-1). `test/std/*.hd` tests each module through `hd test`, and
@@ -1304,7 +1314,8 @@ RUNTIME_AND_LIBRARY.md).
    owner's approval.
    - A **runtime primitive** is a few Wasm instructions over the runtime's
      own value layout, listed in `emitter/intrinsics.ts`: today
-     `string_byte_len`, `string_byte_at`, `string_byte_slice`,
+     the string primitives `bytes_len`, `bytes_at`, `bytes_slice`,
+     `bytes_concat`, and `string_from_bytes`,
      `char_from_scalar`, `char_scalar`,
      `list_version`, the frames `task_race_frame` and `task_all_frame`,
      and the test runner's hooks `case_index`, `report_case_count`, and
@@ -1316,7 +1327,7 @@ RUNTIME_AND_LIBRARY.md).
      `host:<name>` through one generic path. Scalars cross as Wasm numbers,
      and a `string` crosses as a host handle that `emitter/runtime/boundary.wat`
      copies byte by byte. The host looks the name up in
-     `src/host-functions.ts` (today `string_lower`, `string_upper`, `string_from_scalar`,
+     `src/host-functions.ts` (today `string_lower`, `string_upper`,
      `format_f64`, `format_f32`, and `panic`, which raises a checked runtime
      panic of a named category, such as `index-out-of-bounds`), or
      in the runner's `hostFunctions` (`snapshot_file_check`, `src/snapshots.ts`).
@@ -1350,7 +1361,8 @@ marks what this refactor removed.
 | --- | --- | --- | --- |
 | HIR | `string-length`, `string-transform` (`trim`, `lower`, `upper`), `string-split`, `string-replace`, `string-starts-with` | string library | Done: hd code in `lib/std/text.hd` on three byte primitives; `lower` and `upper` are host functions |
 | Checker | `checkStringMemberCall`: `len`, `trim`, `lower`, `upper`, `split`, `replace`, `starts_with` by name | string library | Done: ordinary `impl string:` methods |
-| WAT runtime | `string-split.wat`, `string-transform.wat`, `$hd.string_len`, `$hd.string_starts_with` | string library | Done: removed; `$hd.string_slice` stays as the slice primitive |
+| WAT runtime | `string-split.wat`, `string-transform.wat`, `$hd.string_len`, `$hd.string_starts_with` | string library | Done: removed |
+| WAT runtime, emitter | `$hd.string_concat`, `$hd.string_compare`, `$hd.string_slice`; the host `string_from_scalar` | string kernel | Done: `+`, interpolation, `==`, and order call hd functions in `lib/std/text.hd` over five byte primitives; a slice shares its bytes; a scalar's UTF-8 text is hd in `lib/std/format.hd` |
 | Host glue | `string_transform_begin`, `_input`, `_output` imports, `trimWhiteSpace` | string library | Done: `trim` is hd code; case mapping goes through `host:` |
 | HIR | `console-print` (`println`) | capability | Done: `println` is hd code in `lib/std/console.hd` |
 | Checker | `println` by name | capability | Done: an ordinary std function; std may declare a prelude name (`FunctionDecl.standard`) |

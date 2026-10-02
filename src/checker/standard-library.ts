@@ -132,6 +132,16 @@ function hiddenStandardName(module: string, name: string): string {
   return `__std_${module.replaceAll(".", "_")}_${name}`;
 }
 
+/** The `std.text` functions that string operators compile to calls of (lib/std/text.hd). */
+const STRING_KERNEL = ["string_concat", "string_equal", "string_compare"];
+
+/**
+ * The primitives that the string kernel calls. The kernel's own bodies are
+ * not scanned for mentions: their `==` and `<` on bytes would otherwise
+ * declare `Eq` and `PartialOrd` in every program.
+ */
+const STRING_KERNEL_PRIMITIVES = ["bytes_len", "bytes_at", "bytes_concat"];
+
 /** What a checked `assert_equal` or `snapshot` call runs (lib/std/testing.hd). */
 export const CHECK_EQUAL = hiddenStandardName("testing", "check_equal");
 
@@ -843,6 +853,13 @@ export function withStandardLibrary(source: Program): Program {
     reached.add(CHECK_EQUAL);
     if (!spans.has("testing")) spans.set("testing", asserting.span);
   }
+  // String `+`, interpolation, `==`, and order compile to calls of
+  // `std.text`'s string kernel (emitter/context.ts `stringFunction`), as do
+  // a string map key's equality and a `TypeId`'s key, so every program
+  // declares it.
+  for (const name of [...STRING_KERNEL, ...STRING_KERNEL_PRIMITIVES])
+    reached.add(hiddenStandardName("text", name));
+  if (!spans.has("text")) spans.set("text", program.span);
   // An `all!` call drives the frame that `all_frame` builds
   // (checker/expression-suspensions.ts).
   const awaitingAll = program.uses.find(
@@ -934,6 +951,9 @@ export function withStandardLibrary(source: Program): Program {
       if (!spans.has(module)) spans.set(module, program.span);
     }
   };
+  const kernel = new Set(STRING_KERNEL.map((name) => hiddenStandardName("text", name)));
+  for (const declaration of moduleProgram("text").functions)
+    if (kernel.has(declaration.name)) scanned.add(declaration);
   let changed = true;
   while (changed) {
     changed = false;

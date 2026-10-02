@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { analyze, compileToWasm, instantiate } from "../src/compiler.ts";
+import { analyze, type Compilation, compileToWasm, instantiate } from "../src/compiler.ts";
 import { PRELUDE_NAMES, PRELUDE_ORIGINS } from "../src/checker/prelude-names.ts";
 import { RUNTIME_WAT } from "../src/emitter/runtime/index.ts";
 import { type RuntimePanicName, runtimePanicCode } from "../src/runtime-panic.ts";
@@ -532,22 +532,32 @@ test("strings use GC byte arrays and len counts bytes", async () => {
   assert.equal((instance.exports.main as CallableFunction)(), 8);
 });
 
+/** A call of the `std.text` string-kernel function `string_<name>` (lib/std/text.hd). */
+function stringKernelCall(compilation: Compilation, name: string): RegExp {
+  const kernel = compilation.hir.functions.find(
+    (declaration) => declaration.name === `__std_text_string_${name}`,
+  );
+  assert.ok(kernel, `std.text.string_${name} is declared`);
+  return new RegExp(`call \\$f${kernel.index}\\b`);
+}
+
 test("string interpolation displays built-ins from left to right", async () => {
   const source = conformance("runtime/valid/string-interpolation-built-ins");
   const { instance, compilation } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
-  // The primitives' `Display` is std hd code (lib/std/format.hd); a `char`'s
-  // text comes from the host.
+  // The primitives' `Display` is std hd code (lib/std/format.hd), a `char`'s
+  // UTF-8 encoding too; the segments join through std's `string_concat`.
   assert.doesNotMatch(compilation.wat, /\$hd\.\w+_to_string/);
-  assert.match(compilation.wat, /import "hd" "host:string_from_scalar"/);
+  assert.doesNotMatch(compilation.wat, /host:string_from_scalar/);
+  assert.match(compilation.wat, stringKernelCall(compilation, "concat"));
 });
 
 test("strings compare by UTF-8 value order", async () => {
   const source = conformance("runtime/valid/string-ordering");
   const { instance, compilation } = await instantiate(source);
-  assert.match(compilation.wat, /call \$hd\.string_compare/);
+  assert.match(compilation.wat, stringKernelCall(compilation, "compare"));
   // `starts_with` is std hd code over the byte primitives (lib/std/text.hd).
-  assert.match(compilation.wat, /array\.get_u \$hd\.bytes/);
+  assert.match(compilation.wat, /call \$hd\.string_get/);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 });
 
@@ -555,7 +565,7 @@ test("strings concatenate and unnamed enum fields use underscore selectors", asy
   const source = conformance("runtime/valid/string-concatenation-and-numeric-selectors");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
-  assert.match(compilation.wat, /call \$hd\.string_concat/);
+  assert.match(compilation.wat, stringKernelCall(compilation, "concat"));
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 });
 
@@ -662,7 +672,7 @@ test("boolean matches are exhaustive and lower to scalar tests", async () => {
 test("numeric, character, and string literal patterns require a catch-all", async () => {
   const source = conformance("runtime/valid/literal-patterns");
   const { instance, compilation } = await instantiate(source);
-  assert.match(compilation.wat, /call \$hd\.string_compare/);
+  assert.match(compilation.wat, stringKernelCall(compilation, "equal"));
   assert.match(compilation.wat, /f64\.eq/);
   assert.equal((instance.exports.main as CallableFunction)(), 32);
   assert.equal(

@@ -40,6 +40,7 @@ import { boxScalar, unboxScalar } from "./scalars.ts";
 import {
   containsGenericValueType,
   exportName,
+  functionName,
   isGenericValueType,
   localName,
   providerWatType,
@@ -96,6 +97,7 @@ export class EmitterContext {
   protected readonly callableAdapters = new Map<string, CallableAdapter>();
   protected readonly builtinTraitAdapters = new Map<string, BuiltinTraitAdapter>();
   protected readonly providerKeys = new Map<string, number>();
+  private readonly stringKernel: ReadonlyMap<string, number>;
 
   constructor(
     data: readonly HirData[],
@@ -107,7 +109,13 @@ export class EmitterContext {
     implementations: readonly HirTraitImplementation[],
     suspensionPlans: ReadonlyMap<number, SuspensionPlan> = new Map(),
     hostCapabilities: readonly string[] = [],
+    functions: readonly HirFunction[] = [],
   ) {
+    this.stringKernel = new Map(
+      functions
+        .filter((declaration) => STRING_KERNEL_NAMES.has(declaration.name))
+        .map((declaration) => [declaration.name, declaration.index]),
+    );
     this.dataByName = new Map(data.map((declaration) => [declaration.name, declaration]));
     this.dataByIndex = new Map(data.map((declaration) => [declaration.index, declaration]));
     this.enumByName = new Map(enums.map((declaration) => [declaration.name, declaration]));
@@ -121,6 +129,27 @@ export class EmitterContext {
     );
     this.suspensionPlans = suspensionPlans;
     this.hostCapabilities = new Set(hostCapabilities);
+  }
+
+  /**
+   * The `std.text` function that string `+` and interpolation (`concat`),
+   * `==` (`equal`), or the order (`compare`) compile to a call of; every
+   * program declares them (checker/standard-library.ts).
+   */
+  protected stringFunction(name: StringKernelFunction): string {
+    const index = this.stringKernel.get(stringKernelName(name));
+    if (index === undefined) throw new Error(`std.text.string_${name} is not declared`);
+    return functionName(index);
+  }
+
+  /** The map runtime's string-key equality (runtime/map.wat), std's `string_equal`. */
+  emitStringKeyEqual(): string {
+    return [
+      `  (func $hd.string_key_equal (param $left anyref) (param $right anyref) (result i32)`,
+      `    (call ${this.stringFunction("equal")}`,
+      `      (ref.cast (ref null $hd.string) (local.get $left))`,
+      `      (ref.cast (ref null $hd.string) (local.get $right))))`,
+    ].join("\n");
   }
 
   protected emitTraitDictionary(
@@ -212,7 +241,7 @@ export class EmitterContext {
     const numeric = numericType(type);
     if (numeric) return numeric.wasm;
     if (type === "bool" || type === "char") return "i32";
-    if (type === "string") return "(ref null $hd.bytes)";
+    if (type === "string") return "(ref null $hd.string)";
     if (type.startsWith("provider-row:")) return "(ref null $hd.providers)";
     if (type.startsWith("provider:")) return "externref";
     if (type.startsWith("trait:") && !type.endsWith("?"))
@@ -491,7 +520,7 @@ export class EmitterContext {
     if (isGenericValueType(type) || type === "void") return payload;
     const scalar = unboxScalar(payload, type);
     if (scalar) return scalar;
-    if (type === "string") return `(ref.cast (ref null $hd.bytes) ${payload})`;
+    if (type === "string") return `(ref.cast (ref null $hd.string) ${payload})`;
     if (type.startsWith("trait:") && !type.endsWith("?"))
       return `(ref.cast (ref null $trait${this.traitsByName.get(traitTypeBase(type))?.index}) ${payload})`;
     if (type.startsWith("provider-row:")) return `(ref.cast (ref null $hd.providers) ${payload})`;
@@ -534,7 +563,7 @@ export class EmitterContext {
     const numeric = numericType(type);
     if (numeric) return `(${numeric.wasm}.const 0)`;
     if (type === "bool" || type === "char") return `(i32.const 0)`;
-    if (type === "string") return `(ref.null $hd.bytes)`;
+    if (type === "string") return `(ref.null $hd.string)`;
     if (type.startsWith("trait:") && !type.endsWith("?"))
       return `(ref.null $trait${this.traitsByName.get(traitTypeBase(type))?.index})`;
     if (type.startsWith("provider-row:")) return `(ref.null $hd.providers)`;
@@ -573,6 +602,14 @@ export class EmitterContext {
  * A closure's environment: its captures, then one dictionary for each
  * generic bound it shares with the enclosing function.
  */
+type StringKernelFunction = "concat" | "equal" | "compare";
+
+const stringKernelName = (name: StringKernelFunction): string => `__std_text_string_${name}`;
+
+const STRING_KERNEL_NAMES: ReadonlySet<string> = new Set(
+  (["concat", "equal", "compare"] as const).map(stringKernelName),
+);
+
 export function environmentType(
   closure: HirFunction,
   emitter: { watType(type: ValueType): string },

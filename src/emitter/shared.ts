@@ -30,6 +30,14 @@ export const matchTestTag = (enumIndex: number, value: string): string =>
     : `(struct.get $e${enumIndex} $e${enumIndex}tag ${value})`;
 export const exportName = (name: string): string => JSON.stringify(name);
 export const functionName = (index: number): string => `$f${index}`;
+/** A string literal: a fresh `$hd.string` over the UTF-8 bytes of `text`. */
+export const stringLiteral = (text: string | readonly number[]): string => {
+  const bytes = typeof text === "string" ? [...new TextEncoder().encode(text)] : text;
+  const array = bytes.length
+    ? `(array.new_fixed $hd.bytes ${bytes.length} ${bytes.map((byte) => `(i32.const ${byte})`).join(" ")})`
+    : `(array.new_fixed $hd.bytes 0)`;
+  return `(struct.new $hd.string ${array} (i32.const 0) (i32.const ${bytes.length}))`;
+};
 export const localName = (index: number): string => `$l${index}`;
 export const globalName = (index: number): string => `$g${index}`;
 export const testExportName = (name: string): string | undefined => {

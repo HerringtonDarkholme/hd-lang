@@ -696,7 +696,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
       const value = this.emitExpression(arm.literal);
       condition =
         arm.literal.type === "string"
-          ? `(i32.eq (call $hd.string_compare (local.get ${source}) ${value}) (i32.const 0))`
+          ? `(call ${this.stringFunction("equal")} (local.get ${source}) ${value})`
           : `(${scalarWasm(arm.literal.type)}.eq (local.get ${source}) ${value})`;
     } else if (arm.tag !== undefined) {
       const actual =
@@ -713,7 +713,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
         test.tag !== undefined
           ? `(i32.eq ${actual} ${expected})`
           : test.literal!.type === "string"
-            ? `(i32.eq (call $hd.string_compare ${actual} ${expected}) (i32.const 0))`
+            ? `(call ${this.stringFunction("equal")} ${actual} ${expected})`
             : `(${scalarWasm(test.literal!.type)}.eq ${actual} ${expected})`;
       condition = condition ? andThen(condition, next) : next;
     }
@@ -1185,6 +1185,7 @@ export function emitWat(program: HirProgram): string {
     program.implementations,
     suspensionPlans,
     program.hostCapabilities,
+    program.functions,
   );
   const hostProviders = emitHostProviders(program);
   const signatureTypes = [...signatureNames]
@@ -1243,6 +1244,10 @@ export function emitWat(program: HirProgram): string {
     )
     .join("\n");
   const dataTypes = `\n  (rec\n${signatureTypes ? signatureTypes + "\n" : ""}${traitMethodTypes ? traitMethodTypes + "\n" : ""}${traitSuspensionTypes ? traitSuspensionTypes + "\n" : ""}${STORED_SUSPENSION_TYPES}\n    (type $hd.bytes (array (mut i8)))
+    (type $hd.string (struct
+      (field $hd.string-bytes (ref $hd.bytes))
+      (field $hd.string-start i32)
+      (field $hd.string-length i32)))
     (type $hd.list (array (mut anyref)))
     (type $hd.cell (struct (field $hd.cell-value (mut anyref))))
     (type $hd.vector (struct
@@ -1456,5 +1461,5 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
     .filter(Boolean)
     .map((runtime) => `\n\n${runtime}`)
     .join("");
-  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${enumSharedCaches ? "\n" + enumSharedCaches : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${STORED_SUSPENSION_RUNTIME}\n\n${MAP_RUNTIME_WAT}${optionalRuntime}${declarations}\n${functions}${emitter.emitEmbeddedCopies()}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${storedSuspensionAdapters ? "\n\n" + indent(storedSuspensionAdapters) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}${hostProviders.functions ? "\n\n" + indent(hostProviders.functions) : ""}${start}\n)`;
+  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${enumSharedCaches ? "\n" + enumSharedCaches : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${STORED_SUSPENSION_RUNTIME}\n\n${MAP_RUNTIME_WAT}\n\n${emitter.emitStringKeyEqual()}${optionalRuntime}${declarations}\n${functions}${emitter.emitEmbeddedCopies()}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${storedSuspensionAdapters ? "\n\n" + indent(storedSuspensionAdapters) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}${hostProviders.functions ? "\n\n" + indent(hostProviders.functions) : ""}${start}\n)`;
 }

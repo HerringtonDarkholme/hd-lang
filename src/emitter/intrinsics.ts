@@ -8,7 +8,7 @@ import { numericType } from "../numeric.ts";
 // body comes from here:
 //
 // - a runtime primitive is a few instructions over the Wasm runtime's own
-//   representation (`$hd.bytes` for `string`);
+//   representation (`$hd.string` for `string`);
 // - every other name is a host function. It is imported as `host:<name>`
 //   through one generic path: scalar arguments and results cross as Wasm
 //   numbers, and a `string` crosses as a host handle that `boundary.wat`
@@ -20,10 +20,24 @@ type Unbox = (value: string, type: ValueType) => string;
 const RUNTIME_PRIMITIVES: Readonly<
   Record<string, (arguments_: readonly string[], unbox: (value: string) => string) => string>
 > = {
-  string_byte_len: ([text]) => `(array.len (ref.as_non_null ${text}))`,
-  string_byte_at: ([text, index]) => `(array.get_u $hd.bytes (ref.as_non_null ${text}) ${index})`,
-  string_byte_slice: ([text, start, end]) =>
-    `(call $hd.string_slice (ref.as_non_null ${text}) ${start} ${end})`,
+  // The string primitives (spec/std/README.md#standard-library-primitives)
+  // over `$hd.string`, a window on an immutable byte array.
+  bytes_len: ([text]) => `(struct.get $hd.string $hd.string-length (ref.as_non_null ${text}))`,
+  bytes_at: ([text, index]) => `(call $hd.string_get (ref.as_non_null ${text}) ${index})`,
+  // The new window shares the bytes; std checks the offsets first, so a bad
+  // one here is an index-out-of-bounds panic.
+  bytes_slice: ([text, start, end]) =>
+    [
+      `(if (i32.or (i32.gt_u ${start} ${end}) (i32.gt_u ${end} (struct.get $hd.string $hd.string-length (ref.as_non_null ${text}))))`,
+      `  (then (call $hd.panic (global.get $hd.panic-index-out-of-bounds)) unreachable))`,
+      `(struct.new $hd.string`,
+      `  (struct.get $hd.string $hd.string-bytes (ref.as_non_null ${text}))`,
+      `  (i32.add (struct.get $hd.string $hd.string-start (ref.as_non_null ${text})) ${start})`,
+      `  (i32.sub ${end} ${start}))`,
+    ].join("\n"),
+  bytes_concat: ([left, right]) =>
+    `(call $hd.bytes_concat (ref.as_non_null ${left}) (ref.as_non_null ${right}))`,
+  string_from_bytes: ([items]) => `(call $hd.string_from_bytes (ref.as_non_null ${items}))`,
   // A `char` is its scalar value at run time, both ways.
   char_from_scalar: ([point]) => point!,
   char_scalar: ([value]) => value!,

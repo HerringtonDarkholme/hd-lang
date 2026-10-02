@@ -135,14 +135,15 @@ fn main!() -> void:
     job.run!()
 `;
   const events: Array<[number, number]> = [];
-  const { instance } = await instantiate(source, {
+  const { compilation, instance } = await instantiate(source, {
     trace: (functionIndex, event) => events.push([functionIndex, event]),
     pending: (functionIndex, pollCount) => functionIndex === 0 && pollCount === 1,
   });
   (instance.exports.__hd_start as CallableFunction)();
   (instance.exports.__hd_poll as CallableFunction)();
   (instance.exports.__hd_cancel as CallableFunction)();
-  assert.ok(events.some(([functionIndex, event]) => functionIndex === 2 && event === 7));
+  const run = compilation.hir.functions.find((declaration) => declaration.name === "$impl0.run");
+  assert.ok(events.some(([functionIndex, event]) => functionIndex === run?.index && event === 7));
 });
 
 test("default suspending trait methods lower for each implementation", async () => {

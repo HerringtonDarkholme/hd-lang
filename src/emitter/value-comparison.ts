@@ -18,7 +18,12 @@ import {
   isSizedNumeric,
   type SizedNumericContext,
 } from "./sized-numeric.ts";
-import { functionName, methodBoundParameters, traitSuspensionName } from "./shared.ts";
+import {
+  functionName,
+  methodBoundParameters,
+  stringLiteral,
+  traitSuspensionName,
+} from "./shared.ts";
 
 /** The receiver of a nested `runtime_type` read that composes a type argument's key. */
 const NESTED_TYPE_ID_RECEIVER = "(ref.i31 (i32.const 0))";
@@ -235,10 +240,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
   }
 
   protected emitStringLiteral(text: string): string {
-    const bytes = [...new TextEncoder().encode(text)];
-    return bytes.length === 0
-      ? `(array.new_default $hd.bytes (i32.const 0))`
-      : `(array.new_fixed $hd.bytes ${bytes.length} ${bytes.map((byte) => `(i32.const ${byte})`).join(" ")})`;
+    return stringLiteral(text);
   }
 
   /** The key string of `runtime_type()` read through an Inspectable dictionary or trait value. */
@@ -273,7 +275,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     return `(block (result ${result})
   (local.set ${value} ${valueCode})
   (local.set ${dictionary} ${dictionaryValue})
-  (if (result ${result}) (i32.eqz (call $hd.string_compare ${recorded} ${target}))
+  (if (result ${result}) (call ${this.stringFunction("equal")} ${recorded} ${target})
     (then (struct.new $hd.variant (i32.const 1) ${payload}))
     (else (struct.new $hd.variant (i32.const 0) (ref.null any))))
 )`;
@@ -389,10 +391,10 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
                 NESTED_TYPE_ID_RECEIVER,
               ),
         )
-        .reduce((left, right) => `(call $hd.string_concat ${left} ${right})`);
+        .reduce((left, right) => `(call ${this.stringFunction("concat")} ${left} ${right})`);
       const typeId = this.dataByName.get("TypeId")!.index;
       const body = builtin.outerMut
-        ? `(struct.new $d${typeId} (if (result (ref null $hd.bytes)) (ref.test (ref i31) (local.get $self)) (then (call $hd.string_concat ${this.emitStringLiteral("mut ")} ${key})) (else ${key})))`
+        ? `(struct.new $d${typeId} (if (result (ref null $hd.string)) (ref.test (ref i31) (local.get $self)) (then (call ${this.stringFunction("concat")} ${this.emitStringLiteral("mut ")} ${key})) (else ${key})))`
         : `(struct.new $d${typeId} ${key})`;
       const parameters = method.parameters.map(
         (parameter, index) => `(param $a${index} ${this.parameterWatType(parameter)})`,
@@ -438,7 +440,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       return `(call_ref $tsig${dispatch.traitIndex}_${dispatch.methodIndex} ${left} ${dictionary} ${right} (struct.get $trait${dispatch.traitIndex} $trait${dispatch.traitIndex}m${dispatch.methodIndex} ${dictionary}))`;
     }
     const readonly = readonlyType(type);
-    if (readonly === "string") return `(i32.eqz (call $hd.string_compare ${left} ${right}))`;
+    if (readonly === "string") return `(call ${this.stringFunction("equal")} ${left} ${right})`;
     if (numericType(readonly) || readonly === "bool" || readonly === "char")
       return `(${scalarWasm(readonly)}.eq ${left} ${right})`;
     throw new Error(`cannot emit Eq for '${type}'`);
@@ -452,10 +454,8 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
   ): string {
     if (strategy?.kind === "dispatch") return this.emitDispatchedOrdering(left, right, strategy);
     const readonly = readonlyType(type);
-    if (readonly === "string") {
-      const compared = `(call $hd.string_compare ${left} ${right})`;
-      return `(if (result i32) (i32.lt_s ${compared} (i32.const 0)) (then (i32.const -1)) (else (if (result i32) (i32.gt_s ${compared} (i32.const 0)) (then (i32.const 1)) (else (i32.const 0)))))`;
-    }
+    // `string_compare` returns -1, 0, or 1 already.
+    if (readonly === "string") return `(call ${this.stringFunction("compare")} ${left} ${right})`;
     const numeric = numericType(readonly);
     if (numeric || readonly === "char") {
       const wasm = scalarWasm(readonly);

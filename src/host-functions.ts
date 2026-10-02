@@ -20,10 +20,6 @@ export const HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = {
   // (spec/std/text.md#r-std-text.string.lower).
   string_lower: (text) => String(text).toLowerCase(),
   string_upper: (text) => String(text).toUpperCase(),
-  // The one-scalar string of a Unicode scalar value, for `\u{...}` in
-  // `std.text.process_escapes` (spec/lang/05-expressions.md#prefixed-strings).
-  // A `char`'s `Display` text too (lib/std/format.hd).
-  string_from_scalar: (point) => String.fromCodePoint(Number(point)),
   // A float's `Display` text (spec/lang/04-type-system.md#numeric-display).
   format_f64: (value) => displayF64(Number(value)),
   format_f32: (value) => displayF32(Number(value)),

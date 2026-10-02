@@ -311,112 +311,78 @@
       (then (call $hd.panic (global.get $hd.panic-invalid-shift)) unreachable))
     (i32.shr_s (local.get $value) (local.get $count)))
 
-  ;; `text[index]`: the byte at a byte offset, or an index-out-of-bounds panic
-  ;; (spec/lang/05-expressions.md#string-indexing). A narrow index is read as
-  ;; unsigned, so a negative one is out of range too.
-  (func $hd.string_get (param $text (ref $hd.bytes)) (param $index i32) (result i32)
-    (if (i32.ge_u (local.get $index) (array.len (local.get $text)))
-      (then (call $hd.panic (global.get $hd.panic-index-out-of-bounds)) unreachable))
-    (array.get_u $hd.bytes (local.get $text) (local.get $index)))
+  ;; A string is a `$hd.string`: `length` bytes of an immutable `$hd.bytes`
+  ;; array from offset `start`, so a slice shares its source's bytes
+  ;; (spec/lang/10-modules.md#r-module.string.slice.shared).
 
-  (func $hd.string_get_wide (param $text (ref $hd.bytes)) (param $index i64) (result i32)
-    (if (i64.ge_u (local.get $index) (i64.extend_i32_u (array.len (local.get $text))))
+  ;; `text[index]`, and std's `bytes_at`: the byte at a byte offset, or an
+  ;; index-out-of-bounds panic (spec/lang/05-expressions.md#string-indexing).
+  ;; A narrow index is read as unsigned, so a negative one is out of range too.
+  (func $hd.string_get (param $text (ref $hd.string)) (param $index i32) (result i32)
+    (if (i32.ge_u (local.get $index) (struct.get $hd.string $hd.string-length (local.get $text)))
       (then (call $hd.panic (global.get $hd.panic-index-out-of-bounds)) unreachable))
-    (array.get_u $hd.bytes (local.get $text) (i32.wrap_i64 (local.get $index))))
+    (array.get_u $hd.bytes
+      (struct.get $hd.string $hd.string-bytes (local.get $text))
+      (i32.add (struct.get $hd.string $hd.string-start (local.get $text)) (local.get $index))))
 
-  (func $hd.string_slice
-    (param $source (ref $hd.bytes))
-    (param $start i32)
-    (param $end i32)
-    (result (ref null $hd.bytes))
-    (local $result (ref $hd.bytes))
-    (local $index i32)
+  (func $hd.string_get_wide (param $text (ref $hd.string)) (param $index i64) (result i32)
+    (if (i64.ge_u
+      (local.get $index)
+      (i64.extend_i32_u (struct.get $hd.string $hd.string-length (local.get $text))))
+      (then (call $hd.panic (global.get $hd.panic-index-out-of-bounds)) unreachable))
+    (call $hd.string_get (local.get $text) (i32.wrap_i64 (local.get $index))))
+
+  ;; std's `bytes_concat`: `left`'s bytes, then `right`'s, in a new array.
+  (func $hd.bytes_concat
+    (param $left (ref $hd.string))
+    (param $right (ref $hd.string))
+    (result (ref $hd.string))
+    (local $left-length i32)
     (local $length i32)
-    (local.set $length (i32.sub (local.get $end) (local.get $start)))
-    (local.set $result (array.new_default $hd.bytes (local.get $length)))
+    (local $bytes (ref $hd.bytes))
+    (local.set $left-length (struct.get $hd.string $hd.string-length (local.get $left)))
+    (if (i32.eqz (struct.get $hd.string $hd.string-length (local.get $right)))
+      (then (return (local.get $left))))
+    (if (i32.eqz (local.get $left-length)) (then (return (local.get $right))))
+    (local.set $length
+      (i32.add
+        (local.get $left-length)
+        (struct.get $hd.string $hd.string-length (local.get $right))))
+    (if (i32.lt_u (local.get $length) (local.get $left-length)) (then unreachable))
+    (local.set $bytes (array.new_default $hd.bytes (local.get $length)))
+    (array.copy $hd.bytes $hd.bytes
+      (local.get $bytes)
+      (i32.const 0)
+      (struct.get $hd.string $hd.string-bytes (local.get $left))
+      (struct.get $hd.string $hd.string-start (local.get $left))
+      (local.get $left-length))
+    (array.copy $hd.bytes $hd.bytes
+      (local.get $bytes)
+      (local.get $left-length)
+      (struct.get $hd.string $hd.string-bytes (local.get $right))
+      (struct.get $hd.string $hd.string-start (local.get $right))
+      (i32.sub (local.get $length) (local.get $left-length)))
+    (struct.new $hd.string (local.get $bytes) (i32.const 0) (local.get $length)))
+
+  ;; std's `string_from_bytes`: a new string of a `List[u8]`'s bytes, each
+  ;; boxed as `$hd.box-i32`.
+  (func $hd.string_from_bytes (param $items (ref $hd.vector)) (result (ref $hd.string))
+    (local $length i32)
+    (local $index i32)
+    (local $bytes (ref $hd.bytes))
+    (local.set $length (struct.get $hd.vector $hd.vector-size (local.get $items)))
+    (local.set $bytes (array.new_default $hd.bytes (local.get $length)))
     (block $done
       (loop $next
         (br_if $done (i32.ge_u (local.get $index) (local.get $length)))
         (array.set $hd.bytes
-          (local.get $result)
+          (local.get $bytes)
           (local.get $index)
-          (array.get_u $hd.bytes
-            (local.get $source)
-            (i32.add (local.get $start) (local.get $index))))
+          (struct.get $hd.box-i32 $hd.box-i32-value
+            (ref.cast (ref $hd.box-i32)
+              (array.get $hd.list
+                (struct.get $hd.vector $hd.vector-values (local.get $items))
+                (local.get $index)))))
         (local.set $index (i32.add (local.get $index) (i32.const 1)))
         (br $next)))
-    (local.get $result))
-
-  (func $hd.string_concat
-    (param $left-value (ref null $hd.bytes))
-    (param $right-value (ref null $hd.bytes))
-    (result (ref null $hd.bytes))
-    (local $left (ref $hd.bytes))
-    (local $right (ref $hd.bytes))
-    (local $result (ref $hd.bytes))
-    (local $left-length i32)
-    (local $length i32)
-    (local $index i32)
-    (local.set $left (ref.as_non_null (local.get $left-value)))
-    (local.set $right (ref.as_non_null (local.get $right-value)))
-    (local.set $left-length (array.len (local.get $left)))
-    (local.set $length
-      (i32.add (local.get $left-length) (array.len (local.get $right))))
-    (if (i32.lt_u (local.get $length) (local.get $left-length)) (then unreachable))
-    (local.set $result (array.new_default $hd.bytes (local.get $length)))
-    (block $left-done
-      (loop $copy-left
-        (br_if $left-done (i32.ge_u (local.get $index) (local.get $left-length)))
-        (array.set $hd.bytes
-          (local.get $result)
-          (local.get $index)
-          (array.get_u $hd.bytes (local.get $left) (local.get $index)))
-        (local.set $index (i32.add (local.get $index) (i32.const 1)))
-        (br $copy-left)))
-    (block $right-done
-      (loop $copy-right
-        (br_if $right-done (i32.ge_u (local.get $index) (local.get $length)))
-        (array.set $hd.bytes
-          (local.get $result)
-          (local.get $index)
-          (array.get_u $hd.bytes
-            (local.get $right)
-            (i32.sub (local.get $index) (local.get $left-length))))
-        (local.set $index (i32.add (local.get $index) (i32.const 1)))
-        (br $copy-right)))
-    (local.get $result))
-
-  (func $hd.string_compare
-    (param $left-value (ref null $hd.bytes))
-    (param $right-value (ref null $hd.bytes))
-    (result i32)
-    (local $left (ref $hd.bytes))
-    (local $right (ref $hd.bytes))
-    (local $index i32)
-    (local $limit i32)
-    (local $left-byte i32)
-    (local $right-byte i32)
-    (local.set $left (ref.as_non_null (local.get $left-value)))
-    (local.set $right (ref.as_non_null (local.get $right-value)))
-    (local.set $limit
-      (if (result i32)
-        (i32.lt_u (array.len (local.get $left)) (array.len (local.get $right)))
-        (then (array.len (local.get $left)))
-        (else (array.len (local.get $right)))))
-    (block $different
-      (loop $next-byte
-        (br_if $different (i32.ge_u (local.get $index) (local.get $limit)))
-        (local.set $left-byte (array.get_u $hd.bytes (local.get $left) (local.get $index)))
-        (local.set $right-byte (array.get_u $hd.bytes (local.get $right) (local.get $index)))
-        (if (i32.lt_u (local.get $left-byte) (local.get $right-byte)) (then (return (i32.const -1))))
-        (if (i32.gt_u (local.get $left-byte) (local.get $right-byte)) (then (return (i32.const 1))))
-        (local.set $index (i32.add (local.get $index) (i32.const 1)))
-        (br $next-byte)))
-    (if (result i32)
-      (i32.lt_u (array.len (local.get $left)) (array.len (local.get $right)))
-      (then (i32.const -1))
-      (else
-        (if (result i32)
-          (i32.gt_u (array.len (local.get $left)) (array.len (local.get $right)))
-          (then (i32.const 1))
-          (else (i32.const 0))))))
+    (struct.new $hd.string (local.get $bytes) (i32.const 0) (local.get $length)))

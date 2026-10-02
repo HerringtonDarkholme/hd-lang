@@ -1,4 +1,5 @@
-  ;; Kind 0 compares boxed i32 scalars, kind 1 strings, and kinds 2 and 3
+  ;; Kind 0 compares boxed i32 scalars, kind 1 strings (through std's
+  ;; `string_equal`, emitter/emitter.ts), and kinds 2 and 3
   ;; call the key type's Eq through the map's `$equal` wrapper, with the map's
   ;; key context: kind 3, a type-parameter key, passes its Eq dictionary.
   (func $hd.map_key_equal
@@ -24,10 +25,7 @@
           (struct.get $hd.box-i32 $hd.box-i32-value
             (ref.cast (ref $hd.box-i32) (local.get $right)))))
       (else
-        (i32.eqz
-          (call $hd.string_compare
-            (ref.cast (ref $hd.bytes) (local.get $left))
-            (ref.cast (ref $hd.bytes) (local.get $right)))))))
+        (call $hd.string_key_equal (local.get $left) (local.get $right)))))
 
   (func $hd.map_insert
     (param $map (ref $hd.map))

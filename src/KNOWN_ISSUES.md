@@ -146,9 +146,6 @@ Compiler structure:
   through a std-only checker exception the spec does not have.
 - **Closures**: a suspending closure in a generic function cannot call a
   method through the enclosing function's bounds.
-- **Strings**: `slice` copies its bytes, so it takes linear time
-  (`module.string.slice.shared`), and so does a string slice `text[a..b]`
-  (`expr.index.slice.string.shared`).
 - **Ranges**: a range expression's hidden std type names, such as
   `__std_ops_RangeTo`, appear in diagnostics when the program does not
   import them. `for` over a range steps an `Iterator` closure, not a

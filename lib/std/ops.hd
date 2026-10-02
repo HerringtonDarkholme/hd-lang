@@ -171,7 +171,7 @@ fn slice_stop(size: i32, start: i64, end: i64, inclusive: bool) -> i32:
     i32(stop)
 
 # A string slice: the bytes at the selected offsets, which must be scalar
-# boundaries (r-expr.index.slice.string). Prototype: `slice` copies them.
+# boundaries (r-expr.index.slice.string), sharing them as `slice` does.
 fn slice_string(text: string, start: i64, end: i64, inclusive: bool) -> string:
     stop := slice_stop(text.len(), start, end, inclusive)
     text.slice(i32(start), stop)

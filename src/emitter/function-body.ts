@@ -46,6 +46,7 @@ import {
   methodBoundParameters,
   andThen,
   matchTestTag,
+  stringLiteral,
 } from "./shared.ts";
 import { DataEmitter } from "./data.ts";
 import { scalarWasm } from "./scalars.ts";
@@ -200,15 +201,14 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       case "float":
         return `(${expression.type === "f32" ? "f32" : "f64"}.const ${expression.value})`;
       case "string":
-        return expression.bytes.length === 0
-          ? `(array.new_default $hd.bytes (i32.const 0))`
-          : `(array.new_fixed $hd.bytes ${expression.bytes.length} ${expression.bytes.map((byte) => `(i32.const ${byte})`).join(" ")})`;
+        return stringLiteral(expression.bytes);
       case "string-build": {
-        if (expression.segments.length === 0) return `(array.new_default $hd.bytes (i32.const 0))`;
+        if (expression.segments.length === 0) return stringLiteral([]);
+        const concat = this.stringFunction("concat");
         return expression.segments
           .slice(1)
           .reduce(
-            (left, segment) => `(call $hd.string_concat ${left} ${this.emitExpression(segment)})`,
+            (left, segment) => `(call ${concat} ${left} ${this.emitExpression(segment)})`,
             this.emitExpression(expression.segments[0]!),
           );
       }
@@ -380,8 +380,9 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           return expression.operator === "==" ? equality : `(i32.eqz ${equality})`;
         }
         if (expression.left.type === "string") {
-          if (expression.operator === "+") return `(call $hd.string_concat ${left} ${right})`;
-          const comparison = `(call $hd.string_compare ${left} ${right})`;
+          if (expression.operator === "+")
+            return `(call ${this.stringFunction("concat")} ${left} ${right})`;
+          const comparison = `(call ${this.stringFunction("compare")} ${left} ${right})`;
           const operators: Readonly<Record<string, string>> = {
             "<": `(i32.lt_s ${comparison} (i32.const 0))`,
             "<=": `(i32.le_s ${comparison} (i32.const 0))`,
@@ -1356,7 +1357,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       const value = this.emitExpression(arm.literal);
       condition =
         arm.literal.type === "string"
-          ? `(i32.eq (call $hd.string_compare (local.get ${subject}) ${value}) (i32.const 0))`
+          ? `(call ${this.stringFunction("equal")} (local.get ${subject}) ${value})`
           : `(${scalarWasm(arm.literal.type)}.eq (local.get ${subject}) ${value})`;
     } else if (arm.tag !== undefined) {
       const actual =
@@ -1373,7 +1374,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         test.tag !== undefined
           ? `(i32.eq ${actual} ${expected})`
           : test.literal!.type === "string"
-            ? `(i32.eq (call $hd.string_compare ${actual} ${expected}) (i32.const 0))`
+            ? `(call ${this.stringFunction("equal")} ${actual} ${expected})`
             : `(${scalarWasm(test.literal!.type)}.eq ${actual} ${expected})`;
       condition = condition ? andThen(condition, testCondition) : testCondition;
     }
