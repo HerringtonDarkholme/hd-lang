@@ -21,72 +21,11 @@ for file in "$spec_dir"/*.md "$spec_dir"/lang/*.md "$spec_dir"/std/*.md "$spec_d
     [ $((fences % 2)) -eq 0 ] || fail "unbalanced code fence in $file"
 done
 
+# cases.tsv and examples.tsv against the fixtures and the specification, in
+# one process (a per-row shell loop took most of this script's time).
+node --experimental-strip-types "$spec_dir/check-fixture-index.ts" "$spec_dir"
+
 tab=$(printf '\t')
-awk -F "$tab" '
-    NR == 1 {
-        if ($0 != "path\tphase\texpectation\tspecification") exit 1
-        next
-    }
-    NF != 4 || $1 == "" || $2 == "" || $3 == "" || $4 == "" { exit 1 }
-' "$manifest" || fail "malformed conformance/cases.tsv"
-
-tail -n +2 "$manifest" | while IFS="$tab" read -r path phase expectation section; do
-    [ -f "$spec_dir/conformance/$path" ] || fail "missing fixture $path"
-    marker_count=$(awk '/# (diagnostic|warning|panic): [a-z0-9-]+[[:space:]]*$/ { count += 1 } END { print count + 0 }' "$spec_dir/conformance/$path")
-
-    case "$phase" in
-        parse|type|runtime) ;;
-        *) fail "unknown phase '$phase' for $path" ;;
-    esac
-
-    case "$expectation" in
-        accept)
-            [ "$marker_count" -eq 0 ] || fail "accept fixture $path declares an error marker"
-            ;;
-        reject:*|warn:*|panic:*)
-            [ "$marker_count" -eq 1 ] || fail "fixture $path must declare exactly one expectation marker"
-            ;;
-        *) fail "unknown expectation '$expectation' for $path" ;;
-    esac
-
-    if grep -q '^# expect-stdout:' "$spec_dir/conformance/$path"; then
-        [ "$phase" = runtime ] && [ "$expectation" = accept ] ||
-            fail "fixture $path uses # expect-stdout: outside a runtime accept case"
-    fi
-    if grep -q '^# expect-empty-stdout:' "$spec_dir/conformance/$path"; then
-        [ "$phase" = runtime ] && [ "$expectation" = accept ] ||
-            fail "fixture $path uses # expect-empty-stdout: outside a runtime accept case"
-        grep -q '^# expect-empty-stdout: true$' "$spec_dir/conformance/$path" ||
-            fail "fixture $path: # expect-empty-stdout: takes the value true"
-    fi
-
-    spec_file=${section%%#*}
-    [ -f "$spec_dir/$spec_file" ] || fail "missing specification $spec_file for $path"
-
-    case "$expectation" in
-        reject:*)
-            code=${expectation#reject:}
-            grep -Fq "# diagnostic: $code" "$spec_dir/conformance/$path" ||
-                fail "fixture $path does not declare diagnostic $code"
-            grep -Fq "\`$code\`" "$spec_dir/README.md" ||
-                fail "fixture $path uses unknown error category $code"
-            ;;
-        warn:*)
-            code=${expectation#warn:}
-            grep -Fq "# warning: $code" "$spec_dir/conformance/$path" ||
-                fail "fixture $path does not declare warning $code"
-            grep -Fq "\`$code\`" "$spec_dir/README.md" ||
-                fail "fixture $path uses unknown warning category $code"
-            ;;
-        panic:*)
-            code=${expectation#panic:}
-            grep -Fq "# panic: $code" "$spec_dir/conformance/$path" ||
-                fail "fixture $path does not declare panic $code"
-            grep -Fq "\`$code\`" "$spec_dir/lang/06-control-flow.md" ||
-                fail "fixture $path uses unknown panic category $code"
-            ;;
-    esac
-done
 
 if grep -R -n -E '^# expect-(error|warning|panic):' "$spec_dir/conformance" --include='*.hd'; then
     fail "legacy file-level fixture expectations found"
@@ -138,11 +77,6 @@ if grep -R -n -E '^# expect: ' "$spec_dir/conformance" --include='*.hd' |
     fail "fixture uses an undefined # expect: value"
 fi
 
-find "$spec_dir/conformance" \( -path "$spec_dir/conformance/packages" -o -path "$spec_dir/conformance/trees" \) -prune -o -type f -name '*.hd' -print | sort | while IFS= read -r file; do
-    relative=${file#"$spec_dir/conformance/"}
-    count=$(awk -F "$tab" -v path="$relative" 'NR > 1 && $1 == path { count += 1 } END { print count + 0 }' "$manifest")
-    [ "$count" -eq 1 ] || fail "fixture $relative has $count manifest entries"
-done
 
 node --experimental-strip-types "$spec_dir/check-spec-anchors.ts" "$spec_dir" "$manifest"
 # Dead rule citations (tools/README.md): citing a rule ID the chapters no
@@ -220,24 +154,6 @@ if grep -n -E '^## (Open|Unresolved)|remain(s)? (open|unresolved)|not yet specif
     fail "specification chapter contains an unresolved design marker"
 fi
 
-tail -n +2 "$examples" | while IFS="$tab" read -r specification block classification fixtures; do
-    [ -f "$spec_dir/$specification" ] ||
-        fail "missing example specification $specification"
-
-    case "$classification" in
-        accept|mixed)
-            printf '%s\n' "$fixtures" | tr '|' '\n' | while IFS= read -r fixture; do
-                [ -f "$spec_dir/conformance/$fixture" ] ||
-                    fail "missing example fixture $fixture for $specification block $block"
-            done
-            ;;
-        lexical-inventory|type-relation|type-fragment|pattern-fragment|expression-fragment|filesystem-layout|illustrative-pseudocode)
-            [ "$fixtures" = "-" ] ||
-                fail "$classification entry must use '-' for $specification block $block"
-            ;;
-        *) fail "unknown example classification '$classification'" ;;
-    esac
-done
 
 node --experimental-strip-types "$spec_dir/check-example-overlap.ts" "$spec_dir" "$examples"
 
