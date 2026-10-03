@@ -1,7 +1,8 @@
 import { nominalGenericParts } from "../types.ts";
+import { NUMERIC_TYPES } from "../numeric.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 
-const BOUNDARY_TYPES = new Set(["bool", "char", "f64", "i32", "i64", "u32", "string"]);
+const BOUNDARY_TYPES = new Set(["bool", "char", "string", ...NUMERIC_TYPES.keys()]);
 
 // A boundary result is `void`, a boundary value, or `Result[T, E]` whose `T`
 // is either of those. `E` may be any type: a boundary `E` crosses as the
@@ -12,8 +13,7 @@ function boundaryResult(type: string): boolean {
   const parts = nominalGenericParts(type);
   if (parts?.name !== "Result" || parts.arguments.length !== 2) return false;
   const ok = parts.arguments[0]!;
-  // A `Result` payload is boxed, and the bridge has no box for an `i64`.
-  return ok === "void" || (BOUNDARY_TYPES.has(ok) && ok !== "i64");
+  return ok === "void" || BOUNDARY_TYPES.has(ok);
 }
 
 export function validateHostCapabilities(context: ProgramCheckContext): void {

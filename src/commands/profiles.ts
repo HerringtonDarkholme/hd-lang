@@ -18,6 +18,34 @@ function pendingGate(call: HostSuspensionCall): boolean {
   return call.providerKey === "Gate" && call.methodName === "wait";
 }
 
+const pendingWrites = new WeakSet<HostSuspensionCall>();
+
+function pendingWrite(call: HostSuspensionCall): boolean {
+  if (call.providerKey !== "Console" || call.methodName !== "write_line") return false;
+  if (pendingWrites.has(call)) return false;
+  pendingWrites.add(call);
+  return true;
+}
+
+function invokeMisbehavingHost(call: HostSuspensionCall): HostSuspensionOutcome {
+  if (call.providerKey !== "Gauge" || call.methodName !== "level")
+    throw new Error(`misbehaving-host cannot invoke ${call.providerKey}.${call.methodName}`);
+  return { pending: false, value: 300 };
+}
+
+const specialFloatReads = new WeakMap<object, number>();
+
+function invokeSpecialFloatHost(call: HostSuspensionCall): HostSuspensionOutcome {
+  if (call.providerKey !== "Sensor" || call.methodName !== "reading")
+    throw new Error(`special-float-host cannot invoke ${call.providerKey}.${call.methodName}`);
+  if ((typeof call.provider !== "object" && typeof call.provider !== "function") || !call.provider)
+    throw new Error("special-float-host requires an object provider");
+  const provider = call.provider as object;
+  const count = specialFloatReads.get(provider) ?? 0;
+  specialFloatReads.set(provider, count + 1);
+  return { pending: false, value: count === 0 ? Number.NaN : count === 1 ? Infinity : -0 };
+}
+
 function invokeCounter(call: HostSuspensionCall): HostSuspensionOutcome {
   if (call.providerKey !== "Counter" || call.methodName !== "add")
     throw new Error(`ready-counter cannot invoke ${call.providerKey}.${call.methodName}`);
@@ -37,11 +65,14 @@ function invokeText(call: HostSuspensionCall): HostSuspensionOutcome {
 }
 
 export const RUNTIME_PROFILES: Readonly<Record<RuntimeProfileName, RuntimeProfile>> = {
+  "misbehaving-host": { hostCapabilities: ["Gauge"], invoke: invokeMisbehavingHost },
   "pending-gate": { hostCapabilities: ["Gate"], pending: pendingGate },
+  "pending-write": { hostCapabilities: [], pending: pendingWrite },
   "ready-counter": { hostCapabilities: ["Counter"], invoke: invokeCounter },
   "ready-float": { hostCapabilities: ["FloatCell"], invoke: invokeFloat },
   "ready-gate": { hostCapabilities: ["Gate"] },
   "ready-text": { hostCapabilities: ["TextBridge"], invoke: invokeText },
+  "special-float-host": { hostCapabilities: ["Sensor"], invoke: invokeSpecialFloatHost },
 };
 
 export function exportedFunction(instance: WebAssembly.Instance, name: string): CallableFunction {

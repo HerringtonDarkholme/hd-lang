@@ -1,6 +1,8 @@
 import type { HirProgram, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
+import { NUMERIC_TYPES, numericType } from "../numeric.ts";
 import { runtimePanicCode } from "../runtime-panic.ts";
 import { nominalGenericParts } from "../types.ts";
+import { boxScalar, scalarWasm } from "./scalars.ts";
 
 interface HostProviderEmission {
   readonly functions: string;
@@ -25,10 +27,10 @@ function resultSides(type: ValueType): readonly [ValueType, ValueType] | undefin
   return [parts.arguments[0]!, parts.arguments[1]!];
 }
 
-const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", "f64", "i32", "u32"]);
+const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", ...NUMERIC_TYPES.keys()]);
 
 function watType(type: ValueType): string {
-  if (type === "f64" || type === "i64") return type;
+  if (numericType(type)) return scalarWasm(type);
   if (type === "string") return "(ref null $hd.string)";
   if (resultSides(type)) return "(ref null $hd.variant)";
   return "i32";
@@ -40,7 +42,7 @@ function crossesAsString(type: ValueType): boolean {
 }
 
 function boundaryWatType(type: ValueType): string {
-  return type === "f64" || type === "i64" ? type : "i32";
+  return numericType(type) ? scalarWasm(type) : "i32";
 }
 
 function methodName(trait: HirTrait, method: HirTraitMethod): string {
@@ -141,8 +143,7 @@ function emitVariantResult({ trait, method }: HostMethod): string {
   const payload = (type: ValueType, side: "result_ok" | "result_err"): string => {
     const value = `(call $hd.${importName(trait, method, side)} (local.get $call))`;
     if (type === "string") return `(call ${stringResultName(trait, method)} (local.get $call))`;
-    if (type === "f64") return `(struct.new $hd.box-f64 ${value})`;
-    if (SCALAR_BOUNDARY.has(type)) return `(struct.new $hd.box-i32 ${value})`;
+    if (SCALAR_BOUNDARY.has(type)) return boxScalar(value, type);
     return "(ref.null any)";
   };
   return [
@@ -280,8 +281,8 @@ function emitMethod({ trait, method }: HostMethod): string {
   const defaultResult =
     method.result === "void"
       ? ""
-      : method.result === "f64" || method.result === "i64"
-        ? ` (${method.result}.const 0)`
+      : numericType(method.result)
+        ? ` (${scalarWasm(method.result)}.const 0)`
         : method.result === "string"
           ? " (ref.null $hd.string)"
           : resultSides(method.result)

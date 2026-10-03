@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-03 the suite has
-2,187 cases: 2,064 selected in `test/portable/cases.tsv` and 123 known
-failures. The selected cases are 1,815 language tier and 249 stdlib tier;
-the known failures are 95 language tier and 28 stdlib tier.
+2,206 cases: 2,077 selected in `test/portable/cases.tsv` and 129 known
+failures. The selected cases are 1,828 language tier and 249 stdlib tier;
+the known failures are 101 language tier and 28 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -41,9 +41,6 @@ the known failures are 95 language tier and 28 stdlib tier.
 | VOID-UNIT | 1 | `void` is kept apart from the empty tuple `()` |
 | STD-HELPERS | 8 | std helper declarations remain blocked by eager host glue and unresolved helper/provider support |
 | ERR-HELPERS | 1 | trait-value `find` enters a forwarding adapter with static TypeId evidence and traps on an illegal cast |
-| HOST-CONTRACT | 2 | host results are not checked against their declared types and the panic category is absent |
-| HOST-NAN | 1 | the `special-float-host` runtime profile does not exist |
-| PENDING-WRITE | 2 | the pending-write runtime profile does not exist |
 | SNAPSHOT-ROW | 3 | snapshot operations do not use the current TestRunner row |
 | RUNNER-SURFACE | 1 | PropertyRunner lacks the current PropertyCase protocol |
 | LIST-POP | 4 | `List.pop`, `insert`, `remove_at`, `clear`, and their list-truncate hook are absent |
@@ -58,7 +55,7 @@ the known failures are 95 language tier and 28 stdlib tier.
 | FRESH-MUT | 1 | generic inference does not weaken `mut T` and `T` to their readonly join |
 | FORWARD-BOUNDS | 1 | inference does not solve a bound that names a later type parameter |
 | QUALIFIED-PREFIX | 3 | a string prefix after `.` does not report `qualified-string-prefix` |
-| LITERAL-FIRST-USE | 12 | an unannotated literal binding falls back before its first deciding use |
+| LITERAL-FIRST-USE | 23 | an unannotated literal binding falls back before its first deciding use |
 
 ## Findings
 

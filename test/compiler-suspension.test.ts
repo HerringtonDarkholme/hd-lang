@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { analyze, instantiate, type ReplayEvent } from "../src/compiler.ts";
+import { RuntimePanicError } from "../src/runtime-panic.ts";
 import { conformance, fixture } from "./fixture.ts";
 
 test("suspending functions construct GC frames and bang calls drive them", async () => {
@@ -704,6 +705,224 @@ test("usize host arguments and Result payloads preserve unsigned bits during rep
   replayed.replay.assertComplete();
 });
 
+test("i64 and u64 host results use lossless decimal replay values", async () => {
+  const source = [
+    "let signed_ok: bool = false",
+    "let unsigned_ok: bool = false",
+    "",
+    "pub trait Wide:",
+    "    fn signed(self) -> i64",
+    "    fn unsigned(self) -> u64",
+    "",
+    "pub fn main() -> void $ Wide:",
+    "    wide := $.use(Wide)",
+    "    signed_ok = wide.signed() == -9223372036854775808",
+    "    unsigned_ok = wide.unsigned() == 18446744073709551615",
+    "",
+    "pub fn signed_matches() -> bool: signed_ok",
+    "pub fn unsigned_matches() -> bool: unsigned_ok",
+    "",
+  ].join("\n");
+  const events: ReplayEvent[] = [];
+  const recorded = await instantiate(source, {
+    hostCapabilities: ["Wide"],
+    hostSuspensionInvoke: (call) => ({
+      pending: false,
+      value: call.methodName === "signed" ? -(2n ** 63n) : 2n ** 64n - 1n,
+    }),
+    providerConfigurationId: "wide-integers",
+    record: (event) => events.push(event),
+  });
+  (recorded.instance.exports.main as CallableFunction)({ name: "wide" });
+  assert.equal((recorded.instance.exports.signed_matches as CallableFunction)(), 1);
+  assert.equal((recorded.instance.exports.unsigned_matches as CallableFunction)(), 1);
+  assert.deepEqual(
+    events.flatMap((event) => (event.operation === "provider-poll" ? [event.encodedValue] : [])),
+    [
+      { kind: "i64", value: "-9223372036854775808" },
+      { kind: "u64", value: "18446744073709551615" },
+    ],
+  );
+
+  const replayed = await instantiate(source, {
+    hostCapabilities: ["Wide"],
+    hostSuspensionInvoke: () => {
+      throw new Error("live host provider must not run during replay");
+    },
+    providerConfigurationId: "wide-integers",
+    replay: JSON.parse(JSON.stringify(events)) as ReplayEvent[],
+  });
+  (replayed.instance.exports.main as CallableFunction)({ name: "wide" });
+  assert.equal((replayed.instance.exports.signed_matches as CallableFunction)(), 1);
+  assert.equal((replayed.instance.exports.unsigned_matches as CallableFunction)(), 1);
+  replayed.replay.assertComplete();
+});
+
+test("host results are validated without coercion at scalar and Result boundaries", async () => {
+  const scalarSource = [
+    "pub trait Gauge:",
+    "    fn level(self) -> u8",
+    "",
+    "let recorded: u8 = 0",
+    "",
+    "pub fn main() -> void $ Gauge:",
+    "    recorded = $.use(Gauge).level()",
+    "",
+    "pub fn recorded_level() -> u8:",
+    "    recorded",
+    "",
+  ].join("\n");
+  assert.deepEqual(analyze(scalarSource, { hostCapabilities: ["Gauge"] }).diagnostics, []);
+  const valid = await instantiate(scalarSource, {
+    hostCapabilities: ["Gauge"],
+    hostSuspensionInvoke: () => ({ pending: false, value: 255 }),
+  });
+  (valid.instance.exports.main as CallableFunction)({ name: "gauge" });
+  assert.equal((valid.instance.exports.recorded_level as CallableFunction)(), 255);
+
+  for (const invalidValue of [300, -1, 1.5, "255"] as const) {
+    const invalid = await instantiate(scalarSource, {
+      compilation: valid.compilation,
+      hostCapabilities: ["Gauge"],
+      hostSuspensionInvoke: () => ({ pending: false, value: invalidValue }),
+    });
+    assert.throws(
+      () => (invalid.instance.exports.main as CallableFunction)({ name: "gauge" }),
+      (error: unknown) => {
+        assert.ok(error instanceof RuntimePanicError);
+        assert.equal(error.code, "host-contract");
+        assert.match(error.detail ?? "", /Gauge\.level broke its contract/);
+        return true;
+      },
+    );
+  }
+
+  const resultSource = [
+    "pub trait Gauge:",
+    "    fn level(self) -> Result[u8, string]",
+    "",
+    "pub fn main() -> void $ Gauge:",
+    "    match $.use(Gauge).level():",
+    "        .Ok(_) => pass",
+    "        .Err(_) => pass",
+    "",
+  ].join("\n");
+  const invalidResult = await instantiate(resultSource, {
+    hostCapabilities: ["Gauge"],
+    hostSuspensionInvoke: () => ({
+      pending: false,
+      value: { tag: "ok", value: 300 },
+    }),
+  });
+  assert.throws(
+    () => (invalidResult.instance.exports.main as CallableFunction)({ name: "gauge" }),
+    (error: unknown) => error instanceof RuntimePanicError && error.code === "host-contract",
+  );
+
+  const voidSource = [
+    "pub trait Sink:",
+    "    fn finish(self) -> void",
+    "",
+    "pub fn main() -> void $ Sink:",
+    "    $.use(Sink).finish()",
+    "",
+  ].join("\n");
+  for (const outcome of [{ pending: false }, { pending: false, value: 1 }] as const) {
+    const invalid = await instantiate(voidSource, {
+      hostCapabilities: ["Sink"],
+      hostSuspensionInvoke: () => outcome,
+    });
+    if (outcome.value === undefined) {
+      (invalid.instance.exports.main as CallableFunction)({ name: "sink" });
+      continue;
+    }
+    assert.throws(
+      () => (invalid.instance.exports.main as CallableFunction)({ name: "sink" }),
+      (error: unknown) => error instanceof RuntimePanicError && error.code === "host-contract",
+    );
+  }
+
+  const missing = await instantiate(scalarSource, {
+    compilation: valid.compilation,
+    hostCapabilities: ["Gauge"],
+    hostSuspensionInvoke: () => ({ pending: false }),
+  });
+  assert.throws(
+    () => (missing.instance.exports.main as CallableFunction)({ name: "gauge" }),
+    (error: unknown) => error instanceof RuntimePanicError && error.code === "host-contract",
+  );
+
+  const textSource = [
+    "pub trait TextSource:",
+    "    fn read(self) -> string",
+    "",
+    "pub fn main() -> void $ TextSource:",
+    "    _ := $.use(TextSource).read()",
+    "",
+  ].join("\n");
+  const invalidText = await instantiate(textSource, {
+    hostCapabilities: ["TextSource"],
+    hostSuspensionInvoke: () => ({ pending: false, value: "\ud800" }),
+  });
+  assert.throws(
+    () => (invalidText.instance.exports.main as CallableFunction)({ name: "text" }),
+    (error: unknown) => error instanceof RuntimePanicError && error.code === "host-contract",
+  );
+});
+
+test("Result host payloads box each scalar with its own Wasm representation", async () => {
+  const source = [
+    "let wide_ok: bool = false",
+    "let float_ok: bool = false",
+    "",
+    "pub trait Boxed:",
+    "    fn wide(self) -> Result[u64, string]",
+    "    fn ratio(self) -> Result[f32, string]",
+    "",
+    "pub fn main() -> void $ Boxed:",
+    "    boxed := $.use(Boxed)",
+    "    match boxed.wide():",
+    "        .Ok(value) => wide_ok = value == 18446744073709551615",
+    "        .Err(_) => pass",
+    "    match boxed.ratio():",
+    "        .Ok(value) => float_ok = value == 1.5",
+    "        .Err(_) => pass",
+    "",
+    "pub fn wide_matches() -> bool: wide_ok",
+    "pub fn float_matches() -> bool: float_ok",
+    "",
+  ].join("\n");
+  const { instance } = await instantiate(source, {
+    hostCapabilities: ["Boxed"],
+    hostSuspensionInvoke: (call) => ({
+      pending: false,
+      value: {
+        tag: "ok",
+        value: call.methodName === "wide" ? 2n ** 64n - 1n : 1.5,
+      },
+    }),
+  });
+  (instance.exports.main as CallableFunction)({ name: "boxed" });
+  assert.equal((instance.exports.wide_matches as CallableFunction)(), 1);
+  assert.equal((instance.exports.float_matches as CallableFunction)(), 1);
+});
+
+test("a pending hook may delay a built-in Console call exactly once", async () => {
+  const source = 'pub fn main() -> void $ Console:\n    println("held")\n';
+  const polls = new WeakMap<object, number>();
+  const lines: string[] = [];
+  const { instance } = await instantiate(source, {
+    console: (text) => lines.push(text),
+    hostSuspensionPending: (call) => {
+      const count = polls.get(call) ?? 0;
+      polls.set(call, count + 1);
+      return count === 0;
+    },
+  });
+  (instance.exports.main as CallableFunction)({ name: "console" });
+  assert.deepEqual(lines, ["held"]);
+});
+
 test("host provider f64 replay encoding preserves non-JSON numbers", async () => {
   const source = fixture("suspension/35-host-provider-f64-values-use-durable-bit-encoding");
   const events: ReplayEvent[] = [];
@@ -743,6 +962,127 @@ test("host provider f64 replay encoding preserves non-JSON numbers", async () =>
   replayed.replay.assertComplete();
 });
 
+test("host provider f64 replay preserves NaN, infinity, and negative zero", async () => {
+  const source = [
+    "let first: f64 = 0.0",
+    "let second: f64 = 0.0",
+    "let third: f64 = 1.0",
+    "",
+    "pub trait Sensor:",
+    "    fn reading(mut self) -> f64",
+    "",
+    "pub fn main() -> void $ Sensor:",
+    "    let mut sensor = $.use(Sensor)",
+    "    first = sensor.reading()",
+    "    second = sensor.reading()",
+    "    third = sensor.reading()",
+    "",
+    "pub fn first_reading() -> f64: first",
+    "pub fn second_reading() -> f64: second",
+    "pub fn third_reading() -> f64: third",
+    "",
+  ].join("\n");
+  const nanBytes = new ArrayBuffer(8);
+  const nanView = new DataView(nanBytes);
+  nanView.setBigUint64(0, 0x7ff8000000001234n, false);
+  const values = [nanView.getFloat64(0, false), Infinity, -0];
+  const events: ReplayEvent[] = [];
+  let next = 0;
+  const recorded = await instantiate(source, {
+    hostCapabilities: ["Sensor"],
+    hostSuspensionInvoke: () => ({ pending: false, value: values[next++]! }),
+    providerConfigurationId: "special-floats",
+    record: (event) => events.push(event),
+  });
+  (recorded.instance.exports.main as CallableFunction)({ name: "sensor" });
+  assert.ok(Number.isNaN((recorded.instance.exports.first_reading as CallableFunction)()));
+  assert.equal((recorded.instance.exports.second_reading as CallableFunction)(), Infinity);
+  assert.ok(Object.is((recorded.instance.exports.third_reading as CallableFunction)(), -0));
+  const encoded = events.flatMap((event) =>
+    event.operation === "provider-poll" && event.encodedValue?.kind === "f64"
+      ? [event.encodedValue.bits]
+      : [],
+  );
+  assert.equal(encoded.length, 3);
+  assert.ok(encoded.every((bits) => /^[0-9a-f]{16}$/.test(bits)));
+  assert.equal(encoded[0], "7ff8000000000000");
+  assert.equal(encoded[1], "7ff0000000000000");
+  assert.equal(encoded[2], "8000000000000000");
+
+  const replayed = await instantiate(source, {
+    hostCapabilities: ["Sensor"],
+    hostSuspensionInvoke: () => {
+      throw new Error("live host provider must not run during replay");
+    },
+    providerConfigurationId: "special-floats",
+    replay: JSON.parse(JSON.stringify(events)) as ReplayEvent[],
+  });
+  (replayed.instance.exports.main as CallableFunction)({ name: "sensor" });
+  assert.ok(Number.isNaN((replayed.instance.exports.first_reading as CallableFunction)()));
+  assert.equal((replayed.instance.exports.second_reading as CallableFunction)(), Infinity);
+  assert.ok(Object.is((replayed.instance.exports.third_reading as CallableFunction)(), -0));
+  replayed.replay.assertComplete();
+});
+
+test("f32 host results must already have f32 width and replay as eight hex digits", async () => {
+  const source = [
+    "let first: f32 = 0.0",
+    "let second: f32 = 0.0",
+    "let third: f32 = 1.0",
+    "",
+    "pub trait Sensor:",
+    "    fn reading(mut self) -> f32",
+    "",
+    "pub fn main() -> void $ Sensor:",
+    "    let mut sensor = $.use(Sensor)",
+    "    first = sensor.reading()",
+    "    second = sensor.reading()",
+    "    third = sensor.reading()",
+    "",
+  ].join("\n");
+  const values = [Number.NaN, Infinity, -0];
+  const events: ReplayEvent[] = [];
+  let next = 0;
+  const recorded = await instantiate(source, {
+    hostCapabilities: ["Sensor"],
+    hostSuspensionInvoke: () => ({ pending: false, value: values[next++]! }),
+    providerConfigurationId: "f32-specials",
+    record: (event) => events.push(event),
+  });
+  (recorded.instance.exports.main as CallableFunction)({ name: "sensor" });
+  const encoded = events.flatMap((event) =>
+    event.operation === "provider-poll" && event.encodedValue?.kind === "f32"
+      ? [event.encodedValue.bits]
+      : [],
+  );
+  assert.equal(encoded.length, 3);
+  assert.ok(encoded.every((bits) => /^[0-9a-f]{8}$/.test(bits)));
+  assert.equal(encoded[0], "7fc00000");
+  assert.equal(encoded[1], "7f800000");
+  assert.equal(encoded[2], "80000000");
+
+  const replayed = await instantiate(source, {
+    hostCapabilities: ["Sensor"],
+    hostSuspensionInvoke: () => {
+      throw new Error("live host provider must not run during replay");
+    },
+    providerConfigurationId: "f32-specials",
+    replay: JSON.parse(JSON.stringify(events)) as ReplayEvent[],
+  });
+  (replayed.instance.exports.main as CallableFunction)({ name: "sensor" });
+  replayed.replay.assertComplete();
+
+  const invalid = await instantiate(source, {
+    compilation: recorded.compilation,
+    hostCapabilities: ["Sensor"],
+    hostSuspensionInvoke: () => ({ pending: false, value: 0.1 }),
+  });
+  assert.throws(
+    () => (invalid.instance.exports.main as CallableFunction)({ name: "sensor" }),
+    (error: unknown) => error instanceof RuntimePanicError && error.code === "host-contract",
+  );
+});
+
 test("host provider string arguments and results use durable UTF-8 replay encoding", async () => {
   const source = fixture("suspension/36-host-provider-strings-use-utf8-boundary");
   const events: ReplayEvent[] = [];
@@ -779,6 +1119,76 @@ test("host provider string arguments and results use durable UTF-8 replay encodi
   });
   (replayed.instance.exports.main as CallableFunction)({ name: "text" });
   replayed.replay.assertComplete();
+});
+
+test("malformed persisted host results are rejected without JavaScript coercion", async () => {
+  const source = [
+    "pub trait Boundary:",
+    "    fn wide(mut self) -> u64",
+    "    fn ratio(mut self) -> f32",
+    "    fn text(mut self) -> string",
+    "    fn finish(mut self) -> void",
+    "",
+    "pub fn main() -> void $ Boundary:",
+    "    let mut boundary = $.use(Boundary)",
+    "    _ := boundary.wide()",
+    "    _ := boundary.ratio()",
+    "    _ := boundary.text()",
+    "    boundary.finish()",
+    "",
+  ].join("\n");
+  const events: ReplayEvent[] = [];
+  const recorded = await instantiate(source, {
+    hostCapabilities: ["Boundary"],
+    hostSuspensionInvoke: (call) => ({
+      pending: false,
+      ...(call.methodName === "wide"
+        ? { value: 1n }
+        : call.methodName === "ratio"
+          ? { value: 1.5 }
+          : call.methodName === "text"
+            ? { value: "ok" }
+            : {}),
+    }),
+    providerConfigurationId: "malformed-replay",
+    record: (event) => events.push(event),
+  });
+  (recorded.instance.exports.main as CallableFunction)({ name: "boundary" });
+
+  type MutableHostEvent = {
+    encodedResult: string;
+    encodedValue?: unknown;
+  };
+  const mutations: ReadonlyArray<(events: MutableHostEvent[]) => void> = [
+    (providerEvents) => (providerEvents[0]!.encodedValue = { kind: "u64", value: 1 }),
+    (providerEvents) => (providerEvents[1]!.encodedValue = { bits: 12345678, kind: "f32" }),
+    (providerEvents) => (providerEvents[2]!.encodedValue = { kind: "string", utf8: 12 }),
+    (providerEvents) => (providerEvents[0]!.encodedResult = "garbage"),
+    (providerEvents) => (providerEvents[0]!.encodedResult = "pending"),
+    (providerEvents) => Reflect.deleteProperty(providerEvents[0]!, "encodedValue"),
+    (providerEvents) => (providerEvents[3]!.encodedValue = { kind: "u8", value: 1 }),
+    (providerEvents) => (providerEvents[3]!.encodedResult = "pending"),
+  ];
+  for (const mutate of mutations) {
+    const replay = JSON.parse(JSON.stringify(events)) as ReplayEvent[];
+    const providerEvents = replay.filter(
+      (event) => event.operation === "provider-poll",
+    ) as unknown as MutableHostEvent[];
+    mutate(providerEvents);
+    const invalid = await instantiate(source, {
+      compilation: recorded.compilation,
+      hostCapabilities: ["Boundary"],
+      hostSuspensionInvoke: () => {
+        throw new Error("live host provider must not run during replay");
+      },
+      providerConfigurationId: "malformed-replay",
+      replay,
+    });
+    assert.throws(
+      () => (invalid.instance.exports.main as CallableFunction)({ name: "boundary" }),
+      /replay/,
+    );
+  }
 });
 
 test("a Result[T, E] host result crosses the bridge and replays", async () => {

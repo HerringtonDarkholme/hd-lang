@@ -11,6 +11,7 @@ import type {
   UseDecl,
 } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
+import { RUNTIME_PANIC_NAMES } from "../runtime-panic.ts";
 
 /** The items of a module, including those of its `tests:` block. */
 export interface ModuleItems {
@@ -68,20 +69,7 @@ function usesPropagation(value: unknown): boolean {
 
 // The stable panic categories an `expect_panic` option may name
 // (spec/lang/06-control-flow.md#r-flow.panic.category-names).
-const PANIC_CATEGORIES: ReadonlySet<string> = new Set([
-  "assertion-failed",
-  "explicit-panic",
-  "integer-overflow",
-  "integer-division-by-zero",
-  "invalid-shift",
-  "index-out-of-bounds",
-  "iterator-invalidated",
-  "structure-variant-mismatch",
-  "suspension-competing-driver",
-  "suspension-reentrant-poll",
-  "suspension-invalid-state",
-  "stack-exhausted",
-]);
+const PANIC_CATEGORIES: ReadonlySet<string> = new Set(RUNTIME_PANIC_NAMES);
 
 const TEST_OPTIONS = ["ignore", "expect_panic", "timeout"];
 

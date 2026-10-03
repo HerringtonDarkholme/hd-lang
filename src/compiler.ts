@@ -10,6 +10,7 @@ import {
   UNRECORDED_PROVIDERS,
   type HostFunction,
 } from "./host-functions.ts";
+import { NUMERIC_TYPES, numericType } from "./numeric.ts";
 import { nominalGenericParts } from "./types.ts";
 import type { HirProgram, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
@@ -66,19 +67,19 @@ interface HostPollReplayEvent extends ReplayEventBase {
 }
 
 interface EncodedHostInteger {
-  readonly kind: "bool" | "char" | "i32" | "u32";
+  readonly kind: "bool" | "char" | "i8" | "i16" | "i32" | "u8" | "u16" | "u32";
   readonly value: number;
 }
 
-/** An `i64`, as decimal text, since JSON has no 64-bit integer. */
+/** A 64-bit integer, as decimal text, since JSON has no lossless integer. */
 interface EncodedHostWide {
-  readonly kind: "i64";
+  readonly kind: "i64" | "u64";
   readonly value: string;
 }
 
 interface EncodedHostFloat {
   readonly bits: string;
-  readonly kind: "f64";
+  readonly kind: "f32" | "f64";
 }
 
 interface EncodedHostString {
@@ -203,22 +204,139 @@ function resultSides(type: ValueType): readonly [ValueType, ValueType] | undefin
     : undefined;
 }
 
-const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", "f64", "i32", "u32", "string"]);
+const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", "string", ...NUMERIC_TYPES.keys()]);
 
-function canonicalHostResult(type: ValueType, value: HostSuspensionResult): HostSuspensionResult {
+/** Whether a JavaScript string contains only complete Unicode scalar values. */
+function isWellFormedText(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const unit = value.charCodeAt(index);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (index + 1 >= value.length || next < 0xdc00 || next > 0xdfff) return false;
+      index += 1;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) return false;
+  }
+  return true;
+}
+
+/**
+ * Decode a value that Wasm passed to the host. Narrow integers arrive as an
+ * i32 bit pattern, so unsigned arguments need normalization before the host
+ * sees them. This is deliberately separate from checking values returned by
+ * the host: results must never be rounded, truncated, or wrapped to fit.
+ */
+function hostArgumentValue(type: ValueType, value: HostSuspensionValue): HostSuspensionValue {
+  if (type === "string") {
+    if (typeof value !== "string") throw new Error("host string boundary value must be a string");
+    return value;
+  }
+  const numeric = numericType(type);
+  if (numeric?.wasm === "i64") {
+    if (typeof value !== "bigint") throw new Error(`host ${type} boundary value must be a BigInt`);
+    return numeric.family === "unsigned" ? BigInt.asUintN(64, value) : BigInt.asIntN(64, value);
+  }
+  if (numeric?.family === "float") {
+    if (typeof value !== "number") throw new Error(`host ${type} boundary value must be a number`);
+    return value;
+  }
+  if (typeof value !== "number") throw new Error(`host ${type} boundary value must be a number`);
+  if (type === "bool") return value === 0 ? 0 : 1;
+  if (numeric?.family === "unsigned") return value >>> 0;
+  return value | 0;
+}
+
+/** Validate one scalar supplied by the host without changing it. */
+function checkedHostValue(type: ValueType, value: HostSuspensionValue): HostSuspensionValue {
+  if (type === "string") {
+    if (typeof value !== "string") throw new Error("expected a string");
+    if (!isWellFormedText(value)) throw new Error("expected valid Unicode text");
+    return value;
+  }
+  if (type === "bool") {
+    if (typeof value !== "number" || (value !== 0 && value !== 1))
+      throw new Error("expected bool as 0 or 1");
+    return value;
+  }
+  if (type === "char") {
+    if (
+      typeof value !== "number" ||
+      !Number.isInteger(value) ||
+      value < 0 ||
+      value > 0x10ffff ||
+      (value >= 0xd800 && value <= 0xdfff)
+    )
+      throw new Error("expected a Unicode scalar value");
+    return value;
+  }
+  const numeric = numericType(type);
+  if (numeric?.family === "float") {
+    if (typeof value !== "number") throw new Error(`expected a ${type} number`);
+    if (type === "f32" && !Object.is(Math.fround(value), value))
+      throw new Error(`expected a value already representable as f32, received ${value}`);
+    // All values of the declared width are valid, including NaN, infinities,
+    // and -0.0. In particular, validation never uses finiteness as a proxy.
+    return value;
+  }
+  if (numeric?.wasm === "i64") {
+    if (typeof value !== "bigint") throw new Error(`expected ${type} as a BigInt`);
+    if (value < numeric.minimum! || value > numeric.maximum!)
+      throw new Error(
+        `expected ${type} in ${numeric.minimum}..${numeric.maximum}, received ${value}`,
+      );
+    return value;
+  }
+  if (numeric) {
+    if (typeof value !== "number" || !Number.isInteger(value))
+      throw new Error(`expected an integer ${type}`);
+    const integer = BigInt(value);
+    if (integer < numeric.minimum! || integer > numeric.maximum!)
+      throw new Error(
+        `expected ${type} in ${numeric.minimum}..${numeric.maximum}, received ${value}`,
+      );
+    return value;
+  }
+  throw new Error(`the host cannot build a '${type}' boundary value`);
+}
+
+function checkedHostResult(type: ValueType, value: HostSuspensionResult): HostSuspensionResult {
   const sides = resultSides(type);
   if (!sides) {
     if (typeof value === "object") throw new Error(`host ${type} boundary value must be a scalar`);
-    return canonicalHostValue(type, value);
+    return checkedHostValue(type, value);
   }
-  if (typeof value !== "object" || (value.tag !== "ok" && value.tag !== "err"))
+  if (value === null || typeof value !== "object" || (value.tag !== "ok" && value.tag !== "err"))
     throw new Error(`host ${type} boundary value must be { tag: "ok" | "err" }`);
   const side = value.tag === "ok" ? sides[0] : sides[1];
-  if (side === "void") return { tag: value.tag };
+  if (side === "void") {
+    if (value.value !== undefined)
+      throw new Error(`host ${type} '${value.tag}' has a void payload`);
+    return { tag: value.tag };
+  }
   // An error type the bridge cannot build, such as `ConsoleError`, has no payload.
   if (!SCALAR_BOUNDARY.has(side)) throw new Error(`the host cannot build a '${side}' for ${type}`);
   if (value.value === undefined) throw new Error(`host ${type} result has no '${side}' payload`);
-  return { tag: value.tag, value: canonicalHostValue(side, value.value) };
+  return { tag: value.tag, value: checkedHostValue(side, value.value) };
+}
+
+function checkedLiveHostResult(
+  providerMethod: string,
+  type: ValueType,
+  value: HostSuspensionResult | undefined,
+): HostSuspensionResult | undefined {
+  try {
+    if (type === "void") {
+      if (value !== undefined) throw new Error("expected no value for void");
+      return undefined;
+    }
+    if (value === undefined) throw new Error("returned no boundary result");
+    return checkedHostResult(type, value);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new RuntimePanicError(
+      "host-contract",
+      `host provider ${providerMethod} broke its contract: ${reason}`,
+    );
+  }
 }
 
 /** The UTF-8 text a ready result crosses as, if its active side is a `string`. */
@@ -237,7 +355,7 @@ function hostResultText(
 function encodeHostResult(type: ValueType, value: HostSuspensionResult): EncodedHostValue {
   const sides = resultSides(type);
   if (!sides) return encodeHostValue(type, value as HostSuspensionValue);
-  const result = canonicalHostResult(type, value) as HostResultValue;
+  const result = checkedHostResult(type, value) as HostResultValue;
   const side = result.tag === "ok" ? sides[0] : sides[1];
   return result.value === undefined
     ? { kind: result.tag }
@@ -250,25 +368,11 @@ function decodeHostResult(type: ValueType, encoded: EncodedHostValue): HostSuspe
   if (encoded.kind !== "ok" && encoded.kind !== "err")
     throw new Error(`replay boundary type '${encoded.kind}' does not match '${type}'`);
   const side = encoded.kind === "ok" ? sides[0] : sides[1];
-  return encoded.value === undefined
-    ? { tag: encoded.kind }
-    : { tag: encoded.kind, value: decodeHostValue(side, encoded.value) };
-}
-
-function canonicalHostValue(type: ValueType, value: HostSuspensionValue): HostSuspensionValue {
-  if (type === "string") {
-    if (typeof value !== "string") throw new Error("host string boundary value must be a string");
-    return value;
-  }
-  if (type === "i64") {
-    if (typeof value !== "number" && typeof value !== "bigint")
-      throw new Error("host i64 boundary value must be a number or a BigInt");
-    return BigInt.asIntN(64, BigInt(value));
-  }
-  if (typeof value !== "number") throw new Error(`host ${type} boundary value must be a number`);
-  if (type === "f64") return Number(value);
-  if (type === "bool") return value === 0 ? 0 : 1;
-  return type === "u32" ? value >>> 0 : value | 0;
+  const result: HostResultValue =
+    encoded.value === undefined
+      ? { tag: encoded.kind }
+      : { tag: encoded.kind, value: decodeHostValue(side, encoded.value) };
+  return checkedHostResult(type, result);
 }
 
 function hexBytes(bytes: Uint8Array): string {
@@ -276,7 +380,7 @@ function hexBytes(bytes: Uint8Array): string {
 }
 
 function bytesFromHex(value: string): Uint8Array {
-  if (!/^(?:[0-9a-f]{2})*$/.test(value))
+  if (typeof value !== "string" || !/^(?:[0-9a-f]{2})*$/.test(value))
     throw new Error(`replay UTF-8 bytes '${value}' are invalid`);
   return Uint8Array.from(
     Array.from({ length: value.length / 2 }, (_, index) =>
@@ -286,35 +390,61 @@ function bytesFromHex(value: string): Uint8Array {
 }
 
 function encodeHostValue(type: ValueType, value: HostSuspensionValue): EncodedHostValue {
-  const canonical = canonicalHostValue(type, value);
+  const canonical = hostArgumentValue(type, value);
   if (type === "string")
     return { kind: "string", utf8: hexBytes(new TextEncoder().encode(canonical as string)) };
-  if (type === "i64") return { kind: "i64", value: String(canonical) };
-  if (type !== "f64") return { kind: type as EncodedHostInteger["kind"], value: Number(canonical) };
+  const numeric = numericType(type);
+  if (numeric?.wasm === "i64")
+    return { kind: type as EncodedHostWide["kind"], value: String(canonical) };
+  if (numeric?.family !== "float")
+    return { kind: type as EncodedHostInteger["kind"], value: Number(canonical) };
+  if (Number.isNaN(canonical))
+    return {
+      bits: type === "f32" ? "7fc00000" : "7ff8000000000000",
+      kind: type as EncodedHostFloat["kind"],
+    };
   const buffer = new ArrayBuffer(8);
   const view = new DataView(buffer);
+  if (type === "f32") {
+    view.setFloat32(0, Number(canonical), false);
+    return { bits: view.getUint32(0, false).toString(16).padStart(8, "0"), kind: "f32" };
+  }
   view.setFloat64(0, Number(canonical), false);
-  return { bits: view.getBigUint64(0, false).toString(16).padStart(16, "0"), kind: "f64" };
+  return {
+    bits: view.getBigUint64(0, false).toString(16).padStart(16, "0"),
+    kind: "f64",
+  };
 }
 
 function decodeHostValue(type: ValueType, value: EncodedHostValue): HostSuspensionValue {
   if (value.kind !== type || value.kind === "ok" || value.kind === "err")
     throw new Error(`replay boundary type '${value.kind}' does not match '${type}'`);
   const encoded = value as EncodedHostScalar;
-  if (encoded.kind === "string")
+  if (encoded.kind === "string") {
+    if (typeof encoded.utf8 !== "string")
+      throw new Error("replay string boundary value is not lowercase hexadecimal");
     return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
       bytesFromHex(encoded.utf8),
     );
-  if (encoded.kind === "i64") {
-    if (!/^-?\d+$/.test(encoded.value))
-      throw new Error(`replay i64 value '${encoded.value}' is invalid`);
-    return canonicalHostValue(type, BigInt(encoded.value));
   }
-  if (encoded.kind !== "f64") return canonicalHostValue(type, encoded.value);
-  if (!/^[0-9a-f]{16}$/.test(encoded.bits))
-    throw new Error(`replay f64 bits '${encoded.bits}' are invalid`);
+  if (encoded.kind === "i64" || encoded.kind === "u64") {
+    if (typeof encoded.value !== "string")
+      throw new Error(`replay ${encoded.kind} value is not decimal text`);
+    const valid =
+      encoded.kind === "i64" ? /^-?\d+$/.test(encoded.value) : /^\d+$/.test(encoded.value);
+    if (!valid) throw new Error(`replay ${encoded.kind} value '${encoded.value}' is invalid`);
+    return checkedHostValue(type, BigInt(encoded.value));
+  }
+  if (!("bits" in encoded)) return checkedHostValue(type, encoded.value);
+  const digits = encoded.kind === "f32" ? 8 : 16;
+  if (typeof encoded.bits !== "string" || !new RegExp(`^[0-9a-f]{${digits}}$`).test(encoded.bits))
+    throw new Error(`replay ${encoded.kind} bits '${encoded.bits}' are invalid`);
   const buffer = new ArrayBuffer(8);
   const view = new DataView(buffer);
+  if (encoded.kind === "f32") {
+    view.setUint32(0, Number.parseInt(encoded.bits, 16), false);
+    return view.getFloat32(0, false);
+  }
   view.setBigUint64(0, BigInt(`0x${encoded.bits}`), false);
   return view.getFloat64(0, false);
 }
@@ -323,9 +453,30 @@ function sameEncodedHostValue(left: EncodedHostValue, right: EncodedHostValue): 
   if (left.kind !== right.kind) return false;
   if (left.kind === "ok" || left.kind === "err" || right.kind === "ok" || right.kind === "err")
     return JSON.stringify(left) === JSON.stringify(right);
-  if (left.kind === "f64") return right.kind === "f64" && left.bits === right.bits;
+  if ("bits" in left) return "bits" in right && left.bits === right.bits;
   if (left.kind === "string") return right.kind === "string" && left.utf8 === right.utf8;
-  return right.kind !== "f64" && right.kind !== "string" && left.value === right.value;
+  return "value" in right && left.value === right.value;
+}
+
+function validateReplayHostOutcome(
+  providerMethod: string,
+  resultType: ValueType,
+  suspending: boolean,
+  encodedResult: unknown,
+  encodedValue: EncodedHostValue | undefined,
+): asserts encodedResult is HostPollReplayEvent["encodedResult"] {
+  if (encodedResult !== "pending" && encodedResult !== "ready")
+    throw new Error(
+      `replay provider ${providerMethod} has invalid result state '${String(encodedResult)}'`,
+    );
+  if (encodedResult === "pending" && !suspending)
+    throw new Error(`replay provider ${providerMethod} is a plain call, not pending`);
+  if (encodedResult === "pending" && encodedValue !== undefined)
+    throw new Error(`replay provider ${providerMethod} has a result while pending`);
+  if (encodedResult === "ready" && resultType === "void" && encodedValue !== undefined)
+    throw new Error(`replay provider ${providerMethod} has a boundary result for void`);
+  if (encodedResult === "ready" && resultType !== "void" && encodedValue === undefined)
+    throw new Error(`replay provider ${providerMethod} has no boundary result`);
 }
 
 export function analyze(source: string, options: CompileOptions = {}): Analysis {
@@ -514,9 +665,9 @@ export async function instantiate(
   };
   for (const trait of compilation.hir.traits) {
     if (!hostCapabilities.has(trait.name)) continue;
-    // A built-in host implementation, such as the host console, answers
-    // before the embedder's callbacks; an unrecorded provider's calls are
-    // neither recorded nor replayed (host-functions.ts).
+    // An unrecorded provider's calls are neither recorded nor replayed
+    // (host-functions.ts). A profile may hold even a built-in call pending;
+    // once released, the built-in supplies the ready answer.
     const recorded = !UNRECORDED_PROVIDERS.has(trait.name);
     for (const method of trait.methods) {
       const prefix = `host_${trait.index}_${method.index}`;
@@ -538,9 +689,11 @@ export async function instantiate(
           method.parameters.map((parameter, index) =>
             parameter === "string"
               ? ""
-              : canonicalHostValue(
+              : hostArgumentValue(
                   parameter,
-                  parameter === "i64" ? (arguments_[index] as bigint) : Number(arguments_[index]),
+                  numericType(parameter)?.wasm === "i64"
+                    ? (arguments_[index] as bigint)
+                    : Number(arguments_[index]),
                 ),
           ),
         ),
@@ -583,14 +736,19 @@ export async function instantiate(
             throw new Error(
               `replay provider configuration '${expected.providerConfigurationId}' does not match '${configurationId}'`,
             );
+          validateReplayHostOutcome(
+            `${trait.name}.${method.name}`,
+            method.result,
+            method.suspending,
+            expected.encodedResult,
+            expected.encodedValue,
+          );
           state.outcome = {
             pending: expected.encodedResult === "pending",
             ...(expected.encodedValue
               ? { value: decodeHostResult(method.result, expected.encodedValue) }
               : {}),
           };
-          if (!state.outcome.pending && method.result !== "void" && !expected.encodedValue)
-            throw new Error(`replay provider ${trait.name}.${method.name} has no boundary result`);
           const text = state.outcome.pending
             ? undefined
             : hostResultText(method.result, state.outcome.value);
@@ -599,27 +757,32 @@ export async function instantiate(
           return state.outcome.pending ? 0 : 1;
         }
         const answering = answeringProvider(call.provider);
-        state.outcome = builtIn
-          ? builtIn(call, { console: options.console })
-          : answering
-            ? answering.answer(call)
-            : (options.hostSuspensionInvoke?.(call) ?? {
-                pending: options.hostSuspensionPending?.(call) ?? false,
-              });
+        const heldPending = options.hostSuspensionPending?.(call) ?? false;
+        state.outcome = heldPending
+          ? { pending: true }
+          : builtIn
+            ? builtIn(call, { console: options.console })
+            : answering
+              ? answering.answer(call)
+              : (options.hostSuspensionInvoke?.(call) ?? { pending: false });
         // A plain method has no suspension to leave pending
         // (emitter/host-providers.ts).
         if (state.outcome.pending && !method.suspending)
           throw new Error(
             `host provider ${trait.name}.${method.name} is a plain call, not pending`,
           );
-        if (!state.outcome.pending && method.result !== "void" && state.outcome.value === undefined)
-          throw new Error(`host provider ${trait.name}.${method.name} returned no boundary result`);
         if (state.outcome.pending) state.outcome = { pending: true };
-        else if (method.result !== "void")
+        else {
+          const value = checkedLiveHostResult(
+            `${trait.name}.${method.name}`,
+            method.result,
+            state.outcome.value,
+          );
           state.outcome = {
             pending: false,
-            value: canonicalHostResult(method.result, state.outcome.value!),
+            ...(value === undefined ? {} : { value }),
           };
+        }
         const text = state.outcome.pending
           ? undefined
           : hostResultText(method.result, state.outcome.value);

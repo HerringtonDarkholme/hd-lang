@@ -36,11 +36,14 @@ export interface CommandSpec {
 }
 
 export const RUNTIME_PROFILE_NAMES = [
+  "misbehaving-host",
   "pending-gate",
+  "pending-write",
   "ready-counter",
   "ready-float",
   "ready-gate",
   "ready-text",
+  "special-float-host",
 ] as const;
 export const RUNTIME_SCENARIO_NAMES = [
   "cancellation-cleanup",

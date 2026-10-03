@@ -2071,3 +2071,8 @@ typing/valid/literal-var-method-fallback.hd	type
 typing/invalid/literal-var-int-to-float.hd	type
 typing/invalid/literal-integer-into-float.hd	type
 typing/valid/literal-var-flow-types.hd	type
+runtime/panic/host-result-out-of-range.hd	runtime
+typing/valid/expect-panic-host-contract.hd	type
+runtime/valid/println-pending-write.hd	runtime
+runtime/valid/block-on-pending-write.hd	runtime
+runtime/valid/host-result-special-floats.hd	runtime

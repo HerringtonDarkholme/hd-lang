@@ -1,4 +1,4 @@
-const RUNTIME_PANIC_NAMES = [
+export const RUNTIME_PANIC_NAMES = [
   "explicit-panic",
   "integer-division-by-zero",
   "integer-overflow",
@@ -10,6 +10,9 @@ const RUNTIME_PANIC_NAMES = [
   "invalid-shift",
   "index-out-of-bounds",
   "structure-variant-mismatch",
+  // Appended to preserve the prototype's existing numeric Wasm panic codes.
+  "host-contract",
+  "stack-exhausted",
 ] as const;
 
 export type RuntimePanicName = (typeof RUNTIME_PANIC_NAMES)[number];

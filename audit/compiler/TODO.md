@@ -1,6 +1,6 @@
 # Compiler Repair Queue
 
-Status: owner-requested implementation queue, refreshed 2026-10-03 after spec pass 90. Unchecked items are pending unless their text says deferred.
+Status: owner-requested implementation queue, refreshed 2026-10-03 after spec pass 92. Unchecked items are pending unless their text says deferred.
 
 Deliver one root-cause repair at a time. Do not alter the specification, weaken fixtures, raise timeouts, or synthesize stdlib APIs in the compiler. Before every push, fetch and rebase on `origin/main`, run the full `pnpm run check`, and watch the main `Test` workflow. Every commit includes `Co-Authored-By: Codex <codex@openai.com>`.
 
@@ -22,7 +22,7 @@ Final P1 footprint after items 1–3, with the same `compileToWat` inputs used f
 ## P2: Hooks And Hosts
 
 - [x] **4. FLOAT-PARSE (4) and FIXED-HOOK (1).** Added exact BigInt-backed `parse_f64` and `format_f64_fixed` host primitives. Both round ties to even; parsing handles the full decimal range, and fixed formatting preserves special values and negative zero. All five tagged rows pass.
-- [ ] **5. Host f64 boundary.** Preserve raw IEEE f64 values in live calls, serialize exact bits for replay, and implement `special-float-host` (`HOST-NAN`), `misbehaving-host` (`HOST-CONTRACT`), and `pending-write` (`PENDING-WRITE`).
+- [x] **5. Host f64 boundary.** Live host results are checked without coercion across every scalar width and scalar `Result` payload; f32/f64 replay uses canonical 8/16-digit bit text, including canonical NaNs and unchanged infinities/negative zero; malformed replay shapes are rejected. Added `special-float-host`, `misbehaving-host`, and `pending-write`; all five tagged rows pass. Composite boundary shapes beyond `Result` remain a separate unsupported surface recorded in `host-boundary-residual.md`.
 - [ ] **6. STD-HELPERS (8).** Implement Console error output and the remaining provider helpers by declaration identity; remove the checker-owned `ConsoleError` type.
 - [ ] **7. Test runners.** Bind `TestRunner` for every test body; implement `snapshot_check`; update PropertyRunner/PropertyCase and discard behavior. Tags: `SNAPSHOT-ROW`, `RUNNER-SURFACE`.
 
@@ -57,5 +57,6 @@ Final P1 footprint after items 1–3, with the same `compileToWat` inputs used f
 - [x] Record the current known-failure count after U32-SIZES and bound inference: the spec-pass-90 ledger is 188 → 134 (59 repaired rows moved in; five selected fixtures moved out and one blocked regex row was reclassified as `SPEC-U32-DRIFT`).
 - [x] Record the known-failure count after std module registration: 134 → 116 (18 repaired rows moved in).
 - [x] Record the known-failure count after exact float host hooks: the spec-pass-91 ledger is 128 → 123 (five repaired rows moved in).
+- [x] Record the known-failure count after host boundary profiles: the spec-pass-92 ledger is 134 → 129 (five repaired rows moved in).
 - [x] Record the final P1 footprint: tiny `main` 49 bytes; one `it` 2,459 bytes.
 - [ ] Keep main CI green after each pushed repair.
