@@ -9,6 +9,7 @@ import type {
 } from "../hir.ts";
 import { forwardingPlan } from "./assignability.ts";
 import { DERIVED_IMPLEMENTATION_SPANS } from "./derive-intrinsics.ts";
+import { standardSubmoduleFunctionName } from "./standard-library.ts";
 import {
   contextKeys,
   mutableInner,
@@ -77,6 +78,18 @@ interface CheckedProviderEntries {
 }
 
 export abstract class CallChecker extends StatementChecker {
+  /** A std submodule member, unless a value binding owns the receiver name. */
+  protected standardSubmoduleFunction(receiver: string, member: string): string | undefined {
+    if (
+      this.resolveLocal(receiver) ||
+      this.availableCaptures.has(receiver) ||
+      this.globals.has(receiver) ||
+      this.signatures.has(receiver)
+    )
+      return undefined;
+    return standardSubmoduleFunctionName(this.imports.get(receiver), member);
+  }
+
   /** Arguments a call rewrite has already checked, such as a spread tuple's elements. */
   // Enumerable so argument trials can roll back context-dependent entries.
   // Its lifetime is the function checker, not a process-wide AST cache.

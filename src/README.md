@@ -1266,11 +1266,11 @@ module the prototype compiles:
   `use std.inspect.{Inspectable}`, becomes a program `use` under a hidden
   name, or under the standard name for `std.inspect`;
 - a `use` that names a std submodule, as `use std.testing.arbitrary`,
-  imports the module. The prototype has no module values, so
-  `withStandardSubmodules` makes each call through it of a function the
-  module declares, as `arbitrary.with(gen)`, a call by the function's
-  hidden name, `__std_testing_arbitrary_with`, and rewrites the `use` to
-  import the function under that name;
+  imports the module. The prototype has no module values, so call checking
+  resolves a public function selected through it, as `arbitrary.with(gen)`,
+  to the function's hidden name, `__std_testing_arbitrary_with`, after
+  lexical value lookup. A local or captured `arbitrary` therefore remains
+  the receiver;
 - every added declaration's span is the `use` of the program that reaches
   its module, or the program's span when only the prelude does.
 

@@ -48,7 +48,6 @@ type CallExpression = Extract<Expression, { kind: "call" }>;
 export interface MemberCallExpression extends CallExpression {
   readonly callee: Extract<Expression, { kind: "member" }>;
 }
-
 interface NamedCallExpression extends CallExpression {
   readonly callee: Extract<Expression, { kind: "name" }>;
 }
@@ -161,6 +160,15 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         return this.checkEnumConstructor(declaration, expression.callee.name, expression, expected);
       }
     }
+    const moduleReceiver = expression.callee.receiver;
+    const standard =
+      moduleReceiver.kind === "name" &&
+      this.standardSubmoduleFunction(moduleReceiver.name, expression.callee.name);
+    if (standard)
+      return this.checkCall(
+        { ...expression, callee: { kind: "name", name: standard, span: expression.callee.span } },
+        expected,
+      );
     const receiver = this.checkExpression(expression.callee.receiver);
     const inspection = this.checkInspectMemberCall(expression, receiver, expected);
     if (inspection) return inspection;

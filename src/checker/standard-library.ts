@@ -2,7 +2,6 @@ import {
   TEMPLATE_PLACEHOLDER,
   type DataDecl,
   type EnumDecl,
-  type Expression,
   type FunctionDecl,
   type ImplDecl,
   type Program,
@@ -82,6 +81,25 @@ function isStandardModule(name: string): name is StandardModule {
  */
 function hiddenStandardName(module: string, name: string): string {
   return `__std_${module.replaceAll(".", "_")}_${name}`;
+}
+
+/**
+ * The hidden callable for a public function selected through an imported std
+ * submodule, or undefined when `origin` is not a submodule or `member` is not
+ * one of its public functions. `origin` is the qualified binding recorded by
+ * program validation, as `std.testing.arbitrary`.
+ */
+export function standardSubmoduleFunctionName(
+  origin: string | undefined,
+  member: string,
+): string | undefined {
+  if (!origin?.startsWith("std.")) return undefined;
+  const module = origin.slice("std.".length);
+  if (!isStandardModule(module)) return undefined;
+  const declaration = standardModule(module).program.functions.find(
+    (candidate) => candidate.name === member && candidate.public === true,
+  );
+  return declaration ? hiddenStandardName(module, member) : undefined;
 }
 
 /** What a checked `assert_equal` or `snapshot` call runs (lib/std/testing.hd). */
@@ -624,57 +642,6 @@ export function standardTupleTraits(program: Program): readonly string[] {
       if (local !== undefined && !traits.includes(local)) traits.push(local);
     }
   return traits;
-}
-
-/**
- * A `use` that names a std submodule, as `use std.testing.arbitrary`, imports
- * the module (spec/lang/10-modules.md#use-forms). The prototype has no module
- * values, so each call through it of a function the module declares, as
- * `arbitrary.with(gen)`, becomes a call by the function's hidden name, which
- * the use is rewritten to import, as
- * `use std.testing.arbitrary.{with as __std_testing_arbitrary_with}`.
- */
-export function withStandardSubmodules(program: Program): Program {
-  const modules = new Map<string, { readonly module: StandardModule; readonly use: UseDecl }>();
-  const uses = program.uses.flatMap((use) => {
-    if (!use.module.startsWith("std.")) return [use];
-    const names = use.names.filter((imported) => {
-      const module = `${use.module.slice("std.".length)}.${imported.name}`;
-      if (!isStandardModule(module)) return true;
-      modules.set(imported.alias ?? imported.name, { module, use });
-      return false;
-    });
-    if (names.length === use.names.length) return [use];
-    return names.length > 0 ? [{ ...use, names }] : [];
-  });
-  if (modules.size === 0) return program;
-  const called = new Map<string, UseDecl>();
-  const visit = (node: unknown): unknown => {
-    if (Array.isArray(node)) return node.map(visit);
-    if (!node || typeof node !== "object") return node;
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(node)) result[key] = visit(value);
-    const callee = result.callee as Expression | undefined;
-    if (result.kind !== "call" || callee?.kind !== "member" || callee.receiver.kind !== "name")
-      return result;
-    const found = modules.get(callee.receiver.name);
-    if (
-      !found ||
-      !standardModule(found.module).program.functions.some((f) => f.name === callee.name)
-    )
-      return result;
-    const name = hiddenStandardName(found.module, callee.name);
-    if (!called.has(name))
-      called.set(name, {
-        kind: "use",
-        module: `std.${found.module}`,
-        names: [{ name: callee.name, alias: name }],
-        span: found.use.span,
-      });
-    return { ...result, callee: { kind: "name", name, span: callee.span } };
-  };
-  const visited = visit({ ...program, uses }) as Program;
-  return { ...visited, uses: [...visited.uses, ...called.values()] };
 }
 
 /**

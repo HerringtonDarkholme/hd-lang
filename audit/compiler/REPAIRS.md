@@ -79,6 +79,30 @@ Candidate edge cases for later conformance fixtures:
 | Two unrelated traits offer a method with the same name but different parameter types | Argument fitting does not resolve the ambiguity |
 | Two associated instantiations accept the arguments, but only one result fits the expected type | Select the result-compatible instantiation |
 
+### Independent Repair: Std Submodule Binding
+
+Status: SOURCE-2 reproduced and fixed as one part of A01; package ownership, repeated std aliases, and local implementation extent remain open.
+
+Before this repair, `withStandardSubmodules` walked every AST object before checking and rewrote a matching receiver spelling to a hidden std function name. A parameter named `arbitrary` therefore could not shadow `use std.testing.arbitrary`: `arbitrary.with(42)` called the imported module function and failed against its generator signature instead of calling the parameter's inherent method.
+
+The std submodule use now remains an ordinary import binding and continues to make the module reachable through the existing use graph. Direct member-call checking resolves that binding to a public hidden std function only after checking the receiver name for a local, capture, module binding, or declared function. Typed-fact discovery uses the same std member resolver, so `@arbitrary.with(generator)` keeps its early expected-type check without rewriting unrelated body expressions.
+
+This removes the reflective source transformation and makes the existing lexical checker authoritative. It does not add first-class module values, repair package-module ownership, or repair the separate repeated-alias and local-implementation findings under A01.
+
+Manual repair probes cover an unaliased parameter, an aliased parameter, a local binding, and a closure capture. Existing valid and invalid `arbitrary.with` conformance cases preserve their results. No conformance fixture changed.
+
+Validation: full `TERM=xterm-256color pnpm run check`, website build, and fuzz smoke passed. The fuzz smoke produced no phase signatures; its existing non-gating contract signatures remain outside this repair.
+
+Std submodule edge cases for later fixtures:
+
+| Input shape | Required observation |
+| --- | --- |
+| A parameter, local, or captured value has the imported submodule alias and an inherent `with` method | Resolve the lexical value and call its method |
+| The submodule is imported under an alias and remains unshadowed | Resolve its public function through the alias |
+| A module binding with the alias is declared after the call | Report that binding as not yet visible; do not fall back to the imported module |
+| A selected submodule member is private, missing, or not a function | Reject the selection without exposing the hidden std declaration; audit the final diagnostic separately |
+| A typed fact selects a public submodule function through an alias | Discover its result type and preserve the typed-fact expected-type check |
+
 ### Independent Repair: Optional Constructor Boundaries
 
 Optional construction now preserves the permission of its payload independently of the optional's outer view.
@@ -220,6 +244,7 @@ No specification or conformance fixture changed.
 
 | Finding | Status | Repair and limits |
 | --- | --- | --- |
+| A01 | Partially fixed | Std submodule function calls now honor lexical value bindings. Package declaration ownership, repeated std aliases, initialization scheduling, and local implementation extent remain open. |
 | A02 | Partially fixed | Public and private readonly inherent signatures, optional constructor boundaries, callable-row variance and erasure, and every specified least-common-type site are repaired. Expected-type coercion remains distributed, and semantic types remain string-encoded. |
 | A03 | Reported control-flow defect fixed | All child-driving bodies use the suspension CFG. The linear backend and comprehension bypass are removed. This does not close A06's entry/waker gap or prove all lowering correct. |
 | A04 | Reported placeholder capture fixed | Generated expression and type placeholders cannot capture legal user identifiers. Broader generated helper-name hygiene remains unreviewed. |

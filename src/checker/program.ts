@@ -18,7 +18,6 @@ import {
   importedMarkerFunctions,
   testRunnerNames,
   withStandardLibrary,
-  withStandardSubmodules,
 } from "./standard-library.ts";
 import {
   checkDecoratorTargets,
@@ -66,9 +65,7 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
     ...markerFunctions(source.functions),
     ...importedMarkerFunctions(source),
   ]);
-  const spelled = withFunctionTypeConstructors(
-    withBareMarkerCalls(withStandardSubmodules(source), markers),
-  );
+  const spelled = withFunctionTypeConstructors(withBareMarkerCalls(source, markers));
   // A malformed spelled function type leaves no type to check against.
   if (spelled.diagnostics.length > 0) return { diagnostics: [...spelled.diagnostics] };
   // Typed derivation is lowered to ordinary implementations first

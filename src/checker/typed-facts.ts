@@ -11,7 +11,11 @@ import type {
 import type { SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { functionResultText, readonlyType } from "../types.ts";
-import { standardResultDeclaration, standardSupertraits } from "./standard-library.ts";
+import {
+  standardResultDeclaration,
+  standardSubmoduleFunctionName,
+  standardSupertraits,
+} from "./standard-library.ts";
 
 // Typed facts (spec/lang/14-annotations.md#member-typed-facts). A data type or
 // enum declared with `@annotate::[F](...)` is a typed fact type `D`, and `F`
@@ -198,6 +202,10 @@ export function withTypedFacts(program: Program, error: Report): Program {
   };
 
   const functions = new Map(declared.functions.map((item) => [item.name, item] as const));
+  const importOrigins = new Map<string, string>();
+  for (const use of declared.uses)
+    for (const imported of use.names)
+      importOrigins.set(imported.alias ?? imported.name, `${use.module}.${imported.name}`);
   // A bound's supertraits are bounds too, so the fixed type of a parameter
   // bounded by `Integer` meets a bound `Num` (annot.typed-fact.monomorphic.bound).
   const traits = new Map(declared.traits.map((item) => [item.name, item] as const));
@@ -220,11 +228,21 @@ export function withTypedFacts(program: Program, error: Report): Program {
     });
   const factTypeOf = (fact: Expression): TypedFactType | undefined => {
     if (fact.kind === "data") return local.get(fact.name);
-    if (fact.kind !== "call" || fact.callee.kind !== "name") return undefined;
-    const declaration = functions.get(fact.callee.name);
+    if (fact.kind !== "call") return undefined;
+    const callee =
+      fact.callee.kind === "name"
+        ? fact.callee.name
+        : fact.callee.kind === "member" && fact.callee.receiver.kind === "name"
+          ? standardSubmoduleFunctionName(
+              importOrigins.get(fact.callee.receiver.name),
+              fact.callee.name,
+            )
+          : undefined;
+    if (!callee) return undefined;
+    const declaration = functions.get(callee);
     if (declaration)
       return declaration.resultOmitted ? undefined : local.get(baseName(declaration.result.name));
-    const standard = standardResultDeclaration(declared, fact.callee.name);
+    const standard = standardResultDeclaration(declared, callee);
     if (!standard) return undefined;
     const call = standard.declaration.decorators?.facts.find(
       (item) =>
