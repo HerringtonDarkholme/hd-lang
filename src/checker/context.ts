@@ -947,7 +947,7 @@ export abstract class CheckerContext {
    * The Inspectable dictionary of type parameter `name`: its own `Inspectable`
    * bound, or one whose trait extends it, as `E < Error` does.
    */
-  private inspectableBound(
+  protected inspectableBound(
     name: string,
     traitIndex: number,
     span: SourceSpan,

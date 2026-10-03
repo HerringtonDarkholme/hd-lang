@@ -176,9 +176,10 @@ export function forwardingPlan(
   traitIndex: number,
   traitArguments: readonly ValueType[],
 ): HirTraitDictionaryPlan | undefined {
-  if (!type.startsWith("trait:")) return undefined;
+  const sourceType = readonlyType(type);
+  if (!sourceType.startsWith("trait:")) return undefined;
   const byIndex = new Map([...traits.values()].map((trait) => [trait.index, trait] as const));
-  const key = type.slice("trait:".length);
+  const key = sourceType.slice("trait:".length);
   const source = traits.get(nominalGenericParts(key)?.name ?? key);
   if (!source || traitArguments.length > 0) return undefined;
   const search = (

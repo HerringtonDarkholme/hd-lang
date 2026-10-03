@@ -6,7 +6,8 @@ import type {
   HirOrderingStrategy,
   ValueType,
 } from "../hir.ts";
-import { optionalInner, readonlyType } from "../types.ts";
+import { STANDARD_INSPECTABLE } from "../checker/standard-traits.ts";
+import { mutableInner, optionalInner, readonlyType } from "../types.ts";
 import { EmitterContext } from "./context.ts";
 import { numericType } from "../numeric.ts";
 import { scalarWasm } from "./scalars.ts";
@@ -506,6 +507,24 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     return `(struct.new $trait${trait.index} ${value} (ref.null $hd.list)${[...methods, ...parents].map((part) => ` ${part}`).join("")})`;
   }
 
+  /** Static `TypeId` reads use a sentinel instead of a dynamic trait receiver. */
+  private emitForwardedRuntimeType(
+    builtin: Extract<HirBuiltinTraitImplementation, { kind: "forward" }>,
+    forwarded: string,
+  ): string {
+    const inner = mutableInner(builtin.targetType);
+    const target = inner ?? builtin.targetType;
+    const name = target.slice("trait:".length);
+    const plain = this.emitStringLiteral(name);
+    const nested = inner
+      ? `(call ${this.stringFunction("concat")} ${this.emitStringLiteral("mut ")} ${plain})`
+      : plain;
+    const typeId = this.dataByName.get("TypeId")!.index;
+    const resultType = `(ref null $d${typeId})`;
+    const value = (key: string): string => `(struct.new $d${typeId} ${key})`;
+    return `(if (result ${resultType}) (ref.is_null (local.get $self)) (then ${value(plain)}) (else (if (result ${resultType}) (ref.test (ref i31) (local.get $self)) (then ${value(nested)}) (else ${forwarded}))))`;
+  }
+
   /** The functions behind forwarding dictionaries, one per trait method. */
   emitForwardingAdapters(): string {
     return [...this.forwardingAdapters.values()]
@@ -538,7 +557,11 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
             ...method.requirements.map((_, providerIndex) => `(local.get $p${providerIndex})`),
           ];
           const call = `(call_ref $tsig${trait.index}_${method.index} (struct.get $trait${builtin.sourceTraitIndex} $trait${builtin.sourceTraitIndex}value ${source}) ${dictionary}${forwarded.map((part) => ` ${part}`).join("")} (struct.get $trait${trait.index} $trait${trait.index}m${method.index} ${dictionary}))`;
-          return `(func $tforward${index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...bounds, ...providers].join(" ")}${result}\n  ${call}\n)`;
+          const body =
+            trait.standardName === STANDARD_INSPECTABLE && method.name === "runtime_type"
+              ? this.emitForwardedRuntimeType(builtin, call)
+              : call;
+          return `(func $tforward${index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...bounds, ...providers].join(" ")}${result}\n  ${body}\n)`;
         });
       })
       .join("\n\n");

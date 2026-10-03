@@ -1384,7 +1384,7 @@ export abstract class CallChecker extends StatementChecker {
       if (!implementation) {
         const builtin =
           this.builtinTraitDictionaryPlan(bound.traitIndex, actual, traitArguments, span) ??
-          forwardingPlan(this.traitTypes, readonlyType(actual), bound.traitIndex, traitArguments);
+          forwardingPlan(this.traitTypes, actual, bound.traitIndex, traitArguments);
         if (builtin)
           return {
             kind: "trait-dictionary",

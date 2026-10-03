@@ -45,22 +45,14 @@ export abstract class InspectChecker extends MemberLookupChecker {
     const type = readonlyType(target);
     const generic = genericTypeName(type);
     if (generic) {
-      const boundIndex = this.signature.genericBounds.findIndex(
-        (bound) => bound.parameter === generic && bound.traitIndex === trait.index,
-      );
-      if (boundIndex < 0)
+      const dictionary = this.inspectableBound(generic, trait.index, span);
+      if (!dictionary)
         this.fail(
           "unsatisfied-trait-bound",
           `generic parameter '${generic}' does not implement Inspectable`,
           span,
         );
-      return {
-        kind: "trait-bound-dictionary",
-        traitIndex: trait.index,
-        boundIndex,
-        type: `trait:${INSPECTABLE}`,
-        span,
-      };
+      return dictionary;
     }
     const traitValue = traitTypeName(type);
     const plan =
