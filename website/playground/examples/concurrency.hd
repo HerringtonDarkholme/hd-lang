@@ -1,0 +1,40 @@
+# Why: a page that needs a profile and its orders should wait for the slower
+# call, not for both one after the other. `all!` runs them together, and
+# `defer` runs the cleanup when the page ends, even if either call fails.
+use std.task.all
+use std.time.{Clock, ManualClock, Timestamp, ms}
+
+data Profile:
+    name: string
+
+# Stand-ins for two HTTP services: each waits on the injected clock to
+# imitate network latency. Tests and this playground use a ManualClock, so
+# nothing really sleeps.
+fn fetch_profile!(id: i32) -> Profile $ Clock:
+    let mut clock = $.use(Clock)
+    clock.sleep!(120ms)
+    Profile { name: "user-$id" }
+
+fn fetch_orders!(id: i32) -> List[string] $ Clock:
+    let mut clock = $.use(Clock)
+    clock.sleep!(80ms)
+    ["book", "lamp"]
+
+let closed: mut List[string] = []
+
+# One after the other this would take 120ms + 80ms. With `all!` the page is
+# ready after the slower call, 120ms.
+fn page!(id: i32) -> string $ Clock:
+    defer:
+        closed.push("page $id")
+    let (profile, orders) = all!(fetch_profile(id), fetch_orders(id))
+    "${profile.name} has ${orders.len()} orders"
+
+pub fn main!() -> void $ Console:
+    $.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
+        println(page!(7))
+    println("closed: ${closed.len()}")
+
+# Output:
+#   user-7 has 2 orders
+#   closed: 1

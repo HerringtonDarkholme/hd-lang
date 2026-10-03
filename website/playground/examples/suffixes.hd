@@ -1,3 +1,5 @@
+# Why: `250ms` and `12px` carry their unit in the type, so a `Pixels` can't be
+# passed where a `Duration` is expected, and a retry schedule reads as data.
 # A number with a suffix calls its suffix function, one marked
 # `@num_suffix`: `12px` means `px(12)`. `std.time` declares `ms`, `s`,
 # `min`, and `h`, so `250ms` and `5s` are both a `Duration`.

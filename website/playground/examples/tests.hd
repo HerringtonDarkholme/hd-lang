@@ -1,5 +1,6 @@
-# Press Test. A file's test cases live in one `tests:` block: `it` runs one
-# case, `it_each` one case per row, and `snapshot` compares text.
+# Why: tests sit next to the code they check and run with `hd test`, no
+# framework to install. `it` runs one case, `it_each` one case per row, and
+# `snapshot` compares text.
 use std.testing.{assert_equal, it_each, snapshot}
 use std.time.s
 

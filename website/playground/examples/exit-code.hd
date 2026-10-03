@@ -1,3 +1,5 @@
+# Why: a script tells its caller (a shell, CI) whether it succeeded, and `?`
+# turns an early error into a failing exit code.
 # `main` returns any `Termination` type: `void`, an `ExitCode`, or a
 # `Result` over one. `ExitCode(0)` is success; an `.Err` exits with 1.
 use std.process.ExitCode

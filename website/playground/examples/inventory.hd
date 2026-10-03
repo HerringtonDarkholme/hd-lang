@@ -1,0 +1,37 @@
+# Why: the everyday core. Plain data, a loop, and a function that says what it
+# returns, with no class, no `new`, and no null: a missing item is `.None`.
+data Item:
+    sku: string
+    on_hand: i32
+    reorder_at: i32
+
+fn needs_restock(item: Item) -> bool:
+    item.on_hand <= item.reorder_at
+
+fn find(items: List[Item], sku: string) -> Item?:
+    for item in items:
+        if item.sku == sku:
+            return .Some(item)
+    .None
+
+pub fn main() -> void $ Console:
+    items := [
+        Item { sku: "lamp", on_hand: 3, reorder_at: 5 },
+        Item { sku: "desk", on_hand: 12, reorder_at: 4 },
+        Item { sku: "chair", on_hand: 4, reorder_at: 4 },
+    ]
+    let low = 0
+    for item in items:
+        if needs_restock(item):
+            low = low + 1
+            println("restock ${item.sku}: ${item.on_hand} left")
+    println("$low of ${items.len()} items are low")
+    match find(items, "sofa"):
+        .Some(item) => println("found ${item.sku}")
+        .None => println("no sofa in stock")
+
+# Output:
+#   restock lamp: 3 left
+#   restock chair: 4 left
+#   2 of 3 items are low
+#   no sofa in stock

@@ -1,0 +1,54 @@
+# Why: failures are values in the signature. `?` returns early, `@error` gives
+# each failure a message, and `.context` explains what the program was doing.
+use std.error.{Error, report_of}
+use std.num.{ParseNumberError, parse_i32}
+use std.testing.{assert, assert_equal}
+
+@error
+enum ConfigError:
+    @error("missing key '$key'")
+    Missing(key: string)
+    @error("port '$text' is not a number")
+    BadPort(text: string, @source error: ParseNumberError)
+
+fn lookup(config: string, key: string) -> Result[string, ConfigError]:
+    for line in config.lines():
+        match line.split_once("="):
+            .Some((k, v)) =>
+                if k.trim() == key:
+                    return .Ok(v.trim())
+            .None => pass
+    .Err(ConfigError.Missing(key))
+
+# Every `?` below either yields the value or returns the error. Nothing is
+# thrown, and the signature tells callers what can go wrong.
+fn port(config: string) -> Result[i32, ConfigError]:
+    text := lookup(config, "port")?
+    match parse_i32(text):
+        .Ok(n) => .Ok(n)
+        .Err(e) => .Err(ConfigError.BadPort(text, e))
+
+# At the boundary, `.context` wraps any error with what was being attempted.
+fn start(config: string) -> Result[string, Error]:
+    n := port(config).context("starting the server")?
+    .Ok("listening on $n")
+
+pub fn main() -> void $ Console:
+    for config in ["port = 8080", "host = local", "port = eighty"]:
+        match start(config):
+            .Ok(message) => println(message)
+            .Err(e) => println(report_of(e))
+
+# Output:
+#   listening on 8080
+#   starting the server
+#   caused by: missing key 'port'
+#   starting the server
+#   caused by: port 'eighty' is not a number
+#   caused by: invalid digit at position 0
+
+tests:
+    it("a missing key is a typed error callers can match"):
+        match port("host = local"):
+            .Err(ConfigError.Missing(key)) => assert_equal(key, "port", reason="the key")
+            _ => assert(false, reason="expected Missing")

@@ -5,7 +5,11 @@
 import closures from "../examples/closures.hd";
 import derive from "../examples/derive.hd";
 import exitCode from "../examples/exit-code.hd";
-import mutableRequirement from "../examples/mutable-requirement.hd";
+import requirements from "../examples/requirements.hd";
+import concurrency from "../examples/concurrency.hd";
+import errors from "../examples/errors.hd";
+import exhaustive from "../examples/exhaustive.hd";
+import inventory from "../examples/inventory.hd";
 import numbers from "../examples/numbers.hd";
 import panic from "../examples/panic.hd";
 import standard from "../examples/std.hd";
@@ -15,13 +19,7 @@ import topLevel from "../examples/top-level.hd";
 import packageMain from "../examples/package/src/main.hd";
 import packageModels from "../examples/package/src/models/mod.hd";
 import packageUser from "../examples/package/src/models/user.hd";
-import core from "../../../examples/core.hd";
-import suspension from "../../../examples/suspension.hd";
-import providers from "../../../spec/conformance/runtime/valid/context-values-install-providers.hd";
-import embedding from "../../../spec/conformance/runtime/valid/embedded-field-satisfies-trait.hd";
 import hello from "../../../spec/conformance/runtime/valid/println-console-stdout.hd";
-import conversion from "../../../spec/conformance/runtime/valid/propagation-from-two-domains.hd";
-import scopes from "../../../spec/conformance/runtime/valid/write-line-around-suspending-provider-scope.hd";
 import { DEFAULT_MAIN, type Project } from "./project.ts";
 
 export interface Example {
@@ -38,21 +36,19 @@ const single = (id: string, title: string, source: string): Example => ({
 
 export const EXAMPLES: readonly Example[] = [
   single("hello", "Hello, world", hello),
-  single("top-level", "Top-level code without main", topLevel),
-  single("core", "Data, loops, and functions", core),
-  single("closures", "Closures", closures),
-  single("numbers", "i64 and u8", numbers),
+  single("requirements", "Requirements and providers: fake mail and clock in a test", requirements),
+  single("derive", "@derive(Arbitrary) and a property test that finds a bug", derive),
+  single("errors", "Result, ?, and .context: typed errors with a report", errors),
+  single("exhaustive", "Exhaustive match: a new variant shows every place to update", exhaustive),
+  single("concurrency", "all! and defer: two services at once", concurrency),
   single("tests", "Tests: it, it_each, and snapshot", tests),
-  single("errors", "Error conversion with ? (tests)", conversion),
+  single("closures", "Closures that capture local state", closures),
+  single("numbers", "Checked integers: i64 and u8", numbers),
+  single("suffixes", 'Literal suffixes and string prefixes: 250ms and r"..."', suffixes),
+  single("std", "Parsing messy input with the toy standard library", standard),
+  single("top-level", "Top-level code without main", topLevel),
+  single("inventory", "Data, loops, and Option: a stock report", inventory),
   single("exit-code", "Exit codes from main", exitCode),
-  single("suffixes", 'Literal suffixes and string prefixes: 12px and r"..."', suffixes),
-  single("std", "The toy standard library", standard),
-  single("derive", "Typed derivation with @derive", derive),
-  single("mutable-requirement", "Mutable requirements", mutableRequirement),
-  single("providers", "Requirements and providers (tests)", providers),
-  single("provider-scope", "Provider scope around a suspending call", scopes),
-  single("suspension", "Suspension", suspension),
-  single("embedding", "Embedding and traits (tests)", embedding),
   single("panic", "Runtime panic", panic),
   {
     id: "package",

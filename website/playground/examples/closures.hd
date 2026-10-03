@@ -1,16 +1,23 @@
-# A closure is `fn` without a name. With an expected function type, its
-# parameters need no annotations, and it may assign `let` bindings it captures.
-fn apply_all(values: List[i32], f: fn(i32) -> i32) -> List[i32]:
-    [for value in values => f(value)]
+# Why: pass a rule to a function without declaring a named function for it.
+# The closure sees the local `rate` and `audit`, so no context struct is
+# needed. Parameter types come from the expected `fn(i32) -> i32`.
+fn apply_all(prices: List[i32], rule: fn(i32) -> i32) -> List[i32]:
+    [for price in prices => rule(price)]
 
 pub fn main() -> void $ Console:
-    offset := 10
-    shifted := apply_all([1, 2, 3], fn(x): x + offset)
-    println("${shifted[0]} ${shifted[1]} ${shifted[2]}")
+    prices := [1000, 2500, 400]
 
-    let calls: i32 = 0
-    bump := fn() -> void:
-        calls = calls + 1
-    bump()
-    bump()
-    println("bumped $calls times")
+    rate := 20
+    discounted := apply_all(prices, fn(cents): cents - cents * rate / 100)
+    println("discounted: ${discounted[0]} ${discounted[1]} ${discounted[2]}")
+
+    let audit: i32 = 0
+    rounded := apply_all(prices, fn(cents) -> i32:
+        audit = audit + 1
+        cents / 100 * 100
+    )
+    println("rounded ${rounded[2]} after $audit calls")
+
+# Output:
+#   discounted: 800 2000 320
+#   rounded 400 after 3 calls

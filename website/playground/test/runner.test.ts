@@ -416,11 +416,23 @@ test("the bundled examples run", async () => {
     "best: 41",
     "cutoff: 40",
   ]);
-  assert.deepEqual(await outcome("derive", "run"), [
+  assert.deepEqual(await outcome("derive", "run"), ["exited normally", "0.05", "1.50", "-10.00"]);
+  assert.deepEqual(await outcome("requirements", "test"), ["1 test passed"]);
+  assert.deepEqual(await outcome("derive", "test"), ["1 test passed"]);
+  assert.deepEqual(await outcome("exhaustive", "test"), ["1 test passed"]);
+  assert.deepEqual(await outcome("errors", "run"), [
     "exited normally",
-    "field x",
-    "field y",
-    "true",
+    "listening on 8080",
+    "starting the server",
+    "caused by: missing key 'port'",
+    "starting the server",
+    "caused by: port 'eighty' is not a number",
+    "caused by: invalid digit at position 0",
+  ]);
+  assert.deepEqual(await outcome("concurrency", "run"), [
+    "exited normally",
+    "user-7 has 2 orders",
+    "closed: 1",
   ]);
   const topLevel = EXAMPLES.find(({ id }) => id === "top-level")!;
   assert.deepEqual((await runner.runProject(topLevel.project, "run")).stdout, [

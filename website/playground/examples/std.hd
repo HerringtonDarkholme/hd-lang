@@ -1,3 +1,5 @@
+# Why: parse messy input and report what was skipped. Bad rows become
+# values to handle, not crashes.
 # The toy standard library. Methods on built-in types, such as
 # `unwrap_or` and `sorted_by`, need no `use`; module names are imported.
 use std.cmp.max

@@ -1,35 +1,50 @@
-# `@derive` applies a trait's derivation template to a type. `Eq` comes from
-# std; `FieldNames` is this file's own template, `impl[T] ... by Structure`.
-use std.structure.{Structure, Field, Variant, Describer}
+# Why: `@derive(Arbitrary, ...)` gives `it_prop` inputs for free, and it finds
+# the round-trip bug that hand-picked examples miss.
+use std.num.parse_i32
+use std.testing.{Arbitrary, assert_equal, it_prop}
 
-trait FieldNames:
-    fn field_names() -> List[string]
+@derive(Arbitrary, Debug, Eq)
+data Money:
+    cents: i32
 
-data NameLister:
-    names: mut List[string]
+# The first version printed `"${m.cents / 100}.${m.cents % 100}"`. 5 cents
+# became "0.5", which `parse` rejects. Two hand-written examples (150 and
+# 1200) passed. `hd test` then reported:
+#   property test "parse undoes print" shrunk input Money { cents: -1000 };
+#   assertion-failed: round trip: actual None, expected Some(Money { cents: -1000 })
+fn pad(n: i32) -> string:
+    if n < 10:
+        "0$n"
+    else:
+        n.to_string()
 
-impl[S] Describer[S] for NameLister:
-    type Error = never
+fn print(m: Money) -> string:
+    sign := if m.cents < 0: "-" else: ""
+    abs := if m.cents < 0: 0 - m.cents else: m.cents
+    "$sign${abs / 100}.${pad(abs % 100)}"
 
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok(())
-
-    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
-        self.names.push(h.info.name)
-        .Ok(())
-
-impl[T] FieldNames for T by Structure:
-    fn field_names() -> List[string]:
-        let mut lister = NameLister { names: [] }
-        _ := T::describe(lister)
-        lister.names
-
-@derive(Eq, FieldNames)
-data Point:
-    x: i32
-    y: i32
+fn parse(text: string) -> Money?:
+    negative := text.starts_with("-")
+    body := if negative: text.slice(1, text.len()) else: text
+    match body.split_once("."):
+        .None => .None
+        .Some((whole, frac)) =>
+            if frac.len() != 2:
+                return .None
+            match parse_i32(whole):
+                .Err(_) => .None
+                .Ok(w) =>
+                    match parse_i32(frac):
+                        .Err(_) => .None
+                        .Ok(f) =>
+                            cents := w * 100 + f
+                            .Some(Money { cents: if negative: 0 - cents else: cents })
 
 pub fn main() -> void $ Console:
-    for name in Point::field_names():
-        println("field $name")
-    println(Point { x: 1, y: 2 } == Point { x: 1, y: 2 })
+    for cents in [5, 150, -1000]:
+        println(print(Money { cents: cents }))
+
+tests:
+    it_prop("parse undoes print", prop=fn!(m: Money):
+        assert_equal(parse(print(m)), .Some(m), reason="round trip")
+    )

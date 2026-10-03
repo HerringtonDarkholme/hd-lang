@@ -1,3 +1,5 @@
+# Why: a broken assumption stops the program loudly with a code, instead of
+# producing a wrong number. `average` has no guard here on purpose.
 # Integer division by zero is a runtime panic: the program stops, and the
 # output panel reports the panic code.
 fn average(total: i32, count: i32) -> i32: total / count

@@ -1,3 +1,5 @@
+# Why: split a program across files, and keep each module's public surface
+# in one `mod.hd`.
 # A package with three modules. `src/models/mod.hd` re-exports what
 # `src/models/user.hd` declares, so this module uses it through `pkg.models`.
 use pkg.models.{User, greeting}

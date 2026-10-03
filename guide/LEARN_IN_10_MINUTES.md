@@ -216,7 +216,9 @@ println(post.created_at)
 
 An `enum` is a closed set of variants, and a variant may carry named
 payload fields. Where the expected type is known, `.Variant` names a
-variant.
+variant. A `match` must cover every variant, so adding a variant to `Shape`
+below makes the compiler point at each `match` that needs a new arm
+(`nonexhaustive-match`). Avoid a `_` arm when you want that to-do list.
 
 ```hd
 enum Shape:
@@ -250,7 +252,9 @@ Optionals and results are must-use values. Discard one on purpose with
 
 ## Errors and `?`
 
-Postfix `?` unwraps `.Some` or `.Ok` and returns `.None` or `.Err` from the
+Failures are values in the signature, not hidden exceptions, so a caller
+cannot forget that a call can fail. Postfix `?` keeps the happy path short: it
+unwraps `.Some` or `.Ok` and returns `.None` or `.Err` from the
 current function. When the error types differ, `?` converts the error once
 through a `From` implementation on the function's error type.
 
@@ -369,10 +373,14 @@ fn describe_value(value: Inspectable) -> string:
 
 ## Requirements and Providers
 
-A requirement row after `$` lists the traits a function needs from its
-context. `$.use` retrieves a provider, and `$.with` supplies providers for a
-block. There is no hidden global state: a missing provider is a compile-time
-error.
+A function that reads the clock, sends mail, or queries a database is hard
+to test and hard to review when it reaches for a global: the test must patch
+the global, and the signature hides what the function touches. A requirement
+row after `$` lists the traits a function needs from its context, so the
+signature shows it. `$.use` retrieves a provider, and `$.with` supplies
+providers for a block, so a test installs a fixed clock or a fake mailer with
+no mocking library. There is no hidden global state: a missing provider is a
+compile-time error (`missing-requirement`).
 
 ```hd
 trait Clock:

@@ -2788,6 +2788,26 @@ and the test runner notes.
 Requirements, provider contexts, and suspension are language features specified
 separately from ordinary functions and `Result` error handling.
 
+The problem they solve: a function that sends mail and reads the clock looks
+like any other function, and a test can check it only by patching globals. In
+hd the signature `fn welcome!(user: User) -> void $ Mailer + Clock` says what
+it touches, and a test supplies a fake mailer and a fixed clock for one block:
+
+```text
+fn welcome!(user: User) -> void $ Mailer + Clock:
+    let mut mailer = $.use(Mailer)
+    mailer.send!(user.email, "Welcome ${user.name}, it is ${$.use(Clock).now()}")
+
+tests:
+    it("sends one welcome mail"):
+        let outbox: mut Outbox = Outbox { sent: [] }
+        $.with(Mailer=outbox, Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
+            welcome!(User { name: "Ada", email: "ada@example.com" })
+        assert_equal(outbox.sent.len(), 1, reason="one mail")
+```
+
+Leaving out `Clock=` is a `missing-requirement` error at the call.
+
 hd-lang separates three concerns often grouped under algebraic effects:
 
 1. `$` rows statically check which dependencies a function requires.

@@ -1,3 +1,5 @@
+# Why: try an idea in three lines, with no `main` and no setup. Every
+# expression prints its value and type, as a REPL does.
 # No `main` here: Run evaluates each top-level input in order, the way the
 # REPL does, and prints every expression's value with its type.
 

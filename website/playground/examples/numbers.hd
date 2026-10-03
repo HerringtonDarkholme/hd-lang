@@ -1,5 +1,6 @@
-# `i64` holds values beyond `i32`. An `i32` never widens implicitly: write `i64(x)`.
-# `u8` holds 0 to 255, and its arithmetic is checked.
+# Why: integer overflow must never wrap silently. A total in milliseconds
+# does not fit `i32`, so widening is explicit, and `u8` arithmetic is checked.
+# An `i32` never widens implicitly: write `i64(x)`.
 fn to_millis(seconds: i64) -> i64: seconds * 1000
 
 pub fn main() -> void $ Console:
@@ -8,6 +9,13 @@ pub fn main() -> void $ Console:
     let minute: i32 = 60
     println(to_millis(i64(minute)))
 
-    let level: u8 = 250
-    println(level + 5)
-    # `level + 6` would stop the program with an integer-overflow panic.
+    # A `u8` volume holds 0 to 255.
+    let volume: u8 = 250
+    println(volume + 5)
+    # `volume + 6` would stop the program with an integer-overflow panic
+    # instead of wrapping around to a quiet 0.
+
+# Output:
+#   31536000000
+#   60000
+#   255

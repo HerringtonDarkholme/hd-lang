@@ -1,0 +1,47 @@
+# Why: the signature of `welcome!` says it sends mail and reads the clock,
+# and a test can swap in fakes for both without a mocking library.
+use std.testing.assert_equal
+use std.time.{Clock, ManualClock, Timestamp}
+
+data User:
+    name: string
+    email: string
+
+trait Mailer:
+    fn send!(mut self, to: string, body: string) -> void
+
+# A reviewer reads `$ Mailer + Clock` and knows what this can touch.
+fn welcome!(user: User) -> void $ Mailer + Clock:
+    let mut mailer = $.use(Mailer)
+    at := $.use(Clock).now()
+    mailer.send!(user.email, "Welcome ${user.name}, you joined at ${at}")
+
+# This provider records mail instead of sending it. Production would install
+# an SMTP mailer; the tests below read `sent` to see what went out.
+data Outbox:
+    sent: mut List[string]
+
+impl Mailer for Outbox:
+    fn send!(mut self, to: string, body: string) -> void:
+        self.sent.push("$to|$body")
+
+fn epoch() -> mut ManualClock:
+    ManualClock::new(Timestamp::from_unix_milliseconds(0))
+
+# `main` lists everything the program may touch: the console and nothing
+# else. Dropping `Clock=` below is a `missing-requirement` error at the call
+# to `welcome!`; `welcome!` itself cannot print or read files.
+pub fn main!() -> void $ Console:
+    let outbox: mut Outbox = Outbox { sent: [] }
+    $.with(Mailer=outbox, Clock=epoch()):
+        welcome!(User { name: "Ada", email: "ada@example.com" })
+    for line in outbox.sent:
+        println(line)
+
+tests:
+    it("welcome mails the new user at the fixed time"):
+        let outbox: mut Outbox = Outbox { sent: [] }
+        $.with(Mailer=outbox, Clock=epoch()):
+            welcome!(User { name: "Ada", email: "ada@example.com" })
+        assert_equal(outbox.sent.len(), 1, reason="one mail")
+        assert_equal(outbox.sent[0], "ada@example.com|Welcome Ada, you joined at 1970-01-01T00:00:00Z", reason="body")
