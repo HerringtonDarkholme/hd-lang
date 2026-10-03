@@ -36,6 +36,7 @@ export abstract class TraitCallChecker extends InspectChecker {
     readonly candidateTrait: HirTrait;
     readonly method: HirTraitMethod;
     readonly mapping: HirTraitMethodFunction;
+    readonly traitArguments: readonly ValueType[];
     readonly substitutions: ReadonlyMap<string, ValueType>;
   }[] {
     return this.implementations.flatMap((implementation) => {
@@ -51,7 +52,15 @@ export abstract class TraitCallChecker extends InspectChecker {
         method &&
         implementation.methodFunctions.find((candidate) => candidate.methodIndex === method.index);
       return candidateTrait && method && mapping
-        ? [{ candidateTrait, method, mapping, substitutions }]
+        ? [
+            {
+              candidateTrait,
+              method,
+              mapping,
+              substitutions,
+              traitArguments: implementation.traitArguments,
+            },
+          ]
         : [];
     });
   }

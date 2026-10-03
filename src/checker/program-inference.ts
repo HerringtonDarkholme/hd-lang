@@ -8,10 +8,18 @@ import type { ProgramCheckContext } from "./program-context.ts";
 // A signature map whose omitted result types are inferred on first lookup, so
 // a caller always sees the callee's final result type.
 class LazySignatures extends Map<string, Signature> {
-  resolve?: (name: string) => void;
+  // Keep lazy inference state reachable from the signature map. Argument
+  // transactions must restore pending results, failures and diagnostics along
+  // with signatures; an opaque callback would hide those mutations.
+  readonly inference: SignatureInference;
+
+  constructor(inference: SignatureInference) {
+    super();
+    this.inference = inference;
+  }
 
   override get(name: string): Signature | undefined {
-    if (this.resolve && super.has(name)) this.resolve(name);
+    if (super.has(name)) this.inference.resolveResult(name);
     return super.get(name);
   }
 
@@ -33,7 +41,7 @@ function displayName(name: string): string {
 // Rows start empty and are recomputed until no row grows, which yields the
 // least rows for mutually recursive functions.
 export class SignatureInference {
-  readonly signatures = new LazySignatures();
+  readonly signatures: LazySignatures;
   // Functions whose inference already reported an error; the final pass skips them.
   readonly failed = new Set<string>();
   private readonly declarationsByName = new Map<string, FunctionDecl>();
@@ -54,6 +62,7 @@ export class SignatureInference {
     implementations: readonly HirTraitImplementation[],
     moduleDeclaration: FunctionDecl | undefined,
   ) {
+    this.signatures = new LazySignatures(this);
     this.context = context;
     this.declarations = declarations;
     this.implementations = implementations;
@@ -65,7 +74,6 @@ export class SignatureInference {
       if (declaration.requirementsOmitted && !declaration.public)
         this.rowNames.add(declaration.name);
     }
-    this.signatures.resolve = (name) => this.resolveResult(name);
   }
 
   get active(): boolean {
@@ -138,7 +146,7 @@ export class SignatureInference {
     ).check();
   }
 
-  private resolveResult(name: string): void {
+  resolveResult(name: string): void {
     if (!this.pendingResults.has(name)) return;
     const cycleStart = this.inferring.indexOf(name);
     if (cycleStart >= 0) {

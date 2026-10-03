@@ -77,7 +77,9 @@ interface CheckedProviderEntries {
 
 export abstract class CallChecker extends StatementChecker {
   /** Arguments a call rewrite has already checked, such as a spread tuple's elements. */
-  protected readonly prechecked = new WeakMap<Expression, HirExpression>();
+  // Enumerable so argument trials can roll back context-dependent entries.
+  // Its lifetime is the function checker, not a process-wide AST cache.
+  protected readonly prechecked = new Map<Expression, HirExpression>();
 
   /**
    * Whether `type` implements the trait `traitName`: a type parameter through

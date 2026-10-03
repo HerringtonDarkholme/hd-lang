@@ -23,6 +23,34 @@ This closes these specific A07 defects, not the full host ABI, replay, or captur
 
 Regression tests: [captured-cells.test.ts](../../src/checker/captured-cells.test.ts).
 
+### Independent Repair: Candidate Transactions
+
+Candidate checking now accepts arbitrary argument expressions instead of allowing only a syntax whitelist.
+Each attempt runs under a rollback transaction over the checker's reachable state, preserving existing object identities.
+Locals, captures, diagnostics, enumerable argument caches, and lazy signature inference participate in the same transaction.
+Nested attempts restore their own entry state, whether they succeed or fail.
+
+The selected candidate is checked again outside the transaction; trial HIR is never committed.
+Associated calls use the same instantiation fitting, expected-result check, and numeric literal default tie-break.
+Distinct traits remain ambiguous instead of acquiring argument-based overload resolution.
+
+The transaction contract covers ordinary properties, arrays, maps, and sets.
+Opaque weak collections fail closed; adding external mutable caches or private slots requires extending the contract.
+The repair trades snapshot cost for a simple rollback guarantee; it makes no performance claim.
+
+Regression tests: [call-speculation.test.ts](../../src/checker/call-speculation.test.ts).
+
+Candidate edge cases for later conformance fixtures:
+
+| Input shape | Required observation |
+| --- | --- |
+| Reverse two instantiations while an unannotated closure fits only one | The same candidate and result are selected, without duplicate captures or locals |
+| A tuple spread or named argument is checked against several associated candidates | Failed attempts do not affect the winner's argument order or generated locals |
+| A failed attempt first calls a function with an omitted result type | Later candidates and final checking see its correctly inferred result, not stale partial inference |
+| An argument introduces a provider scope, captured value, or suspended child | Trial effects disappear; the selected call retains exactly its own effects |
+| Two unrelated traits offer a method with the same name but different parameter types | Argument fitting does not resolve the ambiguity |
+| Two associated instantiations accept the arguments, but only one result fits the expected type | Select the result-compatible instantiation |
+
 ### Repair Status Table
 
 | Finding | Status | Repair and limits |
@@ -30,6 +58,7 @@ Regression tests: [captured-cells.test.ts](../../src/checker/captured-cells.test
 | A02 | Partially fixed | Public readonly inherent instance signatures now participate in nominal variance verification. Type encoding, coercion and least-common-type findings remain open. Private-surface interpretation remains deferred. |
 | A03 | Reported control-flow defect fixed | All child-driving bodies use the suspension CFG. The linear backend and comprehension bypass are removed. This does not close A06's entry/waker gap or prove all lowering correct. |
 | A04 | Reported placeholder capture fixed | Generated expression and type placeholders cannot capture legal user identifiers. Broader generated helper-name hygiene remains unreviewed. |
+| A05 | Reported candidate-checking defects fixed | Arbitrary argument expressions and associated candidates are checked under complete reachable-state rollback, then the winner is committed once. Broader resolution conformance remains open. |
 
 ## Reproduced Failures And Repairs
 
