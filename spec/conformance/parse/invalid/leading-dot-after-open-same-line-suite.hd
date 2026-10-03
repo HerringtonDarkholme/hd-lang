@@ -1,6 +1,6 @@
 # test: a leading-dot line cannot continue a line whose same-line suite is still open
 
-fn sizer() -> fn(string) -> i32:
+fn sizer() -> fn(string) -> usize:
     f := fn(name: string) -> i32: name
         .len()  # diagnostic: syntax-error
     f

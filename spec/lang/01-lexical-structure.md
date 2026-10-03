@@ -109,8 +109,8 @@ word := line
 14. r[lex.continue.paren-line] A line whose first token is `(` never continues the previous line either. Outside delimiters it starts a new logical line, so `f` on one line and `(a, b)` on the next are two statements, never the call `f(a, b)`.
 
 ```text
-fn sizer() -> fn(string) -> i32:
-    f := fn(name: string) -> i32: name
+fn sizer() -> fn(string) -> usize:
+    f := fn(name: string) -> usize: name
         .len()  # error: syntax-error
     f
 
@@ -134,7 +134,7 @@ A [pipe](05-expressions.md#pipe-expressions) chain may continue on lines
 that start with `|>`:
 
 ```text
-fn label(raw: string) -> i32:
+fn label(raw: string) -> usize:
     raw
         |> _.slice(0, 8)
         |> _.len()
@@ -148,7 +148,7 @@ fn label(raw: string) -> i32:
 6. r[lex.pipe.dot-before] A leading-dot line before the first `|>` of its logical line is valid. It continues the value that the chain pipes, as `.len()` does in `values`, `.len()`, `|> twice` on three lines.
 
 ```text
-fn size(raw: string) -> i32:
+fn size(raw: string) -> usize:
     count := raw
         |> _.slice(0, 8)
         .len()  # error: syntax-error

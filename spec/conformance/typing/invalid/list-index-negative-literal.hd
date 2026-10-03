@@ -1,0 +1,4 @@
+# test: a negated literal list index negates a usize
+# Spec 05 Indexing: expr.index.expected, expr.index.negative-literal.
+fn invalid(items: List[i32]) -> void:
+    a := items[-1]  # diagnostic: unsigned-negation

@@ -15,7 +15,7 @@ fn main() -> i32:
     number := identity(40)
     text := identity("hd")
     box := identity(Box { value: 2 })
-    choose(number + box.value, 42) + text.len() - 2
+    if text == "hd": choose(number + box.value, 42) else: 0
 
 tests:
     it("main returns 42"):

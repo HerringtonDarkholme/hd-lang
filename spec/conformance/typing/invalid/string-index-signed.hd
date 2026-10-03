@@ -1,0 +1,4 @@
+# test: a string index of a signed type is rejected
+# Spec 05 String Indexing: expr.index.string.unsigned.
+fn invalid(text: string, i: i32) -> void:
+    b := text[i]  # diagnostic: type-mismatch

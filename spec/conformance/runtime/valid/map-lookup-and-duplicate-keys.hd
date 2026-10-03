@@ -10,24 +10,17 @@ fn unwrap(value: i32?) -> i32:
         .Some(actual) => actual
         .None => 0
 
-fn main() -> i32:
-    scores := {"answer": 20, "other": 2, "answer": 40}
-    unwrap(lookup(scores, "answer")) + scores.len()
-
-fn scalar_keys() -> i32:
-    values := {1: 20, 2: 2, 1: 40}
-    unwrap(values.get(1)) + values.len()
-
-fn empty() -> i32:
-    let values: Map[string, i32] = {}
-    values.len()
-
 tests:
-    it("main returns 42"):
-        assert_equal(main(), 42, reason="collections / maps / lookup replacement")
+    it("a later duplicate key replaces the value"):
+        scores := {"answer": 20, "other": 2, "answer": 40}
+        assert_equal(unwrap(lookup(scores, "answer")), 40, reason="the later value wins")
+        assert_equal(scores.len(), 2, reason="the duplicate key adds no entry")
 
-    it("scalar_keys returns 42"):
-        assert_equal(scalar_keys(), 42, reason="collections / maps / lookup replacement")
+    it("scalar keys replace the same way"):
+        values := {1: 20, 2: 2, 1: 40}
+        assert_equal(unwrap(values.get(1)), 40, reason="the later value wins")
+        assert_equal(values.len(), 2, reason="the duplicate key adds no entry")
 
-    it("empty returns 0"):
-        assert_equal(empty(), 0, reason="collections / maps / lookup replacement")
+    it("an empty map has no entry"):
+        let values: Map[string, i32] = {}
+        assert_equal(values.len(), 0, reason="empty")

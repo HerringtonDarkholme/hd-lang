@@ -1,5 +1,5 @@
 # test: a list slice is a new list with mutable access, through the Out type of its Index implementation
-# Spec 05 Slicing: expr.index.slice.list.type, expr.index.std.list.range, expr.index.std.list.full (owner decision SLICE-MUT, batch 54).
+# Spec 05 Slicing: expr.index.slice.list.type, expr.index.std.list.range.unsigned, expr.index.std.list.full (owner decision SLICE-MUT, batch 54).
 use std.testing.assert_equal
 
 fn grow(items: List[i32]) -> List[i32]:

@@ -1,12 +1,12 @@
 # test: a tuple pattern may end in a spread pattern, a name or _ followed by ..., and one alone keeps the trailing comma
 # expect: parse
 
-fn total(t: (i32, List[i32]...)) -> i32:
+fn total(t: (usize, List[i32]...)) -> usize:
     let (a, xs...) = t
     let (_, _...) = t
     a + xs.len()
 
-fn only(values: (List[i32]...,)) -> i32:
+fn only(values: (List[i32]...,)) -> usize:
     let (xs...,) = values
     xs.len()
 

@@ -2,7 +2,11 @@
 
 use std.testing.assert_equal
 
-fn count(values...: List[i32]) -> i32: values.len()
+fn count(values...: List[i32]) -> i32:
+    let total = 0
+    for _ in values:
+        total = total + 1
+    total
 fn first_or(values...: List[i32]) -> i32:
     if values.len() == 0:
         9

@@ -2,9 +2,9 @@
 # expect: test
 use std.testing.assert_equal
 
-fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
+fn g(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
 
-fn apply(callback: fn(i32, i32, List[i32]...) -> i32) -> i32:
+fn apply(callback: fn(usize, usize, List[i32]...) -> usize) -> usize:
     callback(1, 2, 3, 4)
 
 tests:

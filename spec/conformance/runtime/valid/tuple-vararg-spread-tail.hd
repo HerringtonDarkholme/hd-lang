@@ -4,7 +4,7 @@
 use std.function.{Fn, Tuple}
 use std.testing.assert_equal
 
-fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
+fn g(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
 
 fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)

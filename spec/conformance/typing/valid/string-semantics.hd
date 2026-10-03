@@ -1,4 +1,4 @@
-fn byte_length(value: string) -> i32:
+fn byte_length(value: string) -> usize:
     value.len()
 
 fn byte_order(left: string, right: string) -> bool:

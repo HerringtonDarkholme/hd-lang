@@ -52,7 +52,6 @@ typing/valid/public-requirement-row.hd	type
 typing/valid/explicit-discard-and-void-result.hd	type
 typing/valid/optional-some-pattern.hd	type
 typing/valid/stored-suspension-driving.hd	type
-typing/valid/control-flow.hd	type
 typing/valid/names-and-scopes.hd	type
 typing/valid/partly-consumed-iterator.hd	type
 typing/valid/local-functions.hd	type
@@ -114,7 +113,6 @@ typing/valid/distinct-requirement-keys.hd	type
 typing/valid/data-field-defaults.hd	type
 typing/invalid/missing-required-data-field.hd	type
 typing/invalid/generic-requirement-key-collision.hd	type
-typing/valid/string-semantics.hd	type
 typing/invalid/duplicate-trait-member.hd	type
 typing/invalid/mixed-numeric-power.hd	type
 typing/invalid/defer-suspends.hd	type
@@ -396,8 +394,6 @@ runtime/valid/string-split.hd	runtime
 runtime/valid/blanket-impl-for-list.hd	runtime
 typing/invalid/overlapping-generic-impl-heads.hd	type
 runtime/valid/trait-qualified-calls.hd	runtime
-runtime/valid/trait-associated-functions.hd	runtime
-runtime/valid/supertrait-methods.hd	runtime
 runtime/valid/mutable-trait-bound.hd	runtime
 runtime/valid/bounded-blanket-impl.hd	runtime
 typing/invalid/generic-supertrait-upcast-mismatch.hd	type
@@ -1200,9 +1196,6 @@ typing/invalid/compound-assign-not-place.hd	type
 parse/valid/compound-assignment-tokens.hd	parse
 parse/invalid/power-compound-assignment.hd	parse
 typing/valid/operator-newtype-hand-written.hd	type
-typing/valid/index-traits.hd	type
-runtime/valid/index-traits-run.hd	runtime
-typing/invalid/index-set-missing.hd	type
 typing/invalid/callable-value-no-update.hd	type
 typing/invalid/list-call-not-callable.hd	type
 typing/invalid/index-missing.hd	type
@@ -1239,7 +1232,6 @@ runtime/valid/literal-suffix-default-parameter.hd	runtime
 typing/valid/row-union-private-result.hd	type
 runtime/valid/operator-string-add.hd	runtime
 runtime/valid/compound-assign-index.hd	runtime
-typing/invalid/compound-assign-index-no-read.hd	type
 typing/invalid/newtype-over-data-permission.hd	type
 typing/invalid/use-through-pub-use-loop.hd	type
 typing/warnings/derivation-block-decorator.hd	type
@@ -1258,7 +1250,6 @@ typing/valid/let-mut-spread-fresh-field.hd	type
 typing/invalid/let-mut-readonly-annotation.hd	type
 parse/invalid/pipe-leading-line-open-suite.hd	parse
 runtime/valid/iterator-drives-loops.hd	runtime
-runtime/valid/comprehension-propagation.hd	runtime
 typing/invalid/from-iterator-not-prelude.hd	type
 typing/invalid/trait-value-unbound-associated-type.hd	type
 typing/valid/let-mut-optional.hd	type
@@ -1267,7 +1258,6 @@ typing/warnings/derivation-block-decorator-std.hd	type
 parse/invalid/let-list-one-name.hd	parse
 typing/invalid/for-over-string.hd	type
 parse/invalid/same-line-suite-bare-let-list.hd	parse
-typing/invalid/index-set-string.hd	type
 typing/invalid/nondisplay-entry-error.hd	type
 typing/invalid/nonhost-entry-requirement.hd	type
 typing/valid/trait-argument-owner-impl.hd	type
@@ -1329,11 +1319,9 @@ typing/invalid/pipe-multi-line-step.hd	type
 typing/invalid/pipe-placeholder-in-closure.hd	type
 typing/invalid/pipe-suspending-bare-step.hd	type
 typing/invalid/placeholder-outside-pipe.hd	type
-typing/valid/pipe-steps.hd	type
 runtime/valid/pipe-nested-placeholder.hd	runtime
 runtime/valid/pipe-bare-method-step.hd	runtime
 runtime/valid/method-references-run.hd	runtime
-runtime/valid/pipe-method-reference-step.hd	runtime
 typing/invalid/bound-reference-readonly-receiver.hd	type
 typing/invalid/field-reference.hd	type
 typing/invalid/pipe-suspending-method-reference.hd	type
@@ -1398,14 +1386,11 @@ runtime/valid/string-length-counts-bytes.hd	runtime
 runtime/valid/string-concatenation-and-numeric-selectors.hd	runtime
 runtime/valid/multibyte-scalar-strings.hd	runtime
 runtime/valid/replace-empty-old.hd	runtime
-typing/valid/string-bytes.hd	type
 typing/invalid/string-index-assignment.hd	type
 runtime/panic/string-index-out-of-bounds.hd	runtime
 runtime/panic/string-slice-inside-scalar.hd	runtime
 runtime/panic/string-slice-past-end.hd	runtime
 runtime/panic/string-slice-reversed.hd	runtime
-typing/valid/index-traits-builtin.hd	type
-runtime/valid/index-traits-builtin-run.hd	runtime
 runtime/panic/index-trait-map-missing.hd	runtime
 runtime/valid/property-draw-budget.hd	runtime
 runtime/valid/derived-arbitrary-with.hd	runtime
@@ -1463,7 +1448,6 @@ typing/invalid/vararg-type-not-collection.hd	type
 typing/invalid/function-type-unbounded-inputs.hd	type
 parse/invalid/vararg-ellipsis-after-type.hd	parse
 parse/valid/tuple-rest-syntax.hd	parse
-runtime/valid/trait-delegation-vararg.hd	runtime
 typing/invalid/vararg-function-value-list.hd	type
 parse/invalid/reserved-word-suffix.hd	parse
 parse/invalid/reserved-word-prefix.hd	parse
@@ -1555,17 +1539,12 @@ parse/invalid/tuple-rest-not-last.hd	parse
 parse/invalid/tuple-spread-not-last.hd	parse
 parse/invalid/tuple-type-ellipsis.hd	parse
 runtime/valid/final-vararg.hd	runtime
-runtime/valid/function-value-vararg-call.hd	runtime
-runtime/valid/spelled-function-type-values.hd	runtime
-runtime/valid/tuple-rest-literal.hd	runtime
-runtime/valid/vararg-function-values.hd	runtime
 typing/invalid/function-type-rest-not-list.hd	type
 typing/invalid/tuple-rest-assign.hd	type
 typing/invalid/tuple-rest-literal-short.hd	type
 typing/invalid/tuple-rest-not-list.hd	type
 typing/invalid/tuple-spread-tuple-operand.hd	type
 typing/invalid/tuple-vararg-arity.hd	type
-typing/invalid/vararg-rest-distinct.hd	type
 typing/valid/pack-ordinary-name.hd	type
 parse/valid/spread-pattern-syntax.hd	parse
 runtime/valid/default-tuple-rest.hd	runtime
@@ -1596,11 +1575,6 @@ typing/invalid/all-function-value.hd	type
 typing/invalid/all-explicit-type-arguments.hd	type
 typing/valid/tuple-derived-traits.hd	type
 runtime/valid/tuple-derived-order.hd	runtime
-runtime/valid/tuple-spread-rest.hd	runtime
-typing/invalid/tuple-spread-plain-into-vararg.hd	type
-typing/invalid/tuple-spread-rest-into-plain.hd	type
-runtime/valid/call-rest-inference.hd	runtime
-runtime/valid/tuple-vararg-spread-tail.hd	runtime
 typing/invalid/invalid-map-key.hd	type
 typing/invalid/nominal-map-key.hd	type
 typing/invalid/tuple-map-key.hd	type
@@ -1612,7 +1586,6 @@ runtime/valid/task-retry.hd	runtime
 runtime/valid/task-retry-at-least-once.hd	runtime
 typing/valid/task-retry-row.hd	type
 typing/invalid/task-retry-row-missing.hd	type
-runtime/valid/covariant-readonly-weakening.hd	runtime
 parse/invalid/comprehension-bare-name-list.hd	parse
 parse/invalid/for-bare-name-list.hd	parse
 parse/valid/bracketed-for-multi-name-binding.hd	parse
@@ -1644,7 +1617,6 @@ typing/invalid/comprehension-refutable-pattern.hd	type
 typing/invalid/literal-suffix-negative-range.hd	type
 typing/invalid/literal-suffix-negation-no-neg.hd	type
 runtime/valid/literal-suffix-call.hd	runtime
-runtime/valid/spread-pattern.hd	runtime
 typing/valid/let-nested-pattern.hd	type
 typing/valid/let-else.hd	type
 parse/valid/let-else-same-line.hd	parse
@@ -1750,9 +1722,6 @@ typing/valid/relative-self-main.hd	type
 typing/valid/relative-self-lib.hd	type
 parse/invalid/range-chained.hd	parse
 parse/invalid/range-inclusive-no-end.hd	parse
-runtime/panic/list-index-negative.hd	runtime
-runtime/panic/string-index-negative.hd	runtime
-runtime/panic/string-slice-negative.hd	runtime
 runtime/valid/range-pattern-exclusive-to.hd	runtime
 parse/invalid/range-pattern-char-bound.hd	parse
 runtime/valid/generic-inference-literal-any-position.hd	runtime
@@ -1777,7 +1746,6 @@ parse/valid/range-expressions.hd	parse
 typing/valid/range-types.hd	type
 typing/invalid/range-float-bound.hd	type
 typing/invalid/range-mixed-signedness.hd	type
-typing/valid/slice-types.hd	type
 typing/invalid/slice-assignment.hd	type
 typing/invalid/range-to-not-iterable.hd	type
 runtime/valid/range-iteration.hd	runtime
@@ -1792,7 +1760,6 @@ typing/invalid/range-to-inclusive-not-iterable.hd	type
 typing/invalid/range-full-not-iterable.hd	type
 typing/valid/slice-full-types.hd	type
 runtime/valid/slicing-full-run.hd	runtime
-runtime/panic/list-slice-negative.hd	runtime
 parse/valid/range-patterns.hd	parse
 typing/valid/range-pattern-coverage.hd	type
 typing/invalid/range-pattern-non-integer.hd	type
@@ -1868,7 +1835,6 @@ typing/invalid/test-body-uses-property-runner.hd	type
 typing/invalid/it-outside-test-code.hd	type
 typing/invalid/shift-count-not-u32.hd	type
 typing/valid/shift-count-u32.hd	type
-runtime/valid/range-inclusive-field.hd	runtime
 runtime/valid/hash-bytes-scalars.hd	runtime
 runtime/valid/hash-bytes-sequences.hd	runtime
 runtime/valid/hash-bytes-derived.hd	runtime

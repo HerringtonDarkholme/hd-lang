@@ -581,11 +581,11 @@ tuple pattern and binds the [rest element](04-type-system.md#rest-elements)
 of a tuple to its list:
 
 ```text
-fn total(t: (i32, i32, List[i32]...)) -> i32:
+fn total(t: (usize, usize, List[i32]...)) -> usize:
     let (a, b, xs...) = t
     a + b + xs.len()
 
-fn lengths(rows: List[(string, List[i32]...)]) -> List[i32]:
+fn lengths(rows: List[(string, List[i32]...)]) -> List[usize]:
     [for (_, xs...) in rows => xs.len()]
 
 fn describe(t: (i32, List[i32]...)) -> string:

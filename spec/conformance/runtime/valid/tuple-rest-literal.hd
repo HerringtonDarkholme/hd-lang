@@ -2,18 +2,18 @@
 # expect: test
 use std.testing.assert_equal
 
-fn total(values: (i32, i32, List[i32]...)) -> i32:
+fn total(values: (usize, usize, List[i32]...)) -> usize:
     values._0 + values._1 + values._2.len()
 
 tests:
     it("a tuple expression collects the tail"):
-        let t: (i32, i32, List[i32]...) = (1, 2, 3, 4)
+        let t: (usize, usize, List[i32]...) = (1, 2, 3, 4)
         assert_equal(t._2, [3, 4], reason="the rest element holds the trailing values")
         assert_equal(total(t), 5, reason="two fixed elements and a two-element rest")
         assert_equal(total((1, 2)), 3, reason="an empty rest")
 
     it("a tuple expression spreads a list into the rest"):
         xs := [7, 8, 9]
-        t := (1, 2, xs...)
+        let t: (usize, usize, List[i32]...) = (1, 2, xs...)
         assert_equal(t._2, [7, 8, 9], reason="the spread list is the rest element")
-        assert_equal(total(t), 6, reason="the spread gives (i32, i32, List[i32]...)")
+        assert_equal(total(t), 6, reason="the spread gives (usize, usize, List[i32]...)")

@@ -1,7 +1,7 @@
 # test: a leading |> line cannot continue a line whose same-line suite is open
 # Spec 01 Leading-Pipe Continuation: lex.pipe.open-suite (Pipe PL6).
 
-fn sizer() -> fn(string) -> i32:
+fn sizer() -> fn(string) -> usize:
     f := fn(name: string) -> i32: name
         |> _.len()  # diagnostic: syntax-error
     f

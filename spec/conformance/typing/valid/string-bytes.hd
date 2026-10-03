@@ -5,22 +5,22 @@
 fn initial(name: string) -> u8:
     name[0]
 
-fn size(name: string) -> i32:
+fn size(name: string) -> usize:
     name.len()  # 6 for "héllo"
 
-fn wide_index(name: string, at: i64) -> u8:
+fn wide_index(name: string, at: u64) -> u8:
     name[at]
 
 fn letters(text: string) -> mut Iterator[char]:
     text.chars()
 
-fn positions(text: string) -> mut Iterator[(i32, char)]:
+fn positions(text: string) -> mut Iterator[(usize, char)]:
     text.char_indices()
 
 fn raw(text: string) -> mut Iterator[u8]:
     text.bytes()
 
-fn head(text: string, end: i32) -> string:
+fn head(text: string, end: usize) -> string:
     text.slice(0, end)
 
 fn count_letters(text: string) -> i32:

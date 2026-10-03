@@ -1,10 +1,10 @@
 # test: List, Map, and string index through Index and IndexSet bounds as built-in indexing does
-# Spec 05 Built-In Implementations: expr.index.std.list, expr.index.std.map, expr.index.std.map-store, expr.index.std.string (Strings STR8).
+# Spec 05 Built-In Implementations: expr.index.std.list.usize, expr.index.std.map, expr.index.std.map-store, expr.index.std.string.usize (Strings STR8).
 # expect: test
 use std.ops.{Index, IndexSet}
 use std.testing.assert_equal
 
-fn first[C < Index[i32]](items: C) -> C::Out:
+fn first[C < Index[usize]](items: C) -> C::Out:
     items[0]
 
 fn lookup[K, C < Index[K]](entries: C, key: K) -> C::Out:

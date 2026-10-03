@@ -1,0 +1,16 @@
+# test: a NaN, an infinity, and -0.0 from a host float result arrive unchanged
+# Spec Modules, Host Results: module.profile.host-result.float, with module.profile.host-float.special.
+# fixture-runtime-profile: special-float-host
+use std.testing.assert
+
+pub trait Sensor:
+    fn reading(mut self) -> f64
+
+pub fn main() -> void $ Sensor:
+    nan := $.use(Sensor).reading()
+    infinity := $.use(Sensor).reading()
+    zero := $.use(Sensor).reading()
+    assert(nan.is_nan(), reason="a NaN is not a contract violation")
+    assert(!infinity.is_nan() && !infinity.is_finite() && infinity > 0.0, reason="positive infinity")
+    assert(zero.is_finite() && zero == 0.0, reason="a zero")
+    assert(1.0 / zero < 0.0, reason="the zero keeps its sign")

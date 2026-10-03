@@ -15,7 +15,7 @@ enum Token:
 
 data Spanned:
     token: Token
-    pos: i32
+    pos: usize
 
 @derive(Eq, Debug, Arbitrary)
 enum Op:
@@ -36,22 +36,22 @@ impl Op:
 enum Expr:
     Lit(value: i32)
     Neg(inner: Expr)
-    Bin(op: Op, left: Expr, right: Expr, pos: i32)
+    Bin(op: Op, left: Expr, right: Expr, pos: usize)
 
 @derive(Eq, Debug)
 enum CalcError:
-    BadChar(ch: char, pos: i32)
-    BadNumber(pos: i32)
-    Unexpected(pos: i32)
+    BadChar(ch: char, pos: usize)
+    BadNumber(pos: usize)
+    Unexpected(pos: usize)
     UnexpectedEnd
-    DivByZero(pos: i32)
+    DivByZero(pos: usize)
 
 fn tokenize(src: string) -> Result[List[Spanned], CalcError]:
     let out: mut List[Spanned] = []
     let chars: mut List[char] = []
     for c in src.chars():
         chars.push(c)
-    let i = 0
+    let i: usize = 0
     while i < chars.len():
         c := chars[i]
         if c == ' ':
@@ -80,7 +80,7 @@ fn tokenize(src: string) -> Result[List[Spanned], CalcError]:
 
 data Parser:
     toks: List[Spanned]
-    at: i32
+    at: usize
 
 impl Parser:
     fn peek(self) -> Spanned?:

@@ -3,11 +3,11 @@
 # Spec 06 Spread Patterns: flow.match.spread.bind (owner decision Q6, batch 34, 2026-10-01).
 use std.testing.assert_equal
 
-fn total(t: (i32, i32, List[i32]...)) -> i32:
+fn total(t: (usize, usize, List[i32]...)) -> usize:
     let (a, b, xs...) = t
     a + b + xs.len()
 
-fn lengths(rows: List[(string, List[i32]...)]) -> List[i32]:
+fn lengths(rows: List[(string, List[i32]...)]) -> List[usize]:
     [for (_, xs...) in rows => xs.len()]
 
 fn describe(t: (i32, List[i32]...)) -> string:

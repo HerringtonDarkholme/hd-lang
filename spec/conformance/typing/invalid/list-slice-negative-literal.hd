@@ -1,0 +1,4 @@
+# test: a negated literal slice bound negates a usize
+# Spec 05 Slicing: expr.index.expected.range, expr.index.negative-literal.
+fn invalid(items: List[i32]) -> void:
+    a := items[-1..]  # diagnostic: unsigned-negation

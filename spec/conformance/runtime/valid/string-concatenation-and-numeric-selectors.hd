@@ -8,7 +8,7 @@ enum StatusCode(i32):
 fn main() -> i32:
     status := StatusCode.Answer
     message := "A" + "界"  # 1 + 3 bytes
-    status._0 + message.len()
+    status._0 + i32(message.len())
 
 tests:
     it("main returns 42"):

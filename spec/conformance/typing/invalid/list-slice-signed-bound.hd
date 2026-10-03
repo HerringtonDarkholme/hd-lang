@@ -1,0 +1,4 @@
+# test: a slice bound of a signed type is rejected
+# Spec 05 Slicing: expr.index.expected.range, expr.index.slice.unsigned.
+fn invalid(items: List[i32], start: i32) -> void:
+    b := items[start..]  # diagnostic: type-mismatch

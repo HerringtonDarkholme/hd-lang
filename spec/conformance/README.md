@@ -329,6 +329,12 @@ mutable when the trait has a `mut self` method, readonly otherwise.
   Every call of `level` returns the integer 300, which no `u8` holds, so
   the boundary check of [Host Results](../lang/10-modules.md#host-results)
   fails.
+- `special-float-host` implements the fixture's
+  `trait Sensor: fn reading(mut self) -> f64`. Its first call of `reading`
+  returns a NaN, its second positive infinity, and its third and every
+  later call `-0.0`, each as a raw IEEE 754 value, so the
+  [float row](../lang/10-modules.md#r-module.profile.host-result.float)
+  of the boundary check accepts them.
 
 Implementations may define more profiles for their own tests. A conformance
 fixture may name only the profiles listed here.

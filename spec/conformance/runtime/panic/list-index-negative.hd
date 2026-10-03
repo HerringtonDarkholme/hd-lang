@@ -1,6 +1,0 @@
-# test: a negative list index never counts from the end
-# Spec 05 List Indexing: expr.index.list.negative (batch 49).
-fn previous(items: List[i32], i: i32) -> i32:
-    items[i - 1]  # panic: index-out-of-bounds
-
-result := previous([1, 2, 3], 0)

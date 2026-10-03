@@ -855,7 +855,7 @@ function type's parameter list:
 fn total(pair: (i32, List[i32]...), callback: fn(i32, List[i32]...) -> i32) -> i32:
     callback(pair...)
 
-fn only(values: (List[i32]...,)) -> i32: values._0.len()
+fn only(values: (List[i32]...,)) -> usize: values._0.len()
 ```
 
 1. r[grammar.type.rest] A [rest element](04-type-system.md#rest-elements) may be the last element of a tuple type or of a function type's parameter list. Alone in a tuple type, it keeps the one-element trailing comma, as in `(List[i32]...,)`.

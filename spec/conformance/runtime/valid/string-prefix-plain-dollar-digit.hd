@@ -7,10 +7,8 @@ use std.testing.assert_equal
 @str_prefix
 fn raw(t: Template[string]) -> string:
     let joined = t.raw_parts[0]
-    let index = 0
-    while index < t.values.len():
+    for index in 0..t.values.len():
         joined = joined + t.values[index] + t.raw_parts[index + 1]
-        index = index + 1
     joined
 
 tests:

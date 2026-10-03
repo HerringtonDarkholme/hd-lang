@@ -1,0 +1,8 @@
+# test: len() - 1 on an empty list is below zero, so it overflows usize
+# Spec 04 The usize Alias: types.alias.usize.sizes, with types.arith.checked.
+fn last_index(items: List[i32]) -> usize:
+    items.len() - 1  # panic: integer-overflow
+
+tests:
+    it("an empty list has no last index"):
+        _ := last_index([])

@@ -37,7 +37,7 @@ fn visit(graph: Graph, walk: mut Walk, path: List[string], name: string, needed_
         return .Ok(())
     if mark == 1:
         # name is somewhere on the path; the cycle runs from there back to name.
-        let start = 0
+        let start: usize = 0
         for (i, step) in path.iter().enumerate():
             if step == name:
                 start = i

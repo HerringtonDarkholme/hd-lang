@@ -3,13 +3,13 @@
 use std.testing.assert_equal
 
 trait Tally:
-    fn tally(self, values...: List[i32]) -> i32
+    fn tally(self, values...: List[i32]) -> usize
 
 data Counter:
-    base: i32
+    base: usize
 
 impl Tally for Counter:
-    fn tally(self, values...: List[i32]) -> i32:
+    fn tally(self, values...: List[i32]) -> usize:
         self.base + values.len()
 
 data Service:

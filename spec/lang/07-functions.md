@@ -258,7 +258,7 @@ use std.function.{Fn, Tuple}
 fn add2(a: i32, b: i32) -> i32: a + b
 fn neg(a: i32) -> i32: -a
 fn zero() -> i32: 0
-fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
+fn g(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
 
 fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)
@@ -266,9 +266,9 @@ fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
 fn pack[Args < Tuple](args...: Args) -> Args: args
 
 fn run(pair: (i32, i32)) -> i32:
-    call(add2, 1, 2) + call(neg, 5) + call(zero) + call(add2, pair...) + call(g, 1, 2, 3, 4)
+    call(add2, 1, 2) + call(neg, 5) + call(zero) + call(add2, pair...)
 
-fn tail(xs: List[i32]) -> i32: call(g, 1, 2, xs...)
+fn tail(xs: List[i32]) -> usize: call(g, 1, 2, 3, 4) + call(g, 1, 2, xs...)
 ```
 
 | Call | `Args` |
@@ -277,8 +277,8 @@ fn tail(xs: List[i32]) -> i32: call(g, 1, 2, xs...)
 | `call(neg, 5)` | `(i32,)` |
 | `call(zero)` | `()` |
 | `call(add2, pair...)` | `(i32, i32)`, which the spread matches |
-| `call(g, 1, 2, 3, 4)` | `(i32, i32, List[i32]...)`, from `g`; `3` and `4` form the rest |
-| `call(g, 1, 2, xs...)` | `(i32, i32, List[i32]...)`, from `g`; `xs` is the rest |
+| `call(g, 1, 2, 3, 4)` | `(usize, usize, List[i32]...)`, from `g`; `3` and `4` form the rest |
+| `call(g, 1, 2, xs...)` | `(usize, usize, List[i32]...)`, from `g`; `xs` is the rest |
 | `call(add2, (1, 2))` | `(i32, i32)`, which the one argument `(1, 2)` does not fill |
 | `pack(1, "a")` | `(i32, string)`, from the arguments |
 
@@ -290,14 +290,14 @@ A function value keeps a `List[T]` vararg, as [Vararg Inputs](#vararg-inputs)
 states:
 
 ```text
-fn count(values...: List[i32]) -> i32: values.len()
+fn count(values...: List[i32]) -> usize: values.len()
 
-fn main() -> i32:
+fn main() -> usize:
     f := count
     f(3, 4, 5)
 ```
 
-Here `f` has type `fn(List[i32]...) -> i32`.
+Here `f` has type `fn(List[i32]...) -> usize`.
 
 ```text
 use std.function.{Fn, Tuple}
@@ -398,25 +398,25 @@ A function with a `List[T]` vararg has inputs that end in the
 function value keeps the vararg:
 
 ```text
-fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
-fn h(a: i32, b: i32, xs: List[i32]) -> i32: a + b + xs.len()
+fn g(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
+fn h(a: usize, b: usize, xs: List[i32]) -> usize: a + b + xs.len()
 
-fn apply(callback: fn(i32, i32, List[i32]...) -> i32) -> i32:
+fn apply(callback: fn(usize, usize, List[i32]...) -> usize) -> usize:
     f := g
     f(1, 2, 3, 4) + callback(1, 2) + h(1, 2, [3, 4])
 ```
 
 | Function | Type | Constructor form |
 | --- | --- | --- |
-| `g` | `fn(i32, i32, List[i32]...) -> i32` | `Fn[(i32, i32, List[i32]...), i32, $()]` |
-| `h` | `fn(i32, i32, List[i32]) -> i32` | `Fn[(i32, i32, List[i32]), i32, $()]` |
+| `g` | `fn(usize, usize, List[i32]...) -> usize` | `Fn[(usize, usize, List[i32]...), usize, $()]` |
+| `h` | `fn(usize, usize, List[i32]) -> usize` | `Fn[(usize, usize, List[i32]), usize, $()]` |
 
-1. r[fn.type.vararg-rest] A `List[T]` vararg is the rest element `List[T]...` of its function's inputs tuple. So `g` above has type `fn(i32, i32, List[i32]...) -> i32`, which differs from `h`'s type.
+1. r[fn.type.vararg-rest] A `List[T]` vararg is the rest element `List[T]...` of its function's inputs tuple. So `g` above has type `fn(usize, usize, List[i32]...) -> usize`, which differs from `h`'s type.
 2. r[fn.type.rest-call] Calling a function value whose inputs end in a rest element `List[T]...` treats that element as a `List[T]` vararg, as in `f(1, 2, 3, 4)` above.
 3. r[fn.type.tuple-vararg-input] A vararg whose type is a tuple type or a `Tuple`-bounded type parameter is one ordinary input of its function's type, which takes the collected tuple. `call` has type `fn(Fn[Args, O, $ R], Args) -> O $ R`.
 
 ```text
-fn sum(values...: List[i32]) -> i32: values.len()
+fn sum(values...: List[i32]) -> i32: values[0]
 fn apply_pair(callback: fn(i32, i32) -> i32) -> i32: callback(1, 2)
 fn apply_list(callback: fn(List[i32]) -> i32) -> i32: callback([1, 2])
 

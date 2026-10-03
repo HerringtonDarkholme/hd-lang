@@ -13,8 +13,5 @@ tests:
             Box: ...Box::[i32] { value: 40 },
             id: "hd",
         }
-        assert_equal(
-            shipment.value + shipment.id.len(),
-            42,
-            reason="embedded fields preserve their instantiated types",
-        )
+        assert_equal(shipment.value + 2, 42, reason="embedded fields preserve their instantiated types")
+        assert_equal(shipment.id.len(), 2, reason="the own field keeps its type")

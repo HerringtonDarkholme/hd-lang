@@ -17,7 +17,7 @@ data DefaultValue: pass
 
 impl DefaultFactory for DefaultValue
 
-fn guest_length() -> i32:
+fn guest_length() -> usize:
     UserFactory::create().len()
 
 fn default_value() -> i32:

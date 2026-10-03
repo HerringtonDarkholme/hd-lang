@@ -114,6 +114,9 @@ impl Step for i32:
 fn advance(start: i32) -> i32: start.next()  # valid
 ```
 
+> **Note.** Sizes have the type `usize`, a transparent alias of `u32`, as
+> [The `usize` Alias](#the-usize-alias) states.
+
 ### `void` And The Empty Tuple
 
 1. r[types.void] `void` is an alias for the empty tuple type `()`, so the two spellings name one type and are interchangeable.
@@ -141,7 +144,7 @@ length and its index count bytes:
 fn initial(name: string) -> u8:
     name[0]
 
-fn size(name: string) -> i32:
+fn size(name: string) -> usize:
     name.len()  # 6 for "héllo"
 ```
 
@@ -337,10 +340,10 @@ A tuple type may end in a **rest element** `List[T]...`, which stands for
 any number of trailing `T` values:
 
 ```text
-fn tail(values: (string, List[i32]...)) -> i32:
+fn tail(values: (string, List[i32]...)) -> usize:
     values._1.len()
 
-fn main() -> i32:
+fn main() -> usize:
     tail(("a", 1, 2, 3))
 ```
 
@@ -394,6 +397,35 @@ type Right = Left?
 
 > **Why.** A transparent alias is replaced by its right side, so a cycle
 > never ends. A recursive type needs a `data` or `enum` declaration.
+
+### The `usize` Alias
+
+`usize` is the type of sizes: lengths, indices, counts, and byte offsets:
+
+```text
+fn last(items: List[string]) -> string:
+    items[items.len() - 1]  # panics with integer-overflow when items is empty
+
+fn middle(items: List[i32]) -> usize:
+    items.len() / 2
+```
+
+1. r[types.alias.usize] `std.core` declares the transparent alias `type usize = u32`, so `usize` and `u32` are one type by [`types.alias.identical`](#r-types.alias.identical).
+2. r[types.alias.usize.prelude] `usize` is a [prelude](10-modules.md#prelude) name, so every module may write it without a `use`.
+3. r[types.alias.usize.sizes] Every length, index, count, and byte offset that the language defines has type `usize`.
+4. r[types.alias.usize.cast] `usize(x)` is the numeric cast `u32(x)`, by [Numeric Casts](#numeric-casts).
+
+> **Note.** `usize` is `u32` on every target today. Code that names
+> `usize` keeps working if a later target makes it wider.
+
+> **Note.** A size is never negative, so `len() - 1` on an empty
+> collection is below the range of `usize`. It panics with
+> `integer-overflow` by [`types.arith.checked`](#r-types.arith.checked),
+> as in Rust.
+
+> **Why.** A size cannot be negative, so an unsigned type rejects a
+> negative index when the program is checked rather than when it runs.
+> One alias names every size, as Rust's `usize` does.
 
 ### Newtypes
 

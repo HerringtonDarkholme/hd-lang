@@ -13,7 +13,7 @@ impl Scale for Triple:
     fn factor(self) -> i32: 3
 
 fn inc(value: i32) -> i32: value + 1
-fn count(label: string, values...: List[i32]) -> i32: values.len()
+fn count(label: string, values...: List[i32]) -> usize: values.len()
 
 fn scaled(value: i32) -> i32 $ Scale:
     value * $.use(Scale).factor()
@@ -24,7 +24,7 @@ fn apply(callback: Fn[(i32,), i32, $()], value: i32) -> i32:
 fn apply_row(callback: Fn[(i32,), i32, $ Scale], value: i32) -> i32 $ Scale:
     callback(value)
 
-fn spread(callback: Fn[(string, List[i32]...), i32, $()]) -> i32:
+fn spread(callback: Fn[(string, List[i32]...), usize, $()]) -> usize:
     callback("n", 1, 2, 3)
 
 tests:

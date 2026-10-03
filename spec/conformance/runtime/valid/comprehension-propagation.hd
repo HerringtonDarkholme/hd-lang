@@ -5,13 +5,13 @@ use std.testing.assert_equal
 data Tally:
     seen: i32
 
-fn parse(tally: mut Tally, text: string) -> Result[i32, string]:
+fn parse(tally: mut Tally, text: string) -> Result[usize, string]:
     tally.seen = tally.seen + 1
     if text == "x":
         return .Err("bad: $text")
     .Ok(text.len())
 
-fn parse_all(tally: mut Tally, lines: List[string]) -> Result[List[i32], string]:
+fn parse_all(tally: mut Tally, lines: List[string]) -> Result[List[usize], string]:
     .Ok([for line in lines => parse(tally, line)?])
 
 tests:

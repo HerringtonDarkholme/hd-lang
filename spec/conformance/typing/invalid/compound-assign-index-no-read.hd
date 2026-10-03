@@ -5,8 +5,8 @@ use std.ops.IndexSet
 data Sink:
     items: mut List[i32]
 
-impl IndexSet[i32, i32] for Sink:
-    fn index_set(mut self, key: i32, value: i32) -> void:
+impl IndexSet[usize, i32] for Sink:
+    fn index_set(mut self, key: usize, value: i32) -> void:
         self.items[key] = value
 
 fn invalid(sink: mut Sink) -> void:

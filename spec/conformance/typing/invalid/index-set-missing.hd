@@ -5,9 +5,9 @@ use std.ops.Index
 data Row:
     cells: List[i32]
 
-impl Index[i32] for Row:
+impl Index[usize] for Row:
     type Out = i32
-    fn index(self, key: i32) -> i32:
+    fn index(self, key: usize) -> i32:
         self.cells[key]
 
 fn invalid(row: mut Row) -> void:

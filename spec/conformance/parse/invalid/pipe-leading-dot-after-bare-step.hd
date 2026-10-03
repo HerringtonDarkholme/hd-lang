@@ -4,7 +4,7 @@
 fn clean(raw: string) -> string:
     "[$raw]"
 
-fn size(raw: string) -> i32:
+fn size(raw: string) -> usize:
     count := raw |> clean
         .len()  # diagnostic: syntax-error
     count

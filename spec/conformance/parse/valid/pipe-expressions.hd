@@ -4,7 +4,7 @@
 fn label(raw: string) -> string:
     raw |> clean |> tag(_, 2)
 
-fn measure(raw: string, start: i32) -> i32:
+fn measure(raw: string, start: usize) -> usize:
     width := raw |> _.len()
     moved := start |> Point { x: _, y: 0 } |> shift(_, 3)
     width + moved |> _ * 2

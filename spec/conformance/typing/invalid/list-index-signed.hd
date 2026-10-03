@@ -1,0 +1,4 @@
+# test: a list index of a signed type is rejected
+# Spec 05 List Indexing: expr.index.list.unsigned.
+fn invalid(items: List[i32], i: i32) -> void:
+    b := items[i]  # diagnostic: type-mismatch

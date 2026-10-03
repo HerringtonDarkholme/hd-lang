@@ -1,2 +1,3 @@
 path	items	reason
 typing/invalid/property-input-not-debug.hd	std.testing.Arbitrary, std.testing.Choices	isolating the Debug bound of it_prop needs an input type that implements Arbitrary, which is stdlib tier
+runtime/valid/host-result-special-floats.hd	f64.is_nan, f64.is_finite	the owner asked for the special values to be checked with is_nan and is_finite, which std.num declares

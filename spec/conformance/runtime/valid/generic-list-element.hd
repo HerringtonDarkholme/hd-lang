@@ -7,7 +7,7 @@ fn first[T](items: List[T]) -> T:
 
 fn main() -> i32:
     numbers := [40, 2]
-    first(numbers) + numbers.len()
+    first(numbers) + numbers[numbers.len() - 1]
 
 tests:
     it("main returns 42"):

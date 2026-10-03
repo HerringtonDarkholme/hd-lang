@@ -1,0 +1,6 @@
+# test: an index computed below zero overflows usize before the list is read
+# Spec 05 List Indexing: expr.index.list.unsigned, with types.arith.checked.
+fn previous(items: List[i32], i: usize) -> i32:
+    items[i - 1]  # panic: integer-overflow
+
+result := previous([1, 2, 3], 0)

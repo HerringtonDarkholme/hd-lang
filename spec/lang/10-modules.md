@@ -526,7 +526,7 @@ every module has:
 
 | Origin module | Implicit names |
 | --- | --- |
-| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` |
+| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` |
 | `std.format` | `Display`, `Debug`, `debug` |
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` |
 | `std.hash` | `Hash`, `Hasher` |
@@ -772,23 +772,23 @@ The following built-in methods are normative:
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `len(self) -> i32`; `chars(self) -> mut Iterator[char]`; `char_indices(self) -> mut Iterator[(i32, char)]`; `bytes(self) -> mut Iterator[u8]`; `slice(self, start: i32, end: i32) -> string` |
-| `List[T]` | `len(self) -> i32`; `iter(self) -> mut Iterator[T]` |
-| `mut List[T]` | `push(mut self, value: T) -> void`; `pop(mut self) -> T?`; `insert(mut self, index: i32, value: T) -> void`; `remove_at(mut self, index: i32) -> T`; `clear(mut self) -> void` plus the readonly methods |
-| `Map[K, V]` | `len(self) -> i32`; `get(self, key: K) -> V?` |
+| `string` | `len(self) -> usize`; `chars(self) -> mut Iterator[char]`; `char_indices(self) -> mut Iterator[(usize, char)]`; `bytes(self) -> mut Iterator[u8]`; `slice(self, start: usize, end: usize) -> string` |
+| `List[T]` | `len(self) -> usize`; `iter(self) -> mut Iterator[T]` |
+| `mut List[T]` | `push(mut self, value: T) -> void`; `pop(mut self) -> T?`; `insert(mut self, index: usize, value: T) -> void`; `remove_at(mut self, index: usize) -> T`; `clear(mut self) -> void` plus the readonly methods |
+| `Map[K, V]` | `len(self) -> usize`; `get(self, key: K) -> V?` |
 | `mut Map[K, V]` | `remove(mut self, key: K) -> V?` plus the readonly methods |
 | `Display` | `to_string(self) -> string` |
 
 1. r[module.method.normative] The built-in methods in the table are normative.
-2. r[module.method.i32-bytes] Lengths and byte offsets use `i32`.
+2. r[module.method.usize-sizes] Lengths, indices, and byte offsets use [`usize`](04-type-system.md#the-usize-alias).
 3. r[module.method.no-set] No `set` type is part of the core prelude.
 4. r[module.method.list-pop] `pop` removes the last element of the list and returns it as `.Some`.
 5. r[module.method.list-pop.empty] `pop` on an empty list returns `.None` and leaves the list unchanged.
 6. r[module.method.list-insert] `insert(index, value)` puts `value` at `index` and moves each element from `index` on one place up.
 7. r[module.method.list-insert.end] `insert` at `len()` appends `value`, as `push` does.
-8. r[module.method.list-insert.range] An `insert` index that is negative or greater than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
+8. r[module.method.list-insert.range] An `insert` index greater than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
 9. r[module.method.list-remove-at] `remove_at(index)` removes the element at `index`, moves each later element one place down, and returns the removed element.
-10. r[module.method.list-remove-at.range] A `remove_at` index that is negative or not less than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
+10. r[module.method.list-remove-at.range] A `remove_at` index that is not less than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
 11. r[module.method.list-clear] `clear` removes every element, so `len()` is 0 after it.
 
 | Call on `[1, 2, 3]` | List after |
@@ -838,7 +838,6 @@ fn first_word(text: string) -> string:
 7. r[module.string.slice.shared] The result shares the original string's bytes rather than copying them.
 8. r[module.string.slice.bad-offset] An offset that is not a [scalar boundary](04-type-system.md#r-types.string.boundary), inside a scalar's encoding or past the end, is a checked runtime panic. Panic: `index-out-of-bounds`.
 9. r[module.string.slice.reversed] A `start` greater than `end` is a checked runtime panic, even when both are scalar boundaries. Panic: `index-out-of-bounds`.
-10. r[module.string.slice.negative] A negative offset never counts from the end: it is not a scalar boundary, so it is a checked runtime panic. Panic: `index-out-of-bounds`.
 
 > **Note.** `char_indices` gives the offsets that Go's `range` over a
 > string gives. `text[start..end]` gives the same substring as
@@ -979,11 +978,11 @@ pub fn it_each[A, T < Termination, $R](name: string, rows: List[A], ignore: stri
 ```text
 pub fn it_prop[T < Arbitrary & Debug, R < Termination](name: string, ignore: string? = .None,
                                                        expect_panic: string? = .None, timeout: Duration? = .None,
-                                                       cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
+                                                       cases: usize = 100, shrink: usize = 500, examples: List[T] = [],
                                                        prop: fn!(T) -> R) -> void
 pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
                                                 expect_panic: string? = .None, timeout: Duration? = .None,
-                                                cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
+                                                cases: usize = 100, shrink: usize = 500, examples: List[T] = [],
                                                 prop: fn!(T) -> R) -> void
 ```
 

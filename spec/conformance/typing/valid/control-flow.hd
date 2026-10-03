@@ -14,7 +14,7 @@ fn label(score: i32) -> string:
         "needs work"
 
 fn first_prefix(names: List[string], prefix: string) -> string?:
-    let index: i32 = 0
+    let index: usize = 0
     while index < names.len():
         if names[index] == prefix:
             break names[index]

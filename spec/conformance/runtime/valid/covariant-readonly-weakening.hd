@@ -8,14 +8,14 @@ data User:
 data Producer[+T]:
     produce: fn() -> T
 
-fn total_length(users: List[User]) -> i32:
-    let total: i32 = 0
+fn total_length(users: List[User]) -> usize:
+    let total: usize = 0
     for user in users:
         total = total + user.name.len()
     total
 
-fn value_length(users: Map[string, User]) -> i32:
-    let total: i32 = 0
+fn value_length(users: Map[string, User]) -> usize:
+    let total: usize = 0
     for (key, user) in users:
         total = total + key.len() + user.name.len()
     total

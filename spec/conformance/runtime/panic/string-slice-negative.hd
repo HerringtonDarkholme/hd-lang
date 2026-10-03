@@ -1,4 +1,0 @@
-# test: a negative string slice offset never counts from the end
-# Spec 10 String Methods: module.string.slice.negative (batch 49).
-text := "abc"
-part := text.slice(-1, 2)  # panic: index-out-of-bounds

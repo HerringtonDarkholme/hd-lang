@@ -2,10 +2,10 @@
 
 use std.testing.assert_equal
 
-fn count(values...: List[i32]) -> i32: values.len()
-fn invoke(callback: fn(List[i32]...) -> i32, items: List[i32]) -> i32:
+fn count(values...: List[i32]) -> usize: values.len()
+fn invoke(callback: fn(List[i32]...) -> usize, items: List[i32]) -> usize:
     callback(1, 2) * 10 + callback(items...)
-fn main() -> i32:
+fn main() -> usize:
     f := count
     invoke(f, [3, 4, 5])
 

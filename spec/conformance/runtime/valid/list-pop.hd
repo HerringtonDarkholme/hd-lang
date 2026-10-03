@@ -9,12 +9,12 @@ fn drain() -> i32:
     while true:
         match values.pop():
             .Some(value) => total = total * 10 + value
-            .None => return total * 10 + values.len()
+            .None => return total
     total
 
 tests:
     it("pop takes the last element first"):
-        assert_equal(drain(), 3210, reason="3, 2, 1, then .None on the empty list")
+        assert_equal(drain(), 321, reason="3, 2, 1, then .None on the empty list")
     it("pop on an empty list leaves it empty"):
         let values: mut List[string] = []
         assert_equal(values.pop(), .None, reason="nothing to pop")

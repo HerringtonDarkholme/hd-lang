@@ -39,7 +39,7 @@ fn by_count_then_word(a: WordCount, b: WordCount) -> Ordering:
         .Equal => a.word.cmp(b.word)
         other => other
 
-fn top_words(lines: List[string], limit: i32) -> List[WordCount]:
+fn top_words(lines: List[string], limit: usize) -> List[WordCount]:
     word_counts(lines).sorted_by(by_count_then_word).chunks(limit).first().unwrap_or([])
 
 fn errors(lines: List[string]) -> List[string]:
@@ -48,7 +48,7 @@ fn errors(lines: List[string]) -> List[string]:
 pub fn main() -> void $ Console:
     lines := nonblank_lines(LOG)
     println("lines: ${lines.len()}")
-    total_chars := lines.map(fn(l: string) -> i32: l.len()).iter().fold(0, fn(acc: i32, n: i32) -> i32: acc + n)
+    total_chars := lines.map(fn(l: string) -> usize: l.len()).iter().fold(0, fn(acc: usize, n: usize) -> usize: acc + n)
     println("bytes: $total_chars")
     println("top words:")
     for entry in top_words(lines, 5):

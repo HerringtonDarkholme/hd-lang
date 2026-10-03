@@ -1,6 +1,0 @@
-# test: a negative string index never counts from the end
-# Spec 05 String Indexing: expr.index.string.negative (batch 49).
-fn byte_before(text: string, i: i32) -> u8:
-    text[i - 1]  # panic: index-out-of-bounds
-
-result := byte_before("abc", 0)

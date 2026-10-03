@@ -1,6 +1,0 @@
-# test: a negative slice bound never counts from the end
-# Spec 05 Slicing: expr.index.slice.negative (batch 49).
-fn panics(items: List[i32]) -> List[i32]:
-    items[-1..]  # panic: index-out-of-bounds
-
-result := panics([1, 2, 3])

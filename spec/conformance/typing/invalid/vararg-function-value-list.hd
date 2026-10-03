@@ -1,6 +1,6 @@
 # test: a vararg function's value has a rest element, so it does not fit a function type with a plain List input
 
-fn sum(values...: List[i32]) -> i32: values.len()
+fn sum(values...: List[i32]) -> i32: values[0]
 fn apply_list(callback: fn(List[i32]) -> i32) -> i32: callback([1, 2])
 
 fn second() -> i32: apply_list(sum)  # diagnostic: type-mismatch

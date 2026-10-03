@@ -1,10 +1,10 @@
-# test: when f solves Args, the collected arguments are checked against it, so call(g, 1, 2, 3, 4) gives Args = (i32, i32, List[i32]...)
+# test: when f solves Args, the collected arguments are checked against it, so call(g, 1, 2, 3, 4) gives Args = (usize, usize, List[i32]...)
 # expect: test
 use std.function.{Fn, Tuple}
 use std.testing.assert_equal
 
 fn add2(a: i32, b: i32) -> i32: a + b
-fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
+fn g(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
 
 fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)

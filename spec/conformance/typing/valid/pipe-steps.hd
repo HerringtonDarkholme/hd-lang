@@ -2,8 +2,8 @@
 # Spec 05 Pipe Expressions: expr.pipe.form, expr.pipe.slot.any, expr.pipe.slot.meaning, expr.pipe.bare.call (Pipe PL7, Chaining Study CS2).
 
 data Point:
-    x: i32
-    y: i32
+    x: usize
+    y: usize
 
 fn tag(label: string, level: i32) -> string:
     "$label:$level"
@@ -11,19 +11,22 @@ fn tag(label: string, level: i32) -> string:
 fn clean(raw: string) -> string:
     "[$raw]"
 
-fn shift(point: Point, by: i32) -> i32:
+fn shift(point: Point, by: usize) -> usize:
     point.x + by
 
 fn twice(n: i32) -> i32:
     n * 2
 
-fn parse_port(text: string) -> Result[i32, string]:
+fn double(n: usize) -> usize:
+    n * 2
+
+fn parse_port(text: string) -> Result[usize, string]:
     .Ok(text.len())
 
 fn label(raw: string) -> string:
     raw |> clean |> tag(_, 2)
 
-fn measure(raw: string, start: i32) -> i32:
+fn measure(raw: string, start: usize) -> usize:
     width := raw |> _.len()
     moved := start |> Point { x: _, y: 0 } |> shift(_, 3)
     width + moved |> _ * 2
@@ -31,9 +34,9 @@ fn measure(raw: string, start: i32) -> i32:
 fn check(n: i32) -> bool:
     n + 1 |> twice == 4
 
-fn port(raw: string) -> Result[i32, string]:
+fn port(raw: string) -> Result[usize, string]:
     value := raw |> clean(_) |> parse_port(_)?
-    .Ok(value |> twice)
+    .Ok(value |> double)
 
 fn tidy(raw: string) -> string:
     raw |> clean

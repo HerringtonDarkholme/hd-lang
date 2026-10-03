@@ -5,13 +5,13 @@ use std.ops.{Index, IndexSet}
 data Ring:
     items: mut List[i32]
 
-impl Index[i32] for Ring:
+impl Index[usize] for Ring:
     type Out = i32
-    fn index(self, key: i32) -> i32:
+    fn index(self, key: usize) -> i32:
         self.items[key % self.items.len()]
 
-impl IndexSet[i32, i32] for Ring:
-    fn index_set(mut self, key: i32, value: i32) -> void:
+impl IndexSet[usize, i32] for Ring:
+    fn index_set(mut self, key: usize, value: i32) -> void:
         self.items[key % self.items.len()] = value
 
 fn rotate(ring: mut Ring) -> i32:

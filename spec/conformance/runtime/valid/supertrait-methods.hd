@@ -17,26 +17,26 @@ impl Describe for User:
 impl Formattable for User:
     fn format(self) -> string: self.describe()
 
-fn formatted_length() -> i32:
+fn formatted_length() -> usize:
     User { name: "Alice" }.format().len()
 
-fn parent_length[T < Formattable](value: T) -> i32:
+fn parent_length[T < Formattable](value: T) -> usize:
     value.describe().len()
 
-fn bounded_parent_length() -> i32:
+fn bounded_parent_length() -> usize:
     parent_length(User { name: "Alice" })
 
-fn dynamic_parent(value: Formattable) -> i32:
+fn dynamic_parent(value: Formattable) -> usize:
     value.describe().len()
 
-fn dynamic_parent_length() -> i32:
+fn dynamic_parent_length() -> usize:
     let value: Formattable = User { name: "Alice" }
     dynamic_parent(value)
 
-fn parent_dynamic(value: Describe) -> i32:
+fn parent_dynamic(value: Describe) -> usize:
     value.describe().len()
 
-fn widened_parent_length() -> i32:
+fn widened_parent_length() -> usize:
     let value: Formattable = User { name: "Alice" }
     parent_dynamic(value)
 

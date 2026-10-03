@@ -485,11 +485,11 @@ as a call fills a vararg: it collects separate elements, or it spreads a
 list:
 
 ```text
-fn total(values: (i32, i32, List[i32]...)) -> i32:
+fn total(values: (usize, usize, List[i32]...)) -> usize:
     values._0 + values._1 + values._2.len()
 
-fn run(xs: List[i32]) -> i32:
-    let t: (i32, i32, List[i32]...) = (1, 2, 3, 4)
+fn run(xs: List[i32]) -> usize:
+    let t: (usize, usize, List[i32]...) = (1, 2, 3, 4)
     total(t) + total((1, 2)) + total((1, 2, xs...))
 ```
 
@@ -667,24 +667,30 @@ See also: [Method References](07-functions.md#method-references).
 ### Indexing
 
 1. r[expr.index.order] `receiver[index]` evaluates the receiver, then the index, and invokes the receiver type's indexing behavior.
+2. r[expr.index.expected] For a `List` or `string` receiver, the index is checked with `usize` as its expected type, so an integer literal index is a `usize`.
+3. r[expr.index.expected.range] For such a receiver, an index that is a range expression gives each of its bounds `usize` as the expected type, so `items[1..3]` slices with a `Range[usize]`.
+4. r[expr.index.negative-literal] A negated literal index or slice bound, as in `items[-1]` or `items[-1..]`, negates an unsigned value. It is an error. Error: `unsigned-negation`.
 
 #### List Indexing
 
-1. r[expr.index.list.type] For `List[T]`, an index may have any integer type.
+1. r[expr.index.list.unsigned] For `List[T]`, an index must have an unsigned integer type, such as `usize`. A signed index is an error. Error: `type-mismatch`.
 2. r[expr.index.list.range] A list index must be non-negative and less than the list length.
 3. r[expr.index.list.panic] A failed check causes the standard checked runtime panic.
 4. r[expr.index.list.read] Reading a list element yields its declared generic type `T`, including `mut U` when `T = mut U`, regardless of the list root's permission.
 5. r[expr.index.list.assign] Assigning `items[index] = value` still requires a mutable list root and an in-range index.
-6. r[expr.index.list.negative] A negative index never counts from the end: it fails the check, so `items[-1]` is a checked runtime panic. Panic: `index-out-of-bounds`.
 
 ```text
-fn previous(items: List[i32], i: i32) -> i32:
-    items[i - 1]  # panics with index-out-of-bounds when i is 0
+fn previous(items: List[i32], i: usize) -> i32:
+    items[i - 1]  # panics with integer-overflow when i is 0
+
+fn invalid(items: List[i32], i: i32) -> void:
+    a := items[-1]  # error: unsigned-negation
+    b := items[i]   # error: type-mismatch
 ```
 
-> **Why.** With negative indices counting from the end, as in Python,
-> `items[i - 1]` with `i == 0` would read the last element instead of
-> failing.
+> **Why.** An index is unsigned, so no index counts from the end. With
+> negative indices counting from the end, as in Python, `items[i - 1]` with
+> `i == 0` would read the last element. Here the subtraction panics instead.
 
 #### Map Indexing
 
@@ -720,17 +726,17 @@ A string index reads one byte:
 fn first(text: string) -> u8:
     text[0]
 
-fn invalid(text: string) -> void:
+fn invalid(text: string, i: i32) -> void:
     text[0] = 65  # error: invalid-assignment-target
+    b := text[i]  # error: type-mismatch
 ```
 
 1. r[expr.index.string.byte] For `string`, `text[index]` reads the byte at that byte offset, as a `u8`, in constant time.
 2. r[expr.index.string.offset] The index counts bytes, not scalar values, so `"é"[0]` is `0xC3`, the first byte of its encoding.
-3. r[expr.index.string.type] The index may have any integer type.
+3. r[expr.index.string.unsigned] The index must have an unsigned integer type, such as `usize`. A signed index is an error. Error: `type-mismatch`.
 4. r[expr.index.string.range] The index must be non-negative and less than the string's length in bytes.
 5. r[expr.index.string.panic] A failed check causes the standard checked runtime panic, as a failed list index does.
 6. r[expr.index.string.no-assign] A string is immutable, so `text[index]` is not a place. Assigning to it is an error. Error: `invalid-assignment-target`.
-7. r[expr.index.string.negative] A negative index never counts from the end: it fails the check, so `text[-1]` is a checked runtime panic. Panic: `index-out-of-bounds`.
 
 See also: [Strings](04-type-system.md#strings).
 
@@ -758,16 +764,16 @@ fn whole(text: string, items: List[i32]) -> (string, List[i32], string):
 1. r[expr.index.slice.call] For a `List` or `string` receiver, an index of a range type is the call `Index::[K]::index(r, k)` of an implementation that [Built-In Implementations](#built-in-implementations) lists.
 2. r[expr.index.slice.string] A string slice is the string of the bytes at the selected byte offsets.
 3. r[expr.index.slice.string.shared] A string slice shares the original string's bytes rather than copying them, as [`module.string.slice.shared`](10-modules.md#r-module.string.slice.shared) states for `slice`.
-4. r[expr.index.slice.string.range] A string slice whose start or end offset is negative or greater than the length is a checked runtime panic. Panic: `index-out-of-bounds`.
+4. r[expr.index.slice.string.range] A string slice whose start or end offset is greater than the length is a checked runtime panic. Panic: `index-out-of-bounds`.
 5. r[expr.index.slice.string.reversed] A string slice whose start is greater than its end is a checked runtime panic. Panic: `index-out-of-bounds`.
 6. r[expr.index.slice.string.boundary] A string slice whose start or end offset is not a [scalar boundary](04-type-system.md#r-types.string.boundary) is a checked runtime panic. Panic: `index-out-of-bounds`.
 7. r[expr.index.slice.list] A list slice is a new list that holds the selected elements in order. It is not a view: later changes to either list do not change the other.
 8. r[expr.index.slice.list.type] A list slice of a `List[T]` has type `mut List[T]`, the `Out` of its implementation, so the new list has mutable access. Its elements keep the type `T`, including `mut U` when `T = mut U`.
-9. r[expr.index.slice.list.range] A list slice whose start or end offset is negative or greater than the length is a checked runtime panic. Panic: `index-out-of-bounds`.
+9. r[expr.index.slice.list.range] A list slice whose start or end offset is greater than the length is a checked runtime panic. Panic: `index-out-of-bounds`.
 10. r[expr.index.slice.list.reversed] A list slice whose start is greater than its end is a checked runtime panic. Panic: `index-out-of-bounds`.
 11. r[expr.index.slice.no-store] No range type has an `IndexSet` implementation for `List` or `string`, so assigning to a slice is an error. Error: `invalid-assignment-target`.
 12. r[expr.index.slice.no-map] `Map` has no slicing: an index on a map is a key of type `K`, whatever its type.
-13. r[expr.index.slice.negative] A negative slice bound never counts from the end, so `items[-2..]` and `text[..-1]` are checked runtime panics. Panic: `index-out-of-bounds`.
+13. r[expr.index.slice.unsigned] A slice's bounds must have an unsigned integer type. A range of a signed type is an error, as no implementation takes it. Error: `type-mismatch`.
 
 ```text
 fn grow(items: List[i32]) -> List[i32]:
@@ -784,11 +790,16 @@ fn panics(text: string, items: List[i32]) -> void:
     a := "héllo"[0..2]  # panics with index-out-of-bounds: offset 2 is inside é
     b := text[3..1]     # panics with index-out-of-bounds: start after end
     c := items[0..9]    # panics with index-out-of-bounds when items has fewer than 9
-    d := items[-1..]    # panics with index-out-of-bounds: a negative bound
+```
+
+```text
+fn invalid(items: List[i32], start: i32) -> void:
+    a := items[-1..]      # error: unsigned-negation
+    b := items[start..]   # error: type-mismatch
 ```
 
 > **Why.** A slice goes through `std.ops.Index`, as Rust's does, so generic
-> code bounded by `Index[Range[i32]]` accepts strings and lists. A list
+> code bounded by `Index[Range[usize]]` accepts strings and lists. A list
 > slice is a copy, so later changes to the list never reach it, and a
 > string slice shares its bytes because strings are immutable. The copy's
 > mutable access comes from the implementation's declared `Out`, so no
@@ -810,13 +821,13 @@ use std.ops.{Index, IndexSet}
 data Ring:
     items: mut List[i32]
 
-impl Index[i32] for Ring:
+impl Index[usize] for Ring:
     type Out = i32
-    fn index(self, key: i32) -> i32:
+    fn index(self, key: usize) -> i32:
         self.items[key % self.items.len()]
 
-impl IndexSet[i32, i32] for Ring:
-    fn index_set(mut self, key: i32, value: i32) -> void:
+impl IndexSet[usize, i32] for Ring:
+    fn index_set(mut self, key: usize, value: i32) -> void:
         self.items[key % self.items.len()] = value
 
 fn rotate(ring: mut Ring) -> i32:
@@ -852,9 +863,9 @@ use std.ops.Index
 data Row:
     cells: List[i32]
 
-impl Index[i32] for Row:
+impl Index[usize] for Row:
     type Out = i32
-    fn index(self, key: i32) -> i32:
+    fn index(self, key: usize) -> i32:
         self.cells[key]
 
 data Plain:
@@ -878,10 +889,10 @@ The standard library implements the index traits for `List`, `Map`, and
 ```text
 use std.ops.{Index, IndexSet}
 
-fn first[C < Index[i32]](items: C) -> C::Out:
+fn first[C < Index[usize]](items: C) -> C::Out:
     items[0]
 
-fn reset[C < mut IndexSet[i32, i32]](items: C) -> void:
+fn reset[C < mut IndexSet[usize, i32]](items: C) -> void:
     items[0] = 0
 
 fn lead(counts: mut List[i32], text: string) -> u8:
@@ -891,22 +902,22 @@ fn lead(counts: mut List[i32], text: string) -> u8:
 
 | Rule | Type | Implementations |
 | --- | --- | --- |
-| r[expr.index.std.list] List | `List[T]` | `Index[i32]` with `Out = T`, and `IndexSet[i32, T]` |
+| r[expr.index.std.list.usize] List | `List[T]` | `Index[usize]` with `Out = T`, and `IndexSet[usize, T]` |
 | r[expr.index.std.map] Map | `Map[K, V]` | `Index[K]` with `Out = V`, and `IndexSet[K, V]` |
-| r[expr.index.std.string] String | `string` | `Index[i32]` with `Out = u8`, and no `IndexSet` |
-| r[expr.index.std.string.range] String slice | `string` | `Index[R[I]]` with `Out = string`, for each range type `R` and each integer type `I` |
-| r[expr.index.std.list.range] List slice | `List[T]` | `Index[R[I]]` with `Out = mut List[T]`, for each range type `R` and each integer type `I` |
+| r[expr.index.std.string.usize] String | `string` | `Index[usize]` with `Out = u8`, and no `IndexSet` |
+| r[expr.index.std.string.range.unsigned] String slice | `string` | `Index[R[I]]` with `Out = string`, for each range type `R` and each unsigned integer type `I` |
+| r[expr.index.std.list.range.unsigned] List slice | `List[T]` | `Index[R[I]]` with `Out = mut List[T]`, for each range type `R` and each unsigned integer type `I` |
 | r[expr.index.std.string.full] Whole string | `string` | `Index[RangeFull]` with `Out = string` |
 | r[expr.index.std.list.full] Whole list | `List[T]` | `Index[RangeFull]` with `Out = mut List[T]` |
 
 1. r[expr.index.std.intrinsic] The body of each implementation in the table is a compiler intrinsic. It behaves as the built-in indexing of its type, including the checks and their panics, so `Map`'s `index` panics when no equal key exists.
 2. r[expr.index.std.map-store] `Map`'s `index_set` inserts or replaces the entry, as `entries[key] = value` does.
-3. r[expr.index.std.string-no-store] `string` implements no `IndexSet`, so a bound such as `IndexSet[i32, u8]` rejects it. Error: `unsatisfied-trait-bound`.
+3. r[expr.index.std.string-no-index-set] `string` implements no `IndexSet`, so a bound such as `IndexSet[usize, u8]` rejects it. Error: `unsatisfied-trait-bound`.
 
 ```text
 use std.ops.IndexSet
 
-fn store[C < mut IndexSet[i32, u8]](items: C, byte: u8) -> void:
+fn store[C < mut IndexSet[usize, u8]](items: C, byte: u8) -> void:
     items[0] = byte
 
 fn invalid(text: string) -> void:
@@ -962,11 +973,11 @@ value of its own type:
 
 ```text
 fn add(a: i32, b: i32) -> i32: a + b
-fn sum(values...: List[i32]) -> i32: values.len()
-fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
+fn count(values...: List[i32]) -> usize: values.len()
+fn g(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
 
-fn spreads(pair: (i32, i32), items: List[i32], t: (i32, i32, List[i32]...)) -> i32:
-    add(pair...) + sum(items...) + sum(1, 2) + g(t...)
+fn spreads(pair: (i32, i32), items: List[i32], t: (usize, usize, List[i32]...)) -> (i32, usize):
+    (add(pair...), count(items...) + count(1, 2) + g(t...))
 ```
 
 1. r[expr.call.spread] An argument ending in `...` is a positional spread.
@@ -996,13 +1007,13 @@ for it, and a function with a plain `List[T]` parameter takes a tuple
 without one:
 
 ```text
-fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
-fn h(a: i32, b: i32, xs: List[i32]) -> i32: a + b + xs.len()
+fn g(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
+fn h(a: usize, b: usize, xs: List[i32]) -> usize: a + b + xs.len()
 
-fn valid(t: (i32, i32, List[i32]...), u: (i32, i32, List[i32])) -> i32:
+fn valid(t: (usize, usize, List[i32]...), u: (usize, usize, List[i32])) -> usize:
     g(t...) + h(u...)
 
-fn crossed(t: (i32, i32, List[i32]...), u: (i32, i32, List[i32])) -> i32:
+fn crossed(t: (usize, usize, List[i32]...), u: (usize, usize, List[i32])) -> usize:
     g(u...)  # error: type-mismatch
     h(t...)  # error: type-mismatch
 ```
@@ -1730,13 +1741,13 @@ A substitution step marks the piped value's slot with `_`:
 
 ```text
 data Point:
-    x: i32
-    y: i32
+    x: usize
+    y: usize
 
-fn shift(point: Point, by: i32) -> i32:
+fn shift(point: Point, by: usize) -> usize:
     point.x + by
 
-fn measure(raw: string, start: i32) -> i32:
+fn measure(raw: string, start: usize) -> usize:
     width := raw |> _.len()
     moved := start |> Point { x: _, y: 0 } |> shift(_, 3)
     width + moved |> _ * 2
@@ -1911,8 +1922,8 @@ fn invalid(x: f64, count: u32, limit: i32, large: i64) -> void:
 
 > **Note.** `for` iterates `a..b`, `a..`, and `a..=b`, as
 > [Range Iteration](06-control-flow.md#range-iteration) states, and an index
-> of a range type slices a string or a list, as [Slicing](#slicing)
-> states. A `match` takes the range forms but `..b` and `..` as
+> of a range type slices a string or a list with unsigned bounds, as
+> [Slicing](#slicing) states. A `match` takes the range forms but `..b` and `..` as
 > [range patterns](06-control-flow.md#range-patterns).
 
 > **Why.** As in Rust, a range is an ordinary `std.ops` value. One syntax

@@ -9,7 +9,7 @@ data NumberedConsole:
     lines: mut List[string]
 
 impl NumberedConsole:
-    fn next_number!(self) -> i32:
+    fn next_number!(self) -> usize:
         self.lines.len() + 1
 
 impl Console for NumberedConsole:

@@ -1571,7 +1571,7 @@ runtime/panic/string-slice-inside-scalar.hd	runtime	panic:index-out-of-bounds	la
 runtime/panic/string-slice-past-end.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.string.slice.bad-offset
 runtime/panic/string-slice-reversed.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.string.slice.reversed
 typing/valid/index-traits-builtin.hd	type	accept	lang/05-expressions.md#built-in-implementations
-typing/invalid/index-set-string.hd	type	reject:unsatisfied-trait-bound	lang/05-expressions.md#r-expr.index.std.string-no-store
+typing/invalid/index-set-string.hd	type	reject:unsatisfied-trait-bound	lang/05-expressions.md#r-expr.index.std.string-no-index-set
 runtime/valid/index-traits-builtin-run.hd	runtime	accept	lang/05-expressions.md#r-expr.index.std.map
 runtime/panic/index-trait-map-missing.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.std.intrinsic
 typing/invalid/ambiguous-default-methods.hd	type	reject:ambiguous-method	lang/09-traits.md#r-trait.conflict.ambiguous-available
@@ -1816,10 +1816,6 @@ typing/invalid/range-to-inclusive-not-iterable.hd	type	reject:unsatisfied-trait-
 typing/invalid/range-full-not-iterable.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#r-flow.for.range.full
 typing/valid/slice-full-types.hd	type	accept	lang/05-expressions.md#slicing
 runtime/valid/slicing-full-run.hd	runtime	accept	lang/05-expressions.md#slicing
-runtime/panic/list-slice-negative.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.slice.negative
-runtime/panic/list-index-negative.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.list.negative
-runtime/panic/string-index-negative.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.string.negative
-runtime/panic/string-slice-negative.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.string.slice.negative
 parse/valid/range-patterns.hd	parse	accept	lang/02-grammar.md#r-grammar.pattern.range
 runtime/valid/range-pattern-exclusive-to.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.range.to
 parse/invalid/range-pattern-char-bound.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.pattern.range.bound
@@ -2084,3 +2080,13 @@ runtime/valid/iterator-flat-map.hd	runtime	accept	std/iter.md#r-std-iter.adapter
 runtime/valid/iterator-search-count.hd	runtime	accept	std/iter.md#r-std-iter.adapter.stop-early
 typing/invalid/iterator-any-callback-row.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row.more
 runtime/panic/println-console-closed.hd	runtime	panic:explicit-panic	lang/10-modules.md#r-module.console.println-error
+runtime/panic/list-index-underflow.hd	runtime	panic:integer-overflow	lang/05-expressions.md#r-expr.index.list.unsigned
+typing/invalid/list-index-negative-literal.hd	type	reject:unsigned-negation	lang/05-expressions.md#r-expr.index.negative-literal
+typing/invalid/list-index-signed.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.index.list.unsigned
+typing/invalid/list-slice-negative-literal.hd	type	reject:unsigned-negation	lang/05-expressions.md#r-expr.index.expected.range
+typing/invalid/list-slice-signed-bound.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.index.slice.unsigned
+typing/invalid/string-index-signed.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.index.string.unsigned
+typing/invalid/string-slice-negative-offset.hd	type	reject:unsigned-negation	lang/10-modules.md#r-module.method.usize-sizes
+typing/valid/usize-alias.hd	type	accept	lang/04-type-system.md#the-usize-alias
+runtime/panic/usize-len-underflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#r-types.alias.usize.sizes
+runtime/valid/host-result-special-floats.hd	runtime	accept	lang/10-modules.md#r-module.profile.host-result.float

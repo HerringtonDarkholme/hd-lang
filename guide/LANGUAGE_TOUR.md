@@ -261,7 +261,8 @@ name := "Ada"          # string
 ```
 
 A string is immutable UTF-8 bytes, as in Go. `len()` counts bytes and
-`s[i]` reads one byte as a `u8`, both in constant time. A string is not
+`s[i]` reads one byte as a `u8`, both in constant time. Lengths, indices,
+and byte offsets are `usize`, the prelude's name for `u32`. A string is not
 iterable, so say what you walk: `chars()` yields each `char`,
 `char_indices()` yields `(byte offset, char)` pairs like Go's `range`, and
 `bytes()` yields each `u8`. `slice(start, end)` takes byte offsets, and so
@@ -286,9 +287,10 @@ string. It shares bytes as `slice` does and panics on the same offsets. On
 a list, `items[1..3]` is a new `mut List`, not a view, so
 `let mut part = items[1..3]` can grow it; `items.view(1, 3)` is a
 read-only window that panics once the list grows or shrinks. A map has no
-slicing. A negative index or bound never counts from the end, so
-`items[-1]` panics. See [Slicing](../spec/lang/05-expressions.md#slicing)
-and [Collections](../spec/std/collections.md).
+slicing. An index or bound is unsigned, so `items[-1]` is a compile error,
+and `items.len() - 1` on an empty list panics with `integer-overflow`. See
+[Slicing](../spec/lang/05-expressions.md#slicing) and
+[Collections](../spec/std/collections.md).
 
 A `for` loop takes the same patterns as `let`, so a loop over pairs uses
 a tuple pattern, `for (offset, letter) in ...`, and a loop over points
@@ -658,17 +660,17 @@ fn countdown(start: i32) -> mut Iterator[i32]:
  Every iterator has adapter methods, as Rust's iterators do. `filter`, `take`, `enumerate`, and `map` wrap it in a new iterator that advances only when read; `fold` and `collect` drain it:
 
 ```text
-fn first_evens(values: List[i32]) -> List[(i32, i32)]:
+fn first_evens(values: List[i32]) -> List[(usize, i32)]:
     values.iter().filter(fn(value): value % 2 == 0).enumerate().take(2).collect()
 
-fn total_length(names: List[string]) -> i32:
+fn total_length(names: List[string]) -> usize:
     names.iter().map(fn(name): name.len()).fold(0, fn(sum, size): sum + size)
 ```
 
 `collect` builds whatever the expected type names, and a `List` when nothing names one. Pairs collect into a `Map`, where the last value of a repeated key wins, and `Result` items collect all-or-nothing, stopping at the first error:
 
 ```text
-fn index(names: List[string]) -> Map[string, i32]:
+fn index(names: List[string]) -> Map[string, usize]:
     names.iter().map(fn(name): (name, name.len())).collect()
 
 fn parse_all(lines: List[string]) -> Result[List[i32], ParseError]:
@@ -680,7 +682,7 @@ A comprehension may use `?` too: `.Ok([for line in lines => parse_port(line)?])`
 Use `while` when the loop condition is not just iterating a collection:
 
 ```text
-let index: i32 = 0
+let index: usize = 0
 
 while index < names.len():
     println(names[index])
@@ -1435,15 +1437,15 @@ add(pair...)           # a tuple spread fills a and b
 A function value keeps a `List` vararg. Its inputs tuple ends in the rest element `List[i32]...`, so `f := sum` has type `fn(List[i32]...) -> i32` and is called as `f(1, 2, 3)`. That type differs from `fn(List[i32]) -> i32`, and a tuple spread must match the callee's inputs exactly:
 
 ```text
-fn g(a: i32, b: i32, xs...: List[i32]) -> i32: a + b + xs.len()
-fn h(a: i32, b: i32, xs: List[i32]) -> i32: a + b + xs.len()
+fn g(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
+fn h(a: usize, b: usize, xs: List[i32]) -> usize: a + b + xs.len()
 
-let t: (i32, i32, List[i32]...) = (1, 2, 3, 4)  # the tail is collected
-u := (1, 2, [3, 4])
+let t: (usize, usize, List[i32]...) = (1, 2, 3, 4)  # the tail is collected
+let u: (usize, usize, List[i32]) = (1, 2, [3, 4])
 g(t...)                # ok
 h(u...)                # ok
 g(u...)                # invalid: u has no rest element
-call(g, 1, 2, 3, 4)    # Args is (i32, i32, List[i32]...), from g
+call(g, 1, 2, 3, 4)    # Args is (usize, usize, List[i32]...), from g
 call(g, 1, 2, [3]...)  # collected as the tuple (1, 2, [3]...)
 let (a, b, xs...) = t  # a spread pattern binds xs: List[i32]
 ```
