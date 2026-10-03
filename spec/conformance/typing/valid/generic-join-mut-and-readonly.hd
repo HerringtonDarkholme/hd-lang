@@ -1,0 +1,13 @@
+# test: a generic join of a mut argument and a readonly argument solves at the readonly view
+# Spec Type System, Inference From Several Arguments: types.generic.infer.join.outer-permission.
+data Date:
+    year: i32
+
+fn same[T](a: T, b: T) -> T:
+    a
+
+fn pick(d: Date) -> Date:
+    let fresh: mut Date = Date { year: 2026 }
+    first := same(fresh, d)
+    second := same(d, Date { year: 2027 })
+    first

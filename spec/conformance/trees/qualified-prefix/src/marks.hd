@@ -1,0 +1,5 @@
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+pub fn tag(t: Template[i32]) -> string:
+    t.raw_parts[0]

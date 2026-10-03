@@ -1,0 +1,42 @@
+# test: a bound may name a later parameter of its list in every kind of generic declaration
+# Spec Type System, Bound Order: types.generic.bound.any-order; Names: names.generic.bounds.whole-list.
+trait Source[T]:
+    fn take(self) -> T
+
+data Label:
+    text: string
+
+impl Source[string] for Label:
+    fn take(self) -> string:
+        self.text
+
+fn read[S < Source[U], U](source: S) -> U:
+    source.take()
+
+data Feed[S < Source[U], U]:
+    source: S
+    last: U
+
+enum Slot[S < Source[U], U]:
+    Empty
+    Full(S)
+
+trait Pump[S < Source[U], U]:
+    fn pump(self, source: S) -> U
+
+data Hand:
+    count: i32
+
+impl Pump[Label, string] for Hand:
+    fn pump(self, source: Label) -> string:
+        source.take()
+
+impl Hand:
+    fn first[S < Source[U], U](self, source: S) -> U:
+        source.take()
+
+fn name(label: Label) -> string:
+    text := read(label)
+    feed := Feed { source: label, last: text }
+    let slot: Slot[Label, string] = .Full(label)
+    Hand { count: 1 }.first(label)

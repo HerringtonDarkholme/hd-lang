@@ -1,0 +1,13 @@
+# test: an unsuffixed integer literal on the left of a binary operator takes the right operand's type
+# Spec Type System, Binary Numeric Operators: types.num.binary.literal-operand and types.num.binary.literal-left.
+fn remaining(count: u64) -> u64:
+    0xFFFF_FFFF_FFFF_FFFF - count
+
+fn more_than_one(count: u64) -> bool:
+    1 < count
+
+fn rest(small: i16) -> i16:
+    100 - small
+
+fn scaled(ratio: f32) -> f32:
+    0.5 * ratio

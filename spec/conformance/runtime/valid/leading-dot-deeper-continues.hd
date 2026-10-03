@@ -1,0 +1,19 @@
+# test: a leading-dot line indented deeper than its statement continues that statement
+# Spec Lexical Structure, Leading-Dot Continuation: lex.dot.deeper; the deeper line continues the tail expression.
+use std.testing.assert_equal
+
+data Step:
+    size: i32
+
+impl Step:
+    fn grow(self) -> Step: Step { size: self.size + 1 }
+
+fn measure(start: Step) -> i32:
+    step := start
+    step
+        .grow()
+        .size
+
+tests:
+    it("the deeper lines continue the tail"):
+        assert_equal(measure(Step { size: 1 }), 2, reason="the tail is step.grow().size")

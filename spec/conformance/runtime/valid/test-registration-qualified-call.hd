@@ -1,0 +1,11 @@
+# test: a module-qualified call of it or it_each registers test cases
+# Spec Modules, Registration Functions: module.testing.reg.identity.all; testing.it and testing.it_each after use std.testing are the registration functions.
+use std.testing
+
+tests:
+    testing.it("adds"):
+        testing.assert(1 + 1 == 2, reason="small sums")
+
+    testing.it_each("doubles", [1, 2], body=fn!(value: i32):
+        testing.assert(value * 2 > value, reason="positive rows grow")
+    )

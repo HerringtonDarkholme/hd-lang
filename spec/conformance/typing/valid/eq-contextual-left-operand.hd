@@ -1,0 +1,11 @@
+# test: a contextual variant on the left of == or != takes the right operand's type
+# Spec Expressions, Equality: expr.eq.contextual-operand holds on either side.
+fn absent(found: i32?) -> bool:
+    .None == found
+
+fn not_one(result: Result[i32, string]) -> bool:
+    .Ok(1) != result
+
+fn is_two(found: i32?) -> bool:
+    value := 2
+    .Some(value) == found

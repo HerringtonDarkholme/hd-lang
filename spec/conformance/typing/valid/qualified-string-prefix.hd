@@ -1,0 +1,11 @@
+# test: a string prefix may be module-qualified, and resolves through its module path
+# Spec Names, String Prefix Names: names.literal-fn.qualified-prefix; Lexical Structure: lex.prefix.qualified.
+# fixture-package-tree: qualified-prefix/src/main.hd
+use pkg.marks
+
+fn label() -> string:
+    marks.tag"item"
+
+fn multiline() -> string:
+    marks.tag"""first
+second"""

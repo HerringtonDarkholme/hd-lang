@@ -1,0 +1,11 @@
+# test: a list of fresh literals meets a readonly key closure parameter at the readonly element view
+# Spec Type System, Inference From Several Arguments: types.generic.infer.join.outer-permission; T is solved from mut Pet and Pet.
+data Pet:
+    name: string
+
+fn sorted_by_key[T, K < Ord](items: List[T], key: fn(T) -> K) -> List[T]:
+    items
+
+fn by_name() -> List[Pet]:
+    pets := [Pet { name: "Rex" }, Pet { name: "Ada" }]
+    sorted_by_key(pets, fn(pet: Pet) -> string: pet.name)

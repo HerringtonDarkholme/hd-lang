@@ -1,0 +1,14 @@
+# test: a bound may name a later parameter, but a default still may not
+# Spec Names, Function And Closure Scopes: names.generic.defaults.earlier; Type System: types.generic.default.later.
+trait Source[T]:
+    fn take(self) -> T
+
+data Fixed[T]:
+    value: T
+
+impl[T] Source[T] for Fixed[T]:
+    fn take(self) -> T:
+        self.value
+
+fn read[S < Source[U] = Fixed[U], U = string](source: S) -> U:  # diagnostic: binding-not-yet-visible
+    source.take()

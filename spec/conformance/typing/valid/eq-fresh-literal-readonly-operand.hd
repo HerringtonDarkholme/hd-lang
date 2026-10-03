@@ -1,0 +1,14 @@
+# test: == between a readonly Date and a fresh Date literal compares at the readonly view
+# Spec Expressions, Equality: expr.eq.readonly-view; Type System, Bindings And Fresh Values: types.fresh.weaken.meet.
+data Date:
+    year: i32
+
+impl Eq for Date:
+    fn eq(self, other: Self) -> bool:
+        self.year == other.year
+
+fn is_launch(d: Date) -> bool:
+    d == Date { year: 2026 }
+
+fn not_launch(d: Date) -> bool:
+    Date { year: 2026 } != d

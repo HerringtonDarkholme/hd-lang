@@ -250,6 +250,7 @@ fn split() -> i32:
 1. r[grammar.stmt.short-binding.one-name] `:=` binds exactly one name, as in `total := 0`.
 2. r[grammar.stmt.short-binding.let-only] A pattern before `:=`, such as `(a, b) := pair`, `Point { x, y } := p`, or `.Some(v) := found`, is an error whose fix-it writes `let` and `=`, as in `let (a, b) = pair`. Error: `missing-let`.
 3. r[grammar.stmt.short-binding.bare-list] A bare list before `:=`, as in `a, b := pair`, is an error whose fix-it writes `let (a, b) = pair`. Error: `syntax-error`.
+4. r[grammar.stmt.typed-binding.let] A binding with a type annotation must begin with `let`. So `x: T = v` is an error whose fix-it writes `let x: T = v`, or `x := v` without the type. Error: `missing-let`.
 
 ```text
 data Point:
@@ -260,8 +261,13 @@ fn sum(p: Point, pair: (i32, i32)) -> i32:
     Point { x, y } := p  # error: missing-let
     (low, high) := pair  # error: missing-let
     a, b := pair  # error: syntax-error
+    display_name: string = "Ada"  # error: missing-let
     x + y
 ```
+
+> **Note.** For `x: T = v`, the `missing-let` message reads: "a binding
+> with a type annotation must begin with 'let'; write `let x: T = ...`, or
+> `x := ...` without the type". It does not call the binding mutable.
 
 > **Why.** One way to destructure is easier to read and to write than
 > two. `let` already takes every pattern, and `:=` stays the short form
@@ -1244,10 +1250,11 @@ multiline_string_segment = multiline_string_text
                          | "$", "self"
                          | "${", expression, "}"
                          ;
-prefixed_string_expression = string_prefix, '"',
+prefixed_string_expression = [ prefix_module_path ], string_prefix, '"',
                              { prefixed_string_segment }, '"'
-                           | string_prefix, '"""',
+                           | [ prefix_module_path ], string_prefix, '"""',
                              { prefixed_multiline_segment }, '"""' ;
+prefix_module_path = identifier, ".", { identifier, "." } ;
 prefixed_string_segment = prefixed_string_character
                         | "$", identifier
                         | "$", "self"
@@ -1345,6 +1352,8 @@ fn describe(count: i32) -> string:
 See also: [Literal Suffixes](01-lexical-structure.md#literal-suffixes).
 
 #### Prefixed Strings
+
+1. r[grammar.primary.qualified-prefix] A `prefix_module_path` before a prefixed string makes one `prefixed_string_expression`, as in `marks.tag"item"`. It is never a member access on the path.
 
 The rules of [Suffixed Literals](#suffixed-literals) cover a prefixed
 string too:

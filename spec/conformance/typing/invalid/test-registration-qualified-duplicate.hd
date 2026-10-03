@@ -1,0 +1,10 @@
+# test: qualified and bare calls of it share one set of test names
+# Spec Modules, Registration Functions: module.testing.reg.identity.all; testing.it registers a test case as it does.
+use std.testing
+
+tests:
+    it("adds"):
+        pass
+
+    testing.it("adds"):  # diagnostic: duplicate-test-name
+        pass

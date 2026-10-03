@@ -1,0 +1,4 @@
+# test: two contextual variant operands give neither an expected type
+# Spec Expressions, Equality: expr.eq.contextual-both.
+fn neither() -> bool:
+    .None == .None  # diagnostic: missing-contextual-enum-type

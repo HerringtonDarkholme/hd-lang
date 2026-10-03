@@ -406,10 +406,11 @@ checks like `let f: StrPrefix[fn(Template[i64]) -> Query] = str_prefix()`,
 and its row parameter `Q` takes the empty row. The rules for prefixes:
 
 1. r[expr.prefix.fn-call] A prefixed string `x"..."` is the call `x(t)` of the prefix function `x`, with a `std.ops.Template` value `t` as its one argument. The compiler never joins the pieces and never calls `Display`.
-2. r[expr.prefix.template] `t.values` holds the `n` interpolated values in source order, and `t.raw_parts` holds the `n + 1` pieces of text around them.
-3. r[expr.prefix.parts] The first piece is the text before the first interpolation, and the last piece is the text after the last one. A piece is `""` where two interpolations touch, or where one begins or ends the string. So `x"a $b c"` passes the pieces `["a ", " c"]` and the values `[b]`, and `x"text"` passes `["text"]` and `[]`.
-4. r[expr.prefix.raw-parts] Each piece is the text exactly as written, with every backslash kept, as [`lex.prefix.raw-text`](01-lexical-structure.md#r-lex.prefix.raw-text) says.
-5. r[expr.prefix.order] The interpolated expressions are evaluated from left to right before the call, as arguments are.
+2. r[expr.prefix.qualified-call] A module-qualified prefixed string `m.x"..."` is likewise the call `m.x(t)` of the prefix function `x` that module `m` declares.
+3. r[expr.prefix.template] `t.values` holds the `n` interpolated values in source order, and `t.raw_parts` holds the `n + 1` pieces of text around them.
+4. r[expr.prefix.parts] The first piece is the text before the first interpolation, and the last piece is the text after the last one. A piece is `""` where two interpolations touch, or where one begins or ends the string. So `x"a $b c"` passes the pieces `["a ", " c"]` and the values `[b]`, and `x"text"` passes `["text"]` and `[]`.
+5. r[expr.prefix.raw-parts] Each piece is the text exactly as written, with every backslash kept, as [`lex.prefix.raw-text`](01-lexical-structure.md#r-lex.prefix.raw-text) says.
+6. r[expr.prefix.order] The interpolated expressions are evaluated from left to right before the call, as arguments are.
 
 ```text
 use std.ops.{Template, str_prefix}
@@ -1474,10 +1475,24 @@ fn main() -> f64: 2 ** 2.0                     # error: mixed-numeric-types
 6. r[expr.eq.float] Floating-point equality follows IEEE 754, so NaN is unequal even to itself, although floating-point types implement `Eq`.
 7. r[expr.eq.std.intrinsic] The `Eq` implementations of the number types, `char`, and `bool` are [intrinsic methods](09-traits.md#intrinsic-methods). The one for `string` is not.
 8. r[expr.eq.functions] Function and closure values do not implement `Eq`; applying `==` or `!=` to them is an error. Error: `unsupported-equality`.
+9. r[expr.eq.contextual-operand] In `==` and `!=`, a contextual variant operand, such as `.None`, `.Ok(1)`, or `.Some(x)`, takes the other operand's type as its expected type. This holds on either side.
+10. r[expr.eq.contextual-both] When both operands are contextual variants, neither has an expected type, so `.None == .None` is an error. Error: `missing-contextual-enum-type`.
+11. r[expr.eq.readonly-view] `==` and `!=` with one `mut T` operand and one `T` operand compare at `T`, because the readonly view is enough. So `d == Date { year: 2026 }` with `d: Date` is valid, though the literal is a fresh `mut Date`.
 
 ```text
 fn invalid(left: fn() -> void, right: fn() -> void) -> bool:
     left == right  # error: unsupported-equality
+```
+
+```text
+fn absent(found: i32?) -> bool:
+    found == .None
+
+fn first(found: i32?) -> bool:
+    .Some(1) != found
+
+fn neither() -> bool:
+    .None == .None  # error: missing-contextual-enum-type
 ```
 
 ### Ordering

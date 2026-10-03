@@ -988,7 +988,10 @@ pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choice
 
 1. r[module.testing.reg.functions] `it_each`, `it_prop`, and `it_prop_with` are test registration functions with the signatures above, which `std.testing` declares. The test-position rules of `it` apply to them.
 2. r[module.testing.reg.import] None of the three is a prelude name. Code imports them from `std.testing`, as in `use std.testing.it_each`.
-3. r[module.testing.reg.row-body-closure] The body of `it_each` has a parameter, so it is an explicit `fn!` closure, not a trailing block. After omitted options, a call passes it by name, as in `body=fn!(value: i32): ...`.
+3. r[module.testing.reg.identity] A call is a call of a test registration function by declaration identity, not by spelling. The test-position rules and the rules of this section apply to it under any spelling.
+4. r[module.testing.reg.identity.spellings] So a bare `it_each(...)`, a call of a renamed import such as `use std.testing.{it_each as each}`, and `testing.it_each(...)` after `use std.testing` all call `it_each`.
+5. r[module.testing.reg.identity.all] The same holds for `it`, `it_prop`, and `it_prop_with`. `it` is a prelude name, and code may also import it under another name or call it as `testing.it`.
+6. r[module.testing.reg.row-body-closure] The body of `it_each` has a parameter, so it is an explicit `fn!` closure, not a trailing block. After omitted options, a call passes it by name, as in `body=fn!(value: i32): ...`.
 4. r[module.testing.reg.row-name-clash] Another test case of the module must not be named `name[i]` for any index `i` of an `it_each` call's rows. Error: `duplicate-test-name`.
 5. r[module.testing.reg.prop-registers] A call of `it_prop` or `it_prop_with` in test position registers one property test case.
 6. r[module.testing.reg.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
@@ -1011,13 +1014,31 @@ tests:
     it_each(label(), [1, 2], body=fn!(value: i32): pass)  # error: non-literal-test-argument
 ```
 
+Every spelling of a registration function registers test cases:
+
+```text
+use std.testing
+use std.testing.{it as check, it_each as each}
+
+tests:
+    check("adds"):
+        pass
+
+    each("doubles", [1, 2], body=fn!(value: i32): pass)
+
+    testing.it_each("halves", [2, 4], body=fn!(value: i32): pass)
+
+fn helper() -> void:
+    each("rows", [1, 2], body=fn!(value: i32): pass)  # error: misplaced-test-case
+```
+
 > **Note.** `Arbitrary`, `Choices`, and `Duration` are stdlib-tier types
 > ([Property Tests](../std/testing.md#property-tests),
 > [Time](../std/time.md#duration)). The language tier names them in these
 > signatures only and specifies none of their members.
 
 > **Why.** The compiler lists every test case without running it, so it
-> knows each registration function by name, where its calls stand, and
+> knows each registration function by its declaration, where its calls stand, and
 > which of their arguments must be literals.
 
 See also: [Table-Test Rows](../std/testing.md#table-test-rows), for how an

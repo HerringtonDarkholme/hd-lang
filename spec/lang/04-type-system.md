@@ -640,16 +640,18 @@ f32, f64
 
 ### Binary Numeric Operators
 
-1. r[types.num.binary.literal] For a binary numeric operator, an untyped literal first adopts the compatible type expected from the other operand.
-2. r[types.num.binary.same-type] Otherwise both operands must have one type, and the result has that type, so `f32 op f32` produces `f32`. Two types of one family are an error, as `small + large` with an `i16` and an `i64`, or an `f32` and an `f64` operand. Error: `type-mismatch`.
-3. r[types.num.binary.no-mix] Signed and unsigned integers do not mix implicitly, and integers do not mix implicitly with floating-point values. A signed and an unsigned operand are an error. Error: `mixed-signedness`.
-4. r[types.num.binary.cast] The user must cast one operand explicitly in those cases.
+1. r[types.num.binary.literal-operand] In a binary arithmetic or comparison expression, an untyped literal operand first adopts the compatible type of the other operand, whether the literal is on the left or on the right.
+2. r[types.num.binary.literal-left] So an unsuffixed integer literal on the left takes the right operand's integer type: `0xFFFF_FFFF_FFFF_FFFF - count` with a `u64` `count` is valid, and `1 < count` compares two `u64` values.
+3. r[types.num.binary.same-type] Otherwise both operands must have one type, and the result has that type, so `f32 op f32` produces `f32`. Two types of one family are an error, as `small + large` with an `i16` and an `i64`, or an `f32` and an `f64` operand. Error: `type-mismatch`.
+4. r[types.num.binary.no-mix] Signed and unsigned integers do not mix implicitly, and integers do not mix implicitly with floating-point values. A signed and an unsigned operand are an error. Error: `mixed-signedness`.
+5. r[types.num.binary.cast] The user must cast one operand explicitly in those cases.
 
 ```text
 fn add(small: i16, large: i64, ratio: f32, scale: f64) -> f64:
     let count: i64 = small + large  # error: type-mismatch
     let mixed: f64 = ratio * scale  # error: type-mismatch
     let next = small + 1            # the literal is an i16
+    let rest = 100 - small          # so is this one, on the left
     f64(ratio) * scale
 ```
 
@@ -829,9 +831,10 @@ See also: [Mutable Paths](#mutable-paths).
 1. r[types.fresh.mutable-outer] A fresh data or copy-update expression, stored enum construction, list expression, or map expression produces mutable access to its new outer object.
 2. r[types.fresh.tuple] A tuple expression produces a tuple, which has no `mut` form, as [`types.tuple.no-mut`](#r-types.tuple.no-mut) states. Its elements keep their permissions.
 3. r[types.fresh.weaken] This permission may be weakened immediately by an expected readonly type.
-4. r[types.fresh.not-recursive] Freshness does not recursively upgrade composite values stored in the new object.
-5. r[types.fresh.element-permission] Each field or element keeps the permission of the supplied expression and declared edge.
-6. r[types.fresh.element-no-weaken] An expected type weakens only the fresh expression it applies to, never the elements of a collection already built. So `[for p in parts => Word { text: p }].iter()` has type `mut Iterator[mut Word]`, and returning it as `mut Iterator[Word]` is an error. Error: `type-mismatch`.
+4. r[types.fresh.weaken.meet] It is also weakened where the fresh value meets a readonly value of its type: an `==` or `!=` operand pair compares at the readonly view, and a generic inference join solves at it.
+5. r[types.fresh.not-recursive] Freshness does not recursively upgrade composite values stored in the new object.
+6. r[types.fresh.element-permission] Each field or element keeps the permission of the supplied expression and declared edge.
+7. r[types.fresh.element-no-weaken] An expected type weakens only the fresh expression it applies to, never the elements of a collection already built. So `[for p in parts => Word { text: p }].iter()` has type `mut Iterator[mut Word]`, and returning it as `mut Iterator[Word]` is an error. Error: `type-mismatch`.
 
 #### Fresh Literals With Readonly Parts
 
@@ -1120,6 +1123,58 @@ fn clear_value[T < mut Clear](value: T) -> void:
 > **Why.** Substitution with `T = mut User` would turn `mut T` into the
 > meaningless form `mut mut User`.
 
+### Bound Order
+
+A bound may name a later parameter of its list, and two bounds may name
+each other:
+
+```text
+trait Source[T]:
+    fn take(self) -> T
+
+trait Sink[T]:
+    fn give(self, value: T) -> void
+
+data Tank:
+    level: i32
+
+data Pipe:
+    width: i32
+
+data Hose:
+    length: i32
+
+impl Source[Pipe] for Tank:
+    fn take(self) -> Pipe: Pipe { width: self.level }
+
+impl Source[Hose] for Tank:
+    fn take(self) -> Hose: Hose { length: self.level }
+
+impl Sink[Tank] for Pipe:
+    fn give(self, value: Tank) -> void: pass
+
+impl Sink[Tank] for Hose:
+    fn give(self, value: Tank) -> void: pass
+
+fn wire[S < Source[U], U < Sink[S]](s: S, u: U) -> void:
+    u.give(s)
+
+fn connect(tank: Tank, pipe: Pipe, hose: Hose) -> void:
+    wire(tank, pipe)
+    wire(tank, hose)
+```
+
+1. r[types.generic.bound.any-order] In a generic declaration of any kind, a bound may name any parameter of the same list, earlier or later.
+2. r[types.generic.bound.mutual] Bounds may name each other, as `S < Source[U]` and `U < Sink[S]` do above. Such mutual references are not a circularity error.
+3. r[types.generic.bound.defaults-apart] Defaults keep their own order: they are trailing, as [`types.generic.default.order`](#r-types.generic.default.order) states, and see only earlier parameters, as [`types.generic.default.later`](#r-types.generic.default.later) states.
+
+> **Why.** A bound is a trait constraint, and hd has no subtyping, so
+> bounds need no order, as Rust where-clauses need none. An associated
+> type allows one pairing per type. A generic trait parameter with mutual
+> bounds allows many, as `Tank` pairs with both `Pipe` and `Hose`.
+
+See also: [Function And Closure Scopes](03-names-and-scopes.md#function-and-closure-scopes).
+
 ### Generic Arguments
 
 1. r[types.generic.infer] Generic arguments are inferred at call sites when unambiguous.
@@ -1140,12 +1195,13 @@ When a call solves one type parameter from several arguments, the
 arguments' types may differ only in `mut`:
 
 1. r[types.generic.infer.join] When generic call inference solves one type parameter from several arguments, the only conversion between their types is permission weakening: `mut X` and `X` meet at `X`.
-2. r[types.generic.infer.join.no-trait-value] A trait-value conversion never applies, as [`types.lct.no-trait-value`](#r-types.lct.no-trait-value) states for the least common type. So `cmp(user, label)` with a `User` and a `Display` argument is an error. Error: `no-common-type`.
-3. r[types.generic.infer.join.no-supertrait-widening] A supertrait widening never applies either, so two arguments of two child traits of one supertrait are an error. Error: `no-common-type`.
-4. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error, as for `choose(1, true)`, `max(small, large)` with an `i32` and an `i64`, a `List[mut User]` and a `List[User]`, or a `T` and a `T?`. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
-5. r[types.generic.infer.join.literal] An integer literal argument is not a conversion: it takes the type solved from the other arguments as its expected type, in any position. So `pick(1, large)` with an `i64` `large` solves `T = i64`.
-6. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp::[Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
-7. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
+2. r[types.generic.infer.join.outer-permission] Sources that disagree only in outer permission weaken to the readonly view, so a `mut T` and a `T` solve the parameter as `T`. This holds when one argument is a fresh value, as in `same(Date { year: 2026 }, d)` with `d: Date`.
+3. r[types.generic.infer.join.no-trait-value] A trait-value conversion never applies, as [`types.lct.no-trait-value`](#r-types.lct.no-trait-value) states for the least common type. So `cmp(user, label)` with a `User` and a `Display` argument is an error. Error: `no-common-type`.
+4. r[types.generic.infer.join.no-supertrait-widening] A supertrait widening never applies either, so two arguments of two child traits of one supertrait are an error. Error: `no-common-type`.
+5. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error, as for `choose(1, true)`, `max(small, large)` with an `i32` and an `i64`, a `List[mut User]` and a `List[User]`, or a `T` and a `T?`. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
+6. r[types.generic.infer.join.literal] An integer literal argument is not a conversion: it takes the type solved from the other arguments as its expected type, in any position. So `pick(1, large)` with an `i64` `large` solves `T = i64`.
+7. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp::[Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
+8. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
 
 ```text
 fn max[T < Ord](left: T, right: T) -> T:
@@ -1272,22 +1328,18 @@ fn first_name(teams: List[List[string]]) -> string?:
 ```
 
 A default fills a bound-only parameter that several instantiations leave
-open. `Fixed[U]` is there only because every parameter after a defaulted
-one needs a default too:
+open. The bound of `S` names the later `U`, so only `U` needs a default:
 
 ```text
-data Fixed[T]:
-    value: T
-
-impl[T] Source[T] for Fixed[T]:
-    fn take(self) -> T:
-        self.value
-
-fn read_or_text[U = string, S < Source[U] = Fixed[U]](source: S) -> U:
+fn read_or_text[S < Source[U], U = string](source: S) -> U:
     source.take()
 
 fn label_of(both: Both) -> string:
     text := read_or_text(both)  # S is Both; U is open, so U is string
+    text
+
+fn label_of_both(both: Both) -> string:
+    text := read_or_text::[Both](both)  # the list binds S; U is string
     text
 ```
 

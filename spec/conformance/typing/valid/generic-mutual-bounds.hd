@@ -1,0 +1,35 @@
+# test: two bounds may name each other, and a type may pair with several partners
+# Spec Type System, Bound Order: types.generic.bound.mutual; no circularity error.
+trait Source[T]:
+    fn take(self) -> T
+
+trait Sink[T]:
+    fn give(self, value: T) -> void
+
+data Tank:
+    level: i32
+
+data Pipe:
+    width: i32
+
+data Hose:
+    length: i32
+
+impl Source[Pipe] for Tank:
+    fn take(self) -> Pipe: Pipe { width: self.level }
+
+impl Source[Hose] for Tank:
+    fn take(self) -> Hose: Hose { length: self.level }
+
+impl Sink[Tank] for Pipe:
+    fn give(self, value: Tank) -> void: pass
+
+impl Sink[Tank] for Hose:
+    fn give(self, value: Tank) -> void: pass
+
+fn wire[S < Source[U], U < Sink[S]](s: S, u: U) -> void:
+    u.give(s)
+
+fn connect(tank: Tank, pipe: Pipe, hose: Hose) -> void:
+    wire(tank, pipe)
+    wire(tank, hose)

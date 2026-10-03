@@ -1,0 +1,9 @@
+# test: a module-qualified prefixed string calls that module's prefix function with a template
+# Spec Expressions, Prefixed Strings: expr.prefix.qualified-call.
+# fixture-package-tree: qualified-prefix/src/main.hd
+use std.testing.assert_equal
+use pkg.marks
+
+tests:
+    it("marks.tag gets the raw text"):
+        assert_equal(marks.tag"item\n", "item\\n", reason="the qualified prefix gets the raw piece")

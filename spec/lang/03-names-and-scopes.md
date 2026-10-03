@@ -228,9 +228,10 @@ fn retry_after(s: i32) -> i32:
     s
 ```
 
-1. r[names.literal-fn.module-name] A literal suffix or string prefix is resolved as a module name: a module-scope declaration, or a name that a use declaration or the prelude introduces. Ordinary rules apply, so it is brought in, renamed with `as`, or found in conflict as other used names are.
-2. r[names.literal-fn.no-local] Parameters, local bindings, and local type declarations never take part, so a local named `s` or `r` does not change what `5s` or `r"..."` calls.
-3. r[names.literal-fn.unknown-name] A suffix or prefix that names nothing in module scope is an error. Error: `unknown-name`.
+1. r[names.literal-fn.bare-name] A literal suffix or an unqualified string prefix is resolved as a module name: a module-scope declaration, or a name that a use declaration or the prelude introduces. Ordinary rules apply, so it is brought in, renamed with `as`, or found in conflict as other used names are.
+2. r[names.literal-fn.qualified-prefix] A module-qualified string prefix, as `marks.tag` in `marks.tag"item"` after `use pkg.marks`, resolves through its module path as any qualified function name does.
+3. r[names.literal-fn.no-local] Parameters, local bindings, and local type declarations never take part, so a local named `s` or `r` does not change what `5s` or `r"..."` calls.
+4. r[names.literal-fn.unknown-name] A suffix or prefix that names nothing in module scope is an error. Error: `unknown-name`.
 
 ```text
 fn margin() -> i32:
@@ -267,6 +268,9 @@ prefix too, and so an unknown prefix is an error:
 fn query(id: i32) -> string:
     sql"select $id"  # error: unknown-name
 ```
+
+> **Note.** So after `use std.text`, `text.r"\d+"` calls the stdlib
+> prefix function `r` of [Text](../std/text.md).
 
 See also: [Prefixed Strings](05-expressions.md#prefixed-strings).
 
@@ -372,8 +376,11 @@ fn invalid(flag: bool) -> string:
 
 ## Function And Closure Scopes
 
-1. r[names.fn.params.visible] A function's generic parameters and value parameters are visible throughout its signature after their declaration point and throughout its body.
-2. r[names.fn.params.scope] All value parameters belong to the function body's outermost local scope and must have distinct names.
+1. r[names.fn.value-params.visible] A function's value parameters are visible throughout its signature after their declaration point and throughout its body.
+2. r[names.generic.params.visible] The generic parameters of a function, method, data type, enum, trait, or `type` declaration are visible throughout that declaration, including its body.
+3. r[names.generic.bounds.whole-list] A bound sees the whole list: it may name any parameter of its own list, earlier or later, as in `fn read[S < Source[U], U = string](s: S) -> U`.
+4. r[names.generic.defaults.earlier] A type-argument default sees only the earlier parameters of its list, as [`types.generic.default.later`](04-type-system.md#r-types.generic.default.later) states. Error: `binding-not-yet-visible`.
+5. r[names.fn.params.scope] All value parameters belong to the function body's outermost local scope and must have distinct names.
 
 ### Local Functions
 

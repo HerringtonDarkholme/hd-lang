@@ -102,11 +102,29 @@ word := line
 7. r[lex.dot.joined] The joined text is read as if it were written on one physical line.
 8. r[lex.dot.open-suite] A leading-dot line is an error when a same-line suite is still open at the end of the logical line it would continue, as after `f := fn(x): x`. Error: `syntax-error`.
 9. r[lex.dot.closed-suite] A same-line suite that closed earlier on the line, such as one inside `apply(xs, fn(x): x)`, does not prevent the continuation.
-10. r[lex.dot.same-indent] A line starting with `.Variant` at the same indentation as the previous line, such as a match arm or an expression statement, starts a new logical line.
-11. r[lex.dot.suite-line] So does the first line of an indented suite, whose header ends in `:`.
-12. r[lex.dot.where] The rule applies at delimiter depth zero and on the body lines of a suite nested inside delimiters. Elsewhere inside delimiters every line already continues.
-13. r[lex.continue.no-other-operator] A line starting with a binary operator other than `|>` never continues the previous line.
-14. r[lex.continue.paren-line] A line whose first token is `(` never continues the previous line either. Outside delimiters it starts a new logical line, so `f` on one line and `(a, b)` on the next are two statements, never the call `f(a, b)`.
+10. r[lex.dot.statement-indent] A leading-dot line indented no deeper than the first line of the statement it would continue starts a new statement, whatever the indentation of the physical line before it.
+11. r[lex.dot.contextual-statement] So a `.Variant` line at statement indentation, such as `.Ok(Step { ... })` after a `:=` line, is a contextual-variant expression statement or tail value. A match arm starts the same way.
+12. r[lex.dot.suite-line] So does the first line of an indented suite, whose header ends in `:`.
+13. r[lex.dot.where] The rule applies at delimiter depth zero and on the body lines of a suite nested inside delimiters. Elsewhere inside delimiters every line already continues.
+14. r[lex.continue.no-other-operator] A line starting with a binary operator other than `|>` never continues the previous line.
+15. r[lex.continue.paren-line] A line whose first token is `(` never continues the previous line either. Outside delimiters it starts a new logical line, so `f` on one line and `(a, b)` on the next are two statements, never the call `f(a, b)`.
+
+Only a deeper line continues. Below, `.grow()` and `.size` continue
+`start`, and `.Ok(...)` at statement indentation is the tail value:
+
+```text
+data Step:
+    size: i32
+
+impl Step:
+    fn grow(self) -> Step: Step { size: self.size + 1 }
+
+fn measure(start: Step) -> Result[Step, string]:
+    size := start
+        .grow()
+        .size
+    .Ok(Step { size: size })
+```
 
 ```text
 fn sizer() -> fn(string) -> usize:
@@ -752,6 +770,9 @@ quoted := r"say \"hi\""
 4. r[lex.prefix.backslash] A backslash keeps the following quote from ending the literal, and keeps a following `$` from beginning an interpolation. The backslash stays in the text, so a prefixed string cannot end in an odd number of backslashes.
 5. r[lex.prefix.lines] A prefixed string follows the line rules of an unprefixed one: a single-line form holds no line ending, and a multiline form keeps its line endings and indentation as written.
 6. r[lex.prefix.interpolation] A prefixed string interpolates with the forms of [Interpolation](#interpolation): `$name`, `$self`, and `${expression}`.
+7. r[lex.prefix.qualified] A prefix may be module-qualified. After a module path and `.`, an identifier followed directly by `"` or `"""` forms a prefixed string, as in `marks.tag"item"`.
+8. r[lex.prefix.qualified.name] The prefix of such a string is the whole qualified name, `marks.tag` in that example, not a member of a value.
+9. r[lex.suffix.bare] A literal suffix is always a bare identifier and is never module-qualified.
 
 The reserved-word and meaning rules of [Literal Suffixes](#literal-suffixes)
 cover a prefix too.

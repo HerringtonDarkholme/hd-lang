@@ -1,0 +1,11 @@
+# test: a renamed import of it or it_each still registers test cases
+# Spec Modules, Registration Functions: module.testing.reg.identity.spellings; a registration call is known by declaration identity, not by spelling.
+use std.testing.{assert, it as check, it_each as each}
+
+tests:
+    check("adds"):
+        assert(1 + 1 == 2, reason="small sums")
+
+    each("doubles", [1, 2], body=fn!(value: i32):
+        assert(value * 2 > value, reason="positive rows grow")
+    )
