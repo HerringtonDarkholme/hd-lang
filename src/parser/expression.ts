@@ -515,6 +515,12 @@ export abstract class ExpressionParser extends RangeParser {
       const spreads: boolean[] = [];
       if (!this.atText("]")) {
         do {
+          if (this.atText("..."))
+            this.fail(
+              "syntax-error",
+              "a list spread is written with a suffix '...', as in '[xs...]'",
+              this.current().span,
+            );
           // `[a, b := v]` holds `a` and the binding `b := v`
           // (02-grammar.md#r-grammar.expr.multi-binding.element).
           const element = this.parseExpression();
