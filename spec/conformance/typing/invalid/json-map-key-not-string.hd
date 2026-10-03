@@ -1,0 +1,6 @@
+# test: a map whose key type is not string has no ToJson
+# Spec std/json Standard Implementations: std-json.std.map-keys (task #241).
+use std.json.encode
+
+fn show(counts: Map[i32, i32]) -> string:
+    encode(counts)  # diagnostic: unsatisfied-trait-bound

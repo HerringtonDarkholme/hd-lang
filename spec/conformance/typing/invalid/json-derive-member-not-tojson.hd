@@ -1,0 +1,11 @@
+# test: deriving ToJson for a type with a member that has no ToJson is an error at the opt-in
+# Spec std/json Derived ToJson: std-json.derive.to-json.members (task #241).
+use std.json.ToJson
+
+data Secret:
+    value: i32
+
+@derive(ToJson)  # diagnostic: member-not-derivable
+data Account:
+    id: i32
+    secret: Secret

@@ -2,19 +2,21 @@
 
 Status: standard library specification draft.
 
-This chapter defines the untyped part of `std.json`, which `lib/std` writes
-in ordinary hd over the language tier:
+This chapter defines `std.json`, which `lib/std` writes in ordinary hd
+over the language tier:
 
 - the value type `Json`, and `Number`, which keeps 64-bit integers exact;
 - `parse`, a strict [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259) parser;
-- `JsonError`, the error that `parse` returns;
-- the compact `Display` text of a `Json`, and `pretty`.
+- `JsonError`, the error that `parse` and `decode` return;
+- the compact `Display` text of a `Json`, and `pretty`;
+- the typed part: the traits `ToJson` and `FromJson`, their standard
+  implementations and templates, and `encode` and `decode`.
 
-Nothing in it is language tier. The typed part, the traits `ToJson` and
-`FromJson` with `encode` and `decode`, is not specified yet.
+Nothing in it is language tier.
 
 1. r[std-json.import] `std.json` declares `Json`, `Number`, `JsonError`, `parse`, and `pretty`. None is a prelude name; code imports them, as in `use std.json.parse`.
-2. r[std-json.no-panic] None of these functions panics.
+2. r[std-json.import.typed] `std.json` also declares `ToJson`, `FromJson`, `encode`, and `decode`. None is a prelude name either.
+3. r[std-json.no-panic] None of these functions panics.
 
 ## Json Values
 
@@ -191,7 +193,8 @@ fn title(text: string) -> string:
 
 ## JSON Errors
 
-A failed parse reports one of seven errors, each at a position:
+A failed parse reports one of seven errors, each at a position. A failed
+decode reports a parse error, or one of three errors at a path:
 
 ```text
 pub enum JsonError:
@@ -202,9 +205,12 @@ pub enum JsonError:
     ControlCharacter(position: usize)
     NumberOutOfRange(position: usize)
     NestingTooDeep(position: usize)
+    WrongType(path: string, expected: string)
+    MissingField(path: string)
+    UnknownVariant(path: string, name: string)
 ```
 
-1. r[std-json.error.enum.usize] `std.json` declares the enum `JsonError` with the variants above, each with one field `position: usize`.
+1. r[std-json.error.variants] `std.json` declares the enum `JsonError` with the ten variants above. The first seven are parse errors, and the last three are decode errors.
 2. r[std-json.error.position] A `position` is an index into the text, counted in characters from 0.
 3. r[std-json.error.traits] `JsonError` implements `Eq`, `Debug`, and `Display`.
 
@@ -220,6 +226,34 @@ pub enum JsonError:
 
 > **Note.** The text is valid UTF-8, so a position in characters is not a
 > byte offset when a non-ASCII character comes before it.
+
+### Decode Errors
+
+A decode error names the value that failed by its path from the root, as
+`$.users[2].name`:
+
+| Rule | When |
+| --- | --- |
+| r[std-json.error.kind.type] `WrongType` | a value of another kind than the type reads, or a number outside the type's range; `expected` names what the type reads |
+| r[std-json.error.kind.missing] `MissingField` | an object without the key of a member whose type does not read `null`; `path` ends with that key |
+| r[std-json.error.kind.variant] `UnknownVariant` | a variant name that the enum does not declare; `path` is the enum value's, and `name` is the name read |
+
+1. r[std-json.error.path] A `path` is `$`, then one segment per step from the root value: `.key` for an object's member or a variant's payload, and `[index]` for an array item.
+2. r[std-json.error.path.index] An index is written in base ten, counted from 0.
+3. r[std-json.error.path.key] A key is written as it is, with no quotes and no escapes.
+4. r[std-json.error.display.path] The `Display` text of a decode error contains its `path`.
+
+The `expected` of a `WrongType` depends on the type that reads the value:
+
+| Rule | Type | `expected` |
+| --- | --- | --- |
+| r[std-json.error.expected.scalar] Scalars | `bool`, `char`, `string`, and each integer and float type | the type's name, as `"u8"` |
+| r[std-json.error.expected.array] Lists | `List[T]` | `"array"` |
+| r[std-json.error.expected.object] Objects | `Map[string, V]`, a derived data type, and a derived variant's payload | `"object"` |
+| r[std-json.error.expected.variant] Enums | a derived enum | `"variant"` |
+
+> **Note.** A path is for people to read. A key that holds `.` or `[`
+> makes it ambiguous, as in `serde_path_to_error`.
 
 ## Writing
 
@@ -263,4 +297,187 @@ fn show_pretty(value: Json) -> string:
 | `[1,2]` | `"[\n  1,\n  2\n]"` |
 | `{"a":[]}` | `"{\n  \"a\": []\n}"` |
 
-See also: [Encoding](encoding.md#decode-errors), [Num](num.md#integer-parsing), [Collections](collections.md#map-methods), [Numeric Display](../lang/04-type-system.md#numeric-display), [Map Lookup And Order](../lang/04-type-system.md#lookup-and-order).
+## Typed JSON
+
+`ToJson` turns a value into a `Json`, and `FromJson` reads one back. A data
+type or an enum derives each trait on its own, and `encode` and `decode`
+join them to JSON text:
+
+```text
+use std.json.{ToJson, FromJson, encode, decode, JsonError}
+
+@derive(ToJson, FromJson)
+data Address:
+    city: string
+    zip: string?
+
+fn save(address: Address) -> string:
+    encode(address)   # {"city":"London","zip":null}
+
+fn load(text: string) -> Result[Address, JsonError]:
+    decode::[Address](text)
+```
+
+### ToJson And FromJson
+
+1. r[std-json.to-json.trait] `std.json` declares `trait ToJson` with one method, `fn to_json(self) -> Json`, which returns the value's `Json`.
+2. r[std-json.from-json.trait] `std.json` declares `trait FromJson` with one associated function, `fn from_json(value: Json) -> Result[Self, JsonError]`. It returns the value that `value` describes, or the first error it finds.
+3. r[std-json.from-json.call] Generic code calls it through a bound, as in `T::from_json(value)`, by [`trait.assoc-call.parameter`](../lang/09-traits.md#r-trait.assoc-call.parameter).
+4. r[std-json.from-json.decode-errors] The standard implementations and the template of `FromJson` return only the decode errors: `WrongType`, `MissingField`, and `UnknownVariant`.
+5. r[std-json.from-json.relative] Each `from_json` reports a path relative to the value it reads, whose path is `$`. A container that reads an item or a member inserts that step's segment after the `$` of the item's error.
+
+> **Note.** The traits are two concerns. A type that only writes JSON
+> derives only `ToJson`, and its members then need only `ToJson`.
+
+### Encode And Decode
+
+| Rule | Function | Result |
+| --- | --- | --- |
+| r[std-json.encode] `encode` | `pub fn encode[T < ToJson](value: T) -> string` | the [compact text](#compact-text) of `value.to_json()` |
+| r[std-json.decode] `decode` | `pub fn decode[T < FromJson](text: string) -> Result[T, JsonError]` | `parse(text)`, then `T::from_json` of the parsed value |
+
+1. r[std-json.decode.parse-error] When `parse` fails, `decode` returns its parse error and calls no `from_json`.
+2. r[std-json.encode.bound] `encode` of a type that does not implement `ToJson` is an error. Error: `unsatisfied-trait-bound`.
+3. r[std-json.decode.bound] `decode` into a type that does not implement `FromJson` is an error. Error: `unsatisfied-trait-bound`.
+
+```text
+use std.json.{encode, decode, JsonError}
+
+data Plain:
+    id: i32
+
+fn show(value: Plain) -> string:
+    encode(value)  # error: unsatisfied-trait-bound
+
+fn load(text: string) -> Result[Plain, JsonError]:
+    decode::[Plain](text)  # error: unsatisfied-trait-bound
+```
+
+> **Note.** `encode` writes only the compact layout. For the pretty one,
+> write `pretty(value.to_json())`.
+
+### Standard Implementations
+
+`std` implements both traits for these types:
+
+| Rule | Type | `to_json` gives | `from_json` reads |
+| --- | --- | --- | --- |
+| r[std-json.std.json] Json | `Json` | the value itself | any value, as itself |
+| r[std-json.std.bool] Boolean | `bool` | a `Bool` | a `Bool` |
+| r[std-json.std.text] String | `string` | a `Text` | a `Text` |
+| r[std-json.std.char] Character | `char` | a `Text` of that one character | a `Text` of exactly one character |
+| r[std-json.std.integer] Integers | `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, and `u64` | the exact integer, as `Number::from_i64` or `Number::from_u64` gives it | a `Number` that is an integer in the type's range |
+| r[std-json.std.float] Floats | `f32` and `f64` | the `Number` of the value as an `f64` | any `Number`, as `as_f64` gives it |
+| r[std-json.std.optional] Optional | `T?`, where `T` implements the trait | `null` for `.None`, and the payload's `Json` for `.Some` | `.None` from `null`, and `.Some` of what `T` reads from any other value |
+| r[std-json.std.list] List | `List[T]`, where `T` implements the trait | an `Array` of the items' values, in order | an `Array`, item by item |
+| r[std-json.std.map] Map | `Map[string, V]`, where `V` implements the trait | an `Object` of the entries' values, in insertion order | an `Object`, entry by entry, in its key order |
+
+1. r[std-json.std.integer.read] A float is never an integer, so `1.0` is a `WrongType` for every integer type. So is an integer outside the type's range.
+2. r[std-json.std.float-special] A NaN or an infinity has no JSON number, so its `to_json` is `null`, as in `serde_json`.
+3. r[std-json.std.float-read] An `f32` reads the nearest `f32` to the number's `f64`. A number past the finite `f32` range is a `WrongType`.
+4. r[std-json.std.wrong-kind] Any other kind of value is a `WrongType`, with the `expected` that [Decode Errors](#decode-errors) gives.
+5. r[std-json.std.item-path] An error inside a list item gets the segment `[index]`, and one inside a map value gets `.key`.
+6. r[std-json.std.map-keys] Only a `Map` whose key type is `string` implements the traits. Using a map with any other key type where they are required is an error. Error: `unsatisfied-trait-bound`.
+
+```text
+use std.json.encode
+
+fn show(counts: Map[i32, i32]) -> string:
+    encode(counts)  # error: unsatisfied-trait-bound
+```
+
+> **Note.** `T??` loses a layer: `.Some(.None)` writes `null`, which reads
+> back as `.None`. A NaN writes `null`, which no float reads.
+
+> **Why.** A JSON key is always a string. A map with other keys converts
+> them first, so the program chooses their text.
+
+### Derived ToJson
+
+`@derive(ToJson)` writes a data type as an object with one key per member.
+It writes an enum in the externally tagged form, the variant's name with
+its members:
+
+```text
+use std.json.{ToJson, FromJson, encode}
+
+@derive(ToJson, FromJson)
+enum Shape:
+    Circle(radius: u32)
+    Rect(width: i32, height: i32)
+    Point(i32, i32)
+    Empty
+```
+
+| Value | `encode` text |
+| --- | --- |
+| `Shape.Circle(7)` | `{"Circle":{"radius":7}}` |
+| `Shape.Rect(2, 3)` | `{"Rect":{"width":2,"height":3}}` |
+| `Shape.Point(4, 5)` | `{"Point":{"_0":4,"_1":5}}` |
+| `Shape.Empty` | `"Empty"` |
+
+1. r[std-json.derive.to-json.template] `std.json` declares the [template](../lang/14-annotations.md#templates) of `ToJson`, which `@derive(ToJson)` instantiates.
+2. r[std-json.derive.to-json.data] A data type gives an `Object` with one key per member that the derivation walks, in declaration order. The key is the member's name, and its value is the member's `to_json`.
+3. r[std-json.derive.to-json.enum] A variant with members gives an `Object` with one key, the variant's name. Its value is the `Object` of the variant's members, as for a data type.
+4. r[std-json.derive.to-json.unit] A variant with no member in this derivation gives the `Text` of its name.
+5. r[std-json.derive.to-json.positional] A positional member's key is its member name: `_0`, `_1`, and so on.
+6. r[std-json.derive.to-json.embedded] An embedded member is one key, named by its type's final name, whose value is the part's `Json`. It is not flattened.
+7. r[std-json.derive.to-json.shared] Shared constructor data is not a member, so it is not written.
+8. r[std-json.derive.to-json.members] Every member that the derivation walks must implement `ToJson`. A member that does not makes the type not derivable, reported at the opt-in. Error: `member-not-derivable`.
+
+```text
+use std.json.ToJson
+
+data Secret:
+    value: i32
+
+@derive(ToJson)  # error: member-not-derivable
+data Account:
+    id: i32
+    secret: Secret
+```
+
+> **Note.** A member omitted with `= pass` in a derivation block writes no
+> key, as [Omitted Members](../lang/14-annotations.md#omitted-members)
+> states. Renames, conditional skips, and defaults per field come later,
+> through typed member facts.
+
+> **Why.** The externally tagged form is `serde`'s default. It needs no tag
+> key that could clash with a member's name.
+
+### Derived FromJson
+
+`@derive(FromJson)` reads the form that `@derive(ToJson)` writes:
+
+| Text read as a `Shape` | Result |
+| --- | --- |
+| `"Empty"` or `{"Empty":{}}` | `.Ok(Shape.Empty)` |
+| `{"Rect":{"height":3,"width":2,"z":0}}` | `.Ok(Shape.Rect(2, 3))` |
+| `"Rect"` | `.Err(MissingField("$.Rect.width"))` |
+| `"Hexagon"` | `.Err(UnknownVariant("$", "Hexagon"))` |
+| `{"Rect":3}` | `.Err(WrongType("$.Rect", "object"))` |
+| `{"Rect":{},"Empty":{}}` | `.Err(WrongType("$", "variant"))` |
+
+1. r[std-json.derive.from-json.template] `std.json` declares the template of `FromJson`, which `@derive(FromJson)` instantiates.
+2. r[std-json.derive.from-json.inverse] Derived `FromJson` reads the form that derived `ToJson` writes for the same type.
+3. r[std-json.derive.from-json.data] A data type reads an `Object`. Any other value is a `WrongType`.
+4. r[std-json.derive.from-json.member] It reads each member that the derivation builds, in declaration order, from the value of the member's key. The first error ends the read, with the segment `.name` of the member.
+5. r[std-json.derive.from-json.unknown] A key that names no member is ignored.
+6. r[std-json.derive.from-json.missing] A missing key reads as `null`: the member's type reads `Json.Null`. When that read fails, the error is a `MissingField` at the path of the missing key.
+7. r[std-json.derive.from-json.no-default] A member's declared default is not used for a missing key.
+8. r[std-json.derive.from-json.enum] An enum reads a `Text`, or an `Object` with exactly one key. The text or the key is the variant's name. Any other value is a `WrongType`.
+9. r[std-json.derive.from-json.name-only] A `Text` reads as an `Object` whose one key is that text and whose value is an empty `Object`.
+10. r[std-json.derive.from-json.unknown-variant] A name that is not a variant of the enum is an `UnknownVariant` at the enum value's path.
+11. r[std-json.derive.from-json.payload] The variant's payload must be an `Object`, or it is a `WrongType` with the segment `.name` of the variant. Its members then read as a data type's do, under that segment.
+12. r[std-json.derive.from-json.members] Every member that the derivation builds must implement `FromJson`. A member that does not makes the type not derivable, reported at the opt-in. Error: `member-not-derivable`.
+
+> **Note.** So a member of type `T?` may be missing, and reads `.None`,
+> and a member of type `Json` reads `null`. A member of any other
+> standard type must be present.
+
+> **Why.** `serde` ignores unknown keys by default, so a reader accepts
+> output from a newer writer. A missing optional reads as absent, as
+> `serde`'s `Option` does. A declared default is a value for code, not a
+> wire rule.
+
+See also: [Encoding](encoding.md#decode-errors), [Num](num.md#integer-parsing), [Collections](collections.md#map-methods), [Numeric Display](../lang/04-type-system.md#numeric-display), [Map Lookup And Order](../lang/04-type-system.md#lookup-and-order), [Typed Derivation](../lang/14-annotations.md#typed-derivation), [Derived Hashing](hash.md#derived-hashing).

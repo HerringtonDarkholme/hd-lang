@@ -1,0 +1,9 @@
+# test: encoding a type that neither derives nor implements ToJson is an error
+# Spec std/json Encode And Decode: std-json.encode.bound (task #241).
+use std.json.encode
+
+data Plain:
+    id: i32
+
+fn show(value: Plain) -> string:
+    encode(value)  # diagnostic: unsatisfied-trait-bound

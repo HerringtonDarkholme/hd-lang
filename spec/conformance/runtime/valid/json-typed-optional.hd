@@ -1,0 +1,36 @@
+# test: .None encodes as null, and a missing key decodes as null, so an optional member may be missing
+# Spec std/json Standard Implementations, Derived FromJson: std-json.std.optional, std-json.derive.from-json.missing, std-json.std.json (task #241).
+use std.json.{ToJson, FromJson, encode, decode, Json}
+use std.testing.{assert, assert_equal}
+
+@derive(ToJson, FromJson)
+data Profile:
+    name: string
+    nickname: string?
+    extra: Json
+
+fn read(text: string) -> Profile:
+    match decode::[Profile](text):
+        .Ok(value) => value
+        .Err(error) => panic("decode failed: $error")
+
+tests:
+    it(".None encodes as null, and the key is kept"):
+        profile := Profile { name: "Ada", nickname: .None, extra: Json.Null }
+        assert_equal(encode(profile), "{\"name\":\"Ada\",\"nickname\":null,\"extra\":null}", reason="null members")
+        assert_equal(encode::[i32?](.None), "null", reason="top-level none")
+        assert_equal(encode::[i32?](.Some(3)), "3", reason="a present value is its payload")
+
+    it("null and a missing key both decode as .None"):
+        assert(read("{\"name\":\"Ada\",\"nickname\":null,\"extra\":1}").nickname.is_none(), reason="null")
+        assert(read("{\"name\":\"Ada\",\"extra\":1}").nickname.is_none(), reason="missing key")
+        assert_equal(read("{\"name\":\"Ada\",\"nickname\":\"A\",\"extra\":1}").nickname, .Some("A"), reason="present")
+
+    it("a Json member reads any value, and a missing one reads as null"):
+        assert_equal("${read("{\"name\":\"Ada\",\"extra\":[1,{\"a\":true}]}").extra}", "[1,{\"a\":true}]", reason="any value")
+        assert(read("{\"name\":\"Ada\"}").extra.is_null(), reason="missing Json member")
+
+    it("Json encodes and decodes as itself"):
+        match decode::[Json]("{\"b\":[null,false]}"):
+            .Ok(value) => assert_equal(encode(value), "{\"b\":[null,false]}", reason="identity")
+            .Err(error) => panic("decode failed: $error")

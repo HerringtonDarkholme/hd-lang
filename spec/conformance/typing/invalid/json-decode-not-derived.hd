@@ -1,0 +1,9 @@
+# test: decoding into a type that neither derives nor implements FromJson is an error
+# Spec std/json Encode And Decode: std-json.decode.bound (task #241).
+use std.json.{decode, JsonError}
+
+data Plain:
+    id: i32
+
+fn load(text: string) -> Result[Plain, JsonError]:
+    decode::[Plain](text)  # diagnostic: unsatisfied-trait-bound

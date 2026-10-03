@@ -1,8 +1,9 @@
-# std.json: the untyped JSON value, its parser, and its writers
-# (spec/std/json.md). The prototype's std loader does not list this module
-# yet (src/checker/standard-sources.ts).
+# std.json: the untyped JSON value, its parser, and its writers, and the
+# typed traits `ToJson` and `FromJson` with `encode` and `decode`
+# (spec/std/json.md).
 use std.format.DebugWriter
 use std.num.parse_f64
+use std.structure.{Structure, Walker, Source, Variant, Field, Members, Key}
 
 # One JSON value (r-std-json.value.decl). An object keeps its keys in
 # insertion order, as every `Map` does.
@@ -224,8 +225,9 @@ fn bytes_text(bytes: List[u8]) -> string:
         .Ok(text) => text
         .Err(_) => panic("std.json: output bytes are valid UTF-8")
 
-# Why parsing failed, at a position counted in characters from 0
-# (r-std-json.error.enum.usize).
+# Why parsing failed, at a position counted in characters from 0, or why
+# decoding failed, at a path such as `$.users[2].name`
+# (r-std-json.error.variants).
 pub enum JsonError:
     # The text stops inside a value; `position` is its length.
     UnexpectedEnd(position: i32)
@@ -242,6 +244,13 @@ pub enum JsonError:
     # An array or object nested deeper than 128 levels; `position` is its
     # opening bracket.
     NestingTooDeep(position: i32)
+    # A value of the wrong kind, or a number out of the type's range;
+    # `expected` names what the decoder reads (r-std-json.error.kind.type).
+    WrongType(path: string, expected: string)
+    # An object without a key that its type needs.
+    MissingField(path: string)
+    # A variant name that the enum does not declare.
+    UnknownVariant(path: string, name: string)
 
 impl Eq for JsonError:
     fn eq(self, other: JsonError) -> bool:
@@ -253,6 +262,9 @@ impl Eq for JsonError:
             (.ControlCharacter(left), .ControlCharacter(right)) => left == right
             (.NumberOutOfRange(left), .NumberOutOfRange(right)) => left == right
             (.NestingTooDeep(left), .NestingTooDeep(right)) => left == right
+            (.WrongType(left, wanted), .WrongType(right, other)) => left == right && wanted == other
+            (.MissingField(left), .MissingField(right)) => left == right
+            (.UnknownVariant(left, name), .UnknownVariant(right, other)) => left == right && name == other
             _ => false
 
 impl Display for JsonError:
@@ -265,6 +277,9 @@ impl Display for JsonError:
             .ControlCharacter(position) => "control character in a string at position $position"
             .NumberOutOfRange(position) => "number out of range at position $position"
             .NestingTooDeep(position) => "nesting too deep at position $position"
+            .WrongType(path, expected) => "expected $expected at $path"
+            .MissingField(path) => "missing field at $path"
+            .UnknownVariant(path, name) => "unknown variant \"$name\" at $path"
 
 data Parsed:
     value: Json
@@ -588,3 +603,404 @@ impl Debug for JsonError:
             .ControlCharacter(position) => out.debug_struct("ControlCharacter").field("position", position).finish()
             .NumberOutOfRange(position) => out.debug_struct("NumberOutOfRange").field("position", position).finish()
             .NestingTooDeep(position) => out.debug_struct("NestingTooDeep").field("position", position).finish()
+            .WrongType(path, expected) => out.debug_struct("WrongType").field("path", path).field("expected", expected).finish()
+            .MissingField(path) => out.debug_struct("MissingField").field("path", path).finish()
+            .UnknownVariant(path, name) => out.debug_struct("UnknownVariant").field("path", path).field("name", name).finish()
+
+# ---------------------------------------------------------------------------
+# Typed JSON (spec/std/json.md#typed-json): `ToJson`, `FromJson`, their
+# standard implementations and templates, `encode`, and `decode`.
+
+# A value's `Json` (r-std-json.to-json.trait).
+pub trait ToJson:
+    fn to_json(self) -> Json
+
+# A value read from a `Json`, or the first error at its path
+# (r-std-json.from-json.trait).
+pub trait FromJson:
+    fn from_json(value: Json) -> Result[Self, JsonError]
+
+# The compact text of a value's `Json` (r-std-json.encode).
+pub fn encode[T < ToJson](value: T) -> string:
+    "${value.to_json()}"
+
+# `parse`, then `from_json` (r-std-json.decode).
+pub fn decode[T < FromJson](text: string) -> Result[T, JsonError]:
+    value := parse(text)?
+    T::from_json(value)
+
+# A decode error at the root, `$`.
+fn wrong_type(expected: string) -> JsonError:
+    JsonError.WrongType("\$", expected)
+
+# The path `$` followed by `segment` and then the rest of `path`, which
+# starts with `$` (r-std-json.error.path).
+fn rebase(path: string, segment: string) -> string:
+    rest := path.slice(1, path.len())
+    "\$$segment$rest"
+
+# A child's decode error, moved under `segment`, such as `.name` or `[2]`.
+fn nested(error: JsonError, segment: string) -> JsonError:
+    match error:
+        .WrongType(path, expected) => JsonError.WrongType(rebase(path, segment), expected)
+        .MissingField(path) => JsonError.MissingField(rebase(path, segment))
+        .UnknownVariant(path, name) => JsonError.UnknownVariant(rebase(path, segment), name)
+        _ => error
+
+impl ToJson for Json:
+    fn to_json(self) -> Json:
+        self
+
+impl FromJson for Json:
+    fn from_json(value: Json) -> Result[Json, JsonError]:
+        .Ok(value)
+
+impl ToJson for bool:
+    fn to_json(self) -> Json:
+        Json.Bool(self)
+
+impl FromJson for bool:
+    fn from_json(value: Json) -> Result[bool, JsonError]:
+        match value:
+            .Bool(flag) => .Ok(flag)
+            _ => .Err(wrong_type("bool"))
+
+impl ToJson for string:
+    fn to_json(self) -> Json:
+        Json.Text(self)
+
+impl FromJson for string:
+    fn from_json(value: Json) -> Result[string, JsonError]:
+        match value:
+            .Text(text) => .Ok(text)
+            _ => .Err(wrong_type("string"))
+
+# A `char` is a string of one character (r-std-json.std.char).
+impl ToJson for char:
+    fn to_json(self) -> Json:
+        Json.Text("$self")
+
+impl FromJson for char:
+    fn from_json(value: Json) -> Result[char, JsonError]:
+        match value:
+            .Text(text) =>
+                let found: mut List[char] = []
+                for item in text.chars():
+                    found.push(item)
+                if found.len() == 1:
+                    return .Ok(found[0])
+                .Err(wrong_type("char"))
+            _ => .Err(wrong_type("char"))
+
+# The integer of a `Number` from `low` to `high`, or `.None` for a float,
+# an integer out of range, or another kind.
+fn signed_in(value: Json, low: i64, high: i64) -> i64?:
+    match value:
+        .Number(number) =>
+            match number.as_i64():
+                .Some(found) =>
+                    if found >= low && found <= high:
+                        .Some(found)
+                    else:
+                        .None
+                .None => .None
+        _ => .None
+
+fn unsigned_in(value: Json, high: u64) -> u64?:
+    match value:
+        .Number(number) =>
+            match number.as_u64():
+                .Some(found) =>
+                    if found <= high:
+                        .Some(found)
+                    else:
+                        .None
+                .None => .None
+        _ => .None
+
+impl ToJson for i8:
+    fn to_json(self) -> Json:
+        Json.Number(Number::from_i64(i64(self)))
+
+impl FromJson for i8:
+    fn from_json(value: Json) -> Result[i8, JsonError]:
+        match signed_in(value, -128, 127):
+            .Some(found) => .Ok(i8(found))
+            .None => .Err(wrong_type("i8"))
+
+impl ToJson for i16:
+    fn to_json(self) -> Json:
+        Json.Number(Number::from_i64(i64(self)))
+
+impl FromJson for i16:
+    fn from_json(value: Json) -> Result[i16, JsonError]:
+        match signed_in(value, -32768, 32767):
+            .Some(found) => .Ok(i16(found))
+            .None => .Err(wrong_type("i16"))
+
+impl ToJson for i32:
+    fn to_json(self) -> Json:
+        Json.Number(Number::from_i64(i64(self)))
+
+impl FromJson for i32:
+    fn from_json(value: Json) -> Result[i32, JsonError]:
+        match signed_in(value, -2147483648, 2147483647):
+            .Some(found) => .Ok(i32(found))
+            .None => .Err(wrong_type("i32"))
+
+impl ToJson for i64:
+    fn to_json(self) -> Json:
+        Json.Number(Number::from_i64(self))
+
+impl FromJson for i64:
+    fn from_json(value: Json) -> Result[i64, JsonError]:
+        match value:
+            .Number(number) =>
+                match number.as_i64():
+                    .Some(found) => .Ok(found)
+                    .None => .Err(wrong_type("i64"))
+            _ => .Err(wrong_type("i64"))
+
+impl ToJson for u8:
+    fn to_json(self) -> Json:
+        Json.Number(Number::from_u64(u64(self)))
+
+impl FromJson for u8:
+    fn from_json(value: Json) -> Result[u8, JsonError]:
+        match unsigned_in(value, 255):
+            .Some(found) => .Ok(u8(found))
+            .None => .Err(wrong_type("u8"))
+
+impl ToJson for u16:
+    fn to_json(self) -> Json:
+        Json.Number(Number::from_u64(u64(self)))
+
+impl FromJson for u16:
+    fn from_json(value: Json) -> Result[u16, JsonError]:
+        match unsigned_in(value, 65535):
+            .Some(found) => .Ok(u16(found))
+            .None => .Err(wrong_type("u16"))
+
+impl ToJson for u32:
+    fn to_json(self) -> Json:
+        Json.Number(Number::from_u64(u64(self)))
+
+impl FromJson for u32:
+    fn from_json(value: Json) -> Result[u32, JsonError]:
+        match unsigned_in(value, 4294967295):
+            .Some(found) => .Ok(u32(found))
+            .None => .Err(wrong_type("u32"))
+
+impl ToJson for u64:
+    fn to_json(self) -> Json:
+        Json.Number(Number::from_u64(self))
+
+impl FromJson for u64:
+    fn from_json(value: Json) -> Result[u64, JsonError]:
+        match unsigned_in(value, u64_max()):
+            .Some(found) => .Ok(found)
+            .None => .Err(wrong_type("u64"))
+
+# A NaN or an infinity has no JSON number, so it writes `null`, as in
+# serde_json (r-std-json.std.float-special).
+impl ToJson for f64:
+    fn to_json(self) -> Json:
+        match Number::from_f64(self):
+            .Some(number) => Json.Number(number)
+            .None => Json.Null
+
+impl FromJson for f64:
+    fn from_json(value: Json) -> Result[f64, JsonError]:
+        match value:
+            .Number(number) =>
+                match number.as_f64():
+                    .Some(found) => .Ok(found)
+                    .None => .Err(wrong_type("f64"))
+            _ => .Err(wrong_type("f64"))
+
+impl ToJson for f32:
+    fn to_json(self) -> Json:
+        f64(self).to_json()
+
+# A number past the finite `f32` range is out of range
+# (r-std-json.std.float-read).
+impl FromJson for f32:
+    fn from_json(value: Json) -> Result[f32, JsonError]:
+        limit := 340282346638528859811704183484516925440.0
+        match value:
+            .Number(number) =>
+                match number.as_f64():
+                    .Some(found) =>
+                        if found >= -limit && found <= limit:
+                            return .Ok(f32(found))
+                        .Err(wrong_type("f32"))
+                    .None => .Err(wrong_type("f32"))
+            _ => .Err(wrong_type("f32"))
+
+# `.None` is `null` (r-std-json.std.optional).
+impl[T < ToJson] ToJson for T?:
+    fn to_json(self) -> Json:
+        match self:
+            .Some(found) => found.to_json()
+            .None => Json.Null
+
+impl[T < FromJson] FromJson for T?:
+    fn from_json(value: Json) -> Result[T?, JsonError]:
+        match value:
+            .Null => .Ok(.None)
+            _ =>
+                match T::from_json(value):
+                    .Ok(found) => .Ok(.Some(found))
+                    .Err(error) => .Err(error)
+
+impl[T < ToJson] ToJson for List[T]:
+    fn to_json(self) -> Json:
+        let items: mut List[Json] = []
+        for item in self:
+            items.push(item.to_json())
+        Json.Array(items)
+
+impl[T < FromJson] FromJson for List[T]:
+    fn from_json(value: Json) -> Result[List[T], JsonError]:
+        match value:
+            .Array(items) =>
+                let found: mut List[T] = []
+                let index = 0
+                for item in items:
+                    match T::from_json(item):
+                        .Ok(decoded) => found.push(decoded)
+                        .Err(error) => return .Err(nested(error, "[$index]"))
+                    index = index + 1
+                .Ok(found)
+            _ => .Err(wrong_type("array"))
+
+# Only `string` keys, since a JSON key is a string
+# (r-std-json.std.map-keys).
+impl[V < ToJson] ToJson for Map[string, V]:
+    fn to_json(self) -> Json:
+        let fields: mut Map[string, Json] = {}
+        for entry in self:
+            fields[entry._0] = entry._1.to_json()
+        Json.Object(fields)
+
+impl[V < FromJson] FromJson for Map[string, V]:
+    fn from_json(value: Json) -> Result[Map[string, V], JsonError]:
+        match value:
+            .Object(fields) =>
+                let found: mut Map[string, V] = {}
+                for entry in fields:
+                    match V::from_json(entry._1):
+                        .Ok(decoded) => found[entry._0] = decoded
+                        .Err(error) => return .Err(nested(error, ".${entry._0}"))
+                .Ok(found)
+            _ => .Err(wrong_type("object"))
+
+# Derived `ToJson` (r-std-json.derive.to-json.template): a data type is an
+# object with one key per member, in declaration order. An enum variant is
+# `{"Variant": {...}}`, or the string `"Variant"` when it has no member.
+impl[T] ToJson for T by Structure:
+    fn to_json(self) -> Json:
+        let w: mut JsonWalker[T] = JsonWalker::[T] { name: "", of_data: true, fields: {} }
+        _ := Structure::walk(self, w)
+        if w.of_data:
+            return Json.Object(w.fields)
+        if w.fields.len() == 0:
+            return Json.Text(w.name)
+        let outer: mut Map[string, Json] = {}
+        outer[w.name] = Json.Object(w.fields)
+        Json.Object(outer)
+
+# The fields are public because the prototype checks the instantiated
+# walker in the deriving module.
+data JsonWalker[S]:
+    pub name: string
+    pub of_data: bool
+    pub fields: mut Map[string, Json]
+
+impl[S] Walker[S] for JsonWalker[S]:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        self.name = v.info.name
+        self.of_data = v.info.of_data
+        .Ok(())
+
+    fn member[F < ToJson](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.fields[h.info.name] = value.to_json()
+        .Ok(())
+
+# Derived `FromJson` (r-std-json.derive.from-json.template): the inverse of
+# derived `ToJson`. Unknown keys are ignored, and a missing key reads as
+# `null`, so only a member whose type accepts `null` may be missing.
+impl[T] FromJson for T by Structure:
+    fn from_json(value: Json) -> Result[T, JsonError]:
+        let s: mut JsonSource[T] = JsonSource::[T] { value: value, base: "", fields: {}, at: 0 }
+        match T::build(s):
+            .Ok(built) => .Ok(built)
+            .Err(error) => .Err(error)
+
+# Reads one object: `base` is the path segment of the object that holds
+# the members, `""` for a data type and `.Variant` for an enum. The fields
+# are public because the prototype checks the instantiated source in the
+# program that uses it.
+data JsonSource[S]:
+    pub value: Json
+    pub base: string
+    pub fields: Map[string, Json]
+    pub at: i32
+
+impl[S] Source[S] for JsonSource[S]:
+    type Error = JsonError
+
+    # A data type reads an object. An enum reads `"Variant"` as
+    # `{"Variant": {}}`, or an object with exactly one key.
+    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], JsonError]:
+        if choices.len() == 1 && choices[0].info.of_data:
+            match self.value:
+                .Object(fields) =>
+                    self.fields = fields
+                    return .Ok(choices[0])
+                _ => return .Err(wrong_type("object"))
+        let name = ""
+        let payload = Json.Null
+        match self.value:
+            .Text(text) =>
+                name = text
+                payload = Json.Object({})
+            .Object(fields) =>
+                if fields.len() != 1:
+                    return .Err(wrong_type("variant"))
+                for entry in fields:
+                    name = entry._0
+                    payload = entry._1
+            _ => return .Err(wrong_type("variant"))
+        for choice in choices:
+            if choice.info.name == name:
+                match payload:
+                    .Object(fields) =>
+                        self.fields = fields
+                        self.base = ".$name"
+                        return .Ok(choice)
+                    _ => return .Err(JsonError.WrongType("\$.$name", "object"))
+        .Err(JsonError.UnknownVariant("\$", name))
+
+    # Every member, in declaration order.
+    fn next(mut self, members: Members[S]) -> Result[Key[S], JsonError]:
+        let key = members.at(self.at)
+        self.at = self.at + 1
+        .Ok(key)
+
+    fn member[F < FromJson](mut self, h: Field[S, F], previous: F?) -> Result[F, JsonError]:
+        segment := "${self.base}.${h.info.name}"
+        match self.fields.get(h.info.name):
+            .Some(found) =>
+                match F::from_json(found):
+                    .Ok(decoded) => .Ok(decoded)
+                    .Err(error) => .Err(nested(error, segment))
+            .None =>
+                match F::from_json(Json.Null):
+                    .Ok(decoded) => .Ok(decoded)
+                    .Err(_) => .Err(JsonError.MissingField("\$$segment"))
+
+    fn missing[F](mut self, h: Field[S, F]) -> Result[F, JsonError]:
+        panic("the JSON source names every member")

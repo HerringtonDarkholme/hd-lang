@@ -1,0 +1,52 @@
+# test: the standard implementations for integers, floats, bool, char, and string, with their ranges
+# Spec std/json Standard Implementations: std-json.std.integer, std-json.std.integer.read, std-json.std.float, std-json.std.float-special, std-json.std.float-read, std-json.std.char, std-json.std.text (task #241).
+use std.json.{ToJson, FromJson, encode, decode, Json, JsonError, Number}
+use std.testing.assert_equal
+
+fn read[T < FromJson](value: Json) -> Result[T, JsonError]:
+    T::from_json(value)
+
+fn number(value: f64) -> Json:
+    match Number::from_f64(value):
+        .Some(found) => Json.Number(found)
+        .None => Json.Null
+
+tests:
+    it("every integer type encodes exactly"):
+        assert_equal(encode::[i8](-128), "-128", reason="i8")
+        assert_equal(encode::[u16](65535), "65535", reason="u16")
+        assert_equal(encode::[i64](-9223372036854775808), "-9223372036854775808", reason="i64 min")
+        assert_equal(encode::[u64](18446744073709551615), "18446744073709551615", reason="u64 max")
+
+    it("an integer decodes when it is in the type's range"):
+        assert_equal(decode::[u8]("255"), .Ok(255), reason="u8 max")
+        assert_equal(decode::[u8]("256"), .Err(JsonError.WrongType("$", "u8")), reason="past u8")
+        assert_equal(decode::[u32]("-1"), .Err(JsonError.WrongType("$", "u32")), reason="negative into unsigned")
+        assert_equal(decode::[i64]("-9223372036854775808"), .Ok(-9223372036854775808), reason="i64 min")
+        assert_equal(decode::[u64]("18446744073709551615"), .Ok(18446744073709551615), reason="u64 max")
+        assert_equal(decode::[i64]("9223372036854775808"), .Err(JsonError.WrongType("$", "i64")), reason="past i64")
+        assert_equal(read::[i32](number(1.0)), .Err(JsonError.WrongType("$", "i32")), reason="a float is not an integer")
+
+    it("a float encodes as a number, and a NaN or an infinity as null"):
+        assert_equal(encode::[f64](1.5), "1.5", reason="f64")
+        assert_equal(encode::[f32](0.25), "0.25", reason="f32")
+        assert_equal(encode::[f64](0.0 / 0.0), "null", reason="NaN")
+        assert_equal(encode::[f64](1.0 / 0.0), "null", reason="infinity")
+
+    it("a float decodes from any number"):
+        assert_equal(read::[f64](number(1.5)), .Ok(1.5), reason="float")
+        assert_equal(decode::[f64]("7"), .Ok(7.0), reason="an integer is a float")
+        assert_equal(read::[f32](number(0.25)), .Ok(0.25), reason="f32")
+        assert_equal(read::[f32](number(1.0e300)), .Err(JsonError.WrongType("$", "f32")), reason="past f32")
+        assert_equal(decode::[f64]("null"), .Err(JsonError.WrongType("$", "f64")), reason="null is not a float")
+
+    it("bool, char, and string map to their JSON kinds"):
+        assert_equal(encode(true), "true", reason="bool")
+        assert_equal(encode('é'), "\"é\"", reason="char")
+        assert_equal(encode("a\"b"), "\"a\\\"b\"", reason="string")
+        assert_equal(decode::[bool]("false"), .Ok(false), reason="bool")
+        assert_equal(decode::[char]("\"x\""), .Ok('x'), reason="char")
+        assert_equal(decode::[char]("\"xy\""), .Err(JsonError.WrongType("$", "char")), reason="two characters")
+        assert_equal(decode::[string]("\"\\u00e9\""), .Ok("é"), reason="string")
+        assert_equal(decode::[string]("1"), .Err(JsonError.WrongType("$", "string")), reason="number is not a string")
+        assert_equal(decode::[bool]("\"true\""), .Err(JsonError.WrongType("$", "bool")), reason="string is not a bool")

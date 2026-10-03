@@ -745,3 +745,8 @@ std/json.md	2	type-fragment	-
 std/json.md	3	type-fragment	-
 std/json.md	4	type-fragment	-
 std/json.md	5	type-fragment	-
+std/json.md	6	accept	runtime/valid/json-typed-round-trip.hd
+std/json.md	7	mixed	typing/invalid/json-encode-not-derived.hd|typing/invalid/json-decode-not-derived.hd
+std/json.md	8	mixed	typing/invalid/json-map-key-not-string.hd
+std/json.md	9	accept	runtime/valid/json-typed-enum.hd
+std/json.md	10	mixed	typing/invalid/json-derive-member-not-tojson.hd

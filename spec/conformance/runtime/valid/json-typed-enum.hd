@@ -1,0 +1,50 @@
+# test: an enum is externally tagged: a variant without members is its name, any other variant an object with one key
+# Spec std/json Derived ToJson, Derived FromJson: std-json.derive.to-json.enum, std-json.derive.to-json.unit, std-json.derive.from-json.enum, std-json.derive.from-json.name-only (task #241).
+use std.json.{ToJson, FromJson, encode, decode}
+use std.testing.assert_equal
+
+@derive(ToJson, FromJson)
+enum Shape:
+    Circle(radius: u32)
+    Rect(width: i32, height: i32)
+    Point(i32, i32)
+    Empty
+
+@derive(ToJson, FromJson)
+enum Note:
+    Plain(text: string?)
+
+@derive(ToJson, FromJson)
+data Drawing:
+    shapes: List[Shape]
+
+fn read(text: string) -> Shape:
+    match decode::[Shape](text):
+        .Ok(value) => value
+        .Err(error) => panic("decode failed: $error")
+
+tests:
+    it("each variant shape encodes in the externally tagged form"):
+        assert_equal(encode(Shape.Empty), "\"Empty\"", reason="no members")
+        assert_equal(encode(Shape.Circle(7)), "{\"Circle\":{\"radius\":7}}", reason="one member")
+        assert_equal(encode(Shape.Rect(2, 3)), "{\"Rect\":{\"width\":2,\"height\":3}}", reason="two members")
+        assert_equal(encode(Shape.Point(4, 5)), "{\"Point\":{\"_0\":4,\"_1\":5}}", reason="positional members")
+
+    it("each variant shape decodes from its encoded text"):
+        for shape in [Shape.Empty, Shape.Circle(7), Shape.Rect(2, 3), Shape.Point(4, 5)]:
+            text := encode(shape)
+            assert_equal(encode(read(text)), text, reason=text)
+
+    it("a variant name alone reads as the variant with an empty object"):
+        assert_equal(encode(read("{\"Empty\":{}}")), "\"Empty\"", reason="object form of a variant without members")
+        match decode::[Note]("\"Plain\""):
+            .Ok(note) => assert_equal(encode(note), "{\"Plain\":{\"text\":null}}", reason="optional member")
+            .Err(error) => panic("decode failed: $error")
+
+    it("a list of enum values round trips"):
+        drawing := Drawing { shapes: [Shape.Empty, Shape.Rect(1, 1)] }
+        text := encode(drawing)
+        assert_equal(text, "{\"shapes\":[\"Empty\",{\"Rect\":{\"width\":1,\"height\":1}}]}", reason="text")
+        match decode::[Drawing](text):
+            .Ok(back) => assert_equal(encode(back), text, reason="round trip")
+            .Err(error) => panic("decode failed: $error")

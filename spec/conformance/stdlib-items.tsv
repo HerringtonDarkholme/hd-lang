@@ -50,3 +50,7 @@ std.json.Number	std/json.md#numbers
 std.json.JsonError	std/json.md#json-errors
 std.json.parse	std/json.md#parsing
 std.json.pretty	std/json.md#writing
+std.json.ToJson	std/json.md#tojson-and-fromjson
+std.json.FromJson	std/json.md#tojson-and-fromjson
+std.json.encode	std/json.md#encode-and-decode
+std.json.decode	std/json.md#encode-and-decode

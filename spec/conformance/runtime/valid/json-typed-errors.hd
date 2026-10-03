@@ -1,0 +1,59 @@
+# test: each decode error, with the path of the value that failed
+# Spec std/json Decode Errors: std-json.error.kind.type, std-json.error.kind.missing, std-json.error.kind.variant, std-json.error.path, std-json.decode.parse-error (task #241).
+use std.json.{ToJson, FromJson, decode, JsonError}
+use std.testing.{assert, assert_equal}
+
+@derive(ToJson, FromJson)
+data User:
+    name: string
+    age: u8
+
+@derive(ToJson, FromJson)
+enum Role:
+    Guest
+    Member(since: i32)
+
+@derive(ToJson, FromJson)
+data Roster:
+    users: List[User]
+    roles: Map[string, Role]
+
+fn failure[T < FromJson](text: string) -> JsonError:
+    match decode::[T](text):
+        .Ok(_) => panic("expected an error for $text")
+        .Err(error) => error
+
+tests:
+    it("a wrong type names what the decoder reads, at its path"):
+        assert_equal(failure::[User]("[]"), JsonError.WrongType("$", "object"), reason="data from an array")
+        assert_equal(failure::[User]("{\"name\":1,\"age\":2}"), JsonError.WrongType("$.name", "string"), reason="member")
+        assert_equal(failure::[Roster]("{\"users\":{},\"roles\":{}}"), JsonError.WrongType("$.users", "array"), reason="list")
+        assert_equal(failure::[Roster]("{\"users\":[],\"roles\":[]}"), JsonError.WrongType("$.roles", "object"), reason="map")
+        assert_equal(failure::[Role]("1"), JsonError.WrongType("$", "variant"), reason="enum from a number")
+        assert_equal(failure::[Role]("{\"Guest\":{},\"Member\":{}}"), JsonError.WrongType("$", "variant"), reason="two keys")
+        assert_equal(failure::[Role]("{\"Member\":3}"), JsonError.WrongType("$.Member", "object"), reason="payload not an object")
+
+    it("the path reaches through lists, maps, and variants"):
+        text := "{\"users\":[{\"name\":\"a\",\"age\":1},{\"name\":\"b\",\"age\":2},{\"name\":null,\"age\":3}],\"roles\":{}}"
+        assert_equal(failure::[Roster](text), JsonError.WrongType("$.users[2].name", "string"), reason="list item member")
+        assert_equal(failure::[Roster]("{\"users\":[],\"roles\":{\"ada\":{\"Member\":{\"since\":\"x\"}}}}"), JsonError.WrongType("$.roles.ada.Member.since", "i32"), reason="map value variant member")
+
+    it("a missing key is an error unless its type reads null"):
+        assert_equal(failure::[User]("{\"name\":\"a\"}"), JsonError.MissingField("$.age"), reason="missing member")
+        assert_equal(failure::[Roster]("{\"users\":[{\"age\":1}],\"roles\":{}}"), JsonError.MissingField("$.users[0].name"), reason="nested")
+        assert_equal(failure::[Role]("\"Member\""), JsonError.MissingField("$.Member.since"), reason="a name alone has no members")
+
+    it("an unknown variant name is an error, at the enum's path"):
+        assert_equal(failure::[Role]("\"Admin\""), JsonError.UnknownVariant("$", "Admin"), reason="string form")
+        assert_equal(failure::[Roster]("{\"users\":[],\"roles\":{\"bo\":{\"Owner\":{}}}}"), JsonError.UnknownVariant("$.roles.bo", "Owner"), reason="object form")
+
+    it("unknown keys are ignored"):
+        match decode::[User]("{\"name\":\"a\",\"age\":1,\"email\":\"a@b\"}"):
+            .Ok(user) => assert_equal(user.name, "a", reason="decoded")
+            .Err(error) => panic("unexpected $error")
+
+    it("decode reports a parse error first"):
+        assert_equal(failure::[User]("{\"name\":"), JsonError.UnexpectedEnd(8), reason="parse error")
+
+    it("decode errors print their path"):
+        assert("${JsonError.MissingField("$.age")}".contains("$.age"), reason="display")

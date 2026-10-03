@@ -1,0 +1,69 @@
+# test: a nested data type with lists, maps, and optionals encodes to an object per value, in declaration order, and decodes back
+# Spec std/json Typed JSON, Derived ToJson, Derived FromJson: std-json.derive.to-json.data, std-json.derive.from-json.inverse, std-json.encode, std-json.decode (task #241).
+use std.json.{ToJson, FromJson, encode, decode, JsonError}
+use std.testing.assert_equal
+
+@derive(ToJson, FromJson)
+data Address:
+    city: string
+    zip: string?
+
+@derive(ToJson, FromJson)
+data User:
+    name: string
+    age: u8
+    admin: bool
+    tags: List[string]
+    scores: Map[string, i64]
+    address: Address
+
+@derive(ToJson, FromJson)
+data Team:
+    title: string
+    members: List[User]
+    lead: User?
+
+fn ada() -> User:
+    User { name: "Ada", age: 36, admin: true, tags: ["math", "code"], scores: { "b": 2, "a": -1 }, address: Address { city: "London", zip: .None } }
+
+fn save(address: Address) -> string:
+    encode(address)
+
+fn load(text: string) -> Result[Address, JsonError]:
+    decode::[Address](text)
+
+fn read[T < FromJson](text: string) -> T:
+    match decode::[T](text):
+        .Ok(value) => value
+        .Err(error) => panic("decode failed: $error")
+
+tests:
+    it("a data type is an object with one key per member, in declaration order"):
+        assert_equal(encode(ada()), "{\"name\":\"Ada\",\"age\":36,\"admin\":true,\"tags\":[\"math\",\"code\"],\"scores\":{\"b\":2,\"a\":-1},\"address\":{\"city\":\"London\",\"zip\":null}}", reason="user")
+
+    it("a nested value round trips through its text"):
+        team := Team { title: "core", members: [ada(), User { name: "Bo", age: 7, admin: false, tags: [], scores: {}, address: Address { city: "Oslo", zip: .Some("0150") } }], lead: .Some(ada()) }
+        text := encode(team)
+        back := read::[Team](text)
+        assert_equal(encode(back), text, reason="same text")
+        assert_equal(back.members[1].address.zip, .Some("0150"), reason="nested optional")
+        assert_equal(back.members[0].scores.get("a"), .Some(-1), reason="map value")
+        assert_equal(back.lead.map(fn(found): found.name), .Some("Ada"), reason="optional data")
+
+    it("save and load an address"):
+        assert_equal(save(Address { city: "London", zip: .None }), "{\"city\":\"London\",\"zip\":null}", reason="save")
+        assert_equal(load("{\"city\":\"London\",\"zip\":null}").map(fn(found): found.city), .Ok("London"), reason="load")
+
+    it("to_json gives the Json that encode prints"):
+        assert_equal("${ada().address.to_json()}", "{\"city\":\"London\",\"zip\":null}", reason="to_json")
+
+    it("decoding reads keys in any order and ignores unknown keys"):
+        address := read::[Address]("{\"extra\":[1,2],\"zip\":\"N1\",\"city\":\"London\"}")
+        assert_equal(address.city, "London", reason="city")
+        assert_equal(address.zip, .Some("N1"), reason="zip")
+
+    it("lists and maps of values round trip"):
+        lists := read::[List[List[i32]]]("[[1,2],[],[3]]")
+        assert_equal(encode(lists), "[[1,2],[],[3]]", reason="nested lists")
+        maps := read::[Map[string, List[bool]]]("{\"z\":[true],\"a\":[]}")
+        assert_equal(encode(maps), "{\"z\":[true],\"a\":[]}", reason="map keeps key order")

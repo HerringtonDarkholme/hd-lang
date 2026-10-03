@@ -63,11 +63,9 @@ every feature belongs in `std`.
   decisions of 2026-09-26 and 2026-09-29 that were "applied in this record
   only". The record was archived and then deleted, so those decisions now
   live only in git history. See [Earlier Owner Decisions](#earlier-owner-decisions).
-- **Typed JSON is no longer blocked.** The archived record blocked typed
-  codecs on typed derivation. Derivation now ships `Walker` and `Source`
-  ([lib/std/structure.hd](../lib/std/structure.hd)), and derived `Hash` and
-  `Arbitrary` already use them. `ToJson` and `FromJson` can be written in
-  `lib/std` the same way.
+- **Typed JSON is specified.** `ToJson` and `FromJson` derive through
+  `Walker` and `Source`, as `Hash` and `Arbitrary` do:
+  [Typed JSON](../spec/std/json.md#typed-json).
 - **Most gaps are pure library work.** Collections, text, JSON, and
   argument parsing need no host. Host areas need one decision, the first host catalog, plus small
   prototype hooks.
@@ -97,7 +95,7 @@ every feature belongs in `std`.
 | `std.random` | `Random`, `SeededRandom` | [random.md](../spec/std/random.md) | no `Rng` helpers |
 | `std.host`, `std.fs`, `std.path` | `Args`, `Env`, `MapArgs`, `MapEnv`; `FsRead`, `FsWrite`, `FsError`, `MemoryFs`; `Path` | [host.md](../spec/std/host.md), [fs.md](../spec/std/fs.md), [path.md](../spec/std/path.md) no `read_text!` or `write_text!` helper, for the `std.time` helpers' reason |
 | `std.encoding`, `std.digest` | `hex_encode`, `hex_decode`, `base64_encode`, `base64_decode`, `DecodeError`; `sha256`, `sha256_hex` | [encoding.md](../spec/std/encoding.md), [digest.md](../spec/std/digest.md) | no URL-safe base64, no streaming hasher |
-| `std.json` | `Json`, `Number`, `parse`, `JsonError`, `Display`, `pretty`, and the `Json` accessors | [json.md](../spec/std/json.md) | in the prototype, `Json.Number` breaks in a program that does not import `Number` (`STD-LOADER`); `parse` reads a number with a fraction or an exponent through `parse_f64`; no `ToJson`, `FromJson`, `encode`, or `decode` |
+| `std.json` | `Json`, `Number`, `parse`, `JsonError`, `Display`, `pretty`, and the `Json` accessors; `ToJson` and `FromJson` with their templates and standard implementations, `encode`, and `decode` | [json.md](../spec/std/json.md) | in the prototype, `Json.Number` breaks in a program that does not import `Number` (`STD-LOADER`); `parse` reads a number with a fraction or an exponent through `parse_f64`; no field renames, conditional skips, or defaults per field |
 | absent | cli, log, http, regex | none | the gap this plan covers |
 
 The prototype also lacks two things scripts need: `hd FILE` itself
@@ -185,6 +183,7 @@ design it names.
 | ZIP-ARG, BOUND-INFERENCE | 2026-10-03 | `Iterator.zip` and `chain` take any `Iterable` ([More Adapters](../spec/std/iter.md#more-adapters)), and `lib/std/iter.hd` has them. Call inference solves a [bound-only parameter](../spec/lang/04-type-system.md#inference-through-a-bound) from the bounded argument's one implementation of the bound's trait, to a fixed point; none is `unsatisfied-trait-bound`, several are `cannot-infer-type`, and explicit and expected types win | the compiler session, in `src/checker/cannot-infer.ts` (generic call inference): after the arguments and the expected type, solve each parameter named only in another parameter's bound from that parameter's implementations, repeating until nothing changes. Then `items.iter().zip(names)` checks with no type arguments. Then move the four `ZIP-ARG` rows of `test/portable/KNOWN_FAILURES.tsv` back to `test/portable/cases.tsv`. While it waits, the table in `src/KNOWN_ISSUES.md` lists the tag `ZIP-ARG` with four rows |
 | SIZES-UNSIGNED, HOST-NAN-FIXTURE | 2026-10-03 | every size is unsigned: the prelude alias [`usize`](../spec/lang/04-type-system.md#the-usize-alias) is `u32`, `len()` returns it, list and string indices and slice bounds are unsigned ([Indexing](../spec/lang/05-expressions.md#indexing)), and std counts, widths, and positions are `usize` (STDLIB_CALLS.md, Sizes). The [`special-float-host`](../spec/conformance/README.md#runtime-profiles) profile returns NaN, infinity, then `-0.0` | the compiler session. In `src/`: declare `usize` in `std.core` (`TYPE_NAMES` in `src/checker/shared.ts`) and add it to the `pub use std.core` line of `lib/std/prelude.hd`; type `list-length` and `map-length` as `usize` (`src/checker/expression-calls.ts`); check a `List` or `string` index and slice bounds with `usize` as the expected type and reject a signed index with `type-mismatch` (`src/checker/expression-data.ts`), so `items[-1]` is `unsigned-negation`; accept `usize(x)` as a cast; list `usize` with the type names in `src/highlight.ts` and `src/repl.ts`. In `lib/std`: move every size signature to `usize` (`ops.hd` `Index[usize]` and unsigned range impls; `text.hd` `len`, `slice`, `char_indices`, `repeat`, `pad_*`, `count`; `collections.hd`; `iter.hd` `enumerate`, `take`, `skip`, `count`; the error `position` fields; `num.hd` `to_fixed`; `json.hd` `at`; `testing.hd` `Choices`, `TestRunner`, `PropertyRunner`; `random.hd` `fill`; the primitives `bytes_len`, `bytes_at`, `bytes_slice`, and `format_f64_fixed`), drop the negative-count panics, and update `test/std` and the hd snippets in `test/*.test.ts`. Add the `special-float-host` profile to the runner. Then move the 57 `U32-SIZES` rows and the one `HOST-NAN` row of `test/portable/KNOWN_FAILURES.tsv` back to `test/portable/cases.tsv`, after adding both tags to the table in `src/KNOWN_ISSUES.md` |
 | CONSOLE-ERROR | 2026-10-03 | `ConsoleError` is an enum with the one variant `Closed` ([Console](../spec/lang/10-modules.md#console)), and `lib/std/console.hd` declares it with `Display` | the compiler session: drop `ConsoleError` from the checker's primitive type names (`src/checker/shared.ts`, `known-types.ts`, `termination.ts`), and let the host `Console` bridge return `.Err(ConsoleError.Closed)` for a closed stream instead of having no error to build (`src/compiler.ts`, `src/emitter/host-providers.ts`) |
+| JSON-FIELD-FACTS | 2026-10-03 | `ToJson` and `FromJson` get renames, conditional skips, and defaults per field through typed member facts, not in the first version ([Typed JSON](../spec/std/json.md#typed-json)) | a `std.json` fact design: fact types, such as a rename, that the two templates read through `h.fact::[D]()`; an omit line `f = pass` already leaves a member out of one derivation |
 
 ## Survey Matrices
 
@@ -483,36 +482,11 @@ Standouts:
 - **Elixir 1.18** moved JSON into std after a decade of `Jason`, a sign
   that scripts need it built in.
 
-The untyped part of `std.json` is specified: [Json](../spec/std/json.md).
-The typed part uses the derivation protocol that `Hash` and `Arbitrary`
-already use:
-
-```text
-use std.json.{Json, JsonError}
-use std.structure.{Field, Source, Variant, Walker}
-
-pub trait ToJson:
-    fn to_json(self) -> Json
-
-pub trait FromJson:
-    fn from_json(value: Json) -> Result[Self, JsonError]
-
-impl[T] ToJson for T by Structure:
-    fn to_json(self) -> Json:
-        pass
-
-impl[T] FromJson for T by Structure:
-    fn from_json(value: Json) -> Result[T, JsonError]:
-        pass
-
-pub fn encode[T < ToJson](value: T) -> string:
-    pass
-
-pub fn decode[T < FromJson](text: string) -> Result[T, JsonError]:
-    pass
-```
-
-Renames and skipped fields come later through typed member facts.
+Both parts of `std.json` are specified: [Json](../spec/std/json.md).
+The typed part, `ToJson`, `FromJson`, `encode`, and `decode`, uses the
+derivation protocol that `Hash` and `Arbitrary` use. Renames, conditional
+skips, and defaults per field come later through typed member facts; see
+[Decided, Not Yet Applied](#decided-not-yet-applied).
 
 ### Time And Dates
 
@@ -872,7 +846,7 @@ host also add a prototype host binding, a minimal TypeScript hook.
 | 4 | `Clock`, `Timestamp`, `Instant`, `ManualClock`, `now()`, `sleep!` | the catalog for `Clock` | timing |
 | 5 | text helpers: [specified](../spec/std/text.md#splitting-and-padding); `to_fixed`: [specified](../spec/std/num.md#fixed-point-text); `parse_f64`: [specified](../spec/std/num.md#float-parsing) | the prototype's `format_f64_fixed` and `parse_f64` hooks | formatting |
 | 6 | `std.json` `Json`, `Number`, `parse`, `Display`, `pretty`, accessors: [specified](../spec/std/json.md), with float text through `parse_f64` | the prototype's `parse_f64` hook | reading and writing JSON |
-| 7 | `ToJson` and `FromJson` templates; `encode`, `decode` | tier 6 | typed JSON |
+| 7 | `ToJson` and `FromJson` templates; `encode`, `decode`: [specified](../spec/std/json.md#typed-json) | tier 6 | typed JSON |
 | 8 | `timeout!`, `map_limited!`; `Backoff`, `retry_with!`, and `all_list!`: [specified](../spec/std/task.md) | tier 4's `Clock`; [Retry With Backoff](../spec/std/task.md#retry-with-backoff) | robust automation |
 | 9 | `std.random` `Rng`, `Random`, `SeededRandom`; `std.cli` `parse_args`, `usage` | tier 1's `Args`; `u64` wrapping arithmetic | real command-line tools |
 | 11 | `std.regex`: the RE2 subset, linear time, no backreferences, written in hd (about two hours) | none | filtering lines by pattern |
@@ -941,13 +915,12 @@ only; no block is type-checked.
 | 2 | Console Output And Input | parses |
 | 3, 4 | Files And Paths | parse |
 | 5 | Processes | parses |
-| 6 | JSON | parses |
-| 7 | Time And Dates | parses |
-| 8 | Random Numbers | parses |
-| 9 | Command-Line Parsing | parses |
-| 10 | Concurrency Helpers | parses |
-| 11 | A Script With The Proposed Surface | parses |
+| 6 | Time And Dates | parses |
+| 7 | Random Numbers | parses |
+| 8 | Command-Line Parsing | parses |
+| 9 | Concurrency Helpers | parses |
+| 10 | A Script With The Proposed Surface | parses |
 
-A first draft of block 11 wrote module-qualified types, such as
+A first draft of block 10 wrote module-qualified types, such as
 `Map[string, json.Json]`, and the parser rejected them; the block now
 imports the names.

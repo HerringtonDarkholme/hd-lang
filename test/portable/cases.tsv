@@ -1912,6 +1912,15 @@ runtime/valid/json-escapes.hd	runtime
 runtime/valid/json-errors.hd	runtime
 runtime/valid/json-object-order.hd	runtime
 runtime/valid/json-pretty.hd	runtime
+runtime/valid/json-typed-round-trip.hd	runtime
+runtime/valid/json-typed-enum.hd	runtime
+runtime/valid/json-typed-optional.hd	runtime
+runtime/valid/json-typed-primitives.hd	runtime
+runtime/valid/json-typed-errors.hd	runtime
+typing/invalid/json-encode-not-derived.hd	type
+typing/invalid/json-decode-not-derived.hd	type
+typing/invalid/json-map-key-not-string.hd	type
+typing/invalid/json-derive-member-not-tojson.hd	type
 runtime/valid/string-split-once.hd	runtime
 runtime/valid/string-pad.hd	runtime
 runtime/valid/string-count.hd	runtime
