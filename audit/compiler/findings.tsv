@@ -1,0 +1,10 @@
+id	priority	classification	status	original_findings	evidence	validation_needed
+A01	high	identity-and-scope-loss	mechanisms-confirmed-outcomes-pending	SOURCE-1,SOURCE-2,SOURCE-4,T5	REPORT.md; source-first-pass.md; source-challenge.md; types-challenge.md	Module privacy/names; std shadowing; two aliases; local impl extent
+A02	high	type-structure-and-relations	mechanisms-confirmed-outcomes-pending	T1,T3,T4	REPORT.md; types-first-pass.md; types-challenge.md; representation-challenge.md	Optional invariance; public inherent variance; container/branch/return joins
+A03	high	duplicated-control-flow	candidate-failure-needs-reproduction	L1	REPORT.md; lowering-first-pass.md; representation-challenge.md	Separate nested return/propagation with direct top-level suspension drive and outer defer
+A04	high	generated-placeholder-capture	mechanism-confirmed-outcome-pending	SOURCE-3	REPORT.md; source-first-pass.md; source-challenge.md	Derived legal HDTYPE0X member/variant
+A05	high	candidate-selection-syntax-restriction	mechanism-confirmed-outcome-pending	T2	REPORT.md; types-first-pass.md; types-challenge.md	Unique fitting generic trait instantiation with blacklisted argument shape
+A06	high	entry-waker-conformance-gap	code-rule-conflict-confirmed	L2	REPORT.md; lowering-first-pass.md	Public pending driver behavior; event-loop readiness; wake delivery
+A07	medium	runtime-invariant-and-contract-risks	mechanisms-confirmed-contracts-partly-open	L3,L4,L5	REPORT.md; lowering-first-pass.md; representation-challenge.md	Capture composition; ABI admitted types/invalid values; Replay Rules owner reconciliation
+S01	high	spec-contradiction	text-conflict-confirmed-owner-intent-pending	SOURCE-5	REPORT.md; source-first-pass.md; source-challenge.md	Owner record for test registration set
+S02	high	spec-tier-direction-mismatch	text-direction-conflict-confirmed-owner-intent-pending	SOURCE-5	REPORT.md; source-first-pass.md; source-challenge.md	Owner record for compiler-known testing identities and language/stdlib tier boundary
