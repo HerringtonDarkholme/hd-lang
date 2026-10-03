@@ -25,7 +25,7 @@ failures, 64 language tier and 19 stdlib tier.
 | MHP-1 | 1 | no inferred script entry requirement row |
 | CLI-ENTRY | 11 | no `hd FILE` command for the runner's last step |
 | NONPKG | 1 | a `use self` in a single-file program is not reported |
-| SELF-CURRENT | 2 | relative lookup starts at the containing directory module |
+| SELF-CURRENT | 2 | relative lookup is fixed; these fixtures still need package import aliases |
 | ROOTS | 2 | `src/lib.hd` is not the root module, and `src/main.hd` can be used |
 | TASK-PROGRAMS | 1 | integration test modules are linked as one program |
 | FOLDER-SELF | 1 | `x.hd` is not in folder `x` with its child modules |

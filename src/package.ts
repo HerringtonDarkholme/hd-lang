@@ -152,10 +152,13 @@ function isPublic(program: Program, name: string): boolean {
   ].some((declaration) => declaration.name === name && declaration.public === true);
 }
 
-/** The directory module a relative use starts from (10-modules.md#use-roots). */
+/** The source module a relative use starts from (10-modules.md#relative-uses). */
 function relativeBase(module: PackageModule): string[] {
-  const parts = module.identity === "" ? [] : module.identity.split(".");
-  return module.path.endsWith("/mod.hd") ? parts : parts.slice(0, -1);
+  if (module.path === "src/main.hd" || module.path === "src/lib.hd") return [];
+  // Each file directly under the test root is an independent program root.
+  if (isIntegrationTestPath(module.path) && !module.path.slice(TEST_ROOT.length).includes("/"))
+    return ["tests"];
+  return module.identity === "" ? [] : module.identity.split(".");
 }
 
 /**

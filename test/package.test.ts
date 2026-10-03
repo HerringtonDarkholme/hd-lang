@@ -64,7 +64,7 @@ test("relative uses, re-exports, and initialization order follow the use graph",
     ].join("\n"),
     "src/shop/mod.hd": "pub use self.cart.{total}\n",
     "src/shop/cart.hd": [
-      "use super.pricing.{price}",
+      "use super.super.pricing.{price}",
       "",
       "pub fn total() -> i32: price() * 2",
     ].join("\n"),

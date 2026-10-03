@@ -10,7 +10,7 @@ This is a bounded review, not a claim of full compiler or specification coverage
 
 | ID | Priority | Remaining scope | Evidence status |
 | --- | --- | --- | --- |
-| A01 | High | Package ownership, module privacy, relative lookup, test isolation, initialization scheduling | Linker mechanisms and known failures confirmed |
+| A01 | High | Package ownership, module privacy, import aliases, test isolation, initialization scheduling | Linker mechanisms and known failures confirmed |
 | A02 | High | Semantic type representation and expected-type coercion consistency | Architecture confirmed; additional behavior needs current reproduction |
 | A06 | High | Public pending/waker protocol | Confirmed gap; owner deferred implementation |
 | A07 | Medium | Host ABI consistency and replay identity | Contract review and code reconciliation remain |
@@ -20,14 +20,13 @@ This is a bounded review, not a claim of full compiler or specification coverage
 [src/package.ts](../../src/package.ts) joins modules into one namespace, rejects independent same-named declarations, and removes package imports.
 This loses ownership needed for module-private lookup and integration-test isolation.
 Whole-file ordering cannot schedule dependency-ready statements across a module initialization group.
-Relative lookup also starts at the containing directory instead of the file's own module.
 
 Relevant rules are in [Modules and Packages](../../spec/lang/10-modules.md):
-`module.vis.private-default`, `module.vis.no-package-private`, `module.test.integration.view`, `module.init.group.step`, and `module.relative.base.current`.
+`module.vis.private-default`, `module.vis.no-package-private`, `module.test.integration.view`, and `module.init.group.step`.
 [Known issues](../../src/KNOWN_ISSUES.md) track DC7, TASK-PROGRAMS, and SELF-CURRENT.
 Namespace imports and package aliases remain explicitly unsupported.
 
-Required next evidence: independent same-named declarations; implicit cross-module access; integration tests' library view; interleaved initialization; relative children and siblings.
+Required next evidence: independent same-named declarations; implicit cross-module access; integration tests' library view; interleaved initialization; package import aliases.
 Preserve declaration owners and lexical bindings until resolution is complete.
 A spelling-only workaround would leave the scope rules incomplete.
 

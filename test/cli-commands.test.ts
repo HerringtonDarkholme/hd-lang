@@ -282,7 +282,8 @@ test("hd run resolves super uses, and reports a package error in its own file", 
     await writeTree(directory, {
       "hd.toml": "",
       "src/base/util.hd": 'pub fn greet() -> string: "hi"\n',
-      "src/shop/cart.hd": "use super.base.util.{greet}\n\npub fn label() -> string:\n    greet()\n",
+      "src/shop/cart.hd":
+        "use super.super.base.util.{greet}\n\npub fn label() -> string:\n    greet()\n",
       "src/app.hd":
         "use pkg.shop.cart.{label}\npub fn main() -> void $ Console: println(label())\n",
     });
