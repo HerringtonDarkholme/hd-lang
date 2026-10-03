@@ -100,18 +100,23 @@ initialization and exits 0, while `--entry NAME` must name a function.
 `hd check` skips the test cases and test-only functions of a `tests:` block
 unless `--tests` is given (Testing T42); `hd test` always compiles them.
 `hd test` (`test-runner.ts`) runs each test case in a fresh instance of one
-compilation. An `it_each` table is one test function that the runner calls
-once per row, as `name[i]`, through the exported `__hd_each_index` and
-`__hd_each_count` globals; a failure names the test case. A test function
-with a `timeout` evaluates it first and reports its milliseconds through
-`__hd_timeout_ms`; the runner fails a test case whose call took longer.
-It checks after the call returns, so it cannot stop a body that never
-returns. The parser checks an `it_each`, `it_prop`, or `it_prop_with`
+compilation. The parser checks an `it_each`, `it_prop`, or `it_prop_with`
 call's registration and makes its test case's body one call of an hd
 function in `lib/std/testing.hd` (`each_case!`, `prop_case!`, or
-`prop_with_case!`), and a `timeout` a call of `case_timeout`. They reach
-the globals through three runtime primitives: `case_index`,
-`report_case_count`, and `report_timeout`.
+`prop_with_case!`), and a `timeout` a call of `case_timeout`, after which a
+timed `it` body runs as a closure through `run_case!`. These functions
+reach the runner through the host capabilities `TestRunner` and
+`PropertyRunner` (spec/std/testing.md#runner-capabilities), which the
+checker puts in such a test function's row. The written body becomes a
+closure with the empty row, so the runner's row never covers it
+(spec/lang/10-modules.md#r-module.testing.unit-row). The runner passes one
+answering provider for both traits (`AnsweringProvider` in `compiler.ts`).
+An `it_each` table is one test function that the runner calls once per
+row, as `name[i]`: `TestRunner.row` hears the row count and answers the
+row; a failure names the test case. `report_timeout` hands the runner the
+`timeout` in milliseconds, and it fails a test case whose call took
+longer. It checks after the call returns, so it cannot stop a body that
+never returns.
 
 `hd repl` starts an interactive session. Each input is a declaration, a
 statement, or an expression; expressions print their value and type. A line
@@ -1023,8 +1028,12 @@ else`, `break`, `break value`, and `continue`;
   `Arbitrary` are hd code there too;
 - `it_prop` and `it_prop_with` register one property test case, which the
   runner runs once per generated case in a fresh instance
-  (`src/property-tests.ts`). Every `Choices` draw goes through the
-  `prop_draw` host function, which records it; a failing case is shrunk
+  (`src/property-tests.ts`). Every `Choices` draw goes through
+  `PropertyRunner.draw`, which records it. A generated case offers each
+  draw from an xoshiro128** generator written in hd (`Xoshiro128` in
+  `lib/std/testing.hd`, a `std.random.Random`), which `PropertyRunner.seed`
+  starts from the run's seed and the case's index, and whose reach
+  `PropertyRunner.size` grows from case to case. A failing case is shrunk
   by replaying shorter or smaller choice streams, and the report names
   the seed, the shrunk input's `Debug` text, and the shrunk stream.
   `cases`, `shrink`, and `hd test --seed N`, `--cases N`, and
@@ -1033,11 +1042,10 @@ else`, `break`, `break value`, and `continue`;
   The shrunk stream is saved, one draw per line, under
   `__regressions__/<module>/<test-slug>` (`src/snapshots.ts`) and
   replayed before new cases on the next run. `examples` run first, one
-  case each: the test case's body asks the `prop_example` host function which
-  example to run, and the runner stops asking once the test reports no
-  more. Each case has a draw budget of 256 draws (`prop_budget`); once
-  `Choices` has spent it, every draw returns its simplest value without
-  recording a draw. `Choices.int[N < Integer]` draws through `i64`, so a
+  case each: `PropertyRunner.start` answers which example to run, and the
+  runner stops once it reports no more. Each case has a draw budget of 256
+  draws, which `Choices` counts; once it has spent it, every draw returns
+  its simplest value without recording a draw. `Choices.int[N < Integer]` draws through `i64`, so a
   `u64` above the largest `i64` is never drawn;
 - `@derive(Arbitrary)` and `impl Arbitrary for T by Structure` for
   `std.testing.Arbitrary` instantiate the template in `lib/std/testing.hd`;
@@ -1193,7 +1201,7 @@ does not implement the canonical prelude trait.
 The toy standard library is hd source in the top-level
 [`lib/std/`](../lib/std/) directory, next to `src/` as in Zig, one file per
 module: `std.annotation`, `std.cmp`, `std.collections`, `std.convert`, `std.error`, `std.hash`, `std.console`, `std.format`, `std.function`, `std.iter`, `std.num`, `std.ops`,
-`std.option`, `std.process`, `std.resource`, `std.result`, `std.testing`, `std.text`, and `std.time`,
+`std.option`, `std.process`, `std.random`, `std.resource`, `std.result`, `std.testing`, `std.text`, and `std.time`,
 with a submodule in a subdirectory: `std.testing.arbitrary` is
 `lib/std/testing/arbitrary.hd`. Two more files are declared by a
 checker pass rather than joined: `std.structure` (`lib/std/structure.hd`)
@@ -1258,8 +1266,8 @@ module the prototype compiles:
 
 A program that uses no std module therefore gets every module but
 `std.error` and `std.resource`: the prelude reaches `std.testing`
-through `it`, and `std.testing` reaches `std.process`, `std.time`, and
-`std.testing.arbitrary`. With no reachability pass, a trivial program
+through `it`, and `std.testing` reaches `std.process`, `std.random`,
+`std.time`, and `std.testing.arbitrary`. With no reachability pass, a trivial program
 compiles to about 1,900 Wasm functions.
 
 What it provides:
@@ -1282,11 +1290,12 @@ What it provides:
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | the prelude `Console` and `println`; `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; the host trait `Process` with `ProcessOutput`, and the deterministic `ScriptedProcess` |
+| `std.random` | the host trait `Random`, which no runtime profile binds yet |
 | `std.resource` | `ResourceError[E]` |
 | `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits, bodiless `@intrinsic` methods in numeric-family blocks such as `impl[N < Num] Add for N` (`string`'s `Add` is hd), and the index traits' implementations for `List`, `Map`, and `string`; the six range types, `Iterable` for `Range`, `RangeFrom`, and `RangeInclusive` of each integer type, and the slicing `Index` implementations for `string` and `List`, one per range type and integer type; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations, and its tuple template (spec/std/ops.md) |
 | `std.function` | the sealed marker trait `Tuple`, which the compiler implements for every tuple type; a `Tuple` bound passes no dictionary. `Fn` and `SuspendFn` have no declaration: the checker rewrites them to the `fn(...)` sugar |
 | `std.format` | the prelude `Display` and `Debug`; `Display` for `string`, `bool`, `char`, and every number type; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `Map`, `T?`, `Result`; the template of `Debug`; the tuple templates of `Debug` and `Display` |
-| `std.testing` | `assert`, `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`, `RunOutput` and `hd_run!` over `Process`; the case bodies of `it_each`, `it_prop`, and `it_prop_with`; the rest of `std.testing` is checked by the compiler |
+| `std.testing` | `assert`, `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`, `RunOutput` and `hd_run!` over `Process`; the runner capabilities `TestRunner` and `PropertyRunner`; the case bodies of `it_each`, `it_prop`, `it_prop_with`, and a timed `it`; the private xoshiro128** generator `Xoshiro128`, a `Random`; the rest of `std.testing` is checked by the compiler |
 | `std.testing.arbitrary` | `with` and the typed fact type `With[F]`, in `lib/std/testing/arbitrary.hd` |
 | `std.structure` | `Facts`, `Member`, `VariantInfo`, `SelfRef`, the handles `Field`, `Variant`, `Key`, and `Members`, and the protocol traits `Walker`, `Describer`, and `Source`, with hidden fields for the compiler-supplied bodies; `Structure` and the traversals are compiler-provided |
 | `std.inspect` | the sealed `Inspectable` and `TypeId`, with `Eq` and `Display` for `TypeId`; `downcast_val` and the `downcast` methods are compiler-provided |
@@ -1338,9 +1347,8 @@ RUNTIME_AND_LIBRARY.md).
      the string primitives `bytes_len`, `bytes_at`, `bytes_slice`,
      `bytes_concat`, and `string_from_bytes`,
      `char_from_scalar`, `char_scalar`,
-     `list_version`, the frames `task_race_frame` and `task_all_frame`,
-     and the test runner's hooks `case_index`, `report_case_count`, and
-     `report_timeout`. `list_version` reads a list's structural-version
+     `list_version`, and the frames `task_race_frame` and
+     `task_all_frame`. `list_version` reads a list's structural-version
      counter, so `ListView` in `lib/std/collections.hd` fails fast as an
      iterator does; it is the one intrinsic that the open issue VIEW-TIER
      proposes.
@@ -1364,15 +1372,18 @@ RUNTIME_AND_LIBRARY.md).
      no body calls itself. In user code, `@intrinsic` stays an
      `unknown-name` decorator, and the method's missing body is not
      checked further (`FunctionDecl.bodiless`).
-2. **Host capability traits.** A capability is a trait with suspending
-   methods (spec/11 and
+2. **Host capability traits.** A capability is a trait whose methods are
+   bang calls or plain calls (spec/11 and
    RUNTIME_AND_LIBRARY.md).
    A host-bound trait gets a provider value built by
    `emitter/host-providers.ts`: each method's call goes out through
    generic per-method `host_<trait>_<method>_*` imports with the same
    boundary values, and the host answers through one
    `hostSuspensionInvoke` callback keyed by trait and method name, with
-   record and replay. A method may also return `Result[T, E]` with a
+   record and replay. A provider value the embedder passes may answer its
+   own calls instead (`AnsweringProvider`), as the test runner's does. A
+   plain method's call begins, polls once, and reads its result at once,
+   so the host may never leave it pending. An `i64` crosses as a BigInt. A method may also return `Result[T, E]` with a
    boundary or `void` `T`: the tag crosses first, then the active side's
    payload. An `E` that is not a boundary type, such as `ConsoleError`,
    can be named but not built, so the host may not report `.Err` for it.
@@ -1408,7 +1419,7 @@ marks what this refactor removed.
 | HIR | `assert` | `std.testing` | Done: `assert` is hd code in `lib/std/testing.hd` over the `panic` host function (migration M4) |
 | HIR | `assert-equal` | `std.testing` | Done: the compiler checks an `assert_equal` or `snapshot` call and lowers it to a call of the hd `check_equal` |
 | HIR | `snapshot-file` | `std.testing` | Done: `snapshot_file` is hd code in `lib/std/testing.hd` with a host function |
-| HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Done: `it_each`, `it_prop`, `it_prop_with`, and `timeout` run hd functions in `lib/std/testing.hd` over three runtime primitives (migration M3) |
+| HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Done: `it_each`, `it_prop`, `it_prop_with`, and `timeout` run hd functions in `lib/std/testing.hd` (migration M3) over the host capabilities `TestRunner` and `PropertyRunner` (task #201) |
 | HIR | `debug-render` | `std.format` | Done: `debug`, `DebugWriter`, and its builders are hd code in `lib/std/format.hd` |
 | Checker | `@derive(Debug)` generator (`deriveDebug`), builtin `debug` dictionary that wrote nothing, `implementsDebug` | `std.format` | Done: `impl[T] Debug for T by Structure` and `Debug` for `Map` are hd in `lib/std/format.hd` (migration M7) |
 | HIR | `list-*`, `map-*`, `iterator-next` | built-in `List` and `Map` | Remains: the collection types are built into the runtime layout |

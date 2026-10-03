@@ -3,38 +3,91 @@
 # checked by the compiler; `Choices`, `Arbitrary`, and
 # `snapshot_file` are declared here (Testing T53), with the bodies that the
 # compiler gives an `it_each`, `it_prop`, or `it_prop_with` test case and
-# the runner protocol they use. `std.testing.arbitrary` is
+# the runner capabilities they use. `std.testing.arbitrary` is
 # `lib/std/testing/arbitrary.hd`.
 use std.format.debug
 use std.hash.Hash
 use std.num.{Float, Integer, parse_i64}
+use std.random.Random
 use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
 use std.testing.arbitrary.With
 use std.process.Process
 use std.time.Duration
 
+# The test runner's side of a test case
+# (spec/std/testing.md#runner-capabilities). `hd test` binds both host
+# capabilities for the body that the compiler gives an `it_each`, `it_prop`,
+# or `it_prop_with` test case or a `timeout` option, never for the test
+# body itself (src/test-runner.ts).
+pub trait TestRunner:
+    # The table has `count` rows; the index of the row this case runs.
+    fn row(mut self, count: i32) -> i32
+    # The case's `timeout`, which the runner checks against the body's run.
+    fn report_timeout(mut self, millis: i64) -> void
+
+# The property runner records, replays, and shrinks each case's draws
+# (src/property-tests.ts).
+pub trait PropertyRunner:
+    # Reports the caps and the example count; the example this case runs,
+    # or -1 for a generated case. Once every example has run, the runner
+    # ends the case as discarded instead.
+    fn start(mut self, cases: i32, shrink: i32, examples: i32) -> i32
+    # The seed of the case's random draws.
+    fn seed(self) -> i64
+    # How far the case's random draws may reach: up to 2^(3 + size).
+    fn size(self) -> i32
+    # The case's next draw from 0 to `bound`, which the runner records: a
+    # replayed or shrunk draw, else `fresh`.
+    fn draw(mut self, bound: i64, fresh: i64) -> i64
+    # Ends the case as discarded; it does not return.
+    fn discard(mut self) -> void
+    # The `Debug` text of the case's input, for the failure report.
+    fn show(mut self, text: string) -> void
+
 # The only source of randomness a generator sees
 # (spec/std/testing.md#property-tests). The runner creates each one and
 # records each draw, so it can replay and shrink a case: every member draws
-# through `prop_draw`, a host function that returns an integer from 0 to a
+# through the case's `PropertyRunner`, which returns an integer from 0 to a
 # bound, and a replayed or shrunk case returns the recorded values
-# (src/property-tests.ts). Once a case's draws have spent the runner's draw
-# budget, every member returns its simplest value without drawing
-# (spec/std/testing.md#draw-budget).
+# (src/property-tests.ts). A generated case offers each draw from a
+# `Random` that the runner's seed starts (r-std-testing.runner.random). Once
+# a case's draws have spent the draw budget, every member returns its
+# simplest value without drawing (spec/std/testing.md#draw-budget).
 pub data Choices:
+    runner: mut PropertyRunner
+    random: mut Random
+    size: i32
     draws: i32
-    budget: i32
 
 impl Choices:
-    # Whether the draw budget is spent. No public member reads it
-    # (r-std-testing.budget.no-api).
+    # Whether the draw budget of 256 draws is spent. No public member reads
+    # it (r-std-testing.budget.no-api).
     fn spent(self) -> bool:
-        self.draws >= self.budget
+        self.draws >= 256
 
     # One recorded draw from 0 to `bound`; a shrunk draw moves toward 0.
     fn next(mut self, bound: i64) -> i64:
         self.draws = self.draws + 1
-        prop_draw(bound)
+        self.runner.draw(bound, self.fresh(bound))
+
+    # A random draw from 0 to `bound`, at most 2^(3 + size), so draws grow
+    # from case to case: 0 one time in ten, the top one time in twenty, and
+    # else uniform.
+    fn fresh(mut self, bound: i64) -> i64:
+        let cap: i64 = bound
+        let reach: i64 = 4611686018427387904
+        if self.size < 59:
+            reach = i64(1) << i64(3 + self.size)
+        if reach < cap:
+            cap = reach
+        if cap <= 0:
+            return 0
+        pick := self.random.next_u64() % 20
+        if pick < 2:
+            return 0
+        if pick == 2:
+            return cap
+        i64((self.random.next_u64() >> 1) % u64(cap + 1))
 
     # A recorded draw from `lo` to `hi`. A range wider than `i64` picks a
     # half first.
@@ -115,7 +168,7 @@ impl Choices:
     # A false `ok` discards the case (spec/std/testing.md#property-tests).
     pub fn assume(mut self, ok: bool) -> void:
         if !ok:
-            prop_discard()
+            self.runner.discard()
 
     pub fn draw[T < Arbitrary](mut self) -> T:
         T::arbitrary(self)
@@ -142,6 +195,63 @@ impl Choices:
             entries[drawn] = V::arbitrary(self)
             index = index + 1
         entries
+
+# xoshiro128** 1.0 (Blackman and Vigna), the generator of a property's
+# random draws: four 32-bit words of state, kept in `u64` values masked to
+# 32 bits, so no operation overflows. `seeded` fills the state with
+# SplitMix32 from the runner's seed (r-std-testing.runner.random).
+data Xoshiro128:
+    s0: u64
+    s1: u64
+    s2: u64
+    s3: u64
+
+impl Xoshiro128:
+    fn seeded(seed: i64) -> mut Xoshiro128:
+        let wide: u64 = u64(seed)
+        let z: u64 = low32(wide ^ (wide >> 32))
+        z = low32(z + 0x9E3779B9)
+        a := mix32(z)
+        z = low32(z + 0x9E3779B9)
+        b := mix32(z)
+        z = low32(z + 0x9E3779B9)
+        c := mix32(z)
+        z = low32(z + 0x9E3779B9)
+        Xoshiro128 { s0: a, s1: b, s2: c, s3: mix32(z) }
+
+    fn next32(mut self) -> u64:
+        result := low32(rotl32(low32(self.s1 * 5), 7) * 9)
+        t := low32(self.s1 << 9)
+        self.s2 = self.s2 ^ self.s0
+        self.s3 = self.s3 ^ self.s1
+        self.s1 = self.s1 ^ self.s2
+        self.s0 = self.s0 ^ self.s3
+        self.s2 = self.s2 ^ t
+        self.s3 = rotl32(self.s3, 11)
+        result
+
+impl Random for Xoshiro128:
+    fn next_u64(mut self) -> u64:
+        high := self.next32()
+        (high << 32) | self.next32()
+
+    fn fill(mut self, count: i32) -> List[u8]:
+        let bytes: mut List[u8] = []
+        while bytes.len() < count:
+            bytes.append(u8(self.next32() & 0xFF))
+        bytes
+
+fn low32(x: u64) -> u64:
+    x & 0xFFFFFFFF
+
+fn rotl32(x: u64, k: u64) -> u64:
+    low32((x << k) | (x >> (32 - k)))
+
+# SplitMix32's output function, MurmurHash3's 32-bit finalizer.
+fn mix32(z: u64) -> u64:
+    let a: u64 = low32((z ^ (z >> 16)) * 0x85EBCA6B)
+    a = low32((a ^ (a >> 13)) * 0xC2B2AE35)
+    a ^ (a >> 16)
 
 # The `i64` value of an integer. A `u64` above the largest `i64` reads as
 # the largest `i64`, so the prototype never draws it.
@@ -316,106 +426,53 @@ impl[A < Arbitrary, B < Arbitrary, C < Arbitrary] Arbitrary for (A, B, C):
 
 # The body of an `it_each` test case (spec/std/testing.md#table-test-rows).
 # The runner calls the one test function once per row, each in a fresh
-# instance: the function reads the row index the runner selected, reports
-# the row count, and runs `body` with that row. With no rows, row 0 panics
-# with `index-out-of-bounds` after reporting count 0, which the runner reads
-# as an empty table (src/test-runner.ts).
-fn each_case![T, R, $Q](rows: List[T], body: fn!(T) -> R $ Q) -> R $ Q:
-    index := case_index()
-    report_case_count(rows.len())
+# instance: the function reports the row count to the runner's
+# `TestRunner`, which returns the row it selected, and runs `body` with that
+# row. With no rows, row 0 panics with `index-out-of-bounds` after the
+# runner heard count 0, which it reads as an empty table
+# (src/test-runner.ts).
+fn each_case![T, R, $Q](rows: List[T], body: fn!(T) -> R $ Q) -> R $ Q + TestRunner:
+    index := $.use(TestRunner).row(rows.len())
     body!(rows[index])
 
 # The body of an `it_prop` test case (spec/std/testing.md#property-tests):
 # the runner calls it once per generated case, each in a fresh instance
-# (src/property-tests.ts). It reports its case and shrink caps, draws the
-# input with `T`'s `Arbitrary` from a fresh `Choices`, or takes the example
-# the runner selects, reports the input's `Debug` text, and runs `prop`.
-fn prop_case![T < Arbitrary & Debug, R, $Q](cases: i32, shrink: i32, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q:
-    prop_config(cases, shrink)
-    let c: mut Choices = prop_choices()
-    value := prop_example_or_draw(examples, c)
-    prop_input(value)
+# (src/property-tests.ts). It reports its case and shrink caps and its
+# examples to the runner's `PropertyRunner`, takes the example the runner
+# selects or draws the input with `T`'s `Arbitrary` from a fresh `Choices`,
+# shows the input's `Debug` text, and runs `prop`.
+fn prop_case![T < Arbitrary & Debug, R, $Q](cases: i32, shrink: i32, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q + PropertyRunner:
+    let mut runner = $.use(PropertyRunner)
+    index := runner.start(cases, shrink, examples.len())
+    value := if index >= 0: examples[index] else: choices(runner).draw::[T]()
+    runner.show(debug(value))
     prop!(value)
 
 # The same for `it_prop_with`, which draws the input with `gen`.
-fn prop_with_case![T < Debug, R, $Q](cases: i32, shrink: i32, gen: fn(mut Choices) -> T, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q:
-    prop_config(cases, shrink)
-    let c: mut Choices = prop_choices()
-    value := prop_value(examples, gen, c)
-    prop_input(value)
+fn prop_with_case![T < Debug, R, $Q](cases: i32, shrink: i32, gen: fn(mut Choices) -> T, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q + PropertyRunner:
+    let mut runner = $.use(PropertyRunner)
+    index := runner.start(cases, shrink, examples.len())
+    value := if index >= 0: examples[index] else: gen(choices(runner))
+    runner.show(debug(value))
     prop!(value)
+
+# A fresh `Choices` for one generated case. It holds the runner's provider
+# value, so a generator draws through it with no requirement row
+# (r-std-testing.runner.choices).
+fn choices(runner: mut PropertyRunner) -> mut Choices:
+    Choices { runner: runner, random: Xoshiro128::seeded(runner.seed()), size: runner.size(), draws: 0 }
+
+# The body of a timed `it` test case, after `case_timeout`: the written
+# body as a closure, so the runner's `TestRunner` covers only the test
+# function around it (spec/std/testing.md#runner-capabilities).
+fn run_case![R, $Q](body: fn!() -> R $ Q) -> R $ Q:
+    body!()
 
 # A test case's `timeout` option, which its test function evaluates first
 # (spec/std/testing.md#r-std-testing.option.timeout-at-run). The runner
 # fails a body that runs longer (src/test-runner.ts).
-fn case_timeout(limit: Duration) -> void:
-    report_timeout(limit.as_milliseconds())
-
-# The runner hooks, runtime primitives over the globals the runner reads
-# and writes (emitter/intrinsics.ts): the row the runner selected, the row
-# count, and the timeout in milliseconds.
-@intrinsic("case_index")
-fn case_index() -> i32:
-    panic("intrinsic")
-
-@intrinsic("report_case_count")
-fn report_case_count(count: i32) -> void:
-    panic("intrinsic")
-
-@intrinsic("report_timeout")
-fn report_timeout(millis: i64) -> void:
-    panic("intrinsic")
-
-# The runner protocol of an `it_prop` or `it_prop_with` case: the test
-# function draws from a fresh `Choices`.
-fn prop_choices() -> mut Choices:
-    Choices { draws: 0, budget: prop_budget() }
-
-# The input of one case: the example the runner selects while it runs a
-# property's examples first (r-std-testing.prop.examples), or else a
-# value that `gen` draws.
-fn prop_value[T](examples: List[T], gen: fn(mut Choices) -> T, c: mut Choices) -> T:
-    index := prop_example(examples.len())
-    if index >= 0: examples[index] else: gen(c)
-
-# The same for `it_prop`, which draws with the input type's `Arbitrary`.
-fn prop_example_or_draw[T < Arbitrary](examples: List[T], c: mut Choices) -> T:
-    index := prop_example(examples.len())
-    if index >= 0: examples[index] else: c.draw::[T]()
-
-@intrinsic("prop_config")
-fn prop_config(cases: i32, shrink: i32) -> void:
-    panic("intrinsic")
-
-# The runner's draw budget for one case.
-@intrinsic("prop_budget")
-fn prop_budget() -> i32:
-    panic("intrinsic")
-
-# The index of the example this case runs, or -1 for a generated case. The
-# host ends the case once every example has run.
-@intrinsic("prop_example")
-fn prop_example(count: i32) -> i32:
-    panic("intrinsic")
-
-# Reports the drawn input's `Debug` text, which the runner prints for the
-# shrunk case; `it_prop` and `it_prop_with` require `T < Debug`
-# (spec/std/testing.md#r-std-testing.prop.debug).
-fn prop_input[T < Debug](value: T) -> void:
-    prop_show(debug(value))
-
-@intrinsic("prop_show")
-fn prop_show(text: string) -> void:
-    panic("intrinsic")
-
-@intrinsic("prop_draw")
-fn prop_draw(bound: i64) -> i64:
-    panic("intrinsic")
-
-# Ends the running case as discarded; the host does not return.
-@intrinsic("prop_discard")
-fn prop_discard() -> void:
-    panic("intrinsic")
+fn case_timeout(limit: Duration) -> void $ TestRunner:
+    $.use(TestRunner).report_timeout(limit.as_milliseconds())
 
 # A false `condition` is a failed assertion, a checked runtime panic
 # (spec/lang/10-modules.md#r-module.testing.assert-panic) that shows

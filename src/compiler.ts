@@ -70,6 +70,12 @@ interface EncodedHostInteger {
   readonly value: number;
 }
 
+/** An `i64`, as decimal text, since JSON has no 64-bit integer. */
+interface EncodedHostWide {
+  readonly kind: "i64";
+  readonly value: string;
+}
+
 interface EncodedHostFloat {
   readonly bits: string;
   readonly kind: "f64";
@@ -86,11 +92,15 @@ interface EncodedHostResult {
   readonly value?: EncodedHostScalar;
 }
 
-type EncodedHostScalar = EncodedHostFloat | EncodedHostInteger | EncodedHostString;
+type EncodedHostScalar =
+  | EncodedHostFloat
+  | EncodedHostInteger
+  | EncodedHostString
+  | EncodedHostWide;
 
 type EncodedHostValue = EncodedHostScalar | EncodedHostResult;
 
-type HostSuspensionValue = number | string;
+type HostSuspensionValue = number | bigint | string;
 
 /** A host's `Result[T, E]` answer; `value` is absent for a `void` side. */
 interface HostResultValue {
@@ -121,6 +131,23 @@ export interface HostSuspensionCall {
 export interface HostSuspensionOutcome {
   readonly pending: boolean;
   readonly value?: HostSuspensionResult;
+}
+
+/**
+ * A provider value that answers its own calls. An embedder passes one for a
+ * host requirement when its answers depend on the call it is serving, as
+ * the test runner's `TestRunner` and `PropertyRunner` do (src/test-runner.ts).
+ */
+export interface AnsweringProvider {
+  readonly answer: (call: HostSuspensionCall) => HostSuspensionOutcome;
+}
+
+function answeringProvider(provider: unknown): AnsweringProvider | undefined {
+  return typeof provider === "object" &&
+    provider !== null &&
+    typeof (provider as Partial<AnsweringProvider>).answer === "function"
+    ? (provider as AnsweringProvider)
+    : undefined;
 }
 
 interface MutableHostSuspensionCall extends HostSuspensionCall {
@@ -233,6 +260,11 @@ function canonicalHostValue(type: ValueType, value: HostSuspensionValue): HostSu
     if (typeof value !== "string") throw new Error("host string boundary value must be a string");
     return value;
   }
+  if (type === "i64") {
+    if (typeof value !== "number" && typeof value !== "bigint")
+      throw new Error("host i64 boundary value must be a number or a BigInt");
+    return BigInt.asIntN(64, BigInt(value));
+  }
   if (typeof value !== "number") throw new Error(`host ${type} boundary value must be a number`);
   if (type === "f64") return Number(value);
   if (type === "bool") return value === 0 ? 0 : 1;
@@ -257,6 +289,7 @@ function encodeHostValue(type: ValueType, value: HostSuspensionValue): EncodedHo
   const canonical = canonicalHostValue(type, value);
   if (type === "string")
     return { kind: "string", utf8: hexBytes(new TextEncoder().encode(canonical as string)) };
+  if (type === "i64") return { kind: "i64", value: String(canonical) };
   if (type !== "f64") return { kind: type as EncodedHostInteger["kind"], value: Number(canonical) };
   const buffer = new ArrayBuffer(8);
   const view = new DataView(buffer);
@@ -272,6 +305,11 @@ function decodeHostValue(type: ValueType, value: EncodedHostValue): HostSuspensi
     return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
       bytesFromHex(encoded.utf8),
     );
+  if (encoded.kind === "i64") {
+    if (!/^-?\d+$/.test(encoded.value))
+      throw new Error(`replay i64 value '${encoded.value}' is invalid`);
+    return canonicalHostValue(type, BigInt(encoded.value));
+  }
   if (encoded.kind !== "f64") return canonicalHostValue(type, encoded.value);
   if (!/^[0-9a-f]{16}$/.test(encoded.bits))
     throw new Error(`replay f64 bits '${encoded.bits}' are invalid`);
@@ -485,7 +523,12 @@ export async function instantiate(
           method.name,
           siteOffset as number,
           method.parameters.map((parameter, index) =>
-            parameter === "string" ? "" : canonicalHostValue(parameter, Number(arguments_[index])),
+            parameter === "string"
+              ? ""
+              : canonicalHostValue(
+                  parameter,
+                  parameter === "i64" ? (arguments_[index] as bigint) : Number(arguments_[index]),
+                ),
           ),
         ),
       });
@@ -542,11 +585,20 @@ export async function instantiate(
           replayIndex += 1;
           return state.outcome.pending ? 0 : 1;
         }
+        const answering = answeringProvider(call.provider);
         state.outcome = builtIn
           ? builtIn(call, { console: options.console })
-          : (options.hostSuspensionInvoke?.(call) ?? {
-              pending: options.hostSuspensionPending?.(call) ?? false,
-            });
+          : answering
+            ? answering.answer(call)
+            : (options.hostSuspensionInvoke?.(call) ?? {
+                pending: options.hostSuspensionPending?.(call) ?? false,
+              });
+        // A plain method has no suspension to leave pending
+        // (emitter/host-providers.ts).
+        if (state.outcome.pending && !method.suspending)
+          throw new Error(
+            `host provider ${trait.name}.${method.name} is a plain call, not pending`,
+          );
         if (!state.outcome.pending && method.result !== "void" && state.outcome.value === undefined)
           throw new Error(`host provider ${trait.name}.${method.name} returned no boundary result`);
         if (state.outcome.pending) state.outcome = { pending: true };

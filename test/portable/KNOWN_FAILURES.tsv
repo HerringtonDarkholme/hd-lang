@@ -79,7 +79,6 @@ runtime/valid/console-input-helper.hd	check reports unknown-import: std.console 
 runtime/valid/host-args-env.hd	check reports unknown-module: there is no std.host (std-host.args.helper)	HOST-CATALOG
 runtime/valid/fs-helpers.hd	check reports unknown-module: there is no std.fs or std.path (std-fs.helper.read-text)	HOST-CATALOG
 typing/valid/path-newtype.hd	check reports unknown-module: there is no std.path (std-path.decl)	HOST-CATALOG
-typing/valid/random-trait.hd	check reports unknown-module: there is no std.random (std-random.decl)	HOST-CATALOG
 runtime/valid/duration-order.hd	check reports missing-eq and missing-partial-ord: Duration implements neither Eq nor Ord yet (std-time.duration.eq-ord)	STD-1
 runtime/valid/string-lines.hd	a test fails: lines keeps a \r before each \n (std-text.string.lines)	STD-1
 runtime/valid/map-keys-values.hd	check reports unknown-method: Map has no contains_key, keys, or values (std-collections.map.keys)	STD-1

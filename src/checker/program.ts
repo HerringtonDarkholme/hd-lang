@@ -16,6 +16,7 @@ import type { ProgramCheckContext } from "./program-context.ts";
 import { validateHostCapabilities } from "./host-capabilities.ts";
 import {
   importedMarkerFunctions,
+  testRunnerNames,
   withStandardLibrary,
   withStandardSubmodules,
 } from "./standard-library.ts";
@@ -127,6 +128,13 @@ function checkProgram(source: Program, options: CheckOptions): CheckResult {
   // modules make, such as the prelude's `std.convert.From`, which
   // `withStandardTraits` then declares.
   const joined = withStandardTraits(withStandardLibrary(source));
+  // `hd test` binds the runner's capabilities for the case bodies that
+  // need them (spec/std/testing.md#runner-capabilities).
+  const testRunners = testRunnerNames(source);
+  const runnerCapabilities = [
+    ...(source.tests.some((test) => test.table || test.timed) ? [testRunners.test] : []),
+    ...(source.tests.some((test) => test.property) ? [testRunners.property] : []),
+  ];
   const marked = withSuffixMarkers(withBareMarkerCalls(joined, markerFunctions(joined.functions)));
   const hoisted = hoistLocalDeclarations(marked);
   // Target kinds are checked before newtypes are lowered to data types
@@ -157,7 +165,12 @@ function checkProgram(source: Program, options: CheckOptions): CheckResult {
     implementationPreparations: [],
     inherentMethods: [],
     inherentDeclarations: [],
-    hostCapabilities: new Set(["Console", ...(options.hostCapabilities ?? [])]),
+    hostCapabilities: new Set([
+      "Console",
+      ...runnerCapabilities,
+      ...(options.hostCapabilities ?? []),
+    ]),
+    testRunners,
     entryModule: options.entryModule === true,
   };
   validateProgram(context);

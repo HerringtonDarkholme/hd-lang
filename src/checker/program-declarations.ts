@@ -14,7 +14,15 @@ interface ExplicitEnumFieldValue {
 // fixed: `Result[void, Error]` when it uses `?`, else `void`
 // (spec/lang/05-expressions.md#propagation-in-test-blocks). An explicit closure
 // keeps its written result, or infers one.
-function createTestDeclarations(program: ProgramCheckContext["program"]): FunctionDecl[] {
+//
+// The runner binds its capabilities for the case body the parser gives an
+// `it_each` or property test case or a `timeout` option
+// (spec/std/testing.md#runner-capabilities), so such a test function's row
+// names them.
+function createTestDeclarations(
+  program: ProgramCheckContext["program"],
+  runners: ProgramCheckContext["testRunners"],
+): FunctionDecl[] {
   return program.tests.map((test, index) => {
     const inferred = test.explicit === true && test.result === undefined;
     const options = {
@@ -33,7 +41,10 @@ function createTestDeclarations(program: ProgramCheckContext["program"]): Functi
       parameters: [],
       result: test.result ?? { name: "void", span: test.span },
       ...(inferred ? { resultOmitted: true } : {}),
-      requirements: [],
+      requirements: [
+        ...(test.table || test.timed ? [runners.test] : []),
+        ...(test.property ? [runners.property] : []),
+      ],
       body: test.body,
       testOnly: true,
       testOptions: options,
@@ -424,7 +435,7 @@ export function createProgramDeclarations(
     ),
   );
   const enumVariantDeclarations = createEnumVariantDeclarations(program.enums, diagnostics);
-  const testDeclarations = createTestDeclarations(program);
+  const testDeclarations = createTestDeclarations(program, context.testRunners);
   const declarations = [
     ...program.functions,
     ...testDeclarations,

@@ -1,32 +1,32 @@
-import type { HostFunction } from "./host-functions.ts";
-
 // The property-test runner (spec/std/testing.md#property-tests, Testing
-// T35-T38, T50, T51). An `it_prop` or `it_prop_with` test function, whose
-// body is `prop_case!` or `prop_with_case!` (lib/std/testing.hd), reports
-// its `cases` and `shrink` caps through
-// `prop_config`, and every `Choices` member draws through `prop_draw`, a
-// host function that returns an integer from 0 to a bound. The runner
-// records each case's draws as its choice stream:
+// T35-T38, T50, T51), the host side of `std.testing.PropertyRunner`
+// (spec/std/testing.md#runner-capabilities). An `it_prop` or `it_prop_with`
+// test function, whose body is `prop_case!` or `prop_with_case!`
+// (lib/std/testing.hd), reports its `cases` and `shrink` caps through
+// `start`, and every `Choices` member draws through `draw`, which returns an
+// integer from 0 to a bound. The runner records each case's draws as its
+// choice stream:
 //
-// - a new case draws at random from the run's seed, with a size that grows
-//   from case to case (T38);
+// - a new case draws at random: `Choices` offers each draw from its own
+//   xoshiro128** generator in hd, which `seed` starts from the run's seed
+//   and the case's index, with a reach that `size` grows from case to case
+//   (T38);
 // - a failing case is shrunk Hypothesis-style (T35): the runner replays
 //   shorter or smaller choice streams through the same generator, and a
 //   draw past the end of a replayed stream is 0. Each attempt is a fresh
 //   instance and counts toward the `shrink` cap (T51);
-// - `Choices.assume(false)` calls `prop_discard`, which ends the case as
+// - `Choices.assume(false)` calls `discard`, which ends the case as
 //   neither passing nor failing. A discarded case does not count toward
 //   `cases`, and the property fails after more than 10 × `cases` discards
 //   (spec/std/testing.md#r-std-testing.prop.discard-limit);
-// - the lowered test reports its input's `Debug` text through `prop_show`,
+// - the lowered test reports its input's `Debug` text through `show`,
 //   and the failure report prints the shrunk case's text
 //   (spec/std/testing.md#r-std-testing.prop.report);
-// - each case has a draw budget of `DRAW_BUDGET` draws, which `prop_budget`
-//   reports; once `Choices` has spent it, every draw returns its simplest
-//   value without calling `prop_draw` (spec/std/testing.md#draw-budget);
-// - a property's `examples` run first, each as one case: the lowered test
-//   asks `prop_example` which example to run, and the host discards the
-//   case once every example has run (spec/std/testing.md#r-std-testing.prop.examples);
+// - `Choices` keeps each case's draw budget itself
+//   (spec/std/testing.md#draw-budget);
+// - a property's `examples` run first, each as one case: `start` answers
+//   which example to run, and discards the case once every example has run
+//   (spec/std/testing.md#r-std-testing.prop.examples);
 // - a failing property's shrunk stream is saved, one decimal draw per line,
 //   under `__regressions__/<module>/<test-slug>` and replayed before new
 //   cases on the next run (spec/std/testing.md#r-std-testing.prop.regression-file).
@@ -34,7 +34,7 @@ import type { HostFunction } from "./host-functions.ts";
 // The failure report names the seed, which `hd test --seed N` reuses (T36),
 // the shrunk input, and the shrunk choice stream.
 
-/** Thrown by `prop_discard`: the running case is discarded. */
+/** Thrown by `discard`: the running case is discarded. */
 export class PropertyDiscard extends Error {
   constructor() {
     super("the property case was discarded by Choices.assume");
@@ -57,14 +57,15 @@ export interface RegressionStore {
   save(name: string, stream: readonly bigint[]): string;
 }
 
-/** The draws of one case before every draw returns its simplest value. */
-const DRAW_BUDGET = 256;
-
 /** One case's result, as the test runner reports it. */
 export type CaseResult = "pass" | "discard" | { readonly failure: string };
 
+/** A `PropertyRunner` argument or answer: an `i64` crosses as a BigInt. */
+type RunnerValue = number | bigint | string;
+
 export interface PropertyRun {
-  readonly hostFunctions: Readonly<Record<string, HostFunction>>;
+  /** Answers a `PropertyRunner` method call of the running case. */
+  answer(method: string, arguments_: readonly RunnerValue[]): { readonly value?: RunnerValue };
   readonly seed: number;
   readonly options: PropertyOptions;
   /** Prepares the next case: replay `stream`, then draw from `seed` at `size`, or 0 when shrinking. */
@@ -81,34 +82,11 @@ export interface PropertyRun {
   shown(): string | undefined;
 }
 
-/** A small seeded generator (mulberry32). */
-function generator(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let value = state;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** A random draw from 0 to `cap`: sometimes an end of the range, else uniform. */
-function randomDraw(random: () => number, cap: bigint): bigint {
-  if (cap <= 0n) return 0n;
-  const pick = random();
-  if (pick < 0.1) return 0n;
-  if (pick < 0.15) return cap;
-  const high = BigInt(Math.floor(random() * 4294967296));
-  const low = BigInt(Math.floor(random() * 4294967296));
-  return ((high << 32n) | low) % (cap + 1n);
-}
-
 export function propertyRun(options: PropertyOptions = {}): PropertyRun {
   const seed = options.seed ?? Math.floor(Math.random() * 2147483647);
   let stream: readonly bigint[] = [];
   let recorded: bigint[] = [];
-  let random = generator(seed);
+  let caseSeed = seed;
   let size = 0;
   let shrinking = false;
   let caps = { cases: 100, shrink: 500 };
@@ -117,13 +95,13 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
   let examplesDone = false;
   const start = (
     next: readonly bigint[],
-    caseSeed: number,
+    nextSeed: number,
     caseSize: number,
     shrinkingCase: boolean,
   ): void => {
     stream = next;
     recorded = [];
-    random = generator(caseSeed);
+    caseSeed = nextSeed;
     size = caseSize;
     shrinking = shrinkingCase;
     shown = undefined;
@@ -142,44 +120,44 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
     recorded: () => recorded,
     caps: () => caps,
     shown: () => shown,
-    hostFunctions: {
-      prop_config(cases, shrink) {
-        caps = { cases: Number(cases), shrink: Number(shrink) };
-      },
-      prop_draw(bound) {
-        const limit = BigInt(bound as bigint | number);
-        const index = recorded.length;
-        // Sizes grow from small to large (Testing T38).
-        const sized = 2n ** BigInt(Math.min(62, 3 + size));
-        const cap = limit < sized ? limit : sized;
-        const replayed = stream[index];
-        const value =
-          replayed !== undefined
-            ? replayed < limit
-              ? replayed
-              : limit
-            : shrinking
-              ? 0n
-              : randomDraw(random, cap);
-        const drawn = value < 0n ? 0n : value;
-        recorded.push(drawn);
-        return drawn;
-      },
-      prop_discard() {
-        throw new PropertyDiscard();
-      },
-      prop_budget() {
-        return DRAW_BUDGET;
-      },
-      prop_example(count) {
-        if (example === undefined) return -1;
-        if (example < Number(count)) return example;
-        examplesDone = true;
-        throw new PropertyDiscard();
-      },
-      prop_show(text) {
-        shown = String(text);
-      },
+    answer(method, arguments_) {
+      const [first, second, third] = arguments_;
+      switch (method) {
+        case "start":
+          caps = { cases: Number(first), shrink: Number(second) };
+          if (example === undefined) return { value: -1 };
+          if (example < Number(third)) return { value: example };
+          examplesDone = true;
+          throw new PropertyDiscard();
+        // The case's random draws start from its seed, and reach further
+        // as cases grow (Testing T38).
+        case "seed":
+          return { value: BigInt(caseSeed) };
+        case "size":
+          return { value: size };
+        case "draw": {
+          const limit = BigInt(first as bigint);
+          const replayed = stream[recorded.length];
+          const value =
+            replayed !== undefined
+              ? replayed < limit
+                ? replayed
+                : limit
+              : shrinking
+                ? 0n
+                : BigInt(second as bigint);
+          const drawn = value < 0n ? 0n : value > limit ? limit : value;
+          recorded.push(drawn);
+          return { value: drawn };
+        }
+        case "discard":
+          throw new PropertyDiscard();
+        case "show":
+          shown = String(first);
+          return {};
+        default:
+          throw new Error(`the property runner has no method ${method}`);
+      }
     },
   };
 }

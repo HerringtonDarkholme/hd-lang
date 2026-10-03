@@ -1863,3 +1863,6 @@ typing/invalid/no-widening-range-bounds.hd	type
 typing/invalid/power-float-widths.hd	type
 typing/valid/numeric-literal-adopts-width.hd	type
 runtime/valid/numeric-explicit-widening.hd	runtime
+typing/valid/random-trait.hd	type
+typing/valid/test-runner-capabilities.hd	type
+typing/invalid/test-body-uses-test-runner.hd	type

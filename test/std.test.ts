@@ -48,6 +48,7 @@ const PRELUDE_GRAPH = [
   "ops",
   "option",
   "process",
+  "random",
   "result",
   "task",
   "testing",

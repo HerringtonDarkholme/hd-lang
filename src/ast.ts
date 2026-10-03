@@ -314,6 +314,8 @@ export interface TestDecl {
   readonly table?: boolean;
   /** An `it_prop` or `it_prop_with` property, which the runner runs once per case. */
   readonly property?: boolean;
+  /** A `timeout` option, which the test function reports to the runner first. */
+  readonly timed?: boolean;
   /** The written result of an explicit closure, or `Result[void, Error]` for `propagates`. */
   readonly result?: TypeRef;
   readonly ignore?: string;

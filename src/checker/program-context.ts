@@ -2,6 +2,7 @@ import type { FunctionDecl, ImplDecl, Program } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
 import type { HirData, HirEnum, HirTrait, ValueType } from "../hir.ts";
 import type { InherentMethod } from "./context.ts";
+import type { TestRunnerNames } from "./standard-library.ts";
 
 export interface ImplementationMethodPreparation {
   readonly methodIndex: number;
@@ -28,6 +29,8 @@ export interface ProgramCheckContext {
   readonly inherentMethods: InherentMethod[];
   readonly inherentDeclarations: FunctionDecl[];
   readonly hostCapabilities: ReadonlySet<string>;
+  /** The program's names of the test runner's capabilities (checker/standard-library.ts). */
+  readonly testRunners: TestRunnerNames;
   /** The program is an entry module (spec/lang/10-modules.md#r-module.entry.private-main.warn). */
   readonly entryModule: boolean;
 }

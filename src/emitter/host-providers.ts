@@ -28,7 +28,7 @@ function resultSides(type: ValueType): readonly [ValueType, ValueType] | undefin
 const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", "f64", "i32"]);
 
 function watType(type: ValueType): string {
-  if (type === "f64") return "f64";
+  if (type === "f64" || type === "i64") return type;
   if (type === "string") return "(ref null $hd.string)";
   if (resultSides(type)) return "(ref null $hd.variant)";
   return "i32";
@@ -40,7 +40,7 @@ function crossesAsString(type: ValueType): boolean {
 }
 
 function boundaryWatType(type: ValueType): string {
-  return type === "f64" ? "f64" : "i32";
+  return type === "f64" || type === "i64" ? type : "i32";
 }
 
 function methodName(trait: HirTrait, method: HirTraitMethod): string {
@@ -240,25 +240,57 @@ function emitMethod({ trait, method }: HostMethod): string {
     `      (local.set $byte-index (i32.add (local.get $byte-index) (i32.const 1)))`,
     `      (br $argument${index}-copy)))`,
   ]);
+  const begin = [
+    `  (local.set $call`,
+    `    (call $hd.${importName(trait, method, "begin")}`,
+    `      (struct.get $hd.box-extern $hd.box-extern-value (ref.cast (ref $hd.box-extern) (local.get $receiver)))`,
+    `      (global.get $hd.host-call-site)${beginArguments.length ? " " + beginArguments.join(" ") : ""}))`,
+    ...streamArguments,
+  ];
+  const locals = [
+    `  (local $call externref)`,
+    ...(strings.length > 0 ? [`  (local $byte-index i32)`] : []),
+  ];
+  const header = `(func ${methodName(trait, method)} (type $tsig${trait.index}_${method.index}) (param $receiver anyref) (param $dictionary anyref)${parameters.length ? " " + parameters.join(" ") : ""}`;
+  // A plain method is answered at once: the host never leaves it pending
+  // (src/compiler.ts), so it reads the result right after the one poll.
+  if (!method.suspending) {
+    const result = method.result === "void" ? "" : ` (result ${watType(method.result)})`;
+    const value =
+      method.result === "void"
+        ? []
+        : [
+            `  ${
+              method.result === "string"
+                ? `(call ${stringResultName(trait, method)} (local.get $call))`
+                : resultSides(method.result)
+                  ? `(call ${variantResultName(trait, method)} (local.get $call))`
+                  : `(call $hd.${importName(trait, method, "result")} (local.get $call))`
+            }`,
+          ];
+    return [
+      `${header}${result}`,
+      ...locals,
+      ...begin,
+      `  (drop (call $hd.${importName(trait, method, "poll")} (local.get $call)))`,
+      ...value,
+      `)`,
+    ].join("\n");
+  }
   const defaultResult =
     method.result === "void"
       ? ""
-      : method.result === "f64"
-        ? " (f64.const 0)"
+      : method.result === "f64" || method.result === "i64"
+        ? ` (${method.result}.const 0)`
         : method.result === "string"
           ? " (ref.null $hd.string)"
           : resultSides(method.result)
             ? " (ref.null $hd.variant)"
             : " (i32.const 0)";
   return [
-    `(func ${methodName(trait, method)} (type $tsig${trait.index}_${method.index}) (param $receiver anyref) (param $dictionary anyref)${parameters.length ? " " + parameters.join(" ") : ""} (result (ref null $ts${trait.index}_${method.index}))`,
-    `  (local $call externref)`,
-    ...(strings.length > 0 ? [`  (local $byte-index i32)`] : []),
-    `  (local.set $call`,
-    `    (call $hd.${importName(trait, method, "begin")}`,
-    `      (struct.get $hd.box-extern $hd.box-extern-value (ref.cast (ref $hd.box-extern) (local.get $receiver)))`,
-    `      (global.get $hd.host-call-site)${beginArguments.length ? " " + beginArguments.join(" ") : ""}))`,
-    ...streamArguments,
+    `${header} (result (ref null $ts${trait.index}_${method.index}))`,
+    ...locals,
+    ...begin,
     `  (struct.new $ts${trait.index}_${method.index}`,
     `    (struct.new ${frameName(trait, method)}`,
     `      (local.get $call)`,
@@ -345,23 +377,26 @@ export function emitHostProviders(program: HirProgram): HostProviderEmission {
   const methods = traits.flatMap((trait) => trait.methods.map((method) => ({ trait, method })));
   if (methods.length === 0) return { functions: "", imports: "", references: [], types: "" };
   const imports = methods.flatMap(emitImports).join("\n");
+  // A suspending method returns a frame that the caller polls; a plain one
+  // needs only the method itself and its result decoders.
+  const suspending = methods.filter(({ method }) => method.suspending);
   const functions = [
     ...methods.flatMap((hostMethod) => [
-      emitPoll(hostMethod),
-      emitCancel(hostMethod),
+      ...(hostMethod.method.suspending
+        ? [emitPoll(hostMethod), emitCancel(hostMethod), emitResult(hostMethod)]
+        : []),
       emitStringResult(hostMethod),
       emitVariantResult(hostMethod),
-      emitResult(hostMethod),
       emitMethod(hostMethod),
     ]),
     ...traits.map(emitTraitFactory),
   ].join("\n\n");
   const references = methods.flatMap(({ trait, method }) => [
     methodName(trait, method),
-    pollName(trait, method),
-    cancelName(trait, method),
-    resultName(trait, method),
+    ...(method.suspending
+      ? [pollName(trait, method), cancelName(trait, method), resultName(trait, method)]
+      : []),
   ]);
-  const types = methods.map(emitFrameType).filter(Boolean).join("\n");
+  const types = suspending.map(emitFrameType).filter(Boolean).join("\n");
   return { functions, imports, references, types };
 }

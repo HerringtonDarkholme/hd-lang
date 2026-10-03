@@ -472,6 +472,17 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
     ].join("\n");
   }
 
+  /**
+   * A plain method call of a host capability names its call site to the
+   * host, as a bang call does (emitter/host-providers.ts); no other trait
+   * call sets it.
+   */
+  private hostCallSite(traitName: string, offset: number): readonly string[] {
+    return this.hostCapabilities.has(traitName)
+      ? [`  (global.set $hd.host-call-site (i32.const ${offset}))`]
+      : [];
+  }
+
   private emitCallExpression(expression: HirExpression): string | undefined {
     switch (expression.kind) {
       case "call": {
@@ -688,6 +699,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           `(block${expression.type === "void" ? "" : ` (result ${this.watType(expression.type)})`}`,
           `  (local.set ${temporary} ${this.emitExpression(expression.receiver)})`,
           ...ordered.setup.map((line) => `  ${line}`),
+          ...this.hostCallSite(trait.name, expression.span.start.offset),
           `  ${result}`,
           `)`,
         ].join("\n");

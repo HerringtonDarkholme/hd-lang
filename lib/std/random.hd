@@ -1,0 +1,11 @@
+# std.random: the host capability trait `Random` (spec/std/random.md).
+# No prototype runtime profile binds a host `Random` yet
+# (src/KNOWN_ISSUES.md); `std.testing` implements it with a seeded
+# generator for property tests.
+
+# Draws values from a source of randomness (r-std-random.decl). Both
+# methods take `mut self`, so a seeded provider advances its own state
+# (r-std-random.mut).
+pub trait Random:
+    fn next_u64(mut self) -> u64
+    fn fill(mut self, count: i32) -> List[u8]

@@ -11,8 +11,8 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-02 the suite has
-1,938 cases: 1,854 selected in `test/portable/cases.tsv` and 84 known
-failures, 64 language tier and 20 stdlib tier.
+1,950 cases: 1,867 selected in `test/portable/cases.tsv` and 83 known
+failures, 64 language tier and 19 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -39,7 +39,7 @@ failures, 64 language tier and 20 stdlib tier.
 | VOID-UNIT | 1 | `void` is kept apart from the empty tuple `()` |
 | VARIANCE-UNWRAP | 1 | `(mut User)?` and `mut User?` are one type, so an optional still weakens its contents |
 | DEFAULT-HASHER | 1 | no `DefaultHasher` or `hash_of` in `std.hash` |
-| HOST-CATALOG | 10 | no `std.host`, `std.fs`, `std.path`, or `std.random`; no `Clock`, `eprintln`, `write_error_line!`, `read_line!` helper, or `retry_with!` |
+| HOST-CATALOG | 9 | no `std.host`, `std.fs`, or `std.path`; no `Clock`, `eprintln`, `write_error_line!`, `read_line!` helper, or `retry_with!` |
 | STD-1 | 3 | `Duration` has no `Eq` or `Ord`, `lines` keeps `\r`, and `Map` has no `contains_key`, `keys`, or `values` |
 
 ## Findings
@@ -135,7 +135,7 @@ Compiler structure:
 | DEFAULT-FIELD | Batch 59: a member that declares a default needs no `Default` on its type. The `std.ops` template's `member[F < Default]` bound still covers it, so the prototype reports `member-not-derivable`. |
 | VARIANCE-UNWRAP | Batch 64: `Option` and `Result` are invariant in every parameter. The variance check follows it, but the prototype writes `(mut User)?` and `mut User?` as one type, so weakening the outer view still turns `(mut User)?` into `User?`. |
 | DEFAULT-HASHER | Batch 64: `std.hash.DefaultHasher` is 64-bit FNV-1a, `hash_of` hashes into it, and `Map` buckets by it. None is in `lib/std` yet (task #196). |
-| HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds only `Console` and declares none of the new items. |
+| HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds only `Console`, and of the new items it declares only `Random`. |
 | STD-1 | Batch 64 recovered the 2026-09-29 std decisions: `Duration` implements `Eq` and `Ord`, `lines` drops a `\r` before each `\n`, and `Map` has `contains_key`, `keys`, and `values`. `lib/std` has none of these yet. |
 
 ## Gaps No Fixture Reaches

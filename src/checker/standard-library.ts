@@ -508,6 +508,22 @@ function standardLocalNames(program: Program): Map<string, string> {
   return localNames;
 }
 
+/**
+ * The program's names of `std.testing`'s runner capabilities, which `hd
+ * test` binds for the case bodies it gives an `it_each`, `it_prop`, or
+ * `it_prop_with` test case or a `timeout` option
+ * (spec/std/testing.md#runner-capabilities).
+ */
+export function testRunnerNames(program: Program): TestRunnerNames {
+  const nameOf = standardNameOf(program);
+  return { test: nameOf("testing", "TestRunner"), property: nameOf("testing", "PropertyRunner") };
+}
+
+export interface TestRunnerNames {
+  readonly test: string;
+  readonly property: string;
+}
+
 /** The program's name for each `std` declaration: its local name, or else its hidden name. */
 function standardNameOf(program: Program): (module: StandardModule, name: string) => string {
   const localNames = standardLocalNames(program);

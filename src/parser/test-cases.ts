@@ -236,11 +236,37 @@ function testingCall(
 // A `timeout` value is any `Duration`, evaluated when the test case runs
 // (spec/std/testing.md#r-std-testing.option.timeout-at-run): the test
 // function first passes it to `case_timeout`, which reports it to the
-// runner.
+// runner's `TestRunner`.
 function withTimeout(timeout: Expression | undefined, body: readonly Statement[]): Statement[] {
   if (!timeout) return [...body];
   const call = testingCall("case_timeout", [timeout], timeout.span);
   return [{ kind: "expression", expression: call, span: timeout.span }, ...body];
+}
+
+// A timed `it` test function reports its `timeout`, then runs the written
+// body as a closure with the empty row, so the runner's `TestRunner` never
+// covers the body (spec/std/testing.md#runner-capabilities). The closure
+// keeps the body's result: the written one, or the fixed `void` of a
+// trailing block, or `Result[void, Error]` when it uses `?`.
+function timedBody(test: TestDecl): TestDecl {
+  if (!test.timed || test.table || test.property) return test;
+  const [report, ...body] = test.body;
+  const span = test.span;
+  const closure: Closure = {
+    kind: "closure",
+    suspending: true,
+    parameters: [],
+    requirements: [],
+    body,
+    ...(test.result
+      ? { result: test.result }
+      : test.explicit
+        ? {}
+        : { result: { name: "void", span } }),
+    span,
+  };
+  const run = testingCall("run_case", [closure], span);
+  return { ...test, body: [report!, { kind: "expression", expression: run, span }] };
 }
 
 // A top-level statement of a `tests:` block must be a call of the prelude
@@ -262,6 +288,7 @@ export function testCase(statement: Statement, fail: Fail): TestDecl {
     kind: "test",
     name,
     body: withTimeout(timeout, body.body),
+    ...(timeout ? { timed: true } : {}),
     ...(explicit
       ? { explicit: true, ...(body.result ? { result: body.result } : {}) }
       : usesPropagation(body.body)
@@ -276,13 +303,17 @@ export function testCase(statement: Statement, fail: Fail): TestDecl {
 // written body: the `it_each`, `it_prop`, or `it_prop_with` case body in
 // lib/std/testing.hd. A body without a written result that uses `?` returns
 // `Result[void, Error]`, as the test case does
-// (spec/std/testing.md#r-std-testing.try.test.row-body).
+// (spec/std/testing.md#r-std-testing.try.test.row-body). A body without a
+// written row gets the empty row, which a test body must have
+// (spec/lang/10-modules.md#r-module.testing.unit-row): the runner's
+// capabilities cover the case function around it, never the body.
 function libraryCase(
-  body: Closure,
+  written: Closure,
   run: (closure: Closure) => Expression,
   timeout: Expression | undefined,
   errorName: string,
 ): Partial<TestDecl> & Pick<TestDecl, "body"> {
+  const body: Closure = { ...written, requirements: written.requirements ?? [] };
   const propagates = !body.result && usesPropagation(body.body);
   const closure: Closure = propagates
     ? { ...body, result: { name: `Result[void,${errorName}]`, span: body.span } }
@@ -290,6 +321,7 @@ function libraryCase(
   const expression = run(closure);
   return {
     body: withTimeout(timeout, [{ kind: "expression", expression, span: expression.span }]),
+    ...(timeout ? { timed: true } : {}),
     ...(body.result ? { explicit: true, result: body.result } : {}),
     ...(propagates ? { propagates: true } : {}),
   };
@@ -457,8 +489,7 @@ export function finishTestCases(items: ModuleItems, fail: Fail): void {
           later(table, test).span,
         );
   const propagating = items.tests.filter((test) => test.propagates);
-  if (propagating.length === 0) return;
-  if (!imported)
+  if (propagating.length > 0 && !imported)
     items.uses.push({
       kind: "use",
       module: "std.error",
@@ -466,9 +497,11 @@ export function finishTestCases(items: ModuleItems, fail: Fail): void {
       span: propagating[0]!.span,
     });
   items.tests = items.tests.map((test) =>
-    test.propagates
-      ? { ...test, result: { name: `Result[void,${errorName}]`, span: test.span } }
-      : test,
+    timedBody(
+      test.propagates
+        ? { ...test, result: { name: `Result[void,${errorName}]`, span: test.span } }
+        : test,
+    ),
   );
 }
 

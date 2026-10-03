@@ -50,11 +50,6 @@ const RUNTIME_PRIMITIVES: Readonly<
   // runtime is `$hd.combinator` (stored-suspension.ts).
   task_race_frame: ([tasks]) => `(call $hd.combinator_new (i32.const 1) ${tasks})`,
   task_all_frame: ([tasks]) => `(call $hd.combinator_new (i32.const 0) ${tasks})`,
-  // The test runner's hooks (lib/std/testing.hd, src/test-runner.ts): the
-  // `it_each` row it selected, the row count, and a `timeout`.
-  case_index: () => `(global.get $hd.each-index)`,
-  report_case_count: ([count]) => `(global.set $hd.each-count ${count})`,
-  report_timeout: ([millis]) => `(global.set $hd.timeout-ms ${millis})`,
 };
 
 /**

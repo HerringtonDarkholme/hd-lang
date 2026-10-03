@@ -1,3 +1,4 @@
+import type { AnsweringProvider } from "./compiler.ts";
 import type { HirFunction } from "./hir.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import {
@@ -9,10 +10,13 @@ import {
 } from "./property-tests.ts";
 
 // Runs the entry point and the test cases that `hd run` or `hd test`
-// selected (spec/lang/10-modules.md#test-outcomes). An `it_each` table is one test
-// function that runs once per row: the runner selects the row through the
-// exported `__hd_each_index` global and stops at the row count the function
-// reports through `__hd_each_count` (spec/std/testing.md#table-test-rows).
+// selected (spec/lang/10-modules.md#test-outcomes). A test function whose
+// body is an `it_each` or property case or reports a `timeout` has the
+// runner's capabilities in its row, `TestRunner` and `PropertyRunner`
+// (spec/std/testing.md#runner-capabilities); the runner passes one
+// answering provider for them. An `it_each` table is one test function
+// that runs once per row: `TestRunner.row` hears the row count and answers
+// the row this run selects (spec/std/testing.md#table-test-rows).
 
 type RunOutcome =
   | { readonly kind: "passed"; readonly count: number; readonly result?: unknown }
@@ -27,18 +31,55 @@ function exportName(declaration: HirFunction): string {
     : declaration.name;
 }
 
-function call(exports: Exports, declaration: HirFunction, row: number | undefined): unknown {
+/** What one test case run told its `TestRunner`. */
+interface CaseReport {
+  /** The row count a table reported, or -1 when it stopped before reporting one. */
+  rowCount: number;
+  /** The `timeout` the test function reported, in milliseconds. */
+  timeoutMs?: number;
+}
+
+/**
+ * The provider the runner passes for each capability in a test function's
+ * row. The two traits' method names differ, so one provider answers both:
+ * `TestRunner` from `report`, and `PropertyRunner` from `properties`.
+ */
+function runnerProvider(
+  row: number,
+  report: CaseReport,
+  properties: PropertyRun | undefined,
+): AnsweringProvider & { readonly requirement: string } {
+  return {
+    requirement: "test runner",
+    answer(call) {
+      const [first] = call.arguments;
+      if (call.methodName === "row") {
+        report.rowCount = Number(first);
+        return { pending: false, value: row };
+      }
+      if (call.methodName === "report_timeout") {
+        report.timeoutMs = Number(first);
+        return { pending: false };
+      }
+      if (!properties) throw new Error(`the test runner has no method ${call.methodName}`);
+      return { pending: false, ...properties.answer(call.methodName, call.arguments) };
+    },
+  };
+}
+
+function call(
+  exports: Exports,
+  declaration: HirFunction,
+  row: number,
+  report: CaseReport,
+  properties?: PropertyRun,
+): unknown {
   if (declaration.parameters.length > 0)
     throw new Error(`${declaration.name} must not declare ordinary parameters`);
   const entry = exports[exportName(declaration)];
   if (typeof entry !== "function") throw new Error(`${declaration.name} has no runnable export`);
-  if (row !== undefined) (exports.__hd_each_index as WebAssembly.Global).value = row;
-  return entry(...declaration.requirements.map((requirement) => ({ requirement })));
-}
-
-/** The row count a table reported, or -1 when it stopped before reporting one. */
-function rowCount(exports: Exports): number {
-  return (exports.__hd_each_count as WebAssembly.Global).value as number;
+  const provider = declaration.testOptions ? runnerProvider(row, report, properties) : undefined;
+  return entry(...declaration.requirements.map((requirement) => provider ?? { requirement }));
 }
 
 function caseName(declaration: HirFunction, row: number | undefined): string {
@@ -64,20 +105,13 @@ function judge(declaration: HirFunction, result: unknown, subject: string): RunO
   return undefined;
 }
 
-/** The timeout a test function reported, in milliseconds, or undefined. */
-function timeoutMillis(exports: Exports): number | undefined {
-  const global = exports.__hd_timeout_ms as WebAssembly.Global | undefined;
-  const value = global === undefined ? -1 : Number(global.value);
-  return value >= 0 ? value : undefined;
-}
-
 // A test case fails when it runs longer than its `timeout`
 // (spec/std/testing.md#r-std-testing.option.timeout-any-duration). The
 // prototype runs a body synchronously, so it checks the elapsed time after
 // the body returns; it cannot stop a body that never returns.
-function overran(exports: Exports, started: number, subject: string): RunOutcome | undefined {
-  const limit = timeoutMillis(exports);
-  if (limit === undefined || performance.now() - started <= limit) return undefined;
+function overran(report: CaseReport, started: number, subject: string): RunOutcome | undefined {
+  const limit = report.timeoutMs;
+  if (limit === undefined || limit < 0 || performance.now() - started <= limit) return undefined;
   return { kind: "failed", subject: `${subject} exceeding its ${limit}ms timeout` };
 }
 
@@ -86,27 +120,32 @@ function runCase(
   exports: Exports,
   declaration: HirFunction,
   row: number | undefined,
-): { readonly outcome?: RunOutcome; readonly noRows?: boolean } {
+  properties?: PropertyRun,
+): { readonly outcome?: RunOutcome; readonly rowCount: number } {
   const expected = declaration.testOptions?.expectPanic;
   const subject = `test "${caseName(declaration, row)}"`;
+  const report: CaseReport = { rowCount: -1 };
   const started = performance.now();
   let result: unknown;
   try {
-    result = call(exports, declaration, row);
+    result = call(exports, declaration, row ?? 0, report, properties);
   } catch (error) {
     if (!(error instanceof RuntimePanicError)) throw error;
     // A table with no rows reports count 0, then indexes row 0.
-    if (row === 0 && rowCount(exports) === 0) return { noRows: true };
+    if (row === 0 && report.rowCount === 0) return { rowCount: 0 };
     if (error.code !== expected) throw error;
-    const late = overran(exports, started, subject);
-    return late ? { outcome: late } : {};
+    const late = overran(report, started, subject);
+    return late ? { outcome: late, rowCount: report.rowCount } : { rowCount: report.rowCount };
   }
-  const late = overran(exports, started, subject);
-  if (late) return { outcome: late };
+  const late = overran(report, started, subject);
+  if (late) return { outcome: late, rowCount: report.rowCount };
   if (expected !== undefined)
-    return { outcome: { kind: "failed", subject: `${subject} expecting panic ${expected}` } };
+    return {
+      outcome: { kind: "failed", subject: `${subject} expecting panic ${expected}` },
+      rowCount: report.rowCount,
+    };
   const outcome = judge(declaration, result, subject);
-  return outcome ? { outcome } : {};
+  return outcome ? { outcome, rowCount: report.rowCount } : { rowCount: report.rowCount };
 }
 
 // Each test case, and each `it_each` row, runs in its own fresh program
@@ -125,7 +164,7 @@ export async function runSelected(
   let last: unknown;
   for (const declaration of selected) {
     if (!declaration.testOptions) {
-      const result = call(shared, declaration, undefined);
+      const result = call(shared, declaration, 0, { rowCount: -1 });
       const outcome = judge(declaration, result, "main");
       if (outcome) return outcome;
       // An entry point returns its exit code, which is not printed.
@@ -139,7 +178,7 @@ export async function runSelected(
         const exports = await fresh();
         begin?.(name, undefined);
         try {
-          const { outcome } = runCase(exports, declaration, undefined);
+          const { outcome } = runCase(exports, declaration, undefined, properties);
           if (outcome?.kind !== "failed") return "pass";
           return { failure: outcome.outcome ?? outcome.subject };
         } catch (error) {
@@ -159,12 +198,12 @@ export async function runSelected(
     for (let row = 0; row < rows; row += 1) {
       const exports = await fresh();
       begin?.(declaration.testOptions.name ?? declaration.name, table ? row : undefined);
-      const { outcome, noRows } = runCase(exports, declaration, table ? row : undefined);
+      const { outcome, rowCount } = runCase(exports, declaration, table ? row : undefined);
       if (outcome) return outcome;
-      if (noRows) break;
+      if (table && rowCount === 0) break;
       count += 1;
       if (!table) break;
-      rows = rowCount(exports);
+      rows = rowCount;
     }
   }
   return { kind: "passed", count, result: last };

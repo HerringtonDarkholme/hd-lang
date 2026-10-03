@@ -25,6 +25,7 @@ export const STANDARD_MODULES = [
   "ops",
   "option",
   "process",
+  "random",
   "resource",
   "result",
   "task",

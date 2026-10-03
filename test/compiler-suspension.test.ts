@@ -688,7 +688,7 @@ test("host provider f64 replay encoding preserves non-JSON numbers", async () =>
 test("host provider string arguments and results use durable UTF-8 replay encoding", async () => {
   const source = fixture("suspension/36-host-provider-strings-use-utf8-boundary");
   const events: ReplayEvent[] = [];
-  const calls: Array<readonly (number | string)[]> = [];
+  const calls: Array<readonly (number | bigint | string)[]> = [];
   const recorded = await instantiate(source, {
     hostCapabilities: ["TextBridge"],
     hostSuspensionInvoke: (call) => {
@@ -803,7 +803,7 @@ test("a leading U+FEFF host string is text on the live and replayed boundary", a
     "",
   ].join("\n");
   const events: ReplayEvent[] = [];
-  const calls: Array<readonly (number | string)[]> = [];
+  const calls: Array<readonly (number | bigint | string)[]> = [];
   const recorded = await instantiate(source, {
     hostCapabilities: ["TextBridge"],
     hostSuspensionInvoke: (call) => {

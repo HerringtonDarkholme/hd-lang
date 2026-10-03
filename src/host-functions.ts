@@ -8,7 +8,6 @@
 // its `lib/std` declaration and one entry here, nothing in the compiler.
 
 import type { HostSuspensionCall, HostSuspensionOutcome } from "./compiler.ts";
-import { propertyRun } from "./property-tests.ts";
 import { RuntimePanicError, runtimePanicCategory } from "./runtime-panic.ts";
 
 type HostFunctionValue = number | bigint | string;
@@ -34,9 +33,6 @@ export const HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = {
       String(message) === "" ? undefined : String(message),
     );
   },
-  // `Choices` outside `hd test` draws at random; the test runner replaces
-  // these with its recording draws (src/property-tests.ts).
-  ...propertyRun().hostFunctions,
 };
 
 /**
