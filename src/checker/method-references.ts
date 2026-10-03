@@ -110,6 +110,8 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
     if (expression.kind !== "qualified-name") return undefined;
     if (this.namesReferenceValue(expression.owner))
       return this.checkBoundReference(expression, expected);
+    if (expression.genericTypeOwner)
+      expression = { ...expression, owner: expression.genericTypeOwner };
     const member = this.unboundReferenceMember(expression);
     const { parameters, result, requirements } = this.solveReference(
       expression,

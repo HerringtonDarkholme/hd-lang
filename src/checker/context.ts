@@ -9,7 +9,14 @@ import {
   writtenBindingProblem,
 } from "./associated-bindings.ts";
 import { PRELUDE_NAMES } from "./prelude-names.ts";
-import type { AssignmentStatement, Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
+import type {
+  AssignmentStatement,
+  Expression,
+  FunctionDecl,
+  MethodDecl,
+  Statement,
+  TypeRef,
+} from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import type {
   HirExpression,
@@ -117,6 +124,8 @@ export interface Signature {
 }
 
 export interface InherentMethod {
+  /** Authoritative AST method corresponding to this prepared callable. */
+  readonly sourceMethod: MethodDecl;
   readonly targetType: ValueType;
   /** The implementation's generic parameters, which `targetType` may name. */
   readonly targetGenericParameters?: readonly string[];

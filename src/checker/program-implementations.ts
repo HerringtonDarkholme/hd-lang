@@ -470,6 +470,7 @@ function prepareInherentImplementation(
       ) ?? "void";
     const functionName = `$inherent${implementationIndex}.${method.name}`;
     inherentMethods.push({
+      sourceMethod: method,
       targetType,
       ...(implementation.genericParameters.length > 0
         ? { targetGenericParameters: implementation.genericParameters }

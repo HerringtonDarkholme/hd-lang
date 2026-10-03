@@ -6,6 +6,7 @@ import { type CheckResult, type Signature } from "./context.ts";
 import { checkModuleInitialization } from "./module-initialization.ts";
 import { SignatureInference } from "./program-inference.ts";
 import { matchTraitImplementation, substituteGenericType } from "./shared.ts";
+import { inherentVarianceDiagnostics } from "./variance.ts";
 
 import type { ImplementationPreparation, ProgramCheckContext } from "./program-context.ts";
 
@@ -198,6 +199,19 @@ export function lowerCheckedProgram(
     const checked = checkedFunctions.get(signatures.get(declaration.name)!.index);
     if (checked) functions.push(checked);
   });
+  const preparedMethods = new Map(
+    inherentMethods.map((method) => [method.sourceMethod, method.functionName]),
+  );
+  diagnostics.push(
+    ...inherentVarianceDiagnostics(
+      { data: dataTypes, enums: enumTypes, traits: traitTypes },
+      program.implementations,
+      (method) => {
+        const functionName = preparedMethods.get(method);
+        return functionName ? signatures.get(functionName)?.result : undefined;
+      },
+    ),
+  );
   if (!diagnostics.some((diagnostic) => diagnostic.severity !== "warning")) {
     diagnostics.push(
       ...checkModuleInitialization(

@@ -1274,7 +1274,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     expression: QualifiedCallExpression,
     expected?: ValueType,
   ): HirExpression {
-    const owner = expression.callee.owner;
+    let owner = expression.callee.owner;
     if (owner === TYPE_ID && expression.callee.name === "of") {
       const inspection = this.checkInspectFunctionCall(expression, "of", expected);
       if (inspection) return inspection;
@@ -1283,6 +1283,10 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     // `value.name(...)` (07-functions.md#r-fn.ref.call).
     if (this.namesReferenceValue(owner))
       return this.checkMemberCall(this.receiverMemberCall(expression, 0), expected);
+    if (expression.callee.genericTypeOwner) {
+      owner = expression.callee.genericTypeOwner;
+      expression = { ...expression, callee: { ...expression.callee, owner } };
+    }
     const trait = this.traitTypes.get(owner);
     if (trait) {
       const sourceArguments = expression.callee.ownerTypeArguments ?? [];

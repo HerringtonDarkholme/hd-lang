@@ -98,12 +98,56 @@ This repair recognizes the specified direct mutable payload, without granting ar
 
 Regression tests: [types.test.ts](../../src/types.test.ts).
 
+### Independent Repair: Private Readonly Method Variance
+
+The readonly nominal surface now includes private inherent methods, as [types.variance.surface](../../spec/lang/04-type-system.md#r-types.variance.surface) requires.
+Written signature positions are checked before body lowering; omitted private results are checked after inference completes.
+The late check resolves prepared methods through their source AST identity rather than reconstructing generated function names.
+This closes visibility and inferred-result bypasses without changing the existing associated-constructor or mutable-receiver exclusions.
+
+Inference exposed another bypass: an impl's `T` and a method's shadowing `T` previously shared one internal identity.
+An inferred result containing a value obtained through `Self` could therefore lose its enclosing impl occurrence during variance checking.
+Colliding method binders now receive inaccessible identities before `Self` expansion and local declaration hoisting.
+Typed, exhaustive AST traversal preserves bounds, defaults, nested scopes, source spans, and local nominal declaration-point shadowing.
+
+Qualified references retain their source owner and carry a separate type-binder candidate.
+The checker consults that candidate only after existing value-owner lookup, preserving local values and captured values with the same spelling.
+Diagnostics restore issued binder spellings, including Unicode names.
+Unchanged programs and implementations retain the fast path; the slicing timeout repair remains intact.
+
+| Later fixture candidate | Required observation |
+| --- | --- |
+| Private readonly method consumes a covariant impl parameter | Reject `invalid-variance`, just as for a public method |
+| Private readonly method infers a positive result containing a contravariant impl parameter | Reject after inference rather than inspecting the omitted-result placeholder |
+| Shadowed versus renamed method binder returns an invariant wrapper or mutable list containing `self.consume` | Reject identically; method naming cannot erase the impl occurrence |
+| Method-owned generic result, including a captured callback | Accept independently of the enclosing nominal parameter |
+| Local nominal declaration shadows a method binder, including inside a nested closure | Preserve declaration-point scope without leaking it to the enclosing suite |
+| Type-bound `T::zero()` and local-value `T::to_string()` share a binder spelling | Resolve the type and value paths independently, including captures and match bindings |
+
+Validation: full `pnpm run check`, all 87 source tests, website build, and fuzz smoke passed after rebasing onto `875c63c8`.
+The 27 variance regressions include generated Wasm with distinct receiver and method type arguments, numeric dictionaries, and captured value owners.
+
+Regression tests: [variance.test.ts](../../src/checker/variance.test.ts).
+
+### Further A02 Edge Case: Callable Requirement Rows
+
+Status: Reproduced, not fixed by the private-method repair.
+The callable variance traversal checks inputs and results, but currently omits generic occurrences in requirement rows.
+[types.variance.function](../../spec/lang/04-type-system.md#r-types.variance.function) requires the callable's requirement row to be invariant.
+The same issue occurs inside a private method's callable parameter; it predates the private-method repair.
+
+| Later fixture candidate | Required observation |
+| --- | --- |
+| Covariant `Box[T]` stores a callable with requirement `Cap[T]` | Reject `invalid-variance`; the callable row contains an invariant occurrence of `T` |
+| Readonly inherent method receives that callable through a signed impl parameter | Apply the same row traversal regardless of method visibility |
+| A method's standalone requirement clause mentions a signed impl parameter | Audit its specified polarity separately; do not infer a new rule from callable row invariance |
+
 ### Repair Status Table
 
 
 | Finding | Status | Repair and limits |
 | --- | --- | --- |
-| A02 | Partially fixed | Public readonly inherent signatures participate in variance verification, and optional constructor boundaries preserve payload permission. Shared coercion, least-common-type, and private-surface implementation findings remain open. |
+| A02 | Partially fixed | Public and private readonly inherent signatures, including inferred private results, participate in variance verification. Optional constructor boundaries preserve payload permission. Shared coercion, least-common-type, and callable requirement-row findings remain open. |
 | A03 | Reported control-flow defect fixed | All child-driving bodies use the suspension CFG. The linear backend and comprehension bypass are removed. This does not close A06's entry/waker gap or prove all lowering correct. |
 | A04 | Reported placeholder capture fixed | Generated expression and type placeholders cannot capture legal user identifiers. Broader generated helper-name hygiene remains unreviewed. |
 | A05 | Reported candidate-checking defects fixed | Arbitrary argument expressions and associated candidates use mutable-state rollback and sparse inference journals, then the winner is committed once. Broader resolution conformance remains open. |
@@ -120,7 +164,8 @@ Public methods require explicit result types before this pass, so result inferen
 
 Associated construction and mutable receivers do not expose a readonly instance view and are excluded.
 Separate trait implementations retain their existing independent signature checks.
-This bounded repair does not resolve the audit's private-method specification question.
+The later private-method repair closes the visibility and inferred-result gap under the current explicit private-surface rule.
+Callable requirement-row variance remains a separate reproduced defect.
 
 Regression tests: [variance.test.ts](../../src/checker/variance.test.ts).
 

@@ -30,6 +30,7 @@ import { withStandardTraits } from "./standard-traits.ts";
 import { standardUseDiagnostics } from "./standard-uses.ts";
 import { withFunctionTypeConstructors } from "./function-types.ts";
 import { hoistLocalDeclarations } from "./local-declarations.ts";
+import { withDistinctMethodBinders, displayMethodBinderNames } from "./generic-method-scope.ts";
 import { inherentVarianceDiagnostics, varianceDiagnostics } from "./variance.ts";
 import { rowRuleDiagnostics } from "./row-rules.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
@@ -120,10 +121,29 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
     reported.add(key);
     return true;
   });
-  return { ...result, diagnostics: [...derived.diagnostics, ...unique] };
+  return {
+    ...result,
+    diagnostics: [...derived.diagnostics, ...unique],
+  };
 }
 
 function checkProgram(source: Program, options: CheckOptions): CheckResult {
+  const spellings = new Map<string, string>();
+  const result = checkProgramRaw(source, options, spellings);
+  return {
+    ...result,
+    diagnostics: result.diagnostics.map((diagnostic) => ({
+      ...diagnostic,
+      message: displayMethodBinderNames(diagnostic.message, spellings),
+    })),
+  };
+}
+
+function checkProgramRaw(
+  source: Program,
+  options: CheckOptions,
+  spellings: Map<string, string>,
+): CheckResult {
   // The join adds the uses of compiler-provided names that the joined std
   // modules make, such as the prelude's `std.convert.From`, which
   // `withStandardTraits` then declares.
@@ -136,7 +156,7 @@ function checkProgram(source: Program, options: CheckOptions): CheckResult {
     ...(source.tests.some((test) => test.property) ? [testRunners.property] : []),
   ];
   const marked = withSuffixMarkers(withBareMarkerCalls(joined, markerFunctions(joined.functions)));
-  const hoisted = hoistLocalDeclarations(marked);
+  const hoisted = hoistLocalDeclarations(withDistinctMethodBinders(marked, spellings));
   // Target kinds are checked before newtypes are lowered to data types
   // (spec/lang/14-annotations.md#target-kinds).
   const targetDiagnostics = checkDecoratorTargets(hoisted.program);

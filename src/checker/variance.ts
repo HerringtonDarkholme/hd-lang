@@ -127,10 +127,11 @@ export function varianceDiagnostics(declarations: Declarations): Diagnostic[] {
   return diagnostics;
 }
 
-/** Check the public methods callable through a readonly nominal receiver. */
+/** Check inherent signatures callable through a readonly nominal receiver, including private methods. */
 export function inherentVarianceDiagnostics(
   declarations: Declarations & { readonly traits: ReadonlyMap<string, HirTrait> },
   implementations: readonly ImplDecl[],
+  inferredResult?: (method: ImplDecl["methods"][number]) => ValueType | undefined,
 ): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   for (const implementation of implementations) {
@@ -163,7 +164,12 @@ export function inherentVarianceDiagnostics(
       const receiver = method.parameters[0];
       // Associated constructors have no receiver view. Mutable receivers
       // are unavailable through the readonly surface being verified.
-      if (!method.public || receiver?.name !== "self" || receiver.type.name !== "Self") continue;
+      if (receiver?.name !== "self" || receiver.type.name !== "Self") continue;
+      // The late phase checks only inferred results, once signature inference
+      // is complete. Written positions were already checked before lowering.
+      if (inferredResult && !method.resultOmitted) continue;
+      const result = inferredResult?.(method);
+      if (inferredResult && result === undefined) continue;
 
       const parameters = new Set([
         ...implementation.genericParameters,
@@ -182,15 +188,27 @@ export function inherentVarianceDiagnostics(
           declarations.traits,
         );
       const positions = [
-        ...method.parameters.slice(1).map((parameter) => ({
+        ...(inferredResult ? [] : method.parameters.slice(1)).map((parameter) => ({
           type: parameter.type,
           polarity: -1 as const,
         })),
-        { type: method.result, polarity: 1 as const },
+        ...(!method.resultOmitted || inferredResult
+          ? [
+              {
+                type: { ...method.result, name: result ?? method.result.name },
+                polarity: 1 as const,
+              },
+            ]
+          : []),
       ];
       for (const position of positions) {
         const found: [string, Polarity][] = [];
-        occurrences(normalize(position.type.name), position.polarity, declarations, found);
+        occurrences(
+          inferredResult ? position.type.name : normalize(position.type.name),
+          position.polarity,
+          declarations,
+          found,
+        );
         const wrong = found.find(([name, polarity]) => {
           const wanted = expected.get(name);
           return wanted !== undefined && wanted !== polarity;

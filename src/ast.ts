@@ -656,6 +656,8 @@ export type Expression =
   | {
       readonly kind: "qualified-name";
       readonly owner: string;
+      /** Type-binder candidate; value-owner lookup still uses the source spelling. */
+      readonly genericTypeOwner?: string;
       readonly ownerTypeArguments?: readonly TypeRef[];
       readonly name: string;
       readonly typeArguments?: readonly TypeRef[];
