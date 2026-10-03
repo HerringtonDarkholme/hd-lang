@@ -1,0 +1,65 @@
+# test: each RegexErrorKind with its position and Display text, the first error winning, and the size limit
+# Spec std/regex Pattern Errors: std-regex.error.decl, std-regex.error.position, std-regex.error.first, std-regex.error.size-last, std-regex.error.traits, std-regex.error.display, std-regex.error.kind.missing-paren, std-regex.error.kind.unmatched-paren, std-regex.error.kind.missing-bracket, std-regex.error.kind.bad-escape, std-regex.error.kind.bad-range, std-regex.error.kind.nothing-to-repeat, std-regex.error.kind.bad-repeat, std-regex.error.kind.unsupported-group, std-regex.error.kind.too-large, std-regex.syntax.escape.other, std-regex.syntax.class.unclosed, std-regex.syntax.class.bad-range, std-regex.syntax.group.other, std-regex.syntax.group.unclosed, std-regex.syntax.group.unopened, std-regex.repeat.bad-count, std-regex.repeat.nothing, std-regex.time.size, std-regex.error.too-large (task #243).
+use std.regex.{Regex, RegexError, RegexErrorKind}
+use std.testing.assert_equal
+use std.text.r
+
+fn error_of(pattern: string) -> RegexError?:
+    Regex::new(pattern).err()
+
+fn at(kind: RegexErrorKind, position: usize) -> RegexError?:
+    .Some(RegexError { kind: kind, position: position })
+
+tests:
+    it("parens"):
+        assert_equal(error_of("a(b"), at(.MissingParen, 1), reason="unclosed, at the (")
+        assert_equal(error_of("a(b(c)"), at(.MissingParen, 1), reason="the outer group")
+        assert_equal(error_of("ab)"), at(.UnmatchedParen, 2), reason="unopened, at the )")
+
+    it("brackets and ranges"):
+        assert_equal(error_of("x[ab"), at(.MissingBracket, 1), reason="unclosed, at the [")
+        assert_equal(error_of("[]"), at(.MissingBracket, 0), reason="a ] first is an item")
+        assert_equal(error_of("[z-a]"), at(.BadRange, 1), reason="end below start")
+        assert_equal(error_of(r"[\d-z]"), at(.BadRange, 1), reason="a class as an end")
+
+    it("escapes"):
+        assert_equal(error_of(r"a\q"), at(.BadEscape, 1), reason="an unknown letter")
+        assert_equal(error_of(r"\b"), at(.BadEscape, 0), reason="no word boundary")
+        assert_equal(error_of(r"(a)\1"), at(.BadEscape, 3), reason="no backreference")
+        assert_equal(error_of("a\\"), at(.BadEscape, 1), reason="a trailing backslash")
+
+    it("repetition"):
+        assert_equal(error_of("*a"), at(.NothingToRepeat, 0), reason="at the start")
+        assert_equal(error_of("a|+"), at(.NothingToRepeat, 2), reason="after |")
+        assert_equal(error_of("(?a)"), at(.UnsupportedGroup, 0), reason="(? then not :")
+        assert_equal(error_of("(*)"), at(.NothingToRepeat, 1), reason="at the start of a group")
+        assert_equal(error_of("a**"), at(.NothingToRepeat, 2), reason="after a quantifier")
+        assert_equal(error_of("a*??"), at(.NothingToRepeat, 3), reason="after a lazy quantifier")
+        assert_equal(error_of("a{2}{3}"), at(.NothingToRepeat, 4), reason="after a count")
+        assert_equal(error_of("a{1001}"), at(.BadRepeat, 1), reason="above 1000")
+        assert_equal(error_of("a{3,2}"), at(.BadRepeat, 1), reason="n below m")
+
+    it("groups"):
+        assert_equal(error_of("(?i)a"), at(.UnsupportedGroup, 0), reason="a flag")
+        assert_equal(error_of("x(?P<name>a)"), at(.UnsupportedGroup, 1), reason="a named group")
+
+    it("the size limit"):
+        assert_equal(error_of("(?:a{1000}){10}").is_none(), true, reason="10,000 is allowed")
+        assert_equal(error_of("(?:a{1000}){10}b"), at(.TooLarge, 0), reason="10,001 is not")
+        assert_equal(error_of("(a{1000}){1000}"), at(.TooLarge, 0), reason="far above")
+        assert_equal(error_of("(a{1000}){1000}("), at(.MissingParen, 15), reason="other errors first")
+
+    it("the first error wins"):
+        assert_equal(error_of(r"\q("), at(.BadEscape, 0), reason="left to right")
+        assert_equal(error_of("(a[b"), at(.MissingBracket, 2), reason="the class closes before the group")
+
+    it("Display"):
+        assert_equal("${RegexError { kind: .MissingParen, position: 1 }}", "missing closing ) at byte 1", reason="missing paren")
+        assert_equal("${RegexErrorKind.UnmatchedParen}", "unexpected )", reason="unmatched paren")
+        assert_equal("${RegexErrorKind.MissingBracket}", "missing closing ]", reason="missing bracket")
+        assert_equal("${RegexErrorKind.BadEscape}", "invalid escape", reason="bad escape")
+        assert_equal("${RegexErrorKind.BadRange}", "invalid character class range", reason="bad range")
+        assert_equal("${RegexErrorKind.NothingToRepeat}", "missing argument to repetition operator", reason="nothing to repeat")
+        assert_equal("${RegexErrorKind.BadRepeat}", "invalid repeat count", reason="bad repeat")
+        assert_equal("${RegexErrorKind.UnsupportedGroup}", "unsupported group", reason="unsupported group")
+        assert_equal("${RegexErrorKind.TooLarge}", "expression too large", reason="too large")

@@ -1,0 +1,39 @@
+# test: the anchors ^ and $, capture and plain groups, alternation, the empty pattern, and precedence
+# Spec std/regex Anchors, Groups, And Alternation: std-regex.syntax.begin, std-regex.syntax.end, std-regex.syntax.anchor.text, std-regex.syntax.group, std-regex.syntax.group.plain, std-regex.syntax.group.capture, std-regex.syntax.alternation, std-regex.syntax.empty, std-regex.syntax.precedence, std-regex.regex.as-str (task #243).
+use std.regex.{Regex, Match}
+use std.testing.assert_equal
+
+fn found(pattern: string, text: string) -> string?:
+    match Regex::new(pattern):
+        .Ok(compiled) => compiled.find(text).map(fn(m: Match) -> string: "${m.start}-${m.end}:${m.text}")
+        .Err(error) => .Some("error ${error}")
+
+tests:
+    it("^ and $ see only the ends of the whole text"):
+        assert_equal(found("^a", "ab"), .Some("0-1:a"), reason="start")
+        assert_equal(found("^b", "ab"), .None, reason="not at the start")
+        assert_equal(found("b\$", "ab"), .Some("1-2:b"), reason="end")
+        assert_equal(found("a\$", "a\n"), .None, reason="no end before a final line feed")
+        assert_equal(found("^b", "a\nb"), .None, reason="no start after a line feed")
+        assert_equal(found("^\$", ""), .Some("0-0:"), reason="the empty text")
+        assert_equal(found("\$a", "a"), .None, reason="nothing after the end")
+
+    it("groups and plain groups match their inner pattern"):
+        assert_equal(found("(ab)+", "xababy"), .Some("1-5:abab"), reason="capture group")
+        assert_equal(found("(?:ab)+", "xababy"), .Some("1-5:abab"), reason="plain group")
+        assert_equal(found("a(b|c)d", "acd"), .Some("0-3:acd"), reason="alternation in a group")
+
+    it("alternation, empty branches, and the empty pattern"):
+        assert_equal(found("cat|dog", "hotdog"), .Some("3-6:dog"), reason="either side")
+        assert_equal(found("a|", "b"), .Some("0-0:"), reason="an empty branch")
+        assert_equal(found("()", "b"), .Some("0-0:"), reason="an empty group")
+        assert_equal(found("", "abc"), .Some("0-0:"), reason="the empty pattern")
+
+    it("repetition binds tighter than concatenation, and concatenation than |"):
+        assert_equal(found("ab|cd*", "cddd"), .Some("0-4:cddd"), reason="the star repeats d")
+        assert_equal(found("ab*", "abab"), .Some("0-2:ab"), reason="the star repeats b, not ab")
+
+    it("as_str is the pattern as written"):
+        match Regex::new("a|b"):
+            .Ok(compiled) => assert_equal(compiled.as_str(), "a|b", reason="as written")
+            .Err(_) => assert_equal(true, false, reason="the pattern compiles")

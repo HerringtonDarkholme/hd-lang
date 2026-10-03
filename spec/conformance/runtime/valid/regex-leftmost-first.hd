@@ -1,0 +1,24 @@
+# test: find returns the leftmost match and, among those, the one the pattern prefers; is_match agrees with find; Match has Eq
+# Spec std/regex Searching: std-regex.find, std-regex.find.leftmost, std-regex.find.leftmost-first, std-regex.find.empty, std-regex.is-match, std-regex.is-match.find, std-regex.match.decl, std-regex.match.offsets, std-regex.match.text, std-regex.match.traits (task #243).
+use std.regex.{Regex, Match}
+use std.testing.assert_equal
+
+fn compiled(pattern: string) -> Regex:
+    Regex::new(pattern).expect("the pattern compiles")
+
+tests:
+    it("the left side of | wins over a longer right side"):
+        assert_equal(compiled("a|ab").find("ab"), .Some(Match { start: 0, end: 1, text: "a" }), reason="leftmost-first, not longest")
+        assert_equal(compiled("ab|a").find("ab"), .Some(Match { start: 0, end: 2, text: "ab" }), reason="the left side")
+        assert_equal(compiled("(?:a|ab)c").find("abc"), .Some(Match { start: 0, end: 3, text: "abc" }), reason="the right side when the left fails")
+
+    it("the leftmost start wins over a preferred branch"):
+        assert_equal(compiled("b|ab").find("xab"), .Some(Match { start: 1, end: 3, text: "ab" }), reason="starts first")
+
+    it("a match may be empty"):
+        assert_equal(compiled("x*").find("abc"), .Some(Match { start: 0, end: 0, text: "" }), reason="empty at 0")
+
+    it("is_match is find().is_some()"):
+        assert_equal(compiled("b+").is_match("abba"), true, reason="a match")
+        assert_equal(compiled("c").is_match("abba"), false, reason="no match")
+        assert_equal(compiled("x*").is_match(""), true, reason="the empty match")

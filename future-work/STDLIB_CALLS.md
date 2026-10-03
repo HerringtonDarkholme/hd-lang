@@ -161,3 +161,19 @@ Pass 82 (#238) applied the owner's batch 76 decision that every size is a
 | 85 (#242) | `Parsed` has public `flags`, `values`, and `positionals`, plus `flag(name)` and `value(name)`. An undeclared name reads as absent. `Parsed` implements `Eq` and `Debug`. | The plan's sketch. | own |
 | 85 (#242) | `usage` writes a `usage:` line, then `arguments:` and `options:` sections with one help column. A term is `-c, --name`, or four spaces and `--name`, plus ` <value>` for an option. No final newline. | Go's `flag` and `hd help` layouts; the four spaces align the long names. | own |
 | 85 (#242) | `parse_args` is a `Cli` method with `$ Args`, beside the pure `parse(arguments)`. | The task asks `std.cli` to read `$ Args`; tests use `parse` or `MapArgs`. | own |
+
+## Regular Expressions
+
+| Pass | Call | Why | Status |
+| --- | --- | --- | --- |
+| 86 (#243) | Part 1 of `std.regex` has no flags: `(?i)`, `(?m)`, `(?s)`, and every other `(?` but `(?:` is `UnsupportedGroup`. | The task allowed leaving flags out; an error today keeps a later flag from changing a pattern's meaning. | own |
+| 86 (#243) | The matcher steps by `char`. `\d` and `\w` are ASCII; `\s` is Unicode White_Space, the property `char.is_whitespace` and `trim` use. `.` matches any `char` but `\n`. | RE2's defaults; RE2's own `\s` is ASCII, so this `\s` follows the task and hd's `trim`. | own |
+| 86 (#243) | `Match.start`, `Match.end`, and `RegexError.position` are byte offsets (`usize`), as `string.slice` and `JsonError` take them. | One offset unit across std; Go and Rust report byte offsets. | own |
+| 86 (#243) | `RegexError` is a data type with `kind: RegexErrorKind` and `position`; the nine kinds are `MissingParen`, `UnmatchedParen`, `MissingBracket`, `BadEscape`, `BadRange`, `NothingToRepeat`, `BadRepeat`, `UnsupportedGroup`, and `TooLarge`, with Go's `regexp/syntax` texts and `KIND at byte N`. | The task asks for a kind and a position; a kind enum keeps the position in one field. | own |
+| 86 (#243) | A quantifier right after another (`a**`, `a{2}{3}`, `a*??`) is `NothingToRepeat`, not a kind of its own. | Go rejects these as a nested repetition; one kind is enough for a script. | own |
+| 86 (#243) | A `{` that starts no well-formed count is a literal, and so are `}` and `]` outside a class. A `]` first in a class, and a `-` first, last, or after a range, are items. | RE2 and Go. | own |
+| 86 (#243) | Escapes are the six class escapes, `\n`, `\t`, `\r`, and escaped ASCII punctuation. Any other, such as `\b` or `\1`, is `BadEscape`. | Go's `regexp` rule for punctuation; leaving out `\b` keeps part 1 small. | own |
+| 86 (#243) | A count is at most 1000, and a pattern's written-out size at most 10,000 instructions (`TooLarge`, position 0). The spec defines the size by a table. | RE2 caps counts at 1000; a size cap keeps O(m × n) meaningful. A precise table keeps the limit the same in every implementation. | own |
+| 86 (#243) | `^` and `$` see only the ends of the text; `$` does not match before a final `\n`. | RE2 without `(?m)`. | own |
+| 86 (#243) | The matcher is a Pike VM in `lib/std/regex.hd`: one thread per instruction per position, kept in priority order, with an explicit stack for epsilon steps. `is_match` is `find(...).is_some()`. | Leftmost-first submatch order needs the Pike VM's priorities; a stack keeps deep programs off the call stack. | own |
+| 86 (#243) | `Regex` has `as_str()` and `Debug`; `Match` has `Eq` and `Debug`; `RegexErrorKind` and `RegexError` have `Eq`, `Debug`, and `Display`. | What fixtures and scripts compare and print. | own |

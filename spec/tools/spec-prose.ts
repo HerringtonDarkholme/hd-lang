@@ -69,6 +69,7 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/digest.md": "std-digest",
   "std/json.md": "std-json",
   "std/cli.md": "std-cli",
+  "std/regex.md": "std-regex",
   "cli/command-line.md": "cli",
 };
 

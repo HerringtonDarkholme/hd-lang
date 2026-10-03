@@ -1,0 +1,665 @@
+# std.regex: regular expressions in the RE2 subset (spec/std/regex.md).
+# `Regex::new` parses a pattern into a tree and compiles the tree into a
+# program for a Pike VM. The VM runs every thread in step over the text and
+# keeps at most one thread per instruction, so a search takes time
+# proportional to the program size times the text length, with no
+# backtracking (r-std-regex.time.linear). The prototype's std loader does
+# not list this module yet (src/checker/standard-sources.ts).
+use std.format.DebugWriter
+
+# A compiled pattern (r-std-regex.regex.decl).
+pub data Regex:
+    pattern: string
+    program: List[Inst]
+
+# Where a match is: byte offsets into the searched text, and its text
+# (r-std-regex.match.decl).
+pub data Match:
+    pub start: i32
+    pub end: i32
+    pub text: string
+
+# Why a pattern does not compile (r-std-regex.error.decl).
+pub enum RegexErrorKind:
+    MissingParen
+    UnmatchedParen
+    MissingBracket
+    BadEscape
+    BadRange
+    NothingToRepeat
+    BadRepeat
+    UnsupportedGroup
+    TooLarge
+
+# A kind and the byte offset in the pattern where the problem starts
+# (r-std-regex.error.position).
+pub data RegexError:
+    pub kind: RegexErrorKind
+    pub position: i32
+
+impl Regex:
+    pub fn new(pattern: string) -> Result[Regex, RegexError]:
+        source := Pattern::of(pattern)
+        parsed := parse_alternation(source, 0)?
+        if parsed.next < source.chars.len():
+            return .Err(RegexError { kind: .UnmatchedParen, position: source.offsets[parsed.next] })
+        if program_size(parsed.node) > max_program():
+            return .Err(RegexError { kind: .TooLarge, position: 0 })
+        let program: mut List[Inst] = []
+        compile(parsed.node, program)
+        program.push(Inst.Done)
+        .Ok(Regex { pattern: pattern, program: program })
+
+    # The pattern as written.
+    pub fn as_str(self) -> string:
+        self.pattern
+
+    # Whether some part of `text` matches (r-std-regex.is-match).
+    pub fn is_match(self, text: string) -> bool:
+        self.find(text).is_some()
+
+    # The leftmost match, and among those that start there, the one the
+    # pattern prefers (r-std-regex.find.leftmost-first).
+    pub fn find(self, text: string) -> Match?:
+        search(self.program, text)
+
+# The most instructions a compiled pattern may have
+# (r-std-regex.error.too-large).
+fn max_program() -> i32:
+    10000
+
+# The most a counted repetition may count (r-std-regex.repeat.bad-count).
+fn max_repeat() -> i32:
+    1000
+
+# A pattern split into its characters, with the byte offset of each and
+# the pattern's length last.
+data Pattern:
+    chars: List[char]
+    offsets: List[i32]
+
+impl Pattern:
+    fn of(text: string) -> Pattern:
+        let chars: mut List[char] = []
+        let offsets: mut List[i32] = []
+        for (offset, c) in text.char_indices():
+            chars.push(c)
+            offsets.push(offset)
+        offsets.push(text.len())
+        Pattern { chars: chars, offsets: offsets }
+
+    fn at(self, index: i32) -> char?:
+        if index < self.chars.len(): .Some(self.chars[index]) else: .None
+
+    fn has(self, index: i32, c: char) -> bool:
+        index < self.chars.len() && self.chars[index] == c
+
+    fn fail(self, kind: RegexErrorKind, index: i32) -> RegexError:
+        RegexError { kind: kind, position: self.offsets[index] }
+
+# The syntax tree.
+enum Node:
+    Empty
+    Literal(value: char)
+    AnyChar
+    Class(items: List[ClassItem], negated: bool)
+    Begin
+    End
+    Group(body: Node)
+    Concat(items: List[Node])
+    Alternate(branches: List[Node])
+    Repeat(body: Node, min: i32, max: i32?, greedy: bool)
+
+# One member of a bracketed class, or a whole `\d`, `\w`, or `\s` class.
+enum ClassItem:
+    Range(low: char, high: char)
+    Digit(negated: bool)
+    Word(negated: bool)
+    Space(negated: bool)
+
+# A parsed piece and the index of the character after it.
+data Step:
+    node: Node
+    next: i32
+
+# `a|b|c`: one or more concatenations.
+fn parse_alternation(source: Pattern, start: i32) -> Result[Step, RegexError]:
+    let branches: mut List[Node] = []
+    let at = start
+    while true:
+        branch := parse_concat(source, at)?
+        branches.push(branch.node)
+        at = branch.next
+        if source.has(at, '|'):
+            at = at + 1
+        else:
+            break
+    if branches.len() == 1:
+        return .Ok(Step { node: branches[0], next: at })
+    .Ok(Step { node: Node.Alternate(branches), next: at })
+
+# A run of atoms, each with at most one quantifier, up to `|`, `)`, or the
+# end.
+fn parse_concat(source: Pattern, start: i32) -> Result[Step, RegexError]:
+    let items: mut List[Node] = []
+    let at = start
+    while at < source.chars.len():
+        c := source.chars[at]
+        if c == '|' || c == ')':
+            break
+        # A quantifier with no atom before it, including one right after
+        # another quantifier (r-std-regex.repeat.nothing).
+        if quantifier_at(source, at):
+            return .Err(source.fail(.NothingToRepeat, at))
+        atom := parse_atom(source, at)?
+        repeated := parse_repeat(source, atom)?
+        items.push(repeated.node)
+        at = repeated.next
+    if items.len() == 0:
+        return .Ok(Step { node: Node.Empty, next: at })
+    if items.len() == 1:
+        return .Ok(Step { node: items[0], next: at })
+    .Ok(Step { node: Node.Concat(items), next: at })
+
+fn quantifier_at(source: Pattern, at: i32) -> bool:
+    match source.at(at):
+        .Some(c) =>
+            if c == '*' || c == '+' || c == '?':
+                return true
+            c == '{' && counts_at(source, at).is_some()
+        .None => false
+
+# The counts of a well-formed `{m}`, `{m,}`, or `{m,n}` at `at`. Any other
+# `{` is a literal (r-std-regex.syntax.brace-literal).
+data Counts:
+    min: i32
+    max: i32?
+    next: i32
+
+fn counts_at(source: Pattern, start: i32) -> Counts?:
+    if !source.has(start, '{'):
+        return .None
+    low := number_at(source, start + 1)?
+    if low.next == start + 1:
+        return .None
+    match source.at(low.next):
+        .Some('}') => .Some(Counts { min: low.value, max: .Some(low.value), next: low.next + 1 })
+        .Some(',') =>
+            high := number_at(source, low.next + 1)?
+            if !source.has(high.next, '}'):
+                return .None
+            if high.next == low.next + 1:
+                return .Some(Counts { min: low.value, max: .None, next: high.next + 1 })
+            .Some(Counts { min: low.value, max: .Some(high.value), next: high.next + 1 })
+        _ => .None
+
+data Number:
+    value: i32
+    next: i32
+
+# A run of ASCII digits, held below 100000 so it cannot overflow.
+fn number_at(source: Pattern, start: i32) -> Number?:
+    let value = 0
+    let at = start
+    while true:
+        match source.at(at):
+            .Some(c) =>
+                if c < '0' || c > '9':
+                    break
+                if value < 100000:
+                    value = value * 10 + (char_digit(c))
+                at = at + 1
+            .None => break
+    .Some(Number { value: value, next: at })
+
+fn char_digit(c: char) -> i32:
+    let value = 0
+    for digit in "0123456789".chars():
+        if digit == c:
+            return value
+        value = value + 1
+    0
+
+# A quantifier after `atom`, if one follows, with its lazy `?`.
+fn parse_repeat(source: Pattern, atom: Step) -> Result[Step, RegexError]:
+    at := atom.next
+    let min = 0
+    let max: i32? = .None
+    let next = at + 1
+    match source.at(at):
+        .Some('*') => pass
+        .Some('+') => min = 1
+        .Some('?') => max = .Some(1)
+        .Some('{') =>
+            match counts_at(source, at):
+                .Some(counts) =>
+                    min = counts.min
+                    max = counts.max
+                    next = counts.next
+                    let bad = min > max_repeat()
+                    match max:
+                        .Some(high) =>
+                            if high > max_repeat() || high < min:
+                                bad = true
+                        .None => pass
+                    if bad:
+                        return .Err(source.fail(.BadRepeat, at))
+                .None => return .Ok(atom)
+        _ => return .Ok(atom)
+    let greedy = true
+    if source.has(next, '?'):
+        greedy = false
+        next = next + 1
+    .Ok(Step { node: Node.Repeat(atom.node, min, max, greedy), next: next })
+
+fn parse_atom(source: Pattern, at: i32) -> Result[Step, RegexError]:
+    c := source.chars[at]
+    if c == '(':
+        return parse_group(source, at)
+    if c == '[':
+        return parse_class(source, at)
+    if c == '.':
+        return .Ok(Step { node: Node.AnyChar, next: at + 1 })
+    if c == '^':
+        return .Ok(Step { node: Node.Begin, next: at + 1 })
+    if c == '$':
+        return .Ok(Step { node: Node.End, next: at + 1 })
+    if c == '\\':
+        escaped := parse_escape(source, at)?
+        node := match escaped.item:
+            .Some(item) => Node.Class([item], false)
+            .None => Node.Literal(escaped.value)
+        return .Ok(Step { node: node, next: at + 2 })
+    .Ok(Step { node: Node.Literal(c), next: at + 1 })
+
+# `( )` and `(?: )`; any other `(?` is an unsupported group
+# (r-std-regex.syntax.group.other).
+fn parse_group(source: Pattern, open: i32) -> Result[Step, RegexError]:
+    let start = open + 1
+    let capturing = true
+    if source.has(start, '?'):
+        if !source.has(start + 1, ':'):
+            return .Err(source.fail(.UnsupportedGroup, open))
+        start = start + 2
+        capturing = false
+    inner := parse_alternation(source, start)?
+    if !source.has(inner.next, ')'):
+        return .Err(source.fail(.MissingParen, open))
+    if capturing:
+        return .Ok(Step { node: Node.Group(inner.node), next: inner.next + 1 })
+    .Ok(Step { node: inner.node, next: inner.next + 1 })
+
+# An escape: a Perl class item, or one character.
+data Escape:
+    item: ClassItem?
+    value: char
+
+fn parse_escape(source: Pattern, at: i32) -> Result[Escape, RegexError]:
+    match source.at(at + 1):
+        .None => .Err(source.fail(.BadEscape, at))
+        .Some(e) =>
+            if e == 'd' || e == 'D':
+                return .Ok(Escape { item: .Some(ClassItem.Digit(e == 'D')), value: e })
+            if e == 'w' || e == 'W':
+                return .Ok(Escape { item: .Some(ClassItem.Word(e == 'W')), value: e })
+            if e == 's' || e == 'S':
+                return .Ok(Escape { item: .Some(ClassItem.Space(e == 'S')), value: e })
+            if e == 'n':
+                return .Ok(Escape { item: .None, value: '\n' })
+            if e == 't':
+                return .Ok(Escape { item: .None, value: '\t' })
+            if e == 'r':
+                return .Ok(Escape { item: .None, value: '\r' })
+            if ascii_punctuation(e):
+                return .Ok(Escape { item: .None, value: e })
+            .Err(source.fail(.BadEscape, at))
+
+fn ascii_punctuation(c: char) -> bool:
+    (c >= '!' && c <= '/') || (c >= ':' && c <= '@') || (c >= '[' && c <= '`') || (c >= '{' && c <= '~')
+
+# `[...]` and `[^...]`. A `]` first is a literal (r-std-regex.syntax.class).
+fn parse_class(source: Pattern, open: i32) -> Result[Step, RegexError]:
+    let at = open + 1
+    let negated = false
+    if source.has(at, '^'):
+        negated = true
+        at = at + 1
+    let items: mut List[ClassItem] = []
+    let first = true
+    while true:
+        match source.at(at):
+            .None => return .Err(source.fail(.MissingBracket, open))
+            .Some(c) =>
+                if c == ']' && !first:
+                    break
+        first = false
+        low := class_char(source, at)?
+        match low.item:
+            .Some(item) =>
+                if source.has(low.next, '-') && source.at(low.next + 1).is_some() && !source.has(low.next + 1, ']'):
+                    return .Err(source.fail(.BadRange, at))
+                items.push(item)
+                at = low.next
+            .None =>
+                if source.has(low.next, '-') && source.at(low.next + 1).is_some() && !source.has(low.next + 1, ']'):
+                    high := class_char(source, low.next + 1)?
+                    if high.item.is_some() || high.value < low.value:
+                        return .Err(source.fail(.BadRange, at))
+                    items.push(ClassItem.Range(low.value, high.value))
+                    at = high.next
+                else:
+                    items.push(ClassItem.Range(low.value, low.value))
+                    at = low.next
+    .Ok(Step { node: Node.Class(items, negated), next: at + 1 })
+
+data ClassChar:
+    item: ClassItem?
+    value: char
+    next: i32
+
+fn class_char(source: Pattern, at: i32) -> Result[ClassChar, RegexError]:
+    c := source.chars[at]
+    if c == '\\':
+        escaped := parse_escape(source, at)?
+        return .Ok(ClassChar { item: escaped.item, value: escaped.value, next: at + 2 })
+    .Ok(ClassChar { item: .None, value: c, next: at + 1 })
+
+# The VM's instructions. `Split` tries `first` before `second`.
+enum Inst:
+    Char(value: char)
+    AnyChar
+    Class(items: List[ClassItem], negated: bool)
+    Begin
+    End
+    Split(first: i32, second: i32)
+    Jump(target: i32)
+    Done
+
+# How many instructions `compile` emits for `node`, the written-out size
+# (r-std-regex.time.size), held at
+# max_program() + 1 so it cannot overflow.
+fn program_size(node: Node) -> i32:
+    match node:
+        .Empty => 0
+        .Group(body) => program_size(body)
+        .Concat(items) =>
+            let total = 0
+            for item in items:
+                total = capped(total + program_size(item))
+            total
+        .Alternate(branches) =>
+            let total = 0
+            for branch in branches:
+                total = capped(total + program_size(branch) + 2)
+            total - 2
+        .Repeat(body, min, max, _) =>
+            size := program_size(body)
+            match max:
+                .None =>
+                    if min == 0:
+                        return capped(size + 2)
+                    capped(scaled(size, min) + 1)
+                .Some(high) => capped(scaled(size, min) + scaled(size + 1, high - min))
+        _ => 1
+
+fn capped(size: i32) -> i32:
+    if size > max_program(): max_program() + 1 else: size
+
+fn scaled(size: i32, count: i32) -> i32:
+    if count == 0:
+        return 0
+    if size > max_program() / count:
+        return max_program() + 1
+    size * count
+
+fn compile(node: Node, program: mut List[Inst]) -> void:
+    match node:
+        .Empty => pass
+        .Literal(value) => program.push(Inst.Char(value))
+        .AnyChar => program.push(Inst.AnyChar)
+        .Class(items, negated) => program.push(Inst.Class(items, negated))
+        .Begin => program.push(Inst.Begin)
+        .End => program.push(Inst.End)
+        .Group(body) => compile(body, program)
+        .Concat(items) =>
+            for item in items:
+                compile(item, program)
+        .Alternate(branches) =>
+            # split L1, next; L1: a; jump end; next: split L2, ... ; last
+            let jumps: mut List[i32] = []
+            let index = 0
+            while index < branches.len():
+                if index + 1 < branches.len():
+                    split := program.len()
+                    program.push(Inst.Split(split + 1, 0))
+                    compile(branches[index], program)
+                    jumps.push(program.len())
+                    program.push(Inst.Jump(0))
+                    program[split] = Inst.Split(split + 1, program.len())
+                else:
+                    compile(branches[index], program)
+                index = index + 1
+            for jump in jumps:
+                program[jump] = Inst.Jump(program.len())
+        .Repeat(body, min, max, greedy) =>
+            let copies = 0
+            match max:
+                .None =>
+                    if min == 0:
+                        # loop: split body, out; body; jump loop
+                        loop_start := program.len()
+                        program.push(Inst.Split(0, 0))
+                        compile(body, program)
+                        program.push(Inst.Jump(loop_start))
+                        program[loop_start] = choice(loop_start + 1, program.len(), greedy)
+                    else:
+                        while copies < min - 1:
+                            compile(body, program)
+                            copies = copies + 1
+                        # last: body; split last, out
+                        last := program.len()
+                        compile(body, program)
+                        program.push(choice(last, program.len() + 1, greedy))
+                .Some(high) =>
+                    while copies < min:
+                        compile(body, program)
+                        copies = copies + 1
+                    # each optional copy: split body, out
+                    let splits: mut List[i32] = []
+                    while copies < high:
+                        splits.push(program.len())
+                        program.push(Inst.Split(0, 0))
+                        compile(body, program)
+                        copies = copies + 1
+                    for split in splits:
+                        program[split] = choice(split + 1, program.len(), greedy)
+
+# A split that prefers `body` when greedy and `out` when lazy.
+fn choice(body: i32, out: i32, greedy: bool) -> Inst:
+    if greedy: Inst.Split(body, out) else: Inst.Split(out, body)
+
+# A thread: the instruction it waits at, and the character index where
+# its match started.
+data Thread:
+    pc: i32
+    start: i32
+
+# The Pike VM (r-std-regex.find.leftmost-first): threads in priority
+# order, at most one per instruction at each position.
+fn search(program: List[Inst], text: string) -> Match?:
+    let chars: mut List[char] = []
+    let offsets: mut List[i32] = []
+    for (offset, c) in text.char_indices():
+        chars.push(c)
+        offsets.push(offset)
+    offsets.push(text.len())
+    count := chars.len()
+    let marks: mut List[i32] = []
+    for _ in program:
+        marks.push(-1)
+    let stack: mut List[i32] = []
+    let current: mut List[Thread] = []
+    add_thread(program, marks, stack, 0, current, 0, 0, 0, count)
+    let found_start = -1
+    let found_end = -1
+    let index = 0
+    while true:
+        let next: mut List[Thread] = []
+        generation := index + 1
+        for thread in current:
+            inst := program[thread.pc]
+            # A finished thread cuts off every thread it outranks.
+            if inst_done(inst):
+                found_start = thread.start
+                found_end = index
+                break
+            if index < count && inst_accepts(inst, chars[index]):
+                add_thread(program, marks, stack, generation, next, thread.pc + 1, thread.start, index + 1, count)
+        if index >= count:
+            break
+        index = index + 1
+        if found_start < 0:
+            add_thread(program, marks, stack, generation, next, 0, index, index, count)
+        else:
+            if next.len() == 0:
+                break
+        current = next
+    if found_start < 0:
+        return .None
+    start := offsets[found_start]
+    end := offsets[found_end]
+    .Some(Match { start: start, end: end, text: text.slice(start, end) })
+
+fn inst_done(inst: Inst) -> bool:
+    match inst:
+        .Done => true
+        _ => false
+
+fn inst_accepts(inst: Inst, c: char) -> bool:
+    match inst:
+        .Char(value) => c == value
+        .AnyChar => c != '\n'
+        .Class(items, negated) => class_matches(items, negated, c)
+        _ => false
+
+# Adds the thread at `pc` to `list`, following jumps, splits, and
+# assertions in priority order. `marks[pc] == generation` means `pc` is
+# already in `list`.
+fn add_thread(program: List[Inst], marks: mut List[i32], stack: mut List[i32], generation: i32, list: mut List[Thread], pc: i32, start: i32, at: i32, count: i32) -> void:
+    let top = 0
+    top = push_at(stack, top, pc)
+    while top > 0:
+        top = top - 1
+        here := stack[top]
+        if marks[here] == generation:
+            continue
+        marks[here] = generation
+        match program[here]:
+            .Jump(target) => top = push_at(stack, top, target)
+            .Split(first, second) =>
+                top = push_at(stack, top, second)
+                top = push_at(stack, top, first)
+            .Begin =>
+                if at == 0:
+                    top = push_at(stack, top, here + 1)
+            .End =>
+                if at == count:
+                    top = push_at(stack, top, here + 1)
+            _ => list.push(Thread { pc: here, start: start })
+
+fn push_at(stack: mut List[i32], top: i32, value: i32) -> i32:
+    if top < stack.len():
+        stack[top] = value
+    else:
+        stack.push(value)
+    top + 1
+
+fn class_matches(items: List[ClassItem], negated: bool, c: char) -> bool:
+    let hit = false
+    for item in items:
+        if item_matches(item, c):
+            hit = true
+            break
+    hit != negated
+
+# `\d` and `\w` are ASCII; `\s` is Unicode White_Space
+# (r-std-regex.syntax.escape.digit, r-std-regex.syntax.escape.space).
+fn item_matches(item: ClassItem, c: char) -> bool:
+    match item:
+        .Range(low, high) => c >= low && c <= high
+        .Digit(negated) => (c >= '0' && c <= '9') != negated
+        .Word(negated) => word_char(c) != negated
+        .Space(negated) => c.is_whitespace() != negated
+
+fn word_char(c: char) -> bool:
+    (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
+
+impl Eq for Match:
+    fn eq(self, other: Match) -> bool:
+        self.start == other.start && self.end == other.end && self.text == other.text
+
+impl Eq for RegexErrorKind:
+    fn eq(self, other: RegexErrorKind) -> bool:
+        kind_index(self) == kind_index(other)
+
+fn kind_index(kind: RegexErrorKind) -> i32:
+    match kind:
+        .MissingParen => 0
+        .UnmatchedParen => 1
+        .MissingBracket => 2
+        .BadEscape => 3
+        .BadRange => 4
+        .NothingToRepeat => 5
+        .BadRepeat => 6
+        .UnsupportedGroup => 7
+        .TooLarge => 8
+
+impl Eq for RegexError:
+    fn eq(self, other: RegexError) -> bool:
+        self.kind == other.kind && self.position == other.position
+
+impl Display for RegexErrorKind:
+    fn to_string(self) -> string:
+        match self:
+            .MissingParen => "missing closing )"
+            .UnmatchedParen => "unexpected )"
+            .MissingBracket => "missing closing ]"
+            .BadEscape => "invalid escape"
+            .BadRange => "invalid character class range"
+            .NothingToRepeat => "missing argument to repetition operator"
+            .BadRepeat => "invalid repeat count"
+            .UnsupportedGroup => "unsupported group"
+            .TooLarge => "expression too large"
+
+impl Display for RegexError:
+    fn to_string(self) -> string:
+        "${self.kind} at byte ${self.position}"
+
+# `Debug` for this module's types (r-std-format.debug.std-types), written by
+# hand with the builder calls that `@derive(Debug)` generates.
+
+impl Debug for Regex:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Regex").field("pattern", self.pattern).finish()
+
+impl Debug for Match:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Match").field("start", self.start).field("end", self.end).field("text", self.text).finish()
+
+impl Debug for RegexErrorKind:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct(match self:
+            .MissingParen => "MissingParen"
+            .UnmatchedParen => "UnmatchedParen"
+            .MissingBracket => "MissingBracket"
+            .BadEscape => "BadEscape"
+            .BadRange => "BadRange"
+            .NothingToRepeat => "NothingToRepeat"
+            .BadRepeat => "BadRepeat"
+            .UnsupportedGroup => "UnsupportedGroup"
+            .TooLarge => "TooLarge"
+        ).finish()
+
+impl Debug for RegexError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("RegexError").field("kind", self.kind).field("position", self.position).finish()

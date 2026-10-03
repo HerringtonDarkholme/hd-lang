@@ -1,0 +1,35 @@
+# test: bracketed classes, negated classes, ranges, a leading ] or -, and \d \w \s inside a class
+# Spec std/regex Classes: std-regex.syntax.class, std-regex.syntax.class.negated, std-regex.syntax.class.item, std-regex.syntax.class.char, std-regex.syntax.class.range, std-regex.syntax.class.close-first, std-regex.syntax.class.dash (task #243).
+use std.regex.{Regex, Match}
+use std.testing.assert_equal
+use std.text.r
+
+fn found(pattern: string, text: string) -> string?:
+    match Regex::new(pattern):
+        .Ok(compiled) => compiled.find(text).map(fn(m: Match) -> string: "${m.start}-${m.end}:${m.text}")
+        .Err(error) => .Some("error ${error}")
+
+tests:
+    it("a class matches one character of its items"):
+        assert_equal(found("[abc]+", "xxbcaz"), .Some("2-5:bca"), reason="characters")
+        assert_equal(found("[a-c]+", "xxbcaz"), .Some("2-5:bca"), reason="a range")
+        assert_equal(found("[a-cx-z]+", "mmazbn"), .Some("2-5:azb"), reason="two ranges")
+        assert_equal(found("[α-γ]", "aβ"), .Some("1-3:β"), reason="a range by scalar value")
+
+    it("a negated class matches what no item matches, a line feed too"):
+        assert_equal(found("[^a-c]+", "abxyc"), .Some("2-4:xy"), reason="negated range")
+        assert_equal(found("[^a]", "a\n"), .Some("1-2:\n"), reason="line feed")
+
+    it("a ] first and a - first or last are items"):
+        assert_equal(found("[]a]+", "x]a]"), .Some("1-4:]a]"), reason="] first")
+        assert_equal(found("[^]]", "]]x"), .Some("2-3:x"), reason="] first after ^")
+        assert_equal(found("[-a]+", "b-a-"), .Some("1-4:-a-"), reason="- first")
+        assert_equal(found("[a-]+", "b-a-"), .Some("1-4:-a-"), reason="- last")
+        assert_equal(found("[a-c-e]+", "x-eb"), .Some("1-4:-eb"), reason="- after a range")
+
+    it("escapes inside a class"):
+        assert_equal(found(r"[\d_]+", "ab1_2c"), .Some("2-5:1_2"), reason="\\d in a class")
+        assert_equal(found(r"[\s,]+", "a, b"), .Some("1-3:, "), reason="\\s in a class")
+        assert_equal(found(r"[^\w]", "ab!"), .Some("2-3:!"), reason="negated \\w")
+        assert_equal(found(r"[\]\\]+", "a]\\"), .Some("1-3:]\\"), reason="escaped ] and \\")
+        assert_equal(found(r"[\n]", "a\nb"), .Some("1-2:\n"), reason="control escape")

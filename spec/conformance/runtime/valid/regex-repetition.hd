@@ -1,0 +1,35 @@
+# test: the quantifiers * + ? {m} {m,} {m,n} and their lazy forms
+# Spec std/regex Repetition: std-regex.repeat.star, std-regex.repeat.plus, std-regex.repeat.optional, std-regex.repeat.exact, std-regex.repeat.at-least, std-regex.repeat.between, std-regex.repeat.counts, std-regex.repeat.greedy (task #243).
+use std.regex.{Regex, Match}
+use std.testing.assert_equal
+
+fn found(pattern: string, text: string) -> string?:
+    match Regex::new(pattern):
+        .Ok(compiled) => compiled.find(text).map(fn(m: Match) -> string: "${m.start}-${m.end}:${m.text}")
+        .Err(error) => .Some("error ${error}")
+
+tests:
+    it("greedy quantifiers prefer more"):
+        assert_equal(found("a*", "aaa"), .Some("0-3:aaa"), reason="star")
+        assert_equal(found("a+", "baa"), .Some("1-3:aa"), reason="plus")
+        assert_equal(found("ab?", "abb"), .Some("0-2:ab"), reason="optional")
+        assert_equal(found("a{2}", "aaaa"), .Some("0-2:aa"), reason="exact")
+        assert_equal(found("a{2,}", "aaaa"), .Some("0-4:aaaa"), reason="at least")
+        assert_equal(found("a{2,3}", "aaaa"), .Some("0-3:aaa"), reason="between")
+        assert_equal(found("a{2,3}", "a"), .None, reason="too few")
+        assert_equal(found("a{0}b", "ab"), .Some("1-2:b"), reason="zero times")
+        assert_equal(found("(?:ab){2}", "abab"), .Some("0-4:abab"), reason="a repeated group")
+        assert_equal(found("^*a", "a"), .Some("0-1:a"), reason="a repeated anchor")
+
+    it("lazy quantifiers prefer fewer"):
+        assert_equal(found("a*?", "aaa"), .Some("0-0:"), reason="lazy star")
+        assert_equal(found("a+?", "aaa"), .Some("0-1:a"), reason="lazy plus")
+        assert_equal(found("ab??", "abb"), .Some("0-1:a"), reason="lazy optional")
+        assert_equal(found("a{2}?", "aaaa"), .Some("0-2:aa"), reason="lazy exact")
+        assert_equal(found("a{2,}?", "aaaa"), .Some("0-2:aa"), reason="lazy at least")
+        assert_equal(found("a{2,3}?", "aaaa"), .Some("0-2:aa"), reason="lazy between")
+
+    it("the preference picks among matches that start at one position"):
+        assert_equal(found("a*?b", "aab"), .Some("0-3:aab"), reason="lazy, but the match must reach b")
+        assert_equal(found("<.+?>", "<a><b>"), .Some("0-3:<a>"), reason="the first close")
+        assert_equal(found("<.+>", "<a><b>"), .Some("0-6:<a><b>"), reason="the last close")

@@ -1,0 +1,40 @@
+# test: literals, the dot, escaped punctuation, control escapes, and the \d \w \s classes with their negations
+# Spec std/regex Literals And Escapes: std-regex.syntax.literal, std-regex.syntax.dot, std-regex.syntax.escape.meta, std-regex.syntax.escape.control, std-regex.syntax.escape.digit, std-regex.syntax.escape.word, std-regex.syntax.escape.space, std-regex.syntax.brace-literal, std-regex.find.chars (task #243).
+use std.regex.{Regex, Match}
+use std.testing.assert_equal
+use std.text.r
+
+fn found(pattern: string, text: string) -> string?:
+    match Regex::new(pattern):
+        .Ok(compiled) => compiled.find(text).map(fn(m: Match) -> string: "${m.start}-${m.end}:${m.text}")
+        .Err(error) => .Some("error ${error}")
+
+tests:
+    it("a literal matches itself, by character"):
+        assert_equal(found("abc", "xxabcxx"), .Some("2-5:abc"), reason="ASCII")
+        assert_equal(found("é", "aéb"), .Some("1-3:é"), reason="offsets are bytes")
+        assert_equal(found("abc", "ab"), .None, reason="no match")
+
+    it("the dot matches any one character but a line feed"):
+        assert_equal(found("a.c", "a€c"), .Some("0-5:a€c"), reason="one character, three bytes")
+        assert_equal(found("a.c", "a\nc"), .None, reason="not a line feed")
+
+    it("escaped punctuation and control escapes"):
+        assert_equal(found(r"a\.b", "axb a.b"), .Some("4-7:a.b"), reason="escaped dot")
+        assert_equal(found(r"\\\*\$", r"x\*$"), .Some("1-4:\\*$"), reason="backslash, star, dollar")
+        assert_equal(found(r"a\tb", "a\tb"), .Some("0-3:a\tb"), reason="tab")
+        assert_equal(found(r"\n", "a\nb"), .Some("1-2:\n"), reason="line feed")
+
+    it("a brace that starts no count is a literal"):
+        assert_equal(found("a{", "a{"), .Some("0-2:a{"), reason="open brace")
+        assert_equal(found("a{x}", "a{x}"), .Some("0-4:a{x}"), reason="no digits")
+        assert_equal(found("a}]", "a}]"), .Some("0-3:a}]"), reason="closing brace and bracket")
+
+    it("\\d and \\w are ASCII, \\s is Unicode White_Space"):
+        assert_equal(found(r"\d+", "ab123c"), .Some("2-5:123"), reason="digits")
+        assert_equal(found(r"\d", "٣"), .None, reason="an Arabic-Indic digit is not \\d")
+        assert_equal(found(r"\w+", "é_ab9-"), .Some("2-6:_ab9"), reason="é is not \\w")
+        assert_equal(found(r"\s", "a\u{3000}b"), .Some("1-4:\u{3000}"), reason="ideographic space")
+        assert_equal(found(r"\D+", "12ab3"), .Some("2-4:ab"), reason="non-digits")
+        assert_equal(found(r"\W", "ab-c"), .Some("2-3:-"), reason="non-word")
+        assert_equal(found(r"\S+", "  hi "), .Some("2-4:hi"), reason="non-space")
