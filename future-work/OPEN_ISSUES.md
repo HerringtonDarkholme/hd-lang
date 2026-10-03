@@ -237,8 +237,8 @@ shows demand from cheap-model agents; adding `fn: _` then breaks no code.
 
 ### Iterator Performance
 
-The flat-stage iterator design waits for a specializing compiler, task
-#86 (Iterator Performance Study).
+The flat-stage iterator design waits for a specializing compiler, one of
+the performance tasks queued for later.
 
 ### Testing Open Points
 
@@ -289,11 +289,6 @@ These items remain required but do not currently require new core syntax:
 - a `package-cycle` conformance fixture, which waits until the manifest
   schema exists (Dependency Cycles DC12,
   [`module.cycle.package`](../spec/lang/10-modules.md#r-module.cycle.package));
-- whether a panic's source location is "available"
-  ([`flow.panic.report`](../spec/lang/06-control-flow.md#r-flow.panic.report))
-  for a trap inside a runtime helper, which decides whether a conformance
-  runner can judge a panic marker's line (F-155 in
-  [src/KNOWN_ISSUES.md](../src/KNOWN_ISSUES.md));
 - whether the specification defines one portable "unsupported feature"
   diagnostic category, so a conformance runner can tell "not implemented"
   from "wrong" (F-250);
