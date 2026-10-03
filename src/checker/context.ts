@@ -69,6 +69,7 @@ import {
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
+  typeSourceText,
 } from "../types.ts";
 import { narrowsTo, numericType, widensTo } from "../numeric.ts";
 import { DERIVED_IMPLEMENTATION_SPANS, derivedFieldDiagnostic } from "./derive-intrinsics.ts";
@@ -319,7 +320,9 @@ export abstract class CheckerContext {
           { data: this.dataTypes, enums: this.enumTypes },
         );
         if (!("type" in inferred)) {
-          const listed = [...new Set(this.inferredReturns.map(({ type }) => type))].join(", ");
+          const listed = [...new Set(this.inferredReturns.map(({ type }) => type))]
+            .map(typeSourceText)
+            .join(", ");
           this.fail(
             inferred.code,
             inferred.code === "no-common-type"
@@ -466,7 +469,7 @@ export abstract class CheckerContext {
     if (variance === "representation-change")
       this.fail(
         "variance-representation-change",
-        `'${value.type}' cannot become '${expected}': a variance conversion must not change a value's representation`,
+        `'${typeSourceText(value.type)}' cannot become '${typeSourceText(expected)}': a variance conversion must not change a value's representation`,
         span,
       );
     if (variance) return { kind: "permission-weaken", operand: value, type: expected, span };
@@ -489,7 +492,7 @@ export abstract class CheckerContext {
         if (inspectTarget && inspectKey(value.type, this.inspectEnvironment()))
           this.fail(
             "mutable-upgrade",
-            `readonly type '${value.type}' cannot be erased to mut Inspectable`,
+            `readonly type '${typeSourceText(value.type)}' cannot be erased to mut Inspectable`,
             span,
           );
         return value;
@@ -707,14 +710,14 @@ export abstract class CheckerContext {
     if (seen.has(key))
       this.fail(
         "recursive-trait-dictionary",
-        `constructing the trait dictionary for '${targetType}' requires itself`,
+        `constructing the trait dictionary for '${typeSourceText(targetType)}' requires itself`,
         span,
       );
     // This plan proves a bound of depth `seen.size + 1` (09-traits.md#r-trait.bound.depth).
     if (seen.size >= MAX_BOUND_DEPTH)
       this.fail(
         "trait-resolution-depth",
-        `proving the bound for '${targetType}' needs a bound deeper than ${MAX_BOUND_DEPTH}`,
+        `proving the bound for '${typeSourceText(targetType)}' needs a bound deeper than ${MAX_BOUND_DEPTH}`,
         span,
       );
     const substitutions = matchTraitImplementation(
@@ -878,7 +881,7 @@ export abstract class CheckerContext {
         };
       this.fail(
         code,
-        `type '${actual}' does not implement ${bound.traitName}, required by the implementation bound on '${bound.parameter}'`,
+        `type '${typeSourceText(actual)}' does not implement ${bound.traitName}, required by the implementation bound on '${bound.parameter}'`,
         span,
       );
     }
@@ -1013,7 +1016,7 @@ export abstract class CheckerContext {
   ): HirExpression {
     const type = readonlyType(value.type);
     if (type === "string") return value;
-    const missing = `type '${value.type}' does not implement Display, required by ${origin}`;
+    const missing = `type '${typeSourceText(value.type)}' does not implement Display, required by ${origin}`;
     // A program that mentions no `Display` has none declared (spec/lang/10-modules.md#prelude).
     const trait = this.traitTypes.get("Display");
     if (!trait) return this.fail("unsatisfied-trait-bound", missing, span);
@@ -1272,7 +1275,11 @@ export abstract class CheckerContext {
     )
       this.mapKey(nominal.arguments[0]!, type.span);
     if (!isKnownType(declared, this.dataTypes, this.enumTypes, this.traitTypes))
-      this.fail("unknown-type", `unknown or unsupported type '${type.name}'`, type.span);
+      this.fail(
+        "unknown-type",
+        `unknown or unsupported type '${typeSourceText(type.name)}'`,
+        type.span,
+      );
     return declared;
   }
 
@@ -1371,18 +1378,18 @@ export abstract class CheckerContext {
     if (mutableInner(expected) === actual)
       this.fail(
         "mutable-upgrade",
-        `readonly type '${actual}' cannot be upgraded to '${expected}'`,
+        `readonly type '${typeSourceText(actual)}' cannot be upgraded to '${typeSourceText(expected)}'`,
         span,
       );
     if (narrowsTo(actual, expected))
       this.fail(
         "implicit-narrowing",
-        `'${actual}' does not convert implicitly to '${expected}'; write an explicit cast`,
+        `'${typeSourceText(actual)}' does not convert implicitly to '${typeSourceText(expected)}'; write an explicit cast`,
         span,
       );
     if (widensTo(actual, expected))
       this.failWithConversion(
-        `'${actual}' does not widen implicitly to '${expected}'; write ${expected}(...)`,
+        `'${typeSourceText(actual)}' does not widen implicitly to '${typeSourceText(expected)}'; write ${typeSourceText(expected)}(...)`,
         expected,
         span,
       );
@@ -1394,6 +1401,7 @@ export abstract class CheckerContext {
    * the conversion around the value at `span` (04-type-system.md#r-types.num.no-implicit.fix).
    */
   protected failWithConversion(message: string, target: ValueType, span: SourceSpan): never {
+    const shownTarget = typeSourceText(target);
     let code = "type-mismatch";
     ({ code, message } = rowDiagnostic(code, message, this.declaration));
     ({ code, message } = derivedFieldDiagnostic(code, message, span));
@@ -1403,9 +1411,9 @@ export abstract class CheckerContext {
       message,
       span,
       fix: {
-        message: `write '${target}(...)'`,
+        message: `write '${shownTarget}(...)'`,
         edits: [
-          { span: { start: span.start, end: span.start }, replacement: `${target}(` },
+          { span: { start: span.start, end: span.start }, replacement: `${shownTarget}(` },
           { span: { start: span.end, end: span.end }, replacement: ")" },
         ],
       },

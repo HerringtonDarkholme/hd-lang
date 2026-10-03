@@ -25,6 +25,7 @@ import {
   rowArgumentKeys,
   rowArgumentType,
   splitTypeBindings,
+  typeSourceText,
   tupleParts,
   tupleType,
 } from "../types.ts";
@@ -400,7 +401,7 @@ function defaultDeclarationDiagnostics(program: Program): Diagnostic[] {
       if (rowArgumentKeys(fallback.name) !== undefined && !rows.has(parameter))
         diagnostics.push({
           code: "generic-kind-mismatch",
-          message: `'${parameter}' is a type parameter, so its default must be a type, not the row '${fallback.name}'`,
+          message: `'${parameter}' is a type parameter, so its default must be a type, not the row '${typeSourceText(fallback.name)}'`,
           span: fallback.span,
         });
     });
@@ -509,7 +510,7 @@ export function defaultBoundDiagnostics(context: ProgramCheckContext): Diagnosti
         if (!implemented)
           diagnostics.push({
             code: "unsatisfied-trait-bound",
-            message: `the default '${fallback.name}' of '${bound.parameter}' does not implement ${traitKey}`,
+            message: `the default '${typeSourceText(fallback.name)}' of '${bound.parameter}' does not implement ${typeSourceText(traitKey)}`,
             span: fallback.span,
           });
       }

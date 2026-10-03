@@ -1,7 +1,7 @@
 import { ambiguousProjection, bindingNameProblem } from "./associated-bindings.ts";
 import { listVararg, tupleVararg, type FunctionDecl } from "../ast.ts";
 import type { HirAssociatedBinding } from "../hir.ts";
-import { mutableInner, nominalGenericParts } from "../types.ts";
+import { mutableInner, nominalGenericParts, typeSourceText } from "../types.ts";
 import { PRELUDE_NAMES, type Signature } from "./context.ts";
 import { TUPLE_TRAIT } from "./standard-traits.ts";
 import { requirementKeyDiagnostics, resolveRequirementKeyTypes } from "./requirement-keys.ts";
@@ -349,7 +349,7 @@ export function createProgramSignatures(
         if (nonhost) {
           diagnostics.push({
             code: "nonhost-entry-requirement",
-            message: `entry point requirement '${nonhost}' is not supplied by the MVP host profile`,
+            message: `entry point requirement '${typeSourceText(nonhost)}' is not supplied by the MVP host profile`,
             span: declaration.span,
           });
         }

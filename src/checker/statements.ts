@@ -17,6 +17,7 @@ import {
   tupleParts,
   tupleLayout,
   tupleRest,
+  typeSourceText,
 } from "../types.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { CheckerContext, PRELUDE_NAMES } from "./context.ts";
@@ -166,7 +167,7 @@ export abstract class StatementChecker extends CheckerContext {
         if (mutableReceiver === undefined) {
           this.fail(
             "readonly-root",
-            `indexed assignment requires mutable access to '${receiver.type}'`,
+            `indexed assignment requires mutable access to '${typeSourceText(receiver.type)}'`,
             statement.target.receiver.span,
           );
         }
@@ -309,7 +310,7 @@ export abstract class StatementChecker extends CheckerContext {
         ) {
           this.fail(
             "discarded-must-use-value",
-            `a value of type '${expression.type}' must be used or explicitly discarded`,
+            `a value of type '${typeSourceText(expression.type)}' must be used or explicitly discarded`,
             statement.span,
           );
         }
@@ -338,19 +339,19 @@ export abstract class StatementChecker extends CheckerContext {
     if (spread && tuple.rest === undefined)
       this.fail(
         "type-mismatch",
-        `a spread pattern needs a tuple type with a rest element, found '${type}'`,
+        `a spread pattern needs a tuple type with a rest element, found '${typeSourceText(type)}'`,
         span,
       );
     if (!spread && tuple.rest !== undefined)
       this.fail(
         "type-mismatch",
-        `a tuple pattern against '${type}' must end in a spread pattern, as in '(..., xs...)'`,
+        `a tuple pattern against '${typeSourceText(type)}' must end in a spread pattern, as in '(..., xs...)'`,
         span,
       );
     if (spread && spreads.length - 1 !== tuple.fixed.length)
       this.fail(
         "type-mismatch",
-        `'${type}' has ${tuple.fixed.length} fixed element${tuple.fixed.length === 1 ? "" : "s"}, but the spread pattern follows ${spreads.length - 1}`,
+        `'${typeSourceText(type)}' has ${tuple.fixed.length} fixed element${tuple.fixed.length === 1 ? "" : "s"}, but the spread pattern follows ${spreads.length - 1}`,
         span,
       );
   }
@@ -376,7 +377,7 @@ export abstract class StatementChecker extends CheckerContext {
     if (annotation && annotatedElements === undefined) {
       this.fail(
         "tuple-binding-annotation",
-        `tuple binding annotation '${annotation}' is not a tuple type`,
+        `tuple binding annotation '${typeSourceText(annotation)}' is not a tuple type`,
         statement.annotation!.span,
       );
     }
@@ -385,7 +386,7 @@ export abstract class StatementChecker extends CheckerContext {
     if (elements === undefined) {
       this.fail(
         "type-mismatch",
-        `tuple binding requires a tuple value, found '${value.type}'`,
+        `tuple binding requires a tuple value, found '${typeSourceText(value.type)}'`,
         statement.value.span,
       );
     }
@@ -552,7 +553,7 @@ export abstract class StatementChecker extends CheckerContext {
     this.rejectLetMutPrimitive(annotation, site.span);
     this.fail(
       "let-mut-readonly-type",
-      `'let mut' asks for mutable access, but the type '${annotation}' is readonly; write 'mut ${annotation}', or drop 'mut' after 'let'`,
+      `'let mut' asks for mutable access, but the type '${typeSourceText(annotation)}' is readonly; write '${typeSourceText(mutableType(annotation))}', or drop 'mut' after 'let'`,
       site.span,
     );
   }
@@ -563,7 +564,7 @@ export abstract class StatementChecker extends CheckerContext {
     this.rejectLetMutPrimitive(type, span);
     this.fail(
       "mutable-upgrade",
-      `'let mut' needs a value with mutable access, but '${type}' is readonly and cannot be upgraded; copy it into a fresh value instead`,
+      `'let mut' needs a value with mutable access, but '${typeSourceText(type)}' is readonly and cannot be upgraded; copy it into a fresh value instead`,
       span,
     );
   }
@@ -585,13 +586,13 @@ export abstract class StatementChecker extends CheckerContext {
     if (tupleParts(type) !== undefined)
       this.fail(
         "mut-on-tuple",
-        `'let mut' asks for mutable access, but '${type}' is a tuple, which has no 'mut' form; a plain 'let' is already reassignable, and an element's permission comes from its own type`,
+        `'let mut' asks for mutable access, but '${typeSourceText(type)}' is a tuple, which has no 'mut' form; a plain 'let' is already reassignable, and an element's permission comes from its own type`,
         span,
       );
     if (!PRIMITIVE_TYPES.has(type)) return;
     this.fail(
       "mut-on-primitive",
-      `'let mut' asks for mutable access, but '${type}' is a primitive type with no mutable state; a plain 'let' is already reassignable`,
+      `'let mut' asks for mutable access, but '${typeSourceText(type)}' is a primitive type with no mutable state; a plain 'let' is already reassignable`,
       span,
     );
   }

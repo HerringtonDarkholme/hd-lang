@@ -2,7 +2,13 @@ import type { Expression, FunctionDecl, TypeRef } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirData, HirDataField, HirExpression, ValueType } from "../hir.ts";
 import type { InherentMethod } from "./context.ts";
-import { mutableInner, mutableType, nominalGenericParts, readonlyType } from "../types.ts";
+import {
+  mutableInner,
+  mutableType,
+  nominalGenericParts,
+  readonlyType,
+  typeSourceText,
+} from "../types.ts";
 import { numericType } from "../numeric.ts";
 import {
   containsGenericType,
@@ -108,7 +114,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       if (!unwraps)
         this.fail(
           "type-mismatch",
-          `'${name}(...)' casts a numeric value, found '${value.type}'`,
+          `'${name}(...)' casts a numeric value, found '${typeSourceText(value.type)}'`,
           expression.span,
         );
       return this.unwrapNewtype(name, value, expression.span);
@@ -168,7 +174,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     if (!declaration || !field)
       this.fail(
         "type-mismatch",
-        `'${name}(...)' unwraps a newtype over '${name}', found '${value.type}'`,
+        `'${name}(...)' unwraps a newtype over '${name}', found '${typeSourceText(value.type)}'`,
         expression.span,
       );
     const substitutions = this.dataSubstitutions(declaration, value.type);
@@ -176,7 +182,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     if (constructorOf(base) !== name)
       this.fail(
         "type-mismatch",
-        `'${name}(...)' cannot unwrap '${value.type}', a newtype over '${base}'`,
+        `'${name}(...)' cannot unwrap '${typeSourceText(value.type)}', a newtype over '${typeSourceText(base)}'`,
         expression.span,
       );
     const member = this.dataMember(value, declaration, field, substitutions, expression.span);

@@ -1,7 +1,7 @@
 import type { Program } from "../ast.ts";
 import type { ValueType } from "../hir.ts";
 import { isNarrowInteger } from "../numeric.ts";
-import { mutableInner, readonlyType } from "../types.ts";
+import { mutableInner, typeSourceText } from "../types.ts";
 import {
   genericTypeName,
   matchGenericTypePattern,
@@ -37,7 +37,7 @@ export function mapKeyProblem(
   if (mutableInner(type) !== undefined)
     return {
       code: "invalid-map-key",
-      message: `a map key type must not be mut, found 'mut ${readonlyType(type)}'`,
+      message: `a map key type must not be mut, found '${typeSourceText(type)}'`,
     };
   const generic = genericTypeName(type);
   const missing = generic
@@ -48,7 +48,7 @@ export function mapKeyProblem(
   return missing
     ? {
         code: "unsatisfied-trait-bound",
-        message: `type '${type}' does not implement ${missing}, required by the bound on 'K' of 'Map'`,
+        message: `type '${typeSourceText(type)}' does not implement ${missing}, required by the bound on 'K' of 'Map'`,
       }
     : undefined;
 }

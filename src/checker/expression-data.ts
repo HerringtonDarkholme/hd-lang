@@ -10,6 +10,7 @@ import {
   optionalInner,
   optionalType,
   readonlyType,
+  typeSourceText,
   tupleLayout,
   tupleParts,
 } from "../types.ts";
@@ -176,7 +177,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             ) {
               this.fail(
                 "type-mismatch",
-                `copy-update for '${declaration.name}' requires the same data type, found ${spread.type}`,
+                `copy-update for '${declaration.name}' requires the same data type, found ${typeSourceText(spread.type)}`,
                 expression.spread!.span,
               );
             }
@@ -251,7 +252,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             if (mutableInner(inferredField) === checked.type) {
               this.fail(
                 "mutable-upgrade",
-                `readonly type '${checked.type}' cannot initialize generic field '${inferredField}'`,
+                `readonly type '${typeSourceText(checked.type)}' cannot initialize generic field '${typeSourceText(inferredField)}'`,
                 value.span,
               );
             }
@@ -344,7 +345,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         if (outerMutableExpected && !directFieldsMutable) {
           this.fail(
             "mutable-upgrade",
-            `construction of '${readonlyResult}' does not retain mutable access for every direct mutable field`,
+            `construction of '${typeSourceText(readonlyResult)}' does not retain mutable access for every direct mutable field`,
             expression.span,
           );
         }
@@ -352,7 +353,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
           const explicit = expression.fields.find((field) => field.name === readonlyCopy.name);
           this.fail(
             "mutable-upgrade",
-            `the copy for embedded field '${readonlyCopy.name}' is readonly: it is made from a readonly value whose type has a direct 'mut' field, so '${readonlyResult}' cannot be mutable`,
+            `the copy for embedded field '${readonlyCopy.name}' is readonly: it is made from a readonly value whose type has a direct 'mut' field, so '${typeSourceText(readonlyResult)}' cannot be mutable`,
             explicit?.value.span ?? expression.span,
           );
         }
@@ -502,20 +503,20 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
           : "readonly-root";
       this.fail(
         code,
-        `field '${statement.target.name}' cannot be assigned through readonly type '${receiver.type}'`,
+        `field '${statement.target.name}' cannot be assigned through readonly type '${typeSourceText(receiver.type)}'`,
         statement.target.span,
       );
     }
     if (!selection)
       this.fail(
         "member-on-non-data",
-        `type '${mutableReceiver}' has no assignable data fields`,
+        `type '${typeSourceText(mutableReceiver)}' has no assignable data fields`,
         statement.target.receiver.span,
       );
     if (!selected || !field)
       this.fail(
         "unknown-data-field",
-        `type '${rootReadonly}' has no field '${statement.target.name}'`,
+        `type '${typeSourceText(rootReadonly)}' has no field '${statement.target.name}'`,
         statement.target.span,
       );
     const { declaration, substitutions } = selected.final;
@@ -684,7 +685,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
           if (position === undefined) {
             this.fail(
               "unknown-tuple-member",
-              `tuple type '${receiver.type}' has no member '${expression.name}'`,
+              `tuple type '${typeSourceText(receiver.type)}' has no member '${expression.name}'`,
               expression.span,
             );
           }
@@ -766,7 +767,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         }
         this.fail(
           "member-on-non-data",
-          `type '${receiver.type}' has no data fields`,
+          `type '${typeSourceText(receiver.type)}' has no data fields`,
           expression.receiver.span,
         );
       }
@@ -866,7 +867,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
           if (!isIntegerType(readonlyType(index.type)))
             this.fail(
               "type-mismatch",
-              `a string index must be an integer, found '${index.type}'`,
+              `a string index must be an integer, found '${typeSourceText(index.type)}'`,
               expression.index.span,
             );
           return { kind: "string-index", receiver, index, type: "u8", span: expression.span };

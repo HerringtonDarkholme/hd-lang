@@ -10,7 +10,7 @@ import type {
   UseDecl,
 } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
-import { readonlyType } from "../types.ts";
+import { readonlyType, typeSourceText } from "../types.ts";
 import {
   type ErrorCase,
   type ErrorMember,
@@ -367,7 +367,7 @@ function checkConversions(
         if (seen.has(key))
           error(
             "overlapping-impl",
-            `a second @from member of type '${member.type}' generates another From[${member.type}] for '${type.declaration.name}'`,
+            `a second @from member of type '${typeSourceText(member.type)}' generates another From[${typeSourceText(member.type)}] for '${type.declaration.name}'`,
             member.field.span,
           );
         seen.add(key);

@@ -12,6 +12,7 @@ import {
   restInner,
   resultParts,
   rowArgumentKeys,
+  typeSourceText,
   tupleParts,
 } from "../types.ts";
 import { associatedNames, bindingNameProblem, traitKeyParts } from "./associated-bindings.ts";
@@ -55,7 +56,7 @@ export function requirementKeyDiagnostics(
     if (!trait) {
       diagnostics.push({
         code: "unknown-trait",
-        message: `unknown trait '${key.name}' in requirement key '${requirement}'`,
+        message: `unknown trait '${key.name}' in requirement key '${typeSourceText(requirement)}'`,
         span,
       });
       continue;
@@ -98,7 +99,7 @@ export function requirementKeyDiagnostics(
     if (knownType && !arguments_.every(knownType)) {
       diagnostics.push({
         code: "unknown-type",
-        message: `requirement key '${requirement}' contains an unknown type`,
+        message: `requirement key '${typeSourceText(requirement)}' contains an unknown type`,
         span,
       });
       continue;
@@ -108,7 +109,7 @@ export function requirementKeyDiagnostics(
     if (unbound.length > 0) {
       diagnostics.push({
         code: "trait-not-dynamically-safe",
-        message: `requirement key '${requirement}' leaves the associated type${unbound.length === 1 ? "" : "s"} ${unbound.join(", ")} of '${trait.name}' unbound; write '${trait.name}[${unbound.map((name) => `${name} = ...`).join(", ")}]'`,
+        message: `requirement key '${typeSourceText(requirement)}' leaves the associated type${unbound.length === 1 ? "" : "s"} ${unbound.join(", ")} of '${trait.name}' unbound; write '${trait.name}[${unbound.map((name) => `${name} = ...`).join(", ")}]'`,
         span,
       });
       continue;
@@ -116,7 +117,7 @@ export function requirementKeyDiagnostics(
     if (!traitIsDynamicallySafe(trait, traitTypes, bound)) {
       diagnostics.push({
         code: "trait-not-dynamically-safe",
-        message: `trait '${trait.name}' cannot be used as requirement key '${requirement}' because it is not dynamically safe`,
+        message: `trait '${trait.name}' cannot be used as requirement key '${typeSourceText(requirement)}' because it is not dynamically safe`,
         span,
       });
       continue;

@@ -9,7 +9,7 @@ import type {
   TypeRef,
 } from "../ast.ts";
 import { preserveSourceOrigin, type SourceSpan } from "../diagnostics.ts";
-import { nominalGenericParts, readonlyType } from "../types.ts";
+import { nominalGenericParts, readonlyType, typeSourceText } from "../types.ts";
 import { derivedBaseSpan, derivedImplementationSpan } from "./derive-intrinsics.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
 
@@ -615,7 +615,7 @@ export function forwardNewtype(
     if (bad !== undefined) {
       error(
         "newtype-derivation-self",
-        `method '${method.name}' has Self in '${bad.replace(/mut:/g, "mut ")}'; a newtype forwards only the receiver, Self, Self?, Result[Self, E], and List[Self]`,
+        `method '${method.name}' has Self in '${typeSourceText(bad)}'; a newtype forwards only the receiver, Self, Self?, Result[Self, E], and List[Self]`,
         item.span,
       );
       return undefined;
@@ -626,7 +626,7 @@ export function forwardNewtype(
     if (unsupported !== undefined) {
       error(
         "unsupported-derivation",
-        `the prototype forwards a newtype method only through the receiver and plain Self, not '${unsupported}'`,
+        `the prototype forwards a newtype method only through the receiver and plain Self, not '${typeSourceText(unsupported)}'`,
         item.span,
       );
       return undefined;

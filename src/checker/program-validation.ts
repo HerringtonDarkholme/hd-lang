@@ -1,5 +1,6 @@
 import type { Expression } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
+import { readonlyType, typeSourceText } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import { PRELUDE_ORIGINS } from "./prelude-names.ts";
 import {
@@ -15,13 +16,13 @@ export function validateProgram(context: ProgramCheckContext): void {
   for (const type of program.mutPrimitives ?? [])
     diagnostics.push({
       code: "mut-on-primitive",
-      message: `the primitive type '${type.name.slice("mut:".length)}' takes no 'mut'; a primitive value has no mutable state, and a 'let' binding is already reassignable`,
+      message: `the primitive type '${typeSourceText(readonlyType(type.name))}' takes no 'mut'; a primitive value has no mutable state, and a 'let' binding is already reassignable`,
       span: type.span,
     });
   for (const type of program.mutTuples ?? [])
     diagnostics.push({
       code: "mut-on-tuple",
-      message: `the tuple type '${type.name.slice("mut:".length)}' takes no 'mut'; each element's permission comes from its own type, and a 'let' binding is already reassignable`,
+      message: `the tuple type '${typeSourceText(readonlyType(type.name))}' takes no 'mut'; each element's permission comes from its own type, and a 'let' binding is already reassignable`,
       span: type.span,
     });
   for (const declaration of program.uses) {

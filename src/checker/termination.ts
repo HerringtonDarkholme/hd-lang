@@ -1,7 +1,7 @@
 import type { FunctionDecl } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirTrait, HirTraitImplementation, ValueType } from "../hir.ts";
-import { optionalInner, readonlyType, resultParts } from "../types.ts";
+import { optionalInner, readonlyType, resultParts, typeSourceText } from "../types.ts";
 import { numericType } from "../numeric.ts";
 import { matchTraitImplementation, traitTypeName } from "./shared.ts";
 import { HIDDEN_EXIT_CODE, HIDDEN_TERMINATION } from "./standard-traits.ts";
@@ -25,12 +25,12 @@ export function mismatchedPropagation(
     if (propagation.error === undefined) {
       if (optionalInner(result) === undefined)
         return {
-          message: `? on an optional needs an optional result, but the inferred result is ${result}`,
+          message: `? on an optional needs an optional result, but the inferred result is ${typeSourceText(result)}`,
           span: propagation.span,
         };
     } else if (resultParts(result)?.error !== propagation.error) {
       return {
-        message: `? on a Result with error ${propagation.error} has no common type with the inferred result ${result}`,
+        message: `? on a Result with error ${typeSourceText(propagation.error)} has no common type with the inferred result ${typeSourceText(result)}`,
         span: propagation.span,
       };
     }
@@ -145,7 +145,7 @@ export function resultFailure(
   const bounded = terminates(result, traitTypes, implementations, imports);
   if (TEST_FUNCTION.test(declaration.name) && !bounded)
     return {
-      message: `a test body's result '${result}' does not implement std.process.Termination`,
+      message: `a test body's result '${typeSourceText(result)}' does not implement std.process.Termination`,
       span: declaration.span,
     };
   if (
@@ -155,7 +155,7 @@ export function resultFailure(
     !(bounded && runnableEntryResult(result, imports))
   )
     return {
-      message: `the result '${result}' of public main does not implement std.process.Termination, or is not yet supported: the prototype runs void, ExitCode, and Result over them`,
+      message: `the result '${typeSourceText(result)}' of public main does not implement std.process.Termination, or is not yet supported: the prototype runs void, ExitCode, and Result over them`,
       span: declaration.result.span,
     };
   return undefined;

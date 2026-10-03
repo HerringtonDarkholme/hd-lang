@@ -12,6 +12,7 @@ import {
   readonlyType,
   tupleParts,
   tupleRest,
+  typeSourceText,
   tupleType,
 } from "../types.ts";
 import { leastCommonType, rowUnionType } from "./least-common-type.ts";
@@ -81,7 +82,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
       ? rowUnionType(elements as ValueType[], declarations)
       : undefined;
     if (elementUnion !== undefined) return nominalGenericType("List", [elementUnion]);
-    const listed = [...new Set(types)].join(", ");
+    const listed = [...new Set(types)].map(typeSourceText).join(", ");
     this.fail(
       least.code,
       least.code === "no-common-type"
@@ -103,7 +104,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
     if (!speculationSafeArguments(part))
       this.fail(
         "no-common-type",
-        `list elements have no common type with '${type}'; add an expected type`,
+        `list elements have no common type with '${typeSourceText(type)}'; add an expected type`,
         part.span,
       );
     const span = part.span;
@@ -136,7 +137,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
     )
       this.fail(
         "type-mismatch",
-        `expected a tuple of type '${tupleType([...expectedTuple!.fixed, `${rest}...`])}' with ${fixedCount} fixed element${fixedCount === 1 ? "" : "s"}, found ${written.length}`,
+        `expected a tuple of type '${typeSourceText(tupleType([...expectedTuple!.fixed, `${rest}...`]))}' with ${fixedCount} fixed element${fixedCount === 1 ? "" : "s"}, found ${written.length}`,
         expression.span,
       );
     const fixed = written.slice(0, fixedCount).map((element, index) => {
@@ -153,7 +154,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
       if (nominalGenericParts(readonlyType(checked.type))?.name !== "List")
         this.fail(
           "type-mismatch",
-          `a tuple spread supplies the rest element and needs a List[T], found '${checked.type}'`,
+          `a tuple spread supplies the rest element and needs a List[T], found '${typeSourceText(checked.type)}'`,
           operand.span,
         );
       list = rest !== undefined ? this.requireCoercion(checked, rest, operand.span) : checked;
@@ -278,7 +279,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           )
             this.fail(
               "type-mismatch",
-              `a list spread needs a list, found '${checked.type}'`,
+              `a list spread needs a list, found '${typeSourceText(checked.type)}'`,
               element.span,
             );
           // Spread parts compare as readonly lists: `[0]` is a fresh mutable list.

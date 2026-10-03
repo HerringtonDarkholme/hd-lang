@@ -11,6 +11,7 @@ import {
   readonlyType,
   resultParts,
   resultType,
+  typeSourceText,
 } from "../types.ts";
 import { CheckFailure, type Signature } from "./context.ts";
 import { functionTypeMatchesRowPattern, matchTraitImplementation } from "./shared.ts";
@@ -95,7 +96,7 @@ export class FunctionChecker extends ExpressionControlChecker {
     if (!conversion)
       this.fail(
         "invalid-result-propagation",
-        `error type '${source}' is neither assignable to '${target}' nor converted by an implementation of From[${readonlyType(source)}] for '${target}'; implement it or map the error explicitly`,
+        `error type '${typeSourceText(source)}' is neither assignable to '${typeSourceText(target)}' nor converted by an implementation of From[${typeSourceText(readonlyType(source))}] for '${typeSourceText(target)}'; implement it or map the error explicitly`,
         span,
       );
     const subject: HirLocal = {
@@ -199,7 +200,7 @@ export class FunctionChecker extends ExpressionControlChecker {
     if (optional === undefined && !parts)
       this.fail(
         "invalid-result-propagation",
-        `? requires an optional or Result operand, found '${operand.type}'`,
+        `? requires an optional or Result operand, found '${typeSourceText(operand.type)}'`,
         expression.span,
       );
     this.inferredPropagations.push({
@@ -290,7 +291,7 @@ export class FunctionChecker extends ExpressionControlChecker {
     if (!parts)
       this.fail(
         "invalid-result-propagation",
-        `? requires an optional or Result operand, found '${operand.type}'`,
+        `? requires an optional or Result operand, found '${typeSourceText(operand.type)}'`,
         expression.span,
       );
     if (!target) {
@@ -343,7 +344,7 @@ export class FunctionChecker extends ExpressionControlChecker {
         if (expectedCallable && expectedCallable.suspending !== suspending) {
           this.fail(
             "type-mismatch",
-            `expected ${expected}, found a ${suspending ? "suspending" : "non-suspending"} closure`,
+            `expected ${typeSourceText(expected!)}, found a ${suspending ? "suspending" : "non-suspending"} closure`,
             expression.span,
           );
         }
@@ -512,7 +513,11 @@ export class FunctionChecker extends ExpressionControlChecker {
           expectedCallableType !== callableType &&
           !functionTypeMatchesRowPattern(expectedCallableType, callableType)
         ) {
-          this.fail("type-mismatch", `expected ${expected}, found ${type}`, expression.span);
+          this.fail(
+            "type-mismatch",
+            `expected ${typeSourceText(expected)}, found ${typeSourceText(type)}`,
+            expression.span,
+          );
         }
         // A closure's row keeps each key its body uses, even inside a
         // `$.with` block, so an expected row without that key rejects the
@@ -533,7 +538,7 @@ export class FunctionChecker extends ExpressionControlChecker {
         if (!provider)
           this.fail(
             "missing-requirement",
-            `provider '${key}' is not available in the current context`,
+            `provider '${typeSourceText(key)}' is not available in the current context`,
             expression.span,
           );
         return provider;

@@ -26,6 +26,7 @@ import {
   optionalType,
   PRIMITIVE_TYPES,
   splitTypeBindings,
+  typeSourceText,
   tupleParts,
 } from "../types.ts";
 import { LetParser } from "./let.ts";
@@ -272,17 +273,14 @@ class Parser extends LetParser {
     const nameVararg = this.matchText("...");
     this.expectText(":");
     const type = this.parseType();
+    const invalidVararg = `a vararg's type must be List[T], a tuple type, or a type parameter bounded by Tuple, not '${typeSourceText(type.name)}'`;
     if (nameVararg) {
       if (
         !/^List\[.*\]$/.test(type.name) &&
         !type.name.startsWith("(") &&
         !this.activeGenericParameters.has(type.name)
       )
-        this.fail(
-          "type-mismatch",
-          `a vararg's type must be List[T], a tuple type, or a type parameter bounded by Tuple, not '${type.name}'`,
-          type.span,
-        );
+        this.fail("type-mismatch", invalidVararg, type.span);
       return { type, variadic: true };
     }
     if (this.atText("..."))

@@ -8,6 +8,7 @@ import {
   suspensionParts,
   suspensionType,
   traitSuspensionParts,
+  typeSourceText,
   tupleType,
 } from "../types.ts";
 import { ALL_COMBINATOR, ALL_FRAME_INTRINSIC, RACE_COMBINATOR } from "./standard-traits.ts";
@@ -45,7 +46,7 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
       if (result === undefined)
         this.fail(
           "type-mismatch",
-          `an argument of all! must be a mut Suspend[T], such as a cold call, found '${child.type}'`,
+          `an argument of all! must be a mut Suspend[T], such as a cold call, found '${typeSourceText(child.type)}'`,
           argument.span,
         );
       return result;
@@ -205,7 +206,7 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
           if (missing.length > 0)
             this.fail(
               "missing-requirement",
-              `call to '${signature.name}' requires ${missing.join(", ")}`,
+              `call to '${signature.name}' requires ${missing.map(typeSourceText).join(", ")}`,
               expression.span,
             );
           const resultType = substituteGenericType(
@@ -322,7 +323,7 @@ export abstract class ExpressionSuspensionChecker extends OperatorCallChecker {
         }
         this.fail(
           "not-suspending",
-          `type '${suspension.type}' is not a suspension`,
+          `type '${typeSourceText(suspension.type)}' is not a suspension`,
           expression.span,
         );
       }

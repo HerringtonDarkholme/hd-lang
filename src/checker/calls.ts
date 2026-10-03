@@ -25,6 +25,7 @@ import {
   tupleRest,
   tupleType,
   inputsInner,
+  typeSourceText,
 } from "../types.ts";
 import {
   isKnownType,
@@ -413,7 +414,7 @@ export abstract class CallChecker extends StatementChecker {
     if (method.receiverMutable && mutableInner(receiver.type) === undefined) {
       this.fail(
         "mutable-receiver-required",
-        `method '${method.name}' requires mutable access to ${method.targetType}`,
+        `method '${method.name}' requires mutable access to ${typeSourceText(method.targetType)}`,
         expression.callee.span,
       );
     }
@@ -472,7 +473,7 @@ export abstract class CallChecker extends StatementChecker {
     if (missing.length > 0)
       this.fail(
         "missing-requirement",
-        `method '${method.name}' requires ${missing.join(", ")}`,
+        `method '${method.name}' requires ${missing.map(typeSourceText).join(", ")}`,
         expression.span,
       );
     const resultType = substituteGenericType(signature.result, substitutions, rowSubstitutions);
@@ -544,7 +545,7 @@ export abstract class CallChecker extends StatementChecker {
         if (mutableInner(formal) === checked.type) {
           this.fail(
             "readonly-argument-to-mutable-parameter",
-            `readonly argument '${checked.type}' cannot satisfy mutable parameter '${formal}'`,
+            `readonly argument '${typeSourceText(checked.type)}' cannot satisfy mutable parameter '${typeSourceText(formal)}'`,
             source.span,
           );
         }
@@ -701,7 +702,7 @@ export abstract class CallChecker extends StatementChecker {
     if (nominalGenericParts(actual)?.name === "List")
       this.fail(
         "positional-spread-needs-vararg",
-        `a List spread needs a vararg as the next positional parameter, which takes '${readonlyType(parameterTypes[0]!)}'`,
+        `a List spread needs a vararg as the next positional parameter, which takes '${typeSourceText(readonlyType(parameterTypes[0]!))}'`,
         operandSource.span,
       );
     const expectedTuple = tupleRest(remaining);
@@ -717,7 +718,7 @@ export abstract class CallChecker extends StatementChecker {
     if (!same)
       this.fail(
         "type-mismatch",
-        `a spread before fixed parameters needs the tuple of the remaining inputs '${remaining}', found '${operand.type}'`,
+        `a spread before fixed parameters needs the tuple of the remaining inputs '${typeSourceText(remaining)}', found '${typeSourceText(operand.type)}'`,
         operandSource.span,
       );
     if (inputs !== undefined) {
@@ -827,7 +828,7 @@ export abstract class CallChecker extends StatementChecker {
           if (!row)
             this.fail(
               "generic-kind-mismatch",
-              `${callable} takes a requirement row for '${parameter}', written after '$', as in '$ ${argument.name.replace(/^trait:/, "")}'`,
+              `${callable} takes a requirement row for '${parameter}', written after '$', as in '$ ${typeSourceText(argument.name.replace(/^trait:/, ""))}'`,
               argument.span,
             );
           rowSubstitutions.set(
@@ -841,7 +842,7 @@ export abstract class CallChecker extends StatementChecker {
         if (row)
           this.fail(
             "generic-kind-mismatch",
-            `${callable} takes a type, not the requirement row '${argument.name}', for '${parameter}'`,
+            `${callable} takes a type, not the requirement row '${typeSourceText(argument.name)}', for '${parameter}'`,
             argument.span,
           );
         substitutions.set(parameter, this.resolveType(argument));
@@ -906,7 +907,7 @@ export abstract class CallChecker extends StatementChecker {
         )
           this.fail(
             "unsatisfied-trait-bound",
-            `readonly type '${checked.type}' does not satisfy the mut bound on '${formalGeneric}' of '${signature.name}'`,
+            `readonly type '${typeSourceText(checked.type)}' does not satisfy the mut bound on '${formalGeneric}' of '${signature.name}'`,
             source.span,
           );
         const boundedParameters = new Set(signature.genericBounds.map((bound) => bound.parameter));
@@ -923,7 +924,7 @@ export abstract class CallChecker extends StatementChecker {
           if (upgraded)
             this.fail(
               "mutable-upgrade",
-              `readonly argument '${checked.type}' cannot infer '${upgraded[0]}' as mutable '${substitutions.get(upgraded[0])}'`,
+              `readonly argument '${typeSourceText(checked.type)}' cannot infer '${upgraded[0]}' as mutable '${typeSourceText(substitutions.get(upgraded[0])!)}'`,
               source.span,
             );
           this.fail("type-mismatch", conflict, source.span);
@@ -932,7 +933,7 @@ export abstract class CallChecker extends StatementChecker {
         if (mutableInner(instantiatedFormal) === checked.type) {
           this.fail(
             "readonly-argument-to-mutable-parameter",
-            `readonly argument '${checked.type}' cannot satisfy mutable parameter '${instantiatedFormal}'`,
+            `readonly argument '${typeSourceText(checked.type)}' cannot satisfy mutable parameter '${typeSourceText(instantiatedFormal)}'`,
             source.span,
           );
         }
@@ -1033,12 +1034,12 @@ export abstract class CallChecker extends StatementChecker {
     if (traitTypeName(earlier) !== undefined || traitTypeName(current) !== undefined)
       this.fail(
         "no-common-type",
-        `arguments of types '${earlier}' and '${current}' both solve '${parameter}' of '${name}', and inference never converts to a trait value; write the type argument, as in '${name}::[${traitTypeName(earlier) ?? traitTypeName(current)}](...)'`,
+        `arguments of types '${typeSourceText(earlier)}' and '${typeSourceText(current)}' both solve '${parameter}' of '${name}', and inference never converts to a trait value; write the type argument, as in '${name}::[${traitTypeName(earlier) ?? traitTypeName(current)}](...)'`,
         span,
       );
     this.fail(
       "type-mismatch",
-      `arguments of types '${earlier}' and '${current}' both solve '${parameter}' of '${name}', and inference never widens a number; convert one argument to the other's type`,
+      `arguments of types '${typeSourceText(earlier)}' and '${typeSourceText(current)}' both solve '${parameter}' of '${name}', and inference never widens a number; convert one argument to the other's type`,
       span,
     );
   }
@@ -1085,14 +1086,14 @@ export abstract class CallChecker extends StatementChecker {
         )
           this.fail(
             "mutable-upgrade",
-            `readonly value '${value.type}' cannot provide the mutable requirement trait '${key}'`,
+            `readonly value '${typeSourceText(value.type)}' cannot provide the mutable requirement trait '${typeSourceText(key)}'`,
             entry.value.span,
           );
         if (providerType) value = this.requireCoercion(value, providerType, entry.value.span);
         else if (!value.type.startsWith("provider:")) {
           this.fail(
             "provider-type-mismatch",
-            `provider binding '${key}' requires an opaque provider value`,
+            `provider binding '${typeSourceText(key)}' requires an opaque provider value`,
             entry.value.span,
           );
         }
@@ -1106,7 +1107,7 @@ export abstract class CallChecker extends StatementChecker {
       if (!keys)
         this.fail(
           "type-mismatch",
-          `context spread requires a $.Context value, found '${value.type}'`,
+          `context spread requires a $.Context value, found '${typeSourceText(value.type)}'`,
           entry.value.span,
         );
       const contextLocal: HirLocal = {
@@ -1181,7 +1182,7 @@ export abstract class CallChecker extends StatementChecker {
     if (collision) {
       this.fail(
         "generic-requirement-key-collision",
-        `provider keys '${collision}' and '${key}' can become identical after generic substitution`,
+        `provider keys '${typeSourceText(collision)}' and '${typeSourceText(key)}' can become identical after generic substitution`,
         span,
       );
     }
@@ -1229,7 +1230,7 @@ export abstract class CallChecker extends StatementChecker {
       } else if (!this.isIdentityType(actual)) {
         this.fail(
           "unsatisfied-trait-bound",
-          `type '${actual}' does not implement AnyRef, required by the bound on '${parameter}' of '${signature.name}'`,
+          `type '${typeSourceText(actual)}' does not implement AnyRef, required by the bound on '${parameter}' of '${signature.name}'`,
           span,
         );
       }
@@ -1252,7 +1253,7 @@ export abstract class CallChecker extends StatementChecker {
       } else if (this.isIdentityType(actual)) {
         this.fail(
           "unsatisfied-trait-bound",
-          `type '${actual}' does not implement AnyVal, required by the bound on '${parameter}' of '${signature.name}'`,
+          `type '${typeSourceText(actual)}' does not implement AnyVal, required by the bound on '${parameter}' of '${signature.name}'`,
           span,
         );
       }
@@ -1269,7 +1270,7 @@ export abstract class CallChecker extends StatementChecker {
       )
         this.fail(
           "unsatisfied-trait-bound",
-          `type '${actual}' does not implement Tuple, required by the bound on '${parameter}' of '${signature.name}'`,
+          `type '${typeSourceText(actual)}' does not implement Tuple, required by the bound on '${parameter}' of '${signature.name}'`,
           span,
         );
     }
@@ -1339,7 +1340,7 @@ export abstract class CallChecker extends StatementChecker {
           };
         this.fail(
           boundCode,
-          `type '${actual}' does not implement ${bound.traitName}, required by the bound on '${bound.parameter}' of '${signature.name}'`,
+          `type '${typeSourceText(actual)}' does not implement ${bound.traitName}, required by the bound on '${bound.parameter}' of '${signature.name}'`,
           span,
         );
       }
@@ -1407,7 +1408,7 @@ export abstract class CallChecker extends StatementChecker {
         if (inferred !== undefined && inferred !== resolved && mutableInner(resolved) !== inferred)
           this.fail(
             "associated-type-mismatch",
-            `projection '${bound.parameter}::${name}' resolves to '${resolved}', not '${inferred}'`,
+            `projection '${bound.parameter}::${name}' resolves to '${typeSourceText(resolved)}', not '${typeSourceText(inferred)}'`,
             signature.span,
           );
         substitutions.set(key, resolved);
@@ -1437,7 +1438,7 @@ export abstract class CallChecker extends StatementChecker {
     if (expected !== resolved)
       this.fail(
         "unsatisfied-trait-bound",
-        `'${bound.parameter}::${name}' is '${resolved}', but the bound on '${bound.parameter}' of '${signature.name}' requires '${expected}'`,
+        `'${bound.parameter}::${name}' is '${typeSourceText(resolved)}', but the bound on '${bound.parameter}' of '${signature.name}' requires '${typeSourceText(expected)}'`,
         span,
       );
   }

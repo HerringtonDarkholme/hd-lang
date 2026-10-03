@@ -20,6 +20,7 @@ import {
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
+  typeSourceText,
   tupleParts,
 } from "../types.ts";
 import { numericType } from "../numeric.ts";
@@ -135,7 +136,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         if (!info) {
           this.fail(
             "unsatisfied-trait-bound",
-            `type '${iterable.type}' does not implement Iterable, required by the for loop`,
+            `type '${typeSourceText(iterable.type)}' does not implement Iterable, required by the for loop`,
             expression.iterable.span,
           );
         }
@@ -172,7 +173,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         if (!bindingTypes || bindingTypes.length !== sourceBindings.length) {
           this.fail(
             "type-mismatch",
-            `loop binding has ${sourceBindings.length} names but '${yieldType}' yields ${bindingTypes?.length ?? 1} value${bindingTypes?.length === 1 ? "" : "s"}`,
+            `loop binding has ${sourceBindings.length} names but '${typeSourceText(yieldType)}' yields ${bindingTypes?.length ?? 1} value${bindingTypes?.length === 1 ? "" : "s"}`,
             expression.span,
           );
         }
@@ -385,7 +386,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     ) {
       this.fail(
         "unsupported-match-subject",
-        `matching '${subject.type}' is not implemented in this MVP slice`,
+        `matching '${typeSourceText(subject.type)}' is not implemented in this MVP slice`,
         expression.subject.span,
       );
     }
@@ -854,13 +855,13 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       ) {
         this.fail(
           "missing-contextual-enum-type",
-          `variant pattern '.${arm.pattern.variantName}' requires an enum subject, found '${context.subject.type}'`,
+          `variant pattern '.${arm.pattern.variantName}' requires an enum subject, found '${typeSourceText(context.subject.type)}'`,
           arm.pattern.span,
         );
       } else {
         this.fail(
           "pattern-type-mismatch",
-          `pattern is not valid for '${context.subject.type}'`,
+          `pattern is not valid for '${typeSourceText(context.subject.type)}'`,
           arm.pattern.span,
         );
       }

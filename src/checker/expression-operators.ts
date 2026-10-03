@@ -10,6 +10,7 @@ import {
   nominalGenericParts,
   nominalGenericType,
   readonlyType,
+  typeSourceText,
   tupleParts,
 } from "../types.ts";
 import { isIntegerType, numericType, widensTo, widerNumeric } from "../numeric.ts";
@@ -327,7 +328,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         )
           this.fail(
             "type-mismatch",
-            `an integer exponent must have an unsigned integer type, found '${right.type}'`,
+            `an integer exponent must have an unsigned integer type, found '${typeSourceText(right.type)}'`,
             expression.right.span,
           );
         const integerPower =
@@ -344,7 +345,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         )
           this.fail(
             "mixed-signedness",
-            `signed and unsigned operands do not mix: ${left.type} and ${right.type}; cast one explicitly`,
+            `signed and unsigned operands do not mix: ${typeSourceText(left.type)} and ${typeSourceText(right.type)}; cast one explicitly`,
             expression.span,
           );
         if (left.type !== right.type && !integerPower && !integerShift) {
@@ -364,8 +365,8 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           this.fail(
             "type-mismatch",
             trait && !isPrimitiveOperand(right.type)
-              ? `operator '${expression.operator}' needs an implementation of std.ops.${trait[0]}[${readonlyType(right.type)}] for '${left.type}'`
-              : `operator operands have types ${left.type} and ${right.type}`,
+              ? `operator '${expression.operator}' needs an implementation of std.ops.${trait[0]}[${typeSourceText(readonlyType(right.type))}] for '${typeSourceText(left.type)}'`
+              : `operator operands have types ${typeSourceText(left.type)} and ${typeSourceText(right.type)}`,
             expression.span,
           );
         }
@@ -394,7 +395,11 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             this.dataTypes.has(nominalGenericParts(left.type)?.name ?? left.type) ||
             this.enumTypes.has(nominalGenericParts(left.type)?.name ?? left.type)
           ) {
-            this.fail("missing-eq", `type '${left.type}' does not implement Eq`, expression.span);
+            this.fail(
+              "missing-eq",
+              `type '${typeSourceText(left.type)}' does not implement Eq`,
+              expression.span,
+            );
           }
         }
         if (comparison && !equality) {
@@ -417,7 +422,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           )
             this.fail(
               "missing-partial-ord",
-              `type '${left.type}' does not implement PartialOrd`,
+              `type '${typeSourceText(left.type)}' does not implement PartialOrd`,
               expression.span,
             );
         }
@@ -451,7 +456,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         ) {
           this.fail(
             "type-mismatch",
-            `operator '${expression.operator}' does not accept ${left.type}`,
+            `operator '${expression.operator}' does not accept ${typeSourceText(left.type)}`,
             expression.span,
           );
         }
@@ -478,7 +483,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     if ((operator !== "<<" && operator !== ">>") || !isIntegerType(left.type)) return false;
     if (numericType(right.type) && readonlyType(right.type) !== "u32")
       this.failWithConversion(
-        `a shift count must have type u32, found '${right.type}'; write u32(...)`,
+        `a shift count must have type u32, found '${typeSourceText(right.type)}'; write u32(...)`,
         "u32",
         right.span,
       );
@@ -499,7 +504,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     if (functionOperand)
       this.fail(
         "unsupported-function-identity",
-        `identity of function value of type '${functionOperand.type}' is unspecified`,
+        `identity of function value of type '${typeSourceText(functionOperand.type)}' is unspecified`,
         expression.span,
       );
     const operands = this.identityOperands(left, right);
@@ -509,7 +514,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           this.isIdentityType(withoutPermissions(right.type))
           ? "incompatible-identity-operands"
           : "type-mismatch",
-        `identity operands have types ${left.type} and ${right.type}`,
+        `identity operands have types ${typeSourceText(left.type)} and ${typeSourceText(right.type)}`,
         expression.span,
       );
     }
@@ -525,7 +530,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     if (!this.isIdentityType(identityType)) {
       this.fail(
         "identity-requires-references",
-        `identity comparison does not accept '${left.type}'`,
+        `identity comparison does not accept '${typeSourceText(left.type)}'`,
         expression.span,
       );
     }
@@ -585,7 +590,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       if (expression.operator === "-" && numericType(operand.type)?.family === "unsigned")
         this.fail(
           "unsigned-negation",
-          `unary '-' does not accept the unsigned type '${operand.type}'`,
+          `unary '-' does not accept the unsigned type '${typeSourceText(operand.type)}'`,
           expression.span,
         );
       if (!numericType(operand.type)) {
@@ -621,7 +626,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         : undefined;
     if (narrower)
       this.failWithConversion(
-        `${what} have types ${left.type} and ${right.type}, and numbers never widen implicitly; write ${narrower.to}(...)`,
+        `${what} have types ${typeSourceText(left.type)} and ${typeSourceText(right.type)}, and numbers never widen implicitly; write ${narrower.to}(...)`,
         narrower.to,
         narrower.value.span,
       );
@@ -735,7 +740,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       )
         this.fail(
           "mixed-signedness",
-          `signed and unsigned range bounds do not mix: ${leftType} and ${rightType}; cast one explicitly`,
+          `signed and unsigned range bounds do not mix: ${typeSourceText(leftType)} and ${typeSourceText(rightType)}; cast one explicitly`,
           span,
         );
       bounds = [left, right];
@@ -744,14 +749,14 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       if (!isIntegerType(readonlyType(bound.type)))
         this.fail(
           "type-mismatch",
-          `a range bound must have an integer type, found '${bound.type}'`,
+          `a range bound must have an integer type, found '${typeSourceText(bound.type)}'`,
           bound.span,
         );
     if (bounds.length === 2 && readonlyType(bounds[0]!.type) !== readonlyType(bounds[1]!.type)) {
       this.rejectMixedWidths(bounds[0]!, bounds[1]!, "range bounds");
       this.fail(
         "type-mismatch",
-        `range bounds have types ${bounds[0]!.type} and ${bounds[1]!.type}`,
+        `range bounds have types ${typeSourceText(bounds[0]!.type)} and ${typeSourceText(bounds[1]!.type)}`,
         span,
       );
     }
@@ -836,7 +841,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     if (expression.bindings.length > 1 && elementTypes?.length !== expression.bindings.length)
       this.fail(
         "type-mismatch",
-        `binding has ${expression.bindings.length} names but '${value.type}' has ${elementTypes?.length ?? 1} element${elementTypes?.length === 1 ? "" : "s"}`,
+        `binding has ${expression.bindings.length} names but '${typeSourceText(value.type)}' has ${elementTypes?.length ?? 1} element${elementTypes?.length === 1 ? "" : "s"}`,
         expression.span,
       );
     const seen = new Set<string>();

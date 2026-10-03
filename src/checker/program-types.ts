@@ -2,7 +2,7 @@ import { listVararg, type TraitDecl } from "../ast.ts";
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import { INSPECTABLE_MEMBERS } from "./standard-traits.ts";
 import type { HirAssociatedBinding, HirData, HirTrait } from "../hir.ts";
-import { mutableInner, nominalGenericParts } from "../types.ts";
+import { mutableInner, nominalGenericParts, typeSourceText } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
   requirementKeyDiagnostics,
@@ -222,7 +222,7 @@ export function defineProgramData(context: ProgramCheckContext): void {
       if (field.embedded && type !== "void" && (!embeddedData || embeddedData.newtype))
         diagnostics.push({
           code: "embedded-non-data",
-          message: `an embedded field must name a data type, not '${field.type.name}'`,
+          message: `an embedded field must name a data type, not '${typeSourceText(field.type.name)}'`,
           span: field.span,
         });
       // An embedded field is always public (08-data-and-enums.md#data-declarations).

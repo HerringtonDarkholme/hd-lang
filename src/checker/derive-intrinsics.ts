@@ -1,6 +1,6 @@
 import type { DataField, Program, TypeDecl } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
-import { readonlyType } from "../types.ts";
+import { readonlyType, typeSourceText } from "../types.ts";
 
 // ---------------------------------------------------------------------------
 // The derive checks of the comparison traits, whose implementations come from
@@ -81,7 +81,12 @@ export function derivedFieldSpan(field: DataField, trait: string, owner: string)
 export function derivedBaseSpan(declaration: TypeDecl, trait: string): SourceSpan {
   const base = declaration.base!;
   const span = { ...base.span };
-  DERIVED_FIELD_CHECKS.set(span, { trait, owner: declaration.name, field: base.name, base: true });
+  DERIVED_FIELD_CHECKS.set(span, {
+    trait,
+    owner: declaration.name,
+    field: typeSourceText(base.name),
+    base: true,
+  });
   return span;
 }
 

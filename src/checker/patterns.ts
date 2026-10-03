@@ -25,6 +25,7 @@ import {
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
+  typeSourceText,
   tupleLayout,
 } from "../types.ts";
 import { isIntegerType, numericType } from "../numeric.ts";
@@ -409,7 +410,11 @@ export abstract class PatternChecker extends CallChecker {
   protected requireUnitPattern(type: ValueType, span: SourceSpan): void {
     const plain = readonlyType(type);
     if (plain !== "void" && plain !== "()")
-      this.fail("type-mismatch", `the pattern '()' matches only void, not '${type}'`, span);
+      this.fail(
+        "type-mismatch",
+        `the pattern '()' matches only void, not '${typeSourceText(type)}'`,
+        span,
+      );
   }
 
   /** A void success's payload `()` matches `_` or `()` (04-type-system.md#r-types.result.unit-pattern); any other pattern passes. */
@@ -503,7 +508,7 @@ export abstract class PatternChecker extends CallChecker {
       if (!declaration || pattern.typeName !== declaration.name) {
         this.fail(
           "pattern-type-mismatch",
-          `pattern names '${pattern.typeName}', expected '${type}'`,
+          `pattern names '${pattern.typeName}', expected '${typeSourceText(type)}'`,
           pattern.span,
         );
       }
@@ -555,7 +560,7 @@ export abstract class PatternChecker extends CallChecker {
       if (!declaration && pattern.enumName === undefined)
         this.fail(
           "missing-contextual-enum-type",
-          `variant pattern '.${pattern.variantName}' requires an enum type, found '${type}'`,
+          `variant pattern '.${pattern.variantName}' requires an enum type, found '${typeSourceText(type)}'`,
           pattern.span,
         );
       if (
@@ -564,7 +569,7 @@ export abstract class PatternChecker extends CallChecker {
       ) {
         this.fail(
           "pattern-type-mismatch",
-          `variant pattern does not match '${type}'`,
+          `variant pattern does not match '${typeSourceText(type)}'`,
           pattern.span,
         );
       }
@@ -660,7 +665,7 @@ export abstract class PatternChecker extends CallChecker {
     }
     this.fail(
       "unsupported-nested-variant-pattern",
-      `pattern '${pattern.kind}' is not supported for nested type '${type}'`,
+      `pattern '${pattern.kind}' is not supported for nested type '${typeSourceText(type)}'`,
       pattern.span,
     );
   }
@@ -675,7 +680,11 @@ export abstract class PatternChecker extends CallChecker {
   ): boolean {
     const elements = tupleLayout(readonlyType(type));
     if (!elements)
-      this.fail("pattern-type-mismatch", `a tuple pattern does not match '${type}'`, pattern.span);
+      this.fail(
+        "pattern-type-mismatch",
+        `a tuple pattern does not match '${typeSourceText(type)}'`,
+        pattern.span,
+      );
     this.checkSpreadArity(
       pattern.elements.map(
         (_, index) => pattern.spread === true && index === pattern.elements.length - 1,
@@ -686,7 +695,7 @@ export abstract class PatternChecker extends CallChecker {
     if (elements.length !== pattern.elements.length)
       this.fail(
         "pattern-arity",
-        `a ${pattern.elements.length}-element tuple pattern does not match '${type}'`,
+        `a ${pattern.elements.length}-element tuple pattern does not match '${typeSourceText(type)}'`,
         pattern.span,
       );
     let irrefutable = true;
@@ -756,7 +765,7 @@ export abstract class PatternChecker extends CallChecker {
         if (!nestedDeclaration)
           this.fail(
             "pattern-type-mismatch",
-            `field '${entry.name}' has non-data type '${field.type}'`,
+            `field '${entry.name}' has non-data type '${typeSourceText(field.type)}'`,
             nested.span,
           );
         irrefutable =
@@ -778,7 +787,7 @@ export abstract class PatternChecker extends CallChecker {
       }
       this.fail(
         "pattern-type-mismatch",
-        `pattern is not valid for field '${entry.name}' of type '${field.type}'`,
+        `pattern is not valid for field '${entry.name}' of type '${typeSourceText(field.type)}'`,
         nested.span,
       );
     }
@@ -809,7 +818,7 @@ export abstract class PatternChecker extends CallChecker {
     if (!numeric || !isIntegerType(view))
       this.fail(
         "type-mismatch",
-        `a range pattern needs an integer subject, found '${type}'`,
+        `a range pattern needs an integer subject, found '${typeSourceText(type)}'`,
         pattern.span,
       );
     for (const bound of [pattern.start, pattern.end])

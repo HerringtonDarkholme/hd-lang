@@ -15,6 +15,7 @@ import {
   optionalType,
   rowArgumentKeys,
   rowArgumentType,
+  typeSourceText,
   tupleParts,
   tupleType,
 } from "../types.ts";
@@ -182,7 +183,7 @@ class AliasExpander {
   /** A bare key or row alias where a row parameter takes a row (r-req.row.slot.bare). */
   private bareRow(name: string, parameter: string, argument: string, span: SourceSpan): void {
     this.kindMismatch(
-      `'${name}' takes a requirement row for '${parameter}', written after '$', as in '$ ${argument.replace(/^trait:/, "")}'`,
+      `'${name}' takes a requirement row for '${parameter}', written after '$', as in '$ ${typeSourceText(argument.replace(/^trait:/, ""))}'`,
       span,
     );
   }
@@ -199,7 +200,7 @@ class AliasExpander {
       const parameter = alias.parameters[index]!;
       if (!rowKinded.has(parameter) && this.isRowArgument(argument)) {
         this.kindMismatch(
-          `'${name}' takes a type, not the requirement row '${argument}', for '${parameter}'`,
+          `'${name}' takes a type, not the requirement row '${typeSourceText(argument)}', for '${parameter}'`,
           span,
         );
         return undefined;
@@ -259,7 +260,7 @@ class AliasExpander {
       if (mutableInner(target) !== undefined) {
         this.diagnostics.push({
           code: "syntax-error",
-          message: `alias '${name}' is '${target.replace(/^mut:/, "mut ")}', and a requirement key has no 'mut'; the trait's 'mut self' methods decide the access`,
+          message: `alias '${name}' is '${typeSourceText(target)}', and a requirement key has no 'mut'; the trait's 'mut self' methods decide the access`,
           span,
         });
         return [];
