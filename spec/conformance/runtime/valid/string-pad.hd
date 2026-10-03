@@ -1,5 +1,5 @@
 # test: pad_start and pad_end fill to a width counted in scalar values, and a short width changes nothing
-# Spec std/text Splitting And Padding: std-text.pad.length, .start, .end, and .short-width.
+# Spec std/text Splitting And Padding: std-text.pad.length, .start, .end, and .width-at-most-length.
 use std.testing.assert_equal
 
 tests:
@@ -13,4 +13,4 @@ tests:
     it("leaves a string at or past the width unchanged"):
         assert_equal("abc".pad_start(3, '*'), "abc", reason="equal width")
         assert_equal("abc".pad_end(2, '*'), "abc", reason="width below the length")
-        assert_equal("abc".pad_start(-1, '*'), "abc", reason="a negative width")
+        assert_equal("abc".pad_start(0, '*'), "abc", reason="a zero width")

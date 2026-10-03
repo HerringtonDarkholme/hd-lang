@@ -31,7 +31,6 @@ tests:
         assert(value.at(0).is_none(), reason="at on an object")
         assert(read("[1]").get("a").is_none(), reason="get on an array")
         assert(read("[1]").at(1).is_none(), reason="index past the end")
-        assert(read("[1]").at(-1).is_none(), reason="negative index")
         assert(read("1").as_text().is_none(), reason="text of a number")
         assert(read("\"a\"").as_bool().is_none(), reason="bool of a text")
         assert(read("true").as_number().is_none(), reason="number of a bool")

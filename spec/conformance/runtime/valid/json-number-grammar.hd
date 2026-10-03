@@ -11,19 +11,19 @@ fn failure(text: string) -> JsonError?:
 tests:
     it("a character outside the JSON number grammar is UnexpectedCharacter"):
         cases := [
-            ("NaN", 0),
-            ("Infinity", 0),
-            ("-inf", 1),
-            ("+1", 0),
-            (".5", 0),
-            ("007", 1),
+            ("NaN", JsonError.UnexpectedCharacter(0)),
+            ("Infinity", JsonError.UnexpectedCharacter(0)),
+            ("-inf", JsonError.UnexpectedCharacter(1)),
+            ("+1", JsonError.UnexpectedCharacter(0)),
+            (".5", JsonError.UnexpectedCharacter(0)),
+            ("007", JsonError.UnexpectedCharacter(1)),
         ]
         for case in cases:
-            assert_equal(failure(case._0), .Some(JsonError.UnexpectedCharacter(case._1)), reason=case._0)
+            assert_equal(failure(case._0), .Some(case._1), reason=case._0)
     it("a number that ends where a digit must follow is UnexpectedEnd"):
         cases := [
-            ("5.", 2),
-            ("1e", 2),
+            ("5.", JsonError.UnexpectedEnd(2)),
+            ("1e", JsonError.UnexpectedEnd(2)),
         ]
         for case in cases:
-            assert_equal(failure(case._0), .Some(JsonError.UnexpectedEnd(case._1)), reason=case._0)
+            assert_equal(failure(case._0), .Some(case._1), reason=case._0)

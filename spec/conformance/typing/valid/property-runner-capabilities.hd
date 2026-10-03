@@ -7,7 +7,7 @@ data Replay:
     shown: string
 
 impl PropertyRunner for Replay:
-    fn start(mut self, cases: i32, shrink: i32, examples: i32) -> PropertyCase:
+    fn start(mut self, cases: usize, shrink: usize, examples: usize) -> PropertyCase:
         PropertyCase { example: .None, seed: 7, size: 0, replay: [] }
 
     fn record(mut self, value: i64) -> void:

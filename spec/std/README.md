@@ -61,9 +61,9 @@ a `char`, or a list.
 
 | Primitive | Signature | Why it is a primitive |
 | --- | --- | --- |
-| `bytes_len` | `(s: string) -> i32` | reads the byte length of a string's representation |
-| `bytes_at` | `(s: string, i: i32) -> u8` | reads one byte of a string's representation |
-| `bytes_slice` | `(s: string, start: i32, end: i32) -> string` | shares the bytes in constant time, as [`module.string.slice.shared`](../lang/10-modules.md#r-module.string.slice.shared) requires |
+| `bytes_len` | `(s: string) -> usize` | reads the byte length of a string's representation |
+| `bytes_at` | `(s: string, i: usize) -> u8` | reads one byte of a string's representation |
+| `bytes_slice` | `(s: string, start: usize, end: usize) -> string` | shares the bytes in constant time, as [`module.string.slice.shared`](../lang/10-modules.md#r-module.string.slice.shared) requires |
 | `bytes_concat` | `(a: string, b: string) -> string` | allocates a string's representation; hd has no byte buffer |
 | `string_from_bytes` | `(bytes: List[u8]) -> string` | builds a string from bytes that the caller has checked are UTF-8 |
 | `char_scalar`, `char_from_scalar` | `(c: char) -> i32`, `(point: i32) -> char` | a `char` is its scalar value at run time, and hd has no unchecked conversion |
@@ -90,7 +90,7 @@ raises with a category other than `explicit-panic`.
 | `format_f64`, `format_f32` | `(value: f64) -> string`, `(value: f32) -> string` | the shortest round-trip decimal text of a float ([Numeric Display](../lang/04-type-system.md#numeric-display)) |
 | `string_lower`, `string_upper` | `(text: string) -> string` | Unicode case mapping, which needs the Unicode tables |
 | `parse_f64` | `(text: string) -> f64` | the correctly rounded `f64` of an unsigned decimal number text, which needs arbitrary-precision arithmetic |
-| `format_f64_fixed` | `(value: f64, digits: i32) -> string` | the correctly rounded fixed-point text of a float, which needs arbitrary-precision arithmetic |
+| `format_f64_fixed` | `(value: f64, digits: usize) -> string` | the correctly rounded fixed-point text of a float, which needs arbitrary-precision arithmetic |
 
 A host primitive takes and returns each `f32` and `f64` as a raw IEEE
 754 value, as a host capability call does by

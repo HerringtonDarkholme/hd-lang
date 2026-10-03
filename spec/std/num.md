@@ -186,7 +186,7 @@ A failed parse reports one of three errors:
 ```text
 pub enum ParseNumberError:
     Empty
-    InvalidDigit(position: i32)
+    InvalidDigit(position: usize)
     OutOfRange
 ```
 
@@ -309,7 +309,7 @@ fn seconds(elapsed: f64) -> string:
 
 | Rule | Method |
 | --- | --- |
-| r[std-num.to-fixed] `to_fixed` | `pub fn to_fixed(self, digits: i32) -> string`, on `f64` |
+| r[std-num.to-fixed.decl] `to_fixed` | `pub fn to_fixed(self, digits: usize) -> string`, on `f64` |
 
 1. r[std-num.to-fixed.value] For a finite `self`, `to_fixed(digits)` writes the multiple of 10 to the power `-digits` nearest the exact value of `self`.
 2. r[std-num.to-fixed.ties] When two multiples are equally near, it writes the one whose last digit is even.
@@ -317,7 +317,7 @@ fn seconds(elapsed: f64) -> string:
 4. r[std-num.to-fixed.no-exponent] The text never uses scientific notation, however large or small the value.
 5. r[std-num.to-fixed.sign] The text starts with `-` exactly when `self` has its sign bit set, so `(-0.0).to_fixed(1)` is `"-0.0"` and `(-0.001).to_fixed(2)` is `"-0.00"`.
 6. r[std-num.to-fixed.special] A NaN gives `NaN`, and the infinities give `inf` and `-inf`, the text that [`types.display.special`](../lang/04-type-system.md#r-types.display.special) gives.
-7. r[std-num.to-fixed.digits] A `digits` below 0 or above 100 panics. Panic: `explicit-panic`.
+7. r[std-num.to-fixed.digits-max] A `digits` above 100 panics. Panic: `explicit-panic`.
 8. r[std-num.to-fixed.hook] `lib/std` checks `digits`, and the [`format_f64_fixed` primitive](README.md#standard-library-primitives) writes the text.
 
 | Call | Result |

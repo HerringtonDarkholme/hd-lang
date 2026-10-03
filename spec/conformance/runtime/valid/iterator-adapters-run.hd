@@ -1,5 +1,5 @@
 # test: iterator adapters are lazy, take stops pulling at its count, and collect, map, and fold work
-# std Iterators, Iterator Adapters: std-iter.adapter.lazy, std-iter.adapter.lazy.map, std-iter.adapter.lazy.next, std-iter.adapter.take.limit, std-iter.collect.drain, std-iter.adapter.enumerate, std-iter.adapter.map, std-iter.adapter.fold (STDLIB question 14, Chaining Study CS7).
+# std Iterators, Iterator Adapters: std-iter.adapter.lazy, std-iter.adapter.lazy.map, std-iter.adapter.lazy.next, std-iter.adapter.take.limit, std-iter.collect.drain, std-iter.adapter.enumerate-usize, std-iter.adapter.map, std-iter.adapter.fold (STDLIB question 14, Chaining Study CS7).
 use std.testing.assert_equal
 
 data Tally:
@@ -9,7 +9,7 @@ fn seen(tally: mut Tally, value: i32) -> i32:
     tally.pulled = tally.pulled + 1
     value
 
-fn first_evens(values: List[i32]) -> List[(i32, i32)]:
+fn first_evens(values: List[i32]) -> List[(usize, i32)]:
     values.iter().filter(fn(value): value % 2 == 0).enumerate().take(2).collect()
 
 tests:

@@ -42,7 +42,7 @@ The accessors read one kind and give `.None` for any other:
 | Rule | Method | Result |
 | --- | --- | --- |
 | r[std-json.value.accessors.get] `get` | `pub fn get(self, key: string) -> Json?` | the value of `key` when `self` is an `Object` with that key |
-| r[std-json.value.accessors.at] `at` | `pub fn at(self, index: i32) -> Json?` | the item at `index` when `self` is an `Array` and `index` is from 0 up to its length |
+| r[std-json.value.accessors.at-index] `at` | `pub fn at(self, index: usize) -> Json?` | the item at `index` when `self` is an `Array` and `index` is from 0 up to its length |
 | r[std-json.value.accessors.text] `as_text` | `pub fn as_text(self) -> string?` | the string of a `Text` |
 | r[std-json.value.accessors.bool] `as_bool` | `pub fn as_bool(self) -> bool?` | the value of a `Bool` |
 | r[std-json.value.accessors.number] `as_number` | `pub fn as_number(self) -> Number?` | the `Number` of a `Number` |
@@ -195,16 +195,16 @@ A failed parse reports one of seven errors, each at a position:
 
 ```text
 pub enum JsonError:
-    UnexpectedEnd(position: i32)
-    UnexpectedCharacter(position: i32)
-    InvalidEscape(position: i32)
-    LoneSurrogate(position: i32)
-    ControlCharacter(position: i32)
-    NumberOutOfRange(position: i32)
-    NestingTooDeep(position: i32)
+    UnexpectedEnd(position: usize)
+    UnexpectedCharacter(position: usize)
+    InvalidEscape(position: usize)
+    LoneSurrogate(position: usize)
+    ControlCharacter(position: usize)
+    NumberOutOfRange(position: usize)
+    NestingTooDeep(position: usize)
 ```
 
-1. r[std-json.error.enum] `std.json` declares the enum `JsonError` with the variants above, each with one field `position: i32`.
+1. r[std-json.error.enum.usize] `std.json` declares the enum `JsonError` with the variants above, each with one field `position: usize`.
 2. r[std-json.error.position] A `position` is an index into the text, counted in characters from 0.
 3. r[std-json.error.traits] `JsonError` implements `Eq`, `Debug`, and `Display`.
 

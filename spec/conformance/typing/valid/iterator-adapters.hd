@@ -1,21 +1,21 @@
 # test: the prelude Iterator has filter, take, enumerate, map, fold, and collect as ordinary methods
-# std Iterators, Iterator Adapters: std-iter.adapter.methods, std-iter.adapter.filter, std-iter.adapter.take, std-iter.adapter.enumerate, std-iter.adapter.map, std-iter.adapter.fold, std-iter.adapter.fold.row, std-iter.adapter.collect-defaulted (STDLIB question 14, Chaining Study CS7).
+# std Iterators, Iterator Adapters: std-iter.adapter.methods, std-iter.adapter.filter, std-iter.adapter.take-first, std-iter.adapter.enumerate-usize, std-iter.adapter.map, std-iter.adapter.fold, std-iter.adapter.fold.row, std-iter.adapter.collect-defaulted (STDLIB question 14, Chaining Study CS7).
 
 trait Logger
 
 fn logged(total: i32, value: i32) -> i32 $ Logger:
     total + value
 
-fn first_evens(values: List[i32]) -> List[(i32, i32)]:
+fn first_evens(values: List[i32]) -> List[(usize, i32)]:
     values.iter().filter(fn(value): value % 2 == 0).enumerate().take(2).collect()
 
 fn head(source: mut Iterator[i32]) -> List[i32]:
     source.take(2).collect()
 
-fn through_value(source: mut Iterator[string]) -> mut Iterator[(i32, string)]:
+fn through_value(source: mut Iterator[string]) -> mut Iterator[(usize, string)]:
     source.filter(fn(name): name.len() > 0).enumerate()
 
-fn lengths(names: List[string]) -> mut Iterator[i32]:
+fn lengths(names: List[string]) -> mut Iterator[usize]:
     names.iter().map(fn(name): name.len())
 
 fn logged_sum(values: List[i32]) -> i32 $ Logger:

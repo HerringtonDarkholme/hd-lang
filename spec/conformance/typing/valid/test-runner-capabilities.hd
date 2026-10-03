@@ -3,11 +3,11 @@
 use std.testing.TestRunner
 
 data FirstRow:
-    rows: i32
+    rows: usize
     snapshots: i32
 
 impl TestRunner for FirstRow:
-    fn row(mut self, count: i32) -> i32:
+    fn row(mut self, count: usize) -> usize:
         self.rows = count
         0
 

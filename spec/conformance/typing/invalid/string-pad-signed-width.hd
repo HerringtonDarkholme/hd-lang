@@ -1,0 +1,4 @@
+# test: a pad width is a usize, so a signed width is rejected
+# Spec std/text Splitting And Padding: the pad_start signature.
+fn cell(text: string, width: i32) -> string:
+    text.pad_start(width, ' ')  # diagnostic: type-mismatch

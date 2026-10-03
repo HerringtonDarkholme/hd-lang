@@ -379,12 +379,12 @@ A failed parse reports one of three errors, each at a position:
 
 ```text
 pub enum TimeParseError:
-    InvalidCharacter(position: i32)
-    OutOfRange(position: i32)
-    TooShort(position: i32)
+    InvalidCharacter(position: usize)
+    OutOfRange(position: usize)
+    TooShort(position: usize)
 ```
 
-1. r[std-time.parse-error.decl] `std.time` declares the enum `TimeParseError` with the variants `InvalidCharacter`, `OutOfRange`, and `TooShort`, each with one field `position: i32`. Code imports it, as in `use std.time.TimeParseError`.
+1. r[std-time.parse-error.declared] `std.time` declares the enum `TimeParseError` with the variants `InvalidCharacter`, `OutOfRange`, and `TooShort`, each with one field `position: usize`. Code imports it, as in `use std.time.TimeParseError`.
 2. r[std-time.parse-error.position] A `position` is an index into the text, counted in characters from 0.
 3. r[std-time.parse-error.invalid-character] A character that the grammar does not allow at its place gives `InvalidCharacter` at that character. So does a character after a complete timestamp.
 4. r[std-time.parse-error.out-of-range] A field whose digits are well formed but whose value is out of its range gives `OutOfRange` at the field's first digit.

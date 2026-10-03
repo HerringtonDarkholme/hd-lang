@@ -1,5 +1,5 @@
 # test: skip drops leading items, and take_while stops at the first rejected item, which it consumes
-# Spec std/iter More Adapters: std-iter.adapter.skip, .skip.first-next, .take-while, .take-while.stop, and .lazy.more.
+# Spec std/iter More Adapters: std-iter.adapter.skip-first, .skip.first-next, .take-while, .take-while.stop, and .lazy.more.
 use std.testing.assert_equal
 
 fn body(lines: List[string]) -> List[string]:

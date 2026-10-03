@@ -1,8 +1,8 @@
 # test: chunks with a size below 1 panics
 # Spec std/collections List Methods: std-collections.list.chunks.size (STDLIB question 18, 2026-09-29; batch 64, STD-1).
 
-fn pieces(items: List[i32]) -> i32:
-    items.chunks(0).len()  # panic: explicit-panic
+fn pieces(items: List[i32]) -> List[List[i32]]:
+    items.chunks(0)  # panic: explicit-panic
 
 tests:
     it("rejects a zero size"):

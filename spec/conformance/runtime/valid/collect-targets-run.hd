@@ -2,12 +2,12 @@
 # std Iterators, Collect Targets: std-iter.collect.map, std-iter.collect.result, std-iter.collect.option, std-iter.collect.drain, std-iter.collect.stop (Collect CO1, CO2).
 use std.testing.assert_equal
 
-fn parse_digit(text: string) -> Result[i32, string]:
+fn parse_digit(text: string) -> Result[usize, string]:
     if text == "x":
         return .Err("bad")
     .Ok(text.len())
 
-fn find(text: string) -> i32?:
+fn find(text: string) -> usize?:
     if text == "x":
         return .None
     .Some(text.len())
@@ -19,18 +19,18 @@ tests:
 
     it("a Result target stops at the first error"):
         let mut source = ["1", "x", "22", "333"].iter()
-        let parsed: Result[List[i32], string] = source.map(parse_digit).collect()
+        let parsed: Result[List[usize], string] = source.map(parse_digit).collect()
         assert_equal(parsed, .Err("bad"), reason="first error")
         assert_equal(source.collect().len(), 2, reason="the rest is unread")
 
     it("a Result target collects every Ok payload"):
-        let parsed: Result[List[i32], string] = ["1", "22"].iter().map(parse_digit).collect()
+        let parsed: Result[List[usize], string] = ["1", "22"].iter().map(parse_digit).collect()
         assert_equal(parsed, .Ok([1, 2]), reason="all payloads")
 
     it("an optional target stops at the first None"):
-        let found: List[i32]? = ["a", "x", "b"].iter().map(find).collect()
+        let found: List[usize]? = ["a", "x", "b"].iter().map(find).collect()
         assert_equal(found, .None, reason="first None")
-        let all: List[i32]? = ["a", "bb"].iter().map(find).collect()
+        let all: List[usize]? = ["a", "bb"].iter().map(find).collect()
         assert_equal(all, .Some([1, 2]), reason="all values")
 
     it("a List target drains the source"):

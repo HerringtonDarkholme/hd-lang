@@ -1,0 +1,4 @@
+# test: take's count is a usize, so a negated literal count is rejected
+# Spec std/iter Iterator Adapters: std-iter.adapter.take-first, with expr.arith.unary-minus.
+fn head(values: List[i32]) -> List[i32]:
+    values.iter().take(-1).collect()  # diagnostic: unsigned-negation

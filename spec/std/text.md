@@ -36,7 +36,7 @@ tier too ([Prefixed Strings](../lang/05-expressions.md#prefixed-strings)).
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `trim(self) -> string`; `lower(self) -> string`; `split(self, separator: string) -> List[string]`; `replace(self, old: string, replacement: string) -> string`; `starts_with(self, prefix: string) -> bool`; `lines(self) -> List[string]`; `repeat(self, count: i32) -> string` |
+| `string` | `trim(self) -> string`; `lower(self) -> string`; `split(self, separator: string) -> List[string]`; `replace(self, old: string, replacement: string) -> string`; `starts_with(self, prefix: string) -> bool`; `lines(self) -> List[string]`; `repeat(self, count: usize) -> string` |
 
 1. r[std-text.string.lower] `lower` uses Unicode Default Case Conversion with full mappings.
 2. r[std-text.string.trim] `trim` removes the Unicode `White_Space` property at both ends.
@@ -49,13 +49,12 @@ tier too ([Prefixed Strings](../lang/05-expressions.md#prefixed-strings)).
 9. r[std-text.string.lines] `lines` returns the pieces between `\n` separators, and removes a `\r` directly before each `\n`.
 10. r[std-text.string.lines.final] A final `\n` ends the last line and starts no empty one, so `"a\nb\n".lines()` is `["a", "b"]` and `"".lines()` is `[]`.
 11. r[std-text.string.repeat] `repeat(count)` joins `count` copies of the string, so a `count` of 0 gives `""`.
-12. r[std-text.string.repeat.negative] A negative `count` panics. Panic: `explicit-panic`.
 
 ```text
-fn rows(text: string) -> i32:
+fn rows(text: string) -> usize:
     text.lines().len()  # 2 for "a\r\nb\n", as Rust's str::lines
 
-fn rule(width: i32) -> string:
+fn rule(width: usize) -> string:
     "-".repeat(width)
 ```
 
@@ -73,13 +72,13 @@ fn setting(line: string) -> string:
 fn cell(text: string) -> string:
     text.pad_start(6)  # "    42" for "42"
 
-fn word_count(text: string) -> i32:
+fn word_count(text: string) -> usize:
     text.split_whitespace().len()  # 2 for " a\tb "
 ```
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `split_once(self, separator: string) -> (string, string)?`; `split_whitespace(self) -> List[string]`; `pad_start(self, width: i32, fill: char = ' ') -> string`; `pad_end(self, width: i32, fill: char = ' ') -> string`; `count(self, needle: string) -> i32` |
+| `string` | `split_once(self, separator: string) -> (string, string)?`; `split_whitespace(self) -> List[string]`; `pad_start(self, width: usize, fill: char = ' ') -> string`; `pad_end(self, width: usize, fill: char = ' ') -> string`; `count(self, needle: string) -> usize` |
 
 1. r[std-text.split-once] `split_once(separator)` returns `.Some((before, after))`, with the text before and after the first occurrence of `separator`.
 2. r[std-text.split-once.absent] It returns `.None` when `separator` does not occur, so `"".split_once("=")` is `.None`.
@@ -89,7 +88,7 @@ fn word_count(text: string) -> i32:
 6. r[std-text.pad.length] `pad_start` and `pad_end` measure a string's length in scalar values, not in bytes or display columns.
 7. r[std-text.pad.start] `pad_start(width, fill)` puts copies of `fill` before the string until its length is `width`.
 8. r[std-text.pad.end] `pad_end(width, fill)` puts the copies after the string instead.
-9. r[std-text.pad.short-width] A `width` at or below the string's length, including a negative one, gives the string unchanged.
+9. r[std-text.pad.width-at-most-length] A `width` at or below the string's length gives the string unchanged.
 10. r[std-text.pad.fill-default] `fill` defaults to the space U+0020, so `"7".pad_end(3)` is `"7  "`.
 11. r[std-text.count] `count(needle)` returns the number of non-overlapping matches of `needle`, found from left to right, so `"aaaa".count("aa")` is 2.
 12. r[std-text.count.empty] An empty needle matches at every scalar boundary, so it gives the number of scalar values plus one, and `"".count("")` is 1.
@@ -166,7 +165,7 @@ fn decode(bytes: List[u8]) -> string:
 2. r[std-text.utf8.from-utf8] `string::from_utf8(bytes)` returns `.Ok` of the string whose bytes are `bytes` when they are well-formed UTF-8, and `.Err` otherwise.
 3. r[std-text.utf8.well-formed] Well-formed UTF-8 is that of the Unicode Standard, so an overlong encoding, a surrogate code point, and a value above U+10FFFF are not well formed.
 4. r[std-text.utf8.round-trip] For every string `s`, `string::from_utf8(s.to_utf8())` is `.Ok(s)`.
-5. r[std-text.utf8.error.decl] `std.text` declares the enum `Utf8Error`, with the variants `InvalidSequence(position: i32)` and `Truncated`. Code imports it, as in `use std.text.Utf8Error`.
+5. r[std-text.utf8.error.declared] `std.text` declares the enum `Utf8Error`, with the variants `InvalidSequence(position: usize)` and `Truncated`. Code imports it, as in `use std.text.Utf8Error`.
 6. r[std-text.utf8.error.first] The error describes the first sequence, from the start of `bytes`, that is not well formed.
 7. r[std-text.utf8.error.truncated] It is `Truncated` when the bytes end before that sequence has the length its first byte gives, and each byte of it after the first is a continuation byte, `0x80` to `0xBF`.
 8. r[std-text.utf8.error.invalid] Otherwise it is `InvalidSequence(position)`, where `position` is the byte offset at which that sequence starts.

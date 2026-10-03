@@ -6,7 +6,7 @@ use std.testing.assert_equal
 
 data ScriptedInput:
     lines: List[string]
-    at: i32
+    at: usize
 
 impl ConsoleInput for ScriptedInput:
     fn read_line!(mut self) -> Result[string?, ConsoleError]:

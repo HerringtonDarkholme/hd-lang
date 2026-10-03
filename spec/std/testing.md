@@ -54,9 +54,9 @@ trait Arbitrary:
 | r[std-testing.choices.float-generic] Float | `fn float[F < Float](mut self, lo: F, hi: F) -> F` | a finite float from `lo` to `hi` |
 | r[std-testing.choices.bool] Boolean | `fn bool(mut self) -> bool` | a `bool` |
 | r[std-testing.choices.pick] Pick | `fn pick[T](mut self, items: List[T]) -> T` | one of `items`; earlier items shrink first |
-| r[std-testing.choices.list] List | `fn list[T](mut self, max: i32, item: fn(mut Choices) -> T) -> List[T]` | at most `max` items, each drawn by `item` |
-| r[std-testing.choices.map] Map | `fn map[K < Eq & Hash, V](mut self, max: i32, key: fn(mut Choices) -> K, value: fn(mut Choices) -> V) -> Map[K, V]` | at most `max` entries, each key drawn by `key` and its value by `value` |
-| r[std-testing.choices.string-chars] String | `fn string(mut self, max_chars: i32) -> string` | a string of at most `max_chars` chars |
+| r[std-testing.choices.list-max] List | `fn list[T](mut self, max: usize, item: fn(mut Choices) -> T) -> List[T]` | at most `max` items, each drawn by `item` |
+| r[std-testing.choices.map-max] Map | `fn map[K < Eq & Hash, V](mut self, max: usize, key: fn(mut Choices) -> K, value: fn(mut Choices) -> V) -> Map[K, V]` | at most `max` entries, each key drawn by `key` and its value by `value` |
+| r[std-testing.choices.string-max-chars] String | `fn string(mut self, max_chars: usize) -> string` | a string of at most `max_chars` chars |
 | r[std-testing.choices.assume] Assume | `fn assume(mut self, ok: bool) -> void` | nothing; a false `ok` discards the case |
 | r[std-testing.choices.draw] Draw | `fn draw[T < Arbitrary](mut self) -> T` | `T::arbitrary(self)`, the type's default |
 
@@ -450,17 +450,17 @@ and describes each property case with a data type:
 
 ```text
 pub trait TestRunner:
-    fn row(mut self, count: i32) -> i32
+    fn row(mut self, count: usize) -> usize
     fn report_timeout(mut self, millis: i64) -> void
     fn snapshot_check(mut self, text: string) -> string
 
 pub trait PropertyRunner:
-    fn start(mut self, cases: i32, shrink: i32, examples: i32) -> PropertyCase
+    fn start(mut self, cases: usize, shrink: usize, examples: usize) -> PropertyCase
     fn record(mut self, value: i64) -> void
     fn show(mut self, text: string) -> void
 
 pub data PropertyCase:
-    pub example: i32?
+    pub example: usize?
     pub seed: i64
     pub size: i32
     pub replay: List[i64]
@@ -499,10 +499,10 @@ pub data PropertyCase:
 use std.testing.{PropertyRunner, TestRunner}
 
 data FirstRow:
-    rows: i32
+    rows: usize
 
 impl TestRunner for FirstRow:
-    fn row(mut self, count: i32) -> i32:
+    fn row(mut self, count: usize) -> usize:
         self.rows = count
         0
 

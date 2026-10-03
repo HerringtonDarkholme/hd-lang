@@ -1,0 +1,4 @@
+# test: repeat's count is a usize, so a negated literal count is rejected
+# Spec std/text String Methods: the repeat signature, with expr.arith.unary-minus.
+fn rule() -> string:
+    "-".repeat(-1)  # diagnostic: unsigned-negation

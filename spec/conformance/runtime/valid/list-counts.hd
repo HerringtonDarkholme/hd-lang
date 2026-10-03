@@ -1,9 +1,9 @@
 # test: counts tallies each distinct element, keys in first-occurrence order
-# Spec std/collections Counts: std-collections.counts, .value, and .order.
+# Spec std/collections Counts: std-collections.counts.decl, std-collections.counts.value, and .order.
 use std.collections.counts
 use std.testing.assert_equal
 
-fn tally(words: List[string]) -> Map[string, i32]:
+fn tally(words: List[string]) -> Map[string, usize]:
     counts(words)
 
 tests:

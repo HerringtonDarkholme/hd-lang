@@ -303,7 +303,6 @@ typing/invalid/reassign-short-binding-in-function.hd	type
 typing/invalid/function-result-type-mismatch.hd	type
 typing/invalid/nonfinal-vararg-then-parameter.hd	type
 typing/invalid/unknown-value-name.hd	type
-runtime/valid/homogeneous-varargs.hd	runtime
 runtime/valid/parameter-defaults-after-explicit-arguments.hd	runtime
 typing/invalid/parameter-default-type-mismatch.hd	type
 runtime/valid/varargs-in-trait-and-suspending-methods.hd	runtime
@@ -1212,7 +1211,6 @@ typing/invalid/num-sealed-impl.hd	type
 typing/invalid/num-sealed-user-number.hd	type
 typing/valid/row-union-spread.hd	type
 runtime/valid/row-union-closure-result-runs.hd	runtime
-runtime/panic/iterator-take-negative.hd	runtime
 typing/invalid/iterator-filter-callback-row.hd	type
 typing/invalid/iterator-adapter-readonly.hd	type
 runtime/valid/compound-assignment-value-kind.hd	runtime
@@ -1327,9 +1325,7 @@ typing/invalid/field-reference.hd	type
 typing/invalid/pipe-suspending-method-reference.hd	type
 typing/invalid/trait-reference-unsolved-self.hd	type
 typing/invalid/bound-reference-associated-function.hd	type
-runtime/valid/iterator-adapters-run.hd	runtime
 typing/invalid/readonly-iterator-in-comprehension.hd	type
-typing/valid/iterator-adapters.hd	type
 typing/invalid/impl-iterator-trait.hd	type
 typing/invalid/iterator-map-callback-row.hd	type
 runtime/valid/iterator-from-fn.hd	runtime
@@ -1381,8 +1377,6 @@ parse/invalid/closure-type-parameters.hd	parse
 typing/valid/mut-self-primitive-impl.hd	type
 typing/valid/closure-with-ignores-outer-key.hd	type
 runtime/valid/try-operand-expected-type.hd	runtime
-runtime/valid/collect-target-from-try-hint.hd	runtime
-runtime/valid/string-length-counts-bytes.hd	runtime
 runtime/valid/string-concatenation-and-numeric-selectors.hd	runtime
 runtime/valid/multibyte-scalar-strings.hd	runtime
 runtime/valid/replace-empty-old.hd	runtime
@@ -1443,12 +1437,10 @@ runtime/valid/iterator-single-pass.hd	runtime
 parse/invalid/match-arm-mut-pattern.hd	parse
 runtime/valid/tuple-element-permission.hd	runtime
 parse/invalid/for-pattern-mut.hd	parse
-typing/invalid/vararg-function-value-arity.hd	type
 typing/invalid/vararg-type-not-collection.hd	type
 typing/invalid/function-type-unbounded-inputs.hd	type
 parse/invalid/vararg-ellipsis-after-type.hd	parse
 parse/valid/tuple-rest-syntax.hd	parse
-typing/invalid/vararg-function-value-list.hd	type
 parse/invalid/reserved-word-suffix.hd	parse
 parse/invalid/reserved-word-prefix.hd	parse
 typing/invalid/display-tuple-element-without-display.hd	type
@@ -1521,7 +1513,6 @@ runtime/panic/num-from-i64-overflow.hd	runtime
 typing/invalid/pipe-brackets-after-bare-step.hd	type
 parse/valid/method-references.hd	parse
 typing/valid/method-references.hd	type
-typing/valid/collect-targets.hd	type
 typing/valid/type-default-calls.hd	type
 typing/valid/operator-rhs-default.hd	type
 typing/invalid/type-argument-list-too-long.hd	type
@@ -1595,7 +1586,6 @@ parse/valid/stray-dollar-in-string.hd	parse
 parse/valid/stray-dollar.hd	parse
 runtime/panic/for-map-insert-invalidates.hd	runtime
 runtime/panic/for-map-remove-invalidates.hd	runtime
-runtime/valid/collect-targets-run.hd	runtime
 runtime/valid/comprehensions.hd	runtime
 runtime/valid/for-loops-lists-and-maps.hd	runtime
 runtime/valid/iterator-shape-versus-value-changes.hd	runtime
@@ -1769,10 +1759,8 @@ typing/invalid/range-pattern-covered.hd	type
 typing/invalid/range-pattern-empty.hd	type
 runtime/valid/range-pattern-run.hd	runtime
 runtime/valid/list-view-run.hd	runtime
-runtime/panic/list-view-negative.hd	runtime
 runtime/panic/list-view-reversed.hd	runtime
 runtime/panic/list-view-index-out-of-bounds.hd	runtime
-runtime/panic/list-view-invalidated.hd	runtime
 typing/invalid/list-view-assignment.hd	type
 typing/invalid/unknown-std-name.hd	type
 typing/invalid/result-ok-without-unit.hd	type
@@ -1810,7 +1798,6 @@ typing/invalid/result-invariant.hd	type
 typing/invalid/covariant-optional-field.hd	type
 typing/invalid/covariant-result-field.hd	type
 runtime/valid/string-repeat.hd	runtime
-runtime/panic/string-repeat-negative.hd	runtime
 runtime/valid/list-chunks.hd	runtime
 runtime/panic/list-chunks-zero.hd	runtime
 runtime/valid/cmp-clamp.hd	runtime
@@ -1830,7 +1817,6 @@ typing/invalid/no-widening-range-bounds.hd	type
 typing/invalid/power-float-widths.hd	type
 typing/valid/numeric-literal-adopts-width.hd	type
 runtime/valid/numeric-explicit-widening.hd	runtime
-typing/valid/random-trait.hd	type
 typing/invalid/test-body-uses-property-runner.hd	type
 typing/invalid/it-outside-test-code.hd	type
 typing/invalid/shift-count-not-u32.hd	type
@@ -1842,7 +1828,6 @@ runtime/valid/hash-bytes-result.hd	runtime
 typing/invalid/lct-optional-two-layers.hd	type
 runtime/valid/property-body-discard-message-fails.hd	runtime
 runtime/valid/option-and-then.hd	runtime
-runtime/valid/result-and-then.hd	runtime
 typing/invalid/result-and-then-error-type.hd	type
 runtime/valid/num-checked-wrapping.hd	runtime
 runtime/valid/num-abs-diff.hd	runtime
@@ -1928,7 +1913,6 @@ runtime/valid/json-errors.hd	runtime
 runtime/valid/json-object-order.hd	runtime
 runtime/valid/json-pretty.hd	runtime
 runtime/valid/string-split-once.hd	runtime
-runtime/valid/string-split-whitespace.hd	runtime
 runtime/valid/string-pad.hd	runtime
 runtime/valid/string-count.hd	runtime
 runtime/panic/num-to-fixed-digits-range.hd	runtime
@@ -1939,14 +1923,16 @@ runtime/valid/list-flat-map-windows.hd	runtime
 runtime/panic/list-windows-size.hd	runtime
 runtime/valid/list-min-max.hd	runtime
 typing/invalid/list-helper-callback-row.hd	type
-runtime/valid/list-counts.hd	runtime
 runtime/valid/set-basics.hd	runtime
 runtime/panic/set-invalidated.hd	runtime
 runtime/valid/iterator-skip-take-while.hd	runtime
-runtime/panic/iterator-skip-negative.hd	runtime
 runtime/valid/iterator-chain-iterable.hd	runtime
 typing/invalid/iterator-chain-iterator-arg.hd	type
 runtime/valid/iterator-flat-map.hd	runtime
 runtime/valid/iterator-search-count.hd	runtime
 typing/invalid/iterator-any-callback-row.hd	type
 runtime/panic/println-console-closed.hd	runtime
+runtime/valid/homogeneous-varargs.hd	runtime
+typing/invalid/vararg-function-value-arity.hd	type
+typing/invalid/vararg-function-value-list.hd	type
+runtime/valid/string-length-counts-bytes.hd	runtime

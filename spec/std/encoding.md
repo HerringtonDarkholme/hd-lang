@@ -124,12 +124,12 @@ A failed decode reports one of three errors, each at a position:
 
 ```text
 pub enum DecodeError:
-    InvalidCharacter(position: i32)
-    InvalidLength(position: i32)
-    InvalidPadding(position: i32)
+    InvalidCharacter(position: usize)
+    InvalidLength(position: usize)
+    InvalidPadding(position: usize)
 ```
 
-1. r[std-encoding.error.decl] `std.encoding` declares the enum `DecodeError` with the variants `InvalidCharacter`, `InvalidLength`, and `InvalidPadding`, each with one field `position: i32`.
+1. r[std-encoding.error.declared] `std.encoding` declares the enum `DecodeError` with the variants `InvalidCharacter`, `InvalidLength`, and `InvalidPadding`, each with one field `position: usize`.
 2. r[std-encoding.error.position] A `position` is an index into the text, counted in characters from 0.
 3. r[std-encoding.error.traits] `DecodeError` implements `Eq`, `Debug`, and `Display`.
 

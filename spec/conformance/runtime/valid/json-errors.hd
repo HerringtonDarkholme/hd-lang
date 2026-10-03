@@ -1,5 +1,5 @@
 # test: each JsonError kind and its position in characters
-# Spec std/json JSON Errors: std-json.error.enum, std-json.error.position, std-json.error.traits (JSON-SURFACE; task #226).
+# Spec std/json JSON Errors: std-json.error.enum.usize, std-json.error.position, std-json.error.traits (JSON-SURFACE; task #226).
 use std.json.{parse, Json, JsonError}
 use std.format.debug
 use std.testing.{assert, assert_equal}

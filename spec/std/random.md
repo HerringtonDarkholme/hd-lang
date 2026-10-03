@@ -18,7 +18,7 @@ Which provider a command binds is CLI tier
 ```text
 pub trait Random:
     fn next_u64(mut self) -> u64
-    fn fill(mut self, count: i32) -> List[u8]
+    fn fill(mut self, count: usize) -> List[u8]
 ```
 
 1. r[std-random.decl] `std.random` declares the host capability trait `Random` with the methods above. Code imports it, as in `use std.random.Random`.

@@ -10,7 +10,7 @@ impl Random for Counter:
         self.state[0] = self.state[0] + 1
         self.state[0]
 
-    fn fill(mut self, count: i32) -> List[u8]:
+    fn fill(mut self, count: usize) -> List[u8]:
         let bytes: mut List[u8] = []
         while bytes.len() < count:
             bytes.push(7)

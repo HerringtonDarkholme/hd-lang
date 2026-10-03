@@ -1,5 +1,5 @@
 # test: each TimeParseError case, its position in characters, and that the first error from the left wins
-# Spec std/time Time Parse Errors: std-time.parse-error.decl, std-time.parse-error.invalid-character, std-time.parse-error.out-of-range, std-time.parse-error.too-short, std-time.parse-error.order, std-time.parse-error.traits, std-time.rfc3339.parse.leap-second (COLLECTIONS-DATES-SURFACE; task #225).
+# Spec std/time Time Parse Errors: std-time.parse-error.declared, std-time.parse-error.invalid-character, std-time.parse-error.out-of-range, std-time.parse-error.too-short, std-time.parse-error.order, std-time.parse-error.traits, std-time.rfc3339.parse.leap-second (COLLECTIONS-DATES-SURFACE; task #225).
 use std.testing.{assert, assert_equal}
 use std.time.{TimeParseError, Timestamp}
 

@@ -33,15 +33,15 @@ The prelude `Iterator[T]` also has **iterator adapters**: methods that wrap
 an iterator in a new one, or drain it.
 
 ```text
-fn first_evens(values: List[i32]) -> List[(i32, i32)]:
+fn first_evens(values: List[i32]) -> List[(usize, i32)]:
     values.iter().filter(fn(value): value % 2 == 0).enumerate().take(2).collect()
 ```
 
 | Rule | Method | Result |
 | --- | --- | --- |
 | r[std-iter.adapter.filter] `filter` | `fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]` | a new iterator over the items of `self` for which `keep` returns `true` |
-| r[std-iter.adapter.take] `take` | `fn take(mut self, count: i32) -> mut Iterator[T]` | a new iterator over the first `count` items of `self`, or fewer when `self` ends first |
-| r[std-iter.adapter.enumerate] `enumerate` | `fn enumerate(mut self) -> mut Iterator[(i32, T)]` | a new iterator over `(index, item)` pairs, with indices counting from `0` |
+| r[std-iter.adapter.take-first] `take` | `fn take(mut self, count: usize) -> mut Iterator[T]` | a new iterator over the first `count` items of `self`, or fewer when `self` ends first |
+| r[std-iter.adapter.enumerate-usize] `enumerate` | `fn enumerate(mut self) -> mut Iterator[(usize, T)]` | a new iterator over `(index, item)` pairs, with `usize` indices counting from `0` |
 | r[std-iter.adapter.map] `map` | `fn map[U](mut self, transform: fn(T) -> U) -> mut Iterator[U]` | a new iterator over `transform(item)` for each item of `self`, in order |
 | r[std-iter.adapter.fold] `fold` | `fn fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
 | r[std-iter.adapter.collect-defaulted] `collect` | `fn collect[C < FromIterator[T] = List[T]](mut self) -> C` | a `C` built from the remaining items of `self`, as [Collect Targets](#collect-targets) specifies |
@@ -51,13 +51,12 @@ fn first_evens(values: List[i32]) -> List[(i32, i32)]:
 3. r[std-iter.adapter.lazy.map] Calling `map` does not advance `self` either.
 4. r[std-iter.adapter.lazy.next] The returned iterator advances `self` only when its own `next` is called.
 5. r[std-iter.adapter.take.limit] The iterator that `take` returns calls `next` on `self` at most `count` times.
-6. r[std-iter.adapter.take.negative] A negative `count` panics when `take` is called. Panic: `explicit-panic`.
-7. r[std-iter.adapter.fold.drain] `fold` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
-8. r[std-iter.adapter.mut-receiver] Each adapter takes `mut self`. Calling one on a readonly iterator is an error. Error: `mutable-receiver-required`.
-9. r[std-iter.adapter.callback-row] The `keep` callback has the empty row. A function value whose row lists a requirement key does not fit it. Error: `type-mismatch`.
-10. r[std-iter.adapter.callback-row.map] The `transform` callback of `map` has the empty row too.
-11. r[std-iter.adapter.fold.row] The `step` callback of `fold` may have a requirement row `R`, and `fold` then requires `R`.
-12. r[std-iter.adapter.callback-row.capture] A `keep` or `transform` closure whose body uses a requirement key has that key in its row, even inside a `$.with` block, so it does not fit. Error: `type-mismatch`.
+6. r[std-iter.adapter.fold.drain] `fold` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
+7. r[std-iter.adapter.mut-receiver] Each adapter takes `mut self`. Calling one on a readonly iterator is an error. Error: `mutable-receiver-required`.
+8. r[std-iter.adapter.callback-row] The `keep` callback has the empty row. A function value whose row lists a requirement key does not fit it. Error: `type-mismatch`.
+9. r[std-iter.adapter.callback-row.map] The `transform` callback of `map` has the empty row too.
+10. r[std-iter.adapter.fold.row] The `step` callback of `fold` may have a requirement row `R`, and `fold` then requires `R`.
+11. r[std-iter.adapter.callback-row.capture] A `keep` or `transform` closure whose body uses a requirement key has that key in its row, even inside a `$.with` block, so it does not fit. Error: `type-mismatch`.
 
 ```text
 trait Logger
@@ -111,7 +110,7 @@ fn has_blank(lines: List[string]) -> bool:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-iter.adapter.skip] `skip` | `fn skip(mut self, count: i32) -> mut Iterator[T]` | a new iterator over the items of `self` after the first `count` |
+| r[std-iter.adapter.skip-first] `skip` | `fn skip(mut self, count: usize) -> mut Iterator[T]` | a new iterator over the items of `self` after the first `count` |
 | r[std-iter.adapter.take-while] `take_while` | `fn take_while(mut self, keep: fn(T) -> bool) -> mut Iterator[T]` | a new iterator over the items of `self` before the first one for which `keep` returns `false` |
 | r[std-iter.adapter.zip-iterable] `zip` | `fn zip[U, I < Iterable[U]](mut self, other: I) -> mut Iterator[(T, U)]` | a new iterator over pairs of the items of `self` and `other` at the same position, which ends when either ends |
 | r[std-iter.adapter.chain-iterable] `chain` | `fn chain[I < Iterable[T]](mut self, other: I) -> mut Iterator[T]` | a new iterator over the items of `self`, then those of `other` |
@@ -119,20 +118,19 @@ fn has_blank(lines: List[string]) -> bool:
 | r[std-iter.adapter.any] `any` | `fn any(mut self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for some remaining item of `self` |
 | r[std-iter.adapter.all] `all` | `fn all(mut self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for every remaining item of `self` |
 | r[std-iter.adapter.find] `find` | `fn find(mut self, test: fn(T) -> bool) -> T?` | the first remaining item of `self` for which `test` returns `true`, or `.None` |
-| r[std-iter.adapter.count] `count` | `fn count(mut self) -> i32` | the number of remaining items of `self` |
+| r[std-iter.adapter.count-remaining] `count` | `fn count(mut self) -> usize` | the number of remaining items of `self` |
 
 1. r[std-iter.adapter.lazy.more] Calling `skip`, `take_while`, `zip`, `chain`, or `flat_map` advances no iterator. The returned iterator pulls only when its own `next` is called.
 2. r[std-iter.adapter.skip.first-next] The first `next` call of `skip`'s iterator reads and drops up to `count` items of `self` before it reads the item it returns.
-3. r[std-iter.adapter.skip.negative] A negative `count` panics when `skip` is called. Panic: `explicit-panic`.
-4. r[std-iter.adapter.take-while.stop] `take_while`'s iterator reads and drops the first item that `keep` rejects, and calls `next` on `self` no more after it.
-5. r[std-iter.adapter.iterable-arg] `zip` and `chain` call `other.iter()` once, when they are called, and read the items of `other` from that iterator only.
-6. r[std-iter.adapter.iterable-arg.iterator] An `Iterator` argument is an error, since `Iterator[T]` does not implement `Iterable[T]`, by [`flow.for.iterator-no-bound`](../lang/06-control-flow.md#r-flow.for.iterator-no-bound). Error: `unsatisfied-trait-bound`.
-7. r[std-iter.adapter.zip-iterable.order] `zip`'s iterator calls `next` on `self` first, and on the iterator of `other` only when `self` gave an item. So when `self` ends first, `other` loses no item.
-8. r[std-iter.adapter.chain-iterable.order] `chain`'s iterator calls `next` on the iterator of `other` only after `self` has returned `.None`, and on `self` no more after that.
-9. r[std-iter.adapter.stop-early] `any`, `all`, and `find` advance `self` only until an item decides the result, and leave the rest of `self` unread.
-10. r[std-iter.adapter.exhausted] On an exhausted iterator, `any` is `false`, `all` is `true`, `find` is `.None`, and `count` is 0.
-11. r[std-iter.adapter.count.drain] `count` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
-12. r[std-iter.adapter.callback-row.more] The callbacks of these methods have the empty row, as `filter`'s `keep` does. A function value whose row lists a requirement key does not fit. Error: `type-mismatch`.
+3. r[std-iter.adapter.take-while.stop] `take_while`'s iterator reads and drops the first item that `keep` rejects, and calls `next` on `self` no more after it.
+4. r[std-iter.adapter.iterable-arg] `zip` and `chain` call `other.iter()` once, when they are called, and read the items of `other` from that iterator only.
+5. r[std-iter.adapter.iterable-arg.iterator] An `Iterator` argument is an error, since `Iterator[T]` does not implement `Iterable[T]`, by [`flow.for.iterator-no-bound`](../lang/06-control-flow.md#r-flow.for.iterator-no-bound). Error: `unsatisfied-trait-bound`.
+6. r[std-iter.adapter.zip-iterable.order] `zip`'s iterator calls `next` on `self` first, and on the iterator of `other` only when `self` gave an item. So when `self` ends first, `other` loses no item.
+7. r[std-iter.adapter.chain-iterable.order] `chain`'s iterator calls `next` on the iterator of `other` only after `self` has returned `.None`, and on `self` no more after that.
+8. r[std-iter.adapter.stop-early] `any`, `all`, and `find` advance `self` only until an item decides the result, and leave the rest of `self` unread.
+9. r[std-iter.adapter.exhausted] On an exhausted iterator, `any` is `false`, `all` is `true`, `find` is `.None`, and `count` is 0.
+10. r[std-iter.adapter.count.drain] `count` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
+11. r[std-iter.adapter.callback-row.more] The callbacks of these methods have the empty row, as `filter`'s `keep` does. A function value whose row lists a requirement key does not fit. Error: `type-mismatch`.
 
 ```text
 fn joined(first: List[i32], rest: mut Iterator[i32]) -> List[i32]:
@@ -159,16 +157,16 @@ fn joined_eagerly(first: List[i32], rest: mut Iterator[i32]) -> List[i32]:
 `collect` builds the collection that the expected type names:
 
 ```text
-fn parse_port(text: string) -> Result[i32, string]:
+fn parse_port(text: string) -> Result[usize, string]:
     .Ok(text.len())
 
-fn index(names: List[string]) -> Map[string, i32]:
+fn index(names: List[string]) -> Map[string, usize]:
     names.iter().map(fn(name): (name, name.len())).collect()
 
-fn parse_all(lines: List[string]) -> Result[List[i32], string]:
+fn parse_all(lines: List[string]) -> Result[List[usize], string]:
     lines.iter().map(parse_port).collect()
 
-fn count(values: List[i32]) -> i32:
+fn count(values: List[i32]) -> usize:
     copied := values.iter().collect()
     copied.len()
 ```

@@ -2,22 +2,22 @@
 # std Iterators, Collect Targets: std-iter.collect.target, std-iter.collect.result, std-iter.collect.option, with Spec 05 expr.try.expected (owner decision Q-?, batch 15, 2026-09-30).
 use std.testing.assert_equal
 
-fn parse_port(text: string) -> Result[i32, string]:
+fn parse_port(text: string) -> Result[usize, string]:
     if text == "x":
         return .Err("bad")
     .Ok(text.len())
 
-fn find(text: string) -> i32?:
+fn find(text: string) -> usize?:
     if text == "x":
         return .None
     .Some(text.len())
 
-fn all_ports(lines: List[string]) -> Result[List[i32], string]:
-    let ports: List[i32] = lines.iter().map(parse_port).collect()?
+fn all_ports(lines: List[string]) -> Result[List[usize], string]:
+    let ports: List[usize] = lines.iter().map(parse_port).collect()?
     .Ok(ports)
 
-fn all_found(lines: List[string]) -> List[i32]?:
-    let found: List[i32] = lines.iter().map(find).collect()?
+fn all_found(lines: List[string]) -> List[usize]?:
+    let found: List[usize] = lines.iter().map(find).collect()?
     .Some(found)
 
 tests:

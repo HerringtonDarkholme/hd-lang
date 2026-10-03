@@ -46,7 +46,7 @@ tests:
     it("map_err maps only the error"):
         assert(bad_digit(setting({"port": "9x"}, "port").and_then(number)), reason="the parse error is wrapped")
         let ok: Result[i32, string] = .Ok(3)
-        assert_equal(ok.map_err(fn(error: string) -> i32: error.len()), .Ok(3), reason="Ok passes through")
+        assert_equal(ok.map_err(fn(error: string) -> usize: error.len()), .Ok(3), reason="Ok passes through")
 
     it("unwrap_or keeps an Ok value"):
         let ok: Result[i32, string] = .Ok(3)

@@ -225,7 +225,7 @@ fn bytes_text(bytes: List[u8]) -> string:
         .Err(_) => panic("std.json: output bytes are valid UTF-8")
 
 # Why parsing failed, at a position counted in characters from 0
-# (r-std-json.error.enum).
+# (r-std-json.error.enum.usize).
 pub enum JsonError:
     # The text stops inside a value; `position` is its length.
     UnexpectedEnd(position: i32)

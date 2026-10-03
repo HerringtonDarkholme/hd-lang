@@ -4,7 +4,7 @@
 use std.format.DebugWriter
 
 # Why decoding failed, at a position counted in characters from 0
-# (r-std-encoding.error.decl).
+# (r-std-encoding.error.declared).
 pub enum DecodeError:
     # A character outside the alphabet.
     InvalidCharacter(position: i32)

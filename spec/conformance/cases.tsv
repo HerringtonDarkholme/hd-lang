@@ -1406,7 +1406,6 @@ typing/invalid/num-sealed-impl.hd	type	reject:sealed-trait-implementation	lang/0
 typing/invalid/num-sealed-user-number.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#r-trait.num.sealed
 typing/valid/iterator-adapters.hd	type	accept	std/iter.md#iterator-adapters
 runtime/valid/iterator-adapters-run.hd	runtime	accept	std/iter.md#r-std-iter.adapter.lazy
-runtime/panic/iterator-take-negative.hd	runtime	panic:explicit-panic	std/iter.md#r-std-iter.adapter.take.negative
 typing/invalid/iterator-filter-callback-row.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row
 typing/invalid/iterator-adapter-readonly.hd	type	reject:mutable-receiver-required	std/iter.md#r-std-iter.adapter.mut-receiver
 runtime/valid/compound-assignment-value-kind.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.meaning
@@ -1827,7 +1826,6 @@ typing/invalid/range-pattern-covered.hd	type	reject:unreachable-match-arm	lang/0
 typing/invalid/range-pattern-empty.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#r-flow.match.range.empty
 runtime/valid/range-pattern-run.hd	runtime	accept	lang/06-control-flow.md#range-patterns
 runtime/valid/list-view-run.hd	runtime	accept	std/collections.md#views
-runtime/panic/list-view-negative.hd	runtime	panic:index-out-of-bounds	std/collections.md#r-std-collections.view.range
 runtime/panic/list-view-reversed.hd	runtime	panic:index-out-of-bounds	std/collections.md#r-std-collections.view.reversed
 runtime/panic/list-view-index-out-of-bounds.hd	runtime	panic:index-out-of-bounds	std/collections.md#r-std-collections.view.index.range
 runtime/panic/list-view-invalidated.hd	runtime	panic:iterator-invalidated	std/collections.md#r-std-collections.view.invalid-use
@@ -1931,7 +1929,6 @@ typing/valid/path-newtype.hd	type	accept	std/path.md#paths
 typing/valid/random-trait.hd	type	accept	std/random.md#random-source
 runtime/valid/string-lines.hd	runtime	accept	std/text.md#r-std-text.string.lines
 runtime/valid/string-repeat.hd	runtime	accept	std/text.md#r-std-text.string.repeat
-runtime/panic/string-repeat-negative.hd	runtime	panic:explicit-panic	std/text.md#r-std-text.string.repeat.negative
 runtime/valid/list-chunks.hd	runtime	accept	std/collections.md#r-std-collections.list.chunks
 runtime/panic/list-chunks-zero.hd	runtime	panic:explicit-panic	std/collections.md#r-std-collections.list.chunks.size
 runtime/valid/map-keys-values.hd	runtime	accept	std/collections.md#map-methods
@@ -2059,7 +2056,7 @@ runtime/valid/string-pad.hd	runtime	accept	std/text.md#r-std-text.pad.start
 runtime/valid/string-pad-default-fill.hd	runtime	accept	std/text.md#r-std-text.pad.fill-default
 runtime/valid/string-count.hd	runtime	accept	std/text.md#r-std-text.count
 runtime/valid/num-to-fixed.hd	runtime	accept	std/num.md#fixed-point-text
-runtime/panic/num-to-fixed-digits-range.hd	runtime	panic:explicit-panic	std/num.md#r-std-num.to-fixed.digits
+runtime/panic/num-to-fixed-digits-range.hd	runtime	panic:explicit-panic	std/num.md#r-std-num.to-fixed.digits-max
 runtime/valid/list-sorted-by-key.hd	runtime	accept	std/collections.md#r-std-collections.helper.sorted-by-key
 runtime/valid/list-group-by.hd	runtime	accept	std/collections.md#r-std-collections.helper.group-by
 runtime/valid/list-partition-search.hd	runtime	accept	std/collections.md#list-helpers
@@ -2067,12 +2064,11 @@ runtime/valid/list-flat-map-windows.hd	runtime	accept	std/collections.md#r-std-c
 runtime/panic/list-windows-size.hd	runtime	panic:explicit-panic	std/collections.md#r-std-collections.helper.windows.size
 runtime/valid/list-min-max.hd	runtime	accept	std/collections.md#r-std-collections.helper.min-max.first
 typing/invalid/list-helper-callback-row.hd	type	reject:type-mismatch	std/collections.md#r-std-collections.helper.callback-row
-runtime/valid/list-counts.hd	runtime	accept	std/collections.md#counts
+runtime/valid/list-counts.hd	runtime	accept	std/collections.md#r-std-collections.counts.decl
 runtime/valid/map-get-or.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or
 runtime/valid/set-basics.hd	runtime	accept	std/collections.md#set
 runtime/panic/set-invalidated.hd	runtime	panic:iterator-invalidated	std/collections.md#r-std-collections.set.invalidate
 runtime/valid/iterator-skip-take-while.hd	runtime	accept	std/iter.md#r-std-iter.adapter.take-while.stop
-runtime/panic/iterator-skip-negative.hd	runtime	panic:explicit-panic	std/iter.md#r-std-iter.adapter.skip.negative
 runtime/valid/iterator-zip-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.zip-iterable.order
 runtime/valid/iterator-chain-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.chain-iterable.order
 typing/invalid/iterator-chain-iterator-arg.hd	type	reject:unsatisfied-trait-bound	std/iter.md#r-std-iter.adapter.iterable-arg.iterator
@@ -2089,4 +2085,8 @@ typing/invalid/string-index-signed.hd	type	reject:type-mismatch	lang/05-expressi
 typing/invalid/string-slice-negative-offset.hd	type	reject:unsigned-negation	lang/10-modules.md#r-module.method.usize-sizes
 typing/valid/usize-alias.hd	type	accept	lang/04-type-system.md#the-usize-alias
 runtime/panic/usize-len-underflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#r-types.alias.usize.sizes
+typing/invalid/list-view-negative-literal.hd	type	reject:unsigned-negation	std/collections.md#list-methods
+typing/invalid/iterator-take-negative-literal.hd	type	reject:unsigned-negation	std/iter.md#r-std-iter.adapter.take-first
+typing/invalid/string-repeat-negative-literal.hd	type	reject:unsigned-negation	std/text.md#r-std-text.string.repeat
+typing/invalid/string-pad-signed-width.hd	type	reject:type-mismatch	std/text.md#r-std-text.pad.start
 runtime/valid/host-result-special-floats.hd	runtime	accept	lang/10-modules.md#r-module.profile.host-result.float

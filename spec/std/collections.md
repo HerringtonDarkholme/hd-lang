@@ -29,20 +29,15 @@ The language tier keeps what the compiler knows about a list
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `view(self, start: i32, end: i32) -> ListView[T]`; `chunks(self, size: i32) -> List[List[T]]` |
+| `List[T]` | `view(self, start: usize, end: usize) -> ListView[T]`; `chunks(self, size: usize) -> List[List[T]]` |
 
-1. r[std-collections.list.no-negative] `view` never counts from the end when an argument is negative. The rules below state the panic.
-2. r[std-collections.list.chunks] `chunks(size)` returns the list's elements in order, in consecutive pieces of `size` elements. Only the last piece may be shorter.
-3. r[std-collections.list.chunks.size] A `size` below 1 panics. Panic: `explicit-panic`.
+1. r[std-collections.list.chunks] `chunks(size)` returns the list's elements in order, in consecutive pieces of `size` elements. Only the last piece may be shorter.
+2. r[std-collections.list.chunks.size] A `size` below 1 panics. Panic: `explicit-panic`.
 
 ```text
 fn pairs(items: List[i32]) -> List[List[i32]]:
     items.chunks(2)  # [[1, 2], [3]] for [1, 2, 3]
 ```
-
-> **Why.** With negative indices counting from the end, as in Python,
-> `items[i - 1]` with `i == 0` would read the last element instead of
-> failing.
 
 > **Note.** A copy of a run of elements is a slice,
 > `items[start..end]`, a new `mut List[T]`
@@ -62,27 +57,27 @@ fn total(view: ListView[i32]) -> i32:
     let sum = 0
     for item in view:
         sum = sum + item
-    sum + view[0] + view.len()
+    sum + view[view.len() - 1]
 ```
 
 `ListView[T]` has this surface:
 
 | Item | Signature |
 | --- | --- |
-| `len` | `len(self) -> i32` |
+| `len` | `len(self) -> usize` |
 | `to_list` | `to_list(self) -> mut List[T]` |
-| index read | `Index[i32]` with `Out = T` |
+| index read | `Index[usize]` with `Out = T` |
 | iteration | `Iterable[T]` |
 
 1. r[std-collections.view] `view(start, end)` returns a `ListView[T]` of the list's elements at indices `start` up to, not including, `end`.
 2. r[std-collections.view.type] `std.collections` declares `ListView[T]` with private fields and the surface in the table above, and no other method or trait implementation.
 3. r[std-collections.view.import] `ListView` is not a prelude name, so code that names it imports it, as in `use std.collections.ListView`.
 4. r[std-collections.view.no-copy] Creating a view copies no element.
-5. r[std-collections.view.range] A `start` or `end` that is negative or greater than the list's length is a checked runtime panic. Panic: `index-out-of-bounds`.
+5. r[std-collections.view.range] A `start` or `end` that is greater than the list's length is a checked runtime panic. Panic: `index-out-of-bounds`.
 6. r[std-collections.view.reversed] A `start` greater than `end` is a checked runtime panic. Panic: `index-out-of-bounds`.
 7. r[std-collections.view.len] `len` returns the number of elements in the view, `end - start`.
 8. r[std-collections.view.index] `view[i]` reads the list's element at index `start + i`.
-9. r[std-collections.view.index.range] A view index that is negative or not less than the view's `len` is a checked runtime panic, even when the list has an element there. Panic: `index-out-of-bounds`.
+9. r[std-collections.view.index.range] A view index that is not less than the view's `len` is a checked runtime panic, even when the list has an element there. Panic: `index-out-of-bounds`.
 10. r[std-collections.view.iter] Iterating a view yields its elements in order, each as `T`.
 11. r[std-collections.view.to-list.mut] `to_list` returns a new `mut List[T]` that holds the view's elements in order, as the slice `items[start..end]` does, so `let mut copy = view.to_list()` may grow the copy.
 12. r[std-collections.view.read-only] A view has no `IndexSet` implementation, so assigning to `view[i]` is an error. Error: `invalid-assignment-target`.
@@ -99,7 +94,7 @@ fn invalid(view: mut ListView[i32]) -> void:
 ```
 
 ```text
-fn stale(items: mut List[i32]) -> i32:
+fn stale(items: mut List[i32]) -> usize:
     window := items.view(0, 2)
     items.push(4)
     window.len()  # panics with iterator-invalidated
@@ -138,8 +133,8 @@ fn steps(readings: List[i32]) -> List[List[i32]]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]`; `group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]`; `partition(self, keep: fn(T) -> bool) -> (List[T], List[T])`; `any(self, test: fn(T) -> bool) -> bool`; `all(self, test: fn(T) -> bool) -> bool`; `find(self, test: fn(T) -> bool) -> T?`; `flat_map[U](self, transform: fn(T) -> List[U]) -> List[U]`; `windows(self, size: i32) -> List[List[T]]` |
-| `List[T]`, when `T < Eq` | `contains(self, value: T) -> bool`; `index_of(self, value: T) -> i32?` |
+| `List[T]` | `sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]`; `group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]`; `partition(self, keep: fn(T) -> bool) -> (List[T], List[T])`; `any(self, test: fn(T) -> bool) -> bool`; `all(self, test: fn(T) -> bool) -> bool`; `find(self, test: fn(T) -> bool) -> T?`; `flat_map[U](self, transform: fn(T) -> List[U]) -> List[U]`; `windows(self, size: usize) -> List[List[T]]` |
+| `List[T]`, when `T < Eq` | `contains(self, value: T) -> bool`; `index_of(self, value: T) -> usize?` |
 | `List[T]`, when `T < Ord` | `sorted(self) -> List[T]`; `min(self) -> T?`; `max(self) -> T?` |
 
 1. r[std-collections.helper.unchanged] Each helper leaves its receiver unchanged, and each one that returns a list returns a new list.
@@ -189,11 +184,11 @@ fn paged(items: List[i32]) -> List[List[i32]]:
 ```text
 use std.collections.counts
 
-fn tally(words: List[string]) -> Map[string, i32]:
+fn tally(words: List[string]) -> Map[string, usize]:
     counts(words)  # {"a": 2, "b": 1} for ["a", "b", "a"]
 ```
 
-1. r[std-collections.counts] `std.collections` declares `pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, i32]`. Code imports it, as in `use std.collections.counts`.
+1. r[std-collections.counts.decl] `std.collections` declares `pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]`. Code imports it, as in `use std.collections.counts`.
 2. r[std-collections.counts.value] The map has one entry per distinct element of `items`, and its value is the number of elements equal to that one.
 3. r[std-collections.counts.order] The keys are in the order of their first occurrence in `items`, so an empty list gives an empty map.
 
@@ -244,7 +239,7 @@ fn unique(words: List[string]) -> List[string]:
 | Item | Signature |
 | --- | --- |
 | `new` | `Set::new() -> mut Set[T]` |
-| `len`, `is_empty` | `len(self) -> i32`; `is_empty(self) -> bool` |
+| `len`, `is_empty` | `len(self) -> usize`; `is_empty(self) -> bool` |
 | `contains` | `contains(self, value: T) -> bool` |
 | `insert`, `remove` | `insert(mut self, value: T) -> bool`, and the same for `remove` |
 | iteration | `Iterable[T]` |
@@ -296,11 +291,11 @@ fn rotate(items: List[i32]) -> List[i32]:
 | Item | Signature |
 | --- | --- |
 | `new` | `Deque::new() -> mut Deque[T]` |
-| `len`, `is_empty` | `len(self) -> i32`; `is_empty(self) -> bool` |
+| `len`, `is_empty` | `len(self) -> usize`; `is_empty(self) -> bool` |
 | `push_front`, `push_back` | `push_front(mut self, value: T) -> void`, and the same for `push_back` |
 | `pop_front`, `pop_back` | `pop_front(mut self) -> T?`, and the same for `pop_back` |
 | `front`, `back` | `front(self) -> T?`, and the same for `back` |
-| `get` | `get(self, index: i32) -> T?` |
+| `get` | `get(self, index: usize) -> T?` |
 | iteration | `Iterable[T]` |
 | equality | `Eq` when `T < Eq` |
 | `Debug` | when `T < Debug` |
@@ -311,7 +306,7 @@ fn rotate(items: List[i32]) -> List[i32]:
 4. r[std-collections.deque.push] `push_front(value)` adds `value` before the front, and `push_back(value)` adds it after the back.
 5. r[std-collections.deque.pop] `pop_front` removes the front element and returns it in `.Some`, and `pop_back` does the same at the back. On an empty deque, each returns `.None` and changes nothing.
 6. r[std-collections.deque.ends] `front` and `back` return the front and the back element without removing it, or `.None` when the deque is empty.
-7. r[std-collections.deque.get] `get(i)` returns the element `i` places from the front in `.Some`, so `get(0)` is the front. An `i` that is negative or not less than `len` gives `.None`.
+7. r[std-collections.deque.get] `get(i)` returns the element `i` places from the front in `.Some`, so `get(0)` is the front. An `i` that is not less than `len` gives `.None`.
 8. r[std-collections.deque.iter] Iterating a deque yields its elements from front to back, each as `T`.
 9. r[std-collections.deque.invalidate] A push, or a pop that removes an element, invalidates every iterator taken from the deque. The next `next` call of such an iterator is a checked runtime panic. Panic: `iterator-invalidated`.
 10. r[std-collections.deque.eq] Two deques are equal when they have the same length and equal elements in the same order from the front, as two lists are.
@@ -361,7 +356,7 @@ fn smallest(items: List[i32]) -> i32?:
 | Item | Signature |
 | --- | --- |
 | `new` | `Heap::new() -> mut Heap[T]` |
-| `len`, `is_empty` | `len(self) -> i32`; `is_empty(self) -> bool` |
+| `len`, `is_empty` | `len(self) -> usize`; `is_empty(self) -> bool` |
 | `push` | `push(mut self, value: T) -> void` |
 | `pop` | `pop(mut self) -> T?` |
 | `peek` | `peek(self) -> T?` |
