@@ -33,12 +33,17 @@ byte `calc.wasm`.
 
 ## Three worst usability problems
 
-1. Mutability spelling and messages. `let mut x: T`, `let x: mut T` and
-   `x: mut T =` (needs `let`) are three different forms, and a readonly
-   `List` yields `unknown-method ... 'push'` with no hint about `append` or
-   about the readonly binding. Several diagnostics print `mut:List[char]`,
-   and `Walk { state: {} }` against a `mut Map` field reports
-   `cannot-infer-type` although the expected type is known.
+1. Mutability messages. The binding forms themselves are fine and the
+   compiler enforces the spec: a typed mutable binding is
+   `let x: mut T = v`, an untyped one `let mut x = v`; `let mut x: T`
+   (`let-mut-readonly-type`) and a bare `x: mut T =` (`missing-let`) are
+   errors with good fix-its, and `let mut x: mut T` warns
+   (`redundant-let-mut`). The writer's slips were between these forms.
+   The real problems are other messages: a readonly `List` yields
+   `unknown-method ... 'push'` with no hint about the readonly binding or
+   about `append`; several diagnostics print `mut:List[char]` instead of
+   `mut List[char]`; and `Walk { state: {} }` against a `mut Map` field
+   reports `cannot-infer-type` although the field type is known.
 2. Thin std. `std.fs`/`json`/`path` are not loaded, `List` has no `pop`;
    `Map` has no `keys`; `char` has no
    `is_digit`; `min`/`max` need `use std.cmp.max`; `Timestamp.millis` is
@@ -68,3 +73,22 @@ The mutable/readonly distinction is the main source of compile-fix cycles,
 and the standard library is small enough that you write your own helpers
 (digit check, pop, max, fan-out). Nothing blocked a program, and no compiler
 bug was found that required leaving a program out.
+
+## Findings and where they go
+
+| # | Finding | Kind | Owner |
+| --- | --- | --- | --- |
+| F1 | `unknown-method` on a readonly receiver hides the cause: it should say the binding is readonly (or suggest the right method name) | diagnostic | compiler session, error-code revamp #101 |
+| F2 | types print as `mut:List[char]` instead of `mut List[char]` in diagnostics | diagnostic bug | compiler session |
+| F3 | `Walk { state: {} }` with a field typed `mut Map[string, i32]` reports `cannot-infer-type`; the expected field type should type the empty literal | checker bug | compiler session |
+| F4 | `hd test FILE` also runs `main` and counts it as a passed case | CLI bug | compiler session |
+| F5 | `Map.keys` is specified but missing in the prototype | std/prototype gap | compiler session |
+| F6 | std.fs, std.json, std.path, std.host, std.encoding, std.digest are not on the loader list | prototype gap | compiler session |
+| F7 | `List` had no `pop` and used `append` | std | spec pass 76 (#228): renamed to `push`, `pop` added |
+| F8 | `all!` cannot await a runtime-sized list | std | spec pass 76 (#228): `std.task.all_list!` |
+| F9 | `char` has no `is_digit` (or other classification) | std | queued owner question |
+| F10 | `Timestamp`'s milliseconds have no public accessor | std | queued owner question |
+| F11 | `min`/`max` need `use std.cmp.max`; not in the prelude | std, by design (the prelude does not grow) | no action |
+| F12 | inner lists of `mut List[List[T]]` are readonly, so `out[i].push(x)` fails | language, by design (inner permission is part of the type; write `mut List[mut List[T]]`) | guide: add an example |
+| F13 | list spread is postfix (`[xs..., y]`) but a data spread is prefix (`...x`); `[...xs]` gives a bare `expected-expression` | diagnostic | compiler session: suggest the postfix form |
+
