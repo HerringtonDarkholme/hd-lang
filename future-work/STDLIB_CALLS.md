@@ -216,3 +216,18 @@ Pass 89 (#246) applied the stdlib audit ([stdlib-audit.md](../audit/stdlib-audit
 | 89 (#246) | The audit's revisit rows are kept: `Map[string, V]` alone encodes as JSON; a repeated CLI option keeps its last value; regex part 1 has no flags and no `\b`. `Utf8Error.Truncated` gains no position yet. | Each widens a surface that no script has hit; an `append` option kind, ASCII `(?i)`, and `\b` are each a later addition that changes no existing result. `Truncated(position)` changes a variant's shape and its `Display`, which no caller has asked for. | own |
 | 89 (#246) | Under the owner's POSITION-UNIT decision, a hex or base64 length check counts bytes, so `hex_decode("é0")` is `InvalidLength(3)`. `JsonError` positions move past each non-ASCII character by its byte width. `ParseNumberError` and `TimeParseError` positions keep their values, since every character before them is ASCII. | Go's `encoding/hex` and `base64` check the byte length; a position must be a `slice` bound. | own |
 | 89 (#246) | `lib/std` callers convert `char_scalar`'s `u32` to `i32` where the Unicode tables index by `i32`, and keep the unchecked `char_from_scalar` until the compiler returns `char?` (CHAR-SCALAR). | Every caller passes a checked scalar value. | own |
+
+## Process And Pass 90
+
+Pass 90 (#247) applied batch 80's PROCESS-RESULT and the pass-89
+leftovers of the [stdlib audit](../audit/stdlib-audit.md).
+
+| Pass | Call | Why | Status |
+| --- | --- | --- | --- |
+| 90 (#247) | `ProcessError` displays `program not found`, `permission denied`, and the `Other` message as written. Its `Debug` writes the variant name and, for `Other`, the `message` field. | `FsError` keeps the host message the same way; the owner gave `NotFound` no payload, so the caller adds the program name. | own |
+| 90 (#247) | `hd_run!` panics on `PermissionDenied` and `Other` too, with the error's text (`std-testing.hd-run.start-failure`). | `hd_run!` returns a bare `RunOutput`, so a failed start can only panic, as a missing name already does. | own |
+| 90 (#247) | `ScriptedProcess::new(outputs)` answers a program by name only, ignoring `args` and `stdin`, and an unscripted name is `NotFound`. | The pass-70 provider kept the table lookup; Q14-22 asked only for the constructor. | own |
+| 90 (#247) | `ExitCode`, `ProcessOutput`, and `Range`, `RangeFrom`, `RangeTo`, `RangeFull` implement `Eq` field by field, so `0..3 != 0..=2`. | Owner Q21; Rust's derived `PartialEq` on `Range` and `RangeInclusive` compares the fields, not the integers. | own |
+| 90 (#247) | `Captures` implements `Debug` with the derived builder calls on its private fields. | `std-format.debug.std-types` already required it. | own |
+| 90 (#247) | `Json.pretty()` is a method, and the free `pretty(value)` is removed. | Audit inconsistency 20: text output of a value is a method, as `to_rfc3339()` is; one spelling is enough. | own |
+| 90 (#247) | `hd_run!` stays in `std.testing`. Moving it out drops only `std.process` from a test program's joins; `std.time` and `std.random` stay, for timeouts and `Choices`. One-it compile time goes from about 240 ms to about 232 ms, within run-to-run noise, and the emitted WAT is unchanged. | The move would change the `use std.testing.hd_run` path that `hd new --app` writes, for about 3 percent of one test's compile time. | own |
