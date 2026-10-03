@@ -38,6 +38,7 @@ function occurrences(
   polarity: Polarity,
   declarations: Declarations,
   found: [string, Polarity][],
+  genericParameters: ReadonlySet<string>,
 ): void {
   const flip = (value: Polarity): Polarity => (value === 0 ? 0 : value === 1 ? -1 : 1);
   const generic = genericTypeName(type);
@@ -46,26 +47,38 @@ function occurrences(
     return;
   }
   const mutable = mutableInner(type);
-  if (mutable !== undefined) return occurrences(mutable, 0, declarations, found);
+  if (mutable !== undefined) return occurrences(mutable, 0, declarations, found, genericParameters);
   // `Option` and `Result` declare their parameters unmarked, so they are
   // invariant (04-type-system.md#r-types.option.invariant).
   const optional = optionalInner(type);
-  if (optional !== undefined) return occurrences(optional, 0, declarations, found);
+  if (optional !== undefined)
+    return occurrences(optional, 0, declarations, found, genericParameters);
   const tuple = tupleParts(type);
   if (tuple) {
-    for (const element of tuple) occurrences(element, polarity, declarations, found);
+    for (const element of tuple)
+      occurrences(element, polarity, declarations, found, genericParameters);
     return;
   }
   const callable = functionParts(type);
   if (callable) {
     for (const parameter of callable.parameters)
-      occurrences(parameter, flip(polarity), declarations, found);
-    occurrences(callable.result, polarity, declarations, found);
+      occurrences(parameter, flip(polarity), declarations, found, genericParameters);
+    occurrences(callable.result, polarity, declarations, found, genericParameters);
+    // A callable's requirement row is invariant even when the callable is
+    // itself in a positive or negative position (types.variance.function).
+    for (const requirement of callable.requirements)
+      occurrences(
+        resolveGenericType(requirement, genericParameters),
+        0,
+        declarations,
+        found,
+        genericParameters,
+      );
     return;
   }
   if (type.startsWith("trait:") && !type.endsWith("?")) {
     for (const argument of nominalGenericParts(type.slice("trait:".length))?.arguments ?? [])
-      occurrences(argument, 0, declarations, found);
+      occurrences(argument, 0, declarations, found, genericParameters);
     return;
   }
   const nominal = nominalGenericParts(type);
@@ -83,6 +96,7 @@ function occurrences(
       marker === "+" ? polarity : marker === "-" ? flip(polarity) : 0,
       declarations,
       found,
+      genericParameters,
     );
   });
 }
@@ -100,9 +114,10 @@ export function varianceDiagnostics(declarations: Declarations): Diagnostic[] {
     }[],
   ): void => {
     if (!variances?.some(Boolean)) return;
+    const genericParameters = new Set(parameters);
     for (const field of fields) {
       const found: [string, Polarity][] = [];
-      occurrences(field.type, field.embedded ? 0 : 1, declarations, found);
+      occurrences(field.type, field.embedded ? 0 : 1, declarations, found, genericParameters);
       const wrong = found.find(([name, polarity]) => {
         const marker = variances[parameters.indexOf(name)];
         return (marker === "+" && polarity !== 1) || (marker === "-" && polarity !== -1);
@@ -150,7 +165,13 @@ export function inherentVarianceDiagnostics(
     // An invariant occurrence or conflicting signs prevents that parameter
     // from varying in the target at all; it needs no signed method check.
     const targetOccurrences: [string, Polarity][] = [];
-    occurrences(target, 1, declarations, targetOccurrences);
+    occurrences(
+      target,
+      1,
+      declarations,
+      targetOccurrences,
+      new Set(implementation.genericParameters),
+    );
     const expected = new Map<string, Polarity>();
     for (const name of implementation.genericParameters) {
       const signs = new Set(
@@ -208,6 +229,7 @@ export function inherentVarianceDiagnostics(
           position.polarity,
           declarations,
           found,
+          parameters,
         );
         const wrong = found.find(([name, polarity]) => {
           const wanted = expected.get(name);

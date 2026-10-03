@@ -99,6 +99,60 @@ impl[U] Box[U]:
   );
 });
 
+test("callable requirement rows are invariant in data and enum surfaces", () => {
+  const capability = `trait Cap[T]:
+    fn get(self) -> T
+`;
+  for (const marker of ["+", "-"]) {
+    assert.deepEqual(
+      diagnostics(`${capability}data Box[${marker}T]:
+    callback: fn() -> void $ Cap[T]
+`),
+      ["invalid-variance"],
+    );
+    assert.deepEqual(
+      diagnostics(`${capability}enum Choice[${marker}T]:
+    Some(callback: fn() -> void $ Cap[T])
+`),
+      ["invalid-variance"],
+    );
+  }
+});
+
+test("callable requirement rows stay invariant through method polarity", () => {
+  const capability = `trait Cap[T]:
+    fn get(self) -> T
+`;
+  assert.deepEqual(
+    diagnostics(`${capability}${producer}
+impl[U] Box[U]:
+    fn use(self, callback: fn() -> void $ Cap[U]) -> void:
+        ()
+`),
+    ["invalid-variance"],
+  );
+  assert.deepEqual(
+    diagnostics(`${capability}${consumer}
+impl[U] Consumer[U]:
+    fn callback(self) -> (fn() -> void $ Cap[U]):
+        fn() -> void: ()
+`),
+    ["invalid-variance"],
+  );
+});
+
+test("callable requirements unrelated to the nominal parameter remain valid", () => {
+  assert.deepEqual(
+    diagnostics(`trait Cap[T]:
+    fn get(self) -> T
+data Box[+T]:
+    value: T
+    callback: fn() -> void $ Cap[i32]
+`),
+    [],
+  );
+});
+
 test("method generic binders do not capture implementation parameters in Self", () => {
   assert.deepEqual(
     diagnostics(`${producer}

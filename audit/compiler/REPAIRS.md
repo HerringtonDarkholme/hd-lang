@@ -129,12 +129,15 @@ The 27 variance regressions include generated Wasm with distinct receiver and me
 
 Regression tests: [variance.test.ts](../../src/checker/variance.test.ts).
 
-### Further A02 Edge Case: Callable Requirement Rows
+### Independent Repair: Callable Requirement-Row Variance
 
-Status: Reproduced, not fixed by the private-method repair.
-The callable variance traversal checks inputs and results, but currently omits generic occurrences in requirement rows.
-[types.variance.function](../../spec/lang/04-type-system.md#r-types.variance.function) requires the callable's requirement row to be invariant.
-The same issue occurs inside a private method's callable parameter; it predates the private-method repair.
+Callable requirement rows now participate in nominal variance validation as invariant positions, as [types.variance.function](../../spec/lang/04-type-system.md#r-types.variance.function) requires.
+The traversal resolves declaration and implementation binders while inspecting each row entry, then reuses the existing nominal argument traversal.
+It applies to data fields, enum payloads, and readonly inherent method inputs and results regardless of visibility.
+Unrelated concrete requirements remain valid.
+
+This repair does not change callable type normalization, substitution, erasure, or the runtime provider ABI.
+It also does not assign a polarity to a method's standalone requirement clause; that remains a separate specification audit question.
 
 | Later fixture candidate | Required observation |
 | --- | --- |
@@ -142,12 +145,31 @@ The same issue occurs inside a private method's callable parameter; it predates 
 | Readonly inherent method receives that callable through a signed impl parameter | Apply the same row traversal regardless of method visibility |
 | A method's standalone requirement clause mentions a signed impl parameter | Audit its specified polarity separately; do not infer a new rule from callable row invariance |
 
+Regression tests: [variance.test.ts](../../src/checker/variance.test.ts).
+
+Validation: full `pnpm run check`, all 90 source tests, website build, and fuzz smoke passed after rebasing onto `93dc7125`.
+
+### Further Callable Edge Case: Generic Provider-Key Erasure
+
+Status: Reproduced, not fixed by the requirement-row variance repair.
+A stored generic callable such as `Job[T].callback: fn() -> i32 $ Repo[T]` cannot currently accept a concrete `Repo[User]` callback after `Job[User]` substitution.
+Normalizing that checker type alone is unsafe: an exploratory patch reached Wasm with provider keys that disagreed between `Repo[generic:T]` and `Repo[User]`, then trapped at runtime.
+
+The later repair needs an explicit substitution and provider-key plan through callable erasure and adapters.
+It must not guess generic identities from source names or sorted parameter positions.
+This is a checker/backend representation defect, separate from deciding the already-specified invariant polarity of a callable row.
+
+| Later fixture candidate | Required observation |
+| --- | --- |
+| Store `fn() -> i32 $ Repo[T]` in `Job[T]`, instantiate `Job[User]`, and call under a `Repo[User]` provider | Type-check and return normally; the stored callable and adapter agree on the concrete provider key |
+| Use two generic parameters in requirements in a different order from their declaration | Preserve binder identity rather than matching keys by position or sorting |
+
 ### Repair Status Table
 
 
 | Finding | Status | Repair and limits |
 | --- | --- | --- |
-| A02 | Partially fixed | Public and private readonly inherent signatures, including inferred private results, participate in variance verification. Optional constructor boundaries preserve payload permission. Shared coercion, least-common-type, and callable requirement-row findings remain open. |
+| A02 | Partially fixed | Public and private readonly inherent signatures, including inferred private results and invariant callable requirement rows, participate in variance verification. Optional constructor boundaries preserve payload permission. Shared coercion, least-common-type, and generic provider-key erasure remain open. |
 | A03 | Reported control-flow defect fixed | All child-driving bodies use the suspension CFG. The linear backend and comprehension bypass are removed. This does not close A06's entry/waker gap or prove all lowering correct. |
 | A04 | Reported placeholder capture fixed | Generated expression and type placeholders cannot capture legal user identifiers. Broader generated helper-name hygiene remains unreviewed. |
 | A05 | Reported candidate-checking defects fixed | Arbitrary argument expressions and associated candidates use mutable-state rollback and sparse inference journals, then the winner is committed once. Broader resolution conformance remains open. |
@@ -165,7 +187,7 @@ Public methods require explicit result types before this pass, so result inferen
 Associated construction and mutable receivers do not expose a readonly instance view and are excluded.
 Separate trait implementations retain their existing independent signature checks.
 The later private-method repair closes the visibility and inferred-result gap under the current explicit private-surface rule.
-Callable requirement-row variance remains a separate reproduced defect.
+The callable requirement-row repair closes the omitted row traversal without changing callable erasure.
 
 Regression tests: [variance.test.ts](../../src/checker/variance.test.ts).
 
