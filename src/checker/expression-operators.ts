@@ -293,7 +293,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
               _expected,
             );
         }
-        const { left, right } = this.checkNumericOperands(expression, _expected, checkedLeft);
+        let { left, right } = this.checkNumericOperands(expression, _expected, checkedLeft);
         if (expression.operator === "is")
           return this.checkIdentityExpression(expression, left, right);
         const logical = expression.operator === "and" || expression.operator === "or";
@@ -302,6 +302,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         const bitwise = ["&", "|", "^", "<<", ">>"].includes(expression.operator);
         const remainder = expression.operator === "%";
         const stringConcatenation = expression.operator === "+" && left.type === "string";
+        if (comparison) ({ left, right } = this.normalizeComparisonPermissions(left, right));
         if (logical) {
           this.requireType(left.type, "bool", left.span);
           this.requireType(right.type, "bool", right.span);
@@ -472,6 +473,21 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       default:
         return undefined;
     }
+  }
+
+  /** Normalize only a comparison's outer access permission; nested permissions remain types. */
+  private normalizeComparisonPermissions(
+    left: HirExpression,
+    right: HirExpression,
+  ): { left: HirExpression; right: HirExpression } {
+    const comparedType = readonlyType(left.type);
+    if (left.type === right.type || comparedType !== readonlyType(right.type))
+      return { left, right };
+    // One implementation serves both access views (r-trait.target.both-views).
+    return {
+      left: this.coerce(left, comparedType, left.span),
+      right: this.coerce(right, comparedType, right.span),
+    };
   }
 
   /**
