@@ -178,6 +178,18 @@ data Iterator[T]:
 19. r[flow.for.comprehension] Comprehension `for` clauses accept the same values by the same rules.
 20. r[flow.for.iterator-no-bound] A generic parameter bounded by `Iterable[T]` does not accept an iterator argument, readonly or mutable. Error: `unsatisfied-trait-bound`.
 
+> **Why.** `Iterable[T]` promises a fresh, independent traversal on every
+> `iter()` call. A function bounded by it may loop over its argument twice,
+> or zip it with itself, and see every element each time. An iterator is a
+> single cursor and cannot keep that promise. If it implemented `Iterable`,
+> a second pass would silently see only what the first pass left, or
+> nothing, as with Python generators. So iterators stay outside `Iterable`.
+> `for` still consumes an iterator directly, by
+> [`flow.for.iterator-direct`](#r-flow.for.iterator-direct), because there
+> the consumption is visible at the call site. To pass an iterator where an
+> `Iterable` is expected, collect it first (`let rest: List[T] =
+> it.collect()`) or make it the receiver (`it.zip(other)`).
+
 ```text
 fn countdown(start: i32) -> mut Iterator[i32]:
     let left: i32 = start
