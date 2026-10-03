@@ -1,0 +1,26 @@
+# test: ScriptedProcess::new answers each scripted program, whatever its arguments, and reports any other as NotFound
+# Spec std/process Scripted Process: std-process.scripted.new, std-process.scripted.run, std-process.scripted.not-found.
+# expect: test
+use std.process.{Process, ProcessError, ProcessOutput, ScriptedProcess}
+use std.testing.assert_equal
+
+fn version!() -> string $ Process:
+    match $.use(Process).run!("git", ["--version"], ""):
+        .Ok(output) => output.stdout
+        .Err(_) => "no git"
+
+fn missing!() -> bool $ Process:
+    match $.use(Process).run!("make", ["all"], "input"):
+        .Err(error) => error == ProcessError.NotFound
+        .Ok(_) => false
+
+tests:
+    it("answers the scripted program"):
+        let mut process = ScriptedProcess::new({"git": ProcessOutput { stdout: "git 2.0", stderr: "", status: 0 }})
+        $.with(Process=process):
+            assert_equal(version!(), "git 2.0", reason="git is scripted")
+
+    it("an unscripted program is NotFound"):
+        let mut process = ScriptedProcess::new({})
+        $.with(Process=process):
+            assert_equal(missing!(), true, reason="make is not scripted")

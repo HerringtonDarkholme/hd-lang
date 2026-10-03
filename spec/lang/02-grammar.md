@@ -1250,11 +1250,10 @@ multiline_string_segment = multiline_string_text
                          | "$", "self"
                          | "${", expression, "}"
                          ;
-prefixed_string_expression = [ prefix_module_path ], string_prefix, '"',
+prefixed_string_expression = string_prefix, '"',
                              { prefixed_string_segment }, '"'
-                           | [ prefix_module_path ], string_prefix, '"""',
+                           | string_prefix, '"""',
                              { prefixed_multiline_segment }, '"""' ;
-prefix_module_path = identifier, ".", { identifier, "." } ;
 prefixed_string_segment = prefixed_string_character
                         | "$", identifier
                         | "$", "self"
@@ -1353,8 +1352,6 @@ See also: [Literal Suffixes](01-lexical-structure.md#literal-suffixes).
 
 #### Prefixed Strings
 
-1. r[grammar.primary.qualified-prefix] A `prefix_module_path` before a prefixed string makes one `prefixed_string_expression`, as in `marks.tag"item"`. It is never a member access on the path.
-
 The rules of [Suffixed Literals](#suffixed-literals) cover a prefixed
 string too:
 
@@ -1364,6 +1361,28 @@ fn describe(text: string) -> string:
         r"a" => "letter"  # error: syntax-error
         _ => "other"
 ```
+
+1. r[grammar.primary.prefix-after-dot] A prefixed string directly after `.` is an error, whether a module path stands before the dot, as in `marks.tag"item"`, or a value, as in `value.tag"item"`. Error: `qualified-string-prefix`.
+
+```text
+use pkg.marks
+
+fn label() -> string:
+    marks.tag"item"  # error: qualified-string-prefix
+
+fn quote(value: string) -> string:
+    value.tag"item"  # error: qualified-string-prefix
+```
+
+> **Note.** The `qualified-string-prefix` message says that only a bare
+> name in scope can be a string prefix, and suggests importing it. For
+> `text.r"\d+"` it reads: "only a bare name in scope can be a string
+> prefix; write `use std.text.r`, then `r"..."`".
+
+> **Why.** A bare prefix keeps one rule for every name a literal calls,
+> and `use` already names where it comes from. A path before a prefix
+> would need its own resolution, beside module paths, methods, and
+> fields.
 
 See also: [Prefixed Strings](01-lexical-structure.md#prefixed-strings).
 

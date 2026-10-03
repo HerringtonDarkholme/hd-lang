@@ -1,0 +1,30 @@
+# test: ProcessError displays each variant's text, compares by variant and message, and converts into the erased Error
+# Spec std/process Process Errors: std-process.error.display.not-found, std-process.error.display.permission, std-process.error.display.other, std-process.error.eq, std-process.error.error.
+# expect: test
+use std.process.ProcessError
+use std.error.Error
+use std.testing.assert_equal
+
+fn explain(error: ProcessError) -> string:
+    "cannot run the tool: ${error}"
+
+fn erased(error: ProcessError) -> Result[i32, Error]:
+    let failed: Result[i32, ProcessError] = .Err(error)
+    value := failed?
+    .Ok(value)
+
+tests:
+    it("each variant has its text"):
+        assert_equal(explain(.NotFound), "cannot run the tool: program not found", reason="NotFound")
+        assert_equal(explain(.PermissionDenied), "cannot run the tool: permission denied", reason="PermissionDenied")
+        assert_equal(explain(.Other(message="exec format error")), "cannot run the tool: exec format error", reason="Other is its message")
+
+    it("equal when the variant and the message are"):
+        assert_equal(ProcessError.Other(message="a") == ProcessError.Other(message="a"), true, reason="same message")
+        assert_equal(ProcessError.Other(message="a") == ProcessError.Other(message="b"), false, reason="other message")
+        assert_equal(ProcessError.NotFound == ProcessError.PermissionDenied, false, reason="other variant")
+
+    it("? converts it into the erased Error"):
+        match erased(.PermissionDenied):
+            .Err(error) => assert_equal(error.to_string(), "permission denied", reason="the text survives")
+            .Ok(_) => assert_equal(true, false, reason="an error stays an error")

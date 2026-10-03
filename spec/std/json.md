@@ -8,13 +8,13 @@ over the language tier:
 - the value type `Json`, and `Number`, which keeps 64-bit integers exact;
 - `parse`, a strict [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259) parser;
 - `JsonError`, the error that `parse` and `decode` return;
-- the compact `Display` text of a `Json`, and `pretty`;
+- the compact `Display` text of a `Json`, and its `pretty` method;
 - the typed part: the traits `ToJson` and `FromJson`, their standard
   implementations and templates, and `encode` and `decode`.
 
 Nothing in it is language tier.
 
-1. r[std-json.import] `std.json` declares `Json`, `Number`, `JsonError`, `parse`, and `pretty`. None is a prelude name; code imports them, as in `use std.json.parse`.
+1. r[std-json.import.core] `std.json` declares `Json`, `Number`, `JsonError`, and `parse`. None is a prelude name; code imports them, as in `use std.json.parse`.
 2. r[std-json.import.typed] `std.json` also declares `ToJson`, `FromJson`, `encode`, and `decode`. None is a prelude name either.
 3. r[std-json.no-panic] None of these functions panics.
 
@@ -261,18 +261,22 @@ The `expected` of a `WrongType` depends on the type that reads the value:
 A `Json` writes as JSON text in two layouts, compact and pretty:
 
 ```text
-use std.json.{parse, pretty, Json}
+use std.json.{parse, Json}
 
 fn show(value: Json) -> string:
     "${value}"   # {"a":[1,2]}
 
 fn show_pretty(value: Json) -> string:
-    pretty(value)
+    value.pretty()
 ```
 
-| Rule | Function | Result |
+| Rule | Method | Result |
 | --- | --- | --- |
-| r[std-json.pretty] `pretty` | `pub fn pretty(value: Json) -> string` | the pretty text of `value` |
+| r[std-json.value.pretty] `pretty` | `pub fn pretty(self) -> string` | the pretty text of `self` |
+
+> **Why.** Text output of a value is a method, as `to_rfc3339()` and
+> `to_fixed(n)` are. One spelling is enough, so there is no free
+> `pretty` function.
 
 ### Compact Text
 
@@ -355,7 +359,7 @@ fn load(text: string) -> Result[Plain, JsonError]:
 ```
 
 > **Note.** `encode` writes only the compact layout. For the pretty one,
-> write `pretty(value.to_json())`.
+> write `value.to_json().pretty()`.
 
 ### Standard Implementations
 

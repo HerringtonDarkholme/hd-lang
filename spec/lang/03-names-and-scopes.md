@@ -228,10 +228,9 @@ fn retry_after(s: i32) -> i32:
     s
 ```
 
-1. r[names.literal-fn.bare-name] A literal suffix or an unqualified string prefix is resolved as a module name: a module-scope declaration, or a name that a use declaration or the prelude introduces. Ordinary rules apply, so it is brought in, renamed with `as`, or found in conflict as other used names are.
-2. r[names.literal-fn.qualified-prefix] A module-qualified string prefix, as `marks.tag` in `marks.tag"item"` after `use pkg.marks`, resolves through its module path as any qualified function name does.
-3. r[names.literal-fn.no-local] Parameters, local bindings, and local type declarations never take part, so a local named `s` or `r` does not change what `5s` or `r"..."` calls.
-4. r[names.literal-fn.unknown-name] A suffix or prefix that names nothing in module scope is an error. Error: `unknown-name`.
+1. r[names.literal-fn.bare-in-scope] A literal suffix or a string prefix is a bare name, resolved as a module name: a module-scope declaration, or a name that a use declaration or the prelude introduces. Ordinary rules apply, so it is brought in, renamed with `as`, or found in conflict as other used names are.
+2. r[names.literal-fn.no-local] Parameters, local bindings, and local type declarations never take part, so a local named `s` or `r` does not change what `5s` or `r"..."` calls.
+3. r[names.literal-fn.unknown-name] A suffix or prefix that names nothing in module scope is an error. Error: `unknown-name`.
 
 ```text
 fn margin() -> i32:
@@ -269,10 +268,12 @@ fn query(id: i32) -> string:
     sql"select $id"  # error: unknown-name
 ```
 
-> **Note.** So after `use std.text`, `text.r"\d+"` calls the stdlib
-> prefix function `r` of [Text](../std/text.md).
+> **Note.** A prefix is never written with a module path. To call the
+> stdlib prefix function `r` of [Text](../std/text.md), write
+> `use std.text.r`, then `r"\d+"`.
 
-See also: [Prefixed Strings](05-expressions.md#prefixed-strings).
+See also: [Prefixed Strings](05-expressions.md#prefixed-strings),
+[`grammar.primary.prefix-after-dot`](02-grammar.md#r-grammar.primary.prefix-after-dot).
 
 ## Local Bindings
 

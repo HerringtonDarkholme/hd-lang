@@ -1,0 +1,4 @@
+# test: a value before a prefixed string is qualified-string-prefix, not a member access
+# Spec Grammar, Prefixed Strings: grammar.primary.prefix-after-dot.
+fn quote(value: string) -> string:
+    value.tag"item"  # diagnostic: qualified-string-prefix

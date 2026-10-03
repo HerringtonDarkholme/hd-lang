@@ -8,7 +8,8 @@ ordinary hd over the language tier:
 - the `Default` trait;
 - the standard `Default` implementations, including its tuple template;
 - derived `Default`, through the trait's template, and the `@default`
-  variant marker.
+  variant marker;
+- `Eq` for the range types.
 
 The language tier keeps the rest of `std.ops`, since the compiler knows
 those items by name:
@@ -181,3 +182,29 @@ fn opened() -> i32:
 
 See also: [Derived Implementations](../lang/09-traits.md#derived-implementations),
 [Templates](../lang/14-annotations.md#templates).
+
+## Range Equality
+
+The range types compare field by field:
+
+```text
+use std.ops.Range
+
+fn same_span(left: Range[i32], right: Range[i32]) -> bool:
+    left == right
+```
+
+| Rule | Type | Equal when |
+| --- | --- | --- |
+| r[std-ops.range.eq.range] Range | `Range[T]`, where `T < Eq` | `start`, `end`, and `inclusive` are each equal |
+| r[std-ops.range.eq.from] From | `RangeFrom[T]`, where `T < Eq` | `start` is equal |
+| r[std-ops.range.eq.to] To | `RangeTo[T]`, where `T < Eq` | `end` and `inclusive` are each equal |
+| r[std-ops.range.eq.full] Full | `RangeFull` | always |
+
+1. r[std-ops.range.eq.inclusive] So `0..3` and `0..=2` are not equal, though they hold the same integers.
+
+> **Why.** A range is a plain value, and std value types implement `Eq`.
+> Comparing the fields, not the integers, is what Rust's derived
+> `PartialEq` for `Range` does.
+
+See also: [Range Expressions](../lang/05-expressions.md#range-expressions).

@@ -1,6 +1,6 @@
 # test: pretty writes two-space indentation, one item per line, and keeps empty containers on one line
-# Spec std/json Writing: std-json.pretty.layout, std-json.pretty.empty, std-json.pretty.scalar (JSON-SURFACE; task #226).
-use std.json.{parse, pretty, Json}
+# Spec std/json Writing: std-json.value.pretty, std-json.pretty.layout, std-json.pretty.empty, std-json.pretty.scalar (JSON-SURFACE; task #226).
+use std.json.{parse, Json}
 use std.testing.{assert_equal}
 
 fn read(text: string) -> Json:
@@ -10,23 +10,23 @@ fn read(text: string) -> Json:
 
 tests:
     it("a scalar is its compact text"):
-        assert_equal(pretty(read("null")), "null", reason="null")
-        assert_equal(pretty(read("-5")), "-5", reason="number")
-        assert_equal(pretty(read("\"a\\n\"")), "\"a\\n\"", reason="text")
+        assert_equal(read("null").pretty(), "null", reason="null")
+        assert_equal(read("-5").pretty(), "-5", reason="number")
+        assert_equal(read("\"a\\n\"").pretty(), "\"a\\n\"", reason="text")
 
     it("empty containers stay on one line"):
-        assert_equal(pretty(read("[]")), "[]", reason="array")
-        assert_equal(pretty(read("{}")), "{}", reason="object")
-        assert_equal(pretty(read("[[],{}]")), "[\n  [],\n  {}\n]", reason="nested")
+        assert_equal(read("[]").pretty(), "[]", reason="array")
+        assert_equal(read("{}").pretty(), "{}", reason="object")
+        assert_equal(read("[[],{}]").pretty(), "[\n  [],\n  {}\n]", reason="nested")
 
     it("each item and each member gets its own line, two spaces deeper"):
-        assert_equal(pretty(read("[1,2]")), "[\n  1,\n  2\n]", reason="array")
-        assert_equal(pretty(read("{\"a\":1,\"b\":[true]}")), "{\n  \"a\": 1,\n  \"b\": [\n    true\n  ]\n}", reason="object")
+        assert_equal(read("[1,2]").pretty(), "[\n  1,\n  2\n]", reason="array")
+        assert_equal(read("{\"a\":1,\"b\":[true]}").pretty(), "{\n  \"a\": 1,\n  \"b\": [\n    true\n  ]\n}", reason="object")
 
     it("pretty text parses back to an equal value"):
         value := read("{\"a\":[1,{\"b\":null}],\"c\":\"d\",\"e\":{}}")
-        assert_equal(read(pretty(value)), value, reason="round trip")
+        assert_equal(read(value.pretty()), value, reason="round trip")
 
     it("pretty has no trailing space or final newline"):
-        assert_equal(pretty(read("{\"a\":[]}")).ends_with("}"), true, reason="ends at the brace")
-        assert_equal(pretty(read("{\"a\":[1]}")).contains(" \n"), false, reason="no trailing space")
+        assert_equal(read("{\"a\":[]}").pretty().ends_with("}"), true, reason="ends at the brace")
+        assert_equal(read("{\"a\":[1]}").pretty().contains(" \n"), false, reason="no trailing space")

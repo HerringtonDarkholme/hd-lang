@@ -1,3 +1,5 @@
+# A prefix function for the string prefix fixtures: `use pkg.marks.tag`
+# then `tag"..."` calls it, and `marks.tag"..."` is qualified-string-prefix.
 use std.ops.{Template, str_prefix}
 
 @str_prefix

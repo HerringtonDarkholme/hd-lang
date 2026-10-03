@@ -3,6 +3,7 @@ std.testing.Arbitrary	std/testing.md#property-tests
 std.testing.Choices	std/testing.md#property-tests
 std.testing.snapshot_file	std/testing.md#snapshot-files
 std.testing.hd_run	std/testing.md#running-executables
+std.process.ScriptedProcess	std/process.md#scripted-process
 std.testing.RunOutput	std/testing.md#running-executables
 std.testing.arbitrary	std/testing.md#derived-arbitrary
 std.iter.FromIterator	std/iter.md#collect-targets
@@ -51,7 +52,6 @@ std.json.Json	std/json.md#json-values
 std.json.Number	std/json.md#numbers
 std.json.JsonError	std/json.md#json-errors
 std.json.parse	std/json.md#parsing
-std.json.pretty	std/json.md#writing
 std.json.ToJson	std/json.md#tojson-and-fromjson
 std.json.FromJson	std/json.md#tojson-and-fromjson
 std.json.encode	std/json.md#encode-and-decode

@@ -1,19 +1,22 @@
-# test: a scripted Process provider answers each program, and run! returns .None for an unknown one
+# test: a scripted Process provider answers each program, and run! returns .Err(.NotFound) for an unknown one
 # expect: test
-use std.process.{Process, ProcessOutput}
+use std.process.{Process, ProcessError, ProcessOutput}
 use std.testing.assert_equal
 
 data ScriptedProcess:
     outputs: Map[string, ProcessOutput]
 
 impl Process for ScriptedProcess:
-    fn run!(mut self, program: string, args: List[string], stdin: string) -> ProcessOutput?:
-        self.outputs.get(program)
+    fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]:
+        match self.outputs.get(program):
+            .Some(output) => .Ok(output)
+            .None => .Err(.NotFound)
 
 fn version!() -> string $ Process:
     match $.use(Process).run!("git", ["--version"], ""):
-        .Some(output) => output.stdout
-        .None => "no git"
+        .Ok(output) => output.stdout
+        .Err(.NotFound) => "no git"
+        .Err(error) => "git did not start: ${error}"
 
 tests:
     it("answers a scripted program"):
@@ -21,7 +24,7 @@ tests:
         $.with(Process=scripted):
             assert_equal(version!(), "git 2.0", reason="git is scripted")
 
-    it("returns .None for an unknown program"):
+    it("returns .Err(.NotFound) for an unknown program"):
         let mut empty = ScriptedProcess { outputs: {} }
         $.with(Process=empty):
             assert_equal(version!(), "no git", reason="nothing is scripted")

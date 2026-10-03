@@ -716,42 +716,61 @@ pub data ProcessOutput:
     pub stderr: string
     pub status: i32
 
+pub enum ProcessError:
+    NotFound
+    PermissionDenied
+    Other(message: string)
+
 pub trait Process:
-    fn run!(mut self, program: string, args: List[string], stdin: string) -> ProcessOutput?
+    fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]
 ```
 
-1. r[module.process.host-trait] `Process` is a host capability trait that `std.process` declares, with the data type `ProcessOutput`.
+1. r[module.process.declares] `Process` is a host capability trait that `std.process` declares, with the data type `ProcessOutput` and the enum `ProcessError`.
 2. r[module.process.run] `run!(program, args, stdin)` starts the program named `program` with the arguments `args` and the standard input `stdin`, and completes when that program exits.
-3. r[module.process.output] Its result holds the text the program wrote to standard output and to standard error, and the status it exited with.
-4. r[module.process.missing] It returns `.None` when its provider has no program named `program`.
-5. r[module.process.mut] `run!` takes `mut self`, so `Process` is a mutable requirement trait, as `Console` is, and a provider may record what it runs.
-6. r[module.process.import] `Process` and `ProcessOutput` are not prelude names; code imports them from `std.process`.
+3. r[module.process.ok-output] When the program starts, `run!` returns `.Ok` of a `ProcessOutput`. It holds the text the program wrote to standard output and to standard error, and the status it exited with.
+4. r[module.process.nonzero-ok] A non-zero exit status is still an ordinary `.Ok` result; the caller reads it from `status`.
+5. r[module.process.not-found] `run!` returns `.Err(ProcessError.NotFound)` when its provider has no program named `program`.
+6. r[module.process.permission-denied] It returns `.Err(ProcessError.PermissionDenied)` when the program exists but the host does not allow starting it.
+7. r[module.process.other] It returns `.Err(ProcessError.Other(message))` when the program cannot start for any other reason, with a message that says why.
+8. r[module.process.error-traits] `ProcessError` implements `Eq`, `Debug`, `Display`, and [`Error`](09-traits.md#error-trait).
+9. r[module.process.mut] `run!` takes `mut self`, so `Process` is a mutable requirement trait, as `Console` is, and a provider may record what it runs.
+10. r[module.process.import.names] `Process`, `ProcessOutput`, and `ProcessError` are not prelude names; code imports them from `std.process`.
 
 A scripted provider answers each program from a table:
 
 ```text
-use std.process.{Process, ProcessOutput}
+use std.process.{Process, ProcessError, ProcessOutput}
 
 data ScriptedProcess:
     outputs: Map[string, ProcessOutput]
 
 impl Process for ScriptedProcess:
-    fn run!(mut self, program: string, args: List[string], stdin: string) -> ProcessOutput?:
-        self.outputs.get(program)
+    fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]:
+        match self.outputs.get(program):
+            .Some(output) => .Ok(output)
+            .None => .Err(.NotFound)
 
 fn version!() -> string $ Process:
     match $.use(Process).run!("git", ["--version"], ""):
-        .Some(output) => output.stdout
-        .None => "no git"
+        .Ok(output) => output.stdout
+        .Err(.NotFound) => "no git"
+        .Err(error) => "git did not start: ${error}"
 ```
 
 > **Note.** Which programs a provider starts is the provider's choice. The
 > test runner binds one whose programs are the package's executables
 > ([`cli.test.process`](../cli/command-line.md#r-cli.test.process)).
 
+> **Note.** The `Display` text of each `ProcessError` variant and the
+> stdlib provider `ScriptedProcess` are stdlib tier:
+> [Process](../std/process.md) in `std.process`.
+
 > **Why.** Starting a program is a host capability like any other, so a
 > function that starts one states it in its row, and a test can install a
-> scripted provider.
+> scripted provider. A missing program and a refused start are failures,
+> not absence, so `run!` returns a `Result`, as the file system traits do.
+> A program that ran and exited with an error still ran, so its status is
+> ordinary output.
 
 ### Value-Category Traits
 

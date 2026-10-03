@@ -1,0 +1,35 @@
+# test: run! reports a refused start as .Err, and a non-zero exit status as an ordinary .Ok
+# Spec Modules, Processes: module.process.nonzero-ok, module.process.permission-denied, module.process.other, module.process.error-traits.
+# expect: test
+use std.process.{Process, ProcessError, ProcessOutput}
+use std.testing.assert_equal
+
+data RefusingProcess: pass
+
+impl Process for RefusingProcess:
+    fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]:
+        match program:
+            "locked" => .Err(.PermissionDenied)
+            "broken" => .Err(.Other(message="exec format error"))
+            _ => .Ok(ProcessOutput { stdout: "", stderr: "failed", status: 2 })
+
+fn start!(program: string) -> Result[ProcessOutput, ProcessError] $ Process:
+    $.use(Process).run!(program, [], "")
+
+tests:
+    it("a non-zero exit status is .Ok"):
+        let mut refusing = RefusingProcess {}
+        $.with(Process=refusing):
+            match start!("tool"):
+                .Ok(output) => assert_equal(output.status, 2, reason="the status is output")
+                .Err(_) => assert_equal(true, false, reason="a program that ran is .Ok")
+
+    it("a refused start is .Err"):
+        let mut refusing = RefusingProcess {}
+        $.with(Process=refusing):
+            match start!("locked"):
+                .Err(error) => assert_equal(error == ProcessError.PermissionDenied, true, reason="the variant is PermissionDenied")
+                .Ok(_) => assert_equal(true, false, reason="locked never starts")
+            match start!("broken"):
+                .Err(error) => assert_equal(error == ProcessError.Other(message="exec format error"), true, reason="Other keeps its message")
+                .Ok(_) => assert_equal(true, false, reason="broken never starts")

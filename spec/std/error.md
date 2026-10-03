@@ -220,6 +220,7 @@ fn width(text: string) -> Result[i32, Error]:
 | `ConsoleError` | `std.console` |
 | `DecodeError` | `std.encoding` |
 | `FsError` | `std.fs` |
+| `ProcessError` | `std.process` |
 | `JsonError` | `std.json` |
 | `TimeParseError` | `std.time` |
 | `CliError` | `std.cli` |

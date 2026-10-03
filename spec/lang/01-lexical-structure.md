@@ -770,9 +770,8 @@ quoted := r"say \"hi\""
 4. r[lex.prefix.backslash] A backslash keeps the following quote from ending the literal, and keeps a following `$` from beginning an interpolation. The backslash stays in the text, so a prefixed string cannot end in an odd number of backslashes.
 5. r[lex.prefix.lines] A prefixed string follows the line rules of an unprefixed one: a single-line form holds no line ending, and a multiline form keeps its line endings and indentation as written.
 6. r[lex.prefix.interpolation] A prefixed string interpolates with the forms of [Interpolation](#interpolation): `$name`, `$self`, and `${expression}`.
-7. r[lex.prefix.qualified] A prefix may be module-qualified. After a module path and `.`, an identifier followed directly by `"` or `"""` forms a prefixed string, as in `marks.tag"item"`.
-8. r[lex.prefix.qualified.name] The prefix of such a string is the whole qualified name, `marks.tag` in that example, not a member of a value.
-9. r[lex.suffix.bare] A literal suffix is always a bare identifier and is never module-qualified.
+7. r[lex.prefix.bare-only] A prefix is one bare identifier and is never module-qualified, as a literal suffix is not.
+8. r[lex.suffix.bare] A literal suffix is always a bare identifier and is never module-qualified.
 
 The reserved-word and meaning rules of [Literal Suffixes](#literal-suffixes)
 cover a prefix too.
@@ -791,7 +790,9 @@ flag := r"$true"  # error: syntax-error
 > means.
 
 See also: [Prefixed Strings](05-expressions.md#prefixed-strings),
-[String Prefix Names](03-names-and-scopes.md#string-prefix-names).
+[String Prefix Names](03-names-and-scopes.md#string-prefix-names),
+[`grammar.primary.prefix-after-dot`](02-grammar.md#r-grammar.primary.prefix-after-dot)
+for a path before a prefix.
 
 #### Escape Sequences
 

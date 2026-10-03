@@ -1978,3 +1978,9 @@ typing/invalid/default-names-later-beside-forward-bound.hd	type
 typing/valid/list-literal-compares-with-readonly-binding.hd	type
 typing/invalid/error-anyval-newtype.hd	type
 typing/valid/dynamic-safety-implied-anyref.hd	type
+runtime/valid/process-error-results.hd	runtime
+runtime/valid/process-error-display.hd	runtime
+runtime/valid/process-exit-data-eq.hd	runtime
+runtime/valid/scripted-process.hd	runtime
+runtime/valid/range-eq.hd	runtime
+runtime/valid/string-prefix-imported-by-name.hd	runtime

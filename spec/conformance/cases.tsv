@@ -1883,7 +1883,8 @@ typing/invalid/row-slot-bare-alias-argument.hd	type	reject:generic-kind-mismatch
 typing/invalid/row-slot-bare-context.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.context.dollar
 typing/invalid/row-slot-bare-function-type.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.type.ctor.row.dollar
 typing/invalid/row-slot-bare-explicit-argument.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.generic.explicit.row-dollar
-runtime/valid/process-scripted-provider.hd	runtime	accept	lang/10-modules.md#r-module.process.missing
+runtime/valid/process-scripted-provider.hd	runtime	accept	lang/10-modules.md#r-module.process.not-found
+runtime/valid/process-error-results.hd	runtime	accept	lang/10-modules.md#r-module.process.nonzero-ok
 typing/invalid/hd-run-requires-process.hd	type	reject:missing-requirement	std/testing.md#r-std-testing.hd-run.row
 runtime/valid/unit-pattern-void-success.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.unit.irrefutable
 typing/invalid/unit-pattern-non-void.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.unit.type
@@ -1942,6 +1943,10 @@ runtime/valid/console-error-traits.hd	runtime	accept	std/console.md#r-std-consol
 runtime/valid/buffer-console.hd	runtime	accept	std/console.md#r-std-console.buffer.output
 runtime/valid/buffer-console-error-lines.hd	runtime	accept	std/console.md#r-std-console.buffer.error-output
 runtime/valid/scripted-input.hd	runtime	accept	std/console.md#r-std-console.scripted.read
+runtime/valid/process-error-display.hd	runtime	accept	std/process.md#r-std-process.error.display.other
+runtime/valid/process-exit-data-eq.hd	runtime	accept	std/process.md#r-std-process.output.eq
+runtime/valid/scripted-process.hd	runtime	accept	std/process.md#r-std-process.scripted.new
+runtime/valid/range-eq.hd	runtime	accept	std/ops.md#r-std-ops.range.eq.range
 runtime/valid/list-access-building.hd	runtime	accept	std/collections.md#list-access-and-building
 runtime/valid/map-is-empty.hd	runtime	accept	std/collections.md#r-std-collections.map.is-empty
 runtime/valid/choices-choose.hd	runtime	accept	std/testing.md#r-std-testing.choices.choose.empty
@@ -2163,5 +2168,7 @@ typing/valid/generic-bound-names-later-parameter.hd	type	accept	lang/04-type-sys
 typing/valid/generic-mutual-bounds.hd	type	accept	lang/04-type-system.md#r-types.generic.bound.mutual
 runtime/valid/generic-forward-bound-explicit-first-slot.hd	runtime	accept	lang/04-type-system.md#r-types.generic.bound.any-order
 typing/invalid/default-names-later-beside-forward-bound.hd	type	reject:binding-not-yet-visible	lang/03-names-and-scopes.md#r-names.generic.defaults.earlier
-typing/valid/qualified-string-prefix.hd	type	accept	lang/03-names-and-scopes.md#r-names.literal-fn.qualified-prefix
-runtime/valid/qualified-string-prefix-call.hd	runtime	accept	lang/05-expressions.md#r-expr.prefix.qualified-call
+typing/invalid/qualified-string-prefix.hd	type	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
+typing/invalid/qualified-string-prefix-call.hd	type	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
+parse/invalid/qualified-string-prefix-value.hd	parse	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
+runtime/valid/string-prefix-imported-by-name.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.literal-fn.bare-in-scope

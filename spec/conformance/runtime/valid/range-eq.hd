@@ -1,0 +1,25 @@
+# test: the range types implement Eq field by field, so 0..3 and 0..=2 differ
+# Spec std/ops Range Equality: std-ops.range.eq.range, std-ops.range.eq.from, std-ops.range.eq.to, std-ops.range.eq.full, std-ops.range.eq.inclusive.
+# expect: test
+use std.ops.{Range, RangeFrom, RangeTo, RangeFull}
+use std.testing.assert_equal
+
+fn same_span(left: Range[i32], right: Range[i32]) -> bool:
+    left == right
+
+tests:
+    it("a range equals one with the same fields"):
+        assert_equal(same_span(0..3, 0..3), true, reason="same bounds")
+        assert_equal(same_span(0..3, 0..=2), false, reason="inclusive differs")
+        assert_equal(same_span(0..3, 1..3), false, reason="start differs")
+
+    it("the other range types compare too"):
+        let from: RangeFrom[i32] = 2..
+        let to: RangeTo[i32] = ..5
+        let full: RangeFull = ..
+        let from_two: RangeFrom[i32] = 2..
+        let to_five: RangeTo[i32] = ..=5
+        let other_full: RangeFull = ..
+        assert_equal(from == from_two, true, reason="same start")
+        assert_equal(to == to_five, false, reason="inclusive differs")
+        assert_equal(full == other_full, true, reason="RangeFull is always equal")

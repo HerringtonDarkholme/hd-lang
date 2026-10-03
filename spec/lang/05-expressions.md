@@ -406,11 +406,10 @@ checks like `let f: StrPrefix[fn(Template[i64]) -> Query] = str_prefix()`,
 and its row parameter `Q` takes the empty row. The rules for prefixes:
 
 1. r[expr.prefix.fn-call] A prefixed string `x"..."` is the call `x(t)` of the prefix function `x`, with a `std.ops.Template` value `t` as its one argument. The compiler never joins the pieces and never calls `Display`.
-2. r[expr.prefix.qualified-call] A module-qualified prefixed string `m.x"..."` is likewise the call `m.x(t)` of the prefix function `x` that module `m` declares.
-3. r[expr.prefix.template] `t.values` holds the `n` interpolated values in source order, and `t.raw_parts` holds the `n + 1` pieces of text around them.
-4. r[expr.prefix.parts] The first piece is the text before the first interpolation, and the last piece is the text after the last one. A piece is `""` where two interpolations touch, or where one begins or ends the string. So `x"a $b c"` passes the pieces `["a ", " c"]` and the values `[b]`, and `x"text"` passes `["text"]` and `[]`.
-5. r[expr.prefix.raw-parts] Each piece is the text exactly as written, with every backslash kept, as [`lex.prefix.raw-text`](01-lexical-structure.md#r-lex.prefix.raw-text) says.
-6. r[expr.prefix.order] The interpolated expressions are evaluated from left to right before the call, as arguments are.
+2. r[expr.prefix.template] `t.values` holds the `n` interpolated values in source order, and `t.raw_parts` holds the `n + 1` pieces of text around them.
+3. r[expr.prefix.parts] The first piece is the text before the first interpolation, and the last piece is the text after the last one. A piece is `""` where two interpolations touch, or where one begins or ends the string. So `x"a $b c"` passes the pieces `["a ", " c"]` and the values `[b]`, and `x"text"` passes `["text"]` and `[]`.
+4. r[expr.prefix.raw-parts] Each piece is the text exactly as written, with every backslash kept, as [`lex.prefix.raw-text`](01-lexical-structure.md#r-lex.prefix.raw-text) says.
+5. r[expr.prefix.order] The interpolated expressions are evaluated from left to right before the call, as arguments are.
 
 ```text
 use std.ops.{Template, str_prefix}

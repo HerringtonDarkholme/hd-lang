@@ -401,8 +401,9 @@ pub data RunOutput:
 
 pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> RunOutput $ Process:
     match $.use(Process).run!(name, args, stdin):
-        .Some(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
-        .None => panic("hd_run!: the package has no executable named '${name}'")
+        .Ok(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
+        .Err(.NotFound) => panic("hd_run!: the package has no executable named '${name}'")
+        .Err(error) => panic("hd_run!: '${name}' did not start: ${error}")
 ```
 
 1. r[std-testing.hd-run.import] Neither `hd_run` nor `RunOutput` is a prelude name; code imports them from `std.testing`.
@@ -413,7 +414,8 @@ pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> Run
 6. r[std-testing.hd-run.row] `hd_run!` has the requirement row `$ Process`, the host capability to start a process. It calls `run!` on the `Process` provider that covers the call.
 7. r[std-testing.hd-run.binding] In an integration test, the test runner binds `Process` to the package's executables, by [`cli.test.process`](../cli/command-line.md#r-cli.test.process). A test body's row takes `Process` from the call, so a test case writes no row for it.
 8. r[std-testing.hd-run.missing-name] When `name` names no executable of the package, `hd_run!` panics at run time, whether or not `name` is a literal. Its category is that of a `panic` call. Panic: `explicit-panic`.
-9. r[std-testing.hd-run.integration-only] A call of `hd_run!` outside an [integration test module](../lang/10-modules.md#r-module.test.integration) is an error. Error: `test-only-use`.
+9. r[std-testing.hd-run.start-failure] When the executable exists but does not start, so `run!` returns `PermissionDenied` or `Other`, `hd_run!` panics too, with the error's text in its message. Panic: `explicit-panic`.
+10. r[std-testing.hd-run.integration-only] A call of `hd_run!` outside an [integration test module](../lang/10-modules.md#r-module.test.integration) is an error. Error: `test-only-use`.
 
 The integration test that `hd new --app` writes for a package `hello`:
 
