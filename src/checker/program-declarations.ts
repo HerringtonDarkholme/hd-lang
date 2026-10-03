@@ -15,10 +15,9 @@ interface ExplicitEnumFieldValue {
 // (spec/lang/05-expressions.md#propagation-in-test-blocks). An explicit closure
 // keeps its written result, or infers one.
 //
-// The runner binds its capabilities for the case body the parser gives an
-// `it_each` or property test case or a `timeout` option
-// (spec/std/testing.md#runner-capabilities), so such a test function's row
-// names them.
+// The runner binds TestRunner for every case body, and PropertyRunner for a
+// property case (spec/std/testing.md#runner-capabilities), so the synthetic
+// function's row names those capabilities.
 function createTestDeclarations(
   program: ProgramCheckContext["program"],
   runners: ProgramCheckContext["testRunners"],
@@ -41,10 +40,7 @@ function createTestDeclarations(
       parameters: [],
       result: test.result ?? { name: "void", span: test.span },
       ...(inferred ? { resultOmitted: true } : {}),
-      requirements: [
-        ...(test.table || test.timed ? [runners.test] : []),
-        ...(test.property ? [runners.property] : []),
-      ],
+      requirements: [runners.test, ...(test.property ? [runners.property] : [])],
       body: test.body,
       testOnly: true,
       testOptions: options,

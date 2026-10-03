@@ -140,7 +140,7 @@ function prepareForDerivation(source: Program): PreparedProgram {
   const standardAliases = standardImportAliases(source);
   const testRunners = testRunnerNames(source);
   const runnerCapabilities = [
-    ...(source.tests.some((test) => test.table || test.timed) ? [testRunners.test] : []),
+    ...(source.tests.length > 0 ? [testRunners.test] : []),
     ...(source.tests.some((test) => test.property) ? [testRunners.property] : []),
   ];
   const joined = withStandardLibrary(source);
