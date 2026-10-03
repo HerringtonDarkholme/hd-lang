@@ -1,6 +1,6 @@
 import { ambiguousProjection, bindingNameProblem } from "./associated-bindings.ts";
 import { listVararg, tupleVararg, type FunctionDecl } from "../ast.ts";
-import type { HirAssociatedBinding } from "../hir.ts";
+import type { HirAssociatedBinding, HirGenericBound, HirTrait } from "../hir.ts";
 import { mutableInner, nominalGenericParts, typeSourceText } from "../types.ts";
 import { PRELUDE_NAMES, type Signature } from "./context.ts";
 import { TUPLE_TRAIT } from "./standard-traits.ts";
@@ -20,6 +20,7 @@ import {
 
 import type { ProgramCheckContext } from "./program-context.ts";
 import { ImportBindingMap } from "./import-bindings.ts";
+import { traitImpliesValueCategory } from "./value-categories.ts";
 
 /** A declaration's `tests:`-block, suffix, and prefix markers, as signature fields. */
 function signatureMarkers(
@@ -90,6 +91,21 @@ function resolvedRequirementKey(
   );
 }
 
+function addImpliedValueCategories(
+  bounds: readonly HirGenericBound[],
+  categories: { readonly AnyRef: Set<string>; readonly AnyVal: Set<string> },
+  traitTypes: ReadonlyMap<string, HirTrait>,
+): void {
+  for (const bound of bounds) {
+    const trait = traitTypes.get(bound.traitName);
+    if (!trait) continue;
+    if (traitImpliesValueCategory(trait, traitTypes, "AnyRef"))
+      categories.AnyRef.add(bound.parameter);
+    if (traitImpliesValueCategory(trait, traitTypes, "AnyVal"))
+      categories.AnyVal.add(bound.parameter);
+  }
+}
+
 export function createProgramSignatures(
   context: ProgramCheckContext,
   declarations: readonly FunctionDecl[],
@@ -126,14 +142,13 @@ export function createProgramSignatures(
       return;
     }
     const declaredGenerics = new Set(declaration.genericParameters);
-    for (const parameter of declaration.genericParameters) {
+    for (const parameter of declaration.genericParameters)
       if (PRELUDE_NAMES.has(parameter))
         diagnostics.push({
           code: "prelude-name-shadow",
           message: `generic parameter '${parameter}' shadows a prelude name`,
           span: declaration.span,
         });
-    }
     // A parameter declared `$R` is a row parameter (11-requirements-and-suspension.md#r-req.row.param.marked).
     const rowParameterSet = new Set<string>(declaration.rowParameters ?? []);
     for (const requirement of declaration.requirements) {
@@ -251,6 +266,7 @@ export function createProgramSignatures(
         ];
       });
     });
+    addImpliedValueCategories(genericBounds, categoryParameters, traitTypes);
     if (
       declaration.genericParameters.length > 0 &&
       declaration.name === "main" &&

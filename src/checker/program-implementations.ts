@@ -41,6 +41,11 @@ import {
   typeName,
 } from "./shared.ts";
 import { resolveRequirementKeyTypes } from "./requirement-keys.ts";
+import {
+  traitImpliesValueCategory,
+  typeSatisfiesValueCategory,
+  type ValueCategory,
+} from "./value-categories.ts";
 
 import type {
   ImplementationMethodPreparation,
@@ -1282,6 +1287,27 @@ function validateSupertraits(
     ),
   );
   traitSubstitutions.set("Self", implementation.targetType);
+  for (const category of implementation.trait.categorySupertraits ?? []) {
+    const parameters = implementationCategoryParameters(
+      implementation.declaration,
+      context.traitTypes,
+      category,
+    );
+    if (
+      !typeSatisfiesValueCategory(implementation.targetType, category, {
+        dataTypes: context.dataTypes,
+        enumTypes: context.enumTypes,
+        ...(category === "AnyRef"
+          ? { referenceParameters: parameters }
+          : { valueParameters: parameters }),
+      })
+    )
+      context.diagnostics.push({
+        code: "missing-supertrait-implementation",
+        message: `${typeSourceText(implementation.declaration.targetName)} must implement ${category} before ${implementation.trait.name}`,
+        span: implementation.declaration.span,
+      });
+  }
   for (const supertrait of implementation.trait.supertraits) {
     const expectedArguments = supertrait.traitArguments.map((argument) =>
       substituteGenericType(argument, traitSubstitutions),
@@ -1330,4 +1356,27 @@ function validateSupertraits(
         span: implementation.declaration.span,
       });
   }
+}
+
+/** Generic implementation parameters whose written bounds prove one category. */
+function implementationCategoryParameters(
+  implementation: ImplDecl,
+  traitTypes: ReadonlyMap<string, HirTrait>,
+  category: ValueCategory,
+): Set<string> {
+  return new Set(
+    implementation.genericParameters.filter((parameter) =>
+      implementation.genericBounds.some(
+        (bound) =>
+          bound.parameter === parameter &&
+          bound.traits.some((written) => {
+            const key = mutableInner(written) ?? written;
+            const name = nominalGenericParts(key)?.name ?? key;
+            if (name === category) return true;
+            const trait = traitTypes.get(name);
+            return trait !== undefined && traitImpliesValueCategory(trait, traitTypes, category);
+          }),
+      ),
+    ),
+  );
 }

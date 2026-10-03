@@ -21,6 +21,7 @@ import {
 } from "./shared.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
+import { traitImpliesValueCategory } from "./value-categories.ts";
 
 export function declareProgramTypes(context: ProgramCheckContext): void {
   const { program, diagnostics, dataTypes, enumTypes, traitTypes } = context;
@@ -411,6 +412,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         });
     }
     const supertraitNames = new Set<string>();
+    const categorySupertraits = new Set<"AnyVal" | "AnyRef">();
     // A supertrait's arguments and bindings may name `Self`
     // (09-traits.md#supertrait-bindings).
     const supertraitGenerics = new Set([...declaration.genericParameters, "Self"]);
@@ -418,8 +420,12 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
       const resolved = resolveGenericType(reference.name, supertraitGenerics);
       const application = nominalGenericParts(resolved);
       const name = application?.name ?? resolved;
-      // `AnyVal` and `AnyRef` are value categories, not dispatched traits.
-      if (name === "AnyVal" || name === "AnyRef") return [];
+      // Value categories impose static obligations but have no dictionary
+      // fields in the run-time supertrait layout.
+      if (name === "AnyVal" || name === "AnyRef") {
+        categorySupertraits.add(name);
+        return [];
+      }
       const supertrait = traitTypes.get(name);
       if (!supertrait) {
         diagnostics.push({
@@ -651,14 +657,44 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
     });
     traitTypes.set(declaration.name, {
       ...trait,
+      ...(categorySupertraits.size > 0 ? { categorySupertraits: [...categorySupertraits] } : {}),
       supertraits,
       associatedTypes,
       methods,
     });
   }
+  addImpliedMethodValueCategories(traitTypes);
   diagnoseSupertraitCycles(context);
   diagnoseSupertraitMemberNames(context);
   validateDeclaredRequirementKeys(context);
+}
+
+/**
+ * Method bounds are resolved while trait bodies are still being defined.
+ * Add category implications only after every ordinary supertrait edge exists,
+ * so declaration order cannot change dynamic safety or generic checking.
+ */
+function addImpliedMethodValueCategories(traitTypes: Map<string, HirTrait>): void {
+  for (const trait of traitTypes.values()) {
+    const methods = trait.methods.map((method) => {
+      const referenceParameters = new Set(method.referenceParameters ?? []);
+      const valueParameters = new Set(method.valueParameters ?? []);
+      for (const bound of method.genericBounds ?? []) {
+        const boundTrait = traitTypes.get(bound.traitName);
+        if (!boundTrait) continue;
+        if (traitImpliesValueCategory(boundTrait, traitTypes, "AnyRef"))
+          referenceParameters.add(bound.parameter);
+        if (traitImpliesValueCategory(boundTrait, traitTypes, "AnyVal"))
+          valueParameters.add(bound.parameter);
+      }
+      return {
+        ...method,
+        referenceParameters: [...referenceParameters],
+        valueParameters: [...valueParameters],
+      };
+    });
+    traitTypes.set(trait.name, { ...trait, methods });
+  }
 }
 
 /**

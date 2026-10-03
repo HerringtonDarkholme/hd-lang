@@ -111,6 +111,11 @@ export interface HirTrait {
   readonly standardName?: string;
   readonly index: number;
   readonly genericParameters: readonly string[];
+  /**
+   * Sealed value-category supertraits have no run-time dictionary field, but
+   * remain static obligations of every implementation.
+   */
+  readonly categorySupertraits?: readonly ("AnyVal" | "AnyRef")[];
   readonly supertraits: readonly HirSupertrait[];
   readonly associatedTypes: readonly HirAssociatedType[];
   readonly methods: readonly HirTraitMethod[];
