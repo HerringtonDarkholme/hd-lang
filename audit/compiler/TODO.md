@@ -29,7 +29,7 @@ Final P1 footprint after items 1–3, with the same `compileToWat` inputs used f
 ## P3: Language And Runtime Correctness
 
 - [ ] **8. LIST-POP (4).** Rename the list intrinsic from `append` to `push`; add `pop`, `insert`, `remove_at`, and `clear` over one truncation hook; remove the std forwarding method when non-src scope is permitted.
-- [ ] **9. ALL-LIST (1).** Fix the illegal cast when a generic function calls an element of `List[fn() -> T]`.
+- [x] **9. ALL-LIST (1).** Callable values now cross every erased storage boundary through one canonical callable box and typed invocation bridges. Generic lists, returns, inputs, nested data, tuples, maps, provider rows, mutable identity, and suspending callables pass without nominal Wasm casts; the tagged `task-all-list-order.hd` row passes. Moving the repaired row out of the portable known-failure ledger remains spec-session work because this repair is restricted to `src/` plus audit status.
 - [ ] **10. ERR-HELPERS (1 remains).** The checker now enforces static `AnyRef`/`AnyVal` supertrait obligations and transitive category bounds without runtime dictionaries. Remaining: static TypeId evidence for `e.find::[Error]()` must not enter a forwarding adapter as a real receiver.
 - [ ] **11. MODULE-PATH-VALUE.** Resolve module namespaces in every path expression, not only module-qualified calls.
 - [ ] **12. Open Opus audit findings.** Repair O-02 dynamic safety in `resolveType`; O-03 written type-argument bounds; O-04 std orphan ownership; O-05 multiline-string test indentation; O-06 whole-state speculation; O-07 regex-based dynamic safety.

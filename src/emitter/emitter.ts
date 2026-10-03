@@ -36,6 +36,7 @@ import {
 } from "./shared.ts";
 
 import { FunctionBodyEmitter } from "./function-body.ts";
+import { CALLABLE_STORAGE_TYPES } from "./callable-adapters.ts";
 import { closureBoundLoads, environmentType } from "./context.ts";
 import { emitHostProviders } from "./host-providers.ts";
 import { emitHostFunctionImports, emitIntrinsicBody } from "./intrinsics.ts";
@@ -875,16 +876,27 @@ export function emitWat(program: HirProgram): string {
   return linkWat(emitReachableWat(reachableProgram(program)));
 }
 
-function emitReachableWat(program: HirProgram): string {
-  const { signatureNames, contextNames } = collectModuleTypes(program);
-  const traitsByName = new Map(program.traits.map((trait) => [trait.name, trait]));
-  const suspensionPlans = new Map(
+function emitProgramStoredSuspensionAdapters(
+  program: HirProgram,
+  emitter: FunctionEmitter,
+): string {
+  return emitStoredSuspensionAdapters(program, emitter.boxErasedValue.bind(emitter));
+}
+
+function suspensionPlansFor(program: HirProgram) {
+  return new Map(
     [...program.functions, ...program.closures]
       .filter((declaration) => declaration.suspending && needsSuspensionCfg(declaration))
       .map(
         (declaration) => [suspensionIndex(declaration), buildSuspensionPlan(declaration)] as const,
       ),
   );
+}
+
+function emitReachableWat(program: HirProgram): string {
+  const { signatureNames, contextNames } = collectModuleTypes(program);
+  const traitsByName = new Map(program.traits.map((trait) => [trait.name, trait]));
+  const suspensionPlans = suspensionPlansFor(program);
   const emitter = new FunctionEmitter(
     program.data,
     program.enums,
@@ -983,6 +995,7 @@ function emitReachableWat(program: HirProgram): string {
       (field $hd.provider-key i32)
       (field $hd.provider-value anyref)
       (field $hd.provider-parent (ref null $hd.providers))))
+${CALLABLE_STORAGE_TYPES}
     (type $hd.box-i32 (struct
       (field $hd.box-i32-value i32)))
     (type $hd.box-f64 (struct
@@ -1107,11 +1120,11 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
   ]
     .filter(Boolean)
     .join("\n\n");
-  const adapters = emitter.emitCallableAdapters();
   const traitSuspensionHelpers = [emitter.emitTraitSuspensionHelpers(), emitter.emitKeyEqualities()]
     .filter(Boolean)
     .join("\n\n");
-  const storedSuspensionAdapters = emitStoredSuspensionAdapters(program);
+  const storedSuspensionAdapters = emitProgramStoredSuspensionAdapters(program, emitter);
+  const adapters = emitter.emitCallableAdapters();
   const referenceableFunctions = [
     ...program.closures.map((closure) => `$c${closure.index}`),
     ...emittedFunctions(program)
@@ -1119,6 +1132,7 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
       .map((declaration) => `$fv${suspensionIndex(declaration)}`),
     ...emitter.adapters.map((adapter) => `$adapt${adapter.index}`),
     ...emitter.resultAdapters.map((adapter) => `$sresultadapt${adapter.index}`),
+    ...emitter.storageAdapterNames,
     ...emitter.builtinTraitAdapterNames,
     ...program.implementations
       .filter((implementation) => !implementation.intrinsic)

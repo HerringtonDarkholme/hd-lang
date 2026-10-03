@@ -77,6 +77,11 @@ interface CallableAdapter {
   readonly typeSubstitutions: readonly HirTypeSubstitution[];
 }
 
+export interface CallableStorageAdapter {
+  readonly index: number;
+  readonly type: ValueType;
+}
+
 interface SuspensionResultAdapter {
   readonly index: number;
   readonly body: string;
@@ -104,6 +109,7 @@ export class EmitterContext {
   /** The HIR function whose body is currently emitted, for host call-site identity. */
   protected currentFunctionIndex = -1;
   protected readonly callableAdapters = new Map<string, CallableAdapter>();
+  protected readonly callableStorageAdapters = new Map<ValueType, CallableStorageAdapter>();
   protected readonly suspensionResultAdapters = new Map<string, SuspensionResultAdapter>();
   protected readonly builtinTraitAdapters = new Map<string, BuiltinTraitAdapter>();
   protected readonly providerKeys = new Map<string, number>();
@@ -306,6 +312,17 @@ export class EmitterContext {
     return [...this.suspensionResultAdapters.values()];
   }
 
+  get storageAdapters(): readonly CallableStorageAdapter[] {
+    return [...this.callableStorageAdapters.values()];
+  }
+
+  get storageAdapterNames(): readonly string[] {
+    return this.storageAdapters.flatMap((adapter) => [
+      `$cstore${adapter.index}`,
+      `$cload${adapter.index}`,
+    ]);
+  }
+
   protected providerKey(key: string): number {
     let index = this.providerKeys.get(key);
     if (index === undefined) {
@@ -324,7 +341,7 @@ export class EmitterContext {
   }
 
   protected unboxProvider(value: string, requirement: string): string {
-    const trait = this.traitsByName.get(requirement);
+    const trait = this.traitsByName.get(nominalGenericParts(requirement)?.name ?? requirement);
     return trait
       ? `(ref.cast (ref null $trait${trait.index}) ${value})`
       : `(struct.get $hd.box-extern $hd.box-extern-value (ref.cast (ref $hd.box-extern) ${value}))`;
@@ -546,14 +563,15 @@ export class EmitterContext {
     let adapter = this.suspensionResultAdapters.get(key);
     if (!adapter) {
       const actualSignature = this.functionSignatures.get(actualType);
+      const adapted = this.adaptCallable(
+        `(ref.cast (ref $closure${actualSignature}) (local.get $value))`,
+        formalType,
+        actualType,
+        typeSubstitutions,
+      );
       adapter = {
         index: this.suspensionResultAdapters.size,
-        body: this.adaptCallable(
-          `(ref.cast (ref $closure${actualSignature}) (local.get $value))`,
-          formalType,
-          actualType,
-          typeSubstitutions,
-        ),
+        body: this.boxWatValue(adapted, formalType),
       };
       this.suspensionResultAdapters.set(key, adapter);
     }
@@ -598,7 +616,25 @@ export class EmitterContext {
     const mutable = mutableInner(type);
     if (mutable !== undefined) return this.boxWatValue(value, mutable);
     if (isGenericValueType(type)) return value;
+    if (functionParts(type)) {
+      const adapter = this.callableStorageAdapter(type);
+      return `(struct.new $hd.box-callable ${value} (ref.func $cstore${adapter.index}))`;
+    }
     return boxScalar(value, type);
+  }
+
+  /** Box a typed value for an `anyref` storage or ABI boundary. */
+  boxErasedValue(value: string, type: ValueType): string {
+    return this.boxWatValue(value, type);
+  }
+
+  private callableStorageAdapter(type: ValueType): CallableStorageAdapter {
+    let adapter = this.callableStorageAdapters.get(type);
+    if (!adapter) {
+      adapter = { index: this.callableStorageAdapters.size, type };
+      this.callableStorageAdapters.set(type, adapter);
+    }
+    return adapter;
   }
 
   // `report()` of an entry result: 0 for `void`, the `u8` of `ExitCode`, and
@@ -644,8 +680,11 @@ export class EmitterContext {
       return `(ref.cast (ref null ${traitSuspensionName(traitSuspension.traitIndex, traitSuspension.methodIndex)}) ${payload})`;
     if (isErasedVariant(type)) return `(ref.cast (ref null $hd.variant) ${payload})`;
     const callable = functionParts(type);
-    if (callable)
-      return `(ref.cast (ref null $closure${this.functionSignatures.get(type)}) ${payload})`;
+    if (callable) {
+      const adapter = this.callableStorageAdapter(type);
+      const signature = this.functionSignatures.get(type);
+      return `(struct.new $closure${signature} (ref.func $cload${adapter.index}) (ref.cast (ref $hd.box-callable) ${payload}))`;
+    }
     const data = this.dataByName.get(type);
     const nominalData = nominalGenericParts(type);
     if (nominalData?.name === "List" && nominalData.arguments.length === 1)

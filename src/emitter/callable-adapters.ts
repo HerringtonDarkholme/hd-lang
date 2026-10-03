@@ -4,6 +4,7 @@ import {
   nominalGenericType,
   substituteTypeParameters,
 } from "../types.ts";
+import type { ValueType } from "../hir.ts";
 import { DataEmitter } from "./data.ts";
 import {
   containsGenericValueType,
@@ -14,8 +15,107 @@ import {
   traitSuspensionName,
 } from "./shared.ts";
 
+export const CALLABLE_STORAGE_TYPES = `    (type $hd.callable-storage-sig (func
+      (param anyref)
+      (param (ref null $hd.list))
+      (param (ref null $hd.providers))
+      (result anyref)))
+    (type $hd.box-callable (struct
+      (field $hd.box-callable-value anyref)
+      (field $hd.box-callable-invoke (ref $hd.callable-storage-sig))))`;
+
 /** Emits the closure thunks that cross concrete and erased callable ABIs. */
 export abstract class CallableAdapterEmitter extends DataEmitter {
+  private providerUnion(
+    requirements: readonly string[],
+    keys: readonly string[] = requirements,
+  ): string {
+    return requirements.reduceRight((parent, requirement, index) => {
+      if (isRowRequirement(requirement))
+        return `(call $hd.provider_concat (local.get $p${index}) ${parent})`;
+      const key = keys[index]!;
+      const type = this.traitsByName.has(nominalGenericParts(key)?.name ?? key)
+        ? `trait:${key}`
+        : `provider:${key}`;
+      return `(struct.new $hd.providers (i32.const ${this.providerKey(key)}) ${this.boxProvider(`(local.get $p${index})`, type)} ${parent})`;
+    }, `(ref.null $hd.providers)`);
+  }
+
+  private emitCallableStorageAdapter(type: ValueType, index: number): string {
+    const callable = functionParts(type)!;
+    const signature = this.functionSignatures.get(type)!;
+    const closure = `(ref.cast (ref $closure${signature}) (local.get $value))`;
+    const arguments_ = callable.parameters.map((parameter, parameterIndex) =>
+      this.unboxValue(
+        `(array.get $hd.list (ref.as_non_null (local.get $args)) (i32.const ${parameterIndex}))`,
+        parameter,
+      ),
+    );
+    const providers = callable.requirements.map((requirement) =>
+      isRowRequirement(requirement)
+        ? `(local.get $providers)`
+        : this.unboxProvider(
+            `(call $hd.provider_get (local.get $providers) (i32.const ${this.providerKey(requirement)}))`,
+            requirement,
+          ),
+    );
+    const call = `(call_ref $sig${signature} (struct.get $closure${signature} $closure${signature}env ${closure})${arguments_.length ? " " + arguments_.join(" ") : ""}${providers.length ? " " + providers.join(" ") : ""} (struct.get $closure${signature} $closure${signature}fn ${closure}))`;
+    const storedResult = callable.suspending
+      ? call
+      : callable.result === "void"
+        ? `(block (result anyref) ${call} (ref.null any))`
+        : this.boxWatValue(call, callable.result);
+    const store = [
+      `(func $cstore${index} (type $hd.callable-storage-sig) (param $value anyref) (param $args (ref null $hd.list)) (param $providers (ref null $hd.providers)) (result anyref)`,
+      `  ${storedResult}`,
+      `)`,
+    ].join("\n");
+
+    const parameters = callable.parameters.map(
+      (parameter, parameterIndex) =>
+        `(param $a${parameterIndex} ${this.parameterWatType(parameter)})`,
+    );
+    const providerParameters = callable.requirements.map(
+      (requirement, providerIndex) =>
+        `(param $p${providerIndex} ${this.providerType(requirement)})`,
+    );
+    const packedArguments =
+      callable.parameters.length === 0
+        ? `(array.new_default $hd.list (i32.const 0))`
+        : `(array.new_fixed $hd.list ${callable.parameters.length} ${callable.parameters
+            .map((parameter, parameterIndex) =>
+              this.boxWatValue(`(local.get $a${parameterIndex})`, parameter),
+            )
+            .join(" ")})`;
+    const box = `(ref.cast (ref $hd.box-callable) (local.get $env))`;
+    const invocation = `(call_ref $hd.callable-storage-sig (struct.get $hd.box-callable $hd.box-callable-value ${box}) ${packedArguments} ${this.providerUnion(callable.requirements)} (struct.get $hd.box-callable $hd.box-callable-invoke ${box}))`;
+    const loadedResult = callable.suspending
+      ? `(ref.cast (ref null $hd.suspension) ${invocation})`
+      : callable.result === "void"
+        ? `(drop ${invocation})`
+        : this.unboxValue(invocation, callable.result);
+    const result = callable.suspending
+      ? ` (result (ref null $hd.suspension))`
+      : callable.result === "void"
+        ? ""
+        : ` (result ${this.watType(callable.result)})`;
+    const load = [
+      `(func $cload${index} (type $sig${signature}) (param $env anyref) ${[...parameters, ...providerParameters].join(" ")}${result}`,
+      `  ${loadedResult}`,
+      `)`,
+    ].join("\n");
+    return `${store}\n\n${load}`;
+  }
+
+  private emitCallableStorageAdapters(): string {
+    const emitted: string[] = [];
+    for (let index = 0; index < this.storageAdapters.length; index += 1) {
+      const adapter = this.storageAdapters[index]!;
+      emitted.push(this.emitCallableStorageAdapter(adapter.type, adapter.index));
+    }
+    return emitted.join("\n\n");
+  }
+
   emitCallableAdapters(): string {
     const callableAdapters = this.adapters
       .map((adapter) => {
@@ -51,15 +151,7 @@ export abstract class CallableAdapterEmitter extends DataEmitter {
           if (!isRowRequirement(requirement) && !concreteFormal.has(key))
             concreteFormal.set(key, index);
         });
-        const formalUnion = formal.requirements.reduceRight((parent, requirement, index) => {
-          if (isRowRequirement(requirement))
-            return `(call $hd.provider_concat (local.get $p${index}) ${parent})`;
-          const key = instantiatedFormal[index]!;
-          const type = this.traitsByName.has(nominalGenericParts(key)?.name ?? key)
-            ? `trait:${key}`
-            : `provider:${key}`;
-          return `(struct.new $hd.providers (i32.const ${this.providerKey(key)}) ${this.boxProvider(`(local.get $p${index})`, type)} ${parent})`;
-        }, `(ref.null $hd.providers)`);
+        const formalUnion = this.providerUnion(formal.requirements, instantiatedFormal);
         const actualProviders = actual.requirements.map((requirement, index) => {
           if (isRowRequirement(requirement)) return formalUnion;
           const key = instantiatedActual[index]!;
@@ -91,7 +183,10 @@ export abstract class CallableAdapterEmitter extends DataEmitter {
           `(func $sresultadapt${adapter.index} (type $hd.suspension-result-adapt-sig) (param $value anyref) (result anyref)\n  ${adapter.body}\n)`,
       )
       .join("\n\n");
-    return [callableAdapters, suspensionResultAdapters].filter(Boolean).join("\n\n");
+    const storageAdapters = this.emitCallableStorageAdapters();
+    return [callableAdapters, suspensionResultAdapters, storageAdapters]
+      .filter(Boolean)
+      .join("\n\n");
   }
 
   emitTraitAdapters(): string {
