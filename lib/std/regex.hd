@@ -962,6 +962,10 @@ impl Debug for Regex:
     fn debug(self, out: mut DebugWriter) -> void:
         out.debug_struct("Regex").field("pattern", self.text).finish()
 
+impl Debug for Captures:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Captures").field("text", self.text).field("slots", self.slots).field("names", self.names).finish()
+
 impl Debug for Match:
     fn debug(self, out: mut DebugWriter) -> void:
         out.debug_struct("Match").field("start", self.start).field("end", self.end).field("text", self.text).finish()

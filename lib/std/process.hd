@@ -1,8 +1,10 @@
-# std.process: exit status (spec/lang/10-modules.md#exit-status) and subprocesses.
+# std.process: exit status (spec/lang/10-modules.md#exit-status), subprocesses
+# (spec/lang/10-modules.md#processes), and the std side in spec/std/process.md.
 # WASI has no subprocess interface, so no
 # prototype runtime profile binds a host `Process`; `ScriptedProcess` is the
 # deterministic provider, and `hd test` binds none yet (src/KNOWN_ISSUES.md).
 use std.format.DebugWriter
+use std.error.Error
 
 pub type ExitCode(u8)
 
@@ -29,16 +31,59 @@ pub data ProcessOutput:
     pub stderr: string
     pub status: i32
 
-pub trait Process:
-    fn run!(mut self, program: string, args: List[string], stdin: string) -> ProcessOutput?
+# Why a program did not start (r-module.process.declares). A program that
+# started and exited non-zero is `.Ok` (r-module.process.nonzero-ok).
+pub enum ProcessError:
+    NotFound
+    PermissionDenied
+    Other(message: string)
 
-# Answers each program with the output scripted for it.
+pub trait Process:
+    fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]
+
+# Answers each program with the output scripted for it
+# (r-std-process.scripted.decl).
 pub data ScriptedProcess:
     outputs: Map[string, ProcessOutput]
 
+impl ScriptedProcess:
+    # A provider that answers each program in `outputs`
+    # (r-std-process.scripted.new).
+    pub fn new(outputs: Map[string, ProcessOutput]) -> mut ScriptedProcess:
+        ScriptedProcess { outputs: outputs }
+
 impl Process for ScriptedProcess:
-    fn run!(mut self, program: string, args: List[string], stdin: string) -> ProcessOutput?:
-        self.outputs.get(program)
+    fn run!(mut self, program: string, args: List[string], stdin: string) -> Result[ProcessOutput, ProcessError]:
+        match self.outputs.get(program):
+            .Some(output) => .Ok(output)
+            .None => .Err(.NotFound)
+
+impl Eq for ExitCode:
+    fn eq(self, other: ExitCode) -> bool:
+        u8(self) == u8(other)
+
+impl Eq for ProcessOutput:
+    fn eq(self, other: ProcessOutput) -> bool:
+        self.stdout == other.stdout && self.stderr == other.stderr && self.status == other.status
+
+impl Eq for ProcessError:
+    fn eq(self, other: ProcessError) -> bool:
+        match (self, other):
+            (.NotFound, .NotFound) => true
+            (.PermissionDenied, .PermissionDenied) => true
+            (.Other(left), .Other(right)) => left == right
+            _ => false
+
+# The text of each variant (r-std-process.error.display.other and its rows).
+impl Display for ProcessError:
+    fn to_string(self) -> string:
+        match self:
+            .NotFound => "program not found"
+            .PermissionDenied => "permission denied"
+            .Other(message) => message
+
+# A std error type implements `Error` (r-std-error.std-types.impl).
+impl Error for ProcessError
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates
@@ -53,6 +98,13 @@ impl Debug for ExitCode:
 impl Debug for ProcessOutput:
     fn debug(self, out: mut DebugWriter) -> void:
         out.debug_struct("ProcessOutput").field("stdout", self.stdout).field("stderr", self.stderr).field("status", self.status).finish()
+
+impl Debug for ProcessError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .NotFound => out.debug_struct("NotFound").finish()
+            .PermissionDenied => out.debug_struct("PermissionDenied").finish()
+            .Other(message) => out.debug_struct("Other").field("message", message).finish()
 
 impl Debug for ScriptedProcess:
     fn debug(self, out: mut DebugWriter) -> void:

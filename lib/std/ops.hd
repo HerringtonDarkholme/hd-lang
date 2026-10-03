@@ -185,6 +185,23 @@ impl Debug for RangeFull:
     fn debug(self, out: mut DebugWriter) -> void:
         out.debug_struct("RangeFull").finish()
 
+# The range types compare field by field (r-std-ops.range.eq.range).
+impl[T < Eq] Eq for Range[T]:
+    fn eq(self, other: Range[T]) -> bool:
+        self.start == other.start && self.end == other.end && self.inclusive == other.inclusive
+
+impl[T < Eq] Eq for RangeFrom[T]:
+    fn eq(self, other: RangeFrom[T]) -> bool:
+        self.start == other.start
+
+impl[T < Eq] Eq for RangeTo[T]:
+    fn eq(self, other: RangeTo[T]) -> bool:
+        self.end == other.end && self.inclusive == other.inclusive
+
+impl Eq for RangeFull:
+    fn eq(self, other: RangeFull) -> bool:
+        true
+
 # The end offset of the slice of `size` items from `start` up to `end`, or
 # through `end` when `inclusive`. A negative offset, an offset past `size`,
 # or a start after the end is the checked panic `index-out-of-bounds`

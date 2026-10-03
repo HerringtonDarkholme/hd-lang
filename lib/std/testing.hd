@@ -468,13 +468,15 @@ pub data RunOutput:
 
 # Runs the package's executable `name` through the `Process` provider that
 # `hd test` binds for an integration test (r-std-testing.hd-run.row). A name
-# that names no executable panics (r-std-testing.hd-run.missing-name). The
+# that names no executable panics (r-std-testing.hd-run.missing-name), and so
+# does one that does not start (r-std-testing.hd-run.start-failure). The
 # integration-only check (r-std-testing.hd-run.integration-only) is not
 # implemented yet (src/KNOWN_ISSUES.md).
 pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> RunOutput $ Process:
     match $.use(Process).run!(name, args, stdin):
-        .Some(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
-        .None => panic("hd_run!: the package has no executable named '${name}'")
+        .Ok(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
+        .Err(.NotFound) => panic("hd_run!: the package has no executable named '${name}'")
+        .Err(error) => panic("hd_run!: '${name}' did not start: ${error}")
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates

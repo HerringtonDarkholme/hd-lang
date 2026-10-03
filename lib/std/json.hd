@@ -80,6 +80,12 @@ impl Display for Number:
             .Float(value) => "$value"
 
 impl Json:
+    # JSON text with two-space indentation (r-std-json.value.pretty).
+    pub fn pretty(self) -> string:
+        let out: mut List[u8] = []
+        render(self, out, true, 0)
+        bytes_text(out)
+
     pub fn get(self, key: string) -> Json?:
         match self:
             .Object(fields) => fields.get(key)
@@ -132,11 +138,6 @@ impl Display for Json:
         render(self, out, false, 0)
         bytes_text(out)
 
-# JSON text with two-space indentation (r-std-json.pretty).
-pub fn pretty(value: Json) -> string:
-    let out: mut List[u8] = []
-    render(value, out, true, 0)
-    bytes_text(out)
 
 fn render(value: Json, out: mut List[u8], spaced: bool, depth: i32) -> void:
     match value:

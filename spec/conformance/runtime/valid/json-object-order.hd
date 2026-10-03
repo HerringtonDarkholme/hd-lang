@@ -1,6 +1,6 @@
 # test: an object keeps its keys in insertion order, and a duplicate key keeps its first position with the last value
 # Spec std/json Parsing, Writing: std-json.parse.object.order, std-json.parse.object.duplicate, std-json.display.compact (JSON-SURFACE; task #226).
-use std.json.{parse, pretty, Json}
+use std.json.{parse, Json}
 use std.testing.{assert_equal}
 
 fn read(text: string) -> Json:
@@ -38,4 +38,4 @@ tests:
     it("nested objects keep their order at every level"):
         text := "{\"y\":{\"q\":1,\"p\":2},\"x\":[{\"b\":0,\"a\":0}]}"
         assert_equal("${read(text)}", text, reason="nested")
-        assert_equal(pretty(read(text)), "{\n  \"y\": {\n    \"q\": 1,\n    \"p\": 2\n  },\n  \"x\": [\n    {\n      \"b\": 0,\n      \"a\": 0\n    }\n  ]\n}", reason="pretty")
+        assert_equal(read(text).pretty(), "{\n  \"y\": {\n    \"q\": 1,\n    \"p\": 2\n  },\n  \"x\": [\n    {\n      \"b\": 0,\n      \"a\": 0\n    }\n  ]\n}", reason="pretty")
