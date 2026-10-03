@@ -9,6 +9,22 @@ Changes are restricted to `src/` and this audit's repair tracking; no specificat
 
 ## Repair Status
 
+### Independent Repair: Captured Cells
+
+Captured-cell conversion now resolves closures by their explicit HIR indices, rather than array positions.
+Repeated conversion leaves existing cells intact instead of nesting cell storage.
+A typed, exhaustive HIR traversal replaces reflective object rewriting and preserves unrelated metadata.
+Local identity remains object identity; equal-looking locals from separate activations never share storage accidentally.
+
+Five source regressions cover sparse closure indices, idempotence, dictionary and match traversal, nested escaped captures, and per-iteration storage.
+The runtime cases run with immediate and artificially pending child execution.
+They verify existing behavior remains intact, not that those compositions were previously broken.
+This closes these specific A07 defects, not the full host ABI, replay, or capture audit.
+
+Regression tests: [captured-cells.test.ts](../../src/checker/captured-cells.test.ts).
+
+### Repair Status Table
+
 | Finding | Status | Repair and limits |
 | --- | --- | --- |
 | A02 | Partially fixed | Public readonly inherent instance signatures now participate in nominal variance verification. Type encoding, coercion and least-common-type findings remain open. Private-surface interpretation remains deferred. |

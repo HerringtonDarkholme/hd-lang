@@ -1,4 +1,5 @@
 import type { HirExpression, HirFunction, HirLocal, ValueType } from "../hir.ts";
+import { mapCapturedFunction, type CaptureCellMapper } from "./captured-cells-walk.ts";
 
 // Captured `let` storage is shared with its defining scope and with every
 // closure that captures it (07-functions.md#captures). After checking, each
@@ -23,75 +24,68 @@ export function shareCapturedLocals(
   const shared = new Map<HirLocal, HirLocal>();
   for (const closure of closures)
     for (const capture of closure.captures)
-      if (capture.source.mutable && !capture.source.parameter && !shared.has(capture.source))
+      if (
+        capture.source.mutable &&
+        !capture.source.parameter &&
+        cellInner(capture.source.type) === undefined &&
+        !shared.has(capture.source)
+      )
         shared.set(capture.source, { ...capture.source, type: cellType(capture.source.type) });
   if (shared.size === 0) return { functions, closures };
+  const closuresByIndex = new Map(closures.map((closure) => [closure.index, closure]));
   const sharedField = (closureIndex: number, fieldIndex: number): HirLocal | undefined => {
-    const source = closures[closureIndex]?.captures.find(
-      (capture) => capture.fieldIndex === fieldIndex,
-    )?.source;
+    const source = closuresByIndex
+      .get(closureIndex)
+      ?.captures.find((capture) => capture.fieldIndex === fieldIndex)?.source;
     return source && shared.get(source);
   };
 
-  const rewrite = (value: unknown, captureList = false): unknown => {
-    if (Array.isArray(value)) {
-      const items = value.map((item) => rewrite(item, captureList));
-      return items.every((item, index) => item === value[index]) ? value : items;
-    }
-    if (!value || typeof value !== "object") return value;
-    const replaced = shared.get(value as HirLocal);
-    if (replaced) return replaced;
-    const node = value as Record<string, unknown> & { readonly kind?: string };
-    const span = node.span;
-    if (node.kind === "binding" || node.kind === "assignment") {
-      const local = shared.get(node.local as HirLocal);
-      if (local) {
-        const assigned = rewrite(node.value) as HirExpression;
-        if (node.kind === "binding")
-          return {
-            ...node,
-            local,
-            value: { kind: "cell-new", value: assigned, type: local.type, span },
-          };
+  const mapper: CaptureCellMapper = {
+    local: (local) => shared.get(local) ?? local,
+    expression: (mapped, original, captureOperand) => {
+      let cell: HirExpression | undefined;
+      if (original.kind === "local") {
+        const local = shared.get(original.local);
+        if (local) cell = { ...original, local, type: local.type };
+      } else if (original.kind === "capture" && cellInner(original.type) === undefined) {
+        const local = sharedField(original.closureIndex, original.fieldIndex);
+        if (local) cell = { ...original, type: local.type };
+      }
+      return cell
+        ? captureOperand
+          ? cell
+          : { kind: "cell-get", cell, type: original.type, span: original.span }
+        : mapped;
+    },
+    statement: (mapped, original) => {
+      if (original.kind !== "binding" && original.kind !== "assignment") return mapped;
+      const local = shared.get(original.local);
+      if (!local) return mapped;
+      const span = original.span;
+      if (mapped.kind === "binding")
+        return {
+          ...mapped,
+          local,
+          value: { kind: "cell-new", value: mapped.value, type: local.type, span },
+        };
+      if (mapped.kind === "assignment")
         return {
           kind: "expression",
           expression: {
             kind: "cell-set",
             cell: { kind: "local", local, type: local.type, span },
-            value: assigned,
+            value: mapped.value,
             type: "void",
             span,
           },
           span,
         };
-      }
-    }
-    if (node.kind === "local") {
-      const local = shared.get(node.local as HirLocal);
-      if (local) {
-        const cell = { ...node, local, type: local.type };
-        return captureList ? cell : { kind: "cell-get", cell, type: node.type, span };
-      }
-    }
-    if (node.kind === "capture" && !cellInner(node.type as ValueType)) {
-      const local = sharedField(node.closureIndex as number, node.fieldIndex as number);
-      if (local) {
-        const cell = { ...node, type: local.type };
-        return captureList ? cell : { kind: "cell-get", cell, type: node.type, span };
-      }
-    }
-    let changed = false;
-    const result: Record<string, unknown> = {};
-    for (const [key, child] of Object.entries(node)) {
-      const next = rewrite(child, node.kind === "closure" && key === "captures");
-      if (next !== child) changed = true;
-      result[key] = next;
-    }
-    return changed ? result : value;
+      throw new Error("capture mapper changed a storage statement before cell conversion");
+    },
   };
 
   return {
-    functions: rewrite(functions) as readonly HirFunction[],
-    closures: rewrite(closures) as readonly HirFunction[],
+    functions: functions.map((fn) => mapCapturedFunction(fn, mapper)),
+    closures: closures.map((fn) => mapCapturedFunction(fn, mapper)),
   };
 }
