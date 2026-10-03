@@ -416,11 +416,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         );
       const { method } = selectedMethod;
       if (method.receiverMutable && mutableInner(dispatchReceiver.type) === undefined) {
-        this.fail(
-          "mutable-receiver-required",
-          `method '${method.name}' requires mutable access to ${dynamicTrait.name}`,
-          expression.callee.receiver.span,
-        );
+        this.failReadonlyMethodReceiver(method.name, expression.callee.receiver, receiver);
       }
       const traitKey = readonlyType(dispatchReceiver.type).slice("trait:".length);
       const traitArguments = splitTypeBindings(
@@ -666,10 +662,10 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     const callCandidate = (candidate: (typeof candidates)[number]): HirExpression => {
       // A primitive receiver needs no mutable access (04-type-system.md#r-types.prim.no-mut.self-call).
       if (candidate.method.receiverMutable && !mutableOrPrimitive(receiver.type)) {
-        this.fail(
-          "mutable-receiver-required",
-          `method '${candidate.method.name}' requires mutable access to ${typeSourceText(receiverImplementationType)}`,
-          expression.callee.receiver.span,
+        this.failReadonlyMethodReceiver(
+          candidate.method.name,
+          expression.callee.receiver,
+          receiver,
         );
       }
       const signature = [...this.signatures.values()].find(

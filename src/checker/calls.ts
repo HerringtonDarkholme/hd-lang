@@ -412,10 +412,10 @@ export abstract class CallChecker extends StatementChecker {
     expected?: ValueType,
   ): HirExpression {
     if (method.receiverMutable && mutableInner(receiver.type) === undefined) {
-      this.fail(
-        "mutable-receiver-required",
-        `method '${method.name}' requires mutable access to ${typeSourceText(method.targetType)}`,
-        expression.callee.span,
+      this.failReadonlyMethodReceiver(
+        method.name,
+        expression.callee.kind === "member" ? expression.callee.receiver : expression.callee,
+        receiver,
       );
     }
     // A generic target such as `Box[T]` fixes the implementation's
@@ -572,6 +572,34 @@ export abstract class CallChecker extends StatementChecker {
         ? undefined
         : mapping,
     };
+  }
+
+  /** Explain a rejected `mut self` call in terms of the source receiver. */
+  protected failReadonlyMethodReceiver(
+    methodName: string,
+    source: Expression,
+    receiver: HirExpression,
+  ): never {
+    const bindingName = source.kind === "name" ? source.name : undefined;
+    const receiverType = genericTypeName(receiver.type) ?? typeSourceText(receiver.type);
+    const binding =
+      bindingName !== undefined
+        ? (this.resolveLocal(bindingName) ??
+          this.availableCaptures.get(bindingName) ??
+          this.resolveGlobal(bindingName))
+        : undefined;
+    if (bindingName !== undefined && binding && mutableInner(binding.type) === undefined) {
+      this.fail(
+        "mutable-receiver-required",
+        `method '${methodName}' takes mut self, but binding '${bindingName}' has readonly type '${receiverType}'`,
+        source.span,
+      );
+    }
+    this.fail(
+      "mutable-receiver-required",
+      `method '${methodName}' takes mut self, but its receiver has readonly type '${receiverType}'`,
+      source.span,
+    );
   }
 
   /**
