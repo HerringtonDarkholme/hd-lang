@@ -1,0 +1,665 @@
+import type {
+  AssociatedTypeBinding,
+  ComprehensionClause,
+  DataDecl,
+  DataField,
+  Decorators,
+  EnumDecl,
+  Expression,
+  FunctionDecl,
+  GenericBound,
+  ImplDecl,
+  MatchArm,
+  MethodDecl,
+  Parameter,
+  Pattern,
+  Program,
+  ProviderContextEntry,
+  Statement,
+  TraitDecl,
+  TypeDecl,
+  TypeRef,
+} from "../ast.ts";
+
+type Renames = ReadonlyMap<string, string>;
+
+function renameWords(text: string, names: Renames): string {
+  if (names.size === 0) return text;
+  return text.replace(/[\p{ID_Start}_][\p{ID_Continue}]*/gu, (word) => names.get(word) ?? word);
+}
+
+function without(names: Renames, hidden: readonly string[]): Renames {
+  if (!hidden.some((name) => names.has(name))) return names;
+  const result = new Map(names);
+  hidden.forEach((name) => result.delete(name));
+  return result;
+}
+
+function patternBindings(pattern: Pattern): string[] {
+  switch (pattern.kind) {
+    case "binding":
+      return [pattern.name];
+    case "tuple":
+      return pattern.elements.flatMap(patternBindings);
+    case "data":
+      return pattern.fields.flatMap((field) => patternBindings(field.pattern));
+    case "result-variant":
+    case "variant":
+      return [
+        ...pattern.bindings.flatMap((name) => (name === undefined ? [] : [name])),
+        ...(pattern.payloadPatterns?.flatMap(patternBindings) ?? []),
+      ];
+    default:
+      return [];
+  }
+}
+
+/**
+ * Give one parsed std module the names under which its declarations are
+ * joined. Only binding references are rewritten. Source text, member and
+ * variant names, fields, locals, parameters, and generic binders keep their
+ * own identities.
+ */
+export function renameStandardBindings(program: Program, names: Renames): Program {
+  return new BindingScope(names, names).program(program);
+}
+
+class BindingScope {
+  private readonly values: Map<string, string>;
+  private readonly types: Map<string, string>;
+  constructor(values: Renames, types: Renames) {
+    // Every executable/type scope owns its maps: a binding expression mutates
+    // the current value scope in evaluation order and must not leak out of a
+    // branch, closure, comprehension, or other nested suite.
+    this.values = new Map(values);
+    this.types = new Map(types);
+  }
+
+  private shadowValues(hidden: readonly string[]): BindingScope {
+    return new BindingScope(without(this.values, hidden), this.types);
+  }
+
+  private shadowTypes(hidden: readonly string[]): BindingScope {
+    return new BindingScope(this.values, without(this.types, hidden));
+  }
+
+  private generics(parameters: readonly string[], rows: readonly string[] = []): BindingScope {
+    return this.shadowTypes([...parameters, ...rows]);
+  }
+
+  private text(text: string): string {
+    return renameWords(text, this.types);
+  }
+
+  private type(value: TypeRef): TypeRef {
+    return { ...value, name: this.text(value.name) };
+  }
+
+  private binding(value: AssociatedTypeBinding): AssociatedTypeBinding {
+    return { ...value, trait: this.text(value.trait), type: this.type(value.type) };
+  }
+
+  private bounds(values: readonly GenericBound[]): readonly GenericBound[] {
+    return values.map((bound) => ({
+      ...bound,
+      traits: bound.traits.map((trait) => this.text(trait)),
+      ...(bound.bindings ? { bindings: bound.bindings.map((value) => this.binding(value)) } : {}),
+    }));
+  }
+
+  private defaults(
+    values: Readonly<Record<string, TypeRef>> | undefined,
+  ): Readonly<Record<string, TypeRef>> | undefined {
+    return values
+      ? Object.fromEntries(Object.entries(values).map(([name, value]) => [name, this.type(value)]))
+      : undefined;
+  }
+
+  private decorators(value: Decorators | undefined): Decorators | undefined {
+    return value
+      ? {
+          ...value,
+          derives: value.derives.map((type) => this.type(type)),
+          facts: value.facts.map((fact) => this.expression(fact)),
+        }
+      : undefined;
+  }
+
+  private parameter(value: Parameter): Parameter {
+    return {
+      ...value,
+      type: this.type(value.type),
+      ...(value.default ? { default: this.expression(value.default) } : {}),
+      ...(value.metadata
+        ? { metadata: value.metadata.map((metadata) => this.expression(metadata)) }
+        : {}),
+    };
+  }
+
+  private field(value: DataField): DataField {
+    return {
+      ...value,
+      type: this.type(value.type),
+      ...(value.default ? { default: this.expression(value.default) } : {}),
+      ...(value.metadata
+        ? { metadata: value.metadata.map((metadata) => this.expression(metadata)) }
+        : {}),
+    };
+  }
+
+  private method(value: MethodDecl): MethodDecl {
+    const generic = this.generics(value.genericParameters, value.rowParameters);
+    const body = generic.shadowValues(value.parameters.map((parameter) => parameter.name));
+    return {
+      ...value,
+      genericBounds: generic.bounds(value.genericBounds),
+      ...(value.genericDefaults
+        ? { genericDefaults: generic.defaults(value.genericDefaults) }
+        : {}),
+      parameters: generic.parameters(value.parameters),
+      result: generic.type(value.result),
+      requirements: value.requirements.map((requirement) => generic.text(requirement)),
+      ...(value.body ? { body: body.statements(value.body) } : {}),
+      ...(value.decorators ? { decorators: generic.decorators(value.decorators) } : {}),
+    };
+  }
+
+  private parameters(values: readonly Parameter[]): readonly Parameter[] {
+    let scope = new BindingScope(this.values, this.types);
+    return values.map((value) => {
+      const renamed = scope.parameter(value);
+      scope = scope.shadowValues([value.name]);
+      return renamed;
+    });
+  }
+
+  private function(value: FunctionDecl): FunctionDecl {
+    const generic = this.generics(value.genericParameters, value.rowParameters);
+    const body = generic.shadowValues(value.parameters.map((parameter) => parameter.name));
+    return {
+      ...value,
+      name: this.values.get(value.name) ?? value.name,
+      genericBounds: generic.bounds(value.genericBounds),
+      ...(value.genericDefaults
+        ? { genericDefaults: generic.defaults(value.genericDefaults) }
+        : {}),
+      parameters: generic.parameters(value.parameters),
+      result: generic.type(value.result),
+      requirements: value.requirements.map((requirement) => generic.text(requirement)),
+      ...(value.writtenRequirements
+        ? { writtenRequirements: value.writtenRequirements.map((item) => generic.text(item)) }
+        : {}),
+      body: body.statements(value.body),
+      ...(value.decorators ? { decorators: generic.decorators(value.decorators) } : {}),
+    };
+  }
+
+  private data(value: DataDecl): DataDecl {
+    const generic = this.generics(value.genericParameters);
+    return {
+      ...value,
+      name: this.types.get(value.name) ?? value.name,
+      ...(value.genericBounds ? { genericBounds: generic.bounds(value.genericBounds) } : {}),
+      ...(value.genericDefaults
+        ? { genericDefaults: generic.defaults(value.genericDefaults) }
+        : {}),
+      fields: value.fields.map((field) => generic.field(field)),
+      ...(value.decorators ? { decorators: generic.decorators(value.decorators) } : {}),
+    };
+  }
+
+  private enum(value: EnumDecl): EnumDecl {
+    const generic = this.generics(value.genericParameters);
+    return {
+      ...value,
+      name: this.types.get(value.name) ?? value.name,
+      ...(value.genericBounds ? { genericBounds: generic.bounds(value.genericBounds) } : {}),
+      ...(value.genericDefaults
+        ? { genericDefaults: generic.defaults(value.genericDefaults) }
+        : {}),
+      sharedFields: value.sharedFields.map((field) => generic.field(field)),
+      variants: value.variants.map((variant) => ({
+        ...variant,
+        fields: variant.fields.map((field) => generic.field(field)),
+        ...(variant.result ? { result: generic.expression(variant.result) } : {}),
+        ...(variant.metadata
+          ? { metadata: variant.metadata.map((metadata) => generic.expression(metadata)) }
+          : {}),
+      })),
+      ...(value.decorators ? { decorators: generic.decorators(value.decorators) } : {}),
+    };
+  }
+
+  private trait(value: TraitDecl): TraitDecl {
+    const generic = this.generics(value.genericParameters);
+    return {
+      ...value,
+      name: this.types.get(value.name) ?? value.name,
+      ...(value.genericBounds ? { genericBounds: generic.bounds(value.genericBounds) } : {}),
+      ...(value.genericDefaults
+        ? { genericDefaults: generic.defaults(value.genericDefaults) }
+        : {}),
+      supertraits: value.supertraits.map((type) => generic.type(type)),
+      ...(value.supertraitBindings
+        ? { supertraitBindings: value.supertraitBindings.map((item) => generic.binding(item)) }
+        : {}),
+      associatedTypes: value.associatedTypes.map((associated) => ({
+        ...associated,
+        ...(associated.value ? { value: generic.type(associated.value) } : {}),
+      })),
+      methods: value.methods.map((method) => generic.method(method)),
+      ...(value.decorators ? { decorators: generic.decorators(value.decorators) } : {}),
+    };
+  }
+
+  private typeDeclaration(value: TypeDecl): TypeDecl {
+    const generic = this.generics(value.genericParameters, value.rowParameters);
+    return {
+      ...value,
+      name: this.types.get(value.name) ?? value.name,
+      ...(value.genericBounds ? { genericBounds: generic.bounds(value.genericBounds) } : {}),
+      ...(value.genericDefaults
+        ? { genericDefaults: generic.defaults(value.genericDefaults) }
+        : {}),
+      ...(value.alias ? { alias: generic.type(value.alias) } : {}),
+      ...(value.base ? { base: generic.type(value.base) } : {}),
+      ...(value.row ? { row: value.row.map((item) => generic.text(item)) } : {}),
+      ...(value.decorators ? { decorators: generic.decorators(value.decorators) } : {}),
+    };
+  }
+
+  private implementation(value: ImplDecl): ImplDecl {
+    const generic = this.generics(value.genericParameters, value.rowParameters);
+    return {
+      ...value,
+      genericBounds: generic.bounds(value.genericBounds),
+      ...(value.traitName ? { traitName: generic.text(value.traitName) } : {}),
+      targetName: generic.text(value.targetName),
+      associatedTypes: value.associatedTypes.map((associated) => ({
+        ...associated,
+        ...(associated.value ? { value: generic.type(associated.value) } : {}),
+      })),
+      methods: value.methods.map((method) => generic.method(method)),
+      ...(value.memberLines
+        ? {
+            memberLines: value.memberLines.map((line) => ({
+              ...line,
+              ...(line.value ? { value: generic.expression(line.value) } : {}),
+            })),
+          }
+        : {}),
+      ...(value.decorators ? { decorators: generic.decorators(value.decorators) } : {}),
+    };
+  }
+
+  program(value: Program): Program {
+    return {
+      ...value,
+      uses: [],
+      ...(value.types ? { types: value.types.map((item) => this.typeDeclaration(item)) } : {}),
+      data: value.data.map((item) => this.data(item)),
+      enums: value.enums.map((item) => this.enum(item)),
+      traits: value.traits.map((item) => this.trait(item)),
+      implementations: value.implementations.map((item) => this.implementation(item)),
+      functions: value.functions.map((item) => this.function(item)),
+      tests: value.tests.map((test) => ({
+        ...test,
+        ...(test.result ? { result: this.type(test.result) } : {}),
+        body: this.statements(test.body),
+      })),
+      statements: this.statements(value.statements),
+    };
+  }
+
+  private pattern(value: Pattern): Pattern {
+    switch (value.kind) {
+      case "tuple":
+        return { ...value, elements: value.elements.map((item) => this.pattern(item)) };
+      case "data":
+        return {
+          ...value,
+          typeName: this.text(value.typeName),
+          fields: value.fields.map((field) => ({
+            ...field,
+            pattern: this.pattern(field.pattern),
+          })),
+        };
+      case "variant":
+        return {
+          ...value,
+          ...(value.enumName ? { enumName: this.text(value.enumName) } : {}),
+          ...(value.payloadPatterns
+            ? { payloadPatterns: value.payloadPatterns.map((item) => this.pattern(item)) }
+            : {}),
+        };
+      case "result-variant":
+        return {
+          ...value,
+          ...(value.payloadPatterns
+            ? { payloadPatterns: value.payloadPatterns.map((item) => this.pattern(item)) }
+            : {}),
+        };
+      default:
+        return value;
+    }
+  }
+
+  private provider(value: ProviderContextEntry): ProviderContextEntry {
+    return value.kind === "binding"
+      ? { ...value, key: this.text(value.key), value: this.expression(value.value) }
+      : { ...value, value: this.expression(value.value) };
+  }
+
+  private clauses(values: readonly ComprehensionClause[]): {
+    readonly clauses: readonly ComprehensionClause[];
+    readonly scope: BindingScope;
+  } {
+    let scope = new BindingScope(this.values, this.types);
+    const clauses = values.map((value) => {
+      if (value.kind === "if") return { ...value, condition: scope.expression(value.condition) };
+      const clause = {
+        ...value,
+        iterable: scope.expression(value.iterable),
+        ...(value.pattern ? { pattern: scope.pattern(value.pattern) } : {}),
+      };
+      const bindings = value.pattern
+        ? patternBindings(value.pattern)
+        : value.bindings.map((binding) => binding.name);
+      scope = scope.shadowValues(bindings);
+      return clause;
+    });
+    return { clauses, scope };
+  }
+
+  private arm(value: MatchArm): MatchArm {
+    const pattern = this.pattern(value.pattern);
+    const scope = this.shadowValues(patternBindings(value.pattern));
+    return {
+      ...value,
+      pattern,
+      ...(value.guard ? { guard: scope.expression(value.guard) } : {}),
+      body: scope.statements(value.body),
+    };
+  }
+
+  private expression(value: Expression): Expression {
+    const e = (item: Expression): Expression => this.expression(item);
+    const typeArguments = (item: { readonly typeArguments?: readonly TypeRef[] }) =>
+      item.typeArguments
+        ? { typeArguments: item.typeArguments.map((type) => this.type(type)) }
+        : {};
+    switch (value.kind) {
+      case "integer":
+      case "float":
+      case "string":
+      case "character":
+      case "boolean":
+      case "contextual-variant":
+        return value;
+      case "name":
+        return {
+          ...value,
+          name: this.values.get(value.name) ?? value.name,
+          ...typeArguments(value),
+        };
+      case "qualified-name":
+        return {
+          ...value,
+          owner: this.text(value.owner),
+          ...(value.genericTypeOwner
+            ? { genericTypeOwner: this.text(value.genericTypeOwner) }
+            : {}),
+          ...(value.ownerTypeArguments
+            ? { ownerTypeArguments: value.ownerTypeArguments.map((type) => this.type(type)) }
+            : {}),
+          ...typeArguments(value),
+        };
+      case "interpolated-string":
+        return {
+          ...value,
+          segments: value.segments.map((segment) =>
+            segment.kind === "expression"
+              ? { ...segment, expression: e(segment.expression) }
+              : segment,
+          ),
+        };
+      case "binding-expression": {
+        const renamed = e(value.value);
+        value.bindings.forEach((binding) => this.values.delete(binding.name));
+        return { ...value, value: renamed };
+      }
+      case "list":
+      case "tuple":
+        return { ...value, elements: value.elements.map(e) };
+      case "list-comprehension": {
+        const { clauses, scope } = this.clauses(value.clauses);
+        return { ...value, clauses, value: scope.expression(value.value) };
+      }
+      case "map-comprehension": {
+        const { clauses, scope } = this.clauses(value.clauses);
+        return {
+          ...value,
+          clauses,
+          key: scope.expression(value.key),
+          value: scope.expression(value.value),
+        };
+      }
+      case "map":
+        return {
+          ...value,
+          entries: value.entries.map((entry) => ({
+            ...entry,
+            key: e(entry.key),
+            value: e(entry.value),
+          })),
+        };
+      case "unary":
+      case "propagate":
+        return { ...value, operand: e(value.operand) };
+      case "binary":
+        return { ...value, left: e(value.left), right: e(value.right) };
+      case "call":
+      case "suspend-call":
+        return {
+          ...value,
+          callee: e(value.callee),
+          arguments: value.arguments.map(e),
+          ...typeArguments(value),
+        };
+      case "data":
+        return {
+          ...value,
+          name: this.text(value.name),
+          ...typeArguments(value),
+          ...(value.spread ? { spread: e(value.spread) } : {}),
+          fields: value.fields.map((field) => ({ ...field, value: e(field.value) })),
+        };
+      case "member":
+        return { ...value, receiver: e(value.receiver), ...typeArguments(value) };
+      case "index":
+        return { ...value, receiver: e(value.receiver), index: e(value.index) };
+      case "range":
+        return {
+          ...value,
+          ...(value.start ? { start: e(value.start) } : {}),
+          ...(value.end ? { end: e(value.end) } : {}),
+        };
+      case "pipe":
+        return { ...value, value: e(value.value), step: e(value.step) };
+      case "closure": {
+        const scope = this.shadowValues(value.parameters.map((parameter) => parameter.name));
+        return {
+          ...value,
+          parameters: value.parameters.map((parameter) => ({
+            ...parameter,
+            ...(parameter.type ? { type: this.type(parameter.type) } : {}),
+          })),
+          ...(value.result ? { result: this.type(value.result) } : {}),
+          ...(value.requirements
+            ? { requirements: value.requirements.map((item) => this.text(item)) }
+            : {}),
+          body: scope.statements(value.body),
+        };
+      }
+      case "provider-use":
+        return { ...value, key: this.text(value.key) };
+      case "provider-context":
+        return { ...value, entries: value.entries.map((entry) => this.provider(entry)) };
+      case "provider-with":
+        return {
+          ...value,
+          entries: value.entries.map((entry) => this.provider(entry)),
+          body: this.statements(value.body),
+        };
+      case "if":
+        return {
+          ...value,
+          condition: e(value.condition),
+          thenBody: this.statements(value.thenBody),
+          elseBody: this.statements(value.elseBody),
+        };
+      case "while":
+        return {
+          ...value,
+          condition: e(value.condition),
+          body: this.statements(value.body),
+          elseBody: this.statements(value.elseBody),
+        };
+      case "for": {
+        const pattern = value.pattern ? this.pattern(value.pattern) : undefined;
+        const bindings = value.pattern
+          ? patternBindings(value.pattern)
+          : value.bindings.map((binding) => binding.name);
+        return {
+          ...value,
+          ...(pattern ? { pattern } : {}),
+          iterable: e(value.iterable),
+          body: this.shadowValues(bindings).statements(value.body),
+          elseBody: this.statements(value.elseBody),
+        };
+      }
+      case "match":
+        return {
+          ...value,
+          subject: e(value.subject),
+          arms: value.arms.map((arm) => this.arm(arm)),
+        };
+      default:
+        return unreachable(value);
+    }
+  }
+
+  private typeArguments(value: { readonly typeArguments?: readonly TypeRef[] }): {
+    readonly typeArguments?: readonly TypeRef[];
+  } {
+    return value.typeArguments
+      ? { typeArguments: value.typeArguments.map((type) => this.type(type)) }
+      : {};
+  }
+
+  private statement(value: Statement): Statement {
+    const e = (item: Expression): Expression => this.expression(item);
+    switch (value.kind) {
+      case "pass":
+      case "continue":
+      case "local-implementation":
+        return value;
+      case "defer":
+        return { ...value, body: this.statements(value.body) };
+      case "binding":
+      case "tuple-binding":
+        return {
+          ...value,
+          ...(value.annotation ? { annotation: this.type(value.annotation) } : {}),
+          value: e(value.value),
+        };
+      case "pattern-binding":
+        return {
+          ...value,
+          pattern: this.pattern(value.pattern),
+          ...(value.annotation ? { annotation: this.type(value.annotation) } : {}),
+          value: e(value.value),
+          ...(value.elseBody ? { elseBody: this.statements(value.elseBody) } : {}),
+        };
+      case "assignment":
+        return {
+          ...value,
+          name: this.values.get(value.name) ?? value.name,
+          value: e(value.value),
+        };
+      case "discard":
+        return { ...value, value: e(value.value) };
+      case "return":
+      case "break":
+        return { ...value, ...(value.value ? { value: e(value.value) } : {}) };
+      case "field-assignment":
+        return {
+          ...value,
+          target: {
+            ...value.target,
+            receiver: e(value.target.receiver),
+            ...this.typeArguments(value.target),
+          },
+          value: e(value.value),
+        };
+      case "index-assignment":
+        return {
+          ...value,
+          target: {
+            ...value.target,
+            receiver: e(value.target.receiver),
+            index: e(value.target.index),
+          },
+          value: e(value.value),
+        };
+      case "call-assignment":
+        return {
+          ...value,
+          target: {
+            ...value.target,
+            callee: e(value.target.callee),
+            arguments: value.target.arguments.map(e),
+            ...this.typeArguments(value.target),
+          },
+          value: e(value.value),
+        };
+      case "expression":
+        return { ...value, expression: e(value.expression) };
+      case "local-declaration":
+        return { ...value, declaration: this.localDeclaration(value.declaration) };
+      default:
+        return unreachable(value);
+    }
+  }
+
+  private localDeclaration(
+    value: DataDecl | EnumDecl | TraitDecl | TypeDecl | ImplDecl,
+  ): DataDecl | EnumDecl | TraitDecl | TypeDecl | ImplDecl {
+    if (value.kind === "impl") return this.implementation(value);
+    const local = this.shadowTypes([value.name]);
+    if (value.kind === "data") return local.data(value);
+    if (value.kind === "enum") return local.enum(value);
+    if (value.kind === "trait") return local.trait(value);
+    if (value.kind === "type") return local.typeDeclaration(value);
+    return unreachable(value);
+  }
+
+  private statements(values: readonly Statement[]): readonly Statement[] {
+    let scope = new BindingScope(this.values, this.types);
+    return values.map((value) => {
+      const renamed = scope.statement(value);
+      if (value.kind === "binding") scope = scope.shadowValues([value.name]);
+      else if (value.kind === "tuple-binding")
+        scope = scope.shadowValues(value.bindings.map((binding) => binding.name));
+      else if (value.kind === "pattern-binding")
+        scope = scope.shadowValues(patternBindings(value.pattern));
+      else if (value.kind === "local-declaration" && value.declaration.kind !== "impl")
+        scope = scope.shadowTypes([value.declaration.name]);
+      return renamed;
+    });
+  }
+}
+
+function unreachable(value: never): never {
+  throw new Error(`unknown source node: ${String(value)}`);
+}

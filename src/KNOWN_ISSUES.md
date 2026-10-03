@@ -11,8 +11,8 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-03 the suite has
-2,039 cases: 1,937 selected in `test/portable/cases.tsv` and 102 known
-failures, 72 language tier and 30 stdlib tier.
+2,076 cases: 1,982 selected in `test/portable/cases.tsv` and 94 known
+failures, 68 language tier and 26 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -30,17 +30,25 @@ failures, 72 language tier and 30 stdlib tier.
 | TASK-PROGRAMS | 1 | integration test modules are linked as one program |
 | FOLDER-SELF | 1 | `x.hd` is not in folder `x` with its child modules |
 | FACT-PATTERN | 11 | a typed fact's `@annotate` argument must be one of its type parameters |
-| TYPE-GAPS | 7 | remaining batch 51 inference codes and batch 51b type rules are not checked |
+| TYPE-GAPS | 6 | remaining batch 51 inference codes and batch 51b type rules are not checked |
 | DERIVE-DEFAULT | 3 | no `@default` marker or count check for derived `Default` |
 | DEFAULT-FIELD | 1 | derived `Default` requires `Default` of a member that declares a default |
 | RACE-EMPTY | 2 | an empty `race!` task list is neither rejected nor a panic |
 | CLI-57 | 2 | the test runner binds no `Process`, and `hd_run!` has no integration-only check |
 | VOID-UNIT | 1 | `void` is kept apart from the empty tuple `()` |
-| VARIANCE-UNWRAP | 1 | `(mut User)?` and `mut User?` are one type, so an optional still weakens its contents |
-| DEFAULT-HASHER | 1 | no `DefaultHasher` or `hash_of` in `std.hash` |
-| HOST-CATALOG | 8 | host modules are registered; remaining Fs, clock, console, and retry helpers or provider support are missing |
-| STD-LOADER | 7 | textual std renaming corrupts `Json.Number` because std.json also declares type `Number` |
-| STD-1 | 3 | `Duration` has no `Eq` or `Ord`, `lines` keeps `\r`, and `Map` has no `contains_key`, `keys`, or `values` |
+| HOST-CATALOG | 7 | host modules are registered; remaining Fs, clock, console, and retry helpers or provider support are missing |
+| ERR-HELPERS | 3 | Error's AnyRef contract, implied dynamic-safety bound, and trait-value `find` cast are not implemented |
+| HOST-CONTRACT | 2 | host results are not checked against their declared types and the panic category is absent |
+| PENDING-WRITE | 2 | the pending-write runtime profile does not exist |
+| FLOAT-PARSE | 3 | the `parse_f64` host hook is absent |
+| SNAPSHOT-ROW | 3 | snapshot operations do not use the current TestRunner row |
+| RUNNER-SURFACE | 1 | PropertyRunner lacks the current PropertyCase protocol |
+| LIST-POP | 1 | `List.pop` and the required list-truncate primitive are absent |
+| STD-DEBUG | 1 | std derivation ordering leaves TypeId and SelfRef without Debug |
+| ALL-LIST | 1 | erasing concrete closures in generic lists can produce an illegal cast |
+| METHOD-DEFAULT | 1 | the parser rejects a default value on a method parameter |
+| FIXED-HOOK | 1 | the `format_f64_fixed` host hook is absent |
+| STD-1 | 2 | bounded inherent Map impls lose their bounds, hiding `get_or`, `keys`, and `values` |
 
 ## Findings
 
@@ -131,10 +139,8 @@ Compiler structure:
 | VOID-UNIT | Batch 52: `void` is an alias for `()`. The prototype keeps a separate `void` type, so `let u: void = ()`, a `()` result for `-> void`, and `(void, i32)` are rejected. A void success takes only the literal `()`, as in `.Ok(())`, not another `void` expression such as `.Ok(log())`. |
 | FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are, and `h.fact::[D]()` infers `D`'s arguments from the handle's `F` the same way (batch 59). The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
 | DEFAULT-FIELD | Batch 59: a member that declares a default needs no `Default` on its type. The `std.ops` template's `member[F < Default]` bound still covers it, so the prototype reports `member-not-derivable`. |
-| VARIANCE-UNWRAP | Batch 64: `Option` and `Result` are invariant in every parameter. The variance check follows it, but the prototype writes `(mut User)?` and `mut User?` as one type, so weakening the outer view still turns `(mut User)?` into `User?`. |
-| DEFAULT-HASHER | Batch 64: `std.hash.DefaultHasher` is 64-bit FNV-1a, `hash_of` hashes into it, and `Map` buckets by it. None is in `lib/std` yet (task #196). |
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds only `Console`, and of the new items it declares only `Random`. |
-| STD-1 | Batch 64 recovered the 2026-09-29 std decisions: `Duration` implements `Eq` and `Ord`, `lines` drops a `\r` before each `\n`, and `Map` has `contains_key`, `keys`, and `values`. `lib/std` has none of these yet. |
+| STD-1 | Batch 64 specifies Map helpers. Their std implementations are present, but bounded inherent impl preparation drops `K < Eq & Hash`, so `get_or`, `keys`, and `values` do not join. |
 
 ## Gaps No Fixture Reaches
 

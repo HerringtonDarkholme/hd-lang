@@ -10,9 +10,9 @@ Completed checkpoints remain checked until the next audit cleanup; detailed vali
 
 ## P1: Standard Library Loading
 
-- [x] **1. Fixed: emit reachable std items only.** HIR declaration-index reachability selects std functions, closures, defaults, iterators, and dictionaries; structural backend linking removes unused runtime declarations, types, globals, and imports. Original IDs and host-callable exports are preserved. Full check: 1,927 conformance cases and 377 unit tests passed; 162 colocated source tests, website build, and fuzz smoke passed. CI must still verify the repair push.
-- [ ] **2. Registration implemented; acceptance partially complete.** Added `std.host`, `std.fs`, `std.path`, `std.json`, `std.encoding`, and `std.digest` to `STANDARD_MODULES`. Ten cases pass and move to `cases.tsv`. JSON rows remain open: textual renaming corrupts `Json.Number` because the module also declares type `Number` (item 3). Fs helpers are absent from `lib/std`, pending the identity-binding repair. Tags: `STD-LOADER`, `HOST-CATALOG`.
-- [ ] **3. Bind std names by declaration identity.** Replace textual renaming so free helpers can share trait-method names: `now`, `sleep!`, `read_text!`, `write_text!`, `read_line!`, and the `default` derive marker. Coordinate with audit A01 rather than introducing spelling exceptions. Tags: `HOST-CATALOG` (clock helpers, console input helper), `DERIVE-DEFAULT`.
+- [x] **1. Fixed: emit reachable std items only.** HIR declaration-index reachability selects std functions, closures, defaults, iterators, and dictionaries; structural backend linking removes unused runtime declarations, types, globals, and imports. Original IDs and host-callable exports are preserved. Full check: 1,927 conformance cases and 377 unit tests passed; 162 colocated source tests, website build, and fuzz smoke passed. Main CI passed.
+- [ ] **2. Registration implemented; acceptance partially complete.** Added `std.host`, `std.fs`, `std.path`, `std.json`, `std.encoding`, and `std.digest` to `STANDARD_MODULES`. Fifteen cases pass and move to `cases.tsv`: ten registration cases plus five JSON cases enabled by item 3. `json-suite` is now correctly classified under the missing `parse_f64` hook (item 19). The remaining `HOST-CATALOG` rows need APIs or provider behavior absent from `lib/std` or the runtime host.
+- [ ] **3. Structural binding implemented; tagged acceptance remains.** Parsed std declarations and their references are renamed through lexical AST scopes; member names, variants, fields, strings, comments, parameters, locals, and generic binders are untouched. The `Duration` string corruption and JSON `Number` collision are fixed, and parsed `use` declarations are dropped structurally. Five JSON rows pass and move; synthetic coverage proves a free helper may share a trait method's spelling. `HOST-CATALOG` and `DERIVE-DEFAULT` rows still need their missing std declarations before their compiler path can be exercised.
 - [ ] **4. Derive on std declarations.** Run `@derive` on `lib/std` declarations, not only before std is joined. Verify generated Debug implementations without changing std to conceal compiler gaps.
 - [ ] **5. Preserve std diagnostic locations.** Errors inside `lib/std` must identify their std file and line, not the user's first position or `use` line.
 
@@ -27,6 +27,10 @@ Exact WAT UTF-8 bytes, using `compileToWat` with default options. Baseline: `5ba
 
 The exact sources are in [reachability regressions](../../src/emitter/reachability.test.ts).
 The earlier pre-pass-76 measurements were 670,018 and 1,085,281 bytes; these are not the same-library comparison.
+For the empty `main`, assembly reduces the historical 741,925-byte WAT to a
+75,477-byte Wasm binary. The linked result is 35 bytes of Wasm. A roughly
+66–75 KB empty executable therefore identifies the pre-linker output, not the
+current emitter result.
 
 ## P2: Checker And Diagnostics
 
@@ -59,6 +63,6 @@ Dogfood references: [F1–F13](../dogfood-199.md).
 ## Delivery Checks
 
 - [ ] Record each evaluated item's outcome and evidence; remove verified fixed issues from the remaining-work audit.
-- [ ] For item 1, record reproducible before/after WAT sizes using identical inputs and options.
+- [x] For item 1, record reproducible before/after WAT sizes using identical inputs and options.
 - [ ] Move only passing tagged conformance rows to `cases.tsv`, preserving fixture intent.
 - [ ] Fetch/rebase; full check; push one repair; watch main Test until green.

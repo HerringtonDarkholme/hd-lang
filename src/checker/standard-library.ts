@@ -10,6 +10,7 @@ import {
 import type { SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { STANDARD_MODULES, standardSource, type StandardModule } from "./standard-sources.ts";
+import { renameStandardBindings } from "./standard-bindings.ts";
 
 // Joins the toy standard library (`lib/std/*.hd`) into the one module the
 // prototype compiles. The use graph decides which modules join: the prelude
@@ -66,9 +67,9 @@ interface ParsedModule {
 }
 
 const parsedModules = new Map<StandardModule, ParsedModule>();
-/** Renamed module sources, parsed once each; most programs rename nothing they import. */
+/** Renamed parsed modules; the key records the declaration binding map. */
 const renamedModules = new Map<string, Program>();
-/** A std module's implementations, by renamed source, for its templates. */
+/** A std module's implementations, by binding-map key, for its templates. */
 const templateModules = new Map<string, readonly ImplDecl[]>();
 
 function isStandardModule(name: string): name is StandardModule {
@@ -275,24 +276,8 @@ function standardModule(name: StandardModule): ParsedModule {
   return module;
 }
 
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * Renames whole identifiers that are not member names (`.name`) or associated
- * names (`Type::name`), nor a string literal's first word, such as the
- * name in `@intrinsic("string_lower")`. The std sources keep their
- * top-level names distinct from their fields, parameters, and locals, so a
- * textual rename is exact.
- */
-function renameSource(source: string, renames: ReadonlyMap<string, string>): string {
-  if (renames.size === 0) return source;
-  const pattern = new RegExp(
-    `(?<![\\w."]|::)(${[...renames.keys()].map(escapeRegExp).join("|")})(?!\\w)`,
-    "g",
-  );
-  return source.replace(pattern, (name) => renames.get(name) ?? name);
+function renameKey(module: StandardModule, renames: ReadonlyMap<string, string>): string {
+  return `${module}\0${[...renames].map(([from, to]) => `${from}\0${to}`).join("\0")}`;
 }
 
 function respan<T>(value: T, span: SourceSpan): T {
@@ -377,11 +362,12 @@ function standardOrigin(
   return undefined;
 }
 
-/** Renames a std module's text into the program's names. */
+/** Renames one type spelling from a std module into the program's names. */
 function programNames(program: Program, module: StandardModule): (text: string) => string {
   const nameOf = standardNameOf(program);
   const renames = moduleRenames(standardModule(module), nameOf);
-  return (text) => renameSource(text, renames);
+  return (text) =>
+    text.replace(/[\p{ID_Start}_][\p{ID_Continue}]*/gu, (word) => renames.get(word) ?? word);
 }
 
 /**
@@ -621,14 +607,14 @@ export function standardTemplate(
   for (const module of candidates) {
     const parsed = standardModule(module);
     const renames = moduleRenames(parsed, nameOf, structureNames);
-    const source = renameSource(standardSource(module).replace(/^(pub )?use .*$/gm, ""), renames);
+    const key = renameKey(module, renames);
     const structure = new Set(
       [...structureNamesOf(parsed)].map((name) => structureNames.get(name) ?? name),
     );
-    let implementations = templateModules.get(source);
+    let implementations = templateModules.get(key);
     if (!implementations) {
-      implementations = parseModule(module, source).implementations;
-      templateModules.set(source, implementations);
+      implementations = renameStandardBindings(parsed.program, renames).implementations;
+      templateModules.set(key, implementations);
     }
     // The template, or the tuple template, whose parameter is bounded by
     // `Tuple` (annot.template.tuple.separate).
@@ -702,11 +688,11 @@ export function withStandardLibrary(source: Program): Program {
   const moduleProgram = (module: StandardModule): Program => {
     const parsed = standardModule(module);
     const renames = moduleRenames(parsed, nameOf);
-    const source = renameSource(standardSource(module).replace(/^(pub )?use .*$/gm, ""), renames);
-    const cached = renamedModules.get(source);
+    const key = renameKey(module, renames);
+    const cached = renamedModules.get(key);
     if (cached) return cached;
-    const renamed = withoutTemplates(parseModule(module, source), parsed);
-    renamedModules.set(source, renamed);
+    const renamed = withoutTemplates(renameStandardBindings(parsed.program, renames), parsed);
+    renamedModules.set(key, renamed);
     return renamed;
   };
 

@@ -4,39 +4,11 @@ Status: findings of a bounded, read-only review of `src/` at `5ba7393e`. Nothing
 
 ## Summary
 
-The review found 12 findings: 3 high, 4 medium and 5 low. Eight are bugs with a reproduction, one is a resource problem with timings, and three are hacks cited by line. No earlier finding was found to be falsely marked fixed, so there is no regression. The worst root is text processing of hd source: the std joiner renames words inside std string literals, so `Duration` prints `500__std_time_ms` (O-01), and the test linker re-indents string text (O-05). The second root is written-type validation split across two paths: nested types and local annotations skip the dynamic-safety and bound checks (O-02, O-03). Four more items are suspected but not reproduced.
+The remaining review has 10 findings: 2 high, 4 medium and 4 low. Seven are bugs with a reproduction, one is a resource problem with timings, and two are hacks cited by line. The highest remaining root is written-type validation split across two paths: nested types and local annotations skip the dynamic-safety and bound checks (O-02, O-03). Integration-test source rewriting causes O-05 and O-12. Four more items are suspected but not reproduced.
 
 Each repro ran with `timeout 60 node bin/hd.js check|run|test FILE` from a scratch folder `scratch-230/` in the worktree, so output paths keep that prefix.
 
 ## Findings
-
-### O-01: std source renaming rewrites words inside string literals
-
-- Severity: high. Kind: bug (from a hack).
-- Where: `src/checker/standard-library.ts:289` (`renameSource`).
-- The std joiner renames top-level std names with a regex over the module text. The regex skips only a name right after `"`, so a name later in a string literal is renamed too. `Duration`'s `Display` writes `"${hours}h"`, `"${minutes}min"` and `"...ms"`, and `h`, `min` and `ms` are `std.time` functions.
-
-Repro (`dur.hd`):
-
-```text
-use std.time.Duration
-
-pub fn main() -> void $ Console:
-    println("${Duration::milliseconds(500)}")
-    println("${Duration::seconds(3700)}")
-```
-
-`node bin/hd.js run dur.hd` prints:
-
-```
-500__std_time_ms
-1__std_time_h1__std_time_min40s
-```
-
-With `use std.time.{Duration, ms as millis}`, `millis(500)` prints `500millis`.
-
-- Expected: `500ms` and `1h1min40s` (`std-time.duration.text`, `std-time.duration.text.components`).
-- Fix: rename by declaration identity on the parsed AST, never on text. This is the root of TODO item 3 too; until then, the renamer must skip string and comment tokens.
 
 ### O-02: trait-value dynamic safety is checked only for a top-level signature type
 
@@ -282,13 +254,6 @@ scratch-230/arb.hd:9:9: unsatisfied-trait-bound: type 'fn(i32)->i32' does not im
 - Expected: the second error names member `h` (`std-testing.arbitrary.derive.not-derivable`).
 - Fix: have the derivation pass attach the member to the generated bound check, and read it from there, not from message text.
 
-### O-10: std source is filtered and renamed as text in several places
-
-- Severity: low. Kind: hack.
-- Where: `src/checker/standard-library.ts:624` and `:705` drop `use` lines with `/^(pub )?use .*$/gm`; `src/checker/typed-derivation.ts:111` does the same.
-- A `use` that spans lines, such as `use std.x.{` with names on later lines, would leave its continuation lines in the module text. No std file does this today, so it does not fail now.
-- Fix: work on the parsed `Program` (drop its `uses`), together with the O-01 fix.
-
 ### O-11: derive diagnostics travel through global tables keyed by span objects
 
 - Severity: low. Kind: hack.
@@ -312,4 +277,4 @@ scratch-230/arb.hd:9:9: unsatisfied-trait-bound: type 'fn(i32)->i32' does not im
 
 ## Not re-reported
 
-These were seen and are already tracked: textual std renaming as a whole (TODO 3), std diagnostic locations (TODO 5), `List.append` (TODO 20), the two `SCALAR_BOUNDARY` sets in `src/compiler.ts:206` and `src/emitter/host-providers.ts:28` (A07), package joining and privacy (A01, P2), the busy-polling `hd run` (F-555), and nested-closure check time (F-604).
+These were seen and are already tracked: std diagnostic locations (TODO 5), `List.append` (TODO 20), the two `SCALAR_BOUNDARY` sets in `src/compiler.ts:206` and `src/emitter/host-providers.ts:28` (A07), package joining and privacy (A01, P2), the busy-polling `hd run` (F-555), and nested-closure check time (F-604).

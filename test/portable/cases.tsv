@@ -1954,6 +1954,11 @@ typing/invalid/requirement-key-not-dynamically-safe.hd	type
 typing/invalid/covariant-private-method-parameter.hd	type
 runtime/valid/lct-optional-injection.hd	runtime
 runtime/valid/json-numbers.hd	runtime
+runtime/valid/json-round-trip.hd	runtime
+runtime/valid/json-escapes.hd	runtime
+runtime/valid/json-errors.hd	runtime
+runtime/valid/json-object-order.hd	runtime
+runtime/valid/json-pretty.hd	runtime
 runtime/valid/retry-with-backoff.hd	runtime
 runtime/valid/string-split-once.hd	runtime
 runtime/valid/string-split-whitespace.hd	runtime
