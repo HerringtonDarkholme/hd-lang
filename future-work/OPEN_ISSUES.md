@@ -290,9 +290,6 @@ These items remain required but do not currently require new core syntax:
 - conformance fixtures for `missing-entry-point` and `unselected-main`,
   which need manifest input in the fixture format, so they wait for the
   manifest schema like the other manifest diagnostics;
-- the fuzzer ([spec/tools/fuzz](../spec/tools/fuzz/CONTRACT.md)) still runs
-  `run FILE` and `build FILE`, which [Command Line](../spec/cli/command-line.md) makes
-  package-only; the CLI update should move it to `hd FILE`;
 - a `package-cycle` conformance fixture, which waits until the manifest
   schema exists (Dependency Cycles DC12,
   [`module.cycle.package`](../spec/lang/10-modules.md#r-module.cycle.package));
