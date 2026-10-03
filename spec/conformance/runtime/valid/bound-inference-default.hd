@@ -1,0 +1,35 @@
+# test: a bound-only parameter that several instantiations leave open takes its type-argument default
+# Spec 04 Inference Through A Bound: types.generic.infer.bound.default (owner decision BOUND-INFER-DEFAULT, batch 78, 2026-10-03).
+use std.testing.assert_equal
+
+trait Source[T]:
+    fn take(self) -> T
+
+data Both:
+    count: i32
+
+impl Source[i32] for Both:
+    fn take(self) -> i32:
+        self.count
+
+impl Source[string] for Both:
+    fn take(self) -> string:
+        "both"
+
+data Fixed[T]:
+    value: T
+
+impl[T] Source[T] for Fixed[T]:
+    fn take(self) -> T:
+        self.value
+
+fn read[U = string, S < Source[U] = Fixed[U]](source: S) -> U:
+    source.take()
+
+fn label(both: Both) -> string:
+    text := read(both)
+    text
+
+tests:
+    it("U is open, so its default string fills it"):
+        assert_equal(label(Both { count: 3 }), "both", reason="the Source[string] implementation")

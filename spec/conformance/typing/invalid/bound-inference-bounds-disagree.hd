@@ -1,0 +1,25 @@
+# test: two bounds that name one parameter but allow different instantiations leave it unsolved
+# Spec 04 Inference Through A Bound: types.generic.infer.bound.disagree (owner decision BOUND-INFER-TWO-BOUNDS, batch 78, 2026-10-03).
+
+trait Source[T]:
+    fn take(self) -> T
+
+data Label:
+    text: string
+
+impl Source[string] for Label:
+    fn take(self) -> string:
+        self.text
+
+data Count:
+    value: i32
+
+impl Source[i32] for Count:
+    fn take(self) -> i32:
+        self.value
+
+fn joined[U, A < Source[U], B < Source[U]](first: A, second: B) -> List[U]:
+    [first.take(), second.take()]
+
+fn mixed(label: Label, count: Count) -> void:
+    items := joined(label, count)  # diagnostic: cannot-infer-type

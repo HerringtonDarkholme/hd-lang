@@ -1,0 +1,31 @@
+# test: two bounds that name one parameter and allow the same single instantiation solve it
+# Spec 04 Inference Through A Bound: types.generic.infer.bound.agree (owner decision BOUND-INFER-TWO-BOUNDS, batch 78, 2026-10-03).
+use std.testing.assert_equal
+
+trait Source[T]:
+    fn take(self) -> T
+
+data Label:
+    text: string
+
+impl Source[string] for Label:
+    fn take(self) -> string:
+        self.text
+
+data Note:
+    text: string
+
+impl Source[string] for Note:
+    fn take(self) -> string:
+        self.text
+
+fn joined[U, A < Source[U], B < Source[U]](first: A, second: B) -> List[U]:
+    [first.take(), second.take()]
+
+fn titles(label: Label, note: Note) -> List[string]:
+    found := joined(label, note)
+    found
+
+tests:
+    it("both bounds allow only U = string"):
+        assert_equal(titles(Label { text: "a" }, Note { text: "b" }), ["a", "b"], reason="U is string")

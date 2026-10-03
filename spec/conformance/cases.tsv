@@ -2102,8 +2102,11 @@ runtime/valid/host-result-special-floats.hd	runtime	accept	lang/10-modules.md#r-
 runtime/valid/bound-inference-user-trait.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.bound.one
 runtime/valid/bound-inference-chain.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.bound.fixed-point
 runtime/valid/bound-inference-explicit.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.bound.precedence
-typing/invalid/bound-inference-several-impls.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.infer.bound.several
+typing/invalid/bound-inference-several-impls.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.infer.bound.no-default
 typing/invalid/bound-inference-no-impl.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.generic.infer.bound.none
+runtime/valid/bound-inference-default.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.bound.default
+runtime/valid/bound-inference-two-bounds.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.bound.agree
+typing/invalid/bound-inference-bounds-disagree.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.infer.bound.disagree
 runtime/valid/rng-seeded-sequence.hd	runtime	accept	std/random.md#rng-generator
 runtime/valid/rng-int-range.hd	runtime	accept	std/random.md#integer-ranges
 runtime/panic/rng-int-empty-range.hd	runtime	panic:explicit-panic	std/random.md#r-std-random.rng.int.empty

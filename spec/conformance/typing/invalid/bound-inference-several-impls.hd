@@ -1,5 +1,5 @@
-# test: a bounded type implementing the bound's trait at several instantiations leaves the parameter ambiguous
-# Spec 04 Inference Through A Bound: types.generic.infer.bound.several (owner decision BOUND-INFERENCE, batch 77, 2026-10-03).
+# test: a bounded type implementing the bound's trait at several instantiations leaves a parameter without a default unsolved
+# Spec 04 Inference Through A Bound: types.generic.infer.bound.no-default (owner decisions BOUND-INFERENCE, batch 77, and BOUND-INFER-DEFAULT, batch 78, 2026-10-03).
 
 trait Source[T]:
     fn take(self) -> T

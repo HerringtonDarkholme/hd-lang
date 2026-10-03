@@ -1215,11 +1215,16 @@ fn name(label: Label) -> string:
 2. r[types.generic.infer.bound.after] Call inference solves a bound-only parameter after the other parameters.
 3. r[types.generic.infer.bound.one] Once the bounded parameter is known, if its type implements the bound's trait for exactly one instantiation, that instantiation solves the bound-only parameter.
 4. r[types.generic.infer.bound.none] If the type implements the bound's trait for no instantiation, the call is an error. Error: `unsatisfied-trait-bound`.
-5. r[types.generic.infer.bound.several] If the type implements the bound's trait for several instantiations, the call is an error, and an explicit type argument resolves it. Error: `cannot-infer-type`.
-6. r[types.generic.infer.bound.fixed-point] The step repeats until it solves no further parameter, so a chain of such bounds is solved in dependency order.
-7. r[types.generic.infer.bound.precedence] An explicit type argument and an expected type take precedence: this step never solves a parameter that either of them solves.
-8. r[types.generic.infer.bound.placeholder] An explicit list may mix written arguments with `_` slots, as in `read::[string, _](both)`; each `_` slot is inferred by the steps above.
-9. r[types.generic.infer.bound.call-site] This step is call-site inference only. A declaration's generic parameters and signature are never inferred, as [`types.infer.explicit`](#r-types.infer.explicit) requires.
+5. r[types.generic.infer.bound.ambiguous] If the type implements the bound's trait for several instantiations, this step leaves the bound-only parameter unsolved.
+6. r[types.generic.infer.bound.default] A bound-only parameter left unsolved takes its type-argument default, as [`types.generic.default.fill`](#r-types.generic.default.fill) gives, and the bound is then checked.
+7. r[types.generic.infer.bound.no-default] A bound-only parameter left unsolved without a default is an error, and an explicit type argument resolves it. Error: `cannot-infer-type`.
+8. r[types.generic.infer.bound.several-bounds] When several bounds name one bound-only parameter, this step solves it only once every parameter those bounds constrain is known.
+9. r[types.generic.infer.bound.agree] It then solves the parameter only if each of those bounds allows exactly one instantiation and they all allow the same one.
+10. r[types.generic.infer.bound.disagree] Otherwise, when bounds allow different instantiations or one allows several, the parameter is left unsolved, as for one bound.
+11. r[types.generic.infer.bound.fixed-point] The step repeats until it solves no further parameter, so a chain of such bounds is solved in dependency order.
+12. r[types.generic.infer.bound.precedence] An explicit type argument and an expected type take precedence: this step never solves a parameter that either of them solves.
+13. r[types.generic.infer.bound.placeholder] An explicit list may mix written arguments with `_` slots, as in `read::[string, _](both)`; each `_` slot is inferred by the steps above.
+14. r[types.generic.infer.bound.call-site] This step is call-site inference only. A declaration's generic parameters and signature are never inferred, as [`types.infer.explicit`](#r-types.infer.explicit) requires.
 
 ```text
 data Both:
@@ -1266,6 +1271,47 @@ fn first_name(teams: List[List[string]]) -> string?:
     found
 ```
 
+A default fills a bound-only parameter that several instantiations leave
+open. `Fixed[U]` is there only because every parameter after a defaulted
+one needs a default too:
+
+```text
+data Fixed[T]:
+    value: T
+
+impl[T] Source[T] for Fixed[T]:
+    fn take(self) -> T:
+        self.value
+
+fn read_or_text[U = string, S < Source[U] = Fixed[U]](source: S) -> U:
+    source.take()
+
+fn label_of(both: Both) -> string:
+    text := read_or_text(both)  # S is Both; U is open, so U is string
+    text
+```
+
+Two bounds that name one parameter must agree on it:
+
+```text
+data Note:
+    text: string
+
+impl Source[string] for Note:
+    fn take(self) -> string:
+        self.text
+
+fn joined[U, A < Source[U], B < Source[U]](first: A, second: B) -> List[U]:
+    [first.take(), second.take()]
+
+fn titles(label: Label, note: Note) -> List[string]:
+    found := joined(label, note)  # both bounds allow only U = string
+    found
+
+fn mixed(label: Label, both: Both) -> void:
+    items := joined(label, both)  # error: cannot-infer-type
+```
+
 > **Note.** The std adapter `zip[U, I < Iterable[U]](self, other: I)`
 > ([More Adapters](../std/iter.md#more-adapters)) relies on this step.
 > With `names: List[string]`, `xs.iter().zip(names)` solves `I` from the
@@ -1274,7 +1320,9 @@ fn first_name(teams: List[List[string]]) -> string?:
 > **Why.** When the argument's type has one implementation, the trait
 > argument is a fact of that type, as Rust's associated
 > `IntoIterator::Item` is. Writing it at every call adds no information.
-> Several implementations are a real choice, so the caller names it.
+> Several implementations are a real choice, so the caller names it,
+> unless the declaration names it with a default. Bounds that disagree
+> are a choice too, and inference does not pick one.
 
 See also: [Explicit Type Arguments](07-functions.md#explicit-type-arguments),
 [Instantiations Of One Generic Trait](09-traits.md#instantiations-of-one-generic-trait).
