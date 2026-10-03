@@ -1,0 +1,37 @@
+# test: each DecodeError case, its position in characters, and the order in which errors are checked
+# Spec std/encoding Decode Errors: std-encoding.error.decl, std-encoding.hex.decode.order, std-encoding.base64.decode.order (ENCODING-SURFACE; task #224).
+use std.encoding.{base64_decode, hex_decode, DecodeError}
+use std.testing.{assert, assert_equal}
+
+tests:
+    it("hex errors"):
+        assert_equal(hex_decode("abc"), .Err(DecodeError.InvalidLength(3)), reason="odd length")
+        assert_equal(hex_decode("0g"), .Err(DecodeError.InvalidCharacter(1)), reason="not a hex digit")
+        assert_equal(hex_decode("é0"), .Err(DecodeError.InvalidCharacter(0)), reason="not ASCII")
+        assert_equal(hex_decode("zz1"), .Err(DecodeError.InvalidLength(3)), reason="the length comes first")
+        assert_equal(hex_decode("0x1f"), .Err(DecodeError.InvalidCharacter(1)), reason="no radix prefix")
+
+    it("base64 length errors"):
+        assert_equal(base64_decode("Zg="), .Err(DecodeError.InvalidLength(3)), reason="short padding")
+        assert_equal(base64_decode("Zg"), .Err(DecodeError.InvalidLength(2)), reason="no padding")
+        assert_equal(base64_decode("Zm9v\n"), .Err(DecodeError.InvalidLength(5)), reason="a line break")
+        assert_equal(base64_decode("Zé=="), .Err(DecodeError.InvalidCharacter(1)), reason="counted in characters")
+
+    it("base64 character errors"):
+        assert_equal(base64_decode("Zm-_"), .Err(DecodeError.InvalidCharacter(2)), reason="the URL-safe symbols")
+        assert_equal(base64_decode("Zm9v!A=="), .Err(DecodeError.InvalidCharacter(4)), reason="punctuation")
+        assert_equal(base64_decode("!h=="), .Err(DecodeError.InvalidCharacter(0)), reason="the smallest position wins")
+
+    it("base64 padding errors"):
+        assert_equal(base64_decode("Zg=a"), .Err(DecodeError.InvalidPadding(2)), reason="= before a symbol")
+        assert_equal(base64_decode("Z==="), .Err(DecodeError.InvalidPadding(1)), reason="three =")
+        assert_equal(base64_decode("===="), .Err(DecodeError.InvalidPadding(0)), reason="only =")
+        assert_equal(base64_decode("Zg==Zg=="), .Err(DecodeError.InvalidPadding(2)), reason="= inside the text")
+        assert_equal(base64_decode("Zh=="), .Err(DecodeError.InvalidPadding(1)), reason="pad bits under ==")
+        assert_equal(base64_decode("Zm9="), .Err(DecodeError.InvalidPadding(2)), reason="pad bits under =")
+
+    it("DecodeError implements Eq and Display"):
+        assert(DecodeError.InvalidLength(3) == DecodeError.InvalidLength(3), reason="same position")
+        assert(DecodeError.InvalidLength(3) != DecodeError.InvalidLength(4), reason="another position")
+        assert(DecodeError.InvalidPadding(2) != DecodeError.InvalidCharacter(2), reason="another variant")
+        assert("${DecodeError.InvalidCharacter(4)}".len() > 0, reason="Display text")

@@ -709,3 +709,7 @@ std/num.md	6	accept	runtime/valid/num-bit-counts.hd
 std/num.md	7	accept	runtime/valid/num-is-finite.hd|runtime/valid/num-is-nan.hd
 std/num.md	8	accept	runtime/valid/num-parse-integers.hd
 std/num.md	9	type-fragment	-
+std/encoding.md	1	accept	runtime/valid/encoding-hex-vectors.hd
+std/encoding.md	2	accept	runtime/valid/encoding-base64-vectors.hd
+std/encoding.md	3	type-fragment	-
+std/digest.md	1	accept	runtime/valid/digest-sha256-vectors.hd

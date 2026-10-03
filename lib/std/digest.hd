@@ -1,0 +1,99 @@
+# std.digest: the SHA-256 hash of bytes, per FIPS 180-4
+# (spec/std/digest.md). The prototype's std loader does not list this
+# module yet (src/checker/standard-sources.ts).
+use std.encoding.hex_encode
+
+# The 32-byte SHA-256 digest of `bytes` (r-std-digest.sha256).
+pub fn sha256(bytes: List[u8]) -> List[u8]:
+    rounds := round_constants()
+    let state: mut List[u32] = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]
+    message := padded(bytes)
+    let schedule: mut List[u32] = []
+    for _ in 0..64:
+        schedule.append(0)
+    let block = 0
+    while block < message.len():
+        for t in 0..16:
+            at := block + 4 * t
+            schedule[t] = (u32(message[at]) << 24) | (u32(message[at + 1]) << 16) | (u32(message[at + 2]) << 8) | u32(message[at + 3])
+        for t in 16..64:
+            low := schedule[t - 15]
+            high := schedule[t - 2]
+            s0 := rotate_right(low, 7) ^ rotate_right(low, 18) ^ (low >> 3)
+            s1 := rotate_right(high, 17) ^ rotate_right(high, 19) ^ (high >> 10)
+            schedule[t] = schedule[t - 16].wrapping_add(s0).wrapping_add(schedule[t - 7]).wrapping_add(s1)
+        let a = state[0]
+        let b = state[1]
+        let c = state[2]
+        let d = state[3]
+        let e = state[4]
+        let f = state[5]
+        let g = state[6]
+        let h = state[7]
+        for t in 0..64:
+            sum1 := rotate_right(e, 6) ^ rotate_right(e, 11) ^ rotate_right(e, 25)
+            choice := (e & f) ^ (~e & g)
+            first := h.wrapping_add(sum1).wrapping_add(choice).wrapping_add(rounds[t]).wrapping_add(schedule[t])
+            sum0 := rotate_right(a, 2) ^ rotate_right(a, 13) ^ rotate_right(a, 22)
+            majority := (a & b) ^ (a & c) ^ (b & c)
+            second := sum0.wrapping_add(majority)
+            h = g
+            g = f
+            f = e
+            e = d.wrapping_add(first)
+            d = c
+            c = b
+            b = a
+            a = first.wrapping_add(second)
+        state[0] = state[0].wrapping_add(a)
+        state[1] = state[1].wrapping_add(b)
+        state[2] = state[2].wrapping_add(c)
+        state[3] = state[3].wrapping_add(d)
+        state[4] = state[4].wrapping_add(e)
+        state[5] = state[5].wrapping_add(f)
+        state[6] = state[6].wrapping_add(g)
+        state[7] = state[7].wrapping_add(h)
+        block = block + 64
+    let digest: mut List[u8] = []
+    for word in state:
+        digest.append(u8(word >> 24))
+        digest.append(u8(word >> 16))
+        digest.append(u8(word >> 8))
+        digest.append(u8(word))
+    digest
+
+# The digest as 64 lowercase hex digits (r-std-digest.sha256-hex).
+pub fn sha256_hex(bytes: List[u8]) -> string:
+    hex_encode(sha256(bytes))
+
+fn rotate_right(word: u32, count: u32) -> u32:
+    (word >> count) | (word << (32 - count))
+
+# The message, then a 1 bit, then zeros up to 56 bytes past a multiple of
+# 64, then the message length in bits as a big-endian u64 (FIPS 180-4,
+# section 5.1.1).
+fn padded(bytes: List[u8]) -> List[u8]:
+    let message: mut List[u8] = []
+    for byte in bytes:
+        message.append(byte)
+    message.append(128)
+    while message.len() % 64 != 56:
+        message.append(0)
+    length := u64(bytes.len()) * 8
+    for index in 0..8:
+        message.append(u8(length >> u32(56 - 8 * index)))
+    message
+
+# The first 32 bits of the fractional parts of the cube roots of the first
+# 64 primes (FIPS 180-4, section 4.2.2).
+fn round_constants() -> List[u32]:
+    [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    ]

@@ -130,6 +130,8 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/result.md` | `std-result` |
 | `std/num.md` | `std-num` |
 | `std/error.md` | `std-error` |
+| `std/encoding.md` | `std-encoding` |
+| `std/digest.md` | `std-digest` |
 | `std/format.md` | `std-format` |
 | `std/hash.md` | `std-hash` |
 | `std/iter.md` | `std-iter` |

@@ -1,0 +1,188 @@
+# std.encoding: bytes as hex and base64 text (spec/std/encoding.md). The
+# prototype's std loader does not list this module yet
+# (src/checker/standard-sources.ts).
+use std.format.DebugWriter
+
+# Why decoding failed, at a position counted in characters from 0
+# (r-std-encoding.error.decl).
+pub enum DecodeError:
+    # A character outside the alphabet.
+    InvalidCharacter(position: i32)
+    # The text stops inside a unit; `position` is its length.
+    InvalidLength(position: i32)
+    # A misplaced `=`, or nonzero pad bits in the last symbol.
+    InvalidPadding(position: i32)
+
+impl Eq for DecodeError:
+    fn eq(self, other: DecodeError) -> bool:
+        match (self, other):
+            (.InvalidCharacter(left), .InvalidCharacter(right)) => left == right
+            (.InvalidLength(left), .InvalidLength(right)) => left == right
+            (.InvalidPadding(left), .InvalidPadding(right)) => left == right
+            _ => false
+
+impl Display for DecodeError:
+    fn to_string(self) -> string:
+        match self:
+            .InvalidCharacter(position) => "invalid character at position $position"
+            .InvalidLength(position) => "invalid length: the text ends at position $position"
+            .InvalidPadding(position) => "invalid padding at position $position"
+
+# Lowercase hex, two digits per byte (r-std-encoding.hex.encode).
+pub fn hex_encode(bytes: List[u8]) -> string:
+    let codes: mut List[u8] = []
+    for byte in bytes:
+        codes.append(hex_symbol(byte >> 4))
+        codes.append(hex_symbol(byte & 15))
+    ascii_text(codes)
+
+# Either case; the length is checked first, then each character from the
+# left (r-std-encoding.hex.decode.order).
+pub fn hex_decode(text: string) -> Result[List[u8], DecodeError]:
+    codes := ascii_codes(text)
+    size := codes.len()
+    if size % 2 != 0:
+        return .Err(DecodeError.InvalidLength(size))
+    let bytes: mut List[u8] = []
+    let index = 0
+    while index < size:
+        high := hex_value(codes[index])
+        if high < 0:
+            return .Err(DecodeError.InvalidCharacter(index))
+        low := hex_value(codes[index + 1])
+        if low < 0:
+            return .Err(DecodeError.InvalidCharacter(index + 1))
+        bytes.append(u8(high * 16 + low))
+        index = index + 2
+    .Ok(bytes)
+
+# The RFC 4648 standard alphabet with `=` padding
+# (r-std-encoding.base64.encode).
+pub fn base64_encode(bytes: List[u8]) -> string:
+    let codes: mut List[u8] = []
+    size := bytes.len()
+    let index = 0
+    while index + 3 <= size:
+        group := (i32(bytes[index]) << 16) | (i32(bytes[index + 1]) << 8) | i32(bytes[index + 2])
+        codes.append(base64_symbol(group >> 18))
+        codes.append(base64_symbol((group >> 12) & 63))
+        codes.append(base64_symbol((group >> 6) & 63))
+        codes.append(base64_symbol(group & 63))
+        index = index + 3
+    rest := size - index
+    if rest == 1:
+        group := i32(bytes[index]) << 16
+        codes.append(base64_symbol(group >> 18))
+        codes.append(base64_symbol((group >> 12) & 63))
+        codes.append(61)
+        codes.append(61)
+    else if rest == 2:
+        group := (i32(bytes[index]) << 16) | (i32(bytes[index + 1]) << 8)
+        codes.append(base64_symbol(group >> 18))
+        codes.append(base64_symbol((group >> 12) & 63))
+        codes.append(base64_symbol((group >> 6) & 63))
+        codes.append(61)
+    ascii_text(codes)
+
+# Canonical text only: the length is checked first, then the characters
+# from the left, then the pad bits (r-std-encoding.base64.decode.order).
+pub fn base64_decode(text: string) -> Result[List[u8], DecodeError]:
+    codes := ascii_codes(text)
+    size := codes.len()
+    if size % 4 != 0:
+        return .Err(DecodeError.InvalidLength(size))
+    # The padding is the run of `=` that ends the text, at most two long.
+    let padding = 0
+    if size > 0 && codes[size - 1] == 61:
+        padding = if codes[size - 2] == 61: 2 else: 1
+    end := size - padding
+    let bytes: mut List[u8] = []
+    let buffer = 0
+    let bits: u32 = 0
+    let index = 0
+    while index < end:
+        code := codes[index]
+        if code == 61:
+            return .Err(DecodeError.InvalidPadding(index))
+        value := base64_value(code)
+        if value < 0:
+            return .Err(DecodeError.InvalidCharacter(index))
+        buffer = (buffer << 6) | value
+        bits = bits + 6
+        if bits >= 8:
+            bits = bits - 8
+            bytes.append(u8(buffer >> bits))
+            buffer = buffer & ((1 << bits) - 1)
+        index = index + 1
+    # The bits left over are the pad bits, which must be zero.
+    if buffer != 0:
+        return .Err(DecodeError.InvalidPadding(end - 1))
+    .Ok(bytes)
+
+fn hex_symbol(value: u8) -> u8:
+    if value < 10: 48 + value else: 87 + value
+
+fn hex_value(code: i32) -> i32:
+    if code >= 48 && code <= 57:
+        code - 48
+    else if code >= 97 && code <= 102:
+        code - 87
+    else if code >= 65 && code <= 70:
+        code - 55
+    else:
+        -1
+
+fn base64_symbol(value: i32) -> u8:
+    if value < 26:
+        u8(65 + value)
+    else if value < 52:
+        u8(71 + value)
+    else if value < 62:
+        u8(value - 4)
+    else if value == 62:
+        43
+    else:
+        47
+
+fn base64_value(code: i32) -> i32:
+    if code >= 65 && code <= 90:
+        code - 65
+    else if code >= 97 && code <= 122:
+        code - 71
+    else if code >= 48 && code <= 57:
+        code + 4
+    else if code == 43:
+        62
+    else if code == 47:
+        63
+    else:
+        -1
+
+# One entry per character: its code when it is ASCII, and -1 otherwise,
+# so a list index is a character position.
+fn ascii_codes(text: string) -> List[i32]:
+    let codes: mut List[i32] = []
+    for byte in text.bytes():
+        if byte < 128:
+            codes.append(i32(byte))
+        else if byte >= 192:
+            codes.append(-1)
+    codes
+
+fn ascii_text(codes: List[u8]) -> string:
+    match string::from_utf8(codes):
+        .Ok(text) => text
+        .Err(_) => panic("std.encoding: ASCII codes are valid UTF-8")
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.mapping): the prototype runs the
+# derivation pass before it joins std (src/checker/program.ts), so a
+# `@derive` on a std declaration has no effect.
+
+impl Debug for DecodeError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .InvalidCharacter(position) => out.debug_struct("InvalidCharacter").field("position", position).finish()
+            .InvalidLength(position) => out.debug_struct("InvalidLength").field("position", position).finish()
+            .InvalidPadding(position) => out.debug_struct("InvalidPadding").field("position", position).finish()

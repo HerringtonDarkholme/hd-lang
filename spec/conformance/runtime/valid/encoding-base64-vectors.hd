@@ -1,0 +1,36 @@
+# test: base64_encode and base64_decode match the RFC 4648 section 10 test vectors
+# Spec std/encoding Base64: std-encoding.base64.encode.padding, std-encoding.base64.decode.value (ENCODING-SURFACE; task #224).
+use std.encoding.{base64_decode, base64_encode, DecodeError}
+use std.testing.assert_equal
+
+fn bytes_of(text: string) -> List[u8]:
+    text.bytes().collect()
+
+fn token(bytes: List[u8]) -> string:
+    base64_encode(bytes)
+
+fn payload(text: string) -> Result[List[u8], DecodeError]:
+    base64_decode(text)
+
+tests:
+    it("encodes the RFC 4648 vectors"):
+        assert_equal(token(bytes_of("")), "", reason="empty")
+        assert_equal(token(bytes_of("f")), "Zg==", reason="f")
+        assert_equal(token(bytes_of("fo")), "Zm8=", reason="fo")
+        assert_equal(token(bytes_of("foo")), "Zm9v", reason="foo")
+        assert_equal(token(bytes_of("foob")), "Zm9vYg==", reason="foob")
+        assert_equal(token(bytes_of("fooba")), "Zm9vYmE=", reason="fooba")
+        assert_equal(token(bytes_of("foobar")), "Zm9vYmFy", reason="foobar")
+
+    it("decodes the RFC 4648 vectors"):
+        assert_equal(payload(""), .Ok(bytes_of("")), reason="empty")
+        assert_equal(payload("Zg=="), .Ok(bytes_of("f")), reason="f")
+        assert_equal(payload("Zm8="), .Ok(bytes_of("fo")), reason="fo")
+        assert_equal(payload("Zm9v"), .Ok(bytes_of("foo")), reason="foo")
+        assert_equal(payload("Zm9vYg=="), .Ok(bytes_of("foob")), reason="foob")
+        assert_equal(payload("Zm9vYmE="), .Ok(bytes_of("fooba")), reason="fooba")
+        assert_equal(payload("Zm9vYmFy"), .Ok(bytes_of("foobar")), reason="foobar")
+
+    it("uses + and / for 62 and 63"):
+        assert_equal(base64_encode([0xfb, 0xff, 0xbf]), "+/+/", reason="the last two symbols")
+        assert_equal(base64_decode("+/+/"), .Ok([0xfb, 0xff, 0xbf]), reason="the last two symbols")

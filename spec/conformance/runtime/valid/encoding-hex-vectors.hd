@@ -1,0 +1,37 @@
+# test: hex_encode writes lowercase digits, and hex_decode reads the RFC 4648 section 10 vectors in either case
+# Spec std/encoding Hex: std-encoding.hex.encode.digits, std-encoding.hex.decode.case (ENCODING-SURFACE; task #224).
+use std.encoding.{hex_decode, hex_encode}
+use std.testing.assert_equal
+
+fn bytes_of(text: string) -> List[u8]:
+    text.bytes().collect()
+
+fn fingerprint(text: string) -> string:
+    hex_encode(text.bytes().collect())
+
+fn key(text: string) -> List[u8]:
+    match hex_decode(text):
+        .Ok(bytes) => bytes
+        .Err(_) => []
+
+tests:
+    it("encodes in lowercase"):
+        assert_equal(fingerprint(""), "", reason="empty")
+        assert_equal(fingerprint("f"), "66", reason="f")
+        assert_equal(fingerprint("fo"), "666f", reason="fo")
+        assert_equal(fingerprint("foo"), "666f6f", reason="foo")
+        assert_equal(fingerprint("foob"), "666f6f62", reason="foob")
+        assert_equal(fingerprint("fooba"), "666f6f6261", reason="fooba")
+        assert_equal(fingerprint("foobar"), "666f6f626172", reason="foobar")
+        assert_equal(hex_encode([0, 15, 16, 171, 255]), "000f10abff", reason="high digit first")
+
+    it("decodes the RFC's uppercase vectors and lowercase text"):
+        assert_equal(hex_decode(""), .Ok([]), reason="empty")
+        assert_equal(key("66"), bytes_of("f"), reason="f")
+        assert_equal(key("666F"), bytes_of("fo"), reason="fo")
+        assert_equal(key("666F6F"), bytes_of("foo"), reason="foo")
+        assert_equal(key("666F6F62"), bytes_of("foob"), reason="foob")
+        assert_equal(key("666F6F6261"), bytes_of("fooba"), reason="fooba")
+        assert_equal(key("666F6F626172"), bytes_of("foobar"), reason="foobar")
+        assert_equal(key("666f6F"), bytes_of("foo"), reason="mixed case")
+        assert_equal(hex_decode("000f10abff"), .Ok([0, 15, 16, 171, 255]), reason="round trip")

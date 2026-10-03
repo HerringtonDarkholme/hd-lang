@@ -3,8 +3,10 @@
 Status: research, 2026-10-02 (task #172). Nothing here is accepted
 behavior except where a note links the specification. Spec pass 64
 (2026-10-02) applied the owner's answers to this plan's six questions and
-part of the [Earlier Owner Decisions](#earlier-owner-decisions), and spec
-pass 70 applied decisions 4 and 10; every other module sketch below is
+part of the [Earlier Owner Decisions](#earlier-owner-decisions), spec
+pass 70 applied decisions 4 and 10, and spec pass 73 applied
+[`std.encoding`](../spec/std/encoding.md) and
+[`std.digest`](../spec/std/digest.md); every other module sketch below is
 still a proposal for the owner.
 
 Under review: the stdlib tier ([spec/std/](../spec/std/README.md)), the
@@ -54,9 +56,8 @@ every feature belongs in `std`.
   ([lib/std/structure.hd](../lib/std/structure.hd)), and derived `Hash` and
   `Arbitrary` already use them. `ToJson` and `FromJson` can be written in
   `lib/std` the same way.
-- **Most gaps are pure library work.** Collections, text, encoding,
-  hashing, JSON, and argument parsing need no
-  host. Host areas need one decision, the first host catalog, plus small
+- **Most gaps are pure library work.** Collections, text, JSON, and
+  argument parsing need no host. Host areas need one decision, the first host catalog, plus small
   prototype hooks.
 - **Effect maps well onto hd.** Requirement rows already are Effect's
   `Context` and `Layer`, `fn!` is the suspended effect, and `all!`,
@@ -73,7 +74,7 @@ every feature belongs in `std`.
 | `std.iter` | `Iterator` with `filter`, `take`, `enumerate`, `map`, `fold`, `collect`; `FromIterator` | [iter.md](../spec/std/iter.md) | no `any`, `all`, `find`, `zip`, `chain`, `skip`, `flat_map` |
 | `std.option`, `std.result` | `map`, `and_then`, `unwrap_or`, `ok_or`, `expect`, `map_err`, `ok`, `err`, `is_*` | [option.md](../spec/std/option.md), [result.md](../spec/std/result.md) | `map` on `T?` is in [iter.md](../spec/std/iter.md#list-and-optional-map) |
 | `std.num` | numeric traits; checked, wrapping, and saturating ops, `abs_diff`, `count_ones`, and `leading_zeros` on every integer type; `is_nan`, `is_finite`; `parse_i32`, `parse_i64` | [num.md](../spec/std/num.md); the traits are language tier | no `parse_f64`, no fixed-point float text |
-| `std.cmp`, `std.hash`, `std.format`, `std.ops` | comparison, hashing, `Display`, `Debug`, operators, `Default` | [cmp.md](../spec/std/cmp.md), [hash.md](../spec/std/hash.md), [format.md](../spec/std/format.md), [ops.md](../spec/std/ops.md) | no digest |
+| `std.cmp`, `std.hash`, `std.format`, `std.ops` | comparison, hashing, `Display`, `Debug`, operators, `Default` | [cmp.md](../spec/std/cmp.md), [hash.md](../spec/std/hash.md), [format.md](../spec/std/format.md), [ops.md](../spec/std/ops.md) | none |
 | `std.time` | `Duration` (milliseconds) with `Add`, `Sub`, and `Display`, suffixes `ms`, `s`, `min`, `h`; `Clock`, `Timestamp` with `+ Duration`, `Instant`, `ManualClock` | [time.md](../spec/std/time.md) | no `now` or `sleep!` helper |
 | `std.task` | `race!`, `retry!` in hd; `all!`, `block_on` intrinsic | [task.md](../spec/std/task.md) | no `sleep!`, `timeout!`, backoff |
 | `std.console` | `Console`, `println`, `ConsoleInput`, `BufferConsole` | none (language tier) | no standard error; no profile binds `ConsoleInput` |
@@ -83,7 +84,8 @@ every feature belongs in `std`.
 | `std.testing`, `std.structure`, `std.inspect`, `std.annotation`, `std.function` | test, derivation, and type-identity support | [testing.md](../spec/std/testing.md) | complete for their purpose |
 | `std.random` | `Random`, `SeededRandom` | [random.md](../spec/std/random.md) | no `Rng` helpers |
 | `std.host`, `std.fs`, `std.path` | `Args`, `Env`, `MapArgs`, `MapEnv`; `FsRead`, `FsWrite`, `FsError`, `MemoryFs`; `Path` | [host.md](../spec/std/host.md), [fs.md](../spec/std/fs.md), [path.md](../spec/std/path.md) | the prototype's std loader lists none of the three; no `read_text!` or `write_text!` helper |
-| absent | json, encoding, digest, cli, log, http, regex | none | the gap this plan covers |
+| `std.encoding`, `std.digest` | `hex_encode`, `hex_decode`, `base64_encode`, `base64_decode`, `DecodeError`; `sha256`, `sha256_hex` | [encoding.md](../spec/std/encoding.md), [digest.md](../spec/std/digest.md) | the prototype's std loader lists neither; no URL-safe base64, no streaming hasher |
+| absent | json, cli, log, http, regex | none | the gap this plan covers |
 
 The prototype also lacks two things scripts need: `hd FILE` itself
 (known failure `CLI-ENTRY`), and the inferred row of a script's top level
@@ -757,34 +759,12 @@ Standouts:
   `encoding/base64` (`StdEncoding`, `URLEncoding`), `crypto/sha256.Sum256`.
 - **Deno `@std/encoding`** gives the same as plain functions.
 
-Minimal `std.encoding` and `std.digest`, both pure hd:
-
-```text
-pub data DecodeError:
-    pub offset: i32
-
-pub fn hex_encode(bytes: List[u8]) -> string: pass
-pub fn hex_decode(text: string) -> Result[List[u8], DecodeError]: pass
-pub fn base64_encode(bytes: List[u8], url_safe: bool = false) -> string: pass
-pub fn base64_decode(text: string, url_safe: bool = false) -> Result[List[u8], DecodeError]: pass
-
-pub data Sha256:
-    state: List[u32]
-    pending: List[u8]
-    length: u64
-
-impl Sha256:
-    pub fn new() -> mut Sha256: pass
-    pub fn update(mut self, bytes: List[u8]) -> void: pass
-    pub fn finish(mut self) -> List[u8]: pass
-
-pub fn sha256(bytes: List[u8]) -> List[u8]:
-    pass
-```
-
-SHA-256 needs wrapping `u32` additions, which hd can do in `u64` with a
-mask. MD5, SHA-1, and HMAC are excluded; `std.fingerprint`'s algorithm is
-still open ([Open Issues](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work)).
+Spec pass 73 applied a minimal surface:
+[Encoding](../spec/std/encoding.md) and [Digest](../spec/std/digest.md).
+Still proposals: the URL-safe base64 alphabet, and a streaming `Sha256`
+hasher with `update` and `finish`. MD5, SHA-1, and HMAC are excluded;
+`std.fingerprint`'s algorithm is still open
+([Open Issues](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work)).
 
 ### Concurrency Helpers
 
@@ -930,7 +910,6 @@ each part in the language: `fn!() -> Result[A, E] $ R`.
 | `Random` | `std.random` | 9 |
 | `Config` with `ConfigProvider` | `Env` with `MapEnv`; a typed config template later | 1 |
 | `FileSystem`, `Path`, `ChildProcess` | `std.fs`, `std.path`, `std.process` helpers | 1, 2 |
-| `Encoding`, `Crypto` | `std.encoding`, `std.digest.sha256` | 5 |
 | `DateTime` | UTC `Timestamp`, `Date`, RFC 3339 | 10 |
 | `Cli` | `std.cli.parse_args` | 9 |
 | `HashSet`, `Chunk`, queues | `Set`, `Deque`, `Heap` | 3, 10 |
@@ -967,7 +946,7 @@ host also add a prototype host binding, a minimal TypeScript hook.
 | 2 | `std.path` `Path`; `std.fs` `FsRead`, `FsWrite`, `FsError`, `MemoryFs`, `read_text!`, `write_text!`, `walk!`, `glob!` | tier 1's catalog; a Node `fs` binding in the prototype | a script can read and write files |
 | 3 | collections and iterators: decided `Map` and `and_then` items, the `List`, `Iterator`, `Set`, and `counts` helpers | a list-truncate hook for `pop`, `remove_at`, `clear` | data shaping without hand loops |
 | 4 | `Clock`, `Timestamp`, `Instant`, `ManualClock`, `now()`, `sleep!` | the catalog for `Clock` | timing |
-| 5 | text helpers, `to_fixed`, `parse_f64`; `std.encoding` hex and base64; `std.digest` SHA-256 | two float hooks | formatting, checksums |
+| 5 | text helpers, `to_fixed`, `parse_f64` | two float hooks | formatting |
 | 6 | `std.json` `Json`, `Number`, `parse`, `Display`, `pretty`, accessors | tier 5's `parse_f64` | reading and writing JSON |
 | 7 | `ToJson` and `FromJson` templates; `encode`, `decode` | tier 6 | typed JSON |
 | 8 | `timeout!`, `Backoff`, `retry_with!`, `all_list!`, `map_limited!` | tier 4's `Clock`; [Retry With Backoff](../spec/std/task.md#retry-with-backoff) | robust automation |
@@ -1045,10 +1024,9 @@ only; no block is type-checked.
 | 9 | Collections And Iterators | parses |
 | 10 | Random Numbers | parses |
 | 11 | Command-Line Parsing | parses |
-| 12 | Hashing And Encoding | parses |
-| 13 | Concurrency Helpers | parses |
-| 14 | A Script With The Proposed Surface | parses |
+| 12 | Concurrency Helpers | parses |
+| 13 | A Script With The Proposed Surface | parses |
 
-A first draft of block 14 wrote module-qualified types, such as
+A first draft of block 13 wrote module-qualified types, such as
 `Map[string, json.Json]`, and the parser rejected them; the block now
 imports the names.

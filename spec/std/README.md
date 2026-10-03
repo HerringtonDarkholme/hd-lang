@@ -154,6 +154,8 @@ file of its own.
 | [`result.md`](result.md) | `std.result` | `std-result` | the methods `and_then`, `map_err`, `unwrap_or`, `map`, `ok`, `err`, `is_ok`, `is_err`, and `expect` of `Result[T, E]` |
 | [`num.md`](num.md) | `std.num` | `std-num` | checked, wrapping, and saturating integer methods, `abs_diff`, and the bit counts on every integer type; `is_nan` and `is_finite`; integer parsing with `ParseNumberError` |
 | [`error.md`](error.md) | `std.error` | `std-error` | the cause chain `chain`, what `root_cause` and `find` return, the boundary-safe `ErrorReport`, `report_of`, and `Result.context` with `ContextError` |
+| [`encoding.md`](encoding.md) | `std.encoding` | `std-encoding` | hex and base64 text for bytes: `hex_encode`, `hex_decode`, `base64_encode`, `base64_decode`, and `DecodeError` |
+| [`digest.md`](digest.md) | `std.digest` | `std-digest` | the SHA-256 digest: `sha256` and `sha256_hex` |
 
 ## Glossary
 
@@ -167,6 +169,8 @@ the [language glossary](../README.md#glossary).
 | **Debug builders** | The `DebugWriter` methods that describe a value as a struct, tuple, list, or map. See [Debug Builders](format.md#debug-builders). |
 | **draw budget** | The per-case limit on draws from `Choices`; once it is spent, every draw returns its simplest value. See [`std-testing.budget`](testing.md#r-std-testing.budget). |
 | **iterator adapters** | Methods of the prelude `Iterator[T]` that wrap an iterator in a new one, or drain it. See [Iterator Adapters](iter.md#iterator-adapters). |
+| **pad bits** | The low bits of the last base64 symbol that encode no byte; they are zero. See [`std-encoding.base64.encode.pad-bits`](encoding.md#r-std-encoding.base64.encode.pad-bits). |
+| **padding** | The one or two `=` characters that end a base64 text. See [`std-encoding.base64.decode.padding`](encoding.md#r-std-encoding.base64.decode.padding). |
 | **property test** | A test case whose body runs on inputs drawn from a `Choices` source. See [Property Tests](testing.md#property-tests). |
 
 ## Rule IDs

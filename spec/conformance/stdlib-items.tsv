@@ -37,3 +37,5 @@ std.error.chain	std/error.md#cause-chain
 std.error.ErrorReport	std/error.md#error-reports
 std.error.report_of	std/error.md#error-reports
 std.error.ContextError	std/error.md#error-context
+std.encoding	std/encoding.md#hex
+std.digest	std/digest.md#sha-256

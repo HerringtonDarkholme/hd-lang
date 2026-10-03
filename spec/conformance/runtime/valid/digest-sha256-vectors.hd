@@ -1,0 +1,26 @@
+# test: sha256 and sha256_hex match the FIPS 180-2 example vectors for "", "abc", and the 448-bit message
+# Spec std/digest SHA-256: std-digest.sha256.fips, std-digest.sha256.length, std-digest.sha256-hex.text (ENCODING-SURFACE; task #224).
+use std.digest.{sha256, sha256_hex}
+use std.testing.{assert, assert_equal}
+
+fn checksum(text: string) -> string:
+    sha256_hex(text.bytes().collect())
+
+fn same_content(left: List[u8], right: List[u8]) -> bool:
+    sha256(left) == sha256(right)
+
+tests:
+    it("one-block messages"):
+        assert_equal(checksum(""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", reason="the empty message")
+        assert_equal(checksum("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", reason="abc")
+
+    it("a two-block message"):
+        assert_equal(checksum("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"), "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1", reason="448 bits")
+
+    it("32 bytes, high byte first"):
+        digest := sha256("abc".bytes().collect())
+        assert_equal(digest.len(), 32, reason="32 bytes")
+        assert_equal(digest[0], 0xba, reason="the high byte of the first word")
+        assert_equal(digest[31], 0xad, reason="the low byte of the last word")
+        assert(same_content([1, 2, 3], [1, 2, 3]), reason="equal bytes")
+        assert(!same_content([1, 2, 3], [1, 2, 4]), reason="different bytes")
