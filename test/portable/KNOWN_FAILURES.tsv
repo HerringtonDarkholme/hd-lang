@@ -175,3 +175,13 @@ runtime/valid/regex-named-groups.hd	check reports unknown-module: the prototype'
 runtime/valid/regex-replace.hd	check reports unknown-module: the prototype's std loader does not list `regex` in STANDARD_MODULES (src/checker/standard-sources.ts), so `use std.regex` names no module; lib/std/regex.hd passes these cases when inlined (std-regex.replace.expand)	STD-LOADER
 runtime/valid/regex-split.hd	check reports unknown-module: the prototype's std loader does not list `regex` in STANDARD_MODULES (src/checker/standard-sources.ts), so `use std.regex` names no module; lib/std/regex.hd passes these cases when inlined (std-regex.split.pieces)	STD-LOADER
 runtime/valid/regex-captures-linear-time.hd	check reports unknown-module: the prototype's std loader does not list `regex` in STANDARD_MODULES (src/checker/standard-sources.ts), so `use std.regex` names no module; lib/std/regex.hd passes these cases when inlined (std-regex.time.linear.groups)	STD-LOADER
+runtime/valid/test-registration-renamed-import.hd	a test registration call is recognized by its bare spelling, not by declaration identity, so a renamed it or it_each is invalid-test-statement	TEST-REG-ID
+runtime/valid/test-registration-qualified-call.hd	a test registration call is recognized by its bare spelling, so testing.it(...) is invalid-test-statement	TEST-REG-ID
+runtime/valid/test-registration-qualified-prop.hd	a test registration call is recognized by its bare spelling, so testing.it_prop(...) is invalid-test-statement	TEST-REG-ID
+typing/invalid/test-registration-qualified-duplicate.hd	testing.it(...) is invalid-test-statement instead of a registration, so the duplicate name is not reported	TEST-REG-ID
+typing/valid/eq-contextual-right-operand.hd	== and != give a contextual variant operand no expected type from the other operand	EQ-CONTEXTUAL
+typing/valid/eq-contextual-left-operand.hd	== and != give a contextual variant operand no expected type from the other operand	EQ-CONTEXTUAL
+typing/valid/generic-join-mut-and-readonly.hd	generic inference reports type-mismatch for T inferred as both mut Date and Date instead of weakening to Date	FRESH-MUT
+typing/valid/generic-bound-names-later-parameter.hd	bound inference does not solve a parameter declared after the bound that names it, so read(label) is cannot-infer-type	FORWARD-BOUNDS
+typing/valid/qualified-string-prefix.hd	the parser expects a member name after '.', so a module-qualified prefixed string is a syntax-error	QUALIFIED-PREFIX
+runtime/valid/qualified-string-prefix-call.hd	the parser expects a member name after '.', so a module-qualified prefixed string is a syntax-error	QUALIFIED-PREFIX
