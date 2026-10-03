@@ -1,5 +1,6 @@
 # test: zip takes any Iterable, takes its iterator once when called, pulls self first, and stops at the shorter
 # Spec std/iter More Adapters: std-iter.adapter.zip-iterable, .iterable-arg, and .zip-iterable.order.
+# `.zip(names)` has no type arguments: `U` is solved through the bound (types.generic.infer.bound.one).
 use std.collections.Set
 use std.testing.assert_equal
 

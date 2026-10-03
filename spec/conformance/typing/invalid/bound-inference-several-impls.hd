@@ -1,0 +1,22 @@
+# test: a bounded type implementing the bound's trait at several instantiations leaves the parameter ambiguous
+# Spec 04 Inference Through A Bound: types.generic.infer.bound.several (owner decision BOUND-INFERENCE, batch 77, 2026-10-03).
+
+trait Source[T]:
+    fn take(self) -> T
+
+data Both:
+    count: i32
+
+impl Source[i32] for Both:
+    fn take(self) -> i32:
+        self.count
+
+impl Source[string] for Both:
+    fn take(self) -> string:
+        "both"
+
+fn read[U, S < Source[U]](source: S) -> U:
+    source.take()
+
+fn several(both: Both) -> void:
+    value := read(both)  # diagnostic: cannot-infer-type

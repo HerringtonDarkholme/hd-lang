@@ -1936,3 +1936,5 @@ runtime/valid/homogeneous-varargs.hd	runtime
 typing/invalid/vararg-function-value-arity.hd	type
 typing/invalid/vararg-function-value-list.hd	type
 runtime/valid/string-length-counts-bytes.hd	runtime
+runtime/valid/bound-inference-explicit.hd	runtime
+typing/invalid/bound-inference-several-impls.hd	type

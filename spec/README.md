@@ -184,6 +184,7 @@ The stdlib chapters' terms are in the
 | **bare step** | A pipe step that is a name or path without `_`. See [`expr.pipe.step-kinds`](lang/05-expressions.md#r-expr.pipe.step-kinds). |
 | **bound method reference** | `value::name`, where `value` names a value, as a function value. See [`fn.ref.bound`](lang/07-functions.md#r-fn.ref.bound). |
 | **bound requirement key** | A requirement key that binds associated types, such as `Store[Item = User]`; its provider value has that trait value type. See [Bound Requirement Keys](lang/11-requirements-and-suspension.md#bound-requirement-keys). |
+| **bound-only parameter** | A type parameter of a call that no parameter type names but a bound of another type parameter does; inference solves it from that bound. See [`types.generic.infer.bound`](lang/04-type-system.md#r-types.generic.infer.bound). |
 | **call place** | A call `v()` whose callee's type implements `Update`, so `v() = x` and `v() op= x` store through it. See [Callable Values](lang/05-expressions.md#callable-values). |
 | **callable value** | A value whose type implements `Apply`, read by calling it with no arguments, as in `count()`. See [Callable Values](lang/05-expressions.md#callable-values). |
 | **coherence slot** | One `(trait, concrete target)` pair over the resolved package graph. See [Terminology](lang/14-annotations.md#terminology). |

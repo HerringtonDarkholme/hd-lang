@@ -1,0 +1,14 @@
+# test: a bounded type implementing the bound's trait at no instantiation fails the bound
+# Spec 04 Inference Through A Bound: types.generic.infer.bound.none (owner decision BOUND-INFERENCE, batch 77, 2026-10-03).
+
+trait Source[T]:
+    fn take(self) -> T
+
+data Plain:
+    count: i32
+
+fn read[U, S < Source[U]](source: S) -> U:
+    source.take()
+
+fn none(plain: Plain) -> void:
+    value := read(plain)  # diagnostic: unsatisfied-trait-bound

@@ -2090,3 +2090,8 @@ typing/invalid/iterator-take-negative-literal.hd	type	reject:unsigned-negation	s
 typing/invalid/string-repeat-negative-literal.hd	type	reject:unsigned-negation	std/text.md#r-std-text.string.repeat
 typing/invalid/string-pad-signed-width.hd	type	reject:type-mismatch	std/text.md#r-std-text.pad.start
 runtime/valid/host-result-special-floats.hd	runtime	accept	lang/10-modules.md#r-module.profile.host-result.float
+runtime/valid/bound-inference-user-trait.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.bound.one
+runtime/valid/bound-inference-chain.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.bound.fixed-point
+runtime/valid/bound-inference-explicit.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.bound.precedence
+typing/invalid/bound-inference-several-impls.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.infer.bound.several
+typing/invalid/bound-inference-no-impl.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.generic.infer.bound.none

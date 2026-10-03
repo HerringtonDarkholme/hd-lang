@@ -1187,6 +1187,98 @@ fn same(user: User, label: Display) -> bool:
 > to be the type written at the call, as Rust and Go do. So a mixed
 > numeric call names its cast, and a trait value is asked for by name.
 
+### Inference Through A Bound
+
+A call solves a type parameter that only a bound names from the bounded
+argument's implementation of that bound's trait:
+
+```text
+trait Source[T]:
+    fn take(self) -> T
+
+data Label:
+    text: string
+
+impl Source[string] for Label:
+    fn take(self) -> string:
+        self.text
+
+fn read[U, S < Source[U]](source: S) -> U:
+    source.take()
+
+fn name(label: Label) -> string:
+    text := read(label)  # S is Label, then U is string
+    text
+```
+
+1. r[types.generic.infer.bound] A **bound-only parameter** of a call is a type parameter that no parameter type names but a bound of another type parameter does, as `U` in `read[U, S < Source[U]](source: S)`.
+2. r[types.generic.infer.bound.after] Call inference solves a bound-only parameter after the other parameters.
+3. r[types.generic.infer.bound.one] Once the bounded parameter is known, if its type implements the bound's trait for exactly one instantiation, that instantiation solves the bound-only parameter.
+4. r[types.generic.infer.bound.none] If the type implements the bound's trait for no instantiation, the call is an error. Error: `unsatisfied-trait-bound`.
+5. r[types.generic.infer.bound.several] If the type implements the bound's trait for several instantiations, the call is an error, and an explicit type argument resolves it. Error: `cannot-infer-type`.
+6. r[types.generic.infer.bound.fixed-point] The step repeats until it solves no further parameter, so a chain of such bounds is solved in dependency order.
+7. r[types.generic.infer.bound.precedence] An explicit type argument and an expected type take precedence: this step never solves a parameter that either of them solves.
+8. r[types.generic.infer.bound.placeholder] An explicit list may mix written arguments with `_` slots, as in `read::[string, _](both)`; each `_` slot is inferred by the steps above.
+9. r[types.generic.infer.bound.call-site] This step is call-site inference only. A declaration's generic parameters and signature are never inferred, as [`types.infer.explicit`](#r-types.infer.explicit) requires.
+
+```text
+data Both:
+    count: i32
+
+impl Source[i32] for Both:
+    fn take(self) -> i32:
+        self.count
+
+impl Source[string] for Both:
+    fn take(self) -> string:
+        "both"
+
+data Plain:
+    count: i32
+
+fn several(both: Both) -> void:
+    value := read(both)  # error: cannot-infer-type
+
+fn none(plain: Plain) -> void:
+    value := read(plain)  # error: unsatisfied-trait-bound
+```
+
+A written argument or an expected type picks one of `Both`'s
+instantiations, and a chain of bounds is solved outermost first:
+
+```text
+fn label(both: Both) -> string:
+    text := read::[string, _](both)  # U is string; S is Both
+    text
+
+fn count(both: Both) -> i32:
+    let total: i32 = read(both)  # U is i32 from the expected type
+    total
+
+fn first_item[T, Inner < Iterable[T], Outer < Iterable[Inner]](groups: Outer) -> T?:
+    for group in groups:
+        for item in group:
+            return .Some(item)
+    .None
+
+fn first_name(teams: List[List[string]]) -> string?:
+    found := first_item(teams)  # Outer, then Inner is List[string], then T is string
+    found
+```
+
+> **Note.** The std adapter `zip[U, I < Iterable[U]](self, other: I)`
+> ([More Adapters](../std/iter.md#more-adapters)) relies on this step.
+> With `names: List[string]`, `xs.iter().zip(names)` solves `I` from the
+> argument, then `U = string`.
+
+> **Why.** When the argument's type has one implementation, the trait
+> argument is a fact of that type, as Rust's associated
+> `IntoIterator::Item` is. Writing it at every call adds no information.
+> Several implementations are a real choice, so the caller names it.
+
+See also: [Explicit Type Arguments](07-functions.md#explicit-type-arguments),
+[Instantiations Of One Generic Trait](09-traits.md#instantiations-of-one-generic-trait).
+
 ### Type-Argument Defaults
 
 A generic parameter may declare a **type-argument default**, written with
