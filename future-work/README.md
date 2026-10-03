@@ -33,6 +33,9 @@ Research and direction outside the specification:
   in [Package Manifest](../spec/lang/10-modules.md#package-manifest).
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.
+- [Standard Library Calls](STDLIB_CALLS.md) logs every stdlib design
+  choice the owner did not make explicitly, with its status, for the
+  stdlib audit.
 - [Standard Library Plan](STDLIB_PLAN.md) surveys what single-file
   scripts need from `std` across twenty standard libraries, reviews
   Effect, and ranks ten one-hour tiers, with six owner questions.
