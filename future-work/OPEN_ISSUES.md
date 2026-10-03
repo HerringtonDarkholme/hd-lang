@@ -234,6 +234,14 @@ interpolation. `fn: _ * 2` would parse but needs a "not inside a pipe
 step" exception. Revisit if [the hd writing log](../audit/hd-writing-log.md)
 shows demand from cheap-model agents; adding `fn: _` then breaks no code.
 
+### ContextError Construction
+
+**Deferred (CONTEXT-FIELDS, batch 72, 2026-10-03).** The fields of
+[`ContextError`](../spec/std/error.md#error-context) stay private.
+Revisit: a public `ContextError::new(message, cause)` and
+`message(self) -> string`, keeping the layout private, if users need to
+wrap by hand or match on it.
+
 ### Iterator Performance
 
 The flat-stage iterator design waits for a specializing compiler, one of

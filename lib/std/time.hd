@@ -149,6 +149,10 @@ impl Timestamp:
     pub fn from_unix_millis(millis: i64) -> Timestamp:
         Timestamp { millis: millis }
 
+    # The inverse of `from_unix_millis` (r-std-time.timestamp.unix-millis).
+    pub fn unix_millis(self) -> i64:
+        self.millis
+
     # Negative when `earlier` is the later one (r-std-time.timestamp.since).
     pub fn since(self, earlier: Timestamp) -> Duration:
         Duration::milliseconds(self.millis - earlier.millis)

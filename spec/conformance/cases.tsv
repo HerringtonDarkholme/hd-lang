@@ -2012,7 +2012,6 @@ typing/valid/std-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std
 typing/valid/std-joined-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
 typing/valid/std-host-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
 typing/valid/std-derivation-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
-typing/invalid/context-error-no-debug.hd	type	reject:unsatisfied-trait-bound	std/format.md#r-std-format.debug.std-types.exempt
 runtime/valid/encoding-hex-vectors.hd	runtime	accept	std/encoding.md#r-std-encoding.hex.encode.digits
 runtime/valid/encoding-base64-vectors.hd	runtime	accept	std/encoding.md#r-std-encoding.base64.decode.value
 runtime/valid/encoding-decode-errors.hd	runtime	accept	std/encoding.md#r-std-encoding.base64.decode.order
@@ -2038,3 +2037,17 @@ runtime/valid/cmp-reverse.hd	runtime	accept	std/cmp.md#r-std-cmp.reverse.order
 runtime/valid/list-pop.hd	runtime	accept	lang/10-modules.md#r-module.method.list-pop
 runtime/valid/task-all-list-order.hd	runtime	accept	std/task.md#r-std-task.all-list.order
 runtime/valid/task-all-list-empty.hd	runtime	accept	std/task.md#r-std-task.all-list.empty
+runtime/valid/char-ascii-classes.hd	runtime	accept	std/text.md#character-classification
+runtime/valid/char-unicode-letters.hd	runtime	accept	std/text.md#r-std-text.char.alphabetic
+runtime/valid/char-unicode-digits.hd	runtime	accept	std/text.md#r-std-text.char.alphanumeric
+runtime/valid/char-unicode-whitespace.hd	runtime	accept	std/text.md#r-std-text.char.whitespace
+runtime/valid/char-to-digit.hd	runtime	accept	std/text.md#r-std-text.char.to-digit.result
+runtime/panic/char-to-digit-radix-low.hd	runtime	panic:explicit-panic	std/text.md#r-std-text.char.to-digit.radix
+runtime/panic/char-to-digit-radix-high.hd	runtime	panic:explicit-panic	std/text.md#r-std-text.char.to-digit.radix
+runtime/valid/utf8-valid-text.hd	runtime	accept	std/text.md#r-std-text.utf8.from-utf8
+runtime/valid/utf8-invalid-bytes.hd	runtime	accept	std/text.md#r-std-text.utf8.error.invalid
+runtime/valid/utf8-truncated.hd	runtime	accept	std/text.md#r-std-text.utf8.error.truncated
+runtime/valid/utf8-overlong.hd	runtime	accept	std/text.md#r-std-text.utf8.well-formed
+runtime/valid/utf8-error-traits.hd	runtime	accept	std/text.md#r-std-text.utf8.error.traits
+runtime/valid/time-unix-millis.hd	runtime	accept	std/time.md#r-std-time.timestamp.unix-millis
+runtime/valid/context-error-debug.hd	runtime	accept	std/error.md#r-std-error.context.debug

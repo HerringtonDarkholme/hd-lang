@@ -1,0 +1,39 @@
+# test: ContextError's Debug makes the builder calls of a struct ContextError with its message and the cause's Display text
+# Spec std/error Error Context: std-error.context.debug, std-error.context.debug.fields, and std/format std-format.debug.std-types.context-error (CONTEXT-DEBUG, batch 72; task #229).
+use std.error.{ContextError, Error}
+use std.format.DebugWriter
+use std.testing.{assert, assert_equal}
+
+@error("not found: $path")
+data NotFound:
+    path: string
+
+fn read(path: string) -> Result[string, NotFound]:
+    .Err(NotFound { path: path })
+
+fn load(path: string) -> Result[string, Error]:
+    text := read(path).context("loading config")?
+    .Ok(text)
+
+# The calls that std-error.context.debug names, made by hand.
+data Expected:
+    message: string
+    cause: string
+
+impl Debug for Expected:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("ContextError").field("message", self.message).field("cause", self.cause).finish()
+
+fn shown[T < Debug](value: T) -> string:
+    debug(value)
+
+tests:
+    it("the message, then the cause's Display text"):
+        match load("app.toml"):
+            .Ok(_) => assert(false, reason="the read fails")
+            .Err(failure) =>
+                match failure.find::[ContextError]():
+                    .Some(context) =>
+                        expected := Expected { message: "loading config", cause: "not found: app.toml" }
+                        assert_equal(shown(context), debug(expected), reason="the same builder calls")
+                    .None => assert(false, reason="the wrapper is a ContextError")

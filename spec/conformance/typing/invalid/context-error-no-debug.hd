@@ -1,6 +1,0 @@
-# test: ContextError holds an erased Error, whose trait does not extend Debug, so it does not implement Debug
-# Spec std/format Debug For Standard Types: std-format.debug.std-types.exempt (STD-DEBUG; task #223).
-use std.error.ContextError
-
-fn shown(failure: ContextError) -> string:
-    debug(failure)  # diagnostic: unsatisfied-trait-bound

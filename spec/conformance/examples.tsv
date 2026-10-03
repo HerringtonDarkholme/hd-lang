@@ -644,7 +644,9 @@ std/testing.md	15	mixed	typing/invalid/hd-run-outside-integration.hd
 std/testing.md	16	type-fragment	-
 std/testing.md	17	mixed	typing/valid/test-runner-capabilities.hd|typing/valid/test-body-uses-test-runner.hd|typing/invalid/test-body-uses-property-runner.hd
 std/text.md	1	accept	runtime/valid/string-lines.hd|runtime/valid/string-repeat.hd
-std/text.md	2	accept	typing/valid/string-prefix-std-r.hd
+std/text.md	2	accept	runtime/valid/char-ascii-classes.hd|runtime/valid/char-to-digit.hd
+std/text.md	3	accept	runtime/valid/utf8-valid-text.hd
+std/text.md	4	accept	typing/valid/string-prefix-std-r.hd
 std/time.md	1	accept	runtime/valid/duration-negation.hd|typing/valid/literal-suffix-duration.hd
 std/time.md	2	accept	runtime/valid/duration-arithmetic.hd
 std/time.md	3	accept	runtime/valid/duration-display.hd

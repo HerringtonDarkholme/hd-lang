@@ -1,0 +1,24 @@
+# test: is_whitespace follows the Unicode White_Space property, the set that trim removes
+# Spec std/text Character Classification: std-text.char.whitespace (CHAR-CLASSIFY, batch 72; task #229).
+use std.testing.{assert, assert_equal}
+
+fn blank(text: string) -> bool:
+    for c in text.chars():
+        if !c.is_whitespace():
+            return false
+    true
+
+tests:
+    it("White_Space beyond ASCII"):
+        assert('\u{a0}'.is_whitespace() && '\u{3000}'.is_whitespace(), reason="no-break space and ideographic space")
+        assert('\u{85}'.is_whitespace() && '\u{2028}'.is_whitespace() && '\u{2009}'.is_whitespace(), reason="next line, line separator, and thin space")
+        assert('\u{d}'.is_whitespace() && '\u{b}'.is_whitespace(), reason="carriage return and line tabulation")
+
+    it("not White_Space"):
+        assert(!'\u{200b}'.is_whitespace(), reason="the zero width space is not White_Space")
+        assert(!'\u{0}'.is_whitespace() && !'\u{feff}'.is_whitespace(), reason="nor the null scalar or the byte order mark")
+
+    it("agrees with trim"):
+        text := "\u{a0}\u{3000} \t"
+        assert(blank(text), reason="every scalar is White_Space")
+        assert_equal(text.trim(), "", reason="so trim removes them all")

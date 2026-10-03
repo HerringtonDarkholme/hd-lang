@@ -1,0 +1,33 @@
+# test: to_digit gives ASCII digits and letters their values below the radix, at radix 2, 10, 16, and 36
+# Spec std/text Character Classification: std-text.char.to-digit, std-text.char.to-digit.value, std-text.char.to-digit.result, std-text.char.to-digit.ascii-only (CHAR-CLASSIFY, batch 72; task #229).
+use std.testing.assert_equal
+
+fn hex_value(c: char) -> u32?:
+    c.to_digit(16)
+
+tests:
+    it("radix 2, the smallest"):
+        assert_equal('0'.to_digit(2), .Some(0), reason="0")
+        assert_equal('1'.to_digit(2), .Some(1), reason="1")
+        assert_equal('2'.to_digit(2), .None, reason="2 is not below the radix")
+
+    it("radix 10"):
+        assert_equal('9'.to_digit(10), .Some(9), reason="the last decimal digit")
+        assert_equal('a'.to_digit(10), .None, reason="a letter is 10 or more")
+
+    it("radix 16, either case"):
+        assert_equal(hex_value('f'), .Some(15), reason="lowercase")
+        assert_equal(hex_value('F'), .Some(15), reason="uppercase")
+        assert_equal(hex_value('g'), .None, reason="16 is not below the radix")
+
+    it("radix 36, the largest"):
+        assert_equal('z'.to_digit(36), .Some(35), reason="the last letter")
+        assert_equal('Z'.to_digit(36), .Some(35), reason="in either case")
+        assert_equal('a'.to_digit(36), .Some(10), reason="the first letter is 10")
+
+    it("ASCII only"):
+        assert_equal('٣'.to_digit(10), .None, reason="an Arabic-Indic digit")
+        assert_equal('３'.to_digit(10), .None, reason="a fullwidth digit")
+        assert_equal('é'.to_digit(36), .None, reason="a non-ASCII letter")
+        assert_equal(' '.to_digit(36), .None, reason="a space")
+        assert_equal('/'.to_digit(36), .None, reason="the scalar just below 0")

@@ -180,9 +180,17 @@ fn summary() -> string:
 6. r[std-error.context.display] A `ContextError` displays as its message.
 7. r[std-error.context.cause] Its `cause` returns `.Some` of the wrapped error.
 8. r[std-error.context.chain] So `chain` lists the `ContextError` first, then the wrapped error and its causes, and `report_of` gives the message, then one `caused by:` line per cause.
+9. r[std-error.context.debug] `ContextError` implements `Debug`. It calls `out.debug_struct("ContextError")`, then `.field("message", m)` and `.field("cause", c)`, then `.finish()`.
+10. r[std-error.context.debug.fields] There `m` is its message, and `c` is the `Display` text of the wrapped error, as a `string`.
 
-> **Note.** A `ContextError` holds an erased `Error`, so it has no
-> `Debug`, by [`std-format.debug.std-types.exempt`](format.md#r-std-format.debug.std-types.exempt).
+> **Note.** In the compact layout, the `ContextError` of the example
+> above shows as
+> `ContextError { message: "loading config", cause: "not found: app.toml" }`.
+> Like all `debug` text, that layout is not portable.
+
+> **Why.** The wrapped error is an erased `Error`, which has no `Debug`.
+> Its `Display` text is the one description every cause has, so a test
+> that compares a `ContextError` can still show both parts.
 
 > **Why.** Code that propagates with `?` often knows what it was doing
 > but not why the call failed. `context` records the first, keeps the

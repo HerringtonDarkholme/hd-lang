@@ -1,0 +1,16 @@
+# test: is_alphanumeric includes the Nd, Nl, and No numbers of every script, which are not ASCII digits
+# Spec std/text Character Classification: std-text.char.alphanumeric (CHAR-CLASSIFY, batch 72; task #229).
+use std.testing.assert
+
+tests:
+    it("decimal digits of other scripts, Nd"):
+        assert('٣'.is_alphanumeric() && '३'.is_alphanumeric() && '３'.is_alphanumeric(), reason="Arabic-Indic, Devanagari, and fullwidth three")
+        assert(!'٣'.is_ascii_digit() && !'３'.is_ascii_digit(), reason="they are not ASCII digits")
+        assert(!'٣'.is_alphabetic(), reason="nor alphabetic")
+
+    it("other numbers, No"):
+        assert('½'.is_alphanumeric() && '²'.is_alphanumeric(), reason="a vulgar fraction and a superscript digit")
+        assert(!'½'.is_alphabetic() && !'²'.is_ascii_digit(), reason="neither alphabetic nor an ASCII digit")
+
+    it("letter numbers, Nl"):
+        assert('Ⅻ'.is_alphanumeric(), reason="a Roman numeral")

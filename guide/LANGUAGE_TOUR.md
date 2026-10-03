@@ -892,6 +892,22 @@ Iterating `List[mut T]` likewise yields `mut T`, even through a readonly list.
 
 Container and element permissions are independent, so all four forms are meaningful: `List[User]`, `List[mut User]`, `mut List[User]`, and `mut List[mut User]`.
 
+The same holds for a list of lists: the inner lists are readonly unless the
+type says `mut` for them too. To push onto an inner list, write
+`mut List[mut List[T]]`:
+
+```text
+fn bucket(words: List[string]) -> mut List[mut List[string]]:
+    let out: mut List[mut List[string]] = [[], []]
+    for word in words:
+        out[word.len() % 2].push(word)  # needs the inner mut
+    out
+
+fn stuck(out: mut List[List[string]]) -> void:
+    out.push(["new"])      # allowed: the outer list is mutable
+    out[0].push("word")    # error: the inner List[string] is readonly
+```
+
 A readonly list view may weaken element permission because `List` declares its element parameter as covariant, conceptually `List[+T]`: `List[mut User]` can be used as `List[User]`. Mutable list views are invariant, so `mut List[mut User]` cannot become `mut List[User]`; that mutable view could insert a readonly `User` into storage requiring `mut User`.
 
 Maps follow the same separation: a readonly `Map[K, mut User]` can yield

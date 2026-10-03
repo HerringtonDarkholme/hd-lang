@@ -1,0 +1,28 @@
+# test: string::from_utf8 reports InvalidSequence at the byte offset where the first ill-formed sequence starts
+# Spec std/text UTF-8 Conversion: std-text.utf8.error.first, std-text.utf8.error.invalid, std-text.utf8.well-formed (UTF8-API, batch 72; task #229).
+use std.testing.assert_equal
+use std.text.Utf8Error
+
+fn failure(bytes: List[u8]) -> Utf8Error?:
+    match string::from_utf8(bytes):
+        .Ok(_) => .None
+        .Err(error) => .Some(error)
+
+tests:
+    it("bytes that start no sequence"):
+        assert_equal(failure([128]), .Some(Utf8Error.InvalidSequence(0)), reason="a continuation byte alone")
+        assert_equal(failure([255]), .Some(Utf8Error.InvalidSequence(0)), reason="0xFF never appears in UTF-8")
+        assert_equal(failure([245, 128, 128, 128]), .Some(Utf8Error.InvalidSequence(0)), reason="0xF5 would start a value above U+10FFFF")
+
+    it("the position is that of the first bad sequence"):
+        assert_equal(failure([104, 105, 128]), .Some(Utf8Error.InvalidSequence(2)), reason="after two good bytes")
+        assert_equal(failure([195, 169, 255, 128]), .Some(Utf8Error.InvalidSequence(2)), reason="after a two-byte scalar, and the first of two bad bytes")
+
+    it("a sequence cut by a byte that does not continue it"):
+        assert_equal(failure([195, 40]), .Some(Utf8Error.InvalidSequence(0)), reason="0x28 is not a continuation byte")
+        assert_equal(failure([97, 226, 130, 97]), .Some(Utf8Error.InvalidSequence(1)), reason="a three-byte sequence with a letter as its third byte")
+
+    it("surrogates and values above U+10FFFF"):
+        assert_equal(failure([237, 160, 128]), .Some(Utf8Error.InvalidSequence(0)), reason="U+D800, a surrogate")
+        assert_equal(failure([237, 191, 191]), .Some(Utf8Error.InvalidSequence(0)), reason="U+DFFF, a surrogate")
+        assert_equal(failure([244, 144, 128, 128]), .Some(Utf8Error.InvalidSequence(0)), reason="U+110000")

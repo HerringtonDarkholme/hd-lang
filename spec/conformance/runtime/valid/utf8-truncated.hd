@@ -1,0 +1,22 @@
+# test: string::from_utf8 reports Truncated when the bytes end inside a sequence whose present bytes continue it
+# Spec std/text UTF-8 Conversion: std-text.utf8.error.truncated (UTF8-API, batch 72; task #229).
+use std.testing.assert_equal
+use std.text.Utf8Error
+
+fn failure(bytes: List[u8]) -> Utf8Error?:
+    match string::from_utf8(bytes):
+        .Ok(_) => .None
+        .Err(error) => .Some(error)
+
+tests:
+    it("each sequence length, cut short"):
+        assert_equal(failure([195]), .Some(Utf8Error.Truncated), reason="the first of two bytes")
+        assert_equal(failure([226, 130]), .Some(Utf8Error.Truncated), reason="two of three bytes")
+        assert_equal(failure([240, 159, 152]), .Some(Utf8Error.Truncated), reason="three of four bytes")
+
+    it("after well-formed text"):
+        assert_equal(failure([104, 105, 240]), .Some(Utf8Error.Truncated), reason="a lead byte at the end")
+        assert_equal(failure([104, 228, 184, 173, 228, 184]), .Some(Utf8Error.Truncated), reason="after a whole three-byte scalar")
+
+    it("a bad byte earlier wins"):
+        assert_equal(failure([128, 195]), .Some(Utf8Error.InvalidSequence(0)), reason="the first error is the stray continuation byte")

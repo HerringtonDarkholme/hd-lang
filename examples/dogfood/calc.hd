@@ -46,9 +46,6 @@ enum CalcError:
     UnexpectedEnd
     DivByZero(pos: i32)
 
-fn is_digit(c: char) -> bool:
-    c >= '0' && c <= '9'
-
 fn tokenize(src: string) -> Result[List[Spanned], CalcError]:
     let out: mut List[Spanned] = []
     let chars: mut List[char] = []
@@ -59,10 +56,10 @@ fn tokenize(src: string) -> Result[List[Spanned], CalcError]:
         c := chars[i]
         if c == ' ':
             i = i + 1
-        else if is_digit(c):
+        else if c.is_ascii_digit():
             let start = i
             let text = ""
-            while i < chars.len() && is_digit(chars[i]):
+            while i < chars.len() && chars[i].is_ascii_digit():
                 text = text + chars[i].to_string()
                 i = i + 1
             match parse_i32(text):

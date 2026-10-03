@@ -1913,7 +1913,6 @@ runtime/valid/error-find-erased.hd	runtime
 typing/invalid/error-find-non-error.hd	type
 runtime/valid/error-context.hd	runtime
 typing/valid/std-types-debug.hd	type
-typing/invalid/context-error-no-debug.hd	type
 runtime/valid/time-date-utc.hd	runtime
 runtime/valid/time-rfc3339-text.hd	runtime
 runtime/valid/time-rfc3339-parse.hd	runtime
@@ -1936,3 +1935,17 @@ runtime/valid/encoding-base64-vectors.hd	runtime
 runtime/valid/encoding-decode-errors.hd	runtime
 runtime/valid/digest-sha256-vectors.hd	runtime
 runtime/valid/digest-sha256-long.hd	runtime
+runtime/valid/char-ascii-classes.hd	runtime
+runtime/valid/char-unicode-letters.hd	runtime
+runtime/valid/char-unicode-digits.hd	runtime
+runtime/valid/char-unicode-whitespace.hd	runtime
+runtime/valid/char-to-digit.hd	runtime
+runtime/panic/char-to-digit-radix-low.hd	runtime
+runtime/panic/char-to-digit-radix-high.hd	runtime
+runtime/valid/utf8-valid-text.hd	runtime
+runtime/valid/utf8-invalid-bytes.hd	runtime
+runtime/valid/utf8-truncated.hd	runtime
+runtime/valid/utf8-overlong.hd	runtime
+runtime/valid/utf8-error-traits.hd	runtime
+runtime/valid/time-unix-millis.hd	runtime
+runtime/valid/context-error-debug.hd	runtime

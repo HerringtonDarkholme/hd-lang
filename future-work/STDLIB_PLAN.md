@@ -74,13 +74,13 @@ every feature belongs in `std`.
 
 | Module | In `lib/std` | Stdlib-tier spec | Notes |
 | --- | --- | --- | --- |
-| `std.text` | `string` methods (`split`, `trim`, `replace`, `find`, `lines`, `repeat`, ...), `join`, `StringBuilder`, `r` prefix, UTF-8 conversion | [text.md](../spec/std/text.md) | no `split_once`, padding, or float parsing |
+| `std.text` | `string` methods (`split`, `trim`, `replace`, `find`, `lines`, `repeat`, ...), `join`, `StringBuilder`, `r` prefix, UTF-8 conversion with `Utf8Error`; `char` classification and `to_digit` | [text.md](../spec/std/text.md) | no `split_once`, padding, or float parsing |
 | `std.collections` | `List`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by`, `chunks`, `zip`, `view`; `Deque`, `Heap` | [collections.md](../spec/std/collections.md) | no `Set`; `List` mutation is `push`, `pop`, and index set only; no `Map` methods past `get` and `remove` |
 | `std.iter` | `Iterator` with `filter`, `take`, `enumerate`, `map`, `fold`, `collect`; `FromIterator` | [iter.md](../spec/std/iter.md) | no `any`, `all`, `find`, `zip`, `chain`, `skip`, `flat_map` |
 | `std.option`, `std.result` | `map`, `and_then`, `unwrap_or`, `ok_or`, `expect`, `map_err`, `ok`, `err`, `is_*` | [option.md](../spec/std/option.md), [result.md](../spec/std/result.md) | `map` on `T?` is in [iter.md](../spec/std/iter.md#list-and-optional-map) |
 | `std.num` | numeric traits; checked, wrapping, and saturating ops, `abs_diff`, `count_ones`, and `leading_zeros` on every integer type; `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `parse_f64` | [num.md](../spec/std/num.md); the traits are language tier | no fixed-point float text; the prototype has no `parse_f64` host hook |
 | `std.cmp`, `std.hash`, `std.format`, `std.ops` | comparison, hashing, `Display`, `Debug`, operators, `Default` | [cmp.md](../spec/std/cmp.md), [hash.md](../spec/std/hash.md), [format.md](../spec/std/format.md), [ops.md](../spec/std/ops.md) | none |
-| `std.time` | `Duration` (milliseconds) with `Add`, `Sub`, and `Display`, suffixes `ms`, `s`, `min`, `h`; `Clock`, `Timestamp` with `+ Duration`, `Instant`, `ManualClock`; the UTC `Date`, `to_rfc3339`, `parse_rfc3339`, `TimeParseError` | [time.md](../spec/std/time.md) | no `now` or `sleep!` helper; no time zones or local time |
+| `std.time` | `Duration` (milliseconds) with `Add`, `Sub`, and `Display`, suffixes `ms`, `s`, `min`, `h`; `Clock`, `Timestamp` with `+ Duration` and `unix_millis`, `Instant`, `ManualClock`; the UTC `Date`, `to_rfc3339`, `parse_rfc3339`, `TimeParseError` | [time.md](../spec/std/time.md) | no `now` or `sleep!` helper; no time zones or local time |
 | `std.task` | `race!`, `retry!` in hd; `all!`, `block_on` intrinsic | [task.md](../spec/std/task.md) | no `sleep!`, `timeout!`, backoff |
 | `std.console` | `Console`, `println`, `ConsoleInput`, `BufferConsole` | none (language tier) | no standard error; no profile binds `ConsoleInput` |
 | `std.process` | `ExitCode`, `Termination`, `Process.run!`, `ScriptedProcess` | none (language tier) | no profile binds `Process`; no working directory or environment |

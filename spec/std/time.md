@@ -171,12 +171,13 @@ pub trait Clock:
 ### Timestamps And Instants
 
 1. r[std-time.timestamp.decl] `std.time` declares `Timestamp`, a point in UTC time held as whole milliseconds since the Unix epoch in an `i64`, with private fields.
-2. r[std-time.timestamp.surface] The public API of `Timestamp` is `Timestamp::from_unix_millis(millis: i64)`, `t.since(earlier: Timestamp) -> Duration`, and the three methods of [Dates](#dates): `date`, `to_rfc3339`, and `Timestamp::parse_rfc3339`.
-3. r[std-time.timestamp.since] `t.since(earlier)` is the time from `earlier` to `t`, negative when `earlier` is the later one.
-4. r[std-time.instant.decl] `std.time` declares `Instant`, a reading of the monotonic clock as whole milliseconds since an origin that the provider chooses, with private fields.
-5. r[std-time.instant.api] The public API of `Instant` is `Instant::from_millis(millis: i64)` and `i.since(earlier: Instant) -> Duration`, the time from `earlier` to `i`.
-6. r[std-time.time.eq-ord] `Timestamp` and `Instant` implement `Eq` and `Ord`, which order them by time.
-7. r[std-time.time.import] Code imports both, as in `use std.time.{Instant, Timestamp}`.
+2. r[std-time.timestamp.public-api] The public API of `Timestamp` is `Timestamp::from_unix_millis(millis: i64)`, `t.unix_millis() -> i64`, `t.since(earlier: Timestamp) -> Duration`, and the three methods of [Dates](#dates): `date`, `to_rfc3339`, and `Timestamp::parse_rfc3339`.
+3. r[std-time.timestamp.unix-millis] `t.unix_millis()` returns the milliseconds since the Unix epoch that `t` holds, so `Timestamp::from_unix_millis(m).unix_millis()` is `m` for every `m`.
+4. r[std-time.timestamp.since] `t.since(earlier)` is the time from `earlier` to `t`, negative when `earlier` is the later one.
+5. r[std-time.instant.decl] `std.time` declares `Instant`, a reading of the monotonic clock as whole milliseconds since an origin that the provider chooses, with private fields.
+6. r[std-time.instant.api] The public API of `Instant` is `Instant::from_millis(millis: i64)` and `i.since(earlier: Instant) -> Duration`, the time from `earlier` to `i`.
+7. r[std-time.time.eq-ord] `Timestamp` and `Instant` implement `Eq` and `Ord`, which order them by time.
+8. r[std-time.time.import] Code imports both, as in `use std.time.{Instant, Timestamp}`.
 
 ### Clock Helpers
 

@@ -74,7 +74,7 @@ fn place_order!(id: i32, lines: List[Line]) -> Result[Order, OrderError] $ Inven
     for line in lines:
         $.use(Inventory).reserve!(line.sku, line.qty)
     now := $.use(Clock).now()
-    .Ok(Order { id: id, lines: lines, total_cents: total, placed_at: now.since(Timestamp::from_unix_millis(0)).as_milliseconds() })
+    .Ok(Order { id: id, lines: lines, total_cents: total, placed_at: now.unix_millis() })
 
 fn fresh_inventory() -> mut MemoryInventory:
     MemoryInventory {

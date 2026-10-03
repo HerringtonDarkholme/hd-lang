@@ -1,0 +1,23 @@
+# test: the char classification methods on ASCII letters, digits, spaces, and punctuation
+# Spec std/text Character Classification: std-text.char.ascii-digit, std-text.char.alphabetic, std-text.char.alphanumeric, std-text.char.whitespace (CHAR-CLASSIFY, batch 72; task #229).
+use std.testing.assert
+
+fn word_start(c: char) -> bool:
+    c.is_alphabetic() || c == '_'
+
+tests:
+    it("digits"):
+        assert('0'.is_ascii_digit() && '9'.is_ascii_digit(), reason="0 to 9 are ASCII digits")
+        assert(!'a'.is_ascii_digit() && !'/'.is_ascii_digit() && !':'.is_ascii_digit(), reason="the neighbors of 0 to 9 are not")
+        assert('7'.is_alphanumeric() && !'7'.is_alphabetic(), reason="a digit is alphanumeric, not alphabetic")
+
+    it("letters"):
+        assert('a'.is_alphabetic() && 'Z'.is_alphabetic(), reason="ASCII letters are alphabetic")
+        assert('q'.is_alphanumeric() && 'Q'.is_alphanumeric(), reason="and alphanumeric")
+        assert(!'@'.is_alphabetic() && !'['.is_alphabetic() && !'{'.is_alphabetic(), reason="the neighbors of the letters are not")
+        assert(word_start('x') && word_start('_') && !word_start('1'), reason="a word starts with a letter or an underscore")
+
+    it("spaces and punctuation"):
+        assert(' '.is_whitespace() && '\t'.is_whitespace() && '\n'.is_whitespace(), reason="space, tab, and line feed are White_Space")
+        assert(!'x'.is_whitespace() && !'_'.is_whitespace(), reason="a letter and an underscore are not")
+        assert(!'_'.is_alphanumeric() && !'-'.is_alphanumeric() && !' '.is_alphanumeric(), reason="punctuation and space are not alphanumeric")

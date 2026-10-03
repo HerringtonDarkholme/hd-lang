@@ -99,3 +99,9 @@ impl[T, E < Error] Result[T, E]:
 impl Debug for ErrorReport:
     fn debug(self, out: mut DebugWriter) -> void:
         out.debug_struct("ErrorReport").field("message", self.message).field("causes", self.causes).finish()
+
+# The erased cause has no `Debug`, so its `Display` text stands in for it
+# (r-std-error.context.debug).
+impl Debug for ContextError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("ContextError").field("message", self.message).field("cause", self.error.to_string()).finish()
