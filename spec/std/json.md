@@ -161,7 +161,7 @@ fn title(text: string) -> string:
 1. r[std-json.parse.number.grammar] A number is `-`, then `0` or a nonzero digit and digits, then an optional fraction, then an optional exponent. A character that breaks this is an `UnexpectedCharacter` error, or `UnexpectedEnd` at the end of the text.
 2. r[std-json.parse.number.integer] An integer in the `i64` range or in the `u64` range is exact, as `Number.as_i64` or `Number.as_u64` reads it.
 3. r[std-json.parse.number.negative-zero] `-0` is the float `-0.0`, as in `serde_json`, and `0` is the integer zero.
-4. r[std-json.parse.number.float] A number with a fraction or an exponent, or an integer outside both ranges, is the float that [`parse_f64`](num.md#r-std-num.parse-f64.value) gives for its text.
+4. r[std-json.parse.number.float] A number with a fraction or an exponent, or an integer outside both ranges, is the float that [`parse_f64`](num.md#r-std-num.parse-f64.decimal-value) gives for its text.
 5. r[std-json.parse.number.out-of-range] A float past the finite `f64` range, which `parse_f64` gives as an infinity, is a `NumberOutOfRange` error at the number's first character, once its grammar is read to the end.
 
 | Text | `parse` gives |

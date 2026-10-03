@@ -1,23 +1,54 @@
-# test: parse_f64 gives the correctly rounded f64 of JSON number text, ties to even
-# Spec std/num Float Parsing: std-num.parse-f64.value and .range (owner decision FLOAT-PARSE, batch 71, 2026-10-03).
+# test: parse_f64 gives the correctly rounded f64 of decimal number text, ties to even, with the sign read by std
+# Spec std/num Float Parsing: std-num.parse-f64.decimal, .exponent, .decimal-value, .sign, .range, and .hook.total (owner decisions FLOAT-PARSE, batch 71, F64-BOUNDARY, batch 74, and PARSE-F64-GRAMMAR, 2026-10-03).
 use std.num.parse_f64
-use std.testing.assert_equal
+use std.testing.{assert, assert_equal}
 
 fn text(source: string) -> string:
     match parse_f64(source):
         .Ok(value) => "$value"
         .Err(error) => "error $error"
 
+fn negative_zero(source: string) -> bool:
+    match parse_f64(source):
+        .Ok(value) => value == 0.0 && 1.0 / value < 0.0
+        .Err(_) => false
+
 tests:
-    it("number text gives its nearest f64"):
-        assert_equal(text("1.5"), "1.5", reason="a fraction")
-        assert_equal(text("0.1"), "0.1", reason="the nearest f64 shows as 0.1")
-        assert_equal(text("-2.5E3"), "-2500.0", reason="an exponent and a sign")
-        assert_equal(text("42"), "42.0", reason="an integer")
-        assert_equal(text("-0"), "-0.0", reason="negative zero keeps its sign")
+    it("decimal number text gives its nearest f64"):
+        cases := [
+            ("1.5", "1.5"),
+            ("-1.5", "-1.5"),
+            ("+1.5", "1.5"),
+            ("1e5", "100000.0"),
+            ("1E5", "100000.0"),
+            ("1e+5", "100000.0"),
+            ("1e-5", "0.00001"),
+            ("0.1", "0.1"),
+            ("-2.5E3", "-2500.0"),
+            ("42", "42.0"),
+        ]
+        for case in cases:
+            assert_equal(text(case._0), case._1, reason=case._0)
+    it("either side of the point may be empty, and leading zeros are digits"):
+        cases := [
+            (".5", "0.5"),
+            ("5.", "5.0"),
+            ("-.5", "-0.5"),
+            ("+5.", "5.0"),
+            ("007", "7.0"),
+        ]
+        for case in cases:
+            assert_equal(text(case._0), case._1, reason=case._0)
     it("a tie rounds to the even f64"):
         assert_equal(text("9007199254740993"), "9007199254740992.0", reason="2^53 + 1 is halfway, and 2^53 is even")
-    it("past the range gives an infinity, and below it a zero"):
+    it("past the range gives an infinity, and below it a zero, each with the text's sign"):
         assert_equal(text("1e400"), "inf", reason="overflow")
         assert_equal(text("-1e400"), "-inf", reason="negative overflow")
         assert_equal(text("1e-400"), "0.0", reason="underflow")
+        assert_equal(text("-1e-400"), "-0.0", reason="negative underflow keeps its sign")
+        assert(negative_zero("-1e-400"), reason="the sign bit of negative underflow")
+    it("a minus sign before zero gives negative zero"):
+        for source in ["-0", "-0.0"]:
+            assert_equal(text(source), "-0.0", reason=source)
+            assert(negative_zero(source), reason="the sign bit of $source")
+        assert(!negative_zero("0"), reason="zero keeps a clear sign bit")

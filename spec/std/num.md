@@ -224,8 +224,8 @@ pub enum ParseNumberError:
 
 ## Float Parsing
 
-`parse_f64` reads a decimal number, in the grammar of a JSON number, as an
-`f64`:
+`parse_f64` reads a decimal number, or one of the words `nan`, `inf`, and
+`infinity`, as an `f64`:
 
 ```text
 use std.num.parse_f64
@@ -241,33 +241,56 @@ fn ratio(text: string) -> f64:
 | r[std-num.parse-f64] `parse_f64` | `pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]` |
 
 1. r[std-num.parse-f64.import] `std.num` declares `parse_f64`. It is not a prelude name; code imports it, as in `use std.num.parse_f64`.
-2. r[std-num.parse-f64.grammar] The accepted text is a number in the grammar of RFC 8259: an optional `-`, then `0` or a nonzero digit and more digits, then an optional fraction, then an optional exponent.
-3. r[std-num.parse-f64.parts] A fraction is `.` and one or more digits. An exponent is `e` or `E`, an optional `+` or `-`, and one or more digits.
-4. r[std-num.parse-f64.no-other] So a leading `+`, a leading zero before another digit, whitespace, `_` separators, `inf`, and `NaN` are not accepted.
-5. r[std-num.parse-f64.value] Accepted text gives `.Ok` of the value that the [`parse_f64` primitive](README.md#standard-library-primitives) returns: the nearest `f64`, with a tie rounded to the even one.
-6. r[std-num.parse-f64.range] So a value past the finite `f64` range gives an infinity, and a value too small for the smallest subnormal gives a zero. Each keeps the text's sign.
-7. r[std-num.parse-f64.empty] Empty text gives `.Err(ParseNumberError.Empty)`.
-8. r[std-num.parse-f64.invalid-digit] Other text is read from left to right. The first character that no continuation of the grammar allows gives `.Err(ParseNumberError.InvalidDigit(position))`, with its index counted in characters from 0.
-9. r[std-num.parse-f64.end-of-text] Text that ends where the grammar needs a digit gives `InvalidDigit` at the text's length in characters, so a lone `-` gives `InvalidDigit(1)`.
-10. r[std-num.parse-f64.no-out-of-range] `parse_f64` never gives `OutOfRange`.
+2. r[std-num.parse-f64.float-grammar] The accepted text is an optional `+` or `-`, then a decimal number or a special word.
+3. r[std-num.parse-f64.decimal] A decimal number is digits, then optionally `.` and more digits, then an optional exponent. Either side of the `.` may be empty, but not both.
+4. r[std-num.parse-f64.exponent] An exponent is `e` or `E`, an optional `+` or `-`, and one or more digits.
+5. r[std-num.parse-f64.special] A special word is `nan`, `inf`, or `infinity`, with each letter in either case.
+6. r[std-num.parse-f64.excluded] So whitespace, `_` separators, hex digits, a type suffix, and a `,` decimal mark are not accepted.
+7. r[std-num.parse-f64.decimal-value] A decimal number gives `.Ok` of the value that the [`parse_f64` primitive](README.md#standard-library-primitives) returns for it: the nearest `f64`, with a tie rounded to the even one.
+8. r[std-num.parse-f64.sign] A leading `-` negates the value, so `-0` gives `-0.0`. A leading `+` changes nothing.
+9. r[std-num.parse-f64.range] So a value past the finite `f64` range gives an infinity, and a value too small for the smallest subnormal gives a zero. Each keeps the text's sign.
+10. r[std-num.parse-f64.special-value] `nan` gives a NaN, and `inf` and `infinity` give positive infinity, negated by a leading `-`.
+11. r[std-num.parse-f64.empty] Empty text gives `.Err(ParseNumberError.Empty)`.
+12. r[std-num.parse-f64.invalid-digit] Other text is read from left to right. The first character that no continuation of the grammar allows gives `.Err(ParseNumberError.InvalidDigit(position))`, with its index counted in characters from 0.
+13. r[std-num.parse-f64.text-end] Text that ends before the grammar is complete gives `InvalidDigit` at the text's length in characters, so a lone `-` gives `InvalidDigit(1)` and `in` gives `InvalidDigit(2)`.
+14. r[std-num.parse-f64.no-out-of-range] `parse_f64` never gives `OutOfRange`.
+15. r[std-num.parse-f64.round-trip] For every `f64` value `x`, `parse_f64(x.to_string())` gives `.Ok` of `x`: the same value with the same sign, or a NaN when `x` is a NaN.
+16. r[std-num.parse-f64.hook] `lib/std` checks the grammar and reads the sign and the special words itself. It calls the primitive only with an unsigned decimal number.
+17. r[std-num.parse-f64.hook.total] The primitive has no error or refusal signal, so `lib/std` gives its value as returned, an infinity or a zero included.
 
 | Text | `parse_f64` gives |
 | --- | --- |
-| `"1.5"`, `"15e-1"` | `.Ok(1.5)` |
-| `"-0"` | `.Ok(-0.0)` |
+| `"1.5"`, `"+1.5"`, `"15e-1"`, `"15E-1"` | `.Ok(1.5)` |
+| `".5"`, `"-.5"` | `.Ok(0.5)`, `.Ok(-0.5)` |
+| `"5."`, `"007"` | `.Ok(5.0)`, `.Ok(7.0)` |
+| `"-0"`, `"-0.0"` | `.Ok(-0.0)` |
 | `"9007199254740993"` | `.Ok(9007199254740992.0)`, the even one of the two nearest |
-| `"1e400"` | `.Ok` of positive infinity |
-| `""` | `.Err(Empty)` |
-| `"+1"`, `" 1"`, `".5"` | `.Err(InvalidDigit(0))` |
-| `"01"`, `"-"` | `.Err(InvalidDigit(1))` |
-| `"1.x"`, `"1."`, `"1e"` | `.Err(InvalidDigit(2))` |
-| `"1e+"` | `.Err(InvalidDigit(3))` |
+| `"1e400"`, `"-1e400"` | `.Ok` of positive infinity, and of negative infinity |
+| `"1e-400"`, `"-1e-400"` | `.Ok(0.0)`, `.Ok(-0.0)` |
+| `"NaN"`, `"nan"`, `"-nan"` | `.Ok` of a NaN |
+| `"inf"`, `"Infinity"`, `"+INF"` | `.Ok` of positive infinity |
+| `"-inf"`, `"-Infinity"` | `.Ok` of negative infinity |
 
-> **Why.** The grammar is the one `std.json` reads, so a JSON number and
-> `parse_f64` agree, and every finite `f64` text that `Display` writes
-> parses back to the same value. Correct rounding is what Rust's
-> `str::parse::<f64>` and `serde_json` give. It needs big-number
+| Text | `parse_f64` gives |
+| --- | --- |
+| `""` | `.Err(Empty)` |
+| `" 1.5"`, `"e5"` | `.Err(InvalidDigit(0))` |
+| `"1_000.5"`, `"0x1p-3"`, `"1,5"`, `"--1"` | `.Err(InvalidDigit(1))` |
+| `"."`, `"+"`, `"-"` | `.Err(InvalidDigit(1))`, at the text's end |
+| `"1e"`, `"in"` | `.Err(InvalidDigit(2))`, at the text's end |
+| `"1.5 "`, `"1.5f"`, `"nana"` | `.Err(InvalidDigit(3))` |
+| `"1e+"` | `.Err(InvalidDigit(3))`, at the text's end |
+| `"+nan5"` | `.Err(InvalidDigit(4))` |
+| `"infinit"` | `.Err(InvalidDigit(7))`, at the text's end |
+
+> **Why.** The grammar is Rust's `str::parse::<f64>`, so every text that
+> `Display` writes parses back, `NaN`, `inf`, and `-0.0` included. Correct
+> rounding is what Rust and `serde_json` give. It needs big-number
 > arithmetic, so the host supplies it, as it supplies `format_f64`.
+
+> **Note.** `std.json` checks its own grammar, that of RFC 8259, before it
+> calls `parse_f64`. So JSON text still rejects `NaN`, `+1`, `.5`, and
+> `5.`, by [`std-json.parse.number.grammar`](json.md#r-std-json.parse.number.grammar).
 
 See also: [Strings](../lang/04-type-system.md#strings), [Result](result.md), [JSON Numbers](json.md#number-syntax).
 

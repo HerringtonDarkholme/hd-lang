@@ -689,6 +689,9 @@ See also: [Runtime Panics](06-control-flow.md#runtime-panics).
 8. r[types.display.nan-canonical] Before hashing, boundary serialization, or `Display`, every NaN is replaced with the one canonical quiet-NaN value for its width.
 9. r[types.display.nan-compare] NaN comparison continues to follow IEEE 754.
 
+> **Note.** Boundary serialization writes a float as its bit pattern, after
+> this replacement, by [`module.boundary.float-bits`](10-modules.md#r-module.boundary.float-bits).
+
 ## Assignability And Coercion
 
 r[types.assign] An expression of type `S` is assignable to a location of type `T` when at least one of these rules applies:

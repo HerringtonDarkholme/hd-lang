@@ -1976,7 +1976,9 @@ typing/invalid/num-abs-diff-unsigned.hd	type	reject:mixed-signedness	std/num.md#
 runtime/valid/num-is-nan.hd	runtime	accept	std/num.md#r-std-num.is-nan
 runtime/valid/num-parse-integers.hd	runtime	accept	std/num.md#r-std-num.parse.grammar
 runtime/valid/num-parse-f64-errors.hd	runtime	accept	std/num.md#r-std-num.parse-f64.invalid-digit
-runtime/valid/num-parse-f64-values.hd	runtime	accept	std/num.md#r-std-num.parse-f64.value
+runtime/valid/num-parse-f64-values.hd	runtime	accept	std/num.md#r-std-num.parse-f64.decimal-value
+runtime/valid/num-parse-f64-specials.hd	runtime	accept	std/num.md#r-std-num.parse-f64.special-value
+runtime/valid/num-parse-f64-round-trip.hd	runtime	accept	std/num.md#r-std-num.parse-f64.round-trip
 runtime/valid/option-tests-conversions.hd	runtime	accept	std/option.md#variant-tests-and-conversions
 runtime/panic/option-expect-none.hd	runtime	panic:explicit-panic	std/option.md#r-std-option.expect.panic
 runtime/valid/result-map.hd	runtime	accept	std/result.md#r-std-result.map
@@ -2025,6 +2027,7 @@ runtime/valid/json-object-order.hd	runtime	accept	std/json.md#r-std-json.parse.o
 runtime/valid/json-pretty.hd	runtime	accept	std/json.md#r-std-json.pretty.layout
 runtime/valid/json-suite.hd	runtime	accept	std/json.md#r-std-json.parse.grammar
 runtime/valid/json-float-text.hd	runtime	accept	std/json.md#r-std-json.parse.number.float
+runtime/valid/json-number-grammar.hd	runtime	accept	std/json.md#r-std-json.parse.number.grammar
 runtime/valid/time-date-utc.hd	runtime	accept	std/time.md#r-std-time.date.of-timestamp
 runtime/valid/time-rfc3339-text.hd	runtime	accept	std/time.md#r-std-time.rfc3339.text
 runtime/valid/time-rfc3339-parse.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse

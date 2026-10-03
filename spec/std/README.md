@@ -89,15 +89,31 @@ raises with a category other than `explicit-panic`.
 | --- | --- | --- |
 | `format_f64`, `format_f32` | `(value: f64) -> string`, `(value: f32) -> string` | the shortest round-trip decimal text of a float ([Numeric Display](../lang/04-type-system.md#numeric-display)) |
 | `string_lower`, `string_upper` | `(text: string) -> string` | Unicode case mapping, which needs the Unicode tables |
-| `parse_f64` | `(text: string) -> f64` | the correctly rounded `f64` of a decimal number text, which needs arbitrary-precision arithmetic |
+| `parse_f64` | `(text: string) -> f64` | the correctly rounded `f64` of an unsigned decimal number text, which needs arbitrary-precision arithmetic |
 | `format_f64_fixed` | `(value: f64, digits: i32) -> string` | the correctly rounded fixed-point text of a float, which needs arbitrary-precision arithmetic |
 
-`parse_f64` takes the text of a number in the grammar of
-[RFC 8259](https://www.rfc-editor.org/rfc/rfc8259#section-6), section 6.
-It returns the `f64` nearest the text's decimal value, rounding a tie to
+A host primitive takes and returns each `f32` and `f64` as a raw IEEE
+754 value, as a host capability call does by
+[`module.profile.host-float.raw`](../lang/10-modules.md#r-module.profile.host-float.raw).
+So a NaN, both infinities, and `-0.0` reach a hook unchanged.
+
+`format_f64` and `format_f32` write the whole `Display` text of a float,
+by [Numeric Display](../lang/04-type-system.md#numeric-display). The hook,
+not `lib/std`, writes the text of
+[`types.display.special`](../lang/04-type-system.md#r-types.display.special):
+`NaN`, `inf`, `-inf`, and the `-` of `-0.0`.
+
+`parse_f64` takes only an unsigned
+[decimal number](num.md#r-std-num.parse-f64.decimal), with no sign and no
+special word. `lib/std` checks the grammar and reads the sign before the
+call ([`std-num.parse-f64.hook`](num.md#r-std-num.parse-f64.hook)). The
+hook returns the `f64` nearest the text's decimal value, rounding a tie to
 the one with an even significand, as IEEE 754 rounds to nearest. So a
-value past the finite `f64` range is an infinity of the text's sign. Any
-other text gives a NaN, which no number text gives.
+value past the finite `f64` range is positive infinity, and a value too
+small for the smallest subnormal is `0.0`.
+
+`parse_f64` has no error or refusal signal. A call with text outside the
+grammar is a bug in `lib/std`, not a case the host handles.
 
 `format_f64_fixed` writes the text that
 [`to_fixed`](num.md#fixed-point-text) returns, with every rule of that
@@ -105,7 +121,8 @@ section but the check of `digits`. Its caller passes a `digits` from 0 to
 100. For a finite value, it writes the multiple of 10 to the power
 `-digits` nearest the value's exact binary value, and a tie goes to the
 multiple whose last digit is even. A NaN gives `NaN`, and the infinities
-give `inf` and `-inf`.
+give `inf` and `-inf`. The hook, not `lib/std`, writes that text, and the
+`-` of a negative value or of `-0.0`.
 
 **Test-runner hooks.** `std.testing` reaches the test runner through the
 host capabilities `TestRunner` and `PropertyRunner`

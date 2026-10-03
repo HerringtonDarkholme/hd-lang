@@ -1925,6 +1925,7 @@ runtime/valid/cmp-reverse.hd	runtime
 typing/valid/std-joined-types-debug.hd	type
 runtime/valid/task-all-list-empty.hd	runtime
 runtime/valid/num-parse-f64-errors.hd	runtime
+runtime/valid/num-parse-f64-specials.hd	runtime
 runtime/valid/host-args-env.hd	runtime
 runtime/valid/map-args-env.hd	runtime
 runtime/valid/memory-fs-directories.hd	runtime
@@ -1954,6 +1955,7 @@ typing/invalid/requirement-key-not-dynamically-safe.hd	type
 typing/invalid/covariant-private-method-parameter.hd	type
 runtime/valid/lct-optional-injection.hd	runtime
 runtime/valid/json-numbers.hd	runtime
+runtime/valid/json-number-grammar.hd	runtime
 runtime/valid/json-round-trip.hd	runtime
 runtime/valid/json-escapes.hd	runtime
 runtime/valid/json-errors.hd	runtime

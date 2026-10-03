@@ -1457,6 +1457,7 @@ host before hd code sees it:
 | r[module.profile.host-result.bool] `bool` | `bool` | `false` or `true` |
 | r[module.profile.host-result.char] `char` | `char` | a Unicode scalar value |
 | r[module.profile.host-result.string] `string` | `string` | valid UTF-8 text |
+| r[module.profile.host-result.float] Float | `f32` or `f64` | any value of that width, so a NaN, an infinity, or `-0.0` is never a contract violation |
 | r[module.profile.host-result.shape] Composite | an optional, `Result`, tuple, list, map, data type, or enum | of that type's shape, with each element, field, and payload checked against its own declared type |
 
 2. r[module.profile.host-result.no-coercion] The adapter never rounds, truncates, wraps, or otherwise converts a host value to make it fit.
@@ -1466,6 +1467,18 @@ host before hd code sees it:
 > **Why.** A host that returns `300` for a `u8` has a bug outside hd.
 > Stopping at the boundary names the host, where a silently wrapped value
 > would surface later as a wrong answer in hd code.
+
+#### Floats At The Host Boundary
+
+A float crosses a live host call as its IEEE 754 value, with no encoding:
+
+1. r[module.profile.host-float.raw] A call of a host capability trait's method passes each `f32` or `f64` argument, and returns each such result, as a raw IEEE 754 value of that width.
+2. r[module.profile.host-float.special] So a NaN, both infinities, and `-0.0` cross the call unchanged, in either direction.
+3. r[module.profile.host-float.nan] A NaN's payload may arrive replaced with the canonical NaN of [`types.display.nan-canonical`](04-type-system.md#r-types.display.nan-canonical).
+
+> **Why.** WIT's `f64`, wasm-bindgen, and the C ABI all pass floats as raw
+> IEEE 754 values. Special values need care only when a value becomes text,
+> which [`module.boundary.float-bits`](#r-module.boundary.float-bits) covers.
 
 ### Registration
 
@@ -1509,9 +1522,22 @@ See also: [Error Trait](09-traits.md#error-trait).
 5. r[module.boundary.map-decode] Decoding a map invokes the key type's ordinary `Eq` and `Hash` implementations.
 6. r[module.boundary.decoder-panic] If either panics, the adapter reports a boundary failure and does not enter the registered function. Boundary failure: `boundary-decoder-panic`.
 7. r[module.boundary.decoder-poison] The adapter treats that event as an ordinary poisoning panic: the program instance must be discarded.
+8. r[module.boundary.float-bits] A boundary value or host-call result serialized as text, as in a replay record, writes an `f64` as its IEEE 754 bit pattern. That is 16 lowercase hex digits, most significant first.
+9. r[module.boundary.float-bits.f32] An `f32` is written the same way, as 8 lowercase hex digits.
+10. r[module.boundary.float-bits.nan] A NaN is first replaced with the canonical NaN of [`types.display.nan-canonical`](04-type-system.md#r-types.display.nan-canonical).
+
+| Value | `f64` text |
+| --- | --- |
+| `1.0` | `3ff0000000000000` |
+| `-0.0` | `8000000000000000` |
+| positive infinity | `7ff0000000000000` |
 
 > **Why.** Every crossing field and payload is `pub`, so a host cannot
-> construct private state.
+> construct private state. A float's bits make its text exact, while a NaN,
+> an infinity, or `-0.0` has no JSON number.
+
+> **Note.** The reference prototype's replay encoder writes host-call
+> results this way.
 
 ### Instances And Threads
 

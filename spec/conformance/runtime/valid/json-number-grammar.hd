@@ -1,0 +1,29 @@
+# test: std.json keeps the RFC 8259 number grammar, so float text that parse_f64 accepts is still a JSON error
+# Spec std/json Number Syntax: std-json.parse.number.grammar and std-json.parse.strict (owner decision PARSE-F64-GRAMMAR, 2026-10-03).
+use std.json.{parse, JsonError}
+use std.testing.assert_equal
+
+fn failure(text: string) -> JsonError?:
+    match parse(text):
+        .Ok(_) => .None
+        .Err(error) => .Some(error)
+
+tests:
+    it("a character outside the JSON number grammar is UnexpectedCharacter"):
+        cases := [
+            ("NaN", 0),
+            ("Infinity", 0),
+            ("-inf", 1),
+            ("+1", 0),
+            (".5", 0),
+            ("007", 1),
+        ]
+        for case in cases:
+            assert_equal(failure(case._0), .Some(JsonError.UnexpectedCharacter(case._1)), reason=case._0)
+    it("a number that ends where a digit must follow is UnexpectedEnd"):
+        cases := [
+            ("5.", 2),
+            ("1e", 2),
+        ]
+        for case in cases:
+            assert_equal(failure(case._0), .Some(JsonError.UnexpectedEnd(case._1)), reason=case._0)

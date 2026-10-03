@@ -1398,5 +1398,11 @@ providers come from, and what a program instance's behavior depends on.
 7. r[req.determinism.limits-profile] The host's stack and memory limits are part of the runtime profile.
 8. r[req.determinism.weak] Garbage collection timing is not an input: user code cannot observe a weak reference clearing or a finalizer running.
 
+> **Note.** A host-call result that is a float arrives as its raw IEEE 754
+> value, by [`module.profile.host-float.raw`](10-modules.md#r-module.profile.host-float.raw).
+> A runtime that records results as text for replay writes each float by
+> [`module.boundary.float-bits`](10-modules.md#r-module.boundary.float-bits),
+> so a replayed NaN, infinity, or `-0.0` is the recorded value.
+
 See also: [Comparison Traits](09-traits.md#comparison-traits),
 [Representation And Garbage Collection](08-data-and-enums.md#representation-and-garbage-collection).

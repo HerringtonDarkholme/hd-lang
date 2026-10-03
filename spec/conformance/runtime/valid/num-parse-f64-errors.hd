@@ -1,5 +1,5 @@
-# test: parse_f64 rejects text outside the JSON number grammar, at the first position no continuation allows
-# Spec std/num Float Parsing: std-num.parse-f64.grammar, .empty, and .invalid-digit (owner decision FLOAT-PARSE, batch 71, 2026-10-03), and .end-of-text (owner decision PARSE-EARLY-END, batch 73, 2026-10-03).
+# test: parse_f64 rejects text outside its grammar, at the first position no continuation allows, or at the text's end
+# Spec std/num Float Parsing: std-num.parse-f64.excluded, .empty, .invalid-digit, and .text-end (owner decisions FLOAT-PARSE, batch 71, PARSE-EARLY-END, batch 73, and PARSE-F64-GRAMMAR, 2026-10-03).
 use std.num.{parse_f64, ParseNumberError}
 use std.testing.assert_equal
 
@@ -21,18 +21,29 @@ tests:
         assert_equal(ratio(""), 0.0, reason="an error falls back")
         assert_equal(failure(""), .Some(ParseNumberError.Empty), reason="no text")
     it("a character that breaks the grammar is InvalidDigit at its index"):
-        assert_equal(failure("+1"), at(0), reason="no leading plus")
-        assert_equal(failure(" 1"), at(0), reason="no whitespace")
-        assert_equal(failure(".5"), at(0), reason="a digit comes first")
-        assert_equal(failure("01"), at(1), reason="no digit after a leading zero")
-        assert_equal(failure("1.x"), at(2), reason="a fraction needs a digit")
-        assert_equal(failure("1_0"), at(1), reason="no separator")
-        assert_equal(failure("inf"), at(0), reason="no infinity")
-        assert_equal(failure("NaN"), at(0), reason="no NaN")
-        assert_equal(failure("1.5 "), at(3), reason="nothing after the number")
-    it("text that ends where a digit must follow is InvalidDigit at its length"):
-        assert_equal(failure("-"), at(1), reason="a lone minus")
-        assert_equal(failure("1."), at(2), reason="a point with no digit")
-        assert_equal(failure("1e"), at(2), reason="an exponent with no digit")
-        assert_equal(failure("1e+"), at(3), reason="an exponent sign with no digit")
-        assert_equal(failure("-1.5e-"), at(6), reason="the length, not the last index")
+        cases := [
+            (" 1.5", 0),
+            ("1.5 ", 3),
+            ("1_000.5", 1),
+            ("0x1p-3", 1),
+            ("1.5f", 3),
+            ("1,5", 1),
+            ("e5", 0),
+            ("--1", 1),
+            ("nana", 3),
+            ("+nan5", 4),
+        ]
+        for case in cases:
+            assert_equal(failure(case._0), at(case._1), reason=case._0)
+    it("text that ends before the grammar is complete is InvalidDigit at its length"):
+        cases := [
+            (".", 1),
+            ("+", 1),
+            ("-", 1),
+            ("1e", 2),
+            ("1e+", 3),
+            ("in", 2),
+            ("infinit", 7),
+        ]
+        for case in cases:
+            assert_equal(failure(case._0), at(case._1), reason=case._0)
