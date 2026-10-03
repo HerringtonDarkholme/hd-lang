@@ -2058,3 +2058,8 @@ runtime/valid/regex-captures-linear-time.hd	runtime
 runtime/valid/std-errors-erased-codecs.hd	runtime
 typing/valid/literal-first-use-fallback.hd	type
 typing/invalid/literal-first-use-other-body.hd	type
+runtime/valid/json-suite.hd	runtime
+runtime/valid/json-float-text.hd	runtime
+runtime/valid/num-parse-f64-values.hd	runtime
+runtime/valid/num-parse-f64-round-trip.hd	runtime
+runtime/valid/num-to-fixed.hd	runtime

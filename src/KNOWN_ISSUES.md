@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-03 the suite has
-2,173 cases: 2,057 selected in `test/portable/cases.tsv` and 116 known
-failures. The selected cases are 1,813 language tier and 244 stdlib tier;
-the known failures are 83 language tier and 33 stdlib tier.
+2,187 cases: 2,064 selected in `test/portable/cases.tsv` and 123 known
+failures. The selected cases are 1,815 language tier and 249 stdlib tier;
+the known failures are 95 language tier and 28 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -44,14 +44,12 @@ the known failures are 83 language tier and 33 stdlib tier.
 | HOST-CONTRACT | 2 | host results are not checked against their declared types and the panic category is absent |
 | HOST-NAN | 1 | the `special-float-host` runtime profile does not exist |
 | PENDING-WRITE | 2 | the pending-write runtime profile does not exist |
-| FLOAT-PARSE | 4 | the correctly rounded `parse_f64` host hook is absent |
 | SNAPSHOT-ROW | 3 | snapshot operations do not use the current TestRunner row |
 | RUNNER-SURFACE | 1 | PropertyRunner lacks the current PropertyCase protocol |
 | LIST-POP | 4 | `List.pop`, `insert`, `remove_at`, `clear`, and their list-truncate hook are absent |
 | STD-DEBUG | 1 | std derivation ordering leaves TypeId and SelfRef without Debug |
 | ALL-LIST | 1 | erasing concrete closures in generic lists can produce an illegal cast |
 | METHOD-DEFAULT | 1 | the parser rejects a default value on a method parameter |
-| FIXED-HOOK | 1 | the `format_f64_fixed` host hook is absent |
 | STD-1 | 3 | the checker accepts bounded inherent Map impls, but the specified Map methods are absent from `lib/std` |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
 | SPEC-U32-DRIFT | 6 | fixtures still encode the retired signed-size behavior; `audit/compiler/u32-spec-drift.md` records the conflicts |
@@ -60,6 +58,7 @@ the known failures are 83 language tier and 33 stdlib tier.
 | FRESH-MUT | 1 | generic inference does not weaken `mut T` and `T` to their readonly join |
 | FORWARD-BOUNDS | 1 | inference does not solve a bound that names a later type parameter |
 | QUALIFIED-PREFIX | 3 | a string prefix after `.` does not report `qualified-string-prefix` |
+| LITERAL-FIRST-USE | 12 | an unannotated literal binding falls back before its first deciding use |
 
 ## Findings
 

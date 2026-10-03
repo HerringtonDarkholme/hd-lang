@@ -21,7 +21,7 @@ Final P1 footprint after items 1–3, with the same `compileToWat` inputs used f
 
 ## P2: Hooks And Hosts
 
-- [ ] **4. FLOAT-PARSE (4) and FIXED-HOOK (1).** Add correctly rounded `parse_f64` and `format_f64_fixed` host primitives; preserve ties-to-even, special values, and negative zero.
+- [x] **4. FLOAT-PARSE (4) and FIXED-HOOK (1).** Added exact BigInt-backed `parse_f64` and `format_f64_fixed` host primitives. Both round ties to even; parsing handles the full decimal range, and fixed formatting preserves special values and negative zero. All five tagged rows pass.
 - [ ] **5. Host f64 boundary.** Preserve raw IEEE f64 values in live calls, serialize exact bits for replay, and implement `special-float-host` (`HOST-NAN`), `misbehaving-host` (`HOST-CONTRACT`), and `pending-write` (`PENDING-WRITE`).
 - [ ] **6. STD-HELPERS (8).** Implement Console error output and the remaining provider helpers by declaration identity; remove the checker-owned `ConsoleError` type.
 - [ ] **7. Test runners.** Bind `TestRunner` for every test body; implement `snapshot_check`; update PropertyRunner/PropertyCase and discard behavior. Tags: `SNAPSHOT-ROW`, `RUNNER-SURFACE`.
@@ -56,5 +56,6 @@ Final P1 footprint after items 1–3, with the same `compileToWat` inputs used f
 - [x] Record Step 0's known-failure count before and after: 186 → 183.
 - [x] Record the current known-failure count after U32-SIZES and bound inference: the spec-pass-90 ledger is 188 → 134 (59 repaired rows moved in; five selected fixtures moved out and one blocked regex row was reclassified as `SPEC-U32-DRIFT`).
 - [x] Record the known-failure count after std module registration: 134 → 116 (18 repaired rows moved in).
+- [x] Record the known-failure count after exact float host hooks: the spec-pass-91 ledger is 128 → 123 (five repaired rows moved in).
 - [x] Record the final P1 footprint: tiny `main` 49 bytes; one `it` 2,459 bytes.
 - [ ] Keep main CI green after each pushed repair.

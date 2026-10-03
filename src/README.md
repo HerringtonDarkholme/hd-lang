@@ -414,7 +414,8 @@ listed yet.
   integer's digits come from an hd loop, a `char`'s UTF-8 text from an hd
   encoder over the `string_from_bytes` primitive, and a float's text from
   the host functions `format_f64` and `format_f32`; an `f32` shows its own
-  shortest round-trip digits;
+  shortest round-trip digits, while exact BigInt-backed host hooks parse
+  decimal `f64` text and format fixed-point `f64` text with ties to even;
 - `println` with the same display surface, statically requiring a
   lexical `Console` provider. `Console` is a prelude trait with
   `write_line!(mut self, text: string) -> Result[void, ConsoleError]`, so
@@ -1298,7 +1299,7 @@ What it provides:
 | `std.text` | on `string`: `chars`, `char_indices`, `bytes`, `slice`, `to_utf8`, `string::from_utf8` with `Utf8Error`, `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
 | `std.iter` | the prelude `Iterator[T]` and `Iterable[T]`; `Iterator` with `from_fn`, `next`, and the adapters `filter`, `take`, `enumerate`, `map`, `fold`, and `collect`; `FromIterator` for `List`, `Map`, `Result`, and `T?`; `Iterable` for `List` and `Map` (not `Iterator`, which a loop advances directly) |
 | `std.cmp` | the prelude `Eq`, `PartialOrd`, `Ord`, and `Ordering`; `min`, `max`, `clamp`, `Reverse[T]`; `Eq` for every primitive, `PartialOrd` for the numbers, `char`, and `string`, and `Ord` for the integers, `char`, and `string`: bodiless `@intrinsic` methods, the numbers' in `impl[N < Num]` and `impl[N < Integer]` blocks, except `string`'s, which compare bytes in hd; `Eq` for `List`, `T?`, `Result`, and `Map`, and `PartialOrd` and `Ord` for `List` and `T?`; the tuple templates of `Eq`, `PartialOrd`, and `Ord` |
-| `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
+| `std.num` | the sealed `Num`, `Integer`, and `Float`, implemented for every primitive number type; on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`, `to_fixed`; `parse_i32`, `parse_i64`, `parse_f64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | the prelude `Console` and `println`; `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; the host trait `Process` with `ProcessOutput`, and the deterministic `ScriptedProcess` |
@@ -1323,7 +1324,7 @@ interpolation compile to a call of `string_concat`, `==` and `!=` (and a
 string match pattern, a string map key, and a `TypeId` comparison) to
 `string_equal`, and `<`, `<=`, `>`, `>=` to `string_compare`. Every
 program declares them, since the prelude uses `std.text`.
-Prototype limits: no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no `Set` (the specification does not define it,
+Prototype limits: no `wrapping_mul` or `Float` rounding methods, no `Set` (the specification does not define it,
 and a map built in generic code has no key equality for a type-parameter
 key, so a generic `Set.new()` could not create its map), and no host `ConsoleInput`; a `BufferConsole` records both direct
 `write_line!` calls and, outside a driver, `println` (MHP-1). `test/std/*.hd` tests each module through `hd test`, and
@@ -1369,7 +1370,7 @@ RUNTIME_AND_LIBRARY.md).
      and a `string` crosses as a host handle that `emitter/runtime/boundary.wat`
      copies byte by byte. The host looks the name up in
      `src/host-functions.ts` (today `string_lower`, `string_upper`,
-     `format_f64`, `format_f32`, and `panic`, which raises a checked runtime
+     `format_f64`, `format_f32`, `parse_f64`, `format_f64_fixed`, and `panic`, which raises a checked runtime
      panic of a named category, such as `index-out-of-bounds`), or
      in the runner's `hostFunctions` (`snapshot_file_check`, `src/snapshots.ts`).
    - An **operation intrinsic** is a bodiless `@intrinsic` trait method,
