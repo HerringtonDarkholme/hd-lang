@@ -1926,3 +1926,13 @@ runtime/valid/cmp-reverse.hd	runtime
 typing/valid/std-joined-types-debug.hd	type
 runtime/valid/task-all-list-empty.hd	runtime
 runtime/valid/num-parse-f64-errors.hd	runtime
+runtime/valid/host-args-env.hd	runtime
+runtime/valid/map-args-env.hd	runtime
+runtime/valid/memory-fs-directories.hd	runtime
+typing/valid/path-newtype.hd	type
+typing/valid/std-host-types-debug.hd	type
+runtime/valid/encoding-hex-vectors.hd	runtime
+runtime/valid/encoding-base64-vectors.hd	runtime
+runtime/valid/encoding-decode-errors.hd	runtime
+runtime/valid/digest-sha256-vectors.hd	runtime
+runtime/valid/digest-sha256-long.hd	runtime
