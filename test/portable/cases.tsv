@@ -1965,3 +1965,6 @@ typing/valid/numeric-literal-left-operand.hd	type
 typing/valid/generic-mutual-bounds.hd	type
 runtime/valid/generic-forward-bound-explicit-first-slot.hd	runtime
 typing/invalid/default-names-later-beside-forward-bound.hd	type
+typing/valid/list-literal-compares-with-readonly-binding.hd	type
+typing/invalid/error-anyval-newtype.hd	type
+typing/valid/dynamic-safety-implied-anyref.hd	type

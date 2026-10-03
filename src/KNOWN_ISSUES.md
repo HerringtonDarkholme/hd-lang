@@ -11,16 +11,19 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-03 the suite has
-2,076 cases: 1,982 selected in `test/portable/cases.tsv` and 94 known
-failures, 68 language tier and 26 stdlib tier.
+2,152 cases: 1,969 selected in `test/portable/cases.tsv` and 183 known
+failures. The selected cases are 1,771 language tier and 198 stdlib tier;
+the known failures are 122 language tier and 61 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
-| F-163 | 1 | a list literal is not weakened to a readonly operand's type |
 | F-250 | 6 | GADT variant results give generic diagnostics |
 | F-259 | 1 | the `disposed-file` runtime profile does not exist |
 | F-310 | 1 | a line that starts with `:` attaches a trailing block to the statement before it |
-| TQ-2, EMB-S, P2, M29 | 11 | package roles: the CLI has no `--package-role` or `--dependency` |
+| TQ-2 | 1 | a package-role fixture cannot express ownership of a trait argument |
+| EMB-S | 4 | package trait visibility is not modeled by the linked checker namespace |
+| P2 | 5 | package member visibility is not modeled by the linked checker namespace |
+| M29 | 1 | the fixture needs a second package to distinguish derivation ownership |
 | DC7 | 1 | group statements are not interleaved across modules |
 | MHP-1 | 1 | no inferred script entry requirement row |
 | CLI-ENTRY | 11 | no `hd FILE` command for the runner's last step |
@@ -37,18 +40,29 @@ failures, 68 language tier and 26 stdlib tier.
 | CLI-57 | 2 | the test runner binds no `Process`, and `hd_run!` has no integration-only check |
 | VOID-UNIT | 1 | `void` is kept apart from the empty tuple `()` |
 | HOST-CATALOG | 7 | host modules are registered; remaining Fs, clock, console, and retry helpers or provider support are missing |
-| ERR-HELPERS | 3 | Error's AnyRef contract, implied dynamic-safety bound, and trait-value `find` cast are not implemented |
+| ERR-HELPERS | 1 | trait-value `find` enters a forwarding adapter with static TypeId evidence and traps on an illegal cast |
 | HOST-CONTRACT | 2 | host results are not checked against their declared types and the panic category is absent |
+| HOST-NAN | 1 | the `special-float-host` runtime profile does not exist |
 | PENDING-WRITE | 2 | the pending-write runtime profile does not exist |
-| FLOAT-PARSE | 3 | the `parse_f64` host hook is absent |
+| FLOAT-PARSE | 4 | the correctly rounded `parse_f64` host hook is absent |
 | SNAPSHOT-ROW | 3 | snapshot operations do not use the current TestRunner row |
 | RUNNER-SURFACE | 1 | PropertyRunner lacks the current PropertyCase protocol |
-| LIST-POP | 1 | `List.pop` and the required list-truncate primitive are absent |
+| LIST-POP | 4 | `List.pop`, `insert`, `remove_at`, `clear`, and their list-truncate hook are absent |
 | STD-DEBUG | 1 | std derivation ordering leaves TypeId and SelfRef without Debug |
 | ALL-LIST | 1 | erasing concrete closures in generic lists can produce an illegal cast |
 | METHOD-DEFAULT | 1 | the parser rejects a default value on a method parameter |
 | FIXED-HOOK | 1 | the `format_f64_fixed` host hook is absent |
-| STD-1 | 2 | bounded inherent Map impls lose their bounds, hiding `get_or`, `keys`, and `values` |
+| STD-1 | 2 | the checker accepts bounded inherent Map impls, but the specified Map methods are absent from `lib/std` |
+| RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
+| U32-SIZES | 53 | `usize`, unsigned lengths and indices, and the corresponding std signatures are not implemented |
+| ZIP-ARG | 5 | call inference does not solve a type parameter from a bounded argument's trait implementation |
+| STD-LOADER | 13 | `std.regex` is not registered, and JSON imports do not always retain `Number` |
+| STD-CLI | 5 | `std.cli` is not registered |
+| TEST-REG-ID | 4 | test registration recognizes a bare spelling instead of the imported declaration identity |
+| EQ-CONTEXTUAL | 2 | equality does not contextually type a variant from the opposite operand |
+| FRESH-MUT | 1 | generic inference does not weaken `mut T` and `T` to their readonly join |
+| FORWARD-BOUNDS | 1 | inference does not solve a bound that names a later type parameter |
+| QUALIFIED-PREFIX | 2 | the parser rejects a module-qualified string prefix such as `text.r"..."` |
 
 ## Findings
 
@@ -58,8 +72,6 @@ Correctness and diagnostics:
   source location, so nothing checks a panic marker's line.
 - **F-161**: unbounded recursion ends in a Node `RangeError` stack trace,
   not a `stack-exhausted` panic.
-- **F-163**: `xs := [1, 2]` then `xs == [1, 2]` or `xs < [2]` is a
-  `type-mismatch`. Fixture: `typing/valid/list-literal-compares-with-readonly-binding.hd`.
 - **F-250**: a GADT variant result gets `syntax-error`,
   `expected-expression`, or `unsupported-gadt-result`, and a pack function
   gets `unsupported-generic-parameter`, not one stable code per deferred
@@ -140,7 +152,7 @@ Compiler structure:
 | FACT-PATTERN | A typed fact's `@annotate` type argument is a pattern, such as `fn(T) -> R` or `i32`, whose parameters are inferred from the target as a call's are, and `h.fact::[D]()` infers `D`'s arguments from the handle's `F` the same way (batch 59). The prototype accepts only one of the fact type's own type parameters and reports `type-mismatch` at `@annotate`. |
 | DEFAULT-FIELD | Batch 59: a member that declares a default needs no `Default` on its type. The `std.ops` template's `member[F < Default]` bound still covers it, so the prototype reports `member-not-derivable`. |
 | HOST-CATALOG | Batch 64: the default profile binds `Args`, `Env`, `ConsoleInput`, `Clock`, `Random`, `FsRead`, and `FsWrite`, with free helpers over them; `Console` gains `write_error_line!` and `eprintln`; `std.task` gains `Backoff` and `retry_with!`. The prototype binds only `Console`, and of the new items it declares only `Random`. |
-| STD-1 | Batch 64 specifies Map helpers. Their std implementations are present, but bounded inherent impl preparation drops `K < Eq & Hash`, so `get_or`, `keys`, and `values` do not join. |
+| STD-1 | Batch 64 specifies Map helpers. Bounded inherent Map implementations are now legal, but `lib/std/collections.hd` does not yet define `get_or`, `keys`, or `values`. |
 
 ## Gaps No Fixture Reaches
 
