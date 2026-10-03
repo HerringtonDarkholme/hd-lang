@@ -1,0 +1,72 @@
+# test: a Deque pushes and pops at both ends, reads by index from the front, wraps and grows, iterates front to back, and compares like a list
+# Spec std/collections Deque: std-collections.deque.order, std-collections.deque.len, std-collections.deque.push, std-collections.deque.pop, std-collections.deque.ends, std-collections.deque.get, std-collections.deque.iter, std-collections.deque.eq (COLLECTIONS-DATES-SURFACE; task #225).
+use std.collections.Deque
+use std.testing.{assert, assert_equal}
+
+fn contents(queue: Deque[i32]) -> List[i32]:
+    let seen: mut List[i32] = []
+    for item in queue:
+        seen.append(item)
+    seen
+
+tests:
+    it("both ends"):
+        let queue: mut Deque[i32] = Deque::new()
+        assert(queue.is_empty(), reason="new is empty")
+        queue.push_back(2)
+        queue.push_back(3)
+        queue.push_front(1)
+        queue.push_front(0)
+        assert_equal(queue.len(), 4, reason="four elements")
+        assert_equal(contents(queue), [0, 1, 2, 3], reason="front to back")
+        assert_equal(queue.front(), .Some(0), reason="front")
+        assert_equal(queue.back(), .Some(3), reason="back")
+        assert_equal(queue.pop_back(), .Some(3), reason="pop_back")
+        assert_equal(queue.pop_front(), .Some(0), reason="pop_front")
+        assert_equal(contents(queue), [1, 2], reason="what is left")
+
+    it("get counts from the front"):
+        let queue: mut Deque[string] = Deque::new()
+        queue.push_back("b")
+        queue.push_front("a")
+        assert_equal(queue.get(0), .Some("a"), reason="the front")
+        assert_equal(queue.get(1), .Some("b"), reason="the back")
+        assert_equal(queue.get(2), .None, reason="past the back")
+        assert_equal(queue.get(-1), .None, reason="never from the end")
+
+    it("an empty deque"):
+        let queue: mut Deque[i32] = Deque::new()
+        assert_equal(queue.pop_front(), .None, reason="pop_front")
+        assert_equal(queue.pop_back(), .None, reason="pop_back")
+        assert_equal(queue.front(), .None, reason="front")
+        assert_equal(queue.back(), .None, reason="back")
+        assert_equal(queue.len(), 0, reason="still empty")
+
+    it("many pushes and pops at both ends"):
+        let queue: mut Deque[i32] = Deque::new()
+        let index = 1
+        while index <= 20:
+            queue.push_back(index)
+            queue.push_front(-index)
+            if index % 3 == 0:
+                _ := queue.pop_front()
+                _ := queue.pop_back()
+            index = index + 1
+        assert_equal(queue.len(), 28, reason="twenty-eight left")
+        assert_equal(queue.front(), .Some(-20), reason="the last push_front")
+        assert_equal(queue.back(), .Some(20), reason="the last push_back")
+        assert_equal(queue.get(13), .Some(-1), reason="the first push_front, in the middle")
+        assert_equal(queue.get(14), .Some(1), reason="the first push_back, in the middle")
+
+    it("equal deques hold equal elements in order"):
+        let left: mut Deque[i32] = Deque::new()
+        let right: mut Deque[i32] = Deque::new()
+        left.push_back(1)
+        left.push_back(2)
+        right.push_front(2)
+        right.push_front(1)
+        right.push_front(0)
+        _ := right.pop_front()
+        assert(left == right, reason="same elements, filled from other ends")
+        right.push_back(3)
+        assert(left != right, reason="another length")

@@ -1,9 +1,11 @@
-# std.collections: inherent `List` methods, and `ListView`
-# (spec/std/collections.md).
+# std.collections: inherent `List` methods, `ListView`, `Deque`, and
+# `Heap` (spec/std/collections.md).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
-# Each method but `view` returns a new list and leaves its receiver
-# unchanged.
+# Each `List` method but `view` returns a new list and leaves its receiver
+# unchanged. `Deque` and `Heap` are generic, so a program that names
+# neither compiles none of their code.
 use std.ops.Index
+use std.format.{DebugList, DebugWriter}
 
 impl[T] List[T]:
     # A read-only window on the elements from `start` up to `end`, with no
@@ -142,6 +144,229 @@ impl[T] Iterable[T] for ListView[T]:
             at = at + 1
             .Some(self.items[at - 1])
         )
+
+# A double-ended queue (spec/std/collections.md#deque): a ring buffer.
+# `slots` holds the `count` elements from `head` on, wrapping at its end,
+# and every other slot is `.None`. A push into a full buffer first copies
+# the elements, front first, into a buffer twice its size, so each push is
+# amortized O(1). `List` has no way to shrink, so a pop clears its slot.
+# `version` counts the pushes and pops, so an iterator taken before one
+# fails fast (r-std-collections.deque.invalidate).
+pub data Deque[T]:
+    slots: mut List[T?]
+    head: i32
+    count: i32
+    version: i32
+
+impl[T] Deque[T]:
+    pub fn new() -> mut Deque[T]:
+        let slots: mut List[T?] = []
+        Deque::[T] { slots: slots, head: 0, count: 0, version: 0 }
+
+    pub fn len(self) -> i32:
+        self.count
+
+    pub fn is_empty(self) -> bool:
+        self.count == 0
+
+    pub fn push_back(mut self, value: T) -> void:
+        self.reserve_one()
+        self.slots[self.slot(self.count)] = .Some(value)
+        self.count = self.count + 1
+        self.version = self.version + 1
+
+    pub fn push_front(mut self, value: T) -> void:
+        self.reserve_one()
+        self.head = self.slot(self.slots.len() - 1)
+        self.slots[self.head] = .Some(value)
+        self.count = self.count + 1
+        self.version = self.version + 1
+
+    pub fn pop_front(mut self) -> T?:
+        if self.count == 0:
+            return .None
+        value := self.slots[self.head]
+        self.slots[self.head] = .None
+        self.head = self.slot(1)
+        self.count = self.count - 1
+        self.version = self.version + 1
+        value
+
+    pub fn pop_back(mut self) -> T?:
+        if self.count == 0:
+            return .None
+        last := self.slot(self.count - 1)
+        value := self.slots[last]
+        self.slots[last] = .None
+        self.count = self.count - 1
+        self.version = self.version + 1
+        value
+
+    pub fn front(self) -> T?:
+        self.get(0)
+
+    pub fn back(self) -> T?:
+        self.get(self.count - 1)
+
+    # The element `index` places from the front; `.None` out of range
+    # (r-std-collections.deque.get).
+    pub fn get(self, index: i32) -> T?:
+        if index < 0 || index >= self.count:
+            return .None
+        self.slots[self.slot(index)]
+
+    # The slot `offset` places after the front, wrapping at the end.
+    fn slot(self, offset: i32) -> i32:
+        (self.head + offset) % self.slots.len()
+
+    # Makes room for one more element.
+    fn reserve_one(mut self) -> void:
+        capacity := self.slots.len()
+        if self.count < capacity:
+            return
+        let grown: mut List[T?] = []
+        let index = 0
+        while index < self.count:
+            grown.append(self.slots[self.slot(index)])
+            index = index + 1
+        size := if capacity < 4: 4 else: capacity * 2
+        while grown.len() < size:
+            grown.append(.None)
+        self.slots = grown
+        self.head = 0
+
+# Front to back (r-std-collections.deque.iter).
+impl[T] Iterable[T] for Deque[T]:
+    fn iter(self) -> mut Iterator[T]:
+        version := self.version
+        let at = 0
+        Iterator::from_fn(fn() -> T?:
+            if self.version != version:
+                panic_with("iterator-invalidated", "")
+            if at >= self.count:
+                return .None
+            at = at + 1
+            self.get(at - 1)
+        )
+
+# Equal lengths and equal elements front to back, as `List`'s `Eq`
+# (r-std-collections.deque.eq); the ring layout does not matter.
+impl[T < Eq] Eq for Deque[T]:
+    fn eq(self, other: Deque[T]) -> bool:
+        if self.count != other.count:
+            return false
+        let index = 0
+        while index < self.count:
+            if self.get(index) != other.get(index):
+                return false
+            index = index + 1
+        true
+
+# The elements front to back, as `List`'s `Debug` writes them
+# (r-std-format.debug.std-types.sequences).
+impl[T < Debug] Debug for Deque[T]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        let list: mut DebugList = out.debug_list()
+        for item in self:
+            _ := list.entry(item)
+        list.finish()
+
+# A binary max-heap (spec/std/collections.md#heap), as Rust's `BinaryHeap`.
+# `items` holds the `count` elements in heap order from slot 0: each one is
+# at least as large as the two at `2 * i + 1` and `2 * i + 2`. Every later
+# slot is `.None`, since a pop cannot shrink the list.
+pub data Heap[T < Ord]:
+    items: mut List[T?]
+    count: i32
+
+impl[T < Ord] Heap[T]:
+    pub fn new() -> mut Heap[T]:
+        let items: mut List[T?] = []
+        Heap::[T] { items: items, count: 0 }
+
+    pub fn len(self) -> i32:
+        self.count
+
+    pub fn is_empty(self) -> bool:
+        self.count == 0
+
+    pub fn push(mut self, value: T) -> void:
+        if self.count < self.items.len():
+            self.items[self.count] = .Some(value)
+        else:
+            self.items.append(.Some(value))
+        self.count = self.count + 1
+        let child = self.count - 1
+        while child > 0:
+            parent := (child - 1) / 2
+            if !self.less(parent, child):
+                return
+            self.swap(parent, child)
+            child = parent
+
+    # The largest element, removed (r-std-collections.heap.pop).
+    pub fn pop(mut self) -> T?:
+        if self.count == 0:
+            return .None
+        top := self.items[0]
+        last := self.count - 1
+        self.items[0] = self.items[last]
+        self.items[last] = .None
+        self.count = last
+        let parent = 0
+        while true:
+            left := 2 * parent + 1
+            if left >= self.count:
+                return top
+            let larger = left
+            if left + 1 < self.count && self.less(left, left + 1):
+                larger = left + 1
+            if !self.less(parent, larger):
+                return top
+            self.swap(parent, larger)
+            parent = larger
+        top
+
+    pub fn peek(self) -> T?:
+        if self.count == 0:
+            return .None
+        self.items[0]
+
+    # A new list of the elements in ascending order; the heap is unchanged
+    # (r-std-collections.heap.sorted).
+    pub fn to_sorted_list(self) -> List[T]:
+        let copy: mut List[T] = []
+        let index = 0
+        while index < self.count:
+            copy.append(self.element(index))
+            index = index + 1
+        copy.sorted_by(fn(left: T, right: T) -> Ordering: left.cmp(right))
+
+    fn element(self, index: i32) -> T:
+        match self.items[index]:
+            .Some(value) => value
+            .None => panic("std.collections: a heap slot below its count is empty")
+
+    fn less(self, left: i32, right: i32) -> bool:
+        match self.element(left).cmp(self.element(right)):
+            .Less => true
+            _ => false
+
+    fn swap(mut self, left: i32, right: i32) -> void:
+        held := self.items[left]
+        self.items[left] = self.items[right]
+        self.items[right] = held
+
+# The elements in heap order, which the spec leaves unspecified
+# (r-std-format.debug.std-types.sequences).
+impl[T < Ord & Debug] Debug for Heap[T]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        let list: mut DebugList = out.debug_list()
+        let index = 0
+        while index < self.count:
+            _ := list.entry(self.element(index))
+            index = index + 1
+        list.finish()
 
 # Primitives. The compiler supplies each body (src/README.md,
 # Compiler/library boundary). `list_version` reads the structural-version

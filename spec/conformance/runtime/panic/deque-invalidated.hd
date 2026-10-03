@@ -1,0 +1,11 @@
+# test: a push while iterating a deque invalidates the iterator, so its next step panics
+# Spec std/collections Deque: std-collections.deque.invalidate (COLLECTIONS-DATES-SURFACE; task #225).
+use std.collections.Deque
+
+fn grow(queue: mut Deque[i32]) -> void:
+    for item in queue:  # panic: iterator-invalidated
+        queue.push_back(item)
+
+let queue: mut Deque[i32] = Deque::new()
+queue.push_back(1)
+grow(queue)

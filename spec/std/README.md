@@ -142,9 +142,9 @@ file of its own.
 | [`time.md`](time.md) | `std.time` | `std-time` | `Duration`, its suffixes, its arithmetic, and its `Display` text; `Timestamp + Duration`; the host trait `Clock`, `Timestamp`, `Instant`, `now`, and `sleep!`; the provider `ManualClock`; the UTC `Date`, RFC 3339 text, and `TimeParseError` |
 | [`task.md`](task.md) | `std.task` | `std-task` | the `retry!` combinator; `Backoff` and `retry_with!` |
 | [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
-| [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison; `clamp` |
+| [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison; `clamp`; `Reverse` |
 | [`hash.md`](hash.md) | `std.hash` | `std-hash` | what derived `Hash` hashes; tuple hashing; `DefaultHasher` and `hash_of` |
-| [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` methods `view` and `chunks`, the `ListView` type, and the `Map` methods `contains_key`, `keys`, and `values` |
+| [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` methods `view` and `chunks`, the `ListView` type, the `Map` methods `contains_key`, `keys`, and `values`, `Deque`, and `Heap` |
 | [`console.md`](console.md) | `std.console` | `std-console` | `eprintln`, the host trait `ConsoleInput`, and `read_line!` |
 | [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Args` and `Env`, the helpers `args` and `env`, and the providers `MapArgs` and `MapEnv` |
 | [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, the helpers `read_text!` and `write_text!`, and the provider `MemoryFs` |

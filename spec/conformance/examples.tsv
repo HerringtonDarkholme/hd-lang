@@ -670,6 +670,7 @@ std/cmp.md	1	accept	typing/valid/derived-equality.hd
 std/cmp.md	2	accept	typing/valid/derived-ordering.hd
 std/cmp.md	3	accept	typing/valid/tuple-derived-traits.hd
 std/cmp.md	4	accept	runtime/valid/cmp-clamp.hd
+std/cmp.md	5	accept	runtime/valid/cmp-reverse.hd
 std/hash.md	1	accept	typing/valid/derived-hash.hd
 std/hash.md	2	accept	typing/valid/tuple-derived-traits.hd
 std/hash.md	3	accept	runtime/valid/list-map-key.hd
@@ -682,6 +683,9 @@ std/collections.md	2	accept	runtime/valid/list-view-run.hd
 std/collections.md	3	mixed	typing/invalid/list-view-assignment.hd
 std/collections.md	4	mixed	runtime/panic/list-view-invalidated.hd
 std/collections.md	5	accept	runtime/valid/map-keys-values.hd
+std/collections.md	6	accept	runtime/valid/deque-ends.hd
+std/collections.md	7	mixed	runtime/panic/deque-invalidated.hd
+std/collections.md	8	accept	runtime/valid/heap-order.hd|runtime/valid/heap-reverse.hd
 std/console.md	1	accept	runtime/valid/eprintln-error-line.hd
 std/console.md	2	mixed	typing/invalid/eprintln-without-console.hd
 std/console.md	3	type-fragment	-

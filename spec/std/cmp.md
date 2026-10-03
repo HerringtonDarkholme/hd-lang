@@ -8,7 +8,8 @@ ordinary hd over the language tier:
 - what a derived `Eq`, `PartialOrd`, or `Ord` compares, through the
   traits' templates;
 - how tuples compare, through the traits' tuple templates;
-- the function `clamp`.
+- the function `clamp`;
+- the `Reverse[T]` wrapper.
 
 The language tier keeps what the compiler knows by name
 ([Comparison Traits](../lang/09-traits.md#comparison-traits)):
@@ -100,3 +101,19 @@ fn percent(value: i32) -> i32:
 1. r[std-cmp.clamp.decl] `std.cmp` declares `pub fn clamp[T < Ord](value: T, low: T, high: T) -> T`. Code imports it, as in `use std.cmp.clamp`.
 2. r[std-cmp.clamp.result] `clamp` returns `low` when `value` is below `low`, `high` when `value` is above `high`, and `value` otherwise.
 3. r[std-cmp.clamp.order] A `low` above `high` panics. Panic: `explicit-panic`.
+
+## Reverse
+
+`Reverse[T]` wraps a value and inverts its order, as Rust's
+`std::cmp::Reverse` does:
+
+```text
+use std.cmp.Reverse
+
+fn later_first(a: i32, b: i32) -> Ordering:
+    Reverse { value: a }.cmp(Reverse { value: b })  # .Less when a > b
+```
+
+1. r[std-cmp.reverse.decl] `std.cmp` declares `pub data Reverse[T]` with one public field, `value: T`. Code imports it, as in `use std.cmp.Reverse`.
+2. r[std-cmp.reverse.order] When `T < Ord`, `Reverse[T]` implements `Eq`, `PartialOrd`, and `Ord`, and `Reverse { value: a }.cmp(Reverse { value: b })` is `b.cmp(a)`.
+3. r[std-cmp.reverse.eq] Two `Reverse` values are equal exactly when `cmp` of their values gives `.Equal`.

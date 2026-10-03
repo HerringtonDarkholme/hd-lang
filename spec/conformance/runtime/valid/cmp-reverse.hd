@@ -1,0 +1,25 @@
+# test: Reverse inverts the order of its value, and two Reverse values are equal when their values compare equal
+# Spec std/cmp Reverse: std-cmp.reverse.decl, std-cmp.reverse.order, std-cmp.reverse.eq (COLLECTIONS-DATES-SURFACE; task #225).
+use std.cmp.Reverse
+use std.testing.{assert, assert_equal}
+
+fn later_first(a: i32, b: i32) -> Ordering:
+    Reverse { value: a }.cmp(Reverse { value: b })
+
+fn name(order: Ordering) -> string:
+    match order:
+        .Less => "less"
+        .Equal => "equal"
+        .Greater => "greater"
+
+tests:
+    it("order is inverted"):
+        assert_equal(name(later_first(2, 1)), "less", reason="the larger value is less")
+        assert_equal(name(later_first(1, 2)), "greater", reason="the smaller value is greater")
+        assert_equal(name(later_first(3, 3)), "equal", reason="equal values")
+
+    it("equality follows cmp"):
+        let left: Reverse[string] = Reverse { value: "a" }
+        let right: Reverse[string] = Reverse { value: "a" }
+        assert(left == right, reason="equal values")
+        assert_equal(left.value, "a", reason="the public field")

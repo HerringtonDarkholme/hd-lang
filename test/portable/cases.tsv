@@ -1918,3 +1918,8 @@ runtime/valid/time-date-utc.hd	runtime
 runtime/valid/time-rfc3339-text.hd	runtime
 runtime/valid/time-rfc3339-parse.hd	runtime
 runtime/valid/time-parse-errors.hd	runtime
+runtime/valid/deque-ends.hd	runtime
+runtime/panic/deque-invalidated.hd	runtime
+runtime/valid/heap-order.hd	runtime
+runtime/valid/heap-reverse.hd	runtime
+runtime/valid/cmp-reverse.hd	runtime

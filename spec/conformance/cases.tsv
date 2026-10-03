@@ -2027,3 +2027,8 @@ runtime/valid/time-date-utc.hd	runtime	accept	std/time.md#r-std-time.date.of-tim
 runtime/valid/time-rfc3339-text.hd	runtime	accept	std/time.md#r-std-time.rfc3339.text
 runtime/valid/time-rfc3339-parse.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse
 runtime/valid/time-parse-errors.hd	runtime	accept	std/time.md#r-std-time.parse-error.order
+runtime/valid/deque-ends.hd	runtime	accept	std/collections.md#r-std-collections.deque.pop
+runtime/panic/deque-invalidated.hd	runtime	panic:iterator-invalidated	std/collections.md#r-std-collections.deque.invalidate
+runtime/valid/heap-order.hd	runtime	accept	std/collections.md#r-std-collections.heap.pop
+runtime/valid/heap-reverse.hd	runtime	accept	std/collections.md#r-std-collections.heap.min
+runtime/valid/cmp-reverse.hd	runtime	accept	std/cmp.md#r-std-cmp.reverse.order

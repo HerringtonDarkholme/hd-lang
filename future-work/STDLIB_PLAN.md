@@ -7,8 +7,10 @@ part of the [Earlier Owner Decisions](#earlier-owner-decisions), spec
 pass 70 applied decisions 4 and 10, and spec pass 73 applied
 [`std.encoding`](../spec/std/encoding.md) and
 [`std.digest`](../spec/std/digest.md), and spec pass 74 applied the UTC
-[`Date` and RFC 3339 text](../spec/std/time.md#dates); every other module
-sketch below is still a proposal for the owner.
+[`Date` and RFC 3339 text](../spec/std/time.md#dates),
+[`Deque`](../spec/std/collections.md#deque), and
+[`Heap`](../spec/std/collections.md#heap); every other module sketch
+below is still a proposal for the owner.
 
 Under review: the stdlib tier ([spec/std/](../spec/std/README.md)), the
 library itself ([lib/std/](../lib/std/)), the host rules of
@@ -71,7 +73,7 @@ every feature belongs in `std`.
 | Module | In `lib/std` | Stdlib-tier spec | Notes |
 | --- | --- | --- | --- |
 | `std.text` | `string` methods (`split`, `trim`, `replace`, `find`, `lines`, `repeat`, ...), `join`, `StringBuilder`, `r` prefix, UTF-8 conversion | [text.md](../spec/std/text.md) | no `split_once`, padding, or float parsing |
-| `std.collections` | `List`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by`, `chunks`, `zip`, `view` | [collections.md](../spec/std/collections.md) | no `Set`, `Deque`, heap; `List` mutation is `append` and index set only; no `Map` methods past `get` and `remove` |
+| `std.collections` | `List`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by`, `chunks`, `zip`, `view`; `Deque`, `Heap` | [collections.md](../spec/std/collections.md) | no `Set`; `List` mutation is `append` and index set only; no `Map` methods past `get` and `remove` |
 | `std.iter` | `Iterator` with `filter`, `take`, `enumerate`, `map`, `fold`, `collect`; `FromIterator` | [iter.md](../spec/std/iter.md) | no `any`, `all`, `find`, `zip`, `chain`, `skip`, `flat_map` |
 | `std.option`, `std.result` | `map`, `and_then`, `unwrap_or`, `ok_or`, `expect`, `map_err`, `ok`, `err`, `is_*` | [option.md](../spec/std/option.md), [result.md](../spec/std/result.md) | `map` on `T?` is in [iter.md](../spec/std/iter.md#list-and-optional-map) |
 | `std.num` | numeric traits; checked, wrapping, and saturating ops, `abs_diff`, `count_ones`, and `leading_zeros` on every integer type; `is_nan`, `is_finite`; `parse_i32`, `parse_i64` | [num.md](../spec/std/num.md); the traits are language tier | no `parse_f64`, no fixed-point float text |
@@ -623,15 +625,6 @@ impl[T] T?:
 pub data Set[T < Eq & Hash]:
     entries: Map[T, void]
 
-pub data Deque[T]:
-    slots: List[T?]
-    head: i32
-    count: i32
-
-pub data Heap[T < Ord]:
-    items: List[T?]
-    count: i32
-
 pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, i32]:
     pass
 ```
@@ -640,8 +633,10 @@ pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, i32]:
 `all`, `find`, `count`, `skip`, `zip`, `chain`, `flat_map`, and
 `take_while`. `pop`, `remove_at`, and `clear` shrink a list, and `std` has
 no way to do that today, so they need one list-truncate primitive, a hook
-like `list_version`. `Set`, `Deque`, and `Heap` are plain hd over `Map` and
-`List`.
+like `list_version`. `Set` is plain hd over `Map`. Spec pass 74 applied
+`Deque` and `Heap` ([Deque](../spec/std/collections.md#deque),
+[Heap](../spec/std/collections.md#heap)); a min-heap is a heap of
+`std.cmp.Reverse` values.
 
 ### Random Numbers
 
@@ -882,7 +877,7 @@ each part in the language: `fn!() -> Result[A, E] $ R`.
 | `Config` with `ConfigProvider` | `Env` with `MapEnv`; a typed config template later | 1 |
 | `FileSystem`, `Path`, `ChildProcess` | `std.fs`, `std.path`, `std.process` helpers | 1, 2 |
 | `Cli` | `std.cli.parse_args` | 9 |
-| `HashSet`, `Chunk`, queues | `Set`, `Deque`, `Heap` | 3, 10 |
+| `HashSet`, `Chunk` | `Set` | 3 |
 
 ### Excluded
 
@@ -921,8 +916,7 @@ host also add a prototype host binding, a minimal TypeScript hook.
 | 7 | `ToJson` and `FromJson` templates; `encode`, `decode` | tier 6 | typed JSON |
 | 8 | `timeout!`, `Backoff`, `retry_with!`, `all_list!`, `map_limited!` | tier 4's `Clock`; [Retry With Backoff](../spec/std/task.md#retry-with-backoff) | robust automation |
 | 9 | `std.random` `Rng`, `Random`, `SeededRandom`; `std.cli` `parse_args`, `usage` | tier 1's `Args`; `u64` wrapping arithmetic | real command-line tools |
-| 10 | `Deque`, `Heap` | none | queues and priority queues |
-| 11 | `std.regex`: the RE2 subset, linear time, no backreferences, written in hd (about two hours) | tier 10 | filtering lines by pattern |
+| 11 | `std.regex`: the RE2 subset, linear time, no backreferences, written in hd (about two hours) | none | filtering lines by pattern |
 
 Later, blocked:
 

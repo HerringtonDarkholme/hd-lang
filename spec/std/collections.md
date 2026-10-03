@@ -7,7 +7,8 @@ in ordinary hd over the language tier:
 
 - the `List` methods `view` and `chunks`;
 - the `ListView[T]` type that `view` returns;
-- the `Map` methods `contains_key`, `keys`, and `values`.
+- the `Map` methods `contains_key`, `keys`, and `values`;
+- the double-ended queue `Deque[T]` and the max-heap `Heap[T]`.
 
 The language tier keeps what the compiler knows about a list
 ([List Indexing](../lang/05-expressions.md#list-indexing),
@@ -129,3 +130,120 @@ fn summary(stock: Map[string, i32]) -> string:
 4. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
 
 See also: [Map Key Types](../lang/04-type-system.md#map-key-types).
+
+## Deque
+
+A `Deque[T]` is a double-ended queue: a sequence that grows and shrinks
+at both ends.
+
+```text
+use std.collections.Deque
+
+fn rotate(items: List[i32]) -> List[i32]:
+    let queue: mut Deque[i32] = Deque::new()
+    for item in items:
+        queue.push_back(item)
+    match queue.pop_front():
+        .Some(first) => queue.push_back(first)
+        .None => pass
+    let rotated: mut List[i32] = []
+    for item in queue:
+        rotated.append(item)
+    rotated  # [2, 3, 1] for [1, 2, 3]
+```
+
+`Deque[T]` has this surface:
+
+| Item | Signature |
+| --- | --- |
+| `new` | `Deque::new() -> mut Deque[T]` |
+| `len`, `is_empty` | `len(self) -> i32`; `is_empty(self) -> bool` |
+| `push_front`, `push_back` | `push_front(mut self, value: T) -> void`, and the same for `push_back` |
+| `pop_front`, `pop_back` | `pop_front(mut self) -> T?`, and the same for `pop_back` |
+| `front`, `back` | `front(self) -> T?`, and the same for `back` |
+| `get` | `get(self, index: i32) -> T?` |
+| iteration | `Iterable[T]` |
+| equality | `Eq` when `T < Eq` |
+| `Debug` | when `T < Debug` |
+
+1. r[std-collections.deque.decl] `std.collections` declares `Deque[T]` with private fields, the surface in the table above, and no other method or trait implementation. Code imports it, as in `use std.collections.Deque`.
+2. r[std-collections.deque.order] A deque holds a sequence of elements from its front to its back. `new` returns an empty deque.
+3. r[std-collections.deque.len] `len` returns the number of elements, and `is_empty` is true exactly when that number is 0.
+4. r[std-collections.deque.push] `push_front(value)` adds `value` before the front, and `push_back(value)` adds it after the back.
+5. r[std-collections.deque.pop] `pop_front` removes the front element and returns it in `.Some`, and `pop_back` does the same at the back. On an empty deque, each returns `.None` and changes nothing.
+6. r[std-collections.deque.ends] `front` and `back` return the front and the back element without removing it, or `.None` when the deque is empty.
+7. r[std-collections.deque.get] `get(i)` returns the element `i` places from the front in `.Some`, so `get(0)` is the front. An `i` that is negative or not less than `len` gives `.None`.
+8. r[std-collections.deque.iter] Iterating a deque yields its elements from front to back, each as `T`.
+9. r[std-collections.deque.invalidate] A push, or a pop that removes an element, invalidates every iterator taken from the deque. The next `next` call of such an iterator is a checked runtime panic. Panic: `iterator-invalidated`.
+10. r[std-collections.deque.eq] Two deques are equal when they have the same length and equal elements in the same order from the front, as two lists are.
+
+```text
+use std.collections.Deque
+
+fn grow(queue: mut Deque[i32]) -> void:
+    for item in queue:  # panics with iterator-invalidated after the push
+        queue.push_back(item)
+```
+
+> **Note.** `lib/std` builds a deque as a ring buffer over a `List[T?]`.
+> A push into a full buffer first copies the elements into a buffer
+> twice its size, so each push and pop takes amortized constant time,
+> and `get` takes constant time.
+
+> **Why.** `get` returns an optional, as Rust's `VecDeque::get` does: a
+> queue's length changes often, so a missing element is an expected
+> case. A deque fails fast during iteration, as a list does, since a push
+> can move every element.
+
+## Heap
+
+A `Heap[T]` is a binary max-heap, as Rust's `BinaryHeap` is: `pop`
+removes its largest element.
+
+```text
+use std.cmp.Reverse
+use std.collections.Heap
+
+fn largest(items: List[i32]) -> i32?:
+    let heap: mut Heap[i32] = Heap::new()
+    for item in items:
+        heap.push(item)
+    heap.pop()  # .Some(9) for [5, 9, 2]
+
+fn smallest(items: List[i32]) -> i32?:
+    let heap: mut Heap[Reverse[i32]] = Heap::new()
+    for item in items:
+        heap.push(Reverse { value: item })
+    heap.pop().map(fn(top: Reverse[i32]) -> i32: top.value)  # .Some(2) for [5, 9, 2]
+```
+
+`Heap[T < Ord]` has this surface:
+
+| Item | Signature |
+| --- | --- |
+| `new` | `Heap::new() -> mut Heap[T]` |
+| `len`, `is_empty` | `len(self) -> i32`; `is_empty(self) -> bool` |
+| `push` | `push(mut self, value: T) -> void` |
+| `pop` | `pop(mut self) -> T?` |
+| `peek` | `peek(self) -> T?` |
+| `to_sorted_list` | `to_sorted_list(self) -> List[T]` |
+| `Debug` | when `T < Debug` |
+
+1. r[std-collections.heap.decl] `std.collections` declares `Heap[T < Ord]` with private fields, the surface in the table above, and no other method or trait implementation. Code imports it, as in `use std.collections.Heap`.
+2. r[std-collections.heap.len] `new` returns an empty heap. `len` returns the number of elements, and `is_empty` is true exactly when that number is 0.
+3. r[std-collections.heap.push] `push(value)` adds `value` to the heap.
+4. r[std-collections.heap.pop] `pop` removes a largest element by `Ord` and returns it in `.Some`. On an empty heap, it returns `.None`.
+5. r[std-collections.heap.peek] `peek` returns a largest element without removing it, or `.None` when the heap is empty.
+6. r[std-collections.heap.ties] When several elements are equal by `cmp`, which of them `pop` and `peek` return is not specified.
+7. r[std-collections.heap.sorted] `to_sorted_list` returns a new list of every element in ascending order by `Ord`, and leaves the heap unchanged.
+8. r[std-collections.heap.min] `std` has no separate min-heap: a `Heap[Reverse[T]]` pops the smallest `T` first, by [`std-cmp.reverse.order`](cmp.md#r-std-cmp.reverse.order).
+
+> **Note.** `lib/std` keeps the elements in a `List[T?]` in heap order,
+> so `push` and `pop` take logarithmic time and `peek` constant time.
+
+> **Why.** `to_sorted_list` copies, as `sorted_by` does, because hd has no
+> consuming methods; its ascending order is that of Rust's
+> `into_sorted_vec`. A heap has no `Eq` and no iteration, as in Rust:
+> two heaps with the same elements may hold them in different orders.
+
+See also: [Reverse](cmp.md#reverse), [Debug For Standard Types](format.md#debug-for-standard-types).
