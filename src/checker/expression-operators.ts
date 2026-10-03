@@ -55,6 +55,21 @@ const UNARY_OPERATOR_TRAITS: Readonly<Record<string, readonly [string, string]>>
   "~": ["Not", "not"],
 };
 
+/** Numeric operators whose result has the left operand's type. */
+const NUMERIC_RESULT_OPERATORS = new Set([
+  "+",
+  "-",
+  "*",
+  "/",
+  "%",
+  "&",
+  "|",
+  "^",
+  "<<",
+  ">>",
+  "**",
+]);
+
 /** A primitive operand type, on which an operator never searches a trait (r-expr.op.primitive.types). */
 function isPrimitiveOperand(type: ValueType): boolean {
   const readonly = readonlyType(type);
@@ -275,18 +290,18 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         // A non-primitive left operand calls its operator trait; an untyped
         // literal on the left keeps its default type (r-expr.op.left-literal).
         const operatorTrait = BINARY_OPERATOR_TRAITS[expression.operator];
+        const leftSource = expression.left;
         let checkedLeft: HirExpression | undefined;
-        if (
-          operatorTrait &&
-          !isIntegerLiteral(expression.left) &&
-          !isFloatLiteral(expression.left)
-        ) {
-          checkedLeft = this.checkExpression(expression.left);
+        if (operatorTrait && !isIntegerLiteral(leftSource) && !isFloatLiteral(leftSource)) {
+          checkedLeft = this.checkExpression(
+            leftSource,
+            numericLeftExpected(expression, _expected),
+          );
           if (!isPrimitiveOperand(checkedLeft.type))
             return this.operatorTraitCall(
               operatorTrait,
               expression.operator,
-              expression.left,
+              leftSource,
               checkedLeft,
               expression.right,
               expression.span,
@@ -662,31 +677,29 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     const arithmetic = ["+", "-", "*", "/", "%", "&", "|", "^"].includes(expression.operator);
     const numeric =
       arithmetic || ["==", "!=", "<", "<=", ">", ">=", "**"].includes(expression.operator);
-    const outer = arithmetic ? integerLiteralTarget(expected) : undefined;
-    const outerFloat = arithmetic ? floatLiteralTarget(expected) : undefined;
+    const resultTyped = NUMERIC_RESULT_OPERATORS.has(expression.operator);
+    const outer = resultTyped ? integerLiteralTarget(expected) : undefined;
+    const outerFloat = resultTyped ? floatLiteralTarget(expected) : undefined;
     const leftLiteral = isIntegerLiteral(expression.left);
-    const rightLiteral = isIntegerLiteral(expression.right);
     const leftFloat = isFloatLiteral(expression.left);
-    const rightFloat = isFloatLiteral(expression.right);
-    let left =
-      checkedLeft ??
-      this.checkExpression(
-        expression.left,
-        leftLiteral ? outer : leftFloat ? outerFloat : undefined,
-      );
+    const leftContext = resultTyped
+      ? contextualNumericExpected(expression.left, expected)
+      : undefined;
+    let left = checkedLeft ?? this.checkExpression(expression.left, leftContext);
     // A floating-point literal exponent takes the base's type
     // (r-expr.power.float.same-type), and a shift count is a `u32`
     // (r-expr.shift.count-literal).
     const shift = expression.operator === "<<" || expression.operator === ">>";
+    const contextualRight = contextualNumericKind(expression.right);
     const rightTarget = shift
       ? "u32"
       : expression.operator === "**"
-        ? rightFloat && left.type === "f32"
+        ? contextualRight === "float" && left.type === "f32"
           ? "f32"
           : undefined
-        : rightLiteral
+        : contextualRight === "integer"
           ? (integerTarget(left.type) ?? outer)
-          : rightFloat
+          : contextualRight === "float"
             ? left.type === "f32"
               ? "f32"
               : outerFloat
@@ -919,6 +932,60 @@ function isIntegerLiteral(expression: Expression): boolean {
     expression.operator === "-" &&
     expression.operand.kind === "integer"
   );
+}
+
+type ContextualNumericKind = "integer" | "float";
+const CONTEXTUAL_NUMERIC_KINDS = new WeakMap<Expression, ContextualNumericKind | null>();
+
+/**
+ * The unsuffixed numeric kind at the left edge of a built-in operator tree.
+ *
+ * A typed value on that edge already supplies the context for literals to its
+ * right. Stopping there also keeps an expected result from participating in
+ * trait-operator selection. Suffixed literals are calls in the AST and are
+ * therefore intentionally absent.
+ */
+function contextualNumericKind(expression: Expression): ContextualNumericKind | undefined {
+  const cached = CONTEXTUAL_NUMERIC_KINDS.get(expression);
+  if (cached !== undefined) return cached ?? undefined;
+  const kind =
+    expression.kind === "integer"
+      ? "integer"
+      : expression.kind === "float"
+        ? "float"
+        : expression.kind === "unary" &&
+            (expression.operator === "+" ||
+              expression.operator === "-" ||
+              expression.operator === "~")
+          ? contextualNumericKind(expression.operand)
+          : expression.kind === "binary" && NUMERIC_RESULT_OPERATORS.has(expression.operator)
+            ? contextualNumericKind(expression.left)
+            : undefined;
+  CONTEXTUAL_NUMERIC_KINDS.set(expression, kind ?? null);
+  return kind;
+}
+
+/** The expected type that can choose the unsuffixed literals in `expression`. */
+function contextualNumericExpected(
+  expression: Expression,
+  expected: ValueType | undefined,
+): ValueType | undefined {
+  const kind = contextualNumericKind(expression);
+  return kind === "integer"
+    ? integerLiteralTarget(expected)
+    : kind === "float"
+      ? floatLiteralTarget(expected)
+      : undefined;
+}
+
+/** Context passed through the eager left check used to choose primitive or trait dispatch. */
+function numericLeftExpected(
+  expression: Extract<Expression, { kind: "binary" }>,
+  expected: ValueType | undefined,
+): ValueType | undefined {
+  return NUMERIC_RESULT_OPERATORS.has(expression.operator)
+    ? contextualNumericExpected(expression.left, expected)
+    : undefined;
 }
 
 function isLiteralExponent(expression: Expression): boolean {
