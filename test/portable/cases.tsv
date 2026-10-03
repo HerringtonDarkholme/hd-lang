@@ -1883,3 +1883,12 @@ runtime/valid/num-abs-diff.hd	runtime
 typing/invalid/num-abs-diff-unsigned.hd	type
 runtime/valid/num-is-nan.hd	runtime
 runtime/valid/num-parse-integers.hd	runtime
+runtime/valid/option-tests-conversions.hd	runtime
+runtime/panic/option-expect-none.hd	runtime
+runtime/valid/result-map.hd	runtime
+runtime/valid/result-tests-conversions.hd	runtime
+runtime/panic/result-expect-err.hd	runtime
+runtime/valid/num-saturating.hd	runtime
+runtime/valid/num-every-width.hd	runtime
+runtime/valid/num-bit-counts.hd	runtime
+runtime/valid/num-is-finite.hd	runtime

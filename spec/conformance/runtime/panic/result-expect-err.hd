@@ -1,0 +1,10 @@
+# test: expect on Err panics with explicit-panic
+# Spec std/result Variant Tests And Conversions: std-result.expect.panic (batch 68, STD-HELPERS-KEEP; task #219).
+use std.num.parse_i32
+
+fn configured_port(text: string) -> i32:
+    parse_i32(text).expect("the configured port is a number")  # panic: explicit-panic
+
+tests:
+    it("panics on Err"):
+        _ := configured_port("eighty")

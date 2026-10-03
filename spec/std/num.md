@@ -5,9 +5,11 @@ Status: standard library specification draft.
 This chapter defines the part of `std.num` that `lib/std` writes in
 ordinary hd over the language tier:
 
-- the checked and wrapping integer methods, which make overflow explicit;
+- the checked, wrapping, and saturating integer methods, which make
+  overflow explicit;
 - `abs_diff`, the distance between two integers;
-- `is_nan` on `f64`;
+- the bit counts `count_ones` and `leading_zeros`;
+- `is_nan` and `is_finite` on `f64`;
 - integer parsing: `parse_i32`, `parse_i64`, and `ParseNumberError`.
 
 The language tier keeps what the compiler knows by name:
@@ -35,7 +37,8 @@ fn total(prices: List[i64]) -> i64?:
     .Some(sum)
 ```
 
-In this table and the next, `N` is `i32` or `i64`.
+In this chapter, `N` is any integer type: `i8`, `i16`, `i32`, `i64`, `u8`,
+`u16`, `u32`, or `u64`.
 
 | Rule | Method | Result |
 | --- | --- | --- |
@@ -44,9 +47,12 @@ In this table and the next, `N` is `i32` or `i64`.
 | r[std-num.checked.mul] `checked_mul` | `fn checked_mul(self, other: N) -> N?` | `.Some` of the exact product when `N` holds it, and `.None` otherwise |
 | r[std-num.checked.div] `checked_div` | `fn checked_div(self, other: N) -> N?` | `.Some(self / other)` when `other` is not zero and `N` holds the quotient, and `.None` otherwise |
 
-1. r[std-num.methods.types] `std.num` declares the checked, wrapping, and `abs_diff` methods as inherent methods of `i32` and `i64`, which need no `use`.
+1. r[std-num.methods.every-width] `std.num` declares the checked, wrapping, saturating, `abs_diff`, and bit-count methods as inherent methods of every integer type, which need no `use`.
 2. r[std-num.checked.no-panic] A checked method never panics.
 3. r[std-num.checked.div.cases] `checked_div` truncates toward zero, as `/` does. It returns `.None` for a zero divisor, and for the minimum value divided by `-1`.
+
+> **Note.** An unsigned `N` holds no value below zero, so its `checked_sub`
+> returns `.None` whenever `other` is greater than `self`.
 
 ## Wrapping Arithmetic
 
@@ -65,6 +71,23 @@ fn next_ticket(counter: i32) -> i32:
 1. r[std-num.wrapping.result] A value wrapped to `N` is the low bits of its two's-complement form, read as `N`, as an integer cast reads them by [`types.cast.wrap`](../lang/04-type-system.md#r-types.cast.wrap).
 2. r[std-num.wrapping.no-panic] A wrapping method never panics. So the largest `i32` plus one, wrapped, is the smallest `i32`.
 
+## Saturating Arithmetic
+
+A saturating method stops at the nearest bound of `N`:
+
+```text
+fn remaining(stock: u32, sold: u32) -> u32:
+    stock.saturating_sub(sold)
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-num.saturating.add] `saturating_add` | `fn saturating_add(self, other: N) -> N` | the exact sum, saturated to `N` |
+| r[std-num.saturating.sub] `saturating_sub` | `fn saturating_sub(self, other: N) -> N` | the exact difference, saturated to `N` |
+
+1. r[std-num.saturating.result] A value saturated to `N` is the exact result when `N` holds it. Above the range of `N` it is the largest `N`, and below it the smallest.
+2. r[std-num.saturating.no-panic] A saturating method never panics. So a `u32` zero minus one, saturated, is zero.
+
 ## Absolute Difference
 
 `abs_diff` returns the distance between two integers:
@@ -76,8 +99,14 @@ fn gap(a: i32, b: i32) -> u32:
 
 | Rule | Method |
 | --- | --- |
+| r[std-num.abs-diff.i8] On `i8` | `fn abs_diff(self, other: i8) -> u8` |
+| r[std-num.abs-diff.i16] On `i16` | `fn abs_diff(self, other: i16) -> u16` |
 | r[std-num.abs-diff.i32] On `i32` | `fn abs_diff(self, other: i32) -> u32` |
 | r[std-num.abs-diff.i64] On `i64` | `fn abs_diff(self, other: i64) -> u64` |
+| r[std-num.abs-diff.u8] On `u8` | `fn abs_diff(self, other: u8) -> u8` |
+| r[std-num.abs-diff.u16] On `u16` | `fn abs_diff(self, other: u16) -> u16` |
+| r[std-num.abs-diff.u32] On `u32` | `fn abs_diff(self, other: u32) -> u32` |
+| r[std-num.abs-diff.u64] On `u64` | `fn abs_diff(self, other: u64) -> u64` |
 
 1. r[std-num.abs-diff] `a.abs_diff(b)` returns the distance between `a` and `b` as the unsigned type of the same width.
 2. r[std-num.abs-diff.no-panic] It never panics, since that unsigned type holds every distance, including the one between the minimum and the maximum.
@@ -92,16 +121,41 @@ fn close(a: i32, b: i32, limit: i32) -> bool:
 > not fit in `i32`, so a signed result would have to panic. Rust's
 > `i32::abs_diff` returns `u32` for the same reason.
 
+## Bit Counts
+
+The bit counts read the two's-complement form of an integer:
+
+```text
+fn flags_set(flags: u8) -> i32:
+    flags.count_ones()
+
+fn bit_length(value: u32) -> i32:
+    32 - value.leading_zeros()
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-num.bits.count-ones] `count_ones` | `fn count_ones(self) -> i32` | the number of 1 bits in `self` |
+| r[std-num.bits.leading-zeros] `leading_zeros` | `fn leading_zeros(self) -> i32` | the number of 0 bits above the highest 1 bit of `self`, which is the bit width of `N` when `self` is zero |
+
+1. r[std-num.bits.signed] A signed value counts its two's-complement bits, so `-1` as `i8` has 8 ones, and a negative value has no leading zeros.
+2. r[std-num.bits.no-panic] A bit count never panics.
+
 ## Floating-Point Classification
 
-`is_nan` tells NaN apart, since NaN is unequal to itself:
+`is_nan` tells NaN apart, since NaN is unequal to itself, and `is_finite`
+tells a NaN or an infinity apart from an ordinary value:
 
 ```text
 fn usable(ratio: f64) -> bool:
     !ratio.is_nan()
+
+fn bounded(ratio: f64) -> bool:
+    ratio.is_finite()
 ```
 
 1. r[std-num.is-nan] `std.num` declares `fn is_nan(self) -> bool` on `f64`. It returns `true` exactly when `self` is a NaN.
+2. r[std-num.is-finite] `std.num` declares `fn is_finite(self) -> bool` on `f64`. It returns `true` exactly when `self` is neither a NaN nor an infinity.
 
 ## Integer Parsing
 

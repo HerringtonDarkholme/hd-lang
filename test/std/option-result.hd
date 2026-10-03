@@ -25,14 +25,15 @@ tests:
         let absent: i32? = .None
         _ := absent.expect("missing value")
 
-    it("result map_ok and map_err"):
-        assert_equal(half(4).map_ok(fn(value: i32) -> string: "$value"), .Ok("2"), reason="map_ok")
+    it("result map and map_err"):
+        assert_equal(half(4).map(fn(value: i32) -> string: "$value"), .Ok("2"), reason="map")
         assert_equal(half(3).map_err(fn(error: string) -> i32: error.len()), .Err(3), reason="map_err")
 
-    it("result ok, err, is_ok, unwrap_or, expect"):
+    it("result ok, err, is_ok, is_err, unwrap_or, expect"):
         assert_equal(half(4).ok(), .Some(2), reason="ok keeps the value")
         assert_equal(half(3).ok(), .None, reason="ok drops the error")
         assert_equal(half(3).err(), .Some("odd"), reason="err keeps the error")
         assert(half(4).is_ok() && !half(3).is_ok(), reason="is_ok tests the variant")
+        assert(half(3).is_err() && !half(4).is_err(), reason="is_err tests the variant")
         assert_equal(half(3).unwrap_or(-1), -1, reason="fallback")
         assert_equal(half(8).expect("even"), 4, reason="expect unwraps")

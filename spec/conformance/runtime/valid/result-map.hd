@@ -1,0 +1,32 @@
+# test: Result map transforms the Ok value, once, and keeps an Err
+# Spec std/result Mapping The Value: std-result.map, std-result.map.once (batch 68, STD-HELPERS-KEEP; task #219).
+use std.num.{parse_i32, ParseNumberError}
+use std.testing.assert_equal
+
+fn doubled(text: string) -> Result[i32, ParseNumberError]:
+    parse_i32(text).map(fn(value: i32) -> i32: value * 2)
+
+fn describe(result: Result[i32, ParseNumberError]) -> string:
+    match result:
+        .Ok(value) => "ok ${value}"
+        .Err(error) => "error: ${error}"
+
+tests:
+    it("map transforms Ok and keeps Err"):
+        assert_equal(describe(doubled("21")), "ok 42", reason="Ok")
+        assert_equal(describe(doubled("")), "error: ${ParseNumberError.Empty}", reason="Err passes through")
+
+    it("map calls the transform at most once"):
+        let calls = 0
+        let good: Result[i32, string] = .Ok(4)
+        let bad: Result[i32, string] = .Err("bad")
+        text := good.map(fn(value: i32) -> string:
+            calls = calls + 1
+            "$value"
+        )
+        assert_equal(text, .Ok("4"), reason="the transform's result")
+        _ := bad.map(fn(value: i32) -> string:
+            calls = calls + 1
+            "$value"
+        )
+        assert_equal(calls, 1, reason="once for Ok, never for Err")

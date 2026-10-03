@@ -1,0 +1,20 @@
+# fixture-runtime-profile: pending-write
+# test: block_on keeps polling a stored suspension through a pending host write, and returns its result
+# Spec 11 Suspension: req.drive.block-on (batch 68, PENDING-WRITE-PROFILE; task #219).
+# The stored write_line! call is pending on its first poll and completes on the next.
+use std.task.block_on
+use std.testing.assert
+
+fn write!(text: string) -> Result[void, ConsoleError] $ Console:
+    let mut console = $.use(Console)
+    console.write_line!(text)
+
+fn written(text: string) -> bool $ Console:
+    let pending: mut Suspend[Result[void, ConsoleError]] = write(text)
+    match block_on(pending):
+        .Ok(_) => true
+        .Err(_) => false
+
+pub fn main() -> void $ Console:
+    assert(written("first"), reason="block_on returns the completed write's result")
+    assert(written("second"), reason="a second stored write completes too")

@@ -150,9 +150,9 @@ file of its own.
 | [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, and the helpers `read_text!` and `write_text!` |
 | [`path.md`](path.md) | `std.path` | `std-path` | the `Path` newtype |
 | [`random.md`](random.md) | `std.random` | `std-random` | the host trait `Random` |
-| [`option.md`](option.md) | `std.option` | `std-option` | the methods `and_then` and `unwrap_or` of `T?` |
-| [`result.md`](result.md) | `std.result` | `std-result` | the methods `and_then`, `map_err`, and `unwrap_or` of `Result[T, E]` |
-| [`num.md`](num.md) | `std.num` | `std-num` | checked and wrapping integer methods, `abs_diff`, `is_nan`, and integer parsing with `ParseNumberError` |
+| [`option.md`](option.md) | `std.option` | `std-option` | the methods `and_then`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, and `expect` of `T?` |
+| [`result.md`](result.md) | `std.result` | `std-result` | the methods `and_then`, `map_err`, `unwrap_or`, `map`, `ok`, `err`, `is_ok`, `is_err`, and `expect` of `Result[T, E]` |
+| [`num.md`](num.md) | `std.num` | `std-num` | checked, wrapping, and saturating integer methods, `abs_diff`, and the bit counts on every integer type; `is_nan` and `is_finite`; integer parsing with `ParseNumberError` |
 
 ## Glossary
 

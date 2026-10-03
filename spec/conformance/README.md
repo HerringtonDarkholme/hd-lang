@@ -320,6 +320,10 @@ mutable when the trait has a `mut self` method, readonly otherwise.
     second `close`, returns `.Err(ResourceError.Disposed)` and must not trap.
 - `pending-gate` implements the fixture's
   `trait Gate: fn wait!(self) -> void`. Every poll of `wait!` stays pending.
+- `pending-write` implements the prelude `Console`, as `console` does,
+  except that each `write_line!(text)` call is pending on its first poll.
+  Its second poll writes the line as `console` does, and completes with
+  `.Ok(())`.
 - `misbehaving-host` implements the fixture's
   `trait Gauge: fn level(self) -> u8` with a host that breaks its contract.
   Every call of `level` returns the integer 300, which no `u8` holds, so

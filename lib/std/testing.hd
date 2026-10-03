@@ -91,10 +91,13 @@ impl Choices:
 
     # A recorded draw from `lo` to `hi`. A range wider than `i64` picks a
     # half first.
+    # Callers pass `lo <= hi`, so `hi - lo` overflows only when `lo` is
+    # negative and `hi` is past the largest `i64` plus `lo`.
     fn between(mut self, lo: i64, hi: i64) -> i64:
-        match hi.checked_sub(lo):
-            .Some(width) => lo + self.next(width)
-            .None => if self.next(1) == 0: self.between(lo, -1) else: self.between(0, hi)
+        let largest: i64 = 9223372036854775807
+        if lo >= 0 || hi <= largest + lo:
+            return lo + self.next(hi - lo)
+        if self.next(1) == 0: self.between(lo, -1) else: self.between(0, hi)
 
     # An integer from `lo` to `hi`; the simplest is 0, or the bound nearest 0.
     pub fn int[N < Integer](mut self, lo: N, hi: N) -> N:

@@ -1,0 +1,29 @@
+# test: count_ones and leading_zeros read the two's-complement bits of every integer width
+# Spec std/num Bit Counts: std-num.bits.count-ones, std-num.bits.leading-zeros, std-num.bits.signed (batch 68, STD-HELPERS-KEEP and INT-WIDTHS; task #219).
+use std.testing.assert_equal
+
+fn flags_set(flags: u8) -> i32:
+    flags.count_ones()
+
+fn bit_length(value: u32) -> i32:
+    32 - value.leading_zeros()
+
+tests:
+    it("count_ones"):
+        assert_equal(flags_set(0), 0, reason="no bits")
+        assert_equal(flags_set(255), 8, reason="every u8 bit")
+        assert_equal(7.count_ones(), 3, reason="i32")
+        let minus_one: i8 = -1
+        assert_equal(minus_one.count_ones(), 8, reason="every i8 bit of -1")
+        let low: i64 = -9223372036854775807 - 1
+        assert_equal(low.count_ones(), 1, reason="the i64 minimum is the sign bit alone")
+
+    it("leading_zeros"):
+        assert_equal(bit_length(0), 0, reason="zero has no bits")
+        assert_equal(bit_length(1024), 11, reason="2 to the tenth")
+        assert_equal(1.leading_zeros(), 31, reason="i32")
+        assert_equal((-1).leading_zeros(), 0, reason="a negative value")
+        let zero: u16 = 0
+        assert_equal(zero.leading_zeros(), 16, reason="zero gives the bit width")
+        let one: u64 = 1
+        assert_equal(one.leading_zeros(), 63, reason="u64")

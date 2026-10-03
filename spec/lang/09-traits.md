@@ -1581,7 +1581,7 @@ pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self
 1. r[trait.num.module] `std.num` declares `Num`, `Integer`, and `Float`, with the supertraits in the table above.
 2. r[trait.num.sealed] The three traits are sealed. They stand for the built-in primitive number types only, and only the standard library implements them.
 3. r[trait.num.not-newtypes] A newtype over a number, such as `type Meters(i64)`, and a library number type, such as a `BigInt`, are not `Num`. They implement the operator traits they need by hand.
-4. r[trait.num.members] `Num` declares `zero`, `one`, and `from_i64`. `Integer` and `Float` may declare further library methods, such as `checked_add` and `is_nan`, which this specification does not list.
+4. r[trait.num.members.std] `Num` declares `zero`, `one`, and `from_i64`. The other numeric methods, such as `checked_add` and `is_nan`, are stdlib-tier inherent methods of the number types.
 5. r[trait.num.zero-one] `T::zero()` and `T::one()` are the values 0 and 1 of `T`. A numeric literal never has a type parameter's type, so generic code builds constants from these functions.
 6. r[trait.num.from-i64-checked] `T::from_i64(n)` is checked. For an integer type `T`, it returns `n` as a `T` when `T` can hold it, and otherwise panics with `integer-overflow`. A floating-point type takes the nearest value.
 7. r[trait.num.from-i64-cast] A [numeric cast](04-type-system.md#numeric-casts) `T(n)` stays the way to wrap.
@@ -1627,6 +1627,9 @@ impl Num for Cents:  # error: sealed-trait-implementation
     fn one() -> Cents: Cents { value: 1 }
     fn from_i64(n: i64) -> Cents: Cents { value: n }
 ```
+
+> **Note.** The stdlib chapter [Num](../std/num.md) specifies those
+> methods, such as `checked_add` on every integer type and `is_nan` on `f64`.
 
 > **Why.** Sealing keeps the families to types whose operators the compiler
 > knows. `zero` and `one` replace polymorphic literals, the simpler model of

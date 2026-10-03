@@ -1,6 +1,6 @@
 # std.num: the numeric traits, integer arithmetic variants, and parsing.
 # Overflow is checked by default; the arithmetic methods make the other
-# behaviors explicit. They are declared for `i32` and `i64` only.
+# behaviors explicit. They are declared for every integer width.
 use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
 
 # The numeric traits (spec/lang/09-traits.md#numeric-traits). They are sealed:
@@ -106,160 +106,137 @@ impl Display for ParseNumberError:
             .InvalidDigit(position) => "invalid digit at position $position"
             .OutOfRange => "number out of range for its type"
 
-impl i32:
-    pub fn checked_add(self, other: i32) -> i32?:
-        if other > 0 && self > 2147483647 - other:
+# The integer methods (spec/std/num.md), written once for every integer
+# width by r-trait.target.numeric-family. Generic code has no literals or
+# casts, so the bounds come from `int_min` and `int_max`. Other std code
+# does not call them: in the prototype, each concrete type a std function
+# calls them with adds dictionary wrappers to every program.
+impl[N < Integer] N:
+    pub fn checked_add(self, other: N) -> N?:
+        zero := N::zero()
+        if other > zero && self > int_max::[N]() - other:
             return .None
-        if other < 0 && self < (-2147483647 - 1) - other:
+        if other < zero && self < int_min::[N]() - other:
             return .None
         .Some(self + other)
 
-    pub fn checked_sub(self, other: i32) -> i32?:
-        if other > 0 && self < (-2147483647 - 1) + other:
+    pub fn checked_sub(self, other: N) -> N?:
+        zero := N::zero()
+        if other > zero && self < int_min::[N]() + other:
             return .None
-        if other < 0 && self > 2147483647 + other:
+        if other < zero && self > int_max::[N]() + other:
             return .None
         .Some(self - other)
 
-    pub fn checked_mul(self, other: i32) -> i32?:
-        if self == 0 || other == 0:
-            return .Some(0)
+    pub fn checked_mul(self, other: N) -> N?:
+        zero := N::zero()
+        if self == zero || other == zero:
+            return .Some(zero)
+        lowest := int_min::[N]()
+        highest := int_max::[N]()
         let overflows = false
-        if self > 0:
-            overflows = if other > 0: self > 2147483647 / other else: other < (-2147483647 - 1) / self
+        if self > zero:
+            overflows = if other > zero: self > highest / other else: other < lowest / self
         else:
-            overflows = if other > 0: self < (-2147483647 - 1) / other else: other < 2147483647 / self
+            overflows = if other > zero: self < lowest / other else: other < highest / self
         if overflows: .None else: .Some(self * other)
 
-    pub fn checked_div(self, other: i32) -> i32?:
-        if other == 0 || (self == (-2147483647 - 1) && other == -1):
+    pub fn checked_div(self, other: N) -> N?:
+        zero := N::zero()
+        if other == zero:
+            return .None
+        # `~zero` is -1 in a signed type, and the minimum over -1 overflows.
+        minus_one := ~zero
+        if minus_one < zero && other == minus_one && self == int_min::[N]():
             return .None
         .Some(self / other)
 
-    # Two's-complement wrapping: an overflowing sum moves by 2^32.
-    pub fn wrapping_add(self, other: i32) -> i32:
+    # Fixed-width addition by carries: `<<` drops the carry out of the top
+    # bit, so the sum keeps the low bits of the exact result.
+    pub fn wrapping_add(self, other: N) -> N:
+        zero := N::zero()
+        let sum = self
+        let carry = other
+        while carry != zero:
+            next := (sum & carry) << 1
+            sum = sum ^ carry
+            carry = next
+        sum
+
+    # `~other + 1`, wrapped, is the two's-complement negation of `other`.
+    pub fn wrapping_sub(self, other: N) -> N:
+        self.wrapping_add((~other).wrapping_add(N::one()))
+
+    pub fn saturating_add(self, other: N) -> N:
         match self.checked_add(other):
             .Some(sum) => sum
-            .None =>
-                if other > 0: (self + (-2147483647 - 1)) + (other + (-2147483647 - 1)) else: (self - (-2147483647 - 1)) + (other - (-2147483647 - 1))
+            .None => if other > N::zero(): int_max::[N]() else: int_min::[N]()
 
-    pub fn wrapping_sub(self, other: i32) -> i32:
-        if other == (-2147483647 - 1): self.wrapping_add((-2147483647 - 1)) else: self.wrapping_add(-other)
-
-    pub fn saturating_add(self, other: i32) -> i32:
-        match self.checked_add(other):
-            .Some(sum) => sum
-            .None => if other > 0: 2147483647 else: (-2147483647 - 1)
-
-    pub fn saturating_sub(self, other: i32) -> i32:
+    pub fn saturating_sub(self, other: N) -> N:
         match self.checked_sub(other):
             .Some(difference) => difference
-            .None => if other > 0: (-2147483647 - 1) else: 2147483647
+            .None => if other > N::zero(): int_min::[N]() else: int_max::[N]()
 
-    # The distance as the unsigned type of the same width, which always
-    # holds it (spec/std/num.md#absolute-difference). `i64` holds the exact
-    # difference, and the cast keeps it.
+    pub fn count_ones(self) -> i32:
+        zero := N::zero()
+        let count = 0
+        let bit = N::one()
+        while bit != zero:
+            if (self & bit) != zero:
+                count = count + 1
+            bit = bit << 1
+        count
+
+    # Read from the low bit up: a set bit resets the count of zeros above it.
+    pub fn leading_zeros(self) -> i32:
+        zero := N::zero()
+        let zeros = 0
+        let bit = N::one()
+        while bit != zero:
+            zeros = if (self & bit) != zero: 0 else: zeros + 1
+            bit = bit << 1
+        zeros
+
+# `abs_diff` returns the unsigned type of the same width, a mapping that
+# `Integer` cannot name, so each width declares it. A narrow signed
+# difference is exact in `i64`, and the cast keeps the distance.
+impl i8:
+    pub fn abs_diff(self, other: i8) -> u8:
+        if self > other: u8(i64(self) - i64(other)) else: u8(i64(other) - i64(self))
+
+impl i16:
+    pub fn abs_diff(self, other: i16) -> u16:
+        if self > other: u16(i64(self) - i64(other)) else: u16(i64(other) - i64(self))
+
+impl i32:
     pub fn abs_diff(self, other: i32) -> u32:
         if self > other: u32(i64(self) - i64(other)) else: u32(i64(other) - i64(self))
 
-    pub fn count_ones(self) -> i32:
-        let count = 0
-        let rest = self
-        if rest < 0:
-            count = 1
-            rest = rest - (-2147483647 - 1)
-        while rest > 0:
-            if rest % 2 == 1:
-                count = count + 1
-            rest = rest / 2
-        count
-
-    pub fn leading_zeros(self) -> i32:
-        if self < 0:
-            return 0
-        let width = 0
-        let rest = self
-        while rest > 0:
-            width = width + 1
-            rest = rest / 2
-        32 - width
-
+# Operands of one sign subtract exactly. Otherwise the distance is
+# `high + (-(low + 1)) + 1`, and each part fits in `u64`.
 impl i64:
-    pub fn checked_add(self, other: i64) -> i64?:
-        if other > 0 && self > i64_max() - other:
-            return .None
-        if other < 0 && self < i64_min() - other:
-            return .None
-        .Some(self + other)
-
-    pub fn checked_sub(self, other: i64) -> i64?:
-        if other > 0 && self < i64_min() + other:
-            return .None
-        if other < 0 && self > i64_max() + other:
-            return .None
-        .Some(self - other)
-
-    pub fn checked_mul(self, other: i64) -> i64?:
-        if self == 0 || other == 0:
-            return .Some(0)
-        let overflows = false
-        if self > 0:
-            overflows = if other > 0: self > i64_max() / other else: other < i64_min() / self
-        else:
-            overflows = if other > 0: self < i64_min() / other else: other < i64_max() / self
-        if overflows: .None else: .Some(self * other)
-
-    pub fn checked_div(self, other: i64) -> i64?:
-        if other == 0 || (self == i64_min() && other == -1):
-            return .None
-        .Some(self / other)
-
-    # Two's-complement wrapping: an overflowing sum moves by 2^64.
-    pub fn wrapping_add(self, other: i64) -> i64:
-        match self.checked_add(other):
-            .Some(sum) => sum
-            .None =>
-                if other > 0: (self + i64_min()) + (other + i64_min()) else: (self - i64_min()) + (other - i64_min())
-
-    pub fn wrapping_sub(self, other: i64) -> i64:
-        if other == i64_min(): self.wrapping_add(i64_min()) else: self.wrapping_add(-other)
-
-    pub fn saturating_add(self, other: i64) -> i64:
-        match self.checked_add(other):
-            .Some(sum) => sum
-            .None => if other > 0: i64_max() else: i64_min()
-
-    pub fn saturating_sub(self, other: i64) -> i64:
-        match self.checked_sub(other):
-            .Some(difference) => difference
-            .None => if other > 0: i64_min() else: i64_max()
-
-    # The distance as `u64`. The wrapped difference has the distance's low
-    # 64 bits, and the wrapping cast reads them as unsigned.
     pub fn abs_diff(self, other: i64) -> u64:
-        if self > other: u64(self.wrapping_sub(other)) else: u64(other.wrapping_sub(self))
+        high := if self > other: self else: other
+        low := if self > other: other else: self
+        if low >= 0 || high < 0:
+            return u64(high - low)
+        u64(high) + u64(-(low + 1)) + 1
 
-    pub fn count_ones(self) -> i32:
-        let count = 0
-        let rest = self
-        if rest < 0:
-            count = 1
-            rest = rest - i64_min()
-        while rest > 0:
-            if rest % 2 == 1:
-                count = count + 1
-            rest = rest / 2
-        count
+impl u8:
+    pub fn abs_diff(self, other: u8) -> u8:
+        if self > other: self - other else: other - self
 
-    pub fn leading_zeros(self) -> i32:
-        if self < 0:
-            return 0
-        let width = 0
-        let rest = self
-        while rest > 0:
-            width = width + 1
-            rest = rest / 2
-        64 - width
+impl u16:
+    pub fn abs_diff(self, other: u16) -> u16:
+        if self > other: self - other else: other - self
+
+impl u32:
+    pub fn abs_diff(self, other: u32) -> u32:
+        if self > other: self - other else: other - self
+
+impl u64:
+    pub fn abs_diff(self, other: u64) -> u64:
+        if self > other: self - other else: other - self
 
 impl f64:
     pub fn is_nan(self) -> bool:
@@ -273,32 +250,16 @@ impl f64:
 # Every scalar before the first invalid one is ASCII, so the scalar index
 # that `InvalidDigit` reports is also its byte offset (Strings STR10).
 pub fn parse_i32(text: string) -> Result[i32, ParseNumberError]:
-    scalars := text.split("")
-    if scalars.len() == 0:
-        return .Err(ParseNumberError.Empty)
-    negative := scalars[0] == "-"
-    let index = if negative || scalars[0] == "+": 1 else: 0
-    if index == scalars.len():
-        return .Err(ParseNumberError.InvalidDigit(0))
-    let value: i32 = 0
-    while index < scalars.len():
-        digit := match digit_value(scalars[index]):
-            .Some(found) => found
-            .None => return .Err(ParseNumberError.InvalidDigit(index))
-        # Accumulate toward the sign so the minimum value parses.
-        shifted := match value.checked_mul(10):
-            .Some(product) => product
-            .None => return .Err(ParseNumberError.OutOfRange)
-        let next = shifted.checked_add(digit)
-        if negative:
-            next = shifted.checked_sub(digit)
-        value = match next:
-            .Some(found) => found
-            .None => return .Err(ParseNumberError.OutOfRange)
-        index = index + 1
-    .Ok(value)
+    match parse_integer(text, -2147483648, 2147483647):
+        .Ok(value) => .Ok(i32(value))
+        .Err(error) => .Err(error)
 
 pub fn parse_i64(text: string) -> Result[i64, ParseNumberError]:
+    parse_integer(text, -i64_max() - 1, i64_max())
+
+# Reads the digits toward the sign, so the minimum value parses. Each step
+# checks the bound first, so the arithmetic stays inside `low` to `high`.
+fn parse_integer(text: string, low: i64, high: i64) -> Result[i64, ParseNumberError]:
     scalars := text.split("")
     if scalars.len() == 0:
         return .Err(ParseNumberError.Empty)
@@ -311,18 +272,34 @@ pub fn parse_i64(text: string) -> Result[i64, ParseNumberError]:
         digit := match digit_value(scalars[index]):
             .Some(found) => i64(found)
             .None => return .Err(ParseNumberError.InvalidDigit(index))
-        # Accumulate toward the sign so the minimum value parses.
-        shifted := match value.checked_mul(10):
-            .Some(product) => product
-            .None => return .Err(ParseNumberError.OutOfRange)
-        let next = shifted.checked_add(digit)
+        # Division truncates toward zero, so each bound is exact.
         if negative:
-            next = shifted.checked_sub(digit)
-        value = match next:
-            .Some(found) => found
-            .None => return .Err(ParseNumberError.OutOfRange)
+            if value < (low + digit) / 10:
+                return .Err(ParseNumberError.OutOfRange)
+            value = value * 10 - digit
+        else:
+            if value > (high - digit) / 10:
+                return .Err(ParseNumberError.OutOfRange)
+            value = value * 10 + digit
         index = index + 1
     .Ok(value)
+
+# The smallest value of an integer type: zero when unsigned, and the sign
+# bit alone when signed. `~zero` is negative exactly in a signed type, and
+# shifting one left reaches the sign bit before the bits run out.
+fn int_min[N < Integer]() -> N:
+    zero := N::zero()
+    if ~zero > zero:
+        return zero
+    let bit = N::one()
+    while bit > zero:
+        bit = bit << 1
+    bit
+
+# The largest value: every bit of the smallest flipped.
+fn int_max[N < Integer]() -> N:
+    ~int_min::[N]()
+
 
 # Returns `n` when `low <= n <= high`. Otherwise the checked sum of the
 # largest `i64` and one panics with integer overflow.
@@ -331,13 +308,9 @@ fn fit(n: i64, low: i64, high: i64) -> i64:
         return i64_max() + 1
     n
 
-# `i64` literals take their type from context, so the bounds are functions.
+# `i64` literals take their type from context, so the bound is a function.
 fn i64_max() -> i64:
     9223372036854775807
-
-fn i64_min() -> i64:
-    let lowest: i64 = -9223372036854775807
-    lowest - 1
 
 fn digit_value(scalar: string) -> i32?:
     match scalar:

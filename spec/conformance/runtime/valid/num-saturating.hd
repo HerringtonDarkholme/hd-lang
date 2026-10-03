@@ -1,0 +1,21 @@
+# test: saturating methods stop at the nearest bound of the type, and never panic
+# Spec std/num Saturating Arithmetic: std-num.saturating.add, std-num.saturating.sub, std-num.saturating.result (batch 68, STD-HELPERS-KEEP; task #219).
+use std.testing.assert_equal
+
+fn remaining(stock: u32, sold: u32) -> u32:
+    stock.saturating_sub(sold)
+
+tests:
+    it("unsigned saturates at zero and the maximum"):
+        assert_equal(remaining(10, 3), 7, reason="the exact difference")
+        assert_equal(remaining(3, 10), 0, reason="below zero gives zero")
+        let full: u32 = 4294967295
+        assert_equal(full.saturating_add(1), 4294967295, reason="above the maximum gives the maximum")
+
+    it("signed saturates at both ends"):
+        assert_equal(2147483647.saturating_add(5), 2147483647, reason="i32 above")
+        assert_equal((-2147483647 - 1).saturating_sub(5), -2147483647 - 1, reason="i32 below")
+        assert_equal(2147483647.saturating_sub(-1), 2147483647, reason="subtracting a negative")
+        assert_equal(40.saturating_add(2), 42, reason="the exact sum")
+        let low: i8 = -100
+        assert_equal(low.saturating_add(-100), -128, reason="i8 below")

@@ -1975,3 +1975,14 @@ runtime/valid/num-abs-diff.hd	runtime	accept	std/num.md#r-std-num.abs-diff
 typing/invalid/num-abs-diff-unsigned.hd	type	reject:mixed-signedness	std/num.md#r-std-num.abs-diff.unsigned
 runtime/valid/num-is-nan.hd	runtime	accept	std/num.md#r-std-num.is-nan
 runtime/valid/num-parse-integers.hd	runtime	accept	std/num.md#r-std-num.parse.grammar
+runtime/valid/option-tests-conversions.hd	runtime	accept	std/option.md#variant-tests-and-conversions
+runtime/panic/option-expect-none.hd	runtime	panic:explicit-panic	std/option.md#r-std-option.expect.panic
+runtime/valid/result-map.hd	runtime	accept	std/result.md#r-std-result.map
+runtime/valid/result-tests-conversions.hd	runtime	accept	std/result.md#variant-tests-and-conversions
+runtime/panic/result-expect-err.hd	runtime	panic:explicit-panic	std/result.md#r-std-result.expect.panic
+runtime/valid/num-saturating.hd	runtime	accept	std/num.md#saturating-arithmetic
+runtime/valid/num-every-width.hd	runtime	accept	std/num.md#r-std-num.methods.every-width
+runtime/valid/num-bit-counts.hd	runtime	accept	std/num.md#bit-counts
+runtime/valid/num-is-finite.hd	runtime	accept	std/num.md#r-std-num.is-finite
+runtime/valid/println-pending-write.hd	runtime	accept	lang/10-modules.md#r-module.console.println-drive.pending
+runtime/valid/block-on-pending-write.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on

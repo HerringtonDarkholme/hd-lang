@@ -40,7 +40,6 @@ for the error-code revamp, task #101, which may merge codes.
 
 | Question | Effect | **Recommendation** |
 | --- | --- | --- |
-| A fixture for a pending host write | No [runtime profile](../spec/conformance/README.md#runtime-profiles) holds a `write_line!` pending and then completes it: `console` is ready on the first poll, and `pending-gate` never completes. So `module.console.println-drive.pending` and `block_on`'s own wait have only a prototype unit test. | Add a conformance profile whose gate is pending on its first poll and ready on the next. |
 | A fixture for the `.Err` panic | `module.console.println-error.category` has no fixture, since no code can build a `ConsoleError` (follow-up 2 defers its constructor). | Add the fixture when `ConsoleError`'s constructor is settled. |
 
 ```text
@@ -289,9 +288,6 @@ These items remain required but do not currently require new core syntax:
 - a `package-cycle` conformance fixture, which waits until the manifest
   schema exists (Dependency Cycles DC12,
   [`module.cycle.package`](../spec/lang/10-modules.md#r-module.cycle.package));
-- whether the specification defines one portable "unsupported feature"
-  diagnostic category, so a conformance runner can tell "not implemented"
-  from "wrong" (F-250);
 - the Wasm component ABI, exact export registration API, adapter wire format,
   and runtime-profile panic status codes (histories record a panic by its
   diagnostic name, as Replay Rules

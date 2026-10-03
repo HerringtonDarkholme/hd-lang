@@ -1,0 +1,14 @@
+# fixture-runtime-profile: pending-write
+# test: println keeps driving a host write that is pending on its first poll, and returns after it completes
+# Spec 10 Console: module.console.println-drive.pending (batch 68, PENDING-WRITE-PROFILE; task #219).
+# The non-suspending main calls println twice; each write is pending once.
+use std.testing.assert_equal
+
+let written: i32 = 0
+
+pub fn main() -> void $ Console:
+    println("first")
+    written = written + 1
+    println("second")
+    written = written + 1
+    assert_equal(written, 2, reason="each println returns after its write completes")

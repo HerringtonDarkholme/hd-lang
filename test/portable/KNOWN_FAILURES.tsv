@@ -91,3 +91,5 @@ typing/invalid/snapshot-file-needs-test-runner.hd	check exits 0: lib/std's snaps
 typing/valid/property-runner-capabilities.hd	check reports unknown-import: lib/std declares no PropertyCase, and its PropertyRunner keeps seed, size, draw, and discard (std-testing.runner.case-type)	RUNNER-SURFACE
 runtime/panic/host-result-out-of-range.hd	check exits 2 with usage text: the misbehaving-host profile does not exist, and no host adapter checks host results (module.profile.host-result.contract-panic)	HOST-CONTRACT
 typing/valid/expect-panic-host-contract.hd	check reports unknown-panic-category: the prototype does not know the host-contract category (flow.panic.stable-categories)	HOST-CONTRACT
+runtime/valid/println-pending-write.hd	check exits 2 with usage text: the pending-write profile does not exist	PENDING-WRITE
+runtime/valid/block-on-pending-write.hd	check exits 2 with usage text: the pending-write profile does not exist	PENDING-WRITE

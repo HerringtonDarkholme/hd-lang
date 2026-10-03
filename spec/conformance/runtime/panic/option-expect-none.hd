@@ -1,0 +1,8 @@
+# test: expect on None panics with explicit-panic
+# Spec std/option Variant Tests And Conversions: std-option.expect.panic (batch 68, STD-HELPERS-KEEP; task #219).
+fn required(name: string?) -> string:
+    name.expect("a name is required")  # panic: explicit-panic
+
+tests:
+    it("panics on None"):
+        _ := required(.None)

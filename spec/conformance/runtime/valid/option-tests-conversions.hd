@@ -1,0 +1,27 @@
+# test: optional ok_or, is_some, is_none, and expect test the variant or turn it into a value
+# Spec std/option Variant Tests And Conversions: std-option.ok-or, std-option.is-some, std-option.is-none, std-option.expect (batch 68, STD-HELPERS-KEEP; task #219).
+use std.testing.{assert, assert_equal}
+
+fn port(text: string?) -> Result[string, string]:
+    text.ok_or("no port given")
+
+fn greeting(name: string?) -> string:
+    if name.is_none():
+        return "hello"
+    known := name.expect("checked above")
+    "hello, ${known}"
+
+tests:
+    it("ok_or turns Some into Ok and None into Err"):
+        assert_equal(port(.Some("8080")), .Ok("8080"), reason="Some")
+        assert_equal(port(.None), .Err("no port given"), reason="None takes the error")
+
+    it("is_some and is_none test the variant"):
+        let present: i32? = .Some(0)
+        let absent: i32? = .None
+        assert(present.is_some() && !present.is_none(), reason="Some")
+        assert(absent.is_none() && !absent.is_some(), reason="None")
+
+    it("expect unwraps Some"):
+        assert_equal(greeting(.Some("Ada")), "hello, Ada", reason="Some")
+        assert_equal(greeting(.None), "hello", reason="None never reaches expect")

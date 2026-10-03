@@ -3,8 +3,8 @@
 Status: standard library specification draft.
 
 This chapter defines the part of `std.option` that `lib/std` writes in
-ordinary hd over the language tier: the inherent methods `and_then` and
-`unwrap_or` of `T?`.
+ordinary hd over the language tier: the inherent methods `and_then`,
+`unwrap_or`, `ok_or`, `is_some`, `is_none`, and `expect` of `T?`.
 
 The language tier keeps what the compiler knows by name
 ([Optional Types](../lang/04-type-system.md#optional-types)):
@@ -53,4 +53,38 @@ fn quarter_of_first_even(values: List[i32]) -> i32:
 > returns an optional. `and_then` chains two optional steps in any
 > expression, as Rust's `Option::and_then` does.
 
-See also: [Result](result.md), [Variance](../lang/04-type-system.md#variance).
+## Variant Tests And Conversions
+
+`std.option` also gives every `T?` four methods that test the variant, or
+turn it into a value:
+
+```text
+fn port(text: string?) -> Result[string, string]:
+    text.ok_or("no port given")
+
+fn greeting(name: string?) -> string:
+    if name.is_none():
+        return "hello"
+    known := name.expect("checked above")
+    "hello, ${known}"
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-option.ok-or] `ok_or` | `fn ok_or[E](self, error: E) -> Result[T, E]` | `.Ok(value)` for `.Some(value)`, and `.Err(error)` for `.None` |
+| r[std-option.is-some] `is_some` | `fn is_some(self) -> bool` | `true` for `.Some(_)`, and `false` for `.None` |
+| r[std-option.is-none] `is_none` | `fn is_none(self) -> bool` | `false` for `.Some(_)`, and `true` for `.None` |
+| r[std-option.expect] `expect` | `fn expect(self, message: string) -> T` | `value` for `.Some(value)`, and a panic for `.None` |
+
+1. r[std-option.tests.inherent] The four are inherent methods that `std` declares on `T?` as well, so they need no `use` either.
+2. r[std-option.expect.panic] `expect` on `.None` calls `panic(message)`, so its category is `explicit-panic`. Panic: `explicit-panic`.
+3. r[std-option.tests.non-suspending] None of the four suspends.
+
+> **Note.** `error` and `message` are ordinary arguments, so each is
+> evaluated before the call, whichever variant the optional holds.
+
+> **Why.** `ok_or` joins an optional step to a fallible one, as Rust's
+> `Option::ok_or` does. `expect` names the broken assumption in its panic
+> message, where a bare `match` would repeat it at every call.
+
+See also: [Result](result.md), [Runtime Panics](../lang/06-control-flow.md#runtime-panics), [Variance](../lang/04-type-system.md#variance).

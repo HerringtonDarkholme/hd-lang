@@ -1,7 +1,7 @@
 # std.result: inherent methods on `Result[T, E]` (spec/std/result.md).
 
 impl[T, E] Result[T, E]:
-    pub fn map_ok[U](self, transform: fn(T) -> U) -> Result[U, E]:
+    pub fn map[U](self, transform: fn(T) -> U) -> Result[U, E]:
         match self:
             .Ok(value) => .Ok(transform(value))
             .Err(error) => .Err(error)
@@ -30,6 +30,11 @@ impl[T, E] Result[T, E]:
         match self:
             .Ok(_) => true
             .Err(_) => false
+
+    pub fn is_err(self) -> bool:
+        match self:
+            .Ok(_) => false
+            .Err(_) => true
 
     pub fn unwrap_or(self, fallback: T) -> T:
         match self:

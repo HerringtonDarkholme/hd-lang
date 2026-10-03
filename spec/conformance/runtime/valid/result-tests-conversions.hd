@@ -1,0 +1,29 @@
+# test: Result ok, err, is_ok, is_err, and expect test the variant or turn it into a value
+# Spec std/result Variant Tests And Conversions: std-result.ok, std-result.err, std-result.is-ok, std-result.is-err, std-result.expect (batch 68, STD-HELPERS-KEEP; task #219).
+use std.num.parse_i32
+use std.testing.{assert, assert_equal}
+
+fn port(text: string) -> i32?:
+    parse_i32(text).ok()
+
+fn invalid(text: string) -> bool:
+    parse_i32(text).is_err()
+
+fn configured_port(text: string) -> i32:
+    parse_i32(text).expect("the configured port is a number")
+
+tests:
+    it("ok and err keep one side"):
+        assert_equal(port("8080"), .Some(8080), reason="ok keeps the value")
+        assert_equal(port("x"), .None, reason="ok drops the error")
+        let failed: Result[i32, string] = .Err("bad")
+        let passed: Result[i32, string] = .Ok(1)
+        assert_equal(failed.err(), .Some("bad"), reason="err keeps the error")
+        assert_equal(passed.err(), .None, reason="err drops the value")
+
+    it("is_ok and is_err test the variant"):
+        assert(invalid("x") && !invalid("1"), reason="is_err")
+        assert(parse_i32("1").is_ok() && !parse_i32("x").is_ok(), reason="is_ok")
+
+    it("expect unwraps Ok"):
+        assert_equal(configured_port("443"), 443, reason="Ok")
