@@ -1,0 +1,28 @@
+# test: to_fixed writes correctly rounded fixed-point text, ties to even, with the sign bit and the special values
+# Spec std/num Fixed-Point Text: std-num.to-fixed.value, .ties, .form, .no-exponent, .sign, and .special (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78; hook FIXED-HOOK).
+use std.testing.assert_equal
+
+fn price(amount: f64) -> string:
+    amount.to_fixed(2)
+
+tests:
+    it("rounds to the digits"):
+        assert_equal(price(3.14159), "3.14", reason="two digits")
+        assert_equal(7.0.to_fixed(0), "7", reason="no point at 0 digits")
+        assert_equal(0.5.to_fixed(3), "0.500", reason="trailing zeros")
+        assert_equal(0.1.to_fixed(20), "0.10000000000000000555", reason="the exact binary value")
+    it("rounds a tie to even"):
+        assert_equal(2.5.to_fixed(0), "2", reason="2.5 is exact")
+        assert_equal(0.125.to_fixed(2), "0.12", reason="0.125 is exact")
+        assert_equal((-1.5).to_fixed(0), "-2", reason="a negative tie")
+    it("never uses an exponent"):
+        assert_equal(1e21.to_fixed(1), "1000000000000000000000.0", reason="large")
+        assert_equal(1e-7.to_fixed(3), "0.000", reason="small")
+    it("keeps the sign bit"):
+        assert_equal((-0.0).to_fixed(1), "-0.0", reason="negative zero")
+        assert_equal((-0.001).to_fixed(2), "-0.00", reason="rounds to a negative zero")
+    it("writes NaN and the infinities as Display does"):
+        zero := 0.0
+        assert_equal((zero / zero).to_fixed(2), "NaN", reason="NaN")
+        assert_equal((1.0 / zero).to_fixed(2), "inf", reason="infinity")
+        assert_equal((-1.0 / zero).to_fixed(2), "-inf", reason="negative infinity")

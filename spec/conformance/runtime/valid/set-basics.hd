@@ -1,0 +1,46 @@
+# test: a Set keeps distinct elements in insertion order; insert and remove report a change
+# Spec std/collections Set: std-collections.set.decl, .distinct, .len, .contains, .insert, .remove, .iter, and .eq (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+use std.collections.Set
+use std.testing.{assert, assert_equal}
+
+fn unique(words: List[string]) -> List[string]:
+    let seen: mut Set[string] = Set::new()
+    let kept: mut List[string] = []
+    for word in words:
+        if seen.insert(word):
+            kept.push(word)
+    kept
+
+fn listed(set: Set[string]) -> List[string]:
+    let items: mut List[string] = []
+    for item in set:
+        items.push(item)
+    items
+
+tests:
+    it("insert skips duplicates"):
+        assert_equal(unique(["b", "a", "b"]), ["b", "a"], reason="first occurrences")
+    it("len, contains, and remove"):
+        let set: mut Set[string] = Set::new()
+        assert(set.is_empty() && set.len() == 0, reason="new is empty")
+        assert(set.insert("x") && !set.insert("x"), reason="insert reports a change")
+        assert(set.contains("x") && !set.contains("y"), reason="contains")
+        assert(set.remove("x") && !set.remove("x"), reason="remove reports a change")
+        assert_equal(set.len(), 0, reason="empty again")
+    it("iterates in insertion order; a removed element goes to the end when inserted again"):
+        let set: mut Set[string] = Set::new()
+        _ := set.insert("a")
+        _ := set.insert("b")
+        _ := set.remove("a")
+        _ := set.insert("a")
+        assert_equal(listed(set), ["b", "a"], reason="insertion order")
+    it("equal sets have the same elements in any order"):
+        let left: mut Set[i32] = Set::new()
+        let right: mut Set[i32] = Set::new()
+        _ := left.insert(1)
+        _ := left.insert(2)
+        _ := right.insert(2)
+        _ := right.insert(1)
+        assert(left == right, reason="order does not matter")
+        _ := right.insert(3)
+        assert(left != right, reason="another element")

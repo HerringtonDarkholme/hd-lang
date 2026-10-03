@@ -1,0 +1,14 @@
+# test: inserting into a set while iterating it panics at the next step
+# Spec std/collections Set: std-collections.set.invalidate (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+use std.collections.Set
+
+fn grow(set: mut Set[i32]) -> void:
+    for item in set:  # panic: iterator-invalidated
+        _ := set.insert(item + 10)
+
+tests:
+    it("invalidates the iterator"):
+        let set: mut Set[i32] = Set::new()
+        _ := set.insert(1)
+        _ := set.insert(2)
+        grow(set)

@@ -11,8 +11,15 @@ pass 70 applied decisions 4 and 10, and spec pass 73 applied
 [`Deque`](../spec/std/collections.md#deque), and
 [`Heap`](../spec/std/collections.md#heap), and spec pass 76 applied
 [`all_list!`](../spec/std/task.md#all-list) and
-[`parse_f64`](../spec/std/num.md#float-parsing); every other module sketch
-below is still a proposal for the owner.
+[`parse_f64`](../spec/std/num.md#float-parsing), and spec pass 78 applied
+the [text helpers](../spec/std/text.md#splitting-and-padding),
+[`to_fixed`](../spec/std/num.md#fixed-point-text), the
+[`List` helpers](../spec/std/collections.md#list-helpers),
+[`counts`](../spec/std/collections.md#counts),
+[`Set`](../spec/std/collections.md#set), `Map.get_or`, and the
+[`Iterator` helpers](../spec/std/iter.md#more-adapters), as the recommended
+reading of the queued question TEXT-COLLECTIONS-SURFACE; every other module
+sketch below is still a proposal for the owner.
 
 Under review: the stdlib tier ([spec/std/](../spec/std/README.md)), the
 library itself ([lib/std/](../lib/std/)), the host rules of
@@ -74,11 +81,11 @@ every feature belongs in `std`.
 
 | Module | In `lib/std` | Stdlib-tier spec | Notes |
 | --- | --- | --- | --- |
-| `std.text` | `string` methods (`split`, `trim`, `replace`, `find`, `lines`, `repeat`, ...), `join`, `StringBuilder`, `r` prefix, UTF-8 conversion with `Utf8Error`; `char` classification and `to_digit` | [text.md](../spec/std/text.md) | no `split_once`, padding, or float parsing |
-| `std.collections` | `List`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by`, `chunks`, `zip`, `view`; `Deque`, `Heap` | [collections.md](../spec/std/collections.md) | no `Set`; `List` mutation is `push`, `pop`, and index set only; no `Map` methods past `get` and `remove` |
-| `std.iter` | `Iterator` with `filter`, `take`, `enumerate`, `map`, `fold`, `collect`; `FromIterator` | [iter.md](../spec/std/iter.md) | no `any`, `all`, `find`, `zip`, `chain`, `skip`, `flat_map` |
+| `std.text` | `string` methods (`split`, `trim`, `replace`, `find`, `lines`, `repeat`, `split_once`, `split_whitespace`, `pad_start`, `pad_end`, `count`, ...), `join`, `StringBuilder`, `r` prefix, UTF-8 conversion with `Utf8Error`; `char` classification and `to_digit` | [text.md](../spec/std/text.md) | `pad_start` and `pad_end` lack the `fill` default: the prototype parser rejects a method parameter default (`METHOD-DEFAULT`) |
+| `std.collections` | `List`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by`, `chunks`, `zip`, `view`, `sorted_by_key`, `group_by`, `partition`, `any`, `all`, `find`, `flat_map`, `windows`, `contains`, `index_of`, `sorted`, `min`, `max`; `counts`; `Set`, `Deque`, `Heap` | [collections.md](../spec/std/collections.md) | `List` mutation is `push`, `pop`, and index set only; no `insert`, `remove_at`, or `clear`; the specified `Map` methods are missing in the prototype (`STD-1`) |
+| `std.iter` | `Iterator` with `filter`, `take`, `enumerate`, `map`, `fold`, `collect`, `skip`, `take_while`, `zip`, `chain`, `flat_map`, `any`, `all`, `find`, `count`; `FromIterator` | [iter.md](../spec/std/iter.md) | none |
 | `std.option`, `std.result` | `map`, `and_then`, `unwrap_or`, `ok_or`, `expect`, `map_err`, `ok`, `err`, `is_*` | [option.md](../spec/std/option.md), [result.md](../spec/std/result.md) | `map` on `T?` is in [iter.md](../spec/std/iter.md#list-and-optional-map) |
-| `std.num` | numeric traits; checked, wrapping, and saturating ops, `abs_diff`, `count_ones`, and `leading_zeros` on every integer type; `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `parse_f64` | [num.md](../spec/std/num.md); the traits are language tier | no fixed-point float text; the prototype has no `parse_f64` host hook |
+| `std.num` | numeric traits; checked, wrapping, and saturating ops, `abs_diff`, `count_ones`, and `leading_zeros` on every integer type; `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `parse_f64`; `to_fixed` | [num.md](../spec/std/num.md); the traits are language tier | the prototype has no `parse_f64` or `format_f64_fixed` host hook |
 | `std.cmp`, `std.hash`, `std.format`, `std.ops` | comparison, hashing, `Display`, `Debug`, operators, `Default` | [cmp.md](../spec/std/cmp.md), [hash.md](../spec/std/hash.md), [format.md](../spec/std/format.md), [ops.md](../spec/std/ops.md) | none |
 | `std.time` | `Duration` (milliseconds) with `Add`, `Sub`, and `Display`, suffixes `ms`, `s`, `min`, `h`; `Clock`, `Timestamp` with `+ Duration` and `unix_millis`, `Instant`, `ManualClock`; the UTC `Date`, `to_rfc3339`, `parse_rfc3339`, `TimeParseError` | [time.md](../spec/std/time.md) | no `now` or `sleep!` helper: the prototype's std loader renames names as text, so a helper named like a `Clock` method renames that method too; no time zones or local time |
 | `std.task` | `race!`, `retry!`, `all_list!`, `Backoff`, `retry_with!` in hd; `all!`, `block_on` intrinsic | [task.md](../spec/std/task.md) | no `timeout!`; `all_list!` traps in the prototype (`ALL-LIST`) |
@@ -171,6 +178,7 @@ design it names.
 | LIST-PUSH-POP | 2026-10-03 | the spec has `push` and `pop` on `mut List[T]` ([Built-In Methods](../spec/lang/10-modules.md#built-in-methods)), and no `append` | the compiler session. Rename the checker's `append` intrinsic (`src/checker/expression-calls.ts`, HIR kind `list-append`) to `push`, and add `pop` with a list truncate that advances the structural version. Then delete the forwarding `push` in `lib/std/collections.hd`, and rename the `append` calls in `src/checker/captured-cells.test.ts`, `test/cli.test.ts`, `test/compiler-types.test.ts`, and `test/compiler.test.ts` |
 | STD-DEBUG | 2026-10-03 | `std.inspect`'s `TypeId` and `std.structure`'s `SelfRef` implement `Debug` ([`std-format.debug.std-types`](../spec/std/format.md#r-std-format.debug.std-types)) | the compiler session: the typed-derivation pass declares both modules before `std.format`, so `inspect.hd` and `structure.hd` cannot name `DebugWriter`, and an impl in `format.hd` names `SelfRef` in programs that join no `std.structure` (`unknown-type`), even with reachable-only emission |
 | ALL-LIST | 2026-10-03 | [`all_list!`](../spec/std/task.md#all-list) is nested `all!` calls in `lib/std/task.hd` | the compiler session: a generic function that calls an element of a `List[fn() -> T]` traps with an illegal cast |
+| FIXED-HOOK | 2026-10-03 | the host primitive `format_f64_fixed(value: f64, digits: i32) -> string` ([Standard Library Primitives](../spec/std/README.md#standard-library-primitives)), beside `format_f64`, behind [`to_fixed`](../spec/std/num.md#fixed-point-text) | the compiler session: add `format_f64_fixed` to `HOST_FUNCTIONS` in `src/host-functions.ts`. `lib/std/num.hd` declares it as `host_format_f64_fixed` and checks `digits` first. JavaScript's `toFixed` rounds a tie away from zero and drops the sign of `-0.0`, so the hook rounds the exact binary value itself, ties to even. Also recount the tag table in `src/KNOWN_ISSUES.md` for `FIXED-HOOK`, `METHOD-DEFAULT`, and `STD-1` |
 | FLOAT-PARSE | 2026-10-03 | the host primitive `parse_f64(text: string) -> f64` ([Standard Library Primitives](../spec/std/README.md#standard-library-primitives)), beside `format_f64` | the compiler session: add `parse_f64` to `HOST_FUNCTIONS` in `src/host-functions.ts`, where `format_f64` is. `lib/std/num.hd` declares it as `host_parse_f64` and checks the grammar first. JavaScript's `Number(text)` rounds JSON number text correctly |
 
 ## Survey Matrices
@@ -558,22 +566,11 @@ Standouts:
 - **Python format specs** and **JavaScript `toFixed`** print `3.14` from
   `3.14159`; scripts that print money or timings need it.
 
-Minimal additions to `std.text` and `std.num`:
-
-```text
-impl string:
-    pub fn split_once(self, separator: string) -> (string, string)?: pass
-    pub fn split_whitespace(self) -> List[string]: pass
-    pub fn pad_start(self, width: i32, fill: char = ' ') -> string: pass
-    pub fn pad_end(self, width: i32, fill: char = ' ') -> string: pass
-    pub fn count(self, needle: string) -> i32: pass
-
-impl f64:
-    pub fn to_fixed(self, digits: i32) -> string: pass
-```
-
-`to_fixed` needs a host hook beside the existing `format_f64`, as
-[`parse_f64`](../spec/std/num.md#float-parsing) has. Regex is tier 11 of the [Ranked Rollout](#ranked-rollout).
+Spec pass 78 applied the minimal additions:
+[Splitting And Padding](../spec/std/text.md#splitting-and-padding) and
+[Fixed-Point Text](../spec/std/num.md#fixed-point-text), with the
+`format_f64_fixed` host hook. Regex is tier 11 of the
+[Ranked Rollout](#ranked-rollout).
 
 ### Collections And Iterators
 
@@ -585,53 +582,25 @@ Standouts:
   `windowed`, and `sortedBy` as methods.
 - **Rust** `VecDeque` and `BinaryHeap`, and `sort_by_key`.
 
-Minimal additions (decisions Q15, Q16, Q18 included):
+Spec pass 78 applied the minimal additions:
+[List Helpers](../spec/std/collections.md#list-helpers),
+[Counts](../spec/std/collections.md#counts), `get_or` in
+[Map Methods](../spec/std/collections.md#map-methods),
+[Set](../spec/std/collections.md#set), and
+[More Adapters](../spec/std/iter.md#more-adapters). Decisions Q15, Q16,
+and Q18 were applied earlier. `List.pop` is
+[specified](../spec/lang/10-modules.md#built-in-methods). Still a proposal:
 
 ```text
 impl[T] List[T]:
-    pub fn sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]: pass
-    pub fn group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]: pass
-    pub fn partition(self, keep: fn(T) -> bool) -> (List[T], List[T]): pass
-    pub fn any(self, test: fn(T) -> bool) -> bool: pass
-    pub fn all(self, test: fn(T) -> bool) -> bool: pass
-    pub fn find(self, test: fn(T) -> bool) -> T?: pass
-    pub fn flat_map[U](self, transform: fn(T) -> List[U]) -> List[U]: pass
-    pub fn windows(self, size: i32) -> List[List[T]]: pass
-    pub fn pop(mut self) -> T?: pass
     pub fn insert(mut self, index: i32, value: T) -> void: pass
     pub fn remove_at(mut self, index: i32) -> T: pass
     pub fn clear(mut self) -> void: pass
-
-impl[T < Eq] List[T]:
-    pub fn contains(self, value: T) -> bool: pass
-    pub fn index_of(self, value: T) -> i32?: pass
-
-impl[T < Ord] List[T]:
-    pub fn sorted(self) -> List[T]: pass
-    pub fn min(self) -> T?: pass
-    pub fn max(self) -> T?: pass
-
-impl[K, V] Map[K, V]:
-    pub fn contains_key(self, key: K) -> bool: pass
-    pub fn keys(self) -> List[K]: pass
-    pub fn values(self) -> List[V]: pass
-    pub fn get_or(self, key: K, fallback: V) -> V: pass
-
-impl[T] T?:
-    pub fn and_then[U](self, next: fn(T) -> U?) -> U?: pass
-
-pub data Set[T < Eq & Hash]:
-    entries: Map[T, void]
-
-pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, i32]:
-    pass
 ```
 
-`Iterator` gets the lazy and draining forms of the same names: `any`,
-`all`, `find`, `count`, `skip`, `zip`, `chain`, `flat_map`, and
-`take_while`. `pop`, `remove_at`, and `clear` shrink a list, and `std` has
-no way to do that today, so they need one list-truncate primitive, a hook
-like `list_version`. `Set` is plain hd over `Map`. Spec pass 74 applied
+`remove_at` and `clear` shrink a list, and `std` has no way to do that
+today, so they need one list-truncate primitive, a hook like
+`list_version`. Spec pass 74 applied
 `Deque` and `Heap` ([Deque](../spec/std/collections.md#deque),
 [Heap](../spec/std/collections.md#heap)); a min-heap is a heap of
 `std.cmp.Reverse` values.
@@ -904,9 +873,9 @@ host also add a prototype host binding, a minimal TypeScript hook.
 | --- | --- | --- | --- |
 | 1 | `std.host` `Args`, `Env`, `MapArgs`, `MapEnv`, `args()`, `env()`; `ErrorConsole`, `eprintln`, `read_line!`, `read_all!` | [Host Capabilities](../spec/cli/command-line.md#host-capabilities), [Standard Error](../spec/std/console.md#standard-error); a `List[string]` result on the host bridge | a script can take input and report errors |
 | 2 | `std.path` `Path`; `std.fs` `FsRead`, `FsWrite`, `FsError`, `MemoryFs`, `read_text!`, `write_text!`, `walk!`, `glob!` | tier 1's catalog; a Node `fs` binding in the prototype | a script can read and write files |
-| 3 | collections and iterators: decided `Map` and `and_then` items, the `List`, `Iterator`, `Set`, and `counts` helpers; `List.pop` is [specified](../spec/lang/10-modules.md#built-in-methods) | a list-truncate hook for `pop`, `remove_at`, `clear` | data shaping without hand loops |
+| 3 | collections and iterators: the `List`, `Iterator`, `Set`, and `counts` helpers and `Map.get_or`: [specified](../spec/std/collections.md#list-helpers); `List.pop` is [specified](../spec/lang/10-modules.md#built-in-methods); left: `insert`, `remove_at`, `clear` | a list-truncate hook for `remove_at` and `clear` | data shaping without hand loops |
 | 4 | `Clock`, `Timestamp`, `Instant`, `ManualClock`, `now()`, `sleep!` | the catalog for `Clock` | timing |
-| 5 | text helpers, `to_fixed`; `parse_f64`: [specified](../spec/std/num.md#float-parsing) | a `to_fixed` hook | formatting |
+| 5 | text helpers: [specified](../spec/std/text.md#splitting-and-padding); `to_fixed`: [specified](../spec/std/num.md#fixed-point-text); `parse_f64`: [specified](../spec/std/num.md#float-parsing) | the prototype's `format_f64_fixed` and `parse_f64` hooks | formatting |
 | 6 | `std.json` `Json`, `Number`, `parse`, `Display`, `pretty`, accessors: [specified](../spec/std/json.md), with float text through `parse_f64` | the prototype's `parse_f64` hook | reading and writing JSON |
 | 7 | `ToJson` and `FromJson` templates; `encode`, `decode` | tier 6 | typed JSON |
 | 8 | `timeout!`, `map_limited!`; `Backoff`, `retry_with!`, and `all_list!`: [specified](../spec/std/task.md) | tier 4's `Clock`; [Retry With Backoff](../spec/std/task.md#retry-with-backoff) | robust automation |
@@ -979,13 +948,12 @@ only; no block is type-checked.
 | 5 | Processes | parses |
 | 6 | JSON | parses |
 | 7 | Time And Dates | parses |
-| 8 | Text And Formatting | rejected at line 4: `expected ')', found '='`. The toy parser rejects a default on a method parameter; [`fn.default.allowed`](../spec/lang/07-functions.md#r-fn.default.allowed) allows it, so the parser lags the spec. |
-| 9 | Collections And Iterators | parses |
-| 10 | Random Numbers | parses |
-| 11 | Command-Line Parsing | parses |
-| 12 | Concurrency Helpers | parses |
-| 13 | A Script With The Proposed Surface | parses |
+| 8 | Collections And Iterators | parses |
+| 9 | Random Numbers | parses |
+| 10 | Command-Line Parsing | parses |
+| 11 | Concurrency Helpers | parses |
+| 12 | A Script With The Proposed Surface | parses |
 
-A first draft of block 13 wrote module-qualified types, such as
+A first draft of block 12 wrote module-qualified types, such as
 `Map[string, json.Json]`, and the parser rejected them; the block now
 imports the names.

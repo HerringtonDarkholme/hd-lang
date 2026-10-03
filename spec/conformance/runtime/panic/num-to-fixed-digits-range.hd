@@ -1,0 +1,9 @@
+# test: to_fixed with digits above 100 panics
+# Spec std/num Fixed-Point Text: std-num.to-fixed.digits (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+
+fn shown(value: f64) -> string:
+    value.to_fixed(101)  # panic: explicit-panic
+
+tests:
+    it("rejects too many digits"):
+        _ := shown(1.0)

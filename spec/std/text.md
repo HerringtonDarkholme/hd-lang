@@ -7,6 +7,8 @@ ordinary hd over the language tier:
 
 - the `string` methods above the representation intrinsics: `trim`,
   `lower`, `split`, `replace`, `starts_with`, `lines`, and `repeat`;
+- the splitting and padding methods `split_once`, `split_whitespace`,
+  `pad_start`, `pad_end`, and `count`;
 - the `char` classification methods and `to_digit`;
 - the UTF-8 conversions `to_utf8` and `string::from_utf8`, and
   `Utf8Error`;
@@ -56,6 +58,57 @@ fn rows(text: string) -> i32:
 fn rule(width: i32) -> string:
     "-".repeat(width)
 ```
+
+## Splitting And Padding
+
+`std` also gives `string` methods that split text once, split it into
+words, pad it to a width, and count matches:
+
+```text
+fn setting(line: string) -> string:
+    match line.split_once("="):
+        .Some((key, value)) => "$key is $value"  # "port is 80=x" for "port=80=x"
+        .None => "no setting"
+
+fn cell(text: string) -> string:
+    text.pad_start(6)  # "    42" for "42"
+
+fn word_count(text: string) -> i32:
+    text.split_whitespace().len()  # 2 for " a\tb "
+```
+
+| Receiver | Methods |
+| --- | --- |
+| `string` | `split_once(self, separator: string) -> (string, string)?`; `split_whitespace(self) -> List[string]`; `pad_start(self, width: i32, fill: char = ' ') -> string`; `pad_end(self, width: i32, fill: char = ' ') -> string`; `count(self, needle: string) -> i32` |
+
+1. r[std-text.split-once] `split_once(separator)` returns `.Some((before, after))`, with the text before and after the first occurrence of `separator`.
+2. r[std-text.split-once.absent] It returns `.None` when `separator` does not occur, so `"".split_once("=")` is `.None`.
+3. r[std-text.split-once.empty] An empty separator occurs at offset 0, so `"ab".split_once("")` is `.Some(("", "ab"))`.
+4. r[std-text.split-whitespace] `split_whitespace` returns, in order, each maximal run of scalar values that lack the Unicode `White_Space` property.
+5. r[std-text.split-whitespace.no-empty] It returns no empty piece, so an empty string, or one of whitespace only, gives `[]`.
+6. r[std-text.pad.length] `pad_start` and `pad_end` measure a string's length in scalar values, not in bytes or display columns.
+7. r[std-text.pad.start] `pad_start(width, fill)` puts copies of `fill` before the string until its length is `width`.
+8. r[std-text.pad.end] `pad_end(width, fill)` puts the copies after the string instead.
+9. r[std-text.pad.short-width] A `width` at or below the string's length, including a negative one, gives the string unchanged.
+10. r[std-text.pad.fill-default] `fill` defaults to the space U+0020, so `"7".pad_end(3)` is `"7  "`.
+11. r[std-text.count] `count(needle)` returns the number of non-overlapping matches of `needle`, found from left to right, so `"aaaa".count("aa")` is 2.
+12. r[std-text.count.empty] An empty needle matches at every scalar boundary, so it gives the number of scalar values plus one, and `"".count("")` is 1.
+
+| Call | Result |
+| --- | --- |
+| `"a=b=c".split_once("=")` | `.Some(("a", "b=c"))` |
+| `"abc".split_once(",")` | `.None` |
+| `" a  b ".split_whitespace()` | `["a", "b"]` |
+| `"é".pad_start(3, '.')` | `"..é"`, since `é` is one scalar value |
+| `"abc".pad_end(2)` | `"abc"` |
+| `"héllo".count("")` | 6 |
+
+> **Why.** The names and results are Rust's `split_once` and
+> `split_whitespace`, Python's `str.count`, and JavaScript's `padStart`
+> and `padEnd`. A width in scalar values is the unit `chars` yields;
+> display columns would need the East Asian Width tables. An empty needle
+> counts the boundaries that `replace` with an empty `old` fills, as in
+> Python.
 
 ## Character Classification
 

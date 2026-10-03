@@ -247,6 +247,14 @@ impl f64:
     pub fn is_finite(self) -> bool:
         self - self == 0.0
 
+    # Fixed-point text with `digits` fractional digits, correctly rounded
+    # with ties to even (spec/std/num.md#fixed-point-text). The host hook
+    # does the rounding, which needs big-number arithmetic.
+    pub fn to_fixed(self, digits: i32) -> string:
+        if digits < 0 || digits > 100:
+            panic("to_fixed: digits must be from 0 to 100")
+        host_format_f64_fixed(self, digits)
+
 # Parsing accepts an optional `+` or `-` and then decimal digits only.
 # Every scalar before the first invalid one is ASCII, so the scalar index
 # that `InvalidDigit` reports is also its byte offset (Strings STR10).
@@ -343,6 +351,13 @@ fn after_digits(scalars: List[string], at: i32) -> i32:
 # NaN for other text (spec/std/README.md#standard-library-primitives).
 @intrinsic("parse_f64")
 fn host_parse_f64(text: string) -> f64:
+    panic("intrinsic")
+
+# The fixed-point text of `value` with `digits` fractional digits, from 0
+# to 100: correctly rounded, ties to even, and `NaN`, `inf`, or `-inf` for
+# a value that is not finite (spec/std/README.md#standard-library-primitives).
+@intrinsic("format_f64_fixed")
+fn host_format_f64_fixed(value: f64, digits: i32) -> string:
     panic("intrinsic")
 
 # The smallest value of an integer type: zero when unsigned, and the sign

@@ -11,7 +11,8 @@ ordinary hd over the language tier:
 - the bit counts `count_ones` and `leading_zeros`;
 - `is_nan` and `is_finite` on `f64`;
 - integer parsing: `parse_i32`, `parse_i64`, and `ParseNumberError`;
-- float parsing: `parse_f64`.
+- float parsing: `parse_f64`;
+- fixed-point float text: `to_fixed` on `f64`.
 
 The language tier keeps what the compiler knows by name:
 
@@ -268,3 +269,45 @@ fn ratio(text: string) -> f64:
 > arithmetic, so the host supplies it, as it supplies `format_f64`.
 
 See also: [Strings](../lang/04-type-system.md#strings), [Result](result.md), [JSON Numbers](json.md#number-syntax).
+
+## Fixed-Point Text
+
+`to_fixed` writes an `f64` with a fixed number of digits after the
+decimal point:
+
+```text
+fn price(amount: f64) -> string:
+    amount.to_fixed(2)  # "3.14" for 3.14159
+
+fn seconds(elapsed: f64) -> string:
+    elapsed.to_fixed(0)  # "2" for 2.5, a tie rounded to even
+```
+
+| Rule | Method |
+| --- | --- |
+| r[std-num.to-fixed] `to_fixed` | `pub fn to_fixed(self, digits: i32) -> string`, on `f64` |
+
+1. r[std-num.to-fixed.value] For a finite `self`, `to_fixed(digits)` writes the multiple of 10 to the power `-digits` nearest the exact value of `self`.
+2. r[std-num.to-fixed.ties] When two multiples are equally near, it writes the one whose last digit is even.
+3. r[std-num.to-fixed.form] The text is an optional `-`, the integer part in decimal with no leading zero but a lone `0`, and then, when `digits` is above 0, `.` and exactly `digits` digits.
+4. r[std-num.to-fixed.no-exponent] The text never uses scientific notation, however large or small the value.
+5. r[std-num.to-fixed.sign] The text starts with `-` exactly when `self` has its sign bit set, so `(-0.0).to_fixed(1)` is `"-0.0"` and `(-0.001).to_fixed(2)` is `"-0.00"`.
+6. r[std-num.to-fixed.special] A NaN gives `NaN`, and the infinities give `inf` and `-inf`, the text that [`types.display.special`](../lang/04-type-system.md#r-types.display.special) gives.
+7. r[std-num.to-fixed.digits] A `digits` below 0 or above 100 panics. Panic: `explicit-panic`.
+8. r[std-num.to-fixed.hook] `lib/std` checks `digits`, and the [`format_f64_fixed` primitive](README.md#standard-library-primitives) writes the text.
+
+| Call | Result |
+| --- | --- |
+| `3.14159.to_fixed(2)` | `"3.14"` |
+| `0.125.to_fixed(2)` | `"0.12"`, since 0.125 is exact and the tie goes to 2 |
+| `0.1.to_fixed(20)` | `"0.10000000000000000555"`, the exact value of the nearest `f64` |
+| `1e21.to_fixed(1)` | `"1000000000000000000000.0"` |
+| `(-1.5).to_fixed(0)` | `"-2"` |
+| `7.0.to_fixed(0)` | `"7"` |
+
+> **Why.** Python's `f"{x:.2f}"` rounds the exact binary value, ties to
+> even, and keeps the sign of a negative zero, as these rules do.
+> JavaScript's `toFixed` rounds a tie away from zero and drops that sign. Correct rounding of up to 100 digits needs big-number
+> arithmetic, so the host supplies it, as it supplies `format_f64`.
+
+See also: [Numeric Display](../lang/04-type-system.md#numeric-display), [Float Parsing](#float-parsing).

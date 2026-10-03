@@ -1,0 +1,20 @@
+# test: split_once splits at the first separator, gives .None when it is absent, and finds an empty separator at 0
+# Spec std/text Splitting And Padding: std-text.split-once, .absent, and .empty (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+use std.testing.assert_equal
+
+fn setting(line: string) -> string:
+    match line.split_once("="):
+        .Some((key, value)) => "$key is $value"
+        .None => "no setting"
+
+tests:
+    it("splits at the first separator"):
+        assert_equal(setting("port=80=x"), "port is 80=x", reason="the first = splits")
+        assert_equal("a=".split_once("="), .Some(("a", "")), reason="an empty after part")
+        assert_equal("=b".split_once("="), .Some(("", "b")), reason="an empty before part")
+        assert_equal("a::b".split_once("::"), .Some(("a", "b")), reason="a longer separator")
+    it("gives .None when the separator never appears"):
+        assert_equal("abc".split_once(","), .None, reason="absent")
+        assert_equal("".split_once("="), .None, reason="the empty string")
+    it("finds an empty separator at 0"):
+        assert_equal("ab".split_once(""), .Some(("", "ab")), reason="empty separator")

@@ -1,4 +1,5 @@
 # std.collections: inherent List methods, callable without a use.
+use std.collections.Set
 use std.testing.assert_equal
 
 fn by_length(a: string, b: string) -> Ordering:
@@ -33,3 +34,12 @@ tests:
 
     it("chunks rejects a zero size", expect_panic="explicit-panic"):
         _ := [1].chunks(0)
+
+    it("Set writes one debug_list entry per element, in insertion order"):
+        let set: mut Set[i32] = Set::new()
+        _ := set.insert(2)
+        _ := set.insert(1)
+        assert_equal(debug(set), "[2, 1]", reason="r-std-format.debug.std-types.set")
+
+    it("windows rejects a zero size", expect_panic="explicit-panic"):
+        _ := [1].windows(0)

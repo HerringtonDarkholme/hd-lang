@@ -1,0 +1,38 @@
+# test: min gives the first smallest element and max the last largest, and an empty list gives .None
+# Spec std/collections List Helpers: std-collections.helper.min-max (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+use std.cmp.Ordering
+use std.testing.assert_equal
+
+data Entry:
+    rank: i32
+    label: string
+
+impl Eq for Entry:
+    fn eq(self, other: Entry) -> bool:
+        self.rank == other.rank
+
+impl PartialOrd for Entry:
+    fn partial_cmp(self, other: Entry) -> Ordering?:
+        .Some(self.cmp(other))
+
+impl Ord for Entry:
+    fn cmp(self, other: Entry) -> Ordering:
+        self.rank.cmp(other.rank)
+
+fn label(entry: Entry?) -> string:
+    match entry:
+        .Some(found) => found.label
+        .None => "none"
+
+tests:
+    it("min and max"):
+        assert_equal([2, 9, 4].max(), .Some(9), reason="max")
+        assert_equal([2, 9, 4].min(), .Some(2), reason="min")
+    it("ties"):
+        let entries: List[Entry] = [Entry { rank: 1, label: "a" }, Entry { rank: 1, label: "b" }]
+        assert_equal(label(entries.min()), "a", reason="the first smallest")
+        assert_equal(label(entries.max()), "b", reason="the last largest")
+    it("an empty list"):
+        let empty: List[i32] = []
+        assert_equal(empty.min(), .None, reason="min")
+        assert_equal(empty.max(), .None, reason="max")

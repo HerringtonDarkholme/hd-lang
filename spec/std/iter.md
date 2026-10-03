@@ -7,6 +7,8 @@ ordinary hd over the language tier:
 
 - the iterator adapters `filter`, `take`, `enumerate`, `map`, `fold`, and
   `collect`, with their laziness and ordering;
+- the adapters `skip`, `take_while`, `zip`, `chain`, and `flat_map`, and
+  the draining `any`, `all`, `find`, and `count`;
 - the `FromIterator` trait and the collect targets `List`, `Map`,
   `Result`, and `T?`;
 - `map` on `List[T]` and on `T?`.
@@ -90,6 +92,50 @@ fn above_level(values: List[i32]) -> List[i32] $ Logger:
 > `next`, whose row is empty, so a stored callback cannot wait for
 > providers. `fold` calls `step` before it returns, so the row passes
 > through.
+
+### More Adapters
+
+`Iterator[T]` also has adapters that skip, stop, pair, and join items,
+and draining methods that search or count them:
+
+```text
+fn body(lines: List[string]) -> List[string]:
+    lines.iter().skip(1).take_while(fn(line: string) -> bool: line != "").collect()
+
+fn labeled(names: List[string]) -> List[(i32, string)]:
+    [1, 2, 3].iter().zip(names.iter()).collect()
+
+fn has_blank(lines: List[string]) -> bool:
+    lines.iter().any(fn(line: string) -> bool: line.trim() == "")
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-iter.adapter.skip] `skip` | `fn skip(mut self, count: i32) -> mut Iterator[T]` | a new iterator over the items of `self` after the first `count` |
+| r[std-iter.adapter.take-while] `take_while` | `fn take_while(mut self, keep: fn(T) -> bool) -> mut Iterator[T]` | a new iterator over the items of `self` before the first one for which `keep` returns `false` |
+| r[std-iter.adapter.zip] `zip` | `fn zip[U](mut self, other: mut Iterator[U]) -> mut Iterator[(T, U)]` | a new iterator over pairs of the items of `self` and `other` at the same position, which ends when either ends |
+| r[std-iter.adapter.chain] `chain` | `fn chain(mut self, other: mut Iterator[T]) -> mut Iterator[T]` | a new iterator over the items of `self`, then those of `other` |
+| r[std-iter.adapter.flat-map] `flat_map` | `fn flat_map[U](mut self, transform: fn(T) -> List[U]) -> mut Iterator[U]` | a new iterator over the elements of each list that `transform(item)` returns, in order |
+| r[std-iter.adapter.any] `any` | `fn any(mut self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for some remaining item of `self` |
+| r[std-iter.adapter.all] `all` | `fn all(mut self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for every remaining item of `self` |
+| r[std-iter.adapter.find] `find` | `fn find(mut self, test: fn(T) -> bool) -> T?` | the first remaining item of `self` for which `test` returns `true`, or `.None` |
+| r[std-iter.adapter.count] `count` | `fn count(mut self) -> i32` | the number of remaining items of `self` |
+
+1. r[std-iter.adapter.lazy.more] Calling `skip`, `take_while`, `zip`, `chain`, or `flat_map` advances no iterator. The returned iterator pulls only when its own `next` is called.
+2. r[std-iter.adapter.skip.first-next] The first `next` call of `skip`'s iterator reads and drops up to `count` items of `self` before it reads the item it returns.
+3. r[std-iter.adapter.skip.negative] A negative `count` panics when `skip` is called. Panic: `explicit-panic`.
+4. r[std-iter.adapter.take-while.stop] `take_while`'s iterator reads and drops the first item that `keep` rejects, and calls `next` on `self` no more after it.
+5. r[std-iter.adapter.zip.order] `zip`'s iterator calls `next` on `self` first, and on `other` only when `self` gave an item. So when `self` ends first, `other` loses no item.
+6. r[std-iter.adapter.chain.order] `chain`'s iterator calls `next` on `other` only after `self` has returned `.None`, and on `self` no more after that.
+7. r[std-iter.adapter.stop-early] `any`, `all`, and `find` advance `self` only until an item decides the result, and leave the rest of `self` unread.
+8. r[std-iter.adapter.exhausted] On an exhausted iterator, `any` is `false`, `all` is `true`, `find` is `.None`, and `count` is 0.
+9. r[std-iter.adapter.count.drain] `count` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
+10. r[std-iter.adapter.callback-row.more] The callbacks of these methods have the empty row, as `filter`'s `keep` does. A function value whose row lists a requirement key does not fit. Error: `type-mismatch`.
+
+> **Why.** The names and the pulling order are Rust's, so `zip` and
+> `take_while` drop the same items there and here. `zip` and `chain` take
+> an iterator, not any `Iterable`, so a list argument is written
+> `items.iter()`.
 
 ## Collect Targets
 

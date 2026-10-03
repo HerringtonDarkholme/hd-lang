@@ -20,6 +20,8 @@ std.ops.Default	std/ops.md#default-trait
 std.collections.ListView	std/collections.md#views
 std.collections.Deque	std/collections.md#deque
 std.collections.Heap	std/collections.md#heap
+std.collections.Set	std/collections.md#set
+std.collections.counts	std/collections.md#counts
 std.cmp.Reverse	std/cmp.md#reverse
 std.hash.DefaultHasher	std/hash.md#default-hasher
 std.hash.hash_of	std/hash.md#default-hasher

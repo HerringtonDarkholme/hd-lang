@@ -103,6 +103,137 @@ impl[T] List[T]:
             index = index + 1
         pairs
 
+    # The helpers of spec/std/collections.md#list-helpers. Each callback
+    # runs in list order, at most once per element.
+
+    # A stable sort by `key(item)`, which is called once per element.
+    pub fn sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]:
+        let keyed: mut List[(K, i32)] = []
+        let index = 0
+        for item in self:
+            keyed.push((key(item), index))
+            index = index + 1
+        order := keyed.sorted_by(fn(left: (K, i32), right: (K, i32)) -> Ordering: left._0.cmp(right._0))
+        let sorted: mut List[T] = []
+        for (_, at) in order:
+            sorted.push(self[at])
+        sorted
+
+    # The elements under each key, keys in the order first seen.
+    pub fn group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]:
+        let groups: mut Map[K, mut List[T]] = {}
+        for item in self:
+            group := key(item)
+            match groups.get(group):
+                .Some(members) => members.push(item)
+                .None => groups[group] = [item]
+        let result: mut Map[K, List[T]] = {}
+        for (group, members) in groups:
+            result[group] = members
+        result
+
+    # The elements `keep` accepts, then the rest, each in order.
+    pub fn partition(self, keep: fn(T) -> bool) -> (List[T], List[T]):
+        let kept: mut List[T] = []
+        let rest: mut List[T] = []
+        for item in self:
+            if keep(item): kept.push(item) else: rest.push(item)
+        (kept, rest)
+
+    # Stops at the first element that passes.
+    pub fn any(self, test: fn(T) -> bool) -> bool:
+        for item in self:
+            if test(item):
+                return true
+        false
+
+    # Stops at the first element that fails.
+    pub fn all(self, test: fn(T) -> bool) -> bool:
+        for item in self:
+            if !test(item):
+                return false
+        true
+
+    pub fn find(self, test: fn(T) -> bool) -> T?:
+        for item in self:
+            if test(item):
+                return .Some(item)
+        .None
+
+    pub fn flat_map[U](self, transform: fn(T) -> List[U]) -> List[U]:
+        let flat: mut List[U] = []
+        for item in self:
+            for part in transform(item):
+                flat.push(part)
+        flat
+
+    # Every run of `size` consecutive elements, overlapping, in order.
+    pub fn windows(self, size: i32) -> List[List[T]]:
+        if size <= 0:
+            panic("windows: size must be positive")
+        let runs: mut List[List[T]] = []
+        let start = 0
+        while start + size <= self.len():
+            runs.push(self[start..start + size])
+            start = start + 1
+        runs
+
+impl[T < Eq] List[T]:
+    pub fn contains(self, value: T) -> bool:
+        self.index_of(value).is_some()
+
+    # The index of the first element equal to `value`.
+    pub fn index_of(self, value: T) -> i32?:
+        let index = 0
+        for item in self:
+            if item == value:
+                return .Some(index)
+            index = index + 1
+        .None
+
+impl[T < Ord] List[T]:
+    # A stable sort in ascending order.
+    pub fn sorted(self) -> List[T]:
+        self.sorted_by(fn(left: T, right: T) -> Ordering: left.cmp(right))
+
+    # The first of the smallest elements.
+    pub fn min(self) -> T?:
+        let best: T? = .None
+        for item in self:
+            match best:
+                .Some(current) =>
+                    if before(item, current):
+                        best = .Some(item)
+                .None => best = .Some(item)
+        best
+
+    # The last of the largest elements, as Rust's `Iterator::max` gives.
+    pub fn max(self) -> T?:
+        let best: T? = .None
+        for item in self:
+            match best:
+                .Some(current) =>
+                    if !before(item, current):
+                        best = .Some(item)
+                .None => best = .Some(item)
+        best
+
+# Whether `left` orders before `right`.
+fn before[T < Ord](left: T, right: T) -> bool:
+    match left.cmp(right):
+        .Less => true
+        _ => false
+
+# How many times each element occurs, keys in the order first seen
+# (spec/std/collections.md#counts).
+pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, i32]:
+    let tally: mut Map[T, i32] = {}
+    for item in items:
+        tally[item] = match tally.get(item):
+            .Some(seen) => seen + 1
+            .None => 1
+    tally
+
 # A read-only window on a run of a list's elements
 # (spec/std/collections.md#views). It holds the list, not a copy, so an
 # element write shows through it. It records the list's structural
@@ -281,6 +412,60 @@ impl[T < Debug] Debug for Deque[T]:
     fn debug(self, out: mut DebugWriter) -> void:
         let list: mut DebugList = out.debug_list()
         for item in self:
+            _ := list.entry(item)
+        list.finish()
+
+# A set of distinct elements in insertion order
+# (spec/std/collections.md#set), plain hd over a `Map` whose values say
+# nothing.
+pub data Set[T < Eq & Hash]:
+    entries: mut Map[T, bool]
+
+impl[T < Eq & Hash] Set[T]:
+    pub fn new() -> mut Set[T]:
+        let entries: mut Map[T, bool] = {}
+        Set::[T] { entries: entries }
+
+    pub fn len(self) -> i32:
+        self.entries.len()
+
+    pub fn is_empty(self) -> bool:
+        self.entries.len() == 0
+
+    pub fn contains(self, value: T) -> bool:
+        self.entries.get(value).is_some()
+
+    # Adds `value`, and is true when it was not already there.
+    pub fn insert(mut self, value: T) -> bool:
+        if self.contains(value):
+            return false
+        self.entries[value] = true
+        true
+
+    # Removes `value`, and is true when it was there.
+    pub fn remove(mut self, value: T) -> bool:
+        self.entries.remove(value).is_some()
+
+impl[T < Eq & Hash] Iterable[T] for Set[T]:
+    fn iter(self) -> mut Iterator[T]:
+        self.entries.iter().map(fn(entry: (T, bool)) -> T: entry._0)
+
+# The same elements, in any order (r-std-collections.set.eq).
+impl[T < Eq & Hash] Eq for Set[T]:
+    fn eq(self, other: Set[T]) -> bool:
+        if self.len() != other.len():
+            return false
+        for (item, _) in self.entries:
+            if !other.contains(item):
+                return false
+        true
+
+# One `debug_list` entry per element, in insertion order
+# (r-std-format.debug.std-types.set).
+impl[T < Eq & Hash & Debug] Debug for Set[T]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        let list: mut DebugList = out.debug_list()
+        for (item, _) in self.entries:
             _ := list.entry(item)
         list.finish()
 

@@ -1,0 +1,19 @@
+# test: counts tallies each distinct element, keys in first-occurrence order
+# Spec std/collections Counts: std-collections.counts, .value, and .order (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+use std.collections.counts
+use std.testing.assert_equal
+
+fn tally(words: List[string]) -> Map[string, i32]:
+    counts(words)
+
+tests:
+    it("tallies elements"):
+        found := tally(["a", "b", "a"])
+        assert_equal(found.get("a"), .Some(2), reason="a twice")
+        assert_equal(found.get("b"), .Some(1), reason="b once")
+        let order: mut List[string] = []
+        for (word, _) in found:
+            order.push(word)
+        assert_equal(order, ["a", "b"], reason="first occurrence")
+    it("gives an empty map for an empty list"):
+        assert_equal(tally([]).len(), 0, reason="empty")

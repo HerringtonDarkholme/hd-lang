@@ -95,8 +95,9 @@ fn shown(timeout: Duration) -> string:
 2. r[std-format.debug.std-types.generic] A generic one implements `Debug` under the bounds that its members need, as in `impl[T < Debug] Debug for Reverse[T]`.
 3. r[std-format.debug.std-types.calls] Its builder calls are those that `@derive(Debug)` generates for its declaration, by [`std-format.debug.derive-builders.mapping`](#r-std-format.debug.derive-builders.mapping). A newtype writes its base value, as [`trait.derive.newtype`](../lang/09-traits.md#r-trait.derive.newtype) gives.
 4. r[std-format.debug.std-types.sequences] `Deque` and `Heap` are exceptions to [`std-format.debug.std-types.calls`](#r-std-format.debug.std-types.calls): each writes one `debug_list` entry per element, as `List` does. A `Deque` writes them from front to back, and a `Heap` in an order this chapter does not specify.
-5. r[std-format.debug.std-types.exempt-members] A type with a member that holds a function value, or a trait value whose trait does not extend `Debug`, does not implement `Debug`. Examples are `Iterator[T]` and `Choices`.
-6. r[std-format.debug.std-types.context-error] `ContextError` is the exception to [`std-format.debug.std-types.exempt-members`](#r-std-format.debug.std-types.exempt-members): it implements `Debug` by [`std-error.context.debug`](error.md#r-std-error.context.debug), though it holds an erased `Error`.
+5. r[std-format.debug.std-types.set] `Set` is one more exception: it writes one `debug_list` entry per element, in iteration order.
+6. r[std-format.debug.std-types.exempt-members] A type with a member that holds a function value, or a trait value whose trait does not extend `Debug`, does not implement `Debug`. Examples are `Iterator[T]` and `Choices`.
+7. r[std-format.debug.std-types.context-error] `ContextError` is the exception to [`std-format.debug.std-types.exempt-members`](#r-std-format.debug.std-types.exempt-members): it implements `Debug` by [`std-error.context.debug`](error.md#r-std-error.context.debug), though it holds an erased `Error`.
 
 > **Note.** The derived calls name a type's private fields too. Like all
 > `debug` text, that text is not portable, and fixtures do not depend on it.

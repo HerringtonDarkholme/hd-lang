@@ -67,6 +67,113 @@ impl[T] Iterator[T]:
                 .None => .None
         )
 
+    # Skips the first `count` items on its own first `next` call.
+    pub fn skip(mut self, count: i32) -> mut Iterator[T]:
+        if count < 0:
+            panic("skip: count must not be negative")
+        let left = count
+        Iterator::from_fn(fn() -> T?:
+            while left > 0:
+                left = left - 1
+                match self.next():
+                    .Some(_) => pass
+                    .None => return .None
+            self.next()
+        )
+
+    # The items while `keep` holds; the first item it rejects is consumed
+    # and dropped, and no item after it is read.
+    pub fn take_while(mut self, keep: fn(T) -> bool) -> mut Iterator[T]:
+        let open = true
+        Iterator::from_fn(fn() -> T?:
+            if !open:
+                return .None
+            match self.next():
+                .Some(item) =>
+                    if keep(item):
+                        return .Some(item)
+                    open = false
+                    .None
+                .None => .None
+        )
+
+    # Pairs by position. It pulls `self` first and stops when either ends,
+    # so `other` is not read past the end of `self`.
+    pub fn zip[U](mut self, other: mut Iterator[U]) -> mut Iterator[(T, U)]:
+        Iterator::from_fn(fn() -> (T, U)?:
+            match self.next():
+                .Some(left) =>
+                    match other.next():
+                        .Some(right) => .Some((left, right))
+                        .None => .None
+                .None => .None
+        )
+
+    # The items of `self`, then those of `other`.
+    pub fn chain(mut self, other: mut Iterator[T]) -> mut Iterator[T]:
+        let first = true
+        Iterator::from_fn(fn() -> T?:
+            if first:
+                match self.next():
+                    .Some(item) => return .Some(item)
+                    .None => first = false
+            other.next()
+        )
+
+    # The items of each list `transform` returns, in order.
+    pub fn flat_map[U](mut self, transform: fn(T) -> List[U]) -> mut Iterator[U]:
+        let part: List[U] = []
+        let at = 0
+        Iterator::from_fn(fn() -> U?:
+            while at >= part.len():
+                match self.next():
+                    .Some(item) =>
+                        part = transform(item)
+                        at = 0
+                    .None => return .None
+            at = at + 1
+            .Some(part[at - 1])
+        )
+
+    # Stops at the first item that passes, leaving the rest unread.
+    pub fn any(mut self, test: fn(T) -> bool) -> bool:
+        while true:
+            match self.next():
+                .Some(item) =>
+                    if test(item):
+                        return true
+                .None => break
+        false
+
+    # Stops at the first item that fails, leaving the rest unread.
+    pub fn all(mut self, test: fn(T) -> bool) -> bool:
+        while true:
+            match self.next():
+                .Some(item) =>
+                    if !test(item):
+                        return false
+                .None => break
+        true
+
+    # The first item that passes, leaving the rest unread.
+    pub fn find(mut self, test: fn(T) -> bool) -> T?:
+        while true:
+            match self.next():
+                .Some(item) =>
+                    if test(item):
+                        return .Some(item)
+                .None => break
+        .None
+
+    # The number of remaining items; it drains `self`.
+    pub fn count(mut self) -> i32:
+        let found = 0
+        while true:
+            match self.next():
+                .Some(_) => found = found + 1
+                .None => break
+        found
+
     pub fn fold[A, $R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
         let total = initial
         while true:

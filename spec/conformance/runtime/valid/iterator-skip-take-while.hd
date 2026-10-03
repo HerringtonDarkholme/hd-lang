@@ -1,0 +1,26 @@
+# test: skip drops leading items, and take_while stops at the first rejected item, which it consumes
+# Spec std/iter More Adapters: std-iter.adapter.skip, .skip.first-next, .take-while, .take-while.stop, and .lazy.more (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+use std.testing.assert_equal
+
+fn body(lines: List[string]) -> List[string]:
+    lines.iter().skip(1).take_while(fn(line: string) -> bool: line != "").collect()
+
+tests:
+    it("skips and stops"):
+        assert_equal(body(["head", "a", "b", "", "c"]), ["a", "b"], reason="between header and blank")
+        assert_equal([1, 2].iter().skip(5).collect(), [], reason="skip past the end")
+        assert_equal([1, 2].iter().skip(0).collect(), [1, 2], reason="skip 0")
+    it("take_while consumes the rejected item"):
+        let mut source = [1, 2, 9, 3].iter()
+        taken := source.take_while(fn(n: i32) -> bool: n < 5).collect()
+        assert_equal(taken, [1, 2], reason="before 9")
+        assert_equal(source.next(), .Some(3), reason="9 was read and dropped")
+    it("is lazy"):
+        let pulled = 0
+        let mut source = Iterator::from_fn(fn() -> i32?:
+            pulled = pulled + 1
+            .Some(pulled)
+        )
+        let mut later = source.skip(2)
+        assert_equal(pulled, 0, reason="skip pulls nothing")
+        assert_equal(later.next(), .Some(3), reason="the first next skips two")

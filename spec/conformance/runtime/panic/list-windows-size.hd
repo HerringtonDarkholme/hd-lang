@@ -1,0 +1,9 @@
+# test: windows with a size below 1 panics
+# Spec std/collections List Helpers: std-collections.helper.windows.size (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+
+fn paged(items: List[i32]) -> List[List[i32]]:
+    items.windows(0)  # panic: explicit-panic
+
+tests:
+    it("rejects size 0"):
+        _ := paged([1, 2])

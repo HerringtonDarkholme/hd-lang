@@ -1,0 +1,13 @@
+# test: count counts non-overlapping matches from left to right, and an empty needle counts scalar boundaries
+# Spec std/text Splitting And Padding: std-text.count and .empty (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+use std.testing.assert_equal
+
+tests:
+    it("counts non-overlapping matches"):
+        assert_equal("aaaa".count("aa"), 2, reason="no overlap")
+        assert_equal("a,b,,c".count(","), 3, reason="single separators")
+        assert_equal("abc".count("x"), 0, reason="no match")
+        assert_equal("".count("a"), 0, reason="the empty string")
+    it("counts an empty needle at every scalar boundary"):
+        assert_equal("héllo".count(""), 6, reason="five scalar values plus one")
+        assert_equal("".count(""), 1, reason="the empty string has one boundary")

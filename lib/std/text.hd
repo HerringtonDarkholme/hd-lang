@@ -364,6 +364,60 @@ impl string:
             index = index + 1
         repeated
 
+    # The text before and after the first `separator`, or `.None` when it
+    # does not occur. An empty separator is found at 0
+    # (spec/std/text.md#splitting-and-padding).
+    pub fn split_once(self, separator: string) -> (string, string)?:
+        match byte_find(self, separator, 0):
+            .Some(found) => .Some((bytes_slice(self, 0, found), bytes_slice(self, found + bytes_len(separator), bytes_len(self))))
+            .None => .None
+
+    # The runs of scalars between runs of Unicode White_Space, with no
+    # empty piece.
+    pub fn split_whitespace(self) -> List[string]:
+        let pieces: mut List[string] = []
+        size := bytes_len(self)
+        let start = 0
+        while start < size:
+            if white_space(scalar_at(self, start)):
+                start = scalar_end(self, start)
+            else:
+                let end = start
+                while end < size && !white_space(scalar_at(self, end)):
+                    end = scalar_end(self, end)
+                pieces.push(bytes_slice(self, start, end))
+                start = end
+        pieces
+
+    # The spec gives `fill` the default ' ' (r-std-text.pad.fill-default).
+    # The prototype parser rejects a method parameter default, so this
+    # declaration has none yet (test/portable/KNOWN_FAILURES.tsv,
+    # METHOD-DEFAULT).
+    pub fn pad_start(self, width: i32, fill: char) -> string:
+        missing := width - scalar_count(self)
+        if missing <= 0: self else: "$fill".repeat(missing) + self
+
+    pub fn pad_end(self, width: i32, fill: char) -> string:
+        missing := width - scalar_count(self)
+        if missing <= 0: self else: self + "$fill".repeat(missing)
+
+    # Non-overlapping matches from left to right. An empty needle matches
+    # at every scalar boundary, so it counts the scalars plus one.
+    pub fn count(self, needle: string) -> i32:
+        if bytes_len(needle) == 0:
+            return scalar_count(self) + 1
+        let found = 0
+        let start = 0
+        let searching = true
+        while searching:
+            match byte_find(self, needle, start):
+                .Some(at) =>
+                    found = found + 1
+                    start = at + bytes_len(needle)
+                .None =>
+                    searching = false
+        found
+
 # Character classification (spec/std/text.md#character-classification).
 # The Unicode properties are those of Unicode 17.0
 # (r-std-text.char.unicode-version).
@@ -445,6 +499,16 @@ fn byte_find(text: string, needle: string, from: i32) -> i32?:
             return .Some(start)
         start = start + 1
     .None
+
+# The number of scalars in `text`.
+fn scalar_count(text: string) -> i32:
+    size := bytes_len(text)
+    let found = 0
+    let at = 0
+    while at < size:
+        at = scalar_end(text, at)
+        found = found + 1
+    found
 
 fn continuation_byte(byte: u8) -> bool:
     byte >= 128 && byte < 192

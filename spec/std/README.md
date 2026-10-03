@@ -90,6 +90,7 @@ raises with a category other than `explicit-panic`.
 | `format_f64`, `format_f32` | `(value: f64) -> string`, `(value: f32) -> string` | the shortest round-trip decimal text of a float ([Numeric Display](../lang/04-type-system.md#numeric-display)) |
 | `string_lower`, `string_upper` | `(text: string) -> string` | Unicode case mapping, which needs the Unicode tables |
 | `parse_f64` | `(text: string) -> f64` | the correctly rounded `f64` of a decimal number text, which needs arbitrary-precision arithmetic |
+| `format_f64_fixed` | `(value: f64, digits: i32) -> string` | the correctly rounded fixed-point text of a float, which needs arbitrary-precision arithmetic |
 
 `parse_f64` takes the text of a number in the grammar of
 [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259#section-6), section 6.
@@ -97,6 +98,14 @@ It returns the `f64` nearest the text's decimal value, rounding a tie to
 the one with an even significand, as IEEE 754 rounds to nearest. So a
 value past the finite `f64` range is an infinity of the text's sign. Any
 other text gives a NaN, which no number text gives.
+
+`format_f64_fixed` writes the text that
+[`to_fixed`](num.md#fixed-point-text) returns, with every rule of that
+section but the check of `digits`. Its caller passes a `digits` from 0 to
+100. For a finite value, it writes the multiple of 10 to the power
+`-digits` nearest the value's exact binary value, and a tie goes to the
+multiple whose last digit is even. A NaN gives `NaN`, and the infinities
+give `inf` and `-inf`.
 
 **Test-runner hooks.** `std.testing` reaches the test runner through the
 host capabilities `TestRunner` and `PropertyRunner`
@@ -144,15 +153,15 @@ file of its own.
 | File | Module | Rule ID prefix | Scope |
 | --- | --- | --- | --- |
 | [`testing.md`](testing.md) | `std.testing` | `std-testing` | what `it_each`, `it_prop`, and `it_prop_with` cases do when they run, property tests, the draw budget, derived `Arbitrary`, table-test rows, snapshot files, the `timeout` option, `hd_run!`, the runner capabilities |
-| [`iter.md`](iter.md) | `std.iter` | `std-iter` | iterator adapters, collect targets, `FromIterator` and its impls, `map` on a list or an optional |
-| [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, including `lines` and `repeat`; the `r` prefix |
+| [`iter.md`](iter.md) | `std.iter` | `std-iter` | iterator adapters, including `skip`, `take_while`, `zip`, `chain`, `flat_map`, `any`, `all`, `find`, and `count`; collect targets, `FromIterator` and its impls, `map` on a list or an optional |
+| [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, including `lines` and `repeat`; `split_once`, `split_whitespace`, padding, and `count`; the `r` prefix |
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls, `Debug` for the public std types |
 | [`time.md`](time.md) | `std.time` | `std-time` | `Duration`, its suffixes, its arithmetic, and its `Display` text; `Timestamp + Duration`; the host trait `Clock`, `Timestamp`, `Instant`, `now`, and `sleep!`; the provider `ManualClock`; the UTC `Date`, RFC 3339 text, and `TimeParseError` |
 | [`task.md`](task.md) | `std.task` | `std-task` | the `retry!` combinator; `Backoff` and `retry_with!`; `all_list!` |
 | [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
 | [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison; `clamp`; `Reverse` |
 | [`hash.md`](hash.md) | `std.hash` | `std-hash` | what derived `Hash` hashes; tuple hashing; `DefaultHasher` and `hash_of` |
-| [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` methods `view` and `chunks`, the `ListView` type, the `Map` methods `contains_key`, `keys`, and `values`, `Deque`, and `Heap` |
+| [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` methods `view` and `chunks`, the `ListView` type, the `List` helpers such as `sorted_by_key`, `group_by`, and `windows`, the `Map` methods `contains_key`, `keys`, `values`, and `get_or`, `counts`, `Set`, `Deque`, and `Heap` |
 | [`console.md`](console.md) | `std.console` | `std-console` | `eprintln`, the host trait `ConsoleInput`, and `read_line!` |
 | [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Args` and `Env`, the helpers `args` and `env`, and the providers `MapArgs` and `MapEnv` |
 | [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, the helpers `read_text!` and `write_text!`, and the provider `MemoryFs` |
@@ -160,7 +169,7 @@ file of its own.
 | [`random.md`](random.md) | `std.random` | `std-random` | the host trait `Random` and the provider `SeededRandom` |
 | [`option.md`](option.md) | `std.option` | `std-option` | the methods `and_then`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, and `expect` of `T?` |
 | [`result.md`](result.md) | `std.result` | `std-result` | the methods `and_then`, `map_err`, `unwrap_or`, `map`, `ok`, `err`, `is_ok`, `is_err`, and `expect` of `Result[T, E]` |
-| [`num.md`](num.md) | `std.num` | `std-num` | checked, wrapping, and saturating integer methods, `abs_diff`, and the bit counts on every integer type; `is_nan` and `is_finite`; integer parsing with `ParseNumberError`; `parse_f64` |
+| [`num.md`](num.md) | `std.num` | `std-num` | checked, wrapping, and saturating integer methods, `abs_diff`, and the bit counts on every integer type; `is_nan` and `is_finite`; integer parsing with `ParseNumberError`; `parse_f64`; `to_fixed` |
 | [`error.md`](error.md) | `std.error` | `std-error` | the cause chain `chain`, what `root_cause` and `find` return, the boundary-safe `ErrorReport`, `report_of`, and `Result.context` with `ContextError` |
 | [`encoding.md`](encoding.md) | `std.encoding` | `std-encoding` | hex and base64 text for bytes: `hex_encode`, `hex_decode`, `base64_encode`, `base64_decode`, and `DecodeError` |
 | [`digest.md`](digest.md) | `std.digest` | `std-digest` | the SHA-256 digest: `sha256` and `sha256_hex` |

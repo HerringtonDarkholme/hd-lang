@@ -7,8 +7,11 @@ in ordinary hd over the language tier:
 
 - the `List` methods `view` and `chunks`;
 - the `ListView[T]` type that `view` returns;
-- the `Map` methods `contains_key`, `keys`, and `values`;
-- the double-ended queue `Deque[T]` and the max-heap `Heap[T]`.
+- the `List` helpers, such as `sorted_by_key`, `group_by`, and `windows`,
+  and the function `counts`;
+- the `Map` methods `contains_key`, `keys`, `values`, and `get_or`;
+- the set `Set[T]`, the double-ended queue `Deque[T]`, and the max-heap
+  `Heap[T]`.
 
 The language tier keeps what the compiler knows about a list
 ([List Indexing](../lang/05-expressions.md#list-indexing),
@@ -109,13 +112,100 @@ fn stale(items: mut List[i32]) -> i32:
 See also: [List Indexing](../lang/05-expressions.md#list-indexing),
 [List And Optional Map](iter.md#list-and-optional-map).
 
+## List Helpers
+
+`std` also gives `List[T]` helpers that sort, group, split, and search a
+list without a hand-written loop:
+
+```text
+data Task:
+    name: string
+    owner: string
+    hours: i32
+
+fn plan(tasks: List[Task]) -> List[Task]:
+    tasks.sorted_by_key(fn(task: Task) -> i32: task.hours)
+
+fn by_owner(tasks: List[Task]) -> Map[string, List[Task]]:
+    tasks.group_by(fn(task: Task) -> string: task.owner)
+
+fn has_long(tasks: List[Task]) -> bool:
+    tasks.any(fn(task: Task) -> bool: task.hours > 8)
+
+fn steps(readings: List[i32]) -> List[List[i32]]:
+    readings.windows(2)  # [[1, 4], [4, 9]] for [1, 4, 9]
+```
+
+| Receiver | Methods |
+| --- | --- |
+| `List[T]` | `sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]`; `group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]`; `partition(self, keep: fn(T) -> bool) -> (List[T], List[T])`; `any(self, test: fn(T) -> bool) -> bool`; `all(self, test: fn(T) -> bool) -> bool`; `find(self, test: fn(T) -> bool) -> T?`; `flat_map[U](self, transform: fn(T) -> List[U]) -> List[U]`; `windows(self, size: i32) -> List[List[T]]` |
+| `List[T]`, when `T < Eq` | `contains(self, value: T) -> bool`; `index_of(self, value: T) -> i32?` |
+| `List[T]`, when `T < Ord` | `sorted(self) -> List[T]`; `min(self) -> T?`; `max(self) -> T?` |
+
+1. r[std-collections.helper.unchanged] Each helper leaves its receiver unchanged, and each one that returns a list returns a new list.
+2. r[std-collections.helper.callback-order] A helper calls its callback on the elements in list order, at most once each.
+3. r[std-collections.helper.callback-row] Each callback has the empty row, as `Iterator.filter`'s `keep` does. A function value whose row lists a requirement key does not fit it. Error: `type-mismatch`.
+4. r[std-collections.helper.sorted-by-key] `sorted_by_key(key)` returns the elements in ascending order of `key(element)` by `Ord`, and calls `key` once per element.
+5. r[std-collections.helper.sorted] `sorted` returns the elements in ascending order by `Ord`.
+6. r[std-collections.helper.stable] Both sorts are stable: elements that compare equal keep their order.
+7. r[std-collections.helper.group-by] `group_by(key)` maps each key that `key` returns to the list of the elements that gave it, in list order.
+8. r[std-collections.helper.group-by.order] The map's keys are in the order each was first returned, by the map's [insertion order](../lang/04-type-system.md#r-types.map.order).
+9. r[std-collections.helper.partition] `partition(keep)` returns the elements for which `keep` is true, then the rest, each in list order.
+10. r[std-collections.helper.any-all] `any(test)` is true when `test` is true for some element, and `all(test)` when it is true for every element. So on an empty list `any` is false and `all` is true.
+11. r[std-collections.helper.find] `find(test)` returns the first element for which `test` is true in `.Some`, or `.None` when there is none.
+12. r[std-collections.helper.short-circuit] `any`, `all`, and `find` call `test` on no element after the first one that decides the result.
+13. r[std-collections.helper.flat-map] `flat_map(transform)` joins the lists that `transform` returns, in list order.
+14. r[std-collections.helper.windows] `windows(size)` returns every run of `size` consecutive elements, in order of its first index, so the runs overlap.
+15. r[std-collections.helper.windows.short] A list with fewer than `size` elements gives `[]`.
+16. r[std-collections.helper.windows.size] A `size` below 1 panics, as it does for `chunks`. Panic: `explicit-panic`.
+17. r[std-collections.helper.contains] `contains(value)` is true when an element equals `value` by `Eq`. `index_of(value)` returns the index of the first such element in `.Some`, or `.None`.
+18. r[std-collections.helper.min-max] `min` returns the first smallest element and `max` the last largest one by `Ord`, each in `.Some`. An empty list gives `.None`.
+
+| Call | Result |
+| --- | --- |
+| `[3, 1, 2].partition(fn(n: i32) -> bool: n > 1)` | `([3, 2], [1])` |
+| `[1, 2].flat_map(fn(n: i32) -> List[i32]: [n, n])` | `[1, 1, 2, 2]` |
+| `[1, 2, 3].windows(2)` | `[[1, 2], [2, 3]]` |
+| `[1, 2].windows(3)` | `[]` |
+| `[5, 7, 5].index_of(5)` | `.Some(0)` |
+| `[2, 9, 4].max()` | `.Some(9)` |
+
+```text
+fn paged(items: List[i32]) -> List[List[i32]]:
+    items.windows(0)  # panics with explicit-panic
+```
+
+> **Why.** The names are Rust's (`sort_by_key`, `partition`, `windows`,
+> `any`, `all`, `find`, `flat_map`, `contains`, `min`, `max`), Kotlin's
+> `groupBy`, and Python's `list.index`. A sort copies, as `sorted_by`
+> does, since hd has no consuming methods. `min` and `max` pick among
+> equal elements as Rust's `Iterator::min` and `Iterator::max` do.
+
+### Counts
+
+`counts` tallies how often each element occurs:
+
+```text
+use std.collections.counts
+
+fn tally(words: List[string]) -> Map[string, i32]:
+    counts(words)  # {"a": 2, "b": 1} for ["a", "b", "a"]
+```
+
+1. r[std-collections.counts] `std.collections` declares `pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, i32]`. Code imports it, as in `use std.collections.counts`.
+2. r[std-collections.counts.value] The map has one entry per distinct element of `items`, and its value is the number of elements equal to that one.
+3. r[std-collections.counts.order] The keys are in the order of their first occurrence in `items`, so an empty list gives an empty map.
+
+> **Why.** `counts` is Python's `collections.Counter` as a plain map, so
+> the `Map` methods read it.
+
 ## Map Methods
 
 `std` gives `Map[K, V]` these methods, beside the language-tier ones:
 
 | Receiver | Methods |
 | --- | --- |
-| `Map[K, V]` | `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]` |
+| `Map[K, V]` | `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `get_or(self, key: K, fallback: V) -> V` |
 
 ```text
 fn summary(stock: Map[string, i32]) -> string:
@@ -128,8 +218,56 @@ fn summary(stock: Map[string, i32]) -> string:
 2. r[std-collections.map.keys] `keys` returns the map's keys in [insertion order](../lang/04-type-system.md#r-types.map.order).
 3. r[std-collections.map.values] `values` returns the map's values in the same order.
 4. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
+5. r[std-collections.map.get-or] `get_or(key, fallback)` returns the value of the entry whose key equals `key`, or `fallback` when there is none.
 
 See also: [Map Key Types](../lang/04-type-system.md#map-key-types).
+
+## Set
+
+A `Set[T]` holds distinct elements, in the order they were inserted:
+
+```text
+use std.collections.Set
+
+fn unique(words: List[string]) -> List[string]:
+    let seen: mut Set[string] = Set::new()
+    let kept: mut List[string] = []
+    for word in words:
+        if seen.insert(word):
+            kept.push(word)
+    kept  # ["b", "a"] for ["b", "a", "b"]
+```
+
+`Set[T < Eq & Hash]` has this surface:
+
+| Item | Signature |
+| --- | --- |
+| `new` | `Set::new() -> mut Set[T]` |
+| `len`, `is_empty` | `len(self) -> i32`; `is_empty(self) -> bool` |
+| `contains` | `contains(self, value: T) -> bool` |
+| `insert`, `remove` | `insert(mut self, value: T) -> bool`, and the same for `remove` |
+| iteration | `Iterable[T]` |
+| equality | `Eq` |
+| `Debug` | when `T < Debug` |
+
+1. r[std-collections.set.decl] `std.collections` declares `Set[T < Eq & Hash]` with private fields, the surface in the table above, and no other method or trait implementation. Code imports it, as in `use std.collections.Set`.
+2. r[std-collections.set.distinct] A set holds elements no two of which are equal by `Eq`. `new` returns an empty set.
+3. r[std-collections.set.len] `len` returns the number of elements, and `is_empty` is true exactly when that number is 0.
+4. r[std-collections.set.contains] `contains(value)` is true exactly when the set has an element equal to `value`.
+5. r[std-collections.set.insert] `insert(value)` adds `value` and returns `true` when the set has no element equal to it. Otherwise it changes nothing and returns `false`.
+6. r[std-collections.set.remove] `remove(value)` removes the element equal to `value` and returns `true`. When there is none, it changes nothing and returns `false`.
+7. r[std-collections.set.iter] Iterating a set yields its elements in the order that a map's keys would have after the same inserts and removes, by [`types.map.replace`](../lang/04-type-system.md#r-types.map.replace).
+8. r[std-collections.set.invalidate] An `insert` or `remove` that changes the set invalidates its iterators, as [`flow.for.invalidate`](../lang/06-control-flow.md#r-flow.for.invalidate) does for a map. Panic: `iterator-invalidated`.
+9. r[std-collections.set.eq] Two sets are equal when each element of one equals an element of the other, in any order.
+
+> **Note.** `lib/std` builds a set over a `Map` whose values carry no
+> meaning, so `insert`, `remove`, and `contains` take expected constant
+> time, by [`module.map.complexity`](../lang/10-modules.md#r-module.map.complexity).
+
+> **Why.** `insert` and `remove` report whether they changed the set, as
+> Rust's `HashSet` methods do, so a loop that skips duplicates needs no
+> second lookup. A set keeps insertion order, as a map does, so its
+> iteration and `Debug` text are deterministic.
 
 ## Deque
 

@@ -1,0 +1,28 @@
+# test: any, all, and find stop at the deciding item; count drains; an exhausted iterator gives the empty results
+# Spec std/iter More Adapters: std-iter.adapter.any, .all, .find, .count, .stop-early, .exhausted, and .count.drain (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+use std.testing.{assert, assert_equal}
+
+fn has_blank(lines: List[string]) -> bool:
+    lines.iter().any(fn(line: string) -> bool: line.trim() == "")
+
+tests:
+    it("search"):
+        assert(has_blank(["a", " "]) && !has_blank(["a"]), reason="any")
+        assert([1, 2].iter().all(fn(n: i32) -> bool: n > 0), reason="all")
+        assert_equal([4, 5, 6].iter().find(fn(n: i32) -> bool: n > 4), .Some(5), reason="find")
+    it("leaves the rest unread"):
+        let mut source = [1, 2, 3, 4].iter()
+        assert_equal(source.find(fn(n: i32) -> bool: n == 2), .Some(2), reason="found")
+        assert_equal(source.next(), .Some(3), reason="find stopped after 2")
+        assert(!source.all(fn(n: i32) -> bool: n > 4), reason="4 fails")
+        assert_equal(source.next(), .None, reason="all read 4")
+    it("count drains"):
+        let mut source = [1, 2, 3].iter()
+        assert_equal(source.count(), 3, reason="three items")
+        assert_equal(source.next(), .None, reason="drained")
+    it("an exhausted iterator"):
+        let empty: List[i32] = []
+        assert(!empty.iter().any(fn(n: i32) -> bool: true), reason="any")
+        assert(empty.iter().all(fn(n: i32) -> bool: false), reason="all")
+        assert_equal(empty.iter().find(fn(n: i32) -> bool: true), .None, reason="find")
+        assert_equal(empty.iter().count(), 0, reason="count")
