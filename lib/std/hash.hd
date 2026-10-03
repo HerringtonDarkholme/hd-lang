@@ -3,8 +3,9 @@
 # spec/std/hash.md#bytes-written gives: an integer its little-endian bytes
 # at its own width, a `bool` one byte, a `char` its scalar as a `u32`, a
 # string or a list its length as a `u64` and then its contents, and an
-# optional or a result a tag byte and then its payload. `DefaultHasher` and `hash_of`
-# are not declared here yet (task #196).
+# optional or a result a tag byte and then its payload. `DefaultHasher` is
+# 64-bit FNV-1a, and `hash_of` hashes a value into a new one
+# (spec/std/hash.md#default-hasher).
 use std.function.Tuple
 use std.structure.{Structure, Walker, Variant, Field}
 
@@ -112,6 +113,41 @@ fn unsigned_bytes(value: u64, count: i32) -> List[u8]:
         rest = rest >> 8
         index = index + 1
     bytes
+
+# The standard `Hasher`: 64-bit FNV-1a with no seed
+# (r-std-hash.default.algorithm, r-std-hash.default.fixed). The state
+# starts at the FNV offset basis `0xcbf29ce484222325`.
+pub data DefaultHasher:
+    state: u64
+
+impl DefaultHasher:
+    pub fn new() -> mut DefaultHasher:
+        DefaultHasher { state: 14695981039346656037 }
+
+    # The state, unchanged (r-std-hash.default.finish).
+    pub fn finish(self) -> u64:
+        self.state
+
+# Each byte is XORed in, then the state is multiplied by the FNV prime
+# `0x100000001b3` modulo 2^64, so two writes equal one write of both lists
+# (r-std-hash.default.write). The prime is 256 * 2^32 + 435, and the
+# state is split into 32-bit halves, so no intermediate product overflows
+# the checked `u64` arithmetic.
+impl Hasher for DefaultHasher:
+    fn write(mut self, bytes: List[u8]) -> void:
+        let mask: u64 = 4294967295
+        for byte in bytes:
+            mixed := self.state ^ u64(byte)
+            low := mixed & mask
+            low_product := low * 435
+            middle := (low * 256 + (mixed >> 32) * 435 + (low_product >> 32)) & mask
+            self.state = (middle << 32) | (low_product & mask)
+
+# Hashes `value` into a new `DefaultHasher` (r-std-hash.hash-of).
+pub fn hash_of[T < Hash](value: T) -> u64:
+    let mut hasher = DefaultHasher::new()
+    value.hash(hasher)
+    hasher.finish()
 
 # Derived `Hash` (spec/std/hash.md#derived-hashing): an enum's variant index
 # as a `u32`, then each member in declaration order.

@@ -319,14 +319,22 @@ impl string:
         if self.ends_with(suffix): .Some(bytes_slice(self, 0, bytes_len(self) - bytes_len(suffix))) else: .None
 
     # The pieces between "\n" separators; a final "\n" ends the last line
-    # rather than starting an empty one.
+    # rather than starting an empty one. A carriage return directly before
+    # a "\n" is removed (r-std-text.string.lines); it is written `\u{d}`
+    # for the reason that `simple_escape` gives.
     pub fn lines(self) -> List[string]:
         pieces := self.split("\n")
         let found: mut List[string] = []
         let index = 0
         while index < pieces.len():
-            if index < pieces.len() - 1 || pieces[index].len() > 0:
-                found.append(pieces[index])
+            piece := pieces[index]
+            if index < pieces.len() - 1:
+                if piece.ends_with("\u{d}"):
+                    found.append(bytes_slice(piece, 0, bytes_len(piece) - 1))
+                else:
+                    found.append(piece)
+            else if piece.len() > 0:
+                found.append(piece)
             index = index + 1
         found
 

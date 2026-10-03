@@ -57,6 +57,19 @@ impl Display for Duration:
             return "${self.millis / 1000}s"
         "${self.millis}ms"
 
+# Durations compare by their milliseconds (r-std-time.duration.eq-ord).
+impl Eq for Duration:
+    fn eq(self, other: Duration) -> bool:
+        self.millis == other.millis
+
+impl PartialOrd for Duration:
+    fn partial_cmp(self, other: Duration) -> Ordering?:
+        .Some(self.millis.cmp(other.millis))
+
+impl Ord for Duration:
+    fn cmp(self, other: Duration) -> Ordering:
+        self.millis.cmp(other.millis)
+
 @num_suffix
 pub fn ms(count: i64) -> Duration:
     Duration::milliseconds(count)
