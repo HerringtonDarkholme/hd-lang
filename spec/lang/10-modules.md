@@ -625,6 +625,9 @@ trait Console:
 
     fn write_error_line!(mut self, text: string) -> Result[void, ConsoleError]:
         self.write_line!(text)
+
+pub enum ConsoleError:
+    Closed
 ```
 
 1. r[module.console.host-trait] `Console` is a host capability trait.
@@ -632,19 +635,20 @@ trait Console:
 3. r[module.console.write-error-line] `write_error_line!` writes one line of error output, which a host keeps apart from the output of `write_line!`.
 4. r[module.console.write-error-line.default] Its default body calls `write_line!` with the same text, so a provider that does not override it records both kinds of line together.
 5. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
-6. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
-7. r[module.console.println-write] A call `println(value)` calls `write_line!(value.to_string())` on the `Console` provider that covers the call.
-8. r[module.console.println-drive.block-on] `println` drives that `write_line!` call with [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on), exactly as `block_on` drives a stored suspension, and returns after the call completes.
-9. r[module.console.println-drive.pending] When a poll of that call returns `Pending` on a host write, `println` keeps driving the call until it finishes, as `block_on` does.
-10. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
-11. r[module.console.println-error] If that `write_line!` call returns `.Err(ConsoleError)`, `println` panics.
-12. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
-13. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
-14. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
-15. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on): its forbidden contexts, their transitive ban, and its behavior under an active driver.
-16. r[module.console.println-block-on.under-driver] So a `println` call while a driver is active, as in `main!` or a test body, writes its line and returns.
-17. r[module.console.println-block-on.contexts] A `println` call in a `defer` suite, a default expression, or a fact expression, directly or transitively, is an error. Error: `suspension-forbidden-context`.
-18. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
+6. r[module.console.error.closed] `ConsoleError` is a public enum with one variant, the payload-free `Closed`, so code may build `ConsoleError.Closed`.
+7. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
+8. r[module.console.println-write] A call `println(value)` calls `write_line!(value.to_string())` on the `Console` provider that covers the call.
+9. r[module.console.println-drive.block-on] `println` drives that `write_line!` call with [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on), exactly as `block_on` drives a stored suspension, and returns after the call completes.
+10. r[module.console.println-drive.pending] When a poll of that call returns `Pending` on a host write, `println` keeps driving the call until it finishes, as `block_on` does.
+11. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
+12. r[module.console.println-error] If that `write_line!` call returns `.Err(ConsoleError)`, `println` panics.
+13. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
+14. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
+15. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
+16. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on): its forbidden contexts, their transitive ban, and its behavior under an active driver.
+17. r[module.console.println-block-on.under-driver] So a `println` call while a driver is active, as in `main!` or a test body, writes its line and returns.
+18. r[module.console.println-block-on.contexts] A `println` call in a `defer` suite, a default expression, or a fact expression, directly or transitively, is an error. Error: `suspension-forbidden-context`.
+19. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
 
 ```text
 pub fn main() -> void:
@@ -770,7 +774,7 @@ The following built-in methods are normative:
 | --- | --- |
 | `string` | `len(self) -> i32`; `chars(self) -> mut Iterator[char]`; `char_indices(self) -> mut Iterator[(i32, char)]`; `bytes(self) -> mut Iterator[u8]`; `slice(self, start: i32, end: i32) -> string` |
 | `List[T]` | `len(self) -> i32`; `iter(self) -> mut Iterator[T]` |
-| `mut List[T]` | `push(mut self, value: T) -> void`; `pop(mut self) -> T?` plus the readonly methods |
+| `mut List[T]` | `push(mut self, value: T) -> void`; `pop(mut self) -> T?`; `insert(mut self, index: i32, value: T) -> void`; `remove_at(mut self, index: i32) -> T`; `clear(mut self) -> void` plus the readonly methods |
 | `Map[K, V]` | `len(self) -> i32`; `get(self, key: K) -> V?` |
 | `mut Map[K, V]` | `remove(mut self, key: K) -> V?` plus the readonly methods |
 | `Display` | `to_string(self) -> string` |
@@ -780,9 +784,23 @@ The following built-in methods are normative:
 3. r[module.method.no-set] No `set` type is part of the core prelude.
 4. r[module.method.list-pop] `pop` removes the last element of the list and returns it as `.Some`.
 5. r[module.method.list-pop.empty] `pop` on an empty list returns `.None` and leaves the list unchanged.
+6. r[module.method.list-insert] `insert(index, value)` puts `value` at `index` and moves each element from `index` on one place up.
+7. r[module.method.list-insert.end] `insert` at `len()` appends `value`, as `push` does.
+8. r[module.method.list-insert.range] An `insert` index that is negative or greater than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
+9. r[module.method.list-remove-at] `remove_at(index)` removes the element at `index`, moves each later element one place down, and returns the removed element.
+10. r[module.method.list-remove-at.range] A `remove_at` index that is negative or not less than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
+11. r[module.method.list-clear] `clear` removes every element, so `len()` is 0 after it.
 
-> **Note.** `push`, and a `pop` that removes an element, change the list's
-> shape, so each invalidates the list's iterators by
+| Call on `[1, 2, 3]` | List after |
+| --- | --- |
+| `insert(1, 9)` | `[1, 9, 2, 3]` |
+| `insert(3, 9)` | `[1, 2, 3, 9]` |
+| `remove_at(0)`, which returns `1` | `[2, 3]` |
+| `clear()` | `[]` |
+
+> **Note.** `push`, `insert`, `remove_at`, and a `pop` or `clear` that
+> removes an element change the list's shape, so each invalidates the
+> list's iterators by
 > [`flow.for.invalidate`](06-control-flow.md#r-flow.for.invalidate).
 
 See also: [Text](../std/text.md#string-methods) for the string methods above

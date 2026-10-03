@@ -7,6 +7,23 @@ fn is_greater(order: Ordering) -> bool:
         .Greater => true
         _ => false
 
+# Ordered by `rank` only, so two entries can be equal and still differ.
+data Entry:
+    rank: i32
+    label: string
+
+impl Eq for Entry:
+    fn eq(self, other: Entry) -> bool:
+        self.rank == other.rank
+
+impl PartialOrd for Entry:
+    fn partial_cmp(self, other: Entry) -> Ordering?:
+        .Some(self.cmp(other))
+
+impl Ord for Entry:
+    fn cmp(self, other: Entry) -> Ordering:
+        self.rank.cmp(other.rank)
+
 tests:
     it("min, max, and clamp"):
         assert_equal(min(3, 2), 2, reason="min")
@@ -14,6 +31,12 @@ tests:
         assert_equal(clamp(15, 0, 10), 10, reason="above the range")
         assert_equal(clamp(-5, 0, 10), 0, reason="below the range")
         assert_equal(clamp(5, 0, 10), 5, reason="inside the range")
+
+    it("min and max give the first of equal values"):
+        first := Entry { rank: 1, label: "first" }
+        second := Entry { rank: 1, label: "second" }
+        assert_equal(min(first, second).label, "first", reason="min")
+        assert_equal(max(first, second).label, "first", reason="max")
 
     it("clamp rejects an empty range", expect_panic="explicit-panic"):
         _ := clamp(1, 10, 0)

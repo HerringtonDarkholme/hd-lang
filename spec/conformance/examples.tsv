@@ -616,10 +616,11 @@ std/format.md	2	accept	typing/valid/std-types-debug.hd
 std/iter.md	1	accept	typing/valid/iterator-adapters.hd
 std/iter.md	2	mixed	typing/invalid/iterator-filter-callback-row.hd|typing/invalid/iterator-adapter-readonly.hd|typing/invalid/adapter-callback-scope-key.hd
 std/iter.md	3	accept	typing/valid/adapter-callback-captured-provider.hd
-std/iter.md	4	accept	runtime/valid/iterator-skip-take-while.hd|runtime/valid/iterator-zip-chain.hd|runtime/valid/iterator-search-count.hd
-std/iter.md	5	accept	typing/valid/collect-targets.hd
-std/iter.md	6	type-fragment	-
-std/iter.md	7	mixed	typing/invalid/collect-target-not-fromiterator.hd
+std/iter.md	4	accept	runtime/valid/iterator-skip-take-while.hd|runtime/valid/iterator-zip-iterable.hd|runtime/valid/iterator-search-count.hd
+std/iter.md	5	mixed	typing/invalid/iterator-chain-iterator-arg.hd
+std/iter.md	6	accept	typing/valid/collect-targets.hd
+std/iter.md	7	type-fragment	-
+std/iter.md	8	mixed	typing/invalid/collect-target-not-fromiterator.hd
 std/ops.md	1	accept	typing/valid/default-trait.hd
 std/ops.md	2	mixed	typing/invalid/default-tuple-element-without-default.hd
 std/ops.md	3	accept	runtime/valid/derived-default-declared.hd|runtime/valid/derived-default-data.hd|runtime/valid/derived-default-enum.hd

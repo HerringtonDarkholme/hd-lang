@@ -10,8 +10,8 @@
 # std module that a `use` reaches from it, from the program, and from the
 # joined std modules.
 
-# The prelude names (spec/lang/10-modules.md#prelude). `std.core`'s names,
-# `ConsoleError`, and `std.task`'s names are compiler-provided.
+# The prelude names (spec/lang/10-modules.md#prelude). `std.core`'s names
+# and `std.task`'s names are compiler-provided.
 pub use std.core.{never, bool, i8, i16, i32, i64, u8, u16, u32, u64, f32, f64, char, string, void, List, Map, Any, AnyVal, AnyRef, Option, Result, panic}
 pub use std.format.{Display, Debug, debug}
 pub use std.cmp.{Eq, PartialOrd, Ord, Ordering}

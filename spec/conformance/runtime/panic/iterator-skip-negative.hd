@@ -1,5 +1,5 @@
 # test: skip with a negative count panics when called
-# Spec std/iter More Adapters: std-iter.adapter.skip.negative (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+# Spec std/iter More Adapters: std-iter.adapter.skip.negative.
 
 fn tail(values: List[i32]) -> List[i32]:
     values.iter().skip(-1).collect()  # panic: explicit-panic

@@ -97,27 +97,31 @@ impl[T] Iterator[T]:
                 .None => .None
         )
 
-    # Pairs by position. It pulls `self` first and stops when either ends,
-    # so `other` is not read past the end of `self`.
-    pub fn zip[U](mut self, other: mut Iterator[U]) -> mut Iterator[(T, U)]:
+    # Pairs by position. It calls `other.iter()` once, when `zip` is
+    # called. It pulls `self` first and stops when either ends, so `other`
+    # is not read past the end of `self`.
+    pub fn zip[U, I < Iterable[U]](mut self, other: I) -> mut Iterator[(T, U)]:
+        let mut rest = other.iter()
         Iterator::from_fn(fn() -> (T, U)?:
             match self.next():
                 .Some(left) =>
-                    match other.next():
+                    match rest.next():
                         .Some(right) => .Some((left, right))
                         .None => .None
                 .None => .None
         )
 
-    # The items of `self`, then those of `other`.
-    pub fn chain(mut self, other: mut Iterator[T]) -> mut Iterator[T]:
+    # The items of `self`, then those of `other`. It calls `other.iter()`
+    # once, when `chain` is called.
+    pub fn chain[I < Iterable[T]](mut self, other: I) -> mut Iterator[T]:
+        let mut rest = other.iter()
         let first = true
         Iterator::from_fn(fn() -> T?:
             if first:
                 match self.next():
                     .Some(item) => return .Some(item)
                     .None => first = false
-            other.next()
+            rest.next()
         )
 
     # The items of each list `transform` returns, in order.

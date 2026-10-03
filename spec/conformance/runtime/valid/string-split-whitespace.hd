@@ -1,5 +1,5 @@
 # test: split_whitespace returns the runs between Unicode White_Space, with no empty piece
-# Spec std/text Splitting And Padding: std-text.split-whitespace and .no-empty (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+# Spec std/text Splitting And Padding: std-text.split-whitespace and .no-empty.
 use std.testing.assert_equal
 
 fn word_count(text: string) -> i32:

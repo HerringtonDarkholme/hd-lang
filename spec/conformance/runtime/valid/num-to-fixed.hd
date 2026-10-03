@@ -1,5 +1,5 @@
 # test: to_fixed writes correctly rounded fixed-point text, ties to even, with the sign bit and the special values
-# Spec std/num Fixed-Point Text: std-num.to-fixed.value, .ties, .form, .no-exponent, .sign, and .special (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78; hook FIXED-HOOK).
+# Spec std/num Fixed-Point Text: std-num.to-fixed.value, .ties, .form, .no-exponent, .sign, and .special (hook FIXED-HOOK).
 use std.testing.assert_equal
 
 fn price(amount: f64) -> string:

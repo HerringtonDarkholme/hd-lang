@@ -20,7 +20,7 @@ The language tier keeps what the compiler knows about a list
 
 | Item | Why it stays in the language tier |
 | --- | --- |
-| `items[i]`, `len`, `iter`, `push`, `pop` | built-in indexing and intrinsics over the list's representation |
+| `items[i]`, `len`, `iter`, `push`, `pop`, `insert`, `remove_at`, `clear` | built-in indexing and intrinsics over the list's representation |
 | the structural-version counter | [`flow.for.version`](../lang/06-control-flow.md#r-flow.for.version), a language rule, defines when a change invalidates an iterator |
 
 ## List Methods
@@ -159,7 +159,7 @@ fn steps(readings: List[i32]) -> List[List[i32]]:
 15. r[std-collections.helper.windows.short] A list with fewer than `size` elements gives `[]`.
 16. r[std-collections.helper.windows.size] A `size` below 1 panics, as it does for `chunks`. Panic: `explicit-panic`.
 17. r[std-collections.helper.contains] `contains(value)` is true when an element equals `value` by `Eq`. `index_of(value)` returns the index of the first such element in `.Some`, or `.None`.
-18. r[std-collections.helper.min-max] `min` returns the first smallest element and `max` the last largest one by `Ord`, each in `.Some`. An empty list gives `.None`.
+18. r[std-collections.helper.min-max.first] `min` returns the first smallest element and `max` the first largest one by `Ord`, each in `.Some`. An empty list gives `.None`.
 
 | Call | Result |
 | --- | --- |
@@ -178,8 +178,9 @@ fn paged(items: List[i32]) -> List[List[i32]]:
 > **Why.** The names are Rust's (`sort_by_key`, `partition`, `windows`,
 > `any`, `all`, `find`, `flat_map`, `contains`, `min`, `max`), Kotlin's
 > `groupBy`, and Python's `list.index`. A sort copies, as `sorted_by`
-> does, since hd has no consuming methods. `min` and `max` pick among
-> equal elements as Rust's `Iterator::min` and `Iterator::max` do.
+> does, since hd has no consuming methods. `min` and `max` both pick the
+> first of equal elements, as Python's `min` and `max` do, so one rule
+> covers both.
 
 ### Counts
 

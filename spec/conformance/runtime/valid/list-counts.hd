@@ -1,5 +1,5 @@
 # test: counts tallies each distinct element, keys in first-occurrence order
-# Spec std/collections Counts: std-collections.counts, .value, and .order (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+# Spec std/collections Counts: std-collections.counts, .value, and .order.
 use std.collections.counts
 use std.testing.assert_equal
 

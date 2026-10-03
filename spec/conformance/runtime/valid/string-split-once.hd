@@ -1,5 +1,5 @@
 # test: split_once splits at the first separator, gives .None when it is absent, and finds an empty separator at 0
-# Spec std/text Splitting And Padding: std-text.split-once, .absent, and .empty (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+# Spec std/text Splitting And Padding: std-text.split-once, .absent, and .empty.
 use std.testing.assert_equal
 
 fn setting(line: string) -> string:

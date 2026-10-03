@@ -27,11 +27,12 @@ pub fn min[T < Ord](a: T, b: T) -> T:
         .Less => b
         _ => a
 
-# The larger of two values; `b` when they are equal.
+# The larger of two values; `a` when they are equal, so `min` and `max`
+# both give the first of equal values, as Python's do.
 pub fn max[T < Ord](a: T, b: T) -> T:
     match b.cmp(a):
-        .Less => a
-        _ => b
+        .Greater => b
+        _ => a
 
 # `value` limited to `low..=high`; panics when `low > high`.
 pub fn clamp[T < Ord](value: T, low: T, high: T) -> T:

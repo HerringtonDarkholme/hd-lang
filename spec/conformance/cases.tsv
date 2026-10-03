@@ -2038,6 +2038,9 @@ runtime/valid/heap-order.hd	runtime	accept	std/collections.md#r-std-collections.
 runtime/valid/heap-reverse.hd	runtime	accept	std/collections.md#r-std-collections.heap.min
 runtime/valid/cmp-reverse.hd	runtime	accept	std/cmp.md#r-std-cmp.reverse.order
 runtime/valid/list-pop.hd	runtime	accept	lang/10-modules.md#r-module.method.list-pop
+runtime/valid/list-insert-remove-clear.hd	runtime	accept	lang/10-modules.md#r-module.method.list-insert
+runtime/panic/list-insert-out-of-range.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.method.list-insert.range
+runtime/panic/list-remove-at-out-of-range.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.method.list-remove-at.range
 runtime/valid/task-all-list-order.hd	runtime	accept	std/task.md#r-std-task.all-list.order
 runtime/valid/task-all-list-empty.hd	runtime	accept	std/task.md#r-std-task.all-list.empty
 runtime/valid/char-ascii-classes.hd	runtime	accept	std/text.md#character-classification
@@ -2066,7 +2069,7 @@ runtime/valid/list-group-by.hd	runtime	accept	std/collections.md#r-std-collectio
 runtime/valid/list-partition-search.hd	runtime	accept	std/collections.md#list-helpers
 runtime/valid/list-flat-map-windows.hd	runtime	accept	std/collections.md#r-std-collections.helper.windows
 runtime/panic/list-windows-size.hd	runtime	panic:explicit-panic	std/collections.md#r-std-collections.helper.windows.size
-runtime/valid/list-min-max.hd	runtime	accept	std/collections.md#r-std-collections.helper.min-max
+runtime/valid/list-min-max.hd	runtime	accept	std/collections.md#r-std-collections.helper.min-max.first
 typing/invalid/list-helper-callback-row.hd	type	reject:type-mismatch	std/collections.md#r-std-collections.helper.callback-row
 runtime/valid/list-counts.hd	runtime	accept	std/collections.md#counts
 runtime/valid/map-get-or.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or
@@ -2074,7 +2077,10 @@ runtime/valid/set-basics.hd	runtime	accept	std/collections.md#set
 runtime/panic/set-invalidated.hd	runtime	panic:iterator-invalidated	std/collections.md#r-std-collections.set.invalidate
 runtime/valid/iterator-skip-take-while.hd	runtime	accept	std/iter.md#r-std-iter.adapter.take-while.stop
 runtime/panic/iterator-skip-negative.hd	runtime	panic:explicit-panic	std/iter.md#r-std-iter.adapter.skip.negative
-runtime/valid/iterator-zip-chain.hd	runtime	accept	std/iter.md#r-std-iter.adapter.zip.order
+runtime/valid/iterator-zip-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.zip-iterable.order
+runtime/valid/iterator-chain-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.chain-iterable.order
+typing/invalid/iterator-chain-iterator-arg.hd	type	reject:unsatisfied-trait-bound	std/iter.md#r-std-iter.adapter.iterable-arg.iterator
 runtime/valid/iterator-flat-map.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map
 runtime/valid/iterator-search-count.hd	runtime	accept	std/iter.md#r-std-iter.adapter.stop-early
 typing/invalid/iterator-any-callback-row.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row.more
+runtime/panic/println-console-closed.hd	runtime	panic:explicit-panic	lang/10-modules.md#r-module.console.println-error

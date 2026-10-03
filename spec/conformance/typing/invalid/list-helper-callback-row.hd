@@ -1,5 +1,5 @@
 # test: a List helper callback with a requirement row does not fit its empty-row parameter
-# Spec std/collections List Helpers: std-collections.helper.callback-row (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+# Spec std/collections List Helpers: std-collections.helper.callback-row.
 
 trait Logger
 

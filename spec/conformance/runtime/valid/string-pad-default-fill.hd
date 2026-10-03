@@ -1,5 +1,5 @@
 # test: pad_start and pad_end fill with a space when no fill is given
-# Spec std/text Splitting And Padding: std-text.pad.fill-default (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+# Spec std/text Splitting And Padding: std-text.pad.fill-default.
 use std.testing.assert_equal
 
 fn cell(text: string) -> string:

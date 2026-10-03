@@ -1,5 +1,5 @@
 # test: a Set keeps distinct elements in insertion order; insert and remove report a change
-# Spec std/collections Set: std-collections.set.decl, .distinct, .len, .contains, .insert, .remove, .iter, and .eq (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+# Spec std/collections Set: std-collections.set.decl, .distinct, .len, .contains, .insert, .remove, .iter, and .eq.
 use std.collections.Set
 use std.testing.{assert, assert_equal}
 

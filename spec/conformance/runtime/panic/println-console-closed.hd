@@ -1,0 +1,19 @@
+# test: println panics with explicit-panic when the covering provider's write_line! returns .Err(ConsoleError.Closed)
+# Spec 10 Console: module.console.println-error, .println-error.category, and .error.closed.
+
+data ClosedConsole:
+    attempts: mut List[string]
+
+impl Console for ClosedConsole:
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        self.attempts.push(text)
+        .Err(ConsoleError.Closed)
+
+fn greet(name: string) -> void $ Console:
+    println("hello, ${name}")  # panic: explicit-panic
+
+tests:
+    it("println panics on a closed console"):
+        let mut console = ClosedConsole { attempts: [] }
+        $.with(Console=console):
+            greet("Ada")

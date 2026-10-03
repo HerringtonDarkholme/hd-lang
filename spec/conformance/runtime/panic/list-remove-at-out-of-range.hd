@@ -1,0 +1,10 @@
+# test: list remove_at at len() panics with index-out-of-bounds
+# Spec lang/10 Built-In Methods: module.method.list-remove-at.range.
+
+fn shrink(values: mut List[i32]) -> i32:
+    values.remove_at(values.len())  # panic: index-out-of-bounds
+
+tests:
+    it("rejects the index len()"):
+        let values: mut List[i32] = [1, 2]
+        _ := shrink(values)

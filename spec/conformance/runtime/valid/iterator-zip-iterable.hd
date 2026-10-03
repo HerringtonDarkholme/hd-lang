@@ -1,0 +1,41 @@
+# test: zip takes any Iterable, takes its iterator once when called, pulls self first, and stops at the shorter
+# Spec std/iter More Adapters: std-iter.adapter.zip-iterable, .iterable-arg, and .zip-iterable.order.
+use std.collections.Set
+use std.testing.assert_equal
+
+# An iterable whose `iter` and whose iterator's pulls run given closures.
+data Probe:
+    start: fn() -> void
+    pull: fn() -> i32?
+
+impl Iterable[i32] for Probe:
+    fn iter(self) -> mut Iterator[i32]:
+        (self.start)()
+        Iterator::from_fn(self.pull)
+
+fn labeled(names: List[string]) -> List[(i32, string)]:
+    [1, 2, 3].iter().zip(names).collect()
+
+tests:
+    it("zip stops at the shorter"):
+        assert_equal(labeled(["a", "b"]), [(1, "a"), (2, "b")], reason="names end first")
+        assert_equal(labeled(["a", "b", "c", "d"]).len(), 3, reason="numbers end first")
+    it("a range and a set"):
+        assert_equal([1, 2].iter().zip(10..20).collect(), [(1, 10), (2, 11)], reason="a range")
+        let seen: mut Set[string] = Set::new()
+        _ := seen.insert("x")
+        assert_equal([1, 2].iter().zip(seen).collect(), [(1, "x")], reason="a set")
+    it("zip takes iter once, when called, and does not read other past the end of self"):
+        let log: mut List[string] = []
+        let at = 0
+        probe := Probe {
+            start: fn() -> void: log.push("iter"),
+            pull: fn() -> i32?:
+                log.push("next")
+                at = at + 1
+                .Some(at * 10)
+        }
+        let mut pairs = [1].iter().zip(probe)
+        assert_equal(log, ["iter"], reason="iter at the call, and no next")
+        assert_equal(pairs.collect(), [(1, 10)], reason="one pair")
+        assert_equal(log, ["iter", "next"], reason="other read once, not after self ended")

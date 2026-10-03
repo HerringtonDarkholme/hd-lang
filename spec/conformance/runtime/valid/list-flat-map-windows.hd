@@ -1,5 +1,5 @@
 # test: flat_map joins lists in order, and windows gives overlapping runs or [] for a short list
-# Spec std/collections List Helpers: std-collections.helper.flat-map, .windows, and .windows.short (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+# Spec std/collections List Helpers: std-collections.helper.flat-map, .windows, and .windows.short.
 use std.testing.assert_equal
 
 fn steps(readings: List[i32]) -> List[List[i32]]:

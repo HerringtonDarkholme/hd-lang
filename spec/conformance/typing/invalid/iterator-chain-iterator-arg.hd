@@ -1,0 +1,9 @@
+# test: an iterator argument to chain does not satisfy its Iterable bound
+# Spec std/iter More Adapters: std-iter.adapter.iterable-arg.iterator, by flow.for.iterator-no-bound.
+
+fn joined_eagerly(first: List[i32], rest: mut Iterator[i32]) -> List[i32]:
+    let tail: List[i32] = rest.collect()
+    first.iter().chain(tail).collect()
+
+fn joined(first: List[i32], rest: mut Iterator[i32]) -> List[i32]:
+    first.iter().chain(rest).collect()  # diagnostic: unsatisfied-trait-bound

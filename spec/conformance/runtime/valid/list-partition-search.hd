@@ -1,5 +1,5 @@
 # test: partition, any, all, find, contains, and index_of, including an empty list
-# Spec std/collections List Helpers: std-collections.helper.partition, .any-all, .find, .short-circuit, and .contains (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+# Spec std/collections List Helpers: std-collections.helper.partition, .any-all, .find, .short-circuit, and .contains.
 use std.testing.{assert, assert_equal}
 
 tests:

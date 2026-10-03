@@ -1,5 +1,5 @@
 # test: inserting into a set while iterating it panics at the next step
-# Spec std/collections Set: std-collections.set.invalidate (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+# Spec std/collections Set: std-collections.set.invalidate.
 use std.collections.Set
 
 fn grow(set: mut Set[i32]) -> void:

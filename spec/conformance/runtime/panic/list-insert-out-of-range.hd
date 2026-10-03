@@ -1,0 +1,10 @@
+# test: list insert past len() panics with index-out-of-bounds
+# Spec lang/10 Built-In Methods: module.method.list-insert.range.
+
+fn grow(values: mut List[i32]) -> void:
+    values.insert(values.len() + 1, 9)  # panic: index-out-of-bounds
+
+tests:
+    it("rejects an index past len()"):
+        let values: mut List[i32] = [1, 2]
+        grow(values)

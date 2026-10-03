@@ -1978,7 +1978,9 @@ runtime/valid/set-basics.hd	runtime
 runtime/panic/set-invalidated.hd	runtime
 runtime/valid/iterator-skip-take-while.hd	runtime
 runtime/panic/iterator-skip-negative.hd	runtime
-runtime/valid/iterator-zip-chain.hd	runtime
+runtime/valid/iterator-chain-iterable.hd	runtime
+typing/invalid/iterator-chain-iterator-arg.hd	type
 runtime/valid/iterator-flat-map.hd	runtime
 runtime/valid/iterator-search-count.hd	runtime
 typing/invalid/iterator-any-callback-row.hd	type
+runtime/panic/println-console-closed.hd	runtime

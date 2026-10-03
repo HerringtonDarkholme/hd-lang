@@ -1,5 +1,5 @@
-# test: min gives the first smallest element and max the last largest, and an empty list gives .None
-# Spec std/collections List Helpers: std-collections.helper.min-max (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+# test: min gives the first smallest element and max the first largest, and an empty list gives .None
+# Spec std/collections List Helpers: std-collections.helper.min-max.first.
 use std.cmp.Ordering
 use std.testing.assert_equal
 
@@ -31,7 +31,7 @@ tests:
     it("ties"):
         let entries: List[Entry] = [Entry { rank: 1, label: "a" }, Entry { rank: 1, label: "b" }]
         assert_equal(label(entries.min()), "a", reason="the first smallest")
-        assert_equal(label(entries.max()), "b", reason="the last largest")
+        assert_equal(label(entries.max()), "a", reason="the first largest")
     it("an empty list"):
         let empty: List[i32] = []
         assert_equal(empty.min(), .None, reason="min")

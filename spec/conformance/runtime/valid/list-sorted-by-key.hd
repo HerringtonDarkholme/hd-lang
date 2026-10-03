@@ -1,5 +1,5 @@
 # test: sorted_by_key and sorted sort stably and leave the list unchanged
-# Spec std/collections List Helpers: std-collections.helper.sorted-by-key, .sorted, .stable, and .unchanged (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+# Spec std/collections List Helpers: std-collections.helper.sorted-by-key, .sorted, .stable, and .unchanged.
 use std.testing.assert_equal
 
 data Task:

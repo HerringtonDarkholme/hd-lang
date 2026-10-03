@@ -1,5 +1,5 @@
 # test: get_or returns the entry's value, or the fallback when there is none
-# Spec std/collections Map Methods: std-collections.map.get-or (recommended reading of TEXT-COLLECTIONS-SURFACE, spec pass 78).
+# Spec std/collections Map Methods: std-collections.map.get-or.
 use std.testing.assert_equal
 
 fn stock_of(stock: Map[string, i32], item: string) -> i32:

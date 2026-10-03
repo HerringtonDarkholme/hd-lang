@@ -1,7 +1,7 @@
 # std.console: `println`, console input, and the recording `BufferConsole`.
 # `Console`, `ConsoleError`, and `println`
-# are prelude names (spec/lang/10-modules.md#console); `Console` and `println` are
-# declared here and `ConsoleError` by the checker. No prototype runtime
+# are prelude names (spec/lang/10-modules.md#console), all declared here.
+# The checker still also knows `ConsoleError` by name. No prototype runtime
 # profile binds a host `ConsoleInput`. `println` drives the covering
 # provider's `write_line!` with `block_on` (MHP-1), so a `BufferConsole`
 # records `println` lines too.
@@ -50,3 +50,12 @@ pub fn println[T < Display](value: T) -> void $ Console:
     match block_on(call):
         .Ok(()) => pass
         .Err(_) => panic("println: write_line! returned .Err(ConsoleError)")
+
+# The error of a console write or read (spec/lang/10-modules.md#r-module.console.error.closed).
+pub enum ConsoleError:
+    Closed
+
+impl Display for ConsoleError:
+    fn to_string(self) -> string:
+        match self:
+            .Closed => "console closed"

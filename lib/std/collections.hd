@@ -207,13 +207,13 @@ impl[T < Ord] List[T]:
                 .None => best = .Some(item)
         best
 
-    # The last of the largest elements, as Rust's `Iterator::max` gives.
+    # The first of the largest elements, as Python's `max` gives.
     pub fn max(self) -> T?:
         let best: T? = .None
         for item in self:
             match best:
                 .Some(current) =>
-                    if !before(item, current):
+                    if before(current, item):
                         best = .Some(item)
                 .None => best = .Some(item)
         best

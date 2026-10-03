@@ -34,21 +34,6 @@ for the error-code revamp, task #101, which may merge codes.
 | DEFAULT-CODE | batch 51 | The decision names no code for zero or several `@default` variants. | A new code, `invalid-default-variant` ([`std-ops.default.derive.one-variant`](../spec/std/ops.md#r-std-ops.default.derive.one-variant)), reported on the `@derive` line or the second `@default`. |
 | RACE-PANIC | batch 51 | The decision leaves the panic code of a `race!` over a list that is empty at run time to the agent. | `explicit-panic` ([`req.combinator.race-empty-run`](../spec/lang/11-requirements-and-suspension.md#r-req.combinator.race-empty-run)), as for `take` with a negative count ([`std-iter.adapter.take.negative`](../spec/std/iter.md#r-std-iter.adapter.take.negative)). |
 
-### Mutable Host Providers
-
-**Still open (raised 2026-09-28).** Nothing here is decided:
-
-| Question | Effect | **Recommendation** |
-| --- | --- | --- |
-| A fixture for the `.Err` panic | `module.console.println-error.category` has no fixture, since no code can build a `ConsoleError` (follow-up 2 defers its constructor). | Add the fixture when `ConsoleError`'s constructor is settled. |
-
-```text
-fn report!() -> void $ Console:
-    defer:
-        println("done")   # error: suspension-forbidden-context
-    println("working")    # valid: writes under the caller's driver
-```
-
 ### Typed Derivation, Tool Adapters, And Secrets
 
 **Waiting on other areas.** The spec lists these as
