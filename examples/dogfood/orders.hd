@@ -74,7 +74,7 @@ fn place_order!(id: i32, lines: List[Line]) -> Result[Order, OrderError] $ Inven
     for line in lines:
         $.use(Inventory).reserve!(line.sku, line.qty)
     now := $.use(Clock).now()
-    .Ok(Order { id: id, lines: lines, total_cents: total, placed_at: now.unix_millis() })
+    .Ok(Order { id: id, lines: lines, total_cents: total, placed_at: now.unix_milliseconds() })
 
 fn fresh_inventory() -> mut MemoryInventory:
     MemoryInventory {
@@ -89,7 +89,7 @@ fn report!(id: i32, lines: List[Line]) -> string $ Inventory + Clock:
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
-    $.with(Inventory=fresh_inventory(), Clock=ManualClock::new(Timestamp::from_unix_millis(1000))):
+    $.with(Inventory=fresh_inventory(), Clock=ManualClock::new(Timestamp::from_unix_milliseconds(1000))):
         console.write_line!(report!(1, [Line { sku: "apple", qty: 3 }, Line { sku: "pear", qty: 1 }]))?
         console.write_line!(report!(2, [Line { sku: "pear", qty: 2 }]))?
         console.write_line!(report!(3, [Line { sku: "kiwi", qty: 1 }]))?
@@ -98,7 +98,7 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
 
 tests:
     it("places an order and reserves stock"):
-        $.with(Inventory=fresh_inventory(), Clock=ManualClock::new(Timestamp::from_unix_millis(5))):
+        $.with(Inventory=fresh_inventory(), Clock=ManualClock::new(Timestamp::from_unix_milliseconds(5))):
             result := place_order!(7, [Line { sku: "apple", qty: 4 }, Line { sku: "pear", qty: 2 }])
             match result:
                 .Ok(order) =>
@@ -108,7 +108,7 @@ tests:
             assert_equal($.use(Inventory).stock!("apple"), 6, reason="reserved")
             assert_equal($.use(Inventory).stock!("pear"), 0, reason="reserved")
     it("rejects bad orders and keeps stock"):
-        $.with(Inventory=fresh_inventory(), Clock=ManualClock::new(Timestamp::from_unix_millis(0))):
+        $.with(Inventory=fresh_inventory(), Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
             assert_equal(place_order!(1, []), .Err(OrderError.EmptyOrder), reason="empty")
             assert_equal(place_order!(1, [Line { sku: "apple", qty: 0 }]), .Err(OrderError.BadQuantity("apple", 0)), reason="qty")
             assert_equal(place_order!(1, [Line { sku: "kiwi", qty: 1 }]), .Err(OrderError.UnknownSku("kiwi")), reason="sku")

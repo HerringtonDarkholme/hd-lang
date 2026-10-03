@@ -35,6 +35,31 @@ impl[T] List[T]:
                 kept.push(item)
         kept
 
+    # The checked read beside `items[i]` (r-std-collections.access.get).
+    pub fn get(self, index: i32) -> T?:
+        if index < 0 || index >= self.len(): .None else: .Some(self[index])
+
+    pub fn is_empty(self) -> bool:
+        self.len() == 0
+
+    # The first `count` items, or all of them (r-std-collections.access.take).
+    pub fn take(self, count: i32) -> List[T]:
+        let kept: mut List[T] = []
+        let index = 0
+        while index < count && index < self.len():
+            kept.push(self[index])
+            index = index + 1
+        kept
+
+    # Appends `other`'s items as they were at the call, so
+    # `items.extend(items)` doubles the list (r-std-collections.access.extend.self).
+    pub fn extend(mut self, other: List[T]) -> void:
+        size := other.len()
+        let index = 0
+        while index < size:
+            self.push(other[index])
+            index = index + 1
+
     pub fn first(self) -> T?:
         if self.len() == 0: .None else: .Some(self[0])
 

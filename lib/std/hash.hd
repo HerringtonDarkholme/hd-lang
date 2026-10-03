@@ -24,7 +24,7 @@ impl Hash for string:
 
 impl Hash for char:
     fn hash(self, state: mut Hasher) -> void:
-        u32(char_scalar(self)).hash(state)
+        char_scalar(self).hash(state)
 
 # An optional writes the tag byte 0 for `.None`, or 1 and then its payload.
 impl[T < Hash] Hash for T?:
@@ -191,5 +191,5 @@ impl[T < Tuple] Hash for T by Structure:
 # A `char` is its scalar value at run time
 # (spec/std/README.md#standard-library-primitives).
 @intrinsic("char_scalar")
-fn char_scalar(value: char) -> i32:
+fn char_scalar(value: char) -> u32:
     panic("intrinsic")

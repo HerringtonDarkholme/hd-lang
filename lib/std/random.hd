@@ -65,7 +65,7 @@ pub data Rng:
     source: mut SeededRandom
 
 impl Rng:
-    pub fn from_seed(seed: u64) -> mut Rng:
+    pub fn new(seed: u64) -> mut Rng:
         Rng { source: SeededRandom::new(seed) }
 
     pub fn next_u64(mut self) -> u64:
@@ -142,7 +142,7 @@ impl Rng:
 
 # An `Rng` that one draw of the `Random` provider seeds (r-std-random.rng.from-random).
 pub fn rng() -> mut Rng $ Random:
-    Rng::from_seed($.use(Random).next_u64())
+    Rng::new($.use(Random).next_u64())
 
 fn low32(x: u64) -> u64:
     x & 0xFFFFFFFF

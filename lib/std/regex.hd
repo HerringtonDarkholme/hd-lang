@@ -6,11 +6,12 @@
 # backtracking (r-std-regex.time.linear). The prototype's std loader does
 # not list this module yet (src/checker/standard-sources.ts).
 use std.format.DebugWriter
+use std.error.Error
 
 # A compiled pattern (r-std-regex.regex.decl). `names[i]` is the name of
 # group i, or "" for an unnamed group and for group 0.
 pub data Regex:
-    pattern: string
+    text: string
     program: List[Inst]
     names: List[string]
 
@@ -60,11 +61,11 @@ impl Regex:
         let program: mut List[Inst] = []
         compile(parsed.node, program)
         program.push(Inst.Done)
-        .Ok(Regex { pattern: pattern, program: program, names: names })
+        .Ok(Regex { text: pattern, program: program, names: names })
 
     # The pattern as written.
-    pub fn as_str(self) -> string:
-        self.pattern
+    pub fn pattern(self) -> string:
+        self.text
 
     # Whether some part of `text` matches (r-std-regex.is-match).
     pub fn is_match(self, text: string) -> bool:
@@ -951,12 +952,15 @@ impl Display for RegexError:
     fn to_string(self) -> string:
         "${self.kind} at byte ${self.position}"
 
+# A std error type implements `Error` (r-std-error.std-types.impl).
+impl Error for RegexError
+
 # `Debug` for this module's types (r-std-format.debug.std-types), written by
 # hand with the builder calls that `@derive(Debug)` generates.
 
 impl Debug for Regex:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("Regex").field("pattern", self.pattern).finish()
+        out.debug_struct("Regex").field("pattern", self.text).finish()
 
 impl Debug for Match:
     fn debug(self, out: mut DebugWriter) -> void:

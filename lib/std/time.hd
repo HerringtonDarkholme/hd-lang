@@ -11,6 +11,7 @@
 # `-5s` is the ordinary negation `-(5s)`, so `Duration` implements `Neg`
 # (r-std-time.suffix.std.duration-neg).
 use std.format.DebugWriter
+use std.error.Error
 use std.ops.{Add, Neg, Sub, num_suffix}
 
 pub data Duration:
@@ -146,11 +147,11 @@ pub data Timestamp:
     millis: i64
 
 impl Timestamp:
-    pub fn from_unix_millis(millis: i64) -> Timestamp:
+    pub fn from_unix_milliseconds(millis: i64) -> Timestamp:
         Timestamp { millis: millis }
 
-    # The inverse of `from_unix_millis` (r-std-time.timestamp.unix-millis).
-    pub fn unix_millis(self) -> i64:
+    # The inverse of `from_unix_milliseconds` (r-std-time.timestamp.unix-milliseconds).
+    pub fn unix_milliseconds(self) -> i64:
         self.millis
 
     # Negative when `earlier` is the later one (r-std-time.timestamp.since).
@@ -193,6 +194,11 @@ impl Add[Duration] for Timestamp:
     type Out = Timestamp
     fn add(self, rhs: Duration) -> Timestamp:
         Timestamp { millis: self.millis + rhs.as_milliseconds() }
+
+# The RFC 3339 text, as Go's `Time.String` (r-std-time.timestamp.display).
+impl Display for Timestamp:
+    fn to_string(self) -> string:
+        self.to_rfc3339()
 
 impl Debug for Timestamp:
     fn debug(self, out: mut DebugWriter) -> void:
@@ -249,6 +255,9 @@ impl Display for TimeParseError:
             .OutOfRange(position) => "value out of range at position $position"
             .TooShort(position) => "the text ends at position $position, before the timestamp is complete"
 
+# A std error type implements `Error` (r-std-error.std-types.impl).
+impl Error for TimeParseError
+
 impl Debug for TimeParseError:
     fn debug(self, out: mut DebugWriter) -> void:
         match self:
@@ -302,14 +311,14 @@ fn year_digits(year: i32) -> string:
         return "-" + zero_padded(-i64(year), 4)
     zero_padded(i64(year), 4)
 
-# One code per character: the ASCII code, or -1 for any other character,
-# so an index is a position in characters.
+# One code per byte: the ASCII code, or -1 for a byte of any other
+# character, so an index is a byte offset (r-std-time.parse-error.position-bytes).
 fn rfc3339_codes(text: string) -> List[i32]:
     let codes: mut List[i32] = []
     for byte in text.bytes():
         if byte < 128:
             codes.push(i32(byte))
-        else if byte >= 192:
+        else:
             codes.push(-1)
     codes
 
@@ -417,8 +426,12 @@ pub data Instant:
     millis: i64
 
 impl Instant:
-    pub fn from_millis(millis: i64) -> Instant:
+    pub fn from_milliseconds(millis: i64) -> Instant:
         Instant { millis: millis }
+
+    # The inverse of `from_milliseconds` (r-std-time.instant.as-milliseconds).
+    pub fn as_milliseconds(self) -> i64:
+        self.millis
 
     pub fn since(self, earlier: Instant) -> Duration:
         Duration::milliseconds(self.millis - earlier.millis)
@@ -464,7 +477,7 @@ impl Clock for ManualClock:
 
     # The monotonic origin is the Unix epoch (r-std-time.manual.monotonic).
     fn monotonic(self) -> Instant:
-        Instant::from_millis(self.current.millis)
+        Instant::from_milliseconds(self.current.millis)
 
     # A negative duration panics, and a zero one leaves the time as it is
     # (r-std-time.clock.sleep.negative, r-std-time.manual.sleep.zero).
@@ -472,4 +485,4 @@ impl Clock for ManualClock:
         step := duration.as_milliseconds()
         if step < 0:
             panic("sleep! with a negative duration: ${duration}")
-        self.current = Timestamp::from_unix_millis(self.current.millis + step)
+        self.current = Timestamp::from_unix_milliseconds(self.current.millis + step)

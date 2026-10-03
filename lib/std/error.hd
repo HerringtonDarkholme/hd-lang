@@ -6,6 +6,9 @@
 # (module.prelude.error-inspectable).
 use std.inspect.{Inspectable}
 use std.format.DebugWriter
+use std.num.ParseNumberError
+use std.text.Utf8Error
+use std.console.ConsoleError
 
 pub trait Error < Display & Inspectable & AnyRef:
     fn cause(self) -> Error?: .None
@@ -81,6 +84,14 @@ impl Display for ContextError:
 impl Error for ContextError:
     fn cause(self) -> Error?:
         .Some(self.error)
+
+# The std error types of the prelude-joined modules implement `Error` here,
+# so a program that never names `Error` does not join this module
+# (r-std-error.std-types.impl). The other modules' error types implement it
+# beside their declarations.
+impl Error for ParseNumberError
+impl Error for Utf8Error
+impl Error for ConsoleError
 
 # Wraps an `.Err(e)` in a `ContextError`; `.Ok` passes through
 # (r-std-error.context.ok, r-std-error.context.err).

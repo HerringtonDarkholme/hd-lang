@@ -128,7 +128,10 @@ impl Choices:
         self.next(1) == 1
 
     # One of `items`; earlier items shrink first, and the simplest is the first.
-    pub fn pick[T](mut self, items: List[T]) -> T:
+    # An empty list panics (r-std-testing.choices.choose.empty).
+    pub fn choose[T](mut self, items: List[T]) -> T:
+        if items.len() == 0:
+            panic("Choices.choose: no items to choose from")
         if self.spent():
             return items[0]
         items[i32(self.next(i64(items.len() - 1)))]
@@ -165,7 +168,7 @@ impl Choices:
         let count: i32 = i32(self.next(i64(max_chars)))
         let index: i32 = 0
         while index < count:
-            text = text + self.pick(letters)
+            text = text + self.choose(letters)
             index = index + 1
         text
 
@@ -340,7 +343,7 @@ impl Arbitrary for bool:
     fn arbitrary(c: mut Choices) -> bool: c.bool()
 
 impl Arbitrary for char:
-    fn arbitrary(c: mut Choices) -> char: c.pick(['a', 'b', 'z', ' ', '0', '\u{E9}', '\u{3C0}', '\u{1F600}'])
+    fn arbitrary(c: mut Choices) -> char: c.choose(['a', 'b', 'z', ' ', '0', '\u{E9}', '\u{3C0}', '\u{1F600}'])
 
 impl Arbitrary for string:
     fn arbitrary(c: mut Choices) -> string: c.string(16)

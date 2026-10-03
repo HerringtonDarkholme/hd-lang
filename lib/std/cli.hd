@@ -3,6 +3,7 @@
 # arguments against it, and `usage` writes its help text. The prototype's
 # std loader does not list this module yet (src/checker/standard-sources.ts).
 use std.format.DebugWriter
+use std.error.Error
 use std.host.Args
 
 # A command line's declared arguments (r-std-cli.cli.decl). Each builder
@@ -204,6 +205,9 @@ impl Display for CliError:
             .MissingValue(name) => "option --${name} needs a value"
             .UnexpectedValue(name) => "flag --${name} takes no value"
             .MissingPositional(name) => "missing argument <${name}>"
+
+# A std error type implements `Error` (r-std-error.std-types.impl).
+impl Error for CliError
 
 # `Debug` for this module's types (r-std-format.debug.std-types), written by
 # hand with the builder calls that `@derive(Debug)` generates

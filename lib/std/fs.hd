@@ -8,6 +8,7 @@
 # cannot share the name of the trait method it calls.
 use std.path.Path
 use std.format.DebugWriter
+use std.error.Error
 
 pub enum FsError:
     NotFound(path: Path)
@@ -35,6 +36,9 @@ impl Eq for FsError:
 impl Display for FsError:
     fn to_string(self) -> string:
         fs_error_text(self)
+
+# A std error type implements `Error` (r-std-error.std-types.impl).
+impl Error for FsError
 
 fn fs_error_text(error: FsError) -> string:
     match error:

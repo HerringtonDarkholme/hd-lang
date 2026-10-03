@@ -13,11 +13,18 @@ use std.format.DebugWriter
 pub trait Console:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]
 
+# `write_error_line!` (r-module.console.write-error-line) and `eprintln` are
+# not declared yet: the prototype emits host glue for every method of a host
+# trait, called or not, so a second `Console` method would grow every
+# program that prints (STD-HELPERS in test/portable/KNOWN_FAILURES.tsv).
+
 # `read_line!` takes `mut self`, so a scripted provider can advance
 # through its lines (spec/std/console.md#r-std-console.input.mut).
 pub trait ConsoleInput:
     fn read_line!(mut self) -> Result[string?, ConsoleError]
 
+# The recording `Console` provider (spec/std/console.md#buffer-console).
+# `error_output` waits for `write_error_line!` (STD-HELPERS).
 pub data BufferConsole:
     lines: mut List[string]
 
@@ -25,8 +32,31 @@ impl BufferConsole:
     pub fn new() -> mut BufferConsole:
         BufferConsole { lines: [] }
 
+    # The lines `write_line!` received, in order (r-std-console.buffer.output).
     pub fn output(self) -> List[string]:
         self.lines
+
+# The scripted `ConsoleInput` provider (spec/std/console.md#scripted-input):
+# it returns its lines in order, then `.None`.
+pub data ScriptedInput:
+    lines: List[string]
+    next: i32
+
+impl ScriptedInput:
+    pub fn new(lines: List[string]) -> mut ScriptedInput:
+        ScriptedInput { lines: lines, next: 0 }
+
+impl ConsoleInput for ScriptedInput:
+    fn read_line!(mut self) -> Result[string?, ConsoleError]:
+        if self.next >= self.lines.len():
+            return .Ok(.None)
+        line := self.lines[self.next]
+        self.next = self.next + 1
+        .Ok(.Some(line))
+
+impl Debug for ScriptedInput:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("ScriptedInput").field("lines", self.lines).field("next", self.next).finish()
 
 # The derived builder calls, written by hand because `@derive` does not
 # run inside lib/std (r-std-format.debug.std-types).
@@ -59,3 +89,12 @@ impl Display for ConsoleError:
     fn to_string(self) -> string:
         match self:
             .Closed => "console closed"
+
+# One variant, so every two values are equal (r-std-console.error.traits).
+impl Eq for ConsoleError:
+    fn eq(self, other: ConsoleError) -> bool:
+        true
+
+impl Debug for ConsoleError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("Closed")

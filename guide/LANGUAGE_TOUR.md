@@ -2684,7 +2684,7 @@ tests:
 ```
 
 A generator draws with `c.int(lo, hi)`, `c.float(lo, hi)`, `c.bool()`,
-`c.pick(items)`, `c.string(max_chars=12)`, `c.list(max, item)`,
+`c.choose(items)`, `c.string(max_chars=12)`, `c.list(max, item)`,
 `c.map(max, key, value)`, and `c.draw::[T]()`. `int` and `float` take their
 type from the bounds or the context. There is no size to tune: draws
 already lean toward small values and edges. Only a generator discards a

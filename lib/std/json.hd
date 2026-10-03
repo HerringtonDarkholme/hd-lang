@@ -2,6 +2,7 @@
 # typed traits `ToJson` and `FromJson` with `encode` and `decode`
 # (spec/std/json.md).
 use std.format.DebugWriter
+use std.error.Error
 use std.num.parse_f64
 use std.structure.{Structure, Walker, Source, Variant, Field, Members, Key}
 
@@ -225,7 +226,7 @@ fn bytes_text(bytes: List[u8]) -> string:
         .Ok(text) => text
         .Err(_) => panic("std.json: output bytes are valid UTF-8")
 
-# Why parsing failed, at a position counted in characters from 0, or why
+# Why parsing failed, at a byte offset into the text (r-std-json.error.position-bytes), or why
 # decoding failed, at a path such as `$.users[2].name`
 # (r-std-json.error.variants).
 pub enum JsonError:
@@ -281,6 +282,9 @@ impl Display for JsonError:
             .MissingField(path) => "missing field at $path"
             .UnknownVariant(path, name) => "unknown variant \"$name\" at $path"
 
+# A std error type implements `Error` (r-std-error.std-types.impl).
+impl Error for JsonError
+
 data Parsed:
     value: Json
     end: i32
@@ -295,26 +299,14 @@ pub fn parse(text: string) -> Result[Json, JsonError]:
     parsed := parse_value(bytes, 0, 0)?
     end := skip_space(bytes, parsed.end)
     if end < bytes.len():
-        return .Err(JsonError.UnexpectedCharacter(char_position(bytes, end)))
+        return .Err(JsonError.UnexpectedCharacter(end))
     .Ok(parsed.value)
-
-# The character position of a byte offset: the scalar values that start
-# before it.
-fn char_position(bytes: List[u8], offset: i32) -> i32:
-    let count = 0
-    let index = 0
-    while index < offset && index < bytes.len():
-        if (bytes[index] & 192) != 128:
-            count = count + 1
-        index = index + 1
-    count
 
 # The error for a byte that cannot continue the text at `offset`.
 fn unexpected(bytes: List[u8], offset: i32) -> JsonError:
-    position := char_position(bytes, offset)
     if offset >= bytes.len():
-        return JsonError.UnexpectedEnd(position)
-    JsonError.UnexpectedCharacter(position)
+        return JsonError.UnexpectedEnd(offset)
+    JsonError.UnexpectedCharacter(offset)
 
 fn skip_space(bytes: List[u8], start: i32) -> i32:
     let index = start
@@ -357,7 +349,7 @@ fn parse_word(bytes: List[u8], start: i32, word: string, value: Json) -> Result[
 
 fn parse_array(bytes: List[u8], open: i32, depth: i32) -> Result[Parsed, JsonError]:
     if depth >= 128:
-        return .Err(JsonError.NestingTooDeep(char_position(bytes, open)))
+        return .Err(JsonError.NestingTooDeep(open))
     let items: mut List[Json] = []
     let index = skip_space(bytes, open + 1)
     if index < bytes.len() && bytes[index] == 93:
@@ -376,7 +368,7 @@ fn parse_array(bytes: List[u8], open: i32, depth: i32) -> Result[Parsed, JsonErr
 
 fn parse_object(bytes: List[u8], open: i32, depth: i32) -> Result[Parsed, JsonError]:
     if depth >= 128:
-        return .Err(JsonError.NestingTooDeep(char_position(bytes, open)))
+        return .Err(JsonError.NestingTooDeep(open))
     let fields: mut Map[string, Json] = {}
     let index = skip_space(bytes, open + 1)
     if index < bytes.len() && bytes[index] == 125:
@@ -410,7 +402,7 @@ fn parse_string(bytes: List[u8], open: i32) -> Result[ParsedText, JsonError]:
         if byte == 34:
             return .Ok(ParsedText { text: bytes_text(buffer), end: index + 1 })
         if byte < 32:
-            return .Err(JsonError.ControlCharacter(char_position(bytes, index)))
+            return .Err(JsonError.ControlCharacter(index))
         if byte != 92:
             buffer.push(byte)
             index = index + 1
@@ -437,20 +429,20 @@ fn parse_string(bytes: List[u8], open: i32) -> Result[ParsedText, JsonError]:
             if unit == -2:
                 return .Err(unexpected(bytes, bytes.len()))
             if unit < 0:
-                return .Err(JsonError.InvalidEscape(char_position(bytes, backslash)))
+                return .Err(JsonError.InvalidEscape(backslash))
             index = index + 4
             let point = unit
             if unit >= 56320 && unit <= 57343:
-                return .Err(JsonError.LoneSurrogate(char_position(bytes, backslash)))
+                return .Err(JsonError.LoneSurrogate(backslash))
             if unit >= 55296 && unit <= 56319:
                 low := if index + 1 < bytes.len() && bytes[index] == 92 && bytes[index + 1] == 117: read_hex4(bytes, index + 2) else: -1
                 if low < 56320 || low > 57343:
-                    return .Err(JsonError.LoneSurrogate(char_position(bytes, backslash)))
+                    return .Err(JsonError.LoneSurrogate(backslash))
                 point = 65536 + (unit - 55296) * 1024 + (low - 56320)
                 index = index + 6
             push_scalar(buffer, point)
         else:
-            return .Err(JsonError.InvalidEscape(char_position(bytes, backslash)))
+            return .Err(JsonError.InvalidEscape(backslash))
     .Err(unexpected(bytes, index))
 
 # The value of the four hex digits at `at`, -1 when one is not a hex digit,
@@ -570,7 +562,7 @@ fn float_number(bytes: List[u8], start: i32, end: i32) -> Result[Parsed, JsonErr
         .Err(_) => panic("std.json: a JSON number is parse_f64 text")
     match Number::from_f64(value):
         .Some(number) => .Ok(Parsed { value: Json.Number(number), end: end })
-        .None => .Err(JsonError.NumberOutOfRange(char_position(bytes, start)))
+        .None => .Err(JsonError.NumberOutOfRange(start))
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates:

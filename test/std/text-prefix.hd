@@ -18,7 +18,7 @@ fn cooked(t: Template[i32]) -> string:
 fn escaped(text: string) -> string:
     match process_escapes(text):
         .Ok(processed) => processed
-        .Err(error) => "?${error.offset}"
+        .Err(error) => "?${error.position}"
 
 tests:
     it("interpolate joins pieces and values in order"):

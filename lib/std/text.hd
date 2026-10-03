@@ -27,10 +27,14 @@ pub fn interpolate[T < Display](t: Template[T]) -> string:
         index = index + 1
     joined
 
-# An invalid escape sequence: `offset` is the byte offset of its backslash
+# An invalid escape sequence: `position` is the byte offset of its backslash
 # (Literal Suffixes L21, L22; Strings STR10).
 pub data EscapeError:
-    pub offset: i32
+    pub position: i32
+
+impl Eq for EscapeError:
+    fn eq(self, other: EscapeError) -> bool:
+        self.position == other.position
 
 # The text with each escape sequence replaced by its meaning, or an
 # `EscapeError` at the first invalid one (spec/lang/01-lexical-structure.md#escape-sequences). Every escape is ASCII, so
@@ -47,7 +51,7 @@ pub fn process_escapes(text: string) -> Result[string, EscapeError]:
         processed = processed + bytes_slice(text, plain, index)
         backslash := index
         if index + 1 >= size:
-            return .Err(EscapeError { offset: backslash })
+            return .Err(EscapeError { position: backslash })
         escaped := bytes_at(text, index + 1)
         index = index + 2
         if escaped == 117:
@@ -56,13 +60,13 @@ pub fn process_escapes(text: string) -> Result[string, EscapeError]:
                     processed = processed + found.text
                     index = found.end
                 .None =>
-                    return .Err(EscapeError { offset: backslash })
+                    return .Err(EscapeError { position: backslash })
         else:
             match simple_escape(escaped):
                 .Some(meaning) =>
                     processed = processed + meaning
                 .None =>
-                    return .Err(EscapeError { offset: backslash })
+                    return .Err(EscapeError { position: backslash })
         plain = index
     .Ok(processed + bytes_slice(text, plain, size))
 
@@ -423,30 +427,30 @@ impl string:
 # (r-std-text.char.unicode-version).
 impl char:
     pub fn is_ascii_digit(self) -> bool:
-        point := char_scalar(self)
+        point := i32(char_scalar(self))
         point >= 48 && point <= 57
 
     # The Unicode Alphabetic property (r-std-text.char.alphabetic).
     pub fn is_alphabetic(self) -> bool:
-        alphabetic_point(char_scalar(self))
+        alphabetic_point(i32(char_scalar(self)))
 
     # Alphabetic, or the general category Nd, Nl, or No
     # (r-std-text.char.alphanumeric).
     pub fn is_alphanumeric(self) -> bool:
-        point := char_scalar(self)
+        point := i32(char_scalar(self))
         alphabetic_point(point) || in_ranges(numeric_ranges(), point)
 
     # The Unicode White_Space property, the one `trim` removes
     # (r-std-text.char.whitespace).
     pub fn is_whitespace(self) -> bool:
-        white_space(char_scalar(self))
+        white_space(i32(char_scalar(self)))
 
     # The value of an ASCII digit or letter in `radix`, as Rust's
     # `char::to_digit` gives it (r-std-text.char.to-digit).
     pub fn to_digit(self, radix: u32) -> u32?:
         if radix < 2 || radix > 36:
             panic("to_digit: the radix must be 2 to 36")
-        point := char_scalar(self)
+        point := i32(char_scalar(self))
         let value = 36
         if point >= 48 && point <= 57:
             value = point - 48
@@ -787,14 +791,17 @@ fn host_lower(text: string) -> string:
 fn host_upper(text: string) -> string:
     panic("intrinsic")
 
-# The `char` of a scalar value.
+# The `char` of a scalar value. The specified primitive is
+# `char_from_scalar(point: u32) -> char?`; the prototype's intrinsic still
+# returns the `char` unchecked (CHAR-SCALAR in future-work/STDLIB_PLAN.md),
+# so every caller passes a checked scalar value.
 @intrinsic("char_from_scalar")
 fn scalar_char(point: i32) -> char:
     panic("intrinsic")
 
 # A `char` is its scalar value at run time.
 @intrinsic("char_scalar")
-fn char_scalar(value: char) -> i32:
+fn char_scalar(value: char) -> u32:
     panic("intrinsic")
 
 # The checked runtime panic of `category`, such as `index-out-of-bounds`,
@@ -811,7 +818,7 @@ fn panic_with(category: string, message: string) -> void:
 
 impl Debug for EscapeError:
     fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("EscapeError").field("offset", self.offset).finish()
+        out.debug_struct("EscapeError").field("position", self.position).finish()
 
 impl Debug for Utf8Error:
     fn debug(self, out: mut DebugWriter) -> void:

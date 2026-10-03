@@ -2,10 +2,21 @@
 # (spec/lang/10-modules.md#closable-handles). An operation whose ordinary error
 # type is `E` returns `Result[T, ResourceError[E]]`.
 use std.format.DebugWriter
+use std.error.Error
 
 pub enum ResourceError[E]:
     Operation(error: E)
     Disposed
+
+# `Operation(e)` displays as `e`, and `Disposed` as `resource disposed`
+# (r-std-error.std-types.resource).
+impl[E < Display] Display for ResourceError[E]:
+    fn to_string(self) -> string:
+        match self:
+            .Operation(error) => error.to_string()
+            .Disposed => "resource disposed"
+
+impl[E < Error] Error for ResourceError[E]
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates

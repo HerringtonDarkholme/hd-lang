@@ -154,7 +154,7 @@ impl Display for bool:
 
 impl Display for char:
     fn to_string(self) -> string:
-        scalar_text(char_scalar(self))
+        scalar_text(i32(char_scalar(self)))
 
 impl Display for i8:
     fn to_string(self) -> string:
@@ -254,7 +254,7 @@ fn scalar_text(point: i32) -> string:
 # `@intrinsic` is prototype-internal and accepted only in lib/std.
 
 @intrinsic("char_scalar")
-fn char_scalar(value: char) -> i32:
+fn char_scalar(value: char) -> u32:
     panic("intrinsic")
 
 # The string of `bytes`, which the caller has checked are UTF-8.

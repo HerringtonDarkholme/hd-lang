@@ -14,6 +14,23 @@ pub enum Ordering:
 pub trait Eq:
     fn eq(self, other: Self) -> bool
 
+# Two orderings are equal when they are the same case (r-std-cmp.ordering.eq).
+impl Eq for Ordering:
+    fn eq(self, other: Ordering) -> bool:
+        match self:
+            .Less =>
+                match other:
+                    .Less => true
+                    _ => false
+            .Equal =>
+                match other:
+                    .Equal => true
+                    _ => false
+            .Greater =>
+                match other:
+                    .Greater => true
+                    _ => false
+
 # `.None` means unordered.
 pub trait PartialOrd < Eq:
     fn partial_cmp(self, other: Self) -> Ordering?
@@ -21,7 +38,7 @@ pub trait PartialOrd < Eq:
 pub trait Ord < PartialOrd:
     fn cmp(self, other: Self) -> Ordering
 
-# The smaller of two values; `a` when they are equal.
+# The smaller of two values; `a` when they are equal (r-std-cmp.min-max.tie).
 pub fn min[T < Ord](a: T, b: T) -> T:
     match b.cmp(a):
         .Less => b

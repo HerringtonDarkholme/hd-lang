@@ -13,18 +13,18 @@ fn roll() -> u64 $ Random:
 
 tests:
     it("ManualClock starts where it is told and sleep! advances it"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_millis(1000))
-        assert(clock.now() == Timestamp::from_unix_millis(1000), reason="the start")
-        assert(clock.monotonic() == Instant::from_millis(1000), reason="the monotonic origin is the epoch")
+        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(1000))
+        assert(clock.now() == Timestamp::from_unix_milliseconds(1000), reason="the start")
+        assert(clock.monotonic() == Instant::from_milliseconds(1000), reason="the monotonic origin is the epoch")
         clock.sleep!(Duration::milliseconds(250))
-        assert(clock.now() == Timestamp::from_unix_millis(1250), reason="sleep! advanced the clock")
-        assert_equal(clock.monotonic().since(Instant::from_millis(1000)).as_milliseconds(), 250, reason="monotonic advanced too")
+        assert(clock.now() == Timestamp::from_unix_milliseconds(1250), reason="sleep! advanced the clock")
+        assert_equal(clock.monotonic().since(Instant::from_milliseconds(1000)).as_milliseconds(), 250, reason="monotonic advanced too")
 
     it("ManualClock covers a Clock row"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_millis(0))
+        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
-            assert(stamp!(2s) == Timestamp::from_unix_millis(2000), reason="the row's sleep! advanced it")
-        assert(clock.now() == Timestamp::from_unix_millis(2000), reason="the provider kept its time")
+            assert(stamp!(2s) == Timestamp::from_unix_milliseconds(2000), reason="the row's sleep! advanced it")
+        assert(clock.now() == Timestamp::from_unix_milliseconds(2000), reason="the provider kept its time")
 
     it("SeededRandom repeats its draws for a seed"):
         let mut first = SeededRandom::new(42)
