@@ -676,6 +676,19 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             );
           }
         }
+        const standard =
+          expression.receiver.kind === "name" &&
+          this.standardSubmoduleFunction(expression.receiver.name, expression.name);
+        if (standard)
+          return this.checkExpression(
+            {
+              kind: "name",
+              name: standard,
+              typeArguments: expression.typeArguments,
+              span: expression.span,
+            },
+            expected,
+          );
         const receiver = this.checkExpression(expression.receiver);
         const receiverReadonly = readonlyType(receiver.type);
         const tuple = tupleLayout(receiverReadonly);

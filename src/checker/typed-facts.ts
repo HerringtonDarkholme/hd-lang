@@ -13,7 +13,7 @@ import { functionResultText, readonlyType } from "../types.ts";
 import { Source_ } from "./generated-source.ts";
 import {
   standardResultDeclaration,
-  standardSubmoduleFunctionName,
+  standardSubmoduleFunctionIdentity,
   standardSupertraits,
 } from "./standard-library.ts";
 
@@ -233,15 +233,20 @@ export function withTypedFacts(program: Program, error: Report): Program {
   const factTypeOf = (fact: Expression): TypedFactType | undefined => {
     if (fact.kind === "data") return local.get(fact.name);
     if (fact.kind !== "call") return undefined;
+    const identity =
+      fact.callee.kind === "member" && fact.callee.receiver.kind === "name"
+        ? standardSubmoduleFunctionIdentity(
+            importOrigins.get(fact.callee.receiver.name),
+            fact.callee.name,
+          )
+        : undefined;
     const callee =
       fact.callee.kind === "name"
         ? fact.callee.name
-        : fact.callee.kind === "member" && fact.callee.receiver.kind === "name"
-          ? standardSubmoduleFunctionName(
-              importOrigins.get(fact.callee.receiver.name),
-              fact.callee.name,
-            )
-          : undefined;
+        : identity === undefined
+          ? undefined
+          : [...functions.values()].find((declaration) => declaration.standardName === identity)
+              ?.name;
     if (!callee) return undefined;
     const declaration = functions.get(callee);
     if (declaration?.resultOmitted) return undefined;

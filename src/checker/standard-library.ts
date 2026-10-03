@@ -98,12 +98,17 @@ function hiddenStandardName(module: string, name: string): string {
 }
 
 /**
- * The hidden callable for a public function selected through an imported std
- * submodule, or undefined when `origin` is not a submodule or `member` is not
- * one of its public functions. `origin` is the qualified binding recorded by
- * program validation, as `std.testing.arbitrary`.
+ * The declaration identity of a public function selected through an imported
+ * std submodule, or undefined when `origin` is not a submodule or `member` is
+ * not one of its public functions. `origin` is the qualified binding recorded
+ * by program validation, as `std.testing.arbitrary`.
+ *
+ * The joined declaration's source spelling is deliberately not reconstructed
+ * here: it may be a prelude name, a direct import, an alias, or a hidden name.
+ * Declaration registries resolve this identity to whichever spelling the
+ * loader actually chose.
  */
-export function standardSubmoduleFunctionName(
+export function standardSubmoduleFunctionIdentity(
   origin: string | undefined,
   member: string,
 ): string | undefined {
@@ -113,7 +118,7 @@ export function standardSubmoduleFunctionName(
   const declaration = standardModule(module).program.functions.find(
     (candidate) => candidate.name === member && candidate.public === true,
   );
-  return declaration ? hiddenStandardName(module, member) : undefined;
+  return declaration ? `std.${module}.${member}` : undefined;
 }
 
 /** What a checked `assert_equal` or `snapshot` call runs (lib/std/testing.hd). */
@@ -613,13 +618,17 @@ function standardNameOf(program: Program): (module: StandardModule, name: string
 }
 
 /**
- * Additional local spellings of ordinary `lib/std` declarations, each bound
- * to the one spelling under which the declaration is joined. Compiler-owned
- * names and imported submodules have their own resolution paths.
+ * Declaration identities and additional local spellings of ordinary
+ * `lib/std` declarations, each bound to the one spelling under which the
+ * declaration is joined. Compiler-owned names have their own resolution path.
  */
 export function standardImportAliases(program: Program): ReadonlyMap<string, string> {
   const nameOf = standardNameOf(program);
   const aliases = new Map<string, string>();
+  const selectedModules = new Set(program.uses.flatMap(usedModules));
+  for (const module of selectedModules)
+    for (const name of standardModule(module).names)
+      aliases.set(`std.${module}.${name}`, nameOf(module, name));
   for (const declaration of program.uses) {
     const module = declaration.module.replace(/^std\./, "");
     if (module === "core") {

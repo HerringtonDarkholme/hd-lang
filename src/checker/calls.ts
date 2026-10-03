@@ -10,7 +10,7 @@ import type {
 import { forwardingPlan } from "./assignability.ts";
 import { inferTypesThroughBounds } from "./bound-inference.ts";
 import { DERIVED_IMPLEMENTATION_SPANS } from "./derive-intrinsics.ts";
-import { standardSubmoduleFunctionName } from "./standard-library.ts";
+import { standardSubmoduleFunctionIdentity } from "./standard-library.ts";
 import {
   contextKeys,
   mutableInner,
@@ -56,7 +56,6 @@ import {
   traitTypeName,
 } from "./shared.ts";
 import { requirementKeyDiagnostics, resolveRequirementKeyTypes } from "./requirement-keys.ts";
-
 import { StatementChecker } from "./statements.ts";
 
 interface ResolvedCallProviders {
@@ -90,7 +89,8 @@ export abstract class CallChecker extends StatementChecker {
       this.signatures.has(receiver)
     )
       return undefined;
-    return standardSubmoduleFunctionName(this.imports.get(receiver), member);
+    const identity = standardSubmoduleFunctionIdentity(this.imports.get(receiver), member);
+    return identity === undefined ? undefined : this.signatures.get(identity)?.name;
   }
 
   /** Arguments a call rewrite has already checked, such as a spread tuple's elements. */
