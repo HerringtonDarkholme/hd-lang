@@ -1,0 +1,7 @@
+# test: an index use of a for variable fixes the range's open variable
+
+fn total(items: List[i32]) -> i32:
+    let sum: i32 = 0
+    for i in 0..10:
+        sum = sum + items[i]
+    sum

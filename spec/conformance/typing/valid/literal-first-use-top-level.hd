@@ -1,4 +1,4 @@
-# test: top-level statements fix an open literal width in source order
+# test: top-level statements fix an open variable in source order
 
 let names: List[string] = ["Ada"]
 let count = 0

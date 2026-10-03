@@ -1,0 +1,29 @@
+# test: a choice among several instantiations waits for the end of the body
+use std.testing.assert_equal
+
+trait Combine[T]:
+    fn combine(self, other: T) -> string
+
+data Money:
+    cents: i32
+
+impl Combine[i32] for Money:
+    fn combine(self, other: i32) -> string:
+        "i32"
+
+impl Combine[i64] for Money:
+    fn combine(self, other: i64) -> string:
+        "i64"
+
+tests:
+    it("a later use fixes the argument, and the choice follows it"):
+        price := Money { cents: 10 }
+        let n = 5
+        let chosen = price.combine(n)
+        let wide: i64 = n
+        assert_equal(chosen, "i64", reason="n is an i64, so Combine[i64] is chosen")
+
+    it("with no deciding use the fallback chooses"):
+        price := Money { cents: 10 }
+        let n = 5
+        assert_equal(price.combine(n), "i32", reason="n falls back to i32")

@@ -1,0 +1,8 @@
+# test: an integer variable never unifies with a floating-point type
+
+fn half(value: f64) -> f64:
+    value / 2.0
+
+fn run() -> f64:
+    let n = 1
+    half(n)  # diagnostic: type-mismatch

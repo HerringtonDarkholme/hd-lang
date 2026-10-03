@@ -1,0 +1,7 @@
+# test: pushing a u16 fixes a list literal's open element variable
+
+fn run(n: u16) -> u16:
+    let mut xs = [1, 2]
+    xs.push(n)
+    let first: u16 = xs[0]
+    first

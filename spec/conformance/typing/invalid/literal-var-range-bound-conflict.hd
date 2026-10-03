@@ -1,0 +1,9 @@
+# test: a range fixed at construction conflicts with a later use of another width
+
+fn take(n: i32) -> i32:
+    n
+
+fn run(count: usize) -> i32:
+    for i in 0..count:
+        return take(i)  # diagnostic: type-mismatch
+    0

@@ -1,0 +1,12 @@
+# test: each tuple slot keeps its own open variable, and an undecided slot falls back
+
+fn take(value: u8) -> u8:
+    value
+
+fn second():
+    let (a, b) = (1, 2.5)
+    let small: u8 = take(a)
+    b
+
+fn run() -> f64:
+    second()

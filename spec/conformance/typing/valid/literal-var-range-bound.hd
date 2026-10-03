@@ -1,0 +1,9 @@
+# test: a usize bound fixes a range's open variable at construction
+
+fn first(count: usize) -> usize:
+    let span = 0..count
+    let start: usize = span.start
+    let last: usize = 0
+    for i in 0..count:
+        last = i
+    start + last

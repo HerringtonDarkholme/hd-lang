@@ -1,0 +1,8 @@
+# test: a list of literals that nothing decides holds i32 values, so a sum past the i32 maximum overflows
+use std.testing.assert
+
+tests:
+    it("the fallback element type is i32"):
+        let xs = [2000000000, 2000000000]
+        let sum = xs[0] + xs[1]  # panic: integer-overflow
+        assert(sum > 0, reason="unreachable: the sum overflows i32")

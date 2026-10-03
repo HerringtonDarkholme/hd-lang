@@ -1060,11 +1060,12 @@ each supply the method, as with `impl Add[i32] for Money` and
 3. r[trait.resolve.fits] A candidate **fits** when the call's arguments check against its method's parameter types, with that instantiation's trait arguments substituted.
 4. r[trait.resolve.fits.expected] When the call has an expected type, a candidate fits only if, in addition, the method's result type is assignable to it.
 5. r[trait.resolve.one-fit] Exactly one fitting candidate is selected, so `price.add(5)` calls the `Add[i32]` method.
-6. r[trait.resolve.literal-default] Suppose two or more candidates fit. If exactly one of them fits with every integer literal argument at `i32` and every floating-point literal argument at `f64`, the literals' default types, that candidate is selected.
-7. r[trait.resolve.literal-default.example] With `impl Add[i32] for Money` and `impl Add[i64] for Money`, `price.add(5)` calls the `Add[i32]` method.
-8. r[trait.resolve.many-fit] Otherwise two or more fitting candidates are an error, and a trait-qualified call such as `Add::[i64]::add(price, 5)` resolves it. Error: `ambiguous-method`.
-9. r[trait.resolve.no-fit] When no candidate fits, the call is an error whose message lists the available instantiations. Error: `type-mismatch`.
-10. r[trait.resolve.one-trait-only] This choice applies only among instantiations of one trait. Methods of two different traits stay ambiguous whatever the argument types. Error: `ambiguous-method`.
+6. r[trait.resolve.open-wait] Suppose two or more candidates fit, and an argument's type is an [open variable](04-type-system.md#r-types.literal.open.var). The choice waits until the end of the body, as [`types.literal.open.end-check`](04-type-system.md#r-types.literal.open.end-check) states, and never fixes the variable.
+7. r[trait.resolve.open-fallback] There, the candidate that fits with each such variable at its fixed type is selected. A variable that no use fixed has its fallback type, `i32` or `f64`.
+8. r[trait.resolve.open-fallback.example] With `impl Add[i32] for Money` and `impl Add[i64] for Money`, `price.add(5)` calls the `Add[i32]` method. After `let n = 5`, `price.add(n)` calls the `Add[i64]` method when a use such as `let wide: i64 = n` fixes `n`.
+9. r[trait.resolve.many-fit] Otherwise two or more fitting candidates are an error, and a trait-qualified call such as `Add::[i64]::add(price, 5)` resolves it. Error: `ambiguous-method`.
+10. r[trait.resolve.no-fit] When no candidate fits, the call is an error whose message lists the available instantiations. Error: `type-mismatch`.
+11. r[trait.resolve.one-trait-only] This choice applies only among instantiations of one trait. Methods of two different traits stay ambiguous whatever the argument types. Error: `ambiguous-method`.
 
 ```text
 trait Pick[T]:

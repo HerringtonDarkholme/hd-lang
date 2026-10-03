@@ -1647,8 +1647,8 @@ pub trait Neg:
 16. r[expr.op.generic] When an operand's type is a type parameter, the candidates come from its bounds and their supertraits.
 17. r[expr.op.out] The operator's result type is the chosen implementation's `Out`. Implementations are unique per trait instantiation and target, so `a + b` has one type.
 18. r[expr.op.order] The left operand is evaluated, then the right one, and then the method is called.
-19. r[expr.op.left-literal] An untyped literal on the left of a non-primitive operand takes its default type, `i32` or `f64`. The implementations never type it.
-20. r[expr.op.left-literal.example] So `3 * price` needs an `impl Mul[Money] for i32`, and with only `Mul[i64] for Money` it is an error; write `price * 3`. Error: `type-mismatch`.
+19. r[expr.op.left-open] When a left operand's type is an [open variable](04-type-system.md#r-types.literal.open.var) and the right operand is not primitive, the implementation is chosen at the end of the body. The choice uses the variable's fixed type, or its fallback, `i32` or `f64`, and never fixes the variable.
+20. r[expr.op.left-open.example] So `3 * price` needs an `impl Mul[Money] for i32`, and with only `Mul[i64] for Money` it is an error; write `price * 3`. Error: `type-mismatch`.
 21. r[expr.op.no-impl] An operator for which no implementation fits is an error, and its message should name the missing trait. Error: `type-mismatch`.
 22. r[expr.op.newtype] A newtype has only the operators its author implements. It inherits none from its base type, and no derivation supplies an operator trait.
 23. r[expr.op.fixed] Operator traits never change precedence or associativity, and they add no operator symbols.
@@ -1925,7 +1925,7 @@ pub data RangeFull: pass
 9. r[expr.range.bound.signedness] A signed and an unsigned bound are an error, as for a binary numeric operator. Error: `mixed-signedness`.
 10. r[expr.range.element-type] The range's element type `T` is the bounds' common type, or the one bound's type for `a..`, `..b`, and `..=b`. `RangeFull` has no bound and no element type.
 11. r[expr.range.expected] An expected range type gives each bound its element type as the bound's expected type, so `let r: Range[i64] = 0..10` has `i64` bounds.
-12. r[expr.range.default] With no expected type, literal bounds default to `i32`, so `0..3` is a `Range[i32]`.
+12. r[expr.range.open] With no expected type, literal bounds share one [open integer variable](04-type-system.md#r-types.literal.open.var), so `0..3` is a `Range` of that variable. It is a `Range[i32]` when no use fixes the variable.
 
 ```text
 fn invalid(x: f64, count: u32, limit: i32, large: i64) -> void:

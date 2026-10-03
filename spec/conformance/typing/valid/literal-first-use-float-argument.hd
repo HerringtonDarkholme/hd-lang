@@ -1,4 +1,4 @@
-# test: an f32 parameter fixes an open float literal width
+# test: an f32 parameter fixes an open float variable
 
 fn scale(value: f32) -> f32:
     value * 2.0

@@ -1,4 +1,4 @@
-# test: an open literal is range-checked at the width a later use fixes
+# test: a literal of an open variable is range-checked at the width a later use fixes
 
 fn put(value: u8) -> u8:
     value

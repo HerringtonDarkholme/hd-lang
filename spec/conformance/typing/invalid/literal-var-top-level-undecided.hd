@@ -1,0 +1,6 @@
+# test: a function that reads a top-level binding no top-level use fixes needs an annotation
+
+let limit = 100
+
+fn report() -> usize:
+    limit  # diagnostic: cannot-infer-type

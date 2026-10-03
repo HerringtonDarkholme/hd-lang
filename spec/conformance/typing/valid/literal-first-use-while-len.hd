@@ -1,4 +1,4 @@
-# test: the first comparison with a usize length fixes an open literal width
+# test: the first comparison with a usize length fixes an open integer variable
 
 fn count(items: List[string]) -> usize:
     let i = 0

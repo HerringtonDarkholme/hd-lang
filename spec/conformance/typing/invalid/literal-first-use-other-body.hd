@@ -1,4 +1,4 @@
-# test: a use in another body does not fix an open literal width
+# test: a use in another body does not fix an open variable
 
 fn five():
     let n = 2 + 3

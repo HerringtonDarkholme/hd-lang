@@ -1,4 +1,4 @@
-# test: an open literal width with no deciding use falls back to i32
+# test: an open variable with no deciding use falls back to i32
 
 fn five():
     let n = 2 + 3

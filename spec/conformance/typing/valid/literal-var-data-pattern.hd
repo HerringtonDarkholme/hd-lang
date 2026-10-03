@@ -1,0 +1,14 @@
+# test: destructuring a generic data literal binds its fields to one open variable
+
+data Pair[T]:
+    first: T
+    second: T
+
+fn take(value: u64) -> u64:
+    value
+
+fn run() -> u64:
+    let Pair { first, second } = Pair { first: 1, second: 2 }
+    let wide: u64 = take(first)
+    let other: u64 = second
+    wide + other

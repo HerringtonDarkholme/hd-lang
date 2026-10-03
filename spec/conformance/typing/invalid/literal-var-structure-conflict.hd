@@ -1,0 +1,12 @@
+# test: a list element used as u8 fixes the list, so another element used as u32 conflicts
+
+fn put(value: u8) -> u8:
+    value
+
+fn wide(value: u32) -> u32:
+    value
+
+fn mixed() -> u32:
+    let xs = [1, 2]
+    let low = put(xs[0])
+    wide(xs[1])  # diagnostic: type-mismatch

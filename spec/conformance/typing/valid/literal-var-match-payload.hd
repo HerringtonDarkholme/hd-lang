@@ -1,0 +1,9 @@
+# test: a match payload binds the open variable of a generic enum value
+
+fn take(value: u8) -> u8:
+    value
+
+fn run() -> u8:
+    match Option.Some(3):
+        .Some(n) => take(n)
+        .None => 0

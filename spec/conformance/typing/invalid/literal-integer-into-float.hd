@@ -1,0 +1,5 @@
+# test: an integer literal with an expected floating-point type is an error
+
+fn run() -> f64:
+    let ratio: f64 = 1  # diagnostic: type-mismatch
+    ratio

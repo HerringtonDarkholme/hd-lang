@@ -1,0 +1,17 @@
+# test: open variables flow through ranges, lists, maps, generic enums, generic data, tuples, and generic calls
+
+data Pair[T]:
+    first: T
+    second: T
+
+fn identity[T](value: T) -> T:
+    value
+
+fn build() -> void:
+    let span = 0..10
+    let xs = [1, 2]
+    let scores = {"Ada": 1.5}
+    let found = Option.Some(3)
+    let pair = Pair { first: 1, second: 2 }
+    let both = (1, 2.5)
+    let same = identity(7)

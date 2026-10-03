@@ -416,6 +416,7 @@ echo 'println(1 + 2)' | hd    # prints 3
 6. r[cli.repl.package.no-lib.main] `src/main.hd` itself stays unusable from the session, as it is from every module by [`module.path.main-no-use`](../lang/10-modules.md#r-module.path.main-no-use).
 7. r[cli.repl.uses.other] Apart from the declarations of `src/lib.hd`, names reach the session only through its `use` declarations.
 8. r[cli.repl.outside] Outside any package, the session may use only `std`.
+9. r[cli.repl.input-body] Each input of a session is its own body for [Open Literal Width](../lang/04-type-system.md#open-literal-width): its open variables fall back at the end of that input. A later input never changes the type of an earlier input's binding.
 
 > **Why.** An agent that pipes code into `hd` gets a run, not a prompt
 > that waits for a terminal.

@@ -1,0 +1,9 @@
+# test: a method of some widths is an error when the width the body fixes lacks it
+
+use std.ops.Neg
+
+fn run() -> u32:
+    let i = 1
+    let flipped = i.neg()  # diagnostic: unknown-method
+    let count: u32 = i
+    count

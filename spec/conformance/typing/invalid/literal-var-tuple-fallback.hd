@@ -1,0 +1,12 @@
+# test: a tuple slot that nothing decides is f64 for every caller
+
+fn take(value: u8) -> u8:
+    value
+
+fn second():
+    let (a, b) = (1, 2.5)
+    let small: u8 = take(a)
+    b
+
+fn run() -> f32:
+    second()  # diagnostic: type-mismatch

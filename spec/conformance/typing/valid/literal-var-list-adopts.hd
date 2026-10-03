@@ -1,0 +1,5 @@
+# test: a list literal's open element adopts the width of a typed element
+
+fn widths(small: i16) -> List[i16]:
+    let xs = [1, small]
+    xs
