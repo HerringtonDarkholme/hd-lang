@@ -51,6 +51,8 @@ interface HirEnumVariant {
 
 export interface HirEnum {
   readonly name: string;
+  /** The qualified name of a std enum, independent of its local binding. */
+  readonly standardName?: string;
   readonly index: number;
   /** Declared `+T`/`-T` markers (04-type-system.md#variance); absent means all invariant. */
   readonly variances?: readonly ("+" | "-" | undefined)[];
@@ -277,6 +279,8 @@ export interface HirLocal {
 }
 
 export interface HirGlobal {
+  /** Compiler-generated std constant, retained only when referenced. */
+  readonly standard?: true;
   readonly name: string;
   readonly type: ValueType;
   readonly index: number;

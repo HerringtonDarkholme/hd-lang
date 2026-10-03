@@ -63,7 +63,11 @@ function boundText(bound: GenericBound): string {
  * which the compiler recognizes by its qualified name (annot.typed-fact.declare).
  */
 function annotateNames(program: Program): Set<string> {
-  const names = new Set<string>();
+  const names = new Set(
+    program.functions
+      .filter((declaration) => declaration.standardName === "std.annotation.annotate")
+      .map((declaration) => declaration.name),
+  );
   for (const use of program.uses)
     if (use.module === "std.annotation")
       for (const imported of use.names)
@@ -240,8 +244,12 @@ export function withTypedFacts(program: Program, error: Report): Program {
           : undefined;
     if (!callee) return undefined;
     const declaration = functions.get(callee);
-    if (declaration)
-      return declaration.resultOmitted ? undefined : local.get(baseName(declaration.result.name));
+    if (declaration?.resultOmitted) return undefined;
+    const declaredFact = declaration && local.get(baseName(declaration.result.name));
+    if (declaredFact) return declaredFact;
+    // After std is joined, a hidden std function is present in `functions`
+    // while its @annotate declaration is intentionally not a user import.
+    // Fall through to the declaration's qualified std identity.
     const standard = standardResultDeclaration(declared, callee);
     if (!standard) return undefined;
     const call = standard.declaration.decorators?.facts.find(

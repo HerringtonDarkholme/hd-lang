@@ -426,6 +426,8 @@ function newtypeData(declaration: TypeDecl, base: TypeRef): DataDecl {
     fields: [{ name: NEWTYPE_FIELD, type: base, span: base.span }],
     doc: declaration.doc,
     newtype: true,
+    ...(declaration.standard ? { standard: true } : {}),
+    ...(declaration.standardName ? { standardName: declaration.standardName } : {}),
     span: declaration.span,
   };
 }

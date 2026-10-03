@@ -1,6 +1,8 @@
 import type { Program } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
+import { renameStandardBindings } from "./standard-bindings.ts";
+import { standardPreludeBinding } from "./standard-library.ts";
 import { standardSource } from "./standard-sources.ts";
 
 /** The conversion trait that postfix `?` calls (spec/lang/09-traits.md#conversion-trait). */
@@ -65,6 +67,8 @@ function respan<T>(value: T, span: SourceSpan): T {
  * `std.error`, uses one of its names.
  */
 export function withStandardTraits(program: Program): Program {
+  if (program.traits.some((declaration) => declaration.standardName === STANDARD_INSPECTABLE))
+    return program;
   const inspect = program.uses.find((declaration) =>
     declaration.names.some((imported) =>
       INSPECT_IMPORTS.has(`${declaration.module}.${imported.name}`),
@@ -72,17 +76,33 @@ export function withStandardTraits(program: Program): Program {
   )?.span;
   const parsed = inspect && parse(standardSource("inspect")).program;
   if (!inspect || !parsed) return program;
-  const traits = parsed.traits.map((declaration) => ({
+  const declarations = [...program.data, ...program.enums, ...program.traits];
+  const renames = new Map<string, string>();
+  for (const use of parsed.uses) {
+    for (const imported of use.names) {
+      const standardName = `${use.module}.${imported.name}`;
+      const declaration = declarations.find((item) => item.standardName === standardName);
+      if (declaration) renames.set(imported.alias ?? imported.name, declaration.name);
+    }
+  }
+  for (const implementation of parsed.implementations) {
+    const name = implementation.traitName?.split("[")[0];
+    if (!name || renames.has(name)) continue;
+    const binding = standardPreludeBinding(program, name);
+    if (binding) renames.set(name, binding);
+  }
+  const bound = renameStandardBindings(parsed, renames);
+  const traits = bound.traits.map((declaration, index) => ({
     ...declaration,
     standard: true as const,
-    standardName: `std.inspect.${declaration.name}`,
+    standardName: `std.inspect.${parsed.traits[index]!.name}`,
   }));
-  const data = parsed.data.map((declaration) => ({
+  const data = bound.data.map((declaration, index) => ({
     ...declaration,
     standard: true as const,
-    standardName: `std.inspect.${declaration.name}`,
+    standardName: `std.inspect.${parsed.data[index]!.name}`,
   }));
-  const implementations = parsed.implementations.map((declaration) => ({
+  const implementations = bound.implementations.map((declaration) => ({
     ...declaration,
     standard: true as const,
   }));

@@ -181,6 +181,8 @@ export abstract class CheckerContext {
   protected pendingCallGenerics?: ReadonlySet<string>;
   /** In `h.fact::[M]()`, the handle's `F` and its witness (expression-inspect.ts). */
   protected handleWitness?: { readonly type: ValueType; readonly dictionary: HirExpression };
+  /** A private field read synthesized by the checker rather than written in source. */
+  protected compilerPrivateMember = false;
   /** Whether every type is inspectable, for a fact value or a handle witness. */
   protected anyTypeInspectable = false;
 

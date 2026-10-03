@@ -300,7 +300,12 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
    * code outside std (08-data-and-enums.md#field-visibility).
    */
   private memberVisible(member: HirDataField | InherentMethod, owner?: HirData): boolean {
-    return member.public === true || owner?.standard !== true || this.declaration.standard === true;
+    return (
+      member.public === true ||
+      owner?.standard !== true ||
+      this.declaration.standard === true ||
+      this.compilerPrivateMember
+    );
   }
 
   /**

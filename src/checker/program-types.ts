@@ -80,6 +80,7 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     }
     enumTypes.set(declaration.name, {
       name: declaration.name,
+      ...(declaration.standardName ? { standardName: declaration.standardName } : {}),
       index,
       genericParameters: declaration.genericParameters,
       sharedFields: [],

@@ -1,4 +1,4 @@
-import type { HirFunction, HirProgram, HirTraitImplementation } from "../hir.ts";
+import type { HirFunction, HirProgram, HirStatement, HirTraitImplementation } from "../hir.ts";
 import { readonlyType } from "../types.ts";
 
 /**
@@ -11,15 +11,35 @@ export function reachableProgram(program: HirProgram): HirProgram {
   const functions = new Map(program.functions.map((item) => [item.index, item]));
   const closures = new Map(program.closures.map((item) => [item.index, item]));
   const implementations = new Map(program.implementations.map((item) => [item.index, item]));
+  const globals = new Map(program.globals.map((item) => [item.index, item]));
+  const initializer =
+    program.initializer === undefined ? undefined : functions.get(program.initializer);
+  const standardBindings = new Map<
+    number,
+    Extract<HirStatement, { readonly kind: "global-binding" }>
+  >(
+    (initializer?.body ?? []).flatMap((statement) =>
+      statement.kind === "global-binding" && statement.global.standard
+        ? [[statement.global.index, statement] as const]
+        : [],
+    ),
+  );
   const liveFunctions = new Set<number>();
   const liveClosures = new Set<number>();
   const liveImplementations = new Set<number>();
+  const liveGlobals = new Set<number>();
   const pending: Array<HirFunction | HirTraitImplementation> = [];
+  const retainInitializer = (): void => {
+    if (initializer) liveFunctions.add(initializer.index);
+  };
   const functionByIndex = (index: number): void => {
     if (liveFunctions.has(index)) return;
     const declaration = functions.get(index);
     if (!declaration) return;
     liveFunctions.add(index);
+    // Standard constant bindings are selected independently below. Visiting
+    // the whole initializer would make every one reachable again.
+    if (index === program.initializer) return;
     pending.push(declaration);
   };
   const closureByIndex = (index: number): void => {
@@ -43,7 +63,19 @@ export function reachableProgram(program: HirProgram): HirProgram {
     const declaration = program.functions.find((item) => item.name === `__std_text_string_${name}`);
     if (declaration) functionByIndex(declaration.index);
   };
-  const visit = (value: unknown): void => {
+  let visit: (value: unknown) => void;
+  const globalByIndex = (index: number): void => {
+    if (liveGlobals.has(index)) return;
+    const global = globals.get(index);
+    if (!global) return;
+    liveGlobals.add(index);
+    const binding = standardBindings.get(index);
+    if (binding) {
+      retainInitializer();
+      visit(binding.value);
+    }
+  };
+  visit = (value: unknown): void => {
     if (Array.isArray(value)) {
       value.forEach(visit);
       return;
@@ -56,6 +88,14 @@ export function reachableProgram(program: HirProgram): HirProgram {
     if (typeof node.closureIndex === "number") closureByIndex(node.closureIndex);
     if (typeof node.implementationIndex === "number")
       implementationByIndex(node.implementationIndex);
+    if (
+      (node.kind === "global" ||
+        node.kind === "global-binding" ||
+        node.kind === "global-assignment") &&
+      node.global &&
+      typeof (node.global as { readonly index?: unknown }).index === "number"
+    )
+      globalByIndex((node.global as { readonly index: number }).index);
     // String operators and inspection keys lower to backend-generated calls.
     if (node.kind === "string-build" || node.kind === "inspectable") kernel("concat");
     if (node.kind === "inspect-downcast" || node.kind === "value-equality") kernel("equal");
@@ -76,17 +116,43 @@ export function reachableProgram(program: HirProgram): HirProgram {
     for (const [key, child] of Object.entries(node)) if (key !== "span") visit(child);
   };
   for (const declaration of program.functions)
-    if (!declaration.standard) functionByIndex(declaration.index);
+    if (
+      !declaration.standard &&
+      (!declaration.synthetic ||
+        declaration.entry ||
+        declaration.developmentEntry ||
+        declaration.testOptions)
+    )
+      functionByIndex(declaration.index);
   for (const declaration of program.implementations)
     if (!declaration.standard) implementationByIndex(declaration.index);
+  // User module initialization is always observable. Compiler-generated std
+  // constants are pure and join it only when a live expression reads them.
+  const eagerInitialization = (initializer?.body ?? []).filter(
+    (statement) => statement.kind !== "global-binding" || !statement.global.standard,
+  );
+  if (eagerInitialization.length > 0) {
+    retainInitializer();
+    eagerInitialization.forEach(visit);
+  }
   // The shared map runtime always declares its string-key equality adapter.
   kernel("equal");
-  if (program.initializer !== undefined) functionByIndex(program.initializer);
   for (let index = 0; index < pending.length; index++) visit(pending[index]);
+  const initializerBody = (initializer?.body ?? []).filter(
+    (statement) =>
+      statement.kind !== "global-binding" ||
+      !statement.global.standard ||
+      liveGlobals.has(statement.global.index),
+  );
+  const keepInitializer = initializer !== undefined && initializerBody.length > 0;
   return {
     ...program,
-    functions: program.functions.filter((item) => liveFunctions.has(item.index)),
+    globals: program.globals.filter((item) => !item.standard || liveGlobals.has(item.index)),
+    functions: program.functions
+      .filter((item) => liveFunctions.has(item.index) && (item !== initializer || keepInitializer))
+      .map((item) => (item === initializer ? { ...item, body: initializerBody } : item)),
     closures: program.closures.filter((item) => liveClosures.has(item.index)),
     implementations: program.implementations.filter((item) => liveImplementations.has(item.index)),
+    ...(keepInitializer ? {} : { initializer: undefined }),
   };
 }

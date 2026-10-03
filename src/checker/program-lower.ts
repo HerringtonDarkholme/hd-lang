@@ -176,7 +176,7 @@ export function lowerCheckedProgram(
       traitTypes,
       implementations,
       inherentMethods,
-      !program.functions.includes(declaration),
+      !program.functions.includes(declaration) || declaration.compilerGenerated === true,
       moduleBody,
       closures,
       false,

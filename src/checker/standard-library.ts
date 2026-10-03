@@ -4,6 +4,7 @@ import {
   type EnumDecl,
   type FunctionDecl,
   type ImplDecl,
+  type MethodDecl,
   type Program,
   type UseDecl,
 } from "../ast.ts";
@@ -130,6 +131,7 @@ function compilerUse(
     kind: "use",
     module: `std.${used.module}`,
     names: [alias === used.name ? { name: used.name } : { name: used.name, alias }],
+    standard: true,
     span,
   };
 }
@@ -180,6 +182,23 @@ function intrinsicName(declaration: FunctionDecl): string | undefined {
   return fact.arguments.length === 1 && argument?.kind === "string" ? argument.value : undefined;
 }
 
+/** Removes the std-only bare `@intrinsic` marker after the parser used it. */
+function withoutMethodIntrinsic(declaration: MethodDecl): MethodDecl {
+  const decorators = declaration.decorators;
+  // Only a bodiless std method is an operation intrinsic. Keep the marker on
+  // a written body so ordinary decorator checking rejects that invalid form.
+  if (!decorators || declaration.body !== undefined) return declaration;
+  const facts = decorators.facts.filter(
+    (fact) => fact.kind !== "name" || fact.name !== "intrinsic",
+  );
+  if (facts.length === decorators.facts.length) return declaration;
+  if (facts.length === 0 && decorators.derives.length === 0) {
+    const { decorators: _decorators, ...method } = declaration;
+    return method;
+  }
+  return { ...declaration, decorators: { ...decorators, facts } };
+}
+
 function parseModule(name: StandardModule, source: string): Program {
   const parsed = parse(source, { standardLibrary: true });
   if (!parsed.program || parsed.diagnostics.some((d) => d.severity !== "warning"))
@@ -197,9 +216,21 @@ function parseModule(name: StandardModule, source: string): Program {
     items.map((item) => ({ ...item, standard: true }));
   return {
     ...parsed.program,
+    ...(parsed.program.types ? { types: standard(parsed.program.types) } : {}),
     data: standard(parsed.program.data),
     enums: standard(parsed.program.enums),
-    traits: standard(parsed.program.traits),
+    traits: standard(
+      parsed.program.traits.map((declaration) => ({
+        ...declaration,
+        methods: declaration.methods.map(withoutMethodIntrinsic),
+      })),
+    ),
+    implementations: standard(
+      parsed.program.implementations.map((declaration) => ({
+        ...declaration,
+        methods: declaration.methods.map(withoutMethodIntrinsic),
+      })),
+    ),
     functions,
   };
 }
@@ -289,7 +320,11 @@ function respan<T>(value: T, span: SourceSpan): T {
   return result as T;
 }
 
-type ModuleDeclaration = { readonly name: string };
+type ModuleDeclaration = {
+  readonly name: string;
+  readonly standard?: boolean;
+  readonly standardName?: string;
+};
 
 /** Top-level declarations of a (renamed) module, in declaration order. */
 function declarationsOf(program: Program): readonly ModuleDeclaration[] {
@@ -315,13 +350,29 @@ function baseName(type: string): string {
 function withStandardNames(renamed: Program, original: ParsedModule): Program {
   return {
     ...renamed,
+    ...(renamed.types
+      ? {
+          types: renamed.types.map((declaration, index) => ({
+            ...declaration,
+            standardName: `std.${original.name}.${original.program.types![index]!.name}`,
+          })),
+        }
+      : {}),
     data: renamed.data.map((declaration, index) => ({
       ...declaration,
       standardName: `std.${original.name}.${original.program.data[index]!.name}`,
     })),
+    enums: renamed.enums.map((declaration, index) => ({
+      ...declaration,
+      standardName: `std.${original.name}.${original.program.enums[index]!.name}`,
+    })),
     traits: renamed.traits.map((declaration, index) => ({
       ...declaration,
       standardName: `std.${original.name}.${original.program.traits[index]!.name}`,
+    })),
+    functions: renamed.functions.map((declaration, index) => ({
+      ...declaration,
+      standardName: `std.${original.name}.${original.program.functions[index]!.name}`,
     })),
   };
 }
@@ -509,7 +560,11 @@ function withoutTemplates(renamed: Program, original: ParsedModule): Program {
  */
 function standardLocalNames(program: Program): Map<string, string> {
   const localNames = new Map<string, string>();
-  const own = new Set<string>(declarationsOf(program).map((declaration) => declaration.name));
+  const own = new Set<string>(
+    declarationsOf(program)
+      .filter((declaration) => !declaration.standard)
+      .map((declaration) => declaration.name),
+  );
   for (const declaration of program.uses) {
     const module = declaration.module.replace(/^std\./, "");
     const declared =
@@ -571,6 +626,14 @@ export function standardImportAliases(program: Program): ReadonlyMap<string, str
   return aliases;
 }
 
+/** The joined declaration identity exported by the ordinary std prelude as `name`. */
+export function standardPreludeBinding(program: Program, name: string): string | undefined {
+  const exported = standardModule(PRELUDE).exports.find((item) => item.name === name);
+  if (!exported) return undefined;
+  const identity = `std.${exported.module}.${exported.name}`;
+  return declarationsOf(program).find((declaration) => declaration.standardName === identity)?.name;
+}
+
 /**
  * The template of the `std` trait that the program imports as `trait`,
  * with the module's `std.structure` protocol implementations, written with
@@ -594,15 +657,32 @@ export function standardTemplate(
   tuple = false,
 ): StandardTemplate | undefined {
   // The trait's module: one the program imports it from, or, for a prelude
-  // trait such as `Eq` or `Hash`, the module that declares it.
+  // trait such as `Eq` or `Hash`, the module that declares it. A joined std
+  // declaration is resolved by its declaration identity, because its source
+  // module's ordinary `use` lines no longer exist after the one-module join.
   const candidates: StandardModule[] = [];
+  const identity = program.traits.find(
+    (declaration) => declaration.name === trait && declaration.standardName?.startsWith("std."),
+  )?.standardName;
+  if (identity) {
+    const module = [...STANDARD_MODULES]
+      .sort((left, right) => right.length - left.length)
+      .find((name) => identity.startsWith(`std.${name}.`));
+    if (module) candidates.push(module);
+  }
   for (const declaration of program.uses) {
     const module = declaration.module.replace(/^std\./, "");
     if (!declaration.module.startsWith("std.") || !isStandardModule(module)) continue;
     const imported = declaration.names.find((name) => (name.alias ?? name.name) === trait);
-    if (imported && standardModule(module).names.includes(imported.name)) candidates.push(module);
+    if (
+      imported &&
+      standardModule(module).names.includes(imported.name) &&
+      !candidates.includes(module)
+    )
+      candidates.push(module);
   }
-  for (const used of preludeExports(program)) if (used.name === trait) candidates.push(used.module);
+  for (const used of preludeExports(program))
+    if (used.name === trait && !candidates.includes(used.module)) candidates.push(used.module);
   const nameOf = standardNameOf(program);
   for (const module of candidates) {
     const parsed = standardModule(module);

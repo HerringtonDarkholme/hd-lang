@@ -673,6 +673,7 @@ export abstract class StatementChecker extends CheckerContext {
       if (recursiveType) {
         if (this.moduleBody) {
           recursiveGlobal = {
+            ...(statement.standard ? { standard: true as const } : {}),
             name: statement.name,
             type: recursiveType,
             index: this.globals.size,
@@ -736,6 +737,7 @@ export abstract class StatementChecker extends CheckerContext {
     value = this.requireCoercion(value, type, statement.value.span);
     if (this.moduleBody) {
       const global: HirGlobal = recursiveGlobal ?? {
+        ...(statement.standard ? { standard: true as const } : {}),
         name: statement.name,
         type,
         index: this.globals.size,

@@ -36,7 +36,7 @@ import { inherentVarianceDiagnostics, varianceDiagnostics } from "./variance.ts"
 import { rowRuleDiagnostics } from "./row-rules.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
 import { defaultBoundDiagnostics, withTypeDefaults } from "./type-defaults.ts";
-import { withTypedDerivation } from "./typed-derivation.ts";
+import { withTypedDerivation, withTypedDerivationSupport } from "./typed-derivation.ts";
 
 import { withErrorDerivation } from "./error-derivation.ts";
 import { setHashableKeyTypes } from "./map-keys.ts";
@@ -70,12 +70,16 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
   const spelled = withFunctionTypeConstructors(withBareMarkerCalls(source, markers));
   // A malformed spelled function type leaves no type to check against.
   if (spelled.diagnostics.length > 0) return { diagnostics: [...spelled.diagnostics] };
-  // Typed derivation is lowered to ordinary implementations first
-  // (spec/lang/14-annotations.md#typed-derivation).
-  const derived = withTypedDerivation(spelled.program);
+  // Join std before typed derivation so @derive on a lib/std declaration is
+  // lowered by the same pass as a program declaration. The import identities
+  // and runner names come from the written program, before the one-module join.
+  const prepared = prepareForDerivation(spelled.program);
+  const derived = withTypedDerivation(prepared.program);
   if (derived.diagnostics.some((diagnostic) => diagnostic.severity !== "warning"))
     return { diagnostics: [...derived.diagnostics] };
-  const result = checkProgram(derived.program, options);
+  // Literal marker facts are checked on the declarations that survive
+  // derivation, matching the original phase order.
+  const result = checkProgram(withSuffixMarkers(derived.program), options, prepared);
   // A member that fails the walker's bound is reported at the opt-in
   // (spec/lang/14-annotations.md#r-annot.walker.obligation.error).
   const sameSpan = (span: SourceSpan, diagnostic: Diagnostic): boolean =>
@@ -126,9 +130,37 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
   };
 }
 
-function checkProgram(source: Program, options: CheckOptions): CheckResult {
+interface PreparedProgram {
+  readonly program: Program;
+  readonly standardAliases: ReadonlyMap<string, string>;
+  readonly testRunners: ReturnType<typeof testRunnerNames>;
+  readonly runnerCapabilities: readonly string[];
+}
+
+function prepareForDerivation(source: Program): PreparedProgram {
+  const standardAliases = standardImportAliases(source);
+  const testRunners = testRunnerNames(source);
+  const runnerCapabilities = [
+    ...(source.tests.some((test) => test.table || test.timed) ? [testRunners.test] : []),
+    ...(source.tests.some((test) => test.property) ? [testRunners.property] : []),
+  ];
+  const joined = withStandardLibrary(source);
+  // Inspect is itself compiler-loaded and may contain derivations; derivation
+  // support in turn imports inspect. The two idempotent loads form the small
+  // dependency fixed point before derivation runs.
+  const inspected = withStandardTraits(joined);
+  const supported = withStandardTraits(withTypedDerivationSupport(inspected));
+  const program = withBareMarkerCalls(supported, markerFunctions(supported.functions));
+  return { program, standardAliases, testRunners, runnerCapabilities };
+}
+
+function checkProgram(
+  source: Program,
+  options: CheckOptions,
+  prepared: Omit<PreparedProgram, "program">,
+): CheckResult {
   const spellings = new Map<string, string>();
-  const result = checkProgramRaw(source, options, spellings);
+  const result = checkProgramRaw(source, options, spellings, prepared);
   return {
     ...result,
     diagnostics: result.diagnostics.map((diagnostic) => ({
@@ -142,24 +174,10 @@ function checkProgramRaw(
   source: Program,
   options: CheckOptions,
   spellings: Map<string, string>,
+  prepared: Omit<PreparedProgram, "program">,
 ): CheckResult {
-  // Every import spelling binds the one declaration identity chosen by the
-  // std join. Compute these before joining, while uses are still distinguishable
-  // from the declarations they bring into the toy's single module.
-  const standardAliases = standardImportAliases(source);
-  // The join adds the uses of compiler-provided names that the joined std
-  // modules make, such as the prelude's `std.convert.From`, which
-  // `withStandardTraits` then declares.
-  const joined = withStandardTraits(withStandardLibrary(source));
-  // `hd test` binds the runner's capabilities for the case bodies that
-  // need them (spec/std/testing.md#runner-capabilities).
-  const testRunners = testRunnerNames(source);
-  const runnerCapabilities = [
-    ...(source.tests.some((test) => test.table || test.timed) ? [testRunners.test] : []),
-    ...(source.tests.some((test) => test.property) ? [testRunners.property] : []),
-  ];
-  const marked = withSuffixMarkers(withBareMarkerCalls(joined, markerFunctions(joined.functions)));
-  const hoisted = hoistLocalDeclarations(withDistinctMethodBinders(marked, spellings));
+  const { standardAliases, testRunners, runnerCapabilities } = prepared;
+  const hoisted = hoistLocalDeclarations(withDistinctMethodBinders(source, spellings));
   // Target kinds are checked before newtypes are lowered to data types
   // (spec/lang/14-annotations.md#target-kinds).
   const targetDiagnostics = checkDecoratorTargets(hoisted.program);

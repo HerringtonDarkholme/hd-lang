@@ -279,6 +279,8 @@ export function compileTemplate(
       renameTypes(
         {
           kind: "function",
+          compilerGenerated: true,
+          ...(template.standard ? { standard: true as const } : {}),
           name: functionName,
           suspending: templateMethod.suspending,
           genericParameters: [parameter, ...templateMethod.genericParameters],
@@ -330,6 +332,7 @@ export function compileTemplate(
   });
   const trait: TraitDecl = {
     kind: "trait",
+    ...(template.standard ? { standard: true as const } : {}),
     name: structureTrait,
     genericParameters: [],
     supertraits: [],
@@ -385,6 +388,8 @@ export interface InstanceInput {
   readonly prefix: string;
   readonly part: string;
   readonly checked: boolean;
+  /** The target belongs to std, so generated code is reachable only through use. */
+  readonly standard?: boolean;
   readonly renames: ReadonlyMap<string, string>;
   readonly span: SourceSpan;
 }
@@ -448,6 +453,7 @@ export function instanceImplementations(input: InstanceInput): {
   // one method per traversal call site.
   const structure: ImplDecl = {
     kind: "impl",
+    ...(input.standard ? { standard: true as const } : {}),
     genericParameters,
     genericBounds,
     traitName: compiled.structureTrait,
@@ -512,6 +518,7 @@ export function instanceImplementations(input: InstanceInput): {
     });
   const implementation: ImplDecl = {
     kind: "impl",
+    ...(input.standard ? { standard: true as const } : {}),
     genericParameters,
     genericBounds,
     traitName: renameWords(compiled.template.traitName!, targetRenames),
@@ -571,6 +578,7 @@ export function newtypeHelper(
     renameTypes(
       {
         kind: "function",
+        compilerGenerated: true,
         name,
         suspending: false,
         genericParameters: [parameter],
@@ -592,6 +600,7 @@ export function forwardNewtype(
   template: ImplDecl,
   checked: boolean,
   helpers: Map<string, FunctionDecl>,
+  usedHelpers: Set<string>,
   error: (code: string, message: string, span: SourceSpan) => void,
 ): ImplDecl | undefined {
   const parameter = template.genericParameters[0]!;
@@ -643,12 +652,14 @@ export function forwardNewtype(
     // so a base type without it is `derive-field-missing-trait` at the base
     // type (trait.derive.newtype.requires.error).
     const at = derivedBaseSpan(item.declaration, item.trait);
-    const call: Expression = checked
+    const helper = checked ? newtypeHelper(item.trait, method, parameter, helpers) : undefined;
+    if (helper) usedHelpers.add(helper);
+    const call: Expression = helper
       ? {
           kind: "call",
           callee: {
             kind: "name",
-            name: newtypeHelper(item.trait, method, parameter, helpers),
+            name: helper,
             span: at,
           },
           arguments: receiver ? [unwrap({ kind: "name", name: "self", span }), ...args] : args,

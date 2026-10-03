@@ -12,8 +12,8 @@ Completed checkpoints remain checked until the next audit cleanup; detailed vali
 
 - [x] **1. Fixed: emit reachable std items only.** HIR declaration-index reachability selects std functions, closures, defaults, iterators, and dictionaries; structural backend linking removes unused runtime declarations, types, globals, and imports. Original IDs and host-callable exports are preserved. Full check: 1,927 conformance cases and 377 unit tests passed; 162 colocated source tests, website build, and fuzz smoke passed. Main CI passed.
 - [ ] **2. Registration implemented; acceptance partially complete.** Added `std.host`, `std.fs`, `std.path`, `std.json`, `std.encoding`, and `std.digest` to `STANDARD_MODULES`. Fifteen cases pass and move to `cases.tsv`: ten registration cases plus five JSON cases enabled by item 3. `json-suite` is now correctly classified under the missing `parse_f64` hook (item 19). The remaining `HOST-CATALOG` rows need APIs or provider behavior absent from `lib/std` or the runtime host.
-- [ ] **3. Structural binding implemented; tagged acceptance remains.** Parsed std declarations and their references are renamed through lexical AST scopes; member names, variants, fields, strings, comments, parameters, locals, and generic binders are untouched. The `Duration` string corruption and JSON `Number` collision are fixed, and parsed `use` declarations are dropped structurally. Five JSON rows pass and move; synthetic coverage proves a free helper may share a trait method's spelling. `HOST-CATALOG` and `DERIVE-DEFAULT` rows still need their missing std declarations before their compiler path can be exercised.
-- [ ] **4. Derive on std declarations.** Run `@derive` on `lib/std` declarations, not only before std is joined. Verify generated Debug implementations without changing std to conceal compiler gaps.
+- [ ] **3. Structural binding implemented; tagged acceptance remains.** Parsed std declarations and their references are renamed through lexical AST scopes; member names, variants, fields, strings, comments, parameters, locals, and generic binders are untouched. The `Duration` string corruption and JSON `Number` collision are fixed, and parsed `use` declarations are dropped structurally. Five JSON rows pass and move; synthetic coverage proves a free helper may share a trait method's spelling. One loader edge remains: if a future retained std API (not a stripped derivation template) names a compiler-loaded `std.structure` declaration, the loader must preserve that dependency by declaration identity rather than the discarded `use` text. `HOST-CATALOG` and `DERIVE-DEFAULT` rows still need their missing std declarations before their compiler path can be exercised.
+- [x] **4. Fixed: derive joined std declarations.** The checker now joins std and compiler-loaded inspect declarations before the typed-derivation phase, preserves exact std identities for templates, typed facts, newtypes, and generated support, and marks generated std code as std-owned. Reachability retains a standard derived handle's one module constant only when it is used, preserving constant identity without making it an unconditional root. Empty programs no longer load structural support merely because a stripped std template body contains a tuple. Coverage derives prelude and non-prelude traits for joined std declarations, checks std facts, exercises inspect-phase ordering and newtype lowering, and proves unused helpers disappear while called helpers remain. The `STD-DEBUG` fixture remains in `KNOWN_FAILURES.tsv`: current `lib/std` still has no `@derive(Debug)` on `TypeId` or `SelfRef`, and this repair is restricted to `src/`.
 - [ ] **5. Preserve std diagnostic locations.** Errors inside `lib/std` must identify their std file and line, not the user's first position or `use` line.
 
 ### Item 1 Size Checkpoint
@@ -27,10 +27,12 @@ Exact WAT UTF-8 bytes, using `compileToWat` with default options. Baseline: `5ba
 
 The exact sources are in [reachability regressions](../../src/emitter/reachability.test.ts).
 The earlier pre-pass-76 measurements were 670,018 and 1,085,281 bytes; these are not the same-library comparison.
-For the empty `main`, assembly reduces the historical 741,925-byte WAT to a
-75,477-byte Wasm binary. The linked result is 35 bytes of Wasm. A roughly
-66–75 KB empty executable therefore identifies the pre-linker output, not the
-current emitter result.
+For the empty `main`, the historical 741,925-byte WAT assembled to a 75,477-byte
+Wasm binary before backend linking. In the repaired pipeline, HIR reachability
+first produces 66,814 bytes of intermediate WAT (5,780 bytes when assembled),
+then backend linking produces the final 49-byte WAT and 35-byte Wasm module.
+None of the 66–75 KB measurements is a shipped empty executable. A program with
+no entry point at all produces 10 bytes of WAT and an 8-byte Wasm header.
 
 ## P2: Checker And Diagnostics
 

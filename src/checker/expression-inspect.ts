@@ -297,12 +297,19 @@ export abstract class InspectChecker extends MemberLookupChecker {
       inspectKey(type, this.inspectEnvironment())
     )
       return check();
-    const dictionary = this.checkExpression({
-      kind: "member",
-      receiver: expression.callee.receiver,
-      name: STRUCTURE_WITNESS_FIELD,
-      span: expression.callee.receiver.span,
-    });
+    const privateMember = this.compilerPrivateMember;
+    this.compilerPrivateMember = true;
+    let dictionary: HirExpression;
+    try {
+      dictionary = this.checkExpression({
+        kind: "member",
+        receiver: expression.callee.receiver,
+        name: STRUCTURE_WITNESS_FIELD,
+        span: expression.callee.receiver.span,
+      });
+    } finally {
+      this.compilerPrivateMember = privateMember;
+    }
     const saved = this.handleWitness;
     this.handleWitness = { type, dictionary };
     try {

@@ -110,6 +110,10 @@ export interface FunctionDecl {
   readonly bodiless?: boolean;
   /** Declared by the standard library (`lib/std/`), which declares prelude names such as `println`. */
   readonly standard?: boolean;
+  /** The qualified name of a `lib/std` function, independent of its local binding. */
+  readonly standardName?: string;
+  /** Compiler-generated helper: not a host-callable root. */
+  readonly compilerGenerated?: boolean;
   /** Carries a `std.ops.NumSuffix` value: a suffix function (05-expressions.md#r-expr.literal-fn.marker). */
   readonly numSuffix?: boolean;
   /** Carries a `std.ops.StrPrefix` value: a prefix function (05-expressions.md#r-expr.literal-fn.marker). */
@@ -279,6 +283,10 @@ export interface TypeDecl {
   readonly base?: TypeRef;
   readonly doc?: string;
   readonly decorators?: Decorators;
+  /** Declared by the standard library. */
+  readonly standard?: boolean;
+  /** The qualified name of a `lib/std` type, independent of its local binding. */
+  readonly standardName?: string;
   readonly span: SourceSpan;
 }
 
@@ -308,6 +316,8 @@ export interface EnumDecl {
   readonly decorators?: Decorators;
   /** Declared by the standard library (`lib/std/`), which declares prelude names such as `Display`. */
   readonly standard?: boolean;
+  /** The qualified name of a `lib/std` enum, independent of its local binding. */
+  readonly standardName?: string;
   readonly span: SourceSpan;
   /** Local implementations visible where this local declaration was written. */
   readonly localImplementations?: readonly number[];
@@ -340,6 +350,8 @@ export interface UseDecl {
   readonly module: string;
   readonly names: readonly UseName[];
   readonly public?: boolean;
+  /** Added by the std loader for a lib/std dependency, not written by the user. */
+  readonly standard?: boolean;
   readonly span: SourceSpan;
 }
 
@@ -532,6 +544,8 @@ export type Statement =
       readonly value: Expression;
       // A local `fn` declaration that omits its result type.
       readonly localFunction?: boolean;
+      /** Compiler-generated initialization owned by std, retained only when the global is used. */
+      readonly standard?: boolean;
       readonly span: SourceSpan;
     }
   | {

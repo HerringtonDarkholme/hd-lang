@@ -6,10 +6,8 @@ import type { Target } from "./member-lines.ts";
 import {
   standardTemplate,
   standardTupleTraits,
-  withStandardLibrary,
   type StandardTemplate,
 } from "./standard-library.ts";
-import { withStandardTraits } from "./standard-traits.ts";
 import {
   compileTemplate,
   headName,
@@ -27,8 +25,8 @@ import type { Generated } from "./typed-derivation.ts";
 // implementation for every tuple type of the shape, so the pass needs only
 // the shapes a program has, never an inferred element type. Every tuple
 // type is written, is a tuple expression, or comes from a std declaration
-// the program's use graph joins, so the shapes are read from the program as
-// the std join will declare it (`tupleShapesOf`). The std tuple template of
+// the program's use graph joins, so the shapes are read from the joined
+// program (`tupleShapesInJoinedProgram`). The std tuple template of
 // every trait the program sees is instantiated for them.
 
 /** A tuple's shape: its fixed elements, and whether a rest element `List[T]...` follows them. */
@@ -92,22 +90,21 @@ export function tupleShapes(node: unknown): TupleShape[] {
 }
 
 /**
- * The tuple shapes of the program once the std join declares its use graph,
- * such as `enumerate`'s `(i32, T)`.
+ * The tuple shapes of an already joined program, such as `enumerate`'s
+ * `(i32, T)`.
  */
-export function tupleShapesOf(program: Program): readonly TupleShape[] {
-  const joined = withStandardTraits(withStandardLibrary(program));
+export function tupleShapesInJoinedProgram(program: Program): readonly TupleShape[] {
   // A std implementation's body works on its own type parameters, so it
   // needs no tuple implementation that its signature does not show.
   return tupleShapes([
-    joined.statements,
-    joined.tests,
-    joined.implementations.filter((implementation) => !implementation.standard),
-    joined.types ?? [],
-    joined.data,
-    joined.enums,
-    joined.traits,
-    joined.functions,
+    program.statements,
+    program.tests,
+    program.implementations.filter((implementation) => !implementation.standard),
+    program.types ?? [],
+    program.data,
+    program.enums,
+    program.traits,
+    program.functions,
   ]);
 }
 
@@ -270,7 +267,7 @@ export function localTupleName(program: Program): string {
  */
 export function loadTupleTemplates(
   program: Program,
-  localTraits: ReadonlyMap<string, unknown>,
+  localTraits: ReadonlyMap<string, { readonly standard?: boolean }>,
   tupleTemplates: ReadonlyMap<string, ImplDecl>,
   kept: readonly ImplDecl[],
   renames: ReadonlyMap<string, string>,
@@ -279,13 +276,14 @@ export function loadTupleTemplates(
   readonly standardTuples: ReadonlyMap<string, StandardTemplate>;
   readonly shapes: readonly TupleShape[];
 } {
-  const candidates = standardTupleTraits(program).filter(
-    (name) => !localTraits.has(name) && !tupleTemplates.has(name),
-  );
+  const candidates = standardTupleTraits(program).filter((name) => {
+    const local = localTraits.get(name);
+    return (!local || local.standard) && !tupleTemplates.has(name);
+  });
   const standardTuples = new Map<string, StandardTemplate>();
   let shapes: readonly TupleShape[] = [];
   if (tupleTemplates.size > 0 || candidates.length > 0) {
-    shapes = tupleShapesOf(program);
+    shapes = tupleShapesInJoinedProgram(program);
     for (const name of shapes.length > 0 ? candidates : []) {
       const standard = standardTemplate(program, name, renames, true);
       if (standard) standardTuples.set(name, standard);

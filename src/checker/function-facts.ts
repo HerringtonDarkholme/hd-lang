@@ -70,5 +70,10 @@ export function factsOfBuilders(
     out.add(`fn ${factsOfBuilderName(declaration.name)}() -> ${facts}:`);
     out.add(`    ${facts} { items: [${items.join(", ")}] }`);
   }
-  return out.lines.length === 0 ? [] : out.program(program.span).functions;
+  return out.lines.length === 0
+    ? []
+    : out.program(program.span).functions.map((declaration) => ({
+        ...declaration,
+        compilerGenerated: true,
+      }));
 }

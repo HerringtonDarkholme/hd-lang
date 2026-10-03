@@ -373,6 +373,7 @@ export class FunctionChecker extends ExpressionControlChecker {
           name: `$closure${closureIndex}`,
           ...(this.declaration.testOnly ? { testOnly: true } : {}),
           ...(this.declaration.standard ? { standard: true } : {}),
+          ...(this.declaration.compilerGenerated ? { compilerGenerated: true } : {}),
           suspending,
           genericParameters: [],
           genericBounds: [],

@@ -215,7 +215,7 @@ export class SignatureInference {
       traitTypes,
       this.implementations,
       inherentMethods,
-      !program.functions.includes(declaration),
+      !program.functions.includes(declaration) || declaration.compilerGenerated === true,
       program.statements.length > 0 && declaration.body === program.statements,
       [],
       false,

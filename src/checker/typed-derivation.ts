@@ -18,11 +18,13 @@ import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { Source_, ZERO_SPAN } from "./generated-source.ts";
 import { checkLawPartners, DERIVE_CHECKED_TRAITS, derivedFieldSpan } from "./derive-intrinsics.ts";
-import { standardTemplate } from "./standard-library.ts";
+import { renameStandardBindings } from "./standard-bindings.ts";
+import { standardTemplate, standardTupleTraits } from "./standard-library.ts";
 import { standardSource } from "./standard-sources.ts";
 import {
   loadTupleTemplates,
   localTupleName,
+  tupleShapesInJoinedProgram,
   tupleInstances,
   type TupleInstance,
 } from "./tuple-templates.ts";
@@ -87,7 +89,6 @@ import {
 
 const STRUCTURE_MODULE = "std.structure";
 const PROTOCOL_TRAITS = new Set(["Walker", "Describer", "Source"]);
-const DOWNCAST = "hd__downcast_val";
 
 /** The checker intrinsic that panics with `structure-variant-mismatch`. */
 export const STRUCTURE_MISMATCH = "hd__structure_variant_mismatch";
@@ -101,17 +102,13 @@ export const STRUCTURE_AS_DECLARED = "hd__structure_as_declared";
 export const STRUCTURE_WITNESS = "hd__structure_witness";
 /** The handle field that holds the witness, which `h.fact` reads (lib/std/structure.hd). */
 export const STRUCTURE_WITNESS_FIELD = "hd_witness";
+const DOWNCAST = "hd__downcast_val";
 
 /**
  * `lib/std/structure.hd` in the program's names. Its `use` lines become the
  * pass's own use of `std.inspect`, which imports `downcast_val` under a
  * hidden name.
  */
-function structureSource(renames: ReadonlyMap<string, string>): string {
-  const source = standardSource("structure").replace(/^use .*$/gm, "");
-  return renameWords(source, new Map([...renames, ["downcast_val", DOWNCAST]]));
-}
-
 interface DerivationResult {
   readonly program: Program;
   readonly diagnostics: readonly Diagnostic[];
@@ -142,10 +139,11 @@ interface Derivation {
 
 // ---------------------------------------------------------------------------
 
-function structureImports(program: Program): Set<string> {
+function writtenStructureImports(program: Program): Set<string> {
   const names = new Set<string>();
   for (const use of program.uses)
-    if (use.module === STRUCTURE_MODULE) for (const name of use.names) names.add(name.name);
+    if (use.module === STRUCTURE_MODULE && !use.standard)
+      for (const name of use.names) names.add(name.name);
   return names;
 }
 
@@ -170,6 +168,14 @@ const STRUCTURE_DECLARATIONS = [
  * program declares itself, such as a `data Key`, a hidden name.
  */
 export function structureRenames(program: Program): Map<string, string> {
+  const existing = new Map(
+    [...program.data, ...program.enums, ...program.traits].flatMap((declaration) => {
+      const prefix = `${STRUCTURE_MODULE}.`;
+      return declaration.standardName?.startsWith(prefix)
+        ? [[declaration.standardName.slice(prefix.length), declaration.name] as const]
+        : [];
+    }),
+  );
   const declared = new Set(
     [...program.data, ...program.enums, ...program.traits, ...(program.types ?? [])].map(
       (declaration) => declaration.name,
@@ -177,14 +183,101 @@ export function structureRenames(program: Program): Map<string, string> {
   );
   const imported = new Map<string, string>();
   for (const use of program.uses)
-    if (use.module === STRUCTURE_MODULE)
+    if (use.module === STRUCTURE_MODULE && !use.standard)
       for (const name of use.names) imported.set(name.name, name.alias ?? name.name);
   const renames = new Map<string, string>();
   for (const name of STRUCTURE_DECLARATIONS) {
-    const local = imported.get(name) ?? (declared.has(name) ? `hd__structure_${name}` : name);
+    const local =
+      existing.get(name) ??
+      imported.get(name) ??
+      (declared.has(name) ? `hd__structure_${name}` : name);
     if (local !== name) renames.set(name, local);
   }
   return renames;
+}
+
+function needsStructureDeclarations(program: Program): boolean {
+  const derives = [...(program.types ?? []), ...program.data, ...program.enums].some(
+    (declaration) => (declaration.decorators?.derives.length ?? 0) > 0,
+  );
+  const blocks = program.implementations.some(
+    (implementation) => implementation.byStructure !== undefined,
+  );
+  const standardTuples =
+    tupleShapesInJoinedProgram(program).length > 0 && standardTupleTraits(program).length > 0;
+  return (
+    writtenStructureImports(program).size > 0 ||
+    derives ||
+    blocks ||
+    standardTuples ||
+    importsFactsOf(program)
+  );
+}
+
+/**
+ * Declares the compiler-provided std.structure module before derivation.
+ * Its own std declarations can therefore use @derive, and every derivation
+ * sees the same declaration identities rather than a late appended copy.
+ */
+export function withTypedDerivationSupport(source: Program): Program {
+  if (
+    !needsStructureDeclarations(source) ||
+    source.data.some((declaration) => declaration.standardName === "std.structure.Facts")
+  )
+    return source;
+  const renames = structureRenames(source);
+  const original = parse(standardSource("structure"), { standardLibrary: true }).program;
+  if (!original) throw new Error("std.structure source does not parse");
+  const structure = renameStandardBindings(
+    original,
+    new Map([...renames, ["downcast_val", DOWNCAST]]),
+  );
+  const alreadyImports = (name: string, local = name): boolean =>
+    source.uses.some(
+      (use) =>
+        use.module === "std.inspect" &&
+        use.names.some((imported) => imported.name === name && (imported.alias ?? name) === local),
+    );
+  const inspectUse: UseDecl = {
+    kind: "use",
+    module: "std.inspect",
+    names: [
+      ...(!alreadyImports("Inspectable") ? [{ name: "Inspectable" }] : []),
+      ...(!alreadyImports("downcast_val", DOWNCAST)
+        ? [{ name: "downcast_val", alias: DOWNCAST }]
+        : []),
+    ],
+    standard: true,
+    span: source.span,
+  };
+  const standard = <T>(items: readonly T[]): Array<T & { readonly standard: true }> =>
+    items.map((item) => ({ ...item, standard: true as const }));
+  const data = structure.data.map((declaration, index) => ({
+    ...declaration,
+    standard: true as const,
+    standardName: `std.structure.${original.data[index]!.name}`,
+  }));
+  const enums = structure.enums.map((declaration, index) => ({
+    ...declaration,
+    standard: true as const,
+    standardName: `std.structure.${original.enums[index]!.name}`,
+  }));
+  const traits = structure.traits.map((declaration, index) => ({
+    ...declaration,
+    standard: true as const,
+    standardName: `std.structure.${original.traits[index]!.name}`,
+    strengthenableMembers: ["member", "rest"],
+  }));
+  return {
+    ...source,
+    uses: inspectUse.names.length > 0 ? [...source.uses, inspectUse] : source.uses,
+    ...(structure.types ? { types: [...(source.types ?? []), ...standard(structure.types)] } : {}),
+    data: [...source.data, ...data],
+    enums: [...source.enums, ...enums],
+    traits: [...source.traits, ...traits],
+    implementations: [...source.implementations, ...standard(structure.implementations)],
+    functions: [...source.functions, ...standard(structure.functions)],
+  };
 }
 
 function isGadt(declaration: EnumDecl): boolean {
@@ -237,7 +330,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
   const diagnostics: Diagnostic[] = [];
   const optInSpans: SourceSpan[] = [];
   const arbitraryOptIns: ArbitraryOptIn[] = [];
-  const imported = structureImports(source);
+  const imported = writtenStructureImports(source);
   // The names of std.structure's items in this program.
   const renames = structureRenames(source);
   const structureName = (name: string): string => renames.get(name) ?? name;
@@ -306,7 +399,9 @@ export function withTypedDerivation(source: Program): DerivationResult {
   const arbitraryName = arbitrary && (arbitrary.alias ?? arbitrary.name);
   const standardTemplates = new Map<string, { readonly support: readonly ImplDecl[] }>();
   const loadStandard = (name: string): void => {
-    if (templates.has(name) || localTraits.has(name)) return;
+    if (templates.has(name)) return;
+    const local = localTraits.get(name);
+    if (local && !local.standard) return;
     const standard = standardTemplate(program, name, renames);
     if (!standard) return;
     templates.set(name, standard.template);
@@ -484,6 +579,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
   generated.push(...instances.programs);
   const templateDeclarations = [...compiledTemplates.values()].map((item) => item.declarations);
   const newtypeHelpers = new Map<string, FunctionDecl>();
+  const standardNewtypeHelpers = new Map<string, boolean>();
   for (const item of newtypeDerivations) {
     // A std trait whose methods all take `self` forwards through a bounded
     // helper, so a base type without it is `derive-field-missing-trait`
@@ -492,69 +588,43 @@ export function withTypedDerivation(source: Program): DerivationResult {
     const checked =
       standardTemplates.has(item.trait) &&
       template.methods.every((method) => method.parameters[0]?.name === "self");
-    const result = forwardNewtype(item, template, checked, newtypeHelpers, error);
-    if (result) implementations.push(result);
+    const usedHelpers = new Set<string>();
+    const result = forwardNewtype(item, template, checked, newtypeHelpers, usedHelpers, error);
+    for (const name of usedHelpers) {
+      standardNewtypeHelpers.set(
+        name,
+        (standardNewtypeHelpers.get(name) ?? true) && item.declaration.standard === true,
+      );
+    }
+    if (result)
+      implementations.push(
+        item.declaration.standard ? { ...result, standard: true as const } : result,
+      );
   }
   implementations.push(...templateSupport);
   if (diagnostics.some((item) => item.severity !== "warning"))
     return { program, diagnostics, optInSpans, arbitraryOptIns };
 
   const factFunctions = factCheckFunctions(program);
-
-  // `facts_of` returns `std.structure`'s `Facts` (annot.facts-of.result).
-  const needsStructure = imported.size > 0 || generated.length > 0 || importsFactsOf(program);
-  const structure = needsStructure ? parse(structureSource(renames)).program : undefined;
-  if (needsStructure && !structure) throw new Error("std.structure source does not parse");
-  const structureUse: UseDecl = {
-    kind: "use",
-    module: "std.inspect",
-    names: [{ name: "Inspectable" }, { name: "downcast_val", alias: DOWNCAST }],
-    span: program.span,
-  };
-  const structureTraits = (structure?.traits ?? []).map((trait): TraitDecl => ({
-    ...trait,
-    strengthenableMembers: ["member", "rest"],
-  }));
-  const alreadyImportsInspectable = program.uses.some(
-    (use) => use.module === "std.inspect" && use.names.some((name) => name.name === "Inspectable"),
-  );
   return {
     program: {
       ...program,
       // Handle constants come first, so a module binding may call a derived method.
       statements: [...generated.flatMap((item) => item.statements), ...program.statements],
-      uses: [
-        ...program.uses.filter((use) => use.module !== STRUCTURE_MODULE),
-        ...(needsStructure
-          ? [
-              alreadyImportsInspectable
-                ? { ...structureUse, names: [structureUse.names[1]!] }
-                : structureUse,
-            ]
-          : []),
-      ],
-      data: [
-        ...program.data,
-        ...(structure?.data ?? []),
-        ...generated.flatMap((item) => item.data),
-      ],
-      enums: [...program.enums, ...(structure?.enums ?? [])],
-      traits: [
-        ...program.traits,
-        ...structureTraits,
-        ...templateDeclarations.map((item) => item.trait),
-      ],
-      implementations: [
-        ...implementations,
-        ...(structure?.implementations ?? []),
-        ...generated.flatMap((item) => item.implementations),
-      ],
+      uses: program.uses.filter((use) => use.module !== STRUCTURE_MODULE),
+      data: [...program.data, ...generated.flatMap((item) => item.data)],
+      enums: program.enums,
+      traits: [...program.traits, ...templateDeclarations.map((item) => item.trait)],
+      implementations: [...implementations, ...generated.flatMap((item) => item.implementations)],
       functions: [
         ...program.functions,
-        ...newtypeHelpers.values(),
+        ...[...newtypeHelpers.values()].map((declaration) =>
+          standardNewtypeHelpers.get(declaration.name)
+            ? { ...declaration, standard: true as const }
+            : declaration,
+        ),
         ...factFunctions,
         ...factsOfBuilders(program, structureName("Facts"), unscoped),
-        ...(structure?.functions ?? []),
         ...templateDeclarations.flatMap((item) => item.functions),
         ...generated.flatMap((item) => item.functions),
       ],
@@ -846,6 +916,7 @@ function lintDerivations(
     (fact.kind === "call" && fact.callee.kind === "name" && standardNames.has(fact.callee.name)) ||
     (fact.kind === "data" && standardNames.has(fact.name));
   for (const declaration of [...program.data, ...program.enums]) {
+    if (declaration.standard && (declaration.decorators?.derives.length ?? 0) === 0) continue;
     const facts = declaration.decorators?.facts ?? [];
     if (facts.length === 0 || byTarget.has(declaration.name)) continue;
     for (const fact of facts)
@@ -934,51 +1005,57 @@ function nonLiteral(fact: Expression): boolean {
 function factCheckFunctions(program: Program): FunctionDecl[] {
   const factChecks = new Source_();
   let factCount = 0;
-  const checkFacts = (expressions: readonly Expression[] | undefined): void => {
+  const standardChecks = new Set<number>();
+  const checkFacts = (expressions: readonly Expression[] | undefined, standard = false): void => {
     for (const expression of expressions ?? []) {
       // A typed fact on a generic target checks in its monomorphic scope
       // (annot.typed-fact.monomorphic).
       const scope = expression.kind === "call" ? (expression.typedFactScope ?? "") : "";
       factChecks.add(`fn hd__fact_check_${factCount}${scope}() -> void:`);
       factChecks.add(`    _ := ${factChecks.expression(expression)}`);
+      if (standard) standardChecks.add(factCount);
       factCount += 1;
     }
   };
   for (const declaration of program.data) {
-    checkFacts(declaration.decorators?.facts);
-    for (const field of declaration.fields) checkFacts(field.metadata);
+    checkFacts(declaration.decorators?.facts, declaration.standard);
+    for (const field of declaration.fields) checkFacts(field.metadata, declaration.standard);
   }
   for (const declaration of program.enums) {
-    checkFacts(declaration.decorators?.facts);
+    checkFacts(declaration.decorators?.facts, declaration.standard);
     for (const variant of declaration.variants) {
-      checkFacts(variant.metadata);
-      for (const field of variant.fields) checkFacts(field.metadata);
+      checkFacts(variant.metadata, declaration.standard);
+      for (const field of variant.fields) checkFacts(field.metadata, declaration.standard);
     }
   }
   for (const declaration of program.functions) {
-    checkFacts(declaration.decorators?.facts);
-    for (const parameter of declaration.parameters) checkFacts(parameter.metadata);
+    checkFacts(declaration.decorators?.facts, declaration.standard);
+    for (const parameter of declaration.parameters)
+      checkFacts(parameter.metadata, declaration.standard);
   }
   // Values before a trait, implementation, newtype, or method
   // (annot.decorator.attach), and a method's parameter metadata.
-  const methods = (list: readonly MethodDecl[]): void => {
+  const methods = (list: readonly MethodDecl[], standard = false): void => {
     for (const method of list) {
-      checkFacts(method.decorators?.facts);
-      for (const parameter of method.parameters) checkFacts(parameter.metadata);
+      checkFacts(method.decorators?.facts, standard);
+      for (const parameter of method.parameters) checkFacts(parameter.metadata, standard);
     }
   };
   for (const declaration of program.traits) {
-    checkFacts(declaration.decorators?.facts);
-    methods(declaration.methods);
+    checkFacts(declaration.decorators?.facts, declaration.standard);
+    methods(declaration.methods, declaration.standard);
   }
   for (const declaration of program.implementations) {
-    checkFacts(declaration.decorators?.facts);
-    methods(declaration.methods);
+    checkFacts(declaration.decorators?.facts, declaration.standard);
+    methods(declaration.methods, declaration.standard);
   }
-  for (const declaration of program.types ?? []) checkFacts(declaration.decorators?.facts);
+  for (const declaration of program.types ?? [])
+    checkFacts(declaration.decorators?.facts, declaration.standard);
   const factProgram = factCount > 0 ? factChecks.program(ZERO_SPAN) : undefined;
-  return (factProgram?.functions ?? []).map((declaration): FunctionDecl => ({
+  return (factProgram?.functions ?? []).map((declaration, index): FunctionDecl => ({
     ...declaration,
+    compilerGenerated: true,
+    ...(standardChecks.has(index) ? { standard: true as const } : {}),
     span: (declaration.body[0] as { value?: Expression }).value?.span ?? declaration.span,
     defaultContext: { laterNames: [] },
   }));
@@ -1013,6 +1090,8 @@ function generateDerivation(
       : undefined;
   const target = derivation.target;
   const declaration = target.declaration;
+  const standard =
+    declaration.standard === true || (tuple !== undefined && compiled.template.standard === true);
   const parameters = declaration.genericParameters;
   const targetType = tuple
     ? tuple.type
@@ -1288,6 +1367,7 @@ function generateDerivation(
     prefix,
     part,
     checked,
+    ...(standard ? { standard: true } : {}),
     renames,
     span: derivation.span,
   });
@@ -1296,9 +1376,31 @@ function generateDerivation(
   // binding is only before its declaration.
   const statements = generated.statements.map((statement) => ({
     ...statement,
+    ...(standard && statement.kind === "binding" ? { standard: true as const } : {}),
     span: BEFORE_SOURCE,
   }));
-  return { implementation, structure, program: { ...generated, statements } };
+  const markStandard = <T>(items: readonly T[]): Array<T & { readonly standard: true }> =>
+    items.map((item) => ({ ...item, standard: true as const }));
+  const generatedFunctions = generated.functions.map((declaration) => ({
+    ...declaration,
+    compilerGenerated: true as const,
+  }));
+  return {
+    implementation,
+    structure,
+    program: standard
+      ? {
+          ...generated,
+          ...(generated.types ? { types: markStandard(generated.types) } : {}),
+          data: markStandard(generated.data),
+          enums: markStandard(generated.enums),
+          traits: markStandard(generated.traits),
+          implementations: markStandard(generated.implementations),
+          functions: markStandard(generatedFunctions),
+          statements,
+        }
+      : { ...generated, functions: generatedFunctions, statements },
+  };
 }
 
 const BEFORE_SOURCE: SourceSpan = {
