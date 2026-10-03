@@ -9,14 +9,7 @@ import {
   writtenBindingProblem,
 } from "./associated-bindings.ts";
 import { PRELUDE_NAMES } from "./prelude-names.ts";
-import type {
-  AssignmentStatement,
-  Expression,
-  FunctionDecl,
-  MethodDecl,
-  Statement,
-  TypeRef,
-} from "../ast.ts";
+import type { AssignmentStatement, Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import type {
   HirExpression,
@@ -30,7 +23,6 @@ import type {
   HirGlobal,
   HirLocal,
   HirOrderingStrategy,
-  HirProgram,
   HirStatement,
   HirTrait,
   HirBuiltinTraitImplementation,
@@ -79,83 +71,21 @@ import {
 } from "../types.ts";
 import { narrowsTo, numericType, widensTo } from "../numeric.ts";
 import { DERIVED_IMPLEMENTATION_SPANS, derivedFieldDiagnostic } from "./derive-intrinsics.ts";
+import type {
+  FunctionCheckResult,
+  InherentMethod,
+  ResolvedTraitPath,
+  Signature,
+} from "./context-types.ts";
 
-export interface CheckResult {
-  readonly program?: HirProgram;
-  readonly diagnostics: readonly Diagnostic[];
-}
-
-export interface Signature {
-  readonly name: string;
-  readonly index: number;
-  readonly suspending: boolean;
-  readonly genericParameters: readonly string[];
-  readonly genericBounds: readonly HirGenericBound[];
-  readonly referenceParameters?: readonly string[];
-  readonly valueParameters?: readonly string[];
-  readonly rowParameters: readonly string[];
-  /**
-   * Every generic parameter in declared order, type and row alike, when a
-   * row parameter is among them: the slots of an explicit type-argument list
-   * (07-functions.md#r-fn.generic.explicit.row-dollar).
-   */
-  readonly typeArgumentOrder?: readonly string[];
-  readonly parameters: readonly ValueType[];
-  readonly parameterNames: readonly string[];
-  readonly defaultFunctionNames: readonly (string | undefined)[];
-  readonly variadic: boolean;
-  readonly tupleVararg?: boolean; // a final tuple or `Tuple`-bounded vararg (07 Varargs)
-  readonly tupleParameters?: readonly string[]; // bounded by `std.function.Tuple`
-  readonly intrinsic?: string; // a `lib/std` declaration's `@intrinsic("name")`
-  readonly result: ValueType;
-  readonly requirements: readonly string[];
-  /** Declared in a `tests:` block (spec/lang/03-names-and-scopes.md#tests-blocks). */
-  readonly testOnly?: boolean;
-  /** A suffix function, marked `@num_suffix` (spec/lang/05-expressions.md#r-expr.literal-fn.marker). */
-  readonly numSuffix?: boolean;
-  /** A prefix function, marked `@str_prefix` (spec/lang/05-expressions.md#r-expr.literal-fn.marker). */
-  readonly strPrefix?: boolean;
-  /** Type-argument defaults, applied to what a use site leaves unsolved (04 Type-Argument Defaults). */
-  readonly genericDefaults?: ReadonlyMap<string, ValueType>;
-  readonly span: SourceSpan;
-}
-
-export interface InherentMethod {
-  /** Authoritative AST method corresponding to this prepared callable. */
-  readonly sourceMethod: MethodDecl;
-  readonly targetType: ValueType;
-  /** The implementation's generic parameters, which `targetType` may name. */
-  readonly targetGenericParameters?: readonly string[];
-  readonly name: string;
-  /** `pub fn`: only a public inherent method of a part is promoted (spec 03). */
-  readonly public: boolean;
-  readonly associated: boolean;
-  readonly receiverMutable: boolean;
-  readonly parameters: readonly ValueType[];
-  readonly parameterNames: readonly string[];
-  readonly variadic: boolean;
-  readonly suspending: boolean;
-  readonly result: ValueType;
-  readonly requirements: readonly string[];
-  readonly functionName: string;
-  readonly span: SourceSpan;
-}
-
-export interface PlannedArgument {
-  readonly parameterIndex: number;
-  readonly argumentIndices: readonly number[];
-  readonly kind: "single" | "vararg-elements";
-}
-
-export interface ResolvedTraitPath {
-  readonly arguments: readonly ValueType[];
-  readonly trait: HirTrait;
-}
-
-export interface FunctionCheckResult {
-  readonly function?: HirFunction;
-  readonly diagnostics: readonly Diagnostic[];
-}
+export type {
+  CheckResult,
+  FunctionCheckResult,
+  InherentMethod,
+  PlannedArgument,
+  ResolvedTraitPath,
+  Signature,
+} from "./context-types.ts";
 
 export class CheckFailure extends Error {}
 
@@ -209,8 +139,11 @@ export abstract class CheckerContext {
   protected readonly dataTypes: ReadonlyMap<string, HirData>;
   protected readonly enumTypes: ReadonlyMap<string, HirEnum>;
   protected readonly traitTypes: ReadonlyMap<string, HirTrait>;
-  protected readonly implementations: readonly HirTraitImplementation[];
-  protected readonly inherentMethods: readonly InherentMethod[];
+  protected implementations: readonly HirTraitImplementation[];
+  protected inherentMethods: readonly InherentMethod[];
+  protected readonly allImplementations: readonly HirTraitImplementation[];
+  protected readonly allInherentMethods: readonly InherentMethod[];
+  private readonly localImplementationScopes: Set<number>[];
   protected readonly synthetic: boolean;
   protected readonly moduleBody: boolean;
   protected readonly closures: HirFunction[];
@@ -280,6 +213,7 @@ export abstract class CheckerContext {
     selfClosureLocal?: HirLocal,
     imports: ReadonlyMap<string, string> = new Map(),
     globals: Map<string, HirGlobal> = new Map(),
+    localImplementations: ReadonlySet<number> = new Set(),
   ) {
     this.declaration = declaration;
     this.signature = signature;
@@ -287,8 +221,12 @@ export abstract class CheckerContext {
     this.dataTypes = dataTypes;
     this.enumTypes = enumTypes;
     this.traitTypes = traitTypes;
+    this.allImplementations = implementations;
+    this.allInherentMethods = inherentMethods;
     this.implementations = implementations;
     this.inherentMethods = inherentMethods;
+    this.localImplementationScopes = [new Set(localImplementations)];
+    this.refreshImplementations();
     this.synthetic = synthetic;
     this.moduleBody = moduleBody;
     this.closures = closures;
@@ -302,6 +240,30 @@ export abstract class CheckerContext {
     this.globals = globals;
     this.closureIndex = closureIndex;
     this.providerScopes[0] = new Map(availableProviders);
+  }
+
+  /** The local implementations visible at the current lexical point. */
+  protected visibleLocalImplementations(): ReadonlySet<number> {
+    return new Set(this.localImplementationScopes.flatMap((scope) => [...scope]));
+  }
+
+  /** Makes a hoisted local implementation available from its marker onward. */
+  protected activateLocalImplementation(implementation: number): void {
+    this.localImplementationScopes.at(-1)!.add(implementation);
+    this.refreshImplementations();
+  }
+
+  private refreshImplementations(): void {
+    const visible = this.visibleLocalImplementations();
+    this.implementations = this.allImplementations.filter(
+      (implementation) =>
+        implementation.localImplementation === undefined ||
+        visible.has(implementation.localImplementation),
+    );
+    this.inherentMethods = this.allInherentMethods.filter(
+      (method) =>
+        method.localImplementation === undefined || visible.has(method.localImplementation),
+    );
   }
 
   check(): FunctionCheckResult {
@@ -428,7 +390,10 @@ export abstract class CheckerContext {
     expectedFinal?: ValueType,
     finalValueContext = false,
   ): HirStatement[] {
-    if (scoped) this.scopes.push(new Map());
+    if (scoped) {
+      this.scopes.push(new Map());
+      this.localImplementationScopes.push(new Set());
+    }
     try {
       const checked: HirStatement[] = [];
       let unreachable = false;
@@ -464,7 +429,11 @@ export abstract class CheckerContext {
       }
       return checked;
     } finally {
-      if (scoped) this.scopes.pop();
+      if (scoped) {
+        this.scopes.pop();
+        this.localImplementationScopes.pop();
+        this.refreshImplementations();
+      }
     }
   }
 
@@ -793,7 +762,13 @@ export abstract class CheckerContext {
         if (builtin) return builtin;
         throw new Error(`no implementation of supertrait ${index} for ${targetType}`);
       }
-      const parent = this.implementations[parentIndex]!;
+      const parent = this.implementations.find((candidate) => candidate.index === parentIndex);
+      if (!parent)
+        this.fail(
+          "unsatisfied-trait-bound",
+          `the required supertrait '${trait.supertraits[index]!.traitName}' is not visible here`,
+          span,
+        );
       return this.traitDictionaryPlan(parent, targetType, parentArguments, span, next);
     });
     return { bounds, implementationIndex: implementation.index, supertraits };

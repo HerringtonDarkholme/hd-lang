@@ -15,9 +15,10 @@ import type { Diagnostic } from "../diagnostics.ts";
 // module, so it hoists each one to module scope under a name source cannot
 // write, `Name#n`, and renames the references in its scope; a reference
 // outside the scope still names the source spelling and so does not find
-// it. A local `impl` is hoisted as written, after the pair check of
-// 09-traits.md#local-implementations; a local trait-less derivation block is
-// rejected. A local data or enum type is not
+// it. A local `impl` is likewise hoisted for coherence checking, but leaves
+// an internal marker at its declaration point. Method lookup only includes
+// the marked implementations in the current lexical suite. A local
+// trait-less derivation block is rejected. A local data or enum type is not
 // inspectable.
 
 type Renames = ReadonlyMap<string, string>;
@@ -62,16 +63,28 @@ export function hoistLocalDeclarations(program: Program): {
   const types: TypeDecl[] = [];
   const implementations: ImplDecl[] = [];
   let counter = 0;
+  let implementationCounter = 0;
 
-  const rewrite = <T>(node: T, renames: Renames, key?: string): T => {
+  const rewrite = <T>(
+    node: T,
+    renames: Renames,
+    localImplementations: readonly number[],
+    key?: string,
+  ): T => {
     if (Array.isArray(node)) {
       if (key !== undefined && SUITE_KEYS.has(key))
-        return processSuite(node as unknown as readonly Statement[], renames) as unknown as T;
+        return processSuite(
+          node as unknown as readonly Statement[],
+          renames,
+          localImplementations,
+        ) as unknown as T;
       if (key !== undefined && NAME_LIST_KEYS.has(key))
         return node.map((item) =>
-          typeof item === "string" ? renameWords(item, renames) : rewrite(item, renames),
+          typeof item === "string"
+            ? renameWords(item, renames)
+            : rewrite(item, renames, localImplementations),
         ) as T;
-      return node.map((item) => rewrite(item, renames, key)) as T;
+      return node.map((item) => rewrite(item, renames, localImplementations, key)) as T;
     }
     if (!node || typeof node !== "object") return node;
     const result: Record<string, unknown> = {};
@@ -83,9 +96,9 @@ export function hoistLocalDeclarations(program: Program): {
         result[entry] = value.map((item) =>
           isTypeRef(item)
             ? { ...item, name: renameWords(item.name, renames) }
-            : rewrite(item, renames),
+            : rewrite(item, renames, localImplementations),
         );
-      else result[entry] = rewrite(value, renames, entry);
+      else result[entry] = rewrite(value, renames, localImplementations, entry);
     }
     // Names that spell a type outside a type position.
     const kind = record.kind;
@@ -105,13 +118,18 @@ export function hoistLocalDeclarations(program: Program): {
     return result as T;
   };
 
-  const processSuite = (statements: readonly Statement[], outer: Renames): Statement[] => {
+  const processSuite = (
+    statements: readonly Statement[],
+    outer: Renames,
+    outerImplementations: readonly number[],
+  ): Statement[] => {
     let renames = outer;
+    let visibleImplementations = [...outerImplementations];
     const declaredHere = new Set<string>();
     const result: Statement[] = [];
     for (const statement of statements) {
       if (statement.kind !== "local-declaration") {
-        result.push(rewrite(statement, renames));
+        result.push(rewrite(statement, renames, visibleImplementations));
         continue;
       }
       const declaration = statement.declaration;
@@ -149,7 +167,20 @@ export function hoistLocalDeclarations(program: Program): {
           });
           continue;
         }
-        implementations.push(rewrite(declaration, renames));
+        implementationCounter += 1;
+        const localImplementation = implementationCounter;
+        const inside = [...visibleImplementations, localImplementation];
+        implementations.push({
+          ...rewrite(declaration, renames, inside),
+          localImplementation,
+          localImplementations: inside,
+        });
+        result.push({
+          kind: "local-implementation",
+          implementation: localImplementation,
+          span: statement.span,
+        });
+        visibleImplementations = inside;
         continue;
       }
       if (declaredHere.has(declaration.name))
@@ -162,16 +193,22 @@ export function hoistLocalDeclarations(program: Program): {
       counter += 1;
       const hoisted = `${declaration.name}#${counter}`;
       renames = new Map(renames).set(declaration.name, hoisted);
-      const renamed = { ...rewrite(declaration, renames), name: hoisted };
-      if (renamed.kind === "data") data.push({ ...renamed, local: true });
-      else if (renamed.kind === "enum") enums.push({ ...renamed, local: true });
-      else if (renamed.kind === "trait") traits.push(renamed);
+      const renamed = {
+        ...rewrite(declaration, renames, visibleImplementations),
+        name: hoisted,
+      };
+      if (renamed.kind === "data")
+        data.push({ ...renamed, local: true, localImplementations: visibleImplementations });
+      else if (renamed.kind === "enum")
+        enums.push({ ...renamed, local: true, localImplementations: visibleImplementations });
+      else if (renamed.kind === "trait")
+        traits.push({ ...renamed, localImplementations: visibleImplementations });
       else types.push(renamed);
     }
     return result;
   };
 
-  const rewritten = rewrite(program, new Map());
+  const rewritten = rewrite(program, new Map(), []);
   return {
     program: {
       ...rewritten,

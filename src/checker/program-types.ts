@@ -111,6 +111,9 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
       associatedTypes: [],
       methods: [],
       span: declaration.span,
+      ...(declaration.localImplementations
+        ? { localImplementations: declaration.localImplementations }
+        : {}),
     });
   });
   // `std.task.Waker`, a prelude name whose module has no `lib/std` file.

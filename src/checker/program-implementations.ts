@@ -54,6 +54,14 @@ interface TraitSpecialization {
   readonly substitutions: ReadonlyMap<string, string>;
 }
 
+/** Whether `candidate` is in scope at the declaration point of `source`. */
+export function implementationVisibleFrom(candidate: ImplDecl, source: ImplDecl): boolean {
+  return (
+    candidate.localImplementation === undefined ||
+    source.localImplementations?.includes(candidate.localImplementation) === true
+  );
+}
+
 interface RegisteredImplementationTarget {
   readonly genericParameters: readonly string[];
   readonly traitArguments: readonly string[];
@@ -490,6 +498,9 @@ function prepareInherentImplementation(
       requirements: method.requirements,
       functionName,
       span: method.span,
+      ...(implementation.localImplementation !== undefined
+        ? { localImplementation: implementation.localImplementation }
+        : {}),
     });
     inherentDeclarations.push({
       kind: "function",
@@ -508,6 +519,9 @@ function prepareInherentImplementation(
       // (11-requirements-and-suspension.md#r-req.row.omitted.empty-pub).
       ...(method.requirementsOmitted && !method.public ? { requirementsOmitted: true } : {}),
       ...(implementation.standard ? { standard: true } : {}),
+      ...(implementation.localImplementations
+        ? { localImplementations: implementation.localImplementations }
+        : {}),
       ...selfDefaults(method, implementation.targetName),
       body: method.body ?? [],
       span: method.span,
@@ -960,6 +974,19 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         result: substituteSelfType(method.result, implementation.targetName),
         requirements: method.requirements,
         ...(implementation.standard ? { standard: true } : {}),
+        ...(() => {
+          const localImplementations = new Set([
+            ...(trait.localImplementations ?? []),
+            ...(suppliedMethod
+              ? (implementation.localImplementations ?? [])
+              : implementation.localImplementation === undefined
+                ? []
+                : [implementation.localImplementation]),
+          ]);
+          return localImplementations.size > 0
+            ? { localImplementations: [...localImplementations] }
+            : {};
+        })(),
         ...selfDefaults(method, implementation.targetName),
         body: method.body ?? [],
         ...(suppliedMethod && !method.body ? { bodiless: true } : {}),
@@ -1057,6 +1084,7 @@ function prepareDelegation(
     nominalGenericParts(implementation.traitName!)?.name ?? implementation.traitName!;
   const partImplementation = program.implementations.find(
     (candidate) =>
+      implementationVisibleFrom(candidate, implementation) &&
       candidate.traitName !== undefined &&
       (nominalGenericParts(candidate.traitName)?.name ?? candidate.traitName) === traitName &&
       candidate.targetName === field.type,
@@ -1220,6 +1248,8 @@ function validateSupertraits(
     )
       continue;
     const found = context.implementationPreparations.some((candidate) => {
+      if (!implementationVisibleFrom(candidate.declaration, implementation.declaration))
+        return false;
       const matched = matchTraitImplementation(
         candidate,
         supertrait.traitIndex,

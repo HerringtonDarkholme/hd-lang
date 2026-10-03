@@ -9,7 +9,7 @@ Descriptions of predicted failures below are source deductions, not recorded exe
 The audit-only PR is based on `3f4e24c39bbb8fcf0aa96b207c9891786b98d9fb`, after the required fetch and worktree rebase.
 Source links and coverage refer to the reviewed baseline above; [publication validation](VALIDATION.md) records checks on the newer base.
 
-Subsequent implementation work reproduces and repairs A03's reported suspension exits and A04's placeholder capture, partially repairs A02's method validation, optional structure, generic callable provider-key erasure, and least-common-type inference, and repairs A01's std-submodule shadowing defect.
+Subsequent implementation work reproduces and repairs A03's reported suspension exits and A04's placeholder capture, partially repairs A02's method validation, optional structure, generic callable provider-key erasure, and least-common-type inference, and repairs A01's std-submodule shadowing, repeated-alias, and local-implementation extent defects.
 See [repair status and evidence](REPAIRS.md); the first-wave findings and historical coverage below remain baseline evidence.
 
 The scope is [compiler architecture](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/README.md), [language semantics](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/README.md), [stdlib semantics](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/std/README.md), [CLI semantics](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/cli/README.md), and [conformance evidence](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/conformance/README.md).
@@ -49,7 +49,7 @@ The finding IDs below consolidate the subsystem reports; one root cause can acco
 
 | ID | Priority | Consolidated finding | Verification status | Source findings |
 | --- | --- | --- | --- | --- |
-| A01 | High | Resolution loses declaration ownership and binding scope | Std-submodule shadowing repaired; package ownership, repeated aliases, and local impl extent remain open; see REPAIRS.md | SOURCE-1, SOURCE-2, SOURCE-4, T5 |
+| A01 | High | Resolution loses declaration ownership and binding scope | Std-submodule shadowing, repeated aliases, and local impl extent repaired; package ownership and initialization scheduling remain open; see REPAIRS.md | SOURCE-1, SOURCE-2, SOURCE-4, T5 |
 | A02 | High | Encoded types lose structure; conversion and inference use inconsistent relations | Method validation, optional boundaries, generic callable provider-key erasure, and all specified LCT sites repaired; broader finding open; see REPAIRS.md | T1, T3, T4 |
 | A03 | High | Three control-flow paths can disagree on language return and suspension completion | Reported exits reproduced and repaired; see REPAIRS.md | L1 |
 | A04 | High | Generated-source patching can capture legal user identifiers | Placeholder capture reproduced and repaired; helper-name hygiene unreviewed; see REPAIRS.md | SOURCE-3 |
@@ -70,7 +70,7 @@ The relevant rules include `module.vis.private-default`, `module.vis.no-package-
 A parameter shadowing an imported module alias can therefore have its method call rewritten as a std function call.
 [Std name mapping](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/checker/standard-library.ts#L491) gives each declaration one local spelling, so a second alias replaces the first declaration name.
 Both problems follow from treating bindings as source substitution instead of references to declarations.
-The later [std submodule binding repair](REPAIRS.md#independent-repair-std-submodule-binding) removes the SOURCE-2 rewrite and performs module-member lowering after lexical value lookup. The package ownership, repeated-alias, and local-implementation portions of A01 remain open.
+The later [std submodule binding repair](REPAIRS.md#independent-repair-std-submodule-binding) removes the SOURCE-2 rewrite and performs module-member lowering after lexical value lookup. Separate repairs preserve repeated aliases and [local implementation extent](REPAIRS.md#independent-repair-local-implementation-extent). Package declaration ownership and initialization scheduling remain open.
 
 [Local implementation hoisting](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/checker/local-declarations.ts#L137) removes implementation statements and appends them to a program-wide list.
 It retains no declaration-point or suite availability for later method lookup.

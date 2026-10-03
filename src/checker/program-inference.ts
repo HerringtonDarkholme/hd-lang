@@ -227,6 +227,7 @@ export class SignatureInference {
       undefined,
       imports,
       this.globals,
+      new Set(declaration.localImplementations ?? []),
     ).check();
   }
 

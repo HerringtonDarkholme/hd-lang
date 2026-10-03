@@ -11,6 +11,8 @@ const INPUTS = new Set([
   "traitTypes",
   "implementations",
   "inherentMethods",
+  "allImplementations",
+  "allInherentMethods",
   "imports",
 ]);
 const SHALLOW = new Set(["closures", "globals", "diagnostics", "rangePatternConditions"]);

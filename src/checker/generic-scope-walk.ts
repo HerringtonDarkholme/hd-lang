@@ -217,6 +217,8 @@ export function mapScopeStatement(node: Statement, scope: GenericMethodScope): S
       return { ...node, expression: e(node.expression) };
     case "local-declaration":
       return { ...node, declaration: scope.declaration(node.declaration) };
+    case "local-implementation":
+      return node;
     default:
       return unreachable(node);
   }

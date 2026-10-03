@@ -270,6 +270,9 @@ function createEnumVariantDeclarations(
         requirements: [],
         body,
         span: variant.span,
+        ...(declaration.localImplementations
+          ? { localImplementations: declaration.localImplementations }
+          : {}),
       });
       const sharedCall: Expression = {
         kind: "call",
@@ -333,6 +336,9 @@ function createEnumVariantDeclarations(
                 { kind: "expression", expression: literal, span: variant.span },
               ],
         span: variant.span,
+        ...(declaration.localImplementations
+          ? { localImplementations: declaration.localImplementations }
+          : {}),
       });
     }
   }
@@ -365,6 +371,9 @@ export function createProgramDeclarations(
               ],
               span: field.default.span,
               defaultContext: { laterNames: [] },
+              ...(declaration.localImplementations
+                ? { localImplementations: declaration.localImplementations }
+                : {}),
             },
           ]
         : [],
@@ -429,6 +438,9 @@ export function createProgramDeclarations(
               ],
               span: field.default.span,
               defaultContext: laterNamesContext(declaration.sharedFields, fieldIndex),
+              ...(declaration.localImplementations
+                ? { localImplementations: declaration.localImplementations }
+                : {}),
             },
           ]
         : [],

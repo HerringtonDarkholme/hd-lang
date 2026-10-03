@@ -4,6 +4,7 @@ import type { HirFunction, HirGenericBound, HirGlobal, HirTraitImplementation } 
 import { FunctionChecker } from "./checker.ts";
 import { type CheckResult, type Signature } from "./context.ts";
 import { checkModuleInitialization } from "./module-initialization.ts";
+import { implementationVisibleFrom } from "./program-implementations.ts";
 import { SignatureInference } from "./program-inference.ts";
 import { matchTraitImplementation, substituteGenericType } from "./shared.ts";
 import { inherentVarianceDiagnostics } from "./variance.ts";
@@ -24,15 +25,17 @@ function supertraitImplementationIndices(
     const expectedArguments = supertrait.traitArguments.map((argument) =>
       substituteGenericType(argument, traitSubstitutions),
     );
-    return implementations.findIndex((candidate) =>
-      Boolean(
-        matchTraitImplementation(
-          candidate,
-          supertrait.traitIndex,
-          implementation.targetType,
-          expectedArguments,
+    return implementations.findIndex(
+      (candidate) =>
+        implementationVisibleFrom(candidate.declaration, implementation.declaration) &&
+        Boolean(
+          matchTraitImplementation(
+            candidate,
+            supertrait.traitIndex,
+            implementation.targetType,
+            expectedArguments,
+          ),
         ),
-      ),
     );
   });
 }
@@ -119,6 +122,9 @@ export function lowerCheckedProgram(
         };
       }),
       ...(implementation.family ? { family: implementation.family } : {}),
+      ...(implementation.declaration.localImplementation !== undefined
+        ? { localImplementation: implementation.declaration.localImplementation }
+        : {}),
       // An implementation of intrinsic methods only is a declaration with no
       // code (09-traits.md#intrinsic-methods).
       ...(implementation.methods.length > 0 &&
@@ -181,6 +187,7 @@ export function lowerCheckedProgram(
       undefined,
       imports,
       globals,
+      new Set(declaration.localImplementations ?? []),
     ).check();
     diagnostics.push(...checked.diagnostics);
     if (checked.function)

@@ -317,6 +317,9 @@ export abstract class StatementChecker extends CheckerContext {
       }
       case "pass":
         return { kind: "pass", span: statement.span };
+      case "local-implementation":
+        this.activateLocalImplementation(statement.implementation);
+        return { kind: "pass", span: statement.span };
       case "local-declaration":
         throw new Error("local declarations are hoisted before checking");
     }

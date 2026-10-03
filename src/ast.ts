@@ -114,6 +114,8 @@ export interface FunctionDecl {
   readonly numSuffix?: boolean;
   /** Carries a `std.ops.StrPrefix` value: a prefix function (05-expressions.md#r-expr.literal-fn.marker). */
   readonly strPrefix?: boolean;
+  /** Local implementations lexically available in this synthetic function body. */
+  readonly localImplementations?: readonly number[];
 }
 
 export interface MethodDecl {
@@ -171,6 +173,8 @@ export interface TraitDecl {
   /** Decorator lines before the trait (14 Prefix Decorators). */
   readonly decorators?: Decorators;
   readonly span: SourceSpan;
+  /** Local implementations visible where this local declaration was written. */
+  readonly localImplementations?: readonly number[];
 }
 
 export interface ImplDecl {
@@ -197,6 +201,10 @@ export interface ImplDecl {
   /** Decorator lines before the implementation (14 Prefix Decorators). */
   readonly decorators?: Decorators;
   readonly span: SourceSpan;
+  /** Identity of a local implementation; absent on module-level implementations. */
+  readonly localImplementation?: number;
+  /** Local implementations visible inside this implementation's method bodies. */
+  readonly localImplementations?: readonly number[];
 }
 
 export interface DataField {
@@ -243,6 +251,8 @@ export interface DataDecl {
    */
   readonly standardName?: string;
   readonly span: SourceSpan;
+  /** Local implementations visible where this local declaration was written. */
+  readonly localImplementations?: readonly number[];
 }
 
 /** `type Name = T` (a transparent alias) or `type Name(T)` (a newtype). */
@@ -299,6 +309,8 @@ export interface EnumDecl {
   /** Declared by the standard library (`lib/std/`), which declares prelude names such as `Display`. */
   readonly standard?: boolean;
   readonly span: SourceSpan;
+  /** Local implementations visible where this local declaration was written. */
+  readonly localImplementations?: readonly number[];
 }
 
 // One `it("name", ...)` call of a `tests:` block (spec/lang/10-modules.md#test-cases).
@@ -588,6 +600,12 @@ export type Statement =
       /** A `data`, `enum`, `trait`, `type`, or `impl` declared in a block suite. */
       readonly kind: "local-declaration";
       readonly declaration: DataDecl | EnumDecl | TraitDecl | TypeDecl | ImplDecl;
+      readonly span: SourceSpan;
+    }
+  | {
+      /** Internal compile-time marker for a hoisted local implementation's lexical start. */
+      readonly kind: "local-implementation";
+      readonly implementation: number;
       readonly span: SourceSpan;
     };
 

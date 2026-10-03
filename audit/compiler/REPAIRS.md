@@ -81,13 +81,13 @@ Candidate edge cases for later conformance fixtures:
 
 ### Independent Repair: Std Submodule Binding
 
-Status: SOURCE-2 reproduced and fixed as one part of A01; package ownership and local implementation extent remain open. SOURCE-4 is repaired separately below.
+Status: SOURCE-2 reproduced and fixed as one part of A01; package ownership remains open. SOURCE-4 and local implementation extent are repaired separately below.
 
 Before this repair, `withStandardSubmodules` walked every AST object before checking and rewrote a matching receiver spelling to a hidden std function name. A parameter named `arbitrary` therefore could not shadow `use std.testing.arbitrary`: `arbitrary.with(42)` called the imported module function and failed against its generator signature instead of calling the parameter's inherent method.
 
 The std submodule use now remains an ordinary import binding and continues to make the module reachable through the existing use graph. Direct member-call checking resolves that binding to a public hidden std function only after checking the receiver name for a local, capture, module binding, or declared function. Typed-fact discovery uses the same std member resolver, so `@arbitrary.with(generator)` keeps its early expected-type check without rewriting unrelated body expressions.
 
-This removes the reflective source transformation and makes the existing lexical checker authoritative. It does not add first-class module values, repair package-module ownership, or repair local implementation extent under A01. The separate repeated-alias finding is repaired below.
+This removes the reflective source transformation and makes the existing lexical checker authoritative. It does not add first-class module values or repair package-module ownership under A01. The separate repeated-alias and local-implementation findings are repaired below.
 
 Manual repair probes cover an unaliased parameter, an aliased parameter, a local binding, and a closure capture. Existing valid and invalid `arbitrary.with` conformance cases preserve their results. No conformance fixture changed.
 
@@ -267,12 +267,40 @@ Validation after rebasing onto `eafc840e`: full `pnpm run check`, all 107 source
 The existing `runtime/valid/lct-optional-injection.hd` known-failure case also checks successfully when invoked directly.
 No specification or conformance fixture changed.
 
+### Independent Repair: Local Implementation Extent
+
+Status: T5 reproduced and fixed as one part of A01. Package declaration ownership and initialization scheduling remain open.
+
+Before this repair, local declaration hoisting removed every local `impl` statement and appended its declaration to the module-wide implementation table. A method call before the declaration, and a call in a parent suite after an implementation in one child suite, therefore both resolved successfully. The checker retained lexical identities for local types and traits but no declaration-point availability for their implementations.
+
+Local implementations still enter one global registry so overlap, ownership, and uniqueness checks see the complete program. Each now has a stable internal identity, while its source statement becomes a compile-time marker in the containing suite. Function checking maintains a stack of active implementation identities: reaching a marker activates the implementation for the rest of that suite and its children, and leaving the suite restores the parent set. Method lookup and trait-conformance lookup use filtered views of the global trait and inherent implementation registries.
+
+Synthetic functions preserve the implementation set at the source expression's declaration point. This covers local implementation methods, local-trait defaults, data and enum defaults, and enum helper bodies. Closures inherit the active set where the closure is written while retaining access to the complete registry for declarations inside their own body. Default trait bodies use their trait declaration's environment plus the implementation being defined; unrelated implementations introduced later at the implementing declaration do not leak backward into the default body.
+
+Supertrait and delegation preparation use the same declaration-point visibility relation. Supertrait dictionaries resolve their stored global implementation indices by stable identity rather than indexing a filtered array. Candidate transactions continue to exclude both complete implementation registries as immutable input; their lexical activation stack remains mutable checker state.
+
+| Later fixture candidate | Required observation |
+| --- | --- |
+| Call a trait or inherent method before its local implementation | Reject lookup; a later declaration does not apply backward |
+| Put the implementation in one child suite and call from its parent or sibling | Reject outside the declaring suite, while accepting calls inside it and its children |
+| Define closures before and after the implementation, including one that escapes its child suite | Each closure retains the implementation environment at its own definition point |
+| Coerce a local nominal value to a local trait value before and after the implementation | Trait conformance follows the same extent as method lookup |
+| Use a local implementation in a data/enum default or local-trait default body | Resolve only implementations visible where that declaration body was written |
+| Declare a required local supertrait implementation after versus before a child-trait implementation | The later prerequisite does not satisfy the earlier declaration; the earlier one does |
+| Put overlapping implementations in disjoint lexical suites | Still reject globally; lexical scope does not create a second coherent pair |
+| Call another method from the local implementation's own method body | The implementation sees itself and earlier visible implementations |
+
+Regression tests: [local-implementation-extent.test.ts](../../src/checker/local-implementation-extent.test.ts).
+
+Validation on `dca2cace`: full `TERM=xterm-256color pnpm run check`, all 121 source tests, website build, and fuzz smoke passed. The fuzz smoke produced no phase signatures; its existing non-gating contract signatures remain outside this repair.
+No specification or conformance fixture changed.
+
 ### Repair Status Table
 
 
 | Finding | Status | Repair and limits |
 | --- | --- | --- |
-| A01 | Partially fixed | Std submodule calls honor lexical value bindings, and repeated aliases of one ordinary std declaration share one checker identity. Package declaration ownership, initialization scheduling, and local implementation extent remain open. |
+| A01 | Partially fixed | Std submodule calls honor lexical value bindings, repeated aliases share one checker identity, and local implementations preserve declaration-point suite extent while remaining global for coherence. Package declaration ownership and initialization scheduling remain open. |
 | A02 | Partially fixed | Public and private readonly inherent signatures, optional constructor boundaries, callable-row variance and erasure, and every specified least-common-type site are repaired. Expected-type coercion remains distributed, and semantic types remain string-encoded. |
 | A03 | Reported control-flow defect fixed | All child-driving bodies use the suspension CFG. The linear backend and comprehension bypass are removed. This does not close A06's entry/waker gap or prove all lowering correct. |
 | A04 | Reported placeholder capture fixed | Generated expression and type placeholders cannot capture legal user identifiers. Broader generated helper-name hygiene remains unreviewed. |

@@ -407,8 +407,8 @@ export class FunctionChecker extends ExpressionControlChecker {
             this.dataTypes,
             this.enumTypes,
             this.traitTypes,
-            this.implementations,
-            this.inherentMethods,
+            this.allImplementations,
+            this.allInherentMethods,
             true,
             false,
             this.closures,
@@ -421,6 +421,7 @@ export class FunctionChecker extends ExpressionControlChecker {
             this.pendingRecursiveClosure,
             this.imports,
             this.globals,
+            this.visibleLocalImplementations(),
           ).check();
           this.closures.length = closureIndex;
           if (!discovery.function) {
@@ -462,8 +463,8 @@ export class FunctionChecker extends ExpressionControlChecker {
           this.dataTypes,
           this.enumTypes,
           this.traitTypes,
-          this.implementations,
-          this.inherentMethods,
+          this.allImplementations,
+          this.allInherentMethods,
           true,
           false,
           this.closures,
@@ -476,6 +477,7 @@ export class FunctionChecker extends ExpressionControlChecker {
           this.pendingRecursiveClosure,
           this.imports,
           this.globals,
+          this.visibleLocalImplementations(),
         ).check();
         if (!checked.function) {
           this.diagnostics.push(...checked.diagnostics);

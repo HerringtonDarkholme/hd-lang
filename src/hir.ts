@@ -113,6 +113,8 @@ export interface HirTrait {
   readonly associatedTypes: readonly HirAssociatedType[];
   readonly methods: readonly HirTraitMethod[];
   readonly span: SourceSpan;
+  /** Local implementations visible at this local trait's declaration point. */
+  readonly localImplementations?: readonly number[];
 }
 
 export interface HirTraitMethodFunction {
@@ -150,6 +152,8 @@ export interface HirTraitImplementation {
    */
   readonly intrinsic?: true;
   readonly span: SourceSpan;
+  /** Identity of a lexically scoped local implementation. */
+  readonly localImplementation?: number;
 }
 
 /** The types each parameter of a numeric-family implementation may take. */
