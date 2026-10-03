@@ -261,6 +261,7 @@ function createEnumVariantDeclarations(
       });
       enumVariantDeclarations.push({
         kind: "function",
+        ...(declaration.standard ? { standard: true } : {}),
         name: sharedName,
         suspending: false,
         genericParameters: declaration.genericParameters,
@@ -310,6 +311,7 @@ function createEnumVariantDeclarations(
       };
       enumVariantDeclarations.push({
         kind: "function",
+        ...(declaration.standard ? { standard: true } : {}),
         name: `$enum-variant.${declaration.name}.${variant.name}`,
         suspending: false,
         genericParameters: declaration.genericParameters,
@@ -356,6 +358,7 @@ export function createProgramDeclarations(
             {
               kind: "function" as const,
               name: `$default.${declaration.name}.${field.name}`,
+              ...(declaration.standard ? { standard: true } : {}),
               suspending: false,
               genericParameters: declaration.genericParameters,
               genericBounds: [],
@@ -386,6 +389,7 @@ export function createProgramDeclarations(
             {
               kind: "function" as const,
               name: `$parameter-default.${declaration.name}.${parameter.name}`,
+              ...(declaration.standard ? { standard: true } : {}),
               suspending: false,
               genericParameters: declaration.genericParameters,
               genericBounds: declaration.genericBounds,
@@ -417,6 +421,7 @@ export function createProgramDeclarations(
             {
               kind: "function" as const,
               name: `$enum-default.${declaration.name}.${field.name}`,
+              ...(declaration.standard ? { standard: true } : {}),
               suspending: false,
               genericParameters: declaration.genericParameters,
               genericBounds: [],

@@ -128,6 +128,8 @@ export interface HirTraitMethodFunction {
 }
 
 export interface HirTraitImplementation {
+  /** Originates in the standard library, not the program's exported surface. */
+  readonly standard?: true;
   readonly index: number;
   readonly traitIndex: number;
   readonly traitName: string;
@@ -304,6 +306,8 @@ export interface HirAssociatedBinding {
 }
 
 export interface HirFunction {
+  /** Originates in the standard library, including its generated methods and closures. */
+  readonly standard?: true;
   readonly name: string;
   readonly index: number;
   readonly suspending: boolean;

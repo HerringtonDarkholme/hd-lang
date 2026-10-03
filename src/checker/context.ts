@@ -348,6 +348,7 @@ export abstract class CheckerContext {
       }
       return {
         function: {
+          ...(this.declaration.standard ? { standard: true as const } : {}),
           name: this.declaration.name,
           index: this.signature.index,
           suspending: this.declaration.suspending,

@@ -18,7 +18,9 @@ test("checker creates typed HIR with resolved locals and calls", () => {
 
 test("compiler emits genuine Wasm GC and executes the entry point", async () => {
   const compilation = await compileToWasm(PROGRAM);
-  assert.ok(compilation.wat.includes("type $hd.runtime (struct"));
+  // The test body needs a GC suspension frame; unrelated runtime types may be absent.
+  assert.match(compilation.wat, /\(type \$s\d+ \(struct/);
+  assert.match(compilation.wat, /\(struct\.new \$s\d+/);
   assert.ok(WebAssembly.validate(compilation.bytes));
   const { instance } = await instantiate(PROGRAM);
   assert.equal((instance.exports.main as CallableFunction)(), 42);

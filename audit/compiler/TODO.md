@@ -6,15 +6,27 @@ Deliver one root-cause repair at a time, in priority order. Do not alter the spe
 After evaluating each item, record **fixed**, **deferred** with a reason, or **not reproducible** with the reproduction and result.
 Tagged items are fixed only when their rows pass and move from `test/portable/KNOWN_FAILURES.tsv` to `cases.tsv`.
 Before each push, fetch/rebase, run the full `pnpm run check`, and watch main's Test workflow until green.
-Remove completed items after recording their validation in Git history.
+Completed checkpoints remain checked until the next audit cleanup; detailed validation belongs in Git history.
 
 ## P1: Standard Library Loading
 
-- [ ] **1. Emit reachable std items only.** Follow semantic references from program roots, including methods, generic specializations, callbacks, dictionaries, and initialization dependencies. Do not emit every function of joined modules. Record exact inputs and before/after WAT bytes for a tiny program and a one-test program. Reported baselines: approximately 671 KB and 1,086 KB. Next investigation.
+- [x] **1. Fixed: emit reachable std items only.** HIR declaration-index reachability selects std functions, closures, defaults, iterators, and dictionaries; structural backend linking removes unused runtime declarations, types, globals, and imports. Original IDs and host-callable exports are preserved. Full check: 1,927 conformance cases and 377 unit tests passed; 162 colocated source tests, website build, and fuzz smoke passed. CI must still verify the repair push.
 - [ ] **2. Register std modules.** Add `std.host`, `std.fs`, `std.path`, `std.json`, `std.encoding`, and `std.digest` to `STANDARD_MODULES`. Tags: `STD-LOADER`, `HOST-CATALOG`.
 - [ ] **3. Bind std names by declaration identity.** Replace textual renaming so free helpers can share trait-method names: `now`, `sleep!`, `read_text!`, `write_text!`, `read_line!`, and the `default` derive marker. Coordinate with audit A01 rather than introducing spelling exceptions. Tags: `HOST-CATALOG` (clock helpers, console input helper), `DERIVE-DEFAULT`.
 - [ ] **4. Derive on std declarations.** Run `@derive` on `lib/std` declarations, not only before std is joined. Verify generated Debug implementations without changing std to conceal compiler gaps.
 - [ ] **5. Preserve std diagnostic locations.** Errors inside `lib/std` must identify their std file and line, not the user's first position or `use` line.
+
+### Item 1 Size Checkpoint
+
+Exact WAT UTF-8 bytes, using `compileToWat` with default options. Baseline: `5ba7393e` (spec pass 76), identical library files and inputs.
+
+| Input | Before | After |
+| --- | ---: | ---: |
+| `pub fn main() -> void: pass` followed by a newline | 741,925 | 49 |
+| `tests:` block containing one `it("one")` with body `pass` | 1,157,161 | 2,459 |
+
+The exact sources are in [reachability regressions](../../src/emitter/reachability.test.ts).
+The earlier pre-pass-76 measurements were 670,018 and 1,085,281 bytes; these are not the same-library comparison.
 
 ## P2: Checker And Diagnostics
 

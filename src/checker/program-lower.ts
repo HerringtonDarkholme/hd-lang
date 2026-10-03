@@ -83,6 +83,7 @@ export function lowerCheckedProgram(
   } = context;
   const implementations: HirTraitImplementation[] = implementationPreparations.map(
     (implementation, index) => ({
+      ...(implementation.declaration.standard ? { standard: true as const } : {}),
       index,
       traitIndex: implementation.trait.index,
       traitName: implementation.trait.name,

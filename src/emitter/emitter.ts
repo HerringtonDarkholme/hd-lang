@@ -1,5 +1,7 @@
 import type { HirExpression, HirFunction, HirLocal, HirMatchArm, HirProgram } from "../hir.ts";
 import { scalarWasm } from "./scalars.ts";
+import { reachableProgram } from "./reachability.ts";
+import { linkWat } from "./link-wat.ts";
 import { contextKeys, functionParts, functionType } from "../types.ts";
 import { collectModuleTypes } from "./module-types.ts";
 import {
@@ -868,6 +870,10 @@ function emittedFunctions(program: HirProgram): readonly HirFunction[] {
 }
 
 export function emitWat(program: HirProgram): string {
+  return linkWat(emitReachableWat(reachableProgram(program)));
+}
+
+function emitReachableWat(program: HirProgram): string {
   const { signatureNames, contextNames } = collectModuleTypes(program);
   const traitsByName = new Map(program.traits.map((trait) => [trait.name, trait]));
   const suspensionPlans = new Map(
