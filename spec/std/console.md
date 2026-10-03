@@ -6,7 +6,9 @@ This chapter defines the part of `std.console` that `lib/std` writes in
 ordinary hd over the language tier:
 
 - `eprintln`, which writes a line to standard error;
-- the host capability trait `ConsoleInput`, and the helper `read_line!`.
+- the host capability trait `ConsoleInput`, and the helper `read_line!`;
+- the traits of `ConsoleError`;
+- the test providers `BufferConsole` and `ScriptedInput`.
 
 The language tier keeps what the prelude and the conformance harness name
 ([Console](../lang/10-modules.md#console)):
@@ -70,6 +72,76 @@ fn first_line!() -> string $ ConsoleInput:
 
 > **Why.** Input is its own trait, apart from `Console`, so a program
 > that only prints gains no authority to read.
+
+## Console Errors
+
+`ConsoleError` is a prelude enum with the one case `Closed`:
+
+```text
+fn closed(error: ConsoleError) -> bool:
+    error == ConsoleError.Closed
+```
+
+1. r[std-console.error.traits] `ConsoleError` implements `Eq`, `Debug`, and `Display`. Its `Display` text for `Closed` is `console closed`.
+2. r[std-console.error.debug] Its `Debug` writes the case name, `Closed`.
+3. r[std-console.error.error] `ConsoleError` implements `std.error.Error`, as [Standard Error Types](error.md#standard-error-types) requires.
+
+## Buffer Console
+
+`BufferConsole` is the recording `Console` provider for tests:
+
+```text
+use std.console.BufferConsole
+use std.testing.assert_equal
+
+fn greet(name: string) -> void $ Console:
+    println("hello, ${name}")
+
+tests:
+    it("records the line"):
+        let mut console = BufferConsole::new()
+        $.with(Console=console):
+            greet("Ada")
+        assert_equal(console.output(), ["hello, Ada"], reason="one line")
+```
+
+1. r[std-console.buffer.decl] `std.console` declares `BufferConsole`, which implements `Console` and `Debug`, with private fields. Code imports it, as in `use std.console.BufferConsole`.
+2. r[std-console.buffer.new] `BufferConsole::new() -> mut BufferConsole` returns a console that has recorded nothing.
+3. r[std-console.buffer.output] `c.output() -> List[string]` returns the text of each `write_line!` call, in call order.
+4. r[std-console.buffer.error-output] `c.error_output() -> List[string]` returns the text of each `write_error_line!` call, in call order. `BufferConsole` overrides `write_error_line!`, so error lines are not in `output()`.
+5. r[std-console.buffer.never-fails] Every write returns `.Ok(())`.
+
+> **Why.** A test checks what a program printed and what it reported
+> apart, as Go's `bytes.Buffer` pair for `Stdout` and `Stderr` lets it.
+
+## Scripted Input
+
+`ScriptedInput` is the deterministic `ConsoleInput` provider:
+
+```text
+use std.console.{ConsoleInput, ScriptedInput, read_line}
+use std.testing.assert
+
+fn first_line!() -> string $ ConsoleInput:
+    match read_line!():
+        .Ok(.Some(line)) => line
+        _ => ""
+
+tests:
+    it("reads the scripted line"):
+        let mut input = ScriptedInput::new(["yes"])
+        $.with(ConsoleInput=input):
+            assert(first_line!() == "yes", reason="the first line")
+```
+
+1. r[std-console.scripted.decl] `std.console` declares `ScriptedInput`, which implements `ConsoleInput` and `Debug`, with private fields. Code imports it, as in `use std.console.ScriptedInput`.
+2. r[std-console.scripted.new] `ScriptedInput::new(lines: List[string]) -> mut ScriptedInput` returns a provider that has read none of `lines`.
+3. r[std-console.scripted.read] Each `read_line!` returns `.Ok(.Some(line))` for the next unread line, in order.
+4. r[std-console.scripted.end] Once every line is read, `read_line!` returns `.Ok(.None)`, on every later call too.
+5. r[std-console.scripted.no-host] A `ScriptedInput` reads nothing from the host's standard input.
+
+> **Why.** Every host capability trait has a deterministic provider
+> beside it, so a test never touches the host.
 
 See also: [Console](../lang/10-modules.md#console),
 [Host Capabilities](../cli/command-line.md#host-capabilities).

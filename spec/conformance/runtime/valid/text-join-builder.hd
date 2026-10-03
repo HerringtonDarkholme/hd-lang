@@ -1,0 +1,27 @@
+# test: join puts the separator between parts, and StringBuilder joins pushed text in order
+# Spec std/text Joining And Building: std-text.join.result, std-text.builder.new, .push, .build (spec pass 89, audit item 6).
+use std.text.{StringBuilder, join}
+use std.testing.assert_equal
+
+fn csv(cells: List[string]) -> string:
+    join(cells, ",")
+
+fn report(names: List[string]) -> string:
+    let mut out = StringBuilder::new()
+    for name in names:
+        out.push("- ${name}\n")
+    out.build()
+
+tests:
+    it("joins"):
+        assert_equal(csv(["a", "b", "c"]), "a,b,c", reason="between each two")
+        assert_equal(csv(["a"]), "a", reason="one part")
+        assert_equal(csv([]), "", reason="no part")
+
+    it("builds"):
+        assert_equal(report(["Ada", "Bo"]), "- Ada\n- Bo\n", reason="in push order")
+        let mut empty = StringBuilder::new()
+        assert_equal(empty.build(), "", reason="an empty builder")
+        empty.push("x")
+        assert_equal(empty.build(), "x", reason="build leaves it unchanged")
+        assert_equal(empty.build(), "x", reason="twice")

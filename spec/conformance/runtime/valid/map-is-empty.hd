@@ -1,0 +1,10 @@
+# test: Map.is_empty is true exactly when the map has no entry
+# Spec std/collections Map Methods: std-collections.map.is-empty (spec pass 89, audit inconsistency 16).
+use std.testing.assert
+
+tests:
+    it("tells an empty map"):
+        let stock: mut Map[string, i32] = {}
+        assert(stock.is_empty(), reason="no entries")
+        stock["tea"] = 3
+        assert(!stock.is_empty(), reason="one entry")

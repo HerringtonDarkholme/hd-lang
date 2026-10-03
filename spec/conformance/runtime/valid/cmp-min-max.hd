@@ -1,0 +1,19 @@
+# test: std.cmp min and max pick the smaller and larger value, and return the first argument on a tie
+# Spec std/cmp Min And Max: std-cmp.min-max.decl, std-cmp.min-max.result, std-cmp.min-max.tie (spec pass 89, audit item 6).
+use std.cmp.{Reverse, max, min}
+use std.testing.assert_equal
+
+fn spread(a: i32, b: i32) -> i32:
+    max(a, b) - min(a, b)
+
+tests:
+    it("picks by cmp"):
+        assert_equal(min(3, 7), 3, reason="the smaller")
+        assert_equal(max(3, 7), 7, reason="the larger")
+        assert_equal(spread(9, 2), 7, reason="through a helper")
+
+    it("returns the first of equal values"):
+        a := Reverse { value: 1 }
+        b := Reverse { value: 1 }
+        assert_equal(min("b", "a"), "a", reason="strings order by cmp")
+        assert_equal(min(a, b).value, 1, reason="equal wrappers")

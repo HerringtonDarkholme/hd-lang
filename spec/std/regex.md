@@ -32,7 +32,7 @@ fn digits() -> Result[Regex, RegexError]:
 | Rule | Item | Meaning |
 | --- | --- | --- |
 | r[std-regex.regex.new] `new` | `pub fn new(pattern: string) -> Result[Regex, RegexError]` | the compiled `pattern`, or the first error in it |
-| r[std-regex.regex.as-str] `as_str` | `pub fn as_str(self) -> string` | the pattern as written |
+| r[std-regex.regex.pattern] `pattern` | `pub fn pattern(self) -> string` | the pattern as written |
 
 1. r[std-regex.regex.decl] `std.regex` declares the data type `Regex`, with private fields, and the methods in this chapter. Code imports it, as in `use std.regex.Regex`.
 2. r[std-regex.regex.plain] Every function and method in this chapter is a plain call with the empty requirement row.

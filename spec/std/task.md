@@ -19,13 +19,13 @@ polling combinators `all!` and `race!`, which are compiler intrinsics
 tries:
 
 ```text
-pub fn retry![T, E, $R](times: i32, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R
+pub fn retry![T, E, $R](times: usize, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R
 ```
 
-1. r[std-task.combinator.retry] `std.task` declares `retry!` with the signature above, as an ordinary `fn!` function, not an intrinsic. Code imports it with `use std.task.retry`.
+1. r[std-task.combinator.retry.decl-usize] `std.task` declares `retry!` with the signature above, whose `times` is a `usize`, as an ordinary `fn!` function, not an intrinsic. Code imports it with `use std.task.retry`.
 2. r[std-task.combinator.retry.loop] `retry!` calls `attempt` at most `times` times, one call after another, and returns the first `.Ok` result without another call.
 3. r[std-task.combinator.retry.last-error] When every one of the `times` calls returns `.Err`, `retry!` returns the last `.Err`.
-4. r[std-task.combinator.retry.at-least-once] A `times` below 1 counts as 1, so `retry!` calls `attempt` once and returns its result.
+4. r[std-task.combinator.retry.zero-once] A `times` of 0 counts as 1, so `retry!` calls `attempt` once and returns its result.
 5. r[std-task.combinator.retry.cancel] Cancellation follows the ordinary rules of [Cancellation](../lang/11-requirements-and-suspension.md#cancellation), since `retry!` is a loop of bang calls. Cancelling it cancels the active attempt, and no further attempt starts.
 
 ```text
@@ -55,7 +55,7 @@ requires `Console` too.
 
 > **Why.** A retry over a `fn!` attempt is a loop that `lib/std` can write
 > in plain hd, so it needs no compiler support. It has no delay between
-> attempts, so it needs no clock. A `times` below 1 still makes one attempt,
+> attempts, so it needs no clock. A `times` of 0 still makes one attempt,
 > because with no attempt there is no `Result` to return.
 
 See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators),
@@ -68,7 +68,7 @@ attempts:
 
 ```text
 pub data Backoff:
-    pub attempts: i32
+    pub attempts: usize
     pub initial: Duration
     pub factor: i32
     pub max: Duration
@@ -76,11 +76,11 @@ pub data Backoff:
 pub fn retry_with![T, E, $R](backoff: Backoff, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock
 ```
 
-1. r[std-task.backoff.decl] `std.task` declares the data type `Backoff` with the four public fields above. `Backoff` implements `Eq`.
+1. r[std-task.backoff.decl-usize] `std.task` declares the data type `Backoff` with the four public fields above, where `attempts` is a `usize`. `Backoff` implements `Eq`.
 2. r[std-task.retry-with.decl] `std.task` declares `retry_with!` with the signature above, as an ordinary `fn!` function. Code imports both, as in `use std.task.{Backoff, retry_with}`.
 3. r[std-task.retry-with.loop] `retry_with!` calls `attempt` at most `backoff.attempts` times, one call after another, and returns the first `.Ok` result without another call.
 4. r[std-task.retry-with.last-error] When every call returns `.Err`, `retry_with!` returns the last `.Err`.
-5. r[std-task.retry-with.at-least-once] An `attempts` below 1 counts as 1, as for `retry!`.
+5. r[std-task.retry-with.zero-once] An `attempts` of 0 counts as 1, as for `retry!`.
 6. r[std-task.retry-with.sleep] Between two calls, `retry_with!` calls `sleep!` on the `Clock` provider that covers it. It does not sleep after the last call.
 7. r[std-task.retry-with.delay] The first delay is `initial`. Each later delay is the one before it times `factor`, and a delay above `max` is `max` instead.
 8. r[std-task.retry-with.cancel] Cancellation follows [`std-task.combinator.retry.cancel`](#r-std-task.combinator.retry.cancel): cancelling `retry_with!` cancels the active attempt or sleep, and nothing further starts.

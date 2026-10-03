@@ -211,7 +211,7 @@ pub enum JsonError:
 ```
 
 1. r[std-json.error.variants] `std.json` declares the enum `JsonError` with the ten variants above. The first seven are parse errors, and the last three are decode errors.
-2. r[std-json.error.position] A `position` is an index into the text, counted in characters from 0.
+2. r[std-json.error.position-bytes] A `position` is a byte offset into the text, counted in bytes of its UTF-8 encoding from 0, as [`slice`](../lang/10-modules.md#r-module.string.byte-offsets) counts.
 3. r[std-json.error.traits] `JsonError` implements `Eq`, `Debug`, and `Display`.
 
 | Rule | Variant | Position |
@@ -224,8 +224,9 @@ pub enum JsonError:
 | r[std-json.error.kind.range] `NumberOutOfRange` | a number past the finite `f64` range | its first character |
 | r[std-json.error.kind.depth] `NestingTooDeep` | an array or object past 128 levels | its opening bracket |
 
-> **Note.** The text is valid UTF-8, so a position in characters is not a
-> byte offset when a non-ASCII character comes before it.
+> **Note.** A position is a valid `slice` bound, so
+> `text.slice(0, position)` is the text before the error, even after a
+> non-ASCII character.
 
 ### Decode Errors
 

@@ -4,7 +4,7 @@ use std.testing.assert_equal
 use std.time.Timestamp
 
 fn text_of(millis: i64) -> string:
-    Timestamp::from_unix_millis(millis).to_rfc3339()
+    Timestamp::from_unix_milliseconds(millis).to_rfc3339()
 
 tests:
     it("whole seconds have no fraction"):

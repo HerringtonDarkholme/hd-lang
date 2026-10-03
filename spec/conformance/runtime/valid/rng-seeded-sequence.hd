@@ -5,29 +5,29 @@ use std.testing.assert_equal
 
 tests:
     it("next_u64 follows xoshiro128** from the folded seed"):
-        let mut answer = Rng::from_seed(42)
+        let mut answer = Rng::new(42)
         assert_equal(answer.next_u64(), 12186209167316039401, reason="seed 42, first draw")
         assert_equal(answer.next_u64(), 2060537544740691614, reason="seed 42, second draw")
         assert_equal(answer.next_u64(), 1459241681827062570, reason="seed 42, third draw")
-        let mut zero = Rng::from_seed(0)
+        let mut zero = Rng::new(0)
         assert_equal(zero.next_u64(), 16359567918072254692, reason="seed 0, first draw")
         assert_equal(zero.next_u64(), 230122937566968419, reason="seed 0, second draw")
 
     it("float scales the top 53 bits of one draw"):
-        let mut dice = Rng::from_seed(7)
+        let mut dice = Rng::new(7)
         assert_equal(dice.float(), 0.23382771772151634, reason="first float")
         assert_equal(dice.float(), 0.44891458218281977, reason="second float")
         assert_equal(dice.float(), 0.5656696687158036, reason="third float")
 
     it("bool is the top bit of one draw"):
-        let mut dice = Rng::from_seed(7)
+        let mut dice = Rng::new(7)
         let flips: mut List[bool] = []
         for _ in 0..8:
             flips.push(dice.bool())
         assert_equal(flips, [false, false, true, true, true, true, false, false], reason="eight flips")
 
     it("int on a seeded Rng repeats in every implementation"):
-        let mut dice = Rng::from_seed(7)
+        let mut dice = Rng::new(7)
         let rolls: mut List[i64] = []
         for _ in 0..10:
             rolls.push(dice.int(1..=6))

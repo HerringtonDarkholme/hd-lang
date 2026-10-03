@@ -661,6 +661,9 @@ std/text.md	2	accept	runtime/valid/string-split-once.hd|runtime/valid/string-pad
 std/text.md	3	accept	runtime/valid/char-ascii-classes.hd|runtime/valid/char-to-digit.hd
 std/text.md	4	accept	runtime/valid/utf8-valid-text.hd
 std/text.md	5	accept	typing/valid/string-prefix-std-r.hd
+std/text.md	6	accept	runtime/valid/string-more-methods.hd
+std/text.md	7	accept	runtime/valid/text-join-builder.hd
+std/text.md	8	accept	runtime/valid/text-prefix-helpers.hd
 std/time.md	1	accept	runtime/valid/duration-negation.hd|typing/valid/literal-suffix-duration.hd
 std/time.md	2	accept	runtime/valid/duration-arithmetic.hd
 std/time.md	3	accept	runtime/valid/duration-display.hd
@@ -678,6 +681,7 @@ std/error.md	2	accept	runtime/valid/error-root-cause.hd|runtime/valid/error-find
 std/error.md	3	mixed	typing/invalid/error-find-non-error.hd
 std/error.md	4	accept	runtime/valid/error-report.hd
 std/error.md	5	accept	runtime/valid/error-context.hd
+std/error.md	6	accept	runtime/valid/std-errors-erased.hd|runtime/valid/std-errors-erased-codecs.hd
 std/task.md	1	type-fragment	-
 std/task.md	2	accept	runtime/valid/task-retry.hd
 std/task.md	3	type-fragment	-
@@ -687,8 +691,10 @@ std/task.md	6	accept	runtime/valid/task-all-list-order.hd
 std/cmp.md	1	accept	typing/valid/derived-equality.hd
 std/cmp.md	2	accept	typing/valid/derived-ordering.hd
 std/cmp.md	3	accept	typing/valid/tuple-derived-traits.hd
-std/cmp.md	4	accept	runtime/valid/cmp-clamp.hd
-std/cmp.md	5	accept	runtime/valid/cmp-reverse.hd
+std/cmp.md	4	accept	runtime/valid/cmp-min-max.hd
+std/cmp.md	5	accept	runtime/valid/cmp-clamp.hd
+std/cmp.md	6	accept	runtime/valid/cmp-reverse.hd
+std/cmp.md	7	accept	runtime/valid/cmp-ordering-eq.hd
 std/hash.md	1	accept	typing/valid/derived-hash.hd
 std/hash.md	2	accept	typing/valid/tuple-derived-traits.hd
 std/hash.md	3	accept	runtime/valid/list-map-key.hd
@@ -708,10 +714,14 @@ std/collections.md	9	accept	runtime/valid/set-basics.hd
 std/collections.md	10	accept	runtime/valid/deque-ends.hd
 std/collections.md	11	mixed	runtime/panic/deque-invalidated.hd
 std/collections.md	12	accept	runtime/valid/heap-order.hd|runtime/valid/heap-reverse.hd
+std/collections.md	13	accept	runtime/valid/list-access-building.hd
 std/console.md	1	accept	runtime/valid/eprintln-error-line.hd
 std/console.md	2	mixed	typing/invalid/eprintln-without-console.hd
 std/console.md	3	type-fragment	-
 std/console.md	4	accept	runtime/valid/console-input-helper.hd
+std/console.md	5	accept	runtime/valid/console-error-traits.hd
+std/console.md	6	accept	runtime/valid/buffer-console.hd
+std/console.md	7	accept	runtime/valid/scripted-input.hd
 std/host.md	1	type-fragment	-
 std/host.md	2	type-fragment	-
 std/host.md	3	accept	runtime/valid/host-args-env.hd

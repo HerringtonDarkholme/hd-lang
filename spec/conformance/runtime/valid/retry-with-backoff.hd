@@ -9,10 +9,10 @@ data RecordingClock:
 
 impl Clock for RecordingClock:
     fn now(self) -> Timestamp:
-        Timestamp::from_unix_millis(0)
+        Timestamp::from_unix_milliseconds(0)
 
     fn monotonic(self) -> Instant:
-        Instant::from_millis(0)
+        Instant::from_milliseconds(0)
 
     fn sleep!(mut self, duration: Duration) -> void:
         self.slept.push(duration.as_milliseconds())

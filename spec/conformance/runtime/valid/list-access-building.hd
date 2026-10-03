@@ -1,0 +1,48 @@
+# test: List get, is_empty, first, last, take, filter, reversed, sorted_by, zip, and extend
+# Spec std/collections List Access And Building: std-collections.access.get, .is-empty, .first-last, .take,
+# .filter, .reversed, .sorted-by, .zip, .extend, .extend.self (spec pass 89, audit items 5 and 6).
+use std.testing.{assert, assert_equal}
+
+fn second(items: List[string]) -> string?:
+    items.get(1)
+
+fn preview(lines: List[string]) -> List[string]:
+    if lines.is_empty():
+        return ["(empty)"]
+    lines.take(3)
+
+fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
+    let all: mut List[i32] = []
+    all.extend(head.filter(fn(n: i32) -> bool: n > 0))
+    all.extend(tail)
+    all.sorted_by(fn(a: i32, b: i32) -> Ordering: b.cmp(a))
+
+tests:
+    it("reads one element safely"):
+        assert_equal(second(["a", "b"]), .Some("b"), reason="in range")
+        assert_equal(second(["a"]), .None, reason="past the end")
+        assert_equal([4, 5].get(2), .None, reason="len is out of range")
+        assert_equal([4, 5].first(), .Some(4), reason="first")
+        assert_equal([4, 5].last(), .Some(5), reason="last")
+        let empty: List[i32] = []
+        assert_equal(empty.first(), .None, reason="empty first")
+        assert(empty.is_empty(), reason="empty")
+        assert(![1].is_empty(), reason="not empty")
+
+    it("copies part of a list"):
+        assert_equal(preview(["a", "b", "c", "d"]), ["a", "b", "c"], reason="three lines")
+        assert_equal(preview([]), ["(empty)"], reason="no lines")
+        assert_equal([1, 2].take(5), [1, 2], reason="take past the end")
+        assert_equal([1, 2, 3].reversed(), [3, 2, 1], reason="reversed")
+        assert_equal([1, 2, 3].zip(["a", "b"]), [(1, "a"), (2, "b")], reason="zip stops at the shorter")
+
+    it("grows a list"):
+        assert_equal(merged([3, -1, 1], [2]), [3, 2, 1], reason="filter, extend, sort descending")
+        let items: mut List[i32] = [1, 2]
+        items.extend(items)
+        assert_equal(items, [1, 2, 1, 2], reason="extend by itself doubles")
+
+    it("sorts stably"):
+        pairs := [(1, "b"), (0, "x"), (1, "a")]
+        sorted := pairs.sorted_by(fn(a: (i32, string), b: (i32, string)) -> Ordering: a._0.cmp(b._0))
+        assert_equal(sorted, [(0, "x"), (1, "b"), (1, "a")], reason="equal keys keep their order")

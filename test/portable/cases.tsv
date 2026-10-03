@@ -1574,7 +1574,6 @@ typing/invalid/float-literal-map-key.hd	type
 typing/invalid/mut-map-key.hd	type
 typing/invalid/user-map-key-bound.hd	type
 runtime/valid/task-retry.hd	runtime
-runtime/valid/task-retry-at-least-once.hd	runtime
 typing/valid/task-retry-row.hd	type
 typing/invalid/task-retry-row-missing.hd	type
 parse/invalid/comprehension-bare-name-list.hd	parse
@@ -1802,6 +1801,17 @@ runtime/valid/list-chunks.hd	runtime
 runtime/panic/list-chunks-zero.hd	runtime
 runtime/valid/cmp-clamp.hd	runtime
 runtime/panic/cmp-clamp-reversed.hd	runtime
+runtime/valid/cmp-min-max.hd	runtime
+runtime/valid/cmp-ordering-eq.hd	runtime
+runtime/valid/std-errors-erased.hd	runtime
+runtime/valid/console-error-traits.hd	runtime
+runtime/valid/buffer-console.hd	runtime
+runtime/valid/scripted-input.hd	runtime
+runtime/valid/list-access-building.hd	runtime
+runtime/valid/choices-choose.hd	runtime
+runtime/valid/string-more-methods.hd	runtime
+runtime/valid/text-join-builder.hd	runtime
+runtime/valid/text-prefix-helpers.hd	runtime
 runtime/valid/primitive-bool-eq-method-direct.hd	runtime
 runtime/valid/primitive-char-cmp-method-direct.hd	runtime
 runtime/valid/primitive-float-cmp-method-direct.hd	runtime
@@ -1899,7 +1909,7 @@ runtime/valid/utf8-invalid-bytes.hd	runtime
 runtime/valid/utf8-truncated.hd	runtime
 runtime/valid/utf8-overlong.hd	runtime
 runtime/valid/utf8-error-traits.hd	runtime
-runtime/valid/time-unix-millis.hd	runtime
+runtime/valid/time-unix-milliseconds.hd	runtime
 runtime/valid/context-error-debug.hd	runtime
 typing/invalid/requirement-key-unknown-trait.hd	type
 typing/invalid/requirement-key-not-dynamically-safe.hd	type

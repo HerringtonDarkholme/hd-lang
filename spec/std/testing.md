@@ -53,7 +53,7 @@ trait Arbitrary:
 | r[std-testing.choices.int-generic] Integer | `fn int[N < Integer](mut self, lo: N, hi: N) -> N` | an integer from `lo` to `hi` |
 | r[std-testing.choices.float-generic] Float | `fn float[F < Float](mut self, lo: F, hi: F) -> F` | a finite float from `lo` to `hi` |
 | r[std-testing.choices.bool] Boolean | `fn bool(mut self) -> bool` | a `bool` |
-| r[std-testing.choices.pick] Pick | `fn pick[T](mut self, items: List[T]) -> T` | one of `items`; earlier items shrink first |
+| r[std-testing.choices.choose] Choose | `fn choose[T](mut self, items: List[T]) -> T` | one of `items`; earlier items shrink first |
 | r[std-testing.choices.list-max] List | `fn list[T](mut self, max: usize, item: fn(mut Choices) -> T) -> List[T]` | at most `max` items, each drawn by `item` |
 | r[std-testing.choices.map-max] Map | `fn map[K < Eq & Hash, V](mut self, max: usize, key: fn(mut Choices) -> K, value: fn(mut Choices) -> V) -> Map[K, V]` | at most `max` entries, each key drawn by `key` and its value by `value` |
 | r[std-testing.choices.string-max-chars] String | `fn string(mut self, max_chars: usize) -> string` | a string of at most `max_chars` chars |
@@ -65,18 +65,19 @@ trait Arbitrary:
 3. r[std-testing.choices.no-size] `Choices` has no size: no member reads or sets one, and no option of `it_prop` or `it_prop_with` sets one.
 4. r[std-testing.choices.string-limit] The limit of `string` counts `char` values, not bytes.
 5. r[std-testing.choices.map.duplicate] When `key` draws a key that the map already holds, the later value replaces the earlier one. So the map may hold fewer entries than were drawn.
-6. r[std-testing.arbitrary] `Arbitrary` gives a type its default generator, which `it_prop` and `Choices.draw` use.
-7. r[std-testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
-8. r[std-testing.arbitrary.float] The `Arbitrary` implementations of `f32` and `f64` draw any value of the type, including NaN, both infinities, `-0.0`, and subnormal values, as Hypothesis's `floats()` does.
-9. r[std-testing.it-prop] The runner generates the inputs of each property test case that `it_prop` or `it_prop_with` registers, and shrinks a failing one.
-10. r[std-testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
-11. r[std-testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
-12. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
-13. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
-14. r[std-testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
-15. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
-16. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
-17. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
+6. r[std-testing.choices.choose.empty] `choose` on an empty list panics. Panic: `explicit-panic`.
+7. r[std-testing.arbitrary] `Arbitrary` gives a type its default generator, which `it_prop` and `Choices.draw` use.
+8. r[std-testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
+9. r[std-testing.arbitrary.float] The `Arbitrary` implementations of `f32` and `f64` draw any value of the type, including NaN, both infinities, `-0.0`, and subnormal values, as Hypothesis's `floats()` does.
+10. r[std-testing.it-prop] The runner generates the inputs of each property test case that `it_prop` or `it_prop_with` registers, and shrinks a failing one.
+11. r[std-testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
+12. r[std-testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
+13. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
+14. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
+15. r[std-testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
+16. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
+17. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
+18. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
 
 ```text
 use std.testing.{Arbitrary, Choices}
@@ -134,7 +135,7 @@ so the example above is an error.
 | r[std-testing.budget.simplest.int] Integer | `int` and the default integer generators | `0`, or the bound nearest `0` when `0` is out of range |
 | r[std-testing.budget.simplest.float] Float | `float` and the default `f32` and `f64` generators | `0.0`, or the bound nearest `0.0` when `0.0` is out of range |
 | r[std-testing.budget.simplest.bool] Boolean | `bool` | `false` |
-| r[std-testing.budget.simplest.pick] Pick | `pick` | the first item |
+| r[std-testing.budget.simplest.choose] Choose | `choose` | the first item |
 | r[std-testing.budget.simplest.empty] Collections | `list`, `map`, and `string` | an empty list, map, or string |
 | r[std-testing.budget.simplest.optional] Optional | the default `T?` generator | `.None` |
 | r[std-testing.budget.simplest.result] Result | the default `Result[T, E]` generator | `.Ok` of `T`'s simplest value |

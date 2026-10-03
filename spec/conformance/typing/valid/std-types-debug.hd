@@ -17,7 +17,7 @@ fn timeout_text(timeout: Duration) -> string:
     shown(timeout)
 
 fn time_texts(clock: ManualClock) -> List[string]:
-    [shown(clock), shown(clock.now()), shown(clock.monotonic()), shown(Timestamp::from_unix_millis(0)), shown(Instant::from_millis(0))]
+    [shown(clock), shown(clock.now()), shown(clock.monotonic()), shown(Timestamp::from_unix_milliseconds(0)), shown(Instant::from_milliseconds(0))]
 
 fn error_texts(report: ErrorReport, parse: ParseNumberError, escape: EscapeError, utf8: Utf8Error) -> List[string]:
     [shown(report), shown(parse), shown(escape), shown(utf8)]

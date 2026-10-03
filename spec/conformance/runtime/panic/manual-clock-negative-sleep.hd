@@ -7,5 +7,5 @@ fn rewind!(clock: mut ManualClock) -> void:
 
 tests:
     it("panics on a negative duration"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_millis(1000))
+        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(1000))
         rewind!(clock)

@@ -1,5 +1,5 @@
 # test: a retry! call requires its attempt's row, so a caller whose explicit row lacks Console is missing-requirement
-# Spec std/task Retry: std-task.combinator.retry (owner decision RETRY-row, batch 33, 2026-10-01).
+# Spec std/task Retry: std-task.combinator.retry.decl-usize (owner decision RETRY-row, batch 33, 2026-10-01).
 use std.task.retry
 
 fn ask!() -> Result[string, string] $ Console:

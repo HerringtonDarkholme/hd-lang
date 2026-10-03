@@ -1,4 +1,4 @@
-# test: each TimeParseError case, its position in characters, and that the first error from the left wins
+# test: each TimeParseError case, its position as a byte offset, and that the first error from the left wins
 # Spec std/time Time Parse Errors: std-time.parse-error.declared, std-time.parse-error.invalid-character, std-time.parse-error.out-of-range, std-time.parse-error.too-short, std-time.parse-error.order, std-time.parse-error.traits, std-time.rfc3339.parse.leap-second (COLLECTIONS-DATES-SURFACE; task #225).
 use std.testing.{assert, assert_equal}
 use std.time.{TimeParseError, Timestamp}
@@ -23,7 +23,7 @@ tests:
         assert_equal(parsed("2026-10-03T12:00:00UTC"), .Err(TimeParseError.InvalidCharacter(19)), reason="a zone name")
         assert_equal(parsed("2026-10-03T12:00:00Zx"), .Err(TimeParseError.InvalidCharacter(20)), reason="text after the timestamp")
         assert_equal(parsed("é2026-10-03T12:00:00Z"), .Err(TimeParseError.InvalidCharacter(0)), reason="not ASCII")
-        assert_equal(parsed("2026-10-03T12:00:00é"), .Err(TimeParseError.InvalidCharacter(19)), reason="counted in characters")
+        assert_equal(parsed("2026-10-03T12:00:00é"), .Err(TimeParseError.InvalidCharacter(19)), reason="every byte before it is ASCII")
 
     it("values out of range"):
         assert_equal(parsed("2026-13-03T12:00:00Z"), .Err(TimeParseError.OutOfRange(5)), reason="month 13")

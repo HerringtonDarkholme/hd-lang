@@ -3,7 +3,7 @@
 use std.random.Rng
 
 fn pick(start: i64) -> i64:
-    let mut dice = Rng::from_seed(1)
+    let mut dice = Rng::new(1)
     dice.int(start..start)  # panic: explicit-panic
 
 tests:

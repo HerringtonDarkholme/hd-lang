@@ -1,5 +1,5 @@
 # test: retry! calls its attempt until the first .Ok, or returns the last .Err
-# Spec std/task Retry: std-task.combinator.retry, .loop, and .last-error (owner decision RETRY, batch 29, 2026-09-30).
+# Spec std/task Retry: std-task.combinator.retry.decl-usize, .loop, and .last-error (owner decision RETRY, batch 29, 2026-09-30).
 use std.task.retry
 use std.testing.assert_equal
 

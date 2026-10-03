@@ -66,7 +66,7 @@ a `char`, or a list.
 | `bytes_slice` | `(s: string, start: usize, end: usize) -> string` | shares the bytes in constant time, as [`module.string.slice.shared`](../lang/10-modules.md#r-module.string.slice.shared) requires |
 | `bytes_concat` | `(a: string, b: string) -> string` | allocates a string's representation; hd has no byte buffer |
 | `string_from_bytes` | `(bytes: List[u8]) -> string` | builds a string from bytes that the caller has checked are UTF-8 |
-| `char_scalar`, `char_from_scalar` | `(c: char) -> i32`, `(point: i32) -> char` | a `char` is its scalar value at run time, and hd has no unchecked conversion |
+| `char_scalar`, `char_from_scalar` | `(c: char) -> u32`, `(point: u32) -> char?` | a `char` is its scalar value at run time; `char_from_scalar` gives `.None` for a value that is not a Unicode scalar value, a surrogate or one above `0x10FFFF` |
 | `list_version` | `[T](items: List[T]) -> i32` | reads the structural version that [`flow.for.version`](../lang/06-control-flow.md#r-flow.for.version) counts, which `ListView` checks |
 
 **Panic.** One primitive raises every checked runtime panic that `lib/std`

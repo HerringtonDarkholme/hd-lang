@@ -1,5 +1,5 @@
 # test: the anchors ^ and $, capture and plain groups, alternation, the empty pattern, and precedence
-# Spec std/regex Anchors, Groups, And Alternation: std-regex.syntax.begin, std-regex.syntax.end, std-regex.syntax.anchor.text, std-regex.syntax.group, std-regex.syntax.group.plain, std-regex.syntax.group.number, std-regex.syntax.alternation, std-regex.syntax.empty, std-regex.syntax.precedence, std-regex.regex.as-str (tasks #243, #244).
+# Spec std/regex Anchors, Groups, And Alternation: std-regex.syntax.begin, std-regex.syntax.end, std-regex.syntax.anchor.text, std-regex.syntax.group, std-regex.syntax.group.plain, std-regex.syntax.group.number, std-regex.syntax.alternation, std-regex.syntax.empty, std-regex.syntax.precedence, std-regex.regex.pattern (tasks #243, #244).
 use std.regex.{Regex, Match}
 use std.testing.assert_equal
 use std.text.r
@@ -43,7 +43,7 @@ tests:
         assert_equal(found("ab|cd*", "cddd"), .Some("0-4:cddd"), reason="the star repeats d")
         assert_equal(found("ab*", "abab"), .Some("0-2:ab"), reason="the star repeats b, not ab")
 
-    it("as_str is the pattern as written"):
+    it("pattern is the pattern as written"):
         match Regex::new("a|b"):
-            .Ok(compiled) => assert_equal(compiled.as_str(), "a|b", reason="as written")
+            .Ok(compiled) => assert_equal(compiled.pattern(), "a|b", reason="as written")
             .Err(_) => assert_equal(true, false, reason="the pattern compiles")

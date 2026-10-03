@@ -5,7 +5,8 @@ Status: standard library specification draft.
 This chapter defines the part of `std.collections` that `lib/std` writes
 in ordinary hd over the language tier:
 
-- the `List` methods `view` and `chunks`;
+- the `List` methods `view` and `chunks`, and the access and building
+  methods such as `get`, `take`, and `extend`;
 - the `ListView[T]` type that `view` returns;
 - the `List` helpers, such as `sorted_by_key`, `group_by`, and `windows`,
   and the function `counts`;
@@ -201,7 +202,7 @@ fn tally(words: List[string]) -> Map[string, usize]:
 
 | Receiver | Methods |
 | --- | --- |
-| `Map[K, V]` | `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `get_or(self, key: K, fallback: V) -> V` |
+| `Map[K, V]` | `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `get_or(self, key: K, fallback: V) -> V`; `is_empty(self) -> bool` |
 
 ```text
 fn summary(stock: Map[string, i32]) -> string:
@@ -215,6 +216,7 @@ fn summary(stock: Map[string, i32]) -> string:
 3. r[std-collections.map.values] `values` returns the map's values in the same order.
 4. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
 5. r[std-collections.map.get-or] `get_or(key, fallback)` returns the value of the entry whose key equals `key`, or `fallback` when there is none.
+6. r[std-collections.map.is-empty] `is_empty` is true exactly when `len()` is 0.
 
 See also: [Map Key Types](../lang/04-type-system.md#map-key-types).
 
@@ -381,3 +383,57 @@ fn smallest(items: List[i32]) -> i32?:
 > two heaps with the same elements may hold them in different orders.
 
 See also: [Reverse](cmp.md#reverse), [Debug For Standard Types](format.md#debug-for-standard-types).
+
+## List Access And Building
+
+`std` gives `List[T]` methods that read one element safely, copy part of
+a list, and grow one list by another:
+
+```text
+fn second(items: List[string]) -> string?:
+    items.get(1)
+
+fn preview(lines: List[string]) -> List[string]:
+    if lines.is_empty():
+        return ["(empty)"]
+    lines.take(3)
+
+fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
+    let all: mut List[i32] = []
+    all.extend(head.filter(fn(n: i32) -> bool: n > 0))
+    all.extend(tail)
+    all.sorted_by(fn(a: i32, b: i32) -> Ordering: b.cmp(a))
+```
+
+| Receiver | Methods |
+| --- | --- |
+| `List[T]` | `get(self, index: usize) -> T?`; `is_empty(self) -> bool`; `first(self) -> T?`; `last(self) -> T?`; `take(self, count: usize) -> List[T]`; `filter(self, keep: fn(T) -> bool) -> List[T]`; `reversed(self) -> List[T]`; `sorted_by(self, compare: fn(T, T) -> Ordering) -> List[T]`; `zip[U](self, other: List[U]) -> List[(T, U)]` |
+| `mut List[T]` | `extend(mut self, other: List[T]) -> void` |
+
+1. r[std-collections.access.get] `get(index)` returns `.Some` of the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
+2. r[std-collections.access.is-empty] `is_empty` is true exactly when `len()` is 0.
+3. r[std-collections.access.first-last] `first` returns the element at index 0 and `last` the element at index `len() - 1`, each in `.Some`. An empty list gives `.None`.
+4. r[std-collections.access.take] `take(count)` returns a new list of the first `count` elements, or of every element when `count` is at least `len()`.
+5. r[std-collections.access.filter] `filter(keep)` returns a new list of the elements for which `keep` is true, in list order.
+6. r[std-collections.access.reversed] `reversed` returns a new list of the elements in reverse order.
+7. r[std-collections.access.sorted-by] `sorted_by(compare)` returns a new list in ascending order by `compare`. The sort is stable.
+8. r[std-collections.access.zip] `zip(other)` returns a new list of pairs `(self[i], other[i])` for each index `i` of both lists, so it stops at the shorter one.
+9. r[std-collections.access.extend] `extend(other)` appends each element of `other` to the receiver, in order, as `push` does. It is a structural change, by [`flow.for.version`](../lang/06-control-flow.md#r-flow.for.version).
+10. r[std-collections.access.extend.self] `items.extend(items)` appends a copy of the elements `items` held before the call, so it doubles the list.
+11. r[std-collections.access.helper-rules] The callbacks of `filter` and `sorted_by` follow [`std-collections.helper.callback-row`](#r-std-collections.helper.callback-row): each has the empty row.
+
+| Call | Result |
+| --- | --- |
+| `[4, 5].get(1)` | `.Some(5)` |
+| `[4, 5].get(2)` | `.None` |
+| `[1, 2, 3].take(2)` | `[1, 2]` |
+| `[1, 2].take(5)` | `[1, 2]` |
+| `[1, 2, 3].zip(["a", "b"])` | `[(1, "a"), (2, "b")]` |
+
+> **Why.** `get` is Rust's `slice::get`, the checked read beside
+> `items[i]`. `take` is Kotlin's `List.take`: like `List.map`, the list
+> method is eager and returns a list, while `Iterator.take` stays lazy.
+> `extend` is Rust's `Vec::extend`, and replaces `items = items + more`.
+
+See also: [Built-In Methods](../lang/10-modules.md#built-in-methods),
+[Iterator Adapters](iter.md#iterator-adapters).

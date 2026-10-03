@@ -1,0 +1,25 @@
+# test: DecodeError, RegexError, and CliError implement Error, so ? converts each into Result[T, Error]
+# Spec std/error Standard Error Types: std-error.std-types.impl (spec pass 89, audit item 2).
+use std.cli.Cli
+use std.encoding.hex_decode
+use std.error.Error
+use std.regex.Regex
+use std.testing.assert
+
+fn bytes(text: string) -> Result[List[u8], Error]:
+    value := hex_decode(text)?
+    .Ok(value)
+
+fn pattern(text: string) -> Result[Regex, Error]:
+    value := Regex::new(text)?
+    .Ok(value)
+
+fn verbose(arguments: List[string]) -> Result[bool, Error]:
+    parsed := Cli::new("tool").flag("verbose", .None, "say more").parse(arguments)?
+    .Ok(parsed.flag("verbose"))
+
+tests:
+    it("converts with ?"):
+        assert(bytes("zz").is_err(), reason="DecodeError")
+        assert(pattern("(").is_err(), reason="RegexError")
+        assert(verbose(["--nope"]).is_err(), reason="CliError")

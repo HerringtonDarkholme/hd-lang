@@ -42,7 +42,7 @@ fn key(text: string) -> List[u8]:
 
 1. r[std-encoding.hex.encode.digits] `hex_encode` writes each byte in order as two digits, its high four bits first. The digits are `0` to `9` and the lowercase `a` to `f`.
 2. r[std-encoding.hex.decode.case] `hex_decode` accepts the digits `0` to `9`, `a` to `f`, and `A` to `F`. It reads each pair of digits as one byte, the high digit first.
-3. r[std-encoding.hex.decode.length] Text whose length in characters is odd gives `.Err(DecodeError.InvalidLength(position))`, where `position` is that length.
+3. r[std-encoding.hex.decode.length-bytes] Text whose length in bytes is odd gives `.Err(DecodeError.InvalidLength(position))`, where `position` is that length.
 4. r[std-encoding.hex.decode.character] Otherwise, the first character that is not a hex digit gives `.Err(DecodeError.InvalidCharacter(position))`.
 5. r[std-encoding.hex.decode.order] The length is checked before any character.
 
@@ -96,7 +96,7 @@ The base64 alphabet is the standard one of RFC 4648, section 4:
 `base64_decode` accepts exactly the texts that `base64_encode` returns.
 
 1. r[std-encoding.base64.decode.value] Accepted text gives `.Ok` of the bytes that `base64_encode` turns into that text.
-2. r[std-encoding.base64.decode.length] Text whose length in characters is not a multiple of four gives `.Err(DecodeError.InvalidLength(position))`, where `position` is that length.
+2. r[std-encoding.base64.decode.length-bytes] Text whose length in bytes is not a multiple of four gives `.Err(DecodeError.InvalidLength(position))`, where `position` is that length.
 3. r[std-encoding.base64.decode.padding] The **padding** is the last one or two characters of the text, when they are `=`. Any other `=` gives `.Err(DecodeError.InvalidPadding(position))`.
 4. r[std-encoding.base64.decode.character] A character that is neither in the alphabet nor `=` gives `.Err(DecodeError.InvalidCharacter(position))`.
 5. r[std-encoding.base64.decode.pad-bits] When the text has padding and the character before it is in the alphabet, that symbol's pad bits must be zero. Otherwise the result is `.Err(DecodeError.InvalidPadding(position))` at that symbol.
@@ -130,11 +130,11 @@ pub enum DecodeError:
 ```
 
 1. r[std-encoding.error.declared] `std.encoding` declares the enum `DecodeError` with the variants `InvalidCharacter`, `InvalidLength`, and `InvalidPadding`, each with one field `position: usize`.
-2. r[std-encoding.error.position] A `position` is an index into the text, counted in characters from 0.
+2. r[std-encoding.error.position-bytes] A `position` is a byte offset into the text, counted in bytes of its UTF-8 encoding from 0, as [`slice`](../lang/10-modules.md#r-module.string.byte-offsets) counts.
 3. r[std-encoding.error.traits] `DecodeError` implements `Eq`, `Debug`, and `Display`.
 
 > **Note.** Every character before an `InvalidCharacter` or
 > `InvalidPadding` position is ASCII, so that `position` is also the
-> character's byte offset.
+> character's index.
 
 See also: [Digest](digest.md), [Num](num.md#integer-parsing), [Strings](../lang/04-type-system.md#strings).

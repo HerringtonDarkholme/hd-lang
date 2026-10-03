@@ -11,21 +11,21 @@ fn wait_twice!() -> Timestamp $ Clock:
 
 tests:
     it("sleeps in virtual time"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_millis(0))
+        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
-            assert(wait_twice!() == Timestamp::from_unix_millis(5000), reason="five virtual seconds")
-        assert(clock.now() == Timestamp::from_unix_millis(5000), reason="the provider kept its time")
+            assert(wait_twice!() == Timestamp::from_unix_milliseconds(5000), reason="five virtual seconds")
+        assert(clock.now() == Timestamp::from_unix_milliseconds(5000), reason="the provider kept its time")
 
     it("sleep! advances now and monotonic alike"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_millis(1000))
-        assert(clock.now() == Timestamp::from_unix_millis(1000), reason="the start")
-        assert(clock.monotonic() == Instant::from_millis(1000), reason="milliseconds since the epoch")
-        assert(clock.now() == Timestamp::from_unix_millis(1000), reason="reads do not advance")
+        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(1000))
+        assert(clock.now() == Timestamp::from_unix_milliseconds(1000), reason="the start")
+        assert(clock.monotonic() == Instant::from_milliseconds(1000), reason="milliseconds since the epoch")
+        assert(clock.now() == Timestamp::from_unix_milliseconds(1000), reason="reads do not advance")
         clock.sleep!(250ms)
-        assert_equal(clock.now().since(Timestamp::from_unix_millis(1000)).as_milliseconds(), 250, reason="now advanced")
-        assert_equal(clock.monotonic().since(Instant::from_millis(1000)).as_milliseconds(), 250, reason="monotonic advanced")
+        assert_equal(clock.now().since(Timestamp::from_unix_milliseconds(1000)).as_milliseconds(), 250, reason="now advanced")
+        assert_equal(clock.monotonic().since(Instant::from_milliseconds(1000)).as_milliseconds(), 250, reason="monotonic advanced")
 
     it("a zero duration leaves the time"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_millis(1000))
+        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(1000))
         clock.sleep!(Duration::milliseconds(0))
-        assert(clock.now() == Timestamp::from_unix_millis(1000), reason="unchanged")
+        assert(clock.now() == Timestamp::from_unix_milliseconds(1000), reason="unchanged")

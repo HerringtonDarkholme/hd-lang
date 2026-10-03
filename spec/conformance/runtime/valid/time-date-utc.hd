@@ -4,7 +4,7 @@ use std.testing.{assert, assert_equal}
 use std.time.{Date, Timestamp}
 
 fn day_of(millis: i64) -> Date:
-    Timestamp::from_unix_millis(millis).date()
+    Timestamp::from_unix_milliseconds(millis).date()
 
 tests:
     it("the epoch and the days around it"):

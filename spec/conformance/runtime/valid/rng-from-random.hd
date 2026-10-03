@@ -1,5 +1,5 @@
 # test: rng() seeds an Rng from one next_u64 draw of the Random provider that covers the call
-# Spec std/random Rng: std-random.rng.decl, std-random.rng.from-seed, std-random.rng.from-random, std-random.rng.plain (task #242).
+# Spec std/random Rng: std-random.rng.decl, std-random.rng.new, std-random.rng.from-random, std-random.rng.plain (task #242).
 use std.random.{Random, Rng, SeededRandom, rng}
 use std.testing.assert_equal
 
@@ -8,7 +8,7 @@ fn roll() -> i64 $ Random:
     dice.int(1..=6)
 
 fn deal(seed: u64) -> List[string]:
-    let mut deck = Rng::from_seed(seed)
+    let mut deck = Rng::new(seed)
     let cards: mut List[string] = ["A", "K", "Q", "J"]
     deck.shuffle(cards)
     cards
@@ -17,8 +17,8 @@ tests:
     it("rng draws its seed from the provider"):
         let mut source = SeededRandom::new(5)
         let mut copy = SeededRandom::new(5)
-        let mut expected = Rng::from_seed(copy.next_u64())
-        let mut made = Rng::from_seed(0)
+        let mut expected = Rng::new(copy.next_u64())
+        let mut made = Rng::new(0)
         $.with(Random=source):
             made = rng()
         assert_equal(made.next_u64(), expected.next_u64(), reason="the same seed")

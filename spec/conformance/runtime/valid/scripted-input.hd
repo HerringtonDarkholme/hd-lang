@@ -1,0 +1,31 @@
+# test: ScriptedInput returns its lines in order, then .None on every later read
+# Spec std/console Scripted Input: std-console.scripted.new, std-console.scripted.read, std-console.scripted.end (spec pass 89, audit item 8).
+use std.console.{ConsoleInput, ScriptedInput}
+use std.testing.{assert, assert_equal}
+
+fn first_line!() -> string $ ConsoleInput:
+    let mut input = $.use(ConsoleInput)
+    match input.read_line!():
+        .Ok(.Some(line)) => line
+        _ => ""
+
+fn count_lines!() -> i32 $ ConsoleInput:
+    let mut input = $.use(ConsoleInput)
+    let count = 0
+    while true:
+        match input.read_line!():
+            .Ok(.Some(_)) => count = count + 1
+            _ => return count
+    count
+
+tests:
+    it("reads the scripted line"):
+        let mut input = ScriptedInput::new(["yes"])
+        $.with(ConsoleInput=input):
+            assert(first_line!() == "yes", reason="the first line")
+
+    it("ends with .None"):
+        let mut input = ScriptedInput::new(["a", "b", "c"])
+        $.with(ConsoleInput=input):
+            assert_equal(count_lines!(), 3, reason="three lines")
+            assert_equal(first_line!(), "", reason="still at the end")

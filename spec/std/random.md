@@ -91,7 +91,7 @@ fn roll() -> i64 $ Random:
     dice.int(1..=6)
 
 fn deal(seed: u64) -> List[string]:
-    let mut deck = Rng::from_seed(seed)
+    let mut deck = Rng::new(seed)
     let cards: mut List[string] = ["A", "K", "Q", "J"]
     deck.shuffle(cards)
     cards
@@ -108,7 +108,7 @@ fn deal(seed: u64) -> List[string]:
 | r[std-random.rng.sample] `sample` | `pub fn sample[T](mut self, items: List[T], count: usize) -> List[T]` | `count` items from distinct positions, in random order |
 
 1. r[std-random.rng.decl] `std.random` declares the data type `Rng`, with private fields, and the methods above. Code imports it, as in `use std.random.Rng`.
-2. r[std-random.rng.from-seed] `Rng::from_seed(seed: u64) -> mut Rng` returns a generator that `seed` starts.
+2. r[std-random.rng.new] `Rng::new(seed: u64) -> mut Rng` returns a generator that `seed` starts, as `SeededRandom::new` returns a provider.
 3. r[std-random.rng.from-random] `std.random` declares `pub fn rng() -> mut Rng $ Random`. It draws one `next_u64` from the `Random` provider that covers the call, and returns `Rng::from_seed` of that draw.
 4. r[std-random.rng.plain] Every `Rng` method is a plain call with the empty requirement row. An `Rng` reads nothing from the host.
 5. r[std-random.rng.mut] Every method takes `mut self`, since each draw advances the generator.
@@ -124,13 +124,13 @@ implementation:
 
 | Call | Draws |
 | --- | --- |
-| `Rng::from_seed(42)`, `next_u64` three times | `12186209167316039401`, `2060537544740691614`, `1459241681827062570` |
-| `Rng::from_seed(0)`, `next_u64` twice | `16359567918072254692`, `230122937566968419` |
-| `Rng::from_seed(7)`, `int(1..=6)` ten times | `6`, `5`, `2`, `5`, `5`, `5`, `4`, `4`, `1`, `6` |
-| `Rng::from_seed(7)`, `float` | `0.23382771772151634` |
+| `Rng::new(42)`, `next_u64` three times | `12186209167316039401`, `2060537544740691614`, `1459241681827062570` |
+| `Rng::new(0)`, `next_u64` twice | `16359567918072254692`, `230122937566968419` |
+| `Rng::new(7)`, `int(1..=6)` ten times | `6`, `5`, `2`, `5`, `5`, `5`, `4`, `4`, `1`, `6` |
+| `Rng::new(7)`, `float` | `0.23382771772151634` |
 
 1. r[std-random.rng.generator] An `Rng`'s state is four 32-bit words, and each 32-bit draw is one step of xoshiro128** 1.0, as the reference code below gives.
-2. r[std-random.rng.seeding] `from_seed` folds the seed to the 32-bit `z = (seed ^ (seed >> 32)) mod 2^32`. Then for each state word in order, `z` advances by `0x9E3779B9` modulo 2^32, and the word is `mix32(z)`.
+2. r[std-random.rng.seeding] `Rng::new` folds the seed to the 32-bit `z = (seed ^ (seed >> 32)) mod 2^32`. Then for each state word in order, `z` advances by `0x9E3779B9` modulo 2^32, and the word is `mix32(z)`.
 3. r[std-random.rng.mix] `mix32` is the 32-bit finalizer of MurmurHash3, as the reference code gives.
 4. r[std-random.rng.next-u64] `next_u64` takes two 32-bit draws. The first is the high half of the result, and the second the low half.
 
@@ -197,7 +197,7 @@ uint32_t next32(uint32_t s[4]) {
 8. r[std-random.rng.sample.input] `items` itself is unchanged.
 9. r[std-random.rng.sample.count] A `count` above the list's length panics. Panic: `explicit-panic`.
 
-| Call on `Rng::from_seed(7)` | Result |
+| Call on `Rng::new(7)` | Result |
 | --- | --- |
 | `shuffle` of `[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]` | `[10, 3, 7, 4, 6, 5, 1, 9, 2, 8]` |
 | `sample([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3)` | `[8, 3, 4]` |

@@ -1,5 +1,6 @@
-# test: retry! with a times below 1 calls its attempt once and returns that result
-# Spec std/task Retry: std-task.combinator.retry.at-least-once (owner decision RETRY-zero, batch 33, 2026-10-01).
+# test: retry! with a times of 0 calls its attempt once and returns that result
+# Spec std/task Retry: std-task.combinator.retry.zero-once (owner decision RETRY-zero, batch 33, 2026-10-01;
+# times is a usize since spec pass 89).
 use std.task.retry
 use std.testing.assert_equal
 
@@ -14,7 +15,7 @@ fn ask!(server: mut Server) -> Result[string, string]:
         return .Err("busy ${server.calls}")
     .Ok("ready")
 
-fn connect!(server: mut Server, times: i32) -> Result[string, string]:
+fn connect!(server: mut Server, times: usize) -> Result[string, string]:
     retry!(times):
         ask!(server)
 
@@ -24,7 +25,7 @@ tests:
         assert_equal(connect!(server, 0), .Err("busy 1"), reason="the one error is returned")
         assert_equal(server.calls, 1, reason="exactly one call")
 
-    it("a negative count makes one call"):
+    it("one try makes one call"):
         let mut server = Server { busy_for: 0, calls: 0 }
-        assert_equal(connect!(server, -2), .Ok("ready"), reason="the one call succeeds")
+        assert_equal(connect!(server, 1), .Ok("ready"), reason="the one call succeeds")
         assert_equal(server.calls, 1, reason="exactly one call")

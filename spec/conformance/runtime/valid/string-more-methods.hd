@@ -1,0 +1,30 @@
+# test: string is_empty, ends_with, contains, find, trim_start, trim_end, upper, strip_prefix, and strip_suffix
+# Spec std/text More String Methods: std-text.more.is-empty, .ends-with, .contains, .find, .trim-ends, .upper, .strip
+# (spec pass 89, audit item 6).
+use std.testing.{assert, assert_equal}
+
+fn header(line: string) -> string?:
+    if line.is_empty() || !line.contains(":"):
+        return .None
+    match line.strip_prefix("# "):
+        .Some(rest) => .Some(rest.trim_end().upper())
+        .None => .None
+
+tests:
+    it("tests and searches"):
+        assert("".is_empty(), reason="empty")
+        assert(!"a".is_empty(), reason="not empty")
+        assert("report.txt".ends_with(".txt"), reason="suffix")
+        assert("abc".contains(""), reason="the empty needle")
+        assert_equal("héllo".find("llo"), .Some(3), reason="a byte offset")
+        assert_equal("abc".find("z"), .None, reason="absent")
+        assert_equal("abc".find(""), .Some(0), reason="the empty needle is at 0")
+
+    it("trims and converts"):
+        assert_equal("  a ".trim_start(), "a ", reason="start only")
+        assert_equal("  a ".trim_end(), "  a", reason="end only")
+        assert_equal("straße".upper(), "STRASSE", reason="full mappings")
+        assert_equal("key=1".strip_prefix("key="), .Some("1"), reason="prefix")
+        assert_equal("key=1".strip_suffix("=2"), .None, reason="no suffix")
+        assert_equal(header("# note: x  "), .Some("NOTE: X"), reason="through a helper")
+        assert_equal(header("plain"), .None, reason="no colon")

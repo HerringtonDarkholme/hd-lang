@@ -1,0 +1,29 @@
+# test: Choices.choose draws one of its items, and panics on an empty list
+# Spec std/testing Property Tests: std-testing.choices.choose, std-testing.choices.choose.empty (spec pass 89, audit item 9).
+use std.testing.{Arbitrary, Choices, assert, it_prop}
+
+@derive(Debug)
+data Suit:
+    name: string
+
+impl Arbitrary for Suit:
+    fn arbitrary(c: mut Choices) -> Suit:
+        Suit { name: c.choose(["hearts", "spades"]) }
+
+@derive(Debug)
+data Nothing:
+    name: string
+
+impl Arbitrary for Nothing:
+    fn arbitrary(c: mut Choices) -> Nothing:
+        let empty: List[string] = []
+        Nothing { name: c.choose(empty) }
+
+tests:
+    it_prop("draws one of the items", prop=fn!(suit: Suit):
+        assert(suit.name == "hearts" || suit.name == "spades", reason="one of the two")
+    )
+
+    it_prop("an empty list panics", expect_panic="explicit-panic", prop=fn!(value: Nothing):
+        pass
+    )

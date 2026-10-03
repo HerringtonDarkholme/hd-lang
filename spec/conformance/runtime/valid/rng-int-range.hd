@@ -5,23 +5,23 @@ use std.testing.{assert, assert_equal}
 
 tests:
     it("a half-open range excludes its end"):
-        let mut dice = Rng::from_seed(7)
+        let mut dice = Rng::new(7)
         let draws: mut List[i64] = []
         for _ in 0..10:
             draws.push(dice.int(0..10))
         assert_equal(draws, [7, 2, 1, 6, 8, 4, 9, 1, 2, 5], reason="ten draws below 10")
-        let mut many = Rng::from_seed(2026)
+        let mut many = Rng::new(2026)
         for _ in 0..200:
             value := many.int(-3..3)
             assert(value >= -3 && value < 3, reason="inside -3..3")
 
     it("an inclusive range includes its end"):
-        let mut dice = Rng::from_seed(7)
+        let mut dice = Rng::new(7)
         let draws: mut List[i64] = []
         for _ in 0..6:
             draws.push(dice.int(-5..=5))
         assert_equal(draws, [-1, 2, 1, 5, -1, 4], reason="six draws from -5 through 5")
-        let mut many = Rng::from_seed(2026)
+        let mut many = Rng::new(2026)
         let seen_top = false
         for _ in 0..200:
             value := many.int(1..=3)
@@ -29,12 +29,12 @@ tests:
             if value == 3:
                 seen_top = true
         assert(seen_top, reason="the end is reachable")
-        let mut one = Rng::from_seed(9)
+        let mut one = Rng::new(9)
         assert_equal(one.int(5..=5), 5, reason="a one-value range")
 
     it("a draw below 2^64 mod count is drawn again"):
-        let mut dice = Rng::from_seed(7)
-        let mut plain = Rng::from_seed(7)
+        let mut dice = Rng::new(7)
+        let mut plain = Rng::new(7)
         let low: i64 = -4611686018427387904
         let high: i64 = 4611686018427387904
         assert_equal(dice.int(low..=high), -3400294446221666352, reason="two draws rejected, the third kept")
@@ -44,7 +44,7 @@ tests:
         assert_equal(dice.next_u64(), plain.next_u64(), reason="three draws spent")
 
     it("the whole i64 range takes one draw"):
-        let mut dice = Rng::from_seed(7)
+        let mut dice = Rng::new(7)
         let low: i64 = -9223372036854775808
         let high: i64 = 9223372036854775807
         assert_equal(dice.int(low..=high), -4910011970706363921, reason="start plus the raw draw")

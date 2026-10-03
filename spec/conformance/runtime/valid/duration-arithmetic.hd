@@ -13,7 +13,7 @@ tests:
         assert_equal((1s - 2s).as_milliseconds(), -1000, reason="a difference may be negative")
 
     it("moves a timestamp by a duration"):
-        start := Timestamp::from_unix_millis(1000)
+        start := Timestamp::from_unix_milliseconds(1000)
         later := start + 2s
         assert_equal(later.since(start).as_milliseconds(), 2000, reason="two seconds later")
         earlier := start + -(1s)

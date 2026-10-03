@@ -171,13 +171,15 @@ pub trait Clock:
 ### Timestamps And Instants
 
 1. r[std-time.timestamp.decl] `std.time` declares `Timestamp`, a point in UTC time held as whole milliseconds since the Unix epoch in an `i64`, with private fields.
-2. r[std-time.timestamp.public-api] The public API of `Timestamp` is `Timestamp::from_unix_millis(millis: i64)`, `t.unix_millis() -> i64`, `t.since(earlier: Timestamp) -> Duration`, and the three methods of [Dates](#dates): `date`, `to_rfc3339`, and `Timestamp::parse_rfc3339`.
-3. r[std-time.timestamp.unix-millis] `t.unix_millis()` returns the milliseconds since the Unix epoch that `t` holds, so `Timestamp::from_unix_millis(m).unix_millis()` is `m` for every `m`.
+2. r[std-time.timestamp.api-milliseconds] The public API of `Timestamp` is `Timestamp::from_unix_milliseconds(milliseconds: i64)`, `t.unix_milliseconds() -> i64`, `t.since(earlier: Timestamp) -> Duration`, and the three methods of [Dates](#dates): `date`, `to_rfc3339`, and `Timestamp::parse_rfc3339`.
+3. r[std-time.timestamp.unix-milliseconds] `t.unix_milliseconds()` returns the milliseconds since the Unix epoch that `t` holds, so `Timestamp::from_unix_milliseconds(m).unix_milliseconds()` is `m` for every `m`.
 4. r[std-time.timestamp.since] `t.since(earlier)` is the time from `earlier` to `t`, negative when `earlier` is the later one.
 5. r[std-time.instant.decl] `std.time` declares `Instant`, a reading of the monotonic clock as whole milliseconds since an origin that the provider chooses, with private fields.
-6. r[std-time.instant.api] The public API of `Instant` is `Instant::from_millis(millis: i64)` and `i.since(earlier: Instant) -> Duration`, the time from `earlier` to `i`.
-7. r[std-time.time.eq-ord] `Timestamp` and `Instant` implement `Eq` and `Ord`, which order them by time.
-8. r[std-time.time.import] Code imports both, as in `use std.time.{Instant, Timestamp}`.
+6. r[std-time.instant.api-milliseconds] The public API of `Instant` is `Instant::from_milliseconds(milliseconds: i64)`, `i.as_milliseconds() -> i64`, and `i.since(earlier: Instant) -> Duration`, the time from `earlier` to `i`.
+7. r[std-time.instant.as-milliseconds] `i.as_milliseconds()` returns the milliseconds since the origin that `i` holds, so `Instant::from_milliseconds(m).as_milliseconds()` is `m` for every `m`.
+8. r[std-time.time.eq-ord] `Timestamp` and `Instant` implement `Eq` and `Ord`, which order them by time.
+9. r[std-time.timestamp.display] `Timestamp` implements `Display`, and its text is `t.to_rfc3339()`. `Instant` does not implement `Display`.
+10. r[std-time.time.import] Code imports both, as in `use std.time.{Instant, Timestamp}`.
 
 ### Clock Helpers
 
@@ -209,16 +211,16 @@ fn wait_twice!() -> Timestamp $ Clock:
 
 tests:
     it("sleeps in virtual time"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_millis(0))
+        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
-            assert(wait_twice!() == Timestamp::from_unix_millis(5000), reason="five virtual seconds")
+            assert(wait_twice!() == Timestamp::from_unix_milliseconds(5000), reason="five virtual seconds")
 ```
 
 1. r[std-time.manual.decl] `std.time` declares `ManualClock`, which implements `Clock`, with private fields. Code imports it, as in `use std.time.ManualClock`.
 2. r[std-time.manual.state] A `ManualClock`'s only state is its current time, a `Timestamp`.
 3. r[std-time.manual.new] `ManualClock::new(start: Timestamp) -> mut ManualClock` returns a clock whose current time is `start`.
 4. r[std-time.manual.now] `now` returns the current time.
-5. r[std-time.manual.monotonic] `monotonic` returns `Instant::from_millis(m)`, where `m` is the current time in milliseconds since the Unix epoch.
+5. r[std-time.manual.monotonic] `monotonic` returns `Instant::from_milliseconds(m)`, where `m` is the current time in milliseconds since the Unix epoch.
 6. r[std-time.manual.sleep] `sleep!(duration)` completes without waiting. A positive `duration` is added to the current time.
 7. r[std-time.manual.sleep.zero] A zero `duration` leaves the current time unchanged.
 8. r[std-time.manual.sleep.panics] A negative `duration` panics, as [`std-time.clock.sleep.negative`](#r-std-time.clock.sleep.negative) requires, and leaves the current time unchanged. Panic: `explicit-panic`.
@@ -241,7 +243,7 @@ timestamp falls on:
 use std.time.{Date, Timestamp}
 
 fn day_of(millis: i64) -> Date:
-    Timestamp::from_unix_millis(millis).date()  # 2000-02-29 for 951782400000
+    Timestamp::from_unix_milliseconds(millis).date()  # 2000-02-29 for 951782400000
 ```
 
 `std.time` declares it with three public fields:
@@ -288,7 +290,7 @@ pub data Date:
 use std.time.Timestamp
 
 fn stamp(millis: i64) -> string:
-    Timestamp::from_unix_millis(millis).to_rfc3339()  # "2023-11-14T22:13:20.500Z" for 1700000000500
+    Timestamp::from_unix_milliseconds(millis).to_rfc3339()  # "2023-11-14T22:13:20.500Z" for 1700000000500
 ```
 
 The text is `YYYY-MM-DDThh:mm:ss`, then `.fff` when the milliseconds are
@@ -385,7 +387,7 @@ pub enum TimeParseError:
 ```
 
 1. r[std-time.parse-error.declared] `std.time` declares the enum `TimeParseError` with the variants `InvalidCharacter`, `OutOfRange`, and `TooShort`, each with one field `position: usize`. Code imports it, as in `use std.time.TimeParseError`.
-2. r[std-time.parse-error.position] A `position` is an index into the text, counted in characters from 0.
+2. r[std-time.parse-error.position-bytes] A `position` is a byte offset into the text, counted in bytes of its UTF-8 encoding from 0, as [`slice`](../lang/10-modules.md#r-module.string.byte-offsets) counts.
 3. r[std-time.parse-error.invalid-character] A character that the grammar does not allow at its place gives `InvalidCharacter` at that character. So does a character after a complete timestamp.
 4. r[std-time.parse-error.out-of-range] A field whose digits are well formed but whose value is out of its range gives `OutOfRange` at the field's first digit.
 5. r[std-time.parse-error.too-short] Text that ends before the timestamp is complete gives `TooShort`, whose `position` is the text's length.

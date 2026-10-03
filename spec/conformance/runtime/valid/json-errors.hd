@@ -1,5 +1,5 @@
-# test: each JsonError kind and its position in characters
-# Spec std/json JSON Errors: std-json.error.variants, std-json.error.position, std-json.error.traits (JSON-SURFACE; task #226).
+# test: each JsonError kind and its position as a byte offset
+# Spec std/json JSON Errors: std-json.error.variants, std-json.error.position-bytes, std-json.error.traits (JSON-SURFACE; task #226).
 use std.json.{parse, Json, JsonError}
 use std.format.debug
 use std.testing.{assert, assert_equal}
@@ -33,7 +33,7 @@ tests:
         assert_equal(failure("['a']"), JsonError.UnexpectedCharacter(1), reason="single quotes")
         assert_equal(failure("nul1"), JsonError.UnexpectedCharacter(3), reason="bad word")
         assert_equal(failure("// c\n1"), JsonError.UnexpectedCharacter(0), reason="no comments")
-        assert_equal(failure("[\"é\" x]"), JsonError.UnexpectedCharacter(5), reason="counted in characters")
+        assert_equal(failure("[\"é\" x]"), JsonError.UnexpectedCharacter(6), reason="a byte offset")
         assert_equal(failure("\u{feff}1"), JsonError.UnexpectedCharacter(0), reason="no byte order mark")
         assert_equal(failure("\u{a0}1"), JsonError.UnexpectedCharacter(0), reason="only four space characters")
 
@@ -41,7 +41,7 @@ tests:
         assert_equal(failure("\"a\\x\""), JsonError.InvalidEscape(2), reason="unknown letter")
         assert_equal(failure("\"\\'\""), JsonError.InvalidEscape(1), reason="no single-quote escape")
         assert_equal(failure("\"\\u12G4\""), JsonError.InvalidEscape(1), reason="bad hex digit")
-        assert_equal(failure("\"é\\u{41}\""), JsonError.InvalidEscape(2), reason="no braces")
+        assert_equal(failure("\"é\\u{41}\""), JsonError.InvalidEscape(3), reason="no braces")
 
     it("LoneSurrogate reports the backslash of the escape without a partner"):
         assert_equal(failure("\"\\ud800\""), JsonError.LoneSurrogate(1), reason="high alone")
@@ -54,7 +54,7 @@ tests:
     it("ControlCharacter reports the character in a string"):
         assert_equal(failure("\"a\nb\""), JsonError.ControlCharacter(2), reason="line feed")
         assert_equal(failure("\"\t\""), JsonError.ControlCharacter(1), reason="tab")
-        assert_equal(failure("[\"é\u{1}\"]"), JsonError.ControlCharacter(3), reason="counted in characters")
+        assert_equal(failure("[\"é\u{1}\"]"), JsonError.ControlCharacter(4), reason="a byte offset")
 
     it("NestingTooDeep reports the opening bracket past 128 levels"):
         assert_equal(failure("[".repeat(129)), JsonError.NestingTooDeep(128), reason="arrays")

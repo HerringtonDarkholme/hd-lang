@@ -1,0 +1,13 @@
+# test: BufferConsole keeps write_error_line! text apart from write_line! text
+# Spec std/console Buffer Console: std-console.buffer.error-output (spec pass 89, audit item 8).
+use std.console.{BufferConsole, eprintln}
+use std.testing.assert_equal
+
+tests:
+    it("keeps the streams apart"):
+        let mut console = BufferConsole::new()
+        $.with(Console=console):
+            println("out")
+            eprintln("err")
+        assert_equal(console.output(), ["out"], reason="standard output")
+        assert_equal(console.error_output(), ["err"], reason="standard error")

@@ -45,7 +45,7 @@ tests:
 
     it("a float past the f64 range is NumberOutOfRange at its first character"):
         assert_equal(failure("1e400"), JsonError.NumberOutOfRange(0), reason="overflow")
-        assert_equal(failure("[\"é\", -1E309]"), JsonError.NumberOutOfRange(6), reason="counted in characters")
+        assert_equal(failure("[\"é\", -1E309]"), JsonError.NumberOutOfRange(7), reason="a byte offset")
         assert_equal(failure("[1e400, ]"), JsonError.NumberOutOfRange(1), reason="the number is read before the later error")
 
     it("malformed float text is still a grammar error"):

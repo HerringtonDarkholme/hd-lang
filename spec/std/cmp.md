@@ -8,8 +8,9 @@ ordinary hd over the language tier:
 - what a derived `Eq`, `PartialOrd`, or `Ord` compares, through the
   traits' templates;
 - how tuples compare, through the traits' tuple templates;
-- the function `clamp`;
-- the `Reverse[T]` wrapper.
+- the functions `min`, `max`, and `clamp`;
+- the `Reverse[T]` wrapper;
+- the traits that `Ordering` implements.
 
 The language tier keeps what the compiler knows by name
 ([Comparison Traits](../lang/09-traits.md#comparison-traits)):
@@ -87,6 +88,25 @@ See also: [Derived Tuple Implementations](../lang/09-traits.md#derived-tuple-imp
 [Tuple Structure](../lang/14-annotations.md#tuple-structure),
 [Hash](hash.md).
 
+## Min And Max
+
+`min` and `max` pick one of two values:
+
+```text
+use std.cmp.{max, min}
+
+fn spread(a: i32, b: i32) -> i32:
+    max(a, b) - min(a, b)
+```
+
+1. r[std-cmp.min-max.decl] `std.cmp` declares `pub fn min[T < Ord](a: T, b: T) -> T` and `pub fn max[T < Ord](a: T, b: T) -> T`. Code imports them, as in `use std.cmp.{max, min}`.
+2. r[std-cmp.min-max.result] `min` returns the smaller of `a` and `b`, and `max` the larger, by `cmp`.
+3. r[std-cmp.min-max.tie] When `a.cmp(b)` is `.Equal`, both `min` and `max` return `a`.
+4. r[std-cmp.min-max.not-prelude] Neither name is in the prelude.
+
+> **Why.** One first-among-equals rule serves `min`, `max`, `List.min`,
+> and `List.max`, as in Python. Rust's `max` returns `b` on a tie.
+
 ## Clamp
 
 `clamp` limits a value to a range:
@@ -117,3 +137,16 @@ fn later_first(a: i32, b: i32) -> Ordering:
 1. r[std-cmp.reverse.decl] `std.cmp` declares `pub data Reverse[T]` with one public field, `value: T`. Code imports it, as in `use std.cmp.Reverse`.
 2. r[std-cmp.reverse.order] When `T < Ord`, `Reverse[T]` implements `Eq`, `PartialOrd`, and `Ord`, and `Reverse { value: a }.cmp(Reverse { value: b })` is `b.cmp(a)`.
 3. r[std-cmp.reverse.eq] Two `Reverse` values are equal exactly when `cmp` of their values gives `.Equal`.
+
+## Ordering Values
+
+`Ordering` is a lang item; `std.cmp` gives it its traits:
+
+```text
+fn is_before(a: string, b: string) -> bool:
+    a.cmp(b) == Ordering.Less
+```
+
+1. r[std-cmp.ordering.eq] `Ordering` implements `Eq`. Two values are equal exactly when they are the same case.
+2. r[std-cmp.ordering.debug] `Ordering` implements `Debug`, and writes its case name: `Less`, `Equal`, or `Greater`.
+3. r[std-cmp.ordering.no-display] `Ordering` does not implement `Display`; `debug(o)` gives its text.

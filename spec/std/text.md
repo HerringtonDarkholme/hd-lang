@@ -201,3 +201,98 @@ fn digits(count: i32) -> string:
 
 See also: [Prefixed Strings](../lang/05-expressions.md#prefixed-strings), which
 specifies how a prefixed string calls its prefix function.
+
+## More String Methods
+
+`std` also gives `string` methods that test, search, and trim text:
+
+```text
+fn header(line: string) -> string?:
+    if line.is_empty() || !line.contains(":"):
+        return .None
+    match line.strip_prefix("# "):
+        .Some(rest) => .Some(rest.trim_end().upper())
+        .None => .None
+```
+
+| Receiver | Methods |
+| --- | --- |
+| `string` | `is_empty(self) -> bool`; `ends_with(self, suffix: string) -> bool`; `contains(self, needle: string) -> bool`; `find(self, needle: string) -> usize?`; `trim_start(self) -> string`; `trim_end(self) -> string`; `upper(self) -> string`; `strip_prefix(self, prefix: string) -> string?`; `strip_suffix(self, suffix: string) -> string?` |
+
+1. r[std-text.more.is-empty] `is_empty` is true exactly when the string has no bytes.
+2. r[std-text.more.ends-with] `ends_with` compares scalar sequences exactly, as `starts_with` does.
+3. r[std-text.more.contains] `contains(needle)` is true when `needle` occurs in the string. An empty `needle` occurs in every string.
+4. r[std-text.more.find] `find(needle)` returns the byte offset of the first occurrence of `needle` in `.Some`, or `.None`. An empty `needle` is found at 0.
+5. r[std-text.more.trim-ends] `trim_start` removes the Unicode `White_Space` property at the start only, and `trim_end` at the end only.
+6. r[std-text.more.upper] `upper` uses Unicode Default Case Conversion with full mappings, as `lower` does.
+7. r[std-text.more.strip] `strip_prefix(prefix)` returns the rest of the string after `prefix` in `.Some` when the string starts with it, and `.None` otherwise. `strip_suffix` does the same at the end.
+
+| Call | Result |
+| --- | --- |
+| `"héllo".find("llo")` | `.Some(3)` |
+| `"abc".contains("")` | `true` |
+| `"  a ".trim_start()` | `"a "` |
+| `"straße".upper()` | `"STRASSE"` |
+| `"key=1".strip_prefix("key=")` | `.Some("1")` |
+
+> **Why.** The names are Rust's `str` methods. `find` gives a byte
+> offset, so its result is a valid `slice` bound.
+
+## Joining And Building
+
+`join` and `StringBuilder` join many pieces of text:
+
+```text
+use std.text.{StringBuilder, join}
+
+fn csv(cells: List[string]) -> string:
+    join(cells, ",")
+
+fn report(names: List[string]) -> string:
+    let mut out = StringBuilder::new()
+    for name in names:
+        out.push("- ${name}\n")
+    out.build()
+```
+
+1. r[std-text.join.decl] `std.text` declares `pub fn join(parts: List[string], separator: string) -> string`. Code imports it, as in `use std.text.join`.
+2. r[std-text.join.result] `join` returns the parts in order with `separator` between each two, so one part gives that part and no part gives `""`.
+3. r[std-text.builder.decl] `std.text` declares `StringBuilder`, with private fields, which implements `Debug`. Code imports it, as in `use std.text.StringBuilder`.
+4. r[std-text.builder.new] `StringBuilder::new() -> mut StringBuilder` returns an empty builder.
+5. r[std-text.builder.push] `b.push(text: string) -> void` appends `text`; it takes `mut self`.
+6. r[std-text.builder.build] `b.build() -> string` returns every pushed text in push order, joined with nothing between. It leaves the builder unchanged.
+
+> **Why.** `join` stays a free function until an inherent impl on
+> `List[string]` alone is allowed; Python's `str.join` also puts the
+> separator first.
+
+## Prefix Helpers
+
+`std.text` gives a custom string prefix the helpers that `r` uses:
+
+```text
+use std.ops.{Template, str_prefix}
+use std.text.{interpolate, process_escapes}
+
+@str_prefix
+fn cooked(t: Template[i32]) -> string:
+    let pieces: mut List[string] = []
+    for piece in t.raw_parts:
+        match process_escapes(piece):
+            .Ok(text) => pieces.push(text)
+            .Err(error) => pieces.push("?${error.position}")
+    interpolate(Template { raw_parts: pieces, values: t.values })
+```
+
+1. r[std-text.prefix-helper.interpolate] `std.text` declares `pub fn interpolate[T < Display](t: Template[T]) -> string`, which joins the raw pieces and the values' `Display` text, alternating, starting with the first piece.
+2. r[std-text.prefix-helper.escapes] `std.text` declares `pub fn process_escapes(text: string) -> Result[string, EscapeError]`, which replaces each escape sequence of [Escape Sequences](../lang/01-lexical-structure.md#escape-sequences) with its meaning.
+3. r[std-text.prefix-helper.escape-error] `std.text` declares `pub data EscapeError` with one public field, `position: usize`, the byte offset of the first invalid escape's backslash. It implements `Eq` and `Debug`.
+4. r[std-text.prefix-helper.final-backslash] A lone final backslash is an invalid escape.
+
+| Call | Result |
+| --- | --- |
+| `process_escapes("a\\tb")` | `.Ok` of `a`, a tab, and `b` |
+| `process_escapes("é\\q")` | `.Err(EscapeError { position: 2 })` |
+
+> **Why.** The field is `position`, as in every other std error. Its
+> byte unit is the one `slice` takes.

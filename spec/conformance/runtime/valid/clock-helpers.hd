@@ -1,6 +1,6 @@
 # test: now() and sleep! call the covering Clock provider, and timestamps and instants measure and order time
 # Spec std/time Clock: std-time.helper.now, std-time.helper.sleep, std-time.timestamp.since,
-# std-time.instant.api, and std-time.time.eq-ord (batch 64, STD-2 and STD-3).
+# std-time.instant.api-milliseconds, and std-time.time.eq-ord (batch 64, STD-2 and STD-3).
 use std.testing.{assert, assert_equal}
 use std.time.{Clock, Duration, Instant, Timestamp, ms, now, s, sleep}
 
@@ -9,10 +9,10 @@ data StepClock:
 
 impl Clock for StepClock:
     fn now(self) -> Timestamp:
-        Timestamp::from_unix_millis(self.millis[0])
+        Timestamp::from_unix_milliseconds(self.millis[0])
 
     fn monotonic(self) -> Instant:
-        Instant::from_millis(self.millis[0])
+        Instant::from_milliseconds(self.millis[0])
 
     fn sleep!(mut self, duration: Duration) -> void:
         self.millis[0] = self.millis[0] + duration.as_milliseconds()
@@ -26,12 +26,12 @@ tests:
         let mut clock = StepClock { millis: [1000] }
         $.with(Clock=clock):
             stamp := wait_and_stamp!(2s)
-            assert_equal(stamp.since(Timestamp::from_unix_millis(1000)).as_milliseconds(), 2000, reason="slept two seconds")
+            assert_equal(stamp.since(Timestamp::from_unix_milliseconds(1000)).as_milliseconds(), 2000, reason="slept two seconds")
 
     it("since is negative when the earlier stamp is later"):
-        early := Timestamp::from_unix_millis(500)
-        late := Timestamp::from_unix_millis(800)
+        early := Timestamp::from_unix_milliseconds(500)
+        late := Timestamp::from_unix_milliseconds(800)
         assert_equal(early.since(late).as_milliseconds(), -300, reason="backwards")
         assert(early < late, reason="timestamps order by time")
-        assert(Instant::from_millis(1) < Instant::from_millis(2), reason="instants order by time")
-        assert_equal(Instant::from_millis(9).since(Instant::from_millis(4)).as_milliseconds(), 5, reason="instant difference")
+        assert(Instant::from_milliseconds(1) < Instant::from_milliseconds(2), reason="instants order by time")
+        assert_equal(Instant::from_milliseconds(9).since(Instant::from_milliseconds(4)).as_milliseconds(), 5, reason="instant difference")

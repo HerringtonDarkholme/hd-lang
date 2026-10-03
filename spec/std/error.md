@@ -10,7 +10,8 @@ ordinary hd over the language tier:
 - the type `ErrorReport` and the helper `report_of`, which snapshot an
   error's message and its causes' messages;
 - the method `context` of `Result[T, E]` and the type `ContextError` it
-  wraps an error in.
+  wraps an error in;
+- which std error types implement `Error`.
 
 The language tier keeps what the compiler knows by name:
 
@@ -195,6 +196,48 @@ fn summary() -> string:
 > **Why.** Code that propagates with `?` often knows what it was doing
 > but not why the call failed. `context` records the first, keeps the
 > second as the cause, and leaves `chain` and `report_of` unchanged.
+
+## Standard Error Types
+
+Every std error type implements `Error`, so `?` and `context` accept it:
+
+```text
+use std.error.Error
+use std.num.parse_i32
+
+fn count(text: string) -> Result[i32, Error]:
+    value := parse_i32(text)?
+    .Ok(value)
+
+fn width(text: string) -> Result[i32, Error]:
+    parse_i32(text).context("reading the width")
+```
+
+| Type | Module |
+| --- | --- |
+| `ParseNumberError` | `std.num` |
+| `Utf8Error` | `std.text` |
+| `ConsoleError` | `std.console` |
+| `DecodeError` | `std.encoding` |
+| `FsError` | `std.fs` |
+| `JsonError` | `std.json` |
+| `TimeParseError` | `std.time` |
+| `CliError` | `std.cli` |
+| `RegexError` | `std.regex` |
+| `ResourceError[E]`, when `E < Error` | `std.resource` |
+
+1. r[std-error.std-types.impl] Each type in the table above implements `Error`. So `?` converts it into a `Result[T, Error]`, by [`trait.error.result`](../lang/09-traits.md#r-trait.error.result), and `context` accepts it.
+2. r[std-error.std-types.cause] Their `cause` is the default `.None`.
+3. r[std-error.std-types.display] Each keeps the `Display` text its chapter defines.
+4. r[std-error.std-types.resource] `ResourceError[E]` implements `Display` when `E < Display`. `Operation(error)` displays as `error` does, and `Disposed` as `resource disposed`.
+5. r[std-error.std-types.new] A std error type added later implements `Error` too, and joins this table.
+
+> **Why.** An application error type is the erased `Error` in most
+> scripts. A std error that cannot reach it forces a wrapper type at
+> every call, which Rust's `std::io::Error` and Go's `error` never need.
+
+> **Why.** `ResourceError.Operation` shows its error's text and has no
+> cause, so a report does not print the same text twice.
 
 See also: [Error Trait](../lang/09-traits.md#error-trait),
 [Error Derivation](../lang/14-annotations.md#error-derivation),

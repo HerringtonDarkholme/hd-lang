@@ -1,0 +1,74 @@
+# test: every std error type implements Error, so ? converts it into Result[T, Error] and context wraps it
+# Spec std/error Standard Error Types: std-error.std-types.impl, std-error.std-types.resource (spec pass 89, audit item 2).
+use std.error.{Error, report_of}
+use std.fs.FsError
+use std.json.{Json, parse}
+use std.num.{ParseNumberError, parse_i32}
+use std.path.Path
+use std.resource.ResourceError
+use std.testing.{assert, assert_equal}
+use std.time.Timestamp
+
+fn count(text: string) -> Result[i32, Error]:
+    value := parse_i32(text)?
+    .Ok(value)
+
+fn width(text: string) -> Result[i32, Error]:
+    parse_i32(text).context("reading the width")
+
+fn document(text: string) -> Result[Json, Error]:
+    value := parse(text)?
+    .Ok(value)
+
+fn stamp(text: string) -> Result[Timestamp, Error]:
+    value := Timestamp::parse_rfc3339(text)?
+    .Ok(value)
+
+fn utf8(bytes: List[u8]) -> Result[string, Error]:
+    text := string::from_utf8(bytes)?
+    .Ok(text)
+
+fn read_missing(path: string) -> Result[string, FsError]:
+    .Err(FsError.NotFound(Path(path)))
+
+fn read_closed() -> Result[string, ConsoleError]:
+    .Err(ConsoleError.Closed)
+
+fn read_disposed() -> Result[i32, ResourceError[ParseNumberError]]:
+    .Err(ResourceError.Disposed)
+
+fn missing(path: string) -> Result[string, Error]:
+    text := read_missing(path)?
+    .Ok(text)
+
+fn closed() -> Result[string, Error]:
+    line := read_closed()?
+    .Ok(line)
+
+fn disposed() -> Result[i32, Error]:
+    value := read_disposed()?
+    .Ok(value)
+
+fn message(result: Result[i32, Error]) -> string:
+    match result:
+        .Ok(_) => "ok"
+        .Err(error) => error.to_string()
+
+tests:
+    it("converts with ?"):
+        assert(count("x").is_err(), reason="ParseNumberError")
+        assert_equal(message(width("x")), "reading the width", reason="context")
+        assert(document("[").is_err(), reason="JsonError")
+        assert(stamp("now").is_err(), reason="TimeParseError")
+        assert(utf8([255]).is_err(), reason="Utf8Error")
+        assert(missing("a.txt").is_err(), reason="FsError")
+        assert(closed().is_err(), reason="ConsoleError")
+        assert_equal(message(disposed()), "resource disposed", reason="ResourceError")
+
+    it("wraps with context"):
+        match parse_i32("x").context("reading the count"):
+            .Ok(_) => assert(false, reason="the text is not a number")
+            .Err(error) =>
+                report := report_of(error)
+                assert_equal(report.message, "reading the count", reason="the context message")
+                assert_equal(report.causes.len(), 1, reason="one cause")

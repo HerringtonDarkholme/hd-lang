@@ -201,8 +201,8 @@ pub enum ParseNumberError:
 4. r[std-num.parse.value] Accepted text gives `.Ok` of its digits read in base ten, negated after a `-`.
 5. r[std-num.parse.empty] Empty text gives `.Err(ParseNumberError.Empty)`.
 6. r[std-num.parse.order] Non-empty text is read from left to right, and the first error reached is the result.
-7. r[std-num.parse.invalid-digit] A character that breaks the grammar gives `.Err(ParseNumberError.InvalidDigit(position))`. `position` is its index, counted in characters from 0.
-8. r[std-num.parse.end-of-text] Text that ends where the grammar needs a digit gives `InvalidDigit` at the text's length in characters, so a lone `-` or `+` gives `InvalidDigit(1)`.
+7. r[std-num.parse.invalid-digit-byte] A character that breaks the grammar gives `.Err(ParseNumberError.InvalidDigit(position))`. `position` is its byte offset into the text.
+8. r[std-num.parse.end-of-text-bytes] Text that ends where the grammar needs a digit gives `InvalidDigit` at the text's length in bytes, so a lone `-` or `+` gives `InvalidDigit(1)`.
 9. r[std-num.parse.out-of-range] A digit that takes the value read so far out of the result type's range gives `.Err(ParseNumberError.OutOfRange)`.
 10. r[std-num.parse.error-traits] `ParseNumberError` implements `Eq` and `Display`.
 
@@ -217,7 +217,7 @@ pub enum ParseNumberError:
 | `"2147483648"`, `"99999999999x"` | `.Err(OutOfRange)` |
 
 > **Note.** Every character before `position` is ASCII, so `position` is
-> also a byte offset.
+> also the character's index.
 
 > **Why.** Parsing reads user input, which should not accept source
 > literal syntax. The grammar is Rust's `str::parse` for integers.
@@ -251,7 +251,7 @@ fn ratio(text: string) -> f64:
 9. r[std-num.parse-f64.range] So a value past the finite `f64` range gives an infinity, and a value too small for the smallest subnormal gives a zero. Each keeps the text's sign.
 10. r[std-num.parse-f64.special-value] `nan` gives a NaN, and `inf` and `infinity` give positive infinity, negated by a leading `-`.
 11. r[std-num.parse-f64.empty] Empty text gives `.Err(ParseNumberError.Empty)`.
-12. r[std-num.parse-f64.invalid-digit] Other text is read from left to right. The first character that no continuation of the grammar allows gives `.Err(ParseNumberError.InvalidDigit(position))`, with its index counted in characters from 0.
+12. r[std-num.parse-f64.invalid-digit-byte] Other text is read from left to right. The first character that no continuation of the grammar allows gives `.Err(ParseNumberError.InvalidDigit(position))`, with its byte offset into the text.
 13. r[std-num.parse-f64.text-end] Text that ends before the grammar is complete gives `InvalidDigit` at the text's length in characters, so a lone `-` gives `InvalidDigit(1)` and `in` gives `InvalidDigit(2)`.
 14. r[std-num.parse-f64.no-out-of-range] `parse_f64` never gives `OutOfRange`.
 15. r[std-num.parse-f64.round-trip] For every `f64` value `x`, `parse_f64(x.to_string())` gives `.Ok` of `x`: the same value with the same sign, or a NaN when `x` is a NaN.
