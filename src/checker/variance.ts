@@ -1,6 +1,6 @@
-import type { VarianceMarker } from "../ast.ts";
+import type { ImplDecl, VarianceMarker } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
-import type { HirData, HirEnum, ValueType } from "../hir.ts";
+import type { HirData, HirEnum, HirTrait, ValueType } from "../hir.ts";
 import {
   functionParts,
   mutableInner,
@@ -10,7 +10,12 @@ import {
   tupleParts,
 } from "../types.ts";
 import { functionVariancePairs, isPermissionWeakening } from "./assignability.ts";
-import { genericTypeName } from "./shared.ts";
+import {
+  genericTypeName,
+  resolveGenericType,
+  resolveTraitType,
+  substituteGenericType,
+} from "./shared.ts";
 
 // Declared variance (04-type-system.md#variance). A `+T` parameter may occur
 // only in positive positions of the type's readonly surface and a `-T`
@@ -119,6 +124,87 @@ export function varianceDiagnostics(declarations: Declarations): Diagnostic[] {
       ...declaration.sharedFields,
       ...declaration.variants.flatMap((variant) => variant.fields),
     ]);
+  return diagnostics;
+}
+
+/** Check the public methods callable through a readonly nominal receiver. */
+export function inherentVarianceDiagnostics(
+  declarations: Declarations & { readonly traits: ReadonlyMap<string, HirTrait> },
+  implementations: readonly ImplDecl[],
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  for (const implementation of implementations) {
+    // A trait implementation does not change the nominal declaration's
+    // variance (types.variance.trait-impl).
+    if (implementation.traitName !== undefined) continue;
+    const target = resolveGenericType(
+      implementation.targetName,
+      new Set(implementation.genericParameters),
+    );
+    const nominal = nominalGenericParts(target);
+    if (!nominal || !variancesOf(nominal.name, declarations).some(Boolean)) continue;
+
+    // Use the same signed traversal as fields to account for implementation
+    // parameters renamed from the declaration, including nested targets.
+    // An invariant occurrence or conflicting signs prevents that parameter
+    // from varying in the target at all; it needs no signed method check.
+    const targetOccurrences: [string, Polarity][] = [];
+    occurrences(target, 1, declarations, targetOccurrences);
+    const expected = new Map<string, Polarity>();
+    for (const name of implementation.genericParameters) {
+      const signs = new Set(
+        targetOccurrences.filter(([parameter]) => parameter === name).map(([, sign]) => sign),
+      );
+      if (signs.size === 1 && !signs.has(0)) expected.set(name, [...signs][0]!);
+    }
+    if (expected.size === 0) continue;
+
+    for (const method of implementation.methods) {
+      const receiver = method.parameters[0];
+      // Associated constructors have no receiver view. Mutable receivers
+      // are unavailable through the readonly surface being verified.
+      if (!method.public || receiver?.name !== "self" || receiver.type.name !== "Self") continue;
+
+      const parameters = new Set([
+        ...implementation.genericParameters,
+        ...method.genericParameters,
+        "Self",
+      ]);
+      const substitutions = new Map<string, ValueType>(
+        method.genericParameters.map((name) => [name, `generic:%method.${name}`] as const),
+      );
+      substitutions.set("Self", target);
+      const normalize = (type: ValueType): ValueType =>
+        resolveTraitType(
+          // Rename method binders before replacing Self: an inner T must
+          // not capture the implementation's T inside the receiver type.
+          substituteGenericType(resolveGenericType(type, parameters), substitutions),
+          declarations.traits,
+        );
+      const positions = [
+        ...method.parameters.slice(1).map((parameter) => ({
+          type: parameter.type,
+          polarity: -1 as const,
+        })),
+        { type: method.result, polarity: 1 as const },
+      ];
+      for (const position of positions) {
+        const found: [string, Polarity][] = [];
+        occurrences(normalize(position.type.name), position.polarity, declarations, found);
+        const wrong = found.find(([name, polarity]) => {
+          const wanted = expected.get(name);
+          return wanted !== undefined && wanted !== polarity;
+        });
+        if (!wrong) continue;
+        const marker = expected.get(wrong[0]) === 1 ? "+" : "-";
+        diagnostics.push({
+          code: "invalid-variance",
+          message: `'${marker}${wrong[0]}' occurs in a${wrong[1] === 0 ? "n invariant" : wrong[1] === 1 ? " positive" : " negative"} position`,
+          span: position.type.span,
+        });
+      }
+    }
+  }
   return diagnostics;
 }
 

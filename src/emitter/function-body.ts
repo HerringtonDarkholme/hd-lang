@@ -42,7 +42,6 @@ import {
   traitSuspensionWrapperPollAdapterName,
   traitSuspensionWrapperResultAdapterName,
   traitTypeBase,
-  type LinearSuspensionSite,
   methodBoundParameters,
   andThen,
   matchTestTag,
@@ -54,22 +53,6 @@ import { integerConstant, shiftCount } from "./sized-numeric.ts";
 import { numericType } from "../numeric.ts";
 
 export abstract class FunctionBodyEmitter extends DataEmitter {
-  protected abstract emitLinearContinuation(
-    declaration: HirFunction,
-    sites: readonly LinearSuspensionSite[],
-    startIndex: number,
-    cleanups: readonly (readonly HirStatement[])[],
-  ): string;
-  protected abstract emitSuspensionCompletion(
-    declaration: HirFunction,
-    value: HirExpression | undefined,
-    cleanups: readonly (readonly HirStatement[])[],
-  ): string;
-  protected abstract emitSuspensionCompletionWat(
-    declaration: HirFunction,
-    value: string | undefined,
-    cleanups: readonly (readonly HirStatement[])[],
-  ): string;
   protected abstract emitSuspensionFrameStores(
     declaration: HirFunction,
     storedLocals?: readonly HirLocal[],

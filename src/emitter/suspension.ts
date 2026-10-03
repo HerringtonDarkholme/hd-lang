@@ -116,48 +116,9 @@ const containsDrive = (value: unknown): boolean => {
   return Object.entries(node).some(([key, child]) => key !== "span" && containsDrive(child));
 };
 
-const driveCount = (value: unknown): number => {
-  if (Array.isArray(value)) return value.reduce((count, item) => count + driveCount(item), 0);
-  if (!value || typeof value !== "object") return 0;
-  const node = value as Record<string, unknown>;
-  const self =
-    node.kind === "suspend-drive" ||
-    node.kind === "trait-suspend-drive" ||
-    node.kind === "suspension-drive"
-      ? 1
-      : 0;
-  return (
-    self +
-    Object.entries(node).reduce(
-      (count, [key, child]) => count + (key === "span" ? 0 : driveCount(child)),
-      0,
-    )
-  );
-};
-
+/** Every child drive uses the same control-flow lowering, including direct calls. */
 export function needsSuspensionCfg(declaration: HirFunction): boolean {
-  return declaration.body.some((statement) => {
-    const direct =
-      statement.kind === "binding" ||
-      statement.kind === "assignment" ||
-      statement.kind === "global-binding" ||
-      statement.kind === "global-assignment" ||
-      statement.kind === "discard"
-        ? statement.value
-        : statement.kind === "return" || statement.kind === "break"
-          ? statement.value
-          : statement.kind === "expression"
-            ? statement.expression
-            : undefined;
-    if (!direct || !containsDrive(direct))
-      return statement.kind === "defer" && containsDrive(statement.body);
-    return (
-      (direct.kind !== "suspend-drive" &&
-        direct.kind !== "trait-suspend-drive" &&
-        direct.kind !== "suspension-drive") ||
-      driveCount(direct) > 1
-    );
-  });
+  return containsDrive(declaration.body);
 }
 
 export function buildSuspensionPlan(declaration: HirFunction): SuspensionPlan {
@@ -169,7 +130,8 @@ class SuspensionPlanBuilder {
   private readonly declaration: HirFunction;
   private readonly blocks: Array<SuspensionBlock | undefined> = [];
   private readonly temporaries: HirLocal[] = [];
-  private readonly sites: Extract<SuspensionTerminator, { kind: "suspend" }>[] = [];
+  private readonly sites: Array<Extract<SuspensionTerminator, { kind: "suspend" }> | undefined> =
+    [];
 
   constructor(declaration: HirFunction) {
     this.declaration = declaration;
@@ -190,7 +152,10 @@ class SuspensionPlanBuilder {
           block ?? { id: index, operations: [], terminator: { kind: "unreachable" } },
       ),
       temporaries: this.temporaries,
-      sites: this.sites,
+      sites: this.sites.map((site) => {
+        if (!site) throw new Error("uninitialized suspension site");
+        return site;
+      }),
     };
   }
 
@@ -351,6 +316,7 @@ class SuspensionPlanBuilder {
     const next = continuation(saved ? this.local(saved, value!.span) : undefined);
     const operations: SuspensionOperation[] = [];
     if (saved && value) operations.push({ kind: "assign", local: saved, value });
+    else if (value) operations.push({ kind: "evaluate", value });
     for (const cleanup of [...localCleanups].reverse())
       operations.push({ kind: "cleanup", body: cleanup });
     return this.block(operations, { kind: "jump", target: next });
@@ -364,6 +330,7 @@ class SuspensionPlanBuilder {
       value && value.type !== "void" ? this.temporary(value.type, value.span, "return") : undefined;
     const operations: SuspensionOperation[] = [];
     if (saved && value) operations.push({ kind: "assign", local: saved, value });
+    else if (value) operations.push({ kind: "evaluate", value });
     for (const cleanup of [...cleanups].reverse())
       operations.push({ kind: "cleanup", body: cleanup });
     return this.block(operations, {
@@ -532,18 +499,21 @@ class SuspensionPlanBuilder {
               expression.type === "void"
                 ? undefined
                 : this.temporary(expression.type, expression.span, "resume");
+            // Reserve before lowering the continuation, which may create later sites.
+            const siteIndex = this.sites.length;
+            this.sites.push(undefined);
             const next = continuation(
               resultLocal ? this.local(resultLocal, expression.span) : undefined,
             );
             const terminator: Extract<SuspensionTerminator, { kind: "suspend" }> = {
               kind: "suspend",
-              siteIndex: this.sites.length,
+              siteIndex,
               drive,
               resultLocal,
               next,
               cleanups: context.cleanups,
             };
-            this.sites.push(terminator);
+            this.sites[siteIndex] = terminator;
             return this.block([], terminator);
           },
           context,
@@ -725,9 +695,7 @@ class SuspensionPlanBuilder {
         return this.lowerIf(expression, continuation, context);
       case "list-comprehension":
       case "map-comprehension":
-        return containsDrive(expression)
-          ? this.lowerComprehensionLoops(expression, continuation, context)
-          : continuation(expression);
+        return this.lowerComprehensionLoops(expression, continuation, context);
       case "for":
         return this.lowerFor(expression, continuation, context);
       case "while":
@@ -739,9 +707,9 @@ class SuspensionPlanBuilder {
   }
 
   /**
-   * A comprehension with bang calls runs as the loops it abbreviates, so each
-   * call completes before the next clause, guard, key, or element
-   * (05-expressions.md#r-expr.comp.suspension.sequential).
+   * Comprehensions run as the loops they abbreviate: child calls complete in
+   * order, and propagation exits the enclosing frame rather than its poll
+   * function (05-expressions.md#r-expr.comp.suspension.sequential).
    */
   private lowerComprehensionLoops(
     expression: Extract<HirExpression, { kind: "list-comprehension" | "map-comprehension" }>,

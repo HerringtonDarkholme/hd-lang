@@ -9,6 +9,9 @@ Descriptions of predicted failures below are source deductions, not recorded exe
 The audit-only PR is based on `3f4e24c39bbb8fcf0aa96b207c9891786b98d9fb`, after the required fetch and worktree rebase.
 Source links and coverage refer to the reviewed baseline above; [publication validation](VALIDATION.md) records checks on the newer base.
 
+Subsequent implementation work reproduces and repairs A03's reported suspension exits and A04's placeholder capture, and partially repairs A02's method validation.
+See [repair status and evidence](REPAIRS.md); the first-wave findings and historical coverage below remain baseline evidence.
+
 The scope is [compiler architecture](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/src/README.md), [language semantics](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/README.md), [stdlib semantics](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/std/README.md), [CLI semantics](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/cli/README.md), and [conformance evidence](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/spec/conformance/README.md).
 Relevant recorded directions appear in [AGENTS.md](https://github.com/HerringtonDarkholme/hd-lang/blob/823f346878028aad4a4c9351593217f04445bd4c/AGENTS.md).
 Owner decision history still requires broader reconciliation.
@@ -47,9 +50,9 @@ The finding IDs below consolidate the subsystem reports; one root cause can acco
 | ID | Priority | Consolidated finding | Verification status | Source findings |
 | --- | --- | --- | --- | --- |
 | A01 | High | Resolution loses declaration ownership and binding scope | Confirmed transformations; behavioral probes pending | SOURCE-1, SOURCE-2, SOURCE-4, T5 |
-| A02 | High | Encoded types lose structure; conversion and inference use inconsistent relations | Confirmed collision and algorithm limitations; probes pending | T1, T3, T4 |
-| A03 | High | Three control-flow paths can disagree on language return and suspension completion | Confirmed duplicated paths; specific nested-exit failure requires reproduction | L1 |
-| A04 | High | Generated-source patching can capture legal user identifiers | Confirmed substitution mechanism; end-to-end probe pending | SOURCE-3 |
+| A02 | High | Encoded types lose structure; conversion and inference use inconsistent relations | Public readonly method validation repaired; broader finding open; see REPAIRS.md | T1, T3, T4 |
+| A03 | High | Three control-flow paths can disagree on language return and suspension completion | Reported exits reproduced and repaired; see REPAIRS.md | L1 |
+| A04 | High | Generated-source patching can capture legal user identifiers | Placeholder capture reproduced and repaired; helper-name hygiene unreviewed; see REPAIRS.md | SOURCE-3 |
 | A05 | High | Generic method selection substitutes a syntax blacklist for isolated candidate checking | Confirmed selection branch; unique-fit probe pending | T2 |
 | A06 | High | Public suspension drivers contradict the specified waker protocol | Confirmed emitted polling loops and contradictory rule; public execution probe pending | L2 |
 | A07 | Medium | Runtime contracts depend on reflective rewrites, duplicated ABI rules, and experimental replay identity | Confirmed mechanisms; several behavioral requirements remain unresolved | L3, L4, L5 |

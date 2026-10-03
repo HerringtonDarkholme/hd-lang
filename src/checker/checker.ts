@@ -242,66 +242,74 @@ export class FunctionChecker extends ExpressionControlChecker {
     };
   }
 
+  private checkPropagationExpression(
+    expression: Extract<Expression, { kind: "propagate" }>,
+    expected?: ValueType,
+  ): HirExpression {
+    if (this.deferDepth > 0)
+      this.fail("defer-control-flow", "a defer suite cannot propagate with ?", expression.span);
+    const operand = this.checkPropagationOperand(expression.operand, expected);
+    const optional = optionalInner(operand.type);
+    if (this.inferResult) return this.checkInferredPropagation(expression, operand);
+    if (optional !== undefined) {
+      if (optionalInner(this.signature.result) === undefined) {
+        this.fail(
+          "invalid-result-propagation",
+          `optional propagation requires '${this.signature.name}' to return an optional type`,
+          expression.span,
+        );
+      }
+      return {
+        kind: "propagate",
+        operand,
+        payloadType: optional,
+        successTag: 1,
+        returnType: this.signature.result,
+        type: optional,
+        span: expression.span,
+      };
+    }
+    const parts = resultParts(operand.type);
+    const target = resultParts(this.signature.result);
+    if (!parts)
+      this.fail(
+        "invalid-result-propagation",
+        `? requires an optional or Result operand, found '${operand.type}'`,
+        expression.span,
+      );
+    if (!target) {
+      this.fail(
+        "invalid-result-propagation",
+        "Result propagation requires a function with a compatible Result error type",
+        expression.span,
+      );
+    }
+    if (parts.error !== target.error)
+      return this.checkConvertingPropagation(
+        expression,
+        operand,
+        parts.error,
+        target.error,
+        expected,
+      );
+    return {
+      kind: "propagate",
+      operand,
+      payloadType: parts.ok,
+      successTag: 0,
+      returnType: this.signature.result,
+      type: parts.ok,
+      span: expression.span,
+    };
+  }
+
   protected checkClosureExpression(
     expression: Expression,
     expected?: ValueType,
   ): HirExpression | undefined {
     switch (expression.kind) {
-      case "propagate": {
-        const operand = this.checkPropagationOperand(expression.operand, expected);
-        const optional = optionalInner(operand.type);
-        if (this.inferResult) return this.checkInferredPropagation(expression, operand);
-        if (optional !== undefined) {
-          if (optionalInner(this.signature.result) === undefined) {
-            this.fail(
-              "invalid-result-propagation",
-              `optional propagation requires '${this.signature.name}' to return an optional type`,
-              expression.span,
-            );
-          }
-          return {
-            kind: "propagate",
-            operand,
-            payloadType: optional,
-            successTag: 1,
-            returnType: this.signature.result,
-            type: optional,
-            span: expression.span,
-          };
-        }
-        const parts = resultParts(operand.type);
-        const target = resultParts(this.signature.result);
-        if (!parts)
-          this.fail(
-            "invalid-result-propagation",
-            `? requires an optional or Result operand, found '${operand.type}'`,
-            expression.span,
-          );
-        if (!target) {
-          this.fail(
-            "invalid-result-propagation",
-            "Result propagation requires a function with a compatible Result error type",
-            expression.span,
-          );
-        }
-        if (parts.error !== target.error)
-          return this.checkConvertingPropagation(
-            expression,
-            operand,
-            parts.error,
-            target.error,
-            expected,
-          );
-        return {
-          kind: "propagate",
-          operand,
-          payloadType: parts.ok,
-          successTag: 0,
-          returnType: this.signature.result,
-          type: parts.ok,
-          span: expression.span,
-        };
-      }
+      case "propagate":
+        return this.checkPropagationExpression(expression, expected);
       case "closure": {
         // An optional function type checks the closure against its payload;
         // the caller's coercion then injects it into the optional.

@@ -30,7 +30,7 @@ import { withStandardTraits } from "./standard-traits.ts";
 import { standardUseDiagnostics } from "./standard-uses.ts";
 import { withFunctionTypeConstructors } from "./function-types.ts";
 import { hoistLocalDeclarations } from "./local-declarations.ts";
-import { varianceDiagnostics } from "./variance.ts";
+import { inherentVarianceDiagnostics, varianceDiagnostics } from "./variance.ts";
 import { rowRuleDiagnostics } from "./row-rules.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
 import { defaultBoundDiagnostics, withTypeDefaults } from "./type-defaults.ts";
@@ -186,6 +186,14 @@ function checkProgram(source: Program, options: CheckOptions): CheckResult {
   defineProgramTraits(context);
   validateHostCapabilities(context);
   prepareImplementations(context);
+  // Public methods already have explicit result types: validation above
+  // rejects an omitted result before any declarations are prepared.
+  context.diagnostics.push(
+    ...inherentVarianceDiagnostics(
+      { data: context.dataTypes, enums: context.enumTypes, traits: context.traitTypes },
+      context.program.implementations,
+    ),
+  );
   context.diagnostics.push(...defaultBoundDiagnostics(context));
   checkEmbeddingLimits(context);
   checkEmbeddedMemberConflicts(context);

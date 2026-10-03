@@ -1,12 +1,4 @@
-import type {
-  HirExpression,
-  HirFunction,
-  HirProgram,
-  HirStatement,
-  HirTrait,
-  HirTraitMethod,
-  ValueType,
-} from "../hir.ts";
+import type { HirExpression, HirProgram, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
 import { nominalGenericParts, readonlyType } from "../types.ts";
 
 export const indent = (text: string, spaces = 2): string => {
@@ -53,34 +45,6 @@ export type HirSuspendDrive = Extract<
   HirExpression,
   { kind: "suspend-drive" | "trait-suspend-drive" | "suspension-drive" }
 >;
-
-export interface LinearSuspensionSite {
-  readonly index: number;
-  readonly statementIndex: number;
-  readonly statement: HirStatement;
-  readonly drive: HirSuspendDrive;
-  readonly cleanups: readonly (readonly HirStatement[])[];
-}
-
-function exactStatementDrive(statement: HirStatement): HirSuspendDrive | undefined {
-  const expression =
-    statement.kind === "binding" ||
-    statement.kind === "assignment" ||
-    statement.kind === "global-binding" ||
-    statement.kind === "global-assignment" ||
-    statement.kind === "discard"
-      ? statement.value
-      : statement.kind === "return" || statement.kind === "break"
-        ? statement.value
-        : statement.kind === "expression"
-          ? statement.expression
-          : undefined;
-  return expression?.kind === "suspend-drive" ||
-    expression?.kind === "trait-suspend-drive" ||
-    expression?.kind === "suspension-drive"
-    ? expression
-    : undefined;
-}
 
 export const traitSuspensionName = (traitIndex: number, methodIndex: number): string =>
   `$ts${traitIndex}_${methodIndex}`;
@@ -132,26 +96,6 @@ export function suspensionCancel(drive: HirSuspendDrive, frame: string): string 
   return `(call $hd.suspension_cancel ${frame})`;
 }
 
-export function linearSuspensionSites(declaration: HirFunction): readonly LinearSuspensionSite[] {
-  const sites: LinearSuspensionSite[] = [];
-  const cleanups: Array<readonly HirStatement[]> = [];
-  declaration.body.forEach((statement, statementIndex) => {
-    if (statement.kind === "defer") {
-      cleanups.push(statement.body);
-      return;
-    }
-    const drive = exactStatementDrive(statement);
-    if (drive)
-      sites.push({
-        index: sites.length,
-        statementIndex,
-        statement,
-        drive,
-        cleanups: [...cleanups],
-      });
-  });
-  return sites;
-}
 export const providerWatType = (
   requirement: string,
   traits: ReadonlyMap<string, HirTrait>,

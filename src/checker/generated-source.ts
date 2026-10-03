@@ -23,12 +23,12 @@ export class Source_ {
 
   expression(expression: Expression): string {
     this.expressions.push(expression);
-    return `hdexpr${this.expressions.length - 1}`;
+    return placeholder(0, this.expressions.length - 1);
   }
 
   type(type: string): string {
     this.types.push(type);
-    return `HDTYPE${this.types.length - 1}X`;
+    return placeholder(1, this.types.length - 1);
   }
 
   string(text: string): string {
@@ -53,36 +53,121 @@ export class Source_ {
    * `rename` may rewrite the text first.
    */
   program(span: SourceSpan, rename: (text: string) => string = (text) => text): Program {
-    const source = rename(`${[...this.lines, ...this.definitions].join("\n")}\n`);
+    const template = rename(`${[...this.lines, ...this.definitions].join("\n")}\n`);
+    const expressionNames = new Map<string, Expression>();
+    const typeNames = new Map<string, string>();
+    const handles = new Map<string, string>();
+    // Handles contain NUL, which cannot occur in a source identifier. Only
+    // deliberate interpolations become placeholder tokens; user spellings do
+    // not. Allocate tokens after renaming and exclude every spelling already
+    // present in the generated source, including copied user identifiers.
+    const source = template.replace(/\0([01]):(\d+)\0/g, (handle, kind: string, index: string) => {
+      const previous = handles.get(handle);
+      if (previous !== undefined) return previous;
+      let suffix = handles.size;
+      let name = `hd__generated_${suffix}`;
+      while (template.includes(name) || expressionNames.has(name) || typeNames.has(name))
+        name = `hd__generated_${++suffix}`;
+      handles.set(handle, name);
+      if (kind === "0") {
+        const expression = this.expressions[Number(index)];
+        if (!expression) throw new Error("unknown generated expression handle");
+        expressionNames.set(name, expression);
+      } else {
+        const type = this.types[Number(index)];
+        if (type === undefined) throw new Error("unknown generated type handle");
+        typeNames.set(name, type);
+      }
+      return name;
+    });
     const parsed = parse(source);
     if (!parsed.program)
       throw new Error(
         `typed derivation generated invalid source: ${parsed.diagnostics.map((item) => `${item.code} ${item.message} at ${item.span.start.line}`).join("; ")}\n${source}`,
       );
-    const types = this.types;
-    const expressions = this.expressions;
     const lineSpans = this.lineSpans;
     const spanOf = (parsed: unknown): SourceSpan =>
       lineSpans.get((parsed as SourceSpan).start.line - 1) ?? span;
-    const patch = (node: unknown, key?: string): unknown => {
-      if (Array.isArray(node)) return node.map((item) => patch(item));
+    const patch = (node: unknown, typePosition = false): unknown => {
+      if (Array.isArray(node)) return node.map((item) => patch(item, typePosition));
       if (typeof node === "string")
-        return key === "value"
-          ? node
-          : node.replace(/HDTYPE(\d+)X/g, (_, index: string) => types[Number(index)]!);
+        return typePosition
+          ? node.replace(
+              /[\p{ID_Start}_][\p{ID_Continue}]*/gu,
+              (name) => typeNames.get(name) ?? name,
+            )
+          : node;
       if (!node || typeof node !== "object") return node;
       const record = node as Record<string, unknown>;
       if (record.kind === "name" && typeof record.name === "string") {
-        const match = /^hdexpr(\d+)$/.exec(record.name);
-        if (match) return expressions[Number(match[1])];
+        const expression = expressionNames.get(record.name);
+        if (expression) return expression;
       }
       const result: Record<string, unknown> = {};
       for (const [entry, value] of Object.entries(record))
-        result[entry] = entry === "span" ? spanOf(value) : patch(value, entry);
+        result[entry] =
+          entry === "span"
+            ? spanOf(value)
+            : patch(
+                value,
+                typePosition ||
+                  isTypePosition(entry, value) ||
+                  (entry === "value" && isTypeRef(value)),
+              );
       return result;
     };
     return patch(parsed.program) as Program;
   }
+}
+
+// TypeRef positions, collections of TypeRefs, and the AST's string-encoded
+// type uses. Member names, variant names, binding names, and literal contents
+// are never type positions.
+const TYPE_POSITIONS = new Set([
+  "type",
+  "result",
+  "annotation",
+  "alias",
+  "base",
+  "typeArguments",
+  "ownerTypeArguments",
+  "supertraits",
+  "derives",
+  "mutPrimitives",
+  "mutTuples",
+  "genericDefaults",
+  "targetName",
+  "traitName",
+  "typeName",
+  "enumName",
+  "traits",
+  "trait",
+  "requirements",
+  "writtenRequirements",
+]);
+
+function isTypePosition(key: string, value: unknown): boolean {
+  if (!TYPE_POSITIONS.has(key)) return false;
+  if (key === "genericDefaults") return true;
+  return (
+    typeof value === "string" ||
+    isTypeRef(value) ||
+    (Array.isArray(value) && value.every((item) => typeof item === "string" || isTypeRef(item)))
+  );
+}
+
+function isTypeRef(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.name === "string" &&
+    "span" in record &&
+    Object.keys(record).every((key) => key === "name" || key === "span")
+  );
+}
+
+function placeholder(kind: 0 | 1, index: number): string {
+  return `\0${kind}:${index}\0`;
 }
 
 const ZERO_POSITION = { line: 1, column: 1, offset: 0 };

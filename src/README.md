@@ -1082,9 +1082,10 @@ else`, `break`, `break value`, and `continue`;
   links FILE, as the package path PATH, with every `.hd` file under DIR,
   entered at FILE's module, and reports each diagnostic in the file it
   points into. Package dependencies (`package-cycle`) are not modeled;
-- suspension CFG lowering for bang calls nested in expressions, call
-  arguments, short-circuiting, branches, loops, match guards, propagation, and
-  provider scopes, with scoped cleanup and cancellation;
+- one suspension CFG lowering for every function containing child drives,
+  including direct calls, nested expressions, call arguments, short-circuiting,
+  branches, loops, match guards, propagation, comprehensions, and provider scopes,
+  with scoped cleanup and cancellation;
 - a frame-level poll ABI that returns readiness separately from the stored
   result, plus host-visible construction, poll, ready, cancellation, and
   invalid-state trace events;
