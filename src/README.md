@@ -1460,7 +1460,9 @@ What remains:
   them into a program.
 - `suspension.ts` lowers suspending HIR into explicit resumable control flow.
 - `wasm.ts` parses, validates, and emits Wasm with pinned Binaryen. It
-  imports Binaryen on the first assembly, which costs about 200 ms.
+  imports Binaryen on the first assembly, which costs about 200 ms. Before
+  emitting, it runs Binaryen's `remove-unused-module-elements` pass, which
+  drops the imports, globals, and types nothing uses.
 - `compiler.ts` exposes the in-process compiler API. `compileToWat` is
   synchronous and stops at WAT: it parses, checks, lowers to HIR, and emits
   WAT, and never loads Binaryen. `compileToWasm` is asynchronous and adds
