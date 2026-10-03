@@ -12,6 +12,7 @@ import type {
   ValueType,
 } from "../hir.ts";
 import { NOMINAL_HEAD } from "./implementation-index.ts";
+import { PRELUDE_NAMES } from "./prelude-names.ts";
 import {
   contextKeys,
   functionParts,
@@ -1144,10 +1145,12 @@ export function firstPrivateSignatureType(type: ValueType, program: Program): st
   }
   const nominal = nominalGenericParts(type);
   const base = nominal?.name ?? type;
+  // A program declaration of a prelude name is a `prelude-name-shadow`
+  // error and declares nothing (10-modules.md#r-module.prelude.no-shadow).
+  const named = (candidate: { readonly name: string; readonly standard?: boolean }): boolean =>
+    candidate.name === base && (candidate.standard === true || !PRELUDE_NAMES.has(base));
   const declaration =
-    program.data.find((candidate) => candidate.name === base) ??
-    program.enums.find((candidate) => candidate.name === base) ??
-    program.traits.find((candidate) => candidate.name === base);
+    program.data.find(named) ?? program.enums.find(named) ?? program.traits.find(named);
   if (declaration && !declaration.public) return base;
   if (nominal) {
     for (const argument of nominal.arguments) {

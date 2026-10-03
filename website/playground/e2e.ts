@@ -214,10 +214,10 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await page.getByText("WAT copied").waitFor();
     const copied = await page.evaluate(() => navigator.clipboard.readText());
     assert.ok(copied.startsWith("(module"));
-    assert.equal(
-      copied.replace(/\n$/, "").split("\n").length,
-      await page.locator(".wat-line").count(),
-    );
+    // The view shows at most the first 5,000 lines; the copy has them all.
+    const copiedLines = copied.replace(/\n$/, "").split("\n").length;
+    assert.equal(await page.locator(".wat-line").count(), Math.min(copiedLines, 5000));
+    assert.equal(await page.locator(".wat-truncated").isVisible(), copiedLines > 5000);
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       page.click("#wat-download"),

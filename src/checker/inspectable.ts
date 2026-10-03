@@ -54,11 +54,12 @@ const PRIMITIVES = new Set([
   "string",
 ]);
 
-/** Whether the module imported the standard runtime type identity surface. */
+/**
+ * Whether the module, or a std module it joins, such as `std.error`, imported
+ * the standard runtime type identity surface.
+ */
 export function usesStandardInspect(imports: ReadonlyMap<string, string>): boolean {
-  return [...imports.values()].some(
-    (imported) => imported.startsWith("std.inspect.") || imported === "std.error.Error",
-  );
+  return [...imports.values()].some((imported) => imported.startsWith("std.inspect."));
 }
 
 export function isDowncastValImport(imports: ReadonlyMap<string, string>, name: string): boolean {

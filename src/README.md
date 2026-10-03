@@ -681,9 +681,8 @@ else`, `break`, `break value`, and `continue`;
   generic ones too, passing the dictionaries of the implementation's
   bounds. `std.cmp` implements `Eq` for lists, optionals, `Result`, and
   maps, and `PartialOrd` and `Ord` for lists and optionals (`.None` first),
-  in hd, and tuples through its tuple templates; the loader adds them when
-  a program, or std code it gets, mentions a comparison trait, a comparison
-  operator, or `assert_equal`. Primitives also satisfy `Eq` and
+  in hd, and tuples through its tuple templates; the prelude uses
+  `std.cmp`, so every program gets them. Primitives also satisfy `Eq` and
   `PartialOrd` bounds (floats included, with IEEE equality), and the ones
   without floats satisfy `Ord`; `PartialOrd < Eq` and `Ord < PartialOrd`, so
   each generated dictionary carries its supertrait's; primitives satisfy
@@ -775,8 +774,10 @@ else`, `break`, `break value`, and `continue`;
   `process_escapes` (which returns `Result[string, EscapeError]` with the byte offset of
   the bad escape) in hd; a `\u{...}` escape writes its scalar through
   `char`'s `Display`;
-- imported `std.convert.From[T]` and `std.error.Error` as trait
-  declarations in the compiled module; `?` on a `Result` converts the error
+- `std.convert.From[T]` and `std.error.Error` as hd trait
+  declarations in `lib/std/convert.hd` and `lib/std/error.hd`; the
+  prelude uses `std.convert`, so every program declares `From`, and `?`
+  finds it by its standard name whether or not the module imports it; `?` on a `Result` converts the error
   by one assignability rule or one `From` call, `Type::from(x)` selects the
   `From` instantiation by argument type, and a single-payload variant
   constructor is a function value (a dynamic trait value does not yet
@@ -832,11 +833,11 @@ else`, `break`, `break value`, and `continue`;
   rest element, as a generic implementation over the element types, such
   as `impl[hd_E0 < Eq, hd_E1 < Eq] Eq for (hd_E0, hd_E1)`
   (`checker/tuple-templates.ts`). Shapes need no inferred types: the pass
-  reads them, and the names a program mentions, from the program as the
-  std join will declare it, without std implementation bodies. It
-  instantiates the program's own tuple templates for every shape, and
-  std's (`Eq`, `PartialOrd`, `Ord`, `Hash`, `Debug`, `Display`, `Default`)
-  for the traits mentioned, with their supertraits. A rest member is one
+  reads them from the program as the std join will declare it, without
+  std implementation bodies. It instantiates the program's own tuple
+  templates for every shape, and std's (`Eq`, `PartialOrd`, `Ord`,
+  `Hash`, `Debug`, `Display`, `Default`) for every one of those traits
+  the program sees: the prelude's, and the ones it imports. A rest member is one
   `List[T]` member; its item type takes the bound of the walker's `rest`,
   or of the trait's `List[T]` implementation, and a shape with neither,
   as `Hash` has, gets no instance. Generated `walk` calls `rest` only on a
@@ -963,8 +964,8 @@ else`, `break`, `break value`, and `continue`;
   witness is read from `h` again, so only a handle named by a local gets
   the exemption; a handle of a generic target whose parameter has no
   `Inspectable` bound names that parameter by its text;
-- runtime type identity: importing a `std.inspect` name or `std.error.Error`
-  declares `lib/std/inspect.hd` under its standard names: the sealed
+- runtime type identity: importing a `std.inspect` name, as `std.error`
+  does, declares `lib/std/inspect.hd` under its standard names: the sealed
   `Inspectable` (`std.error.Error` extends it) and `TypeId`, a data type
   holding the canonical printable name (an inner
   `mut` kept, the outer `mut` dropped); every
@@ -994,8 +995,9 @@ else`, `break`, `break value`, and `continue`;
   are the members it names, so `self` and unnamed shared data are unknown
   names there; a cause or transparent member goes through a bounded helper
   on a line with the member's span, so a member that is not an `Error` is
-  `unsatisfied-trait-bound` there. Without `use std.error.Error` or
-  `use std.convert.From`, the pass imports them under hidden names. The
+  `unsatisfied-trait-bound` there. Without `use std.error.Error`, the
+  pass imports it under its hidden name; `From` keeps its hidden name
+  unless the module imports it. The
   declared `std.error.Error` has `fn cause(self) -> Error?` with a `.None`
   default (spec/lang/09-traits.md#r-trait.error.cause); an optional trait value
   type such as `Error?` is a known type, and a value of `T < Trait` erases
@@ -1044,10 +1046,7 @@ else`, `break`, `break value`, and `continue`;
   and its `impl Source for ArbitrarySource` from the std source, with the
   program's names (`standardTemplate` in `checker/standard-library.ts`);
   the std join drops both, since they name `std.structure`, which the
-  pass declares only for a program that derives. A std module's `use`
-  whose names only its template parts mention, such as `std.testing`'s
-  `std.inspect` and `std.testing.arbitrary` names, joins nothing by itself; a
-  derivation that instantiates the template brings it in. The source picks the
+  pass declares only for a program that derives. The source picks the
   first variant whose `self_ref` is not `.Required` as the simplest, at
   drawn index 0, and fails with `NoFiniteValue` when no variant is finite,
   which the template reports as the panic `"${T::name()} has no finite
@@ -1138,9 +1137,7 @@ else`, `break`, `break value`, and `continue`;
   A key type meets the declared bound `Map[K < Eq & Hash, V]`
   (types.map-key.declared-bound) through non-generic `Eq` and `Hash`
   implementations, std's `Eq` and `Hash` for the primitives included, or a type
-  parameter's own bounds; a `mut` key type is `invalid-map-key`. The loader
-  adds `Eq` and `Hash` for any code that mentions `Map` or writes a map literal or
-  comprehension. An `i32`-like scalar or a string key compares directly; any
+  parameter's own bounds; a `mut` key type is `invalid-map-key`. An `i32`-like scalar or a string key compares directly; any
   other key, `i64` and `u64` included, compares through a wrapper of its
   type's `Eq`; and a map over a type-parameter key
   (key kind 3) compares its keys through the bound's `Eq` dictionary, which
@@ -1195,7 +1192,7 @@ does not implement the canonical prelude trait.
 
 The toy standard library is hd source in the top-level
 [`lib/std/`](../lib/std/) directory, next to `src/` as in Zig, one file per
-module: `std.annotation`, `std.cmp`, `std.collections`, `std.hash`, `std.console`, `std.format`, `std.function`, `std.iter`, `std.num`, `std.ops`,
+module: `std.annotation`, `std.cmp`, `std.collections`, `std.convert`, `std.error`, `std.hash`, `std.console`, `std.format`, `std.function`, `std.iter`, `std.num`, `std.ops`,
 `std.option`, `std.process`, `std.resource`, `std.result`, `std.testing`, `std.text`, and `std.time`,
 with a submodule in a subdirectory: `std.testing.arbitrary` is
 `lib/std/testing/arbitrary.hd`. Two more files are declared by a
@@ -1204,51 +1201,74 @@ by typed derivation, which runs before the join, and `std.inspect`
 (`lib/std/inspect.hd`) by `checker/standard-traits.ts`. It
 follows the specification's stdlib tier (`spec/std/`); open points are
 in [Open Issues](../future-work/OPEN_ISSUES.md).
-`checker/standard-sources.ts` reads the files, and
-`checker/standard-library.ts` joins what a program uses into the one module
-the prototype compiles:
+`checker/standard-sources.ts` reads the files.
 
-- a module's declarations are added when the program imports one of its
-  types or traits, as in `use std.cmp.Reverse`, each under the local name
-  or alias, and the rest under hidden names such as `__std_cmp_clamp`. A
-  module's own `use std.<module>.<Name>` lines pull in that module the
-  same way. An imported function, as in `use std.cmp.{max, min}` or
-  `use std.testing.assert`, is added alone under its local name, with the
-  declarations its body reaches;
+The prelude is the file `lib/std/prelude.hd`, `std.prelude` to the loader,
+which holds only `use` lines
+([`module.prelude.fixed-uses`](../spec/lang/10-modules.md#r-module.prelude.fixed-uses)):
+
+- its `pub use` lines name exactly the specification's prelude table, as
+  `pub use std.cmp.{Eq, PartialOrd, Ord, Ordering}`. Every module, user or
+  std, has those names, as if it began with those lines.
+  `checker/prelude-names.ts` reads `PRELUDE_NAMES`, which no declaration
+  or binding may shadow, and each name's module, which a same-name `use`
+  may repeat, from them. `std.core`, `ConsoleError`, `it`, and the
+  `std.task` names are compiler-provided;
+- its private `use` lines name what the compiler calls without a `use` in
+  the program: `std.convert.From` for `?`, the operator, index, call, and
+  range types of `std.ops`, and the modules whose inherent methods on
+  built-in types need no `use`
+  ([`trait.own.inherent.std`](../spec/lang/09-traits.md#r-trait.own.inherent.std)):
+  `std.text`, which also holds the string kernel, `std.option`,
+  `std.result`, `std.collections`, and `std.num`;
+- a program cannot `use std.prelude` (`unknown-module`), since the
+  specification names no such module.
+
+`checker/standard-library.ts` joins a program's use graph into the one
+module the prototype compiles:
+
+- the graph holds `std.prelude`, every std module that a `use` of the
+  program reaches, and every std module that a `use` of a joined module
+  reaches, transitively. A `use` reaches the module its path names, as
+  `std.cmp` for `use std.cmp.{max}`, or a module it names itself, as
+  `use std.text`. Nothing else adds a module: no name a program
+  mentions, selects, or calls does;
+- every joined module joins whole: its declarations, its implementations,
+  and its inherent methods on built-in types, which only `std` sources may
+  declare (`ImplDecl.standard`). Its templates and `std.structure`
+  protocol implementations are left to typed derivation;
+- a declaration is declared under the program's local name or alias when
+  the program imports it, as in `use std.cmp.Reverse`, under its own name
+  when it is a prelude name, and otherwise under a hidden name such as
+  `__std_cmp_clamp`. A prelude name that the program binds to a declaration
+  of its own, a `prelude-name-shadow` error, leaves the prelude's
+  declaration under its hidden name;
+- a `use` of a compiler-provided name in a joined module, such as
+  `std.console`'s `use std.task.block_on` or `std.error`'s
+  `use std.inspect.{Inspectable}`, becomes a program `use` under a hidden
+  name, or under the standard name for `std.inspect`;
 - a `use` that names a std submodule, as `use std.testing.arbitrary`,
   imports the module. The prototype has no module values, so
   `withStandardSubmodules` makes each call through it of a function the
   module declares, as `arbitrary.with(gen)`, a call by the function's
-  hidden name, `__std_testing_arbitrary_with`, which the join adds;
-- an inherent implementation on a built-in type (`impl string:`,
-  `impl[T] T?:`, `impl[T, E] Result[T, E]:`, `impl[T] List[T]:`,
-  `impl i32:`) needs no `use`
-  ([`trait.own.inherent.std`](../spec/lang/09-traits.md#r-trait.own.inherent.std)).
-  Only the methods whose names the program selects with `.name` are added,
-  to a fixed point over the added bodies; only `std` sources may declare
-  them (`ImplDecl.standard`). The normative `List.map` and `T?.map` are
-  among them;
-- such a method's body adds only the module declarations it reaches, such
-  as `std.text`'s byte primitives, not the whole module;
-- a std trait's implementation for a built-in type, such as the primitive
-  `impl Add[i32] for i32` of `std.ops` or `impl Num for i32` of `std.num`,
-  is added only when the program, or a std declaration it gets, names the
-  trait, so that `use std.ops.num_suffix` does not add every operator
-  implementation. One on a tuple, such as `Arbitrary` for `(A, B)`, also
-  needs code that mentions a tuple type, expression, or pattern;
-- a prelude name that std declares, such as `Eq`, `Display`, or `Console`,
-  is added when the program, or a std declaration it gets, mentions it. A
-  comparison operator or `assert_equal` mentions `Eq`, and `<` also
-  `PartialOrd`; an interpolated string or a `to_string` call mentions
-  `Display`. The checker finds them by name, which no program may
-  shadow;
-- every added declaration's span is the `use` that brought it in, or the
-  program's span.
+  hidden name, `__std_testing_arbitrary_with`, and rewrites the `use` to
+  import the function under that name;
+- every added declaration's span is the `use` of the program that reaches
+  its module, or the program's span when only the prelude does.
+
+A program that uses no std module therefore gets every module but
+`std.error` and `std.resource`: the prelude reaches `std.testing`
+through `it`, and `std.testing` reaches `std.process`, `std.time`, and
+`std.testing.arbitrary`. With no reachability pass, a trivial program
+compiles to about 1,900 Wasm functions.
 
 What it provides:
 
 | Module | Contents |
 | --- | --- |
+| `std.prelude` | `use` lines only: the prelude names as `pub use` lines, and the private uses of `std.convert`, `std.ops`, `std.text`, `std.option`, `std.result`, `std.collections`, and `std.num` |
+| `std.convert` | `From`, which the prelude uses for `?` but does not re-export |
+| `std.error` | `Error`, which uses `std.inspect.Inspectable` as its supertrait |
 | `std.annotation` | `facts_of`, with an `@intrinsic("facts_of")` body that never runs: the checker lowers each call to a builder that `checker/function-facts.ts` generates. `Target`, `Annotate`, and `annotate`, which limit a fact type's target kinds |
 | `std.hash` | `Hash` and `Hasher` (prelude names), and `Hash` for `string`, `bool`, `char`, and every integer type, and its tuple template; no standard hasher, which the specification does not name |
 | `std.task` | `retry!`, and `race!`, which drives the frame of the `@intrinsic("task_race_frame")` builder; `all!`'s frame builder, `@intrinsic("task_all_frame")`; `block_on`, `all!` (which has no written signature), and `Waker` stay compiler-provided names of the module |
@@ -1281,9 +1301,7 @@ The string kernel is hd code in `std.text` too: string `+` and
 interpolation compile to a call of `string_concat`, `==` and `!=` (and a
 string match pattern, a string map key, and a `TypeId` comparison) to
 `string_equal`, and `<`, `<=`, `>`, `>=` to `string_compare`. Every
-program declares the three, with the byte primitives they call
-(`checker/standard-library.ts`); their bodies' byte comparisons do not
-declare `Eq` or `PartialOrd`.
+program declares them, since the prelude uses `std.text`.
 Prototype limits: no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no `Set` (the specification does not define it,
 and a map built in generic code has no key equality for a type-parameter
 key, so a generic `Set.new()` could not create its map), and no host `ConsoleInput`; a `BufferConsole` records both direct
@@ -1398,7 +1416,7 @@ marks what this refactor removed.
 | Checker | `block_on`, `all!`, `race!`, `facts_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `race!` is hd code in `lib/std` over the `task_race_frame` runtime primitive, and `facts_of` is declared there, so only its `@intrinsic` name is known; `all!` has no written signature, so the checker types it by name and lowers it to a drive of the `task_all_frame` primitive's frame. `facts_of` lowers to a call of a generated hd builder over `std.structure`'s `Facts`, with no HIR node |
 | Checker | `Duration` for test `timeout` | `std.time` | Done: `case_timeout` in `lib/std/testing.hd` takes the `Duration` (migration M3) |
 | Checker | `ExitCode` and `Termination` for entry results (`standard-traits.ts`, `termination.ts`) | `std.process` | Remains: language hooks that name a std type; the declarations are already hd |
-| Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Done, except `Any` (`std.core`) and `Waker` (`std.task`), which have no `lib/std` file: the rest are hd in `std.cmp`, `std.format`, and `std.iter`, declared when a program mentions them (migration M2) |
+| Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Done, except `Any` (`std.core`) and `Waker` (`std.task`), which have no `lib/std` file: the rest are hd in `std.cmp`, `std.format`, and `std.iter`, which every program joins through `lib/std/prelude.hd` (migration M2) |
 | HIR | `display`, with the emitter's `emitPrimitiveDisplay`, the built-in `Display` dictionary, four `runtime.wat` digit and `char` helpers, and `float.wat` | `std.format` | Done: `Display` for `string`, `bool`, `char`, and the numbers is hd in `lib/std/format.hd`; a `char`'s and a float's text come from host functions (migration M6) |
 | Emitter | the `pow_f64` and `rem_f64` imports | `**` and floating `%` | Remains: operator support |
 | Checker, emitter | `Eq`, `PartialOrd`, and `Ord` dictionaries for the primitives built from the operator strategies (the `equality`, `ordering`, and `total-ordering` builtin kinds and their adapters), and a map key's primitive `Eq` | `std.cmp` | Done: `@intrinsic` methods in `lib/std/cmp.hd`, so `(1).cmp(2)` is an ordinary method call; `==` and `<` on a primitive still lower inline |
@@ -1421,9 +1439,8 @@ rules with no checker case of its own
 Its `.Err` panic is an ordinary `panic` call. `block_on` is a
 compiler-provided name that `lib/std/task.hd` does not declare: the loader
 keeps a std module's `use std.task.block_on` line as a program `use` under
-a hidden name, so the call is an ordinary `block_on` call. The loader adds
-`println` under its own name when a program mentions it, because
-`println` is a prelude name.
+a hidden name, so the call is an ordinary `block_on` call. The prelude
+re-exports `println`, so every program declares it under its own name.
 
 The compiled module is the entry module, so its top-level statements may
 call `block_on` and `println`
@@ -1451,7 +1468,7 @@ What remains:
 - `emitter/` lowers HIR to readable WAT and exposes only `emitter/index.ts`.
 - `checker/standard-sources.ts` reads the toy standard library's hd
   sources from the top-level `lib/std/`; `checker/standard-library.ts` joins
-  them into a program.
+  the modules of a program's use graph into it.
 - `suspension.ts` lowers suspending HIR into explicit resumable control flow.
 - `wasm.ts` parses, validates, and emits Wasm with pinned Binaryen. It
   imports Binaryen on the first assembly, which costs about 200 ms.

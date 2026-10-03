@@ -304,10 +304,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
     .flatMap((use) => use.names)
     .find((imported) => imported.name === "Arbitrary");
   const arbitraryName = arbitrary && (arbitrary.alias ?? arbitrary.name);
-  const standardTemplates = new Map<
-    string,
-    { readonly support: readonly ImplDecl[]; readonly uses: readonly UseDecl[] }
-  >();
+  const standardTemplates = new Map<string, { readonly support: readonly ImplDecl[] }>();
   const loadStandard = (name: string): void => {
     if (templates.has(name) || localTraits.has(name)) return;
     const standard = standardTemplate(program, name, renames);
@@ -419,7 +416,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
 
   // A newtype forwards to its base type, so only a type's derivation uses them.
   const usedStandard = new Set(derivations.map((derivation) => derivation.trait));
-  const { templateSupport, templateUses } = templateParts([
+  const templateSupport = templateParts([
     ...[...standardTemplates].filter(([trait]) => usedStandard.has(trait)).map(([, item]) => item),
     ...(shapes.length > 0 ? standardTuples.values() : []),
   ]);
@@ -518,7 +515,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
     ...trait,
     strengthenableMembers: ["member", "rest"],
   }));
-  const alreadyImportsInspectable = [...program.uses, ...templateUses].some(
+  const alreadyImportsInspectable = program.uses.some(
     (use) => use.module === "std.inspect" && use.names.some((name) => name.name === "Inspectable"),
   );
   return {
@@ -528,7 +525,6 @@ export function withTypedDerivation(source: Program): DerivationResult {
       statements: [...generated.flatMap((item) => item.statements), ...program.statements],
       uses: [
         ...program.uses.filter((use) => use.module !== STRUCTURE_MODULE),
-        ...templateUses,
         ...(needsStructure
           ? [
               alreadyImportsInspectable
@@ -569,20 +565,12 @@ export function withTypedDerivation(source: Program): DerivationResult {
   };
 }
 
-/**
- * The walker and source implementations of the std templates in use, and
- * the names only they use, once each.
- */
+/** The walker and source implementations of the std templates in use, once each. */
 function templateParts(
-  standards: readonly {
-    readonly support: readonly ImplDecl[];
-    readonly uses: readonly UseDecl[];
-  }[],
-): { readonly templateSupport: ImplDecl[]; readonly templateUses: UseDecl[] } {
+  standards: readonly { readonly support: readonly ImplDecl[] }[],
+): ImplDecl[] {
   const supportKeys = new Set<string>();
   const templateSupport: ImplDecl[] = [];
-  const templateUses: UseDecl[] = [];
-  const useKeys = new Set<string>();
   for (const standard of standards) {
     for (const implementation of standard.support) {
       const key = `${implementation.traitName} ${implementation.targetName}`;
@@ -590,14 +578,8 @@ function templateParts(
       supportKeys.add(key);
       templateSupport.push(implementation);
     }
-    for (const use of standard.uses) {
-      const key = `${use.module} ${use.names.map((name) => name.alias ?? name.name).join(",")}`;
-      if (useKeys.has(key)) continue;
-      useKeys.add(key);
-      templateUses.push(use);
-    }
   }
-  return { templateSupport, templateUses };
+  return templateSupport;
 }
 
 /** The known type of a member line's right side (annot.line.right-typed). */

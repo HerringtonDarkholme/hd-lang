@@ -1,18 +1,9 @@
-import type { DataDecl, ImplDecl, Program, TraitDecl } from "../ast.ts";
+import type { Program } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { standardSource } from "./standard-sources.ts";
 
-// Standard traits that a module imports rather than receiving from the
-// prelude (spec/lang/09-traits.md#conversion-trait and #error-trait). The prototype
-// compiles one module, so an imported standard trait is declared in it under
-// its local name, with every span pointing at the use declaration.
-const STANDARD_TRAITS: Readonly<Record<string, (name: string) => string>> = {
-  "std.convert.From": (name) => `trait ${name}[T]:\n    fn from(value: T) -> Self\n`,
-  "std.error.Error": (name) =>
-    `trait ${name} < Display & ${INSPECTABLE}:\n    fn cause(self) -> ${name}?: .None\n`,
-};
-
+/** The conversion trait that postfix `?` calls (spec/lang/09-traits.md#conversion-trait). */
 export const STANDARD_FROM = "std.convert.From";
 
 /** The sealed marker trait that every tuple type implements (07-functions.md#r-fn.type.ctor.tuple-trait). */
@@ -40,7 +31,7 @@ export const HIDDEN_EXIT_CODE = "__std_process_ExitCode";
 export const HIDDEN_TERMINATION = "__std_process_Termination";
 
 // Runtime type identity (spec/lang/09-traits.md#runtime-type-identity). Importing
-// any `std.inspect` name, or `std.error.Error`, declares `lib/std/inspect.hd`,
+// any `std.inspect` name, as `std.error` does, declares `lib/std/inspect.hd`,
 // the sealed trait and `TypeId`, under their standard names; aliases are not
 // supported. The `downcast` methods, `downcast_val`, and `TypeId::of` are
 // checker intrinsics, so the trait's dictionary holds `runtime_type` alone.
@@ -57,7 +48,6 @@ const INSPECT_IMPORTS = new Set([
   "std.inspect.Inspectable",
   "std.inspect.TypeId",
   STANDARD_DOWNCAST_VAL,
-  "std.error.Error",
 ]);
 
 function respan<T>(value: T, span: SourceSpan): T {
@@ -69,36 +59,22 @@ function respan<T>(value: T, span: SourceSpan): T {
   return result as T;
 }
 
-/** Declares each imported standard trait in the program under its local name. */
+/**
+ * Declares `std.inspect` when the program, or a std module it joins, such as
+ * `std.error`, uses one of its names.
+ */
 export function withStandardTraits(program: Program): Program {
-  const traits: TraitDecl[] = [];
-  const data: DataDecl[] = [];
-  const implementations: ImplDecl[] = [];
-  let inspect: SourceSpan | undefined;
-  for (const declaration of program.uses) {
-    for (const imported of declaration.names) {
-      const qualified = `${declaration.module}.${imported.name}`;
-      if (INSPECT_IMPORTS.has(qualified)) inspect ??= declaration.span;
-      const source = STANDARD_TRAITS[qualified];
-      if (!source) continue;
-      const parsed = parse(source(imported.alias ?? imported.name));
-      const trait = parsed.program?.traits[0];
-      if (trait) traits.push(respan(trait, declaration.span));
-    }
-  }
-  if (inspect) {
-    const parsed = parse(standardSource("inspect")).program;
-    if (parsed) {
-      traits.push(...respan(parsed.traits, inspect));
-      data.push(...respan(parsed.data, inspect));
-      implementations.push(...respan(parsed.implementations, inspect));
-    }
-  }
-  if (traits.length === 0 && data.length === 0) return program;
+  const inspect = program.uses.find((declaration) =>
+    declaration.names.some((imported) =>
+      INSPECT_IMPORTS.has(`${declaration.module}.${imported.name}`),
+    ),
+  )?.span;
+  const parsed = inspect && parse(standardSource("inspect")).program;
+  if (!inspect || !parsed) return program;
   return {
     ...program,
-    traits: [...program.traits, ...traits],
-    data: [...program.data, ...data],
-    implementations: [...program.implementations, ...implementations],
+    traits: [...program.traits, ...respan(parsed.traits, inspect)],
+    data: [...program.data, ...respan(parsed.data, inspect)],
+    implementations: [...program.implementations, ...respan(parsed.implementations, inspect)],
   };
 }

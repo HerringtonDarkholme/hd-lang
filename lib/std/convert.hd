@@ -1,0 +1,7 @@
+# std.convert: the conversion trait `From`
+# (spec/lang/09-traits.md#conversion-trait). It is not a prelude name
+# (module.prelude.from-error); the prelude uses it, so postfix `?` finds it
+# without an import (module.prelude.question-from).
+
+pub trait From[T]:
+    fn from(value: T) -> Self

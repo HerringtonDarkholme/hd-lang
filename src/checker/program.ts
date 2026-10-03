@@ -123,9 +123,10 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
 }
 
 function checkProgram(source: Program, options: CheckOptions): CheckResult {
-  // The traits that `withStandardTraits` declares mention std names, such as
-  // `Display`, which the standard library then declares.
-  const joined = withStandardLibrary(withStandardTraits(source));
+  // The join adds the uses of compiler-provided names that the joined std
+  // modules make, such as the prelude's `std.convert.From`, which
+  // `withStandardTraits` then declares.
+  const joined = withStandardTraits(withStandardLibrary(source));
   const marked = withSuffixMarkers(withBareMarkerCalls(joined, markerFunctions(joined.functions)));
   const hoisted = hoistLocalDeclarations(marked);
   // Target kinds are checked before newtypes are lowered to data types

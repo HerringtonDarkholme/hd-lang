@@ -307,9 +307,6 @@ export function withErrorDerivation(program: Program): {
       stripDecorators(declaration, declaration.base ? "a newtype" : "a type alias").item,
   );
 
-  const hasFrom = errorTypes.some((type) =>
-    type.cases.some((item) => item.members.some((member) => member.marker === "from")),
-  );
   const importedError = importedName(program.uses, "std.error", "Error");
   const importedFrom = importedName(program.uses, "std.convert", "From");
   const names: ErrorNames = {
@@ -325,20 +322,15 @@ export function withErrorDerivation(program: Program): {
     };
 
   // `@error` needs no import of `std.error.Error` (annot.error.no-use): the
-  // prototype imports it, and `From`, under hidden names when the module does not.
+  // prototype imports it under its hidden name when the module does not. The
+  // prelude uses `std.convert`, so `From` is declared, under its hidden name
+  // when the module does not import it.
   const uses: UseDecl[] = [...program.uses];
   if (!importedError)
     uses.push({
       kind: "use",
       module: "std.error",
       names: [{ name: "Error", alias: HIDDEN_ERROR }],
-      span: program.span,
-    });
-  if (hasFrom && !importedFrom)
-    uses.push({
-      kind: "use",
-      module: "std.convert",
-      names: [{ name: "From", alias: HIDDEN_FROM }],
       span: program.span,
     });
   const generated = errorTypes.map((type, index) => generateErrorType(type, index, names));

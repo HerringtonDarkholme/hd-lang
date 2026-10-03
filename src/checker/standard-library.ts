@@ -5,7 +5,6 @@ import {
   type Expression,
   type FunctionDecl,
   type ImplDecl,
-  type MethodDecl,
   type Program,
   type UseDecl,
 } from "../ast.ts";
@@ -14,60 +13,42 @@ import { parse } from "../parser/index.ts";
 import { STANDARD_MODULES, standardSource, type StandardModule } from "./standard-sources.ts";
 
 // Joins the toy standard library (`lib/std/*.hd`) into the one module the
-// prototype compiles.
+// prototype compiles. The use graph decides which modules join: the prelude
+// (`lib/std/prelude.hd`), which every module implicitly uses
+// (spec/lang/10-modules.md#r-module.prelude.fixed-uses), and every std module
+// that a `use` reaches from the program, the prelude, or a joined module.
 //
-// - A module's top-level declarations are declared when the program imports
-//   one of its names, or when another included module uses it. Each is
-//   declared under the importing program's local name, or under the hidden
-//   name `__std_<module>_<Name>`.
-// - An inherent implementation on a built-in type (`impl string:`,
-//   `impl[T] T?:`) needs no `use` (09-traits.md#r-trait.own.inherent.std).
-//   Only its methods whose names the program selects with `.name` are
-//   declared, so an unrelated program compiles as before.
+// - A joined module's top-level declarations and implementations are all
+//   declared, apart from its templates, which a derivation instantiates.
+// - A declaration is declared under the program's local name when the
+//   program imports it, under its own name when it is a prelude name, and
+//   otherwise under the hidden name `__std_<module>_<Name>`.
 //
-// Every added declaration's span points at the `use` that brought it in, or
-// at the program when there is none.
+// Every added declaration's span points at the `use` that brought its module
+// in, or at the program when the prelude did.
 
-const BUILT_IN_TARGETS = new Set([
-  "string",
-  "bool",
-  "char",
-  "i32",
-  "i8",
-  "i16",
-  "i64",
-  "u8",
-  "u16",
-  "u32",
-  "u64",
-  "f32",
-  "f64",
-  "List",
-  "Map",
-]);
+/** `std.prelude`, the module of `use` lines that every module implicitly has. */
+const PRELUDE: StandardModule = "prelude";
 
 interface ParsedModule {
   readonly name: StandardModule;
   readonly program: Program;
   /** Top-level declaration names, which the loader renames. */
   readonly names: readonly string[];
-  /** `use std.<module>.<Name>` lines of the module itself. */
+  /** The std modules that the module's `use` lines reach: its edges in the use graph. */
+  readonly modules: readonly StandardModule[];
+  /** `use std.<module>.<Name>` lines of the module that name a `lib/std` declaration. */
   readonly uses: readonly { readonly module: StandardModule; readonly name: string }[];
+  /** The `pub use` ones among `uses`, as the prelude's names. */
+  readonly exports: readonly { readonly module: StandardModule; readonly name: string }[];
   /**
-   * `use` lines of a std module that the compiler provides rather than
+   * `use` lines of a std name that the compiler provides rather than
    * `lib/std`, such as `use std.task.block_on`. The joined program imports
-   * each under its hidden name, so the name keeps its ordinary meaning.
+   * each under its hidden name, so the name keeps its ordinary meaning. A
+   * `pub use` of one, as the prelude's `std.core` names, binds what the
+   * compiler already provides, so it adds no import.
    */
   readonly compilerUses: readonly { readonly module: string; readonly name: string }[];
-  /**
-   * The `use` lines whose names only the module's templates and their
-   * protocol implementations mention, such as `std.testing`'s use of
-   * `std.testing.arbitrary.Generator`. They join nothing by themselves: a
-   * derivation that instantiates the template brings them in
-   * (`standardTemplate`).
-   */
-  readonly templateUses: readonly { readonly module: StandardModule; readonly name: string }[];
-  readonly templateCompilerUses: readonly { readonly module: string; readonly name: string }[];
 }
 
 const parsedModules = new Map<StandardModule, ParsedModule>();
@@ -75,50 +56,6 @@ const parsedModules = new Map<StandardModule, ParsedModule>();
 const renamedModules = new Map<string, Program>();
 /** A std module's implementations, by renamed source, for its templates. */
 const templateModules = new Map<string, readonly ImplDecl[]>();
-
-/** The prelude names that a std module declares in hd, by module. */
-const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
-  ["cmp", "Eq"],
-  ["cmp", "PartialOrd"],
-  ["cmp", "Ord"],
-  ["cmp", "Ordering"],
-  ["console", "Console"],
-  ["console", "println"],
-  ["format", "Display"],
-  ["format", "Debug"],
-  ["format", "debug"],
-  ["hash", "Hash"],
-  ["hash", "Hasher"],
-  ["iter", "Iterator"],
-  ["iter", "Iterable"],
-];
-
-/**
- * Methods that declare a std prelude type. A program that selects one, as in
- * `values.iter().filter(keep)`, declares `Iterator` even when it never names
- * it (spec/std/iter.md#iterator-adapters).
- */
-const PRELUDE_TYPE_METHODS: readonly (readonly [StandardModule, string, readonly string[]])[] = [
-  ["iter", "Iterator", ["iter", "take", "enumerate", "fold", "collect"]],
-];
-
-/**
- * Adds to `names` each prelude trait that std declares and whose method the
- * node selects, such as `Hash` for `(7).hash(state)`. A prelude trait is in
- * scope everywhere (spec/lang/10-modules.md#r-module.prelude.names), so such
- * a call declares the trait, its std implementations, and its tuple
- * template, though the program never names the trait.
- */
-export function selectedPreludeTraits(node: unknown, names: Set<string>): void {
-  const selected = new Set<string>();
-  memberNames(node, selected);
-  for (const [module, name] of PRELUDE_DECLARATIONS) {
-    const trait = standardModule(module).program.traits.find(
-      (declaration) => declaration.name === name,
-    );
-    if (trait?.methods.some((method) => selected.has(method.name))) names.add(name);
-  }
-}
 
 function isStandardModule(name: string): name is StandardModule {
   return (STANDARD_MODULES as readonly string[]).includes(name);
@@ -131,16 +68,6 @@ function isStandardModule(name: string): name is StandardModule {
 function hiddenStandardName(module: string, name: string): string {
   return `__std_${module.replaceAll(".", "_")}_${name}`;
 }
-
-/** The `std.text` functions that string operators compile to calls of (lib/std/text.hd). */
-const STRING_KERNEL = ["string_concat", "string_equal", "string_compare"];
-
-/**
- * The primitives that the string kernel calls. The kernel's own bodies are
- * not scanned for mentions: their `==` and `<` on bytes would otherwise
- * declare `Eq` and `PartialOrd` in every program.
- */
-const STRING_KERNEL_PRIMITIVES = ["bytes_len", "bytes_at", "bytes_concat"];
 
 /** What a checked `assert_equal` or `snapshot` call runs (lib/std/testing.hd). */
 export const CHECK_EQUAL = hiddenStandardName("testing", "check_equal");
@@ -184,36 +111,22 @@ function imports(program: Program, module: string, name: string, local: string):
   );
 }
 
-function builtInBase(implementation: ImplDecl): boolean {
-  const target = implementation.targetName;
-  const base = target.endsWith("?") ? "?" : (target.split("[")[0] ?? target);
-  return (
-    base === "?" || base === "Result" || tupleTarget(implementation) || BUILT_IN_TARGETS.has(base)
-  );
-}
-
 /**
- * A tuple type, such as `(A, B)`. Its std implementations, up to 12
- * elements, are declared only for code that mentions a tuple
- * (`mentionedNames`), so a program without tuples does not compile them.
+ * The std modules that a `use` reaches: the module its path names, as
+ * `std.cmp` for `use std.cmp.{max}`, or each module it names itself, as
+ * `std.text` for `use std.text` and `std.testing.arbitrary` for
+ * `use std.testing.arbitrary`.
  */
-function tupleTarget(implementation: ImplDecl): boolean {
-  return implementation.targetName.startsWith("(");
-}
-
-function builtInTarget(implementation: ImplDecl): boolean {
-  return implementation.traitName === undefined && builtInBase(implementation);
-}
-
-/**
- * A std trait implementation for a built-in type, such as the primitive
- * `impl Add[i32] for i32` of `std.ops`. It is declared only when the program,
- * or a std declaration it gets, names the trait, so that a program which
- * imports some other `std.ops` name does not compile every operator
- * implementation.
- */
-function builtInTraitImplementation(implementation: ImplDecl): boolean {
-  return implementation.traitName !== undefined && builtInBase(implementation);
+function usedModules(use: UseDecl): StandardModule[] {
+  if (use.module !== "std" && !use.module.startsWith("std.")) return [];
+  const path = use.module === "std" ? "" : use.module.slice("std.".length);
+  const modules = new Set<StandardModule>();
+  for (const imported of use.names) {
+    const named = path === "" ? imported.name : `${path}.${imported.name}`;
+    if (isStandardModule(named)) modules.add(named);
+    else if (isStandardModule(path)) modules.add(path);
+  }
+  return [...modules];
 }
 
 /**
@@ -305,45 +218,26 @@ function standardModule(name: StandardModule): ParsedModule {
   const cached = parsedModules.get(name);
   if (cached) return cached;
   const { program, names } = declaredModule(name);
+  const modules = new Set<StandardModule>();
   const uses: { module: StandardModule; name: string }[] = [];
+  const exports: { module: StandardModule; name: string }[] = [];
   const compilerUses: { module: string; name: string }[] = [];
-  const templateUses: { module: StandardModule; name: string }[] = [];
-  const templateCompilerUses: { module: string; name: string }[] = [];
-  // The names that the module's declarations and ordinary implementations
-  // mention; any other imported name is used only by a template part.
-  const structure = new Set(
-    program.uses
-      .filter((declaration) => declaration.module === `std.${STRUCTURE}`)
-      .flatMap((declaration) => declaration.names.map((imported) => imported.name)),
-  );
-  const outside = new Set<string>();
-  mentionedNames(
-    [
-      ...(program.types ?? []),
-      ...program.data,
-      ...program.enums,
-      ...program.traits,
-      ...program.functions,
-      ...program.implementations.filter(
-        (implementation) => !isTemplatePart(implementation, structure),
-      ),
-    ],
-    outside,
-  );
   for (const declaration of program.uses) {
-    const module = declaration.module.replace(/^std\./, "");
-    if (!declaration.module.startsWith("std."))
+    if (declaration.module !== "std" && !declaration.module.startsWith("std."))
       throw new Error(`std.${name} uses '${declaration.module}', which is not a std module`);
-    for (const imported of declaration.names)
-      // A compiler-provided name, such as `std.testing.assert` or
+    for (const used of usedModules(declaration)) modules.add(used);
+    const module = declaration.module.replace(/^std\.?/, "");
+    for (const imported of declaration.names) {
+      if (isStandardModule(module === "" ? imported.name : `${module}.${imported.name}`)) continue;
+      // A compiler-provided name, such as `std.testing.assert_equal` or
       // `std.task.block_on`, is a compiler use: its module does not declare it.
-      if (isStandardModule(module) && declaredModule(module).names.includes(imported.name))
-        (outside.has(imported.name) ? uses : templateUses).push({ module, name: imported.name });
-      else if (module === STRUCTURE || outside.has(imported.name))
-        compilerUses.push({ module, name: imported.name });
-      else templateCompilerUses.push({ module, name: imported.name });
+      if (isStandardModule(module) && declaredModule(module).names.includes(imported.name)) {
+        uses.push({ module, name: imported.name });
+        if (declaration.public === true) exports.push({ module, name: imported.name });
+      } else if (declaration.public !== true) compilerUses.push({ module, name: imported.name });
+    }
   }
-  const module = { name, program, names, uses, compilerUses, templateUses, templateCompilerUses };
+  const module = { name, program, names, modules: [...modules], uses, exports, compilerUses };
   parsedModules.set(name, module);
   return module;
 }
@@ -375,88 +269,6 @@ function respan<T>(value: T, span: SourceSpan): T {
   for (const [key, child] of Object.entries(value))
     result[key] = key === "span" ? span : respan(child, span);
   return result as T;
-}
-
-/**
- * Every `.name` or `Owner::name` the node selects: the member names a
- * program may call, such as `string::from_utf8`.
- */
-function memberNames(node: unknown, names: Set<string>): void {
-  if (Array.isArray(node)) {
-    for (const item of node) memberNames(item, names);
-    return;
-  }
-  if (!node || typeof node !== "object") return;
-  const record = node as Record<string, unknown>;
-  if (
-    (record.kind === "member" || record.kind === "qualified-name") &&
-    typeof record.name === "string"
-  )
-    names.add(record.name);
-  for (const [key, child] of Object.entries(record)) if (key !== "span") memberNames(child, names);
-}
-
-/**
- * The traits a comparison operator calls (05-expressions.md#r-expr.eq.calls-eq,
- * #r-expr.ord.partial-cmp), and `assert_equal`'s `Eq` bound. `PartialOrd`
- * extends `Eq`.
- */
-const OPERATOR_TRAITS = new Map<string, readonly string[]>([
-  ...["==", "!=", "assert_equal"].map((name): [string, string[]] => [name, ["Eq"]]),
-  ...["<", "<=", ">", ">="].map((name): [string, string[]] => [name, ["Eq", "PartialOrd"]]),
-]);
-
-/**
- * Every identifier-like string in the node, a superset of the names it
- * mentions. A comparison operator mentions the trait it calls, and a tuple
- * type, such as `(i32, string)` or `List[(K, V)]`, mentions `tuple`, as a
- * tuple expression or pattern (`kind: "tuple"`) does. A map type, literal,
- * or comprehension mentions `Eq` and `Hash`, which its key type's bound
- * `Map[K < Eq & Hash, V]` checks (04-type-system.md#map-key-types), and
- * `tuple`, since iterating a map yields `(K, V)` pairs. The map compares
- * keys with the key type's `Eq` implementation, such as std's `Eq` for `i64`.
- */
-const MAP_MENTIONS = ["Eq", "Hash", "tuple"];
-
-/**
- * A range expression builds a `std.ops` range type with no `use`
- * (05-expressions.md#r-expr.range.not-prelude); a loop iterates it through
- * `Iterable`, and a string or list index slices through `Index`.
- */
-const RANGE_MENTIONS = [
-  ...["Range", "RangeFrom", "RangeTo", "RangeInclusive", "RangeToInclusive", "RangeFull"].map(
-    (name) => hiddenStandardName("ops", name),
-  ),
-  hiddenStandardName("ops", "Index"),
-  "Iterable",
-];
-
-export function mentionedNames(node: unknown, names: Set<string>): void {
-  if (Array.isArray(node)) {
-    for (const item of node) mentionedNames(item, names);
-    return;
-  }
-  if (typeof node === "string") {
-    for (const word of node.match(/\w+/g) ?? []) {
-      names.add(word);
-      if (word === "Map") for (const name of MAP_MENTIONS) names.add(name);
-    }
-    for (const trait of OPERATOR_TRAITS.get(node) ?? []) names.add(trait);
-    if (/(^|\W)\(/.test(node)) names.add("tuple");
-    return;
-  }
-  if (!node || typeof node !== "object") return;
-  const kind = (node as { readonly kind?: unknown }).kind;
-  if (kind === "map" || kind === "map-comprehension")
-    for (const name of MAP_MENTIONS) names.add(name);
-  // A range pattern's bounds are integers; it builds no range value.
-  const bounds = node as { readonly start?: unknown; readonly end?: unknown };
-  if (kind === "range" && typeof bounds.start !== "bigint" && typeof bounds.end !== "bigint")
-    for (const name of RANGE_MENTIONS) names.add(name);
-  // An interpolated value is written through `Display`
-  // (05-expressions.md#string-interpolation).
-  if (kind === "interpolated-string") names.add("Display");
-  for (const [key, child] of Object.entries(node)) if (key !== "span") mentionedNames(child, names);
 }
 
 type ModuleDeclaration = { readonly name: string };
@@ -534,9 +346,7 @@ function standardOrigin(
 
 /** Renames a std module's text into the program's names. */
 function programNames(program: Program, module: StandardModule): (text: string) => string {
-  const localNames = standardLocalNames(program);
-  const nameOf = (owner: StandardModule, name: string): string =>
-    localNames.get(`${owner}.${name}`) ?? hiddenStandardName(owner, name);
+  const nameOf = standardNameOf(program);
   const renames = moduleRenames(standardModule(module), nameOf);
   return (text) => renameSource(text, renames);
 }
@@ -585,17 +395,21 @@ export function standardSupertraits(program: Program, local: string): readonly s
     .map((supertrait) => rename(supertrait.name));
 }
 
-/** How a module's source is renamed into the program: its names and the names it uses. */
+/**
+ * How a module's source is renamed into the program: the prelude's names,
+ * which every module implicitly uses, its own names, and the names it uses.
+ */
 function moduleRenames(
   parsed: ParsedModule,
   nameOf: (module: StandardModule, name: string) => string,
   structureNames: ReadonlyMap<string, string> = new Map(),
 ): Map<string, string> {
   const renames = new Map<string, string>();
-  for (const name of parsed.names) renames.set(name, nameOf(parsed.name, name));
-  for (const used of [...parsed.uses, ...parsed.templateUses])
+  for (const used of standardModule(PRELUDE).exports)
     renames.set(used.name, nameOf(used.module, used.name));
-  for (const used of [...parsed.compilerUses, ...parsed.templateCompilerUses])
+  for (const name of parsed.names) renames.set(name, nameOf(parsed.name, name));
+  for (const used of parsed.uses) renames.set(used.name, nameOf(used.module, used.name));
+  for (const used of parsed.compilerUses)
     if (used.module !== STRUCTURE) renames.set(used.name, compilerUseName(used.module, used.name));
     else if (structureNames.has(used.name)) renames.set(used.name, structureNames.get(used.name)!);
   return renames;
@@ -665,19 +479,39 @@ function withoutTemplates(renamed: Program, original: ParsedModule): Program {
   );
 }
 
-/** The program's local names of the `std` declarations it imports, and the prelude names. */
+/**
+ * The program's local names of `std` declarations, by `<module>.<Name>`:
+ * the declarations it imports, and the prelude's, as if the program began
+ * with the prelude's `pub use` lines
+ * (spec/lang/10-modules.md#r-module.prelude.fixed-uses). A prelude name
+ * that the program binds to another declaration of its own is a
+ * `prelude-name-shadow` error, and the prelude's declaration keeps its
+ * hidden name.
+ */
 function standardLocalNames(program: Program): Map<string, string> {
   const localNames = new Map<string, string>();
+  const own = new Set<string>(declarationsOf(program).map((declaration) => declaration.name));
   for (const declaration of program.uses) {
     const module = declaration.module.replace(/^std\./, "");
-    if (!declaration.module.startsWith("std.") || !isStandardModule(module)) continue;
-    const declared = standardModule(module).names;
-    for (const imported of declaration.names)
-      if (declared.includes(imported.name))
-        localNames.set(`${module}.${imported.name}`, imported.alias ?? imported.name);
+    const declared =
+      declaration.module.startsWith("std.") && isStandardModule(module)
+        ? standardModule(module).names
+        : [];
+    for (const imported of declaration.names) {
+      const local = imported.alias ?? imported.name;
+      if (declared.includes(imported.name)) localNames.set(`${module}.${imported.name}`, local);
+      if (local !== imported.name) own.add(local);
+    }
   }
-  for (const [module, name] of PRELUDE_DECLARATIONS) localNames.set(`${module}.${name}`, name);
+  for (const used of standardModule(PRELUDE).exports)
+    if (!own.has(used.name)) localNames.set(`${used.module}.${used.name}`, used.name);
   return localNames;
+}
+
+/** The program's name for each `std` declaration: its local name, or else its hidden name. */
+function standardNameOf(program: Program): (module: StandardModule, name: string) => string {
+  const localNames = standardLocalNames(program);
+  return (module, name) => localNames.get(`${module}.${name}`) ?? hiddenStandardName(module, name);
 }
 
 /**
@@ -690,8 +524,6 @@ function standardLocalNames(program: Program): Map<string, string> {
 export interface StandardTemplate {
   readonly template: ImplDecl;
   readonly support: readonly ImplDecl[];
-  /** The compiler-provided names that only the template parts use. */
-  readonly uses: readonly UseDecl[];
   /** Every implementation of the trait's module, in the program's names. */
   readonly implementations: readonly ImplDecl[];
 }
@@ -706,23 +538,20 @@ export function standardTemplate(
 ): StandardTemplate | undefined {
   // The trait's module: one the program imports it from, or, for a prelude
   // trait such as `Eq` or `Hash`, the module that declares it.
-  const candidates: { readonly module: StandardModule; readonly span: SourceSpan }[] = [];
+  const candidates: StandardModule[] = [];
   for (const declaration of program.uses) {
     const module = declaration.module.replace(/^std\./, "");
     if (!declaration.module.startsWith("std.") || !isStandardModule(module)) continue;
     const imported = declaration.names.find((name) => (name.alias ?? name.name) === trait);
-    if (imported && standardModule(module).names.includes(imported.name))
-      candidates.push({ module, span: declaration.span });
+    if (imported && standardModule(module).names.includes(imported.name)) candidates.push(module);
   }
-  for (const [module, name] of PRELUDE_DECLARATIONS)
-    if (name === trait) candidates.push({ module, span: program.span });
-  for (const { module, span } of candidates) {
+  for (const used of standardModule(PRELUDE).exports)
+    if (used.name === trait) candidates.push(used.module);
+  const nameOf = standardNameOf(program);
+  for (const module of candidates) {
     const parsed = standardModule(module);
-    const localNames = standardLocalNames(program);
-    const nameOf = (owner: StandardModule, name: string): string =>
-      localNames.get(`${owner}.${name}`) ?? hiddenStandardName(owner, name);
     const renames = moduleRenames(parsed, nameOf, structureNames);
-    const source = renameSource(standardSource(module).replace(/^use .*$/gm, ""), renames);
+    const source = renameSource(standardSource(module).replace(/^(pub )?use .*$/gm, ""), renames);
     const structure = new Set(
       [...structureNamesOf(parsed)].map((name) => structureNames.get(name) ?? name),
     );
@@ -744,13 +573,7 @@ export function standardTemplate(
       (implementation) =>
         implementation.byStructure === undefined && isTemplatePart(implementation, structure),
     );
-    const uses = parsed.templateCompilerUses
-      .map((used) => compilerUse(used, span))
-      .filter((use) => {
-        const imported = use.names[0]!;
-        return !imports(program, use.module, imported.name, imported.alias ?? imported.name);
-      });
-    return { template, support, uses, implementations };
+    return { template, support, implementations };
   }
   return undefined;
 }
@@ -778,22 +601,24 @@ export function standardTupleTraits(program: Program): readonly string[] {
  * the module (spec/lang/10-modules.md#use-forms). The prototype has no module
  * values, so each call through it of a function the module declares, as
  * `arbitrary.with(gen)`, becomes a call by the function's hidden name, which
- * the join then declares.
+ * the use is rewritten to import, as
+ * `use std.testing.arbitrary.{with as __std_testing_arbitrary_with}`.
  */
 export function withStandardSubmodules(program: Program): Program {
-  const modules = new Map<string, StandardModule>();
+  const modules = new Map<string, { readonly module: StandardModule; readonly use: UseDecl }>();
   const uses = program.uses.flatMap((use) => {
     if (!use.module.startsWith("std.")) return [use];
     const names = use.names.filter((imported) => {
       const module = `${use.module.slice("std.".length)}.${imported.name}`;
       if (!isStandardModule(module)) return true;
-      modules.set(imported.alias ?? imported.name, module);
+      modules.set(imported.alias ?? imported.name, { module, use });
       return false;
     });
     if (names.length === use.names.length) return [use];
     return names.length > 0 ? [{ ...use, names }] : [];
   });
   if (modules.size === 0) return program;
+  const called = new Map<string, UseDecl>();
   const visit = (node: unknown): unknown => {
     if (Array.isArray(node)) return node.map(visit);
     if (!node || typeof node !== "object") return node;
@@ -802,279 +627,101 @@ export function withStandardSubmodules(program: Program): Program {
     const callee = result.callee as Expression | undefined;
     if (result.kind !== "call" || callee?.kind !== "member" || callee.receiver.kind !== "name")
       return result;
-    const module = modules.get(callee.receiver.name);
-    if (!module || !standardModule(module).program.functions.some((f) => f.name === callee.name))
+    const found = modules.get(callee.receiver.name);
+    if (
+      !found ||
+      !standardModule(found.module).program.functions.some((f) => f.name === callee.name)
+    )
       return result;
-    const name = hiddenStandardName(module, callee.name);
+    const name = hiddenStandardName(found.module, callee.name);
+    if (!called.has(name))
+      called.set(name, {
+        kind: "use",
+        module: `std.${found.module}`,
+        names: [{ name: callee.name, alias: name }],
+        span: found.use.span,
+      });
     return { ...result, callee: { kind: "name", name, span: callee.span } };
   };
-  return visit({ ...program, uses }) as Program;
+  const visited = visit({ ...program, uses }) as Program;
+  return { ...visited, uses: [...visited.uses, ...called.values()] };
 }
 
-/** Declares the `std` modules and built-in methods that the program uses. */
+/**
+ * The std modules of the program's use graph, each with the span of the
+ * program's `use` that reaches it, or the program's span for one that only
+ * the prelude reaches.
+ */
+function useGraph(program: Program): Map<StandardModule, SourceSpan> {
+  const spans = new Map<StandardModule, SourceSpan>();
+  const reach = (module: StandardModule, span: SourceSpan): void => {
+    if (spans.has(module)) return;
+    spans.set(module, span);
+    for (const used of standardModule(module).modules) reach(used, span);
+  };
+  for (const use of program.uses) for (const module of usedModules(use)) reach(module, use.span);
+  reach(PRELUDE, program.span);
+  return spans;
+}
+
+/** The std modules that the program's use graph joins, in `STANDARD_MODULES` order. */
+export function standardModulesOf(program: Program): StandardModule[] {
+  const graph = useGraph(program);
+  return STANDARD_MODULES.filter((module) => graph.has(module));
+}
+
+/**
+ * Joins the `std` modules of the program's use graph: `std.prelude`, every
+ * std module a `use` of the program reaches, and every std module a `use`
+ * of a joined module reaches.
+ */
 export function withStandardLibrary(source: Program): Program {
   const program = withTemplateName(source);
-  // Local names of the program's own std imports, and where each module came in.
-  const localNames = new Map<string, string>();
-  const spans = new Map<StandardModule, SourceSpan>();
-  // Modules declared whole: imported ones and their dependencies.
-  const included = new Set<StandardModule>();
-  // Single declarations (by declared name) that a built-in method reaches.
-  const reached = new Set<string>();
-  const include = (module: StandardModule, span: SourceSpan): void => {
-    if (!spans.has(module)) spans.set(module, span);
-    if (included.has(module)) return;
-    included.add(module);
-    for (const dependency of standardModule(module).uses) include(dependency.module, span);
-  };
-  for (const declaration of program.uses) {
-    const module = declaration.module.replace(/^std\./, "");
-    if (!declaration.module.startsWith("std.") || !isStandardModule(module)) continue;
-    const parsed = standardModule(module);
-    for (const imported of declaration.names) {
-      if (!parsed.names.includes(imported.name)) continue;
-      const local = imported.alias ?? imported.name;
-      localNames.set(`${module}.${imported.name}`, local);
-      // An imported function joins alone, with the declarations its body
-      // reaches; any other imported name joins its whole module.
-      if (parsed.program.functions.some((function_) => function_.name === imported.name)) {
-        reached.add(local);
-        if (!spans.has(module)) spans.set(module, declaration.span);
-      } else include(module, declaration.span);
-    }
-  }
-  // A checked `assert_equal` or `snapshot` call runs `check_equal`.
-  const asserting = program.uses.find(
-    (declaration) =>
-      declaration.module === "std.testing" &&
-      declaration.names.some(({ name }) => name === "assert_equal" || name === "snapshot"),
-  );
-  if (asserting) {
-    reached.add(CHECK_EQUAL);
-    if (!spans.has("testing")) spans.set("testing", asserting.span);
-  }
-  // String `+`, interpolation, `==`, and order compile to calls of
-  // `std.text`'s string kernel (emitter/context.ts `stringFunction`), as do
-  // a string map key's equality and a `TypeId`'s key, so every program
-  // declares it.
-  for (const name of [...STRING_KERNEL, ...STRING_KERNEL_PRIMITIVES])
-    reached.add(hiddenStandardName("text", name));
-  if (!spans.has("text")) spans.set("text", program.span);
-  // An `all!` call drives the frame that `all_frame` builds
-  // (checker/expression-suspensions.ts).
-  const awaitingAll = program.uses.find(
-    (declaration) =>
-      declaration.module === "std.task" && declaration.names.some(({ name }) => name === "all"),
-  );
-  if (awaitingAll) {
-    reached.add(hiddenStandardName("task", "all_frame"));
-    if (!spans.has("task")) spans.set("task", awaitingAll.span);
-  }
+  const spans = useGraph(program);
 
-  // Prelude names that std declares keep their names
-  // (spec/lang/10-modules.md#prelude).
-  for (const [module, name] of PRELUDE_DECLARATIONS) localNames.set(`${module}.${name}`, name);
-  const nameOf = (module: StandardModule, name: string): string =>
-    localNames.get(`${module}.${name}`) ?? hiddenStandardName(module, name);
-  const modules = new Map<StandardModule, Program>();
+  const nameOf = standardNameOf(program);
   const moduleProgram = (module: StandardModule): Program => {
-    let renamed = modules.get(module);
-    if (renamed) return renamed;
     const parsed = standardModule(module);
     const renames = moduleRenames(parsed, nameOf);
-    const source = renameSource(standardSource(module).replace(/^use .*$/gm, ""), renames);
-    renamed = renamedModules.get(source) ?? withoutTemplates(parseModule(module, source), parsed);
+    const source = renameSource(standardSource(module).replace(/^(pub )?use .*$/gm, ""), renames);
+    const cached = renamedModules.get(source);
+    if (cached) return cached;
+    const renamed = withoutTemplates(parseModule(module, source), parsed);
     renamedModules.set(source, renamed);
-    modules.set(module, renamed);
     return renamed;
   };
-  // Every std declaration by its declared name, and the module it belongs to.
-  const owners = new Map<string, StandardModule>();
-  for (const module of STANDARD_MODULES)
-    for (const name of standardModule(module).names) owners.set(nameOf(module, name), module);
-  const declared = (name: string): boolean => {
-    const module = owners.get(name);
-    return module === undefined || included.has(module) || reached.has(name);
-  };
-  // An implementation on a std type, or of a std trait, is declared with them.
-  const implementationDeclared = (implementation: ImplDecl): boolean =>
-    declared(baseName(implementation.targetName)) &&
-    (implementation.traitName === undefined || declared(baseName(implementation.traitName)));
 
-  // A program that mentions a std-declared prelude name gets its declaration,
-  // unless it declares that name itself, which is a prelude-name-shadow error.
-  const mentionedByProgram = new Set<string>();
-  mentionedNames(program, mentionedByProgram);
-  // Compiler-generated code, such as a lowered `it_prop`, names a std
-  // declaration by its hidden name.
-  for (const name of mentionedByProgram) {
-    const module = owners.get(name);
-    if (module === undefined || !name.startsWith("__std_") || included.has(module)) continue;
-    reached.add(name);
-    if (!spans.has(module)) spans.set(module, program.span);
-  }
-  const selectedByProgram = new Set<string>();
-  memberNames(program, selectedByProgram);
-  for (const [, name, methods] of PRELUDE_TYPE_METHODS)
-    if (methods.some((method) => selectedByProgram.has(method))) mentionedByProgram.add(name);
-  selectedPreludeTraits(program, mentionedByProgram);
-  for (const [module, name] of PRELUDE_DECLARATIONS) {
-    if (!mentionedByProgram.has(name) || included.has(module)) continue;
-    if (
-      [...program.functions, ...program.data, ...program.enums, ...program.traits].some(
-        (declaration) => declaration.name === name,
-      )
-    )
-      continue;
-    reached.add(name);
-    if (!spans.has(module)) spans.set(module, program.span);
-  }
-
-  // Built-in methods: the methods of `impl` blocks on built-in types whose
-  // names are selected, to a fixed point. A selected method reaches the std
-  // declarations it mentions, and each reached declaration reaches those it
-  // mentions, so a method call declares only the helpers it needs.
-  const selected = new Set<string>();
-  memberNames(program, selected);
-  const chosen = new Map<ImplDecl, MethodDecl[]>();
-  const scanned = new Set<unknown>();
-  // A whole module reaches only the prelude names it mentions; it `use`s the rest.
-  const prelude = new Set(PRELUDE_DECLARATIONS.map(([, name]) => name));
-  const reach = (node: unknown, preludeOnly = false): void => {
-    const mentioned = new Set<string>();
-    mentionedNames(node, mentioned);
-    for (const name of mentioned) {
-      const module = owners.get(name);
-      if (module === undefined || included.has(module) || reached.has(name)) continue;
-      if (preludeOnly && !prelude.has(name)) continue;
-      reached.add(name);
-      if (!spans.has(module)) spans.set(module, program.span);
-    }
-  };
-  const kernel = new Set(STRING_KERNEL.map((name) => hiddenStandardName("text", name)));
-  for (const declaration of moduleProgram("text").functions)
-    if (kernel.has(declaration.name)) scanned.add(declaration);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const module of STANDARD_MODULES) {
-      if (!spans.has(module)) continue;
-      const renamed = moduleProgram(module);
-      const whole = included.has(module);
-      const nodes = [
-        ...declarationsOf(renamed).filter((item) => whole || reached.has(item.name)),
-        ...renamed.implementations.filter(
-          (item) => !builtInTarget(item) && (whole || implementationDeclared(item)),
-        ),
-      ];
-      for (const node of nodes) {
-        if (scanned.has(node)) continue;
-        scanned.add(node);
-        changed = true;
-        memberNames(node, selected);
-        reach(node, whole);
-        // A reached data type reaches the traits that its module implements
-        // for it, so `items.view(0, 2)[1]` finds `ListView`'s `Index`.
-        const data = renamed.data.find((declaration) => declaration === node);
-        if (!whole && data)
-          for (const implementation of renamed.implementations)
-            if (
-              implementation.traitName !== undefined &&
-              implementation.byStructure === undefined &&
-              baseName(implementation.targetName) === data.name
-            )
-              reach(implementation.traitName);
-      }
-    }
-    for (const module of STANDARD_MODULES) {
-      for (const implementation of moduleProgram(module).implementations) {
-        if (!builtInTarget(implementation)) continue;
-        const methods = chosen.get(implementation) ?? [];
-        for (const method of implementation.methods) {
-          if (methods.includes(method) || !selected.has(method.name)) continue;
-          methods.push(method);
-          chosen.set(implementation, methods);
-          changed = true;
-          memberNames(method, selected);
-          reach(method);
-        }
-      }
-    }
-  }
-  if (spans.size === 0 && chosen.size === 0) return program;
-
-  // The trait names that decide which built-in trait implementations are
-  // declared: those the program mentions, and those the kept std
-  // declarations mention, apart from each trait's own name.
-  const traitMentions = new Set(mentionedByProgram);
-  for (const module of STANDARD_MODULES) {
-    if (!spans.has(module)) continue;
-    const renamed = moduleProgram(module);
-    const whole = included.has(module);
-    for (const item of declarationsOf(renamed)) {
-      if (!whole && !reached.has(item.name)) continue;
-      const { name: _name, ...rest } = item;
-      mentionedNames(rest, traitMentions);
-    }
-    for (const implementation of renamed.implementations)
-      if (
-        !builtInTarget(implementation) &&
-        !builtInTraitImplementation(implementation) &&
-        (whole || implementationDeclared(implementation))
-      )
-        mentionedNames(implementation, traitMentions);
-  }
-  const keepImplementation = (implementation: ImplDecl, whole: boolean): boolean =>
-    !builtInTarget(implementation) &&
-    (whole || implementationDeclared(implementation)) &&
-    (!builtInTraitImplementation(implementation) ||
-      (traitMentions.has(baseName(implementation.traitName!)) &&
-        (!tupleTarget(implementation) || traitMentions.has("tuple"))));
-
-  // Module declarations, each respanned to the use that included the module.
+  // Module declarations, each respanned to the use that reached the module.
   const types = [...(program.types ?? [])];
   const data = [...program.data];
   const enums = [...program.enums];
   const traits = [...program.traits];
   const functions = [...program.functions];
   const implementations = [...program.implementations];
-  for (const module of STANDARD_MODULES) {
-    const span = spans.get(module);
-    if (!span) continue;
-    const renamed = moduleProgram(module);
-    const whole = included.has(module);
-    const keep = <T extends ModuleDeclaration>(items: readonly T[]): T[] =>
-      respan(
-        items.filter((item) => whole || reached.has(item.name)),
-        span,
-      );
-    types.push(...keep(renamed.types ?? []));
-    data.push(...keep(renamed.data));
-    enums.push(...keep(renamed.enums));
-    traits.push(...keep(renamed.traits));
-    functions.push(...keep(renamed.functions));
-    implementations.push(
-      ...respan(
-        renamed.implementations
-          .filter((implementation) => keepImplementation(implementation, whole))
-          // `std` owns its prelude traits, so its impls are never orphans.
-          .map((implementation) => ({ ...implementation, standard: true })),
-        span,
-      ),
-    );
-  }
-  for (const [implementation, methods] of chosen)
-    implementations.push(respan({ ...implementation, methods, standard: true }, program.span));
   // Compiler-provided names that a joined module uses, under hidden names.
   const uses = [...program.uses];
   const imported = new Set<string>();
   for (const module of STANDARD_MODULES) {
-    if (!spans.has(module)) continue;
+    const span = spans.get(module);
+    if (!span) continue;
+    const renamed = moduleProgram(module);
+    types.push(...respan(renamed.types ?? [], span));
+    data.push(...respan(renamed.data, span));
+    enums.push(...respan(renamed.enums, span));
+    traits.push(...respan(renamed.traits, span));
+    functions.push(...respan(renamed.functions, span));
+    implementations.push(
+      ...respan(
+        // `std` owns its prelude traits, so its impls are never orphans.
+        renamed.implementations.map((implementation) => ({ ...implementation, standard: true })),
+        span,
+      ),
+    );
     for (const used of standardModule(module).compilerUses) {
       const alias = compilerUseName(used.module, used.name);
       if (imported.has(alias) || imports(program, `std.${used.module}`, used.name, alias)) continue;
       imported.add(alias);
-      uses.push(compilerUse(used, program.span));
+      uses.push(compilerUse(used, span));
     }
   }
   return { ...program, uses, types, data, enums, traits, functions, implementations };

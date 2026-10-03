@@ -81,14 +81,15 @@ export abstract class StatementChecker extends CheckerContext {
         if (statement.copy) this.failCopyIntoOrdinaryPlace(statement.span);
         const local = this.resolveLocal(statement.name);
         const global = local ? undefined : this.resolveGlobal(statement.name);
-        if (!local && !global && this.globals.has(statement.name)) {
+        const captured = !local && !global ? this.availableCaptures.get(statement.name) : undefined;
+        // A captured local shadows a later module binding of its name.
+        if (!local && !global && !captured && this.globals.has(statement.name)) {
           this.fail(
             "binding-not-yet-visible",
             `module binding '${statement.name}' is not visible before its binding point`,
             statement.span,
           );
         }
-        const captured = !local && !global ? this.availableCaptures.get(statement.name) : undefined;
         // A closure assigns captured `let` storage through its shared cell
         // (07-functions.md#r-fn.capture.mutate).
         if (captured?.mutable) {

@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import { analyze } from "../src/compiler.ts";
-import { withStandardLibrary } from "../src/checker/standard-library.ts";
+import { standardModulesOf, withStandardLibrary } from "../src/checker/standard-library.ts";
 import { parse } from "../src/parser/index.ts";
 import { STANDARD_MODULES, standardSource } from "../src/checker/standard-sources.ts";
 import { hd } from "./hd-in-process.ts";
@@ -33,41 +33,54 @@ test("every std module parses on its own", () => {
   }
 });
 
-// String `+`, `==`, and order compile to calls of std.text's string kernel,
-// which every program declares with the byte primitives it calls.
-const STRING_KERNEL = [
-  "__std_text_bytes_at",
-  "__std_text_bytes_concat",
-  "__std_text_bytes_len",
-  "__std_text_string_compare",
-  "__std_text_string_concat",
-  "__std_text_string_equal",
+// Every module joins the prelude's use graph (lib/std/prelude.hd).
+const PRELUDE_GRAPH = [
+  "annotation",
+  "cmp",
+  "convert",
+  "format",
+  "function",
+  "hash",
+  "collections",
+  "console",
+  "iter",
+  "num",
+  "ops",
+  "option",
+  "process",
+  "result",
+  "task",
+  "testing",
+  "testing.arbitrary",
+  "text",
+  "time",
+  "prelude",
 ];
 
-test("a program that selects no std member gets only the string kernel", () => {
+test("a program that uses no std module gets the prelude's use graph", () => {
   const program = parse("fn first(items: List[i32]) -> i32: items[0]\n").program!;
+  assert.deepEqual(standardModulesOf(program), PRELUDE_GRAPH);
   const joined = withStandardLibrary(program);
-  assert.deepEqual(joined.functions.map((declaration) => declaration.name).sort(), [
-    ...STRING_KERNEL,
-    "first",
-  ]);
-  assert.deepEqual(
-    [joined.data, joined.enums, joined.traits, joined.implementations],
-    [program.data, program.enums, program.traits, program.implementations],
-  );
-});
-
-test("a string method declares only the std helpers it reaches", () => {
-  const program = parse('fn size() -> i32: "abc".len()\n').program!;
-  const joined = withStandardLibrary(program);
-  assert.deepEqual(joined.functions.map((declaration) => declaration.name).sort(), [
-    ...STRING_KERNEL,
-    "size",
-  ]);
-  assert.deepEqual(joined.data, []);
+  // String `+`, `==`, and order compile to calls of std.text's string kernel.
+  for (const name of ["string_concat", "string_equal", "string_compare"])
+    assert.ok(joined.functions.some((declaration) => declaration.name === `__std_text_${name}`));
   assert.equal(
     joined.functions.find((declaration) => declaration.name === "__std_text_bytes_len")?.intrinsic,
     "bytes_len",
+  );
+});
+
+test("a use adds its module and the modules that module uses", () => {
+  const program = parse("use std.error.Error\n").program!;
+  assert.deepEqual(
+    standardModulesOf(program),
+    STANDARD_MODULES.filter((module) => module === "error" || PRELUDE_GRAPH.includes(module)),
+  );
+  // std.error uses std.inspect, which the checker declares.
+  assert.ok(
+    withStandardLibrary(program).uses.some(
+      (use) => use.module === "std.inspect" && use.names.some(({ name }) => name === "Inspectable"),
+    ),
   );
 });
 
@@ -94,15 +107,15 @@ test("only lib/std can declare an intrinsic", () => {
   );
 });
 
-test("only the selected built-in methods are declared", () => {
+test("a joined module declares every inherent method on a built-in type", () => {
   const program = parse("fn fallback(value: i32?) -> i32: value.unwrap_or(0)\n").program!;
   const joined = withStandardLibrary(program);
   const methods = joined.implementations.flatMap((implementation) =>
-    implementation.standard ? implementation.methods.map((method) => method.name) : [],
+    implementation.standard && implementation.targetName === "T?"
+      ? implementation.methods.map((method) => method.name)
+      : [],
   );
-  // Selection is by name, so `Result.unwrap_or` comes along with `T?`'s.
-  assert.deepEqual(methods, ["unwrap_or", "unwrap_or"]);
-  assert.equal(joined.functions.length, program.functions.length + STRING_KERNEL.length);
+  assert.ok(methods.includes("unwrap_or") && methods.includes("is_none"), methods.join(" "));
 });
 
 test("an imported std name takes its local alias; the rest stay hidden", () => {

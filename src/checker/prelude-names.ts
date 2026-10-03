@@ -1,92 +1,34 @@
-// Every prelude name, which no declaration or binding may shadow
-// (spec/lang/10-modules.md#prelude).
-export const PRELUDE_NAMES = new Set([
-  "never",
-  "bool",
-  "i8",
-  "i16",
-  "i32",
-  "i64",
-  "u8",
-  "u16",
-  "u32",
-  "u64",
-  "f32",
-  "f64",
-  "char",
-  "string",
-  "void",
-  "List",
-  "Map",
-  "Any",
-  "AnyVal",
-  "AnyRef",
-  "Option",
-  "Result",
-  "panic",
-  "Display",
-  "Debug",
-  "debug",
-  "Eq",
-  "PartialOrd",
-  "Ord",
-  "Ordering",
-  "Hash",
-  "Hasher",
-  "Iterator",
-  "Iterable",
-  "Console",
-  "ConsoleError",
-  "println",
-  "Suspend",
-  "Poll",
-  "PollContext",
-  "Waker",
-  // std.testing's test-case function (spec/lang/10-modules.md#r-module.prelude.it-function).
-  "it",
-]);
+import type { UseDecl } from "../ast.ts";
+import { parse } from "../parser/index.ts";
+import { standardSource } from "./standard-sources.ts";
 
-// The module that supplies each prelude name. A `use` of that same
-// declaration under its own name is allowed and changes nothing
-// (spec/lang/10-modules.md#r-module.prelude.same-use).
-const PRELUDE_MODULES: ReadonlyArray<readonly [string, readonly string[]]> = [
-  [
-    "std.core",
-    [
-      "never",
-      "bool",
-      "i8",
-      "i16",
-      "i32",
-      "i64",
-      "u8",
-      "u16",
-      "u32",
-      "u64",
-      "f32",
-      "f64",
-      "char",
-      "string",
-      "void",
-      "List",
-      "Map",
-      "Any",
-      "AnyVal",
-      "AnyRef",
-      "Option",
-      "Result",
-      "panic",
-    ],
-  ],
-  ["std.format", ["Display", "Debug", "debug"]],
-  ["std.cmp", ["Eq", "PartialOrd", "Ord", "Ordering"]],
-  ["std.hash", ["Hash", "Hasher"]],
-  ["std.iter", ["Iterator", "Iterable"]],
-  ["std.console", ["Console", "ConsoleError", "println"]],
-  ["std.testing", ["it"]],
-  ["std.task", ["Suspend", "Poll", "PollContext", "Waker"]],
-];
+// The prelude is `lib/std/prelude.hd`, a module of `use` lines: every
+// module has the names of its `pub use` lines, as if it began with them
+// (spec/lang/10-modules.md#r-module.prelude.fixed-uses).
 
+function preludeUses(): readonly UseDecl[] {
+  const parsed = parse(standardSource("prelude"), { standardLibrary: true });
+  if (!parsed.program || parsed.diagnostics.length > 0)
+    throw new Error("std.prelude does not parse");
+  return parsed.program.uses;
+}
+
+/** The `use` lines of `std.prelude`. */
+const PRELUDE_USES: readonly UseDecl[] = preludeUses();
+
+/**
+ * Each prelude name, with the module that supplies it, as `std.cmp` for
+ * `Eq`. A `use` of that same declaration under its own name is allowed and
+ * changes nothing (spec/lang/10-modules.md#r-module.prelude.same-use).
+ */
 export const PRELUDE_ORIGINS: ReadonlyMap<string, string> = new Map(
-  PRELUDE_MODULES.flatMap(([module, names]) => names.map((name) => [name, module] as const)),
+  PRELUDE_USES.filter((use) => use.public === true).flatMap((use) =>
+    use.names.map((imported) => [imported.alias ?? imported.name, use.module] as const),
+  ),
 );
+
+/**
+ * Every prelude name, which no declaration or binding may shadow
+ * (spec/lang/10-modules.md#r-module.prelude.no-shadow).
+ */
+export const PRELUDE_NAMES: ReadonlySet<string> = new Set(PRELUDE_ORIGINS.keys());

@@ -1,0 +1,8 @@
+# std.error: the error trait `Error` (spec/lang/09-traits.md#error-trait).
+# It is not a prelude name (module.prelude.from-error). It extends
+# `Inspectable`, so its users need not import it
+# (module.prelude.error-inspectable).
+use std.inspect.{Inspectable}
+
+pub trait Error < Display & Inspectable:
+    fn cause(self) -> Error?: .None

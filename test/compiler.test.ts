@@ -721,7 +721,7 @@ test("Result constructors, matching, and error propagation use the erased carrie
 test("imported ResourceError is a generic Wasm GC enum", async () => {
   const source = conformance("runtime/valid/resource-error-operation-payload");
   const { instance, compilation } = await instantiate(source);
-  assert.equal(compilation.hir.enums.at(-1)?.name, "ResourceError");
+  assert.ok(compilation.hir.enums.some((declaration) => declaration.name === "ResourceError"));
   assert.match(compilation.wat, /type \$e\d+ \(struct/);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 });

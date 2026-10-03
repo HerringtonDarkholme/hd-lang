@@ -163,8 +163,11 @@ export class FunctionChecker extends ExpressionControlChecker {
 
   /** Whether `target` implements the standard `From[source]` (spec/lang/09-traits.md#conversion-trait). */
   private hasStandardFrom(source: ValueType, target: ValueType): boolean {
-    const localName = [...this.imports].find(([, imported]) => imported === STANDARD_FROM)?.[0];
-    const trait = localName === undefined ? undefined : this.traitTypes.get(localName);
+    // The prelude uses `std.convert`, so `From` is declared whether or not
+    // the module imports it (spec/lang/10-modules.md#r-module.prelude.question-from).
+    const trait = [...this.traitTypes.values()].find(
+      (candidate) => candidate.standardName === STANDARD_FROM,
+    );
     if (!trait) return false;
     const argument = readonlyType(source);
     return this.implementations.some((implementation) =>

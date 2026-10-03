@@ -4,10 +4,7 @@ import { restInner, tupleParts, tupleType } from "../types.ts";
 import type { MemberModel, VariantModel } from "./derivation-models.ts";
 import type { Target } from "./member-lines.ts";
 import {
-  mentionedNames,
-  standardSupertraits,
   standardTemplate,
-  selectedPreludeTraits,
   standardTupleTraits,
   withStandardLibrary,
   type StandardTemplate,
@@ -30,9 +27,9 @@ import type { Generated } from "./typed-derivation.ts";
 // implementation for every tuple type of the shape, so the pass needs only
 // the shapes a program has, never an inferred element type. Every tuple
 // type is written, is a tuple expression, or comes from a std declaration
-// the program uses, so the shapes are read from the program as the std join
-// will declare it (`tupleDemand`). Only the std tuple templates of traits
-// that program mentions are instantiated, with their supertraits.
+// the program's use graph joins, so the shapes are read from the program as
+// the std join will declare it (`tupleShapesOf`). The std tuple template of
+// every trait the program sees is instantiated for them.
 
 /** A tuple's shape: its fixed elements, and whether a rest element `List[T]...` follows them. */
 export interface TupleShape {
@@ -95,43 +92,23 @@ export function tupleShapes(node: unknown): TupleShape[] {
 }
 
 /**
- * The tuple shapes and the names that the program mentions once the std
- * join declares what it uses, such as `enumerate`'s `(i32, T)` and
- * `assert_equal`'s `Debug`.
+ * The tuple shapes of the program once the std join declares its use graph,
+ * such as `enumerate`'s `(i32, T)`.
  */
-export function tupleDemand(program: Program): {
-  readonly shapes: readonly TupleShape[];
-  readonly mentioned: ReadonlySet<string>;
-} {
-  const joined = withStandardLibrary(withStandardTraits(program));
+export function tupleShapesOf(program: Program): readonly TupleShape[] {
+  const joined = withStandardTraits(withStandardLibrary(program));
   // A std implementation's body works on its own type parameters, so it
-  // needs no tuple implementation that its signature does not show; and a
-  // declaration's own name is not a use of it.
-  const used = [
+  // needs no tuple implementation that its signature does not show.
+  return tupleShapes([
     joined.statements,
     joined.tests,
     joined.implementations.filter((implementation) => !implementation.standard),
-    ...[
-      ...(joined.types ?? []),
-      ...joined.data,
-      ...joined.enums,
-      ...joined.traits,
-      ...joined.functions,
-    ].map(
-      ({
-        name: _name,
-        standardName: _standard,
-        ...rest
-      }: {
-        name: string;
-        standardName?: string;
-      }) => rest,
-    ),
-  ];
-  const mentioned = new Set<string>();
-  mentionedNames(used, mentioned);
-  selectedPreludeTraits(used, mentioned);
-  return { shapes: tupleShapes(used), mentioned };
+    joined.types ?? [],
+    joined.data,
+    joined.enums,
+    joined.traits,
+    joined.functions,
+  ]);
 }
 
 /** The synthetic target, type, and variant of a tuple shape (annot.tuple.*). */
@@ -286,8 +263,8 @@ export function localTupleName(program: Program): string {
 }
 
 /**
- * The std tuple templates of the traits that the program mentions, with
- * their supertraits, and the program's tuple shapes. A hand-written
+ * The std tuple templates of the traits that the program sees, and the
+ * program's tuple shapes. A hand-written
  * implementation of a trait with a tuple template for a tuple type is
  * `overlapping-impl` (annot.template.tuple.overlap).
  */
@@ -308,17 +285,8 @@ export function loadTupleTemplates(
   const standardTuples = new Map<string, StandardTemplate>();
   let shapes: readonly TupleShape[] = [];
   if (tupleTemplates.size > 0 || candidates.length > 0) {
-    const demand = tupleDemand(program);
-    shapes = demand.shapes;
-    const needed = new Set<string>();
-    const need = (name: string): void => {
-      if (needed.has(name) || !candidates.includes(name)) return;
-      needed.add(name);
-      for (const parent of standardSupertraits(program, name)) need(parent);
-    };
-    if (shapes.length > 0)
-      for (const name of candidates) if (demand.mentioned.has(name)) need(name);
-    for (const name of needed) {
+    shapes = tupleShapesOf(program);
+    for (const name of shapes.length > 0 ? candidates : []) {
       const standard = standardTemplate(program, name, renames, true);
       if (standard) standardTuples.set(name, standard);
     }
