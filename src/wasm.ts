@@ -56,10 +56,6 @@ export async function assembleWat(wat: string): Promise<WasmArtifact> {
     if (!module.validate()) {
       throw new WasmValidationError("Binaryen rejected generated Wasm");
     }
-    // The emitter already emits only reached functions (emitter/on-demand.ts).
-    // This pass drops the imports, globals, and runtime parts that nothing
-    // uses, and with them their types; it costs well under a millisecond.
-    module.runPasses(["remove-unused-module-elements"]);
     // `emitBinary` already returns a fresh copy of Binaryen's output.
     const bytes = module.emitBinary() as Uint8Array<ArrayBuffer>;
     if (!WebAssembly.validate(bytes)) {

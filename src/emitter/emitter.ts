@@ -47,11 +47,11 @@ import { closureBoundLoads, environmentType } from "./context.ts";
 import { emitHostProviders } from "./host-providers.ts";
 import { emitHostFunctionImports, emitIntrinsicBody } from "./intrinsics.ts";
 import {
-  emitStoredSuspensionTraitAdapters,
+  emitStoredSuspensionAdapters,
   STORED_SUSPENSION_RUNTIME,
   STORED_SUSPENSION_TYPES,
+  storedSuspensionAdapterReferences,
 } from "./stored-suspension.ts";
-import { emitReachableCode } from "./on-demand.ts";
 
 function suspensionIndex(declaration: HirFunction): number {
   return declaration.suspensionIndex ?? declaration.index;
@@ -128,8 +128,19 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const temporaries = this.temporaryTypes.map(
       (type, index) => `  (local $tmp${index} ${this.watType(type)})`,
     );
-    const exported = this.exportKind(declaration);
-    const exportClause = exported === "direct" ? ` (export ${exportName(declaration.name)})` : "";
+    const exportable =
+      !declaration.name.startsWith("$") &&
+      !declaration.closure &&
+      !declaration.suspending &&
+      declaration.parameters.every((parameter) => this.hostSafe(parameter.type)) &&
+      this.hostSafe(declaration.result);
+    // A host trait provider arrives as an `externref`, so such a function is
+    // exported through a wrapper that makes the trait value.
+    const hostProviders = declaration.requirements.some((requirement) =>
+      this.hostTrait(requirement),
+    );
+    const exported = exportable && !hostProviders;
+    const exportClause = exported ? ` (export ${exportName(declaration.name)})` : "";
     const internalName = declaration.suspending
       ? `$body${suspensionIndex(declaration)}`
       : declaration.closure
@@ -155,58 +166,10 @@ class FunctionEmitter extends FunctionBodyEmitter {
       indent(body),
       `)`,
       ...this.emitResultEntryExport(declaration, internalName),
-      ...(exported === "wrapped" ? this.emitHostProviderExport(declaration, internalName) : []),
+      ...(exportable && hostProviders && declaration.genericBounds.length === 0
+        ? this.emitHostProviderExport(declaration, internalName)
+        : []),
     ].join("\n");
-  }
-
-  /**
-   * How the host calls a function: by its own export, through a wrapper
-   * export, or not at all. A host trait provider arrives as an `externref`,
-   * so a function that takes one is exported through a wrapper that makes
-   * the trait value.
-   */
-  private exportKind(declaration: HirFunction): "direct" | "wrapped" | undefined {
-    const exportable =
-      !declaration.name.startsWith("$") &&
-      !declaration.closure &&
-      !declaration.suspending &&
-      declaration.parameters.every((parameter) => this.hostSafe(parameter.type)) &&
-      this.hostSafe(declaration.result);
-    if (!exportable) return undefined;
-    if (!declaration.requirements.some((requirement) => this.hostTrait(requirement)))
-      return "direct";
-    return declaration.genericBounds.length === 0 ? "wrapped" : undefined;
-  }
-
-  /**
-   * Whether the host calls the function, which makes it a root of the code
-   * emitted on demand: an entry point, a test case, or a function the
-   * program can name that is exported. A hidden std function (`__std_...`)
-   * is no root: it is emitted only when emitted code calls it.
-   */
-  calledByHost(declaration: HirFunction): boolean {
-    if (declaration.closure) return false;
-    if (
-      declaration.entry ||
-      declaration.developmentEntry ||
-      testExportName(declaration.name) !== undefined
-    )
-      return true;
-    return !declaration.name.startsWith("__std_") && this.exportKind(declaration) !== undefined;
-  }
-
-  /**
-   * A function's code, or a suspending function's or closure's body and the
-   * functions that construct, poll, drive, and cancel its frame.
-   */
-  emitDeclaration(declaration: HirFunction): string {
-    if (!declaration.suspending) return indent(this.emit(declaration));
-    const body =
-      this.suspensionPlans.has(suspensionIndex(declaration)) ||
-      linearSuspensionSites(declaration).length > 0
-        ? []
-        : [indent(this.emit(declaration))];
-    return [...body, indent(this.emitSuspensionSupport(declaration))].join("\n\n");
   }
 
   emitSuspensionSupport(declaration: HirFunction): string {
@@ -1410,25 +1373,70 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
         `  (global ${globalName(global.index)} (mut ${emitter.watType(global.type)}) ${emitter.defaultValue(global.type)})`,
     )
     .join("\n");
-  const hostFunctions = emitHostFunctionImports(program);
-  const start = program.initializer === undefined ? "" : `\n  (start $f${program.initializer})`;
-  const optionalRuntime = [hostFunctions.boundary ? BOUNDARY_RUNTIME_WAT : ""]
+  const functions = [...program.functions, ...program.closures]
+    .map((declaration) =>
+      [
+        declaration.suspending &&
+        (suspensionPlans.has(suspensionIndex(declaration)) ||
+          linearSuspensionSites(declaration).length > 0)
+          ? ""
+          : indent(emitter.emit(declaration)),
+        declaration.suspending ? indent(emitter.emitSuspensionSupport(declaration)) : "",
+        (!declaration.closure && declaration.genericParameters.length === 0) ||
+        (declaration.closure && declaration.suspending)
+          ? indent(emitter.emitFunctionValueWrapper(declaration))
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+    )
+    .join("\n\n");
+  const adapters = emitter.emitCallableAdapters();
+  const traitAdapters = [
+    emitter.emitTraitAdapters(),
+    emitter.emitBuiltinTraitAdapters(),
+    emitter.emitForwardingAdapters(),
+  ]
     .filter(Boolean)
-    .map((runtime) => `\n\n${runtime}`)
-    .join("");
-  // Functions, closures, function-value twins, adapters, and the runtime's
-  // functions are emitted only when reached (on-demand.ts).
-  const reachable = emitReachableCode(
-    program,
-    emitter,
-    [
-      `${RUNTIME_WAT}\n\n${STORED_SUSPENSION_RUNTIME}\n\n${MAP_RUNTIME_WAT}\n\n${emitter.emitStringKeyEqual()}${optionalRuntime}${emitter.emitEmbeddedCopies()}`,
-      indent(emitter.emitTraitSuspensionHelpers()),
-      indent(emitStoredSuspensionTraitAdapters(program)),
-    ].join("\n\n"),
-    [enumSingletons, hostProviders.functions, start].join("\n"),
-  );
-  const moduleCode = `${reachable.code}${hostProviders.functions ? "\n\n" + indent(hostProviders.functions) : ""}${start}`;
+    .join("\n\n");
+  const traitSuspensionHelpers = [emitter.emitTraitSuspensionHelpers(), emitter.emitKeyEqualities()]
+    .filter(Boolean)
+    .join("\n\n");
+  const storedSuspensionAdapters = emitStoredSuspensionAdapters(program);
+  const referenceableFunctions = [
+    ...program.closures.map((closure) => `$c${closure.index}`),
+    ...program.functions
+      .filter((declaration) => declaration.genericParameters.length === 0)
+      .map((declaration) => `$fv${suspensionIndex(declaration)}`),
+    ...emitter.adapters.map((adapter) => `$adapt${adapter.index}`),
+    ...emitter.builtinTraitAdapterNames,
+    ...program.implementations.flatMap((implementation) =>
+      implementation.methodFunctions.map(
+        (method) => `$tadapt${implementation.index}_${method.methodIndex}`,
+      ),
+    ),
+    ...program.implementations.flatMap((implementation) => {
+      // Trait indices may skip a compiler trait the program does not declare.
+      const trait = program.traits.find((item) => item.index === implementation.traitIndex)!;
+      return implementation.methodFunctions.flatMap((mapping) =>
+        trait.methods[mapping.methodIndex]?.suspending
+          ? [
+              `$tspolladapt${implementation.index}_${mapping.methodIndex}`,
+              `$tscanceladapt${implementation.index}_${mapping.methodIndex}`,
+              `$tsresultadapt${implementation.index}_${mapping.methodIndex}`,
+            ]
+          : [],
+      );
+    }),
+    ...hostProviders.references,
+    ...storedSuspensionAdapterReferences(program),
+    ...emitter.keyEqualityNames(),
+  ];
+  const declarations =
+    referenceableFunctions.length > 0
+      ? `\n  (elem declare func ${referenceableFunctions.join(" ")})\n`
+      : "";
+  const hostFunctions = emitHostFunctionImports(program);
   const imports = [
     hostProviders.imports,
     [...program.functions, ...program.closures].some((declaration) => declaration.suspending)
@@ -1448,5 +1456,10 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
   ]
     .filter(Boolean)
     .join("\n");
-  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${enumSharedCaches ? "\n" + enumSharedCaches : ""}${globals ? "\n" + globals : ""}\n${reachable.fixed}${reachable.declarations}\n${moduleCode}\n)`;
+  const start = program.initializer === undefined ? "" : `\n  (start $f${program.initializer})`;
+  const optionalRuntime = [hostFunctions.boundary ? BOUNDARY_RUNTIME_WAT : ""]
+    .filter(Boolean)
+    .map((runtime) => `\n\n${runtime}`)
+    .join("");
+  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${enumSharedCaches ? "\n" + enumSharedCaches : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${STORED_SUSPENSION_RUNTIME}\n\n${MAP_RUNTIME_WAT}\n\n${emitter.emitStringKeyEqual()}${optionalRuntime}${declarations}\n${functions}${emitter.emitEmbeddedCopies()}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${storedSuspensionAdapters ? "\n\n" + indent(storedSuspensionAdapters) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}${hostProviders.functions ? "\n\n" + indent(hostProviders.functions) : ""}${start}\n)`;
 }

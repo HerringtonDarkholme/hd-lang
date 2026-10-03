@@ -1,4 +1,4 @@
-import type { HirFunction, HirProgram, ValueType } from "../hir.ts";
+import type { HirProgram, ValueType } from "../hir.ts";
 import { runtimePanicCode } from "../runtime-panic.ts";
 import { mutableInner } from "../types.ts";
 import { boxScalar } from "./scalars.ts";
@@ -29,6 +29,13 @@ export const STORED_SUSPENSION_TYPES = `    (type $hd.suspension-poll-sig (func 
       (field $hd.combinator-results (ref $hd.list))
       (field $hd.combinator-done (ref $hd.bytes))
       (field $hd.combinator-state (mut i32))))`;
+
+/** The polling frame of `race!` and `all!`, and its stored-suspension adapters. */
+const COMBINATOR_FUNCTIONS = [
+  "$hd.combinator_poll",
+  "$hd.combinator_cancel",
+  "$hd.combinator_result",
+] as const;
 
 // The polling frame of the `std.task` combinators
 // (11-requirements-and-suspension.md#standard-combinators), a stored
@@ -172,44 +179,67 @@ function boxResult(value: string, type: ValueType): string {
   return boxScalar(value, type);
 }
 
-/**
- * The stored-suspension adapters of one suspending function or closure,
- * through which a task or a `Suspension` value polls, cancels, and reads it.
- */
-export function emitStoredSuspensionFunctionAdapters(declaration: HirFunction): string {
-  const index = declaration.suspensionIndex ?? declaration.index;
-  const inner = `(ref.cast (ref $s${index}) (local.get $inner))`;
-  const result =
-    declaration.result === "void"
-      ? `(ref.null any)`
-      : boxResult(`(struct.get $s${index} $s${index}result ${inner})`, declaration.result);
-  return [
-    `(func ${suspensionWrapperPollAdapterName(index)} (type $hd.suspension-poll-sig) (param $inner anyref) (result i32)\n  (call $poll${index} ${inner}))`,
-    `(func ${suspensionWrapperCancelAdapterName(index)} (type $hd.suspension-cancel-sig) (param $inner anyref)\n  (call $cancel${index} ${inner}))`,
-    `(func ${suspensionWrapperResultAdapterName(index)} (type $hd.suspension-result-sig) (param $inner anyref) (result anyref)\n  ${result})`,
-  ].join("\n\n");
+function suspensionIndex(declaration: HirProgram["functions"][number]): number {
+  return declaration.suspensionIndex ?? declaration.index;
 }
 
-/** The stored-suspension adapters of every suspending trait method. */
-export function emitStoredSuspensionTraitAdapters(program: HirProgram): string {
-  return program.traits
-    .flatMap((trait) =>
-      trait.methods.flatMap((method) => {
-        if (!method.suspending) return [];
-        const wrapper = traitSuspensionName(trait.index, method.index);
-        const inner = `(ref.cast (ref ${wrapper}) (local.get $inner))`;
-        const result = boxResult(
-          method.result === "void"
-            ? `(ref.null any)`
-            : `(call ${traitSuspensionResultName(trait.index, method.index)} ${inner})`,
-          method.result,
-        );
-        return [
-          `(func ${traitSuspensionWrapperPollAdapterName(trait.index, method.index)} (type $hd.suspension-poll-sig) (param $inner anyref) (result i32)\n  (call ${traitSuspensionPollName(trait.index, method.index)} ${inner}))`,
-          `(func ${traitSuspensionWrapperCancelAdapterName(trait.index, method.index)} (type $hd.suspension-cancel-sig) (param $inner anyref)\n  (call ${traitSuspensionCancelName(trait.index, method.index)} ${inner}))`,
-          `(func ${traitSuspensionWrapperResultAdapterName(trait.index, method.index)} (type $hd.suspension-result-sig) (param $inner anyref) (result anyref)\n  ${result})`,
-        ];
-      }),
-    )
-    .join("\n\n");
+export function storedSuspensionAdapterReferences(program: HirProgram): readonly string[] {
+  return [
+    ...COMBINATOR_FUNCTIONS,
+    ...[...program.functions, ...program.closures]
+      .filter((declaration) => declaration.suspending)
+      .flatMap((declaration) => [
+        suspensionWrapperPollAdapterName(suspensionIndex(declaration)),
+        suspensionWrapperCancelAdapterName(suspensionIndex(declaration)),
+        suspensionWrapperResultAdapterName(suspensionIndex(declaration)),
+      ]),
+    ...program.traits.flatMap((trait) =>
+      trait.methods.flatMap((method) =>
+        method.suspending
+          ? [
+              traitSuspensionWrapperPollAdapterName(trait.index, method.index),
+              traitSuspensionWrapperCancelAdapterName(trait.index, method.index),
+              traitSuspensionWrapperResultAdapterName(trait.index, method.index),
+            ]
+          : [],
+      ),
+    ),
+  ];
+}
+
+export function emitStoredSuspensionAdapters(program: HirProgram): string {
+  const functionAdapters = [...program.functions, ...program.closures]
+    .filter((declaration) => declaration.suspending)
+    .flatMap((declaration) => {
+      const index = suspensionIndex(declaration);
+      const inner = `(ref.cast (ref $s${index}) (local.get $inner))`;
+      const result =
+        declaration.result === "void"
+          ? `(ref.null any)`
+          : boxResult(`(struct.get $s${index} $s${index}result ${inner})`, declaration.result);
+      return [
+        `(func ${suspensionWrapperPollAdapterName(index)} (type $hd.suspension-poll-sig) (param $inner anyref) (result i32)\n  (call $poll${index} ${inner}))`,
+        `(func ${suspensionWrapperCancelAdapterName(index)} (type $hd.suspension-cancel-sig) (param $inner anyref)\n  (call $cancel${index} ${inner}))`,
+        `(func ${suspensionWrapperResultAdapterName(index)} (type $hd.suspension-result-sig) (param $inner anyref) (result anyref)\n  ${result})`,
+      ];
+    });
+  const traitAdapters = program.traits.flatMap((trait) =>
+    trait.methods.flatMap((method) => {
+      if (!method.suspending) return [];
+      const wrapper = traitSuspensionName(trait.index, method.index);
+      const inner = `(ref.cast (ref ${wrapper}) (local.get $inner))`;
+      const result = boxResult(
+        method.result === "void"
+          ? `(ref.null any)`
+          : `(call ${traitSuspensionResultName(trait.index, method.index)} ${inner})`,
+        method.result,
+      );
+      return [
+        `(func ${traitSuspensionWrapperPollAdapterName(trait.index, method.index)} (type $hd.suspension-poll-sig) (param $inner anyref) (result i32)\n  (call ${traitSuspensionPollName(trait.index, method.index)} ${inner}))`,
+        `(func ${traitSuspensionWrapperCancelAdapterName(trait.index, method.index)} (type $hd.suspension-cancel-sig) (param $inner anyref)\n  (call ${traitSuspensionCancelName(trait.index, method.index)} ${inner}))`,
+        `(func ${traitSuspensionWrapperResultAdapterName(trait.index, method.index)} (type $hd.suspension-result-sig) (param $inner anyref) (result anyref)\n  ${result})`,
+      ];
+    }),
+  );
+  return [...functionAdapters, ...traitAdapters].join("\n\n");
 }
