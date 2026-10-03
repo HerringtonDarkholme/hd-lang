@@ -1,0 +1,315 @@
+# Compiler Review: Bugs And Hacks (Task #230)
+
+Status: findings of a bounded, read-only review of `src/` at `5ba7393e`. Nothing here is accepted behavior or an owner decision. It adds to [REPORT.md](REPORT.md), [TODO.md](TODO.md), [dogfood F1–F13](../dogfood-199.md) and [known issues](../../src/KNOWN_ISSUES.md), and repeats none of them.
+
+## Summary
+
+The review found 12 findings: 3 high, 4 medium and 5 low. Eight are bugs with a reproduction, one is a resource problem with timings, and three are hacks cited by line. No earlier finding was found to be falsely marked fixed, so there is no regression. The worst root is text processing of hd source: the std joiner renames words inside std string literals, so `Duration` prints `500__std_time_ms` (O-01), and the test linker re-indents string text (O-05). The second root is written-type validation split across two paths: nested types and local annotations skip the dynamic-safety and bound checks (O-02, O-03). Four more items are suspected but not reproduced.
+
+Each repro ran with `timeout 60 node bin/hd.js check|run|test FILE` from a scratch folder `scratch-230/` in the worktree, so output paths keep that prefix.
+
+## Findings
+
+### O-01: std source renaming rewrites words inside string literals
+
+- Severity: high. Kind: bug (from a hack).
+- Where: `src/checker/standard-library.ts:289` (`renameSource`).
+- The std joiner renames top-level std names with a regex over the module text. The regex skips only a name right after `"`, so a name later in a string literal is renamed too. `Duration`'s `Display` writes `"${hours}h"`, `"${minutes}min"` and `"...ms"`, and `h`, `min` and `ms` are `std.time` functions.
+
+Repro (`dur.hd`):
+
+```text
+use std.time.Duration
+
+pub fn main() -> void $ Console:
+    println("${Duration::milliseconds(500)}")
+    println("${Duration::seconds(3700)}")
+```
+
+`node bin/hd.js run dur.hd` prints:
+
+```
+500__std_time_ms
+1__std_time_h1__std_time_min40s
+```
+
+With `use std.time.{Duration, ms as millis}`, `millis(500)` prints `500millis`.
+
+- Expected: `500ms` and `1h1min40s` (`std-time.duration.text`, `std-time.duration.text.components`).
+- Fix: rename by declaration identity on the parsed AST, never on text. This is the root of TODO item 3 too; until then, the renamer must skip string and comment tokens.
+
+### O-02: trait-value dynamic safety is checked only for a top-level signature type
+
+- Severity: high. Kind: bug.
+- Where: `src/checker/context.ts:1226` (`resolveType`) and `src/checker/shared.ts:1299` (`typeName`).
+- `typeName` checks dynamic safety only when the whole written type is a trait. `resolveType`, used for local annotations, has no such check at all. So an unsafe trait passes as a value in `let s: Show = ...` and inside `List[Show]`, and the program runs.
+
+Repro (`dyn4.hd`):
+
+```text
+trait Show:
+    fn show[T](self, v: T) -> i32
+
+data A:
+    x: i32
+
+impl Show for A:
+    fn show[T](self, v: T) -> i32:
+        self.x
+
+fn use_it(xs: List[Show]) -> i32:
+    xs[0].show("text")
+
+pub fn main() -> void $ Console:
+    println("${use_it([A { x: 1 }])}")
+```
+
+`node bin/hd.js run dyn4.hd` prints `1`. The same trait as `fn use_it(s: Show)` gives `trait-not-dynamically-safe`. A local `let s: Show = A { x: 1 }` checks `ok`.
+
+- Expected: `trait-not-dynamically-safe` at `List[Show]` and at the local annotation (`trait.dyn.safe`, `trait.dyn.safe.error`, `trait.dyn.safe.implied-anyref-param`).
+- Fix: one written-type validator, shared by signatures and bodies, that walks every nested type argument.
+
+### O-03: type-argument bounds of written types are not checked, except a top-level `Map` key
+
+- Severity: high. Kind: bug (with a name-based special case).
+- Where: `src/checker/shared.ts:1309` and `src/checker/context.ts:1260` (both test `nominal?.name === "Map"` at the top level only).
+- A written type such as `Box[P]` never checks `P` against `Box`'s declared bound. The only bound check on a written type is a hard-coded `Map` key test, and it skips nested types such as `List[Map[P, i32]]`.
+
+Repro (`bound.hd`):
+
+```text
+data P:
+    x: i32
+
+data Box[T < Display]:
+    value: T
+
+fn nested(bs: List[Box[P]]) -> i32:
+    bs.len()
+
+fn count(ms: List[Map[P, i32]]) -> i32:
+    ms.len()
+
+pub fn main() -> void $ Console:
+    println("${nested([])} ${count([])}")
+```
+
+`node bin/hd.js check` reports `ok`. A top-level `fn top(b: Box[P])` is also accepted.
+
+- Expected: `unsatisfied-trait-bound` at `Box[P]` and at `Map[P, i32]` (`trait.bound.unsatisfied`, `types.map-key.declared-bound`).
+- Fix: check every type application's arguments against its declaration's bounds in the shared written-type validator; then `Map` needs no special case.
+
+### O-04: a user program may implement a std trait for a std type
+
+- Severity: medium. Kind: bug.
+- Where: `src/checker/program-implementations.ts:685` (`isLocalConstructor`).
+- The orphan check calls a target local when `dataTypes` has it. Joined std types are in `dataTypes` too, so `Duration` counts as the user's own type.
+
+Repro (`orphan.hd`):
+
+```text
+use std.time.Duration
+
+impl Hash for Duration:
+    fn hash(self, hasher: mut Hasher) -> void:
+        self.as_milliseconds().hash(hasher)
+
+pub fn main() -> void $ Console:
+    let m: Map[Duration, i32] = {}
+    println("${m.len()}")
+```
+
+`node bin/hd.js run orphan.hd` prints `0`.
+
+- Expected: `orphan-impl` at the `impl` (`trait.own.rule`, `trait.own.orphan`, `trait.own.no-orphan-exception`).
+- Fix: decide ownership from the declaration's owner (its `standard` flag or module), not from membership in the joined type tables.
+
+### O-05: integration test modules corrupt multiline strings
+
+- Severity: medium. Kind: bug (from a hack).
+- Where: `src/package.ts:507`.
+- The linker wraps a `tests/` module in a `tests:` block by adding four spaces to every source line with a regex. Lines inside a `"""` string get the four spaces too. The `pub` deletion at line 502 also edits a string line that starts with `pub fn`.
+
+Repro: a package `pkg/` with two files.
+
+```text
+# pkg/src/text.hd
+pub fn banner() -> string:
+    """line one
+line two"""
+```
+
+```text
+# pkg/tests/banner.hd
+use std.testing.assert_equal
+use pkg.text.banner
+
+it("banner text"):
+    expected := """line one
+line two"""
+    assert_equal(banner(), expected, reason="same text")
+```
+
+`node bin/hd.js test pkg` fails:
+
+```
+assertion-failed: same text: actual "line one
+line two", expected "line one
+    line two"
+```
+
+- Expected: the test passes; a multiline string keeps its source text (`lex.multiline.verbatim`).
+- Fix: compile each integration test module as its own program with its own AST (`module.test.integration.program`), as A01 plans. Never re-indent source text.
+
+### O-06: overloaded trait calls copy the whole checker state per candidate
+
+- Severity: medium. Kind: resource.
+- Where: `src/checker/call-speculation.ts:24` (`speculate`), called from `src/checker/expression-calls.ts:829` and `:1449`.
+- Each trial snapshots the whole reachable object graph of the checker, including all locals and HIR checked so far. A call with several candidate instantiations, such as `C::from(x)` with `From[i32]` and `From[string]`, therefore costs time in proportion to the function body so far.
+
+Repro: a generated `main` with N lines `let cI = C::from(I)` and `total = total + cI.v`, where `C` implements `From[i32]` and `From[string]`. `hd check` wall time:
+
+| N | two `From` impls | one `From` impl (control) |
+| ---: | ---: | ---: |
+| 400 | 1.3 s | 0.4 s |
+| 800 | 4.4 s | 0.8 s |
+| 1600 | 16.6 s | 2.4 s |
+
+Doubling N quadruples the time with two impls.
+
+- Expected: checking time near linear in program size. No rule states a bound; this is a cost problem.
+- Fix: make the trial a pure check that returns its HIR and diagnostics, or journal only the state a trial changes. Do not deep-snapshot the checker.
+
+### O-07: dynamic safety depends on the order of tuple elements
+
+- Severity: medium. Kind: bug (from a hack).
+- Where: `src/checker/dynamic-safety.ts:8` (`isMethodRowParameter`).
+- A method type parameter counts as a row parameter when a regex finds it after a `$` in the type text. The pattern `\$\(?[^)]*\bT\b` runs past a comma, so in `(fn() -> void $ Console, T)` it reads `T` as part of the row. `typed-facts.ts:132` uses a different pattern (`[^\]),]*`) for the same question, so the two can disagree.
+
+Repro (`dyn5.hd`):
+
+```text
+trait Show:
+    fn show[T](self, pair: (fn() -> void $ Console, T)) -> i32
+
+data A:
+    x: i32
+
+impl Show for A:
+    fn show[T](self, pair: (fn() -> void $ Console, T)) -> i32:
+        self.x
+
+fn use_it(s: Show) -> i32:
+    s.show((fn() -> void $ Console: println("hi"), "text"))
+
+pub fn main() -> void $ Console:
+    println("${use_it(A { x: 1 })}")
+```
+
+`node bin/hd.js run dyn5.hd` prints `1`. Swapping the tuple to `(T, fn() -> void $ Console)` gives `trait-not-dynamically-safe` at `s: Show`.
+
+- Expected: `trait-not-dynamically-safe` in both orders; `T` is an unbounded method type parameter (`trait.dyn.safe.implied-anyref-param`, `trait.dyn.safe.error`).
+- Fix: record each method parameter's kind (type or row) in the HIR signature and read it there; no regex over type text.
+
+### O-08: a spread list rejects a function element written as `if`, `match` or a closure
+
+- Severity: low. Kind: bug (from a hack).
+- Where: `src/checker/expression-literals.ts:103` (`recheckSpreadPart`) with the syntax filter at `src/checker/call-speculation.ts:100`.
+- When a spread list widens function rows to their union, each part is checked again. A part whose syntax is on a fixed "unsafe" list (`if`, `match`, `closure`, `for`, ...) is refused with `no-common-type` instead.
+
+Repro (`rows.hd`):
+
+```text
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+pub fn main() -> void $ Console:
+    base := [health]
+    plain := [base..., orders]
+    println("${plain.len()}")
+    mixed := [base..., if true: orders else: orders]
+    println("${mixed.len()}")
+```
+
+`node bin/hd.js run rows.hd`:
+
+```
+scratch-230/rows.hd:15:24: no-common-type: list elements have no common type with 'List[fn()->string$Clock+Db]'; add an expected type
+```
+
+- Expected: both lists have type `List[fn() -> string $ Clock + Db]`, and the program prints `2` twice (`req.row.union.literal`, `req.row.union.literal.spread`).
+- Fix: compute the union row before checking the parts, then check each part once against it. Drop the syntax filter.
+
+### O-09: a derived `Arbitrary` error does not name a member typed through an alias
+
+- Severity: low. Kind: bug (from a hack).
+- Where: `src/checker/program.ts:92`.
+- To name the failing member, the checker pulls the type out of the diagnostic message with a regex and compares it with each member's written type text. An alias, or any other spelling, fails the text match, and the message falls back to an internal name.
+
+Repro (`arb.hd`):
+
+```text
+use std.testing.Arbitrary
+
+type Handler = fn(i32) -> i32
+
+@derive(Arbitrary)
+data Direct:
+    f: fn(i32) -> i32
+
+@derive(Arbitrary)
+data ViaAlias:
+    h: Handler
+
+pub fn main() -> void $ Console:
+    println("x")
+```
+
+`node bin/hd.js check arb.hd`:
+
+```
+scratch-230/arb.hd:5:9: unsatisfied-trait-bound: member 'f' cannot be derived: type 'fn(i32)->i32' does not implement Arbitrary, required by the bound on 'F' of '$impl4.member'; write the impl of Arbitrary by hand
+scratch-230/arb.hd:9:9: unsatisfied-trait-bound: type 'fn(i32)->i32' does not implement Arbitrary, required by the bound on 'F' of '$impl4.member'
+```
+
+- Expected: the second error names member `h` (`std-testing.arbitrary.derive.not-derivable`).
+- Fix: have the derivation pass attach the member to the generated bound check, and read it from there, not from message text.
+
+### O-10: std source is filtered and renamed as text in several places
+
+- Severity: low. Kind: hack.
+- Where: `src/checker/standard-library.ts:624` and `:705` drop `use` lines with `/^(pub )?use .*$/gm`; `src/checker/typed-derivation.ts:111` does the same.
+- A `use` that spans lines, such as `use std.x.{` with names on later lines, would leave its continuation lines in the module text. No std file does this today, so it does not fail now.
+- Fix: work on the parsed `Program` (drop its `uses`), together with the O-01 fix.
+
+### O-11: derive diagnostics travel through global tables keyed by span objects
+
+- Severity: low. Kind: hack.
+- Where: `src/checker/derive-intrinsics.ts:23` and `:30`, read by `src/checker/context.ts:1157`, `src/checker/calls.ts:1278` and `fail` in `src/checker/context.ts:1441`.
+- `derive-field-missing-trait` and `missing-derived-bound` are chosen by looking up the span object's identity in module-level `WeakMap`/`WeakSet`s. Any pass that copies a span, as `respan` and generated-source patching do, silently turns the code back into `unsatisfied-trait-bound`.
+- Fix: carry the derive origin on the HIR implementation or field, not on span identity.
+
+### O-12: the integration-test linker deletes `pub` with a line regex
+
+- Severity: low. Kind: hack.
+- Where: `src/package.ts:502`.
+- `/^pub\s+(?=(?:fn|data|enum|trait|type|use)\b)/` runs on every source line of a `tests/` module, including lines inside a multiline string. A string line that begins with `pub fn` loses its `pub `.
+- Fix: the same as O-05; compile the test module from its own AST.
+
+## Suspected, not reproduced
+
+- `src/repl.ts:517` (`substitution`) replaces type parameters one at a time with a regex. If an argument's text is another parameter's name, as `E[B, i32]` for `enum E[A, B]` with a user type `B`, a later pass rewrites it again. Not run through the REPL.
+- `src/checker/map-keys.ts:93` keeps the program's `Hash`/`Eq` implementations in a module-level `let`, set per `checkProgram`. A second check that started inside the first would read the wrong table. No such re-entry exists today, and an in-process run of 9 programs twice in reversed order showed no output differences.
+- `src/checker/expression-calls.ts:259` still intercepts every `List` method call named `append`. A user trait method `append` implemented for `List[T]` would be shadowed by it. TODO item 20 already removes `append`, so this is not reported separately.
+- `src/checker/member-lookup.ts:303` lets any std function see any std private member, whatever its module. No std code misuses this now.
+
+## Not re-reported
+
+These were seen and are already tracked: textual std renaming as a whole (TODO 3), std diagnostic locations (TODO 5), `List.append` (TODO 20), the two `SCALAR_BOUNDARY` sets in `src/compiler.ts:206` and `src/emitter/host-providers.ts:28` (A07), package joining and privacy (A01, P2), the busy-polling `hd run` (F-555), and nested-closure check time (F-604).
