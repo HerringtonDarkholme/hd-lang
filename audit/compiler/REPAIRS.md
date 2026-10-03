@@ -177,12 +177,50 @@ Regression tests: [generic-callable-requirements.test.ts](../../src/checker/gene
 
 Validation: full `pnpm run check`, all 102 source tests, website build, and fuzz smoke passed after rebasing onto `f007c257`.
 
+### Independent Repair: Least Common Type
+
+Before this repair, list and map literals used a candidate generator specialized to outer permission weakening and readonly `List` covariance.
+Value-producing `if`, `match`, and inferred function results used a separate equality-or-function-row path.
+None of those paths implemented optional injection, user-declared variance, readonly `Map` value variance, or general function variance consistently.
+
+One declaration-aware least-common-type engine now owns every specified inference site.
+It drops `never`, widens only direct function values to their top-level row union, solves nominal and function bounds structurally, and admits permission weakening, declared readonly variance, and one optional injection.
+Declared variance recurses through user types, built-in collections, and function inputs and results while rejecting representation-changing optional or trait conversions.
+The explicit prohibition on combining an outer permission weakening with a variance step remains part of candidate reachability.
+Each generic argument is solved independently as a least or greatest representation-preserving bound, rather than materializing their Cartesian product.
+
+Match checking now collects every arm type before choosing a result, rather than folding arms in source order.
+Its final arm expressions are value contexts while inference is pending, so a must-use optional arm is not diagnosed as discarded.
+Function-result discovery likewise joins all final and explicit return types at once; the normal second checking pass then applies the selected coercions.
+
+The implementation deliberately keeps least-common-type inference distinct from generic-argument inference, which the specification restricts to permission weakening.
+It also does not claim that all expected-type coercion paths share one representation yet.
+String-encoded semantic types and the broader A02 conversion architecture therefore remain open.
+
+| Regression case | Required observation |
+| --- | --- |
+| Join `i32` and `i32?` in a list, `if`, `match`, and inferred result | Infer `i32?`, insert `.Some` exactly once, and execute normally |
+| Join readonly `Producer[mut User]` and `Producer[User]` | Use the declaration's `+T` marker at every inference site |
+| Join readonly `Map[string, mut User]` and `Map[string, User]` | Apply built-in covariance only to the value argument |
+| Join `fn(User) -> mut User` and `fn(mut User) -> User` | Apply contravariant inputs and covariant results together |
+| Reorder three match arms whose two covariant arguments widen independently | Produce the same structural result regardless of source order |
+| Join two 24-parameter covariant types with alternating mutable arguments | Solve per position within the test deadline; do not enumerate `2^24` candidate types |
+| Join `i32` and `i32??` | Reject `no-common-type`; optional inference adds only one layer |
+| Join `mut List[mut User]` and `List[User]` | Reject `no-least-common-type`; do not combine outer weakening with element variance |
+| Use different requirement rows inside two nested lists | Reject; row union applies only to the direct function values at an inference site |
+
+Regression tests: [least-common-type.test.ts](../../src/checker/least-common-type.test.ts).
+
+Validation after rebasing onto `eafc840e`: full `pnpm run check`, all 107 source tests, website build, and fuzz smoke passed.
+The existing `runtime/valid/lct-optional-injection.hd` known-failure case also checks successfully when invoked directly.
+No specification or conformance fixture changed.
+
 ### Repair Status Table
 
 
 | Finding | Status | Repair and limits |
 | --- | --- | --- |
-| A02 | Partially fixed | Public and private readonly inherent signatures, including inferred private results and invariant callable requirement rows, participate in variance verification. Optional constructor boundaries preserve payload permission. Generic provider-key substitution and erasure are repaired with explicit binder maps. Shared coercion and least-common-type remain open. |
+| A02 | Partially fixed | Public and private readonly inherent signatures, optional constructor boundaries, callable-row variance and erasure, and every specified least-common-type site are repaired. Expected-type coercion remains distributed, and semantic types remain string-encoded. |
 | A03 | Reported control-flow defect fixed | All child-driving bodies use the suspension CFG. The linear backend and comprehension bypass are removed. This does not close A06's entry/waker gap or prove all lowering correct. |
 | A04 | Reported placeholder capture fixed | Generated expression and type placeholders cannot capture legal user identifiers. Broader generated helper-name hygiene remains unreviewed. |
 | A05 | Reported candidate-checking defects fixed | Arbitrary argument expressions and associated candidates use mutable-state rollback and sparse inference journals, then the winner is committed once. Broader resolution conformance remains open. |

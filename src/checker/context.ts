@@ -45,11 +45,8 @@ import {
   usesStandardInspect,
   type InspectEnvironment,
 } from "./inspectable.ts";
-import {
-  isPermissionWeakening,
-  rowUnionType,
-  weakenBoundedGenericActual,
-} from "./assignability.ts";
+import { isPermissionWeakening, weakenBoundedGenericActual } from "./assignability.ts";
+import { leastCommonType } from "./least-common-type.ts";
 import { isRowSubsumption, mismatchMessage, rowDiagnostic } from "./row-rules.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
 import * as termination from "./termination.ts";
@@ -229,7 +226,8 @@ export abstract class CheckerContext {
   /** The `name := value` binding whose initializer is being checked without an annotation. */
   protected inferredBinding?: InferredBinding;
   protected readonly inferredRequirements: string[] = [];
-  protected inferredReturnType?: ValueType;
+  protected readonly inferredReturns: { readonly type: ValueType; readonly span: SourceSpan }[] =
+    [];
   protected readonly inferredPropagations: termination.InferredPropagation[] = [];
   protected readonly closureIndex: number;
   protected readonly captures = new Map<string, HirCapture>();
@@ -346,7 +344,21 @@ export abstract class CheckerContext {
         const last = body.at(-1);
         if (last?.kind !== "return")
           this.recordInferredReturn(this.blockType(body), last?.span ?? this.declaration.span);
-        result = this.inferredReturnType ?? "void";
+        const inferred = leastCommonType(
+          this.inferredReturns.map(({ type }) => type),
+          { data: this.dataTypes, enums: this.enumTypes },
+        );
+        if (!("type" in inferred)) {
+          const listed = [...new Set(this.inferredReturns.map(({ type }) => type))].join(", ");
+          this.fail(
+            inferred.code,
+            inferred.code === "no-common-type"
+              ? `function return paths have no common type: ${listed}`
+              : `function return paths have no unique least common type: ${listed}; declare the result type`,
+            this.inferredReturns.at(-1)?.span ?? this.declaration.span,
+          );
+        }
+        result = inferred.type;
         const mismatch = termination.mismatchedPropagation(result, this.inferredPropagations);
         if (mismatch) this.fail("no-common-type", mismatch.message, mismatch.span);
       } else {
@@ -1218,18 +1230,7 @@ export abstract class CheckerContext {
   }
 
   protected recordInferredReturn(type: ValueType, span: SourceSpan): void {
-    const previous = this.inferredReturnType;
-    if (type === "never" || previous === type) return;
-    // Function values with different rows take their union (r-req.row.union.sites).
-    const joined =
-      previous === undefined || previous === "never" ? type : rowUnionType([previous, type]);
-    if (joined === undefined)
-      this.fail(
-        "no-common-type",
-        `closure return paths have types ${previous} and ${type} with no common type`,
-        span,
-      );
-    this.inferredReturnType = joined;
+    this.inferredReturns.push({ type, span });
   }
 
   protected checkFallthrough(body: readonly HirStatement[]): void {

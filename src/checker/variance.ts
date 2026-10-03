@@ -6,10 +6,9 @@ import {
   mutableInner,
   nominalGenericParts,
   optionalInner,
-  readonlyType,
   tupleParts,
 } from "../types.ts";
-import { functionVariancePairs, isPermissionWeakening } from "./assignability.ts";
+import { functionVariancePairs } from "./assignability.ts";
 import {
   genericTypeName,
   resolveGenericType,
@@ -31,6 +30,17 @@ type Declarations = {
 
 function variancesOf(name: string, declarations: Declarations): readonly VarianceMarker[] {
   return declarations.data.get(name)?.variances ?? declarations.enums.get(name)?.variances ?? [];
+}
+
+export function conversionVariances(
+  name: string,
+  argumentCount: number,
+  declarations: Declarations,
+): readonly VarianceMarker[] {
+  if (name === "List") return ["+"];
+  if (name === "Map") return [undefined, "+"];
+  const declared = variancesOf(name, declarations);
+  return declared.length === argumentCount ? declared : [];
 }
 
 function occurrences(
@@ -259,21 +269,32 @@ export function varianceConversion(
   target: ValueType,
   declarations: Declarations,
 ): boolean | "representation-change" {
-  const functionPairs = functionVariancePairs(readonlyType(source), target);
+  // Variance applies only after the caller already has a readonly outer view.
+  // Removing an outer `mut` and changing arguments would combine two rules.
+  if (mutableInner(source) !== undefined) return false;
+  const representationConversion = (
+    narrow: ValueType,
+    wide: ValueType,
+  ): boolean | "representation-change" => {
+    if (narrow === wide || mutableInner(narrow) === wide) return true;
+    const optional = optionalInner(wide);
+    if (wide.startsWith("trait:") || optional === narrow) return "representation-change";
+    return varianceConversion(narrow, wide, declarations);
+  };
+
+  const functionPairs = functionVariancePairs(source, target);
   if (functionPairs) {
     for (const [narrow, wide] of functionPairs) {
-      if (narrow === wide || isPermissionWeakening(narrow, wide)) continue;
-      return wide.startsWith("trait:") || optionalInner(wide) === narrow
-        ? "representation-change"
-        : false;
+      const conversion = representationConversion(narrow, wide);
+      if (conversion !== true) return conversion;
     }
     return true;
   }
-  const from = nominalGenericParts(readonlyType(source));
+  const from = nominalGenericParts(source);
   const to = mutableInner(target) === undefined ? nominalGenericParts(target) : undefined;
   if (!from || !to || from.name !== to.name || from.arguments.length !== to.arguments.length)
     return false;
-  const markers = variancesOf(from.name, declarations);
+  const markers = conversionVariances(from.name, from.arguments.length, declarations);
   if (!markers.some(Boolean)) return false;
   for (const [index, argument] of from.arguments.entries()) {
     const wanted = to.arguments[index]!;
@@ -281,10 +302,8 @@ export function varianceConversion(
     const marker = markers[index];
     if (!marker) return false;
     const [narrow, wide] = marker === "+" ? [argument, wanted] : [wanted, argument];
-    if (isPermissionWeakening(narrow, wide)) continue;
-    return wide.startsWith("trait:") || optionalInner(wide) === narrow
-      ? "representation-change"
-      : false;
+    const conversion = representationConversion(narrow, wide);
+    if (conversion !== true) return conversion;
   }
   return true;
 }

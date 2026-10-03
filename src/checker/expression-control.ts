@@ -1,5 +1,4 @@
 import type { Expression, Statement } from "../ast.ts";
-import type { SourceSpan } from "../diagnostics.ts";
 import type {
   HirData,
   HirEnum,
@@ -24,7 +23,6 @@ import {
   tupleParts,
 } from "../types.ts";
 import { numericType } from "../numeric.ts";
-import { rowUnionType } from "./assignability.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
   type BindingExpressionFlow,
@@ -64,7 +62,7 @@ interface MatchContext {
   /** Let-else arms already reported as falling through; their value is not coerced. */
   readonly fallsThrough: Set<HirMatchArm>;
   catchAll: boolean;
-  resultType?: ValueType;
+  readonly resultTypes: ValueType[];
 }
 
 function enumPatternAccess(
@@ -110,27 +108,19 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         }
         const thenType = this.blockType(thenBody);
         const elseType = this.blockType(elseBody);
-        if (thenType !== elseType && thenType !== "never" && elseType !== "never") {
-          // Function values take the union of their rows
-          // (11-requirements-and-suspension.md#r-req.row.union.sites).
-          const union = rowUnionType([thenType, elseType]);
-          if (union !== undefined)
-            return {
-              kind: "if",
-              condition,
-              thenBody: this.coerceBlockResult(thenBody, union),
-              elseBody: this.coerceBlockResult(elseBody, union),
-              type: union,
-              span: expression.span,
-            };
-          this.fail(
-            "no-common-type",
-            `if branches have types ${thenType} and ${elseType} with no common type`,
-            expression.span,
-          );
-        }
-        const type = thenType === "never" ? elseType : thenType;
-        return { kind: "if", condition, thenBody, elseBody, type, span: expression.span };
+        const type = this.inferLeastCommonType(
+          [thenType, elseType],
+          "if branches",
+          expression.span,
+        );
+        return {
+          kind: "if",
+          condition,
+          thenBody: this.coerceBlockResult(thenBody, type),
+          elseBody: this.coerceBlockResult(elseBody, type),
+          type,
+          span: expression.span,
+        };
       }
       case "for": {
         const value = this.checkExpression(expression.iterable);
@@ -414,6 +404,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       intervals: [],
       arms: [],
       fallsThrough: new Set(),
+      resultTypes: [],
       catchAll: false,
     };
     const previousReadonly = this.matchSubjectReadonly;
@@ -460,6 +451,10 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         expression.span,
       );
     }
+    const resultType =
+      context.resultTypes.length === 0
+        ? "void"
+        : this.inferLeastCommonType(context.resultTypes, "match arms", expression.span);
     return {
       kind: "match",
       subject: context.subject,
@@ -473,13 +468,11 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       enumIndex: context.declaration?.index,
       // Each arm's value fits a union-row result by row subsumption.
       arms: context.arms.map((arm) =>
-        context.resultType === undefined ||
-        context.resultType === "never" ||
-        context.fallsThrough.has(arm)
+        resultType === "never" || context.fallsThrough.has(arm)
           ? arm
-          : { ...arm, body: this.coerceBlockResult(arm.body, context.resultType) },
+          : { ...arm, body: this.coerceBlockResult(arm.body, resultType) },
       ),
-      type: context.resultType ?? "void",
+      type: resultType,
       span: expression.span,
     };
   }
@@ -872,13 +865,12 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         );
       }
       const guard = this.checkArmGuard(arm);
-      const body = this.checkStatements(arm.body, false, context.expected);
+      // An arm's final expression is the value of the enclosing match, even
+      // before its common result type has been inferred.
+      const body = this.checkStatements(arm.body, false, context.expected, true);
       const checkedArm = { tag, literal, guard, tests, bindings, body, span: arm.span };
       const armType = this.letElseArmType(arm, checkedArm, context);
-      if (context.resultType === undefined || context.resultType === "never")
-        context.resultType = armType;
-      else if (armType !== "never" && context.resultType !== armType)
-        context.resultType = this.joinArmTypes(context.resultType, armType, arm.span);
+      context.resultTypes.push(armType);
       context.arms.push(checkedArm);
     } finally {
       this.scopes.pop();
@@ -955,21 +947,6 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       span: arm.span,
     });
     return "never";
-  }
-
-  /**
-   * Two differing arm types join only as function values that take the union
-   * of their rows (11-requirements-and-suspension.md#r-req.row.union.sites).
-   */
-  private joinArmTypes(left: ValueType, right: ValueType, span: SourceSpan): ValueType {
-    const union = rowUnionType([left, right]);
-    if (union === undefined)
-      this.fail(
-        "no-common-type",
-        `match arms have types ${left} and ${right} with no common type`,
-        span,
-      );
-    return union;
   }
 
   /** A suite whose final value is coerced to `type`, as a union-row site needs. */

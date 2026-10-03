@@ -14,7 +14,7 @@ import {
   tupleRest,
   tupleType,
 } from "../types.ts";
-import { leastCommonType, rowUnionType } from "./assignability.ts";
+import { leastCommonType, rowUnionType } from "./least-common-type.ts";
 
 import { PatternChecker } from "./patterns.ts";
 
@@ -66,12 +66,9 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
     span: SourceSpan,
     spreadParts = false,
   ): ValueType {
-    const least = leastCommonType(types);
+    const declarations = { data: this.dataTypes, enums: this.enumTypes };
+    const least = leastCommonType(types, declarations);
     if ("type" in least) return least.type;
-    // Function values in a list or map literal take the union of their rows
-    // (11-requirements-and-suspension.md#r-req.row.union.literal).
-    const union = rowUnionType(types);
-    if (union !== undefined) return union;
     // A spread part is a list, and contributes its elements' rows
     // (r-req.row.union.literal.spread).
     const elements = spreadParts
@@ -81,7 +78,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         })
       : [];
     const elementUnion = elements.every((element) => element !== undefined)
-      ? rowUnionType(elements as ValueType[])
+      ? rowUnionType(elements as ValueType[], declarations)
       : undefined;
     if (elementUnion !== undefined) return nominalGenericType("List", [elementUnion]);
     const listed = [...new Set(types)].join(", ");
