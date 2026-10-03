@@ -1254,10 +1254,24 @@ data Cell[T]:
 ```
 
 1. r[types.variance.markers] Generic type declarations mark covariance with `+T`, contravariance with `-T`, and invariance by leaving `T` unmarked.
-2. r[types.variance.verified] The compiler verifies each declared parameter against its use on the type's readonly public surface.
-3. r[types.variance.surface] That surface includes data fields, enum shared data and variant payloads, trait method signatures, and every inherent method available with the nominal type.
+2. r[types.variance.verified] The compiler verifies each declared parameter against its use on the type's readonly surface.
+3. r[types.variance.surface] That surface includes data fields, enum shared data and variant payloads, trait method signatures, and the signature of every inherent method of the nominal type, private methods included.
 4. r[types.variance.trait-impl] A separate trait implementation does not alter the nominal type declaration's variance; its own instantiated signatures must still type-check.
 5. r[types.variance.trait-params] A trait's generic parameters are invariant. A variance marker on one is an error. Error: `invalid-variance`.
+
+```text
+data Box[+T]:
+    value: T
+
+impl[T] Box[T]:
+    fn replace(self, next: T) -> void:  # error: invalid-variance
+        pass
+```
+
+> **Why.** Privacy in hd is module-wide, so any code in the declaring
+> module can convert a value by variance and then call a private method on
+> it. So a private method's signature counts toward variance as a public
+> one's does.
 
 ### GADT Results
 
@@ -1408,7 +1422,7 @@ This section defines which types may be map keys, and how keys behave.
 2. r[types.map-key.no-mut] A `mut T` key type is an error, even when `T` implements both traits. Error: `invalid-map-key`.
 3. r[types.map-key.hash] `Hash` is a standard-library trait in `std.hash`.
 4. r[types.map-key.user] User-defined data and enum types can become keys by explicitly implementing or deriving both traits.
-5. r[types.map-key.builtin-hash] Standard-library implementations of `Hash` cover `bool`, integers, `char`, `string`, and tuples, optionals, and lists of hashable elements. So `List[T]` implements `Hash` when `T < Hash`.
+5. r[types.map-key.builtin-hash] Standard-library implementations of `Hash` cover `bool`, integers, `char`, `string`, and tuples, optionals, results, and lists of hashable elements. So `List[T]` implements `Hash` when `T < Hash`, and `Result[T, E]` when `T < Hash` and `E < Hash`.
 6. r[types.map-key.unhashable] Maps, floating-point values, functions, suspensions, dynamic trait values, and `Any` do not have built-in `Hash`.
 7. r[types.map-key.user-enums] User data and every user enum, including a payload-free one, require an explicit or derived implementation of both traits.
 8. r[types.map-key.float-no-hash] Floating-point types implement `Eq` but not `Hash`, so they are not valid map keys.
@@ -1468,12 +1482,14 @@ r[types.lct.sites] Several constructs infer one type from several values when no
 | Non-public function whose result type is omitted | the final value and `return` operands | [Functions](07-functions.md#declarations) |
 
 1. r[types.lct.uses] Each of these uses the least common type defined here.
-2. r[types.lct.unique] The compiler computes a unique least common type of the values' types using only the implicit conversions in [Assignability And Coercion](#assignability-and-coercion).
-3. r[types.lct.conversions] Permission weakening and declared readonly variance may contribute. No numeric conversion does, so `[small, large]` with an `i16` and an `i64` has no common type. Error: `no-common-type`.
-4. r[types.lct.no-combine] Least-common-type inference never combines permission weakening with a variance step for the same candidate conversion.
-5. r[types.lct.row-union-every-site] At every construct in the table, function values with different rows are first widened to the union of their rows ([Row Union In Literals](11-requirements-and-suspension.md#row-union-in-literals)).
-6. r[types.lct.never.dropped] The least common type first drops every value of type `never`, then joins the rest. So `if ok: 1 else: return .None` has type `i32`.
-7. r[types.lct.never.all] When every value has type `never`, the least common type is `never`.
+2. r[types.lct.unique] The compiler computes a unique least common type of the values' types using only the conversions that `types.lct.conversions` lists.
+3. r[types.lct.conversions] Permission weakening, declared readonly variance, and optional injection may contribute. No other conversion does: no numeric conversion, so `[small, large]` with an `i16` and an `i64` has no common type. Error: `no-common-type`.
+4. r[types.lct.optional] Optional injection adds one layer, as [`types.assign.optional`](#r-types.assign.optional) states. So an `i32` and an `i32?` join to `i32?`, in a list literal, a value-producing `if` or `match`, and an inferred result type alike.
+5. r[types.lct.optional.one-layer] A `T` and a `T??` have no common type, because injection never adds two layers. Error: `no-common-type`.
+6. r[types.lct.no-combine] Least-common-type inference never combines permission weakening with a variance step for the same candidate conversion.
+7. r[types.lct.row-union-every-site] At every construct in the table, function values with different rows are first widened to the union of their rows ([Row Union In Literals](11-requirements-and-suspension.md#row-union-in-literals)).
+8. r[types.lct.never.dropped] The least common type first drops every value of type `never`, then joins the rest. So `if ok: 1 else: return .None` has type `i32`.
+9. r[types.lct.never.all] When every value has type `never`, the least common type is `never`.
 
 ```text
 fn first(values: List[i32]) -> i32?:
@@ -1484,6 +1500,14 @@ fn first(values: List[i32]) -> i32?:
 
 fn fail(message: string) -> i32:
     if message == "": panic("empty") else: panic(message)
+
+fn fallback(count: i32, found: i32?, flag: bool) -> List[i32?]:
+    value := if flag: count else: found
+    values := [count, value]
+    values
+
+fn nested(count: i32, found: i32??, flag: bool) -> void:
+    value := if flag: count else: found  # error: no-common-type
 ```
 
 See also: a generic call that solves one type parameter from several

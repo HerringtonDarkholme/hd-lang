@@ -1320,9 +1320,9 @@ tests:
 > **Why.** A fixed `Result[void, Error]` lets one test body use `?` on
 > several error types, as Zig's inferred `anyerror!void` test bodies do.
 
-> **Note.** The stdlib tier gives the body closures of `it_each`,
-> `it_prop`, and `it_prop_with` their result types by rules 2 and 3
-> ([Registration Functions](../std/testing.md#registration-functions)).
+> **Note.** The body closures of `it_each`, `it_prop`, and `it_prop_with`
+> get their result types by rules 2 and 3, by
+> [`module.testing.reg.body-closure-result`](10-modules.md#r-module.testing.reg.body-closure-result).
 
 See also: [Error Trait](09-traits.md#error-trait),
 [Standard Testing](10-modules.md#standard-testing).

@@ -881,7 +881,7 @@ pub fn it[T < Termination, $R](name: string, ignore: string? = .None, expect_pan
 5. r[module.testing.it.options-strings] The named options are those of the signature above: `ignore`, `expect_panic`, and `timeout`. An `ignore` or `expect_panic` value must be a string literal without interpolation. Any other value for them is an error. Error: `non-literal-test-argument`.
 6. r[module.testing.it.unknown-option] Any other named argument is an error. Error: `unknown-named-argument`.
 7. r[module.testing.test-position] **Test position** is the top level of a `tests:` block, of a [test module](#test-modules), or of an integration test module.
-8. r[module.testing.position-statements] Every statement in test position must be a call of a **test registration function**: `it`, or one of the registration functions that `std.testing` declares in the stdlib tier. Any other statement is an error. Error: `invalid-test-statement`.
+8. r[module.testing.position-statements] Every statement in test position must be a call of a **test registration function**: `it`, `it_each`, `it_prop`, or `it_prop_with` ([Registration Functions](#registration-functions)). Any other statement is an error. Error: `invalid-test-statement`.
 9. r[module.testing.direct-call] A test registration function may be used only as such a direct call in test position. Any other use, including a call elsewhere or a use as a value, is an error. Error: `misplaced-test-case`.
 10. r[module.testing.it.unique] Two test cases of one module must not have the same name. Error: `duplicate-test-name`.
 
@@ -936,13 +936,71 @@ tests:
 > language tier names it in this signature only and specifies none of its
 > values.
 
-> **Note.** The stdlib tier's test registration functions are `it_each`,
-> which registers one test case per row, and `it_prop` and
-> `it_prop_with`, which register property tests
-> ([Registration Functions](../std/testing.md#registration-functions)).
-
 See also: [Test Timeout](../std/testing.md#test-timeout) in the stdlib tier,
 for what the `timeout` option does.
+
+### Registration Functions
+
+`std.testing` declares three more test registration functions. `it_each`
+registers one test case per row:
+
+```text
+pub fn it_each[A, T < Termination, $R](name: string, rows: List[A], ignore: string? = .None,
+                                      expect_panic: string? = .None, timeout: Duration? = .None,
+                                      body: fn!(A) -> T $ R) -> void $ R
+```
+
+`it_prop` and `it_prop_with` register one property test case each:
+
+```text
+pub fn it_prop[T < Arbitrary & Debug, R < Termination](name: string, ignore: string? = .None,
+                                                       expect_panic: string? = .None, timeout: Duration? = .None,
+                                                       cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
+                                                       prop: fn!(T) -> R) -> void
+pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
+                                                expect_panic: string? = .None, timeout: Duration? = .None,
+                                                cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
+                                                prop: fn!(T) -> R) -> void
+```
+
+1. r[module.testing.reg.functions] `it_each`, `it_prop`, and `it_prop_with` are test registration functions with the signatures above, which `std.testing` declares. The test-position rules of `it` apply to them.
+2. r[module.testing.reg.import] None of the three is a prelude name. Code imports them from `std.testing`, as in `use std.testing.it_each`.
+3. r[module.testing.reg.row-body-closure] The body of `it_each` has a parameter, so it is an explicit `fn!` closure, not a trailing block. After omitted options, a call passes it by name, as in `body=fn!(value: i32): ...`.
+4. r[module.testing.reg.row-name-clash] Another test case of the module must not be named `name[i]` for any index `i` of an `it_each` call's rows. Error: `duplicate-test-name`.
+5. r[module.testing.reg.prop-registers] A call of `it_prop` or `it_prop_with` in test position registers one property test case.
+6. r[module.testing.reg.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
+7. r[module.testing.reg.options] Each takes the options of `it`, `ignore`, `expect_panic`, and `timeout`, under the same rules.
+8. r[module.testing.reg.body-result] The body's result follows [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, Error]` when it uses `?`.
+9. r[module.testing.reg.body-closure-result] The body closure of an `it_each`, `it_prop`, or `it_prop_with` call that writes no result type gets its result type by [`expr.try.test.with-try`](05-expressions.md#r-expr.try.test.with-try) and [`expr.try.test.without-try`](05-expressions.md#r-expr.try.test.without-try), as a trailing block given to `it` does.
+10. r[module.testing.reg.prop-debug] `it_prop` and `it_prop_with` require `T < Debug`. A property whose input type does not implement `Debug` is an error. Error: `unsatisfied-trait-bound`.
+
+```text
+use std.testing.it_each
+
+fn label() -> string: "halves"
+
+tests:
+    it_each("doubles", [1, 2], body=fn!(value: i32): pass)
+
+    it("doubles[0]"):  # error: duplicate-test-name
+        pass
+
+    it_each(label(), [1, 2], body=fn!(value: i32): pass)  # error: non-literal-test-argument
+```
+
+> **Note.** `Arbitrary`, `Choices`, and `Duration` are stdlib-tier types
+> ([Property Tests](../std/testing.md#property-tests),
+> [Time](../std/time.md#duration)). The language tier names them in these
+> signatures only and specifies none of their members.
+
+> **Why.** The compiler lists every test case without running it, so it
+> knows each registration function by name, where its calls stand, and
+> which of their arguments must be literals.
+
+See also: [Table-Test Rows](../std/testing.md#table-test-rows), for how an
+`it_each` call expands and names its rows, and
+[Property Tests](../std/testing.md#property-tests), for how the runner
+generates, shrinks, and reports a property's inputs.
 
 ### Test Outcomes
 
@@ -959,14 +1017,15 @@ tests:
 1. r[module.testing.instance] Each test case runs in its own fresh program instance, after module initialization.
 2. r[module.testing.no-reuse] Instances are not reused between test cases.
 3. r[module.testing.driven] The runner drives the body's suspension to completion, as the host drives `main!`.
-4. r[module.testing.unit-row] A test case in a `tests:` block or a test module gets no host providers. Its body's requirement row must be empty, so every requirement comes from a `$.with` provider scope. Error: `missing-requirement`.
-5. r[module.testing.profile] A test run compiles against one [runtime profile](#runtime-profiles), the default profile unless the run selects another.
-6. r[module.testing.integration-row] For a test case in an integration test module, the runner binds the body's requirement row from that profile, as the host binds the row of `main`.
-7. r[module.testing.skipped] An integration test case whose row names a trait that the profile does not bind is not run. It is reported as skipped, and it is not an error.
-8. r[module.testing.pass] A test case passes when its body completes and `report()` on its result returns `ExitCode(0)`.
-9. r[module.testing.fail] It fails when `report()` returns another code or when its body panics, including by a failed assertion.
-10. r[module.testing.err-print] When the result holds an `.Err`, the runner prints the error as [Entry Results](#entry-results) describes.
-11. r[module.testing.expect-panic-fail] With `expect_panic`, the test case instead fails when its body completes or panics with another category.
+4. r[module.testing.runner-provider] A test run's profile also binds the host capability trait `std.testing.TestRunner`, and the runner binds a provider of it for the body of every test case.
+5. r[module.testing.unit-row.test-runner] A test case in a `tests:` block or a test module gets no other host provider. Its body's requirement row may hold `TestRunner` and no other key, so every other requirement comes from a `$.with` provider scope. Error: `missing-requirement`.
+6. r[module.testing.profile] A test run compiles against one [runtime profile](#runtime-profiles), the default profile unless the run selects another.
+7. r[module.testing.integration-row] For a test case in an integration test module, the runner binds the body's requirement row from that profile, as the host binds the row of `main`.
+8. r[module.testing.skipped] An integration test case whose row names a trait that the profile does not bind is not run. It is reported as skipped, and it is not an error.
+9. r[module.testing.pass] A test case passes when its body completes and `report()` on its result returns `ExitCode(0)`.
+10. r[module.testing.fail] It fails when `report()` returns another code or when its body panics, including by a failed assertion.
+11. r[module.testing.err-print] When the result holds an `.Err`, the runner prints the error as [Entry Results](#entry-results) describes.
+12. r[module.testing.expect-panic-fail] With `expect_panic`, the test case instead fails when its body completes or panics with another category.
 
 ```text
 trait Clock:
@@ -994,6 +1053,15 @@ tests:
 > expected one, from the panic's stable category. Unit tests run on fakes
 > alone, so they pass on every machine; only integration tests reach real
 > providers.
+
+> **Why.** The runner is not a resource that a fake would replace, so a
+> unit test that reaches it through `TestRunner` still passes on every
+> machine.
+
+> **Note.** `TestRunner` is a stdlib-tier trait
+> ([Runner Capabilities](../std/testing.md#runner-capabilities)). The
+> language tier names it in these rules only and specifies none of its
+> methods.
 
 See also: [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks),
 [Exit Status](#exit-status).
@@ -1368,6 +1436,29 @@ values that cross a boundary, and the official host boundary.
 > so a panicking program and a failed build never share a status.
 
 See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
+
+### Host Results
+
+A profile's boundary adapter checks every value that comes in from the
+host before hd code sees it:
+
+1. r[module.profile.host-result.checked] The adapter checks each value that a call of a host capability trait's method returns, suspending or not, against the result type that the method declares.
+
+| Rule | Declared type | The value must be |
+| --- | --- | --- |
+| r[module.profile.host-result.integer] Integer | an integer type | an integer within the type's range |
+| r[module.profile.host-result.bool] `bool` | `bool` | `false` or `true` |
+| r[module.profile.host-result.char] `char` | `char` | a Unicode scalar value |
+| r[module.profile.host-result.string] `string` | `string` | valid UTF-8 text |
+| r[module.profile.host-result.shape] Composite | an optional, `Result`, tuple, list, map, data type, or enum | of that type's shape, with each element, field, and payload checked against its own declared type |
+
+2. r[module.profile.host-result.no-coercion] The adapter never rounds, truncates, wraps, or otherwise converts a host value to make it fit.
+3. r[module.profile.host-result.panic] A value that fails the check is a host fault. The call panics with a message that names the trait and the method and says that the host broke its contract. Its category is that of a `panic` call. Panic: `explicit-panic`.
+4. r[module.profile.host-result.status] Like every panic, it poisons the program instance, and an entry point exits with the profile's panic exit status, by [`module.entry.panic`](#r-module.entry.panic).
+
+> **Why.** A host that returns `300` for a `u8` has a bug outside hd.
+> Stopping at the boundary names the host, where a silently wrapped value
+> would surface later as a wrong answer in hd code.
 
 ### Registration
 

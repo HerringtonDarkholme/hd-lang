@@ -1,0 +1,11 @@
+# test: a test body gets no PropertyRunner, so a call that needs one is missing-requirement
+# Spec std Testing, Runner Capabilities: std-testing.runner.body-property.
+use std.testing.PropertyRunner
+use std.time.s
+
+fn label(text: string) -> void $ PropertyRunner:
+    $.use(PropertyRunner).show(text)
+
+tests:
+    it("labels the input", timeout=5s):
+        label("a")  # diagnostic: missing-requirement

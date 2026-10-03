@@ -275,6 +275,7 @@ The stdlib chapters' terms are in the
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
 | **runtime identity** | Two types share it when they are the same declaration applied to type arguments with the same runtime identity. See [`trait.identity.definition`](lang/09-traits.md#r-trait.identity.definition). |
 | **runtime profile** | A named compile-time set of host capability traits, their boundary adapters, and runtime choices such as panic exit statuses. See [`module.profile.definition`](lang/10-modules.md#r-module.profile.definition). |
+| **same compiled program** | Two builds whose compiler outputs are byte-identical. See [`req.determinism.same-program`](lang/11-requirements-and-suspension.md#r-req.determinism.same-program). |
 | **scalar boundary** | A byte offset of a string, from `0` to its length, that does not fall inside a scalar value's encoding. See [`types.string.boundary`](lang/04-type-system.md#r-types.string.boundary). |
 | **script** | An entry module with no `main`, whose top-level executable statements are the entry behavior. See [`module.init.script`](lang/10-modules.md#r-module.init.script). |
 | **sealed trait** | A standard trait whose implementations only the compiler and the standard library supply. See [Sealed Traits](lang/09-traits.md#sealed-traits). |
@@ -290,11 +291,11 @@ The stdlib chapters' terms are in the
 | **task** | A development program of a package, a file `tasks/NAME.hd` that `hd run NAME` runs and the package never ships. See [Tasks](cli/command-line.md#tasks). |
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](lang/14-annotations.md#templates). |
 | **tuple template** | A trait's derivation for every tuple type, written `impl[T < Tuple] Trait for T by Structure:` in the trait's module. See [Tuple Templates](lang/14-annotations.md#tuple-templates). |
-| **test case** | One test, registered by a call of the prelude function `it`, or one row of `it_each`, in test position. See [Test Cases](lang/10-modules.md#test-cases). |
+| **test case** | One test, registered by a call of the prelude function `it` in test position, by one row of an `it_each` call, or by an `it_prop` or `it_prop_with` call. See [Test Cases](lang/10-modules.md#test-cases). |
 | **test code** | A package's `tests:` blocks, test modules, and integration test modules, compiled only by a test build. See [`module.test.code`](lang/10-modules.md#r-module.test.code). |
 | **test module** | A module whose file name ends in `_test.hd`. See [Test Modules](lang/10-modules.md#test-modules). |
 | **test position** | The top level of a `tests:` block, a test module, or an integration test module, where test-case calls go. See [`module.testing.test-position`](lang/10-modules.md#r-module.testing.test-position). |
-| **test registration function** | `it`, or a registration function that `std.testing` declares in the stdlib tier; only a direct call of one may stand in test position. See [`module.testing.position-statements`](lang/10-modules.md#r-module.testing.position-statements). |
+| **test registration function** | `it`, `it_each`, `it_prop`, or `it_prop_with`; only a direct call of one may stand in test position. See [`module.testing.position-statements`](lang/10-modules.md#r-module.testing.position-statements). |
 | **trait candidates** | The trait methods of the receiver's type with the called name whose trait is available at the call. See [`names.method-lookup.trait-candidates`](lang/03-names-and-scopes.md#r-names.method-lookup.trait-candidates). |
 | **trait methods** | The methods of every trait that a known implementation implements for a type. See [`names.member.trait-methods`](lang/03-names-and-scopes.md#r-names.member.trait-methods). |
 | **trait-less derivation block** | An `impl X by Structure:` without a trait, whose member lines write shared metadata of `X` for every derivation. See [Trait-Less Derivation Blocks](lang/14-annotations.md#trait-less-derivation-blocks). |

@@ -1,0 +1,36 @@
+# test: a result writes a tag byte, 0 for .Ok and 1 for .Err, then its payload, and may be a map key
+# Spec std Hash, Bytes Written: std-hash.bytes.result; Result Hashing: std-hash.result.impl.
+use std.testing.assert_equal
+
+data Recorder:
+    bytes: mut List[u8]
+
+impl Hasher for Recorder:
+    fn write(mut self, bytes: List[u8]) -> void:
+        for byte in bytes:
+            self.bytes.append(byte)
+
+fn bytes_of[T < Hash](value: T) -> List[u8]:
+    let mut recorder = Recorder { bytes: [] }
+    value.hash(recorder)
+    recorder.bytes
+
+fn failures(counts: Map[Result[i32, string], i32], key: Result[i32, string]) -> i32:
+    match counts.get(key):
+        .Some(n) => n
+        .None => 0
+
+tests:
+    it("a result writes a tag byte, then its payload"):
+        let ok: Result[u8, bool] = .Ok(7)
+        let err: Result[u8, bool] = .Err(true)
+        assert_equal(bytes_of(ok), [0, 7], reason=".Ok is 0, then the u8")
+        assert_equal(bytes_of(err), [1, 1], reason=".Err is 1, then the bool")
+
+    it("a result of hashable types is a map key"):
+        let counts: mut Map[Result[i32, string], i32] = {}
+        counts[.Ok(1)] = 2
+        counts[.Err("late")] = 3
+        assert_equal(counts[.Ok(1)], 2, reason="the .Ok key")
+        assert_equal(counts[.Err("late")], 3, reason="the .Err key")
+        assert_equal(failures(counts, .Err("early")), 0, reason="an absent key")

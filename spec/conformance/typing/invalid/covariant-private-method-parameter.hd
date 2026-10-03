@@ -1,0 +1,8 @@
+# test: a private inherent method counts toward a declared variance
+# Spec 04 Variance: types.variance.surface; a private method that takes T makes +T invalid-variance.
+data Box[+T]:
+    value: T
+
+impl[T] Box[T]:
+    fn replace(self, next: T) -> void:  # diagnostic: invalid-variance
+        pass

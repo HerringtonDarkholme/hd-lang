@@ -3,7 +3,7 @@
 # spec/std/hash.md#bytes-written gives: an integer its little-endian bytes
 # at its own width, a `bool` one byte, a `char` its scalar as a `u32`, a
 # string or a list its length as a `u64` and then its contents, and an
-# optional a tag byte and then its payload. `DefaultHasher` and `hash_of`
+# optional or a result a tag byte and then its payload. `DefaultHasher` and `hash_of`
 # are not declared here yet (task #196).
 use std.function.Tuple
 use std.structure.{Structure, Walker, Variant, Field}
@@ -32,6 +32,18 @@ impl[T < Hash] Hash for T?:
             .Some(value) =>
                 state.write([1])
                 value.hash(state)
+
+# A result writes the tag byte 0 and then its `.Ok` payload, or 1 and then
+# its `.Err` payload (spec/std/hash.md#r-std-hash.bytes.result).
+impl[T < Hash, E < Hash] Hash for Result[T, E]:
+    fn hash(self, state: mut Hasher) -> void:
+        match self:
+            .Ok(value) =>
+                state.write([0])
+                value.hash(state)
+            .Err(error) =>
+                state.write([1])
+                error.hash(state)
 
 impl Hash for bool:
     fn hash(self, state: mut Hasher) -> void:

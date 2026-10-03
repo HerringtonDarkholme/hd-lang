@@ -1,0 +1,27 @@
+# test: PropertyRunner is a host capability trait whose start returns a PropertyCase
+# Spec std Testing, Runner Capabilities: std-testing.runner.declares, std-testing.runner.case-type, and std-testing.runner.record.
+use std.testing.{PropertyCase, PropertyRunner}
+
+data Replay:
+    draws: mut List[i64]
+    shown: string
+
+impl PropertyRunner for Replay:
+    fn start(mut self, cases: i32, shrink: i32, examples: i32) -> PropertyCase:
+        PropertyCase { example: .None, seed: 7, size: 0, replay: [] }
+
+    fn record(mut self, value: i64) -> void:
+        self.draws.append(value)
+
+    fn show(mut self, text: string) -> void:
+        self.shown = text
+
+fn first_draw() -> i64 $ PropertyRunner:
+    started := $.use(PropertyRunner).start(100, 500, 0)
+    value := if started.replay.len() > 0: started.replay[0] else: started.seed % 2
+    $.use(PropertyRunner).record(value)
+    value
+
+fn run() -> void:
+    $.with(PropertyRunner=Replay { draws: [], shown: "" }):
+        _ := first_draw()

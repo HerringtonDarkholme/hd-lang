@@ -765,7 +765,7 @@ let next: fn() -> i32 = fn() -> i32:
 #### Scope Of This Section
 
 1. r[fn.capture.in-process] This section defines ordinary in-process closure behavior only.
-2. r[fn.capture.serializable-deferred] Serializable closure capture, code identity, and restoration semantics are deferred to the runtime design.
+2. r[fn.capture.serializable-deferred] Serializable closure capture, how a restored closure names its code beyond [the same compiled program](11-requirements-and-suspension.md#r-req.determinism.same-program), and restoration semantics are deferred to the runtime design.
 
 ## Multiple Inline Closures
 

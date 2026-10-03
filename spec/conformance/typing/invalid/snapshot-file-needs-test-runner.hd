@@ -1,0 +1,6 @@
+# test: snapshot_file has the row $ TestRunner, so a public function without that row cannot call it
+# Spec std Testing, Snapshot Files: std-testing.snapshot-file.runner.
+use std.testing.snapshot_file
+
+pub fn record(text: string) -> void:
+    snapshot_file(text)  # diagnostic: missing-requirement

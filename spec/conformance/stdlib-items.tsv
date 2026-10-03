@@ -12,9 +12,6 @@ std.format.DebugTuple	std/format.md#debug-builders
 std.format.DebugList	std/format.md#debug-builders
 std.format.DebugMap	std/format.md#debug-builders
 std.time	std/time.md#duration
-std.testing.it_each	std/testing.md#registration-functions
-std.testing.it_prop	std/testing.md#registration-functions
-std.testing.it_prop_with	std/testing.md#registration-functions
 std.testing.TestRunner	std/testing.md#runner-capabilities
 std.testing.PropertyRunner	std/testing.md#runner-capabilities
 std.task.retry	std/task.md#retry
@@ -32,3 +29,4 @@ std.host	std/host.md#program-arguments
 std.fs	std/fs.md#reading
 std.path	std/path.md#paths
 std.random	std/random.md#random-source
+std.testing.PropertyCase	std/testing.md#runner-capabilities

@@ -247,18 +247,6 @@ From the archived Testing Redesign.
 - **Generator parameter style.** Generators take `mut Choices` today. The
   owner is comparing a requirement-row style, `fn() -> T $ Choices`. It
   waits for task #76, re-evaluation on a working compiler.
-- **Snapshot files through a capability** (SNAPSHOT-ROW, task #201).
-  `snapshot_file` still reaches the runner through the host primitive
-  `snapshot_file_check`. As a [`TestRunner`](../spec/std/testing.md#runner-capabilities)
-  method, it would put `TestRunner` in the row of every test body that
-  calls it, and [`module.testing.unit-row`](../spec/lang/10-modules.md#r-module.testing.unit-row)
-  gives a unit test body no host providers. Candidates: (a) the runner
-  binds `TestRunner` for every test body, so `snapshot_file` gets
-  `$ TestRunner`; (b) keep the primitive as the one test-runner hook.
-  **Recommendation:** (a), with a plain `snapshot_check(mut self, text:
-  string) -> string`, so `snapshot_file` keeps its signature. The runner
-  is not a host resource a fake would replace, so unit tests stay
-  machine-independent.
 - **A deferred fixture** (T54). A test-layout fixture package for
   `cyclic-test-dependency` is added when that rule needs coverage. The `# fixture-test-layout:`
   header exists ([Test Layouts](../spec/conformance/README.md#test-layouts)).

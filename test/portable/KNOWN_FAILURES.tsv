@@ -83,3 +83,9 @@ typing/valid/path-newtype.hd	check reports unknown-module: there is no std.path 
 runtime/valid/duration-order.hd	check reports missing-eq and missing-partial-ord: Duration implements neither Eq nor Ord yet (std-time.duration.eq-ord)	STD-1
 runtime/valid/string-lines.hd	a test fails: lines keeps a \r before each \n (std-text.string.lines)	STD-1
 runtime/valid/map-keys-values.hd	check reports unknown-method: Map has no contains_key, keys, or values (std-collections.map.keys)	STD-1
+typing/invalid/covariant-private-method-parameter.hd	check exits 0: the prototype checks public inherent methods against a declared variance but skips private ones (types.variance.surface)	VARIANCE-METHODS
+runtime/valid/lct-optional-injection.hd	check reports no-common-type: the prototype joins no i32 with an i32? (types.lct.optional)	LCT-OPTIONAL
+typing/valid/test-runner-capabilities.hd	check reports extra-trait-method: lib/std's TestRunner has no snapshot_check yet (std-testing.runner.snapshot-check)	SNAPSHOT-ROW
+typing/valid/test-body-uses-test-runner.hd	the prototype gives a test body no TestRunner provider, so a body that uses it is missing-requirement (module.testing.runner-provider)	SNAPSHOT-ROW
+typing/invalid/snapshot-file-needs-test-runner.hd	check exits 0: lib/std's snapshot_file has no $ TestRunner row and calls the snapshot_file_check primitive (std-testing.snapshot-file.runner)	SNAPSHOT-ROW
+typing/valid/property-runner-capabilities.hd	check reports unknown-import: lib/std declares no PropertyCase, and its PropertyRunner keeps seed, size, draw, and discard (std-testing.runner.case-type)	RUNNER-SURFACE

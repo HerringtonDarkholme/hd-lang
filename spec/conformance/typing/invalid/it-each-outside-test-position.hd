@@ -1,5 +1,5 @@
 # test: it_each may be called only in test position
-# Spec std/testing Registration Functions: std-testing.registration; it_each is a test registration function, so a call inside a function is misplaced-test-case.
+# Spec Modules, Registration Functions: module.testing.reg.functions; it_each is a test registration function, so a call inside a function is misplaced-test-case.
 use std.testing.it_each
 
 fn helper() -> void:

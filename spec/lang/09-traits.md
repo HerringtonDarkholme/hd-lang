@@ -1702,7 +1702,7 @@ See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-alias
 
 #### Stability And Printing
 
-1. r[trait.typeid.build] A `TypeId` depends only on the program's code identity.
+1. r[trait.typeid.build] A `TypeId` depends only on which [compiled program](11-requirements-and-suspension.md#r-req.determinism.same-program) runs.
 2. r[trait.typeid.stable] Its equality, hash, and printable name are therefore the same in every program instance, process, and run of one build.
 3. r[trait.typeid.cross-build] They carry no promise across builds.
 4. r[trait.typeid.boundary] A `TypeId` is not boundary-safe.

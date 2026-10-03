@@ -58,7 +58,8 @@ The standard items split by tier. **Language-tier items** are usable by
 every fixture. They are the items a numbered chapter specifies:
 
 - the harness from `std.testing`: `it`, `assert`, `assert_equal`, and a
-  literal `snapshot`;
+  literal `snapshot`, and the test registration functions `it_each`,
+  `it_prop`, and `it_prop_with`;
 - the lang items and traits of `std.task`, `std.resource`, `std.convert`,
   `std.error`, `std.inspect`, `std.function`, `std.process`, `std.ops`,
   `std.num`, `std.structure`, `std.annotation`, and `std.format`

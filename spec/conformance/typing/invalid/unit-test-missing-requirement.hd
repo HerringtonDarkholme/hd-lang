@@ -1,5 +1,5 @@
-# test: a unit test case gets no host providers
-# Spec 10 Test Outcomes: a requirement that no $.with scope supplies in a tests-block
+# test: a unit test case gets no host provider but the runner's TestRunner
+# Spec 10 Test Outcomes: module.testing.unit-row.test-runner; a requirement that no $.with scope supplies in a tests-block
 # test case is missing-requirement.
 trait Clock:
     fn now(self) -> i32

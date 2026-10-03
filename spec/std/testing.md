@@ -8,67 +8,27 @@ runner implement over the language tier:
 - how a property test draws, discards, reports, and replays its inputs;
 - the draw budget;
 - how `@derive(Arbitrary)` builds a type's default generator;
-- the registration functions `it_each`, `it_prop`, and `it_prop_with`;
 - what the `timeout` option does;
 - how an `it_each` call expands and names its rows;
 - how snapshots compare text, and where snapshot files live;
 - how an integration test runs one of the package's executables;
 - the host capabilities through which `std.testing` reaches the test runner.
 
-The language tier keeps the assertion functions, `it` and its options, the
-test-position rules, and the literal `expect` of `snapshot`
+The language tier keeps the assertion functions and the literal `expect` of
+`snapshot`. It also keeps the test registration functions `it`, `it_each`,
+`it_prop`, and `it_prop_with`, with their options, position rules, and
+diagnostics
 ([Standard Testing](../lang/10-modules.md#standard-testing),
 [Test Cases](../lang/10-modules.md#test-cases),
+[Registration Functions](../lang/10-modules.md#registration-functions),
 [Snapshots](../lang/10-modules.md#snapshots)).
 
 ## Registration Functions
 
-`std.testing` declares `it_each`, which registers one test case per row:
-
-```text
-pub fn it_each[A, T < Termination, $R](name: string, rows: List[A], ignore: string? = .None,
-                                      expect_panic: string? = .None, timeout: Duration? = .None,
-                                      body: fn!(A) -> T $ R) -> void $ R
-```
-
-It also declares `it_prop` and `it_prop_with`, which register one property
-test case each:
-
-```text
-pub fn it_prop[T < Arbitrary & Debug, R < Termination](name: string, ignore: string? = .None,
-                                                       expect_panic: string? = .None, timeout: Duration? = .None,
-                                                       cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
-                                                       prop: fn!(T) -> R) -> void
-pub fn it_prop_with[T < Debug, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
-                                                expect_panic: string? = .None, timeout: Duration? = .None,
-                                                cases: i32 = 100, shrink: i32 = 500, examples: List[T] = [],
-                                                prop: fn!(T) -> R) -> void
-```
-
-1. r[std-testing.registration] `it_each`, `it_prop`, and `it_prop_with` are [test registration functions](../lang/10-modules.md#r-module.testing.position-statements), so the test-position rules of `it` apply to them.
-2. r[std-testing.it-each.import] `it_each` is not a prelude name; code imports it with `use std.testing.it_each`.
-3. r[std-testing.it-each.body-closure] Its body has a parameter, so it is an explicit `fn!` closure, not a trailing block. After omitted options, a call passes it by name, as in `body=fn!(value: i32): ...`.
-4. r[std-testing.it-each.name-clash] Another test case of the module must not be named `name[i]` for any index `i`. Error: `duplicate-test-name`.
-5. r[std-testing.it-prop.registers] A top-level call of `std.testing.it_prop` or `std.testing.it_prop_with` registers one property test case.
-6. r[std-testing.it-prop.import] Neither is a prelude name; code imports them from `std.testing`.
-7. r[std-testing.variants.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
-8. r[std-testing.variants.options] Each takes the options of `it`, `ignore`, `expect_panic`, and `timeout`, under the same rules.
-9. r[std-testing.variants.body] The body's result follows [Propagation In Test Blocks](../lang/05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, Error]` when it uses `?`.
-10. r[std-testing.try.test.row-body] The body closure of an `it_each`, `it_prop`, or `it_prop_with` call that writes no result type gets its result type by [`expr.try.test.with-try`](../lang/05-expressions.md#r-expr.try.test.with-try) and [`expr.try.test.without-try`](../lang/05-expressions.md#r-expr.try.test.without-try), as a trailing block given to `it` does.
-
-```text
-use std.testing.it_each
-
-fn label() -> string: "halves"
-
-tests:
-    it_each("doubles", [1, 2], body=fn!(value: i32): pass)
-
-    it("doubles[0]"):  # error: duplicate-test-name
-        pass
-
-    it_each(label(), [1, 2], body=fn!(value: i32): pass)  # error: non-literal-test-argument
-```
+The language tier declares the test registration functions `it_each`,
+`it_prop`, and `it_prop_with`, and checks their names, options, and
+positions ([Registration Functions](../lang/10-modules.md#registration-functions)).
+This chapter defines what their test cases do when they run.
 
 > **Note.** The `timeout` parameter of each has the type that `it`'s has,
 > `std.time.Duration?` ([Test Timeout](#test-timeout)).
@@ -100,8 +60,8 @@ trait Arbitrary:
 | r[std-testing.choices.assume] Assume | `fn assume(mut self, ok: bool) -> void` | nothing; a false `ok` discards the case |
 | r[std-testing.choices.draw] Draw | `fn draw[T < Arbitrary](mut self) -> T` | `T::arbitrary(self)`, the type's default |
 
-1. r[std-testing.choices.declare] `std.testing` declares `Choices`, `Arbitrary`, `it_prop`, and `it_prop_with`. None is a prelude name.
-2. r[std-testing.choices.runner] The runner creates every `Choices`. It records each draw, so the runner can replay and shrink a case.
+1. r[std-testing.choices.declare] `std.testing` declares `Choices` and `Arbitrary`. Neither is a prelude name.
+2. r[std-testing.choices.from-case] `std.testing` creates the `Choices` of each generated case from the [`PropertyCase`](#runner-capabilities) that the runner returns, and reports each draw to the runner, so the runner can replay and shrink a case.
 3. r[std-testing.choices.no-size] `Choices` has no size: no member reads or sets one, and no option of `it_prop` or `it_prop_with` sets one.
 4. r[std-testing.choices.string-limit] The limit of `string` counts `char` values, not bytes.
 5. r[std-testing.choices.map.duplicate] When `key` draws a key that the map already holds, the later value replaces the earlier one. So the map may hold fewer entries than were drawn.
@@ -109,15 +69,14 @@ trait Arbitrary:
 7. r[std-testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
 8. r[std-testing.arbitrary.float] The `Arbitrary` implementations of `f32` and `f64` draw any value of the type, including NaN, both infinities, `-0.0`, and subnormal values, as Hypothesis's `floats()` does.
 9. r[std-testing.it-prop] The runner generates the inputs of each property test case that `it_prop` or `it_prop_with` registers, and shrinks a failing one.
-10. r[std-testing.prop.debug] `it_prop` and `it_prop_with` require `T < Debug`. A property whose input type does not implement `Debug` is an error. Error: `unsatisfied-trait-bound`.
-11. r[std-testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
-12. r[std-testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
-13. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
-14. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
-15. r[std-testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
-16. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
-17. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
-18. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
+10. r[std-testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
+11. r[std-testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
+12. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
+13. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
+14. r[std-testing.prop.discard-limit] A property test fails when more than 10 times `cases` of its cases are discarded, as Hypothesis's `filter_too_much` health check does.
+15. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
+16. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
+17. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
 
 ```text
 use std.testing.{Arbitrary, Choices}
@@ -155,6 +114,10 @@ tests:
         pass
     )
 ```
+
+A property's input type must implement `Debug`, by
+[`module.testing.reg.prop-debug`](../lang/10-modules.md#r-module.testing.reg.prop-debug),
+so the example above is an error.
 
 > **Why.** A generator draws the parts of its value in order, so a later
 > draw may depend on an earlier one. The runner shrinks the recorded draws,
@@ -392,7 +355,9 @@ The call runs the test cases `doubles[0]`, `doubles[1]`, and `doubles[2]`.
 ([Snapshots](../lang/10-modules.md#snapshots)):
 
 ```text
-pub fn snapshot_file(text: string) -> void
+pub fn snapshot_file(text: string) -> void $ TestRunner:
+    problem := $.use(TestRunner).snapshot_check(text)
+    assert(problem == "", problem)
 ```
 
 1. r[std-testing.snapshot] `snapshot` compares `text` with `expect`, the expected text written in the source.
@@ -402,6 +367,7 @@ pub fn snapshot_file(text: string) -> void
 5. r[std-testing.snapshot-file.missing] When that file does not exist, the test case fails, except in an update run, as `hd test --update` makes, which records the file.
 6. r[std-testing.snapshot.mismatch] When `text` differs from the expected text, `snapshot` or `snapshot_file` fails as a failed assertion does. Panic: `assertion-failed`.
 7. r[std-testing.snapshot-file.missing-panic] A missing snapshot file outside an update run fails the same way. Panic: `assertion-failed`.
+8. r[std-testing.snapshot-file.runner] `snapshot_file` has the requirement row `$ TestRunner`. It calls [`snapshot_check`](#r-std-testing.runner.snapshot-check) on the `TestRunner` provider that covers the call, and fails as above when the result is not empty, showing it.
 
 | Rule | Part | Value |
 | --- | --- | --- |
@@ -479,44 +445,58 @@ tests:
 
 ## Runner Capabilities
 
-`std.testing` reaches the test runner through two host capability traits:
+`std.testing` reaches the test runner through two host capability traits,
+and describes each property case with a data type:
 
 ```text
 pub trait TestRunner:
     fn row(mut self, count: i32) -> i32
     fn report_timeout(mut self, millis: i64) -> void
+    fn snapshot_check(mut self, text: string) -> string
 
 pub trait PropertyRunner:
-    fn start(mut self, cases: i32, shrink: i32, examples: i32) -> i32
-    fn seed(self) -> i64
-    fn size(self) -> i32
-    fn draw(mut self, bound: i64, fresh: i64) -> i64
-    fn discard(mut self) -> void
+    fn start(mut self, cases: i32, shrink: i32, examples: i32) -> PropertyCase
+    fn record(mut self, value: i64) -> void
     fn show(mut self, text: string) -> void
+
+pub data PropertyCase:
+    pub example: i32?
+    pub seed: i64
+    pub size: i32
+    pub replay: List[i64]
 ```
 
-1. r[std-testing.runner.decl] `std.testing` declares the host capability traits `TestRunner` and `PropertyRunner` with the methods above. Code imports them, as in `use std.testing.TestRunner`.
-2. r[std-testing.runner.plain] Every method is a plain call, not a bang call.
-3. r[std-testing.runner.binding] When it runs a test case, the test runner binds `TestRunner` for the `std.testing` code that runs the case around its body. For a property test case, it also binds `PropertyRunner`.
-4. r[std-testing.runner.body] A test body's row stays empty, by [`module.testing.unit-row`](../lang/10-modules.md#r-module.testing.unit-row). So a body that uses either trait without a provider scope is an error. Error: `missing-requirement`.
+1. r[std-testing.runner.declares] `std.testing` declares the host capability traits `TestRunner` and `PropertyRunner` with the methods above. Code imports them, as in `use std.testing.TestRunner`.
+2. r[std-testing.runner.case-type] `std.testing` declares the public data type `PropertyCase` with the fields above. Code imports it, as in `use std.testing.PropertyCase`.
+3. r[std-testing.runner.plain] Every method is a plain call, not a bang call.
+4. r[std-testing.runner.binding] When it runs a test case, the test runner binds `TestRunner` for the `std.testing` code that runs the case around its body. For a property test case, it also binds `PropertyRunner`.
+5. r[std-testing.runner.body-property] A test body's row may hold `TestRunner`, by [`module.testing.unit-row.test-runner`](../lang/10-modules.md#r-module.testing.unit-row.test-runner), but not `PropertyRunner`. So a body that uses `PropertyRunner` without a provider scope is an error. Error: `missing-requirement`.
 
 | Rule | Method | What it does |
 | --- | --- | --- |
 | r[std-testing.runner.row] Row | `row(count)` | reports that an `it_each` call has `count` rows, and returns the index of the row that the test case runs |
 | r[std-testing.runner.timeout] Timeout | `report_timeout(millis)` | reports the test case's `timeout` in milliseconds, before its body runs |
-| r[std-testing.runner.start] Start | `start(cases, shrink, examples)` | reports a property's `cases`, `shrink`, and count of `examples`, and returns the index of the example that the case runs, or `-1` for a generated case |
-| r[std-testing.runner.seed] Seed | `seed()` | the seed of the case's random draws |
-| r[std-testing.runner.size] Size | `size()` | how far the case's random draws reach, which grows from case to case |
-| r[std-testing.runner.draw] Draw | `draw(bound, fresh)` | returns the case's next draw, from 0 to `bound`, and records it: a replayed draw while the runner replays or shrinks a stream, else `fresh` |
-| r[std-testing.runner.discard] Discard | `discard()` | ends the case as discarded; it does not return |
+| r[std-testing.runner.snapshot-check] Snapshot | `snapshot_check(text)` | compares `text` with the running test case's next [snapshot file](#snapshot-files), and records the file in an update run; returns `""` when the text matches or was recorded, else a message that says how the text differs or that the file is missing |
+| r[std-testing.runner.start-case] Start | `start(cases, shrink, examples)` | reports a property's `cases`, `shrink`, and count of `examples`, and returns the `PropertyCase` that the case runs |
+| r[std-testing.runner.record] Record | `record(value)` | records the case's next draw, a value from 0 to that draw's bound |
 | r[std-testing.runner.show] Show | `show(text)` | reports the `Debug` text of the case's input, which a failure report prints |
 
-5. r[std-testing.runner.examples-done] Once every example has run, `start` ends the case as discarded instead of returning.
-6. r[std-testing.runner.choices] Each `Choices` holds its case's `PropertyRunner` provider value, so a generator draws through it with no requirement row, by [`req.use.value.flow`](../lang/11-requirements-and-suspension.md#r-req.use.value.flow).
-7. r[std-testing.runner.random] The `fresh` values of a generated case come from a [`Random`](random.md#random-source) provider that `std.testing` seeds with `seed()`. So the same seed draws the same cases.
+| Rule | Field of `PropertyCase` | Holds |
+| --- | --- | --- |
+| r[std-testing.runner.case.example] Example | `example` | the index of the example that the case runs, or `.None` for a generated case |
+| r[std-testing.runner.case.seed] Seed | `seed` | the seed of the case's fresh draws |
+| r[std-testing.runner.case.size] Size | `size` | how far the case's fresh draws reach, which grows from case to case |
+| r[std-testing.runner.case.replay] Replay | `replay` | the recorded draws that the case replays or shrinks, in order; empty for a fresh case |
+
+6. r[std-testing.runner.examples-done] Once every example has run, `start` ends the case instead of returning, and the runner counts the case as discarded.
+7. r[std-testing.runner.show-before-body] `std.testing` calls `show` once for each case, after it has drawn or taken the input and before the property body runs.
+8. r[std-testing.runner.choices] Each `Choices` holds its case's `PropertyRunner` provider value, so it records its draws through it with no requirement row, by [`req.use.value.flow`](../lang/11-requirements-and-suspension.md#r-req.use.value.flow).
+9. r[std-testing.runner.replay] The draw at position `i` of a case returns `replay[i]`, limited to the draw's bound, when `replay` holds a value at `i`. Every other draw is fresh.
+10. r[std-testing.runner.record-every] `Choices` calls `record` once for every draw, replayed or fresh, before it uses the value. So the runner holds the case's draws even when the case then panics.
+11. r[std-testing.runner.random] The fresh draws of a case come from a [`Random`](random.md#random-source) provider that `std.testing` seeds with the case's `seed`. So the same seed draws the same cases.
 
 ```text
-use std.testing.TestRunner
+use std.testing.{PropertyRunner, TestRunner}
 
 data FirstRow:
     rows: i32
@@ -529,18 +509,27 @@ impl TestRunner for FirstRow:
     fn report_timeout(mut self, millis: i64) -> void:
         pass
 
+    fn snapshot_check(mut self, text: string) -> string:
+        ""
+
 fn pick(rows: List[string]) -> string $ TestRunner:
     rows[$.use(TestRunner).row(rows.len())]
 
+fn label(text: string) -> void $ PropertyRunner:
+    $.use(PropertyRunner).show(text)
+
 tests:
-    it("uses the runner"):
-        _ := pick(["a"])  # error: missing-requirement
+    it("picks a row"):
+        _ := pick(["a"])
+
+    it("labels the input"):
+        label("a")  # error: missing-requirement
 ```
 
 > **Why.** The runner is a host, as a console is, so `std.testing` reaches
-> it through a capability in a row, not a primitive. Recording, replay, and
-> shrinking stay on the runner's side. The generator is ordinary hd, so a
-> seed means the same draws on every host.
+> it through a capability in a row, not a primitive. Recording and
+> shrinking stay on the runner's side, and replay is ordinary hd. The
+> generator is ordinary hd, so a seed means the same draws on every host.
 
 > **Note.** Which generator `std.testing` seeds is runner behavior, as is
 > how `size` grows. `lib/std` uses xoshiro128\*\*, seeded through
@@ -548,3 +537,14 @@ tests:
 
 See also: [Host Capabilities](../cli/command-line.md#host-capabilities),
 [Table-Test Rows](#table-test-rows), [Property Tests](#property-tests).
+
+### Discarding A Case
+
+1. r[std-testing.runner.discard-panic] `Choices.assume(false)` ends the case with a panic whose category is that of a `panic` call and whose message is exactly `std.testing: case discarded`. Panic: `explicit-panic`.
+2. r[std-testing.runner.discard-read] The runner reads such a panic, raised before the case calls `show`, as a discard: the case neither passes nor fails, and it does not count toward `cases`.
+3. r[std-testing.runner.discard-after-show] The same panic after `show` is an ordinary failure, so a property body cannot discard a case, as [`std-testing.prop.body-no-discard`](#r-std-testing.prop.body-no-discard) states.
+
+> **Why.** A discard is a panic, so it ends the case through the panic
+> rules every case already has, and the runner needs no method that does
+> not return. Each draw was recorded before the panic, so the runner
+> still holds the stream.

@@ -1,1 +1,2 @@
 path	items	reason
+typing/invalid/property-input-not-debug.hd	std.testing.Arbitrary, std.testing.Choices	isolating the Debug bound of it_prop needs an input type that implements Arbitrary, which is stdlib tier

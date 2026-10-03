@@ -150,6 +150,7 @@ design it names.
 | Q14-22 | 2026-09-29 | `abs_diff` returns the unsigned type of the same width | a stdlib chapter for `std.num`; `lib/std` returns the signed type today |
 | Q14-22 | 2026-09-29 | integer parsing takes an optional `+` or `-`, then decimal digits only; a lone sign is `InvalidDigit(0)` | a stdlib chapter for `std.num` |
 | Q14-22 | 2026-09-29 | `ScriptedProcess::new(outputs)` is the constructor | a `std.process` provider section; `Process` itself is language tier |
+| SNAPSHOT-ROW, RUNNER-SURFACE | 2026-10-02 | the spec has them ([Runner Capabilities](../spec/std/testing.md#runner-capabilities)): `TestRunner.snapshot_check`, `snapshot_file` with `$ TestRunner`, and `PropertyRunner` with only `start`, `record`, and `show` | the compiler session. In `lib/std/testing.hd`: add `snapshot_check` and `PropertyCase`, give `snapshot_file` its row and drop `snapshot_file_check`, make `Choices` replay `replay` and `record` each draw, and discard with the `std.testing: case discarded` panic. In the runner: bind `TestRunner` for every test body, read that panic before `show` as a discard, and keep a case's recorded draws after a panic |
 
 ## Survey Matrices
 

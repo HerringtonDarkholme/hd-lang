@@ -1,0 +1,10 @@
+# test: the runner binds TestRunner for every test body, so a unit test body may use it
+# Spec std Testing, Runner Capabilities: std-testing.runner.body-property, by module.testing.runner-provider.
+use std.testing.TestRunner
+
+fn pick(rows: List[string]) -> string $ TestRunner:
+    rows[$.use(TestRunner).row(rows.len())]
+
+tests:
+    it("picks a row"):
+        _ := pick(["a"])

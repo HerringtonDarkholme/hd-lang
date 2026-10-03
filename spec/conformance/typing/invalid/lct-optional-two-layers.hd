@@ -1,0 +1,4 @@
+# test: optional injection adds one layer only, so a T and a T?? have no common type
+# Spec 04 Least Common Type: types.lct.optional.one-layer.
+fn nested(count: i32, found: i32??, flag: bool) -> void:
+    value := if flag: count else: found  # diagnostic: no-common-type

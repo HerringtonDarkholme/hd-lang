@@ -1,0 +1,25 @@
+# test: optional injection contributes one layer to the least common type
+# Spec 04 Least Common Type: types.lct.optional; an i32 and an i32? join to i32? in if, match, list literals, and inferred results.
+use std.testing.assert_equal
+
+fn pick(flag: bool, count: i32, found: i32?):
+    if flag: count else: found
+
+fn choose(key: i32, count: i32, found: i32?) -> i32?:
+    value := match key:
+        0 => count
+        _ => found
+    value
+
+tests:
+    it("joins i32 and i32? to i32?"):
+        let count: i32 = 3
+        let found: i32? = .None
+        value := if count > 0: count else: found
+        let typed: i32? = value
+        assert_equal(typed, .Some(3), reason="the i32 branch is injected")
+        values := [count, found]
+        let listed: List[i32?] = values
+        assert_equal(listed, [.Some(3), .None], reason="the list joins to List[i32?]")
+        assert_equal(pick(false, count, found), .None, reason="an inferred result joins too")
+        assert_equal(choose(0, count, found), .Some(3), reason="match arms join too")

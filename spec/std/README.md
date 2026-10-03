@@ -19,12 +19,13 @@ The language tier names a std item only when the compiler must know it:
   a `std.ops` operator trait;
 - an intrinsic, such as `List.append`, `string.len`, or `facts_of(f)`;
 - a prelude name and its signature;
-- the test-position rules that the compiler checks;
+- the test registration functions `it`, `it_each`, `it_prop`, and
+  `it_prop_with`, with their position rules and diagnostics;
 - the conformance harness: `it`, `assert`, `assert_equal`, and `println`.
 
-The owner placed the test registration functions `it_each`, `it_prop`, and
-`it_prop_with` in this tier, though the compiler checks their calls
-([Registration Functions](testing.md#registration-functions)).
+This tier keeps what those registration functions do when a test runs:
+table rows, property generation and shrinking, the runner capabilities,
+reporting, and snapshots ([Testing](testing.md)).
 
 Every other decided std API belongs in this directory.
 
@@ -92,11 +93,7 @@ raises with a category other than `explicit-panic`.
 **Test-runner hooks.** `std.testing` reaches the test runner through the
 host capabilities `TestRunner` and `PropertyRunner`
 ([Runner Capabilities](testing.md#runner-capabilities)), so table rows,
-timeouts, and property draws need no primitive. One hook remains.
-
-| Primitive | Signature | Why it is a primitive |
-| --- | --- | --- |
-| `snapshot_file_check` | `(text: string) -> string` | reads and writes snapshot files; a capability in `snapshot_file`'s row would reach a unit test body, which gets no host providers ([`module.testing.unit-row`](../lang/10-modules.md#r-module.testing.unit-row)) |
+timeouts, snapshot files, and property draws need no primitive.
 
 **Operations.** One intrinsic method per primitive operation. `lib/std`
 writes each once, mostly in a numeric-family implementation such as
@@ -138,7 +135,7 @@ file of its own.
 
 | File | Module | Rule ID prefix | Scope |
 | --- | --- | --- | --- |
-| [`testing.md`](testing.md) | `std.testing` | `std-testing` | the registration functions `it_each`, `it_prop`, and `it_prop_with`, property tests, the draw budget, derived `Arbitrary`, table-test rows, snapshot files, the `timeout` option, `hd_run!` |
+| [`testing.md`](testing.md) | `std.testing` | `std-testing` | what `it_each`, `it_prop`, and `it_prop_with` cases do when they run, property tests, the draw budget, derived `Arbitrary`, table-test rows, snapshot files, the `timeout` option, `hd_run!`, the runner capabilities |
 | [`iter.md`](iter.md) | `std.iter` | `std-iter` | iterator adapters, collect targets, `FromIterator` and its impls, `map` on a list or an optional |
 | [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, including `lines` and `repeat`; the `r` prefix |
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls |
