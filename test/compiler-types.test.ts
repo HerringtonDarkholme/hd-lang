@@ -561,7 +561,7 @@ test("println drives write_line! on a program-defined Console (MHP-1)", async ()
     "        println(2)",
     '    recorded = "${buffer.lines[0]} ${buffer.lines[1]}"',
     "",
-    "pub fn recorded_lines() -> i32: recorded.len()",
+    "pub fn recorded_lines() -> usize: recorded.len()",
     "",
   ].join("\n");
   assert.deepEqual(analyze(source).diagnostics, []);

@@ -653,6 +653,57 @@ test("host provider scalar arguments and results record and replay", async () =>
   replayed.replay.assertComplete();
 });
 
+test("usize host arguments and Result payloads preserve unsigned bits during replay", async () => {
+  const source = [
+    "use std.testing.assert",
+    "pub trait Sizes:",
+    "    fn echo!(self, value: usize) -> Result[usize, usize]",
+    "pub fn main!() -> void $ Sizes:",
+    "    sizes := $.use(Sizes)",
+    "    let maximum: usize = 4294967295",
+    "    match sizes.echo!(maximum):",
+    '        .Ok(value) => assert(value == maximum, reason="unsigned success")',
+    '        .Err(_) => panic("unexpected error")',
+    "    match sizes.echo!(0):",
+    '        .Ok(_) => panic("unexpected success")',
+    '        .Err(value) => assert(value == maximum, reason="unsigned error")',
+    "",
+  ].join("\n");
+  const events: ReplayEvent[] = [];
+  const recorded = await instantiate(source, {
+    hostCapabilities: ["Sizes"],
+    hostSuspensionInvoke: ({ arguments: values }) => ({
+      pending: false,
+      value: { tag: values[0] === 0 ? "err" : "ok", value: 4294967295 },
+    }),
+    providerConfigurationId: "unsigned-sizes",
+    record: (event) => events.push(event),
+  });
+  (recorded.instance.exports.main as CallableFunction)({ name: "sizes" });
+  const polls = events.filter((event) => event.operation === "provider-poll");
+  assert.deepEqual(
+    polls.map((event) => event.encodedArguments),
+    [[{ kind: "u32", value: 4294967295 }], [{ kind: "u32", value: 0 }]],
+  );
+  assert.deepEqual(
+    polls.map((event) => event.encodedValue),
+    [
+      { kind: "ok", value: { kind: "u32", value: 4294967295 } },
+      { kind: "err", value: { kind: "u32", value: 4294967295 } },
+    ],
+  );
+  const replayed = await instantiate(source, {
+    hostCapabilities: ["Sizes"],
+    hostSuspensionInvoke: () => {
+      throw new Error("live host provider must not run during replay");
+    },
+    providerConfigurationId: "unsigned-sizes",
+    replay: JSON.parse(JSON.stringify(events)) as ReplayEvent[],
+  });
+  (replayed.instance.exports.main as CallableFunction)({ name: "sizes" });
+  replayed.replay.assertComplete();
+});
+
 test("host provider f64 replay encoding preserves non-JSON numbers", async () => {
   const source = fixture("suspension/35-host-provider-f64-values-use-durable-bit-encoding");
   const events: ReplayEvent[] = [];
@@ -744,7 +795,7 @@ test("a Result[T, E] host result crosses the bridge and replays", async () => {
     "        .Err(_) => 0",
     '    let missing = match lookup.find!("b"):',
     "        .Ok(_) => 0",
-    "        .Err(message) => message.len()",
+    "        .Err(message) => i32(message.len())",
     '    assert_equal(found * 10 + missing, 44, reason="both sides cross the bridge")',
     "",
   ].join("\n");

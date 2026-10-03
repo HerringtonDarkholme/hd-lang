@@ -18,6 +18,7 @@ import {
 } from "./standard-sources.ts";
 import { renameStandardBindings } from "./standard-bindings.ts";
 import { withStandardSource } from "./standard-provenance.ts";
+import { STANDARD_CORE_TYPE_ALIASES } from "./standard-core.ts";
 
 // Joins the toy standard library (`lib/std/*.hd`) into the one module the
 // prototype compiles. The use graph decides which modules join: the prelude
@@ -621,6 +622,14 @@ export function standardImportAliases(program: Program): ReadonlyMap<string, str
   const aliases = new Map<string, string>();
   for (const declaration of program.uses) {
     const module = declaration.module.replace(/^std\./, "");
+    if (module === "core") {
+      for (const imported of declaration.names) {
+        if (!STANDARD_CORE_TYPE_ALIASES.has(imported.name)) continue;
+        const local = imported.alias ?? imported.name;
+        if (local !== imported.name) aliases.set(local, imported.name);
+      }
+      continue;
+    }
     if (!declaration.module.startsWith("std.") || !isStandardModule(module)) continue;
     const declared = standardModule(module).names;
     for (const imported of declaration.names) {

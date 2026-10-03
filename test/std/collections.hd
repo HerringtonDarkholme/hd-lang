@@ -21,6 +21,7 @@ tests:
         assert_equal([4, 5].first(), .Some(4), reason="first")
         assert_equal([4, 5].last(), .Some(5), reason="last")
         assert_equal(empty.first(), .None, reason="an empty list has no first")
+        assert_equal(empty.reversed(), [], reason="an empty reverse never decrements zero")
         assert_equal([1, 2, 3].reversed(), [3, 2, 1], reason="reversed")
 
     it("sorted_by is stable"):

@@ -42,7 +42,7 @@ tests:
     )
 
     it_prop("a string is at most 16 chars", prop=fn!(text: string):
-        let count = 0
+        let count: usize = 0
         for letter in text.chars():
             count = count + 1
         assert(count <= 16, reason="the default string size counts chars")

@@ -8,11 +8,11 @@ use std.error.Error
 # (r-std-encoding.error.position-bytes).
 pub enum DecodeError:
     # A character outside the alphabet.
-    InvalidCharacter(position: i32)
+    InvalidCharacter(position: usize)
     # The text stops inside a unit; `position` is its length.
-    InvalidLength(position: i32)
+    InvalidLength(position: usize)
     # A misplaced `=`, or nonzero pad bits in the last symbol.
-    InvalidPadding(position: i32)
+    InvalidPadding(position: usize)
 
 impl Eq for DecodeError:
     fn eq(self, other: DecodeError) -> bool:
@@ -48,7 +48,7 @@ pub fn hex_decode(text: string) -> Result[List[u8], DecodeError]:
     if size % 2 != 0:
         return .Err(DecodeError.InvalidLength(size))
     let bytes: mut List[u8] = []
-    let index = 0
+    let index: usize = 0
     while index < size:
         high := hex_value(codes[index])
         if high < 0:
@@ -65,7 +65,7 @@ pub fn hex_decode(text: string) -> Result[List[u8], DecodeError]:
 pub fn base64_encode(bytes: List[u8]) -> string:
     let codes: mut List[u8] = []
     size := bytes.len()
-    let index = 0
+    let index: usize = 0
     while index + 3 <= size:
         group := (i32(bytes[index]) << 16) | (i32(bytes[index + 1]) << 8) | i32(bytes[index + 2])
         codes.push(base64_symbol(group >> 18))
@@ -96,14 +96,14 @@ pub fn base64_decode(text: string) -> Result[List[u8], DecodeError]:
     if size % 4 != 0:
         return .Err(DecodeError.InvalidLength(size))
     # The padding is the run of `=` that ends the text, at most two long.
-    let padding = 0
+    let padding: usize = 0
     if size > 0 && codes[size - 1] == 61:
         padding = if codes[size - 2] == 61: 2 else: 1
     end := size - padding
     let bytes: mut List[u8] = []
     let buffer = 0
     let bits: u32 = 0
-    let index = 0
+    let index: usize = 0
     while index < end:
         code := codes[index]
         if code == 61:

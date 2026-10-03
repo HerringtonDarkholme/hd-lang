@@ -108,7 +108,7 @@ impl MemoryFs:
     fn file_above(self, key: string) -> bool:
         parts := key.split("/")
         let above = ""
-        let index = 0
+        let index: usize = 0
         while index + 1 < parts.len():
             above = if index == 0: parts[0] else: "${above}/${parts[index]}"
             match self.file_at(above):
@@ -214,7 +214,7 @@ impl FsWrite for MemoryFs:
         # the removal of what is inside it.
         parts := key.split("/")
         let level = ""
-        let index = 0
+        let index: usize = 0
         while index < parts.len():
             level = if index == 0: parts[0] else: "${level}/${parts[index]}"
             let known = level == ""

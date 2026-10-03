@@ -22,7 +22,7 @@ use std.format.DebugWriter
 # body itself (src/test-runner.ts).
 pub trait TestRunner:
     # The table has `count` rows; the index of the row this case runs.
-    fn row(mut self, count: i32) -> i32
+    fn row(mut self, count: usize) -> usize
     # The case's `timeout`, which the runner checks against the body's run.
     fn report_timeout(mut self, millis: i64) -> void
 
@@ -32,7 +32,7 @@ pub trait PropertyRunner:
     # Reports the caps and the example count; the example this case runs,
     # or -1 for a generated case. Once every example has run, the runner
     # ends the case as discarded instead.
-    fn start(mut self, cases: i32, shrink: i32, examples: i32) -> i32
+    fn start(mut self, cases: usize, shrink: usize, examples: usize) -> i32
     # The seed of the case's random draws.
     fn seed(self) -> i64
     # How far the case's random draws may reach: up to 2^(3 + size).
@@ -58,7 +58,7 @@ pub data Choices:
     runner: mut PropertyRunner
     random: mut Random
     size: i32
-    draws: i32
+    draws: usize
 
 impl Choices:
     # Whether the draw budget of 256 draws is spent. No public member reads
@@ -134,25 +134,25 @@ impl Choices:
             panic("Choices.choose: no items to choose from")
         if self.spent():
             return items[0]
-        items[i32(self.next(i64(items.len() - 1)))]
+        items[usize(self.next(i64(items.len() - 1)))]
 
-    pub fn list[T](mut self, max: i32, item: fn(mut Choices) -> T) -> List[T]:
+    pub fn list[T](mut self, max: usize, item: fn(mut Choices) -> T) -> List[T]:
         let items: mut List[T] = []
         if self.spent():
             return items
-        let count: i32 = i32(self.next(i64(max)))
+        let count: usize = usize(self.next(i64(max)))
         while items.len() < count:
             items.push(item(self))
         items
 
     # At most `max` entries, each key drawn before its value. A key drawn
     # again keeps the later value (r-std-testing.choices.map.duplicate).
-    pub fn map[K < Eq & Hash, V](mut self, max: i32, key: fn(mut Choices) -> K, value: fn(mut Choices) -> V) -> Map[K, V]:
+    pub fn map[K < Eq & Hash, V](mut self, max: usize, key: fn(mut Choices) -> K, value: fn(mut Choices) -> V) -> Map[K, V]:
         let entries: mut Map[K, V] = {}
         if self.spent():
             return entries
-        let count: i32 = i32(self.next(i64(max)))
-        let index = 0
+        let count: usize = usize(self.next(i64(max)))
+        let index: usize = 0
         while index < count:
             drawn := key(self)
             entries[drawn] = value(self)
@@ -160,13 +160,13 @@ impl Choices:
         entries
 
     # At most `max_chars` chars (r-std-testing.choices.string-limit).
-    pub fn string(mut self, max_chars: i32) -> string:
+    pub fn string(mut self, max_chars: usize) -> string:
         if self.spent():
             return ""
         letters := ["a", "b", "z", " ", "0", "\u{E9}", "\u{3C0}", "\u{1F600}"]
         let text: string = ""
-        let count: i32 = i32(self.next(i64(max_chars)))
-        let index: i32 = 0
+        let count: usize = usize(self.next(i64(max_chars)))
+        let index: usize = 0
         while index < count:
             text = text + self.choose(letters)
             index = index + 1
@@ -182,21 +182,21 @@ impl Choices:
 
     # `list` and `map` with each item drawn by its type's `Arbitrary`. The
     # prototype cannot pass a bound through a function value.
-    fn list_of[T < Arbitrary](mut self, max: i32) -> List[T]:
+    fn list_of[T < Arbitrary](mut self, max: usize) -> List[T]:
         let items: mut List[T] = []
         if self.spent():
             return items
-        let count: i32 = i32(self.next(i64(max)))
+        let count: usize = usize(self.next(i64(max)))
         while items.len() < count:
             items.push(T::arbitrary(self))
         items
 
-    fn map_of[K < Arbitrary & Eq & Hash, V < Arbitrary](mut self, max: i32) -> Map[K, V]:
+    fn map_of[K < Arbitrary & Eq & Hash, V < Arbitrary](mut self, max: usize) -> Map[K, V]:
         let entries: mut Map[K, V] = {}
         if self.spent():
             return entries
-        let count: i32 = i32(self.next(i64(max)))
-        let index = 0
+        let count: usize = usize(self.next(i64(max)))
+        let index: usize = 0
         while index < count:
             drawn := K::arbitrary(self)
             entries[drawn] = V::arbitrary(self)
@@ -232,7 +232,7 @@ impl[T] Arbitrary for T by Structure:
 # `Source` implementation in the target's module.
 data ArbitrarySource[S]:
     pub c: mut Choices
-    pub at: i32
+    pub at: usize
 
 # The one way an `ArbitrarySource` fails: every variant is recursive.
 data NoFiniteValue: pass
@@ -255,7 +255,7 @@ impl[S] Source[S] for ArbitrarySource[S]:
                     _ => simplest = v.info.index
         if simplest < 0:
             return .Err(NoFiniteValue {})
-        let ordered: mut List[Variant[S]] = [choices[simplest]]
+        let ordered: mut List[Variant[S]] = [choices[usize(simplest)]]
         for v in choices:
             if v.info.index != simplest:
                 ordered.push(v)
@@ -391,18 +391,18 @@ fn each_case![T, R, $Q](rows: List[T], body: fn!(T) -> R $ Q) -> R $ Q + TestRun
 # examples to the runner's `PropertyRunner`, takes the example the runner
 # selects or draws the input with `T`'s `Arbitrary` from a fresh `Choices`,
 # shows the input's `Debug` text, and runs `prop`.
-fn prop_case![T < Arbitrary & Debug, R, $Q](cases: i32, shrink: i32, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q + PropertyRunner:
+fn prop_case![T < Arbitrary & Debug, R, $Q](cases: usize, shrink: usize, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q + PropertyRunner:
     let mut runner = $.use(PropertyRunner)
     index := runner.start(cases, shrink, examples.len())
-    value := if index >= 0: examples[index] else: choices(runner).draw::[T]()
+    value := if index >= 0: examples[usize(index)] else: choices(runner).draw::[T]()
     runner.show(debug(value))
     prop!(value)
 
 # The same for `it_prop_with`, which draws the input with `gen`.
-fn prop_with_case![T < Debug, R, $Q](cases: i32, shrink: i32, gen: fn(mut Choices) -> T, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q + PropertyRunner:
+fn prop_with_case![T < Debug, R, $Q](cases: usize, shrink: usize, gen: fn(mut Choices) -> T, prop: fn!(T) -> R $ Q, examples: List[T] = []) -> R $ Q + PropertyRunner:
     let mut runner = $.use(PropertyRunner)
     index := runner.start(cases, shrink, examples.len())
-    value := if index >= 0: examples[index] else: gen(choices(runner))
+    value := if index >= 0: examples[usize(index)] else: gen(choices(runner))
     runner.show(debug(value))
     prop!(value)
 

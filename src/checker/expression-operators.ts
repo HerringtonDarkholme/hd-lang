@@ -727,6 +727,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
   private checkRangeExpression(
     expression: Extract<Expression, { kind: "range" }>,
     expected: ValueType | undefined,
+    defaultElement?: ValueType,
   ): HirExpression {
     const { start, end, span } = expression;
     // `a..=b` is a `Range` and `..=b` a `RangeTo`, with `inclusive` true
@@ -748,17 +749,32 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         span,
       };
     const expectedRange = expected ? nominalGenericParts(readonlyType(expected)) : undefined;
-    const element =
+    const expectedElement =
       expectedRange?.name === declaration.name &&
       expectedRange.arguments.length === 1 &&
       isIntegerType(expectedRange.arguments[0]!)
         ? expectedRange.arguments[0]
         : undefined;
+    const element = expectedElement ?? defaultElement;
     let bounds: HirExpression[];
     if (start && end) {
+      // A negated slice literal always receives the unsigned index context,
+      // even when its other bound has a written signed type.
+      if (defaultElement !== undefined) {
+        for (const bound of [start, end])
+          if (bound.kind === "unary" && bound.operator === "-" && bound.operand.kind === "integer")
+            this.checkExpression(bound, defaultElement);
+      }
+      // With a typed peer, the ordinary binary-literal rule wins: `0..end`
+      // has end's type. Two literals have no peer type, so both use usize.
+      const boundContext =
+        defaultElement !== undefined &&
+        !(contextualNumericKind(start) === "integer" && contextualNumericKind(end) === "integer")
+          ? undefined
+          : element;
       const { left, right } = this.checkNumericOperands(
         { kind: "binary", operator: "-", left: start, right: end, span },
-        element,
+        boundContext,
       );
       const leftType = readonlyType(left.type);
       const rightType = readonlyType(right.type);
@@ -789,7 +805,12 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         span,
       );
     }
-    const elementType = element ?? readonlyType(bounds[0]!.type);
+    // A built-in slice gives literal bounds a default, not a fixed range
+    // type: a typed wider unsigned bound still determines the range element.
+    const elementType =
+      defaultElement === undefined && expectedElement !== undefined
+        ? expectedElement
+        : readonlyType(bounds[0]!.type);
     const fields: HirExpression[] = bounds.map((bound) =>
       this.requireCoercion(bound, elementType, bound.span),
     );
@@ -813,6 +834,36 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       type: resultType(nominalGenericType(declaration.name, [elementType])),
       span,
     };
+  }
+
+  /**
+   * Checks the index of a built-in list or string. A written range gives its
+   * bounds the `usize` context without fixing a typed wider unsigned bound to
+   * `usize`; a range value is validated by its element type.
+   */
+  protected checkBuiltinIndexExpression(
+    expression: Expression,
+    receiver: "list" | "string",
+  ): HirExpression {
+    const index =
+      expression.kind === "range"
+        ? this.checkRangeExpression(expression, undefined, "u32")
+        : this.checkExpression(expression, "u32");
+    if (!this.isRangeType(index.type))
+      return this.requireUnsignedIndex(index, receiver, expression.span);
+
+    const readonly = readonlyType(index.type);
+    const nominal = nominalGenericParts(readonly);
+    const standardName = this.dataTypes.get(nominal?.name ?? readonly)?.standardName;
+    if (standardName === "std.ops.RangeFull") return index;
+    const element = nominal?.arguments[0];
+    if (numericType(readonlyType(element ?? ""))?.family !== "unsigned")
+      this.fail(
+        "type-mismatch",
+        `slice bounds must have an unsigned integer type, found '${typeSourceText(element ?? index.type)}'`,
+        expression.span,
+      );
+    return index;
   }
 
   /** The `std` data type of a qualified name, such as `std.ops.Range`, when the program declares it. */

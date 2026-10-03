@@ -11,9 +11,9 @@ git history keeps the audit evidence behind each finding.
 [`test/portable/KNOWN_FAILURES.tsv`](../test/portable/KNOWN_FAILURES.tsv)
 lists the conformance cases the prototype fails. Each row is tagged with a
 finding below or with an applied decision. On 2026-10-03 the suite has
-2,152 cases: 1,969 selected in `test/portable/cases.tsv` and 183 known
-failures. The selected cases are 1,771 language tier and 198 stdlib tier;
-the known failures are 122 language tier and 61 stdlib tier.
+2,173 cases: 2,039 selected in `test/portable/cases.tsv` and 134 known
+failures. The selected cases are 1,813 language tier and 226 stdlib tier;
+the known failures are 83 language tier and 51 stdlib tier.
 
 | Tag | Cases | Why they fail |
 | --- | ---: | --- |
@@ -39,7 +39,7 @@ the known failures are 122 language tier and 61 stdlib tier.
 | RACE-EMPTY | 2 | an empty `race!` task list is neither rejected nor a panic |
 | CLI-57 | 2 | the test runner binds no `Process`, and `hd_run!` has no integration-only check |
 | VOID-UNIT | 1 | `void` is kept apart from the empty tuple `()` |
-| HOST-CATALOG | 7 | host modules are registered; remaining Fs, clock, console, and retry helpers or provider support are missing |
+| STD-HELPERS | 8 | std helper declarations remain blocked by eager host glue and unresolved helper/provider support |
 | ERR-HELPERS | 1 | trait-value `find` enters a forwarding adapter with static TypeId evidence and traps on an illegal cast |
 | HOST-CONTRACT | 2 | host results are not checked against their declared types and the panic category is absent |
 | HOST-NAN | 1 | the `special-float-host` runtime profile does not exist |
@@ -52,17 +52,16 @@ the known failures are 122 language tier and 61 stdlib tier.
 | ALL-LIST | 1 | erasing concrete closures in generic lists can produce an illegal cast |
 | METHOD-DEFAULT | 1 | the parser rejects a default value on a method parameter |
 | FIXED-HOOK | 1 | the `format_f64_fixed` host hook is absent |
-| STD-1 | 2 | the checker accepts bounded inherent Map impls, but the specified Map methods are absent from `lib/std` |
+| STD-1 | 3 | the checker accepts bounded inherent Map impls, but the specified Map methods are absent from `lib/std` |
 | RETRY-WITH | 1 | `retry_with!` is held because its current std dependency would load `std.time` eagerly |
-| U32-SIZES | 53 | `usize`, unsigned lengths and indices, and the corresponding std signatures are not implemented |
-| ZIP-ARG | 5 | call inference does not solve a type parameter from a bounded argument's trait implementation |
+| SPEC-U32-DRIFT | 6 | fixtures still encode the retired signed-size behavior; `audit/compiler/u32-spec-drift.md` records the conflicts |
 | STD-LOADER | 13 | `std.regex` is not registered, and JSON imports do not always retain `Number` |
 | STD-CLI | 5 | `std.cli` is not registered |
 | TEST-REG-ID | 4 | test registration recognizes a bare spelling instead of the imported declaration identity |
 | EQ-CONTEXTUAL | 2 | equality does not contextually type a variant from the opposite operand |
 | FRESH-MUT | 1 | generic inference does not weaken `mut T` and `T` to their readonly join |
 | FORWARD-BOUNDS | 1 | inference does not solve a bound that names a later type parameter |
-| QUALIFIED-PREFIX | 2 | the parser rejects a module-qualified string prefix such as `text.r"..."` |
+| QUALIFIED-PREFIX | 3 | a string prefix after `.` does not report `qualified-string-prefix` |
 
 ## Findings
 

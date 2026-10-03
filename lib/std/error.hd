@@ -65,7 +65,7 @@ pub fn chain(error: Error) -> List[Error]:
 pub fn report_of(error: Error) -> ErrorReport:
     errors := chain(error)
     let causes: mut List[string] = []
-    let index = 1
+    let index: usize = 1
     while index < errors.len():
         causes.push(errors[index].to_string())
         index = index + 1

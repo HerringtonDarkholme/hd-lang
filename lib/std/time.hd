@@ -234,11 +234,11 @@ impl Debug for Date:
 # Why RFC 3339 text did not parse (spec/std/time.md#time-parse-errors).
 pub enum TimeParseError:
     # A character that the grammar does not allow at its place.
-    InvalidCharacter(position: i32)
+    InvalidCharacter(position: usize)
     # A field whose digits are well formed but whose value is not allowed.
-    OutOfRange(position: i32)
+    OutOfRange(position: usize)
     # The text ends early; `position` is its length.
-    TooShort(position: i32)
+    TooShort(position: usize)
 
 impl Eq for TimeParseError:
     fn eq(self, other: TimeParseError) -> bool:
@@ -299,7 +299,7 @@ fn days_in_month(year: i64, month: i64) -> i64:
     31
 
 # A non-negative number in at least `width` digits.
-fn zero_padded(value: i64, width: i32) -> string:
+fn zero_padded(value: i64, width: usize) -> string:
     let text = "$value"
     while text.len() < width:
         text = "0" + text
@@ -325,7 +325,7 @@ fn rfc3339_codes(text: string) -> List[i32]:
 # Where `shape` stops matching the codes from `start`: `d` is a digit,
 # `T` is `T` or `t`, and any other character is itself. It is the index
 # of the first mismatch, or the index after the shape when all match.
-fn rfc3339_reach(codes: List[i32], start: i32, shape: string) -> i32:
+fn rfc3339_reach(codes: List[i32], start: usize, shape: string) -> usize:
     let index = start
     for need in shape.bytes():
         if index >= codes.len():
@@ -338,13 +338,13 @@ fn rfc3339_reach(codes: List[i32], start: i32, shape: string) -> i32:
     index
 
 # The error at `index`, where the shape stopped matching.
-fn rfc3339_mismatch(codes: List[i32], index: i32) -> TimeParseError:
+fn rfc3339_mismatch(codes: List[i32], index: usize) -> TimeParseError:
     if index >= codes.len():
         return TimeParseError.TooShort(codes.len())
     TimeParseError.InvalidCharacter(index)
 
 # The value of the `width` digits from `start`, which the shape checked.
-fn rfc3339_value(codes: List[i32], start: i32, width: i32) -> i64:
+fn rfc3339_value(codes: List[i32], start: usize, width: usize) -> i64:
     let value: i64 = 0
     let index = start
     while index < start + width:
@@ -359,8 +359,9 @@ fn parse_rfc3339_codes(codes: List[i32]) -> Result[Timestamp, TimeParseError]:
     reach := rfc3339_reach(codes, 0, "dddd-dd-ddTdd:dd:dd")
     # year, month, day, hour, minute, second
     let parts: mut List[i64] = []
-    for start in [0, 5, 8, 11, 14, 17]:
-        width := if start == 0: 4 else: 2
+    let starts: List[usize] = [0, 5, 8, 11, 14, 17]
+    for start in starts:
+        let width: usize = if start == 0: 4 else: 2
         if reach < start + width:
             return .Err(rfc3339_mismatch(codes, reach))
         value := rfc3339_value(codes, start, width)
@@ -376,7 +377,7 @@ fn parse_rfc3339_codes(codes: List[i32]) -> Result[Timestamp, TimeParseError]:
             high = 23
         if value > high || (value == 0 && (start == 5 || start == 8)):
             return .Err(TimeParseError.OutOfRange(start))
-    let index = 19
+    let index: usize = 19
     let fraction: i64 = 0
     if index < codes.len() && codes[index] == 46:
         index = index + 1

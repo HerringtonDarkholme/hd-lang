@@ -91,10 +91,10 @@ impl Json:
             .Object(fields) => fields.get(key)
             _ => .None
 
-    pub fn at(self, index: i32) -> Json?:
+    pub fn at(self, index: usize) -> Json?:
         match self:
             .Array(items) =>
-                if index >= 0 && index < items.len():
+                if index < items.len():
                     .Some(items[index])
                 else:
                     .None
@@ -139,7 +139,7 @@ impl Display for Json:
         bytes_text(out)
 
 
-fn render(value: Json, out: mut List[u8], spaced: bool, depth: i32) -> void:
+fn render(value: Json, out: mut List[u8], spaced: bool, depth: usize) -> void:
     match value:
         .Null => push_text(out, "null")
         .Bool(flag) => push_text(out, if flag: "true" else: "false")
@@ -178,7 +178,7 @@ fn render(value: Json, out: mut List[u8], spaced: bool, depth: i32) -> void:
             line_break(out, spaced, depth)
             out.push(125)
 
-fn line_break(out: mut List[u8], spaced: bool, depth: i32) -> void:
+fn line_break(out: mut List[u8], spaced: bool, depth: usize) -> void:
     if !spaced:
         return
     out.push(10)
@@ -232,20 +232,20 @@ fn bytes_text(bytes: List[u8]) -> string:
 # (r-std-json.error.variants).
 pub enum JsonError:
     # The text stops inside a value; `position` is its length.
-    UnexpectedEnd(position: i32)
+    UnexpectedEnd(position: usize)
     # A character the grammar does not allow there.
-    UnexpectedCharacter(position: i32)
+    UnexpectedCharacter(position: usize)
     # A bad escape; `position` is its backslash.
-    InvalidEscape(position: i32)
+    InvalidEscape(position: usize)
     # A `\u` surrogate with no partner; `position` is its backslash.
-    LoneSurrogate(position: i32)
+    LoneSurrogate(position: usize)
     # A raw control character inside a string.
-    ControlCharacter(position: i32)
+    ControlCharacter(position: usize)
     # A number past the finite f64 range; `position` is its first character.
-    NumberOutOfRange(position: i32)
+    NumberOutOfRange(position: usize)
     # An array or object nested deeper than 128 levels; `position` is its
     # opening bracket.
-    NestingTooDeep(position: i32)
+    NestingTooDeep(position: usize)
     # A value of the wrong kind, or a number out of the type's range;
     # `expected` names what the decoder reads (r-std-json.error.kind.type).
     WrongType(path: string, expected: string)
@@ -288,11 +288,11 @@ impl Error for JsonError
 
 data Parsed:
     value: Json
-    end: i32
+    end: usize
 
 data ParsedText:
     text: string
-    end: i32
+    end: usize
 
 # Strict RFC 8259 text to a `Json` (r-std-json.parse).
 pub fn parse(text: string) -> Result[Json, JsonError]:
@@ -304,12 +304,12 @@ pub fn parse(text: string) -> Result[Json, JsonError]:
     .Ok(parsed.value)
 
 # The error for a byte that cannot continue the text at `offset`.
-fn unexpected(bytes: List[u8], offset: i32) -> JsonError:
+fn unexpected(bytes: List[u8], offset: usize) -> JsonError:
     if offset >= bytes.len():
         return JsonError.UnexpectedEnd(offset)
     JsonError.UnexpectedCharacter(offset)
 
-fn skip_space(bytes: List[u8], start: i32) -> i32:
+fn skip_space(bytes: List[u8], start: usize) -> usize:
     let index = start
     while index < bytes.len():
         byte := bytes[index]
@@ -318,7 +318,7 @@ fn skip_space(bytes: List[u8], start: i32) -> i32:
         index = index + 1
     index
 
-fn parse_value(bytes: List[u8], start: i32, depth: i32) -> Result[Parsed, JsonError]:
+fn parse_value(bytes: List[u8], start: usize, depth: usize) -> Result[Parsed, JsonError]:
     index := skip_space(bytes, start)
     if index >= bytes.len():
         return .Err(unexpected(bytes, index))
@@ -340,7 +340,7 @@ fn parse_value(bytes: List[u8], start: i32, depth: i32) -> Result[Parsed, JsonEr
         return parse_number(bytes, index)
     .Err(unexpected(bytes, index))
 
-fn parse_word(bytes: List[u8], start: i32, word: string, value: Json) -> Result[Parsed, JsonError]:
+fn parse_word(bytes: List[u8], start: usize, word: string, value: Json) -> Result[Parsed, JsonError]:
     let index = start
     for expected in word.bytes():
         if index >= bytes.len() || bytes[index] != expected:
@@ -348,7 +348,7 @@ fn parse_word(bytes: List[u8], start: i32, word: string, value: Json) -> Result[
         index = index + 1
     .Ok(Parsed { value: value, end: index })
 
-fn parse_array(bytes: List[u8], open: i32, depth: i32) -> Result[Parsed, JsonError]:
+fn parse_array(bytes: List[u8], open: usize, depth: usize) -> Result[Parsed, JsonError]:
     if depth >= 128:
         return .Err(JsonError.NestingTooDeep(open))
     let items: mut List[Json] = []
@@ -367,7 +367,7 @@ fn parse_array(bytes: List[u8], open: i32, depth: i32) -> Result[Parsed, JsonErr
             return .Err(unexpected(bytes, index))
     .Err(unexpected(bytes, index))
 
-fn parse_object(bytes: List[u8], open: i32, depth: i32) -> Result[Parsed, JsonError]:
+fn parse_object(bytes: List[u8], open: usize, depth: usize) -> Result[Parsed, JsonError]:
     if depth >= 128:
         return .Err(JsonError.NestingTooDeep(open))
     let fields: mut Map[string, Json] = {}
@@ -393,7 +393,7 @@ fn parse_object(bytes: List[u8], open: i32, depth: i32) -> Result[Parsed, JsonEr
     .Err(unexpected(bytes, index))
 
 # The string that starts at the quote at `open`.
-fn parse_string(bytes: List[u8], open: i32) -> Result[ParsedText, JsonError]:
+fn parse_string(bytes: List[u8], open: usize) -> Result[ParsedText, JsonError]:
     let buffer: mut List[u8] = []
     let index = open + 1
     while true:
@@ -448,9 +448,9 @@ fn parse_string(bytes: List[u8], open: i32) -> Result[ParsedText, JsonError]:
 
 # The value of the four hex digits at `at`, -1 when one is not a hex digit,
 # or -2 when the text ends first.
-fn read_hex4(bytes: List[u8], at: i32) -> i32:
+fn read_hex4(bytes: List[u8], at: usize) -> i32:
     let value = 0
-    let offset = 0
+    let offset: usize = 0
     while offset < 4:
         if at + offset >= bytes.len():
             return -2
@@ -498,7 +498,7 @@ fn u64_max() -> u64:
 # digits. An integer in the i64 or u64 range is exact; `-0` is the float
 # -0.0, as in serde_json. A fraction, an exponent, or an integer past both
 # ranges is the float that `parse_f64` gives (r-std-json.parse.number.float).
-fn parse_number(bytes: List[u8], start: i32) -> Result[Parsed, JsonError]:
+fn parse_number(bytes: List[u8], start: usize) -> Result[Parsed, JsonError]:
     size := bytes.len()
     let index = start
     negative := bytes[index] == 45
@@ -552,7 +552,7 @@ fn parse_number(bytes: List[u8], start: i32) -> Result[Parsed, JsonError]:
 # The float of the number text from `start` up to `end`, which the caller
 # has read to the end of its grammar; past the f64 range it is a
 # `NumberOutOfRange` at `start` (r-std-json.parse.number.out-of-range).
-fn float_number(bytes: List[u8], start: i32, end: i32) -> Result[Parsed, JsonError]:
+fn float_number(bytes: List[u8], start: usize, end: usize) -> Result[Parsed, JsonError]:
     let digits: mut List[u8] = []
     let index = start
     while index < end:
@@ -858,7 +858,7 @@ impl[T < FromJson] FromJson for List[T]:
         match value:
             .Array(items) =>
                 let found: mut List[T] = []
-                let index = 0
+                let index: usize = 0
                 for item in items:
                     match T::from_json(item):
                         .Ok(decoded) => found.push(decoded)
@@ -940,7 +940,7 @@ data JsonSource[S]:
     pub value: Json
     pub base: string
     pub fields: Map[string, Json]
-    pub at: i32
+    pub at: usize
 
 impl[S] Source[S] for JsonSource[S]:
     type Error = JsonError
@@ -979,9 +979,11 @@ impl[S] Source[S] for JsonSource[S]:
 
     # Every member, in declaration order.
     fn next(mut self, members: Members[S]) -> Result[Key[S], JsonError]:
-        let key = members.at(self.at)
+        if self.at >= members.infos.len():
+            return .Ok(members.end())
+        info := members.infos[self.at]
         self.at = self.at + 1
-        .Ok(key)
+        .Ok(members.at(info.position))
 
     fn member[F < FromJson](mut self, h: Field[S, F], previous: F?) -> Result[F, JsonError]:
         segment := "${self.base}.${h.info.name}"

@@ -611,6 +611,40 @@ export function containsGenericType(type: ValueType): boolean {
   );
 }
 
+/** Whether `type` structurally contains the named generic parameter. */
+export function containsGenericParameter(type: ValueType, parameter: string): boolean {
+  if (genericTypeName(type) === parameter) return true;
+  const inputs = inputsInner(type) ?? restInner(type);
+  if (inputs !== undefined) return containsGenericParameter(inputs, parameter);
+  const binding = bindingParts(type);
+  if (binding) return containsGenericParameter(binding.type, parameter);
+  const mutable = mutableInner(type);
+  if (mutable !== undefined) return containsGenericParameter(mutable, parameter);
+  const tuple = tupleParts(type);
+  if (tuple !== undefined) return tuple.some((item) => containsGenericParameter(item, parameter));
+  const optional = optionalInner(type);
+  if (optional !== undefined) return containsGenericParameter(optional, parameter);
+  const result = resultParts(type);
+  if (result)
+    return (
+      containsGenericParameter(result.ok, parameter) ||
+      containsGenericParameter(result.error, parameter)
+    );
+  const nominal = nominalGenericParts(type);
+  if (nominal)
+    return nominal.arguments.some((argument) => containsGenericParameter(argument, parameter));
+  const callable = functionParts(type);
+  return Boolean(
+    callable &&
+    (callable.parameters.some((argument) => containsGenericParameter(argument, parameter)) ||
+      containsGenericParameter(callable.result, parameter) ||
+      callable.requirements.some(
+        (requirement) =>
+          !rowParameterName(requirement) && containsGenericParameter(requirement, parameter),
+      )),
+  );
+}
+
 function inferRequirementTypeArguments(
   formal: readonly string[],
   actual: readonly string[],

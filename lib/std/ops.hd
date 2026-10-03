@@ -128,12 +128,12 @@ pub trait Update[V]:
 # Each body is the built-in indexing of its type, with its checks and
 # panics: `Map`'s `index` returns `V` and panics on a missing key
 # (spec/lang/05-expressions.md#r-expr.index.map.read-value).
-impl[T] Index[i32] for List[T]:
+impl[T] Index[usize] for List[T]:
     type Out = T
-    fn index(self, key: i32) -> T: self[key]
+    fn index(self, key: usize) -> T: self[key]
 
-impl[T] IndexSet[i32, T] for List[T]:
-    fn index_set(mut self, key: i32, value: T) -> void:
+impl[T] IndexSet[usize, T] for List[T]:
+    fn index_set(mut self, key: usize, value: T) -> void:
         self[key] = value
 
 impl[K < Eq & Hash, V] Index[K] for Map[K, V]:
@@ -144,9 +144,9 @@ impl[K < Eq & Hash, V] IndexSet[K, V] for Map[K, V]:
     fn index_set(mut self, key: K, value: V) -> void:
         self[key] = value
 
-impl Index[i32] for string:
+impl Index[usize] for string:
     type Out = u8
-    fn index(self, key: i32) -> u8: self[key]
+    fn index(self, key: usize) -> u8: self[key]
 
 # The range types (spec/lang/05-expressions.md#range-expressions). A range
 # expression builds one of them with no `use`, but they are not prelude
@@ -202,52 +202,27 @@ impl Eq for RangeFull:
     fn eq(self, other: RangeFull) -> bool:
         true
 
-# The end offset of the slice of `size` items from `start` up to `end`, or
-# through `end` when `inclusive`. A negative offset, an offset past `size`,
-# or a start after the end is the checked panic `index-out-of-bounds`
-# (spec/lang/05-expressions.md#slicing).
-fn slice_stop(size: i32, start: i64, end: i64, inclusive: bool) -> i32:
+# The exclusive end of a slice, checked against the container length.
+fn slice_stop(size: usize, start: u64, end: u64, inclusive: bool) -> usize:
     let stop = end
     if inclusive:
-        if end < 0 || end >= i64(size):
+        if end >= u64(size):
             panic_with("index-out-of-bounds", "")
         stop = end + 1
-    if start < 0 || stop < 0 || stop > i64(size) || start > stop:
+    if stop > u64(size) || start > stop:
         panic_with("index-out-of-bounds", "")
-    i32(stop)
+    usize(stop)
 
-# A slice bound of any integer type as an `i64` offset. A negative bound,
-# or one past the largest `i32`, which no string or list reaches, is -1, so
-# `slice_stop` rejects it. Generic code has no numeric cast, so this reads
-# the bound's bits one at a time.
-fn offset[N < Integer](bound: N) -> i64:
-    zero := N::zero()
-    one := N::one()
-    if bound < zero:
-        return -1
-    let rest = bound
-    let value: i64 = 0
-    let weight: i64 = 1
-    while rest != zero:
-        if weight > 2147483647:
-            return -1
-        if rest & one != zero:
-            value = value + weight
-        rest = rest >> 1
-        weight = weight * 2
-    value
-
-# A string slice: the bytes at the selected offsets, which must be scalar
-# boundaries (r-expr.index.slice.string), sharing them as `slice` does.
-fn slice_string(text: string, start: i64, end: i64, inclusive: bool) -> string:
+# A string slice shares its bytes and checks scalar boundaries.
+fn slice_string(text: string, start: u64, end: u64, inclusive: bool) -> string:
     stop := slice_stop(text.len(), start, end, inclusive)
-    text.slice(i32(start), stop)
+    text.slice(usize(start), stop)
 
-# A list slice: a new list of the selected elements (r-expr.index.slice.list).
-fn slice_list[T](items: List[T], start: i64, end: i64, inclusive: bool) -> mut List[T]:
+# A list slice copies the selected elements.
+fn slice_list[T](items: List[T], start: u64, end: u64, inclusive: bool) -> mut List[T]:
     stop := slice_stop(items.len(), start, end, inclusive)
     let copy: mut List[T] = []
-    let index = i32(start)
+    let index = usize(start)
     while index < stop:
         copy.push(items[index])
         index = index + 1
@@ -260,7 +235,7 @@ fn panic_with(category: string, message: string) -> void:
     panic("intrinsic")
 
 # Slicing (spec/lang/05-expressions.md#built-in-implementations): one
-# implementation per range type, generic over the bounds' integer type, for
+# implementation per range type, with unsigned bounds, for
 # `string` and `List`.
 impl Index[RangeFull] for string:
     type Out = string
@@ -268,31 +243,103 @@ impl Index[RangeFull] for string:
 
 impl[T] Index[RangeFull] for List[T]:
     type Out = mut List[T]
-    fn index(self, key: RangeFull) -> mut List[T]: slice_list(self, 0, i64(self.len()), false)
+    fn index(self, key: RangeFull) -> mut List[T]: slice_list(self, 0, u64(self.len()), false)
 
-impl[N < Integer] Index[Range[N]] for string:
+impl Index[Range[u8]] for string:
     type Out = string
-    fn index(self, key: Range[N]) -> string: slice_string(self, offset(key.start), offset(key.end), key.inclusive)
+    fn index(self, key: Range[u8]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
 
-impl[T, N < Integer] Index[Range[N]] for List[T]:
+impl[T] Index[Range[u8]] for List[T]:
     type Out = mut List[T]
-    fn index(self, key: Range[N]) -> mut List[T]: slice_list(self, offset(key.start), offset(key.end), key.inclusive)
+    fn index(self, key: Range[u8]) -> mut List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
 
-impl[N < Integer] Index[RangeFrom[N]] for string:
+impl Index[RangeFrom[u8]] for string:
     type Out = string
-    fn index(self, key: RangeFrom[N]) -> string: slice_string(self, offset(key.start), i64(self.len()), false)
+    fn index(self, key: RangeFrom[u8]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
 
-impl[T, N < Integer] Index[RangeFrom[N]] for List[T]:
+impl[T] Index[RangeFrom[u8]] for List[T]:
     type Out = mut List[T]
-    fn index(self, key: RangeFrom[N]) -> mut List[T]: slice_list(self, offset(key.start), i64(self.len()), false)
+    fn index(self, key: RangeFrom[u8]) -> mut List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
 
-impl[N < Integer] Index[RangeTo[N]] for string:
+impl Index[RangeTo[u8]] for string:
     type Out = string
-    fn index(self, key: RangeTo[N]) -> string: slice_string(self, 0, offset(key.end), key.inclusive)
+    fn index(self, key: RangeTo[u8]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
 
-impl[T, N < Integer] Index[RangeTo[N]] for List[T]:
+impl[T] Index[RangeTo[u8]] for List[T]:
     type Out = mut List[T]
-    fn index(self, key: RangeTo[N]) -> mut List[T]: slice_list(self, 0, offset(key.end), key.inclusive)
+    fn index(self, key: RangeTo[u8]) -> mut List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+
+impl Index[Range[u16]] for string:
+    type Out = string
+    fn index(self, key: Range[u16]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
+
+impl[T] Index[Range[u16]] for List[T]:
+    type Out = mut List[T]
+    fn index(self, key: Range[u16]) -> mut List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+
+impl Index[RangeFrom[u16]] for string:
+    type Out = string
+    fn index(self, key: RangeFrom[u16]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
+
+impl[T] Index[RangeFrom[u16]] for List[T]:
+    type Out = mut List[T]
+    fn index(self, key: RangeFrom[u16]) -> mut List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+
+impl Index[RangeTo[u16]] for string:
+    type Out = string
+    fn index(self, key: RangeTo[u16]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
+
+impl[T] Index[RangeTo[u16]] for List[T]:
+    type Out = mut List[T]
+    fn index(self, key: RangeTo[u16]) -> mut List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+
+impl Index[Range[usize]] for string:
+    type Out = string
+    fn index(self, key: Range[usize]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
+
+impl[T] Index[Range[usize]] for List[T]:
+    type Out = mut List[T]
+    fn index(self, key: Range[usize]) -> mut List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+
+impl Index[RangeFrom[usize]] for string:
+    type Out = string
+    fn index(self, key: RangeFrom[usize]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
+
+impl[T] Index[RangeFrom[usize]] for List[T]:
+    type Out = mut List[T]
+    fn index(self, key: RangeFrom[usize]) -> mut List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+
+impl Index[RangeTo[usize]] for string:
+    type Out = string
+    fn index(self, key: RangeTo[usize]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
+
+impl[T] Index[RangeTo[usize]] for List[T]:
+    type Out = mut List[T]
+    fn index(self, key: RangeTo[usize]) -> mut List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+
+impl Index[Range[u64]] for string:
+    type Out = string
+    fn index(self, key: Range[u64]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
+
+impl[T] Index[Range[u64]] for List[T]:
+    type Out = mut List[T]
+    fn index(self, key: Range[u64]) -> mut List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+
+impl Index[RangeFrom[u64]] for string:
+    type Out = string
+    fn index(self, key: RangeFrom[u64]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
+
+impl[T] Index[RangeFrom[u64]] for List[T]:
+    type Out = mut List[T]
+    fn index(self, key: RangeFrom[u64]) -> mut List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+
+impl Index[RangeTo[u64]] for string:
+    type Out = string
+    fn index(self, key: RangeTo[u64]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
+
+impl[T] Index[RangeTo[u64]] for List[T]:
+    type Out = mut List[T]
+    fn index(self, key: RangeTo[u64]) -> mut List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
 
 # Range iteration (spec/lang/06-control-flow.md#range-iteration): one
 # implementation per integer type. Each `iter()` starts from the start
@@ -729,7 +776,7 @@ impl Debug for DefaultVariant:
 # public because the prototype checks the instantiated source in the
 # program that uses it.
 data DefaultSource[S]:
-    pub at: i32
+    pub at: usize
 
 impl[S] Source[S] for DefaultSource[S]:
     type Error = never
@@ -744,9 +791,11 @@ impl[S] Source[S] for DefaultSource[S]:
         .Ok(choices[0])
 
     fn next(mut self, members: Members[S]) -> Result[Key[S], never]:
-        let key = members.at(self.at)
+        if self.at >= members.infos.len():
+            return .Ok(members.end())
+        info := members.infos[self.at]
         self.at = self.at + 1
-        .Ok(key)
+        .Ok(members.at(info.position))
 
     fn member[F < Default](mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
         match h.default():

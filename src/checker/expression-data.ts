@@ -23,7 +23,6 @@ import {
 } from "./shared.ts";
 
 import { ExpressionSuspensionChecker } from "./expression-suspensions.ts";
-import { isIntegerType } from "../numeric.ts";
 
 /** The decimal position a tuple-style member such as `_0` or `_12` names. */
 function underscorePosition(name: string): string | undefined {
@@ -814,7 +813,12 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         const sliced =
           (nominal?.name === "List" && nominal.arguments.length === 1) ||
           readonlyType(receiver.type) === "string";
-        const sliceIndex = sliced ? this.checkExpression(expression.index, "i32") : undefined;
+        const sliceIndex = sliced
+          ? this.checkBuiltinIndexExpression(
+              expression.index,
+              nominal?.name === "List" ? "list" : "string",
+            )
+          : undefined;
         // A range index slices a list or a string through `Index`
         // (05-expressions.md#r-expr.index.slice.call).
         if (sliceIndex && this.isRangeType(sliceIndex.type)) {
@@ -834,7 +838,6 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         }
         if (nominal?.name === "List" && nominal.arguments.length === 1) {
           const index = sliceIndex!;
-          this.requireAssignable(index.type, "i32", expression.index.span);
           return {
             kind: "list-index",
             receiver,
@@ -860,16 +863,10 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             span: expression.span,
           };
         }
-        // A string index reads the byte at a byte offset of any integer
-        // type (05-expressions.md#string-indexing).
+        // A string index reads the byte at an unsigned byte offset
+        // (05-expressions.md#string-indexing).
         if (readonlyType(receiver.type) === "string") {
           const index = sliceIndex!;
-          if (!isIntegerType(readonlyType(index.type)))
-            this.fail(
-              "type-mismatch",
-              `a string index must be an integer, found '${typeSourceText(index.type)}'`,
-              expression.index.span,
-            );
           return { kind: "string-index", receiver, index, type: "u8", span: expression.span };
         }
         // Any other receiver reads through `Index::[K]::index`

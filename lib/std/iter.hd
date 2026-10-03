@@ -38,9 +38,7 @@ impl[T] Iterator[T]:
             .None
         )
 
-    pub fn take(mut self, count: i32) -> mut Iterator[T]:
-        if count < 0:
-            panic("take: count must not be negative")
+    pub fn take(mut self, count: usize) -> mut Iterator[T]:
         let left = count
         Iterator::from_fn(fn() -> T?:
             if left <= 0:
@@ -49,9 +47,9 @@ impl[T] Iterator[T]:
             self.next()
         )
 
-    pub fn enumerate(mut self) -> mut Iterator[(i32, T)]:
-        let index = 0
-        Iterator::from_fn(fn() -> (i32, T)?:
+    pub fn enumerate(mut self) -> mut Iterator[(usize, T)]:
+        let index: usize = 0
+        Iterator::from_fn(fn() -> (usize, T)?:
             match self.next():
                 .Some(item) =>
                     let numbered = (index, item)
@@ -68,9 +66,7 @@ impl[T] Iterator[T]:
         )
 
     # Skips the first `count` items on its own first `next` call.
-    pub fn skip(mut self, count: i32) -> mut Iterator[T]:
-        if count < 0:
-            panic("skip: count must not be negative")
+    pub fn skip(mut self, count: usize) -> mut Iterator[T]:
         let left = count
         Iterator::from_fn(fn() -> T?:
             while left > 0:
@@ -127,7 +123,7 @@ impl[T] Iterator[T]:
     # The items of each list `transform` returns, in order.
     pub fn flat_map[U](mut self, transform: fn(T) -> List[U]) -> mut Iterator[U]:
         let part: List[U] = []
-        let at = 0
+        let at: usize = 0
         Iterator::from_fn(fn() -> U?:
             while at >= part.len():
                 match self.next():
@@ -170,8 +166,8 @@ impl[T] Iterator[T]:
         .None
 
     # The number of remaining items; it drains `self`.
-    pub fn count(mut self) -> i32:
-        let found = 0
+    pub fn count(mut self) -> usize:
+        let found: usize = 0
         while true:
             match self.next():
                 .Some(_) => found = found + 1

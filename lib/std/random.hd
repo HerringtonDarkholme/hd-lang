@@ -10,7 +10,7 @@ use std.ops.Range
 # (r-std-random.mut).
 pub trait Random:
     fn next_u64(mut self) -> u64
-    fn fill(mut self, count: i32) -> List[u8]
+    fn fill(mut self, count: usize) -> List[u8]
 
 # The deterministic `Random` (spec/std/random.md#seeded-random): the same
 # seed gives the same draws (r-std-random.seeded.same-seed). The generator
@@ -51,7 +51,7 @@ impl Random for SeededRandom:
         high := self.next32()
         (high << 32) | self.next32()
 
-    fn fill(mut self, count: i32) -> List[u8]:
+    fn fill(mut self, count: usize) -> List[u8]:
         let bytes: mut List[u8] = []
         while bytes.len() < count:
             bytes.push(u8(self.next32() & 0xFF))
@@ -96,30 +96,30 @@ impl Rng:
     pub fn choose[T](mut self, items: List[T]) -> T?:
         if items.len() == 0:
             return .None
-        .Some(items[i32(self.below(u64(items.len())))])
+        .Some(items[usize(self.below(u64(items.len())))])
 
     # Fisher-Yates from the last position down (r-std-random.rng.shuffle.order).
     pub fn shuffle[T](mut self, items: mut List[T]) -> void:
-        let i = items.len() - 1
-        while i > 0:
-            j := i32(self.below(u64(i + 1)))
+        let i = items.len()
+        while i > 1:
+            i = i - 1
+            j := usize(self.below(u64(i + 1)))
             held := items[i]
             items[i] = items[j]
             items[j] = held
-            i = i - 1
 
     # The first `count` steps of Fisher-Yates from the front, on a copy
     # (r-std-random.rng.sample.order).
-    pub fn sample[T](mut self, items: List[T], count: i32) -> List[T]:
+    pub fn sample[T](mut self, items: List[T], count: usize) -> List[T]:
         if count > items.len():
             panic("std.random: sample count above the list length")
         let pool: mut List[T] = []
         for item in items:
             pool.push(item)
         let chosen: mut List[T] = []
-        let i = 0
+        let i: usize = 0
         while i < count:
-            j := i + i32(self.below(u64(pool.len() - i)))
+            j := i + usize(self.below(u64(pool.len() - i)))
             held := pool[i]
             pool[i] = pool[j]
             pool[j] = held

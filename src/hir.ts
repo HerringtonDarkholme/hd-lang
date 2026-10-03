@@ -916,7 +916,7 @@ export type HirExpression =
       readonly elementType: ValueType;
     })
   | (HirExpressionBase & {
-      /** The `u8` at a byte offset of any integer type; out of range panics. */
+      /** The `u8` at an unsigned-integer byte offset; out of range panics. */
       readonly kind: "string-index";
       readonly receiver: HirExpression;
       readonly index: HirExpression;

@@ -20,6 +20,7 @@ import {
 } from "./shared.ts";
 import { implementationsFor } from "./implementation-index.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
+import { standardCoreTypeAlias } from "./standard-core.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
 
@@ -77,6 +78,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     expected?: ValueType,
   ): HirExpression | undefined {
     const name = expression.callee.name;
+    const numericName = standardCoreTypeAlias(this.imports.get(name) ?? name) ?? name;
     const newtype = this.dataTypes.get(name);
     const constructorOf = (type: ValueType): string =>
       nominalGenericParts(readonlyType(type))?.name ?? readonlyType(type);
@@ -90,7 +92,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       !expression.argumentNames?.some(Boolean) &&
       !expression.argumentSpreads?.some(Boolean);
     // A constructor-style numeric cast (04 Numeric Casts).
-    if (numericType(name) && !newtype?.newtype) {
+    if (numericType(numericName) && !newtype?.newtype) {
       if (!single)
         this.fail("argument-count", `a numeric cast to '${name}' takes one value`, expression.span);
       // An integer literal argument, alone or under unary `-` or `+`, is
@@ -101,14 +103,15 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         (argument.kind === "unary" &&
           (argument.operator === "-" || argument.operator === "+") &&
           argument.operand.kind === "integer");
-      const target = literal && numericType(name)?.family !== "float" ? name : undefined;
+      const target =
+        literal && numericType(numericName)?.family !== "float" ? numericName : undefined;
       const value = this.checkExpression(argument, target);
       if (numericType(readonlyType(value.type)))
         return {
           kind: "unary",
           operator: "cast",
           operand: value,
-          type: name,
+          type: numericName,
           span: expression.span,
         };
       if (!unwraps)

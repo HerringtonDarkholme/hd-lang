@@ -21,7 +21,7 @@ pub fn r(t: Template[Display]) -> string:
 # (the specification names only `r`).
 pub fn interpolate[T < Display](t: Template[T]) -> string:
     let joined = t.raw_parts[0]
-    let index = 0
+    let index: usize = 0
     while index < t.values.len():
         joined = joined + t.values[index].to_string() + t.raw_parts[index + 1]
         index = index + 1
@@ -30,7 +30,7 @@ pub fn interpolate[T < Display](t: Template[T]) -> string:
 # An invalid escape sequence: `position` is the byte offset of its backslash
 # (Literal Suffixes L21, L22; Strings STR10).
 pub data EscapeError:
-    pub position: i32
+    pub position: usize
 
 impl Eq for EscapeError:
     fn eq(self, other: EscapeError) -> bool:
@@ -42,8 +42,8 @@ impl Eq for EscapeError:
 pub fn process_escapes(text: string) -> Result[string, EscapeError]:
     size := bytes_len(text)
     let processed = ""
-    let plain = 0
-    let index = 0
+    let plain: usize = 0
+    let index: usize = 0
     while index < size:
         if bytes_at(text, index) != 92:
             index = index + 1
@@ -87,11 +87,11 @@ fn simple_escape(escaped: u8) -> string?:
 
 data EscapedScalar:
     text: string
-    end: i32
+    end: usize
 
 # `{` hex digits `}` at byte `start`, after `\u`: one to six digits
 # naming a Unicode scalar value (spec/lang/01-lexical-structure.md#r-lex.escape.unicode).
-fn unicode_escape(text: string, start: i32) -> EscapedScalar?:
+fn unicode_escape(text: string, start: usize) -> EscapedScalar?:
     size := bytes_len(text)
     if start >= size || bytes_at(text, start) != 123:
         return .None
@@ -127,7 +127,7 @@ fn scalar_value(point: i32) -> bool:
 # A malformed byte sequence given to `string::from_utf8`.
 pub enum Utf8Error:
     # The byte offset where the first invalid sequence starts.
-    InvalidSequence(position: i32)
+    InvalidSequence(position: usize)
     # The bytes end inside a sequence.
     Truncated
 
@@ -148,12 +148,12 @@ impl Display for Utf8Error:
 
 impl string:
     # The number of bytes (spec/lang/04-type-system.md#r-types.string.len-bytes).
-    pub fn len(self) -> i32:
+    pub fn len(self) -> usize:
         bytes_len(self)
 
     # The scalar values in order (spec/lang/10-modules.md#r-module.string.chars).
     pub fn chars(self) -> mut Iterator[char]:
-        let at = 0
+        let at: usize = 0
         Iterator::from_fn(fn() -> char?:
             if at >= bytes_len(self):
                 return .None
@@ -164,9 +164,9 @@ impl string:
 
     # Each scalar value with the byte offset where its encoding starts
     # (spec/lang/10-modules.md#r-module.string.char-indices).
-    pub fn char_indices(self) -> mut Iterator[(i32, char)]:
-        let at = 0
-        Iterator::from_fn(fn() -> (i32, char)?:
+    pub fn char_indices(self) -> mut Iterator[(usize, char)]:
+        let at: usize = 0
+        Iterator::from_fn(fn() -> (usize, char)?:
             if at >= bytes_len(self):
                 return .None
             start := at
@@ -176,7 +176,7 @@ impl string:
 
     # The bytes in order (spec/lang/10-modules.md#r-module.string.bytes).
     pub fn bytes(self) -> mut Iterator[u8]:
-        let at = 0
+        let at: usize = 0
         Iterator::from_fn(fn() -> u8?:
             if at >= bytes_len(self):
                 return .None
@@ -188,8 +188,8 @@ impl string:
     # boundaries with `start <= end`, or it panics with `index-out-of-bounds`
     # (spec/lang/10-modules.md#r-module.string.slice.bad-offset). The result
     # shares the bytes (spec/lang/10-modules.md#r-module.string.slice.shared).
-    pub fn slice(self, start: i32, end: i32) -> string:
-        if start < 0 || start > end || !boundary(self, start) || !boundary(self, end):
+    pub fn slice(self, start: usize, end: usize) -> string:
+        if start > end || !boundary(self, start) || !boundary(self, end):
             panic_with("index-out-of-bounds", "")
         bytes_slice(self, start, end)
 
@@ -203,11 +203,11 @@ impl string:
     # The string whose UTF-8 encoding is `bytes`, or where they are not
     # valid UTF-8 (spec/lang/04-type-system.md#r-types.string.from-bytes).
     pub fn from_utf8(bytes: List[u8]) -> Result[string, Utf8Error]:
-        let index = 0
+        let index: usize = 0
         size := bytes.len()
         while index < size:
             lead := i32(bytes[index])
-            let width = 1
+            let width: usize = 1
             let point = lead
             let lowest = 0
             if lead >= 240 && lead <= 244:
@@ -224,7 +224,7 @@ impl string:
                 lowest = 128
             else if lead >= 128:
                 return .Err(Utf8Error.InvalidSequence(index))
-            let at = 1
+            let at: usize = 1
             while at < width:
                 if index + at >= size:
                     return .Err(Utf8Error.Truncated)
@@ -252,7 +252,7 @@ impl string:
             .None => false
 
     # The byte offset of the first `needle`; an empty needle is at 0.
-    pub fn find(self, needle: string) -> i32?:
+    pub fn find(self, needle: string) -> usize?:
         byte_find(self, needle, 0)
 
     # The pieces between separators, keeping empty ones. An empty separator
@@ -261,13 +261,13 @@ impl string:
         let pieces: mut List[string] = []
         size := bytes_len(self)
         if bytes_len(separator) == 0:
-            let start = 0
+            let start: usize = 0
             while start < size:
                 end := scalar_end(self, start)
                 pieces.push(bytes_slice(self, start, end))
                 start = end
             return pieces
-        let start = 0
+        let start: usize = 0
         let searching = true
         while searching:
             match byte_find(self, separator, start):
@@ -285,14 +285,14 @@ impl string:
         size := bytes_len(self)
         if bytes_len(old) == 0:
             let replaced = replacement
-            let start = 0
+            let start: usize = 0
             while start < size:
                 end := scalar_end(self, start)
                 replaced = replaced + bytes_slice(self, start, end) + replacement
                 start = end
             return replaced
         let replaced = ""
-        let start = 0
+        let start: usize = 0
         let searching = true
         while searching:
             match byte_find(self, old, start):
@@ -309,7 +309,7 @@ impl string:
 
     pub fn trim_start(self) -> string:
         size := bytes_len(self)
-        let start = 0
+        let start: usize = 0
         while start < size && white_space(scalar_at(self, start)):
             start = scalar_end(self, start)
         bytes_slice(self, start, size)
@@ -345,7 +345,7 @@ impl string:
     pub fn lines(self) -> List[string]:
         pieces := self.split("\n")
         let found: mut List[string] = []
-        let index = 0
+        let index: usize = 0
         while index < pieces.len():
             piece := pieces[index]
             if index < pieces.len() - 1:
@@ -358,11 +358,9 @@ impl string:
             index = index + 1
         found
 
-    pub fn repeat(self, count: i32) -> string:
-        if count < 0:
-            panic("repeat: count must not be negative")
+    pub fn repeat(self, count: usize) -> string:
         let repeated = ""
-        let index = 0
+        let index: usize = 0
         while index < count:
             repeated = repeated + self
             index = index + 1
@@ -381,7 +379,7 @@ impl string:
     pub fn split_whitespace(self) -> List[string]:
         let pieces: mut List[string] = []
         size := bytes_len(self)
-        let start = 0
+        let start: usize = 0
         while start < size:
             if white_space(scalar_at(self, start)):
                 start = scalar_end(self, start)
@@ -397,21 +395,21 @@ impl string:
     # The prototype parser rejects a method parameter default, so this
     # declaration has none yet (test/portable/KNOWN_FAILURES.tsv,
     # METHOD-DEFAULT).
-    pub fn pad_start(self, width: i32, fill: char) -> string:
-        missing := width - scalar_count(self)
-        if missing <= 0: self else: "$fill".repeat(missing) + self
+    pub fn pad_start(self, width: usize, fill: char) -> string:
+        size := scalar_count(self)
+        if width <= size: self else: "$fill".repeat(width - size) + self
 
-    pub fn pad_end(self, width: i32, fill: char) -> string:
-        missing := width - scalar_count(self)
-        if missing <= 0: self else: self + "$fill".repeat(missing)
+    pub fn pad_end(self, width: usize, fill: char) -> string:
+        size := scalar_count(self)
+        if width <= size: self else: self + "$fill".repeat(width - size)
 
     # Non-overlapping matches from left to right. An empty needle matches
     # at every scalar boundary, so it counts the scalars plus one.
-    pub fn count(self, needle: string) -> i32:
+    pub fn count(self, needle: string) -> usize:
         if bytes_len(needle) == 0:
             return scalar_count(self) + 1
-        let found = 0
-        let start = 0
+        let found: usize = 0
+        let start: usize = 0
         let searching = true
         while searching:
             match byte_find(self, needle, start):
@@ -462,7 +460,7 @@ impl char:
 
 pub fn join(parts: List[string], separator: string) -> string:
     let joined = ""
-    let index = 0
+    let index: usize = 0
     for part in parts:
         if index > 0:
             joined = joined + separator
@@ -485,8 +483,8 @@ impl StringBuilder:
 
 # Whether `needle`'s bytes appear in `text` at byte `start`. A valid UTF-8
 # needle can only match at a scalar boundary, so comparing bytes is exact.
-fn bytes_match(text: string, needle: string, start: i32) -> bool:
-    let index = 0
+fn bytes_match(text: string, needle: string, start: usize) -> bool:
+    let index: usize = 0
     width := bytes_len(needle)
     while index < width:
         if bytes_at(text, start + index) != bytes_at(needle, index):
@@ -495,8 +493,10 @@ fn bytes_match(text: string, needle: string, start: i32) -> bool:
     true
 
 # The byte position of the first `needle` at or after byte `from`.
-fn byte_find(text: string, needle: string, from: i32) -> i32?:
+fn byte_find(text: string, needle: string, from: usize) -> usize?:
     let start = from
+    if bytes_len(needle) > bytes_len(text):
+        return .None
     last := bytes_len(text) - bytes_len(needle)
     while start <= last:
         if bytes_match(text, needle, start):
@@ -505,10 +505,10 @@ fn byte_find(text: string, needle: string, from: i32) -> i32?:
     .None
 
 # The number of scalars in `text`.
-fn scalar_count(text: string) -> i32:
+fn scalar_count(text: string) -> usize:
     size := bytes_len(text)
-    let found = 0
-    let at = 0
+    let found: usize = 0
+    let at: usize = 0
     while at < size:
         at = scalar_end(text, at)
         found = found + 1
@@ -519,12 +519,12 @@ fn continuation_byte(byte: u8) -> bool:
 
 # Whether byte `offset` is a scalar boundary of `text`
 # (spec/lang/04-type-system.md#r-types.string.boundary).
-fn boundary(text: string, offset: i32) -> bool:
+fn boundary(text: string, offset: usize) -> bool:
     size := bytes_len(text)
-    offset == size || (offset >= 0 && offset < size && !continuation_byte(bytes_at(text, offset)))
+    offset == size || (offset < size && !continuation_byte(bytes_at(text, offset)))
 
 # The byte position just past the scalar that starts at byte `start`.
-fn scalar_end(text: string, start: i32) -> i32:
+fn scalar_end(text: string, start: usize) -> usize:
     let end = start + 1
     size := bytes_len(text)
     while end < size && continuation_byte(bytes_at(text, end)):
@@ -532,19 +532,19 @@ fn scalar_end(text: string, start: i32) -> i32:
     end
 
 # The byte position where the scalar that ends at byte `end` starts.
-fn scalar_start(text: string, end: i32) -> i32:
+fn scalar_start(text: string, end: usize) -> usize:
     let start = end - 1
     while start > 0 && continuation_byte(bytes_at(text, start)):
         start = start - 1
     start
 
 # The code point of the scalar that starts at byte `start`.
-fn scalar_at(text: string, start: i32) -> i32:
+fn scalar_at(text: string, start: usize) -> i32:
     lead := i32(bytes_at(text, start))
     if lead < 128:
         return lead
     let point = 0
-    let width = 4
+    let width: usize = 4
     if lead < 224:
         point = lead - 192
         width = 2
@@ -554,7 +554,7 @@ fn scalar_at(text: string, start: i32) -> i32:
             width = 3
         else:
             point = lead - 240
-    let index = 1
+    let index: usize = 1
     while index < width:
         point = point * 64 + i32(bytes_at(text, start + index)) - 128
         index = index + 1
@@ -578,7 +578,7 @@ fn alphabetic_point(point: i32) -> bool:
 # is sorted range pairs: each 12-byte record is a line break or a space,
 # the first scalar value as five hex digits, `-`, and the last one.
 fn in_ranges(table: string, point: i32) -> bool:
-    let low = 0
+    let low: usize = 0
     let high = bytes_len(table) / 12
     while low < high:
         middle := (low + high) / 2
@@ -591,7 +591,7 @@ fn in_ranges(table: string, point: i32) -> bool:
     false
 
 # The five hex digits at byte `start`.
-fn range_field(table: string, start: i32) -> i32:
+fn range_field(table: string, start: usize) -> i32:
     let value = 0
     let index = start
     while index < start + 5:
@@ -734,7 +734,7 @@ fn string_equal(left: string, right: string) -> bool:
     size := bytes_len(left)
     if size != bytes_len(right):
         return false
-    let index = 0
+    let index: usize = 0
     while index < size:
         if bytes_at(left, index) != bytes_at(right, index):
             return false
@@ -746,7 +746,7 @@ fn string_compare(left: string, right: string) -> i32:
     left_size := bytes_len(left)
     right_size := bytes_len(right)
     shorter := if left_size < right_size: left_size else: right_size
-    let index = 0
+    let index: usize = 0
     while index < shorter:
         left_byte := bytes_at(left, index)
         right_byte := bytes_at(right, index)
@@ -761,17 +761,17 @@ fn string_compare(left: string, right: string) -> i32:
 # accepted only in lib/std.
 
 @intrinsic("bytes_len")
-fn bytes_len(text: string) -> i32:
+fn bytes_len(text: string) -> usize:
     panic("intrinsic")
 
 # The byte at offset `index`, which must be below `bytes_len(text)`.
 @intrinsic("bytes_at")
-fn bytes_at(text: string, index: i32) -> u8:
+fn bytes_at(text: string, index: usize) -> u8:
     panic("intrinsic")
 
 # The bytes from offset `start` up to `end`, sharing them in constant time.
 @intrinsic("bytes_slice")
-fn bytes_slice(text: string, start: i32, end: i32) -> string:
+fn bytes_slice(text: string, start: usize, end: usize) -> string:
     panic("intrinsic")
 
 @intrinsic("bytes_concat")

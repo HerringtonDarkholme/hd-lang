@@ -11,12 +11,12 @@ pub fn sha256(bytes: List[u8]) -> List[u8]:
     let schedule: mut List[u32] = []
     for _ in 0..64:
         schedule.push(0)
-    let block = 0
+    let block: usize = 0
     while block < message.len():
-        for t in 0..16:
+        for t in usize(0)..usize(16):
             at := block + 4 * t
             schedule[t] = (u32(message[at]) << 24) | (u32(message[at + 1]) << 16) | (u32(message[at + 2]) << 8) | u32(message[at + 3])
-        for t in 16..64:
+        for t in usize(16)..usize(64):
             low := schedule[t - 15]
             high := schedule[t - 2]
             s0 := rotate_right(low, 7) ^ rotate_right(low, 18) ^ (low >> 3)
@@ -30,7 +30,7 @@ pub fn sha256(bytes: List[u8]) -> List[u8]:
         let f = state[5]
         let g = state[6]
         let h = state[7]
-        for t in 0..64:
+        for t in usize(0)..usize(64):
             sum1 := rotate_right(e, 6) ^ rotate_right(e, 11) ^ rotate_right(e, 25)
             choice := (e & f) ^ (~e & g)
             first := h.wrapping_add(sum1).wrapping_add(choice).wrapping_add(rounds[t]).wrapping_add(schedule[t])

@@ -95,20 +95,20 @@ impl[T < Hash] Hash for List[T]:
             item.hash(state)
 
 # The low `count` bytes of a two's-complement value, least significant first.
-fn signed_bytes(value: i64, count: i32) -> List[u8]:
+fn signed_bytes(value: i64, count: usize) -> List[u8]:
     let bytes: mut List[u8] = []
     let rest = value
-    let index = 0
+    let index: usize = 0
     while index < count:
         bytes.push(u8(rest & 255))
         rest = rest >> 8
         index = index + 1
     bytes
 
-fn unsigned_bytes(value: u64, count: i32) -> List[u8]:
+fn unsigned_bytes(value: u64, count: usize) -> List[u8]:
     let bytes: mut List[u8] = []
     let rest = value
-    let index = 0
+    let index: usize = 0
     while index < count:
         bytes.push(u8(rest & 255))
         rest = rest >> 8

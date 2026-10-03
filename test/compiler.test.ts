@@ -850,7 +850,7 @@ test("closures mutate their captures without a mut fn marker", async () => {
     "        items.append(count)",
     "        count",
     "    _ := step()",
-    "    step() * 10 + items.len()",
+    "    step() * 10 + i32(items.len())",
     "",
   ].join("\n");
   const { instance, compilation } = await instantiate(source);
@@ -881,7 +881,7 @@ test("function types convert by declared variance and share one closure layout",
     "    name: string",
     "",
     'fn fresh() -> mut User: User { name: "Ada" }',
-    "fn name_length(user: User) -> i32: user.name.len()",
+    "fn name_length(user: User) -> i32: i32(user.name.len())",
     "",
     "fn widen(callback: fn(User) -> i32) -> fn(mut User) -> i32:",
     "    callback",
@@ -893,7 +893,7 @@ test("function types convert by declared variance and share one closure layout",
     '    let user: mut User = User { name: "Grace" }',
     "    maker := makers([fresh])[0]",
     "    reader := widen(name_length)",
-    "    reader(user) * 10 + maker().name.len()",
+    "    reader(user) * 10 + i32(maker().name.len())",
     "",
   ].join("\n");
   const { instance, compilation } = await instantiate(source);
@@ -945,7 +945,7 @@ test("spelled std.function constructors are the function type sugar", async () =
   const source = [
     "use std.function.Fn",
     "",
-    "fn count(label: string, values...: List[i32]) -> i32: values.len()",
+    "fn count(label: string, values...: List[i32]) -> usize: values.len()",
     "fn inc(value: i32) -> i32: value + 1",
     "",
     "fn keep(callback: Fn[(i32,), i32, $()]) -> fn(i32) -> i32:",
@@ -953,7 +953,7 @@ test("spelled std.function constructors are the function type sugar", async () =
     "",
     "fn main() -> i32:",
     "    kept := keep(inc)",
-    '    kept(1) * 10 + count("n", 1, 2, 3)',
+    '    kept(1) * 10 + i32(count("n", 1, 2, 3))',
     "",
   ].join("\n");
   const { instance, compilation } = await instantiate(source);

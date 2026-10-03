@@ -25,7 +25,7 @@ function resultSides(type: ValueType): readonly [ValueType, ValueType] | undefin
   return [parts.arguments[0]!, parts.arguments[1]!];
 }
 
-const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", "f64", "i32"]);
+const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", "f64", "i32", "u32"]);
 
 function watType(type: ValueType): string {
   if (type === "f64" || type === "i64") return type;

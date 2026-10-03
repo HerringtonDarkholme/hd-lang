@@ -1,6 +1,7 @@
 import type { Program } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
 import { standardDeclarationNames, standardPublicNames } from "./standard-library.ts";
+import { STANDARD_CORE_NAMES } from "./standard-core.ts";
 import { STANDARD_MODULES } from "./standard-sources.ts";
 
 // Checks a program's `std` uses before anything joins the standard library:
@@ -11,6 +12,7 @@ import { STANDARD_MODULES } from "./standard-sources.ts";
 
 /** The names that the compiler, not `lib/std`, provides in a std module. */
 const COMPILER_NAMES: ReadonlyMap<string, readonly string[]> = new Map([
+  ["core", STANDARD_CORE_NAMES],
   ["function", ["Fn", "SuspendFn"]],
   ["inspect", ["Inspectable", "TypeId", "downcast_val"]],
   [

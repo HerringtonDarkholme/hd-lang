@@ -45,7 +45,7 @@ pub fn all_list![T, $R](tasks: List[fn!() -> T $ R]) -> List[T] $ R:
 # call for the rest, which pushes the results last task first. Nested this
 # way, the `all!` frames poll the unfinished tasks in input order and
 # cancel them together, as one `all!` of every task would.
-fn all_list_from![T, $R](tasks: List[fn!() -> T $ R], start: i32, results: mut List[T]) -> void $ R:
+fn all_list_from![T, $R](tasks: List[fn!() -> T $ R], start: usize, results: mut List[T]) -> void $ R:
     if start >= tasks.len():
         return
     task := tasks[start]
@@ -55,9 +55,9 @@ fn all_list_from![T, $R](tasks: List[fn!() -> T $ R], start: i32, results: mut L
 # Calls `attempt` one call after another until it returns `.Ok`, at most
 # `times` times, and returns the last result. A `times` below 1 counts as 1
 # (spec/std/task.md#retry). The attempt's row `R` is the call's row.
-pub fn retry![T, E, $R](times: i32, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R:
+pub fn retry![T, E, $R](times: usize, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R:
     let result = attempt!()
-    let tries = 1
+    let tries: usize = 1
     while tries < times && !result.is_ok():
         result = attempt!()
         tries = tries + 1

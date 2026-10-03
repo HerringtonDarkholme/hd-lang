@@ -89,7 +89,7 @@ impl Float for f64
 
 pub enum ParseNumberError:
     Empty
-    InvalidDigit(position: i32)
+    InvalidDigit(position: usize)
     OutOfRange
 
 impl Eq for ParseNumberError:
@@ -250,8 +250,8 @@ impl f64:
     # Fixed-point text with `digits` fractional digits, correctly rounded
     # with ties to even (spec/std/num.md#fixed-point-text). The host hook
     # does the rounding, which needs big-number arithmetic.
-    pub fn to_fixed(self, digits: i32) -> string:
-        if digits < 0 || digits > 100:
+    pub fn to_fixed(self, digits: usize) -> string:
+        if digits > 100:
             panic("to_fixed: digits must be from 0 to 100")
         host_format_f64_fixed(self, digits)
 
@@ -273,7 +273,7 @@ fn parse_integer(text: string, low: i64, high: i64) -> Result[i64, ParseNumberEr
     if scalars.len() == 0:
         return .Err(ParseNumberError.Empty)
     negative := scalars[0] == "-"
-    let index = if negative || scalars[0] == "+": 1 else: 0
+    let index: usize = if negative || scalars[0] == "+": 1 else: 0
     # A lone sign ends where a digit must follow: the end-of-text index.
     if index == scalars.len():
         return .Err(ParseNumberError.InvalidDigit(index))
@@ -304,7 +304,7 @@ pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]:
     if scalars.len() == 0:
         return .Err(ParseNumberError.Empty)
     negative := scalars[0] == "-"
-    start := if negative || scalars[0] == "+": 1 else: 0
+    let start: usize = if negative || scalars[0] == "+": 1 else: 0
     if start == scalars.len():
         return .Err(ParseNumberError.InvalidDigit(start))
     first := scalars[start]
@@ -326,7 +326,7 @@ pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]:
 # (r-std-num.parse-f64.decimal): the index of the scalar no continuation
 # allows, or the text's length when it ends where more must follow.
 # `.None` when all of it matches.
-fn decimal_error(scalars: List[string], start: i32) -> i32?:
+fn decimal_error(scalars: List[string], start: usize) -> usize?:
     size := scalars.len()
     let at = after_digits(scalars, start)
     let digits = at > start
@@ -352,11 +352,11 @@ fn decimal_error(scalars: List[string], start: i32) -> i32?:
 # `infinity`, each letter in either case (r-std-num.parse-f64.special): the
 # index of the scalar no word allows, or the text's length when it ends
 # inside a word. `.None` when the rest is one whole word.
-fn word_error(scalars: List[string], start: i32) -> i32?:
+fn word_error(scalars: List[string], start: usize) -> usize?:
     nan := scalars[start] == "n" || scalars[start] == "N"
     lower := if nan: ["n", "a", "n"] else: ["i", "n", "f", "i", "n", "i", "t", "y"]
     upper := if nan: ["N", "A", "N"] else: ["I", "N", "F", "I", "N", "I", "T", "Y"]
-    let index = 0
+    let index: usize = 0
     while start + index < scalars.len():
         scalar := scalars[start + index]
         if index >= lower.len() || (scalar != lower[index] && scalar != upper[index]):
@@ -366,7 +366,7 @@ fn word_error(scalars: List[string], start: i32) -> i32?:
     if index == lower.len() || (!nan && index == 3): .None else: .Some(scalars.len())
 
 # The index after the run of decimal digits that starts at `at`.
-fn after_digits(scalars: List[string], at: i32) -> i32:
+fn after_digits(scalars: List[string], at: usize) -> usize:
     let index = at
     while index < scalars.len() && digit_value(scalars[index]).is_some():
         index = index + 1
@@ -383,7 +383,7 @@ fn host_parse_f64(text: string) -> f64:
 # to 100: correctly rounded, ties to even. The hook writes `NaN`, `inf`,
 # `-inf`, and the sign of `-0.0` (spec/std/README.md#standard-library-primitives).
 @intrinsic("format_f64_fixed")
-fn host_format_f64_fixed(value: f64, digits: i32) -> string:
+fn host_format_f64_fixed(value: f64, digits: usize) -> string:
     panic("intrinsic")
 
 # The smallest value of an integer type: zero when unsigned, and the sign

@@ -66,7 +66,7 @@ interface HostPollReplayEvent extends ReplayEventBase {
 }
 
 interface EncodedHostInteger {
-  readonly kind: "bool" | "char" | "i32";
+  readonly kind: "bool" | "char" | "i32" | "u32";
   readonly value: number;
 }
 
@@ -203,7 +203,7 @@ function resultSides(type: ValueType): readonly [ValueType, ValueType] | undefin
     : undefined;
 }
 
-const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", "f64", "i32", "string"]);
+const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", "f64", "i32", "u32", "string"]);
 
 function canonicalHostResult(type: ValueType, value: HostSuspensionResult): HostSuspensionResult {
   const sides = resultSides(type);
@@ -268,7 +268,7 @@ function canonicalHostValue(type: ValueType, value: HostSuspensionValue): HostSu
   if (typeof value !== "number") throw new Error(`host ${type} boundary value must be a number`);
   if (type === "f64") return Number(value);
   if (type === "bool") return value === 0 ? 0 : 1;
-  return value | 0;
+  return type === "u32" ? value >>> 0 : value | 0;
 }
 
 function hexBytes(bytes: Uint8Array): string {

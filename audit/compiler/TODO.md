@@ -1,6 +1,6 @@
 # Compiler Repair Queue
 
-Status: owner-requested implementation queue, refreshed 2026-10-03 after spec pass 88. Unchecked items are pending unless their text says deferred.
+Status: owner-requested implementation queue, refreshed 2026-10-03 after spec pass 90. Unchecked items are pending unless their text says deferred.
 
 Deliver one root-cause repair at a time. Do not alter the specification, weaken fixtures, raise timeouts, or synthesize stdlib APIs in the compiler. Before every push, fetch and rebase on `origin/main`, run the full `pnpm run check`, and watch the main `Test` workflow. Every commit includes `Co-Authored-By: Codex <codex@openai.com>`.
 
@@ -11,11 +11,13 @@ Deliver one root-cause repair at a time. Do not alter the specification, weaken 
 
 ## P1: Big Unlocks
 
-- [ ] **1. U32-SIZES (53).** Add the prelude alias `usize = u32`; make lengths, indices, and slice bounds unsigned; context integer literal indices before selecting `Index`; migrate std signatures without broad implicit conversions.
-- [ ] **2. STD-LOADER (13) and STD-CLI (5).** Register `std.regex` and `std.cli`; retain JSON's `Number` declaration when a public JSON API needs it without an explicit user import.
-- [ ] **3. ZIP-ARG / BOUND-INFERENCE (5).** Infer bound-only type parameters from the bounded argument's unique trait implementation to a fixed point; distinguish none, several, defaults, and disagreeing bounds.
+- [x] **1. U32-SIZES (54 after spec pass 89).** Implemented the canonical `usize = u32` alias, unsigned lengths/indices/slice bounds, contextual index literals, wide-index runtime checks, lossless unsigned regex internals, host-boundary `u32`, and the std/test migration. All 54 tagged rows pass. Six fixtures still encode retired signed-size behavior and are isolated as `SPEC-U32-DRIFT`; see `u32-spec-drift.md`.
+- [ ] **2. STD-LOADER (13 actionable rows after the U32 reclassification) and STD-CLI (5).** Register `std.regex` and `std.cli`; retain JSON's `Number` declaration when a public JSON API needs it without an explicit user import.
+- [x] **3. ZIP-ARG / BOUND-INFERENCE (5).** Call inference now closes substitutions through unique applicable trait implementations to a fixed point, including chained and forwarded bounds; none, ambiguity/default, and disagreement follow their specified outcomes. All five tagged rows pass.
 
 After P1, record exact final WAT bytes for the tiny `main` program and a one-`it` test, using identical compiler options.
+
+Current footprint after items 1 and 3, with the same `compileToWat` inputs used for the pre-change measurement: tiny `main` = 49 UTF-8 WAT bytes (unchanged); one `it` = 2,459 bytes (unchanged).
 
 ## P2: Hooks And Hosts
 
@@ -42,11 +44,16 @@ After P1, record exact final WAT bytes for the tiny `main` program and a one-`it
 - [ ] Contextualize an integer literal from the other operand in either order.
 - [ ] Change the missing-let diagnostic to: `a binding with a type annotation must begin with 'let'`.
 - [ ] Permit forward and mutual generic bounds while keeping defaults trailing.
-- [ ] Parse qualified string prefixes such as `text.r"..."`.
+- [ ] Report `qualified-string-prefix` for a string prefix written after `.`, including the three forms added by spec pass 90.
+
+## Spec Pass 90 Follow-up
+
+- [ ] **PROCESS-RESULT.** When a host `Process` bridge is implemented, return `.Err` for a missing or refused start and `.Ok` for every exit status. No runtime profile binds `Process` yet, so no portable failure row exercises this gap.
 
 ## Delivery
 
 - [ ] Report each item as fixed, deferred with a reason, or not reproducible.
 - [x] Record Step 0's known-failure count before and after: 186 → 183.
-- [ ] Record the post-P1 tiny-program and one-test WAT footprint.
+- [x] Record the current known-failure count after U32-SIZES and bound inference: the spec-pass-90 ledger is 188 → 134 (59 repaired rows moved in; five selected fixtures moved out and one blocked regex row was reclassified as `SPEC-U32-DRIFT`).
+- [x] Record the post-P1-so-far footprint: tiny `main` 49 bytes; one `it` 2,459 bytes. Re-measure after item 2 completes P1.
 - [ ] Keep main CI green after each pushed repair.

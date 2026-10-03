@@ -50,7 +50,7 @@ impl DebugWriter:
 
 pub data DebugStruct:
     out: mut DebugWriter
-    count: i32
+    count: usize
 
 impl DebugStruct:
     pub fn field[T < Debug](mut self, name: string, value: T) -> mut DebugStruct:
@@ -66,7 +66,7 @@ impl DebugStruct:
 
 pub data DebugTuple:
     out: mut DebugWriter
-    count: i32
+    count: usize
     unnamed: bool
 
 impl DebugTuple:
@@ -87,7 +87,7 @@ impl DebugTuple:
 
 pub data DebugList:
     out: mut DebugWriter
-    count: i32
+    count: usize
 
 impl DebugList:
     pub fn entry[T < Debug](mut self, value: T) -> mut DebugList:
@@ -102,7 +102,7 @@ impl DebugList:
 
 pub data DebugMap:
     out: mut DebugWriter
-    count: i32
+    count: usize
 
 impl DebugMap:
     pub fn entry[K < Debug, V < Debug](mut self, key: K, value: V) -> mut DebugMap:
@@ -385,8 +385,8 @@ impl[T] Debug for T by Structure:
 data DebugShape[S]:
     pub name: string
     pub of_data: bool
-    pub members: i32
-    pub positional: i32
+    pub members: usize
+    pub positional: usize
 
 impl[S] Walker[S] for DebugShape[S]:
     type Error = never
@@ -464,7 +464,7 @@ impl[T < Tuple] Display for T by Structure:
 # walker in the program that uses it.
 data TupleText[S]:
     pub text: string
-    pub count: i32
+    pub count: usize
 
 impl[S] Walker[S] for TupleText[S]:
     type Error = never

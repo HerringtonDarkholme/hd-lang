@@ -931,11 +931,15 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
         return this.emitIteratorNext(expression.receiver, expression.elementType);
       case "map-iterator":
         return this.emitMapIterator(expression.receiver);
-      case "list-index":
-        return this.unboxValue(
-          `(call $hd.vector_get (ref.as_non_null ${this.emitExpression(expression.receiver)}) ${this.emitExpression(expression.index)})`,
-          expression.elementType,
-        );
+      case "list-index": {
+        const vector = `(ref.as_non_null ${this.emitExpression(expression.receiver)})`;
+        const index = this.emitExpression(expression.index);
+        const get =
+          numericType(readonlyType(expression.index.type))?.wasm === "i64"
+            ? "$hd.vector_get_wide"
+            : "$hd.vector_get";
+        return this.unboxValue(`(call ${get} ${vector} ${index})`, expression.elementType);
+      }
       case "string-index": {
         const text = `(ref.as_non_null ${this.emitExpression(expression.receiver)})`;
         const index = this.emitExpression(expression.index);
@@ -943,8 +947,15 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
           ? `(call $hd.string_get_wide ${text} ${index})`
           : `(call $hd.string_get ${text} ${index})`;
       }
-      case "list-set":
-        return `(call $hd.vector_set (ref.as_non_null ${this.emitExpression(expression.receiver)}) ${this.emitExpression(expression.index)} ${this.boxValue(expression.value, expression.elementType)})`;
+      case "list-set": {
+        const vector = `(ref.as_non_null ${this.emitExpression(expression.receiver)})`;
+        const index = this.emitExpression(expression.index);
+        const set =
+          numericType(readonlyType(expression.index.type))?.wasm === "i64"
+            ? "$hd.vector_set_wide"
+            : "$hd.vector_set";
+        return `(call ${set} ${vector} ${index} ${this.boxValue(expression.value, expression.elementType)})`;
+      }
       case "list-append":
         return `(call $hd.vector_append (ref.as_non_null ${this.emitExpression(expression.receiver)}) ${this.boxValue(expression.value, expression.elementType)})`;
       case "tuple-index":

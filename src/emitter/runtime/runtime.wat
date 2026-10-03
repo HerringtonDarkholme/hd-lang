@@ -57,6 +57,17 @@
       (struct.get $hd.vector $hd.vector-values (local.get $vector))
       (local.get $index)))
 
+  ;; A u64 index is checked before narrowing, so 2^32 cannot wrap to 0.
+  (func $hd.vector_get_wide
+    (param $vector (ref $hd.vector))
+    (param $index i64)
+    (result anyref)
+    (if (i64.ge_u
+      (local.get $index)
+      (i64.extend_i32_u (struct.get $hd.vector $hd.vector-size (local.get $vector))))
+      (then (call $hd.panic (global.get $hd.panic-index-out-of-bounds)) unreachable))
+    (call $hd.vector_get (local.get $vector) (i32.wrap_i64 (local.get $index))))
+
   (func $hd.vector_set
     (param $vector (ref $hd.vector))
     (param $index i32)
@@ -66,6 +77,20 @@
     (array.set $hd.list
       (struct.get $hd.vector $hd.vector-values (local.get $vector))
       (local.get $index)
+      (local.get $value)))
+
+  ;; A u64 index is checked before narrowing, so 2^32 cannot wrap to 0.
+  (func $hd.vector_set_wide
+    (param $vector (ref $hd.vector))
+    (param $index i64)
+    (param $value anyref)
+    (if (i64.ge_u
+      (local.get $index)
+      (i64.extend_i32_u (struct.get $hd.vector $hd.vector-size (local.get $vector))))
+      (then (call $hd.panic (global.get $hd.panic-index-out-of-bounds)) unreachable))
+    (call $hd.vector_set
+      (local.get $vector)
+      (i32.wrap_i64 (local.get $index))
       (local.get $value)))
 
   (func $hd.vector_append

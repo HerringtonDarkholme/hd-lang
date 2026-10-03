@@ -18,8 +18,8 @@ pub data Regex:
 # Where a match is: byte offsets into the searched text, and its text
 # (r-std-regex.match.decl).
 pub data Match:
-    pub start: i32
-    pub end: i32
+    pub start: usize
+    pub end: usize
     pub text: string
 
 # Why a pattern does not compile (r-std-regex.error.declared).
@@ -38,16 +38,16 @@ pub enum RegexErrorKind:
 
 # A kind and the byte offset in the pattern where the problem starts
 # (r-std-regex.error.position).
-# The groups of one match (r-std-regex.captures.decl): two byte offsets per
-# group, -1 for a group that took no part.
+# The groups of one match (r-std-regex.captures.decl): two optional byte
+# offsets per group; `.None` means that the group took no part.
 pub data Captures:
     text: string
-    slots: List[i32]
+    slots: List[usize?]
     names: List[string]
 
 pub data RegexError:
     pub kind: RegexErrorKind
-    pub position: i32
+    pub position: usize
 
 impl Regex:
     pub fn new(pattern: string) -> Result[Regex, RegexError]:
@@ -76,7 +76,7 @@ impl Regex:
     pub fn find(self, text: string) -> Match?:
         hay := Haystack::of(text)
         match run(self.program, hay, 0, 2):
-            .Some(slots) => .Some(hay.match_of(slots[0], slots[1]))
+            .Some(slots) => .Some(hay.match_of(matched(slots, 0), matched(slots, 1)))
             .None => .None
 
     # Every match, left to right, none overlapping (r-std-regex.find-all).
@@ -84,7 +84,7 @@ impl Regex:
         hay := Haystack::of(text)
         let found: mut List[Match] = []
         for slots in all_slots(self.program, hay, 2):
-            found.push(hay.match_of(slots[0], slots[1]))
+            found.push(hay.match_of(matched(slots, 0), matched(slots, 1)))
         found
 
     # The groups of the first match (r-std-regex.captures).
@@ -110,8 +110,8 @@ impl Regex:
             .Some(slots) =>
                 groups := hay.captures_of(slots, self.names)
                 template := Pattern::of(replacement)
-                start := hay.offsets[slots[0]]
-                end := hay.offsets[slots[1]]
+                start := hay.offsets[matched(slots, 0)]
+                end := hay.offsets[matched(slots, 1)]
                 text.slice(0, start) + expand(template, groups) + text.slice(end, text.len())
             .None => text
 
@@ -121,12 +121,12 @@ impl Regex:
         hay := Haystack::of(text)
         template := Pattern::of(replacement)
         let out = ""
-        let last = 0
+        let last: usize = 0
         for slots in all_slots(self.program, hay, self.slot_count()):
             groups := hay.captures_of(slots, self.names)
-            start := hay.offsets[slots[0]]
+            start := hay.offsets[matched(slots, 0)]
             out = out + text.slice(last, start) + expand(template, groups)
-            last = hay.offsets[slots[1]]
+            last = hay.offsets[matched(slots, 1)]
         out + text.slice(last, text.len())
 
     # The pieces of `text` around each match that `find_all` returns
@@ -134,39 +134,47 @@ impl Regex:
     pub fn split(self, text: string) -> List[string]:
         hay := Haystack::of(text)
         let pieces: mut List[string] = []
-        let last = 0
+        let last: usize = 0
         for slots in all_slots(self.program, hay, 2):
-            pieces.push(text.slice(last, hay.offsets[slots[0]]))
-            last = hay.offsets[slots[1]]
+            pieces.push(text.slice(last, hay.offsets[matched(slots, 0)]))
+            last = hay.offsets[matched(slots, 1)]
         pieces.push(text.slice(last, text.len()))
         pieces
 
     # Two slots per group, group 0 included.
-    fn slot_count(self) -> i32:
+    fn slot_count(self) -> usize:
         2 * self.names.len()
+
+# A whole match always has both slots. Keeping this invariant check in one
+# place lets all optional slot storage remain lossless over `usize`.
+fn matched(slots: List[usize?], index: usize) -> usize:
+    match slots[index]:
+        .Some(value) => value
+        .None => panic("std.regex: missing whole-match slot")
 
 impl Captures:
     # The number of groups, plus one for the whole match
     # (r-std-regex.captures.len).
-    pub fn len(self) -> i32:
+    pub fn len(self) -> usize:
         self.names.len()
 
     # Group `index`, or `.None` when it took no part
     # (r-std-regex.captures.get).
-    pub fn get(self, index: i32) -> Match?:
-        if index < 0 || index >= self.names.len():
+    pub fn get(self, index: usize) -> Match?:
+        if index >= self.names.len():
             return .None
-        start := self.slots[2 * index]
-        end := self.slots[2 * index + 1]
-        if start < 0 || end < 0:
-            return .None
-        .Some(Match { start: start, end: end, text: self.text.slice(start, end) })
+        match self.slots[2 * index]:
+            .None => .None
+            .Some(start) =>
+                match self.slots[2 * index + 1]:
+                    .None => .None
+                    .Some(end) => .Some(Match { start: start, end: end, text: self.text.slice(start, end) })
 
     # The group named `name` (r-std-regex.captures.name).
     pub fn name(self, name: string) -> Match?:
         if name == "":
             return .None
-        let index = 1
+        let index: usize = 1
         while index < self.names.len():
             if self.names[index] == name:
                 return self.get(index)
@@ -175,11 +183,11 @@ impl Captures:
 
 # The most instructions a compiled pattern may have
 # (r-std-regex.error.too-large).
-fn max_program() -> i32:
+fn max_program() -> usize:
     10000
 
 # The most a counted repetition may count (r-std-regex.repeat.bad-count).
-fn max_repeat() -> i32:
+fn max_repeat() -> usize:
     1000
 
 # A pattern split into its characters, with the byte offset of each and
@@ -187,12 +195,12 @@ fn max_repeat() -> i32:
 data Pattern:
     text: string
     chars: List[char]
-    offsets: List[i32]
+    offsets: List[usize]
 
 impl Pattern:
     fn of(text: string) -> Pattern:
         let chars: mut List[char] = []
-        let offsets: mut List[i32] = []
+        let offsets: mut List[usize] = []
         for (offset, c) in text.char_indices():
             chars.push(c)
             offsets.push(offset)
@@ -200,16 +208,16 @@ impl Pattern:
         Pattern { text: text, chars: chars, offsets: offsets }
 
     # The text from character `start` up to character `end`.
-    fn piece(self, start: i32, end: i32) -> string:
+    fn piece(self, start: usize, end: usize) -> string:
         self.text.slice(self.offsets[start], self.offsets[end])
 
-    fn at(self, index: i32) -> char?:
+    fn at(self, index: usize) -> char?:
         if index < self.chars.len(): .Some(self.chars[index]) else: .None
 
-    fn has(self, index: i32, c: char) -> bool:
+    fn has(self, index: usize, c: char) -> bool:
         index < self.chars.len() && self.chars[index] == c
 
-    fn fail(self, kind: RegexErrorKind, index: i32) -> RegexError:
+    fn fail(self, kind: RegexErrorKind, index: usize) -> RegexError:
         RegexError { kind: kind, position: self.offsets[index] }
 
 # The syntax tree.
@@ -220,10 +228,10 @@ enum Node:
     Class(items: List[ClassItem], negated: bool)
     Begin
     End
-    Group(body: Node, index: i32)
+    Group(body: Node, index: usize)
     Concat(items: List[Node])
     Alternate(branches: List[Node])
-    Repeat(body: Node, min: i32, max: i32?, greedy: bool)
+    Repeat(body: Node, min: usize, max: usize?, greedy: bool)
 
 # One member of a bracketed class, or a whole `\d`, `\w`, or `\s` class.
 enum ClassItem:
@@ -235,10 +243,10 @@ enum ClassItem:
 # A parsed piece and the index of the character after it.
 data Step:
     node: Node
-    next: i32
+    next: usize
 
 # `a|b|c`: one or more concatenations.
-fn parse_alternation(source: Pattern, start: i32, names: mut List[string]) -> Result[Step, RegexError]:
+fn parse_alternation(source: Pattern, start: usize, names: mut List[string]) -> Result[Step, RegexError]:
     let branches: mut List[Node] = []
     let at = start
     while true:
@@ -255,7 +263,7 @@ fn parse_alternation(source: Pattern, start: i32, names: mut List[string]) -> Re
 
 # A run of atoms, each with at most one quantifier, up to `|`, `)`, or the
 # end.
-fn parse_concat(source: Pattern, start: i32, names: mut List[string]) -> Result[Step, RegexError]:
+fn parse_concat(source: Pattern, start: usize, names: mut List[string]) -> Result[Step, RegexError]:
     let items: mut List[Node] = []
     let at = start
     while at < source.chars.len():
@@ -276,7 +284,7 @@ fn parse_concat(source: Pattern, start: i32, names: mut List[string]) -> Result[
         return .Ok(Step { node: items[0], next: at })
     .Ok(Step { node: Node.Concat(items), next: at })
 
-fn quantifier_at(source: Pattern, at: i32) -> bool:
+fn quantifier_at(source: Pattern, at: usize) -> bool:
     match source.at(at):
         .Some(c) =>
             if c == '*' || c == '+' || c == '?':
@@ -287,11 +295,11 @@ fn quantifier_at(source: Pattern, at: i32) -> bool:
 # The counts of a well-formed `{m}`, `{m,}`, or `{m,n}` at `at`. Any other
 # `{` is a literal (r-std-regex.syntax.brace-literal).
 data Counts:
-    min: i32
-    max: i32?
-    next: i32
+    min: usize
+    max: usize?
+    next: usize
 
-fn counts_at(source: Pattern, start: i32) -> Counts?:
+fn counts_at(source: Pattern, start: usize) -> Counts?:
     if !source.has(start, '{'):
         return .None
     low := number_at(source, start + 1)?
@@ -309,12 +317,12 @@ fn counts_at(source: Pattern, start: i32) -> Counts?:
         _ => .None
 
 data Number:
-    value: i32
-    next: i32
+    value: usize
+    next: usize
 
 # A run of ASCII digits, held below 100000 so it cannot overflow.
-fn number_at(source: Pattern, start: i32) -> Number?:
-    let value = 0
+fn number_at(source: Pattern, start: usize) -> Number?:
+    let value: usize = 0
     let at = start
     while true:
         match source.at(at):
@@ -327,8 +335,8 @@ fn number_at(source: Pattern, start: i32) -> Number?:
             .None => break
     .Some(Number { value: value, next: at })
 
-fn char_digit(c: char) -> i32:
-    let value = 0
+fn char_digit(c: char) -> usize:
+    let value: usize = 0
     for digit in "0123456789".chars():
         if digit == c:
             return value
@@ -338,8 +346,8 @@ fn char_digit(c: char) -> i32:
 # A quantifier after `atom`, if one follows, with its lazy `?`.
 fn parse_repeat(source: Pattern, atom: Step) -> Result[Step, RegexError]:
     at := atom.next
-    let min = 0
-    let max: i32? = .None
+    let min: usize = 0
+    let max: usize? = .None
     let next = at + 1
     match source.at(at):
         .Some('*') => pass
@@ -367,7 +375,7 @@ fn parse_repeat(source: Pattern, atom: Step) -> Result[Step, RegexError]:
         next = next + 1
     .Ok(Step { node: Node.Repeat(atom.node, min, max, greedy), next: next })
 
-fn parse_atom(source: Pattern, at: i32, names: mut List[string]) -> Result[Step, RegexError]:
+fn parse_atom(source: Pattern, at: usize, names: mut List[string]) -> Result[Step, RegexError]:
     c := source.chars[at]
     if c == '(':
         return parse_group(source, at, names)
@@ -391,32 +399,34 @@ fn parse_atom(source: Pattern, at: i32, names: mut List[string]) -> Result[Step,
 # unsupported group (r-std-regex.syntax.group.unsupported). A capture group
 # takes the next number when its `(` is read
 # (r-std-regex.syntax.group.number).
-fn parse_group(source: Pattern, open: i32, names: mut List[string]) -> Result[Step, RegexError]:
+fn parse_group(source: Pattern, open: usize, names: mut List[string]) -> Result[Step, RegexError]:
     let start = open + 1
     let capturing = true
     let name = ""
     if source.has(start, '?'):
-        let name_start = -1
+        let name_start: usize? = .None
         if source.has(start + 1, ':'):
             capturing = false
             start = start + 2
         else if source.has(start + 1, 'P') && source.has(start + 2, '<'):
-            name_start = start + 3
+            name_start = .Some(start + 3)
         else if source.has(start + 1, '<') && !source.has(start + 2, '=') && !source.has(start + 2, '!'):
-            name_start = start + 2
+            name_start = .Some(start + 2)
         else:
             return .Err(source.fail(.UnsupportedGroup, open))
-        if name_start >= 0:
-            let close = name_start
-            while close < source.chars.len() && !source.has(close, '>'):
-                close = close + 1
-            if close >= source.chars.len() || !group_name(source, name_start, close):
-                return .Err(source.fail(.BadGroupName, open))
-            name = source.piece(name_start, close)
-            for taken in names:
-                if taken == name:
-                    return .Err(source.fail(.DuplicateGroupName, open))
-            start = close + 1
+        match name_start:
+            .None => pass
+            .Some(name_at) =>
+                let close = name_at
+                while close < source.chars.len() && !source.has(close, '>'):
+                    close = close + 1
+                if close >= source.chars.len() || !group_name(source, name_at, close):
+                    return .Err(source.fail(.BadGroupName, open))
+                name = source.piece(name_at, close)
+                for taken in names:
+                    if taken == name:
+                        return .Err(source.fail(.DuplicateGroupName, open))
+                start = close + 1
     index := names.len()
     if capturing:
         names.push(name)
@@ -429,7 +439,7 @@ fn parse_group(source: Pattern, open: i32, names: mut List[string]) -> Result[St
 
 # Whether characters `start` to `end` form a group name: an ASCII letter or
 # `_`, then ASCII letters, digits, and `_` (r-std-regex.syntax.group.name).
-fn group_name(source: Pattern, start: i32, end: i32) -> bool:
+fn group_name(source: Pattern, start: usize, end: usize) -> bool:
     if end <= start:
         return false
     first := source.chars[start]
@@ -447,7 +457,7 @@ data Escape:
     item: ClassItem?
     value: char
 
-fn parse_escape(source: Pattern, at: i32) -> Result[Escape, RegexError]:
+fn parse_escape(source: Pattern, at: usize) -> Result[Escape, RegexError]:
     match source.at(at + 1):
         .None => .Err(source.fail(.BadEscape, at))
         .Some(e) =>
@@ -471,7 +481,7 @@ fn ascii_punctuation(c: char) -> bool:
     (c >= '!' && c <= '/') || (c >= ':' && c <= '@') || (c >= '[' && c <= '`') || (c >= '{' && c <= '~')
 
 # `[...]` and `[^...]`. A `]` first is a literal (r-std-regex.syntax.class).
-fn parse_class(source: Pattern, open: i32) -> Result[Step, RegexError]:
+fn parse_class(source: Pattern, open: usize) -> Result[Step, RegexError]:
     let at = open + 1
     let negated = false
     if source.has(at, '^'):
@@ -508,9 +518,9 @@ fn parse_class(source: Pattern, open: i32) -> Result[Step, RegexError]:
 data ClassChar:
     item: ClassItem?
     value: char
-    next: i32
+    next: usize
 
-fn class_char(source: Pattern, at: i32) -> Result[ClassChar, RegexError]:
+fn class_char(source: Pattern, at: usize) -> Result[ClassChar, RegexError]:
     c := source.chars[at]
     if c == '\\':
         escaped := parse_escape(source, at)?
@@ -524,25 +534,25 @@ enum Inst:
     Class(items: List[ClassItem], negated: bool)
     Begin
     End
-    Split(first: i32, second: i32)
-    Jump(target: i32)
-    Save(slot: i32)
+    Split(first: usize, second: usize)
+    Jump(target: usize)
+    Save(slot: usize)
     Done
 
 # How many instructions `compile` emits for `node`, the written-out size
 # (r-std-regex.time.size), held at
 # max_program() + 1 so it cannot overflow.
-fn program_size(node: Node) -> i32:
+fn program_size(node: Node) -> usize:
     match node:
         .Empty => 0
         .Group(body, _) => program_size(body)
         .Concat(items) =>
-            let total = 0
+            let total: usize = 0
             for item in items:
                 total = capped(total + program_size(item))
             total
         .Alternate(branches) =>
-            let total = 0
+            let total: usize = 0
             for branch in branches:
                 total = capped(total + program_size(branch) + 2)
             total - 2
@@ -556,10 +566,10 @@ fn program_size(node: Node) -> i32:
                 .Some(high) => capped(scaled(size, min) + scaled(size + 1, high - min))
         _ => 1
 
-fn capped(size: i32) -> i32:
+fn capped(size: usize) -> usize:
     if size > max_program(): max_program() + 1 else: size
 
-fn scaled(size: i32, count: i32) -> i32:
+fn scaled(size: usize, count: usize) -> usize:
     if count == 0:
         return 0
     if size > max_program() / count:
@@ -583,8 +593,8 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
                 compile(item, program)
         .Alternate(branches) =>
             # split L1, next; L1: a; jump end; next: split L2, ... ; last
-            let jumps: mut List[i32] = []
-            let index = 0
+            let jumps: mut List[usize] = []
+            let index: usize = 0
             while index < branches.len():
                 if index + 1 < branches.len():
                     split := program.len()
@@ -599,7 +609,7 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
             for jump in jumps:
                 program[jump] = Inst.Jump(program.len())
         .Repeat(body, min, max, greedy) =>
-            let copies = 0
+            let copies: usize = 0
             match max:
                 .None =>
                     if min == 0:
@@ -622,7 +632,7 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
                         compile(body, program)
                         copies = copies + 1
                     # each optional copy: split body, out
-                    let splits: mut List[i32] = []
+                    let splits: mut List[usize] = []
                     while copies < high:
                         splits.push(program.len())
                         program.push(Inst.Split(0, 0))
@@ -632,7 +642,7 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
                         program[split] = choice(split + 1, program.len(), greedy)
 
 # A split that prefers `body` when greedy and `out` when lazy.
-fn choice(body: i32, out: i32, greedy: bool) -> Inst:
+fn choice(body: usize, out: usize, greedy: bool) -> Inst:
     if greedy: Inst.Split(body, out) else: Inst.Split(out, body)
 
 # The searched text split into its characters, with the byte offset of each
@@ -640,12 +650,12 @@ fn choice(body: i32, out: i32, greedy: bool) -> Inst:
 data Haystack:
     text: string
     chars: List[char]
-    offsets: List[i32]
+    offsets: List[usize]
 
 impl Haystack:
     fn of(text: string) -> Haystack:
         let chars: mut List[char] = []
-        let offsets: mut List[i32] = []
+        let offsets: mut List[usize] = []
         for (offset, c) in text.char_indices():
             chars.push(c)
             offsets.push(offset)
@@ -653,106 +663,116 @@ impl Haystack:
         Haystack { text: text, chars: chars, offsets: offsets }
 
     # The match from character `start` to character `end`.
-    fn match_of(self, start: i32, end: i32) -> Match:
+    fn match_of(self, start: usize, end: usize) -> Match:
         from := self.offsets[start]
         to := self.offsets[end]
         Match { start: from, end: to, text: self.text.slice(from, to) }
 
     # The groups of a match, with each slot turned into a byte offset.
-    fn captures_of(self, slots: List[i32], names: List[string]) -> Captures:
-        let offsets: mut List[i32] = []
+    fn captures_of(self, slots: List[usize?], names: List[string]) -> Captures:
+        let offsets: mut List[usize?] = []
         for slot in slots:
-            offsets.push(if slot < 0: -1 else: self.offsets[slot])
+            match slot:
+                .None => offsets.push(.None)
+                .Some(index) => offsets.push(.Some(self.offsets[index]))
         Captures { text: self.text, slots: offsets, names: names }
 
 # The slots of every match `find_all` returns (r-std-regex.find-all.next):
 # after a match the next search starts at its end, or one character later
 # when it is empty, and an empty match where the last one ended is dropped.
-fn all_slots(program: List[Inst], hay: Haystack, slot_count: i32) -> List[List[i32]]:
-    let found: mut List[List[i32]] = []
-    let from = 0
-    let last_end = -1
+fn all_slots(program: List[Inst], hay: Haystack, slot_count: usize) -> List[List[usize?]]:
+    let found: mut List[List[usize?]] = []
+    let from: usize = 0
+    let last_end: usize? = .None
     while from <= hay.chars.len():
         match run(program, hay, from, slot_count):
             .None => break
             .Some(slots) =>
-                start := slots[0]
-                end := slots[1]
+                start := matched(slots, 0)
+                end := matched(slots, 1)
                 if start == end:
-                    if start != last_end:
+                    let repeated = false
+                    match last_end:
+                        .Some(previous) => repeated = previous == start
+                        .None => pass
+                    if !repeated:
                         found.push(slots)
+                    if end == hay.chars.len():
+                        break
                     from = end + 1
                 else:
                     found.push(slots)
                     from = end
-                last_end = end
+                last_end = .Some(end)
     found
 
 # One step of the epsilon walk in `add_thread`: visit `pc`, or, when `slot`
-# is not -1, put `value` back into that slot.
+# is present, put `value` back into that slot.
 data Frame:
-    pc: i32
-    slot: i32
-    value: i32
+    pc: usize
+    slot: usize?
+    value: usize?
 
 # The Pike VM (r-std-regex.find.leftmost-first): threads in priority
 # order, at most one per instruction at each position. A thread is its
-# instruction; its `slot_count` slots, character indices or -1, sit in
+# instruction; its `slot_count` optional character indices sit in
 # `table`, one half for the current position and one for the next. The
 # search starts at character `from`. The result is the slots of the match,
 # with slot 0 its start and slot 1 its end.
-fn run(program: List[Inst], hay: Haystack, from: i32, slot_count: i32) -> List[i32]?:
+fn run(program: List[Inst], hay: Haystack, from: usize, slot_count: usize) -> List[usize?]?:
     count := hay.chars.len()
     size := program.len()
-    let marks: mut List[i32] = []
+    let marks: mut List[usize?] = []
     for _ in program:
-        marks.push(-1)
-    let table: mut List[i32] = []
-    let filled = 0
+        marks.push(.None)
+    let table: mut List[usize?] = []
+    let filled: usize = 0
     while filled < 2 * size * slot_count:
-        table.push(-1)
+        table.push(.None)
         filled = filled + 1
-    let scratch: mut List[i32] = []
+    let scratch: mut List[usize?] = []
     while scratch.len() < slot_count:
-        scratch.push(-1)
+        scratch.push(.None)
     let stack: mut List[Frame] = []
-    let current: mut List[i32] = []
-    scratch[0] = from
+    let current: mut List[usize] = []
+    scratch[0] = .Some(from)
     add_thread(program, marks, stack, from, current, table, half(from, size, slot_count), scratch, slot_count, 0, from, count)
-    let found: mut List[i32] = []
+    let found: mut List[usize?] = []
     let index = from
     while true:
-        let next: mut List[i32] = []
-        generation := index + 1
+        let next: mut List[usize] = []
+        let next_index = index
+        if index < count:
+            next_index = index + 1
         here := half(index, size, slot_count)
-        there := half(index + 1, size, slot_count)
+        there := half(next_index, size, slot_count)
         for pc in current:
             inst := program[pc]
             # A finished thread cuts off every thread it outranks.
             if inst_done(inst):
                 found = []
-                let slot = 0
+                let slot: usize = 0
                 while slot < slot_count:
                     found.push(table[here + pc * slot_count + slot])
                     slot = slot + 1
-                found[1] = index
+                found[1] = .Some(index)
                 break
             if index < count && inst_accepts(inst, hay.chars[index]):
-                let slot = 0
+                let slot: usize = 0
                 while slot < slot_count:
                     scratch[slot] = table[here + pc * slot_count + slot]
                     slot = slot + 1
-                add_thread(program, marks, stack, generation, next, table, there, scratch, slot_count, pc + 1, index + 1, count)
+                add_thread(program, marks, stack, next_index, next, table, there, scratch, slot_count, pc + 1, next_index, count)
         if index >= count:
             break
-        index = index + 1
+        index = next_index
         if found.len() == 0:
-            let slot = 0
+            let slot: usize = 0
             while slot < slot_count:
-                scratch[slot] = -1
+                scratch[slot] = .None
                 slot = slot + 1
-            scratch[0] = index
-            add_thread(program, marks, stack, generation, next, table, there, scratch, slot_count, 0, index, count)
+            scratch[0] = .Some(index)
+            add_thread(program, marks, stack, index, next, table, there, scratch, slot_count, 0, index, count)
         else:
             if next.len() == 0:
                 break
@@ -762,7 +782,7 @@ fn run(program: List[Inst], hay: Haystack, from: i32, slot_count: i32) -> List[i
     .Some(found)
 
 # Where the slots for position `index` start in the table.
-fn half(index: i32, size: i32, slot_count: i32) -> i32:
+fn half(index: usize, size: usize, slot_count: usize) -> usize:
     (index % 2) * size * slot_count
 
 fn inst_done(inst: Inst) -> bool:
@@ -782,43 +802,49 @@ fn inst_accepts(inst: Inst, c: char) -> bool:
 # `marks[pc] == generation` means `pc` is already in `list`. A save sets its
 # slot for the instructions after it and puts the old value back after
 # them, so `scratch` is unchanged on return.
-fn add_thread(program: List[Inst], marks: mut List[i32], stack: mut List[Frame], generation: i32, list: mut List[i32], table: mut List[i32], base: i32, scratch: mut List[i32], slot_count: i32, pc: i32, at: i32, count: i32) -> void:
-    let top = 0
-    top = push_frame(stack, top, Frame { pc: pc, slot: -1, value: 0 })
+fn add_thread(program: List[Inst], marks: mut List[usize?], stack: mut List[Frame], generation: usize, list: mut List[usize], table: mut List[usize?], base: usize, scratch: mut List[usize?], slot_count: usize, pc: usize, at: usize, count: usize) -> void:
+    let top: usize = 0
+    top = push_frame(stack, top, Frame { pc: pc, slot: .None, value: .None })
     while top > 0:
         top = top - 1
         frame := stack[top]
-        if frame.slot >= 0:
-            scratch[frame.slot] = frame.value
-            continue
+        match frame.slot:
+            .Some(slot) =>
+                scratch[slot] = frame.value
+                continue
+            .None => pass
         here := frame.pc
-        if marks[here] == generation:
+        let seen = false
+        match marks[here]:
+            .Some(previous) => seen = previous == generation
+            .None => pass
+        if seen:
             continue
-        marks[here] = generation
+        marks[here] = .Some(generation)
         match program[here]:
-            .Jump(target) => top = push_frame(stack, top, Frame { pc: target, slot: -1, value: 0 })
+            .Jump(target) => top = push_frame(stack, top, Frame { pc: target, slot: .None, value: .None })
             .Split(first, second) =>
-                top = push_frame(stack, top, Frame { pc: second, slot: -1, value: 0 })
-                top = push_frame(stack, top, Frame { pc: first, slot: -1, value: 0 })
+                top = push_frame(stack, top, Frame { pc: second, slot: .None, value: .None })
+                top = push_frame(stack, top, Frame { pc: first, slot: .None, value: .None })
             .Save(slot) =>
                 if slot < slot_count:
-                    top = push_frame(stack, top, Frame { pc: 0, slot: slot, value: scratch[slot] })
-                    scratch[slot] = at
-                top = push_frame(stack, top, Frame { pc: here + 1, slot: -1, value: 0 })
+                    top = push_frame(stack, top, Frame { pc: 0, slot: .Some(slot), value: scratch[slot] })
+                    scratch[slot] = .Some(at)
+                top = push_frame(stack, top, Frame { pc: here + 1, slot: .None, value: .None })
             .Begin =>
                 if at == 0:
-                    top = push_frame(stack, top, Frame { pc: here + 1, slot: -1, value: 0 })
+                    top = push_frame(stack, top, Frame { pc: here + 1, slot: .None, value: .None })
             .End =>
                 if at == count:
-                    top = push_frame(stack, top, Frame { pc: here + 1, slot: -1, value: 0 })
+                    top = push_frame(stack, top, Frame { pc: here + 1, slot: .None, value: .None })
             _ =>
                 list.push(here)
-                let slot = 0
+                let slot: usize = 0
                 while slot < slot_count:
                     table[base + here * slot_count + slot] = scratch[slot]
                     slot = slot + 1
 
-fn push_frame(stack: mut List[Frame], top: i32, frame: Frame) -> i32:
+fn push_frame(stack: mut List[Frame], top: usize, frame: Frame) -> usize:
     if top < stack.len():
         stack[top] = frame
     else:
@@ -828,16 +854,16 @@ fn push_frame(stack: mut List[Frame], top: i32, frame: Frame) -> i32:
 # A reference in a replacement (r-std-regex.replace.expand).
 enum Reference:
     Dollar
-    Index(value: i32)
+    Index(value: usize)
     Name(value: string)
 
 data Found:
     reference: Reference
-    next: i32
+    next: usize
 
 # The reference that the `$` at `at` starts, if any; any other `$` is
 # itself (r-std-regex.replace.literal).
-fn reference_at(template: Pattern, at: i32) -> Found?:
+fn reference_at(template: Pattern, at: usize) -> Found?:
     match template.at(at + 1):
         .Some('$') => .Some(Found { reference: Reference.Dollar, next: at + 2 })
         .Some('{') =>
@@ -862,8 +888,8 @@ fn reference_at(template: Pattern, at: i32) -> Found?:
 # (r-std-regex.replace.expand).
 fn expand(template: Pattern, groups: Captures) -> string:
     let out = ""
-    let literal = 0
-    let at = 0
+    let literal: usize = 0
+    let at: usize = 0
     while at < template.chars.len():
         if !template.has(at, '$'):
             at = at + 1

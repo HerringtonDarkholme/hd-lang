@@ -400,6 +400,7 @@ export class EmitterContext {
   protected hostSafe(type: ValueType): boolean {
     return (
       type === "i32" ||
+      type === "u32" ||
       type === "u8" ||
       type === "bool" ||
       type === "char" ||

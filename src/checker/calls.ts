@@ -8,6 +8,7 @@ import type {
   ValueType,
 } from "../hir.ts";
 import { forwardingPlan } from "./assignability.ts";
+import { inferTypesThroughBounds } from "./bound-inference.ts";
 import { DERIVED_IMPLEMENTATION_SPANS } from "./derive-intrinsics.ts";
 import { standardSubmoduleFunctionName } from "./standard-library.ts";
 import {
@@ -899,6 +900,8 @@ export abstract class CallChecker extends StatementChecker {
       const formal = signature.parameters[entry.parameterIndex]!;
       if (entry.kind === "single") {
         const source = expression.arguments[entry.argumentIndices[0]!]!;
+        this.inferTypesThroughBounds(signature, substitutions);
+        const formalGeneric = genericTypeName(formal);
         const inferredFormal = substituteGenericType(formal, substitutions, rowSubstitutions);
         let checked: HirExpression;
         // A formal that mentions only the caller's own type parameters is a
@@ -917,7 +920,6 @@ export abstract class CallChecker extends StatementChecker {
         } else {
           checked = this.checkExpression(source);
         }
-        const formalGeneric = genericTypeName(formal);
         const own = argumentOwnType(source, checked);
         if (formalGeneric && own !== undefined && !inferredBeforeExpected.has(formalGeneric)) {
           const earlier = joined.get(formalGeneric);
@@ -1005,6 +1007,15 @@ export abstract class CallChecker extends StatementChecker {
         span: expression.span,
       };
     });
+    const missingBound = this.inferTypesThroughBounds(signature, substitutions);
+    if (missingBound) {
+      const actual = substitutions.get(missingBound.parameter)!;
+      this.fail(
+        "unsatisfied-trait-bound",
+        `type '${typeSourceText(actual)}' does not implement ${missingBound.traitName}, required by the bound on '${missingBound.parameter}' of '${signature.name}'`,
+        expression.span,
+      );
+    }
     this.applyGenericDefaults(signature, substitutions, rowSubstitutions);
     const mapping = plan.map((entry) => entry.parameterIndex);
     const supplied = new Set(mapping);
@@ -1021,6 +1032,22 @@ export abstract class CallChecker extends StatementChecker {
       substitutions,
       rowSubstitutions,
     };
+  }
+
+  private inferTypesThroughBounds(
+    signature: Signature,
+    substitutions: Map<string, ValueType>,
+  ): HirGenericBound | undefined {
+    return inferTypesThroughBounds(
+      signature,
+      substitutions,
+      this.signature.genericBounds,
+      this.implementations,
+      this.traitTypes,
+      (traitIndex, target, traitArguments) =>
+        this.builtinTraitDictionaryPlan(traitIndex, target, traitArguments, signature.span) !==
+        undefined,
+    );
   }
 
   /** `v()` on a callable value, through `Apply`; see `operator-calls.ts`. */

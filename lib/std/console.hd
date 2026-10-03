@@ -40,7 +40,7 @@ impl BufferConsole:
 # it returns its lines in order, then `.None`.
 pub data ScriptedInput:
     lines: List[string]
-    next: i32
+    next: usize
 
 impl ScriptedInput:
     pub fn new(lines: List[string]) -> mut ScriptedInput:

@@ -19,6 +19,7 @@ tests:
     it("find returns a byte offset"):
         assert_equal("héllo".find("l"), .Some(3), reason="the first match, in bytes")
         assert_equal("abc".find("x"), .None, reason="no match")
+        assert_equal("a".find("longer"), .None, reason="a longer needle has no starting offset")
         assert_equal("abc".find(""), .Some(0), reason="an empty needle is at 0")
 
     it("trim_start, trim_end, and upper"):

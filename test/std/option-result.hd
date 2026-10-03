@@ -27,7 +27,7 @@ tests:
 
     it("result map and map_err"):
         assert_equal(half(4).map(fn(value: i32) -> string: "$value"), .Ok("2"), reason="map")
-        assert_equal(half(3).map_err(fn(error: string) -> i32: error.len()), .Err(3), reason="map_err")
+        assert_equal(half(3).map_err(fn(error: string) -> usize: error.len()), .Err(3), reason="map_err")
 
     it("result ok, err, is_ok, is_err, unwrap_or, expect"):
         assert_equal(half(4).ok(), .Some(2), reason="ok keeps the value")

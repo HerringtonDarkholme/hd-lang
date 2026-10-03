@@ -1,7 +1,13 @@
 import type { AssignmentStatement, Expression, Statement } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirExpression, HirLocal, HirStatement, HirTrait, ValueType } from "../hir.ts";
-import { functionParts, mutableInner, readonlyType, typeSourceText } from "../types.ts";
+import {
+  functionParts,
+  mutableInner,
+  nominalGenericParts,
+  readonlyType,
+  typeSourceText,
+} from "../types.ts";
 import { ExpressionCallChecker, type MemberCallExpression } from "./expression-calls.ts";
 import { genericTypeName, matchImplementationTarget } from "./shared.ts";
 
@@ -250,10 +256,10 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
   protected checkCompoundAssignment(statement: AssignmentStatement): HirStatement[] {
     const operator = statement.compound!;
     const output: HirStatement[] = [];
-    const once = (source: Expression): Expression => {
+    const once = (source: Expression, expected?: ValueType): Expression => {
       if (source.kind === "name" || source.kind === "integer" || source.kind === "string")
         return source;
-      const value = this.checkExpression(source);
+      const value = this.checkExpression(source, expected);
       const local: HirLocal = {
         name: `$compound${this.locals.length}`,
         type: value.type,
@@ -276,12 +282,25 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
             ? // The callee is evaluated once; the read is `v()` and the store
               // `v() = x` (05-expressions.md#r-expr.assign.compound.call-read-write).
               { ...statement.target, callee: this.callPlaceCallee(statement.target, once) }
-            : {
-                ...statement.target,
-                receiver: once(statement.target.receiver),
-                index: once(statement.target.index),
-                required: true,
-              };
+            : (() => {
+                const receiver = once(statement.target.receiver);
+                const checkedReceiver = this.checkExpression(receiver);
+                const nominal = nominalGenericParts(readonlyType(checkedReceiver.type));
+                const builtIn =
+                  nominal?.name === "List" || readonlyType(checkedReceiver.type) === "string";
+                if (builtIn && statement.target.index.kind === "range")
+                  this.fail(
+                    "invalid-assignment-target",
+                    "a list or string slice is a new value, not a place; assign each element instead",
+                    statement.target.span,
+                  );
+                return {
+                  ...statement.target,
+                  receiver,
+                  index: once(statement.target.index, builtIn ? "u32" : undefined),
+                  required: true,
+                };
+              })();
     // `p op= e` is `p = p op e` for every type: the operator follows
     // Operator Traits and the store follows assignment
     // (05-expressions.md#r-expr.assign.compound.meaning).

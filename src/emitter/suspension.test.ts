@@ -153,7 +153,7 @@ fn run!(state: mut State, ok: bool) -> Result[${collection}, Failure]:
 
 fn inspect(value: Result[${collection}, Failure]) -> i32:
     match value:
-        .Ok(actual) => actual.len() + 39
+        .Ok(actual) => i32(actual.len()) + 39
         .Err(error) => -error.code
 
 fn main!() -> i32:

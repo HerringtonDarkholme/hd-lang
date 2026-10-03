@@ -17,8 +17,8 @@ impl[T] List[T]:
 
     # A read-only window on the elements from `start` up to `end`, with no
     # copy (spec/std/collections.md#views).
-    pub fn view(self, start: i32, end: i32) -> ListView[T]:
-        if start < 0 || end > self.len() || start > end:
+    pub fn view(self, start: usize, end: usize) -> ListView[T]:
+        if end > self.len() || start > end:
             panic_with("index-out-of-bounds", "")
         ListView::[T] { items: self, start: start, end: end, version: list_version(self) }
 
@@ -36,16 +36,16 @@ impl[T] List[T]:
         kept
 
     # The checked read beside `items[i]` (r-std-collections.access.get).
-    pub fn get(self, index: i32) -> T?:
-        if index < 0 || index >= self.len(): .None else: .Some(self[index])
+    pub fn get(self, index: usize) -> T?:
+        if index >= self.len(): .None else: .Some(self[index])
 
     pub fn is_empty(self) -> bool:
         self.len() == 0
 
     # The first `count` items, or all of them (r-std-collections.access.take).
-    pub fn take(self, count: i32) -> List[T]:
+    pub fn take(self, count: usize) -> List[T]:
         let kept: mut List[T] = []
-        let index = 0
+        let index: usize = 0
         while index < count && index < self.len():
             kept.push(self[index])
             index = index + 1
@@ -55,7 +55,7 @@ impl[T] List[T]:
     # `items.extend(items)` doubles the list (r-std-collections.access.extend.self).
     pub fn extend(mut self, other: List[T]) -> void:
         size := other.len()
-        let index = 0
+        let index: usize = 0
         while index < size:
             self.push(other[index])
             index = index + 1
@@ -68,10 +68,10 @@ impl[T] List[T]:
 
     pub fn reversed(self) -> List[T]:
         let backwards: mut List[T] = []
-        let index = self.len() - 1
-        while index >= 0:
-            backwards.push(self[index])
+        let index = self.len()
+        while index > 0:
             index = index - 1
+            backwards.push(self[index])
         backwards
 
     # A stable merge sort: equal items keep their order.
@@ -81,15 +81,15 @@ impl[T] List[T]:
         let middle = self.len() / 2
         let left: mut List[T] = []
         let right: mut List[T] = []
-        let index = 0
+        let index: usize = 0
         while index < self.len():
             if index < middle: left.push(self[index]) else: right.push(self[index])
             index = index + 1
         let sorted_left = left.sorted_by(compare)
         let sorted_right = right.sorted_by(compare)
         let merged: mut List[T] = []
-        let at_left = 0
-        let at_right = 0
+        let at_left: usize = 0
+        let at_right: usize = 0
         while at_left < sorted_left.len() || at_right < sorted_right.len():
             let take_right = at_left >= sorted_left.len()
             if !take_right && at_right < sorted_right.len():
@@ -105,7 +105,7 @@ impl[T] List[T]:
         merged
 
     # Consecutive pieces of `size` items; the last may be shorter.
-    pub fn chunks(self, size: i32) -> List[List[T]]:
+    pub fn chunks(self, size: usize) -> List[List[T]]:
         if size <= 0:
             panic("chunks: size must be positive")
         let pieces: mut List[List[T]] = []
@@ -122,7 +122,7 @@ impl[T] List[T]:
     # Pairs items by position, stopping at the shorter list.
     pub fn zip[U](self, other: List[U]) -> List[(T, U)]:
         let pairs: mut List[(T, U)] = []
-        let index = 0
+        let index: usize = 0
         while index < self.len() && index < other.len():
             pairs.push((self[index], other[index]))
             index = index + 1
@@ -133,12 +133,12 @@ impl[T] List[T]:
 
     # A stable sort by `key(item)`, which is called once per element.
     pub fn sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]:
-        let keyed: mut List[(K, i32)] = []
-        let index = 0
+        let keyed: mut List[(K, usize)] = []
+        let index: usize = 0
         for item in self:
             keyed.push((key(item), index))
             index = index + 1
-        order := keyed.sorted_by(fn(left: (K, i32), right: (K, i32)) -> Ordering: left._0.cmp(right._0))
+        order := keyed.sorted_by(fn(left: (K, usize), right: (K, usize)) -> Ordering: left._0.cmp(right._0))
         let sorted: mut List[T] = []
         for (_, at) in order:
             sorted.push(self[at])
@@ -193,11 +193,11 @@ impl[T] List[T]:
         flat
 
     # Every run of `size` consecutive elements, overlapping, in order.
-    pub fn windows(self, size: i32) -> List[List[T]]:
+    pub fn windows(self, size: usize) -> List[List[T]]:
         if size <= 0:
             panic("windows: size must be positive")
         let runs: mut List[List[T]] = []
-        let start = 0
+        let start: usize = 0
         while start + size <= self.len():
             runs.push(self[start..start + size])
             start = start + 1
@@ -208,8 +208,8 @@ impl[T < Eq] List[T]:
         self.index_of(value).is_some()
 
     # The index of the first element equal to `value`.
-    pub fn index_of(self, value: T) -> i32?:
-        let index = 0
+    pub fn index_of(self, value: T) -> usize?:
+        let index: usize = 0
         for item in self:
             if item == value:
                 return .Some(index)
@@ -251,8 +251,8 @@ fn before[T < Ord](left: T, right: T) -> bool:
 
 # How many times each element occurs, keys in the order first seen
 # (spec/std/collections.md#counts).
-pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, i32]:
-    let tally: mut Map[T, i32] = {}
+pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]:
+    let tally: mut Map[T, usize] = {}
     for item in items:
         tally[item] = match tally.get(item):
             .Some(seen) => seen + 1
@@ -266,8 +266,8 @@ pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, i32]:
 # the checked panic `iterator-invalidated` (r-std-collections.view.invalid-use).
 pub data ListView[T]:
     items: List[T]
-    start: i32
-    end: i32
+    start: usize
+    end: usize
     version: i32
 
 # The derived builder calls, written by hand because `@derive` does not
@@ -277,7 +277,7 @@ impl[T < Debug] Debug for ListView[T]:
         out.debug_struct("ListView").field("items", self.items).field("start", self.start).field("end", self.end).field("version", self.version).finish()
 
 impl[T] ListView[T]:
-    pub fn len(self) -> i32:
+    pub fn len(self) -> usize:
         self.check()
         self.end - self.start
 
@@ -294,11 +294,11 @@ impl[T] ListView[T]:
         if list_version(self.items) != self.version:
             panic_with("iterator-invalidated", "")
 
-impl[T] Index[i32] for ListView[T]:
+impl[T] Index[usize] for ListView[T]:
     type Out = T
-    fn index(self, key: i32) -> T:
+    fn index(self, key: usize) -> T:
         self.check()
-        if key < 0 || key >= self.end - self.start:
+        if key >= self.end - self.start:
             panic_with("index-out-of-bounds", "")
         self.items[self.start + key]
 
@@ -323,8 +323,8 @@ impl[T] Iterable[T] for ListView[T]:
 # fails fast (r-std-collections.deque.invalidate).
 pub data Deque[T]:
     slots: mut List[T?]
-    head: i32
-    count: i32
+    head: usize
+    count: usize
     version: i32
 
 impl[T] Deque[T]:
@@ -332,7 +332,7 @@ impl[T] Deque[T]:
         let slots: mut List[T?] = []
         Deque::[T] { slots: slots, head: 0, count: 0, version: 0 }
 
-    pub fn len(self) -> i32:
+    pub fn len(self) -> usize:
         self.count
 
     pub fn is_empty(self) -> bool:
@@ -375,17 +375,17 @@ impl[T] Deque[T]:
         self.get(0)
 
     pub fn back(self) -> T?:
-        self.get(self.count - 1)
+        if self.count == 0: .None else: self.get(self.count - 1)
 
     # The element `index` places from the front; `.None` out of range
     # (r-std-collections.deque.get).
-    pub fn get(self, index: i32) -> T?:
-        if index < 0 || index >= self.count:
+    pub fn get(self, index: usize) -> T?:
+        if index >= self.count:
             return .None
         self.slots[self.slot(index)]
 
     # The slot `offset` places after the front, wrapping at the end.
-    fn slot(self, offset: i32) -> i32:
+    fn slot(self, offset: usize) -> usize:
         (self.head + offset) % self.slots.len()
 
     # Makes room for one more element.
@@ -394,11 +394,11 @@ impl[T] Deque[T]:
         if self.count < capacity:
             return
         let grown: mut List[T?] = []
-        let index = 0
+        let index: usize = 0
         while index < self.count:
             grown.push(self.slots[self.slot(index)])
             index = index + 1
-        size := if capacity < 4: 4 else: capacity * 2
+        let size: usize = if capacity < 4: 4 else: capacity * 2
         while grown.len() < size:
             grown.push(.None)
         self.slots = grown
@@ -408,7 +408,7 @@ impl[T] Deque[T]:
 impl[T] Iterable[T] for Deque[T]:
     fn iter(self) -> mut Iterator[T]:
         version := self.version
-        let at = 0
+        let at: usize = 0
         Iterator::from_fn(fn() -> T?:
             if self.version != version:
                 panic_with("iterator-invalidated", "")
@@ -424,7 +424,7 @@ impl[T < Eq] Eq for Deque[T]:
     fn eq(self, other: Deque[T]) -> bool:
         if self.count != other.count:
             return false
-        let index = 0
+        let index: usize = 0
         while index < self.count:
             if self.get(index) != other.get(index):
                 return false
@@ -451,7 +451,7 @@ impl[T < Eq & Hash] Set[T]:
         let entries: mut Map[T, bool] = {}
         Set::[T] { entries: entries }
 
-    pub fn len(self) -> i32:
+    pub fn len(self) -> usize:
         self.entries.len()
 
     pub fn is_empty(self) -> bool:
@@ -500,14 +500,14 @@ impl[T < Eq & Hash & Debug] Debug for Set[T]:
 # slot is `.None`, since the prototype has no `List.pop` yet.
 pub data Heap[T < Ord]:
     items: mut List[T?]
-    count: i32
+    count: usize
 
 impl[T < Ord] Heap[T]:
     pub fn new() -> mut Heap[T]:
         let items: mut List[T?] = []
         Heap::[T] { items: items, count: 0 }
 
-    pub fn len(self) -> i32:
+    pub fn len(self) -> usize:
         self.count
 
     pub fn is_empty(self) -> bool:
@@ -536,7 +536,7 @@ impl[T < Ord] Heap[T]:
         self.items[0] = self.items[last]
         self.items[last] = .None
         self.count = last
-        let parent = 0
+        let parent: usize = 0
         while true:
             left := 2 * parent + 1
             if left >= self.count:
@@ -559,23 +559,23 @@ impl[T < Ord] Heap[T]:
     # (r-std-collections.heap.sorted).
     pub fn to_sorted_list(self) -> List[T]:
         let copy: mut List[T] = []
-        let index = 0
+        let index: usize = 0
         while index < self.count:
             copy.push(self.element(index))
             index = index + 1
         copy.sorted_by(fn(left: T, right: T) -> Ordering: left.cmp(right))
 
-    fn element(self, index: i32) -> T:
+    fn element(self, index: usize) -> T:
         match self.items[index]:
             .Some(value) => value
             .None => panic("std.collections: a heap slot below its count is empty")
 
-    fn less(self, left: i32, right: i32) -> bool:
+    fn less(self, left: usize, right: usize) -> bool:
         match self.element(left).cmp(self.element(right)):
             .Less => true
             _ => false
 
-    fn swap(mut self, left: i32, right: i32) -> void:
+    fn swap(mut self, left: usize, right: usize) -> void:
         held := self.items[left]
         self.items[left] = self.items[right]
         self.items[right] = held
@@ -585,7 +585,7 @@ impl[T < Ord] Heap[T]:
 impl[T < Ord & Debug] Debug for Heap[T]:
     fn debug(self, out: mut DebugWriter) -> void:
         let list: mut DebugList = out.debug_list()
-        let index = 0
+        let index: usize = 0
         while index < self.count:
             _ := list.entry(self.element(index))
             index = index + 1

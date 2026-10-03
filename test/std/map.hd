@@ -12,7 +12,7 @@ fn lookup[K < Eq & Hash](items: Map[K, i32], key: K) -> i32?:
 fn doubled[K < Eq & Hash & Display](keys: List[K]) -> Map[K, string]:
     {for k in keys => k: "${k}${k}"}
 
-fn positions[K < Eq & Hash](keys: List[K]) -> Map[K, i32]:
+fn positions[K < Eq & Hash](keys: List[K]) -> Map[K, usize]:
     keys.iter().enumerate().map(fn(pair): (pair._1, pair._0)).collect()
 
 fn show[T < Display](value: T) -> string:

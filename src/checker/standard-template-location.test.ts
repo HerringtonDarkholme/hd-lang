@@ -26,7 +26,7 @@ test("standard template diagnostics retain their physical source", (t) => {
     const start = physicalSpan(diagnostic.span).start;
     assert.deepEqual(
       { offset: start.offset, line: start.line, column: start.column },
-      { offset: 8245, line: 250, column: 9 },
+      { offset: 8273, line: 250, column: 9 },
     );
   } finally {
     mocked.mock.restore();

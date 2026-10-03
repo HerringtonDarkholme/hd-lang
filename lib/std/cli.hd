@@ -67,7 +67,7 @@ impl Cli:
         let values: mut Map[string, string] = {}
         let positionals: mut List[string] = []
         let only_positionals = false
-        let index = 0
+        let index: usize = 0
         while index < arguments.len():
             argument := arguments[index]
             index = index + 1
@@ -131,7 +131,7 @@ impl Cli:
             text = text + " [options]"
         for declared in self.positionals:
             text = text + " <${declared.name}>"
-        let width = 0
+        let width: usize = 0
         for declared in self.positionals:
             width = wider(width, declared.name)
         for option in self.options:
@@ -156,11 +156,11 @@ fn option_term(option: CliOption) -> string:
         term = term + " <value>"
     term
 
-fn wider(width: i32, term: string) -> i32:
+fn wider(width: usize, term: string) -> usize:
     length := term.chars().count()
     if length > width: length else: width
 
-fn entry(term: string, help: string, width: i32) -> string:
+fn entry(term: string, help: string, width: usize) -> string:
     if help == "":
         return "  ${term}"
     "  ${term.pad_end(width, ' ')}  ${help}"

@@ -140,7 +140,7 @@ fn string_order(left: string, right: string) -> Ordering:
     left_size := left.len()
     right_size := right.len()
     shorter := if left_size < right_size: left_size else: right_size
-    let index = 0
+    let index: usize = 0
     while index < shorter:
         if left[index] != right[index]:
             return if left[index] < right[index]: .Less else: .Greater
@@ -158,7 +158,7 @@ impl[T < Eq] Eq for List[T]:
     fn eq(self, other: List[T]) -> bool:
         if self.len() != other.len():
             return false
-        let index = 0
+        let index: usize = 0
         while index < self.len():
             if self[index] != other[index]:
                 return false
@@ -170,7 +170,7 @@ impl[T < Eq] Eq for List[T]:
 # (spec/lang/05-expressions.md#r-expr.ord.std.sequences, #r-expr.ord.composite).
 impl[T < PartialOrd] PartialOrd for List[T]:
     fn partial_cmp(self, other: List[T]) -> Ordering?:
-        let index = 0
+        let index: usize = 0
         while index < self.len() && index < other.len():
             if self[index] != other[index]:
                 return self[index].partial_cmp(other[index])
@@ -235,7 +235,7 @@ impl[K < Eq & Hash, V < Eq] Eq for Map[K, V]:
 
 impl[T < Ord] Ord for List[T]:
     fn cmp(self, other: List[T]) -> Ordering:
-        let index = 0
+        let index: usize = 0
         while index < self.len() && index < other.len():
             if self[index] != other[index]:
                 return self[index].cmp(other[index])

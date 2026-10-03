@@ -20,10 +20,29 @@ import {
   typeSourceText,
 } from "../types.ts";
 import type { SourceSpan } from "../diagnostics.ts";
+import { numericType } from "../numeric.ts";
 import { CheckerContext, PRELUDE_NAMES } from "./context.ts";
 import { statementsReferenceName } from "./shared.ts";
 
 export abstract class StatementChecker extends CheckerContext {
+  /** Whether a resolved type is one of std.ops' range types. */
+  protected abstract isRangeType(type: ValueType): boolean;
+
+  /** Rejects signed and non-integer built-in indices after contextual checking. */
+  protected requireUnsignedIndex(
+    index: HirExpression,
+    receiver: "list" | "string",
+    span: SourceSpan,
+  ): HirExpression {
+    if (numericType(readonlyType(index.type))?.family !== "unsigned")
+      this.fail(
+        "type-mismatch",
+        `a ${receiver} index must have an unsigned integer type, found '${typeSourceText(index.type)}'`,
+        span,
+      );
+    return index;
+  }
+
   /** `r[k] = v` on a receiver other than `List` and `Map`, through `IndexSet`. */
   protected abstract indexSetCall(
     statement: Extract<Statement, { kind: "index-assignment" }>,
@@ -173,9 +192,16 @@ export abstract class StatementChecker extends CheckerContext {
         }
         const nominal = nominalGenericParts(mutableReceiver);
         if (nominal?.name === "List" && nominal.arguments.length === 1) {
-          const index = this.requireCoercion(
-            this.checkExpression(statement.target.index, "i32"),
-            "i32",
+          const checkedIndex = this.checkExpression(statement.target.index, "u32");
+          if (this.isRangeType(checkedIndex.type))
+            this.fail(
+              "invalid-assignment-target",
+              "a list slice is a new list, not a place; assign each element instead",
+              statement.target.span,
+            );
+          const index = this.requireUnsignedIndex(
+            checkedIndex,
+            "list",
             statement.target.index.span,
           );
           const value = this.requireCoercion(

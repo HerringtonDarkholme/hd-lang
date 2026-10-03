@@ -20,6 +20,7 @@ import {
   tupleType,
 } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
+import { STANDARD_CORE_TYPE_ALIASES, standardCoreTypeAlias } from "./standard-core.ts";
 
 // Type declarations (04-type-system.md#transparent-aliases-and-newtypes). A
 // transparent alias is expanded wherever a type is written, so the rest of
@@ -46,8 +47,11 @@ interface RowAlias {
   readonly keys: readonly string[];
 }
 
-const TYPE_KEYS = new Set(["type", "result", "annotation", "value"]);
 const TYPE_LIST_KEYS = new Set(["typeArguments", "ownerTypeArguments", "supertraits"]);
+// Implementation heads and an associated binding's trait store their written
+// types directly rather than in a TypeRef. They still participate in
+// transparent alias expansion.
+const TYPE_TEXT_KEYS = new Set(["targetName", "traitName", "trait"]);
 
 function isTypeRef(value: unknown): value is TypeRef {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -363,6 +367,10 @@ function rewriteTypes<T>(
   if (Array.isArray(node))
     return node.map((item) => rewriteTypes(item, expander, span, shadowable)) as T;
   if (!node || typeof node !== "object") return node;
+  if (isTypeRef(node))
+    return (
+      expander.mentions(node.name) ? { ...node, name: expander.type(node.name, node.span) } : node
+    ) as T;
   const record = node as Record<string, unknown>;
   const own = (record.span as SourceSpan | undefined) ?? span;
   const parameters = Array.isArray(record.genericParameters)
@@ -371,10 +379,8 @@ function rewriteTypes<T>(
   const scoped = expander.without(parameters);
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(record)) {
-    if (TYPE_KEYS.has(key) && isTypeRef(value))
-      result[key] = scoped.mentions(value.name)
-        ? { ...value, name: scoped.type(value.name, value.span) }
-        : value;
+    if (TYPE_TEXT_KEYS.has(key) && typeof value === "string" && own)
+      result[key] = scoped.mentions(value) ? scoped.type(value, own) : value;
     else if (TYPE_LIST_KEYS.has(key) && Array.isArray(value))
       result[key] = value.map((item) =>
         isTypeRef(item)
@@ -408,7 +414,7 @@ function rewriteTypes<T>(
         const inner = mutableInner(trait);
         const name = nominalGenericParts(inner ?? trait)?.name ?? inner ?? trait;
         if (scoped.isRow(name)) scoped.singleKey(name, own);
-        return trait;
+        return scoped.mentions(trait) ? scoped.type(trait, own) : trait;
       });
     // A span keeps its identity, so tables keyed by span, such as a derived
     // field's diagnostic (checker/derive-intrinsics.ts), still find it.
@@ -509,7 +515,12 @@ export function withTypeDeclarations(
   readonly diagnostics: readonly Diagnostic[];
 } {
   const importDiagnostics: Diagnostic[] = [];
-  const importedAliases = new Map<string, Alias>();
+  const importedAliases = new Map<string, Alias>(
+    [...STANDARD_CORE_TYPE_ALIASES].map(([name, target]) => [
+      name,
+      { parameters: [], rows: new Set<string>(), target },
+    ]),
+  );
   const importedRows = new Map<string, RowAlias>();
   const nominalDeclarations = [
     ...source.data,
@@ -518,6 +529,15 @@ export function withTypeDeclarations(
     ...(source.types ?? []),
   ];
   for (const [local, target] of importAliases) {
+    const compilerTarget = standardCoreTypeAlias(target);
+    if (compilerTarget !== undefined) {
+      importedAliases.set(local, {
+        parameters: [],
+        rows: new Set<string>(),
+        target: compilerTarget,
+      });
+      continue;
+    }
     const declaration = nominalDeclarations.find((candidate) => candidate.name === target);
     if (!declaration) continue;
     const parameters = declaration.genericParameters;
@@ -530,7 +550,12 @@ export function withTypeDeclarations(
     else importedAliases.set(local, { parameters, rows: rowParameters, target: application });
   }
   const importExpander = new AliasExpander(importedAliases, importedRows, importDiagnostics);
-  const program = rewriteTypes(source, importExpander, undefined, new Set(importAliases.keys()));
+  const program = rewriteTypes(
+    source,
+    importExpander,
+    undefined,
+    new Set([...STANDARD_CORE_TYPE_ALIASES.keys(), ...importAliases.keys()]),
+  );
   const declarations = program.types ?? [];
   if (declarations.length === 0 && importAliases.size === 0) return { program, diagnostics: [] };
   const diagnostics: Diagnostic[] = [...importDiagnostics];
@@ -615,7 +640,10 @@ export function withTypeDeclarations(
   const rewritten = rewriteTypes(lowered, expander);
   // An inherent implementation cannot target a transparent alias
   // (09-traits.md#r-trait.own.inherent.tuple-alias).
-  for (const implementation of rewritten.implementations) {
+  // Inspect the pre-expansion head: the lowered program has compiler/imported
+  // aliases canonicalized, but still preserves the local alias declaration
+  // identity that makes an inherent target invalid.
+  for (const implementation of lowered.implementations) {
     const head = nominalGenericParts(implementation.targetName)?.name ?? implementation.targetName;
     if (implementation.traitName === undefined && aliases.has(head))
       diagnostics.push({
