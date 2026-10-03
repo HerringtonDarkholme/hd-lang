@@ -441,6 +441,7 @@ function prepareInherentImplementation(
       diagnostics,
       implementationKinds.types,
       implementationKinds.rows,
+      hashableParameters(implementation),
     );
   let targetType: ValueType | undefined;
   if (!target && implementation.standard) {
