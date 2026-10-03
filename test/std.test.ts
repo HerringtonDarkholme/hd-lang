@@ -50,8 +50,6 @@ const PRELUDE_GRAPH = [
   "result",
   "task",
   "text",
-  // std.task's retry_with! uses std.time; reachability keeps it out of the Wasm.
-  "time",
   "prelude",
 ];
 

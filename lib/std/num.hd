@@ -274,8 +274,9 @@ fn parse_integer(text: string, low: i64, high: i64) -> Result[i64, ParseNumberEr
         return .Err(ParseNumberError.Empty)
     negative := scalars[0] == "-"
     let index = if negative || scalars[0] == "+": 1 else: 0
+    # A lone sign ends where a digit must follow: the end-of-text index.
     if index == scalars.len():
-        return .Err(ParseNumberError.InvalidDigit(0))
+        return .Err(ParseNumberError.InvalidDigit(index))
     let value: i64 = 0
     while index < scalars.len():
         digit := match digit_value(scalars[index]):
@@ -309,13 +310,13 @@ pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]:
     .Ok(value)
 
 # Where `scalars` first breaks the JSON number grammar (RFC 8259): the
-# index of the scalar no continuation allows, or the last index when the
-# text ends where a digit must follow. `.None` when all of it matches.
+# index of the scalar no continuation allows, or the text's length when it
+# ends where a digit must follow. `.None` when all of it matches.
 fn float_grammar_error(scalars: List[string]) -> i32?:
     size := scalars.len()
     let at = if scalars[0] == "-": 1 else: 0
     if at >= size:
-        return .Some(size - 1)
+        return .Some(size)
     if scalars[at] == "0":
         at = at + 1
     else if digit_value(scalars[at]).is_some():
@@ -325,7 +326,7 @@ fn float_grammar_error(scalars: List[string]) -> i32?:
     if at < size && scalars[at] == ".":
         at = at + 1
         if at >= size:
-            return .Some(size - 1)
+            return .Some(size)
         if digit_value(scalars[at]).is_none():
             return .Some(at)
         at = after_digits(scalars, at)
@@ -334,7 +335,7 @@ fn float_grammar_error(scalars: List[string]) -> i32?:
         if at < size && (scalars[at] == "+" || scalars[at] == "-"):
             at = at + 1
         if at >= size:
-            return .Some(size - 1)
+            return .Some(size)
         if digit_value(scalars[at]).is_none():
             return .Some(at)
         at = after_digits(scalars, at)

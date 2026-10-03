@@ -63,7 +63,7 @@ tests:
         assert_equal(describe(parse_i32("2147483648")), "out of range", reason="one past the maximum")
         assert_equal(describe(parse_i32("")), "empty", reason="empty")
         assert_equal(describe(parse_i32("12a")), "invalid digit at 2", reason="the bad scalar's position")
-        assert_equal(describe(parse_i32("-")), "invalid digit at 0", reason="a sign alone")
+        assert_equal(describe(parse_i32("-")), "invalid digit at 1", reason="a sign alone: the end-of-text index")
         assert(parse_i64("9223372036854775807").is_ok(), reason="the i64 maximum")
         assert(parse_i64("-9223372036854775808").is_ok(), reason="the i64 minimum")
         assert(parse_i64("9223372036854775808").is_err(), reason="one past the i64 maximum")

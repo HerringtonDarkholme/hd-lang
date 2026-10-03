@@ -4,8 +4,6 @@
 # compiler provides `block_on`, `all!`, and `Waker` by name; `all!` has no
 # written signature (r-req.combinator.all-typing).
 use std.task.all
-use std.format.DebugWriter
-use std.time.{Clock, Duration}
 
 # The first child to complete wins, and the others are cancelled
 # (r-req.combinator.race-losers). Its plain signature types every call
@@ -64,50 +62,3 @@ pub fn retry![T, E, $R](times: i32, attempt: fn!() -> Result[T, E] $ R) -> Resul
         result = attempt!()
         tries = tries + 1
     result
-
-# The retry policy of `retry_with!`: a count, a first delay, a multiplier,
-# and a cap (spec/std/task.md#retry-with-backoff).
-pub data Backoff:
-    pub attempts: i32
-    pub initial: Duration
-    pub factor: i32
-    pub max: Duration
-
-impl Eq for Backoff:
-    fn eq(self, other: Backoff) -> bool:
-        self.attempts == other.attempts && self.initial == other.initial && self.factor == other.factor && self.max == other.max
-
-# The derived builder calls, written by hand because `@derive` does not
-# run inside lib/std (r-std-format.debug.std-types).
-impl Debug for Backoff:
-    fn debug(self, out: mut DebugWriter) -> void:
-        out.debug_struct("Backoff").field("attempts", self.attempts).field("initial", self.initial).field("factor", self.factor).field("max", self.max).finish()
-
-# Calls `attempt` as `retry!` does, and sleeps on the covering `Clock`
-# between two calls, never after the last. The first delay is `initial`;
-# each later one is the one before it times `factor`, capped at `max`
-# (r-std-task.retry-with.loop, .sleep, .delay).
-pub fn retry_with![T, E, $R](backoff: Backoff, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock:
-    let mut clock = $.use(Clock)
-    let result = attempt!()
-    let tries = 1
-    let delay = backoff.initial
-    while tries < backoff.attempts && !result.is_ok():
-        clock.sleep!(delay)
-        delay = next_delay(delay, backoff)
-        result = attempt!()
-        tries = tries + 1
-    result
-
-# `delay` times `factor`, or `max` when that is larger. The cap is checked
-# before the multiplication, so a large delay does not overflow.
-fn next_delay(delay: Duration, backoff: Backoff) -> Duration:
-    let millis = delay.as_milliseconds()
-    let factor = i64(backoff.factor)
-    let cap = backoff.max.as_milliseconds()
-    if factor > 0 && millis > cap / factor:
-        return backoff.max
-    let grown = Duration::milliseconds(millis * factor)
-    if grown > backoff.max:
-        return backoff.max
-    grown

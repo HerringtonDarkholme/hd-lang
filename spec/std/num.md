@@ -202,7 +202,7 @@ pub enum ParseNumberError:
 5. r[std-num.parse.empty] Empty text gives `.Err(ParseNumberError.Empty)`.
 6. r[std-num.parse.order] Non-empty text is read from left to right, and the first error reached is the result.
 7. r[std-num.parse.invalid-digit] A character that breaks the grammar gives `.Err(ParseNumberError.InvalidDigit(position))`. `position` is its index, counted in characters from 0.
-8. r[std-num.parse.lone-sign] A sign with no digit after it gives `InvalidDigit(0)`.
+8. r[std-num.parse.end-of-text] Text that ends where the grammar needs a digit gives `InvalidDigit` at the text's length in characters, so a lone `-` or `+` gives `InvalidDigit(1)`.
 9. r[std-num.parse.out-of-range] A digit that takes the value read so far out of the result type's range gives `.Err(ParseNumberError.OutOfRange)`.
 10. r[std-num.parse.error-traits] `ParseNumberError` implements `Eq` and `Display`.
 
@@ -211,13 +211,13 @@ pub enum ParseNumberError:
 | `"42"`, `"+42"`, `"042"` | `.Ok(42)` |
 | `"-2147483648"` | `.Ok` of the smallest `i32` |
 | `""` | `.Err(Empty)` |
-| `"-"`, `"+"` | `.Err(InvalidDigit(0))` |
 | `" 42"` | `.Err(InvalidDigit(0))` |
+| `"-"`, `"+"` | `.Err(InvalidDigit(1))` |
 | `"1_000"`, `"0x10"` | `.Err(InvalidDigit(1))` |
 | `"2147483648"`, `"99999999999x"` | `.Err(OutOfRange)` |
 
-> **Note.** Every character before the first invalid one is ASCII, so
-> `position` is also that character's byte offset.
+> **Note.** Every character before `position` is ASCII, so `position` is
+> also a byte offset.
 
 > **Why.** Parsing reads user input, which should not accept source
 > literal syntax. The grammar is Rust's `str::parse` for integers.
@@ -248,7 +248,7 @@ fn ratio(text: string) -> f64:
 6. r[std-num.parse-f64.range] So a value past the finite `f64` range gives an infinity, and a value too small for the smallest subnormal gives a zero. Each keeps the text's sign.
 7. r[std-num.parse-f64.empty] Empty text gives `.Err(ParseNumberError.Empty)`.
 8. r[std-num.parse-f64.invalid-digit] Other text is read from left to right. The first character that no continuation of the grammar allows gives `.Err(ParseNumberError.InvalidDigit(position))`, with its index counted in characters from 0.
-9. r[std-num.parse-f64.early-end] Text that ends where the grammar needs a digit gives `InvalidDigit` at the index of its last character, as a lone `-` gives `InvalidDigit(0)`.
+9. r[std-num.parse-f64.end-of-text] Text that ends where the grammar needs a digit gives `InvalidDigit` at the text's length in characters, so a lone `-` gives `InvalidDigit(1)`.
 10. r[std-num.parse-f64.no-out-of-range] `parse_f64` never gives `OutOfRange`.
 
 | Text | `parse_f64` gives |
@@ -258,9 +258,10 @@ fn ratio(text: string) -> f64:
 | `"9007199254740993"` | `.Ok(9007199254740992.0)`, the even one of the two nearest |
 | `"1e400"` | `.Ok` of positive infinity |
 | `""` | `.Err(Empty)` |
-| `"+1"`, `" 1"`, `".5"`, `"-"` | `.Err(InvalidDigit(0))` |
-| `"01"`, `"1."`, `"1e"` | `.Err(InvalidDigit(1))` |
-| `"1.x"`, `"1e+"` | `.Err(InvalidDigit(2))` |
+| `"+1"`, `" 1"`, `".5"` | `.Err(InvalidDigit(0))` |
+| `"01"`, `"-"` | `.Err(InvalidDigit(1))` |
+| `"1.x"`, `"1."`, `"1e"` | `.Err(InvalidDigit(2))` |
+| `"1e+"` | `.Err(InvalidDigit(3))` |
 
 > **Why.** The grammar is the one `std.json` reads, so a JSON number and
 > `parse_f64` agree, and every finite `f64` text that `Display` writes

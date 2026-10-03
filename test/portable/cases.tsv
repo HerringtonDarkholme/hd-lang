@@ -1959,7 +1959,6 @@ runtime/valid/json-escapes.hd	runtime
 runtime/valid/json-errors.hd	runtime
 runtime/valid/json-object-order.hd	runtime
 runtime/valid/json-pretty.hd	runtime
-runtime/valid/retry-with-backoff.hd	runtime
 runtime/valid/string-split-once.hd	runtime
 runtime/valid/string-split-whitespace.hd	runtime
 runtime/valid/string-pad.hd	runtime

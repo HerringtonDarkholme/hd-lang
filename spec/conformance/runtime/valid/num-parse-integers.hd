@@ -1,5 +1,5 @@
 # test: integer parsing takes an optional sign and decimal digits only, and reports the first error
-# Spec std/num Integer Parsing: std-num.parse.grammar, std-num.parse.lone-sign, std-num.parse.order (STDLIB question 20, 2026-09-29; task #218).
+# Spec std/num Integer Parsing: std-num.parse.grammar, std-num.parse.order (STDLIB question 20, 2026-09-29; task #218), and std-num.parse.end-of-text (owner decision PARSE-EARLY-END, batch 73, 2026-10-03).
 use std.num.{parse_i32, parse_i64, ParseNumberError}
 use std.testing.{assert, assert_equal}
 
@@ -28,8 +28,8 @@ tests:
 
     it("errors"):
         assert_equal(describe(parse_i32("")), "empty", reason="empty text")
-        assert_equal(describe(parse_i32("-")), "invalid digit at 0", reason="a lone minus")
-        assert_equal(describe(parse_i64("+")), "invalid digit at 0", reason="a lone plus")
+        assert_equal(describe(parse_i32("-")), "invalid digit at 1", reason="a lone minus ends where a digit must follow")
+        assert_equal(describe(parse_i64("+")), "invalid digit at 1", reason="a lone plus ends where a digit must follow")
         assert_equal(describe(parse_i32(" 42")), "invalid digit at 0", reason="whitespace")
         assert_equal(describe(parse_i32("1_000")), "invalid digit at 1", reason="a separator")
         assert_equal(describe(parse_i32("0x10")), "invalid digit at 1", reason="a radix prefix")
