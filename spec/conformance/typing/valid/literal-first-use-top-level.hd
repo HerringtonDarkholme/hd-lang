@@ -1,0 +1,8 @@
+# test: top-level statements fix an open literal width in source order
+
+let names: List[string] = ["Ada"]
+let count = 0
+let done = count < names.len()
+
+fn report() -> usize:
+    count

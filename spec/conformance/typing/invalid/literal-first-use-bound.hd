@@ -1,0 +1,11 @@
+# test: a bound is checked at the width a later use fixes
+
+use std.ops.Neg
+
+fn negate[T < Neg[Out = T]](value: T) -> T:
+    -value
+
+fn run(items: List[string]) -> bool:
+    let i = 1
+    let flipped = negate(i)  # diagnostic: unsatisfied-trait-bound
+    i < items.len()

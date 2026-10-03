@@ -46,7 +46,8 @@ attempts = attempts + 1
 ```
 
 Numbers have explicit widths: `i8` to `i64`, `u8` to `u64`, `f32`, and
-`f64`. An integer literal defaults to `i32`. Other primitives are `bool`,
+`f64`. A local bound to a plain integer literal takes its width from its
+first use that needs one, and is `i32` when none does. Other primitives are `bool`,
 `char`, and `string`. A string is UTF-8 bytes, as in Go: `len()` counts
 bytes, and a loop over its characters is `for c in s.chars()`. Lengths
 and indices are `usize`, an alias of `u32`, so an index is never negative.

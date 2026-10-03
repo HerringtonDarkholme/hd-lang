@@ -1,0 +1,10 @@
+# test: a later use that needs another width conflicts with the deciding use
+
+fn take(n: i32) -> i32:
+    n
+
+fn run(items: List[string]) -> i32:
+    let i = 0
+    if i < items.len():
+        return 0
+    take(i)  # diagnostic: type-mismatch

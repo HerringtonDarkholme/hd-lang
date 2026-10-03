@@ -1,0 +1,9 @@
+# test: an unconstrained generic argument waits for the deciding use
+
+fn show[T < Display](value: T) -> string:
+    "$value"
+
+fn run(items: List[string]) -> bool:
+    let i = 0
+    let text = show(i)
+    i < items.len()

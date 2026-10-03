@@ -178,7 +178,8 @@ See also: [String Indexing](05-expressions.md#string-indexing),
 
 ## Literal Types
 
-An integer literal with no expected type has type `i32`:
+An integer literal with no expected type has type `i32`, unless a later
+use fixes another width, as [Open Literal Width](#open-literal-width) states:
 
 ```text
 x := 1  # i32
@@ -186,7 +187,7 @@ x := 1  # i32
 
 ### Integer Literals
 
-1. r[types.literal.int-default] An integer literal in any supported radix with no expected type has type `i32` in every value range.
+1. r[types.literal.int-fallback] An integer literal in any supported radix with no expected type has type `i32` in every value range, unless it is part of an [open expression](#r-types.literal.open.expression) whose width a later use fixes.
 2. r[types.literal.int-no-widen] An integer literal does not automatically choose a wider type.
 3. r[types.literal.int-range] When an integer literal has an expected integer type, the compiler checks the literal against that type's range. A literal outside it is an error. Error: `integer-literal-range`.
 
@@ -207,9 +208,161 @@ let bad: u8 = 300    # error: integer-literal-range
 
 ### Floating-Point Literals
 
-1. r[types.literal.float-default] A floating-point literal with no expected type has type `f64` and must be representable as a finite `f64` value.
+1. r[types.literal.float-fallback] A floating-point literal with no expected type has type `f64`, unless it is part of an [open expression](#r-types.literal.open.expression) whose width a later use fixes. It must be representable as a finite value of the type it takes.
 2. r[types.literal.float-expected] When an expected `f32` or `f64` type is available, the literal is converted directly to that type.
 3. r[types.literal.float-finite] The converted literal must be representable as a finite value under that type's IEEE 754 rounding rules. Error: `float-literal-range`.
+
+### Open Literal Width
+
+A local binding initialized by an unsuffixed numeric literal takes its
+width from its first deciding use, not from its `let`:
+
+```text
+fn count(items: List[string]) -> usize:
+    let i = 0               # an integer of open width
+    while i < items.len():  # the first deciding use: i is a usize
+        i = i + 1
+    i
+```
+
+1. r[types.literal.open] A `let` or `:=` binding whose pattern is one name and that has no annotation has an **open width** when its initializer is an open expression. Its kind, integer or floating-point, is known, and its width is not.
+2. r[types.literal.open.expression] An **open expression** is an unsuffixed integer or floating-point literal with no expected type, a binding of open width, or an arithmetic or unary `-` or `+` expression whose operands are all open expressions.
+3. r[types.literal.open.forms] So `let i = 0`, `i := 0`, `let x = 0.5`, and `let n = 2 + 3` each bind an open width.
+4. r[types.literal.open.share] Open expressions that meet in an operator, and a binding initialized from them, share one open width. So `let j = i + 1` gives `j` the open width of `i`.
+5. r[types.literal.open.first-use] The first deciding use, in source order within the body, fixes the shared width.
+6. r[types.literal.open.fallback] When the body ends with no deciding use, the width is `i32` for an integer and `f64` for a floating-point value.
+
+> **Note.** `let mut i = 0` is still an error, by
+> [`types.bind.let-mut-primitive`](#r-types.bind.let-mut-primitive): a
+> number is primitive at every width.
+
+#### Deciding Uses
+
+A deciding use needs one specific numeric type:
+
+| Rule | Use of an open value | Fixes the width to |
+| --- | --- | --- |
+| r[types.literal.open.decide.operand] Operand | an operand of an arithmetic or comparison operator whose other operand has a specific numeric type, as in `i < items.len()` | the other operand's type |
+| r[types.literal.open.decide.argument] Argument | an argument to a parameter of a specific type | the parameter's type |
+| r[types.literal.open.decide.assign] Assignment | a value stored into a place of a specific type, or a value of a specific type assigned to the open binding | the place's or the value's type |
+| r[types.literal.open.decide.result] Result | a `return` operand, or the body's final value, under a declared result type | the result type |
+| r[types.literal.open.decide.index] Index | an index or slice bound of a list or string, by [Indexing](05-expressions.md#indexing) | `usize` |
+| r[types.literal.open.decide.element] Element | a value for a typed field, or for an element of a collection whose element type is known | that field's or element's type |
+| r[types.literal.open.decide.generic] Generic argument | an argument whose type parameter another argument solves, as in `biggest(i, items.len())`, or a generic call whose result is used in a typed place | the solved type |
+
+1. r[types.literal.open.decide.other] Any other use that needs one specific numeric type is also a deciding use, such as a branch of a value-producing `if` beside a `u64` branch.
+
+#### Neutral Uses
+
+A neutral use accepts any width, so it fixes nothing:
+
+| Rule | Use of an open value | Effect |
+| --- | --- | --- |
+| r[types.literal.open.neutral.open] Open operand | an operator whose other operand is an open expression | both share one open width |
+| r[types.literal.open.neutral.assign] Open assignment | assigning an open expression to the binding, as in `i = i + 1` or `i = 5` | the assigned value shares the width |
+| r[types.literal.open.neutral.generic] Unconstrained generic argument | an argument to a generic parameter that nothing else at the call constrains, as in `show(i)` with `fn show[T < Display](value: T)` | the call's `T` binds to the eventual width |
+| r[types.literal.open.neutral.method] Method of every width | a method call that every width of the kind provides, as in `i.to_string()` | the method is resolved once the width is fixed |
+| r[types.literal.open.neutral.any-width] Any width | a numeric cast, as in `u8(i)`, or an interpolation, as in `"$i"` | none |
+
+1. r[types.literal.open.carry] A type that a neutral use builds from the open width carries that width. A generic call's result `T`, or a method result that depends on the width, follows the width once it is fixed.
+2. r[types.literal.open.carry.decide] A deciding use of such a result fixes the shared width. So `let same = identity(i)` followed by `same < items.len()` makes `i` a `usize`.
+3. r[types.literal.open.method.one-width] A method that some width of the kind lacks decides the width when exactly one width of the kind provides it.
+4. r[types.literal.open.method.ambiguous] When more than one width provides it but not every width does, the call is an error, and the diagnostic asks for an annotation. Error: `cannot-infer-type`.
+
+```text
+use std.ops.Neg
+
+fn show[T < Display](value: T) -> string:
+    "$value"
+
+fn biggest[T < Ord](left: T, right: T) -> T:
+    match left.cmp(right):
+        .Less => right
+        _ => left
+
+fn negate[T < Neg[Out = T]](value: T) -> T:
+    -value
+
+fn run(items: List[string]) -> usize:
+    let i = 0
+    let text = show(i)                 # neutral: T waits for the width of i
+    let top = biggest(i, items.len())  # deciding: T and i are usize
+    let flipped = negate(i)            # error: unsatisfied-trait-bound
+    top
+
+fn flip() -> bool:
+    let i = 1
+    i.neg() == i                       # error: cannot-infer-type
+```
+
+#### Checks At The Fixed Width
+
+1. r[types.literal.open.deferred] Each check that depends on the width is made once the width is fixed, and an error is reported at the use that needs it. Such checks are a generic call's bounds, a method's resolution, a literal's range, and unary `-` on an unsigned type.
+2. r[types.literal.open.bound] A generic call whose bound the fixed width does not satisfy is an error at that call. Error: `unsatisfied-trait-bound`.
+3. r[types.literal.open.range] A literal of the open width that the fixed width cannot hold is an error at the literal, by [`types.literal.int-range`](#r-types.literal.int-range) or [`types.literal.float-finite`](#r-types.literal.float-finite). Error: `integer-literal-range`.
+4. r[types.literal.open.conflict] After the width is fixed, each later use is checked against it as against a binding declared with that type.
+5. r[types.literal.open.conflict.error] So a later argument, assignment, or result that needs another width is an error. Error: `type-mismatch`.
+6. r[types.literal.open.names-decider] A diagnostic of this subsection must name the deciding use, as in "`i` became `usize` at line 4".
+
+```text
+fn take(n: i32) -> i32:
+    n
+
+fn put(value: u8) -> u8:
+    value
+
+fn run(items: List[string]) -> i32:
+    let i = 0
+    if i < items.len():   # i becomes usize here
+        return 0
+    take(i)               # error: type-mismatch
+
+fn fixed() -> u8:
+    let i = 300           # error: integer-literal-range
+    put(i)
+```
+
+#### Scope Of The Rule
+
+1. r[types.literal.open.body] The rule is local to one body: a function body, or the top-level statements of a module. A use in another body never decides a width.
+2. r[types.literal.open.closure] A closure body is part of its enclosing body for this rule. A use inside it counts at its source position, whether or not the closure runs.
+3. r[types.literal.open.no-signature] The rule never infers a declaration: no parameter, field, or written result type comes from it.
+4. r[types.literal.open.inferred-result] A result type inferred from a body takes the width that the body fixes, or the fallback. A caller's use never changes it.
+5. r[types.literal.open.top-level] A module's top-level executable statements are one body, in source order. A function body that reads an open top-level binding sees the width those statements fix, and its uses decide nothing.
+
+```text
+fn five():
+    let n = 2 + 3     # no deciding use: n is an i32
+    let doubled = n * 2
+    doubled
+
+fn run(items: List[string]) -> bool:
+    let i = 0
+    at_end := fn() -> bool: i == items.len()  # i becomes usize here
+    i = i + 1
+    let index: usize = i
+    at_end()
+```
+
+> **Why.** `let i = 0` followed by `i < items.len()` is the common loop,
+> and an `i32` fixed at the `let` rejects it. The first deciding use reads
+> top to bottom, as the code does. The diagnostic names it, so a width
+> never comes from a distant line without a pointer to that line.
+
+> **Note.** A checker meets this rule in one forward pass over the body,
+> with no second check of any statement. Each open binding gets an integer
+> or float type variable. A deciding use binds it through union-find, and a
+> conflicting later use is reported at that point, naming the first.
+
+> **Note.** Bound checks, method resolutions, and literal range checks that
+> meet an unbound variable are recorded as obligations and discharged at
+> the end of the body. One substitution sweep then replaces each variable
+> with its width or the fallback, before code generation. The work is
+> linear, with no fixed point.
+
+See also: [Binary Numeric Operators](#binary-numeric-operators),
+[Inference From Several Arguments](#inference-from-several-arguments), and
+[Binding Forms](#binding-forms).
 
 ### Suffixed Literals
 
@@ -762,7 +915,7 @@ See also: [Inspectable Types](09-traits.md#inspectable-types).
 
 1. r[types.assign.no-subtyping] No inheritance or structural record subtyping exists.
 2. r[types.assign.binding-type] Assignment never changes the declared or inferred type of a binding.
-3. r[types.assign.let] In particular, later assignment to a `let` binding must remain assignable to the type established at its declaration.
+3. r[types.assign.let-first-use] In particular, later assignment to a `let` binding must remain assignable to the type established at its declaration, or, for an [open width](#r-types.literal.open), at its first deciding use.
 
 ## Composite Values And Access Permission
 

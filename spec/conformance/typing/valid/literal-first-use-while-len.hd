@@ -1,0 +1,7 @@
+# test: the first comparison with a usize length fixes an open literal width
+
+fn count(items: List[string]) -> usize:
+    let i = 0
+    while i < items.len():
+        i = i + 1
+    i

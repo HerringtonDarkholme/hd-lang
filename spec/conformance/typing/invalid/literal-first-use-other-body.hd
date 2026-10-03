@@ -1,0 +1,8 @@
+# test: a use in another body does not fix an open literal width
+
+fn five():
+    let n = 2 + 3
+    n
+
+fn run() -> i64:
+    five()  # diagnostic: type-mismatch

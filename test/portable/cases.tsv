@@ -2056,3 +2056,5 @@ runtime/valid/regex-replace.hd	runtime
 runtime/valid/regex-split.hd	runtime
 runtime/valid/regex-captures-linear-time.hd	runtime
 runtime/valid/std-errors-erased-codecs.hd	runtime
+typing/valid/literal-first-use-fallback.hd	type
+typing/invalid/literal-first-use-other-body.hd	type

@@ -1,0 +1,9 @@
+# test: an open literal width with no deciding use falls back to i32
+
+fn five():
+    let n = 2 + 3
+    let doubled = n * 2
+    doubled
+
+fn run() -> i32:
+    five()

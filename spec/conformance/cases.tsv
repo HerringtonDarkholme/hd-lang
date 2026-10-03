@@ -2172,3 +2172,17 @@ typing/invalid/qualified-string-prefix.hd	type	reject:qualified-string-prefix	la
 typing/invalid/qualified-string-prefix-call.hd	type	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
 parse/invalid/qualified-string-prefix-value.hd	parse	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
 runtime/valid/string-prefix-imported-by-name.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.literal-fn.bare-in-scope
+typing/valid/literal-first-use-while-len.hd	type	accept	lang/04-type-system.md#r-types.literal.open.decide.operand
+typing/valid/literal-first-use-float-argument.hd	type	accept	lang/04-type-system.md#r-types.literal.open.decide.argument
+typing/valid/literal-first-use-fallback.hd	type	accept	lang/04-type-system.md#r-types.literal.open.fallback
+typing/invalid/literal-first-use-other-body.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.open.inferred-result
+typing/invalid/literal-first-use-conflict.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.open.conflict.error
+typing/valid/literal-first-use-generic-wait.hd	type	accept	lang/04-type-system.md#r-types.literal.open.neutral.generic
+typing/valid/literal-first-use-generic-join.hd	type	accept	lang/04-type-system.md#r-types.literal.open.decide.generic
+typing/invalid/literal-first-use-bound.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.literal.open.bound
+typing/valid/literal-first-use-closure.hd	type	accept	lang/04-type-system.md#r-types.literal.open.closure
+typing/invalid/literal-first-use-closure-conflict.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.open.closure
+typing/invalid/literal-first-use-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.open.range
+typing/valid/literal-first-use-method.hd	type	accept	lang/04-type-system.md#r-types.literal.open.neutral.method
+typing/invalid/literal-first-use-method-ambiguous.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.literal.open.method.ambiguous
+typing/valid/literal-first-use-top-level.hd	type	accept	lang/04-type-system.md#r-types.literal.open.top-level

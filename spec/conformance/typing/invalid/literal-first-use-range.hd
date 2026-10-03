@@ -1,0 +1,8 @@
+# test: an open literal is range-checked at the width a later use fixes
+
+fn put(value: u8) -> u8:
+    value
+
+fn run() -> u8:
+    let i = 300  # diagnostic: integer-literal-range
+    put(i)

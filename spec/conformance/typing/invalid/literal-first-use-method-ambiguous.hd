@@ -1,0 +1,7 @@
+# test: a method only some widths provide needs an annotation
+
+use std.ops.Neg
+
+fn run() -> bool:
+    let i = 1
+    i.neg() == i  # diagnostic: cannot-infer-type

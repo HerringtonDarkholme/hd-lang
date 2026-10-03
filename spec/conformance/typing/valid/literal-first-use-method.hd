@@ -1,0 +1,6 @@
+# test: a method that every integer width provides decides nothing
+
+fn run(items: List[string]) -> bool:
+    let i = 0
+    let text = i.to_string()
+    i < items.len()

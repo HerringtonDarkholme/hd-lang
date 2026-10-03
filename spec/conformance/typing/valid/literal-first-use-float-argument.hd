@@ -1,0 +1,9 @@
+# test: an f32 parameter fixes an open float literal width
+
+fn scale(value: f32) -> f32:
+    value * 2.0
+
+fn run() -> f32:
+    let x = 0.5
+    let doubled = scale(x)
+    x + doubled

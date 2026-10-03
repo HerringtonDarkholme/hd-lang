@@ -247,6 +247,8 @@ The stdlib chapters' terms are in the
 | **mutable edges** | What a data type has when it, or a type it embeds at any depth, declares a direct `field: mut U`. See [Mutable Edges](lang/08-data-and-enums.md#mutable-edges). |
 | **mutable requirement trait** | A trait that declares or inherits a `mut self` method; its providers always have mutable access. See [`req.mut.trait`](lang/11-requirements-and-suspension.md#r-req.mut.trait). |
 | **non-reassignable** | A binding whose name cannot be rebound. See [`types.view.non-reassignable`](lang/04-type-system.md#r-types.view.non-reassignable). |
+| **open expression** | An unsuffixed numeric literal with no expected type, a binding of open width, or arithmetic over only such operands. See [`types.literal.open.expression`](lang/04-type-system.md#r-types.literal.open.expression). |
+| **open width** | The width of an unannotated binding initialized by an open expression: its numeric kind is known, and its first deciding use fixes the width. See [Open Literal Width](lang/04-type-system.md#open-literal-width). |
 | **operator trait** | A `std.ops` trait, such as `Add[Rhs = Self]`, whose implementation gives a type one operator. See [Operator Traits](lang/05-expressions.md#operator-traits). |
 | **package mode** | How a command works when the nearest `hd.toml` at or above its start directory declares a package. See [`cli.mode.package.nearest`](cli/command-line.md#r-cli.mode.package.nearest). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](lang/08-data-and-enums.md#parts-and-copies). |

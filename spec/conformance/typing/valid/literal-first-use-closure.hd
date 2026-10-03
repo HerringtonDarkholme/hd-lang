@@ -1,0 +1,8 @@
+# test: a use inside a closure body decides at its source position
+
+fn run(items: List[string]) -> bool:
+    let i = 0
+    at_end := fn() -> bool: i == items.len()
+    i = i + 1
+    let index: usize = i
+    at_end()

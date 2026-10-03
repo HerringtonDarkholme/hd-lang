@@ -1,0 +1,9 @@
+# test: a closure's deciding use counts before a later use in the body
+
+fn take(n: i32) -> i32:
+    n
+
+fn run(items: List[string]) -> i32:
+    let i = 0
+    at_end := fn() -> bool: i == items.len()
+    take(i)  # diagnostic: type-mismatch

@@ -1,0 +1,12 @@
+# test: a generic call decides when another argument fixes its parameter
+
+fn biggest[T < Ord](left: T, right: T) -> T:
+    match left.cmp(right):
+        .Less => right
+        _ => left
+
+fn run(items: List[string]) -> usize:
+    let i = 0
+    let top = biggest(i, items.len())
+    let index: usize = i
+    top + index
