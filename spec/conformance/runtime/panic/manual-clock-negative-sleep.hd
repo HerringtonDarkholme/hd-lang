@@ -1,0 +1,11 @@
+# test: sleep! with a negative duration panics with explicit-panic, here on a ManualClock
+# Spec std/time Clock: std-time.clock.sleep.negative and std-time.manual.sleep.panics (SLEEP-NEGATIVE; task #223).
+use std.time.{Clock, ManualClock, Timestamp, s}
+
+fn rewind!(clock: mut ManualClock) -> void:
+    clock.sleep!(-5s)  # panic: explicit-panic
+
+tests:
+    it("panics on a negative duration"):
+        let mut clock = ManualClock::new(Timestamp::from_unix_millis(1000))
+        rewind!(clock)

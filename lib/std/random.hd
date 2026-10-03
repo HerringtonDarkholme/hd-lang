@@ -2,6 +2,7 @@
 # provider `SeededRandom` (spec/std/random.md). No prototype runtime
 # profile binds a host `Random` yet (src/KNOWN_ISSUES.md); `std.testing`
 # draws a property test's cases from a `SeededRandom`.
+use std.format.DebugWriter
 
 # Draws values from a source of randomness (r-std-random.decl). Both
 # methods take `mut self`, so a seeded provider advances its own state
@@ -66,3 +67,13 @@ fn mix32(z: u64) -> u64:
     let a: u64 = low32((z ^ (z >> 16)) * 0x85EBCA6B)
     a = low32((a ^ (a >> 13)) * 0xC2B2AE35)
     a ^ (a >> 16)
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.mapping): the prototype runs the
+# derivation pass before it joins std (src/checker/program.ts), so a
+# `@derive` on a std declaration has no effect.
+
+impl Debug for SeededRandom:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("SeededRandom").field("s0", self.s0).field("s1", self.s1).field("s2", self.s2).field("s3", self.s3).finish()

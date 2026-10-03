@@ -79,7 +79,7 @@ every feature belongs in `std`.
 | `std.console` | `Console`, `println`, `ConsoleInput`, `BufferConsole` | none (language tier) | no standard error; no profile binds `ConsoleInput` |
 | `std.process` | `ExitCode`, `Termination`, `Process.run!`, `ScriptedProcess` | none (language tier) | no profile binds `Process`; no working directory or environment |
 | `std.resource` | `ResourceError[E]` | none | no handle type uses it yet |
-| `std.error` | `Error`, `chain`, `ErrorReport`, `report_of` | [error.md](../spec/std/error.md); `Error` is language tier | no `root_cause`, `find`, or `context` |
+| `std.error` | `Error` with `root_cause` and `find`, `chain`, `ErrorReport`, `report_of`, `Result.context`, `ContextError` | [error.md](../spec/std/error.md); `Error` is language tier | none |
 | `std.testing`, `std.structure`, `std.inspect`, `std.annotation`, `std.function` | test, derivation, and type-identity support | [testing.md](../spec/std/testing.md) | complete for their purpose |
 | `std.random` | `Random`, `SeededRandom` | [random.md](../spec/std/random.md) | no `Rng` helpers |
 | `std.host`, `std.fs`, `std.path` | `Args`, `Env`, `MapArgs`, `MapEnv`; `FsRead`, `FsWrite`, `FsError`, `MemoryFs`; `Path` | [host.md](../spec/std/host.md), [fs.md](../spec/std/fs.md), [path.md](../spec/std/path.md) | the prototype's std loader lists none of the three; no `read_text!` or `write_text!` helper |
@@ -786,28 +786,6 @@ SHA-256 needs wrapping `u32` additions, which hd can do in `u64` with a
 mask. MD5, SHA-1, and HMAC are excluded; `std.fingerprint`'s algorithm is
 still open ([Open Issues](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work)).
 
-### Errors
-
-Standouts:
-
-- **Rust `anyhow::Context`** adds a message on the way up:
-  `read(path).context("loading config")?`.
-- **Go `errors.As`** finds a typed cause in a chain.
-
-[Error](../spec/std/error.md) specifies `chain`, `ErrorReport`, and
-`report_of`. The rest of a minimal `std.error`:
-
-```text
-use std.error.Error
-
-pub fn root_cause(error: Error) -> Error:
-    pass
-
-impl[T, E < Error] Result[T, E]:
-    pub fn context(self, message: string) -> Result[T, Error]:
-        pass
-```
-
 ### Concurrency Helpers
 
 Standouts:
@@ -949,7 +927,6 @@ each part in the language: `fn!() -> Result[A, E] $ R`.
 | `Schedule.exponential` with `Schedule.recurs` | `Backoff` data and `retry_with!`, Deno's option set | 8 |
 | `Duration` helpers | `minutes`, `as_seconds` | 4 |
 | `Effect.forEach` with `concurrency` | `map_limited!`, batched | 8 |
-| `Cause` pretty printing | `std.error` `root_cause`, `context` | 4 |
 | `Random` | `std.random` | 9 |
 | `Config` with `ConfigProvider` | `Env` with `MapEnv`; a typed config template later | 1 |
 | `FileSystem`, `Path`, `ChildProcess` | `std.fs`, `std.path`, `std.process` helpers | 1, 2 |
@@ -989,7 +966,7 @@ host also add a prototype host binding, a minimal TypeScript hook.
 | 1 | `std.host` `Args`, `Env`, `MapArgs`, `MapEnv`, `args()`, `env()`; `ErrorConsole`, `eprintln`, `read_line!`, `read_all!` | [Host Capabilities](../spec/cli/command-line.md#host-capabilities), [Standard Error](../spec/std/console.md#standard-error); a `List[string]` result on the host bridge | a script can take input and report errors |
 | 2 | `std.path` `Path`; `std.fs` `FsRead`, `FsWrite`, `FsError`, `MemoryFs`, `read_text!`, `write_text!`, `walk!`, `glob!` | tier 1's catalog; a Node `fs` binding in the prototype | a script can read and write files |
 | 3 | collections and iterators: decided `Map` and `and_then` items, the `List`, `Iterator`, `Set`, and `counts` helpers | a list-truncate hook for `pop`, `remove_at`, `clear` | data shaping without hand loops |
-| 4 | `std.error` `root_cause` and `context`; `Clock`, `Timestamp`, `Instant`, `ManualClock`, `now()`, `sleep!` | the catalog for `Clock` | timing, error reports |
+| 4 | `Clock`, `Timestamp`, `Instant`, `ManualClock`, `now()`, `sleep!` | the catalog for `Clock` | timing |
 | 5 | text helpers, `to_fixed`, `parse_f64`; `std.encoding` hex and base64; `std.digest` SHA-256 | two float hooks | formatting, checksums |
 | 6 | `std.json` `Json`, `Number`, `parse`, `Display`, `pretty`, accessors | tier 5's `parse_f64` | reading and writing JSON |
 | 7 | `ToJson` and `FromJson` templates; `encode`, `decode` | tier 6 | typed JSON |
@@ -1069,10 +1046,9 @@ only; no block is type-checked.
 | 10 | Random Numbers | parses |
 | 11 | Command-Line Parsing | parses |
 | 12 | Hashing And Encoding | parses |
-| 13 | Errors | parses |
-| 14 | Concurrency Helpers | parses |
-| 15 | A Script With The Proposed Surface | parses |
+| 13 | Concurrency Helpers | parses |
+| 14 | A Script With The Proposed Surface | parses |
 
-A first draft of block 15 wrote module-qualified types, such as
+A first draft of block 14 wrote module-qualified types, such as
 `Map[string, json.Json]`, and the parser rejected them; the block now
 imports the names.

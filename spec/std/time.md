@@ -68,35 +68,46 @@ fn later(start: Timestamp) -> Timestamp:
 
 ### Duration Display
 
-A duration displays as a suffixed count, as in `1500ms`, `2s`, `5min`, or
-`1h`:
+A duration displays as Go's `time.Duration` does, with hd's unit names:
+hours, minutes, and seconds, as in `1h2min3.5s`, or milliseconds under
+one second, as in `500ms`:
 
 ```text
 use std.time.{Duration, min, s}
 
 fn waited() -> string:
-    "waited ${90s}, then ${60min}"  # "waited 90s, then 1h"
+    "waited ${90s}, then ${60min}"  # "waited 1min30s, then 1h0min0s"
 ```
 
-1. r[std-time.duration.display] `Duration` implements `Display`. Its text is a whole count, then a unit suffix, with no space between.
-2. r[std-time.duration.display.unit] The unit is the first of `h`, `min`, `s`, and `ms` whose length divides the milliseconds exactly, and the count is the duration in that unit.
-3. r[std-time.duration.display.zero] A zero duration displays as `0ms`.
-4. r[std-time.duration.display.negative] The count of a negative duration is negative, so its text starts with `-`, as in `-90s`.
+1. r[std-time.duration.text] `Duration` implements `Display` with the algorithm of Go's `time.Duration.String`, using the unit names `h`, `min`, `s`, and `ms`.
+2. r[std-time.duration.text.components] A duration of one second or more displays as components, each a whole count followed by its unit with no space: hours `h`, then minutes `min`, then seconds `s`.
+3. r[std-time.duration.text.first] The first component is the largest unit whose count is not zero.
+4. r[std-time.duration.text.lower] Every component after the first is written down to `s`, even when its count is zero, as in `1h0min5s` and `1min0s`.
+5. r[std-time.duration.text.fraction] The seconds component carries the remaining milliseconds as a decimal fraction without trailing zeros, as in `3.5s` and `1.005s`. Whole seconds have no point.
+6. r[std-time.duration.text.sub-second] A duration under one second that is not zero displays as its milliseconds, then `ms`, as in `500ms`.
+7. r[std-time.duration.text.zero] A zero duration displays as `0s`.
+8. r[std-time.duration.text.negative] A negative duration displays as `-`, then the text of its magnitude, as in `-1min30s` and `-500ms`.
+9. r[std-time.duration.text.min-value] The most negative duration follows the same rule and displays as `-2562047788015h12min55.808s`. Displaying a duration never overflows.
 
 | Milliseconds | Text |
 | --- | --- |
-| `1500` | `1500ms` |
+| `0` | `0s` |
+| `500` | `500ms` |
+| `-500` | `-500ms` |
+| `1500` | `1.5s` |
+| `1005` | `1.005s` |
 | `2000` | `2s` |
-| `60000` | `1min` |
-| `300000` | `5min` |
-| `5400000` | `90min` |
-| `3600000` | `1h` |
-| `0` | `0ms` |
-| `-90000` | `-90s` |
+| `60000` | `1min0s` |
+| `90000` | `1min30s` |
+| `3600000` | `1h0min0s` |
+| `3605000` | `1h0min5s` |
+| `3723500` | `1h2min3.5s` |
+| `-90000` | `-1min30s` |
 
-> **Why.** The text is the suffixed literal that writes the same
-> duration, so a log line reads as hd. The largest exact unit gives one
-> spelling per duration.
+> **Why.** Go's text is the most widely read duration format, so a log
+> line needs no explanation. Writing every component below the first, as
+> Go writes `1h0m0s`, keeps one spelling per duration and a shape that
+> depends only on its largest unit.
 
 ## Duration Suffixes
 
@@ -143,12 +154,18 @@ pub trait Clock:
 2. r[std-time.clock.now] `now` returns the current wall-clock time as a `Timestamp`.
 3. r[std-time.clock.monotonic] `monotonic` returns the current reading of a clock that never goes backwards, as an `Instant`.
 4. r[std-time.clock.sleep] `sleep!(duration)` completes once `duration` has passed on the clock.
-5. r[std-time.clock.plain-reads] `now` and `monotonic` are plain calls. Only `sleep!` suspends.
-6. r[std-time.clock.mut] `sleep!` takes `mut self`, so `Clock` is a mutable requirement trait and a provider may advance its own time.
+5. r[std-time.clock.sleep.zero] `sleep!` with a zero `duration` completes without waiting.
+6. r[std-time.clock.sleep.negative] `sleep!` with a negative `duration` must panic, on every provider. Panic: `explicit-panic`.
+7. r[std-time.clock.plain-reads] `now` and `monotonic` are plain calls. Only `sleep!` suspends.
+8. r[std-time.clock.mut] `sleep!` takes `mut self`, so `Clock` is a mutable requirement trait and a provider may advance its own time.
 
 > **Why.** A clock read is a value from the host, as an environment read
 > is, so it needs no driver; replay records it at the boundary either
 > way. Waiting is the one operation that suspends.
+
+> **Why.** `Duration` is signed, so a negative wait can be written. It is
+> a caller's bug, and a panic shows it where it happens, rather than as a
+> sleep that silently returns.
 
 ### Timestamps And Instants
 
@@ -201,9 +218,10 @@ tests:
 4. r[std-time.manual.now] `now` returns the current time.
 5. r[std-time.manual.monotonic] `monotonic` returns `Instant::from_millis(m)`, where `m` is the current time in milliseconds since the Unix epoch.
 6. r[std-time.manual.sleep] `sleep!(duration)` completes without waiting. A positive `duration` is added to the current time.
-7. r[std-time.manual.sleep.negative] A `duration` of zero or less leaves the current time unchanged, so the clock never goes backwards.
-8. r[std-time.manual.reads] `now` and `monotonic` never change the current time.
-9. r[std-time.manual.no-host] A `ManualClock` reads nothing from the host's clock.
+7. r[std-time.manual.sleep.zero] A zero `duration` leaves the current time unchanged.
+8. r[std-time.manual.sleep.panics] A negative `duration` panics, as [`std-time.clock.sleep.negative`](#r-std-time.clock.sleep.negative) requires, and leaves the current time unchanged. Panic: `explicit-panic`.
+9. r[std-time.manual.reads] `now` and `monotonic` never change the current time.
+10. r[std-time.manual.no-host] A `ManualClock` reads nothing from the host's clock.
 
 > **Why.** Virtual time advances by itself: a test of a timeout or a
 > backoff sleeps through it in no real time and needs no extra call. A

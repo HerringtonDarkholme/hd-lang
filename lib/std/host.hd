@@ -3,6 +3,7 @@
 # The prototype's std loader does not list this module yet
 # (src/checker/standard-sources.ts), and no runtime profile binds a host
 # `Args` or `Env`.
+use std.format.DebugWriter
 
 pub trait Args:
     fn program(self) -> string
@@ -53,3 +54,17 @@ impl Env for MapEnv:
         for (key, _) in self.values:
             found.append(key)
         found
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.mapping): the prototype runs the
+# derivation pass before it joins std (src/checker/program.ts), so a
+# `@derive` on a std declaration has no effect.
+
+impl Debug for MapArgs:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("MapArgs").field("program", self.program).field("values", self.values).finish()
+
+impl Debug for MapEnv:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("MapEnv").field("values", self.values).finish()

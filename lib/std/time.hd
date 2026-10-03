@@ -9,6 +9,7 @@
 # Each suffix is a function marked `@num_suffix` (r-std-time.suffix.std.fn).
 # `-5s` is the ordinary negation `-(5s)`, so `Duration` implements `Neg`
 # (r-std-time.suffix.std.duration-neg).
+use std.format.DebugWriter
 use std.ops.{Add, Neg, Sub, num_suffix}
 
 pub data Duration:
@@ -41,21 +42,66 @@ impl Sub for Duration:
     fn sub(self, rhs: Duration) -> Duration:
         Duration { millis: self.millis - rhs.millis }
 
-# The count in the largest of `h`, `min`, `s`, and `ms` that divides the
-# milliseconds exactly, then that suffix; zero is `0ms`
-# (r-std-time.duration.display). The signed division keeps the sign, so
-# no negation can overflow.
+# Go's `time.Duration.String`, in hd's units (r-std-time.duration.text):
+# `h`, `min`, then `s` with the milliseconds as a fraction, and every
+# component below the largest one written, even when zero; under one
+# second, `ms`; zero is `0s`. Each component is taken from the signed
+# milliseconds by truncating division, and only that small component is
+# negated, so the most negative duration does not overflow
+# (r-std-time.duration.text.min-value).
 impl Display for Duration:
     fn to_string(self) -> string:
-        if self.millis == 0:
-            return "0ms"
-        if self.millis % 3600000 == 0:
-            return "${self.millis / 3600000}h"
-        if self.millis % 60000 == 0:
-            return "${self.millis / 60000}min"
-        if self.millis % 1000 == 0:
-            return "${self.millis / 1000}s"
-        "${self.millis}ms"
+        millis := self.millis
+        if millis == 0:
+            return "0s"
+        let text = ""
+        if millis < 0:
+            text = "-"
+        if millis > -1000 && millis < 1000:
+            return "${text}${magnitude(millis)}ms"
+        hours := magnitude(millis / 3600000)
+        minutes := magnitude((millis % 3600000) / 60000)
+        seconds := magnitude((millis % 60000) / 1000)
+        fraction := magnitude(millis % 1000)
+        if hours > 0:
+            text = text + "${hours}h"
+        if hours > 0 || minutes > 0:
+            text = text + "${minutes}min"
+        text = text + "${seconds}"
+        if fraction > 0:
+            text = text + "." + fraction_digits(fraction)
+        text + "s"
+
+# The absolute value of one component, which is far from the `i64` limits.
+fn magnitude(value: i64) -> i64:
+    if value < 0:
+        return -value
+    value
+
+# The milliseconds `1` to `999` as the decimal digits after the point,
+# without trailing zeros (r-std-time.duration.text.fraction).
+fn fraction_digits(fraction: i64) -> string:
+    if fraction % 100 == 0:
+        return "${fraction / 100}"
+    if fraction % 10 == 0:
+        tenths := fraction / 10
+        if tenths < 10:
+            return "0${tenths}"
+        return "${tenths}"
+    if fraction < 10:
+        return "00${fraction}"
+    if fraction < 100:
+        return "0${fraction}"
+    "${fraction}"
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.mapping): the prototype runs the
+# derivation pass before it joins std (src/checker/program.ts), so a
+# `@derive` on a std declaration has no effect.
+impl Debug for Duration:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Duration").field("millis", self.millis).finish()
 
 # Durations compare by their milliseconds (r-std-time.duration.eq-ord).
 impl Eq for Duration:
@@ -113,6 +159,10 @@ impl Add[Duration] for Timestamp:
     fn add(self, rhs: Duration) -> Timestamp:
         Timestamp { millis: self.millis + rhs.as_milliseconds() }
 
+impl Debug for Timestamp:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Timestamp").field("millis", self.millis).finish()
+
 impl Eq for Timestamp:
     fn eq(self, other: Timestamp) -> bool:
         self.millis == other.millis
@@ -136,6 +186,10 @@ impl Instant:
 
     pub fn since(self, earlier: Instant) -> Duration:
         Duration::milliseconds(self.millis - earlier.millis)
+
+impl Debug for Instant:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Instant").field("millis", self.millis).finish()
 
 impl Eq for Instant:
     fn eq(self, other: Instant) -> bool:
@@ -164,6 +218,10 @@ impl ManualClock:
     pub fn new(start: Timestamp) -> mut ManualClock:
         ManualClock { current: start }
 
+impl Debug for ManualClock:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("ManualClock").field("current", self.current).finish()
+
 impl Clock for ManualClock:
     fn now(self) -> Timestamp:
         self.current
@@ -172,9 +230,10 @@ impl Clock for ManualClock:
     fn monotonic(self) -> Instant:
         Instant::from_millis(self.current.millis)
 
-    # A duration of zero or less leaves the time as it is, so the clock
-    # never goes backwards (r-std-time.manual.sleep.negative).
+    # A negative duration panics, and a zero one leaves the time as it is
+    # (r-std-time.clock.sleep.negative, r-std-time.manual.sleep.zero).
     fn sleep!(mut self, duration: Duration) -> void:
         step := duration.as_milliseconds()
-        if step > 0:
-            self.current = Timestamp::from_unix_millis(self.current.millis + step)
+        if step < 0:
+            panic("sleep! with a negative duration: ${duration}")
+        self.current = Timestamp::from_unix_millis(self.current.millis + step)

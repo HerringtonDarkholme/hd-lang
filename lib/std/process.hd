@@ -2,6 +2,7 @@
 # WASI has no subprocess interface, so no
 # prototype runtime profile binds a host `Process`; `ScriptedProcess` is the
 # deterministic provider, and `hd test` binds none yet (src/KNOWN_ISSUES.md).
+use std.format.DebugWriter
 
 pub type ExitCode(u8)
 
@@ -38,3 +39,21 @@ pub data ScriptedProcess:
 impl Process for ScriptedProcess:
     fn run!(mut self, program: string, args: List[string], stdin: string) -> ProcessOutput?:
         self.outputs.get(program)
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.mapping): the prototype runs the
+# derivation pass before it joins std (src/checker/program.ts), so a
+# `@derive` on a std declaration has no effect.
+
+impl Debug for ExitCode:
+    fn debug(self, out: mut DebugWriter) -> void:
+        u8(self).debug(out)
+
+impl Debug for ProcessOutput:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("ProcessOutput").field("stdout", self.stdout).field("stderr", self.stderr).field("status", self.status).finish()
+
+impl Debug for ScriptedProcess:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("ScriptedProcess").field("outputs", self.outputs).finish()

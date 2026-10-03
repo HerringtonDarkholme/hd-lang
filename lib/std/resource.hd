@@ -1,6 +1,20 @@
 # std.resource: the error of a closable runtime handle
 # (spec/lang/10-modules.md#closable-handles). An operation whose ordinary error
 # type is `E` returns `Result[T, ResourceError[E]]`.
+use std.format.DebugWriter
+
 pub enum ResourceError[E]:
     Operation(error: E)
     Disposed
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.mapping): the prototype runs the
+# derivation pass before it joins std (src/checker/program.ts), so a
+# `@derive` on a std declaration has no effect.
+
+impl[E < Debug] Debug for ResourceError[E]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .Operation(error) => out.debug_struct("Operation").field("error", error).finish()
+            .Disposed => out.write("Disposed")

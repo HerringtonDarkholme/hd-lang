@@ -17,6 +17,10 @@ The language tier keeps what the compiler knows by name
 | invariance in `T` and `E` | [`types.option.invariant.result`](../lang/04-type-system.md#r-types.option.invariant.result) |
 | a variant constructor as a function value | [`data.enum.fn-value.use`](../lang/08-data-and-enums.md#r-data.enum.fn-value.use), as in `map_err(ConfigError.Number)` |
 
+> **Note.** `std.error` declares one more inherent method of
+> `Result[T, E]`, for `E < Error`: `context`, which wraps an error with a
+> message. See [Error Context](error.md#error-context).
+
 ## Result Methods
 
 `std.result` gives every `Result[T, E]` these methods:
@@ -139,4 +143,4 @@ fn configured_port(text: string) -> i32:
 > **Note.** `message` is an ordinary argument, so it is evaluated before
 > the call, even when the result is `.Ok`.
 
-See also: [Option](option.md), [List And Optional Map](iter.md#list-and-optional-map), [Runtime Panics](../lang/06-control-flow.md#runtime-panics), [Variance](../lang/04-type-system.md#variance).
+See also: [Option](option.md), [Error Context](error.md#error-context), [List And Optional Map](iter.md#list-and-optional-map), [Runtime Panics](../lang/06-control-flow.md#runtime-panics), [Variance](../lang/04-type-system.md#variance).

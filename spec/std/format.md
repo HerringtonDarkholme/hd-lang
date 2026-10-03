@@ -7,7 +7,8 @@ ordinary hd over the language tier:
 
 - the text that the prelude function `debug` returns;
 - the `DebugWriter` builders and their layout;
-- the builder calls that `@derive(Debug)` generates.
+- the builder calls that `@derive(Debug)` generates;
+- which public `std` types implement `Debug`.
 
 The language tier keeps what the compiler knows by name
 ([Debug Trait](../lang/09-traits.md#debug-trait)):
@@ -77,3 +78,28 @@ impl Debug for Point:
 See also: [Debug Trait](../lang/09-traits.md#debug-trait),
 [Standard Testing](../lang/10-modules.md#standard-testing),
 [Typed Derivation](../lang/14-annotations.md#typed-derivation).
+
+## Debug For Standard Types
+
+The public types of `std` implement `Debug`, so a test can compare and
+show them:
+
+```text
+use std.time.{Duration, s}
+
+fn shown(timeout: Duration) -> string:
+    debug(timeout)
+```
+
+1. r[std-format.debug.std-types] Every public data type, enum, and newtype that `std` declares implements `Debug` when the type of each of its members implements `Debug`.
+2. r[std-format.debug.std-types.generic] A generic one implements `Debug` under the bounds that its members need, as in `impl[T < Debug] Debug for Reverse[T]`.
+3. r[std-format.debug.std-types.calls] Its builder calls are those that `@derive(Debug)` generates for its declaration, by [`std-format.debug.derive-builders.mapping`](#r-std-format.debug.derive-builders.mapping). A newtype writes its base value, as [`trait.derive.newtype`](../lang/09-traits.md#r-trait.derive.newtype) gives.
+4. r[std-format.debug.std-types.exempt] A type with a member that holds a function value, or a trait value whose trait does not extend `Debug`, does not implement `Debug`. Examples are `Iterator[T]`, `Choices`, and `ContextError`.
+
+> **Note.** The derived calls name a type's private fields too. Like all
+> `debug` text, that text is not portable, and fixtures do not depend on it.
+
+> **Why.** `assert_equal` and property tests show values through `Debug`.
+> A std type without it could not be compared in a test, and
+> [`trait.own.rule`](../lang/09-traits.md#r-trait.own.rule) keeps a caller
+> from adding the implementation.

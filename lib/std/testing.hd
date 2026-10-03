@@ -13,6 +13,7 @@ use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
 use std.testing.arbitrary.With
 use std.process.Process
 use std.time.Duration
+use std.format.DebugWriter
 
 # The test runner's side of a test case
 # (spec/std/testing.md#runner-capabilities). `hd test` binds both host
@@ -471,3 +472,13 @@ pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> Run
     match $.use(Process).run!(name, args, stdin):
         .Some(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
         .None => panic("hd_run!: the package has no executable named '${name}'")
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.mapping): the prototype runs the
+# derivation pass before it joins std (src/checker/program.ts), so a
+# `@derive` on a std declaration has no effect.
+
+impl Debug for RunOutput:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("RunOutput").field("stdout", self.stdout).field("stderr", self.stderr).field("status", self.status).finish()

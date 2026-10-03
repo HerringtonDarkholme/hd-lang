@@ -1,0 +1,27 @@
+# test: an erased Error value calls find, so Error stays dynamically safe with its method-level T < Error
+# Spec std/error Root Cause And Find: std-error.find; Spec 09 Dynamic Safety: trait.dyn.safe.implied-anyref-param (ERR-HELPERS; task #223).
+use std.error.Error
+use std.testing.{assert, assert_equal}
+
+@error("disk full")
+data DiskError:
+    free: i64
+
+@error
+enum SaveError:
+    @error("cannot save $path")
+    Write(path: string, @source error: DiskError)
+
+fn load() -> Result[string, Error]:
+    .Err(SaveError.Write("notes.txt", DiskError { free: 7 }))
+
+fn free_space(failure: Error) -> i64?:
+    match failure.find::[DiskError]():
+        .Some(disk) => .Some(disk.free)
+        .None => .None
+
+tests:
+    it("find through an erased Error"):
+        match load():
+            .Ok(_) => assert(false, reason="load fails")
+            .Err(failure) => assert_equal(free_space(failure), .Some(7), reason="the cause, recovered")

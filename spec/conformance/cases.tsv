@@ -1997,3 +1997,16 @@ runtime/valid/error-report.hd	runtime	accept	std/error.md#r-std-error.report.of
 runtime/valid/duration-arithmetic.hd	runtime	accept	std/time.md#duration-arithmetic
 runtime/panic/duration-add-overflow.hd	runtime	panic:integer-overflow	std/time.md#r-std-time.duration.overflow
 runtime/valid/duration-display.hd	runtime	accept	std/time.md#duration-display
+runtime/panic/manual-clock-negative-sleep.hd	runtime	panic:explicit-panic	std/time.md#r-std-time.clock.sleep.negative
+runtime/valid/error-find.hd	runtime	accept	std/error.md#r-std-error.find
+runtime/valid/error-root-cause.hd	runtime	accept	std/error.md#r-std-error.root-cause
+runtime/valid/error-find-erased.hd	runtime	accept	std/error.md#r-std-error.find
+runtime/valid/error-find-trait-value.hd	runtime	accept	std/error.md#r-std-error.find.exact
+typing/invalid/error-find-non-error.hd	type	reject:unsatisfied-trait-bound	std/error.md#r-std-error.find.bound
+runtime/valid/error-context.hd	runtime	accept	std/error.md#r-std-error.context.err
+typing/invalid/error-anyval-newtype.hd	type	reject:missing-supertrait-implementation	lang/09-traits.md#r-trait.error.not-anyref
+typing/valid/dynamic-safety-implied-anyref.hd	type	accept	lang/09-traits.md#r-trait.dyn.safe.implied-anyref-param
+typing/valid/std-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
+typing/valid/std-joined-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
+typing/valid/std-host-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
+typing/invalid/context-error-no-debug.hd	type	reject:unsatisfied-trait-bound	std/format.md#r-std-format.debug.std-types.exempt

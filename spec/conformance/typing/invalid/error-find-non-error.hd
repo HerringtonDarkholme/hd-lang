@@ -1,0 +1,6 @@
+# test: find's target must implement Error, so find::[i32] is unsatisfied-trait-bound
+# Spec std/error Root Cause And Find: std-error.find.bound (ERR-HELPERS; task #223).
+use std.error.Error
+
+fn code(failure: Error) -> i32?:
+    failure.find::[i32]()  # diagnostic: unsatisfied-trait-bound

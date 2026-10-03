@@ -1,0 +1,18 @@
+# test: find matches recorded types exactly, so a trait value target such as Error is never found
+# Spec std/error Root Cause And Find: std-error.find.exact (ERR-HELPERS; task #223).
+use std.error.Error
+use std.testing.assert
+
+@error("disk full")
+data DiskError:
+    free: i64
+
+@error
+enum SaveError:
+    @error("cannot save $path")
+    Write(path: string, @source error: DiskError)
+
+tests:
+    it("no supertrait search"):
+        failure := SaveError.Write("notes.txt", DiskError { free: 0 })
+        assert(failure.find::[Error]().is_none(), reason="a recorded type is never a trait value type")

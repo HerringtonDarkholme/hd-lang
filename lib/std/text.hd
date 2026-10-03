@@ -9,6 +9,7 @@
 # `r` is here too (Literal Suffixes L20), with the prefix helpers
 # `interpolate`, `process_escapes`, and `EscapeError` (L22).
 use std.ops.{Template, str_prefix}
+use std.format.DebugWriter
 
 # The standard raw-text prefix (spec/std/text.md#r-std-text.prefix.std.r):
 # no escape is processed.
@@ -525,3 +526,23 @@ fn scalar_char(point: i32) -> char:
 @intrinsic("panic")
 fn panic_with(category: string, message: string) -> void:
     panic("intrinsic")
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.mapping): the prototype runs the
+# derivation pass before it joins std (src/checker/program.ts), so a
+# `@derive` on a std declaration has no effect.
+
+impl Debug for EscapeError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("EscapeError").field("offset", self.offset).finish()
+
+impl Debug for Utf8Error:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .InvalidSequence(position) => out.debug_struct("InvalidSequence").field("position", position).finish()
+            .Truncated => out.write("Truncated")
+
+impl Debug for StringBuilder:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("StringBuilder").field("parts", self.parts).finish()

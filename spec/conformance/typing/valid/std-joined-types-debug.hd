@@ -1,0 +1,20 @@
+# test: Debug for public std types of std.collections, std.console, std.hash, std.ops, std.inspect, and std.format
+# Spec std/format Debug For Standard Types: std-format.debug.std-types and std-format.debug.std-types.generic (STD-DEBUG; task #223).
+use std.collections.ListView
+use std.console.BufferConsole
+use std.format.DebugWriter
+use std.hash.DefaultHasher
+use std.inspect.TypeId
+use std.ops.{Range, RangeFull}
+
+fn shown[T < Debug](value: T) -> string:
+    debug(value)
+
+fn collection_texts(view: ListView[i32], console: BufferConsole, hasher: DefaultHasher) -> List[string]:
+    [shown(view), shown(console), shown(hasher)]
+
+fn ops_texts(range: Range[i32], full: RangeFull) -> List[string]:
+    [shown(range), shown(full)]
+
+fn other_texts(id: TypeId, writer: DebugWriter) -> List[string]:
+    [shown(id), shown(writer)]

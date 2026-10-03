@@ -1,0 +1,48 @@
+# test: find walks the cause chain in order and returns the first error of the target type, the same reference, or .None
+# Spec std/error Root Cause And Find: std-error.find and std-error.find.same-reference (ERR-HELPERS; task #223).
+use std.error.Error
+use std.testing.{assert, assert_equal}
+
+@error
+enum FsError:
+    @error("not found: $path")
+    NotFound(path: string)
+
+@error
+enum ConfigError:
+    @error("cannot load $name")
+    Load(name: string, @source error: FsError)
+
+@error
+enum AppError:
+    @error("start failed")
+    Start(@source error: ConfigError)
+
+@error("disk full")
+data DiskError:
+    free: i64
+
+tests:
+    it("finds an error two levels down"):
+        failure := AppError.Start(ConfigError.Load("app", FsError.NotFound("app.toml")))
+        match failure.find::[FsError]():
+            .Some(found) => assert_equal(found.to_string(), "not found: app.toml", reason="the innermost cause")
+            .None => assert(false, reason="FsError is in the chain")
+
+    it("returns the first match, starting with the error itself"):
+        failure := AppError.Start(ConfigError.Load("app", FsError.NotFound("app.toml")))
+        assert(failure.find::[AppError]().is_some(), reason="the error itself is first in the chain")
+        match failure.find::[ConfigError]():
+            .Some(found) => assert_equal(found.to_string(), "cannot load app", reason="one level down")
+            .None => assert(false, reason="ConfigError is in the chain")
+
+    it("returns the same reference that the chain holds"):
+        cause := ConfigError.Load("app", FsError.NotFound("app.toml"))
+        failure := AppError.Start(cause)
+        match failure.find::[ConfigError]():
+            .Some(found) => assert(found is cause, reason="no copy")
+            .None => assert(false, reason="ConfigError is in the chain")
+
+    it("returns .None when no error matches"):
+        failure := AppError.Start(ConfigError.Load("app", FsError.NotFound("app.toml")))
+        assert(failure.find::[DiskError]().is_none(), reason="DiskError is not in the chain")

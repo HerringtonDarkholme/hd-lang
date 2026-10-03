@@ -433,15 +433,17 @@ The standard library declares the standard error trait `Error` in
 `std.error`.
 
 1. r[trait.error.module] The standard library declares the standard error trait `Error` in `std.error`.
-2. r[trait.error.supertraits] `Error` is dynamically safe and has `Display` and the sealed `Inspectable` as supertraits, as in `trait Error < Display & Inspectable`.
+2. r[trait.error.supertraits-anyref] `Error` is dynamically safe and has `Display`, the sealed `Inspectable`, and the sealed `AnyRef` as supertraits, as in `trait Error < Display & Inspectable & AnyRef`.
 3. r[trait.error.defaults] Every member `Error` declares has a default, so an implementation needs no body.
-4. r[trait.error.complete] `impl Error for FsError` is complete when `FsError` implements `Display`, because the compiler supplies `Inspectable` for every inspectable type.
+4. r[trait.error.complete-reference] `impl Error for FsError` is complete when the enum `FsError` implements `Display`, because the compiler supplies `Inspectable` and `AnyRef` for it.
 5. r[trait.error.not-inspectable] An `impl Error` whose target is not inspectable, such as a type declared in a block suite, is an error. Error: `missing-supertrait-implementation`.
-6. r[trait.error.cause] `Error` declares `fn cause(self) -> Error?`, which returns the error that caused this one. Its default returns `.None`.
-7. r[trait.error.api-helpers] The other members, and the error-chain helpers built on them, such as `chain`, `find[T]`, and `root_cause`, are standard-library API.
-8. r[trait.error.derive] A data type or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
-9. r[trait.error.import] `Error` is not a prelude name; code imports it with `use std.error.Error`.
-10. r[trait.error.no-inspect-import] Implementing `Error` needs no import of `std.inspect`.
+6. r[trait.error.not-anyref] An `impl Error` whose target is an `AnyVal` type, such as a newtype over `string`, is an error, by [`trait.sealed.extend.missing`](#r-trait.sealed.extend.missing). Error: `missing-supertrait-implementation`.
+7. r[trait.error.cause] `Error` declares `fn cause(self) -> Error?`, which returns the error that caused this one. Its default returns `.None`.
+8. r[trait.error.chain-methods] `Error` also declares the default methods `fn root_cause(self) -> Error` and `fn find[T < Error](self) -> T?`.
+9. r[trait.error.std-api] What `root_cause` and `find` return, and the error-chain helpers such as `chain`, are standard-library API.
+10. r[trait.error.derive] A data type or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
+11. r[trait.error.import] `Error` is not a prelude name; code imports it with `use std.error.Error`.
+12. r[trait.error.no-inspect-import] Implementing `Error` needs no import of `std.inspect`.
 
 ```text
 use std.error.Error
@@ -455,11 +457,23 @@ fn local() -> void:
 
     impl Error for LocalError  # error: missing-supertrait-implementation
     pass
+
+type Message(string)
+
+impl Display for Message:
+    fn to_string(self) -> string: string(self)
+
+impl Error for Message  # error: missing-supertrait-implementation
 ```
+
+> **Why.** With `AnyRef` as a supertrait, the bound `T < Error` of `find`
+> implies `AnyRef`, so `Error` stays dynamically safe. Every data type and
+> enum is already a reference, so `@error` types are unaffected.
 
 See also: [Sealed Traits](#sealed-traits),
 [Error Derivation](14-annotations.md#error-derivation),
-[Cause Chain](../std/error.md#cause-chain) in `std.error`.
+[Cause Chain](../std/error.md#cause-chain) and
+[Root Cause And Find](../std/error.md#root-cause-and-find) in `std.error`.
 
 #### Erased Errors
 
@@ -1347,7 +1361,7 @@ The one-copy rule has these consequences:
 | --- | --- | --- |
 | r[trait.dyn.safe.assoc-type] Associated types | an associated type of the trait or a supertrait | yes when the value type binds it, as `Supplier[Item = i32]` does; no when it is unbound |
 | r[trait.dyn.safe.assoc-function] Associated functions | an associated function in the trait or a supertrait | no |
-| r[trait.dyn.safe.anyref-type-param] Method type parameters | a method-level type parameter bounded by `AnyRef`, with any further bounds | yes; any other method-level type parameter is not |
+| r[trait.dyn.safe.implied-anyref-param] Method type parameters | a method-level type parameter whose bounds imply `AnyRef`, directly as in `T < AnyRef & Display`, or through a supertrait as in `T < Error` | yes; any other method-level type parameter is not |
 | r[trait.dyn.safe.self] `Self` | `Self` as a method receiver | yes; `Self` anywhere else is not |
 | r[trait.dyn.safe.suspending] Suspending methods | a suspending method, as the prelude `Console`'s `write_line!` is | yes |
 | r[trait.dyn.safe.row-parameter] Row parameters | a method-level row parameter, which needs no `AnyRef` bound | yes |
@@ -1361,6 +1375,19 @@ trait Runner:
     fn run[$R](self, job: fn() -> void $ R) -> void $ R
 
 fn valid(runner: Runner) -> void:
+    pass
+```
+
+`Error` has `AnyRef` as a supertrait, so a parameter bounded by `Error`
+alone keeps a trait dynamically safe:
+
+```text
+use std.error.Error
+
+trait Registry:
+    fn lookup[T < Error](self, name: string) -> T?
+
+fn valid(registry: Registry) -> void:
     pass
 ```
 

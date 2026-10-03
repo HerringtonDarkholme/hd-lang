@@ -4,6 +4,7 @@
 use std.function.Tuple
 use std.num.{Num, Integer}
 use std.structure.{Structure, Walker, Variant, Field}
+use std.format.DebugWriter
 
 pub enum Ordering:
     Less
@@ -379,3 +380,20 @@ impl[T < Tuple] Ord for T by Structure:
         let w: mut OrderWalker[T] = OrderWalker::[T] { other: other, other_index: 0, result: .Equal }
         _ := Structure::walk(self, w)
         w.result
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.mapping): the prototype runs the
+# derivation pass before it joins std (src/checker/program.ts), so a
+# `@derive` on a std declaration has no effect.
+
+impl Debug for Ordering:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .Less => out.write("Less")
+            .Equal => out.write("Equal")
+            .Greater => out.write("Greater")
+
+impl[T < Debug] Debug for Reverse[T]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Reverse").field("value", self.value).finish()

@@ -1,17 +1,30 @@
-# test: a Duration displays as its count in the largest suffix unit that divides it exactly
-# Spec std/time Duration Display: std-time.duration.display, std-time.duration.display.zero, std-time.duration.display.negative (DURATION-OPS; task #221).
+# test: a Duration displays as Go's time.Duration does, in h, min, s, and ms, with zero 0s and a leading minus
+# Spec std/time Duration Display: std-time.duration.text, std-time.duration.text.components, std-time.duration.text.first, std-time.duration.text.lower, std-time.duration.text.fraction, std-time.duration.text.sub-second, std-time.duration.text.zero, std-time.duration.text.negative, std-time.duration.text.min-value (DURATION-DISPLAY; task #223).
 use std.testing.assert_equal
 use std.time.{Duration, h, min, ms, s}
 
 tests:
-    it("uses the largest exact unit"):
-        assert_equal((1500ms).to_string(), "1500ms", reason="not a whole second")
-        assert_equal((2000ms).to_string(), "2s", reason="whole seconds")
-        assert_equal((300s).to_string(), "5min", reason="whole minutes")
-        assert_equal((60min).to_string(), "1h", reason="whole hours")
-        assert_equal((90min).to_string(), "90min", reason="not a whole hour")
+    it("components from the largest unit down to seconds"):
+        assert_equal((2s).to_string(), "2s", reason="whole seconds")
+        assert_equal((90s).to_string(), "1min30s", reason="minutes, then seconds")
+        assert_equal((60s).to_string(), "1min0s", reason="a zero seconds component is written")
+        assert_equal((1h).to_string(), "1h0min0s", reason="every component below hours is written")
+        assert_equal((1h + 5s).to_string(), "1h0min5s", reason="a zero minutes component in the middle")
+        assert_equal((90min).to_string(), "1h30min0s", reason="minutes carry into hours")
 
-    it("zero and negative durations"):
-        assert_equal((0s).to_string(), "0ms", reason="zero is 0ms")
-        assert_equal((-(90s)).to_string(), "-90s", reason="a leading minus")
-        assert_equal("waited ${2h}", "waited 2h", reason="interpolation uses Display")
+    it("milliseconds are a fraction of a second"):
+        assert_equal((1500ms).to_string(), "1.5s", reason="no trailing zeros")
+        assert_equal((1005ms).to_string(), "1.005s", reason="leading zeros stay")
+        assert_equal((1050ms).to_string(), "1.05s", reason="one trailing zero dropped")
+        assert_equal((3723500ms).to_string(), "1h2min3.5s", reason="all three components")
+
+    it("under one second, zero, and negative durations"):
+        assert_equal((500ms).to_string(), "500ms", reason="under one second")
+        assert_equal((0s).to_string(), "0s", reason="zero is 0s")
+        assert_equal((-(90s)).to_string(), "-1min30s", reason="a leading minus")
+        assert_equal((-(500ms)).to_string(), "-500ms", reason="a negative sub-second duration")
+        assert_equal("waited ${2h}", "waited 2h0min0s", reason="interpolation uses Display")
+
+    it("the extreme durations do not overflow"):
+        assert_equal(Duration::milliseconds(-9_223_372_036_854_775_807 - 1).to_string(), "-2562047788015h12min55.808s", reason="the most negative duration")
+        assert_equal(Duration::milliseconds(9_223_372_036_854_775_807).to_string(), "2562047788015h12min55.807s", reason="the largest duration")

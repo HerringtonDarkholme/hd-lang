@@ -1,0 +1,32 @@
+# test: context wraps an .Err in a ContextError whose message comes first in chain and report_of, and passes .Ok through
+# Spec std/error Error Context: std-error.context.ok, std-error.context.err, std-error.context.display, std-error.context.cause, std-error.context.chain (ERR-CONTEXT; task #223).
+use std.error.{ContextError, Error, chain, report_of}
+use std.testing.{assert, assert_equal}
+
+@error("not found: $path")
+data NotFound:
+    path: string
+
+fn read(path: string) -> Result[string, NotFound]:
+    if path == "app.toml":
+        return .Err(NotFound { path: path })
+    .Ok("port = 80")
+
+fn load(path: string) -> Result[string, Error]:
+    text := read(path).context("loading config")?
+    .Ok(text)
+
+tests:
+    it("an .Err gets the message, with the error as its cause"):
+        match load("app.toml"):
+            .Ok(_) => assert(false, reason="the read fails")
+            .Err(failure) =>
+                assert_equal(failure.to_string(), "loading config", reason="the context displays as its message")
+                assert(failure.find::[ContextError]().is_some(), reason="the wrapper is a ContextError")
+                assert_equal(chain(failure).len(), 2, reason="the context, then the cause")
+                assert_equal(report_of(failure).to_string(), "loading config\ncaused by: not found: app.toml", reason="the context first")
+
+    it("an .Ok passes through"):
+        match load("other.toml"):
+            .Ok(text) => assert_equal(text, "port = 80", reason="unchanged")
+            .Err(_) => assert(false, reason="the read succeeds")

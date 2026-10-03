@@ -22,9 +22,9 @@ tests:
 
     it("Duration arithmetic and Display"):
         assert_equal((1h - 1ms).as_milliseconds(), 3599999, reason="sub")
-        assert_equal((30s + 30s).to_string(), "1min", reason="the largest exact unit")
-        assert_equal((-(1500ms)).to_string(), "-1500ms", reason="negative milliseconds")
-        assert_equal(Duration::milliseconds(-9_223_372_036_854_775_807 - 1).to_string(), "-9223372036854775808ms", reason="the most negative duration")
+        assert_equal((30s + 30s).to_string(), "1min0s", reason="every component below the first")
+        assert_equal((-(1500ms)).to_string(), "-1.5s", reason="a negative fraction of a second")
+        assert_equal(Duration::milliseconds(-9_223_372_036_854_775_807 - 1).to_string(), "-2562047788015h12min55.808s", reason="the most negative duration")
 
     it("Termination reports exit codes"):
         let failed: Result[void, string] = .Err("no")

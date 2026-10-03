@@ -1,6 +1,7 @@
 # std.path: `Path`, a newtype over the text of a file system path
 # (spec/std/path.md). The prototype's std loader does not list this module
 # yet (src/checker/standard-sources.ts).
+use std.format.DebugWriter
 
 # Holds its text as written, without checks or normalization
 # (r-std-path.text).
@@ -13,3 +14,13 @@ impl Eq for Path:
 impl Display for Path:
     fn to_string(self) -> string:
         string(self)
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.mapping): the prototype runs the
+# derivation pass before it joins std (src/checker/program.ts), so a
+# `@derive` on a std declaration has no effect.
+
+impl Debug for Path:
+    fn debug(self, out: mut DebugWriter) -> void:
+        string(self).debug(out)

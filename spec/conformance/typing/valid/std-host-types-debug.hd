@@ -1,0 +1,17 @@
+# test: Debug for the public types of std.fs, std.path, and std.host
+# Spec std/format Debug For Standard Types: std-format.debug.std-types and std-format.debug.std-types.calls (STD-DEBUG; task #223).
+use std.fs.{Entry, EntryKind, FsError, MemoryFs}
+use std.host.{MapArgs, MapEnv}
+use std.path.Path
+
+fn shown[T < Debug](value: T) -> string:
+    debug(value)
+
+fn fs_texts(error: FsError, entry: Entry, kind: EntryKind, files: MemoryFs) -> List[string]:
+    [shown(error), shown(entry), shown(kind), shown(files)]
+
+fn path_text() -> string:
+    shown(Path("notes.txt"))
+
+fn host_texts(args: MapArgs, env: MapEnv) -> List[string]:
+    [shown(args), shown(env)]

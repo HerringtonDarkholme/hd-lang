@@ -1360,7 +1360,7 @@ gives the rule.
 2. r[types.trait.safe.one-copy] Dynamic safety is defined by the one-copy rule, [`trait.dyn.safe.one-copy`](09-traits.md#r-trait.dyn.safe.one-copy); the rules below restate its consequences.
 3. r[types.trait.safe.members-bound] A dynamically safe trait and every supertrait must have no associated functions, and `Self` may appear only as the receiver type.
 4. r[types.trait.safe.assoc-bound] The trait value type must bind each associated type of the trait and its supertraits, as in `Supplier[Item = i32]`.
-5. r[types.trait.safe.method-type-param] A method-level type parameter is permitted only when it is bounded by `AnyRef`; further bounds such as `T < AnyRef & Display` are allowed.
+5. r[types.trait.safe.method-type-param-implied] A method-level type parameter is permitted only when its bounds imply `AnyRef`, directly as in `T < AnyRef & Display`, or through a supertrait as in `T < Error`.
 6. r[types.trait.safe.one-body] Every argument for such a parameter is a reference, so one method body serves every instantiation, and the further bounds are supplied with each call.
 7. r[types.trait.safe.convert-value] A caller converts a primitive or tuple value explicitly before passing it.
 8. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.

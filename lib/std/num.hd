@@ -2,6 +2,7 @@
 # Overflow is checked by default; the arithmetic methods make the other
 # behaviors explicit. They are declared for every integer width.
 use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
+use std.format.DebugWriter
 
 # The numeric traits (spec/lang/09-traits.md#numeric-traits). They are sealed:
 # only these implementations exist, one per primitive number type
@@ -325,3 +326,16 @@ fn digit_value(scalar: string) -> i32?:
         "8" => .Some(8)
         "9" => .Some(9)
         _ => .None
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.mapping): the prototype runs the
+# derivation pass before it joins std (src/checker/program.ts), so a
+# `@derive` on a std declaration has no effect.
+
+impl Debug for ParseNumberError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .Empty => out.write("Empty")
+            .InvalidDigit(position) => out.debug_struct("InvalidDigit").field("position", position).finish()
+            .OutOfRange => out.write("OutOfRange")

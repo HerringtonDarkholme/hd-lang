@@ -1,0 +1,29 @@
+# test: public std data types, enums, and newtypes whose members have Debug implement Debug
+# Spec std/format Debug For Standard Types: std-format.debug.std-types and std-format.debug.std-types.generic (STD-DEBUG; task #223).
+use std.cmp.Reverse
+use std.error.ErrorReport
+use std.num.ParseNumberError
+use std.process.{ExitCode, ProcessOutput}
+use std.random.SeededRandom
+use std.resource.ResourceError
+use std.testing.RunOutput
+use std.text.{EscapeError, StringBuilder, Utf8Error}
+use std.time.{Duration, Instant, ManualClock, Timestamp, s}
+
+fn shown[T < Debug](value: T) -> string:
+    debug(value)
+
+fn timeout_text(timeout: Duration) -> string:
+    shown(timeout)
+
+fn time_texts(clock: ManualClock) -> List[string]:
+    [shown(clock), shown(clock.now()), shown(clock.monotonic()), shown(Timestamp::from_unix_millis(0)), shown(Instant::from_millis(0))]
+
+fn error_texts(report: ErrorReport, parse: ParseNumberError, escape: EscapeError, utf8: Utf8Error) -> List[string]:
+    [shown(report), shown(parse), shown(escape), shown(utf8)]
+
+fn value_texts(order: Ordering, reverse: Reverse[i32], builder: StringBuilder, random: SeededRandom) -> List[string]:
+    [shown(order), shown(reverse), shown(builder), shown(random)]
+
+fn process_texts(code: ExitCode, output: ProcessOutput, run: RunOutput, failure: ResourceError[ParseNumberError]) -> List[string]:
+    [shown(code), shown(output), shown(run), shown(failure)]
