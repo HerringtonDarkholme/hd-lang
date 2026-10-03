@@ -2,6 +2,7 @@ import type { SourceSpan } from "../diagnostics.ts";
 import type { Expression } from "../ast.ts";
 import type { HirData, HirExpression, HirLocal, ValueType } from "../hir.ts";
 import {
+  eraseTypePermissions,
   functionType,
   functionParts,
   mutableInner,
@@ -906,5 +907,5 @@ function isLiteralExponent(expression: Expression): boolean {
 
 /** The type with `mut` removed at every level; permissions never affect identity. */
 function withoutPermissions(type: ValueType): ValueType {
-  return type.replaceAll("mut:", "");
+  return eraseTypePermissions(type);
 }

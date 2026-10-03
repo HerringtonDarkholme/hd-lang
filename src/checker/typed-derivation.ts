@@ -26,7 +26,7 @@ import {
   tupleInstances,
   type TupleInstance,
 } from "./tuple-templates.ts";
-import { readonlyType } from "../types.ts";
+import { optionalType, readonlyType } from "../types.ts";
 import { selfRefScope, type SelfRefScope } from "./self-ref.ts";
 import {
   effectiveFacts,
@@ -602,11 +602,6 @@ function lineTypes(
     }
     return undefined;
   };
-}
-
-/** `T?` for a type's text; a function type is parenthesized, so `?` applies to it, not its result. */
-function optionalType(type: string): string {
-  return /^fn\b|->/.test(type) ? `(${type})?` : `${type}?`;
 }
 
 /** Each member's name and declared type, for a diagnostic that names the member. */

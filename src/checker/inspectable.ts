@@ -105,7 +105,11 @@ export function inspectKey(
   const mutable = mutableInner(type);
   if (mutable !== undefined) {
     const inner = inspectKey(mutable, environment, argument, nested);
-    return nested && inner ? ["mut ", ...inner] : inner;
+    return nested && inner
+      ? optionalInner(mutable) !== undefined
+        ? ["mut (", ...inner, ")"]
+        : ["mut ", ...inner]
+      : inner;
   }
   if (PRIMITIVES.has(type)) return [type];
   if (type === "void") return argument || environment.anyType ? ["void"] : undefined;
@@ -135,7 +139,12 @@ export function inspectKey(
   const optional = optionalInner(type);
   if (optional !== undefined) {
     const inner = inspectKey(optional, environment, true, true);
-    return inner && [...inner, "?"];
+    return (
+      inner &&
+      (mutableInner(optional) !== undefined || functionParts(optional)
+        ? ["(", ...inner, ")?"]
+        : [...inner, "?"])
+    );
   }
   const result = resultParts(type);
   if (result) {

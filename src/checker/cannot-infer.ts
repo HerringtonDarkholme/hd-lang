@@ -4,6 +4,7 @@
 
 import type { SourceSpan } from "../diagnostics.ts";
 import type { ValueType } from "../hir.ts";
+import { typeSourceText } from "../types.ts";
 
 /** A `name := value` binding whose initializer is checked without an annotation. */
 export interface InferredBinding {
@@ -38,9 +39,8 @@ export function unresolvedCallMessage(unresolved: readonly string[], callee: str
 
 /** A type as source writes it: `mut User`, `Result[i32, E]`. */
 function writtenType(type: ValueType): string {
-  return type
+  return typeSourceText(type)
     .replaceAll("generic:", "")
-    .replaceAll("mut:", "mut ")
     .replace(/,(?! )/g, ", ");
 }
 

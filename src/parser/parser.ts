@@ -17,9 +17,11 @@ import type {
   TypeRef,
 } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
+import { optionalTypeSuffix } from "./type-postfix.ts";
 import { lex, type Token } from "../lexer.ts";
 import {
   functionResultText,
+  mutableType,
   nominalGenericParts,
   optionalType,
   PRIMITIVE_TYPES,
@@ -1000,7 +1002,11 @@ class Parser extends LetParser {
     };
   }
 
-  protected parseType(): TypeRef {
+  protected parseType(postfix = true): TypeRef {
+    const finish = (name: string, span: SourceSpan): TypeRef =>
+      optionalTypeSuffix({ name, span }, postfix, () =>
+        this.matchText("?") ? this.peek(-1).span.end : undefined,
+      );
     const rowless = this.rowlessResult;
     this.rowlessResult = false;
     if (this.matchText("_")) return { name: "_", span: this.peek(-1).span };
@@ -1038,15 +1044,10 @@ class Parser extends LetParser {
         tuple = true;
       }
       const close = this.expectText(")");
-      let rendered = tuple
+      const rendered = tuple
         ? `(${elements.map((element) => element.name).join(",")}${elements.length === 1 ? "," : ""})`
         : elements[0]!.name;
-      let end = close.span.end;
-      while (this.matchText("?")) {
-        rendered = optionalType(rendered);
-        end = this.peek(-1).span.end;
-      }
-      return { name: rendered, span: { start, end } };
+      return finish(rendered, { start, end: close.span.end });
     }
     if (this.matchText("mut")) {
       const start = this.peek(-1).span.start;
@@ -1059,7 +1060,9 @@ class Parser extends LetParser {
           this.peek(-1).span,
         );
       this.rowlessResult = rowless;
-      const inner = this.parseType();
+      // Prefix permission applies before postfix optionality. An explicitly
+      // written optional constructor can still receive outer permission.
+      const inner = this.parseType(false);
       if (inner.name.startsWith("mut:")) {
         this.fail(
           "duplicate-mutable-permission",
@@ -1067,12 +1070,12 @@ class Parser extends LetParser {
           inner.span,
         );
       }
-      const written = { name: `mut:${inner.name}`, span: { start, end: inner.span.end } };
+      const written = finish(mutableType(inner.name), { start, end: inner.span.end });
       // `mut` on a primitive is a type error the checker reports
       // (04-type-system.md#r-types.prim.no-mut.error).
-      if (PRIMITIVE_TYPES.has(inner.name.replace(/\?+$/u, ""))) this.mutPrimitives.push(written);
+      if (PRIMITIVE_TYPES.has(inner.name)) this.mutPrimitives.push(written);
       // A tuple type has no `mut` form (04-type-system.md#r-types.tuple.no-mut).
-      if (tupleParts(inner.name.replace(/\?+$/u, "")) !== undefined) this.mutTuples.push(written);
+      if (tupleParts(inner.name) !== undefined) this.mutTuples.push(written);
       return written;
     }
     if (this.matchText("$")) {
@@ -1159,17 +1162,14 @@ class Parser extends LetParser {
       rendered = `${rendered}::${member.text}`;
       end = member.span.end;
     }
-    while (this.matchText("?")) {
-      rendered += "?";
-      end = this.peek(-1).span.end;
-    }
+    const written = finish(rendered, { start: name.span.start, end });
     if (this.atText("("))
       this.fail(
         "unsupported-type-form",
         "function and tuple types are introduced with closure support",
         this.current().span,
       );
-    return { name: rendered, span: { start: name.span.start, end } };
+    return written;
   }
 
   protected parseSuite(closureBody = false): readonly Statement[] {

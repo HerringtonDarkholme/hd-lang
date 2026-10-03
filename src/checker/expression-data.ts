@@ -8,6 +8,7 @@ import {
   nominalGenericParts,
   nominalGenericType,
   optionalInner,
+  optionalType,
   readonlyType,
   tupleLayout,
   tupleParts,
@@ -37,7 +38,7 @@ function typeNameFromExpression(expression: Expression): string | undefined {
   if (expression.kind === "name" && !expression.typeArguments) return expression.name;
   if (expression.kind === "propagate") {
     const inner = typeNameFromExpression(expression.operand);
-    return inner === undefined ? undefined : `${inner}?`;
+    return inner === undefined ? undefined : optionalType(inner);
   }
   if (expression.kind === "index") {
     const owner = typeNameFromExpression(expression.receiver);

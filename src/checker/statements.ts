@@ -540,12 +540,12 @@ export abstract class StatementChecker extends CheckerContext {
     });
   }
 
-  /** `let mut` needs an annotation whose root is `mut` (04-type-system.md#r-types.bind.let-mut-annotation). */
+  /** `let mut` needs mutable access, including an optional's declared payload. */
   private requireMutableAnnotation(
     annotation: ValueType,
     site: { readonly span: SourceSpan },
   ): void {
-    if (mutableInner(annotation) !== undefined) return;
+    if (this.mutableBindingAccess(annotation)) return;
     this.rejectLetMutPrimitive(annotation, site.span);
     this.fail(
       "let-mut-readonly-type",
@@ -556,13 +556,20 @@ export abstract class StatementChecker extends CheckerContext {
 
   /** `let mut` never upgrades a readonly value (04-type-system.md#r-types.bind.let-mut-upgrade). */
   private requireMutableValue(type: ValueType, span: SourceSpan): void {
-    if (mutableInner(type) !== undefined || type === "never") return;
+    if (this.mutableBindingAccess(type) || type === "never") return;
     this.rejectLetMutPrimitive(type, span);
     this.fail(
       "mutable-upgrade",
       `'let mut' needs a value with mutable access, but '${type}' is readonly and cannot be upgraded; copy it into a fresh value instead`,
       span,
     );
+  }
+
+  /** Optional wrappers retain access to their declared mutable payload. */
+  private mutableBindingAccess(type: ValueType): boolean {
+    if (mutableInner(type) !== undefined) return true;
+    const payload = optionalInner(type);
+    return payload !== undefined && mutableInner(payload) !== undefined;
   }
 
   /**

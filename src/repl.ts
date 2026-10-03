@@ -3,6 +3,7 @@ import type { Diagnostic } from "./diagnostics.ts";
 import type { HirData, HirEnum, HirProgram } from "./hir.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import { classifyInput } from "./repl-input.ts";
+import { optionalInner, readonlyType, typeSourceText } from "./types.ts";
 
 export {
   backspaceWidth,
@@ -384,7 +385,7 @@ function findValueBinding(node: unknown): BindingNode | undefined {
 }
 
 function displayType(type: string): string {
-  return type.replaceAll("mut:", "mut ").replace(/,(?! )/g, ", ");
+  return typeSourceText(type).replace(/,(?! )/g, ", ");
 }
 
 interface Renderers {
@@ -397,14 +398,19 @@ function renderers(type: string, hir: HirProgram): Renderers {
   const names = new Map<string, string>();
   const declarations: string[] = [];
   const nameFor = (valueType: string): string => {
-    const key = valueType.replaceAll("mut:", "");
+    // Only weaken the renderer argument's outer view. Erasing nested
+    // permissions would convert invariant Option/Result generic arguments.
+    const key = readonlyType(valueType);
     const existing = names.get(key);
     if (existing) return existing;
     const name = `${SHOW}_${names.size}`;
     names.set(key, name);
     const body = rendererBody(key, hir, nameFor);
     declarations.push(
-      [`fn ${name}(value: ${key}) -> string:`, ...body.map((line) => `    ${line}`)].join("\n"),
+      [
+        `fn ${name}(value: ${displayType(key)}) -> string:`,
+        ...body.map((line) => `    ${line}`),
+      ].join("\n"),
     );
     return name;
   };
@@ -416,8 +422,9 @@ function rendererBody(type: string, hir: HirProgram, nameFor: (type: string) => 
   if (DISPLAY_PRIMITIVES.has(type)) return ['"$value"'];
   if (type === "string") return ['"\\"" + value + "\\""'];
   if (type === "char") return ["\"'$value'\""];
-  if (type.endsWith("?")) {
-    const inner = nameFor(type.slice(0, -1));
+  const optional = optionalInner(type);
+  if (optional !== undefined) {
+    const inner = nameFor(optional);
     return [
       "match value:",
       `    .Some(present) => ".Some(" + ${inner}(present) + ")"`,

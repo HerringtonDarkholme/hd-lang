@@ -51,11 +51,31 @@ Candidate edge cases for later conformance fixtures:
 | Two unrelated traits offer a method with the same name but different parameter types | Argument fitting does not resolve the ambiguity |
 | Two associated instantiations accept the arguments, but only one result fits the expected type | Select the result-compatible instantiation |
 
+### Independent Repair: Optional Constructor Boundaries
+
+Optional construction now preserves the permission of its payload independently of the optional's outer view.
+On the pre-repair `main`, all three spellings below parsed to the same internal type, `mut:User?`.
+The owner clarified that `mut User?` contains a mutable `User`, just like `Option[mut User]`.
+Explicit `mut Option[User]` or `mut (User?)` applies permission to the outer optional instead.
+Nested constructors, generic substitution, generated builders, runtime type identity, and source rendering must preserve that distinction.
+
+Source generation uses the shared optional constructor instead of concatenating a question mark onto a mutable type spelling.
+The REPL renders canonical constructors back into unambiguous source syntax.
+This is a representation repair; it does not close the separate variance, conversion, or least-common-type findings.
+
+Edge cases for later fixtures include nested optional payload permissions, optional function versus optional result types, mutable generic aliases, and mutable fields in derived builders.
+Inference advice now renders these boundaries without suggesting an annotation with different permission scope.
+Whether `let mut` also admits an outer readonly optional whose payload is another readonly optional of a mutable value remains an audit question.
+This repair recognizes the specified direct mutable payload, without granting arbitrary nested access.
+
+Regression tests: [types.test.ts](../../src/types.test.ts).
+
 ### Repair Status Table
+
 
 | Finding | Status | Repair and limits |
 | --- | --- | --- |
-| A02 | Partially fixed | Public readonly inherent instance signatures now participate in nominal variance verification. Type encoding, coercion and least-common-type findings remain open. Private-surface interpretation remains deferred. |
+| A02 | Partially fixed | Public readonly inherent signatures participate in variance verification, and optional constructor boundaries preserve payload permission. Shared coercion, least-common-type, and private-surface implementation findings remain open. |
 | A03 | Reported control-flow defect fixed | All child-driving bodies use the suspension CFG. The linear backend and comprehension bypass are removed. This does not close A06's entry/waker gap or prove all lowering correct. |
 | A04 | Reported placeholder capture fixed | Generated expression and type placeholders cannot capture legal user identifiers. Broader generated helper-name hygiene remains unreviewed. |
 | A05 | Reported candidate-checking defects fixed | Arbitrary argument expressions and associated candidates are checked under complete reachable-state rollback, then the winner is committed once. Broader resolution conformance remains open. |

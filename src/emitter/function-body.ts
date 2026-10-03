@@ -346,7 +346,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
             const trait = this.traitsByName.get(traitTypeBase(expression.left.type))!;
             return `(ref.eq (ref.cast (ref null eq) (struct.get $trait${trait.index} $trait${trait.index}value ${left})) (ref.cast (ref null eq) (struct.get $trait${trait.index} $trait${trait.index}value ${right})))`;
           }
-          if (optionalInner(expression.left.type.replaceAll("mut:", "")) !== undefined)
+          if (optionalInner(expression.left.type) !== undefined)
             return this.emitOptionalIdentity(expression, left, right);
           return `(ref.eq (ref.cast (ref null eq) ${left}) (ref.cast (ref null eq) ${right}))`;
         }

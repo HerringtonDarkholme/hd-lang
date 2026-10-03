@@ -205,13 +205,22 @@ function isFunctionTypeText(type: ValueType): boolean {
 }
 
 /**
- * The payload of an optional type. A function type's trailing `?` belongs to
- * its result, so an optional function type is rendered `(fn(...)->R)?`.
+ * The declared payload of an optional's readonly outer view. Outer mutable
+ * permission does not change its generic argument: `mut:T?` contains `T`,
+ * whereas `(mut:T)?` contains `mut:T`. Recursive type rewrites must inspect
+ * mutableInner first to preserve that outer permission.
+ * A function type's trailing `?` belongs to its result, so an optional
+ * function type is rendered `(fn(...)->R)?`.
  */
 export function optionalInner(type: ValueType): ValueType | undefined {
+  type = readonlyType(type);
   if (!type.endsWith("?") || isFunctionTypeText(type)) return undefined;
   const inner = type.slice(0, -1);
-  if (inner.startsWith("(") && inner.endsWith(")") && isFunctionTypeText(inner.slice(1, -1)))
+  if (
+    inner.startsWith("(") &&
+    inner.endsWith(")") &&
+    (mutableInner(inner.slice(1, -1)) !== undefined || isFunctionTypeText(inner.slice(1, -1)))
+  )
     return inner.slice(1, -1);
   return inner;
 }
@@ -225,9 +234,84 @@ export function functionResultText(result: ValueType): ValueType {
   return isFunctionTypeText(result) ? `(${result})` : result;
 }
 
-/** `T?`, parenthesizing a function type so its `?` is not read as the result's. */
+/** `T?`, grouping prefixes whose scope would otherwise absorb the `?`. */
 export function optionalType(inner: ValueType): ValueType {
-  return isFunctionTypeText(inner) ? `(${inner})?` : `${inner}?`;
+  return mutableInner(inner) !== undefined || isFunctionTypeText(inner)
+    ? `(${inner})?`
+    : `${inner}?`;
+}
+
+/** Erase access permissions structurally, preserving constructor boundaries. */
+export function eraseTypePermissions(type: ValueType): ValueType {
+  const mutable = mutableInner(type);
+  if (mutable !== undefined) return eraseTypePermissions(mutable);
+  const binding = bindingParts(type);
+  if (binding) return bindingType(binding, eraseTypePermissions(binding.type));
+  const inputs = inputsInner(type);
+  if (inputs !== undefined) return `*${eraseTypePermissions(inputs)}`;
+  const rest = restInner(type);
+  if (rest !== undefined) return `${eraseTypePermissions(rest)}...`;
+  const tuple = tupleParts(type);
+  if (tuple !== undefined) return tupleType(tuple.map(eraseTypePermissions));
+  const optional = optionalInner(type);
+  if (optional !== undefined) return optionalType(eraseTypePermissions(optional));
+  const result = resultParts(type);
+  if (result)
+    return resultType(eraseTypePermissions(result.ok), eraseTypePermissions(result.error));
+  const callable = functionParts(type);
+  if (callable)
+    return functionType(
+      callable.parameters.map(eraseTypePermissions),
+      eraseTypePermissions(callable.result),
+      callable.requirements.map(eraseTypePermissions),
+      callable.variadic,
+      callable.suspending,
+    );
+  const context = contextKeys(type);
+  if (context) return contextType(context.map(eraseTypePermissions));
+  const row = rowArgumentKeys(type);
+  if (row) return rowArgumentType(row.map(eraseTypePermissions));
+  const nominal = nominalGenericParts(type);
+  if (nominal) return nominalGenericType(nominal.name, nominal.arguments.map(eraseTypePermissions));
+  return type;
+}
+
+/** Render canonical permission/constructor boundaries as hd type syntax. */
+export function typeSourceText(type: ValueType): string {
+  const mutable = mutableInner(type);
+  if (mutable !== undefined) {
+    const inner = typeSourceText(mutable);
+    return `mut ${optionalInner(mutable) !== undefined ? `(${inner})` : inner}`;
+  }
+  const binding = bindingParts(type);
+  if (binding) return bindingType(binding, typeSourceText(binding.type));
+  const inputs = inputsInner(type);
+  if (inputs !== undefined) return `*${typeSourceText(inputs)}`;
+  const rest = restInner(type);
+  if (rest !== undefined) return `${typeSourceText(rest)}...`;
+  const tuple = tupleParts(type);
+  if (tuple !== undefined) return tupleType(tuple.map(typeSourceText));
+  const optional = optionalInner(type);
+  if (optional !== undefined) {
+    const inner = typeSourceText(optional);
+    return mutableInner(optional) !== undefined || functionParts(optional)
+      ? `(${inner})?`
+      : `${inner}?`;
+  }
+  const result = resultParts(type);
+  if (result) return resultType(typeSourceText(result.ok), typeSourceText(result.error));
+  const callable = functionParts(type);
+  if (callable)
+    return functionType(
+      callable.parameters.map(typeSourceText),
+      typeSourceText(callable.result),
+      callable.requirements.map(typeSourceText),
+      callable.variadic,
+      callable.suspending,
+    );
+  const nominal = nominalGenericParts(type);
+  if (nominal) return nominalGenericType(nominal.name, nominal.arguments.map(typeSourceText));
+  return type;
 }
 
 export function resultParts(type: ValueType): ResultParts | undefined {

@@ -464,6 +464,8 @@ export function requirementKeysMayCollide(left: string, right: string): boolean 
     if (binding) return { head: `binding:${binding.name}`, values: [binding.type] };
     const rest = restInner(type);
     if (rest !== undefined) return { head: "rest", values: [rest] };
+    const mutable = mutableInner(type);
+    if (mutable !== undefined) return { head: "mutable", values: [mutable] };
     const tuple = tupleParts(type);
     if (tuple !== undefined) return { head: `tuple:${tuple.length}`, values: tuple };
     const optional = optionalInner(type);
