@@ -1,0 +1,15 @@
+# test: an integer group with no signed literal and no deciding use falls back to usize
+# Spec 04 Open Literal Width: types.literal.open.int-fallback (SIGN-FALLBACK, batch 83).
+
+fn counter():
+    let i = 0
+    let n = i + 1
+    n
+
+fn sizes():
+    let xs = [1, 2]
+    xs
+
+fn run() -> usize:
+    let xs: List[usize] = sizes()
+    counter() + xs[0]

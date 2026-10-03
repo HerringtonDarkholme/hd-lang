@@ -418,6 +418,11 @@ echo 'println(1 + 2)' | hd    # prints 3
 8. r[cli.repl.outside] Outside any package, the session may use only `std`.
 9. r[cli.repl.input-body] Each input of a session is its own body for [Open Literal Width](../lang/04-type-system.md#open-literal-width): its open variables fall back at the end of that input. A later input never changes the type of an earlier input's binding.
 
+> **Note.** An input such as `x := 21` has no signed literal, so `x`
+> falls back to `usize`, and a session that shows types shows `x * 2` as a
+> `usize`. `y := -21` is an `i32`, by
+> [`types.literal.open.int-fallback`](../lang/04-type-system.md#r-types.literal.open.int-fallback).
+
 > **Why.** An agent that pipes code into `hd` gets a run, not a prompt
 > that waits for a terminal.
 

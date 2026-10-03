@@ -1,5 +1,5 @@
 # test: range expressions have the std.ops range types, with bounds typed as the operands of a binary numeric operator
-# Spec 05 Range Expressions: expr.range.form.half-open, expr.range.form.from, expr.range.form.to, expr.range.form.through, expr.range.form.to-through, expr.range.form.full, expr.range.bound.operands, expr.range.expected, expr.range.open (batches 48, 49).
+# Spec 05 Range Expressions: expr.range.form.half-open, expr.range.form.from, expr.range.form.to, expr.range.form.through, expr.range.form.to-through, expr.range.form.full, expr.range.bound.operands, expr.range.expected, expr.range.open-var (batches 48, 49).
 use std.ops.{Range, RangeFrom, RangeTo, RangeFull}
 
 fn halves(n: i32) -> (Range[i32], RangeFrom[i32]):

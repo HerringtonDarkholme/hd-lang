@@ -17,8 +17,9 @@ tests:
     it("TypeId::of agrees with runtime_type"):
         user := User { name: "Ada" }
         assert(of_value(user) == TypeId::of::[User](), reason="a User records User")
-        assert(of_value(7) == TypeId::of::[i32](), reason="an i32 records i32")
-        assert(of_value(7) != TypeId::of::[string](), reason="i32 is not string")
+        let seven: i32 = 7
+        assert(of_value(seven) == TypeId::of::[i32](), reason="an i32 records i32")
+        assert(of_value(seven) != TypeId::of::[string](), reason="i32 is not string")
 
     it("only the outer mut is ignored"):
         assert(TypeId::of::[mut User]() == TypeId::of::[User](), reason="the outer mut is ignored")

@@ -1508,6 +1508,38 @@ fn neither() -> bool:
 10. r[expr.ord.unordered] An unordered comparison makes all four relational operators false.
 11. r[expr.ord.std.intrinsic] The `PartialOrd` implementations of the number types and `char`, and the `Ord` implementations of the integer types and `char`, are [intrinsic methods](09-traits.md#intrinsic-methods). Those for `string` are not.
 
+#### Unsigned Comparisons With Zero
+
+A comparison of an unsigned value with zero in one of four forms has a
+result fixed by the type, so it is rejected:
+
+| Rule | Form | Result for an unsigned `t` |
+| --- | --- | --- |
+| r[expr.ord.unsigned-zero.at-least] At least zero | `t >= 0` | always true |
+| r[expr.ord.unsigned-zero.at-most] Zero at most | `0 <= t` | always true |
+| r[expr.ord.unsigned-zero.below] Below zero | `t < 0` | always false |
+| r[expr.ord.unsigned-zero.above] Zero above | `0 > t` | always false |
+
+1. r[expr.ord.unsigned-zero] A comparison in one of the forms in the table, where `t` has an unsigned integer type, is an error. Error: `unsigned-comparison-always`.
+2. r[expr.ord.unsigned-zero.literal] The `0` of a form is any unsuffixed integer literal whose value is zero, in any radix, such as `0` or `0x0`.
+3. r[expr.ord.unsigned-zero.type] The type of `t` is the one it has at the end of the body: a declared unsigned type, a width that a use fixes, or the [`usize` fallback](04-type-system.md#r-types.literal.open.int-fallback).
+4. r[expr.ord.unsigned-zero.end] The check runs at the end of the body, after the fallback.
+5. r[expr.ord.unsigned-zero.message] The diagnostic must name the operand and say whether the comparison is always true or always false, as in "`t` is unsigned, so `t >= 0` is always true".
+
+```text
+fn countdown() -> void:
+    let t = 10
+    while t >= 0:  # error: unsigned-comparison-always
+        t = t - 1
+
+fn below(value: u32) -> bool:
+    value < 0  # error: unsigned-comparison-always
+```
+
+> **Why.** With the `usize` fallback, `while t >= 0` never ends normally:
+> `t - 1` panics at zero instead. A countdown that means to reach `-1`
+> writes `let t = +10` or `let t: i32 = 10`.
+
 ### Identity
 
 `is` compares identity without invoking user code.
@@ -1647,8 +1679,8 @@ pub trait Neg:
 16. r[expr.op.generic] When an operand's type is a type parameter, the candidates come from its bounds and their supertraits.
 17. r[expr.op.out] The operator's result type is the chosen implementation's `Out`. Implementations are unique per trait instantiation and target, so `a + b` has one type.
 18. r[expr.op.order] The left operand is evaluated, then the right one, and then the method is called.
-19. r[expr.op.left-open] When a left operand's type is an [open variable](04-type-system.md#r-types.literal.open.var) and the right operand is not primitive, the implementation is chosen at the end of the body. The choice uses the variable's fixed type, or its fallback, `i32` or `f64`, and never fixes the variable.
-20. r[expr.op.left-open.example] So `3 * price` needs an `impl Mul[Money] for i32`, and with only `Mul[i64] for Money` it is an error; write `price * 3`. Error: `type-mismatch`.
+19. r[expr.op.left-open-var] When a left operand's type is an [open variable](04-type-system.md#r-types.literal.open.var) and the right operand is not primitive, the implementation is chosen at the end of the body. The choice uses the variable's fixed type, or its [fallback type](04-type-system.md#r-types.literal.open.int-fallback), and never fixes the variable.
+20. r[expr.op.left-open-var.example] So `3 * price` needs an `impl Mul[Money] for usize`, and with only `Mul[i64] for Money` it is an error; write `price * 3`. Error: `type-mismatch`.
 21. r[expr.op.no-impl] An operator for which no implementation fits is an error, and its message should name the missing trait. Error: `type-mismatch`.
 22. r[expr.op.newtype] A newtype has only the operators its author implements. It inherits none from its base type, and no derivation supplies an operator trait.
 23. r[expr.op.fixed] Operator traits never change precedence or associativity, and they add no operator symbols.
@@ -1925,7 +1957,7 @@ pub data RangeFull: pass
 9. r[expr.range.bound.signedness] A signed and an unsigned bound are an error, as for a binary numeric operator. Error: `mixed-signedness`.
 10. r[expr.range.element-type] The range's element type `T` is the bounds' common type, or the one bound's type for `a..`, `..b`, and `..=b`. `RangeFull` has no bound and no element type.
 11. r[expr.range.expected] An expected range type gives each bound its element type as the bound's expected type, so `let r: Range[i64] = 0..10` has `i64` bounds.
-12. r[expr.range.open] With no expected type, literal bounds share one [open integer variable](04-type-system.md#r-types.literal.open.var), so `0..3` is a `Range` of that variable. It is a `Range[i32]` when no use fixes the variable.
+12. r[expr.range.open-var] With no expected type, literal bounds share one [open integer variable](04-type-system.md#r-types.literal.open.var), so `0..3` is a `Range` of that variable. When no use fixes it, it takes its [fallback type](04-type-system.md#r-types.literal.open.int-fallback): `0..3` is a `Range[usize]`, and `-3..3` is a `Range[i32]`.
 
 ```text
 fn invalid(x: f64, count: u32, limit: i32, large: i64) -> void:

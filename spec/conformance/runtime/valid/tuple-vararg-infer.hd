@@ -8,5 +8,5 @@ fn pack[Args < Tuple](args...: Args) -> Args: args
 tests:
     it("the arguments give Args"):
         t := pack(1, "a")
-        assert_equal(t._0, 1, reason="the first element is an i32")
+        assert_equal(t._0, 1, reason="the first element is a usize, the fallback type")
         assert_equal(t._1, "a", reason="the second element is a string")

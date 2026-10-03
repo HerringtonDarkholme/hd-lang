@@ -20,7 +20,8 @@ fn read_box(value: Inspectable) -> i32:
 
 tests:
     it("an erased Box[i32] is recognized"):
-        boxed := erase(1)
+        let one: i32 = 1
+        boxed := erase(one)
         assert(is_int_box(boxed), reason="the recorded type is Box[i32]")
         assert_equal(read_box(boxed), 1, reason="downcast recovers the Box[i32]")
 

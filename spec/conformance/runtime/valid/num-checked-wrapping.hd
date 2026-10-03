@@ -16,9 +16,10 @@ tests:
         let largest: i64 = 9223372036854775807
         assert_equal(total([1, 2, 3]), .Some(6), reason="the sum fits")
         assert_equal(total([largest, 1]), .None, reason="the sum overflows")
-        assert_equal(2147483647.checked_add(1), .None, reason="i32 add")
+        let top: i32 = 2147483647
+        assert_equal(top.checked_add(1), .None, reason="i32 add")
         assert_equal((-2147483647 - 1).checked_sub(1), .None, reason="i32 sub")
-        assert_equal(65536.checked_mul(65536), .None, reason="i32 mul")
+        assert_equal(65536.checked_mul(65536), .None, reason="usize mul, the fallback type")
         assert_equal((-3).checked_mul(4), .Some(-12), reason="a product that fits")
         assert_equal(7.checked_div(2), .Some(3), reason="division truncates")
         assert_equal((-7).checked_div(2), .Some(-3), reason="toward zero")

@@ -1,0 +1,19 @@
+# test: an unsigned literal that falls back to usize fits neither Combine[i32] nor Combine[i64]
+# Spec 09 Instantiations Of One Generic Trait: trait.resolve.open-fallback-type.no-fit (SIGN-FALLBACK, batch 83).
+
+trait Combine[T]:
+    fn combine(self, other: T) -> string
+
+data Money:
+    cents: i32
+
+impl Combine[i32] for Money:
+    fn combine(self, other: i32) -> string:
+        "i32"
+
+impl Combine[i64] for Money:
+    fn combine(self, other: i64) -> string:
+        "i64"
+
+fn run(price: Money) -> string:
+    price.combine(5)  # diagnostic: type-mismatch

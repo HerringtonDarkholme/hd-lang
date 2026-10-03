@@ -1,9 +1,9 @@
-# test: an open variable with no deciding use falls back to i32
+# test: an open variable with no deciding use and no signed literal falls back to usize
 
 fn five():
     let n = 2 + 3
     let doubled = n * 2
     doubled
 
-fn run() -> i32:
+fn run() -> usize:
     five()

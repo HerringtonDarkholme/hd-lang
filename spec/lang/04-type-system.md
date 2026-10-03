@@ -179,16 +179,17 @@ See also: [String Indexing](05-expressions.md#string-indexing),
 ## Literal Types
 
 An integer literal with no expected type has an open integer type. It is
-`i32` unless a use fixes another width, as
-[Open Literal Width](#open-literal-width) states:
+`usize` unless a use fixes another width or a literal of its group has a
+sign, as [Open Literal Width](#open-literal-width) states:
 
 ```text
-x := 1  # i32
+x := 1   # usize
+y := -1  # i32
 ```
 
 ### Integer Literals
 
-1. r[types.literal.int-open] An integer literal in any supported radix with no expected type has an [open integer variable](#r-types.literal.open.var) as its type. It is `i32` in every value range when no use fixes the variable.
+1. r[types.literal.int-open-var] An integer literal in any supported radix with no expected type has an [open integer variable](#r-types.literal.open.var) as its type. When no use fixes the variable, it takes its [fallback type](#r-types.literal.open.int-fallback) in every value range.
 2. r[types.literal.int-no-widen] An integer literal does not automatically choose a wider type.
 3. r[types.literal.int-range] When an integer literal has an expected integer type, the compiler checks the literal against that type's range. A literal outside it is an error. Error: `integer-literal-range`.
 
@@ -236,8 +237,12 @@ fn total(items: List[i32]) -> i32:
 5. r[types.literal.open.unify] Within one body, each use of an open variable is a constraint, and the constraints are solved together by unification. The solution does not depend on the order of the uses.
 6. r[types.literal.open.kind] An integer variable unifies only with an integer type, and a float variable only with a floating-point type. Any other type is an error. Error: `type-mismatch`.
 7. r[types.literal.open.first-decider] A use that unifies an open variable with a specific numeric type is a **deciding use**. The first one in source order is the variable's first deciding use, which diagnostics name as the source of its type.
-8. r[types.literal.open.end-fallback] At the end of the body, each open variable that no use fixed takes its **fallback type**: `i32` for an integer variable, and `f64` for a float variable.
-9. r[types.literal.open.display] A diagnostic or a type display shows an open variable that nothing has fixed as `{integer}` or `{float}`.
+8. r[types.literal.open.signed] A **signed literal** is an integer literal written directly after unary `-` or `+`, as in `-1` or `+5`.
+9. r[types.literal.open.group] The integer literals whose types unification joins into one integer variable form its **literal group**. A use that joins two variables merges their groups.
+10. r[types.literal.open.int-fallback] At the end of the body, an integer variable that no use fixed takes its **fallback type**: `i32` when its literal group holds a signed literal, and `usize` otherwise.
+11. r[types.literal.open.float-fallback] At the end of the body, a float variable that no use fixed takes the fallback type `f64`.
+12. r[types.literal.open.fallback-separate] Variables that no use joins fall back separately, so a signed literal decides only its own group.
+13. r[types.literal.open.display] A diagnostic or a type display shows an open variable that nothing has fixed as `{integer}` or `{float}`.
 
 ```text
 fn half(value: f64) -> f64:
@@ -250,9 +255,37 @@ fn run() -> f64:
     half(n)                 # error: type-mismatch
 ```
 
+```text
+fn counter():
+    let i = 0
+    let n = i + 1    # no sign: i and n fall back to usize
+    n
+
+fn signed():
+    let a = 5
+    let b = -1
+    a + b            # one group with a signed literal: a and b are i32
+
+fn apart():
+    let a = 5
+    let d = +5
+    (a, d)           # two groups: a is a usize, and d is an i32
+```
+
 > **Note.** The comments in this section write an open variable as
 > `{integer}` or `{float}`, as diagnostics display it. Neither is hd
 > syntax.
+
+> **Note.** With no annotation, `let balance = 100` followed by
+> `balance = balance - 150` is a `usize` subtraction below zero, which
+> panics with `integer-overflow`. Write `+100` or
+> `let balance: i32 = 100` for a value that may go negative. The panic
+> report says that the type came from the fallback, by
+> [`flow.panic.report.fallback`](06-control-flow.md#r-flow.panic.report.fallback).
+
+> **Why.** An unannotated integer usually counts or indexes, so `usize`
+> lets `let i = 0` meet `len()` with no annotation. A written sign is the
+> program's own statement that the value may be negative.
 
 > **Note.** `let mut i = 0` is still an error, by
 > [`types.bind.let-mut-primitive`](#r-types.bind.let-mut-primitive): a
@@ -396,8 +429,8 @@ fn run(items: List[string]) -> usize:
     top
 
 fn flip() -> bool:
-    let i = 1
-    i.neg() == i                       # valid: i falls back to i32, which has neg
+    let i = +1
+    i.neg() == i                       # valid: the signed literal makes i an i32, which has neg
 
 fn wide() -> u32:
     let i = 1
@@ -455,12 +488,12 @@ fn mixed() -> u32:
 
 ```text
 fn five():
-    let n = 2 + 3     # no deciding use: n is an i32
+    let n = 2 + 3     # no deciding use and no sign: n is a usize
     let doubled = n * 2
     doubled
 
 fn pairs():
-    let xs = [1, 2]   # no deciding use: xs is a List[i32]
+    let xs = [1, 2]   # no deciding use and no sign: xs is a List[usize]
     xs
 
 fn run(items: List[string]) -> bool:
@@ -495,6 +528,9 @@ fn report() -> usize:
 > can sit inside a type argument or a tuple slot. A deciding use binds it,
 > and a conflicting later use is reported at that point, naming the first.
 
+> **Note.** Each union-find root also keeps a signed bit, set by a signed
+> literal and ORed on union, which picks `i32` or `usize` at the fallback.
+
 > **Note.** Instantiation choices, bound checks, method resolutions, and
 > literal range checks that meet an unbound variable are recorded as
 > obligations. At the end of the body, the fallback is applied, the
@@ -503,6 +539,8 @@ fn report() -> usize:
 > work is linear, with no fixed point.
 
 See also: [Binary Numeric Operators](#binary-numeric-operators),
+[Ordering](05-expressions.md#ordering), for comparisons that the fallback
+makes always true,
 [Inference From Several Arguments](#inference-from-several-arguments),
 [Binding Forms](#binding-forms), [Range Expressions](05-expressions.md#range-expressions),
 [For Loops](06-control-flow.md#for-loops),

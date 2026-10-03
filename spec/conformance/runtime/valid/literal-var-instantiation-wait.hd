@@ -15,6 +15,10 @@ impl Combine[i64] for Money:
     fn combine(self, other: i64) -> string:
         "i64"
 
+impl Combine[usize] for Money:
+    fn combine(self, other: usize) -> string:
+        "usize"
+
 tests:
     it("a later use fixes the argument, and the choice follows it"):
         price := Money { cents: 10 }
@@ -26,4 +30,4 @@ tests:
     it("with no deciding use the fallback chooses"):
         price := Money { cents: 10 }
         let n = 5
-        assert_equal(price.combine(n), "i32", reason="n falls back to i32")
+        assert_equal(price.combine(n), "usize", reason="n has no signed literal, so it falls back to usize")

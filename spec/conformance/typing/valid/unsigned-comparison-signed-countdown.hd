@@ -1,0 +1,14 @@
+# test: a signed countdown may compare with zero, and an unsigned value may use > 0 and <= 0
+# Spec 05 Unsigned Comparisons With Zero: expr.ord.unsigned-zero (SAFETY NET 1, batch 83).
+
+fn countdown() -> i32:
+    let t = +10
+    while t >= 0:
+        t = t - 1
+    t
+
+fn positive(value: u32) -> bool:
+    value > 0
+
+fn empty(value: u32) -> bool:
+    value <= 0

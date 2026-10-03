@@ -13,7 +13,8 @@ tests:
         assert_equal(full.saturating_add(1), 4294967295, reason="above the maximum gives the maximum")
 
     it("signed saturates at both ends"):
-        assert_equal(2147483647.saturating_add(5), 2147483647, reason="i32 above")
+        let top: i32 = 2147483647
+        assert_equal(top.saturating_add(5), 2147483647, reason="i32 above")
         assert_equal((-2147483647 - 1).saturating_sub(5), -2147483647 - 1, reason="i32 below")
         assert_equal(2147483647.saturating_sub(-1), 2147483647, reason="subtracting a negative")
         assert_equal(40.saturating_add(2), 42, reason="the exact sum")

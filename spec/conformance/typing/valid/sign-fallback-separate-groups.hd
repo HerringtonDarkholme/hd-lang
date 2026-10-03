@@ -1,0 +1,10 @@
+# test: groups that no use connects fall back separately, so a signed literal decides only its own group
+# Spec 04 Open Literal Width: types.literal.open.fallback-separate (SIGN-FALLBACK, batch 83).
+
+fn apart():
+    let a = 5
+    let d = +5
+    (a, d)
+
+fn run() -> (usize, i32):
+    apart()

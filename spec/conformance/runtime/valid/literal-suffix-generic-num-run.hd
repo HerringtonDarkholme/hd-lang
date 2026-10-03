@@ -15,5 +15,5 @@ fn wide() -> i64:
 tests:
     it("scales the literal"):
         assert_equal(wide(), 5000, reason="N is i64 from the expected type")
-        assert_equal(2k, 2000, reason="N is i32 from the literal")
+        assert_equal(2k, 2000, reason="N is usize, the literal's fallback type")
         assert_equal(1.5k, 1500.0, reason="N is f64 from the literal")

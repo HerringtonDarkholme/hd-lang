@@ -36,7 +36,8 @@ tests:
             .None => assert(false, reason="the downcast must succeed")
 
     it("a scalar is boxed on erasure and unboxed by downcast_val"):
-        let erased: Inspectable = 42
+        let answer: i32 = 42
+        let erased: Inspectable = answer
         assert_equal(number(erased), 42, reason="i32 recovers its value")
         assert_equal(user_name(erased), "not a user", reason="i32 is not a User")
         let text: Inspectable = "42"

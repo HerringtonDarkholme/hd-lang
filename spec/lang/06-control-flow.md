@@ -894,6 +894,13 @@ This section defines runtime panics.
 4. r[flow.panic.no-handler] Core source has no panic handler or unwinding construct.
 5. r[flow.panic.report] The runtime must report at least a stable failure category and source location when one is available.
 6. r[flow.panic.encoding] Its Wasm trap, host error, and diagnostic encoding are ABI details.
+7. r[flow.panic.report.fallback] When an operation that panics with `integer-overflow` has a type from the [`usize` fallback](04-type-system.md#r-types.literal.open.int-fallback), the report must say so. The category stays `integer-overflow`.
+8. r[flow.panic.report.fallback.fix] That report must suggest a signed literal or a type annotation, and should name the binding whose type fell back when the operation reads one.
+
+> **Note.** The report text is not normative. For `let balance = 100`
+> followed by `balance = balance - 150`, one such message is
+> "`balance` fell back to `usize` (no signed literal); write `+100` or
+> `let balance: i32 = 100`".
 
 ### Program Instances
 

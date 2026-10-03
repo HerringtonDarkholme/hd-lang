@@ -1993,7 +1993,7 @@ hd-lang is statically typed. The compiler knows the type of every expression bef
 
 ```text
 name := "Ada"          # inferred string
-count := 3             # inferred i32
+count := 3             # inferred usize: no use fixes it, and it has no sign
 ```
 
 Public boundaries stay explicit. Function parameters, return types, data fields, enum payloads, and trait methods carry type annotations so humans and AI agents can review interfaces without chasing implementation details:
@@ -2081,10 +2081,12 @@ A float-to-integer cast truncates toward zero and then saturates, as Rust
 `as` does: `i8(x)` with `x = 300.0` gives 127, and NaN gives 0. No numeric
 cast panics; a checked conversion is a library function returning `Result`.
 
-A plain literal with no expected type, as in `let i = 0`, takes its width from the uses in its function: in `while i < names.len()`, `i` becomes a `usize`. The width follows the literal through a range, a list, a tuple, or a generic call, so in `for i in 0..10: items[i]` the range is a `Range[usize]`. Neutral uses, such as `i = i + 1` or a generic call like `show(i)`, fix nothing. With no such use in the function, an integer is `i32` and a float is `f64`, and a conflict names the line that fixed the width. An integer literal is never a float: write `1.0` for an `f64`. When there is an expected numeric type, the literal is checked against that type's range:
+A plain literal with no expected type, as in `let i = 0`, takes its width from the uses in its function: in `while i < names.len()`, `i` becomes a `usize`. The width follows the literal through a range, a list, a tuple, or a generic call, so in `for i in 0..10: items[i]` the range is a `Range[usize]`. Neutral uses, such as `i = i + 1` or a generic call like `show(i)`, fix nothing. With no such use in the function, a float is `f64`, and an integer is `usize`, unless a literal it meets is written with a sign, as `-1` or `+5`: then it is `i32`. A conflict names the line that fixed the width. A comparison that an unsigned type makes always true or false, such as `t >= 0`, is an error. An integer literal is never a float: write `1.0` for an `f64`. When there is an expected numeric type, the literal is checked against that type's range:
 
 ```text
-x := 1                 # i32 when no use needs another width
+x := 1                 # usize when no use needs another width
+y := -1                # i32: the literal has a sign
+let balance = +100     # i32, so balance - 150 is -50, not a panic
 let small_ok: i8 = 1   # ok: 1 fits in i8
 let bad: u8 = 300      # invalid: 300 is out of range for u8
 ```

@@ -7,4 +7,5 @@ fn plus[T < Add[T, Out = T]](left: T, right: T) -> T:
 
 tests:
     it("overflows"):
-        _ := plus(2147483647, 1)
+        let largest: i32 = 2147483647
+        _ := plus(largest, 1)

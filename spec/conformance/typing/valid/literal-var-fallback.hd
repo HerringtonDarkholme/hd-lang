@@ -1,4 +1,4 @@
-# test: open variables inside a list and a range that nothing decides fall back to i32
+# test: open variables inside a list and a range that nothing decides and no sign marks fall back to usize
 
 use std.ops.Range
 
@@ -9,7 +9,7 @@ fn pairs():
 fn span():
     0..3
 
-fn run() -> i32:
-    let xs: List[i32] = pairs()
-    let r: Range[i32] = span()
+fn run() -> usize:
+    let xs: List[usize] = pairs()
+    let r: Range[usize] = span()
     xs[0] + r.start

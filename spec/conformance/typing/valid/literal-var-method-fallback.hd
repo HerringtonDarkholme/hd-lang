@@ -1,7 +1,7 @@
-# test: a method only some widths provide waits for the end of the body, where the fallback i32 has it
+# test: a method only some widths provide waits for the end of the body, where the signed group's fallback i32 has it
 
 use std.ops.Neg
 
 fn run() -> bool:
-    let i = 1
+    let i = +1
     i.neg() == i
