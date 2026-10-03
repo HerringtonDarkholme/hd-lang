@@ -334,6 +334,7 @@ export function analyze(source: string, options: CompileOptions = {}): Analysis 
   const program = options.skipTestCode
     ? {
         ...parsed.program,
+        testCode: false,
         tests: [],
         functions: parsed.program.functions.filter((declaration) => !declaration.testOnly),
       }

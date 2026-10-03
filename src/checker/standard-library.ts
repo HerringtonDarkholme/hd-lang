@@ -29,6 +29,21 @@ import { STANDARD_MODULES, standardSource, type StandardModule } from "./standar
 
 /** `std.prelude`, the module of `use` lines that every module implicitly has. */
 const PRELUDE: StandardModule = "prelude";
+/**
+ * `std.prelude.testing`, the `use` lines that only test code has
+ * (spec/lang/10-modules.md#r-module.prelude.test-only).
+ */
+const TEST_PRELUDE: StandardModule = "prelude.testing";
+
+/** The prelude modules a program implicitly uses: the test part only with test code. */
+function preludeModules(program: Program): readonly StandardModule[] {
+  return program.testCode === true ? [PRELUDE, TEST_PRELUDE] : [PRELUDE];
+}
+
+/** The `pub use` names of the program's prelude modules. */
+function preludeExports(program: Program): ParsedModule["exports"] {
+  return preludeModules(program).flatMap((module) => standardModule(module).exports);
+}
 
 interface ParsedModule {
   readonly name: StandardModule;
@@ -503,7 +518,7 @@ function standardLocalNames(program: Program): Map<string, string> {
       if (local !== imported.name) own.add(local);
     }
   }
-  for (const used of standardModule(PRELUDE).exports)
+  for (const used of preludeExports(program))
     if (!own.has(used.name)) localNames.set(`${used.module}.${used.name}`, used.name);
   return localNames;
 }
@@ -561,8 +576,7 @@ export function standardTemplate(
     const imported = declaration.names.find((name) => (name.alias ?? name.name) === trait);
     if (imported && standardModule(module).names.includes(imported.name)) candidates.push(module);
   }
-  for (const used of standardModule(PRELUDE).exports)
-    if (used.name === trait) candidates.push(used.module);
+  for (const used of preludeExports(program)) if (used.name === trait) candidates.push(used.module);
   const nameOf = standardNameOf(program);
   for (const module of candidates) {
     const parsed = standardModule(module);
@@ -676,7 +690,7 @@ function useGraph(program: Program): Map<StandardModule, SourceSpan> {
     for (const used of standardModule(module).modules) reach(used, span);
   };
   for (const use of program.uses) for (const module of usedModules(use)) reach(module, use.span);
-  reach(PRELUDE, program.span);
+  for (const module of preludeModules(program)) reach(module, program.span);
   return spans;
 }
 

@@ -36,14 +36,13 @@ const COMPILER_NAMES: ReadonlyMap<string, readonly string[]> = new Map([
 
 /**
  * Std modules by path below `std`, each with the file that declares its
- * names. `std.prelude` is the prototype's file of the prelude's `use` lines,
- * which the specification names no module.
+ * names. `std.prelude` and `std.prelude.testing` are the prototype's files
+ * of the prelude's `use` lines, which the specification names no module.
  */
 const MODULE_FILES: ReadonlyMap<string, string | undefined> = new Map<string, string | undefined>([
-  ...STANDARD_MODULES.filter((module) => module !== "prelude").map((module): [string, string] => [
-    module,
-    module,
-  ]),
+  ...STANDARD_MODULES.filter((module) => !module.startsWith("prelude")).map(
+    (module): [string, string] => [module, module],
+  ),
   ...[...COMPILER_NAMES.keys()]
     .filter((module) => !(STANDARD_MODULES as readonly string[]).includes(module))
     .map((module): [string, undefined] => [module, undefined]),

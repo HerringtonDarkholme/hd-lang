@@ -47,16 +47,21 @@ const PRELUDE_GRAPH = [
   "num",
   "ops",
   "option",
-  "process",
-  "random",
   "result",
   "task",
-  "testing",
-  "testing.arbitrary",
   "text",
-  "time",
   "prelude",
 ];
+
+test("only a program with test code reaches std.testing through the prelude", () => {
+  // spec/lang/10-modules.md#r-module.prelude.test-only
+  const plain = parse("fn first(items: List[i32]) -> i32: items[0]\n").program!;
+  assert.ok(!standardModulesOf(plain).includes("testing"));
+  const tested = parse('fn one() -> i32: 1\n\ntests:\n    it("one"):\n        pass\n').program!;
+  const modules = standardModulesOf(tested);
+  for (const module of ["testing", "prelude.testing"] as const)
+    assert.ok(modules.includes(module), module);
+});
 
 test("a program that uses no std module gets the prelude's use graph", () => {
   const program = parse("fn first(items: List[i32]) -> i32: items[0]\n").program!;

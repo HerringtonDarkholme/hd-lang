@@ -497,6 +497,12 @@ export interface Program {
   readonly statements: readonly Statement[];
   /** Names that the `tests:` block declares or uses (spec/lang/03-names-and-scopes.md#tests-blocks). */
   readonly testOnlyNames?: readonly string[];
+  /**
+   * The program holds test code: a `tests:` block or a test module's top
+   * level. Only test code has the testing prelude names
+   * (spec/lang/10-modules.md#r-module.prelude.test-only).
+   */
+  readonly testCode?: boolean;
   readonly span: SourceSpan;
 }
 

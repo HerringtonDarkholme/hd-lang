@@ -118,6 +118,7 @@ class Parser extends LetParser {
         tests,
         statements,
         ...(items.testOnlyNames.size > 0 ? { testOnlyNames: [...items.testOnlyNames] } : {}),
+        ...(testsBlock || this.options.testModule === true ? { testCode: true } : {}),
         span: { start, end: this.current().span.end },
       },
       diagnostics: this.diagnostics,

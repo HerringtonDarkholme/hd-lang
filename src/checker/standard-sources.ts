@@ -33,6 +33,7 @@ export const STANDARD_MODULES = [
   "text",
   "time",
   "prelude",
+  "prelude.testing",
 ] as const;
 
 export type StandardModule = (typeof STANDARD_MODULES)[number];

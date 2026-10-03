@@ -1215,13 +1215,21 @@ The prelude is the file `lib/std/prelude.hd`, `std.prelude` to the loader,
 which holds only `use` lines
 ([`module.prelude.fixed-uses`](../spec/lang/10-modules.md#r-module.prelude.fixed-uses)):
 
-- its `pub use` lines name exactly the specification's prelude table, as
-  `pub use std.cmp.{Eq, PartialOrd, Ord, Ordering}`. Every module, user or
-  std, has those names, as if it began with those lines.
-  `checker/prelude-names.ts` reads `PRELUDE_NAMES`, which no declaration
+- its `pub use` lines name the specification's prelude table but for its
+  `std.testing` row, as `pub use std.cmp.{Eq, PartialOrd, Ord, Ordering}`.
+  Every module, user or std, has those names, as if it began with those
+  lines. `std.core`, `ConsoleError`, and the `std.task` names are
+  compiler-provided;
+- the `std.testing` row, `it`, is the `pub use` of `lib/std/prelude/testing.hd`,
+  `std.prelude.testing` to the loader. Only a program with test code
+  (`Program.testCode`: a `tests:` block or a test module's top level) joins
+  it, and so `std.testing`
+  ([`module.prelude.test-only`](../spec/lang/10-modules.md#r-module.prelude.test-only)).
+  `hd check` without `--tests` drops the test code, and the flag with it.
+  `it` is compiler-provided; outside test code it is `unknown-name`;
+- `checker/prelude-names.ts` reads `PRELUDE_NAMES`, which no declaration
   or binding may shadow, and each name's module, which a same-name `use`
-  may repeat, from them. `std.core`, `ConsoleError`, `it`, and the
-  `std.task` names are compiler-provided;
+  may repeat, from the `pub use` lines of both files;
 - its private `use` lines name what the compiler calls without a `use` in
   the program: `std.convert.From` for `?`, the operator, index, call, and
   range types of `std.ops`, and the modules whose inherent methods on
@@ -1229,13 +1237,14 @@ which holds only `use` lines
   ([`trait.own.inherent.std`](../spec/lang/09-traits.md#r-trait.own.inherent.std)):
   `std.text`, which also holds the string kernel, `std.option`,
   `std.result`, `std.collections`, and `std.num`;
-- a program cannot `use std.prelude` (`unknown-module`), since the
-  specification names no such module.
+- a program cannot `use std.prelude` or `std.prelude.testing`
+  (`unknown-module`), since the specification names no such module.
 
 `checker/standard-library.ts` joins a program's use graph into the one
 module the prototype compiles:
 
-- the graph holds `std.prelude`, every std module that a `use` of the
+- the graph holds `std.prelude`, `std.prelude.testing` for a program with
+  test code, every std module that a `use` of the
   program reaches, and every std module that a `use` of a joined module
   reaches, transitively. A `use` reaches the module its path names, as
   `std.cmp` for `use std.cmp.{max}`, or a module it names itself, as
@@ -1292,7 +1301,7 @@ What it provides:
 | `std.process` | `ExitCode`, `Termination`; the host trait `Process` with `ProcessOutput`, and the deterministic `ScriptedProcess` |
 | `std.random` | the host trait `Random`, which no runtime profile binds yet |
 | `std.resource` | `ResourceError[E]` |
-| `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits, bodiless `@intrinsic` methods in numeric-family blocks such as `impl[N < Num] Add for N` (`string`'s `Add` is hd), and the index traits' implementations for `List`, `Map`, and `string`; the six range types, `Iterable` for `Range`, `RangeFrom`, and `RangeInclusive` of each integer type, and the slicing `Index` implementations for `string` and `List`, one per range type and integer type; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations, and its tuple template (spec/std/ops.md) |
+| `std.ops` | the twelve operator traits, `Index`, `IndexSet`, `Apply`, and `Update`, with the primitive implementations of the operator traits, bodiless `@intrinsic` methods in numeric-family blocks such as `impl[N < Num] Add for N` (`string`'s `Add` is hd), and the index traits' implementations for `List`, `Map`, and `string`; the four range types, `Iterable` for `Range` and `RangeFrom` of each integer type, and the slicing `Index` implementations for `string` and `List`, one per range type, generic over the integer type, as `impl[N < Integer] Index[Range[N]] for string`; `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template`; `Default` and its standard implementations, and its tuple template (spec/std/ops.md) |
 | `std.function` | the sealed marker trait `Tuple`, which the compiler implements for every tuple type; a `Tuple` bound passes no dictionary. `Fn` and `SuspendFn` have no declaration: the checker rewrites them to the `fn(...)` sugar |
 | `std.format` | the prelude `Display` and `Debug`; `Display` for `string`, `bool`, `char`, and every number type; `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `Map`, `T?`, `Result`; the template of `Debug`; the tuple templates of `Debug` and `Display` |
 | `std.testing` | `assert`, `Choices`, `Arbitrary` (for the primitives, `string`, `List`, `Map`, `T?`, `Result`, pairs, and triples), `snapshot_file`, `RunOutput` and `hd_run!` over `Process`; the runner capabilities `TestRunner` and `PropertyRunner`; the case bodies of `it_each`, `it_prop`, `it_prop_with`, and a timed `it`; the private xoshiro128** generator `Xoshiro128`, a `Random`; the rest of `std.testing` is checked by the compiler |

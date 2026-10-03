@@ -2,21 +2,22 @@
 # (spec/lang/10-modules.md#prelude, module.prelude.fixed-uses).
 #
 # Every module implicitly has the names of the `pub use` lines below, the
-# spec's prelude table and nothing else. The private `use` lines name what
+# spec's prelude table but for its `std.testing` row, and nothing else. Test
+# code also has the names of `std.prelude.testing`
+# (lib/std/prelude/testing.hd, r-module.prelude.test-only). The private `use` lines name what
 # the compiler calls without a `use` in the program, so their modules come
 # in through the same use graph: the prototype joins `std.prelude` and every
 # std module that a `use` reaches from it, from the program, and from the
 # joined std modules.
 
 # The prelude names (spec/lang/10-modules.md#prelude). `std.core`'s names,
-# `ConsoleError`, `it`, and `std.task`'s names are compiler-provided.
+# `ConsoleError`, and `std.task`'s names are compiler-provided.
 pub use std.core.{never, bool, i8, i16, i32, i64, u8, u16, u32, u64, f32, f64, char, string, void, List, Map, Any, AnyVal, AnyRef, Option, Result, panic}
 pub use std.format.{Display, Debug, debug}
 pub use std.cmp.{Eq, PartialOrd, Ord, Ordering}
 pub use std.hash.{Hash, Hasher}
 pub use std.iter.{Iterator, Iterable}
 pub use std.console.{Console, ConsoleError, println}
-pub use std.testing.{it}
 pub use std.task.{Suspend, Poll, PollContext, Waker}
 
 # Postfix `?` converts an error through the standard `From`
@@ -26,7 +27,7 @@ use std.convert.{From}
 # Operator syntax, ranges, indexing, and calls of callable values use these
 # (module.prelude.ops-operator-traits, module.prelude.ops-call-traits,
 # expr.range.not-prelude).
-use std.ops.{Add, Sub, Mul, Div, Rem, Neg, Not, BitAnd, BitOr, BitXor, Shl, Shr, Index, IndexSet, Apply, Update, Range, RangeFrom, RangeTo, RangeInclusive, RangeToInclusive, RangeFull}
+use std.ops.{Add, Sub, Mul, Div, Rem, Neg, Not, BitAnd, BitOr, BitXor, Shl, Shr, Index, IndexSet, Apply, Update, Range, RangeFrom, RangeTo, RangeFull}
 
 # Inherent methods on built-in types need no `use` (trait.own.inherent.std),
 # and string `+`, `==`, and order call `std.text`'s string kernel.

@@ -1450,7 +1450,10 @@ export abstract class CheckerContext {
 
   protected failUnknownName(name: string, message: string, span: SourceSpan): never {
     const imported = this.imports.get(name);
-    if (name === "it" || (imported !== undefined && TEST_CASE_FUNCTIONS.has(imported)))
+    // The prelude's `it` is in scope only in test code; elsewhere it is an
+    // unknown name (spec/lang/10-modules.md#r-module.prelude.test-only.outside).
+    const preludeIt = name === "it" && this.declaration.testOnly === true;
+    if (preludeIt || (imported !== undefined && TEST_CASE_FUNCTIONS.has(imported)))
       this.fail(
         "misplaced-test-case",
         `${name}(...) registers a test case only as a direct call at the top level of a tests block`,

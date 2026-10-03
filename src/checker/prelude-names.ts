@@ -4,16 +4,21 @@ import { standardSource } from "./standard-sources.ts";
 
 // The prelude is `lib/std/prelude.hd`, a module of `use` lines: every
 // module has the names of its `pub use` lines, as if it began with them
-// (spec/lang/10-modules.md#r-module.prelude.fixed-uses).
+// (spec/lang/10-modules.md#r-module.prelude.fixed-uses). Test code also has
+// those of `lib/std/prelude/testing.hd` (r-module.prelude.test-only); they
+// are prelude names everywhere, so no module binds them to another
+// declaration (r-module.prelude.no-shadow).
 
 function preludeUses(): readonly UseDecl[] {
-  const parsed = parse(standardSource("prelude"), { standardLibrary: true });
-  if (!parsed.program || parsed.diagnostics.length > 0)
-    throw new Error("std.prelude does not parse");
-  return parsed.program.uses;
+  return (["prelude", "prelude.testing"] as const).flatMap((module) => {
+    const parsed = parse(standardSource(module), { standardLibrary: true });
+    if (!parsed.program || parsed.diagnostics.length > 0)
+      throw new Error(`std.${module} does not parse`);
+    return parsed.program.uses;
+  });
 }
 
-/** The `use` lines of `std.prelude`. */
+/** The `use` lines of `std.prelude` and `std.prelude.testing`. */
 const PRELUDE_USES: readonly UseDecl[] = preludeUses();
 
 /**

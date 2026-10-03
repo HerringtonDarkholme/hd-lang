@@ -1,0 +1,9 @@
+# std.prelude.testing: the prelude names of test code, the `std.testing`
+# row of the spec's prelude table (spec/lang/10-modules.md#prelude,
+# module.prelude.test-only). A module has them only in its test code: a
+# `tests:` block, a test module, or an integration test module. The
+# prototype joins this module, and so `std.testing`, only into a program
+# with test code.
+#
+# `it` is compiler-provided.
+pub use std.testing.{it}

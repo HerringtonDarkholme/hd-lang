@@ -330,11 +330,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           );
         const integerPower =
           expression.operator === "**" && isIntegerType(left.type) && unsignedExponent;
-        // A shift's count may have any integer type (05-expressions.md#shifts).
-        const integerShift =
-          (expression.operator === "<<" || expression.operator === ">>") &&
-          isIntegerType(left.type) &&
-          isIntegerType(right.type);
+        const integerShift = this.checkShiftCount(expression.operator, left, right);
         // 04 Binary Numeric Operators: signed and unsigned integers do not mix.
         if (
           left.type !== right.type &&
@@ -469,6 +465,22 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       default:
         return undefined;
     }
+  }
+
+  /**
+   * Whether `left op right` is an integer shift. Its count must be a `u32`,
+   * whatever the left operand's integer type: any other number is
+   * `type-mismatch`, with a `u32(...)` fix-it (05-expressions.md#r-expr.shift.count-other).
+   */
+  private checkShiftCount(operator: string, left: HirExpression, right: HirExpression): boolean {
+    if ((operator !== "<<" && operator !== ">>") || !isIntegerType(left.type)) return false;
+    if (numericType(right.type) && readonlyType(right.type) !== "u32")
+      this.failWithConversion(
+        `a shift count must have type u32, found '${right.type}'; write u32(...)`,
+        "u32",
+        right.span,
+      );
+    return isIntegerType(right.type);
   }
 
   /** `left is right` (05-expressions.md#identity). */
@@ -639,9 +651,13 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         expression.left,
         leftLiteral ? outer : leftFloat ? outerFloat : undefined,
       );
-    // A floating-point literal exponent takes the base's type (r-expr.power.float.same-type).
-    const rightTarget =
-      expression.operator === "**"
+    // A floating-point literal exponent takes the base's type
+    // (r-expr.power.float.same-type), and a shift count is a `u32`
+    // (r-expr.shift.count-literal).
+    const shift = expression.operator === "<<" || expression.operator === ">>";
+    const rightTarget = shift
+      ? "u32"
+      : expression.operator === "**"
         ? rightFloat && left.type === "f32"
           ? "f32"
           : undefined
@@ -677,18 +693,9 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     expected: ValueType | undefined,
   ): HirExpression {
     const { start, end, span } = expression;
-    const form =
-      start && end
-        ? expression.inclusive
-          ? "RangeInclusive"
-          : "Range"
-        : start
-          ? "RangeFrom"
-          : end
-            ? expression.inclusive
-              ? "RangeToInclusive"
-              : "RangeTo"
-            : "RangeFull";
+    // `a..=b` is a `Range` and `..=b` a `RangeTo`, with `inclusive` true
+    // (r-expr.range.inclusive-field).
+    const form = start && end ? "Range" : start ? "RangeFrom" : end ? "RangeTo" : "RangeFull";
     const declaration = this.standardDataType(`std.ops.${form}`);
     if (!declaration) throw new Error(`std.ops declares ${form} for a program with a range`);
     const resultType = (readonly: ValueType): ValueType =>
@@ -747,7 +754,16 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       );
     }
     const elementType = element ?? readonlyType(bounds[0]!.type);
-    const fields = bounds.map((bound) => this.requireCoercion(bound, elementType, bound.span));
+    const fields: HirExpression[] = bounds.map((bound) =>
+      this.requireCoercion(bound, elementType, bound.span),
+    );
+    if (end)
+      fields.push({
+        kind: "boolean",
+        value: expression.inclusive === true,
+        type: "bool",
+        span,
+      } as HirExpression);
     return {
       kind: "data",
       dataIndex: declaration.index,
@@ -766,7 +782,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     return undefined;
   }
 
-  /** Whether `type` is one of the six `std.ops` range types (05-expressions.md#range-expressions). */
+  /** Whether `type` is one of the four `std.ops` range types (05-expressions.md#range-expressions). */
   protected isRangeType(type: ValueType): boolean {
     const readonly = readonlyType(type);
     const name = nominalGenericParts(readonly)?.name ?? readonly;
