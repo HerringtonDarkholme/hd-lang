@@ -664,7 +664,7 @@ constructor.
 6. r[trait.target.bare-parameter] A target that is a bare type parameter, as in `impl[T] Describe for T`, is an error. Error: `bare-parameter-impl-target`.
 7. r[trait.target.numeric-family] The one exception is a standard-library implementation in which every type parameter is bounded by exactly one of `Num`, `Integer`, and `Float`, as in `impl[N < Num] Add for N`.
 8. r[trait.target.numeric-family.each] Such an implementation stands for one implementation per way of replacing each parameter with a type that [Sealed Traits](#sealed-traits) lists for its bound.
-9. r[trait.target.numeric-family.example] So `impl[N < Integer, C < Integer] Shl[C] for N` stands for 64 implementations, one per pair of integer types.
+9. r[trait.target.numeric-family.per-type] So `impl[N < Integer] Shl[u32] for N` stands for 8 implementations, one per integer type.
 10. r[trait.target.no-blanket] hd-lang has no blanket implementations over every type.
 11. r[trait.target.function-type.valid] A function type is an ordinary target under the ownership and overlap rules below, so `impl Marker for fn(i32) -> i32` is valid in the package that declares `Marker`.
 12. r[trait.target.row-argument] A row argument in an implementation head, such as a function type's row, is a row parameter or a concrete row.

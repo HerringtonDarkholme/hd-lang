@@ -1,6 +1,6 @@
 # test: .eq calls the standard Eq implementations of lists, optionals, and results directly
 # expect: test
-# Spec 05 Equality: expr.eq.std; Eq is a prelude trait (module.prelude.names).
+# Spec 05 Equality: expr.eq.std; Eq is a prelude trait (module.prelude.in-scope).
 pub fn main() -> void:
     if ![1, 2].eq([1, 2]):
         panic("equal lists")

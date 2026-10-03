@@ -1,6 +1,6 @@
 # test: .eq, .partial_cmp, and .cmp call the standard comparison implementations of integers directly
 # expect: test
-# Spec 05 Equality and Ordering: expr.eq.std, expr.ord.std; the comparison traits are prelude traits (module.prelude.names).
+# Spec 05 Equality and Ordering: expr.eq.std, expr.ord.std; the comparison traits are prelude traits (module.prelude.in-scope).
 pub fn main() -> void:
     if !(3).eq(3) || (3).eq(4):
         panic("i32 eq")

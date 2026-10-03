@@ -1,0 +1,5 @@
+# test: the prelude's it is in scope only in test code
+# Spec 10 Prelude: module.prelude.test-only, module.prelude.test-only.outside (batch 66).
+fn helper() -> void:
+    it("outside test code"):  # diagnostic: unknown-name
+        pass

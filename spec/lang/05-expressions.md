@@ -1398,10 +1398,29 @@ fn toggle(a: string, b: string) -> string: a ^ b  # error: type-mismatch
 
 ### Shifts
 
+A shift moves the left operand's bits by a `u32` count:
+
+```text
+fn mask(x: i64, n: u32) -> i64:
+    (x << n) | (x >> 3)
+```
+
 1. r[expr.shift.unification] Shifts are the exception to ordinary binary numeric unification.
-2. r[expr.shift.operands] The left operand may have any integer type, the right operand may have any integer type, and the result preserves the left operand type.
-3. r[expr.shift.count] A negative count or a count at least as large as the left operand's bit width panics.
-4. r[expr.shift.fixed-width] The shift itself is a fixed-width bit operation; left-shifted high bits are discarded rather than reported as arithmetic overflow.
+2. r[expr.shift.left-any] The left operand may have any integer type, and the result has the left operand's type.
+3. r[expr.shift.count-u32] The right operand, the shift count, must have type `u32`.
+4. r[expr.shift.count-literal] An unsuffixed integer literal count has type `u32`, so `x << 3` needs no suffix.
+5. r[expr.shift.count-other] A count of any other type is an error, and its fix-it converts the count, as in `u32(n)`. Error: `type-mismatch`.
+6. r[expr.shift.count] A negative count or a count at least as large as the left operand's bit width panics.
+7. r[expr.shift.fixed-width] The shift itself is a fixed-width bit operation; left-shifted high bits are discarded rather than reported as arithmetic overflow.
+
+```text
+fn scale(x: i64, n: i32) -> i64:
+    x << n  # error: type-mismatch
+```
+
+> **Why.** One count type gives `x << n` one implementation to choose, as
+> `Integer`'s supertrait `Shl[u32]` already names. `u32` is also the
+> exponent type of `**`, and Rust's `checked_shl` takes a `u32` count.
 
 ### Exponentiation
 
@@ -1657,7 +1676,7 @@ fn count(items: List[i32]) -> i32:
 | r[expr.op.std.bitwise] Bitwise | `BitAnd`, `BitOr`, `BitXor` | `impl BitAnd for T` and the like, for every integer type `T` |
 | r[expr.op.std.not] Complement | `Not` | every integer type |
 | r[expr.op.std.string-add] Concatenation | `Add` | `impl Add for string` |
-| r[expr.op.std.shift] Shifts | `Shl`, `Shr` | `impl Shl[C] for T` and the like, for every pair of integer types `T` and `C` |
+| r[expr.op.std.shift-u32] Shifts | `Shl`, `Shr` | `impl Shl[u32] for T` and `impl Shr[u32] for T`, for every integer type `T` |
 
 1. r[expr.op.std.intrinsic-method] Each method of the number types' implementations in the table is an [intrinsic method](09-traits.md#intrinsic-methods). It computes the operation that this chapter and [Type System](04-type-system.md) define for its type, including checked overflow and its panics.
 2. r[expr.op.std.string-not-intrinsic] `impl Add for string` is an ordinary implementation, not an intrinsic method.
@@ -1838,6 +1857,9 @@ fn halves(n: i32) -> (Range[i32], RangeFrom[i32]):
 
 fn wide(limit: i64) -> Range[i64]:
     0..limit
+
+fn closed(limit: i64) -> Range[i64]:
+    0..=limit
 ```
 
 | Rule | Form | Type | Holds |
@@ -1845,8 +1867,8 @@ fn wide(limit: i64) -> Range[i64]:
 | r[expr.range.form.half-open] Half-open | `a..b` | `Range[T]` | the integers from `a` up to, not including, `b` |
 | r[expr.range.form.from] From | `a..` | `RangeFrom[T]` | the integers from `a` up, with no end |
 | r[expr.range.form.to] To | `..b` | `RangeTo[T]` | the integers below `b`, with no start |
-| r[expr.range.form.inclusive] Inclusive | `a..=b` | `RangeInclusive[T]` | the integers from `a` through `b` |
-| r[expr.range.form.to-inclusive] To inclusive | `..=b` | `RangeToInclusive[T]` | the integers up to and including `b`, with no start |
+| r[expr.range.form.through] Inclusive | `a..=b` | `Range[T]` | the integers from `a` through `b` |
+| r[expr.range.form.to-through] To inclusive | `..=b` | `RangeTo[T]` | the integers up to and including `b`, with no start |
 | r[expr.range.form.full] Full | `..` | `RangeFull` | every integer, with no start and no end |
 
 `std.ops` declares the range types in this shape:
@@ -1855,34 +1877,30 @@ fn wide(limit: i64) -> Range[i64]:
 pub data Range[T]:
     pub start: T
     pub end: T
+    pub inclusive: bool
 
 pub data RangeFrom[T]:
     pub start: T
 
 pub data RangeTo[T]:
     pub end: T
-
-pub data RangeInclusive[T]:
-    pub start: T
-    pub end: T
-
-pub data RangeToInclusive[T]:
-    pub end: T
+    pub inclusive: bool
 
 pub data RangeFull: pass
 ```
 
-1. r[expr.range.declared] `std.ops` declares the six range types as data types whose fields are public, as shown above.
-2. r[expr.range.value] A range expression builds the range type of its form, with its bounds as the fields: `a..b` is `Range { start: a, end: b }`.
-3. r[expr.range.not-prelude] The range types are not prelude names. Code that names one in a type imports it, as in `use std.ops.Range`, but a range expression needs no use.
-4. r[expr.range.order] A range expression evaluates its start bound, then its end bound.
-5. r[expr.range.no-check] Building a range never compares its bounds, so `5..2` is a valid, empty range.
-6. r[expr.range.bound.integer] Each bound must have an integer type. A bound of any other type is an error. Error: `type-mismatch`.
-7. r[expr.range.bound.operands] The two bounds of `a..b` or `a..=b` are typed as the operands of a [binary numeric operator](04-type-system.md#binary-numeric-operators): a literal takes the other bound's type, and bounds of two types of one family are an error. Error: `type-mismatch`.
-8. r[expr.range.bound.signedness] A signed and an unsigned bound are an error, as for a binary numeric operator. Error: `mixed-signedness`.
-9. r[expr.range.element-type] The range's element type `T` is the bounds' common type, or the one bound's type for `a..`, `..b`, and `..=b`. `RangeFull` has no bound and no element type.
-10. r[expr.range.expected] An expected range type gives each bound its element type as the bound's expected type, so `let r: Range[i64] = 0..10` has `i64` bounds.
-11. r[expr.range.default] With no expected type, literal bounds default to `i32`, so `0..3` is a `Range[i32]`.
+1. r[expr.range.declared.four] `std.ops` declares the four range types as data types whose fields are public, as shown above.
+2. r[expr.range.value.fields] A range expression builds the range type of its form, with its bounds as the fields: `a..b` is `Range { start: a, end: b, inclusive: false }`.
+3. r[expr.range.inclusive-field] The `inclusive` field of a `Range` or `RangeTo` is `true` for a `..=` form and `false` for a `..` form, so `..=b` is `RangeTo { end: b, inclusive: true }`.
+4. r[expr.range.not-prelude] The range types are not prelude names. Code that names one in a type imports it, as in `use std.ops.Range`, but a range expression needs no use.
+5. r[expr.range.order] A range expression evaluates its start bound, then its end bound.
+6. r[expr.range.no-check] Building a range never compares its bounds, so `5..2` is a valid, empty range.
+7. r[expr.range.bound.integer] Each bound must have an integer type. A bound of any other type is an error. Error: `type-mismatch`.
+8. r[expr.range.bound.operands] The two bounds of `a..b` or `a..=b` are typed as the operands of a [binary numeric operator](04-type-system.md#binary-numeric-operators): a literal takes the other bound's type, and bounds of two types of one family are an error. Error: `type-mismatch`.
+9. r[expr.range.bound.signedness] A signed and an unsigned bound are an error, as for a binary numeric operator. Error: `mixed-signedness`.
+10. r[expr.range.element-type] The range's element type `T` is the bounds' common type, or the one bound's type for `a..`, `..b`, and `..=b`. `RangeFull` has no bound and no element type.
+11. r[expr.range.expected] An expected range type gives each bound its element type as the bound's expected type, so `let r: Range[i64] = 0..10` has `i64` bounds.
+12. r[expr.range.default] With no expected type, literal bounds default to `i32`, so `0..3` is a `Range[i32]`.
 
 ```text
 fn invalid(x: f64, count: u32, limit: i32, large: i64) -> void:
@@ -1900,6 +1918,11 @@ fn invalid(x: f64, count: u32, limit: i32, large: i64) -> void:
 > **Why.** As in Rust, a range is an ordinary `std.ops` value. One syntax
 > then serves loops, slicing, and any function that takes a range, with no
 > separate `range` function.
+
+> **Why.** `a..b` and `a..=b` share one type, as `..b` and `..=b` do, so a
+> function that takes a `Range[i64]` accepts both forms. The types still
+> keep a range with no start, which is not iterable, apart from one with a
+> start.
 
 See also: [Range Syntax](02-grammar.md#range-syntax),
 [Binary Numeric Operators](04-type-system.md#binary-numeric-operators).

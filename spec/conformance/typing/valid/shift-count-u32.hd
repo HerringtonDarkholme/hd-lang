@@ -1,0 +1,18 @@
+# test: a shift count has type u32, and a literal count adopts u32 whatever the shifted type
+# Spec 05 Shifts: expr.shift.left-any, expr.shift.count-u32, expr.shift.count-literal; Primitive Implementations: expr.op.std.shift-u32 (batch 66).
+use std.num.Integer
+
+fn mask(x: i64, n: u32) -> i64:
+    (x << n) | (x >> 3)
+
+fn bytes(b: u8, n: u32) -> u8:
+    let v = b
+    v <<= n
+    v >>= 1
+    v
+
+fn widen(n: i32) -> i64:
+    i64(1) << u32(n)
+
+fn generic[N < Integer](x: N, n: u32) -> N:
+    x << n

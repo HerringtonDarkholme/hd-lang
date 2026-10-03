@@ -1,5 +1,5 @@
-# test: a ..=b range has no start bound, so it is not iterable
-# Spec 06 Range Iteration: flow.for.range.to-inclusive (batch 49).
+# test: a ..=b range is a RangeTo, with no start bound, so it is not iterable
+# Spec 06 Range Iteration: flow.for.range.to-through (batches 49, 66).
 fn invalid(n: i32) -> void:
     for i in ..=n:  # diagnostic: unsatisfied-trait-bound
         pass

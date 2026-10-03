@@ -1,5 +1,5 @@
 # test: for iterates a..b, a..=b, and a.., and each loop over a range starts from its start bound
-# Spec 06 Range Iteration: flow.for.range.iterable, flow.for.range.half-open, flow.for.range.inclusive, flow.for.range.from, flow.for.range.fresh (batch 48).
+# Spec 06 Range Iteration: flow.for.range.iterable-two, flow.for.range.half-open, flow.for.range.inclusive, flow.for.range.from, flow.for.range.fresh (batch 48).
 use std.ops.Range
 use std.testing.assert_equal
 

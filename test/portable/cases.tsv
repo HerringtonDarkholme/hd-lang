@@ -1866,3 +1866,7 @@ runtime/valid/numeric-explicit-widening.hd	runtime
 typing/valid/random-trait.hd	type
 typing/valid/test-runner-capabilities.hd	type
 typing/invalid/test-body-uses-test-runner.hd	type
+typing/invalid/it-outside-test-code.hd	type
+typing/invalid/shift-count-not-u32.hd	type
+typing/valid/shift-count-u32.hd	type
+runtime/valid/range-inclusive-field.hd	runtime

@@ -535,11 +535,13 @@ every module has:
 | `std.testing` | `it` |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` |
 
-1. r[module.prelude.names] Every module implicitly has the public standard-library names in the table in scope.
-2. r[module.prelude.fixed-uses] The prelude is equivalent to fixed `use` declarations.
-3. r[module.prelude.no-authority] The prelude does not create ambient host authority.
-4. r[module.prelude.no-shadow] A module declaration, use, type parameter, parameter, or local binding must not bind a prelude name to another declaration. Every conflict is an error. Error: `prelude-name-shadow`.
-5. r[module.prelude.same-use] A `use` that names the same declaration the prelude already supplies, under the same name, is allowed and changes nothing.
+1. r[module.prelude.in-scope] Every module implicitly has the public standard-library names in the table in scope, but for the `std.testing` row.
+2. r[module.prelude.test-only] The names of the `std.testing` row are in scope only in [test code](#r-module.test.code): `tests:` blocks, test modules, and integration test modules.
+3. r[module.prelude.test-only.outside] Outside test code, such a name is unknown, as an undeclared name is. Error: `unknown-name`.
+4. r[module.prelude.fixed-uses] The prelude is equivalent to fixed `use` declarations.
+5. r[module.prelude.no-authority] The prelude does not create ambient host authority.
+6. r[module.prelude.no-shadow] A module declaration, use, type parameter, parameter, or local binding must not bind a prelude name to another declaration. Every conflict is an error. Error: `prelude-name-shadow`.
+7. r[module.prelude.same-use] A `use` that names the same declaration the prelude already supplies, under the same name, is allowed and changes nothing.
 
 ```text
 use std.hash.Hash                                    # ok: the prelude's Hash
@@ -553,6 +555,16 @@ fn main() -> i32:
     let Hash: i32 = 42  # error: prelude-name-shadow
     Hash
 ```
+
+```text
+fn helper() -> void:
+    it("outside test code"):  # error: unknown-name
+        pass
+```
+
+> **Why.** Only test code registers test cases, so only test code needs
+> `it`. A program built without its test code then never reaches
+> `std.testing` through the prelude.
 
 ### Standard Names Outside The Prelude
 
@@ -901,12 +913,12 @@ tests:
     it("waits", timeout="5s"):  # error: type-mismatch
         pass
 
-fn helper() -> void:
-    it("nested"):  # error: misplaced-test-case
-        pass
+    fn helper() -> void:
+        it("nested"):  # error: misplaced-test-case
+            pass
 
-fn register() -> void:
-    make := it  # error: misplaced-test-case
+    fn register() -> void:
+        make := it  # error: misplaced-test-case
 ```
 
 > **Note.** `it` is a prelude name, so a module cannot declare, use, or bind

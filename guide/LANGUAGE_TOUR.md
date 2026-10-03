@@ -312,7 +312,7 @@ For floating operands, `**` is IEEE 754-2019 `pow` (clause 9.2), including its
 special cases, correctly rounded to the destination format. Integer and
 floating operands do not mix in `**` without an explicit cast.
 
-Integer `/` truncates toward zero. Integer overflow is always checked unless code uses explicit wrapping APIs. Shift counts can use any integer type, but must be non-negative and in range at runtime unless the compiler can prove that statically.
+Integer `/` truncates toward zero. Integer overflow is always checked unless code uses explicit wrapping APIs. A shift count is a `u32`, and a literal count needs no suffix; it must be smaller than the shifted type's bit width at runtime unless the compiler can prove that statically.
 
 Integer values also support bitwise operators:
 
@@ -599,8 +599,9 @@ fn find_name(names: List[string], prefix: string) -> string?:
 A range is a value: `0..n` holds `0` up to, not including, `n`; `1..=3`
 holds `1` through `3`; and `5..` has no end. `for` iterates them, so
 `for i in 0..` loops until a `break`. Bounds must be integers. The types
-are `Range`, `RangeInclusive`, `RangeFrom`, `RangeTo`, `RangeToInclusive`,
-and `RangeFull` in `std.ops`; `for` rejects `..n`, `..=n`, and `..`, which
+are `Range`, `RangeFrom`, `RangeTo`, and `RangeFull` in `std.ops`: `0..n`
+and `1..=3` are both a `Range`, with an `inclusive` field, as `..n` and
+`..=n` are both a `RangeTo`. `for` rejects `..n`, `..=n`, and `..`, which
 have no start. A `match` on an integer takes `a..b`, `a..=b`, `a..`,
 `..=b`, and `..b` as patterns, and arms that cover the whole type need no `_`. See
 [Range Expressions](../spec/lang/05-expressions.md#range-expressions) and
@@ -2543,7 +2544,8 @@ meaning to field order unless their own format explicitly does so.
 A file keeps its tests in one `tests:` block, compiled only by `hd test`. The
 block sees the module's private names, and its own helpers are visible only
 inside it. Each `it("name"):` call registers one test case, which runs in a
-fresh program instance. Its trailing block is a suspending body, so it may
+fresh program instance. `it` is a prelude name only in test code, so other
+code never sees it. Its trailing block is a suspending body, so it may
 bang-call directly.
 
 Unit tests get no host providers: every requirement comes from a `$.with`

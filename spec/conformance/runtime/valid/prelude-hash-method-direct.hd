@@ -1,6 +1,6 @@
 # test: .hash calls the standard Hash implementations directly, with a user Hasher
 # expect: test
-# Spec 04 Map Key Types: types.map-key.builtin-hash; Hash is a prelude trait (module.prelude.names).
+# Spec 04 Map Key Types: types.map-key.builtin-hash; Hash is a prelude trait (module.prelude.in-scope).
 data Bytes:
     items: mut List[u8]
 

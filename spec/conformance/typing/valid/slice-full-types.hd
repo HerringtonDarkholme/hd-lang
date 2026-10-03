@@ -1,6 +1,6 @@
 # test: a .. or ..=b index slices a string to a string and a list to a list, through std.ops.Index
-# Spec 05 Slicing: expr.index.slice.full, expr.index.slice.to-inclusive; Built-In Implementations: expr.index.std.string.full, expr.index.std.list.full (batch 49).
-use std.ops.{Index, RangeFull, RangeToInclusive}
+# Spec 05 Slicing: expr.index.slice.full, expr.index.slice.to-inclusive; Built-In Implementations: expr.index.std.string.full, expr.index.std.list.full (batch 49); ..=b is a RangeTo, expr.range.form.to-through (batch 66).
+use std.ops.{Index, RangeFull, RangeTo}
 
 fn parts(text: string, items: List[i32]) -> (string, List[i32], string, List[i32]):
     (text[..], items[..], text[..=1], items[..=1])
@@ -8,7 +8,7 @@ fn parts(text: string, items: List[i32]) -> (string, List[i32], string, List[i32
 fn whole[C < Index[RangeFull]](items: C) -> C::Out:
     items[..]
 
-fn head[C < Index[RangeToInclusive[i64]]](items: C, n: i64) -> C::Out:
+fn head[C < Index[RangeTo[i64]]](items: C, n: i64) -> C::Out:
     items[..=n]
 
 fn both(text: string, items: List[i32]) -> (string, List[i32], string):

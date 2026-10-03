@@ -20,7 +20,7 @@ tests:
         assert_equal(Neg::neg(2.5), -2.5, reason="float negation")
         assert_equal(Not::not(u8(0)), u8(255), reason="u8 complement")
         assert_equal(BitXor::[u16]::bit_xor(u16(6), u16(3)), u16(5), reason="u16 exclusive or")
-        assert_equal(Shl::[u8]::shl(i64(1), u8(40)), i64(1099511627776), reason="a count of another integer type")
+        assert_equal(Shl::[u32]::shl(i64(1), u32(40)), i64(1099511627776), reason="a u32 count, whatever the shifted type")
         assert_equal(Shr::[u32]::shr(-16, u32(2)), -4, reason="a signed right shift extends the sign")
         assert_equal((3).add(4), 7, reason="a method call on a literal")
 

@@ -1812,7 +1812,7 @@ runtime/panic/range-from-overflow.hd	runtime	panic:integer-overflow	lang/06-cont
 typing/valid/folder-parent-file.hd	type	accept	lang/10-modules.md#r-module.folder.parent-child
 typing/valid/list-literal-compares-with-readonly-binding.hd	type	accept	lang/04-type-system.md#r-types.fresh.weaken
 typing/invalid/requirement-key-unknown-trait.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.traits
-typing/invalid/range-to-inclusive-not-iterable.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#r-flow.for.range.to-inclusive
+typing/invalid/range-to-inclusive-not-iterable.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#r-flow.for.range.to-through
 typing/invalid/range-full-not-iterable.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#r-flow.for.range.full
 typing/valid/slice-full-types.hd	type	accept	lang/05-expressions.md#slicing
 runtime/valid/slicing-full-run.hd	runtime	accept	lang/05-expressions.md#slicing
@@ -1949,3 +1949,7 @@ typing/valid/numeric-literal-adopts-width.hd	type	accept	lang/04-type-system.md#
 runtime/valid/numeric-explicit-widening.hd	runtime	accept	lang/04-type-system.md#r-types.num.no-implicit
 typing/valid/test-runner-capabilities.hd	type	accept	std/testing.md#r-std-testing.runner.decl
 typing/invalid/test-body-uses-test-runner.hd	type	reject:missing-requirement	std/testing.md#r-std-testing.runner.body
+typing/invalid/it-outside-test-code.hd	type	reject:unknown-name	lang/10-modules.md#r-module.prelude.test-only.outside
+typing/invalid/shift-count-not-u32.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.shift.count-other
+typing/valid/shift-count-u32.hd	type	accept	lang/05-expressions.md#r-expr.shift.count-u32
+runtime/valid/range-inclusive-field.hd	runtime	accept	lang/05-expressions.md#r-expr.range.inclusive-field

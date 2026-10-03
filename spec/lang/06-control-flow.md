@@ -276,14 +276,14 @@ fn first_square_over(limit: i32) -> i32:
     found
 ```
 
-1. r[flow.for.range.iterable] For each integer type `T`, `Range[T]`, `RangeFrom[T]`, and `RangeInclusive[T]` implement `Iterable[T]`.
+1. r[flow.for.range.iterable-two] For each integer type `T`, `Range[T]` and `RangeFrom[T]` implement `Iterable[T]`.
 2. r[flow.for.range.half-open] Iterating `a..b` yields `a`, `a + 1`, and so on, up to but not including `b`. It yields nothing when `a >= b`.
 3. r[flow.for.range.inclusive] Iterating `a..=b` yields `a` through `b`, and yields `b` even when it is the type's largest value. It yields nothing when `a > b`.
 4. r[flow.for.range.from] Iterating `a..` yields `a`, `a + 1`, and so on, with no end, so `for i in 0..:` runs until the loop exits another way.
 5. r[flow.for.range.from-overflow] Asking an iterator over `a..` for the item after the type's largest value is a checked runtime panic. Panic: `integer-overflow`.
 6. r[flow.for.range.fresh] Each `iter()` call on a range starts from its start bound, and iterating never changes the range value.
 7. r[flow.for.range.to] `RangeTo[T]` does not implement `Iterable`, since it has no start, so a loop over `..b` is an error. Error: `unsatisfied-trait-bound`.
-8. r[flow.for.range.to-inclusive] `RangeToInclusive[T]` does not implement `Iterable` either, so a loop over `..=b` is an error. Error: `unsatisfied-trait-bound`.
+8. r[flow.for.range.to-through] `..=b` is a `RangeTo[T]` too, so a loop over it is an error. Error: `unsatisfied-trait-bound`.
 9. r[flow.for.range.full] `RangeFull` does not implement `Iterable` either, so a loop over `..` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text

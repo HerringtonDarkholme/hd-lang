@@ -116,8 +116,8 @@ and the compiler specializes it for each type.
 | `BitOr.bit_or` | every integer type | one machine instruction on the bits |
 | `BitXor.bit_xor` | every integer type | one machine instruction on the bits |
 | `Not.not` | every integer type | one machine instruction on the bits |
-| `Shl.shl` | every pair of integer types | a fixed-width shift, with the shift count panic |
-| `Shr.shr` | every pair of integer types | a fixed-width shift, arithmetic for a signed value, with the shift count panic |
+| `Shl.shl` | every integer type, with a `u32` count | a fixed-width shift, with the shift count panic |
+| `Shr.shr` | every integer type, with a `u32` count | a fixed-width shift, arithmetic for a signed value, with the shift count panic |
 | `Eq.eq` | every number type, `char`, and `bool` | compares the machine values; floats follow IEEE 754 |
 | `PartialOrd.partial_cmp` | every number type and `char` | compares the machine values; a NaN operand is unordered |
 | `Ord.cmp` | every integer type and `char` | compares the machine values |

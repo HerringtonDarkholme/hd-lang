@@ -1,0 +1,24 @@
+# test: a..=b is a Range and ..=b a RangeTo, with the inclusive field true; a..b and ..b have it false
+# Spec 05 Range Expressions: expr.range.value.fields, expr.range.inclusive-field; Spec 06 Range Iteration: flow.for.range.inclusive (batch 66).
+use std.ops.{Range, RangeTo}
+use std.testing.assert_equal
+
+fn count(r: Range[i32]) -> i32:
+    let seen = 0
+    for _ in r:
+        seen = seen + 1
+    seen
+
+tests:
+    it("reads the inclusive field"):
+        assert_equal((1..3).inclusive, false, reason="a..b")
+        assert_equal((1..=3).inclusive, true, reason="a..=b")
+        assert_equal((..3).inclusive, false, reason="..b")
+        assert_equal((..=3).inclusive, true, reason="..=b")
+
+    it("a built range is the range expression"):
+        built := Range { start: 1, end: 3, inclusive: true }
+        assert_equal(count(built), 3, reason="1 through 3")
+        assert_equal(count(1..3), 2, reason="1 and 2")
+        let to: RangeTo[i32] = RangeTo { end: 1, inclusive: true }
+        assert_equal("hello"[to], "he", reason="through offset 1")

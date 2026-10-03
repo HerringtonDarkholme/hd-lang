@@ -1,6 +1,6 @@
 # test: .partial_cmp calls the standard PartialOrd implementations of lists and optionals directly
 # expect: test
-# Spec 05 Ordering: expr.ord.std; PartialOrd is a prelude trait (module.prelude.names).
+# Spec 05 Ordering: expr.ord.std; PartialOrd is a prelude trait (module.prelude.in-scope).
 pub fn main() -> void:
     match [1, 2].partial_cmp([1, 3]):
         .Some(.Less) => pass
