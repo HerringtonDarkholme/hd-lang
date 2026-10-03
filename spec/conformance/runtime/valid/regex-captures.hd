@@ -1,0 +1,58 @@
+# test: captures numbers groups by their (, reports group 0 as the whole match, and gives .None to a group that took no part
+# Spec std/regex Captures: std-regex.captures, std-regex.captures.decl, std-regex.captures.len, std-regex.captures.get, std-regex.captures.whole, std-regex.captures.absent, std-regex.captures.path, std-regex.captures.last, std-regex.captures.empty-loop, std-regex.syntax.group.number, std-regex.captures-all (task #244).
+use std.regex.{Regex, Match}
+use std.testing.assert_equal
+use std.text.r
+
+fn show(found: Match?) -> string:
+    match found:
+        .Some(m) => "${m.start}-${m.end}:${m.text}"
+        .None => "none"
+
+fn groups(pattern: string, text: string) -> List[string]:
+    match Regex::new(pattern).expect("compiles").captures(text):
+        .Some(found) =>
+            let shown: mut List[string] = []
+            let index = 0
+            while index < found.len():
+                shown.push(show(found.get(index)))
+                index = index + 1
+            shown
+        .None => ["no match"]
+
+tests:
+    it("group 0 is the whole match, and groups count from 1 by their ("):
+        assert_equal(groups(r"(\d+)-(\d+)", "tel 555-1234"), ["4-12:555-1234", "4-7:555", "8-12:1234"], reason="two groups")
+        assert_equal(groups("a(b(c))(d)", "abcd"), ["0-4:abcd", "1-3:bc", "2-3:c", "3-4:d"], reason="nested groups")
+        assert_equal(groups("(?:a)(b)", "ab"), ["0-2:ab", "1-2:b"], reason="a plain group has no number")
+
+    it("a group that took no part is .None"):
+        assert_equal(groups("(a)|(b)", "b"), ["0-1:b", "none", "0-1:b"], reason="the other branch")
+        assert_equal(groups("x(y)?z", "xz"), ["0-2:xz", "none"], reason="an optional group skipped")
+        assert_equal(groups("x(y)?z", "xyz"), ["0-3:xyz", "1-2:y"], reason="an optional group taken")
+        assert_equal(groups("x(y?)z", "xz"), ["0-2:xz", "1-1:"], reason="a group that matched the empty text")
+
+    it("a repeated group reports its last pass"):
+        assert_equal(groups("(a|b)+", "abba"), ["0-4:abba", "3-4:a"], reason="the last iteration")
+        assert_equal(groups("(?:(a)|b)+", "ab"), ["0-2:ab", "0-1:a"], reason="kept from an earlier iteration")
+        assert_equal(groups("(a+?)(a*)", "aaa"), ["0-3:aaa", "0-1:a", "1-3:aa"], reason="lazy, then greedy")
+
+    it("an optional iteration of an unbounded loop that matches the empty text is not taken"):
+        assert_equal(groups("(a*)*", "b"), ["0-0:", "none"], reason="star")
+        assert_equal(groups("(a*)+", "b"), ["0-0:", "0-0:"], reason="the first iteration of plus is taken")
+        assert_equal(groups("(a|)+", "a"), ["0-1:a", "0-1:a"], reason="no empty second iteration")
+
+    it("get out of range, and no match"):
+        found := Regex::new("(a)").expect("compiles").captures("a").expect("matches")
+        assert_equal(found.len(), 2, reason="one group and the whole match")
+        assert_equal(show(found.get(2)), "none", reason="past the last group")
+        assert_equal(Regex::new("(a)").expect("compiles").captures("b").is_none(), true, reason="no match")
+        assert_equal(Regex::new("a").expect("compiles").captures("a").expect("matches").len(), 1, reason="no groups")
+
+    it("captures_all gives the groups of each match find_all returns"):
+        pairs := Regex::new(r"(\w+)=(\w*)").expect("compiles").captures_all("a=1, b=, c=33")
+        let shown: mut List[string] = []
+        for pair in pairs:
+            shown.push("${show(pair.get(1))} ${show(pair.get(2))}")
+        assert_equal(shown, ["0-1:a 2-3:1", "5-6:b 7-7:", "9-10:c 11-13:33"], reason="three pairs")
+        assert_equal(Regex::new("x").expect("compiles").captures_all("abc").len(), 0, reason="no match")

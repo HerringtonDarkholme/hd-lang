@@ -7,9 +7,11 @@ over the language tier:
 
 - `Regex`, a compiled pattern, and `Regex::new`, which compiles one;
 - the pattern syntax, a subset of RE2's;
-- `is_match` and `find`, which search a text in linear time;
-- `Match`, where a match is, and `RegexError`, why a pattern does not
-  compile.
+- `is_match`, `find`, and `find_all`, which search a text in linear time;
+- `captures` and `captures_all`, which report the text of each group;
+- `replace`, `replace_all`, and `split`;
+- `Match`, where a match is, `Captures`, the groups of a match, and
+  `RegexError`, why a pattern does not compile.
 
 A pattern is ordinary text, so a backslash in it is written `\\` in a
 plain string. The prefix `r` of `std.text` keeps backslashes as written
@@ -36,6 +38,22 @@ fn digits() -> Result[Regex, RegexError]:
 2. r[std-regex.regex.plain] Every function and method in this chapter is a plain call with the empty requirement row.
 3. r[std-regex.regex.immutable] A `Regex` never changes after `new`, and searching with it leaves it unchanged.
 4. r[std-regex.regex.debug] `Regex` implements `Debug`, which shows the pattern.
+
+> **Note.** Write a pattern as a raw string, `r"..."`. Then `\d` needs no
+> second backslash, and a `$` before `"`, `)`, or `|` stays text
+> ([`lex.interp.dollar-text`](../lang/01-lexical-structure.md#r-lex.interp.dollar-text)).
+> A `$` before a letter or `{` still starts an interpolation, in a raw
+> string too.
+
+```text
+use std.regex.Regex
+use std.text.r
+
+fn whole_number(line: string) -> bool:
+    match Regex::new(r"^\d+$"):
+        .Ok(pattern) => pattern.is_match(line)
+        .Err(_) => false
+```
 
 ## Pattern Syntax
 
@@ -81,15 +99,19 @@ value. The forms below are the whole syntax.
 | r[std-regex.syntax.end] End | `$` | the empty text at the end of the searched text |
 | r[std-regex.syntax.group] Group | `(` pattern `)` | what the inner pattern matches |
 | r[std-regex.syntax.group.plain] Plain group | `(?:` pattern `)` | what the inner pattern matches |
+| r[std-regex.syntax.group.named] Named group | `(?P<name>` pattern `)` or `(?<name>` pattern `)` | what the inner pattern matches |
 | r[std-regex.syntax.alternation] Alternation | pattern `\|` pattern | what either side matches |
 | r[std-regex.syntax.empty] Empty | nothing, as in `()`, `a\|`, or the pattern `""` | the empty text |
 
 1. r[std-regex.syntax.anchor.text] `^` and `$` see only the ends of the whole text. A `\n` inside it is no start or end.
-2. r[std-regex.syntax.group.capture] A `( )` group is a capture group, and a `(?: )` group is not. This version reports no capture's text, so the two match alike.
-3. r[std-regex.syntax.group.other] A `(?` followed by anything but `:` is an error, at the `(`. So flags, as in `(?i)`, and named groups, as in `(?P<name>a)`, are not supported. Error: `UnsupportedGroup`.
-4. r[std-regex.syntax.group.unclosed] A `(` with no matching `)` is an error, at the `(`. Error: `MissingParen`.
-5. r[std-regex.syntax.group.unopened] A `)` with no matching `(` is an error, at the `)`. Error: `UnmatchedParen`.
-6. r[std-regex.syntax.precedence] Repetition binds tighter than concatenation, and concatenation binds tighter than `|`. So `ab|cd*` is `(?:ab)|(?:c(?:d*))`.
+2. r[std-regex.syntax.group.number] A `( )` group and a named group are capture groups, numbered from 1 in the order of their `(`. A `(?: )` group has no number.
+3. r[std-regex.syntax.group.name] A group's name is an ASCII letter or `_`, then any number of ASCII letters, digits, and `_`.
+4. r[std-regex.syntax.group.bad-name] A named group whose name breaks that rule, or that has no `>` after `<`, is an error, at the `(`. Error: `BadGroupName`.
+5. r[std-regex.syntax.group.duplicate-name] A name that an earlier group already has is an error, at the later group's `(`. Error: `DuplicateGroupName`.
+6. r[std-regex.syntax.group.unsupported] A `(?` that begins none of `(?:`, `(?P<`, and `(?<` is an error, at the `(`. So are `(?<=` and `(?<!`. Error: `UnsupportedGroup`.
+7. r[std-regex.syntax.group.unclosed] A `(` with no matching `)` is an error, at the `(`. Error: `MissingParen`.
+8. r[std-regex.syntax.group.unopened] A `)` with no matching `(` is an error, at the `)`. Error: `UnmatchedParen`.
+9. r[std-regex.syntax.precedence] Repetition binds tighter than concatenation, and concatenation binds tighter than `|`. So `ab|cd*` is `(?:ab)|(?:c(?:d*))`.
 
 ### Repetition
 
@@ -121,8 +143,8 @@ fn year(line: string) -> string?:
 ```
 
 > **Why.** This is the syntax that RE2 and Go's `regexp` share, without
-> flags, captures by name, `\b`, and Unicode classes. Each left-out form is
-> an error today, not a literal, so adding it later changes no pattern's
+> flags, `\b`, lookaround, and Unicode classes. Each left-out form is an
+> error today, not a literal, so adding it later changes no pattern's
 > meaning.
 
 ## Searching
@@ -165,13 +187,42 @@ pub data Match:
 3. r[std-regex.match.text] `text` is `text.slice(start, end)` of the searched text.
 4. r[std-regex.match.traits] `Match` implements `Eq` and `Debug`.
 
+### All Matches
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-regex.find-all] `find_all` | `pub fn find_all(self, text: string) -> List[Match]` | every match in `text`, left to right, none overlapping |
+
+1. r[std-regex.find-all.next] `find_all` runs a series of searches. The first starts at offset 0, and each finds the match `find` would, among those that start at or after its offset.
+2. r[std-regex.find-all.empty] After a match that is not empty, the next search starts at its end. After an empty match, it starts one character later, and none follows an empty match at the end of the text.
+3. r[std-regex.find-all.drop] An empty match that starts where the previous match ended is dropped.
+4. r[std-regex.find-all.anchors] `^` and `$` still see only the ends of the whole text, wherever a search starts.
+
+```text
+use std.regex.Regex
+
+fn spots() -> List[usize]:
+    let starts: mut List[usize] = []
+    for found in Regex::new("a*").expect("compiles").find_all("baaac"):
+        starts.push(found.start)
+    starts  # [0, 1, 5]
+```
+
+> **Why.** Stepping one character past an empty match keeps the loop
+> finite, and dropping an empty match right after another match follows Go
+> and Rust. So `a*` finds `""`, `"aaa"`, and `""` in `"baaac"`, not a
+> second `""` at offset 4.
+
 ### Time Bound
 
 1. r[std-regex.time.linear] A search takes time in O(m × n), where n is the length of the text and m is the size of the pattern with each counted repetition written out. No pattern makes it slower: there is no backtracking.
 2. r[std-regex.time.memory] A search uses memory in O(m + n).
-3. r[std-regex.time.no-backrefs] So the syntax has no backreference and no lookaround, which no linear-time matcher supports.
-4. r[std-regex.time.size] The **written-out size** of a pattern is given by the table below, where s is the size of the repeated item.
-5. r[std-regex.error.too-large] A pattern whose written-out size is above 10,000 is an error, at offset 0. Error: `TooLarge`.
+3. r[std-regex.time.linear.groups] A search that also reports groups, as `captures` and the replacements do, takes time in O(m × g × n), where g is the number of groups plus one.
+4. r[std-regex.time.memory.groups] Such a search uses memory in O(m × g + n).
+5. r[std-regex.time.all] `find_all`, `captures_all`, `replace_all`, and `split` run at most 2k + 1 searches for k matches.
+6. r[std-regex.time.no-backrefs] So the syntax has no backreference and no lookaround, which no linear-time matcher supports.
+7. r[std-regex.time.size] The **written-out size** of a pattern is given by the table below, where s is the size of the repeated item.
+8. r[std-regex.error.too-large] A pattern whose written-out size is above 10,000 is an error, at offset 0. Error: `TooLarge`.
 
 | Form | Written-out size |
 | --- | --- |
@@ -195,12 +246,110 @@ fn quick(text: string) -> bool:
 
 > **Note.** `lib/std` compiles a pattern to a Pike VM: it runs every
 > thread in step over the text and keeps at most one thread for each
-> instruction, in priority order. The written-out size is the number of
-> instructions that VM runs, without the final one.
+> instruction, in priority order. Each thread carries the positions of the
+> groups it has passed. The written-out size is the number of instructions
+> that VM runs, without the final one and the two that mark each group's
+> ends.
 
 > **Why.** A script runs patterns on input it does not control. RE2's
 > guarantee keeps a pattern like `(a*)*b`, which takes exponential time in
-> a backtracking engine, linear.
+> a backtracking engine, linear. A search may read on past its match to the
+> end of the text, so `find_all` can take O(m × n²), as Rust documents for
+> its iterators.
+
+## Captures
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-regex.captures] `captures` | `pub fn captures(self, text: string) -> Captures?` | the groups of the match `find` returns, or `.None` |
+| r[std-regex.captures-all] `captures_all` | `pub fn captures_all(self, text: string) -> List[Captures]` | the groups of each match `find_all` returns, in order |
+
+`Captures` has these methods:
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-regex.captures.len] `len` | `pub fn len(self) -> usize` | the number of capture groups in the pattern, plus one |
+| r[std-regex.captures.get] `get` | `pub fn get(self, index: usize) -> Match?` | group `index`, where 0 is the whole match |
+| r[std-regex.captures.name] `name` | `pub fn name(self, name: string) -> Match?` | the group named `name` |
+
+1. r[std-regex.captures.decl] `std.regex` declares the data type `Captures`, with private fields.
+2. r[std-regex.captures.whole] `get(0)` is the whole match, the one `find` or `find_all` returns.
+3. r[std-regex.captures.absent] `get(index)` is `.None` when group `index` took no part in the match, or when `index` is not below `len()`.
+4. r[std-regex.captures.name.absent] `name(name)` is `get` of the group with that name, or `.None` when no group has it.
+5. r[std-regex.captures.path] A group's positions are those along the path the match takes, chosen by the preferences of [`std-regex.find.leftmost-first`](#r-std-regex.find.leftmost-first).
+6. r[std-regex.captures.last] A group that the path passes more than once reports its last pass. So `(a|b)+` on `"ab"` gives group 1 the text `"b"`.
+7. r[std-regex.captures.empty-loop] An optional iteration of `*`, `+`, or `{m,}` that would match the empty text is not taken. So `(a*)*` on `"b"` leaves group 1 out, and `(a*)+` does not.
+
+```text
+use std.regex.Regex
+use std.text.r
+
+fn year_and_month(line: string) -> (string, string)?:
+    date := Regex::new(r"(?<year>\d{4})-(\d{2})").expect("compiles")
+    found := date.captures(line)?
+    .Some((found.name("year")?.text, found.get(2)?.text))  # "2026-10" gives ("2026", "10")
+```
+
+> **Why.** Group numbers, `.None` for a group that took no part, and the
+> last pass of a repeated group are what RE2, Go, and Rust report. Both
+> spellings of a named group are accepted, as RE2, Go 1.22, and Rust
+> accept them: `(?P<name>)` is Python's, and `(?<name>)` is JavaScript's,
+> Java's, and .NET's.
+
+## Replacing And Splitting
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-regex.replace] `replace` | `pub fn replace(self, text: string, replacement: string) -> string` | `text` with the match `find` returns replaced |
+| r[std-regex.replace-all] `replace_all` | `pub fn replace_all(self, text: string, replacement: string) -> string` | `text` with each match `find_all` returns replaced |
+| r[std-regex.split] `split` | `pub fn split(self, text: string) -> List[string]` | the pieces of `text` around each match `find_all` returns |
+
+1. r[std-regex.replace.none] With no match, `replace` and `replace_all` return `text` unchanged.
+2. r[std-regex.replace.expand] A match is replaced by `replacement`, with each reference in the table below replaced by the text it names in that match's groups.
+3. r[std-regex.replace.once] `replacement` is read once, from left to right, for each match. A group's text is never read for references.
+
+| Rule | Reference | Replaced by |
+| --- | --- | --- |
+| r[std-regex.replace.syntax.dollar] Dollar | `$$` | one `$` |
+| r[std-regex.replace.syntax.number] Number | `$` and ASCII digits, as in `$1` | the text of the group with that number |
+| r[std-regex.replace.syntax.braced] Braced number | `${` ASCII digits `}`, as in `${1}` | the text of the group with that number |
+| r[std-regex.replace.syntax.name] Name | `${` name `}`, as in `${year}` | the text of the group with that name |
+
+4. r[std-regex.replace.longest] A number takes every digit that follows the `$`, so `$12` is group 12. Write `${1}2` for group 1 then `2`.
+5. r[std-regex.replace.absent] A reference to a group that took no part, or that the pattern does not have, is replaced by the empty text.
+6. r[std-regex.replace.literal] A `$` that begins no reference in the table is itself. So `$x`, `${}`, an unclosed `${1`, and a final `$` stay as written.
+7. r[std-regex.split.pieces] With k matches, `split` returns k + 1 pieces: the text before the first match, the text between each pair of matches, and the text after the last.
+8. r[std-regex.split.ends] So a match at the start of `text` gives a first piece `""`, and one at its end a last piece `""`. Splitting `""` with no match gives `[""]`.
+
+```text
+use std.regex.Regex
+use std.text.r
+
+fn iso(dates: string) -> string:
+    us := Regex::new(r"(?<month>\d\d)/(?<day>\d\d)/(\d{4})").expect("compiles")
+    us.replace_all(dates, "$3-\${month}-\${day}")  # "12/31/2025" gives "2025-12-31"
+```
+
+```text
+use std.regex.Regex
+use std.text.r
+
+fn fields(line: string) -> List[string]:
+    Regex::new(r"\s*,\s*").expect("compiles").split(line)  # ",a , b" gives ["", "a", "b"]
+```
+
+> **Note.** A replacement is a string literal, so its `$` follows
+> [Interpolation](../lang/01-lexical-structure.md#interpolation). `$1` and
+> `$$` are text as written, by
+> [`lex.interp.dollar-text`](../lang/01-lexical-structure.md#r-lex.interp.dollar-text).
+> A braced reference needs `\$`, as in `"\${month}"`, or the string
+> interpolates `month`. A raw string does not help: `r"\${month}"` keeps the
+> backslash.
+
+> **Why.** `$1`, `${name}`, and `$$` are the replacement syntax of Go and
+> Rust. A bare `$name` is left out, since an hd string would interpolate
+> it. So `$1a` is group 1 then `a`, where Go and Rust read a group named
+> `1a`.
 
 ## Pattern Errors
 
@@ -214,6 +363,8 @@ pub enum RegexErrorKind:
     NothingToRepeat
     BadRepeat
     UnsupportedGroup
+    BadGroupName
+    DuplicateGroupName
     TooLarge
 
 pub data RegexError:
@@ -230,10 +381,12 @@ pub data RegexError:
 | r[std-regex.error.kind.bad-range] Bad range | `BadRange` | [`std-regex.syntax.class.bad-range`](#r-std-regex.syntax.class.bad-range) | `invalid character class range` |
 | r[std-regex.error.kind.nothing-to-repeat] Nothing to repeat | `NothingToRepeat` | [`std-regex.repeat.nothing`](#r-std-regex.repeat.nothing) | `missing argument to repetition operator` |
 | r[std-regex.error.kind.bad-repeat] Bad repeat | `BadRepeat` | [`std-regex.repeat.bad-count`](#r-std-regex.repeat.bad-count) | `invalid repeat count` |
-| r[std-regex.error.kind.unsupported-group] Unsupported group | `UnsupportedGroup` | [`std-regex.syntax.group.other`](#r-std-regex.syntax.group.other) | `unsupported group` |
+| r[std-regex.error.kind.unsupported-group] Unsupported group | `UnsupportedGroup` | [`std-regex.syntax.group.unsupported`](#r-std-regex.syntax.group.unsupported) | `unsupported group` |
+| r[std-regex.error.kind.bad-group-name] Bad group name | `BadGroupName` | [`std-regex.syntax.group.bad-name`](#r-std-regex.syntax.group.bad-name) | `invalid named capture` |
+| r[std-regex.error.kind.duplicate-group-name] Duplicate group name | `DuplicateGroupName` | [`std-regex.syntax.group.duplicate-name`](#r-std-regex.syntax.group.duplicate-name) | `duplicate capture group name` |
 | r[std-regex.error.kind.too-large] Too large | `TooLarge` | [`std-regex.error.too-large`](#r-std-regex.error.too-large) | `expression too large` |
 
-1. r[std-regex.error.decl] `std.regex` declares the enum `RegexErrorKind` with the nine kinds above, and the data type `RegexError` with the public fields above.
+1. r[std-regex.error.declared] `std.regex` declares the enum `RegexErrorKind` with the eleven kinds above, and the data type `RegexError` with the public fields above.
 2. r[std-regex.error.position] `position` is the byte offset in the pattern where the rule for the kind puts the error.
 3. r[std-regex.error.first] `new` reads the pattern from left to right and returns the first error it meets. A group or class is checked for its closing character after its contents.
 4. r[std-regex.error.size-last] `TooLarge` is checked only once the whole pattern has no other error.
@@ -248,14 +401,14 @@ fn broken() -> RegexError?:
 ```
 
 > **Why.** The kinds and texts follow Go's `regexp/syntax` error codes,
-> so an error reads the same as there. A position lets a tool point at the
+> and Rust's text for a duplicate name, so an error reads the same as there. A position lets a tool point at the
 > spot in a pattern the user wrote.
 
 ## Not Yet Specified
 
-These are part 2 of `std.regex` and are not in this version:
+These are not in this version of `std.regex`:
 
-- `captures`, the text of each capture group;
-- `find_all`, every match that does not overlap the one before;
-- `replace` and `replace_all`, with `$1` references to captures;
-- flags, such as `(?i)`, `(?m)`, and `(?s)`.
+- flags, such as `(?i)`, `(?m)`, and `(?s)`, which are `UnsupportedGroup`
+  errors today;
+- `\b` and the Unicode classes `\p{...}`, which are `BadEscape` errors;
+- a replacement computed by a function from each match's `Captures`.

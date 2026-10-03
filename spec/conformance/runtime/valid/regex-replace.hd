@@ -1,0 +1,47 @@
+# test: replace and replace_all expand $1, ${1}, ${name}, and $$ in the replacement
+# Spec std/regex Replacing And Splitting: std-regex.replace, std-regex.replace-all, std-regex.replace.none, std-regex.replace.expand, std-regex.replace.syntax.dollar, std-regex.replace.syntax.number, std-regex.replace.syntax.braced, std-regex.replace.syntax.name, std-regex.replace.longest, std-regex.replace.absent, std-regex.replace.literal, std-regex.replace.once (task #244).
+use std.regex.Regex
+use std.testing.assert_equal
+use std.text.r
+
+fn swap(pattern: string, text: string, replacement: string) -> string:
+    Regex::new(pattern).expect("compiles").replace_all(text, replacement)
+
+fn iso(dates: string) -> string:
+    us := Regex::new(r"(?<month>\d\d)/(?<day>\d\d)/(\d{4})").expect("compiles")
+    us.replace_all(dates, "$3-\${month}-\${day}")
+
+tests:
+    it("numbers and names mix"):
+        assert_equal(iso("12/31/2025 and 01/02/2024"), "2025-12-31 and 2024-01-02", reason="two dates")
+
+    it("replace changes only the first match"):
+        digits := Regex::new(r"\d+").expect("compiles")
+        assert_equal(digits.replace("a1 b22", "#"), "a# b22", reason="first only")
+        assert_equal(digits.replace_all("a1 b22", "#"), "a# b#", reason="every match")
+        assert_equal(digits.replace("none", "#"), "none", reason="no match")
+        assert_equal(digits.replace_all("none", "#"), "none", reason="no match")
+
+    it("group references"):
+        assert_equal(swap(r"(\w+)=(\w+)", "a=1 b=2", "$2=$1"), "1=a 2=b", reason="numbers")
+        assert_equal(swap(r"(\w+)=(\w+)", "a=1", "\${2}\${1}"), "1a", reason="braced numbers")
+        assert_equal(swap(r"(?<key>\w+)=(?<value>\w+)", "a=1 b=2", "\${value}:\${key}"), "1:a 2:b", reason="names")
+        assert_equal(swap("(a)", "a", "$0$1"), "aa", reason="group 0 is the whole match")
+        assert_equal(swap(r"\d+", "cost 5", "$$$0"), "cost \$5", reason="$$ is a dollar sign")
+
+    it("references that name nothing"):
+        assert_equal(swap("(a)|(b)", "ab", "[$2]"), "[][b]", reason="a group that took no part")
+        assert_equal(swap("(a)", "a", "[$12]"), "[]", reason="the longest run of digits")
+        assert_equal(swap("(a)", "a", "[\${1}2]"), "[a2]", reason="braces end the number")
+        assert_equal(swap("(a)", "a", "[\${nope}]"), "[]", reason="no group by that name")
+
+    it("a $ that starts no reference is itself"):
+        assert_equal(swap("(a)", "a", "\$x \${} \${1"), "\$x \${} \${1", reason="no reference")
+        assert_equal(swap("a", "a", "\$"), "\$", reason="a final $")
+
+    it("replaced text is not read again"):
+        assert_equal(swap("(.)", "\$", "$1$1"), "\$\$", reason="a $ in a group stays")
+
+    it("empty matches"):
+        assert_equal(swap("x*", "abc", "-"), "-a-b-c-", reason="an empty match at each position")
+        assert_equal(swap("a*", "baaac", "-"), "-b-c-", reason="the empty match after aaa is dropped")

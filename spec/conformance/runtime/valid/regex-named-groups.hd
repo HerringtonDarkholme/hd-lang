@@ -1,0 +1,30 @@
+# test: named groups in both spellings take numbers in order, and name finds them
+# Spec std/regex Captures: std-regex.syntax.group.named, std-regex.syntax.group.name, std-regex.syntax.group.number, std-regex.captures.name, std-regex.captures.name.absent (task #244).
+use std.regex.{Regex, Match}
+use std.testing.assert_equal
+use std.text.r
+
+fn show(found: Match?) -> string:
+    match found:
+        .Some(m) => "${m.start}-${m.end}:${m.text}"
+        .None => "none"
+
+tests:
+    it("(?P<name>...) and (?<name>...) are named groups"):
+        date := Regex::new(r"(?P<year>\d{4})-(?<month>\d\d)(-(?<day>\d\d))?").expect("compiles")
+        found := date.captures("on 2026-10 and").expect("matches")
+        assert_equal(show(found.name("year")), "3-7:2026", reason="the P spelling")
+        assert_equal(show(found.name("month")), "8-10:10", reason="the plain spelling")
+        assert_equal(show(found.name("day")), "none", reason="a named group that took no part")
+        assert_equal(show(found.get(2)), "8-10:10", reason="a named group also has a number")
+        assert_equal(found.len(), 5, reason="four groups and the whole match")
+
+    it("name of a name no group has is .None"):
+        found := Regex::new("(?<a>x)(y)").expect("compiles").captures("xy").expect("matches")
+        assert_equal(show(found.name("b")), "none", reason="no such name")
+        assert_equal(show(found.name("")), "none", reason="an unnamed group has no name")
+        assert_equal(show(found.name("a")), "0-1:x", reason="the named one")
+
+    it("names hold ASCII letters, digits, and _"):
+        found := Regex::new("(?<_x9>q)").expect("compiles").captures("q").expect("matches")
+        assert_equal(show(found.name("_x9")), "0-1:q", reason="underscore first, then a digit")

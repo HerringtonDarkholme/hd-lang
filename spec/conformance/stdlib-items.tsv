@@ -59,4 +59,5 @@ std.json.decode	std/json.md#encode-and-decode
 std.cli	std/cli.md#declaring-arguments
 std.regex.Regex	std/regex.md#compiling-a-pattern
 std.regex.Match	std/regex.md#searching
+std.regex.Captures	std/regex.md#captures
 std.regex.RegexError	std/regex.md#pattern-errors

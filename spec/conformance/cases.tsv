@@ -2125,3 +2125,9 @@ runtime/valid/regex-repetition.hd	runtime	accept	std/regex.md#repetition
 runtime/valid/regex-leftmost-first.hd	runtime	accept	std/regex.md#searching
 runtime/valid/regex-linear-time.hd	runtime	accept	std/regex.md#time-bound
 runtime/valid/regex-errors.hd	runtime	accept	std/regex.md#pattern-errors
+runtime/valid/regex-find-all.hd	runtime	accept	std/regex.md#all-matches
+runtime/valid/regex-captures.hd	runtime	accept	std/regex.md#captures
+runtime/valid/regex-named-groups.hd	runtime	accept	std/regex.md#captures
+runtime/valid/regex-replace.hd	runtime	accept	std/regex.md#replacing-and-splitting
+runtime/valid/regex-split.hd	runtime	accept	std/regex.md#replacing-and-splitting
+runtime/valid/regex-captures-linear-time.hd	runtime	accept	std/regex.md#time-bound

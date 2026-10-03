@@ -1,14 +1,24 @@
 # test: the anchors ^ and $, capture and plain groups, alternation, the empty pattern, and precedence
-# Spec std/regex Anchors, Groups, And Alternation: std-regex.syntax.begin, std-regex.syntax.end, std-regex.syntax.anchor.text, std-regex.syntax.group, std-regex.syntax.group.plain, std-regex.syntax.group.capture, std-regex.syntax.alternation, std-regex.syntax.empty, std-regex.syntax.precedence, std-regex.regex.as-str (task #243).
+# Spec std/regex Anchors, Groups, And Alternation: std-regex.syntax.begin, std-regex.syntax.end, std-regex.syntax.anchor.text, std-regex.syntax.group, std-regex.syntax.group.plain, std-regex.syntax.group.number, std-regex.syntax.alternation, std-regex.syntax.empty, std-regex.syntax.precedence, std-regex.regex.as-str (tasks #243, #244).
 use std.regex.{Regex, Match}
 use std.testing.assert_equal
+use std.text.r
 
 fn found(pattern: string, text: string) -> string?:
     match Regex::new(pattern):
         .Ok(compiled) => compiled.find(text).map(fn(m: Match) -> string: "${m.start}-${m.end}:${m.text}")
         .Err(error) => .Some("error ${error}")
 
+fn whole_number(line: string) -> bool:
+    match Regex::new(r"^\d+$"):
+        .Ok(pattern) => pattern.is_match(line)
+        .Err(_) => false
+
 tests:
+    it("a raw pattern keeps a final $ as the end anchor"):
+        assert_equal(whole_number("123"), true, reason="digits only")
+        assert_equal(whole_number("12a"), false, reason="a letter at the end")
+
     it("^ and $ see only the ends of the whole text"):
         assert_equal(found("^a", "ab"), .Some("0-1:a"), reason="start")
         assert_equal(found("^b", "ab"), .None, reason="not at the start")

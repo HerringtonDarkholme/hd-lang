@@ -1,0 +1,29 @@
+# test: split returns the pieces around each match, with an empty piece for a match at either end
+# Spec std/regex Replacing And Splitting: std-regex.split, std-regex.split.pieces, std-regex.split.ends (task #244).
+use std.regex.Regex
+use std.testing.assert_equal
+use std.text.r
+
+fn pieces(pattern: string, text: string) -> List[string]:
+    Regex::new(pattern).expect("compiles").split(text)
+
+fn fields(line: string) -> List[string]:
+    Regex::new(r"\s*,\s*").expect("compiles").split(line)
+
+tests:
+    it("a leading separator"):
+        assert_equal(fields(",a , b"), ["", "a", "b"], reason="an empty first piece")
+
+    it("the pieces between matches"):
+        assert_equal(pieces(r"\s*,\s*", "a , b,c"), ["a", "b", "c"], reason="three pieces")
+        assert_equal(pieces(",", "abc"), ["abc"], reason="no match")
+        assert_equal(pieces(",", ""), [""], reason="the empty text")
+
+    it("a match at either end gives an empty piece"):
+        assert_equal(pieces(",", ",a,"), ["", "a", ""], reason="leading and trailing")
+        assert_equal(pieces(",", ",,"), ["", "", ""], reason="two matches")
+        assert_equal(pieces(r"\d", "1a2"), ["", "a", ""], reason="digits at both ends")
+
+    it("empty matches split between characters"):
+        assert_equal(pieces("", "ab"), ["", "a", "b", ""], reason="the empty pattern")
+        assert_equal(pieces("x*", "axb"), ["", "a", "b", ""], reason="x* matches the empty text too")

@@ -1,5 +1,5 @@
 # test: each RegexErrorKind with its position and Display text, the first error winning, and the size limit
-# Spec std/regex Pattern Errors: std-regex.error.decl, std-regex.error.position, std-regex.error.first, std-regex.error.size-last, std-regex.error.traits, std-regex.error.display, std-regex.error.kind.missing-paren, std-regex.error.kind.unmatched-paren, std-regex.error.kind.missing-bracket, std-regex.error.kind.bad-escape, std-regex.error.kind.bad-range, std-regex.error.kind.nothing-to-repeat, std-regex.error.kind.bad-repeat, std-regex.error.kind.unsupported-group, std-regex.error.kind.too-large, std-regex.syntax.escape.other, std-regex.syntax.class.unclosed, std-regex.syntax.class.bad-range, std-regex.syntax.group.other, std-regex.syntax.group.unclosed, std-regex.syntax.group.unopened, std-regex.repeat.bad-count, std-regex.repeat.nothing, std-regex.time.size, std-regex.error.too-large (task #243).
+# Spec std/regex Pattern Errors: std-regex.error.declared, std-regex.error.position, std-regex.error.first, std-regex.error.size-last, std-regex.error.traits, std-regex.error.display, std-regex.error.kind.missing-paren, std-regex.error.kind.unmatched-paren, std-regex.error.kind.missing-bracket, std-regex.error.kind.bad-escape, std-regex.error.kind.bad-range, std-regex.error.kind.nothing-to-repeat, std-regex.error.kind.bad-repeat, std-regex.error.kind.unsupported-group, std-regex.error.kind.bad-group-name, std-regex.error.kind.duplicate-group-name, std-regex.error.kind.too-large, std-regex.syntax.escape.other, std-regex.syntax.class.unclosed, std-regex.syntax.class.bad-range, std-regex.syntax.group.unsupported, std-regex.syntax.group.bad-name, std-regex.syntax.group.duplicate-name, std-regex.syntax.group.unclosed, std-regex.syntax.group.unopened, std-regex.repeat.bad-count, std-regex.repeat.nothing, std-regex.time.size, std-regex.error.too-large (tasks #243, #244).
 use std.regex.{Regex, RegexError, RegexErrorKind}
 use std.testing.assert_equal
 use std.text.r
@@ -41,7 +41,18 @@ tests:
 
     it("groups"):
         assert_equal(error_of("(?i)a"), at(.UnsupportedGroup, 0), reason="a flag")
-        assert_equal(error_of("x(?P<name>a)"), at(.UnsupportedGroup, 1), reason="a named group")
+        assert_equal(error_of("a(?s:.)"), at(.UnsupportedGroup, 1), reason="a flag group")
+        assert_equal(error_of("(?=a)"), at(.UnsupportedGroup, 0), reason="a lookahead")
+        assert_equal(error_of("x(?<=a)"), at(.UnsupportedGroup, 1), reason="a lookbehind")
+        assert_equal(error_of("(?P=name)"), at(.UnsupportedGroup, 0), reason="a backreference by name")
+
+    it("group names"):
+        assert_equal(error_of("x(?P<1st>a)"), at(.BadGroupName, 1), reason="a digit first")
+        assert_equal(error_of("(?<>a)"), at(.BadGroupName, 0), reason="an empty name")
+        assert_equal(error_of("(?<a-b>c)"), at(.BadGroupName, 0), reason="a hyphen")
+        assert_equal(error_of("(?P<name"), at(.BadGroupName, 0), reason="no >")
+        assert_equal(error_of("(?<x>a)(?P<x>b)"), at(.DuplicateGroupName, 7), reason="the second group")
+        assert_equal(error_of("(?<x>a(?<x>b)"), at(.DuplicateGroupName, 6), reason="before the missing )")
 
     it("the size limit"):
         assert_equal(error_of("(?:a{1000}){10}").is_none(), true, reason="10,000 is allowed")
@@ -62,4 +73,6 @@ tests:
         assert_equal("${RegexErrorKind.NothingToRepeat}", "missing argument to repetition operator", reason="nothing to repeat")
         assert_equal("${RegexErrorKind.BadRepeat}", "invalid repeat count", reason="bad repeat")
         assert_equal("${RegexErrorKind.UnsupportedGroup}", "unsupported group", reason="unsupported group")
+        assert_equal("${RegexErrorKind.BadGroupName}", "invalid named capture", reason="bad group name")
+        assert_equal("${RegexErrorKind.DuplicateGroupName}", "duplicate capture group name", reason="duplicate group name")
         assert_equal("${RegexErrorKind.TooLarge}", "expression too large", reason="too large")
