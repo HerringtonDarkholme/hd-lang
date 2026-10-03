@@ -1,5 +1,6 @@
-// Client behavior for the hd-lang site: the mobile navigation toggle, heading
-// search, and passing `#code=` from the playground page to the playground.
+// Client behavior for the hd-lang site: the mobile navigation toggle, the
+// theme toggle, heading search, copy buttons on code blocks, and passing
+// `#code=` from the playground page to the playground.
 
 const base = document.body.dataset.base ?? "/";
 
@@ -18,6 +19,87 @@ function setupMenu() {
     if (event.key === "Escape") close();
   });
   document.querySelector(".content")?.addEventListener("click", close);
+  document.getElementById("sidebar")?.addEventListener("click", (event) => {
+    if (event.target instanceof Element && event.target.closest("a")) close();
+  });
+}
+
+/** The localStorage key layout.ts's head script reads before the first paint. */
+const THEME_KEY = "hd-theme";
+
+function setupTheme() {
+  const button = document.querySelector(".theme-toggle");
+  if (!button) return;
+  const root = document.documentElement;
+  const dark = () =>
+    root.dataset.theme === "dark" ||
+    (root.dataset.theme !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const label = () => {
+    const next = dark() ? "light" : "dark";
+    button.setAttribute("aria-label", `Switch to the ${next} theme`);
+    button.setAttribute("title", `Switch to the ${next} theme`);
+  };
+  label();
+  button.addEventListener("click", () => {
+    const theme = dark() ? "light" : "dark";
+    root.dataset.theme = theme;
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      // Storage can be blocked; the choice then lasts for this page only.
+    }
+    // The framed playground reads the stored choice when it loads; tell it now too.
+    for (const frame of document.querySelectorAll("iframe")) {
+      try {
+        frame.contentDocument.documentElement.dataset.theme = theme;
+      } catch {
+        // A frame from another origin keeps its own theme.
+      }
+    }
+    label();
+  });
+}
+
+/**
+ * Gives every code block a Copy button. It shares a row with the block's Try in
+ * REPL or playground link; a plain ```text block gets a wrapper to hold it.
+ */
+function setupCopy() {
+  if (!navigator.clipboard) return;
+  for (const pre of document.querySelectorAll("main pre.code")) {
+    if (pre.closest(".code-window, .claim")) continue;
+    let block = pre.parentElement;
+    if (!block?.classList.contains("code-block")) {
+      block = document.createElement("div");
+      block.className = "code-block";
+      pre.replaceWith(block);
+      block.append(pre);
+    }
+    const actions = document.createElement("div");
+    actions.className = "code-actions";
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "copy-button";
+    copy.textContent = "Copy";
+    copy.setAttribute("aria-label", "Copy the code");
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(pre.textContent ?? "");
+        copy.textContent = "Copied";
+        copy.dataset.copied = "";
+      } catch {
+        copy.textContent = "Failed";
+      }
+      setTimeout(() => {
+        copy.textContent = "Copy";
+        delete copy.dataset.copied;
+      }, 1500);
+    });
+    const tryLink = block.querySelector(":scope > .try-link");
+    if (tryLink) actions.append(tryLink);
+    actions.append(copy);
+    block.append(actions);
+  }
 }
 
 function setupSearch() {
@@ -175,6 +257,8 @@ function setupOutline() {
 }
 
 setupMenu();
+setupTheme();
+setupCopy();
 setupSearch();
 setupPlayground();
 setupOutline();

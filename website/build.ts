@@ -9,17 +9,12 @@ import * as esbuild from "esbuild";
 import { loadCorpus } from "../spec/tools/spec-corpus.ts";
 import { glossary, glossaryMarkdown } from "../spec/tools/spec-glossary.ts";
 import { buildOptions, buildPlayground } from "./playground/build.ts";
+import { renderHome } from "./src/home.ts";
 import { renderLayout, REPL_SCRIPT } from "./src/layout.ts";
 import { checkHdBlocksParse, LEARN_PAGE } from "./src/learn-check.ts";
 import { checkLinks } from "./src/links.ts";
 import { buildGrammarIndex, type GrammarIndex } from "./src/ebnf.ts";
-import {
-  createMarkdown,
-  escapeHtml,
-  fencedBlocks,
-  type Heading,
-  type RenderEnv,
-} from "./src/markdown.ts";
+import { createMarkdown, fencedBlocks, type Heading, type RenderEnv } from "./src/markdown.ts";
 import {
   pageBySource,
   PAGES,
@@ -120,25 +115,6 @@ function firstParagraph(markdown: string): string {
   return text.length > 200 ? `${text.slice(0, 197)}...` : text;
 }
 
-const HOME_CARDS: readonly [output: string, title: string, blurb: string][] = [
-  [
-    "guide/learn-in-10-minutes.html",
-    "Learn in 10 minutes",
-    "A fast tour of the syntax and core ideas.",
-  ],
-  ["guide/language-tour.html", "Language Tour", "Every feature, with examples and design notes."],
-  ["spec/index.html", "Specification", "The normative reference, chapter by chapter."],
-  [PLAYGROUND_PAGE, "Playground", "Write and run hd code in the browser."],
-];
-
-function homeCards(base: string): string {
-  const cards = HOME_CARDS.map(
-    ([output, title, blurb]) =>
-      `<a class="card" href="${siteLink(base, output)}"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(blurb)}</span></a>`,
-  );
-  return `<div class="cards">${cards.join("")}</div>`;
-}
-
 function playgroundBody(base: string, available: boolean): string {
   if (available)
     return `<div class="playground-bar"><h1>Playground</h1><a id="playground-open" href="${base}${PLAYGROUND_APP_DIR}/">Open full screen</a></div>
@@ -225,8 +201,16 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
       slugCounts: new Map(),
       grammar,
     };
-    let body = md.render(markdown, env);
-    if (entry.output === "index.html") body += homeCards(base);
+    const home = entry.output === "index.html";
+    const body = home
+      ? renderHome({
+          md,
+          env,
+          readme: markdown,
+          examplesDir: join(WEBSITE_DIR, "playground", "examples"),
+          pageUrl: (output) => siteLink(base, output),
+        })
+      : md.render(markdown, env);
     const title = env.headings.find((heading) => heading.level === 1)?.text ?? entry.navTitle;
     search.push(...searchEntries(base, entry.output, title, env.headings));
     await write(
@@ -239,6 +223,7 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
         body,
         headings: env.headings,
         source: entry.generated ? undefined : entry.source,
+        shape: home ? "home" : "docs",
         repl: playground,
       }),
     );
@@ -254,7 +239,7 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
       description: "Write and run hd-lang code in the browser.",
       body: playgroundBody(base, playground),
       headings: [],
-      width: "wide",
+      shape: "wide",
       repl: playground,
     }),
   );

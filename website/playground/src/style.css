@@ -1,59 +1,39 @@
 :root {
-  --bg: #f6f7f9;
-  --panel-bg: #ffffff;
-  --editor-bg: #ffffff;
-  --fg: #1d2330;
-  --muted: #6b7385;
-  --border: #d9dde5;
-  --accent: #3552c9;
-  --accent-fg: #ffffff;
-  --active-line: #f1f4fb;
-  --selection: #cfdaf7;
-  --ok: #1b7f4b;
-  --error: #c0392b;
-  --warning: #9a6700;
-  --tok-keyword: #8a3ab9;
-  --tok-literal: #b35900;
-  --tok-type: #0b7285;
-  --tok-function: #2f5bd3;
-  --tok-number: #b35900;
-  --tok-string: #2b7a0b;
-  --tok-interpolation: #0f5f3a;
-  --tok-comment: #7a8193;
-  --tok-operator: #4a5162;
-  --tok-name: #a3366e;
+  color-scheme: light dark;
+  --bg: light-dark(#f6f7f9, #14171d);
+  --panel-bg: light-dark(#ffffff, #1b1f27);
+  --editor-bg: light-dark(#ffffff, #181b22);
+  --fg: light-dark(#1d2330, #e3e6ed);
+  --muted: light-dark(#6b7385, #8b93a5);
+  --border: light-dark(#d9dde5, #2c323d);
+  --accent: light-dark(#5b3fd6, #a796ff);
+  --accent-fg: light-dark(#ffffff, #120d2b);
+  --active-line: light-dark(#f1f4fb, #20242d);
+  --selection: light-dark(#ddd3ff, #3a2f6b);
+  --ok: light-dark(#1b7f4b, #5fcf8e);
+  --error: light-dark(#c0392b, #ff7b6e);
+  --warning: light-dark(#9a6700, #e3b341);
+  --tok-keyword: light-dark(#8a3ab9, #d19bff);
+  --tok-literal: light-dark(#b35900, #ffb070);
+  --tok-type: light-dark(#0b7285, #5ed3e6);
+  --tok-function: light-dark(#2f5bd3, #82aaff);
+  --tok-number: light-dark(#b35900, #ffb070);
+  --tok-string: light-dark(#2b7a0b, #9fdc7c);
+  --tok-interpolation: light-dark(#0f5f3a, #d6f5a6);
+  --tok-comment: light-dark(#7a8193, #7d8599);
+  --tok-operator: light-dark(#4a5162, #b7bfd0);
+  --tok-name: light-dark(#a3366e, #f59ac8);
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* The site's theme toggle sets data-theme; without it the system setting wins. */
+:root[data-theme="light"] {
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14171d;
-    --panel-bg: #1b1f27;
-    --editor-bg: #181b22;
-    --fg: #e3e6ed;
-    --muted: #8b93a5;
-    --border: #2c323d;
-    --accent: #6d8cff;
-    --accent-fg: #0d1020;
-    --active-line: #20242d;
-    --selection: #2f3e66;
-    --ok: #5fcf8e;
-    --error: #ff7b6e;
-    --warning: #e3b341;
-    --tok-keyword: #d19bff;
-    --tok-literal: #ffb070;
-    --tok-type: #5ed3e6;
-    --tok-function: #82aaff;
-    --tok-number: #ffb070;
-    --tok-string: #9fdc7c;
-    --tok-interpolation: #d6f5a6;
-    --tok-comment: #7d8599;
-    --tok-operator: #b7bfd0;
-    --tok-name: #f59ac8;
-    color-scheme: dark;
-  }
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 * {

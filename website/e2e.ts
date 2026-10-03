@@ -340,9 +340,30 @@ try {
       await page.context().close();
     }
   });
+  await step("the landing page fits a phone, and its menu and theme toggle work", async () => {
+    const { page } = await openPage("index.html", { width: 375 });
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    assert.equal(overflow, 0, "no horizontal page scroll");
+    assert.equal(await page.locator(".topnav").isVisible(), false);
+    await page.click(".menu-button");
+    const spec = page.locator("#sidebar .sidebar-primary a", { hasText: "Spec" });
+    await spec.waitFor({ state: "visible" });
+    await page.keyboard.press("Escape");
+    const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    assert.equal(await background(), "rgb(255, 255, 255)");
+    await page.click(".theme-toggle");
+    assert.equal(await background(), "rgb(20, 23, 29)");
+    await page.reload();
+    assert.equal(await background(), "rgb(20, 23, 29)", "the choice persists");
+    if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "home-phone-dark.png") });
+    await page.context().close();
+  });
+
   await step("the Playground link opens the playground with the code it carries", async () => {
     const home = await openPage("index.html");
-    await home.page.locator("#sidebar a", { hasText: "Playground" }).click();
+    await home.page.locator(".topnav a", { hasText: "Playground" }).click();
     await home.page.waitForURL(`${origin}${PAGES_BASE}${PLAYGROUND_PAGE}`);
     await home.page.context().close();
     const source = 'pub fn main() -> void $ Console:\n    println("from the site")\n';

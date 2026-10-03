@@ -95,7 +95,7 @@ const ERROR_LINE = /#\s*error(?::\s*[a-z0-9-]+)?\s*$/;
  * classes. A line that an error example marks as rejected is wrapped in a
  * `line-error` span, and its marker comment gets `hl-error-marker`.
  */
-function highlightHd(code: string): string {
+export function highlightHd(code: string): string {
   return code
     .split("\n")
     .map((line) => {

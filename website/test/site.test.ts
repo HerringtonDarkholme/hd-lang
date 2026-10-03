@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -7,13 +8,17 @@ import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { buildSite, PAGES_BASE } from "../build.ts";
+import { claimCard } from "../src/claim.ts";
 import type { GrammarIndex } from "../src/ebnf.ts";
+import { FEATURES, featureSource } from "../src/features.ts";
 import { checkHdBlocksParse, LEARN_PAGE } from "../src/learn-check.ts";
+import { renderLayout } from "../src/layout.ts";
 import { checkLinks } from "../src/links.ts";
 import { createMarkdown, type RenderEnv } from "../src/markdown.ts";
 import { PAGES, PLAYGROUND_PAGE } from "../src/pages.ts";
 
 const REPO_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const EXAMPLES_DIR = join(REPO_DIR, "website/playground/examples");
 
 let scratch = "";
 /** The rule index of the Pages-base build in the first test. */
@@ -134,6 +139,103 @@ describe("website build", () => {
       html,
       /href="#fnref-a" class="footnote-backref".*href="#fnref-a-2" class="footnote-backref"/,
     );
+  });
+
+  test("builds the landing page from the README and the playground examples", async () => {
+    const home = await readFile(join(scratch, "pages", "index.html"), "utf8");
+    const readme = await readFile(join(REPO_DIR, "README.md"), "utf8");
+    const slogan = /^\*\*(.+)\*\*$/m.exec(readme)![1]!;
+    assert.match(home, new RegExp(`<h1 id="hero-title">${slogan.replaceAll(".", "\\.")}</h1>`));
+    assert.match(home, /<div class="layout layout-home">/);
+    assert.match(home, /<a class="button button-primary" href="\/hd-lang\/playground\.html">/);
+    assert.match(home, /href="\/hd-lang\/guide\/learn-in-10-minutes\.html">Learn in 10 minutes/);
+    // The hero sample is the README's own code, highlighted.
+    assert.match(
+      home,
+      /<span class="hl-keyword">trait<\/span> <span class="hl-type">Mailer<\/span>/,
+    );
+    // Each claim card opens its whole example in the playground.
+    const examples = [
+      ...home.matchAll(/<a href="\/hd-lang\/playground\.html#code=([A-Za-z0-9_-]+)">Run the full/g),
+    ].map((match) => Buffer.from(match[1]!, "base64url").toString("utf8"));
+    assert.equal(examples.length, FEATURES.length);
+    for (const [index, feature] of FEATURES.entries())
+      assert.equal(
+        examples[index],
+        await readFile(join(EXAMPLES_DIR, `${feature.example}.hd`), "utf8"),
+      );
+    // A punchline line is marked, and a diagnostic sits in an error pane.
+    assert.match(
+      home,
+      /<span class="line-mark"><span class="hl-keyword">fn<\/span> <span class="hl-function">welcome!<\/span>/,
+    );
+    assert.match(home, /<figure class="claim-output claim-output-error">/);
+    // The README's sections follow the hero.
+    assert.match(home, /<h2 id="why-hd">/);
+  });
+
+  test("claim outputs are real compiler output", () => {
+    const dir = mkdtempSync(join(tmpdir(), "hd-claims-"));
+    try {
+      for (const feature of FEATURES) {
+        const { output } = feature;
+        if (!output) continue;
+        if (output.source === "comment") {
+          const source = readFileSync(join(EXAMPLES_DIR, `${feature.example}.hd`), "utf8");
+          for (const line of output.lines)
+            assert.ok(source.includes(line), `${feature.title}: ${line}`);
+          continue;
+        }
+        const file = join(dir, "main.hd");
+        writeFileSync(file, featureSource(feature, EXAMPLES_DIR));
+        const result = spawnSync(
+          process.execPath,
+          ["--experimental-strip-types", join(REPO_DIR, "bin/hd.js"), "check", file],
+          { encoding: "utf8" },
+        );
+        const printed = `${result.stdout}${result.stderr}`.replaceAll(`${dir}/`, "");
+        for (const line of output.lines)
+          assert.ok(printed.includes(line), `${feature.title}: ${printed}`);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("claim cards cap the snippet and mark its punchline", () => {
+    const card = claimCard({
+      title: "T",
+      blurb: "Uses `x`.",
+      code: "fn f() -> i32:\n    1",
+      marks: ["1"],
+      href: "#",
+    });
+    assert.match(card, /<p class="claim-blurb">Uses <code>x<\/code>\.<\/p>/);
+    assert.match(
+      card,
+      /\n<span class="line-mark">    <span class="hl-number">1<\/span><\/span><\/code>/,
+    );
+    const long = { title: "T", blurb: "", code: "1\n".repeat(9).trim(), marks: ["1"], href: "#" };
+    assert.throws(() => claimCard(long), /at most 8/);
+    assert.throws(() => claimCard({ ...long, code: "1", marks: ["2"] }), /not in the snippet/);
+  });
+
+  test("renders the split shell with prose and an aside", () => {
+    const html = renderLayout({
+      base: "/b/",
+      output: "guide/language-tour.html",
+      title: "Tour",
+      description: "",
+      body: "<h1>Step</h1>",
+      headings: [],
+      shape: "split",
+      aside: '<iframe title="editor"></iframe>',
+    });
+    assert.match(
+      html,
+      /<div class="split">\s*<article class="prose split-prose">\s*<h1>Step<\/h1>[\s\S]*<\/article>\s*<aside class="split-aside" aria-label="Live editor">\s*<iframe title="editor">/,
+    );
+    assert.match(html, /<a href="\/b\/guide\/language-tour\.html" aria-current="page">Tour<\/a>/);
   });
 
   test("serves a playground build at playground/ when one exists", async () => {
