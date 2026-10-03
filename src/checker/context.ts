@@ -132,6 +132,11 @@ export abstract class CheckerContext {
   ): HirStatement[];
   protected abstract checkCompoundAssignment(statement: AssignmentStatement): HirStatement[];
   protected abstract checkExpression(expression: Expression, expected?: ValueType): HirExpression;
+  protected abstract checkExpressionHint(
+    expression: Expression,
+    expected: ValueType,
+  ): HirExpression;
+  protected abstract get expectedIsHint(): boolean;
   protected abstract isIdentityType(type: ValueType): boolean;
 
   protected readonly declaration: FunctionDecl;

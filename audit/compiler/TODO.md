@@ -40,7 +40,9 @@ no entry point at all produces 10 bytes of WAT and an 8-byte Wasm header.
 
 Dogfood references: [F1–F13](../dogfood-199.md).
 
-- [ ] **6. Contextual empty field literals (F3).** Infer `Walk { state: {} }` from field type `mut Map[string, i32]` instead of reporting `cannot-infer-type`.
+- [x] **6. Fixed: contextual empty field literals (F3).** Data construction now has an inference-only expected-type mode distinct from a permission/coercion requirement. A fully known direct mutable field therefore supplies the key, value, or element types for empty map/list literals—including through control flow and nested generic data—without demanding that a named or nested readonly value become mutable. Unresolved generic fields still report `cannot-infer-type`. Seven focused regressions cover fresh mutation, explicit and inferred generic arguments, control flow, unresolved types, and both readonly boundaries.
+
+  Follow-up edge: contextual enum variants still inspect a `mut Enum[T]` expectation without first taking its readonly nominal form. For example, `.Some(1)` cannot initialize a field typed `mut Choice[i32]`; this predates item 6 and needs its own repair and regression.
 - [ ] **7. Print source-form permission types (F2).** Print `mut List[char]` in diagnostics, not internal `mut:List[char]` encodings.
 - [ ] **8. Explain readonly receiver failures (F1).** If a named `mut self` method exists but the receiver binding is readonly, explain that restriction in `unknown-method` diagnostics.
 - [ ] **9. Suggest postfix spread (F13).** For `[...xs]`, suggest `[xs...]` instead of a bare `expected-expression`.

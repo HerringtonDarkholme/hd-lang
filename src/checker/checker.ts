@@ -19,9 +19,25 @@ import { mismatchMessage } from "./row-rules.ts";
 
 import { ExpressionControlChecker } from "./expression-control.ts";
 export class FunctionChecker extends ExpressionControlChecker {
+  private contextualHintDepth = 0;
+
   protected checkExpression(expression: Expression, expected?: ValueType): HirExpression {
     const value = this.checkExpressionRaw(expression, expected);
     return this.coerce(value, expected, expression.span);
+  }
+
+  /** Supplies missing type information without requiring its outer permission. */
+  protected checkExpressionHint(expression: Expression, expected: ValueType): HirExpression {
+    this.contextualHintDepth += 1;
+    try {
+      return this.checkExpressionRaw(expression, expected);
+    } finally {
+      this.contextualHintDepth -= 1;
+    }
+  }
+
+  protected get expectedIsHint(): boolean {
+    return this.contextualHintDepth > 0;
   }
 
   protected checkExpressionRaw(expression: Expression, expected?: ValueType): HirExpression {

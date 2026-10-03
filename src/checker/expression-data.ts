@@ -87,7 +87,8 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         const declaration = this.dataTypes.get(expression.name);
         if (!declaration)
           this.fail("unknown-type", `unknown data type '${expression.name}'`, expression.span);
-        const outerMutableExpected = expected !== undefined && mutableInner(expected) !== undefined;
+        const outerMutableExpected =
+          !this.expectedIsHint && expected !== undefined && mutableInner(expected) !== undefined;
         const supplied = new Map<string, Expression>();
         for (const field of expression.fields) {
           if (supplied.has(field.name))
@@ -149,7 +150,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
                 );
             });
         }
-        const expectedNominal = expected ? nominalGenericParts(expected) : undefined;
+        const expectedNominal = expected ? nominalGenericParts(readonlyType(expected)) : undefined;
         if (
           expectedNominal?.name === declaration.name &&
           expectedNominal.arguments.length === declaration.genericParameters.length
@@ -209,10 +210,11 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
               : expected === undefined
                 ? undefined
                 : readonlyType(inferredField);
-            const checked = this.checkExpression(
-              value,
-              hint && !containsGenericType(hint) ? hint : undefined,
-            );
+            const context = hint && !containsGenericType(hint) ? hint : undefined;
+            const checked =
+              this.expectedIsHint && context
+                ? this.checkExpressionHint(value, context)
+                : this.checkExpression(value, context);
             const conflict = inferGenericType(
               field.type,
               readonlyType(checked.type),
@@ -222,16 +224,22 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             return checked;
           }
           const directMutable = mutableInner(field.type) !== undefined;
+          const inferenceOnly =
+            directMutable &&
+            !outerMutableExpected &&
+            (expected === undefined || this.expectedIsHint);
           const contextualField =
             directMutable && !outerMutableExpected
-              ? expected === undefined
-                ? undefined
+              ? inferenceOnly
+                ? inferredField
                 : mutableInner(inferredField)
               : inferredField;
-          const checked = this.checkExpression(
-            value,
-            contextualField && !containsGenericType(contextualField) ? contextualField : undefined,
-          );
+          const context =
+            contextualField && !containsGenericType(contextualField) ? contextualField : undefined;
+          const checked =
+            inferenceOnly && context
+              ? this.checkExpressionHint(value, context)
+              : this.checkExpression(value, context);
           // A readonly composite field such as `List[T]` infers from the readonly
           // view of a fresh mutable value like a list literal.
           const actual =
@@ -349,7 +357,8 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
           );
         }
         const type =
-          outerMutableExpected || (expected === undefined && canProduceMutable)
+          outerMutableExpected ||
+          ((expected === undefined || this.expectedIsHint) && canProduceMutable)
             ? mutableType(readonlyResult)
             : readonlyResult;
         return {
