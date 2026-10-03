@@ -392,7 +392,11 @@ test("the bundled examples run", async () => {
   const { EXAMPLES } = (await import(pathToFileURL(await bundleExamples()).href)) as {
     EXAMPLES: readonly Example[];
   };
-  const expected: Record<string, RunResult["status"]> = { panic: "panic", "exit-code": "failure" };
+  const expected: Record<string, RunResult["status"]> = {
+    panic: "panic",
+    "exit-code": "failure",
+    "missing-provider": "compile-error",
+  };
   for (const example of EXAMPLES) {
     const result = await runner.runProject(example.project, "run");
     assert.equal(result.status, expected[example.id] ?? "ok", `${example.id}: ${result.summary}`);
@@ -409,15 +413,20 @@ test("the bundled examples run", async () => {
     "2 files changed",
   ]);
   assert.deepEqual(await outcome("tests", "test"), ["5 tests passed"]);
-  assert.deepEqual(await outcome("std", "run"), [
-    "exited normally",
-    "skipped 'bob x'",
-    "CY, ADA",
-    "best: 41",
-    "cutoff: 40",
-  ]);
+  assert.deepEqual(await outcome("std", "run"), ["exited normally", "skipped 'bob x'", "ADA, CY"]);
   assert.deepEqual(await outcome("derive", "run"), ["exited normally", "0.05", "1.50", "-10.00"]);
-  assert.deepEqual(await outcome("requirements", "test"), ["1 test passed"]);
+  assert.deepEqual(await outcome("effects-in-signature", "test"), ["1 test passed"]);
+  assert.deepEqual(await outcome("least-authority", "run"), [
+    "exited normally",
+    "ada@example.com|Welcome at 1970-01-01T00:00:00Z",
+  ]);
+  const missing = await runner.runProject(
+    EXAMPLES.find(({ id }) => id === "missing-provider")!.project,
+    "check",
+  );
+  assert.deepEqual(located(missing), ["src/main.hd:9:9:missing-requirement"]);
+  for (const id of ["closures", "numbers", "suffixes", "std", "inventory", "concurrency"])
+    assert.match((await outcome(id, "test"))[0]!, /^\d+ tests? passed$/, id);
   assert.deepEqual(await outcome("derive", "test"), ["1 test passed"]);
   assert.deepEqual(await outcome("exhaustive", "test"), ["1 test passed"]);
   assert.deepEqual(await outcome("errors", "run"), [
@@ -429,20 +438,11 @@ test("the bundled examples run", async () => {
     "caused by: port 'eighty' is not a number",
     "caused by: invalid digit at position 0",
   ]);
-  assert.deepEqual(await outcome("concurrency", "run"), [
-    "exited normally",
-    "user-7 has 2 orders",
-    "closed: 1",
-  ]);
+  assert.deepEqual(await outcome("concurrency", "run"), ["exited normally", "user-7 has 2 orders"]);
   const topLevel = EXAMPLES.find(({ id }) => id === "top-level")!;
   assert.deepEqual((await runner.runProject(topLevel.project, "run")).stdout, [
-    "7 : i32",
     "Point { x: 3, y: 4 } : Point",
-    "[3, 4] : List[i32]",
-    "added 1",
-    "added 2",
-    "added 3",
-    "60 : i32",
+    "[7, 12] : List[i32]",
   ]);
 });
 

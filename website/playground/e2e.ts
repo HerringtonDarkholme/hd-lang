@@ -253,7 +253,7 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     );
     await page.click("#view-output");
     await page.locator(".outcome.passed").waitFor();
-    assert.match((await page.locator(".stdout").textContent()) ?? "", /60 : i32/);
+    assert.match((await page.locator(".stdout").textContent()) ?? "", /\[7, 12\] : List\[i32\]/);
     await page.context().close();
   });
 

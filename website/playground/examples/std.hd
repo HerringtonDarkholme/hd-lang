@@ -1,28 +1,23 @@
-# Why: parse messy input and report what was skipped. Bad rows become
-# values to handle, not crashes.
-# The toy standard library. Methods on built-in types, such as
-# `unwrap_or` and `sorted_by`, need no `use`; module names are imported.
-use std.cmp.max
+# Messy input, no crashes: a bad row is a `.None` you handle.
+fn score(line: string) -> i32?:
+    match parse_i32(line.split(" ")[1]):
+        .Ok(n) => .Some(n)  # ← the number, or...
+        .Err(_) => .None  # ← ...a value to handle
+
+tests:
+    it("a bad row is None, not a crash"):
+        assert_equal(score("ada 36"), .Some(36), reason="good row")
+        assert_equal(score("bob x"), .None, reason="bad row")
+
+# ── plumbing ──────────
 use std.num.parse_i32
+use std.testing.assert_equal
 use std.text.join
 
-fn by_score(a: (string, i32), b: (string, i32)) -> Ordering:
-    if a._1 > b._1:
-        .Less
-    else if a._1 < b._1:
-        .Greater
-    else:
-        .Equal
-
 pub fn main() -> void $ Console:
-    lines := "ada 36\nbob x\ncy 41\n".lines()
-    let scores: mut List[(string, i32)] = []
-    for line in lines:
-        parts := line.split(" ")
-        match parse_i32(parts[1]):
-            .Ok(score) => scores.push((parts[0], score))
-            .Err(_) => println("skipped '$line'")
-    ranked := scores.sorted_by(by_score)
-    println(join(ranked.map(fn(entry: (string, i32)) -> string: entry._0.upper()), ", "))
-    println("best: ${ranked.first().map(fn(entry: (string, i32)) -> i32: entry._1).unwrap_or(0)}")
-    println("cutoff: ${max(ranked.last().map(fn(entry: (string, i32)) -> i32: entry._1).unwrap_or(0), 40)}")
+    let names: mut List[string] = []
+    for line in "ada 36\nbob x\ncy 41\n".lines():
+        match score(line):
+            .Some(_) => names.push(line.split(" ")[0].upper())
+            .None => println("skipped '$line'")
+    println(join(names, ", "))

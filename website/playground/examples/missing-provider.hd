@@ -1,0 +1,30 @@
+# Forget a provider and it won't compile.
+fn welcome!(email: string) -> void $ Mailer + Clock:
+    let mut mailer = $.use(Mailer)
+    mailer.send!(email, "Welcome at ${$.use(Clock).now()}")
+
+pub fn main!() -> void $ Console:
+    let outbox: mut Outbox = Outbox { sent: [] }
+    $.with(Mailer=outbox):  # ← Clock is missing
+        welcome!("ada@example.com")
+    println(outbox.sent[0])
+
+# Run it and the compiler refuses:
+#     error: missing-requirement: call to 'welcome' requires Clock
+# Add `Clock=epoch()` to the `$.with` and it runs.
+
+# ── plumbing ──────────
+use std.time.{Clock, ManualClock, Timestamp}
+
+trait Mailer:
+    fn send!(mut self, to: string, body: string) -> void
+
+data Outbox:
+    sent: mut List[string]
+
+impl Mailer for Outbox:
+    fn send!(mut self, to: string, body: string) -> void:
+        self.sent.push("$to|$body")
+
+fn epoch() -> mut ManualClock:
+    ManualClock::new(Timestamp::from_unix_milliseconds(0))

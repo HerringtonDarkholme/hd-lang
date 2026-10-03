@@ -71,7 +71,7 @@ ${markedCode(code, marks)}
 export function renderHome(input: HomeInput): string {
   const { md, env, pageUrl } = input;
   const { slogan, pitch, rest } = readmeParts(input.readme);
-  const requirements = readFileSync(join(input.examplesDir, "requirements.hd"), "utf8");
+  const welcome = readFileSync(join(input.examplesDir, "effects-in-signature.hd"), "utf8");
 
   const hero = `<section class="hero" aria-labelledby="hero-title">
 <div class="hero-text">
@@ -88,7 +88,7 @@ export function renderHome(input: HomeInput): string {
 ${codeWindow(
   "welcome.hd",
   heroSample(input.readme),
-  `<a class="code-window-action" href="${escapeHtml(env.playgroundUrl(requirements))}">Run it ${ARROW}</a>`,
+  `<a class="code-window-action" href="${escapeHtml(env.playgroundUrl(welcome))}">Run it ${ARROW}</a>`,
 )}
 </div>
 </section>`;

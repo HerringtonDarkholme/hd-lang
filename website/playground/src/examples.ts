@@ -5,7 +5,9 @@
 import closures from "../examples/closures.hd";
 import derive from "../examples/derive.hd";
 import exitCode from "../examples/exit-code.hd";
-import requirements from "../examples/requirements.hd";
+import effectsInSignature from "../examples/effects-in-signature.hd";
+import leastAuthority from "../examples/least-authority.hd";
+import missingProvider from "../examples/missing-provider.hd";
 import concurrency from "../examples/concurrency.hd";
 import errors from "../examples/errors.hd";
 import exhaustive from "../examples/exhaustive.hd";
@@ -36,23 +38,29 @@ const single = (id: string, title: string, source: string): Example => ({
 
 export const EXAMPLES: readonly Example[] = [
   single("hello", "Hello, world", hello),
-  single("requirements", "Requirements and providers: fake mail and clock in a test", requirements),
-  single("derive", "@derive(Arbitrary) and a property test that finds a bug", derive),
-  single("errors", "Result, ?, and .context: typed errors with a report", errors),
-  single("exhaustive", "Exhaustive match: a new variant shows every place to update", exhaustive),
-  single("concurrency", "all! and defer: two services at once", concurrency),
-  single("tests", "Tests: it, it_each, and snapshot", tests),
-  single("closures", "Closures that capture local state", closures),
-  single("numbers", "Checked integers: i64 and u8", numbers),
-  single("suffixes", 'Literal suffixes and string prefixes: 250ms and r"..."', suffixes),
-  single("std", "Parsing messy input with the toy standard library", standard),
-  single("top-level", "Top-level code without main", topLevel),
-  single("inventory", "Data, loops, and Option: a stock report", inventory),
-  single("exit-code", "Exit codes from main", exitCode),
-  single("panic", "Runtime panic", panic),
+  single(
+    "effects-in-signature",
+    "Effects you can review: fake mail and clock in a test",
+    effectsInSignature,
+  ),
+  single("missing-provider", "Forget a provider and it won't compile", missingProvider),
+  single("least-authority", "Least authority: main limits what is reachable", leastAuthority),
+  single("derive", "@derive(Arbitrary): a property test that finds a bug", derive),
+  single("errors", "Errors are values: ?, .context, and a report", errors),
+  single("exhaustive", "Exhaustive match: a new variant lists every place to update", exhaustive),
+  single("concurrency", "all!: two calls at once", concurrency),
+  single("tests", "Tests next to the code: it, it_each, snapshot", tests),
+  single("closures", "Closures see your locals", closures),
+  single("numbers", "No silent overflow: i64 and u8", numbers),
+  single("suffixes", "Units in the type: 250ms and 12px", suffixes),
+  single("std", "Messy input, no crashes", standard),
+  single("top-level", "Try an idea with no main", topLevel),
+  single("inventory", "No null: a missing item is .None", inventory),
+  single("exit-code", "? in main sets the exit code", exitCode),
+  single("panic", "A broken assumption panics loudly", panic),
   {
     id: "package",
-    title: "Multi-file package",
+    title: "Multi-file package with a mod.hd",
     project: {
       files: {
         [DEFAULT_MAIN]: packageMain,

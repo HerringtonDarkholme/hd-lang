@@ -1,10 +1,8 @@
-# Why: a broken assumption stops the program loudly with a code, instead of
-# producing a wrong number. `average` has no guard here on purpose.
-# Integer division by zero is a runtime panic: the program stops, and the
-# output panel reports the panic code.
-fn average(total: i32, count: i32) -> i32: total / count
+# A broken assumption stops the program loudly, not with a wrong number.
+fn average(total: i32, count: i32) -> i32: total / count  # ← no guard, on purpose
 
+# ── plumbing ──────────
 pub fn main() -> void $ Console:
     println("average of 10 over 2: ${average(10, 2)}")
-    println("average of 10 over 0: ${average(10, 0)}")
+    println("average of 10 over 0: ${average(10, 0)}")  # ← panics here
     println("not reached")

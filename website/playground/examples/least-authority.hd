@@ -1,0 +1,29 @@
+# `main` limits what the whole program can reach.
+pub fn main!() -> void $ Console:  # ← the console, and nothing else
+    let outbox: mut Outbox = Outbox { sent: [] }
+    $.with(Mailer=outbox, Clock=epoch()):
+        welcome!("ada@example.com")
+    println(outbox.sent[0])
+
+# `welcome!` needs `Mailer + Clock`, and the `$.with` installs both.
+# Nothing else is reachable: no files, no network.
+
+# ── plumbing ──────────
+use std.time.{Clock, ManualClock, Timestamp}
+
+fn welcome!(email: string) -> void $ Mailer + Clock:
+    let mut mailer = $.use(Mailer)
+    mailer.send!(email, "Welcome at ${$.use(Clock).now()}")
+
+trait Mailer:
+    fn send!(mut self, to: string, body: string) -> void
+
+data Outbox:
+    sent: mut List[string]
+
+impl Mailer for Outbox:
+    fn send!(mut self, to: string, body: string) -> void:
+        self.sent.push("$to|$body")
+
+fn epoch() -> mut ManualClock:
+    ManualClock::new(Timestamp::from_unix_milliseconds(0))

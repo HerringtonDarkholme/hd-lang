@@ -1,13 +1,17 @@
-# Why: `250ms` and `12px` carry their unit in the type, so a `Pixels` can't be
-# passed where a `Duration` is expected, and a retry schedule reads as data.
-# A number with a suffix calls its suffix function, one marked
-# `@num_suffix`: `12px` means `px(12)`. `std.time` declares `ms`, `s`,
-# `min`, and `h`, so `250ms` and `5s` are both a `Duration`.
-# A name before a quote calls a prefix function, one marked `@str_prefix`,
-# with a `Template` of the raw text pieces and the values. `std.text.r`
-# joins them with the values' Display text and keeps every backslash.
-use std.ops.{Template, num_suffix, str_prefix}
-use std.text.r
+# Units live in the type: `250ms` is a Duration, `12px` is Pixels.
+fn backoff() -> List[Duration]: [250ms, 1s, 5s]  # ← a retry schedule reads as data
+
+tests:
+    it("pixels add as pixels"):
+        assert_equal(add(12px, 4px).count, 16, reason="sum")
+
+# Pass pixels where a Duration is expected and it won't compile:
+#     wait(12px)
+#     error: type-mismatch: expected Duration, found Pixels
+
+# ── plumbing ──────────
+use std.ops.num_suffix
+use std.testing.assert_equal
 use std.time.{Duration, ms, s}
 
 data Pixels:
@@ -16,21 +20,10 @@ data Pixels:
 @num_suffix
 fn px(count: i32) -> Pixels: Pixels { count: count }
 
-@str_prefix
-fn total(t: Template[i32]) -> i32:
-    let sum = 0
-    for value in t.values:
-        sum = sum + value
-    sum
-
 fn add(a: Pixels, b: Pixels) -> Pixels: Pixels { count: a.count + b.count }
 
-fn backoff() -> List[Duration]: [250ms, 1s, 5s]
+fn wait(delay: Duration) -> void: pass
 
 pub fn main() -> void $ Console:
-    width := add(12px, 4px)
-    println("width ${width.count}px")
+    println("width ${add(12px, 4px).count}px")
     println("${backoff().len()} retry delays")
-    println(r"C:\tmp\new ${width.count}px")
-    sum := total"${width.count} and ${2 * 3}"
-    println("sum $sum")

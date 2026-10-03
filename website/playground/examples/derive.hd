@@ -1,17 +1,22 @@
-# Why: `@derive(Arbitrary, ...)` gives `it_prop` inputs for free, and it finds
-# the round-trip bug that hand-picked examples miss.
-use std.num.parse_i32
-use std.testing.{Arbitrary, assert_equal, it_prop}
-
+# One line of `@derive` gives property tests. They find the bug examples miss.
 @derive(Arbitrary, Debug, Eq)
 data Money:
     cents: i32
 
-# The first version printed `"${m.cents / 100}.${m.cents % 100}"`. 5 cents
-# became "0.5", which `parse` rejects. Two hand-written examples (150 and
-# 1200) passed. `hd test` then reported:
+tests:
+    it_prop("parse undoes print", prop=fn!(m: Money):
+        assert_equal(parse(print(m)), .Some(m), reason="round trip")
+    )
+
+# The first `print` wrote 5 cents as "0.5", which `parse` rejects.
+# Two hand-picked examples (150 and 1200) passed. `hd test` then reported:
 #   property test "parse undoes print" shrunk input Money { cents: -1000 };
 #   assertion-failed: round trip: actual None, expected Some(Money { cents: -1000 })
+
+# ── plumbing ──────────
+use std.num.parse_i32
+use std.testing.{Arbitrary, assert_equal, it_prop}
+
 fn pad(n: i32) -> string:
     if n < 10:
         "0$n"
@@ -43,8 +48,3 @@ fn parse(text: string) -> Money?:
 pub fn main() -> void $ Console:
     for cents in [5, 150, -1000]:
         println(print(Money { cents: cents }))
-
-tests:
-    it_prop("parse undoes print", prop=fn!(m: Money):
-        assert_equal(parse(print(m)), .Some(m), reason="round trip")
-    )

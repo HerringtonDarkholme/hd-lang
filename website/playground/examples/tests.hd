@@ -1,19 +1,9 @@
-# Why: tests sit next to the code they check and run with `hd test`, no
-# framework to install. `it` runs one case, `it_each` one case per row, and
-# `snapshot` compares text.
-use std.testing.{assert_equal, it_each, snapshot}
-use std.time.s
-
-fn slug(title: string) -> string:
-    title.trim().lower().replace(" ", "-")
-
-fn first(items: List[i32]) -> i32: items[0]
-
+# Tests live next to the code. Run `hd test`: nothing to install.
 tests:
-    it("lowers and joins words", timeout=5s):
+    it("lowers and joins words"):
         assert_equal(slug(" Hello World "), "hello-world", reason="trimmed and joined")
 
-    it_each("keeps one word", ["hd", "lang"], body=fn!(word: string):
+    it_each("keeps one word", ["hd", "lang"], body=fn!(word: string):  # ← one case per row
         assert_equal(slug(word), word, reason="nothing to change")
     )
 
@@ -22,3 +12,11 @@ tests:
 
     it("an empty list has no first item", expect_panic="index-out-of-bounds"):
         _ := first([])
+
+# ── plumbing ──────────
+use std.testing.{assert_equal, it_each, snapshot}
+
+fn slug(title: string) -> string:
+    title.trim().lower().replace(" ", "-")
+
+fn first(items: List[i32]) -> i32: items[0]

@@ -1,8 +1,5 @@
-# Why: split a program across files, and keep each module's public surface
-# in one `mod.hd`.
-# A package with three modules. `src/models/mod.hd` re-exports what
-# `src/models/user.hd` declares, so this module uses it through `pkg.models`.
-use pkg.models.{User, greeting}
+# Split a program across files. Each folder's `mod.hd` is its public surface.
+use pkg.models.{User, greeting}  # ← `models/mod.hd` re-exports `models/user.hd`
 
 pub fn main() -> void $ Console:
     users := [User { name: "Ada", visits: 3 }, User { name: "Grace", visits: 1 }]

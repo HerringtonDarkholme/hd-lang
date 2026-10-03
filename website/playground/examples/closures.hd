@@ -1,23 +1,22 @@
-# Why: pass a rule to a function without declaring a named function for it.
-# The closure sees the local `rate` and `audit`, so no context struct is
-# needed. Parameter types come from the expected `fn(i32) -> i32`.
+# Closures see your locals. No context struct, no named function.
 fn apply_all(prices: List[i32], rule: fn(i32) -> i32) -> List[i32]:
     [for price in prices => rule(price)]
 
+tests:
+    it("a closure reads and updates the locals around it"):
+        rate := 20
+        let calls = 0
+        sale := apply_all([1000, 400], fn(cents) -> i32:  # ← sees `rate`
+            calls = calls + 1  # ← changes `calls`
+            cents - cents * rate / 100
+        )
+        assert_equal(sale, [800, 320], reason="20% off")
+        assert_equal(calls, 2, reason="once per price")
+
+# ── plumbing ──────────
+use std.testing.assert_equal
+
 pub fn main() -> void $ Console:
-    prices := [1000, 2500, 400]
-
     rate := 20
-    discounted := apply_all(prices, fn(cents): cents - cents * rate / 100)
-    println("discounted: ${discounted[0]} ${discounted[1]} ${discounted[2]}")
-
-    let audit: i32 = 0
-    rounded := apply_all(prices, fn(cents) -> i32:
-        audit = audit + 1
-        cents / 100 * 100
-    )
-    println("rounded ${rounded[2]} after $audit calls")
-
-# Output:
-#   discounted: 800 2000 320
-#   rounded 400 after 3 calls
+    sale := apply_all([1000, 2500, 400], fn(cents): cents - cents * rate / 100)
+    println("sale: ${sale[0]} ${sale[1]} ${sale[2]}")

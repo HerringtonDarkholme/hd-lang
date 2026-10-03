@@ -37,31 +37,34 @@ export const FEATURES: readonly Feature[] = [
     title: "Effects you can review",
     blurb: "The signature lists everything the function may touch: mail and the clock.",
     contrast: "Elsewhere, only the body tells you it reads the clock or sends mail.",
-    example: "requirements",
-    ranges: [{ from: "fn welcome!(user: User) -> void $ Mailer + Clock:", lines: 4 }],
-    marks: ["fn welcome!(user: User) -> void $ Mailer + Clock:"],
+    example: "effects-in-signature",
+    ranges: [
+      {
+        from: "fn welcome!(email: string) -> void $ Mailer + Clock:  # ← sends mail, reads the clock",
+        lines: 4,
+      },
+    ],
+    marks: [
+      "fn welcome!(email: string) -> void $ Mailer + Clock:  # ← sends mail, reads the clock",
+    ],
   },
   {
     title: "Tests without mocks",
     blurb: "A test installs a fake mailer and a fixed clock for one block.",
     contrast: "Python: `mock.patch` or a DI container.",
-    example: "requirements",
-    ranges: [{ from: 'it("welcome mails the new user at the fixed time"):', lines: 5 }],
-    marks: ["$.with(Mailer=outbox, Clock=epoch()):"],
+    example: "effects-in-signature",
+    ranges: [{ from: 'it("welcome mails the user at a fixed time, no mocks"):', lines: 5 }],
+    marks: ["$.with(Mailer=outbox, Clock=epoch()):  # ← fakes, for this block only"],
   },
   {
     title: "You can't forget a dependency",
     blurb: "Leave a provider out and the program does not compile.",
-    example: "requirements",
-    variant: {
-      replace: "    $.with(Mailer=outbox, Clock=epoch()):\n        welcome!(User",
-      with: "    $.with(Mailer=outbox):\n        welcome!(User",
-    },
-    ranges: [{ from: "pub fn main!() -> void $ Console:", lines: 4 }],
-    marks: ["$.with(Mailer=outbox):"],
+    example: "missing-provider",
+    ranges: [{ from: "pub fn main!() -> void $ Console:", lines: 5 }],
+    marks: ["$.with(Mailer=outbox):  # ← Clock is missing"],
     output: {
       caption: "hd check",
-      lines: ["main.hd:37:9: missing-requirement: call to 'welcome' requires Clock"],
+      lines: ["main.hd:9:9: missing-requirement: call to 'welcome' requires Clock"],
       kind: "error",
       source: "check",
     },
@@ -70,9 +73,11 @@ export const FEATURES: readonly Feature[] = [
     title: "Least authority",
     blurb: "`main` states the whole program's reach: the console, and nothing else.",
     contrast: "Most languages: any imported library can read files or open sockets.",
-    example: "requirements",
-    ranges: [{ from: "pub fn main!() -> void $ Console:", lines: 4 }],
-    marks: ["pub fn main!() -> void $ Console:"],
+    example: "least-authority",
+    ranges: [
+      { from: "pub fn main!() -> void $ Console:  # ← the console, and nothing else", lines: 5 },
+    ],
+    marks: ["pub fn main!() -> void $ Console:  # ← the console, and nothing else"],
   },
   {
     title: "Exhaustive match",
@@ -84,8 +89,8 @@ export const FEATURES: readonly Feature[] = [
     output: {
       caption: "hd check, after adding Refunded(cents: i32)",
       lines: [
-        "main.hd:13:5: nonexhaustive-match: match does not cover: Refunded",
-        "main.hd:20:5: nonexhaustive-match: match does not cover: Refunded",
+        "main.hd:3:5: nonexhaustive-match: match does not cover: Refunded",
+        "main.hd:29:5: nonexhaustive-match: match does not cover: Refunded",
       ],
       kind: "error",
       source: "comment",
@@ -97,7 +102,7 @@ export const FEATURES: readonly Feature[] = [
     contrast: "No exceptions: the signature says what can fail.",
     example: "errors",
     ranges: [{ from: "fn start(config: string) -> Result[string, Error]:", lines: 2 }],
-    marks: ['n := port(config).context("starting the server")?'],
+    marks: ['n := port(config).context("starting the server")?  # ← early return, with context'],
     output: {
       caption: 'report for "port = eighty"',
       lines: [
@@ -130,11 +135,10 @@ export const FEATURES: readonly Feature[] = [
   },
   {
     title: "Structured concurrency",
-    blurb: "`all!` runs both calls at once; `defer` cleans up when the page ends.",
-    contrast: "One after the other: 120ms + 80ms. With `all!`: 120ms.",
+    blurb: "`all!` runs both calls at once and joins the results.",
     example: "concurrency",
-    ranges: [{ from: "fn page!(id: i32) -> string $ Clock:", lines: 5 }],
-    marks: ["let (profile, orders) = all!(fetch_profile(id), fetch_orders(id))"],
+    ranges: [{ from: "fn page!(id: i32) -> string $ Clock:", lines: 3 }],
+    marks: ["let (profile, orders) = all!(fetch_profile(id), fetch_orders(id))  # ← both at once"],
   },
 ];
 

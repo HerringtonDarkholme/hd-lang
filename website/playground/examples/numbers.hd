@@ -1,21 +1,18 @@
-# Why: integer overflow must never wrap silently. A total in milliseconds
-# does not fit `i32`, so widening is explicit, and `u8` arithmetic is checked.
-# An `i32` never widens implicitly: write `i64(x)`.
-fn to_millis(seconds: i64) -> i64: seconds * 1000
+# Integers never wrap silently: widen on purpose, and `u8` stops at 255.
+fn to_millis(seconds: i32) -> i64: i64(seconds) * 1000  # ← widening is written out
+
+tests:
+    it("a year of milliseconds does not fit i32, so it is an i64"):
+        assert_equal(to_millis(31_536_000), 31_536_000_000, reason="fits i64")
+
+    it("u8 overflow panics instead of wrapping to 0", expect_panic="integer-overflow"):
+        let volume: u8 = 250
+        _ := volume + 6  # ← 256 does not fit
+
+# ── plumbing ──────────
+use std.testing.assert_equal
 
 pub fn main() -> void $ Console:
-    let year: i64 = 31_536_000
-    println(to_millis(year))
-    let minute: i32 = 60
-    println(to_millis(i64(minute)))
-
-    # A `u8` volume holds 0 to 255.
+    println(to_millis(31_536_000))
     let volume: u8 = 250
     println(volume + 5)
-    # `volume + 6` would stop the program with an integer-overflow panic
-    # instead of wrapping around to a quiet 0.
-
-# Output:
-#   31536000000
-#   60000
-#   255

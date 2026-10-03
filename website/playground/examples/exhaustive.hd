@@ -1,5 +1,21 @@
-# Why: `match` must cover every variant, so adding one to an enum makes the
-# compiler list every place that has to change. No silent default branch.
+# Add a variant. The compiler lists every `match` to update.
+fn can_cancel(status: OrderStatus) -> bool:
+    match status:
+        .Pending => true
+        .Paid(_) => true
+        .Shipped(_) => false
+        .Cancelled => false
+
+tests:
+    it("shipped orders cannot be cancelled"):
+        assert_equal(can_cancel(.Shipped("DHL")), false, reason="too late")
+
+# Add `Refunded(cents: i32)` to OrderStatus and it won't compile:
+#     main.hd:3:5: nonexhaustive-match: match does not cover: Refunded
+#     main.hd:29:5: nonexhaustive-match: match does not cover: Refunded
+# A `_ =>` arm would have hidden both.
+
+# ── plumbing ──────────
 use std.testing.assert_equal
 
 enum OrderStatus:
@@ -15,23 +31,6 @@ fn label(status: OrderStatus) -> string:
         .Shipped(carrier) => "on its way with $carrier"
         .Cancelled => "cancelled"
 
-fn can_cancel(status: OrderStatus) -> bool:
-    match status:
-        .Pending => true
-        .Paid(_) => true
-        .Shipped(_) => false
-        .Cancelled => false
-
-# Add `Refunded(cents: i32)` to OrderStatus and both functions stop compiling:
-#   main.hd:13:5: nonexhaustive-match: match does not cover: Refunded
-#   main.hd:20:5: nonexhaustive-match: match does not cover: Refunded
-# A `_ =>` arm would have hidden both. Spell out each variant, and the
-# compiler becomes the to-do list for the change.
-
 pub fn main() -> void $ Console:
-    for status in [OrderStatus.Pending, OrderStatus.Paid(4999), OrderStatus.Shipped("DHL"), OrderStatus.Cancelled]:
+    for status in [OrderStatus.Pending, OrderStatus.Paid(4999), OrderStatus.Shipped("DHL")]:
         println("${label(status)}; can cancel: ${can_cancel(status)}")
-
-tests:
-    it("shipped orders cannot be cancelled"):
-        assert_equal(can_cancel(.Shipped("DHL")), false, reason="too late")
