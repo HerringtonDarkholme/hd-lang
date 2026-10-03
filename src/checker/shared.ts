@@ -9,6 +9,7 @@ import type {
   HirExpression,
   HirGenericBound,
   HirTrait,
+  NumericFamily,
   ValueType,
 } from "../hir.ts";
 import { NOMINAL_HEAD } from "./implementation-index.ts";
@@ -850,6 +851,41 @@ interface TraitImplementationPattern {
   readonly traitArguments: readonly ValueType[];
   readonly trait?: { readonly index: number };
   readonly traitIndex?: number;
+  readonly family?: NumericFamily;
+}
+
+/**
+ * Whether the parameters of a numeric-family implementation that
+ * `substitutions` solves take types their sealed bounds list, as `N < Integer`
+ * holds for `i64` (09-traits.md#r-trait.target.numeric-family.each). With
+ * `complete`, every parameter must be solved.
+ */
+function familyHolds(
+  family: NumericFamily | undefined,
+  substitutions: ReadonlyMap<string, ValueType>,
+  complete: boolean,
+): boolean {
+  if (!family) return true;
+  return Object.entries(family).every(([parameter, types]) => {
+    const actual = substitutions.get(parameter);
+    return actual === undefined ? !complete : types.includes(readonlyType(actual));
+  });
+}
+
+/**
+ * Whether an implementation's target matches `type`, adding the parameters
+ * it solves to `substitutions`. A numeric-family target matches only a type
+ * its bound lists.
+ */
+export function matchImplementationTarget(
+  implementation: { readonly targetType: ValueType; readonly family?: NumericFamily },
+  type: ValueType,
+  substitutions: Map<string, ValueType>,
+): boolean {
+  return (
+    matchGenericTypePattern(implementation.targetType, type, substitutions) &&
+    familyHolds(implementation.family, substitutions, false)
+  );
 }
 
 export function matchTraitImplementation(
@@ -868,7 +904,7 @@ export function matchTraitImplementation(
     return undefined;
   return implementation.traitArguments.every((argument, index) =>
     matchGenericTypePattern(argument, traitArguments[index]!, substitutions),
-  )
+  ) && familyHolds(implementation.family, substitutions, true)
     ? substitutions
     : undefined;
 }

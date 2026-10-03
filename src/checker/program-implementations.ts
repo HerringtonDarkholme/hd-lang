@@ -12,7 +12,7 @@ import {
   type TypeRef,
 } from "../ast.ts";
 import { traitDefaultDeclarations } from "./member-lookup.ts";
-import type { HirSupertrait, HirTrait, ValueType } from "../hir.ts";
+import type { HirSupertrait, HirTrait, NumericFamily, ValueType } from "../hir.ts";
 import { numericType } from "../numeric.ts";
 import {
   mutableInner,
@@ -59,6 +59,80 @@ interface RegisteredImplementationTarget {
   readonly traitArguments: readonly string[];
   readonly traitIndex: number;
   readonly targetType: string;
+  readonly family?: NumericFamily;
+}
+
+/**
+ * The types each sealed numeric trait lists, by its name in the program:
+ * the targets of std's `impl Num for i8` and the like
+ * (09-traits.md#sealed-traits).
+ */
+function sealedNumericTypes(context: ProgramCheckContext): Map<string, ValueType[]> {
+  const types = new Map<string, ValueType[]>();
+  for (const implementation of context.program.implementations) {
+    const trait = implementation.traitName && context.traitTypes.get(implementation.traitName);
+    if (
+      !trait ||
+      !implementation.standard ||
+      implementation.genericParameters.length > 0 ||
+      !SEALED_NUMERIC_TRAITS.has(trait.standardName ?? "")
+    )
+      continue;
+    types.set(trait.name, [...(types.get(trait.name) ?? []), implementation.targetName]);
+  }
+  return types;
+}
+
+/**
+ * The family of a standard-library implementation whose target is a bare
+ * parameter and whose every parameter is bounded by exactly one sealed
+ * numeric trait, as `impl[N < Integer, C < Integer] Shl[C] for N`
+ * (09-traits.md#r-trait.target.numeric-family).
+ */
+function numericFamily(
+  implementation: ImplDecl,
+  sealed: ReadonlyMap<string, readonly ValueType[]>,
+): NumericFamily | undefined {
+  if (
+    !implementation.standard ||
+    !implementation.genericParameters.includes(implementation.targetName)
+  )
+    return undefined;
+  const family: Record<string, readonly ValueType[]> = {};
+  for (const parameter of implementation.genericParameters) {
+    const bounds = implementation.genericBounds.filter((bound) => bound.parameter === parameter);
+    const only = bounds.length === 1 ? bounds[0]! : undefined;
+    const types =
+      only && only.traits.length === 1 && !only.bindings?.length
+        ? sealed.get(only.traits[0]!)
+        : undefined;
+    if (!types) return undefined;
+    family[parameter] = types;
+  }
+  return family;
+}
+
+/** Each way of giving every parameter of `family` one of its types. */
+function familyInstances(family: NumericFamily): Map<string, ValueType>[] {
+  let instances: Map<string, ValueType>[] = [new Map()];
+  for (const [parameter, types] of Object.entries(family))
+    instances = instances.flatMap((partial) =>
+      types.map((type) => new Map([...partial, [parameter, type]])),
+    );
+  return instances;
+}
+
+/** The trait arguments and target of each implementation a family implementation stands for. */
+function implementationHeads(
+  traitArguments: readonly ValueType[],
+  targetType: ValueType,
+  family: NumericFamily | undefined,
+): ValueType[][] {
+  const head = [...traitArguments, readonlyType(targetType)];
+  if (!family) return [head];
+  return familyInstances(family).map((instance) =>
+    head.map((type) => substituteGenericType(type, instance)),
+  );
 }
 
 // 09 Overlap (TQ-28): two implementations of one trait overlap when one
@@ -112,21 +186,25 @@ function specializeTrait(
   };
 }
 
+// A numeric-family implementation overlaps another when one of the
+// implementations it stands for does (09-traits.md#r-trait.overlap.numeric-family).
 function registerImplementationPair(
   implementation: ImplDecl,
   trait: HirTrait,
   traitArguments: readonly string[],
   targetType: string,
+  family: NumericFamily | undefined,
   targets: RegisteredImplementationTarget[],
   diagnostics: Diagnostic[],
 ): boolean {
+  const heads = implementationHeads(traitArguments, targetType, family);
   const conflict = targets.find(
     (candidate) =>
       candidate.traitIndex === trait.index &&
-      implementationHeadsMayUnify(
-        [...traitArguments, readonlyType(targetType)],
-        [...candidate.traitArguments, readonlyType(candidate.targetType)],
-        candidate.genericParameters,
+      heads.some((head) =>
+        implementationHeads(candidate.traitArguments, candidate.targetType, candidate.family).some(
+          (other) => implementationHeadsMayUnify(head, other, candidate.genericParameters),
+        ),
       ),
   );
   if (conflict) {
@@ -142,12 +220,18 @@ function registerImplementationPair(
     traitArguments,
     traitIndex: trait.index,
     targetType,
+    ...(family ? { family } : {}),
   });
   return true;
 }
 
-// 09 Implementation Targets: no outer `mut`, and no bare type parameter.
-function checkImplementationTarget(implementation: ImplDecl, diagnostics: Diagnostic[]): boolean {
+// 09 Implementation Targets: no outer `mut`, and no bare type parameter
+// except a numeric family's.
+function checkImplementationTarget(
+  implementation: ImplDecl,
+  diagnostics: Diagnostic[],
+  family?: NumericFamily,
+): boolean {
   if (mutableInner(implementation.targetName) !== undefined) {
     diagnostics.push({
       code: "mutable-impl-target",
@@ -156,7 +240,7 @@ function checkImplementationTarget(implementation: ImplDecl, diagnostics: Diagno
     });
     return false;
   }
-  if (implementation.genericParameters.includes(implementation.targetName)) {
+  if (!family && implementation.genericParameters.includes(implementation.targetName)) {
     diagnostics.push({
       code: "bare-parameter-impl-target",
       message: `implementation target '${implementation.targetName}' is a bare type parameter; a target must start with a type constructor`,
@@ -607,8 +691,10 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     (left, right) =>
       Number(left[1].traitName !== undefined) - Number(right[1].traitName !== undefined),
   );
+  const sealed = sealedNumericTypes(context);
   for (const [implementationIndex, implementation] of orderedImplementationEntries) {
-    if (!checkImplementationTarget(implementation, diagnostics)) continue;
+    const family = numericFamily(implementation, sealed);
+    if (!checkImplementationTarget(implementation, diagnostics, family)) continue;
     if (implementation.traitName === undefined) {
       prepareInherentImplementation(implementation, implementationIndex, inherentMembers, context);
       continue;
@@ -695,6 +781,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         trait,
         traitArguments,
         targetType,
+        family,
         implementationTargets,
         diagnostics,
       )
@@ -887,6 +974,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
       targetType,
       associatedTypes,
       methods,
+      ...(family ? { family } : {}),
     });
   }
   validateSupertraitImplementations(context);
@@ -1057,10 +1145,14 @@ function builtInSupertraitHolds(traitName: string, targetType: ValueType): boole
   return traitName === "Eq" || traitName === "PartialOrd" || traitName === "Display";
 }
 
-/** Whether `candidate` binds each associated type the supertrait binds, after `Self` is the target. */
+/**
+ * Whether `candidate`, matched with `matched`, binds each associated type
+ * the supertrait binds, after `Self` is the target.
+ */
 function supertraitBindingsHold(
   supertrait: HirSupertrait,
   candidate: ImplementationPreparation,
+  matched: ReadonlyMap<string, ValueType>,
   traitTypes: ProgramCheckContext["traitTypes"],
   substitutions: ReadonlyMap<string, ValueType>,
 ): boolean {
@@ -1072,58 +1164,83 @@ function supertraitBindingsHold(
     return (
       index === undefined ||
       index < 0 ||
-      candidate.associatedTypes[index] === substituteGenericType(binding.type, substitutions)
+      substituteGenericType(candidate.associatedTypes[index]!, matched) ===
+        substituteGenericType(binding.type, substitutions)
     );
   });
 }
 
 function validateSupertraitImplementations(context: ProgramCheckContext): void {
-  for (const implementation of context.implementationPreparations) {
-    const traitSubstitutions = new Map(
-      implementation.trait.genericParameters.map(
-        (parameter, index) => [parameter, implementation.traitArguments[index]!] as const,
-      ),
-    );
-    traitSubstitutions.set("Self", implementation.targetType);
-    for (const supertrait of implementation.trait.supertraits) {
-      const expectedArguments = supertrait.traitArguments.map((argument) =>
-        substituteGenericType(argument, traitSubstitutions),
-      );
-      if (
-        supertrait.traitName === INSPECTABLE &&
-        usesStandardInspect(context.imports) &&
-        inspectKey(implementation.targetType, {
-          nominal: (name) =>
-            [context.dataTypes.get(name), context.enumTypes.get(name)].some(
-              (declaration) => declaration !== undefined && !declaration.local,
-            ),
-          inspectableParameter: () => true,
-        })
-      )
-        continue;
-      if (
-        expectedArguments.length === 0 &&
-        builtInSupertraitHolds(supertrait.traitName, implementation.targetType)
-      )
-        continue;
-      const found = context.implementationPreparations.some((candidate) => {
-        return (
-          Boolean(
-            matchTraitImplementation(
-              candidate,
-              supertrait.traitIndex,
-              implementation.targetType,
-              expectedArguments,
-            ),
-          ) && supertraitBindingsHold(supertrait, candidate, context.traitTypes, traitSubstitutions)
-        );
-      });
-      if (!found)
-        context.diagnostics.push({
-          code: "missing-supertrait-implementation",
-          message: `${implementation.declaration.targetName} must implement ${supertrait.traitName} before ${implementation.trait.name}`,
-          span: implementation.declaration.span,
-        });
+  for (const declared of context.implementationPreparations) {
+    // Each implementation a numeric family stands for needs its supertraits.
+    const instances = declared.family ? familyInstances(declared.family) : [new Map()];
+    for (const instance of instances) {
+      const implementation = {
+        ...declared,
+        targetType: substituteGenericType(declared.targetType, instance),
+        traitArguments: declared.traitArguments.map((argument) =>
+          substituteGenericType(argument, instance),
+        ),
+      };
+      validateSupertraits(implementation, context);
     }
+  }
+}
+
+function validateSupertraits(
+  implementation: ImplementationPreparation,
+  context: ProgramCheckContext,
+): void {
+  const traitSubstitutions = new Map(
+    implementation.trait.genericParameters.map(
+      (parameter, index) => [parameter, implementation.traitArguments[index]!] as const,
+    ),
+  );
+  traitSubstitutions.set("Self", implementation.targetType);
+  for (const supertrait of implementation.trait.supertraits) {
+    const expectedArguments = supertrait.traitArguments.map((argument) =>
+      substituteGenericType(argument, traitSubstitutions),
+    );
+    if (
+      supertrait.traitName === INSPECTABLE &&
+      usesStandardInspect(context.imports) &&
+      inspectKey(implementation.targetType, {
+        nominal: (name) =>
+          [context.dataTypes.get(name), context.enumTypes.get(name)].some(
+            (declaration) => declaration !== undefined && !declaration.local,
+          ),
+        inspectableParameter: () => true,
+      })
+    )
+      continue;
+    if (
+      expectedArguments.length === 0 &&
+      builtInSupertraitHolds(supertrait.traitName, implementation.targetType)
+    )
+      continue;
+    const found = context.implementationPreparations.some((candidate) => {
+      const matched = matchTraitImplementation(
+        candidate,
+        supertrait.traitIndex,
+        implementation.targetType,
+        expectedArguments,
+      );
+      return (
+        matched !== undefined &&
+        supertraitBindingsHold(
+          supertrait,
+          candidate,
+          matched,
+          context.traitTypes,
+          traitSubstitutions,
+        )
+      );
+    });
+    if (!found)
+      context.diagnostics.push({
+        code: "missing-supertrait-implementation",
+        message: `${implementation.declaration.targetName} must implement ${supertrait.traitName} before ${implementation.trait.name}`,
+        span: implementation.declaration.span,
+      });
   }
 }

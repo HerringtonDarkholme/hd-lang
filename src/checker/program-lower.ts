@@ -117,6 +117,13 @@ export function lowerCheckedProgram(
           ...(strengthenable && methodBounds !== traitBounds ? { strengthened: true } : {}),
         };
       }),
+      ...(implementation.family ? { family: implementation.family } : {}),
+      // An implementation of intrinsic methods only is a declaration with no
+      // code (09-traits.md#intrinsic-methods).
+      ...(implementation.methods.length > 0 &&
+      implementation.methods.every((method) => method.declaration.bodiless)
+        ? { intrinsic: true as const }
+        : {}),
       span: implementation.declaration.span,
     }),
   );
@@ -182,7 +189,9 @@ export function lowerCheckedProgram(
           ? declaration.public
             ? { ...checked.function, entry: true }
             : { ...checked.function, developmentEntry: true }
-          : checked.function,
+          : declaration.bodiless
+            ? { ...checked.function, intrinsicMethod: true }
+            : checked.function,
       );
   });
   declarations.forEach((declaration) => {

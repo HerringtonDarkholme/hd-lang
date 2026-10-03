@@ -130,8 +130,24 @@ export interface HirTraitImplementation {
   readonly genericParameters: readonly string[];
   readonly supertraitImplementations: readonly number[];
   readonly methodFunctions: readonly HirTraitMethodFunction[];
+  /**
+   * A numeric-family implementation such as `impl[N < Num] Add for N`
+   * (09-traits.md#r-trait.target.numeric-family): the types each parameter
+   * may take. Its target is the bare parameter, and it matches a type only
+   * through these lists.
+   */
+  readonly family?: NumericFamily;
+  /**
+   * Every method is an `@intrinsic` method (09-traits.md#intrinsic-methods):
+   * the implementation is a declaration with no code. A direct call is an
+   * `intrinsic-call`, and a dictionary is an `intrinsic` builtin.
+   */
+  readonly intrinsic?: true;
   readonly span: SourceSpan;
 }
+
+/** The types each parameter of a numeric-family implementation may take. */
+export type NumericFamily = Readonly<Record<string, readonly ValueType[]>>;
 
 export interface HirTraitDictionaryPlan {
   readonly bounds: readonly HirExpression[];
@@ -160,6 +176,20 @@ export type HirBuiltinTraitImplementation =
       readonly kind: "marker";
       readonly traitIndex: number;
       readonly targetType: ValueType;
+    }
+  | {
+      // A dictionary of an intrinsic implementation for one concrete type,
+      // such as `Ord` for `i64`: each method's entry is one small wrapper that
+      // computes the operation inline (09-traits.md#intrinsic-methods). Each
+      // method's parameter and result types are concrete.
+      readonly kind: "intrinsic";
+      readonly traitIndex: number;
+      readonly targetType: ValueType;
+      readonly methods: readonly {
+        readonly name: string;
+        readonly parameterTypes: readonly ValueType[];
+        readonly resultType: ValueType;
+      }[];
     }
   | {
       // The compiler-supplied `Inspectable` (spec/lang/09-traits.md#sealed-traits).
@@ -296,6 +326,11 @@ export interface HirFunction {
    * boundary). The checked `body` is a placeholder.
    */
   readonly intrinsic?: string;
+  /**
+   * An `@intrinsic` trait method (09-traits.md#intrinsic-methods), which has
+   * no code: no call reaches it, so it is not emitted.
+   */
+  readonly intrinsicMethod?: true;
   /** Runner options of a test body (spec/lang/10-modules.md#test-cases). */
   readonly testOptions?: {
     readonly name: string;
@@ -571,6 +606,14 @@ export type HirExpression =
       readonly operator: string;
       readonly left: HirExpression;
       readonly right: HirExpression;
+    })
+  | (HirExpressionBase & {
+      // A call of the `@intrinsic` method `method`, such as `add` or `cmp`, on
+      // a concrete primitive receiver, the first argument: the operation
+      // inline (09-traits.md#r-trait.impl.intrinsic.inline).
+      readonly kind: "intrinsic-call";
+      readonly method: string;
+      readonly arguments: readonly HirExpression[];
     })
   | (HirExpressionBase & {
       readonly kind: "call";

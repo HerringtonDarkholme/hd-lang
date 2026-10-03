@@ -16,6 +16,7 @@ import {
   genericTypeName,
   inferGenericType,
   matchGenericTypePattern,
+  matchImplementationTarget,
   substituteGenericType,
 } from "./shared.ts";
 import { type QualifiedCallExpression, TraitCallChecker } from "./trait-calls.ts";
@@ -399,7 +400,7 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
     )
       return true;
     return this.implementations.some((implementation) => {
-      if (!matchGenericTypePattern(implementation.targetType, ownerType, new Map())) return false;
+      if (!matchImplementationTarget(implementation, ownerType, new Map())) return false;
       const trait = [...this.traitTypes.values()].find(
         (candidate) => candidate.index === implementation.traitIndex,
       );
@@ -481,7 +482,7 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
     }
     const candidates = this.implementations.flatMap((implementation) => {
       const substitutions = new Map<string, ValueType>();
-      if (!matchGenericTypePattern(implementation.targetType, ownerType, substitutions)) return [];
+      if (!matchImplementationTarget(implementation, ownerType, substitutions)) return [];
       const trait = [...this.traitTypes.values()].find(
         (candidate) => candidate.index === implementation.traitIndex,
       );

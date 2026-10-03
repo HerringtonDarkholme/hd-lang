@@ -1123,7 +1123,7 @@ else`, `break`, `break value`, and `continue`;
   of a declared function never being a place), supertrait bindings such as
   `Add[Self, Out = Self]`, and the sealed `std.num` traits `Num`, `Integer`,
   and `Float` follow the same path. The primitive implementations are
-  bodiless `@intrinsic` methods, whose bodies the loader supplies as the
+  bodiless `@intrinsic` methods, which compile as the
   inline operator on primitive operands ([Boundary Mechanisms](#boundary-mechanisms));
   the index traits of `List`, `Map`, and `string` are hd code whose
   bodies index directly.
@@ -1362,16 +1362,22 @@ RUNTIME_AND_LIBRARY.md).
      in the runner's `hostFunctions` (`snapshot_file_check`, `src/snapshots.ts`).
    - An **operation intrinsic** is a bodiless `@intrinsic` trait method,
      one per primitive operation, such as `Add.add` or `Eq.eq`
-     (spec/lang/09-traits.md#intrinsic-methods). Before parsing a std
-     module, `checker/intrinsic-methods.ts` rewrites its text: a
-     numeric-family implementation such as `impl[N < Num] Add for N`
-     becomes one implementation per type listed by `lib/std/num.hd`'s
-     `impl Num for T` lines, and each `@intrinsic` method gets the
-     operator on its primitive operands as its body, such as
-     `self + rhs`. An operator on primitive operands compiles inline, so
-     no body calls itself. In user code, `@intrinsic` stays an
-     `unknown-name` decorator, and the method's missing body is not
-     checked further (`FunctionDecl.bodiless`).
+     (spec/lang/09-traits.md#intrinsic-methods). An implementation of
+     such methods is a declaration with no code
+     (`HirTraitImplementation.intrinsic`, `HirFunction.intrinsicMethod`).
+     A numeric-family implementation such as `impl[N < Num] Add for N`
+     stays one implementation whose target is the bare parameter; it
+     matches a type only when the type is one that the parameter's sealed
+     bound lists (`HirTraitImplementation.family`, read from std's `impl
+     Num for T` lines), and coherence checks each implementation it
+     stands for. A call on a primitive receiver, such as `x.cmp(y)`,
+     is an `intrinsic-call` that compiles as the operator does, and an
+     operator on primitive operands never searches a trait. A dictionary
+     for a primitive, as a `[T < Ord]` call on `i64` needs, is an
+     `intrinsic` builtin: one wrapper per type and method
+     (`$tintrinsic`), written when first used. In user code,
+     `@intrinsic` stays an `unknown-name` decorator, and the method's
+     missing body is not checked further (`FunctionDecl.bodiless`).
 2. **Host capability traits.** A capability is a trait whose methods are
    bang calls or plain calls (spec/11 and
    RUNTIME_AND_LIBRARY.md).

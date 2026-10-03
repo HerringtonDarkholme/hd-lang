@@ -11,7 +11,7 @@ import {
 } from "../types.ts";
 import type { MemberCallExpression } from "./expression-calls.ts";
 import { MethodReferenceChecker } from "./method-references.ts";
-import { genericTypeName, matchGenericTypePattern } from "./shared.ts";
+import { genericTypeName, matchImplementationTarget } from "./shared.ts";
 
 /**
  * The prelude `Iterator[T]` is a `std.iter` data type with a `step` closure
@@ -47,7 +47,7 @@ export abstract class IterationChecker extends MethodReferenceChecker {
       this.implementations.some(
         (implementation) =>
           implementation.traitIndex === iterable.index &&
-          matchGenericTypePattern(implementation.targetType, type, new Map()),
+          matchImplementationTarget(implementation, type, new Map()),
       );
     if (!bounded && !implemented) return undefined;
     const call: MemberCallExpression = {

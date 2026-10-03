@@ -7,7 +7,7 @@ import type {
   ValueType,
 } from "../hir.ts";
 import { nominalGenericType } from "../types.ts";
-import { containsGenericType, matchGenericTypePattern, substituteGenericType } from "./shared.ts";
+import { containsGenericType, matchImplementationTarget, substituteGenericType } from "./shared.ts";
 
 import { InspectChecker } from "./expression-inspect.ts";
 
@@ -40,7 +40,7 @@ export abstract class TraitCallChecker extends InspectChecker {
   }[] {
     return this.implementations.flatMap((implementation) => {
       const substitutions = new Map<string, ValueType>();
-      if (!matchGenericTypePattern(implementation.targetType, ownerType, substitutions)) return [];
+      if (!matchImplementationTarget(implementation, ownerType, substitutions)) return [];
       const candidateTrait = [...this.traitTypes.values()].find(
         (candidate) => candidate.index === implementation.traitIndex,
       );

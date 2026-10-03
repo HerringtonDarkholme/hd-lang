@@ -27,7 +27,7 @@ import {
 import {
   containsGenericType,
   genericTypeName,
-  matchGenericTypePattern,
+  matchImplementationTarget,
   matchTraitImplementation,
   resultMisfit,
   substituteGenericType,
@@ -625,11 +625,7 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       if (!substitutions) return [];
       if (
         (qualifiedTraitIndex === undefined || anyInstantiation) &&
-        !matchGenericTypePattern(
-          implementation.targetType,
-          receiverImplementationType,
-          substitutions,
-        )
+        !matchImplementationTarget(implementation, receiverImplementationType, substitutions)
       )
         return [];
       const trait = [...this.traitTypes.values()].find(
@@ -657,9 +653,16 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       const signature = [...this.signatures.values()].find(
         (value) => value.index === candidate.mapping.functionIndex,
       )!;
+      // A numeric family's parameter that the receiver solves is concrete in
+      // the parameter types, as in each implementation the family stands for.
+      const family = candidate.implementation.family;
       const callSignature = {
         ...signature,
-        parameters: signature.parameters.slice(1),
+        parameters: signature.parameters
+          .slice(1)
+          .map((parameter) =>
+            family ? substituteGenericType(parameter, candidate.substitutions) : parameter,
+          ),
         parameterNames: signature.parameterNames.slice(1),
         defaultFunctionNames: signature.defaultFunctionNames.slice(1),
       };
@@ -688,6 +691,23 @@ export abstract class ExpressionCallChecker extends IterationChecker {
       );
       if (unresolved.length > 0)
         this.failUnresolvedCall(unresolved, `.${candidate.method.name}`, expression.span);
+      const traitArguments = candidate.implementation.traitArguments.map((argument) =>
+        substituteGenericType(argument, substitutions),
+      );
+      if (
+        family &&
+        !matchTraitImplementation(
+          candidate.implementation,
+          candidate.implementation.traitIndex,
+          receiverImplementationType,
+          traitArguments,
+        )
+      )
+        this.fail(
+          "type-mismatch",
+          `the arguments of '${candidate.method.name}' fit no instantiation of trait '${candidate.trait.name}' implemented by '${receiverImplementationType}'`,
+          expression.span,
+        );
       const unresolvedRows = signature.rowParameters.filter(
         (parameter) => !rowSubstitutions.has(parameter),
       );
@@ -717,6 +737,16 @@ export abstract class ExpressionCallChecker extends IterationChecker {
         );
       const resultType = substituteGenericType(signature.result, substitutions, rowSubstitutions);
       const bounds = this.resolveBoundDictionaries(signature, substitutions, expression.span);
+      // An intrinsic method has no code: a call on a primitive receiver is
+      // its operation inline (09-traits.md#r-trait.impl.intrinsic.inline).
+      if (candidate.implementation.intrinsic)
+        return {
+          kind: "intrinsic-call",
+          method: candidate.method.name,
+          arguments: [methodReceiver, ...checkedArguments.arguments],
+          type: resultType,
+          span: expression.span,
+        };
       const implementationArgumentParameterIndices = checkedArguments.parameterIndices
         ? [0, ...checkedArguments.parameterIndices.map((parameterIndex) => parameterIndex + 1)]
         : undefined;

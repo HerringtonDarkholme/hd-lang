@@ -1165,6 +1165,11 @@ class FunctionEmitter extends FunctionBodyEmitter {
 
 import { BOUNDARY_RUNTIME_WAT, MAP_RUNTIME_WAT, RUNTIME_WAT } from "./runtime/index.ts";
 
+/** The functions that have code: an intrinsic method has none (09-traits.md#intrinsic-methods). */
+function emittedFunctions(program: HirProgram): readonly HirFunction[] {
+  return program.functions.filter((declaration) => !declaration.intrinsicMethod);
+}
+
 export function emitWat(program: HirProgram): string {
   const { signatureNames, contextNames } = collectModuleTypes(program);
   const traitsByName = new Map(program.traits.map((trait) => [trait.name, trait]));
@@ -1373,7 +1378,7 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
         `  (global ${globalName(global.index)} (mut ${emitter.watType(global.type)}) ${emitter.defaultValue(global.type)})`,
     )
     .join("\n");
-  const functions = [...program.functions, ...program.closures]
+  const functions = [...emittedFunctions(program), ...program.closures]
     .map((declaration) =>
       [
         declaration.suspending &&
@@ -1395,6 +1400,7 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
   const traitAdapters = [
     emitter.emitTraitAdapters(),
     emitter.emitBuiltinTraitAdapters(),
+    emitter.emitIntrinsicAdapters(),
     emitter.emitForwardingAdapters(),
   ]
     .filter(Boolean)
@@ -1405,16 +1411,18 @@ ${program.closures.map((closure) => environmentType(closure, emitter)).join("\n"
   const storedSuspensionAdapters = emitStoredSuspensionAdapters(program);
   const referenceableFunctions = [
     ...program.closures.map((closure) => `$c${closure.index}`),
-    ...program.functions
+    ...emittedFunctions(program)
       .filter((declaration) => declaration.genericParameters.length === 0)
       .map((declaration) => `$fv${suspensionIndex(declaration)}`),
     ...emitter.adapters.map((adapter) => `$adapt${adapter.index}`),
     ...emitter.builtinTraitAdapterNames,
-    ...program.implementations.flatMap((implementation) =>
-      implementation.methodFunctions.map(
-        (method) => `$tadapt${implementation.index}_${method.methodIndex}`,
+    ...program.implementations
+      .filter((implementation) => !implementation.intrinsic)
+      .flatMap((implementation) =>
+        implementation.methodFunctions.map(
+          (method) => `$tadapt${implementation.index}_${method.methodIndex}`,
+        ),
       ),
-    ),
     ...program.implementations.flatMap((implementation) => {
       // Trait indices may skip a compiler trait the program does not declare.
       const trait = program.traits.find((item) => item.index === implementation.traitIndex)!;

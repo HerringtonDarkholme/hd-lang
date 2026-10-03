@@ -219,6 +219,8 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           expression.valueType,
           expression.strategy,
         );
+      case "intrinsic-call":
+        return this.emitIntrinsicCall(expression);
       case "value-ordering": {
         const temporary = this.allocateTemporary("i32");
         const ordering = `(local.get ${temporary})`;
@@ -1170,6 +1172,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
 
   emitTraitAdapters(): string {
     return [...this.implementationsByIndex.values()]
+      .filter((implementation) => !implementation.intrinsic)
       .flatMap((implementation) => {
         const trait = this.traitsByIndex.get(implementation.traitIndex)!;
         const traitSubstitutions = new Map([

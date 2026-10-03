@@ -1,6 +1,6 @@
 import type { FunctionDecl, ImplDecl, Program } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
-import type { HirData, HirEnum, HirTrait, ValueType } from "../hir.ts";
+import type { HirData, HirEnum, HirTrait, NumericFamily, ValueType } from "../hir.ts";
 import type { InherentMethod } from "./context.ts";
 import type { TestRunnerNames } from "./standard-library.ts";
 
@@ -16,6 +16,8 @@ export interface ImplementationPreparation {
   readonly traitArguments: readonly ValueType[];
   readonly associatedTypes: readonly ValueType[];
   readonly methods: ImplementationMethodPreparation[];
+  /** A numeric-family implementation's parameter types (09-traits.md#r-trait.target.numeric-family). */
+  readonly family?: NumericFamily;
 }
 
 export interface ProgramCheckContext {

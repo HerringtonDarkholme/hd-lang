@@ -6,7 +6,7 @@ import type {
   HirOrderingStrategy,
   ValueType,
 } from "../hir.ts";
-import { readonlyType } from "../types.ts";
+import { optionalInner, readonlyType } from "../types.ts";
 import { EmitterContext } from "./context.ts";
 import { numericType } from "../numeric.ts";
 import { scalarWasm } from "./scalars.ts";
@@ -19,7 +19,9 @@ import {
   type SizedNumericContext,
 } from "./sized-numeric.ts";
 import {
+  containsGenericValueType,
   functionName,
+  localName,
   methodBoundParameters,
   stringLiteral,
   traitSuspensionName,
@@ -27,6 +29,33 @@ import {
 
 /** The receiver of a nested `runtime_type` read that composes a type argument's key. */
 const NESTED_TYPE_ID_RECEIVER = "(ref.i31 (i32.const 0))";
+
+/**
+ * The operator of each intrinsic method of an operator trait
+ * (09-traits.md#intrinsic-methods), which compiles as that operator does on
+ * primitive operands.
+ */
+const BINARY_INTRINSICS: Readonly<Record<string, string>> = {
+  add: "+",
+  sub: "-",
+  mul: "*",
+  div: "/",
+  rem: "%",
+  bit_and: "&",
+  bit_or: "|",
+  bit_xor: "^",
+  shl: "<<",
+  shr: ">>",
+};
+
+const UNARY_INTRINSICS: Readonly<Record<string, string>> = { neg: "-", not: "~" };
+
+/** The wrapper of one intrinsic method for one type, behind its dictionaries. */
+interface IntrinsicAdapter {
+  readonly index: number;
+  readonly builtin: Extract<HirBuiltinTraitImplementation, { kind: "intrinsic" }>;
+  readonly methodIndex: number;
+}
 
 export abstract class ValueComparisonEmitter extends EmitterContext {
   protected abstract emitExpression(expression: HirExpression): string;
@@ -220,6 +249,12 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     const trait = this.traitsByIndex.get(builtin.traitIndex)!;
     if (builtin.kind === "marker")
       return `(struct.new $trait${trait.index} ${value} (ref.null $hd.list))`;
+    if (builtin.kind === "intrinsic") {
+      const methods = builtin.methods.map(
+        (_, methodIndex) => `(ref.func ${this.intrinsicAdapter(builtin, methodIndex)})`,
+      );
+      return `(struct.new $trait${trait.index} ${value} (ref.null $hd.list)${[...methods, ...parents].map((part) => ` ${part}`).join("")})`;
+    }
     if (builtin.kind === "forward") return this.emitForwardingDictionary(builtin, value);
     // An Inspectable key's every bound is an Inspectable dictionary, such as
     // a handle's witness (annot.handle.fact.key).
@@ -281,9 +316,152 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
 )`;
   }
 
+  /**
+   * An intrinsic method's operation on primitive operands, inline
+   * (09-traits.md#r-trait.impl.intrinsic.inline): an operator trait's
+   * method compiles as its operator, and `eq`, `partial_cmp`, and `cmp` as
+   * the comparison. A NaN operand makes `partial_cmp` `.None`.
+   */
+  protected emitIntrinsicCall(
+    expression: Extract<HirExpression, { kind: "intrinsic-call" }>,
+  ): string {
+    const { method, type, span } = expression;
+    const [left, right] = expression.arguments;
+    const binary = BINARY_INTRINSICS[method];
+    if (binary && left && right)
+      return this.emitExpression({ kind: "binary", operator: binary, left, right, type, span });
+    const unary = UNARY_INTRINSICS[method];
+    if (unary && left)
+      return this.emitExpression({ kind: "unary", operator: unary, operand: left, type, span });
+    if (method === "eq" && left && right)
+      return this.emitValueEquality(
+        this.emitExpression(left),
+        this.emitExpression(right),
+        left.type,
+      );
+    if ((method === "partial_cmp" || method === "cmp") && left && right) {
+      const compared = this.emitValueOrdering(
+        this.emitExpression(left),
+        this.emitExpression(right),
+        left.type,
+      );
+      const temporary = this.allocateTemporary("i32");
+      const code = `(local.get ${temporary})`;
+      const resultType = this.watType(type);
+      const orderingIndex = this.enumByName.get(readonlyType(optionalInner(type) ?? type))!.index;
+      const orderingType = `(ref $e${orderingIndex})`;
+      const variant = (tag: number) => `(global.get $e${orderingIndex}v${tag})`;
+      const ordering = `(if (result ${orderingType}) (i32.lt_s ${code} (i32.const 0)) (then ${variant(0)}) (else (if (result ${orderingType}) (i32.eqz ${code}) (then ${variant(1)}) (else ${variant(2)}))))`;
+      const value =
+        method === "cmp"
+          ? ordering
+          : `(if (result ${resultType}) (i32.eq ${code} (i32.const 2)) (then (struct.new $hd.variant (i32.const 0) (ref.null any))) (else (struct.new $hd.variant (i32.const 1) ${ordering})))`;
+      return `(block (result ${resultType}) (local.set ${temporary} ${compared}) ${value})`;
+    }
+    throw new Error(`no intrinsic method '${method}' (spec/lang/09-traits.md#intrinsic-methods)`);
+  }
+
+  private readonly intrinsicAdapters = new Map<string, IntrinsicAdapter>();
+
+  /**
+   * The wrapper of `builtin`'s method `methodIndex`, one per type and method;
+   * a trait argument, such as the count type of `Shl[C]`, is part of the method.
+   */
+  private intrinsicAdapter(
+    builtin: Extract<HirBuiltinTraitImplementation, { kind: "intrinsic" }>,
+    methodIndex: number,
+  ): string {
+    const method = builtin.methods[methodIndex]!;
+    const key = JSON.stringify([builtin.traitIndex, builtin.targetType, methodIndex, method]);
+    let adapter = this.intrinsicAdapters.get(key);
+    if (!adapter) {
+      adapter = { index: this.intrinsicAdapters.size, builtin, methodIndex };
+      this.intrinsicAdapters.set(key, adapter);
+    }
+    return `$tintrinsic${adapter.index}`;
+  }
+
+  /**
+   * The wrappers behind intrinsic dictionaries: each unboxes its erased
+   * operands into locals and computes the operation inline.
+   */
+  emitIntrinsicAdapters(): string {
+    const savedTemporaries = [...this.temporaryTypes];
+    const adapters = [...this.intrinsicAdapters.values()].map(({ index, builtin, methodIndex }) => {
+      const trait = this.traitsByIndex.get(builtin.traitIndex)!;
+      const method = trait.methods[methodIndex]!;
+      const concrete = builtin.methods[methodIndex]!;
+      if (method.suspending || method.requirements.length > 0 || method.genericBounds?.length)
+        throw new Error(`intrinsic method '${concrete.name}' takes no bounds or requirements`);
+      this.temporaryTypes.length = 0;
+      const span = trait.span;
+      const operandTypes = [builtin.targetType, ...concrete.parameterTypes];
+      const operands = operandTypes.map((type, local): HirExpression => ({
+        kind: "local",
+        local: {
+          name: `$operand${local}`,
+          type,
+          index: local,
+          mutable: false,
+          parameter: false,
+          span,
+        },
+        type,
+        span,
+      }));
+      const computed = this.emitIntrinsicCall({
+        kind: "intrinsic-call",
+        method: concrete.name,
+        arguments: operands,
+        type: concrete.resultType,
+        span,
+      });
+      const body = containsGenericValueType(method.result)
+        ? this.boxWatValue(computed, concrete.resultType)
+        : computed;
+      const parameters = method.parameters.map(
+        (parameter, parameterIndex) =>
+          `(param $a${parameterIndex} ${this.parameterWatType(parameter)})`,
+      );
+      const result = method.result === "void" ? "" : ` (result ${this.watType(method.result)})`;
+      const locals = operandTypes.map(
+        (type, local) => `  (local ${localName(local)} ${this.watType(type)})`,
+      );
+      const temporaries = this.temporaryTypes.map(
+        (type, temporary) => `  (local $tmp${temporary} ${this.watType(type)})`,
+      );
+      const sets = [
+        `  (local.set ${localName(0)} ${this.unboxValue("(local.get $self)", builtin.targetType)})`,
+        ...method.parameters.map(
+          (parameter, parameterIndex) =>
+            `  (local.set ${localName(parameterIndex + 1)} ${
+              containsGenericValueType(parameter)
+                ? this.unboxValue(
+                    `(local.get $a${parameterIndex})`,
+                    concrete.parameterTypes[parameterIndex]!,
+                  )
+                : `(local.get $a${parameterIndex})`
+            })`,
+        ),
+      ];
+      return [
+        `(func $tintrinsic${index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref)${parameters.length ? " " + parameters.join(" ") : ""}${result}`,
+        ...locals,
+        ...temporaries,
+        ...sets,
+        `  ${body}`,
+        `)`,
+      ].join("\n");
+    });
+    this.temporaryTypes.length = 0;
+    this.temporaryTypes.push(...savedTemporaries);
+    return adapters.join("\n\n");
+  }
+
   get builtinTraitAdapterNames(): readonly string[] {
     return [
       ...[...this.builtinTraitAdapters.values()].map((adapter) => `$tbuiltin${adapter.index}`),
+      ...[...this.intrinsicAdapters.values()].map((adapter) => `$tintrinsic${adapter.index}`),
       ...[...this.forwardingAdapters.values()].flatMap((adapter) =>
         this.traitsByIndex
           .get(adapter.builtin.traitIndex)!

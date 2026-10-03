@@ -8,6 +8,7 @@ import {
   containsGenericType,
   genericTypeName,
   matchGenericTypePattern,
+  matchImplementationTarget,
   substituteGenericType,
 } from "./shared.ts";
 import { implementationsFor } from "./implementation-index.ts";
@@ -258,7 +259,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
    */
   private traitWithMember(type: ValueType, name: string): string | undefined {
     for (const implementation of implementationsFor(this.implementations, type)) {
-      if (!matchGenericTypePattern(implementation.targetType, type, new Map())) continue;
+      if (!matchImplementationTarget(implementation, type, new Map())) continue;
       const trait = [...this.traitTypes.values()].find(
         (candidate) => candidate.index === implementation.traitIndex,
       );

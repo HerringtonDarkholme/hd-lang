@@ -1,3 +1,4 @@
+import { intrinsicDictionaryPlan } from "./intrinsic-dictionaries.ts";
 import { mapKeyKind, mapKeyProblem } from "./map-keys.ts";
 import {
   ambiguousProjection,
@@ -719,8 +720,24 @@ export abstract class CheckerContext {
     );
     if (!substitutions)
       throw new Error(`implementation ${implementation.index} does not match ${targetType}`);
-    this.inferBoundAssociatedTypes(implementation, substitutions);
     const next = new Set([...seen, key]);
+    if (implementation.intrinsic)
+      return intrinsicDictionaryPlan(
+        implementation,
+        this.traitTypes.get(implementation.traitName)!,
+        targetType,
+        substitutions,
+        (traitIndex, traitArguments) => {
+          const type = readonlyType(targetType);
+          const found = findImpl(this.implementations, traitIndex, type, traitArguments);
+          const plan = found
+            ? this.traitDictionaryPlan(found.impl, found.type, traitArguments, span, next)
+            : this.builtinTraitDictionaryPlan(traitIndex, type, traitArguments, span);
+          if (!plan) throw new Error(`no implementation of supertrait ${traitIndex} for ${type}`);
+          return plan;
+        },
+      );
+    this.inferBoundAssociatedTypes(implementation, substitutions);
     const bounds = implementation.genericBounds.map((bound) =>
       this.boundDictionaryExpression(bound, substitutions, span, next),
     );

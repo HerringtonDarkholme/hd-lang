@@ -3,7 +3,7 @@ import type { SourceSpan } from "../diagnostics.ts";
 import type { HirExpression, HirLocal, HirStatement, HirTrait, ValueType } from "../hir.ts";
 import { functionParts, mutableInner, readonlyType } from "../types.ts";
 import { ExpressionCallChecker, type MemberCallExpression } from "./expression-calls.ts";
-import { genericTypeName, matchGenericTypePattern } from "./shared.ts";
+import { genericTypeName, matchImplementationTarget } from "./shared.ts";
 
 // Operators and indexing on operands that are not primitive call the
 // `std.ops` traits (spec/lang/05-expressions.md#operator-traits,
@@ -238,7 +238,7 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
     return this.implementations.some(
       (implementation) =>
         implementation.traitIndex === trait.index &&
-        matchGenericTypePattern(implementation.targetType, receiverType, new Map()),
+        matchImplementationTarget(implementation, receiverType, new Map()),
     );
   }
 

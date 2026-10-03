@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import { withIntrinsicMethods } from "./intrinsic-methods.ts";
 
 // The toy standard library: one hd source file per `std` module, in the
 // top-level `lib/std/` directory, with a submodule in a subdirectory:
@@ -52,14 +51,11 @@ function fileSource(name: StandardModule | CompilerModule): string {
   return readFileSync(new URL(`../../lib/std/${path}.hd`, import.meta.url), "utf8");
 }
 
-/**
- * The hd source of `std.<name>`, with its operation intrinsics expanded
- * (checker/intrinsic-methods.ts).
- */
+/** The hd source of `std.<name>`. */
 export function standardSource(name: StandardModule | CompilerModule): string {
   let source = sources.get(name);
   if (source === undefined) {
-    source = withIntrinsicMethods(fileSource(name), () => fileSource("num"));
+    source = fileSource(name);
     sources.set(name, source);
   }
   return source;

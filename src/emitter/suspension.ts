@@ -407,6 +407,11 @@ class SuspensionPlanBuilder {
           (operand) => continuation({ ...expression, operand: operand! }),
           context,
         );
+      case "intrinsic-call":
+        return lowerValues(expression.arguments, (arguments_) => ({
+          ...expression,
+          arguments: arguments_,
+        }));
       case "value-equality":
       case "value-ordering":
         return lowerValues([expression.left, expression.right], ([left, right]) => ({

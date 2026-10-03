@@ -845,8 +845,7 @@ impl Iterable[u64] for RangeFrom[u64]:
 # operation, and specializes it for each type
 # (spec/lang/09-traits.md#intrinsic-methods). An operator on primitive
 # operands calls these methods, so no body is written with the operator it
-# implements. The loader declares a trait's primitive implementations only
-# for a program that names the trait.
+# implements.
 impl[N < Num] Add for N:
     type Out = N
     @intrinsic
