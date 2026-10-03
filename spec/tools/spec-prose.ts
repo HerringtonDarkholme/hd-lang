@@ -67,6 +67,7 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/error.md": "std-error",
   "std/encoding.md": "std-encoding",
   "std/digest.md": "std-digest",
+  "std/json.md": "std-json",
   "cli/command-line.md": "cli",
 };
 

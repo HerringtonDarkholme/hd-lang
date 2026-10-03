@@ -54,6 +54,7 @@ const STD_CHAPTERS: readonly [module: string, title: string][] = [
   ["hash", "Hash"],
   ["host", "Host"],
   ["iter", "Iterators"],
+  ["json", "Json"],
   ["num", "Num"],
   ["ops", "Ops"],
   ["option", "Option"],

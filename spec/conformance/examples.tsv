@@ -713,3 +713,8 @@ std/encoding.md	1	accept	runtime/valid/encoding-hex-vectors.hd
 std/encoding.md	2	accept	runtime/valid/encoding-base64-vectors.hd
 std/encoding.md	3	type-fragment	-
 std/digest.md	1	accept	runtime/valid/digest-sha256-vectors.hd
+std/json.md	1	type-fragment	-
+std/json.md	2	type-fragment	-
+std/json.md	3	type-fragment	-
+std/json.md	4	type-fragment	-
+std/json.md	5	type-fragment	-

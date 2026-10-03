@@ -1,0 +1,55 @@
+# test: until the std has a float parser, a number with a fraction or an exponent is an UnsupportedNumber, and a malformed one is still a grammar error
+# Spec std/json Numbers: std-json.parse.number.unsupported, std-json.parse.number.grammar (FLOAT-PARSE; task #226).
+use std.json.{parse, JsonError}
+use std.testing.{assert, assert_equal}
+
+fn failure(text: string) -> JsonError:
+    match parse(text):
+        .Ok(_) => panic("expected an error for $text")
+        .Err(error) => error
+
+tests:
+    it("valid float text from the JSONTestSuite is unsupported"):
+        cases := [
+            ("y_number_real_capital_e", "[1E22]"),
+            ("y_number_real_exponent", "[123e45]"),
+            ("y_number_real_fraction_exponent", "[123.456e78]"),
+            ("y_number_real_neg_exp", "[1e-2]"),
+            ("y_number_real_pos_exponent", "[1e+2]"),
+            ("y_number", "[123e65]"),
+            ("y_number_double_close_to_zero", "[-0.000000000000000000000000000000000000000000000000000000000000000000000000000001]"),
+            ("y_number_negative_one", "[-1.0]"),
+            ("y_number_0e1", "[0e1]"),
+            ("y_number_0e+1", "[0e+1]"),
+            ("y_number_int_with_exp", "[20e1]"),
+            ("y_number_simple_real", "[123.456789]"),
+        ]
+        for case in cases:
+            match parse(case._1):
+                .Ok(_) => assert(false, reason="${case._0} needs a float parser")
+                .Err(.UnsupportedNumber(position)) => assert_equal(position, 1, reason="${case._0} position")
+                .Err(_) => assert(false, reason="${case._0} is valid grammar")
+
+    it("malformed float text is still a grammar error"):
+        cases := [
+            ("n_number_.2e-3", "[.2e-3]"),
+            ("n_number_2.e+3", "[2.e+3]"),
+            ("n_number_2.e-3", "[2.e-3]"),
+            ("n_number_0.e1", "[0.e1]"),
+            ("n_number_1.0e", "[1.0e]"),
+            ("n_number_1.0e+", "[1.0e+]"),
+            ("n_number_1.0e-", "[1.0e-]"),
+            ("n_number_neg_real_without_int_part", "[-.123]"),
+            ("n_number_real_without_fractional_part", "[1.]"),
+            ("n_number_expression", "[1+2]"),
+            ("n_number_starting_with_dot", "[.123]"),
+        ]
+        for case in cases:
+            assert(parse(case._1).is_err(), reason="${case._0} should fail")
+            match parse(case._1):
+                .Err(.UnsupportedNumber(_)) => assert(false, reason="${case._0} is a grammar error")
+                _ => pass
+
+    it("the position of an unsupported number is its first character"):
+        assert_equal(failure("[true, -1.5]"), JsonError.UnsupportedNumber(7), reason="after other items")
+        assert_equal(failure("{\"a\": 1e3}"), JsonError.UnsupportedNumber(6), reason="in an object")

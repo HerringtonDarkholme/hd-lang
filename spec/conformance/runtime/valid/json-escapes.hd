@@ -1,0 +1,35 @@
+# test: string escapes decode, including \uXXXX and surrogate pairs, and encode as the writer spells them
+# Spec std/json Parsing, Writing: std-json.parse.string.escapes, std-json.parse.string.surrogates, std-json.display.text (JSON-SURFACE; task #226).
+use std.json.{parse, Json, JsonError}
+use std.testing.{assert_equal}
+
+fn read(text: string) -> Json:
+    match parse(text):
+        .Ok(value) => value
+        .Err(_) => panic("parse failed for $text")
+
+tests:
+    it("the two-character escapes decode"):
+        assert_equal(read("\"\\\" \\\\ \\/ \\b \\f \\n \\r \\t\""), Json.Text("\" \\ / \u{8} \u{c} \n \u{d} \t"), reason="all eight")
+
+    it("a \\u escape decodes to its scalar value in either hex case"):
+        assert_equal(read("\"\\u00e9\\u00E9\\u0041\\u0000\""), Json.Text("\u{e9}\u{e9}A\0"), reason="BMP and NUL")
+        assert_equal(read("\"\\u20AC\""), Json.Text("\u{20ac}"), reason="three bytes")
+
+    it("a surrogate pair decodes to one scalar value"):
+        assert_equal(read("\"\\ud83d\\ude00\""), Json.Text("\u{1f600}"), reason="U+1F600")
+        assert_equal(read("\"\\uD834\\uDD1E\""), Json.Text("\u{1d11e}"), reason="U+1D11E")
+        assert_equal(read("\"\\ud800\\udc00\\udbff\\udfff\""), Json.Text("\u{10000}\u{10ffff}"), reason="the range ends")
+
+    it("raw non-ASCII text passes through"):
+        assert_equal(read("\"é\u{1f600}\""), Json.Text("\u{e9}\u{1f600}"), reason="UTF-8 in the text")
+
+    it("the writer escapes quote, backslash, and control characters"):
+        assert_equal("${Json.Text("q\"\\\n\t\u{1}\u{1f}")}", "\"q\\\"\\\\\\n\\t\\u0001\\u001f\"", reason="escapes")
+        assert_equal("${Json.Text("\u{8}\u{c}\u{d}")}", "\"\\b\\f\\r\"", reason="b f r")
+
+    it("the writer leaves other scalar values and the slash as they are"):
+        assert_equal("${Json.Text("/\u{7f}\u{e9}\u{1f600}")}", "\"/\u{7f}\u{e9}\u{1f600}\"", reason="unescaped")
+
+    it("an escaped key decodes like an escaped value"):
+        assert_equal(read("{\"a\\nb\":1}").get("a\nb").is_some(), true, reason="key")

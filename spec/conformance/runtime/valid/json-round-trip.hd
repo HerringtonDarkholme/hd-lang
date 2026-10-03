@@ -1,0 +1,46 @@
+# test: every kind of Json round trips through its compact text, and the accessors read each kind
+# Spec std/json Json Values, Writing: std-json.value.decl, std-json.value.accessors, std-json.display.compact (JSON-SURFACE; task #226).
+use std.json.{parse, Json}
+use std.testing.{assert, assert_equal}
+
+fn read(text: string) -> Json:
+    match parse(text):
+        .Ok(value) => value
+        .Err(_) => panic("parse failed for $text")
+
+tests:
+    it("each kind prints as the compact text it parsed from"):
+        for text in ["null", "true", "false", "0", "-12", "\"\"", "\"a b\"", "[]", "{}", "[1,[2,{\"a\":null}],\"x\"]", "{\"b\":1,\"a\":[true,false]}"]:
+            assert_equal("${read(text)}", text, reason=text)
+
+    it("parsing the printed text gives an equal value"):
+        value := read(" { \"k\" : [ 1 , 2 ,\n3 ] , \"s\" : \"v\" } ")
+        assert_equal(read("${value}"), value, reason="round trip")
+
+    it("accessors read the matching kind"):
+        value := read("{\"a\":[10,\"s\",null,true]}")
+        items := value.get("a")
+        assert_equal(items.and_then(fn(found): found.at(1)).and_then(fn(found): found.as_text()), .Some("s"), reason="text")
+        assert_equal(items.and_then(fn(found): found.at(3)).and_then(fn(found): found.as_bool()), .Some(true), reason="bool")
+        assert_equal(items.and_then(fn(found): found.at(2)).map(fn(found): found.is_null()), .Some(true), reason="null")
+        assert_equal(items.and_then(fn(found): found.at(0)).and_then(fn(found): found.as_number()).and_then(fn(found): found.as_u64()), .Some(10), reason="number")
+
+    it("an accessor on another kind, or a missing key or index, gives none"):
+        value := read("{\"a\":[1]}")
+        assert(value.get("b").is_none(), reason="missing key")
+        assert(value.at(0).is_none(), reason="at on an object")
+        assert(read("[1]").get("a").is_none(), reason="get on an array")
+        assert(read("[1]").at(1).is_none(), reason="index past the end")
+        assert(read("[1]").at(-1).is_none(), reason="negative index")
+        assert(read("1").as_text().is_none(), reason="text of a number")
+        assert(read("\"a\"").as_bool().is_none(), reason="bool of a text")
+        assert(read("true").as_number().is_none(), reason="number of a bool")
+        assert(!read("false").is_null(), reason="false is not null")
+        assert(read("null").is_null(), reason="null")
+
+    it("Json implements Eq"):
+        assert(read("[1,{\"a\":null}]") == read("[1, {\"a\": null}]"), reason="equal")
+        assert(read("[1,2]") != read("[2,1]"), reason="array order matters")
+        assert(read("{\"a\":1,\"b\":2}") == read("{\"b\":2,\"a\":1}"), reason="object order does not")
+        assert(read("1") != read("\"1\""), reason="another kind")
+        assert(read("null") != read("false"), reason="another kind")

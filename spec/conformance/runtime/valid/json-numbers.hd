@@ -1,0 +1,83 @@
+# test: Number keeps i64 and u64 integers exact, adds f64, follows the serde_json equality, and prints as JSON
+# Spec std/json Numbers: std-json.number.constructors, std-json.number.accessors, std-json.number.eq, std-json.number.display (JSON-SURFACE; task #226).
+use std.format.debug
+use std.json.{parse, Json, Number}
+use std.testing.{assert, assert_equal}
+
+fn read(text: string) -> Number:
+    match parse(text):
+        .Ok(.Number(found)) => found
+        _ => panic("not a number: $text")
+
+fn float(value: f64) -> Number:
+    match Number::from_f64(value):
+        .Some(found) => found
+        .None => panic("not finite")
+
+tests:
+    it("the i64 limits stay exact"):
+        let max: i64 = 9223372036854775807
+        let min: i64 = -9223372036854775808
+        assert_equal(read("9223372036854775807").as_i64(), .Some(max), reason="i64 max")
+        assert_equal(read("-9223372036854775808").as_i64(), .Some(min), reason="i64 min")
+        assert_equal(Number::from_i64(max).as_i64(), .Some(max), reason="from_i64 max")
+        assert_equal(Number::from_i64(min).as_i64(), .Some(min), reason="from_i64 min")
+        assert_equal("${Number::from_i64(min)}", "-9223372036854775808", reason="min text")
+
+    it("the u64 limit stays exact"):
+        let top: u64 = 18446744073709551615
+        assert_equal(read("18446744073709551615").as_u64(), .Some(top), reason="u64 max")
+        assert_equal(Number::from_u64(top).as_u64(), .Some(top), reason="from_u64")
+        assert_equal("${Number::from_u64(top)}", "18446744073709551615", reason="u64 max text")
+        assert_equal(read("18446744073709551615").as_i64(), .None, reason="past i64")
+
+    it("an integer reads as the integer type that holds it"):
+        let seven: u64 = 7
+        assert_equal(read("7").as_u64(), .Some(seven), reason="non-negative as u64")
+        assert_equal(read("-7").as_u64(), .None, reason="negative is not a u64")
+        assert_equal(read("-7").as_i64(), .Some(-7), reason="negative as i64")
+        assert_equal(read("9223372036854775808").as_i64(), .None, reason="one past i64")
+
+    it("an integer reads as the nearest f64"):
+        assert_equal(read("7").as_f64(), .Some(7.0), reason="small")
+        assert_equal(read("-7").as_f64(), .Some(-7.0), reason="negative")
+        assert_equal(Number::from_u64(9007199254740993).as_f64(), .Some(9007199254740992.0), reason="rounds to even")
+
+    it("a float has no integer reading"):
+        assert_equal(float(1.5).as_f64(), .Some(1.5), reason="f64")
+        assert_equal(float(2.0).as_i64(), .None, reason="a float is not an i64")
+        assert_equal(float(2.0).as_u64(), .None, reason="a float is not a u64")
+
+    it("from_f64 rejects NaN and the infinities"):
+        assert(Number::from_f64(0.0 / 0.0).is_none(), reason="NaN")
+        assert(Number::from_f64(1.0 / 0.0).is_none(), reason="infinity")
+        assert(Number::from_f64(-1.0 / 0.0).is_none(), reason="negative infinity")
+
+    it("equal integers are equal numbers, and an integer never equals a float"):
+        let one: i64 = 1
+        let ones: u64 = 1
+        assert(Number::from_i64(one) == Number::from_u64(ones), reason="one integer, two constructors")
+        assert(Number::from_i64(one) != float(1.0), reason="1 and 1.0")
+        assert(Number::from_u64(ones) != float(1.0), reason="1 and 1.0 from u64")
+        assert(float(0.0) == float(-0.0), reason="zeros compare as f64")
+        assert(float(1.5) == float(1.5), reason="same float")
+        assert(Number::from_i64(-1) != Number::from_u64(ones), reason="sign")
+
+    it("a Number prints as JSON text"):
+        assert_equal("${Number::from_i64(-12)}", "-12", reason="negative integer")
+        assert_equal("${Number::from_u64(0)}", "0", reason="zero")
+        assert_equal("${float(1.5)}", "1.5", reason="float")
+        assert_equal("${float(1.0)}", "1.0", reason="a float keeps its point")
+        assert_equal("${float(-0.0)}", "-0.0", reason="negative zero")
+        assert_equal("${float(1e21)}", "1e+21", reason="scientific")
+        assert_equal("${Json.Number(float(0.1))}", "0.1", reason="in a Json")
+
+    it("negative zero parses as the float -0.0"):
+        assert_equal("${read("-0")}", "-0.0", reason="serde_json reads -0 as a float")
+        assert(read("-0") != read("0"), reason="not the integer zero")
+        assert_equal(read("-0").as_i64(), .None, reason="no integer reading")
+
+    it("Number implements Debug"):
+        assert(debug(Number::from_i64(-3)).len() > 0, reason="integer")
+        assert(debug(float(2.5)).len() > 0, reason="float")
+        assert(debug(Json.Null).len() > 0, reason="in a Json")

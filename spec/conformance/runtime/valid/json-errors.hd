@@ -1,0 +1,84 @@
+# test: each JsonError kind and its position in characters
+# Spec std/json JSON Errors: std-json.error.decl, std-json.error.position, std-json.error.traits (JSON-SURFACE; task #226).
+use std.json.{parse, Json, JsonError}
+use std.format.debug
+use std.testing.{assert, assert_equal}
+
+fn failure(text: string) -> JsonError:
+    match parse(text):
+        .Ok(_) => panic("expected an error for $text")
+        .Err(error) => error
+
+tests:
+    it("UnexpectedEnd reports the length of the text"):
+        assert_equal(failure(""), JsonError.UnexpectedEnd(0), reason="empty")
+        assert_equal(failure("  "), JsonError.UnexpectedEnd(2), reason="only space")
+        assert_equal(failure("[1"), JsonError.UnexpectedEnd(2), reason="open array")
+        assert_equal(failure("{\"a\":"), JsonError.UnexpectedEnd(5), reason="no value")
+        assert_equal(failure("\"abc"), JsonError.UnexpectedEnd(4), reason="open string")
+        assert_equal(failure("\"a\\"), JsonError.UnexpectedEnd(3), reason="open escape")
+        assert_equal(failure("\"\\u12"), JsonError.UnexpectedEnd(5), reason="short \\u")
+        assert_equal(failure("tru"), JsonError.UnexpectedEnd(3), reason="short word")
+        assert_equal(failure("-"), JsonError.UnexpectedEnd(1), reason="lone minus")
+
+    it("UnexpectedCharacter reports the first character the grammar rejects"):
+        assert_equal(failure("[1,]"), JsonError.UnexpectedCharacter(3), reason="trailing comma")
+        assert_equal(failure("{\"a\":1,}"), JsonError.UnexpectedCharacter(7), reason="trailing comma in an object")
+        assert_equal(failure("1 2"), JsonError.UnexpectedCharacter(2), reason="two values")
+        assert_equal(failure("01"), JsonError.UnexpectedCharacter(1), reason="leading zero")
+        assert_equal(failure("-a"), JsonError.UnexpectedCharacter(1), reason="no digit")
+        assert_equal(failure("1."), JsonError.UnexpectedEnd(2), reason="no fraction digit")
+        assert_equal(failure("{a:1}"), JsonError.UnexpectedCharacter(1), reason="bare key")
+        assert_equal(failure("{\"a\" 1}"), JsonError.UnexpectedCharacter(5), reason="no colon")
+        assert_equal(failure("['a']"), JsonError.UnexpectedCharacter(1), reason="single quotes")
+        assert_equal(failure("nul1"), JsonError.UnexpectedCharacter(3), reason="bad word")
+        assert_equal(failure("// c\n1"), JsonError.UnexpectedCharacter(0), reason="no comments")
+        assert_equal(failure("[\"é\" x]"), JsonError.UnexpectedCharacter(5), reason="counted in characters")
+        assert_equal(failure("\u{feff}1"), JsonError.UnexpectedCharacter(0), reason="no byte order mark")
+        assert_equal(failure("\u{a0}1"), JsonError.UnexpectedCharacter(0), reason="only four space characters")
+
+    it("InvalidEscape reports the backslash"):
+        assert_equal(failure("\"a\\x\""), JsonError.InvalidEscape(2), reason="unknown letter")
+        assert_equal(failure("\"\\'\""), JsonError.InvalidEscape(1), reason="no single-quote escape")
+        assert_equal(failure("\"\\u12G4\""), JsonError.InvalidEscape(1), reason="bad hex digit")
+        assert_equal(failure("\"é\\u{41}\""), JsonError.InvalidEscape(2), reason="no braces")
+
+    it("LoneSurrogate reports the backslash of the escape without a partner"):
+        assert_equal(failure("\"\\ud800\""), JsonError.LoneSurrogate(1), reason="high alone")
+        assert_equal(failure("\"\\udc00\""), JsonError.LoneSurrogate(1), reason="low alone")
+        assert_equal(failure("\"a\\ud800x\""), JsonError.LoneSurrogate(2), reason="high then text")
+        assert_equal(failure("\"\\ud800\\u0041\""), JsonError.LoneSurrogate(1), reason="high then non-surrogate")
+        assert_equal(failure("\"\\ud800\\ud800\""), JsonError.LoneSurrogate(1), reason="high then high")
+        assert_equal(failure("\"\\udc00\\ud800\""), JsonError.LoneSurrogate(1), reason="low then high")
+
+    it("ControlCharacter reports the character in a string"):
+        assert_equal(failure("\"a\nb\""), JsonError.ControlCharacter(2), reason="line feed")
+        assert_equal(failure("\"\t\""), JsonError.ControlCharacter(1), reason="tab")
+        assert_equal(failure("[\"é\u{1}\"]"), JsonError.ControlCharacter(3), reason="counted in characters")
+
+    it("UnsupportedNumber reports the first character of the number"):
+        assert_equal(failure("1.5"), JsonError.UnsupportedNumber(0), reason="fraction")
+        assert_equal(failure("[\"é\", 1e5]"), JsonError.UnsupportedNumber(6), reason="exponent, counted in characters")
+        assert_equal(failure("-2E-3"), JsonError.UnsupportedNumber(0), reason="negative exponent")
+        assert_equal(failure("18446744073709551616"), JsonError.UnsupportedNumber(0), reason="past u64")
+        assert_equal(failure("-9223372036854775809"), JsonError.UnsupportedNumber(0), reason="below i64")
+
+    it("NestingTooDeep reports the opening bracket past 128 levels"):
+        assert_equal(failure("[".repeat(129)), JsonError.NestingTooDeep(128), reason="arrays")
+        assert_equal(failure("[".repeat(3) + "{\"a\":".repeat(125) + "{"), JsonError.NestingTooDeep(3 + 125 * 5), reason="mixed")
+
+    it("a grammar error comes before a number that is unsupported"):
+        assert_equal(failure("1.5x"), JsonError.UnsupportedNumber(0), reason="the number is read first")
+        assert_equal(failure("1.x"), JsonError.UnexpectedCharacter(2), reason="a broken number is a grammar error")
+        assert_equal(failure("[1e5, ]"), JsonError.UnsupportedNumber(1), reason="the earlier position")
+
+    it("128 levels of nesting parse"):
+        text := "[".repeat(128) + "]".repeat(128)
+        assert(parse(text).is_ok(), reason="the limit itself")
+
+    it("JsonError implements Eq, Debug, and Display"):
+        assert(JsonError.UnexpectedEnd(3) == JsonError.UnexpectedEnd(3), reason="same position")
+        assert(JsonError.UnexpectedEnd(3) != JsonError.UnexpectedEnd(4), reason="another position")
+        assert(JsonError.InvalidEscape(2) != JsonError.LoneSurrogate(2), reason="another kind")
+        assert(debug(JsonError.LoneSurrogate(7)).len() > 0, reason="Debug text")
+        assert("${JsonError.NestingTooDeep(4)}".len() > 0, reason="Display text")

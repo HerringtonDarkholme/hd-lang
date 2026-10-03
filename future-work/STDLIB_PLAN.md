@@ -85,7 +85,8 @@ every feature belongs in `std`.
 | `std.random` | `Random`, `SeededRandom` | [random.md](../spec/std/random.md) | no `Rng` helpers |
 | `std.host`, `std.fs`, `std.path` | `Args`, `Env`, `MapArgs`, `MapEnv`; `FsRead`, `FsWrite`, `FsError`, `MemoryFs`; `Path` | [host.md](../spec/std/host.md), [fs.md](../spec/std/fs.md), [path.md](../spec/std/path.md) | the prototype's std loader lists none of the three; no `read_text!` or `write_text!` helper |
 | `std.encoding`, `std.digest` | `hex_encode`, `hex_decode`, `base64_encode`, `base64_decode`, `DecodeError`; `sha256`, `sha256_hex` | [encoding.md](../spec/std/encoding.md), [digest.md](../spec/std/digest.md) | the prototype's std loader lists neither; no URL-safe base64, no streaming hasher |
-| absent | json, cli, log, http, regex | none | the gap this plan covers |
+| `std.json` | `Json`, `Number`, `parse`, `JsonError`, `Display`, `pretty`, and the `Json` accessors | [json.md](../spec/std/json.md) | the prototype's std loader lists it no more than `std.encoding`; `parse` gives `UnsupportedNumber` for a number with a fraction or an exponent until `std` can parse an `f64`; no `ToJson`, `FromJson`, `encode`, or `decode` |
+| absent | cli, log, http, regex | none | the gap this plan covers |
 
 The prototype also lacks two things scripts need: `hd FILE` itself
 (known failure `CLI-ENTRY`), and the inferred row of a script's top level
@@ -141,6 +142,12 @@ Spec pass 70 applied two more:
 | 4 | the deterministic providers, each beside its trait: [Map Providers](../spec/std/host.md#map-providers), [Manual Clock](../spec/std/time.md#manual-clock), [Memory File System](../spec/std/fs.md#memory-file-system), [Seeded Random](../spec/std/random.md#seeded-random); a test names the providers it needs in `$.with(...)` |
 | 10 | `sleep!` on a `ManualClock` returns at once and advances its time: [Manual Clock](../spec/std/time.md#manual-clock) |
 
+Spec pass 75 applied the untyped part of one more:
+
+| # | Applied in |
+| --- | --- |
+| 13 | an untyped `Json` with one `Number` modeled on `serde_json::Number`: [Json](../spec/std/json.md) |
+
 The rest are listed in [Decided, Not Yet Applied](#decided-not-yet-applied).
 
 ## Decided, Not Yet Applied
@@ -154,7 +161,6 @@ design it names.
 | 9 | 2026-09-26 | `decimal` is the only number type past the primitives; `BigInt` is a package | a `decimal` design |
 | 11 | 2026-09-26 | tasks are structured scopes only: `scope!`, `start`, `join!`; no detached spawn | a new polling intrinsic, a language-tier item |
 | 12 | 2026-09-26 | `Secret[T]` is removed for now | nothing: it removes a draft, so no spec text follows |
-| 13 | 2026-09-26 | an untyped `std.json.Json` with one `Number` type modeled on `serde_json::Number` | a `std.json` chapter (tier 6) |
 | Q14-22 | 2026-09-29 | `ScriptedProcess::new(outputs)` is the constructor | a `std.process` provider section; `Process` itself is language tier |
 | SNAPSHOT-ROW, RUNNER-SURFACE | 2026-10-02 | the spec has them ([Runner Capabilities](../spec/std/testing.md#runner-capabilities)): `TestRunner.snapshot_check`, `snapshot_file` with `$ TestRunner`, and `PropertyRunner` with only `start`, `record`, and `show` | the compiler session. In `lib/std/testing.hd`: add `snapshot_check` and `PropertyCase`, give `snapshot_file` its row and drop `snapshot_file_check`, make `Choices` replay `replay` and `record` each draw, and discard with the `std.testing: case discarded` panic. In the runner: bind `TestRunner` for every test body, read that panic before `show` as a discard, and keep a case's recorded draws after a panic |
 
@@ -455,40 +461,13 @@ Standouts:
 - **Elixir 1.18** moved JSON into std after a decade of `Jason`, a sign
   that scripts need it built in.
 
-Minimal `std.json`. The untyped part is decision 13; the typed part uses
-the derivation protocol that `Hash` and `Arbitrary` already use:
+The untyped part of `std.json` is specified: [Json](../spec/std/json.md).
+The typed part uses the derivation protocol that `Hash` and `Arbitrary`
+already use:
 
 ```text
+use std.json.{Json, JsonError}
 use std.structure.{Field, Source, Variant, Walker}
-
-pub enum Json:
-    Null
-    Bool(value: bool)
-    Number(value: Number)
-    Text(value: string)
-    Array(items: List[Json])
-    Object(fields: Map[string, Json])
-
-pub data Number:
-    repr: i64
-
-pub data JsonError:
-    pub message: string
-    pub offset: i32
-
-impl Json:
-    pub fn get(self, key: string) -> Json?: pass
-    pub fn at(self, index: i32) -> Json?: pass
-    pub fn as_text(self) -> string?: pass
-    pub fn as_i64(self) -> i64?: pass
-    pub fn as_f64(self) -> f64?: pass
-    pub fn as_bool(self) -> bool?: pass
-
-pub fn parse(text: string) -> Result[Json, JsonError]:
-    pass
-
-pub fn pretty(value: Json, indent: i32 = 2) -> string:
-    pass
 
 pub trait ToJson:
     fn to_json(self) -> Json
@@ -511,12 +490,12 @@ pub fn decode[T < FromJson](text: string) -> Result[T, JsonError]:
     pass
 ```
 
-`Json` implements `Display` with compact text. The `Number`
-representation here is a placeholder for decision 13's private one.
 Renames and skipped fields come later through typed member facts.
 
-Depends on: a `parse_f64` host function, a minimal hook like the existing
-`format_f64`. A correctly rounded float parser in hd is possible but large.
+Depends on: a way to read a decimal text as an `f64`, for the numbers that
+`parse` refuses today. It is either a host function like the existing
+`format_f64`, or a correctly rounded parser in hd, which is possible but
+large.
 
 ### Time And Dates
 
@@ -864,7 +843,7 @@ pub fn main!() -> Result[ExitCode, FsError] $ Args + FsRead + FsWrite + ErrorCon
     let totals: mut Map[string, Json] = {}
     for path in glob!(Path("."), argv[0])?:
         text := read_text!(path)?
-        totals["$path"] = Json.Number(Number::from_i32(text.split_whitespace().len()))
+        totals["$path"] = Json.Number(Number::from_i64(i64(text.split_whitespace().len())))
     write_text!(Path("counts.json"), pretty(Json.Object(totals)))?
     .Ok(ExitCode(0))
 ```
@@ -947,7 +926,7 @@ host also add a prototype host binding, a minimal TypeScript hook.
 | 3 | collections and iterators: decided `Map` and `and_then` items, the `List`, `Iterator`, `Set`, and `counts` helpers | a list-truncate hook for `pop`, `remove_at`, `clear` | data shaping without hand loops |
 | 4 | `Clock`, `Timestamp`, `Instant`, `ManualClock`, `now()`, `sleep!` | the catalog for `Clock` | timing |
 | 5 | text helpers, `to_fixed`, `parse_f64` | two float hooks | formatting |
-| 6 | `std.json` `Json`, `Number`, `parse`, `Display`, `pretty`, accessors | tier 5's `parse_f64` | reading and writing JSON |
+| 6 | `std.json` `Json`, `Number`, `parse`, `Display`, `pretty`, accessors: [specified](../spec/std/json.md); float text waits for tier 5's `parse_f64` | tier 5's `parse_f64` | reading and writing JSON |
 | 7 | `ToJson` and `FromJson` templates; `encode`, `decode` | tier 6 | typed JSON |
 | 8 | `timeout!`, `Backoff`, `retry_with!`, `all_list!`, `map_limited!` | tier 4's `Clock`; [Retry With Backoff](../spec/std/task.md#retry-with-backoff) | robust automation |
 | 9 | `std.random` `Rng`, `Random`, `SeededRandom`; `std.cli` `parse_args`, `usage` | tier 1's `Args`; `u64` wrapping arithmetic | real command-line tools |

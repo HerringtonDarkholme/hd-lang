@@ -2015,3 +2015,11 @@ runtime/valid/encoding-base64-vectors.hd	runtime	accept	std/encoding.md#r-std-en
 runtime/valid/encoding-decode-errors.hd	runtime	accept	std/encoding.md#r-std-encoding.base64.decode.order
 runtime/valid/digest-sha256-vectors.hd	runtime	accept	std/digest.md#r-std-digest.sha256.fips
 runtime/valid/digest-sha256-long.hd	runtime	accept	std/digest.md#r-std-digest.sha256.fips
+runtime/valid/json-round-trip.hd	runtime	accept	std/json.md#r-std-json.value.accessors
+runtime/valid/json-escapes.hd	runtime	accept	std/json.md#r-std-json.parse.string.surrogates
+runtime/valid/json-errors.hd	runtime	accept	std/json.md#r-std-json.error.position
+runtime/valid/json-numbers.hd	runtime	accept	std/json.md#r-std-json.number.eq
+runtime/valid/json-object-order.hd	runtime	accept	std/json.md#r-std-json.parse.object.duplicate
+runtime/valid/json-pretty.hd	runtime	accept	std/json.md#r-std-json.pretty.layout
+runtime/valid/json-suite.hd	runtime	accept	std/json.md#r-std-json.parse.grammar
+runtime/valid/json-float-text.hd	runtime	accept	std/json.md#r-std-json.parse.number.unsupported

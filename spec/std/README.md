@@ -156,6 +156,7 @@ file of its own.
 | [`error.md`](error.md) | `std.error` | `std-error` | the cause chain `chain`, what `root_cause` and `find` return, the boundary-safe `ErrorReport`, `report_of`, and `Result.context` with `ContextError` |
 | [`encoding.md`](encoding.md) | `std.encoding` | `std-encoding` | hex and base64 text for bytes: `hex_encode`, `hex_decode`, `base64_encode`, `base64_decode`, and `DecodeError` |
 | [`digest.md`](digest.md) | `std.digest` | `std-digest` | the SHA-256 digest: `sha256` and `sha256_hex` |
+| [`json.md`](json.md) | `std.json` | `std-json` | the untyped `Json` value, `Number`, `parse`, `JsonError`, `pretty`, and the `Display` text |
 
 ## Glossary
 
