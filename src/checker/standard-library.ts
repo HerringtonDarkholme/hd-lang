@@ -564,6 +564,28 @@ function standardNameOf(program: Program): (module: StandardModule, name: string
 }
 
 /**
+ * Additional local spellings of ordinary `lib/std` declarations, each bound
+ * to the one spelling under which the declaration is joined. Compiler-owned
+ * names and imported submodules have their own resolution paths.
+ */
+export function standardImportAliases(program: Program): ReadonlyMap<string, string> {
+  const nameOf = standardNameOf(program);
+  const aliases = new Map<string, string>();
+  for (const declaration of program.uses) {
+    const module = declaration.module.replace(/^std\./, "");
+    if (!declaration.module.startsWith("std.") || !isStandardModule(module)) continue;
+    const declared = standardModule(module).names;
+    for (const imported of declaration.names) {
+      if (!declared.includes(imported.name)) continue;
+      const local = imported.alias ?? imported.name;
+      const target = nameOf(module, imported.name);
+      if (local !== target) aliases.set(local, target);
+    }
+  }
+  return aliases;
+}
+
+/**
  * The template of the `std` trait that the program imports as `trait`,
  * with the module's `std.structure` protocol implementations, written with
  * the program's names: a name it imports by its local name, any other `std`

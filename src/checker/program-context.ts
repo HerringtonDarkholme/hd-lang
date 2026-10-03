@@ -24,6 +24,8 @@ export interface ProgramCheckContext {
   readonly program: Program;
   readonly diagnostics: Diagnostic[];
   readonly imports: Map<string, string>;
+  /** Extra local spellings of joined standard-library declarations. */
+  readonly standardAliases: ReadonlyMap<string, string>;
   readonly dataTypes: Map<string, HirData>;
   readonly enumTypes: Map<string, HirEnum>;
   readonly traitTypes: Map<string, HirTrait>;

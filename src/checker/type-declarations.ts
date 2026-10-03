@@ -144,6 +144,17 @@ class AliasExpander {
     this.diagnostics = diagnostics;
   }
 
+  /** This lexical scope resolves `names` as generic parameters, not aliases. */
+  without(names: readonly string[]): AliasExpander {
+    if (names.length === 0) return this;
+    const hidden = new Set(names);
+    return new AliasExpander(
+      new Map([...this.aliases].filter(([name]) => !hidden.has(name))),
+      new Map([...this.rows].filter(([name]) => !hidden.has(name))),
+      this.diagnostics,
+    );
+  }
+
   mentions(text: string): boolean {
     return words(text).some((word) => this.aliases.has(word) || this.rows.has(word));
   }
@@ -342,28 +353,38 @@ class AliasExpander {
   }
 }
 
-function rewriteTypes<T>(node: T, expander: AliasExpander, span?: SourceSpan): T {
-  if (Array.isArray(node)) return node.map((item) => rewriteTypes(item, expander, span)) as T;
+function rewriteTypes<T>(
+  node: T,
+  expander: AliasExpander,
+  span?: SourceSpan,
+  shadowable: ReadonlySet<string> = new Set(),
+): T {
+  if (Array.isArray(node))
+    return node.map((item) => rewriteTypes(item, expander, span, shadowable)) as T;
   if (!node || typeof node !== "object") return node;
   const record = node as Record<string, unknown>;
   const own = (record.span as SourceSpan | undefined) ?? span;
+  const parameters = Array.isArray(record.genericParameters)
+    ? (record.genericParameters as string[]).filter((name) => shadowable.has(name))
+    : [];
+  const scoped = expander.without(parameters);
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(record)) {
     if (TYPE_KEYS.has(key) && isTypeRef(value))
-      result[key] = expander.mentions(value.name)
-        ? { ...value, name: expander.type(value.name, value.span) }
+      result[key] = scoped.mentions(value.name)
+        ? { ...value, name: scoped.type(value.name, value.span) }
         : value;
     else if (TYPE_LIST_KEYS.has(key) && Array.isArray(value))
       result[key] = value.map((item) =>
         isTypeRef(item)
-          ? expander.mentions(item.name)
-            ? { ...item, name: expander.typeArgument(item.name, item.span, key) }
+          ? scoped.mentions(item.name)
+            ? { ...item, name: scoped.typeArgument(item.name, item.span, key) }
             : item
-          : rewriteTypes(item, expander, own),
+          : rewriteTypes(item, scoped, own, shadowable),
       );
     // A declaration's or closure's written row (11-requirements-and-suspension.md#r-req.row.alias.expand).
     else if (key === "requirements" && Array.isArray(value) && own) {
-      const expanded = expander.row(value as string[], own);
+      const expanded = scoped.row(value as string[], own);
       result[key] = expanded;
       if (expanded !== value && record.kind === "function") result.writtenRequirements = value;
     }
@@ -374,7 +395,7 @@ function rewriteTypes<T>(node: T, expander: AliasExpander, span?: SourceSpan): T
       own &&
       (record.kind === "provider-use" || record.kind === "binding")
     )
-      result[key] = expander.singleKey(value, own);
+      result[key] = scoped.singleKey(value, own);
     // A bound names traits, never a row (11-requirements-and-suspension.md#r-req.row.alias.type-or-key).
     else if (
       key === "traits" &&
@@ -385,13 +406,13 @@ function rewriteTypes<T>(node: T, expander: AliasExpander, span?: SourceSpan): T
       result[key] = (value as string[]).map((trait) => {
         const inner = mutableInner(trait);
         const name = nominalGenericParts(inner ?? trait)?.name ?? inner ?? trait;
-        if (expander.isRow(name)) expander.singleKey(name, own);
+        if (scoped.isRow(name)) scoped.singleKey(name, own);
         return trait;
       });
     // A span keeps its identity, so tables keyed by span, such as a derived
     // field's diagnostic (checker/derive-intrinsics.ts), still find it.
     else if (key === "span") result[key] = value;
-    else result[key] = rewriteTypes(value, expander, own);
+    else result[key] = rewriteTypes(value, scoped, own, shadowable);
   }
   return result as T;
 }
@@ -460,14 +481,56 @@ function missingRowDollar(name: string, span: SourceSpan, diagnostics: Diagnosti
   });
 }
 
+/** A declaration's own generic application, used to bind an imported spelling. */
+function declarationApplication(declaration: {
+  readonly name: string;
+  readonly genericParameters: readonly string[];
+  readonly rowParameters?: readonly string[];
+}): string {
+  if (declaration.genericParameters.length === 0) return declaration.name;
+  const rows = new Set(declaration.rowParameters ?? []);
+  return nominalGenericType(
+    declaration.name,
+    declaration.genericParameters.map((parameter) =>
+      rows.has(parameter) ? rowArgumentType([parameter]) : parameter,
+    ),
+  );
+}
+
 /** Expands aliases and lowers newtypes to data declarations. */
-export function withTypeDeclarations(program: Program): {
+export function withTypeDeclarations(
+  source: Program,
+  importAliases: ReadonlyMap<string, string> = new Map(),
+): {
   readonly program: Program;
   readonly diagnostics: readonly Diagnostic[];
 } {
+  const importDiagnostics: Diagnostic[] = [];
+  const importedAliases = new Map<string, Alias>();
+  const importedRows = new Map<string, RowAlias>();
+  const nominalDeclarations = [
+    ...source.data,
+    ...source.enums,
+    ...source.traits,
+    ...(source.types ?? []),
+  ];
+  for (const [local, target] of importAliases) {
+    const declaration = nominalDeclarations.find((candidate) => candidate.name === target);
+    if (!declaration) continue;
+    const parameters = declaration.genericParameters;
+    const rowParameters = new Set<string>(
+      (declaration as { readonly rowParameters?: readonly string[] }).rowParameters ?? [],
+    );
+    const application = declarationApplication(declaration);
+    if ("row" in declaration && declaration.row !== undefined)
+      importedRows.set(local, { parameters, rows: rowParameters, keys: [application] });
+    else importedAliases.set(local, { parameters, rows: rowParameters, target: application });
+  }
+  const importExpander = new AliasExpander(importedAliases, importedRows, importDiagnostics);
+  const program = rewriteTypes(source, importExpander, undefined, new Set(importAliases.keys()));
   const declarations = program.types ?? [];
-  if (declarations.length === 0) return { program, diagnostics: [] };
-  const diagnostics: Diagnostic[] = [];
+  if (declarations.length === 0 && importAliases.size === 0) return { program, diagnostics: [] };
+  const diagnostics: Diagnostic[] = [...importDiagnostics];
   const taken = new Set<string>([
     ...program.data.map((declaration) => declaration.name),
     ...program.enums.map((declaration) => declaration.name),

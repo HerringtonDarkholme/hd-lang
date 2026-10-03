@@ -37,6 +37,7 @@ import {
 } from "./shared.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
 import { substitute, words } from "./type-declarations.ts";
+import { ImportBindingMap } from "./import-bindings.ts";
 
 // Type-argument defaults in written types (04-type-system.md#type-argument-defaults).
 // A written type, such as an annotation, a signature, a field, a bound, or an
@@ -411,11 +412,14 @@ function defaultDeclarationDiagnostics(program: Program): Diagnostic[] {
  * Fills the defaults a written type omits and checks each declared default's
  * order, names, and kind. Row aliases take no defaults in the prototype.
  */
-export function withTypeDefaults(program: Program): {
+export function withTypeDefaults(
+  program: Program,
+  aliases: ReadonlyMap<string, string> = new Map(),
+): {
   readonly program: Program;
   readonly diagnostics: readonly Diagnostic[];
 } {
-  const shapes = new Map(BUILTIN_SHAPES);
+  const shapes = new ImportBindingMap<GenericShape>(aliases, [...BUILTIN_SHAPES]);
   const declarations: GenericDeclaration[] = [
     ...program.data,
     ...program.enums,

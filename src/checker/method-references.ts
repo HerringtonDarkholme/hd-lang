@@ -47,6 +47,17 @@ interface ReferenceMember {
  * closure over the receiver, which is evaluated once when the reference is made.
  */
 export abstract class MethodReferenceChecker extends TraitCallChecker {
+  /** The canonical declaration spelling behind an imported type spelling. */
+  protected canonicalTypeName(name: string): string {
+    if (this.signature.genericParameters.includes(name)) return name;
+    return (
+      this.dataTypes.get(name)?.name ??
+      this.enumTypes.get(name)?.name ??
+      this.traitTypes.get(name)?.name ??
+      name
+    );
+  }
+
   protected abstract checkImplementedMemberCall(
     expression: MemberCallExpression,
     receiver: HirExpression,
@@ -112,6 +123,8 @@ export abstract class MethodReferenceChecker extends TraitCallChecker {
       return this.checkBoundReference(expression, expected);
     if (expression.genericTypeOwner)
       expression = { ...expression, owner: expression.genericTypeOwner };
+    const canonicalOwner = this.canonicalTypeName(expression.owner);
+    if (canonicalOwner !== expression.owner) expression = { ...expression, owner: canonicalOwner };
     const member = this.unboundReferenceMember(expression);
     const { parameters, result, requirements } = this.solveReference(
       expression,

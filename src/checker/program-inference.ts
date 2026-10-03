@@ -5,6 +5,7 @@ import type { FunctionCheckResult, Signature } from "./context.ts";
 import { TRIAL_STATE, type TrialSnapshot } from "./call-speculation.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
+import { ImportBindingMap } from "./import-bindings.ts";
 
 // A signature map whose omitted result types are inferred on first lookup, so
 // a caller always sees the callee's final result type.
@@ -13,7 +14,7 @@ interface SignatureTrial {
   order?: readonly string[];
 }
 
-class LazySignatures extends Map<string, Signature> {
+class LazySignatures extends ImportBindingMap<Signature> {
   private readonly trials: SignatureTrial[] = [];
 
   [TRIAL_STATE](snapshot: TrialSnapshot, rollback: (reset: () => void) => void): void {
@@ -67,18 +68,19 @@ class LazySignatures extends Map<string, Signature> {
   // with signatures; an opaque callback would hide those mutations.
   readonly inference: SignatureInference;
 
-  constructor(inference: SignatureInference) {
-    super();
+  constructor(inference: SignatureInference, aliases: ReadonlyMap<string, string>) {
+    super(aliases);
     this.inference = inference;
   }
 
   override get(name: string): Signature | undefined {
-    if (super.has(name)) this.inference.resolveResult(name);
-    return super.get(name);
+    const stored = this.storedName(name);
+    if (super.has(stored)) this.inference.resolveResult(stored);
+    return super.get(stored);
   }
 
   peek(name: string): Signature | undefined {
-    return super.get(name);
+    return super.get(this.storedName(name));
   }
 }
 
@@ -144,7 +146,7 @@ export class SignatureInference {
     implementations: readonly HirTraitImplementation[],
     moduleDeclaration: FunctionDecl | undefined,
   ) {
-    this.signatures = new LazySignatures(this);
+    this.signatures = new LazySignatures(this, context.standardAliases);
     this.context = context;
     this.declarations = declarations;
     this.implementations = implementations;

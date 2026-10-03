@@ -16,9 +16,11 @@ import type { ProgramCheckContext } from "./program-context.ts";
 import { validateHostCapabilities } from "./host-capabilities.ts";
 import {
   importedMarkerFunctions,
+  standardImportAliases,
   testRunnerNames,
   withStandardLibrary,
 } from "./standard-library.ts";
+import { ImportBindingMap } from "./import-bindings.ts";
 import {
   checkDecoratorTargets,
   markerFunctions,
@@ -141,6 +143,10 @@ function checkProgramRaw(
   options: CheckOptions,
   spellings: Map<string, string>,
 ): CheckResult {
+  // Every import spelling binds the one declaration identity chosen by the
+  // std join. Compute these before joining, while uses are still distinguishable
+  // from the declarations they bring into the toy's single module.
+  const standardAliases = standardImportAliases(source);
   // The join adds the uses of compiler-provided names that the joined std
   // modules make, such as the prelude's `std.convert.From`, which
   // `withStandardTraits` then declares.
@@ -159,12 +165,12 @@ function checkProgramRaw(
   const targetDiagnostics = checkDecoratorTargets(hoisted.program);
   // Written types take their omitted defaults before aliases expand
   // (04-type-system.md#type-argument-defaults).
-  const defaulted = withTypeDefaults(hoisted.program);
+  const defaulted = withTypeDefaults(hoisted.program, standardAliases);
   if (defaulted.diagnostics.length > 0)
     return {
       diagnostics: [...hoisted.diagnostics, ...targetDiagnostics, ...defaulted.diagnostics],
     };
-  const declared = withTypeDeclarations(defaulted.program);
+  const declared = withTypeDeclarations(defaulted.program, standardAliases);
   const program = declared.program;
   setHashableKeyTypes(program);
   const context: ProgramCheckContext = {
@@ -176,9 +182,10 @@ function checkProgramRaw(
       ...rowRuleDiagnostics(program),
     ],
     imports: new Map(),
-    dataTypes: new Map(),
-    enumTypes: new Map(),
-    traitTypes: new Map(),
+    standardAliases,
+    dataTypes: new ImportBindingMap(standardAliases),
+    enumTypes: new ImportBindingMap(standardAliases),
+    traitTypes: new ImportBindingMap(standardAliases),
     implementationPreparations: [],
     inherentMethods: [],
     inherentDeclarations: [],

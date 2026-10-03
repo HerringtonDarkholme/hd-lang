@@ -23,6 +23,7 @@ import {
 } from "./shared.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
+import { ImportBindingMap } from "./import-bindings.ts";
 
 /** A declaration's `tests:`-block, suffix, and prefix markers, as signature fields. */
 function signatureMarkers(
@@ -86,7 +87,7 @@ export function createProgramSignatures(
   declarations: readonly FunctionDecl[],
 ): Map<string, Signature> {
   const { program, diagnostics, dataTypes, enumTypes, traitTypes, hostCapabilities } = context;
-  const signatures = new Map<string, Signature>();
+  const signatures = new ImportBindingMap<Signature>(context.standardAliases);
   declarations.forEach((declaration, index) => {
     if (PRELUDE_NAMES.has(declaration.name) && !declaration.standard) {
       diagnostics.push({

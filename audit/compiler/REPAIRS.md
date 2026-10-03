@@ -81,13 +81,13 @@ Candidate edge cases for later conformance fixtures:
 
 ### Independent Repair: Std Submodule Binding
 
-Status: SOURCE-2 reproduced and fixed as one part of A01; package ownership, repeated std aliases, and local implementation extent remain open.
+Status: SOURCE-2 reproduced and fixed as one part of A01; package ownership and local implementation extent remain open. SOURCE-4 is repaired separately below.
 
 Before this repair, `withStandardSubmodules` walked every AST object before checking and rewrote a matching receiver spelling to a hidden std function name. A parameter named `arbitrary` therefore could not shadow `use std.testing.arbitrary`: `arbitrary.with(42)` called the imported module function and failed against its generator signature instead of calling the parameter's inherent method.
 
 The std submodule use now remains an ordinary import binding and continues to make the module reachable through the existing use graph. Direct member-call checking resolves that binding to a public hidden std function only after checking the receiver name for a local, capture, module binding, or declared function. Typed-fact discovery uses the same std member resolver, so `@arbitrary.with(generator)` keeps its early expected-type check without rewriting unrelated body expressions.
 
-This removes the reflective source transformation and makes the existing lexical checker authoritative. It does not add first-class module values, repair package-module ownership, or repair the separate repeated-alias and local-implementation findings under A01.
+This removes the reflective source transformation and makes the existing lexical checker authoritative. It does not add first-class module values, repair package-module ownership, or repair local implementation extent under A01. The separate repeated-alias finding is repaired below.
 
 Manual repair probes cover an unaliased parameter, an aliased parameter, a local binding, and a closure capture. Existing valid and invalid `arbitrary.with` conformance cases preserve their results. No conformance fixture changed.
 
@@ -102,6 +102,34 @@ Std submodule edge cases for later fixtures:
 | A module binding with the alias is declared after the call | Report that binding as not yet visible; do not fall back to the imported module |
 | A selected submodule member is private, missing, or not a function | Reject the selection without exposing the hidden std declaration; audit the final diagnostic separately |
 | A typed fact selects a public submodule function through an alias | Discover its result type and preserve the typed-fact expected-type check |
+
+### Independent Repair: Repeated Std Declaration Aliases
+
+Status: SOURCE-4's reproduced alias-loss defect is fixed as one part of A01. The loader's broader source-text renaming and package declaration ownership remain open architecture work.
+
+Before this repair, the std loader selected one local spelling for each qualified declaration. A later `use std.cmp.min as second` physically renamed the one joined function to `second`, so an earlier distinct binding `use std.cmp.min as first` remained in the import table but had no signature. The valid call `first(second(3, 2), 1)` therefore reported `unknown-name` for `first`.
+
+The checker now computes every additional spelling before joining std and carries those bindings beside the joined program. Alias-aware declaration registries resolve each spelling to the same stored signature, data, enum, or trait object while iteration exposes that object exactly once. Written type aliases expand to the joined declaration spelling before semantic checking. Qualified calls and method references canonicalize a type alias only after lexical value lookup, so local values keep ordinary shadowing behavior. Type-argument defaults are filled through the same binding relation.
+
+This is deliberately a binding adapter around one declaration identity, not duplicated declarations or generated forwarding functions. It preserves lazy result inference and transactional signature rollback because alias lookup resolves to the stored declaration name before inference. Compiler-provided std names and imported submodules retain their separate resolution paths.
+
+Manual probes and source regression tests cover functions, function values, generic data, enums, newtypes, traits with defaulted parameters, associated calls, method references, reversed import order, an original spelling plus an alias, lexical shadowing, Wasm emission, and canonical-only registry iteration. No specification or conformance fixture changed.
+
+Validation: full `TERM=xterm-256color pnpm run check`, all 110 source tests, 1,915 conformance cases, website build, and fuzz smoke passed. The fuzz smoke produced no phase signatures; its existing non-gating contract signatures remain outside this repair.
+
+Repeated-alias edge cases for later conformance fixtures:
+
+| Input shape | Required observation |
+| --- | --- |
+| Import one ordinary std function under two aliases and call both | Both calls resolve to the same declaration and emit it once |
+| Reverse the two imports | Checking and runtime behavior are unchanged |
+| Import the original spelling and a renamed spelling together | Both bindings work; neither is treated as a duplicate local name |
+| Use two aliases of a generic data, enum, newtype, or trait with defaults | Written types canonicalize to one declaration identity with the same arguments and defaults |
+| Select an inherent associated function or method reference through either type alias | Both selections resolve the same inherent implementation |
+| Shadow one function alias with a parameter, local, or capture | Lexical value lookup wins for that spelling; the other import remains available |
+| Use aliases in a call whose failed candidate trial infers an omitted result | Rollback journals the canonical signature once and leaves no alias-specific inference state |
+
+Regression tests: [import-bindings.test.ts](../../src/checker/import-bindings.test.ts).
 
 ### Independent Repair: Optional Constructor Boundaries
 
@@ -244,7 +272,7 @@ No specification or conformance fixture changed.
 
 | Finding | Status | Repair and limits |
 | --- | --- | --- |
-| A01 | Partially fixed | Std submodule function calls now honor lexical value bindings. Package declaration ownership, repeated std aliases, initialization scheduling, and local implementation extent remain open. |
+| A01 | Partially fixed | Std submodule calls honor lexical value bindings, and repeated aliases of one ordinary std declaration share one checker identity. Package declaration ownership, initialization scheduling, and local implementation extent remain open. |
 | A02 | Partially fixed | Public and private readonly inherent signatures, optional constructor boundaries, callable-row variance and erasure, and every specified least-common-type site are repaired. Expected-type coercion remains distributed, and semantic types remain string-encoded. |
 | A03 | Reported control-flow defect fixed | All child-driving bodies use the suspension CFG. The linear backend and comprehension bypass are removed. This does not close A06's entry/waker gap or prove all lowering correct. |
 | A04 | Reported placeholder capture fixed | Generated expression and type placeholders cannot capture legal user identifiers. Broader generated helper-name hygiene remains unreviewed. |

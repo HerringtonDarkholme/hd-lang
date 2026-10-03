@@ -1317,17 +1317,17 @@ export abstract class ExpressionCallChecker extends IterationChecker {
     expression: QualifiedCallExpression,
     expected?: ValueType,
   ): HirExpression {
-    let owner = expression.callee.owner;
+    let owner = this.canonicalTypeName(expression.callee.owner);
     if (owner === TYPE_ID && expression.callee.name === "of") {
       const inspection = this.checkInspectFunctionCall(expression, "of", expected);
       if (inspection) return inspection;
     }
     // A called bound reference `value::name(...)` is the method call
     // `value.name(...)` (07-functions.md#r-fn.ref.call).
-    if (this.namesReferenceValue(owner))
+    if (this.namesReferenceValue(expression.callee.owner))
       return this.checkMemberCall(this.receiverMemberCall(expression, 0), expected);
     if (expression.callee.genericTypeOwner) {
-      owner = expression.callee.genericTypeOwner;
+      owner = this.canonicalTypeName(expression.callee.genericTypeOwner);
       expression = { ...expression, callee: { ...expression.callee, owner } };
     }
     const trait = this.traitTypes.get(owner);
