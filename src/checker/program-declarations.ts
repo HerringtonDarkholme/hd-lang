@@ -9,6 +9,31 @@ interface ExplicitEnumFieldValue {
   readonly value: Expression;
 }
 
+// Parser-generated test wrappers keep the written body as a closure. Bind an
+// omitted row to the resolved TestRunner declaration: normal closure checking
+// then accepts TestRunner and reports every other requirement at its source.
+function bindTestBodyRequirements(
+  statements: readonly Statement[],
+  testRunner: string,
+): readonly Statement[] {
+  return statements.map((statement) => {
+    if (statement.kind !== "expression") return statement;
+    const expression = statement.expression;
+    if (expression.kind !== "call" && expression.kind !== "suspend-call") return statement;
+    return {
+      ...statement,
+      expression: {
+        ...expression,
+        arguments: expression.arguments.map((argument) =>
+          argument.kind === "closure" && argument.testBody && argument.requirements === undefined
+            ? { ...argument, requirements: [testRunner] }
+            : argument,
+        ),
+      },
+    };
+  });
+}
+
 // Each `it(...)` call becomes a suspending synthetic function
 // (spec/lang/10-modules.md#r-module.testing.it.body). A trailing body's result is
 // fixed: `Result[void, Error]` when it uses `?`, else `void`
@@ -41,7 +66,7 @@ function createTestDeclarations(
       result: test.result ?? { name: "void", span: test.span },
       ...(inferred ? { resultOmitted: true } : {}),
       requirements: [runners.test, ...(test.property ? [runners.property] : [])],
-      body: test.body,
+      body: bindTestBodyRequirements(test.body, runners.test),
       testOnly: true,
       testOptions: options,
       span: test.span,

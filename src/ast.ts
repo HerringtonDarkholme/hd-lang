@@ -798,6 +798,8 @@ export type Expression =
       readonly parameters: readonly ClosureParameter[];
       readonly result?: TypeRef;
       readonly requirements?: readonly string[];
+      /** A compiler-generated wrapper around a written test body. */
+      readonly testBody?: true;
       readonly body: readonly Statement[];
       readonly span: SourceSpan;
     }

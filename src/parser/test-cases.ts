@@ -232,9 +232,9 @@ function withTimeout(timeout: Expression | undefined, body: readonly Statement[]
 }
 
 // A timed `it` test function reports its `timeout`, then runs the written
-// body as a closure with the empty row, so the runner's `TestRunner` never
-// covers the body (spec/std/testing.md#runner-capabilities). The closure
-// keeps the body's result: the written one, or the fixed `void` of a
+// body as a closure whose omitted row the checker binds to `TestRunner`
+// (spec/std/testing.md#runner-capabilities). The closure keeps the body's
+// result: the written one, or the fixed `void` of a
 // trailing block, or `Result[void, Error]` when it uses `?`.
 function timedBody(test: TestDecl): TestDecl {
   if (!test.timed || test.table || test.property) return test;
@@ -244,7 +244,7 @@ function timedBody(test: TestDecl): TestDecl {
     kind: "closure",
     suspending: true,
     parameters: [],
-    requirements: [],
+    testBody: true,
     body,
     ...(test.result
       ? { result: test.result }
@@ -292,16 +292,15 @@ export function testCase(statement: Statement, fail: Fail): TestDecl {
 // lib/std/testing.hd. A body without a written result that uses `?` returns
 // `Result[void, Error]`, as the test case does
 // (spec/std/testing.md#r-std-testing.try.test.row-body). A body without a
-// written row gets the empty row, which a test body must have
-// (spec/lang/10-modules.md#r-module.testing.unit-row): the runner's
-// capabilities cover the case function around it, never the body.
+// written row is bound to `TestRunner` by the checker, so another capability
+// used without a provider scope is diagnosed inside the written body.
 function libraryCase(
   written: Closure,
   run: (closure: Closure) => Expression,
   timeout: Expression | undefined,
   errorName: string,
 ): Partial<TestDecl> & Pick<TestDecl, "body"> {
-  const body: Closure = { ...written, requirements: written.requirements ?? [] };
+  const body: Closure = { ...written, testBody: true };
   const propagates = !body.result && usesPropagation(body.body);
   const closure: Closure = propagates
     ? { ...body, result: { name: `Result[void,${errorName}]`, span: body.span } }
