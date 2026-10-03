@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { Diagnostic } from "./diagnostics.ts";
-import { DiagnosticError } from "./diagnostics.ts";
+import { DiagnosticError, physicalSpan, sourceDocument } from "./diagnostics.ts";
 import { check, type CheckOptions } from "./checker/index.ts";
 import { emitWat, isRuntimePrimitive } from "./emitter/index.ts";
 import {
@@ -329,18 +329,23 @@ function sameEncodedHostValue(left: EncodedHostValue, right: EncodedHostValue): 
 }
 
 export function analyze(source: string, options: CompileOptions = {}): Analysis {
-  const parsed = parse(source, options.parse);
-  if (!parsed.program) return { diagnostics: parsed.diagnostics };
-  const program = options.skipTestCode
-    ? {
-        ...parsed.program,
-        testCode: false,
-        tests: [],
-        functions: parsed.program.functions.filter((declaration) => !declaration.testOnly),
-      }
-    : parsed.program;
-  const checked = check(program, options);
-  return { hir: checked.program, diagnostics: checked.diagnostics };
+  try {
+    const parsed = parse(source, options.parse);
+    if (!parsed.program) return { diagnostics: parsed.diagnostics };
+    const program = options.skipTestCode
+      ? {
+          ...parsed.program,
+          testCode: false,
+          tests: [],
+          functions: parsed.program.functions.filter((declaration) => !declaration.testOnly),
+        }
+      : parsed.program;
+    const checked = check(program, options);
+    return { hir: checked.program, diagnostics: checked.diagnostics };
+  } catch (error) {
+    if (error instanceof DiagnosticError) return { diagnostics: error.diagnostics };
+    throw error;
+  }
 }
 
 /**
@@ -414,16 +419,22 @@ export async function instantiate(
   const functionIdentities: FunctionIdentity[] = [
     ...compilation.hir.functions,
     ...compilation.hir.closures,
-  ].map((declaration) => ({
-    codeId: createHash("sha256")
-      .update(source.slice(declaration.span.start.offset, declaration.span.end.offset))
-      .digest("hex")
-      .slice(0, 16),
-    end: declaration.span.end.offset,
-    index: declaration.suspensionIndex ?? declaration.index,
-    name: declaration.name,
-    start: declaration.span.start.offset,
-  }));
+  ].map((declaration) => {
+    const span = physicalSpan(declaration.span);
+    const text = sourceDocument(declaration.span)?.text ?? source;
+    return {
+      codeId: createHash("sha256")
+        .update(declaration.name)
+        .update("\0")
+        .update(text.slice(span.start.offset, span.end.offset))
+        .digest("hex")
+        .slice(0, 16),
+      end: span.end.offset,
+      index: declaration.suspensionIndex ?? declaration.index,
+      name: declaration.name,
+      start: span.start.offset,
+    };
+  });
   const functionIdentity = (index: number): FunctionIdentity | undefined =>
     functionIdentities.find((identity) => identity.index === index);
   const configurationId = options.providerConfigurationId ?? "default";
@@ -482,13 +493,13 @@ export async function instantiate(
     provider: unknown,
     providerKey: string,
     methodName: string,
+    functionIndex: number,
     siteOffset: number,
     arguments_: HostSuspensionValue[],
   ): MutableHostSuspensionCall => {
-    const identity = functionIdentities
-      .filter(({ start, end }) => start <= siteOffset && siteOffset <= end)
-      .sort((left, right) => left.end - left.start - (right.end - right.start))[0];
-    if (!identity) throw new Error(`host provider call has unknown source offset ${siteOffset}`);
+    const identity = functionIdentity(functionIndex);
+    if (!identity)
+      throw new Error(`host provider call has unknown function index ${functionIndex}`);
     const siteId = `${identity.name}:provider:${providerKey}.${methodName}:${siteOffset - identity.start}`;
     return {
       arguments: arguments_,
@@ -510,7 +521,7 @@ export async function instantiate(
     for (const method of trait.methods) {
       const prefix = `host_${trait.index}_${method.index}`;
       const builtIn = HOST_PROVIDERS[`${trait.name}.${method.name}`];
-      hostImports[`${prefix}_begin`] = (provider, siteOffset, ...arguments_) => ({
+      hostImports[`${prefix}_begin`] = (provider, functionIndex, siteOffset, ...arguments_) => ({
         argumentBytes: new Map(
           method.parameters.flatMap((parameter, index) =>
             parameter === "string"
@@ -522,6 +533,7 @@ export async function instantiate(
           provider,
           trait.name,
           method.name,
+          functionIndex as number,
           siteOffset as number,
           method.parameters.map((parameter, index) =>
             parameter === "string"

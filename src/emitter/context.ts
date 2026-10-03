@@ -101,6 +101,8 @@ export class EmitterContext {
   protected floatPower = false;
   protected floatRemainder = false;
   protected currentRequirements: readonly string[] = [];
+  /** The HIR function whose body is currently emitted, for host call-site identity. */
+  protected currentFunctionIndex = -1;
   protected readonly callableAdapters = new Map<string, CallableAdapter>();
   protected readonly suspensionResultAdapters = new Map<string, SuspensionResultAdapter>();
   protected readonly builtinTraitAdapters = new Map<string, BuiltinTraitAdapter>();

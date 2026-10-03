@@ -8,7 +8,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import type { RUNTIME_PROFILE_NAMES } from "../cli-args.ts";
 import type { CompileOptions } from "../compiler.ts";
 import { DiagnosticReporter, type OutputFormat } from "../diagnostic-report.ts";
-import { DiagnosticError, type Diagnostic } from "../diagnostics.ts";
+import { DiagnosticError, physicalSpan, sourceDocument, type Diagnostic } from "../diagnostics.ts";
 import { linkPackage, SOURCE_ROOT, TEST_ROOT, type LinkedPackage } from "../package.ts";
 import type { PackageDiagnostic } from "../package.ts";
 import type { ParseOptions } from "../parser/index.ts";
@@ -113,6 +113,16 @@ export async function loadSource(
   const treeReporters = new Map<string, DiagnosticReporter>();
   const report = (diagnostic: Diagnostic | PackageDiagnostic): void => {
     if (!linked || !placement || !treeFiles) return reporter.diagnostic(diagnostic);
+    // A checker diagnostic from lib/std already owns its physical source;
+    // package coordinates apply only to the joined package source.
+    const document = sourceDocument(diagnostic.span);
+    if (document) {
+      const { line, column } = physicalSpan(diagnostic.span).start;
+      const key = `${document.file}:${line}:${column}: ${diagnostic.code}: ${diagnostic.message}`;
+      if (placement.reported?.has(key)) return;
+      placement.reported?.add(key);
+      return reporter.diagnostic(diagnostic);
+    }
     const located = "path" in diagnostic ? diagnostic : linked.locate(diagnostic);
     const { line, column } = located.span.start;
     const key = `${located.path}:${line}:${column}: ${located.code}: ${located.message}`;

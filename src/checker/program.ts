@@ -40,7 +40,7 @@ import { withTypedDerivation, withTypedDerivationSupport } from "./typed-derivat
 
 import { withErrorDerivation } from "./error-derivation.ts";
 import { setHashableKeyTypes } from "./map-keys.ts";
-import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
+import { sourceSpanKey, type Diagnostic, type SourceSpan } from "../diagnostics.ts";
 
 export interface CheckOptions {
   readonly hostCapabilities?: readonly string[];
@@ -83,8 +83,7 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
   // A member that fails the walker's bound is reported at the opt-in
   // (spec/lang/14-annotations.md#r-annot.walker.obligation.error).
   const sameSpan = (span: SourceSpan, diagnostic: Diagnostic): boolean =>
-    span.start.offset === diagnostic.span.start.offset &&
-    span.end.offset === diagnostic.span.end.offset;
+    sourceSpanKey(span) === sourceSpanKey(diagnostic.span);
   const remapped = result.diagnostics.map((diagnostic): Diagnostic => {
     // A member that fails derived `Arbitrary`'s bounds is reported at the
     // opt-in, naming the member (std-testing.arbitrary.derive.not-derivable).
@@ -119,7 +118,7 @@ export function check(written: Program, options: CheckOptions = {}): CheckResult
   const unique = remapped.filter((diagnostic) => {
     if (diagnostic.code !== "member-not-derivable") return true;
     const failing = /type '([^']*)'/.exec(diagnostic.message)?.[1] ?? diagnostic.message;
-    const key = `${diagnostic.span.start.offset}:${diagnostic.span.end.offset}:${failing}`;
+    const key = `${sourceSpanKey(diagnostic.span)}:${failing}`;
     if (reported.has(key)) return false;
     reported.add(key);
     return true;

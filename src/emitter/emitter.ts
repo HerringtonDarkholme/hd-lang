@@ -69,6 +69,7 @@ function nullableWatType(type: string): string {
 class FunctionEmitter extends FunctionBodyEmitter {
   emit(declaration: HirFunction): string {
     this.currentRequirements = declaration.requirements;
+    this.currentFunctionIndex = declaration.suspensionIndex ?? declaration.index;
     const parameters = declaration.parameters
       .map(
         (parameter) =>
@@ -166,6 +167,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
   }
 
   emitSuspensionSupport(declaration: HirFunction): string {
+    this.currentFunctionIndex = declaration.suspensionIndex ?? declaration.index;
     const plan = this.suspensionPlans.get(suspensionIndex(declaration));
     if (plan) return this.emitCfgSuspensionSupport(declaration, plan);
     const parameters = declaration.parameters

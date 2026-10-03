@@ -1,5 +1,6 @@
 import { analyze, instantiate, type CompileOptions } from "./compiler.ts";
 import type { Diagnostic } from "./diagnostics.ts";
+import { physicalSpan, sourceDocument } from "./diagnostics.ts";
 import type { HirData, HirEnum, HirProgram } from "./hir.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import { classifyInput } from "./repl-input.ts";
@@ -303,6 +304,8 @@ function isSyntaxMessage(message: string): boolean {
 
 /** A REPL error or warning line, split back into its parts. */
 export interface ReplMessage {
+  /** A non-session source, such as a standard-library file. */
+  readonly file?: string;
   /** Line and column in the input, when the message points into it. */
   readonly line?: number;
   readonly column?: number;
@@ -317,6 +320,18 @@ export interface ReplMessage {
 
 /** Parses a line of `ReplOutcome.errors` or `ReplOutcome.warnings`. */
 export function parseReplMessage(text: string): ReplMessage {
+  const sourced = /^(.+):(\d+):(\d+): (warning: )?([a-z0-9-]+): ([\s\S]*)$/.exec(text);
+  if (sourced && sourced[1] !== "session") {
+    const [, file, line, column, warning, code, message] = sourced;
+    return {
+      file,
+      line: Number(line),
+      column: Number(column),
+      severity: warning ? "warning" : "error",
+      code: code!,
+      message: message!,
+    };
+  }
   const located = /^(session:)?(\d+):(\d+): (warning: )?([a-z0-9-]+): ([\s\S]*)$/.exec(text);
   if (located) {
     const [, session, line, column, warning, code, message] = located;
@@ -331,6 +346,12 @@ export function parseReplMessage(text: string): ReplMessage {
 }
 
 function formatReplDiagnostic(diagnostic: Diagnostic, attempt: Attempt): string {
+  const document = sourceDocument(diagnostic.span);
+  if (document) {
+    const { line, column } = physicalSpan(diagnostic.span).start;
+    const severity = diagnostic.severity === "warning" ? "warning: " : "";
+    return `${document.file}:${line}:${column}: ${severity}${diagnostic.code}: ${diagnostic.message}`;
+  }
   const { line, column } = diagnostic.span.start;
   const relative = line - attempt.inputLine;
   const shift = attempt.indent + (relative === 1 ? (attempt.prefix ?? 0) : 0);

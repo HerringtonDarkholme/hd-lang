@@ -8,10 +8,16 @@ import {
   type Program,
   type UseDecl,
 } from "../ast.ts";
-import type { SourceSpan } from "../diagnostics.ts";
+import { DiagnosticError, type SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
-import { STANDARD_MODULES, standardSource, type StandardModule } from "./standard-sources.ts";
+import {
+  STANDARD_MODULES,
+  standardDocument,
+  standardSource,
+  type StandardModule,
+} from "./standard-sources.ts";
 import { renameStandardBindings } from "./standard-bindings.ts";
+import { withStandardSource } from "./standard-provenance.ts";
 
 // Joins the toy standard library (`lib/std/*.hd`) into the one module the
 // prototype compiles. The use graph decides which modules join: the prelude
@@ -25,8 +31,9 @@ import { renameStandardBindings } from "./standard-bindings.ts";
 //   program imports it, under its own name when it is a prelude name, and
 //   otherwise under the hidden name `__std_<module>_<Name>`.
 //
-// Every added declaration's span points at the `use` that brought its module
-// in, or at the program when the prelude did.
+// Every added declaration keeps its physical `lib/std` location. Its logical
+// position points at the `use` that brought the module in, or at the program
+// when the prelude did, so source order remains a property of the joined unit.
 
 /** `std.prelude`, the module of `use` lines that every module implicitly has. */
 const PRELUDE: StandardModule = "prelude";
@@ -64,7 +71,11 @@ interface ParsedModule {
    * `pub use` of one, as the prelude's `std.core` names, binds what the
    * compiler already provides, so it adds no import.
    */
-  readonly compilerUses: readonly { readonly module: string; readonly name: string }[];
+  readonly compilerUses: readonly {
+    readonly module: string;
+    readonly name: string;
+    readonly span: SourceSpan;
+  }[];
 }
 
 const parsedModules = new Map<StandardModule, ParsedModule>();
@@ -201,10 +212,14 @@ function withoutMethodIntrinsic(declaration: MethodDecl): MethodDecl {
 
 function parseModule(name: StandardModule, source: string): Program {
   const parsed = parse(source, { standardLibrary: true });
-  if (!parsed.program || parsed.diagnostics.some((d) => d.severity !== "warning"))
-    throw new Error(
-      `std.${name} does not parse: ${parsed.diagnostics.map((d) => `${d.code}@${d.span.start.line}: ${d.message}`).join("; ")}`,
+  if (!parsed.program || parsed.diagnostics.some((d) => d.severity !== "warning")) {
+    const document = standardDocument(name);
+    throw new DiagnosticError(
+      parsed.diagnostics.map((diagnostic) =>
+        withStandardSource(diagnostic, document, diagnostic.span),
+      ),
     );
+  }
   const functions = parsed.program.functions.map((declaration) => {
     const intrinsic = intrinsicName(declaration);
     if (!intrinsic) return { ...declaration, standard: true };
@@ -286,7 +301,7 @@ function standardModule(name: StandardModule): ParsedModule {
   const modules = new Set<StandardModule>();
   const uses: { module: StandardModule; name: string }[] = [];
   const exports: { module: StandardModule; name: string }[] = [];
-  const compilerUses: { module: string; name: string }[] = [];
+  const compilerUses: { module: string; name: string; span: SourceSpan }[] = [];
   for (const declaration of program.uses) {
     if (declaration.module !== "std" && !declaration.module.startsWith("std."))
       throw new Error(`std.${name} uses '${declaration.module}', which is not a std module`);
@@ -299,7 +314,8 @@ function standardModule(name: StandardModule): ParsedModule {
       if (isStandardModule(module) && declaredModule(module).names.includes(imported.name)) {
         uses.push({ module, name: imported.name });
         if (declaration.public === true) exports.push({ module, name: imported.name });
-      } else if (declaration.public !== true) compilerUses.push({ module, name: imported.name });
+      } else if (declaration.public !== true)
+        compilerUses.push({ module, name: imported.name, span: declaration.span });
     }
   }
   const module = { name, program, names, modules: [...modules], uses, exports, compilerUses };
@@ -309,15 +325,6 @@ function standardModule(name: StandardModule): ParsedModule {
 
 function renameKey(module: StandardModule, renames: ReadonlyMap<string, string>): string {
   return `${module}\0${[...renames].map(([from, to]) => `${from}\0${to}`).join("\0")}`;
-}
-
-function respan<T>(value: T, span: SourceSpan): T {
-  if (Array.isArray(value)) return value.map((item) => respan(item, span)) as T;
-  if (!value || typeof value !== "object") return value;
-  const result: Record<string, unknown> = {};
-  for (const [key, child] of Object.entries(value))
-    result[key] = key === "span" ? span : respan(child, span);
-  return result as T;
 }
 
 type ModuleDeclaration = {
@@ -691,11 +698,15 @@ export function standardTemplate(
     const structure = new Set(
       [...structureNamesOf(parsed)].map((name) => structureNames.get(name) ?? name),
     );
-    let implementations = templateModules.get(key);
-    if (!implementations) {
-      implementations = renameStandardBindings(parsed.program, renames).implementations;
-      templateModules.set(key, implementations);
+    let parsedImplementations = templateModules.get(key);
+    if (!parsedImplementations) {
+      parsedImplementations = renameStandardBindings(parsed.program, renames).implementations;
+      templateModules.set(key, parsedImplementations);
     }
+    const anchor = program.traits.find((declaration) => declaration.name === trait)?.span;
+    const implementations = anchor
+      ? withStandardSource(parsedImplementations, standardDocument(module), anchor)
+      : parsedImplementations;
     // The template, or the tuple template, whose parameter is bounded by
     // `Tuple` (annot.template.tuple.separate).
     const template = implementations.find(
@@ -776,7 +787,7 @@ export function withStandardLibrary(source: Program): Program {
     return renamed;
   };
 
-  // Module declarations, each respanned to the use that reached the module.
+  // Module declarations, each source-mapped to the use that reached the module.
   const types = [...(program.types ?? [])];
   const data = [...program.data];
   const enums = [...program.enums];
@@ -790,23 +801,24 @@ export function withStandardLibrary(source: Program): Program {
     const span = spans.get(module);
     if (!span) continue;
     const renamed = moduleProgram(module);
-    types.push(...respan(renamed.types ?? [], span));
-    data.push(...respan(renamed.data, span));
-    enums.push(...respan(renamed.enums, span));
-    traits.push(...respan(renamed.traits, span));
-    functions.push(...respan(renamed.functions, span));
+    const located = withStandardSource(renamed, standardDocument(module), span);
+    types.push(...(located.types ?? []));
+    data.push(...located.data);
+    enums.push(...located.enums);
+    traits.push(...located.traits);
+    functions.push(...located.functions);
     implementations.push(
-      ...respan(
-        // `std` owns its prelude traits, so its impls are never orphans.
-        renamed.implementations.map((implementation) => ({ ...implementation, standard: true })),
-        span,
-      ),
+      // `std` owns its prelude traits, so its impls are never orphans.
+      ...located.implementations.map((implementation) => ({
+        ...implementation,
+        standard: true,
+      })),
     );
     for (const used of standardModule(module).compilerUses) {
       const alias = compilerUseName(used.module, used.name);
       if (imported.has(alias) || imports(program, `std.${used.module}`, used.name, alias)) continue;
       imported.add(alias);
-      uses.push(compilerUse(used, span));
+      uses.push(compilerUse(used, withStandardSource(used.span, standardDocument(module), span)));
     }
   }
   return { ...program, uses, types, data, enums, traits, functions, implementations };

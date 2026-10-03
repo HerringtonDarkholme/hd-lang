@@ -8,7 +8,7 @@ import type {
   TypeDecl,
   TypeRef,
 } from "../ast.ts";
-import type { SourceSpan } from "../diagnostics.ts";
+import { preserveSourceOrigin, type SourceSpan } from "../diagnostics.ts";
 import { nominalGenericParts, readonlyType } from "../types.ts";
 import { derivedBaseSpan, derivedImplementationSpan } from "./derive-intrinsics.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
@@ -65,7 +65,7 @@ export function renameTypes<T>(node: T, renames: ReadonlyMap<string, string>): T
       );
     else result[entry] = renameTypes(value, renames);
   }
-  return result as T;
+  return preserveSourceOrigin(node, result) as T;
 }
 
 /** Visits every object in `node`, depth first. */
@@ -89,7 +89,7 @@ export function transform(
   const result: Record<string, unknown> = {};
   for (const [entry, value] of Object.entries(node as Record<string, unknown>))
     result[entry] = transform(value, callback);
-  return callback(result);
+  return callback(preserveSourceOrigin(node, result));
 }
 
 export function headName(type: string): string {

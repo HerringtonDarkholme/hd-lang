@@ -5,7 +5,7 @@ import type {
   SourceSpan,
   TextEdit,
 } from "./diagnostics.ts";
-import { formatDiagnostic } from "./diagnostics.ts";
+import { formatDiagnostic, physicalSpan, sourceDocument } from "./diagnostics.ts";
 import type { SpecIndex } from "./spec-index.ts";
 
 // Machine-readable diagnostics for `--format json`. Each record is one JSON
@@ -64,7 +64,8 @@ function position(value: SourcePosition): JsonPosition {
 }
 
 export function jsonSpan(span: SourceSpan): JsonSpan {
-  return { start: position(span.start), end: position(span.end) };
+  const physical = physicalSpan(span);
+  return { start: position(physical.start), end: position(physical.end) };
 }
 
 /**
@@ -92,7 +93,7 @@ function describe(edit: TextEdit, found: string): string {
 /** The fix the diagnostic carries, or one the prototype derives from its code. */
 export function diagnosticFix(diagnostic: Diagnostic, source: string): DiagnosticFix | undefined {
   if (diagnostic.fix) return diagnostic.fix;
-  const { start, end } = diagnostic.span;
+  const { start, end } = physicalSpan(diagnostic.span);
   const text = source.slice(start.offset, end.offset);
   const replacement = REPLACEMENTS[diagnostic.code];
   if (replacement && text === replacement.found) {
@@ -119,18 +120,19 @@ function jsonDiagnostic(
   index: SpecIndex | undefined,
 ): JsonDiagnostic {
   const rules = ruleRefs(index, diagnostic.code);
-  const fix = diagnosticFix(diagnostic, source);
+  const document = sourceDocument(diagnostic.span);
+  const fix = diagnosticFix(diagnostic, document?.text ?? source);
   return {
     kind: "diagnostic",
     code: diagnostic.code,
     severity: diagnostic.severity ?? "error",
     message: diagnostic.message,
-    file,
+    file: document?.file ?? file,
     span: jsonSpan(diagnostic.span),
     notes: diagnostic.notes ?? [],
     related: (diagnostic.related ?? []).map((related) => ({
       message: related.message,
-      file,
+      file: sourceDocument(related.span)?.file ?? file,
       span: jsonSpan(related.span),
     })),
     fix: fix

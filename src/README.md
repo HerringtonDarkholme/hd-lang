@@ -200,7 +200,7 @@ hd check --format json app.hd 2> diagnostics.jsonl
 | `code` | The stable code from [spec/README.md](../spec/README.md#diagnostics) or the panic category; `null` only for `entry-error`. |
 | `severity` | `error` or `warning`. |
 | `message`, `notes` | The prose the text format prints. |
-| `file` | The path as given on the command line. |
+| `file` | The source containing the primary span: normally the command-line path, or `lib/std/<module>.hd` for a standard-library diagnostic. |
 | `span` | Primary location. Lines and columns are 1-based, columns count UTF-16 code units, `offset` is the 0-based UTF-16 offset, and `end` is exclusive. `null` for runtime records. |
 | `related` | Secondary locations as `{message, file, span}`. |
 | `fix` | `{message, edits}` when the prototype knows the one correct edit, else `null`. An edit replaces its `span` with `replacement`; an empty span inserts and an empty replacement deletes. |
@@ -1271,14 +1271,16 @@ module the prototype compiles:
   to the function's hidden name, `__std_testing_arbitrary_with`, after
   lexical value lookup. A local or captured `arbitrary` therefore remains
   the receiver;
-- every added declaration's span is the `use` of the program that reaches
+- every added declaration keeps its physical `lib/std` source span for
+  diagnostics. Its logical joined-program position is the `use` that reaches
   its module, or the program's span when only the prelude does.
 
 A program that uses no std module therefore gets every module but
 `std.error` and `std.resource`: the prelude reaches `std.testing`
 through `it`, and `std.testing` reaches `std.process`, `std.random`,
-`std.time`, and `std.testing.arbitrary`. With no reachability pass, a trivial program
-compiles to about 1,900 Wasm functions.
+`std.time`, and `std.testing.arbitrary`. Checker reachability keeps those
+declarations available; emitter reachability excludes unused std code from
+the final module.
 
 What it provides:
 

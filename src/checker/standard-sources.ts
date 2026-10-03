@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 
+import type { SourceDocument } from "../diagnostics.ts";
+
 // The toy standard library: one hd source file per `std` module, in the
 // top-level `lib/std/` directory, with a submodule in a subdirectory:
 // `std.testing.arbitrary` is `lib/std/testing/arbitrary.hd`. `std.prelude`
@@ -52,6 +54,17 @@ export type StandardModule = (typeof STANDARD_MODULES)[number];
 export type CompilerModule = "structure" | "inspect";
 
 const sources = new Map<string, string>();
+const documents = new Map<string, SourceDocument>();
+
+/** The physical source descriptor shared by every span from one std file. */
+export function standardDocument(name: StandardModule | CompilerModule): SourceDocument {
+  const cached = documents.get(name);
+  if (cached) return cached;
+  const path = name.replaceAll(".", "/");
+  const document = { file: `lib/std/${path}.hd`, text: standardSource(name) };
+  documents.set(name, document);
+  return document;
+}
 
 function fileSource(name: StandardModule | CompilerModule): string {
   const path = name.replaceAll(".", "/");

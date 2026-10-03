@@ -9,8 +9,8 @@ import type {
   Program,
 } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
-import { parse } from "../parser/index.ts";
 import { functionResultText, readonlyType } from "../types.ts";
+import { Source_ } from "./generated-source.ts";
 import {
   standardResultDeclaration,
   standardSubmoduleFunctionName,
@@ -396,12 +396,8 @@ export function withTypedFacts(program: Program, error: Report): Program {
     }),
   };
   if (helperSources.length === 0) return rewritten;
-  const parsed = parse(`${helperSources.join("\n")}\n`).program;
-  if (!parsed)
-    throw new Error(`typed facts generated invalid source:\n${helperSources.join("\n")}`);
-  const helperFunctions = parsed.functions.map((declaration): FunctionDecl => ({
-    ...declaration,
-    span: program.span,
-  }));
+  const generated = new Source_();
+  for (const line of helperSources) generated.add(line, program.span);
+  const helperFunctions = generated.program(program.span).functions;
   return { ...rewritten, functions: [...rewritten.functions, ...helperFunctions] };
 }

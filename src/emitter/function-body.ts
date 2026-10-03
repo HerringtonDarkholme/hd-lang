@@ -1,4 +1,5 @@
 import { cellInner } from "../checker/captured-cells.ts";
+import { physicalPosition } from "../diagnostics.ts";
 import type {
   HirExpression,
   HirDefaultArgument,
@@ -459,7 +460,10 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
    */
   private hostCallSite(traitName: string, offset: number): readonly string[] {
     return this.hostCapabilities.has(traitName)
-      ? [`  (global.set $hd.host-call-site (i32.const ${offset}))`]
+      ? [
+          `  (global.set $hd.host-call-function (i32.const ${this.currentFunctionIndex}))`,
+          `  (global.set $hd.host-call-site (i32.const ${offset}))`,
+        ]
       : [];
   }
 
@@ -803,7 +807,7 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
         `(block${expression.type === "void" ? "" : ` (result ${this.watType(expression.type)})`}`,
         `  (local.set ${temporary} ${this.emitExpression(expression.receiver)})`,
         ...ordered.setup.map((line) => `  ${line}`),
-        ...this.hostCallSite(trait.name, expression.span.start.offset),
+        ...this.hostCallSite(trait.name, physicalPosition(expression.span.start).offset),
         `  ${result}`,
         `)`,
       ].join("\n");
@@ -824,7 +828,8 @@ export abstract class FunctionBodyEmitter extends CallableAdapterEmitter {
       `(block (result (ref null ${wrapper}))`,
       `  (local.set ${temporary} ${this.emitExpression(expression.receiver)})`,
       ...ordered.setup.map((line) => `  ${line}`),
-      `  (global.set $hd.host-call-site (i32.const ${expression.span.start.offset}))`,
+      `  (global.set $hd.host-call-function (i32.const ${this.currentFunctionIndex}))`,
+      `  (global.set $hd.host-call-site (i32.const ${physicalPosition(expression.span.start).offset}))`,
       ...(frame
         ? [
             `  (local.set ${frame} ${invocation})`,

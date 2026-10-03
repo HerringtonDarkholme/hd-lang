@@ -3,6 +3,7 @@
     (ref.null $hd.runtime))
 
   (global $hd.driver-active (mut i32) (i32.const 0))
+  (global $hd.host-call-function (mut i32) (i32.const -1))
   (global $hd.host-call-site (mut i32) (i32.const -1))
 
   ;; Stable numeric tags for runtime-panic.ts. The host reports their names.

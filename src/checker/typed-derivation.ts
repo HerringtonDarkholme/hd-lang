@@ -14,13 +14,14 @@ import type {
   TypeRef,
   UseDecl,
 } from "../ast.ts";
-import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
+import { DiagnosticError, type Diagnostic, type SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { Source_, ZERO_SPAN } from "./generated-source.ts";
 import { checkLawPartners, DERIVE_CHECKED_TRAITS, derivedFieldSpan } from "./derive-intrinsics.ts";
 import { renameStandardBindings } from "./standard-bindings.ts";
 import { standardTemplate, standardTupleTraits } from "./standard-library.ts";
-import { standardSource } from "./standard-sources.ts";
+import { withStandardSource } from "./standard-provenance.ts";
+import { standardDocument } from "./standard-sources.ts";
 import {
   loadTupleTemplates,
   localTupleName,
@@ -226,10 +227,17 @@ export function withTypedDerivationSupport(source: Program): Program {
   )
     return source;
   const renames = structureRenames(source);
-  const original = parse(standardSource("structure"), { standardLibrary: true }).program;
-  if (!original) throw new Error("std.structure source does not parse");
+  const document = standardDocument("structure");
+  const parsed = parse(document.text, { standardLibrary: true });
+  if (!parsed.program)
+    throw new DiagnosticError(
+      parsed.diagnostics.map((diagnostic) =>
+        withStandardSource(diagnostic, document, diagnostic.span),
+      ),
+    );
+  const original = parsed.program;
   const structure = renameStandardBindings(
-    original,
+    withStandardSource(original, document, source.span),
     new Map([...renames, ["downcast_val", DOWNCAST]]),
   );
   const alreadyImports = (name: string, local = name): boolean =>
@@ -248,7 +256,7 @@ export function withTypedDerivationSupport(source: Program): Program {
         : []),
     ],
     standard: true,
-    span: source.span,
+    span: structure.uses.find((use) => use.module === "std.inspect")?.span ?? source.span,
   };
   const standard = <T>(items: readonly T[]): Array<T & { readonly standard: true }> =>
     items.map((item) => ({ ...item, standard: true as const }));

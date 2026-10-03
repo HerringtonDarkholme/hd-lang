@@ -1,5 +1,6 @@
 import type { Program, UseDecl } from "./ast.ts";
 import type { Diagnostic, SourcePosition, SourceSpan } from "./diagnostics.ts";
+import { physicalDiagnostic, sourceDocument } from "./diagnostics.ts";
 import { KEYWORDS } from "./lexer.ts";
 import { parse } from "./parser/index.ts";
 
@@ -461,6 +462,12 @@ export function linkPackage(
 
   const segments: LinkSegment[] = [];
   const locate = (diagnostic: Diagnostic): PackageDiagnostic => {
+    // REPL transports source-qualified diagnostics as text, so callers that
+    // parse that transport can retain its explicit non-package file here.
+    const explicitFile = (diagnostic as Diagnostic & { readonly file?: unknown }).file;
+    if (typeof explicitFile === "string") return { ...diagnostic, path: explicitFile };
+    const document = sourceDocument(diagnostic.span);
+    if (document) return { ...physicalDiagnostic(diagnostic), path: document.file };
     const segment =
       segments.findLast(({ firstLine }) => firstLine <= diagnostic.span.start.line) ?? segments[0];
     if (!segment) return { ...diagnostic, path: entry };

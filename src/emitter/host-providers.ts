@@ -244,7 +244,7 @@ function emitMethod({ trait, method }: HostMethod): string {
     `  (local.set $call`,
     `    (call $hd.${importName(trait, method, "begin")}`,
     `      (struct.get $hd.box-extern $hd.box-extern-value (ref.cast (ref $hd.box-extern) (local.get $receiver)))`,
-    `      (global.get $hd.host-call-site)${beginArguments.length ? " " + beginArguments.join(" ") : ""}))`,
+    `      (global.get $hd.host-call-function) (global.get $hd.host-call-site)${beginArguments.length ? " " + beginArguments.join(" ") : ""}))`,
     ...streamArguments,
   ];
   const locals = [
@@ -347,7 +347,7 @@ function emitImports({ trait, method }: HostMethod): readonly string[] {
         : [scalarImport("result", method.result)]),
   ];
   return [
-    `  (import "hd" "${importName(trait, method, "begin")}" (func $hd.${importName(trait, method, "begin")} (param externref i32)${parameters.length ? " " + parameters.join(" ") : ""} (result externref)))`,
+    `  (import "hd" "${importName(trait, method, "begin")}" (func $hd.${importName(trait, method, "begin")} (param externref i32 i32)${parameters.length ? " " + parameters.join(" ") : ""} (result externref)))`,
     `  (import "hd" "${importName(trait, method, "poll")}" (func $hd.${importName(trait, method, "poll")} (param externref) (result i32)))`,
     `  (import "hd" "${importName(trait, method, "cancel")}" (func $hd.${importName(trait, method, "cancel")} (param externref)))`,
     ...argumentByteImport,

@@ -1,9 +1,10 @@
 import type { Program } from "../ast.ts";
-import type { SourceSpan } from "../diagnostics.ts";
+import { DiagnosticError } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { renameStandardBindings } from "./standard-bindings.ts";
 import { standardPreludeBinding } from "./standard-library.ts";
-import { standardSource } from "./standard-sources.ts";
+import { withStandardSource } from "./standard-provenance.ts";
+import { standardDocument } from "./standard-sources.ts";
 
 /** The conversion trait that postfix `?` calls (spec/lang/09-traits.md#conversion-trait). */
 export const STANDARD_FROM = "std.convert.From";
@@ -53,15 +54,6 @@ const INSPECT_IMPORTS = new Set([
   STANDARD_DOWNCAST_VAL,
 ]);
 
-function respan<T>(value: T, span: SourceSpan): T {
-  if (Array.isArray(value)) return value.map((item) => respan(item, span)) as T;
-  if (!value || typeof value !== "object") return value;
-  const result: Record<string, unknown> = {};
-  for (const [key, child] of Object.entries(value))
-    result[key] = key === "span" ? span : respan(child, span);
-  return result as T;
-}
-
 /**
  * Declares `std.inspect` when the program, or a std module it joins, such as
  * `std.error`, uses one of its names.
@@ -74,8 +66,16 @@ export function withStandardTraits(program: Program): Program {
       INSPECT_IMPORTS.has(`${declaration.module}.${imported.name}`),
     ),
   )?.span;
-  const parsed = inspect && parse(standardSource("inspect")).program;
-  if (!inspect || !parsed) return program;
+  if (!inspect) return program;
+  const document = standardDocument("inspect");
+  const result = parse(document.text, { standardLibrary: true });
+  if (!result.program)
+    throw new DiagnosticError(
+      result.diagnostics.map((diagnostic) =>
+        withStandardSource(diagnostic, document, diagnostic.span),
+      ),
+    );
+  const parsed = result.program;
   const declarations = [...program.data, ...program.enums, ...program.traits];
   const renames = new Map<string, string>();
   for (const use of parsed.uses) {
@@ -91,7 +91,7 @@ export function withStandardTraits(program: Program): Program {
     const binding = standardPreludeBinding(program, name);
     if (binding) renames.set(name, binding);
   }
-  const bound = renameStandardBindings(parsed, renames);
+  const bound = withStandardSource(renameStandardBindings(parsed, renames), document, inspect);
   const traits = bound.traits.map((declaration, index) => ({
     ...declaration,
     standard: true as const,
@@ -108,8 +108,8 @@ export function withStandardTraits(program: Program): Program {
   }));
   return {
     ...program,
-    traits: [...program.traits, ...respan(traits, inspect)],
-    data: [...program.data, ...respan(data, inspect)],
-    implementations: [...program.implementations, ...respan(implementations, inspect)],
+    traits: [...program.traits, ...traits],
+    data: [...program.data, ...data],
+    implementations: [...program.implementations, ...implementations],
   };
 }

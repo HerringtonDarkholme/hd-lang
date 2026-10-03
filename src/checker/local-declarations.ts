@@ -7,7 +7,7 @@ import type {
   TraitDecl,
   TypeDecl,
 } from "../ast.ts";
-import type { Diagnostic } from "../diagnostics.ts";
+import { preserveSourceOrigin, type Diagnostic } from "../diagnostics.ts";
 
 // Local declarations (03-names-and-scopes.md#function-and-closure-scopes). A
 // `data`, `enum`, `trait`, or `type` declared in a block suite is visible from
@@ -115,7 +115,7 @@ export function hoistLocalDeclarations(program: Program): {
       if (typeof result.traitName === "string")
         result.traitName = renameWords(result.traitName, renames);
     }
-    return result as T;
+    return preserveSourceOrigin(node, result) as T;
   };
 
   const processSuite = (
