@@ -1,0 +1,47 @@
+# test: shuffle is a seeded Fisher-Yates permutation, choose returns .None on an empty list, and sample takes distinct positions
+# Spec std/random Lists: std-random.rng.choose.index, std-random.rng.choose.empty, std-random.rng.shuffle.order, std-random.rng.shuffle.permutation, std-random.rng.shuffle.short, std-random.rng.sample.order, std-random.rng.sample.result, std-random.rng.sample.input (task #242).
+use std.random.Rng
+use std.testing.{assert, assert_equal}
+
+tests:
+    it("shuffle swaps from the back and keeps every item"):
+        let mut deck = Rng::from_seed(7)
+        let cards: mut List[i32] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        deck.shuffle(cards)
+        assert_equal(cards, [10, 3, 7, 4, 6, 5, 1, 9, 2, 8], reason="the seeded order")
+        let mut words_rng = Rng::from_seed(7)
+        let words: mut List[string] = ["ant", "bee", "cat", "dog", "eel"]
+        words_rng.shuffle(words)
+        assert_equal(words, ["eel", "dog", "bee", "ant", "cat"], reason="a permutation of the words")
+        assert_equal(words.sorted(), ["ant", "bee", "cat", "dog", "eel"], reason="the same items")
+
+    it("a list of fewer than two items draws nothing"):
+        let mut deck = Rng::from_seed(7)
+        let mut fresh = Rng::from_seed(7)
+        let single: mut List[i32] = [4]
+        deck.shuffle(single)
+        assert_equal(single, [4], reason="unchanged")
+        assert_equal(deck.next_u64(), fresh.next_u64(), reason="no draw spent")
+
+    it("choose takes one item, and .None from an empty list"):
+        let mut deck = Rng::from_seed(7)
+        assert_equal(deck.choose(["a", "b", "c"]), .Some("c"), reason="first choice")
+        assert_equal(deck.choose(["a", "b", "c"]), .Some("b"), reason="second choice")
+        let mut idle = Rng::from_seed(7)
+        let mut fresh = Rng::from_seed(7)
+        let nothing: List[string] = []
+        assert_equal(idle.choose(nothing), .None, reason="an empty list")
+        assert_equal(idle.next_u64(), fresh.next_u64(), reason="no draw spent")
+
+    it("sample takes count items from distinct positions"):
+        let mut deck = Rng::from_seed(7)
+        let cards: List[i32] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        assert_equal(deck.sample(cards, 3), [8, 3, 4], reason="the seeded sample")
+        assert_equal(cards, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], reason="the input is unchanged")
+        let mut words_rng = Rng::from_seed(7)
+        assert_equal(words_rng.sample(["ant", "bee", "cat", "dog", "eel"], 2), ["cat", "bee"], reason="two words")
+        let mut all = Rng::from_seed(11)
+        every := all.sample(cards, 10)
+        assert_equal(every.sorted(), cards, reason="a full sample is a permutation")
+        let mut none = Rng::from_seed(11)
+        assert_equal(none.sample(cards, 0), [], reason="an empty sample")

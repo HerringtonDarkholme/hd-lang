@@ -1,0 +1,11 @@
+# test: sample with a count above the list's length panics
+# Spec std/random Lists: std-random.rng.sample.count (task #242).
+use std.random.Rng
+
+fn draw_four(cards: List[i32]) -> List[i32]:
+    let mut deck = Rng::from_seed(1)
+    deck.sample(cards, 4)  # panic: explicit-panic
+
+tests:
+    it("rejects a count above the length"):
+        _ := draw_four([1, 2, 3])

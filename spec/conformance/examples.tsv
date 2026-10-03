@@ -719,6 +719,7 @@ std/path.md	1	accept	typing/valid/path-newtype.hd
 std/random.md	1	type-fragment	-
 std/random.md	2	accept	typing/valid/random-trait.hd
 std/random.md	3	accept	runtime/valid/seeded-random.hd
+std/random.md	4	accept	runtime/valid/rng-from-random.hd
 std/option.md	1	accept	runtime/valid/option-and-then.hd
 std/option.md	2	accept	runtime/valid/option-tests-conversions.hd
 std/result.md	1	accept	runtime/valid/result-and-then.hd
@@ -750,3 +751,7 @@ std/json.md	7	mixed	typing/invalid/json-encode-not-derived.hd|typing/invalid/jso
 std/json.md	8	mixed	typing/invalid/json-map-key-not-string.hd
 std/json.md	9	accept	runtime/valid/json-typed-enum.hd
 std/json.md	10	mixed	typing/invalid/json-derive-member-not-tojson.hd
+std/cli.md	1	accept	runtime/valid/cli-parse-args.hd
+std/cli.md	2	accept	runtime/valid/cli-parse-args.hd
+std/cli.md	3	type-fragment	-
+std/cli.md	4	type-fragment	-

@@ -1,0 +1,35 @@
+# test: rng() seeds an Rng from one next_u64 draw of the Random provider that covers the call
+# Spec std/random Rng: std-random.rng.decl, std-random.rng.from-seed, std-random.rng.from-random, std-random.rng.plain (task #242).
+use std.random.{Random, Rng, SeededRandom, rng}
+use std.testing.assert_equal
+
+fn roll() -> i64 $ Random:
+    let mut dice = rng()
+    dice.int(1..=6)
+
+fn deal(seed: u64) -> List[string]:
+    let mut deck = Rng::from_seed(seed)
+    let cards: mut List[string] = ["A", "K", "Q", "J"]
+    deck.shuffle(cards)
+    cards
+
+tests:
+    it("rng draws its seed from the provider"):
+        let mut source = SeededRandom::new(5)
+        let mut copy = SeededRandom::new(5)
+        let mut expected = Rng::from_seed(copy.next_u64())
+        let mut made = Rng::from_seed(0)
+        $.with(Random=source):
+            made = rng()
+        assert_equal(made.next_u64(), expected.next_u64(), reason="the same seed")
+        assert_equal(source.next_u64(), copy.next_u64(), reason="rng spent one draw of the provider")
+
+    it("a seed deals one order"):
+        assert_equal(deal(3), deal(3), reason="the same seed, the same order")
+        let mut source = SeededRandom::new(8)
+        let mut again = SeededRandom::new(8)
+        let first: mut List[i64] = []
+        $.with(Random=source):
+            first.push(roll())
+        $.with(Random=again):
+            assert_equal(roll(), first[0], reason="the same provider seed rolls the same")

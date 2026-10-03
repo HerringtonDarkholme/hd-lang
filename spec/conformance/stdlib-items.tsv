@@ -35,6 +35,8 @@ std.host	std/host.md#program-arguments
 std.fs	std/fs.md#reading
 std.path	std/path.md#paths
 std.random	std/random.md#random-source
+std.random.Rng	std/random.md#rng
+std.random.rng	std/random.md#rng
 std.testing.PropertyCase	std/testing.md#runner-capabilities
 std.num.parse_i32	std/num.md#integer-parsing
 std.num.parse_i64	std/num.md#integer-parsing
@@ -54,3 +56,4 @@ std.json.ToJson	std/json.md#tojson-and-fromjson
 std.json.FromJson	std/json.md#tojson-and-fromjson
 std.json.encode	std/json.md#encode-and-decode
 std.json.decode	std/json.md#encode-and-decode
+std.cli	std/cli.md#declaring-arguments

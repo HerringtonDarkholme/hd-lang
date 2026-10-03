@@ -131,3 +131,33 @@ Pass 82 (#238) applied the owner's batch 76 decision that every size is a
 | 82 (#238) | The primitives `bytes_len`, `bytes_at`, `bytes_slice`, and `format_f64_fixed` use `usize`. `list_version`, `char_scalar`, and `char_from_scalar` stay `i32`, since a version and a scalar value are not sizes. | The primitives serve `len`, indexing, `slice`, and `to_fixed`. | own |
 | 82 (#238) | `lib/std` and `test/std` keep `i32` until the compiler session adds `usize` and an unsigned `len`, as the Decided, Not Yet Applied row SIZES-UNSIGNED in STDLIB_PLAN.md lists. | `lib/std` cannot name `usize` before the compiler declares it. | own |
 
+
+## Random Numbers
+
+| Pass | Call | Why | Status |
+| --- | --- | --- | --- |
+| 85 (#242) | `Rng` holds its own state and fixes its generator: xoshiro128** 1.0, seeded by folding the `u64` seed to 32 bits and four SplitMix32-style `mix32` steps, as `lib/std`'s `SeededRandom` already does. The spec gives the reference code and test vectors. `SeededRandom` stays unfixed. | Seeded output, such as a level or a fixture's sample, must repeat across implementations. 32-bit steps need no wide multiplication, which the plan's PCG sketch did. | own |
+| 85 (#242) | `rng()` seeds an `Rng` from one `next_u64` of `$ Random`. Every `Rng` method is a plain call with the empty row. | Go's `math/rand/v2`: one host draw per generator, and a seeded generator needs no provider. | own |
+| 85 (#242) | The surface is `from_seed`, `next_u64`, `int`, `float`, `bool`, `choose`, `shuffle`, and `sample`, named as `Choices` names its draws. `sample`'s count is a `usize`. | The plan's sketch, plus `bool` and `sample` from the task. | own |
+| 85 (#242) | `int` takes one `Range[i64]`, either `a..b` or `a..=b`, and is not generic over `Integer`. | Go's `Int64N`. A generic version needs a per-width conversion that `Integer` cannot name; it can follow. | own |
+| 85 (#242) | `int` is unbiased by rejection: `below(n)` redraws a value under `2^64 mod n` and returns `x mod n`. The whole `i64` range is one raw draw. An empty range panics with `explicit-panic`. | OpenBSD's `arc4random_uniform`; Rust's `gen_range` panics on an empty range. | own |
+| 85 (#242) | `float` is the top 53 bits of one draw times 2^-53, in [0, 1). `bool` is the top bit of one draw. | The standard exact construction, as in Rust's `rand`. | own |
+| 85 (#242) | `choose` on an empty list returns `.None` and draws nothing. | Rust's `choose`. | own |
+| 85 (#242) | `shuffle` is Fisher–Yates from the back. `sample(items, count)` runs `count` Fisher–Yates steps from the front on a copy and returns the first `count` items, in draw order. A count above the length panics with `explicit-panic`. | Rust's `partial_shuffle`; Python's `random.sample` rejects a count past the length, and owner Q18 panics on bad counts. | own |
+
+## Command-Line Parsing
+
+| Pass | Call | Why | Status |
+| --- | --- | --- | --- |
+| 85 (#242) | `std.cli` is a builder, `Cli::new(program).flag(...).option(...).positional(...)`, not a typed `FromArgs` derivation. | Derivation needs no protocol change, but it needs fact types for short names and positionals, and both `describe` and `build`. The plan defers typed CLI structs; a `FromArgs` template can later sit on the same parser. Go's `flag` and Node's `parseArgs` are tables too. | own |
+| 85 (#242) | Each builder method takes `self` and returns a new `Cli`. A long, short, or positional name declared twice panics with `explicit-panic`. | Value semantics; Go's `flag` panics on a redefined flag. | own |
+| 85 (#242) | The forms are `--name`, `-c`, `--name VALUE`, `--name=VALUE`, and `-c VALUE`. No short clusters (`-vq`), no attached short values (`-ofile`, `-o=x`). An option's value is the next argument, whatever its text. | Go's `flag` package. | own |
+| 85 (#242) | Flags, options, and positionals interleave. `--` ends the options and is dropped; a lone `-` is a positional. | Node's `parseArgs` and `clap`; the POSIX `--` and `-` conventions. | own |
+| 85 (#242) | A repeated flag is set once; a repeated option keeps its last value. | Go's `flag` and Node's `parseArgs`. | own |
+| 85 (#242) | Every declared positional is required and filled in order. Extra positionals are kept, in `Parsed.positionals`. | One error kind, and `cmd FILE...` still works. | own |
+| 85 (#242) | `CliError` is `UnknownOption(text)`, `MissingValue(name)`, `UnexpectedValue(name)`, and `MissingPositional(name)`, with `Eq`, `Debug`, and `Display`. The first error in argument order wins; missing positionals are checked last. | `UnexpectedValue` covers `--flag=x`, as Node's `ERR_PARSE_ARGS_INVALID_OPTION_VALUE` does. | own |
+| 85 (#242) | The `Display` texts are `unknown option TEXT`, `option --NAME needs a value`, `flag --NAME takes no value`, and `missing argument <NAME>`. `UnknownOption` keeps the argument as written, up to its first `=`. | Short and greppable, like Go's `flag provided but not defined`. | own |
+| 85 (#242) | No automatic `--help`. A declared flag named `help` that is set skips the missing-positional check. | `tool --help` must reach the program, as `argparse` and `clap` allow, without hidden flags. | own |
+| 85 (#242) | `Parsed` has public `flags`, `values`, and `positionals`, plus `flag(name)` and `value(name)`. An undeclared name reads as absent. `Parsed` implements `Eq` and `Debug`. | The plan's sketch. | own |
+| 85 (#242) | `usage` writes a `usage:` line, then `arguments:` and `options:` sections with one help column. A term is `-c, --name`, or four spaces and `--name`, plus ` <value>` for an option. No final newline. | Go's `flag` and `hd help` layouts; the four spaces align the long names. | own |
+| 85 (#242) | `parse_args` is a `Cli` method with `$ Args`, beside the pure `parse(arguments)`. | The task asks `std.cli` to read `$ Args`; tests use `parse` or `MapArgs`. | own |

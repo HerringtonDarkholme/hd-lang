@@ -1,0 +1,11 @@
+# test: declaring a short name a second time panics
+# Spec std/cli Declaring Arguments: std-cli.cli.duplicate (task #242).
+use std.cli.Cli
+
+fn tool() -> Cli:
+    base := Cli::new("count").flag("verbose", 'v', "print each file")
+    base.option("version", 'v', "the version to check")  # panic: explicit-panic
+
+tests:
+    it("rejects a short name declared twice"):
+        _ := tool()

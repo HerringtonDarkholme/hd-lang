@@ -1,0 +1,11 @@
+# test: int on a range that holds no integer panics
+# Spec std/random Integer Ranges: std-random.rng.int.empty (task #242).
+use std.random.Rng
+
+fn pick(start: i64) -> i64:
+    let mut dice = Rng::from_seed(1)
+    dice.int(start..start)  # panic: explicit-panic
+
+tests:
+    it("rejects an empty range"):
+        _ := pick(3)

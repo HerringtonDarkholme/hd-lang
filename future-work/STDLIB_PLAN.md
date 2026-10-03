@@ -18,8 +18,9 @@ the [text helpers](../spec/std/text.md#splitting-and-padding),
 [`counts`](../spec/std/collections.md#counts),
 [`Set`](../spec/std/collections.md#set), `Map.get_or`, and the
 [`Iterator` helpers](../spec/std/iter.md#more-adapters), which the owner
-approved; every other module sketch below is still a proposal for the
-owner.
+approved, and spec pass 85 applied the [`Rng` helpers](../spec/std/random.md#rng)
+and [`std.cli`](../spec/std/cli.md), as stdlib calls; every other module
+sketch below is still a proposal for the owner.
 
 Under review: the stdlib tier ([spec/std/](../spec/std/README.md)), the
 library itself ([lib/std/](../lib/std/)), the host rules of
@@ -92,11 +93,12 @@ every feature belongs in `std`.
 | `std.resource` | `ResourceError[E]` | none | no handle type uses it yet |
 | `std.error` | `Error` with `root_cause` and `find`, `chain`, `ErrorReport`, `report_of`, `Result.context`, `ContextError` | [error.md](../spec/std/error.md); `Error` is language tier | none |
 | `std.testing`, `std.structure`, `std.inspect`, `std.annotation`, `std.function` | test, derivation, and type-identity support | [testing.md](../spec/std/testing.md) | complete for their purpose |
-| `std.random` | `Random`, `SeededRandom` | [random.md](../spec/std/random.md) | no `Rng` helpers |
+| `std.random` | `Random`, `SeededRandom`; `Rng` with `int`, `float`, `bool`, `choose`, `shuffle`, and `sample`; `rng` | [random.md](../spec/std/random.md) | none |
+| `std.cli` | `Cli` with `flag`, `option`, `positional`, `parse`, `parse_args`, and `usage`; `Parsed`, `CliError` | [cli.md](../spec/std/cli.md) | the prototype's std loader does not list `cli` (`STD-CLI`); no typed `FromArgs` derivation |
 | `std.host`, `std.fs`, `std.path` | `Args`, `Env`, `MapArgs`, `MapEnv`; `FsRead`, `FsWrite`, `FsError`, `MemoryFs`; `Path` | [host.md](../spec/std/host.md), [fs.md](../spec/std/fs.md), [path.md](../spec/std/path.md) no `read_text!` or `write_text!` helper, for the `std.time` helpers' reason |
 | `std.encoding`, `std.digest` | `hex_encode`, `hex_decode`, `base64_encode`, `base64_decode`, `DecodeError`; `sha256`, `sha256_hex` | [encoding.md](../spec/std/encoding.md), [digest.md](../spec/std/digest.md) | no URL-safe base64, no streaming hasher |
 | `std.json` | `Json`, `Number`, `parse`, `JsonError`, `Display`, `pretty`, and the `Json` accessors; `ToJson` and `FromJson` with their templates and standard implementations, `encode`, and `decode` | [json.md](../spec/std/json.md) | in the prototype, `Json.Number` breaks in a program that does not import `Number` (`STD-LOADER`); `parse` reads a number with a fraction or an exponent through `parse_f64`; no field renames, conditional skips, or defaults per field |
-| absent | cli, log, http, regex | none | the gap this plan covers |
+| absent | log, http, regex | none | the gap this plan covers |
 
 The prototype also lacks two things scripts need: `hd FILE` itself
 (known failure `CLI-ENTRY`), and the inferred row of a script's top level
@@ -183,6 +185,7 @@ design it names.
 | ZIP-ARG, BOUND-INFERENCE | 2026-10-03 | `Iterator.zip` and `chain` take any `Iterable` ([More Adapters](../spec/std/iter.md#more-adapters)), and `lib/std/iter.hd` has them. Call inference solves a [bound-only parameter](../spec/lang/04-type-system.md#inference-through-a-bound) from the bounded argument's one implementation of the bound's trait, to a fixed point; none is `unsatisfied-trait-bound`, several are `cannot-infer-type`, and explicit and expected types win | the compiler session, in `src/checker/cannot-infer.ts` (generic call inference): after the arguments and the expected type, solve each parameter named only in another parameter's bound from that parameter's implementations, repeating until nothing changes. Then `items.iter().zip(names)` checks with no type arguments. Then move the four `ZIP-ARG` rows of `test/portable/KNOWN_FAILURES.tsv` back to `test/portable/cases.tsv`. While it waits, the table in `src/KNOWN_ISSUES.md` lists the tag `ZIP-ARG` with four rows |
 | SIZES-UNSIGNED, HOST-NAN-FIXTURE | 2026-10-03 | every size is unsigned: the prelude alias [`usize`](../spec/lang/04-type-system.md#the-usize-alias) is `u32`, `len()` returns it, list and string indices and slice bounds are unsigned ([Indexing](../spec/lang/05-expressions.md#indexing)), and std counts, widths, and positions are `usize` (STDLIB_CALLS.md, Sizes). The [`special-float-host`](../spec/conformance/README.md#runtime-profiles) profile returns NaN, infinity, then `-0.0` | the compiler session. In `src/`: declare `usize` in `std.core` (`TYPE_NAMES` in `src/checker/shared.ts`) and add it to the `pub use std.core` line of `lib/std/prelude.hd`; type `list-length` and `map-length` as `usize` (`src/checker/expression-calls.ts`); check a `List` or `string` index and slice bounds with `usize` as the expected type and reject a signed index with `type-mismatch` (`src/checker/expression-data.ts`), so `items[-1]` is `unsigned-negation`; accept `usize(x)` as a cast; list `usize` with the type names in `src/highlight.ts` and `src/repl.ts`. In `lib/std`: move every size signature to `usize` (`ops.hd` `Index[usize]` and unsigned range impls; `text.hd` `len`, `slice`, `char_indices`, `repeat`, `pad_*`, `count`; `collections.hd`; `iter.hd` `enumerate`, `take`, `skip`, `count`; the error `position` fields; `num.hd` `to_fixed`; `json.hd` `at`; `testing.hd` `Choices`, `TestRunner`, `PropertyRunner`; `random.hd` `fill`; the primitives `bytes_len`, `bytes_at`, `bytes_slice`, and `format_f64_fixed`), drop the negative-count panics, and update `test/std` and the hd snippets in `test/*.test.ts`. Add the `special-float-host` profile to the runner. Then move the 57 `U32-SIZES` rows and the one `HOST-NAN` row of `test/portable/KNOWN_FAILURES.tsv` back to `test/portable/cases.tsv`, after adding both tags to the table in `src/KNOWN_ISSUES.md` |
 | CONSOLE-ERROR | 2026-10-03 | `ConsoleError` is an enum with the one variant `Closed` ([Console](../spec/lang/10-modules.md#console)), and `lib/std/console.hd` declares it with `Display` | the compiler session: drop `ConsoleError` from the checker's primitive type names (`src/checker/shared.ts`, `known-types.ts`, `termination.ts`), and let the host `Console` bridge return `.Err(ConsoleError.Closed)` for a closed stream instead of having no error to build (`src/compiler.ts`, `src/emitter/host-providers.ts`) |
+| STD-CLI | 2026-10-03 | [`std.cli`](../spec/std/cli.md) is in `lib/std/cli.hd` (stdlib call, pass 85) | the compiler session: add `"cli"` to `STANDARD_MODULES` in `src/checker/standard-sources.ts`, so `use std.cli` joins the module. Then move the five `STD-CLI` rows of `test/portable/KNOWN_FAILURES.tsv` back to `test/portable/cases.tsv`, after adding the tag to the table in `src/KNOWN_ISSUES.md`. Each case passes today when `lib/std/cli.hd` is inlined into it |
 | JSON-FIELD-FACTS | 2026-10-03 | `ToJson` and `FromJson` get renames, conditional skips, and defaults per field through typed member facts, not in the first version ([Typed JSON](../spec/std/json.md#typed-json)) | a `std.json` fact design: fact types, such as a rename, that the two templates read through `h.fact::[D]()`; an omit line `f = pass` already leaves a member out of one derivation |
 
 ## Survey Matrices
@@ -582,35 +585,10 @@ Standouts:
   beside a host-seeded default.
 - **Python `secrets`**: secure randomness is a separate, named API.
 
-Minimal `std.random` (the archived draft, unchanged in shape):
-
-```text
-pub data Rng:
-    state: u64
-
-impl Rng:
-    pub fn from_seed(seed: u64) -> mut Rng: pass
-    pub fn next_u64(mut self) -> u64: pass
-    pub fn int(mut self, low: i64, high: i64) -> i64: pass
-    pub fn float(mut self) -> f64: pass
-    pub fn choose[T](mut self, items: List[T]) -> T?: pass
-    pub fn shuffle[T](mut self, items: mut List[T]) -> void: pass
-
-pub trait Random:
-    fn next_u64(mut self) -> u64
-    fn fill(mut self, count: i32) -> List[u8]
-
-pub data SeededRandom:
-    generator: mut Rng
-
-pub fn rng() -> mut Rng $ Random:
-    Rng::from_seed($.use(Random).next_u64())
-```
-
-`int` includes both bounds, as `Choices.int` in `std.testing` does. A
-PCG step needs wrapping `u64` multiplication. `std.num` has wrapping ops
-for `i32` and `i64` only; hd can build it from 32-bit halves, or a hook can
-supply it.
+Spec pass 85 applied a minimal surface: [Rng](../spec/std/random.md#rng),
+a seeded xoshiro128** generator with unbiased integer ranges, and `rng`,
+which seeds one from `$ Random`. Its 32-bit steps need no wrapping `u64`
+multiplication.
 
 ### Command-Line Parsing
 
@@ -622,36 +600,10 @@ Standouts:
 - **Rust `clap` derive** builds a typed struct; in hd that is a later
   `Source` template, like `FromJson`.
 
-Minimal `std.cli`:
-
-```text
-pub data Opt:
-    pub name: string
-    pub short: string?
-    pub takes_value: bool
-    pub help: string
-
-pub data Parsed:
-    pub values: Map[string, string]
-    pub flags: List[string]
-    pub positionals: List[string]
-
-impl Parsed:
-    pub fn flag(self, name: string) -> bool: pass
-    pub fn value(self, name: string) -> string?: pass
-
-pub enum CliError:
-    UnknownOption(name: string)
-    MissingValue(name: string)
-
-pub fn parse_args(args: List[string], options: List[Opt]) -> Result[Parsed, CliError]:
-    pass
-
-pub fn usage(program: string, options: List[Opt]) -> string:
-    pass
-```
-
-It is pure: the caller passes `args()` from `std.host`.
+Spec pass 85 applied a builder, [Cli](../spec/std/cli.md): flags,
+options, positionals, `--`, `CliError`, and a generated `usage` text.
+`parse_args` reads `$ Args`. A typed `FromArgs` template over the same
+parser is still a proposal.
 
 ### Hashing And Encoding
 
@@ -809,7 +761,7 @@ each part in the language: `fn!() -> Result[A, E] $ R`.
 | `Random` | `std.random` | 9 |
 | `Config` with `ConfigProvider` | `Env` with `MapEnv`; a typed config template later | 1 |
 | `FileSystem`, `Path`, `ChildProcess` | `std.fs`, `std.path`, `std.process` helpers | 1, 2 |
-| `Cli` | `std.cli.parse_args` | 9 |
+| `Cli` | `std.cli` `Cli` and `parse_args` | 9 |
 | `HashSet`, `Chunk` | `Set` | 3 |
 
 ### Excluded
@@ -848,7 +800,7 @@ host also add a prototype host binding, a minimal TypeScript hook.
 | 6 | `std.json` `Json`, `Number`, `parse`, `Display`, `pretty`, accessors: [specified](../spec/std/json.md), with float text through `parse_f64` | the prototype's `parse_f64` hook | reading and writing JSON |
 | 7 | `ToJson` and `FromJson` templates; `encode`, `decode`: [specified](../spec/std/json.md#typed-json) | tier 6 | typed JSON |
 | 8 | `timeout!`, `map_limited!`; `Backoff`, `retry_with!`, and `all_list!`: [specified](../spec/std/task.md) | tier 4's `Clock`; [Retry With Backoff](../spec/std/task.md#retry-with-backoff) | robust automation |
-| 9 | `std.random` `Rng`, `Random`, `SeededRandom`; `std.cli` `parse_args`, `usage` | tier 1's `Args`; `u64` wrapping arithmetic | real command-line tools |
+| 9 | `std.random` `Rng` and `rng`: [specified](../spec/std/random.md#rng); `std.cli` `Cli`, `parse_args`, and `usage`: [specified](../spec/std/cli.md) | tier 1's `Args`; the prototype's std loader listing `cli` | real command-line tools |
 | 11 | `std.regex`: the RE2 subset, linear time, no backreferences, written in hd (about two hours) | none | filtering lines by pattern |
 
 Later, blocked:
@@ -916,11 +868,9 @@ only; no block is type-checked.
 | 3, 4 | Files And Paths | parse |
 | 5 | Processes | parses |
 | 6 | Time And Dates | parses |
-| 7 | Random Numbers | parses |
-| 8 | Command-Line Parsing | parses |
-| 9 | Concurrency Helpers | parses |
-| 10 | A Script With The Proposed Surface | parses |
+| 7 | Concurrency Helpers | parses |
+| 8 | A Script With The Proposed Surface | parses |
 
-A first draft of block 10 wrote module-qualified types, such as
+A first draft of block 8 wrote module-qualified types, such as
 `Map[string, json.Json]`, and the parser rejected them; the block now
 imports the names.

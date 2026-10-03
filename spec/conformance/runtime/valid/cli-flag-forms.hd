@@ -1,0 +1,45 @@
+# test: every flag and option form, -- ending the options, a lone - as a positional, and repeated flags and options
+# Spec std/cli Argument Forms: std-cli.form.long-flag, std-cli.form.short-flag, std-cli.form.long-option, std-cli.form.attached, std-cli.form.short-option, std-cli.form.end, std-cli.form.dash, std-cli.form.positional, std-cli.form.interleaved, std-cli.form.repeat-flag, std-cli.form.repeat-option, std-cli.form.value-dash; Parsed Arguments (task #242).
+use std.cli.{Cli, CliError, Parsed}
+use std.testing.{assert, assert_equal}
+
+fn tool() -> Cli:
+    Cli::new("count").flag("verbose", 'v', "print each file").option("out", 'o', "write the total here").positional("pattern", "the files to count")
+
+fn read(arguments: List[string]) -> Parsed:
+    match tool().parse(arguments):
+        .Ok(parsed) => parsed
+        .Err(error) => panic("parse failed: $error")
+
+tests:
+    it("long and short flags"):
+        assert(read(["--verbose", "*.txt"]).flag("verbose"), reason="--verbose")
+        assert(read(["-v", "*.txt"]).flag("verbose"), reason="-v")
+        assert(!read(["*.txt"]).flag("verbose"), reason="not given")
+
+    it("an option's value is the next argument, or follows ="):
+        assert_equal(read(["--out", "total.txt", "*.txt"]).value("out"), .Some("total.txt"), reason="--out VALUE")
+        assert_equal(read(["--out=total.txt", "*.txt"]).value("out"), .Some("total.txt"), reason="--out=VALUE")
+        assert_equal(read(["-o", "total.txt", "*.txt"]).value("out"), .Some("total.txt"), reason="-o VALUE")
+        assert_equal(read(["--out=a=b", "*.txt"]).value("out"), .Some("a=b"), reason="the text after the first =")
+        assert_equal(read(["--out=", "*.txt"]).value("out"), .Some(""), reason="an empty value")
+        assert_equal(read(["--out", "-v", "*.txt"]).value("out"), .Some("-v"), reason="a value that starts with -")
+        assert_equal(read(["*.txt"]).value("out"), .None, reason="not given")
+
+    it("positionals come in any order, and -- ends the options"):
+        parsed := read(["*.txt", "-v", "extra", "--", "-o", "--verbose", "-"])
+        assert_equal(parsed.positionals, ["*.txt", "extra", "-o", "--verbose", "-"], reason="every positional, in order")
+        assert_equal(parsed.flags, ["verbose"], reason="only the flag before --")
+        assert_equal(read(["-", "-v"]).positionals, ["-"], reason="a lone - is a positional")
+
+    it("a repeated flag is set once, and a repeated option keeps its last value"):
+        parsed := read(["-v", "--verbose", "-o", "first", "--out=last", "*.txt"])
+        assert_equal(parsed.flags, ["verbose"], reason="listed once")
+        assert_equal(parsed.values, {"out": "last"}, reason="the last value wins")
+
+    it("an undeclared name reads as absent"):
+        parsed := read(["*.txt"])
+        assert(!parsed.flag("quiet"), reason="no such flag")
+        assert_equal(parsed.value("format"), .None, reason="no such option")
+        same := Parsed { flags: [], values: {}, positionals: ["*.txt"] }
+        assert(parsed == same, reason="Parsed implements Eq")

@@ -183,7 +183,7 @@ file of its own.
 | [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Args` and `Env`, the helpers `args` and `env`, and the providers `MapArgs` and `MapEnv` |
 | [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, the helpers `read_text!` and `write_text!`, and the provider `MemoryFs` |
 | [`path.md`](path.md) | `std.path` | `std-path` | the `Path` newtype |
-| [`random.md`](random.md) | `std.random` | `std-random` | the host trait `Random` and the provider `SeededRandom` |
+| [`random.md`](random.md) | `std.random` | `std-random` | the host trait `Random`, the provider `SeededRandom`, and the seeded generator `Rng` with `rng` |
 | [`option.md`](option.md) | `std.option` | `std-option` | the methods `and_then`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, and `expect` of `T?` |
 | [`result.md`](result.md) | `std.result` | `std-result` | the methods `and_then`, `map_err`, `unwrap_or`, `map`, `ok`, `err`, `is_ok`, `is_err`, and `expect` of `Result[T, E]` |
 | [`num.md`](num.md) | `std.num` | `std-num` | checked, wrapping, and saturating integer methods, `abs_diff`, and the bit counts on every integer type; `is_nan` and `is_finite`; integer parsing with `ParseNumberError`; `parse_f64`; `to_fixed` |
@@ -191,6 +191,7 @@ file of its own.
 | [`encoding.md`](encoding.md) | `std.encoding` | `std-encoding` | hex and base64 text for bytes: `hex_encode`, `hex_decode`, `base64_encode`, `base64_decode`, and `DecodeError` |
 | [`digest.md`](digest.md) | `std.digest` | `std-digest` | the SHA-256 digest: `sha256` and `sha256_hex` |
 | [`json.md`](json.md) | `std.json` | `std-json` | the untyped `Json` value, `Number`, `parse`, `JsonError`, `pretty`, and the `Display` text; the typed `ToJson` and `FromJson`, their templates, `encode`, and `decode` |
+| [`cli.md`](cli.md) | `std.cli` | `std-cli` | argument parsing for scripts: the `Cli` builder, `parse`, `parse_args`, `Parsed`, `CliError`, and `usage` |
 
 ## Glossary
 
@@ -203,9 +204,12 @@ the [language glossary](../README.md#glossary).
 | **collect target** | The collection that `collect` builds, named by the expected type. See [Collect Targets](iter.md#collect-targets). |
 | **Debug builders** | The `DebugWriter` methods that describe a value as a struct, tuple, list, or map. See [Debug Builders](format.md#debug-builders). |
 | **draw budget** | The per-case limit on draws from `Choices`; once it is spent, every draw returns its simplest value. See [`std-testing.budget`](testing.md#r-std-testing.budget). |
+| **flag** | A command-line argument that `std.cli` reads as set or not set; it takes no value. See [`std-cli.cli.flag`](cli.md#r-std-cli.cli.flag). |
 | **iterator adapters** | Methods of the prelude `Iterator[T]` that wrap an iterator in a new one, or drain it. See [Iterator Adapters](iter.md#iterator-adapters). |
+| **option** | A command-line argument that `std.cli` reads with one value. See [`std-cli.cli.option`](cli.md#r-std-cli.cli.option). |
 | **pad bits** | The low bits of the last base64 symbol that encode no byte; they are zero. See [`std-encoding.base64.encode.pad-bits`](encoding.md#r-std-encoding.base64.encode.pad-bits). |
 | **padding** | The one or two `=` characters that end a base64 text. See [`std-encoding.base64.decode.padding`](encoding.md#r-std-encoding.base64.decode.padding). |
+| **positional** | A command-line argument that is not a flag or an option; `std.cli` reads it by position. See [`std-cli.cli.positional`](cli.md#r-std-cli.cli.positional). |
 | **property test** | A test case whose body runs on inputs drawn from a `Choices` source. See [Property Tests](testing.md#property-tests). |
 
 ## Rule IDs

@@ -1,0 +1,26 @@
+# test: the usage text lists the positionals, then the flags and options, with each help in one column
+# Spec std/cli Usage Text: std-cli.usage.decl, std-cli.usage.line, std-cli.usage.arguments, std-cli.usage.options, std-cli.usage.term, std-cli.usage.entry, std-cli.usage.no-help, std-cli.usage.no-help-flag, std-cli.error.help (task #242).
+use std.cli.{Cli, CliError}
+use std.testing.assert_equal
+
+fn tool() -> Cli:
+    Cli::new("count").flag("verbose", 'v', "print each file").option("out", 'o', "write the total here").flag("dry-run", .None, "").positional("pattern", "the files to count")
+
+tests:
+    it("a full usage text"):
+        expected := "usage: count [options] <pattern>\n\narguments:\n  pattern            the files to count\n\noptions:\n  -v, --verbose      print each file\n  -o, --out <value>  write the total here\n      --dry-run"
+        assert_equal(tool().usage(), expected, reason="every section")
+
+    it("sections without declarations are left out"):
+        assert_equal(Cli::new("bare").usage(), "usage: bare", reason="no declarations")
+        assert_equal(Cli::new("cat").positional("file", "the file").usage(), "usage: cat <file>\n\narguments:\n  file  the file", reason="positionals only")
+        assert_equal(Cli::new("ls").flag("all", 'a', "every entry").usage(), "usage: ls [options]\n\noptions:\n  -a, --all  every entry", reason="flags only")
+
+    it("--help is an ordinary flag"):
+        assert_equal(tool().parse(["--help"]), .Err(CliError.UnknownOption("--help")), reason="not declared")
+        helped := Cli::new("count").flag("help", 'h', "show this text").positional("pattern", "the files to count")
+        match helped.parse(["-h"]):
+            .Ok(parsed) => assert_equal(parsed.flags, ["help"], reason="declared, and no positional is missing")
+            .Err(error) => panic("parse failed: $error")
+        assert_equal(helped.parse([]), .Err(CliError.MissingPositional("pattern")), reason="without -h a positional is missing")
+        assert_equal(helped.parse(["-h", "--colour"]), .Err(CliError.UnknownOption("--colour")), reason="other errors still count")

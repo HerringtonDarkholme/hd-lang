@@ -136,6 +136,7 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/hash.md` | `std-hash` |
 | `std/iter.md` | `std-iter` |
 | `std/json.md` | `std-json` |
+| `std/cli.md` | `std-cli` |
 | `std/ops.md` | `std-ops` |
 | `std/testing.md` | `std-testing` |
 | `std/text.md` | `std-text` |

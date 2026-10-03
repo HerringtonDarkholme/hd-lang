@@ -2104,3 +2104,14 @@ runtime/valid/bound-inference-chain.hd	runtime	accept	lang/04-type-system.md#r-t
 runtime/valid/bound-inference-explicit.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.bound.precedence
 typing/invalid/bound-inference-several-impls.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.infer.bound.several
 typing/invalid/bound-inference-no-impl.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.generic.infer.bound.none
+runtime/valid/rng-seeded-sequence.hd	runtime	accept	std/random.md#rng-generator
+runtime/valid/rng-int-range.hd	runtime	accept	std/random.md#integer-ranges
+runtime/panic/rng-int-empty-range.hd	runtime	panic:explicit-panic	std/random.md#r-std-random.rng.int.empty
+runtime/valid/rng-shuffle-choose-sample.hd	runtime	accept	std/random.md#lists
+runtime/panic/rng-sample-too-many.hd	runtime	panic:explicit-panic	std/random.md#r-std-random.rng.sample.count
+runtime/valid/rng-from-random.hd	runtime	accept	std/random.md#rng
+runtime/valid/cli-flag-forms.hd	runtime	accept	std/cli.md#argument-forms
+runtime/valid/cli-errors.hd	runtime	accept	std/cli.md#parse-errors
+runtime/valid/cli-usage.hd	runtime	accept	std/cli.md#usage-text
+runtime/valid/cli-parse-args.hd	runtime	accept	std/cli.md#parsing
+runtime/panic/cli-duplicate-option.hd	runtime	panic:explicit-panic	std/cli.md#r-std-cli.cli.duplicate

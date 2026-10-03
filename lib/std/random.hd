@@ -1,8 +1,9 @@
-# std.random: the host capability trait `Random` and its deterministic
-# provider `SeededRandom` (spec/std/random.md). No prototype runtime
+# std.random: the host capability trait `Random`, its deterministic
+# provider `SeededRandom`, and the `Rng` helpers (spec/std/random.md). No prototype runtime
 # profile binds a host `Random` yet (src/KNOWN_ISSUES.md); `std.testing`
 # draws a property test's cases from a `SeededRandom`.
 use std.format.DebugWriter
+use std.ops.Range
 
 # Draws values from a source of randomness (r-std-random.decl). Both
 # methods take `mut self`, so a seeded provider advances its own state
@@ -56,6 +57,93 @@ impl Random for SeededRandom:
             bytes.push(u8(self.next32() & 0xFF))
         bytes
 
+# The `Rng` helpers (spec/std/random.md#rng): a generator value that a seed
+# starts, with the draws scripts need. Its generator is fixed
+# (r-std-random.rng.generator): the xoshiro128** state of `SeededRandom`, so
+# a seed gives the same draws in every implementation.
+pub data Rng:
+    source: mut SeededRandom
+
+impl Rng:
+    pub fn from_seed(seed: u64) -> mut Rng:
+        Rng { source: SeededRandom::new(seed) }
+
+    pub fn next_u64(mut self) -> u64:
+        self.source.next_u64()
+
+    # An integer of `range`, from `start + below(count)`
+    # (r-std-random.rng.int.offset). A count of 2^64, the whole `i64` range,
+    # is passed as 0.
+    pub fn int(mut self, range: Range[i64]) -> i64:
+        if range.start > range.end || (range.start == range.end && !range.inclusive):
+            panic("std.random: empty range")
+        let count: u64 = range.end.abs_diff(range.start)
+        if range.inclusive:
+            count = if count == 0xFFFFFFFFFFFFFFFF: 0 else: count + 1
+        offset := self.below(count)
+        if offset > 0x7FFFFFFFFFFFFFFF:
+            # Only a negative `start` reaches an offset past the largest i64.
+            return (range.start + 0x7FFFFFFFFFFFFFFF) + i64(offset - 0x7FFFFFFFFFFFFFFF)
+        range.start + i64(offset)
+
+    # The top 53 bits of a draw, scaled by 2^-53: exact, and below 1.
+    pub fn float(mut self) -> f64:
+        f64(self.next_u64() >> 11) / 9007199254740992.0
+
+    pub fn bool(mut self) -> bool:
+        (self.next_u64() >> 63) == 1
+
+    pub fn choose[T](mut self, items: List[T]) -> T?:
+        if items.len() == 0:
+            return .None
+        .Some(items[i32(self.below(u64(items.len())))])
+
+    # Fisher-Yates from the last position down (r-std-random.rng.shuffle.order).
+    pub fn shuffle[T](mut self, items: mut List[T]) -> void:
+        let i = items.len() - 1
+        while i > 0:
+            j := i32(self.below(u64(i + 1)))
+            held := items[i]
+            items[i] = items[j]
+            items[j] = held
+            i = i - 1
+
+    # The first `count` steps of Fisher-Yates from the front, on a copy
+    # (r-std-random.rng.sample.order).
+    pub fn sample[T](mut self, items: List[T], count: i32) -> List[T]:
+        if count > items.len():
+            panic("std.random: sample count above the list length")
+        let pool: mut List[T] = []
+        for item in items:
+            pool.push(item)
+        let chosen: mut List[T] = []
+        let i = 0
+        while i < count:
+            j := i + i32(self.below(u64(pool.len() - i)))
+            held := pool[i]
+            pool[i] = pool[j]
+            pool[j] = held
+            chosen.push(pool[i])
+            i = i + 1
+        chosen
+
+    # An unbiased draw below `count` by rejection (r-std-random.rng.below):
+    # a draw under 2^64 mod `count` is drawn again, so every remainder has
+    # the same number of draws. A `count` of 0 stands for 2^64.
+    fn below(mut self, count: u64) -> u64:
+        if count == 0:
+            return self.next_u64()
+        let largest: u64 = 0xFFFFFFFFFFFFFFFF
+        threshold := (largest - count + 1) % count
+        let x = self.next_u64()
+        while x < threshold:
+            x = self.next_u64()
+        x % count
+
+# An `Rng` that one draw of the `Random` provider seeds (r-std-random.rng.from-random).
+pub fn rng() -> mut Rng $ Random:
+    Rng::from_seed($.use(Random).next_u64())
+
 fn low32(x: u64) -> u64:
     x & 0xFFFFFFFF
 
@@ -77,3 +165,7 @@ fn mix32(z: u64) -> u64:
 impl Debug for SeededRandom:
     fn debug(self, out: mut DebugWriter) -> void:
         out.debug_struct("SeededRandom").field("s0", self.s0).field("s1", self.s1).field("s2", self.s2).field("s3", self.s3).finish()
+
+impl Debug for Rng:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Rng").field("source", self.source).finish()
