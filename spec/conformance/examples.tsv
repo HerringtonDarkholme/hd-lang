@@ -647,6 +647,7 @@ std/time.md	1	accept	runtime/valid/duration-negation.hd|typing/valid/literal-suf
 std/time.md	2	accept	typing/valid/literal-suffix-duration.hd
 std/time.md	3	type-fragment	-
 std/time.md	4	accept	runtime/valid/clock-helpers.hd
+std/time.md	5	accept	runtime/valid/manual-clock.hd
 std/task.md	1	type-fragment	-
 std/task.md	2	accept	runtime/valid/task-retry.hd
 std/task.md	3	type-fragment	-
@@ -674,13 +675,16 @@ std/console.md	4	accept	runtime/valid/console-input-helper.hd
 std/host.md	1	type-fragment	-
 std/host.md	2	type-fragment	-
 std/host.md	3	accept	runtime/valid/host-args-env.hd
+std/host.md	4	accept	runtime/valid/map-args-env.hd
 std/fs.md	1	type-fragment	-
 std/fs.md	2	type-fragment	-
 std/fs.md	3	type-fragment	-
 std/fs.md	4	accept	runtime/valid/fs-helpers.hd
+std/fs.md	5	accept	runtime/valid/memory-fs.hd
 std/path.md	1	accept	typing/valid/path-newtype.hd
 std/random.md	1	type-fragment	-
 std/random.md	2	accept	typing/valid/random-trait.hd
+std/random.md	3	accept	runtime/valid/seeded-random.hd
 std/option.md	1	accept	runtime/valid/option-and-then.hd
 std/option.md	2	accept	runtime/valid/option-tests-conversions.hd
 std/result.md	1	accept	runtime/valid/result-and-then.hd

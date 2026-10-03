@@ -1,7 +1,7 @@
-# std.random: the host capability trait `Random` (spec/std/random.md).
-# No prototype runtime profile binds a host `Random` yet
-# (src/KNOWN_ISSUES.md); `std.testing` implements it with a seeded
-# generator for property tests.
+# std.random: the host capability trait `Random` and its deterministic
+# provider `SeededRandom` (spec/std/random.md). No prototype runtime
+# profile binds a host `Random` yet (src/KNOWN_ISSUES.md); `std.testing`
+# draws a property test's cases from a `SeededRandom`.
 
 # Draws values from a source of randomness (r-std-random.decl). Both
 # methods take `mut self`, so a seeded provider advances its own state
@@ -9,3 +9,60 @@
 pub trait Random:
     fn next_u64(mut self) -> u64
     fn fill(mut self, count: i32) -> List[u8]
+
+# The deterministic `Random` (spec/std/random.md#seeded-random): the same
+# seed gives the same draws (r-std-random.seeded.same-seed). The generator
+# is xoshiro128** 1.0 (Blackman and Vigna): four 32-bit words of state, kept
+# in `u64` values masked to 32 bits, so no operation overflows. `new` fills
+# the state with SplitMix32 from the seed.
+pub data SeededRandom:
+    s0: u64
+    s1: u64
+    s2: u64
+    s3: u64
+
+impl SeededRandom:
+    pub fn new(seed: u64) -> mut SeededRandom:
+        let z: u64 = low32(seed ^ (seed >> 32))
+        z = low32(z + 0x9E3779B9)
+        a := mix32(z)
+        z = low32(z + 0x9E3779B9)
+        b := mix32(z)
+        z = low32(z + 0x9E3779B9)
+        c := mix32(z)
+        z = low32(z + 0x9E3779B9)
+        SeededRandom { s0: a, s1: b, s2: c, s3: mix32(z) }
+
+    fn next32(mut self) -> u64:
+        result := low32(rotl32(low32(self.s1 * 5), 7) * 9)
+        t := low32(self.s1 << 9)
+        self.s2 = self.s2 ^ self.s0
+        self.s3 = self.s3 ^ self.s1
+        self.s1 = self.s1 ^ self.s2
+        self.s0 = self.s0 ^ self.s3
+        self.s2 = self.s2 ^ t
+        self.s3 = rotl32(self.s3, 11)
+        result
+
+impl Random for SeededRandom:
+    fn next_u64(mut self) -> u64:
+        high := self.next32()
+        (high << 32) | self.next32()
+
+    fn fill(mut self, count: i32) -> List[u8]:
+        let bytes: mut List[u8] = []
+        while bytes.len() < count:
+            bytes.append(u8(self.next32() & 0xFF))
+        bytes
+
+fn low32(x: u64) -> u64:
+    x & 0xFFFFFFFF
+
+fn rotl32(x: u64, k: u32) -> u64:
+    low32((x << k) | (x >> (32 - k)))
+
+# SplitMix32's output function, MurmurHash3's 32-bit finalizer.
+fn mix32(z: u64) -> u64:
+    let a: u64 = low32((z ^ (z >> 16)) * 0x85EBCA6B)
+    a = low32((a ^ (a >> 13)) * 0xC2B2AE35)
+    a ^ (a >> 16)

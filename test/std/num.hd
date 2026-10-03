@@ -40,6 +40,10 @@ tests:
         assert_equal((-1).leading_zeros(), 0, reason="the sign bit is set")
         let one: i64 = 1
         assert_equal(one.leading_zeros(), 63, reason="i64 width")
+        let ones: u32 = (-1).count_ones()
+        assert_equal(ones, 32, reason="count_ones returns u32")
+        let eight: i64 = 8
+        assert_equal(one << (63 - eight.leading_zeros()), eight, reason="leading_zeros is a u32 shift count")
 
     it("i64 methods"):
         let largest: i64 = 9223372036854775807

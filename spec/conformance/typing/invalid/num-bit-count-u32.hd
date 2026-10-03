@@ -1,0 +1,5 @@
+# test: count_ones returns u32, so comparing it with a signed operand needs a cast
+# Spec std/num Bit Counts: std-num.bits.count-ones-u32 (BIT-COUNT-U32, task #220).
+
+fn many_flags(flags: u8, limit: i32) -> bool:
+    flags.count_ones() > limit  # diagnostic: mixed-signedness

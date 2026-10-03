@@ -1,0 +1,48 @@
+# std.time ManualClock and std.random SeededRandom, the deterministic providers.
+use std.random.{Random, SeededRandom}
+use std.testing.{assert, assert_equal}
+use std.time.{Clock, Duration, Instant, ManualClock, Timestamp, s}
+
+fn stamp!(pause: Duration) -> Timestamp $ Clock:
+    let mut clock = $.use(Clock)
+    clock.sleep!(pause)
+    clock.now()
+
+fn roll() -> u64 $ Random:
+    $.use(Random).next_u64() % 6 + 1
+
+tests:
+    it("ManualClock starts where it is told and sleep! advances it"):
+        let mut clock = ManualClock::new(Timestamp::from_unix_millis(1000))
+        assert(clock.now() == Timestamp::from_unix_millis(1000), reason="the start")
+        assert(clock.monotonic() == Instant::from_millis(1000), reason="the monotonic origin is the epoch")
+        clock.sleep!(Duration::milliseconds(250))
+        assert(clock.now() == Timestamp::from_unix_millis(1250), reason="sleep! advanced the clock")
+        assert_equal(clock.monotonic().since(Instant::from_millis(1000)).as_milliseconds(), 250, reason="monotonic advanced too")
+
+    it("ManualClock covers a Clock row"):
+        let mut clock = ManualClock::new(Timestamp::from_unix_millis(0))
+        $.with(Clock=clock):
+            assert(stamp!(2s) == Timestamp::from_unix_millis(2000), reason="the row's sleep! advanced it")
+        assert(clock.now() == Timestamp::from_unix_millis(2000), reason="the provider kept its time")
+
+    it("SeededRandom repeats its draws for a seed"):
+        let mut first = SeededRandom::new(42)
+        let mut second = SeededRandom::new(42)
+        let mut other = SeededRandom::new(43)
+        a := first.next_u64()
+        assert_equal(second.next_u64(), a, reason="same seed, same first draw")
+        assert(other.next_u64() != a, reason="another seed draws differently")
+        assert_equal(first.fill(5), second.fill(5), reason="same seed, same bytes")
+        assert_equal(first.fill(3).len(), 3, reason="fill returns count bytes")
+
+    it("SeededRandom covers a Random row"):
+        let mut one = SeededRandom::new(7)
+        let mut two = SeededRandom::new(7)
+        let mut rolls: mut List[u64] = []
+        $.with(Random=one):
+            rolls.append(roll())
+            rolls.append(roll())
+        $.with(Random=two):
+            assert_equal(roll(), rolls[0], reason="replayed first roll")
+            assert_equal(roll(), rolls[1], reason="replayed second roll")

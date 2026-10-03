@@ -8,7 +8,8 @@ ordinary hd over the language tier:
 - the `Duration` type and its public API;
 - the duration suffixes `ms`, `s`, `min`, and `h`;
 - the host capability trait `Clock`, the `Timestamp` and `Instant` types
-  it returns, and the helpers `now` and `sleep!`.
+  it returns, and the helpers `now` and `sleep!`;
+- `ManualClock`, the deterministic `Clock` provider.
 
 The language tier keeps the suffix mechanism
 ([Literal Suffixes](../lang/05-expressions.md#literal-suffixes)):
@@ -114,6 +115,42 @@ fn wait_and_stamp!(pause: Duration) -> Timestamp $ Clock:
 
 1. r[std-time.helper.now] `std.time` declares `pub fn now() -> Timestamp $ Clock`, which returns `now()` of the `Clock` provider that covers the call.
 2. r[std-time.helper.sleep] `std.time` declares `pub fn sleep!(duration: Duration) -> void $ Clock`, which calls `sleep!(duration)` on that provider.
+
+### Manual Clock
+
+`ManualClock` is the deterministic `Clock` provider. Its virtual time
+moves only when code sleeps, and a sleep returns at once:
+
+```text
+use std.testing.assert
+use std.time.{Clock, ManualClock, Timestamp, s}
+
+fn wait_twice!() -> Timestamp $ Clock:
+    let mut clock = $.use(Clock)
+    clock.sleep!(2s)
+    clock.sleep!(3s)
+    clock.now()
+
+tests:
+    it("sleeps in virtual time"):
+        let mut clock = ManualClock::new(Timestamp::from_unix_millis(0))
+        $.with(Clock=clock):
+            assert(wait_twice!() == Timestamp::from_unix_millis(5000), reason="five virtual seconds")
+```
+
+1. r[std-time.manual.decl] `std.time` declares `ManualClock`, which implements `Clock`, with private fields. Code imports it, as in `use std.time.ManualClock`.
+2. r[std-time.manual.state] A `ManualClock`'s only state is its current time, a `Timestamp`.
+3. r[std-time.manual.new] `ManualClock::new(start: Timestamp) -> mut ManualClock` returns a clock whose current time is `start`.
+4. r[std-time.manual.now] `now` returns the current time.
+5. r[std-time.manual.monotonic] `monotonic` returns `Instant::from_millis(m)`, where `m` is the current time in milliseconds since the Unix epoch.
+6. r[std-time.manual.sleep] `sleep!(duration)` completes without waiting. A positive `duration` is added to the current time.
+7. r[std-time.manual.sleep.negative] A `duration` of zero or less leaves the current time unchanged, so the clock never goes backwards.
+8. r[std-time.manual.reads] `now` and `monotonic` never change the current time.
+9. r[std-time.manual.no-host] A `ManualClock` reads nothing from the host's clock.
+
+> **Why.** Virtual time advances by itself: a test of a timeout or a
+> backoff sleeps through it in no real time and needs no extra call. A
+> test that only moves the clock calls `sleep!` on it.
 
 See also: [Host Capabilities](../cli/command-line.md#host-capabilities),
 [Mutable Providers](../lang/11-requirements-and-suspension.md#mutable-providers).

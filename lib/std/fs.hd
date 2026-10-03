@@ -1,0 +1,277 @@
+# std.fs: the host capability traits `FsRead` and `FsWrite`, `FsError`,
+# `Entry`, and the deterministic provider `MemoryFs` (spec/std/fs.md). The
+# prototype's std loader does not list this module yet
+# (src/checker/standard-sources.ts), and no runtime profile binds a host
+# file system. The helpers `read_text!` and `write_text!`
+# (r-std-fs.helper.read-text) are not written yet: the loader renames every
+# top-level name textually (src/checker/standard-library.ts), so a helper
+# cannot share the name of the trait method it calls.
+use std.path.Path
+
+pub enum FsError:
+    NotFound(path: Path)
+    PermissionDenied(path: Path)
+    AlreadyExists(path: Path)
+    NotADirectory(path: Path)
+    IsADirectory(path: Path)
+    InvalidUtf8(path: Path)
+    Other(message: string)
+
+pub enum EntryKind:
+    File
+    Directory
+    Symlink
+
+pub data Entry:
+    pub path: Path
+    pub kind: EntryKind
+    pub size: u64
+
+impl Eq for FsError:
+    fn eq(self, other: FsError) -> bool:
+        fs_error_text(self) == fs_error_text(other)
+
+impl Display for FsError:
+    fn to_string(self) -> string:
+        fs_error_text(self)
+
+fn fs_error_text(error: FsError) -> string:
+    match error:
+        .NotFound(path) => "not found: ${path}"
+        .PermissionDenied(path) => "permission denied: ${path}"
+        .AlreadyExists(path) => "already exists: ${path}"
+        .NotADirectory(path) => "not a directory: ${path}"
+        .IsADirectory(path) => "is a directory: ${path}"
+        .InvalidUtf8(path) => "invalid UTF-8: ${path}"
+        .Other(message) => message
+
+impl Eq for EntryKind:
+    fn eq(self, other: EntryKind) -> bool:
+        entry_kind_rank(self) == entry_kind_rank(other)
+
+fn entry_kind_rank(kind: EntryKind) -> i32:
+    match kind:
+        .File => 0
+        .Directory => 1
+        .Symlink => 2
+
+impl Eq for Entry:
+    fn eq(self, other: Entry) -> bool:
+        self.path == other.path && self.kind == other.kind && self.size == other.size
+
+pub trait FsRead:
+    fn read_bytes!(self, path: Path) -> Result[List[u8], FsError]
+    fn read_text!(self, path: Path) -> Result[string, FsError]
+    fn list_dir!(self, path: Path) -> Result[List[Entry], FsError]
+    fn stat!(self, path: Path) -> Result[Entry?, FsError]
+
+pub trait FsWrite:
+    fn write_bytes!(mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]
+    fn write_text!(mut self, path: Path, text: string) -> Result[void, FsError]
+    fn append_text!(mut self, path: Path, text: string) -> Result[void, FsError]
+    fn create_dir_all!(mut self, path: Path) -> Result[void, FsError]
+    fn remove!(mut self, path: Path) -> Result[void, FsError]
+    fn rename!(mut self, from: Path, to: Path) -> Result[void, FsError]
+
+# The deterministic file system (spec/std/fs.md#memory-file-system). A
+# file's key is its path's text, as written. A directory is a key that
+# `create_dir_all!` made, or the text before a `/` in another key
+# (r-std-fs.memory.dirs).
+pub data MemoryFs:
+    files: mut Map[string, List[u8]]
+    dirs: mut List[string]
+
+impl MemoryFs:
+    pub fn new() -> mut MemoryFs:
+        MemoryFs { files: {}, dirs: [] }
+
+    fn file_at(self, key: string) -> List[u8]?:
+        self.files.get(key)
+
+    # A made directory, or a prefix of a file or a made directory.
+    fn dir_at(self, key: string) -> bool:
+        under := "${key}/"
+        for made in self.dirs:
+            if made == key || made.starts_with(under):
+                return true
+        for (stored, _) in self.files:
+            if stored.starts_with(under):
+                return true
+        false
+
+    # Whether a file's key is a directory above `key`.
+    fn file_above(self, key: string) -> bool:
+        parts := key.split("/")
+        let above = ""
+        let index = 0
+        while index + 1 < parts.len():
+            above = if index == 0: parts[0] else: "${above}/${parts[index]}"
+            match self.file_at(above):
+                .Some(_) => return true
+                .None => pass
+            index = index + 1
+        false
+
+    # The error, if any, of writing a file at `path`.
+    fn write_error(self, path: Path) -> FsError?:
+        key := "${path}"
+        if self.dir_at(key):
+            return .Some(FsError.IsADirectory(path=path))
+        if self.file_above(key):
+            return .Some(FsError.NotADirectory(path=path))
+        .None
+
+impl FsRead for MemoryFs:
+    fn read_bytes!(self, path: Path) -> Result[List[u8], FsError]:
+        key := "${path}"
+        match self.file_at(key):
+            .Some(bytes) => .Ok(bytes)
+            .None => if self.dir_at(key): .Err(FsError.IsADirectory(path=path)) else: .Err(FsError.NotFound(path=path))
+
+    fn read_text!(self, path: Path) -> Result[string, FsError]:
+        bytes := self.read_bytes!(path)?
+        match string::from_utf8(bytes):
+            .Ok(text) => .Ok(text)
+            .Err(_) => .Err(FsError.InvalidUtf8(path=path))
+
+    # The entries directly inside, ordered by their paths' text
+    # (r-std-fs.memory.list-order).
+    fn list_dir!(self, path: Path) -> Result[List[Entry], FsError]:
+        key := "${path}"
+        match self.file_at(key):
+            .Some(_) => return .Err(FsError.NotADirectory(path=path))
+            .None => pass
+        if !self.dir_at(key):
+            return .Err(FsError.NotFound(path=path))
+        under := "${key}/"
+        let names: mut List[string] = []
+        for made in self.dirs:
+            match made.strip_prefix(under):
+                .Some(rest) => names.append(rest.split("/")[0])
+                .None => pass
+        for (stored, _) in self.files:
+            match stored.strip_prefix(under):
+                .Some(rest) => names.append(rest.split("/")[0])
+                .None => pass
+        let entries: mut List[Entry] = []
+        let seen: mut Map[string, bool] = {}
+        for name in names.sorted_by(fn(a: string, b: string) -> Ordering: a.cmp(b)):
+            match seen.get(name):
+                .Some(_) => pass
+                .None =>
+                    seen[name] = true
+                    match self.stat!(Path("${under}${name}"))?:
+                        .Some(entry) => entries.append(entry)
+                        .None => pass
+        .Ok(entries)
+
+    fn stat!(self, path: Path) -> Result[Entry?, FsError]:
+        key := "${path}"
+        match self.file_at(key):
+            .Some(bytes) => .Ok(.Some(Entry { path: path, kind: EntryKind.File, size: u64(bytes.len()) }))
+            .None => if self.dir_at(key): .Ok(.Some(Entry { path: path, kind: EntryKind.Directory, size: 0 })) else: .Ok(.None)
+
+impl FsWrite for MemoryFs:
+    fn write_bytes!(mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]:
+        match self.write_error(path):
+            .Some(error) => return .Err(error)
+            .None => pass
+        self.files["${path}"] = bytes
+        .Ok(())
+
+    fn write_text!(mut self, path: Path, text: string) -> Result[void, FsError]:
+        self.write_bytes!(path, text.to_utf8())
+
+    fn append_text!(mut self, path: Path, text: string) -> Result[void, FsError]:
+        match self.write_error(path):
+            .Some(error) => return .Err(error)
+            .None => pass
+        key := "${path}"
+        let joined: mut List[u8] = []
+        match self.file_at(key):
+            .Some(old) =>
+                for byte in old:
+                    joined.append(byte)
+            .None => pass
+        for byte in text.to_utf8():
+            joined.append(byte)
+        self.files[key] = joined
+        .Ok(())
+
+    fn create_dir_all!(mut self, path: Path) -> Result[void, FsError]:
+        key := "${path}"
+        match self.file_at(key):
+            .Some(_) => return .Err(FsError.NotADirectory(path=path))
+            .None => pass
+        if self.file_above(key):
+            return .Err(FsError.NotADirectory(path=path))
+        # Records `path` and every directory above it, so each outlives
+        # the removal of what is inside it.
+        parts := key.split("/")
+        let level = ""
+        let index = 0
+        while index < parts.len():
+            level = if index == 0: parts[0] else: "${level}/${parts[index]}"
+            let known = level == ""
+            for made in self.dirs:
+                if made == level:
+                    known = true
+            if !known:
+                self.dirs.append(level)
+            index = index + 1
+        .Ok(())
+
+    fn remove!(mut self, path: Path) -> Result[void, FsError]:
+        key := "${path}"
+        match self.file_at(key):
+            .Some(_) =>
+                _ := self.files.remove(key)
+                return .Ok(())
+            .None => pass
+        if !self.dir_at(key):
+            return .Err(FsError.NotFound(path=path))
+        if self.list_dir!(path)?.len() > 0:
+            return .Err(FsError.Other(message="directory not empty: ${path}"))
+        let kept: mut List[string] = []
+        for made in self.dirs:
+            if made != key:
+                kept.append(made)
+        self.dirs = kept
+        .Ok(())
+
+    # Moves the file or directory at `from`, with every key under it
+    # (r-std-fs.memory.rename).
+    fn rename!(mut self, from: Path, to: Path) -> Result[void, FsError]:
+        source := "${from}"
+        target := "${to}"
+        if !self.dir_at(source):
+            match self.file_at(source):
+                .Some(bytes) =>
+                    match self.write_error(to):
+                        .Some(error) => return .Err(error)
+                        .None => pass
+                    _ := self.files.remove(source)
+                    self.files[target] = bytes
+                    return .Ok(())
+                .None => return .Err(FsError.NotFound(path=from))
+        match self.file_at(target):
+            .Some(_) => return .Err(FsError.NotADirectory(path=to))
+            .None => pass
+        if self.file_above(target):
+            return .Err(FsError.NotADirectory(path=to))
+        under := "${source}/"
+        let moved: mut List[(string, List[u8])] = []
+        for (stored, bytes) in self.files:
+            if stored.starts_with(under):
+                moved.append((stored, bytes))
+        for (stored, bytes) in moved:
+            _ := self.files.remove(stored)
+            self.files["${target}${stored.slice(source.len(), stored.len())}"] = bytes
+        let renamed: mut List[string] = []
+        for made in self.dirs:
+            if made == source || made.starts_with(under):
+                renamed.append("${target}${made.slice(source.len(), made.len())}")
+            else:
+                renamed.append(made)
+        self.dirs = renamed
+        .Ok(())

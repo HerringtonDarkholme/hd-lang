@@ -1,4 +1,6 @@
-# std.time: `Duration` and its literal suffixes (spec/std/time.md).
+# std.time: `Duration` and its literal suffixes, the host capability
+# `Clock` with `Timestamp` and `Instant`, and the
+# deterministic `ManualClock` (spec/std/time.md).
 # A `Duration` is a whole number of
 # milliseconds in an `i64` (r-std-time.suffix.std.duration), and its public API is
 # `milliseconds`, `seconds`, and `as_milliseconds` (r-std-time.suffix.std.duration-api);
@@ -42,3 +44,89 @@ pub fn min(count: i64) -> Duration:
 @num_suffix
 pub fn h(count: i64) -> Duration:
     Duration::seconds(count * 3600)
+
+# The host capability that reads time and waits (spec/std/time.md#clock).
+# `sleep!` takes `mut self`, so a provider may advance its own time
+# (r-std-time.clock.mut).
+pub trait Clock:
+    fn now(self) -> Timestamp
+    fn monotonic(self) -> Instant
+    fn sleep!(mut self, duration: Duration) -> void
+
+# Whole milliseconds since the Unix epoch, in UTC (r-std-time.timestamp.decl).
+pub data Timestamp:
+    millis: i64
+
+impl Timestamp:
+    pub fn from_unix_millis(millis: i64) -> Timestamp:
+        Timestamp { millis: millis }
+
+    # Negative when `earlier` is the later one (r-std-time.timestamp.since).
+    pub fn since(self, earlier: Timestamp) -> Duration:
+        Duration::milliseconds(self.millis - earlier.millis)
+
+impl Eq for Timestamp:
+    fn eq(self, other: Timestamp) -> bool:
+        self.millis == other.millis
+
+impl PartialOrd for Timestamp:
+    fn partial_cmp(self, other: Timestamp) -> Ordering?:
+        .Some(self.millis.cmp(other.millis))
+
+impl Ord for Timestamp:
+    fn cmp(self, other: Timestamp) -> Ordering:
+        self.millis.cmp(other.millis)
+
+# Whole milliseconds since an origin that the provider chooses
+# (r-std-time.instant.decl).
+pub data Instant:
+    millis: i64
+
+impl Instant:
+    pub fn from_millis(millis: i64) -> Instant:
+        Instant { millis: millis }
+
+    pub fn since(self, earlier: Instant) -> Duration:
+        Duration::milliseconds(self.millis - earlier.millis)
+
+impl Eq for Instant:
+    fn eq(self, other: Instant) -> bool:
+        self.millis == other.millis
+
+impl PartialOrd for Instant:
+    fn partial_cmp(self, other: Instant) -> Ordering?:
+        .Some(self.millis.cmp(other.millis))
+
+impl Ord for Instant:
+    fn cmp(self, other: Instant) -> Ordering:
+        self.millis.cmp(other.millis)
+
+# The helpers `now` and `sleep!` (r-std-time.helper.now) are not written
+# yet: the prototype's std loader renames every top-level name textually
+# (src/checker/standard-library.ts), so a helper cannot share the name of
+# the `Clock` method it calls.
+
+# The deterministic `Clock` (spec/std/time.md#manual-clock): its current
+# time is its whole state. Virtual time advances only by `sleep!`, which
+# returns at once (r-std-time.manual.sleep).
+pub data ManualClock:
+    current: Timestamp
+
+impl ManualClock:
+    pub fn new(start: Timestamp) -> mut ManualClock:
+        ManualClock { current: start }
+
+impl Clock for ManualClock:
+    fn now(self) -> Timestamp:
+        self.current
+
+    # The monotonic origin is the Unix epoch (r-std-time.manual.monotonic).
+    fn monotonic(self) -> Instant:
+        Instant::from_millis(self.current.millis)
+
+    # A duration of zero or less leaves the time as it is, so the clock
+    # never goes backwards (r-std-time.manual.sleep.negative).
+    fn sleep!(mut self, duration: Duration) -> void:
+        step := duration.as_milliseconds()
+        if step > 0:
+            self.current = Timestamp::from_unix_millis(self.current.millis + step)

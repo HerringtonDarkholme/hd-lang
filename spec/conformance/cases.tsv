@@ -1986,3 +1986,9 @@ runtime/valid/num-bit-counts.hd	runtime	accept	std/num.md#bit-counts
 runtime/valid/num-is-finite.hd	runtime	accept	std/num.md#r-std-num.is-finite
 runtime/valid/println-pending-write.hd	runtime	accept	lang/10-modules.md#r-module.console.println-drive.pending
 runtime/valid/block-on-pending-write.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on
+typing/invalid/num-bit-count-u32.hd	type	reject:mixed-signedness	std/num.md#r-std-num.bits.count-ones-u32
+runtime/valid/seeded-random.hd	runtime	accept	std/random.md#seeded-random
+runtime/valid/manual-clock.hd	runtime	accept	std/time.md#manual-clock
+runtime/valid/map-args-env.hd	runtime	accept	std/host.md#map-providers
+runtime/valid/memory-fs.hd	runtime	accept	std/fs.md#memory-file-system
+runtime/valid/memory-fs-directories.hd	runtime	accept	std/fs.md#r-std-fs.memory.dirs

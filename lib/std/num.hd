@@ -177,9 +177,9 @@ impl[N < Integer] N:
             .Some(difference) => difference
             .None => if other > N::zero(): int_min::[N]() else: int_max::[N]()
 
-    pub fn count_ones(self) -> i32:
+    pub fn count_ones(self) -> u32:
         zero := N::zero()
-        let count = 0
+        let count: u32 = 0
         let bit = N::one()
         while bit != zero:
             if (self & bit) != zero:
@@ -188,9 +188,9 @@ impl[N < Integer] N:
         count
 
     # Read from the low bit up: a set bit resets the count of zeros above it.
-    pub fn leading_zeros(self) -> i32:
+    pub fn leading_zeros(self) -> u32:
         zero := N::zero()
-        let zeros = 0
+        let zeros: u32 = 0
         let bit = N::one()
         while bit != zero:
             zeros = if (self & bit) != zero: 0 else: zeros + 1

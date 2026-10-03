@@ -1,0 +1,75 @@
+# test: MemoryFs directories follow from file paths and create_dir_all!, list in byte order, and move and fail as the chapter's table says
+# Spec std/fs Memory File System: std-fs.memory.dirs, std-fs.memory.create-dir-all, std-fs.memory.entry, std-fs.memory.list-order, std-fs.memory.rename, and the std-fs.memory.error rows (PROVIDER-SHAPES; task #220).
+use std.fs.{Entry, EntryKind, FsError, MemoryFs}
+use std.path.Path
+use std.testing.{assert, assert_equal}
+
+fn listed!(files: MemoryFs, path: string) -> List[Entry]:
+    match files.list_dir!(Path(path)):
+        .Ok(entries) => entries
+        .Err(_) => []
+
+fn failure(result: Result[void, FsError]) -> FsError?:
+    match result:
+        .Ok(()) => .None
+        .Err(error) => .Some(error)
+
+fn is_error(found: FsError?, expected: FsError) -> bool:
+    match found:
+        .Some(error) => error == expected
+        .None => false
+
+fn kind_is!(files: MemoryFs, path: string, kind: EntryKind) -> bool:
+    match files.stat!(Path(path)):
+        .Ok(found) =>
+            match found:
+                .Some(entry) => entry.kind == kind
+                .None => false
+        .Err(_) => false
+
+fn is_other(found: FsError?) -> bool:
+    match found:
+        .Some(error) =>
+            match error:
+                .Other(_) => true
+                _ => false
+        .None => false
+
+tests:
+    it("a file makes the directories above it"):
+        let mut files = MemoryFs::new()
+        assert(files.write_text!(Path("notes/b.txt"), "bb").is_ok(), reason="b")
+        assert(files.write_text!(Path("notes/a.txt"), "a").is_ok(), reason="a")
+        assert(files.write_text!(Path("notes/deep/c.txt"), "c").is_ok(), reason="c")
+        entries := listed!(files, "notes")
+        assert_equal(entries.len(), 3, reason="two files and a directory")
+        assert(entries[0].path == Path("notes/a.txt") && entries[0].kind == EntryKind.File, reason="byte order, first")
+        assert_equal(entries[1].size, 2, reason="b.txt holds two bytes")
+        assert(entries[2].path == Path("notes/deep") && entries[2].kind == EntryKind.Directory, reason="a directory entry")
+        assert_equal(entries[2].size, 0, reason="a directory's size")
+
+    it("create_dir_all! keeps every directory it made"):
+        let mut files = MemoryFs::new()
+        assert(files.create_dir_all!(Path("out/deep")).is_ok(), reason="made")
+        assert(is_other(failure(files.remove!(Path("out")))), reason="out is not empty")
+        assert(files.remove!(Path("out/deep")).is_ok(), reason="an empty directory")
+        assert(kind_is!(files, "out", EntryKind.Directory), reason="out stays")
+        assert_equal(listed!(files, "out").len(), 0, reason="out is empty")
+
+    it("rename! moves a directory with its entries"):
+        let mut files = MemoryFs::new()
+        assert(files.write_text!(Path("notes/a.txt"), "a").is_ok(), reason="seeded")
+        assert(files.rename!(Path("notes"), Path("docs")).is_ok(), reason="moved")
+        assert(files.read_text!(Path("docs/a.txt")).unwrap_or("") == "a", reason="the file moved too")
+        assert(kind_is!(files, "docs", EntryKind.Directory), reason="docs is a directory")
+        assert(files.stat!(Path("notes")).unwrap_or(.None).is_none(), reason="nothing left behind")
+
+    it("reports the table's errors"):
+        let mut files = MemoryFs::new()
+        assert(files.write_text!(Path("a.txt"), "x").is_ok(), reason="a file")
+        assert(files.create_dir_all!(Path("dir")).is_ok(), reason="a directory")
+        assert(is_error(failure(files.remove!(Path("gone"))), FsError.NotFound(path=Path("gone"))), reason="nothing there")
+        assert(is_error(failure(files.write_text!(Path("dir"), "y")), FsError.IsADirectory(path=Path("dir"))), reason="a directory as a file")
+        assert(is_error(failure(files.write_text!(Path("a.txt/b"), "y")), FsError.NotADirectory(path=Path("a.txt/b"))), reason="a file as a directory")
+        assert(is_error(failure(files.create_dir_all!(Path("a.txt"))), FsError.NotADirectory(path=Path("a.txt"))), reason="a directory at a file's path")
+        assert(is_error(failure(files.rename!(Path("dir"), Path("a.txt"))), FsError.NotADirectory(path=Path("a.txt"))), reason="a directory onto a file")

@@ -8,7 +8,7 @@
 use std.format.debug
 use std.hash.Hash
 use std.num.{Float, Integer, parse_i64}
-use std.random.Random
+use std.random.{Random, SeededRandom}
 use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
 use std.testing.arbitrary.With
 use std.process.Process
@@ -50,7 +50,7 @@ pub trait PropertyRunner:
 # through the case's `PropertyRunner`, which returns an integer from 0 to a
 # bound, and a replayed or shrunk case returns the recorded values
 # (src/property-tests.ts). A generated case offers each draw from a
-# `Random` that the runner's seed starts (r-std-testing.runner.random). Once
+# `SeededRandom` that the runner's seed starts (r-std-testing.runner.random). Once
 # a case's draws have spent the draw budget, every member returns its
 # simplest value without drawing (spec/std/testing.md#draw-budget).
 pub data Choices:
@@ -198,63 +198,6 @@ impl Choices:
             entries[drawn] = V::arbitrary(self)
             index = index + 1
         entries
-
-# xoshiro128** 1.0 (Blackman and Vigna), the generator of a property's
-# random draws: four 32-bit words of state, kept in `u64` values masked to
-# 32 bits, so no operation overflows. `seeded` fills the state with
-# SplitMix32 from the runner's seed (r-std-testing.runner.random).
-data Xoshiro128:
-    s0: u64
-    s1: u64
-    s2: u64
-    s3: u64
-
-impl Xoshiro128:
-    fn seeded(seed: i64) -> mut Xoshiro128:
-        let wide: u64 = u64(seed)
-        let z: u64 = low32(wide ^ (wide >> 32))
-        z = low32(z + 0x9E3779B9)
-        a := mix32(z)
-        z = low32(z + 0x9E3779B9)
-        b := mix32(z)
-        z = low32(z + 0x9E3779B9)
-        c := mix32(z)
-        z = low32(z + 0x9E3779B9)
-        Xoshiro128 { s0: a, s1: b, s2: c, s3: mix32(z) }
-
-    fn next32(mut self) -> u64:
-        result := low32(rotl32(low32(self.s1 * 5), 7) * 9)
-        t := low32(self.s1 << 9)
-        self.s2 = self.s2 ^ self.s0
-        self.s3 = self.s3 ^ self.s1
-        self.s1 = self.s1 ^ self.s2
-        self.s0 = self.s0 ^ self.s3
-        self.s2 = self.s2 ^ t
-        self.s3 = rotl32(self.s3, 11)
-        result
-
-impl Random for Xoshiro128:
-    fn next_u64(mut self) -> u64:
-        high := self.next32()
-        (high << 32) | self.next32()
-
-    fn fill(mut self, count: i32) -> List[u8]:
-        let bytes: mut List[u8] = []
-        while bytes.len() < count:
-            bytes.append(u8(self.next32() & 0xFF))
-        bytes
-
-fn low32(x: u64) -> u64:
-    x & 0xFFFFFFFF
-
-fn rotl32(x: u64, k: u32) -> u64:
-    low32((x << k) | (x >> (32 - k)))
-
-# SplitMix32's output function, MurmurHash3's 32-bit finalizer.
-fn mix32(z: u64) -> u64:
-    let a: u64 = low32((z ^ (z >> 16)) * 0x85EBCA6B)
-    a = low32((a ^ (a >> 13)) * 0xC2B2AE35)
-    a ^ (a >> 16)
 
 # The `i64` value of an integer. A `u64` above the largest `i64` reads as
 # the largest `i64`, so the prototype never draws it.
@@ -463,7 +406,7 @@ fn prop_with_case![T < Debug, R, $Q](cases: i32, shrink: i32, gen: fn(mut Choice
 # value, so a generator draws through it with no requirement row
 # (r-std-testing.runner.choices).
 fn choices(runner: mut PropertyRunner) -> mut Choices:
-    Choices { runner: runner, random: Xoshiro128::seeded(runner.seed()), size: runner.size(), draws: 0 }
+    Choices { runner: runner, random: SeededRandom::new(u64(runner.seed())), size: runner.size(), draws: 0 }
 
 # The body of a timed `it` test case, after `case_timeout`: the written
 # body as a closure, so the runner's `TestRunner` covers only the test

@@ -126,20 +126,28 @@ fn close(a: i32, b: i32, limit: i32) -> bool:
 The bit counts read the two's-complement form of an integer:
 
 ```text
-fn flags_set(flags: u8) -> i32:
+fn flags_set(flags: u8) -> u32:
     flags.count_ones()
 
-fn bit_length(value: u32) -> i32:
+fn bit_length(value: u32) -> u32:
     32 - value.leading_zeros()
+
+fn drop_flagged(value: u64, flags: u8) -> u64:
+    value >> flags.count_ones()  # a u32 shift count, no cast
 ```
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-num.bits.count-ones] `count_ones` | `fn count_ones(self) -> i32` | the number of 1 bits in `self` |
-| r[std-num.bits.leading-zeros] `leading_zeros` | `fn leading_zeros(self) -> i32` | the number of 0 bits above the highest 1 bit of `self`, which is the bit width of `N` when `self` is zero |
+| r[std-num.bits.count-ones-u32] `count_ones` | `fn count_ones(self) -> u32` | the number of 1 bits in `self` |
+| r[std-num.bits.leading-zeros-u32] `leading_zeros` | `fn leading_zeros(self) -> u32` | the number of 0 bits above the highest 1 bit of `self`, which is the bit width of `N` when `self` is zero |
 
 1. r[std-num.bits.signed] A signed value counts its two's-complement bits, so `-1` as `i8` has 8 ones, and a negative value has no leading zeros.
 2. r[std-num.bits.no-panic] A bit count never panics.
+
+> **Why.** A shift count is a `u32`
+> ([`expr.op.std.shift-u32`](../lang/05-expressions.md#r-expr.op.std.shift-u32)),
+> so a bit count feeds a shift without a cast. Rust's `count_ones` and
+> `leading_zeros` return `u32` too.
 
 ## Floating-Point Classification
 

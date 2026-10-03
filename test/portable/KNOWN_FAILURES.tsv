@@ -71,8 +71,8 @@ typing/invalid/handle-fact-pattern-mismatch.hd	check reports type-mismatch on th
 typing/invalid/option-invariant.hd	check exits 0: the prototype writes (mut User)? and mut User? as one type, so weakening the outer view lets (mut User)? become User? (types.option.invariant)	VARIANCE-UNWRAP
 runtime/valid/default-hasher.hd	check reports unknown-import: std.hash declares no DefaultHasher or hash_of yet, task #196 (std-hash.default.algorithm)	DEFAULT-HASHER
 runtime/valid/hash-of-reference-values.hd	check reports unknown-import: std.hash declares no hash_of yet, task #196 (std-hash.bytes.sequence)	DEFAULT-HASHER
-runtime/valid/retry-with-backoff.hd	check reports unknown-import: std.task has no Backoff or retry_with, and std.time no Clock, Timestamp, or Instant (std-task.retry-with.loop)	HOST-CATALOG
-runtime/valid/clock-helpers.hd	check reports unknown-import: std.time has no Clock, Timestamp, Instant, now, or sleep (std-time.helper.now)	HOST-CATALOG
+runtime/valid/retry-with-backoff.hd	check reports unknown-import: std.task has no Backoff or retry_with (std-task.retry-with.loop)	HOST-CATALOG
+runtime/valid/clock-helpers.hd	check reports unknown-import: std.time has no now or sleep helper, since the prototype's std loader renames top-level names textually and a helper would rename its Clock method too (std-time.helper.now)	HOST-CATALOG
 runtime/valid/eprintln-error-line.hd	check reports unknown-import: std.console has no eprintln, and Console has no write_error_line! (std-console.eprintln.write)	HOST-CATALOG
 runtime/valid/console-error-line-default.hd	check reports unknown-method: the prototype's Console has no write_error_line! (module.console.write-error-line.default)	HOST-CATALOG
 typing/invalid/eprintln-without-console.hd	check reports unknown-import, not missing-requirement: std.console has no eprintln (std-console.eprintln.row)	HOST-CATALOG
@@ -93,3 +93,6 @@ runtime/panic/host-result-out-of-range.hd	check exits 2 with usage text: the mis
 typing/valid/expect-panic-host-contract.hd	check reports unknown-panic-category: the prototype does not know the host-contract category (flow.panic.stable-categories)	HOST-CONTRACT
 runtime/valid/println-pending-write.hd	check exits 2 with usage text: the pending-write profile does not exist	PENDING-WRITE
 runtime/valid/block-on-pending-write.hd	check exits 2 with usage text: the pending-write profile does not exist	PENDING-WRITE
+runtime/valid/map-args-env.hd	check reports unknown-module: lib/std/host.hd declares MapArgs and MapEnv, but the prototype's std loader does not list std.host (std-host.map-args.new)	HOST-CATALOG
+runtime/valid/memory-fs.hd	check reports unknown-module: lib/std/fs.hd declares MemoryFs, but the prototype's std loader lists neither std.fs nor std.path, and fs.hd lacks the read_text and write_text helpers (std-fs.memory.new)	HOST-CATALOG
+runtime/valid/memory-fs-directories.hd	check reports unknown-module: lib/std/fs.hd declares MemoryFs, but the prototype's std loader lists neither std.fs nor std.path (std-fs.memory.dirs)	HOST-CATALOG

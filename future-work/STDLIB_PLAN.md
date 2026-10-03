@@ -2,9 +2,10 @@
 
 Status: research, 2026-10-02 (task #172). Nothing here is accepted
 behavior except where a note links the specification. Spec pass 64
-(2026-10-02) applied the answers to [Q1 to Q6](#questions-for-the-owner)
-and part of the [Earlier Owner Decisions](#earlier-owner-decisions); every
-other module sketch below is still a proposal for the owner.
+(2026-10-02) applied the owner's answers to this plan's six questions and
+part of the [Earlier Owner Decisions](#earlier-owner-decisions), and spec
+pass 70 applied decisions 4 and 10; every other module sketch below is
+still a proposal for the owner.
 
 Under review: the stdlib tier ([spec/std/](../spec/std/README.md)), the
 library itself ([lib/std/](../lib/std/)), the host rules of
@@ -34,9 +35,8 @@ every feature belongs in `std`.
 7. [A Script With The Proposed Surface](#a-script-with-the-proposed-surface)
 8. [The Effect Review](#the-effect-review)
 9. [Ranked Rollout](#ranked-rollout)
-10. [Questions For The Owner](#questions-for-the-owner)
-11. [Sources](#sources)
-12. [Parse Log](#parse-log)
+10. [Sources](#sources)
+11. [Parse Log](#parse-log)
 
 ## Findings In Brief
 
@@ -74,14 +74,16 @@ every feature belongs in `std`.
 | `std.option`, `std.result` | `map`, `and_then`, `unwrap_or`, `ok_or`, `expect`, `map_err`, `ok`, `err`, `is_*` | [option.md](../spec/std/option.md), [result.md](../spec/std/result.md) | `map` on `T?` is in [iter.md](../spec/std/iter.md#list-and-optional-map) |
 | `std.num` | numeric traits; checked, wrapping, and saturating ops, `abs_diff`, `count_ones`, and `leading_zeros` on every integer type; `is_nan`, `is_finite`; `parse_i32`, `parse_i64` | [num.md](../spec/std/num.md); the traits are language tier | no `parse_f64`, no fixed-point float text |
 | `std.cmp`, `std.hash`, `std.format`, `std.ops` | comparison, hashing, `Display`, `Debug`, operators, `Default` | [cmp.md](../spec/std/cmp.md), [hash.md](../spec/std/hash.md), [format.md](../spec/std/format.md), [ops.md](../spec/std/ops.md) | no standard `Hasher`, no digest |
-| `std.time` | `Duration` (milliseconds), suffixes `ms`, `s`, `min`, `h` | [time.md](../spec/std/time.md) | no `Clock`, `Timestamp`, arithmetic, `Ord`, or `Display` |
+| `std.time` | `Duration` (milliseconds), suffixes `ms`, `s`, `min`, `h`; `Clock`, `Timestamp`, `Instant`, `ManualClock` | [time.md](../spec/std/time.md) | no `now` or `sleep!` helper, `Duration` arithmetic, `Ord`, or `Display` |
 | `std.task` | `race!`, `retry!` in hd; `all!`, `block_on` intrinsic | [task.md](../spec/std/task.md) | no `sleep!`, `timeout!`, backoff |
 | `std.console` | `Console`, `println`, `ConsoleInput`, `BufferConsole` | none (language tier) | no standard error; no profile binds `ConsoleInput` |
 | `std.process` | `ExitCode`, `Termination`, `Process.run!`, `ScriptedProcess` | none (language tier) | no profile binds `Process`; no working directory or environment |
 | `std.resource` | `ResourceError[E]` | none | no handle type uses it yet |
 | `std.error` | not in `lib/std` (compiler-declared `Error`) | none | `chain` and `report_of` are named by [Entry Results](../spec/lang/10-modules.md#entry-results) and the boundary Note, but not written |
 | `std.testing`, `std.structure`, `std.inspect`, `std.annotation`, `std.function` | test, derivation, and type-identity support | [testing.md](../spec/std/testing.md) | complete for their purpose |
-| absent | args, env, fs, path, json, random, encoding, digest, cli, log, http, regex | none | the gap this plan covers |
+| `std.random` | `Random`, `SeededRandom` | [random.md](../spec/std/random.md) | no `Rng` helpers |
+| `std.host`, `std.fs`, `std.path` | `Args`, `Env`, `MapArgs`, `MapEnv`; `FsRead`, `FsWrite`, `FsError`, `MemoryFs`; `Path` | [host.md](../spec/std/host.md), [fs.md](../spec/std/fs.md), [path.md](../spec/std/path.md) | the prototype's std loader lists none of the three; no `read_text!` or `write_text!` helper |
+| absent | json, encoding, digest, cli, log, http, regex | none | the gap this plan covers |
 
 The prototype also lacks two things scripts need: `hd FILE` itself
 (known failure `CLI-ENTRY`), and the inferred row of a script's top level
@@ -130,6 +132,13 @@ specification:
 | Q21 | `Eq` on the new value types; `Ord` on `Duration`, `Timestamp`, and `Instant`; `Display` on `FsError`: [Time](../spec/std/time.md), [Fs](../spec/std/fs.md#file-system-errors) |
 | 2026-09-29 | `lines()` follows Rust: [Text](../spec/std/text.md#string-methods) |
 
+Spec pass 70 applied two more:
+
+| # | Applied in |
+| --- | --- |
+| 4 | the deterministic providers, each beside its trait: [Map Providers](../spec/std/host.md#map-providers), [Manual Clock](../spec/std/time.md#manual-clock), [Memory File System](../spec/std/fs.md#memory-file-system), [Seeded Random](../spec/std/random.md#seeded-random); a test names the providers it needs in `$.with(...)` |
+| 10 | `sleep!` on a `ManualClock` returns at once and advances its time: [Manual Clock](../spec/std/time.md#manual-clock) |
+
 The rest are listed in [Decided, Not Yet Applied](#decided-not-yet-applied).
 
 ## Decided, Not Yet Applied
@@ -139,10 +148,8 @@ design it names.
 
 | Decision | Decided | What it says | Waits for |
 | --- | --- | --- | --- |
-| 4 | 2026-09-26 | each host trait's deterministic provider lives beside it, as `std.time.ManualClock`; `std.testing.hermetic()` bundles them | the providers' design: `ManualClock`, `MapArgs`, `MapEnv`, `MemoryFs`, `SeededRandom` |
 | 5 | 2026-09-26 | a library `std.bytes.Bytes`, readonly and compact, convertible to and from `List[u8]` | a use that `List[u8]` serves badly |
 | 9 | 2026-09-26 | `decimal` is the only number type past the primitives; `BigInt` is a package | a `decimal` design |
-| 10 | 2026-09-26 | virtual time auto-advances: `sleep!` on a manual clock returns at once | `ManualClock` (decision 4) |
 | 11 | 2026-09-26 | tasks are structured scopes only: `scope!`, `start`, `join!`; no detached spawn | a new polling intrinsic, a language-tier item |
 | 12 | 2026-09-26 | `Secret[T]` is removed for now | nothing: it removes a draft, so no spec text follows |
 | 13 | 2026-09-26 | an untyped `std.json.Json` with one `Number` type modeled on `serde_json::Number` | a `std.json` chapter (tier 6) |
@@ -278,7 +285,7 @@ pub fn env(name: string) -> string? $ Env:
     $.use(Env).get(name)
 ```
 
-Depends on: the first host catalog ([Question 2](#q2-the-first-host-catalog)).
+Depends on: the first host catalog, now [Host Capabilities](../spec/cli/command-line.md#host-capabilities).
 The prototype's host bridge carries scalars and strings only, so `list`
 needs a small hook that returns `List[string]`.
 
@@ -307,7 +314,7 @@ pub fn read_all!() -> string $ ConsoleInput:
 ```
 
 `eprintln` drives its write with `block_on`, exactly as `println` does.
-Depends on: [Question 4](#q4-standard-error).
+Depends on: the standard error decision, now [Standard Error](../spec/std/console.md#standard-error).
 
 ### Files And Paths
 
@@ -595,7 +602,7 @@ pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]:
 ```
 
 `to_fixed` and `parse_f64` need host hooks beside the existing
-`format_f64`. Regex is [Question 6](#q6-regular-expressions).
+`format_f64`. Regex is tier 11 of the [Ranked Rollout](#ranked-rollout).
 
 ### Collections And Iterators
 
@@ -991,14 +998,14 @@ host also add a prototype host binding, a minimal TypeScript hook.
 
 | Tier | Contents | Depends on | Value for scripts |
 | --- | --- | --- | --- |
-| 1 | `std.host` `Args`, `Env`, `MapArgs`, `MapEnv`, `args()`, `env()`; `ErrorConsole`, `eprintln`, `read_line!`, `read_all!` | [Q2](#q2-the-first-host-catalog), [Q4](#q4-standard-error); a `List[string]` result on the host bridge | a script can take input and report errors |
+| 1 | `std.host` `Args`, `Env`, `MapArgs`, `MapEnv`, `args()`, `env()`; `ErrorConsole`, `eprintln`, `read_line!`, `read_all!` | [Host Capabilities](../spec/cli/command-line.md#host-capabilities), [Standard Error](../spec/std/console.md#standard-error); a `List[string]` result on the host bridge | a script can take input and report errors |
 | 2 | `std.path` `Path`; `std.fs` `FsRead`, `FsWrite`, `FsError`, `MemoryFs`, `read_text!`, `write_text!`, `walk!`, `glob!` | tier 1's catalog; a Node `fs` binding in the prototype | a script can read and write files |
 | 3 | collections and iterators: decided `Map` and `and_then` items, the `List`, `Iterator`, `Set`, and `counts` helpers | a list-truncate hook for `pop`, `remove_at`, `clear` | data shaping without hand loops |
 | 4 | `std.error` helpers; `Duration` operators and `Display`; `Clock`, `Timestamp`, `Instant`, `ManualClock`, `now()`, `sleep!` | the catalog for `Clock` | timing, error reports |
 | 5 | text helpers, `to_fixed`, `parse_f64`; `std.encoding` hex and base64; `std.digest` SHA-256 | two float hooks | formatting, checksums |
 | 6 | `std.json` `Json`, `Number`, `parse`, `Display`, `pretty`, accessors | tier 5's `parse_f64` | reading and writing JSON |
 | 7 | `ToJson` and `FromJson` templates; `encode`, `decode` | tier 6 | typed JSON |
-| 8 | `timeout!`, `Backoff`, `retry_with!`, `all_list!`, `map_limited!` | tier 4's `Clock`; [Q5](#q5-retry-and-backoff) | robust automation |
+| 8 | `timeout!`, `Backoff`, `retry_with!`, `all_list!`, `map_limited!` | tier 4's `Clock`; [Retry With Backoff](../spec/std/task.md#retry-with-backoff) | robust automation |
 | 9 | `std.random` `Rng`, `Random`, `SeededRandom`; `std.cli` `parse_args`, `usage` | tier 1's `Args`; `u64` wrapping arithmetic | real command-line tools |
 | 10 | RFC 3339 and UTC `Date`; `Deque`, `Heap` | tier 4 | dates in logs and file names |
 | 11 | `std.regex`: the RE2 subset, linear time, no backreferences, written in hd (about two hours) | tier 10 | filtering lines by pattern |
@@ -1018,155 +1025,6 @@ Later, blocked:
 
 Tier 3 needs no host decision, so it can run first if the catalog
 question waits.
-
-## Questions For The Owner
-
-Batch 64 (2026-10-02) answered all six. Each answer is under its
-question.
-
-### Q1. The Earlier Std Decisions
-
-**Decided** (STD-1): they still stand. The pure spec text went into
-`spec/std`, and the rest is in
-[Decided, Not Yet Applied](#decided-not-yet-applied).
-
-**Effect.** The decisions in [Earlier Owner Decisions](#earlier-owner-decisions)
-exist only in git history, so the next std agent may contradict them.
-
-Options: (a) they still stand; record the unapplied ones in
-[Open Issues](OPEN_ISSUES.md) as decided and unapplied; (b) they stand,
-and this plan is their only record; (c) they are void, and each comes back
-as a new question.
-
-**Recommendation:** (a). Each is a small, already-made call, and Open
-Issues is the backlog the shared rules name.
-
-```text
-let names: Map[string, i32] = {"a": 1}
-let present = names.contains_key("a")  # Q16, decided 2026-09-29
-```
-
-### Q2. The First Host Catalog
-
-**Decided** (STD-2): (a), without `ErrorConsole` (see Q4). Applied in
-[Host Capabilities](../spec/cli/command-line.md#host-capabilities).
-
-**Effect.** Without a catalog, no script can read arguments, files, or the
-clock, and `cli.host.entry-row` binds only `Console`.
-
-Options: (a) the default profile for `hd FILE`, `hd run`, and tasks binds
-`Args`, `Env`, `ErrorConsole`, `ConsoleInput`, `Clock`, `Random`,
-`FsRead`, and `FsWrite`; the row of the entry point still limits what a
-program gets; (b) the same, without `FsWrite` and `Random` until later;
-(c) a per-command flag such as Deno's `--allow-read`.
-
-**Recommendation:** (a). The row already states the authority, which is
-what Deno's flags state, and [`cli.host.entry-row`](../spec/cli/command-line.md#r-cli.host.entry-row)
-says no flag repeats it. `Process` and `Http` follow later, as host
-extensions.
-
-```text
-pub fn main!() -> void $ Args + FsRead + Console:
-    pass
-```
-
-### Q3. Free Helpers Over Capability Traits
-
-**Decided** (STD-3): (a). Every I/O helper is a bang function, and no
-non-suspending wrapper exists.
-
-**Effect.** With traits only, every call is
-`$.use(FsRead).read_text!(path)`; scripts are mostly such calls.
-
-Options: (a) each module adds free functions over its trait, as
-`println` is over `Console`: `read_text!(path)`, `args()`, `now()`;
-(b) also non-suspending wrappers through `block_on`, so a script's top
-level can read files without `main!`; (c) trait methods only.
-
-**Recommendation:** (a). It matches `println` and Go's `os.ReadFile`, and
-adds no mechanism. (b) would give each I/O call two spellings.
-
-```text
-use std.fs.{FsRead, FsError, read_text}
-use std.path.Path
-
-fn load!() -> Result[string, FsError] $ FsRead:
-    read_text!(Path("notes.txt"))
-```
-
-### Q4. Standard Error
-
-**Decided** (STD-4): (b), changed. No `ErrorConsole`: the prelude
-`Console` gains `write_error_line!`, and `eprintln` sits over it
-([Standard Error](../spec/std/console.md#standard-error)). The
-`ErrorConsole` sketches in this plan are superseded.
-
-**Effect.** A script cannot report an error without mixing it into its
-output, so `hd FILE | jq` breaks on the first warning.
-
-Options: (a) a new trait `std.console.ErrorConsole` with the same
-`write_line!`, and an imported `eprintln`; (b) a second method on the
-prelude `Console`, a language-tier change; (c) no standard error until
-`std.log`.
-
-**Recommendation:** (a). It keeps `Console` and the prelude unchanged
-(decision 7), and a program that only prints gains no extra authority.
-
-```text
-use std.console.{ErrorConsole, eprintln}
-
-fn warn(message: string) -> void $ ErrorConsole:
-    eprintln("warning: $message")
-```
-
-### Q5. Retry And Backoff
-
-**Decided** (STD-5): (a). Applied in
-[Retry With Backoff](../spec/std/task.md#retry-with-backoff).
-
-**Effect.** `retry!` retries at once, so it hammers a busy service; Effect
-answers with `Schedule`, Deno with four options.
-
-Options: (a) a `Backoff` data value (`attempts`, `initial`, `factor`,
-`max`) and `retry_with!`, requiring `Clock`; (b) Effect's composable
-`Schedule` algebra; (c) only `sleep!`, and callers write the loop.
-
-**Recommendation:** (a). It is Deno's `retry` option set and the archived
-`RetryPolicy` draft, it stays deterministic under `ManualClock`, and it
-leaves `retry!` as decided.
-
-```text
-use std.task.{Backoff, retry_with}
-use std.time.{ms, s}
-
-fn policy() -> Backoff:
-    Backoff { attempts: 5, initial: 100ms, factor: 2, max: 5s }
-```
-
-### Q6. Regular Expressions
-
-**Decided** (STD-6): (a). `std.regex` is tier 11 of the
-[Ranked Rollout](#ranked-rollout), not yet specified.
-
-**Effect.** Scripts often filter lines by pattern; without regex they
-hand-write `find` loops. Fifteen of the twenty surveyed libraries ship
-regex.
-
-Options: (a) a `std.regex` of the RE2 subset, linear time, no
-backreferences, written in hd, after tier 10; (b) a package outside
-`std`, as Rust and OCaml do; (c) glob matching only (`Path.matches`) in
-`std`.
-
-**Recommendation:** (a). The single-file rule means a package is out of
-reach for scripts, and Go's RE2 shows the subset is enough. It is the
-largest pure tier, about two hours.
-
-```text
-use std.regex.Regex  # a proposed module
-
-fn is_version(text: string) -> bool:
-    Regex::new(r"^v\d+\.\d+$").matches(text)
-```
 
 ## Sources
 
@@ -1226,7 +1084,6 @@ only; no block is type-checked.
 | 13 | Errors | parses |
 | 14 | Concurrency Helpers | parses |
 | 15 | A Script With The Proposed Surface | parses |
-| 16 to 21 | Questions Q1 to Q6 | parse |
 
 A first draft of block 15 wrote module-qualified types, such as
 `Map[string, json.Json]`, and the parser rejected them; the block now

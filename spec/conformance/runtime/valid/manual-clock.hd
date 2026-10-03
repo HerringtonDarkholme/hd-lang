@@ -1,0 +1,32 @@
+# test: ManualClock's sleep! returns at once and advances now() and monotonic(), through $.with and directly
+# Spec std/time Manual Clock: std-time.manual.new, std-time.manual.now, std-time.manual.monotonic, std-time.manual.sleep, std-time.manual.sleep.negative, and std-time.manual.reads (STDLIB decisions 4 and 10; task #220).
+use std.testing.{assert, assert_equal}
+use std.time.{Clock, Duration, Instant, ManualClock, Timestamp, ms, s}
+
+fn wait_twice!() -> Timestamp $ Clock:
+    let mut clock = $.use(Clock)
+    clock.sleep!(2s)
+    clock.sleep!(3s)
+    clock.now()
+
+tests:
+    it("sleeps in virtual time"):
+        let mut clock = ManualClock::new(Timestamp::from_unix_millis(0))
+        $.with(Clock=clock):
+            assert(wait_twice!() == Timestamp::from_unix_millis(5000), reason="five virtual seconds")
+        assert(clock.now() == Timestamp::from_unix_millis(5000), reason="the provider kept its time")
+
+    it("sleep! advances now and monotonic alike"):
+        let mut clock = ManualClock::new(Timestamp::from_unix_millis(1000))
+        assert(clock.now() == Timestamp::from_unix_millis(1000), reason="the start")
+        assert(clock.monotonic() == Instant::from_millis(1000), reason="milliseconds since the epoch")
+        assert(clock.now() == Timestamp::from_unix_millis(1000), reason="reads do not advance")
+        clock.sleep!(250ms)
+        assert_equal(clock.now().since(Timestamp::from_unix_millis(1000)).as_milliseconds(), 250, reason="now advanced")
+        assert_equal(clock.monotonic().since(Instant::from_millis(1000)).as_milliseconds(), 250, reason="monotonic advanced")
+
+    it("a duration of zero or less leaves the time"):
+        let mut clock = ManualClock::new(Timestamp::from_unix_millis(1000))
+        clock.sleep!(-5s)
+        clock.sleep!(Duration::milliseconds(0))
+        assert(clock.now() == Timestamp::from_unix_millis(1000), reason="never backwards")

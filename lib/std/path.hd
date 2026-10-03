@@ -1,0 +1,15 @@
+# std.path: `Path`, a newtype over the text of a file system path
+# (spec/std/path.md). The prototype's std loader does not list this module
+# yet (src/checker/standard-sources.ts).
+
+# Holds its text as written, without checks or normalization
+# (r-std-path.text).
+pub type Path(string)
+
+impl Eq for Path:
+    fn eq(self, other: Path) -> bool:
+        string(self) == string(other)
+
+impl Display for Path:
+    fn to_string(self) -> string:
+        string(self)

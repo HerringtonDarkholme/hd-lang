@@ -1,0 +1,37 @@
+# test: MemoryFs reads back what it wrote, reports a missing file as NotFound, and covers FsRead and FsWrite rows through $.with
+# Spec std/fs Memory File System: std-fs.memory.new, std-fs.memory.keys, and std-fs.memory.error.not-found (STDLIB decision 4, PROVIDER-SHAPES; task #220).
+use std.fs.{FsError, FsRead, FsWrite, MemoryFs, read_text, write_text}
+use std.path.Path
+use std.testing.assert
+
+fn copy_notes!() -> Result[void, FsError] $ FsRead + FsWrite:
+    text := read_text!(Path("notes.txt"))?
+    write_text!(Path("notes.bak"), text)
+
+fn read_error!(files: MemoryFs, path: Path) -> FsError?:
+    match files.read_text!(path):
+        .Ok(_) => .None
+        .Err(error) => .Some(error)
+
+tests:
+    it("copies in memory"):
+        let mut files = MemoryFs::new()
+        assert(files.write_text!(Path("notes.txt"), "tea").is_ok(), reason="seeded")
+        $.with(FsRead=files, FsWrite=files):
+            assert(copy_notes!().is_ok(), reason="copied")
+        assert(files.read_text!(Path("notes.bak")).unwrap_or("") == "tea", reason="the copy")
+
+    it("reads back what it wrote"):
+        let mut files = MemoryFs::new()
+        assert(files.write_bytes!(Path("data.bin"), [104, 105]).is_ok(), reason="bytes written")
+        assert(files.read_text!(Path("data.bin")).unwrap_or("") == "hi", reason="read back as text")
+        assert(files.append_text!(Path("data.bin"), "!").is_ok(), reason="appended")
+        assert(files.read_text!(Path("data.bin")).unwrap_or("") == "hi!", reason="the appended text")
+
+    it("reports a missing file"):
+        let mut files = MemoryFs::new()
+        assert(files.write_text!(Path("a.txt"), "x").is_ok(), reason="seeded")
+        missing := Path("./a.txt")
+        match read_error!(files, missing):
+            .Some(error) => assert(error == FsError.NotFound(path=missing), reason="another text is another file")
+            .None => assert(false, reason="./a.txt is not a.txt")

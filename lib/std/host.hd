@@ -1,0 +1,55 @@
+# std.host: the host capability traits `Args` and `Env`, their helpers, and
+# the deterministic providers `MapArgs` and `MapEnv` (spec/std/host.md).
+# The prototype's std loader does not list this module yet
+# (src/checker/standard-sources.ts), and no runtime profile binds a host
+# `Args` or `Env`.
+
+pub trait Args:
+    fn program(self) -> string
+    fn list(self) -> List[string]
+
+pub trait Env:
+    fn get(self, name: string) -> string?
+    fn names(self) -> List[string]
+
+pub fn args() -> List[string] $ Args:
+    $.use(Args).list()
+
+pub fn env(name: string) -> string? $ Env:
+    $.use(Env).get(name)
+
+# The deterministic `Args` (spec/std/host.md#map-providers):
+# it returns the program name and the arguments it was made with.
+pub data MapArgs:
+    program: string
+    values: List[string]
+
+impl MapArgs:
+    pub fn new(program: string, values: List[string]) -> MapArgs:
+        MapArgs { program: program, values: values }
+
+impl Args for MapArgs:
+    fn program(self) -> string:
+        self.program
+
+    fn list(self) -> List[string]:
+        self.values
+
+# The deterministic `Env`: its map is the whole environment, and `names`
+# lists the map's keys in insertion order (r-std-host.map-env.names).
+pub data MapEnv:
+    values: Map[string, string]
+
+impl MapEnv:
+    pub fn new(values: Map[string, string]) -> MapEnv:
+        MapEnv { values: values }
+
+impl Env for MapEnv:
+    fn get(self, name: string) -> string?:
+        self.values.get(name)
+
+    fn names(self) -> List[string]:
+        let found: mut List[string] = []
+        for (key, _) in self.values:
+            found.append(key)
+        found

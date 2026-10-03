@@ -1892,3 +1892,6 @@ runtime/valid/num-saturating.hd	runtime
 runtime/valid/num-every-width.hd	runtime
 runtime/valid/num-bit-counts.hd	runtime
 runtime/valid/num-is-finite.hd	runtime
+typing/invalid/num-bit-count-u32.hd	type
+runtime/valid/seeded-random.hd	runtime
+runtime/valid/manual-clock.hd	runtime

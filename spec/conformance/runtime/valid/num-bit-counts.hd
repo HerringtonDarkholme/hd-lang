@@ -1,12 +1,15 @@
-# test: count_ones and leading_zeros read the two's-complement bits of every integer width
-# Spec std/num Bit Counts: std-num.bits.count-ones, std-num.bits.leading-zeros, std-num.bits.signed (batch 68, STD-HELPERS-KEEP and INT-WIDTHS; task #219).
+# test: count_ones and leading_zeros read the two's-complement bits of every integer width and return u32
+# Spec std/num Bit Counts: std-num.bits.count-ones-u32, std-num.bits.leading-zeros-u32, std-num.bits.signed (batch 68, STD-HELPERS-KEEP and INT-WIDTHS; BIT-COUNT-U32, task #220).
 use std.testing.assert_equal
 
-fn flags_set(flags: u8) -> i32:
+fn flags_set(flags: u8) -> u32:
     flags.count_ones()
 
-fn bit_length(value: u32) -> i32:
+fn bit_length(value: u32) -> u32:
     32 - value.leading_zeros()
+
+fn drop_flagged(value: u64, flags: u8) -> u64:
+    value >> flags.count_ones()
 
 tests:
     it("count_ones"):
@@ -27,3 +30,10 @@ tests:
         assert_equal(zero.leading_zeros(), 16, reason="zero gives the bit width")
         let one: u64 = 1
         assert_equal(one.leading_zeros(), 63, reason="u64")
+
+    it("both return u32 on every width"):
+        let small: i8 = 3
+        let ones: u32 = small.count_ones()
+        let zeros: u32 = small.leading_zeros()
+        assert_equal(ones + zeros, 8, reason="an i8 has 8 bits")
+        assert_equal(drop_flagged(64, 7), 8, reason="a bit count is a shift count")
