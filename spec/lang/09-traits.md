@@ -1633,7 +1633,8 @@ impl Num for Cents:  # error: sealed-trait-implementation
 > Rust's `num-traits` rather than Haskell's `fromInteger`.
 
 See also: [Operator Traits](05-expressions.md#operator-traits),
-[Supertrait Bindings](#supertrait-bindings).
+[Supertrait Bindings](#supertrait-bindings), and the stdlib chapter
+[Num](../std/num.md).
 
 ## Runtime Type Identity
 

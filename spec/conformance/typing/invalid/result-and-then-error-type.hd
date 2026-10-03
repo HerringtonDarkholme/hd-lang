@@ -1,0 +1,18 @@
+# test: Result and_then keeps the error type, so a step with another error type is a mismatch
+# Spec std/result Result Methods: std-result.and-then.same-error (STDLIB question 15, 2026-09-29; task #218).
+use std.num.{parse_i32, ParseNumberError}
+
+enum ConfigError:
+    Missing
+    Number(error: ParseNumberError)
+
+fn setting(settings: Map[string, string], key: string) -> Result[string, ConfigError]:
+    match settings.get(key):
+        .Some(text) => .Ok(text)
+        .None => .Err(ConfigError.Missing)
+
+fn parsed(text: string) -> Result[i32, ParseNumberError]:
+    parse_i32(text)
+
+fn port(settings: Map[string, string]) -> Result[i32, ConfigError]:
+    setting(settings, "port").and_then(parsed)  # diagnostic: type-mismatch

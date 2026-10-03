@@ -30,3 +30,6 @@ std.fs	std/fs.md#reading
 std.path	std/path.md#paths
 std.random	std/random.md#random-source
 std.testing.PropertyCase	std/testing.md#runner-capabilities
+std.num.parse_i32	std/num.md#integer-parsing
+std.num.parse_i64	std/num.md#integer-parsing
+std.num.ParseNumberError	std/num.md#integer-parsing

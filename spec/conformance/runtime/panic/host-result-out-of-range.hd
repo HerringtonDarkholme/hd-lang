@@ -1,0 +1,9 @@
+# test: a host result outside its declared type panics with host-contract
+# Spec Modules, Host Results: module.profile.host-result.contract-panic (task #218).
+# fixture-runtime-profile: misbehaving-host
+
+pub trait Gauge:
+    fn level(self) -> u8
+
+pub fn main() -> void $ Gauge:
+    _ := $.use(Gauge).level()  # panic: host-contract

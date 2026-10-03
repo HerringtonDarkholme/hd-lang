@@ -1,10 +1,15 @@
-# std.option: inherent methods on `T?`.
+# std.option: inherent methods on `T?` (spec/std/option.md).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
 
 impl[T] T?:
     pub fn map[U](self, transform: fn(T) -> U) -> U?:
         match self:
             .Some(value) => .Some(transform(value))
+            .None => .None
+
+    pub fn and_then[U](self, transform: fn(T) -> U?) -> U?:
+        match self:
+            .Some(value) => transform(value)
             .None => .None
 
     pub fn unwrap_or(self, fallback: T) -> T:

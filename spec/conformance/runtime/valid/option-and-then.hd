@@ -1,0 +1,50 @@
+# test: optional and_then chains two optional steps, and unwrap_or supplies a fallback
+# Spec std/option Optional Methods: std-option.and-then, std-option.unwrap-or (STDLIB question 15, 2026-09-29; task #218).
+use std.testing.assert_equal
+
+fn first_even(values: List[i32]) -> i32?:
+    for value in values:
+        if value % 2 == 0:
+            return .Some(value)
+    .None
+
+fn quarter(value: i32) -> i32?:
+    if value % 4 == 0: .Some(value / 4) else: .None
+
+fn quarter_of_first_even(values: List[i32]) -> i32:
+    first_even(values).and_then(quarter).unwrap_or(0)
+
+fn nested(value: i32) -> i32??:
+    .Some(quarter(value))
+
+tests:
+    it("and_then calls the step only for Some"):
+        assert_equal(quarter_of_first_even([3, 8, 5]), 2, reason="8 is even and a multiple of 4")
+        assert_equal(quarter_of_first_even([3, 6, 8]), 0, reason="6 is the first even, and quarter gives None")
+        assert_equal(quarter_of_first_even([1, 3]), 0, reason="no even value")
+
+    it("and_then calls the step at most once"):
+        let calls = 0
+        let present: i32? = .Some(4)
+        let absent: i32? = .None
+        result := present.and_then(fn(value: i32) -> i32?:
+            calls = calls + 1
+            quarter(value)
+        )
+        assert_equal(result, .Some(1), reason="the step's result")
+        _ := absent.and_then(fn(value: i32) -> i32?:
+            calls = calls + 1
+            quarter(value)
+        )
+        assert_equal(calls, 1, reason="once for Some, never for None")
+
+    it("and_then adds no optional layer"):
+        let present: i32? = .Some(8)
+        let flat: i32?? = present.and_then(nested)
+        assert_equal(flat, .Some(.Some(2)), reason="the step's own two layers, no third")
+
+    it("unwrap_or keeps a present value"):
+        let present: i32? = .Some(7)
+        let absent: i32? = .None
+        assert_equal(present.unwrap_or(0), 7, reason="Some")
+        assert_equal(absent.unwrap_or(0), 0, reason="None takes the fallback")

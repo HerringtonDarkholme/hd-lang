@@ -1,0 +1,23 @@
+# test: abs_diff returns the distance as the unsigned type of the same width, and never panics
+# Spec std/num Absolute Difference: std-num.abs-diff, std-num.abs-diff.no-panic (STDLIB question 19, 2026-09-29; task #218).
+use std.testing.assert_equal
+
+fn gap(a: i32, b: i32) -> u32:
+    a.abs_diff(b)
+
+fn wide_gap(a: i64, b: i64) -> u64:
+    a.abs_diff(b)
+
+tests:
+    it("i32 distances are u32"):
+        assert_equal(gap(3, 10), 7, reason="b above a")
+        assert_equal(gap(10, 3), 7, reason="a above b")
+        assert_equal(gap(-5, 5), 10, reason="across zero")
+        assert_equal(gap(-2147483647 - 1, 2147483647), 4294967295, reason="the minimum to the maximum")
+
+    it("i64 distances are u64"):
+        let smallest: i64 = -9223372036854775807 - 1
+        let largest: i64 = 9223372036854775807
+        assert_equal(wide_gap(smallest, largest), 18446744073709551615, reason="the minimum to the maximum")
+        assert_equal(wide_gap(largest, smallest), 18446744073709551615, reason="either order")
+        assert_equal(wide_gap(4, 4), 0, reason="equal values")

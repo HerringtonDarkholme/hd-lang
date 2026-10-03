@@ -524,7 +524,8 @@ data Maybe[+T]:
 > its own polarity check.
 
 See also: [Unary And Binary Operators](05-expressions.md#unary-and-binary-operators),
-[Variance](#variance).
+[Variance](#variance), and the stdlib chapters [Option](../std/option.md)
+and [Result](../std/result.md).
 
 ## Result Types
 

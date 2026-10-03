@@ -1875,3 +1875,11 @@ runtime/valid/hash-bytes-derived.hd	runtime
 runtime/valid/hash-bytes-result.hd	runtime
 typing/invalid/lct-optional-two-layers.hd	type
 runtime/valid/property-body-discard-message-fails.hd	runtime
+runtime/valid/option-and-then.hd	runtime
+runtime/valid/result-and-then.hd	runtime
+typing/invalid/result-and-then-error-type.hd	type
+runtime/valid/num-checked-wrapping.hd	runtime
+runtime/valid/num-abs-diff.hd	runtime
+typing/invalid/num-abs-diff-unsigned.hd	type
+runtime/valid/num-is-nan.hd	runtime
+runtime/valid/num-parse-integers.hd	runtime

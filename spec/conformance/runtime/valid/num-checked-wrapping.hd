@@ -1,0 +1,34 @@
+# test: checked methods return None where the operator would panic, and wrapping methods keep the low bits
+# Spec std/num Checked Arithmetic and Wrapping Arithmetic: std-num.checked.add, std-num.checked.div.cases, std-num.wrapping.result (task #218).
+use std.testing.{assert, assert_equal}
+
+fn total(prices: List[i64]) -> i64?:
+    let sum: i64 = 0
+    for price in prices:
+        sum = sum.checked_add(price)?
+    .Some(sum)
+
+fn next_ticket(counter: i32) -> i32:
+    counter.wrapping_add(1)
+
+tests:
+    it("checked methods"):
+        let largest: i64 = 9223372036854775807
+        assert_equal(total([1, 2, 3]), .Some(6), reason="the sum fits")
+        assert_equal(total([largest, 1]), .None, reason="the sum overflows")
+        assert_equal(2147483647.checked_add(1), .None, reason="i32 add")
+        assert_equal((-2147483647 - 1).checked_sub(1), .None, reason="i32 sub")
+        assert_equal(65536.checked_mul(65536), .None, reason="i32 mul")
+        assert_equal((-3).checked_mul(4), .Some(-12), reason="a product that fits")
+        assert_equal(7.checked_div(2), .Some(3), reason="division truncates")
+        assert_equal((-7).checked_div(2), .Some(-3), reason="toward zero")
+        assert_equal(7.checked_div(0), .None, reason="a zero divisor")
+        assert_equal((-2147483647 - 1).checked_div(-1), .None, reason="the minimum divided by -1")
+
+    it("wrapping methods"):
+        assert_equal(next_ticket(2147483647), -2147483647 - 1, reason="the maximum wraps to the minimum")
+        assert_equal(next_ticket(41), 42, reason="no wrap")
+        assert_equal((-2147483647 - 1).wrapping_sub(1), 2147483647, reason="the minimum wraps to the maximum")
+        let largest: i64 = 9223372036854775807
+        let wrapped: i64 = largest.wrapping_add(1)
+        assert(wrapped < 0, reason="i64 wraps to its minimum")

@@ -126,6 +126,9 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/fs.md` | `std-fs` |
 | `std/path.md` | `std-path` |
 | `std/random.md` | `std-random` |
+| `std/option.md` | `std-option` |
+| `std/result.md` | `std-result` |
+| `std/num.md` | `std-num` |
 | `std/format.md` | `std-format` |
 | `std/hash.md` | `std-hash` |
 | `std/iter.md` | `std-iter` |

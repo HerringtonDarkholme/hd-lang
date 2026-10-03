@@ -1,0 +1,13 @@
+# test: f64 is_nan is true exactly for NaN
+# Spec std/num Floating-Point Classification: std-num.is-nan (task #218).
+use std.testing.assert
+
+fn usable(ratio: f64) -> bool:
+    !ratio.is_nan()
+
+tests:
+    it("is_nan tells NaN apart"):
+        nan := 0.0 / 0.0
+        assert(!usable(nan), reason="NaN")
+        assert(usable(1.0 / 0.0), reason="infinity is not NaN")
+        assert(usable(2.5), reason="an ordinary value")

@@ -320,6 +320,11 @@ mutable when the trait has a `mut self` method, readonly otherwise.
     second `close`, returns `.Err(ResourceError.Disposed)` and must not trap.
 - `pending-gate` implements the fixture's
   `trait Gate: fn wait!(self) -> void`. Every poll of `wait!` stays pending.
+- `misbehaving-host` implements the fixture's
+  `trait Gauge: fn level(self) -> u8` with a host that breaks its contract.
+  Every call of `level` returns the integer 300, which no `u8` holds, so
+  the boundary check of [Host Results](../lang/10-modules.md#host-results)
+  fails.
 
 Implementations may define more profiles for their own tests. A conformance
 fixture may name only the profiles listed here.

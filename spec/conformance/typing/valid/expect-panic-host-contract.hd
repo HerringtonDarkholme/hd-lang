@@ -1,0 +1,9 @@
+# test: host-contract is a stable panic category, so expect_panic may name it
+# Spec Control Flow, Panic Categories: flow.panic.stable-categories (task #218).
+
+fn idle() -> void:
+    pass
+
+tests:
+    it("names the host-contract category", expect_panic="host-contract"):
+        idle()

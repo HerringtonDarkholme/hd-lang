@@ -71,8 +71,8 @@ every feature belongs in `std`.
 | `std.text` | `string` methods (`split`, `trim`, `replace`, `find`, `lines`, `repeat`, ...), `join`, `StringBuilder`, `r` prefix, UTF-8 conversion | [text.md](../spec/std/text.md) | no `split_once`, padding, or float parsing |
 | `std.collections` | `List`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by`, `chunks`, `zip`, `view` | [collections.md](../spec/std/collections.md) | no `Set`, `Deque`, heap; `List` mutation is `append` and index set only; no `Map` methods past `get` and `remove` |
 | `std.iter` | `Iterator` with `filter`, `take`, `enumerate`, `map`, `fold`, `collect`; `FromIterator` | [iter.md](../spec/std/iter.md) | no `any`, `all`, `find`, `zip`, `chain`, `skip`, `flat_map` |
-| `std.option`, `std.result` | `map`, `unwrap_or`, `ok_or`, `expect`, `map_ok`, `map_err`, `ok`, `err`, `is_*` | none | `and_then` decided, not written |
-| `std.num` | numeric traits, checked/wrapping/saturating `i32` and `i64` ops, `parse_i32`, `parse_i64` | none (language tier) | no `u32`/`u64` wrapping ops, no `parse_f64`, no fixed-point float text |
+| `std.option`, `std.result` | `map`, `and_then`, `unwrap_or`, `ok_or`, `expect`, `map_ok`, `map_err`, `ok`, `err`, `is_*` | [option.md](../spec/std/option.md), [result.md](../spec/std/result.md) | the chapters specify `and_then`, `unwrap_or`, and `map_err`; the rest await owner approval |
+| `std.num` | numeric traits, checked/wrapping/saturating `i32` and `i64` ops, `abs_diff`, `parse_i32`, `parse_i64` | [num.md](../spec/std/num.md); the traits are language tier | no `u32`/`u64` wrapping ops, no `parse_f64`, no fixed-point float text |
 | `std.cmp`, `std.hash`, `std.format`, `std.ops` | comparison, hashing, `Display`, `Debug`, operators, `Default` | [cmp.md](../spec/std/cmp.md), [hash.md](../spec/std/hash.md), [format.md](../spec/std/format.md), [ops.md](../spec/std/ops.md) | no standard `Hasher`, no digest |
 | `std.time` | `Duration` (milliseconds), suffixes `ms`, `s`, `min`, `h` | [time.md](../spec/std/time.md) | no `Clock`, `Timestamp`, arithmetic, `Ord`, or `Display` |
 | `std.task` | `race!`, `retry!` in hd; `all!`, `block_on` intrinsic | [task.md](../spec/std/task.md) | no `sleep!`, `timeout!`, backoff |
@@ -146,9 +146,6 @@ design it names.
 | 11 | 2026-09-26 | tasks are structured scopes only: `scope!`, `start`, `join!`; no detached spawn | a new polling intrinsic, a language-tier item |
 | 12 | 2026-09-26 | `Secret[T]` is removed for now | nothing: it removes a draft, so no spec text follows |
 | 13 | 2026-09-26 | an untyped `std.json.Json` with one `Number` type modeled on `serde_json::Number` | a `std.json` chapter (tier 6) |
-| Q15 | 2026-09-29 | `and_then` on `T?` and `Result` | a stdlib chapter for `std.option` and `std.result`, whose other methods no chapter specifies yet |
-| Q14-22 | 2026-09-29 | `abs_diff` returns the unsigned type of the same width | a stdlib chapter for `std.num`; `lib/std` returns the signed type today |
-| Q14-22 | 2026-09-29 | integer parsing takes an optional `+` or `-`, then decimal digits only; a lone sign is `InvalidDigit(0)` | a stdlib chapter for `std.num` |
 | Q14-22 | 2026-09-29 | `ScriptedProcess::new(outputs)` is the constructor | a `std.process` provider section; `Process` itself is language tier |
 | SNAPSHOT-ROW, RUNNER-SURFACE | 2026-10-02 | the spec has them ([Runner Capabilities](../spec/std/testing.md#runner-capabilities)): `TestRunner.snapshot_check`, `snapshot_file` with `$ TestRunner`, and `PropertyRunner` with only `start`, `record`, and `show` | the compiler session. In `lib/std/testing.hd`: add `snapshot_check` and `PropertyCase`, give `snapshot_file` its row and drop `snapshot_file_check`, make `Choices` replay `replay` and `record` each draw, and discard with the `std.testing: case discarded` panic. In the runner: bind `TestRunner` for every test body, read that panic before `show` as a discard, and keep a case's recorded draws after a panic |
 

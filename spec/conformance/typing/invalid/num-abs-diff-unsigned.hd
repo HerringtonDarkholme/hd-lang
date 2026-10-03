@@ -1,0 +1,5 @@
+# test: abs_diff returns an unsigned type, so comparing it with a signed operand needs a cast
+# Spec std/num Absolute Difference: std-num.abs-diff.unsigned (STDLIB question 19, 2026-09-29; task #218).
+
+fn close(a: i32, b: i32, limit: i32) -> bool:
+    a.abs_diff(b) < limit  # diagnostic: mixed-signedness

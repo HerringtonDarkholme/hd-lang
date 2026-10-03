@@ -89,3 +89,5 @@ typing/valid/test-runner-capabilities.hd	check reports extra-trait-method: lib/s
 typing/valid/test-body-uses-test-runner.hd	the prototype gives a test body no TestRunner provider, so a body that uses it is missing-requirement (module.testing.runner-provider)	SNAPSHOT-ROW
 typing/invalid/snapshot-file-needs-test-runner.hd	check exits 0: lib/std's snapshot_file has no $ TestRunner row and calls the snapshot_file_check primitive (std-testing.snapshot-file.runner)	SNAPSHOT-ROW
 typing/valid/property-runner-capabilities.hd	check reports unknown-import: lib/std declares no PropertyCase, and its PropertyRunner keeps seed, size, draw, and discard (std-testing.runner.case-type)	RUNNER-SURFACE
+runtime/panic/host-result-out-of-range.hd	check exits 2 with usage text: the misbehaving-host profile does not exist, and no host adapter checks host results (module.profile.host-result.contract-panic)	HOST-CONTRACT
+typing/valid/expect-panic-host-contract.hd	check reports unknown-panic-category: the prototype does not know the host-contract category (flow.panic.stable-categories)	HOST-CONTRACT

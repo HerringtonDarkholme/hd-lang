@@ -1965,3 +1965,13 @@ typing/invalid/covariant-private-method-parameter.hd	type	reject:invalid-varianc
 runtime/valid/lct-optional-injection.hd	runtime	accept	lang/04-type-system.md#r-types.lct.optional
 typing/invalid/lct-optional-two-layers.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.optional.one-layer
 runtime/valid/hash-bytes-result.hd	runtime	accept	std/hash.md#r-std-hash.bytes.result
+runtime/panic/host-result-out-of-range.hd	runtime	panic:host-contract	lang/10-modules.md#r-module.profile.host-result.contract-panic
+typing/valid/expect-panic-host-contract.hd	type	accept	lang/06-control-flow.md#r-flow.panic.stable-categories
+runtime/valid/option-and-then.hd	runtime	accept	std/option.md#r-std-option.and-then
+runtime/valid/result-and-then.hd	runtime	accept	std/result.md#r-std-result.and-then
+typing/invalid/result-and-then-error-type.hd	type	reject:type-mismatch	std/result.md#r-std-result.and-then.same-error
+runtime/valid/num-checked-wrapping.hd	runtime	accept	std/num.md#checked-arithmetic
+runtime/valid/num-abs-diff.hd	runtime	accept	std/num.md#r-std-num.abs-diff
+typing/invalid/num-abs-diff-unsigned.hd	type	reject:mixed-signedness	std/num.md#r-std-num.abs-diff.unsigned
+runtime/valid/num-is-nan.hd	runtime	accept	std/num.md#r-std-num.is-nan
+runtime/valid/num-parse-integers.hd	runtime	accept	std/num.md#r-std-num.parse.grammar

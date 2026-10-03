@@ -1,0 +1,55 @@
+# test: Result and_then chains fallible steps, map_err maps the error, and unwrap_or supplies a fallback
+# Spec std/result Result Methods: std-result.and-then, std-result.map-err, std-result.unwrap-or (STDLIB question 15, 2026-09-29; task #218).
+use std.num.{parse_i32, ParseNumberError}
+use std.testing.{assert, assert_equal}
+
+enum ConfigError:
+    Missing
+    Number(error: ParseNumberError)
+
+fn setting(settings: Map[string, string], key: string) -> Result[string, ConfigError]:
+    match settings.get(key):
+        .Some(text) => .Ok(text)
+        .None => .Err(ConfigError.Missing)
+
+fn number(text: string) -> Result[i32, ConfigError]:
+    parse_i32(text).map_err(ConfigError.Number)
+
+fn port(settings: Map[string, string]) -> i32:
+    setting(settings, "port").and_then(number).unwrap_or(8080)
+
+fn missing(result: Result[i32, ConfigError]) -> bool:
+    match result:
+        .Err(.Missing) => true
+        _ => false
+
+fn bad_digit(result: Result[i32, ConfigError]) -> bool:
+    match result:
+        .Err(.Number(.InvalidDigit(1))) => true
+        _ => false
+
+tests:
+    it("and_then runs the step on Ok"):
+        assert_equal(port({"port": "9000"}), 9000, reason="both steps succeed")
+        assert_equal(port({"host": "local"}), 8080, reason="the first step fails")
+        assert_equal(port({"port": "9x"}), 8080, reason="the second step fails")
+
+    it("and_then keeps the first error and skips the step"):
+        let calls = 0
+        result := setting({}, "port").and_then(fn(text: string) -> Result[i32, ConfigError]:
+            calls = calls + 1
+            number(text)
+        )
+        assert(missing(result), reason="the first error is kept")
+        assert_equal(calls, 0, reason="the step never runs for Err")
+
+    it("map_err maps only the error"):
+        assert(bad_digit(setting({"port": "9x"}, "port").and_then(number)), reason="the parse error is wrapped")
+        let ok: Result[i32, string] = .Ok(3)
+        assert_equal(ok.map_err(fn(error: string) -> i32: error.len()), .Ok(3), reason="Ok passes through")
+
+    it("unwrap_or keeps an Ok value"):
+        let ok: Result[i32, string] = .Ok(3)
+        let failed: Result[i32, string] = .Err("no")
+        assert_equal(ok.unwrap_or(0), 3, reason="Ok")
+        assert_equal(failed.unwrap_or(0), 0, reason="Err takes the fallback")

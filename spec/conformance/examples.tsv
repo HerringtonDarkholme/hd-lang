@@ -681,3 +681,13 @@ std/fs.md	4	accept	runtime/valid/fs-helpers.hd
 std/path.md	1	accept	typing/valid/path-newtype.hd
 std/random.md	1	type-fragment	-
 std/random.md	2	accept	typing/valid/random-trait.hd
+std/option.md	1	accept	runtime/valid/option-and-then.hd
+std/result.md	1	accept	runtime/valid/result-and-then.hd
+std/result.md	2	mixed	typing/invalid/result-and-then-error-type.hd
+std/num.md	1	accept	runtime/valid/num-checked-wrapping.hd
+std/num.md	2	accept	runtime/valid/num-checked-wrapping.hd
+std/num.md	3	accept	runtime/valid/num-abs-diff.hd
+std/num.md	4	mixed	typing/invalid/num-abs-diff-unsigned.hd
+std/num.md	5	accept	runtime/valid/num-is-nan.hd
+std/num.md	6	accept	runtime/valid/num-parse-integers.hd
+std/num.md	7	type-fragment	-

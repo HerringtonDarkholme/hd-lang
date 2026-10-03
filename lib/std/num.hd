@@ -91,6 +91,21 @@ pub enum ParseNumberError:
     InvalidDigit(position: i32)
     OutOfRange
 
+impl Eq for ParseNumberError:
+    fn eq(self, other: ParseNumberError) -> bool:
+        match (self, other):
+            (.Empty, .Empty) => true
+            (.InvalidDigit(left), .InvalidDigit(right)) => left == right
+            (.OutOfRange, .OutOfRange) => true
+            _ => false
+
+impl Display for ParseNumberError:
+    fn to_string(self) -> string:
+        match self:
+            .Empty => "cannot parse a number from empty text"
+            .InvalidDigit(position) => "invalid digit at position $position"
+            .OutOfRange => "number out of range for its type"
+
 impl i32:
     pub fn checked_add(self, other: i32) -> i32?:
         if other > 0 && self > 2147483647 - other:
@@ -141,9 +156,11 @@ impl i32:
             .Some(difference) => difference
             .None => if other > 0: (-2147483647 - 1) else: 2147483647
 
-    # Panics with integer overflow when the distance does not fit in `i32`.
-    pub fn abs_diff(self, other: i32) -> i32:
-        if self > other: self - other else: other - self
+    # The distance as the unsigned type of the same width, which always
+    # holds it (spec/std/num.md#absolute-difference). `i64` holds the exact
+    # difference, and the cast keeps it.
+    pub fn abs_diff(self, other: i32) -> u32:
+        if self > other: u32(i64(self) - i64(other)) else: u32(i64(other) - i64(self))
 
     pub fn count_ones(self) -> i32:
         let count = 0
@@ -217,9 +234,10 @@ impl i64:
             .Some(difference) => difference
             .None => if other > 0: i64_min() else: i64_max()
 
-    # Panics with integer overflow when the distance does not fit in `i64`.
-    pub fn abs_diff(self, other: i64) -> i64:
-        if self > other: self - other else: other - self
+    # The distance as `u64`. The wrapped difference has the distance's low
+    # 64 bits, and the wrapping cast reads them as unsigned.
+    pub fn abs_diff(self, other: i64) -> u64:
+        if self > other: u64(self.wrapping_sub(other)) else: u64(other.wrapping_sub(self))
 
     pub fn count_ones(self) -> i32:
         let count = 0

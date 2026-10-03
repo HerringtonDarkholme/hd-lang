@@ -74,7 +74,7 @@ raises with a category other than `explicit-panic`.
 
 | Primitive | Signature | Why it is a primitive |
 | --- | --- | --- |
-| `panic` | `(category: string, message: string) -> void` | the prelude `panic` always has the category `explicit-panic`; this one names a [stable category](../lang/06-control-flow.md#r-flow.panic.category-names), and an empty message shows none |
+| `panic` | `(category: string, message: string) -> void` | the prelude `panic` always has the category `explicit-panic`; this one names a [stable category](../lang/06-control-flow.md#r-flow.panic.stable-categories), and an empty message shows none |
 
 **Compiler-level.** The compiler lowers these at each use.
 
@@ -150,6 +150,9 @@ file of its own.
 | [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, and the helpers `read_text!` and `write_text!` |
 | [`path.md`](path.md) | `std.path` | `std-path` | the `Path` newtype |
 | [`random.md`](random.md) | `std.random` | `std-random` | the host trait `Random` |
+| [`option.md`](option.md) | `std.option` | `std-option` | the methods `and_then` and `unwrap_or` of `T?` |
+| [`result.md`](result.md) | `std.result` | `std-result` | the methods `and_then`, `map_err`, and `unwrap_or` of `Result[T, E]` |
+| [`num.md`](num.md) | `std.num` | `std-num` | checked and wrapping integer methods, `abs_diff`, `is_nan`, and integer parsing with `ParseNumberError` |
 
 ## Glossary
 

@@ -890,7 +890,7 @@ pub fn it[T < Termination, $R](name: string, ignore: string? = .None, expect_pan
 | r[module.testing.option.ignore] Ignore | `ignore` | a reason | The runner does not run the test case and reports it as ignored, with the reason. |
 | r[module.testing.option.expect-panic] Expected panic | `expect_panic` | a [panic category](06-control-flow.md#panic-categories) | The test case passes only when its body panics with that category. |
 
-1. r[module.testing.option.expect-panic.known] An `expect_panic` value that names no [panic category](06-control-flow.md#r-flow.panic.category-names) is an error. Error: `unknown-panic-category`.
+1. r[module.testing.option.expect-panic.known] An `expect_panic` value that names no [panic category](06-control-flow.md#r-flow.panic.stable-categories) is an error. Error: `unknown-panic-category`.
 
 ```text
 fn name_of() -> string: "computed"
@@ -1453,7 +1453,7 @@ host before hd code sees it:
 | r[module.profile.host-result.shape] Composite | an optional, `Result`, tuple, list, map, data type, or enum | of that type's shape, with each element, field, and payload checked against its own declared type |
 
 2. r[module.profile.host-result.no-coercion] The adapter never rounds, truncates, wraps, or otherwise converts a host value to make it fit.
-3. r[module.profile.host-result.panic] A value that fails the check is a host fault. The call panics with a message that names the trait and the method and says that the host broke its contract. Its category is that of a `panic` call. Panic: `explicit-panic`.
+3. r[module.profile.host-result.contract-panic] A value that fails the check is a host fault. The call panics with a message that names the trait and the method and says that the host broke its contract. Panic: `host-contract`.
 4. r[module.profile.host-result.status] Like every panic, it poisons the program instance, and an entry point exits with the profile's panic exit status, by [`module.entry.panic`](#r-module.entry.panic).
 
 > **Why.** A host that returns `300` for a `u8` has a bug outside hd.
