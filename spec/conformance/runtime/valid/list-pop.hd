@@ -1,0 +1,21 @@
+# test: list pop removes the last element, and gives .None when empty
+
+use std.testing.assert_equal
+
+fn drain() -> i32:
+    let values: mut List[i32] = [1, 2]
+    values.push(3)
+    let total = 0
+    while true:
+        match values.pop():
+            .Some(value) => total = total * 10 + value
+            .None => return total * 10 + values.len()
+    total
+
+tests:
+    it("pop takes the last element first"):
+        assert_equal(drain(), 3210, reason="3, 2, 1, then .None on the empty list")
+    it("pop on an empty list leaves it empty"):
+        let values: mut List[string] = []
+        assert_equal(values.pop(), .None, reason="nothing to pop")
+        assert_equal(values.len(), 0, reason="still empty")

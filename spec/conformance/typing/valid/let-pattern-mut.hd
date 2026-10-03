@@ -6,5 +6,5 @@ data Profile:
 
 fn tag(profile: mut Profile) -> string:
     let Profile { mut tags, name } = profile  # mut List[string], string
-    tags.append(name)
+    tags.push(name)
     name

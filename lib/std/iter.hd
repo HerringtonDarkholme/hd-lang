@@ -90,7 +90,7 @@ impl[T] FromIterator[T] for List[T]:
         let collected: mut List[T] = []
         while true:
             match items.next():
-                .Some(item) => collected.append(item)
+                .Some(item) => collected.push(item)
                 .None => break
         collected
 

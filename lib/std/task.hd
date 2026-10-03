@@ -3,6 +3,7 @@
 # (spec/lang/11-requirements-and-suspension.md#standard-combinators). The
 # compiler provides `block_on`, `all!`, and `Waker` by name; `all!` has no
 # written signature (r-req.combinator.all-typing).
+use std.task.all
 
 # The first child to complete wins, and the others are cancelled
 # (r-req.combinator.race-losers). Its plain signature types every call
@@ -32,6 +33,24 @@ fn race_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[T]:
 @intrinsic("task_all_frame")
 fn all_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[List[T]]:
     panic("intrinsic")
+
+# Runs every task as one `all!` and returns the results in input order
+# (spec/std/task.md#all-list).
+pub fn all_list![T, $R](tasks: List[fn!() -> T $ R]) -> List[T] $ R:
+    let results: mut List[T] = []
+    all_list_from!(tasks, 0, results)
+    results.reversed()
+
+# The tasks from `start` on, as `all!` of the task at `start` and a cold
+# call for the rest, which pushes the results last task first. Nested this
+# way, the `all!` frames poll the unfinished tasks in input order and
+# cancel them together, as one `all!` of every task would.
+fn all_list_from![T, $R](tasks: List[fn!() -> T $ R], start: i32, results: mut List[T]) -> void $ R:
+    if start >= tasks.len():
+        return
+    task := tasks[start]
+    let (value, _) = all!(task(), all_list_from(tasks, start + 1, results))
+    results.push(value)
 
 # Calls `attempt` one call after another until it returns `.Ok`, at most
 # `times` times, and returns the last result. A `times` below 1 counts as 1

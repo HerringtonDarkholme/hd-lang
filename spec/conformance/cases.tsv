@@ -1975,6 +1975,8 @@ runtime/valid/num-abs-diff.hd	runtime	accept	std/num.md#r-std-num.abs-diff
 typing/invalid/num-abs-diff-unsigned.hd	type	reject:mixed-signedness	std/num.md#r-std-num.abs-diff.unsigned
 runtime/valid/num-is-nan.hd	runtime	accept	std/num.md#r-std-num.is-nan
 runtime/valid/num-parse-integers.hd	runtime	accept	std/num.md#r-std-num.parse.grammar
+runtime/valid/num-parse-f64-errors.hd	runtime	accept	std/num.md#r-std-num.parse-f64.invalid-digit
+runtime/valid/num-parse-f64-values.hd	runtime	accept	std/num.md#r-std-num.parse-f64.value
 runtime/valid/option-tests-conversions.hd	runtime	accept	std/option.md#variant-tests-and-conversions
 runtime/panic/option-expect-none.hd	runtime	panic:explicit-panic	std/option.md#r-std-option.expect.panic
 runtime/valid/result-map.hd	runtime	accept	std/result.md#r-std-result.map
@@ -2009,6 +2011,7 @@ typing/valid/dynamic-safety-implied-anyref.hd	type	accept	lang/09-traits.md#r-tr
 typing/valid/std-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
 typing/valid/std-joined-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
 typing/valid/std-host-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
+typing/valid/std-derivation-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
 typing/invalid/context-error-no-debug.hd	type	reject:unsatisfied-trait-bound	std/format.md#r-std-format.debug.std-types.exempt
 runtime/valid/encoding-hex-vectors.hd	runtime	accept	std/encoding.md#r-std-encoding.hex.encode.digits
 runtime/valid/encoding-base64-vectors.hd	runtime	accept	std/encoding.md#r-std-encoding.base64.decode.value
@@ -2022,7 +2025,7 @@ runtime/valid/json-numbers.hd	runtime	accept	std/json.md#r-std-json.number.eq
 runtime/valid/json-object-order.hd	runtime	accept	std/json.md#r-std-json.parse.object.duplicate
 runtime/valid/json-pretty.hd	runtime	accept	std/json.md#r-std-json.pretty.layout
 runtime/valid/json-suite.hd	runtime	accept	std/json.md#r-std-json.parse.grammar
-runtime/valid/json-float-text.hd	runtime	accept	std/json.md#r-std-json.parse.number.unsupported
+runtime/valid/json-float-text.hd	runtime	accept	std/json.md#r-std-json.parse.number.float
 runtime/valid/time-date-utc.hd	runtime	accept	std/time.md#r-std-time.date.of-timestamp
 runtime/valid/time-rfc3339-text.hd	runtime	accept	std/time.md#r-std-time.rfc3339.text
 runtime/valid/time-rfc3339-parse.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse
@@ -2032,3 +2035,6 @@ runtime/panic/deque-invalidated.hd	runtime	panic:iterator-invalidated	std/collec
 runtime/valid/heap-order.hd	runtime	accept	std/collections.md#r-std-collections.heap.pop
 runtime/valid/heap-reverse.hd	runtime	accept	std/collections.md#r-std-collections.heap.min
 runtime/valid/cmp-reverse.hd	runtime	accept	std/cmp.md#r-std-cmp.reverse.order
+runtime/valid/list-pop.hd	runtime	accept	lang/10-modules.md#r-module.method.list-pop
+runtime/valid/task-all-list-order.hd	runtime	accept	std/task.md#r-std-task.all-list.order
+runtime/valid/task-all-list-empty.hd	runtime	accept	std/task.md#r-std-task.all-list.empty

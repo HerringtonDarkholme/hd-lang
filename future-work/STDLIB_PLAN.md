@@ -9,7 +9,9 @@ pass 70 applied decisions 4 and 10, and spec pass 73 applied
 [`std.digest`](../spec/std/digest.md), and spec pass 74 applied the UTC
 [`Date` and RFC 3339 text](../spec/std/time.md#dates),
 [`Deque`](../spec/std/collections.md#deque), and
-[`Heap`](../spec/std/collections.md#heap); every other module sketch
+[`Heap`](../spec/std/collections.md#heap), and spec pass 76 applied
+[`all_list!`](../spec/std/task.md#all-list) and
+[`parse_f64`](../spec/std/num.md#float-parsing); every other module sketch
 below is still a proposal for the owner.
 
 Under review: the stdlib tier ([spec/std/](../spec/std/README.md)), the
@@ -73,10 +75,10 @@ every feature belongs in `std`.
 | Module | In `lib/std` | Stdlib-tier spec | Notes |
 | --- | --- | --- | --- |
 | `std.text` | `string` methods (`split`, `trim`, `replace`, `find`, `lines`, `repeat`, ...), `join`, `StringBuilder`, `r` prefix, UTF-8 conversion | [text.md](../spec/std/text.md) | no `split_once`, padding, or float parsing |
-| `std.collections` | `List`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by`, `chunks`, `zip`, `view`; `Deque`, `Heap` | [collections.md](../spec/std/collections.md) | no `Set`; `List` mutation is `append` and index set only; no `Map` methods past `get` and `remove` |
+| `std.collections` | `List`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by`, `chunks`, `zip`, `view`; `Deque`, `Heap` | [collections.md](../spec/std/collections.md) | no `Set`; `List` mutation is `push`, `pop`, and index set only; no `Map` methods past `get` and `remove` |
 | `std.iter` | `Iterator` with `filter`, `take`, `enumerate`, `map`, `fold`, `collect`; `FromIterator` | [iter.md](../spec/std/iter.md) | no `any`, `all`, `find`, `zip`, `chain`, `skip`, `flat_map` |
 | `std.option`, `std.result` | `map`, `and_then`, `unwrap_or`, `ok_or`, `expect`, `map_err`, `ok`, `err`, `is_*` | [option.md](../spec/std/option.md), [result.md](../spec/std/result.md) | `map` on `T?` is in [iter.md](../spec/std/iter.md#list-and-optional-map) |
-| `std.num` | numeric traits; checked, wrapping, and saturating ops, `abs_diff`, `count_ones`, and `leading_zeros` on every integer type; `is_nan`, `is_finite`; `parse_i32`, `parse_i64` | [num.md](../spec/std/num.md); the traits are language tier | no `parse_f64`, no fixed-point float text |
+| `std.num` | numeric traits; checked, wrapping, and saturating ops, `abs_diff`, `count_ones`, and `leading_zeros` on every integer type; `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `parse_f64` | [num.md](../spec/std/num.md); the traits are language tier | no fixed-point float text; the prototype has no `parse_f64` host hook |
 | `std.cmp`, `std.hash`, `std.format`, `std.ops` | comparison, hashing, `Display`, `Debug`, operators, `Default` | [cmp.md](../spec/std/cmp.md), [hash.md](../spec/std/hash.md), [format.md](../spec/std/format.md), [ops.md](../spec/std/ops.md) | none |
 | `std.time` | `Duration` (milliseconds) with `Add`, `Sub`, and `Display`, suffixes `ms`, `s`, `min`, `h`; `Clock`, `Timestamp` with `+ Duration`, `Instant`, `ManualClock`; the UTC `Date`, `to_rfc3339`, `parse_rfc3339`, `TimeParseError` | [time.md](../spec/std/time.md) | no `now` or `sleep!` helper; no time zones or local time |
 | `std.task` | `race!`, `retry!` in hd; `all!`, `block_on` intrinsic | [task.md](../spec/std/task.md) | no `sleep!`, `timeout!`, backoff |
@@ -88,7 +90,7 @@ every feature belongs in `std`.
 | `std.random` | `Random`, `SeededRandom` | [random.md](../spec/std/random.md) | no `Rng` helpers |
 | `std.host`, `std.fs`, `std.path` | `Args`, `Env`, `MapArgs`, `MapEnv`; `FsRead`, `FsWrite`, `FsError`, `MemoryFs`; `Path` | [host.md](../spec/std/host.md), [fs.md](../spec/std/fs.md), [path.md](../spec/std/path.md) | the prototype's std loader lists none of the three; no `read_text!` or `write_text!` helper |
 | `std.encoding`, `std.digest` | `hex_encode`, `hex_decode`, `base64_encode`, `base64_decode`, `DecodeError`; `sha256`, `sha256_hex` | [encoding.md](../spec/std/encoding.md), [digest.md](../spec/std/digest.md) | the prototype's std loader lists neither; no URL-safe base64, no streaming hasher |
-| `std.json` | `Json`, `Number`, `parse`, `JsonError`, `Display`, `pretty`, and the `Json` accessors | [json.md](../spec/std/json.md) | the prototype's std loader lists it no more than `std.encoding`; `parse` gives `UnsupportedNumber` for a number with a fraction or an exponent until `std` can parse an `f64`; no `ToJson`, `FromJson`, `encode`, or `decode` |
+| `std.json` | `Json`, `Number`, `parse`, `JsonError`, `Display`, `pretty`, and the `Json` accessors | [json.md](../spec/std/json.md) | the prototype's std loader lists it no more than `std.encoding`; `parse` reads a number with a fraction or an exponent through `parse_f64`; no `ToJson`, `FromJson`, `encode`, or `decode` |
 | absent | cli, log, http, regex | none | the gap this plan covers |
 
 The prototype also lacks two things scripts need: `hd FILE` itself
@@ -166,6 +168,10 @@ design it names.
 | 12 | 2026-09-26 | `Secret[T]` is removed for now | nothing: it removes a draft, so no spec text follows |
 | Q14-22 | 2026-09-29 | `ScriptedProcess::new(outputs)` is the constructor | a `std.process` provider section; `Process` itself is language tier |
 | SNAPSHOT-ROW, RUNNER-SURFACE | 2026-10-02 | the spec has them ([Runner Capabilities](../spec/std/testing.md#runner-capabilities)): `TestRunner.snapshot_check`, `snapshot_file` with `$ TestRunner`, and `PropertyRunner` with only `start`, `record`, and `show` | the compiler session. In `lib/std/testing.hd`: add `snapshot_check` and `PropertyCase`, give `snapshot_file` its row and drop `snapshot_file_check`, make `Choices` replay `replay` and `record` each draw, and discard with the `std.testing: case discarded` panic. In the runner: bind `TestRunner` for every test body, read that panic before `show` as a discard, and keep a case's recorded draws after a panic |
+| LIST-PUSH-POP | 2026-10-03 | the spec has `push` and `pop` on `mut List[T]` ([Built-In Methods](../spec/lang/10-modules.md#built-in-methods)), and no `append` | the compiler session. Rename the checker's `append` intrinsic (`src/checker/expression-calls.ts`, HIR kind `list-append`) to `push`, and add `pop` with a list truncate that advances the structural version. Then delete the forwarding `push` in `lib/std/collections.hd`, and rename the `append` calls in `src/checker/captured-cells.test.ts`, `test/cli.test.ts`, `test/compiler-types.test.ts`, and `test/compiler.test.ts` |
+| STD-DEBUG | 2026-10-03 | `std.inspect`'s `TypeId` and `std.structure`'s `SelfRef` implement `Debug` ([`std-format.debug.std-types`](../spec/std/format.md#r-std-format.debug.std-types)) | the compiler session: the typed-derivation pass declares both modules before `std.format`, so `inspect.hd` and `structure.hd` cannot name `DebugWriter`, and an impl in `format.hd` joins `std.inspect` into every program |
+| ALL-LIST | 2026-10-03 | [`all_list!`](../spec/std/task.md#all-list) is nested `all!` calls in `lib/std/task.hd` | the compiler session: a generic function that calls an element of a `List[fn() -> T]` traps with an illegal cast |
+| FLOAT-PARSE | 2026-10-03 | the host primitive `parse_f64(text: string) -> f64` ([Standard Library Primitives](../spec/std/README.md#standard-library-primitives)), beside `format_f64` | the compiler session: add `parse_f64` to `HOST_FUNCTIONS` in `src/host-functions.ts`, where `format_f64` is. `lib/std/num.hd` declares it as `host_parse_f64` and checks the grammar first. JavaScript's `Number(text)` rounds JSON number text correctly |
 
 ## Survey Matrices
 
@@ -495,11 +501,6 @@ pub fn decode[T < FromJson](text: string) -> Result[T, JsonError]:
 
 Renames and skipped fields come later through typed member facts.
 
-Depends on: a way to read a decimal text as an `f64`, for the numbers that
-`parse` refuses today. It is either a host function like the existing
-`format_f64`, or a correctly rounded parser in hd, which is possible but
-large.
-
 ### Time And Dates
 
 Standouts:
@@ -569,13 +570,10 @@ impl string:
 
 impl f64:
     pub fn to_fixed(self, digits: i32) -> string: pass
-
-pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]:
-    pass
 ```
 
-`to_fixed` and `parse_f64` need host hooks beside the existing
-`format_f64`. Regex is tier 11 of the [Ranked Rollout](#ranked-rollout).
+`to_fixed` needs a host hook beside the existing `format_f64`, as
+[`parse_f64`](../spec/std/num.md#float-parsing) has. Regex is tier 11 of the [Ranked Rollout](#ranked-rollout).
 
 ### Collections And Iterators
 
@@ -766,17 +764,14 @@ pub data Backoff:
 pub fn retry_with![T, E, $R](backoff: Backoff, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock:
     pass
 
-pub fn all_list![T](tasks: List[mut Suspend[T]]) -> List[T]:
-    pass
-
 pub fn map_limited![T, U, $R](items: List[T], limit: i32, work: fn!(T) -> U $ R) -> List[U] $ R:
     pass
 ```
 
 `timeout!` races the task against a sleep; the loser is cancelled by
 [`req.combinator.race-losers`](../spec/lang/11-requirements-and-suspension.md#r-req.combinator.race-losers).
-`all_list!` drives the existing `all_frame` intrinsic, as `race!` drives
-`race_frame`. `map_limited!` runs batches of `limit` through `all_list!`:
+[`all_list!`](../spec/std/task.md#all-list) is specified, as nested `all!`
+calls. `map_limited!` runs batches of `limit` through `all_list!`:
 a sliding window would need a new polling intrinsic, since user code
 cannot write one
 ([`req.combinator.user`](../spec/lang/11-requirements-and-suspension.md#r-req.combinator.user)).
@@ -909,12 +904,12 @@ host also add a prototype host binding, a minimal TypeScript hook.
 | --- | --- | --- | --- |
 | 1 | `std.host` `Args`, `Env`, `MapArgs`, `MapEnv`, `args()`, `env()`; `ErrorConsole`, `eprintln`, `read_line!`, `read_all!` | [Host Capabilities](../spec/cli/command-line.md#host-capabilities), [Standard Error](../spec/std/console.md#standard-error); a `List[string]` result on the host bridge | a script can take input and report errors |
 | 2 | `std.path` `Path`; `std.fs` `FsRead`, `FsWrite`, `FsError`, `MemoryFs`, `read_text!`, `write_text!`, `walk!`, `glob!` | tier 1's catalog; a Node `fs` binding in the prototype | a script can read and write files |
-| 3 | collections and iterators: decided `Map` and `and_then` items, the `List`, `Iterator`, `Set`, and `counts` helpers | a list-truncate hook for `pop`, `remove_at`, `clear` | data shaping without hand loops |
+| 3 | collections and iterators: decided `Map` and `and_then` items, the `List`, `Iterator`, `Set`, and `counts` helpers; `List.pop` is [specified](../spec/lang/10-modules.md#built-in-methods) | a list-truncate hook for `pop`, `remove_at`, `clear` | data shaping without hand loops |
 | 4 | `Clock`, `Timestamp`, `Instant`, `ManualClock`, `now()`, `sleep!` | the catalog for `Clock` | timing |
-| 5 | text helpers, `to_fixed`, `parse_f64` | two float hooks | formatting |
-| 6 | `std.json` `Json`, `Number`, `parse`, `Display`, `pretty`, accessors: [specified](../spec/std/json.md); float text waits for tier 5's `parse_f64` | tier 5's `parse_f64` | reading and writing JSON |
+| 5 | text helpers, `to_fixed`; `parse_f64`: [specified](../spec/std/num.md#float-parsing) | a `to_fixed` hook | formatting |
+| 6 | `std.json` `Json`, `Number`, `parse`, `Display`, `pretty`, accessors: [specified](../spec/std/json.md), with float text through `parse_f64` | the prototype's `parse_f64` hook | reading and writing JSON |
 | 7 | `ToJson` and `FromJson` templates; `encode`, `decode` | tier 6 | typed JSON |
-| 8 | `timeout!`, `Backoff`, `retry_with!`, `all_list!`, `map_limited!` | tier 4's `Clock`; [Retry With Backoff](../spec/std/task.md#retry-with-backoff) | robust automation |
+| 8 | `timeout!`, `map_limited!`; `Backoff`, `retry_with!`, and `all_list!`: [specified](../spec/std/task.md) | tier 4's `Clock`; [Retry With Backoff](../spec/std/task.md#retry-with-backoff) | robust automation |
 | 9 | `std.random` `Rng`, `Random`, `SeededRandom`; `std.cli` `parse_args`, `usage` | tier 1's `Args`; `u64` wrapping arithmetic | real command-line tools |
 | 11 | `std.regex`: the RE2 subset, linear time, no backreferences, written in hd (about two hours) | none | filtering lines by pattern |
 

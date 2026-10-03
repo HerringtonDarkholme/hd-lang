@@ -722,7 +722,7 @@ fn plain_closure(user: mut User) -> fn() -> void:
 
 fn make_appender(items: mut List[i32]) -> fn(i32) -> void:
     fn(value: i32) -> void:
-        items.append(value)
+        items.push(value)
 ```
 
 1. r[fn.capture.access] A closure uses each capture with the access that the captured binding has in the enclosing scope.

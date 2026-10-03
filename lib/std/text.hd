@@ -178,7 +178,7 @@ impl string:
     pub fn to_utf8(self) -> List[u8]:
         let found: mut List[u8] = []
         for byte in self.bytes():
-            found.append(byte)
+            found.push(byte)
         found
 
     # The string whose UTF-8 encoding is `bytes`, or where they are not
@@ -245,7 +245,7 @@ impl string:
             let start = 0
             while start < size:
                 end := scalar_end(self, start)
-                pieces.append(bytes_slice(self, start, end))
+                pieces.push(bytes_slice(self, start, end))
                 start = end
             return pieces
         let start = 0
@@ -253,11 +253,11 @@ impl string:
         while searching:
             match byte_find(self, separator, start):
                 .Some(found) =>
-                    pieces.append(bytes_slice(self, start, found))
+                    pieces.push(bytes_slice(self, start, found))
                     start = found + bytes_len(separator)
                 .None =>
                     searching = false
-        pieces.append(bytes_slice(self, start, size))
+        pieces.push(bytes_slice(self, start, size))
         pieces
 
     # Replaces non-overlapping matches from left to right. An empty `old`
@@ -331,11 +331,11 @@ impl string:
             piece := pieces[index]
             if index < pieces.len() - 1:
                 if piece.ends_with("\u{d}"):
-                    found.append(bytes_slice(piece, 0, bytes_len(piece) - 1))
+                    found.push(bytes_slice(piece, 0, bytes_len(piece) - 1))
                 else:
-                    found.append(piece)
+                    found.push(piece)
             else if piece.len() > 0:
-                found.append(piece)
+                found.push(piece)
             index = index + 1
         found
 
@@ -367,7 +367,7 @@ impl StringBuilder:
         StringBuilder { parts: [] }
 
     pub fn push(mut self, text: string) -> void:
-        self.parts.append(text)
+        self.parts.push(text)
 
     pub fn build(self) -> string:
         join(self.parts, "")

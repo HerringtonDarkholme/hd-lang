@@ -1,4 +1,4 @@
 # test: a closure may call a mut self method on a captured mutable list
 fn make_appender(items: mut List[i32]) -> fn(i32) -> void:
     fn(value: i32) -> void:
-        items.append(value)
+        items.push(value)

@@ -51,7 +51,7 @@ pub fn chain(error: Error) -> List[Error]:
     while true:
         match next:
             .Some(cause) =>
-                errors.append(cause)
+                errors.push(cause)
                 next = cause.cause()
             .None =>
                 return errors
@@ -64,7 +64,7 @@ pub fn report_of(error: Error) -> ErrorReport:
     let causes: mut List[string] = []
     let index = 1
     while index < errors.len():
-        causes.append(errors[index].to_string())
+        causes.push(errors[index].to_string())
         index = index + 1
     ErrorReport { message: error.to_string(), causes: causes }
 

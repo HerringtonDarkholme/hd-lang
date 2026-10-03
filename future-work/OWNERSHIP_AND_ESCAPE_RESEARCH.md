@@ -1089,14 +1089,14 @@ func lineCount(of report: borrowing Report) -> Int {
 }
 
 func addFooter(to report: inout Report) {
-    report.lines.append("-- end --")
+    report.lines.push("-- end --")
 }
 
 actor Archive {
     private var titles: [String] = []
 
     func store(_ report: consuming Report) {
-        titles.append(report.title)
+        titles.push(report.title)
     }
 
     func storedTitles() -> [String] {

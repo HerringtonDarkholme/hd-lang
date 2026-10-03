@@ -68,7 +68,7 @@ impl[S] Describer[S] for KeyLister:
         .Ok(())
 
     fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
-        self.keys.append(key_for(self.style, h.info))
+        self.keys.push(key_for(self.style, h.info))
         .Ok(())
 
 impl[T] Encode for T by Structure:

@@ -1,0 +1,24 @@
+# test: all_list! returns its tasks' results in input order
+# Spec std/task All List: std-task.all-list and std-task.all-list.order (owner decision ALL-LIST, batch 71, 2026-10-03).
+use std.task.all_list
+use std.testing.assert_equal
+
+data Log:
+    started: mut List[i32]
+
+fn square!(log: mut Log, value: i32) -> i32:
+    log.started.push(value)
+    value * value
+
+fn squares!(log: mut Log) -> List[i32]:
+    all_list!([
+        fn!() -> i32: square!(log, 3),
+        fn!() -> i32: square!(log, 1),
+        fn!() -> i32: square!(log, 2),
+    ])
+
+tests:
+    it("results come back in input order"):
+        let mut log = Log { started: [] }
+        assert_equal(squares!(log), [9, 1, 4], reason="one result per task, in task order")
+        assert_equal(log.started, [3, 1, 2], reason="the tasks start in input order")

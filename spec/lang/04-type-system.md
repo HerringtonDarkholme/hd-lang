@@ -906,7 +906,7 @@ data Profile:
 
 fn tag(profile: mut Profile, readonly: Profile) -> void:
     let Profile { mut tags, name } = profile  # mut List[string], string
-    tags.append(name)
+    tags.push(name)
     let Profile { tags: mut others } = readonly  # error: mutable-upgrade
 ```
 
@@ -975,10 +975,10 @@ An expression has **mutable access** when one of these holds:
 | r[types.path.access.mut-self] Mutable receiver | is `self` inside a `mut self` method | `self` in `fn clear(mut self)` |
 
 1. r[types.path.mutation] A mutation needs mutable access on exactly one expression: the one it acts on.
-2. r[types.path.mutation.requires-access] Each of these requires mutable access to `e`:
+2. r[types.path.mutation.needs-access] Each of these requires mutable access to `e`:
    - reassigning `e.field`;
    - replacing an element with `e[i] = value`;
-   - calling a `mut self` method on `e`, including a container-mutating method such as `append`, and a method promoted from an embedded field.
+   - calling a `mut self` method on `e`, including a container-mutating method such as `push`, and a method promoted from an embedded field.
 3. r[types.path.mutation.only] Nothing else in the path is checked: the access type of `e` already records every permission removed on the way to it.
 4. r[types.path.mutation.receiver] A `mut self` call on an `e` without mutable access is an error, whatever the path to `e`, including a promoted call. Error: `mutable-receiver-required`.
 

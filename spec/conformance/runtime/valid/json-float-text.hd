@@ -1,7 +1,17 @@
-# test: until the std has a float parser, a number with a fraction or an exponent is an UnsupportedNumber, and a malformed one is still a grammar error
-# Spec std/json Numbers: std-json.parse.number.unsupported, std-json.parse.number.grammar (FLOAT-PARSE; task #226).
-use std.json.{parse, JsonError}
+# test: a number with a fraction or an exponent, or an integer past i64 and u64, is the float parse_f64 gives, and a float past the f64 range is NumberOutOfRange
+# Spec std/json Numbers: std-json.parse.number.float, std-json.parse.number.out-of-range, std-json.error.kind.range (owner decision FLOAT-PARSE, batch 71, 2026-10-03).
+use std.json.{parse, Json, JsonError, Number}
 use std.testing.{assert, assert_equal}
+
+fn number(text: string) -> Number:
+    match parse(text):
+        .Ok(.Number(value)) => value
+        _ => panic("expected a number for $text")
+
+fn float(value: f64) -> Json:
+    match Number::from_f64(value):
+        .Some(found) => Json.Number(found)
+        .None => panic("expected a finite float")
 
 fn failure(text: string) -> JsonError:
     match parse(text):
@@ -9,26 +19,34 @@ fn failure(text: string) -> JsonError:
         .Err(error) => error
 
 tests:
-    it("valid float text from the JSONTestSuite is unsupported"):
+    it("valid float text from the JSONTestSuite parses to the nearest f64"):
         cases := [
-            ("y_number_real_capital_e", "[1E22]"),
-            ("y_number_real_exponent", "[123e45]"),
-            ("y_number_real_fraction_exponent", "[123.456e78]"),
-            ("y_number_real_neg_exp", "[1e-2]"),
-            ("y_number_real_pos_exponent", "[1e+2]"),
-            ("y_number", "[123e65]"),
-            ("y_number_double_close_to_zero", "[-0.000000000000000000000000000000000000000000000000000000000000000000000000000001]"),
-            ("y_number_negative_one", "[-1.0]"),
-            ("y_number_0e1", "[0e1]"),
-            ("y_number_0e+1", "[0e+1]"),
-            ("y_number_int_with_exp", "[20e1]"),
-            ("y_number_simple_real", "[123.456789]"),
+            ("y_number_real_capital_e", "[1E22]", 1e22),
+            ("y_number_real_exponent", "[123e45]", 123e45),
+            ("y_number_real_fraction_exponent", "[123.456e78]", 123.456e78),
+            ("y_number_real_neg_exp", "[1e-2]", 0.01),
+            ("y_number_real_pos_exponent", "[1e+2]", 100.0),
+            ("y_number", "[123e65]", 123e65),
+            ("y_number_negative_one", "[-1.0]", -1.0),
+            ("y_number_0e1", "[0e1]", 0.0),
+            ("y_number_0e+1", "[0e+1]", 0.0),
+            ("y_number_int_with_exp", "[20e1]", 200.0),
+            ("y_number_simple_real", "[123.456789]", 123.456789),
         ]
         for case in cases:
             match parse(case._1):
-                .Ok(_) => assert(false, reason="${case._0} needs a float parser")
-                .Err(.UnsupportedNumber(position)) => assert_equal(position, 1, reason="${case._0} position")
-                .Err(_) => assert(false, reason="${case._0} is valid grammar")
+                .Ok(.Array(items)) => assert_equal(items, [float(case._2)], reason=case._0)
+                _ => assert(false, reason="${case._0} should parse")
+
+    it("an integer past both ranges is a float"):
+        assert_equal(number("18446744073709551616").as_f64(), .Some(18446744073709551616.0), reason="past u64")
+        assert_equal(number("-9223372036854775809").as_i64(), .None, reason="below i64 is not an integer")
+        assert_equal(number("-0.000000000000000000000000000000000000000000000000000000000000000000000000000001").as_f64(), .Some(-1e-78), reason="close to zero")
+
+    it("a float past the f64 range is NumberOutOfRange at its first character"):
+        assert_equal(failure("1e400"), JsonError.NumberOutOfRange(0), reason="overflow")
+        assert_equal(failure("[\"é\", -1E309]"), JsonError.NumberOutOfRange(6), reason="counted in characters")
+        assert_equal(failure("[1e400, ]"), JsonError.NumberOutOfRange(1), reason="the number is read before the later error")
 
     it("malformed float text is still a grammar error"):
         cases := [
@@ -45,11 +63,6 @@ tests:
             ("n_number_starting_with_dot", "[.123]"),
         ]
         for case in cases:
-            assert(parse(case._1).is_err(), reason="${case._0} should fail")
             match parse(case._1):
-                .Err(.UnsupportedNumber(_)) => assert(false, reason="${case._0} is a grammar error")
-                _ => pass
-
-    it("the position of an unsupported number is its first character"):
-        assert_equal(failure("[true, -1.5]"), JsonError.UnsupportedNumber(7), reason="after other items")
-        assert_equal(failure("{\"a\": 1e3}"), JsonError.UnsupportedNumber(6), reason="in an object")
+                .Err(.UnexpectedCharacter(_)) => pass
+                _ => assert(false, reason="${case._0} is a grammar error")

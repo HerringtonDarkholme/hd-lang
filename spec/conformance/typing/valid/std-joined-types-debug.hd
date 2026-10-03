@@ -1,20 +1,23 @@
-# test: Debug for public std types of std.collections, std.console, std.hash, std.ops, std.inspect, and std.format
+# test: Debug for public std types of std.annotation, std.collections, std.console, std.hash, std.ops, and std.format
 # Spec std/format Debug For Standard Types: std-format.debug.std-types and std-format.debug.std-types.generic (STD-DEBUG; task #223).
+use std.annotation.{Annotate, Target}
 use std.collections.ListView
 use std.console.BufferConsole
-use std.format.DebugWriter
+use std.format.{DebugList, DebugWriter}
 use std.hash.DefaultHasher
-use std.inspect.TypeId
-use std.ops.{Range, RangeFull}
+use std.ops.{Range, RangeFrom, RangeFull, RangeTo}
 
 fn shown[T < Debug](value: T) -> string:
     debug(value)
 
+fn annotation_texts(target: Target, marker: Annotate) -> List[string]:
+    [shown(target), shown(marker)]
+
 fn collection_texts(view: ListView[i32], console: BufferConsole, hasher: DefaultHasher) -> List[string]:
     [shown(view), shown(console), shown(hasher)]
 
-fn ops_texts(range: Range[i32], full: RangeFull) -> List[string]:
-    [shown(range), shown(full)]
+fn ops_texts(range: Range[i32], from: RangeFrom[i64], to: RangeTo[u8], full: RangeFull) -> List[string]:
+    [shown(range), shown(from), shown(to), shown(full)]
 
-fn other_texts(id: TypeId, writer: DebugWriter) -> List[string]:
-    [shown(id), shown(writer)]
+fn other_texts(writer: DebugWriter, list: DebugList) -> List[string]:
+    [shown(writer), shown(list)]

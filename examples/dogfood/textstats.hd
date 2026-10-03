@@ -30,7 +30,7 @@ fn word_counts(lines: List[string]) -> List[WordCount]:
                 .None => 1
     let entries: mut List[WordCount] = []
     for (word, count) in counts.iter():
-        entries.append(WordCount { word: word, count: count })
+        entries.push(WordCount { word: word, count: count })
     entries
 
 # Highest count first; ties broken alphabetically.

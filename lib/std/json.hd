@@ -2,6 +2,7 @@
 # (spec/std/json.md). The prototype's std loader does not list this module
 # yet (src/checker/standard-sources.ts).
 use std.format.DebugWriter
+use std.num.parse_f64
 
 # One JSON value (r-std-json.value.decl). An object keeps its keys in
 # insertion order, as every `Map` does.
@@ -145,53 +146,53 @@ fn render(value: Json, out: mut List[u8], spaced: bool, depth: i32) -> void:
             if items.len() == 0:
                 push_text(out, "[]")
                 return
-            out.append(91)
+            out.push(91)
             let first = true
             for item in items:
                 if !first:
-                    out.append(44)
+                    out.push(44)
                 first = false
                 line_break(out, spaced, depth + 1)
                 render(item, out, spaced, depth + 1)
             line_break(out, spaced, depth)
-            out.append(93)
+            out.push(93)
         .Object(fields) =>
             if fields.len() == 0:
                 push_text(out, "{}")
                 return
-            out.append(123)
+            out.push(123)
             let first = true
             for entry in fields:
                 if !first:
-                    out.append(44)
+                    out.push(44)
                 first = false
                 line_break(out, spaced, depth + 1)
                 render_text(out, entry._0)
-                out.append(58)
+                out.push(58)
                 if spaced:
-                    out.append(32)
+                    out.push(32)
                 render(entry._1, out, spaced, depth + 1)
             line_break(out, spaced, depth)
-            out.append(125)
+            out.push(125)
 
 fn line_break(out: mut List[u8], spaced: bool, depth: i32) -> void:
     if !spaced:
         return
-    out.append(10)
+    out.push(10)
     let count = depth * 2
     while count > 0:
-        out.append(32)
+        out.push(32)
         count = count - 1
 
 fn push_text(out: mut List[u8], text: string) -> void:
     for byte in text.bytes():
-        out.append(byte)
+        out.push(byte)
 
 # A quoted string: `"` and `\` escaped, the control characters below U+0020
 # as `\b`, `\f`, `\n`, `\r`, `\t`, or `\u00XX` with lowercase hex, and
 # every other scalar value as itself (r-std-json.display.text).
 fn render_text(out: mut List[u8], text: string) -> void:
-    out.append(34)
+    out.push(34)
     for byte in text.bytes():
         if byte == 34:
             push_text(out, "\\\"")
@@ -209,11 +210,11 @@ fn render_text(out: mut List[u8], text: string) -> void:
             push_text(out, "\\t")
         else if byte < 32:
             push_text(out, "\\u00")
-            out.append(hex_symbol(byte >> 4))
-            out.append(hex_symbol(byte & 15))
+            out.push(hex_symbol(byte >> 4))
+            out.push(hex_symbol(byte & 15))
         else:
-            out.append(byte)
-    out.append(34)
+            out.push(byte)
+    out.push(34)
 
 fn hex_symbol(value: u8) -> u8:
     if value < 10: 48 + value else: 87 + value
@@ -224,7 +225,7 @@ fn bytes_text(bytes: List[u8]) -> string:
         .Err(_) => panic("std.json: output bytes are valid UTF-8")
 
 # Why parsing failed, at a position counted in characters from 0
-# (r-std-json.error.decl).
+# (r-std-json.error.enum).
 pub enum JsonError:
     # The text stops inside a value; `position` is its length.
     UnexpectedEnd(position: i32)
@@ -236,9 +237,8 @@ pub enum JsonError:
     LoneSurrogate(position: i32)
     # A raw control character inside a string.
     ControlCharacter(position: i32)
-    # A number with a fraction or an exponent, or outside i64 and u64; the
-    # prototype has no float parser yet. `position` is its first character.
-    UnsupportedNumber(position: i32)
+    # A number past the finite f64 range; `position` is its first character.
+    NumberOutOfRange(position: i32)
     # An array or object nested deeper than 128 levels; `position` is its
     # opening bracket.
     NestingTooDeep(position: i32)
@@ -251,7 +251,7 @@ impl Eq for JsonError:
             (.InvalidEscape(left), .InvalidEscape(right)) => left == right
             (.LoneSurrogate(left), .LoneSurrogate(right)) => left == right
             (.ControlCharacter(left), .ControlCharacter(right)) => left == right
-            (.UnsupportedNumber(left), .UnsupportedNumber(right)) => left == right
+            (.NumberOutOfRange(left), .NumberOutOfRange(right)) => left == right
             (.NestingTooDeep(left), .NestingTooDeep(right)) => left == right
             _ => false
 
@@ -263,7 +263,7 @@ impl Display for JsonError:
             .InvalidEscape(position) => "invalid escape at position $position"
             .LoneSurrogate(position) => "lone surrogate escape at position $position"
             .ControlCharacter(position) => "control character in a string at position $position"
-            .UnsupportedNumber(position) => "number at position $position needs float parsing, which is not available yet"
+            .NumberOutOfRange(position) => "number out of range at position $position"
             .NestingTooDeep(position) => "nesting too deep at position $position"
 
 data Parsed:
@@ -349,7 +349,7 @@ fn parse_array(bytes: List[u8], open: i32, depth: i32) -> Result[Parsed, JsonErr
         return .Ok(Parsed { value: Json.Array(items), end: index + 1 })
     while true:
         found := parse_value(bytes, index, depth + 1)?
-        items.append(found.value)
+        items.push(found.value)
         index = skip_space(bytes, found.end)
         if index < bytes.len() && bytes[index] == 44:
             index = index + 1
@@ -397,7 +397,7 @@ fn parse_string(bytes: List[u8], open: i32) -> Result[ParsedText, JsonError]:
         if byte < 32:
             return .Err(JsonError.ControlCharacter(char_position(bytes, index)))
         if byte != 92:
-            buffer.append(byte)
+            buffer.push(byte)
             index = index + 1
             continue
         backslash := index
@@ -406,17 +406,17 @@ fn parse_string(bytes: List[u8], open: i32) -> Result[ParsedText, JsonError]:
         escaped := bytes[index + 1]
         index = index + 2
         if escaped == 34 || escaped == 92 || escaped == 47:
-            buffer.append(escaped)
+            buffer.push(escaped)
         else if escaped == 98:
-            buffer.append(8)
+            buffer.push(8)
         else if escaped == 102:
-            buffer.append(12)
+            buffer.push(12)
         else if escaped == 110:
-            buffer.append(10)
+            buffer.push(10)
         else if escaped == 114:
-            buffer.append(13)
+            buffer.push(13)
         else if escaped == 116:
-            buffer.append(9)
+            buffer.push(9)
         else if escaped == 117:
             unit := read_hex4(bytes, index)
             if unit == -2:
@@ -465,19 +465,19 @@ fn hex_value(code: i32) -> i32:
 # The UTF-8 bytes of a scalar value.
 fn push_scalar(out: mut List[u8], point: i32) -> void:
     if point < 128:
-        out.append(u8(point))
+        out.push(u8(point))
     else if point < 2048:
-        out.append(u8(192 + (point >> 6)))
-        out.append(u8(128 + (point & 63)))
+        out.push(u8(192 + (point >> 6)))
+        out.push(u8(128 + (point & 63)))
     else if point < 65536:
-        out.append(u8(224 + (point >> 12)))
-        out.append(u8(128 + ((point >> 6) & 63)))
-        out.append(u8(128 + (point & 63)))
+        out.push(u8(224 + (point >> 12)))
+        out.push(u8(128 + ((point >> 6) & 63)))
+        out.push(u8(128 + (point & 63)))
     else:
-        out.append(u8(240 + (point >> 18)))
-        out.append(u8(128 + ((point >> 12) & 63)))
-        out.append(u8(128 + ((point >> 6) & 63)))
-        out.append(u8(128 + (point & 63)))
+        out.push(u8(240 + (point >> 18)))
+        out.push(u8(128 + ((point >> 12) & 63)))
+        out.push(u8(128 + ((point >> 6) & 63)))
+        out.push(u8(128 + (point & 63)))
 
 # 2^63, the first u64 past the i64 range, and the largest u64.
 fn sign_limit() -> u64:
@@ -489,7 +489,7 @@ fn u64_max() -> u64:
 # The number that starts at `start`: `-`? then `0` or a nonzero digit and
 # digits. An integer in the i64 or u64 range is exact; `-0` is the float
 # -0.0, as in serde_json. A fraction, an exponent, or an integer past both
-# ranges is an `UnsupportedNumber` until the std has a float parser.
+# ranges is the float that `parse_f64` gives (r-std-json.parse.number.float).
 fn parse_number(bytes: List[u8], start: i32) -> Result[Parsed, JsonError]:
     size := bytes.len()
     let index = start
@@ -529,20 +529,33 @@ fn parse_number(bytes: List[u8], start: i32) -> Result[Parsed, JsonError]:
         while index < size && bytes[index] >= 48 && bytes[index] <= 57:
             index = index + 1
         exotic = true
-    unsupported := JsonError.UnsupportedNumber(char_position(bytes, start))
-    if exotic || overflow:
-        return .Err(unsupported)
+    if exotic || overflow || (negative && magnitude > sign_limit()):
+        return float_number(bytes, start, index)
     if !negative:
         return .Ok(Parsed { value: Json.Number(Number::from_u64(magnitude)), end: index })
     if magnitude == 0:
         match Number::from_f64(-0.0):
             .Some(zero) => return .Ok(Parsed { value: Json.Number(zero), end: index })
-            .None => return .Err(unsupported)
-    if magnitude > sign_limit():
-        return .Err(unsupported)
+            .None => return float_number(bytes, start, index)
     if magnitude == sign_limit():
         return .Ok(Parsed { value: Json.Number(Number::from_i64(-9223372036854775808)), end: index })
     .Ok(Parsed { value: Json.Number(Number::from_i64(-i64(magnitude))), end: index })
+
+# The float of the number text from `start` up to `end`, which the caller
+# has read to the end of its grammar; past the f64 range it is a
+# `NumberOutOfRange` at `start` (r-std-json.parse.number.out-of-range).
+fn float_number(bytes: List[u8], start: i32, end: i32) -> Result[Parsed, JsonError]:
+    let digits: mut List[u8] = []
+    let index = start
+    while index < end:
+        digits.push(bytes[index])
+        index = index + 1
+    value := match parse_f64(bytes_text(digits)):
+        .Ok(found) => found
+        .Err(_) => panic("std.json: a JSON number is parse_f64 text")
+    match Number::from_f64(value):
+        .Some(number) => .Ok(Parsed { value: Json.Number(number), end: end })
+        .None => .Err(JsonError.NumberOutOfRange(char_position(bytes, start)))
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates:
@@ -573,5 +586,5 @@ impl Debug for JsonError:
             .InvalidEscape(position) => out.debug_struct("InvalidEscape").field("position", position).finish()
             .LoneSurrogate(position) => out.debug_struct("LoneSurrogate").field("position", position).finish()
             .ControlCharacter(position) => out.debug_struct("ControlCharacter").field("position", position).finish()
-            .UnsupportedNumber(position) => out.debug_struct("UnsupportedNumber").field("position", position).finish()
+            .NumberOutOfRange(position) => out.debug_struct("NumberOutOfRange").field("position", position).finish()
             .NestingTooDeep(position) => out.debug_struct("NestingTooDeep").field("position", position).finish()

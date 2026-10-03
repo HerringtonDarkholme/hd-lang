@@ -53,7 +53,7 @@ fn tokenize(src: string) -> Result[List[Spanned], CalcError]:
     let out: mut List[Spanned] = []
     let chars: mut List[char] = []
     for c in src.chars():
-        chars.append(c)
+        chars.push(c)
     let i = 0
     while i < chars.len():
         c := chars[i]
@@ -66,7 +66,7 @@ fn tokenize(src: string) -> Result[List[Spanned], CalcError]:
                 text = text + chars[i].to_string()
                 i = i + 1
             match parse_i32(text):
-                .Ok(n) => out.append(Spanned { token: .Num(n), pos: start })
+                .Ok(n) => out.push(Spanned { token: .Num(n), pos: start })
                 .Err(_) => return .Err(CalcError.BadNumber(start))
         else:
             tok := match c:
@@ -77,7 +77,7 @@ fn tokenize(src: string) -> Result[List[Spanned], CalcError]:
                 '(' => Token.LParen
                 ')' => Token.RParen
                 _ => return .Err(CalcError.BadChar(c, i))
-            out.append(Spanned { token: tok, pos: i })
+            out.push(Spanned { token: tok, pos: i })
             i = i + 1
     .Ok(out)
 

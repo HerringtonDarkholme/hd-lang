@@ -139,7 +139,7 @@ impl Choices:
             return items
         let count: i32 = i32(self.next(i64(max)))
         while items.len() < count:
-            items.append(item(self))
+            items.push(item(self))
         items
 
     # At most `max` entries, each key drawn before its value. A key drawn
@@ -185,7 +185,7 @@ impl Choices:
             return items
         let count: i32 = i32(self.next(i64(max)))
         while items.len() < count:
-            items.append(T::arbitrary(self))
+            items.push(T::arbitrary(self))
         items
 
     fn map_of[K < Arbitrary & Eq & Hash, V < Arbitrary](mut self, max: i32) -> Map[K, V]:
@@ -255,7 +255,7 @@ impl[S] Source[S] for ArbitrarySource[S]:
         let ordered: mut List[Variant[S]] = [choices[simplest]]
         for v in choices:
             if v.info.index != simplest:
-                ordered.append(v)
+                ordered.push(v)
         if ordered.len() == 1:
             return .Ok(ordered[0])
         .Ok(ordered[self.c.int(0, ordered.len() - 1)])

@@ -15,7 +15,7 @@ impl Clock for RecordingClock:
         Instant::from_millis(0)
 
     fn sleep!(mut self, duration: Duration) -> void:
-        self.slept.append(duration.as_milliseconds())
+        self.slept.push(duration.as_milliseconds())
 
 data Server:
     busy_for: i32

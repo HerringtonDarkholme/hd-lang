@@ -17,7 +17,7 @@ The language tier keeps what the compiler knows about a list
 
 | Item | Why it stays in the language tier |
 | --- | --- |
-| `items[i]`, `len`, `iter`, `append` | built-in indexing and intrinsics over the list's representation |
+| `items[i]`, `len`, `iter`, `push`, `pop` | built-in indexing and intrinsics over the list's representation |
 | the structural-version counter | [`flow.for.version`](../lang/06-control-flow.md#r-flow.for.version), a language rule, defines when a change invalidates an iterator |
 
 ## List Methods
@@ -98,7 +98,7 @@ fn invalid(view: mut ListView[i32]) -> void:
 ```text
 fn stale(items: mut List[i32]) -> i32:
     window := items.view(0, 2)
-    items.append(4)
+    items.push(4)
     window.len()  # panics with iterator-invalidated
 ```
 
@@ -148,7 +148,7 @@ fn rotate(items: List[i32]) -> List[i32]:
         .None => pass
     let rotated: mut List[i32] = []
     for item in queue:
-        rotated.append(item)
+        rotated.push(item)
     rotated  # [2, 3, 1] for [1, 2, 3]
 ```
 

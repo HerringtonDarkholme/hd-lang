@@ -8,6 +8,13 @@ use std.ops.Index
 use std.format.{DebugList, DebugWriter}
 
 impl[T] List[T]:
+    # `push` is a language-tier intrinsic method
+    # (spec/lang/10-modules.md#built-in-methods). The prototype compiler
+    # still knows it by its old name, `append`, so this body forwards to
+    # that until the compiler renames it (future-work/STDLIB_PLAN.md, LIST-PUSH-POP).
+    pub fn push(mut self, value: T) -> void:
+        self.append(value)
+
     # A read-only window on the elements from `start` up to `end`, with no
     # copy (spec/std/collections.md#views).
     pub fn view(self, start: i32, end: i32) -> ListView[T]:
@@ -18,14 +25,14 @@ impl[T] List[T]:
     pub fn map[U](self, transform: fn(T) -> U) -> List[U]:
         let mapped: mut List[U] = []
         for item in self:
-            mapped.append(transform(item))
+            mapped.push(transform(item))
         mapped
 
     pub fn filter(self, keep: fn(T) -> bool) -> List[T]:
         let kept: mut List[T] = []
         for item in self:
             if keep(item):
-                kept.append(item)
+                kept.push(item)
         kept
 
     pub fn first(self) -> T?:
@@ -38,7 +45,7 @@ impl[T] List[T]:
         let backwards: mut List[T] = []
         let index = self.len() - 1
         while index >= 0:
-            backwards.append(self[index])
+            backwards.push(self[index])
             index = index - 1
         backwards
 
@@ -51,7 +58,7 @@ impl[T] List[T]:
         let right: mut List[T] = []
         let index = 0
         while index < self.len():
-            if index < middle: left.append(self[index]) else: right.append(self[index])
+            if index < middle: left.push(self[index]) else: right.push(self[index])
             index = index + 1
         let sorted_left = left.sorted_by(compare)
         let sorted_right = right.sorted_by(compare)
@@ -65,10 +72,10 @@ impl[T] List[T]:
                     .Less => true
                     _ => false
             if take_right:
-                merged.append(sorted_right[at_right])
+                merged.push(sorted_right[at_right])
                 at_right = at_right + 1
             else:
-                merged.append(sorted_left[at_left])
+                merged.push(sorted_left[at_left])
                 at_left = at_left + 1
         merged
 
@@ -79,12 +86,12 @@ impl[T] List[T]:
         let pieces: mut List[List[T]] = []
         let piece: mut List[T] = []
         for item in self:
-            piece.append(item)
+            piece.push(item)
             if piece.len() == size:
-                pieces.append(piece)
+                pieces.push(piece)
                 piece = []
         if piece.len() > 0:
-            pieces.append(piece)
+            pieces.push(piece)
         pieces
 
     # Pairs items by position, stopping at the shorter list.
@@ -92,7 +99,7 @@ impl[T] List[T]:
         let pairs: mut List[(T, U)] = []
         let index = 0
         while index < self.len() && index < other.len():
-            pairs.append((self[index], other[index]))
+            pairs.push((self[index], other[index]))
             index = index + 1
         pairs
 
@@ -107,6 +114,12 @@ pub data ListView[T]:
     end: i32
     version: i32
 
+# The derived builder calls, written by hand because `@derive` does not
+# run inside lib/std (r-std-format.debug.std-types).
+impl[T < Debug] Debug for ListView[T]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("ListView").field("items", self.items).field("start", self.start).field("end", self.end).field("version", self.version).finish()
+
 impl[T] ListView[T]:
     pub fn len(self) -> i32:
         self.check()
@@ -117,7 +130,7 @@ impl[T] ListView[T]:
         let copy: mut List[T] = []
         let index = self.start
         while index < self.end:
-            copy.append(self.items[index])
+            copy.push(self.items[index])
             index = index + 1
         copy
 
@@ -149,7 +162,7 @@ impl[T] Iterable[T] for ListView[T]:
 # `slots` holds the `count` elements from `head` on, wrapping at its end,
 # and every other slot is `.None`. A push into a full buffer first copies
 # the elements, front first, into a buffer twice its size, so each push is
-# amortized O(1). `List` has no way to shrink, so a pop clears its slot.
+# amortized O(1). The prototype has no `List.pop` yet, so a pop clears its slot.
 # `version` counts the pushes and pops, so an iterator taken before one
 # fails fast (r-std-collections.deque.invalidate).
 pub data Deque[T]:
@@ -227,11 +240,11 @@ impl[T] Deque[T]:
         let grown: mut List[T?] = []
         let index = 0
         while index < self.count:
-            grown.append(self.slots[self.slot(index)])
+            grown.push(self.slots[self.slot(index)])
             index = index + 1
         size := if capacity < 4: 4 else: capacity * 2
         while grown.len() < size:
-            grown.append(.None)
+            grown.push(.None)
         self.slots = grown
         self.head = 0
 
@@ -274,7 +287,7 @@ impl[T < Debug] Debug for Deque[T]:
 # A binary max-heap (spec/std/collections.md#heap), as Rust's `BinaryHeap`.
 # `items` holds the `count` elements in heap order from slot 0: each one is
 # at least as large as the two at `2 * i + 1` and `2 * i + 2`. Every later
-# slot is `.None`, since a pop cannot shrink the list.
+# slot is `.None`, since the prototype has no `List.pop` yet.
 pub data Heap[T < Ord]:
     items: mut List[T?]
     count: i32
@@ -294,7 +307,7 @@ impl[T < Ord] Heap[T]:
         if self.count < self.items.len():
             self.items[self.count] = .Some(value)
         else:
-            self.items.append(.Some(value))
+            self.items.push(.Some(value))
         self.count = self.count + 1
         let child = self.count - 1
         while child > 0:
@@ -338,7 +351,7 @@ impl[T < Ord] Heap[T]:
         let copy: mut List[T] = []
         let index = 0
         while index < self.count:
-            copy.append(self.element(index))
+            copy.push(self.element(index))
             index = index + 1
         copy.sorted_by(fn(left: T, right: T) -> Ordering: left.cmp(right))
 
@@ -370,7 +383,7 @@ impl[T < Ord & Debug] Debug for Heap[T]:
 
 # Primitives. The compiler supplies each body (src/README.md,
 # Compiler/library boundary). `list_version` reads the structural-version
-# counter that `append` and the other shape changes advance
+# counter that `push` and the other shape changes advance
 # (spec/lang/06-control-flow.md#r-flow.for.version), as the open issue
 # VIEW-TIER proposes.
 @intrinsic("list_version")

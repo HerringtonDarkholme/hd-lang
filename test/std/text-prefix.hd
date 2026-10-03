@@ -11,7 +11,7 @@ use std.testing.assert_equal
 fn cooked(t: Template[i32]) -> string:
     let pieces: mut List[string] = []
     for piece in t.raw_parts:
-        pieces.append(escaped(piece))
+        pieces.push(escaped(piece))
     interpolate(Template { raw_parts: pieces, values: t.values })
 
 # The processed text, or "?" and the offset of the bad escape.

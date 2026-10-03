@@ -6,7 +6,8 @@ This chapter defines the part of `std.task` that `lib/std` writes in
 ordinary hd over the language tier:
 
 - the `retry!` combinator;
-- the `Backoff` policy and the `retry_with!` combinator.
+- the `Backoff` policy and the `retry_with!` combinator;
+- the `all_list!` combinator.
 
 The language tier keeps the `Suspend` protocol, `block_on`, and the
 polling combinators `all!` and `race!`, which are compiler intrinsics
@@ -113,3 +114,38 @@ sleeps 800 milliseconds and returns `.Err("busy")` after five calls.
 > so a test provider makes them instant and observable.
 
 See also: [Retry](#retry), [Clock](time.md#clock).
+
+## All List
+
+`all_list!` awaits a list of suspending tasks together and returns their
+results in a list:
+
+```text
+pub fn all_list![T, $R](tasks: List[fn!() -> T $ R]) -> List[T] $ R
+```
+
+1. r[std-task.all-list] `std.task` declares `all_list!` with the signature above, as an ordinary `fn!` function, not an intrinsic. Code imports it with `use std.task.all_list`.
+2. r[std-task.all-list.children] `all_list!` calls each task once, without `!`, in input order, and awaits the cold suspensions as `all!` awaits its children.
+3. r[std-task.all-list.order] The result holds each task's value at the task's index in `tasks`, whatever order the tasks complete in.
+4. r[std-task.all-list.empty] An empty `tasks` gives an empty list.
+5. r[std-task.all-list.like-all] Scheduling, cancellation, failure, and panics follow the rules of `all!`: [`req.schedule.all-unfinished`](../lang/11-requirements-and-suspension.md#r-req.schedule.all-unfinished), [`req.schedule.all-completed`](../lang/11-requirements-and-suspension.md#r-req.schedule.all-completed), and [`req.combinator.cancel-children`](../lang/11-requirements-and-suspension.md#r-req.combinator.cancel-children).
+
+```text
+use std.task.all_list
+
+fn square!(value: i32) -> i32:
+    value * value
+
+fn squares!() -> List[i32]:
+    all_list!([fn!() -> i32: square!(3), fn!() -> i32: square!(1), fn!() -> i32: square!(2)])
+```
+
+`squares!` returns `[9, 1, 4]`: the results are in input order.
+
+> **Why.** `all!` takes a fixed number of children of any types and gives
+> a tuple. A list of tasks of one type, whose length is known only at run
+> time, needs a list result. `lib/std` writes `all_list!` as nested `all!`
+> calls, so it needs no new intrinsic, and `all!` stays fixed-arity.
+
+See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators),
+[Cooperative Scheduling](../lang/11-requirements-and-suspension.md#cooperative-scheduling).

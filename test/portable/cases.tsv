@@ -1923,3 +1923,6 @@ runtime/panic/deque-invalidated.hd	runtime
 runtime/valid/heap-order.hd	runtime
 runtime/valid/heap-reverse.hd	runtime
 runtime/valid/cmp-reverse.hd	runtime
+typing/valid/std-joined-types-debug.hd	type
+runtime/valid/task-all-list-empty.hd	runtime
+runtime/valid/num-parse-f64-errors.hd	runtime

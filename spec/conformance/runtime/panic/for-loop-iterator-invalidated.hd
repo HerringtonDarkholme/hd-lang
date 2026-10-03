@@ -1,4 +1,4 @@
 let values: mut List[i32] = [1, 2]
 
 for value in values:  # panic: iterator-invalidated
-    values.append(value)
+    values.push(value)

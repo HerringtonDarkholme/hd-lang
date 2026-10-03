@@ -10,7 +10,8 @@ ordinary hd over the language tier:
 - `abs_diff`, the distance between two integers;
 - the bit counts `count_ones` and `leading_zeros`;
 - `is_nan` and `is_finite` on `f64`;
-- integer parsing: `parse_i32`, `parse_i64`, and `ParseNumberError`.
+- integer parsing: `parse_i32`, `parse_i64`, and `ParseNumberError`;
+- float parsing: `parse_f64`.
 
 The language tier keeps what the compiler knows by name:
 
@@ -220,4 +221,50 @@ pub enum ParseNumberError:
 > **Why.** Parsing reads user input, which should not accept source
 > literal syntax. The grammar is Rust's `str::parse` for integers.
 
-See also: [Strings](../lang/04-type-system.md#strings), [Result](result.md).
+## Float Parsing
+
+`parse_f64` reads a decimal number, in the grammar of a JSON number, as an
+`f64`:
+
+```text
+use std.num.parse_f64
+
+fn ratio(text: string) -> f64:
+    match parse_f64(text):
+        .Ok(value) => value
+        .Err(_) => 0.0
+```
+
+| Rule | Function |
+| --- | --- |
+| r[std-num.parse-f64] `parse_f64` | `pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]` |
+
+1. r[std-num.parse-f64.import] `std.num` declares `parse_f64`. It is not a prelude name; code imports it, as in `use std.num.parse_f64`.
+2. r[std-num.parse-f64.grammar] The accepted text is a number in the grammar of RFC 8259: an optional `-`, then `0` or a nonzero digit and more digits, then an optional fraction, then an optional exponent.
+3. r[std-num.parse-f64.parts] A fraction is `.` and one or more digits. An exponent is `e` or `E`, an optional `+` or `-`, and one or more digits.
+4. r[std-num.parse-f64.no-other] So a leading `+`, a leading zero before another digit, whitespace, `_` separators, `inf`, and `NaN` are not accepted.
+5. r[std-num.parse-f64.value] Accepted text gives `.Ok` of the value that the [`parse_f64` primitive](README.md#standard-library-primitives) returns: the nearest `f64`, with a tie rounded to the even one.
+6. r[std-num.parse-f64.range] So a value past the finite `f64` range gives an infinity, and a value too small for the smallest subnormal gives a zero. Each keeps the text's sign.
+7. r[std-num.parse-f64.empty] Empty text gives `.Err(ParseNumberError.Empty)`.
+8. r[std-num.parse-f64.invalid-digit] Other text is read from left to right. The first character that no continuation of the grammar allows gives `.Err(ParseNumberError.InvalidDigit(position))`, with its index counted in characters from 0.
+9. r[std-num.parse-f64.early-end] Text that ends where the grammar needs a digit gives `InvalidDigit` at the index of its last character, as a lone `-` gives `InvalidDigit(0)`.
+10. r[std-num.parse-f64.no-out-of-range] `parse_f64` never gives `OutOfRange`.
+
+| Text | `parse_f64` gives |
+| --- | --- |
+| `"1.5"`, `"15e-1"` | `.Ok(1.5)` |
+| `"-0"` | `.Ok(-0.0)` |
+| `"9007199254740993"` | `.Ok(9007199254740992.0)`, the even one of the two nearest |
+| `"1e400"` | `.Ok` of positive infinity |
+| `""` | `.Err(Empty)` |
+| `"+1"`, `" 1"`, `".5"`, `"-"` | `.Err(InvalidDigit(0))` |
+| `"01"`, `"1."`, `"1e"` | `.Err(InvalidDigit(1))` |
+| `"1.x"`, `"1e+"` | `.Err(InvalidDigit(2))` |
+
+> **Why.** The grammar is the one `std.json` reads, so a JSON number and
+> `parse_f64` agree, and every finite `f64` text that `Display` writes
+> parses back to the same value. Correct rounding is what Rust's
+> `str::parse::<f64>` and `serde_json` give. It needs big-number
+> arithmetic, so the host supplies it, as it supplies `format_f64`.
+
+See also: [Strings](../lang/04-type-system.md#strings), [Result](result.md), [JSON Numbers](json.md#number-syntax).

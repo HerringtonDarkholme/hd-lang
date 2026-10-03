@@ -148,11 +148,11 @@ impl FsRead for MemoryFs:
         let names: mut List[string] = []
         for made in self.dirs:
             match made.strip_prefix(under):
-                .Some(rest) => names.append(rest.split("/")[0])
+                .Some(rest) => names.push(rest.split("/")[0])
                 .None => pass
         for (stored, _) in self.files:
             match stored.strip_prefix(under):
-                .Some(rest) => names.append(rest.split("/")[0])
+                .Some(rest) => names.push(rest.split("/")[0])
                 .None => pass
         let entries: mut List[Entry] = []
         let seen: mut Map[string, bool] = {}
@@ -162,7 +162,7 @@ impl FsRead for MemoryFs:
                 .None =>
                     seen[name] = true
                     match self.stat!(Path("${under}${name}"))?:
-                        .Some(entry) => entries.append(entry)
+                        .Some(entry) => entries.push(entry)
                         .None => pass
         .Ok(entries)
 
@@ -192,10 +192,10 @@ impl FsWrite for MemoryFs:
         match self.file_at(key):
             .Some(old) =>
                 for byte in old:
-                    joined.append(byte)
+                    joined.push(byte)
             .None => pass
         for byte in text.to_utf8():
-            joined.append(byte)
+            joined.push(byte)
         self.files[key] = joined
         .Ok(())
 
@@ -218,7 +218,7 @@ impl FsWrite for MemoryFs:
                 if made == level:
                     known = true
             if !known:
-                self.dirs.append(level)
+                self.dirs.push(level)
             index = index + 1
         .Ok(())
 
@@ -236,7 +236,7 @@ impl FsWrite for MemoryFs:
         let kept: mut List[string] = []
         for made in self.dirs:
             if made != key:
-                kept.append(made)
+                kept.push(made)
         self.dirs = kept
         .Ok(())
 
@@ -264,16 +264,16 @@ impl FsWrite for MemoryFs:
         let moved: mut List[(string, List[u8])] = []
         for (stored, bytes) in self.files:
             if stored.starts_with(under):
-                moved.append((stored, bytes))
+                moved.push((stored, bytes))
         for (stored, bytes) in moved:
             _ := self.files.remove(stored)
             self.files["${target}${stored.slice(source.len(), stored.len())}"] = bytes
         let renamed: mut List[string] = []
         for made in self.dirs:
             if made == source || made.starts_with(under):
-                renamed.append("${target}${made.slice(source.len(), made.len())}")
+                renamed.push("${target}${made.slice(source.len(), made.len())}")
             else:
-                renamed.append(made)
+                renamed.push(made)
         self.dirs = renamed
         .Ok(())
 

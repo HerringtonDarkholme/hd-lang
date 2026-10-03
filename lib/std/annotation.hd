@@ -2,6 +2,7 @@
 # the target kinds (#target-kinds). `facts_of`, `Target`, `Annotate`, and
 # `annotate` are imported, not prelude names (r-annot.facts-of.declared,
 # r-annot.target.declarations).
+use std.format.DebugWriter
 
 # The facts that decorators attach to the module-level function `f`, in
 # source order, as a `std.structure.Facts` (r-annot.facts-of.result). The
@@ -44,3 +45,24 @@ pub data Annotate:
 # (r-annot.typed-fact.untyped).
 pub fn annotate[T = Any](kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }
+
+# The derived builder calls, written by hand because `@derive` does not
+# run inside lib/std (r-std-format.debug.std-types).
+impl Debug for Target:
+    fn debug(self, out: mut DebugWriter) -> void:
+        name := match self:
+            .Fn => "Fn"
+            .Data => "Data"
+            .Enum => "Enum"
+            .Newtype => "Newtype"
+            .Field => "Field"
+            .Variant => "Variant"
+            .Param => "Param"
+            .Trait => "Trait"
+            .Impl => "Impl"
+            .Method => "Method"
+        out.write(name)
+
+impl Debug for Annotate:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Annotate").field("kinds", self.kinds).finish()

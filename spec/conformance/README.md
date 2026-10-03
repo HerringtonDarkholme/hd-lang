@@ -65,7 +65,7 @@ every fixture. They are the items a numbered chapter specifies:
   `std.num`, `std.structure`, `std.annotation`, and `std.format`
   (`Display`, `Debug`, `DebugWriter`, and `debug`), and `Iterable` and
   `Iterator` from `std.iter`;
-- the intrinsics of built-in types, such as `List.append`, `string.len`,
+- the intrinsics of built-in types, such as `List.push`, `string.len`,
   and `string.slice`.
 
 **Stdlib-tier items** are usable only by a stdlib-tier fixture. They are the

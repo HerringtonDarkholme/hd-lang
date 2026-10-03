@@ -4,7 +4,7 @@ use std.testing.assert_equal
 
 fn grow(items: List[i32]) -> List[i32]:
     let mut part = items[0..2]
-    part.append(9)
+    part.push(9)
     let mut whole = items[..]
     whole[0] = 7
     part

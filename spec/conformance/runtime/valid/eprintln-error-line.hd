@@ -9,11 +9,11 @@ data SplitConsole:
 
 impl Console for SplitConsole:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
-        self.out.append(text)
+        self.out.push(text)
         .Ok(())
 
     fn write_error_line!(mut self, text: string) -> Result[void, ConsoleError]:
-        self.err.append(text)
+        self.err.push(text)
         .Ok(())
 
 fn warn(message: string) -> void $ Console:

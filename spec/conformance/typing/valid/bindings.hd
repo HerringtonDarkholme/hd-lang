@@ -10,5 +10,5 @@ fn example() -> string:
     rename(user, "Grace")
     short := User { name: "Lin" }
     let names: mut List[string] = []
-    names.append(short.name)
+    names.push(short.name)
     readonly.name

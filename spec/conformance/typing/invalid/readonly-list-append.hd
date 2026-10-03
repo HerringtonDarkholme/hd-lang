@@ -1,4 +1,4 @@
 # test: readonly list append
 
 fn bad(values: List[i32]) -> void:
-    values.append(1)  # diagnostic: mutable-receiver-required
+    values.push(1)  # diagnostic: mutable-receiver-required

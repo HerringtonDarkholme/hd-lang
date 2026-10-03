@@ -7,6 +7,6 @@ tests:
     it("grows the copy"):
         items := [1, 2, 3, 4]
         let mut copy = items.view(1, 3).to_list()
-        copy.append(9)
+        copy.push(9)
         assert_equal(copy, [2, 3, 9], reason="the copy grows")
         assert_equal(items, [1, 2, 3, 4], reason="the list is unchanged")

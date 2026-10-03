@@ -10,7 +10,7 @@ pub fn sha256(bytes: List[u8]) -> List[u8]:
     message := padded(bytes)
     let schedule: mut List[u32] = []
     for _ in 0..64:
-        schedule.append(0)
+        schedule.push(0)
     let block = 0
     while block < message.len():
         for t in 0..16:
@@ -56,10 +56,10 @@ pub fn sha256(bytes: List[u8]) -> List[u8]:
         block = block + 64
     let digest: mut List[u8] = []
     for word in state:
-        digest.append(u8(word >> 24))
-        digest.append(u8(word >> 16))
-        digest.append(u8(word >> 8))
-        digest.append(u8(word))
+        digest.push(u8(word >> 24))
+        digest.push(u8(word >> 16))
+        digest.push(u8(word >> 8))
+        digest.push(u8(word))
     digest
 
 # The digest as 64 lowercase hex digits (r-std-digest.sha256-hex).
@@ -75,13 +75,13 @@ fn rotate_right(word: u32, count: u32) -> u32:
 fn padded(bytes: List[u8]) -> List[u8]:
     let message: mut List[u8] = []
     for byte in bytes:
-        message.append(byte)
-    message.append(128)
+        message.push(byte)
+    message.push(128)
     while message.len() % 64 != 56:
-        message.append(0)
+        message.push(0)
     length := u64(bytes.len()) * 8
     for index in 0..8:
-        message.append(u8(length >> u32(56 - 8 * index)))
+        message.push(u8(length >> u32(56 - 8 * index)))
     message
 
 # The first 32 bits of the fractional parts of the cube roots of the first

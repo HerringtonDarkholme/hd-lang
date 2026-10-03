@@ -2,7 +2,7 @@
 # std Collections, Views: std-collections.view.invalidate, std-collections.view.invalidate.anywhere, std-collections.view.invalid-use (batch 49).
 fn stale(items: mut List[i32]) -> i32:
     window := items.view(0, 2)
-    items.append(4)
+    items.push(4)
     window.len()  # panic: iterator-invalidated
 
 let numbers: mut List[i32] = [1, 2, 3]

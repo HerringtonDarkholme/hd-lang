@@ -15,6 +15,7 @@ use std.hash.Hash
 use std.num.{Num, Integer, Float}
 use std.function.Tuple
 use std.structure.{Structure, Source, Variant, Field, Members, Key}
+use std.format.DebugWriter
 
 # Both markers are typed fact types (r-annot.typed-fact.declare), so a
 # marker on `fn ms(n: i64) -> Millis` checks like
@@ -38,6 +39,20 @@ pub fn str_prefix[T, R, $Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
 pub data Template[T]:
     pub raw_parts: List[string]
     pub values: List[T]
+
+# The derived builder calls, written by hand because `@derive` does not
+# run inside lib/std (r-std-format.debug.std-types).
+impl[F] Debug for NumSuffix[F]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("NumSuffix").finish()
+
+impl[F] Debug for StrPrefix[F]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("StrPrefix").finish()
+
+impl[T < Debug] Debug for Template[T]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Template").field("raw_parts", self.raw_parts).field("values", self.values).finish()
 
 # The operator traits (spec/lang/05-expressions.md#operator-traits). An operator
 # on a primitive operand never searches them; any other operand calls the
@@ -152,6 +167,24 @@ pub data RangeTo[T]:
 
 pub data RangeFull: pass
 
+# The derived builder calls, written by hand because `@derive` does not
+# run inside lib/std (r-std-format.debug.std-types).
+impl[T < Debug] Debug for Range[T]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Range").field("start", self.start).field("end", self.end).field("inclusive", self.inclusive).finish()
+
+impl[T < Debug] Debug for RangeFrom[T]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("RangeFrom").field("start", self.start).finish()
+
+impl[T < Debug] Debug for RangeTo[T]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("RangeTo").field("end", self.end).field("inclusive", self.inclusive).finish()
+
+impl Debug for RangeFull:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("RangeFull").finish()
+
 # The end offset of the slice of `size` items from `start` up to `end`, or
 # through `end` when `inclusive`. A negative offset, an offset past `size`,
 # or a start after the end is the checked panic `index-out-of-bounds`
@@ -199,7 +232,7 @@ fn slice_list[T](items: List[T], start: i64, end: i64, inclusive: bool) -> mut L
     let copy: mut List[T] = []
     let index = i32(start)
     while index < stop:
-        copy.append(items[index])
+        copy.push(items[index])
         index = index + 1
     copy
 
@@ -667,6 +700,12 @@ impl[T] Default for T by Structure:
 # breaks every `T::default()` call (src/KNOWN_ISSUES.md, DERIVE-DEFAULT).
 @annotate(.Variant)
 pub data DefaultVariant: pass
+
+# The derived builder calls, written by hand because `@derive` does not
+# run inside lib/std (r-std-format.debug.std-types).
+impl Debug for DefaultVariant:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("DefaultVariant").finish()
 
 # Names each member in order and gives it its declared default, or its
 # type's default when it declares none. The field is

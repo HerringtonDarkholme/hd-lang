@@ -304,9 +304,9 @@ fn rfc3339_codes(text: string) -> List[i32]:
     let codes: mut List[i32] = []
     for byte in text.bytes():
         if byte < 128:
-            codes.append(i32(byte))
+            codes.push(i32(byte))
         else if byte >= 192:
-            codes.append(-1)
+            codes.push(-1)
     codes
 
 # Where `shape` stops matching the codes from `start`: `d` is a digit,
@@ -351,7 +351,7 @@ fn parse_rfc3339_codes(codes: List[i32]) -> Result[Timestamp, TimeParseError]:
         if reach < start + width:
             return .Err(rfc3339_mismatch(codes, reach))
         value := rfc3339_value(codes, start, width)
-        parts.append(value)
+        parts.push(value)
         let high: i64 = 59
         if start == 0:
             high = 9999

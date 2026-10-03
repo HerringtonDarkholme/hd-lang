@@ -1,5 +1,5 @@
 # test: each JsonError kind and its position in characters
-# Spec std/json JSON Errors: std-json.error.decl, std-json.error.position, std-json.error.traits (JSON-SURFACE; task #226).
+# Spec std/json JSON Errors: std-json.error.enum, std-json.error.position, std-json.error.traits (JSON-SURFACE; task #226).
 use std.json.{parse, Json, JsonError}
 use std.format.debug
 use std.testing.{assert, assert_equal}
@@ -56,21 +56,13 @@ tests:
         assert_equal(failure("\"\t\""), JsonError.ControlCharacter(1), reason="tab")
         assert_equal(failure("[\"é\u{1}\"]"), JsonError.ControlCharacter(3), reason="counted in characters")
 
-    it("UnsupportedNumber reports the first character of the number"):
-        assert_equal(failure("1.5"), JsonError.UnsupportedNumber(0), reason="fraction")
-        assert_equal(failure("[\"é\", 1e5]"), JsonError.UnsupportedNumber(6), reason="exponent, counted in characters")
-        assert_equal(failure("-2E-3"), JsonError.UnsupportedNumber(0), reason="negative exponent")
-        assert_equal(failure("18446744073709551616"), JsonError.UnsupportedNumber(0), reason="past u64")
-        assert_equal(failure("-9223372036854775809"), JsonError.UnsupportedNumber(0), reason="below i64")
-
     it("NestingTooDeep reports the opening bracket past 128 levels"):
         assert_equal(failure("[".repeat(129)), JsonError.NestingTooDeep(128), reason="arrays")
         assert_equal(failure("[".repeat(3) + "{\"a\":".repeat(125) + "{"), JsonError.NestingTooDeep(3 + 125 * 5), reason="mixed")
 
-    it("a grammar error comes before a number that is unsupported"):
-        assert_equal(failure("1.5x"), JsonError.UnsupportedNumber(0), reason="the number is read first")
-        assert_equal(failure("1.x"), JsonError.UnexpectedCharacter(2), reason="a broken number is a grammar error")
-        assert_equal(failure("[1e5, ]"), JsonError.UnsupportedNumber(1), reason="the earlier position")
+    it("a broken number is a grammar error"):
+        assert_equal(failure("1.x"), JsonError.UnexpectedCharacter(2), reason="a fraction needs a digit")
+        assert_equal(failure("[1e]"), JsonError.UnexpectedCharacter(3), reason="an exponent needs a digit")
 
     it("128 levels of nesting parse"):
         text := "[".repeat(128) + "]".repeat(128)
@@ -80,5 +72,6 @@ tests:
         assert(JsonError.UnexpectedEnd(3) == JsonError.UnexpectedEnd(3), reason="same position")
         assert(JsonError.UnexpectedEnd(3) != JsonError.UnexpectedEnd(4), reason="another position")
         assert(JsonError.InvalidEscape(2) != JsonError.LoneSurrogate(2), reason="another kind")
+        assert(JsonError.NumberOutOfRange(0) == JsonError.NumberOutOfRange(0), reason="the out-of-range kind")
         assert(debug(JsonError.LoneSurrogate(7)).len() > 0, reason="Debug text")
         assert("${JsonError.NestingTooDeep(4)}".len() > 0, reason="Display text")

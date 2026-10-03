@@ -18,7 +18,7 @@ pub fn main() -> void $ Console:
     for line in lines:
         parts := line.split(" ")
         match parse_i32(parts[1]):
-            .Ok(score) => scores.append((parts[0], score))
+            .Ok(score) => scores.push((parts[0], score))
             .Err(_) => println("skipped '$line'")
     ranked := scores.sorted_by(by_score)
     println(join(ranked.map(fn(entry: (string, i32)) -> string: entry._0.upper()), ", "))

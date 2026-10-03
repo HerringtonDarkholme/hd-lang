@@ -15,7 +15,7 @@ impl[S] Describer[S] for NameLister:
         .Ok(())
 
     fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
-        self.names.append(h.info.name)
+        self.names.push(h.info.name)
         .Ok(())
 
 impl[T] FieldNames for T by Structure:

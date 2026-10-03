@@ -7,7 +7,7 @@ fn make_readers(values: List[i32]) -> List[fn() -> i32]:
     let readers: mut List[fn() -> i32] = []
     for value in values:
         doubled := value * 2
-        readers.append(fn() -> i32: value + doubled)
+        readers.push(fn() -> i32: value + doubled)
     readers
 
 tests:

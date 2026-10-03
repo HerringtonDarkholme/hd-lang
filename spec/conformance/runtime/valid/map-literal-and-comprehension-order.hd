@@ -21,7 +21,7 @@ fn keys(values: Map[string, i32]) -> List[string]:
     let result: mut List[string] = []
     for (name, value) in values:
         if value >= 0:
-            result.append(name)
+            result.push(name)
     result
 
 tests:

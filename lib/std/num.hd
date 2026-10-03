@@ -285,6 +285,66 @@ fn parse_integer(text: string, low: i64, high: i64) -> Result[i64, ParseNumberEr
         index = index + 1
     .Ok(value)
 
+# Float parsing (spec/std/num.md#float-parsing). The grammar is checked
+# here, so every error and its position are std's; the host hook only
+# rounds text that matches it.
+pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]:
+    scalars := text.split("")
+    if scalars.len() == 0:
+        return .Err(ParseNumberError.Empty)
+    match float_grammar_error(scalars):
+        .Some(position) => return .Err(ParseNumberError.InvalidDigit(position))
+        .None => pass
+    value := host_parse_f64(text)
+    if value.is_nan():
+        panic("std.num: the parse_f64 hook refused JSON number text")
+    .Ok(value)
+
+# Where `scalars` first breaks the JSON number grammar (RFC 8259): the
+# index of the scalar no continuation allows, or the last index when the
+# text ends where a digit must follow. `.None` when all of it matches.
+fn float_grammar_error(scalars: List[string]) -> i32?:
+    size := scalars.len()
+    let at = if scalars[0] == "-": 1 else: 0
+    if at >= size:
+        return .Some(size - 1)
+    if scalars[at] == "0":
+        at = at + 1
+    else if digit_value(scalars[at]).is_some():
+        at = after_digits(scalars, at)
+    else:
+        return .Some(at)
+    if at < size && scalars[at] == ".":
+        at = at + 1
+        if at >= size:
+            return .Some(size - 1)
+        if digit_value(scalars[at]).is_none():
+            return .Some(at)
+        at = after_digits(scalars, at)
+    if at < size && (scalars[at] == "e" || scalars[at] == "E"):
+        at = at + 1
+        if at < size && (scalars[at] == "+" || scalars[at] == "-"):
+            at = at + 1
+        if at >= size:
+            return .Some(size - 1)
+        if digit_value(scalars[at]).is_none():
+            return .Some(at)
+        at = after_digits(scalars, at)
+    if at < size: .Some(at) else: .None
+
+# The index after the run of decimal digits that starts at `at`.
+fn after_digits(scalars: List[string], at: i32) -> i32:
+    let index = at
+    while index < scalars.len() && digit_value(scalars[index]).is_some():
+        index = index + 1
+    index
+
+# The correctly rounded `f64` of JSON number text, ties to even, or a
+# NaN for other text (spec/std/README.md#standard-library-primitives).
+@intrinsic("parse_f64")
+fn host_parse_f64(text: string) -> f64:
+    panic("intrinsic")
+
 # The smallest value of an integer type: zero when unsigned, and the sign
 # bit alone when signed. `~zero` is negative exactly in a signed type, and
 # shifting one left reaches the sign bit before the bits run out.

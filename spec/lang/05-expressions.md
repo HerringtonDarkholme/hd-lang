@@ -772,7 +772,7 @@ fn whole(text: string, items: List[i32]) -> (string, List[i32], string):
 ```text
 fn grow(items: List[i32]) -> List[i32]:
     let mut part = items[0..2]  # valid: the slice is a mut List[i32]
-    part.append(9)
+    part.push(9)
     part
 
 fn invalid(items: mut List[i32]) -> void:

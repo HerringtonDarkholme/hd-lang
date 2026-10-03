@@ -3,7 +3,7 @@ use std.testing.assert_equal
 fn keys(values: Map[string, i32]) -> List[string]:
     let result: mut List[string] = []
     for (key, value) in values:
-        result.append(key)
+        result.push(key)
     result
 
 tests:

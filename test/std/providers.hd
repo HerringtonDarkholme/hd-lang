@@ -41,8 +41,8 @@ tests:
         let mut two = SeededRandom::new(7)
         let mut rolls: mut List[u64] = []
         $.with(Random=one):
-            rolls.append(roll())
-            rolls.append(roll())
+            rolls.push(roll())
+            rolls.push(roll())
         $.with(Random=two):
             assert_equal(roll(), rolls[0], reason="replayed first roll")
             assert_equal(roll(), rolls[1], reason="replayed second roll")

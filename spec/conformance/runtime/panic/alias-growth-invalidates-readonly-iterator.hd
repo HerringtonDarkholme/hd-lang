@@ -6,5 +6,5 @@ tests:
         let view: List[i32] = values
         let iterator: mut Iterator[i32] = view.iter()
         _ := iterator.next()
-        values.append(3)
+        values.push(3)
         _ := iterator.next()  # panic: iterator-invalidated

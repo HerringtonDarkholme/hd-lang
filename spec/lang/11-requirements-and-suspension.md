@@ -318,7 +318,7 @@ A row parameter is marked with `$` where it is declared:
 fn map[T, U, $R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
     let result: mut List[U] = []
     for item in items:
-        result.append(f(item))
+        result.push(f(item))
     result
 ```
 

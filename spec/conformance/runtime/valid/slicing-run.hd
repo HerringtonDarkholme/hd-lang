@@ -18,7 +18,7 @@ tests:
         assert_equal(parts("hello", items)._2, [1, 2], reason="..b")
         assert_equal(parts("hello", items)._3, [2, 3], reason="a..=b")
         let mut copy = items[0..2]
-        copy.append(9)
+        copy.push(9)
         copy[0] = 7
         assert_equal(items, [1, 2, 3], reason="the slice is not a view")
         assert_equal(copy, [7, 2, 9], reason="the slice is its own list")

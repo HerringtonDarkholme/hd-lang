@@ -13,7 +13,7 @@ fn keys(value: Json) -> List[string]:
         .Object(fields) =>
             let names: mut List[string] = []
             for entry in fields:
-                names.append(entry._0)
+                names.push(entry._0)
             names
         _ => panic("not an object")
 

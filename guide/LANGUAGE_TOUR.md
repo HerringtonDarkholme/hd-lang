@@ -885,7 +885,7 @@ data Cart:
 
 fn inspect_cart(cart: Cart, item: mut LineItem) -> void:
     cart.items[0].quantity = 0  # allowed: element remains mut LineItem
-    cart.items.append(item)     # error: readonly Cart weakens the direct list field
+    cart.items.push(item)     # error: readonly Cart weakens the direct list field
 ```
 
 Iterating `List[mut T]` likewise yields `mut T`, even through a readonly list.

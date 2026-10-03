@@ -7,7 +7,7 @@ fn drained(heap: mut Heap[i32]) -> List[i32]:
     let popped: mut List[i32] = []
     while true:
         match heap.pop():
-            .Some(value) => popped.append(value)
+            .Some(value) => popped.push(value)
             .None => return popped
     popped
 

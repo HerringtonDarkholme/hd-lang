@@ -7,7 +7,7 @@ use std.testing.assert_equal
 fn counting(size: i32) -> List[u8]:
     let bytes: mut List[u8] = []
     for index in 0..size:
-        bytes.append(u8(index))
+        bytes.push(u8(index))
     bytes
 
 tests:

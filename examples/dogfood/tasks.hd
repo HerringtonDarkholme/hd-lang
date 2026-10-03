@@ -44,15 +44,15 @@ fn visit(graph: Graph, walk: mut Walk, path: List[string], name: string, needed_
         let cycle: mut List[string] = []
         for (i, step) in path.iter().enumerate():
             if i >= start:
-                cycle.append(step)
-        cycle.append(name)
+                cycle.push(step)
+        cycle.push(name)
         return .Err(PlanError.Cycle(cycle))
     walk.state[name] = 1
     here := [path..., name]
     for dep in deps:
         visit(graph, walk, here, dep, name)?
     walk.state[name] = 2
-    walk.order.append(name)
+    walk.order.push(name)
     .Ok(())
 
 # Tasks in an order where every task follows its dependencies.
@@ -86,7 +86,7 @@ data LogRunner:
 
 impl Runner for LogRunner:
     fn run!(mut self, name: string) -> void:
-        self.log.append("ran $name")
+        self.log.push("ran $name")
 
 fn run_one!(name: string) -> string $ Runner:
     $.use(Runner).run!(name)
@@ -111,7 +111,7 @@ fn execute!(graph: Graph) -> Result[List[string], PlanError] $ Runner:
     let finished: mut List[string] = []
     for wave in waves(graph, order):
         defer:
-            finished.append("wave of ${wave.len()}")
+            finished.push("wave of ${wave.len()}")
         _ := run_wave!(wave)
     .Ok(finished)
 

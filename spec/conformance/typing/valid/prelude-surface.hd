@@ -9,7 +9,7 @@ impl Hash for Label:
         self.value.hash(state)
 
 fn normalize(values: mut List[string], entries: mut Map[string, i32]) -> i32:
-    values.append(" Added ")
+    values.push(" Added ")
     clean := [for value in values => "[$value]"]
     removed := entries.remove("old")
     match removed:

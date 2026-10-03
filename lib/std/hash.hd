@@ -8,6 +8,7 @@
 # (spec/std/hash.md#default-hasher).
 use std.function.Tuple
 use std.structure.{Structure, Walker, Variant, Field}
+use std.format.DebugWriter
 
 pub trait Hasher:
     fn write(mut self, bytes: List[u8]) -> void
@@ -99,7 +100,7 @@ fn signed_bytes(value: i64, count: i32) -> List[u8]:
     let rest = value
     let index = 0
     while index < count:
-        bytes.append(u8(rest & 255))
+        bytes.push(u8(rest & 255))
         rest = rest >> 8
         index = index + 1
     bytes
@@ -109,7 +110,7 @@ fn unsigned_bytes(value: u64, count: i32) -> List[u8]:
     let rest = value
     let index = 0
     while index < count:
-        bytes.append(u8(rest & 255))
+        bytes.push(u8(rest & 255))
         rest = rest >> 8
         index = index + 1
     bytes
@@ -119,6 +120,12 @@ fn unsigned_bytes(value: u64, count: i32) -> List[u8]:
 # starts at the FNV offset basis `0xcbf29ce484222325`.
 pub data DefaultHasher:
     state: u64
+
+# The derived builder calls, written by hand because `@derive` does not
+# run inside lib/std (r-std-format.debug.std-types).
+impl Debug for DefaultHasher:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("DefaultHasher").field("state", self.state).finish()
 
 impl DefaultHasher:
     pub fn new() -> mut DefaultHasher:

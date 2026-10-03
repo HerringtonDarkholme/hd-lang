@@ -1,0 +1,23 @@
+# test: parse_f64 gives the correctly rounded f64 of JSON number text, ties to even
+# Spec std/num Float Parsing: std-num.parse-f64.value and .range (owner decision FLOAT-PARSE, batch 71, 2026-10-03).
+use std.num.parse_f64
+use std.testing.assert_equal
+
+fn text(source: string) -> string:
+    match parse_f64(source):
+        .Ok(value) => "$value"
+        .Err(error) => "error $error"
+
+tests:
+    it("number text gives its nearest f64"):
+        assert_equal(text("1.5"), "1.5", reason="a fraction")
+        assert_equal(text("0.1"), "0.1", reason="the nearest f64 shows as 0.1")
+        assert_equal(text("-2.5E3"), "-2500.0", reason="an exponent and a sign")
+        assert_equal(text("42"), "42.0", reason="an integer")
+        assert_equal(text("-0"), "-0.0", reason="negative zero keeps its sign")
+    it("a tie rounds to the even f64"):
+        assert_equal(text("9007199254740993"), "9007199254740992.0", reason="2^53 + 1 is halfway, and 2^53 is even")
+    it("past the range gives an infinity, and below it a zero"):
+        assert_equal(text("1e400"), "inf", reason="overflow")
+        assert_equal(text("-1e400"), "-inf", reason="negative overflow")
+        assert_equal(text("1e-400"), "0.0", reason="underflow")

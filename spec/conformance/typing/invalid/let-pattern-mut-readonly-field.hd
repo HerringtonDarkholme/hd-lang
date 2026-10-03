@@ -6,5 +6,5 @@ data Profile:
 
 fn tag(profile: mut Profile, readonly: Profile) -> void:
     let Profile { mut tags, name } = profile  # mut List[string], string
-    tags.append(name)
+    tags.push(name)
     let Profile { tags: mut others } = readonly  # diagnostic: mutable-upgrade

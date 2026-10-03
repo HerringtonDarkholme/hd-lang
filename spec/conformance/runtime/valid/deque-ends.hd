@@ -6,7 +6,7 @@ use std.testing.{assert, assert_equal}
 fn contents(queue: Deque[i32]) -> List[i32]:
     let seen: mut List[i32] = []
     for item in queue:
-        seen.append(item)
+        seen.push(item)
     seen
 
 tests:

@@ -11,7 +11,7 @@ impl PropertyRunner for Replay:
         PropertyCase { example: .None, seed: 7, size: 0, replay: [] }
 
     fn record(mut self, value: i64) -> void:
-        self.draws.append(value)
+        self.draws.push(value)
 
     fn show(mut self, text: string) -> void:
         self.shown = text

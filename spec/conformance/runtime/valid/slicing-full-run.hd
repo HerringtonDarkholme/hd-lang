@@ -13,6 +13,6 @@ tests:
         assert_equal(copy, [1, 2, 3], reason="every element")
         assert_equal(items[..=1], [1, 2], reason="..=b")
         copy[0] = 7
-        items.append(4)
+        items.push(4)
         assert_equal(items, [1, 2, 3, 4], reason="the copy did not change the list")
         assert_equal(copy, [7, 2, 3], reason="the list did not change the copy")

@@ -53,7 +53,7 @@ impl Random for SeededRandom:
     fn fill(mut self, count: i32) -> List[u8]:
         let bytes: mut List[u8] = []
         while bytes.len() < count:
-            bytes.append(u8(self.next32() & 0xFF))
+            bytes.push(u8(self.next32() & 0xFF))
         bytes
 
 fn low32(x: u64) -> u64:

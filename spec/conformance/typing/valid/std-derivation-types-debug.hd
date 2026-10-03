@@ -1,0 +1,10 @@
+# test: Debug for the public types of std.inspect and std.structure whose members allow it
+# Spec std/format Debug For Standard Types: std-format.debug.std-types (STD-DEBUG). std.structure's Facts, Member, VariantInfo, Field, Variant, Key, and Members hold a function or an Inspectable value, so std-format.debug.std-types.exempt leaves them out.
+use std.inspect.TypeId
+use std.structure.SelfRef
+
+fn shown[T < Debug](value: T) -> string:
+    debug(value)
+
+fn texts(id: TypeId, kind: SelfRef) -> List[string]:
+    [shown(id), shown(kind)]

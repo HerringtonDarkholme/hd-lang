@@ -117,6 +117,28 @@ impl DebugMap:
     pub fn finish(mut self) -> void:
         self.out.write("}")
 
+# The derived builder calls, written by hand because `@derive` does not
+# run inside lib/std (r-std-format.debug.std-types).
+impl Debug for DebugWriter:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("DebugWriter").field("text", self.text).finish()
+
+impl Debug for DebugStruct:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("DebugStruct").field("out", self.out).field("count", self.count).finish()
+
+impl Debug for DebugTuple:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("DebugTuple").field("out", self.out).field("count", self.count).field("unnamed", self.unnamed).finish()
+
+impl Debug for DebugList:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("DebugList").field("out", self.out).field("count", self.count).finish()
+
+impl Debug for DebugMap:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("DebugMap").field("out", self.out).field("count", self.count).finish()
+
 # The standard `Display` implementations for `string` and the printable
 # primitives (spec/lang/05-expressions.md#r-expr.interp.std): an integer's
 # decimal digits, with `-` when negative; `true` or `false`; a `char`'s
@@ -212,19 +234,19 @@ fn digit_text(digit: i32) -> string:
 fn scalar_text(point: i32) -> string:
     let encoded: mut List[u8] = []
     if point < 128:
-        encoded.append(u8(point))
+        encoded.push(u8(point))
     else if point < 2048:
-        encoded.append(u8(192 + point / 64))
-        encoded.append(u8(128 + point % 64))
+        encoded.push(u8(192 + point / 64))
+        encoded.push(u8(128 + point % 64))
     else if point < 65536:
-        encoded.append(u8(224 + point / 4096))
-        encoded.append(u8(128 + point / 64 % 64))
-        encoded.append(u8(128 + point % 64))
+        encoded.push(u8(224 + point / 4096))
+        encoded.push(u8(128 + point / 64 % 64))
+        encoded.push(u8(128 + point % 64))
     else:
-        encoded.append(u8(240 + point / 262144))
-        encoded.append(u8(128 + point / 4096 % 64))
-        encoded.append(u8(128 + point / 64 % 64))
-        encoded.append(u8(128 + point % 64))
+        encoded.push(u8(240 + point / 262144))
+        encoded.push(u8(128 + point / 4096 % 64))
+        encoded.push(u8(128 + point / 64 % 64))
+        encoded.push(u8(128 + point % 64))
     string_from_bytes(encoded)
 
 # Primitives (spec/std/README.md#standard-library-primitives). A `char` is

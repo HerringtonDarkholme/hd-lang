@@ -7,7 +7,7 @@ data Bytes:
 impl Hasher for Bytes:
     fn write(mut self, bytes: List[u8]) -> void:
         for b in bytes:
-            self.items.append(b)
+            self.items.push(b)
 
 fn fed(first: Bytes, second: Bytes) -> void:
     if first.items != second.items:

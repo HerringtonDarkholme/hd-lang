@@ -32,8 +32,8 @@ impl Display for DecodeError:
 pub fn hex_encode(bytes: List[u8]) -> string:
     let codes: mut List[u8] = []
     for byte in bytes:
-        codes.append(hex_symbol(byte >> 4))
-        codes.append(hex_symbol(byte & 15))
+        codes.push(hex_symbol(byte >> 4))
+        codes.push(hex_symbol(byte & 15))
     ascii_text(codes)
 
 # Either case; the length is checked first, then each character from the
@@ -52,7 +52,7 @@ pub fn hex_decode(text: string) -> Result[List[u8], DecodeError]:
         low := hex_value(codes[index + 1])
         if low < 0:
             return .Err(DecodeError.InvalidCharacter(index + 1))
-        bytes.append(u8(high * 16 + low))
+        bytes.push(u8(high * 16 + low))
         index = index + 2
     .Ok(bytes)
 
@@ -64,24 +64,24 @@ pub fn base64_encode(bytes: List[u8]) -> string:
     let index = 0
     while index + 3 <= size:
         group := (i32(bytes[index]) << 16) | (i32(bytes[index + 1]) << 8) | i32(bytes[index + 2])
-        codes.append(base64_symbol(group >> 18))
-        codes.append(base64_symbol((group >> 12) & 63))
-        codes.append(base64_symbol((group >> 6) & 63))
-        codes.append(base64_symbol(group & 63))
+        codes.push(base64_symbol(group >> 18))
+        codes.push(base64_symbol((group >> 12) & 63))
+        codes.push(base64_symbol((group >> 6) & 63))
+        codes.push(base64_symbol(group & 63))
         index = index + 3
     rest := size - index
     if rest == 1:
         group := i32(bytes[index]) << 16
-        codes.append(base64_symbol(group >> 18))
-        codes.append(base64_symbol((group >> 12) & 63))
-        codes.append(61)
-        codes.append(61)
+        codes.push(base64_symbol(group >> 18))
+        codes.push(base64_symbol((group >> 12) & 63))
+        codes.push(61)
+        codes.push(61)
     else if rest == 2:
         group := (i32(bytes[index]) << 16) | (i32(bytes[index + 1]) << 8)
-        codes.append(base64_symbol(group >> 18))
-        codes.append(base64_symbol((group >> 12) & 63))
-        codes.append(base64_symbol((group >> 6) & 63))
-        codes.append(61)
+        codes.push(base64_symbol(group >> 18))
+        codes.push(base64_symbol((group >> 12) & 63))
+        codes.push(base64_symbol((group >> 6) & 63))
+        codes.push(61)
     ascii_text(codes)
 
 # Canonical text only: the length is checked first, then the characters
@@ -111,7 +111,7 @@ pub fn base64_decode(text: string) -> Result[List[u8], DecodeError]:
         bits = bits + 6
         if bits >= 8:
             bits = bits - 8
-            bytes.append(u8(buffer >> bits))
+            bytes.push(u8(buffer >> bits))
             buffer = buffer & ((1 << bits) - 1)
         index = index + 1
     # The bits left over are the pad bits, which must be zero.
@@ -164,9 +164,9 @@ fn ascii_codes(text: string) -> List[i32]:
     let codes: mut List[i32] = []
     for byte in text.bytes():
         if byte < 128:
-            codes.append(i32(byte))
+            codes.push(i32(byte))
         else if byte >= 192:
-            codes.append(-1)
+            codes.push(-1)
     codes
 
 fn ascii_text(codes: List[u8]) -> string:

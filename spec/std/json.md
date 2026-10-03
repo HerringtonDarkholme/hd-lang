@@ -161,16 +161,20 @@ fn title(text: string) -> string:
 1. r[std-json.parse.number.grammar] A number is `-`, then `0` or a nonzero digit and digits, then an optional fraction, then an optional exponent. A character that breaks this is an `UnexpectedCharacter` error, or `UnexpectedEnd` at the end of the text.
 2. r[std-json.parse.number.integer] An integer in the `i64` range or in the `u64` range is exact, as `Number.as_i64` or `Number.as_u64` reads it.
 3. r[std-json.parse.number.negative-zero] `-0` is the float `-0.0`, as in `serde_json`, and `0` is the integer zero.
-4. r[std-json.parse.number.unsupported] A number with a fraction or an exponent, or an integer outside both ranges, is an `UnsupportedNumber` error at its first character, once its grammar is read to the end.
+4. r[std-json.parse.number.float] A number with a fraction or an exponent, or an integer outside both ranges, is the float that [`parse_f64`](num.md#r-std-num.parse-f64.value) gives for its text.
+5. r[std-json.parse.number.out-of-range] A float past the finite `f64` range, which `parse_f64` gives as an infinity, is a `NumberOutOfRange` error at the number's first character, once its grammar is read to the end.
 
-> **Note.** `std` has no function that reads a decimal text as an `f64`, so
-> `parse` cannot give the nearest float of `1.5` yet. `UnsupportedNumber`
-> stands for that gap, and the rule is replaced when float parsing exists.
-> Until then `1.5` is an error rather than a rounded guess.
+| Text | `parse` gives |
+| --- | --- |
+| `"1.5"` | `.Ok` of the float `1.5` |
+| `"18446744073709551616"` | `.Ok` of the float 2^64, one past the `u64` range |
+| `"1e-400"` | `.Ok` of the float `0.0` |
+| `"1e400"` | `.Err(NumberOutOfRange(0))` |
 
-> **Why.** A parser that rounded wrongly would break the round trip that
-> [`std-json.number.display`](#r-std-json.number.display) promises for
-> floats, so it is better to refuse than to guess.
+> **Why.** `serde_json` reads numbers the same way. An integer in range is
+> exact, and every other number is the nearest `f64`. A number past the
+> `f64` range is an error, since a `Number` holds no infinity
+> ([`std-json.number.repr`](#r-std-json.number.repr)).
 
 ### Error Order
 
@@ -182,7 +186,7 @@ fn title(text: string) -> string:
 | `"[1,]"` | `.Err(UnexpectedCharacter(3))` |
 | `"01"` | `.Err(UnexpectedCharacter(1))` |
 | `"\"\\ud800\""` | `.Err(LoneSurrogate(1))` |
-| `"1.5"` | `.Err(UnsupportedNumber(0))` |
+| `"1e400"` | `.Err(NumberOutOfRange(0))` |
 | `"1.x"` | `.Err(UnexpectedCharacter(2))` |
 
 ## JSON Errors
@@ -196,11 +200,11 @@ pub enum JsonError:
     InvalidEscape(position: i32)
     LoneSurrogate(position: i32)
     ControlCharacter(position: i32)
-    UnsupportedNumber(position: i32)
+    NumberOutOfRange(position: i32)
     NestingTooDeep(position: i32)
 ```
 
-1. r[std-json.error.decl] `std.json` declares the enum `JsonError` with the variants above, each with one field `position: i32`.
+1. r[std-json.error.enum] `std.json` declares the enum `JsonError` with the variants above, each with one field `position: i32`.
 2. r[std-json.error.position] A `position` is an index into the text, counted in characters from 0.
 3. r[std-json.error.traits] `JsonError` implements `Eq`, `Debug`, and `Display`.
 
@@ -211,7 +215,7 @@ pub enum JsonError:
 | r[std-json.error.kind.escape] `InvalidEscape` | a backslash escape that is not in the table, or a `\u` without four hex digits | the backslash |
 | r[std-json.error.kind.surrogate] `LoneSurrogate` | a surrogate escape with no partner | the backslash of the first escape |
 | r[std-json.error.kind.control] `ControlCharacter` | a raw character below U+0020 in a string | that character |
-| r[std-json.error.kind.number] `UnsupportedNumber` | a number that needs float parsing | its first character |
+| r[std-json.error.kind.range] `NumberOutOfRange` | a number past the finite `f64` range | its first character |
 | r[std-json.error.kind.depth] `NestingTooDeep` | an array or object past 128 levels | its opening bracket |
 
 > **Note.** The text is valid UTF-8, so a position in characters is not a
@@ -244,8 +248,7 @@ fn show_pretty(value: Json) -> string:
 5. r[std-json.display.escapes] The escapes are `\"`, `\\`, `\b`, `\f`, `\n`, `\r`, and `\t`, and `\u00` with two lowercase hex digits for the other controls. `/` is not escaped.
 
 > **Note.** The compact text of a value that `parse` read parses back to an
-> equal value, except that a number with a fraction or an exponent has no
-> parse yet.
+> equal value.
 
 ### Pretty Text
 

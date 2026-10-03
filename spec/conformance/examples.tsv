@@ -666,6 +666,8 @@ std/task.md	1	type-fragment	-
 std/task.md	2	accept	runtime/valid/task-retry.hd
 std/task.md	3	type-fragment	-
 std/task.md	4	accept	runtime/valid/retry-with-backoff.hd
+std/task.md	5	type-fragment	-
+std/task.md	6	accept	runtime/valid/task-all-list-order.hd
 std/cmp.md	1	accept	typing/valid/derived-equality.hd
 std/cmp.md	2	accept	typing/valid/derived-ordering.hd
 std/cmp.md	3	accept	typing/valid/tuple-derived-traits.hd
@@ -718,6 +720,7 @@ std/num.md	6	accept	runtime/valid/num-bit-counts.hd
 std/num.md	7	accept	runtime/valid/num-is-finite.hd|runtime/valid/num-is-nan.hd
 std/num.md	8	accept	runtime/valid/num-parse-integers.hd
 std/num.md	9	type-fragment	-
+std/num.md	10	accept	runtime/valid/num-parse-f64-errors.hd
 std/encoding.md	1	accept	runtime/valid/encoding-hex-vectors.hd
 std/encoding.md	2	accept	runtime/valid/encoding-base64-vectors.hd
 std/encoding.md	3	type-fragment	-

@@ -13,7 +13,7 @@ impl Random for Counter:
     fn fill(mut self, count: i32) -> List[u8]:
         let bytes: mut List[u8] = []
         while bytes.len() < count:
-            bytes.append(7)
+            bytes.push(7)
         bytes
 
 fn roll() -> u64 $ Random:

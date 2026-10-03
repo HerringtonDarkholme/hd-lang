@@ -52,7 +52,7 @@ impl Env for MapEnv:
     fn names(self) -> List[string]:
         let found: mut List[string] = []
         for (key, _) in self.values:
-            found.append(key)
+            found.push(key)
         found
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),

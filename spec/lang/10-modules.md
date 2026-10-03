@@ -664,7 +664,7 @@ data BufferConsole:
 
 impl Console for BufferConsole:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
-        self.lines.append(text)
+        self.lines.push(text)
         .Ok(())
 
 fn greet(name: string) -> void $ Console:
@@ -770,7 +770,7 @@ The following built-in methods are normative:
 | --- | --- |
 | `string` | `len(self) -> i32`; `chars(self) -> mut Iterator[char]`; `char_indices(self) -> mut Iterator[(i32, char)]`; `bytes(self) -> mut Iterator[u8]`; `slice(self, start: i32, end: i32) -> string` |
 | `List[T]` | `len(self) -> i32`; `iter(self) -> mut Iterator[T]` |
-| `mut List[T]` | `append(mut self, value: T) -> void` plus the readonly methods |
+| `mut List[T]` | `push(mut self, value: T) -> void`; `pop(mut self) -> T?` plus the readonly methods |
 | `Map[K, V]` | `len(self) -> i32`; `get(self, key: K) -> V?` |
 | `mut Map[K, V]` | `remove(mut self, key: K) -> V?` plus the readonly methods |
 | `Display` | `to_string(self) -> string` |
@@ -778,6 +778,12 @@ The following built-in methods are normative:
 1. r[module.method.normative] The built-in methods in the table are normative.
 2. r[module.method.i32-bytes] Lengths and byte offsets use `i32`.
 3. r[module.method.no-set] No `set` type is part of the core prelude.
+4. r[module.method.list-pop] `pop` removes the last element of the list and returns it as `.Some`.
+5. r[module.method.list-pop.empty] `pop` on an empty list returns `.None` and leaves the list unchanged.
+
+> **Note.** `push`, and a `pop` that removes an element, change the list's
+> shape, so each invalidates the list's iterators by
+> [`flow.for.invalidate`](06-control-flow.md#r-flow.for.invalidate).
 
 See also: [Text](../std/text.md#string-methods) for the string methods above
 these, such as `trim` and `split`, [Iterators](../std/iter.md#list-and-optional-map)

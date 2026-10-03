@@ -4,12 +4,12 @@ use std.testing.assert_equal
 
 fn main() -> i32:
     let values: mut List[i32] = []
-    values.append(1)
-    values.append(2)
-    values.append(3)
-    values.append(4)
-    values.append(5)
-    values.append(36)
+    values.push(1)
+    values.push(2)
+    values.push(3)
+    values.push(4)
+    values.push(5)
+    values.push(36)
     values.len() + values[5]
 
 tests:

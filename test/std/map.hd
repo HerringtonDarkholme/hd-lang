@@ -49,7 +49,7 @@ tests:
         assert_equal(m["a"], 3, reason="the later value")
         let keys: mut List[string] = []
         for pair in m:
-            keys.append(pair._0)
+            keys.push(pair._0)
         assert_equal(keys, ["a", "b"], reason="the first position")
 
     it("collect builds a map over a type-parameter key"):
