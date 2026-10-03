@@ -1,0 +1,30 @@
+# test: Timestamp.date() gives the UTC day in the proleptic Gregorian calendar, across leap years, before 1970, and at year 0
+# Spec std/time Dates: std-time.date.of-timestamp, std-time.date.calendar, std-time.date.year, std-time.date.before-epoch, std-time.date.traits (COLLECTIONS-DATES-SURFACE; task #225).
+use std.testing.{assert, assert_equal}
+use std.time.{Date, Timestamp}
+
+fn day_of(millis: i64) -> Date:
+    Timestamp::from_unix_millis(millis).date()
+
+tests:
+    it("the epoch and the days around it"):
+        assert_equal(day_of(0), Date { year: 1970, month: 1, day: 1 }, reason="the epoch")
+        assert_equal(day_of(86399999), Date { year: 1970, month: 1, day: 1 }, reason="the last millisecond of the first day")
+        assert_equal(day_of(-1), Date { year: 1969, month: 12, day: 31 }, reason="one millisecond before the epoch")
+        assert_equal(day_of(-86400000), Date { year: 1969, month: 12, day: 31 }, reason="one day before the epoch")
+
+    it("leap years"):
+        assert_equal(day_of(951782400000), Date { year: 2000, month: 2, day: 29 }, reason="2000 is divisible by 400")
+        assert_equal(day_of(951868800000), Date { year: 2000, month: 3, day: 1 }, reason="the day after")
+        assert_equal(day_of(-2203891200000), Date { year: 1900, month: 3, day: 1 }, reason="1900 has no February 29")
+        assert_equal(day_of(-2203977600000), Date { year: 1900, month: 2, day: 28 }, reason="the day before")
+
+    it("dates long ago"):
+        assert_equal(day_of(-12219292800000), Date { year: 1582, month: 10, day: 15 }, reason="no calendar reform gap")
+        assert_equal(day_of(-12219379200000), Date { year: 1582, month: 10, day: 14 }, reason="proleptic: October 14, 1582 exists")
+        assert_equal(day_of(-62167219200000), Date { year: 0, month: 1, day: 1 }, reason="year 0 is 1 BC")
+        assert_equal(day_of(-62198755200000), Date { year: -1, month: 1, day: 1 }, reason="year -1 is 2 BC")
+
+    it("dates compare by their fields"):
+        assert(day_of(0) == day_of(86399999), reason="the same day")
+        assert(day_of(0) != day_of(86400000), reason="the next day")

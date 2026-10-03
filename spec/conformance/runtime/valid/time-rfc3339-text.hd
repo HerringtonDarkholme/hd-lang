@@ -1,0 +1,26 @@
+# test: to_rfc3339 writes UTC with a Z, a three-digit fraction only when the milliseconds are not zero, and at least four year digits
+# Spec std/time RFC 3339 Text: std-time.rfc3339.text, std-time.rfc3339.text.fraction, std-time.rfc3339.text.year, std-time.rfc3339.text.no-panic (COLLECTIONS-DATES-SURFACE; task #225).
+use std.testing.assert_equal
+use std.time.Timestamp
+
+fn text_of(millis: i64) -> string:
+    Timestamp::from_unix_millis(millis).to_rfc3339()
+
+tests:
+    it("whole seconds have no fraction"):
+        assert_equal(text_of(0), "1970-01-01T00:00:00Z", reason="the epoch")
+        assert_equal(text_of(951782400000), "2000-02-29T00:00:00Z", reason="a leap day")
+        assert_equal(text_of(1700000000000), "2023-11-14T22:13:20Z", reason="hours, minutes, and seconds")
+
+    it("milliseconds have three digits"):
+        assert_equal(text_of(1700000000500), "2023-11-14T22:13:20.500Z", reason="trailing zeros stay")
+        assert_equal(text_of(1700000000007), "2023-11-14T22:13:20.007Z", reason="leading zeros stay")
+        assert_equal(text_of(-1), "1969-12-31T23:59:59.999Z", reason="before the epoch")
+        assert_equal(text_of(253402300799999), "9999-12-31T23:59:59.999Z", reason="the last instant of year 9999")
+
+    it("years outside 0000 to 9999"):
+        assert_equal(text_of(-62167219200000), "0000-01-01T00:00:00Z", reason="year 0")
+        assert_equal(text_of(-62198755200000), "-0001-01-01T00:00:00Z", reason="a negative year")
+        assert_equal(text_of(253402300800000), "10000-01-01T00:00:00Z", reason="a five-digit year")
+        assert_equal(text_of(-9223372036854775807 - 1), "-292275055-05-16T16:47:04.192Z", reason="the earliest timestamp")
+        assert_equal(text_of(9223372036854775807), "292278994-08-17T07:12:55.807Z", reason="the latest timestamp")

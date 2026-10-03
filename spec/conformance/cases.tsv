@@ -2023,3 +2023,7 @@ runtime/valid/json-object-order.hd	runtime	accept	std/json.md#r-std-json.parse.o
 runtime/valid/json-pretty.hd	runtime	accept	std/json.md#r-std-json.pretty.layout
 runtime/valid/json-suite.hd	runtime	accept	std/json.md#r-std-json.parse.grammar
 runtime/valid/json-float-text.hd	runtime	accept	std/json.md#r-std-json.parse.number.unsupported
+runtime/valid/time-date-utc.hd	runtime	accept	std/time.md#r-std-time.date.of-timestamp
+runtime/valid/time-rfc3339-text.hd	runtime	accept	std/time.md#r-std-time.rfc3339.text
+runtime/valid/time-rfc3339-parse.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse
+runtime/valid/time-parse-errors.hd	runtime	accept	std/time.md#r-std-time.parse-error.order

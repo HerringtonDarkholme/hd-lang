@@ -1,0 +1,35 @@
+# test: parse_rfc3339 accepts Z, z, t, and numeric offsets, truncates the fraction to milliseconds, and round-trips to_rfc3339
+# Spec std/time Parsing RFC 3339: std-time.rfc3339.parse, std-time.rfc3339.parse.case, std-time.rfc3339.parse.offset, std-time.rfc3339.parse.fraction, std-time.rfc3339.parse.leap-day, std-time.rfc3339.parse.round-trip (COLLECTIONS-DATES-SURFACE; task #225).
+use std.testing.assert_equal
+use std.time.{TimeParseError, Timestamp}
+
+fn at(millis: i64) -> Timestamp:
+    Timestamp::from_unix_millis(millis)
+
+fn parsed(text: string) -> Result[Timestamp, TimeParseError]:
+    Timestamp::parse_rfc3339(text)
+
+tests:
+    it("UTC"):
+        assert_equal(parsed("1970-01-01T00:00:00Z"), .Ok(at(0)), reason="the epoch")
+        assert_equal(parsed("2000-02-29t00:00:00z"), .Ok(at(951782400000)), reason="lowercase t and z")
+        assert_equal(parsed("1969-12-31T23:59:59.999Z"), .Ok(at(-1)), reason="before the epoch")
+        assert_equal(parsed("0000-01-01T00:00:00Z"), .Ok(at(-62167219200000)), reason="year 0000")
+
+    it("numeric offsets"):
+        assert_equal(parsed("2026-10-03T12:34:56.789+05:30"), .Ok(at(1791011096789)), reason="east of UTC")
+        assert_equal(parsed("1999-12-31T23:00:00-02:00"), .Ok(at(946688400000)), reason="west of UTC, the next UTC day")
+        assert_equal(parsed("1970-01-01T00:00:00+00:00"), .Ok(at(0)), reason="+00:00")
+        assert_equal(parsed("1970-01-01T00:00:00-00:00"), .Ok(at(0)), reason="-00:00")
+        assert_equal(parsed("1970-01-01T00:00:00+23:59"), .Ok(at(-86340000)), reason="the largest offset")
+
+    it("fractions are truncated to milliseconds"):
+        assert_equal(parsed("1970-01-01T00:00:00.5Z"), .Ok(at(500)), reason="one digit")
+        assert_equal(parsed("1970-01-01T00:00:00.05Z"), .Ok(at(50)), reason="two digits")
+        assert_equal(parsed("1970-01-01T00:00:00.123456789Z"), .Ok(at(123)), reason="nine digits")
+        assert_equal(parsed("1969-12-31T23:59:59.9999999Z"), .Ok(at(-1)), reason="truncated, not rounded")
+
+    it("round trips"):
+        let samples: List[i64] = [0, -1, 500, 951782400000, -2203891200000, 1700000000007, 253402300799999, -62167219200000]
+        for millis in samples:
+            assert_equal(parsed(at(millis).to_rfc3339()), .Ok(at(millis)), reason="parse of to_rfc3339")

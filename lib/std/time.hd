@@ -1,6 +1,7 @@
 # std.time: `Duration` and its literal suffixes, the host capability
 # `Clock` with `Timestamp` and `Instant`, and the
-# deterministic `ManualClock` (spec/std/time.md).
+# deterministic `ManualClock`, and the UTC `Date` with RFC 3339 text
+# (spec/std/time.md).
 # A `Duration` is a whole number of
 # milliseconds in an `i64` (r-std-time.suffix.std.duration), and its public API is
 # `milliseconds`, `seconds`, and `as_milliseconds` (r-std-time.suffix.std.duration-api);
@@ -152,6 +153,36 @@ impl Timestamp:
     pub fn since(self, earlier: Timestamp) -> Duration:
         Duration::milliseconds(self.millis - earlier.millis)
 
+    # The UTC calendar date (r-std-time.date.of-timestamp).
+    pub fn date(self) -> Date:
+        civil_from_days(self.days())
+
+    # `YYYY-MM-DDTHH:MM:SSZ`, with `.mmm` before the `Z` when the
+    # milliseconds are not zero (r-std-time.rfc3339.text).
+    pub fn to_rfc3339(self) -> string:
+        civil := civil_from_days(self.days())
+        let clock = self.millis % 86400000
+        if clock < 0:
+            clock = clock + 86400000
+        let text = year_digits(civil.year) + "-" + zero_padded(i64(civil.month), 2) + "-" + zero_padded(i64(civil.day), 2)
+        text = text + "T" + zero_padded(clock / 3600000, 2) + ":" + zero_padded(clock / 60000 % 60, 2) + ":" + zero_padded(clock / 1000 % 60, 2)
+        if clock % 1000 != 0:
+            text = text + "." + zero_padded(clock % 1000, 3)
+        text + "Z"
+
+    pub fn parse_rfc3339(text: string) -> Result[Timestamp, TimeParseError]:
+        parse_rfc3339_codes(rfc3339_codes(text))
+
+    # Whole days since the epoch, rounded toward negative infinity, so the
+    # time of day is never negative. Adjusting the truncated quotient and
+    # remainder, never multiplying back, keeps the most negative timestamp
+    # in range.
+    fn days(self) -> i64:
+        let whole = self.millis / 86400000
+        if self.millis % 86400000 < 0:
+            whole = whole - 1
+        whole
+
 # Moves the time by the duration, with checked `i64` addition
 # (r-std-time.timestamp.add).
 impl Add[Duration] for Timestamp:
@@ -174,6 +205,207 @@ impl PartialOrd for Timestamp:
 impl Ord for Timestamp:
     fn cmp(self, other: Timestamp) -> Ordering:
         self.millis.cmp(other.millis)
+
+# A calendar date in the proleptic Gregorian calendar, with astronomical
+# year numbering: year 0 is 1 BC (spec/std/time.md#dates).
+pub data Date:
+    pub year: i32
+    pub month: i32
+    pub day: i32
+
+impl Eq for Date:
+    fn eq(self, other: Date) -> bool:
+        self.year == other.year && self.month == other.month && self.day == other.day
+
+impl Debug for Date:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Date").field("year", self.year).field("month", self.month).field("day", self.day).finish()
+
+# Why RFC 3339 text did not parse (spec/std/time.md#time-parse-errors).
+pub enum TimeParseError:
+    # A character that the grammar does not allow at its place.
+    InvalidCharacter(position: i32)
+    # A field whose digits are well formed but whose value is not allowed.
+    OutOfRange(position: i32)
+    # The text ends early; `position` is its length.
+    TooShort(position: i32)
+
+impl Eq for TimeParseError:
+    fn eq(self, other: TimeParseError) -> bool:
+        match (self, other):
+            (.InvalidCharacter(left), .InvalidCharacter(right)) => left == right
+            (.OutOfRange(left), .OutOfRange(right)) => left == right
+            (.TooShort(left), .TooShort(right)) => left == right
+            _ => false
+
+impl Display for TimeParseError:
+    fn to_string(self) -> string:
+        match self:
+            .InvalidCharacter(position) => "invalid character at position $position"
+            .OutOfRange(position) => "value out of range at position $position"
+            .TooShort(position) => "the text ends at position $position, before the timestamp is complete"
+
+impl Debug for TimeParseError:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .InvalidCharacter(position) => out.debug_struct("InvalidCharacter").field("position", position).finish()
+            .OutOfRange(position) => out.debug_struct("OutOfRange").field("position", position).finish()
+            .TooShort(position) => out.debug_struct("TooShort").field("position", position).finish()
+
+# Howard Hinnant's `civil_from_days`: the date `day` days after
+# 1970-01-01. An era is 400 years, 146097 days, and each year in it starts
+# on March 1, so the leap day falls at the end.
+fn civil_from_days(day: i64) -> Date:
+    shifted := day + 719468
+    era := (if shifted >= 0: shifted else: shifted - 146096) / 146097
+    of_era := shifted - era * 146097
+    year_of_era := (of_era - of_era / 1460 + of_era / 36524 - of_era / 146096) / 365
+    of_year := of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100)
+    from_march := (5 * of_year + 2) / 153
+    month := if from_march < 10: from_march + 3 else: from_march - 9
+    let year = year_of_era + era * 400
+    if month <= 2:
+        year = year + 1
+    Date { year: i32(year), month: i32(month), day: i32(of_year - (153 * from_march + 2) / 5 + 1) }
+
+# Hinnant's `days_from_civil`, the inverse of `civil_from_days`.
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64:
+    march_year := if month <= 2: year - 1 else: year
+    era := (if march_year >= 0: march_year else: march_year - 399) / 400
+    year_of_era := march_year - era * 400
+    from_march := if month > 2: month - 3 else: month + 9
+    of_year := (153 * from_march + 2) / 5 + day - 1
+    era * 146097 + year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + of_year - 719468
+
+fn days_in_month(year: i64, month: i64) -> i64:
+    if month == 2:
+        leap := year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+        return if leap: 29 else: 28
+    if month == 4 || month == 6 || month == 9 || month == 11:
+        return 30
+    31
+
+# A non-negative number in at least `width` digits.
+fn zero_padded(value: i64, width: i32) -> string:
+    let text = "$value"
+    while text.len() < width:
+        text = "0" + text
+    text
+
+# At least four digits, with `-` before a negative year.
+fn year_digits(year: i32) -> string:
+    if year < 0:
+        return "-" + zero_padded(-i64(year), 4)
+    zero_padded(i64(year), 4)
+
+# One code per character: the ASCII code, or -1 for any other character,
+# so an index is a position in characters.
+fn rfc3339_codes(text: string) -> List[i32]:
+    let codes: mut List[i32] = []
+    for byte in text.bytes():
+        if byte < 128:
+            codes.append(i32(byte))
+        else if byte >= 192:
+            codes.append(-1)
+    codes
+
+# Where `shape` stops matching the codes from `start`: `d` is a digit,
+# `T` is `T` or `t`, and any other character is itself. It is the index
+# of the first mismatch, or the index after the shape when all match.
+fn rfc3339_reach(codes: List[i32], start: i32, shape: string) -> i32:
+    let index = start
+    for need in shape.bytes():
+        if index >= codes.len():
+            return index
+        code := codes[index]
+        fits := if need == 100: code >= 48 && code <= 57 else if need == 84: code == 84 || code == 116 else: code == i32(need)
+        if !fits:
+            return index
+        index = index + 1
+    index
+
+# The error at `index`, where the shape stopped matching.
+fn rfc3339_mismatch(codes: List[i32], index: i32) -> TimeParseError:
+    if index >= codes.len():
+        return TimeParseError.TooShort(codes.len())
+    TimeParseError.InvalidCharacter(index)
+
+# The value of the `width` digits from `start`, which the shape checked.
+fn rfc3339_value(codes: List[i32], start: i32, width: i32) -> i64:
+    let value: i64 = 0
+    let index = start
+    while index < start + width:
+        value = value * 10 + i64(codes[index] - 48)
+        index = index + 1
+    value
+
+# RFC 3339 `date-time`. Each field's range is checked once its digits
+# match, before any later mismatch, so the first error from the left wins
+# (r-std-time.parse-error.order).
+fn parse_rfc3339_codes(codes: List[i32]) -> Result[Timestamp, TimeParseError]:
+    reach := rfc3339_reach(codes, 0, "dddd-dd-ddTdd:dd:dd")
+    # year, month, day, hour, minute, second
+    let parts: mut List[i64] = []
+    for start in [0, 5, 8, 11, 14, 17]:
+        width := if start == 0: 4 else: 2
+        if reach < start + width:
+            return .Err(rfc3339_mismatch(codes, reach))
+        value := rfc3339_value(codes, start, width)
+        parts.append(value)
+        let high: i64 = 59
+        if start == 0:
+            high = 9999
+        else if start == 5:
+            high = 12
+        else if start == 8:
+            high = days_in_month(parts[0], parts[1])
+        else if start == 11:
+            high = 23
+        if value > high || (value == 0 && (start == 5 || start == 8)):
+            return .Err(TimeParseError.OutOfRange(start))
+    let index = 19
+    let fraction: i64 = 0
+    if index < codes.len() && codes[index] == 46:
+        index = index + 1
+        start := index
+        while index < codes.len() && codes[index] >= 48 && codes[index] <= 57:
+            if index - start < 3:
+                fraction = fraction * 10 + i64(codes[index] - 48)
+            index = index + 1
+        if index == start:
+            return .Err(rfc3339_mismatch(codes, index))
+        let read = index - start
+        while read < 3:
+            fraction = fraction * 10
+            read = read + 1
+    if index >= codes.len():
+        return .Err(TimeParseError.TooShort(codes.len()))
+    zone := codes[index]
+    let offset: i64 = 0
+    if zone == 90 || zone == 122:
+        index = index + 1
+    else if zone == 43 || zone == 45:
+        zone_reach := rfc3339_reach(codes, index + 1, "dd:dd")
+        if zone_reach < index + 3:
+            return .Err(rfc3339_mismatch(codes, zone_reach))
+        hours := rfc3339_value(codes, index + 1, 2)
+        if hours > 23:
+            return .Err(TimeParseError.OutOfRange(index + 1))
+        if zone_reach < index + 6:
+            return .Err(rfc3339_mismatch(codes, zone_reach))
+        minutes := rfc3339_value(codes, index + 4, 2)
+        if minutes > 59:
+            return .Err(TimeParseError.OutOfRange(index + 4))
+        offset = (hours * 60 + minutes) * 60000
+        if zone == 45:
+            offset = -offset
+        index = index + 6
+    else:
+        return .Err(TimeParseError.InvalidCharacter(index))
+    if index < codes.len():
+        return .Err(TimeParseError.InvalidCharacter(index))
+    local := days_from_civil(parts[0], parts[1], parts[2]) * 86400000 + parts[3] * 3600000 + parts[4] * 60000 + parts[5] * 1000 + fraction
+    .Ok(Timestamp { millis: local - offset })
 
 # Whole milliseconds since an origin that the provider chooses
 # (r-std-time.instant.decl).

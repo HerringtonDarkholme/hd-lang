@@ -1,0 +1,48 @@
+# test: each TimeParseError case, its position in characters, and that the first error from the left wins
+# Spec std/time Time Parse Errors: std-time.parse-error.decl, std-time.parse-error.invalid-character, std-time.parse-error.out-of-range, std-time.parse-error.too-short, std-time.parse-error.order, std-time.parse-error.traits, std-time.rfc3339.parse.leap-second (COLLECTIONS-DATES-SURFACE; task #225).
+use std.testing.{assert, assert_equal}
+use std.time.{TimeParseError, Timestamp}
+
+fn parsed(text: string) -> Result[Timestamp, TimeParseError]:
+    Timestamp::parse_rfc3339(text)
+
+tests:
+    it("text that ends early"):
+        assert_equal(parsed(""), .Err(TimeParseError.TooShort(0)), reason="empty")
+        assert_equal(parsed("2026-10-03"), .Err(TimeParseError.TooShort(10)), reason="a date alone")
+        assert_equal(parsed("2026-10-03T12:00:00"), .Err(TimeParseError.TooShort(19)), reason="no offset")
+        assert_equal(parsed("2026-10-03T12:00:00."), .Err(TimeParseError.TooShort(20)), reason="a point with no digits")
+        assert_equal(parsed("2026-10-03T12:00:00+05"), .Err(TimeParseError.TooShort(22)), reason="half an offset")
+
+    it("characters the grammar does not allow"):
+        assert_equal(parsed("2026/10/03T12:00:00Z"), .Err(TimeParseError.InvalidCharacter(4)), reason="a slash")
+        assert_equal(parsed("2026-10-03 12:00:00Z"), .Err(TimeParseError.InvalidCharacter(10)), reason="a space for T")
+        assert_equal(parsed("2026-1-03T12:00:00Z"), .Err(TimeParseError.InvalidCharacter(6)), reason="a one-digit month")
+        assert_equal(parsed("2026-10-03T12:00:00.Z"), .Err(TimeParseError.InvalidCharacter(20)), reason="a point with no digits")
+        assert_equal(parsed("2026-10-03T12:00:00+0530"), .Err(TimeParseError.InvalidCharacter(22)), reason="an offset without a colon")
+        assert_equal(parsed("2026-10-03T12:00:00UTC"), .Err(TimeParseError.InvalidCharacter(19)), reason="a zone name")
+        assert_equal(parsed("2026-10-03T12:00:00Zx"), .Err(TimeParseError.InvalidCharacter(20)), reason="text after the timestamp")
+        assert_equal(parsed("é2026-10-03T12:00:00Z"), .Err(TimeParseError.InvalidCharacter(0)), reason="not ASCII")
+        assert_equal(parsed("2026-10-03T12:00:00é"), .Err(TimeParseError.InvalidCharacter(19)), reason="counted in characters")
+
+    it("values out of range"):
+        assert_equal(parsed("2026-13-03T12:00:00Z"), .Err(TimeParseError.OutOfRange(5)), reason="month 13")
+        assert_equal(parsed("2026-00-03T12:00:00Z"), .Err(TimeParseError.OutOfRange(5)), reason="month 0")
+        assert_equal(parsed("2026-10-00T12:00:00Z"), .Err(TimeParseError.OutOfRange(8)), reason="day 0")
+        assert_equal(parsed("2026-04-31T12:00:00Z"), .Err(TimeParseError.OutOfRange(8)), reason="April 31")
+        assert_equal(parsed("1900-02-29T12:00:00Z"), .Err(TimeParseError.OutOfRange(8)), reason="1900 is not a leap year")
+        assert_equal(parsed("2026-10-03T24:00:00Z"), .Err(TimeParseError.OutOfRange(11)), reason="hour 24")
+        assert_equal(parsed("2026-10-03T12:60:00Z"), .Err(TimeParseError.OutOfRange(14)), reason="minute 60")
+        assert_equal(parsed("2016-12-31T23:59:60Z"), .Err(TimeParseError.OutOfRange(17)), reason="a leap second")
+        assert_equal(parsed("2026-10-03T12:00:00+24:00"), .Err(TimeParseError.OutOfRange(20)), reason="offset hour 24")
+        assert_equal(parsed("2026-10-03T12:00:00-05:60"), .Err(TimeParseError.OutOfRange(23)), reason="offset minute 60")
+
+    it("the first error from the left wins"):
+        assert_equal(parsed("2026-13-xxT12:00:00Z"), .Err(TimeParseError.OutOfRange(5)), reason="the month before the day")
+        assert_equal(parsed("2026-02-30"), .Err(TimeParseError.OutOfRange(8)), reason="the range before the end")
+
+    it("TimeParseError implements Eq and Display"):
+        assert(TimeParseError.TooShort(3) == TimeParseError.TooShort(3), reason="same position")
+        assert(TimeParseError.TooShort(3) != TimeParseError.TooShort(4), reason="another position")
+        assert(TimeParseError.OutOfRange(5) != TimeParseError.InvalidCharacter(5), reason="another variant")
+        assert("${TimeParseError.InvalidCharacter(4)}".len() > 0, reason="Display text")

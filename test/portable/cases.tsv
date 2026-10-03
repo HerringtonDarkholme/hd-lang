@@ -1914,3 +1914,7 @@ typing/invalid/error-find-non-error.hd	type
 runtime/valid/error-context.hd	runtime
 typing/valid/std-types-debug.hd	type
 typing/invalid/context-error-no-debug.hd	type
+runtime/valid/time-date-utc.hd	runtime
+runtime/valid/time-rfc3339-text.hd	runtime
+runtime/valid/time-rfc3339-parse.hd	runtime
+runtime/valid/time-parse-errors.hd	runtime

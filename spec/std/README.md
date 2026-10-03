@@ -139,7 +139,7 @@ file of its own.
 | [`iter.md`](iter.md) | `std.iter` | `std-iter` | iterator adapters, collect targets, `FromIterator` and its impls, `map` on a list or an optional |
 | [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, including `lines` and `repeat`; the `r` prefix |
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls, `Debug` for the public std types |
-| [`time.md`](time.md) | `std.time` | `std-time` | `Duration`, its suffixes, its arithmetic, and its `Display` text; `Timestamp + Duration`; the host trait `Clock`, `Timestamp`, `Instant`, `now`, and `sleep!`; the provider `ManualClock` |
+| [`time.md`](time.md) | `std.time` | `std-time` | `Duration`, its suffixes, its arithmetic, and its `Display` text; `Timestamp + Duration`; the host trait `Clock`, `Timestamp`, `Instant`, `now`, and `sleep!`; the provider `ManualClock`; the UTC `Date`, RFC 3339 text, and `TimeParseError` |
 | [`task.md`](task.md) | `std.task` | `std-task` | the `retry!` combinator; `Backoff` and `retry_with!` |
 | [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
 | [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison; `clamp` |

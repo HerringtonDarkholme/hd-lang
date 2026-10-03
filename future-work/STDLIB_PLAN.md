@@ -6,8 +6,9 @@ behavior except where a note links the specification. Spec pass 64
 part of the [Earlier Owner Decisions](#earlier-owner-decisions), spec
 pass 70 applied decisions 4 and 10, and spec pass 73 applied
 [`std.encoding`](../spec/std/encoding.md) and
-[`std.digest`](../spec/std/digest.md); every other module sketch below is
-still a proposal for the owner.
+[`std.digest`](../spec/std/digest.md), and spec pass 74 applied the UTC
+[`Date` and RFC 3339 text](../spec/std/time.md#dates); every other module
+sketch below is still a proposal for the owner.
 
 Under review: the stdlib tier ([spec/std/](../spec/std/README.md)), the
 library itself ([lib/std/](../lib/std/)), the host rules of
@@ -75,7 +76,7 @@ every feature belongs in `std`.
 | `std.option`, `std.result` | `map`, `and_then`, `unwrap_or`, `ok_or`, `expect`, `map_err`, `ok`, `err`, `is_*` | [option.md](../spec/std/option.md), [result.md](../spec/std/result.md) | `map` on `T?` is in [iter.md](../spec/std/iter.md#list-and-optional-map) |
 | `std.num` | numeric traits; checked, wrapping, and saturating ops, `abs_diff`, `count_ones`, and `leading_zeros` on every integer type; `is_nan`, `is_finite`; `parse_i32`, `parse_i64` | [num.md](../spec/std/num.md); the traits are language tier | no `parse_f64`, no fixed-point float text |
 | `std.cmp`, `std.hash`, `std.format`, `std.ops` | comparison, hashing, `Display`, `Debug`, operators, `Default` | [cmp.md](../spec/std/cmp.md), [hash.md](../spec/std/hash.md), [format.md](../spec/std/format.md), [ops.md](../spec/std/ops.md) | none |
-| `std.time` | `Duration` (milliseconds) with `Add`, `Sub`, and `Display`, suffixes `ms`, `s`, `min`, `h`; `Clock`, `Timestamp` with `+ Duration`, `Instant`, `ManualClock` | [time.md](../spec/std/time.md) | no `now` or `sleep!` helper |
+| `std.time` | `Duration` (milliseconds) with `Add`, `Sub`, and `Display`, suffixes `ms`, `s`, `min`, `h`; `Clock`, `Timestamp` with `+ Duration`, `Instant`, `ManualClock`; the UTC `Date`, `to_rfc3339`, `parse_rfc3339`, `TimeParseError` | [time.md](../spec/std/time.md) | no `now` or `sleep!` helper; no time zones or local time |
 | `std.task` | `race!`, `retry!` in hd; `all!`, `block_on` intrinsic | [task.md](../spec/std/task.md) | no `sleep!`, `timeout!`, backoff |
 | `std.console` | `Console`, `println`, `ConsoleInput`, `BufferConsole` | none (language tier) | no standard error; no profile binds `ConsoleInput` |
 | `std.process` | `ExitCode`, `Termination`, `Process.run!`, `ScriptedProcess` | none (language tier) | no profile binds `Process`; no working directory or environment |
@@ -517,14 +518,6 @@ pub data Timestamp:
 pub data Instant:
     ticks: i64
 
-pub data Date:
-    pub year: i32
-    pub month: i32
-    pub day: i32
-
-pub enum TimeParseError:
-    Invalid(offset: i32)
-
 pub trait Clock:
     fn now(self) -> Timestamp
     fn monotonic(self) -> Instant
@@ -540,9 +533,6 @@ impl Duration:
 impl Timestamp:
     pub fn from_unix_millis(millis: i64) -> Timestamp: pass
     pub fn since(self, earlier: Timestamp) -> Duration: pass
-    pub fn date(self) -> Date: pass
-    pub fn to_rfc3339(self) -> string: pass
-    pub fn parse_rfc3339(text: string) -> Result[Timestamp, TimeParseError]: pass
 
 pub fn now() -> Timestamp $ Clock:
     $.use(Clock).now()
@@ -552,7 +542,9 @@ pub fn sleep!(duration: Duration) -> void $ Clock:
 ```
 
 Time zones and locale formatting are excluded: they need a time-zone
-database, and Rust, Kotlin, and Zig keep them out too.
+database, and Rust, Kotlin, and Zig keep them out too. Spec pass 74
+applied the UTC `Date`, `to_rfc3339`, `parse_rfc3339`, and
+`TimeParseError` ([Dates](../spec/std/time.md#dates)).
 
 ### Text And Formatting
 
@@ -889,7 +881,6 @@ each part in the language: `fn!() -> Result[A, E] $ R`.
 | `Random` | `std.random` | 9 |
 | `Config` with `ConfigProvider` | `Env` with `MapEnv`; a typed config template later | 1 |
 | `FileSystem`, `Path`, `ChildProcess` | `std.fs`, `std.path`, `std.process` helpers | 1, 2 |
-| `DateTime` | UTC `Timestamp`, `Date`, RFC 3339 | 10 |
 | `Cli` | `std.cli.parse_args` | 9 |
 | `HashSet`, `Chunk`, queues | `Set`, `Deque`, `Heap` | 3, 10 |
 
@@ -930,7 +921,7 @@ host also add a prototype host binding, a minimal TypeScript hook.
 | 7 | `ToJson` and `FromJson` templates; `encode`, `decode` | tier 6 | typed JSON |
 | 8 | `timeout!`, `Backoff`, `retry_with!`, `all_list!`, `map_limited!` | tier 4's `Clock`; [Retry With Backoff](../spec/std/task.md#retry-with-backoff) | robust automation |
 | 9 | `std.random` `Rng`, `Random`, `SeededRandom`; `std.cli` `parse_args`, `usage` | tier 1's `Args`; `u64` wrapping arithmetic | real command-line tools |
-| 10 | RFC 3339 and UTC `Date`; `Deque`, `Heap` | tier 4 | dates in logs and file names |
+| 10 | `Deque`, `Heap` | none | queues and priority queues |
 | 11 | `std.regex`: the RE2 subset, linear time, no backreferences, written in hd (about two hours) | tier 10 | filtering lines by pattern |
 
 Later, blocked:
