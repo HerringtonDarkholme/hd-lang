@@ -689,8 +689,13 @@ function checkImplementationOwnership(
   const { program, dataTypes, enumTypes } = context;
   const constructorOf = (type: string): string =>
     nominalGenericParts(readonlyType(type))?.name ?? readonlyType(type);
-  const isLocalConstructor = (type: string): boolean =>
-    dataTypes.has(constructorOf(type)) || enumTypes.has(constructorOf(type));
+  const isLocalConstructor = (type: string): boolean => {
+    const constructor = constructorOf(type);
+    const data = dataTypes.get(constructor);
+    if (data) return data.standardName === undefined;
+    const enumType = enumTypes.get(constructor);
+    return enumType !== undefined && enumType.standardName === undefined;
+  };
   // A std trait joined into the program, such as `Iterator`, stays foreign.
   const traitIsLocal = program.traits.some(
     (declaration) => declaration.name === trait.name && declaration.standardName === undefined,

@@ -4,7 +4,7 @@ Status: findings of a bounded, read-only review of `src/` at `5ba7393e`. Nothing
 
 ## Summary
 
-The remaining review has 10 findings: 2 high, 4 medium and 4 low. Seven are bugs with a reproduction, one is a resource problem with timings, and two are hacks cited by line. The highest remaining root is written-type validation split across two paths: nested types and local annotations skip the dynamic-safety and bound checks (O-02, O-03). Integration-test source rewriting causes O-05 and O-12. Four more items are suspected but not reproduced.
+The remaining review has 9 findings: 2 high, 3 medium and 4 low. Six are bugs with a reproduction, one is a resource problem with timings, and two are hacks cited by line. The highest remaining root is written-type validation split across two paths: nested types and local annotations skip the dynamic-safety and bound checks (O-02, O-03). Integration-test source rewriting causes O-05 and O-12. Four more items are suspected but not reproduced.
 
 Each repro ran with `timeout 60 node bin/hd.js check|run|test FILE` from a scratch folder `scratch-230/` in the worktree, so output paths keep that prefix.
 
@@ -70,31 +70,6 @@ pub fn main() -> void $ Console:
 
 - Expected: `unsatisfied-trait-bound` at `Box[P]` and at `Map[P, i32]` (`trait.bound.unsatisfied`, `types.map-key.declared-bound`).
 - Fix: check every type application's arguments against its declaration's bounds in the shared written-type validator; then `Map` needs no special case.
-
-### O-04: a user program may implement a std trait for a std type
-
-- Severity: medium. Kind: bug.
-- Where: `src/checker/program-implementations.ts:685` (`isLocalConstructor`).
-- The orphan check calls a target local when `dataTypes` has it. Joined std types are in `dataTypes` too, so `Duration` counts as the user's own type.
-
-Repro (`orphan.hd`):
-
-```text
-use std.time.Duration
-
-impl Hash for Duration:
-    fn hash(self, hasher: mut Hasher) -> void:
-        self.as_milliseconds().hash(hasher)
-
-pub fn main() -> void $ Console:
-    let m: Map[Duration, i32] = {}
-    println("${m.len()}")
-```
-
-`node bin/hd.js run orphan.hd` prints `0`.
-
-- Expected: `orphan-impl` at the `impl` (`trait.own.rule`, `trait.own.orphan`, `trait.own.no-orphan-exception`).
-- Fix: decide ownership from the declaration's owner (its `standard` flag or module), not from membership in the joined type tables.
 
 ### O-05: integration test modules corrupt multiline strings
 
