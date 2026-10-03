@@ -1449,6 +1449,12 @@ What remains:
 - `parser/` builds the AST and exposes its public API from `parser/index.ts`.
 - `checker/` resolves names and produces the typed nodes in `hir.ts`.
 - `emitter/` lowers HIR to readable WAT and exposes only `emitter/index.ts`.
+  `emitter/on-demand.ts` emits a function only when emitted code names it,
+  starting from what the host calls (entry points, test cases, and the
+  program's exported functions). So a std function, a function-value twin
+  (`$fv`), a dictionary adapter (`$tadapt`), or a runtime function is in the
+  module only when the program reaches it. A hidden std function
+  (`__std_...`) is exported only when reached.
 - `checker/standard-sources.ts` reads the toy standard library's hd
   sources from the top-level `lib/std/`; `checker/standard-library.ts` joins
   them into a program.

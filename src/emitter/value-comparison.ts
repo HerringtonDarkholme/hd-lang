@@ -157,13 +157,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     return `(ref.func $hd.keq${method.functionIndex}) (ref.null any)`;
   }
 
-  keyEqualityNames(): string[] {
-    return [
-      ...[...this.keyEqualityTypes.keys()].map((index) => `$hd.keq${index}`),
-      ...[...this.boundKeyTraits].map((index) => `$hd.keqb${index}`),
-    ];
-  }
-
   emitKeyEqualities(): string {
     const signature =
       "(type $hd.key-eq) (param $left anyref) (param $right anyref) (param $context anyref) (result i32)";
@@ -279,17 +272,6 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     (then (struct.new $hd.variant (i32.const 1) ${payload}))
     (else (struct.new $hd.variant (i32.const 0) (ref.null any))))
 )`;
-  }
-
-  get builtinTraitAdapterNames(): readonly string[] {
-    return [
-      ...[...this.builtinTraitAdapters.values()].map((adapter) => `$tbuiltin${adapter.index}`),
-      ...[...this.forwardingAdapters.values()].flatMap((adapter) =>
-        this.traitsByIndex
-          .get(adapter.builtin.traitIndex)!
-          .methods.map((method) => `$tforward${adapter.index}_${method.index}`),
-      ),
-    ];
   }
 
   private readonly forwardingAdapters = new Map<

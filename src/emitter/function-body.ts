@@ -1156,91 +1156,96 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
     );
   }
 
-  emitTraitAdapters(): string {
-    return [...this.implementationsByIndex.values()]
-      .flatMap((implementation) => {
-        const trait = this.traitsByIndex.get(implementation.traitIndex)!;
-        const traitSubstitutions = new Map([
-          ...trait.genericParameters.map(
-            (parameter, index) => [parameter, implementation.traitArguments[index]!] as const,
+  /**
+   * The function that a dictionary of implementation `implementationIndex`
+   * holds for trait method `methodIndex`, which calls the implementation's
+   * method; a suspending method also gets its frame's adapters.
+   */
+  emitTraitAdapter(implementationIndex: number, methodIndex: number): string {
+    const implementation = this.implementationsByIndex.get(implementationIndex)!;
+    const trait = this.traitsByIndex.get(implementation.traitIndex)!;
+    const traitSubstitutions = new Map([
+      ...trait.genericParameters.map(
+        (parameter, index) => [parameter, implementation.traitArguments[index]!] as const,
+      ),
+      ...trait.associatedTypes.map(
+        (associated, index) =>
+          [`Self::${associated.name}`, implementation.associatedTypes[index]!] as const,
+      ),
+      ["Self", implementation.targetType] as const,
+    ]);
+    return implementation.methodFunctions
+      .filter((mapping) => mapping.methodIndex === methodIndex)
+      .flatMap((mapping) => {
+        const method = trait.methods[mapping.methodIndex]!;
+        const parameters = method.parameters.map(
+          (parameter, index) => `(param $a${index} ${this.parameterWatType(parameter)})`,
+        );
+        const methodBounds = methodBoundParameters(method, "b");
+        const providers = method.requirements.map(
+          (requirement, index) => `(param $p${index} ${this.providerType(requirement)})`,
+        );
+        const result = method.result === "void" ? "" : ` (result ${this.watType(method.result)})`;
+        const dictionary = `(ref.cast (ref $trait${trait.index}) (local.get $dictionary))`;
+        const boundPack = `(ref.as_non_null (struct.get $trait${trait.index} $trait${trait.index}bounds ${dictionary}))`;
+        const arguments_ = [
+          ...(method.associated
+            ? []
+            : [this.unboxValue(`(local.get $self)`, implementation.targetType)]),
+          ...method.parameters.map((parameter, index) =>
+            parameter === "generic:Self"
+              ? this.unboxValue(`(local.get $a${index})`, implementation.targetType)
+              : containsGenericValueType(parameter)
+                ? this.unboxValue(
+                    `(local.get $a${index})`,
+                    substituteTypeParameters(parameter, traitSubstitutions),
+                  )
+                : `(local.get $a${index})`,
           ),
-          ...trait.associatedTypes.map(
-            (associated, index) =>
-              [`Self::${associated.name}`, implementation.associatedTypes[index]!] as const,
+          ...implementation.genericBounds.map((bound, index) =>
+            this.unboxValue(
+              `(array.get $hd.list ${boundPack} (i32.const ${index}))`,
+              `trait:${
+                bound.traitArguments.length > 0
+                  ? nominalGenericType(bound.traitName, bound.traitArguments)
+                  : bound.traitName
+              }`,
+            ),
           ),
-          ["Self", implementation.targetType] as const,
-        ]);
-        return implementation.methodFunctions.flatMap((mapping) => {
-          const method = trait.methods[mapping.methodIndex]!;
-          const parameters = method.parameters.map(
-            (parameter, index) => `(param $a${index} ${this.parameterWatType(parameter)})`,
-          );
-          const methodBounds = methodBoundParameters(method, "b");
-          const providers = method.requirements.map(
-            (requirement, index) => `(param $p${index} ${this.providerType(requirement)})`,
-          );
-          const result = method.result === "void" ? "" : ` (result ${this.watType(method.result)})`;
-          const dictionary = `(ref.cast (ref $trait${trait.index}) (local.get $dictionary))`;
-          const boundPack = `(ref.as_non_null (struct.get $trait${trait.index} $trait${trait.index}bounds ${dictionary}))`;
-          const arguments_ = [
-            ...(method.associated
-              ? []
-              : [this.unboxValue(`(local.get $self)`, implementation.targetType)]),
-            ...method.parameters.map((parameter, index) =>
-              parameter === "generic:Self"
-                ? this.unboxValue(`(local.get $a${index})`, implementation.targetType)
-                : containsGenericValueType(parameter)
-                  ? this.unboxValue(
-                      `(local.get $a${index})`,
-                      substituteTypeParameters(parameter, traitSubstitutions),
-                    )
-                  : `(local.get $a${index})`,
-            ),
-            ...implementation.genericBounds.map((bound, index) =>
-              this.unboxValue(
-                `(array.get $hd.list ${boundPack} (i32.const ${index}))`,
-                `trait:${
-                  bound.traitArguments.length > 0
-                    ? nominalGenericType(bound.traitName, bound.traitArguments)
-                    : bound.traitName
-                }`,
-              ),
-            ),
-            ...methodBounds.map((_, index) => `(local.get $b${index})`),
-            ...method.requirements.map((_, index) => `(local.get $p${index})`),
+          ...methodBounds.map((_, index) => `(local.get $b${index})`),
+          ...method.requirements.map((_, index) => `(local.get $p${index})`),
+        ];
+        if (mapping.strengthened)
+          return [
+            `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...methodBounds, ...providers].join(" ")}${result}\n  (unreachable)\n)`,
           ];
-          if (mapping.strengthened)
-            return [
-              `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...methodBounds, ...providers].join(" ")}${result}\n  (unreachable)\n)`,
-            ];
-          if (!method.suspending) {
-            const call = `(call ${functionName(mapping.functionIndex)} ${arguments_.join(" ")})`;
-            const body = containsGenericValueType(method.result)
-              ? this.boxWatValue(call, substituteTypeParameters(method.result, traitSubstitutions))
-              : call;
-            return [
-              `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...methodBounds, ...providers].join(" ")}${result}\n  ${body}\n)`,
-            ];
-          }
-          const wrapper = traitSuspensionName(trait.index, method.index);
-          const frame = `$s${mapping.functionIndex}`;
-          const constructor = `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...methodBounds, ...providers].join(" ")} (result (ref null ${wrapper}))\n  (struct.new ${wrapper}\n    (call ${functionName(mapping.functionIndex)} ${arguments_.join(" ")})\n    (ref.func $tspolladapt${implementation.index}_${method.index})\n    (ref.func $tscanceladapt${implementation.index}_${method.index})\n    (ref.func $tsresultadapt${implementation.index}_${method.index}))\n)`;
-          const poll = `(func $tspolladapt${implementation.index}_${method.index} (type $tspollsig${trait.index}_${method.index}) (param $inner anyref) (result i32)\n  (call $poll${mapping.functionIndex} (ref.cast (ref null ${frame}) (local.get $inner)))\n)`;
-          const cancel = `(func $tscanceladapt${implementation.index}_${method.index} (type $tscancelsig${trait.index}_${method.index}) (param $inner anyref)\n  (call $cancel${mapping.functionIndex} (ref.cast (ref null ${frame}) (local.get $inner)))\n)`;
-          const resultBody =
-            method.result === "void"
-              ? ""
-              : `\n  ${
-                  containsGenericValueType(method.result)
-                    ? this.boxWatValue(
-                        `(struct.get ${frame} ${frame}result (ref.cast (ref null ${frame}) (local.get $inner)))`,
-                        substituteTypeParameters(method.result, traitSubstitutions),
-                      )
-                    : `(struct.get ${frame} ${frame}result (ref.cast (ref null ${frame}) (local.get $inner)))`
-                }`;
-          const resultAdapter = `(func $tsresultadapt${implementation.index}_${method.index} (type $tsresultsig${trait.index}_${method.index}) (param $inner anyref)${result}${resultBody}\n)`;
-          return [constructor, poll, cancel, resultAdapter];
-        });
+        if (!method.suspending) {
+          const call = `(call ${functionName(mapping.functionIndex)} ${arguments_.join(" ")})`;
+          const body = containsGenericValueType(method.result)
+            ? this.boxWatValue(call, substituteTypeParameters(method.result, traitSubstitutions))
+            : call;
+          return [
+            `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...methodBounds, ...providers].join(" ")}${result}\n  ${body}\n)`,
+          ];
+        }
+        const wrapper = traitSuspensionName(trait.index, method.index);
+        const frame = `$s${mapping.functionIndex}`;
+        const constructor = `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...methodBounds, ...providers].join(" ")} (result (ref null ${wrapper}))\n  (struct.new ${wrapper}\n    (call ${functionName(mapping.functionIndex)} ${arguments_.join(" ")})\n    (ref.func $tspolladapt${implementation.index}_${method.index})\n    (ref.func $tscanceladapt${implementation.index}_${method.index})\n    (ref.func $tsresultadapt${implementation.index}_${method.index}))\n)`;
+        const poll = `(func $tspolladapt${implementation.index}_${method.index} (type $tspollsig${trait.index}_${method.index}) (param $inner anyref) (result i32)\n  (call $poll${mapping.functionIndex} (ref.cast (ref null ${frame}) (local.get $inner)))\n)`;
+        const cancel = `(func $tscanceladapt${implementation.index}_${method.index} (type $tscancelsig${trait.index}_${method.index}) (param $inner anyref)\n  (call $cancel${mapping.functionIndex} (ref.cast (ref null ${frame}) (local.get $inner)))\n)`;
+        const resultBody =
+          method.result === "void"
+            ? ""
+            : `\n  ${
+                containsGenericValueType(method.result)
+                  ? this.boxWatValue(
+                      `(struct.get ${frame} ${frame}result (ref.cast (ref null ${frame}) (local.get $inner)))`,
+                      substituteTypeParameters(method.result, traitSubstitutions),
+                    )
+                  : `(struct.get ${frame} ${frame}result (ref.cast (ref null ${frame}) (local.get $inner)))`
+              }`;
+        const resultAdapter = `(func $tsresultadapt${implementation.index}_${method.index} (type $tsresultsig${trait.index}_${method.index}) (param $inner anyref)${result}${resultBody}\n)`;
+        return [constructor, poll, cancel, resultAdapter];
       })
       .join("\n\n");
   }

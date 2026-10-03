@@ -5,7 +5,6 @@ import { nominalGenericParts } from "../types.ts";
 interface HostProviderEmission {
   readonly functions: string;
   readonly imports: string;
-  readonly references: readonly string[];
   readonly types: string;
 }
 
@@ -343,7 +342,7 @@ export function emitHostProviders(program: HirProgram): HostProviderEmission {
   const capabilities = new Set(program.hostCapabilities);
   const traits = program.traits.filter((trait) => capabilities.has(trait.name));
   const methods = traits.flatMap((trait) => trait.methods.map((method) => ({ trait, method })));
-  if (methods.length === 0) return { functions: "", imports: "", references: [], types: "" };
+  if (methods.length === 0) return { functions: "", imports: "", types: "" };
   const imports = methods.flatMap(emitImports).join("\n");
   const functions = [
     ...methods.flatMap((hostMethod) => [
@@ -356,12 +355,6 @@ export function emitHostProviders(program: HirProgram): HostProviderEmission {
     ]),
     ...traits.map(emitTraitFactory),
   ].join("\n\n");
-  const references = methods.flatMap(({ trait, method }) => [
-    methodName(trait, method),
-    pollName(trait, method),
-    cancelName(trait, method),
-    resultName(trait, method),
-  ]);
   const types = methods.map(emitFrameType).filter(Boolean).join("\n");
-  return { functions, imports, references, types };
+  return { functions, imports, types };
 }
