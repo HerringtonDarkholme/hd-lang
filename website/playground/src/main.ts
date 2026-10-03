@@ -358,7 +358,7 @@ async function refreshWat(): Promise<void> {
     if (result === "busy") watStale = true;
     else if (result === "stopped" || result === "timeout")
       wat.message("Stopped: compiling took longer than 15 seconds.", "error");
-    else wat.show(result, snapshot.main);
+    else wat.show(result);
     watShown = key;
   } catch (error) {
     wat.message(`The compiler could not start: ${String(error)}`, "error");

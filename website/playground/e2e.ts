@@ -201,10 +201,6 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     const text = (await module.textContent()) ?? "";
     assert.ok(text.startsWith("(module"), text.slice(0, 40));
     assert.match(text, /\(func \(export "main"\) \(param \$provider0 externref\)/);
-    assert.match(
-      (await page.locator(".wat-meta").textContent()) ?? "",
-      /compiles to, with entry module src\/main\.hd/,
-    );
     for (const kind of ["keyword", "instruction", "type", "name", "string", "number"])
       assert.ok((await page.locator(`.wat-code .wat-${kind}`).count()) > 0, kind);
     const main = page.locator(".wat-line", { hasText: '(export "main")' }).first();
@@ -251,10 +247,6 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await page.getByText("Run the project to see the last one").waitFor();
     await page.click("#run");
     await page.locator(".wat-code").waitFor();
-    assert.match(
-      (await page.locator(".wat-meta").textContent()) ?? "",
-      /Run compiled \d+ modules, one for each top-level input it ran\. This is the last one\./,
-    );
     assert.match(
       (await page.locator(".wat-code").textContent()) ?? "",
       /^\(module[\s\S]*\(export "main"\)/,

@@ -44,11 +44,6 @@ const lineCount = (text: string): number => {
   return text.endsWith("\n") ? count - 1 : count;
 };
 
-function kilobytes(text: string): string {
-  const bytes = new TextEncoder().encode(text).length;
-  return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
-}
-
 export class WatPanel {
   private readonly root: HTMLElement;
   private readonly onJump: (diagnostic: RunDiagnostic) => void;
@@ -73,7 +68,7 @@ export class WatPanel {
     );
   }
 
-  show(result: WatResult, path: string): void {
+  show(result: WatResult): void {
     const { module } = result;
     if (result.status !== "ok" || !module) {
       this.text = undefined;
@@ -91,23 +86,10 @@ export class WatPanel {
     }
     this.text = module.wat;
     const lines = lineCount(module.wat);
-    const origin =
-      module.origin === "top-level"
-        ? `Without main, Run compiled ${module.count} ${module.count === 1 ? "module" : "modules"}, one for each top-level input it ran. This is the last one.`
-        : `The module the project compiles to, with entry module ${path}.`;
-    const meta = element("div", "wat-meta");
-    meta.append(
-      element("span", "", origin),
-      element(
-        "span",
-        "wat-stats",
-        `${lines.toLocaleString("en-US")} lines · ${kilobytes(module.wat)} · unoptimized, as the runtime executes it`,
-      ),
-    );
     const code = element("pre", "wat-code");
     code.setAttribute("aria-label", "WebAssembly text");
     code.innerHTML = watHtml(module.wat);
-    const children: HTMLElement[] = [meta, code];
+    const children: HTMLElement[] = [code];
     if (lines > MAX_WAT_LINES) {
       const more = element(
         "div",

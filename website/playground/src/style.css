@@ -467,16 +467,6 @@ button.quiet {
   margin: 10px 14px;
 }
 
-.wat-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 10px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--border);
-  color: var(--muted);
-  font: 12px/1.4 var(--sans);
-}
-
 .wat-code {
   margin: 0;
   padding: 8px 0;
